@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { useAdventureStore } from './adventureStore'
+import { useToastStore } from './toastStore'
 import {
   bibliotecaDeSonsVazia,
+  comBibliotecaJuntada,
   comCategoriasSugeridas,
   comEfeitoMudado,
   comEfeitoNovo,
@@ -17,75 +19,65 @@ import {
   type ParteDosSons,
   type PastaDeSons,
 } from '../lib/sons/biblioteca'
-import { gravarBibliotecaNaAventura, guardarArquivoDeSom, lerBibliotecaDaAventura } from '../lib/sons/bibliotecaNoDisco'
+import { gravarBibliotecaGlobal, guardarArquivoDeSom, lerBibliotecaGlobal, prepararPastaDaBiblioteca } from '../lib/sons/bibliotecaNoDisco'
+import {
+  anotarAventurasMigradas,
+  chaveDaPastaDaAventura,
+  lerAventurasMigradas,
+  pastasDasAventurasDoApp,
+  prepararAventuraParaMigrar,
+  type AventuraParaMigrar,
+} from '../lib/sons/migracaoDosSons'
 
 /**
- * A BIBLIOTECA DE SONS da aventura aberta, na memória (Sistema 4, sons ao
- * vivo). É CONFIGURAÇÃO, não mapa: grava sozinha `ESPERA_PARA_GRAVAR_SONS_MS`
- * depois da última mudança, nunca entra no Ctrl+Z e nunca deixa o mapa "não
- * salvo" — não toca no `mapStore`, no `sessionStore` nem no `adventureStore`.
+ * A BIBLIOTECA DE SONS na memória (Sistema 4, sons ao vivo), GLOBAL DO APP
+ * desde 29/10/2026: uma só, com Músicas e Efeitos sonoros, em qualquer
+ * aventura aberta (e no mapa solto). É CONFIGURAÇÃO, não mapa: grava sozinha
+ * `ESPERA_PARA_GRAVAR_SONS_MS` depois da última mudança, nunca entra no
+ * Ctrl+Z e nunca deixa o mapa "não salvo" — não toca no `mapStore`, no
+ * `sessionStore` nem no `adventureStore`.
  *
- * Segue a aventura do `adventureStore` por `ligarBibliotecaAAventura` (quem
- * monta a aba Sons liga uma vez):
- *  - aventura aberta do disco: lê o `sons.json` dela (sem ele, vazia);
- *  - aventura nova, ainda sem pasta: guarda na memória e grava quando a
- *    primeira gravação da aventura der a pasta (`dir` aparece, mesmo id);
- *  - mesma aventura em OUTRA pasta (a cópia de backup tem o mesmo id do
- *    `adventure.json`): é troca, lê o `sons.json` da outra pasta;
- *  - mapa solto: sem biblioteca (a aba pede para salvar como aventura).
- * A biblioteca gravável abre com as categorias sugeridas de cada parte
- * (`comCategoriasSugeridas`, uma vez por biblioteca); elas só vão para o disco
- * com a próxima mudança do mestre.
- * Trocar de aventura com mudança esperando grava antes na pasta da anterior,
- * e nada muda enquanto isso.
+ * `ligarBibliotecaGlobal` (quem monta a aba Sons liga uma vez) lê
+ * `<appData>/sons/sons.json` e migra para ela, uma vez cada, o `sons.json`
+ * das aventuras de `<appData>/maps` e o da aventura aberta; a aventura aberta
+ * depois, de qualquer pasta, migra quando abre (`migracaoDosSons.ts`). A
+ * biblioteca gravável ganha as categorias sugeridas de cada parte
+ * (`comCategoriasSugeridas`, uma vez por biblioteca) DEPOIS da migração: a
+ * sugerida que o mestre apagou numa aventura não volta.
  */
 
 /** Quanto a biblioteca espera parada antes de ir para o disco. */
 export const ESPERA_PARA_GRAVAR_SONS_MS = 400
 
-export const SONS_SEM_AVENTURA = 'Salve como aventura para guardar sons aqui.'
-export const SONS_AINDA_LENDO = 'Os sons desta aventura ainda estão sendo lidos. Tente de novo em instantes.'
-export const SONS_NAO_GRAVAVEIS = 'Os sons desta aventura não puderam ser lidos, então nada novo é guardado para não apagar o que está lá.'
-export const SONS_AVENTURA_TROCOU = 'A aventura mudou enquanto o áudio era guardado, então ele não entrou em nenhuma biblioteca. Importe de novo na aventura certa.'
-
-/** Uma aventura e a pasta dela, como o `adventureStore` diz. */
-interface ParDaAventura {
-  aventuraId: string | null
-  dir: string | null
-}
+export const SONS_AINDA_LENDO = 'A biblioteca de sons ainda está sendo lida. Tente de novo em instantes.'
+export const SONS_NAO_GRAVAVEIS = 'A biblioteca de sons não pôde ser lida, então nada novo é guardado para não apagar o que está lá.'
+const SONS_SEM_PASTA = 'Não foi possível abrir a pasta da biblioteca de sons (o disco recusou). Nada novo é guardado até o app abrir de novo.'
+/** Avisos de som ficam como os de mídia: pedem leitura, não ação. */
+const AVISO_DE_MIGRACAO_MS = 7000
 
 interface BibliotecaDeSonsState {
-  /**
-   * O último par pedido a `sincronizarComAAventura` (interno). O pedido novo é
-   * comparado com ELE, e não com o estado já aplicado: em X → Y → X, o segundo
-   * X chega com o estado ainda em X (a troca para Y espera o disco) e seria
-   * engolido como "nada mudou".
-   */
-  pedido: ParDaAventura
   biblioteca: BibliotecaDeSons
-  /** A aventura dona da biblioteca; `null` = mapa solto (fora da v1). */
-  aventuraId: string | null
-  /** Pasta onde grava; `null` com aventura = aventura nova, ainda sem pasta: fica na memória. */
-  dir: string | null
-  /** Lendo o `sons.json` da aventura que acabou de abrir: mudar agora se perderia. */
+  /** `<appData>/sons`, a pasta da biblioteca; `null` = ainda não lida (ou o disco recusou). A sala serve `/sons/<id>` de dentro dela. */
+  pasta: string | null
+  /** Lendo (e migrando) a biblioteca: mudar agora se perderia. Nasce `true`: nada muda antes da primeira leitura. */
   carregando: boolean
   /** Há mudança que ainda não foi para o disco. */
   pendente: boolean
   /** Leitura ou gravação que deu errado, em frase pronta; `null` = tudo certo. */
   aviso: string | null
-  /** `false` = o `sons.json` existe e não foi lido (ou não há aventura): gravar passaria por cima dele. */
+  /** `false` = o `sons.json` existe e não foi lido: gravar passaria por cima dele. */
   podeGravar: boolean
 
-  /** Segue a aventura aberta. Nunca rejeita. Quem chama no app é `ligarBibliotecaAAventura`. */
-  sincronizarComAAventura: (aventuraId: string | null, dir: string | null) => Promise<void>
-  /** Efeito novo no fim; `null` = recusado (dado inválido, 200 efeitos, sem aventura, lendo). */
+  /** Lê a biblioteca global e migra as aventuras; a chamada seguinte devolve a mesma promessa (sem pasta lida, lê de novo). Nunca rejeita. */
+  carregar: () => Promise<void>
+  /** Traz o `sons.json` da aventura de `pastaDaAventura`, se ela ainda não migrou. Nunca rejeita. */
+  migrarAventura: (pastaDaAventura: string) => Promise<void>
+  /** Efeito novo no fim; `null` = recusado (dado inválido, 200 efeitos, lendo, sem poder gravar). */
   adicionarEfeito: (novo: EfeitoNovo) => EfeitoDeSom | null
   /**
    * O arquivo de áudio escolhido vira efeito: gravado direto em
-   * `<aventura>/midia` (fora do `/media` sem chave da sala). A aventura nova,
-   * ainda sem pasta, guarda em `<appData>/midia`, e a primeira gravação leva
-   * para a pasta. Lança com a frase pronta (`AUDIO_GRANDE_DEMAIS`,
-   * `AUDIO_NAO_E_AUDIO`, `SONS_SEM_AVENTURA`...).
+   * `<appData>/sons/midia` (fora do `/media` sem chave da sala). Lança com a
+   * frase pronta (`AUDIO_GRANDE_DEMAIS`, `AUDIO_NAO_E_AUDIO`, `SONS_AINDA_LENDO`...).
    */
   importarArquivoDeSom: (nomeDoArquivo: string, bytes: Uint8Array, parte?: ParteDosSons) => Promise<EfeitoDeSom>
   /** `false` = recusado (efeito que não existe ou campo inválido). Atalho dado a outro sai de quem tinha. */
@@ -96,14 +88,15 @@ interface BibliotecaDeSonsState {
   renomearPasta: (id: string, nome: string) => boolean
   /** Os efeitos da pasta vão para a raiz. */
   apagarPasta: (id: string) => boolean
-  /** Grava já o que está esperando (sem pasta, ou sem poder gravar, continua esperando). Nunca rejeita. */
+  /** Grava já o que está esperando (sem poder gravar, continua esperando). Nunca rejeita. */
   gravarAgora: () => Promise<void>
 }
 
 /** O relógio do salvamento sozinho: um só, recomeça a cada mudança. */
 let temporizador: ReturnType<typeof setTimeout> | null = null
-/** Cada troca de aventura ganha um número: a leitura que chega depois de outra troca é descartada. */
-let geracao = 0
+/** A leitura da biblioteca: uma só enquanto corre e depois de dar certo. */
+let carga: Promise<void> | null = null
+let cargaTerminou = false
 
 function pararRelogio(): void {
   if (temporizador === null) return
@@ -115,21 +108,19 @@ function mensagem(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
 }
 
-const ESTADO_SEM_AVENTURA = {
-  biblioteca: bibliotecaDeSonsVazia(),
-  aventuraId: null,
-  dir: null,
-  carregando: false,
-  pendente: false,
-  aviso: null,
-  podeGravar: false,
-} satisfies Partial<BibliotecaDeSonsState>
+/** O que a migração deixou de fora, num aviso só; nada de fora = sem aviso. */
+function avisarDoQueFicouDeFora(naoCouberam: number, audiosQueFaltaram: number): void {
+  const partes: string[] = []
+  if (naoCouberam > 0) partes.push(naoCouberam === 1 ? '1 som das aventuras não coube na biblioteca (o teto é de 200 sons)' : `${naoCouberam} sons das aventuras não couberam na biblioteca (o teto é de 200 sons)`)
+  if (audiosQueFaltaram > 0) partes.push(audiosQueFaltaram === 1 ? '1 arquivo de áudio não foi achado neste computador e não toca' : `${audiosQueFaltaram} arquivos de áudio não foram achados neste computador e não tocam`)
+  if (partes.length === 0) return
+  useToastStore.getState().push('info', `${partes.join('; ')}. O sons.json de cada aventura continua na pasta dela.`, AVISO_DE_MIGRACAO_MS, { chave: 'sons-migracao' })
+}
 
 export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, get) => {
   /** Por que não dá para mudar agora; `null` = dá. */
   const impedimento = (): string | null => {
-    const { aventuraId, carregando, podeGravar } = get()
-    if (aventuraId === null) return SONS_SEM_AVENTURA
+    const { carregando, podeGravar } = get()
     if (carregando) return SONS_AINDA_LENDO
     return podeGravar ? null : SONS_NAO_GRAVAVEIS
   }
@@ -151,61 +142,113 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
     return true
   }
 
+  /** Grava a biblioteca de agora e, só se ela gravou, anota as aventuras migradas. Nunca rejeita. */
+  const gravarComAsMigradas = async (chaves: readonly string[]): Promise<void> => {
+    pararRelogio()
+    set({ pendente: false })
+    try {
+      await gravarBibliotecaGlobal(get().biblioteca, async () => {
+        try {
+          await anotarAventurasMigradas(chaves)
+        } catch {
+          // Sem a nota, a próxima abertura migra de novo: nada se repete (`comBibliotecaJuntada`), só o som apagado voltaria.
+        }
+      })
+      set({ aviso: null })
+    } catch (erro) {
+      set({ pendente: true, aviso: mensagem(erro) })
+    }
+  }
+
+  /** Junta as aventuras na biblioteca de agora (a mudança feita enquanto o disco lia não se perde). */
+  const juntar = (aventuras: readonly AventuraParaMigrar[]): void => {
+    let biblioteca = get().biblioteca
+    let naoCouberam = 0
+    let audiosQueFaltaram = 0
+    for (const aventura of aventuras) {
+      const juntada = comBibliotecaJuntada(biblioteca, aventura.origem)
+      biblioteca = juntada.biblioteca
+      naoCouberam += juntada.naoCouberam
+      audiosQueFaltaram += aventura.audiosQueFaltaram
+    }
+    set({ biblioteca })
+    avisarDoQueFicouDeFora(naoCouberam, audiosQueFaltaram)
+  }
+
+  const carregarAgora = async (): Promise<void> => {
+    let pasta: string
+    try {
+      pasta = await prepararPastaDaBiblioteca()
+    } catch {
+      set({ carregando: false, podeGravar: false, aviso: SONS_SEM_PASTA })
+      return
+    }
+    const lida = await lerBibliotecaGlobal()
+    if (!lida.podeGravar) {
+      // Sugestões só na biblioteca que se pode gravar: a que não foi lida mostra o vazio, não categorias de mentira.
+      set({ biblioteca: lida.biblioteca, pasta, carregando: false, aviso: lida.aviso, podeGravar: false })
+      return
+    }
+    const jaMigradas = await lerAventurasMigradas()
+    const aberta = useAdventureStore.getState().dir
+    const candidatas = [...(await pastasDasAventurasDoApp()), ...(aberta === null ? [] : [aberta])]
+    const vistas = new Set<string>()
+    const aventuras: AventuraParaMigrar[] = []
+    // Uma por vez: cada uma pode levar áudios de até 15 MB, e isto corre uma vez por aventura.
+    for (const candidata of candidatas) {
+      const chave = chaveDaPastaDaAventura(candidata)
+      if (jaMigradas.has(chave) || vistas.has(chave)) continue
+      vistas.add(chave)
+      const preparada = await prepararAventuraParaMigrar(candidata)
+      if (preparada !== null) aventuras.push(preparada)
+    }
+    set({ biblioteca: lida.biblioteca, pasta, aviso: lida.aviso, podeGravar: true })
+    juntar(aventuras)
+    set({ biblioteca: comCategoriasSugeridas(get().biblioteca), carregando: false })
+    // As sugestões sozinhas só vão para o disco com a próxima mudança do mestre; a migração vai já.
+    if (aventuras.length > 0) await gravarComAsMigradas(aventuras.map((aventura) => aventura.chave))
+  }
+
   return {
-    ...ESTADO_SEM_AVENTURA,
-    pedido: { aventuraId: null, dir: null },
+    biblioteca: bibliotecaDeSonsVazia(),
+    pasta: null,
+    carregando: true,
+    pendente: false,
+    aviso: null,
+    podeGravar: false,
+
+    carregar: () => {
+      // Correndo, ou já lida: a mesma promessa. Terminada sem pasta (o disco recusou, ou o estado recomeçou): lê de novo.
+      if (carga !== null && (!cargaTerminou || get().pasta !== null)) return carga
+      cargaTerminou = false
+      carga = carregarAgora().finally(() => {
+        cargaTerminou = true
+      })
+      return carga
+    },
+
+    migrarAventura: async (pastaDaAventura) => {
+      await get().carregar()
+      const chave = chaveDaPastaDaAventura(pastaDaAventura)
+      if (!get().podeGravar || (await lerAventurasMigradas()).has(chave)) return
+      const preparada = await prepararAventuraParaMigrar(pastaDaAventura)
+      if (preparada === null || !get().podeGravar) return
+      juntar([preparada])
+      await gravarComAsMigradas([chave])
+    },
 
     gravarAgora: async () => {
       pararRelogio()
-      const { biblioteca, dir, pendente, podeGravar, aventuraId } = get()
-      if (!pendente || dir === null || !podeGravar) return
+      const { biblioteca, pendente, podeGravar } = get()
+      if (!pendente || !podeGravar) return
       set({ pendente: false })
       try {
-        await gravarBibliotecaNaAventura(dir, biblioteca)
-        if (get().aventuraId === aventuraId) set({ aviso: null })
+        await gravarBibliotecaGlobal(biblioteca)
+        set({ aviso: null })
       } catch (erro) {
-        // Continua esperando só se ainda é a mesma aventura na mesma pasta; a próxima mudança tenta de novo.
-        if (get().aventuraId === aventuraId && get().dir === dir) set({ pendente: true, aviso: mensagem(erro) })
+        // Continua esperando: a próxima mudança tenta de novo.
+        set({ pendente: true, aviso: mensagem(erro) })
       }
-    },
-
-    sincronizarComAAventura: async (aventuraId, dir) => {
-      const anterior = get().pedido
-      if (anterior.aventuraId === aventuraId && anterior.dir === dir) return
-      set({ pedido: { aventuraId, dir } })
-      const atual = get()
-      // Só a aventura nova, SEM pasta e já assentada nela, leva a biblioteca da memória para a pasta que ganhou.
-      // De uma pasta para outra é troca: a outra pasta (uma cópia de backup tem o mesmo id) tem o sons.json dela.
-      const ganhouPasta =
-        aventuraId !== null && dir !== null && anterior.aventuraId === aventuraId && anterior.dir === null && atual.aventuraId === aventuraId && atual.dir === null && !atual.carregando
-      if (ganhouPasta) {
-        const temConteudo = atual.biblioteca.efeitos.length > 0 || atual.biblioteca.pastas.length > 0
-        set({ dir, pendente: atual.pendente || temConteudo })
-        await get().gravarAgora()
-        return
-      }
-
-      const minha = ++geracao
-      // O que estava esperando vai para a pasta da aventura anterior antes de trocar; enquanto o disco grava,
-      // nada muda (`carregando`): a mudança feita agora iria para a aventura que está saindo e se perderia.
-      set({ carregando: true })
-      await get().gravarAgora()
-      if (minha !== geracao) return
-      pararRelogio()
-      if (aventuraId === null) {
-        set({ ...ESTADO_SEM_AVENTURA, biblioteca: bibliotecaDeSonsVazia() })
-        return
-      }
-      if (dir === null) {
-        set({ ...ESTADO_SEM_AVENTURA, biblioteca: comCategoriasSugeridas(bibliotecaDeSonsVazia()), aventuraId, podeGravar: true })
-        return
-      }
-      set({ ...ESTADO_SEM_AVENTURA, biblioteca: bibliotecaDeSonsVazia(), aventuraId, dir, carregando: true })
-      const lida = await lerBibliotecaDaAventura(dir)
-      if (minha !== geracao) return
-      // Sugestões só na biblioteca que se pode gravar: a que não foi lida mostra o vazio, não categorias de mentira.
-      const biblioteca = lida.podeGravar ? comCategoriasSugeridas(lida.biblioteca) : lida.biblioteca
-      set({ biblioteca, carregando: false, aviso: lida.aviso, podeGravar: lida.podeGravar })
     },
 
     adicionarEfeito: (novo) => {
@@ -219,13 +262,7 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
     importarArquivoDeSom: async (nomeDoArquivo, bytes, parte) => {
       const antes = impedimento()
       if (antes !== null) throw new Error(antes)
-      const { aventuraId, dir } = get()
-      const fonte = await guardarArquivoDeSom(bytes, dir)
-      // A aventura pode ter trocado enquanto o disco gravava o áudio, e a troca já ter terminado (a outra
-      // lida e pronta para mudar): o efeito não vai para a outra. A mesma aventura em outra pasta também é
-      // troca (a cópia de backup tem o mesmo id); a aventura nova que ganhou a PRIMEIRA pasta não é.
-      const trocou = get().aventuraId !== aventuraId || (dir !== null && get().dir !== dir)
-      if (trocou) throw new Error(SONS_AVENTURA_TROCOU)
+      const fonte = await guardarArquivoDeSom(bytes)
       const depois = impedimento()
       if (depois !== null) throw new Error(depois)
       const efeito = get().adicionarEfeito({ nome: nomeDeSomDoArquivo(nomeDoArquivo), fonte, ...(parte === undefined ? {} : { parte }) })
@@ -250,19 +287,13 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
 })
 
 /**
- * Liga a biblioteca à aventura aberta: sincroniza com a de agora e com cada
- * troca de aventura ou de pasta. Devolve o desligar (para o `useEffect` de
- * quem monta a aba Sons, que fica sempre montada).
+ * Liga a biblioteca global: a primeira leitura (com a migração) e, a cada
+ * aventura aberta depois, a migração dela. Devolve o desligar (para o
+ * `useEffect` de quem monta a aba Sons, que fica sempre montada).
  */
-export function ligarBibliotecaAAventura(): () => void {
-  const sincronizar = (aventuraId: string | null, dir: string | null): void => {
-    void useBibliotecaDeSonsStore.getState().sincronizarComAAventura(aventuraId, dir) // nunca rejeita
-  }
-  const inicial = useAdventureStore.getState()
-  // `adventure` nulo é o mapa solto, caso legítimo: sem aventura, sem id.
-  sincronizar(inicial.adventure?.id ?? null, inicial.dir)
+export function ligarBibliotecaGlobal(): () => void {
+  void useBibliotecaDeSonsStore.getState().carregar() // nunca rejeita
   return useAdventureStore.subscribe((estado, anterior) => {
-    const id = estado.adventure?.id ?? null
-    if (id !== (anterior.adventure?.id ?? null) || estado.dir !== anterior.dir) sincronizar(id, estado.dir)
+    if (estado.dir !== null && estado.dir !== anterior.dir) void useBibliotecaDeSonsStore.getState().migrarAventura(estado.dir) // nunca rejeita
   })
 }

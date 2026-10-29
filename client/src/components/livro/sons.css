@@ -31,6 +31,25 @@
   font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
   color: var(--lb-color-parchment-faint);
 }
+/* Volume deste computador: rótulo, nota e número numa linha; a barra e o mudo na de baixo. */
+.lb-sons__volume { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lb-sons__volume-rot { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.lb-sons__volume-nota {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
+}
+.lb-sons__volume-linha { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.lb-sons__volume-linha .gr-faixa { flex: 1 1 auto; min-width: 0; }
+.lb-sons__volume[data-estado='mudo'] .gr-faixa { opacity: 0.55; }
+/* Mudo ligado: aceso como o Repetir ligado. */
+.lb-sons__mudo { flex: none; }
+.lb-sons__mudo[aria-pressed='true'] {
+  color: var(--lb-color-brass-bright);
+  background: color-mix(in srgb, var(--lb-color-brass) 16%, transparent);
+}
 /* Parar tudo é o pânico: largo e mais alto que o Importar (preparo, discreto, sem latão). */
 .lb-sons__linha .lb-sons__parar { flex: 1 1 100%; min-height: 36px; font-size: var(--lb-font-size-md); }
 .lb-sons__parar:not(:disabled) {
@@ -194,7 +213,8 @@
   contain-intrinsic-size: auto 44px;
 }
 
-/* A linha: selo (36 px, do tamanho do lápis), nome numa linha só, as marcas, e o espaço do lápis à direita. */
+/* A linha: selo (36 px, do tamanho dos botões), nome numa linha só, as marcas, e o espaço das ações à direita
+   (Repetir e lápis: 2 × 36 + 6; tocando, o Parar entra e o nome encurta com reticências, sem empurrar nada). */
 .lb-efeito__tocar {
   position: relative;
   width: 100%;
@@ -202,7 +222,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 42px 3px 3px;
+  padding: 3px 78px 3px 3px;
   font: inherit;
   text-align: left;
   color: var(--lb-color-parchment);
@@ -222,6 +242,7 @@
 .lb-efeito__tocar:active { transform: scale(0.98); }
 /* Tocando: borda e anel de latão (7,1:1 sobre o cartão alto; o filete dava 1,7:1, abaixo dos 3:1 do WCAG 1.4.11). */
 .lb-efeito--tocando .lb-efeito__tocar {
+  padding-right: 114px;
   background: var(--lb-gr-cartao-alto);
   border-color: var(--lb-color-brass);
   box-shadow: var(--lb-shadow-bevel), inset 0 0 0 1px var(--lb-color-brass);
@@ -285,16 +306,6 @@
 }
 .lb-efeito__favorito { flex: none; display: inline-grid; color: var(--lb-color-brass); }
 .lb-efeito__favorito .gr-ic { width: 13px; height: 13px; }
-.lb-efeito__loop {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
-  color: var(--lb-gr-gravado);
-}
-.lb-efeito__loop .gr-ic { width: 13px; height: 13px; }
-.lb-efeito__loop--parar { color: var(--lb-color-brass-bright); }
 
 /* A barra fina do progresso, na borda de baixo: tempo correndo é linear. */
 .lb-efeito__trilho { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
@@ -315,11 +326,15 @@
   to { transform: scaleX(1); }
 }
 
-/* O lápis: 36 px, como o selo do outro lado da linha. */
-.lb-efeito__lapis {
+/* As ações da linha (Parar, Repetir, lápis): 36 px cada, como o selo do outro lado, ancoradas à direita. */
+.lb-efeito__acoes {
   position: absolute;
   top: 4px;
   right: 4px;
+  display: flex;
+  gap: 2px;
+}
+.lb-efeito__acao {
   width: 36px;
   height: 36px;
   display: grid;
@@ -332,13 +347,25 @@
   border-radius: var(--lb-radius-sm);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
 }
-.lb-efeito__lapis .gr-ic { width: 16px; height: 16px; }
+.lb-efeito__acao:active { transform: scale(0.95); }
+.lb-efeito__acao .gr-ic { width: 16px; height: 16px; }
+/* Repetir ligado: aceso em latão, com o fundo leve; desligado, apagado como o lápis. */
+.lb-efeito__acao--repetir[aria-pressed='true'] {
+  color: var(--lb-color-brass-bright);
+  background: color-mix(in srgb, var(--lb-color-brass) 16%, transparent);
+}
+.lb-efeito__acao--parar { color: var(--lb-color-brass-bright); }
 
 @media (pointer: coarse) {
-  .lb-efeito__tocar { min-height: 48px; padding-right: 48px; }
-  .lb-efeito__lapis { top: 2px; right: 2px; width: 44px; height: 44px; }
+  .lb-efeito__tocar { min-height: 48px; padding-right: 92px; }
+  .lb-efeito--tocando .lb-efeito__tocar { padding-right: 136px; }
+  .lb-efeito__acoes { top: 2px; right: 2px; gap: 0; }
+  .lb-efeito__acao { width: 44px; height: 44px; }
   .lb-sons__topo .gr-bt,
   .lb-sons__recusas .gr-bt,
   .lb-sons__pasta-acoes .gr-bt,
@@ -354,8 +381,11 @@
   /* O hover é mais fraco que o tocando: meio caminho do fundo e filete forte, sem latão. */
   .lb-efeito__tocar:hover { background: color-mix(in srgb, var(--lb-gr-cartao-alto) 50%, var(--lb-gr-cartao)); border-color: var(--lb-gr-filete-forte); }
   .lb-efeito--tocando .lb-efeito__tocar:hover { background: var(--lb-gr-cartao-alto); border-color: var(--lb-color-brass); }
-  .lb-efeito__lapis:hover,
+  .lb-efeito__acao:hover,
   .lb-cat__organizar:hover { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment); }
+  .lb-efeito__acao--repetir[aria-pressed='true']:hover,
+  .lb-sons__mudo[aria-pressed='true']:hover,
+  .lb-efeito__acao--parar:hover { color: var(--lb-color-brass-bright); }
   .lb-cat__abrir:not(:disabled):hover > .gr-ic { color: var(--lb-color-parchment); }
   .lb-sons__nova-cat:hover { color: var(--lb-color-parchment); border-color: var(--lb-gr-filete-latao); }
   .lb-sons__aba:hover:not([aria-selected='true']) { color: var(--lb-color-parchment); background: var(--lb-gr-hover); }

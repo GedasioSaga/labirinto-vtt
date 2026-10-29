@@ -30,7 +30,7 @@
   <h2>A cadeia do som, do clique ao navegador</h2>
   <svg viewBox="0 0 808 544" role="img" aria-labelledby="sons-cadeia-title sons-cadeia-desc">
     <title id="sons-cadeia-title">Cadeia do som ao vivo, do clique ao jogador</title>
-    <desc id="sons-cadeia-desc">A aba Sons do mestre usa a biblioteca na pasta da aventura e a ponte de rede. A ponte toca no motor local, que também toca vídeo do YouTube, e manda as mensagens ao servidor da sala, em Rust, que só entrega o áudio de arquivo ao jogador e à TV com a chave da conexão e a liberação do mestre. O YouTube não passa pelo servidor. A rota antiga /media ainda serve áudio sem chave.</desc>
+    <desc id="sons-cadeia-desc">A aba Sons do mestre usa a biblioteca global de sons (a mesma em todas as aventuras) e a ponte de rede. A ponte toca no motor local, que também toca vídeo do YouTube, e manda as mensagens ao servidor da sala, em Rust, que só entrega o áudio de arquivo ao jogador e à TV com a chave da conexão e a liberação do mestre. O YouTube não passa pelo servidor. A rota antiga /media ainda serve áudio sem chave.</desc>
     <defs>
       <marker id="cad-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
@@ -102,7 +102,7 @@
     <text x="44" y="217" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISCO</text>
     <text x="80" y="240" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Biblioteca</text>
     <text x="80" y="256" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">sons.json + áudios</text>
-    <text x="80" y="268" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">&lt;aventura&gt;/midia/</text>
+    <text x="80" y="268" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">&lt;appData&gt;/sons/midia/</text>
 
     <!-- Ponte de rede -->
     <rect x="232" y="40" width="128" height="80" rx="6" fill="#f5f5f5"/>
@@ -189,19 +189,19 @@
     <li>Liberação por conexão: o host manda a mensagem e a lista de áudios no mesmo <code>net_send({ clientId, msg, liberar })</code>. O Rust só serve a uma conexão o que foi liberado a ELA, até 32 ids por envio e 256 por conexão (entra o novo, sai o mais velho). A liberação some com a queda, o kick, a aba trocada e o fim da sala.</li>
     <li>Limites do servidor: 2 buscas simultâneas por chave, 6 na sala e 30 por 10 s por IP (429 com <code>Retry-After</code>). O pico de memória fica em 6 × 15 MB.</li>
     <li>Um 404 só: método que não é GET, <code>Host</code> de fora, chave errada, áudio não liberado, caminho fora da pasta, tamanho, assinatura ou hash errados dão o MESMO 404 vazio. Quem sonda não descobre quais sons existem.</li>
-    <li>Pasta: <code>net_sons_aventura</code> conta ao servidor qual é a pasta da aventura aberta. Ele lê só <code>&lt;aventura&gt;/midia/&lt;id&gt;</code>, e o caminho real tem de ser exatamente esse (link e junção dão 404). Pasta recusada tira a anterior.</li>
+    <li>Pasta: <code>net_sons_aventura</code> conta ao servidor a pasta da biblioteca de sons global, <code>&lt;appData&gt;/sons</code> (desde 29/10/2026; o Rust confere que é exatamente essa pasta, e a de uma aventura com <code>adventure.json</code> continua aceita). Ele lê só <code>&lt;pasta&gt;/midia/&lt;id&gt;</code>, e o caminho real tem de ser exatamente esse (link e junção dão 404). Pasta recusada tira a anterior.</li>
     <li>O que viaja: <code>som.tocar</code>, <code>som.parar</code>, <code>som.pararTudo</code>, <code>som.volume</code> e <code>som.precarregar</code> (mestre para jogador e TV, em <code>net/protocol.ts</code>); <code>som.falhou</code> volta ao mestre com motivo de lista fechada. A fonte é só <code>{ tipo: 'arquivo', midia: '&lt;sha256&gt;.&lt;ext&gt;' }</code> ou, no YouTube (F6), <code>{ tipo: 'youtube', video, inicioS?, fimS? }</code> (id de 11 caracteres e trecho em segundos, sem link nem nome), e o efeito vai com um apelido sorteado (<code>som-&lt;uuid&gt;</code>): nome e pasta do mestre não saem. A fonte do YouTube não libera nada em <code>/sons</code>, e jogador antigo recusa esse <code>som.tocar</code> inteiro.</li>
     <li>Quem recebe: <code>audienciaDosSons.ts</code> escolhe os destinos (Todos, Só a cena, Escolhidos). A TV entra em Todos e em Só a cena, nunca em Escolhidos. Quem entra com um loop tocando recebe o <code>som.tocar</code> no ponto certo; quem sai da cena recebe <code>som.parar</code>.</li>
     <li>Jogador e TV usam o mesmo caminho: <code>sonsAoVivoDoJogador.ts</code> liga a conexão ao motor, <code>carregadorDeSons.ts</code> busca <code>/sons/{id}</code> (mesma origem, sem redirecionar, sem cookie, teto de 15 MB lido em pedaços) e <code>FaixaTocarParaOuvir.tsx</code> pede o toque que destrava o áudio. A faixa não mostra texto vindo do host. O motor do jogador e da TV é o de <code>motorComYoutube.ts</code> (arquivo mais o player do YouTube escondido); para fonte de YouTube o <code>carregadorDeSons.ts</code> nem é chamado.</li>
-    <li>Ainda aberto (F5d): a rota <code>/media/{id}</code> serve <code>&lt;appData&gt;/midia</code> sem chave e sem conferir a sala. O áudio da biblioteca já não entra ali (fica em <code>&lt;aventura&gt;/midia</code>), mas o áudio da dança e as cópias antigas que uma versão anterior pôs lá continuam servidos a quem souber o id. O teste <code>achado_f5d_media_ainda_serve_audio_sem_chave</code> (<code>desktop/src-tauri/tests/net_sons.rs</code>) prova o buraco e deve ser invertido na F5d.</li>
+    <li>Ainda aberto (F5d): a rota <code>/media/{id}</code> serve <code>&lt;appData&gt;/midia</code> sem chave e sem conferir a sala. O áudio da biblioteca já não entra ali (fica em <code>&lt;appData&gt;/sons/midia</code>, como a música da dança desde a biblioteca global), mas o áudio da dança e as cópias antigas que uma versão anterior pôs lá continuam servidos a quem souber o id. O teste <code>achado_f5d_media_ainda_serve_audio_sem_chave</code> (<code>desktop/src-tauri/tests/net_sons.rs</code>) prova o buraco e deve ser invertido na F5d.</li>
   </ul>
 
   <h2>Biblioteca de sons: dados e disco</h2>
-  <p>Onde a biblioteca de sons vive e como ela chega ao disco. A biblioteca é configuração da aventura: grava sozinha, fora do Ctrl+Z, sem deixar o mapa "não salvo". O <code>sons.json</code> fica ao lado do <code>adventure.json</code>, que não ganha campo nenhum, e o áudio importado viaja na pasta <code>midia/</code> da aventura.</p>
+  <p>Onde a biblioteca de sons vive e como ela chega ao disco. Desde 29/10/2026 ela é GLOBAL do app: uma só, em <code>&lt;appData&gt;/sons/sons.json</code>, com os áudios em <code>&lt;appData&gt;/sons/midia/</code>, e aparece em qualquer aventura (e no mapa solto). Grava sozinha, fora do Ctrl+Z, sem deixar o mapa "não salvo". O <code>sons.json</code> de cada aventura (de antes) migra para ela uma vez e fica onde está.</p>
 
   <svg viewBox="0 0 720 460" role="img" aria-labelledby="sons-ao-vivo-title sons-ao-vivo-desc">
     <title id="sons-ao-vivo-title">Biblioteca de sons: dados e disco</title>
-    <desc id="sons-ao-vivo-desc">A biblioteca de sons na memória segue a aventura aberta, recebe efeitos novos do arquivo importado, passa pelas regras puras que descartam entrada torta e grava 400 ms depois da última mudança o sons.json e a cópia dos áudios na pasta da aventura, que voltam conferidos pelo hash em outro computador.</desc>
+    <desc id="sons-ao-vivo-desc">A biblioteca de sons global na memória recebe uma vez o sons.json de cada aventura (só lido), recebe efeitos novos do arquivo importado (gravado na mídia da biblioteca), passa pelas regras puras que descartam entrada torta e juntam sem repetir, e grava 400 ms depois da última mudança o sons.json global e a nota das aventuras já migradas.</desc>
     <defs>
       <marker id="sons-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
@@ -216,7 +216,7 @@
     <!-- Aventura aberta -> biblioteca -->
     <path d="M124 96 V128 Q124 136 132 136 H320 Q328 136 328 144 V172" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sons-arrow)"/>
     <rect x="192" y="116" width="72" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="228" y="125" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ID + PASTA</text>
+    <text x="228" y="125" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MIGRA 1 VEZ</text>
     <!-- Arquivo escolhido -> biblioteca -->
     <path d="M564 96 V128 Q564 136 556 136 H400 Q392 136 392 144 V172" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sons-arrow)"/>
     <rect x="440" y="116" width="76" height="12" rx="2" fill="#f5f5f5"/>
@@ -237,24 +237,20 @@
     <path d="M268 352 H220" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sons-arrow)"/>
     <rect x="224" y="332" width="40" height="12" rx="2" fill="#f5f5f5"/>
     <text x="244" y="341" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">GRAVA</text>
-    <!-- Gravação -> mídia da aventura -->
+    <!-- Gravação -> nota da migração -->
     <path d="M452 352 H500" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sons-arrow)"/>
     <rect x="460" y="332" width="36" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="478" y="341" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">COPIA</text>
+    <text x="478" y="341" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ANOTA</text>
     <!-- sons.json -> regras puras (ao abrir) -->
     <path d="M124 320 V244" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#sons-arrow)"/>
     <rect x="132" y="272" width="64" height="12" rx="2" fill="#f5f5f5"/>
     <text x="136" y="281" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">LÊ AO ABRIR</text>
-    <!-- Mídia da aventura -> mídia do app (outro computador) -->
-    <path d="M596 320 V244" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#sons-arrow)"/>
-    <rect x="604" y="272" width="72" height="12" rx="2" fill="#f5f5f5"/>
-    <text x="608" y="281" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">CONFERE HASH</text>
 
     <!-- Linha 1: entradas -->
     <rect x="32" y="32" width="184" height="64" rx="6" fill="#f5f5f5"/>
     <rect x="32" y="32" width="184" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
-    <text x="124" y="60" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Aventura aberta</text>
-    <text x="124" y="76" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">adventureStore · só leitura</text>
+    <text x="124" y="60" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">sons.json das aventuras</text>
+    <text x="124" y="76" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">só leitura · migracaoDosSons</text>
 
     <rect x="504" y="32" width="184" height="64" rx="6" fill="#f5f5f5"/>
     <rect x="504" y="32" width="184" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
@@ -274,14 +270,14 @@
 
     <rect x="504" y="176" width="184" height="64" rx="6" fill="#f5f5f5"/>
     <rect x="504" y="176" width="184" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
-    <text x="596" y="204" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mídia do app</text>
-    <text x="596" y="220" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">&lt;appData&gt;/midia/&lt;sha256&gt;.wav</text>
+    <text x="596" y="204" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mídia da biblioteca</text>
+    <text x="596" y="220" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">&lt;appData&gt;/sons/midia/&lt;sha256&gt;.wav</text>
 
     <!-- Linha 3 -->
     <rect x="32" y="320" width="184" height="64" rx="6" fill="#f5f5f5"/>
     <rect x="32" y="320" width="184" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
-    <text x="124" y="348" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">sons.json</text>
-    <text x="124" y="364" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ao lado do adventure.json</text>
+    <text x="124" y="348" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">sons.json global</text>
+    <text x="124" y="364" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">&lt;appData&gt;/sons/sons.json</text>
 
     <rect x="268" y="320" width="184" height="64" rx="6" fill="#f5f5f5"/>
     <rect x="268" y="320" width="184" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
@@ -290,8 +286,8 @@
 
     <rect x="504" y="320" width="184" height="64" rx="6" fill="#f5f5f5"/>
     <rect x="504" y="320" width="184" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
-    <text x="596" y="348" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mídia da aventura</text>
-    <text x="596" y="364" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">&lt;aventura&gt;/midia/ · midiaDaPasta</text>
+    <text x="596" y="348" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">migracao.json</text>
+    <text x="596" y="364" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">aventuras já trazidas</text>
 
     <!-- Legenda -->
     <line x1="32" y1="408" x2="688" y2="408" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
@@ -304,21 +300,20 @@
     <text x="288" y="432" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">ESTADO NA MEMÓRIA</text>
     <rect x="400" y="424" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
     <text x="424" y="432" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">DISCO</text>
-    <line x1="472" y1="428" x2="504" y2="428" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4"/>
-    <text x="512" y="432" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">AO ABRIR EM OUTRO COMPUTADOR</text>
+
   </svg>
 
   <h2>Regras que o diagrama não mostra</h2>
   <ul>
     <li>Modelo: <code>BibliotecaDeSons { versao: 1, pastas, efeitos }</code>; cada <code>EfeitoDeSom</code> tem nome (até 40), fonte (arquivo <code>midia:&lt;sha256&gt;.&lt;ext&gt;</code> ou vídeo do YouTube: id de 11 caracteres, com início e fim em segundos opcionais), volume 0..1, loop, pasta (um nível), favorito, atalho 1 a 9 único e ordem. Até 200 efeitos e 50 pastas.</li>
     <li>Entrada torta do <code>sons.json</code> sai sem derrubar o resto (o início ou o fim torto do YouTube sai sozinho, o efeito fica); atalho repetido fica com o primeiro efeito; pasta apagada leva os efeitos para a raiz.</li>
-    <li>Aventura antiga (sem <code>sons.json</code>) abre vazia, sem aviso. Arquivo ilegível ganha uma cópia nova, <code>sons.invalido-AAAAMMDD-HHMMSS.json</code> (nunca por cima de outra nem por atalho), antes de recomeçar; de versão mais nova, ou acima de 1 MB, nada é regravado.</li>
+    <li>Sem <code>sons.json</code> global, a biblioteca abre vazia, sem aviso. Arquivo ilegível ganha uma cópia nova, <code>sons.invalido-AAAAMMDD-HHMMSS.json</code> (nunca por cima de outra nem por atalho), antes de recomeçar; de versão mais nova, ou acima de 1 MB, nada é regravado.</li>
     <li>Músicas e Efeitos sonoros (29/10/2026): o som e a pasta ganham <code>parte: 'musicas'</code>; sem a marca é efeito, então todo som e toda pasta de antes caem em Efeitos sonoros sem migração. A pasta é a categoria da parte (o som e a categoria moram na mesma parte). Cada parte ganha uma vez as categorias sugeridas (Ambiente, Batalha e Taverna; Combate, Magia e Natureza), e <code>categoriasSugeridas: true</code> impede a volta da apagada. O arquivo ganha o trecho de A até B (<code>inicioS</code> e <code>fimS</code>, como o YouTube): o motor começa em A e desce o ganho até B; no loop, repete entre A e B; o <code>som.tocar</code> leva o trecho e o jogador antigo toca o som inteiro. App antigo que abre o <code>sons.json</code> novo lê campo a campo: não perde som nem pasta; se gravar, a parte e o trecho do arquivo somem (tudo volta a Efeitos, o som toca inteiro).</li>
-    <li>Aventura nova sem pasta: a biblioteca espera na memória e grava quando a primeira gravação da aventura der a pasta. A mesma aventura em outra pasta (cópia de backup, mesmo id) é troca: lê o <code>sons.json</code> de lá. Mapa solto não guarda sons.</li>
-    <li>Na volta, o áudio só entra em <code>&lt;appData&gt;/midia</code> com a assinatura dos bytes do tipo que o nome diz, o hash do nome e até 15 MB (a imagem segue com 2 MB). Desde a F5b o áudio da biblioteca não é mais trazido para <code>&lt;appData&gt;/midia</code> ao abrir: fica em <code>&lt;aventura&gt;/midia</code> e sai só por <code>/sons/{id}</code>.</li>
+    <li>Migração (29/10/2026, <code>lib/sons/migracaoDosSons.ts</code>): ao abrir, o <code>sons.json</code> das pastas de <code>&lt;appData&gt;/maps</code> e o da aventura aberta entram na global; a aventura de outra pasta entra quando abre. Junta sem repetir (<code>comBibliotecaJuntada</code>): o mesmo arquivo (hash) ou o mesmo vídeo do YouTube com o mesmo trecho vira um som só; a categoria de mesmo nome e mesma parte (sem caixa, aparada) vira uma só; o atalho só vem se estiver livre; a marca <code>categoriasSugeridas</code> vem junto, e as sugestões só entram depois da migração. Os áudios vão de <code>&lt;aventura&gt;/midia</code> (ou do <code>&lt;appData&gt;/midia</code> de antes) para <code>&lt;appData&gt;/sons/midia</code>, conferidos pelo hash. A pasta da aventura é só lida: o <code>sons.json</code> dela fica (backup, e o que o app antigo lê) e o ilegível só não migra. A aventura migrada fica em <code>migracao.json</code> depois de a global gravar, e não migra de novo (o som apagado da global não volta). App antigo segue lendo o <code>sons.json</code> da aventura dele: o que se muda no app novo não aparece lá.</li>
+    <li>O áudio só entra numa pasta de mídia com a assinatura dos bytes do tipo que o nome diz, o hash do nome e até 15 MB (a imagem segue com 2 MB). Ao abrir uma aventura, o áudio citado no <code>sons.json</code> dela não é trazido para <code>&lt;appData&gt;/midia</code> (que <code>/media</code> serve sem chave); o da biblioteca sai só por <code>/sons/{id}</code>, de <code>&lt;appData&gt;/sons/midia</code>. O som achado só na aventura ou em <code>&lt;appData&gt;/midia</code>, quando o mestre toca, vai para a biblioteca (<code>carregadorDoMestre.ts</code>). Na linha de cada som, ao lado do lápis: Repetir (o mesmo <code>loop</code>, vale no próximo toque) e Parar (só com o som tocando). No alto da aba, o Volume deste computador é a mesma preferência do Som da mesa (<code>somStore</code>, localStorage): o motor multiplica o volume de cada som por ela, e nada vai pela rede.</li>
   </ul>
 
-  <footer>Fontes: client/src/components/livro/PaginaSons.tsx · client/src/net/ponteDosSons.ts · client/src/net/hostBridge.ts · client/src/net/protocol.ts · client/src/net/audienciaDosSons.ts · client/src/net/liberacaoDosSons.ts · client/src/player/sonsAoVivoDoJogador.ts · client/src/player/carregadorDeSons.ts · client/src/player/FaixaTocarParaOuvir.tsx · desktop/src-tauri/src/net/sons.rs · conexao.rs · server.rs · client/src/lib/sons/biblioteca.ts · bibliotecaNoDisco.ts · aoVivo/motor.ts · aoVivo/motorComYoutube.ts · aoVivo/carregadorDoMestre.ts · client/src/stores/bibliotecaDeSonsStore.ts · client/src/lib/midiaDaPasta.ts · plano docs/planos/sons-ao-vivo-2026-10-23.md</footer>
+  <footer>Fontes: client/src/components/livro/PaginaSons.tsx · client/src/net/ponteDosSons.ts · client/src/net/hostBridge.ts · client/src/net/protocol.ts · client/src/net/audienciaDosSons.ts · client/src/net/liberacaoDosSons.ts · client/src/player/sonsAoVivoDoJogador.ts · client/src/player/carregadorDeSons.ts · client/src/player/FaixaTocarParaOuvir.tsx · desktop/src-tauri/src/net/sons.rs · conexao.rs · server.rs · client/src/lib/sons/biblioteca.ts · bibliotecaNoDisco.ts · migracaoDosSons.ts · aoVivo/motor.ts · aoVivo/motorComYoutube.ts · aoVivo/carregadorDoMestre.ts · client/src/stores/bibliotecaDeSonsStore.ts · client/src/lib/midiaDaPasta.ts · plano docs/planos/sons-ao-vivo-2026-10-23.md</footer>
 </main>
 </body>
 </html>

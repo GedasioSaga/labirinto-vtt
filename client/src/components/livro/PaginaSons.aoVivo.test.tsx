@@ -111,7 +111,7 @@ async function esperar(conferir: () => void, prazoMs = 3000): Promise<void> {
 async function abrirComSons(efeitos: EfeitoDeSom[]): Promise<void> {
   fsFalso.mkdir(AVENTURA)
   useAdventureStore.setState({ adventure: { version: 1, id: 'adv_farol', name: 'Farol', startSceneId: 'scene_1', scenes: [{ id: 'scene_1', name: 'Praia', file: 'map.json' }] }, dir: AVENTURA })
-  await esperar(() => expect(useBibliotecaDeSonsStore.getState()).toMatchObject({ aventuraId: 'adv_farol', carregando: false }))
+  await esperar(() => expect(useBibliotecaDeSonsStore.getState()).toMatchObject({ carregando: false }))
   await act(async () => {
     useBibliotecaDeSonsStore.setState((antes) => ({ biblioteca: { ...antes.biblioteca, efeitos } }))
   })
@@ -146,6 +146,7 @@ afterEach(async () => {
   container.remove()
   for (const tirar of desfazer.splice(0)) tirar()
   useAdventureStore.setState({ adventure: null, dir: null })
+  useBibliotecaDeSonsStore.setState(useBibliotecaDeSonsStore.getInitialState())
   await assentar()
   useToastStore.setState({ toasts: [] })
 })

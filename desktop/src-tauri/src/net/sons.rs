@@ -344,6 +344,41 @@ pub fn raiz_da_aventura(pasta: &Path) -> Result<PathBuf, ErroDosSons> {
     Ok(canonica.join(PASTA_DE_MIDIA))
 }
 
+/// A BIBLIOTECA DE SONS GLOBAL (29/10/2026): `<dados do app>/sons`, com o
+/// `sons.json` de todas as aventuras e os áudios em `<dados>/sons/midia`, fora
+/// do `<dados>/midia` que `/media` serve sem chave
+/// (`client/src/lib/sons/bibliotecaNoDisco.ts`, mesmo nome).
+pub const PASTA_DA_BIBLIOTECA_DE_SONS: &str = "sons";
+
+/// `net_sons_aventura` com a biblioteca global: a pasta tem de ser
+/// exatamente `<dados>/sons`, uma pasta de verdade (não link nem junção), e
+/// não uma pasta qualquer que o webview escolha. Devolve `<pasta canônica>/midia`,
+/// a mesma forma de `raiz_da_aventura` (a leitura confere o resto).
+pub fn raiz_da_biblioteca(pasta: &Path, dados: &Path) -> Result<PathBuf, ErroDosSons> {
+    if !pasta.is_absolute() {
+        return Err(ErroDosSons::PastaInvalida);
+    }
+    let info = std::fs::symlink_metadata(pasta).map_err(|_| ErroDosSons::PastaInvalida)?;
+    if !info.is_dir() {
+        return Err(ErroDosSons::PastaInvalida);
+    }
+    let canonica = std::fs::canonicalize(pasta).map_err(|_| ErroDosSons::PastaInvalida)?;
+    let esperada = std::fs::canonicalize(dados.join(PASTA_DA_BIBLIOTECA_DE_SONS)).map_err(|_| ErroDosSons::PastaInvalida)?;
+    if canonica != esperada {
+        return Err(ErroDosSons::PastaInvalida);
+    }
+    Ok(canonica.join(PASTA_DE_MIDIA))
+}
+
+/// A pasta de onde `/sons/{id}` lê: a biblioteca global (com `dados`) ou,
+/// como antes dela, a pasta de uma aventura (app antigo, teste).
+pub fn raiz_dos_sons(pasta: &Path, dados: Option<&Path>) -> Result<PathBuf, ErroDosSons> {
+    if let Some(raiz) = dados.and_then(|dados| raiz_da_biblioteca(pasta, dados).ok()) {
+        return Ok(raiz);
+    }
+    raiz_da_aventura(pasta)
+}
+
 // --- Leitura do áudio --------------------------------------------------------------
 
 /// Por que o áudio não saiu. A rota responde o mesmo 404 para todos.

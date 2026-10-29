@@ -452,14 +452,17 @@ pub fn send_to_liberando(room: &Room, client_id: &str, msg: &Value, liberar: &[S
     })
 }
 
-/// SONS AO VIVO: a pasta da aventura aberta, de onde `/sons/{id}` lê;
+/// SONS AO VIVO: a pasta de onde `/sons/{id}` lê — a biblioteca de sons
+/// global (`<dados>/sons`, desde 29/10/2026) ou a pasta de uma aventura;
 /// `null` = nenhuma (a rota só dá 404).
 #[tauri::command]
-pub async fn net_sons_aventura(state: State<'_, NetState>, pasta: Option<String>) -> Result<(), String> {
-    sons_aventura_no_estado(&state, pasta).await
+pub async fn net_sons_aventura<R: Runtime>(app: AppHandle<R>, state: State<'_, NetState>, pasta: Option<String>) -> Result<(), String> {
+    // Sem a pasta de dados, só a pasta de aventura passa, como antes da biblioteca global.
+    let dados = app.path().app_data_dir().ok();
+    sons_aventura_no_estado(&state, pasta, dados).await
 }
 
-async fn sons_aventura_no_estado(state: &NetState, pasta: Option<String>) -> Result<(), String> {
+async fn sons_aventura_no_estado(state: &NetState, pasta: Option<String>, dados: Option<PathBuf>) -> Result<(), String> {
     let room = state
         .room
         .lock()
@@ -467,11 +470,12 @@ async fn sons_aventura_no_estado(state: &NetState, pasta: Option<String>) -> Res
         .as_ref()
         .map(|open| open.room.clone())
         .ok_or_else(|| ErroDosSons::SemSala.texto().to_owned())?;
-    definir_aventura_dos_sons(&room, pasta).await
+    definir_aventura_dos_sons_com(&room, pasta, move |pasta| sons::raiz_dos_sons(pasta, dados.as_deref())).await
 }
 
-/// Núcleo de `net_sons_aventura`. Pasta recusada também tira a de antes: a
-/// sala nunca segue servindo a aventura que o mestre deixou.
+/// Núcleo de `net_sons_aventura` só com a pasta de aventura. Pasta recusada
+/// também tira a de antes: a sala nunca segue servindo a aventura que o
+/// mestre deixou.
 pub async fn definir_aventura_dos_sons(room: &Room, pasta: Option<String>) -> Result<(), String> {
     definir_aventura_dos_sons_com(room, pasta, sons::raiz_da_aventura).await
 }
@@ -622,8 +626,8 @@ mod tests {
     #[tokio::test]
     async fn sons_aventura_sem_sala_e_sem_sala() {
         let state = NetState::default();
-        assert_eq!(sons_aventura_no_estado(&state, None).await, Err("sem-sala".to_owned()));
-        assert_eq!(sons_aventura_no_estado(&state, Some("C:/qualquer".to_owned())).await, Err("sem-sala".to_owned()));
+        assert_eq!(sons_aventura_no_estado(&state, None, None).await, Err("sem-sala".to_owned()));
+        assert_eq!(sons_aventura_no_estado(&state, Some("C:/qualquer".to_owned()), None).await, Err("sem-sala".to_owned()));
     }
 
     #[test]

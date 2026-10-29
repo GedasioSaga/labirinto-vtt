@@ -5,7 +5,7 @@ vi.mock('@tauri-apps/api/path', async () => (await import('../discoFalso.fixture
 
 const { arquivos, bytesDe, criarPastasAte, limparDisco, MIDIA_DO_APP, wav } = await import('../discoFalso.fixture')
 const { useToastStore } = await import('../../../stores/toastStore')
-const { arquivosDaMidiaDaAventura, carregarBytesDoMestre, criarCarregadorDoMestre, pesoDaMidiaComSons, tamanhoDaMidiaDaAventura } = await import('./carregadorDoMestre')
+const { arquivosDaMidiaDaPasta, carregarBytesDoMestre, criarCarregadorDoMestre, pesoDaMidiaComSons, tamanhoDaMidiaDaPasta } = await import('./carregadorDoMestre')
 const { AUDIO_GUARDADO_SUMIU } = await import('../../midiaNoDisco')
 const { idDoAudio } = await import('../../midia')
 const { useBibliotecaDeSonsStore } = await import('../../../stores/bibliotecaDeSonsStore')
@@ -44,11 +44,11 @@ describe('carregarBytesDoMestre', () => {
 
     expect(await criarCarregadorDoMestre(() => AVENTURA)(id)).toEqual(bytes)
     expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
-    useBibliotecaDeSonsStore.setState({ dir: AVENTURA })
+    useBibliotecaDeSonsStore.setState({ pasta: AVENTURA })
     try {
       expect(await carregarBytesDoMestre(id)).toEqual(bytes)
     } finally {
-      useBibliotecaDeSonsStore.setState({ dir: null })
+      useBibliotecaDeSonsStore.setState({ pasta: null })
     }
   })
 
@@ -89,16 +89,16 @@ describe('carregarBytesDoMestre', () => {
   })
 })
 
-describe('tamanhoDaMidiaDaAventura', () => {
+describe('tamanhoDaMidiaDaPasta', () => {
   it('soma os arquivos de <aventura>/midia (pasta dentro não conta); sem a pasta, 0', async () => {
-    expect(await tamanhoDaMidiaDaAventura(AVENTURA)).toBe(0)
+    expect(await tamanhoDaMidiaDaPasta(AVENTURA)).toBe(0)
     criarPastasAte(`${AVENTURA}/midia/sub`)
     arquivos.set(`${AVENTURA}/midia/${ID}`, new Uint8Array(1000))
     arquivos.set(`${AVENTURA}/midia/${'ef'.repeat(32)}.png`, new Uint8Array(234))
     arquivos.set(`${AVENTURA}/midia/sub/escondido.wav`, new Uint8Array(5000))
     arquivos.set(`${AVENTURA}/sons.json`, '{}')
-    expect(await tamanhoDaMidiaDaAventura(AVENTURA)).toBe(1234)
-    expect([...(await arquivosDaMidiaDaAventura(AVENTURA)).entries()].sort()).toEqual([
+    expect(await tamanhoDaMidiaDaPasta(AVENTURA)).toBe(1234)
+    expect([...(await arquivosDaMidiaDaPasta(AVENTURA)).entries()].sort()).toEqual([
       [ID, 1000],
       [`${'ef'.repeat(32)}.png`, 234],
     ])

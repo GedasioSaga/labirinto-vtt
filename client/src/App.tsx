@@ -2548,7 +2548,7 @@ function App() {
         // SONS F5d: a música importada sai para a mesa só da pasta da aventura (`/sons`); sem pasta, o convite não sai.
         prepararMusica: () => {
           const minigame = pin.minigame ?? MINIGAME_PADRAO
-          return minigame.jogo !== 'danca' || prepararMusicaDaDancaNaMesa(minigame.musica, useBibliotecaDeSonsStore.getState().dir)
+          return minigame.jogo !== 'danca' || prepararMusicaDaDancaNaMesa(minigame.musica, useBibliotecaDeSonsStore.getState().pasta)
         },
       },
     ),

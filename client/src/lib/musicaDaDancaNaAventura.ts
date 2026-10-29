@@ -7,8 +7,9 @@ import { guardarAudio, lerAudioGuardado } from './midiaNoDisco'
 /**
  * A MÚSICA DA DANÇA NA PASTA DA AVENTURA (SONS F5d, 24/10/2026). O jogador
  * baixa a música importada por `/sons/<id>` com a chave, e o servidor da sala
- * só lê `<aventura>/midia` (a pasta que a aba Sons informa, a mesma da
- * biblioteca de sons). `<appData>/midia` continua com a cópia que o mestre
+ * só lê a `midia` da pasta que a aba Sons informa: a da biblioteca de sons,
+ * `<appData>/sons`, global desde 29/10/2026 (antes, a da aventura; o
+ * parâmetro `pastaDaAventura` daqui é essa pasta). `<appData>/midia` continua com a cópia que o mestre
  * toca neste computador e que a Visão de jogador lê, mas deixa de ser a fonte
  * do jogador: `/media/<id>` não serve mais áudio.
  *

@@ -564,6 +564,84 @@ export function comCategoriasSugeridas(biblioteca: BibliotecaDeSons, novoId: () 
   return atual
 }
 
+/**
+ * O que faz dois sons serem o MESMO som na migração para a biblioteca global:
+ * o mesmo arquivo (o id do áudio é o hash do conteúdo) ou o mesmo vídeo do
+ * YouTube, com o mesmo trecho de A até B. O trecho conta: dois botões do mesmo
+ * vídeo longo em minutos diferentes são dois sons, e juntá-los perderia um.
+ */
+export function chaveDoSom(fonte: FonteDoSom): string {
+  const trecho = `${fonte.inicioS ?? 0}-${fonte.fimS ?? 'fim'}`
+  return fonte.tipo === 'arquivo' ? `arquivo:${idDaRefDeAudio(fonte.ref) ?? fonte.ref}:${trecho}` : `youtube:${fonte.video}:${trecho}`
+}
+
+export interface BibliotecasJuntadas {
+  biblioteca: BibliotecaDeSons
+  /** Sons da origem que entraram agora. */
+  entraram: number
+  /** Sons da origem que o destino já tinha (`chaveDoSom`). */
+  repetidos: number
+  /** Sons que não entraram porque o destino chegou a `EFEITOS_DE_SOM_MAX`. */
+  naoCouberam: number
+}
+
+/**
+ * A biblioteca de uma aventura (`origem`) dentro da global (`destino`), sem
+ * repetir. Categoria: a de mesmo nome e mesma parte que o destino já tem
+ * (sem caixa, aparada), senão uma nova no fim; acima do teto de pastas, o som
+ * vai sem categoria. Som: o que o destino já tem (`chaveDoSom`) não entra de
+ * novo; o novo leva nome, volume, repetir, parte, trecho e favorito, mantém o
+ * id quando ele está livre (senão ganha outro), e o atalho só se nenhum som do
+ * destino já o usa. A marca `categoriasSugeridas` de qualquer um dos dois
+ * fica: a categoria sugerida que o mestre apagou na aventura não volta.
+ */
+export function comBibliotecaJuntada(
+  destino: BibliotecaDeSons,
+  origem: BibliotecaDeSons,
+  novoIdDePasta: () => string = novoIdDePastaDeSons,
+  novoIdDeEfeito: () => string = novoIdDeSom,
+): BibliotecasJuntadas {
+  let atual: BibliotecaDeSons = destino.categoriasSugeridas === true || origem.categoriasSugeridas === true ? { ...destino, categoriasSugeridas: true } : destino
+  const pastaNoDestino = new Map<string, string | null>()
+  for (const pasta of [...origem.pastas].sort((a, b) => a.ordem - b.ordem)) {
+    const parte = parteDe(pasta)
+    const igual = atual.pastas.find((candidata) => parteDe(candidata) === parte && nomeComparavel(candidata.nome) === nomeComparavel(pasta.nome))
+    if (igual !== undefined) {
+      pastaNoDestino.set(pasta.id, igual.id)
+      continue
+    }
+    const livre = !atual.pastas.some((candidata) => candidata.id === pasta.id)
+    const criada = comPastaNova(atual, pasta.nome, livre ? pasta.id : novoIdDePasta(), parte)
+    pastaNoDestino.set(pasta.id, criada === null ? null : criada.pasta.id)
+    if (criada !== null) atual = criada.biblioteca
+  }
+
+  const chaves = new Set(atual.efeitos.map((efeito) => chaveDoSom(efeito.fonte)))
+  let entraram = 0
+  let repetidos = 0
+  let naoCouberam = 0
+  for (const efeito of [...origem.efeitos].sort((a, b) => a.ordem - b.ordem)) {
+    const chave = chaveDoSom(efeito.fonte)
+    if (chaves.has(chave)) {
+      repetidos += 1
+      continue
+    }
+    const livre = !atual.efeitos.some((candidato) => candidato.id === efeito.id)
+    const pastaId = efeito.pastaId === null ? null : (pastaNoDestino.get(efeito.pastaId) ?? null)
+    const novo = comEfeitoNovo(atual, { nome: efeito.nome, fonte: efeito.fonte, volume: efeito.volume, loop: efeito.loop, pastaId, parte: parteDe(efeito) }, livre ? efeito.id : novoIdDeEfeito())
+    if (novo === null) {
+      naoCouberam += 1
+      continue
+    }
+    const atalhoLivre = efeito.atalho !== undefined && !atual.efeitos.some((candidato) => candidato.atalho === efeito.atalho)
+    const marcas: MudancaNoEfeito = { ...(efeito.favorito === true ? { favorito: true } : {}), ...(atalhoLivre ? { atalho: efeito.atalho } : {}) }
+    atual = Object.keys(marcas).length === 0 ? novo.biblioteca : (comEfeitoMudado(novo.biblioteca, novo.efeito.id, marcas) ?? novo.biblioteca)
+    chaves.add(chave)
+    entraram += 1
+  }
+  return { biblioteca: atual, entraram, repetidos, naoCouberam }
+}
+
 export function comPastaRenomeada(biblioteca: BibliotecaDeSons, id: string, nomeBruto: string): BibliotecaDeSons | null {
   const nome = nomeDeSomLimpo(nomeBruto)
   if (nome === null || !biblioteca.pastas.some((pasta) => pasta.id === id)) return null

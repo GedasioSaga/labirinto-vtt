@@ -97,8 +97,8 @@ async function decodificarNoNavegador(bytes: Uint8Array): Promise<AudioDecodific
 }
 
 const CAMINHO_DO_APP: CaminhoDaMusica = {
-  // SONS F5d: também na pasta da aventura aberta (a da biblioteca de sons), de onde `/sons` serve a mesa.
-  guardar: (bytes) => guardarMusicaDaDanca(bytes, useBibliotecaDeSonsStore.getState().dir),
+  // SONS F5d: também na pasta da biblioteca de sons (global desde 29/10/2026), de onde `/sons` serve a mesa.
+  guardar: (bytes) => guardarMusicaDaDanca(bytes, useBibliotecaDeSonsStore.getState().pasta),
   ler: lerAudioGuardado,
   decodificar: decodificarNoNavegador,
   preparar: prepararMusicaImportada,

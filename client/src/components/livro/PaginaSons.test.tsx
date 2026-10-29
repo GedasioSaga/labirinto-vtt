@@ -40,7 +40,7 @@ const { AUDIO_GRANDE_DEMAIS, AUDIO_NAO_E_AUDIO } = await import('../../lib/midia
 const { bibliotecaDeSonsVazia, comEfeitoMudado, comEfeitoNovo, EFEITOS_DE_SOM_MAX } = await import('../../lib/sons/biblioteca')
 type BibliotecaDeSons = import('../../lib/sons/biblioteca').BibliotecaDeSons
 const { useAdventureStore, hasUnsavedWork } = await import('../../stores/adventureStore')
-const { SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } = await import('../../stores/bibliotecaDeSonsStore')
+const { SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, useBibliotecaDeSonsStore } = await import('../../stores/bibliotecaDeSonsStore')
 const { useToastStore } = await import('../../stores/toastStore')
 const { useLivroDaMesaStore } = await import('../../stores/livroDaMesaStore')
 const { NO_CHAT_UNREAD } = await import('../MasterChatPanel')
@@ -103,7 +103,7 @@ async function esperar(conferir: () => void, prazoMs = 3000): Promise<void> {
 async function abrirAventura(dir: string | null = AVENTURA): Promise<void> {
   if (dir !== null) fsFalso.mkdir(dir)
   useAdventureStore.setState({ adventure: { version: 1, id: 'adv_navio', name: 'Navio', startSceneId: 'scene_1', scenes: [{ id: 'scene_1', name: 'Convés', file: 'map.json' }] }, dir })
-  await esperar(() => expect(useBibliotecaDeSonsStore.getState()).toMatchObject({ aventuraId: 'adv_navio', carregando: false }))
+  await esperar(() => expect(useBibliotecaDeSonsStore.getState()).toMatchObject({ carregando: false }))
 }
 
 async function montarPagina(): Promise<void> {
@@ -149,6 +149,8 @@ beforeEach(() => {
   limparDisco()
   montarMotor()
   useAdventureStore.setState({ adventure: null, dir: null })
+  // A biblioteca é global: cada teste começa com ela por ler (o disco foi limpo).
+  useBibliotecaDeSonsStore.setState(useBibliotecaDeSonsStore.getInitialState())
   useToastStore.setState({ toasts: [] })
   useLivroDaMesaStore.setState({ pagina: 'sons', trocaAnimada: false })
   container = document.createElement('div')
@@ -283,19 +285,22 @@ describe('o que ninguém via (revisão da F3)', () => {
     await esperar(() => expect(naTela()).toContain('Nada tocando'))
   })
 
-  it('o loop tocando mostra o que o clique faz: "parar" escrito no lugar do ícone de repetir', async () => {
+  it('ao lado do lápis: o Repetir liga e desliga o loop do som; o Parar só aparece com ele tocando e para só ele', async () => {
     await montarPagina()
     await abrirAventura()
     const chuva = await importar('chuva.wav')
-    act(() => {
-      useBibliotecaDeSonsStore.getState().editarEfeito(chuva, { loop: true })
-    })
-    const legenda = () => container.querySelector('.lb-efeito__loop')
-    expect(legenda()?.textContent).toBe('')
-    expect(legenda()?.getAttribute('title')).toBe('Repete até parar')
+    const repetir = () => botao('Repetir chuva até parar')
+    expect(repetir().getAttribute('aria-pressed')).toBe('false')
+    act(() => repetir().click())
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === chuva)?.loop).toBe(true)
+    expect(repetir().getAttribute('aria-pressed')).toBe('true')
+    expect(repetir().getAttribute('title')).toBe('Repetir até parar: ligado')
+    expect(() => botao('Parar chuva')).toThrow()
     act(() => botao(/^chuva,/).click())
-    await esperar(() => expect(legenda()?.textContent).toBe('parar'))
-    expect(legenda()?.classList.contains('lb-efeito__loop--parar')).toBe(true)
+    await esperar(() => expect(botao('Parar chuva').getAttribute('title')).toBe('Parar'))
+    act(() => botao('Parar chuva').click())
+    await esperar(() => expect(naTela()).toContain('Nada tocando'))
+    expect(() => botao('Parar chuva')).toThrow()
   })
 
   it('apagar um som que está tocando para o som', async () => {
@@ -401,7 +406,7 @@ describe('a página sai ou a aventura troca', () => {
     fsFalso.mkdir('C:/aventuras/castelo')
     act(() => useAdventureStore.setState({ adventure: { version: 1, id: 'adv_castelo', name: 'Castelo', startSceneId: 'scene_1', scenes: [{ id: 'scene_1', name: 'Pátio', file: 'map.json' }] }, dir: 'C:/aventuras/castelo' }))
     expect(fonte.stop).toHaveBeenCalledWith(audio.ctx.currentTime + FADE_AO_PARAR_MS / 1000)
-    await esperar(() => expect(useBibliotecaDeSonsStore.getState()).toMatchObject({ aventuraId: 'adv_castelo', carregando: false }))
+    await esperar(() => expect(useBibliotecaDeSonsStore.getState()).toMatchObject({ carregando: false }))
     await esperar(() => expect(naTela()).toContain('Nada tocando'))
   })
 
@@ -411,7 +416,7 @@ describe('a página sai ou a aventura troca', () => {
     const fonte = await tocarLoop('vento')
     fsFalso.mkdir(AVENTURA)
     act(() => useAdventureStore.setState({ dir: AVENTURA }))
-    await esperar(() => expect(useBibliotecaDeSonsStore.getState().dir).toBe(AVENTURA))
+    await esperar(() => expect(useAdventureStore.getState().dir).toBe(AVENTURA))
     expect(fonte.stop).not.toHaveBeenCalled()
     expect(naTela()).toContain('1 tocando')
   })
@@ -556,12 +561,11 @@ describe('o topo (revisão de design da F3)', () => {
     expect(naTela().split('Apague algum para importar outro.')).toHaveLength(2)
   })
 
-  it('mapa solto: o vazio explica o caminho real (Cenas, + Nova cena) e não oferece um botão que não funciona', async () => {
+  it('mapa solto: a biblioteca é global, então o vazio é o de sempre, com o Importar valendo', async () => {
     await montarPagina()
-    await esperar(() => expect(naTela()).toContain('Sons moram numa aventura'))
-    expect(naTela()).toContain('Em Cenas, + Nova cena transforma este mapa na primeira cena de uma aventura')
-    expect(container.querySelector('.lb-sons__vazio button')).toBeNull()
-    expect(naTela()).not.toContain('Salve como aventura')
+    await esperar(() => expect(naTela()).toContain('Nenhum som ainda'))
+    expect(naTela()).not.toContain('Sons moram numa aventura')
+    expect(container.querySelector<HTMLButtonElement>('.lb-sons__vazio button')?.disabled).toBe(false)
   })
 })
 
@@ -726,23 +730,13 @@ describe('o lápis quando a loja recusa', () => {
 })
 
 describe('sem pasta da aventura', () => {
-  it('mapa solto: diz que sons moram numa aventura, não importa e não grava nada', async () => {
-    await montarPagina()
-    await esperar(() => expect(naTela()).toContain('Sons moram numa aventura'))
-    expect(botao('Importar sons').disabled).toBe(true)
-    escolher(arquivoWav('porta.wav'))
-    await esperar(() => expect(container.querySelector('[role="alert"]')?.textContent).toBe(`Não deu para importar porta.wav. ${SONS_SEM_AVENTURA}`))
-    expect(fsFalso.writeFile).not.toHaveBeenCalled()
-    expect(fsFalso.writeTextFile).not.toHaveBeenCalled()
-  })
-
-  it('aventura nova ainda sem pasta: o som entra na memória e o sons.json não é gravado até a aventura ganhar pasta', async () => {
+  it('mapa solto e aventura nova ainda sem pasta: o som entra na biblioteca global e o sons.json dela grava já', async () => {
     await montarPagina()
     await abrirAventura(null)
-    expect(naTela()).toContain('Os sons ficam guardados quando a aventura for salva.')
+    expect(naTela()).not.toContain('Os sons ficam guardados quando a aventura for salva.')
     await importar('porta.wav')
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    expect([...arquivos.keys()].some((caminho) => caminho.endsWith('sons.json'))).toBe(false)
+    await esperar(() => expect([...arquivos.keys()]).toContain('C:/appdata/sons/sons.json'))
+    expect([...arquivos.keys()].filter((caminho) => caminho.endsWith('sons.json'))).toEqual(['C:/appdata/sons/sons.json'])
   })
 })
 
@@ -773,16 +767,16 @@ describe('o peso da mídia', () => {
     // A pasta só tem a imagem: os áudios importados entram no peso pela biblioteca (32 KB cada).
     await act(async () => root.render(<PaginaSons medirMidia={async () => new Map([['mapa.png', bytes]])} />))
     await abrirAventura()
-    await esperar(() => expect(naTela()).toContain('Mídia da aventura: 12,5 MB'))
+    await esperar(() => expect(naTela()).toContain('Áudios da biblioteca: 12,5 MB'))
     expect(naTela()).not.toContain('Passou de 200 MB')
     bytes = 201 * MB
     await importar('pesado.wav')
-    await esperar(() => expect(naTela()).toContain('Mídia da aventura: 201 MB'))
-    expect(naTela()).toContain('Passou de 200 MB: levar e abrir a aventura fica lento.')
+    await esperar(() => expect(naTela()).toContain('Áudios da biblioteca: 201 MB'))
+    expect(naTela()).toContain('Passou de 200 MB: a pasta sons do app está pesada.')
     // Um efeito curto não vira "0,0 MB".
     bytes = 4000
     await importar('estalo.wav', 2)
-    await esperar(() => expect(naTela()).toContain('Mídia da aventura: menos de 0,1 MB'))
+    await esperar(() => expect(naTela()).toContain('Áudios da biblioteca: menos de 0,1 MB'))
   })
 })
 
@@ -790,9 +784,9 @@ describe('o aviso da mídia pesada diz a verdade', () => {
   it('acima de 200 MB não manda apagar sons (apagar não tira o áudio da pasta midia); diz que o arquivo fica', async () => {
     await act(async () => root.render(<PaginaSons medirMidia={async () => new Map([['trovoes.wav', 201 * MB]])} />))
     await abrirAventura()
-    await esperar(() => expect(naTela()).toContain('Mídia da aventura: 201 MB'))
+    await esperar(() => expect(naTela()).toContain('Áudios da biblioteca: 201 MB'))
     expect(naTela()).not.toContain('Apague sons que não usa')
-    expect(naTela()).toContain('Apagar um som tira o botão, mas o áudio dele continua na pasta midia da aventura.')
+    expect(naTela()).toContain('Apagar um som tira o botão, mas o áudio dele continua na pasta midia da biblioteca.')
   })
 })
 

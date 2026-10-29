@@ -276,7 +276,7 @@ test('aba Sons: importa um WAV, o clique toca e mostra a barra; a tecla 3 toca c
   await importarEco(page)
   expect((await registro(page)).fontes).toBe(0)
   // O áudio importado vai para a pasta de mídia DA AVENTURA (é o que viaja com ela), e o pé conta.
-  await expect(paginaSons(page).getByText('Mídia da aventura: menos de 0,1 MB')).toBeVisible({ timeout: ESPERA })
+  await expect(paginaSons(page).getByText('Áudios da biblioteca: menos de 0,1 MB')).toBeVisible({ timeout: ESPERA })
   // Parado, o selo sem tecla não parece um segundo botão ao lado do lápis: sem borda (tocando, ele acende).
   expect(await paginaSons(page).locator('.lb-efeito__selo--vazio').evaluate((no) => getComputedStyle(no).borderTopColor)).toBe('rgba(0, 0, 0, 0)')
 

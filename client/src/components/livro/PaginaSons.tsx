@@ -19,11 +19,15 @@ import {
   type ParteDosSons,
   type PastaDeSons,
 } from '../../lib/sons/biblioteca'
-import { arquivosDaMidiaDaAventura, carregarBytesDoMestre, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
+import { arquivosDaMidiaDaPasta, carregarBytesDoMestre, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
 import { MAX_LOOPS, PRE_CARGA_MAX_ARQUIVOS, type CarregadorDeBytes, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
+import { tocarAmostra } from '../../lib/sons/tocarSom'
 import { useAdventureStore } from '../../stores/adventureStore'
-import { ligarBibliotecaAAventura, SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
+import { ligarBibliotecaGlobal, SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
+import { estaCalado, percentualDoVolume, useSomStore } from '../../stores/somStore'
 import { useToastStore, type ToastKind } from '../../stores/toastStore'
+import { SOM_DE_AMOSTRA } from '../ControleDeSom'
+import { SomIcon, SomMudoIcon } from '../icons'
 import { Botao } from '../grimorio/Botao'
 import { CampoFaixa } from '../grimorio/CampoFaixa'
 import { CampoLiga } from '../grimorio/CampoLiga'
@@ -49,7 +53,7 @@ import './sons.css'
  * Quem escuta (seletor Todos / Cena / Escolhidos) e a rede são da F4.
  */
 
-/** A pasta de mídia da aventura acima disto deixa levar e abrir a aventura lento (plano, seção 6). */
+/** A pasta de mídia da biblioteca de sons acima disto já pesa no disco (plano, seção 6). */
 export const MIDIA_PESADA_BYTES = 200 * 1024 * 1024
 /** O selo do atalho pulsa neste tempo, e só ele: o som nunca espera animação. */
 export const PULSO_DO_SELO_MS = 150
@@ -297,17 +301,16 @@ function pulsar(selo: HTMLElement | undefined): void {
 export interface PaginaSonsProps {
   /** Quem toca; o padrão é o motor do mestre (bytes do disco). O teste passa um com o áudio de mentira. */
   motor?: MotorAoVivo
-  /** Quanto pesa a pasta de mídia da aventura; o padrão lê o disco. */
-  medirMidia?: (pastaDaAventura: string) => Promise<ArquivosDaMidia>
-  /** Quem traz os bytes para a onda do trecho no lápis; o padrão lê a pasta da aventura. */
+  /** Quanto pesa a pasta de mídia da biblioteca de sons; o padrão lê o disco. */
+  medirMidia?: (pastaDaBiblioteca: string) => Promise<ArquivosDaMidia>
+  /** Quem traz os bytes para a onda do trecho no lápis; o padrão lê a pasta da biblioteca. */
   carregarAudio?: CarregadorDeBytes
 }
 
-export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAventura, carregarAudio = carregarBytesDoMestre }: PaginaSonsProps) {
+export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaPasta, carregarAudio = carregarBytesDoMestre }: PaginaSonsProps) {
   const [motor] = useState(() => motorDado ?? obterMotorDoMestre())
   const biblioteca = useBibliotecaDeSonsStore((estado) => estado.biblioteca)
-  const aventuraId = useBibliotecaDeSonsStore((estado) => estado.aventuraId)
-  const dir = useBibliotecaDeSonsStore((estado) => estado.dir)
+  const pasta = useBibliotecaDeSonsStore((estado) => estado.pasta)
   const carregando = useBibliotecaDeSonsStore((estado) => estado.carregando)
   const pendente = useBibliotecaDeSonsStore((estado) => estado.pendente)
   const aviso = useBibliotecaDeSonsStore((estado) => estado.aviso)
@@ -331,10 +334,10 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const [ponte] = useState(() => criarPonteDosSons({ motor, rede: redeDosSons }))
   const rede = useSyncExternalStore(assinarRedeDosSons, redeDosSons)
 
-  useEffect(() => ligarBibliotecaAAventura(), [])
+  useEffect(() => ligarBibliotecaGlobal(), [])
   useEffect(() => pararAoSairOuTrocarDeAventura(ponte), [ponte])
-  // A sala só serve áudio de dentro da pasta da aventura: a ponte conta a de agora ao servidor dela.
-  useEffect(() => informarPastaDosSons(dir), [dir])
+  // A sala só serve áudio de dentro da pasta da biblioteca de sons: a ponte conta qual é ao servidor dela.
+  useEffect(() => informarPastaDosSons(pasta), [pasta])
   useEffect(() => () => informarPastaDosSons(null), [])
 
   // Os favoritos leves descem para a mesa antes do clique: ao abrir a sala e quando a lista deles muda.
@@ -353,8 +356,9 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
 
   /** Toca (ou para o loop que já toca). `peloClique`: só o clique pulsa o selo. */
   const tocar = (efeito: EfeitoDeSom, peloClique: boolean) => {
-    // Loop tocando: o mesmo botão (ou tecla) para, com o fade do motor. Efeito curto recomeça.
-    if (efeito.loop && toquesAgora.current.has(efeito.id)) {
+    // Loop tocando: o mesmo botão (ou tecla) para, com o fade do motor. Efeito curto recomeça. Conta o toque que soa,
+    // e não o Repetir de agora: o mestre pode ter desligado o Repetir no meio, e o motor segue o loop até o Parar.
+    if (toquesAgora.current.get(efeito.id)?.loop === true) {
       ponte.parar(efeito.id)
       return
     }
@@ -364,6 +368,12 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
     if (peloClique) pulsar(selos.current.get(efeito.id))
   }
 
+  /** O Repetir da linha: o mesmo `loop` do lápis. Vale no próximo toque (o motor não muda o loop do que já soa). */
+  const alternarRepetir = (efeito: EfeitoDeSom) => {
+    if (useBibliotecaDeSonsStore.getState().editarEfeito(efeito.id, { loop: !efeito.loop })) return
+    useToastStore.getState().push('error', `Não deu para mudar o Repetir de ${efeito.nome}. ${impedimentoDaLoja() ?? ''}`.trim(), AVISO_DE_IMPORTADO_MS, { chave: 'sons:repetir' })
+  }
+
   useAtalhosDeSom((atalho) => {
     const efeito = useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((candidato) => candidato.atalho === atalho)
     if (efeito === undefined) return false
@@ -371,12 +381,12 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
     return true
   })
 
-  // A pasta de mídia: relida quando a pasta muda e a cada gravação. O áudio que
-  // ainda está a caminho dela entra no peso pela biblioteca (pesoDaMidiaComSons).
+  // A pasta de mídia da biblioteca: relida ao abrir e a cada gravação. O áudio
+  // que a leitura ainda não viu entra no peso pela biblioteca (pesoDaMidiaComSons).
   useEffect(() => {
-    if (dir === null || carregando || pendente) return
+    if (pasta === null || carregando || pendente) return
     let valendo = true
-    medirMidia(dir).then(
+    medirMidia(pasta).then(
       (arquivos) => {
         if (valendo) setArquivosDaMidia(arquivos)
       },
@@ -385,7 +395,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
     return () => {
       valendo = false
     }
-  }, [dir, carregando, pendente, medirMidia])
+  }, [pasta, carregando, pendente, medirMidia])
   const midiaBytes = arquivosDaMidia === null ? null : pesoDaMidiaComSons(arquivosDaMidia, biblioteca)
 
   // A parte que abre: a escolhida; antes de escolher, Músicas, a não ser que só Efeitos tenha som (a biblioteca de antes).
@@ -414,10 +424,9 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
       return depois
     })
 
-  const semAventura = aventuraId === null
   const cheia = biblioteca.efeitos.length >= EFEITOS_DE_SOM_MAX
-  const podeImportar = !semAventura && !carregando && podeGravar && !cheia && importando === null
-  const podeColarLink = !semAventura && !carregando && podeGravar && !cheia
+  const podeImportar = !carregando && podeGravar && !cheia && importando === null
+  const podeColarLink = !carregando && podeGravar && !cheia
 
   /** O som do YouTube entra na biblioteca; a frase da recusa volta ao formulário (o aviso da página fica atrás dele). */
   const guardarLink = (novo: EfeitoNovo): string | null => {
@@ -426,9 +435,8 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
     useToastStore.getState().push('info', `${efeito.nome} entrou em ${NOME_DA_PARTE[parte]}.`, AVISO_DE_IMPORTADO_MS, { chave: 'sons:importado' })
     return null
   }
-  // O porquê do Importar parado, logo abaixo dele. Sem aventura quem explica é o vazio (ele aparece
-  // logo abaixo, sempre: sem aventura não há som); lendo, quem diz é a mensagem no lugar da grade.
-  const motivoNoTopo = semAventura || carregando ? null : cheia ? `A biblioteca chegou a ${EFEITOS_DE_SOM_MAX} sons. Apague algum para importar outro.` : null
+  // O porquê do Importar parado, logo abaixo dele. Lendo, quem diz é a mensagem no lugar da grade.
+  const motivoNoTopo = carregando ? null : cheia ? `A biblioteca chegou a ${EFEITOS_DE_SOM_MAX} sons. Apague algum para importar outro.` : null
 
   const importar = async (arquivos: File[]) => {
     // A parte aberta no clique: trocar de aba enquanto importa não muda para onde os arquivos vão.
@@ -473,7 +481,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
 
   return (
     <div className="lb-sons" role="region" aria-label="Sons">
-      <TituloDaPagina titulo="Sons" sub="Músicas e efeitos da aventura" />
+      <TituloDaPagina titulo="Sons" sub="Músicas e efeitos de todas as aventuras" />
       <div className="lb-sons__topo">
         {/* Hierarquia: parar (o pânico, largo) antes de tocar (a grade) antes de importar (preparo, discreto). */}
         <div className="lb-sons__linha">
@@ -495,7 +503,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
         <p className="lb-sons__soando" aria-live="polite">
           {toques.size === 0 ? 'Nada tocando' : toques.size === 1 ? '1 tocando' : `${toques.size} tocando`}
         </p>
-        {!semAventura && dir === null && <p className="lb-sons__nota">Os sons ficam guardados quando a aventura for salva.</p>}
+        <VolumeDoAparelho tocandoAlgo={toques.size > 0} />
         {importando !== null && (
           <p className="lb-sons__nota" role="status">
             Importando {importando}…
@@ -506,21 +514,19 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
             {aviso}
           </p>
         )}
-        {!semAventura && <AbasDasPartes parte={parte} contagem={contagem} abaId={abaId} painelId={painelId} onParte={trocarDeParte} />}
+        <AbasDasPartes parte={parte} contagem={contagem} abaId={abaId} painelId={painelId} onParte={trocarDeParte} />
       </div>
       <input ref={arquivo} type="file" accept={ACEITA_AUDIO} multiple hidden aria-label="Arquivo de som" onChange={escolherArquivos} />
 
       {recusas.length > 0 && <RecusasDaImportacao recusas={recusas} onFechar={fecharRecusas} />}
 
       {carregando ? (
-        <p className="lb-sons__mensagem">Lendo os sons da aventura…</p>
-      ) : semAventura ? (
-        <VazioDosSons semAventura podeImportar={false} parte={parte} onImportar={() => undefined} />
+        <p className="lb-sons__mensagem">Lendo a biblioteca de sons…</p>
       ) : (
         <div className="lb-sons__parte" role="tabpanel" id={painelId} aria-labelledby={abaId(parte)}>
           {contagem[parte].sons === 0 ? (
             biblioteca.efeitos.length === 0 ? (
-              <VazioDosSons semAventura={false} podeImportar={podeImportar} parte={parte} onImportar={() => arquivo.current?.click()} />
+              <VazioDosSons podeImportar={podeImportar} parte={parte} onImportar={() => arquivo.current?.click()} />
             ) : (
               <p className="lb-sons__mensagem">
                 {parte === 'musicas' ? 'Nenhuma música ainda.' : 'Nenhum efeito sonoro ainda.'} O que entra com Importar ou Colar link vem para esta parte; um som de {NOME_DA_PARTE[outraParte]} muda de parte no lápis, no campo Tipo.
@@ -554,6 +560,8 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
                     else selos.current.set(efeito.id, no)
                   }}
                   onTocar={(peloClique) => tocar(efeito, peloClique)}
+                  onAlternarRepetir={() => alternarRepetir(efeito)}
+                  onParar={() => ponte.parar(efeito.id)}
                   onEditar={() => setEditando(efeito.id)}
                 />
               ))}
@@ -563,11 +571,11 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
         </div>
       )}
 
-      {dir !== null && midiaBytes !== null && (
+      {pasta !== null && midiaBytes !== null && (
         <p className={classes('lb-sons__pe', midiaBytes > MIDIA_PESADA_BYTES && 'lb-sons__pe--pesada')}>
-          Mídia da aventura: {megas(midiaBytes)}
+          Áudios da biblioteca: {megas(midiaBytes)}
           {/* Sem "apague sons": apagar tira o botão, não o arquivo (pendência no plano, seção 6). */}
-          {midiaBytes > MIDIA_PESADA_BYTES && <span> Passou de 200 MB: levar e abrir a aventura fica lento. Apagar um som tira o botão, mas o áudio dele continua na pasta midia da aventura.</span>}
+          {midiaBytes > MIDIA_PESADA_BYTES && <span> Passou de 200 MB: a pasta sons do app está pesada. Apagar um som tira o botão, mas o áudio dele continua na pasta midia da biblioteca.</span>}
         </p>
       )}
 
@@ -984,15 +992,7 @@ function RecusasDaImportacao({ recusas, onFechar }: { recusas: readonly string[]
   )
 }
 
-function VazioDosSons({ semAventura, podeImportar, parte, onImportar }: { semAventura: boolean; podeImportar: boolean; parte: ParteDosSons; onImportar: () => void }) {
-  // Mapa solto: o caminho que existe hoje para virar aventura é a cena nova (App.tsx, createScene com o mapa solto).
-  if (semAventura)
-    return (
-      <div className="lb-sons__vazio">
-        <h3 className="lb-sons__vazio-titulo">Sons moram numa aventura</h3>
-        <p className="lb-sons__vazio-texto">Este é um mapa solto. Em Cenas, + Nova cena transforma este mapa na primeira cena de uma aventura; a partir daí os sons podem entrar aqui.</p>
-      </div>
-    )
+function VazioDosSons({ podeImportar, parte, onImportar }: { podeImportar: boolean; parte: ParteDosSons; onImportar: () => void }) {
   return (
     <div className="lb-sons__vazio">
       <h3 className="lb-sons__vazio-titulo">Nenhum som ainda</h3>
@@ -1054,6 +1054,8 @@ function BotaoDeSom({
   toque,
   guardarSelo,
   onTocar,
+  onAlternarRepetir,
+  onParar,
   onEditar,
 }: {
   efeito: EfeitoDeSom
@@ -1061,6 +1063,8 @@ function BotaoDeSom({
   guardarSelo: (no: HTMLElement | null) => void
   /** `peloClique`: clique de ponteiro (detail > 0). Enter e Espaço no botão focado chegam com detail 0 e não pulsam. */
   onTocar: (peloClique: boolean) => void
+  onAlternarRepetir: () => void
+  onParar: () => void
   onEditar: () => void
 }) {
   const tocando = toque !== undefined
@@ -1088,18 +1092,6 @@ function BotaoDeSom({
             <IconeDoLivro nome="estrela" />
           </span>
         )}
-        {/* O loop tocando diz o que o clique faz agora: para. */}
-        {efeito.loop &&
-          (tocando ? (
-            <span className="lb-efeito__loop lb-efeito__loop--parar" aria-hidden="true">
-              <IconeParar />
-              parar
-            </span>
-          ) : (
-            <span className="lb-efeito__loop" aria-hidden="true" title="Repete até parar">
-              <IconeRepetir />
-            </span>
-          ))}
         <span className="lb-efeito__trilho" aria-hidden="true">
           {toque !== undefined && toque.duracaoS > 0 && (
             <span
@@ -1110,9 +1102,27 @@ function BotaoDeSom({
           )}
         </span>
       </button>
-      <button type="button" className="lb-efeito__lapis" aria-label={`Editar ${efeito.nome}`} title="Editar" onClick={onEditar}>
-        <IconeLapis />
-      </button>
+      {/* Ancoradas à direita: Repetir e o lápis nunca saem do lugar; o Parar só existe enquanto o som soa, à esquerda deles. */}
+      <span className="lb-efeito__acoes">
+        {tocando && (
+          <button type="button" className="lb-efeito__acao lb-efeito__acao--parar" aria-label={`Parar ${efeito.nome}`} title="Parar" onClick={onParar}>
+            <IconeParar />
+          </button>
+        )}
+        <button
+          type="button"
+          className="lb-efeito__acao lb-efeito__acao--repetir"
+          aria-label={`Repetir ${efeito.nome} até parar`}
+          aria-pressed={efeito.loop}
+          title={efeito.loop ? 'Repetir até parar: ligado' : 'Repetir até parar: desligado'}
+          onClick={onAlternarRepetir}
+        >
+          <IconeRepetir />
+        </button>
+        <button type="button" className="lb-efeito__acao lb-efeito__lapis" aria-label={`Editar ${efeito.nome}`} title="Editar" onClick={onEditar}>
+          <IconeLapis />
+        </button>
+      </span>
     </li>
   )
 }
@@ -1123,8 +1133,7 @@ function BotaoDeSom({
  * página fica atrás do modal.
  */
 function impedimentoDaLoja(): string | null {
-  const { aventuraId, carregando, podeGravar } = useBibliotecaDeSonsStore.getState()
-  if (aventuraId === null) return SONS_SEM_AVENTURA
+  const { carregando, podeGravar } = useBibliotecaDeSonsStore.getState()
   if (carregando) return SONS_AINDA_LENDO
   return podeGravar ? null : SONS_NAO_GRAVAVEIS
 }
@@ -1332,7 +1341,7 @@ function EditorDoSom({
       )}
       {confirmando ? (
         <div className="lb-sons-editor__apagar" role="group" aria-label="Confirmar apagar">
-          <p className="lb-sons__nota">Apagar {efeito.nome}? O botão sai desta aventura.</p>
+          <p className="lb-sons__nota">Apagar {efeito.nome}? O botão sai de todas as aventuras.</p>
           <div className="gr-acoes">
             <Botao ref={cancelar} tamanho="p" onClick={() => setConfirmando(false)}>
               Cancelar
@@ -1353,6 +1362,80 @@ function EditorDoSom({
           </Botao>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Ícone do mudo no tamanho e traço dos ícones do livro (os da linha de cada som). */
+const ICONE_DO_MUDO = { size: 16, strokeWidth: 1.6 }
+
+/**
+ * Volume DESTE computador (pedido de 29/10/2026: "isso serve só para mim"). É
+ * a mesma preferência do Som da mesa (`somStore`, no localStorage de quem
+ * ouve), então a ficha da página Mesa mostra o mesmo número. O motor já
+ * multiplica o volume de cada som por ela e assina a mudança (rampa curta, sem
+ * clique), e nada disso vai pela rede: cada jogador ouve no volume do próprio
+ * aparelho, e o volume de cada som continua o mesmo.
+ */
+function VolumeDoAparelho({ tocandoAlgo }: { tocandoAlgo: boolean }) {
+  const volume = useSomStore((estado) => estado.volume)
+  const mudo = useSomStore((estado) => estado.mudo)
+  const faixaId = useId()
+  const notaId = useId()
+  const percentual = percentualDoVolume(volume)
+  const calado = estaCalado({ volume, mudo })
+  const texto = mudo ? 'Mudo' : `${percentual}%`
+
+  function mudarVolume(evento: ChangeEvent<HTMLInputElement>): void {
+    const som = useSomStore.getState()
+    som.setVolume(Number(evento.currentTarget.value) / 100)
+    // Como no Som da mesa: quem mexe na barra quer ouvir.
+    if (som.mudo) som.alternarMudo()
+  }
+
+  function alternarMudo(): void {
+    useSomStore.getState().alternarMudo()
+    // Sem nada tocando, a amostra confirma que o som voltou; com música tocando, a própria música confirma.
+    if (!useSomStore.getState().mudo && !tocandoAlgo) tocarAmostra(SOM_DE_AMOSTRA)
+  }
+
+  return (
+    <div className="lb-sons__volume" data-estado={calado ? 'mudo' : 'ligado'}>
+      <div className="gr-campo__rot">
+        {/* A nota fica na linha do rótulo: o topo é fixo, e uma linha a menos é mais lista à vista. */}
+        <span className="lb-sons__volume-rot">
+          <label htmlFor={faixaId}>Volume</label>
+          <span id={notaId} className="lb-sons__volume-nota">
+            Só neste computador
+          </span>
+        </span>
+        <output htmlFor={faixaId}>{texto}</output>
+      </div>
+      <div className="lb-sons__volume-linha">
+        <input
+          id={faixaId}
+          className="gr-faixa"
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={percentual}
+          aria-valuetext={mudo ? `Mudo, ${percentual}%` : `${percentual}%`}
+          aria-describedby={notaId}
+          onChange={mudarVolume}
+        />
+        <button
+          type="button"
+          className="lb-efeito__acao lb-sons__mudo"
+          aria-label="Mudo"
+          aria-pressed={mudo}
+          aria-describedby={notaId}
+          title={mudo ? 'Tirar do mudo' : 'Mudo'}
+          onClick={alternarMudo}
+        >
+          {calado ? <SomMudoIcon {...ICONE_DO_MUDO} /> : <SomIcon {...ICONE_DO_MUDO} />}
+        </button>
+      </div>
     </div>
   )
 }
