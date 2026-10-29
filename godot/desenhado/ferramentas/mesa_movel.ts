@@ -366,8 +366,14 @@ function opcoesDoCombo(tipo: TipoComTextura, c: number): OpcaoDeMaterial[] {
   return LUGARES_DE_MATERIAL[tipo].map((l) => l.opcoes[(l.opcoes.indexOf(l.padrao) + c) % l.opcoes.length])
 }
 
+/** O primeiro lugar de madeira do tipo (o que aceita carvalho), ou -1: é nele que os 5 tons andam. */
+function lugarDaMadeira(tipo: TipoComTextura): number {
+  return LUGARES_DE_MATERIAL[tipo].findIndex((l) => l.opcoes.includes('carvalho'))
+}
+
 function opcoesDoTom(tipo: TipoComTextura, madeira: IdDoMaterial): OpcaoDeMaterial[] {
-  return LUGARES_DE_MATERIAL[tipo].map((l, i) => (i === 0 && l.opcoes.includes(madeira) ? madeira : l.opcoes.includes('mesma') ? 'mesma' : l.padrao))
+  const im = lugarDaMadeira(tipo)
+  return LUGARES_DE_MATERIAL[tipo].map((l, i) => (i === im && l.opcoes.includes(madeira) ? madeira : l.opcoes.includes('mesma') ? 'mesma' : l.padrao))
 }
 
 function nomeDasOpcoes(o: readonly OpcaoDeMaterial[]): string {
@@ -401,7 +407,8 @@ function principal(): void {
   const ob = (x: number, y: number, o: Partial<Objeto> = {}): Objeto => ({ tipo, x, y, casas: [cw, ch], giro: 0, opcoes: opcoesDoCombo(tipo, 0), vista: 'frente', ...o })
   const combos = [0, 1, 2].map((c) => opcoesDoCombo(tipo, c))
   const madeiras = (['carvalho', 'nogueira', 'pinho', 'cerejeira', 'velha'] as IdDoMaterial[])
-  const temMadeira = LUGARES_DE_MATERIAL[tipo][0]?.opcoes.includes('carvalho') ?? false
+  // Por qualquer lugar de madeira (o poço tem as pedras no lugar 1 e a madeira no 2).
+  const temMadeira = lugarDaMadeira(tipo) >= 0
   const medidas: Record<Lado, { id: string; m: Medida }[]> = { desenhado: [], atual: [] }
   for (const lado of lados) {
     // Os 3 combos lado a lado a 100% e o primeiro sozinho a 300%.

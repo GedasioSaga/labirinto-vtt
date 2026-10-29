@@ -332,8 +332,15 @@ func _rodar_movel(args: Dictionary, id: String, inicio: int) -> void:
 			if m["costura"] > ContratoMovel.MEIO_LISO_FOLGA:
 				printerr("  aviso: a costura dos módulos de %s não é a mesma coluna lisa em toda emenda (%.4f > %.4f): o app repete o módulo e a emenda apareceria" % [nome, m["costura"], ContratoMovel.MEIO_LISO_FOLGA])
 		print(linha)
-	print("  memória: %.2f MiB decodificada (teto %.2f), %.2f MiB em disco (teto %.2f)" % [memoria / 1048576.0, ContratoMovel.TETO_MEMORIA_POR_MOVEL / 1048576.0, disco / 1048576.0, ContratoMovel.TETO_DISCO_POR_MOVEL / 1048576.0])
-	if memoria > ContratoMovel.TETO_MEMORIA_POR_MOVEL or disco > ContratoMovel.TETO_DISCO_POR_MOVEL:
+	# O teto de memória é por vista (o app carrega só a vista que o móvel usa); o de disco, pelo móvel.
+	var por_vista := ContratoMovel.memoria_por_vista(r["imagens"])
+	var pior_vista := 0
+	var texto_vistas := PackedStringArray()
+	for vista in por_vista:
+		pior_vista = maxi(pior_vista, int(por_vista[vista]))
+		texto_vistas.append("%s %.2f" % [vista, por_vista[vista] / 1048576.0])
+	print("  memória: %.2f MiB decodificada (%s; teto %.2f por vista), %.2f MiB em disco (teto %.2f)" % [memoria / 1048576.0, ", ".join(texto_vistas), ContratoMovel.TETO_MEMORIA_POR_VISTA / 1048576.0, disco / 1048576.0, ContratoMovel.TETO_DISCO_POR_MOVEL / 1048576.0])
+	if pior_vista > ContratoMovel.TETO_MEMORIA_POR_VISTA or disco > ContratoMovel.TETO_DISCO_POR_MOVEL:
 		printerr("  ERRO: passou do teto de memória (menos viradas ou variantes, ou margem menor)")
 		ok = false
 	if args.has("folha"):

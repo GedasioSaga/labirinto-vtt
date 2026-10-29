@@ -11,9 +11,10 @@
  * A conta, para um pedido (vista, opções de material por lugar, pegada, giro):
  *   1. a variante (a opção que muda o desenho, como o assento de palha ou de madeira);
  *   2. a virada k = round(giro / 90) mod 4 e a forma (a desenhada, ou a transposta);
- *   3. o tingir: cada pixel = soma dos pesos x rampa(tom do lugar)[valor] (10.5);
+ *   3. o tingir: cada pixel = soma dos pesos x rampa(tom do lugar)[valor] (10.5; a pedra
+ *      com menos croma no escuro);
  *   4. o esticar (ponta + meio + ponta; o meio liso estica, o que repete põe módulos
- *      inteiros) ou a escala da pegada (10.6);
+ *      inteiros, o centro fixo fica inteiro e centrado) ou a escala da pegada (10.6);
  *   5. a sombra pela silhueta (10.7). A tela gira só o resto (giro - 90 k).
  */
 import type { Imagem } from './png'
@@ -32,6 +33,12 @@ export interface Esticar {
   readonly periodoCasas?: number
   /** Quantos módulos o desenho tem entre as pontas (só com periodoCasas). */
   readonly modulos?: number
+  /**
+   * O centro fixo (opcional, 10.6, lote 12): a largura em casas da peça do meio que não
+   * estica e fica sempre centrada (a placa do arco do portão); o meio liso fica dos dois
+   * lados dela. Só no eixo "x", nunca com periodoCasas.
+   */
+  readonly centroCasas?: number
 }
 
 export interface VistaDoMovel {
@@ -250,10 +257,30 @@ export function rampaDoTom(tom: Rgb, r: Rampa): Float32Array {
   return saida
 }
 
+/**
+ * A classe PEDRA tinge com menos croma no escuro (10.5, lote 12). Com o cromaNaSombra da
+ * família (+0,25) o arenito chegava ao contorno em (74, 51, 0), azul zero: a borda da pedra
+ * lia como ocre saturado (o poço, 29/10). Com -0,6 o croma cai para 65% no contorno
+ * (70, 52, 16) e o meio, a luz e o realce não mudam. Os ids são os de classe 'pedra' em
+ * MATERIAIS do app (meioTermo/materiais.ts); a madeira e o resto ficam com a rampa da família.
+ */
+export const CROMA_NA_SOMBRA_DA_PEDRA = -0.6
+export const MATERIAIS_DE_PEDRA: ReadonlySet<string> = new Set(['granito', 'arenito', 'ardosia', 'barro'])
+
+/** A rampa de um lugar: a da família, com o croma do escuro da pedra se a opção é de pedra. */
+export function rampaDaOpcao(r: Rampa, opcao: string | undefined): Rampa {
+  return opcao !== undefined && MATERIAIS_DE_PEDRA.has(opcao) ? { ...r, cromaNaSombra: CROMA_NA_SOMBRA_DA_PEDRA } : r
+}
+
+/** O que entra na chave das formas tingidas além dos tons: quais lugares são de pedra. */
+function classesDoPedido(opcoes: readonly string[]): string {
+  return opcoes.map((o) => (MATERIAIS_DE_PEDRA.has(o) ? 'p' : '-')).join('')
+}
+
 const RAMPAS = new Map<string, Float32Array>()
 
 function rampaGuardada(tom: Rgb, r: Rampa): Float32Array {
-  const chave = tom.join(',')
+  const chave = `${tom.join(',')}|${r.cromaNaSombra}`
   let pronta = RAMPAS.get(chave)
   if (pronta === undefined) {
     pronta = rampaDoTom(tom, r)
@@ -282,12 +309,12 @@ export function formaDaVirada(viradas: 1 | 2 | 4, k: number): { virada: number; 
 // ---------- 3: o tingir ----------
 
 /** A forma tingida a 128 px por casa, pré-multiplicada (transposta, se pedida). */
-function tingir(m: MovelCarregado, f: FormaDoMovel, tons: readonly Rgb[], transposta: boolean): Camada {
+function tingir(m: MovelCarregado, f: FormaDoMovel, tons: readonly Rgb[], opcoes: readonly string[], transposta: boolean): Camada {
   const valor = m.imagens.get(f.valor)
   const partes = m.imagens.get(f.partes)
   if (valor === undefined || partes === undefined) throw new Error(`${m.p.id}: falta ${f.valor} ou ${f.partes}`)
   const cor = f.cor !== undefined ? m.imagens.get(f.cor) : undefined
-  const rampas = tons.map((t) => rampaGuardada(t, m.p.tingir))
+  const rampas = tons.map((t, i) => rampaGuardada(t, rampaDaOpcao(m.p.tingir, opcoes[i])))
   const w = transposta ? valor.h : valor.w
   const h = transposta ? valor.w : valor.h
   const px = new Float32Array(w * h * 4)
@@ -335,11 +362,27 @@ export function faseNoModulo(u: number, M: number, P: number): number {
 
 /**
  * O ponto da imagem (casas, a partir da borda da pegada) para o ponto t do móvel de T casas.
- * Com `periodo`, o meio repete o primeiro módulo da imagem em vez de esticar.
+ * Com `periodo`, o meio repete o primeiro módulo da imagem em vez de esticar. Com `centro`
+ * (10.6), a peça do meio de `centro` casas fica inteira e centrada, e o meio liso dos dois
+ * lados dela estica; mais curto que pontas + centro, o centro continua inteiro e as pontas
+ * perdem por dentro (o meio liso some primeiro, depois a borda de dentro das pontas).
  */
-export function mapearEixo(t: number, T: number, S: number, pontas: readonly [number, number] | null, periodo: number | null = null): number {
+export function mapearEixo(t: number, T: number, S: number, pontas: readonly [number, number] | null, periodo: number | null = null, centro: number | null = null): number {
   if (pontas === null) return (t * S) / T
   const [pE, pD] = pontas
+  if (centro !== null) {
+    const h = centro / 2
+    const cT = T / 2
+    const cS = S / 2
+    if (Math.abs(t - cT) <= h) return cS + (t - cT)
+    if (T >= pE + pD + centro) {
+      if (t <= pE) return t
+      if (t >= T - pD) return S - (T - t)
+      if (t < cT) return pE + ((t - pE) * (cS - h - pE)) / (cT - h - pE)
+      return cS + h + ((t - cT - h) * (S - pD - cS - h)) / (T - pD - cT - h)
+    }
+    return t < cT ? t : S - (T - t)
+  }
   if (T >= pE + pD) {
     if (t <= pE) return t
     if (t >= T - pD) return S - (T - t)
@@ -457,10 +500,10 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
   const f = p.formas.find((x) => x.vista === nomeDaVista && x.variante === variante && x.virada === virada)
   if (f === undefined) throw new Error(`${p.id}: falta a forma ${nomeDaVista}-${variante}-${virada}`)
   // O id do móvel entra na chave: dois móveis com a mesma forma ("frente-padrao-0") e o mesmo tom trocavam de imagem.
-  const chave = `${p.id}|${f.nome}|${transposta ? 't' : ''}|${pedido.tons.map((t) => t.join(',')).join('|')}`
+  const chave = `${p.id}|${f.nome}|${transposta ? 't' : ''}|${pedido.tons.map((t) => t.join(',')).join('|')}|${classesDoPedido(pedido.opcoes)}`
   let nv = NIVEIS.get(chave)
   if (nv === undefined) {
-    nv = niveis(tingir(m, f, pedido.tons, transposta))
+    nv = niveis(tingir(m, f, pedido.tons, pedido.opcoes, transposta))
     NIVEIS.set(chave, nv)
   }
   // A pegada da fonte e a pedida, já na tela (a fonte já vem virada).
@@ -478,6 +521,10 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
   const periodo = es?.periodoCasas ?? null
   const periodoX = k % 2 === 0 ? periodo : null
   const periodoY = k % 2 === 0 ? null : periodo
+  // O centro fixo também só anda ao longo.
+  const centro = es?.centroCasas ?? null
+  const centroX = k % 2 === 0 ? centro : null
+  const centroY = k % 2 === 0 ? null : centro
   const sb = p.sombra
   const nd = Math.hypot(sb.direcao[0], sb.direcao[1])
   const desl = sb.jeito === 'nenhuma' ? 0 : sb.deslocamentoCasas * pxPorCasa
@@ -494,10 +541,10 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
   const amostra = [0, 0, 0, 0]
   for (let Y = 0; Y < H; Y += 1) {
     const ty = (Y + 0.5 - borda) / pxPorCasa
-    const sy = mapearEixo(ty, alvo[1], fonte[1], pontasY, periodoY)
+    const sy = mapearEixo(ty, alvo[1], fonte[1], pontasY, periodoY, centroY)
     for (let X = 0; X < W; X += 1) {
       const tx = (X + 0.5 - borda) / pxPorCasa
-      const sx = mapearEixo(tx, alvo[0], fonte[0], pontasX, periodoX)
+      const sx = mapearEixo(tx, alvo[0], fonte[0], pontasX, periodoX, centroX)
       ler(n, (sx + mg) * PX_POR_CASA * kN, (sy + mg) * PX_POR_CASA * kN, amostra)
       const o = (Y * W + X) * 4
       for (let q = 0; q < 4; q += 1) px[o + q] = amostra[q]
@@ -550,10 +597,10 @@ export function comporCerca(m: MovelCarregado, pc: PecasDaCerca, pedido: Pedido,
   if (f === undefined) throw new Error(`${p.id}: falta a forma frente-${variante}-0`)
   if (g.mouroes.length < 2) throw new Error(`${p.id}: a cerca precisa de 2 mourões`)
   // A mesma chave do comporMovel sem transpor: as duas contas dividem a forma tingida.
-  const chave = `${p.id}|${f.nome}||${pedido.tons.map((t) => t.join(',')).join('|')}`
+  const chave = `${p.id}|${f.nome}||${pedido.tons.map((t) => t.join(',')).join('|')}|${classesDoPedido(pedido.opcoes)}`
   let nv = NIVEIS.get(chave)
   if (nv === undefined) {
-    nv = niveis(tingir(m, f, pedido.tons, false))
+    nv = niveis(tingir(m, f, pedido.tons, pedido.opcoes, false))
     NIVEIS.set(chave, nv)
   }
   const nivel = Math.min(nv.length - 1, Math.max(0, Math.floor(Math.log2(Math.max(1, PX_POR_CASA / pxPorCasa)))))

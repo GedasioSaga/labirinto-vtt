@@ -309,7 +309,10 @@ de lado e variante, `movel-barril` para o redondo e o metal).
    `pontasCasas`; o meio é a mesma coluna em todo x. O exportador mede e avisa se o meio
    não é liso. Quem vive esticado e lê como "tábua comprida" pede `periodoCasas` (o meio que
    repete, CONTRATO 10.6: um módulo inteiro por período, a emenda numa faixa lisa;
-   exemplos `movel-aparador` e `movel-balcao`).
+   exemplos `movel-aparador` e `movel-balcao`). Quem tem no meio uma peça que tem de ficar
+   uma só, inteira e no meio (a placa do arco) pede `centroCasas` (o centro fixo, CONTRATO
+   10.6: ponta + meio liso + centro + meio liso + ponta; exemplo `movel-arco-do-portao`).
+   As pontas contam da borda da pegada, sem a margem.
    **A cerca faz curva por peças** (CONTRATO 10.12, lote 12): com `pecas` no config, o app
    deita a ligação da forma 0 no arco de `geometriaDaCerca` e põe o mourão em pé em cada
    mourão do app, com a luz no lugar em todo giro. Desenhe a ligação simétrica de cima a
@@ -322,7 +325,10 @@ de lado e variante, `movel-barril` para o redondo e o metal).
    lugar 1.
 6. **Sombra no chão é do app**: escolha só `deslocamentoCasas` (a altura do móvel: mesa
    0,22, barril 0,14, cadeira 0,11) e um `borraoCasas` curto (0,02 a 0,03).
-7. **O teto:** 3 MiB por móvel com todas as formas (a cadeira, com 12 formas, gasta 0,99).
+7. **O teto:** 3 MiB **por vista** com todas as formas dela (desde o lote 12: o app carrega
+   só a vista que o móvel usa; a cadeira, com 12 formas nas 2 vistas, gasta 0,99 no total),
+   0,5 MiB em disco pelo móvel. A pedra (granito, arenito, ardósia, barro) tinge com menos
+   croma no escuro (CONTRATO 10.5): não compense no desenho.
 
 **Comandos:** exporte todos os do lote, depois as folhas (a cena de família lê o que está
 em `exportado/`): `exportar_uma.gd --textura=movel-<nome>` e

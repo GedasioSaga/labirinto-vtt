@@ -18,9 +18,11 @@ const VARIANTES_MAX := 4
 const CASAS_MIN := 0.25
 const CASAS_MAX := 8.0
 const MARGEM_MAX := 0.25
-## Tetos (CONTRATO.md 10.8). Memória comum = as imagens decodificadas em RGBA com mipmap,
-## só dos tipos que o mapa usa.
-const TETO_MEMORIA_POR_MOVEL := 3 * 1024 * 1024
+## Tetos (CONTRATO.md 10.1 item 6). Memória comum = as imagens decodificadas em RGBA com
+## mipmap, só dos tipos que o mapa usa. O teto de memória é POR VISTA (decisão do
+## orquestrador, lote 12): o app carrega só a vista que o móvel usa (a Frente/Lado do mestre).
+## No textura.json ele continua em "tetoMemoriaBytes"; "memoriaBytes" é a soma de todas as formas.
+const TETO_MEMORIA_POR_VISTA := 3 * 1024 * 1024
 const TETO_DISCO_POR_MOVEL := 512 * 1024
 const TETO_MEMORIA_DOS_31 := 24 * 1024 * 1024
 ## A sombra do app (a mesma cor e alfa dos carimbos, CONTRATO 9.1 item 3).
@@ -50,6 +52,8 @@ const COSTURA_PX := 4
 ## A cerca por peças (opcional, CONTRATO 10.12): a faixa em que a luz da ligação troca de borda.
 const VIRADA_DA_LUZ_MIN := 0.05
 const VIRADA_DA_LUZ_MAX := 1.0
+## O centro fixo (opcional, CONTRATO 10.6): o menor meio liso, px, de cada lado do centro.
+const CENTRO_LISO_MIN_PX := 2
 
 
 static func eh_movel(id: String) -> bool:
@@ -163,6 +167,13 @@ static func ler_config(id: String) -> Dictionary:
 				if rep["erros"].is_empty():
 					vc["esticar"]["periodoCasas"] = rep["periodo"]
 					vc["esticar"]["modulos"] = rep["modulos"]
+			# O centro fixo (opcional, CONTRATO 10.6, lote 12): a peça do meio que não estica e
+			# fica centrada; sem centroCasas o textura.json sai igual.
+			if es.has("centroCasas"):
+				var ce := _ler_centro(nome, eixo, casas[0], pontas, es["centroCasas"], cfg["margemCasas"], es.has("periodoCasas"))
+				erros.append_array(ce["erros"])
+				if ce["erros"].is_empty():
+					vc["esticar"]["centroCasas"] = ce["centro"]
 		cfg["vistas"][nome] = vc
 	var sb = c.get("sombra", {})
 	if typeof(sb) != TYPE_DICTIONARY:
@@ -232,6 +243,40 @@ static func _ler_periodo(vista: String, eixo: String, comprimento: float, pontas
 	return {"erros": erros, "periodo": periodo, "modulos": modulos}
 
 
+## O centro fixo: a peça do meio de centroCasas casas fica inteira e centrada, e o meio liso
+## dos dois lados dela estica (a placa do arco do portão). Só ao longo (eixo "x"), nunca com
+## periodoCasas; entre as pontas e o centro sobra meio liso dos dois lados (ao menos 2 px), e o
+## centro, as pontas e a margem caem em px inteiros (o exportador mede o liso coluna contra
+## coluna, fora do centro).
+static func _ler_centro(vista: String, eixo: String, comprimento: float, pontas: Array, bruto, margem: float, com_periodo: bool) -> Dictionary:
+	var erros: Array[String] = []
+	var centro := float(bruto) if typeof(bruto) == TYPE_FLOAT or typeof(bruto) == TYPE_INT else -1.0
+	var liso: float = (comprimento - pontas[0] - pontas[1] - centro) / 2.0
+	if eixo != "x":
+		erros.append("vista \"%s\": \"esticar.centroCasas\" (o centro fixo) só com \"eixo\": \"x\"" % vista)
+	elif com_periodo:
+		erros.append("vista \"%s\": \"esticar.centroCasas\" e \"periodoCasas\" não andam juntos (o centro fixo é para o meio liso)" % vista)
+	elif centro <= 0.0 or liso < CENTRO_LISO_MIN_PX / float(PX_POR_CASA) - 1e-4:
+		erros.append("vista \"%s\": \"esticar.centroCasas\" de 0 até deixar %d px de meio liso de cada lado entre as pontas (o meio do desenho tem %.3f casas)" % [vista, CENTRO_LISO_MIN_PX, comprimento - pontas[0] - pontas[1]])
+	else:
+		for v in [centro, pontas[0], pontas[1], margem]:
+			if absf(v * PX_POR_CASA - round(v * PX_POR_CASA)) > 1e-3:
+				erros.append("vista \"%s\": com centroCasas, o centro, as pontas e a margem têm de dar px inteiros (x %d): %.4f não dá" % [vista, PX_POR_CASA, v])
+				break
+	return {"erros": erros, "centro": centro}
+
+
+## A memória decodificada de cada vista (o teto é por vista): {vista: bytes}, pelo nome dos
+## arquivos ("<vista>-<variante>-<virada>[-partes|-cor].png").
+static func memoria_por_vista(imagens: Dictionary) -> Dictionary:
+	var r := {}
+	for arquivo in imagens:
+		var vista: String = str(arquivo).get_slice("-", 0)
+		var img: Image = imagens[arquivo]
+		r[vista] = int(r.get(vista, 0)) + bytes_memoria(img.get_width(), img.get_height())
+	return r
+
+
 ## O tamanho da imagem (px) de uma forma: a pegada (deitada na virada 1 e 3) mais a margem.
 static func tamanho_da_imagem(casas: Array, virada: int, margem: float) -> Vector2i:
 	var w: float = casas[1] if virada % 2 == 1 else casas[0]
@@ -287,6 +332,8 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 			v["esticar"] = vc["esticar"].duplicate()
 			if vc["esticar"].has("periodoCasas"):
 				v["esticar"]["meio"] = "repete: entre as pontas o desenho tem 'modulos' módulos de periodoCasas, e a emenda de dois módulos (e a de módulo com ponta) é a mesma coluna lisa. Para um meio de M casas, o app põe n = round(M / periodoCasas) módulos, cada um com M / n casas (a sobra se reparte pelos módulos); com n = 0, o meio é a coluna da emenda. Cada módulo lê o primeiro módulo da imagem."
+			elif vc["esticar"].has("centroCasas"):
+				v["esticar"]["meio"] = "centro fixo: a peça de centroCasas casas no meio da imagem fica inteira e no meio do móvel; o meio liso dos dois lados dela (entre a ponta e o centro, a mesma coluna em todo x) estica, cada lado com a metade do que sobra. Mais curto que pontas + centro, o centro continua inteiro e cada ponta perde por dentro a metade do que falta."
 			else:
 				v["esticar"]["meio"] = "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir"
 		vistas[vista] = v
@@ -321,7 +368,7 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 		"memoria": {
 			"memoriaBytes": memoria,
 			"discoBytes": disco,
-			"tetoMemoriaBytes": TETO_MEMORIA_POR_MOVEL,
+			"tetoMemoriaBytes": TETO_MEMORIA_POR_VISTA,
 			"tetoDiscoBytes": TETO_DISCO_POR_MOVEL,
 			"tetoMemoriaDos31Bytes": TETO_MEMORIA_DOS_31,
 		},

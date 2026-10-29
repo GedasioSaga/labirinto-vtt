@@ -179,7 +179,7 @@ func _folha(cfg: Dictionary, p: Dictionary, resumo: Dictionary, paineis: String,
 	var tem_atual: bool = p["atual"]
 	var mem: Dictionary = resumo["memoria"]
 	_texto("%s  ·  %s  ·  Desenhado, onda %d, lote %d  ·  móvel desenhado que pega cor (no app: %s)" % [cfg["nome"], cfg["id"], cfg["onda"], cfg["lote"], cfg["idDoApp"]], MG, 28)
-	_texto("Contrato v%d, seção 10  ·  %d formas  ·  memória %.2f de %.2f MiB, %.2f de %.2f MiB em disco  ·  lugares: %s  ·  a sombra é do app (deslocada %.2f casa, borrão %.2f)" % [Contrato.VERSAO, resumo["formas"], mem.get("memoriaBytes", 0) / 1048576.0, ContratoMovel.TETO_MEMORIA_POR_MOVEL / 1048576.0, mem.get("discoBytes", 0) / 1048576.0, ContratoMovel.TETO_DISCO_POR_MOVEL / 1048576.0, ", ".join(PackedStringArray(cfg["lugares"])), cfg["sombra"]["deslocamentoCasas"], cfg["sombra"]["borraoCasas"]], MG, 16, COR_TINTA_2)
+	_texto("Contrato v%d, seção 10  ·  %d formas  ·  memória %.2f MiB (teto %.2f por vista), %.2f de %.2f MiB em disco  ·  lugares: %s  ·  a sombra é do app (deslocada %.2f casa, borrão %.2f)" % [Contrato.VERSAO, resumo["formas"], mem.get("memoriaBytes", 0) / 1048576.0, ContratoMovel.TETO_MEMORIA_POR_VISTA / 1048576.0, mem.get("discoBytes", 0) / 1048576.0, ContratoMovel.TETO_DISCO_POR_MOVEL / 1048576.0, ", ".join(PackedStringArray(cfg["lugares"])), cfg["sombra"]["deslocamentoCasas"], cfg["sombra"]["borraoCasas"]], MG, 16, COR_TINTA_2)
 	_texto("Desenhado: as imagens cinza com as partes marcadas, tingidas pela conta de ferramentas/movel.ts. Atual: o motor dos móveis do client da main (só leitura), nos mesmos móveis e materiais. 100%% = 64 px por casa; 300%% = 192; 50%% e 25%% reduzidos em Lanczos. Chão chapado %s." % p["chao"], MG, 15, COR_TINTA_3)
 	_y += 10
 	# Sozinho e as 3 combinações.
@@ -212,6 +212,8 @@ func _folha(cfg: Dictionary, p: Dictionary, resumo: Dictionary, paineis: String,
 		var es_f: Dictionary = cfg["vistas"]["frente"].get("esticar", {})
 		if es_f.has("periodoCasas"):
 			_texto("Esticada: 1,4, 2, 3 e 5 casas, e a de 1 x 2 sem giro (estica pelo lado maior). Ponta + meio que repete + ponta: um módulo a cada %s casa, a sobra repartida pelos módulos" % str(es_f["periodoCasas"]).replace(".", ","), MG, 22, COR_TINTA)
+		elif es_f.has("centroCasas"):
+			_texto("Esticada: 1,4, 2, 3 e 5 casas, e a de 1 x 2 sem giro (estica pelo lado maior). Ponta + meio liso + centro fixo + meio liso + ponta: o centro de %s casa fica inteiro e no meio" % str(es_f["centroCasas"]).replace(".", ","), MG, 22, COR_TINTA)
 		else:
 			_texto("Esticada: 1,4, 2, 3 e 5 casas, e a de 1 x 2 sem giro (estica pelo lado maior). Ponta + meio liso + ponta: o meio estica sem emenda", MG, 22, COR_TINTA)
 		var ed := _ler(paineis, "esticada-desenhado.png")

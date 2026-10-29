@@ -598,13 +598,19 @@ Frente/Lado entra.
 4. **Estica por ponta + meio liso + ponta**: o designer deixa tudo o que muda ao longo nas
    pontas; o meio é a mesma coluna em todo x (o exportador mede: até 2/255), e o app estica
    o meio sem emenda. Quem vive esticado pode pedir o **meio que repete** (10.6): um módulo
-   a cada `periodoCasas`, em vez do meio liso.
+   a cada `periodoCasas`, em vez do meio liso; quem tem uma peça no meio que não pode
+   esticar nem repetir (a placa do arco do portão) pede o **centro fixo** (`centroCasas`,
+   10.6).
 5. **A sombra no chão é do app**: a silhueta já virada e esticada, andada na direção
    (7, 11), desfocada, cor `#0a1c28` a 25% (a dos carimbos, 9.1), numa camada só com a
    deles. O designer só escolhe o quanto ela anda e o borrão.
-6. **Teto:** 3 MiB de memória decodificada por móvel (RGBA com mipmap, todas as formas), 0,5
-   MiB em disco, 24 MiB os 31 juntos (só os tipos que o mapa usa carregam). Piloto: mesa
-   0,40, cadeira 0,99, barril 0,11 MiB.
+6. **Teto:** 3 MiB de memória decodificada **por vista** (RGBA com mipmap, todas as formas
+   da vista), 0,5 MiB em disco por móvel, 24 MiB os 31 juntos (só os tipos e as vistas que o
+   mapa usa carregam). Por vista desde o lote 12 (decisão do orquestrador): o app carrega só
+   a vista que o móvel usa (a Frente/Lado do mestre), então a carroça, com 2,92 MiB em cada
+   uma das 2 vistas, cabe. No `textura.json`, `memoria.memoriaBytes` é a soma de todas as
+   formas e `memoria.tetoMemoriaBytes` é o teto de uma vista (a integração soma as formas
+   da vista pelo `larguraPx` x `alturaPx`). Piloto: mesa 0,40, cadeira 0,99, barril 0,11 MiB.
 
 ### 10.2 Arquivos e config
 
@@ -616,7 +622,7 @@ Frente/Lado entra.
 | `lugares` | de 1 a 3, na ordem de `LUGARES_DE_MATERIAL[idDoApp]` do app (a mesa de prova confere) |
 | `corFixa` | `true` se tem parte de cor própria (lençol, louça, água, chama): imagem `-cor` |
 | `variantes` | opcional: `[{ nome, quando: { <lugar>: <opção> } }]`, quando uma opção muda o desenho (o assento de palha ou de madeira); a primeira é o padrão |
-| `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior, periodoCasas }` (`periodoCasas` opcional, só no `x`: o meio que repete, 10.6) |
+| `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior, periodoCasas, centroCasas }` (`periodoCasas` opcional, só no `x`: o meio que repete; `centroCasas` opcional, só no `x` e sem `periodoCasas`: o centro fixo; 10.6) |
 | `sombra` | `{ jeito: "deslocada" ou "nenhuma", deslocamentoCasas até 0,4, borraoCasas até 0,2 }` |
 | `margemCasas`, `onda`, `lote`, `semente` | a borda (padrão 0,0625), o lote, a semente |
 | `pecas` | opcional, só a cerca: `{ mouraoCasas: [x, y], raioCasas, colunaCasas, viradaDaLuz }`, de onde a conta tira o mourão e a ligação na forma 0 (10.12) |
@@ -632,7 +638,8 @@ cabeçalho explica cada argumento).
 
 `contrato`, `tipo: "movel"`, `idDoApp`, `pxPorCasa: 128`, `margemCasas`, `lugares`,
 `corFixa`, `variantes`, `vistas` (com `viradas` e `esticar`; no meio que repete, também
-`periodoCasas`, `modulos` e o texto `meio` da conta), `viradas` (o texto da regra
+`periodoCasas`, `modulos` e o texto `meio` da conta; no centro fixo, `centroCasas` e o
+texto `meio`), `viradas` (o texto da regra
 de 10.4), `formas` (nome, vista, variante, virada, casas, arquivos; `variacaoDoMeio` no
 meio liso, `costuraDoModulo` no que repete), `sombra` (jeito,
 direção, deslocamento, borrão, alfa, cor e a conta), `tingir` (a rampa de 10.5) e
@@ -670,9 +677,24 @@ distância OKLab na mesa 0,040 no Desenhado, 0,041 no Atual.
 `mesma` (o assento "da mesma madeira") vira a variante de madeira e o lugar 2 é tingido
 com o tom do lugar 1; `varas`, `corda` e afins só escolhem a variante.
 
+**A pedra com menos croma no escuro (lote 12, o poço).** Com o `cromaNaSombra` da família
+(+0,25) o arenito chegava ao contorno em (74, 51, 0), azul zero: a borda da pedra lia como
+ocre saturado. Para os materiais de classe `pedra` (`MATERIAIS[id].classe === 'pedra'` no
+app: granito, arenito, ardósia e barro), a rampa do lugar usa `cromaNaSombra` **-0,6** no
+lugar de +0,25 (o croma cai para 65% no contorno); o resto da rampa é o da família. O que
+a integração copia de `ferramentas/movel.ts`: `CROMA_NA_SOMBRA_DA_PEDRA`, `rampaDaOpcao`
+(a troca por lugar, pela opção do lugar) e a chave da rampa pronta com o tom e o
+`cromaNaSombra` (dois lugares de mesmo tom e classe diferente não dividem a rampa). O
+`tingir` do `textura.json` continua o da família, igual em todo móvel (os exportados não
+mudam). Medido: arenito, contorno (70, 52, 16), fundo (98, 76, 36), sombra (128, 102, 56),
+meio e luz iguais; granito e ardósia quase não mudam (croma de 0,015 a 0,018); a madeira
+fica como era.
+
 ### 10.6 Esticado
 
-O eixo de `esticar` é o do móvel (x = ao longo); `pontasCasas` são as pontas fixas, o meio
+O eixo de `esticar` é o do móvel (x = ao longo); `pontasCasas` são as pontas fixas, contadas
+da borda da pegada (a margem da imagem fica antes delas, como na conta do app; até o lote 12
+a medida do meio liso esquecia a margem e olhava `margemCasas` a mais de cada lado), e o meio
 da imagem estica até a medida pedida. Mais curto que as duas pontas: cada ponta perde
 metade do que falta. `xy` estica nos dois (o tapete, a fogueira de área). A curva da cerca
 não é forma própria nem trecho: é a **cerca por peças** do lote 12 (10.12).
@@ -698,6 +720,27 @@ designer da mesa quadrada já tinha avisado: "uma tábua emoldurada comprida"). 
 - Usam: o aparador (pontas 0,140625, P = 0,859375: 2 portas e um par de puxadores por
   módulo, nas duas vistas) e o balcão (pontas 0,5, P = 1: um vão da prateleira e um suporte
   da barra de pé por casa).
+
+**O centro fixo (opcional, lote 12, 29/10).** O arco do portão tem a placa pendurada no
+meio, que tem de ficar uma só, inteira e no meio em qualquer comprimento: o meio liso
+esticava a placa junto (uma faixa de 3,5 casas no arco de 5) e o que repete punha uma placa
+por módulo. Com `esticar.centroCasas` = C (só `eixo: "x"`, nunca com `periodoCasas`):
+
+- **O desenho** é ponta + meio liso + centro + meio liso + ponta. O centro são as C casas do
+  meio da imagem (centradas na pegada); entre cada ponta e o centro sobra meio liso (ao
+  menos 2 px de cada lado), a mesma coluna em todo x, e as pontas, C e a margem caem em px
+  inteiros. O exportador mede o liso só fora do centro (`variacaoDoMeio`, até 2/255), com
+  uma coluna de folga em cada borda.
+- **A conta** (`mapearEixo(t, T, S, pontas, null, centro)` de `ferramentas/movel.ts`): o
+  ponto a menos de C / 2 do meio do móvel lê o centro da imagem na mesma distância (o centro
+  não estica); entre a ponta e o centro, cada meio liso estica com a metade do que sobra.
+  Mais curto que pontas + C, o centro fica inteiro e cada ponta perde por dentro a metade do
+  que falta (some primeiro o meio liso, depois a borda de dentro da ponta; no arco, a 1,4
+  casa a placa ainda cabe entre os esteios).
+- Quem não pede sai igual: o `textura.json` só ganha `centroCasas` e o texto `meio` de quem
+  pede.
+- Usa: o arco do portão (pontas 0,46875, C = 0,578125: os esteios nas pontas, a placa com
+  as alças no centro, a trave lisa dos dois lados).
 
 ### 10.7 Sombra
 
@@ -727,6 +770,12 @@ cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%.
    (o aparador estica também de lado). A leitura bilinear e o mipmap podem passar da emenda
    sem cuidado: a faixa da emenda é lisa. Como o desenho muda com o comprimento, a camada
    pronta é por comprimento pedido (a chave de `rasterDosMoveis.ts` já leva a pegada).
+   **O centro fixo** (10.6) é igual: ler `vistas.<vista>.esticar.centroCasas` e, no mesmo
+   eixo ao longo, mapear como `mapearEixo(t, T, S, pontas, null, centro)`.
+9. **O teto é por vista** (10.1 item 6): carregar só as formas da vista que o móvel usa; a
+   soma das vistas carregadas no mapa fica nos 24 MiB.
+10. **A pedra** (10.5): o lugar de material de classe `pedra` tinge com `cromaNaSombra`
+   -0,6, como `rampaDaOpcao` de `ferramentas/movel.ts`.
 8. **A cerca por peças** (10.12): com `pecas` no `textura.json`, a cerca (reta e curva, em
    todo giro) não passa pelo esticar nem pelo quarto de volta: o rasterizador chama
    `geometriaDaCerca(largura, altura, volta)` (a mesma do desenho em linhas, do clique e da
@@ -741,7 +790,8 @@ cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%.
 `--folha` num móvel roda `comum/mesa_movel.gd`: `ferramentas/construir.mjs` empacota
 `ferramentas/mesa_movel.ts` (com `movel.ts` e o motor dos móveis do client da main, só
 leitura), o `node` pinta e o Godot arruma a folha. Mostra, Desenhado ao lado do Atual:
-sozinho e em 3 combinações de material a 100, 50 e 25%, e a 300%; os 5 tons de madeira com
+sozinho e em 3 combinações de material a 100, 50 e 25%, e a 300%; os 5 tons de madeira (no
+primeiro lugar de madeira, qualquer que seja a posição dele: o poço tem as pedras antes) com
 a medida OKLab; as 4 viradas (e a vista de lado); a esticada em 1,4, 2, 3 e 5 casas e a de
 1 x 2; e a **família**, uma clareira de 12 x 12 casas da grama aprovada com árvores,
 arbustos, pedras e o tronco caído da onda 3 e uma mesa com 5 cadeiras e 3 barris (o que já
@@ -759,8 +809,9 @@ Exporte todos os do lote antes das folhas (a família lê o que está em `export
 
 ### 10.10 Critério de pronto de um móvel
 
-1. `exportar_uma.gd --textura=movel-<nome> --folha` sai com 0: memória e disco no teto, o
-   meio liso (se estica) ou a costura do módulo (se repete), os lugares iguais aos do app.
+1. `exportar_uma.gd --textura=movel-<nome> --folha` sai com 0: memória no teto de cada
+   vista e disco no do móvel, o meio liso (se estica, fora do centro fixo se tem) ou a
+   costura do módulo (se repete), os lugares iguais aos do app.
 2. **Nada de risquinho, bolinha, prego, nó nem veio fino** (a crítica de 28/10: *"tá muito
    detalhado, cheio de bolinhas, fica estranho"*). Contorno, formas grandes, 2 ou 3 massas
    de luz por peça.

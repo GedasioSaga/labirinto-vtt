@@ -112,7 +112,7 @@ static func _medir(cfg: Dictionary, f: Dictionary, valor: Image, partes: Image) 
 		if vc["esticar"].has("periodoCasas"):
 			m["costura"] = snappedf(_costura_do_modulo(valor, partes, vc["esticar"], float(cfg["margemCasas"]), f["virada"] == 2), 0.0001)
 		else:
-			m["meioLiso"] = snappedf(_variacao_do_meio(valor, partes, vc["esticar"]["pontasCasas"], float(cfg["margemCasas"])), 0.0001)
+			m["meioLiso"] = snappedf(_variacao_do_meio(valor, partes, vc["esticar"], float(cfg["margemCasas"]), f["virada"] == 2), 0.0001)
 	return m
 
 
@@ -142,22 +142,45 @@ static func _costura_do_modulo(valor: Image, partes: Image, es: Dictionary, marg
 	return pior
 
 
-static func _variacao_do_meio(valor: Image, partes: Image, pontas: Array, margem: float) -> float:
+## O meio liso: as colunas entre as pontas têm de ser a mesma (a pior diferença média por
+## coluna contra a de referência). As pontas contam a partir da borda da PEGADA, como na conta
+## do app (ferramentas/movel.ts, mapearEixo): a imagem tem a margem antes dela (até o lote 12
+## a medida esquecia a margem e pegava margemCasas a mais de cada lado). Na virada 2 a ponta
+## da esquerda da imagem é a do fim do móvel. Com o centro fixo (10.6), só as colunas do meio
+## liso dos dois lados do centro, com uma coluna de folga em cada borda.
+static func _variacao_do_meio(valor: Image, partes: Image, es: Dictionary, margem: float, meia_volta: bool) -> float:
 	var casa := float(ContratoMovel.PX_POR_CASA)
-	var x0 := int(ceil(pontas[0] * casa)) + 1
-	var x1 := valor.get_width() - int(ceil(pontas[1] * casa)) - 1
+	var pontas: Array = es["pontasCasas"]
+	var x0 := int(ceil((margem + float(pontas[1 if meia_volta else 0])) * casa)) + 1
+	var x1 := valor.get_width() - int(ceil((margem + float(pontas[0 if meia_volta else 1])) * casa)) - 1
 	if x1 <= x0:
 		return 0.0
-	var xc := (x0 + x1) / 2
+	var colunas: Array[int] = []
+	if es.has("centroCasas"):
+		var meia := float(es["centroCasas"]) * casa / 2.0
+		var c0 := int(floor(valor.get_width() / 2.0 - meia)) - 2
+		var c1 := int(ceil(valor.get_width() / 2.0 + meia)) + 1
+		for x in range(x0, mini(c0, x1) + 1):
+			colunas.append(x)
+		for x in range(maxi(c1, x0), x1 + 1):
+			colunas.append(x)
+	else:
+		for x in range(x0, x1 + 1):
+			colunas.append(x)
+	if colunas.is_empty():
+		return 0.0
+	var xc: int = (x0 + x1) / 2 if not es.has("centroCasas") else colunas[0]
 	var pior := 0.0
-	for x in range(x0, x1 + 1):
+	for x in colunas:
 		var s := 0.0
 		for y in valor.get_height():
 			var a := valor.get_pixel(x, y)
 			var b := valor.get_pixel(xc, y)
 			var pa := partes.get_pixel(x, y)
 			var pb := partes.get_pixel(xc, y)
-			s += absf(a.r * a.a - b.r * b.a) + absf(a.a - b.a) + absf(pa.r - pb.r) + absf(pa.g - pb.g)
+			# As partes pesadas pela cobertura, como o valor: o fix_alpha_edges espalha a cor
+			# da borda nos px transparentes, que o app não lê (o tingir é pré-multiplicado).
+			s += absf(a.r * a.a - b.r * b.a) + absf(a.a - b.a) + absf(pa.r * a.a - pb.r * b.a) + absf(pa.g * a.a - pb.g * b.a)
 		pior = maxf(pior, s / float(valor.get_height()))
 	return pior
 
