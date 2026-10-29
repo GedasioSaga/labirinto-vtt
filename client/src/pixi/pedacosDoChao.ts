@@ -1,7 +1,8 @@
 import { BufferImageSource, Container, MaskFilter, Rectangle, Sprite, Texture, type TilingSprite } from 'pixi.js'
 import type { Caixa } from '../lib/texturas'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
-import { LADO_DO_PEDACO, comecarPedaco, ladoDoPedacoNoMundo, pintarLinhas, type ChaoDaTextura, type Pedaco, type PinturaDoPedaco } from '../texturas/meioTermo/chaoNoMundo'
+import { LADO_DO_PEDACO, comecarPedaco, ladoDoPedacoNoMundo, pintarLinhas, type ChaoDaTextura, type Pedaco } from '../texturas/meioTermo/chaoNoMundo'
+import { comecarPedacoDesenhado, pintarLinhasDesenhado, type ChaoDesenhado } from '../texturas/desenhado/chao'
 
 /**
  * PEDAÇOS DO CHÃO (Meio-Termo, fatia MT7): com a chave de obra ligada, a
@@ -93,6 +94,25 @@ export function areaNaVista(caixa: Caixa, vista: Caixa): Caixa | null {
   return maxX > minX && maxY > minY ? { minX, minY, maxX, maxY } : null
 }
 
+/** O que um pedaço pinta: o chão do Meio-Termo (`chaoNoMundo.ts`) ou o do Desenhado (`texturas/desenhado/chao.ts`). */
+export type ChaoDoPedaco = ChaoDaTextura | ChaoDesenhado
+
+/** Uma pintura em andamento, seja qual for a conta: os bytes, a próxima linha e o passo. */
+interface Pintura {
+  readonly pixels: Uint8ClampedArray
+  linha: () => number
+  pintarAte: (ate: number) => void
+}
+
+function iniciarPintura(chao: ChaoDoPedaco, pedaco: Pedaco): Pintura {
+  if ('tipo' in chao) {
+    const p = comecarPedacoDesenhado(chao, pedaco)
+    return { pixels: p.pixels, linha: () => p.linha, pintarAte: (ate) => pintarLinhasDesenhado(chao, pedaco, p, ate) }
+  }
+  const p = comecarPedaco(chao, pedaco)
+  return { pixels: p.pixels, linha: () => p.linha, pintarAte: (ate) => pintarLinhas(chao, pedaco, p, ate) }
+}
+
 export interface PedidoDoPedaco {
   /** A textura, se o pedaço já estava pronto; senão chega por `aoFicarPronto`. */
   readonly textura: Texture | null
@@ -101,9 +121,10 @@ export interface PedidoDoPedaco {
 
 interface EntradaDoPedaco {
   readonly chave: string
-  readonly chao: ChaoDaTextura
+  /** Solto ao terminar: o pedaço pronto não segura as imagens do chão (o teto do carregador do Desenhado). */
+  chao: ChaoDoPedaco | null
   readonly pedaco: Pedaco
-  pintura: PinturaDoPedaco | null
+  pintura: Pintura | null
   textura: Texture | null
   usos: number
   readonly ouvintes: Set<(t: Texture) => void>
@@ -149,7 +170,7 @@ export class CacheDoChao {
   }
 
   /** Pede o pedaço (`chaveDoChao` = a textura, o lado dela no mundo e a versão do desenho). */
-  pedir(chaveDoChao: string, chao: ChaoDaTextura, pedaco: Pedaco, aoFicarPronto: (t: Texture) => void): PedidoDoPedaco {
+  pedir(chaveDoChao: string, chao: ChaoDoPedaco, pedaco: Pedaco, aoFicarPronto: (t: Texture) => void): PedidoDoPedaco {
     const chave = `${chaveDoChao}|${pedaco.nivel}|${pedaco.i}|${pedaco.j}`
     let e = this.cache.get(chave)
     if (e === undefined || this.destruido) {
@@ -214,13 +235,18 @@ export class CacheDoChao {
         this.retirar(e)
         continue
       }
-      e.pintura ??= comecarPedaco(e.chao, e.pedaco)
+      const chao = e.chao
+      if (chao === null) {
+        this.fila.shift()
+        continue
+      }
+      e.pintura ??= iniciarPintura(chao, e.pedaco)
       const p = e.pintura
       do {
-        pintarLinhas(e.chao, e.pedaco, p, p.linha + LINHAS_POR_PASSO)
+        p.pintarAte(p.linha() + LINHAS_POR_PASSO)
         primeira = false
-      } while (p.linha < LADO_DO_PEDACO && performance.now() - inicio < this.fatiaMs)
-      if (p.linha >= LADO_DO_PEDACO) {
+      } while (p.linha() < LADO_DO_PEDACO && performance.now() - inicio < this.fatiaMs)
+      if (p.linha() >= LADO_DO_PEDACO) {
         this.fila.shift()
         this.terminar(e, p)
       }
@@ -228,7 +254,7 @@ export class CacheDoChao {
     if (this.fila.length > 0) this.agendarBomba()
   }
 
-  private terminar(e: EntradaDoPedaco, p: PinturaDoPedaco): void {
+  private terminar(e: EntradaDoPedaco, p: Pintura): void {
     // Bytes opacos (alfa 255): pré-multiplicado ou não dá o mesmo, e a placa não converte.
     const source = new BufferImageSource({
       resource: p.pixels,
@@ -242,6 +268,7 @@ export class CacheDoChao {
     const textura = new Texture({ source })
     e.textura = textura
     e.pintura = null
+    e.chao = null
     this.pintados += 1
     const ouvintes = [...e.ouvintes]
     e.ouvintes.clear()
@@ -309,7 +336,7 @@ export function chaoDoGrupo(grupo: Container): ChaoEmPedacos | undefined {
 export interface MontagemDoChao {
   cache: CacheDoChao
   chaveDoChao: string
-  chao: ChaoDaTextura
+  chao: ChaoDoPedaco
   /** A caixa da pintura da camada (os pedaços só cobrem o que ela pinta). */
   caixa: Caixa
   /** O ladrilho repetido de hoje, já recortado na vista: fica por baixo até os pedaços chegarem. */
@@ -325,6 +352,12 @@ export interface MontagemDoChao {
   aoFicarPronto?: () => void
   /** Avisado quando o que o grupo desenha muda (pedaço chegou, faixa trocou): a vitrine compõe de novo. */
   aoMudar?: () => void
+  /**
+   * Níveis acima do da vista (padrão 0). O piso Desenhado usa 1: a base dele é
+   * calma (64 px por casa, CONTRATO.md seção 1) e a meia resolução gasta um
+   * quarto da placa para cobrir a mesma sala.
+   */
+  nivelAMais?: number
 }
 
 /**
@@ -441,7 +474,7 @@ export function montarChaoEmPedacos(m: MontagemDoChao): ChaoEmPedacos {
     const alvo = vista === null ? null : (cobrir ?? vista)
     // A área do filtro anda com a vista a cada chamada (o pan não muda a faixa de pedaços, mas muda a vista).
     mascarada?.ajustar(alvo)
-    const nivel = vista === null ? nivelDaVista(m.caixa, MAX_PEDACOS_NO_PNG) : nivelDaVista(vista)
+    const nivel = Math.min(NIVEL_MAXIMO_DO_CHAO, (vista === null ? nivelDaVista(m.caixa, MAX_PEDACOS_NO_PNG) : nivelDaVista(vista)) + (m.nivelAMais ?? 0))
     const area = alvo === null ? m.caixa : areaNaVista(m.caixa, alvo)
     const f = area === null ? null : faixaDaArea(area, nivel)
     const nova = f === null ? `${nivel}|nada` : `${nivel}|${f.i0}|${f.i1}|${f.j0}|${f.j1}`
