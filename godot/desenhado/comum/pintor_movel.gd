@@ -109,8 +109,37 @@ static func _medir(cfg: Dictionary, f: Dictionary, valor: Image, partes: Image) 
 	var m := {"cobertura": snappedf(cobre / float(w * h), 0.001), "valorMedioPorLugar": medias}
 	var vc: Dictionary = cfg["vistas"][f["vista"]]
 	if vc.has("esticar") and f["virada"] % 2 == 0:
-		m["meioLiso"] = snappedf(_variacao_do_meio(valor, partes, vc["esticar"]["pontasCasas"], float(cfg["margemCasas"])), 0.0001)
+		if vc["esticar"].has("periodoCasas"):
+			m["costura"] = snappedf(_costura_do_modulo(valor, partes, vc["esticar"], float(cfg["margemCasas"]), f["virada"] == 2), 0.0001)
+		else:
+			m["meioLiso"] = snappedf(_variacao_do_meio(valor, partes, vc["esticar"]["pontasCasas"], float(cfg["margemCasas"])), 0.0001)
 	return m
+
+
+## O meio que repete (CONTRATO 10.6): em toda emenda (ponta com módulo, módulo com módulo,
+## módulo com ponta) a faixa de 2 x COSTURA_PX colunas em volta tem de ser a mesma coluna
+## lisa da primeira emenda. Devolve a pior diferença média por coluna (como o meio liso).
+## Na virada 2 (meia volta) a ponta da esquerda da imagem é a do fim do móvel.
+static func _costura_do_modulo(valor: Image, partes: Image, es: Dictionary, margem: float, meia_volta: bool) -> float:
+	var casa := float(ContratoMovel.PX_POR_CASA)
+	var x0 := int(round((margem + float(es["pontasCasas"][1 if meia_volta else 0])) * casa))
+	var passo := int(round(float(es["periodoCasas"]) * casa))
+	var b := ContratoMovel.COSTURA_PX
+	var pior := 0.0
+	for j in int(es["modulos"]) + 1:
+		for o in range(-b, b):
+			var x := x0 + j * passo + o
+			if x < 0 or x >= valor.get_width():
+				continue
+			var s := 0.0
+			for y in valor.get_height():
+				var a := valor.get_pixel(x, y)
+				var c := valor.get_pixel(x0, y)
+				var pa := partes.get_pixel(x, y)
+				var pc := partes.get_pixel(x0, y)
+				s += absf(a.r * a.a - c.r * c.a) + absf(a.a - c.a) + absf(pa.r - pc.r) + absf(pa.g - pc.g)
+			pior = maxf(pior, s / float(valor.get_height()))
+	return pior
 
 
 static func _variacao_do_meio(valor: Image, partes: Image, pontas: Array, margem: float) -> float:

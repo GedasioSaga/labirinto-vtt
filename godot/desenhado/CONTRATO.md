@@ -597,7 +597,8 @@ Frente/Lado entra.
    faltam saem por transposição, que guarda a luz porque ela está na diagonal.
 4. **Estica por ponta + meio liso + ponta**: o designer deixa tudo o que muda ao longo nas
    pontas; o meio é a mesma coluna em todo x (o exportador mede: até 2/255), e o app estica
-   o meio sem emenda.
+   o meio sem emenda. Quem vive esticado pode pedir o **meio que repete** (10.6): um módulo
+   a cada `periodoCasas`, em vez do meio liso.
 5. **A sombra no chão é do app**: a silhueta já virada e esticada, andada na direção
    (7, 11), desfocada, cor `#0a1c28` a 25% (a dos carimbos, 9.1), numa camada só com a
    deles. O designer só escolhe o quanto ela anda e o borrão.
@@ -615,7 +616,7 @@ Frente/Lado entra.
 | `lugares` | de 1 a 3, na ordem de `LUGARES_DE_MATERIAL[idDoApp]` do app (a mesa de prova confere) |
 | `corFixa` | `true` se tem parte de cor própria (lençol, louça, água, chama): imagem `-cor` |
 | `variantes` | opcional: `[{ nome, quando: { <lugar>: <opção> } }]`, quando uma opção muda o desenho (o assento de palha ou de madeira); a primeira é o padrão |
-| `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior }` |
+| `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior, periodoCasas }` (`periodoCasas` opcional, só no `x`: o meio que repete, 10.6) |
 | `sombra` | `{ jeito: "deslocada" ou "nenhuma", deslocamentoCasas até 0,4, borraoCasas até 0,2 }` |
 | `margemCasas`, `onda`, `lote`, `semente` | a borda (padrão 0,0625), o lote, a semente |
 
@@ -629,8 +630,10 @@ cabeçalho explica cada argumento).
 ### 10.3 Parâmetros (`textura.json`)
 
 `contrato`, `tipo: "movel"`, `idDoApp`, `pxPorCasa: 128`, `margemCasas`, `lugares`,
-`corFixa`, `variantes`, `vistas` (com `viradas` e `esticar`), `viradas` (o texto da regra
-de 10.4), `formas` (nome, vista, variante, virada, casas, arquivos), `sombra` (jeito,
+`corFixa`, `variantes`, `vistas` (com `viradas` e `esticar`; no meio que repete, também
+`periodoCasas`, `modulos` e o texto `meio` da conta), `viradas` (o texto da regra
+de 10.4), `formas` (nome, vista, variante, virada, casas, arquivos; `variacaoDoMeio` no
+meio liso, `costuraDoModulo` no que repete), `sombra` (jeito,
 direção, deslocamento, borrão, alfa, cor e a conta), `tingir` (a rampa de 10.5) e
 `memoria` (bytes decodificados e em disco).
 
@@ -672,6 +675,28 @@ da imagem estica até a medida pedida. Mais curto que as duas pontas: cada ponta
 metade do que falta. `xy` estica nos dois (o tapete, a fogueira de área). A curva da cerca
 (`curva`) não entra no piloto: fica com o lote da cerca, que decide se é forma própria.
 
+**O meio que repete (opcional, lote 11, 29/10).** Com o meio liso, quem vive esticado lia
+pobre: a 50%, o balcão de 6 casas era uma tábua listrada comprida, sem divisão nenhuma (o
+designer da mesa quadrada já tinha avisado: "uma tábua emoldurada comprida"). Com
+`esticar.periodoCasas` = P (só `eixo: "x"`):
+
+- **O desenho** leva entre as pontas um número inteiro de módulos de P casas, e as pontas,
+  P e a margem caem em px inteiros (x 128; o contrato recusa o resto). A emenda de dois
+  módulos, e a de módulo com ponta, cai numa **faixa lisa**: 2 x 4 px em volta de cada
+  emenda são a mesma coluna da primeira. O exportador mede (`costuraDoModulo`, até 2/255,
+  como o meio liso) e avisa. Ponha a emenda no meio de um vão, de um montante ou de uma
+  tábua, nunca numa peça que muda ao longo.
+- **A conta** (`faseNoModulo` e `mapearEixo` de `ferramentas/movel.ts`): para um meio de M
+  casas, n = round(M / P) módulos, cada um com M / n casas. **A sobra se reparte pelos
+  módulos**, que crescem ou encolhem um pouco (de 0,5 a 1,5 P com um módulo só, perto de 1 P
+  com muitos), e as pontas ficam intactas: nunca sai meio módulo cortado. Com M < P / 2,
+  n = 0 e o meio é a coluna da emenda (lisa). Todo módulo lê o primeiro módulo da imagem.
+- Quem não pede continua liso: as ondas 1 a 3 e os móveis dos lotes 9 e 10 reexportados
+  saíram byte a byte iguais (46 de 46 por sha256, 29/10).
+- Usam: o aparador (pontas 0,140625, P = 0,859375: 2 portas e um par de puxadores por
+  módulo, nas duas vistas) e o balcão (pontas 0,5, P = 1: um vão da prateleira e um suporte
+  da barra de pé por casa).
+
 ### 10.7 Sombra
 
 A do app (10.1 item 5). Guia: o quanto anda é a altura do móvel (mesa 0,22 casa,
@@ -694,6 +719,12 @@ cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%.
    `.js`; os PNGs vão junto do app ou por outro canal.
 6. **Nada muda no mapa**: o tipo, a pegada, as opções de material, o giro e a vista são os
    de hoje; o mapa salvo abre igual nos dois estilos.
+7. **O meio que repete** (10.6): ler `vistas.<vista>.esticar.periodoCasas` e, só no eixo ao
+   longo do móvel (o x da tela nas viradas 0 e 2, o y nas 1 e 3), trocar o esticar do meio
+   pela fase no módulo, como `mapearEixo(t, T, S, pontas, periodo)`. Vale nas duas vistas
+   (o aparador estica também de lado). A leitura bilinear e o mipmap podem passar da emenda
+   sem cuidado: a faixa da emenda é lisa. Como o desenho muda com o comprimento, a camada
+   pronta é por comprimento pedido (a chave de `rasterDosMoveis.ts` já leva a pegada).
 
 ### 10.9 A mesa de prova dos móveis
 
@@ -716,7 +747,7 @@ Exporte todos os do lote antes das folhas (a família lê o que está em `export
 ### 10.10 Critério de pronto de um móvel
 
 1. `exportar_uma.gd --textura=movel-<nome> --folha` sai com 0: memória e disco no teto, o
-   meio liso (se estica), os lugares iguais aos do app.
+   meio liso (se estica) ou a costura do módulo (se repete), os lugares iguais aos do app.
 2. **Nada de risquinho, bolinha, prego, nó nem veio fino** (a crítica de 28/10: *"tá muito
    detalhado, cheio de bolinhas, fica estranho"*). Contorno, formas grandes, 2 ou 3 massas
    de luz por peça.

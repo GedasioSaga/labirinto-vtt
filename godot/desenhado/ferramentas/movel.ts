@@ -12,7 +12,8 @@
  *   1. a variante (a opção que muda o desenho, como o assento de palha ou de madeira);
  *   2. a virada k = round(giro / 90) mod 4 e a forma (a desenhada, ou a transposta);
  *   3. o tingir: cada pixel = soma dos pesos x rampa(tom do lugar)[valor] (10.5);
- *   4. o esticar (ponta + meio + ponta) ou a escala da pegada (10.6);
+ *   4. o esticar (ponta + meio + ponta; o meio liso estica, o que repete põe módulos
+ *      inteiros) ou a escala da pegada (10.6);
  *   5. a sombra pela silhueta (10.7). A tela gira só o resto (giro - 90 k).
  */
 import type { Imagem } from './png'
@@ -27,6 +28,10 @@ export interface Esticar {
   readonly pontasCasas: readonly [number, number]
   readonly pontasCasasY: readonly [number, number] | null
   readonly ladoMaior: boolean
+  /** O meio que repete (opcional, 10.6): o período do módulo em casas; sem ele, o meio é liso. */
+  readonly periodoCasas?: number
+  /** Quantos módulos o desenho tem entre as pontas (só com periodoCasas). */
+  readonly modulos?: number
 }
 
 export interface VistaDoMovel {
@@ -283,13 +288,31 @@ function tingir(m: MovelCarregado, f: FormaDoMovel, tons: readonly Rgb[], transp
 
 // ---------- 4: o esticar e a escala ----------
 
-/** O ponto da imagem (casas, a partir da borda da pegada) para o ponto t do móvel de T casas. */
-export function mapearEixo(t: number, T: number, S: number, pontas: readonly [number, number] | null): number {
+/**
+ * O meio que repete (10.6): um meio de M casas leva n = round(M / P) módulos inteiros, cada
+ * um com M / n casas (a sobra se reparte pelos módulos, que crescem ou encolhem); mais curto
+ * que meio período, n = 0 e o meio é a coluna da emenda (lisa). Devolve, para o ponto u do
+ * meio (0..M), a posição dentro do primeiro módulo da imagem (0..P).
+ */
+export function faseNoModulo(u: number, M: number, P: number): number {
+  const n = Math.round(M / P)
+  if (n < 1) return 0
+  const s = M / n
+  const f = u / s - Math.floor(u / s)
+  return f * P
+}
+
+/**
+ * O ponto da imagem (casas, a partir da borda da pegada) para o ponto t do móvel de T casas.
+ * Com `periodo`, o meio repete o primeiro módulo da imagem em vez de esticar.
+ */
+export function mapearEixo(t: number, T: number, S: number, pontas: readonly [number, number] | null, periodo: number | null = null): number {
   if (pontas === null) return (t * S) / T
   const [pE, pD] = pontas
   if (T >= pE + pD) {
     if (t <= pE) return t
     if (t >= T - pD) return S - (T - t)
+    if (periodo !== null) return pE + faseNoModulo(t - pE, T - pE - pD, periodo)
     return pE + ((t - pE) * (S - pE - pD)) / (T - pE - pD)
   }
   // Mais curto que as duas pontas: metade de cada ponta, o corte no meio (no meio liso).
@@ -419,6 +442,10 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
   const pontasAtraves = es !== undefined && es.eixo === 'xy' ? ordem(es.pontasCasasY ?? es.pontasCasas) : null
   const pontasX = k % 2 === 0 ? pontasAoLongo : pontasAtraves
   const pontasY = k % 2 === 0 ? pontasAtraves : pontasAoLongo
+  // O meio que repete só anda ao longo do móvel.
+  const periodo = es?.periodoCasas ?? null
+  const periodoX = k % 2 === 0 ? periodo : null
+  const periodoY = k % 2 === 0 ? null : periodo
   const sb = p.sombra
   const nd = Math.hypot(sb.direcao[0], sb.direcao[1])
   const desl = sb.jeito === 'nenhuma' ? 0 : sb.deslocamentoCasas * pxPorCasa
@@ -435,10 +462,10 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
   const amostra = [0, 0, 0, 0]
   for (let Y = 0; Y < H; Y += 1) {
     const ty = (Y + 0.5 - borda) / pxPorCasa
-    const sy = mapearEixo(ty, alvo[1], fonte[1], pontasY)
+    const sy = mapearEixo(ty, alvo[1], fonte[1], pontasY, periodoY)
     for (let X = 0; X < W; X += 1) {
       const tx = (X + 0.5 - borda) / pxPorCasa
-      const sx = mapearEixo(tx, alvo[0], fonte[0], pontasX)
+      const sx = mapearEixo(tx, alvo[0], fonte[0], pontasX, periodoX)
       ler(n, (sx + mg) * PX_POR_CASA * kN, (sy + mg) * PX_POR_CASA * kN, amostra)
       const o = (Y * W + X) * 4
       for (let q = 0; q < 4; q += 1) px[o + q] = amostra[q]

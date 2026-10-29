@@ -327,6 +327,10 @@ func _rodar_movel(args: Dictionary, id: String, inicio: int) -> void:
 			linha += ", o meio muda %.4f ao longo" % m["meioLiso"]
 			if m["meioLiso"] > ContratoMovel.MEIO_LISO_FOLGA:
 				printerr("  aviso: o meio de %s não é liso ao longo (%.4f > %.4f): o app estica o meio e a mudança apareceria esticada" % [nome, m["meioLiso"], ContratoMovel.MEIO_LISO_FOLGA])
+		if m.has("costura"):
+			linha += ", a costura dos módulos muda %.4f" % m["costura"]
+			if m["costura"] > ContratoMovel.MEIO_LISO_FOLGA:
+				printerr("  aviso: a costura dos módulos de %s não é a mesma coluna lisa em toda emenda (%.4f > %.4f): o app repete o módulo e a emenda apareceria" % [nome, m["costura"], ContratoMovel.MEIO_LISO_FOLGA])
 		print(linha)
 	print("  memória: %.2f MiB decodificada (teto %.2f), %.2f MiB em disco (teto %.2f)" % [memoria / 1048576.0, ContratoMovel.TETO_MEMORIA_POR_MOVEL / 1048576.0, disco / 1048576.0, ContratoMovel.TETO_DISCO_POR_MOVEL / 1048576.0])
 	if memoria > ContratoMovel.TETO_MEMORIA_POR_MOVEL or disco > ContratoMovel.TETO_DISCO_POR_MOVEL:

@@ -40,7 +40,13 @@ const RAMPA := {
 	"claroDesde": 0.94,
 }
 ## Tolerância da faixa do meio de quem estica: a coluna do meio tem de ser a mesma em todo x.
+## No meio que repete, a mesma folga vale para a costura (a faixa em volta de cada emenda
+## de módulo igual à da primeira).
 const MEIO_LISO_FOLGA := 2.0 / 255.0
+## O meio que repete: o menor período, e a meia largura (px) da faixa da costura que tem de
+## ser lisa e igual em toda emenda (o app lê a fonte bilinear e com mipmap nela).
+const PERIODO_MIN := 0.25
+const COSTURA_PX := 4
 
 
 static func eh_movel(id: String) -> bool:
@@ -146,6 +152,14 @@ static func ler_config(id: String) -> Dictionary:
 			# ladoMaior: o móvel estica pelo lado maior da pegada (a mesa de 1 x 2 sem giro é a
 			# de 2 x 1 deitada: o app troca w e h e soma um quarto de volta).
 			vc["esticar"] = {"eixo": eixo, "pontasCasas": pontas, "pontasCasasY": pontas_y if eixo == "xy" else null, "ladoMaior": bool(es.get("ladoMaior", false))}
+			# O meio que repete (opcional, CONTRATO 10.6): só quem pede periodoCasas; sem ele
+			# o meio continua liso e o textura.json sai igual.
+			if es.has("periodoCasas"):
+				var rep := _ler_periodo(nome, eixo, casas[0], pontas, es["periodoCasas"], cfg["margemCasas"])
+				erros.append_array(rep["erros"])
+				if rep["erros"].is_empty():
+					vc["esticar"]["periodoCasas"] = rep["periodo"]
+					vc["esticar"]["modulos"] = rep["modulos"]
 		cfg["vistas"][nome] = vc
 	var sb = c.get("sombra", {})
 	if typeof(sb) != TYPE_DICTIONARY:
@@ -160,6 +174,28 @@ static func ler_config(id: String) -> Dictionary:
 	if cfg["sombra"]["deslocamentoCasas"] < 0.0 or cfg["sombra"]["deslocamentoCasas"] > 0.4 or cfg["sombra"]["borraoCasas"] < 0.0 or cfg["sombra"]["borraoCasas"] > 0.2:
 		erros.append("\"sombra\": deslocamentoCasas de 0 a 0,4 e borraoCasas de 0 a 0,2")
 	return {"ok": erros.is_empty(), "erros": erros, "config": cfg}
+
+
+## O meio que repete: o desenho leva entre as pontas um número inteiro de módulos de
+## periodoCasas, e as pontas, o período e a margem caem em px inteiros (a costura que o
+## exportador mede é coluna contra coluna). Só ao longo (eixo "x").
+static func _ler_periodo(vista: String, eixo: String, comprimento: float, pontas: Array, bruto, margem: float) -> Dictionary:
+	var erros: Array[String] = []
+	var periodo := float(bruto) if typeof(bruto) == TYPE_FLOAT or typeof(bruto) == TYPE_INT else -1.0
+	var meio: float = comprimento - pontas[0] - pontas[1]
+	var modulos := int(round(meio / periodo)) if periodo > 0.0 else 0
+	if eixo != "x":
+		erros.append("vista \"%s\": \"esticar.periodoCasas\" (o meio que repete) só com \"eixo\": \"x\"" % vista)
+	elif periodo < PERIODO_MIN or periodo > meio + 1e-4:
+		erros.append("vista \"%s\": \"esticar.periodoCasas\" de %.2f até o meio do desenho (%.3f casas)" % [vista, PERIODO_MIN, meio])
+	elif absf(meio / periodo - modulos) > 1e-3:
+		erros.append("vista \"%s\": o meio do desenho (%.3f casas, entre as pontas) tem de ser um número inteiro de módulos de %.3f" % [vista, meio, periodo])
+	else:
+		for v in [periodo, pontas[0], pontas[1], margem]:
+			if absf(v * PX_POR_CASA - round(v * PX_POR_CASA)) > 1e-3:
+				erros.append("vista \"%s\": com periodoCasas, as pontas, o período e a margem têm de dar px inteiros (x %d): %.4f não dá" % [vista, PX_POR_CASA, v])
+				break
+	return {"erros": erros, "periodo": periodo, "modulos": modulos}
 
 
 ## O tamanho da imagem (px) de uma forma: a pegada (deitada na virada 1 e 3) mais a margem.
@@ -206,6 +242,8 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 			item["cor"] = nome + "-cor.png"
 		if m.has("meioLiso"):
 			item["variacaoDoMeio"] = m["meioLiso"]
+		if m.has("costura"):
+			item["costuraDoModulo"] = m["costura"]
 		lista.append(item)
 	var vistas := {}
 	for vista in cfg["vistas"]:
@@ -213,7 +251,10 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 		var v := {"casas": vc["casas"], "viradas": vc["viradas"], "desenhadas": viradas_desenhadas(vc["viradas"])}
 		if vc.has("esticar"):
 			v["esticar"] = vc["esticar"].duplicate()
-			v["esticar"]["meio"] = "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir"
+			if vc["esticar"].has("periodoCasas"):
+				v["esticar"]["meio"] = "repete: entre as pontas o desenho tem 'modulos' módulos de periodoCasas, e a emenda de dois módulos (e a de módulo com ponta) é a mesma coluna lisa. Para um meio de M casas, o app põe n = round(M / periodoCasas) módulos, cada um com M / n casas (a sobra se reparte pelos módulos); com n = 0, o meio é a coluna da emenda. Cada módulo lê o primeiro módulo da imagem."
+			else:
+				v["esticar"]["meio"] = "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir"
 		vistas[vista] = v
 	return {
 		"contrato": Contrato.VERSAO,

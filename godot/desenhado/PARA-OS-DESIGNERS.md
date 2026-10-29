@@ -307,7 +307,9 @@ de lado e variante, `movel-barril` para o redondo e o metal).
    só de lado a lado, 4 se não (CONTRATO 10.4). A folha mostra as 4.
 3. **Esticar:** tudo o que muda ao longo (quinas, pernas, a massa da ponta) fica dentro de
    `pontasCasas`; o meio é a mesma coluna em todo x. O exportador mede e avisa se o meio
-   não é liso.
+   não é liso. Quem vive esticado e lê como "tábua comprida" pede `periodoCasas` (o meio que
+   repete, CONTRATO 10.6: um módulo inteiro por período, a emenda numa faixa lisa;
+   exemplos `movel-aparador` e `movel-balcao`).
 4. **Vista de lado** (os 8 de `TIPOS_COM_VISTA`): `vistas.lado` com a pegada de lado do app;
    `vis == 1` no shader. Tem de ler como o mesmo móvel.
 5. **Variantes** só quando uma opção muda o desenho (o assento de palha ou de madeira, as

@@ -180,7 +180,11 @@ func _folha(cfg: Dictionary, p: Dictionary, resumo: Dictionary, paineis: String,
 	_linha([_ler(paineis, "viradas-desenhado.png"), _ler(paineis, "viradas-atual.png") if tem_atual else null], ["Desenhado a 100%", "Atual a 100%"])
 	# Esticada.
 	if p["esticar"]:
-		_texto("Esticada: 1,4, 2, 3 e 5 casas, e a de 1 x 2 sem giro (estica pelo lado maior). Ponta + meio liso + ponta: o meio estica sem emenda", MG, 22, COR_TINTA)
+		var es_f: Dictionary = cfg["vistas"]["frente"].get("esticar", {})
+		if es_f.has("periodoCasas"):
+			_texto("Esticada: 1,4, 2, 3 e 5 casas, e a de 1 x 2 sem giro (estica pelo lado maior). Ponta + meio que repete + ponta: um módulo a cada %s casa, a sobra repartida pelos módulos" % str(es_f["periodoCasas"]).replace(".", ","), MG, 22, COR_TINTA)
+		else:
+			_texto("Esticada: 1,4, 2, 3 e 5 casas, e a de 1 x 2 sem giro (estica pelo lado maior). Ponta + meio liso + ponta: o meio estica sem emenda", MG, 22, COR_TINTA)
 		var ed := _ler(paineis, "esticada-desenhado.png")
 		_linha([ed], ["Desenhado a 100%"])
 		if tem_atual:
