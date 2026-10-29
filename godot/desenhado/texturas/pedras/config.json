@@ -1,0 +1,23 @@
+{
+  "id": "pedras",
+  "nome": "Pedras",
+  "idDoApp": "pedras",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 8,
+  "semente": 83,
+  "tamanhoDoApp": 10,
+  "variacoes": 4,
+  "espelho": "nenhum",
+  "sprite": {
+    "ladoPx": 224,
+    "unidadePx": 208,
+    "ancoraPx": [115.1, 126.1]
+  },
+  "sombra": {
+    "jeito": "em-pe",
+    "comprimento": 0.4,
+    "borrao": 0.03
+  }
+}
