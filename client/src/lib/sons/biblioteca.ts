@@ -33,6 +33,31 @@ export const PASTAS_DE_SOM_MAX = 50
 export const ENTRADAS_CRUAS_DE_SOM_MAX = 2000
 export const VOLUME_DE_SOM_PADRAO = 0.8
 export const NOME_DE_SOM_PADRAO = 'Som sem nome'
+/**
+ * Teto dos segundos de um trecho (A e B): uma semana, o mesmo teto do
+ * `deslocamentoS` da rede (`SOM_DESLOCAMENTO_MAX_S` em `net/protocol.ts`).
+ * Acima disso o `som.tocar` seria recusado inteiro no jogador.
+ */
+export const TRECHO_MAX_S = 7 * 24 * 60 * 60
+
+/**
+ * As duas partes da aba Sons: Músicas (ambiente, tema de batalha) e Efeitos
+ * sonoros (porta, espada). No `sons.json` só a música é marcada (`parte:
+ * 'musicas'`); sem a marca é efeito, e assim todo som e toda pasta de antes
+ * (que não tinham parte) entram em Efeitos sonoros sem migração.
+ */
+export type ParteDosSons = 'musicas' | 'efeitos'
+export const PARTES_DOS_SONS: readonly ParteDosSons[] = ['musicas', 'efeitos']
+
+/**
+ * As categorias que cada parte ganha uma vez (`comCategoriasSugeridas`). O
+ * mestre renomeia ou apaga; apagada, não volta (`categoriasSugeridas` fica
+ * gravado no `sons.json`).
+ */
+export const CATEGORIAS_SUGERIDAS: Readonly<Record<ParteDosSons, readonly string[]>> = {
+  musicas: ['Ambiente', 'Batalha', 'Taverna'],
+  efeitos: ['Combate', 'Magia', 'Natureza'],
+}
 
 /** O id de 11 caracteres que o YouTube dá a cada vídeo. */
 const FORMA_DO_VIDEO_DO_YOUTUBE = /^[A-Za-z0-9_-]{11}$/
@@ -50,8 +75,13 @@ declare const MARCA_DO_VIDEO_DO_YOUTUBE: unique symbol
 export type VideoDoYoutube = string & { readonly [MARCA_DO_VIDEO_DO_YOUTUBE]: true }
 
 export type FonteDoSom =
-  /** `ref` = `midia:<sha256>.<mp3|ogg|wav|m4a>` (`lib/midia.ts`); `bytes` = tamanho do arquivo. */
-  | { tipo: 'arquivo'; ref: string; bytes: number }
+  /**
+   * `ref` = `midia:<sha256>.<mp3|ogg|wav|m4a>` (`lib/midia.ts`); `bytes` =
+   * tamanho do arquivo. `inicioS` e `fimS` (29/10/2026): o trecho de A até B,
+   * como no YouTube; ausentes = o som inteiro. Campos novos na mesma versão 1:
+   * o app anterior lê a fonte campo a campo e toca o som inteiro.
+   */
+  | { tipo: 'arquivo'; ref: string; bytes: number; inicioS?: number; fimS?: number }
   /**
    * `inicioS`: de onde o vídeo começa (e para onde o loop volta), em segundos.
    * `fimS` (F6): onde para (ou de onde o loop volta), sempre depois do início;
@@ -71,23 +101,29 @@ export interface EfeitoDeSom {
   volume: number
   /** Ambiente que se repete até o Parar. */
   loop: boolean
-  /** `null` = fora de pasta. */
+  /** `null` = fora de pasta. A pasta (categoria) é sempre da mesma parte do som. */
   pastaId: string | null
+  /** Ausente = efeito sonoro (todo som de antes de 29/10/2026). */
+  parte?: 'musicas'
   favorito?: true
   /** Tecla de 1 a 9; única na biblioteca. */
   atalho?: AtalhoDeSom
   ordem: number
 }
 
-/** Um nível só: pasta não tem pasta dentro. */
+/** Um nível só: pasta não tem pasta dentro. Na tela, é a CATEGORIA de uma das partes. */
 export interface PastaDeSons {
   id: string
   nome: string
   ordem: number
+  /** Ausente = categoria de Efeitos sonoros (toda pasta de antes de 29/10/2026). */
+  parte?: 'musicas'
 }
 
 export interface BibliotecaDeSons {
   versao: typeof VERSAO_DA_BIBLIOTECA_DE_SONS
+  /** As categorias sugeridas já entraram uma vez: apagadas, não voltam. */
+  categoriasSugeridas?: true
   pastas: PastaDeSons[]
   /** No máximo `EFEITOS_DE_SOM_MAX`. */
   efeitos: EfeitoDeSom[]
@@ -106,6 +142,21 @@ export function novoIdDeSom(): string {
 
 export function novoIdDePastaDeSons(): string {
   return `pastasom_${crypto.randomUUID()}`
+}
+
+/** A parte de um som ou de uma categoria: sem a marca de música, é efeito. */
+export function parteDe(item: { readonly parte?: 'musicas' }): ParteDosSons {
+  return item.parte === 'musicas' ? 'musicas' : 'efeitos'
+}
+
+/** A marca de parte como fica no objeto: só a música é escrita. */
+function marcaDaParte(parte: ParteDosSons): { parte?: 'musicas' } {
+  return parte === 'musicas' ? { parte: 'musicas' } : {}
+}
+
+/** O trecho de A até B de qualquer fonte; `fimS` ausente = até o fim do som. */
+export function trechoDaFonte(fonte: FonteDoSom): { inicioS: number; fimS: number | undefined } {
+  return { inicioS: fonte.inicioS ?? 0, fimS: fonte.fimS }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -148,12 +199,19 @@ function tamanhoDeAudioValido(value: unknown): value is number {
 }
 
 function inicioValido(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= TRECHO_MAX_S
 }
 
-/** O fim do trecho do YouTube: número finito e depois do início (fim igual ao início não toca nada). */
+/** O fim do trecho: número finito e depois do início (fim igual ao início não toca nada). */
 function fimValido(value: unknown, inicioS: number): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value > inicioS
+  return typeof value === 'number' && Number.isFinite(value) && value > inicioS && value <= TRECHO_MAX_S
+}
+
+/** Início e fim lidos de um objeto: o torto sai sozinho (o som vai do zero, ou até o fim), em vez de o efeito se perder por ele. */
+function trechoLido(inicioS: unknown, fimS: unknown): { inicioS?: number; fimS?: number } {
+  const inicio = inicioValido(inicioS) ? inicioS : undefined
+  const fim = fimValido(fimS, inicio ?? 0) ? fimS : undefined
+  return { ...(inicio === undefined ? {} : { inicioS: inicio }), ...(fim === undefined ? {} : { fimS: fim }) }
 }
 
 /** O nome aparado; `null` quando fica vazio ou passa de 40 caracteres. */
@@ -175,15 +233,12 @@ export function fonteDoSomLida(value: unknown): FonteDoSom | null {
   if (!isRecord(value)) return null
   if (value.tipo === 'arquivo') {
     const { ref, bytes } = value
-    return ehRefDeAudio(ref) && tamanhoDeAudioValido(bytes) ? { tipo: 'arquivo', ref, bytes } : null
+    return ehRefDeAudio(ref) && tamanhoDeAudioValido(bytes) ? { tipo: 'arquivo', ref, bytes, ...trechoLido(value.inicioS, value.fimS) } : null
   }
   if (value.tipo === 'youtube') {
-    const { video, inicioS, fimS } = value
+    const { video } = value
     if (!ehVideoDoYoutube(video)) return null
-    // Início e fim são opcionais: o torto sai sozinho (o vídeo vai do zero, ou até o fim), em vez de o efeito se perder por ele.
-    const inicio = inicioValido(inicioS) ? inicioS : undefined
-    const fim = fimValido(fimS, inicio ?? 0) ? fimS : undefined
-    return { tipo: 'youtube', video, ...(inicio === undefined ? {} : { inicioS: inicio }), ...(fim === undefined ? {} : { fimS: fim }) }
+    return { tipo: 'youtube', video, ...trechoLido(value.inicioS, value.fimS) }
   }
   return null
 }
@@ -205,34 +260,40 @@ function temPastasDentro(value: unknown): boolean {
 /**
  * Uma pasta. A que diz estar dentro de outra (`pastaId` ou `parentId` com
  * valor) ou traz pastas dentro (`pastas` não vazio) sai: a biblioteca tem um
- * nível só. `null` e lista vazia são da raiz.
+ * nível só. `null` e lista vazia são da raiz. A parte que não é `'musicas'`
+ * (ausente, ou torta) é Efeitos sonoros: a pasta de antes da divisão fica lá.
  */
 function pastaDeSonsLida(value: unknown): PastaDeSons | null {
   if (!isRecord(value) || !ehIdDeSom(value.id)) return null
   const dentroDeOutra = temValor(value.pastaId) || temValor(value.parentId) || temPastasDentro(value.pastas)
   const nome = nomeDeSomLimpo(value.nome)
   if (dentroDeOutra || nome === null || !ordemValida(value.ordem)) return null
-  return { id: value.id, nome, ordem: value.ordem }
+  return { id: value.id, nome, ordem: value.ordem, ...(value.parte === 'musicas' ? { parte: 'musicas' } : {}) }
 }
 
 /**
  * Um efeito. Campo obrigatório torto (id, nome, fonte, volume, loop, ordem)
  * tira o efeito; o opcional torto sai sozinho. A pasta que não existe (ou foi
- * descartada) põe o efeito na raiz, em vez de perdê-lo.
+ * descartada) põe o efeito na raiz, em vez de perdê-lo. A parte: a do som
+ * (sem marca = efeito); com categoria, a da categoria, que é quem o mestre vê
+ * agrupando (o `sons.json` editado à mão com as duas em desacordo).
  */
-function efeitoDeSomLido(value: unknown, pastaIds: ReadonlySet<string>): EfeitoDeSom | null {
+function efeitoDeSomLido(value: unknown, partesDasPastas: ReadonlyMap<string, ParteDosSons>): EfeitoDeSom | null {
   if (!isRecord(value) || !ehIdDeSom(value.id)) return null
   const { volume, loop, ordem, pastaId } = value
   const nome = nomeDeSomLimpo(value.nome)
   const fonte = fonteDoSomLida(value.fonte)
   if (nome === null || fonte === null || !volumeDeSomValido(volume) || typeof loop !== 'boolean' || !ordemValida(ordem)) return null
+  const parteDaPasta = typeof pastaId === 'string' ? partesDasPastas.get(pastaId) : undefined
+  const parte: ParteDosSons = parteDaPasta ?? (value.parte === 'musicas' ? 'musicas' : 'efeitos')
   return {
     id: value.id,
     nome,
     fonte,
     volume,
     loop,
-    pastaId: typeof pastaId === 'string' && pastaIds.has(pastaId) ? pastaId : null,
+    pastaId: parteDaPasta === undefined ? null : (pastaId as string),
+    ...marcaDaParte(parte),
     ...(value.favorito === true ? { favorito: true } : {}),
     ...(ehAtalhoDeSom(value.atalho) ? { atalho: value.atalho } : {}),
     ordem,
@@ -269,12 +330,12 @@ export function bibliotecaDoTexto(texto: string): TextoDaBiblioteca {
   if (bruto.versao !== VERSAO_DA_BIBLIOTECA_DE_SONS) return { ok: false, motivo: 'ilegivel' }
 
   const pastas: PastaDeSons[] = []
-  const pastaIds = new Set<string>()
+  const partesDasPastas = new Map<string, ParteDosSons>()
   for (const valor of listaCrua(bruto.pastas)) {
     if (pastas.length >= PASTAS_DE_SOM_MAX) break
     const pasta = pastaDeSonsLida(valor)
-    if (pasta === null || pastaIds.has(pasta.id)) continue
-    pastaIds.add(pasta.id)
+    if (pasta === null || partesDasPastas.has(pasta.id)) continue
+    partesDasPastas.set(pasta.id, parteDe(pasta))
     pastas.push(pasta)
   }
 
@@ -283,7 +344,7 @@ export function bibliotecaDoTexto(texto: string): TextoDaBiblioteca {
   const atalhos = new Set<AtalhoDeSom>()
   for (const valor of listaCrua(bruto.efeitos)) {
     if (efeitos.length >= EFEITOS_DE_SOM_MAX) break
-    const efeito = efeitoDeSomLido(valor, pastaIds)
+    const efeito = efeitoDeSomLido(valor, partesDasPastas)
     if (efeito === null || efeitoIds.has(efeito.id)) continue
     efeitoIds.add(efeito.id)
     if (efeito.atalho === undefined) {
@@ -295,7 +356,8 @@ export function bibliotecaDoTexto(texto: string): TextoDaBiblioteca {
       efeitos.push(efeito)
     }
   }
-  return { ok: true, biblioteca: { versao: VERSAO_DA_BIBLIOTECA_DE_SONS, pastas, efeitos } }
+  const sugeridas = bruto.categoriasSugeridas === true ? { categoriasSugeridas: true as const } : {}
+  return { ok: true, biblioteca: { versao: VERSAO_DA_BIBLIOTECA_DE_SONS, ...sugeridas, pastas, efeitos } }
 }
 
 export function serializarBiblioteca(biblioteca: BibliotecaDeSons): string {
@@ -358,8 +420,23 @@ function proximaOrdem(itens: readonly { ordem: number }[]): number {
   return itens.reduce((maior, item) => Math.max(maior, item.ordem + 1), 0)
 }
 
-function pastaExiste(biblioteca: BibliotecaDeSons, pastaId: string | null): boolean {
-  return pastaId === null || biblioteca.pastas.some((pasta) => pasta.id === pastaId)
+/** A pasta existe e é da `parte` (o som e a categoria dele moram sempre na mesma parte). `null` = sem categoria. */
+function pastaDaParte(biblioteca: BibliotecaDeSons, pastaId: string | null, parte: ParteDosSons): boolean {
+  return pastaId === null || biblioteca.pastas.some((pasta) => pasta.id === pastaId && parteDe(pasta) === parte)
+}
+
+/** O trecho de A até B que a tela pede; `null` = o som inteiro. */
+export interface TrechoDoSom {
+  inicioS: number
+  /** Ausente = até o fim do som. */
+  fimS?: number
+}
+
+/** A fonte com o trecho novo (`null` tira); `null` = trecho torto (B antes de A, negativo, acima do teto). Início 0 não é escrito. */
+function fonteComTrecho(fonte: FonteDoSom, trecho: TrechoDoSom | null): FonteDoSom | null {
+  if (trecho !== null && (!inicioValido(trecho.inicioS) || (trecho.fimS !== undefined && !fimValido(trecho.fimS, trecho.inicioS)))) return null
+  const marcas = trecho === null ? {} : { ...(trecho.inicioS > 0 ? { inicioS: trecho.inicioS } : {}), ...(trecho.fimS === undefined ? {} : { fimS: trecho.fimS }) }
+  return fonte.tipo === 'arquivo' ? { tipo: 'arquivo', ref: fonte.ref, bytes: fonte.bytes, ...marcas } : { tipo: 'youtube', video: fonte.video, ...marcas }
 }
 
 export interface EfeitoNovo {
@@ -369,6 +446,8 @@ export interface EfeitoNovo {
   volume?: number
   loop?: boolean
   pastaId?: string | null
+  /** Padrão: a parte da categoria, ou Efeitos sonoros sem categoria. */
+  parte?: ParteDosSons
 }
 
 /** Um efeito a mais, no fim. Recusa nome, volume, fonte ou pasta inválidos, e o que passaria de 200. */
@@ -382,9 +461,11 @@ export function comEfeitoNovo(
   const fonte = fonteDoSomLida(novo.fonte)
   const volume = novo.volume ?? VOLUME_DE_SOM_PADRAO
   const pastaId = novo.pastaId ?? null
+  const pasta = pastaId === null ? undefined : biblioteca.pastas.find((candidata) => candidata.id === pastaId)
+  const parte = novo.parte ?? (pasta === undefined ? 'efeitos' : parteDe(pasta))
   if (biblioteca.efeitos.length >= EFEITOS_DE_SOM_MAX || !ehIdDeSom(id) || biblioteca.efeitos.some((efeito) => efeito.id === id)) return null
-  if (nome === null || fonte === null || !volumeDeSomValido(volume) || !pastaExiste(biblioteca, pastaId)) return null
-  const efeito: EfeitoDeSom = { id, nome, fonte, volume, loop: novo.loop === true, pastaId, ordem: proximaOrdem(biblioteca.efeitos) }
+  if (nome === null || fonte === null || !volumeDeSomValido(volume) || !pastaDaParte(biblioteca, pastaId, parte)) return null
+  const efeito: EfeitoDeSom = { id, nome, fonte, volume, loop: novo.loop === true, pastaId, ...marcaDaParte(parte), ordem: proximaOrdem(biblioteca.efeitos) }
   return { biblioteca: { ...biblioteca, efeitos: [...biblioteca.efeitos, efeito] }, efeito }
 }
 
@@ -393,6 +474,10 @@ export interface MudancaNoEfeito {
   volume?: number
   loop?: boolean
   pastaId?: string | null
+  /** Mudar de parte sem dizer a categoria tira o som da categoria (ela é da outra parte). */
+  parte?: ParteDosSons
+  /** O trecho de A até B; `null` = o som inteiro. */
+  trecho?: TrechoDoSom | null
   favorito?: boolean
   /** `null` tira o atalho. Dar um atalho que outro efeito tem TIRA dele: o atalho é único. */
   atalho?: AtalhoDeSom | null
@@ -404,8 +489,11 @@ export function comEfeitoMudado(biblioteca: BibliotecaDeSons, id: string, mudanc
   if (atual === undefined) return null
   const nome = mudanca.nome === undefined ? atual.nome : nomeDeSomLimpo(mudanca.nome)
   const volume = mudanca.volume ?? atual.volume
-  const pastaId = mudanca.pastaId === undefined ? atual.pastaId : mudanca.pastaId
-  if (nome === null || !volumeDeSomValido(volume) || !pastaExiste(biblioteca, pastaId)) return null
+  const parte = mudanca.parte ?? parteDe(atual)
+  const trocouDeParte = parte !== parteDe(atual)
+  const pastaId = mudanca.pastaId !== undefined ? mudanca.pastaId : trocouDeParte ? null : atual.pastaId
+  const fonte = mudanca.trecho === undefined ? atual.fonte : fonteComTrecho(atual.fonte, mudanca.trecho)
+  if (nome === null || fonte === null || !volumeDeSomValido(volume) || !pastaDaParte(biblioteca, pastaId, parte)) return null
   if (mudanca.atalho !== undefined && mudanca.atalho !== null && !ehAtalhoDeSom(mudanca.atalho)) return null
 
   const favorito = mudanca.favorito === undefined ? atual.favorito === true : mudanca.favorito
@@ -413,10 +501,11 @@ export function comEfeitoMudado(biblioteca: BibliotecaDeSons, id: string, mudanc
   const mudado: EfeitoDeSom = {
     id: atual.id,
     nome,
-    fonte: atual.fonte,
+    fonte,
     volume,
     loop: mudanca.loop ?? atual.loop,
     pastaId,
+    ...marcaDaParte(parte),
     ...(favorito ? { favorito: true } : {}),
     ...(atalho !== undefined ? { atalho } : {}),
     ordem: atual.ordem,
@@ -433,16 +522,46 @@ export function semEfeito(biblioteca: BibliotecaDeSons, id: string): BibliotecaD
   return { ...biblioteca, efeitos: biblioteca.efeitos.filter((efeito) => efeito.id !== id) }
 }
 
+/** Uma categoria a mais, no fim da `parte` (padrão: Efeitos sonoros). Recusa nome inválido, id repetido e a 51ª. */
 export function comPastaNova(
   biblioteca: BibliotecaDeSons,
   nomeBruto: string,
   id: string = novoIdDePastaDeSons(),
+  parte: ParteDosSons = 'efeitos',
 ): { biblioteca: BibliotecaDeSons; pasta: PastaDeSons } | null {
   const nome = nomeDeSomLimpo(nomeBruto)
   if (biblioteca.pastas.length >= PASTAS_DE_SOM_MAX) return null
   if (nome === null || !ehIdDeSom(id) || biblioteca.pastas.some((pasta) => pasta.id === id)) return null
-  const pasta: PastaDeSons = { id, nome, ordem: proximaOrdem(biblioteca.pastas) }
+  const pasta: PastaDeSons = { id, nome, ordem: proximaOrdem(biblioteca.pastas), ...marcaDaParte(parte) }
   return { biblioteca: { ...biblioteca, pastas: [...biblioteca.pastas, pasta] }, pasta }
+}
+
+/** Nome para comparar categorias: sem caixa e aparado ("ambiente " é a mesma que "Ambiente"). */
+function nomeComparavel(nome: string): string {
+  return nome.trim().toLocaleLowerCase('pt-BR')
+}
+
+/**
+ * As categorias sugeridas (`CATEGORIAS_SUGERIDAS`), UMA vez por biblioteca:
+ * cada parte ganha as dela que ainda não tem com o mesmo nome (Batalha em
+ * Efeitos não impede Batalha em Músicas), até o teto de pastas, e a marca
+ * `categoriasSugeridas` impede a volta da que o mestre apagar. Com a marca,
+ * devolve a mesma biblioteca. Quem chama é a loja, ao abrir a biblioteca
+ * gravável; o disco só recebe as sugestões na próxima gravação.
+ */
+export function comCategoriasSugeridas(biblioteca: BibliotecaDeSons, novoId: () => string = novoIdDePastaDeSons): BibliotecaDeSons {
+  if (biblioteca.categoriasSugeridas === true) return biblioteca
+  let atual: BibliotecaDeSons = { ...biblioteca, categoriasSugeridas: true }
+  for (const parte of PARTES_DOS_SONS) {
+    const existentes = new Set(atual.pastas.filter((pasta) => parteDe(pasta) === parte).map((pasta) => nomeComparavel(pasta.nome)))
+    for (const nome of CATEGORIAS_SUGERIDAS[parte]) {
+      if (existentes.has(nomeComparavel(nome))) continue
+      const resultado = comPastaNova(atual, nome, novoId(), parte)
+      if (resultado === null) break
+      atual = resultado.biblioteca
+    }
+  }
+  return atual
 }
 
 export function comPastaRenomeada(biblioteca: BibliotecaDeSons, id: string, nomeBruto: string): BibliotecaDeSons | null {

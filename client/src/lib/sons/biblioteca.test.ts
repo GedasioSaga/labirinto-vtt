@@ -8,6 +8,7 @@ import {
   audiosCitadosNoTexto,
   bibliotecaDeSonsVazia,
   bibliotecaDoTexto,
+  comCategoriasSugeridas,
   comEfeitoMudado,
   comEfeitoNovo,
   comPastaNova,
@@ -19,6 +20,7 @@ import {
   fonteDoSomLida,
   idsDeAudioDaBiblioteca,
   nomeDeSomDoArquivo,
+  parteDe,
   semEfeito,
   semPasta,
   serializarBiblioteca,
@@ -335,5 +337,66 @@ describe('vídeo do YouTube', () => {
       video: 'dQw4w9WgXcQ',
     }
     expect([controle.tipo, solta.tipo]).toEqual(['youtube', 'youtube'])
+  })
+})
+
+describe('Músicas e Efeitos sonoros (29/10/2026)', () => {
+  const arquivo = { tipo: 'arquivo' as const, ref: `midia:${'a'.repeat(64)}.mp3`, bytes: 1000 }
+
+  it('o sons.json de antes (sem parte) põe todo som e toda pasta em Efeitos sonoros', () => {
+    const texto = JSON.stringify({ versao: 1, pastas: [{ id: 'pasta_c', nome: 'Cripta', ordem: 0 }], efeitos: [{ id: 'som_p', nome: 'Porta', fonte: arquivo, volume: 1, loop: false, pastaId: 'pasta_c', ordem: 0 }] })
+    const lido = bibliotecaDoTexto(texto)
+    if (!lido.ok) throw new Error('não leu')
+    expect(parteDe(lido.biblioteca.pastas[0] ?? { parte: undefined })).toBe('efeitos')
+    expect(lido.biblioteca.efeitos[0]).not.toHaveProperty('parte')
+    expect(lido.biblioteca.efeitos[0]?.pastaId).toBe('pasta_c')
+  })
+
+  it('a parte e a marca das sugestões voltam do disco; o som segue a parte da categoria dele', () => {
+    const texto = JSON.stringify({
+      versao: 1,
+      categoriasSugeridas: true,
+      pastas: [{ id: 'pasta_m', nome: 'Ambiente', ordem: 0, parte: 'musicas' }],
+      efeitos: [{ id: 'som_f', nome: 'Floresta', fonte: arquivo, volume: 1, loop: true, pastaId: 'pasta_m', ordem: 0 }],
+    })
+    const lido = bibliotecaDoTexto(texto)
+    if (!lido.ok) throw new Error('não leu')
+    expect(lido.biblioteca.categoriasSugeridas).toBe(true)
+    expect(lido.biblioteca.efeitos[0]).toMatchObject({ parte: 'musicas', pastaId: 'pasta_m' })
+    expect(bibliotecaDoTexto(serializarBiblioteca(lido.biblioteca))).toEqual(lido)
+  })
+
+  it('as sugestões entram uma vez, só onde a parte não tem o mesmo nome', () => {
+    const comBatalha = comPastaNova(bibliotecaDeSonsVazia(), 'batalha ', 'pasta_b', 'musicas')
+    if (comBatalha === null) throw new Error('não criou')
+    let n = 0
+    const sugerida = comCategoriasSugeridas(comBatalha.biblioteca, () => `pasta_s${n++}`)
+    expect(sugerida.pastas.map((pasta) => `${parteDe(pasta)}:${pasta.nome}`)).toEqual(['musicas:batalha', 'musicas:Ambiente', 'musicas:Taverna', 'efeitos:Combate', 'efeitos:Magia', 'efeitos:Natureza'])
+    const semMagia = semPasta(sugerida, sugerida.pastas.find((pasta) => pasta.nome === 'Magia')?.id ?? '')
+    if (semMagia === null) throw new Error('não apagou')
+    expect(comCategoriasSugeridas(semMagia)).toBe(semMagia)
+  })
+
+  it('mudar de parte tira o som da categoria; categoria de outra parte é recusada', () => {
+    const passo1 = comPastaNova(bibliotecaDeSonsVazia(), 'Cripta', 'pasta_c')
+    if (passo1 === null) throw new Error('não criou')
+    const passo2 = comEfeitoNovo(passo1.biblioteca, { nome: 'Gotas', fonte: arquivo, pastaId: 'pasta_c' }, 'som_g')
+    if (passo2 === null) throw new Error('não entrou')
+    const musica = comEfeitoMudado(passo2.biblioteca, 'som_g', { parte: 'musicas' })
+    expect(musica?.efeitos[0]).toMatchObject({ parte: 'musicas', pastaId: null })
+    expect(comEfeitoMudado(passo2.biblioteca, 'som_g', { parte: 'musicas', pastaId: 'pasta_c' })).toBeNull()
+    expect(comEfeitoNovo(passo1.biblioteca, { nome: 'Tema', fonte: arquivo, pastaId: 'pasta_c', parte: 'musicas' })).toBeNull()
+  })
+
+  it('o trecho de A até B do arquivo grava e volta; B antes de A é recusado; null volta ao som inteiro', () => {
+    const passo = comEfeitoNovo(bibliotecaDeSonsVazia(), { nome: 'Gotas', fonte: arquivo }, 'som_g')
+    if (passo === null) throw new Error('não entrou')
+    const comTrecho = comEfeitoMudado(passo.biblioteca, 'som_g', { trecho: { inicioS: 1.5, fimS: 6.2 } })
+    expect(comTrecho?.efeitos[0]?.fonte).toEqual({ ...arquivo, inicioS: 1.5, fimS: 6.2 })
+    if (comTrecho === null) throw new Error('não mudou')
+    const lido = bibliotecaDoTexto(serializarBiblioteca(comTrecho))
+    expect(lido.ok && lido.biblioteca.efeitos[0]?.fonte).toEqual({ ...arquivo, inicioS: 1.5, fimS: 6.2 })
+    expect(comEfeitoMudado(passo.biblioteca, 'som_g', { trecho: { inicioS: 5, fimS: 2 } })).toBeNull()
+    expect(comEfeitoMudado(comTrecho, 'som_g', { trecho: null })?.efeitos[0]?.fonte).toEqual(arquivo)
   })
 })

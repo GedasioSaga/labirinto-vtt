@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { useAdventureStore } from './adventureStore'
 import {
   bibliotecaDeSonsVazia,
+  comCategoriasSugeridas,
   comEfeitoMudado,
   comEfeitoNovo,
   comPastaNova,
@@ -13,6 +14,7 @@ import {
   type EfeitoDeSom,
   type EfeitoNovo,
   type MudancaNoEfeito,
+  type ParteDosSons,
   type PastaDeSons,
 } from '../lib/sons/biblioteca'
 import { gravarBibliotecaNaAventura, guardarArquivoDeSom, lerBibliotecaDaAventura } from '../lib/sons/bibliotecaNoDisco'
@@ -31,6 +33,9 @@ import { gravarBibliotecaNaAventura, guardarArquivoDeSom, lerBibliotecaDaAventur
  *  - mesma aventura em OUTRA pasta (a cópia de backup tem o mesmo id do
  *    `adventure.json`): é troca, lê o `sons.json` da outra pasta;
  *  - mapa solto: sem biblioteca (a aba pede para salvar como aventura).
+ * A biblioteca gravável abre com as categorias sugeridas de cada parte
+ * (`comCategoriasSugeridas`, uma vez por biblioteca); elas só vão para o disco
+ * com a próxima mudança do mestre.
  * Trocar de aventura com mudança esperando grava antes na pasta da anterior,
  * e nada muda enquanto isso.
  */
@@ -82,11 +87,12 @@ interface BibliotecaDeSonsState {
    * para a pasta. Lança com a frase pronta (`AUDIO_GRANDE_DEMAIS`,
    * `AUDIO_NAO_E_AUDIO`, `SONS_SEM_AVENTURA`...).
    */
-  importarArquivoDeSom: (nomeDoArquivo: string, bytes: Uint8Array) => Promise<EfeitoDeSom>
+  importarArquivoDeSom: (nomeDoArquivo: string, bytes: Uint8Array, parte?: ParteDosSons) => Promise<EfeitoDeSom>
   /** `false` = recusado (efeito que não existe ou campo inválido). Atalho dado a outro sai de quem tinha. */
   editarEfeito: (id: string, mudanca: MudancaNoEfeito) => boolean
   apagarEfeito: (id: string) => boolean
-  criarPasta: (nome: string) => PastaDeSons | null
+  /** Categoria nova no fim da `parte` (padrão: Efeitos sonoros). */
+  criarPasta: (nome: string, parte?: ParteDosSons) => PastaDeSons | null
   renomearPasta: (id: string, nome: string) => boolean
   /** Os efeitos da pasta vão para a raiz. */
   apagarPasta: (id: string) => boolean
@@ -191,13 +197,15 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
         return
       }
       if (dir === null) {
-        set({ ...ESTADO_SEM_AVENTURA, biblioteca: bibliotecaDeSonsVazia(), aventuraId, podeGravar: true })
+        set({ ...ESTADO_SEM_AVENTURA, biblioteca: comCategoriasSugeridas(bibliotecaDeSonsVazia()), aventuraId, podeGravar: true })
         return
       }
       set({ ...ESTADO_SEM_AVENTURA, biblioteca: bibliotecaDeSonsVazia(), aventuraId, dir, carregando: true })
       const lida = await lerBibliotecaDaAventura(dir)
       if (minha !== geracao) return
-      set({ biblioteca: lida.biblioteca, carregando: false, aviso: lida.aviso, podeGravar: lida.podeGravar })
+      // Sugestões só na biblioteca que se pode gravar: a que não foi lida mostra o vazio, não categorias de mentira.
+      const biblioteca = lida.podeGravar ? comCategoriasSugeridas(lida.biblioteca) : lida.biblioteca
+      set({ biblioteca, carregando: false, aviso: lida.aviso, podeGravar: lida.podeGravar })
     },
 
     adicionarEfeito: (novo) => {
@@ -208,7 +216,7 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
       return resultado.efeito
     },
 
-    importarArquivoDeSom: async (nomeDoArquivo, bytes) => {
+    importarArquivoDeSom: async (nomeDoArquivo, bytes, parte) => {
       const antes = impedimento()
       if (antes !== null) throw new Error(antes)
       const { aventuraId, dir } = get()
@@ -220,7 +228,7 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
       if (trocou) throw new Error(SONS_AVENTURA_TROCOU)
       const depois = impedimento()
       if (depois !== null) throw new Error(depois)
-      const efeito = get().adicionarEfeito({ nome: nomeDeSomDoArquivo(nomeDoArquivo), fonte })
+      const efeito = get().adicionarEfeito({ nome: nomeDeSomDoArquivo(nomeDoArquivo), fonte, ...(parte === undefined ? {} : { parte }) })
       if (efeito === null) throw new Error('A biblioteca de sons está cheia (200 efeitos).')
       return efeito
     },
@@ -228,9 +236,9 @@ export const useBibliotecaDeSonsStore = create<BibliotecaDeSonsState>()((set, ge
     editarEfeito: (id, mudanca) => mudar(comEfeitoMudado(get().biblioteca, id, mudanca)),
     apagarEfeito: (id) => mudar(semEfeito(get().biblioteca, id)),
 
-    criarPasta: (nome) => {
+    criarPasta: (nome, parte) => {
       if (impedimento() !== null) return null
-      const resultado = comPastaNova(get().biblioteca, nome)
+      const resultado = comPastaNova(get().biblioteca, nome, undefined, parte)
       if (resultado === null) return null
       aplicar(resultado.biblioteca)
       return resultado.pasta

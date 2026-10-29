@@ -113,7 +113,7 @@ describe('salvamento sozinho', () => {
 
     await loja().sincronizarComAAventura('adv_2', outra)
     expect(JSON.parse(textoDe(SONS)).efeitos.map((efeito: { nome: string }) => efeito.nome)).toEqual(['Gaivota'])
-    expect(loja().biblioteca).toEqual(bibliotecaDeSonsVazia())
+    expect(loja().biblioteca.efeitos).toEqual([])
     expect(arquivos.has(`${outra}/sons.json`)).toBe(false)
   })
 })
@@ -273,7 +273,10 @@ describe('ligado à aventura aberta', () => {
     try {
       useAdventureStore.setState({ adventure: aventura('adv_velha'), dir: AVENTURA })
       await vi.waitFor(() => expect(loja()).toMatchObject({ aventuraId: 'adv_velha', carregando: false }))
-      expect(loja()).toMatchObject({ biblioteca: bibliotecaDeSonsVazia(), aviso: null, podeGravar: true, pendente: false })
+      expect(loja()).toMatchObject({ aviso: null, podeGravar: true, pendente: false })
+      // Sem sons, e com as categorias sugeridas de cada parte, que só vão ao disco com a próxima mudança.
+      expect(loja().biblioteca.efeitos).toEqual([])
+      expect(loja().biblioteca.pastas.map((pasta) => `${pasta.parte ?? 'efeitos'}:${pasta.nome}`)).toEqual(['musicas:Ambiente', 'musicas:Batalha', 'musicas:Taverna', 'efeitos:Combate', 'efeitos:Magia', 'efeitos:Natureza'])
       expect(useToastStore.getState().toasts).toEqual([])
       expect(fsFalso.writeTextFile).not.toHaveBeenCalled()
 
@@ -322,7 +325,7 @@ describe('áudio importado viaja com a aventura', () => {
     arquivos.set(`${AVENTURA}/midia/${id}`, bytes)
     arquivos.set(SONS, serializarBiblioteca(passo.biblioteca))
     await loja().sincronizarComAAventura('adv_antes', 'C:/aventuras/antes')
-    expect(loja().biblioteca).toEqual(bibliotecaDeSonsVazia())
+    expect(loja().biblioteca.efeitos).toEqual([])
 
     expect((await trazerMidiaAoAbrir(`${AVENTURA}/map.json`, AVENTURA)).importados).toEqual([])
     expect(arquivos.has(`${MIDIA_DO_APP}/${id}`)).toBe(false)
@@ -335,7 +338,7 @@ describe('áudio importado viaja com a aventura', () => {
     enorme.set([0x49, 0x44, 0x33])
     await expect(loja().importarArquivoDeSom('enorme.mp3', enorme)).rejects.toThrow(AUDIO_GRANDE_DEMAIS)
     await expect(loja().importarArquivoDeSom('foto.mp3', png(1))).rejects.toThrow(AUDIO_NAO_E_AUDIO)
-    expect(loja().biblioteca).toEqual(bibliotecaDeSonsVazia())
+    expect(loja().biblioteca.efeitos).toEqual([])
     expect(loja().pendente).toBe(false)
     expect(fsFalso.writeFile).not.toHaveBeenCalled()
   })
@@ -364,7 +367,7 @@ describe('áudio importado viaja com a aventura', () => {
     soltarODisco()
     await recusado
 
-    expect(loja().biblioteca).toEqual(bibliotecaDeSonsVazia())
+    expect(loja().biblioteca.efeitos).toEqual([])
     expect(loja().pendente).toBe(false)
     await vi.advanceTimersByTimeAsync(ESPERA_PARA_GRAVAR_SONS_MS * 3)
     expect(arquivos.has(`${outra}/sons.json`)).toBe(false)
