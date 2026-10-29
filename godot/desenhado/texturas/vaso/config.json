@@ -1,0 +1,21 @@
+{
+  "id": "vaso",
+  "nome": "Vaso de planta",
+  "idDoApp": "vaso",
+  "tipo": "carimbo",
+  "destino": "movel",
+  "onda": 3,
+  "lote": 7,
+  "semente": 67,
+  "variacoes": 4,
+  "sprite": {
+    "ladoPx": 96,
+    "unidadePx": 128,
+    "ancoraPx": [48, 48]
+  },
+  "sombra": {
+    "jeito": "deslocada",
+    "deslocamento": 0.08,
+    "borrao": 0.03
+  }
+}
