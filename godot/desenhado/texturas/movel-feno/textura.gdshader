@@ -5,11 +5,12 @@
 // (client meioTermo/moveis/feno.ts).
 // - FARDOS (1,5 x 1, a forma de partida): três fardos de pé, de comprido da frente para trás,
 //   e um deitado de través por cima do do meio e do da direita, atrás, um pouco torto (posto
-//   à mão). Cada fardo é uma caixa FIRME (canto vivo, pouco arredondado: o fardo prensado não
-//   é almofada), com as duas massas da família (a clara na borda de cima à esquerda, a funda
-//   na de baixo à direita), as LASCAS da prensa em poucas faixas largas de través, cada uma
-//   num tom e com uma mecha clara no sentido da palha, e as duas cordas ao comprido, com a
-//   palha apertada do lado delas. O de cima, mais claro, faz sombra nos de baixo.
+//   à mão). Cada fardo é firme, de canto um pouco redondo e lados estufados (nem tábua, nem
+//   almofada), com a massa de luz larga no topo do lado da luz e a funda do outro; a palha
+//   do topo em mechas largas e onduladas ao comprido, como a do telhado de palha; a ponta
+//   cortada (a da frente; no deitado, as duas) mais clara, em tufos curtos de través; e as
+//   duas cordas ao comprido, que afundam a palha e apertam as pontas. O contorno é mais
+//   quente e menos escuro que o do monte, para não virar moldura de caixote. O de cima, mais claro, faz sombra nos de baixo.
 // - MONTE (1 x 1, "quando forma = monte"): a palha solta num monte, desenhado na TELA (é
 //   redondo): a saia rasgada em tufos, a cúpula em três massas (a da sombra, a do meio e o
 //   topo aceso, puxado para a luz: o cume fica atrás à esquerda) e, por cima, a palha que
@@ -33,18 +34,25 @@ const vec3 TINTA = vec3(0.400, 0.318, 0.180);        // o contorno: o feno escur
 const vec3 CORDA = vec3(0.470, 0.370, 0.235);        // a amarra #8a704a, um tom abaixo (lê no feno)
 
 // ---- FARDOS ----
-const float CANTO = 0.026;          // o raio do canto do fardo: firme
-const float CO_FARDO = 0.032;       // o contorno do fardo
-const float LARGURA_DA_LUZ = 0.048; // a largura da massa clara (a funda é 1,6 x)
-const int LASCAS = 4;               // as lascas da prensa por fardo
+// O contorno do fardo: mais quente e menos escuro que o do monte (escuro e reto, o fardo
+// virava moldura de caixote).
+const vec3 TINTA_DO_FARDO = vec3(0.545, 0.420, 0.215);
+const float CANTO = 0.055;          // o raio do canto: firme, mas não quina de tábua
+const float ESTUFA = 0.016;         // o quanto cada lado estufa no meio (o fardo é prensado)
+const float APERTO = 0.007;         // o quanto a corda afunda a ponta do fardo
+const float CO_FARDO = 0.030;       // o contorno do fardo
+const float LARGURA_DA_LUZ = 0.095; // a massa de luz do topo (a funda é 0,07)
+const float FILEIRAS = 6.5;         // as fileiras de mechas de través de um fardo
+const float MECHA = 0.21;           // o comprimento médio de uma mecha (casas)
+const float PONTA = 0.090;          // a ponta cortada, a palha de frente (casas)
 // Os três fardos de pé (meio, a fresta entre eles é fina) e o deitado por cima.
 const vec4 FARDOS[3] = vec4[](
 	vec4(-0.484, 0.014, 0.0, 0.016),
 	vec4(0.000, -0.010, 0.0, -0.012),
 	vec4(0.486, 0.012, 0.0, 0.020)
 );
-const vec2 FARDO_DE_PE = vec2(0.234, 0.428);
-const vec4 FARDO_DE_CIMA = vec4(0.226, -0.176, 0.432, 0.230);
+const vec2 FARDO_DE_PE = vec2(0.222, 0.418);
+const vec4 FARDO_DE_CIMA = vec4(0.226, -0.176, 0.420, 0.220);
 const float GIRO_DE_CIMA = -0.055;
 const float SOMBRA_DE_CIMA = 0.075; // o quanto o de cima sombreia os de baixo (casas)
 
@@ -53,55 +61,84 @@ const vec2 MEIO_DO_MONTE = vec2(0.0, 0.012);
 const float R_MONTE = 0.398;
 const float GOMOS = 22.0;           // os gomos de palha que descem do cume
 
-// Um fardo: meio c, meias medidas b, inclinação a, tom t; l = a luz no referencial do móvel.
-void fardo(inout vec4 av, inout vec4 ac, vec2 m, vec2 c, vec2 b, float a, float t, vec2 l, uint h, float px) {
-	vec2 p = girar(m - c, -a);
-	float d = sd_caixa(p, b, CANTO);
+// A silhueta de um fardo no referencial dele (o comprido em y): a caixa de canto redondo, os
+// lados estufados no meio e as duas pontas afundadas onde a corda passa (em x = ±cx).
+float sd_fardo(vec2 p, vec2 b, float cx) {
+	float u = clamp(p.x / b.x, -1.0, 1.0);
+	float w = clamp(p.y / b.y, -1.0, 1.0);
+	float aperto = APERTO * (exp(-pow((p.x - cx) / 0.032, 2.0)) + exp(-pow((p.x + cx) / 0.032, 2.0)));
+	vec2 be = vec2(b.x + ESTUFA * (1.0 - w * w), b.y + ESTUFA * 0.7 * (1.0 - u * u) - aperto);
+	return sd_caixa(p, be, CANTO);
+}
+
+// Um fardo: meio c, meias medidas b (o comprido no maior), inclinação a, tom t; l = a luz no
+// referencial do móvel; pontas = quantas pontas cortadas aparecem (1: só a da frente, +y;
+// 2: as duas). Tudo é desenhado com o comprido em y (o deitado gira um quarto de volta).
+void fardo(inout vec4 av, inout vec4 ac, vec2 m, vec2 c, vec2 b, float a, float t, vec2 l, int pontas, uint h, float px) {
+	bool em_y = b.y > b.x;
+	float giro = em_y ? a : a + 1.5707963;
+	vec2 bb = em_y ? b : b.yx;
+	vec2 p = girar(m - c, -giro);
+	float cx = 0.42 * bb.x;
+	float d = sd_fardo(p, bb, cx);
 	if (d > px) {
 		return;
 	}
-	vec2 ll = girar(l, -a);
-	vec3 base = FENO * t;
-	pousar_cor(av, ac, TINTA * t, cobre(d, px));
+	vec2 ll = girar(l, -giro);
+	pousar_cor(av, ac, TINTA_DO_FARDO * t, cobre(d, px));
 	float dentro = cobre(d + CO_FARDO, px);
-	// O comprido e o de través do fardo.
-	bool em_y = b.y > b.x;
-	float ao_longo = em_y ? p.y : p.x;
-	float atraves = em_y ? p.x : p.y;
-	float meia_atraves = em_y ? b.x : b.y;
-	float comprido = em_y ? b.y : b.x;
-	// As lascas: faixas largas de través, a borda um pouco curva (a prensa empurra o meio),
-	// cada uma num tom; a troca é seca, sem risco.
-	float u = atraves / meia_atraves;
-	float passo = 2.0 * comprido / float(LASCAS);
-	float k = (ao_longo + comprido) / passo + 0.16 * u * u + 0.10 * (rk(h, 0) - 0.5);
-	float i = floor(k);
-	float aa = px / passo;
-	float troca = smoothstep(1.0 - aa, 1.0, fract(k));
-	float t0 = 0.075 * (rk(h, 10 + int(i)) - 0.5);
-	float t1 = 0.075 * (rk(h, 11 + int(i)) - 0.5);
-	vec3 cor = base * (1.0 + mix(t0, t1, troca));
-	// A mecha de cada lasca: uma massa clara comprida no sentido da palha (de través).
-	float meio_da_lasca = (i + 0.5 - 0.16 * u * u) * passo - comprido;
-	float sorte = rk(h, 20 + int(i));
-	vec2 pm = vec2(atraves - (sorte - 0.5) * meia_atraves * 0.5, ao_longo - meio_da_lasca - (sorte - 0.5) * passo * 0.4);
-	float dm = sd_elipse(pm, vec2(meia_atraves * (0.42 + 0.2 * sorte), passo * 0.16));
-	cor = mix(cor, mix(cor, FENO_LUZ * t, 0.55), cobre(dm, px));
-	// As duas massas: a funda (o que, andado para longe da luz, sai do fardo) e a clara.
-	float ds = sd_caixa(p - ll * LARGURA_DA_LUZ * 1.6, b, CANTO);
-	float dl = sd_caixa(p + ll * LARGURA_DA_LUZ, b, CANTO);
-	vec3 v = mix(cor, FENO_SOMBRA * t, 1.0 - cobre(ds + CO_FARDO, px));
-	v = mix(v, FENO_LUZ * t, 1.0 - cobre(dl + CO_FARDO, px));
+	// A palha do topo, como a do telhado de palha: fileiras ao comprido do fardo, de borda
+	// ondulada, cada uma partida em mechas de comprimento sorteado e desencontradas de uma
+	// fileira para a outra; cada mecha um tom, a troca seca e fraca.
+	float wf = 2.0 * bb.x / FILEIRAS;
+	float onda = 0.011 * sin(p.y * 10.0 + p.x * 4.0 + rk(h, 1) * 6.0);
+	float kf = (p.x + bb.x + onda) / wf;
+	float n = floor(kf);
+	float aa_f = px / wf;
+	float lm = MECHA * (0.75 + 0.5 * rk(hash_cel(vec2(n, 3.0), int(h % 977u)), 0));
+	float km = (p.y + bb.y + lm * rk(hash_cel(vec2(n, 5.0), int(h % 977u)), 0)) / lm;
+	float mm = floor(km);
+	float aa_m = px / lm;
+	float tm = rk(hash_cel(vec2(n, mm), int(h % 977u) + 7), 0);
+	float tm1 = rk(hash_cel(vec2(n, mm + 1.0), int(h % 977u) + 7), 0);
+	float tn = rk(hash_cel(vec2(n + 1.0, floor((p.y + bb.y + lm * 0.5) / lm)), int(h % 977u) + 7), 0);
+	float tom = mix(tm, tm1, smoothstep(1.0 - aa_m, 1.0, fract(km)));
+	tom = mix(tom, tn, 0.5 * smoothstep(1.0 - aa_f, 1.0, fract(kf)));
+	vec3 cor = FENO * t * (1.0 + 0.16 * (tom - 0.5));
+	// As duas massas: a de luz, larga, no topo do lado da luz; a funda do outro lado.
+	float ds = sd_fardo(p - ll * 0.070, bb, cx);
+	float dl = sd_fardo(p + ll * LARGURA_DA_LUZ, bb, cx);
+	vec3 v = mix(cor, FENO_SOMBRA * t * (1.0 + 0.06 * (tom - 0.5)), 1.0 - cobre(ds + CO_FARDO, px));
+	v = mix(v, mix(v, FENO_LUZ * t * (1.0 + 0.05 * (tom - 0.5)), 0.70), 1.0 - cobre(dl + CO_FARDO, px));
 	pousar_cor(av, ac, v, dentro);
-	// As duas cordas ao comprido, por cima da borda também (a amarra dá a volta): a palha
-	// apertada dos dois lados, um tom abaixo, e a corda com a beira da luz acesa.
-	float sl = sign(dot(em_y ? vec2(-1.0, 0.0) : vec2(0.0, -1.0), ll));
+	// A ponta cortada: a palha de frente, mais clara e em tufos curtos de través (a lateral
+	// corre ao comprido), a divisa com o topo desfiada em ondas largas.
+	for (int k = 0; k < 2; k++) {
+		if (k == 1 && pontas < 2) {
+			break;
+		}
+		float lado = k == 0 ? 1.0 : -1.0;
+		float y = p.y * lado;
+		float borda = bb.y - PONTA + 0.012 * sin(p.x * 26.0 + rk(h, 40 + k) * 6.0);
+		float na_ponta = smoothstep(borda - px, borda + px, y) * dentro;
+		float wt = 0.058;
+		float kt = (p.x + bb.x + 0.5 * wt * floor((y - borda) / (PONTA * 0.5))) / wt;
+		float tt = rk(hash_cel(vec2(floor(kt), floor((y - borda) / (PONTA * 0.5)) + 9.0 * float(k)), int(h % 977u) + 13), 0);
+		vec3 cp = FENO_LUZ * t * (1.03 + 0.12 * (tt - 0.5));
+		// A ponta também pega a luz da tela: a de costas fica um tom abaixo.
+		float de_frente = dot(vec2(0.0, lado), ll);
+		cp *= de_frente > 0.0 ? 1.03 : 0.95;
+		pousar_cor(av, ac, cp, na_ponta);
+	}
+	// As duas cordas ao comprido, por cima das pontas também (a amarra dá a volta): a palha
+	// afunda numa faixa estreita um tom abaixo, e a corda.
+	float sl = sign(dot(vec2(-1.0, 0.0), ll));
 	for (int j = 0; j < 2; j++) {
-		float vc = (j == 0 ? -0.47 : 0.47) * meia_atraves;
-		float e = atraves - vc;
-		float aperto = 1.0 - smoothstep(0.030 - px, 0.030 + px, abs(e));
-		pousar_cor(av, ac, FENO_SOMBRA * t * 0.94, dentro * aperto * 0.85);
-		float corda = cobre(abs(e) - 0.014, px) * cobre(d, px);
+		float vc = j == 0 ? -cx : cx;
+		float e = p.x - vc;
+		float faixa_funda = 1.0 - smoothstep(0.024 - px, 0.024 + px, abs(e));
+		pousar_cor(av, ac, FENO_SOMBRA * t, dentro * faixa_funda * 0.55);
+		float corda = cobre(abs(e) - 0.0125, px) * cobre(d, px);
 		vec3 cc = mix(CORDA * t, CORDA * t * 1.25, step(0.0, -e * sl));
 		pousar_cor(av, ac, cc, corda);
 	}
@@ -111,18 +148,18 @@ void fardos(vec2 q, float px, int vir, int sem, inout vec4 av, inout vec4 ac) {
 	vec2 m = movel_de(q, vir);
 	vec2 l = movel_de(LUZ, vir);
 	// O fundo escuro entre os fardos de pé (as frestas): por dentro deles, não aparece fora.
-	pousar_cor(av, ac, TINTA * 0.85, cobre(sd_caixa(m - vec2(0.0, 0.005), vec2(0.70, 0.40), 0.04), px));
+	pousar_cor(av, ac, TINTA_DO_FARDO * 0.80, cobre(sd_caixa(m - vec2(0.0, 0.005), vec2(0.68, 0.38), 0.05), px));
 	for (int i = 0; i < 3; i++) {
 		vec4 f = FARDOS[i];
 		uint h = hash_cel(vec2(float(i), 1.0), sem + 31);
-		fardo(av, ac, m, f.xy, FARDO_DE_PE, f.w, 0.93 + 0.03 * (rk(h, 30) - 0.5), l, h, px);
+		fardo(av, ac, m, f.xy, FARDO_DE_PE, f.w, 0.93 + 0.03 * (rk(h, 30) - 0.5), l, 1, h, px);
 	}
 	// A sombra do de cima nos de baixo (só onde já tem fardo).
 	vec2 off = movel_de(-LUZ * SOMBRA_DE_CIMA, vir);
-	float ds = sd_caixa(girar(m - off - FARDO_DE_CIMA.xy, -GIRO_DE_CIMA), FARDO_DE_CIMA.zw, CANTO);
+	float ds = sd_fardo(girar(m - off - FARDO_DE_CIMA.xy, -(GIRO_DE_CIMA + 1.5707963)), FARDO_DE_CIMA.wz, 0.42 * FARDO_DE_CIMA.w);
 	pousar_cor(av, ac, FENO_FUNDO * 0.92, av.a * (1.0 - smoothstep(-0.012, 0.012, ds)) * 0.55);
 	uint h = hash_cel(vec2(7.0, 1.0), sem + 31);
-	fardo(av, ac, m, FARDO_DE_CIMA.xy, FARDO_DE_CIMA.zw, GIRO_DE_CIMA, 1.04, l, h, px);
+	fardo(av, ac, m, FARDO_DE_CIMA.xy, FARDO_DE_CIMA.zw, GIRO_DE_CIMA, 1.04, l, 2, h, px);
 }
 
 // ---------- MONTE ----------

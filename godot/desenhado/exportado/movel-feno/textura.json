@@ -50,7 +50,7 @@
         1.5,
         1.0
       ],
-      "cobertura": 0.673,
+      "cobertura": 0.66,
       "cor": "frente-fardos-0-cor.png",
       "larguraPx": 208,
       "nome": "frente-fardos-0",
@@ -69,7 +69,7 @@
         1.5,
         1.0
       ],
-      "cobertura": 0.673,
+      "cobertura": 0.66,
       "cor": "frente-fardos-2-cor.png",
       "larguraPx": 208,
       "nome": "frente-fardos-2",
@@ -89,7 +89,7 @@
   "lugares": [],
   "margemCasas": 0.0625,
   "memoria": {
-    "discoBytes": 72531,
+    "discoBytes": 85357,
     "memoriaBytes": 1622016,
     "tetoDiscoBytes": 524288,
     "tetoMemoriaBytes": 3145728,
