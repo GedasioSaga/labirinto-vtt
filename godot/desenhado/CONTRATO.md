@@ -202,11 +202,18 @@ pode desfazer isso:
 | Onde | Teto | Piloto `grama` |
 |---|---|---|
 | Placa de vídeo, a mais que o Atual | **0 MB** na medida do mesmo caso (tolerância 2 MB). Os pedaços do chão continuam no mesmo cache de 64 MB (`pixi/pedacosDoChao.ts`); o ladrilho de espera do `TilingSprite` é a base-1 reduzida a 256 px (0,25 MiB, o mesmo da maioria das texturas de hoje). | não integrado |
-| Memória comum (base, variantes e atlas decodificados, para pintar os pedaços) | **6 MiB por textura** (RGBA + mipmaps), **48 MiB por mapa** | 5,33 MiB |
+| Memória comum (base, variantes e atlas decodificados, para pintar os pedaços) | **6 MiB por textura** (RGBA + mipmaps), **96 MiB por mapa** | 5,33 MiB |
 | Disco (PNGs de `exportado/<id>/`) | **1,5 MiB por textura** | 0,70 MiB |
 
 O exportador recusa (sai com 1) a textura que passa do teto por textura. O teto por mapa
-é do app, na integração.
+é do app (`client/src/texturas/desenhado/carregador.ts`, `TETO_POR_MAPA`).
+
+**O teto por mapa subiu de 48 para 96 MiB em 29/10/2026** (decisão do orquestrador, na
+F2a da integração). O mapa real do usuário usa 12 biomas mais o piso: 12 x 5,33 + 4,00 =
+68 MiB, e com 48 quatro chãos caíam no Atual. Com 96 cabem os 12 biomas, o piso, o
+caminho (73,3 MiB) e os 3 telhados com a faixa e o objeto da seção 8.8 (8,4 MiB): 81,7
+MiB. Os 18 chãos juntos dão 90,7 MiB. A placa de vídeo não muda (os pedaços seguem no
+cache de 64 MB); o que cresce é só a memória comum, e só com os ids que o mapa usa.
 
 ## 6. Critério de pronto de uma textura
 
@@ -378,8 +385,8 @@ mesmo tamanho (até 1024 x 1024), no mesmo cache. **A mais que o Atual: 0 MB.** 
 lidos para pintar ficam na memória comum: o mesmo teto do chão, **6 MiB por item** (RGBA +
 mipmaps, conta conservadora) e **1,5 MiB em disco**; o piloto `telhado-telhas` dá 2,71 MiB e
 0,32 MiB. Por mapa: no máximo 3 telhados, 1 faixa e 1 objeto, uns 9 MiB com bases de 512
-px; entram na conta dos 48 MiB por mapa junto com os chãos (a conta por mapa é do app, na
-integração).
+px; entram na conta dos 96 MiB por mapa junto com os chãos (seção 5; a conta por mapa é
+do app, `carregador.ts`).
 
 ### 8.9 Critério de pronto de um telhado
 

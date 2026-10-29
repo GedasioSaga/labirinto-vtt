@@ -1,7 +1,7 @@
 import { hash } from '../ruido'
 import { ruidoDoMundo } from '../meioTermo/ruidoDoMundo'
 import { LADO_DO_PEDACO, mipDoLadrilho, type ImagemDoLadrilho, type Pedaco } from '../meioTermo/chaoNoMundo'
-import { TINGIR_PADRAO, type ContaDeTingir } from './tingir'
+import { TINGIR_PADRAO, rgbDoHex, type ContaDeTingir } from './tingir'
 
 /**
  * O CHÃO DESENHADO (`godot/desenhado/CONTRATO.md` seções 3 e 4; referência:
@@ -88,21 +88,21 @@ export interface TexturaDoChao {
 
 // ---------- leitura do textura.json (dado de fora: confere cada campo) ----------
 
-function campo(o: unknown, k: string): unknown {
+export function campo(o: unknown, k: string): unknown {
   return typeof o === 'object' && o !== null && k in o ? Reflect.get(o, k) : undefined
 }
 
-function numero(o: unknown, k: string): number | null {
+export function numero(o: unknown, k: string): number | null {
   const v = campo(o, k)
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
-function texto(o: unknown, k: string): string | null {
+export function texto(o: unknown, k: string): string | null {
   const v = campo(o, k)
   return typeof v === 'string' ? v : null
 }
 
-function numeros(o: unknown, k: string): number[] | null {
+export function numeros(o: unknown, k: string): number[] | null {
   const v = campo(o, k)
   if (!Array.isArray(v)) return null
   const lista: number[] = []
@@ -113,7 +113,7 @@ function numeros(o: unknown, k: string): number[] | null {
   return lista
 }
 
-function textos(o: unknown, k: string): string[] | null {
+export function textos(o: unknown, k: string): string[] | null {
   const v = campo(o, k)
   if (!Array.isArray(v)) return null
   const lista: string[] = []
@@ -124,7 +124,7 @@ function textos(o: unknown, k: string): string[] | null {
   return lista
 }
 
-function lerTingir(bruto: unknown): ContaDeTingir | null {
+export function lerTingir(bruto: unknown): ContaDeTingir | null {
   if (bruto === undefined || bruto === null) return null
   const neutro = numero(bruto, 'neutro')
   const ganhoL = numero(bruto, 'ganhoL')
@@ -470,8 +470,39 @@ function detalhesDoPedaco(chao: ChaoDesenhado, pedaco: Pedaco): DetalheNoPedaco[
   return lista
 }
 
+/**
+ * ZOOM MUITO PEQUENO (CONTRATO.md seção 3, `corMedia`): com este tanto de px do
+ * Desenhado (meia casa) ou mais por pixel do pedaço, a casa cabe em 2 pixels e o
+ * desenho vira só ruído; o pedaço sai na cor média da base-1, sem ruído e sem
+ * detalhes (que, nesse nível, seriam dezenas de milhares por pedaço). Com o zoom
+ * mínimo da tela (10%) não chega: vale para a imagem inteira de um mapa enorme.
+ */
+const PX_DO_DESENHADO_DA_COR_MEDIA = 32
+
+function naCorMedia(chao: ChaoDesenhado, pedaco: Pedaco): boolean {
+  return janelaDoPedaco(chao, pedaco).d >= PX_DO_DESENHADO_DA_COR_MEDIA
+}
+
+/** As linhas até `fim` na cor média (no piso, a rampa da sala no valor da cor média, que é cinza). */
+function pintarCorMedia(chao: ChaoDesenhado, p: PinturaDesenhada, fim: number): void {
+  const rgb = rgbDoHex(chao.textura.corMedia) ?? [128, 128, 128]
+  const { rampa } = chao
+  const g = rgb[0] * 3
+  const r = rampa === null ? rgb[0] : rampa[g]
+  const v = rampa === null ? rgb[1] : rampa[g + 1]
+  const b = rampa === null ? rgb[2] : rampa[g + 2]
+  for (let o = p.linha * LADO_DO_PEDACO * 4; o < fim * LADO_DO_PEDACO * 4; o += 4) {
+    p.pixels[o] = r
+    p.pixels[o + 1] = v
+    p.pixels[o + 2] = b
+    p.pixels[o + 3] = 255
+  }
+  p.linha = fim
+}
+
 export function comecarPedacoDesenhado(chao: ChaoDesenhado, pedaco: Pedaco): PinturaDesenhada {
-  return { pixels: new Uint8ClampedArray(LADO_DO_PEDACO * LADO_DO_PEDACO * 4), detalhes: detalhesDoPedaco(chao, pedaco), linha: 0 }
+  const detalhes = naCorMedia(chao, pedaco) ? [] : detalhesDoPedaco(chao, pedaco)
+  return { pixels: new Uint8ClampedArray(LADO_DO_PEDACO * LADO_DO_PEDACO * 4), detalhes, linha: 0 }
 }
 
 /** Mips guardados por imagem (base e atlas), para não montar a lista a cada linha. */
@@ -496,6 +527,10 @@ export function pintarLinhasDesenhado(chao: ChaoDesenhado, pedaco: Pedaco, p: Pi
   if (p.linha >= fim) return
   const t = chao.textura
   const { x0, y0, d } = janelaDoPedaco(chao, pedaco)
+  if (d >= PX_DO_DESENHADO_DA_COR_MEDIA) {
+    pintarCorMedia(chao, p, fim)
+    return
+  }
   const periodo = t.base.periodoCasas * CASA_PX_DO_DESENHADO
   const niveisDaBase = chao.bases.map(niveisDe)
   const variantes = niveisDaBase.length
