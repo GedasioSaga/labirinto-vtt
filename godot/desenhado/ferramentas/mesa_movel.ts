@@ -453,6 +453,12 @@ function principal(): void {
     { tipo: 'barril', x: 8.25, y: 5.6, casas: [0.7, 0.7], giro: 0, opcoes: ['carvalho', 'ferro'], vista: 'frente' },
     { tipo: 'barril', x: 8.95, y: 6.25, casas: [0.7, 0.7], giro: 0, opcoes: ['nogueira', 'latao'], vista: 'frente' },
     { tipo: 'barril', x: 8.2, y: 7.0, casas: [0.7, 0.7], giro: 0, opcoes: ['pinho', 'ferro'], vista: 'frente' },
+    // Lote 10: um canto de depósito em volta da clareira.
+    { tipo: 'mesaQuadrada', x: 6.9, y: 3.5, casas: [1, 1], giro: 0, opcoes: ['carvalho'], vista: 'frente' },
+    { tipo: 'caixa', x: 8.4, y: 3.6, casas: [0.8, 0.8], giro: 0, opcoes: ['pinho'], vista: 'frente' },
+    { tipo: 'armario', x: 5.2, y: 3.4, casas: [1, 0.5], giro: 0, opcoes: ['pinho', 'latao'], vista: 'frente' },
+    { tipo: 'bau', x: 5.0, y: 8.6, casas: [1, 0.6], giro: 0, opcoes: ['nogueira', 'ferro'], vista: 'frente' },
+    { tipo: 'mesaRedonda', x: 7.9, y: 8.7, casas: [1.25, 1.25], giro: 0, opcoes: ['cerejeira'], vista: 'frente' },
   ]
   const carimbos: Carimbo[] = [
     { id: 'arvore', x: 2.3, y: 3.6, escolha: 1, giro: 0 }, { id: 'arvore', x: 10.2, y: 3.0, escolha: 1.1, giro: 90 },
