@@ -122,10 +122,11 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // O Fogo logo depois da Fogueira (o móvel continua como estava).
     const fogueira = TIPOS_NO_CATALOGO.indexOf('fogueira')
     expect(TIPOS_NO_CATALOGO.slice(fogueira, fogueira + 2)).toEqual(['fogueira', 'fogo'])
-    expect(TIPOS_NO_CATALOGO.slice(-2)).toEqual(['arcoDoPortao', 'placaDeSeta'])
+    // Os troncos e o feno (29/10/2026), sem parente antigo, fecham o catálogo logo depois do arco e da placa.
+    expect(TIPOS_NO_CATALOGO.slice(-4)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno'])
     // 26 de antes, os 8 móveis de casa de 28/10/2026 (fogão, geladeira, pia, balcão, pratos, privada, sofá, poltrona)
-    // e os 4 de 29/10/2026 (lareira, fornalha, bigorna, balde).
-    expect(TIPOS_NO_CATALOGO).toHaveLength(38)
+    // e os 6 de 29/10/2026 (lareira, fornalha, bigorna, balde, troncos, feno).
+    expect(TIPOS_NO_CATALOGO).toHaveLength(40)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })
