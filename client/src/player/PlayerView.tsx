@@ -1901,21 +1901,25 @@ const JANELA_DAS_PERDAS_MS = 60_000
 export function PlayerView(props: PlayerViewProps) {
   const [geracao, setGeracao] = useState(0)
   const perdas = useRef<number[]>([])
-  const [desistiu, setDesistiu] = useState(false)
+  const [desistiu, setDesistiu] = useState<string | null>(null)
   const perdeuContexto = useCallback(() => {
     const agora = Date.now()
     perdas.current = [...perdas.current.filter((quando) => agora - quando < JANELA_DAS_PERDAS_MS), agora]
-    if (perdas.current.length > MAX_PERDAS_DE_CONTEXTO) setDesistiu(true)
+    if (perdas.current.length > MAX_PERDAS_DE_CONTEXTO) setDesistiu('O contexto WebGL do mapa foi perdido repetidas vezes')
     else setGeracao((g) => g + 1)
   }, [])
-  if (desistiu) throw new Error('O contexto WebGL do mapa foi perdido repetidas vezes')
+  // O Pixi não subiu (sem WebGL neste navegador, ou erro ao montar a cena): a
+  // tela de erro do mapa, com "Recarregar", no lugar de um mapa preto mudo.
+  const naoIniciou = useCallback((motivo: string) => setDesistiu(motivo), [])
+  if (desistiu !== null) throw new Error(desistiu)
   // MODO LEVE do relevo: o aparelho que já perdeu o WebGL uma vez não ganha
   // mais uma textura grande para segurar (`pixi/drawRelevo.ts`).
-  return <PlayerViewDoCanvas key={geracao} {...props} onContextoPerdido={perdeuContexto} modoLeve={geracao > 0} />
+  return <PlayerViewDoCanvas key={geracao} {...props} onContextoPerdido={perdeuContexto} onNaoIniciou={naoIniciou} modoLeve={geracao > 0} />
 }
 
 function PlayerViewDoCanvas({
   onContextoPerdido,
+  onNaoIniciou,
   modoLeve,
   map,
   vision,
@@ -1975,7 +1979,7 @@ function PlayerViewDoCanvas({
   onZoomLimitsChange,
   onAcaoNoOlhar,
   arrivalKey,
-}: PlayerViewProps & { onContextoPerdido: () => void; modoLeve: boolean }) {
+}: PlayerViewProps & { onContextoPerdido: () => void; onNaoIniciou: (motivo: string) => void; modoLeve: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
   const tokenDragLabelRef = useRef<HTMLDivElement | null>(null)
@@ -3308,6 +3312,12 @@ function PlayerViewDoCanvas({
     const setup = async () => {
       // Densidade do monitor/celular: backbuffer em pixels físicos, canvas no tamanho CSS.
       await app.init({
+        // SÓ WebGL (bug de 29/10/2026, "fica tudo preto"): sem WebGL o Pixi cai
+        // sozinho no WebGPU ou no Canvas2D. O Canvas2D ignora máscara inversa e
+        // MaskFilter — a névoa cobre o mapa inteiro e, à noite, sobra só o
+        // contorno creme da ficha; o WebGPU quebra ao montar a cena. Sem WebGL
+        // o init lança e o `catch` de `setup` leva à tela de erro do mapa.
+        preference: ['webgl'],
         backgroundColor: OUTSIDE_BACKGROUND,
         resizeTo: el,
         resolution: currentRendererResolution(),
@@ -4597,6 +4607,8 @@ function PlayerViewDoCanvas({
     }
     setup().catch((error: unknown) => {
       console.error('Falha ao iniciar o canvas do jogador', error)
+      // Antes, só o log: o jogador ficava com o mapa preto e sem saída.
+      if (!destroyed) onNaoIniciou(error instanceof Error ? error.message : 'O mapa do jogador não iniciou')
     })
 
     return () => {
