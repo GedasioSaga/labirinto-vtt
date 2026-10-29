@@ -1,0 +1,20 @@
+{
+  "id": "movel-feno",
+  "nome": "Feno",
+  "idDoApp": "feno",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 16,
+  "semente": 74,
+  "margemCasas": 0.0625,
+  "lugares": [],
+  "corFixa": true,
+  "variantes": [
+    { "nome": "monte", "quando": { "forma": "monte" }, "vistas": { "frente": { "casas": [1, 1] } } },
+    { "nome": "fardos" }
+  ],
+  "vistas": {
+    "frente": { "casas": [1.5, 1], "viradas": 2 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.12, "borraoCasas": 0.03 }
+}
