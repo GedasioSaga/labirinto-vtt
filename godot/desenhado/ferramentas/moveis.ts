@@ -18,6 +18,7 @@ import type { Cena, ClasseDaPeca, Textura } from '@cliente/texturas/meioTermo/mo
 import { materialDaPeca } from '@cliente/texturas/meioTermo/moveis/contexto'
 import { caixa } from '@cliente/texturas/meioTermo/moveis/formas'
 import { LUGARES_DE_MATERIAL, MATERIAIS, oklabDoRgb, type IdDoMaterial } from '@cliente/texturas/meioTermo/materiais'
+import { FICHAS_DAS_PECAS_NOVAS, type PecaNova } from '@cliente/lib/mobilia/pecasNovas'
 import { rgb, type Rgb } from '@cliente/texturas/ruido'
 import { gravarPng, lerPng, type Imagem } from './png'
 import { G, niveisDe, TEXEL_POR_PROTO, texturaDoMaterial, type ImagemDoMaterial, type MaterialCarregado, type Tingir } from './material'
@@ -84,6 +85,12 @@ interface Posto {
   readonly variante?: number
 }
 
+/** O tamanho de partida de uma peça nova, lido da ficha do app (a forma de partida, nos troncos e no feno). */
+function tamanhoDaFicha(tipo: PecaNova): readonly [number, number] {
+  const { largura, altura } = FICHAS_DAS_PECAS_NOVAS[tipo].tamanho
+  return [largura, altura]
+}
+
 /** Tamanho padrão (frente) de cada tipo, em casas (lib/mobilia.ts e lib/mobilia/pecasNovas.ts). */
 const TAMANHO: Readonly<Record<TipoComTextura, readonly [number, number]>> = {
   barril: [0.7, 0.7], caixa: [0.8, 0.8], bau: [1, 0.6], catre: [1, 2], mesa: [2, 1], cadeira: [0.5, 0.5],
@@ -93,6 +100,9 @@ const TAMANHO: Readonly<Record<TipoComTextura, readonly [number, number]>> = {
   jardineira: [1, 0.5], arcoDoPortao: [2, 0.5], placaDeSeta: [0.5, 0.5], tapeteLongo: [1, 4], fogo: [1, 1],
   fogao: [1, 1], geladeira: [1, 0.75], pia: [1, 0.6], balcao: [2, 0.6], pratos: [0.5, 0.5], privada: [0.5, 0.6],
   sofa: [2, 1], poltrona: [1, 1],
+  // Os 6 de 29/10 (commits b2a03426 e 17cc4871 da main), pela ficha do app.
+  lareira: tamanhoDaFicha('lareira'), fornalha: tamanhoDaFicha('fornalha'), bigorna: tamanhoDaFicha('bigorna'),
+  balde: tamanhoDaFicha('balde'), troncos: tamanhoDaFicha('troncos'), feno: tamanhoDaFicha('feno'),
 }
 
 const CENA_CASAS: readonly [number, number] = [16, 10]

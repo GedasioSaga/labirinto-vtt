@@ -22,7 +22,10 @@ import { pintarCena } from '@cliente/texturas/meioTermo/moveis/motor'
 import { LUGARES_DE_MATERIAL, MATERIAIS, type IdDoMaterial, type OpcaoDeMaterial } from '@cliente/texturas/meioTermo/materiais'
 import { rgb } from '@cliente/texturas/ruido'
 import { gravarPng, lerPng, type Imagem } from './png'
-import { geometriaDaCerca } from '@cliente/lib/mobilia'
+import { geometriaDaCerca, varianteDoFogo, varianteDosPratos } from '@cliente/lib/mobilia'
+import { ehMovelComFogoDeCasa, FORNALHA, LAREIRA } from '@cliente/lib/mobilia/fogoDeCasa'
+import { ehMovelDePilha, varianteDaPilha } from '@cliente/lib/mobilia/pilhas'
+import { BRASA_QUENTE } from '@cliente/texturas/meioTermo/moveis/fogueira'
 import { comporMovel, desfocar, oklab, type Camada, type GeometriaDaCercaEmCasas, type MovelCarregado, type ParamsDoMovel, type Rgb, type Vista } from './movel'
 
 const G = 56
@@ -190,6 +193,23 @@ interface Objeto {
   readonly volta?: number
   /** Por cima de outro móvel (o lampião na mesa): soma na ordem de pintar; ausente = 0. */
   readonly z?: number
+  /**
+   * A forma do painel, como o mapa grava (Prop.mobiliaForma): o fogo apagado da lareira e da
+   * fornalha, a forma dos pratos, dos troncos e do feno; ausente = a de partida. No Desenhado
+   * ela escolhe a variante com quando.forma; no Atual vira a variante do motor (rasterDosMoveis).
+   */
+  readonly forma?: string
+}
+
+type FormaGravada = Parameters<typeof varianteDoFogo>[0]['mobiliaForma']
+
+/** A variante do motor de hoje para a forma do objeto, como pixi/rasterDosMoveis.ts a passa (a lápide fica de fora: vem do id). */
+function varianteDoAtual(o: Objeto): number | undefined {
+  const prop = { mobilia: o.tipo, mobiliaForma: o.forma as FormaGravada }
+  if (o.tipo === 'pratos') return varianteDosPratos(prop)
+  if (ehMovelComFogoDeCasa(o.tipo)) return varianteDoFogo(prop)
+  if (ehMovelDePilha(o.tipo)) return varianteDaPilha(o.tipo, o.forma)
+  return undefined
 }
 
 /** A ordem de pintar de um objeto: a borda de baixo da pegada, mais o z de quem vai por cima. */
@@ -210,7 +230,8 @@ function geometriaDaCercaEmCasas(o: Objeto): GeometriaDaCercaEmCasas | undefined
 }
 
 function camadaDoAtual(o: Objeto, nivel: number, semente: number): { c: Camada; cx: number; cy: number; pxPorCasa: number } {
-  const d: DesenhoDoMovel = { tipo: o.tipo, lado: o.vista, materiais: o.opcoes, casasW: o.casas[0], casasH: o.casas[1], semente, ...(o.volta !== undefined ? { curva: o.volta } : {}) }
+  const variante = varianteDoAtual(o)
+  const d: DesenhoDoMovel = { tipo: o.tipo, lado: o.vista, materiais: o.opcoes, casasW: o.casas[0], casasH: o.casas[1], semente, ...(o.volta !== undefined ? { curva: o.volta } : {}), ...(variante !== undefined ? { variante } : {}) }
   const S = escalaDoNivel(nivel)
   const { limites, pixels } = pintarCena(montarCena(d), S)
   const px = new Float32Array(limites.W * limites.H * 4)
@@ -252,7 +273,7 @@ function porObjeto(t: Tela, lado: Lado, moveis: ReadonlyMap<string, MovelCarrega
     const tons = m.p.lugares.map((_l, i) => tomDaOpcao(o.opcoes, i, m.p.lugares))
     // A cerca por peças (10.12) recebe a geometria do app; os outros móveis, o pedido de sempre.
     const cerca = m.p.pecas !== undefined && o.tipo === 'cerca' ? geometriaDaCercaEmCasas(o) : undefined
-    const comp = comporMovel(m, { vista: o.vista, opcoes: o.opcoes, tons, casasW: o.casas[0], casasH: o.casas[1], giro: o.giro, ...(cerca !== undefined ? { cerca } : {}) }, casa)
+    const comp = comporMovel(m, { vista: o.vista, opcoes: o.opcoes, tons, casasW: o.casas[0], casasH: o.casas[1], giro: o.giro, ...(cerca !== undefined ? { cerca } : {}), ...(o.forma !== undefined ? { forma: o.forma } : {}) }, casa)
     const mat = matrizDoMeio(comp.cx, comp.cy, X, Y, 1, comp.resto)
     if (passo === 'sombra') {
       if (comp.sombra === null) return
@@ -263,6 +284,7 @@ function porObjeto(t: Tela, lado: Lado, moveis: ReadonlyMap<string, MovelCarrega
     } else {
       if (o.tipo === 'lampiao') pintarHaloDoLampiao(t, o, X, Y, casa)
       porAfim(t, { n: [comp.corpo] }, mat)
+      if (ehMovelComFogoDeCasa(o.tipo) && o.forma !== 'apagado') pintarHaloDoFogo(t, o, X, Y, casa)
     }
     return
   }
@@ -311,6 +333,71 @@ function pintarHaloDoLampiao(t: Tela, o: Objeto, X: number, Y: number, casa: num
       const a = HALO_DO_LAMPIAO.alfa * (1 - q) * (1 - q)
       const o4 = (y * t.w + x) * 4
       for (let k = 0; k < 3; k += 1) t.px[o4 + k] = t.px[o4 + k] * (1 - a) + HALO_DO_LAMPIAO.cor[k] * a
+    }
+  }
+}
+
+/**
+ * O halo quente do fogo aceso da lareira e da fornalha, que no Atual mora na imagem do móvel
+ * (client lareira.ts e fornalha.ts: texHalo, a cor BRASA_QUENTE com alfa · (1 - q)², q = d²
+ * na elipse) e no Desenhado é do app, POR CIMA do móvel (a imagem só tem a brasa). A mesa
+ * pinta o mesmo halo, no mesmo lugar (lib/mobilia/fogoDeCasa.ts), recortado onde o Atual o
+ * deixa aparecer: na lareira, o lar (alfa 0,22) e a soleira (0,11); na fornalha, o leito
+ * dentro da borda de pedra (0,22). A chama animada não entra (não entra no Atual da mesa).
+ */
+interface HaloDoFogo {
+  readonly cx: number
+  readonly cy: number
+  readonly rx: number
+  readonly ry: number
+  readonly alfa: number
+  /** O recorte, em casas no referencial do móvel: x0, y0, x1, y1. */
+  readonly caixa: readonly [number, number, number, number]
+}
+
+function halosDoFogo(o: Objeto): HaloDoFogo[] {
+  const [w, h] = o.casas
+  if (o.tipo === 'lareira') {
+    const { lar, soleira: so, fogo } = LAREIRA
+    const fx = fogo.x * w
+    const fy = fogo.y * h
+    return [
+      { cx: fx, cy: fy, rx: 0.24 * w, ry: 0.3 * h, alfa: 0.22, caixa: [-lar.meiaLargura * w, lar.de * h, lar.meiaLargura * w, lar.ate * h] },
+      { cx: fx, cy: so.de * h, rx: 0.34 * w, ry: 0.26 * h, alfa: 0.11, caixa: [-so.meiaLargura * w, so.de * h, so.meiaLargura * w, so.ate * h] },
+    ]
+  }
+  const { bancada: ba, fogareiro: fg } = FORNALHA
+  const R = Math.min(w, h)
+  const r = R * fg.raio
+  const beira = R * 0.09
+  return [{ cx: fg.x * w, cy: fg.y * h, rx: r * 2, ry: r * 1.8, alfa: 0.22, caixa: [ba.de * w + beira, ba.topo * h + beira, ba.ate * w - beira, ba.base * h - beira] }]
+}
+
+function pintarHaloDoFogo(t: Tela, o: Objeto, X: number, Y: number, casa: number): void {
+  const halos = halosDoFogo(o)
+  const raio = Math.hypot(o.casas[0], o.casas[1]) * 0.5 * casa
+  const g = (-o.giro * Math.PI) / 180
+  const co = Math.cos(g)
+  const si = Math.sin(g)
+  const x0 = Math.max(0, Math.floor(X - raio))
+  const x1 = Math.min(t.w, Math.ceil(X + raio))
+  const y0 = Math.max(0, Math.floor(Y - raio))
+  const y1 = Math.min(t.h, Math.ceil(Y + raio))
+  for (let y = y0; y < y1; y += 1) {
+    for (let x = x0; x < x1; x += 1) {
+      const dx = x + 0.5 - X
+      const dy = y + 0.5 - Y
+      const u = (co * dx - si * dy) / casa
+      const v = (si * dx + co * dy) / casa
+      let a = 0
+      for (const hl of halos) {
+        if (u < hl.caixa[0] || u > hl.caixa[2] || v < hl.caixa[1] || v > hl.caixa[3]) continue
+        const q = Math.min(1, ((u - hl.cx) / hl.rx) ** 2 + ((v - hl.cy) / hl.ry) ** 2)
+        a = Math.max(a, hl.alfa * (1 - q) * (1 - q))
+      }
+      if (a <= 0) continue
+      const o4 = (y * t.w + x) * 4
+      for (let k = 0; k < 3; k += 1) t.px[o4 + k] = t.px[o4 + k] * (1 - a) + BRASA_QUENTE[k] * a
     }
   }
 }
@@ -537,13 +624,26 @@ function principal(): void {
   const cel = [Math.max(1.5, cw + 1), Math.max(1.5, ch + 1)]
   const ob = (x: number, y: number, o: Partial<Objeto> = {}): Objeto => ({ tipo, x, y, casas: [cw, ch], giro: 0, opcoes: opcoesDoCombo(tipo, 0), vista: 'frente', ...o })
   const combos = [0, 1, 2].map((c) => opcoesDoCombo(tipo, c))
+  // As formas do painel (variantes com quando.forma: o fogo apagado, os pratos, as pilhas): a
+  // de partida e as outras, uma por combo e por virada, para a folha mostrar todas ao lado do
+  // Atual. Quem não tem forma sai como sempre.
+  const formasDoPainel: Partial<Objeto>[] = [
+    {},
+    ...este.p.variantes.flatMap((v) => {
+      const f = v.quando.forma
+      if (f === undefined) return []
+      const casas = v.vistas?.frente?.casas
+      return [{ forma: f, ...(casas !== undefined ? { casas: [casas[0], casas[1]] as const } : {}) }]
+    }),
+  ]
+  const naForma = (i: number): Partial<Objeto> => (formasDoPainel.length > 1 ? formasDoPainel[i % formasDoPainel.length] : {})
   const madeiras = (['carvalho', 'nogueira', 'pinho', 'cerejeira', 'velha'] as IdDoMaterial[])
   // Por qualquer lugar de madeira (o poço tem as pedras no lugar 1 e a madeira no 2).
   const temMadeira = lugarDaMadeira(tipo) >= 0
   const medidas: Record<Lado, { id: string; m: Medida }[]> = { desenhado: [], atual: [] }
   for (const lado of lados) {
     // Os 3 combos lado a lado a 100% e o primeiro sozinho a 300%.
-    const objs = combos.map((o, i) => ob(cel[0] * (i + 0.5), cel[1] / 2, { opcoes: o }))
+    const objs = combos.map((o, i) => ob(cel[0] * (i + 0.5), cel[1] / 2, { opcoes: o, ...naForma(i) }))
     gravarPng(join(saida, `combos-${lado}-100.png`), montar(objs, lado, moveis, cel[0] * 3, cel[1], CASA_100), true)
     gravarPng(join(saida, `sozinho-${lado}-300.png`), montar([ob(cel[0] / 2, cel[1] / 2)], lado, moveis, cel[0], cel[1], CASA_300), true)
     // Os 5 tons de madeira (o resto padrão, o assento de madeira).
@@ -560,7 +660,7 @@ function principal(): void {
     const lado2 = este.p.vistas.lado
     const linhas: Objeto[] = []
     const q = Math.max(cel[0], cel[1])
-    giros.forEach((g, i) => linhas.push(ob(q * (i + 0.5), q / 2, { giro: g })))
+    giros.forEach((g, i) => linhas.push(ob(q * (i + 0.5), q / 2, { giro: g, ...naForma(i) })))
     if (lado2 !== undefined) giros.forEach((g, i) => linhas.push(ob(q * (i + 0.5), q * 1.5, { giro: g, vista: 'lado', casas: lado2.casas })))
     gravarPng(join(saida, `viradas-${lado}.png`), montar(linhas, lado, moveis, q * 4, q * (lado2 !== undefined ? 2 : 1), CASA_100), true)
     // Esticada: 4 comprimentos e a de 1 x 2 sem giro (o lado maior).
@@ -694,16 +794,57 @@ function principal(): void {
     { tipo: 'pia', x: 0.4, y: 3.6, casas: [1, 0.6], giro: 270, opcoes: ['granito', 'nogueira'], vista: 'frente' },
     { tipo: 'privada', x: 0.4, y: 4.55, casas: [0.5, 0.6], giro: 270, opcoes: ['nogueira', 'latao'], vista: 'frente' },
     { tipo: 'balde', x: 0.45, y: 5.35, casas: [0.5, 0.5], giro: 0, opcoes: ['pinho', 'ferro'], vista: 'frente' },
+    // A lareira (lote 15) no meio da parede de cima, de frente para a sala, entre a entrada e a
+    // mesa de jantar, com a lenha empilhada ao lado (os troncos na forma Lenha, lote 16).
+    { tipo: 'lareira', x: 5.75, y: 0.55, casas: [2, 1], giro: 0, opcoes: ['arenito', 'nogueira'], vista: 'frente' },
+    { tipo: 'troncos', x: 3.75, y: 0.4, casas: [1.5, 0.5], giro: 0, opcoes: ['lenhaCarvalho'], vista: 'frente', forma: 'lenha' },
+  ]
+  // A QUARTA cena de família, a OFICINA E FAZENDA (lotes 15 e 16): 12 x 12 casas da grama
+  // aprovada (o chão de terra não tem painel na mesa do Godot, comum/mesa_movel.gd), a
+  // metade da esquerda uma oficina de ferreiro e a da direita um celeiro. Na oficina, a
+  // fornalha no alto com a lenha empilhada do lado do fole, a bigorna no toco na frente dela,
+  // o balde de água entre as duas, uma caixa e um barril; no celeiro, os fardos e o monte de
+  // feno, a carroça, a pilha de toras e a cerca de um curral embaixo, com outro monte de
+  // feno dentro; árvores, arbustos, pedras e o tronco caído da onda 3 nas bordas. Vale para
+  // a fornalha e os móveis do lote 16 ou com --familia=oficina (a lareira usa a sala).
+  const oficinaObjs: Objeto[] = [
+    // O primeiro de cada tipo é o do recorte de 300% (a fornalha, a bigorna, o balde, a lenha, os fardos).
+    { tipo: 'fornalha', x: 2.2, y: 2.0, casas: [1.5, 1.5], giro: 0, opcoes: ['granito', 'carvalho'], vista: 'frente' },
+    { tipo: 'troncos', x: 0.65, y: 2.1, casas: [1.5, 0.5], giro: 90, opcoes: ['lenhaCarvalho'], vista: 'frente', forma: 'lenha' },
+    { tipo: 'bigorna', x: 2.3, y: 4.05, casas: [1, 0.5], giro: 0, opcoes: ['ferro', 'carvalho'], vista: 'frente' },
+    { tipo: 'balde', x: 3.55, y: 3.05, casas: [0.5, 0.5], giro: 0, opcoes: ['pinho', 'ferro'], vista: 'frente' },
+    { tipo: 'caixa', x: 4.65, y: 1.45, casas: [0.8, 0.8], giro: 0, opcoes: ['pinho'], vista: 'frente' },
+    { tipo: 'barril', x: 4.75, y: 2.65, casas: [0.7, 0.7], giro: 0, opcoes: ['carvalho', 'ferro'], vista: 'frente' },
+    // O celeiro: o feno no alto, a carroça e as toras no meio, o curral embaixo, com a entrada
+    // no canto (a cerca de cima começa uma casa depois da do lado, para os postes não se tocarem).
+    { tipo: 'feno', x: 7.55, y: 1.5, casas: [1.5, 1], giro: 0, opcoes: [], vista: 'frente' },
+    { tipo: 'feno', x: 9.35, y: 1.6, casas: [1, 1], giro: 0, opcoes: [], vista: 'frente', forma: 'monte' },
+    { tipo: 'carroca', x: 7.95, y: 3.8, casas: [2, 1.25], giro: 0, opcoes: ['nogueira', 'ferro'], vista: 'frente' },
+    { tipo: 'troncos', x: 10.65, y: 3.7, casas: [2, 1], giro: 0, opcoes: ['lenhaPinho'], vista: 'frente' },
+    { tipo: 'cerca', x: 9.85, y: 5.75, casas: [4, 0.25], giro: 0, opcoes: ['carvalho', 'varas'], vista: 'frente' },
+    { tipo: 'cerca', x: 6.9, y: 8.55, casas: [5, 0.25], giro: 90, opcoes: ['carvalho', 'varas'], vista: 'frente' },
+    { tipo: 'feno', x: 9.4, y: 8.4, casas: [1, 1], giro: 0, opcoes: [], vista: 'frente', forma: 'monte' },
+  ]
+  const oficinaCarimbos: Carimbo[] = [
+    { id: 'arvore', x: 11.05, y: 1.25, escolha: 1, giro: 0 }, { id: 'arvore-redonda', x: 1.7, y: 8.4, escolha: 1, giro: 45 },
+    { id: 'arvore-redonda', x: 10.9, y: 10.7, escolha: 0.9, giro: 180 },
+    { id: 'arbusto', x: 0.8, y: 6.0, escolha: 1, giro: 0 }, { id: 'arbusto', x: 5.4, y: 7.6, escolha: 0.9, giro: 135 }, { id: 'arbusto', x: 8.3, y: 10.9, escolha: 1.1, giro: 270 },
+    { id: 'pedras', x: 4.5, y: 5.3, escolha: 0.8, giro: 0 }, { id: 'pedras', x: 0.9, y: 11.1, escolha: 0.7, giro: 90 },
+    { id: 'tronco-caido', x: 3.7, y: 10.7, escolha: 1, giro: 0 },
   ]
   const LOTE_12 = new Set(['movel-cerca', 'movel-arco-do-portao', 'movel-poco', 'movel-carroca', 'movel-barraca'])
-  const LOTES_DA_SALA = new Set(['movel-tapete', 'movel-tapete-longo', 'movel-sofa', 'movel-poltrona', 'movel-lampiao', 'movel-fogao', 'movel-geladeira', 'movel-pia', 'movel-pratos', 'movel-privada'])
+  const LOTES_DA_SALA = new Set(['movel-tapete', 'movel-tapete-longo', 'movel-sofa', 'movel-poltrona', 'movel-lampiao', 'movel-fogao', 'movel-geladeira', 'movel-pia', 'movel-pratos', 'movel-privada', 'movel-lareira'])
+  const LOTES_DA_OFICINA = new Set(['movel-fornalha', 'movel-bigorna', 'movel-balde', 'movel-troncos', 'movel-feno'])
   const pedida = args.get('familia')
-  const cena: 'clareira' | 'praca' | 'sala' =
-    pedida === 'clareira' || pedida === 'praca' || pedida === 'sala' ? pedida : LOTE_12.has(este.p.id) ? 'praca' : LOTES_DA_SALA.has(este.p.id) ? 'sala' : 'clareira'
+  const cena: 'clareira' | 'praca' | 'sala' | 'oficina' =
+    pedida === 'clareira' || pedida === 'praca' || pedida === 'sala' || pedida === 'oficina'
+      ? pedida
+      : LOTE_12.has(este.p.id) ? 'praca' : LOTES_DA_SALA.has(este.p.id) ? 'sala' : LOTES_DA_OFICINA.has(este.p.id) ? 'oficina' : 'clareira'
   const CENAS = {
     clareira: { objs: familiaObjs, carimbos, chao: 'chao-familia', titulo: 'a clareira, na grama aprovada, com árvores, arbustos, pedras e o tronco caído', meio: { x: 6, y: 6.3 } },
     praca: { objs: pracaObjs, carimbos: pracaCarimbos, chao: 'chao-familia', titulo: 'a praça da vila, na grama aprovada, com o arco, a cerca, o poço e a onda 3', meio: { x: 6, y: 6.3 } },
     sala: { objs: salaObjs, carimbos: [] as Carimbo[], chao: 'chao-sala', titulo: 'a sala, no chão de sala aprovado tingido com a cor padrão do app (#a8776a)', meio: { x: 5.75, y: 4.6 } },
+    oficina: { objs: oficinaObjs, carimbos: oficinaCarimbos, chao: 'chao-familia', titulo: 'a oficina de ferreiro e o celeiro, na grama aprovada, com a onda 3 nas bordas', meio: { x: 6, y: 4 } },
   }
   const escolhida = CENAS[cena]
   const famObjs = escolhida.objs
