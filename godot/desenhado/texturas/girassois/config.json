@@ -1,0 +1,23 @@
+{
+  "id": "girassois",
+  "nome": "Girassóis",
+  "idDoApp": "girassois",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 8,
+  "semente": 89,
+  "tamanhoDoApp": 9,
+  "variacoes": 4,
+  "espelho": "nenhum",
+  "sprite": {
+    "ladoPx": 288,
+    "unidadePx": 184,
+    "ancoraPx": [144.0, 252.4]
+  },
+  "sombra": {
+    "jeito": "em-pe",
+    "comprimento": 0.78,
+    "borrao": 0.03
+  }
+}
