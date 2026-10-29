@@ -26,6 +26,7 @@ import type { RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import type { AparenciaDoMovelPatch } from '../lib/mobilia'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
+import type { EstiloVisual } from '../lib/estiloDoMapa'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
@@ -1126,6 +1127,8 @@ interface MapStoreState {
   definirVistaDosMoveis: (vista: MapData['vistaDosMoveis']) => void
   /** MANCHAS DO CHÃO da cena (`MapData.manchasDoChao`, Meio-Termo), com histórico; desligar tira o campo. */
   definirManchasDoChao: (ligadas: boolean) => void
+  /** ESTILO DO MAPA da cena (`MapData.estiloVisual`: Atual, Simples ou Desenhado), com histórico; o Atual tira o campo. */
+  definirEstiloVisual: (estilo: EstiloVisual) => void
   /** CÔMODO LEMBRADO — liga/desliga `RoomMeta.comodo` da Sala, com histórico (ligar desliga o teto). */
   setRoomComodo: (id: string, comodo: boolean) => void
   /** TEXTO DA SALA — "Ao entrar, o jogador lê" / "Nota do mestre". Com histórico, como `setRoomName`. */
@@ -2779,6 +2782,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     definirManchasDoChao: (ligadas) => {
       if (mapFactory.definirManchasDoChao(get().map, ligadas) === get().map) return
       withHistory((map) => mapFactory.definirManchasDoChao(map, ligadas))
+    },
+    definirEstiloVisual: (estilo) => {
+      // O mesmo estilo devolve o mesmo mapa: sem passo vazio no desfazer.
+      if (mapFactory.definirEstiloVisual(get().map, estilo) === get().map) return
+      withHistory((map) => mapFactory.definirEstiloVisual(map, estilo))
     },
     setRoomComodo: (id, comodo) => {
       if (mapFactory.setRoomComodo(get().map, id, comodo) === get().map) return

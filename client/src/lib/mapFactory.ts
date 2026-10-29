@@ -5,6 +5,7 @@ import type {
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { alternarCadeado, alternarOlhoDoMestre } from './camadas/estado'
+import { estiloDoMapa, type EstiloVisual } from './estiloDoMapa'
 import { alertaDaCena, limitarFaccao } from './faccoes'
 import { MODELO_PADRAO_DO_TETO, corDaPaleta, corDoTetoOuPadrao, corDoTetoValida, corPadraoDoModelo, type ModeloDoTeto } from './telhado/paletas'
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
@@ -2059,6 +2060,14 @@ export function definirManchasDoChao(map: MapData, ligadas: boolean): MapData {
   if ((map.manchasDoChao === true) === ligadas) return map
   const { manchasDoChao: _antes, ...semManchas } = map
   return ligadas ? { ...semManchas, manchasDoChao: true } : semManchas
+}
+
+/** ESTILO DO MAPA da cena (`MapData.estiloVisual`, `lib/estiloDoMapa.ts`). O
+ * Atual TIRA o campo (ausente = Atual); o mesmo estilo devolve o mesmo `map`. */
+export function definirEstiloVisual(map: MapData, estilo: EstiloVisual): MapData {
+  if (estiloDoMapa(map) === estilo) return map
+  const { estiloVisual: _antes, ...semEstilo } = map
+  return estilo === 'atual' ? semEstilo : { ...semEstilo, estiloVisual: estilo }
 }
 
 /** CÔMODO LEMBRADO — "Cômodo: aparece só depois de visto" (`RoomMeta.comodo`).

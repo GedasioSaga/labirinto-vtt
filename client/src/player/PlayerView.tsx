@@ -5,6 +5,7 @@ import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } fr
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { CamadaId, Drawing, Light, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
 import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
+import { definirEstiloDaCena, estiloDoMapa } from '../lib/estiloDoMapa'
 import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { contextoDoJogador } from '../lib/camadas/doJogador'
 import { criarPorNo, distribuir, noDoItem, type Pilha, type PorNo } from '../pixi/pilhaDeCamadas'
@@ -1477,6 +1478,22 @@ function gridMaskChanged(scene: Scene, map: MapData, walls: readonly Wall[], reg
   return frameChanged || (!raster && (wallsChanged || regionsChanged))
 }
 
+/**
+ * ESTILO DO MAPA trocado (`lib/estiloDoMapa.ts`): as camadas cujo desenho
+ * depende do estilo pintam de novo no próximo `redraw`. As chaves delas não
+ * levam o estilo (os renderers o leem na hora), então esquecê-las é o jeito de
+ * abrir o portão uma vez. Relevo, texturas e barranco comparam o estilo sozinhos.
+ */
+function esquecerChavesDoEstilo(scene: Scene): void {
+  scene.lastGridKey = null
+  scene.lastFloorKey = null
+  scene.lastStairsKey = null
+  scene.lastPropsKey = null
+  scene.lastWallsKey = null
+  scene.lastRoofsKey = null
+  scene.lastPortasNoTelhadoKey = null
+}
+
 function redrawFloor(scene: Scene, map: MapData): void {
   // CAMADAS (fatia 4b): a linha e o marcador de camada escolhida vão ao nó dela; o nó novo repinta pela assinatura da faixa.
   const nosDasLinhas = scene.pilha.nosDaFaixa('mapLines')
@@ -2876,6 +2893,8 @@ function PlayerViewDoCanvas({
       settings: currentSettings,
     } = latestRef.current
     const hidden = currentMap.hiddenLayers
+    // ESTILO DO MAPA: o da cena que o recorte trouxe (ele copia `...map`), antes de qualquer pintura.
+    if (definirEstiloDaCena(estiloDoMapa(currentMap))) esquecerChavesDoEstilo(scene)
     // A pilha antes de qualquer pintura: os nós da lista de camadas do jogador.
     atualizarPilha(scene)
     // Antes de qualquer camada mudar: a foto da sala cujo teto vai fechar.

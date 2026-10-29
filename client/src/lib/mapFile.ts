@@ -1021,6 +1021,9 @@ function deserializeMapFields(json: string): MapData {
     // MANCHAS DO CHÃO (Meio-Termo): campo NOVO e OPCIONAL, mesmo padrão de
     // `worldMap`. Só `true` vale; ausente (ou torto) abre sem manchas.
     ...(parsed.manchasDoChao === true ? { manchasDoChao: true } : {}),
+    // ESTILO DO MAPA: campo NOVO e OPCIONAL. Só 'simples' e 'desenhado' voltam;
+    // ausente (ou torto) abre no Atual, sem o campo (`lib/estiloDoMapa.ts`).
+    ...(parsed.estiloVisual === 'simples' || parsed.estiloVisual === 'desenhado' ? { estiloVisual: parsed.estiloVisual } : {}),
     // MAPA POR ANDARES: campo NOVO e OPCIONAL. Forma torta abre como cena comum — ver `readSceneFloor`.
     ...sceneFloorField(parsed.andar),
     // NÍVEL DE ALERTA: campo NOVO e OPCIONAL, mesmo padrão de `movement`.

@@ -2456,6 +2456,15 @@ export interface MapData {
    */
   manchasDoChao?: true
   /**
+   * ESTILO DO MAPA (integração do Desenhado, 29/10/2026): como esta cena é
+   * desenhada, igual para o mestre e para os jogadores (`lib/estiloDoMapa.ts`).
+   * Ausente = Atual (o Meio-Termo), inclusive em mapa de antes do campo, sem
+   * linha de migração; só os dois valores abaixo são gravados e lidos
+   * (`lib/mapFile.ts`, `definirEstiloVisual` em `lib/mapFactory.ts`). Mapa novo
+   * nasce sem o campo. Atravessa no recorte do jogador: o recorte copia `...map`.
+   */
+  estiloVisual?: 'simples' | 'desenhado'
+  /**
    * MAPA POR ANDARES: esta cena é um andar de um prédio. Cenas com o mesmo
    * `predio` são andares do mesmo prédio, e o jogador ganha uma aba por andar
    * onde já esteve (`lib/buildingFloors.ts`). Ausente = cena comum, sem linha

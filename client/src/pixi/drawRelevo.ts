@@ -12,6 +12,7 @@ import {
   type PlanoDoRelevo,
 } from '../lib/relevo'
 import { ceder, rasterizarRelevo } from './relevoRaster'
+import { versaoDoEstilo } from '../lib/estiloDoMapa'
 
 /**
  * RELEVO no palco (`lib/relevo.ts`): um Sprite só, acima do chão das regiões e
@@ -181,6 +182,12 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
   /** O último pedido aceito (o que a textura mostra ou vai mostrar). */
   let pedido: EntradaDoRelevo | null = null
   let assinaturaDoPedido: string | null = null
+  /**
+   * ESTILO DO MAPA do pedido (`versaoDoEstilo()`): o barranco liso do Meio-Termo
+   * é lido na geração (`relevoRaster`), fora da entrada. Trocar o estilo com a
+   * mesma terra gera de novo, pelo mesmo plano.
+   */
+  let estiloDoPedido: string | null = null
   /** Cena da textura no palco agora (`null` = nenhuma). */
   let cenaNaTela: string | null = null
   /** A textura do palco, guardada à parte: o Sprite pode ser destruído junto com o palco antes de `destruir()`. */
@@ -301,7 +308,10 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
       return
     }
     const terraIgual = pedido !== null && mesmaTerra(pedido, entrada, assinatura)
-    if (pedido !== null && terraIgual && mesmoConhecido(pedido.conhecido, entrada.conhecido) && mesmosPenhascos(pedido.penhascos, entrada.penhascos)) {
+    const estilo = versaoDoEstilo()
+    const mesmoEstilo = estilo === estiloDoPedido
+    estiloDoPedido = estilo
+    if (pedido !== null && terraIgual && mesmoEstilo && mesmoConhecido(pedido.conhecido, entrada.conhecido) && mesmosPenhascos(pedido.penhascos, entrada.penhascos)) {
       // Mesma terra em objetos novos (pacote do jogador): guarda a referência nova
       // para a próxima comparação sair pelo caminho barato.
       pedido = entrada

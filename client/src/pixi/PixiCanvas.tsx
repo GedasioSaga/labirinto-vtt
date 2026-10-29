@@ -11,6 +11,7 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
+import { definirEstiloDaCena, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { mapaDoPiso } from '../lib/pisos'
 import { camadaTravadaNaBorrachaNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
@@ -1146,6 +1147,8 @@ function PixiCanvasDoContexto({
     let destroyed = false
     let initialized = false
     const app = new Application()
+    // ESTILO DO MAPA: o da cena aberta, antes da primeira pintura (a troca chega pela assinatura em `setup`).
+    definirEstiloDaCena(estiloDoMapa(useMapStore.getState().map))
 
     const setup = async () => {
       // Densidade do monitor (125%/150%): o backbuffer tem pixels físicos e o
@@ -2375,6 +2378,7 @@ function PixiCanvasDoContexto({
           filtroFaccoes: useTerritorioStore.getState().filtroLigado,
           pontoDaPatrulhaAberto: usePatrulhaAndandoStore.getState().pontoAberto,
           camadas: pilha.assinaturaDa,
+          estilo: versaoDoEstilo(),
         }
       }
 
@@ -3255,6 +3259,17 @@ function PixiCanvasDoContexto({
       )
       // VISTA DOS MÓVEIS (Meio-Termo): trocar a vista da cena não toca em `map.props`; os móveis repintam com ela.
       const unsubscribeVistaDosMoveis = useMapStore.subscribe((state) => state.map.vistaDosMoveis, () => redrawProps())
+      // ESTILO DO MAPA (Atual, Simples, Desenhado): trocar no seletor, desfazer, ou
+      // abrir outra cena repinta tudo; as camadas passam pelo portão do estilo
+      // (`ShapesSnapshot.estilo`) e o barranco compara o estilo dele.
+      const unsubscribeEstiloDoMapa = useMapStore.subscribe(
+        (state) => estiloDoMapa(state.map),
+        (estilo) => {
+          if (!definirEstiloDaCena(estilo)) return
+          redrawScene()
+          atualizarBarranco()
+        },
+      )
       // CAMADAS: mover uma camada na lista ou mudar a opacidade dela não toca nas
       // listas do mapa, então nenhuma assinatura acima acorda. A pilha remonta
       // (troca os containers de lugar, ajusta o alpha) sem repintar. Só quando um
@@ -8969,6 +8984,7 @@ function PixiCanvasDoContexto({
         unsubscribeBackground()
         unsubscribeHiddenLayersForTokensAndProps()
         unsubscribeVistaDosMoveis()
+        unsubscribeEstiloDoMapa()
         unsubscribeCamadas()
         unsubscribePisoAtivo()
         unsubscribeStraightenGhost()

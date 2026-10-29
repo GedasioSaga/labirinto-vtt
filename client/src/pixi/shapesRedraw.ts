@@ -92,6 +92,12 @@ export interface ShapesSnapshot {
    * luzes. Ausente === pilha de hoje.
    */
   camadas?: (faixa: string) => string
+  /**
+   * ESTILO DO MAPA (`versaoDoEstilo()`, `lib/estiloDoMapa.ts`): os renderers o
+   * leem na hora de pintar, não do mapa, então nenhuma dependência abaixo o vê.
+   * Trocar abre o portão de TODAS as camadas uma vez. Ausente === sempre o mesmo.
+   */
+  estilo?: string
 }
 
 /**
@@ -266,12 +272,20 @@ export function createShapesRedrawer(
   paint: Readonly<Record<ShapesLayer, () => void>>,
 ): (snapshot: ShapesSnapshot, only?: readonly ShapesLayer[]) => ShapesLayer[] {
   const gates = new Map<ShapesLayer, (deps: readonly unknown[]) => boolean>(SHAPES_LAYERS.map((layer) => [layer, createChangeGate()]))
+  // Por camada, e não um só: o redesenho parcial (`only`) não pode gastar a troca das camadas que ele não pinta.
+  const estiloPintado = new Map<ShapesLayer, string>()
 
   return (snapshot, only) => {
     const painted: ShapesLayer[] = []
+    const estilo = snapshot.estilo ?? ''
     for (const layer of only ?? SHAPES_LAYERS) {
       const gate = gates.get(layer)
-      if (gate === undefined || !gate(shapesLayerDeps(layer, snapshot))) continue
+      if (gate === undefined) continue
+      // O portão sempre olha (guarda as dependências desta vez), mesmo quando o estilo já obriga a pintar.
+      const mudou = gate(shapesLayerDeps(layer, snapshot))
+      const estiloMudou = estiloPintado.has(layer) && estiloPintado.get(layer) !== estilo
+      estiloPintado.set(layer, estilo)
+      if (!mudou && !estiloMudou) continue
       paint[layer]()
       painted.push(layer)
     }
