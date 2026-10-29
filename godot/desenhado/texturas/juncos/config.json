@@ -1,0 +1,23 @@
+{
+  "id": "juncos",
+  "nome": "Juncos",
+  "idDoApp": "juncos",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 7,
+  "semente": 61,
+  "tamanhoDoApp": 6,
+  "variacoes": 4,
+  "espelho": "nenhum",
+  "sprite": {
+    "ladoPx": 192,
+    "unidadePx": 128,
+    "ancoraPx": [96.8, 149.8]
+  },
+  "sombra": {
+    "jeito": "em-pe",
+    "comprimento": 0.4,
+    "borrao": 0.03
+  }
+}
