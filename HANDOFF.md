@@ -552,7 +552,7 @@ Três frentes do usuário: (1) a 0.5.11 com a aba Sons nova e os consertos da te
 - **Músicas do bot:** exportadas de uma CÓPIA do banco do bot (`%APPDATA%/com.gedasio.rpgv2/rpg.db`, tabela `favorito`; nunca ler `segredos*`) em `C:/Users/gedasio.filho/AppData/Local/Temp/claude/C--dev-labirinto/64bbd926-7eb9-4120-904b-108161a322fd/scratchpad/musicas-do-bot/favoritos.json`: 52 links do YouTube (Tema 20, Ambiente 14, Batalha 12, Abertura/Encerramento 6). Decisão: todas em Músicas; Batalha e Ambiente nas categorias que existem, Tema e Abertura/Encerramento novas; Repetir ligado menos em Abertura/Encerramento.
 
 ### Próximos passos
-1. Quando o `publicar-versao.cjs` terminar: conferir `latest.json` = 0.5.11 e registrar no PEDIDOS.md.
+1. FEITO: 0.5.11 publicada (latest.json 0.5.11). FEITO: as 52 músicas do bot entraram no sons.json da Tasmaturi Village (com o app fechado; backup em scratchpad/backup-sons/; conferido por bibliotecaDoTexto: 54 sons, 52 músicas). Em voo: biblioteca global (programador-frontend, sem o passo de importar do bot) e a F1a do Desenhado.
 2. **Mudou (29/10, literal "As musicas são para serem global..."; escolha "Tudo global"):** a biblioteca de sons vira UMA só, com Músicas e Efeitos sonoros, valendo em todas as aventuras; os 2 sons da Tasmaturi Village passam para ela; as 52 músicas do bot entram nela uma vez. É código novo (lib/sons/bibliotecaNoDisco.ts, a loja, a aba e o lado Rust que lê e grava o sons.json, onde mora a mídia importada), para a 0.5.12; o import das 52 vem junto (um botão ou uma migração única a partir de `favoritos.json`).
 3. Retomar a F1a do Desenhado (o mesmo agente, com "pode seguir"; não há stash para tirar) e seguir F1b, F2, F3, F4 do PLANO.
 
