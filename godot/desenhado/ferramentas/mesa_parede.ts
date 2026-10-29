@@ -521,7 +521,8 @@ function principal(): void {
   const costura = costuraEntreItens(faces)
   writeFileSync(join(saida, 'paineis.json'), JSON.stringify({
     item, face: tipo.id, borda: null, bordaExportada: false, atual: true,
-    modulosCasas: faces.parede.p.face.modulos.map((m) => m.casas),
+    // Os módulos do próprio item (a janela e a grade têm 1, de 1 casa).
+    modulosCasas: carregarFace(pasta).p.face.modulos.map((m) => m.casas),
     pertos: PERTOS[item].map((p) => ({ nome: p.nome, titulo: p.titulo })),
     cores: CORES, cenas: cenas.map((c) => ({ nome: c.nome, w: c.w, h: c.h })), costuraEntreItens: costura, avisos, tempos,
   }, null, 2))
