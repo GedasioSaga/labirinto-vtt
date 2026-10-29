@@ -7,9 +7,11 @@ lote por vez, com a folha do lote (`scripts/folha_do_lote.gd`). O último lote d
 pode ter menos de 5, para um lote nunca misturar duas ondas.
 
 Levantado no código em 28/10/2026 (branch `feat/desenhado`, app 0.5.5). As fontes estão
-no fim. **73 itens em 16 lotes** (29/10: a onda 4 passou de 8 materiais para os 31
-móveis desenhados que pegam cor, porque o caminho "só materiais" foi reprovado; a onda 5
-virou o lote 16 e os números 69 a 73).
+no fim. **79 itens em 17 lotes** (29/10: a onda 4 passou de 8 materiais para os 31
+móveis desenhados que pegam cor, porque o caminho "só materiais" foi reprovado; no mesmo
+dia o app ganhou 6 móveis, a lareira, a fornalha de ferreiro, a bigorna, o balde de água,
+os troncos e o feno, e a onda 4 foi a 37 itens, lotes 9 a 16; a onda 5 virou o lote 17 e
+os números 75 a 79).
 
 O **id** é o do app sempre que o app já tem um (`idDoApp` no `config.json`), para a
 integração achar a pasta `exportado/<id>/` pelo mesmo nome. Item que o app pinta com cor
@@ -111,12 +113,13 @@ gira, a sombra é do app); o vaso é carimbo de destino `movel`; a sebe e a jard
 | 37 | `girassois` | Girassóis | Carimbos, vem do pacote do GitHub | sprite |
 | 37b | `tronco-caido` | Tronco caído | Carimbos (entrou no app em 28/10, `82d858eb` na main: tamanho 10, sombra `deitada`) | sprite deitado no chão, 4 formas que seguem o giro (`espelho: "nenhum"`); sombra `deslocada` 0,09, que dá a `deitada` de hoje |
 
-## Onda 4: os móveis desenhados que pegam cor (31 itens, lotes 9 a 15)
+## Onda 4: os móveis desenhados que pegam cor (37 itens, lotes 9 a 16)
 
-Hoje: 34 tipos de móvel (`lib/mobilia/tipos.ts`, com os 8 de casa de 28/10) montados peça
-por peça em `texturas/meioTermo/moveis/`, com 24 materiais em 8 classes
-(`meioTermo/materiais.ts`); os 3 que são planta (sebe, jardineira, vaso) foram para a
-onda 3. Ficam **31**.
+Hoje: 40 tipos de móvel (`lib/mobilia/tipos.ts`, com os 8 de casa de 28/10 e os 6 de 29/10:
+lareira, fornalha, bigorna e balde no commit `b2a03426` da main, troncos e feno no
+`17cc4871`) montados peça por peça em `texturas/meioTermo/moveis/`, com 24 materiais em 8
+classes (`meioTermo/materiais.ts`); os 3 que são planta (sebe, jardineira, vaso) foram para
+a onda 3. Ficam **37**.
 
 **Decisão do usuário de 29/10 ("Desenho à mão que pega cor"):** cada móvel é redesenhado à
 mão como as árvores da onda 3, em cinza com as partes marcadas, e o app tinge cada parte
@@ -158,34 +161,53 @@ da vista Lado da ferramenta Frente/Lado (`TIPOS_COM_VISTA`), quando tem.
 | 61 | `movel-fogao` (`fogao`) | Fogão | 1 x 1 | não | não | 14 |
 | 62 | `movel-geladeira` (`geladeira`) | Geladeira | 1 x 0,75 | não | não | 14 |
 | 63 | `movel-pia` (`pia`) | Pia | 1 x 0,6 | não | não | 14 |
-| 64 | `movel-pratos` (`pratos`) | Pratos | 0,5 x 0,5 | não | não | 14 |
+| 64 | `movel-pratos` (`pratos`) | Pratos (Prato cheio, Prato vazio ou Pilha) | 0,5 x 0,5 | não | não | 14 |
 | 65 | `movel-privada` (`privada`) | Privada | 0,5 x 0,6 | não | não | 14 |
 | 66 | `movel-fogueira` (`fogueira`) | Fogueira | 1 x 1 | não | 1 x 1,25 | 15 |
 | 67 | `movel-fogo` (`fogo`) | Fogo | 1 x 1 | nos dois (área) | não | 15 |
-| 68 | `movel-lapide` (`lapide`) | Lápide | 0,6 x 0,35 | não | não | 15 |
+| 68 | `movel-lareira` (`lareira`) | Lareira (fogo Aceso ou Apagado) | 2 x 1 | não | não | 15 |
+| 69 | `movel-fornalha` (`fornalha`) | Fornalha de ferreiro (fogo Aceso ou Apagado) | 1,5 x 1,5 | não | não | 15 |
+| 70 | `movel-lapide` (`lapide`) | Lápide | 0,6 x 0,35 | não | não | 15 |
+| 71 | `movel-bigorna` (`bigorna`) | Bigorna | 1 x 0,5 | não | não | 16 |
+| 72 | `movel-balde` (`balde`) | Balde de água | 0,5 x 0,5 (redondo) | não | não | 16 |
+| 73 | `movel-troncos` (`troncos`) | Troncos (Toras ou Lenha) | Toras 2 x 1, Lenha 1,5 x 0,5 | ao longo (Toras: as toras crescem; Lenha: uma acha a mais por comprimento, o meio que repete) | não | 16 |
+| 74 | `movel-feno` (`feno`) | Feno (Fardos ou Monte) | Fardos 1,5 x 1, Monte 1 x 1 | não | não | 16 |
 
-**Esticam 11:** mesa, mesa quadrada, mesa redonda, aparador, balcão, cerca, arco do portão,
-tapete, tapete longo, sofá e fogo. **Têm vista de lado 8:** cadeira, baú, armário, aparador,
-fogueira, tapete, barraca e carroça. A **curva da cerca** decide-se no lote 12 (forma
-própria ou não, CONTRATO 10.6).
+**Esticam 12:** mesa, mesa quadrada, mesa redonda, aparador, balcão, cerca, arco do portão,
+tapete, tapete longo, sofá, fogo e troncos. **Têm vista de lado 8:** cadeira, baú, armário,
+aparador, fogueira, tapete, barraca e carroça (nenhum dos 6 de 29/10: `TIPOS_COM_VISTA` de
+`lib/mobilia.ts:132`). A **curva da cerca** decide-se no lote 12 (forma própria ou não,
+CONTRATO 10.6).
+
+**Formas do painel** (`Prop.mobiliaForma`; no Desenhado, variantes com
+`quando: { "forma": ... }`, como o tapete redondo, CONTRATO 10.2): os pratos (cheio, vazio,
+pilha; `lib/mobilia.ts`, `FORMAS_DOS_PRATOS`), a lareira e a fornalha (aceso, apagado; a
+chama animada é do app, não entra na imagem: `lib/mobilia/fogoDeCasa.ts`), os troncos
+(toras, lenha) e o feno (fardos, monte), estes dois com a pegada própria de cada forma
+(`lib/mobilia/pilhas.ts`, `CASAS_DA_FORMA_DA_PILHA`: a variante leva `vistas` próprias,
+como o redondo do tapete). O mapa só grava a forma que não é a primeira; ausente = a
+primeira.
 
 Os lugares de cada móvel são os de `LUGARES_DE_MATERIAL` (até 3; a mesa de prova confere).
 Onde cada classe de material aparece, para o designer saber que partes marcar:
 
-| Classe | Móveis de antes | Os 8 móveis novos (28/10) |
-|---|---|---|
-| madeira | mesa, mesa quadrada, mesa redonda, cadeira, cama (catre), barril, caixa, baú, armário, aparador, cerca (mourões), arco do portão (e a placa), placa de seta, quadro de avisos, poço, barraca (balcão e esteios), carroça | geladeira, pia, balcão, privada, sofá, poltrona (madeira); pratos (a caneca, nogueira fixa) |
-| metal | barril e carroça (aros), baú (ferragens), armário e aparador (puxadores), lampião, cerca (arame entre os mourões) | fogão (corpo e puxadores), geladeira (ferragens), balcão (barra de pé), privada (puxador) |
-| tecido | cama (cobertor, travesseiro), tapete, tapete longo, barraca (toldo) | sofá, poltrona (estofado) |
-| pedra | fogueira (pedras), lápide, poço (pedras) | pia (pedra) |
-| palha | cadeira (assento) | nenhum |
-| corda | cerca (corda entre os mourões) | nenhum |
-| casca | fogueira (lenha) | nenhum |
+| Classe | Móveis de antes | Os 8 móveis novos (28/10) | Os 6 de 29/10 |
+|---|---|---|---|
+| madeira | mesa, mesa quadrada, mesa redonda, cadeira, cama (catre), barril, caixa, baú, armário, aparador, cerca (mourões), arco do portão (e a placa), placa de seta, quadro de avisos, poço, barraca (balcão e esteios), carroça | geladeira, pia, balcão, privada, sofá, poltrona (madeira); pratos (a caneca, nogueira fixa) | lareira (o consolo), fornalha (o fole), bigorna (o toco), balde |
+| metal | barril e carroça (aros), baú (ferragens), armário e aparador (puxadores), lampião, cerca (arame entre os mourões) | fogão (corpo e puxadores), geladeira (ferragens), balcão (barra de pé), privada (puxador) | bigorna, balde (aros) |
+| tecido | cama (cobertor, travesseiro), tapete, tapete longo, barraca (toldo) | sofá, poltrona (estofado) | nenhum |
+| pedra | fogueira (pedras), lápide, poço (pedras) | pia (pedra) | lareira, fornalha |
+| palha | cadeira (assento) | nenhum | nenhum (o feno é palha fixa, sem escolha) |
+| corda | cerca (corda entre os mourões) | nenhum | nenhum (a corda do feno é fixa) |
+| casca | fogueira (lenha) | nenhum | troncos (a lenha: carvalho, pinho ou bétula) |
 
 Ficam em **cor própria** (imagem `-cor`, `corFixa`): os pregos, o lençol, a franja do
 tapete, os papéis do quadro, a água do poço e da pia, o vidro do lampião, a louça e a
 comida dos pratos e da privada, as brasas e a chama, as frutas e os sacos da barraca e da
-carroça. Sem pregos em bolinha: o prego, se fica, é uma massa pequena e calma ou some.
+carroça; dos 6 de 29/10, a brasa, a cinza e a lenha da lareira, o carvão, a brasa e o couro
+do fole da fornalha, a casca do toco da bigorna, a água do balde e a palha e a corda do feno
+(sem lugar nenhum, como os pratos). Sem pregos em bolinha: o prego, se fica, é uma massa
+pequena e calma ou some.
 
 | Lote | Itens |
 |---|---|
@@ -195,20 +217,21 @@ carroça. Sem pregos em bolinha: o prego, se fica, é uma massa pequena e calma 
 | 12 | `movel-cerca` · `movel-arco-do-portao` · `movel-poco` · `movel-carroca` · `movel-barraca` |
 | 13 | `movel-tapete` · `movel-tapete-longo` · `movel-sofa` · `movel-poltrona` · `movel-lampiao` |
 | 14 | `movel-fogao` · `movel-geladeira` · `movel-pia` · `movel-pratos` · `movel-privada` |
-| 15 | `movel-fogueira` · `movel-fogo` · `movel-lapide` (fecha a onda 4) |
+| 15 | `movel-fogueira` · `movel-fogo` · `movel-lareira` · `movel-fornalha` · `movel-lapide` |
+| 16 | `movel-bigorna` · `movel-balde` · `movel-troncos` · `movel-feno` (fecha a onda 4) |
 
 O caminho reprovado (`texturas/material-madeira/`, commit `c26dabef`) continua no repo, sem
 uso (CONTRATO 10.11).
 
-## Onda 5: penhasco e paredes (5 itens, lote 16)
+## Onda 5: penhasco e paredes (5 itens, lote 17)
 
 | # | id | Nome que o mestre vê | Onde aparece | O que o Desenhado entrega |
 |---|---|---|---|---|
-| 69 | `penhasco` | Penhasco (Baixo, Médio, Alto) | ferramenta Penhasco; no Meio-Termo é o barranco liso (`meioTermo/barranco.ts`, tons `#aa745c`) | a face do barranco no espaço do traço (ao longo e para baixo), repetível ao longo |
-| 70 | `penhasco-borda` | (lábio e faixas do relevo) | as 6 faixas do relevo (`lib/relevo.ts:138-145`) | a borda de cima e o pé molhado, repetíveis ao longo |
-| 71 | `parede` | Parede | ferramenta Parede: hoje traço de uma cor (`#d8d2c4` ou a cor do mestre) | material de parede vista de cima, tingível pela cor do mestre, repetível ao longo do traço |
-| 72 | `janela` | Janela | na parede (hoje traço duplo) | trecho de janela no traço |
-| 73 | `grade-de-prisao` | Grade de prisão | na parede (só Meio-Termo) | trecho de grade no traço |
+| 75 | `penhasco` | Penhasco (Baixo, Médio, Alto) | ferramenta Penhasco; no Meio-Termo é o barranco liso (`meioTermo/barranco.ts`, tons `#aa745c`) | a face do barranco no espaço do traço (ao longo e para baixo), repetível ao longo |
+| 76 | `penhasco-borda` | (lábio e faixas do relevo) | as 6 faixas do relevo (`lib/relevo.ts:138-145`) | a borda de cima e o pé molhado, repetíveis ao longo |
+| 77 | `parede` | Parede | ferramenta Parede: hoje traço de uma cor (`#d8d2c4` ou a cor do mestre) | material de parede vista de cima, tingível pela cor do mestre, repetível ao longo do traço |
+| 78 | `janela` | Janela | na parede (hoje traço duplo) | trecho de janela no traço |
+| 79 | `grade-de-prisao` | Grade de prisão | na parede (só Meio-Termo) | trecho de grade no traço |
 
 ## Fontes no código (para conferir)
 
@@ -217,7 +240,7 @@ uso (CONTRATO 10.11).
 - Caminho e chão de sala: `stores/mapStore.ts:1917`; `pixi/drawFloor.ts:65`; `pixi/drawRegions.ts:331`.
 - Telhados: `texturas/telhado.ts`, `lib/telhado/paletas.ts:34-66`, `texturas/meioTermo/chamine.ts`, `meioTermo/cumeeiraAmarrada.ts`.
 - Carimbos: `carimbos/embutidos.ts:553-561`, `carimbos/catalogo.ts:27`.
-- Móveis: `lib/mobilia/tipos.ts:14`, `lib/mobilia.ts:55,102`, `lib/mobilia/pecasNovas.ts:63-95`, `texturas/meioTermo/moveis/` (a tabela `TEXTURA` em `motor.ts:450`).
-- Materiais dos móveis: `texturas/meioTermo/materiais.ts:92-121` (os 24) e `:146-186` (`LUGARES_DE_MATERIAL`).
+- Móveis: `lib/mobilia/tipos.ts:18`, `lib/mobilia.ts:57,104,132` (os nomes, as pegadas e `TIPOS_COM_VISTA`), `lib/mobilia/pecasNovas.ts:59-100`, `lib/mobilia/pilhas.ts` e `lib/mobilia/fogoDeCasa.ts` (as formas dos troncos, do feno e do fogo de casa), `texturas/meioTermo/moveis/` (a tabela `TEXTURA` em `motor.ts:450`).
+- Materiais dos móveis: `texturas/meioTermo/materiais.ts:92-121` (os 24) e `:146-195` (`LUGARES_DE_MATERIAL`).
 - Penhasco e paredes: `lib/relevo.ts:138-195`, `texturas/meioTermo/barranco.ts`, `pixi/drawWalls.ts:58,332`.
 - Mapa real usado nas contas (só leitura, fora do repo): um mapa do usuário de 200 x 200 casas, 228 passos de textura.
