@@ -1,0 +1,19 @@
+{
+  "id": "movel-mesa-redonda",
+  "nome": "Mesa redonda",
+  "idDoApp": "mesaRedonda",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 10,
+  "semente": 41,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira"],
+  "vistas": {
+    "frente": {
+      "casas": [1.25, 1.25],
+      "viradas": 1,
+      "esticar": { "eixo": "x", "pontasCasas": [0.625, 0.625], "ladoMaior": true }
+    }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.22, "borraoCasas": 0.03 }
+}
