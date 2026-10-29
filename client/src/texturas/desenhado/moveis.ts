@@ -227,7 +227,7 @@ export function pedirMovelDesenhado(tipo: string | undefined, vista: Vista): Mov
 // ---------- os halos do app (no Desenhado, fora da imagem do móvel) ----------
 
 /** O halo do lampião, o de `meioTermo/moveis/lampiao.ts` (COR_DO_HALO, ALFA_DO_HALO, HALO_EM_RAIOS). */
-const HALO_DO_LAMPIAO = { cor: [226, 170, 96] as Rgb, alfa: 0.1, raios: 4.8 }
+const HALO_DO_LAMPIAO: { readonly cor: Rgb; readonly alfa: number; readonly raios: number } = { cor: [226, 170, 96], alfa: 0.1, raios: 4.8 }
 
 /** O raio do halo do lampião em px, para a camada caber nele. */
 export function raioDoHaloDoLampiao(casasW: number, casasH: number, pxPorCasa: number): number {
