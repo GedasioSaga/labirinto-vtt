@@ -11,7 +11,8 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
-import { definirEstiloDaCena, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
+import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
+import { criarCamadaDePiso, formasDoPisoDoChao, type ContextoDoPiso } from './pisoDesenhado'
 import { mapaDoPiso } from '../lib/pisos'
 import { camadaTravadaNaBorrachaNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
@@ -1216,6 +1217,20 @@ function PixiCanvasDoContexto({
       let gridHasFloor = false
       const gridAlignOverlayGraphics = new Graphics()
       const floorGraphics = new Graphics()
+      // DESENHADO (F1b): o piso que pega a cor do chão, logo acima do chão chapado
+      // (que fica por baixo como o Atual enquanto as imagens não chegam), no mesmo
+      // cache de pedaços das texturas (`pisoDesenhado.ts`).
+      const pisoDoChao = criarCamadaDePiso()
+      const floorContainer = new Container()
+      floorContainer.addChild(floorGraphics, pisoDoChao.camada)
+      /** O que segue a vista no Desenhado: o piso do Chão e, quando nasce, o das salas. */
+      const pisosNaVista: { ajustarAVista: (vista: ReturnType<typeof vistaDaCamera>) => void }[] = [pisoDoChao]
+      /** Mapa e cache para o piso; `null` = a cena não está no Desenhado. */
+      const contextoDoPiso = (): ContextoDoPiso | null => {
+        if (!desenhadoLigado()) return null
+        const { map } = sceneState()
+        return { cena: map.id, grid: map.grid, cache: texturas.cacheDoChao() }
+      }
       // Traços e portas de minimapa (MapData.lines/markers) por cima do chão; moldura atrás de tudo do mapa.
       const mapLinesGraphics = new Graphics()
       const mapFrameContainer = new Container()
@@ -1412,7 +1427,7 @@ function PixiCanvasDoContexto({
         mapBoundsGraphics,
         mapFrameContainer,
         mapRasterSprite,
-        floorGraphics,
+        floorGraphics: floorContainer,
         mapLinesGraphics,
         regionsContainer,
         perigosGraphics,
@@ -1580,6 +1595,7 @@ function PixiCanvasDoContexto({
         // repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
         texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
         fogos.ajustarAVista(vistaDaCamera(camera, app.screen))
+        for (const piso of pisosNaVista) piso.ajustarAVista(vistaDaCamera(camera, app.screen))
       }
       positionWorld()
       world.scale.set(camera.scale)
@@ -2322,9 +2338,13 @@ function PixiCanvasDoContexto({
         if (map.floorStyle.renderMode === 'raster') {
           floorGraphics.clear()
           redrawMapRaster(map)
+          pisoDoChao.atualizar([], null)
         } else {
           clearMapRaster()
           floorRenderer.draw(floorGraphics, contextoDeCamadas(map).mestreVe('chao') ? map.floor : EMPTY_FLOOR, map.floorStyle, mapFloorClip(map))
+          // Desenhado: o mesmo contorno e as mesmas camadas de cor, agora com o piso tingido.
+          const contexto = contextoDoPiso()
+          pisoDoChao.atualizar(contexto === null ? [] : formasDoPisoDoChao(floorRenderer.polygons(), floorRenderer.camadas(), map.floorStyle.fillColor), contexto)
         }
       }
 
@@ -2702,7 +2722,9 @@ function PixiCanvasDoContexto({
       // Com os telhados desenhados à mostra, a marca do teto sai (os dois diriam a mesma coisa).
       // Cada abertura do editor começa com os telhados transparentes; mostrar ou não é o olho do mestre da camada Telhados.
       useTelhadosNoEditor.getState().reiniciar()
-      const regionsRenderer = createRegionsRenderer({ roofMarker: () => !contextoDeCamadas(sceneState().map).mestreVe('telhados') })
+      const regionsRenderer = createRegionsRenderer({ roofMarker: () => !contextoDeCamadas(sceneState().map).mestreVe('telhados'), piso: contextoDoPiso })
+      pisosNaVista.push(regionsRenderer)
+      regionsRenderer.ajustarAVista(vistaDaCamera(camera, app.screen))
       const telhadosRenderer = createTelhadosRenderer()
       const roomNamesRenderer = createRoomNamesRenderer()
       // O campo de nome sobre o canvas imita a plaquinha: enquanto ele está aberto,
@@ -3084,6 +3106,7 @@ function PixiCanvasDoContexto({
         // A textura repetida também é recortada à vista (`ajustarAVista`, drawTexturas.ts).
         texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
         fogos.ajustarAVista(vistaDaCamera(camera, app.screen))
+        for (const piso of pisosNaVista) piso.ajustarAVista(vistaDaCamera(camera, app.screen))
       })
       // O ResizePlugin do Pixi só escuta 'resize' da janela; o container pode
       // mudar de tamanho sem esse evento (layout, WebView2 maximizando) e o
@@ -9000,6 +9023,7 @@ function PixiCanvasDoContexto({
         gestoDoBarranco.cancelar()
         desenhoDoBarranco.destroy()
         // As máscaras e os ladrilhos das texturas também: são deste palco só.
+        pisoDoChao.destruir()
         texturas.destruir()
         // Os desenhos e as sombras dos carimbos também.
         carimbos.destruir()

@@ -7,9 +7,11 @@ import type { Camera } from './world'
 import { assinarTexturas, texturaDoCatalogo } from '../texturas/catalogo'
 import { LADO_DO_LADRILHO, pixelsEmFatias } from '../texturas/ladrilhos'
 import { rasterizarTexturas } from './texturasRaster'
-import { meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
-import { sementeDoChao, torcaoDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from '../texturas/meioTermo/chaoNoMundo'
-import { CacheDoChao, chaoDoGrupo, montarChaoEmPedacos, type ChaoEmPedacos } from './pedacosDoChao'
+import { desenhadoLigado, meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
+import { assinarDesenhado, chaoParaPintar, pedirChaoDesenhado, versaoDoDesenhado, type ChaoCarregado } from '../texturas/desenhado/carregador'
+import { chaoDesenhadoDoApp } from '../texturas/desenhado/chao'
+import { mipDoLadrilho, sementeDoChao, torcaoDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from '../texturas/meioTermo/chaoNoMundo'
+import { CacheDoChao, chaoDoGrupo, montarChaoEmPedacos, type ChaoDoPedaco, type ChaoEmPedacos } from './pedacosDoChao'
 import { chaoLeveLigado, useChaoLeveStore } from '../stores/chaoLeveStore'
 import { criarVitrine, type Vitrine } from './vitrineDasTexturas'
 
@@ -35,11 +37,25 @@ const LADRILHO_MINIMO_EM_CELULAS = 3
 /** Escala da textura importada (o mestre não diz o tamanho; a mesma da Floresta). */
 export const ESCALA_DA_IMPORTADA = 40
 
+/**
+ * O mapa para o carregador do Desenhado. A `cena` leva o piso (`id|piso`): trocar
+ * de piso não é trocar de mapa, e com ela o carregador soltava os chãos do próprio
+ * mapa e pedia de novo os recusados a cada pintura.
+ */
+function mapaDoCarregador(entrada: EntradaDasTexturas): string {
+  return entrada.mapa.id ?? entrada.cena
+}
+
 export interface EntradaDasTexturas {
   /** Id da cena (`MapData.id`): cena nova solta a pintura da anterior na hora. */
   cena: string
   /** O tamanho e a chave "Manchas do chão" (`manchasDoChao`, Meio-Termo) do mapa desta tela. */
-  mapa: Pick<MapData, 'width' | 'height' | 'grid' | 'manchasDoChao'>
+  /**
+   * `id` é o do mapa (`MapData.id`), sem o piso que a `cena` leva: o teto de
+   * memória do Desenhado é por mapa (`texturas/desenhado/carregador.ts`), e as
+   * outras camadas pedem o mesmo chão pelo id do mapa. Sem ele, vale a `cena`.
+   */
+  mapa: Pick<MapData, 'width' | 'height' | 'grid' | 'manchasDoChao'> & { readonly id?: string }
   /** Os passos que ESTA tela recebeu (no jogador, os do recorte dele). */
   passos: readonly PinceladaDeTextura[] | undefined
   importadas: readonly TexturaImportada[] | undefined
@@ -100,6 +116,12 @@ export interface TexturasRenderer {
    * vazia. Quem move a câmera chama a cada mudança.
    */
   ajustarAVista: (vista: Caixa | null) => void
+  /**
+   * O cache dos pedaços do chão deste palco. O piso Desenhado do Chão e das
+   * salas (`pisoDesenhado.ts`) pinta no MESMO cache: o teto de 64 MB de placa
+   * é um só (CONTRATO.md seção 5).
+   */
+  cacheDoChao: () => CacheDoChao
   destruir: () => void
 }
 
@@ -257,7 +279,9 @@ interface Pedida {
 
 /** O estilo da pintura do palco: o do mapa e, por cima, o "Chão leve" deste aparelho (`stores/chaoLeveStore.ts`). */
 function estiloDaPintura(): string {
-  return chaoLeveLigado() ? `${versaoDoEstilo()}#chao-leve` : versaoDoEstilo()
+  // Desenhado: cada chão que fica pronto (`versaoDoDesenhado`) pinta de novo, agora com ele no lugar do Atual.
+  const estilo = desenhadoLigado() ? `${versaoDoEstilo()}#d${versaoDoDesenhado()}` : versaoDoEstilo()
+  return chaoLeveLigado() ? `${estilo}#chao-leve` : estilo
 }
 
 /** Assinatura das formas que o balde enche: o conteúdo, para quando as referências mudam sem mudar nada (o jogador). */
@@ -380,6 +404,23 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
   const pararDeOuvirChaoLeve = useChaoLeveStore.subscribe((agora, antes) => {
     if (agora.ligado !== antes.ligado && ultimaEntrada !== null) atualizar(ultimaEntrada)
   })
+  /** Desenhado: um chão chegou; quem estava no Atual no lugar dele pinta de novo (`estiloDaPintura` mudou). */
+  const pararDeOuvirDesenhado = assinarDesenhado(() => {
+    if (desenhadoLigado() && ultimaEntrada !== null) atualizar(ultimaEntrada)
+  })
+  /** Desenhado com "Chão leve": a base-1 reduzida a 256 px, repetida (CONTRATO.md seção 5, o ladrilho de espera). */
+  const ladrilhosLeves = new Map<ChaoCarregado, Texture>()
+
+  function ladrilhoLeve(c: ChaoCarregado): Texture | null {
+    const pronto = ladrilhosLeves.get(c)
+    if (pronto !== undefined) return pronto
+    const base = mipDoLadrilho(c.bases[0], 1)
+    const tela = typeof document === 'undefined' ? null : telaComPixels(base.pixels, base.lado)
+    if (tela === null) return null
+    const textura = texturaDoLadrilho(tela)
+    ladrilhosLeves.set(c, textura)
+    return textura
+  }
 
   /** Destrói os ladrilhos descartados, menos o da prévia (fica para a próxima vez, ou para o `destruir`). */
   function soltarDescartados(): void {
@@ -460,7 +501,13 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
    * "Manchas do chão" do mapa) entra na chave dos pedaços: o pedaço pintado
    * com manchas nunca serve ao mapa sem elas, e vice-versa.
    */
-  function chaoDaCamada(id: string, ladrilho: Texture, lado: number, manchas: boolean): { chave: string; chao: ChaoDaTextura } | null {
+  function chaoDaCamada(id: string, ladrilho: Texture, lado: number, manchas: boolean, cena: string, grid: number): { chave: string; chao: ChaoDoPedaco } | null {
+    // Desenhado: o chão do pacote, se já chegou; senão o Meio-Termo de hoje até o aviso do carregador.
+    const desenhado = desenhadoLigado() ? chaoDesenhadoDoApp(id) : null
+    const carregado = desenhado === null ? null : pedirChaoDesenhado(desenhado, cena)
+    if (desenhado !== null && carregado !== null) {
+      return { chave: `desenhado:${desenhado}#${grid}#${versaoDoEstilo()}`, chao: chaoParaPintar(carregado, grid, null) }
+    }
     let pixels = pixelsLidos.get(ladrilho)
     if (pixels === undefined) {
       pixels = pixelsDoLadrilho(ladrilho)
@@ -483,13 +530,23 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     { ladrilhoDe, mascaras }: { ladrilhoDe: Map<string, Texture | null>; mascaras: HTMLCanvasElement[] },
     vista: Caixa | null,
     meioTermo = false,
+    leveDesenhado = false,
   ): Recortavel[] {
     const montadas: Recortavel[] = []
     plano.camadas.forEach((c, i) => {
-      const tile = ladrilhoDe.get(c.textura)
+      const doCatalogo = ladrilhoDe.get(c.textura)
       const tela = mascaras[i]
-      if (tile === null || tile === undefined || tela === undefined) return
-      const lado = ladoDoLadrilhoNoMundo(entrada.mapa, escalaDe(c.textura))
+      if (doCatalogo === null || doCatalogo === undefined || tela === undefined) return
+      let tile = doCatalogo
+      let lado = ladoDoLadrilhoNoMundo(entrada.mapa, escalaDe(c.textura))
+      // Desenhado + "Chão leve": o ladrilho base-1 do pacote, repetido (8 casas), sem pedaços.
+      const idLeve = leveDesenhado ? chaoDesenhadoDoApp(c.textura) : null
+      const leve = idLeve === null ? null : pedirChaoDesenhado(idLeve, mapaDoCarregador(entrada))
+      const tileLeve = leve === null ? null : ladrilhoLeve(leve)
+      if (leve !== null && tileLeve !== null) {
+        tile = tileLeve
+        lado = leve.textura.base.periodoCasas * entrada.mapa.grid
+      }
       const repetida = new TilingSprite({ texture: tile })
       repetida.tileScale.set(lado / tile.width)
       // A grade dos ladrilhos parte da origem do mundo (`recortarNaVista`):
@@ -498,7 +555,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       const mascara = new Sprite(mascaraDe(tela))
       mascara.position.set(c.caixa.minX, c.caixa.minY)
       mascara.scale.set(1 / plano.escala)
-      const doChao = meioTermo ? chaoDaCamada(c.textura, tile, lado, entrada.mapa.manchasDoChao === true) : null
+      const doChao = meioTermo ? chaoDaCamada(c.textura, tile, lado, entrada.mapa.manchasDoChao === true, mapaDoCarregador(entrada), entrada.mapa.grid) : null
       if (doChao !== null) {
         // Meio-Termo: os pedaços por posição por cima da repetida, os dois pela mesma máscara.
         cacheDoChao ??= new CacheDoChao()
@@ -529,7 +586,7 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
     if (pronto === null) return
     limparPalco()
     // "Chão leve" (deste aparelho): o chão sai no ladrilho repetido do desenho de linhas, sem os pedaços.
-    noPalco = montarPlano(pilha, plano, entrada, pronto, vista, meioTermoLigado() && !chaoLeveLigado())
+    noPalco = montarPlano(pilha, plano, entrada, pronto, vista, meioTermoLigado() && !chaoLeveLigado(), desenhadoLigado() && chaoLeveLigado())
     vitrine?.sujar('ja')
     cenaNoPalco = entrada.cena
     marcar('texturas:no-palco')
@@ -621,6 +678,10 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
         chao?.ajustar(vista)
       }
     },
+    cacheDoChao: () => {
+      cacheDoChao ??= new CacheDoChao()
+      return cacheDoChao
+    },
     ladrilhoParaPrevia: (id, importadas) => {
       if (destruido) return null
       const pronto = prontos.get(id)
@@ -634,7 +695,10 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       cancelarEspera()
       pararDeOuvir()
       pararDeOuvirChaoLeve()
+      pararDeOuvirDesenhado()
       limparPalco()
+      for (const t of ladrilhosLeves.values()) t.destroy(true)
+      ladrilhosLeves.clear()
       // `destruido` já está ligado: o `limparPalco` acima soltou também o da prévia.
       for (const promessa of ladrilhos.values()) void promessa.then((t) => t?.destroy(true))
       ladrilhos.clear()

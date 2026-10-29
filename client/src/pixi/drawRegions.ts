@@ -6,6 +6,8 @@ import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { resolveCameraScale, selectionOutlineWidth } from './drawWalls'
 import { roomHasRoof } from '../lib/roomOps'
 import { readRegionSplit, splitSecondPart } from '../lib/regionSplit'
+import type { Caixa } from '../lib/texturas'
+import { caixaDosPontos, criarCamadaDePiso, type CamadaDePiso, type ContextoDoPiso, type FormaDoPiso } from './pisoDesenhado'
 
 /**
  * TETO DE CONSTRUÇÃO — marca do telhado NO EDITOR. O mestre vê tudo, sempre
@@ -177,6 +179,12 @@ export interface RegionsRendererOptions {
    * seria contar ao jogador uma decisão que é do mestre.
    */
   roofMarker?: boolean | (() => boolean)
+  /**
+   * Desenhado (plano de 29/10/2026, F1b): o piso que pega a cor da sala por
+   * cima do fundo chapado (`pisoDesenhado.ts`). Dá o mapa (cena e grade) e o
+   * cache de pedaços do palco; sem ele, as salas ficam só chapadas.
+   */
+  piso?: () => ContextoDoPiso | null
 }
 
 /**
@@ -197,6 +205,8 @@ export interface RegionsRenderer {
   /** `cameraScale` dá ao contorno de seleção 2 px de TELA; omitido, vem da
    *  escala de mundo de `layers.strokes` no último render (`resolveCameraScale`). */
   draw: (layers: RegionLayers, regions: Region[], selectedRegionId?: string | null, cameraScale?: number) => void
+  /** O pedaço do mundo à vista: o piso Desenhado pede só os pedaços da tela. */
+  ajustarAVista: (vista: Caixa | null) => void
 }
 
 function traceRegionPath(g: Graphics, points: RegionPoint[]): void {
@@ -223,7 +233,8 @@ function traceRegionPath(g: Graphics, points: RegionPoint[]): void {
  * continua o mesmo.
  */
 export function createRegionsRenderer(options: RegionsRendererOptions = {}): RegionsRenderer {
-  const cache = new Map<string, { fill: Graphics; stroke: Graphics }>()
+  const cache = new Map<string, { fill: Graphics; stroke: Graphics; piso: CamadaDePiso | null }>()
+  let vista: Caixa | null = null
   // Função: o editor desliga a marca quando mostra o telhado desenhado (`stores/telhadosNoEditor.ts`).
   const marcaDoTeto = typeof options.roofMarker === 'function' ? options.roofMarker : () => options.roofMarker === true
   let roofMarker = marcaDoTeto()
@@ -235,10 +246,10 @@ export function createRegionsRenderer(options: RegionsRendererOptions = {}): Reg
   const paintedFill = new Map<string, Region>()
   const paintedStroke = new Map<string, { region: Region; outlineWidth: number | null }>()
 
-  function graphicsOf(layers: RegionLayers, region: Region): { fill: Graphics; stroke: Graphics } {
+  function graphicsOf(layers: RegionLayers, region: Region): { fill: Graphics; stroke: Graphics; piso: CamadaDePiso | null } {
     const cached = cache.get(region.id)
     if (cached) return cached
-    const created = { fill: new Graphics(), stroke: new Graphics() }
+    const created = { fill: new Graphics(), stroke: new Graphics(), piso: null }
     created.fill.label = region.id
     created.stroke.label = region.id
     layers.fills.addChild(created.fill)
@@ -264,17 +275,32 @@ export function createRegionsRenderer(options: RegionsRendererOptions = {}): Reg
         layers.strokes.removeChild(pair.stroke)
         pair.fill.destroy()
         pair.stroke.destroy()
+        pair.piso?.destruir()
         cache.delete(id)
         paintedFill.delete(id)
         paintedStroke.delete(id)
       }
     }
 
+    const contextoDoPiso = options.piso?.() ?? null
     for (const region of visibleRegions) {
-      const { fill, stroke } = graphicsOf(layers, region)
+      const pair = graphicsOf(layers, region)
+      const { fill, stroke } = pair
       if (paintedFill.get(region.id) !== region) {
         paintedFill.set(region.id, region)
         paintRegionFill(fill, region)
+      }
+      // Desenhado: o piso da sala por cima do fundo chapado (que fica por baixo como o Atual).
+      const formas = contextoDoPiso === null ? [] : formasDoPisoDaSala(region)
+      if (formas.length > 0 && contextoDoPiso !== null) {
+        if (pair.piso === null) {
+          pair.piso = criarCamadaDePiso()
+          pair.piso.ajustarAVista(vista)
+        }
+        pair.piso.atualizar(formas, contextoDoPiso)
+      } else if (pair.piso !== null) {
+        pair.piso.destruir()
+        pair.piso = null
       }
       const paintedOutline = region.id === selectedRegionId ? outlineWidth : null
       const last = paintedStroke.get(region.id)
@@ -289,15 +315,55 @@ export function createRegionsRenderer(options: RegionsRendererOptions = {}): Reg
     // (`lib/roomNesting.ts`) e Ctrl+Z que devolve a sala de fora precisam
     // reordenar, senão a mãe cobre a filha. Cada camada só guarda Graphics de
     // região.
+    // O piso Desenhado de cada sala fica logo acima do fundo dela (antes da sala seguinte).
+    let indiceDoFundo = 0
     visibleRegions.forEach((region, index) => {
       const pair = cache.get(region.id)
       if (!pair) return
-      if (layers.fills.getChildIndex(pair.fill) !== index) layers.fills.setChildIndex(pair.fill, index)
+      if (layers.fills.getChildIndex(pair.fill) !== indiceDoFundo) layers.fills.setChildIndex(pair.fill, indiceDoFundo)
+      indiceDoFundo += 1
+      if (pair.piso !== null) {
+        if (pair.piso.camada.parent !== layers.fills) layers.fills.addChild(pair.piso.camada)
+        if (layers.fills.getChildIndex(pair.piso.camada) !== indiceDoFundo) layers.fills.setChildIndex(pair.piso.camada, indiceDoFundo)
+        indiceDoFundo += 1
+      }
       if (layers.strokes.getChildIndex(pair.stroke) !== index) layers.strokes.setChildIndex(pair.stroke, index)
     })
   }
 
-  return { draw }
+  return {
+    draw,
+    ajustarAVista: (agora) => {
+      vista = agora
+      for (const pair of cache.values()) pair.piso?.ajustarAVista(agora)
+    },
+  }
+}
+
+/**
+ * As formas do piso Desenhado da sala: o fundo na cor dela e, na sala em duas
+ * cores, o lado de lá na segunda cor. Sala sem fundo ou com hachura fica como
+ * hoje (a hachura é o fundo dela).
+ */
+function formasDoPisoDaSala(region: Region): FormaDoPiso[] {
+  if (region.filled === false || region.fillPattern !== 'solid' || region.secret) return []
+  const caixa = caixaDosPontos([region.points])
+  if (caixa === null) return []
+  const formas: FormaDoPiso[] = [
+    { chave: `sala:${region.id}:0`, textura: 'piso', cor: region.fillColor, desenho: region.points, caixa, tracar: (g) => tracarSala(g, region.points) },
+  ]
+  const split = readRegionSplit(region.split)
+  const segunda = split ? splitSecondPart(region.points, split) : []
+  const caixaDaSegunda = caixaDosPontos([segunda])
+  if (split && segunda.length > 0 && caixaDaSegunda !== null) {
+    formas.push({ chave: `sala:${region.id}:1`, textura: 'piso', cor: split.color, desenho: segunda, caixa: caixaDaSegunda, tracar: (g) => tracarSala(g, segunda) })
+  }
+  return formas
+}
+
+function tracarSala(g: Graphics, points: RegionPoint[]): void {
+  traceRegionPath(g, points)
+  g.fill({ color: 0xffffff })
 }
 
 /** O FUNDO da sala: preenchimento, a segunda cor e a hachura — o chão que a tinta cobre. */

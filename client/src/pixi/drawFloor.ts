@@ -11,6 +11,8 @@ export interface FloorRenderer {
   drawSelection: (graphics: Graphics, piece: FloorPiece | null, step?: number) => void
   /** Polígonos do último `draw` (cache por referência): a hachura e a máscara do piso reusam sem recalcular. */
   polygons: () => FloorPolygon[]
+  /** As camadas de cor do último `draw` (o piso Desenhado tinge cada uma, `pisoDesenhado.ts`). */
+  camadas: () => readonly FloorColorLayer[]
 }
 
 /** Prévia do arrasto com amostragem fixa: fluidez vale mais que o detalhe de 1 px aqui. */
@@ -268,7 +270,7 @@ export function createFloorRenderer(): FloorRenderer {
     strokeRings(graphics, selectedPolygons, STROKE_WEIGHT.medium, 1)
   }
 
-  return { draw, drawSelection, polygons: () => polygons }
+  return { draw, drawSelection, polygons: () => polygons, camadas: () => colorLayers }
 }
 
 /**

@@ -5,7 +5,8 @@ import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } fr
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { CamadaId, Drawing, Light, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
 import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
-import { definirEstiloDaCena, estiloDoMapa } from '../lib/estiloDoMapa'
+import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa } from '../lib/estiloDoMapa'
+import { criarCamadaDePiso, formasDoPisoDoChao, type CamadaDePiso, type ContextoDoPiso } from '../pixi/pisoDesenhado'
 import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { contextoDoJogador } from '../lib/camadas/doJogador'
 import { criarPorNo, distribuir, noDoItem, type Pilha, type PorNo } from '../pixi/pilhaDeCamadas'
@@ -1108,6 +1109,10 @@ interface Scene {
   gridMaskFrame: readonly unknown[] | null
   raster: Sprite
   floor: Graphics
+  /** Desenhado (F1b): o piso que pega a cor do chão, logo acima do chão chapado (`pisoDesenhado.ts`). */
+  pisoDoChao: CamadaDePiso
+  /** O mapa e o cache que o piso das salas usa (`createRegionsRenderer`, opção `piso`); `null` = fora do Desenhado. */
+  pisoDaCena: { contexto: ContextoDoPiso | null }
   mapLines: Graphics
   lastFloorKey: string | null
   floorRenderer: ReturnType<typeof createFloorRenderer>
@@ -1431,6 +1436,8 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   scene.world.scale.set(scene.camera.scale)
   // A textura repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
   scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
+  scene.pisoDoChao.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
+  scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   ajustarGradeDaBatalhaAVista(scene)
   scene.fogos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   if (zoomLayers === 'agora') syncZoomLayers(scene)
@@ -1484,6 +1491,11 @@ function gridMaskChanged(scene: Scene, map: MapData, walls: readonly Wall[], reg
  * levam o estilo (os renderers o leem na hora), então esquecê-las é o jeito de
  * abrir o portão uma vez. Relevo, texturas e barranco comparam o estilo sozinhos.
  */
+/** O piso Desenhado deste mapa, no mesmo cache de pedaços das texturas; `null` = a cena não está no Desenhado. */
+function contextoDoPiso(scene: Scene, map: MapData): ContextoDoPiso | null {
+  return desenhadoLigado() ? { cena: map.id, grid: map.grid, cache: scene.texturas.cacheDoChao() } : null
+}
+
 function esquecerChavesDoEstilo(scene: Scene): void {
   scene.lastGridKey = null
   scene.lastFloorKey = null
@@ -1506,10 +1518,14 @@ function redrawFloor(scene: Scene, map: MapData): void {
   if (isRasterMode(map)) {
     scene.floor.clear()
     scene.raster.texture = rasterizeMap(map) ?? Texture.EMPTY
+    scene.pisoDoChao.atualizar([], null)
   } else {
     scene.raster.texture = Texture.EMPTY
     // Mesma regra do editor (PixiCanvas redrawShapes): chão na camada 'salas'.
     scene.floorRenderer.draw(scene.floor, hidden.includes('salas') ? [] : map.floor, map.floorStyle, mapFloorClip(map))
+    // Desenhado: o mesmo contorno e as mesmas camadas de cor, com o piso tingido (igual ao editor).
+    const contexto = contextoDoPiso(scene, map)
+    scene.pisoDoChao.atualizar(contexto === null ? [] : formasDoPisoDoChao(scene.floorRenderer.polygons(), scene.floorRenderer.camadas(), map.floorStyle.fillColor), contexto)
     const camadas = contextoDoJogador(map)
     const linhas = distribuir(map.lines, nosDasLinhas, (l: MapData['lines'][number]) => camadas.camadaDe('linha', l))
     const marcadores = distribuir(map.markers, nosDasLinhas, (m: MapData['markers'][number]) => camadas.camadaDe('marcador', m))
@@ -2917,6 +2933,7 @@ function PlayerViewDoCanvas({
     redrawFloor(scene, { ...currentMap, floor: drawnFloor })
 
     const regions = visibleRegions(currentMap.regions, hidden)
+    scene.pisoDaCena.contexto = contextoDoPiso(scene, currentMap)
     scene.regionsRenderer.draw(scene.regionLayers, regions)
     const drawings = visibleDrawings(currentMap.drawings, hidden)
     // RELEVO: só das regiões e dos desenhos que chegaram no recorte. Modo leve
@@ -3364,6 +3381,10 @@ function PlayerViewDoCanvas({
       grid.mask = gridMask
       const raster = new Sprite(Texture.EMPTY)
       const floor = new Graphics()
+      const pisoDoChao = criarCamadaDePiso()
+      const floorContainer = new Container()
+      floorContainer.addChild(floor, pisoDoChao.camada)
+      const pisoDaCena: { contexto: ContextoDoPiso | null } = { contexto: null }
       const mapLines = new Graphics()
       const regions = new Container()
       // A borda das salas, acima dos desenhos do botão Desenho (pedido de 08/10/2026).
@@ -3507,7 +3528,7 @@ function PlayerViewDoCanvas({
       const containerDaFaixa = new Map<string, Container>(Object.entries({
         mapBackground,
         raster,
-        floor,
+        floor: floorContainer,
         mapLines,
         regions,
         // PERIGO QUE SE ALASTRA: sobre o chão da sala, sob a névoa (a sala tomada só chega à vista).
@@ -3732,8 +3753,10 @@ function PlayerViewDoCanvas({
         mapLines,
         lastFloorKey: null,
         floorRenderer: createFloorRenderer(),
+        pisoDoChao,
+        pisoDaCena,
         regionLayers: { fills: regions, strokes: regionStrokes },
-        regionsRenderer: createRegionsRenderer(),
+        regionsRenderer: createRegionsRenderer({ piso: () => pisoDaCena.contexto }),
         perigos,
         perigosKey: emptyContentKey(),
         drawings,
@@ -4599,6 +4622,7 @@ function PlayerViewDoCanvas({
         // A textura do relevo também não.
         scene.relevo.destruir()
         scene.barranco.destroy()
+        scene.pisoDoChao.destruir()
         scene.texturas.destruir()
         scene.carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
@@ -4617,6 +4641,8 @@ function PlayerViewDoCanvas({
         // Tela que cresce sem a câmera mudar (girar o celular, janela maior): a
         // textura repetida acompanha a vista nova (`ajustarAVista`, drawTexturas.ts).
         scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
+        scene.pisoDoChao.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
+        scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
       })
       resizeObserver.observe(el)
 
