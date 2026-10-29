@@ -1,0 +1,58 @@
+{
+  "casaPx": 64,
+  "casas": [
+    2.0,
+    0.5
+  ],
+  "contrato": 1,
+  "curva": true,
+  "id": "sebe",
+  "idDoApp": "sebe",
+  "lote": 7,
+  "luz": {
+    "conta": "ver CONTRATO.md 9.5",
+    "direcao": [
+      -0.7071,
+      -0.7071
+    ],
+    "forca": 1.0
+  },
+  "memoria": {
+    "discoBytes": 43027,
+    "gpuBytes": 370006,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 2796202
+  },
+  "nome": "Sebe",
+  "onda": 3,
+  "sombra": {
+    "alfa": 0.25,
+    "borrao": 0.07,
+    "conta": "a silhueta (o alfa do desenho, já no lugar) andada deslocamento x tamanho na direção, desfocada borrao x tamanho, numa camada só para todos os objetos, pintada com a cor e o alfa uma vez",
+    "cor": "#0a1c28",
+    "deslocamento": 0.22,
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "deslocada"
+  },
+  "tipo": "trecho",
+  "trecho": {
+    "alturaImagemPx": 64,
+    "arquivos": {
+      "cor": "trecho.png",
+      "relevo": "trecho-relevo.png"
+    },
+    "canais": {
+      "cor": "RGBA, cor reta sem luz de direção, alfa reto",
+      "relevo": "R = 0,5 + 0,5 x lado ao longo; G = 0,5 + 0,5 x lado atravessando; B = 0"
+    },
+    "comprimentoPx": 256,
+    "larguraImagemPx": 542,
+    "meiaLarguraPx": 16.0,
+    "orientacao": "x da imagem / 2 - pontaPx = s, ao longo (s < 0 é a ponta do começo; de 0 em diante o trecho repete a cada comprimentoPx); y da imagem / 2 - meiaLarguraPx = c, atravessando (com t a direção do trecho na tela, +c fica em n = (-t.y, t.x): para baixo quando o trecho anda para a direita, ou seja, a imagem aparece como está)",
+    "pontaPx": 15,
+    "pxPorCasa": 128
+  }
+}
