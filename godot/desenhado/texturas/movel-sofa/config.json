@@ -1,0 +1,19 @@
+{
+  "id": "movel-sofa",
+  "nome": "Sofá",
+  "idDoApp": "sofa",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 13,
+  "semente": 58,
+  "margemCasas": 0.0625,
+  "lugares": ["tecido", "madeira"],
+  "vistas": {
+    "frente": {
+      "casas": [2, 1],
+      "viradas": 2,
+      "esticar": { "eixo": "x", "pontasCasas": [0.5, 0.5], "periodoCasas": 1, "ladoMaior": true }
+    }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.18, "borraoCasas": 0.03 }
+}
