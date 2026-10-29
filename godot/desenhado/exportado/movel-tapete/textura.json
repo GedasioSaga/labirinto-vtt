@@ -1,0 +1,261 @@
+{
+  "canais": {
+    "cor": "só com corFixa: RGB = a cor própria (louça, comida, água, vidro, chama), já pintada; A = a cobertura",
+    "partes": "R, G, B = o peso do lugar 1, 2 e 3 (a ordem de \"lugares\"); 1 - R - G - B = a cor fixa (imagem -cor) ou, sem ela, o lugar 1; A = a cobertura",
+    "valor": "R = G = B: o valor 0..1 (0,5 = o tom do material do lugar); A = a cobertura; alfa reto"
+  },
+  "contrato": 1,
+  "formas": [
+    {
+      "alturaPx": 272,
+      "casas": [
+        2.0,
+        2.0
+      ],
+      "cobertura": 0.679,
+      "cor": "frente-redondo-0-cor.png",
+      "larguraPx": 272,
+      "nome": "frente-redondo-0",
+      "partes": "frente-redondo-0-partes.png",
+      "valor": "frente-redondo-0.png",
+      "valorMedioPorLugar": [
+        0.41
+      ],
+      "variante": "redondo",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 272,
+      "casas": [
+        3.0,
+        2.0
+      ],
+      "cobertura": 0.88,
+      "cor": "frente-retangular-0-cor.png",
+      "larguraPx": 400,
+      "nome": "frente-retangular-0",
+      "partes": "frente-retangular-0-partes.png",
+      "valor": "frente-retangular-0.png",
+      "valorMedioPorLugar": [
+        0.426
+      ],
+      "variacaoDoMeio": 0.0,
+      "variacaoDoMeioY": 0.0,
+      "variante": "retangular",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 48,
+      "casas": [
+        2.0,
+        0.25
+      ],
+      "cobertura": 0.27,
+      "cor": "lado-redondo-0-cor.png",
+      "larguraPx": 272,
+      "nome": "lado-redondo-0",
+      "partes": "lado-redondo-0-partes.png",
+      "valor": "lado-redondo-0.png",
+      "valorMedioPorLugar": [
+        0.26
+      ],
+      "variacaoDoMeio": 0.0,
+      "variante": "redondo",
+      "virada": 0,
+      "vista": "lado"
+    },
+    {
+      "alturaPx": 48,
+      "casas": [
+        3.0,
+        0.25
+      ],
+      "cobertura": 0.267,
+      "cor": "lado-retangular-0-cor.png",
+      "larguraPx": 400,
+      "nome": "lado-retangular-0",
+      "partes": "lado-retangular-0-partes.png",
+      "valor": "lado-retangular-0.png",
+      "valorMedioPorLugar": [
+        0.261
+      ],
+      "variacaoDoMeio": 0.0,
+      "variante": "retangular",
+      "virada": 0,
+      "vista": "lado"
+    }
+  ],
+  "id": "movel-tapete",
+  "idDoApp": "tapete",
+  "lote": 13,
+  "lugares": [
+    "tecido"
+  ],
+  "margemCasas": 0.0625,
+  "memoria": {
+    "discoBytes": 44587,
+    "memoriaBytes": 3440637,
+    "tetoDiscoBytes": 524288,
+    "tetoMemoriaBytes": 3145728,
+    "tetoMemoriaDos31Bytes": 25165824
+  },
+  "nome": "Tapete",
+  "onda": 4,
+  "pxPorCasa": 128,
+  "semente": 60,
+  "sombra": {
+    "alfa": 0.25,
+    "borraoCasas": 0.02,
+    "conta": "a silhueta (o alfa do móvel já virado e esticado) andada deslocamentoCasas na direção (7, 11) normalizada, desfocada borraoCasas (desvio), pintada com a cor e o alfa, por baixo do móvel",
+    "cor": "#0a1c28",
+    "deslocamentoCasas": 0.03,
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "deslocada"
+  },
+  "tingir": {
+    "amareloNaLuz": 0.12,
+    "claro": [
+      [
+        0.5,
+        0.0
+      ],
+      [
+        0.62,
+        0.12
+      ],
+      [
+        0.76,
+        0.26
+      ],
+      [
+        1.0,
+        0.45
+      ]
+    ],
+    "claroDesde": 0.94,
+    "conta": "valor-oklab",
+    "cromaNaLuz": 0.2,
+    "cromaNaSombra": 0.25,
+    "escuro": [
+      [
+        0.0,
+        0.42
+      ],
+      [
+        0.1,
+        0.5
+      ],
+      [
+        0.24,
+        0.64
+      ],
+      [
+        0.36,
+        0.78
+      ],
+      [
+        0.5,
+        1.0
+      ]
+    ],
+    "escuroAte": 0.1
+  },
+  "tipo": "movel",
+  "variantes": [
+    {
+      "nome": "redondo",
+      "quando": {
+        "forma": "redondo"
+      },
+      "vistas": {
+        "frente": {
+          "casas": [
+            2.0,
+            2.0
+          ],
+          "desenhadas": [
+            0
+          ],
+          "viradas": 1
+        },
+        "lado": {
+          "casas": [
+            2.0,
+            0.25
+          ],
+          "desenhadas": [
+            0
+          ],
+          "esticar": {
+            "eixo": "x",
+            "ladoMaior": true,
+            "meio": "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir",
+            "pontasCasas": [
+              0.375,
+              0.375
+            ],
+            "pontasCasasY": null
+          },
+          "viradas": 1
+        }
+      }
+    },
+    {
+      "nome": "retangular",
+      "quando": {}
+    }
+  ],
+  "viradas": "k = round(giro / 90) mod 4. viradas 1 (o desenho é simétrico de lado a lado e de cima a baixo): k par = a forma 0, k ímpar = a 0 transposta. viradas 2 (simétrico de lado a lado): k 0 = a 0, k 2 = a 2, k 1 = a 2 transposta, k 3 = a 0 transposta. viradas 4: a forma k, nunca transposta. A tela gira só o resto (giro - 90 k, de -45 a 45 graus). Transposta = (x, y) -> (y, x) nos px da imagem: a LUZ está na diagonal e não muda.",
+  "vistas": {
+    "frente": {
+      "casas": [
+        3.0,
+        2.0
+      ],
+      "desenhadas": [
+        0
+      ],
+      "esticar": {
+        "centroCasas": 1.3125,
+        "centroCasasY": 0.9375,
+        "eixo": "xy",
+        "ladoMaior": true,
+        "meio": "centro fixo nos dois eixos: ao longo (x) a peça de centroCasas casas e atravessado (y) a de centroCasasY, no meio da imagem, ficam inteiras e no meio do móvel; em cada eixo, o meio liso dos dois lados do centro (entre a ponta e o centro, a mesma coluna em todo x e a mesma linha em todo y) estica com a metade do que sobra. Num eixo sem centro, o meio liso estica inteiro. Mais curto que pontas + centro, o centro continua inteiro e cada ponta perde por dentro a metade do que falta.",
+        "pontasCasas": [
+          0.5,
+          0.5
+        ],
+        "pontasCasasY": [
+          0.5,
+          0.5
+        ]
+      },
+      "viradas": 1
+    },
+    "lado": {
+      "casas": [
+        3.0,
+        0.25
+      ],
+      "desenhadas": [
+        0
+      ],
+      "esticar": {
+        "eixo": "x",
+        "ladoMaior": true,
+        "meio": "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir",
+        "pontasCasas": [
+          0.375,
+          0.375
+        ],
+        "pontasCasasY": null
+      },
+      "viradas": 1
+    }
+  }
+}
