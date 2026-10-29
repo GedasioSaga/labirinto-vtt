@@ -19,8 +19,7 @@ chapada (sem textura) ganha um id novo e `idDoApp: null`.
 
 O **que entregar** remete ao contrato: "chão" = o contrato de chão de `CONTRATO.md`
 (base-1..3 + atlas + `textura.json`). Telhado (seção 8), carimbo e trecho (seção 9) e
-móvel desenhado (seção 10) têm contrato; o traço da onda 5 ainda **não**: ele é escrito
-antes da onda começar (seção 7 do `CONTRATO.md`).
+móvel desenhado (seção 10) e o traço da onda 5 (seção 11, de 29/10) têm contrato.
 
 ## Onda 1: chão e caminhos (18 itens, lotes 1 a 4)
 
@@ -227,8 +226,8 @@ uso (CONTRATO 10.11).
 
 | # | id | Nome que o mestre vê | Onde aparece | O que o Desenhado entrega |
 |---|---|---|---|---|
-| 75 | `penhasco` | Penhasco (Baixo, Médio, Alto) | ferramenta Penhasco; no Meio-Termo é o barranco liso (`meioTermo/barranco.ts`, tons `#aa745c`) | a face do barranco no espaço do traço (ao longo e para baixo), repetível ao longo |
-| 76 | `penhasco-borda` | (lábio e faixas do relevo) | as 6 faixas do relevo (`lib/relevo.ts:138-145`) | a borda de cima e o pé molhado, repetíveis ao longo |
+| 75 | `penhasco` | Penhasco (Baixo, Médio, Alto) | ferramenta Penhasco; no Meio-Termo é o barranco liso (`meioTermo/barranco.ts`, tons `#aa745c`) | traço, parte face (CONTRATO 11): 5 módulos de 2 a 3,25 casas em 3 alturas, cor e relevo; a terra em 3 faixas e o pé em zigue-zague, pedrões só no Médio e no Alto. **Feito no lote 17** |
+| 76 | `penhasco-borda` | (lábio e faixas do relevo) | as 6 faixas do relevo (`lib/relevo.ts:138-145`) | traço, parte borda (CONTRATO 11.11): 4 linhas de 16 casas, grama, terra e neve que debruçam na beira e a espuma no pé. **Feito no lote 17** |
 | 77 | `parede` | Parede | ferramenta Parede: hoje traço de uma cor (`#d8d2c4` ou a cor do mestre) | material de parede vista de cima, tingível pela cor do mestre, repetível ao longo do traço |
 | 78 | `janela` | Janela | na parede (hoje traço duplo) | trecho de janela no traço |
 | 79 | `grade-de-prisao` | Grade de prisão | na parede (só Meio-Termo) | trecho de grade no traço |

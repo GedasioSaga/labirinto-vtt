@@ -1,0 +1,19 @@
+{
+  "id": "penhasco",
+  "nome": "Penhasco",
+  "idDoApp": "penhasco",
+  "tipo": "traco",
+  "parte": "face",
+  "onda": 5,
+  "lote": 17,
+  "semente": 17,
+  "tingir": false,
+  "face": {
+    "modulosCasas": [2.0, 2.75, 2.5, 3.25, 3.0],
+    "acimaPx": 4,
+    "abaixoPx": 8
+  },
+  "luz": { "face": 0.45, "relevo": 0.6 },
+  "sombra": { "jeito": "pe", "comprimentoPx": 4, "borraoPx": 8 },
+  "borda": "penhasco-borda"
+}

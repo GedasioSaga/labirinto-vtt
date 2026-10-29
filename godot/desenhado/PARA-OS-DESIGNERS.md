@@ -353,7 +353,43 @@ nas 4 viradas, e da família das folhas dos lotes 6 a 8.
 
 ---
 
+## Onda 5: o que muda para quem faz um traço (29/10/2026)
+
+Vale para o penhasco (feito, lote 17), a borda dele (feita) e para a parede, a janela e a
+grade (próximas). O contrato é a seção 11 do `CONTRATO.md`; leia a 11.14 antes de começar.
+
+- **Comece de** `texturas/penhasco/` (a face) ou `texturas/penhasco-borda/` (a borda): copie a
+  pasta, troque `id`, `nome`, `idDoApp` e `semente` no `config.json` e reescreva as funções.
+  `"tipo": "traco"` e `"parte": "face"` ou `"borda"` mandam o exportador para o caminho do traço.
+- **Você pinta no espaço da face**, não no mapa: `q.x` ao longo da beira (0 a L, px do mundo),
+  `q.y` para baixo, da beira (0) ao pé (H). H é 20, 32 ou 48 (Baixo, Médio, Alto). A face escreve
+  `pintar_face` (cor reta e alfa) e `relevo_da_face` (para onde a superfície inclina, -1 a 1); a
+  borda escreve `pintar_borda`. Sem luz de direção na cor: a luz é do app (11.5).
+- **Meça em fração de H** tudo que atravessa o módulo (faixas, pé, contorno do pé): o app troca a
+  imagem do módulo pela espessura vista (11.4) e o que não for fração faz degrau na troca.
+- **A costura**: os 4 px de cada ponta do módulo são a mesma coluna lisa em todos os módulos, com
+  relevo ao longo 0. Use `miolo(x, L)` (ver o penhasco) para apagar qualquer detalhe ali. O
+  exportador recusa acima de 2/255; a borda tem de dar voltas inteiras no período (3/255).
+- **A régua do usuário** (literal, sobre o primeiro barranco): "tá muito detalhado, cheio de
+  bolinhas, fica estranho, faz algo mais bonito". Massas largas de contorno grosso (2,4 px), no
+  máximo 2 formas por módulo, módulo de respiro só de terra ou reboco; nada de pedrinha, estria
+  ou granulado. No Baixo a faixa é fina: o que for menor que meia casa ali vira pontinho.
+- **Exportar e a folha**, pela fila, igual às outras ondas:
+  `... --script res://scripts/exportar_uma.gd -- --textura=<id> --folha --prova=<pasta>` (uns 15 s;
+  a primeira vez empacota `ferramentas/mesa_traco.ts` com o esbuild). Olhe o `paredao` (repetição),
+  o recorte da quina a 300% (dobra e luz) e o morro da família.
+- **Não mexa** em `comum/traco.gdshaderinc`, `rodape_traco.gdshaderinc`, `contrato_traco.gd`,
+  `pintor_traco.gd`, `rodar_traco.gd`, `mesa_traco.gd` nem em `ferramentas/traco.ts`. A parede
+  precisa de uma cena de sala nova na mesa (11.14): faça num arquivo novo ou mude a mesa uma vez e
+  prove por hash que o penhasco e a borda saem iguais.
+
 ## Notas para o orquestrador
+
+- **Onda 5:** a folha do lote dos traços é outro comando (lê `area50.png`, `atual-area50.png`,
+  `perto300.png`, `atual-perto300.png`, `familia50.png` e `resumo.json` de cada pasta):
+  `... --script res://scripts/folha_do_lote_tracos.gd -- --texturas=penhasco,penhasco-borda,parede,janela,grade-de-prisao --prova=<raiz das PROVAS> --saida=<raiz>/lote.png`.
+  A folha do `penhasco` usa o `exportado/penhasco-borda` e a da borda usa o `exportado/penhasco`:
+  depois de mexer num, rode `--folha` de novo no outro.
 
 - **Onda 4:** a folha do lote dos móveis é outro comando (lê `area50.png`,
   `atual-area50.png`, `perto300.png`, `atual-perto300.png` e `resumo.json` de cada pasta, e

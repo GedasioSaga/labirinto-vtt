@@ -9,8 +9,8 @@ que a folha mostra é o que o mestre vê.
 As seções 1 a 6 valem para a **onda 1** (chão e caminhos). A **onda 2** (telhado, faixa e
 objeto) está na seção 8, de 28/10/2026; a **onda 3** (carimbo e trecho), na seção 9; a
 **onda 4** (os móveis desenhados à mão que pegam cor; o caminho "só materiais" foi
-reprovado no mesmo dia), na seção 10, de 29/10/2026. O traço ainda não tem contrato
-(seção 7).
+reprovado no mesmo dia), na seção 10, de 29/10/2026; a **onda 5** (o traço: penhasco,
+borda, parede, janela e grade), na seção 11, de 29/10/2026.
 
 ## 1. A decisão contra repetição, em 5 linhas
 
@@ -226,7 +226,8 @@ O exportador recusa (sai com 1) a textura que passa do teto por textura. O teto 
 - ~~**Móveis (onda 4)**~~: decidido em 29/10 ("Desenho à mão que pega cor", depois de o
   "Materiais primeiros" ser reprovado): cada móvel desenhado em cinza com as partes
   marcadas; escrito na seção 10. O vaso continua carimbo de destino `movel` (9.6).
-- **Traço (onda 5)**: penhasco e parede repetíveis ao longo de um traço.
+- ~~**Traço (onda 5)**~~: escrito em 29/10, seção 11 (o penhasco e a borda são o piloto; a
+  parede, a janela e a grade vêm em cima da mesma base).
 - **Entrega ao app**: o pacote de animações de hoje só aceita `.js` de até 2 MiB
   (`desktop/src-tauri/src/net/animacoes.rs`); PNG precisa de outro canal ou de ir junto do
   app. Decisão da fase de integração.
@@ -952,3 +953,172 @@ igual. Uma forma só no Desenhado poria o cemitério inteiro igual. A decisão d
 - **A mesa de prova** (`ferramentas/mesa_movel.ts`) ainda não passa a variação: a folha de
   `--folha` mostra só a variante sem variação (o arco). A prova das 3 formas, ao lado das 3
   do Atual e num cemitério na grama, foi feita fora dela, com a mesma conta.
+
+## 11. Traço (onda 5, 29/10/2026)
+
+O que se repete AO LONGO de uma linha que o mestre risca: o penhasco (a face do barranco e
+a borda dele), e depois a parede, a janela e a grade. Arquivos da base: `comum/traco.gdshaderinc`,
+`comum/rodape_traco.gdshaderinc`, `comum/contrato_traco.gd`, `comum/pintor_traco.gd`,
+`comum/rodar_traco.gd`, `comum/mesa_traco.gd`, `ferramentas/traco.ts` (a conta de referência
+para o app) e `ferramentas/mesa_traco.ts`; o `scripts/exportar_uma.gd` chama o traço com
+`load()` quando o `config.json` diz `"tipo": "traco"`. Piloto: `texturas/penhasco/` (a face) e
+`texturas/penhasco-borda/` (a borda).
+
+### 11.1 A decisão em 6 linhas
+
+1. Um traço é pintado no **espaço da face**: x anda ao longo da beira, y desce da beira para o
+   pé. O app deita esse espaço na linha ou na curva de `lib/barranco.ts`, trecho por trecho.
+2. A face é uma tira de **módulos** de comprimentos diferentes (1 a 6 por item, de 1 a 6 casas),
+   lado a lado numa imagem; o app sorteia a ordem e o espelho por hash do id do traço.
+3. As pontas de todo módulo são a **mesma coluna** (a costura, 4 px do mundo): qualquer módulo
+   emenda em qualquer outro, direito ou espelhado, sem degrau.
+4. A cor vem **sem luz de direção**; a luz é do app, pela normal de cada trecho mais um mapa de
+   **relevo** (2 canais): por isso a curva e a quina acendem no lugar, sem costura.
+5. Baixo, Médio e Alto são **três imagens** (a face de 20, 32 e 48 px do mundo), e o app escolhe
+   a de cada módulo pela **espessura vista**: a face estreita do norte usa a do Baixo.
+6. A **borda** (o chão do alto que debruça, a água no pé) é outra imagem, repetida a cada 16
+   casas, por cima da face, sem luz; uma linha por tipo de chão.
+
+### 11.2 Arquivos e config
+
+- Face (`"parte": "face"`): `face-baixo.png`, `face-medio.png`, `face-alto.png` (cor RGBA, cor
+  reta e alfa reto) e `face-<altura>-relevo.png` (R = 0,5 + 0,5 x o relevo ao longo, G = 0,5 +
+  0,5 x o relevo para baixo), mais o `textura.json`. Config: `face.modulosCasas` (1 a 6 valores,
+  em px inteiros a 128 px por casa), `face.acimaPx` (4) e `face.abaixoPx` (8: o pé recortado passa
+  da altura), `luz.face` (0,45) e `luz.relevo` (0,6), `sombra` (`jeito` `pe` ou `nenhuma`,
+  `comprimentoPx`, `borraoPx`), `borda` (o id da borda) e `tingir` (11.8).
+- Borda (`"parte": "borda"`): `borda.png`, uma linha por tipo de chão empilhada de cima para
+  baixo. Config: `borda.comprimentoCasas` (2 a 16, inteiro), `acimaPx`, `abaixoPx` e `linhas`
+  (`{ nome, ancora: "beira" | "pe", chao: [ids de chão] }`).
+- O shader do designer escreve `pintar_face` e `relevo_da_face` (face, com `#define FACE`) ou
+  `pintar_borda` (borda); as assinaturas estão no cabeçalho de `comum/traco.gdshaderinc`.
+
+### 11.3 O espaço da face e a imagem
+
+- 128 px da imagem por casa (2 por px do mundo). A imagem de cada altura tem os módulos lado a
+  lado, cada um com 4 px do mundo de folga antes e depois (a coluna da costura repetida, para o
+  filtro e o mipmap do app não verem o vizinho); `face.modulos[i].xPx` diz onde cada um começa.
+- Para um ponto da face a `d` px do mundo da beira, com a espessura do app `t` naquele ponto:
+  `x = modulo.xPx + 2 * u` (u = px do mundo dentro do módulo, depois do espelho) e
+  `y = 2 * (acimaPx + (d / t) * hPx)`. Ou seja: a imagem estica de cima para baixo até a espessura
+  que o app já calcula (`fatorDaVista`, a ponta que rola), e nada da geometria do app muda.
+- A imagem anda sempre para "ao longo" = a normal do trecho para o lado baixo girada um quarto de
+  volta (na face do sul, o leste). O trecho riscado ao contrário lê a imagem de trás para frente.
+
+### 11.4 Baixo, Médio, Alto e a imagem pela espessura vista
+
+As alturas do app a 64 px por casa (`ESPESSURA_DO_PROTOTIPO` 10, 16 e 24 num quadrado de 32)
+dão a face de 20, 32 e 48 px do mundo. Cada módulo usa a imagem da espessura vista no meio
+dele: `tv < 26` px do mundo usa a do Baixo, `tv < 40` a do Médio, senão a do Alto, nunca acima da
+altura da beira (`face.escolha` no `textura.json`). A face do norte de um Alto (36% da espessura)
+usa a do Baixo: só terra, sem pedra espremida. Para a troca não deixar degrau, tudo que atravessa
+o módulo (as faixas, o dente e o contorno do pé, o relevo da beira) é medido em **fração** da
+altura; só o desenho de dentro (as pedras) muda entre as alturas.
+
+### 11.5 Curva, quina e luz
+
+Cada trecho da beira tem o seu referencial: `baixo` = `sn` (a normal do trecho para o lado baixo,
+`lib/barranco.ts`) e `aoLongo` = `(sn.y, -sn.x)`. O relevo lido `(rx, ry)` vira a normal
+`rx * aoLongo + ry * baixo` (com o módulo espelhado, `rx` troca de sinal). A luz do app:
+`l = luz.face * dot(baixo, LUZ) + luz.relevo * dot(normal do relevo, LUZ)`; `l >= 0` mistura a cor
+com `realce_de(cor)` por `l`, `l < 0` escurece `cor * (1 - 0,3 * (-l))`; `LUZ = (-0,707; -0,707)`.
+A dobra da curva e da quina acontece na diagonal do canto (o `vn` do app), como no Atual: a cor da
+face é contínua ao longo (o x da imagem vem do comprimento `s` da beira) e só a luz muda de um
+trecho para o outro.
+
+### 11.6 A ordem dos módulos (sem repetição)
+
+`h` = FNV-1a do id do traço; para `j = 0, 1, 2...`: o módulo é `floor(hash(j, 0, semente + h) * N)`
+(trocado pelo seguinte se igual ao de antes) e o espelho é `hash(j, 1, semente + h) < 0,5`, com o
+`hash` de `texturas/ruido.ts` e `semente` = `sequencia.semente` do `textura.json`. Na área (laço
+fechado) os comprimentos escalam para fechar sem meio módulo. Com 5 módulos de 2 a 3,25 casas, o
+espelho e a borda num período de 16 casas que não divide os módulos, o paredão de 38 casas da mesa
+não mostra a mesma pedra num ritmo que o olho ache.
+
+### 11.7 Costura
+
+Os primeiros e os últimos 4 px do mundo de todo módulo são a mesma coluna em todos os módulos da
+mesma altura, com relevo ao longo 0. O exportador mede e **recusa** acima de 2/255 (o penhasco: 0
+na cor, 1/255 no relevo, o arredondamento do 0,5). A borda tem de repetir a cada `comprimentoCasas`:
+o exportador compara o passo da última coluna para a primeira com o passo vizinho de dentro e
+recusa acima de 3/255 (as ondas têm de dar voltas inteiras no período; o penhasco-borda: 1/255).
+
+### 11.8 Tingir
+
+`"tingir": true` (a parede, a janela e a grade, que pegam a cor do mestre): o valor vai em R
+(0,5 = a cor do mestre) e o app faz a rampa `luz-oklab` da `PROPOSTA-TINGIR.md` (`ganhoL` 0,48,
+escuro até 0,10, claro desde 0,94), antes da luz. O penhasco tem o tom próprio da terra
+(`#aa745c`, `#c28b71`, `#915f4a` do Meio-Termo) e vai com `false`.
+
+### 11.9 Sombra
+
+Jeito `pe`: o polígono de `d = t / 2` a `d = t + comprimentoPx + 1,05 * t * deCostas`
+(`deCostas = max(0, -dot(un, LUZ))`, a mesma conta da sombra do Atual), desfocado `borraoPx`,
+numa camada só, por baixo de todas as faces daquele nível, na cor e no alfa da família
+(`#0a1c28`, 0,25). O penhasco usa 4 px e borrão de 8 px.
+
+### 11.10 Teto de memória
+
+Por item, as imagens somadas com mipmaps: 6 MiB na placa e 1,5 MiB em disco. O penhasco: 5,00 MiB
+e 0,09 MiB (5 módulos, 13,5 casas, 3 alturas, cor e relevo); o penhasco-borda: 1,67 MiB e 0,05 MiB.
+
+### 11.11 A borda
+
+Cada linha tem uma âncora: `beira` (y = 0 na beira de cima) ou `pe` (y = 0 no pé, d = t). O app
+escolhe a linha de cima pelo chão do lado ALTO junto da beira (a lista `chao`; sem chão conhecido,
+a primeira linha) e a linha `pe` só onde o lado baixo é água. `x = 2 * ((s + desvio) mod
+comprimentoPx)`, `desvio = hash(0, 2, h) * comprimentoPx`; o alfa cai para 0 onde a beira afina
+(`suave(0; 0,25; t / hPx)`, as pontas que rolam). A borda não é acesa e vai por cima da face e
+debaixo do topo do nível seguinte. O penhasco-borda tem 4 linhas: `grama`, `terra`, `neve`
+(beira) e `agua` (pé).
+
+### 11.12 O que a integração precisa (escrito, não feito)
+
+- **Estilo Desenhado no `pixi/drawBarranco.ts`**: com o pacote Desenhado ligado no mapa, cada
+  trecho da beira vira uma malha (dois triângulos de `lip + vn * (-acima)` a `lip + vn * (t + abaixo)`,
+  a mesma conta do `varrerTrecho` de `ferramentas/traco.ts`), com o UV da seção 11.3 e um shader
+  (filtro de malha do Pixi) que lê a cor e o relevo e faz a luz da 11.5 com `sn` e `aoLongo` por
+  vértice. Hoje o app pinta 6 faixas chapadas; nada da geometria (`geosDoBarranco`) muda.
+- **A sequência** (11.6) e a **escolha da imagem** (11.4) por módulo, calculadas uma vez por
+  geometria (como o app já guarda `GeoDoBarranco`), não por quadro.
+- **A borda**: precisa saber o chão do lado alto junto da beira (o id da textura de chão do
+  mapa naquele ponto) e se o lado baixo é água; sem isso, a linha `grama`.
+- **A sombra**: uma camada por nível, desfocada uma vez (`BlurFilter` ou textura assada), por
+  baixo das faces; a mesma ordem de hoje (níveis 1 a 3: sombra, face, topo, beira; os riscos por
+  último).
+- **O penhasco do continente** (`lib/relevo.ts`, `AJUSTE_DO_PENHASCO`, as 6 faixas das linhas
+  138 a 145) cai reto para o sul: `s = x`, `baixo = (0, 1)`, `t = 18 * fator` (Baixo 0,5, Médio 1,
+  Alto 2); a mesma face serve, com a escolha da 11.4.
+- **Entrega**: PNG, mipmaps ligados (por isso a folga de 4 px); o canal de entrega dos PNG ao app
+  continua em aberto (seção 7).
+- A referência é `ferramentas/traco.ts` (`pintarDesenhado`, por pixel, em JavaScript): serve para
+  conferir o shader do app, não para rodar no app.
+
+### 11.13 A mesa de prova dos traços
+
+`exportar_uma.gd --textura=<id> --folha --prova=<pasta>` monta `folha.png` e as peças
+(`area50.png`, `atual-area50.png`, `perto300.png`, `atual-perto300.png`, `familia50.png`,
+`resumo.json`): reta, curva suave, quina de 90 graus e S nas 3 alturas sobre a grama aprovada, a
+100%, 50% e 25%, ao lado do Atual (o barranco do Meio-Termo, refeito por pixel com as funções de
+cor do app; não é o Pixi); o paredão de 38 casas (Alto ondulado e Baixo); recortes a 300% da
+quina, do S e da família; e o morro da família: uma área de Baixo com um platô Alto na grama, um
+risco Baixo, árvores, arbusto, pedras e tronco caído da onda 3, cerca e poço da onda 4. A folha do
+lote: `scripts/folha_do_lote_tracos.gd -- --texturas=a,b,c --prova=<raiz> --saida=<raiz>/lote.png`.
+
+### 11.14 Para a parede, a janela e a grade (o próximo designer)
+
+- A **parede** é uma face com `"tingir": true`: os módulos são o reboco ou a pedra da parede
+  vista de cima, a costura é a coluna lisa do reboco. Ela não tem lado baixo: a integração tem de
+  mapear `d` atravessando a espessura da parede (de um lado ao outro do traço de
+  `pixi/drawWalls.ts`) e usar como `baixo` a normal à direita do traço. Confira em
+  `drawWalls.ts:58` as espessuras da parede e decida se elas ocupam as 3 alturas (11.4) ou se a
+  parede usa uma só; o pintor pinta as 3 imagens sempre.
+- A **janela** e a **grade** são faces de 1 módulo (o tamanho da janela do app), sem sorteio: a
+  integração as põe no lugar da parede no trecho da janela. A coluna da costura delas tem de ser a
+  MESMA da parede (escreva a coluna lisa numa função que as três incluem); o exportador só mede
+  dentro de cada item.
+- A mesa (`ferramentas/mesa_traco.ts`) só sabe a geometria do barranco: para a parede, ela precisa
+  de uma cena de sala com a geometria de `drawWalls.ts` (nova cena; o resto da mesa serve).
+- Não mexa nos arquivos da base (`comum/traco*.gdshaderinc`, `contrato_traco.gd`,
+  `pintor_traco.gd`, `rodar_traco.gd`, `mesa_traco.gd`, `ferramentas/traco.ts`); se precisar,
+  mude uma vez e prove por hash que o penhasco e o penhasco-borda saem iguais.

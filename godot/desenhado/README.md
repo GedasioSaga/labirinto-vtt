@@ -47,17 +47,22 @@ godot/desenhado/
                   pintor_movel.gd, mesa_movel.gd; o caminho "só materiais", reprovado
                   em 29/10 e sem uso: material.gdshaderinc, rodape_material.gdshaderinc,
                   contrato_material.gd, pintor_material.gd, mesa_material.gd
+                  onda 5 (traço: penhasco, borda, parede, janela, grade; CONTRATO.md
+                  seção 11): traco.gdshaderinc, rodape_traco.gdshaderinc,
+                  contrato_traco.gd, pintor_traco.gd, rodar_traco.gd, mesa_traco.gd
   texturas/<id>/  do designer: textura.gdshader + config.json (_modelo/ é o ponto de partida,
                   grama/ é o piloto; na onda 2, telhado-telhas/ é o piloto e _modelo-objeto/
                   e _modelo-faixa/ os modelos; na onda 3, arvore/ é o piloto e
                   _modelo-carimbo/ e _modelo-trecho/ os modelos; na onda 4,
                   movel-mesa/, movel-cadeira/ e movel-barril/ são o piloto e
-                  _modelo-movel/ o modelo; material-madeira/ é o caminho reprovado)
+                  _modelo-movel/ o modelo; material-madeira/ é o caminho reprovado; na
+                  onda 5, penhasco/ e penhasco-borda/ são o piloto e o modelo)
   exportado/<id>/ gerada: base-1..3.png, detalhes.png, textura.json (vai para o git; o
                   .gdignore de exportado/ esconde a pasta do editor do Godot)
   prova/<id>/     gerada: folha.png e peças (fora do git; o padrão quando não se passa --prova)
   scripts/exportar_uma.gd, scripts/folha_do_lote.gd, scripts/folha_do_lote_telhados.gd,
   scripts/folha_do_lote_carimbos.gd, scripts/folha_do_lote_moveis.gd,
+  scripts/folha_do_lote_tracos.gd,
   scripts/folha_do_lote_materiais.gd (do caminho reprovado)
   ferramentas/atual.ts   pinta o Atual (a textura de hoje do app) com o código de client/src
   ferramentas/telhado.ts monta o telhado Desenhado com as águas do app (a referência da
@@ -69,6 +74,10 @@ godot/desenhado/
                          esbuild empacota o motor dos móveis do client da main (só leitura) e
                          troca a superfície da classe pela do Desenhado (material.ts, a
                          referência da seção 10 para o app); o Atual é o mesmo motor sem troca
+  ferramentas/traco.ts + mesa_traco.ts  a mesa dos traços: traco.ts é a conta de
+                         referência da seção 11 para o app (a face deitada na beira de
+                         lib/barranco.ts, a luz pelo relevo, a borda, a sombra) e pinta o Atual
+                         com as cores do barranco do Meio-Termo; mesa_traco.ts monta as cenas
   ferramentas/movel.ts + mesa_movel.ts  a mesa dos móveis desenhados: movel.ts é a conta
                          de referência da seção 10 para o app (tingir por parte, virada,
                          esticar, sombra); mesa_movel.ts pinta o Desenhado com ela e o Atual
