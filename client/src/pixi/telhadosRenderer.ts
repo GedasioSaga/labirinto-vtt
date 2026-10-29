@@ -4,7 +4,10 @@ import { CURVAS } from '../cenario/revelacao/tempo'
 import { BEIRAL_PX } from '../lib/telhado/aguas'
 import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
 import { comecarTelhado, pintarTelhado, type ExtrasDoTelhado, type ImagemDoTelhado, type PinturaDoTelhado } from '../texturas/telhado'
-import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { desenhadoLigado, meioTermoLigado } from '../lib/estiloDoMapa'
+import { assinarDesenhado, pedirItemDoTelhado } from '../texturas/desenhado/carregador'
+import { comecarTelhadoDesenhado, idDoTelhadoDoModelo, type DesenhoDoTelhado } from '../texturas/desenhado/telhado'
+import { rampaGuardada } from '../texturas/desenhado/tingir'
 
 /*
  * TELHADOS DESENHADOS (pedido de 19/10/2026, protótipo aprovado em
@@ -127,8 +130,8 @@ export interface TelhadosRenderer {
   vaoAparecer: (ids: readonly string[], mapaId: string) => string[]
   /** A foto do interior, posta debaixo do telhado até ele terminar de aparecer (e então destruída). */
   guardarFoto: (id: string, foto: Container) => void
-  /** Desenha os telhados. Trocar de `mapaId` limpa tudo na hora, sem animar. */
-  desenhar: (telhados: readonly TelhadoParaDesenhar[], mapaId: string) => void
+  /** Desenha os telhados. Trocar de `mapaId` limpa tudo na hora, sem animar. `grid` (px do mapa por casa, padrão 64) é a escala da arte do Desenhado. */
+  desenhar: (telhados: readonly TelhadoParaDesenhar[], mapaId: string, grid?: number) => void
   /** Telhados em transição agora (para o e2e e os testes). */
   animando: () => number
   /**
@@ -198,8 +201,41 @@ function caixaDe(points: readonly RegionPoint[]): { minX: number; minY: number; 
   return minX <= maxX && minY <= maxY ? { minX, minY, maxX, maxY } : null
 }
 
-/** O que pintar para uma chave na fila: o telhado e os extras do Meio-Termo (ausente = nenhum). */
-type PedidoDeTelhado = Pick<TelhadoParaDesenhar, 'points' | 'modelo' | 'cor'> & { extras?: ExtrasDoTelhado }
+/** O telhado Desenhado pronto para pintar: os itens do pacote, a rampa da cor e a grade do mapa. */
+interface PedidoDesenhado {
+  readonly desenho: DesenhoDoTelhado
+  readonly rampa: Uint8Array
+  readonly grid: number
+}
+
+/** O que pintar para uma chave na fila: o telhado e os extras do Meio-Termo (ausente = nenhum), ou o Desenhado. */
+type PedidoDeTelhado = Pick<TelhadoParaDesenhar, 'points' | 'modelo' | 'cor'> & { extras?: ExtrasDoTelhado; desenhado?: PedidoDesenhado }
+
+/** Px do mapa por casa quando quem desenha não diz (a grade do Desenhado). */
+const GRADE_PADRAO = 64
+
+/**
+ * DESENHADO (F2a, CONTRATO.md seção 8): o telhado do pacote para este modelo,
+ * a faixa das emendas (a do telhado ou a avulsa, `faixa.de`) e a chaminé quando
+ * a sala pede. Pede todos de uma vez ao carregador; enquanto falta algum (ou
+ * um falhou), `undefined`: o telhado sai no Atual, e repinta quando chega.
+ */
+function desenhadoDoTelhado(t: Pick<TelhadoParaDesenhar, 'modelo' | 'chamine'>, cor: string, mapaId: string, grid: number): PedidoDesenhado | undefined {
+  if (!desenhadoLigado()) return undefined
+  const telhado = pedirItemDoTelhado(idDoTelhadoDoModelo(t.modelo), mapaId)
+  const objeto = t.chamine === true ? pedirItemDoTelhado('chamine', mapaId) : null
+  if (telhado === null || telhado.tipo !== 'telhado') return undefined
+  let faixa = telhado.faixa
+  if (telhado.faixaDe !== null) {
+    const avulsa = pedirItemDoTelhado(telhado.faixaDe, mapaId)
+    if (avulsa === null || avulsa.tipo !== 'faixa') return undefined
+    faixa = avulsa.faixa
+  }
+  if (t.chamine === true && (objeto === null || objeto.tipo !== 'objeto')) return undefined
+  const rampa = rampaGuardada(cor, telhado.tingir)
+  if (rampa === null) return undefined
+  return { desenho: { telhado, faixa, objeto: objeto !== null && objeto.tipo === 'objeto' ? objeto : null }, rampa, grid }
+}
 
 /**
  * Os extras do Meio-Termo (MT10) para este telhado, lendo a chave de obra:
@@ -216,6 +252,7 @@ function extrasDoTelhado(t: Pick<TelhadoParaDesenhar, 'modelo' | 'chamine'>): Ex
 
 function chaveDe(t: PedidoDeTelhado): string {
   const base = `${t.modelo}|${t.cor}|${t.points.map((p) => `${p.x},${p.y}`).join(';')}`
+  if (t.desenhado !== undefined) return `${base}|desenhado|${t.desenhado.grid}|${t.desenhado.desenho.objeto === null ? '' : 'chamine'}`
   if (t.extras === undefined) return base
   return `${base}|${t.extras.chamine === true ? 'chamine' : ''}|${t.extras.cumeeiraAmarrada === true ? 'amarrada' : ''}`
 }
@@ -310,6 +347,18 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
   let ligado = false
   let destruido = false
   let pintadas = 0
+  /** O último `desenhar`: quando um item do Desenhado chega, os telhados que estavam no Atual pintam de novo. */
+  let ultimoDesenho: { lista: readonly TelhadoParaDesenhar[]; mapaId: string; grid: number } | null = null
+  const pararDeOuvirDesenhado = assinarDesenhado(() => {
+    if (destruido || ultimoDesenho === null || !desenhadoLigado()) return
+    const { lista, mapaId, grid } = ultimoDesenho
+    // A camada de um telhado pode ter saído da pilha desde então: esse fica para o próximo `desenhar` de quem chama.
+    desenhar(
+      lista.filter((t) => !t.camada.destroyed),
+      mapaId,
+      grid,
+    )
+  })
 
   // ---------- texturas ----------
 
@@ -319,7 +368,10 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
       entrada = { textura: undefined, usos: 0 }
       cache.set(chave, entrada)
       fila.push(chave)
-      pedidos.set(chave, t.extras === undefined ? { points: t.points, modelo: t.modelo, cor: t.cor } : { points: t.points, modelo: t.modelo, cor: t.cor, extras: t.extras })
+      const pedido: PedidoDeTelhado = { points: t.points, modelo: t.modelo, cor: t.cor }
+      if (t.extras !== undefined) pedido.extras = t.extras
+      if (t.desenhado !== undefined) pedido.desenhado = t.desenhado
+      pedidos.set(chave, pedido)
       agendarPintura()
     }
     entrada.usos += 1
@@ -387,7 +439,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
 
   /** Telha e madeira de uma vez (o caminho de antes); a palha uma fatia por chamada (`undefined` = ainda falta). */
   function pintarDoPedido(chave: string, pedido: PedidoDeTelhado): TexturaDoTelhado | null | undefined {
-    if (pedido.modelo !== 'palha') {
+    // O Desenhado lê a arte por pixel (2 bases, 2 ruídos, a faixa): sempre em fatias, como a palha.
+    if (pedido.modelo !== 'palha' && pedido.desenhado === undefined) {
       const subir = opcoes.subirTextura
       if (subir === undefined) return gerarTexturaDoTelhado(pedido.points, pedido.modelo, pedido.cor, pedido.extras)
       return subirSeTiver(subir, pintarTelhado(pedido.points, pedido.modelo, pedido.cor, escalaDaTexturaDoTelhado(pedido.points), pedido.extras))
@@ -399,7 +452,13 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
         if (canvas === null) return null
         subir = (imagem) => texturaNoCanvas(canvas.tela, canvas.g, imagem)
       }
-      emFatias = { chave, pintura: comecarTelhado(pedido.points, pedido.modelo, pedido.cor, escalaDaTexturaDoTelhado(pedido.points), pedido.extras), subir }
+      const escala = escalaDaTexturaDoTelhado(pedido.points)
+      const { desenhado } = pedido
+      const pintura =
+        desenhado === undefined
+          ? comecarTelhado(pedido.points, pedido.modelo, pedido.cor, escala, pedido.extras)
+          : comecarTelhadoDesenhado(pedido.points, desenhado.desenho, desenhado.rampa, escala, desenhado.grid)
+      emFatias = { chave, pintura, subir }
     }
     if (!pintarUmaFatia(emFatias.pintura, fatiaMs, agoraDaPintura)) return undefined
     const { pintura, subir } = emFatias
@@ -559,19 +618,24 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     fotos.set(id, semEvento(foto))
   }
 
-  function desenhar(lista: readonly TelhadoParaDesenhar[], mapaId: string): void {
+  function desenhar(lista: readonly TelhadoParaDesenhar[], mapaId: string, grid: number = GRADE_PADRAO): void {
     if (destruido) return
     if (mapaId !== mapaAtual) {
       limpar()
       mapaAtual = mapaId
     }
+    ultimoDesenho = { lista, mapaId, grid }
     const agora = relogio()
     const anima = movimento !== undefined
     const presentes = new Set<string>()
     for (const item of lista) {
       const cor = corDoTetoOuPadrao(item.modelo, item.cor)
-      const extras = extrasDoTelhado(item)
-      const pedido = extras === undefined ? { ...item, cor } : { ...item, cor, extras }
+      // Desenhado pronto: a chaminé é o objeto e a cumeeira é a faixa do pacote (sem os extras do Meio-Termo).
+      const desenhado = desenhadoDoTelhado(item, cor, mapaId, grid)
+      const extras = desenhado === undefined ? extrasDoTelhado(item) : undefined
+      const pedido: TelhadoParaDesenhar & PedidoDeTelhado = { ...item, cor }
+      if (extras !== undefined) pedido.extras = extras
+      if (desenhado !== undefined) pedido.desenhado = desenhado
       const chave = chaveDe(pedido)
       presentes.add(item.id)
       let t = telhados.get(item.id)
@@ -639,6 +703,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     idsVisiveis: () => new Set([...telhados.values()].filter((t) => t.progresso > 0 && !t.raiz.destroyed).map((t) => t.id)),
     pintadas: () => pintadas,
     destruir: () => {
+      pararDeOuvirDesenhado()
+      ultimoDesenho = null
       limpar()
       destruido = true
       fila.length = 0

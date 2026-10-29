@@ -13,6 +13,7 @@ import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { criarCamadaDePiso, formasDoPisoDoChao, type ContextoDoPiso } from './pisoDesenhado'
+import { criarCaminhosDesenhados } from './caminhoDesenhado'
 import { mapaDoPiso } from '../lib/pisos'
 import { camadaTravadaNaBorrachaNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
@@ -1334,7 +1335,13 @@ function PixiCanvasDoContexto({
       // cima da sala inteira, como sempre esteve (`desenhoFicaSobAsSalas`).
       const pathsGraphics = new Graphics()
       const secretPathsGraphics = new Graphics()
-      secretPathsGraphics.alpha = SECRET_ITEM_ALPHA
+      // DESENHADO (F2a): cada nó das faixas do Caminho é um Container com o traço
+      // chapado (o Atual) e, por cima, a trilha do pacote (`caminhoDesenhado.ts`).
+      const caminhos = criarCaminhosDesenhados()
+      pisosNaVista.push(caminhos)
+      const pathsContainer = caminhos.base(pathsGraphics)
+      const secretPathsContainer = caminhos.base(secretPathsGraphics)
+      secretPathsContainer.alpha = SECRET_ITEM_ALPHA
       const textLabelsContainer = new Container()
       const propsContainer = new Container()
       // Container, não Graphics: cada luz tem o halo em um objeto próprio para
@@ -1459,8 +1466,8 @@ function PixiCanvasDoContexto({
         texturas: texturas.camada,
         relevoContainer,
         regionStrokesContainer,
-        pathsGraphics,
-        secretPathsGraphics,
+        pathsGraphics: pathsContainer,
+        secretPathsGraphics: secretPathsContainer,
         carimbos: carimbos.camada,
         wallsGraphics,
         doorsGraphics,
@@ -2159,6 +2166,7 @@ function PixiCanvasDoContexto({
         (animador) => animador.cancelar(),
       )
       aoDescartarNo.push((no) => animadoresDePortas.soltar(no))
+      aoDescartarNo.push((no) => caminhos.soltar(no))
       const paintWallsAndDoors = () => {
         const { map, selection } = sceneState()
         const single = selectionSingle(selection)
@@ -2241,6 +2249,7 @@ function PixiCanvasDoContexto({
         telhadosRenderer.desenhar(
           salas.map((r) => telhadoParaDesenhar(r, noDoTelhado === undefined ? telhadosContainer : noDoTelhado(r))),
           mapaId,
+          sceneState().map.grid,
         )
       }
 
@@ -2259,10 +2268,17 @@ function PixiCanvasDoContexto({
             if (no instanceof Graphics) drawDrawings(no, itens, selectedDrawingId, camera.scale)
           }
         }
+        // O Caminho: o traço chapado e, no Desenhado, a trilha do pacote por cima (`caminhoDesenhado.ts`).
+        const pintarCaminhos = (faixa: string, lista: Drawing[]) => {
+          const contexto = contextoDoPiso()
+          for (const { no, itens } of distribuir(lista, pilha.nosDaFaixa(faixa), (d: Drawing) => camadas.camadaDe('desenho', d))) {
+            caminhos.pintar(no, itens, (traco) => drawDrawings(traco, itens, selectedDrawingId, camera.scale), contexto)
+          }
+        }
         pintar('drawingsGraphics', sobAsSalas.filter((d) => !d.secret))
         pintar('secretDrawingsGraphics', sobAsSalas.filter((d) => d.secret))
-        pintar('pathsGraphics', sobreAsSalas.filter((d) => !d.secret))
-        pintar('secretPathsGraphics', sobreAsSalas.filter((d) => d.secret))
+        pintarCaminhos('pathsGraphics', sobreAsSalas.filter((d) => !d.secret))
+        pintarCaminhos('secretPathsGraphics', sobreAsSalas.filter((d) => d.secret))
       }
 
       /** Escadas também têm contorno de seleção em px de tela: redesenham no zoom. */
@@ -2560,7 +2576,7 @@ function PixiCanvasDoContexto({
       const objetosDaCamada: Partial<Record<ShapesLayer, readonly Container[]>> = {
         floorSelection: [floorSelectionGraphics],
         perigos: [perigosGraphics],
-        drawings: [drawingsGraphics, secretDrawingsGraphics, pathsGraphics, secretPathsGraphics],
+        drawings: [drawingsGraphics, secretDrawingsGraphics, pathsContainer, secretPathsContainer],
         texturas: [texturas.camada],
         carimbos: [carimbos.camada],
         relevo: [relevoContainer],
@@ -9024,6 +9040,7 @@ function PixiCanvasDoContexto({
         desenhoDoBarranco.destroy()
         // As máscaras e os ladrilhos das texturas também: são deste palco só.
         pisoDoChao.destruir()
+        caminhos.destruir()
         texturas.destruir()
         // Os desenhos e as sombras dos carimbos também.
         carimbos.destruir()

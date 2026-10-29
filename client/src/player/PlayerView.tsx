@@ -7,6 +7,7 @@ import type { CamadaId, Drawing, Light, MapData, Pin, Prop, Region, RegionPoint,
 import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
 import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa } from '../lib/estiloDoMapa'
 import { criarCamadaDePiso, formasDoPisoDoChao, type CamadaDePiso, type ContextoDoPiso } from '../pixi/pisoDesenhado'
+import { criarCaminhosDesenhados, type CaminhosDesenhados } from '../pixi/caminhoDesenhado'
 import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { contextoDoJogador } from '../lib/camadas/doJogador'
 import { criarPorNo, distribuir, noDoItem, type Pilha, type PorNo } from '../pixi/pilhaDeCamadas'
@@ -1124,8 +1125,9 @@ interface Scene {
   perigosKey: ContentKey
   /** Desenhos do botão Desenho (sob a borda das salas). */
   drawings: Graphics
-  /** Caminhos (por cima da borda das salas). */
-  paths: Graphics
+  /** Caminhos (por cima da borda das salas): o traço chapado e, no Desenhado, a trilha do pacote (`caminhoDesenhado.ts`). */
+  paths: Container
+  caminhos: CaminhosDesenhados
   stairs: Graphics
   drawingsKey: ContentKey
   /** Escadas dependem do zoom e da resolução (linha central alinhada ao pixel). */
@@ -1437,6 +1439,7 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   // A textura repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
   scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.pisoDoChao.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
+  scene.caminhos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   ajustarGradeDaBatalhaAVista(scene)
   scene.fogos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
@@ -1689,7 +1692,7 @@ function redrawConcealed(scene: Scene, concealed: RegionPoint[][]): void {
  * Teto que sai do pacote (a ficha entrou) desbota; o que volta aparece, com a
  * foto da sala por baixo (`fotografarTelhadosQueFecham`).
  */
-function redrawRoofs(scene: Scene, regions: Region[], peek: RoofPeek | undefined, mapaId: string): void {
+function redrawRoofs(scene: Scene, regions: Region[], peek: RoofPeek | undefined, mapaId: string, grid: number): void {
   const roofs = regions.filter((r) => roomHasRoof(r.room) && r.points.length >= 3)
   const peekedIds = new Set(peek?.roofIds ?? [])
   const peekVision = (peek?.vision ?? []).filter((poly) => poly.length >= 3)
@@ -1698,13 +1701,15 @@ function redrawRoofs(scene: Scene, regions: Region[], peek: RoofPeek | undefined
   const whole = peeked.length === 0 ? roofs : roofs.filter((r) => !peekedIds.has(r.id))
   // A chaminé (Meio-Termo) entra na chave: ligar ou desligar repinta o telhado.
   const estilo = (r: Region) => [r.room?.modeloDoTeto ?? null, r.room?.corDoTeto ?? null, r.room?.chamine ?? null]
-  const key = JSON.stringify([mapaId, whole.map((r) => [r.id, r.points, estilo(r)]), peeked.map((r) => [r.id, r.points, estilo(r)]), peeked.length === 0 ? [] : peekVision])
+  // O Desenhado (e a grade, a escala da arte dele) também: virar Desenhado repinta os telhados.
+  const key = JSON.stringify([mapaId, desenhadoLigado(), grid, whole.map((r) => [r.id, r.points, estilo(r)]), peeked.map((r) => [r.id, r.points, estilo(r)]), peeked.length === 0 ? [] : peekVision])
   if (key === scene.lastRoofsKey) return
   scene.lastRoofsKey = key
   const peekedSet = new Set(peeked.map((r) => r.id))
   scene.telhados.desenhar(
     roofs.map((r) => telhadoParaDesenhar(r, peekedSet.has(r.id) ? scene.peekedRoofs : scene.roofs)),
     mapaId,
+    grid,
   )
   // VER PELA PORTA ABERTA: o telhado do prédio espiado continua lá, com um
   // buraco no formato da visão de quem está no vão — máscara INVERSA pelo
@@ -3008,7 +3013,8 @@ function PlayerViewDoCanvas({
 
     const nosDosDesenhos = scene.pilha.assinaturaDa('drawings')
     const nosDosCaminhos = scene.pilha.assinaturaDa('paths')
-    if (contentChanged(scene.drawingsKey, [currentMap.drawings, hidden, nosDosDesenhos, nosDosCaminhos], () => JSON.stringify(drawings))) {
+    // O estilo entra: virar Desenhado põe a trilha do pacote nos caminhos sem eles mudarem.
+    if (contentChanged(scene.drawingsKey, [currentMap.drawings, hidden, nosDosDesenhos, nosDosCaminhos, desenhadoLigado()], () => JSON.stringify(drawings))) {
       // Os do botão Desenho por baixo da borda da sala; o Caminho por cima (o
       // Texto tem renderer próprio e `drawDrawings` o pula). Cada nó da faixa
       // com os da camada dele; mapa de hoje = um nó, a mesma lista.
@@ -3017,8 +3023,9 @@ function PlayerViewDoCanvas({
       for (const { no, itens } of distribuir(drawings.filter(desenhoFicaSobAsSalas), scene.pilha.nosDaFaixa('drawings'), deDesenho)) {
         if (no instanceof Graphics) drawDrawings(no, itens)
       }
+      const contextoDosCaminhos = contextoDoPiso(scene, currentMap)
       for (const { no, itens } of distribuir(drawings.filter((d) => !desenhoFicaSobAsSalas(d)), scene.pilha.nosDaFaixa('paths'), deDesenho)) {
-        if (no instanceof Graphics) drawDrawings(no, itens)
+        scene.caminhos.pintar(no, itens, (traco) => drawDrawings(traco, itens), contextoDosCaminhos)
       }
     }
     redrawPropsLayer(scene)
@@ -3071,7 +3078,7 @@ function PlayerViewDoCanvas({
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
     redrawConcealed(scene, currentConcealed)
     redrawFarLights(scene)
-    redrawRoofs(scene, regions, currentPeek, currentMap.id)
+    redrawRoofs(scene, regions, currentPeek, currentMap.id, currentMap.grid)
     if (currentGlimpses !== scene.lastRoofCut) {
       scene.lastRoofCut = currentGlimpses
       applyRoofCut(scene.roofs, scene.roofCut, currentGlimpses)
@@ -3392,7 +3399,9 @@ function PlayerViewDoCanvas({
       const perigos = new Graphics()
       const drawings = new Graphics()
       // Caminho (fora do botão Desenho): por cima da sala inteira, como sempre.
-      const paths = new Graphics()
+      // Container com o traço chapado e, no Desenhado, a trilha do pacote por cima (F2a).
+      const caminhos = criarCaminhosDesenhados()
+      const paths = caminhos.base(new Graphics())
       const props = new Graphics()
       const chamasCamada = new Container()
       chamasCamada.label = 'chamas'
@@ -3662,7 +3671,7 @@ function PlayerViewDoCanvas({
         (chamas) => chamas.destruir(),
       )
       const looksPorNo = criarPorNo<Container, PropLooksRenderer>(propImages, createPropLooksRenderer(), () => createPropLooksRenderer(), () => {})
-      aoDescartarNo.push((no) => chamasPorNo.soltar(no), (no) => looksPorNo.soltar(no))
+      aoDescartarNo.push((no) => chamasPorNo.soltar(no), (no) => looksPorNo.soltar(no), (no) => caminhos.soltar(no))
       // CAMADAS (fatia 4b): luzes, pinos e portas de camada escolhida desenham no nó dela, com renderer próprio.
       const movimentoDasPortas = { ticker: app.ticker, reducedMotion: prefersReducedMotion }
       const luzesPorNo = criarPorNo<Container, ReturnType<typeof createLightsRenderer>>(lights, createLightsRenderer(), createLightsRenderer, (r) => r.destroy())
@@ -3761,6 +3770,7 @@ function PlayerViewDoCanvas({
         perigosKey: emptyContentKey(),
         drawings,
         paths,
+        caminhos,
         stairs,
         drawingsKey: emptyContentKey(),
         lastStairsKey: null,
@@ -4623,6 +4633,7 @@ function PlayerViewDoCanvas({
         scene.relevo.destruir()
         scene.barranco.destroy()
         scene.pisoDoChao.destruir()
+        scene.caminhos.destruir()
         scene.texturas.destruir()
         scene.carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
@@ -4642,6 +4653,7 @@ function PlayerViewDoCanvas({
         // textura repetida acompanha a vista nova (`ajustarAVista`, drawTexturas.ts).
         scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
         scene.pisoDoChao.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
+        scene.caminhos.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
         scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
       })
       resizeObserver.observe(el)
