@@ -8,7 +8,7 @@ import { drawPropSilhouettes } from './drawPropSilhouettes'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
-import { ehMovelDeCimaDaMesa, ehMovelDoChao } from '../lib/mobilia'
+import { ehMovelDeCimaDaMesa, ehMovelDoChao, temChama } from '../lib/mobilia'
 import { emOrdemDoTresQuartos, tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
 
@@ -204,7 +204,7 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       propsById.set(prop.id, prop)
       if (prop.mobilia !== undefined) {
         drawFurniture(container, prop, view)
-        if (prop.mobilia === 'fogueira') fogueiras.add(prop.id)
+        if (temChama(prop.mobilia)) fogueiras.add(prop.id)
         markPropState(prop, selectedPropId)
         continue
       }
@@ -261,7 +261,7 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       sprite.alpha = propAlpha(prop)
       markPropState(prop, selectedPropId)
     }
-    // Fogueira que sumiu (apagada, outro tipo, camada oculta) leva a chama; o relógio liga ou desliga.
+    // Fogueira, lareira ou fornalha que sumiu (outro tipo, camada oculta) leva a chama; apagada, `colocar` já a tirou.
     chamas.podar(fogueiras)
     if (tresQuartosAtivo(view.vistaDosMoveis)) ordenarPelaBase(container, props)
     // O chão volta ao fundo: o que entrou agora com `addChildAt(…, 0)` passou por

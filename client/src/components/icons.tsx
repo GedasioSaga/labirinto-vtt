@@ -623,6 +623,41 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M3.5 11v7.5h17V11M2 20.5h20" />
         </>
       )
+    // Lareira e oficina (29/10/2026), de frente como os móveis de casa.
+    case 'lareira':
+      // O peito da chaminé, o consolo de ponta a ponta e a boca em arco com a chama.
+      return (
+        <>
+          <path d="M8 8.5V3h8v5.5M3 8.5h18v2H3zM4.5 10.5V21h15V10.5M2 21h20" />
+          <path d="M8.5 21v-4.5a3.5 3.5 0 0 1 7 0V21" />
+          <path d="M12 20.2c-1.3-.7-1.6-2-.4-3.4.2.8.7 1.2 1.1 1.6.6.6.4 1.4-.7 1.8z" />
+        </>
+      )
+    case 'fornalha':
+      // A coifa sobre a bancada, a chaminé saindo dela e o monte de brasas no meio.
+      return (
+        <>
+          <path d="M10.5 2.5h3V6M6 10.5 10 6h4l4 4.5" />
+          <rect x="3" y="10.5" width="18" height="3" />
+          <path d="M5 13.5V21h14v-7.5M9.5 10.5c.6-1.2 1.4-1.7 2.5-1.7s1.9.5 2.5 1.7" />
+        </>
+      )
+    case 'bigorna':
+      // O chifre afinando para a esquerda, a mesa reta, a cintura e o toco embaixo.
+      return (
+        <>
+          <path d="M2.5 6.5C4.8 6 6.3 6 8 6h12v3.5h-4.5l-1 2.5h1.5v1.5h-8V12h1.5l-1-2.5C6 9.5 4 8.6 2.5 6.5z" />
+          <path d="M7.5 13.5v7h9v-7" />
+        </>
+      )
+    case 'balde':
+      // Mais largo na boca, os dois aros e a alça em arco.
+      return (
+        <>
+          <path d="M4.5 10h15l-1.6 10.5H6.1z" />
+          <path d="M5 13.3h14M5.7 17.5h12.6M6 10a6 6 0 0 1 12 0" />
+        </>
+      )
   }
 }
 

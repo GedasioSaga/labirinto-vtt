@@ -1705,8 +1705,9 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  (`lib/mobilia.ts` recusa o resto na leitura e na travessia); vai ao
    *  jogador junto do tipo. Os PRATOS (mesa posta, 28/10/2026) usam o mesmo
    *  campo para a forma deles: só `'vazio'` e `'pilha'` são gravados; ausente =
-   *  prato cheio. */
-  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'>
+   *  prato cheio. A LAREIRA e a FORNALHA (29/10/2026) guardam aqui o fogo:
+   *  só `'apagado'` é gravado; ausente = aceso. */
+  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'>
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
    *  o desenho de sempre — sem linha de migração. Vale só na cama (`catre`):
@@ -1754,6 +1755,9 @@ export type FormaDoTapete = 'retangular' | 'redondo'
 
 /** "Forma" dos pratos, a mesa posta (`lib/mobilia.ts`): prato cheio (o padrão), vazio ou a pilha. Só vazio e pilha são gravados. */
 export type FormaDosPratos = 'cheio' | 'vazio' | 'pilha'
+
+/** "Fogo" da lareira e da fornalha (`lib/mobilia/fogoDeCasa.ts`): aceso (o padrão) ou apagado. Só o apagado é gravado. */
+export type FogoDoMovel = import('../lib/mobilia/fogoDeCasa').FogoDoMovel
 
 export interface DrawingPoint {
   x: number

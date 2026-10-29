@@ -183,6 +183,11 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   privada: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('ferragens', 'Puxador', METAIS, 'latao')],
   sofa: [lugar('tecido', 'Estofado', TECIDOS, 'vinho'), lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
   poltrona: [lugar('tecido', 'Estofado', TECIDOS, 'vinho'), lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  // Lareira e oficina (29/10/2026). A brasa, a cinza, a lenha da lareira e o couro do fole são fixos.
+  lareira: [lugar('pedra', 'Pedra', PEDRAS, 'arenito'), lugar('madeira', 'Consolo', MADEIRAS, 'nogueira')],
+  fornalha: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Fole', MADEIRAS, 'carvalho')],
+  bigorna: [lugar('metal', 'Bigorna', METAIS, 'ferro'), lugar('madeira', 'Toco', MADEIRAS, 'carvalho')],
+  balde: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('aros', 'Aros', METAIS, 'ferro')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

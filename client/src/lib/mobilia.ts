@@ -1,4 +1,4 @@
-import type { FormaDoTapete, FormaDosPratos, MapData, Prop, TipoMobilia, VistaMobilia } from '../types/map'
+import type { FogoDoMovel, FormaDoTapete, FormaDosPratos, MapData, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
 import { TIPOS_MOBILIA } from './mobilia/tipos'
 import {
@@ -11,6 +11,7 @@ import {
   tracosDaPecaNova,
 } from './mobilia/pecasNovas'
 import { ofereceDesenhoEmLinhas } from './mobilia/desenhoDoMovel'
+import { ehMovelComFogoDeCasa, FOGOS_DO_MOVEL, linguasDoFogoDeCasa } from './mobilia/fogoDeCasa'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -239,9 +240,28 @@ export function varianteDosPratos(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>):
   return FORMAS_DOS_PRATOS.indexOf(formaDosPratos(prop))
 }
 
-/** A forma gravada que o tipo aceita: a do tapete ou a dos pratos (a mesma porta da leitura, da edição e da travessia). */
+/**
+ * O FOGO da lareira e da fornalha (29/10/2026) na forma única que o mapa
+ * guarda: só `'apagado'`, e só nesses dois; o resto (o aceso, que é o padrão,
+ * texto torto, outro tipo) vira `undefined`. A mesma porta da forma dos pratos.
+ */
+export function normalizarFogoDoMovel(tipo: TipoMobilia | undefined, valor: unknown): 'apagado' | undefined {
+  return ehMovelComFogoDeCasa(tipo) && valor === 'apagado' ? valor : undefined
+}
+
+/** O fogo que vale para a lareira e a fornalha: o gravado ou o aceso. */
+export function fogoDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): FogoDoMovel {
+  return normalizarFogoDoMovel(prop.mobilia, prop.mobiliaForma) ?? 'aceso'
+}
+
+/** O fogo como o desenho com textura o lê (a `variante`, como a dos pratos): 0 aceso, 1 apagado. */
+export function varianteDoFogo(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): number {
+  return FOGOS_DO_MOVEL.indexOf(fogoDoMovel(prop))
+}
+
+/** A forma gravada que o tipo aceita: a do tapete, a dos pratos ou o fogo apagado (a mesma porta da leitura, da edição e da travessia). */
 function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): Prop['mobiliaForma'] {
-  return normalizarFormaDoTapete(tipo, valor) ?? normalizarFormaDosPratos(tipo, valor)
+  return normalizarFormaDoTapete(tipo, valor) ?? normalizarFormaDosPratos(tipo, valor) ?? normalizarFogoDoMovel(tipo, valor)
 }
 
 /** `prop` com a forma na forma que o mapa guarda: o campo só existe no tapete redondo e nos pratos vazio ou em pilha. Mesma referência se nada muda. */
@@ -852,6 +872,56 @@ export function chamaDaFogueira(largura: number, altura: number, vista: VistaMob
   return { ancora: { x: 0, y: 0 }, desvio: menorLado * CHAMA_DA_FOGUEIRA.baseDeCima, altura: menorLado * CHAMA_DA_FOGUEIRA.alturaDeCima }
 }
 
+/** Uma língua a mais da chama (a lareira tem três), em relação à principal. */
+export interface LinguaExtraDaChama {
+  /** A base, no referencial do objeto (gira com ele), em px de mundo a partir da base da principal. */
+  readonly dx: number
+  readonly dy: number
+  /** A altura em repouso (`H`), em px de mundo. */
+  readonly altura: number
+  /** Atraso de fase ([0, 1)): as línguas da mesma lareira não pulsam juntas. */
+  readonly fase: number
+}
+
+/** A chama de um móvel: a principal (a de `chamaDaFogueira`) e as línguas a mais. */
+export interface ChamaDoMovel {
+  readonly ancora: Ponto
+  readonly desvio: number
+  readonly altura: number
+  readonly extras: readonly LinguaExtraDaChama[]
+}
+
+/** Móvel que pode ter chama animada: a fogueira e, com o fogo aceso, a lareira e a fornalha. */
+export function temChama(tipo: TipoMobilia | undefined): boolean {
+  return tipo === 'fogueira' || ehMovelComFogoDeCasa(tipo)
+}
+
+/**
+ * A chama de qualquer móvel que tem uma (`null` = não tem, ou está apagada):
+ * a fogueira, sempre acesa, e a lareira e a fornalha com o fogo aceso
+ * (`lib/mobilia/fogoDeCasa.ts`, a mesma disposição da imagem parada). A
+ * língua principal é a última da lista (a da frente, a mais alta na lareira);
+ * a âncora dela gira com o objeto e a chama fica em pé na tela, como na fogueira.
+ */
+export function chamaDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaForma' | 'mobiliaVista' | 'width' | 'height'>): ChamaDoMovel | null {
+  if (prop.mobilia === 'fogueira') {
+    const forma = chamaDaFogueira(prop.width, prop.height, vistaDoMovel(prop))
+    return forma === null ? null : { ...forma, extras: [] }
+  }
+  if (!ehMovelComFogoDeCasa(prop.mobilia) || fogoDoMovel(prop) === 'apagado' || !tamanhoDesenhavel(prop.width, prop.height)) return null
+  const linguas = linguasDoFogoDeCasa(prop.mobilia)
+  const menorLado = Math.min(prop.width, prop.height)
+  const principal = linguas[linguas.length - 1]
+  const ancora = { x: principal.x * prop.width, y: principal.y * prop.height }
+  const extras = linguas.slice(0, -1).map((lingua) => ({
+    dx: lingua.x * prop.width - ancora.x,
+    dy: lingua.y * prop.height - ancora.y,
+    altura: lingua.altura * menorLado,
+    fase: lingua.fase,
+  }))
+  return { ancora, desvio: 0, altura: principal.altura * menorLado, extras }
+}
+
 /** Tamanho finito e positivo: o resto (zero, negativo, NaN de arquivo estragado) não tem o que desenhar. */
 function tamanhoDesenhavel(largura: number, altura: number): boolean {
   return Number.isFinite(largura) && Number.isFinite(altura) && largura > 0 && altura > 0
@@ -1418,6 +1488,16 @@ export function movelComOutraVista(prop: Prop, vista: VistaMobilia, grade: numbe
 export function pratosComOutraForma(prop: Prop, forma: FormaDosPratos): Prop {
   if (prop.mobilia !== 'pratos') return prop
   return comFormaGravada(prop, forma === 'cheio' ? undefined : forma)
+}
+
+/**
+ * O "Fogo" da LAREIRA e da FORNALHA (Aceso | Apagado): o mesmo móvel com o
+ * fogo no outro estado, no MESMO tamanho. Só `'apagado'` é gravado. Outro
+ * tipo devolve o mesmo objeto.
+ */
+export function movelComOutroFogo(prop: Prop, fogo: FogoDoMovel): Prop {
+  if (!ehMovelComFogoDeCasa(prop.mobilia)) return prop
+  return comFormaGravada(prop, fogo === 'apagado' ? 'apagado' : undefined)
 }
 
 export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {

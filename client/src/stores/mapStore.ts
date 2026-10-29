@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
   PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo,
 } from '../types/map'
@@ -1015,6 +1015,10 @@ interface MapStoreState {
    *  posta: troca a forma no lugar, o tamanho fica. Um passo no desfazer; a mesma
    *  forma ou outro tipo não entram. */
   trocarFormaDosPratos: (id: string, forma: FormaDosPratos) => void
+  /** PROPRIEDADES DA LAREIRA E DA FORNALHA — "Fogo" (Aceso | Apagado): acende ou
+   *  apaga no lugar, o tamanho fica. Um passo no desfazer; o mesmo estado ou
+   *  outro tipo não entram. */
+  trocarFogoDoMovel: (id: string, fogo: FogoDoMovel) => void
   /** PROPRIEDADES DO FOGO — "Tamanho" (Chama | Fogaréu | Incêndio): a pegada do
    *  tamanho, centro no lugar. Um passo no desfazer; o mesmo tamanho ou outro
    *  tipo não entram. */
@@ -2625,6 +2629,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     trocarFormaDosPratos: (id, forma) => {
       if (mapFactory.trocarFormaDosPratos(get().map, id, forma) === get().map) return
       withHistory((map) => mapFactory.trocarFormaDosPratos(map, id, forma))
+    },
+    trocarFogoDoMovel: (id, fogo) => {
+      if (mapFactory.trocarFogoDoMovel(get().map, id, fogo) === get().map) return
+      withHistory((map) => mapFactory.trocarFogoDoMovel(map, id, fogo))
     },
     trocarTamanhoDoFogo: (id, tamanho) => {
       if (mapFactory.trocarTamanhoDoFogo(get().map, id, tamanho) === get().map) return

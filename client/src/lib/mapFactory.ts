@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, CamadaId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { alternarCadeado, alternarOlhoDoMestre } from './camadas/estado'
@@ -34,7 +34,7 @@ import { seatStairPins, withoutStairPins } from './stairTravel'
 import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
-  aceitaCurva, aceitaVista, comAparenciaDoMovel, formaDosPratos, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
+  aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDosPratos, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from './mobilia'
@@ -912,6 +912,17 @@ export function trocarFormaDosPratos(map: MapData, propId: string, forma: FormaD
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo?.mobilia !== 'pratos' || formaDosPratos(alvo) === forma) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? pratosComOutraForma(p, forma) : p)) }
+}
+
+/**
+ * "Fogo" do painel da LAREIRA e da FORNALHA (Aceso | Apagado): a pegada fica
+ * (`movelComOutroFogo`). O mesmo estado, outro tipo ou id que não existe
+ * devolvem o MESMO mapa (a store não empilha passo vazio).
+ */
+export function trocarFogoDoMovel(map: MapData, propId: string, fogo: FogoDoMovel): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo === undefined || (alvo.mobilia !== 'lareira' && alvo.mobilia !== 'fornalha') || fogoDoMovel(alvo) === fogo) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutroFogo(p, fogo) : p)) }
 }
 
 /**

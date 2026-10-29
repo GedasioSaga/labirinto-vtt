@@ -23,6 +23,7 @@ export const PECAS_NOVAS = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
+  'lareira', 'fornalha', 'bigorna', 'balde',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -84,6 +85,12 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   privada: { rotulo: 'Privada', artigo: 'uma privada', tamanho: { largura: 0.5, altura: 0.6 }, redonda: false },
   sofa: { rotulo: 'Sofá', artigo: 'um sofá', tamanho: { largura: 2, altura: 1 }, redonda: false },
   poltrona: { rotulo: 'Poltrona', artigo: 'uma poltrona', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // Lareira e oficina (29/10/2026), soltos como o fogão: o mestre encosta na parede e gira. A lareira e a
+  // fornalha têm a chama da fogueira e o fogo aceso ou apagado (`lib/mobilia/fogoDeCasa.ts`).
+  lareira: { rotulo: 'Lareira', artigo: 'uma lareira', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  fornalha: { rotulo: 'Fornalha de ferreiro', artigo: 'uma fornalha de ferreiro', tamanho: { largura: 1.5, altura: 1.5 }, redonda: false },
+  bigorna: { rotulo: 'Bigorna', artigo: 'uma bigorna', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  balde: { rotulo: 'Balde de água', artigo: 'um balde de água', tamanho: { largura: 0.5, altura: 0.5 }, redonda: true },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -113,6 +120,10 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     privada: valor(f.privada),
     sofa: valor(f.sofa),
     poltrona: valor(f.poltrona),
+    lareira: valor(f.lareira),
+    fornalha: valor(f.fornalha),
+    bigorna: valor(f.bigorna),
+    balde: valor(f.balde),
   }
 }
 
@@ -136,6 +147,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
+  'lareira', 'fornalha', 'bigorna', 'balde',
 ]
 
 /**
@@ -153,7 +165,9 @@ const DEPOIS_DE: Readonly<Partial<Record<TipoMobilia, readonly PecaNova[]>>> = {
   aparador: ['balcao'],
   cerca: ['sebe', 'jardineira'],
   tapete: ['tapeteLongo'],
-  fogueira: ['fogo'],
+  // O fogo de casa fica com a fogueira e o fogo (a mesma chama), a bigorna com a fornalha e o balde com o barril.
+  fogueira: ['fogo', 'lareira', 'fornalha', 'bigorna'],
+  barril: ['balde'],
 }
 const COM_PARENTE: readonly PecaNova[] = Object.values(DEPOIS_DE).flat()
 
@@ -298,6 +312,19 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number): Traco[
       const encosto = -hh + altura * 0.3
       return [linha(-hw + braco, encosto, hw - braco), { x1: -hw + braco, y1: encosto, x2: -hw + braco, y2: hh }, { x1: hw - braco, y1: encosto, x2: hw - braco, y2: hh }]
     }
+    // Lareira e oficina (29/10/2026): a frente é o lado de baixo, como no fogão.
+    case 'lareira':
+      // O consolo de ponta a ponta e a boca entre as ombreiras, aberta para a soleira.
+      return [linha(-hw * 0.94, -hh * 0.36, hw * 0.94), ...quadro(-hw * 0.54, -hh * 0.28, hw * 0.54, hh * 0.6)]
+    case 'fornalha':
+      // A cova das brasas na bancada e o fole à esquerda, soprando nela.
+      return [...aro(Math.min(largura, altura) * 0.3, Math.min(largura, altura) * 0.3, hw * 0.2, hh * 0.2), linha(-hw * 0.96, hh * 0.2, -hw * 0.46)]
+    case 'bigorna':
+      // A mesa da bigorna e o chifre afinando para a esquerda.
+      return [...quadro(-hw * 0.36, -hh * 0.4, hw * 0.86, hh * 0.4), { x1: -hw * 0.36, y1: -hh * 0.4, x2: -hw * 0.96, y2: 0 }, { x1: -hw * 0.36, y1: hh * 0.4, x2: -hw * 0.96, y2: 0 }]
+    case 'balde':
+      // A boca do balde e a alça atravessada.
+      return [...aro(largura * 0.72, altura * 0.72), linha(-hw * 0.86, 0, hw * 0.86)]
   }
 }
 

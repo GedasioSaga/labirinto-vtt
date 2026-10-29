@@ -522,15 +522,18 @@ export const ATALHO_DA_ARVORE: {
  */
 export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = [
   // Os móveis de casa de 28/10/2026 entram aqui, em pares: sofá e poltrona, balcão e pratos, fogão e geladeira, pia e privada.
+  // A lareira (29/10/2026) fecha a parte, depois dos tapetes: sem par, fica sozinha na última linha.
   {
     titulo: 'Dentro de casa',
     tipos: [
       'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'sofa', 'poltrona',
-      'armario', 'aparador', 'balcao', 'pratos', 'fogao', 'geladeira', 'pia', 'privada', 'tapete', 'tapeteLongo',
+      'armario', 'aparador', 'balcao', 'pratos', 'fogao', 'geladeira', 'pia', 'privada', 'tapete', 'tapeteLongo', 'lareira',
     ],
   },
   { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'lampiao', 'fogueira', 'fogo', 'lapide'] },
   { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos'] },
+  // A oficina do ferreiro (29/10/2026): a fornalha e a bigorna lado a lado, o balde de água da têmpera embaixo.
+  { titulo: 'Oficina', tipos: ['fornalha', 'bigorna', 'balde'] },
 ]
 
 /** A parte do menu que termina com o atalho da árvore. */

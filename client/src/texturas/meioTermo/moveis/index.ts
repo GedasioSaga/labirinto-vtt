@@ -44,6 +44,10 @@ import { montarPratos } from './pratos'
 import { montarPrivada } from './privada'
 import { montarSofa } from './sofa'
 import { montarPoltrona } from './poltrona'
+import { montarLareira } from './lareira'
+import { montarFornalha } from './fornalha'
+import { montarBigorna } from './bigorna'
+import { montarBalde } from './balde'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -88,6 +92,11 @@ const MONTADORES = {
   privada: montarPrivada,
   sofa: montarSofa,
   poltrona: montarPoltrona,
+  // Lareira e oficina (29/10/2026): o fogo aceso ou apagado chega na `variante`; a chama é a camada animada.
+  lareira: montarLareira,
+  fornalha: montarFornalha,
+  bigorna: montarBigorna,
+  balde: montarBalde,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -117,6 +126,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
+  'lareira', 'fornalha', 'bigorna', 'balde',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

@@ -11,7 +11,7 @@
 /**
  * Todos os tipos que o arquivo do mapa aceita: os 11 de antes e as peças novas
  * dos lotes 1 e 2 do Meio-Termo (fatias MT4 e MT5) e os móveis de casa de 28/10/2026
- * (cozinha, mesa posta, banheiro e sala), registrados em `pecasNovas.ts`. A ordem
+ * (cozinha, mesa posta, banheiro e sala) e de 29/10/2026 (lareira e oficina), registrados em `pecasNovas.ts`. A ordem
  * e a lista que a setinha da ferramenta Objetos oferece moram em
  * `pecasNovas.ts` (`TIPOS_NO_CATALOGO`): peça nova só entra lá com o desenho pronto.
  */
@@ -20,6 +20,7 @@ export const TIPOS_MOBILIA = [
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
+  'lareira', 'fornalha', 'bigorna', 'balde',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

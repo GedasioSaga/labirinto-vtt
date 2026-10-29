@@ -1,6 +1,6 @@
 import { BufferImageSource, Texture } from 'pixi.js'
 import type { Prop } from '../types/map'
-import { cordaDaCerca, formaDoTapete, normalizarCorDeTecido, normalizarCorDoMovel, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
+import { cordaDaCerca, formaDoTapete, normalizarCorDeTecido, normalizarCorDoMovel, varianteDoFogo, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
 import { varianteDaLapide } from '../lib/mobilia/pecasNovas'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
@@ -224,6 +224,8 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     ...(prop.mobilia === 'lapide' ? { variante: varianteDaLapide(prop.id) } : {}),
     // Os pratos: a forma (cheio, vazio, pilha) é a variante do desenho.
     ...(prop.mobilia === 'pratos' ? { variante: varianteDosPratos(prop) } : {}),
+    // A lareira e a fornalha: o fogo (aceso, apagado) é a variante do desenho (as brasas e o halo só no aceso).
+    ...(prop.mobilia === 'lareira' || prop.mobilia === 'fornalha' ? { variante: varianteDoFogo(prop) } : {}),
     ...(giroDaImagem(prop) !== 0 ? { giro: giroDaImagem(prop) } : {}),
   }
   const parcial = { vistaDoMapa: 'de-cima' as VistaDoMapa, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }

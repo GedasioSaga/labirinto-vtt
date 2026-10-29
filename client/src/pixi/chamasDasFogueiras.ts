@@ -1,6 +1,6 @@
 import { Container, Graphics, GraphicsContext, type Ticker } from 'pixi.js'
 import type { MapData, Prop } from '../types/map'
-import { chamaDaFogueira, vistaDoMovel } from '../lib/mobilia'
+import { chamaDoMovel } from '../lib/mobilia'
 import { deslocamentoDaChama } from '../lib/mobilia/vistaTresQuartos'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
 
@@ -24,6 +24,11 @@ import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
  * A chama fica SEMPRE EM PÉ na tela (ajuste do usuário na aprovação): o giro do
  * objeto leva a base junto com a lenha (`chamaDaFogueira`), mas não vira a
  * chama, e as fagulhas sobem para cima da tela.
+ *
+ * A LAREIRA e a FORNALHA (29/10/2026) usam a mesma chama, acesa ou apagada
+ * pelo mestre (`chamaDoMovel`): a lareira tem três línguas no mesmo nó (as
+ * duas de trás com borda e miolo próprios, cada uma na sua fase), a fornalha
+ * uma. As fagulhas saem só da língua principal. Apagada, o nó sai.
  *
  * O relógio só fica inscrito com ao menos uma fogueira e movimento normal; com
  * "menos movimento" do sistema a chama fica na pose fixa (`POSE_FIXA`). Sem
@@ -217,7 +222,7 @@ export function criarFormasDaChama(): FormasDaChama {
 }
 
 /** O que a chama lê do objeto. */
-export type PropDaChama = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaVista'>
+export type PropDaChama = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaVista' | 'mobiliaForma'>
 
 /** Zoom do quadro: a fagulha tem um raio mínimo em px de tela. */
 export interface TelaDasChamas {
@@ -266,6 +271,15 @@ export interface ChamasDasFogueiras {
   destruir: () => void
 }
 
+/** Uma língua a mais (a lareira): borda e miolo próprios, a altura e o atraso de fase dela. */
+interface LinguaNoPalco {
+  borda: Graphics
+  miolo: Graphics
+  fase: number
+  /** H, em px de mundo. */
+  altura: number
+}
+
 interface ChamaNoPalco {
   no: Container
   borda: Graphics
@@ -274,6 +288,8 @@ interface ChamaNoPalco {
   fase: number
   /** H, em px de mundo. */
   altura: number
+  /** As línguas de trás, antes da principal no nó (a da frente cobre a de trás). Fogueira: nenhuma. */
+  extras: LinguaNoPalco[]
 }
 
 /**
@@ -308,11 +324,19 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     aoMudar?.(estado)
   }
 
-  function criar(id: string): ChamaNoPalco {
+  function criar(id: string, quantasExtras: number): ChamaNoPalco {
     const { borda: deBorda, miolo: deMiolo, fagulha: deFagulha } = formas()
     const no = new Container()
     no.label = `chama:${id}`
     no.eventMode = 'none'
+    const extras: LinguaNoPalco[] = []
+    for (let i = 0; i < quantasExtras; i += 1) {
+      const lingua = { borda: new Graphics(deBorda), miolo: new Graphics(deMiolo), fase: 0, altura: 0 }
+      lingua.borda.label = 'borda'
+      lingua.miolo.label = 'miolo'
+      no.addChild(lingua.borda, lingua.miolo)
+      extras.push(lingua)
+    }
     const borda = new Graphics(deBorda)
     borda.label = 'borda'
     const miolo = new Graphics(deMiolo)
@@ -323,15 +347,25 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       return fagulha
     })
     no.addChild(borda, miolo, ...fagulhas)
-    return { no, borda, miolo, fagulhas, fase: faseDaFogueira(id), altura: 0 }
+    return { no, borda, miolo, fagulhas, fase: faseDaFogueira(id), altura: 0, extras }
+  }
+
+  /** Escala e alpha de uma língua (a borda opaca, o miolo com o alpha da pose). */
+  function aplicarLingua(borda: Graphics, miolo: Graphics, altura: number, pose: Pick<PoseDaChama, 'escalaX' | 'escalaY' | 'alpha'>): void {
+    const k = altura / ALTURA_DE_REFERENCIA
+    borda.scale.set(k * pose.escalaX, k * pose.escalaY)
+    miolo.scale.set(k * pose.escalaX, k * pose.escalaY)
+    miolo.alpha = pose.alpha
+  }
+
+  /** As línguas de trás, cada uma na sua fase (`parada` = todas na pose fixa). */
+  function aplicarExtras(chama: ChamaNoPalco, t: number, fixa: boolean): void {
+    for (const lingua of chama.extras) aplicarLingua(lingua.borda, lingua.miolo, lingua.altura, fixa ? POSE_FIXA : escreverPose(t, fracao(chama.fase + lingua.fase), poseDoQuadro))
   }
 
   /** Só números: escala e alpha da chama, posição e alpha das fagulhas. */
   function aplicar(chama: ChamaNoPalco, pose: PoseDaChama): void {
-    const k = chama.altura / ALTURA_DE_REFERENCIA
-    chama.borda.scale.set(k * pose.escalaX, k * pose.escalaY)
-    chama.miolo.scale.set(k * pose.escalaX, k * pose.escalaY)
-    chama.miolo.alpha = pose.alpha
+    aplicarLingua(chama.borda, chama.miolo, chama.altura, pose)
     for (let i = 0; i < pose.fagulhas.length; i += 1) {
       const fagulha = pose.fagulhas[i]
       const desenho = chama.fagulhas[i]
@@ -363,7 +397,10 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
 
   function parar(): void {
     parada = true
-    for (const chama of chamas.values()) aplicar(chama, POSE_FIXA)
+    for (const chama of chamas.values()) {
+      aplicar(chama, POSE_FIXA)
+      aplicarExtras(chama, 0, true)
+    }
     sairDoRelogio()
     avisar()
   }
@@ -383,6 +420,8 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
         chamas.delete(id)
         continue
       }
+      // As de trás primeiro: a pose do quadro é uma só, e a principal a reescreve por último.
+      aplicarExtras(chama, t, false)
       aplicar(chama, escreverPose(t, chama.fase, poseDoQuadro))
     }
     if (chamas.size === 0) {
@@ -393,25 +432,40 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
 
   return {
     colocar(prop, tela) {
-      const forma = prop.mobilia === 'fogueira' ? chamaDaFogueira(prop.width, prop.height, vistaDoMovel(prop)) : null
+      const forma = chamaDoMovel(prop)
       if (forma === null || !Number.isFinite(prop.x) || !Number.isFinite(prop.y)) {
         remover(prop.id)
         return null
       }
       let chama = chamas.get(prop.id)
+      // Trocou de tipo (fogueira virou lareira): outro número de línguas, outro nó.
+      if (chama !== undefined && chama.extras.length !== forma.extras.length) remover(prop.id)
+      chama = chamas.get(prop.id)
       if (chama === undefined || chama.no.destroyed) {
-        chama = criar(prop.id)
+        chama = criar(prop.id, forma.extras.length)
         chamas.set(prop.id, chama)
       }
       const centro = { x: prop.x, y: prop.y }
-      const ancora = rotatePointAround({ x: prop.x + forma.ancora.x, y: prop.y + forma.ancora.y }, centro, rotationTrig(prop.rotation ?? 0))
+      const giro = rotationTrig(prop.rotation ?? 0)
+      const ancora = rotatePointAround({ x: prop.x + forma.ancora.x, y: prop.y + forma.ancora.y }, centro, giro)
+      // As línguas de trás: a base gira com o objeto (a lenha), a língua fica em pé.
+      forma.extras.forEach((extra, i) => {
+        const lingua = chama.extras[i]
+        const base = rotatePointAround({ x: prop.x + forma.ancora.x + extra.dx, y: prop.y + forma.ancora.y + extra.dy }, centro, giro)
+        lingua.borda.position.set(base.x - ancora.x, base.y - ancora.y)
+        lingua.miolo.position.set(base.x - ancora.x, base.y - ancora.y)
+        lingua.altura = extra.altura
+        lingua.fase = extra.fase
+      })
       // Na 3/4 a chama sobe com a lenha, sempre para cima na tela (não gira com a fogueira).
       chama.no.position.set(ancora.x, ancora.y + forma.desvio + deslocamentoDaChama(prop, tela.vistaDosMoveis))
       chama.altura = forma.altura
       const escala = Number.isFinite(tela.cameraScale) && tela.cameraScale > 0 ? tela.cameraScale : 1
       const raio = Math.max(RAIO_MINIMO_DA_FAGULHA_EM_PX / escala, RAIO_DA_FAGULHA * Math.min(prop.width, prop.height))
       for (const fagulha of chama.fagulhas) fagulha.scale.set(raio / RAIO_DE_REFERENCIA)
-      aplicar(chama, poseDaChama(agora(), chama.fase, parada))
+      const t = agora()
+      aplicarExtras(chama, t, parada)
+      aplicar(chama, poseDaChama(t, chama.fase, parada))
       return chama.no
     },
     podar(presentes) {

@@ -107,6 +107,14 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   privada: DERIVADO,
   sofa: DERIVADO,
   poltrona: DERIVADO,
+  // Lareira e oficina (29/10/2026). O lar da lareira não está em nenhuma estrutura: fica no chão, entre as
+  // ombreiras, e a chama não sobe; a cova da fornalha está na bancada e sobe com ela (`deslocamentoDaChama`).
+  lareira: DERIVADO,
+  fornalha: DERIVADO,
+  // A bigorna fica como de cima: a 3/4 sobe cada peça pela estrutura que contém o meio dela, e o meio do
+  // toco está debaixo da mesa da bigorna; derivada, a silhueta inteira varria até o chão e virava uma pílula.
+  bigorna: EM_PE,
+  balde: DERIVADO,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */
