@@ -19,7 +19,8 @@ import { pintarCena } from '@cliente/texturas/meioTermo/moveis/motor'
 import { LUGARES_DE_MATERIAL, MATERIAIS, type IdDoMaterial, type OpcaoDeMaterial } from '@cliente/texturas/meioTermo/materiais'
 import { rgb } from '@cliente/texturas/ruido'
 import { gravarPng, lerPng, type Imagem } from './png'
-import { comporMovel, desfocar, oklab, type Camada, type MovelCarregado, type ParamsDoMovel, type Rgb, type Vista } from './movel'
+import { geometriaDaCerca } from '@cliente/lib/mobilia'
+import { comporMovel, desfocar, oklab, type Camada, type GeometriaDaCercaEmCasas, type MovelCarregado, type ParamsDoMovel, type Rgb, type Vista } from './movel'
 
 const G = 56
 /** O chão padrão das salas do app (contexto.ts, L_DO_CHAO_PADRAO 0,615). */
@@ -182,10 +183,24 @@ interface Objeto {
   readonly giro: number
   readonly opcoes: readonly OpcaoDeMaterial[]
   readonly vista: Vista
+  /** Só a cerca: a volta em graus (Prop.mobiliaCurva); ausente = reta. */
+  readonly volta?: number
+}
+
+/** A geometria do app para a cerca (CONTRATO 10.12), em casas: geometriaDaCerca mede em px do mundo, 64 por casa. */
+function geometriaDaCercaEmCasas(o: Objeto): GeometriaDaCercaEmCasas | undefined {
+  const g = geometriaDaCerca(o.casas[0] * CASA_100, o.casas[1] * CASA_100, o.volta ?? 0)
+  if (g === null) return undefined
+  const k = 1 / CASA_100
+  return {
+    mouroes: g.mouroes.map((q) => ({ x: q.x * k, y: q.y * k })),
+    raio: g.raio * k,
+    arco: g.arco === null ? null : { center: { x: g.arco.center.x * k, y: g.arco.center.y * k }, radius: g.arco.radius * k, startAngle: g.arco.startAngle, sweep: g.arco.sweep },
+  }
 }
 
 function camadaDoAtual(o: Objeto, nivel: number, semente: number): { c: Camada; cx: number; cy: number; pxPorCasa: number } {
-  const d: DesenhoDoMovel = { tipo: o.tipo, lado: o.vista, materiais: o.opcoes, casasW: o.casas[0], casasH: o.casas[1], semente }
+  const d: DesenhoDoMovel = { tipo: o.tipo, lado: o.vista, materiais: o.opcoes, casasW: o.casas[0], casasH: o.casas[1], semente, ...(o.volta !== undefined ? { curva: o.volta } : {}) }
   const S = escalaDoNivel(nivel)
   const { limites, pixels } = pintarCena(montarCena(d), S)
   const px = new Float32Array(limites.W * limites.H * 4)
@@ -225,7 +240,9 @@ function porObjeto(t: Tela, lado: Lado, moveis: ReadonlyMap<string, MovelCarrega
   const m = moveis.get(o.tipo)
   if (lado === 'desenhado' && m !== undefined) {
     const tons = m.p.lugares.map((_l, i) => tomDaOpcao(o.opcoes, i, m.p.lugares))
-    const comp = comporMovel(m, { vista: o.vista, opcoes: o.opcoes, tons, casasW: o.casas[0], casasH: o.casas[1], giro: o.giro }, casa)
+    // A cerca por peças (10.12) recebe a geometria do app; os outros móveis, o pedido de sempre.
+    const cerca = m.p.pecas !== undefined && o.tipo === 'cerca' ? geometriaDaCercaEmCasas(o) : undefined
+    const comp = comporMovel(m, { vista: o.vista, opcoes: o.opcoes, tons, casasW: o.casas[0], casasH: o.casas[1], giro: o.giro, ...(cerca !== undefined ? { cerca } : {}) }, casa)
     const mat = matrizDoMeio(comp.cx, comp.cy, X, Y, 1, comp.resto)
     if (passo === 'sombra') {
       if (comp.sombra === null) return
@@ -480,6 +497,39 @@ function principal(): void {
     { id: 'pedras', x: 10.6, y: 7.4, escolha: 1, giro: 0 }, { id: 'pedras', x: 3.2, y: 8.3, escolha: 0.7, giro: 90 },
     { id: 'tronco-caido', x: 6.3, y: 10.0, escolha: 1, giro: 0 },
   ]
+  // A SEGUNDA cena de família, a PRAÇA DA VILA (lote 12): na mesma grama e no mesmo recorte
+  // de 300%, a entrada embaixo pelo arco do portão esticado a 3 casas, a cerca saindo dos
+  // dois lados do arco e curvando para cima (um quarto de círculo de raio 3 de cada lado,
+  // pela geometria do app), o poço no meio, a barraca de feira e a carroça vistas de cima,
+  // barris, caixas, a placa de seta e o quadro de avisos; árvores, arbustos e pedras da onda
+  // 3 nas bordas. Vale para os móveis do lote 12 ou com --familia=praca (--familia=clareira
+  // força a de sempre).
+  const pracaObjs: Objeto[] = [
+    { tipo: 'arcoDoPortao', x: 6, y: 10.6, casas: [3, 0.5], giro: 0, opcoes: ['nogueira', 'pinho'], vista: 'frente' },
+    { tipo: 'cerca', x: 3.02, y: 9.0, casas: [3 * Math.SQRT2 + 0.225, 0.25], giro: 45, volta: 90, opcoes: ['carvalho', 'varas'], vista: 'frente' },
+    { tipo: 'cerca', x: 8.98, y: 9.0, casas: [3 * Math.SQRT2 + 0.225, 0.25], giro: -45, volta: 90, opcoes: ['carvalho', 'varas'], vista: 'frente' },
+    { tipo: 'poco', x: 6, y: 6.3, casas: [1.5, 1.5], giro: 0, opcoes: ['granito', 'carvalho'], vista: 'frente' },
+    { tipo: 'barraca', x: 9.3, y: 4.5, casas: [2, 2], giro: 0, opcoes: ['vinho', 'pinho'], vista: 'frente' },
+    { tipo: 'carroca', x: 2.9, y: 4.85, casas: [2, 1.25], giro: 0, opcoes: ['nogueira', 'ferro'], vista: 'frente' },
+    { tipo: 'barril', x: 10.85, y: 6.15, casas: [0.7, 0.7], giro: 0, opcoes: ['carvalho', 'ferro'], vista: 'frente' },
+    { tipo: 'barril', x: 10.05, y: 6.45, casas: [0.7, 0.7], giro: 0, opcoes: ['nogueira', 'latao'], vista: 'frente' },
+    { tipo: 'barril', x: 7.7, y: 4.8, casas: [0.7, 0.7], giro: 0, opcoes: ['pinho', 'ferro'], vista: 'frente' },
+    { tipo: 'caixa', x: 1.75, y: 6.25, casas: [0.8, 0.8], giro: 0, opcoes: ['pinho'], vista: 'frente' },
+    { tipo: 'caixa', x: 2.75, y: 6.45, casas: [0.8, 0.8], giro: 0, opcoes: ['carvalho'], vista: 'frente' },
+    { tipo: 'placaDeSeta', x: 4.95, y: 9.45, casas: [0.5, 0.5], giro: 0, opcoes: ['pinho'], vista: 'frente' },
+    { tipo: 'quadroDeAvisos', x: 7.7, y: 8.75, casas: [1, 0.4], giro: 0, opcoes: ['nogueira'], vista: 'frente' },
+  ]
+  const pracaCarimbos: Carimbo[] = [
+    { id: 'arvore', x: 1.5, y: 3.0, escolha: 1, giro: 0 }, { id: 'arvore', x: 10.6, y: 2.75, escolha: 1.05, giro: 90 },
+    { id: 'arvore-redonda', x: 6.0, y: 2.5, escolha: 0.9, giro: 45 },
+    { id: 'arbusto', x: 0.8, y: 11.2, escolha: 1, giro: 0 }, { id: 'arbusto', x: 11.2, y: 11.25, escolha: 1.1, giro: 135 }, { id: 'arbusto', x: 3.9, y: 2.9, escolha: 0.8, giro: 270 },
+    { id: 'pedras', x: 11.3, y: 9.6, escolha: 0.8, giro: 0 }, { id: 'pedras', x: 0.7, y: 9.3, escolha: 0.7, giro: 90 },
+  ]
+  const LOTE_12 = new Set(['movel-cerca', 'movel-arco-do-portao', 'movel-poco', 'movel-carroca', 'movel-barraca'])
+  const pedida = args.get('familia')
+  const cena = pedida === 'praca' || (pedida !== 'clareira' && LOTE_12.has(este.p.id)) ? 'praca' : 'clareira'
+  const famObjs = cena === 'praca' ? pracaObjs : familiaObjs
+  const famCarimbos = cena === 'praca' ? pracaCarimbos : carimbos
   const chao100 = join(saida, 'chao-familia-100.png')
   const chao300 = join(saida, 'chao-familia-300.png')
   const FAMILIA = 12
@@ -488,8 +538,8 @@ function principal(): void {
     const g100 = lerPng(chao100)
     const g300 = lerPng(chao300)
     for (const lado of lados) {
-      gravarPng(join(saida, `familia-${lado}-100.png`), montar(familiaObjs, lado, moveis, FAMILIA, FAMILIA, CASA_100, g100, 0, 0, carimbos, arte), true)
-      gravarPng(join(saida, `familia-${lado}-300.png`), montar(familiaObjs, lado, moveis, PERTO.casas, PERTO.casas, CASA_300, g300, PERTO.x0, PERTO.y0, carimbos, arte), true)
+      gravarPng(join(saida, `familia-${lado}-100.png`), montar(famObjs, lado, moveis, FAMILIA, FAMILIA, CASA_100, g100, 0, 0, famCarimbos, arte), true)
+      gravarPng(join(saida, `familia-${lado}-300.png`), montar(famObjs, lado, moveis, PERTO.casas, PERTO.casas, CASA_300, g300, PERTO.x0, PERTO.y0, famCarimbos, arte), true)
     }
   }
   const md = { desenhado: menorDistancia(medidas.desenhado), atual: lados.includes('atual') ? menorDistancia(medidas.atual) : null }
@@ -503,7 +553,7 @@ function principal(): void {
     medidas: { onde: 'o miolo (50% x 30% da pegada) do móvel sozinho a 300%', porTom: madeiras.map((id, i) => ({ id, nome: MATERIAIS[id].nome, desenhado: medidas.desenhado[i]?.m, atual: medidas.atual[i]?.m })), menorDistancia: md },
     lado: este.p.vistas.lado !== undefined,
     esticar: frente.esticar !== undefined,
-    familia: { casas: FAMILIA, perto: PERTO, moveis: [...moveis.keys()], carimbos: [...arte.keys()], desenhados: familiaObjs.filter((o) => moveis.has(o.tipo)).length, total: familiaObjs.length },
+    familia: { cena, casas: FAMILIA, perto: PERTO, moveis: [...moveis.keys()], carimbos: [...arte.keys()], desenhados: famObjs.filter((o) => moveis.has(o.tipo)).length, total: famObjs.length },
     atual: lados.includes('atual'),
     formas: este.p.formas.map((f) => ({ nome: f.nome, valor: f.valor, partes: f.partes })),
   }
