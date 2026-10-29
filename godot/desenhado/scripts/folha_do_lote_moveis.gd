@@ -75,6 +75,13 @@ func _rodar() -> void:
 			faltou = true
 			continue
 		linhas.append({"id": id, "r": r, "imgs": [_ler(pasta.path_join("area50.png")), _ler(pasta.path_join("atual-area50.png")), _caber(_ler(pasta.path_join("perto300.png")), ALTO), _caber(_ler(pasta.path_join("atual-perto300.png")), ALTO)]})
+	# Qual cena de família é (a clareira, a praça ou a sala): o resumo.json de quem a pintou.
+	var fam_titulo := "a cena de família"
+	var fam_resumo_arq := prova.path_join(fam_id).path_join("resumo.json")
+	if FileAccess.file_exists(fam_resumo_arq):
+		var fr = JSON.parse_string(FileAccess.get_file_as_string(fam_resumo_arq))
+		if typeof(fr) == TYPE_DICTIONARY and typeof(fr.get("familia")) == TYPE_DICTIONARY:
+			fam_titulo = str(fr["familia"].get("titulo", fr["familia"].get("cena", fam_titulo)))
 	var fd := _ler(prova.path_join(fam_id).path_join("familia100.png"))
 	var fa := _ler(prova.path_join(fam_id).path_join("atual-familia100.png"))
 	var f50 := _ler(prova.path_join(fam_id).path_join("familia50.png"))
@@ -86,7 +93,7 @@ func _rodar() -> void:
 			if im != null:
 				w += im.get_width() + MG
 		largura = maxi(largura, w)
-	var altura := TOPO + linhas.size() * (ALTO + 50) + (60 + 768 + 50 + 384 + 40 if fd != null else 0) + MG
+	var altura := TOPO + linhas.size() * (ALTO + 50) + (84 + 768 + 50 + 384 + 40 if fd != null else 0) + MG
 	var vp := SubViewport.new()
 	vp.size = Vector2i(largura, altura)
 	vp.disable_3d = true
@@ -97,7 +104,7 @@ func _rodar() -> void:
 	fundo.size = Vector2(largura, altura)
 	vp.add_child(fundo)
 	_rotulo(vp, "%s  ·  Desenhado  ·  %d móvel(is) desenhado(s) que pegam cor" % [titulo, linhas.size()], Vector2(MG, 16), 28, COR_TINTA)
-	_rotulo(vp, "Por linha: as 3 combinações de material a 50%, Desenhado e Atual (o motor de hoje), e o primeiro sozinho a 300%, Desenhado e Atual (reduzido para caber). Embaixo, a família na grama aprovada com a onda 3.", Vector2(MG, 58), 17, COR_TINTA_2)
+	_rotulo(vp, "Por linha: as 3 combinações de material a 50%, Desenhado e Atual (o motor de hoje), e o primeiro sozinho a 300%, Desenhado e Atual (reduzido para caber). Embaixo, a cena de família.", Vector2(MG, 58), 17, COR_TINTA_2)
 	var y := TOPO
 	for i in linhas.size():
 		var l: Dictionary = linhas[i]
@@ -113,8 +120,9 @@ func _rodar() -> void:
 			x += im.get_width() + MG
 		y += ALTO + 50
 	if fd != null:
-		_rotulo(vp, "A família (de %s): os móveis Desenhados à esquerda, os Atuais na mesma cena à direita, a 100%% e a 50%%" % fam_id, Vector2(MG, y), 22, COR_TINTA)
-		y += 40
+		_rotulo(vp, "A família: %s" % fam_titulo, Vector2(MG, y), 22, COR_TINTA)
+		_rotulo(vp, "De %s: os móveis Desenhados à esquerda, os Atuais na mesma cena à direita, a 100%% e a 50%%" % fam_id, Vector2(MG, y + 32), 16, COR_TINTA_2)
+		y += 64
 		_imagem(vp, fd, Vector2(MG, y))
 		if fa != null:
 			_imagem(vp, fa, Vector2(MG + 768 + MG, y))

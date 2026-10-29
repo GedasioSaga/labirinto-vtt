@@ -1,7 +1,9 @@
 extends Node
 ## CONGELADO. A mesa de prova de um MÓVEL DESENHADO (onda 4, CONTRATO.md seção 10).
-## 1. Pinta a grama aprovada (exportado/grama, pela montagem do chão, comum/mesa.gd) para a
-##    cena de família.
+## 1. Pinta os chões das cenas de família pela montagem do chão (comum/mesa.gd): a grama
+##    aprovada (exportado/grama, a clareira e a praça) e o chão de sala aprovado em cinza
+##    (exportado/piso, a sala; o node tinge). As 12 x 12 casas inteiras a 100% e a 300%: o
+##    node recorta o 300% em volta do móvel da folha.
 ## 2. Roda ferramentas/mesa_movel.ts (empacotado com o motor dos móveis do client da main
 ##    por ferramentas/construir.mjs, só leitura): o Desenhado pela conta de referência
 ##    (ferramentas/movel.ts) e o Atual pelo motor, nos mesmos móveis.
@@ -13,7 +15,8 @@ const Mesa := preload("res://comum/mesa.gd")
 
 const MG := 28
 const FAMILIA_CASAS := 12
-const PERTO := {"x0": 4.0, "y0": 4.3, "casas": 4}
+## Os chões das cenas de família: o nome do painel e a textura aprovada.
+const CHAOS_DA_FAMILIA := {"chao-familia": "grama", "chao-sala": "piso"}
 const LARGURA := MG + 2 * (768 + MG)
 const BANDA := 2048
 const LEITURAS := 4
@@ -31,21 +34,24 @@ func montar(cfg: Dictionary, pasta_exportada: String, prova: String, args: Dicti
 	var erros: Array[String] = []
 	var paineis := prova.path_join("paineis")
 	DirAccess.make_dir_recursive_absolute(paineis)
-	# 1. A grama da cena de família.
-	var lido_g := Contrato.ler_config("grama")
-	if not lido_g["ok"]:
-		erros.append("a grama aprovada (texturas/grama/config.json) não leu")
-		return {"ok": false, "erros": erros, "resumo": {}}
-	var cfg_g: Dictionary = lido_g["config"]
-	var mesa_g := Mesa.new()
-	add_child(mesa_g)
-	if not mesa_g._carregar(cfg_g, ProjectSettings.globalize_path("res://exportado/grama"), erros):
-		return {"ok": false, "erros": erros, "resumo": {}}
+	# 1. Os chões das cenas de família (a grama e o chão de sala), inteiros a 100% e a 300%.
 	var casa := float(Contrato.CASA_PX)
-	var vistas := {
-		"chao-familia-100": mesa_g._vista(cfg_g, 0, Vector2.ZERO, 1.0, FAMILIA_CASAS * casa, false, Vector2.ZERO),
-		"chao-familia-300": mesa_g._vista(cfg_g, 0, Vector2(PERTO["x0"], PERTO["y0"]) * casa, 3.0, PERTO["casas"] * casa * 3.0, false, Vector2.ZERO),
-	}
+	var vistas := {}
+	var mesas: Array = []
+	for painel in CHAOS_DA_FAMILIA:
+		var id_chao: String = CHAOS_DA_FAMILIA[painel]
+		var lido := Contrato.ler_config(id_chao)
+		if not lido["ok"]:
+			erros.append("o chão aprovado (texturas/%s/config.json) não leu" % id_chao)
+			return {"ok": false, "erros": erros, "resumo": {}}
+		var cfg_c: Dictionary = lido["config"]
+		var mesa_c := Mesa.new()
+		add_child(mesa_c)
+		mesas.append(mesa_c)
+		if not mesa_c._carregar(cfg_c, ProjectSettings.globalize_path("res://exportado/" + id_chao), erros):
+			return {"ok": false, "erros": erros, "resumo": {}}
+		vistas[painel + "-100"] = mesa_c._vista(cfg_c, 0, Vector2.ZERO, 1.0, FAMILIA_CASAS * casa, false, Vector2.ZERO)
+		vistas[painel + "-300"] = mesa_c._vista(cfg_c, 0, Vector2.ZERO, 3.0, FAMILIA_CASAS * casa * 3.0, false, Vector2.ZERO)
 	await _quadros(2)
 	for nome in vistas:
 		var img: Image = await _ler_viewport(vistas[nome])
@@ -55,7 +61,8 @@ func montar(cfg: Dictionary, pasta_exportada: String, prova: String, args: Dicti
 			continue
 		img.convert(Image.FORMAT_RGBA8)
 		img.save_png(paineis.path_join(nome + ".png"))
-	mesa_g.queue_free()
+	for mesa_c in mesas:
+		mesa_c.queue_free()
 	if not erros.is_empty():
 		return {"ok": false, "erros": erros, "resumo": {}}
 	# 2. Os painéis.
@@ -71,6 +78,9 @@ func montar(cfg: Dictionary, pasta_exportada: String, prova: String, args: Dicti
 	var argv := [mjs, "--textura=" + pasta_exportada, "--exportado=" + ProjectSettings.globalize_path("res://exportado"), "--saida=" + paineis]
 	if args.has("sem-atual"):
 		argv.append("--sem-atual")
+	# A cena de família pedida (clareira, praca ou sala); sem ela, o node escolhe pelo lote.
+	if args.has("familia"):
+		argv.append("--familia=" + str(args["familia"]))
 	saida_cmd = []
 	c = OS.execute("node", argv, saida_cmd, true)
 	var texto := "".join(saida_cmd).strip_edges()
@@ -231,12 +241,14 @@ func _folha(cfg: Dictionary, p: Dictionary, resumo: Dictionary, paineis: String,
 	# A família.
 	if FileAccess.file_exists(paineis.path_join("familia-desenhado-100.png")):
 		var fam: Dictionary = p["familia"]
-		_texto("A família: numa clareira da grama aprovada, com árvores, arbustos, pedras e o tronco caído da onda 3 (%d de %d móveis já desenhados; o resto, Atual)" % [int(fam["desenhados"]), int(fam["total"])], MG, 22, COR_TINTA)
+		_texto("A família: %s (%d de %d móveis já desenhados; o resto, Atual)" % [str(fam.get("titulo", fam.get("cena", ""))), int(fam["desenhados"]), int(fam["total"])], MG, 22, COR_TINTA)
 		var fd := _ler(paineis, "familia-desenhado-100.png")
 		var fa: Image = _ler(paineis, "familia-atual-100.png") if tem_atual else null
 		_linha([fd, fa], ["Os móveis Desenhados a 100%", "Os móveis Atuais na mesma cena a 100%"])
 		_linha([_escala(fd, 0.5), _escala(fa, 0.5) if fa != null else null], ["Desenhados a 50%", "Atuais a 50%"])
-		_linha([_ler(paineis, "familia-desenhado-300.png"), _ler(paineis, "familia-atual-300.png") if tem_atual else null], ["Desenhados a 300%", "Atuais a 300%"])
+		var perto: Dictionary = fam.get("perto", {})
+		var onde := "o recorte em volta do %s" % str(perto["movel"]) if perto.get("movel", null) != null else "o recorte do meio da cena"
+		_linha([_ler(paineis, "familia-desenhado-300.png"), _ler(paineis, "familia-atual-300.png") if tem_atual else null], ["Desenhados a 300%%, %s" % onde, "Atuais a 300%"])
 	# Os arquivos.
 	_texto("Os arquivos (128 px por casa): o valor em cinza (0,5 = o tom) e as partes (vermelho = lugar 1, verde = lugar 2, azul = lugar 3)", MG, 22, COR_TINTA)
 	var imgs := []

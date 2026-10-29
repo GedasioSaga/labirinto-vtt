@@ -7,10 +7,13 @@
  * para 50% e 25%.
  *
  * Uso: node ferramentas/.build/mesa_movel.mjs --textura=<exportado/movel-x> --exportado=<exportado/>
- *        --saida=<paineis> [--sem-atual]
- * Lê em <paineis>: chao-familia-100.png e chao-familia-300.png (a grama aprovada, que o
- * Godot pinta antes). A cena de família usa todos os exportado/movel-* que existirem e os
- * carimbos da onda 3 (arvore, arvore-redonda, arbusto, pedras, tronco-caido).
+ *        --saida=<paineis> [--sem-atual] [--familia=clareira|praca|sala]
+ * Lê em <paineis>: chao-familia-100.png e chao-familia-300.png (a grama aprovada) e
+ * chao-sala-100.png e chao-sala-300.png (o chão de sala aprovado, em cinza), as 12 x 12 casas
+ * inteiras, que o Godot pinta antes. A cena de família (a clareira, a praça da vila do lote 12
+ * ou a sala dos lotes 13 e 14) usa todos os exportado/movel-* que existirem e, nas duas de
+ * grama, os carimbos da onda 3 (arvore, arvore-redonda, arbusto, pedras, tronco-caido); o
+ * 300% dela é o recorte de 4 x 4 casas em volta do móvel da folha.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -185,6 +188,13 @@ interface Objeto {
   readonly vista: Vista
   /** Só a cerca: a volta em graus (Prop.mobiliaCurva); ausente = reta. */
   readonly volta?: number
+  /** Por cima de outro móvel (o lampião na mesa): soma na ordem de pintar; ausente = 0. */
+  readonly z?: number
+}
+
+/** A ordem de pintar de um objeto: a borda de baixo da pegada, mais o z de quem vai por cima. */
+function ordemDe(o: Objeto): number {
+  return o.y + o.casas[1] / 2 + (o.z ?? 0)
 }
 
 /** A geometria do app para a cerca (CONTRATO 10.12), em casas: geometriaDaCerca mede em px do mundo, 64 por casa. */
@@ -250,7 +260,10 @@ function porObjeto(t: Tela, lado: Lado, moveis: ReadonlyMap<string, MovelCarrega
       const alfa = m.p.sombra.alfa
       const c: Camada = { w: comp.corpo.w, h: comp.corpo.h, px: new Float32Array(comp.corpo.w * comp.corpo.h * 4).map((_v, i) => (i % 4 === 3 ? (s[i >> 2] / alfa) * 255 : 0)) }
       porAfim(t, { n: [c] }, mat, true)
-    } else porAfim(t, { n: [comp.corpo] }, mat)
+    } else {
+      if (o.tipo === 'lampiao') pintarHaloDoLampiao(t, o, X, Y, casa)
+      porAfim(t, { n: [comp.corpo] }, mat)
+    }
     return
   }
   // O Atual: a imagem do motor já traz a sombra; a tela gira a imagem inteira.
@@ -262,7 +275,7 @@ function porObjeto(t: Tela, lado: Lado, moveis: ReadonlyMap<string, MovelCarrega
 
 function montar(objetos: readonly Objeto[], lado: Lado, moveis: ReadonlyMap<string, MovelCarregado>, casasW: number, casasH: number, casa: number, chao: Imagem | Rgb = CHAO, ox = 0, oy = 0, carimbos: readonly Carimbo[] = [], arte: ReadonlyMap<string, ArteDoCarimbo> = new Map()): Imagem {
   const t = novaTela(Math.round(casasW * casa), Math.round(casasH * casa), chao)
-  const ordem = [...objetos].sort((a, b) => a.y + a.casas[1] / 2 - (b.y + b.casas[1] / 2))
+  const ordem = [...objetos].sort((a, b) => ordemDe(a) - ordemDe(b))
   // A sombra de tudo numa camada só (como os carimbos, CONTRATO 9.4), depois os corpos.
   const cs = [...carimbos].sort((a, b) => a.y - b.y)
   for (const c of cs) porCarimbo(t, arte, c, casa, ox, oy, 'sombra')
@@ -270,10 +283,111 @@ function montar(objetos: readonly Objeto[], lado: Lado, moveis: ReadonlyMap<stri
   pintarSombra(t, 0.25)
   const todos: { y: number; pintar: () => void }[] = [
     ...cs.map((c) => ({ y: c.y, pintar: () => porCarimbo(t, arte, c, casa, ox, oy, 'corpo') })),
-    ...ordem.map((o, i) => ({ y: o.y + o.casas[1] / 2, pintar: () => porObjeto(t, lado, moveis, o, casa, ox, oy, 101 + 17 * i, 'corpo') })),
+    ...ordem.map((o, i) => ({ y: ordemDe(o), pintar: () => porObjeto(t, lado, moveis, o, casa, ox, oy, 101 + 17 * i, 'corpo') })),
   ]
   todos.sort((a, b) => a.y - b.y).forEach((q) => q.pintar())
   return emImagem(t)
+}
+
+/**
+ * O halo quente que o app pinta hoje no chão em volta do lampião (client lampiao.ts:
+ * COR_DO_HALO (226, 170, 96), ALFA_DO_HALO 0,10 no meio, HALO_EM_RAIOS 4,8 x o meio lado
+ * menor da pegada, alfa 0,10 · (1 - q)² com q = d² / r², emissão). No Desenhado o halo
+ * continua do app, fora da imagem do móvel: a mesa pinta o mesmo, logo antes do corpo, como
+ * a integração tem de fazer para o lampião não apagar.
+ */
+const HALO_DO_LAMPIAO = { cor: [226, 170, 96] as Rgb, alfa: 0.1, raios: 4.8 }
+
+function pintarHaloDoLampiao(t: Tela, o: Objeto, X: number, Y: number, casa: number): void {
+  const r = ((HALO_DO_LAMPIAO.raios * Math.min(o.casas[0], o.casas[1])) / 2) * casa
+  const x0 = Math.max(0, Math.floor(X - r))
+  const x1 = Math.min(t.w, Math.ceil(X + r))
+  const y0 = Math.max(0, Math.floor(Y - r))
+  const y1 = Math.min(t.h, Math.ceil(Y + r))
+  for (let y = y0; y < y1; y += 1) {
+    for (let x = x0; x < x1; x += 1) {
+      const q = ((x + 0.5 - X) ** 2 + (y + 0.5 - Y) ** 2) / (r * r)
+      if (q >= 1) continue
+      const a = HALO_DO_LAMPIAO.alfa * (1 - q) * (1 - q)
+      const o4 = (y * t.w + x) * 4
+      for (let k = 0; k < 3; k += 1) t.px[o4 + k] = t.px[o4 + k] * (1 - a) + HALO_DO_LAMPIAO.cor[k] * a
+    }
+  }
+}
+
+// ---------- o chão de sala tingido (a sala; PROPOSTA-TINGIR.md) ----------
+
+function emSrgb(c: number): number {
+  const u = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.max(c, 0) ** (1 / 2.4) - 0.055
+  return u * 255
+}
+
+/** sRGB 0..255 de um OKLab, ou null se sai da tela. */
+function rgbDoOklab(L: number, a: number, b: number): Rgb | null {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+  const lin = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s]
+  if (lin.some((v) => v < -1e-4 || v > 1 + 1e-4)) return null
+  return [emSrgb(lin[0]), emSrgb(lin[1]), emSrgb(lin[2])]
+}
+
+function suaveDe(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
+  return t * t * (3 - 2 * t)
+}
+
+/**
+ * A rampa do chão de sala tingível (PROPOSTA-TINGIR.md, a conta "luz-oklab" do
+ * texturas/piso/config.json): o cinza g vira a cor da sala com a luz andada
+ * L' = L + 0,48 · j · (g - 0,5), j = suave(0; 0,10; L) · suave(1; 0,94; L); a e b ficam e,
+ * fora da tela, encolhem juntos (busca binária).
+ */
+function rampaDoPiso(cor: Rgb): Rgb[] {
+  const [L, a, b] = oklab(cor)
+  const j = suaveDe(0, 0.1, L) * suaveDe(1, 0.94, L)
+  const rampa: Rgb[] = []
+  for (let g = 0; g < 256; g += 1) {
+    const Lp = L + 0.48 * j * (g / 255 - 0.5)
+    let c = rgbDoOklab(Lp, a, b)
+    if (c === null) {
+      let lo = 0
+      let hi = 1
+      for (let i = 0; i < 24; i += 1) {
+        const k = (lo + hi) / 2
+        if (rgbDoOklab(Lp, a * k, b * k) === null) hi = k
+        else lo = k
+      }
+      c = rgbDoOklab(Lp, a * lo, b * lo) ?? [0, 0, 0]
+    }
+    rampa.push(c)
+  }
+  return rampa
+}
+
+/** O chão de sala montado em cinza (o Godot pinta) tingido com a cor da sala. */
+function tingirPiso(img: Imagem, cor: Rgb): Imagem {
+  const rampa = rampaDoPiso(cor)
+  const px = new Uint8ClampedArray(img.w * img.h * 4)
+  for (let i = 0; i < img.w * img.h; i += 1) {
+    const c = rampa[img.px[i * 4]]
+    for (let k = 0; k < 3; k += 1) px[i * 4 + k] = Math.round(c[k])
+    px[i * 4 + 3] = 255
+  }
+  return { w: img.w, h: img.h, px }
+}
+
+/** Um recorte de x0, y0 (px) com w x h px. */
+function recortar(img: Imagem, x0: number, y0: number, w: number, h: number): Imagem {
+  const px = new Uint8ClampedArray(w * h * 4)
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const xs = Math.min(img.w - 1, x0 + x)
+      const ys = Math.min(img.h - 1, y0 + y)
+      for (let k = 0; k < 4; k += 1) px[(y * w + x) * 4 + k] = img.px[(ys * img.w + xs) * 4 + k]
+    }
+  }
+  return { w, h, px }
 }
 
 // ---------- os carimbos da onda 3 (a cena de família; CONTRATO 9.4) ----------
@@ -525,21 +639,90 @@ function principal(): void {
     { id: 'arbusto', x: 0.8, y: 11.2, escolha: 1, giro: 0 }, { id: 'arbusto', x: 11.2, y: 11.25, escolha: 1.1, giro: 135 }, { id: 'arbusto', x: 3.9, y: 2.9, escolha: 0.8, giro: 270 },
     { id: 'pedras', x: 11.3, y: 9.6, escolha: 0.8, giro: 0 }, { id: 'pedras', x: 0.7, y: 9.3, escolha: 0.7, giro: 90 },
   ]
+  // A TERCEIRA cena de família, a SALA (lotes 13 e 14, os móveis de dentro de casa): 12 x 12
+  // casas no chão de sala aprovado (texturas/piso, montado em cinza pelo Godot e tingido com
+  // a cor padrão das salas do app, #a8776a, pela conta de PROPOSTA-TINGIR.md). A sala de
+  // estar no meio (o tapete de 3 x 2, o sofá de 3 casas atrás dele, as 2 poltronas dos lados
+  // de frente para ele, um lampião em pé ao lado do sofá e outro na mesinha), a mesa de
+  // jantar com 5 cadeiras e os pratos em cima à direita, a mesinha redonda do café, a caixa e o
+  // barril da entrada, o armário na parede da direita, o
+  // quarto embaixo à direita (a cama no canto e o baú no pé), o corredor embaixo à esquerda
+  // (o tapete longo e o aparador ao longo) e a cozinha embaixo no meio (a geladeira, o fogão
+  // e a pia). Sem carimbos: é dentro de casa. Vale para os móveis dos lotes 13 e 14 ou com
+  // --familia=sala.
+  const salaObjs: Objeto[] = [
+    // O primeiro de cada tipo é o do recorte de 300% (o lampião em pé, ao lado do sofá).
+    { tipo: 'lampiao', x: 8.15, y: 3.5, casas: [0.5, 0.5], giro: 0, opcoes: ['ferro'], vista: 'frente' },
+    // A sala de estar no meio: o tapete, o sofá atrás dele e as poltronas dos lados, de frente para ele.
+    { tipo: 'tapete', x: 5.75, y: 5.6, casas: [3, 2], giro: 0, opcoes: ['azul'], vista: 'frente' },
+    { tipo: 'sofa', x: 5.75, y: 3.5, casas: [3, 1], giro: 0, opcoes: ['vinho', 'nogueira'], vista: 'frente' },
+    { tipo: 'poltrona', x: 3.2, y: 5.6, casas: [1, 1], giro: 270, opcoes: ['ocre', 'nogueira'], vista: 'frente' },
+    { tipo: 'poltrona', x: 8.3, y: 5.6, casas: [1, 1], giro: 90, opcoes: ['ocre', 'nogueira'], vista: 'frente' },
+    { tipo: 'mesaQuadrada', x: 3.3, y: 3.5, casas: [1, 1], giro: 0, opcoes: ['carvalho'], vista: 'frente' },
+    { tipo: 'lampiao', x: 3.3, y: 3.5, casas: [0.5, 0.5], giro: 0, opcoes: ['latao'], vista: 'frente', z: 1 },
+    // A mesa de jantar em cima à direita, com os pratos.
+    { tipo: 'mesa', x: 9.7, y: 1.6, casas: [2, 1], giro: 0, opcoes: ['nogueira'], vista: 'frente' },
+    { tipo: 'cadeira', x: 9.2, y: 0.75, casas: [0.5, 0.5], giro: 0, opcoes: ['nogueira', 'palha'], vista: 'frente' },
+    { tipo: 'cadeira', x: 10.2, y: 0.75, casas: [0.5, 0.5], giro: 0, opcoes: ['nogueira', 'palha'], vista: 'frente' },
+    { tipo: 'cadeira', x: 9.2, y: 2.45, casas: [0.5, 0.5], giro: 180, opcoes: ['nogueira', 'palha'], vista: 'frente' },
+    { tipo: 'cadeira', x: 10.2, y: 2.45, casas: [0.5, 0.5], giro: 180, opcoes: ['nogueira', 'palha'], vista: 'frente' },
+    { tipo: 'cadeira', x: 8.25, y: 1.6, casas: [0.5, 0.5], giro: 270, opcoes: ['nogueira', 'mesma'], vista: 'frente' },
+    { tipo: 'pratos', x: 9.2, y: 1.6, casas: [0.5, 0.5], giro: 0, opcoes: [], vista: 'frente', z: 1 },
+    { tipo: 'pratos', x: 10.2, y: 1.6, casas: [0.5, 0.5], giro: 0, opcoes: [], vista: 'frente', z: 1 },
+    // A mesinha redonda do café, entre a sala e a cozinha.
+    { tipo: 'mesaRedonda', x: 6.4, y: 8.7, casas: [1.25, 1.25], giro: 0, opcoes: ['cerejeira'], vista: 'frente' },
+    { tipo: 'cadeira', x: 5.4, y: 8.7, casas: [0.5, 0.5], giro: 270, opcoes: ['cerejeira', 'mesma'], vista: 'frente' },
+    { tipo: 'cadeira', x: 7.4, y: 8.7, casas: [0.5, 0.5], giro: 90, opcoes: ['cerejeira', 'mesma'], vista: 'frente' },
+    // A entrada em cima à esquerda: a caixa e o barril.
+    { tipo: 'caixa', x: 1.2, y: 1.0, casas: [0.8, 0.8], giro: 0, opcoes: ['pinho'], vista: 'frente' },
+    { tipo: 'barril', x: 2.3, y: 0.85, casas: [0.7, 0.7], giro: 0, opcoes: ['carvalho', 'ferro'], vista: 'frente' },
+    // O quarto embaixo à direita: o armário na parede, a cama no canto e o baú no pé dela.
+    { tipo: 'armario', x: 11.45, y: 6.3, casas: [1, 0.5], giro: 90, opcoes: ['pinho', 'latao'], vista: 'frente' },
+    { tipo: 'catre', x: 10.95, y: 8.65, casas: [1, 2], giro: 0, opcoes: ['carvalho', 'azul', 'linho'], vista: 'frente' },
+    { tipo: 'bau', x: 10.95, y: 10.45, casas: [1, 0.6], giro: 0, opcoes: ['nogueira', 'ferro'], vista: 'frente' },
+    // O corredor embaixo à esquerda: o tapete longo e o aparador ao longo dele.
+    { tipo: 'tapeteLongo', x: 1.1, y: 9.4, casas: [1, 4], giro: 0, opcoes: ['vinho'], vista: 'frente' },
+    { tipo: 'aparador', x: 2.45, y: 9.4, casas: [3, 0.5], giro: 90, opcoes: ['nogueira', 'latao'], vista: 'frente' },
+    // A cozinha embaixo no meio (lote 14), encostada na parede de baixo, de frente para a sala.
+    { tipo: 'geladeira', x: 5.6, y: 11.2, casas: [1, 0.75], giro: 180, opcoes: ['carvalho', 'latao'], vista: 'frente' },
+    { tipo: 'fogao', x: 7.0, y: 11.1, casas: [1, 1], giro: 180, opcoes: ['ferro', 'latao'], vista: 'frente' },
+    { tipo: 'pia', x: 8.4, y: 11.3, casas: [1, 0.6], giro: 180, opcoes: ['granito', 'carvalho'], vista: 'frente' },
+  ]
   const LOTE_12 = new Set(['movel-cerca', 'movel-arco-do-portao', 'movel-poco', 'movel-carroca', 'movel-barraca'])
+  const LOTES_DA_SALA = new Set(['movel-tapete', 'movel-tapete-longo', 'movel-sofa', 'movel-poltrona', 'movel-lampiao', 'movel-fogao', 'movel-geladeira', 'movel-pia', 'movel-pratos', 'movel-privada'])
   const pedida = args.get('familia')
-  const cena = pedida === 'praca' || (pedida !== 'clareira' && LOTE_12.has(este.p.id)) ? 'praca' : 'clareira'
-  const famObjs = cena === 'praca' ? pracaObjs : familiaObjs
-  const famCarimbos = cena === 'praca' ? pracaCarimbos : carimbos
-  const chao100 = join(saida, 'chao-familia-100.png')
-  const chao300 = join(saida, 'chao-familia-300.png')
+  const cena: 'clareira' | 'praca' | 'sala' =
+    pedida === 'clareira' || pedida === 'praca' || pedida === 'sala' ? pedida : LOTE_12.has(este.p.id) ? 'praca' : LOTES_DA_SALA.has(este.p.id) ? 'sala' : 'clareira'
+  const CENAS = {
+    clareira: { objs: familiaObjs, carimbos, chao: 'chao-familia', titulo: 'a clareira, na grama aprovada, com árvores, arbustos, pedras e o tronco caído', meio: { x: 6, y: 6.3 } },
+    praca: { objs: pracaObjs, carimbos: pracaCarimbos, chao: 'chao-familia', titulo: 'a praça da vila, na grama aprovada, com o arco, a cerca, o poço e a onda 3', meio: { x: 6, y: 6.3 } },
+    sala: { objs: salaObjs, carimbos: [] as Carimbo[], chao: 'chao-sala', titulo: 'a sala, no chão de sala aprovado tingido com a cor padrão do app (#a8776a)', meio: { x: 5.75, y: 4.6 } },
+  }
+  const escolhida = CENAS[cena]
+  const famObjs = escolhida.objs
+  const famCarimbos = escolhida.carimbos
+  const chao100 = join(saida, `${escolhida.chao}-100.png`)
+  const chao300 = join(saida, `${escolhida.chao}-300.png`)
   const FAMILIA = 12
-  const PERTO = { x0: 4.0, y0: 4.3, casas: 4 }
+  // O recorte de 300%: 4 x 4 casas em volta do primeiro móvel do tipo da folha na cena (ou
+  // do meio da cena, se ele não está nela), sem sair das 12 x 12.
+  const CASAS_PERTO = 4
+  const doTipo = famObjs.find((o) => o.tipo === tipo)
+  const alvo = doTipo ?? escolhida.meio
+  // Os móveis ficam no ponto exato; o chão (liso) é recortado no px mais perto.
+  const dentroDaCena = (v: number): number => Math.min(FAMILIA - CASAS_PERTO, Math.max(0, v - CASAS_PERTO / 2))
+  const PERTO = { x0: dentroDaCena(alvo.x), y0: dentroDaCena(alvo.y), casas: CASAS_PERTO, movel: doTipo !== undefined ? tipo : null }
   if (existsSync(chao100) && existsSync(chao300)) {
-    const g100 = lerPng(chao100)
-    const g300 = lerPng(chao300)
+    let g100 = lerPng(chao100)
+    let g300 = lerPng(chao300)
+    if (cena === 'sala') {
+      g100 = tingirPiso(g100, CHAO)
+      g300 = tingirPiso(g300, CHAO)
+    }
+    const perto300 = recortar(g300, Math.round(PERTO.x0 * CASA_300), Math.round(PERTO.y0 * CASA_300), CASAS_PERTO * CASA_300, CASAS_PERTO * CASA_300)
     for (const lado of lados) {
       gravarPng(join(saida, `familia-${lado}-100.png`), montar(famObjs, lado, moveis, FAMILIA, FAMILIA, CASA_100, g100, 0, 0, famCarimbos, arte), true)
-      gravarPng(join(saida, `familia-${lado}-300.png`), montar(famObjs, lado, moveis, PERTO.casas, PERTO.casas, CASA_300, g300, PERTO.x0, PERTO.y0, famCarimbos, arte), true)
+      gravarPng(join(saida, `familia-${lado}-300.png`), montar(famObjs, lado, moveis, PERTO.casas, PERTO.casas, CASA_300, perto300, PERTO.x0, PERTO.y0, famCarimbos, arte), true)
     }
   }
   const md = { desenhado: menorDistancia(medidas.desenhado), atual: lados.includes('atual') ? menorDistancia(medidas.atual) : null }
@@ -553,7 +736,7 @@ function principal(): void {
     medidas: { onde: 'o miolo (50% x 30% da pegada) do móvel sozinho a 300%', porTom: madeiras.map((id, i) => ({ id, nome: MATERIAIS[id].nome, desenhado: medidas.desenhado[i]?.m, atual: medidas.atual[i]?.m })), menorDistancia: md },
     lado: este.p.vistas.lado !== undefined,
     esticar: frente.esticar !== undefined,
-    familia: { cena, casas: FAMILIA, perto: PERTO, moveis: [...moveis.keys()], carimbos: [...arte.keys()], desenhados: famObjs.filter((o) => moveis.has(o.tipo)).length, total: famObjs.length },
+    familia: { cena, titulo: escolhida.titulo, casas: FAMILIA, perto: PERTO, moveis: [...moveis.keys()], carimbos: [...arte.keys()], desenhados: famObjs.filter((o) => moveis.has(o.tipo)).length, total: famObjs.length },
     atual: lados.includes('atual'),
     formas: este.p.formas.map((f) => ({ nome: f.nome, valor: f.valor, partes: f.partes })),
   }
