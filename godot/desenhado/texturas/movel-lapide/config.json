@@ -1,0 +1,16 @@
+{
+  "id": "movel-lapide",
+  "nome": "Lápide",
+  "idDoApp": "lapide",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 15,
+  "semente": 70,
+  "margemCasas": 0.21875,
+  "lugares": ["pedra"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [0.6, 0.35], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.2, "borraoCasas": 0.03 }
+}
