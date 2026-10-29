@@ -47,7 +47,10 @@ export interface OsciladorFalso extends NoFalso {
 export interface FonteFalsa extends NoFalso {
   buffer: (BufferDeSom & BufferAoVivo) | null
   loop: boolean
-  start: Mock<(quando: number, deslocamento?: number) => void>
+  /** O laço do loop de um trecho (0 e 0 = o arquivo inteiro, como no Web Audio). */
+  loopStart: number
+  loopEnd: number
+  start: Mock<(quando: number, deslocamento?: number, duracao?: number) => void>
   stop: Mock<(quando: number) => void>
   addEventListener: Mock<(tipo: 'ended', ouvinte: () => void) => void>
   /** O fim da fonte (a última amostra tocou, ou o `stop` chegou): avisa quem ouve `ended`. */
@@ -56,6 +59,8 @@ export interface FonteFalsa extends NoFalso {
 
 export interface BufferFalso extends BufferDeSom, BufferAoVivo {
   quadros: number
+  /** Obrigatório no do sintetizador, opcional no ao vivo: declarado aqui, vale para os dois. */
+  getChannelData(canal: number): Float32Array
 }
 
 /** Um `<audio>` de mentira: os eventos só acontecem quando o teste chama `disparar`. */
@@ -141,7 +146,9 @@ function fonteFalsa(): FonteFalsa {
   return Object.assign(noFalso('fonte'), {
     buffer: null,
     loop: false,
-    start: vi.fn<(quando: number, deslocamento?: number) => void>(),
+    loopStart: 0,
+    loopEnd: 0,
+    start: vi.fn<(quando: number, deslocamento?: number, duracao?: number) => void>(),
     stop: vi.fn<(quando: number) => void>(),
     addEventListener: vi.fn((_tipo: 'ended', ouvinte: () => void) => {
       aoTerminar.push(ouvinte)

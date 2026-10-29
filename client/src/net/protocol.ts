@@ -2306,13 +2306,20 @@ export const SOM_PRECARGA_MAX = 32
  * O áudio do YouTube não passa pelo servidor da sala: cada aparelho abre o
  * player dele. Jogador antigo recusa o `som.tocar` com YouTube inteiro (fonte
  * de tipo que ele não conhece) e segue com o resto.
+ *
+ * Arquivo com trecho (29/10/2026): `inicioS` e `fimS`, de A até B, na mesma
+ * forma do YouTube; ausentes = o som inteiro (o `som.tocar` de antes, sem
+ * campo novo). O jogador de antes desta versão monta a fonte só com `tipo` e
+ * `midia` e ignora o resto (`parseFonteDeSomNaRede` dele): toca o som
+ * inteiro, sem quebrar.
  */
-export type FonteDeSomNaRede = { tipo: 'arquivo'; midia: string } | { tipo: 'youtube'; video: VideoDoYoutube; inicioS?: number; fimS?: number }
+export type FonteDeSomNaRede = { tipo: 'arquivo'; midia: string; inicioS?: number; fimS?: number } | { tipo: 'youtube'; video: VideoDoYoutube; inicioS?: number; fimS?: number }
 
 /**
  * Toca `fonte` como `instancia`; a mesma instância tocando antes é trocada por
- * esta. `deslocamentoS`: o loop pego no meio (quem entrou depois); no loop, o
- * jogador dá a volta pela duração. O nome do efeito NÃO vai: não estraga surpresa.
+ * esta. `deslocamentoS`: o loop pego no meio (quem entrou depois), contado de
+ * A quando a fonte tem trecho; no loop, o jogador dá a volta pelo tamanho do
+ * trecho (o arquivo inteiro, sem trecho). O nome do efeito NÃO vai: não estraga surpresa.
  */
 export interface SomTocarMessage {
   type: 'som.tocar'
@@ -2376,25 +2383,35 @@ function ehMotivoDaFalhaDoSom(value: unknown): value is MotivoDaFalhaDoSom {
   return typeof value === 'string' && MOTIVOS_DA_FALHA_DO_SOM.some((motivo) => motivo === value)
 }
 
-/** Segundos de um trecho do YouTube: número finito de 0 até o teto do deslocamento. */
+/** Segundos de um trecho (YouTube ou arquivo): número finito de 0 até o teto do deslocamento. */
 function ehSegundoDoTrecho(value: unknown): value is number {
   return isFiniteNumber(value) && value >= 0 && value <= SOM_DESLOCAMENTO_MAX_S
 }
 
-/** O YouTube na rede: id conferido (11 caracteres da forma do YouTube) e trecho em segundos; início ou fim torto recusa inteiro. */
-function parseFonteDoYoutubeNaRede(value: Record<string, unknown>): FonteDeSomNaRede | null {
-  const { video, inicioS, fimS } = value
-  if (!ehVideoDoYoutube(video)) return null
+/** O trecho de A até B na fonte; `null` = início ou fim torto (ou o fim no início ou antes), e a fonte é recusada inteira. */
+function parseTrechoNaRede(value: Record<string, unknown>): { inicioS?: number; fimS?: number } | null {
+  const { inicioS, fimS } = value
   if (inicioS !== undefined && !ehSegundoDoTrecho(inicioS)) return null
   if (fimS !== undefined && (!ehSegundoDoTrecho(fimS) || fimS <= (inicioS ?? 0))) return null
-  return { tipo: 'youtube', video, ...(inicioS === undefined ? {} : { inicioS }), ...(fimS === undefined ? {} : { fimS }) }
+  return { ...(inicioS === undefined ? {} : { inicioS }), ...(fimS === undefined ? {} : { fimS }) }
 }
 
+/** O YouTube na rede: id conferido (11 caracteres da forma do YouTube) e trecho em segundos; início ou fim torto recusa inteiro. */
+function parseFonteDoYoutubeNaRede(value: Record<string, unknown>): FonteDeSomNaRede | null {
+  const { video } = value
+  if (!ehVideoDoYoutube(video)) return null
+  const trecho = parseTrechoNaRede(value)
+  return trecho === null ? null : { tipo: 'youtube', video, ...trecho }
+}
+
+/** O arquivo na rede: o id do áudio guardado e o trecho, com a mesma regra do YouTube (torto recusa inteiro). */
 function parseFonteDeSomNaRede(value: unknown): FonteDeSomNaRede | null {
   if (!isRecord(value)) return null
   if (value.tipo === 'youtube') return parseFonteDoYoutubeNaRede(value)
-  if (value.tipo !== 'arquivo' || !ehIdDeAudio(value.midia)) return null
-  return { tipo: 'arquivo', midia: value.midia }
+  const { midia } = value
+  if (value.tipo !== 'arquivo' || !ehIdDeAudio(midia)) return null
+  const trecho = parseTrechoNaRede(value)
+  return trecho === null ? null : { tipo: 'arquivo', midia, ...trecho }
 }
 
 function parseSomTocar(value: Record<string, unknown>): SomTocarMessage | null {

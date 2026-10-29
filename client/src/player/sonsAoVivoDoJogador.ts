@@ -242,8 +242,8 @@ export function instalarSonsAoVivo(conexao: ConexaoDosSons, deps: DependenciasDo
           msg.fonte.tipo === 'youtube'
             ? // Só o id (o protocolo já conferiu; o motor confere de novo antes de montar o endereço), início e fim.
               { tipo: 'youtube', video: msg.fonte.video, ...(msg.fonte.inicioS === undefined ? {} : { inicioS: msg.fonte.inicioS }), ...(msg.fonte.fimS === undefined ? {} : { fimS: msg.fonte.fimS }) }
-            : // `bytes` é o tamanho para a aba do mestre; o motor não o usa, e a rede não o leva.
-              { tipo: 'arquivo', ref: refDoId(msg.fonte.midia), bytes: 0 }
+            : // `bytes` é o tamanho para a aba do mestre; o motor não o usa, e a rede não o leva. O trecho de A até B vai junto.
+              { tipo: 'arquivo', ref: refDoId(msg.fonte.midia), bytes: 0, ...(msg.fonte.inicioS === undefined ? {} : { inicioS: msg.fonte.inicioS }), ...(msg.fonte.fimS === undefined ? {} : { fimS: msg.fonte.fimS }) }
         motor.tocar(msg.instancia, fonte, { loop: msg.loop, volumeDoEfeito: msg.volume, ...(msg.deslocamentoS === undefined ? {} : { deslocamentoS: msg.deslocamentoS }) })
         return
       }

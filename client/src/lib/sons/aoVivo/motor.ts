@@ -1,6 +1,6 @@
 import { estaCalado, useSomStore, type PreferenciaDeSom } from '../../../stores/somStore'
 import { ehIdDeAudio, idDaRefDeAudio, type TipoDeAudio } from '../../midia'
-import { VOLUME_DE_SOM_PADRAO, type FonteDoSom } from '../biblioteca'
+import { trechoDaFonte, VOLUME_DE_SOM_PADRAO, type FonteDoSom } from '../biblioteca'
 import { obterSaidaAoVivoDoNavegador, quandoOAudioRodar } from '../contexto'
 
 /**
@@ -80,6 +80,19 @@ export const CACHE_NO_CELULAR_BYTES = 60 * MB
 const RAMPA_DE_VOLUME_S = 0.03
 /** O áudio decodificado guarda cada amostra em 32 bits. */
 const BYTES_POR_AMOSTRA_DECODIFICADA = 4
+/**
+ * A volta do loop de um trecho pelo `<audio>`: o ganho desce este tanto antes
+ * de B e sobe este tanto depois de A. O pulo do `currentTime` com o som no
+ * meio estala; com o ganho no zero, não.
+ */
+const VOLTA_DO_TRECHO_S = 0.025
+/**
+ * Quanto o `<audio>` pode estar atrás do relógio do JS quando ele chega em B
+ * e ainda contar como B: a descida já terminou, o que falta é silêncio.
+ */
+const FOLGA_DO_RELOGIO_S = 0.05
+/** Quanto, para cada lado de A e de B, se procura o cruzamento por zero da volta do loop decodificado. */
+const JANELA_DO_CRUZAMENTO_S = 0.01
 
 const TIPO_MIME_DO_AUDIO: Record<TipoDeAudio, string> = {
   mp3: 'audio/mpeg',
@@ -108,12 +121,21 @@ export interface BufferAoVivo {
   /** Quadros por canal. */
   readonly length: number
   readonly numberOfChannels: number
+  /**
+   * As amostras de um canal: a volta do loop de um trecho procura nelas o
+   * cruzamento por zero. Sem ela, a volta fica no ponto exato de A e de B.
+   */
+  getChannelData?(canal: number): Float32Array
 }
 
 export interface FonteAoVivo<N> extends NoAoVivo<N> {
   buffer: BufferAoVivo | null
   loop: boolean
-  start(quando: number, deslocamento?: number): void
+  /** O laço do loop, em segundos do arquivo; 0 e 0 (o padrão) = o arquivo inteiro. */
+  loopStart: number
+  loopEnd: number
+  /** `duracao`: quantos segundos tocar a partir do deslocamento; o efeito curto de um trecho para em B. */
+  start(quando: number, deslocamento?: number, duracao?: number): void
   stop(quando?: number): void
   addEventListener(tipo: 'ended', ouvinte: () => void): void
 }
@@ -150,7 +172,10 @@ export type CarregadorDeBytes = (idDaMidia: string) => Promise<Uint8Array>
 export interface OpcoesDoToqueAoVivo {
   /** Ambiente que se repete até o Parar. */
   loop: boolean
-  /** De onde começa, em segundos (o loop pego no meio); no loop, dá a volta pela duração. */
+  /**
+   * De onde começa, em segundos (o loop pego no meio), contados de A (o
+   * início do trecho da fonte); no loop, dá a volta pelo tamanho do trecho.
+   */
   deslocamentoS?: number
   /** De 0 a 1; o ganho final é este vezes o volume do aparelho ao quadrado. */
   volumeDoEfeito: number
@@ -181,7 +206,11 @@ export type EventoDoMotor =
   | { tipo: 'esperando'; instancia: string }
   /** O gesto (ou o áudio que voltou a rodar) tirou da espera; ainda falta o arquivo: a faixinha sai. Só vem depois de 'esperando'. */
   | { tipo: 'carregando'; instancia: string }
-  /** Começou a soar; a barra de progresso (F3) anda a partir de `inicioEmMs` (relógio `agora`). */
+  /**
+   * Começou a soar; a barra de progresso (F3) anda a partir de `inicioEmMs`
+   * (relógio `agora`). Num trecho, `duracaoS` é o tamanho dele (B - A) e
+   * `deslocamentoS` é contado de A, como no YouTube.
+   */
   | { tipo: 'tocando'; instancia: string; loop: boolean; duracaoS: number; deslocamentoS: number; inicioEmMs: number }
   | { tipo: 'terminou'; instancia: string; motivo: MotivoDoFim }
   | { tipo: 'recusado'; instancia: string; motivo: MotivoDaRecusa }
@@ -263,6 +292,10 @@ interface Voz<N> {
   readonly instancia: string
   readonly id: string
   readonly loop: boolean
+  /** O trecho de A até B, em segundos do arquivo (conferido no `tocar`); `fimS` ausente = até o fim. */
+  readonly inicioS: number
+  readonly fimS: number | undefined
+  /** Contado de A. */
   readonly deslocamentoS: number
   /** Quando o toque foi pedido (relógio `agora`): corrige o deslocamento do loop que esperou. */
   readonly pedidoEmMs: number
@@ -287,6 +320,102 @@ function custoDecodificado(buffer: BufferAoVivo): number {
 
 function volumeValido(volume: number): number {
   return Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : VOLUME_DE_SOM_PADRAO
+}
+
+/**
+ * O trecho conferido de novo (a fonte pode ter vindo da rede, e o jogador
+ * monta a dele): o torto vira o som inteiro, como no motor do YouTube.
+ */
+function trechoConferido(fonte: FonteDoSom): { inicioS: number; fimS: number | undefined } {
+  const { inicioS, fimS } = trechoDaFonte(fonte)
+  const inicio = Number.isFinite(inicioS) && inicioS > 0 ? inicioS : 0
+  return { inicioS: inicio, fimS: fimS !== undefined && Number.isFinite(fimS) && fimS > inicio ? fimS : undefined }
+}
+
+/** De A até B, em segundos do arquivo. */
+interface Trecho {
+  readonly inicioS: number
+  /** Infinito no arquivo sem duração no cabeçalho e sem B; NaN no que não tem duração válida. */
+  readonly fimS: number
+}
+
+/**
+ * O trecho que ESTE arquivo tem: B depois do fim (ou ausente) = até o fim; A
+ * no fim ou depois = o som inteiro (quem toca ouve alguma coisa, em vez de um
+ * toque mudo que "terminou" na hora). Duração 0 ou NaN dá o trecho do 0 com o
+ * tamanho dela, e `deslocamentoDeInicio` decide como fazia sem trecho.
+ */
+function trechoNoArquivo(inicioS: number, fimS: number | undefined, duracaoS: number): Trecho {
+  const fim = Math.min(fimS ?? duracaoS, duracaoS)
+  return inicioS < fim ? { inicioS, fimS: fim } : { inicioS: 0, fimS: duracaoS }
+}
+
+/** O trecho é o arquivo todo: o laço e o fim naturais servem, sem relógio nem envelope. */
+function ehOArquivoInteiro(trecho: Trecho, duracaoS: number): boolean {
+  return trecho.inicioS === 0 && !(trecho.fimS < duracaoS)
+}
+
+/** No 1º canal, a amostra `indice` é onde a onda cruza o zero subindo. */
+function cruzaSubindo(amostras: Float32Array, indice: number): boolean {
+  if (indice < 1 || indice >= amostras.length) return false
+  return amostras[indice - 1] < 0 && amostras[indice] >= 0
+}
+
+/**
+ * O cruzamento por zero subindo mais perto de `alvoS`, até
+ * `JANELA_DO_CRUZAMENTO_S` para cada lado, no 1º canal. A e B cruzando no
+ * mesmo sentido, a onda segue na volta do loop em vez de saltar. Sem as
+ * amostras, ou sem cruzamento na janela, o próprio alvo.
+ */
+function cruzamentoPorZero(buffer: BufferAoVivo, alvoS: number): number {
+  if (buffer.getChannelData === undefined || buffer.numberOfChannels < 1 || !(buffer.duration > 0)) return alvoS
+  const amostras = buffer.getChannelData(0)
+  const quadrosPorSegundo = buffer.length / buffer.duration
+  const centro = Math.round(alvoS * quadrosPorSegundo)
+  const janela = Math.round(JANELA_DO_CRUZAMENTO_S * quadrosPorSegundo)
+  for (let distancia = 0; distancia <= janela; distancia++) {
+    if (cruzaSubindo(amostras, centro - distancia)) return (centro - distancia) / quadrosPorSegundo
+    if (cruzaSubindo(amostras, centro + distancia)) return (centro + distancia) / quadrosPorSegundo
+  }
+  return alvoS
+}
+
+/** O laço do loop decodificado: A e B encaixados no cruzamento por zero, se ainda sobra laço (senão, os exatos). */
+function lacoDecodificado(buffer: BufferAoVivo, trecho: Trecho): Trecho {
+  const inicioS = Math.max(0, cruzamentoPorZero(buffer, trecho.inicioS))
+  const fimS = Math.min(buffer.duration, cruzamentoPorZero(buffer, trecho.fimS))
+  return inicioS < fimS ? { inicioS, fimS } : trecho
+}
+
+/** Um ganho só do trecho, entre a fonte e o do volume: o volume e o Mudo mexem no outro sem apagar a descida em B. */
+function ligarEnvelope<N>(ctx: ContextoAoVivo<N>, ganho: N): GanhoAoVivo<N> & N {
+  const envelope = ctx.createGain()
+  envelope.gain.setValueAtTime(1, ctx.currentTime)
+  envelope.connect(ganho)
+  return envelope
+}
+
+/**
+ * O envelope do trecho no relógio do áudio: desce até 0 em `descidaS`,
+ * terminando daqui a `restanteS` (em B); `subidaS` > 0 começa subindo do 0
+ * (a volta do loop). Trecho curto divide o tempo entre a subida e a descida.
+ */
+function programarEnvelope<N>(envelope: GanhoAoVivo<N>, ctx: ContextoAoVivo<N>, restanteS: number, descidaS: number, subidaS: number): void {
+  const { gain } = envelope
+  const agoraS = ctx.currentTime
+  const restante = Math.max(0, restanteS)
+  const subida = Math.min(subidaS, restante / 2)
+  const descida = Math.min(descidaS, restante / 2)
+  gain.cancelScheduledValues(agoraS)
+  if (subida > 0) {
+    gain.setValueAtTime(0, agoraS)
+    gain.linearRampToValueAtTime(1, agoraS + subida)
+  } else {
+    gain.setValueAtTime(1, agoraS)
+  }
+  if (!Number.isFinite(restante)) return
+  gain.setValueAtTime(1, agoraS + restante - descida)
+  gain.linearRampToValueAtTime(0, agoraS + restante)
 }
 
 /** Pelo nome, não por `instanceof Error`: `DOMException` herda de `Error` só nos navegadores mais novos. */
@@ -536,12 +665,13 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
   }
 
   /**
-   * De onde a voz começa. O loop soma o tempo desde o pedido (carregando ou
-   * esperando o gesto) e dá a volta pela duração (sem duração válida, começa
-   * do 0). O efeito curto começa no deslocamento pedido se ele ainda cabe;
-   * `null` = já teria acabado, ou não há o que tocar (duração 0 ou NaN). A
-   * duração infinita (arquivo sem duração no cabeçalho) toca: nenhum
-   * deslocamento fica depois do fim dela.
+   * De onde a voz começa, contado de A, em `duracaoS` = o tamanho do trecho
+   * (o arquivo inteiro, sem trecho). O loop soma o tempo desde o pedido
+   * (carregando ou esperando o gesto) e dá a volta pelo tamanho (sem tamanho
+   * válido, começa em A). O efeito curto começa no deslocamento pedido se ele
+   * ainda cabe; `null` = já teria acabado, ou não há o que tocar (tamanho 0
+   * ou NaN). O tamanho infinito (arquivo sem duração no cabeçalho) toca:
+   * nenhum deslocamento fica depois do fim dele.
    */
   function deslocamentoDeInicio(voz: Voz<N>, duracaoS: number): number | null {
     if (!voz.loop) return voz.deslocamentoS < duracaoS ? voz.deslocamentoS : null
@@ -557,9 +687,20 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
     return ganho
   }
 
+  /**
+   * O trecho decodificado: o loop repete de A a B pelo `loopStart`/`loopEnd`
+   * (exatos na amostra, encaixados no cruzamento por zero); o efeito curto
+   * que acaba antes do fim do arquivo toca só até B (`start` com duração) e
+   * desce o ganho em `FADE_AO_PARAR_MS` terminando lá.
+   */
   function iniciarDecodificado(voz: Voz<N>, saida: SaidaAoVivo<N>, buffer: BufferAoVivo): void {
-    const deslocamento = deslocamentoDeInicio(voz, buffer.duration)
-    if (deslocamento === null) {
+    const trecho = trechoNoArquivo(voz.inicioS, voz.fimS, buffer.duration)
+    const inteiro = ehOArquivoInteiro(trecho, buffer.duration)
+    // A barra mede o laço que soa: o do loop, encaixado no zero, difere de B - A em milissegundos.
+    const laco = voz.loop && !inteiro ? lacoDecodificado(buffer, trecho) : trecho
+    const tamanhoS = laco.fimS - laco.inicioS
+    const relativo = deslocamentoDeInicio(voz, tamanhoS)
+    if (relativo === null) {
       terminouSozinha(voz)
       return
     }
@@ -568,56 +709,119 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
     const fonte = ctx.createBufferSource()
     fonte.buffer = buffer
     fonte.loop = voz.loop
-    fonte.connect(ganho)
+    if (voz.loop && !inteiro) {
+      fonte.loopStart = laco.inicioS
+      fonte.loopEnd = laco.fimS
+    }
+    const deslocamento = laco.inicioS + relativo
+    const restanteS = laco.fimS - deslocamento
+    const paraEmB = !voz.loop && trecho.fimS < buffer.duration
+    const envelope = paraEmB ? ligarEnvelope(ctx, ganho) : null
+    if (envelope !== null) programarEnvelope(envelope, ctx, restanteS, FADE_AO_PARAR_MS / 1000, 0)
+    fonte.connect(envelope ?? ganho)
     const tocador: Tocador<N> = {
       ctx,
       ganho,
       encerrar: (fadeMs) => fonte.stop(levarGanho(voz, tocador, 0, fadeMs / 1000)),
     }
-    // Chega no fim natural e também depois do stop: o nó sai do grafo nos dois.
+    // Chega no fim natural (ou em B) e também depois do stop: o nó sai do grafo nos dois.
     fonte.addEventListener('ended', () => {
       ganho.disconnect()
+      if (envelope !== null) envelope.disconnect()
       if (viva(voz) && voz.tocador === tocador) terminouSozinha(voz)
     })
-    fonte.start(0, deslocamento)
+    if (paraEmB) fonte.start(0, deslocamento, restanteS)
+    else fonte.start(0, deslocamento)
     voz.tocador = tocador
-    marcarTocando(voz, buffer.duration, deslocamento)
+    marcarTocando(voz, tamanhoS, relativo)
   }
 
+  /**
+   * O arquivo grande, pelo `<audio>`. Com trecho, começa em A; com B (ou no
+   * loop que volta para um A que não é o 0), um relógio guia o fim: a descida
+   * do ganho vai no relógio do áudio, que não atrasa com a aba em segundo
+   * plano (em B já está mudo), e a pausa ou a volta para A, no do JS,
+   * conferindo o `currentTime`. O `loop` do `<audio>` voltaria ao 0 do arquivo.
+   */
   function iniciarPorElemento(voz: Voz<N>, saida: SaidaAoVivo<N>, url: string): void {
     const { ctx } = saida
     const elemento = criarElementoDeAudio()
-    elemento.loop = voz.loop
+    const guiado = voz.fimS !== undefined || (voz.loop && voz.inicioS > 0)
+    elemento.loop = voz.loop && !guiado
     const ganho = ligarGanho(voz, saida)
-    ctx.createMediaElementSource(elemento).connect(ganho)
+    const envelope = guiado ? ligarEnvelope(ctx, ganho) : null
+    ctx.createMediaElementSource(elemento).connect(envelope ?? ganho)
+    /** O trecho deste arquivo: a duração só existe depois dos metadados. */
+    let trecho: Trecho = { inicioS: voz.inicioS, fimS: Number.POSITIVE_INFINITY }
+    let relogio: ReturnType<typeof setTimeout> | null = null
+    const pararRelogio = (): void => {
+      if (relogio === null) return
+      clearTimeout(relogio)
+      relogio = null
+    }
     const soltarElemento = (): void => {
+      pararRelogio()
       elemento.pause()
       ganho.disconnect()
+      if (envelope !== null) envelope.disconnect()
     }
     const tocador: Tocador<N> = {
       ctx,
       ganho,
       encerrar: (fadeMs) => {
+        // Parando, não volta mais para A: a descida do Parar vale sozinha.
+        pararRelogio()
         levarGanho(voz, tocador, 0, fadeMs / 1000)
         if (fadeMs > 0) setTimeout(soltarElemento, fadeMs)
         else soltarElemento()
       },
     }
     const minha = (): boolean => viva(voz) && voz.tocador === tocador
+    /** Programa a descida até B daqui ao que falta; `subidaS` > 0 = acabou de voltar para A, e o ganho sobe do 0. */
+    const agendarB = (subidaS: number): void => {
+      pararRelogio()
+      if (envelope === null) return
+      const restanteS = trecho.fimS - elemento.currentTime
+      programarEnvelope(envelope, ctx, restanteS, voz.loop ? VOLTA_DO_TRECHO_S : FADE_AO_PARAR_MS / 1000, subidaS)
+      if (Number.isFinite(restanteS)) relogio = setTimeout(chegouEmB, Math.max(0, restanteS) * 1000)
+    }
+    const voltarParaA = (): void => {
+      elemento.currentTime = trecho.inicioS
+      agendarB(VOLTA_DO_TRECHO_S)
+    }
+    function chegouEmB(): void {
+      relogio = null
+      if (!minha()) return
+      // O `<audio>` atrás do relógio do JS (começou a soar depois do play): o ganho já está no 0, e sobe de novo até o B de verdade.
+      if (trecho.fimS - elemento.currentTime > FOLGA_DO_RELOGIO_S) {
+        agendarB(VOLTA_DO_TRECHO_S)
+        return
+      }
+      if (voz.loop) {
+        voltarParaA()
+        return
+      }
+      soltarElemento()
+      terminouSozinha(voz)
+    }
     // O deslocamento do loop precisa da duração, que só existe depois dos metadados.
     elemento.addEventListener('loadedmetadata', () => {
       if (!minha()) return
-      const deslocamento = deslocamentoDeInicio(voz, elemento.duration)
-      if (deslocamento === null) {
+      trecho = trechoNoArquivo(voz.inicioS, voz.fimS, elemento.duration)
+      const tamanhoS = trecho.fimS - trecho.inicioS
+      const relativo = deslocamentoDeInicio(voz, tamanhoS)
+      if (relativo === null) {
         terminouSozinha(voz)
         soltarElemento()
         return
       }
-      elemento.currentTime = deslocamento
+      elemento.currentTime = trecho.inicioS + relativo
       // Só soa quando o play() responde: avisar antes deixaria quem ouve achando que tocou.
       elemento.play().then(
         () => {
-          if (minha()) marcarTocando(voz, elemento.duration, deslocamento)
+          if (!minha()) return
+          agendarB(0)
+          marcarTocando(voz, tamanhoS, relativo)
         },
         (erro: unknown) => {
           if (!minha()) return
@@ -635,7 +839,19 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
       )
     })
     elemento.addEventListener('ended', () => {
+      if (guiado && voz.loop && minha()) {
+        // B no fim do arquivo (ou o relógio do JS atrasou): o `<audio>` parou sozinho, mudo pelo envelope; volta para A e toca de novo.
+        voltarParaA()
+        elemento.play().catch(() => {
+          if (!minha()) return
+          soltarElemento()
+          terminouSozinha(voz)
+        })
+        return
+      }
+      pararRelogio()
       ganho.disconnect()
+      if (envelope !== null) envelope.disconnect()
       if (minha()) terminouSozinha(voz)
     })
     elemento.addEventListener('error', () => {
@@ -752,10 +968,13 @@ export function criarMotorAoVivo<N>(deps: DependenciasDoMotor<N>): MotorAoVivo {
       if (anterior !== undefined) encerrarVoz(anterior, 0, 'parado')
       abrirVaga()
       const pedido = opcoes.deslocamentoS ?? 0
+      const { inicioS, fimS } = trechoConferido(fonte)
       const voz: Voz<N> = {
         instancia,
         id,
         loop: opcoes.loop,
+        inicioS,
+        fimS,
         deslocamentoS: Number.isFinite(pedido) && pedido > 0 ? pedido : 0,
         pedidoEmMs: agora(),
         volumeDoEfeito: volumeValido(opcoes.volumeDoEfeito),

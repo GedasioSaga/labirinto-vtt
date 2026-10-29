@@ -103,15 +103,23 @@ export function avisarFalhaDeSom(): void {
   avisarOuvintes()
 }
 
-/** A fonte como atravessa a rede; `null` = ref torta. YouTube: só o id do vídeo e o trecho (nunca link nem nome). */
+/** O trecho de A até B como vai na rede: só o que foi marcado (o som inteiro não leva campo nenhum, como antes). */
+function trechoNaRede(fonte: FonteDoSom): { inicioS?: number; fimS?: number } {
+  return { ...(fonte.inicioS === undefined ? {} : { inicioS: fonte.inicioS }), ...(fonte.fimS === undefined ? {} : { fimS: fonte.fimS }) }
+}
+
+/**
+ * A fonte como atravessa a rede; `null` = ref torta. YouTube: só o id do
+ * vídeo e o trecho (nunca link nem nome). Arquivo: o id do áudio e o trecho.
+ */
 export function fonteDeSomNaRede(fonte: FonteDoSom): FonteDeSomNaRede | null {
   if (fonte.tipo === 'youtube') {
     // Conferido de novo: o que sai daqui vira endereço de iframe em cada aparelho.
     if (!ehVideoDoYoutube(fonte.video)) return null
-    return { tipo: 'youtube', video: fonte.video, ...(fonte.inicioS === undefined ? {} : { inicioS: fonte.inicioS }), ...(fonte.fimS === undefined ? {} : { fimS: fonte.fimS }) }
+    return { tipo: 'youtube', video: fonte.video, ...trechoNaRede(fonte) }
   }
   const midia = idDaRefDeAudio(fonte.ref)
-  return midia === null ? null : { tipo: 'arquivo', midia }
+  return midia === null ? null : { tipo: 'arquivo', midia, ...trechoNaRede(fonte) }
 }
 
 export interface ResultadoDaPonte {

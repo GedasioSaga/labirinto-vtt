@@ -996,3 +996,82 @@ describe('entradas tortas e o motor do navegador', () => {
     }
   })
 })
+
+describe('trecho de A até B', () => {
+  it("efeito curto decodificado toca de A até B: start com a duração do trecho, descida terminando em B e 'tocando' contado de A", async () => {
+    const m = montar()
+    m.motor.tocar('porta', { ...m.arquivo(1, DEZ_SEGUNDOS), inicioS: 2, fimS: 5 }, { ...curto, deslocamentoS: 1 })
+    await assentar()
+    const fonte = item(m.fontesDoMotor(), 0)
+    // A + 1 s = 3 s do arquivo, e dali até B: 2 s.
+    expect(fonte.start).toHaveBeenCalledWith(0, 3, 2)
+    expect(item(m.doTipo('tocando'), 0)).toMatchObject({ instancia: 'porta', loop: false, duracaoS: 3, deslocamentoS: 1 })
+    // fonte -> envelope do trecho -> ganho do volume: o volume não apaga a descida em B.
+    const envelope = m.ganhoDe(fonte)
+    expect(m.ganhoDe(envelope).destino).toBe(m.contexto.obterEntradaAoVivo())
+    const agoraS = m.audio.ctx.currentTime
+    expect(envelope.gain.setValueAtTime).toHaveBeenLastCalledWith(1, expect.closeTo(agoraS + 2 - FADE_AO_PARAR_MS / 1000, 9))
+    expect(envelope.gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, expect.closeTo(agoraS + 2, 9))
+    fonte.terminar()
+    expect(item(m.doTipo('terminou'), 0)).toMatchObject({ instancia: 'porta', motivo: 'fim' })
+  })
+
+  it('loop decodificado repete de A até B pelo loopStart/loopEnd; quem chega depois dá a volta pelo tamanho do trecho', async () => {
+    const m = montar()
+    m.motor.tocar('vento', { ...m.arquivo(1, DEZ_SEGUNDOS), inicioS: 2, fimS: 6 }, { ...emLoop, deslocamentoS: 5 })
+    await assentar()
+    const fonte = item(m.fontesDoMotor(), 0)
+    expect(fonte).toMatchObject({ loop: true, loopStart: 2, loopEnd: 6 })
+    // 5 s dão a volta nos 4 s do trecho: 1 s depois de A.
+    expect(fonte.start.mock.calls[0]).toEqual([0, 3])
+    expect(item(m.doTipo('tocando'), 0)).toMatchObject({ instancia: 'vento', loop: true, duracaoS: 4, deslocamentoS: 1 })
+    // A volta é do Web Audio, exata na amostra: sem envelope no caminho.
+    expect(m.ganhoDe(fonte).destino).toBe(m.contexto.obterEntradaAoVivo())
+  })
+
+  it("pelo <audio>, o efeito curto começa em A e, em B, já mudo pela descida, pausa e termina com 'fim'", async () => {
+    const m = montar()
+    m.motor.tocar('discurso', { ...m.arquivo(9, 2 * MB), inicioS: 10, fimS: 40 }, curto)
+    await assentar()
+    const elemento = item(m.elementos, 0)
+    expect(elemento.loop).toBe(false)
+    elemento.disparar('loadedmetadata')
+    expect(elemento.currentTime).toBe(10)
+    await assentar()
+    expect(item(m.doTipo('tocando'), 0)).toMatchObject({ instancia: 'discurso', duracaoS: 30, deslocamentoS: 0 })
+    // A descida vai no relógio do áudio, terminando em B: 30 s depois de A.
+    const envelope = m.ganhoDe(item(m.audio.elementosLigados, 0).no)
+    expect(envelope.gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, expect.closeTo(m.audio.ctx.currentTime + 30, 9))
+    expect(elemento.pause).not.toHaveBeenCalled()
+
+    elemento.currentTime = 40
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(elemento.pause).toHaveBeenCalled()
+    expect(item(m.doTipo('terminou'), 0)).toMatchObject({ instancia: 'discurso', motivo: 'fim' })
+  })
+
+  it('pelo <audio>, o loop do trecho volta de B para A com o ganho no zero e subindo de novo (a volta não estala)', async () => {
+    const m = montar()
+    m.motor.tocar('chuva', { ...m.arquivo(9, 2 * MB), inicioS: 10, fimS: 40 }, emLoop)
+    await assentar()
+    const elemento = item(m.elementos, 0)
+    // O loop do <audio> voltaria ao 0 do arquivo: quem volta para A é o relógio.
+    expect(elemento.loop).toBe(false)
+    elemento.disparar('loadedmetadata')
+    await assentar()
+    const envelope = m.ganhoDe(item(m.audio.elementosLigados, 0).no)
+    const agoraS = m.audio.ctx.currentTime
+    expect(envelope.gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, expect.closeTo(agoraS + 30, 9))
+    expect(envelope.gain.setValueAtTime).not.toHaveBeenCalledWith(0, agoraS)
+
+    elemento.currentTime = 40
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(elemento.currentTime).toBe(10)
+    // Voltou com o ganho no 0, sobe, e a próxima descida já está marcada para o B seguinte.
+    expect(envelope.gain.setValueAtTime).toHaveBeenCalledWith(0, agoraS)
+    expect(envelope.gain.linearRampToValueAtTime).toHaveBeenCalledWith(1, expect.closeTo(agoraS + 0.025, 9))
+    expect(envelope.gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, expect.closeTo(agoraS + 30, 9))
+    expect(elemento.pause).not.toHaveBeenCalled()
+    expect(m.doTipo('terminou')).toEqual([])
+  })
+})
