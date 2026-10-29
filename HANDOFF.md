@@ -554,7 +554,8 @@ Três frentes do usuário: (1) a 0.5.11 com a aba Sons nova e os consertos da te
 ### Próximos passos
 1. FEITO: 0.5.11 publicada (latest.json 0.5.11). FEITO: as 52 músicas do bot entraram no sons.json da Tasmaturi Village (com o app fechado; backup em scratchpad/backup-sons/; conferido por bibliotecaDoTexto: 54 sons, 52 músicas). Em voo: biblioteca global (programador-frontend, sem o passo de importar do bot) e a F1a do Desenhado.
 2. **Mudou (29/10, literal "As musicas são para serem global..."; escolha "Tudo global"):** a biblioteca de sons vira UMA só, com Músicas e Efeitos sonoros, valendo em todas as aventuras; os 2 sons da Tasmaturi Village passam para ela; as 52 músicas do bot entram nela uma vez. É código novo (lib/sons/bibliotecaNoDisco.ts, a loja, a aba e o lado Rust que lê e grava o sons.json, onde mora a mídia importada), para a 0.5.12; o import das 52 vem junto (um botão ou uma migração única a partir de `favoritos.json`).
-3. Retomar a F1a do Desenhado (o mesmo agente, com "pode seguir"; não há stash para tirar) e seguir F1b, F2, F3, F4 do PLANO.
+3. F1a do Desenhado FEITA (`3468c2e1` a `786df3aa`). F1b (o chão) em voo, SEM commitar até a 0.5.12 sair.
+4. **0.5.12 AUTORIZADA** (literal: "Quando todas as parte relacionadas a o Sons terminar, já gera o 0.5.12 para mim"): quando o agente dos sons acabar (biblioteca global, botões de repetir e parar, volume só do mestre), mandar a F1b "guarde agora" (stash só dos caminhos dela), conferir `git status` (só os 3 sujos), tsc, notas, subir os 5 arquivos para 0.5.12, commit, gitleaks, push, `publicar-versao.cjs --publicar`, conferir latest.json; depois "pode seguir" para a F1b.
 
 ### Critério de pronto
 - 0.5.11: `releases/latest/download/latest.json` responde 0.5.11 e a release tem setup, msi, `.sig` e `latest.json`.
