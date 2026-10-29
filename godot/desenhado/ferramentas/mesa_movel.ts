@@ -459,6 +459,12 @@ function principal(): void {
     { tipo: 'armario', x: 5.2, y: 3.4, casas: [1, 0.5], giro: 0, opcoes: ['pinho', 'latao'], vista: 'frente' },
     { tipo: 'bau', x: 5.0, y: 8.6, casas: [1, 0.6], giro: 0, opcoes: ['nogueira', 'ferro'], vista: 'frente' },
     { tipo: 'mesaRedonda', x: 7.9, y: 8.7, casas: [1.25, 1.25], giro: 0, opcoes: ['cerejeira'], vista: 'frente' },
+    // Lote 11: a cama, o balcão de taverna e o aparador esticados, o quadro e a placa da vila.
+    { tipo: 'catre', x: 10.8, y: 5.2, casas: [1, 2], giro: 0, opcoes: ['carvalho', 'vinho', 'linho'], vista: 'frente' },
+    { tipo: 'balcao', x: 7.2, y: 1.7, casas: [4, 0.6], giro: 0, opcoes: ['carvalho', 'latao'], vista: 'frente' },
+    { tipo: 'aparador', x: 3.0, y: 7.3, casas: [3, 0.5], giro: 0, opcoes: ['pinho', 'ferro'], vista: 'frente' },
+    { tipo: 'quadroDeAvisos', x: 4.75, y: 4.75, casas: [1, 0.4], giro: 0, opcoes: ['nogueira'], vista: 'frente' },
+    { tipo: 'placaDeSeta', x: 3.6, y: 6.3, casas: [0.5, 0.5], giro: 30, opcoes: ['pinho'], vista: 'frente' },
   ]
   const carimbos: Carimbo[] = [
     { id: 'arvore', x: 2.3, y: 3.6, escolha: 1, giro: 0 }, { id: 'arvore', x: 10.2, y: 3.0, escolha: 1.1, giro: 90 },
