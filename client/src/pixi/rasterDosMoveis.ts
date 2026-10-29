@@ -10,6 +10,11 @@ import { escalaDoNivel, GRADE_DE_REFERENCIA, montarCena, temTextura, type Desenh
 import { pintaOGiroNaTresQuartos } from '../texturas/meioTermo/moveis/tresQuartos'
 import { G } from '../texturas/meioTermo/moveis/contexto'
 import { BYTES_DE_TRABALHO_POR_PIXEL, limitesDaCena, pintarCenaEmPassos, type Cena, type LimitesDaImagem } from '../texturas/meioTermo/moveis/motor'
+import { desenhadoLigado } from '../lib/estiloDoMapa'
+import { ehMovelComFogoDeCasa } from '../lib/mobilia/fogoDeCasa'
+import { CASA_DO_FOGO_PX, tamanhoDoFogo } from '../lib/mobilia/fogo'
+import { assinarMoveisDesenhados, BYTES_DE_TRABALHO_DO_DESENHADO, pedirMovelDesenhado, pintarMovelDesenhado, raioDoHaloDoLampiao, tomDoLugar, type HaloDoMovel } from '../texturas/desenhado/moveis'
+import { planejarMovel, type MovelCarregado, type Pedido } from '../texturas/desenhado/movel'
 
 /**
  * IMAGEM PRONTA DOS MÓVEIS do Meio-Termo (plano
@@ -245,6 +250,73 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
   return { ...parcial, vistaDoMapa: 'tres-quartos', desenho: tresQuartos, nivel }
 }
 
+// ---------- DESENHADO (plano de 29/10/2026, F3; CONTRATO.md 10.8) ----------
+
+/**
+ * A chave do móvel no Desenhado: o móvel carregado do pacote e o pedido da conta
+ * (`texturas/desenhado/movel.ts`). O texto começa com `D|` e leva o quarto de volta
+ * pintado (`q<k>`; a tela gira só o resto): nunca bate com a chave do Atual.
+ */
+export interface ChaveDesenhada {
+  readonly texto: string
+  readonly movel: MovelCarregado
+  readonly pedido: Pedido
+  readonly nivel: number
+  readonly halo: HaloDoMovel
+}
+
+/** A forma do objeto que escolhe a variante (`quando.forma`): a do painel, o tapete redondo, o tamanho do fogo. */
+function formaDoPedido(prop: MovelParaImagem, tipo: string): string | undefined {
+  if (tipo === 'tapete') return formaDoTapete(prop)
+  if (tipo === 'fogo') return tamanhoDoFogo(prop.width, prop.height, CASA_DO_FOGO_PX) ?? undefined
+  return prop.mobiliaForma
+}
+
+/** O texto da chave desenhada sem o nível. */
+function textoDesenhado(prop: MovelParaImagem, pedido: Pedido, chaveDaCurva: string, giro: string): string {
+  const partes = ['D', prop.mobilia, pedido.vista, pedido.opcoes.join(','), pedido.forma ?? '', pedido.variacao ?? '', chaveDaCurva, passosNaChave(pedido.casasW), passosNaChave(pedido.casasH), giro]
+  return partes.join('|')
+}
+
+/**
+ * A chave Desenhada do móvel, ou `'esperando'` (as imagens do tipo ainda chegam: sai o
+ * Atual e o dono repinta no aviso), ou `null` (o tipo não tem desenho, a vista é a 3/4, ou
+ * o mapa não é Desenhado: fica o Atual, sem aviso).
+ */
+export function chaveDesenhada(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ChaveDesenhada | 'esperando' | null {
+  const tipo = prop.mobilia
+  if (vista === 'tres-quartos' || !desenhadoLigado() || !temTextura(tipo)) return null
+  const lado = vistaDoMovel(prop)
+  const movel = pedirMovelDesenhado(tipo, lado)
+  if (movel === null || movel === 'esperando') return movel
+  const opcoes = materiaisDoMovel(prop, tipo)
+  const lugares = LUGARES_DE_MATERIAL[tipo].map((l) => l.id)
+  // O pacote e o app têm de concordar nos lugares (a mesa de prova confere; aqui não confia).
+  if (lugares.join(',') !== movel.p.lugares.join(',')) return null
+  const giroDoObjeto = Number.isFinite(prop.rotation) ? (prop.rotation ?? 0) : 0
+  const quartos = (((Math.round(giroDoObjeto / 90) % 4) + 4) % 4)
+  const forma = formaDoPedido(prop, tipo)
+  const base = {
+    vista: lado,
+    opcoes,
+    tons: opcoes.map((_o, i) => tomDoLugar(opcoes, i, lugares)),
+    casasW: casasDe(prop.width),
+    casasH: casasDe(prop.height),
+    giro: quartos * 90,
+    ...(forma !== undefined ? { forma } : {}),
+    ...(tipo === 'lapide' ? { variacao: varianteDaLapide(prop.id) } : {}),
+  }
+  const pedido: Pedido = base
+  const halo = tipo === 'lampiao' ? 'lampiao' : ehMovelComFogoDeCasa(tipo) && prop.mobiliaForma !== 'apagado' ? tipo : null
+  const nivel = nivelDeResolucao(cameraScale, rendererResolution)
+  return { texto: textoDesenhado(prop, pedido, 'r', `q${quartos}`), movel, pedido, nivel, halo }
+}
+
+/** O texto inteiro da chave desenhada (com o nível): o que o cache guarda. */
+function textoDaChaveDesenhada(cd: Pick<ChaveDesenhada, 'texto' | 'nivel'>): string {
+  return `${cd.texto}|${cd.nivel}`
+}
+
 /** O teto de bytes do aparelho: menor com dedo (celular, tablet). */
 export function tetoDeBytesDoAparelho(): number {
   const toque = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
@@ -272,6 +344,14 @@ export interface ImagemDoMovel {
   readonly casasH: number
   readonly nivel: number
   readonly pronta: boolean
+  /**
+   * O giro que a imagem já traz pintado, em graus: a tela gira só `rotation - giroPintado`.
+   * O Atual: 0 (a placa de seta e a 3/4, o quarto de volta). O Desenhado: o quarto de volta
+   * de todo móvel (CONTRATO 10.8, item 1); a cerca por peças, o giro inteiro.
+   */
+  readonly giroPintado: number
+  /** O quarto de volta pintado é ímpar: o x da imagem corre na altura do objeto. */
+  readonly trocaEixos: boolean
 }
 
 /**
@@ -279,8 +359,8 @@ export interface ImagemDoMovel {
  * do centro do objeto: a pegada desenhada esticada até o tamanho dele.
  */
 export function retanguloNoMundo(imagem: ImagemDoMovel, largura: number, altura: number, parte: LimitesDaImagem = imagem.limites): { x: number; y: number; w: number; h: number } {
-  const kx = largura / (imagem.casasW * G)
-  const ky = altura / (imagem.casasH * G)
+  const kx = imagem.trocaEixos ? altura / (imagem.casasH * G) : largura / (imagem.casasW * G)
+  const ky = imagem.trocaEixos ? largura / (imagem.casasW * G) : altura / (imagem.casasH * G)
   const { x0, y0, W, H } = parte
   return { x: x0 * kx, y: y0 * ky, w: (W / imagem.S) * kx, h: (H / imagem.S) * ky }
 }
@@ -435,6 +515,10 @@ export class RasterDosMoveis {
   /** A entrada de cada imagem devolvida (a imagem É a entrada, vista só pelo lado público). */
   private readonly entradas = new WeakMap<ImagemDoMovel, Entrada>()
   private aberta: PassadaAberta | null = null
+  /** DESENHADO: os donos que pintaram o Atual enquanto as imagens de um tipo chegavam. */
+  private readonly esperandoODesenhado = new Map<object, () => void>()
+  /** DESENHADO: as chaves cuja conta não tem a forma (ou não cabe): ficam no Atual sem tentar de novo. */
+  private readonly semPlano = new Set<string>()
   private bombaAgendada = false
   private readonly tetoDeBytes: number
   private readonly agendar: (fatia: () => void) => void
@@ -446,6 +530,8 @@ export class RasterDosMoveis {
     this.agendar = opcoes.agendar ?? ((fatia) => setTimeout(fatia, 0))
     this.agora = opcoes.agora ?? (() => performance.now())
     this.fatiaMs = opcoes.fatiaMs ?? FATIA_DO_LADRILHO_MS
+    // O raster vive a sessão inteira (um por janela): a assinatura não precisa sair.
+    assinarMoveisDesenhados(() => this.repintarQuemEsperava())
   }
 
   get bytes(): number {
@@ -491,6 +577,7 @@ export class RasterDosMoveis {
   /** O dono sumiu (o `Graphics` foi destruído): o que ele pedia e colava deixa de contar. */
   soltarDono(dono: object): void {
     if (this.aberta?.dono === dono) this.aberta = null
+    this.esperandoODesenhado.delete(dono)
     const antes = this.donos.get(dono)
     if (antes === undefined) return
     this.donos.delete(dono)
@@ -524,6 +611,12 @@ export class RasterDosMoveis {
    * desenho de linhas); senão nenhuma.
    */
   imagemParaDesenhar(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ImagemParaDesenhar | null {
+    const desenhada = chaveDesenhada(prop, cameraScale, rendererResolution, vista)
+    if (desenhada === 'esperando' && this.aberta !== null) this.esperandoODesenhado.set(this.aberta.dono, this.aberta.repintar)
+    if (desenhada !== null && desenhada !== 'esperando') {
+      const pronta = this.imagemDesenhada(desenhada, prop, cameraScale, rendererResolution, vista)
+      if (pronta !== null) return pronta
+    }
     const chave = chaveDoMovel(prop, cameraScale, rendererResolution, vista)
     if (chave === null) return null
     const pedida = this.pedir(chave)
@@ -536,6 +629,101 @@ export class RasterDosMoveis {
       }
     }
     return { pedida, mostrar: null }
+  }
+
+  /**
+   * DESENHADO: a imagem pedida e a que dá para colar já: ela, a pronta de outro nível,
+   * ou a do Atual do mesmo móvel (já guardada) enquanto a Desenhada pinta. `null` = a
+   * conta não tem a forma pedida: fica o Atual.
+   */
+  private imagemDesenhada(cd: ChaveDesenhada, prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ImagemParaDesenhar | null {
+    const texto = textoDaChaveDesenhada(cd)
+    if (this.semPlano.has(texto)) return null
+    const pedida = this.cache.get(texto) ?? this.comecarDesenhado(texto, cd)
+    if (pedida === null) return null
+    this.tocar(pedida)
+    if (this.aberta !== null) this.aberta.pedidas.add(pedida)
+    else pedida.avulsa = true
+    if (pedida.pronta) return { pedida, mostrar: pedida }
+    for (const nivel of niveisVizinhos(cd.nivel)) {
+      const vizinha = this.cache.get(textoDaChaveDesenhada({ texto: cd.texto, nivel }))
+      if (vizinha !== undefined && vizinha.pronta) {
+        this.tocar(vizinha)
+        return { pedida, mostrar: vizinha }
+      }
+    }
+    const atual = chaveDoMovel(prop, cameraScale, rendererResolution, vista)
+    if (atual !== null) {
+      for (const nivel of [atual.nivel, ...niveisVizinhos(atual.nivel)]) {
+        const doAtual = this.cache.get(textoDaChave({ ...atual, nivel }))
+        if (doAtual !== undefined && doAtual.pronta) {
+          this.tocar(doAtual)
+          return { pedida, mostrar: doAtual }
+        }
+      }
+    }
+    return { pedida, mostrar: null }
+  }
+
+  /**
+   * A imagem Desenhada nova, transparente, na fila. A escala é a do nível (o nível 1 = 50
+   * px por casa, um pixel por px de mundo), menor se a camada passaria do lado máximo.
+   */
+  private comecarDesenhado(texto: string, cd: ChaveDesenhada): Entrada | null {
+    const S0 = escalaDoNivel(cd.nivel)
+    const pxDoNivel = S0 * G
+    const raioDoHalo = cd.halo === 'lampiao' ? raioDoHaloDoLampiao(cd.pedido.casasW, cd.pedido.casasH, pxDoNivel) + 1 : 0
+    let plano = planejarMovel(cd.movel, cd.pedido, pxDoNivel, raioDoHalo)
+    if (plano !== null && Math.max(plano.W, plano.H) > LADO_MAXIMO_DA_IMAGEM) {
+      const px = (pxDoNivel * (LADO_MAXIMO_DA_IMAGEM - 8)) / Math.max(plano.W, plano.H)
+      plano = planejarMovel(cd.movel, cd.pedido, px, cd.halo === 'lampiao' ? raioDoHaloDoLampiao(cd.pedido.casasW, cd.pedido.casasH, px) + 1 : 0)
+    }
+    if (plano === null || Math.max(plano.W, plano.H) > LADO_MAXIMO_DA_IMAGEM) {
+      this.semPlano.add(texto)
+      return null
+    }
+    const S = plano.pxPorCasa / G
+    const pixels = new Uint8ClampedArray(plano.W * plano.H * BYTES_POR_PIXEL)
+    const source = new BufferImageSource({ resource: pixels, width: plano.W, height: plano.H, format: 'rgba8unorm', alphaMode: 'premultiplied-alpha', scaleMode: 'linear' })
+    const textura = new Texture({ source })
+    const limites: LimitesDaImagem = { x0: -plano.cx / S, y0: -plano.cy / S, W: plano.W, H: plano.H }
+    const entrada: Entrada = {
+      chave: texto,
+      textura,
+      ladrilhos: [{ textura, limites }],
+      limites,
+      S,
+      casasW: cd.pedido.casasW,
+      casasH: cd.pedido.casasH,
+      nivel: cd.nivel,
+      giroPintado: plano.giroPintado,
+      trocaEixos: plano.cerca === undefined && (plano.giroPintado / 90) % 2 === 1,
+      bytes: pixels.byteLength * COPIAS_DA_IMAGEM,
+      bytesDeTrabalho: plano.W * plano.H * BYTES_DE_TRABALHO_DO_DESENHADO,
+      passos: pintarMovelDesenhado(plano, cd.halo, pixels),
+      pronta: false,
+      emPintura: false,
+      retirada: false,
+      destruida: false,
+      pedidos: 0,
+      colagens: 0,
+      avulsa: false,
+    }
+    this.geradas += 1
+    this.entradas.set(entrada, entrada)
+    this.cache.set(texto, entrada)
+    this.bytesNoCache += entrada.bytes
+    this.podar(entrada)
+    this.fila.push(entrada)
+    this.agendarBomba()
+    return entrada
+  }
+
+  /** As imagens de um tipo Desenhado chegaram: quem pintou o Atual esperando por elas repinta. */
+  private repintarQuemEsperava(): void {
+    const repinturas = [...this.esperandoODesenhado.values()]
+    this.esperandoODesenhado.clear()
+    for (const repintar of repinturas) repintar()
   }
 
   /** O dono da passada aberta colou esta imagem: ela não é destruída enquanto ele a colar. */
@@ -579,6 +767,8 @@ export class RasterDosMoveis {
       casasW: chave.desenho.casasW,
       casasH: chave.desenho.casasH,
       nivel: chave.nivel,
+      giroPintado: chave.desenho.giro ?? 0,
+      trocaEixos: false,
       bytes: pedacos.reduce((soma, p) => soma + p.pixels.byteLength, 0) * COPIAS_DA_IMAGEM,
       // Um ladrilho por vez: o buffer de trabalho é o do maior.
       bytesDeTrabalho: Math.max(...pedacos.map((p) => p.limites.W * p.limites.H)) * BYTES_DE_TRABALHO_POR_PIXEL,

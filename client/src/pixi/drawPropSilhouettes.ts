@@ -481,8 +481,10 @@ function drawTexturedFurniture(
     return true
   }
   raster.marcarColada(mostrar)
-  // A placa de seta (e, na 3/4, todo móvel derivado) traz o quarto de volta pintado (a sombra e a luz não giram): aqui só gira o resto.
-  const trig = rotationTrig((prop.rotation ?? 0) - modulo.giroDaImagem(prop, vista))
+  // A placa de seta (e, na 3/4, todo móvel derivado; no Desenhado, todo móvel) traz o quarto de
+  // volta pintado (a sombra e a luz não giram): aqui só gira o resto. O giro é o da imagem colada
+  // (a do Atual pode estar no lugar da Desenhada enquanto ela pinta).
+  const trig = rotationTrig((prop.rotation ?? 0) - mostrar.giroPintado)
   graphics.save().setFillStyle({ color: IMAGE_TINT, alpha: IMAGE_ALPHA }).setTransform(trig.cos, trig.sin, -trig.sin, trig.cos, prop.x, prop.y)
   // A cerca longa vem em ladrilhos (cada um com a sua textura, lado a lado); o resto, numa imagem só.
   for (const ladrilho of mostrar.ladrilhos) {
