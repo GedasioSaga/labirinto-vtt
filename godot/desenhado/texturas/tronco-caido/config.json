@@ -1,0 +1,26 @@
+{
+  "id": "tronco-caido",
+  "nome": "Tronco caído",
+  "idDoApp": "tronco-caido",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 8,
+  "semente": 61,
+  "tamanhoDoApp": 10,
+  "variacoes": 4,
+  "espelho": "nenhum",
+  "sprite": {
+    "ladoPx": 336,
+    "unidadePx": 200,
+    "ancoraPx": [
+      173.2,
+      209.8
+    ]
+  },
+  "sombra": {
+    "jeito": "deslocada",
+    "deslocamento": 0.09,
+    "borrao": 0.03
+  }
+}

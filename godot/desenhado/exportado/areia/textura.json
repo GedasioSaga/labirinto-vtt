@@ -1,0 +1,87 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#dac594",
+  "detalhes": {
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 1,
+    "colunas": 4,
+    "densidade": 0.22,
+    "escalaMax": 1.2,
+    "escalaMin": 0.9,
+    "gradeDoMundoPx": 32,
+    "ladoPx": 512,
+    "linhas": 4,
+    "pesos": [
+      0.18,
+      0.18,
+      0.14,
+      0.14,
+      0.12,
+      0.1,
+      0.12,
+      0.08,
+      0.07,
+      0.14,
+      2.4,
+      2.4,
+      2.2,
+      2.0,
+      2.0,
+      0.1
+    ],
+    "pxPorCasa": 128,
+    "quantos": 16,
+    "semente": 6032,
+    "variacaoDeTom": 0.04
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.54882803268265,
+      "miolo": 1.50043393834494,
+      "razao": 1.03225339890078
+    },
+    "base-2.png": {
+      "borda": 1.57942698919214,
+      "miolo": 1.53982195683056,
+      "razao": 1.02572052709464
+    },
+    "base-3.png": {
+      "borda": 1.56054678198416,
+      "miolo": 1.50488272280199,
+      "razao": 1.03698896820247
+    }
+  },
+  "id": "areia",
+  "idDoApp": "areia",
+  "lote": 2,
+  "memoria": {
+    "discoBytes": 839940,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.13,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 5970
+  },
+  "nome": "Areia",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.06,
+    "escala": 4.0,
+    "semente": 5996
+  }
+}

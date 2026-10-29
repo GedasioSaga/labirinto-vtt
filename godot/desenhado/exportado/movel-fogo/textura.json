@@ -1,0 +1,199 @@
+{
+  "canais": {
+    "cor": "só com corFixa: RGB = a cor própria (louça, comida, água, vidro, chama), já pintada; A = a cobertura",
+    "partes": "R, G, B = o peso do lugar 1, 2 e 3 (a ordem de \"lugares\"); 1 - R - G - B = a cor fixa (imagem -cor) ou, sem ela, o lugar 1; A = a cobertura",
+    "valor": "R = G = B: o valor 0..1 (0,5 = o tom do material do lugar); A = a cobertura; alfa reto"
+  },
+  "contrato": 1,
+  "formas": [
+    {
+      "alturaPx": 256,
+      "casas": [
+        2.0,
+        2.0
+      ],
+      "cobertura": 0.476,
+      "cor": "frente-fogareu-0-cor.png",
+      "larguraPx": 256,
+      "nome": "frente-fogareu-0",
+      "partes": "frente-fogareu-0-partes.png",
+      "valor": "frente-fogareu-0.png",
+      "valorMedioPorLugar": [
+        null
+      ],
+      "variante": "fogareu",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 288,
+      "casas": [
+        3.0,
+        2.25
+      ],
+      "cobertura": 0.462,
+      "cor": "frente-incendio-0-cor.png",
+      "larguraPx": 384,
+      "nome": "frente-incendio-0",
+      "partes": "frente-incendio-0-partes.png",
+      "valor": "frente-incendio-0.png",
+      "valorMedioPorLugar": [
+        null
+      ],
+      "variante": "incendio",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 128,
+      "casas": [
+        1.0,
+        1.0
+      ],
+      "cobertura": 0.457,
+      "cor": "frente-chama-0-cor.png",
+      "larguraPx": 128,
+      "nome": "frente-chama-0",
+      "partes": "frente-chama-0-partes.png",
+      "valor": "frente-chama-0.png",
+      "valorMedioPorLugar": [
+        null
+      ],
+      "variante": "chama",
+      "virada": 0,
+      "vista": "frente"
+    }
+  ],
+  "id": "movel-fogo",
+  "idDoApp": "fogo",
+  "lote": 15,
+  "lugares": [],
+  "margemCasas": 0.0,
+  "memoria": {
+    "discoBytes": 114716,
+    "memoriaBytes": 3080190,
+    "tetoDiscoBytes": 524288,
+    "tetoMemoriaBytes": 3145728,
+    "tetoMemoriaDos31Bytes": 25165824
+  },
+  "nome": "Fogo",
+  "onda": 4,
+  "pxPorCasa": 128,
+  "semente": 67,
+  "sombra": {
+    "alfa": 0.25,
+    "borraoCasas": 0.0,
+    "conta": "a silhueta (o alfa do móvel já virado e esticado) andada deslocamentoCasas na direção (7, 11) normalizada, desfocada borraoCasas (desvio), pintada com a cor e o alfa, por baixo do móvel",
+    "cor": "#0a1c28",
+    "deslocamentoCasas": 0.0,
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "nenhuma"
+  },
+  "tingir": {
+    "amareloNaLuz": 0.12,
+    "claro": [
+      [
+        0.5,
+        0.0
+      ],
+      [
+        0.62,
+        0.12
+      ],
+      [
+        0.76,
+        0.26
+      ],
+      [
+        1.0,
+        0.45
+      ]
+    ],
+    "claroDesde": 0.94,
+    "conta": "valor-oklab",
+    "cromaNaLuz": 0.2,
+    "cromaNaSombra": 0.25,
+    "escuro": [
+      [
+        0.0,
+        0.42
+      ],
+      [
+        0.1,
+        0.5
+      ],
+      [
+        0.24,
+        0.64
+      ],
+      [
+        0.36,
+        0.78
+      ],
+      [
+        0.5,
+        1.0
+      ]
+    ],
+    "escuroAte": 0.1
+  },
+  "tipo": "movel",
+  "variantes": [
+    {
+      "nome": "fogareu",
+      "quando": {
+        "forma": "fogareu"
+      },
+      "vistas": {
+        "frente": {
+          "casas": [
+            2.0,
+            2.0
+          ],
+          "desenhadas": [
+            0
+          ],
+          "viradas": 1
+        }
+      }
+    },
+    {
+      "nome": "incendio",
+      "quando": {
+        "forma": "incendio"
+      },
+      "vistas": {
+        "frente": {
+          "casas": [
+            3.0,
+            2.25
+          ],
+          "desenhadas": [
+            0
+          ],
+          "viradas": 1
+        }
+      }
+    },
+    {
+      "nome": "chama",
+      "quando": {}
+    }
+  ],
+  "viradas": "k = round(giro / 90) mod 4. viradas 1 (o desenho é simétrico de lado a lado e de cima a baixo): k par = a forma 0, k ímpar = a 0 transposta. viradas 2 (simétrico de lado a lado): k 0 = a 0, k 2 = a 2, k 1 = a 2 transposta, k 3 = a 0 transposta. viradas 4: a forma k, nunca transposta. A tela gira só o resto (giro - 90 k, de -45 a 45 graus). Transposta = (x, y) -> (y, x) nos px da imagem: a LUZ está na diagonal e não muda.",
+  "vistas": {
+    "frente": {
+      "casas": [
+        1.0,
+        1.0
+      ],
+      "desenhadas": [
+        0
+      ],
+      "viradas": 1
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "movel-fogo",
+  "nome": "Fogo",
+  "idDoApp": "fogo",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 15,
+  "semente": 67,
+  "margemCasas": 0,
+  "lugares": [],
+  "corFixa": true,
+  "variantes": [
+    { "nome": "fogareu", "quando": { "forma": "fogareu" }, "vistas": { "frente": { "casas": [2, 2] } } },
+    { "nome": "incendio", "quando": { "forma": "incendio" }, "vistas": { "frente": { "casas": [3, 2.25] } } },
+    { "nome": "chama" }
+  ],
+  "vistas": {
+    "frente": { "casas": [1, 1], "viradas": 1 }
+  },
+  "sombra": { "jeito": "nenhuma", "deslocamentoCasas": 0, "borraoCasas": 0 }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "movel-lampiao",
+  "nome": "Lampião",
+  "idDoApp": "lampiao",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 13,
+  "semente": 83,
+  "margemCasas": 0.0625,
+  "lugares": ["metal"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [0.5, 0.5], "viradas": 1 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.24, "borraoCasas": 0.03 }
+}

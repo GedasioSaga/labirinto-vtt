@@ -1,0 +1,20 @@
+{
+  "id": "movel-fornalha",
+  "nome": "Fornalha de ferreiro",
+  "idDoApp": "fornalha",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 15,
+  "semente": 69,
+  "margemCasas": 0.0625,
+  "lugares": ["pedra", "madeira"],
+  "corFixa": true,
+  "variantes": [
+    { "nome": "apagado", "quando": { "forma": "apagado" } },
+    { "nome": "aceso" }
+  ],
+  "vistas": {
+    "frente": { "casas": [1.5, 1.5], "viradas": 2 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.22, "borraoCasas": 0.03 }
+}

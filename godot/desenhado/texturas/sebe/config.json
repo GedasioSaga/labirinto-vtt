@@ -1,0 +1,22 @@
+{
+  "id": "sebe",
+  "nome": "Sebe",
+  "idDoApp": "sebe",
+  "tipo": "trecho",
+  "onda": 3,
+  "lote": 7,
+  "semente": 61,
+  "curva": true,
+  "casas": [2, 0.5],
+  "trecho": {
+    "comprimentoPx": 256,
+    "meiaLarguraPx": 16,
+    "pontaPx": 15
+  },
+  "luz": { "forca": 1.0 },
+  "sombra": {
+    "jeito": "deslocada",
+    "deslocamento": 0.22,
+    "borrao": 0.07
+  }
+}

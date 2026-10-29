@@ -1,0 +1,28 @@
+{
+  "casaPx": 64,
+  "contrato": 1,
+  "id": "chamine",
+  "idDoApp": null,
+  "lote": 5,
+  "memoria": {
+    "discoBytes": 4528,
+    "gpuBytes": 27648,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "nome": "Chaminé",
+  "objeto": {
+    "ancoraPx": [
+      28.0,
+      28.0
+    ],
+    "arquivo": "objeto.png",
+    "corpoPx": 40.0,
+    "ladoPx": 72,
+    "onde": "o centro do corpo vai no ponto de posicaoDaChamine(geo) (client/src/texturas/meioTermo/chamine.ts), escalado para o corpo ter o lado que ela dá",
+    "pxPorCasa": 128
+  },
+  "onda": 2,
+  "tingir": null,
+  "tipo": "objeto"
+}

@@ -1,0 +1,202 @@
+{
+  "canais": {
+    "cor": "só com corFixa: RGB = a cor própria (louça, comida, água, vidro, chama), já pintada; A = a cobertura",
+    "partes": "R, G, B = o peso do lugar 1, 2 e 3 (a ordem de \"lugares\"); 1 - R - G - B = a cor fixa (imagem -cor) ou, sem ela, o lugar 1; A = a cobertura",
+    "valor": "R = G = B: o valor 0..1 (0,5 = o tom do material do lugar); A = a cobertura; alfa reto"
+  },
+  "contrato": 1,
+  "formas": [
+    {
+      "alturaPx": 144,
+      "casas": [
+        1.0,
+        1.0
+      ],
+      "cobertura": 0.38,
+      "cor": "frente-monte-0-cor.png",
+      "larguraPx": 144,
+      "nome": "frente-monte-0",
+      "partes": "frente-monte-0-partes.png",
+      "valor": "frente-monte-0.png",
+      "valorMedioPorLugar": [
+        null
+      ],
+      "variante": "monte",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 144,
+      "casas": [
+        1.0,
+        1.0
+      ],
+      "cobertura": 0.38,
+      "cor": "frente-monte-2-cor.png",
+      "larguraPx": 144,
+      "nome": "frente-monte-2",
+      "partes": "frente-monte-2-partes.png",
+      "valor": "frente-monte-2.png",
+      "valorMedioPorLugar": [
+        null
+      ],
+      "variante": "monte",
+      "virada": 2,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 144,
+      "casas": [
+        1.5,
+        1.0
+      ],
+      "cobertura": 0.66,
+      "cor": "frente-fardos-0-cor.png",
+      "larguraPx": 208,
+      "nome": "frente-fardos-0",
+      "partes": "frente-fardos-0-partes.png",
+      "valor": "frente-fardos-0.png",
+      "valorMedioPorLugar": [
+        null
+      ],
+      "variante": "fardos",
+      "virada": 0,
+      "vista": "frente"
+    },
+    {
+      "alturaPx": 144,
+      "casas": [
+        1.5,
+        1.0
+      ],
+      "cobertura": 0.66,
+      "cor": "frente-fardos-2-cor.png",
+      "larguraPx": 208,
+      "nome": "frente-fardos-2",
+      "partes": "frente-fardos-2-partes.png",
+      "valor": "frente-fardos-2.png",
+      "valorMedioPorLugar": [
+        null
+      ],
+      "variante": "fardos",
+      "virada": 2,
+      "vista": "frente"
+    }
+  ],
+  "id": "movel-feno",
+  "idDoApp": "feno",
+  "lote": 16,
+  "lugares": [],
+  "margemCasas": 0.0625,
+  "memoria": {
+    "discoBytes": 85357,
+    "memoriaBytes": 1622016,
+    "tetoDiscoBytes": 524288,
+    "tetoMemoriaBytes": 3145728,
+    "tetoMemoriaDos31Bytes": 25165824
+  },
+  "nome": "Feno",
+  "onda": 4,
+  "pxPorCasa": 128,
+  "semente": 74,
+  "sombra": {
+    "alfa": 0.25,
+    "borraoCasas": 0.03,
+    "conta": "a silhueta (o alfa do móvel já virado e esticado) andada deslocamentoCasas na direção (7, 11) normalizada, desfocada borraoCasas (desvio), pintada com a cor e o alfa, por baixo do móvel",
+    "cor": "#0a1c28",
+    "deslocamentoCasas": 0.12,
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "deslocada"
+  },
+  "tingir": {
+    "amareloNaLuz": 0.12,
+    "claro": [
+      [
+        0.5,
+        0.0
+      ],
+      [
+        0.62,
+        0.12
+      ],
+      [
+        0.76,
+        0.26
+      ],
+      [
+        1.0,
+        0.45
+      ]
+    ],
+    "claroDesde": 0.94,
+    "conta": "valor-oklab",
+    "cromaNaLuz": 0.2,
+    "cromaNaSombra": 0.25,
+    "escuro": [
+      [
+        0.0,
+        0.42
+      ],
+      [
+        0.1,
+        0.5
+      ],
+      [
+        0.24,
+        0.64
+      ],
+      [
+        0.36,
+        0.78
+      ],
+      [
+        0.5,
+        1.0
+      ]
+    ],
+    "escuroAte": 0.1
+  },
+  "tipo": "movel",
+  "variantes": [
+    {
+      "nome": "monte",
+      "quando": {
+        "forma": "monte"
+      },
+      "vistas": {
+        "frente": {
+          "casas": [
+            1.0,
+            1.0
+          ],
+          "desenhadas": [
+            0,
+            2
+          ],
+          "viradas": 2
+        }
+      }
+    },
+    {
+      "nome": "fardos",
+      "quando": {}
+    }
+  ],
+  "viradas": "k = round(giro / 90) mod 4. viradas 1 (o desenho é simétrico de lado a lado e de cima a baixo): k par = a forma 0, k ímpar = a 0 transposta. viradas 2 (simétrico de lado a lado): k 0 = a 0, k 2 = a 2, k 1 = a 2 transposta, k 3 = a 0 transposta. viradas 4: a forma k, nunca transposta. A tela gira só o resto (giro - 90 k, de -45 a 45 graus). Transposta = (x, y) -> (y, x) nos px da imagem: a LUZ está na diagonal e não muda.",
+  "vistas": {
+    "frente": {
+      "casas": [
+        1.5,
+        1.0
+      ],
+      "desenhadas": [
+        0,
+        2
+      ],
+      "viradas": 2
+    }
+  }
+}

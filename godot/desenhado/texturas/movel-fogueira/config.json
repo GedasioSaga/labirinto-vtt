@@ -1,0 +1,17 @@
+{
+  "id": "movel-fogueira",
+  "nome": "Fogueira",
+  "idDoApp": "fogueira",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 15,
+  "semente": 66,
+  "margemCasas": 0.0625,
+  "lugares": ["pedras", "lenha"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1, 1], "viradas": 1 },
+    "lado": { "casas": [1, 1.25], "viradas": 2 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.06, "borraoCasas": 0.025 }
+}

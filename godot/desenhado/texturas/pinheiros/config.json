@@ -1,0 +1,35 @@
+{
+  "id": "pinheiros",
+  "nome": "Pinheiros",
+  "idDoApp": "pinheiros",
+  "onda": 1,
+  "lote": 2,
+  "semente": 53,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": {
+    "escala": 2,
+    "faixa": 0.12,
+    "corte": 0.18
+  },
+  "tom": {
+    "escala": 6,
+    "amplitude": 0.05
+  },
+  "detalhes": {
+    "celulaCasas": 2,
+    "quantos": 4,
+    "pesos": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "densidade": 0.58,
+    "agrupamento": 1,
+    "escalaMin": 0.95,
+    "escalaMax": 1.15,
+    "variacaoDeTom": 0.035,
+    "afastarCasas": 1
+  }
+}

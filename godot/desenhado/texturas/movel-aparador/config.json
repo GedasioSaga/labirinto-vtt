@@ -1,0 +1,24 @@
+{
+  "id": "movel-aparador",
+  "nome": "Aparador",
+  "idDoApp": "aparador",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 11,
+  "semente": 47,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "puxadores"],
+  "vistas": {
+    "frente": {
+      "casas": [2, 0.5],
+      "viradas": 2,
+      "esticar": { "eixo": "x", "pontasCasas": [0.140625, 0.140625], "periodoCasas": 0.859375, "ladoMaior": true }
+    },
+    "lado": {
+      "casas": [2, 0.9],
+      "viradas": 2,
+      "esticar": { "eixo": "x", "pontasCasas": [0.140625, 0.140625], "periodoCasas": 0.859375 }
+    }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.22, "borraoCasas": 0.03 }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "conves",
+  "nome": "Convés",
+  "idDoApp": "conves",
+  "onda": 1,
+  "lote": 4,
+  "semente": 89,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": { "escala": 1.5, "faixa": 0.22, "corte": 0.22 },
+  "tom": { "escala": 5.0, "amplitude": 0.04 },
+  "detalhes": {
+    "celulaCasas": 2,
+    "quantos": 4,
+    "pesos": [1.0, 1.2, 1.0, 0.9],
+    "densidade": 0.12,
+    "agrupamento": 0.8,
+    "escalaMin": 0.8,
+    "escalaMax": 1.3,
+    "variacaoDeTom": 0.04
+  }
+}

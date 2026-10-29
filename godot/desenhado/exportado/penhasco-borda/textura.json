@@ -1,0 +1,78 @@
+{
+  "borda": {
+    "abaixoPx": 12.0,
+    "acimaPx": 8.0,
+    "arquivo": "borda.png",
+    "comprimentoPx": 1024.0,
+    "conta": "x da imagem = 2 * ((s + desvio) mod comprimentoPx), desvio = hash(0, 2, h) * comprimentoPx; y = linha.yPx + 2 * (acimaPx + d - ancora), ancora = 0 na beira ou t no pé; alfa x suave(0; 0,25; t / hPx da altura)",
+    "imagem": [
+      2048,
+      160
+    ],
+    "linhaPx": 40,
+    "linhas": [
+      {
+        "ancora": "beira",
+        "chao": [
+          "grama",
+          "grama-amarela",
+          "bosque",
+          "floresta",
+          "chao-de-floresta",
+          "girassois",
+          "juncos",
+          "pantano"
+        ],
+        "nome": "grama",
+        "yPx": 0
+      },
+      {
+        "ancora": "beira",
+        "chao": [
+          "terra",
+          "caminho",
+          "areia",
+          "duna",
+          "calcamento",
+          "piso",
+          "lajotas",
+          "lajotas-escuras",
+          "conves",
+          "pedra"
+        ],
+        "nome": "terra",
+        "yPx": 40
+      },
+      {
+        "ancora": "beira",
+        "chao": [
+          "neve"
+        ],
+        "nome": "neve",
+        "yPx": 80
+      },
+      {
+        "ancora": "pe",
+        "chao": [
+          "agua"
+        ],
+        "nome": "agua",
+        "yPx": 120
+      }
+    ]
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "id": "penhasco-borda",
+  "idDoApp": null,
+  "memoria": {
+    "discoBytes": 52139,
+    "memoriaBytes": 1747626,
+    "tetoDiscoBytes": 1572864,
+    "tetoMemoriaBytes": 6291456
+  },
+  "nome": "Penhasco, a borda",
+  "parte": "borda",
+  "pxPorCasa": 128,
+  "tipo": "traco"
+}

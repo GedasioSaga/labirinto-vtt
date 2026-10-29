@@ -1,0 +1,16 @@
+{
+  "id": "movel-privada",
+  "nome": "Privada",
+  "idDoApp": "privada",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 14,
+  "semente": 65,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "ferragens"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [0.5, 0.6], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.14, "borraoCasas": 0.03 }
+}

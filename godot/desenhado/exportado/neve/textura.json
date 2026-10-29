@@ -1,0 +1,88 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#dcdad1",
+  "detalhes": {
+    "afastarCasas": 0.5,
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 1,
+    "colunas": 4,
+    "densidade": 0.22,
+    "escalaMax": 1.2,
+    "escalaMin": 0.9,
+    "gradeDoMundoPx": 32,
+    "ladoPx": 512,
+    "linhas": 4,
+    "pesos": [
+      0.35,
+      0.3,
+      0.25,
+      0.3,
+      0.2,
+      0.15,
+      0.12,
+      0.08,
+      2.0,
+      2.0,
+      2.0,
+      1.8,
+      1.8,
+      1.8,
+      1.6,
+      0.2
+    ],
+    "pxPorCasa": 128,
+    "quantos": 16,
+    "semente": 6840,
+    "variacaoDeTom": 0.02
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 0.841145783197135,
+      "miolo": 0.83355029753875,
+      "razao": 1.00911221036189
+    },
+    "base-2.png": {
+      "borda": 0.854166615754366,
+      "miolo": 0.833875818352681,
+      "razao": 1.02433311646064
+    },
+    "base-3.png": {
+      "borda": 0.843749949708581,
+      "miolo": 0.851345435366966,
+      "razao": 0.991078256436401
+    }
+  },
+  "id": "neve",
+  "idDoApp": "neve",
+  "lote": 3,
+  "memoria": {
+    "discoBytes": 699239,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.2,
+    "escala": 1.5,
+    "faixa": 0.2,
+    "semente": 6778
+  },
+  "nome": "Neve",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.045,
+    "escala": 6.0,
+    "semente": 6804
+  }
+}

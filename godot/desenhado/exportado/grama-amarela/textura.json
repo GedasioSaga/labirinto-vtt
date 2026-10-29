@@ -1,0 +1,83 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#bfaf78",
+  "detalhes": {
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 1,
+    "colunas": 4,
+    "densidade": 0.45,
+    "escalaMax": 1.2,
+    "escalaMin": 0.8,
+    "gradeDoMundoPx": 32,
+    "ladoPx": 512,
+    "linhas": 4,
+    "pesos": [
+      3.0,
+      3.0,
+      3.0,
+      3.0,
+      3.0,
+      2.0,
+      1.5,
+      1.5,
+      1.0,
+      0.6,
+      0.5,
+      0.6
+    ],
+    "pxPorCasa": 128,
+    "quantos": 12,
+    "semente": 1184,
+    "variacaoDeTom": 0.05
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.24414057063404,
+      "miolo": 1.23654510971392,
+      "razao": 1.00614248591536
+    },
+    "base-2.png": {
+      "borda": 1.25130200874992,
+      "miolo": 1.29296868612679,
+      "razao": 0.967774411071244
+    },
+    "base-3.png": {
+      "borda": 1.1686197220115,
+      "miolo": 1.23361537785968,
+      "razao": 0.94731286832615
+    }
+  },
+  "id": "grama-amarela",
+  "idDoApp": "grama-amarela",
+  "lote": 1,
+  "memoria": {
+    "discoBytes": 754198,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 1122
+  },
+  "nome": "Campo (amarelo)",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.04,
+    "escala": 6.0,
+    "semente": 1148
+  }
+}

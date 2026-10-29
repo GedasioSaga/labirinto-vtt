@@ -1,0 +1,36 @@
+{
+  "id": "movel-tapete",
+  "nome": "Tapete",
+  "idDoApp": "tapete",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 13,
+  "semente": 60,
+  "margemCasas": 0.0625,
+  "lugares": ["tecido"],
+  "corFixa": true,
+  "variantes": [
+    {
+      "nome": "redondo",
+      "quando": { "forma": "redondo" },
+      "vistas": {
+        "frente": { "casas": [2, 2] },
+        "lado": { "casas": [2, 0.25], "esticar": { "eixo": "x", "pontasCasas": [0.375, 0.375], "ladoMaior": true } }
+      }
+    },
+    { "nome": "retangular" }
+  ],
+  "vistas": {
+    "frente": {
+      "casas": [3, 2],
+      "viradas": 1,
+      "esticar": { "eixo": "xy", "pontasCasas": [0.5, 0.5], "centroCasas": 1.3125, "pontasCasasY": [0.5, 0.5], "centroCasasY": 0.9375, "ladoMaior": true }
+    },
+    "lado": {
+      "casas": [3, 0.25],
+      "viradas": 1,
+      "esticar": { "eixo": "x", "pontasCasas": [0.375, 0.375], "ladoMaior": true }
+    }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.03, "borraoCasas": 0.02 }
+}

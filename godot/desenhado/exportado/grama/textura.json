@@ -1,0 +1,81 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#8cbd7f",
+  "detalhes": {
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 1,
+    "colunas": 4,
+    "densidade": 0.45,
+    "escalaMax": 1.2,
+    "escalaMin": 0.8,
+    "gradeDoMundoPx": 32,
+    "ladoPx": 512,
+    "linhas": 4,
+    "pesos": [
+      3.0,
+      3.0,
+      3.0,
+      3.0,
+      3.0,
+      2.0,
+      0.5,
+      0.5,
+      0.5,
+      0.8
+    ],
+    "pxPorCasa": 128,
+    "quantos": 10,
+    "semente": 780,
+    "variacaoDeTom": 0.05
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.25585958710872,
+      "miolo": 1.17024748028295,
+      "razao": 1.07315726653397
+    },
+    "base-2.png": {
+      "borda": 1.22265662736027,
+      "miolo": 1.17621541382202,
+      "razao": 1.03948359543032
+    },
+    "base-3.png": {
+      "borda": 1.10091154114343,
+      "miolo": 1.12749586546367,
+      "razao": 0.976421798842426
+    }
+  },
+  "id": "grama",
+  "idDoApp": "grama",
+  "lote": 1,
+  "memoria": {
+    "discoBytes": 736535,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 718
+  },
+  "nome": "Campo (verde)",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.04,
+    "escala": 6.0,
+    "semente": 744
+  }
+}

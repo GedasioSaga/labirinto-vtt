@@ -1,0 +1,22 @@
+{
+  "id": "penhasco-borda",
+  "nome": "Penhasco, a borda",
+  "idDoApp": null,
+  "tipo": "traco",
+  "parte": "borda",
+  "onda": 5,
+  "lote": 17,
+  "semente": 17,
+  "tingir": false,
+  "borda": {
+    "comprimentoCasas": 16,
+    "acimaPx": 8,
+    "abaixoPx": 12,
+    "linhas": [
+      { "nome": "grama", "ancora": "beira", "chao": ["grama", "grama-amarela", "bosque", "floresta", "chao-de-floresta", "girassois", "juncos", "pantano"] },
+      { "nome": "terra", "ancora": "beira", "chao": ["terra", "caminho", "areia", "duna", "calcamento", "piso", "lajotas", "lajotas-escuras", "conves", "pedra"] },
+      { "nome": "neve", "ancora": "beira", "chao": ["neve"] },
+      { "nome": "agua", "ancora": "pe", "chao": ["agua"] }
+    ]
+  }
+}

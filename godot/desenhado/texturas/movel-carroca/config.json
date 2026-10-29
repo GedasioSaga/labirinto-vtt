@@ -1,0 +1,17 @@
+{
+  "id": "movel-carroca",
+  "nome": "Carroça",
+  "idDoApp": "carroca",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 12,
+  "semente": 54,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "aros"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [2, 1.25], "viradas": 4 },
+    "lado": { "casas": [2, 1.25], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.2, "borraoCasas": 0.03 }
+}

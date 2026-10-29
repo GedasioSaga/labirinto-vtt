@@ -1,0 +1,19 @@
+{
+  "id": "movel-balcao",
+  "nome": "Balcão",
+  "idDoApp": "balcao",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 11,
+  "semente": 48,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "barra"],
+  "vistas": {
+    "frente": {
+      "casas": [2, 0.6],
+      "viradas": 2,
+      "esticar": { "eixo": "x", "pontasCasas": [0.5, 0.5], "periodoCasas": 1, "ladoMaior": true }
+    }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.24, "borraoCasas": 0.03 }
+}

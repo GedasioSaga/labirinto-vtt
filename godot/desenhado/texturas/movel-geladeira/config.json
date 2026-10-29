@@ -1,0 +1,16 @@
+{
+  "id": "movel-geladeira",
+  "nome": "Geladeira",
+  "idDoApp": "geladeira",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 14,
+  "semente": 62,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "ferragens"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1, 0.75], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.26, "borraoCasas": 0.03 }
+}

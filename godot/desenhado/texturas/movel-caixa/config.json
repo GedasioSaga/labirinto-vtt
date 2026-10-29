@@ -1,0 +1,15 @@
+{
+  "id": "movel-caixa",
+  "nome": "Caixa",
+  "idDoApp": "caixa",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 10,
+  "semente": 53,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira"],
+  "vistas": {
+    "frente": { "casas": [0.8, 0.8], "viradas": 1 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.15, "borraoCasas": 0.025 }
+}

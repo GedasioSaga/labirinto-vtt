@@ -1,0 +1,26 @@
+{
+  "id": "pinheiro-nevado",
+  "nome": "Pinheiro com neve",
+  "idDoApp": "pinheiro-nevado",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 6,
+  "semente": 61,
+  "tamanhoDoApp": 14,
+  "variacoes": 4,
+  "espelho": "nenhum",
+  "sprite": {
+    "ladoPx": 352,
+    "unidadePx": 252,
+    "ancoraPx": [
+      176.8,
+      275.5
+    ]
+  },
+  "sombra": {
+    "jeito": "em-pe",
+    "comprimento": 0.78,
+    "borrao": 0.03
+  }
+}

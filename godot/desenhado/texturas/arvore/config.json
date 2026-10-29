@@ -1,0 +1,26 @@
+{
+  "id": "arvore",
+  "nome": "Árvore",
+  "idDoApp": "arvore",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 6,
+  "semente": 41,
+  "tamanhoDoApp": 15,
+  "variacoes": 4,
+  "espelho": "nenhum",
+  "sprite": {
+    "ladoPx": 352,
+    "unidadePx": 262,
+    "ancoraPx": [
+      173.9,
+      336.9
+    ]
+  },
+  "sombra": {
+    "jeito": "em-pe",
+    "comprimento": 0.78,
+    "borrao": 0.03
+  }
+}

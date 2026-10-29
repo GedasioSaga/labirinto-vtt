@@ -1,0 +1,87 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#daa46c",
+  "detalhes": {
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 1,
+    "colunas": 4,
+    "densidade": 0.22,
+    "escalaMax": 1.2,
+    "escalaMin": 0.8,
+    "gradeDoMundoPx": 32,
+    "ladoPx": 512,
+    "linhas": 4,
+    "pesos": [
+      1.6,
+      1.6,
+      1.6,
+      1.4,
+      1.4,
+      1.2,
+      1.0,
+      1.0,
+      0.9,
+      0.9,
+      0.5,
+      2.4,
+      2.4,
+      2.4,
+      0.5,
+      1.2
+    ],
+    "pxPorCasa": 128,
+    "quantos": 16,
+    "semente": 2396,
+    "variacaoDeTom": 0.05
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.40299470804166,
+      "miolo": 1.37825512618292,
+      "razao": 1.01794992914502
+    },
+    "base-2.png": {
+      "borda": 1.29361971456092,
+      "miolo": 1.37369783478789,
+      "razao": 0.941706161137441
+    },
+    "base-3.png": {
+      "borda": 1.52408845082391,
+      "miolo": 1.39192700036801,
+      "razao": 1.09494855004677
+    }
+  },
+  "id": "terra",
+  "idDoApp": "terra",
+  "lote": 1,
+  "memoria": {
+    "discoBytes": 791297,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.2,
+    "escala": 1.5,
+    "faixa": 0.2,
+    "semente": 2334
+  },
+  "nome": "Terra",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.06,
+    "escala": 3.0,
+    "semente": 2360
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#7f7f7f",
+  "detalhes": {
+    "agrupamento": 0.8,
+    "arquivo": null,
+    "celulaCasas": 1,
+    "colunas": 4,
+    "densidade": 0.0,
+    "escalaMax": 1.15,
+    "escalaMin": 0.85,
+    "gradeDoMundoPx": 32,
+    "ladoPx": 512,
+    "linhas": 4,
+    "pesos": [],
+    "pxPorCasa": 128,
+    "quantos": 0,
+    "semente": 4214,
+    "variacaoDeTom": 0.0
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.26757951889886,
+      "miolo": 1.28027471932,
+      "razao": 0.99008400288659
+    },
+    "base-2.png": {
+      "borda": 1.31250112404814,
+      "miolo": 1.26464944318286,
+      "razao": 1.03783790134351
+    },
+    "base-3.png": {
+      "borda": 1.26757934078341,
+      "miolo": 1.28548279753886,
+      "razao": 0.98607258160924
+    }
+  },
+  "id": "piso",
+  "idDoApp": null,
+  "lote": 4,
+  "memoria": {
+    "discoBytes": 407187,
+    "gpuBytes": 4194303,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 1.5,
+    "faixa": 0.14,
+    "semente": 4152
+  },
+  "nome": "Chão de sala",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.12,
+    "escala": 2.0,
+    "semente": 4178
+  }
+}

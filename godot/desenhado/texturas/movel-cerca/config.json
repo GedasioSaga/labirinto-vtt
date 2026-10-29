@@ -1,0 +1,54 @@
+{
+  "id": "movel-cerca",
+  "nome": "Cerca",
+  "idDoApp": "cerca",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 12,
+  "semente": 52,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "ligacao"],
+  "variantes": [
+    {
+      "nome": "varas",
+      "quando": {
+        "ligacao": "varas"
+      }
+    },
+    {
+      "nome": "corda",
+      "quando": {
+        "ligacao": "corda"
+      }
+    },
+    {
+      "nome": "arame",
+      "quando": {
+        "ligacao": "arame"
+      }
+    }
+  ],
+  "vistas": {
+    "frente": {
+      "casas": [2, 0.25],
+      "viradas": 1,
+      "esticar": {
+        "eixo": "x",
+        "pontasCasas": [0.5, 0.5],
+        "periodoCasas": 1,
+        "ladoMaior": true
+      }
+    }
+  },
+  "sombra": {
+    "jeito": "deslocada",
+    "deslocamentoCasas": 0.14,
+    "borraoCasas": 0.03
+  },
+  "pecas": {
+    "mouraoCasas": [1, 0.125],
+    "raioCasas": 0.128,
+    "colunaCasas": 0.5,
+    "viradaDaLuz": 0.35
+  }
+}

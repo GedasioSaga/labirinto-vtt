@@ -1,0 +1,16 @@
+{
+  "id": "movel-poco",
+  "nome": "Poço",
+  "idDoApp": "poco",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 12,
+  "semente": 53,
+  "margemCasas": 0.0625,
+  "lugares": ["pedras", "madeira"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1.5, 1.5], "viradas": 1 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.14, "borraoCasas": 0.03 }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "movel-NOME",
+  "nome": "Nome do móvel",
+  "idDoApp": "tipoDoApp",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 10,
+  "semente": 1,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira"],
+  "vistas": {
+    "frente": { "casas": [1, 1], "viradas": 1 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.12, "borraoCasas": 0.025 }
+}

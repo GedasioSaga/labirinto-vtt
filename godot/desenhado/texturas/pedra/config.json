@@ -1,0 +1,43 @@
+{
+  "id": "pedra",
+  "nome": "Serra",
+  "idDoApp": "pedra",
+  "onda": 1,
+  "lote": 3,
+  "semente": 43,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": {
+    "escala": 2,
+    "faixa": 0.12,
+    "corte": 0.18
+  },
+  "tom": {
+    "escala": 6,
+    "amplitude": 0.05
+  },
+  "detalhes": {
+    "celulaCasas": 2,
+    "quantos": 4,
+    "pesos": [
+      1,
+      1,
+      0.1,
+      0.6
+    ],
+    "densidade": 0.083,
+    "agrupamento": 0.4,
+    "escalaMin": 1.5,
+    "escalaMax": 2,
+    "variacaoDeTom": 0.06,
+    "afastarCasas": 3.2,
+    "passoCasas": 3.2,
+    "grupos": {
+      "gradeCasas": 16,
+      "chance": 0.9,
+      "raioMin": 0.42,
+      "raioMax": 0.5
+    },
+    "espelhar": true
+  }
+}

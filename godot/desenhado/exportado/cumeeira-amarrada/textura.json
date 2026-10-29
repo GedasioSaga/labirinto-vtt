@@ -1,0 +1,44 @@
+{
+  "casaPx": 64,
+  "contrato": 1,
+  "faixa": {
+    "alturaImagemPx": 42,
+    "arquivo": "faixa.png",
+    "canais": {
+      "a": "alfa reto",
+      "g": "lado atravessando: 0,5 + 0,5 * lado",
+      "r": "valor (0,5 = a cor do mestre)"
+    },
+    "comprimentoPx": 512,
+    "larguraImagemPx": 1024,
+    "meiaLarguraPx": 10.5,
+    "onde": [
+      "cumeeira"
+    ],
+    "orientacao": "x = ao longo da emenda (repete a cada comprimentoPx); y = atravessando, de -meia (linha 0) a +meia; +y = o lado da água de índice menor",
+    "pxPorCasa": 128
+  },
+  "id": "cumeeira-amarrada",
+  "idDoApp": null,
+  "lote": 5,
+  "luz": {
+    "lado": 0.14
+  },
+  "memoria": {
+    "discoBytes": 39845,
+    "gpuBytes": 229376,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "modelo": "palha",
+  "nome": "Cumeeira amarrada",
+  "onda": 2,
+  "tingir": {
+    "claroDesde": 0.94,
+    "conta": "luz-oklab",
+    "escuroAte": 0.1,
+    "ganhoL": 0.48,
+    "neutro": 0.5
+  },
+  "tipo": "faixa"
+}

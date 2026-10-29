@@ -1,0 +1,16 @@
+{
+  "id": "movel-bigorna",
+  "nome": "Bigorna",
+  "idDoApp": "bigorna",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 16,
+  "semente": 71,
+  "margemCasas": 0.0625,
+  "lugares": ["metal", "madeira"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1, 0.5], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.2, "borraoCasas": 0.03 }
+}

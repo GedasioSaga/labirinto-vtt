@@ -1,0 +1,11 @@
+{
+  "id": "_modelo-objeto",
+  "nome": "Modelo de objeto",
+  "idDoApp": null,
+  "tipo": "objeto",
+  "onda": 2,
+  "lote": 5,
+  "semente": 22,
+  "sob": "telhado-telhas",
+  "objeto": { "ladoPx": 64, "corpoPx": 40, "ancoraPx": [29, 29] }
+}

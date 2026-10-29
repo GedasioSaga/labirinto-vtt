@@ -1,0 +1,78 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#dbc694",
+  "detalhes": {
+    "afastarCasas": 3.6,
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.026,
+    "escalaMax": 2.0,
+    "escalaMin": 1.5,
+    "espelhar": true,
+    "gradeDoMundoPx": 256.0,
+    "ladoPx": 512,
+    "linhas": 2,
+    "passoCasas": 4.0,
+    "pesos": [
+      1.0,
+      1.1,
+      1.0,
+      0.9
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 6840,
+    "variacaoDeTom": 0.03
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 1.47200512059499,
+      "miolo": 1.4785155368736,
+      "razao": 0.995596653456627
+    },
+    "base-2.png": {
+      "borda": 1.51692699291743,
+      "miolo": 1.51247820846038,
+      "razao": 1.00294138747399
+    },
+    "base-3.png": {
+      "borda": 1.57096344802994,
+      "miolo": 1.51877161086304,
+      "razao": 1.03436450668
+    }
+  },
+  "id": "duna",
+  "idDoApp": "duna",
+  "lote": 3,
+  "memoria": {
+    "discoBytes": 835186,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.15,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 6778
+  },
+  "nome": "Duna",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.05,
+    "escala": 6.0,
+    "semente": 6804
+  }
+}

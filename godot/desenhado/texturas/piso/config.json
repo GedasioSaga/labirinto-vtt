@@ -1,0 +1,31 @@
+{
+  "id": "piso",
+  "nome": "Chão de sala",
+  "idDoApp": null,
+  "onda": 1,
+  "lote": 4,
+  "semente": 41,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": { "escala": 1.5, "faixa": 0.14, "corte": 0.18 },
+  "tom": { "escala": 2.0, "amplitude": 0.12 },
+  "tingir": {
+    "comoLer": "Proposta para o CONTRATO.md (não lida pelo exportador). A base é cinza (R = G = B): g = R / 255. O app monta o chão em cinza exatamente como na seção 4 (mistura e tom) e só no fim troca cada g pela cor da rampa da cor do mestre.",
+    "conta": "luz-oklab",
+    "neutro": 0.5,
+    "ganhoL": 0.48,
+    "janela": { "escuroAte": 0.10, "claroDesde": 0.94 },
+    "croma": "mantido; se a cor sair do sRGB, a e b encolhem juntos (mesmo matiz) até caber",
+    "formula": "L, a, b = OKLab(cor do mestre); j = suave(0, escuroAte, L) * suave(1, claroDesde, L); L' = L + ganhoL * j * (g - neutro); rampa[g] = sRGB(L', a, b)"
+  },
+  "detalhes": {
+    "celulaCasas": 1,
+    "quantos": 0,
+    "pesos": [],
+    "densidade": 0.0,
+    "agrupamento": 0.8,
+    "escalaMin": 0.85,
+    "escalaMax": 1.15,
+    "variacaoDeTom": 0.0
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "_modelo-material",
+  "nome": "Modelo de material",
+  "tipo": "material",
+  "classe": "metal",
+  "onda": 4,
+  "lote": 10,
+  "semente": 7,
+  "casas": [4, 4],
+  "imagens": ["padrao"],
+  "tingir": { "ganhoL": 0.48 }
+}

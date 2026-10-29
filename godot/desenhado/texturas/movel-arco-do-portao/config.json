@@ -1,0 +1,19 @@
+{
+  "id": "movel-arco-do-portao",
+  "nome": "Arco do portão",
+  "idDoApp": "arcoDoPortao",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 12,
+  "semente": 73,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "placa"],
+  "vistas": {
+    "frente": {
+      "casas": [2, 0.5],
+      "viradas": 2,
+      "esticar": { "eixo": "x", "pontasCasas": [0.46875, 0.46875], "centroCasas": 0.578125, "ladoMaior": true }
+    }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.26, "borraoCasas": 0.03 }
+}

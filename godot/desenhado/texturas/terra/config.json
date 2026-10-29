@@ -1,0 +1,22 @@
+{
+  "id": "terra",
+  "nome": "Terra",
+  "idDoApp": "terra",
+  "onda": 1,
+  "lote": 1,
+  "semente": 23,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": { "escala": 1.5, "faixa": 0.2, "corte": 0.2 },
+  "tom": { "escala": 3.0, "amplitude": 0.06 },
+  "detalhes": {
+    "celulaCasas": 1,
+    "quantos": 16,
+    "pesos": [1.6, 1.6, 1.6, 1.4, 1.4, 1.2, 1, 1, 0.9, 0.9, 0.5, 2.4, 2.4, 2.4, 0.5, 1.2],
+    "densidade": 0.22,
+    "agrupamento": 1,
+    "escalaMin": 0.8,
+    "escalaMax": 1.2,
+    "variacaoDeTom": 0.05
+  }
+}

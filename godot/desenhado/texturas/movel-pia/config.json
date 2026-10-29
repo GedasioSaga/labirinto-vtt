@@ -1,0 +1,16 @@
+{
+  "id": "movel-pia",
+  "nome": "Pia",
+  "idDoApp": "pia",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 14,
+  "semente": 63,
+  "margemCasas": 0.0625,
+  "lugares": ["pedra", "madeira"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1, 0.6], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.22, "borraoCasas": 0.03 }
+}

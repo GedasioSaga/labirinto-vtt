@@ -1,0 +1,16 @@
+{
+  "id": "movel-quadro-de-avisos",
+  "nome": "Quadro de avisos",
+  "idDoApp": "quadroDeAvisos",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 11,
+  "semente": 49,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira"],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1, 0.4], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.18, "borraoCasas": 0.03 }
+}

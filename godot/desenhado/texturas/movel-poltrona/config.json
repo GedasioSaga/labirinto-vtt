@@ -1,0 +1,15 @@
+{
+  "id": "movel-poltrona",
+  "nome": "Poltrona",
+  "idDoApp": "poltrona",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 13,
+  "semente": 59,
+  "margemCasas": 0.0625,
+  "lugares": ["tecido", "madeira"],
+  "vistas": {
+    "frente": { "casas": [1, 1], "viradas": 2 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.18, "borraoCasas": 0.03 }
+}

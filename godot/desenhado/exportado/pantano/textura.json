@@ -1,0 +1,76 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#415034",
+  "detalhes": {
+    "afastarCasas": 1.0,
+    "agrupamento": 1.0,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.11,
+    "escalaMax": 1.4,
+    "escalaMin": 1.0,
+    "gradeDoMundoPx": 64,
+    "ladoPx": 512,
+    "linhas": 2,
+    "pesos": [
+      1.4,
+      1.1,
+      0.9,
+      0.6
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 4820,
+    "variacaoDeTom": 0.035
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 0.560546900960617,
+      "miolo": 0.510959240612768,
+      "razao": 1.09704817215632
+    },
+    "base-2.png": {
+      "borda": 0.556640693248482,
+      "miolo": 0.525933203001235,
+      "razao": 1.05838667357759
+    },
+    "base-3.png": {
+      "borda": 0.527343758149073,
+      "miolo": 0.517144152981928,
+      "razao": 1.01972294399605
+    }
+  },
+  "id": "pantano",
+  "idDoApp": "pantano",
+  "lote": 2,
+  "memoria": {
+    "discoBytes": 587773,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 4758
+  },
+  "nome": "Pântano",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.05,
+    "escala": 6.0,
+    "semente": 4784
+  }
+}

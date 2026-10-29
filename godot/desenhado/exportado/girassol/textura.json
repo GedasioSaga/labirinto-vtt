@@ -1,0 +1,52 @@
+{
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#737841",
+  "destino": "carimbo",
+  "formas": {
+    "conta": "k = varianteDoGiro(giro) (0..7); arquivo = k mod variacoes; nunca espelha (o desenho fica de pé na tela, com o tronco embaixo; transposto, ele deitaria); a imagem nunca gira",
+    "espelho": "nenhum",
+    "variacoes": 4
+  },
+  "id": "girassol",
+  "idDoApp": "girassol",
+  "lote": 8,
+  "memoria": {
+    "discoBytes": 58355,
+    "gpuBytes": 1769472,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 2796202
+  },
+  "nome": "Girassol",
+  "onda": 3,
+  "sombra": {
+    "alfa": 0.25,
+    "borrao": 0.03,
+    "comprimento": 0.78,
+    "conta": "a silhueta (o alfa do desenho, já no lugar) deitada no chão a partir do pé, como a sombra 'em-pe' de hoje (client/src/carimbos/arte.ts, matrizDaSombra): com (dx, dy) a direção normalizada e (x, y) o ponto a partir do pé (a âncora), y = -h a altura h acima dele, o ponto cai em (x - comprimento x dx x y, -comprimento x dy x y), ou seja, h x comprimento na direção: o pé fica e o alto se deita para baixo e para a direita; desfocada borrao x tamanho, numa camada só para todos os objetos, pintada com a cor e o alfa uma vez (CONTRATO.md 9.4)",
+    "cor": "#0a1c28",
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "em-pe"
+  },
+  "sprite": {
+    "ancoraPx": [
+      144.9,
+      260.3
+    ],
+    "arquivos": [
+      "carimbo-1.png",
+      "carimbo-2.png",
+      "carimbo-3.png",
+      "carimbo-4.png"
+    ],
+    "canais": "RGBA, cor reta, alfa reto, sem sombra",
+    "ladoPx": 288,
+    "unidade": "o tamanho do carimbo no mundo (Carimbo.tamanho, px)",
+    "unidadePx": 184.0
+  },
+  "tamanhoDoApp": 9.0,
+  "tipo": "carimbo"
+}

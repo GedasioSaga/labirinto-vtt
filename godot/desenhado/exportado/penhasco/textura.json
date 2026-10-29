@@ -1,0 +1,130 @@
+{
+  "alturas": {
+    "alto": {
+      "arquivos": {
+        "cor": "face-alto.png",
+        "relevo": "face-alto-relevo.png"
+      },
+      "hCasas": 0.75,
+      "hPx": 48.0,
+      "imagem": [
+        1808,
+        120
+      ]
+    },
+    "baixo": {
+      "arquivos": {
+        "cor": "face-baixo.png",
+        "relevo": "face-baixo-relevo.png"
+      },
+      "hCasas": 0.3125,
+      "hPx": 20.0,
+      "imagem": [
+        1808,
+        64
+      ]
+    },
+    "medio": {
+      "arquivos": {
+        "cor": "face-medio.png",
+        "relevo": "face-medio-relevo.png"
+      },
+      "hCasas": 0.5,
+      "hPx": 32.0,
+      "imagem": [
+        1808,
+        88
+      ]
+    }
+  },
+  "borda": "penhasco-borda",
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#a5745d",
+  "face": {
+    "abaixoPx": 8.0,
+    "acimaPx": 4.0,
+    "canais": "cor: RGBA, cor reta, alfa reto; relevo: R = 0,5 + 0,5 x ao longo, G = 0,5 + 0,5 x para baixo",
+    "conta": "x da imagem = modulo.xPx + 2 * (u espelhado ou não); y da imagem = 2 * (acimaPx + (d / t) * hPx), d = px do mundo da beira para o pé, t = a espessura do app no ponto",
+    "costura": {
+      "maior": 0.0,
+      "relevoX": 1.0,
+      "tetoEm255": 2
+    },
+    "costuraPx": 4.0,
+    "escolha": {
+      "conta": "por módulo: tv = a espessura do app no meio do módulo, em px do mundo; tv < 26: baixo; tv < 40: medio; senão alto; nunca acima da altura da beira (a face do norte de um Alto, 36%, usa a do Baixo)",
+      "limitesPx": [
+        26.0,
+        40.0
+      ]
+    },
+    "folgaPx": 4.0,
+    "modulos": [
+      {
+        "casas": 2.0,
+        "comprimentoPx": 128.0,
+        "larguraPx": 256,
+        "xPx": 8
+      },
+      {
+        "casas": 2.75,
+        "comprimentoPx": 176.0,
+        "larguraPx": 352,
+        "xPx": 280
+      },
+      {
+        "casas": 2.5,
+        "comprimentoPx": 160.0,
+        "larguraPx": 320,
+        "xPx": 648
+      },
+      {
+        "casas": 3.25,
+        "comprimentoPx": 208.0,
+        "larguraPx": 416,
+        "xPx": 984
+      },
+      {
+        "casas": 3.0,
+        "comprimentoPx": 192.0,
+        "larguraPx": 384,
+        "xPx": 1416
+      }
+    ]
+  },
+  "id": "penhasco",
+  "idDoApp": "penhasco",
+  "luz": {
+    "conta": "l = face * dot(baixo, LUZ) + relevo * dot(rx * aoLongo + ry * baixo, LUZ); l >= 0: mix(cor, realce_de(cor), l); l < 0: cor * (1 - 0,3 * (-l))",
+    "direcao": [
+      -0.7071,
+      -0.7071
+    ],
+    "face": 0.45,
+    "relevo": 0.6
+  },
+  "memoria": {
+    "discoBytes": 96906,
+    "memoriaBytes": 5245608,
+    "tetoDiscoBytes": 1572864,
+    "tetoMemoriaBytes": 6291456
+  },
+  "nome": "Penhasco",
+  "parte": "face",
+  "pxPorCasa": 128,
+  "sequencia": {
+    "conta": "j = 0, 1, 2...: m(j) = floor(hash(j, 0, semente + h) * N), trocado pelo seguinte se igual ao de antes; espelho(j) = hash(j, 1, semente + h) < 0,5; h = o hash do id do traço; no laço fechado os comprimentos escalam para somar o comprimento da beira",
+    "semente": 1806
+  },
+  "sombra": {
+    "alfa": 0.25,
+    "borraoPx": 8.0,
+    "comprimentoPx": 4.0,
+    "conta": "o polígono de d = t / 2 a d = t + comprimentoPx + 1,05 * t * deCostas (t da beira) (deCostas = max(0, -dot(normal, LUZ))), desfocado borraoPx, numa camada só, por baixo da face",
+    "cor": "#0a1c28",
+    "jeito": "pe"
+  },
+  "tingir": null,
+  "tipo": "traco"
+}

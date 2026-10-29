@@ -1,0 +1,23 @@
+{
+  "id": "arvore-redonda",
+  "nome": "Árvore redonda",
+  "idDoApp": "arvore-redonda",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 6,
+  "semente": 53,
+  "tamanhoDoApp": 14,
+  "variacoes": 4,
+  "espelho": "nenhum",
+  "sprite": {
+    "ladoPx": 352,
+    "unidadePx": 280,
+    "ancoraPx": [177.4, 304.2]
+  },
+  "sombra": {
+    "jeito": "em-pe",
+    "comprimento": 0.78,
+    "borrao": 0.03
+  }
+}

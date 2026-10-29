@@ -1,0 +1,12 @@
+{
+  "id": "_modelo-faixa",
+  "nome": "Modelo de faixa",
+  "idDoApp": null,
+  "tipo": "faixa",
+  "modelo": "palha",
+  "onda": 2,
+  "lote": 5,
+  "semente": 23,
+  "faixa": { "comprimentoPx": 36, "meiaLarguraPx": 4, "onde": ["cumeeira"] },
+  "luz": { "lado": 0.12 }
+}

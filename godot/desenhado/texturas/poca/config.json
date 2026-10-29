@@ -1,0 +1,20 @@
+{
+  "id": "poca",
+  "nome": "Poça",
+  "idDoApp": "poca",
+  "tipo": "carimbo",
+  "destino": "carimbo",
+  "onda": 3,
+  "lote": 8,
+  "semente": 79,
+  "tamanhoDoApp": 12,
+  "variacoes": 4,
+  "sprite": {
+    "ladoPx": 320,
+    "unidadePx": 256,
+    "ancoraPx": [160.8, 159.2]
+  },
+  "sombra": {
+    "jeito": "nenhuma"
+  }
+}

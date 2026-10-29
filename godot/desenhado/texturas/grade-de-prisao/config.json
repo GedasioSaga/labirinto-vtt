@@ -1,0 +1,25 @@
+{
+  "id": "grade-de-prisao",
+  "nome": "Grade de prisão",
+  "idDoApp": "grade",
+  "tipo": "traco",
+  "parte": "face",
+  "onda": 5,
+  "lote": 17,
+  "semente": 31,
+  "tingir": "familia-pedra",
+  "mesa": "sala",
+  "face": {
+    "modulosCasas": [1.0],
+    "acimaPx": 1,
+    "abaixoPx": 1
+  },
+  "luz": { "face": 0.0, "relevo": 0.55 },
+  "sombra": { "jeito": "deslocada", "deslocamentoPx": 5, "borraoPx": 9 },
+  "borda": null,
+  "parede": {
+    "papel": "vao",
+    "parede": "parede",
+    "repetir": "n = max(1, round(comprimento do trecho / 64 px)) cópias inteiras do módulo, cada uma com comprimento / n, sem espelho"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "movel-bau",
+  "nome": "Baú",
+  "idDoApp": "bau",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 10,
+  "semente": 44,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "ferragens"],
+  "vistas": {
+    "frente": { "casas": [1, 0.6], "viradas": 2 },
+    "lado": { "casas": [0.6, 0.6], "viradas": 2 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.13, "borraoCasas": 0.025 }
+}

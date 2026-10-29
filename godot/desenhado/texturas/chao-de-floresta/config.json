@@ -1,0 +1,22 @@
+{
+  "id": "chao-de-floresta",
+  "nome": "Chão de floresta",
+  "idDoApp": "chao-de-floresta",
+  "onda": 1,
+  "lote": 2,
+  "semente": 31,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": { "escala": 2.0, "faixa": 0.14, "corte": 0.18 },
+  "tom": { "escala": 6.0, "amplitude": 0.05 },
+  "detalhes": {
+    "celulaCasas": 1,
+    "quantos": 16,
+    "pesos": [2, 2, 2, 2, 2, 2, 1, 0.8, 0.6, 0.8, 1.3, 1.3, 1.1, 0.9, 1.1, 0.5],
+    "densidade": 0.2,
+    "agrupamento": 1,
+    "escalaMin": 0.85,
+    "escalaMax": 1.3,
+    "variacaoDeTom": 0.04
+  }
+}

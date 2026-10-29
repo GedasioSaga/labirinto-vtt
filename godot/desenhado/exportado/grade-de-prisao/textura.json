@@ -1,0 +1,162 @@
+{
+  "alturas": {
+    "alto": {
+      "arquivos": {
+        "cor": "face-alto.png",
+        "relevo": "face-alto-relevo.png"
+      },
+      "hCasas": 0.75,
+      "hPx": 48.0,
+      "imagem": [
+        144,
+        100
+      ]
+    },
+    "baixo": {
+      "arquivos": {
+        "cor": "face-baixo.png",
+        "relevo": "face-baixo-relevo.png"
+      },
+      "hCasas": 0.3125,
+      "hPx": 20.0,
+      "imagem": [
+        144,
+        44
+      ]
+    },
+    "medio": {
+      "arquivos": {
+        "cor": "face-medio.png",
+        "relevo": "face-medio-relevo.png"
+      },
+      "hCasas": 0.5,
+      "hPx": 32.0,
+      "imagem": [
+        144,
+        68
+      ]
+    }
+  },
+  "borda": null,
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#5d5d5d",
+  "face": {
+    "abaixoPx": 1.0,
+    "acimaPx": 1.0,
+    "canais": "cor: RGBA, cor reta, alfa reto (R = valor, 0,5 = a cor do mestre); relevo: R = 0,5 + 0,5 x ao longo, G = 0,5 + 0,5 x para baixo",
+    "conta": "x da imagem = modulo.xPx + 2 * (u espelhado ou não); y da imagem = 2 * (acimaPx + (d / t) * hPx), d = px do mundo da beira para o pé, t = a espessura do app no ponto",
+    "costura": {
+      "maior": 0.0,
+      "relevoX": 1.0,
+      "tetoEm255": 2
+    },
+    "costuraPx": 4.0,
+    "escolha": {
+      "conta": "por módulo: tv = a espessura do app no meio do módulo, em px do mundo; tv < 26: baixo; tv < 40: medio; senão alto; nunca acima da altura da beira (a face do norte de um Alto, 36%, usa a do Baixo)",
+      "limitesPx": [
+        26.0,
+        40.0
+      ]
+    },
+    "folgaPx": 4.0,
+    "modulos": [
+      {
+        "casas": 1.0,
+        "comprimentoPx": 64.0,
+        "larguraPx": 128,
+        "xPx": 8
+      }
+    ]
+  },
+  "id": "grade-de-prisao",
+  "idDoApp": "grade",
+  "luz": {
+    "conta": "l = face * dot(baixo, LUZ) + relevo * dot(rx * aoLongo + ry * baixo, LUZ); l >= 0: mix(cor, realce_de(cor), l); l < 0: cor * (1 - 0,3 * (-l))",
+    "direcao": [
+      -0.7071,
+      -0.7071
+    ],
+    "face": 0.0,
+    "relevo": 0.55
+  },
+  "memoria": {
+    "discoBytes": 8001,
+    "memoriaBytes": 325632,
+    "tetoDiscoBytes": 1572864,
+    "tetoMemoriaBytes": 6291456
+  },
+  "nome": "Grade de prisão",
+  "parede": {
+    "papel": "vao",
+    "parede": "parede",
+    "repetir": "n = max(1, round(comprimento do trecho / 64 px)) cópias inteiras do módulo, cada uma com comprimento / n, sem espelho"
+  },
+  "parte": "face",
+  "pxPorCasa": 128,
+  "sequencia": {
+    "conta": "j = 0, 1, 2...: m(j) = floor(hash(j, 0, semente + h) * N), trocado pelo seguinte se igual ao de antes; espelho(j) = hash(j, 1, semente + h) < 0,5; h = o hash do id do traço; no laço fechado os comprimentos escalam para somar o comprimento da beira",
+    "semente": 3220
+  },
+  "sombra": {
+    "alfa": 0.25,
+    "borraoPx": 9.0,
+    "conta": "a faixa inteira de todas as paredes (a espessura toda, o contorno incluído) numa camada só, andada deslocamentoPx na direção (7, 11) normalizada, desfocada borraoPx, por baixo das paredes e por cima do chão",
+    "cor": "#0a1c28",
+    "deslocamentoPx": 5.0,
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "deslocada"
+  },
+  "tingir": {
+    "amareloNaLuz": 0.12,
+    "claro": [
+      [
+        0.5,
+        0.0
+      ],
+      [
+        0.62,
+        0.12
+      ],
+      [
+        0.76,
+        0.26
+      ],
+      [
+        1.0,
+        0.45
+      ]
+    ],
+    "claroDesde": 0.94,
+    "conta": "valor-oklab",
+    "cromaNaLuz": 0.2,
+    "cromaNaSombra": -0.6,
+    "escuro": [
+      [
+        0.0,
+        0.42
+      ],
+      [
+        0.1,
+        0.5
+      ],
+      [
+        0.24,
+        0.64
+      ],
+      [
+        0.36,
+        0.78
+      ],
+      [
+        0.5,
+        1.0
+      ]
+    ],
+    "escuroAte": 0.1
+  },
+  "tipo": "traco"
+}

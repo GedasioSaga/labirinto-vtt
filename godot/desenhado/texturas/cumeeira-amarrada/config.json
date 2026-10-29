@@ -1,0 +1,12 @@
+{
+  "id": "cumeeira-amarrada",
+  "nome": "Cumeeira amarrada",
+  "idDoApp": null,
+  "tipo": "faixa",
+  "modelo": "palha",
+  "onda": 2,
+  "lote": 5,
+  "semente": 41,
+  "faixa": { "comprimentoPx": 512, "meiaLarguraPx": 10.5, "onde": ["cumeeira"] },
+  "luz": { "lado": 0.14 }
+}
