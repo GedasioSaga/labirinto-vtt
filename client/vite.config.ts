@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { fileURLToPath } from 'node:url'
+import { defineConfig, normalizePath, searchForWorkspaceRoot } from 'vite'
 import react from '@vitejs/plugin-react'
 // Porta por árvore de trabalho: 1420 na principal, própria em cada worktree.
 // Sem isso, dois portões em paralelo testam o mesmo servidor (client/porta.js).
@@ -13,6 +14,22 @@ const porta = portaDoProjeto()
 const projetos = globsDosProjetos()
 // desempenho/ = harness Playwright do mapa grande (scripts/medir-desempenho.cjs), não é vitest
 const EXCLUIDOS_DO_TESTE = ['**/node_modules/**', '**/dist/**', 'e2e/**', 'recreate/**', 'desempenho/**']
+
+// DESENHADO (src/texturas/desenhado/arquivos.ts): as imagens moram fora do
+// `root` (client/), em godot/desenhado/exportado/, e entram no app sem cópia.
+const PASTA_DO_CLIENT = fileURLToPath(new URL('.', import.meta.url))
+const PASTA_DO_DESENHADO = fileURLToPath(new URL('../godot/desenhado/exportado/', import.meta.url))
+const PREFIXO_DO_DESENHADO = normalizePath(PASTA_DO_DESENHADO)
+
+/**
+ * PNG do Desenhado nunca vira base64 no JS: 228 dos ~540 têm menos de 4 KiB e
+ * seriam embutidos pelo padrão. Arquivo próprio em `assets/` entra no cache do
+ * navegador do jogador (nome com hash) e só é baixado pela cena que o usa.
+ * `undefined` = o padrão do Vite para todo o resto.
+ */
+function embutirAsset(arquivo: string): boolean | undefined {
+  return normalizePath(arquivo).startsWith(PREFIXO_DO_DESENHADO) ? false : undefined
+}
 
 export default defineConfig({
   plugins: [react()],
@@ -28,11 +45,16 @@ export default defineConfig({
     strictPort: true,
     host: host || false,
     hmr: host ? { protocol: 'ws', host, port: porta + 1 } : undefined,
+    // Dar `allow` desliga a descoberta automática da raiz: ela volta pela
+    // primeira linha, e a pasta do Desenhado entra explícita (não depende de o
+    // repo continuar sendo workspace npm).
+    fs: { allow: [searchForWorkspaceRoot(PASTA_DO_CLIENT), PASTA_DO_DESENHADO] },
   },
   // Três páginas no mesmo build: o editor (index.html), a página do jogador
   // (player.html), servida pelo servidor axum do app em /player, e a janela da
   // Visão de jogador (visao-jogador.html), aberta pelo Rust dentro do app.
   build: {
+    assetsInlineLimit: embutirAsset,
     rollupOptions: {
       input: {
         main: 'index.html',
