@@ -1,0 +1,27 @@
+{
+  "id": "parede",
+  "nome": "Parede",
+  "idDoApp": "parede",
+  "tipo": "traco",
+  "parte": "face",
+  "onda": 5,
+  "lote": 17,
+  "semente": 23,
+  "tingir": "familia-pedra",
+  "mesa": "sala",
+  "face": {
+    "modulosCasas": [2.5, 3.0, 2.0, 3.5, 2.75],
+    "acimaPx": 1,
+    "abaixoPx": 1
+  },
+  "luz": { "face": 0.0, "relevo": 0.55 },
+  "sombra": { "jeito": "deslocada", "deslocamentoPx": 5, "borraoPx": 9 },
+  "borda": null,
+  "parede": {
+    "papel": "parede",
+    "contorno": { "px": 2.4, "minPx": 1.2, "fracao": 0.14, "valor": 0.10, "conta": "c = clamp(fracao * t, minPx, px); o app pinta a faixa inteira (t) no valor do contorno e a face no miolo (t - 2c)" },
+    "espessuraDoDegrauPx": { "thin": 12, "medium": 20, "thick": 32 },
+    "trechoCurtoCasas": 1.25,
+    "vaos": { "janela": "janela", "grade": "grade-de-prisao" }
+  }
+}
