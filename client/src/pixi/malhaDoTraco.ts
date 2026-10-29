@@ -220,7 +220,7 @@ let programasQuebrados: Programas | null = null
 let falhaForcada = false
 
 /** Uma linha que nenhum compilador aceita: a prova de que a falha cai no Atual. */
-const QUEBRA = '\n#error falha forcada do traco\n'
+export const QUEBRA = '\n#error falha forcada do traco\n'
 
 function criarProgramas(quebrar: boolean): Programas {
   const extra = quebrar ? QUEBRA : ''
@@ -249,10 +249,15 @@ export function forcarFalhaDoTraco(sim: boolean): void {
   falhaForcada = sim
 }
 
-type Contexto = WebGLRenderingContext | WebGL2RenderingContext
+/** A falha está forçada? (A parede, `malhaDaParede.ts`, quebra os shaders dela junto.) */
+export function falhaDoTracoForcada(): boolean {
+  return falhaForcada
+}
+
+export type Contexto = WebGLRenderingContext | WebGL2RenderingContext
 
 /** `null` = compilou e ligou; senão, o motivo (o registro do compilador, para o aviso). */
-function erroNoContexto(gl: Contexto, p: GlProgram): string | null {
+export function erroNoContexto(gl: Contexto, p: GlProgram): string | null {
   const { vertex, fragment } = p
   if (vertex === undefined || fragment === undefined) return 'sem fonte'
   const vs = gl.createShader(gl.VERTEX_SHADER)

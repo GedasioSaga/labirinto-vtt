@@ -46,7 +46,8 @@ export interface ImagemDaAltura {
 }
 
 export interface SombraDoTraco {
-  readonly jeito: 'pe' | 'nenhuma'
+  /** `deslocada` = a da parede (11.15): a faixa andada e desfocada, feita por quem desenha a parede. */
+  readonly jeito: 'pe' | 'nenhuma' | 'deslocada'
   readonly comprimentoPx: number
   readonly borraoPx: number
   readonly cor: string
@@ -157,7 +158,7 @@ function lerSombraDoTraco(bruto: unknown): SombraDoTraco | null {
   const borraoPx = numero(bruto, 'borraoPx') ?? 0
   const cor = texto(bruto, 'cor') ?? '#0a1c28'
   const alfa = numero(bruto, 'alfa') ?? 0.25
-  if (jeito !== 'pe' && jeito !== 'nenhuma') return null
+  if (jeito !== 'pe' && jeito !== 'nenhuma' && jeito !== 'deslocada') return null
   if (!dentro(comprimentoPx, 0, 64) || !dentro(borraoPx, 0, 64) || !COR_HEX.test(cor) || !dentro(alfa, 0, 1)) return null
   return { jeito, comprimentoPx, borraoPx, cor, alfa }
 }

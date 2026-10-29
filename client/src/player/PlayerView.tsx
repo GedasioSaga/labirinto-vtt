@@ -57,7 +57,7 @@ import { drawTriGrid } from '../pixi/drawTriGrid'
 import { computeVisibleHexCenters } from '../pixi/hexGrid'
 import { computeVisibleTriEdges } from '../pixi/triGrid'
 import { createFloorRenderer } from '../pixi/drawFloor'
-import { drawWalls } from '../pixi/drawWalls'
+import { criarPintorDeParedes, type PintorDeParedes } from '../pixi/paredesDesenhadas'
 import { createAnimadorDePortas, type AnimadorDePortas } from '../pixi/animadorDePortas'
 import { tocarSomDePorta } from '../portas/somDePorta'
 import { portaAVistaAntesEDepois } from './quandoTocarSom'
@@ -1163,13 +1163,15 @@ interface Scene {
   luzesPorNo: PorNo<Container, ReturnType<typeof createLightsRenderer>>
   pinosPorNo: PorNo<Container, ReturnType<typeof createPinsRenderer>>
   portasPorNo: PorNo<Container, AnimadorDePortas>
+  /** As paredes por nó: o Atual ou a alvenaria Desenhada (`paredesDesenhadas.ts`, F4b). */
+  paredesPorNo: PorNo<Container, PintorDeParedes>
   portasNoTelhadoPorNo: PorNo<Container, AnimadorDePortas>
   /** A PILHA DE CAMADAS (`pilhaDoJogador.ts`): a lista de camadas do jogador, dentro de cada zona da névoa. */
   pilha: Pilha<Container>
   paresDoMapa: (map: MapData) => ParDeFaixa[]
   /** O que montou a pilha por último: mesmo mapa, ou mesma lista e mesmos pares, não replaneja. */
   entradaDaPilha: { map: MapData; camadas: MapData['camadasDoJogador']; pares: string } | null
-  walls: Graphics
+  walls: Container
   /** Portas do mesmo renderer do editor (drawDoors.ts): trancada continua visível. */
   doors: Graphics
   /** PORTA ANIMADA: o mesmo animador do editor; repinta `doors` sozinho no relógio enquanto alguma porta anda. */
@@ -2544,7 +2546,8 @@ function PlayerViewDoCanvas({
     // portas sozinho a cada quadro enquanto alguma anda, com os argumentos do
     // último desenho. Aqui só entra o que muda o desenho: a porta que troca
     // `open` muda `walls`, a chave muda, e é isso que dispara a animação.
-    const key = JSON.stringify([walls, scale, res, toCross, scene.pilha.assinaturaDa('walls'), scene.pilha.assinaturaDa('doors')])
+    // O estilo e o grid: no Desenhado a parede tem a espessura do mundo e a alvenaria do pacote.
+    const key = JSON.stringify([walls, scale, res, toCross, scene.pilha.assinaturaDa('walls'), scene.pilha.assinaturaDa('doors'), desenhadoLigado(), currentMap.grid])
     if (key === scene.lastWallsKey) return
     scene.lastWallsKey = key
     scene.wallsDrawn = walls.length
@@ -2552,8 +2555,11 @@ function PlayerViewDoCanvas({
     // separa das de Portas); mapa de hoje = um nó, a mesma lista.
     const camadas = contextoDoJogador(currentMap)
     const deParede = (w: Wall) => camadas.camadaDe('parede', w)
-    for (const { no, itens } of distribuir(walls, scene.pilha.nosDaFaixa('walls'), deParede)) {
-      if (no instanceof Graphics) drawWalls(no, itens, null, scale, res)
+    // As cadeias do Desenhado saem de TODAS as paredes do nó (a sequência dos blocos é a mesma do mestre); só as de perto saem na tela.
+    const nosDasParedes = scene.pilha.nosDaFaixa('walls')
+    const todasPorNo = new Map(distribuir(wallsOnVisibleLayers(currentMap.walls, currentMap.hiddenLayers), nosDasParedes, deParede).map((b) => [b.no, b.itens]))
+    for (const { no, itens } of distribuir(walls, nosDasParedes, deParede)) {
+      scene.paredesPorNo.de(no).desenhar(no, { walls: itens, todas: todasPorNo.get(no) ?? itens, selectedWallId: null, cameraScale: scale, rendererResolution: res, highlightedRegionId: null, marcarPassagem: false, grid: currentMap.grid })
     }
     // SOM DA PORTA: só a que estava à vista antes e está agora. A que volta à
     // vista troca o estado lembrado pelo de agora sem ninguém ter mexido nela.
@@ -3409,7 +3415,8 @@ function PlayerViewDoCanvas({
       const propImages = new Container()
       const propLabels = new Container()
       const stairs = new Graphics()
-      const walls = new Graphics()
+      // PAREDES (F4b): um contêiner por nó; dentro, o Atual (um Graphics) ou a alvenaria Desenhada.
+      const walls = new Container()
       const doorHints = new Graphics()
       const doors = new Graphics()
       const roomNames = new Container()
@@ -3690,6 +3697,8 @@ function PlayerViewDoCanvas({
         (no) => portasPorNo.soltar(no),
         (no) => portasNoTelhadoPorNo.soltar(no),
       )
+      const paredesPorNo = criarPorNo<Container, PintorDeParedes>(walls, criarPintorDeParedes(), criarPintorDeParedes, (pintor) => pintor.destroy())
+      aoDescartarNo.push((no) => paredesPorNo.soltar(no))
       const signalsLayer = new Container()
       signalsLayer.eventMode = 'none'
       // Bandeirinhas "vamos para cá" dentro da camada dos sinais, nascida antes das ondas: ficam por baixo delas.
@@ -3792,6 +3801,7 @@ function PlayerViewDoCanvas({
         doors,
         animadorDePortas: portasPorNo.de(doors),
         portasPorNo,
+        paredesPorNo,
         visaoDasPortas: [],
         doorHints,
         lastDoorHintsKey: null,
@@ -4632,6 +4642,7 @@ function PlayerViewDoCanvas({
         // A textura do relevo também não.
         scene.relevo.destruir()
         scene.barranco.destroy()
+        scene.paredesPorNo.de(scene.walls).destroy()
         scene.pisoDoChao.destruir()
         scene.caminhos.destruir()
         scene.texturas.destruir()

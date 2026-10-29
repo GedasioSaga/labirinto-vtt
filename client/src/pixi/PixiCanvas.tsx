@@ -52,7 +52,7 @@ import { drawTriGrid } from './drawTriGrid'
 import { computeAlignedGridLines, type GridAlignResult } from '../lib/gridAlign'
 import { drawGridAlignOverlay } from './drawGridAlignOverlay'
 import { isHidden, canInteract } from '../lib/itemTransform'
-import { drawWalls } from './drawWalls'
+import { criarPintorDeParedes, type PintorDeParedes } from './paredesDesenhadas'
 import { createAnimadorDePortas } from './animadorDePortas'
 import { tocarSomDePorta } from '../portas/somDePorta'
 import { drawStairs } from './drawStairs'
@@ -1321,7 +1321,8 @@ function PixiCanvasDoContexto({
       const nomesDosLugaresContainer = new Container()
       nomesDosLugaresContainer.eventMode = 'none'
       nomesDosLugaresContainer.addChild(nomesDosLugares.camada)
-      const wallsGraphics = new Graphics()
+      // PAREDES (F4b): um contêiner por nó; dentro, o Atual (um Graphics) ou a alvenaria Desenhada (`paredesDesenhadas.ts`).
+      const wallsGraphics = new Container()
       const doorsGraphics = new Graphics()
       const stairsGraphics = new Graphics()
       // A5 — escadas e desenhos "Oculto para jogadores": mesmo desenho num
@@ -2166,6 +2167,8 @@ function PixiCanvasDoContexto({
         (animador) => animador.cancelar(),
       )
       aoDescartarNo.push((no) => animadoresDePortas.soltar(no))
+      const paredesPorNo = criarPorNo<Container, PintorDeParedes>(wallsGraphics, criarPintorDeParedes(), criarPintorDeParedes, (pintor) => pintor.destroy())
+      aoDescartarNo.push((no) => paredesPorNo.soltar(no))
       aoDescartarNo.push((no) => caminhos.soltar(no))
       const paintWallsAndDoors = () => {
         const { map, selection } = sceneState()
@@ -2178,7 +2181,7 @@ function PixiCanvasDoContexto({
         // Cada nó da faixa com as paredes da camada dele; mapa de hoje = um nó, a mesma lista.
         for (const { no, itens } of distribuir(walls, pilha.nosDaFaixa('wallsGraphics'), deParede)) {
           // Sala selecionada: o contorno segue as paredes (sob elas o da Região some).
-          if (no instanceof Graphics) drawWalls(no, itens, selectedWallId, camera.scale, res, single?.kind === 'region' ? single.id : null, true)
+          paredesPorNo.de(no).desenhar(no, { walls: itens, selectedWallId, cameraScale: camera.scale, rendererResolution: res, highlightedRegionId: single?.kind === 'region' ? single.id : null, marcarPassagem: true, grid: map.grid })
         }
         for (const { no, itens } of distribuir(walls, pilha.nosDaFaixa('doorsGraphics'), deParede)) {
           if (no instanceof Graphics) animadoresDePortas.de(no).desenhar(no, itens, selectedWallId, camera.scale, res)
@@ -9038,6 +9041,8 @@ function PixiCanvasDoContexto({
         relevo.destruir()
         gestoDoBarranco.cancelar()
         desenhoDoBarranco.destroy()
+        // O pintor das paredes do nó de hoje (o dos nós criados sai com a pilha).
+        paredesPorNo.de(wallsGraphics).destroy()
         // As máscaras e os ladrilhos das texturas também: são deste palco só.
         pisoDoChao.destruir()
         caminhos.destruir()

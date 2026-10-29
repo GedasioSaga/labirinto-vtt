@@ -336,6 +336,19 @@ export function drawWalls(
   }
 }
 
+/**
+ * Só as marcas do editor, por cima da parede Desenhada (`paredesDesenhadas.ts`):
+ * a parede invisível tracejada e fraca, e a passagem tracejada. O resto da
+ * parede, no Desenhado, é a alvenaria do pacote.
+ */
+export function drawWallMarks(graphics: Graphics, walls: WallWithStyle[], cameraScale = 1, rendererResolution = 1): void {
+  graphics.clear()
+  for (const wall of walls) {
+    if (isInvisivel(wall)) drawParedeInvisivel(graphics, wall, cameraScale, rendererResolution)
+    else if (isPassagem(wall)) drawPassagem(graphics, wall, resolveWallStyle(wall, cameraScale, rendererResolution), cameraScale)
+  }
+}
+
 /** Traço e vão da passagem tracejada, em px de TELA: o mesmo ritmo em qualquer zoom. */
 const PASSAGEM_TRACO_SCREEN_PX = 8
 const PASSAGEM_VAO_SCREEN_PX = 6

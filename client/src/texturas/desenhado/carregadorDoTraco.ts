@@ -16,8 +16,8 @@ import { ALTURAS_DO_TRACO, lerBordaDoTraco, lerFaceDoTraco, type AlturaDoTraco, 
  *   depois de `ESPERA_DEPOIS_DA_FALHA_MS` (a rede do jogador pode voltar).
  */
 
-/** Os traços que o app usa hoje (F4a). A parede, a janela e a grade entram na F4b. */
-export const TRACOS_DO_DESENHADO = ['penhasco', 'penhasco-borda'] as const satisfies readonly IdDoDesenhado[]
+/** Os traços que o app usa: o penhasco e a borda dele (F4a); a parede, a janela e a grade (F4b). */
+export const TRACOS_DO_DESENHADO = ['penhasco', 'penhasco-borda', 'parede', 'janela', 'grade-de-prisao'] as const satisfies readonly IdDoDesenhado[]
 export type IdDoTracoDesenhado = (typeof TRACOS_DO_DESENHADO)[number]
 
 const MEBIBYTE = 1024 * 1024
@@ -29,6 +29,8 @@ const ESPERA_DEPOIS_DA_FALHA_MS = 10_000
 
 export interface FaceCarregada {
   readonly face: FaceDoTraco
+  /** O `textura.json` como veio (a parede lê dele o bloco `parede` e o `tingir`). */
+  readonly bruto: unknown
   readonly imagens: Readonly<Record<AlturaDoTraco, { readonly cor: HTMLImageElement; readonly relevo: HTMLImageElement }>>
   /** O que a face pesa na placa (RGBA + mipmaps), por palco. */
   readonly bytes: number
@@ -92,7 +94,8 @@ async function abrirImagem(url: string | undefined, largura: number, altura: num
 
 async function carregarFace(id: IdDoTracoDesenhado): Promise<Pronto | null> {
   const fonte = await abrirFonteDoDesenhado()
-  const face = lerFaceDoTraco(await fonte.textura(id))
+  const bruto: unknown = await fonte.textura(id)
+  const face = lerFaceDoTraco(bruto)
   if (face === null) return null
   let bytes = 0
   for (const a of ALTURAS_DO_TRACO) bytes += 2 * bytesNaPlaca(face.alturas[a].largura, face.alturas[a].altura)
@@ -109,7 +112,7 @@ async function carregarFace(id: IdDoTracoDesenhado): Promise<Pronto | null> {
   const [bc, br, mc, mr, ac, ar] = lidas
   if (bc == null || br == null || mc == null || mr == null || ac == null || ar == null) return null
   const imagens = { baixo: { cor: bc, relevo: br }, medio: { cor: mc, relevo: mr }, alto: { cor: ac, relevo: ar } }
-  return { tipo: 'face', face: { face, imagens, bytes } }
+  return { tipo: 'face', face: { face, bruto, imagens, bytes } }
 }
 
 async function carregarBorda(id: IdDoTracoDesenhado): Promise<Pronto | null> {

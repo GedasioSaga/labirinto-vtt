@@ -224,7 +224,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // (`drawNuvens.ts`), mexendo só em posição e opacidade.
       return nuvensLigadas(map) ? ['nuvens', map.id, map.width, map.height, map.grid, map.floor, map.background] : ['sem nuvens']
     case 'walls':
-      return [map.walls, hidden, selectedId('wall'), selectedId('region'), cameraScale, rendererResolution, nos('wallsGraphics'), nos('doorsGraphics')]
+      // O grid entra pelo Desenhado: a espessura da parede lá é do mundo (12, 20, 32 px a 64 por casa).
+      return [map.walls, hidden, selectedId('wall'), selectedId('region'), cameraScale, rendererResolution, map.grid, nos('wallsGraphics'), nos('doorsGraphics')]
     case 'stairs':
       return [map.stairs, hidden, selectedId('stair'), cameraScale, rendererResolution, nos('stairsGraphics'), nos('secretStairsGraphics')]
     case 'lights':
