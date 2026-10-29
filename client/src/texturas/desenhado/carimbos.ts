@@ -191,7 +191,7 @@ export function quadroDoCorpo(t: TexturaDoCarimbo): { esquerda: number; topo: nu
  * Canvas: x' = a·u + c·v + e). Sem espelho (u - ancora.x, v - ancora.y) /
  * unidadePx; com espelho (v - ancora.x, u - ancora.y) / unidadePx.
  */
-export function matrizDoCorpo(t: TexturaDoCarimbo, espelho: boolean): Matriz {
+export function matrizDoCorpo(t: Pick<TexturaDoCarimbo, 'unidadePx' | 'ancoraPx'>, espelho: boolean): Matriz {
   const s = 1 / t.unidadePx
   const [ax, ay] = t.ancoraPx
   return espelho ? [0, s, s, 0, -s * ax, -s * ay] : [s, 0, 0, s, -s * ax, -s * ay]

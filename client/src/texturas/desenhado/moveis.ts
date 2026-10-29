@@ -109,6 +109,11 @@ function avisar(): void {
   for (const o of [...ouvintes]) o()
 }
 
+/** Os carregadores das plantas (`trecho.ts`, `vaso.ts`) avisam pelos mesmos ouvintes: o raster repinta quem esperava. */
+export function avisarMoveisDesenhados(): void {
+  avisar()
+}
+
 /** Abre espaço soltando as vistas que ninguém pediu há mais tempo; `false` = nem assim cabe. */
 function abrirEspaco(bytes: number, agora: number): boolean {
   let total = 0
@@ -126,7 +131,7 @@ function abrirEspaco(bytes: number, agora: number): boolean {
 }
 
 /** Um PNG da fonte em RGBA (alfa reto, como a tela 2D devolve). */
-async function decodificar(url: string): Promise<ImagemDoPacote | null> {
+export async function decodificar(url: string): Promise<ImagemDoPacote | null> {
   const resposta = await fetch(url)
   if (!resposta.ok) return null
   const bitmap = await createImageBitmap(await resposta.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
@@ -336,14 +341,29 @@ export const BYTES_DE_TRABALHO_DO_DESENHADO = 44
  * passos: o corpo pela conta do pacote, a sombra pela silhueta, os halos do app (o do
  * lampião por baixo, o do fogo aceso por cima). É o que o raster dos móveis sobe para a
  * placa, e o que a conferência compara com a mesa de prova do pacote.
+ *
+ * Com `sombraPx` (F3d), a sombra sai À PARTE, a cobertura sem o alfa (0..255 nos 4 canais,
+ * branco pré-multiplicado): o palco a põe na camada única das sombras dos móveis, a 0,25,
+ * e duas sombras que se cruzam não escurecem em dobro (como a mesa de prova:
+ * `ferramentas/mesa_movel.ts`, `pintarSombra`). Sem ele, a sombra vai na imagem, como antes.
  */
-export function* pintarMovelDesenhado(plano: PlanoDoMovel, halo: HaloDoMovel, pixels: Uint8ClampedArray): Generator<void, void, void> {
+export function* pintarMovelDesenhado(plano: PlanoDoMovel, halo: HaloDoMovel, pixels: Uint8ClampedArray, sombraPx?: Uint8ClampedArray): Generator<void, void, void> {
   const corpo = yield* pintarMovel(plano, tingidos)
   const sb = plano.m.p.sombra
   const sombra = yield* sombraDoCorpo(sb, corpo, plano.pxPorCasa)
   const { W, H } = plano
   const fundo = { w: W, h: H, px: new Float32Array(W * H * 4) }
-  if (sombra !== null) {
+  if (sombra !== null && sombraPx !== undefined) {
+    // A cobertura: a conta devolve já com o alfa do pacote (a mesa divide por ele também).
+    const alfa = sb.alfa > 0 ? sb.alfa : 1
+    for (let i = 0; i < W * H; i += 1) {
+      const v = Math.min(1, sombra[i] / alfa) * 255
+      sombraPx[i * 4] = v
+      sombraPx[i * 4 + 1] = v
+      sombraPx[i * 4 + 2] = v
+      sombraPx[i * 4 + 3] = v
+    }
+  } else if (sombra !== null) {
     for (let i = 0; i < W * H; i += 1) {
       const s = sombra[i]
       if (s <= 0) continue

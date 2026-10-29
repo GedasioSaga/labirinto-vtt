@@ -370,6 +370,9 @@ function drawSilhouette(graphics: Graphics, prop: PropSilhouette, grid: PixelGri
 /** A imagem sai com a cor dela: sem tinta por cima e opaca (o alfa do último `fill` não vaza para a imagem). */
 const IMAGE_TINT = 0xffffff
 const IMAGE_ALPHA = 1
+/** A sombra dos móveis do Desenhado (CONTRATO 10.1, item 5: a dos carimbos): `#0a1c28` a 0,25, numa camada só. */
+export const COR_DA_SOMBRA_DOS_MOVEIS = 0x0a1c28
+export const ALFA_DA_SOMBRA_DOS_MOVEIS = 0.25
 
 type ModuloDoRaster = typeof import('./rasterDosMoveis')
 type CarregadorDoRaster = () => Promise<ModuloDoRaster>
@@ -473,6 +476,7 @@ function drawTexturedFurniture(
   edgeWidth: number,
   vista: 'tres-quartos' | undefined,
   gradeDoMapa: number | undefined,
+  sombra: Graphics | undefined,
 ): boolean {
   const imagem = raster.imagemParaDesenhar(prop, cameraScale, rendererResolution, vista, gradeDoMapa)
   if (imagem === null) return false
@@ -484,8 +488,17 @@ function drawTexturedFurniture(
   raster.marcarColada(mostrar)
   // A placa de seta (e, na 3/4, todo móvel derivado; no Desenhado, todo móvel) traz o quarto de
   // volta pintado (a sombra e a luz não giram): aqui só gira o resto. O giro é o da imagem colada
-  // (a do Atual pode estar no lugar da Desenhada enquanto ela pinta).
-  const trig = rotationTrig((prop.rotation ?? 0) - mostrar.giroPintado)
+  // (a do Atual pode estar no lugar da Desenhada enquanto ela pinta). O vaso Desenhado não gira nada.
+  const trig = rotationTrig(mostrar.naoGira === true ? 0 : (prop.rotation ?? 0) - mostrar.giroPintado)
+  if (mostrar.sombra !== undefined) {
+    // A sombra à parte (F3d) vai para a camada única das sombras, opaca (a camada põe o 0,25 uma
+    // vez só); sem a camada, por baixo do corpo neste mesmo desenho, a 0,25, como antes.
+    const alvo = sombra ?? graphics
+    const r = modulo.retanguloNoMundo(mostrar, prop.width, prop.height, mostrar.sombra.limites)
+    alvo.save().setFillStyle({ color: IMAGE_TINT, alpha: sombra === undefined ? ALFA_DA_SOMBRA_DOS_MOVEIS : IMAGE_ALPHA }).setTransform(trig.cos, trig.sin, -trig.sin, trig.cos, prop.x, prop.y)
+    alvo.texture(mostrar.sombra.textura, COR_DA_SOMBRA_DOS_MOVEIS, r.x, r.y, r.w, r.h)
+    alvo.restore()
+  }
   graphics.save().setFillStyle({ color: IMAGE_TINT, alpha: IMAGE_ALPHA }).setTransform(trig.cos, trig.sin, -trig.sin, trig.cos, prop.x, prop.y)
   // A cerca longa vem em ladrilhos (cada um com a sua textura, lado a lado); o resto, numa imagem só.
   for (const ladrilho of mostrar.ladrilhos) {
@@ -523,12 +536,18 @@ export function drawPropSilhouettes(
   vistaDosMoveis?: MapData['vistaDosMoveis'],
   /** A grade do mapa (px por casa): o Desenhado mede as pontas esticadas em casas dele. */
   gradeDoMapa?: number,
+  /**
+   * A camada única das sombras dos móveis (F3d, `drawProps.ts`): a sombra do Desenhado vai para
+   * este desenho, opaca. Ausente = a sombra vai por baixo do corpo em `graphics`, a 0,25.
+   */
+  sombra?: Graphics,
 ): number {
   graphics.clear()
+  sombra?.clear()
   const grid = pixelGrid(cameraScale, rendererResolution, PROP_SILHOUETTE_EDGE_SCREEN_PX)
   const edgeWidth = strokeWidthInWorld(grid)
   const repintar = (): void => {
-    if (!graphics.destroyed) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa)
+    if (!graphics.destroyed && sombra?.destroyed !== true) drawPropSilhouettes(graphics, props, cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa, sombra)
   }
   // A chave de obra vale para os 11 móveis de antes, menos o que pediu a versão EM LINHAS (MT12);
   // a PEÇA NOVA (MT4) sai sempre com textura (`saiComTextura`).
@@ -544,7 +563,7 @@ export function drawPropSilhouettes(
     // O tapete fica no chão: pintado antes, por baixo de todo objeto. Na 3/4, o resto pela base.
     for (const prop of vista === undefined ? emOrdemDeDesenho(props) : emOrdemDoTresQuartos(props)) {
       if (!hasDrawableGeometry(prop)) continue
-      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth, vista, gradeDoMapa)) {
+      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth, vista, gradeDoMapa, sombra)) {
         drawSilhouette(graphics, prop, grid, edgeWidth)
       }
       drawn += 1

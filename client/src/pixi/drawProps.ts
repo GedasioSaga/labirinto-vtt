@@ -1,11 +1,11 @@
-import { Container, Sprite, Graphics, Assets, Texture } from 'pixi.js'
+import { AlphaFilter, Container, Sprite, Graphics, Assets, Texture } from 'pixi.js'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { MapData, Prop } from '../types/map'
 import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
-import { drawPropSilhouettes } from './drawPropSilhouettes'
-import { versaoDoEstilo } from '../lib/estiloDoMapa'
+import { ALFA_DA_SOMBRA_DOS_MOVEIS, drawPropSilhouettes } from './drawPropSilhouettes'
+import { desenhadoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
@@ -84,6 +84,8 @@ export const FURNITURE_LABEL = 'mobilia'
 export const FLOOR_LABEL = 'chao-dos-objetos'
 /** Rótulo do `Container` da MESA POSTA: os Pratos, por cima de sprite e móvel, logo abaixo do destaque. */
 export const MESA_POSTA_LABEL = 'mesa-posta'
+/** Rótulo do `Container` das SOMBRAS dos móveis do Desenhado: logo acima do chão, abaixo de todo móvel. */
+export const SOMBRAS_LABEL = 'sombras-dos-moveis'
 
 /** Transparência do objeto no editor: fantasma do "Oculto no editor", meio apagado se "Oculto para jogadores". */
 function propAlpha(prop: Prop): number {
@@ -127,6 +129,8 @@ export interface PropsRenderer {
  */
 interface FurnitureEntry {
   drawing: Graphics
+  /** A sombra do Desenhado deste móvel, na camada única das sombras (vazia no Atual). */
+  sombra: Graphics
   /** `estilo`: o `versaoDoEstilo()` da pintura; trocar o estilo do mapa repinta o móvel (Atual com textura, Simples em linhas). */
   painted: { prop: Prop; cameraScale: number; rendererResolution: number; vistaDosMoveis: MapData['vistaDosMoveis']; gradeDoMapa: number | undefined; estilo: string } | null
   /** A chama da fogueira (o nó logo acima do desenho), para a ordem da 3/4 levá-la junto. */
@@ -163,6 +167,13 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
   // A MESA POSTA (os Pratos): o avesso do chão, por cima de todo objeto e logo abaixo do destaque.
   const mesaPosta = new Container()
   mesaPosta.label = MESA_POSTA_LABEL
+  // AS SOMBRAS dos móveis do Desenhado (F3d), numa camada só como a mesa de prova
+  // (`ferramentas/mesa_movel.ts`) e os carimbos: cada móvel põe a silhueta opaca e o filtro
+  // põe o 0,25 uma vez para a camada inteira, então duas sombras que se cruzam não escurecem
+  // em dobro. Só entra no palco com o Desenhado: no Atual e no Simples a lista de filhos é a de sempre.
+  const sombras = new Container()
+  sombras.label = SOMBRAS_LABEL
+  sombras.filters = [new AlphaFilter({ alpha: ALFA_DA_SOMBRA_DOS_MOVEIS, resolution: 'inherit' })]
   // Onda 2, item 12 — caminho de imagem já avisado, pra não empilhar o
   // mesmo toast de erro a cada `draw()` (chamado a cada mudança relevante do
   // mapa, não só uma vez). Fechado por closure igual `spriteCache`: nasce
@@ -192,11 +203,13 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
         propsById.delete(id)
       }
     }
-    for (const [id, { drawing }] of furnitureCache) {
+    for (const [id, { drawing, sombra }] of furnitureCache) {
       if (!furnitureIds.has(id)) {
         // Do chão (tapete) ou dos objetos: sai de onde estiver.
         drawing.removeFromParent()
         drawing.destroy()
+        sombra.removeFromParent()
+        sombra.destroy()
         furnitureCache.delete(id)
       }
     }
@@ -274,6 +287,12 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       if (floor.parent !== container) container.addChildAt(floor, 0)
       else if (container.getChildIndex(floor) !== 0) container.setChildIndex(floor, 0)
     }
+    // As sombras dos móveis: logo acima do chão (a sombra da mesa cai no tapete), abaixo de todo móvel.
+    if (desenhadoLigado() && furnitureCache.size > 0) {
+      const lugar = floor.parent === container ? 1 : 0
+      if (sombras.parent !== container) container.addChildAt(sombras, lugar)
+      else if (container.getChildIndex(sombras) !== lugar) container.setChildIndex(sombras, lugar)
+    } else if (sombras.parent === container) container.removeChild(sombras)
     // A mesa posta volta ao topo, logo abaixo do destaque. Mapa sem pratos nunca a ganha.
     if (mesaPosta.children.length > 0) {
       if (mesaPosta.parent !== container) container.addChildAt(mesaPosta, container.getChildIndex(highlightGraphics))
@@ -293,7 +312,9 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     if (!entry) {
       const drawing = new Graphics()
       drawing.label = FURNITURE_LABEL
-      entry = { drawing, painted: null, chama: null }
+      const sombra = new Graphics()
+      sombras.addChild(sombra)
+      entry = { drawing, sombra, painted: null, chama: null }
       furnitureCache.set(prop.id, entry)
     }
     // O tapete (e o tapete longo, MT5) mora no chão; o resto, nos objetos (o "Tipo" do painel pode trocar um pelo outro).
@@ -319,8 +340,9 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     ) {
       return
     }
-    drawPropSilhouettes(entry.drawing, [prop], cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa)
+    drawPropSilhouettes(entry.drawing, [prop], cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa, entry.sombra)
     entry.drawing.alpha = propAlpha(prop)
+    entry.sombra.alpha = propAlpha(prop)
     entry.painted = { prop, cameraScale, rendererResolution, vistaDosMoveis, gradeDoMapa, estilo }
     // A chama da fogueira, logo acima do desenho dela (o mesmo fantasma); outro tipo não tem chama.
     const chama = chamas.colocar(prop, view)

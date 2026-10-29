@@ -1,6 +1,6 @@
 import { BufferImageSource, Texture } from 'pixi.js'
 import type { Prop } from '../types/map'
-import { cordaDaCerca, formaDoTapete, geometriaDaCerca, normalizarCorDeTecido, normalizarCorDoMovel, varianteDoFogo, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
+import { cordaDaCerca, ehMovelDeCimaDaMesa, ehMovelDoChao, formaDoTapete, geometriaDaCerca, normalizarCorDeTecido, normalizarCorDoMovel, varianteDoFogo, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
 import { varianteDaLapide } from '../lib/mobilia/pecasNovas'
 import { ehMovelDePilha, varianteDaPilha } from '../lib/mobilia/pilhas'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
@@ -15,6 +15,9 @@ import { ehMovelComFogoDeCasa } from '../lib/mobilia/fogoDeCasa'
 import { CASA_DO_FOGO_PX, tamanhoDoFogo } from '../lib/mobilia/fogo'
 import { assinarMoveisDesenhados, BYTES_DE_TRABALHO_DO_DESENHADO, pedirMovelDesenhado, pintarMovelDesenhado, raioDoHaloDoLampiao, tomDoLugar, type HaloDoMovel } from '../texturas/desenhado/moveis'
 import { planejarMovel, type GeometriaDaCercaEmCasas, type MovelCarregado, type Pedido } from '../texturas/desenhado/movel'
+import { pedirTrechoDesenhado, planejarTrecho, type PlanoDaPlanta } from '../texturas/desenhado/trecho'
+import { pedirVasoDesenhado, planejarVaso } from '../texturas/desenhado/vaso'
+import { varianteDoGiro } from '../lib/carimbos'
 
 /**
  * IMAGEM PRONTA DOS MÓVEIS do Meio-Termo (plano
@@ -266,6 +269,65 @@ export interface ChaveDesenhada {
   readonly halo: HaloDoMovel
   /** A grade do mapa (px de mundo por casa): dela saem as casas do pedido e a resolução da imagem. */
   readonly grade: number
+  /**
+   * A sombra sai À PARTE, para a camada única das sombras (F3d). Não no tapete (fica no chão,
+   * por baixo da camada) nem nos pratos (ficam por cima da mesa): neles ela vai na imagem.
+   */
+  readonly sombraAParte: boolean
+}
+
+/**
+ * A chave Desenhada de uma PLANTA (sebe, jardineira e vaso; CONTRATO 9.5 e 9.6, F3d): o
+ * plano sai da conta dela (`texturas/desenhado/trecho.ts`, `vaso.ts`). O texto começa com
+ * `D|` como a do móvel e nunca bate com a do Atual.
+ */
+export interface ChaveDaPlanta {
+  readonly texto: string
+  readonly nivel: number
+  readonly grade: number
+  readonly casasW: number
+  readonly casasH: number
+  readonly naoGira: boolean
+  readonly planejar: (pxPorCasa: number) => PlanoDaPlanta | null
+}
+
+const PLANTAS: ReadonlySet<string> = new Set(['sebe', 'jardineira', 'vaso'])
+
+/** A sebe, a jardineira e o vaso: no Desenhado são trecho e carimbo de destino móvel, não móvel do pacote. */
+function ehPlanta(tipo: string | undefined): boolean {
+  return tipo !== undefined && PLANTAS.has(tipo)
+}
+
+/**
+ * A chave Desenhada da planta, ou `'esperando'` (o pacote dela ainda chega: sai o Atual e o
+ * dono repinta no aviso), ou `null` (fica o Atual). O vaso não leva o giro na chave, só a
+ * forma (k = `varianteDoGiro`): a imagem não gira. A sebe e a jardineira levam o giro
+ * inteiro (a imagem sai já na tela) e a sebe, a curva quantizada da cerca.
+ */
+export function chaveDaPlanta(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos', gradeDoMapa?: number): ChaveDaPlanta | 'esperando' | null {
+  const tipo = prop.mobilia
+  if (!ehPlanta(tipo) || vista === 'tres-quartos' || !desenhadoLigado() || !temTextura(tipo)) return null
+  const grade = gradeDoMapa !== undefined && Number.isFinite(gradeDoMapa) && gradeDoMapa > 0 ? gradeDoMapa : GRADE_DE_REFERENCIA
+  const material = materiaisDoMovel(prop, tipo)[0]
+  const casasW = Math.max(PASSO_DAS_CASAS, prop.width / grade)
+  const casasH = Math.max(PASSO_DAS_CASAS, prop.height / grade)
+  const giroDoObjeto = Number.isFinite(prop.rotation) ? (prop.rotation ?? 0) : 0
+  const nivel = nivelDeResolucao(cameraScale, rendererResolution)
+  const base = ['D', `g${grade}`, tipo, material ?? '', passosNaChave(casasW), passosNaChave(casasH)]
+  const comMaterial = material !== undefined ? { material } : {}
+  if (tipo === 'vaso') {
+    const vaso = pedirVasoDesenhado(tipo)
+    if (vaso === null || vaso === 'esperando') return vaso
+    const pedido = { casasW, casasH, giro: giroDoObjeto, ...comMaterial }
+    return { texto: [...base, `k${varianteDoGiro(giroDoObjeto)}`].join('|'), nivel, grade, casasW, casasH, naoGira: true, planejar: (px) => planejarVaso(vaso, pedido, px) }
+  }
+  const trecho = pedirTrechoDesenhado(tipo)
+  if (trecho === null || trecho === 'esperando') return trecho
+  const giro = ((Math.round(giroDoObjeto) % 360) + 360) % 360
+  const cerca = trecho.p.curva ? cercaEmCasas(prop, grade) : undefined
+  if (trecho.p.curva && cerca === undefined) return null
+  const pedido = { casasW, casasH, giro, ...(cerca !== undefined ? { cerca: cerca.geometria } : {}), ...comMaterial }
+  return { texto: [...base, cerca?.chaveDaCurva ?? 'r', `g${giro}`].join('|'), nivel, grade, casasW, casasH, naoGira: false, planejar: (px) => planejarTrecho(trecho, pedido, px) }
 }
 
 /** A forma do objeto que escolhe a variante (`quando.forma`): a do painel, o tapete redondo, o tamanho do fogo. */
@@ -313,15 +375,16 @@ export function chaveDesenhada(prop: MovelParaImagem, cameraScale: number, rende
   }
   const halo = tipo === 'lampiao' ? 'lampiao' : ehMovelComFogoDeCasa(tipo) && prop.mobiliaForma !== 'apagado' ? tipo : null
   const nivel = nivelDeResolucao(cameraScale, rendererResolution)
+  const sombraAParte = !ehMovelDoChao(tipo) && !ehMovelDeCimaDaMesa(tipo)
   // A cerca por peças (CONTRATO 10.12) é montada já no giro da tela, com os mourões do app.
   const cerca = movel.p.pecas !== undefined && tipo === 'cerca' ? cercaEmCasas(prop, grade) : undefined
   if (cerca !== undefined) {
     const giro = ((Math.round(giroDoObjeto) % 360) + 360) % 360
     const pedido: Pedido = { ...base, giro, cerca: cerca.geometria }
-    return { texto: textoDesenhado(prop, pedido, cerca.chaveDaCurva, `g${giro}`, grade), movel, pedido, nivel, halo, grade }
+    return { texto: textoDesenhado(prop, pedido, cerca.chaveDaCurva, `g${giro}`, grade), movel, pedido, nivel, halo, grade, sombraAParte }
   }
   const pedido: Pedido = base
-  return { texto: textoDesenhado(prop, pedido, 'r', `q${quartos}`, grade), movel, pedido, nivel, halo, grade }
+  return { texto: textoDesenhado(prop, pedido, 'r', `q${quartos}`, grade), movel, pedido, nivel, halo, grade, sombraAParte }
 }
 
 /** Os mourões e o arco da cerca do app em casas (a geometria não depende da escala), com a curva quantizada da chave. */
@@ -374,6 +437,15 @@ export interface ImagemDoMovel {
   readonly giroPintado: number
   /** O quarto de volta pintado é ímpar: o x da imagem corre na altura do objeto. */
   readonly trocaEixos: boolean
+  /**
+   * DESENHADO (F3d): a sombra À PARTE, a cobertura em branco pré-multiplicado, nos mesmos
+   * limites do corpo. O palco a põe na camada única das sombras dos móveis (`drawProps.ts`),
+   * a 0,25: duas sombras que se cruzam não escurecem em dobro. Ausente = a sombra está na
+   * imagem (o Atual, o tapete, os pratos).
+   */
+  readonly sombra?: LadrilhoDaImagem
+  /** O vaso (CONTRATO 9.4): a imagem nunca gira, em giro nenhum (a forma já vem do giro). */
+  readonly naoGira?: boolean
 }
 
 /**
@@ -633,7 +705,7 @@ export class RasterDosMoveis {
    * desenho de linhas); senão nenhuma.
    */
   imagemParaDesenhar(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos', gradeDoMapa?: number): ImagemParaDesenhar | null {
-    const desenhada = chaveDesenhada(prop, cameraScale, rendererResolution, vista, gradeDoMapa)
+    const desenhada = ehPlanta(prop.mobilia) ? chaveDaPlanta(prop, cameraScale, rendererResolution, vista, gradeDoMapa) : chaveDesenhada(prop, cameraScale, rendererResolution, vista, gradeDoMapa)
     if (desenhada === 'esperando' && this.aberta !== null) this.esperandoODesenhado.set(this.aberta.dono, this.aberta.repintar)
     if (desenhada !== null && desenhada !== 'esperando') {
       const pronta = this.imagemDesenhada(desenhada, prop, cameraScale, rendererResolution, vista)
@@ -658,7 +730,7 @@ export class RasterDosMoveis {
    * ou a do Atual do mesmo móvel (já guardada) enquanto a Desenhada pinta. `null` = a
    * conta não tem a forma pedida: fica o Atual.
    */
-  private imagemDesenhada(cd: ChaveDesenhada, prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ImagemParaDesenhar | null {
+  private imagemDesenhada(cd: ChaveDesenhada | ChaveDaPlanta, prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ImagemParaDesenhar | null {
     const texto = textoDaChaveDesenhada(cd)
     if (this.semPlano.has(texto)) return null
     const pedida = this.cache.get(texto) ?? this.comecarDesenhado(texto, cd)
@@ -691,7 +763,8 @@ export class RasterDosMoveis {
    * A imagem Desenhada nova, transparente, na fila. A escala é a do nível (o nível 1 = 50
    * px por casa, um pixel por px de mundo), menor se a camada passaria do lado máximo.
    */
-  private comecarDesenhado(texto: string, cd: ChaveDesenhada): Entrada | null {
+  private comecarDesenhado(texto: string, cd: ChaveDesenhada | ChaveDaPlanta): Entrada | null {
+    if ('planejar' in cd) return this.comecarPlanta(texto, cd)
     const S0 = escalaDoNivel(cd.nivel)
     // O nível conta px de tela por 50 px de mundo; numa grade maior a casa ocupa mais tela.
     const pxDoNivel = S0 * G * (cd.grade / GRADE_DE_REFERENCIA)
@@ -705,25 +778,69 @@ export class RasterDosMoveis {
       this.semPlano.add(texto)
       return null
     }
+    const halo = cd.halo
+    return this.registrarDesenhada(texto, cd.nivel, cd.pedido.casasW, cd.pedido.casasH, plano, {
+      trocaEixos: plano.cerca === undefined && (plano.giroPintado / 90) % 2 === 1,
+      naoGira: false,
+      comSombra: cd.sombraAParte,
+      passos: (pixels, sombra) => pintarMovelDesenhado(plano, halo, pixels, sombra ?? undefined),
+    })
+  }
+
+  /**
+   * A PLANTA Desenhada nova (sebe, jardineira, vaso; F3d), na fila: a conta dela
+   * (`texturas/desenhado/trecho.ts`, `vaso.ts`) no nível pedido, menor se passaria do lado máximo.
+   */
+  private comecarPlanta(texto: string, cd: ChaveDaPlanta): Entrada | null {
+    const pxDoNivel = escalaDoNivel(cd.nivel) * G * (cd.grade / GRADE_DE_REFERENCIA)
+    let plano = cd.planejar(pxDoNivel)
+    if (plano !== null && Math.max(plano.W, plano.H) > LADO_MAXIMO_DA_IMAGEM) plano = cd.planejar((pxDoNivel * (LADO_MAXIMO_DA_IMAGEM - 8)) / Math.max(plano.W, plano.H))
+    if (plano === null || Math.max(plano.W, plano.H) > LADO_MAXIMO_DA_IMAGEM) {
+      this.semPlano.add(texto)
+      return null
+    }
+    const pintar = plano.pintar
+    return this.registrarDesenhada(texto, cd.nivel, cd.casasW, cd.casasH, plano, {
+      trocaEixos: false,
+      naoGira: cd.naoGira,
+      comSombra: true,
+      passos: (pixels, sombra) => pintar(pixels, sombra ?? new Uint8ClampedArray(pixels.length)),
+    })
+  }
+
+  /** A entrada Desenhada (móvel ou planta): o corpo e, com `comSombra`, a textura da sombra à parte. */
+  private registrarDesenhada(
+    texto: string,
+    nivel: number,
+    casasW: number,
+    casasH: number,
+    plano: Pick<PlanoDaPlanta, 'W' | 'H' | 'cx' | 'cy' | 'pxPorCasa' | 'giroPintado'>,
+    como: { trocaEixos: boolean; naoGira: boolean; comSombra: boolean; passos: (pixels: Uint8ClampedArray, sombra: Uint8ClampedArray | null) => Generator<void, void, void> },
+  ): Entrada {
     const S = plano.pxPorCasa / G
+    const novaTextura = (bytes: Uint8ClampedArray): Texture =>
+      new Texture({ source: new BufferImageSource({ resource: bytes, width: plano.W, height: plano.H, format: 'rgba8unorm', alphaMode: 'premultiplied-alpha', scaleMode: 'linear' }) })
     const pixels = new Uint8ClampedArray(plano.W * plano.H * BYTES_POR_PIXEL)
-    const source = new BufferImageSource({ resource: pixels, width: plano.W, height: plano.H, format: 'rgba8unorm', alphaMode: 'premultiplied-alpha', scaleMode: 'linear' })
-    const textura = new Texture({ source })
+    const textura = novaTextura(pixels)
     const limites: LimitesDaImagem = { x0: -plano.cx / S, y0: -plano.cy / S, W: plano.W, H: plano.H }
+    const sombraPx = como.comSombra ? new Uint8ClampedArray(pixels.length) : null
+    const sombra = sombraPx === null ? undefined : { textura: novaTextura(sombraPx), limites }
     const entrada: Entrada = {
       chave: texto,
       textura,
       ladrilhos: [{ textura, limites }],
       limites,
       S,
-      casasW: cd.pedido.casasW,
-      casasH: cd.pedido.casasH,
-      nivel: cd.nivel,
+      casasW,
+      casasH,
+      nivel,
       giroPintado: plano.giroPintado,
-      trocaEixos: plano.cerca === undefined && (plano.giroPintado / 90) % 2 === 1,
-      bytes: pixels.byteLength * COPIAS_DA_IMAGEM,
+      trocaEixos: como.trocaEixos,
+      ...(sombra !== undefined ? { sombra } : {}),
+      ...(como.naoGira ? { naoGira: true } : {}),
+      bytes: (pixels.byteLength + (sombraPx?.byteLength ?? 0)) * COPIAS_DA_IMAGEM,
       bytesDeTrabalho: plano.W * plano.H * BYTES_DE_TRABALHO_DO_DESENHADO,
-      passos: pintarMovelDesenhado(plano, cd.halo, pixels),
+      passos: como.passos(pixels, sombraPx),
       pronta: false,
       emPintura: false,
       retirada: false,
@@ -856,6 +973,7 @@ export class RasterDosMoveis {
     e.destruida = true
     this.destruidas += 1
     for (const l of e.ladrilhos) l.textura.destroy(true)
+    e.sombra?.textura.destroy(true)
   }
 
   private agendarBomba(): void {
@@ -905,6 +1023,7 @@ export class RasterDosMoveis {
       entrada.pronta = true
       this.prontas += 1
       for (const l of entrada.ladrilhos) l.textura.source.update()
+      entrada.sombra?.textura.source.update()
       for (const dono of this.donos.values()) if (dono.pedidas.has(entrada)) aRepintar.add(dono)
     }
     if (this.fila.length > 0) this.agendarBomba()
