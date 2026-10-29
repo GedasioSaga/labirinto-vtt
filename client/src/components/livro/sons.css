@@ -1,7 +1,8 @@
 /*
  * PÁGINA SONS do livro da mesa (Sistema 4, sons ao vivo, F3). Só tokens do
  * tema (`--lb-*`, `--lb-gr-*`); nada daqui pinta fora de `.lb-sons` e do
- * editor (`.lb-sons-editor`). A página tem 262 px: a grade é de 2 colunas.
+ * editor (`.lb-sons-editor`). A página tem 262 px: as duas partes no topo
+ * fixo, e cada som é uma linha de 44 px dentro da sua categoria.
  *
  * O único movimento que não é resposta de toque é a barra de progresso
  * (linear, é tempo correndo). O selo pulsa pelo JS (150 ms, só ele); o
@@ -61,66 +62,147 @@
 .lb-sons__nota--latao { color: var(--lb-color-brass-bright); }
 .lb-sons__nota--erro { color: var(--lb-color-ember); }
 
-/* ---------------------------------------------------------------- pastas e favoritos */
-/* Uma fileira só, que rola de lado: 50 pastas não empilham 25 linhas de chips antes do 1º som.
- * A borda direita esmaece para dizer que há mais; o espaço do fim deixa o último chip sair do esmaecido.
- * O respiro de baixo é do anel de foco (a rolagem de lado também corta em cima e embaixo). */
-.lb-sons__pastas {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 6px;
-  padding: 12px 16px 4px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  mask-image: linear-gradient(90deg, #000 88%, transparent);
+/* ---------------------------------------------------------------- as duas partes (abas) */
+/* O segmentado da casa (`.gr-seg`) no papel de abas: aria-selected em vez de aria-checked, o mesmo desenho. */
+.lb-sons__abas { margin: 0; }
+/* Cada aba cresce pelo nome: "Efeitos sonoros" é o dobro de "Músicas" e não cabe na metade. */
+.lb-sons__aba { flex: 1 1 auto; min-height: 32px; gap: 6px; }
+.lb-sons__aba-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lb-sons__aba small { flex: none; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.lb-sons__aba[aria-selected='true'] {
+  background: var(--lb-gr-cartao-alto);
+  color: var(--lb-color-parchment);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao), 0 1px 2px rgba(0, 0, 0, 0.4);
 }
-.lb-sons__pastas::-webkit-scrollbar { display: none; }
-.lb-sons__pastas::after { content: ''; flex: none; width: 24px; }
+.lb-sons__aba[aria-selected='true'] small { color: var(--lb-color-brass-bright); }
+
+/* ---------------------------------------------------------------- busca e favoritos */
+.lb-sons__ferramentas { display: flex; align-items: center; gap: 6px; padding: 12px 16px 0; min-width: 0; }
+.lb-sons__busca { position: relative; flex: 1 1 auto; min-width: 0; }
+.lb-sons__busca > .gr-ic {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--lb-color-parchment-faint);
+  pointer-events: none;
+}
+.lb-sons__busca .gr-entrada { width: 100%; padding-left: 28px; }
 .lb-sons__chip { flex: none; max-width: 160px; min-width: 0; }
 .lb-sons__chip .gr-ic { width: 13px; height: 13px; flex: none; }
 .lb-sons__chip-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-sons__chip small { flex: none; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
-.lb-sons__chip[aria-checked='true'] {
-  background: var(--lb-color-brass-soft);
-  border-color: var(--lb-gr-filete-latao);
-  color: var(--lb-color-brass-bright);
-}
-.lb-sons__chip[aria-checked='true'] small { color: inherit; }
+.lb-sons__chip[aria-pressed='true'] small { color: inherit; }
 
-/* Renomear e apagar a pasta escolhida: discreto, logo abaixo da fileira (é manutenção, não jogo). */
-.lb-sons__pasta-acoes { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 0; min-width: 0; }
+/* ---------------------------------------------------------------- categorias */
+.lb-cat { padding: 12px 16px 0; min-width: 0; }
+.lb-cat__titulo { display: flex; align-items: center; gap: 2px; margin: 0 0 6px; min-width: 0; }
+.lb-cat__abrir {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 0;
+  font: 400 var(--lb-font-size-md)/1.2 var(--lb-font-display);
+  color: var(--lb-color-parchment);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lb-cat__abrir:disabled { cursor: default; }
+/* A seta gira; a lista não anima a altura (aparece inteira: abrir e fechar é coisa de toda hora). */
+.lb-cat__abrir > .gr-ic {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.lb-cat--fechada .lb-cat__abrir > .gr-ic { transform: rotate(-90deg); }
+.lb-cat__nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-cat__nome--sem { color: var(--lb-color-parchment-dim); font-style: italic; }
+.lb-cat__conta { flex: none; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.lb-cat__organizar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--lb-color-parchment-faint);
+  background: none;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.lb-cat__organizar .gr-ic { width: 15px; height: 15px; }
+.lb-cat__organizar[aria-expanded='true'] { color: var(--lb-color-brass-bright); background: var(--lb-color-brass-soft); }
+.lb-cat__vazia {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-faint);
+  border: 1px dashed var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+}
+.lb-cat > .lb-sons__pasta-acoes { padding: 0 0 8px; }
+
+/* Renomear e apagar a categoria, e o campo da categoria nova: discreto (é manutenção, não jogo). */
+.lb-sons__pasta-acoes { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px 0; min-width: 0; }
 .lb-sons__pasta-botoes { display: flex; flex-wrap: wrap; gap: 6px; }
 .lb-sons__pasta-form { display: flex; flex-direction: column; gap: 8px; }
 
-/* ---------------------------------------------------------------- a grade de botões */
-.lb-sons__grade {
-  list-style: none;
-  margin: 0;
-  padding: 12px 16px 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--lb-space-2);
+.lb-sons__nova-cat {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  margin: 12px 16px 0;
+  padding: 0 10px;
+  font: 500 var(--lb-font-size-sm)/1 var(--lb-font-sans);
+  color: var(--lb-color-parchment-dim);
+  background: none;
+  border: 1px dashed var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-md);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
 }
+.lb-sons__nova-cat .gr-ic { width: 14px; height: 14px; }
+.lb-sons__nova-cat:active { transform: scale(0.97); }
+
+/* ---------------------------------------------------------------- as linhas dos sons */
+.lb-sons__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.lb-sons__parte { display: flex; flex-direction: column; min-width: 0; }
 
 .lb-efeito {
   position: relative;
   min-width: 0;
-  /* 200 botões: os que estão fora da vista não são desenhados até a rolagem chegar neles. */
+  /* 200 linhas: as que estão fora da vista não são desenhadas até a rolagem chegar nelas. */
   content-visibility: auto;
-  contain-intrinsic-size: auto 78px;
+  contain-intrinsic-size: auto 44px;
 }
 
+/* A linha: selo (36 px, do tamanho do lápis), nome numa linha só, as marcas, e o espaço do lápis à direita. */
 .lb-efeito__tocar {
   position: relative;
   width: 100%;
-  height: 100%;
-  min-height: 78px;
+  min-height: 44px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 8px 10px 12px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 42px 3px 3px;
   font: inherit;
   text-align: left;
   color: var(--lb-color-parchment);
@@ -137,7 +219,7 @@
     box-shadow var(--lb-motion-fast) ease,
     transform var(--lb-motion-fast) var(--lb-gr-ease-out);
 }
-.lb-efeito__tocar:active { transform: scale(0.97); }
+.lb-efeito__tocar:active { transform: scale(0.98); }
 /* Tocando: borda e anel de latão (7,1:1 sobre o cartão alto; o filete dava 1,7:1, abaixo dos 3:1 do WCAG 1.4.11). */
 .lb-efeito--tocando .lb-efeito__tocar {
   background: var(--lb-gr-cartao-alto);
@@ -145,53 +227,69 @@
   box-shadow: var(--lb-shadow-bevel), inset 0 0 0 1px var(--lb-color-brass);
 }
 
-.lb-efeito__cabeca { display: flex; align-items: center; gap: 6px; min-height: 24px; }
-
-/* O selo: a tecla gravada em couro e latão. Acende (latão cheio) enquanto o som toca. */
+/* O selo: a miniatura do vídeo, ou o ícone da parte num quadrado de couro; a tecla, gravada no canto. */
 .lb-efeito__selo {
-  display: inline-grid;
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--lb-radius-sm);
+  background: linear-gradient(180deg, var(--lb-gr-couro-3), var(--lb-gr-couro-2));
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete);
+}
+.lb-efeito__mini {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  /* A miniatura não muda o tamanho da linha enquanto chega: o selo já tem os 36 px. */
+  background: var(--lb-gr-papel-alto);
+}
+.lb-efeito__icone { display: grid; place-items: center; width: 100%; height: 100%; color: var(--lb-gr-gravado); }
+.lb-efeito__icone .gr-ic { width: 18px; height: 18px; }
+.lb-efeito__tecla {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  display: grid;
   place-items: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  border-radius: 5px;
-  font: 600 var(--lb-font-size-md)/1 var(--lb-font-utility);
+  border-radius: 4px;
+  font: 600 var(--lb-font-size-xs)/1 var(--lb-font-utility);
   color: var(--lb-gr-gravado-forte);
   background: linear-gradient(180deg, var(--lb-gr-couro-3), var(--lb-gr-couro-2));
   border: 1px solid var(--lb-gr-filete-latao);
-  border-bottom-width: 2px;
   transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
 }
-.lb-efeito__selo .gr-ic { width: 14px; height: 14px; }
-/* Sem tecla, o selo é só o ícone: com borda parecia um segundo botão ao lado do lápis. */
-.lb-efeito__selo--vazio { color: var(--lb-color-parchment-faint); background: transparent; border-color: transparent; }
-.lb-efeito--tocando .lb-efeito__selo {
+.lb-efeito--tocando .lb-efeito__selo { box-shadow: inset 0 0 0 1px var(--lb-color-brass), 0 0 0 1px var(--lb-color-brass); }
+.lb-efeito--tocando .lb-efeito__icone { color: var(--lb-color-brass-bright); }
+.lb-efeito--tocando .lb-efeito__tecla {
   color: var(--lb-color-brass-contrast);
   background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2));
   border-color: var(--lb-gr-latao-3);
 }
-.lb-efeito__favorito { display: inline-grid; color: var(--lb-color-brass); }
-.lb-efeito__favorito .gr-ic { width: 14px; height: 14px; }
 
 .lb-efeito__nome {
-  max-width: 100%;
-  /* Árabe e hebraico alinham à direita dentro do cartão (dir="auto" no span). */
-  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: var(--lb-font-size-md);
   font-weight: 500;
-  /* Folga para acento empilhado (vietnamita, tailandês): o corte de 2 linhas não come o topo da letra. */
+  /* Folga para acento empilhado (vietnamita, tailandês): o corte não come o topo da letra. */
   line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
 }
+.lb-efeito__favorito { flex: none; display: inline-grid; color: var(--lb-color-brass); }
+.lb-efeito__favorito .gr-ic { width: 13px; height: 13px; }
 .lb-efeito__loop {
-  margin-top: auto;
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility);
   color: var(--lb-gr-gravado);
 }
@@ -217,10 +315,11 @@
   to { transform: scaleX(1); }
 }
 
+/* O lápis: 36 px, como o selo do outro lado da linha. */
 .lb-efeito__lapis {
   position: absolute;
-  top: 3px;
-  right: 3px;
+  top: 4px;
+  right: 4px;
   width: 36px;
   height: 36px;
   display: grid;
@@ -238,22 +337,28 @@
 .lb-efeito__lapis .gr-ic { width: 16px; height: 16px; }
 
 @media (pointer: coarse) {
-  .lb-efeito__lapis { top: 0; right: 0; width: 44px; height: 44px; }
-  /* O lápis de 44 vai até y=44: a cabeça cresce e o nome começa abaixo dele (y=50), longe do toque no lápis. */
-  .lb-efeito__cabeca { min-height: 36px; }
+  .lb-efeito__tocar { min-height: 48px; padding-right: 48px; }
+  .lb-efeito__lapis { top: 2px; right: 2px; width: 44px; height: 44px; }
   .lb-sons__topo .gr-bt,
   .lb-sons__recusas .gr-bt,
   .lb-sons__pasta-acoes .gr-bt,
+  .lb-sons__aba,
+  .lb-cat__abrir,
+  .lb-cat__organizar,
+  .lb-sons__nova-cat,
   .lb-sons__chip { min-height: var(--lb-control-touch); }
+  .lb-cat__organizar { width: var(--lb-control-touch); }
 }
 
 @media (hover: hover) and (pointer: fine) {
   /* O hover é mais fraco que o tocando: meio caminho do fundo e filete forte, sem latão. */
   .lb-efeito__tocar:hover { background: color-mix(in srgb, var(--lb-gr-cartao-alto) 50%, var(--lb-gr-cartao)); border-color: var(--lb-gr-filete-forte); }
   .lb-efeito--tocando .lb-efeito__tocar:hover { background: var(--lb-gr-cartao-alto); border-color: var(--lb-color-brass); }
-  /* O chip ativo segue de latão sob o mouse (o hover do grimório, 0,3,0, vencia o ativo, 0,2,0). */
-  .lb-sons__pastas .lb-sons__chip[aria-checked='true']:hover { color: var(--lb-color-brass-bright); border-color: var(--lb-gr-filete-latao); }
-  .lb-efeito__lapis:hover { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment); }
+  .lb-efeito__lapis:hover,
+  .lb-cat__organizar:hover { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment); }
+  .lb-cat__abrir:not(:disabled):hover > .gr-ic { color: var(--lb-color-parchment); }
+  .lb-sons__nova-cat:hover { color: var(--lb-color-parchment); border-color: var(--lb-gr-filete-latao); }
+  .lb-sons__aba:hover:not([aria-selected='true']) { color: var(--lb-color-parchment); background: var(--lb-gr-hover); }
 }
 
 /* ---------------------------------------------------------------- vazio, mensagens e pé */
@@ -283,14 +388,83 @@
 /* ---------------------------------------------------------------- o lápis (editor no diálogo) */
 .lb-sons-editor { display: flex; flex-direction: column; gap: 14px; }
 .lb-sons-editor .gr-entrada[aria-invalid='true'] { border-color: var(--lb-color-ember); }
-.lb-sons-editor__volume { display: flex; align-items: flex-end; gap: var(--lb-space-2); }
-.lb-sons-editor__volume > .gr-campo { flex: 1; min-width: 0; }
 .lb-sons-editor__nova-pasta { display: flex; gap: 6px; }
 .lb-sons-editor__nova-pasta .gr-entrada { flex: 1; min-width: 0; }
 .lb-sons-editor__pe,
 .lb-sons-editor__apagar { display: flex; gap: var(--lb-space-2); padding-top: 12px; border-top: 1px solid var(--lb-gr-filete); }
 .lb-sons-editor__pe { align-items: center; }
 .lb-sons-editor__apagar { flex-direction: column; }
+
+/* ---------------------------------------------------------------- o trecho de A até B (no lápis) */
+.lb-trecho { display: flex; flex-direction: column; gap: 10px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.lb-trecho__rot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 500;
+  color: var(--lb-color-parchment-dim);
+}
+.lb-trecho__resumo { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-brass-bright); font-variant-numeric: tabular-nums; }
+/* A faixa do tempo: a onda por baixo, o fora do trecho escurecido, o trecho com borda de latão e as duas alças. */
+.lb-trecho__faixa {
+  position: relative;
+  height: 52px;
+  margin: 10px 8px 0;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete);
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+.lb-trecho__onda { position: absolute; inset: 6px 0; width: 100%; height: calc(100% - 12px); }
+.lb-trecho__onda path { stroke: var(--lb-color-parchment-dim); stroke-width: 1.6px; stroke-linecap: round; fill: none; vector-effect: non-scaling-stroke; }
+.lb-trecho__fora { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--lb-gr-papel-baixo) 72%, transparent); pointer-events: none; }
+.lb-trecho__escolhido {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--lb-color-brass-soft);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
+  pointer-events: none;
+}
+/* A alça: um fio de latão com o selo A ou B em cima; o alvo de toque (24 px) é maior que o desenho. */
+.lb-trecho__alca {
+  position: absolute;
+  top: -10px;
+  bottom: 0;
+  width: 24px;
+  margin-left: -12px;
+  display: flex;
+  justify-content: center;
+  cursor: ew-resize;
+  outline: none;
+}
+.lb-trecho__alca::before { content: ''; position: absolute; top: 10px; bottom: 0; left: 11px; width: 2px; background: var(--lb-color-brass); border-radius: 1px; }
+.lb-trecho__marca {
+  position: relative;
+  height: 16px;
+  min-width: 16px;
+  padding: 0 3px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  font: 700 var(--lb-font-size-xs)/1 var(--lb-font-utility);
+  color: var(--lb-color-brass-contrast);
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2));
+  border: 1px solid var(--lb-gr-latao-3);
+}
+.lb-trecho__alca:focus-visible .lb-trecho__marca { box-shadow: var(--lb-shadow-focus); }
+.lb-trecho__faixa--arrastando, .lb-trecho__faixa--arrastando .lb-trecho__alca { cursor: ew-resize; }
+.lb-trecho__tempos { display: flex; gap: var(--lb-space-2); }
+.lb-trecho__tempos > .gr-campo { flex: 1; min-width: 0; }
+.lb-trecho__tempo { font-variant-numeric: tabular-nums; }
+.lb-trecho__tempo[aria-invalid='true'] { border-color: var(--lb-color-ember); }
+.lb-trecho__acoes { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ---------------------------------------------------------------- colar link do YouTube (F6) */
 /* A prévia é só o que o link diz (o id): nenhuma chamada ao YouTube antes do Ouvir. Sem movimento: aparece com o link. */
@@ -318,7 +492,9 @@
 
 /* ---------------------------------------------------------------- movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
-  .lb-efeito__tocar:active { transform: none; }
+  .lb-efeito__tocar:active,
+  .lb-sons__nova-cat:active { transform: none; }
+  .lb-cat__abrir > .gr-ic { transition: none; }
   /* Até 3 barras de loop varrendo sem fim no canto do olho: paradas e cheias. O efeito curto mantém a varredura (é tempo que acaba). */
   .lb-efeito__barra--loop { animation: none; transform: scaleX(1); }
 }

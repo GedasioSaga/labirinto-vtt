@@ -1,29 +1,49 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type KeyboardEvent as EventoDeTecla } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type KeyboardEvent as EventoDeTecla, type ReactNode } from 'react'
 import { resolverAtalhoDeSom } from '../../lib/keymap'
 import { idDaRefDeAudio, MIDIA_AUDIO_MAX_BYTES } from '../../lib/midia'
 import { AUDIO_GRANDE_DEMAIS } from '../../lib/midiaNoDisco'
 import { assinarRedeDosSons, criarPonteDosSons, informarPastaDosSons, redeDosSons, type PonteDosSons } from '../../net/ponteDosSons'
-import { ehAtalhoDeSom, EFEITOS_DE_SOM_MAX, NOME_DE_SOM_MAX, nomeDeSomLimpo, type AlvoDosSons, type AtalhoDeSom, type BibliotecaDeSons, type EfeitoDeSom, type EfeitoNovo, type MudancaNoEfeito, type PastaDeSons } from '../../lib/sons/biblioteca'
-import { arquivosDaMidiaDaAventura, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
-import { MAX_LOOPS, PRE_CARGA_MAX_ARQUIVOS, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
+import {
+  ehAtalhoDeSom,
+  EFEITOS_DE_SOM_MAX,
+  NOME_DE_SOM_MAX,
+  nomeDeSomLimpo,
+  parteDe,
+  PARTES_DOS_SONS,
+  type AlvoDosSons,
+  type AtalhoDeSom,
+  type BibliotecaDeSons,
+  type EfeitoDeSom,
+  type EfeitoNovo,
+  type MudancaNoEfeito,
+  type ParteDosSons,
+  type PastaDeSons,
+} from '../../lib/sons/biblioteca'
+import { arquivosDaMidiaDaAventura, carregarBytesDoMestre, obterMotorDoMestre, pesoDaMidiaComSons, type ArquivosDaMidia } from '../../lib/sons/aoVivo/carregadorDoMestre'
+import { MAX_LOOPS, PRE_CARGA_MAX_ARQUIVOS, type CarregadorDeBytes, type MotivoDaRecusa, type MotorAoVivo } from '../../lib/sons/aoVivo/motor'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { ligarBibliotecaAAventura, SONS_AINDA_LENDO, SONS_NAO_GRAVAVEIS, SONS_SEM_AVENTURA, useBibliotecaDeSonsStore } from '../../stores/bibliotecaDeSonsStore'
 import { useToastStore, type ToastKind } from '../../stores/toastStore'
 import { Botao } from '../grimorio/Botao'
 import { CampoFaixa } from '../grimorio/CampoFaixa'
 import { CampoLiga } from '../grimorio/CampoLiga'
+import { CampoSeg } from '../grimorio/CampoSeg'
 import { CampoSel } from '../grimorio/CampoTexto'
 import { Dialogo } from '../grimorio/Dialogo'
-import { andarPelosRadios, classes, movimentoReduzido } from '../grimorio/comum'
+import { classes, movimentoReduzido } from '../grimorio/comum'
 import { ColarLinkDoYoutube } from './ColarLinkDoYoutube'
 import { TituloDaPagina } from './FolhaDoLivro'
 import { IconeDoLivro } from './icones'
+import { EditorDoTrecho } from './TrechoDoSom'
 import './sons.css'
 
 /*
  * PÁGINA SONS do livro da mesa (Sistema 4, sons ao vivo, fatia F3: só local).
- * Uma grade de botões grandes que tocam na hora, com Parar tudo fixo no alto,
- * pastas e favoritos em chips, atalhos 1 a 9 e o lápis de cada som. A folha
+ * Duas partes no alto, Músicas e Efeitos sonoros (29/10/2026); dentro de cada
+ * uma, as categorias (as pastas de um nível do `sons.json`) abrem e fecham, e
+ * cada som é uma linha que toca na hora, com a miniatura do YouTube ou o ícone
+ * da parte no começo. Parar tudo fixo no alto, busca e Favoritos na parte,
+ * atalhos 1 a 9 e o lápis de cada som (tipo, categoria, trecho de A até B). A folha
  * fica sempre montada (com e sem sala): é ela que liga a biblioteca à
  * aventura aberta e ouve os atalhos com qualquer página do livro à vista.
  * Quem escuta (seletor Todos / Cena / Escolhidos) e a rede são da F4.
@@ -43,8 +63,63 @@ const ACEITA_AUDIO = 'audio/*,.mp3,.ogg,.wav,.m4a'
 const SEM_PASTA = 'sem'
 const NOVA_PASTA = 'nova'
 const SEM_ATALHO = 'nenhum'
+/** A busca aparece na parte com mais sons que isto: com poucos, a lista inteira já cabe numa olhada. */
+export const BUSCA_A_PARTIR_DE = 6
+const CHAVE_SEM_CATEGORIA = 'sem-categoria'
+/** A largura da `mqdefault` do YouTube (320x180); a imagem de "vídeo indisponível" tem 120. */
+const MINIATURA_LARGURA_REAL = 320
 
-type Filtro = { tipo: 'todos' } | { tipo: 'favoritos' } | { tipo: 'pasta'; id: string }
+export const NOME_DA_PARTE: Record<ParteDosSons, string> = { musicas: 'Músicas', efeitos: 'Efeitos sonoros' }
+/** No lápis, o tipo de UM som. */
+const TIPO_DO_SOM: Record<ParteDosSons, string> = { musicas: 'Música', efeitos: 'Efeito sonoro' }
+
+/** Uma categoria na tela: a pasta (ou nenhuma, "Sem categoria") e os sons dela que passam pela busca e pelos Favoritos. */
+export interface GrupoDeSons {
+  chave: string
+  pasta: PastaDeSons | null
+  efeitos: EfeitoDeSom[]
+}
+
+/** Para comparar na busca: sem acento, sem caixa, aparado ("taverna" acha "Tavérna"). */
+function textoDeBusca(texto: string): string {
+  return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').trim()
+}
+
+/** Quantos sons e favoritos cada parte tem (as abas e o filtro). */
+export function contagemDasPartes(biblioteca: BibliotecaDeSons): Record<ParteDosSons, { sons: number; favoritos: number }> {
+  const contagem = { musicas: { sons: 0, favoritos: 0 }, efeitos: { sons: 0, favoritos: 0 } }
+  for (const efeito of biblioteca.efeitos) {
+    const daParte = contagem[parteDe(efeito)]
+    daParte.sons += 1
+    if (efeito.favorito === true) daParte.favoritos += 1
+  }
+  return contagem
+}
+
+/**
+ * As categorias de uma parte, na ordem: Sem categoria primeiro (é onde cai o
+ * que acabou de entrar), depois as pastas pela ordem delas. Sem filtro, toda
+ * categoria aparece, vazia ou não (as sugeridas ainda sem som incluídas), e
+ * Sem categoria só com som. Com busca ou Favoritos, só as que têm o que
+ * mostrar; a categoria cujo NOME casa com a busca mostra todos os sons dela.
+ */
+export function gruposDaParte(biblioteca: BibliotecaDeSons, parte: ParteDosSons, busca: string, soFavoritos: boolean): GrupoDeSons[] {
+  const termo = textoDeBusca(busca)
+  const filtrando = termo !== '' || soFavoritos
+  const pastas = biblioteca.pastas.filter((pasta) => parteDe(pasta) === parte).sort((a, b) => a.ordem - b.ordem)
+  const pastaCasa = new Set(termo === '' ? [] : pastas.filter((pasta) => textoDeBusca(pasta.nome).includes(termo)).map((pasta) => pasta.id))
+  const efeitos = biblioteca.efeitos
+    .filter((efeito) => {
+      if (parteDe(efeito) !== parte || (soFavoritos && efeito.favorito !== true)) return false
+      return termo === '' || textoDeBusca(efeito.nome).includes(termo) || (efeito.pastaId !== null && pastaCasa.has(efeito.pastaId))
+    })
+    .sort((a, b) => a.ordem - b.ordem)
+  const grupos: GrupoDeSons[] = [
+    { chave: CHAVE_SEM_CATEGORIA, pasta: null, efeitos: efeitos.filter((efeito) => efeito.pastaId === null) },
+    ...pastas.map((pasta) => ({ chave: pasta.id, pasta, efeitos: efeitos.filter((efeito) => efeito.pastaId === pasta.id) })),
+  ]
+  return grupos.filter((grupo) => grupo.efeitos.length > 0 || (!filtrando && grupo.pasta !== null))
+}
 
 /** Um som que está soando: a barra de progresso anda a partir daqui. */
 interface Toque {
@@ -224,9 +299,11 @@ export interface PaginaSonsProps {
   motor?: MotorAoVivo
   /** Quanto pesa a pasta de mídia da aventura; o padrão lê o disco. */
   medirMidia?: (pastaDaAventura: string) => Promise<ArquivosDaMidia>
+  /** Quem traz os bytes para a onda do trecho no lápis; o padrão lê a pasta da aventura. */
+  carregarAudio?: CarregadorDeBytes
 }
 
-export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAventura }: PaginaSonsProps) {
+export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAventura, carregarAudio = carregarBytesDoMestre }: PaginaSonsProps) {
   const [motor] = useState(() => motorDado ?? obterMotorDoMestre())
   const biblioteca = useBibliotecaDeSonsStore((estado) => estado.biblioteca)
   const aventuraId = useBibliotecaDeSonsStore((estado) => estado.aventuraId)
@@ -235,7 +312,12 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const pendente = useBibliotecaDeSonsStore((estado) => estado.pendente)
   const aviso = useBibliotecaDeSonsStore((estado) => estado.aviso)
   const podeGravar = useBibliotecaDeSonsStore((estado) => estado.podeGravar)
-  const [filtro, setFiltro] = useState<Filtro>({ tipo: 'todos' })
+  const [parteEscolhida, setParteEscolhida] = useState<ParteDosSons | null>(null)
+  const [busca, setBusca] = useState('')
+  const [soFavoritos, setSoFavoritos] = useState(false)
+  /** As categorias fechadas (chave do grupo). Não é gravado: vale enquanto o app está aberto. */
+  const [fechadas, setFechadas] = useState<ReadonlySet<string>>(() => new Set())
+  const [organizando, setOrganizando] = useState<string | null>(null)
   const [editando, setEditando] = useState<string | null>(null)
   const [importando, setImportando] = useState<string | null>(null)
   const [colandoLink, setColandoLink] = useState(false)
@@ -306,12 +388,31 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   }, [dir, carregando, pendente, medirMidia])
   const midiaBytes = arquivosDaMidia === null ? null : pesoDaMidiaComSons(arquivosDaMidia, biblioteca)
 
-  // A pasta escolhida sumiu, ou o último favorito saiu: volta para Todos.
-  const favoritos = biblioteca.efeitos.filter((efeito) => efeito.favorito === true).length
-  const filtroValido = filtro.tipo === 'todos' || (filtro.tipo === 'favoritos' ? favoritos > 0 : biblioteca.pastas.some((pasta) => pasta.id === filtro.id))
-  const filtroAgora: Filtro = filtroValido ? filtro : { tipo: 'todos' }
-  const visiveis = useMemo(() => efeitosDoFiltro(biblioteca, filtroAgora), [biblioteca, filtroAgora])
-  const pastaEscolhida = filtroAgora.tipo === 'pasta' ? biblioteca.pastas.find((pasta) => pasta.id === filtroAgora.id) : undefined
+  // A parte que abre: a escolhida; antes de escolher, Músicas, a não ser que só Efeitos tenha som (a biblioteca de antes).
+  const contagem = useMemo(() => contagemDasPartes(biblioteca), [biblioteca])
+  const parte: ParteDosSons = parteEscolhida ?? (contagem.musicas.sons === 0 && contagem.efeitos.sons > 0 ? 'efeitos' : 'musicas')
+  const outraParte: ParteDosSons = parte === 'musicas' ? 'efeitos' : 'musicas'
+  // O último favorito da parte saiu: o filtro se desliga sozinho, em vez de esconder a parte inteira.
+  const soFavoritosAgora = soFavoritos && contagem[parte].favoritos > 0
+  const grupos = useMemo(() => gruposDaParte(biblioteca, parte, busca, soFavoritosAgora), [biblioteca, parte, busca, soFavoritosAgora])
+  const filtrando = busca.trim() !== '' || soFavoritosAgora
+  const naOutraParte = filtrando && busca.trim() !== '' ? gruposDaParte(biblioteca, outraParte, busca, false).reduce((soma, grupo) => soma + grupo.efeitos.length, 0) : 0
+  const ids = useId()
+  const abaId = (qual: ParteDosSons) => `${ids}-aba-${qual}`
+  const painelId = `${ids}-painel`
+
+  const trocarDeParte = (qual: ParteDosSons) => {
+    setParteEscolhida(qual)
+    setOrganizando(null)
+  }
+
+  const alternarCategoria = (chave: string) =>
+    setFechadas((antes) => {
+      const depois = new Set(antes)
+      if (depois.has(chave)) depois.delete(chave)
+      else depois.add(chave)
+      return depois
+    })
 
   const semAventura = aventuraId === null
   const cheia = biblioteca.efeitos.length >= EFEITOS_DE_SOM_MAX
@@ -320,9 +421,9 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
 
   /** O som do YouTube entra na biblioteca; a frase da recusa volta ao formulário (o aviso da página fica atrás dele). */
   const guardarLink = (novo: EfeitoNovo): string | null => {
-    const efeito = useBibliotecaDeSonsStore.getState().adicionarEfeito(novo)
+    const efeito = useBibliotecaDeSonsStore.getState().adicionarEfeito({ ...novo, parte })
     if (efeito === null) return `O som não entrou. ${impedimentoDaLoja() ?? `Confira o nome (1 a ${NOME_DE_SOM_MAX} caracteres) e o trecho.`}`
-    useToastStore.getState().push('info', `${efeito.nome} entrou na biblioteca.`, AVISO_DE_IMPORTADO_MS, { chave: 'sons:importado' })
+    useToastStore.getState().push('info', `${efeito.nome} entrou em ${NOME_DA_PARTE[parte]}.`, AVISO_DE_IMPORTADO_MS, { chave: 'sons:importado' })
     return null
   }
   // O porquê do Importar parado, logo abaixo dele. Sem aventura quem explica é o vazio (ele aparece
@@ -330,6 +431,8 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
   const motivoNoTopo = semAventura || carregando ? null : cheia ? `A biblioteca chegou a ${EFEITOS_DE_SOM_MAX} sons. Apague algum para importar outro.` : null
 
   const importar = async (arquivos: File[]) => {
+    // A parte aberta no clique: trocar de aba enquanto importa não muda para onde os arquivos vão.
+    const destino = parte
     const falhas: string[] = []
     let ultimo: string | null = null
     setRecusas([])
@@ -341,7 +444,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
         continue
       }
       try {
-        const efeito = await useBibliotecaDeSonsStore.getState().importarArquivoDeSom(escolhido.name, new Uint8Array(await escolhido.arrayBuffer()))
+        const efeito = await useBibliotecaDeSonsStore.getState().importarArquivoDeSom(escolhido.name, new Uint8Array(await escolhido.arrayBuffer()), destino)
         ultimo = efeito.nome
       } catch (erro) {
         falhas.push(fraseDaRecusaDoArquivo(escolhido.name, erro))
@@ -350,7 +453,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
     setImportando(null)
     setRecusas(falhas)
     // O sucesso é passageiro (o botão novo já mostra que entrou): aviso que some, fora do topo fixo.
-    if (ultimo !== null) useToastStore.getState().push('info', arquivos.length - falhas.length > 1 ? `${arquivos.length - falhas.length} sons entraram na biblioteca.` : `${ultimo} entrou na biblioteca.`, AVISO_DE_IMPORTADO_MS, { chave: 'sons:importado' })
+    if (ultimo !== null) useToastStore.getState().push('info', arquivos.length - falhas.length > 1 ? `${arquivos.length - falhas.length} sons entraram em ${NOME_DA_PARTE[destino]}.` : `${ultimo} entrou em ${NOME_DA_PARTE[destino]}.`, AVISO_DE_IMPORTADO_MS, { chave: 'sons:importado' })
   }
 
   const fecharRecusas = () => {
@@ -370,7 +473,7 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
 
   return (
     <div className="lb-sons" role="region" aria-label="Sons">
-      <TituloDaPagina titulo="Sons" sub="Efeitos e ambientes da aventura" />
+      <TituloDaPagina titulo="Sons" sub="Músicas e efeitos da aventura" />
       <div className="lb-sons__topo">
         {/* Hierarquia: parar (o pânico, largo) antes de tocar (a grade) antes de importar (preparo, discreto). */}
         <div className="lb-sons__linha">
@@ -403,36 +506,61 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
             {aviso}
           </p>
         )}
+        {!semAventura && <AbasDasPartes parte={parte} contagem={contagem} abaId={abaId} painelId={painelId} onParte={trocarDeParte} />}
       </div>
       <input ref={arquivo} type="file" accept={ACEITA_AUDIO} multiple hidden aria-label="Arquivo de som" onChange={escolherArquivos} />
 
       {recusas.length > 0 && <RecusasDaImportacao recusas={recusas} onFechar={fecharRecusas} />}
 
-      {(biblioteca.pastas.length > 0 || favoritos > 0) && <ChipsDasPastas biblioteca={biblioteca} favoritos={favoritos} filtro={filtroAgora} onFiltro={setFiltro} />}
-      {pastaEscolhida !== undefined && <AcoesDaPasta key={pastaEscolhida.id} pasta={pastaEscolhida} sons={visiveis.length} />}
-
       {carregando ? (
         <p className="lb-sons__mensagem">Lendo os sons da aventura…</p>
-      ) : biblioteca.efeitos.length === 0 ? (
-        <VazioDosSons semAventura={semAventura} podeImportar={podeImportar} onImportar={() => arquivo.current?.click()} />
-      ) : visiveis.length === 0 ? (
-        <p className="lb-sons__mensagem">Nenhum som nesta pasta. Mova um som para cá pelo lápis dele, no campo Pasta.</p>
+      ) : semAventura ? (
+        <VazioDosSons semAventura podeImportar={false} parte={parte} onImportar={() => undefined} />
       ) : (
-        <ul className="lb-sons__grade" aria-label="Botões de som">
-          {visiveis.map((efeito) => (
-            <BotaoDeSom
-              key={efeito.id}
-              efeito={efeito}
-              toque={toques.get(efeito.id)}
-              guardarSelo={(no) => {
-                if (no === null) selos.current.delete(efeito.id)
-                else selos.current.set(efeito.id, no)
-              }}
-              onTocar={(peloClique) => tocar(efeito, peloClique)}
-              onEditar={() => setEditando(efeito.id)}
-            />
+        <div className="lb-sons__parte" role="tabpanel" id={painelId} aria-labelledby={abaId(parte)}>
+          {contagem[parte].sons === 0 ? (
+            biblioteca.efeitos.length === 0 ? (
+              <VazioDosSons semAventura={false} podeImportar={podeImportar} parte={parte} onImportar={() => arquivo.current?.click()} />
+            ) : (
+              <p className="lb-sons__mensagem">
+                {parte === 'musicas' ? 'Nenhuma música ainda.' : 'Nenhum efeito sonoro ainda.'} O que entra com Importar ou Colar link vem para esta parte; um som de {NOME_DA_PARTE[outraParte]} muda de parte no lápis, no campo Tipo.
+              </p>
+            )
+          ) : (
+            <FerramentasDaParte parte={parte} sons={contagem[parte].sons} favoritos={contagem[parte].favoritos} busca={busca} soFavoritos={soFavoritosAgora} onBusca={setBusca} onFavoritos={setSoFavoritos} />
+          )}
+          {filtrando && grupos.length === 0 && (
+            <p className="lb-sons__mensagem" role="status">
+              {busca.trim() === '' ? `Nenhum favorito em ${NOME_DA_PARTE[parte]}.` : `Nenhum som com “${busca.trim()}” em ${NOME_DA_PARTE[parte]}.`}
+              {naOutraParte > 0 && ` Em ${NOME_DA_PARTE[outraParte]} ${naOutraParte === 1 ? 'há 1' : `há ${naOutraParte}`}.`}
+            </p>
+          )}
+          {grupos.map((grupo) => (
+            <CategoriaDeSons
+              key={grupo.chave}
+              grupo={grupo}
+              aberta={filtrando || !fechadas.has(grupo.chave)}
+              onAlternar={filtrando ? undefined : () => alternarCategoria(grupo.chave)}
+              organizando={grupo.pasta !== null && organizando === grupo.pasta.id}
+              onOrganizar={() => setOrganizando((antes) => (grupo.pasta === null || antes === grupo.pasta.id ? null : grupo.pasta.id))}
+            >
+              {grupo.efeitos.map((efeito) => (
+                <BotaoDeSom
+                  key={efeito.id}
+                  efeito={efeito}
+                  toque={toques.get(efeito.id)}
+                  guardarSelo={(no) => {
+                    if (no === null) selos.current.delete(efeito.id)
+                    else selos.current.set(efeito.id, no)
+                  }}
+                  onTocar={(peloClique) => tocar(efeito, peloClique)}
+                  onEditar={() => setEditando(efeito.id)}
+                />
+              ))}
+            </CategoriaDeSons>
           ))}
-        </ul>
+          {!filtrando && <NovaCategoria key={parte} parte={parte} />}
+        </div>
       )}
 
       {dir !== null && midiaBytes !== null && (
@@ -448,72 +576,61 @@ export function PaginaSons({ motor: motorDado, medirMidia = arquivosDaMidiaDaAve
       </Dialogo>
 
       <Dialogo aberto={efeitoEditado !== undefined} titulo="Editar som" onFechar={() => setEditando(null)} pequeno>
-        {efeitoEditado !== undefined && <EditorDoSom key={efeitoEditado.id} efeito={efeitoEditado} biblioteca={biblioteca} motor={motor} ponte={ponte} tocando={toques.has(efeitoEditado.id)} onFechar={() => setEditando(null)} />}
+        {efeitoEditado !== undefined && (
+          <EditorDoSom key={efeitoEditado.id} efeito={efeitoEditado} biblioteca={biblioteca} motor={motor} ponte={ponte} carregarAudio={carregarAudio} tocando={toques.has(efeitoEditado.id)} onFechar={() => setEditando(null)} />
+        )}
       </Dialogo>
     </div>
   )
 }
 
-function efeitosDoFiltro(biblioteca: BibliotecaDeSons, filtro: Filtro): EfeitoDeSom[] {
-  const ordenados = [...biblioteca.efeitos].sort((a, b) => a.ordem - b.ordem)
-  if (filtro.tipo === 'favoritos') return ordenados.filter((efeito) => efeito.favorito === true)
-  if (filtro.tipo === 'pasta') return ordenados.filter((efeito) => efeito.pastaId === filtro.id)
-  return ordenados
-}
-
-/** Uma linha da roda do mouse (deltaMode 1, o Firefox) em px. */
-const PX_POR_LINHA_DA_RODA = 16
-
 /**
- * A fileira de pastas rola de lado; o mouse comum só tem a roda vertical. Ela
- * vira rolagem de lado enquanto a fileira tem para onde ir; no fim (ou com
- * gesto de lado do trackpad) a página rola como sempre. Devolve o desligar.
+ * As duas partes no alto, no topo fixo: um controle segmentado com papel de
+ * abas (role tablist), porque troca o painel inteiro de baixo. As setas
+ * escolhem a vizinha e já mostram (ativação automática: são só duas, e trocar
+ * não custa nada). O número é quantos sons a parte tem.
  */
-function rodaDoMouseRolaDeLado(fileira: HTMLElement | null): (() => void) | undefined {
-  if (fileira === null) return undefined
-  const rolar = (evento: WheelEvent) => {
-    if (Math.abs(evento.deltaY) <= Math.abs(evento.deltaX)) return
-    const passo = evento.deltaMode === 1 ? evento.deltaY * PX_POR_LINHA_DA_RODA : evento.deltaY
-    const maximo = fileira.scrollWidth - fileira.clientWidth
-    const temParaOndeIr = passo < 0 ? fileira.scrollLeft > 0 : fileira.scrollLeft < maximo
-    if (maximo <= 0 || !temParaOndeIr) return
+function AbasDasPartes({
+  parte,
+  contagem,
+  abaId,
+  painelId,
+  onParte,
+}: {
+  parte: ParteDosSons
+  contagem: Record<ParteDosSons, { sons: number }>
+  abaId: (qual: ParteDosSons) => string
+  painelId: string
+  onParte: (qual: ParteDosSons) => void
+}) {
+  const teclar = (evento: EventoDeTecla<HTMLDivElement>) => {
+    const indice = PARTES_DOS_SONS.indexOf(parte)
+    const passo = evento.key === 'ArrowRight' ? 1 : evento.key === 'ArrowLeft' ? -1 : 0
+    const alvo = evento.key === 'Home' ? PARTES_DOS_SONS[0] : evento.key === 'End' ? PARTES_DOS_SONS[PARTES_DOS_SONS.length - 1] : passo === 0 ? undefined : PARTES_DOS_SONS[(indice + passo + PARTES_DOS_SONS.length) % PARTES_DOS_SONS.length]
+    if (alvo === undefined) return
     evento.preventDefault()
-    fileira.scrollLeft = Math.min(maximo, Math.max(0, fileira.scrollLeft + passo))
+    onParte(alvo)
+    document.getElementById(abaId(alvo))?.focus()
   }
-  fileira.addEventListener('wheel', rolar, { passive: false })
-  return () => fileira.removeEventListener('wheel', rolar)
-}
-
-/**
- * O chip focado (Tab ou setas) fica inteiro à vista na fileira: o foco do
- * navegador só rola quando o chip está todo fora, e meio chip cortado pelo
- * esmaecido some do olho. Sem animação: é ação de teclado.
- */
-function trazerParaAVista(chip: HTMLElement): void {
-  if (typeof chip.scrollIntoView === 'function') chip.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-}
-
-function ChipsDasPastas({ biblioteca, favoritos, filtro, onFiltro }: { biblioteca: BibliotecaDeSons; favoritos: number; filtro: Filtro; onFiltro: (filtro: Filtro) => void }) {
-  const pastas = [...biblioteca.pastas].sort((a, b) => a.ordem - b.ordem)
-  const opcoes: { chave: string; filtro: Filtro; rotulo: string; conta: number; estrela?: boolean }[] = [
-    ...(favoritos > 0 ? [{ chave: 'favoritos', filtro: { tipo: 'favoritos' } as const, rotulo: 'Favoritos', conta: favoritos, estrela: true }] : []),
-    { chave: 'todos', filtro: { tipo: 'todos' }, rotulo: 'Todos', conta: biblioteca.efeitos.length },
-    ...pastas.map((pasta) => ({ chave: pasta.id, filtro: { tipo: 'pasta', id: pasta.id } as const, rotulo: pasta.nome, conta: biblioteca.efeitos.filter((efeito) => efeito.pastaId === pasta.id).length })),
-  ]
-  const ehAtual = (opcao: Filtro) => opcao.tipo === filtro.tipo && (opcao.tipo !== 'pasta' || (filtro.tipo === 'pasta' && filtro.id === opcao.id))
-  const fileira = useRef<HTMLDivElement>(null)
-  useEffect(() => rodaDoMouseRolaDeLado(fileira.current), [])
   return (
-    <div ref={fileira} className="lb-sons__pastas" role="radiogroup" aria-label="Mostrar sons" onKeyDown={(evento: EventoDeTecla<HTMLElement>) => andarPelosRadios(evento)}>
-      {opcoes.map((opcao) => {
-        const atual = ehAtual(opcao.filtro)
+    <div className="gr-seg lb-sons__abas" role="tablist" aria-label="Partes da biblioteca de sons" onKeyDown={teclar}>
+      {PARTES_DOS_SONS.map((qual) => {
+        const escolhida = qual === parte
+        const n = contagem[qual].sons
         return (
-          <button key={opcao.chave} type="button" role="radio" aria-checked={atual} tabIndex={atual ? 0 : -1} className="gr-chip lb-sons__chip" title={opcao.rotulo} onClick={() => onFiltro(opcao.filtro)} onFocus={(evento) => trazerParaAVista(evento.currentTarget)}>
-            {opcao.estrela === true && <IconeDoLivro nome="estrela" />}
-            <span className="lb-sons__chip-nome" dir="auto">
-              {opcao.rotulo}
-            </span>
-            <small aria-label={opcao.conta === 1 ? '1 som' : `${opcao.conta} sons`}>{opcao.conta}</small>
+          <button
+            key={qual}
+            id={abaId(qual)}
+            type="button"
+            role="tab"
+            className="gr-seg__op lb-sons__aba"
+            aria-selected={escolhida}
+            aria-controls={escolhida ? painelId : undefined}
+            tabIndex={escolhida ? 0 : -1}
+            onClick={() => onParte(qual)}
+          >
+            <span className="lb-sons__aba-nome">{NOME_DA_PARTE[qual]}</span>
+            <small aria-label={n === 1 ? '1 som' : `${n} sons`}>{n}</small>
           </button>
         )
       })}
@@ -521,36 +638,225 @@ function ChipsDasPastas({ biblioteca, favoritos, filtro, onFiltro }: { bibliotec
   )
 }
 
+/** Busca (só com muitos sons) e o filtro Favoritos (só com favorito na parte), logo acima das categorias. */
+function FerramentasDaParte({
+  parte,
+  sons,
+  favoritos,
+  busca,
+  soFavoritos,
+  onBusca,
+  onFavoritos,
+}: {
+  parte: ParteDosSons
+  sons: number
+  favoritos: number
+  busca: string
+  soFavoritos: boolean
+  onBusca: (busca: string) => void
+  onFavoritos: (ligado: boolean) => void
+}) {
+  const comBusca = sons > BUSCA_A_PARTIR_DE || busca !== ''
+  if (!comBusca && favoritos === 0) return null
+  return (
+    <div className="lb-sons__ferramentas">
+      {comBusca && (
+        <div className="lb-sons__busca">
+          <IconeDoLivro nome="busca" />
+          <input
+            className="gr-entrada"
+            type="search"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label={`Buscar em ${NOME_DA_PARTE[parte]}`}
+            placeholder={`Buscar em ${NOME_DA_PARTE[parte]}`}
+            maxLength={NOME_DE_SOM_MAX}
+            value={busca}
+            onChange={(evento) => onBusca(evento.currentTarget.value)}
+            onKeyDown={(evento) => {
+              if (evento.key !== 'Escape' || busca === '') return
+              // O Esc limpa a busca aqui, não a seleção do mapa.
+              evento.preventDefault()
+              evento.stopPropagation()
+              onBusca('')
+            }}
+          />
+        </div>
+      )}
+      {favoritos > 0 && (
+        <button type="button" className="gr-chip lb-sons__chip" aria-pressed={soFavoritos} title="Mostrar só os favoritos" onClick={() => onFavoritos(!soFavoritos)}>
+          <IconeDoLivro nome="estrela" />
+          <span className="lb-sons__chip-nome">Favoritos</span>
+          <small aria-label={favoritos === 1 ? '1 som' : `${favoritos} sons`}>{favoritos}</small>
+        </button>
+      )}
+    </div>
+  )
+}
+
 /**
- * Renomear e apagar a pasta escolhida no chip (sem elas, o nome errado ficava
- * para sempre, contra o teto de 50 pastas). Só a biblioteca muda: nada no
- * disco além do `sons.json`. Apagada, os sons dela ficam sem pasta, em Todos.
+ * Uma categoria: o cabeçalho abre e fecha (sem animar a altura: só a seta
+ * gira, e a lista aparece inteira), o lápis do cabeçalho organiza (renomear,
+ * apagar). Com busca ou Favoritos a categoria fica aberta e não fecha: o
+ * filtro já escolheu o que mostrar.
  */
-function AcoesDaPasta({ pasta, sons }: { pasta: PastaDeSons; sons: number }) {
+function CategoriaDeSons({
+  grupo,
+  aberta,
+  onAlternar,
+  organizando,
+  onOrganizar,
+  children,
+}: {
+  grupo: GrupoDeSons
+  aberta: boolean
+  /** Ausente = não fecha (filtrando). */
+  onAlternar?: () => void
+  organizando: boolean
+  onOrganizar: () => void
+  children: ReactNode
+}) {
+  const ids = useId()
+  const nome = grupo.pasta?.nome ?? 'Sem categoria'
+  const n = grupo.efeitos.length
+  return (
+    <section className={classes('lb-cat', !aberta && 'lb-cat--fechada')} aria-labelledby={`${ids}-titulo`}>
+      <h3 className="lb-cat__titulo">
+        <button type="button" id={`${ids}-titulo`} className="lb-cat__abrir" aria-expanded={aberta} aria-controls={`${ids}-lista`} disabled={onAlternar === undefined} onClick={onAlternar}>
+          <IconeDoLivro nome="baixo" />
+          <span className={classes('lb-cat__nome', grupo.pasta === null && 'lb-cat__nome--sem')} dir="auto">
+            {nome}
+          </span>
+          <small className="lb-cat__conta" aria-label={n === 1 ? '1 som' : `${n} sons`}>
+            {n}
+          </small>
+        </button>
+        {grupo.pasta !== null && (
+          <button type="button" className="lb-cat__organizar" aria-label={`Organizar a categoria ${nome}`} aria-expanded={organizando} title="Renomear ou apagar" onClick={onOrganizar}>
+            <IconeLapis />
+          </button>
+        )}
+      </h3>
+      {organizando && grupo.pasta !== null && <AcoesDaPasta key={grupo.pasta.id} pasta={grupo.pasta} sons={n} onFechar={onOrganizar} />}
+      <div id={`${ids}-lista`} hidden={!aberta}>
+        {n > 0 ? (
+          <ul className="lb-sons__lista" aria-label={`Sons de ${nome}`}>
+            {children}
+          </ul>
+        ) : (
+          <p className="lb-cat__vazia">Nenhum som aqui. No lápis de um som, escolha esta categoria.</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** "+ Nova categoria" no fim da parte: vira o campo do nome, Enter cria, Esc desiste. */
+function NovaCategoria({ parte }: { parte: ParteDosSons }) {
+  const [nome, setNome] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const campo = useRef<HTMLInputElement>(null)
+  const botao = useRef<HTMLButtonElement>(null)
+  const voltar = useRef(false)
+
+  useEffect(() => {
+    if (nome !== null) campo.current?.focus()
+    else if (voltar.current) {
+      voltar.current = false
+      botao.current?.focus()
+    }
+  }, [nome !== null])
+
+  const desistir = () => {
+    setErro(null)
+    voltar.current = true
+    setNome(null)
+  }
+
+  const criar = () => {
+    const pasta = useBibliotecaDeSonsStore.getState().criarPasta(nome ?? '', parte)
+    if (pasta === null) {
+      setErro(impedimentoDaLoja() ?? `Use um nome de 1 a ${NOME_DE_SOM_MAX} caracteres (no máximo 50 categorias nas duas partes).`)
+      return
+    }
+    desistir()
+  }
+
+  if (nome === null)
+    return (
+      <button ref={botao} type="button" className="lb-sons__nova-cat" onClick={() => setNome('')}>
+        <IconeDoLivro nome="mais" />
+        Nova categoria em {NOME_DA_PARTE[parte]}
+      </button>
+    )
+  return (
+    <div className="lb-sons__pasta-acoes">
+      <div className="lb-sons__pasta-form">
+        <input
+          ref={campo}
+          className="gr-entrada"
+          type="text"
+          autoComplete="off"
+          aria-label={`Nome da nova categoria em ${NOME_DA_PARTE[parte]}`}
+          placeholder="Nome da categoria"
+          maxLength={NOME_DE_SOM_MAX}
+          value={nome}
+          onChange={(evento) => setNome(evento.currentTarget.value)}
+          onKeyDown={(evento) => {
+            if (evento.key === 'Enter') {
+              evento.preventDefault()
+              criar()
+            } else if (evento.key === 'Escape') {
+              evento.preventDefault()
+              evento.stopPropagation()
+              desistir()
+            }
+          }}
+        />
+        <div className="gr-acoes">
+          <Botao tamanho="p" onClick={desistir}>
+            Cancelar
+          </Botao>
+          <Botao tamanho="p" variante="primario" onClick={criar}>
+            Criar categoria
+          </Botao>
+        </div>
+      </div>
+      {erro !== null && (
+        <p className="lb-sons__nota lb-sons__nota--erro" role="alert">
+          {erro}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Renomear e apagar a categoria, aberto pelo lápis do cabeçalho dela (sem
+ * isto, o nome errado ficava para sempre, contra o teto de 50 pastas). Só a
+ * biblioteca muda: nada no disco além do `sons.json`. Apagada, os sons dela
+ * ficam em Sem categoria, na mesma parte. Esc fecha.
+ */
+function AcoesDaPasta({ pasta, sons, onFechar }: { pasta: PastaDeSons; sons: number; onFechar: () => void }) {
   const [modo, setModo] = useState<'nada' | 'renomear' | 'apagar'>('nada')
   const [nome, setNome] = useState(pasta.nome)
   const [erro, setErro] = useState<string | null>(null)
   const campo = useRef<HTMLInputElement>(null)
   const cancelar = useRef<HTMLButtonElement>(null)
   const renomear = useRef<HTMLButtonElement>(null)
-  const voltarAoRenomear = useRef(false)
 
   useEffect(() => {
     if (modo === 'renomear') {
       campo.current?.focus()
       campo.current?.select()
-    }
-    else if (modo === 'apagar') cancelar.current?.focus()
-    else if (voltarAoRenomear.current) {
-      voltarAoRenomear.current = false
-      renomear.current?.focus()
-    }
+    } else if (modo === 'apagar') cancelar.current?.focus()
+    // Aberto pelo lápis da categoria, e de volta do Renomear ou do Apagar: o foco na primeira ação.
+    else renomear.current?.focus()
   }, [modo])
 
   const desistir = () => {
     setErro(null)
     setNome(pasta.nome)
-    voltarAoRenomear.current = true
     setModo('nada')
   }
 
@@ -565,18 +871,25 @@ function AcoesDaPasta({ pasta, sons }: { pasta: PastaDeSons; sons: number }) {
   const apagar = (botao: HTMLElement) => {
     const pagina = botao.closest('.lb-sons')
     if (!useBibliotecaDeSonsStore.getState().apagarPasta(pasta.id)) {
-      setErro(`A pasta não foi apagada. ${impedimentoDaLoja() ?? 'Ela já não existe.'}`)
+      setErro(`A categoria não foi apagada. ${impedimentoDaLoja() ?? 'Ela já não existe.'}`)
       return
     }
-    // Este bloco some com a pasta: o foco vai para o chip que fica escolhido (Todos) ou, sem pasta nenhuma
-    // (a fileira some), para o primeiro som; depois de o React desenhar.
-    setTimeout(() => (pagina?.querySelector<HTMLElement>('.lb-sons__chip[aria-checked="true"]') ?? pagina?.querySelector<HTMLElement>('.lb-efeito__tocar'))?.focus(), 0)
+    // Este bloco some com a categoria: o foco vai para a aba da parte, depois de o React desenhar.
+    setTimeout(() => pagina?.querySelector<HTMLElement>('.lb-sons__aba[aria-selected="true"]')?.focus(), 0)
   }
 
-  const sobreOsSons = sons === 0 ? 'Ela está vazia.' : sons === 1 ? 'O som dela fica sem pasta, em Todos.' : `Os ${sons} sons dela ficam sem pasta, em Todos.`
+  const sobreOsSons = sons === 0 ? 'Ela está vazia.' : sons === 1 ? 'O som dela vai para Sem categoria.' : `Os ${sons} sons dela vão para Sem categoria.`
 
   return (
-    <div className="lb-sons__pasta-acoes">
+    <div
+      className="lb-sons__pasta-acoes"
+      onKeyDown={(evento) => {
+        if (evento.key !== 'Escape' || modo !== 'nada') return
+        evento.preventDefault()
+        evento.stopPropagation()
+        onFechar()
+      }}
+    >
       {modo === 'renomear' ? (
         <div className="lb-sons__pasta-form">
           <input
@@ -584,7 +897,7 @@ function AcoesDaPasta({ pasta, sons }: { pasta: PastaDeSons; sons: number }) {
             className="gr-entrada"
             type="text"
             autoComplete="off"
-            aria-label="Novo nome da pasta"
+            aria-label="Novo nome da categoria"
             maxLength={NOME_DE_SOM_MAX}
             value={nome}
             onChange={(evento) => setNome(evento.currentTarget.value)}
@@ -610,28 +923,31 @@ function AcoesDaPasta({ pasta, sons }: { pasta: PastaDeSons; sons: number }) {
           </div>
         </div>
       ) : modo === 'apagar' ? (
-        <div className="lb-sons__pasta-form" role="group" aria-label="Confirmar apagar pasta">
+        <div className="lb-sons__pasta-form" role="group" aria-label="Confirmar apagar categoria">
           <p className="lb-sons__nota">
-            Apagar a pasta {pasta.nome}? {sobreOsSons}
+            Apagar a categoria {pasta.nome}? {sobreOsSons}
           </p>
           <div className="gr-acoes">
             <Botao ref={cancelar} tamanho="p" onClick={desistir}>
               Cancelar
             </Botao>
             <Botao tamanho="p" variante="perigo" onClick={(evento) => apagar(evento.currentTarget)}>
-              Apagar pasta
+              Apagar categoria
             </Botao>
           </div>
         </div>
       ) : (
         <div className="lb-sons__pasta-botoes">
-          <Botao ref={renomear} tamanho="p" aria-label="Renomear pasta" onClick={() => setModo('renomear')}>
+          <Botao ref={renomear} tamanho="p" aria-label="Renomear categoria" onClick={() => setModo('renomear')}>
             <IconeLapis />
             Renomear
           </Botao>
-          <Botao tamanho="p" aria-label="Apagar pasta…" onClick={() => setModo('apagar')}>
+          <Botao tamanho="p" aria-label="Apagar categoria…" onClick={() => setModo('apagar')}>
             <IconeDoLivro nome="lixo" />
             Apagar…
+          </Botao>
+          <Botao tamanho="p" className="gr-empurra" onClick={onFechar}>
+            Fechar
           </Botao>
         </div>
       )}
@@ -668,7 +984,7 @@ function RecusasDaImportacao({ recusas, onFechar }: { recusas: readonly string[]
   )
 }
 
-function VazioDosSons({ semAventura, podeImportar, onImportar }: { semAventura: boolean; podeImportar: boolean; onImportar: () => void }) {
+function VazioDosSons({ semAventura, podeImportar, parte, onImportar }: { semAventura: boolean; podeImportar: boolean; parte: ParteDosSons; onImportar: () => void }) {
   // Mapa solto: o caminho que existe hoje para virar aventura é a cena nova (App.tsx, createScene com o mapa solto).
   if (semAventura)
     return (
@@ -680,7 +996,9 @@ function VazioDosSons({ semAventura, podeImportar, onImportar }: { semAventura: 
   return (
     <div className="lb-sons__vazio">
       <h3 className="lb-sons__vazio-titulo">Nenhum som ainda</h3>
-      <p className="lb-sons__vazio-texto">Importe MP3, WAV, OGG ou M4A de até 15 MB. Cada arquivo vira um botão; as teclas 1 a 9 tocam os que tiverem atalho.</p>
+      <p className="lb-sons__vazio-texto">
+        Importe MP3, WAV, OGG ou M4A de até 15 MB, ou cole um link do YouTube. Cada som vira uma linha que toca no clique; as teclas 1 a 9 tocam os que tiverem atalho. O que entrar agora vai para {NOME_DA_PARTE[parte]}.
+      </p>
       <Botao variante="primario" disabled={!podeImportar} onClick={onImportar}>
         <IconeDoLivro nome="importar" />
         Importar sons
@@ -695,6 +1013,40 @@ function rotuloDoBotao(efeito: EfeitoDeSom, tocando: boolean): string {
   if (efeito.atalho !== undefined) partes.push(`tecla ${efeito.atalho}`)
   if (efeito.loop) partes.push(tocando ? 'repetindo, toque para parar' : 'repete até parar')
   return partes.join(', ')
+}
+
+/**
+ * O começo da linha: a miniatura do vídeo do YouTube (`mqdefault`, 320x180,
+ * cortada em quadrado; preguiçosa, para 200 linhas não pedirem 200 imagens
+ * de uma vez), ou o ícone da parte para o arquivo. A miniatura que não
+ * carrega (sem internet, vídeo removido) vira o ícone, nunca um buraco. O
+ * endereço só leva o id já conferido (`VideoDoYoutube`): nada colado pelo
+ * mestre vai para o `src`.
+ */
+function MiniaturaDoSom({ efeito }: { efeito: EfeitoDeSom }) {
+  const video = efeito.fonte.tipo === 'youtube' ? efeito.fonte.video : null
+  const [falhou, setFalhou] = useState<string | null>(null)
+  if (video !== null && falhou !== video)
+    return (
+      <img
+        className="lb-efeito__mini"
+        src={`https://i.ytimg.com/vi/${video}/mqdefault.jpg`}
+        alt=""
+        width={36}
+        height={36}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        referrerPolicy="no-referrer"
+        onError={() => setFalhou(video)}
+        // O vídeo que não existe (ou saiu do ar) responde 404 COM uma imagem cinza de 120 px, que o navegador mostra
+        // sem erro; a miniatura de verdade tem 320. A cinza também vira o ícone.
+        onLoad={(evento) => {
+          if (evento.currentTarget.naturalWidth < MINIATURA_LARGURA_REAL) setFalhou(video)
+        }}
+      />
+    )
+  return <span className="lb-efeito__icone">{parteDe(efeito) === 'musicas' ? <IconeNota /> : <IconeOnda />}</span>
 }
 
 function BotaoDeSom({
@@ -723,19 +1075,19 @@ function BotaoDeSom({
         title={efeito.nome}
         onClick={(evento) => onTocar(evento.detail > 0)}
       >
-        <span className="lb-efeito__cabeca" aria-hidden="true">
-          <span className={classes('lb-efeito__selo', efeito.atalho === undefined && 'lb-efeito__selo--vazio')} ref={guardarSelo}>
-            {efeito.atalho ?? <IconeDoLivro nome="som" />}
-          </span>
-          {efeito.favorito === true && (
-            <span className="lb-efeito__favorito">
-              <IconeDoLivro nome="estrela" />
-            </span>
-          )}
+        {/* O selo: a miniatura do vídeo ou o ícone da parte, com a tecla no canto. É ele que pulsa no clique. */}
+        <span className="lb-efeito__selo" ref={guardarSelo} aria-hidden="true">
+          <MiniaturaDoSom efeito={efeito} />
+          {efeito.atalho !== undefined && <span className="lb-efeito__tecla">{efeito.atalho}</span>}
         </span>
         <span className="lb-efeito__nome" dir="auto">
           {efeito.nome}
         </span>
+        {efeito.favorito === true && (
+          <span className="lb-efeito__favorito" aria-hidden="true">
+            <IconeDoLivro nome="estrela" />
+          </span>
+        )}
         {/* O loop tocando diz o que o clique faz agora: para. */}
         {efeito.loop &&
           (tocando ? (
@@ -744,9 +1096,8 @@ function BotaoDeSom({
               parar
             </span>
           ) : (
-            <span className="lb-efeito__loop" aria-hidden="true">
+            <span className="lb-efeito__loop" aria-hidden="true" title="Repete até parar">
               <IconeRepetir />
-              repete
             </span>
           ))}
         <span className="lb-efeito__trilho" aria-hidden="true">
@@ -778,12 +1129,33 @@ function impedimentoDaLoja(): string | null {
   return podeGravar ? null : SONS_NAO_GRAVAVEIS
 }
 
-/** O lápis: nome, volume, repetir, tecla, pasta, favorito e apagar. Cada mudança vale na hora (a biblioteca grava sozinha). */
-function EditorDoSom({ efeito, biblioteca, motor, ponte, tocando, onFechar }: { efeito: EfeitoDeSom; biblioteca: BibliotecaDeSons; motor: MotorAoVivo; ponte: PonteDosSons; tocando: boolean; onFechar: () => void }) {
+/**
+ * O lápis: nome, tipo (Música ou Efeito sonoro), categoria, trecho de A até
+ * B, volume, repetir, tecla, favorito e apagar. Cada mudança vale na hora (a
+ * biblioteca grava sozinha).
+ */
+function EditorDoSom({
+  efeito,
+  biblioteca,
+  motor,
+  ponte,
+  carregarAudio,
+  tocando,
+  onFechar,
+}: {
+  efeito: EfeitoDeSom
+  biblioteca: BibliotecaDeSons
+  motor: MotorAoVivo
+  ponte: PonteDosSons
+  carregarAudio: CarregadorDeBytes
+  tocando: boolean
+  onFechar: () => void
+}) {
   const editar = useBibliotecaDeSonsStore((estado) => estado.editarEfeito)
   const [nome, setNome] = useState(efeito.nome)
   const [saiuDoNome, setSaiuDoNome] = useState(false)
   const [notaDoAtalho, setNotaDoAtalho] = useState<string | null>(null)
+  const [notaDoTipo, setNotaDoTipo] = useState<string | null>(null)
   const [novaPasta, setNovaPasta] = useState<string | null>(null)
   const [erroDaPasta, setErroDaPasta] = useState<string | null>(null)
   const [recusa, setRecusa] = useState<string | null>(null)
@@ -821,6 +1193,17 @@ function EditorDoSom({ efeito, biblioteca, motor, ponte, tocando, onFechar }: { 
     setNotaDoAtalho(dono === undefined || atalho === null ? null : `A tecla ${atalho} era de ${dono.nome}. Agora é deste som, e ${dono.nome} ficou sem tecla.`)
   }
 
+  const parte = parteDe(efeito)
+  const mudarTipo = (nova: ParteDosSons) => {
+    if (nova === parte) return
+    const tinhaCategoria = efeito.pastaId !== null
+    setNovaPasta(null)
+    setErroDaPasta(null)
+    if (!mudar({ parte: nova })) return
+    // As categorias são de cada parte: a de antes não vai junto.
+    setNotaDoTipo(`Foi para ${NOME_DA_PARTE[nova]}${tinhaCategoria ? ', em Sem categoria (as categorias são de cada parte)' : ''}.`)
+  }
+
   const mudarPasta = (valor: string) => {
     setErroDaPasta(null)
     if (valor === NOVA_PASTA) {
@@ -832,11 +1215,11 @@ function EditorDoSom({ efeito, biblioteca, motor, ponte, tocando, onFechar }: { 
   }
 
   const criarPasta = () => {
-    const pasta = useBibliotecaDeSonsStore.getState().criarPasta(novaPasta ?? '')
+    const pasta = useBibliotecaDeSonsStore.getState().criarPasta(novaPasta ?? '', parte)
     if (pasta === null) {
       const impedimento = impedimentoDaLoja()
       if (impedimento !== null) setRecusa(`Nada mudou. ${impedimento}`)
-      else setErroDaPasta(`Use um nome de 1 a ${NOME_DE_SOM_MAX} caracteres (no máximo 50 pastas).`)
+      else setErroDaPasta(`Use um nome de 1 a ${NOME_DE_SOM_MAX} caracteres (no máximo 50 categorias nas duas partes).`)
       return
     }
     mudar({ pastaId: pasta.id })
@@ -854,8 +1237,10 @@ function EditorDoSom({ efeito, biblioteca, motor, ponte, tocando, onFechar }: { 
     onFechar()
   }
 
-  const pastas = [...biblioteca.pastas].sort((a, b) => a.ordem - b.ordem)
-  const opcoesDaPasta = [{ valor: SEM_PASTA, rotulo: 'Sem pasta' }, ...pastas.map((pasta) => ({ valor: pasta.id, rotulo: pasta.nome })), { valor: NOVA_PASTA, rotulo: 'Nova pasta…' }]
+  // Só as categorias da parte do som: a de outra parte não serve (o som e a categoria moram juntos).
+  const pastas = biblioteca.pastas.filter((pasta) => parteDe(pasta) === parte).sort((a, b) => a.ordem - b.ordem)
+  const opcoesDaPasta = [{ valor: SEM_PASTA, rotulo: 'Sem categoria' }, ...pastas.map((pasta) => ({ valor: pasta.id, rotulo: pasta.nome })), { valor: NOVA_PASTA, rotulo: 'Nova categoria…' }]
+  const ouvir = () => (tocando ? ponte.parar(efeito.id) : motor.tocar(efeito.id, efeito.fonte, { loop: false, volumeDoEfeito: efeito.volume }))
   const opcoesDoAtalho = [
     { valor: SEM_ATALHO, rotulo: 'Nenhuma' },
     ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((numero) => {
@@ -891,34 +1276,25 @@ function EditorDoSom({ efeito, biblioteca, motor, ponte, tocando, onFechar }: { 
           </p>
         )}
       </div>
-      {/* Ouvir dá UMA passada no volume de agora (mesmo o loop: provar o volume não liga o ambiente); tocando, para. */}
-      <div className="lb-sons-editor__volume">
-        <CampoFaixa rotulo="Volume" min={0} max={100} unidade="%" valor={Math.round(efeito.volume * 100)} onChange={mudarVolume} />
-        <Botao
-          tamanho="p"
-          aria-label={`${tocando ? 'Parar' : 'Ouvir'} ${efeito.nome}`}
-          // Ouvir é só do mestre (prova o som sem a mesa); Parar alcança a mesa, se ele soa lá também.
-          onClick={() => (tocando ? ponte.parar(efeito.id) : motor.tocar(efeito.id, efeito.fonte, { loop: false, volumeDoEfeito: efeito.volume }))}
-        >
-          {tocando ? <IconeParar /> : <IconeDoLivro nome="som" />}
-          {tocando ? 'Parar' : 'Ouvir'}
-        </Botao>
-      </div>
-      <CampoLiga rotulo="Repetir até parar" ajuda="Para ambiente: chuva, taverna, vento. Vale no próximo toque." ligado={efeito.loop} onChange={(loop) => mudar({ loop })} />
-      <CampoSel rotulo="Tecla de atalho" opcoes={opcoesDoAtalho} valor={efeito.atalho === undefined ? SEM_ATALHO : String(efeito.atalho)} onChange={mudarAtalho} />
-      {notaDoAtalho !== null && (
+      <CampoSeg
+        rotulo="Tipo"
+        opcoes={PARTES_DOS_SONS.map((qual) => ({ valor: qual, rotulo: TIPO_DO_SOM[qual], icone: qual === 'musicas' ? <IconeNota /> : <IconeOnda /> }))}
+        valor={parte}
+        onChange={mudarTipo}
+      />
+      {notaDoTipo !== null && (
         <p className="lb-sons__nota lb-sons__nota--latao" role="status">
-          {notaDoAtalho}
+          {notaDoTipo}
         </p>
       )}
-      <CampoSel rotulo="Pasta" opcoes={opcoesDaPasta} valor={novaPasta !== null ? NOVA_PASTA : (efeito.pastaId ?? SEM_PASTA)} onChange={mudarPasta} />
+      <CampoSel rotulo="Categoria" opcoes={opcoesDaPasta} valor={novaPasta !== null ? NOVA_PASTA : (efeito.pastaId ?? SEM_PASTA)} onChange={mudarPasta} />
       {novaPasta !== null && (
         <div className="lb-sons-editor__nova-pasta">
           <input
             className="gr-entrada"
             type="text"
             autoComplete="off"
-            aria-label="Nome da nova pasta"
+            aria-label="Nome da nova categoria"
             maxLength={NOME_DE_SOM_MAX}
             value={novaPasta}
             onChange={(evento) => setNovaPasta(evento.currentTarget.value)}
@@ -929,7 +1305,7 @@ function EditorDoSom({ efeito, biblioteca, motor, ponte, tocando, onFechar }: { 
             }}
           />
           <Botao tamanho="p" onClick={criarPasta}>
-            Criar pasta
+            Criar categoria
           </Botao>
         </div>
       )}
@@ -938,7 +1314,17 @@ function EditorDoSom({ efeito, biblioteca, motor, ponte, tocando, onFechar }: { 
           {erroDaPasta}
         </p>
       )}
-      <CampoLiga rotulo="Favorito" ajuda="Aparece no chip Favoritos, no alto da página." ligado={efeito.favorito === true} onChange={(favorito) => mudar({ favorito })} />
+      {/* Ouvir dá UMA passada do trecho no volume de agora (mesmo o loop: provar não liga o ambiente). Só do mestre; Parar alcança a mesa. */}
+      <EditorDoTrecho key={efeito.fonte.tipo === 'arquivo' ? efeito.fonte.ref : efeito.fonte.video} efeito={efeito} carregar={carregarAudio} tocando={tocando} onOuvir={ouvir} onMudar={(trecho) => mudar({ trecho })} />
+      <CampoFaixa rotulo="Volume" min={0} max={100} unidade="%" valor={Math.round(efeito.volume * 100)} onChange={mudarVolume} />
+      <CampoLiga rotulo="Repetir até parar" ajuda="Para ambiente: chuva, taverna, vento. Com trecho, repete de A até B. Vale no próximo toque." ligado={efeito.loop} onChange={(loop) => mudar({ loop })} />
+      <CampoSel rotulo="Tecla de atalho" opcoes={opcoesDoAtalho} valor={efeito.atalho === undefined ? SEM_ATALHO : String(efeito.atalho)} onChange={mudarAtalho} />
+      {notaDoAtalho !== null && (
+        <p className="lb-sons__nota lb-sons__nota--latao" role="status">
+          {notaDoAtalho}
+        </p>
+      )}
+      <CampoLiga rotulo="Favorito" ajuda="Com o filtro Favoritos ligado, no alto da parte, só eles aparecem." ligado={efeito.favorito === true} onChange={(favorito) => mudar({ favorito })} />
       {recusa !== null && (
         <p className="lb-sons__nota lb-sons__nota--erro" role="alert">
           {recusa}
@@ -989,6 +1375,16 @@ function IconeParar() {
 
 function IconeLapis() {
   return <IconeSvg d="M14.5 5.5l4 4 M5 19l1-4.5L15.5 5a1.4 1.4 0 0 1 2 0l1.5 1.5a1.4 1.4 0 0 1 0 2L9.5 18z" />
+}
+
+/** Música: a colcheia dupla. */
+function IconeNota() {
+  return <IconeSvg d="M9 18V6.5l10-2.5V15.5 M9 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z M19 15.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z M9 10l10-2.5" />
+}
+
+/** Efeito sonoro: a onda curta. */
+function IconeOnda() {
+  return <IconeSvg d="M3.5 12h1.5 M7.5 9v6 M11 5.5v13 M14.5 8.5v7 M18 10.5v3 M20.5 12h0" />
 }
 
 function IconeRepetir() {

@@ -283,7 +283,7 @@ describe('o que ninguém via (revisão da F3)', () => {
     await esperar(() => expect(naTela()).toContain('Nada tocando'))
   })
 
-  it('o loop tocando mostra o que o clique faz: "parar" no lugar de "repete"', async () => {
+  it('o loop tocando mostra o que o clique faz: "parar" escrito no lugar do ícone de repetir', async () => {
     await montarPagina()
     await abrirAventura()
     const chuva = await importar('chuva.wav')
@@ -291,7 +291,8 @@ describe('o que ninguém via (revisão da F3)', () => {
       useBibliotecaDeSonsStore.getState().editarEfeito(chuva, { loop: true })
     })
     const legenda = () => container.querySelector('.lb-efeito__loop')
-    expect(legenda()?.textContent).toBe('repete')
+    expect(legenda()?.textContent).toBe('')
+    expect(legenda()?.getAttribute('title')).toBe('Repete até parar')
     act(() => botao(/^chuva,/).click())
     await esperar(() => expect(legenda()?.textContent).toBe('parar'))
     expect(legenda()?.classList.contains('lb-efeito__loop--parar')).toBe(true)
@@ -471,20 +472,21 @@ describe('o lápis', () => {
     }
     selecionar('Tecla de atalho', '3')
     expect(janela.textContent).toContain('A tecla 3 era de trovao. Agora é deste som, e trovao ficou sem tecla.')
-    selecionar('Pasta', 'nova')
-    const campoDaPasta = janela.querySelector<HTMLInputElement>('input[aria-label="Nome da nova pasta"]')
+    selecionar('Categoria', 'nova')
+    const campoDaPasta = janela.querySelector<HTMLInputElement>('input[aria-label="Nome da nova categoria"]')
     act(() => {
       const definir = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
       definir?.call(campoDaPasta, 'Cripta')
       campoDaPasta?.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    act(() => [...janela.querySelectorAll('button')].find((b) => b.textContent === 'Criar pasta')?.click())
+    act(() => [...janela.querySelectorAll('button')].find((b) => b.textContent === 'Criar categoria')?.click())
 
     const efeitos = () => useBibliotecaDeSonsStore.getState().biblioteca.efeitos
     const editado = efeitos().find((efeito) => efeito.id === porta)
-    const pasta = useBibliotecaDeSonsStore.getState().biblioteca.pastas[0]
-    expect(editado).toMatchObject({ nome: 'Porta da cripta 🚪', volume: 0.35, loop: true, favorito: true, atalho: 3, pastaId: pasta?.id })
-    expect(pasta?.nome).toBe('Cripta')
+    const pasta = useBibliotecaDeSonsStore.getState().biblioteca.pastas.find((candidata) => candidata.nome === 'Cripta')
+    // A biblioteca vazia abre em Músicas: o som importado e a categoria criada no lápis dele são de lá.
+    expect(editado).toMatchObject({ nome: 'Porta da cripta 🚪', volume: 0.35, loop: true, favorito: true, atalho: 3, pastaId: pasta?.id, parte: 'musicas' })
+    expect(pasta?.parte).toBe('musicas')
     expect(efeitos().find((efeito) => efeito.id === trovao)?.atalho).toBeUndefined()
     // Configuração: nunca deixa o mapa "não salvo".
     expect(hasUnsavedWork()).toBe(false)
@@ -521,8 +523,8 @@ describe('o topo (revisão de design da F3)', () => {
     expect(() => botao('Importar arquivo')).toThrow()
     expect(botao('Importar sons').disabled).toBe(false)
     await importar('porta.wav')
-    await esperar(() => expect(useToastStore.getState().toasts.map((aviso) => aviso.text)).toContain('porta entrou na biblioteca.'))
-    expect(topo()).not.toContain('entrou na biblioteca')
+    await esperar(() => expect(useToastStore.getState().toasts.map((aviso) => aviso.text)).toContain('porta entrou em Músicas.'))
+    expect(topo()).not.toContain('entrou em')
   })
 
   it('as recusas saem do topo fixo: no máximo 3 linhas, "e mais N" e Fechar', async () => {
@@ -563,26 +565,26 @@ describe('o topo (revisão de design da F3)', () => {
   })
 })
 
-describe('renomear e apagar pasta', () => {
+describe('renomear e apagar categoria', () => {
   async function pastaComUmSom(): Promise<{ som: string; pasta: string }> {
     await montarPagina()
     await abrirAventura()
+    // A biblioteca vazia abre em Músicas: o som entra lá, e a categoria tem de ser da mesma parte.
     const som = await importar('goteira.wav')
     let pasta = ''
     act(() => {
-      pasta = useBibliotecaDeSonsStore.getState().criarPasta('Criptaa')?.id ?? ''
+      pasta = useBibliotecaDeSonsStore.getState().criarPasta('Criptaa', 'musicas')?.id ?? ''
       useBibliotecaDeSonsStore.getState().editarEfeito(som, { pastaId: pasta })
     })
-    const chip = [...container.querySelectorAll<HTMLButtonElement>('.lb-sons__chip')].find((b) => b.textContent?.includes('Criptaa'))
-    act(() => chip?.click())
+    act(() => botao('Organizar a categoria Criptaa').click())
     return { som, pasta }
   }
 
-  it('com a pasta escolhida, Renomear pasta troca o nome (Enter grava, Esc desiste)', async () => {
+  it('o lápis da categoria abre Renomear (Enter grava, Esc desiste)', async () => {
     const { pasta } = await pastaComUmSom()
-    expect(() => botao('Renomear pasta')).not.toThrow()
-    act(() => botao('Renomear pasta').click())
-    const campo = container.querySelector<HTMLInputElement>('input[aria-label="Novo nome da pasta"]')
+    expect(document.activeElement).toBe(botao('Renomear categoria'))
+    act(() => botao('Renomear categoria').click())
+    const campo = container.querySelector<HTMLInputElement>('input[aria-label="Novo nome da categoria"]')
     if (campo === null) throw new Error('sem o campo do nome da pasta')
     expect(document.activeElement).toBe(campo)
     act(() => {
@@ -591,25 +593,53 @@ describe('renomear e apagar pasta', () => {
     })
     teclar(campo, 'Enter')
     expect(useBibliotecaDeSonsStore.getState().biblioteca.pastas.find((p) => p.id === pasta)?.nome).toBe('Cripta')
-    expect(container.querySelector('input[aria-label="Novo nome da pasta"]')).toBeNull()
-    act(() => botao('Renomear pasta').click())
-    teclar(container.querySelector('input[aria-label="Novo nome da pasta"]') ?? document.body, 'Escape')
-    expect(container.querySelector('input[aria-label="Novo nome da pasta"]')).toBeNull()
+    expect(container.querySelector('input[aria-label="Novo nome da categoria"]')).toBeNull()
+    act(() => botao('Renomear categoria').click())
+    teclar(container.querySelector('input[aria-label="Novo nome da categoria"]') ?? document.body, 'Escape')
+    expect(container.querySelector('input[aria-label="Novo nome da categoria"]')).toBeNull()
     expect(useBibliotecaDeSonsStore.getState().biblioteca.pastas.find((p) => p.id === pasta)?.nome).toBe('Cripta')
   })
 
-  it('Apagar pasta pede confirmação; confirmado, a pasta some e os sons dela ficam sem pasta, em Todos', async () => {
+  it('Apagar categoria pede confirmação; confirmado, a categoria some e os sons dela vão para Sem categoria', async () => {
     const { som, pasta } = await pastaComUmSom()
-    act(() => botao('Apagar pasta…').click())
-    expect(naTela()).toContain('Apagar a pasta Criptaa? O som dela fica sem pasta, em Todos.')
+    act(() => botao('Apagar categoria…').click())
+    expect(naTela()).toContain('Apagar a categoria Criptaa? O som dela vai para Sem categoria.')
     expect(document.activeElement?.textContent).toBe('Cancelar')
-    act(() => botao('Apagar pasta').click())
+    act(() => botao('Apagar categoria').click())
     expect(useBibliotecaDeSonsStore.getState().biblioteca.pastas.some((p) => p.id === pasta)).toBe(false)
     expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === som)?.pastaId).toBeNull()
     expect(botao(/^goteira/)).toBeDefined()
-    // Era a única pasta: a fileira de chips some e a grade mostra todos.
-    expect(container.querySelector('.lb-sons__pastas')).toBeNull()
+    expect(naTela()).toContain('Sem categoria')
     expect(container.querySelector('.lb-sons__pasta-acoes')).toBeNull()
+  })
+
+  it('a categoria fecha e abre pelo cabeçalho; a busca e os Favoritos continuam achando o som', async () => {
+    await pastaComUmSom()
+    const cabeca = botao(/^Criptaa/)
+    expect(cabeca.getAttribute('aria-expanded')).toBe('true')
+    act(() => cabeca.click())
+    expect(cabeca.getAttribute('aria-expanded')).toBe('false')
+    expect(botao(/^goteira/).closest('[hidden]')).not.toBeNull()
+    act(() => cabeca.click())
+    expect(botao(/^goteira/).closest('[hidden]')).toBeNull()
+  })
+})
+
+describe('Músicas e Efeitos sonoros', () => {
+  it('as duas partes no alto: o que entra vai para a aberta, e o Tipo do lápis muda de parte', async () => {
+    await montarPagina()
+    await abrirAventura()
+    const aba = (nome: RegExp) => [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((b) => nome.test(b.textContent ?? ''))
+    expect(aba(/^Músicas/)?.getAttribute('aria-selected')).toBe('true')
+    act(() => aba(/^Efeitos sonoros/)?.click())
+    const sino = await importar('sino.wav')
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === sino)?.parte).toBeUndefined()
+    // As categorias sugeridas de Efeitos sonoros já estão lá.
+    expect(naTela()).toContain('Combate')
+    act(() => botao('Editar sino').click())
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((b) => b.textContent === 'Música')?.click())
+    expect(useBibliotecaDeSonsStore.getState().biblioteca.efeitos.find((efeito) => efeito.id === sino)).toMatchObject({ parte: 'musicas', pastaId: null })
+    expect(naTela()).toContain('Foi para Músicas.')
   })
 })
 
