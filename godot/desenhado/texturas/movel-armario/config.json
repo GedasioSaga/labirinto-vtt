@@ -1,0 +1,16 @@
+{
+  "id": "movel-armario",
+  "nome": "Armário",
+  "idDoApp": "armario",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 10,
+  "semente": 45,
+  "margemCasas": 0.0625,
+  "lugares": ["madeira", "puxadores"],
+  "vistas": {
+    "frente": { "casas": [1, 0.5], "viradas": 2 },
+    "lado": { "casas": [1, 1.5], "viradas": 2 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.24, "borraoCasas": 0.03 }
+}
