@@ -621,7 +621,7 @@ Frente/Lado entra.
 | `tipo` | `"movel"`; `id` = `movel-<nome>`; `idDoApp` = o tipo em `MOVEL_TIPOS` (`mesa`, `cadeira`...) |
 | `lugares` | de 1 a 3, na ordem de `LUGARES_DE_MATERIAL[idDoApp]` do app (a mesa de prova confere) |
 | `corFixa` | `true` se tem parte de cor própria (lençol, louça, água, chama): imagem `-cor` |
-| `variantes` | opcional: `[{ nome, quando: { <lugar>: <opção> } }]`, quando uma opção muda o desenho (o assento de palha ou de madeira); a primeira é o padrão. `quando: { "forma": "redondo" }` bate com a forma do objeto (`Prop.forma`, só o tapete; ausente = `"retangular"`), e `vistas` (opcional) dá à variante a pegada e o esticar próprios numa vista (o tapete redondo, 10.6) |
+| `variantes` | opcional: `[{ nome, quando: { <lugar>: <opção> } }]`, quando uma opção muda o desenho (o assento de palha ou de madeira); a primeira é o padrão. `quando: { "forma": "redondo" }` bate com a forma do objeto (`Prop.forma`, só o tapete; ausente = `"retangular"`), `quando: { "variacao": "1" }` bate com a variação que o app sorteia pelo id do objeto (só os tipos de `VARIACAO_DO_APP` de `comum/contrato_movel.gd`: a lápide, `varianteDaLapide(prop.id)`; sem id, `"0"`; 10.13), e `vistas` (opcional) dá à variante a pegada e o esticar próprios numa vista (o tapete redondo, 10.6) |
 | `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior, periodoCasas, centroCasas, centroCasasY }` (`periodoCasas` opcional, só no `x`: o meio que repete; `centroCasas` opcional, no `x` ou no `xy` e sem `periodoCasas`: o centro fixo; `centroCasasY` opcional, só no `xy`: o centro fixo atravessado; 10.6) |
 | `sombra` | `{ jeito: "deslocada" ou "nenhuma", deslocamentoCasas até 0,4, borraoCasas até 0,2 }` |
 | `margemCasas`, `onda`, `lote`, `semente` | a borda (padrão 0,0625), o lote, a semente |
@@ -645,7 +645,9 @@ de 10.4), `formas` (nome, vista, variante, virada, casas, arquivos; `variacaoDoM
 meio liso, mais `variacaoDoMeioY` no `xy` com `centroCasasY`, `costuraDoModulo` no que repete), `sombra` (jeito,
 direção, deslocamento, borrão, alfa, cor e a conta), `tingir` (a rampa de 10.5) e
 `memoria` (bytes decodificados e em disco). Com `pecas` no config (a cerca), também `pecas`,
-com o texto `conta` (10.12); sem ele, a chave não existe e o resto sai igual.
+com o texto `conta` (10.12); sem ele, a chave não existe e o resto sai igual. Com
+`quando.variacao` em alguma variante (a lápide), também `variacao` (`chave`, a função do
+app em `doApp`, `quantas` e o texto `conta`, 10.13); sem ela, a chave não existe.
 
 ### 10.4 Girado, Frente/Lado e 3/4
 
@@ -815,6 +817,12 @@ cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%.
    leva a pegada, a volta, o giro e as opções. Sem a geometria (um caminho que não a tenha),
    o `comporMovel` de sempre ainda serve para a reta: a forma 0 é um móvel válido, com o
    meio que repete.
+12. **A variação do app** (10.13, lote 15, a lápide): passar `varianteDaLapide(prop.id)`
+   (`lib/mobilia/pecasNovas.ts`, o mesmo sorteio do Atual) como `Pedido.variacao` para a
+   escolha da variante (`varianteDoPedido(p, opcoes, forma, variacao)`: a chave `variacao`
+   de `quando` não é lugar e compara com o texto do número). A chave de
+   `rasterDosMoveis.ts` já leva `variante: varianteDaLapide(prop.id)` na lápide; o
+   `textura.json` diz a função em `variacao.doApp`.
 
 ### 10.9 A mesa de prova dos móveis
 
@@ -918,3 +926,29 @@ Opcional por móvel: sem `pecas`, nada muda (o contrato, o `textura.json`, a mes
 dos outros saem iguais: as ondas 1 a 3 e os 13 móveis dos lotes 9 a 11 reexportados deram 51
 de 51 itens e 279 de 279 arquivos iguais por sha256 ao commitado, 29/10). A mesa:
 `ferramentas/mesa_curva.ts` (10.9), com o Atual pelo motor de hoje com a mesma volta.
+
+### 10.13 A variação que o app sorteia pelo id (lote 15, 29/10, a lápide)
+
+No Atual, a lápide tem 3 desenhos (arco, reta com a quina partida e cruz) que o mestre não
+escolhe: saem do id do objeto (`varianteDaLapide(prop.id)` de `lib/mobilia/pecasNovas.ts`,
+FNV do id, módulo 3), para lápides vizinhas saírem diferentes e o mesmo objeto sair sempre
+igual. Uma forma só no Desenhado poria o cemitério inteiro igual. A decisão do orquestrador
+(29/10): a variante do móvel também pode ser escolhida por essa variação.
+
+- **O config** pede com `"quando": { "variacao": "<n>" }` (o texto do número, como as
+  opções dos lugares), só num tipo de `VARIACAO_DO_APP` (`comum/contrato_movel.gd`: hoje só
+  `lapide`, `quantas` 3); outro tipo ou outro número é erro de config (sai com 2). A última
+  variante, sem `quando`, vale quando nada bate, como sempre. A lápide:
+  `[{ reta, variacao "1" }, { cruz, variacao "2" }, { arco }]`.
+- **A conta** (`varianteDoPedido` de `ferramentas/movel.ts`): a chave `variacao` bate quando
+  `String(pedido.variacao ?? 0)` é o texto dela; as outras chaves de `quando` (os lugares, a
+  `forma`) batem como antes, e a variante é a primeira cujo `quando` inteiro bate.
+- **O que a integração copia:** 10.8 item 12.
+- **Opcional por móvel:** sem `quando.variacao`, o `textura.json` sai igual (a chave
+  `variacao` só existe em quem pede). As 71 texturas commitadas em `exportado/` (menos a
+  própria lápide), reexportadas depois da mudança, saíram iguais por sha256 ao commitado:
+  472 arquivos de 69 texturas contra o commit de base (`c2f11d48`) e os 20 da fogueira e do
+  fogo, que entraram depois, contra o HEAD (`9c85d7c1`), 29/10, todas na primeira tentativa.
+- **A mesa de prova** (`ferramentas/mesa_movel.ts`) ainda não passa a variação: a folha de
+  `--folha` mostra só a variante sem variação (o arco). A prova das 3 formas, ao lado das 3
+  do Atual e num cemitério na grama, foi feita fora dela, com a mesma conta.

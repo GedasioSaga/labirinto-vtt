@@ -9,7 +9,9 @@
  *   <vista>-<variante>-<virada>-partes.png R, G, B = o peso do lugar 1, 2, 3, A
  *   (opcional) ...-cor.png                 a cor própria (louça, água, chama), A
  * A conta, para um pedido (vista, opções de material por lugar, pegada, giro):
- *   1. a variante (a opção que muda o desenho, como o assento de palha ou de madeira);
+ *   1. a variante (a opção que muda o desenho, como o assento de palha ou de madeira; a
+ *      forma do objeto, como o tapete redondo; a variação que o app sorteia pelo id, como
+ *      a lápide);
  *   2. a virada k = round(giro / 90) mod 4 e a forma (a desenhada, ou a transposta);
  *   3. o tingir: cada pixel = soma dos pesos x rampa(tom do lugar)[valor] (10.5; a pedra
  *      com menos croma no escuro);
@@ -96,7 +98,8 @@ export interface ParamsDoMovel {
   readonly margemCasas: number
   readonly lugares: readonly string[]
   /**
-   * quando: {lugar: opção} ou {forma: "redondo"} (a forma do objeto, só o tapete). vistas
+   * quando: {lugar: opção}, {forma: "redondo"} (a forma do objeto, só o tapete) ou
+   * {variacao: "1"} (a variação que o app sorteia pelo id, só a lápide; 10.2, lote 15). vistas
    * (opcional, 10.6, lote 13): a pegada e o esticar próprios desta variante numa vista (o
    * tapete redondo, 2 x 2, que não estica: vira oval pela escala).
    */
@@ -107,6 +110,11 @@ export interface ParamsDoMovel {
   readonly tingir: Rampa
   /** Só a cerca: as peças que a conta deita na geometria do app (10.12). */
   readonly pecas?: PecasDaCerca
+  /**
+   * Só quem escolhe o desenho pela variação do app (10.2, lote 15: a lápide): a função do app
+   * que sorteia (doApp) e quantos desenhos. O número vai no Pedido (variacao).
+   */
+  readonly variacao?: { readonly chave: string; readonly doApp: string; readonly quantas: number; readonly conta: string }
 }
 
 /**
@@ -139,6 +147,12 @@ export interface Pedido {
   readonly giro: number
   /** A forma do objeto (Prop.forma do app: só o tapete, "redondo"; ausente = "retangular"). */
   readonly forma?: string
+  /**
+   * A variação do desenho que o app sorteia pelo id do objeto (só a lápide:
+   * varianteDaLapide(prop.id) de lib/mobilia/pecasNovas.ts; ausente = 0). Bate com
+   * quando.variacao (10.2, lote 15).
+   */
+  readonly variacao?: number
   /** Só a cerca com `pecas`: a geometria do app; com ela a cerca sai por peças (10.12), reta ou curva. */
   readonly cerca?: GeometriaDaCercaEmCasas
 }
@@ -307,10 +321,19 @@ function rampaGuardada(tom: Rgb, r: Rampa): Float32Array {
 /** A chave de "quando" que não é lugar: a forma do objeto (só o tapete; 10.6, lote 13). */
 export const CHAVE_DA_FORMA = 'forma'
 export const FORMA_PADRAO = 'retangular'
+/** A chave de "quando" que não é lugar: a variação que o app sorteia pelo id (só a lápide; 10.2, lote 15). */
+export const CHAVE_DA_VARIACAO = 'variacao'
 
-export function varianteDoPedido(p: ParamsDoMovel, opcoes: readonly string[], forma?: string): string {
+/** Se uma chave de "quando" bate com o pedido: a forma, a variação (o texto do número) ou a opção do lugar. */
+function bateComOPedido(p: ParamsDoMovel, chave: string, opcao: string, opcoes: readonly string[], forma: string | undefined, variacao: number | undefined): boolean {
+  if (chave === CHAVE_DA_FORMA) return (forma ?? FORMA_PADRAO) === opcao
+  if (chave === CHAVE_DA_VARIACAO) return String(variacao ?? 0) === opcao
+  return opcoes[p.lugares.indexOf(chave)] === opcao
+}
+
+export function varianteDoPedido(p: ParamsDoMovel, opcoes: readonly string[], forma?: string, variacao?: number): string {
   for (const v of p.variantes) {
-    const bate = Object.entries(v.quando).every(([lugar, opcao]) => (lugar === CHAVE_DA_FORMA ? (forma ?? FORMA_PADRAO) === opcao : opcoes[p.lugares.indexOf(lugar)] === opcao))
+    const bate = Object.entries(v.quando).every(([chave, opcao]) => bateComOPedido(p, chave, opcao, opcoes, forma, variacao))
     if (bate && Object.keys(v.quando).length > 0) return v.nome
   }
   return p.variantes[p.variantes.length - 1].nome
@@ -500,7 +523,7 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
   const p = m.p
   if (p.pecas !== undefined && pedido.cerca !== undefined) return comporCerca(m, p.pecas, pedido, pedido.cerca, pxPorCasa)
   const nomeDaVista: Vista = p.vistas[pedido.vista] !== undefined ? pedido.vista : 'frente'
-  const variante = varianteDoPedido(p, pedido.opcoes, pedido.forma)
+  const variante = varianteDoPedido(p, pedido.opcoes, pedido.forma, pedido.variacao)
   // A vista própria da variante (o tapete redondo, 10.6), se ela tem; senão a do móvel.
   const vista = p.variantes.find((v) => v.nome === variante)?.vistas?.[nomeDaVista] ?? p.vistas[nomeDaVista]
   if (vista === undefined) throw new Error(`${p.id}: sem a vista ${pedido.vista}`)

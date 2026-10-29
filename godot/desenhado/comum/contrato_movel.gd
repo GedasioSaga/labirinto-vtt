@@ -15,6 +15,13 @@ const VISTAS := ["frente", "lado"] ## frente = a vista de cima de sempre; lado =
 const VIRADAS_VALIDAS := [1, 2, 4]
 const LUGARES_MAX := 3
 const VARIANTES_MAX := 4
+## A variação que o app sorteia pelo id do objeto (opcional, CONTRATO 10.2, lote 15): a chave
+## "variacao" de "quando" bate com ela, e não com um lugar. Só os tipos daqui a têm: a função
+## do app que a integração chama e quantos desenhos ela sorteia.
+const CHAVE_DA_VARIACAO := "variacao"
+const VARIACAO_DO_APP := {
+	"lapide": {"funcao": "varianteDaLapide(prop.id) de client/src/lib/mobilia/pecasNovas.ts (0 = arco, 1 = reta, 2 = cruz)", "quantas": 3},
+}
 const CASAS_MIN := 0.25
 const CASAS_MAX := 8.0
 const MARGEM_MAX := 0.25
@@ -128,6 +135,12 @@ static func ler_config(id: String) -> Dictionary:
 			erros.append("cada variante precisa de \"nome\"")
 			continue
 		var quando = v.get("quando", {})
+		# A variação do app (10.2, lote 15): o texto do número que o app sorteia pelo id.
+		if typeof(quando) == TYPE_DICTIONARY and quando.has(CHAVE_DA_VARIACAO):
+			var erro_v := _erro_da_variacao(cfg["idDoApp"], quando[CHAVE_DA_VARIACAO])
+			if erro_v != "":
+				erros.append("variante \"%s\": %s" % [str(v["nome"]), erro_v])
+			cfg["variacao"] = VARIACAO_DO_APP.get(cfg["idDoApp"], {})
 		if v.has("vistas"):
 			vistas_das_variantes[cfg["variantes"].size()] = v["vistas"]
 		cfg["variantes"].append({"nome": str(v["nome"]), "quando": quando if typeof(quando) == TYPE_DICTIONARY else {}})
@@ -180,6 +193,17 @@ static func ler_config(id: String) -> Dictionary:
 		if pe["erros"].is_empty():
 			cfg["pecas"] = pe["pecas"]
 	return {"ok": erros.is_empty(), "erros": erros, "config": cfg}
+
+
+## O erro de um "quando.variacao" (vazio = ok): só num tipo de VARIACAO_DO_APP, e o valor é o
+## texto do número que o app sorteia ("0" até quantas - 1), como as opções dos lugares.
+static func _erro_da_variacao(tipo: String, valor) -> String:
+	if not VARIACAO_DO_APP.has(tipo):
+		return "\"quando.%s\" só nos tipos em que o app sorteia o desenho pelo id do objeto (%s)" % [CHAVE_DA_VARIACAO, ", ".join(PackedStringArray(VARIACAO_DO_APP.keys()))]
+	var quantas: int = VARIACAO_DO_APP[tipo]["quantas"]
+	if typeof(valor) != TYPE_STRING or not str(valor).is_valid_int() or str(valor).to_int() < 0 or str(valor).to_int() >= quantas:
+		return "\"quando.%s\" é o texto do número que o app sorteia, de \"0\" a \"%d\"" % [CHAVE_DA_VARIACAO, quantas - 1]
+	return ""
 
 
 ## Uma vista: a pegada, as viradas (viradas_fixas > 0: as da vista do móvel, numa vista própria
@@ -440,4 +464,13 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 		var pe: Dictionary = cfg["pecas"].duplicate()
 		pe["conta"] = "a cerca por peças, reta ou curva, na geometria do app (geometriaDaCerca de lib/mobilia.ts, girada pelo giro do objeto): a ligação = a coluna colunaCasas da forma frente-<variante>-0 tingida, deitada ao longo do eixo (o segmento do primeiro ao último mourão, ou o arco), na altura c (atravessando, + do lado n = (-t.y, t.x)), misturada com a mesma coluna na altura -c por w = smoothstep(-viradaDaLuz, viradaDaLuz, -dot(n, LUZ) / 0,7071); por cima, em pé (sem girar), o recorte de raio raioCasas em volta de mouraoCasas no meio de cada mourão; a sombra pela silhueta, como as outras; a tela não gira mais nada"
 		json["pecas"] = pe
+	# Só quem escolhe o desenho pela variação do app (10.2, lote 15: a lápide): sem
+	# "quando.variacao" em nenhuma variante, a chave não existe e o resto sai igual.
+	if cfg.has("variacao") and not cfg["variacao"].is_empty():
+		json["variacao"] = {
+			"chave": CHAVE_DA_VARIACAO,
+			"doApp": cfg["variacao"]["funcao"],
+			"quantas": cfg["variacao"]["quantas"],
+			"conta": "a variante é a primeira cujo \"quando\" inteiro bate; a chave \"variacao\" bate quando o seu texto é o número que o app sorteia pelo id do objeto (doApp; sem id, 0), as outras chaves como sempre; nenhuma bate = a última",
+		}
 	return json
