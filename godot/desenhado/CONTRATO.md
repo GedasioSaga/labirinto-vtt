@@ -621,8 +621,8 @@ Frente/Lado entra.
 | `tipo` | `"movel"`; `id` = `movel-<nome>`; `idDoApp` = o tipo em `MOVEL_TIPOS` (`mesa`, `cadeira`...) |
 | `lugares` | de 1 a 3, na ordem de `LUGARES_DE_MATERIAL[idDoApp]` do app (a mesa de prova confere) |
 | `corFixa` | `true` se tem parte de cor própria (lençol, louça, água, chama): imagem `-cor` |
-| `variantes` | opcional: `[{ nome, quando: { <lugar>: <opção> } }]`, quando uma opção muda o desenho (o assento de palha ou de madeira); a primeira é o padrão |
-| `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior, periodoCasas, centroCasas }` (`periodoCasas` opcional, só no `x`: o meio que repete; `centroCasas` opcional, só no `x` e sem `periodoCasas`: o centro fixo; 10.6) |
+| `variantes` | opcional: `[{ nome, quando: { <lugar>: <opção> } }]`, quando uma opção muda o desenho (o assento de palha ou de madeira); a primeira é o padrão. `quando: { "forma": "redondo" }` bate com a forma do objeto (`Prop.forma`, só o tapete; ausente = `"retangular"`), e `vistas` (opcional) dá à variante a pegada e o esticar próprios numa vista (o tapete redondo, 10.6) |
+| `vistas.frente` / `vistas.lado` | `casas` [w, h] (a pegada do app), `viradas` 1, 2 ou 4, `esticar` opcional `{ eixo: "x" ou "xy", pontasCasas [começo, fim], pontasCasasY, ladoMaior, periodoCasas, centroCasas, centroCasasY }` (`periodoCasas` opcional, só no `x`: o meio que repete; `centroCasas` opcional, no `x` ou no `xy` e sem `periodoCasas`: o centro fixo; `centroCasasY` opcional, só no `xy`: o centro fixo atravessado; 10.6) |
 | `sombra` | `{ jeito: "deslocada" ou "nenhuma", deslocamentoCasas até 0,4, borraoCasas até 0,2 }` |
 | `margemCasas`, `onda`, `lote`, `semente` | a borda (padrão 0,0625), o lote, a semente |
 | `pecas` | opcional, só a cerca: `{ mouraoCasas: [x, y], raioCasas, colunaCasas, viradaDaLuz }`, de onde a conta tira o mourão e a ligação na forma 0 (10.12) |
@@ -637,11 +637,12 @@ cabeçalho explica cada argumento).
 ### 10.3 Parâmetros (`textura.json`)
 
 `contrato`, `tipo: "movel"`, `idDoApp`, `pxPorCasa: 128`, `margemCasas`, `lugares`,
-`corFixa`, `variantes`, `vistas` (com `viradas` e `esticar`; no meio que repete, também
-`periodoCasas`, `modulos` e o texto `meio` da conta; no centro fixo, `centroCasas` e o
-texto `meio`), `viradas` (o texto da regra
+`corFixa`, `variantes` (a que tem vistas próprias as leva, no mesmo formato de `vistas`),
+`vistas` (com `viradas` e `esticar`; no meio que repete, também
+`periodoCasas`, `modulos` e o texto `meio` da conta; no centro fixo, `centroCasas` (e
+`centroCasasY` no dos dois eixos) e o texto `meio`), `viradas` (o texto da regra
 de 10.4), `formas` (nome, vista, variante, virada, casas, arquivos; `variacaoDoMeio` no
-meio liso, `costuraDoModulo` no que repete), `sombra` (jeito,
+meio liso, mais `variacaoDoMeioY` no `xy` com `centroCasasY`, `costuraDoModulo` no que repete), `sombra` (jeito,
 direção, deslocamento, borrão, alfa, cor e a conta), `tingir` (a rampa de 10.5) e
 `memoria` (bytes decodificados e em disco). Com `pecas` no config (a cerca), também `pecas`,
 com o texto `conta` (10.12); sem ele, a chave não existe e o resto sai igual.
@@ -742,6 +743,31 @@ por módulo. Com `esticar.centroCasas` = C (só `eixo: "x"`, nunca com `periodoC
 - Usa: o arco do portão (pontas 0,46875, C = 0,578125: os esteios nas pontas, a placa com
   as alças no centro, a trave lisa dos dois lados).
 
+**O centro fixo nos dois eixos (opcional, lote 13, 29/10, o tapete).** O tapete estica nos
+dois eixos pelo lado maior, e o medalhão do meio tem de ficar inteiro e no meio em todo
+tamanho, com a barra correndo lisa nos 4 lados. Com `eixo: "xy"`, `centroCasas` vale ao longo
+(como acima) e `esticar.centroCasasY` = Cy vale atravessado, com as `pontasCasasY`:
+
+- **O desenho**, em cada eixo, é ponta + meio liso + centro + meio liso + ponta: o medalhão
+  cabe no retângulo C x Cy do meio da imagem; entre a ponta e o centro, só o que é igual ao
+  longo daquele eixo (a barra reta e o campo). As pontas de cada eixo, os dois centros e a
+  margem caem em px inteiros, e sobra meio liso de ao menos 2 px de cada lado. O exportador
+  mede o liso ao longo (`variacaoDoMeio`, fora do centro) e, com `centroCasasY`, também atravessado
+  (`variacaoDoMeioY`, as linhas fora do centro do y), os dois até 2/255.
+- **A conta** é a mesma do centro fixo, um eixo por vez: o x da imagem por
+  `mapearEixo(t, T, S, pontas, null, centro)` e o y por
+  `mapearEixo(t, T, S, pontasY, null, centroY)`. Nas viradas 1 e 3 os dois trocam de eixo
+  na tela, como as pontas.
+- **A vista da variante.** Uma variante pode ter `vistas` próprias: `casas` e `esticar` de
+  uma vista que o móvel já tem (as viradas são as dela, e o número de formas não muda). O
+  tapete redondo (`quando: { "forma": "redondo" }`) é 2 x 2 de cima sem esticar, e vira
+  oval pela escala da pegada (o medalhão acompanha, como no Atual): um disco cortado por
+  colunas lisas não fica redondo. De lado, 2 x 0,25 com o meio liso.
+- Quem não pede sai igual: só o tapete tem `centroCasasY`, `variacaoDoMeioY` e variante com
+  `vistas`.
+- Usa: o tapete (frente 3 x 2: pontas 0,5 e C = 1,25 ao longo; pontas 0,5 e Cy = 0,8125
+  atravessado; o redondo 2 x 2).
+
 ### 10.7 Sombra
 
 A do app (10.1 item 5). Guia: o quanto anda é a altura do móvel (mesa 0,22 casa,
@@ -776,6 +802,11 @@ cadeira 0,11, barril 0,14), o borrão é curto (0,02 a 0,03) para ela ler a 50%.
    soma das vistas carregadas no mapa fica nos 24 MiB.
 10. **A pedra** (10.5): o lugar de material de classe `pedra` tinge com `cromaNaSombra`
    -0,6, como `rampaDaOpcao` de `ferramentas/movel.ts`.
+11. **O tapete** (10.6, lote 13): passar a forma do objeto (`Prop.forma`) para a escolha da
+   variante (`varianteDoPedido(p, opcoes, forma)`: a chave `forma` de `quando` não é lugar),
+   e pegar a vista da variante quando ela tem `vistas` próprias (a pegada e o esticar do
+   redondo). No `xy` com `centroCasasY`, mapear o eixo atravessado com o centro, como
+   `comporMovel`; a chave de `rasterDosMoveis.ts` já leva a pegada, e passa a levar a forma.
 8. **A cerca por peças** (10.12): com `pecas` no `textura.json`, a cerca (reta e curva, em
    todo giro) não passa pelo esticar nem pelo quarto de volta: o rasterizador chama
    `geometriaDaCerca(largura, altura, volta)` (a mesma do desenho em linhas, do clique e da

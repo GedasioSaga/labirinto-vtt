@@ -107,13 +107,33 @@ static func _medir(cfg: Dictionary, f: Dictionary, valor: Image, partes: Image) 
 	for k in n_lug:
 		medias.append(snappedf(soma[k] / peso[k], 0.001) if peso[k] > 0.5 else null)
 	var m := {"cobertura": snappedf(cobre / float(w * h), 0.001), "valorMedioPorLugar": medias}
-	var vc: Dictionary = cfg["vistas"][f["vista"]]
+	# A vista própria da variante (o tapete redondo), se ela tem; senão a do móvel.
+	var vc: Dictionary = ContratoMovel.vista_da_variante(cfg, f["vista"], f["iVariante"])
 	if vc.has("esticar") and f["virada"] % 2 == 0:
 		if vc["esticar"].has("periodoCasas"):
 			m["costura"] = snappedf(_costura_do_modulo(valor, partes, vc["esticar"], float(cfg["margemCasas"]), f["virada"] == 2), 0.0001)
 		else:
 			m["meioLiso"] = snappedf(_variacao_do_meio(valor, partes, vc["esticar"], float(cfg["margemCasas"]), f["virada"] == 2), 0.0001)
+		# No "xy" com o centro fixo atravessado (o tapete, lote 13) o meio atravessado também é
+		# medido (a mesma linha em todo y, fora do centro do y), na imagem transposta. Só quem
+		# pede centroCasasY: o xy de antes (a mesa quadrada) sai igual, sem a medida nova.
+		if vc["esticar"]["eixo"] == "xy" and vc["esticar"].has("centroCasasY"):
+			var es_y := {"pontasCasas": vc["esticar"]["pontasCasasY"]}
+			if vc["esticar"].has("centroCasasY"):
+				es_y["centroCasas"] = vc["esticar"]["centroCasasY"]
+			var vt := _transposta(valor)
+			var pt := _transposta(partes)
+			m["meioLisoY"] = snappedf(_variacao_do_meio(vt, pt, es_y, float(cfg["margemCasas"]), f["virada"] == 2), 0.0001)
 	return m
+
+
+## A imagem com x e y trocados (para medir as linhas com a conta das colunas).
+static func _transposta(img: Image) -> Image:
+	var t := Image.create(img.get_height(), img.get_width(), false, img.get_format())
+	for y in img.get_height():
+		for x in img.get_width():
+			t.set_pixel(y, x, img.get_pixel(x, y))
+	return t
 
 
 ## O meio que repete (CONTRATO 10.6): em toda emenda (ponta com módulo, módulo com módulo,

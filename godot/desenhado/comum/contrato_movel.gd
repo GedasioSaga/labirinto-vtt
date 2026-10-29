@@ -120,11 +120,16 @@ static func ler_config(id: String) -> Dictionary:
 		erros.append("\"variantes\": de 1 a %d, cada uma {\"nome\", \"quando\": {lugar: opção}}; a última vale quando nenhuma bate" % VARIANTES_MAX)
 		variantes = [{"nome": "padrao"}]
 	cfg["variantes"] = []
+	# As vistas próprias de uma variante (opcional, CONTRATO 10.6, lote 13: o tapete redondo),
+	# lidas depois das vistas do móvel; sem "vistas" na variante, ela sai igual.
+	var vistas_das_variantes := {}
 	for v in variantes:
 		if typeof(v) != TYPE_DICTIONARY or str(v.get("nome", "")) == "":
 			erros.append("cada variante precisa de \"nome\"")
 			continue
 		var quando = v.get("quando", {})
+		if v.has("vistas"):
+			vistas_das_variantes[cfg["variantes"].size()] = v["vistas"]
 		cfg["variantes"].append({"nome": str(v["nome"]), "quando": quando if typeof(quando) == TYPE_DICTIONARY else {}})
 	# As vistas.
 	var vistas = c.get("vistas", {})
@@ -139,42 +144,22 @@ static func ler_config(id: String) -> Dictionary:
 		if typeof(vb) != TYPE_DICTIONARY:
 			erros.append("vista \"%s\" tem de ser um objeto" % nome)
 			continue
-		var casas := _par(vb.get("casas"), [1.0, 1.0])
-		if casas[0] < CASAS_MIN or casas[1] < CASAS_MIN or casas[0] > CASAS_MAX or casas[1] > CASAS_MAX:
-			erros.append("vista \"%s\": \"casas\" de %.2f a %.0f" % [nome, CASAS_MIN, CASAS_MAX])
-		var viradas := int(vb.get("viradas", 1))
-		if not VIRADAS_VALIDAS.has(viradas):
-			erros.append("vista \"%s\": \"viradas\" 1 (igual girada meia volta), 2 (simétrica de lado a lado) ou 4" % nome)
-			viradas = 1
-		var vc := {"casas": casas, "viradas": viradas}
-		var es = vb.get("esticar", null)
-		if typeof(es) == TYPE_DICTIONARY:
-			var eixo := str(es.get("eixo", "x"))
-			if eixo != "x" and eixo != "xy":
-				erros.append("vista \"%s\": \"esticar.eixo\" é \"x\" (ao longo) ou \"xy\"" % nome)
-			var pontas := _par(es.get("pontasCasas"), [0.5, 0.5])
-			var pontas_y := _par(es.get("pontasCasasY"), pontas)
-			if pontas[0] + pontas[1] >= casas[0] + 2.0 * cfg["margemCasas"]:
-				erros.append("vista \"%s\": as pontas (%.2f + %.2f) não deixam meio no desenho de %.2f casas" % [nome, pontas[0], pontas[1], casas[0]])
-			# ladoMaior: o móvel estica pelo lado maior da pegada (a mesa de 1 x 2 sem giro é a
-			# de 2 x 1 deitada: o app troca w e h e soma um quarto de volta).
-			vc["esticar"] = {"eixo": eixo, "pontasCasas": pontas, "pontasCasasY": pontas_y if eixo == "xy" else null, "ladoMaior": bool(es.get("ladoMaior", false))}
-			# O meio que repete (opcional, CONTRATO 10.6): só quem pede periodoCasas; sem ele
-			# o meio continua liso e o textura.json sai igual.
-			if es.has("periodoCasas"):
-				var rep := _ler_periodo(nome, eixo, casas[0], pontas, es["periodoCasas"], cfg["margemCasas"])
-				erros.append_array(rep["erros"])
-				if rep["erros"].is_empty():
-					vc["esticar"]["periodoCasas"] = rep["periodo"]
-					vc["esticar"]["modulos"] = rep["modulos"]
-			# O centro fixo (opcional, CONTRATO 10.6, lote 12): a peça do meio que não estica e
-			# fica centrada; sem centroCasas o textura.json sai igual.
-			if es.has("centroCasas"):
-				var ce := _ler_centro(nome, eixo, casas[0], pontas, es["centroCasas"], cfg["margemCasas"], es.has("periodoCasas"))
-				erros.append_array(ce["erros"])
-				if ce["erros"].is_empty():
-					vc["esticar"]["centroCasas"] = ce["centro"]
-		cfg["vistas"][nome] = vc
+		cfg["vistas"][nome] = _ler_vista(nome, vb, cfg["margemCasas"], 0, erros)
+	# A vista própria de uma variante troca a pegada e o esticar só nas formas dela; as viradas
+	# são as da vista do móvel (o número de formas não muda).
+	for iv in vistas_das_variantes:
+		var bruto_v = vistas_das_variantes[iv]
+		var nome_v: String = cfg["variantes"][iv]["nome"]
+		if typeof(bruto_v) != TYPE_DICTIONARY:
+			erros.append("variante \"%s\": \"vistas\" tem de ser um objeto {\"frente\": {\"casas\", \"esticar\"}, ...}" % nome_v)
+			continue
+		var proprias := {}
+		for nome in bruto_v:
+			if not cfg["vistas"].has(nome) or typeof(bruto_v[nome]) != TYPE_DICTIONARY:
+				erros.append("variante \"%s\": a vista \"%s\" tem de existir no móvel e ser um objeto" % [nome_v, nome])
+				continue
+			proprias[nome] = _ler_vista("%s da variante %s" % [nome, nome_v], bruto_v[nome], cfg["margemCasas"], int(cfg["vistas"][nome]["viradas"]), erros)
+		cfg["variantes"][iv]["vistas"] = proprias
 	var sb = c.get("sombra", {})
 	if typeof(sb) != TYPE_DICTIONARY:
 		sb = {}
@@ -195,6 +180,59 @@ static func ler_config(id: String) -> Dictionary:
 		if pe["erros"].is_empty():
 			cfg["pecas"] = pe["pecas"]
 	return {"ok": erros.is_empty(), "erros": erros, "config": cfg}
+
+
+## Uma vista: a pegada, as viradas (viradas_fixas > 0: as da vista do móvel, numa vista própria
+## de variante) e o esticar, com o meio que repete e o centro fixo (no x e, no "xy", no y).
+static func _ler_vista(nome: String, vb: Dictionary, margem: float, viradas_fixas: int, erros: Array[String]) -> Dictionary:
+	var casas := _par(vb.get("casas"), [1.0, 1.0])
+	if casas[0] < CASAS_MIN or casas[1] < CASAS_MIN or casas[0] > CASAS_MAX or casas[1] > CASAS_MAX:
+		erros.append("vista \"%s\": \"casas\" de %.2f a %.0f" % [nome, CASAS_MIN, CASAS_MAX])
+	var viradas := viradas_fixas if viradas_fixas > 0 else int(vb.get("viradas", 1))
+	if not VIRADAS_VALIDAS.has(viradas):
+		erros.append("vista \"%s\": \"viradas\" 1 (igual girada meia volta), 2 (simétrica de lado a lado) ou 4" % nome)
+		viradas = 1
+	var vc := {"casas": casas, "viradas": viradas}
+	var es = vb.get("esticar", null)
+	if typeof(es) == TYPE_DICTIONARY:
+		var eixo := str(es.get("eixo", "x"))
+		if eixo != "x" and eixo != "xy":
+			erros.append("vista \"%s\": \"esticar.eixo\" é \"x\" (ao longo) ou \"xy\"" % nome)
+		var pontas := _par(es.get("pontasCasas"), [0.5, 0.5])
+		var pontas_y := _par(es.get("pontasCasasY"), pontas)
+		if pontas[0] + pontas[1] >= casas[0] + 2.0 * margem:
+			erros.append("vista \"%s\": as pontas (%.2f + %.2f) não deixam meio no desenho de %.2f casas" % [nome, pontas[0], pontas[1], casas[0]])
+		# ladoMaior: o móvel estica pelo lado maior da pegada (a mesa de 1 x 2 sem giro é a
+		# de 2 x 1 deitada: o app troca w e h e soma um quarto de volta).
+		vc["esticar"] = {"eixo": eixo, "pontasCasas": pontas, "pontasCasasY": pontas_y if eixo == "xy" else null, "ladoMaior": bool(es.get("ladoMaior", false))}
+		# O meio que repete (opcional, CONTRATO 10.6): só quem pede periodoCasas; sem ele
+		# o meio continua liso e o textura.json sai igual.
+		if es.has("periodoCasas"):
+			var rep := _ler_periodo(nome, eixo, casas[0], pontas, es["periodoCasas"], margem)
+			erros.append_array(rep["erros"])
+			if rep["erros"].is_empty():
+				vc["esticar"]["periodoCasas"] = rep["periodo"]
+				vc["esticar"]["modulos"] = rep["modulos"]
+		# O centro fixo (opcional, CONTRATO 10.6, lote 12): a peça do meio que não estica e
+		# fica centrada; sem centroCasas o textura.json sai igual.
+		if es.has("centroCasas"):
+			var ce := _ler_centro(nome, eixo, casas[0], pontas, es["centroCasas"], margem, es.has("periodoCasas"), false)
+			erros.append_array(ce["erros"])
+			if ce["erros"].is_empty():
+				vc["esticar"]["centroCasas"] = ce["centro"]
+		# O centro fixo atravessado (opcional, lote 13, o tapete): no "xy", o mesmo centro no y.
+		if es.has("centroCasasY"):
+			var cy := _ler_centro(nome + " (y)", eixo, casas[1], pontas_y, es["centroCasasY"], margem, false, true)
+			erros.append_array(cy["erros"])
+			if cy["erros"].is_empty():
+				vc["esticar"]["centroCasasY"] = cy["centro"]
+	return vc
+
+
+## A vista de uma forma: a própria da variante, se ela tem (CONTRATO 10.6), ou a do móvel.
+static func vista_da_variante(cfg: Dictionary, vista: String, iv: int) -> Dictionary:
+	var proprias: Dictionary = cfg["variantes"][iv].get("vistas", {})
+	return proprias[vista] if proprias.has(vista) else cfg["vistas"][vista]
 
 
 ## As peças da cerca: o meio de um mourão e o raio do recorte, a coluna da ligação (na forma 0
@@ -247,13 +285,16 @@ static func _ler_periodo(vista: String, eixo: String, comprimento: float, pontas
 ## dos dois lados dela estica (a placa do arco do portão). Só ao longo (eixo "x"), nunca com
 ## periodoCasas; entre as pontas e o centro sobra meio liso dos dois lados (ao menos 2 px), e o
 ## centro, as pontas e a margem caem em px inteiros (o exportador mede o liso coluna contra
-## coluna, fora do centro).
-static func _ler_centro(vista: String, eixo: String, comprimento: float, pontas: Array, bruto, margem: float, com_periodo: bool) -> Dictionary:
+## coluna, fora do centro). No "xy" (lote 13, o tapete) o centro vale também atravessado:
+## centroCasasY no y (no_y), com as pontasCasasY, a mesma conta.
+static func _ler_centro(vista: String, eixo: String, comprimento: float, pontas: Array, bruto, margem: float, com_periodo: bool, no_y: bool) -> Dictionary:
 	var erros: Array[String] = []
 	var centro := float(bruto) if typeof(bruto) == TYPE_FLOAT or typeof(bruto) == TYPE_INT else -1.0
 	var liso: float = (comprimento - pontas[0] - pontas[1] - centro) / 2.0
-	if eixo != "x":
-		erros.append("vista \"%s\": \"esticar.centroCasas\" (o centro fixo) só com \"eixo\": \"x\"" % vista)
+	if no_y and eixo != "xy":
+		erros.append("vista \"%s\": \"esticar.centroCasasY\" (o centro fixo atravessado) só com \"eixo\": \"xy\"" % vista)
+	elif not no_y and eixo != "x" and eixo != "xy":
+		erros.append("vista \"%s\": \"esticar.centroCasas\" (o centro fixo) só com \"eixo\": \"x\" ou \"xy\"" % vista)
 	elif com_periodo:
 		erros.append("vista \"%s\": \"esticar.centroCasas\" e \"periodoCasas\" não andam juntos (o centro fixo é para o meio liso)" % vista)
 	elif centro <= 0.0 or liso < CENTRO_LISO_MIN_PX / float(PX_POR_CASA) - 1e-4:
@@ -293,8 +334,9 @@ static func formas(cfg: Dictionary) -> Array:
 		var vc: Dictionary = cfg["vistas"][vista]
 		for iv in cfg["variantes"].size():
 			var variante: String = cfg["variantes"][iv]["nome"]
+			var vv := vista_da_variante(cfg, vista, iv)
 			for virada in viradas_desenhadas(vc["viradas"]):
-				var casas: Array = vc["casas"]
+				var casas: Array = vv["casas"]
 				var deitada: Array = [casas[1], casas[0]] if virada % 2 == 1 else casas
 				r.append({"nome": nome_da_forma(vista, variante, virada), "vista": vista, "iVista": VISTAS.find(vista), "variante": variante, "iVariante": iv, "virada": virada, "casas": deitada, "tamanho": tamanho_da_imagem(casas, virada, cfg["margemCasas"])})
 	return r
@@ -303,6 +345,23 @@ static func formas(cfg: Dictionary) -> Array:
 ## Bytes na memória comum de uma imagem decodificada (RGBA, mais 1/3 de mipmap).
 static func bytes_memoria(w: int, h: int) -> int:
 	return int(w * h * 4 * 4 / 3)
+
+
+## Uma vista no textura.json: a pegada, as viradas (e as desenhadas) e o esticar com o texto
+## da conta do meio.
+static func _vista_para_json(vc: Dictionary) -> Dictionary:
+	var v := {"casas": vc["casas"], "viradas": vc["viradas"], "desenhadas": viradas_desenhadas(vc["viradas"])}
+	if vc.has("esticar"):
+		v["esticar"] = vc["esticar"].duplicate()
+		if vc["esticar"].has("periodoCasas"):
+			v["esticar"]["meio"] = "repete: entre as pontas o desenho tem 'modulos' módulos de periodoCasas, e a emenda de dois módulos (e a de módulo com ponta) é a mesma coluna lisa. Para um meio de M casas, o app põe n = round(M / periodoCasas) módulos, cada um com M / n casas (a sobra se reparte pelos módulos); com n = 0, o meio é a coluna da emenda. Cada módulo lê o primeiro módulo da imagem."
+		elif vc["esticar"].has("centroCasasY"):
+			v["esticar"]["meio"] = "centro fixo nos dois eixos: ao longo (x) a peça de centroCasas casas e atravessado (y) a de centroCasasY, no meio da imagem, ficam inteiras e no meio do móvel; em cada eixo, o meio liso dos dois lados do centro (entre a ponta e o centro, a mesma coluna em todo x e a mesma linha em todo y) estica com a metade do que sobra. Num eixo sem centro, o meio liso estica inteiro. Mais curto que pontas + centro, o centro continua inteiro e cada ponta perde por dentro a metade do que falta."
+		elif vc["esticar"].has("centroCasas"):
+			v["esticar"]["meio"] = "centro fixo: a peça de centroCasas casas no meio da imagem fica inteira e no meio do móvel; o meio liso dos dois lados dela (entre a ponta e o centro, a mesma coluna em todo x) estica, cada lado com a metade do que sobra. Mais curto que pontas + centro, o centro continua inteiro e cada ponta perde por dentro a metade do que falta."
+		else:
+			v["esticar"]["meio"] = "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir"
+	return v
 
 
 ## O textura.json: tudo explícito, o app não deriva nada.
@@ -323,20 +382,23 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 			item["variacaoDoMeio"] = m["meioLiso"]
 		if m.has("costura"):
 			item["costuraDoModulo"] = m["costura"]
+		if m.has("meioLisoY"):
+			item["variacaoDoMeioY"] = m["meioLisoY"]
 		lista.append(item)
 	var vistas := {}
 	for vista in cfg["vistas"]:
-		var vc: Dictionary = cfg["vistas"][vista]
-		var v := {"casas": vc["casas"], "viradas": vc["viradas"], "desenhadas": viradas_desenhadas(vc["viradas"])}
-		if vc.has("esticar"):
-			v["esticar"] = vc["esticar"].duplicate()
-			if vc["esticar"].has("periodoCasas"):
-				v["esticar"]["meio"] = "repete: entre as pontas o desenho tem 'modulos' módulos de periodoCasas, e a emenda de dois módulos (e a de módulo com ponta) é a mesma coluna lisa. Para um meio de M casas, o app põe n = round(M / periodoCasas) módulos, cada um com M / n casas (a sobra se reparte pelos módulos); com n = 0, o meio é a coluna da emenda. Cada módulo lê o primeiro módulo da imagem."
-			elif vc["esticar"].has("centroCasas"):
-				v["esticar"]["meio"] = "centro fixo: a peça de centroCasas casas no meio da imagem fica inteira e no meio do móvel; o meio liso dos dois lados dela (entre a ponta e o centro, a mesma coluna em todo x) estica, cada lado com a metade do que sobra. Mais curto que pontas + centro, o centro continua inteiro e cada ponta perde por dentro a metade do que falta."
-			else:
-				v["esticar"]["meio"] = "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir"
-		vistas[vista] = v
+		vistas[vista] = _vista_para_json(cfg["vistas"][vista])
+	# A variante com vistas próprias (o tapete redondo) leva a pegada e o esticar delas; as
+	# outras saem como sempre ({nome, quando}).
+	var variantes := []
+	for v in cfg["variantes"]:
+		if not v.has("vistas"):
+			variantes.append(v)
+			continue
+		var proprias := {}
+		for vista in v["vistas"]:
+			proprias[vista] = _vista_para_json(v["vistas"][vista])
+		variantes.append({"nome": v["nome"], "quando": v["quando"], "vistas": proprias})
 	var json := {
 		"contrato": Contrato.VERSAO,
 		"tipo": TIPO,
@@ -354,7 +416,7 @@ static func parametros(cfg: Dictionary, r: Dictionary, memoria: int, disco: int)
 			"partes": "R, G, B = o peso do lugar 1, 2 e 3 (a ordem de \"lugares\"); 1 - R - G - B = a cor fixa (imagem -cor) ou, sem ela, o lugar 1; A = a cobertura",
 			"cor": "só com corFixa: RGB = a cor própria (louça, comida, água, vidro, chama), já pintada; A = a cobertura",
 		},
-		"variantes": cfg["variantes"],
+		"variantes": variantes,
 		"vistas": vistas,
 		"viradas": "k = round(giro / 90) mod 4. viradas 1 (o desenho é simétrico de lado a lado e de cima a baixo): k par = a forma 0, k ímpar = a 0 transposta. viradas 2 (simétrico de lado a lado): k 0 = a 0, k 2 = a 2, k 1 = a 2 transposta, k 3 = a 0 transposta. viradas 4: a forma k, nunca transposta. A tela gira só o resto (giro - 90 k, de -45 a 45 graus). Transposta = (x, y) -> (y, x) nos px da imagem: a LUZ está na diagonal e não muda.",
 		"formas": lista,

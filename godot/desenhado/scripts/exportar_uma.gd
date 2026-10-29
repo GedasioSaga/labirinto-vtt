@@ -327,6 +327,10 @@ func _rodar_movel(args: Dictionary, id: String, inicio: int) -> void:
 			linha += ", o meio muda %.4f ao longo" % m["meioLiso"]
 			if m["meioLiso"] > ContratoMovel.MEIO_LISO_FOLGA:
 				printerr("  aviso: o meio de %s não é liso ao longo (%.4f > %.4f): o app estica o meio e a mudança apareceria esticada" % [nome, m["meioLiso"], ContratoMovel.MEIO_LISO_FOLGA])
+		if m.has("meioLisoY"):
+			linha += ", o meio muda %.4f atravessado" % m["meioLisoY"]
+			if m["meioLisoY"] > ContratoMovel.MEIO_LISO_FOLGA:
+				printerr("  aviso: o meio de %s não é liso atravessado (%.4f > %.4f): no xy o app estica também o meio do y" % [nome, m["meioLisoY"], ContratoMovel.MEIO_LISO_FOLGA])
 		if m.has("costura"):
 			linha += ", a costura dos módulos muda %.4f" % m["costura"]
 			if m["costura"] > ContratoMovel.MEIO_LISO_FOLGA:

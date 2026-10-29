@@ -312,6 +312,8 @@ de lado e variante, `movel-barril` para o redondo e o metal).
    exemplos `movel-aparador` e `movel-balcao`). Quem tem no meio uma peça que tem de ficar
    uma só, inteira e no meio (a placa do arco) pede `centroCasas` (o centro fixo, CONTRATO
    10.6: ponta + meio liso + centro + meio liso + ponta; exemplo `movel-arco-do-portao`).
+   Quem estica nos dois eixos (`xy`) e tem a peça do meio fixa nos dois (o medalhão do
+   tapete) pede também `centroCasasY`, com as `pontasCasasY` (exemplo `movel-tapete`).
    As pontas contam da borda da pegada, sem a margem.
    **A cerca faz curva por peças** (CONTRATO 10.12, lote 12): com `pecas` no config, o app
    deita a ligação da forma 0 no arco de `geometriaDaCerca` e põe o mourão em pé em cada
@@ -322,7 +324,9 @@ de lado e variante, `movel-barril` para o redondo e o metal).
    `vis == 1` no shader. Tem de ler como o mesmo móvel.
 5. **Variantes** só quando uma opção muda o desenho (o assento de palha ou de madeira, as
    varas ou a corda da cerca). `mesma` (o assento da mesma madeira) é tingido com o tom do
-   lugar 1.
+   lugar 1. A forma do objeto também escolhe variante: `"quando": { "forma": "redondo" }`
+   (só o tapete), e a variante pode ter `vistas` próprias com outra pegada e outro esticar
+   (o redondo é 2 x 2 e não estica; CONTRATO 10.6, exemplo `movel-tapete`).
 6. **Sombra no chão é do app**: escolha só `deslocamentoCasas` (a altura do móvel: mesa
    0,22, barril 0,14, cadeira 0,11) e um `borraoCasas` curto (0,02 a 0,03).
 7. **O teto:** 3 MiB **por vista** com todas as formas dela (desde o lote 12: o app carrega

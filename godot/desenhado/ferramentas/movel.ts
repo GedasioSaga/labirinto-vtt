@@ -36,9 +36,15 @@ export interface Esticar {
   /**
    * O centro fixo (opcional, 10.6, lote 12): a largura em casas da peça do meio que não
    * estica e fica sempre centrada (a placa do arco do portão); o meio liso fica dos dois
-   * lados dela. Só no eixo "x", nunca com periodoCasas.
+   * lados dela. No eixo "x" ou "xy" (ao longo), nunca com periodoCasas.
    */
   readonly centroCasas?: number
+  /**
+   * O centro fixo atravessado (opcional, 10.6, lote 13, o tapete): só no "xy", a largura em
+   * casas da peça do meio que não estica no y; com centroCasas, o medalhão fica inteiro e no
+   * meio nos dois eixos, e a barra em volta corre lisa dos dois lados dele.
+   */
+  readonly centroCasasY?: number
 }
 
 export interface VistaDoMovel {
@@ -89,7 +95,12 @@ export interface ParamsDoMovel {
   readonly idDoApp: string
   readonly margemCasas: number
   readonly lugares: readonly string[]
-  readonly variantes: readonly { readonly nome: string; readonly quando: Readonly<Record<string, string>> }[]
+  /**
+   * quando: {lugar: opção} ou {forma: "redondo"} (a forma do objeto, só o tapete). vistas
+   * (opcional, 10.6, lote 13): a pegada e o esticar próprios desta variante numa vista (o
+   * tapete redondo, 2 x 2, que não estica: vira oval pela escala).
+   */
+  readonly variantes: readonly { readonly nome: string; readonly quando: Readonly<Record<string, string>>; readonly vistas?: Readonly<Partial<Record<Vista, VistaDoMovel>>> }[]
   readonly vistas: Readonly<Partial<Record<Vista, VistaDoMovel>>>
   readonly formas: readonly FormaDoMovel[]
   readonly sombra: { readonly jeito: 'deslocada' | 'nenhuma'; readonly direcao: readonly [number, number]; readonly deslocamentoCasas: number; readonly borraoCasas: number; readonly alfa: number; readonly cor: string }
@@ -126,6 +137,8 @@ export interface Pedido {
   readonly casasH: number
   /** O giro do objeto, em graus (Prop.rotation). */
   readonly giro: number
+  /** A forma do objeto (Prop.forma do app: só o tapete, "redondo"; ausente = "retangular"). */
+  readonly forma?: string
   /** Só a cerca com `pecas`: a geometria do app; com ela a cerca sai por peças (10.12), reta ou curva. */
   readonly cerca?: GeometriaDaCercaEmCasas
 }
@@ -291,9 +304,13 @@ function rampaGuardada(tom: Rgb, r: Rampa): Float32Array {
 
 // ---------- 1 e 2: a variante e a forma ----------
 
-export function varianteDoPedido(p: ParamsDoMovel, opcoes: readonly string[]): string {
+/** A chave de "quando" que não é lugar: a forma do objeto (só o tapete; 10.6, lote 13). */
+export const CHAVE_DA_FORMA = 'forma'
+export const FORMA_PADRAO = 'retangular'
+
+export function varianteDoPedido(p: ParamsDoMovel, opcoes: readonly string[], forma?: string): string {
   for (const v of p.variantes) {
-    const bate = Object.entries(v.quando).every(([lugar, opcao]) => opcoes[p.lugares.indexOf(lugar)] === opcao)
+    const bate = Object.entries(v.quando).every(([lugar, opcao]) => (lugar === CHAVE_DA_FORMA ? (forma ?? FORMA_PADRAO) === opcao : opcoes[p.lugares.indexOf(lugar)] === opcao))
     if (bate && Object.keys(v.quando).length > 0) return v.nome
   }
   return p.variantes[p.variantes.length - 1].nome
@@ -482,9 +499,11 @@ export function desfocar(a: Float32Array, w: number, h: number, sigma: number): 
 export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number): Composto {
   const p = m.p
   if (p.pecas !== undefined && pedido.cerca !== undefined) return comporCerca(m, p.pecas, pedido, pedido.cerca, pxPorCasa)
-  const vista = p.vistas[pedido.vista] ?? p.vistas.frente
-  if (vista === undefined) throw new Error(`${p.id}: sem a vista ${pedido.vista}`)
   const nomeDaVista: Vista = p.vistas[pedido.vista] !== undefined ? pedido.vista : 'frente'
+  const variante = varianteDoPedido(p, pedido.opcoes, pedido.forma)
+  // A vista própria da variante (o tapete redondo, 10.6), se ela tem; senão a do móvel.
+  const vista = p.variantes.find((v) => v.nome === variante)?.vistas?.[nomeDaVista] ?? p.vistas[nomeDaVista]
+  if (vista === undefined) throw new Error(`${p.id}: sem a vista ${pedido.vista}`)
   const quartos = Math.round(pedido.giro / 90)
   let k = ((quartos % 4) + 4) % 4
   const resto = pedido.giro - quartos * 90
@@ -495,7 +514,6 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
     ;[w, h] = [h, w]
     k = (k + 1) % 4
   }
-  const variante = varianteDoPedido(p, pedido.opcoes)
   const { virada, transposta } = formaDaVirada(vista.viradas, k)
   const f = p.formas.find((x) => x.vista === nomeDaVista && x.variante === variante && x.virada === virada)
   if (f === undefined) throw new Error(`${p.id}: falta a forma ${nomeDaVista}-${variante}-${virada}`)
@@ -521,10 +539,11 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
   const periodo = es?.periodoCasas ?? null
   const periodoX = k % 2 === 0 ? periodo : null
   const periodoY = k % 2 === 0 ? null : periodo
-  // O centro fixo também só anda ao longo.
+  // O centro fixo anda ao longo e, no "xy" com centroCasasY, também atravessado (o tapete).
   const centro = es?.centroCasas ?? null
-  const centroX = k % 2 === 0 ? centro : null
-  const centroY = k % 2 === 0 ? null : centro
+  const centroAtraves = es !== undefined && es.eixo === 'xy' ? (es.centroCasasY ?? null) : null
+  const centroX = k % 2 === 0 ? centro : centroAtraves
+  const centroY = k % 2 === 0 ? centroAtraves : centro
   const sb = p.sombra
   const nd = Math.hypot(sb.direcao[0], sb.direcao[1])
   const desl = sb.jeito === 'nenhuma' ? 0 : sb.deslocamentoCasas * pxPorCasa
