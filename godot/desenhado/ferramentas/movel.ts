@@ -401,7 +401,8 @@ export function comporMovel(m: MovelCarregado, pedido: Pedido, pxPorCasa: number
   const { virada, transposta } = formaDaVirada(vista.viradas, k)
   const f = p.formas.find((x) => x.vista === nomeDaVista && x.variante === variante && x.virada === virada)
   if (f === undefined) throw new Error(`${p.id}: falta a forma ${nomeDaVista}-${variante}-${virada}`)
-  const chave = `${f.nome}|${transposta ? 't' : ''}|${pedido.tons.map((t) => t.join(',')).join('|')}`
+  // O id do móvel entra na chave: dois móveis com a mesma forma ("frente-padrao-0") e o mesmo tom trocavam de imagem.
+  const chave = `${p.id}|${f.nome}|${transposta ? 't' : ''}|${pedido.tons.map((t) => t.join(',')).join('|')}`
   let nv = NIVEIS.get(chave)
   if (nv === undefined) {
     nv = niveis(tingir(m, f, pedido.tons, transposta))
