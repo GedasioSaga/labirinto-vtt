@@ -78,7 +78,7 @@ func montar(cfg: Dictionary, pasta_exportada: String, prova: String, args: Dicti
 	var argv := [mjs, "--textura=" + pasta_exportada, "--exportado=" + ProjectSettings.globalize_path("res://exportado"), "--saida=" + paineis]
 	if args.has("sem-atual"):
 		argv.append("--sem-atual")
-	# A cena de família pedida (clareira, praca ou sala); sem ela, o node escolhe pelo lote.
+	# A cena de família pedida (clareira, praca, sala ou oficina); sem ela, o node escolhe pelo lote.
 	if args.has("familia"):
 		argv.append("--familia=" + str(args["familia"]))
 	saida_cmd = []
@@ -193,6 +193,8 @@ func _folha(cfg: Dictionary, p: Dictionary, resumo: Dictionary, paineis: String,
 	_texto("Desenhado: as imagens cinza com as partes marcadas, tingidas pela conta de ferramentas/movel.ts. Atual: o motor dos móveis do client da main (só leitura), nos mesmos móveis e materiais. 100%% = 64 px por casa; 300%% = 192; 50%% e 25%% reduzidos em Lanczos. Chão chapado %s." % p["chao"], MG, 15, COR_TINTA_3)
 	_y += 10
 	# Sozinho e as 3 combinações.
+	# Com formas (os pratos, as pilhas, o fogo de casa, o tapete redondo) ou a variação do id (a
+	# lápide), cada combinação mostra uma forma: o nome da variante vai entre parênteses.
 	_texto("Sozinho e em 3 combinações de material: %s" % "  |  ".join(PackedStringArray(p["combos"])), MG, 22, COR_TINTA)
 	var cd := _ler(paineis, "combos-desenhado-100.png")
 	var ca: Image = _ler(paineis, "combos-atual-100.png") if tem_atual else null
@@ -214,6 +216,10 @@ func _folha(cfg: Dictionary, p: Dictionary, resumo: Dictionary, paineis: String,
 		for t in p["medidas"]["porTom"]:
 			_texto("%s:  Desenhado %s  ·  Atual %s" % [t["nome"], _medida(t.get("desenhado")), _medida(t.get("atual"))], MG, 15, COR_TINTA_3, 22)
 		_y += 20
+	else:
+		# Sem lugar de madeira (a lápide, os pratos, a fogueira, os troncos, o feno): nada a medir.
+		_texto("Os 5 tons de madeira: sem madeira (lugares: %s)" % (", ".join(PackedStringArray(cfg["lugares"])) if not cfg["lugares"].is_empty() else "nenhum"), MG, 22, COR_TINTA)
+		_y += 10
 	# As viradas.
 	_texto("As 4 viradas (giro 0, 90, 180 e 270 graus)%s: o Desenhado pinta o quarto de volta com a luz de cima à esquerda; o Atual gira a imagem com a luz junto" % (" e a vista de lado, embaixo" if p["lado"] else ""), MG, 22, COR_TINTA)
 	_linha([_ler(paineis, "viradas-desenhado.png"), _ler(paineis, "viradas-atual.png") if tem_atual else null], ["Desenhado a 100%", "Atual a 100%"])
