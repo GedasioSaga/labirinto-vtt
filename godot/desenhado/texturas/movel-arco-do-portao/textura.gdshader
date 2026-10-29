@@ -19,12 +19,10 @@
 // Simétrico de lado a lado, não de cima a baixo (a placa fica na frente): 2 viradas
 // (CONTRATO 10.4). Desenhado no referencial do arco (movel_de) e aceso no da tela (LUZ).
 //
-// Esticar (ao longo): tudo o que muda ao longo fica nas pontas. Fora do miolo da placa
-// (|x| < 0,17) e dos esteios, cada coluna é só a trave; no miolo da placa a coluna também
-// é a mesma em todo x (as massas da placa e o nome são faixas). Com o contrato de hoje o
-// meio liso é o miolo da placa (pontasCasas 0,859375: a placa cresce com o arco); o
-// desenho já serve para um centro fixo (a placa de largura fixa e a trave lisa dos dois
-// lados esticando), que é a mudança proposta ao contrato.
+// Esticar (ao longo), com o centro fixo (CONTRATO 10.6): ponta + meio liso + centro + meio
+// liso + ponta. As pontas (0,46875) levam os esteios, a ponta da trave e a sombra dos
+// esteios nela; o centro (0,578125, |x| < 0,289) leva a placa e as alças, e fica inteiro e
+// no meio em qualquer comprimento; entre eles, cada coluna é só a trave (o meio liso).
 shader_type canvas_item;
 render_mode unshaded, blend_disabled;
 

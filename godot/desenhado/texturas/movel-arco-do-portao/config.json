@@ -12,7 +12,7 @@
     "frente": {
       "casas": [2, 0.5],
       "viradas": 2,
-      "esticar": { "eixo": "x", "pontasCasas": [0.921875, 0.921875], "ladoMaior": true }
+      "esticar": { "eixo": "x", "pontasCasas": [0.46875, 0.46875], "centroCasas": 0.578125, "ladoMaior": true }
     }
   },
   "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.26, "borraoCasas": 0.03 }

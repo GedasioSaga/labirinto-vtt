@@ -145,12 +145,13 @@
         2
       ],
       "esticar": {
+        "centroCasas": 0.578125,
         "eixo": "x",
         "ladoMaior": true,
-        "meio": "liso: a faixa entre as pontas é a mesma em todo x (e em todo y no xy); o app estica o meio, o que nele é igual a repetir",
+        "meio": "centro fixo: a peça de centroCasas casas no meio da imagem fica inteira e no meio do móvel; o meio liso dos dois lados dela (entre a ponta e o centro, a mesma coluna em todo x) estica, cada lado com a metade do que sobra. Mais curto que pontas + centro, o centro continua inteiro e cada ponta perde por dentro a metade do que falta.",
         "pontasCasas": [
-          0.921875,
-          0.921875
+          0.46875,
+          0.46875
         ],
         "pontasCasasY": null
       },
