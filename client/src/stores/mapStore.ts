@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
   PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo,
 } from '../types/map'
@@ -1019,6 +1019,10 @@ interface MapStoreState {
    *  apaga no lugar, o tamanho fica. Um passo no desfazer; o mesmo estado ou
    *  outro tipo não entram. */
   trocarFogoDoMovel: (id: string, fogo: FogoDoMovel) => void
+  /** PROPRIEDADES DOS TRONCOS E DO FENO — "Forma" (Pilha de toras | Lenha
+   *  empilhada; Fardos empilhados | Monte de feno): a pegada da forma nova,
+   *  centro no lugar. Um passo no desfazer; a mesma forma ou outro tipo não entram. */
+  trocarFormaDaPilha: (id: string, forma: FormaDaPilha) => void
   /** PROPRIEDADES DO FOGO — "Tamanho" (Chama | Fogaréu | Incêndio): a pegada do
    *  tamanho, centro no lugar. Um passo no desfazer; o mesmo tamanho ou outro
    *  tipo não entram. */
@@ -2633,6 +2637,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     trocarFogoDoMovel: (id, fogo) => {
       if (mapFactory.trocarFogoDoMovel(get().map, id, fogo) === get().map) return
       withHistory((map) => mapFactory.trocarFogoDoMovel(map, id, fogo))
+    },
+    trocarFormaDaPilha: (id, forma) => {
+      if (mapFactory.trocarFormaDaPilha(get().map, id, forma) === get().map) return
+      withHistory((map) => mapFactory.trocarFormaDaPilha(map, id, forma))
     },
     trocarTamanhoDoFogo: (id, tamanho) => {
       if (mapFactory.trocarTamanhoDoFogo(get().map, id, tamanho) === get().map) return

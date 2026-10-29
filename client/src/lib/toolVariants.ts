@@ -534,6 +534,8 @@ export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; reado
   { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos'] },
   // A oficina do ferreiro (29/10/2026): a fornalha e a bigorna lado a lado, o balde de água da têmpera embaixo.
   { titulo: 'Oficina', tipos: ['fornalha', 'bigorna', 'balde'] },
+  // A fazenda (29/10/2026): os troncos e o feno lado a lado, para o estábulo, o celeiro e o quintal.
+  { titulo: 'Fazenda', tipos: ['troncos', 'feno'] },
 ]
 
 /** A parte do menu que termina com o atalho da árvore. */

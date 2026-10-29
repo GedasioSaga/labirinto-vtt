@@ -24,6 +24,7 @@ export const PECAS_NOVAS = [
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
+  'troncos', 'feno',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -91,6 +92,11 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   fornalha: { rotulo: 'Fornalha de ferreiro', artigo: 'uma fornalha de ferreiro', tamanho: { largura: 1.5, altura: 1.5 }, redonda: false },
   bigorna: { rotulo: 'Bigorna', artigo: 'uma bigorna', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
   balde: { rotulo: 'Balde de água', artigo: 'um balde de água', tamanho: { largura: 0.5, altura: 0.5 }, redonda: true },
+  // Troncos e feno (29/10/2026): uma forma de partida cada (a pilha de toras e os fardos), a outra no painel
+  // com a pegada dela (`lib/mobilia/pilhas.ts`). O tamanho daqui é o da forma de partida.
+  troncos: { rotulo: 'Troncos', artigo: 'uns troncos', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  // "Clique no mapa para pôr feno.": o feno é de monte, não se conta (sem artigo).
+  feno: { rotulo: 'Feno', artigo: 'feno', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -124,6 +130,8 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     fornalha: valor(f.fornalha),
     bigorna: valor(f.bigorna),
     balde: valor(f.balde),
+    troncos: valor(f.troncos),
+    feno: valor(f.feno),
   }
 }
 
@@ -148,6 +156,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
+  'troncos', 'feno',
 ]
 
 /**
@@ -239,8 +248,11 @@ function linha(x0: number, y: number, x1: number): Traco {
   return { x1: x0, y1: y, x2: x1, y2: y }
 }
 
-/** Glifo de frente (de cima) da peça nova: poucos traços que dizem o que ela é. */
-function tracosDeFrente(tipo: PecaNova, largura: number, altura: number): Traco[] {
+/**
+ * Glifo de frente (de cima) da peça nova: poucos traços que dizem o que ela é.
+ * `variante` só vale nos troncos e no feno: a forma (0 a de partida, 1 a outra).
+ */
+function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variante: number): Traco[] {
   const hw = largura / 2
   const hh = altura / 2
   switch (tipo) {
@@ -325,6 +337,34 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number): Traco[
     case 'balde':
       // A boca do balde e a alça atravessada.
       return [...aro(largura * 0.72, altura * 0.72), linha(-hw * 0.86, 0, hw * 0.86)]
+    // Troncos e feno (29/10/2026), cada um nas duas formas.
+    case 'troncos': {
+      if (variante === 1) {
+        // A lenha empilhada: as divisas entre as achas, de pé, da parede à frente.
+        return [1, 2, 3, 4, 5].map((k) => {
+          const x = -hw + (largura * k) / 6
+          return { x1: x, y1: -hh * 0.7, x2: x, y2: hh * 0.7 }
+        })
+      }
+      // A pilha de toras: a tora de cima de ponta a ponta, com o corte (o anel) nas duas pontas.
+      return [
+        linha(-hw * 0.84, -hh / 3, hw * 0.84),
+        linha(-hw * 0.84, hh / 3, hw * 0.84),
+        ...aro(altura * 0.2, altura * 0.6, -hw * 0.84, 0),
+        ...aro(altura * 0.2, altura * 0.6, hw * 0.84, 0),
+      ]
+    }
+    case 'feno':
+      if (variante === 1) {
+        // O monte de feno: a roda do monte e o alto dele, um pouco para trás.
+        return [...aro(largura * 0.8, altura * 0.8), ...aro(largura * 0.3, altura * 0.3, -hw * 0.08, -hh * 0.1)]
+      }
+      // Os fardos: o fardo de cima, atravessado no fundo, e as divisas dos três de baixo na frente.
+      return [
+        ...quadro(-hw * 0.94, -hh * 0.9, hw * 0.3, hh * 0.02),
+        { x1: -hw / 3, y1: hh * 0.02, x2: -hw / 3, y2: hh * 0.92 },
+        { x1: hw / 3, y1: -hh * 0.92, x2: hw / 3, y2: hh * 0.92 },
+      ]
   }
 }
 
@@ -338,9 +378,9 @@ function tracosDaVistaDeLado(tipo: PecaNovaComVista, largura: number, altura: nu
   return aro(roda, roda, hw * 0.12, hh - roda / 2)
 }
 
-export function tracosDaPecaNova(tipo: PecaNova, largura: number, altura: number, deLado: boolean): Traco[] {
+export function tracosDaPecaNova(tipo: PecaNova, largura: number, altura: number, deLado: boolean, variante = 0): Traco[] {
   if (deLado && (tipo === 'barraca' || tipo === 'carroca')) return tracosDaVistaDeLado(tipo, largura, altura)
-  return tracosDeFrente(tipo, largura, altura)
+  return tracosDeFrente(tipo, largura, altura, variante)
 }
 
 /** Contorno de lado (barraca e carroça): o retângulo do objeto, no sentido horário a partir do canto de cima à esquerda. */

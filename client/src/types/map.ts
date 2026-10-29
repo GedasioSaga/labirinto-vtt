@@ -1706,8 +1706,10 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  jogador junto do tipo. Os PRATOS (mesa posta, 28/10/2026) usam o mesmo
    *  campo para a forma deles: só `'vazio'` e `'pilha'` são gravados; ausente =
    *  prato cheio. A LAREIRA e a FORNALHA (29/10/2026) guardam aqui o fogo:
-   *  só `'apagado'` é gravado; ausente = aceso. */
-  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'>
+   *  só `'apagado'` é gravado; ausente = aceso. Os TRONCOS e o FENO
+   *  (29/10/2026) guardam a forma: só `'lenha'` (troncos) e `'monte'` (feno);
+   *  ausente = a pilha de toras e os fardos. */
+  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
    *  o desenho de sempre — sem linha de migração. Vale só na cama (`catre`):
@@ -1758,6 +1760,11 @@ export type FormaDosPratos = 'cheio' | 'vazio' | 'pilha'
 
 /** "Fogo" da lareira e da fornalha (`lib/mobilia/fogoDeCasa.ts`): aceso (o padrão) ou apagado. Só o apagado é gravado. */
 export type FogoDoMovel = import('../lib/mobilia/fogoDeCasa').FogoDoMovel
+
+/** "Forma" dos troncos e do feno (`lib/mobilia/pilhas.ts`): a pilha de toras ou a lenha; os fardos ou o monte. */
+export type FormaDaPilha = import('../lib/mobilia/pilhas').FormaDaPilha
+/** A forma dos troncos e do feno que o mapa grava: só a segunda de cada um. */
+export type FormaGravadaDaPilha = import('../lib/mobilia/pilhas').FormaGravadaDaPilha
 
 export interface DrawingPoint {
   x: number

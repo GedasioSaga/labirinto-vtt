@@ -12,6 +12,7 @@ import {
 } from './mobilia/pecasNovas'
 import { ofereceDesenhoEmLinhas } from './mobilia/desenhoDoMovel'
 import { ehMovelComFogoDeCasa, FOGOS_DO_MOVEL, linguasDoFogoDeCasa } from './mobilia/fogoDeCasa'
+import { CASAS_DA_FORMA_DA_PILHA, ehMovelDePilha, formaDaPilha, formaDoMovelDePilha, normalizarFormaDaPilha, type FormaDaPilha } from './mobilia/pilhas'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -259,9 +260,13 @@ export function varianteDoFogo(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): nu
   return FOGOS_DO_MOVEL.indexOf(fogoDoMovel(prop))
 }
 
-/** A forma gravada que o tipo aceita: a do tapete, a dos pratos ou o fogo apagado (a mesma porta da leitura, da edição e da travessia). */
+/**
+ * A forma gravada que o tipo aceita: a do tapete, a dos pratos, o fogo apagado
+ * ou a segunda forma dos troncos e do feno (a lenha empilhada, o monte) — a
+ * mesma porta da leitura, da edição e da travessia.
+ */
 function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): Prop['mobiliaForma'] {
-  return normalizarFormaDoTapete(tipo, valor) ?? normalizarFormaDosPratos(tipo, valor) ?? normalizarFogoDoMovel(tipo, valor)
+  return normalizarFormaDoTapete(tipo, valor) ?? normalizarFormaDosPratos(tipo, valor) ?? normalizarFogoDoMovel(tipo, valor) ?? normalizarFormaDaPilha(tipo, valor)
 }
 
 /** `prop` com a forma na forma que o mapa guarda: o campo só existe no tapete redondo e nos pratos vazio ou em pilha. Mesma referência se nada muda. */
@@ -1364,12 +1369,14 @@ export function tracosDoGlifo(
   vista: VistaMobilia = 'frente',
   voltaDaCerca = 0,
   forma: FormaDoTapete = 'retangular',
+  /** Só nos troncos e no feno: a forma (0 a de partida, 1 a outra; `varianteDaPilha`). */
+  variante = 0,
 ): TracoDoGlifo[] {
   if (!tamanhoDesenhavel(largura, altura)) return []
   if (vista === 'lado' && aceitaVista(tipo)) return tracosDeLado(tipo, largura, altura, forma)
   // A sebe (MT5) tem a geometria da cerca: o provisório é a faixa dela, reta ou dobrada no arco.
   if (tipo === 'sebe') return contorno(contornoDaCerca(largura, altura, voltaDaCerca))
-  if (ehPecaNova(tipo)) return tracosDaPecaNova(tipo, largura, altura, false)
+  if (ehPecaNova(tipo)) return tracosDaPecaNova(tipo, largura, altura, false, variante)
   const meiaLargura = largura / 2
   const meiaAltura = altura / 2
   const menorLado = Math.min(largura, altura)
@@ -1498,6 +1505,26 @@ export function pratosComOutraForma(prop: Prop, forma: FormaDosPratos): Prop {
 export function movelComOutroFogo(prop: Prop, fogo: FogoDoMovel): Prop {
   if (!ehMovelComFogoDeCasa(prop.mobilia)) return prop
   return comFormaGravada(prop, fogo === 'apagado' ? 'apagado' : undefined)
+}
+
+/**
+ * A "Forma" dos TRONCOS (Pilha de toras | Lenha empilhada) e do FENO (Fardos
+ * empilhados | Monte de feno): o mesmo objeto na outra forma, na PEGADA DELA
+ * na grade do mapa (`CASAS_DA_FORMA_DA_PILHA`), como a forma do tapete.
+ * Centro, giro, camada, trava, ocultos, piso, rótulo e material ficam. Só a
+ * segunda forma é gravada. Outro tipo, ou forma do outro objeto, devolve o
+ * mesmo objeto.
+ */
+export function movelComOutraFormaDaPilha(prop: Prop, forma: FormaDaPilha, grade: number): Prop {
+  const tipo = prop.mobilia
+  if (!ehMovelDePilha(tipo) || !formaDoMovelDePilha(tipo, forma)) return prop
+  const casas = CASAS_DA_FORMA_DA_PILHA[forma]
+  return { ...comFormaGravada(prop, normalizarFormaDaPilha(tipo, forma)), width: casas.largura * grade, height: casas.altura * grade }
+}
+
+/** A forma dos troncos ou do feno deste objeto (`undefined` em outro tipo). */
+export function formaDaPilhaDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): FormaDaPilha | undefined {
+  return ehMovelDePilha(prop.mobilia) ? formaDaPilha(prop.mobilia, prop.mobiliaForma) : undefined
 }
 
 export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {

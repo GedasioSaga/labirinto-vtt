@@ -188,6 +188,10 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   fornalha: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Fole', MADEIRAS, 'carvalho')],
   bigorna: [lugar('metal', 'Bigorna', METAIS, 'ferro'), lugar('madeira', 'Toco', MADEIRAS, 'carvalho')],
   balde: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  // Troncos e feno (29/10/2026). Os troncos têm a madeira da lenha da fogueira (a casca; o corte com os
+  // anéis sai dela). O feno é a palha e a corda, fixas: um tom só, contido, sem escolha que não muda nada.
+  troncos: [lugar('lenha', 'Madeira', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
+  feno: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

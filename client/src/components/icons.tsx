@@ -658,6 +658,25 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M5 13.3h14M5.7 17.5h12.6M6 10a6 6 0 0 1 12 0" />
         </>
       )
+    // Troncos e feno (29/10/2026). As duas formas de cada um dividem o ícone (o painel troca a forma).
+    case 'troncos':
+      // Três toras de ponta, em pirâmide, cada uma com o miolo do corte.
+      return (
+        <>
+          <circle cx="8" cy="16.5" r="3.8" />
+          <circle cx="16" cy="16.5" r="3.8" />
+          <circle cx="12" cy="9.6" r="3.8" />
+          <path d="M8 16.5h.01M16 16.5h.01M12 9.6h.01" />
+        </>
+      )
+    case 'feno':
+      // O fardo de lado: o bloco, as duas cordas em volta e uns fios espetados no alto.
+      return (
+        <>
+          <rect x="3" y="8.5" width="18" height="11" rx="1.5" />
+          <path d="M9 8.5v11M15 8.5v11M5.5 8.5 4.6 6.6M12 8.5l.3-2M18.4 8.5l1-1.8" />
+        </>
+      )
   }
 }
 

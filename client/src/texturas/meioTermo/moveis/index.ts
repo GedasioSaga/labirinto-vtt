@@ -48,6 +48,8 @@ import { montarLareira } from './lareira'
 import { montarFornalha } from './fornalha'
 import { montarBigorna } from './bigorna'
 import { montarBalde } from './balde'
+import { montarTroncos } from './troncos'
+import { montarFeno } from './feno'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -97,6 +99,9 @@ const MONTADORES = {
   fornalha: montarFornalha,
   bigorna: montarBigorna,
   balde: montarBalde,
+  // Troncos e feno (29/10/2026): a forma (toras ou lenha; fardos ou monte) chega na `variante`, como a dos pratos.
+  troncos: montarTroncos,
+  feno: montarFeno,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -127,6 +132,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'sebe', 'jardineira', 'arcoDoPortao', 'placaDeSeta', 'tapeteLongo', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
+  'troncos', 'feno',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
@@ -148,7 +154,7 @@ export interface DesenhoDoMovel {
   readonly forma?: FormaDoTapete
   /** Só na cerca: a volta em graus (0 ou ausente = reta). */
   readonly curva?: number
-  /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). Nos pratos, a forma (`varianteDosPratos`). */
+  /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). Nos pratos, a forma (`varianteDosPratos`); nos troncos e no feno, a forma (`varianteDaPilha`). */
   readonly variante?: number
   /**
    * Só na placa de seta: o giro do objeto em quartos de volta (90, 180 ou 270;

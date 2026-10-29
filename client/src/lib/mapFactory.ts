@@ -1,7 +1,7 @@
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, CamadaId, GridSettings,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
-  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel,
+  ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha,
 } from '../types/map'
 import type { Point } from '../pixi/world'
 import { alternarCadeado, alternarOlhoDoMestre } from './camadas/estado'
@@ -34,7 +34,7 @@ import { seatStairPins, withoutStairPins } from './stairTravel'
 import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
-  aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDosPratos, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
+  aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel,
   type AparenciaDoMovelPatch,
 } from './mobilia'
@@ -923,6 +923,20 @@ export function trocarFogoDoMovel(map: MapData, propId: string, fogo: FogoDoMove
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo === undefined || (alvo.mobilia !== 'lareira' && alvo.mobilia !== 'fornalha') || fogoDoMovel(alvo) === fogo) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutroFogo(p, fogo) : p)) }
+}
+
+/**
+ * "Forma" do painel dos TRONCOS (Pilha de toras | Lenha empilhada) e do FENO
+ * (Fardos empilhados | Monte de feno): a pegada vai para a da forma nova na
+ * grade do mapa, com o centro no lugar (`movelComOutraFormaDaPilha`). A mesma
+ * forma, forma do outro objeto, outro tipo ou id que não existe devolvem o
+ * MESMO mapa (a store não empilha passo vazio).
+ */
+export function trocarFormaDaPilha(map: MapData, propId: string, forma: FormaDaPilha): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo === undefined || formaDaPilhaDoMovel(alvo) === undefined || formaDaPilhaDoMovel(alvo) === forma) return map
+  const trocado = movelComOutraFormaDaPilha(alvo, forma, map.grid)
+  return trocado === alvo ? map : { ...map, props: map.props.map((p) => (p === alvo ? trocado : p)) }
 }
 
 /**

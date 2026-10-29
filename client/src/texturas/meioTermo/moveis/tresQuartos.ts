@@ -115,6 +115,10 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // toco está debaixo da mesa da bigorna; derivada, a silhueta inteira varria até o chão e virava uma pílula.
   bigorna: EM_PE,
   balde: DERIVADO,
+  // Troncos e feno (29/10/2026) ficam como de cima, como a bigorna: derivados, a pilha inteira subia num
+  // bloco e a frente varrida (lisa, sem as toras nem os fardos) virava uma tábua chapada embaixo.
+  troncos: EM_PE,
+  feno: EM_PE,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

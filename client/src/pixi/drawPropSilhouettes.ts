@@ -21,6 +21,7 @@ import {
 import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { saiComTextura } from '../lib/mobilia/desenhoDoMovel'
+import { varianteDaPilha } from '../lib/mobilia/pilhas'
 import { emOrdemDoTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
@@ -333,7 +334,7 @@ function roundSilhouettePoints(prop: PropSilhouette): number[] {
  */
 function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number, edge: SilhouettePaint): void {
   if (prop.mobilia === undefined) return
-  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop), formaDoTapete(prop))
+  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop), formaDoTapete(prop), varianteDaPilha(prop.mobilia, prop.mobiliaForma))
   if (segments.length === 0) return
   const trig = rotationTrig(prop.rotation ?? 0)
   const center = { x: prop.x, y: prop.y }

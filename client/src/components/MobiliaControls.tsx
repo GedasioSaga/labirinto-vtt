@@ -29,6 +29,7 @@ import { useMapStore } from '../stores/mapStore'
 import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_ALPHA, PROP_SILHOUETTE_FILL_COLOR } from '../pixi/drawPropSilhouettes'
 import type { FogoDoMovel, FormaDoTapete, FormaDosPratos, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { FOGOS_DO_MOVEL, ROTULO_DO_FOGO_DO_MOVEL, ehMovelComFogoDeCasa } from '../lib/mobilia/fogoDeCasa'
+import { FORMAS_DA_PILHA, ROTULO_DA_FORMA_DA_PILHA, ehMovelDePilha, formaDaPilha, type FormaDaPilha } from '../lib/mobilia/pilhas'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
@@ -71,6 +72,12 @@ export interface MobiliaControlsProps {
    * tamanho fica. Ausente = o painel não oferece o fogo.
    */
   onFogoChange?: (id: string, fogo: FogoDoMovel) => void
+  /**
+   * Troncos e feno: troca a forma (Pilha de toras | Lenha empilhada; Fardos
+   * empilhados | Monte de feno) no lugar; a pegada vai para a da forma nova.
+   * Ausente = o painel não oferece a forma.
+   */
+  onFormaDaPilhaChange?: (id: string, forma: FormaDaPilha) => void
   /** Um eixo da aparência por vez: "Preencher", "Cor" ou "Cor da linha" (`null` = volta ao padrão). */
   onAparenciaChange: (id: string, patch: AparenciaDoMovelPatch) => void
 }
@@ -270,6 +277,7 @@ export function MobiliaControls({
   onTamanhoDoFogoChange,
   onFormaDosPratosChange,
   onFogoChange,
+  onFormaDaPilhaChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
   const baseId = useId()
@@ -383,6 +391,27 @@ export function MobiliaControls({
                   onClick={() => onFogoChange(prop.id, opcao)}
                 >
                   {ROTULO_DO_FOGO_DO_MOVEL[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* A forma dos troncos e do feno: o mesmo segmentado da forma dos pratos. Trocar leva a pegada
+            para a da forma nova (como no tapete); esticado à mão, a forma continua marcada. */}
+        {ehMovelDePilha(tipo) && onFormaDaPilhaChange !== undefined && (
+          <div className="lb-field">
+            <span className="lb-label">Forma</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Forma">
+              {FORMAS_DA_PILHA[tipo].map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={formaDaPilha(tipo, prop.mobiliaForma) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onFormaDaPilhaChange(prop.id, opcao)}
+                >
+                  {ROTULO_DA_FORMA_DA_PILHA[opcao]}
                 </button>
               ))}
             </div>
