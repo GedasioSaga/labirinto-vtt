@@ -1,5 +1,19 @@
-import { HISTORICO_MAX, numeroDaFicha, type CartaoDaFicha, type ParteDoAjuste, type Personagem, type RegistroDaFicha } from './personagem'
+import {
+  FORCA_PADRAO,
+  HISTORICO_MAX,
+  RECURSO_QUE_A_FORCA_MULTIPLICA,
+  aplicarForca,
+  forcaDe,
+  numeroDaFicha,
+  type CartaoDaFicha,
+  type ParteDoAjuste,
+  type Personagem,
+  type RegistroDaFicha,
+} from './personagem'
 import type { SistemaDeRpg } from './sistemaDeRpg'
+
+/** Os campos do mundo do livro que a ficha não edita (`salvarSobreOAtual`). */
+const CAMPOS_DO_MUNDO = ['combate', 'soCenario', 'nomeDoJogador', 'notaDoMestre'] as const
 
 /**
  * AJUSTE RÁPIDO DA FICHA — o − e o + do HP, o "-50" de dano, a Força que
@@ -51,6 +65,8 @@ export interface ValorComposto {
   modificador: number
   cartoes: ParcelaDoCartao[]
   total: number
+  /** MUNDO DO LIVRO: a força do NPC que multiplicou o total (só no HP). Ausente = 1. */
+  forca?: number
 }
 
 type CampoNumerico = 'recursos' | 'maximos' | 'modificadoresDosRecursos' | 'atributos' | 'modificadoresDosAtributos'
@@ -103,10 +119,17 @@ export function maximoBase(personagem: Personagem, recursoId: string): number {
   return personagem.maximos[recursoId] ?? numeroDaFicha(personagem.recursos, recursoId)
 }
 
-/** O máximo de verdade (base + modificador + cartões), nunca abaixo de 0. */
+/**
+ * O máximo de verdade (base + modificador + cartões), nunca abaixo de 0. No
+ * HP do NPC de combate, vezes a força (`forcaDe`): é a única porta da força no
+ * máximo. Ela entra só na LEITURA: o que se grava (`maximos`, o "máximo" da
+ * edição, `comMaximoGravado`) é sempre a `base`, nunca o total multiplicado.
+ */
 export function maximoComposto(personagem: Personagem, recursoId: string): ValorComposto {
   const valor = composto(maximoBase(personagem, recursoId), numeroDaFicha(personagem.modificadoresDosRecursos, recursoId), parcelasDosCartoes(personagem, recursoId))
-  return { ...valor, total: Math.max(0, valor.total) }
+  const forca = recursoId === RECURSO_QUE_A_FORCA_MULTIPLICA ? forcaDe(personagem) : FORCA_PADRAO
+  const total = Math.max(0, aplicarForca(valor.total, forca))
+  return forca === FORCA_PADRAO ? { ...valor, total } : { ...valor, total, forca }
 }
 
 /** O recurso tem atual e máximo neste sistema? Chave que o sistema não conhece: não. */
@@ -339,6 +362,8 @@ export function textoDaConta(valor: ValorComposto): string {
   const parcelas = [`${valor.base} base`]
   if (valor.modificador !== 0) parcelas.push(`${comSinal(valor.modificador)} mod`)
   for (const cartao of valor.cartoes) parcelas.push(`${comSinal(cartao.delta)} ${cartao.nome}`)
+  // A força do NPC (só o mestre vê NPC): "450 = (300 base) x1,5".
+  if (valor.forca !== undefined) return `${valor.total} = (${parcelas.join(' ')}) x${String(valor.forca).replace('.', ',')}`
   return `${valor.total} = ${parcelas.join(' ')}`
 }
 
@@ -392,6 +417,14 @@ export function salvarSobreOAtual(base: Personagem, rascunho: Personagem, atual:
   // CONTAS DOS JOGADORES: o dono muda na tela das contas, não na ficha — vale o de agora.
   if (atual.dono === undefined) delete salvo.dono
   else salvo.dono = atual.dono
+  // MUNDO DO LIVRO: força, cenário, nome de entrada e nota mudam no mundo, não na ficha — vale o de agora.
+  for (const campo of CAMPOS_DO_MUNDO) {
+    if (atual[campo] === undefined) delete salvo[campo]
+  }
+  if (atual.combate !== undefined) salvo.combate = atual.combate
+  if (atual.soCenario !== undefined) salvo.soCenario = atual.soCenario
+  if (atual.nomeDoJogador !== undefined) salvo.nomeDoJogador = atual.nomeDoJogador
+  if (atual.notaDoMestre !== undefined) salvo.notaDoMestre = atual.notaDoMestre
   for (const campo of CAMPOS_NUMERICOS) salvo[campo] = { ...atual[campo], ...chavesMudadas(base[campo], rascunho[campo]) }
   return salvo
 }

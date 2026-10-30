@@ -1,4 +1,6 @@
-import type { InvokeArgs } from '@tauri-apps/api/core'
+import { isTauri, type InvokeArgs } from '@tauri-apps/api/core'
+import { gravarJogadoresVistos, lerJogadoresVistos, registrarVistos, type JogadorVisto } from '../lib/livros/jogadoresVistos'
+import { findTokenSpawn, tokenRadiusFor } from '../lib/tokenPlacement'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { ToastAction, ToastResposta } from '../stores/toastStore'
 import { PILHA_DO_EDITOR, type ToastSink } from './avisosDaPonte'
@@ -79,6 +81,8 @@ import {
   type PointActionRequest,
   type ReclaimedSeat,
   type ContaEntrou,
+  type FichasPeloNome,
+  type PersonagemSemToken,
   type ReturnCandidate,
   type SeatClaim,
   type SecretCheckState,
@@ -814,6 +818,24 @@ export function accountJoinText(nome: string, tokenNames: readonly string[]): st
   return tokenNames.length === 0 ? `${nome} entrou com a conta.` : `${nome} entrou com a conta e recebeu ${tokenNames.join(', ')}.`
 }
 
+/** MUNDO DO LIVRO: "beto entrou com Bruno Ferrolho" — os tokens das fichas ligadas ao nome que ele digitou. */
+export function namedJoinText(nome: string, tokenNames: readonly string[]): string {
+  return `${nome} entrou com ${tokenNames.join(', ')}.`
+}
+
+/** MUNDO DO LIVRO: o nome repetido — "Outro beto já está com a ficha de Bruno Ferrolho". */
+export function namedTakenText(nome: string, tokenNames: readonly string[]): string {
+  return `Outro ${nome} já está com a ficha de ${tokenNames.join(', ')}.`
+}
+
+/** D2: "Bruno entrou sem token neste mapa" — nada é criado sozinho; o mestre põe com "Pôr token". */
+export function noTokenText(personagens: readonly PersonagemSemToken[]): string {
+  return `${personagens.map((personagem) => personagem.nome).join(', ')} entrou sem token neste mapa.`
+}
+
+/** Espera depois da última mudança na lista da sala antes de juntar os nomes vistos (e talvez gravar). */
+export const VISTOS_DEBOUNCE_MS = 2000
+
 /**
  * O mapa explorado muda a cada passo de cada jogador, e gravá-lo é codificar
  * todas as memórias da mesa: grava uma vez, este tempo depois da primeira
@@ -1367,6 +1389,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (key === lastPlayersKey) return
     lastPlayersKey = key
     deps.onPlayersChange?.(list)
+    registrarNomesVistos(list.map((player) => player.name))
     saveTableNow()
     // Ganhar ou perder assento muda quem vai no explorado gravado.
     scheduleExplorationSave()
@@ -2152,6 +2175,78 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const w = world()
     const names = entrou.tokenIds.map((tokenId) => [w.open, ...w.background].flatMap((scene) => scene.map.tokens).find((t) => t.id === tokenId)?.name ?? tokenId)
     toastSink.push('info', accountJoinText(entrou.nome, names), PLAYER_JOINED_TOAST_MS)
+  }
+
+  /** O nome de cada token, em qualquer cena; token que sumiu fica com o id. */
+  const tokenNamesOf = (tokenIds: readonly string[]): string[] => {
+    const w = world()
+    const tokens = [w.open, ...w.background].flatMap((scene) => scene.map.tokens)
+    return tokenIds.map((tokenId) => tokens.find((t) => t.id === tokenId)?.name ?? tokenId)
+  }
+
+  /** MUNDO DO LIVRO: "beto entrou com Bruno Ferrolho" — como a conta, pelo nome digitado. */
+  const announceNamedJoin = (entrou: FichasPeloNome) => {
+    toastSink.push('info', namedJoinText(entrou.nome, tokenNamesOf(entrou.tokenIds)), PLAYER_JOINED_TOAST_MS)
+  }
+
+  /**
+   * D2 — "Pôr token": um token para cada personagem que faltava, na cena
+   * ABERTA (perto do meio do mapa, fora das paredes), já ligado ao personagem
+   * e dado a quem entrou. O mestre arrasta para onde quiser; o "Desfazer" do
+   * mapa tira. Só quando o mestre clica: nada aparece sozinho numa sala
+   * escondida ou atrás da névoa.
+   */
+  const putTokens = (playerId: string, faltam: readonly PersonagemSemToken[]) => {
+    if (session === null || deps.restoreToken === undefined) return
+    const map = world().open.map
+    const radius = tokenRadiusFor(map.grid, 1)
+    const meio = { x: (map.width * map.grid) / 2, y: (map.height * map.grid) / 2 }
+    faltam.forEach((personagem, i) => {
+      // Um ao lado do outro, uma casa de distância, para não nascerem empilhados.
+      const preferido = { x: meio.x + i * map.grid, y: meio.y }
+      const lugar = findTokenSpawn(preferido, map.walls, { radius }) ?? preferido
+      const token: Token = { id: crypto.randomUUID(), characterId: personagem.personagemId, name: personagem.nome, x: lugar.x, y: lugar.y, size: 1, image: null }
+      deps.restoreToken?.(token)
+      if (session !== null) void dispatch(session.assignToken(playerId, token.id))
+    })
+    broadcastNow()
+    notifyPlayersIfChanged()
+  }
+
+  /** D2 e o nome repetido: o que a entrada pela conta ou pelo nome não conseguiu entregar. */
+  const announceUndelivered = (playerId: string, nome: string, semToken: readonly PersonagemSemToken[], jaComOutro: readonly string[]) => {
+    if (jaComOutro.length > 0) toastSink.push('info', namedTakenText(nome, tokenNamesOf(jaComOutro)), PLAYER_JOINED_TOAST_MS)
+    if (semToken.length === 0) return
+    const actions = deps.restoreToken === undefined ? [] : [{ label: 'Pôr token', run: () => putTokens(playerId, semToken) }]
+    toastSink.push('info', noTokenText(semToken), PLAYER_JOINED_TOAST_MS, { actions })
+  }
+
+  /**
+   * MUNDO DO LIVRO: os nomes que entraram na mesa vão para a lista do app
+   * (`<appData>/livros/jogadores-vistos.json`), para o seletor da página
+   * Jogadores. Junta as mudanças por `VISTOS_DEBOUNCE_MS`, fora do caminho da
+   * mensagem; só no app instalado (no teste e no navegador não há disco).
+   */
+  let vistos: readonly JogadorVisto[] | null = null
+  let vistosTimer: ReturnType<typeof setTimeout> | null = null
+  const registrarNomesVistos = (nomes: readonly string[]) => {
+    if (!isTauri() || nomes.length === 0) return
+    if (vistosTimer !== null) clearTimeout(vistosTimer)
+    vistosTimer = setTimeout(() => {
+      vistosTimer = null
+      void (async () => {
+        try {
+          if (vistos === null) vistos = (await lerJogadoresVistos()).vistos
+          const novos = registrarVistos(vistos, nomes, now())
+          if (novos === vistos) return
+          vistos = novos
+          await gravarJogadoresVistos(novos)
+        } catch (erro) {
+          // Lista de conveniência: a falha avisa e a sala segue.
+          toastSink.push('error', erro instanceof Error ? erro.message : String(erro))
+        }
+      })()
+    }, VISTOS_DEBOUNCE_MS)
   }
 
   /**
@@ -3458,7 +3553,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Voltou quem teve a ficha emprestada: quem a jogava precisa do mapa sem ela.
       // CONTAS: quem entrou com a conta ganhou ficha — os colegas veem o dono novo no mapa de agora.
       const accountTokens = result.contaEntrou !== undefined && result.contaEntrou.tokenIds.length > 0
-      if (restored || accountTokens || result.loansReturned !== undefined) broadcastNow()
+      // MUNDO DO LIVRO: idem para quem entrou pelo nome ligado a fichas.
+      const namedTokens = result.fichasPeloNome !== undefined && result.fichasPeloNome.tokenIds.length > 0
+      if (restored || accountTokens || namedTokens || result.loansReturned !== undefined) broadcastNow()
     }
     // A Ana voltou pelo resume: a pergunta "Ana voltou?" que outro aparelho provocou já não vale.
     pruneReturnToasts()
@@ -3594,10 +3691,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (session.isTable(clientId)) announceTable()
     else if (result.reclaimed !== undefined) announceReclaim(result.reclaimed)
     else if (result.contaEntrou !== undefined && result.contaEntrou.tokenIds.length > 0) announceAccountJoin(result.contaEntrou)
+    else if (result.fichasPeloNome !== undefined && result.fichasPeloNome.tokenIds.length > 0) announceNamedJoin(result.fichasPeloNome)
     // Troca de aba da mesma pessoa não é chegada; e quem provocou "Ana voltou?" já tem o aviso dele na Caixa.
     else if (result.replacedClientId === undefined && result.returnCandidate === undefined) {
       announceJoin(clientId, new Set(before.filter((p) => !p.connected).map((p) => p.playerId)))
     }
+    // MUNDO DO LIVRO: o que não deu para entregar (D2 sem token; ficha com outro do mesmo nome).
+    const { contaEntrou, fichasPeloNome } = result
+    if (contaEntrou?.semToken !== undefined) announceUndelivered(contaEntrou.playerId, contaEntrou.nome, contaEntrou.semToken, [])
+    if (fichasPeloNome !== undefined) announceUndelivered(fichasPeloNome.playerId, fichasPeloNome.nome, fichasPeloNome.semToken, fichasPeloNome.jaComOutro)
   }
 
   /**

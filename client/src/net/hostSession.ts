@@ -216,6 +216,7 @@ import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_
 import type { ChatHistory } from '../lib/chatStore'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
+import { personagensDoNome } from '../lib/livros/jogadores'
 import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
 import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
@@ -1354,6 +1355,14 @@ export interface ContaEntrou {
    * mapa" com "Pôr token". Ausente = nenhum.
    */
   semToken?: PersonagemSemToken[]
+}
+
+/** O que a entrada pela conta ou pelo nome entregou (`giveCharacterTokens`). */
+interface CharacterTokensGiven {
+  tokenIds: string[]
+  jaComOutro: string[]
+  semToken: PersonagemSemToken[]
+  outbound: Outbound[]
 }
 
 /** Um personagem ligado a quem entrou que não tem token em cena nenhuma deste mapa (D2). */
@@ -5552,10 +5561,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (returnOf !== undefined) pendingReturns.set(record.playerId, returnOf.playerId)
     // MINHAS NOTAS: quem entra (sem resume) com o nome de notas guardadas as recebe de volta.
     if (resumed === undefined && !nameOfAccount) claimMyNotes(record.playerId, msg.name)
+    // MUNDO DO LIVRO: as fichas ligadas ao nome digitado (D1: só sem conta). Antes do `welcome`, como a conta:
+    // quem ganha ficha já entra jogando. Quem reencontrou a mesa guardada já tem as fichas dela.
+    const named = resumed === undefined && !nameOfAccount && reclaimed === undefined ? giveNamedTokens(record.playerId, msg.name, world) : undefined
+    const fichasPeloNome: FichasPeloNome | undefined =
+      named === undefined || (named.tokenIds.length === 0 && named.jaComOutro.length === 0 && named.semToken.length === 0)
+        ? undefined
+        : { playerId: record.playerId, nome: msg.name, tokenIds: named.tokenIds, jaComOutro: named.jaComOutro, semToken: named.semToken }
 
     const entry = welcomeAndEntry(clientId, record, world)
     return {
-      outbound: [...entry, ...replacedOut, ...loanBack.outbound],
+      outbound: [...entry, ...replacedOut, ...loanBack.outbound, ...(named?.outbound ?? [])],
+      ...(fichasPeloNome === undefined ? {} : { fichasPeloNome }),
       // ENCONTRO MARCADO: a espera acabou no recorte da volta (o prazo passou enquanto ele estava fora): a marca sai dos colegas também.
       ...(waitsEndedInViews ? { waitsChanged: true as const } : {}),
       ...loansReturnedField(loanBack.returned),
@@ -5615,17 +5632,44 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * qualquer cena — só as que ninguém segura (dono, empréstimo ou ajudante de
    * outro jogador). Quem pedia uma delas ao mestre lê que ela não está mais livre.
    */
-  const giveAccountTokens = (playerId: string, contaId: string, world: HostWorld): { tokenIds: string[]; outbound: Outbound[] } => {
-    const daConta = new Set((world.rpg?.personagens ?? []).filter((personagem) => personagem.dono === contaId).map((personagem) => personagem.id))
-    if (daConta.size === 0) return { tokenIds: [], outbound: [] }
+  const giveAccountTokens = (playerId: string, contaId: string, world: HostWorld): CharacterTokensGiven => {
+    const daConta = (world.rpg?.personagens ?? []).filter((personagem) => personagem.dono === contaId)
+    return giveCharacterTokens(playerId, daConta, world)
+  }
+
+  /**
+   * MUNDO DO LIVRO (M1): quem entra SEM conta com um nome ligado a fichas
+   * (`personagensDoNome`: ligadas pelo nome e sem conta, D1) recebe os tokens
+   * delas, como a conta. Nome é fraco por natureza (qualquer um digita
+   * "beto"): por isso só vale quando a sala não exige conta, e o mestre vê o
+   * aviso de quem recebeu e do que ficou com outro.
+   */
+  const giveNamedTokens = (playerId: string, typedName: string, world: HostWorld): CharacterTokensGiven => {
+    const doNome = personagensDoNome(world.rpg?.personagens ?? [], typedName)
+    return giveCharacterTokens(playerId, doNome, world)
+  }
+
+  /**
+   * As fichas (tokens) desses personagens, em qualquer cena — só as que
+   * ninguém segura (dono, empréstimo ou ajudante de outro jogador); as que
+   * outro segura voltam em `jaComOutro`, e o personagem sem token em cena
+   * nenhuma, em `semToken` (D2: nada é criado sozinho). Quem pedia uma delas
+   * ao mestre lê que ela não está mais livre.
+   */
+  const giveCharacterTokens = (playerId: string, personagens: readonly Personagem[], world: HostWorld): CharacterTokensGiven => {
+    if (personagens.length === 0) return { tokenIds: [], jaComOutro: [], semToken: [], outbound: [] }
+    const ids = new Set(personagens.map((personagem) => personagem.id))
     const taken = tokensOwnedByOthers(playerId)
     for (const [tokenId, loan] of helperLoans) if (loan.playerId !== playerId) taken.add(tokenId)
     const mine = ownership[playerId] ?? []
-    const tokenIds = allScenes(world)
+    const dosPersonagens = allScenes(world)
       .flatMap((scene) => scene.map.tokens)
-      .filter((token) => token.characterId !== null && daConta.has(token.characterId) && !taken.has(token.id) && !mine.includes(token.id))
-      .map((token) => token.id)
-    if (tokenIds.length === 0) return { tokenIds, outbound: [] }
+      .filter((token) => token.characterId !== null && ids.has(token.characterId))
+    const comToken = new Set(dosPersonagens.map((token) => token.characterId))
+    const semToken = personagens.filter((personagem) => !comToken.has(personagem.id)).map((personagem) => ({ personagemId: personagem.id, nome: personagem.nome }))
+    const jaComOutro = dosPersonagens.filter((token) => taken.has(token.id)).map((token) => token.id)
+    const tokenIds = dosPersonagens.filter((token) => !taken.has(token.id) && !mine.includes(token.id)).map((token) => token.id)
+    if (tokenIds.length === 0) return { tokenIds, jaComOutro, semToken, outbound: [] }
     // Troca de posse: nenhuma tela sai do cache (`SentView.ownershipRev`).
     ownershipRev += 1
     ownership[playerId] = [...mine, ...tokenIds]
@@ -5636,7 +5680,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const claimantClient = claimant === playerId ? null : (players.get(claimant)?.clientId ?? null) // null = ele mesmo, ou caiu
       if (claimantClient !== null) outbound.push({ clientId: claimantClient, msg: { type: 'seat.claim.state', state: 'unavailable' } })
     }
-    return { tokenIds, outbound }
+    return { tokenIds, jaComOutro, semToken, outbound }
   }
 
   function handleAccountJoin(clientId: string, entrada: EntradaComConta, world: HostWorld): HostResult {
@@ -5668,7 +5712,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       ...loansReturnedField(loanBack.returned),
       ...(replaced === null ? {} : { replacedClientId: replaced }),
       ...(reclaimed === undefined ? {} : { reclaimed }),
-      contaEntrou: { playerId: record.playerId, nome: conta.nome, tokenIds: given.tokenIds },
+      contaEntrou: { playerId: record.playerId, nome: conta.nome, tokenIds: given.tokenIds, ...(given.semToken.length === 0 ? {} : { semToken: given.semToken }) },
     }
   }
 

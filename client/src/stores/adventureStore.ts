@@ -41,6 +41,7 @@ import {
   type SceneEntry,
 } from '../lib/adventure'
 import type { AgendaDaCampanha } from '../lib/agendaDaCampanha'
+import { sincronizarVariacoes } from '../lib/livros/combate'
 import type { Personagem } from '../lib/personagem'
 import { gravarRpgDaPasta, rpgDe, type PastaAberta, type RpgDaPasta } from '../lib/pastasDeMapas'
 import type { Equipe } from '../lib/batalha/equipes'
@@ -970,10 +971,11 @@ function donoDosPersonagens(
 ): { lista: readonly Personagem[] | undefined; gravar: (personagens: Personagem[]) => void } | null {
   const state = get()
   const pasta = pastaQueManda(state)
-  if (pasta !== null) return { lista: pasta.personagens, gravar: (personagens) => set({ pasta: { ...pasta, personagens }, pastaSuja: true }) }
+  // MUNDO DO LIVRO: toda gravação passa pelas variações — editar o modelo pela ficha do mapa atualiza as variações junto.
+  if (pasta !== null) return { lista: pasta.personagens, gravar: (personagens) => set({ pasta: { ...pasta, personagens: sincronizarVariacoes(personagens) }, pastaSuja: true }) }
   const { adventure } = state
   if (adventure === null) return null
-  return { lista: adventure.personagens, gravar: (personagens) => set({ adventure: { ...adventure, personagens }, structureDirty: true }) }
+  return { lista: adventure.personagens, gravar: (personagens) => set({ adventure: { ...adventure, personagens: sincronizarVariacoes(personagens) }, structureDirty: true }) }
 }
 
 /** Referência estável para "sem equipes": o host compara por referência. */

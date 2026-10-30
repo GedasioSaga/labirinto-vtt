@@ -169,6 +169,12 @@ export interface MarcaDeCombate {
   forca: number
   /** Id do personagem-modelo: presente = é variação dele. */
   modeloId?: string
+  /**
+   * Nasceu na caixa "Quem entra na batalha?" (decisão D3): fica no bestiário
+   * depois da luta, com o selo "criado na batalha" (apagar é 1 clique). O
+   * registro da batalha e o Desfazer apontam para ela.
+   */
+  criadoNaBatalha?: true
 }
 
 export const FORCA_MIN = 0.5
@@ -448,6 +454,7 @@ function marcaDeCombateDoArquivo(value: unknown): MarcaDeCombate | undefined {
   if (!isRecord(value)) return undefined
   const marca: MarcaDeCombate = { forca: numeroFinito(value.forca) ? forcaNoPasso(value.forca) : FORCA_PADRAO }
   if (typeof value.modeloId === 'string' && value.modeloId.length > 0 && value.modeloId.length <= MODELO_ID_MAX) marca.modeloId = value.modeloId
+  if (value.criadoNaBatalha === true) marca.criadoNaBatalha = true
   return marca
 }
 

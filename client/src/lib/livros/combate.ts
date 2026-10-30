@@ -78,6 +78,8 @@ export function trocarForca(personagem: Personagem, nova: number): Personagem {
   const copia: Personagem = { ...personagem, combate: { ...personagem.combate, forca } }
   const atual = personagem.recursos[RECURSO_QUE_A_FORCA_MULTIPLICA]
   if (atual !== undefined && forca !== antiga) {
+    // Ficha de um número só (sem máximo gravado): o máximo base É o atual. Grava antes, senão reescalar o atual arrastaria a base junto.
+    if (personagem.maximos[RECURSO_QUE_A_FORCA_MULTIPLICA] === undefined) copia.maximos = { ...personagem.maximos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: atual }
     copia.recursos = { ...personagem.recursos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: Math.round((atual * forca) / antiga) }
   }
   return copia
@@ -86,7 +88,14 @@ export function trocarForca(personagem: Personagem, nova: number): Personagem {
 /** "Soltar do modelo": a variação vira NPC único, com a ficha que tem agora. */
 export function soltarDoModelo(personagem: Personagem): Personagem {
   if (personagem.combate?.modeloId === undefined) return personagem
-  return { ...personagem, combate: { forca: personagem.combate.forca } }
+  const { modeloId: _modeloId, ...marca } = personagem.combate // só a ligação ao modelo sai; força e selo ficam
+  return { ...personagem, combate: marca }
+}
+
+/** O selo "criado na batalha" (decisão D3): a ficha fica no bestiário depois da luta. */
+export function criadaNaBatalha(personagem: Personagem): Personagem {
+  if (personagem.combate?.criadoNaBatalha === true) return personagem
+  return { ...personagem, combate: { forca: FORCA_PADRAO, ...personagem.combate, criadoNaBatalha: true } }
 }
 
 /** O mesmo valor de dado (JSON do disco): a cópia lida de novo não conta como mudança. */
@@ -244,6 +253,24 @@ export function quemPodeEntrar(tokens: readonly TokenDaCaixa[], personagens: rea
       if (personagem === undefined) return { tokenId: token.id, nome: token.name, personagemId: null, situacao: 'semFicha' }
       return { tokenId: token.id, nome: token.name, personagemId: personagem.id, situacao: entraNaBatalha(personagem) ? 'combate' : 'soCenario' }
     })
+}
+
+/**
+ * A ficha NOVA que a escolha da caixa cria para o token, já com o selo
+ * "criado na batalha" (D3) e o nome do token: a mínima, ou uma variação do
+ * modelo. `null` = não cria nada (`propria`, ou o modelo sumiu da lista): o
+ * token entra com a ficha que tem, ou fica de fora se não tem nenhuma.
+ */
+export function fichaDaEscolha(como: ComoEntra, sistema: SistemaDeRpg, nomeDoToken: string, personagens: readonly Personagem[]): Personagem | null {
+  if (como.tipo === 'propria') return null
+  if (como.tipo === 'minima') return criadaNaBatalha(fichaMinima(sistema, nomeDoToken))
+  const modelo = personagens.find((personagem) => personagem.id === como.modeloId)
+  return modelo === undefined ? null : criadaNaBatalha(novaVariacao(modelo, nomeDoToken))
+}
+
+/** Os NPCs que servem de modelo na caixa e no "Novo NPC": de combate (não "Só no cenário") e que não são variação. */
+export function modelosDeNpc(personagens: readonly Personagem[]): Personagem[] {
+  return personagens.filter((personagem) => personagem.tipo === 'npc' && personagem.soCenario !== true && !ehVariacao(personagem))
 }
 
 /** A caixa só abre quando há token sem ficha de combate; sem nenhum, o Iniciar segue direto como antes. */

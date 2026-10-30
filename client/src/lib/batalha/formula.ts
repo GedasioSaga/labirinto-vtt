@@ -1,5 +1,5 @@
 import { atributoComposto } from '../ajusteDaFicha'
-import type { CartaoDaFicha, Personagem } from '../personagem'
+import { FORCA_PADRAO, aplicarForca, forcaDe, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 
 /**
@@ -300,7 +300,24 @@ function lerPorcentagem(normal: string, ctx: ContextoDaFormula): LeituraDoDano |
   return { tipo: 'valor', valor, conta: `${formatarNumero(porcento)}% de ${vida} = ${valor}` }
 }
 
+/**
+ * MUNDO DO LIVRO (M1): a força do NPC de combate multiplica o dano que a
+ * fórmula deu, com a conta à vista ("188 x1,5 = 282"). Só o mestre vê a
+ * conta de NPC: NPC não vai ao jogador, e o fio tira a força (`paraOFio`).
+ * Jogador e NPC sem marca têm força 1: a leitura sai como entrou.
+ */
+function comForca(leitura: LeituraDoDano, personagem: Personagem): LeituraDoDano {
+  const forca = forcaDe(personagem)
+  if (leitura.tipo !== 'valor' || forca === FORCA_PADRAO) return leitura
+  const valor = aplicarForca(leitura.valor, forca)
+  return { tipo: 'valor', valor, conta: `${leitura.conta} x${formatarNumero(forca)} = ${valor}` }
+}
+
 export function lerDano(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
+  return comForca(lerDanoSemForca(texto, ctx), ctx.personagem)
+}
+
+function lerDanoSemForca(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
   const normal = normalizar(texto)
   if (normal === '-') return { tipo: 'semDano' }
   if (normal.length === 0 || normal.length > FORMULA_MAX) return { tipo: 'naoEntende', texto }
