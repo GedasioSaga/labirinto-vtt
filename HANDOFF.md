@@ -563,6 +563,8 @@ Três frentes do usuário: (1) a 0.5.11 com a aba Sons nova e os consertos da te
 
 7. FEITO 29/10 ~23h15: **v0.5.14 PUBLICADA** da main `ee37afb5` (latest.json 0.5.14). Nada em voo. Pendências para oferecer: cadeira "mesma madeira" (campo novo no mapa); a escolha Pedra/Linha da ferramenta só dura a sessão; a animação de abrir porta ainda é o retângulo do Atual; a imagem exportada do mapa sai com a parede do Atual no continente. Antes era: 0.5.14 PRONTA, aguardando o usuário mandar publicar: portas (`16adaa93`, `3515716d`), continente (`feb01355`, `8aea9b92`, `8a23f0d7`), Pedra/Linha no painel (`9521baed`) e na ferramenta (`33b2630f`). tsc da main exit 0. Notas em scratchpad/notas-0.5.14.md. Passos: bump 0.5.13 para 0.5.14 nos 5 arquivos, commit, gitleaks, push, publicar-versao, latest.json.
 
+8. 29/10 noite: tela da noite com retângulo escuro CONSERTADA (`203e1cfd`, sem versão; perguntar se sai a 0.5.15). NOVO PEDIDO: protótipo de batalha estilo Persona com as regras do livro One Piece (designer-opus xhigh, docs/design/batalha-persona/; referências em scratchpad/batalha-persona/, fora do repo). Depois do protótipo: mostrar, perguntas, plan mode/grilling antes de virar código.
+
 ### Critério de pronto
 - 0.5.11: `releases/latest/download/latest.json` responde 0.5.11 e a release tem setup, msi, `.sig` e `latest.json`.
 - Músicas: a aventura escolhida abre com 52 sons novos em Músicas, nas 4 categorias, com miniaturas, e o `sons.json` antigo guardado como backup ao lado.
