@@ -69,6 +69,9 @@ import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
 import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
+import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
+import { tremer } from '../components/batalha/EfeitosDaBatalha'
+import type { ConsultaDaFichaNaTela } from './PlayerView'
 import { vezTokenIdDoJogador } from '../components/batalha/dadosDaFaixa'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
@@ -789,6 +792,18 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [measuredRoute, setMeasuredRoute] = useState<RegionPoint[] | null>(null)
   /** Laser do jogador ligado. O rastro em si é do PlayerView (local ao gesto) e do socket. */
   const [laserArmed, setLaserArmed] = useState(false)
+  /**
+   * BATALHA F2 (S4): a consulta da posição da ficha na tela, que o mapa
+   * entrega. Num ref: é uma função, e no estado viraria atualizador.
+   */
+  const consultaDaFicha = useRef<ConsultaDaFichaNaTela | null>(null)
+  const consultaEstavel = useCallback((tokenId: string) => consultaDaFicha.current?.(tokenId) ?? null, [])
+  /** BATALHA F2 (S4): a mira do menu da vez aberta: tocar numa ficha a escolhe como alvo. */
+  const [mirandoNaBatalha, setMirandoNaBatalha] = useState(false)
+  const [alvoDoMapa, setAlvoDoMapa] = useState<{ tokenId: string; seq: number } | null>(null)
+  const escolherNoMapa = useCallback((tokenId: string) => setAlvoDoMapa((antes) => ({ tokenId, seq: (antes?.seq ?? 0) + 1 })), [])
+  /** BATALHA F2 (S8): o invólucro do mapa, que treme 220 ms no golpe que acerta. */
+  const mapaQueTreme = useRef<HTMLDivElement>(null)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
   /** ITEM NO MAPA: a imagem de item no chão aberta no cartão do item; `null` = nenhuma. */
@@ -1388,6 +1403,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const otherFloor = floorTab === null ? null : floorShown(state.andares, floorTab)
     return (
       <PlayerErrorBoundary onReconnect={() => connection.reconnect()}>
+        {/* BATALHA F2 (S8): o invólucro que treme. Absoluto e sem z-index: não muda a pilha nem o bloco das peças fixas do mapa. */}
+        <div ref={mapaQueTreme} className="pp-mapa-tremor">
         {otherFloor !== null ? (
           <PlayerView
             map={otherFloor.map}
@@ -1497,6 +1514,36 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             zoomStep={zoomStep}
             onZoomLimitsChange={setZoomLimits}
             onAcaoNoOlhar={onAcaoNoOlhar}
+            // BATALHA F2 (S4): a posição das fichas para os efeitos e a mira; com a mira aberta, tocar na ficha a escolhe.
+            onFichaNaTela={(consulta) => {
+              consultaDaFicha.current = consulta
+            }}
+            aoEscolherFicha={mirandoNaBatalha && state.batalhaEstado !== undefined ? escolherNoMapa : undefined}
+          />
+        )}
+        </div>
+        {/*
+          BATALHA F2 (S3): efeitos sobre o mapa (com o tremor do invólucro),
+          o menu da vez, o botão e a caixa REAÇÃO e a escolha de armas. Só
+          com a batalha ligada na cena dele.
+        */}
+        {state.batalhaEstado !== undefined && otherFloor === null && (
+          <BatalhaDoJogador
+            estado={state.batalhaEstado}
+            efeitos={state.batalhaEfeitos}
+            meus={state.personagens?.personagens}
+            fichas={state.map.tokens}
+            sistema={state.sistemaDeRpg ?? null}
+            conexao={{
+              agir: (vez, pedido) => connection.agirNaBatalha(vez, pedido),
+              reagir: (pedido) => connection.reagirNaBatalha(pedido),
+              escolherArmas: (personagemId, armas) => connection.escolherArmasNaBatalha(personagemId, armas),
+              passarVez: (cartaId, rodada) => connection.passarVezNaBatalha(cartaId, rodada),
+            }}
+            consulta={consultaEstavel}
+            alvoDoMapa={alvoDoMapa}
+            onMirando={setMirandoNaBatalha}
+            onTremor={() => tremer(mapaQueTreme.current)}
           />
         )}
         <PlayerPanel
@@ -1639,6 +1686,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onPassarVez={(cartaId, rodada) => connection.passarVezNaBatalha(cartaId, rodada)}
             onDesfazer={(linhaId) => connection.desfazerNaBatalha(linhaId)}
             onAbrirMinhaFicha={servePersonagens ? () => setFicha({ instant: false }) : undefined}
+            onMeDarDano={(tokenId, valor) => connection.darDanoEmMim(tokenId, valor)}
           />
         )}
         {/*

@@ -739,6 +739,59 @@
 }
 
 /*
+ * BATALHA F2: o invólucro do mapa que treme (S8). Absoluto e sem z-index:
+ * não cria pilha nova nem muda o bloco das peças fixas do PlayerView; só no
+ * tremor (220 ms, transform) as fixas de dentro andam junto com ele.
+ */
+.pp-mapa-tremor {
+  position: absolute;
+  inset: 0;
+}
+
+/* Os efeitos (faixa SUA VEZ, corte, d20, número) cobrem a janela sem pegar o toque. */
+.bt-efeitos.pp-batalha-efeitos {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+}
+
+/*
+ * O menu da vez (o `.menu--principal` do protótipo): canto de baixo à
+ * esquerda, acima do mapa e abaixo do painel aberto. A caixa REAÇÃO no meio
+ * de baixo, com o botão REAÇÃO logo abaixo dela; o zoom fica no canto direito.
+ */
+.pp-batalha-menu {
+  position: fixed;
+  left: calc(var(--pp-edge, 12px) + 12px);
+  bottom: calc(var(--pp-chao, 12px) + 12px);
+  z-index: 9;
+  max-width: calc(100% - 2 * var(--pp-edge, 12px) - 24px);
+}
+.pp-batalha-reacao-botao {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--pp-chao, 12px) + 8px);
+  translate: -50% 0;
+  z-index: 9;
+}
+.pp-batalha-reacao {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--pp-chao, 12px) + 68px);
+  translate: -50% 0;
+  z-index: 11;
+  max-height: calc(100% - 140px);
+  overflow-y: auto;
+}
+
+@media (max-width: 999px) {
+  .pp-batalha-menu {
+    left: var(--pp-edge, 12px);
+    bottom: calc(var(--pp-chao, 12px) + 64px);
+  }
+}
+
+/*
  * SELO DE ESTADO: "Tela acesa" e a hora do dia, os dois só informam. No
  * notebook, no fim da coluna do canto, alinhados à direita como o resto dela.
  * Em tela de gaveta (celular), presos ao canto de baixo à esquerda: a coluna

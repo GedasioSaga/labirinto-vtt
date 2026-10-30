@@ -157,6 +157,9 @@ import { ComSaida } from './components/grimorio/ComSaida'
 import { SceneOverviewDialog } from './components/SceneOverview'
 import { ChipDaCena } from './components/livro/ChipDaCena'
 import { FaixaDoMestre } from './components/batalha/FaixaDoMestre'
+import { EfeitosDoMestre } from './components/batalha/BatalhaDoMestre'
+import { tremer } from './components/batalha/EfeitosDaBatalha'
+import { escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -1395,6 +1398,8 @@ function App() {
   // BATALHA F1 (S4): a ficha da vez ganha o anel com o pulso de chegada no mapa do mestre.
   const vezTokenId = useBatalhaStore((state) => vezTokenIdDaCena(state, chaveDaCenaAberta))
   const esperandoNaBatalha = useBatalhaStore((state) => esperandoOMestre(state, chaveDaCenaAberta))
+  /** BATALHA F2 (S4): "Escolher no mapa" ligado no painel da vez do NPC. */
+  const miraDoMestreLigada = useMiraDoMestre((state) => state.mirando)
   useEffect(() => {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
@@ -3190,7 +3195,12 @@ function App() {
           }}
           fantasmaDeTeste={fantasmaDaVisao}
           fichaDoFantasma={fichaDoFantasma}
+          // BATALHA F2 (S4): a posição das fichas para os efeitos e a mira; "Escolher no mapa" ligado na aba Batalha = o clique mira.
+          onFichaNaTela={guardarConsultaDoMestre}
+          aoEscolherFicha={miraDoMestreLigada && batalhaNaCenaAberta ? escolherFichaDoMestre : undefined}
         />
+        {/* BATALHA F2 (S5, S8): corte do golpe, d20, número do dano; o tremor mexe no invólucro do canvas. */}
+        {batalhaNaCenaAberta && <EfeitosDoMestre sceneKey={chaveDaCenaAberta} onTremor={() => tremer(canvasHostRef.current)} />}
         {/* Fechado, o menu ainda sai em 120 ms com os rótulos de quando fechou (`ComSaida`). */}
         <ComSaida>
         {tokenMenu !== null && tokenDoMenu !== undefined && jogadoresDoMenu.length > 0 && (
