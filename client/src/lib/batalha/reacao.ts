@@ -1,7 +1,9 @@
 import type { Ajuste } from '../ajusteDaFicha'
-import type { Personagem } from '../personagem'
+import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import { recursoDeVida } from '../vidaDaFicha'
 import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLICADOR_DO_CRITICO, type SaidaDaReacao } from './combate'
+import { recursoDoEscudo } from './leituraDaFicha'
 
 /**
  * REAÇÃO E DANO FINAL, F2 (seção 3.4 de docs/planos/batalha-one-piece-f2-plano.md
@@ -11,9 +13,6 @@ import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLIC
  * Q3: o 1 NATURAL é crítico (×1,5) com qualquer modificador; 10, 15 e 20
  * contam pelo TOTAL (d20 + modificador). Q6: o contra-ataque (20) zera o dano
  * daquele golpe para quem o tirou.
- *
- * FASE 0 (contrato): `ajustesDoDano` tem corpo provisório (nenhum ajuste); a
- * fase 1 põe o Escudo primeiro (Q4) sem mudar a assinatura.
  *
  * Puro: sem store, sem rede.
  */
@@ -63,8 +62,24 @@ export function danoFinal(chega: number, saida: SaidaDaReacao): number {
 
 /**
  * Os ajustes que põem `dano` na ficha. Q4: gasta o Escudo primeiro e o resto
- * vai ao HP; `perfurante` vai direto ao HP. Fase 0: nenhum ajuste.
+ * vai ao HP; `perfurante` vai direto ao HP. Ex.: Escudo 50, HP 450, dano 130
+ * = Escudo 0, HP 370. O HP para no 0 (`aplicarAjuste` limita). Dano 0 ou
+ * sistema sem vida: nenhum ajuste.
  */
-export function ajustesDoDano(_personagem: Personagem, _sistema: SistemaDeRpg, _dano: number, _perfurante: boolean): Ajuste[] {
-  return []
+export function ajustesDoDano(personagem: Personagem, sistema: SistemaDeRpg, dano: number, perfurante: boolean): Ajuste[] {
+  if (!(dano > 0)) return []
+  const ajustes: Ajuste[] = []
+  let resto = Math.floor(dano)
+  const escudo = perfurante ? null : recursoDoEscudo(sistema)
+  if (escudo !== null) {
+    const temEscudo = numeroDaFicha(personagem.recursos, escudo.id)
+    const gasto = Math.min(Math.max(0, temEscudo), resto)
+    if (gasto > 0) {
+      ajustes.push({ parte: 'recurso', chave: escudo.id, valor: temEscudo - gasto })
+      resto -= gasto
+    }
+  }
+  const vida = recursoDeVida(sistema)
+  if (resto > 0 && vida !== null) ajustes.push({ parte: 'recurso', chave: vida.id, valor: Math.max(0, numeroDaFicha(personagem.recursos, vida.id) - resto) })
+  return ajustes
 }

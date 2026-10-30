@@ -1,9 +1,22 @@
 import { valorDoRank } from '../ajusteDaFicha'
-import type { CartaoDaFicha, Personagem } from '../personagem'
+import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
 import { CARGA_MAX, type AcaoDaTecnica, type CombateDoPersonagem } from './combate'
-import type { LeituraDoDano } from './formula'
-import type { LeituraDoCusto, LeituraDoTempo } from './leituraDaFicha'
+import { CAMPO_DO_DANO, lerDano, type LeituraDoDano } from './formula'
+import {
+  CAMPO_DA_ACAO,
+  CAMPO_DO_CUSTO,
+  CAMPO_DO_TEMPO,
+  ehOverload,
+  ehPerfurante,
+  lerAcao,
+  lerCusto,
+  lerTempo,
+  recursoDoCusto,
+  tecnicasComForma,
+  type LeituraDoCusto,
+  type LeituraDoTempo,
+} from './leituraDaFicha'
 import type { AcoesExtras, GastoDaVez } from './turnos'
 
 /**
@@ -14,9 +27,6 @@ import type { AcoesExtras, GastoDaVez } from './turnos'
  * Simples = 1 + extras; Movimento = 1 + extras; Bônus = só as extras (decisão
  * 8). Completa gasta 1 Simples + 1 Movimento. Limite de blocos = rank da
  * Agilidade × blocos por rank × Movimentos que sobraram (conta, não trava).
- *
- * FASE 0 (contrato): `tecnicasNoMenu` tem corpo provisório (lista vazia); a
- * fase 1 o troca sem mudar a assinatura. O resto já vale.
  *
  * Puro: sem store, sem rede.
  */
@@ -105,15 +115,108 @@ export interface TecnicaNoMenu {
   motivo: string | null
 }
 
-/** As técnicas do menu com o motivo de cada apagada. Fase 0: nenhuma. */
+/** "1 turno", "2 turnos". */
+function turnos(n: number): string {
+  return n === 1 ? '1 turno' : `${n} turnos`
+}
+
+/** Por que a ação não cabe na vez, ou `null`. */
+export function motivoDaAcao(acoes: AcoesDaVez, acao: AcaoDaTecnica): string | null {
+  if (cabeAcao(acoes, acao)) return null
+  switch (acao) {
+    case 'simples':
+      return 'A ação simples deste turno já foi usada'
+    case 'completa':
+      return 'Completa precisa da Simples e do Movimento'
+    case 'bonus':
+      return acoes.bonus.total === 0 ? 'Ação bônus: só quando o mestre dá' : 'A ação bônus deste turno já foi usada'
+    case 'livre':
+      return null
+  }
+}
+
+/**
+ * A ação que o golpe gasta de fato: com carga 3 a técnica vira Completa
+ * (livro, "Atenção 3"); a Livre continua livre. `null` = a ficha não diz (a
+ * tela pergunta).
+ */
+export function acaoDoGolpe(acao: AcaoDaTecnica | null, carga: number): AcaoDaTecnica | null {
+  if (acao === null || acao === 'livre') return acao
+  return carga >= CARGA_MAX ? 'completa' : acao
+}
+
+/**
+ * Por que a técnica está apagada, ou `null` (pode). `acoes` null = fora da
+ * vez (contra-ataque, Q6): a ação da vez não conta. Na ordem do menu:
+ * passiva, transformação (F3), Overload, recarga, usos, ação, custo.
+ */
+export function motivoDaTecnica(
+  tecnica: Pick<TecnicaNoMenu, 'cartao' | 'custo' | 'acao' | 'tempo' | 'overload'> & { transformacao: boolean },
+  personagem: Personagem,
+  sistema: SistemaDeRpg,
+  combate: CombateDoPersonagem | undefined,
+  acoes: AcoesDaVez | null,
+): string | null {
+  const { cartao } = tecnica
+  if (tecnica.acao === 'passiva') return 'Passiva: vale sempre'
+  if (tecnica.transformacao) return 'Transformação: ligue pela ficha'
+  if (tecnica.overload && combate?.overload === true) return 'Overload: já usado nesta batalha'
+  const recarga = combate?.recargas[cartao.id] ?? 0
+  if (recarga > 0) return `Recarga: ${turnos(recarga)}`
+  if (tecnica.tempo.tipo === 'usos') {
+    const usadas = combate?.usos[cartao.id] ?? 0
+    if (usadas >= tecnica.tempo.vezes) return `Já usada nesta batalha (${usadas}/${tecnica.tempo.vezes})`
+  }
+  if (acoes !== null) {
+    const acao = acaoDoGolpe(tecnica.acao, combate?.carga ?? 0)
+    const motivo = acao === null ? null : motivoDaAcao(acoes, acao)
+    if (motivo !== null) return motivo
+  }
+  if (tecnica.custo.tipo === 'valor') {
+    const recurso = recursoDoCusto(sistema, tecnica.custo.recurso)
+    if (recurso !== null) {
+      const tem = numeroDaFicha(personagem.recursos, recurso.id)
+      if (tem < tecnica.custo.valor) return `${recurso.nome} insuficiente: custa ${tecnica.custo.valor}, você tem ${tem}`
+    }
+  }
+  return null
+}
+
+/**
+ * As técnicas do menu com o motivo de cada apagada. `acoes` null = fora da
+ * vez (o contra-ataque). O dano é lido sem a vida do alvo (o menu não sabe o
+ * alvo ainda; a mira relê com ele).
+ */
 export function tecnicasNoMenu(
-  _personagem: Personagem,
-  _sistema: SistemaDeRpg,
-  _combate: CombateDoPersonagem | undefined,
-  _acoes: AcoesDaVez | null,
-  _arma: CartaoDaFicha | null,
+  personagem: Personagem,
+  sistema: SistemaDeRpg,
+  combate: CombateDoPersonagem | undefined,
+  acoes: AcoesDaVez | null,
+  arma: CartaoDaFicha | null,
 ): TecnicaNoMenu[] {
-  return []
+  return tecnicasComForma(personagem, sistema).map(({ cartao, forma }) => {
+    const leituraDaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
+    const base = {
+      cartao,
+      custo: lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem),
+      acao: leituraDaAcao.acao,
+      tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
+      overload: ehOverload(cartao),
+      transformacao: leituraDaAcao.transformacao,
+    }
+    const tecnica: TecnicaNoMenu = {
+      cartao,
+      custo: base.custo,
+      acao: base.acao,
+      tempo: base.tempo,
+      dano: lerDano(cartao.campos[CAMPO_DO_DANO] ?? '', { personagem, sistema, arma, vidaDoAlvo: null }),
+      overload: base.overload,
+      perfurante: ehPerfurante(cartao),
+      motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes),
+    }
+    if (forma !== undefined) tecnica.forma = forma
+    return tecnica
+  })
 }
 
 /**
@@ -126,4 +229,9 @@ export function motivoDoConcentrar(combate: CombateDoPersonagem | undefined, aco
   if ((combate?.carga ?? 0) >= CARGA_MAX) return 'Carga no máximo'
   if (!sobra(acoes.simples) && !sobra(acoes.bonus)) return 'A ação simples deste turno já foi usada'
   return null
+}
+
+/** O que o Concentrar gasta: a Simples, ou a Bônus se só sobrou ela (livro). */
+export function acaoDoConcentrar(acoes: AcoesDaVez): 'simples' | 'bonus' {
+  return sobra(acoes.simples) ? 'simples' : 'bonus'
 }

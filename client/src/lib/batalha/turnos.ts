@@ -345,7 +345,7 @@ export interface VezPassada {
 export function passarVez(turnos: TurnosDaCena, caidos: ReadonlySet<string>): VezPassada | null {
   const atual = turnos.vez === null ? -1 : turnos.cartas.findIndex((carta) => carta.id === turnos.vez)
   const seguinte = primeiraQueJoga(turnos.cartas, atual + 1, caidos)
-  if (seguinte !== null) return { turnos: { ...turnos, vez: seguinte.id, gastos: SEM_GASTOS }, removidas: [] }
+  if (seguinte !== null) return { turnos: aoComecarAVez({ ...turnos, vez: seguinte.id, gastos: SEM_GASTOS }, turnos.vez, seguinte, false), removidas: [] }
   const removidas: CartaNoLugar[] = []
   const ficam: CartaDaOrdem[] = []
   turnos.cartas.forEach((carta, indice) => {
@@ -355,16 +355,44 @@ export function passarVez(turnos: TurnosDaCena, caidos: ReadonlySet<string>): Ve
   const primeira = primeiraQueJoga(ficam, 0, caidos)
   if (primeira === null) return null
   const fora = new Set(removidas.map(({ carta }) => carta.id))
-  return {
-    turnos: { ...turnos, cartas: ficam, vez: primeira.id, rodada: turnos.rodada + 1, gastos: SEM_GASTOS, extras: semChaves(turnos.extras, fora), d20: semChaves(turnos.d20, fora), empates: semChaves(turnos.empates, fora) },
-    removidas,
-  }
+  const virada: TurnosDaCena = { ...turnos, cartas: ficam, vez: primeira.id, rodada: turnos.rodada + 1, gastos: SEM_GASTOS, extras: semChaves(turnos.extras, fora), d20: semChaves(turnos.d20, fora), empates: semChaves(turnos.empates, fora) }
+  return { turnos: aoComecarAVez(virada, turnos.vez, primeira, true), removidas }
 }
 
 /** O mestre dá a vez a qualquer carta (até a de quem caiu). Carta que não existe: nada. */
 export function darVez(turnos: TurnosDaCena, cartaId: string): TurnosDaCena {
-  if (turnos.vez === cartaId || !turnos.cartas.some((carta) => carta.id === cartaId)) return turnos
-  return { ...turnos, vez: cartaId, gastos: SEM_GASTOS }
+  const para = turnos.cartas.find((carta) => carta.id === cartaId)
+  if (turnos.vez === cartaId || para === undefined) return turnos
+  return aoComecarAVez({ ...turnos, vez: cartaId, gastos: SEM_GASTOS }, turnos.vez, para, false)
+}
+
+/**
+ * F2 (seção 2.3 do plano): o que muda quando a vez passa de `de` para `para`.
+ * As ações extras "rodada" da carta que SAI somem (e, ao virar a rodada,
+ * todas as "rodada"); as recargas do personagem da carta que ENTRA descem 1
+ * (no 0 saem). Nada a mudar = os mesmos mapas.
+ */
+function aoComecarAVez(turnos: TurnosDaCena, de: string | null, para: CartaDaOrdem, virouRodada: boolean): TurnosDaCena {
+  const extrasQueSaem = new Set(Object.entries(turnos.extras).filter(([cartaId, extra]) => extra.duracao === 'rodada' && (virouRodada || cartaId === de)).map(([cartaId]) => cartaId))
+  const extras = semChaves(turnos.extras, extrasQueSaem)
+  const combate = recargasDescendo(turnos.combate, para.personagemId)
+  if (extras === turnos.extras && combate === turnos.combate) return turnos
+  const novo: TurnosDaCena = { ...turnos, extras }
+  if (combate !== undefined) novo.combate = combate
+  return novo
+}
+
+/** As recargas do personagem menos 1; no 0, a técnica sai da lista. Sem recarga = o mesmo mapa. */
+function recargasDescendo(
+  combate: TurnosDaCena['combate'],
+  personagemId: string | null,
+): TurnosDaCena['combate'] {
+  if (combate === undefined || personagemId === null) return combate
+  const dele = combate[personagemId]
+  if (dele === undefined || Object.keys(dele.recargas).length === 0) return combate
+  const recargas: Record<string, number> = {}
+  for (const [cartaoId, faltam] of Object.entries(dele.recargas)) if (faltam > 1) recargas[cartaoId] = faltam - 1
+  return { ...combate, [personagemId]: { ...dele, recargas } }
 }
 
 /** O registro sem as chaves de `fora`; nada a tirar = o mesmo objeto. */
@@ -471,5 +499,32 @@ export function adicionarCartaExtra(turnos: TurnosDaCena, tokenId: string, indic
 /** Cartas de fichas que sumiram da cena saem (a vez anda, sem virar a rodada). Nada sumiu = o mesmo objeto. */
 export function normalizar(turnos: TurnosDaCena, tokenIdsDaCena: ReadonlySet<string>): TurnosDaCena {
   const fora = new Set(turnos.cartas.filter((carta) => !tokenIdsDaCena.has(carta.tokenId)).map((carta) => carta.id))
-  return fora.size === 0 ? turnos : semCartas(turnos, fora)
+  const semAsCartas = fora.size === 0 ? turnos : semCartas(turnos, fora)
+  return golpesNaCena(semAsCartas, tokenIdsDaCena)
+}
+
+/**
+ * F2: golpe cujo atacante sumiu da cena sai; alvo que sumiu sai do golpe (e o
+ * golpe sem alvo esperando sai); contra-ataque de ficha que sumiu sai. Nada a
+ * tirar = o mesmo objeto.
+ */
+function golpesNaCena(turnos: TurnosDaCena, tokenIdsDaCena: ReadonlySet<string>): TurnosDaCena {
+  const golpes = turnos.golpes ?? []
+  const contras = turnos.contras ?? []
+  let mudou = false
+  const ficam: GolpeDaBatalha[] = []
+  for (const golpe of golpes) {
+    const alvos = golpe.alvos.filter((alvo) => tokenIdsDaCena.has(alvo.tokenId))
+    const esperando = alvos.some((alvo) => alvo.danoFinal === undefined)
+    if (!tokenIdsDaCena.has(golpe.atacanteTokenId) || !esperando) {
+      mudou = true
+      continue
+    }
+    if (alvos.length !== golpe.alvos.length) mudou = true
+    ficam.push(alvos.length === golpe.alvos.length ? golpe : { ...golpe, alvos })
+  }
+  const contrasQueFicam = contras.filter((contra) => tokenIdsDaCena.has(contra.tokenId))
+  if (contrasQueFicam.length !== contras.length) mudou = true
+  if (!mudou) return turnos
+  return { ...turnos, golpes: ficam, contras: contrasQueFicam }
 }
