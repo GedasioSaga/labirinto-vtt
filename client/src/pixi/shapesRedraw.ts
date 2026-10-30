@@ -187,7 +187,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // RELEVO (`lib/relevo.ts`): sai da terra e dos desenhos que a pintam. Desligado,
       // arrastar sala não acorda a camada; ligado, quem espera a mão parar (e
       // ignora o rabisco que não pinta o chão) é o próprio renderer (`drawRelevo.ts`).
-      return relevoLigado(map) ? ['relevo', map.id, map.regions, map.drawings, map.penhascos, hidden, map.width, map.height, map.grid] : ['sem relevo']
+      // As texturas só escolhem a linha de cima da borda do penhasco Desenhado: o renderer repinta a malha, não a textura.
+      return relevoLigado(map) ? ['relevo', map.id, map.regions, map.drawings, map.penhascos, map.texturas, hidden, map.width, map.height, map.grid] : ['sem relevo']
     case 'carimbos':
       // CARIMBOS (`lib/carimbos.ts`): os objetos e os importados. Sem objeto no
       // mapa, mexer em sala não acorda a camada.

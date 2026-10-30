@@ -2965,6 +2965,8 @@ function PlayerViewDoCanvas({
             // PENHASCO: só os riscos que o recorte trouxe (junto do conhecido).
             penhascos: currentMap.penhascos,
             conhecido: { visao: currentVision, explorado: currentExplored },
+            // TEXTURAS do recorte: o chão do alto da borda do penhasco Desenhado.
+            texturas: currentMap.texturas,
           }
         : null,
     )
@@ -3441,7 +3443,8 @@ function PlayerViewDoCanvas({
           if (!relevoContainer.destroyed) relevoContainer.visible = visivel
         },
       })
-      relevoContainer.addChild(relevo.camada)
+      // A parede do penhasco do Desenhado por cima da textura, sob a mesma máscara do conhecido.
+      relevoContainer.addChild(relevo.camada, relevo.penhasco)
       relevoContainer.mask = relevoMask
       // BARRANCO: a mesma máscara do conhecido, num contêiner próprio (o do relevo some
       // com o relevo desligado, e o barranco vale em todo mapa). Escondido sem barranco:

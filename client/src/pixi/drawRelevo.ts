@@ -1,5 +1,5 @@
-import { Sprite, Texture } from 'pixi.js'
-import type { Drawing, MapData, Region, TracoDePenhasco } from '../types/map'
+import { Container, Sprite, Texture } from 'pixi.js'
+import type { Drawing, MapData, PinceladaDeTextura, Region, TracoDePenhasco } from '../types/map'
 import {
   assinaturaDaTerra,
   mesmosPenhascos,
@@ -7,12 +7,19 @@ import {
   idsDaTerra,
   idsDasAreasPintadas,
   mesmoConhecido,
+  perfilDoPenhasco,
   planoDoRelevoEmPassos,
   type ConhecidoDoRelevo,
+  type PerfilDoPenhasco,
   type PlanoDoRelevo,
 } from '../lib/relevo'
 import { ceder, rasterizarRelevo } from './relevoRaster'
-import { versaoDoEstilo } from '../lib/estiloDoMapa'
+import { desenhadoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
+import { temRiscoDePenhasco } from '../lib/penhasco'
+import { consultaDoChaoPintado } from '../lib/chaoPintado'
+import { assinarTracosDesenhados, ehTracoDesenhado, pedirBordaDoTraco, pedirFaceDoTraco } from '../texturas/desenhado/carregadorDoTraco'
+import type { TintaDoBarranco } from './barrancoDesenhado'
+import { criarPenhascoDoContinente } from './penhascoDoContinente'
 
 /**
  * RELEVO no palco (`lib/relevo.ts`): um Sprite só, acima do chão das regiões e
@@ -55,6 +62,13 @@ export interface EntradaDoRelevo {
   penhascos?: readonly TracoDePenhasco[]
   /** O que o jogador já conhece (a origem de cada efeito sai só daqui). Ausente: tudo (o mestre). */
   conhecido?: ConhecidoDoRelevo
+  /**
+   * Os passos da ferramenta Texturas que ESTA tela pinta (`MapData.texturas`):
+   * o chão do lado alto, que escolhe a linha de cima da borda do penhasco
+   * Desenhado (grama, terra, neve). Ausente: nenhum (a linha da grama). Não
+   * mexe na textura do relevo.
+   */
+  texturas?: readonly PinceladaDeTextura[]
 }
 
 /** Quanto custou a última textura: o que a medida de desempenho lê. */
@@ -90,6 +104,12 @@ export interface OpcoesDoRelevo {
 export interface RelevoRenderer {
   /** O que vai no palco. Invisível enquanto não há textura. */
   readonly camada: Sprite
+  /**
+   * A parede do penhasco no estilo Desenhado (`penhascoDoContinente.ts`), logo
+   * por cima da `camada`, no mesmo contêiner. Vazia no Atual e no Simples, e
+   * enquanto as imagens do pacote não chegam (a parede sai na textura).
+   */
+  readonly penhasco: Container
   /** `null` = relevo desligado (ou modo leve): libera a textura. */
   atualizar: (entrada: EntradaDoRelevo | null) => void
   /**
@@ -110,6 +130,11 @@ async function texturaPadrao(plano: PlanoDoRelevo, cancelado: () => boolean): Pr
 }
 
 const SEM_DESENHOS: readonly Drawing[] = []
+
+/** O id do pacote da face do penhasco (CONTRATO 11), o mesmo do barranco. */
+const FACE_DO_PENHASCO = 'penhasco'
+/** A sequência de módulos do mapa inteiro (uma só, pelo x): o mestre e o jogador veem a mesma pedra. */
+const ID_DO_PENHASCO_DO_MAPA = 'continente'
 
 /** Mesma terra (regiões e desenhos que pintam o chão)? Por referência primeiro (barato); referência nova compara pelo conteúdo. */
 function mesmaTerra(a: EntradaDoRelevo, b: EntradaDoRelevo, assinaturaDeA: () => string): boolean {
@@ -209,6 +234,62 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
   let versaoDaTerra = 0
   /** Os desenhos cuja borda está na textura do palco agora (`PlanoDoRelevo.divisores`). */
   let divisoresNaTela: readonly string[] = []
+  /**
+   * PENHASCO DO DESENHADO (CONTRATO 11.12): com o estilo Desenhado e as imagens
+   * do pacote prontas, a textura sai sem a parede (só a sombra dela) e a malha
+   * do pacote a pinta por cima. `tintaDoPedido` é a tinta da última entrada
+   * aceita (`null` = a parede na textura, como no Atual).
+   */
+  let tintaDoPedido: TintaDoBarranco | null = null
+  /** O shader do penhasco não compilou neste palco (ou a malha não montou): a parede fica na textura de vez. */
+  let semShader = false
+  /** O perfil e o plano da malha no palco agora: o chão pintado ou a borda que chega repintam só a malha. */
+  let penhascoNaTela: { plano: PlanoDoRelevo; perfil: PerfilDoPenhasco } | null = null
+  const penhasco = criarPenhascoDoContinente(() => {
+    semShader = true
+    if (pedido !== null) atualizar(pedido)
+  })
+  // As imagens do penhasco chegaram (ou outro traço chegou): a entrada de agora decide se muda algo.
+  const pararDeOuvir = assinarTracosDesenhados(() => {
+    if (pedido !== null) atualizar(pedido)
+  })
+
+  /** A tinta do penhasco Desenhado para esta entrada, ou `null` (pinta o Atual; a face começa a carregar). */
+  function tintaDe(entrada: EntradaDoRelevo): TintaDoBarranco | null {
+    if (semShader || !desenhadoLigado() || !temRiscoDePenhasco(entrada.penhascos) || penhasco.compila() === false) return null
+    const face = pedirFaceDoTraco(FACE_DO_PENHASCO)
+    if (face === null) return null
+    const id = face.face.borda
+    return { face, borda: id !== null && ehTracoDesenhado(id) ? pedirBordaDoTraco(id) : null }
+  }
+
+  function pintarPenhasco(entrada: EntradaDoRelevo, plano: PlanoDoRelevo, perfil: PerfilDoPenhasco, tinta: TintaDoBarranco): void {
+    penhasco.pintar(
+      {
+        perfil,
+        // CONTRATO 11.12: s = x e t = 18 · fator em px do protótipo, que é o px do traço aqui.
+        k: plano.unidade,
+        origem: 0,
+        id: ID_DO_PENHASCO_DO_MAPA,
+        escala: plano.escala,
+        terra: { poligonos: plano.terras, fronteiras: plano.fronteiras, folga: plano.folgaDaFronteira },
+        chaoNoAlto: consultaDoChaoPintado(entrada.texturas, entrada.regioes, entrada.desenhos ?? SEM_DESENHOS),
+        // A parede só nasce com mar logo abaixo (`perfilDoPenhasco`): o pé é sempre água.
+        aguaNoPe: true,
+      },
+      tinta,
+    )
+    penhascoNaTela = { plano, perfil }
+  }
+
+  /** A malha não montou: fica o Atual (a parede volta para a textura na próxima geração). */
+  function falhaDoPenhasco(erro: unknown): void {
+    console.warn('[desenhado] o penhasco do continente não montou; fica o Atual', erro)
+    semShader = true
+    penhasco.limpar()
+    penhascoNaTela = null
+    if (pedido !== null) atualizar(pedido)
+  }
 
   const assinatura = (): string => {
     if (assinaturaDoPedido === null) assinaturaDoPedido = pedido === null ? '' : assinaturaDaTerra(pedido.regioes, pedido.desenhos)
@@ -221,6 +302,8 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     cenaNaTela = null
     divisoresNaTela = []
     if (!camada.destroyed) camada.texture = Texture.EMPTY
+    penhasco.limpar()
+    penhascoNaTela = null
     mostrar(false)
     velha?.destroy(true)
   }
@@ -258,7 +341,9 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     // Riscos de penhasco e conhecido entram por fora do plano guardado: os dois
     // mudam enquanto o jogador explora, a terra quase nunca.
     const comRiscos = base === null ? null : planoComPenhascos(base, entrada.penhascos)
-    const plano = comRiscos === null || entrada.conhecido === undefined ? comRiscos : { ...comRiscos, conhecido: entrada.conhecido }
+    const doPedido = comRiscos === null || entrada.conhecido === undefined ? comRiscos : { ...comRiscos, conhecido: entrada.conhecido }
+    // Desenhado com as imagens prontas: a parede sai pela malha, a textura leva só a sombra dela.
+    const plano = doPedido === null || tintaDoPedido === null || doPedido.penhascos.length === 0 ? doPedido : { ...doPedido, paredeNaMalha: true }
     if (plano === null) {
       liberar()
       return
@@ -284,6 +369,17 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
       textura.destroy(true)
       return
     }
+    // O perfil da parede do Desenhado (a textura já o fez para a sombra; aqui, para a malha), numa tarefa só dele.
+    const ms = performance.now() - inicio
+    let perfil: PerfilDoPenhasco | null = null
+    if (plano.paredeNaMalha === true) {
+      perfil = perfilDoPenhasco(plano)
+      await ceder()
+      if (cancelado() || camada.destroyed) {
+        textura.destroy(true)
+        return
+      }
+    }
     const velha = texturaAtual
     texturaAtual = textura
     camada.texture = textura
@@ -293,7 +389,20 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     cenaNaTela = entrada.cena
     divisoresNaTela = plano.divisores
     velha?.destroy(true)
-    opcoes.aoGerar?.({ ms: performance.now() - inicio, planoMs, largura: textura.width, altura: textura.height })
+    // A malha troca no mesmo giro da textura: nenhum quadro sai com a parede dobrada ou sem ela.
+    // A entrada aceita por último (mesma terra) traz o chão pintado de agora.
+    const tinta = tintaDoPedido
+    if (perfil !== null && tinta !== null) {
+      try {
+        pintarPenhasco(pedido ?? entrada, plano, perfil, tinta)
+      } catch (erro: unknown) {
+        falhaDoPenhasco(erro)
+      }
+    } else {
+      penhasco.limpar()
+      penhascoNaTela = null
+    }
+    opcoes.aoGerar?.({ ms, planoMs, largura: textura.width, altura: textura.height })
   }
 
   function atualizar(entrada: EntradaDoRelevo | null): void {
@@ -303,6 +412,7 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
       geracao += 1
       pedido = null
       assinaturaDoPedido = null
+      tintaDoPedido = null
       esquecerPlano()
       liberar()
       return
@@ -311,10 +421,25 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     const estilo = versaoDoEstilo()
     const mesmoEstilo = estilo === estiloDoPedido
     estiloDoPedido = estilo
-    if (pedido !== null && terraIgual && mesmoEstilo && mesmoConhecido(pedido.conhecido, entrada.conhecido) && mesmosPenhascos(pedido.penhascos, entrada.penhascos)) {
+    // A parede muda de lugar (da textura para a malha, ou volta) só quando a tinta aparece ou some.
+    const tinta = tintaDe(entrada)
+    const tintaDeAntes = tintaDoPedido
+    tintaDoPedido = tinta
+    const paredeNoMesmoLugar = (tinta === null) === (tintaDeAntes === null)
+    if (pedido !== null && terraIgual && mesmoEstilo && paredeNoMesmoLugar && mesmoConhecido(pedido.conhecido, entrada.conhecido) && mesmosPenhascos(pedido.penhascos, entrada.penhascos)) {
+      // A borda que chegou depois da face, ou o chão pintado que mudou: só a malha, a textura fica.
+      const outraTinta = tinta !== null && (tinta.face !== tintaDeAntes?.face || tinta.borda !== tintaDeAntes.borda)
+      const outroChao = tinta !== null && entrada.texturas !== pedido.texturas
       // Mesma terra em objetos novos (pacote do jogador): guarda a referência nova
       // para a próxima comparação sair pelo caminho barato.
       pedido = entrada
+      if ((outraTinta || outroChao) && tinta !== null && penhascoNaTela !== null) {
+        try {
+          pintarPenhasco(entrada, penhascoNaTela.plano, penhascoNaTela.perfil, tinta)
+        } catch (erro: unknown) {
+          falhaDoPenhasco(erro)
+        }
+      }
       return
     }
     const anterior = pedido
@@ -382,9 +507,11 @@ export function createRelevoRenderer(opcoes: OpcoesDoRelevo = {}): RelevoRendere
     if (destruido) return
     destruido = true
     cancelarEspera()
+    pararDeOuvir()
     liberar()
+    penhasco.destroy()
     if (!camada.destroyed) camada.destroy()
   }
 
-  return { camada, atualizar, gerarAParte, destruir }
+  return { camada, penhasco: penhasco.camada, atualizar, gerarAParte, destruir }
 }

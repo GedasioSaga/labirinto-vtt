@@ -209,10 +209,30 @@ void main() {
 }
 `
 
+/**
+ * A MÁSCARA DO MAR (o penhasco do continente, `penhascoDoContinente.ts`): a
+ * parede do Atual é apagada onde há terra (`relevoRaster.ts`, a terra na frente
+ * esconde a parede de trás, numa enseada estreita). A face e o pé do Desenhado
+ * fazem o mesmo lendo uma imagem da terra (alfa 1 = mar, 0 = terra) pela
+ * posição no mundo. Só as cópias "no mar" levam isto: as fontes do barranco
+ * ficam como estão, letra por letra.
+ */
+const MASCARA_DO_MAR = `
+uniform sampler2D uMascara;
+// x0, y0 (px do mundo) e a coordenada da imagem por px do mundo, em x e em y.
+uniform vec4 uOndeMascara;
+float noMar() { return textureLod(uMascara, (vPos - uOndeMascara.xy) * uOndeMascara.zw, 0.0).a; }
+`
+const FIM_DA_FACE = 'finalColor = vec4(c * c4.a, c4.a) * uColor.a;'
+const FIM_DA_BORDA = 'finalColor = c4 * uColor.a;'
+
 interface Programas {
   readonly face: GlProgram
   readonly borda: GlProgram
   readonly sombra: GlProgram
+  /** A face e a borda com a máscara do mar (o penhasco do continente). */
+  readonly faceNoMar: GlProgram
+  readonly bordaNoMar: GlProgram
 }
 
 let programas: Programas | null = null
@@ -222,12 +242,21 @@ let falhaForcada = false
 /** Uma linha que nenhum compilador aceita: a prova de que a falha cai no Atual. */
 export const QUEBRA = '\n#error falha forcada do traco\n'
 
+/** A cópia "no mar" de um shader: a máscara antes do `main` e a cor final vezes ela. Fonte que mudou = não compila (cai no Atual). */
+function noMar(fonte: string, fim: string): string {
+  const inicio = fonte.indexOf('void main() {')
+  if (inicio < 0 || !fonte.includes(fim)) return fonte + QUEBRA
+  return fonte.slice(0, inicio) + MASCARA_DO_MAR + fonte.slice(inicio).replace(fim, fim.replace(';', ' * noMar();'))
+}
+
 function criarProgramas(quebrar: boolean): Programas {
   const extra = quebrar ? QUEBRA : ''
   return {
     face: new GlProgram({ vertex: vertice(false), fragment: FACE + extra, name: 'traco-face' }),
     borda: new GlProgram({ vertex: vertice(false), fragment: BORDA + extra, name: 'traco-borda' }),
     sombra: new GlProgram({ vertex: vertice(true), fragment: SOMBRA + extra, name: 'traco-sombra' }),
+    faceNoMar: new GlProgram({ vertex: vertice(false), fragment: noMar(FACE, FIM_DA_FACE) + extra, name: 'traco-face-no-mar' }),
+    bordaNoMar: new GlProgram({ vertex: vertice(false), fragment: noMar(BORDA, FIM_DA_BORDA) + extra, name: 'traco-borda-no-mar' }),
   }
 }
 
@@ -310,6 +339,32 @@ export function tracoCompila(renderer: Renderer): boolean {
   return ok
 }
 
+/** O resultado das cópias no mar, como `compilou`. */
+const compilouNoMar = new WeakMap<object, WeakMap<Programas, boolean>>()
+
+/**
+ * O penhasco do continente pode sair no Desenhado neste renderer? Os três
+ * do traço (`tracoCompila`: a borda de cima é a de sempre) e as duas cópias
+ * com a máscara do mar.
+ */
+export function tracoNoMarCompila(renderer: Renderer): boolean {
+  if (!tracoCompila(renderer)) return false
+  const jogo = programasDoTraco()
+  let porJogo = compilouNoMar.get(renderer)
+  if (porJogo === undefined) {
+    porJogo = new WeakMap()
+    compilouNoMar.set(renderer, porJogo)
+  }
+  const sabido = porJogo.get(jogo)
+  if (sabido !== undefined) return sabido
+  // `tracoCompila` já viu que o renderer é WebGL com contexto vivo.
+  const erro = 'gl' in renderer ? (erroNoContexto(renderer.gl, jogo.faceNoMar) ?? erroNoContexto(renderer.gl, jogo.bordaNoMar)) : 'o renderer não é WebGL'
+  const ok = erro === null
+  porJogo.set(jogo, ok)
+  if (!ok) console.warn(`[desenhado] o shader do penhasco do continente não compilou nesta placa; fica o Atual (${erro})`)
+  return ok
+}
+
 // ---------- as texturas e os Mesh ----------
 
 /** A textura de uma imagem do pacote: mipmap, linear, presa na borda. `relevo` = número, não cor (sem pré-multiplicar). */
@@ -369,6 +424,39 @@ export function meshDaFace(m: MalhaDoTraco, img: ImagemNaPlaca, luz: { face: num
   return meshDe(m, shader)
 }
 
+/** A imagem da terra do continente (alfa 1 = mar) e onde ela fica no mundo. */
+export interface MascaraNaPlaca {
+  readonly imagem: TextureSource
+  /** O canto de cima à esquerda, em px do mundo. */
+  readonly x: number
+  readonly y: number
+  /** Coordenada da imagem (0 a 1) por px do mundo. */
+  readonly porMundoX: number
+  readonly porMundoY: number
+}
+
+function ondeDa(mascara: MascaraNaPlaca): Float32Array {
+  return new Float32Array([mascara.x, mascara.y, mascara.porMundoX, mascara.porMundoY])
+}
+
+/** A face só onde é mar (o penhasco do continente). */
+export function meshDaFaceNoMar(m: MalhaDoTraco, img: ImagemNaPlaca, luz: { face: number; relevo: number }, mascara: MascaraNaPlaca): Mesh<Geometry, Shader> {
+  const shader = new Shader({
+    glProgram: programasDoTraco().faceNoMar,
+    resources: {
+      uCor: img.cor,
+      uRelevo: img.relevo,
+      uMascara: mascara.imagem,
+      daFace: new UniformGroup({
+        uFace: { value: new Float32Array([img.acimaPx, img.hPx, img.largura, img.altura]), type: 'vec4<f32>' },
+        uLuz: { value: new Float32Array([luz.face, luz.relevo]), type: 'vec2<f32>' },
+        uOndeMascara: { value: ondeDa(mascara), type: 'vec4<f32>' },
+      }),
+    },
+  })
+  return meshDe(m, shader)
+}
+
 /** Uma linha da borda na placa. O desvio de cada beira já vem somado ao s da malha. */
 export interface LinhaNaPlaca {
   readonly imagem: TextureSource
@@ -389,6 +477,23 @@ export function meshDaBorda(m: MalhaDoTraco, l: LinhaNaPlaca): Mesh<Geometry, Sh
       daBorda: new UniformGroup({
         uLinha: { value: new Float32Array([0, l.periodoPx, l.yPx, l.linhaPx]), type: 'vec4<f32>' },
         uBorda: { value: new Float32Array([l.alturaPx, 0, l.largura, l.altura]), type: 'vec4<f32>' },
+      }),
+    },
+  })
+  return meshDe(m, shader)
+}
+
+/** A linha do pé (a água) só onde é mar (o penhasco do continente). */
+export function meshDaBordaNoMar(m: MalhaDoTraco, l: LinhaNaPlaca, mascara: MascaraNaPlaca): Mesh<Geometry, Shader> {
+  const shader = new Shader({
+    glProgram: programasDoTraco().bordaNoMar,
+    resources: {
+      uImagem: l.imagem,
+      uMascara: mascara.imagem,
+      daBorda: new UniformGroup({
+        uLinha: { value: new Float32Array([0, l.periodoPx, l.yPx, l.linhaPx]), type: 'vec4<f32>' },
+        uBorda: { value: new Float32Array([l.alturaPx, 0, l.largura, l.altura]), type: 'vec4<f32>' },
+        uOndeMascara: { value: ondeDa(mascara), type: 'vec4<f32>' },
       }),
     },
   })

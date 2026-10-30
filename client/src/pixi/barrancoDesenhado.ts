@@ -225,14 +225,15 @@ function bordaDaBeira(geo: GeoDoBarranco, borda: BordaDoTraco, linha: LinhaDaBor
 
 // ---------- as texturas de um palco ----------
 
-interface TexturasDaTinta {
+/** As texturas da tinta num palco (o penhasco do continente, `penhascoDoContinente.ts`, faz as dele igual). */
+export interface TexturasDaTinta {
   readonly tinta: TintaDoBarranco
   readonly alturas: Readonly<Record<AlturaDoTraco, ImagemNaPlaca>>
   readonly borda: TextureSource | null
   readonly todas: readonly TextureSource[]
 }
 
-function texturasDa(tinta: TintaDoBarranco): TexturasDaTinta {
+export function texturasDa(tinta: TintaDoBarranco): TexturasDaTinta {
   const todas: TextureSource[] = []
   const imagem = (a: AlturaDoTraco): ImagemNaPlaca => {
     const img = tinta.face.imagens[a]

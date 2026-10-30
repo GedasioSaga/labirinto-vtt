@@ -213,9 +213,10 @@ async function gerarRelevo(plano: PlanoDoRelevo, cancelado: () => boolean, marca
   gs.globalCompositeOperation = 'destination-out'
   gs.drawImage(terra, 0, 0)
   gs.globalCompositeOperation = 'source-over'
-  // A parede por cima da sombra (ela é a coisa que faz a sombra).
+  // A parede por cima da sombra (ela é a coisa que faz a sombra). No Desenhado
+  // ela sai pela malha do pacote, por cima desta textura: aqui fica só a sombra.
   if (parede !== null) {
-    gs.drawImage(parede.tela, parede.x, parede.y)
+    if (plano.paredeNaMalha !== true) gs.drawImage(parede.tela, parede.x, parede.y)
     descartar(parede.tela)
   }
   await ceder()

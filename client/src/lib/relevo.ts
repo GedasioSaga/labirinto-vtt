@@ -279,6 +279,12 @@ export interface PlanoDoRelevo {
   folgaDaFronteira: number
   /** O que esta tela já conhece (só o jogador). Ausente: tudo (o mestre). */
   conhecido?: ConhecidoDoRelevo
+  /**
+   * A parede do penhasco sai por outra camada, a do estilo Desenhado
+   * (`pixi/penhascoDoContinente.ts`): a textura leva só a sombra dela no mar,
+   * não as faixas. Ausente: a textura pinta a parede, como sempre.
+   */
+  paredeNaMalha?: boolean
 }
 
 /**

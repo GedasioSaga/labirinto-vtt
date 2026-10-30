@@ -1256,7 +1256,8 @@ function PixiCanvasDoContexto({
       })
       const relevoContainer = new Container()
       relevoContainer.eventMode = 'none'
-      relevoContainer.addChild(relevo.camada)
+      // A parede do penhasco do Desenhado (`penhascoDoContinente.ts`) logo por cima da textura.
+      relevoContainer.addChild(relevo.camada, relevo.penhasco)
       // BARRANCO (`drawBarranco.ts`): mora em Terreno, como o Penhasco — no contêiner do relevo, por cima dele.
       const desenhoDoBarranco = criarDesenhoDoBarranco()
       relevoContainer.addChild(desenhoDoBarranco.camada)
@@ -2441,6 +2442,8 @@ function PixiCanvasDoContexto({
         desenhos: visibleDrawings(map.drawings, map),
         // PENHASCO: os riscos do mestre; a parede nasce na costa debaixo deles.
         penhascos: map.penhascos,
+        // TEXTURAS: o chão do alto da borda do penhasco Desenhado (só a malha; a textura do relevo não muda).
+        texturas: map.texturas,
       })
       /** O que a camada das texturas pinta deste mapa: os passos e as formas que o balde enche. */
       const entradaDasTexturas = (map: MapData): EntradaDasTexturas => ({
@@ -3040,6 +3043,8 @@ function PixiCanvasDoContexto({
           // O relevo e as texturas do palco são os do mestre: na imagem entram os gerados à parte.
           texturas.camada,
           relevo.camada,
+          // A parede Desenhada do palco também é a do mestre: a imagem leva a do relevo gerado à parte (no Atual).
+          relevo.penhasco,
           // NUVENS fora da imagem: o mapa exportado é o chão, não um instante do céu
           // (a sombra de uma nuvem viraria uma mancha parada no papel).
           nuvensContainer,
