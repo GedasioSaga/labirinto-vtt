@@ -3,6 +3,7 @@ import { medidaCabeNoMapa, type MedidaCompartilhada } from '../lib/batalha/ferra
 import { centroDaCasa, type Casa } from '../lib/batalha/blocos'
 import { caminhosParaJogador, type CaminhosNoMestre } from '../lib/batalha/caminhoAndado'
 import { paredesQueBarramOCaminho } from '../lib/batalha/movimentoEmBatalha'
+import type { Equipe } from '../lib/batalha/equipes'
 import type { MedidaCompartilharMessage } from './protocoloDaMedida'
 import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
@@ -284,6 +285,8 @@ export interface RpgDoMundo {
   /** `null` = a aventura não escolheu sistema, ou o escolhido não está na biblioteca deste computador. */
   sistema: SistemaDeRpg | null
   personagens: readonly Personagem[]
+  /** BATALHA F1: as equipes do dono dos personagens (aventura ou pasta). Ausente = nenhuma: todo jogador é aliado. */
+  equipes?: readonly Equipe[]
 }
 
 /** De onde a sessão lê o mapa: um `MapData` (mapa solto, o de sempre) ou o mundo da aventura. */
