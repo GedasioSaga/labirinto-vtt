@@ -1,3 +1,4 @@
+import { cleanPlayerName } from './chat'
 import { ehImagemDaMesa } from './midia'
 import type { AbaDoSistema, SistemaDeRpg } from './sistemaDeRpg'
 
@@ -138,10 +139,102 @@ export interface Personagem {
    * jogador (`hostSession.ts`, `personagensUpdate`).
    */
   dono?: string
+  /*
+   * MUNDO DO LIVRO DE REGRAS (M1, docs/planos/livros-de-regras-plano.md §2.1).
+   * Os quatro campos abaixo são SÓ DO MESTRE: `paraOFio` tira todos antes de
+   * qualquer envio, e a edição do jogador parte do personagem gravado, então
+   * ele não consegue gravá-los. Ausentes = ficha de antes do mundo do livro.
+   */
+  /**
+   * NPC DE COMBATE: a força (multiplica HP e dano, nunca Escudo nem SP) e, na
+   * variação, o modelo de quem ela copia a ficha (`lib/livros/combate.ts`,
+   * `sincronizarVariacoes`). Ausente num NPC = força 1 e NPC único.
+   */
+  combate?: MarcaDeCombate
+  /** NPC só de decoração: fica fora da ordem dos turnos (lista "Só no cenário"). Ausente = entra (decisão D5). */
+  soCenario?: true
+  /**
+   * O nome com que o jogador entra na mesa SEM conta: quem entra com ele
+   * recebe os tokens desta ficha. Já passado por `cleanPlayerName`, no máximo
+   * `NOME_DO_JOGADOR_MAX`. Ignorado quando há `dono`: a conta ganha (decisão D1).
+   */
+  nomeDoJogador?: string
+  /** A anotação do mestre, no máximo `NOTA_DO_MESTRE_MAX`. Entra na IA só quando a ficha é citada (M4). */
+  notaDoMestre?: string
 }
+
+/** A marca de NPC de combate (`Personagem.combate`). */
+export interface MarcaDeCombate {
+  /** De `FORCA_MIN` a `FORCA_MAX`, no passo `FORCA_PASSO` (`forcaNoPasso`). */
+  forca: number
+  /** Id do personagem-modelo: presente = é variação dele. */
+  modeloId?: string
+}
+
+export const FORCA_MIN = 0.5
+export const FORCA_MAX = 2
+export const FORCA_PASSO = 0.05
+export const FORCA_PADRAO = 1
+/** O mesmo teto do nome do `join` (`NAME_MAX_LENGTH`): é o nome digitado na entrada. */
+export const NOME_DO_JOGADOR_MAX = 32
+export const NOTA_DO_MESTRE_MAX = 4000
+/** Teto do id do modelo lido do disco: id maior que isso não é de personagem nenhum. */
+const MODELO_ID_MAX = 120
 
 /** O id de conta que `dono` aceita (o de `novoIdDeConta`, ou um à mão no mesmo alfabeto). */
 const DONO_PADRAO = /^[A-Za-z0-9_-]{1,80}$/
+
+/**
+ * A força dentro da faixa e no passo do deslizante. O arredondamento passa
+ * por centésimos para 1,15 não virar 1,1499999 e sair do passo na volta.
+ * Número que não é finito vale `FORCA_PADRAO`.
+ */
+export function forcaNoPasso(valor: number): number {
+  if (!Number.isFinite(valor)) return FORCA_PADRAO
+  const limitada = Math.min(FORCA_MAX, Math.max(FORCA_MIN, valor))
+  return Math.round(Math.round(limitada / FORCA_PASSO) * FORCA_PASSO * 100) / 100
+}
+
+/**
+ * O recurso que a força multiplica (decisão D3 do protótipo: só HP e dano;
+ * Escudo e SP intocados). Os dois funis que a aplicam: `maximoComposto`
+ * (lib/ajusteDaFicha.ts) e o dano (lib/batalha/formula.ts).
+ */
+export const RECURSO_QUE_A_FORCA_MULTIPLICA = 'hp'
+
+/**
+ * A força com que o personagem luta: a do NPC de combate; 1 para jogador e
+ * para NPC sem marca. Mora aqui, junto do tipo, e não em lib/livros/combate.ts:
+ * ajusteDaFicha.ts e formula.ts a leem, e o mundo do livro lê os dois — morar
+ * lá fecharia um ciclo de imports.
+ */
+export function forcaDe(personagem: Personagem): number {
+  if (personagem.tipo !== 'npc' || personagem.combate === undefined) return FORCA_PADRAO
+  return forcaNoPasso(personagem.combate.forca)
+}
+
+/** O número depois da força, inteiro: a MESMA conta no HP máximo e no dano, para a ficha, a batalha e o Comparar baterem. */
+export function aplicarForca(valor: number, forca: number): number {
+  return forca === FORCA_PADRAO ? valor : Math.round(valor * forca)
+}
+
+/** O nome de entrada como a ficha o guarda: a limpeza do `join` e o teto; vazio = sem ligação. */
+export function nomeDoJogadorLimpo(nome: string): string {
+  return cortado(cleanPlayerName(nome), NOME_DO_JOGADOR_MAX).trim()
+}
+
+/**
+ * O personagem como ele vai pela rede, a QUALQUER jogador: sem a conta dona
+ * e sem nada do mundo do livro (força, modelo, cenário, nome de entrada,
+ * anotação). É o funil único de `Personagem` para o fio (`net/hostSession.ts`:
+ * lista do jogador e batalha). Sem nenhum desses campos devolve a MESMA
+ * referência: o host compara por referência para não reenviar.
+ */
+export function paraOFio(personagem: Personagem): Personagem {
+  const { dono, combate, soCenario, nomeDoJogador, notaDoMestre, ...publico } = personagem
+  if (dono === undefined && combate === undefined && soCenario === undefined && nomeDoJogador === undefined && notaDoMestre === undefined) return personagem
+  return publico
+}
 
 export const PERSONAGEM_SEM_NOME = 'Personagem sem nome'
 export const CARTAO_SEM_NOME = 'Sem nome'
@@ -346,7 +439,33 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     historico: historicoDoArquivo(value.historico),
     abas: abasDoArquivo(value.abas),
     ...(typeof value.dono === 'string' && DONO_PADRAO.test(value.dono) ? { dono: value.dono } : {}),
+    ...camposDoMundoDoArquivo(value),
   }
+}
+
+/** A marca de combate do disco: força torta vale a padrão; modelo que não é texto curto sai. */
+function marcaDeCombateDoArquivo(value: unknown): MarcaDeCombate | undefined {
+  if (!isRecord(value)) return undefined
+  const marca: MarcaDeCombate = { forca: numeroFinito(value.forca) ? forcaNoPasso(value.forca) : FORCA_PADRAO }
+  if (typeof value.modeloId === 'string' && value.modeloId.length > 0 && value.modeloId.length <= MODELO_ID_MAX) marca.modeloId = value.modeloId
+  return marca
+}
+
+/**
+ * Os campos do mundo do livro (§2.1), tolerantes: valor torto sai e a chave
+ * nem aparece (nada de `soCenario: undefined` gravado de volta). O jogador
+ * nunca os recebe (`paraOFio`), então esta leitura só vê o disco do mestre.
+ */
+function camposDoMundoDoArquivo(value: Record<string, unknown>): Pick<Personagem, 'combate' | 'soCenario' | 'nomeDoJogador' | 'notaDoMestre'> {
+  const campos: Pick<Personagem, 'combate' | 'soCenario' | 'nomeDoJogador' | 'notaDoMestre'> = {}
+  const combate = marcaDeCombateDoArquivo(value.combate)
+  if (combate !== undefined) campos.combate = combate
+  if (value.soCenario === true) campos.soCenario = true
+  const nome = typeof value.nomeDoJogador === 'string' ? nomeDoJogadorLimpo(value.nomeDoJogador) : ''
+  if (nome.length > 0) campos.nomeDoJogador = nome
+  const nota = typeof value.notaDoMestre === 'string' ? cortado(value.notaDoMestre, NOTA_DO_MESTRE_MAX) : ''
+  if (nota.trim().length > 0) campos.notaDoMestre = nota
+  return campos
 }
 
 /**

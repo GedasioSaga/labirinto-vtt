@@ -216,7 +216,7 @@ import { CHAT_HISTORY_MAX, CHAT_MASTER_MENTION, CHAT_MASTER_NAME, CHAT_TEXT_MAX_
 import type { ChatHistory } from '../lib/chatStore'
 import { readArrivalText } from '../lib/arrivalText'
 import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, isWorldMap, landingSpots, type CaravanMemory } from '../lib/caravan'
-import { novoPersonagem, type Personagem } from '../lib/personagem'
+import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
 import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
 import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
@@ -1221,6 +1221,8 @@ export interface HostResult {
    * integrador avisa o mestre e, com ficha nova, refaz o mapa de todos.
    */
   contaEntrou?: ContaEntrou
+  /** MUNDO DO LIVRO: entrou alguém sem conta com um nome ligado a fichas (`giveNamedTokens`). O integrador avisa o mestre. */
+  fichasPeloNome?: FichasPeloNome
   /** DADO ROLADO NA SALA: a rolagem que a tela do mestre mostra (a escondida dele, marcada). */
   diceRoll?: HostDiceRoll
   /** CHAT: um canal ganhou ou perdeu linha. O integrador relê `masterChat` para a tela do mestre. */
@@ -1346,6 +1348,35 @@ export interface ContaEntrou {
   playerId: string
   nome: string
   tokenIds: string[]
+  /**
+   * MUNDO DO LIVRO (decisão D2): personagens da conta sem token NESTE mapa.
+   * Nada é criado sozinho: o integrador avisa "Bruno entrou sem token neste
+   * mapa" com "Pôr token". Ausente = nenhum.
+   */
+  semToken?: PersonagemSemToken[]
+}
+
+/** Um personagem ligado a quem entrou que não tem token em cena nenhuma deste mapa (D2). */
+export interface PersonagemSemToken {
+  personagemId: string
+  nome: string
+}
+
+/**
+ * MUNDO DO LIVRO (M1): entrou alguém SEM conta com um nome ligado a fichas
+ * (`Personagem.nomeDoJogador`, `lib/livros/jogadores.ts`). `tokenIds`: os
+ * tokens dessas fichas que ele recebeu agora; `jaComOutro`: os que outro
+ * jogador já segura e por isso NÃO foram dados (o mestre lê "Outro beto já
+ * está com a ficha de Bruno"); `semToken`: como em `ContaEntrou`. Dado do
+ * mestre: nunca vai pela rede.
+ */
+export interface FichasPeloNome {
+  playerId: string
+  /** O nome como ele digitou (já limpo pela sala). */
+  nome: string
+  tokenIds: string[]
+  jaComOutro: string[]
+  semToken: PersonagemSemToken[]
 }
 
 /** CONTAS: a entrada que a ponte já conferiu (`net/entradaComConta.ts`) — o código da sala e a conta. */
@@ -3533,8 +3564,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // MINIGAME DE TIRO: uma barraca por pino (a de agora ou a última), com as tentativas de cada um.
   const tiroNoHost = criarTiroNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId(), agora: () => now() })
   // BATALHA F1: o recorte da ordem dos turnos por conexão e os pedidos do jogador.
-  // `paraOFio` por função: `semDono` mora mais abaixo e ainda não existe aqui.
-  const batalhaNoHost = criarBatalhaNoHost({ ponte: options.ponteDaBatalha, agora: () => now(), paraOFio: (personagem) => semDono(personagem) })
+  // `paraOFio` (lib/personagem.ts): o mesmo funil da lista do jogador, sem conta nem nada do mundo do livro.
+  const batalhaNoHost = criarBatalhaNoHost({ ponte: options.ponteDaBatalha, agora: () => now(), paraOFio })
   // BATALHA F1 — por playerId: as fichas do último recorte que saiu para ele
   // (`snapshotFor`) e de que mapa. É o "o que a tela dele tem" da ordem dos
   // turnos: carta de ficha fora daqui não sai (Q1). O `sentViews` não serve
@@ -7557,13 +7588,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   const mesmasReferencias = (a: readonly Personagem[], b: readonly Personagem[]): boolean => a.length === b.length && a.every((personagem, i) => personagem === b[i])
 
-  /** CONTAS: a conta dona do personagem é coisa do mestre — o jogador recebe a ficha sem ela. */
-  const semDono = (personagem: Personagem): Personagem => {
-    if (personagem.dono === undefined) return personagem
-    const copia = { ...personagem }
-    delete copia.dono
-    return copia
-  }
 
   /** BATALHA F1: os personagens ligados às fichas que são dele de verdade (`fichasDoPersonagem`: sem as emprestadas). */
   const meusPersonagensDe = (playerId: string, world: HostWorld): Set<string> =>
@@ -7629,7 +7653,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const outbound: Outbound[] = []
     if (enviado === undefined || enviado.sistema !== rpg.sistema) outbound.push({ clientId, msg: mensagemDoSistema(rpg.sistema) })
     if (enviado === undefined || enviado.tokens !== chave || !mesmasReferencias(enviado.personagens, personagens)) {
-      outbound.push({ clientId, msg: { type: 'personagens', personagens: personagens.map(semDono), tokens } })
+      outbound.push({ clientId, msg: { type: 'personagens', personagens: personagens.map(paraOFio), tokens } })
     }
     personagensEnviados.set(clientId, { sistema: rpg.sistema, personagens, tokens: chave })
     return outbound

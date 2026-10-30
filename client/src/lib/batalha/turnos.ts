@@ -1,5 +1,6 @@
 import type { Token } from '../../types/map'
 import { valorDoRank } from '../ajusteDaFicha'
+import { entraNaBatalha } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { CombateDoPersonagem, ContraAtaque, GolpeDaBatalha } from './combate'
@@ -225,14 +226,26 @@ type TokenDaOrdem = Pick<Token, 'id' | 'characterId' | 'name' | 'hidden'>
  * personagem ligado (que ainda existe) e não escondida no editor, maior
  * Agilidade primeiro. O empate fica na ordem do mapa: `ordenarPelaAgilidade`
  * o resolve (d20 ou marca).
+ *
+ * MUNDO DO LIVRO (M1): sem `incluir`, o NPC "Só no cenário" fica fora
+ * (`entraNaBatalha`). Com `incluir` (os ids de token MARCADOS na caixa "Quem
+ * entra na batalha?"), entram só eles — inclusive o de cenário que o mestre
+ * marcou com a própria ficha: a escolha dele na caixa vale para esta batalha.
  */
-export function combatentesIniciais(tokens: readonly TokenDaOrdem[], personagens: readonly Personagem[], sistema: SistemaDeRpg | null): CartaDaOrdem[] {
+export function combatentesIniciais(
+  tokens: readonly TokenDaOrdem[],
+  personagens: readonly Personagem[],
+  sistema: SistemaDeRpg | null,
+  incluir?: ReadonlySet<string>,
+): CartaDaOrdem[] {
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
   const comAgilidade: { carta: CartaDaOrdem; agilidade: number }[] = []
   for (const token of tokens) {
     if (token.hidden === true || token.characterId === null) continue
+    if (incluir !== undefined && !incluir.has(token.id)) continue
     const personagem = porId.get(token.characterId)
     if (personagem === undefined) continue
+    if (incluir === undefined && !entraNaBatalha(personagem)) continue
     comAgilidade.push({ carta: novaCarta(token.id, personagem.id, token.name), agilidade: agilidadeDe(personagem, sistema) })
   }
   // `sort` é estável: empate fica na ordem do mapa.

@@ -13,6 +13,8 @@ export const SCREEN_PARENT: Record<Screen, Screen> = {
   'load-map': 'menu',
   options: 'menu',
   roleplay: 'menu',
+  // MUNDO DO LIVRO DE REGRAS (porta 04): a escolha do sistema e o mundo voltam à tela inicial.
+  livros: 'menu',
   editor: 'menu',
 }
 
