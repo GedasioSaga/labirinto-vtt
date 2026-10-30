@@ -29,6 +29,13 @@ export interface MundoAberto {
   origem: OrigemDoMundo
 }
 
+/** A ficha aberta na janela de ficha do app, por cima do mundo (`GavetaDaFicha`). */
+export interface FichaAbertaNoMundo {
+  personagemId: string
+  /** Abre já em "Editar" (a ficha recém-criada, para dar nome e números). */
+  editando: boolean
+}
+
 /** Uma mudança na lista de fichas da pasta: recebe a do disco, devolve a nova (sem mutar). */
 export type MudancaDoMundo = (personagens: Personagem[]) => Personagem[]
 
@@ -39,15 +46,23 @@ interface MundoDoLivroState {
   daPasta: Personagem[] | null
   /** A leitura da pasta falhou: a frase pronta. */
   erro: string | null
+  /** O NPC no detalhe da página NPCs de combate; `null` = o primeiro da lista. Sobrevive à troca de marcador. */
+  npcEscolhido: string | null
+  fichaAberta: FichaAbertaNoMundo | null
   /** Abre o mundo no primeiro marcador e lê a pasta. Nunca lança: a falha vira `erro`. */
   abrir: (aberto: MundoAberto) => Promise<void>
   fechar: () => void
   trocarAba: (aba: AbaDoMundo) => void
+  escolherNpc: (personagemId: string | null) => void
+  abrirFicha: (personagemId: string, editando?: boolean) => void
+  fecharFicha: () => void
   /** Relê a pasta aberta do disco. Nunca lança: a falha vira `erro`. */
   recarregar: () => Promise<void>
   /**
    * Aplica a mudança às fichas da pasta aberta (disco e cópia do editor) e
-   * sincroniza as variações com os modelos. Lança com a razão.
+   * sincroniza as variações com os modelos. Uma gravação por vez, na ordem
+   * pedida: duas seguidas (dois atalhos da força) não leem o mesmo disco e
+   * perdem a primeira. Lança com a razão.
    */
   mudar: (mudanca: MudancaDoMundo) => Promise<void>
 }
@@ -55,6 +70,8 @@ interface MundoDoLivroState {
 export const useMundoDoLivroStore = create<MundoDoLivroState>()((set, get) => {
   /** A leitura (ou gravação) que terminou ainda é da pasta aberta? O mestre pode ter fechado ou trocado no meio. */
   const aindaAberta = (pastaId: string): boolean => get().aberto?.pastaId === pastaId
+  /** A fila das gravações: cada `mudar` espera a anterior terminar (com ou sem erro). */
+  let fila: Promise<void> = Promise.resolve()
 
   const recarregar = async (): Promise<void> => {
     const aberto = get().aberto
@@ -64,25 +81,39 @@ export const useMundoDoLivroStore = create<MundoDoLivroState>()((set, get) => {
     set(lido.ok ? { daPasta: lido.rpg.personagens, erro: null } : { daPasta: null, erro: lido.motivo })
   }
 
+  const gravar = async (pastaId: string, mudanca: MudancaDoMundo): Promise<void> => {
+    const gravado = await editarRpgDaPasta(pastaId, (rpg) => ({ ...rpg, personagens: sincronizarVariacoes(mudanca(rpg.personagens)) }))
+    if (aindaAberta(pastaId)) set({ daPasta: gravado.personagens, erro: null })
+  }
+
   return {
     aberto: null,
     aba: 'jogadores',
     daPasta: null,
     erro: null,
+    npcEscolhido: null,
+    fichaAberta: null,
 
     abrir: async (aberto) => {
-      set({ aberto, aba: 'jogadores', daPasta: null, erro: null })
+      set({ aberto, aba: 'jogadores', daPasta: null, erro: null, npcEscolhido: null, fichaAberta: null })
       await recarregar()
     },
-    fechar: () => set({ aberto: null, daPasta: null, erro: null }),
+    fechar: () => set({ aberto: null, daPasta: null, erro: null, npcEscolhido: null, fichaAberta: null }),
     trocarAba: (aba) => set({ aba }),
+    escolherNpc: (personagemId) => set({ npcEscolhido: personagemId }),
+    abrirFicha: (personagemId, editando = false) => set({ fichaAberta: { personagemId, editando } }),
+    fecharFicha: () => set({ fichaAberta: null }),
     recarregar,
 
-    mudar: async (mudanca) => {
+    mudar: (mudanca) => {
       const aberto = get().aberto
-      if (aberto === null) return
-      const gravado = await editarRpgDaPasta(aberto.pastaId, (rpg) => ({ ...rpg, personagens: sincronizarVariacoes(mudanca(rpg.personagens)) }))
-      if (aindaAberta(aberto.pastaId)) set({ daPasta: gravado.personagens, erro: null })
+      if (aberto === null) return Promise.resolve()
+      const vez = fila.then(() => gravar(aberto.pastaId, mudanca))
+      fila = vez.then(
+        () => undefined,
+        () => undefined,
+      )
+      return vez
     },
   }
 })
