@@ -476,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.16"
+version = "0.5.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d85363c37faeca707aef026efa9f3b34d077bce547e48f770770625c6013679e"
 dependencies = [
@@ -1936,7 +1936,7 @@ dependencies = [
 
 [[package]]
 name = "labirinto"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "axum",
  "base64 0.22.1",
