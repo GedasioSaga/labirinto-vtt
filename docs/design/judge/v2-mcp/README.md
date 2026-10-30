@@ -1,8 +1,18 @@
-# Judge v4 (feito ao vivo no Blender pelo MCP)
+# Judge v4.1 (feito ao vivo no Blender pelo MCP)
 
 O Judge é o avatar do mestre na batalha: um cavaleiro de armadura prateada, elmo com chifres de touro e capa azul, montado num chocobo marrom de máscara de metal. Ele ergue uma carta vermelha que brilha.
 
 O modelo foi montado ao vivo no Blender 5.2, na cena "Judge", por scripts Python mandados pelo MCP do Blender. As penas são placas largas; armadura, elmo, máscara, capa e carta são malhas feitas por código, com materiais do Poly Haven.
+
+## O que mudou na v4.1
+
+- **Crista aberta no meio.** No sul da folha (virado para a tela), a crista do chocobo ficava entre a câmera e a viseira e escondia os olhos do juiz. Agora ela se divide em duas metades, com um vão no meio: 7 penas de cada lado abrem para fora, em leque, de 46 a 70 graus da vertical. Vista de frente, a crista vira um V largo e baixo que emoldura o rosto por baixo dos chifres. As penas são as mesmas placas da v4, com o mesmo material e a mesma cor; o resto do modelo não mudou.
+- **Por que o V é largo.** Na respiração, a carta fica logo à direita do rosto, na altura dos olhos. A metade direita da crista passa por baixo dela, então as penas de cima não podem ficar mais em pé que uns 46 graus. As penas também não deitam para trás, na direção do juiz: assim a carta continua à vista no oeste e no sudoeste, e a mão direita passa livre por cima da crista quando ergue a carta. As penas de baixo ficam mais deitadas para passar por cima da borda de trás da máscara e da correia da nuca.
+- **Conferido com raios no Blender, quadro a quadro:**
+  - No sul, nenhuma pena cobre o rosto do juiz em nenhum dos 20 quadros. Na v4, a crista cobria de 69% a 81% do rosto.
+  - Na respiração, a crista não cobre a carta em nenhuma das 8 direções. Na v4, cobria até 91% no oeste e 97% no sudoeste.
+  - A crista não encosta na máscara, nas correias, na mão ou na carta em nenhum quadro. A menor folga fica em torno de 2 cm, na borda da máscara.
+  - Nas direções em que o olho preto do chocobo aparecia, ele continua aparecendo.
 
 ## O que mudou na v4
 
@@ -19,11 +29,11 @@ O modelo foi montado ao vivo no Blender 5.2, na cena "Judge", por scripts Python
 
 | Arquivo | O que é |
 |---|---|
-| `judge-heroi.png` | Imagem grande (1200 x 1500), em 3/4 de baixo, com a carta erguida (1.929 KB) |
-| `judge-folha.png` | Folha do app: 8 direções x 20 quadros, fundo transparente, 3840 x 1920 (6.570 KB) |
-| `judge-folha.webp` | A mesma folha em WebP qualidade 90, bem mais leve para o app (1.158 KB) |
+| `judge-heroi.png` | Imagem grande (1200 x 1500), em 3/4 de baixo, com a carta erguida (1.912 KB) |
+| `judge-folha.png` | Folha do app: 8 direções x 20 quadros, fundo transparente, 3840 x 1920 (6.541 KB) |
+| `judge-folha.webp` | A mesma folha em WebP qualidade 90, bem mais leve para o app (1.149 KB) |
 | `judge-folha.json` | Como ler a folha (tamanho do quadro, direções, animações, ponto do chão) |
-| `fonte/judge.blend` | O modelo, com as texturas dentro. Abre no Blender 5.2; tudo fica na cena "Judge" (12.657 KB) |
+| `fonte/judge.blend` | O modelo, com as texturas dentro. Abre no Blender 5.2; tudo fica na cena "Judge" (12.655 KB) |
 | `fonte/render_judge.py` | Renderiza o herói e a folha de novo, fora da janela do Blender |
 
 ## Como a folha funciona
@@ -52,9 +62,9 @@ Detalhes que o `render_judge.py` cuida sozinho:
 
 ## O que ainda fica longe da pintura
 
-- **No sul, a crista cobre o rosto do juiz.** Vista de frente e de cima, a crista do chocobo fica entre a câmera e a viseira, então na primeira linha da folha os olhos do juiz não aparecem. Nas outras direções de frente e de lado eles aparecem. Para aparecerem também no sul, seria preciso abrir a crista no meio ou baixá-la uns 15 cm, o que muda o desenho aprovado na parte C.
+- **De lado, a crista ficou mais baixa.** Com as duas metades abertas para os lados, de perfil (leste e oeste) ela aparece como um tufo curto em cima da cabeça, e não mais como o penacho alto da v4.
 - **De lado (leste e oeste),** o brilho do olho de trás aparece um pouco abaixo da sobrancelha, e o olho vira um risquinho de dois pontos em vez de um.
-- **Na respiração, a carta baixa** aparece como um retângulo vermelho na maioria das direções, mas no sudeste fica na frente do rosto e no oeste e sudoeste fica meio coberta pela crista.
+- **Na respiração, a carta baixa** aparece como um retângulo vermelho na maioria das direções, e a crista não a cobre em nenhuma. No sudeste, porém, a carta fica na frente do rosto.
 - **As penas** continuam placas lisas, sem a pincelada macia da pintura.
 
 ## Créditos (Poly Haven, licença CC0)
