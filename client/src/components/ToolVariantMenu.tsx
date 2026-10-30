@@ -1,6 +1,7 @@
 import { createContext, Fragment, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMapStore } from '../stores/mapStore'
-import type { DoorKind, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
+import type { DoorKind, FeitioDaParede, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
+import type { EstiloVisual } from '../lib/estiloDoMapa'
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
 import type { FloorShapeKind } from '../lib/floorTool'
@@ -12,6 +13,7 @@ import {
   PARTE_COM_O_ATALHO_DA_ARVORE,
   PARTES_DO_MENU_DE_OBJETO,
   type ToolVariantGroup,
+  type ToolVariantGroupInativo,
   type ToolVariantOption,
   type ToolVariantStoreKey,
 } from '../lib/toolVariants'
@@ -42,6 +44,13 @@ const MOBILIA_ICON_SIZE = 16
 export interface ToolVariantBindings {
   doorKind: { value: DoorKind; onChange: (value: DoorKind) => void }
   wallKind: { value: Wall['wallKind']; onChange: (value: NonNullable<Wall['wallKind']>) => void }
+  /** Desenhado — a PRÓXIMA parede nasce de pedra ou de linha (`Wall.feitio`). */
+  wallFeitio: { value: FeitioDaParede; onChange: (value: FeitioDaParede) => void }
+  /**
+   * Não é eixo: o estilo do mapa aberto, só para ler. Desliga o grupo que só vale
+   * num estilo (`inativoQuando.soNoEstilo`, o Desenho da parede).
+   */
+  estiloDoMapa: { value: EstiloVisual }
   regionFillPattern: { value: Region['fillPattern']; onChange: (value: Region['fillPattern']) => void }
   polygonSides: { value: number; onChange: (value: number) => void }
   /** Fase 5 — preset nomeado (P/M/G) da PRÓXIMA escada. */
@@ -120,6 +129,12 @@ export interface ToolVariantMenuProps {
  * `disabled` por cada `case` de `GroupOptions`.
  */
 const GrupoInativo = createContext(false)
+
+/** A regra `inativoQuando` vale agora? Pelo valor de outro eixo, ou pelo estilo do mapa aberto. */
+export function grupoInativo(regra: ToolVariantGroupInativo, bindings: ToolVariantBindings): boolean {
+  if ('soNoEstilo' in regra) return bindings.estiloDoMapa.value !== regra.soNoEstilo
+  return readVariantValue(bindings, regra.storeKey) === regra.value
+}
 
 /**
  * Uma opção de rádio. O nome acessível é SÓ o rótulo (`aria-label`), e a
@@ -242,6 +257,8 @@ export function eixoDaVariante(
       // `onChange`, que já exige NonNullable (mesma assinatura de
       // setWallKind/setWallKindForWall em mapStore.ts).
       return eixo(group.options, bindings.wallKind.value ?? 'exterior', bindings.wallKind.onChange)
+    case 'wallFeitio':
+      return eixo(group.options, bindings.wallFeitio.value, bindings.wallFeitio.onChange)
     case 'regionFillPattern':
       return eixo(group.options, bindings.regionFillPattern.value, bindings.regionFillPattern.onChange)
     case 'polygonSides':
@@ -335,7 +352,7 @@ function VariantGroup({
 }) {
   const motivoId = useId()
   const regra = group.inativoQuando
-  const inativo = regra !== undefined && readVariantValue(bindings, regra.storeKey) === regra.value
+  const inativo = regra !== undefined && grupoInativo(regra, bindings)
   return (
     <div className="lb-toolvariant-menu__group">
       <h3 className="lb-eyebrow">{group.label}</h3>

@@ -25,6 +25,8 @@ function bindings(activeTool: DrawingTool, onSelectTool: (tool: DrawingTool) => 
   return {
     doorKind: { value: 'normal', onChange: vi.fn() },
     wallKind: { value: undefined, onChange: vi.fn() },
+    wallFeitio: { value: 'pedra', onChange: vi.fn() },
+    estiloDoMapa: { value: 'atual' },
     regionFillPattern: { value: 'solid', onChange: vi.fn() },
     polygonSides: { value: 6, onChange: vi.fn() },
     stairSizePreset: { value: 'medium', onChange: vi.fn() },

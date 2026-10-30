@@ -115,6 +115,8 @@ function iconeDaFicha(grupo: ToolVariantGroup, id: string): ReactNode {
 function grupoValeAgora(grupo: ToolVariantGroup, variantes: ToolVariantBindings): boolean {
   if (grupo.storeKey === 'floorBrushSize') return variantes.floorShapeKind.value === 'blocos'
   if (grupo.storeKey === 'floorPolygonSides') return variantes.floorShapeKind.value === 'polygon'
+  // Pedra ou Linha só no Desenhado: no Atual e no Simples a parede já é linha.
+  if (grupo.storeKey === 'wallFeitio') return variantes.estiloDoMapa.value === 'desenhado'
   return true
 }
 

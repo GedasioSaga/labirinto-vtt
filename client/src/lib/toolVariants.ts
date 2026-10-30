@@ -1,5 +1,5 @@
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
-import type { DoorKind, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
+import type { DoorKind, FeitioDaParede, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
 import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
@@ -55,17 +55,24 @@ export interface ToolVariantOption<V> {
  * ("desabilitado com o motivo por perto"). Sumir com o grupo faria o menu
  * mudar de forma a cada troca de modo, e a pessoa não saberia onde foi parar.
  *
- * Hoje só o Preenchimento da Sala livre usa isto: no modo Parede o traçado
- * não cria sala, então não há o que preencher.
+ * Usam isto o Preenchimento da Sala livre (no modo Parede o traçado não cria
+ * sala, então não há o que preencher) e o Desenho da parede, que só vale com o
+ * mapa no estilo Desenhado (`soNoEstilo`).
  */
-export interface ToolVariantGroupInativo {
-  /** O eixo cujo valor desliga o grupo. */
-  storeKey: 'roomFreeKind'
-  /** Com este valor no eixo, o grupo fica esmaecido. */
-  value: RoomFreeKind
-  /** Por que não vale, e como voltar a valer — frase curta, texto de tela. */
-  motivo: string
-}
+export type ToolVariantGroupInativo =
+  | {
+      /** O eixo cujo valor desliga o grupo. */
+      storeKey: 'roomFreeKind'
+      /** Com este valor no eixo, o grupo fica esmaecido. */
+      value: RoomFreeKind
+      /** Por que não vale, e como voltar a valer — frase curta, texto de tela. */
+      motivo: string
+    }
+  | {
+      /** O grupo só vale com o mapa aberto neste estilo (página Cena); fora dele fica esmaecido. */
+      soNoEstilo: 'desenhado'
+      motivo: string
+    }
 
 /**
  * Um eixo de variante dentro de uma ferramenta (uma ferramenta pode ter mais
@@ -79,6 +86,8 @@ export interface ToolVariantGroupInativo {
 export type ToolVariantGroup = (
   | { storeKey: 'doorKind'; label: string; options: ToolVariantOption<DoorKind>[] }
   | { storeKey: 'wallKind'; label: string; options: ToolVariantOption<NonNullable<Wall['wallKind']>>[] }
+  /** Desenhado: a próxima parede nasce de pedra ou de linha (`Wall.feitio`). */
+  | { storeKey: 'wallFeitio'; label: string; options: ToolVariantOption<FeitioDaParede>[] }
   | { storeKey: 'regionFillPattern'; label: string; options: ToolVariantOption<Region['fillPattern']>[] }
   | { storeKey: 'polygonSides'; label: string; options: ToolVariantOption<number>[] }
   | { storeKey: 'stairSizePreset'; label: string; options: ToolVariantOption<StairSizePreset>[] }
@@ -149,6 +158,26 @@ const WALL_KIND_GROUP: ToolVariantGroup = {
     { id: 'exterior', label: 'Externa', value: 'exterior', description: 'Traço grosso e claro — aparência padrão.' },
     { id: 'interior', label: 'Interna', value: 'interior', description: 'Traço mais fino, cor diferente.' },
   ],
+}
+
+/**
+ * PEDRA OU LINHA da PRÓXIMA parede (pedido de 29/10/2026, `Wall.feitio`): vale
+ * para toda ferramenta que cria parede (Parede, as quatro Salas e o modo Parede
+ * da Sala livre; a store aplica em `addWall`/`addWalls`/`addRoom` e no "Criar
+ * paredes" da região). Só no Desenhado: no Atual e no Simples a parede já é
+ * linha, e o grupo fica esmaecido com o motivo (`inativoQuando`).
+ */
+const WALL_FEITIO_GROUP: ToolVariantGroup = {
+  storeKey: 'wallFeitio',
+  label: 'Desenho da parede',
+  options: [
+    { id: 'pedra', label: 'Pedra', value: 'pedra', description: 'A alvenaria do estilo Desenhado — padrão.' },
+    { id: 'linha', label: 'Linha', value: 'linha', description: 'A linha fina de sempre, na cor da parede.' },
+  ],
+  inativoQuando: {
+    soNoEstilo: 'desenhado',
+    motivo: 'Só no estilo Desenhado (página Cena). No Atual e no Simples a parede já é linha.',
+  },
 }
 
 const REGION_FILL_PATTERN_GROUP: ToolVariantGroup = {
@@ -364,7 +393,7 @@ const ERASE_MODE_GROUP: ToolVariantGroup = {
 export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // ---- confirmadas prontas (DOSSIE-FEEDBACK-F4.md, tabela "Variantes já
   // existentes no schema/código") ----------------------------------------
-  wall: { available: true, tool: 'wall', groups: [WALL_KIND_GROUP] },
+  wall: { available: true, tool: 'wall', groups: [WALL_KIND_GROUP, WALL_FEITIO_GROUP] },
   door: { available: true, tool: 'door', groups: [DOOR_KIND_GROUP] },
   // region/room/roomCircle/roomPolygon: as 4 ferramentas criam uma Region e
   // leem a MESMA preferência `regionFillPattern` na hora de desenhar —
@@ -372,12 +401,13 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // buildRegularPolygonRoomFromDraft/buildRegionFromPoints, todas recebem
   // `regionFillPattern` do store).
   region: { available: true, tool: 'region', groups: [REGION_FILL_PATTERN_GROUP] },
-  room: { available: true, tool: 'room', groups: [REGION_FILL_PATTERN_GROUP] },
-  roomCircle: { available: true, tool: 'roomCircle', groups: [REGION_FILL_PATTERN_GROUP] },
+  // As Salas criam as paredes do contorno: o Desenho da parede vem depois do preenchimento.
+  room: { available: true, tool: 'room', groups: [REGION_FILL_PATTERN_GROUP, WALL_FEITIO_GROUP] },
+  roomCircle: { available: true, tool: 'roomCircle', groups: [REGION_FILL_PATTERN_GROUP, WALL_FEITIO_GROUP] },
   // roomPolygon tem DOIS eixos independentes: preenchimento (igual às outras
   // 3 Salas) E número de lados (só ela lê `polygonSides` —
   // PropertiesPanel.tsx: `activeTool === 'roomPolygon'`).
-  roomPolygon: { available: true, tool: 'roomPolygon', groups: [REGION_FILL_PATTERN_GROUP, POLYGON_SIDES_GROUP] },
+  roomPolygon: { available: true, tool: 'roomPolygon', groups: [REGION_FILL_PATTERN_GROUP, POLYGON_SIDES_GROUP, WALL_FEITIO_GROUP] },
   // Sala livre: o que o traçado cria (sala ou só paredes) e se os cantos
   // arredondam vêm primeiro; o preenchimento é a mesma preferência
   // `regionFillPattern` das outras três Salas (o commit dela em
@@ -387,7 +417,7 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   roomFree: {
     available: true,
     tool: 'roomFree',
-    groups: [ROOM_FREE_KIND_GROUP, ROOM_FREE_ROUNDED_GROUP, ROOM_FREE_FILL_PATTERN_GROUP],
+    groups: [ROOM_FREE_KIND_GROUP, ROOM_FREE_ROUNDED_GROUP, ROOM_FREE_FILL_PATTERN_GROUP, WALL_FEITIO_GROUP],
   },
 
   // ---- Fase 5: as 3 variantes abaixo saíram de available:false pra true —
@@ -590,6 +620,7 @@ export type ToolVariantStoreKey = ToolVariantGroup['storeKey']
 const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
   doorKind: 'Próxima porta',
   wallKind: 'Próxima parede',
+  wallFeitio: 'Próxima parede',
   regionFillPattern: 'Próximo preenchimento',
   polygonSides: 'Próximo polígono',
   stairSizePreset: 'Próxima escada',
@@ -614,6 +645,7 @@ const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
 const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
   doorKind: DOOR_KIND_GROUP,
   wallKind: WALL_KIND_GROUP,
+  wallFeitio: WALL_FEITIO_GROUP,
   regionFillPattern: REGION_FILL_PATTERN_GROUP,
   polygonSides: POLYGON_SIDES_GROUP,
   stairSizePreset: STAIR_SIZE_GROUP,

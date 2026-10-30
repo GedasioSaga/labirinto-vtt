@@ -77,7 +77,7 @@ describe('TOOL_VARIANTS', () => {
       'doorKind', 'wallKind', 'regionFillPattern', 'polygonSides',
       'stairSizePreset', 'drawTexture', 'brushMode', 'eraseMode',
       'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize', 'floorCamada',
-      'roomFreeKind', 'roomFreeRounded', 'mobiliaTipo',
+      'roomFreeKind', 'roomFreeRounded', 'mobiliaTipo', 'wallFeitio',
     ]
     for (const entry of readyToolVariants()) {
       for (const group of entry.groups) {
@@ -94,12 +94,13 @@ describe('TOOL_VARIANTS', () => {
     }
   })
 
-  it('wall tem exatamente as 2 variantes de wallKind (interior/exterior)', () => {
+  it('wall tem as 2 variantes de wallKind (interior/exterior) e o Desenho da parede (pedra/linha)', () => {
     const entry = TOOL_VARIANTS.wall
     expect(entry?.available).toBe(true)
     if (!entry || !entry.available) throw new Error('wall deveria estar disponível')
-    expect(entry.groups).toHaveLength(1)
+    expect(entry.groups).toHaveLength(2)
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['exterior', 'interior'])
+    expect(entry.groups[1].options.map((o) => o.value)).toEqual(['pedra', 'linha'])
   })
 
   it('door tem exatamente as 3 variantes de doorKind (normal/double/gate)', () => {
@@ -141,7 +142,7 @@ describe('TOOL_VARIANTS', () => {
   it('roomFree tem os eixos Criar (sala ou parede) e Arredondar, além do preenchimento', () => {
     const entry = TOOL_VARIANTS.roomFree
     if (!entry || !entry.available) throw new Error('roomFree deveria estar disponível')
-    expect(entry.groups.map((g) => g.storeKey)).toEqual(['roomFreeKind', 'roomFreeRounded', 'regionFillPattern'])
+    expect(entry.groups.map((g) => g.storeKey)).toEqual(['roomFreeKind', 'roomFreeRounded', 'regionFillPattern', 'wallFeitio'])
 
     const criar = entry.groups.find((g) => g.storeKey === 'roomFreeKind')
     const arredondar = entry.groups.find((g) => g.storeKey === 'roomFreeRounded')
@@ -319,7 +320,7 @@ describe('botões que agrupam ferramentas na barra (fatia 6: Sala e Objeto)', ()
   })
 
   it('o menu traz a escolha da ferramenta e, abaixo, as variantes prontas dela', () => {
-    expect(clusterVariantGroups('sala', 'roomFree').map((g) => g.label)).toEqual(['Forma', 'Criar', 'Arredondar', 'Preenchimento'])
+    expect(clusterVariantGroups('sala', 'roomFree').map((g) => g.label)).toEqual(['Forma', 'Criar', 'Arredondar', 'Preenchimento', 'Desenho da parede'])
     expect(clusterVariantGroups('objeto', 'mobilia').map((g) => g.label)).toEqual(['Colocar', 'Objeto'])
     expect(clusterVariantGroups('objeto', 'prop').map((g) => g.label)).toEqual(['Colocar'])
     expect(clusterVariantGroups('drawing', 'line')).toEqual(drawingClusterGroups('line'))

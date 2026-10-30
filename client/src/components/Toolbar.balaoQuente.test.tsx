@@ -37,6 +37,8 @@ function bindings(): ToolVariantBindings {
   return {
     doorKind: { value: 'normal', onChange: vazio },
     wallKind: { value: undefined, onChange: vazio },
+    wallFeitio: { value: 'pedra', onChange: vazio },
+    estiloDoMapa: { value: 'atual' },
     regionFillPattern: { value: 'solid', onChange: vazio },
     polygonSides: { value: 6, onChange: vazio },
     stairSizePreset: { value: 'medium', onChange: vazio },

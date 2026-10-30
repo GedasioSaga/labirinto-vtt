@@ -605,6 +605,8 @@ function App() {
   const setWallPassagem = useMapStore((state) => state.setWallPassagem)
   const setWallColor = useMapStore((state) => state.setWallColor)
   const definirFeitioDaParede = useMapStore((state) => state.definirFeitioDaParede)
+  const wallFeitio = useMapStore((state) => state.wallFeitio)
+  const setWallFeitio = useMapStore((state) => state.setWallFeitio)
   const regionStrokeWidth = useMapStore((state) => state.regionStrokeWidth)
   const setRegionStrokeWidth = useMapStore((state) => state.setRegionStrokeWidth)
   const regionStrokeJoin = useMapStore((state) => state.regionStrokeJoin)
@@ -3130,6 +3132,9 @@ function App() {
   const variantBindings: ToolVariantBindings = {
     doorKind: { value: doorKind, onChange: setDoorKind },
     wallKind: { value: wallKind, onChange: setWallKind },
+    wallFeitio: { value: wallFeitio, onChange: setWallFeitio },
+    // Não é eixo: o estilo do mapa aberto desliga o Desenho da parede fora do Desenhado.
+    estiloDoMapa: { value: estiloDoMapa(map) },
     regionFillPattern: { value: regionFillPattern, onChange: setRegionFillPattern },
     polygonSides: { value: polygonSides, onChange: setPolygonSides },
     stairSizePreset: { value: stairSizePreset, onChange: setStairSizePreset },

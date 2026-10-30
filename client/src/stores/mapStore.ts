@@ -26,7 +26,7 @@ import type { RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import type { AparenciaDoMovelPatch } from '../lib/mobilia'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
-import type { EstiloVisual } from '../lib/estiloDoMapa'
+import { estiloDoMapa, type EstiloVisual } from '../lib/estiloDoMapa'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
@@ -184,6 +184,15 @@ function chaveDoArrastoDoPino(id: string, patch: object): string | undefined {
 /** A textura existe para ESTA cena: da biblioteca (ou do pacote que este aparelho tem) ou importada nela. */
 function texturaNaCena(map: MapData, id: string): boolean {
   return texturaDoCatalogo(id) !== null || (map.texturasImportadas ?? []).some((t) => t.id === id)
+}
+
+/**
+ * A parede que nasce por ferramenta com o Desenho escolhido nela (`wallFeitio`):
+ * Linha grava `feitio: 'linha'`, e só com o mapa no Desenhado (fora dele o grupo
+ * da ferramenta fica esmaecido e não vale); Pedra deixa a parede sem o campo.
+ */
+function comFeitioDaFerramenta(map: MapData, feitio: FeitioDaParede, wall: Wall): Wall {
+  return feitio === 'linha' && estiloDoMapa(map) === 'desenhado' ? { ...wall, feitio: 'linha' } : wall
 }
 
 /** O carimbo que a ferramenta Carimbos escolhe quando o escolhido some (o mais usado no continente). */
@@ -442,6 +451,12 @@ interface MapStoreState {
    *  preferência de ferramenta, mesma classe de `wallKind`. `undefined`
    *  === 'round'. Ver `Wall.lineStyle` (types/map.ts). */
   wallLineStyle: Wall['lineStyle']
+  /** Pedra ou Linha da PRÓXIMA parede no Desenhado (`Wall.feitio`) — preferência de
+   *  ferramenta, sem histórico e fora do map.json, mesma classe de `wallKind`. Vale
+   *  para toda parede que nasce por ferramenta (`addWall`, `addWalls`, `addRoom`,
+   *  `linkRegionWalls`), e só com o mapa no Desenhado; 'pedra' = sem o campo. */
+  wallFeitio: FeitioDaParede
+  setWallFeitio: (feitio: FeitioDaParede) => void
   setWallThickness: (thickness: NonNullable<Wall['thickness']>) => void
   setWallLineStyle: (lineStyle: NonNullable<Wall['lineStyle']>) => void
   /** Troca `thickness`/`lineStyle` de uma Parede JÁ EXISTENTE e selecionada —
@@ -1972,6 +1987,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     wallKind: undefined,
     wallThickness: undefined,
     wallLineStyle: undefined,
+    wallFeitio: 'pedra',
     doorKind: 'normal',
     doorMode: 'porta',
     roomFreeKind: 'sala',
@@ -2172,6 +2188,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setWallKind: (kind) => set({ wallKind: kind }),
     setWallThickness: (thickness) => set({ wallThickness: thickness }),
     setWallLineStyle: (lineStyle) => set({ wallLineStyle: lineStyle }),
+    setWallFeitio: (feitio) => set({ wallFeitio: feitio }),
     setDoorKind: (kind) => set({ doorKind: kind }),
     setDoorMode: (mode) => set({ doorMode: mode }),
     setRoomFreeKind: (kind) => set({ roomFreeKind: kind }),
@@ -2245,7 +2262,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     // Trecho desenhado sobre o lado de uma Sala do piso em edição vira parede
     // dela (parede parcial); a Sala de outro piso, ali embaixo, não conta.
-    addWall: (wall) => withHistory((map) => mapFactory.addWall(map, linkDrawnWallToRoom(mapaDoPiso(map, get().pisoAtivo).regions, wall))),
+    // A parede nasce com o Desenho escolhido na ferramenta (`comFeitioDaFerramenta`).
+    addWall: (wall) =>
+      withHistory((map) => mapFactory.addWall(map, linkDrawnWallToRoom(mapaDoPiso(map, get().pisoAtivo).regions, comFeitioDaFerramenta(map, get().wallFeitio, wall)))),
     addWalls: (walls) => {
       // Traçado vazio não gasta entrada de undo que não desfaz nada.
       if (walls.length === 0) return
@@ -2253,7 +2272,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         // Mesma regra do `addWall`, trecho a trecho: o que cair sobre o lado
         // de uma Sala do piso em edição vira parede dela.
         const regions = mapaDoPiso(map, get().pisoAtivo).regions
-        return walls.reduce((next, wall) => mapFactory.addWall(next, linkDrawnWallToRoom(regions, wall)), map)
+        const feitio = get().wallFeitio
+        return walls.reduce((next, wall) => mapFactory.addWall(next, linkDrawnWallToRoom(regions, comFeitioDaFerramenta(map, feitio, wall))), map)
       })
     },
     removeWall: (id) => withHistory((map) => mapFactory.removeWall(map, id)),
@@ -2333,7 +2353,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     addRegion: (region) => withHistory((map) => mapFactory.addRegion(map, region)),
     removeRegion: (id) => withHistory((map) => mapFactory.removeRegion(map, id)),
-    addRoom: (region, walls) => withHistory((map) => mapFactory.addRoom(map, region, walls)),
+    addRoom: (region, walls) =>
+      withHistory((map) => mapFactory.addRoom(map, region, walls.map((wall) => comFeitioDaFerramenta(map, get().wallFeitio, wall)))),
     updateWallPoint: (wallId, endpoint, x, y) => {
       const before = get().map
       const after = mapFactory.updateWallPoint(before, wallId, endpoint, x, y)
@@ -2357,8 +2378,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     }),
     linkRegionWalls: (regionId) => {
       const before = get().map
-      const after = mapFactory.linkRegionWalls(before, regionId)
-      if (after === before) return
+      const ligadas = mapFactory.linkRegionWalls(before, regionId)
+      if (ligadas === before) return
+      // Só as paredes que nasceram agora levam o Desenho escolhido na ferramenta.
+      const antigas = new Set(before.walls.map((w) => w.id))
+      const feitio = get().wallFeitio
+      const after = { ...ligadas, walls: ligadas.walls.map((w) => (antigas.has(w.id) ? w : comFeitioDaFerramenta(before, feitio, w))) }
       withHistory(() => after)
     },
     smoothRegion: (regionId) => {

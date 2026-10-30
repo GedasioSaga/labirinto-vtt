@@ -63,10 +63,11 @@ describe('dividirEmColunas', () => {
   })
 
   it('reparte o menu de Polígono Regular com um grupo de cada lado', () => {
-    // 2 grupos, 9 opções (2 de preenchimento + 7 de lados): o alvo de 5 por
-    // coluna estoura no segundo grupo, e ele abre a coluna seguinte.
+    // 3 grupos, 11 opções (2 de preenchimento + 7 de lados + 2 de desenho da
+    // parede): o alvo de 6 por coluna estoura no segundo grupo, que abre a
+    // coluna seguinte; o terceiro fica nela, porque não há terceira coluna.
     const colunas = dividirEmColunas(gruposDe('roomPolygon'), 2)
-    expect(rotulos(colunas)).toEqual([['Preenchimento'], ['Lados do polígono']])
+    expect(rotulos(colunas)).toEqual([['Preenchimento'], ['Lados do polígono', 'Desenho da parede']])
   })
 
   it('não deixa coluna vazia quando há menos grupos do que colunas pedidas', () => {

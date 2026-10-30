@@ -35,6 +35,8 @@ function preferencias(mudar: Partial<{ [K in keyof ToolVariantBindings]: ToolVar
   const bindings: ToolVariantBindings = {
     doorKind: eixo('doorKind', mudar.doorKind ?? 'normal'),
     wallKind: eixo('wallKind', mudar.wallKind ?? 'exterior'),
+    wallFeitio: eixo('wallFeitio', mudar.wallFeitio ?? 'pedra'),
+    estiloDoMapa: { value: mudar.estiloDoMapa ?? 'atual' },
     regionFillPattern: eixo('regionFillPattern', mudar.regionFillPattern ?? 'solid'),
     polygonSides: eixo('polygonSides', mudar.polygonSides ?? 6),
     stairSizePreset: eixo('stairSizePreset', mudar.stairSizePreset ?? 'medium'),
@@ -89,10 +91,11 @@ describe('FichaDaFerramenta — as variantes', () => {
   })
 
   it('não repete o que a ficha já tem pelos controles de sempre: tipo de parede, tipo de porta, hachurado e lados', () => {
-    expect(variantesDaFicha('wall')).toEqual([])
+    // "Desenho da parede" (Pedra | Linha) não tem controle de sempre na ficha: fica.
+    expect(variantesDaFicha('wall').map((g) => g.label)).toEqual(['Desenho da parede'])
     expect(variantesDaFicha('door')).toEqual([])
-    expect(variantesDaFicha('roomPolygon').map((g) => g.label)).toEqual(['Forma'])
-    expect(variantesDaFicha('roomFree').map((g) => g.label)).toEqual(['Forma', 'Criar', 'Arredondar'])
+    expect(variantesDaFicha('roomPolygon').map((g) => g.label)).toEqual(['Forma', 'Desenho da parede'])
+    expect(variantesDaFicha('roomFree').map((g) => g.label)).toEqual(['Forma', 'Criar', 'Arredondar', 'Desenho da parede'])
   })
 
   it('o Chão mostra o tamanho do pincel só com o Pincel de blocos, e os lados só com o Polígono regular', () => {
