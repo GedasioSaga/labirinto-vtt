@@ -29,7 +29,7 @@ export interface FaixaDaOrdemProps {
   dados: DadosDaFaixa
   /** Mestre: a carta foi para `indice` (arrasto ou Alt + setas). Ausente = a faixa não arrasta. */
   onMover?: (cartaId: string, indice: number) => void
-  /** Mestre: os itens do menu da carta. */
+  /** Mestre: os itens do menu da carta. Jogador: a carta com itens abre o menu em vez do perfil. */
   menuDaCarta?: (carta: DadosDaCarta) => readonly ItemDoMenuDaCarta[]
   /** Jogador: abre o perfil da carta dele ou de aliado (a "outro" não é clicável). */
   onAbrirPerfil?: (carta: DadosDaCarta) => void
@@ -247,9 +247,11 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
     onMover?.(id, para)
   }
 
+  // O mestre tem menu em toda carta; o jogador, só na carta que traz itens (F2: "Me dar dano" na dele).
+  const comMenu = (carta: DadosDaCarta) => menuDaCarta !== undefined && (doMestre || menuDaCarta(carta).length > 0)
   const clicar = (carta: DadosDaCarta, evento: MouseEvent<HTMLButtonElement>) => {
     if (cliqueEngolido.current) return
-    if (doMestre) {
+    if (comMenu(carta)) {
       const ancora = evento.currentTarget
       setMenu((aberto) => (aberto?.cartaId === carta.id ? null : { cartaId: carta.id, ancora }))
       return
@@ -302,7 +304,8 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
               onKeyDown={teclar}
             >
               {dados.cartas.map((carta, indice) => {
-                const clicavel = doMestre ? menuDaCarta !== undefined : onAbrirPerfil !== undefined && carta.personagemId !== null && (abrePerfil?.(carta) ?? true)
+                const temMenu = comMenu(carta)
+                const clicavel = doMestre ? menuDaCarta !== undefined : temMenu || (onAbrirPerfil !== undefined && carta.personagemId !== null && (abrePerfil?.(carta) ?? true))
                 return (
                   <CartaDaOrdem
                     key={carta.id}
@@ -311,17 +314,17 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
                     vez={carta.id === dados.vez}
                     proxima={carta.id === dados.proxima}
                     doMestre={doMestre}
-                    rotuloDoClique={doMestre ? 'Abre o menu da carta' : carta.minha ? 'Abre a sua ficha' : 'Abre o perfil'}
+                    rotuloDoClique={temMenu ? 'Abre o menu da carta' : carta.minha ? 'Abre a sua ficha' : 'Abre o perfil'}
                     onClique={clicavel ? (evento) => clicar(carta, evento) : undefined}
                     onMenuDeContexto={
-                      doMestre && clicavel
+                      temMenu && clicavel
                         ? (evento) => {
                             evento.preventDefault()
                             setMenu({ cartaId: carta.id, ancora: evento.currentTarget })
                           }
                         : undefined
                     }
-                    menuAberto={doMestre && clicavel ? menu?.cartaId === carta.id : undefined}
+                    menuAberto={temMenu && clicavel ? menu?.cartaId === carta.id : undefined}
                   />
                 )
               })}

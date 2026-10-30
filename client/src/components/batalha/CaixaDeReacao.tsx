@@ -1,0 +1,293 @@
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { MODIFICADOR_DA_REACAO_MAX, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
+import { saidasPossiveis } from '../../lib/batalha/reacao'
+import { formatarNumero, movimentoReduzido, saidasNaTela, TEXTO_DA_SAIDA } from './dadosDoMenu'
+import './batalha.css'
+import './combate.css'
+
+/**
+ * A CAIXA REAÇÃO (o `.reacao` do protótipo aprovado): quem ataca, com o quê
+ * e quanto; o modificador (lembrado por ficha nesta sessão); Rolar 1d20 (o
+ * dado é rolado no host); o d20 animado (160 ms entra, 8 números em 380 ms,
+ * pousa em 200 ms); depois só as saídas que o TOTAL liberou (Q3), com o dano
+ * de cada uma; Rerolar (Ponto Saga, sem limite: decisão 10); Não reagir. No
+ * 20, Contra-atacar zera o dano e dá uma ação a mais (Q6).
+ *
+ * Com mais de um golpe esperando (o mestre, um por NPC atingido), uma linha
+ * por golpe e "Rolar todas". Esc recolhe (o botão REAÇÃO reabre).
+ */
+
+export interface ReacaoNaCaixa {
+  /** `null` = reação livre (o botão REAÇÃO sem golpe esperando). */
+  golpeId: string | null
+  tokenId: string
+  /** Quem reage, quando não é óbvio (o NPC no mestre; a ficha dele, se tem mais de uma). */
+  alvo?: string
+  atacante: string
+  /** O nome do golpe. */
+  nome: string
+  /** O dano que chega; `null` = golpe sem dano. */
+  dano: number | null
+  perfurante?: boolean
+  rolagem?: RolagemDaReacao
+}
+
+export interface CaixaDeReacaoProps {
+  reacoes: readonly ReacaoNaCaixa[]
+  /** O pedido saiu? */
+  onPedir: (pedido: PedidoDeReacao) => boolean
+  /** Esc ou "Depois": recolhe. Ausente = a caixa não recolhe. */
+  onFechar?: () => void
+  /** "Não reagir" depois do dado: só o mestre pode. */
+  naoReagirDepoisDoDado?: boolean
+}
+
+/** O modificador de reação lembrado por ficha durante a sessão (some ao recarregar a página). */
+const modificadorLembrado = new Map<string, number>()
+const PUNCH = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+const NUMEROS_DO_GIRO = 8
+const PASSO_DO_GIRO_MS = 48
+
+function chaveDa(reacao: ReacaoNaCaixa): string {
+  return `${reacao.golpeId ?? 'livre'}:${reacao.tokenId}`
+}
+
+function lerModificador(texto: string): number {
+  const limpo = texto.trim().replace(/^\+/, '')
+  const valor = Number(limpo)
+  if (limpo === '' || limpo === '-' || !Number.isFinite(valor)) return 0
+  return Math.max(-MODIFICADOR_DA_REACAO_MAX, Math.min(MODIFICADOR_DA_REACAO_MAX, Math.trunc(valor)))
+}
+
+/** O d20 que gira e pousa quando a rolagem do host chega. */
+export function DadoDaReacao({ rolagem }: { rolagem: RolagemDaReacao | undefined }) {
+  const dado = useRef<HTMLDivElement>(null)
+  const [mostrado, setMostrado] = useState<string>(rolagem === undefined ? 'd20' : String(rolagem.d20))
+  const chave = rolagem === undefined ? null : `${rolagem.d20}:${rolagem.vezes}`
+  const primeira = useRef(true)
+
+  useLayoutEffect(() => {
+    if (rolagem === undefined) {
+      setMostrado('d20')
+      return
+    }
+    // A rolagem que já estava lá ao montar não gira de novo.
+    if (primeira.current || movimentoReduzido() || dado.current === null) {
+      primeira.current = false
+      setMostrado(String(rolagem.d20))
+      return
+    }
+    const elemento = dado.current
+    const animacoes: Animation[] = [elemento.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-360deg)' }], { duration: NUMEROS_DO_GIRO * PASSO_DO_GIRO_MS, easing: 'cubic-bezier(0.2, 0.6, 0.35, 1)' })]
+    let passo = 0
+    const giro = window.setInterval(() => {
+      passo += 1
+      if (passo >= NUMEROS_DO_GIRO) {
+        window.clearInterval(giro)
+        setMostrado(String(rolagem.d20))
+        animacoes.push(elemento.animate([{ transform: 'scale(1.4)' }, { transform: 'scale(1)' }], { duration: 200, easing: PUNCH }))
+        return
+      }
+      setMostrado(String(1 + Math.floor(Math.random() * 20)))
+    }, PASSO_DO_GIRO_MS)
+    return () => {
+      window.clearInterval(giro)
+      for (const animacao of animacoes) animacao.cancel()
+      setMostrado(String(rolagem.d20))
+    }
+    // Só a rolagem nova (d20 e vezes) gira; `rolagem` muda de objeto a cada estado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chave])
+
+  const saida = rolagem === undefined || mostrado !== String(rolagem.d20) ? undefined : saidasPossiveis(rolagem.d20, rolagem.total)[0]
+  return (
+    <div ref={dado} className="bt-dado" data-s={saida ?? ''} aria-hidden="true">
+      {mostrado}
+    </div>
+  )
+}
+
+function UmaReacao({
+  reacao,
+  sozinha,
+  onPedir,
+  focar,
+  naoReagirDepoisDoDado,
+}: {
+  reacao: ReacaoNaCaixa
+  sozinha: boolean
+  onPedir: (pedido: PedidoDeReacao) => boolean
+  focar: boolean
+  naoReagirDepoisDoDado: boolean
+}) {
+  const [modTexto, setModTexto] = useState(() => {
+    const lembrado = modificadorLembrado.get(reacao.tokenId) ?? 0
+    return lembrado === 0 ? '' : String(lembrado)
+  })
+  const [esperando, setEsperando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const primeiro = useRef<HTMLButtonElement>(null)
+  const rolagem = reacao.rolagem
+  const chaveDaRolagem = rolagem === undefined ? null : `${rolagem.d20}:${rolagem.vezes}`
+
+  // A rolagem nova (ou o prazo) solta o botão.
+  useEffect(() => setEsperando(false), [chaveDaRolagem])
+  useEffect(() => {
+    if (!esperando) return
+    const prazo = window.setTimeout(() => setEsperando(false), 4000)
+    return () => window.clearTimeout(prazo)
+  }, [esperando])
+  useEffect(() => {
+    if (focar) primeiro.current?.focus({ preventScroll: true })
+  }, [focar, chaveDaRolagem])
+
+  const modificador = lerModificador(modTexto)
+  const pedir = (pedido: PedidoDeReacao) => {
+    if (esperando) return
+    modificadorLembrado.set(reacao.tokenId, modificador)
+    const saiu = onPedir(pedido)
+    setErro(saiu ? null : 'Não saiu: sem conexão com o mestre. Tente de novo.')
+    if (saiu && pedido.tipo !== 'escolher' && pedido.tipo !== 'naoReagir') setEsperando(true)
+  }
+  const golpeId = reacao.golpeId
+  const saidas = rolagem === undefined ? [] : saidasNaTela(rolagem.d20, rolagem.total, reacao.dano)
+  const textoDoModificador = rolagem === undefined || rolagem.modificador === 0 ? '' : ` ${rolagem.modificador > 0 ? '+' : '−'} ${Math.abs(rolagem.modificador)}`
+
+  return (
+    <>
+      {golpeId === null ? (
+        <p className="bt-reacao__texto">Reação livre: 1d20 + modificador, vai ao registro.</p>
+      ) : (
+        <p className="bt-reacao__texto">
+          {reacao.alvo !== undefined && !sozinha && (
+            <>
+              <b>{reacao.alvo}</b> ·{' '}
+            </>
+          )}
+          <b>{reacao.atacante}</b> usa <b>{reacao.nome}</b> em {reacao.alvo === undefined ? 'você' : reacao.alvo}
+          {reacao.dano === null ? ' (sem dano).' : <>: <b>{formatarNumero(reacao.dano)}</b> de dano{reacao.perfurante ? ', perfurante (direto no HP)' : ''}.</>}
+        </p>
+      )}
+      <div className="bt-reacao__linha">
+        <DadoDaReacao rolagem={rolagem} />
+        <div className="bt-reacao__opcoes">
+          {rolagem === undefined ? (
+            <>
+              <button ref={primeiro} type="button" className="bt-botao bt-botao--batalha" disabled={esperando} onClick={() => pedir({ tipo: 'rolar', golpeId, tokenId: reacao.tokenId, modificador })}>
+                {esperando ? 'Rolando…' : 'Rolar 1d20'}
+              </button>
+              <label className="bt-mod">
+                Modificador
+                <input className="bt-num" inputMode="numeric" value={modTexto} placeholder="0" onChange={(evento) => setModTexto(evento.target.value)} />
+              </label>
+            </>
+          ) : golpeId === null ? (
+            <span className="bt-dado-rotulo">
+              Total {rolagem.d20}
+              {textoDoModificador} = {rolagem.total}
+            </span>
+          ) : (
+            <>
+              {saidas.map((saida, i) => (
+                <button
+                  key={saida.saida}
+                  ref={i === 0 ? primeiro : undefined}
+                  type="button"
+                  className={i === 0 ? 'bt-botao bt-botao--batalha' : 'bt-botao'}
+                  onClick={() => pedir({ tipo: 'escolher', golpeId, tokenId: reacao.tokenId, saida: saida.saida })}
+                >
+                  {rotuloDaSaida(saida.saida, saida.dano)}
+                </button>
+              ))}
+              <button type="button" className="bt-botao bt-botao--fantasma" disabled={esperando} onClick={() => pedir({ tipo: 'rerolar', golpeId, tokenId: reacao.tokenId, modificador })}>
+                {esperando ? 'Rolando…' : 'Rolar de novo'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="bt-reacao__pe">
+        <span className="bt-reacao__regra">
+          {rolagem === undefined
+            ? '10+ defende (metade) · 15+ esquiva · 20 contra-ataca · 1 é falha crítica (×1,5). Conta o total.'
+            : `d20 ${rolagem.d20}${textoDoModificador} = ${rolagem.total} · ${TEXTO_DA_SAIDA[saidasPossiveis(rolagem.d20, rolagem.total)[0] ?? 'cheio'].selo}`}
+        </span>
+        {golpeId !== null && (rolagem === undefined || naoReagirDepoisDoDado) && (
+          <button type="button" className="bt-botao bt-botao--p" onClick={() => pedir({ tipo: 'naoReagir', golpeId, tokenId: reacao.tokenId })}>
+            Não reagir
+          </button>
+        )}
+      </div>
+      {erro !== null && (
+        <p className="bt-form__erro" role="alert">
+          {erro}
+        </p>
+      )}
+    </>
+  )
+}
+
+function rotuloDaSaida(saida: SaidaDaReacao, dano: number | null): string {
+  const nome = TEXTO_DA_SAIDA[saida].botao
+  if (saida === 'contra') return `${nome} · 0 e ganha uma ação`
+  if (dano === null) return nome
+  return `${nome} · ${formatarNumero(dano)}`
+}
+
+export function CaixaDeReacao({ reacoes, onPedir, onFechar, naoReagirDepoisDoDado = false }: CaixaDeReacaoProps) {
+  const sozinha = reacoes.length === 1
+  const naoRoladas = reacoes.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null)
+  const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
+    // A caixa não deixa a tecla virar atalho do mapa atrás dela.
+    evento.stopPropagation()
+    if (evento.key === 'Escape' && onFechar !== undefined) {
+      evento.preventDefault()
+      onFechar()
+    }
+  }
+  if (reacoes.length === 0) return null
+  return (
+    <div className="bt-reacao" role="dialog" aria-label="Reação" onKeyDown={teclar}>
+      <div className="bt-reacao__topo">
+        <h3 className="bt-reacao__titulo">REAÇÃO</h3>
+        <span className="bt-reacao__conta">{sozinha ? '' : `${reacoes.length} golpes esperando`}</span>
+      </div>
+      {sozinha ? (
+        <UmaReacao reacao={reacoes[0] as ReacaoNaCaixa} sozinha onPedir={onPedir} focar naoReagirDepoisDoDado={naoReagirDepoisDoDado} />
+      ) : (
+        <ul className="bt-reacao__lista">
+          {reacoes.map((reacao, i) => (
+            <li key={chaveDa(reacao)} className="bt-reacao__item">
+              <UmaReacao reacao={reacao} sozinha={false} onPedir={onPedir} focar={i === 0} naoReagirDepoisDoDado={naoReagirDepoisDoDado} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {(naoRoladas.length > 1 || onFechar !== undefined) && (
+        <div className="bt-reacao__pe">
+          {naoRoladas.length > 1 ? (
+            <button
+              type="button"
+              className="bt-botao bt-botao--batalha"
+              onClick={() => {
+                for (const reacao of naoRoladas) {
+                  if (reacao.golpeId === null) continue
+                  onPedir({ tipo: 'rolar', golpeId: reacao.golpeId, tokenId: reacao.tokenId, modificador: modificadorLembrado.get(reacao.tokenId) ?? 0 })
+                }
+              }}
+            >
+              Rolar todas
+            </button>
+          ) : (
+            <span />
+          )}
+          {onFechar !== undefined && (
+            <button type="button" className="bt-botao bt-botao--fantasma bt-botao--p" onClick={onFechar}>
+              Depois <kbd>Esc</kbd>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

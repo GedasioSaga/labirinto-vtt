@@ -4,6 +4,7 @@ import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } fro
 import { useBatalhaStore } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
+import { DialogoDoMestreNaCena, type DialogoDoMestre } from './BatalhaDoMestre'
 import { faixaDoMestre, linhasDoMestre, type DadosDaCarta } from './dadosDaFaixa'
 import { FaixaDaOrdem } from './FaixaDaOrdem'
 import type { ItemDoMenuDaCarta } from './MenuDaCarta'
@@ -32,6 +33,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const sistema = useMemo(() => sistemaPorId(biblioteca, sistemaId) ?? null, [biblioteca, sistemaId])
   const [perfilId, setPerfilId] = useState<string | null>(null)
+  const [dialogo, setDialogo] = useState<DialogoDoMestre | null>(null)
 
   // Ficha apagada do mapa sai da ordem (e a vez que estava nela anda).
   const ligada = cena !== undefined
@@ -78,6 +80,11 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         onEscolher: () => store.adicionarCartaExtra(sceneKey, carta.tokenId, indice + 1, 'sempre'),
       })
       if (carta.extra !== null) itens.push({ id: 'tirar-extra', rotulo: 'Tirar esta carta extra', onEscolher: () => store.removerCarta(sceneKey, carta.id) })
+      // F2: o golpe à mão do mestre, as ações a mais e as armas levadas.
+      itens.push({ id: 'dano', secao: 'Combate', rotulo: 'Dar dano…', detalhe: 'Gasta o Escudo primeiro; entra no registro', onEscolher: () => setDialogo({ tipo: 'dano', tokenId: carta.tokenId }) })
+      itens.push({ id: 'acoes-extras', rotulo: 'Ações extras…', detalhe: 'Simples, Bônus e Movimento a mais na vez desta carta', onEscolher: () => setDialogo({ tipo: 'extras', cartaId: carta.id }) })
+      if (personagemId !== null)
+        itens.push({ id: 'armas', rotulo: 'Armas desta batalha…', detalhe: 'Trocar as armas levadas, dentro do limite da ficha', onEscolher: () => setDialogo({ tipo: 'armas', personagemId }) })
       if (personagemId !== null) {
         if (equipes.length === 0) {
           itens.push({ id: 'equipe-nenhuma', secao: 'Equipe', rotulo: 'Sem equipes', detalhe: 'Crie equipes no painel da batalha, no livro da mesa', desabilitado: true, onEscolher: () => {} })
@@ -133,6 +140,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
           onFechar={() => setPerfilId(null)}
         />
       )}
+      {dialogo !== null && <DialogoDoMestreNaCena sceneKey={sceneKey} dialogo={dialogo} onFechar={() => setDialogo(null)} />}
     </>
   )
 }

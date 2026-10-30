@@ -53,6 +53,8 @@ export interface DadosDaCarta {
   /** A carta é do jogador que olha (o perfil dele é a ficha de sempre). */
   minha: boolean
   npc: boolean
+  /** F2: a concentração guardada (0 a 3). Só o mestre e o dono veem. Ausente = 0. */
+  carga?: number
 }
 
 export interface DadosDaFaixa {
@@ -144,6 +146,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema }:
       personagemId: personagem === undefined ? null : personagem.id,
       minha: false,
       npc: personagem?.tipo === 'npc',
+      carga: carta.personagemId === null ? 0 : (turnos.combate?.[carta.personagemId]?.carga ?? 0),
     }
   })
   const proxima = proximaCarta(turnos, caidos)
@@ -209,9 +212,12 @@ function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined
 export function faixaDoJogador({ estado, fichas, personagens, sistema }: EntradaDoJogador): DadosDaFaixa {
   const fichaPorId = porId(fichas)
   const personagemPorId = porId(personagens)
-  const cartas = estado.cartas.map((carta) =>
-    cartaDoJogador(carta, fichaPorId.get(carta.tokenId), carta.personagemId === undefined ? undefined : personagemPorId.get(carta.personagemId), sistema),
-  )
+  const cartas = estado.cartas.map((carta) => {
+    const dados = cartaDoJogador(carta, fichaPorId.get(carta.tokenId), carta.personagemId === undefined ? undefined : personagemPorId.get(carta.personagemId), sistema)
+    // F2: a carga só do que é dele (o recorte não manda a dos outros).
+    const meu = carta.lado === 'eu' ? estado.meus?.find((combate) => combate.personagemId === carta.personagemId) : undefined
+    return meu === undefined ? dados : { ...dados, carga: meu.carga }
+  })
   let depois: string | null = null
   if (!estado.minhaVez) {
     const faltam = turnosAteAMinha(estado)

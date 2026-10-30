@@ -3,7 +3,9 @@ import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { faixaDoJogador, linhasDoJogador, type DadosDaCarta, type FichaNaFaixa } from './dadosDaFaixa'
+import { DarDanoDialog } from './DarDanoDialog'
 import { FaixaDaOrdem } from './FaixaDaOrdem'
+import type { ItemDoMenuDaCarta } from './MenuDaCarta'
 import { PerfilDaCarta } from './PerfilDaCarta'
 
 /**
@@ -33,6 +35,8 @@ export interface FaixaDoJogadorProps {
   onDesfazer: (linhaId: string) => boolean
   /** A carta dele abre a ficha de sempre (o botão "Ficha"); ausente = a sala não serve fichas e a carta dele não abre nada. */
   onAbrirMinhaFicha?: () => void
+  /** F2: "Me dar dano" na carta dele (dano livre, vai ao registro). `false` = não saiu. Ausente = sem o item. */
+  onMeDarDano?: (tokenId: string, valor: number) => boolean
   className?: string
 }
 
@@ -40,7 +44,8 @@ export interface FaixaDoJogadorProps {
 const PRAZO_DO_PEDIDO_MS = 4000
 const NINGUEM: readonly Personagem[] = []
 
-export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, className }: FaixaDoJogadorProps) {
+export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, onMeDarDano, className }: FaixaDoJogadorProps) {
+  const [danoEm, setDanoEm] = useState<DadosDaCarta | null>(null)
   const personagens = useMemo(() => [...meus, ...aliados], [meus, aliados])
   const dados = useMemo(() => faixaDoJogador({ estado, fichas, personagens, sistema }), [estado, fichas, personagens, sistema])
   const registro = useMemo(() => linhasDoJogador(estado.registro), [estado.registro])
@@ -89,6 +94,17 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
         dados={dados}
         onAbrirPerfil={abrir}
         abrePerfil={abre}
+        menuDaCarta={
+          onMeDarDano === undefined
+            ? undefined
+            : (carta): ItemDoMenuDaCarta[] => {
+                if (!carta.minha) return []
+                const itens: ItemDoMenuDaCarta[] = []
+                if (onAbrirMinhaFicha !== undefined) itens.push({ id: 'ficha', rotulo: 'Abrir a minha ficha', onEscolher: onAbrirMinhaFicha })
+                itens.push({ id: 'dano', rotulo: 'Me dar dano…', detalhe: 'Dano livre na sua ficha; vai ao registro', onEscolher: () => setDanoEm(carta) })
+                return itens
+              }
+        }
         onPassarVez={
           estado.minhaVez && vez !== null
             ? () => {
@@ -113,6 +129,9 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
           descricao={[daCarta?.equipe, 'aliado', 'só leitura'].filter(Boolean).join(' · ')}
           onFechar={() => setPerfilId(null)}
         />
+      )}
+      {danoEm !== null && onMeDarDano !== undefined && (
+        <DarDanoDialog titulo="Me dar dano" alvos={[{ tokenId: danoEm.tokenId, nome: danoEm.nome }]} onConfirmar={onMeDarDano} onFechar={() => setDanoEm(null)} />
       )}
     </>
   )

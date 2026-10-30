@@ -397,9 +397,15 @@ button.bt-carta__corpo {
   border-radius: inherit;
   transform-origin: left center;
 }
+/* F2: a concentração guardada na carta (o `.marca--conc` do protótipo). */
+.bt-marca--carga {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+/* F2: duas camadas. A clara (o que foi perdido) fica 400 ms e depois some; a de cor anda na hora. */
 .bt-barra > b {
   background: rgba(255, 238, 220, 0.75);
-  transition: transform 480ms var(--lb-gr-ease-out) 220ms;
+  transition: transform 480ms var(--lb-gr-ease-out) 400ms;
 }
 .bt-barra > i {
   transition: transform 280ms var(--lb-gr-ease-out);

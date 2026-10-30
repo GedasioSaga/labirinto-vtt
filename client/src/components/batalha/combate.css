@@ -1,0 +1,1272 @@
+/*
+ * BATALHA ONE PIECE, F2: o menu da vez (tiras), a lista de técnicas, a mira,
+ * a caixa REAÇÃO, o botão de reação, a escolha de armas, o painel da vez do
+ * NPC e os efeitos sobre o mapa. Porte do protótipo aprovado
+ * (docs/design/batalha-persona/prototipo.html: `.tira`, `.menu`, `.mira`,
+ * `.reacao`, `.dado`, `.faixa`, `.corte`, `.risco`, `.numero`), só com os
+ * tokens do app (`--lb-*`) e os da batalha (`--bt-*`, batalha.css).
+ *
+ * Serve ao mestre e ao jogador: nada aqui depende do grimório.
+ * Movimento: só transform, opacity e clip-path; movimento reduzido = aparece e some.
+ */
+
+:root {
+  --bt-tinta: #0c0c0e;
+  --bt-papel: var(--lb-color-parchment);
+  --bt-forma: var(--lb-color-arcane);
+  --bt-titulo: 'Bahnschrift Condensed', 'Bahnschrift', var(--lb-font-utility);
+  --bt-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* ---------------------------------------------------------------- tiras (o menu de batalha) */
+.bt-vez {
+  display: flex;
+  flex-direction: column;
+  width: clamp(280px, 34vw, 470px);
+  max-height: min(78vh, 720px);
+  color: var(--bt-papel);
+}
+.bt-vez--lista {
+  width: clamp(300px, 46vw, 680px);
+}
+.bt-vez__cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px var(--lb-space-3);
+  margin: 0 0 10px 6px;
+  transform: rotate(-3deg);
+  transform-origin: left bottom;
+}
+.bt-vez__quem {
+  margin: 0;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(22px, 2.6vw, 34px);
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bt-papel);
+  text-shadow: 3px 3px 0 var(--bt-sangue);
+  overflow-wrap: anywhere;
+}
+.bt-vez__economia {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 3px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.bt-pip {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bt-papel);
+  color: var(--bt-tinta);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bt-pip[data-gasto='sim'] {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--lb-color-parchment-faint);
+  text-decoration: line-through;
+  font-weight: 400;
+}
+.bt-pip[data-passou='sim'] {
+  background: var(--bt-sangue);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+}
+.bt-pip--carga {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+.bt-vez__tiras {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 4px 26px 8px 6px;
+  list-style: none;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+.bt-vez--lista .bt-vez__tiras {
+  gap: 13px;
+  padding-top: 10px;
+}
+.bt-vez__dica {
+  margin: 10px 0 0 8px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.06em;
+  color: var(--lb-color-parchment-dim);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+.bt-vez__dica kbd {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  font-family: inherit;
+  color: var(--lb-color-parchment);
+}
+.bt-vez__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+  margin: 10px 0 0 6px;
+}
+.bt-vez__aviso {
+  margin: 8px 0 0 8px;
+  padding: 4px 10px;
+  background: var(--bt-tinta);
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+  box-shadow: 4px 4px 0 var(--bt-sangue);
+}
+
+.bt-tira {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 14px;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 22px 11px 24px;
+  border: 0;
+  background: none;
+  color: var(--bt-papel);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px));
+  transition:
+    transform 80ms var(--bt-ease-out),
+    color 80ms ease;
+}
+.bt-tira::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--bt-tinta);
+  clip-path: var(--rasgo);
+  transition: background-color 90ms ease;
+}
+.bt-tira::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: var(--bt-sangue);
+  clip-path: var(--rasgo2);
+  transform: translate(5px, 5px);
+  transition: transform var(--lb-motion-fast) var(--bt-ease-out);
+}
+.bt-tira__nome {
+  min-width: 0;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(18px, 2.1vw, 28px);
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.bt-tira__lado {
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(15px, 1.6vw, 22px);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.bt-tira__det {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--lb-color-parchment-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bt-tira__chips {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.bt-etq {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+.bt-etq--dano {
+  background: var(--bt-sangue);
+  color: #fff;
+}
+.bt-etq--forma {
+  background: var(--lb-color-arcane-soft);
+  color: var(--bt-forma);
+}
+.bt-etq--over {
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-weight: 700;
+}
+.bt-tira[data-esta='sim'] {
+  --dx: 14px;
+  color: var(--bt-tinta);
+}
+.bt-tira[data-esta='sim']::before {
+  background: var(--bt-papel);
+}
+.bt-tira[data-esta='sim']::after {
+  transform: translate(10px, 7px);
+}
+.bt-tira[data-esta='sim'] .bt-tira__det {
+  color: #3b3a36;
+}
+.bt-tira[data-esta='sim'] .bt-etq {
+  background: rgba(12, 12, 14, 0.1);
+  color: var(--bt-tinta);
+}
+.bt-tira[data-esta='sim'] .bt-etq--dano {
+  background: var(--bt-sangue);
+  color: #fff;
+}
+.bt-tira[data-esta='sim'] .bt-etq--forma {
+  background: rgba(110, 80, 170, 0.18);
+  color: #4b3482;
+}
+.bt-tira[data-esta='sim'] .bt-etq--over {
+  background: var(--bt-tinta);
+  color: var(--lb-color-brass-bright);
+}
+.bt-tira[aria-disabled='true'] {
+  cursor: not-allowed;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-tira[aria-disabled='true']::after {
+  opacity: 0.25;
+}
+.bt-tira[aria-disabled='true'] .bt-tira__det {
+  color: var(--lb-color-ember);
+}
+.bt-tira[aria-disabled='true'][data-esta='sim'] {
+  color: #5d5a54;
+}
+.bt-tira[aria-disabled='true'][data-esta='sim'] .bt-tira__det {
+  color: #8a2c22;
+}
+/* Aperto: a tira cede um pouco sob o dedo (a desligada não, ela só explica o motivo). */
+.bt-tira:not([aria-disabled='true']):active {
+  transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px)) scale(0.97);
+}
+/* A tira em papel É o foco: o contorno só aparece se os dois se separarem. */
+.bt-tira:focus-visible {
+  outline: none;
+}
+.bt-tira:not([data-esta='sim']):focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 5px;
+}
+.bt-tira--forma::after {
+  background: var(--bt-forma);
+}
+.bt-tira--pequena .bt-tira__nome {
+  font-size: clamp(15px, 1.6vw, 20px);
+}
+/* Entrada: as tiras deslizam da esquerda, uma depois da outra (protótipo `entradaLista`). Pelo teclado, na hora. */
+.bt-vez:not([data-instantaneo='sim']) .bt-tira {
+  transition:
+    transform 240ms var(--bt-ease-out) calc(var(--i, 0) * 35ms),
+    opacity 240ms var(--bt-ease-out) calc(var(--i, 0) * 35ms),
+    color 80ms ease;
+}
+@starting-style {
+  .bt-vez:not([data-instantaneo='sim']) .bt-tira {
+    opacity: 0;
+    transform: rotate(var(--giro, -3deg)) translateX(-48px);
+  }
+}
+.bt-vez__cabeca {
+  transition:
+    transform 260ms var(--bt-ease-out),
+    opacity 260ms var(--bt-ease-out);
+}
+@starting-style {
+  .bt-vez:not([data-instantaneo='sim']) .bt-vez__cabeca {
+    opacity: 0;
+    transform: rotate(-3deg) translate(-30px, -12px);
+  }
+}
+
+/* O detalhe da técnica (seta para a direita): conta do dano, efeito, extras. */
+.bt-detalhe {
+  margin: 4px 0 0 18px;
+  padding: 10px 14px 12px;
+  background: var(--bt-papel);
+  color: var(--bt-tinta);
+  clip-path: polygon(0 4px, 100% 0, calc(100% - 3px) 100%, 3px calc(100% - 3px));
+  box-shadow: 6px 6px 0 var(--bt-sangue);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+}
+.bt-detalhe dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 0;
+}
+.bt-detalhe dt {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bt-sangue);
+  font-weight: 700;
+}
+.bt-detalhe dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* "Ações": o menu recolhido, para o mapa ficar livre. */
+.bt-vez-recolhido {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 18px 8px;
+  border: 0;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+  box-shadow: 6px 6px 0 var(--bt-sangue);
+  cursor: pointer;
+  transition: transform 120ms var(--bt-ease-out);
+}
+.bt-vez-recolhido small {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-vez-recolhido:active {
+  transform: rotate(-2deg) scale(0.97);
+}
+.bt-vez-recolhido:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 4px;
+}
+
+/* ---------------------------------------------------------------- mira e formulários em papel */
+.bt-papel {
+  position: relative;
+  padding: 12px 16px 14px;
+  background: var(--bt-papel);
+  color: var(--bt-tinta);
+  clip-path: polygon(0 4px, 100% 0, calc(100% - 3px) 100%, 3px calc(100% - 3px));
+  box-shadow: 6px 6px 0 var(--bt-sangue);
+}
+.bt-mira {
+  display: grid;
+  gap: 10px;
+  margin: 0 18px 0 6px;
+}
+.bt-mira__rot {
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bt-sangue);
+  font-weight: 700;
+}
+.bt-mira__nome {
+  margin: 0;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.05;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.bt-mira__alvos {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  max-height: 34vh;
+  overflow-y: auto;
+}
+.bt-mira__alvos legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: var(--lb-font-size-xs);
+  color: #5d5a54;
+}
+.bt-alvo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: rgba(12, 12, 14, 0.06);
+  cursor: pointer;
+  font-size: var(--lb-font-size-sm);
+}
+.bt-alvo:has(input:checked) {
+  background: rgba(180, 73, 60, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(180, 73, 60, 0.55);
+}
+.bt-alvo[data-apagado='sim'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.bt-alvo:focus-within {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 1px;
+}
+.bt-alvo input[type='checkbox'] {
+  margin: 0;
+  accent-color: var(--bt-sangue);
+}
+.bt-alvo__nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.bt-alvo__nome small {
+  font-weight: 400;
+  color: #5d5a54;
+}
+.bt-alvo__dano {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bt-alvo__conta {
+  grid-column: 2 / -1;
+  margin-top: -2px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: #5d5a54;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.bt-alvo__conta em {
+  font-style: normal;
+  color: var(--bt-sangue);
+  font-weight: 700;
+}
+.bt-num {
+  width: 7ch;
+  min-height: 32px;
+  padding: 2px 6px;
+  border: 1px solid rgba(12, 12, 14, 0.35);
+  border-radius: 3px;
+  background: #fffaf0;
+  color: var(--bt-tinta);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.bt-num:focus-visible {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 1px;
+}
+.bt-num[aria-invalid='true'] {
+  border-color: var(--bt-sangue);
+  box-shadow: inset 0 0 0 1px var(--bt-sangue);
+}
+.bt-linha-campo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--lb-font-size-sm);
+}
+.bt-linha-campo > span:first-child {
+  min-width: 6.5em;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5d5a54;
+}
+.bt-linha-campo select {
+  min-height: 32px;
+  border: 1px solid rgba(12, 12, 14, 0.35);
+  border-radius: 3px;
+  background: #fffaf0;
+  color: var(--bt-tinta);
+  font: inherit;
+}
+.bt-mira__nota {
+  margin: 0;
+  font-size: 12px;
+  color: #4a4843;
+}
+.bt-mira__erro {
+  margin: 0;
+  color: #8a2c22;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+}
+
+/* Interruptor (Surpresa, Perfurante): trilho e bolinha, a bolinha anda por transform. */
+.bt-chave {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+.bt-chave input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.bt-chave__trilho {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 10px;
+  background: rgba(12, 12, 14, 0.25);
+  transition: background-color 150ms ease;
+}
+.bt-chave__trilho::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: transform 150ms var(--bt-ease-in-out);
+}
+.bt-chave input:checked + .bt-chave__trilho {
+  background: var(--bt-sangue);
+}
+.bt-chave input:checked + .bt-chave__trilho::after {
+  transform: translateX(14px);
+}
+.bt-chave input:focus-visible + .bt-chave__trilho {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 2px;
+}
+.bt-chave small {
+  color: #5d5a54;
+}
+.bt-sobre-escuro .bt-chave small,
+.bt-sobre-escuro .bt-linha-campo > span:first-child {
+  color: var(--lb-color-parchment-faint);
+}
+.bt-sobre-escuro .bt-chave__trilho {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* As marcas da mira sobre as fichas do mapa (S4): anel vermelho no que pode, anel de papel no foco. */
+.bt-marcas-da-mira {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+.bt-marca-mira {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--lb-color-ember),
+    0 0 0 7px rgba(226, 100, 90, 0.25);
+}
+.bt-marca-mira[data-foco='sim'] {
+  box-shadow:
+    0 0 0 3px var(--bt-papel),
+    0 0 0 8px var(--bt-sangue);
+}
+
+/* ---------------------------------------------------------------- REAÇÃO */
+.bt-reacao {
+  width: min(540px, calc(100vw - 24px));
+  padding: 18px 22px 20px;
+  background: var(--bt-tinta);
+  color: var(--lb-color-parchment);
+  box-shadow:
+    8px 8px 0 var(--bt-sangue),
+    var(--lb-shadow-float);
+  clip-path: polygon(0 6px, 100% 0, calc(100% - 4px) 100%, 4px calc(100% - 5px));
+  transition:
+    transform 200ms var(--bt-ease-out),
+    opacity 200ms var(--bt-ease-out);
+}
+@starting-style {
+  .bt-reacao {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+}
+.bt-reacao__topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bt-reacao__titulo {
+  margin: 0;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--bt-papel);
+  text-shadow: 3px 3px 0 var(--bt-sangue);
+  transform: rotate(-3deg);
+  transform-origin: left;
+}
+.bt-reacao__conta {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+  white-space: nowrap;
+}
+.bt-reacao__texto {
+  margin: 10px 0 4px;
+  overflow-wrap: anywhere;
+}
+.bt-reacao__texto b {
+  color: var(--bt-papel);
+}
+.bt-reacao__regra {
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-reacao__linha {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 14px;
+}
+.bt-reacao__opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bt-reacao__pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.bt-reacao__lista {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bt-reacao__item + .bt-reacao__item {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.bt-dado {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 64px;
+  height: 72px;
+  clip-path: polygon(50% 0, 96% 25%, 96% 75%, 50% 100%, 4% 75%, 4% 25%);
+  background: var(--bt-papel);
+  color: var(--bt-tinta);
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+}
+.bt-dado[data-s='critico'] {
+  background: var(--bt-sangue);
+  color: #fff;
+}
+.bt-dado[data-s='contra'] {
+  background: var(--lb-color-brass-bright);
+}
+.bt-dado[data-s='esquiva'],
+.bt-dado[data-s='metade'] {
+  background: #cfe0ea;
+}
+.bt-dado-rotulo {
+  padding: 2px 8px;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.bt-mod {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-mod .bt-num {
+  width: 5ch;
+  background: var(--lb-color-stone-sunken);
+  border-color: var(--lb-color-line-strong);
+  color: var(--lb-color-parchment);
+}
+
+/* O botão REAÇÃO, sempre à vista na batalha (jogador). */
+.bt-botao-reacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 16px 8px;
+  border: 0;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 5px 5px 0 var(--bt-sangue);
+  transform: rotate(2deg);
+  cursor: pointer;
+  transition: transform 120ms var(--bt-ease-out);
+}
+.bt-botao-reacao:active {
+  transform: rotate(2deg) scale(0.97);
+}
+.bt-botao-reacao:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 4px;
+}
+.bt-botao-reacao__n {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: var(--bt-sangue);
+  color: #fff;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+.bt-botao-reacao[data-esperando='sim'] {
+  background: var(--bt-sangue);
+  box-shadow: 5px 5px 0 var(--bt-tinta);
+}
+.bt-botao-reacao[data-esperando='sim'] .bt-botao-reacao__n {
+  background: var(--bt-papel);
+  color: var(--bt-tinta);
+}
+
+/* ---------------------------------------------------------------- painel da vez do NPC e reações pendentes (mestre, aba Batalha) */
+.bt-npc {
+  display: grid;
+  gap: var(--lb-space-3);
+}
+.bt-npc__quem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bt-npc__retrato {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1.5px var(--lado, var(--bt-lado-padrao));
+}
+.bt-npc__nome {
+  display: block;
+  font-size: var(--lb-font-size-lg);
+  font-weight: 600;
+  color: var(--lb-color-parchment);
+  overflow-wrap: anywhere;
+}
+.bt-npc__perfil {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+.bt-npc__perfil [data-r='vida'] {
+  color: var(--bt-hp);
+}
+.bt-npc__perfil [data-r='energia'] {
+  color: var(--bt-sp);
+}
+.bt-npc__lista {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.bt-npc__lista legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-opcao {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 6px 4px 8px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+.bt-opcao:has(input:checked) {
+  background: var(--lb-color-brass-soft);
+  box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.5);
+}
+.bt-opcao[data-apagada='sim'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.bt-opcao:focus-within {
+  box-shadow: var(--lb-shadow-focus);
+}
+.bt-opcao input {
+  margin: 0;
+  accent-color: var(--lb-color-brass);
+}
+.bt-opcao__nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+.bt-opcao__nome small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+.bt-opcao__lado {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+  white-space: nowrap;
+}
+.bt-opcao__sug {
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-family: var(--lb-font-utility);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.bt-seta {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 150ms var(--bt-ease-out);
+}
+.bt-seta[aria-expanded='true'] {
+  transform: rotate(90deg);
+  color: var(--lb-color-brass-bright);
+}
+.bt-seta:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+.bt-npc__detalhe {
+  margin: 0 0 4px 26px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--lb-color-line-strong);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-npc__detalhe b {
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+}
+.bt-npc__danos {
+  display: grid;
+  gap: 6px;
+}
+.bt-npc__dano {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: var(--lb-font-size-sm);
+}
+.bt-npc__dano .bt-num {
+  background: var(--lb-color-stone-sunken);
+  border-color: var(--lb-color-line-strong);
+  color: var(--lb-color-parchment);
+}
+.bt-npc__dano small {
+  grid-column: 1 / -1;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+  overflow-wrap: anywhere;
+}
+.bt-npc__chaves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-npc__erro {
+  margin: 0;
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+}
+.bt-pendente {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-pendente b {
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+}
+.bt-pendente__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.bt-pendente__d20 {
+  font-family: var(--lb-font-utility);
+  color: var(--lb-color-brass-bright);
+  font-variant-numeric: tabular-nums;
+}
+.bt-pendentes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Na aba Batalha a caixa de reação ocupa a largura da página do livro. */
+.bt-pendentes-secao .bt-reacao { width: 100%; }
+
+/* Contador com mais e menos (Ações extras). */
+.bt-contador {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.bt-contador output {
+  min-width: 3ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--lb-color-parchment);
+}
+.bt-form {
+  display: grid;
+  gap: var(--lb-space-3);
+}
+.bt-form__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-form__linha .bt-num {
+  background: var(--lb-color-stone-sunken);
+  border-color: var(--lb-color-line-strong);
+  color: var(--lb-color-parchment);
+}
+.bt-form__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--lb-space-2);
+}
+.bt-form__erro {
+  margin: 0;
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* ---------------------------------------------------------------- efeitos sobre o mapa */
+.bt-efeitos {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: size;
+}
+.bt-efeitos > * {
+  pointer-events: none;
+}
+.bt-efeitos[data-pulavel='sim'] {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.bt-ef-faixa {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  top: 38%;
+  height: 24%;
+  display: flex;
+  align-items: center;
+  gap: 4%;
+  padding: 0 12%;
+  background: var(--bt-tinta);
+  transform: rotate(-6deg);
+  box-shadow:
+    0 -6px 0 var(--bt-sangue),
+    0 6px 0 var(--bt-sangue);
+}
+.bt-ef-faixa__grande {
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(40px, 8cqw, 120px);
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  color: var(--bt-papel);
+  text-shadow: 5px 5px 0 var(--bt-sangue);
+  white-space: nowrap;
+}
+.bt-ef-faixa__sub {
+  font-family: var(--lb-font-utility);
+  font-size: clamp(13px, 1.5cqw, 20px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bt-ef-corte {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  top: 30%;
+  height: 34%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  background: var(--bt-sangue);
+  transform: rotate(-7deg);
+  box-shadow:
+    0 -8px 0 var(--bt-tinta),
+    0 8px 0 var(--bt-tinta);
+}
+.bt-ef-corte::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.35) 1.4px, transparent 1.6px) 0 0 / 9px 9px;
+}
+.bt-ef-corte__retrato {
+  position: relative;
+  flex: none;
+  width: min(28%, 40cqh);
+  aspect-ratio: 1;
+  margin-left: 10%;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 5px var(--bt-tinta),
+    0 0 0 9px var(--bt-papel);
+  font-family: var(--bt-titulo);
+  font-size: clamp(30px, 6cqw, 80px);
+}
+.bt-ef-corte__texto {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-left: 4%;
+}
+.bt-ef-corte__nome {
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(34px, 6.4cqw, 96px);
+  line-height: 0.92;
+  text-transform: uppercase;
+  color: var(--bt-papel);
+  text-shadow: 5px 5px 0 var(--bt-tinta);
+  white-space: nowrap;
+}
+.bt-ef-corte__quem {
+  font-family: var(--lb-font-utility);
+  font-size: clamp(12px, 1.4cqw, 18px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bt-tinta);
+  font-weight: 700;
+}
+.bt-ef-risco {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 140px;
+  height: 10px;
+  margin: -5px 0 0 -70px;
+  background: linear-gradient(90deg, transparent, #fff 30%, #fff 70%, transparent);
+}
+.bt-ef-selo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.bt-ef-selo .bt-dado {
+  width: clamp(52px, 5cqw, 72px);
+  height: clamp(58px, 5.6cqw, 80px);
+  font-size: clamp(26px, 2.6cqw, 38px);
+}
+.bt-ef-selo .bt-dado-rotulo {
+  box-shadow: 3px 3px 0 var(--bt-sangue);
+}
+.bt-ef-numero {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(40px, 6.4cqw, 92px);
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  -webkit-text-stroke: 6px var(--bt-tinta);
+  paint-order: stroke fill;
+  text-shadow: 5px 6px 0 var(--bt-sangue);
+}
+.bt-ef-numero small {
+  display: block;
+  font-size: 0.26em;
+  letter-spacing: 0.12em;
+  text-align: center;
+  -webkit-text-stroke: 4px var(--bt-tinta);
+  text-shadow: none;
+}
+.bt-ef-numero[data-tipo='zero'] {
+  color: var(--lb-color-parchment-dim);
+  text-shadow: none;
+}
+.bt-ef-numero[data-tipo='critico'] {
+  color: var(--lb-color-brass-bright);
+}
+
+/* ---------------------------------------------------------------- movimento reduzido: aparece e some */
+@media (prefers-reduced-motion: reduce) {
+  .bt-tira,
+  .bt-vez:not([data-instantaneo='sim']) .bt-tira,
+  .bt-vez__cabeca {
+    transition: opacity 150ms ease;
+  }
+  .bt-tira::after,
+  .bt-chave__trilho::after,
+  .bt-seta,
+  .bt-vez-recolhido,
+  .bt-botao-reacao {
+    transition: none;
+  }
+  .bt-reacao {
+    transition: opacity 150ms ease;
+  }
+  @starting-style {
+    .bt-vez:not([data-instantaneo='sim']) .bt-tira {
+      transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px));
+    }
+    .bt-vez:not([data-instantaneo='sim']) .bt-vez__cabeca {
+      transform: rotate(-3deg);
+    }
+    .bt-reacao {
+      transform: none;
+    }
+  }
+}

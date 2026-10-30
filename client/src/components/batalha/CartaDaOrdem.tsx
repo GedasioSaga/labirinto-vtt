@@ -59,6 +59,7 @@ export function descricaoDaCarta(carta: DadosDaCarta, posicao: number, vez: bool
   if (carta.extra !== null) partes.push(carta.extra === 'rodada' ? 'carta extra só nesta rodada' : 'carta extra em todas as rodadas')
   if (carta.vida === 'numeros') for (const recurso of carta.recursos) partes.push(`${recurso.rotulo} ${recurso.atual} de ${recurso.maximo}`)
   if (carta.vida === 'oculta') partes.push('vida oculta')
+  if ((carta.carga ?? 0) > 0) partes.push(`concentração ${carta.carga}`)
   if (carta.caiu) partes.push('caiu')
   if (doMestre && carta.d20 !== null) partes.push(`desempate d20 ${carta.d20}`)
   if (doMestre && carta.empate !== null) partes.push('empatado na Agilidade')
@@ -104,6 +105,11 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
         {doMestre && carta.empate !== null && (
           <span className="bt-marca bt-marca--empate" title="Empatou na Agilidade: arraste para decidir">
             empate
+          </span>
+        )}
+        {(carta.carga ?? 0) > 0 && (
+          <span className="bt-marca bt-marca--carga" title="Concentração guardada para o próximo golpe">
+            CONC {carta.carga}
           </span>
         )}
         {carta.caiu && <span className="bt-marca">caiu</span>}
