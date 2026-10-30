@@ -219,6 +219,8 @@ const DESENHOS = {
   loja: caminho('M4.5 9.5l1.5-5h12l1.5 5 M4.5 9.5v10h15v-10 M4.5 9.5h15 M10 19.5v-5h4v5'),
   cabine: caminho('M6.5 3.5h11v17h-11z M12 3.5v17 M8.3 9.5l1.2-1.4 1.2 1.4 M13.3 14.5l1.2 1.4 1.2-1.4'),
   x: caminho('M6.5 6.5l11 11M17.5 6.5l-11 11'),
+  /** A página Batalha do livro da mesa: duas espadas cruzadas (lâmina, guarda, cabo e pomo). */
+  batalha: caminho('M4 4l10 10 M11.5 16.5l5-5 M14 14l4.5 4.5 M17.5 20l2.5-2.5 M20 4L10 14 M12.5 16.5l-5-5 M10 14l-4.5 4.5 M6.5 20L4 17.5'),
   nevoa: caminho('M4 9h12 M7 12.5h13 M4 16h10'),
   luz: (
     <>

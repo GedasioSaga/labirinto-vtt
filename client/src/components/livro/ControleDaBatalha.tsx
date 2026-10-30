@@ -16,7 +16,8 @@ import { useMapStore } from '../../stores/mapStore'
 import { useRegrasDoCampoStore } from '../../stores/regrasDoCampoStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { EscolhaDaRegra, confirmarRascunho, type RascunhoDaRegra } from '../batalha/EscolhaDaRegra'
-import { PainelDoMestre, motivoParaNaoGuardar } from '../batalha/PainelDoMestre'
+import { motivoParaNaoGuardar } from '../batalha/PainelDoMestre'
+import { useLivroDaMesaStore } from '../../stores/livroDaMesaStore'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { assinarAberturasDeBatalha, listarAberturasDeBatalha } from '../../transicoes/aberturasDeBatalha'
 import { AberturaDeBatalhaOverlay, type AberturaPedida } from '../../transicoes/AberturaDeBatalhaOverlay'
@@ -130,6 +131,8 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     const regras = confirmarRascunho(regra, regrasDaBiblioteca, useRegrasDoCampoStore.getState())
     const combatentes = combatentesIniciais(useMapStore.getState().map.tokens, personagensAtivos(aventura), sistema)
     useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate })
+    // BATALHA F2 (5.1): iniciar (pelo botão ou pelo Shift+B) leva o livro à página Batalha; encerrar deixa onde está.
+    useLivroDaMesaStore.getState().abrirPagina('batalha')
   }
 
   // Shift+B de qualquer ponto do editor; com a escolha aberta a tecla é dela (o Esc fecha).
@@ -217,8 +220,6 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
           </Acoes>
         </form>
       </Dialogo>
-      {/* BATALHA F1: com a batalha ligada, a vez, a ordem, as regras do campo, as equipes e o registro. */}
-      {ligada && <PainelDoMestre sceneKey={sceneKey} />}
       <AberturaDeBatalhaOverlay abertura={pedido} />
     </div>
   )

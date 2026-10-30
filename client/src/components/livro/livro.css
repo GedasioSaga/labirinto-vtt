@@ -314,8 +314,16 @@
 .gr-livro--dir .lb-mchat-vazio { padding: 12px 12px 20px 14px; }
 .gr-livro--dir .lb-cenas-pagina { padding: 4px 4px 12px; }
 
-/* MODO BATALHA (B5): "Iniciar batalha" no alto da página Cenas, junto dos controles da cena */
+/* MODO BATALHA: "Iniciar batalha" no alto da página Batalha (F2; antes, no alto das Cenas) */
 .gr-batalha { margin: 12px 12px 4px 14px; }
+.gr-livro--dir .lb-batalha-pagina { padding: 0 0 20px; }
+.lb-batalha-pagina__vazia {
+  max-width: 52ch;
+  margin: 8px 12px 0 14px;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.5;
+  color: var(--lb-color-parchment-dim);
+}
 .gr-batalha .gr-bt[aria-disabled='true'] { opacity: 0.55; cursor: not-allowed; }
 .gr-batalha-dlg { display: flex; flex-direction: column; gap: 14px; }
 .lb-mesa { padding: 0 12px 20px 14px; }

@@ -110,8 +110,10 @@ export interface LivroDaMesaProps {
   chat?: ReactNode
   mesa?: ReactNode
   cenas: ReactNode
-  /** MODO BATALHA (B5): o "Iniciar batalha" / "Encerrar batalha" (`ControleDaBatalha`), no alto da página Cenas. */
+  /** MODO BATALHA: a página Batalha (`PaginaDaBatalha`: Iniciar / Encerrar e, ligada, o painel do mestre). */
   batalha?: ReactNode
+  /** BATALHA F2 (Q7): reações de NPC esperando + 1 se a vez é de NPC; o contador do marcador Batalha (o livro não troca de página sozinho). */
+  esperandoNaBatalha?: number
   /** Quem pede algo no Grupo (passagem, ficha longe, personagem): o contador do marcador Grupo. */
   pedidos: number
   /** O que o chat ainda não leu: o contador do marcador Chat. */
@@ -124,12 +126,13 @@ const PAGINAS: readonly { id: PaginaDaMesa; rotulo: string; icone: NomeDoIcone }
   { id: 'grupo', rotulo: 'Grupo', icone: 'grupo' },
   { id: 'chat', rotulo: 'Chat', icone: 'chat' },
   { id: 'cenas', rotulo: 'Cenas', icone: 'cenas' },
+  { id: 'batalha', rotulo: 'Batalha', icone: 'batalha' },
   { id: 'mesa', rotulo: 'Mesa', icone: 'mesa' },
   { id: 'sons', rotulo: 'Sons', icone: 'som' },
 ]
 
-/** As páginas que existem sem sala: as Cenas e os Sons (o som local não depende de sala). */
-const PAGINAS_SEM_SALA: ReadonlySet<PaginaDaMesa> = new Set(['cenas', 'sons'])
+/** As páginas que existem sem sala: as Cenas, a Batalha (o mapa solto também luta) e os Sons (o som local não depende de sala). */
+const PAGINAS_SEM_SALA: ReadonlySet<PaginaDaMesa> = new Set(['cenas', 'batalha', 'sons'])
 
 /** Uma página do livro da mesa: todas ficam montadas (o rascunho do chat e o filtro das Cenas sobrevivem) e só a aberta fica à vista. */
 function FolhaDaMesa({ pagina, aberta, id, cheia = false, children }: { pagina: PaginaDaMesa; aberta: boolean; id?: string; cheia?: boolean; children: ReactNode }) {
@@ -147,7 +150,7 @@ function FolhaDaMesa({ pagina, aberta, id, cheia = false, children }: { pagina: 
  * Sala fixo acima das páginas. Substitui a coluna da direita (abas Jogo e Chat
  * e o divisor "Altura das Cenas"). As páginas trazem os componentes de sempre.
  */
-export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, cenas, batalha, pedidos, naoLidas, obstaculoRef }: LivroDaMesaProps) {
+export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, cenas, batalha, esperandoNaBatalha = 0, pedidos, naoLidas, obstaculoRef }: LivroDaMesaProps) {
   const paginaGuardada = useLivroDaMesaStore((state) => state.pagina)
   const trocaAnimada = useLivroDaMesaStore((state) => state.trocaAnimada)
   const comSala = topo !== undefined
@@ -220,9 +223,12 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
         if (p.id === 'chat' && naoLidas.count > 0) {
           return { id: p.id, rotulo: p.rotulo, icone, conta: naoLidas.mention ? `@${naoLidas.count}` : naoLidas.count, rotuloDaConta: unreadLabel(naoLidas.count, naoLidas.mention) }
         }
+        if (p.id === 'batalha' && esperandoNaBatalha > 0) {
+          return { id: p.id, rotulo: p.rotulo, icone, conta: esperandoNaBatalha, rotuloDaConta: `${esperandoNaBatalha} esperando o mestre` }
+        }
         return { id: p.id, rotulo: p.rotulo, icone }
       }),
-    [comSala, pedidos, naoLidas.count, naoLidas.mention],
+    [comSala, pedidos, naoLidas.count, naoLidas.mention, esperandoNaBatalha],
   )
 
   const rotuloDoRecolher = recolhido ? 'Abrir a página' : 'Recolher a página'
@@ -291,11 +297,14 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
               </>
             )}
             <FolhaDaMesa pagina="cenas" aberta={pagina === 'cenas'}>
-              {batalha}
               {/* `div` com papel de região, e não `section`: as jornadas acham seções pela tag. */}
               <div className="lb-cenas-pagina" role="region" aria-label="Cenas">
                 {cenas}
               </div>
+            </FolhaDaMesa>
+            {/* BATALHA F2 (5.1): página própria, sempre montada (o Shift+B mora no `ControleDaBatalha` dentro dela). */}
+            <FolhaDaMesa pagina="batalha" aberta={pagina === 'batalha'}>
+              {batalha}
             </FolhaDaMesa>
             {comSala && (
               <FolhaDaMesa pagina="mesa" aberta={pagina === 'mesa'}>

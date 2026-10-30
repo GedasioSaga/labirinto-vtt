@@ -47,7 +47,7 @@ import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from '
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
-import { deveAvisarJogadores, ponteDaBatalha, useBatalhaStore, vezTokenIdDaCena } from './stores/batalhaStore'
+import { deveAvisarJogadores, esperandoOMestre, ponteDaBatalha, useBatalhaStore, vezTokenIdDaCena } from './stores/batalhaStore'
 import { carryRefsOf } from './lib/carry'
 import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
@@ -92,7 +92,7 @@ import { chatFacesByName } from './lib/chat'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/livro/LivroDaMesa'
-import { ControleDaBatalha } from './components/livro/ControleDaBatalha'
+import { PaginaDaBatalha } from './components/livro/PaginaDaBatalha'
 import { AvisoDaRotina } from './components/AvisoDaRotina'
 import { PaginaMesa } from './components/livro/PaginaMesa'
 import { TopoDaSala } from './components/livro/TopoDaSala'
@@ -1394,6 +1394,7 @@ function App() {
   const batalhaNaCenaAberta = useBatalhaStore((state) => Object.hasOwn(state.cenas, chaveDaCenaAberta))
   // BATALHA F1 (S4): a ficha da vez ganha o anel com o pulso de chegada no mapa do mestre.
   const vezTokenId = useBatalhaStore((state) => vezTokenIdDaCena(state, chaveDaCenaAberta))
+  const esperandoNaBatalha = useBatalhaStore((state) => esperandoOMestre(state, chaveDaCenaAberta))
   useEffect(() => {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
@@ -4248,7 +4249,9 @@ function App() {
         }
         chat={sala === undefined ? undefined : chatDaMesa()}
         mesa={sala === undefined ? undefined : <PaginaMesa {...sala} livroDeRegras={<BotaoDoLivroDeRegras />} />}
-        batalha={<ControleDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />}
+        batalha={<PaginaDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />}
+        // BATALHA F2 (S9, Q7): vez de NPC ou reação de NPC esperando acende o contador do marcador Batalha.
+        esperandoNaBatalha={esperandoNaBatalha}
         cenas={
           <ScenesSection
             scenes={scenesPanel}
