@@ -173,6 +173,7 @@
 .lb-home__door:nth-child(2) { animation-delay: 260ms; }
 .lb-home__door:nth-child(3) { animation-delay: 320ms; }
 .lb-home__door:nth-child(4) { animation-delay: 380ms; }
+.lb-home__door:nth-child(5) { animation-delay: 440ms; }
 
 .lb-home__door::before {
   content: counter(lb-door, decimal-leading-zero);
@@ -218,6 +219,12 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--lb-color-brass-bright);
+}
+
+/* "Novo" se distingue de "Em construção": verde de pronto, não latão de obra. */
+.lb-home__badge--novo {
+  background: var(--lb-color-online-soft);
+  color: var(--lb-color-online);
 }
 
 .lb-home__door-arrow {

@@ -43,6 +43,8 @@ interface HomeDoorProps {
   title: string
   description: string
   badge?: string
+  /** "novo" pinta o selo de verde, para não se confundir com o "Em construção". */
+  badgeTom?: 'novo'
   /** Classe extra; a de Criar Mapas leva o view-transition-name que vira o formulário. */
   className?: string
   onClick: () => void
@@ -53,13 +55,13 @@ interface HomeDoorProps {
  * seta é SVG: nada disso entra no `textContent`, então o nome do botão começa
  * pelo título — é por ele que os testes e o leitor de tela acham a porta.
  */
-function HomeDoor({ title, description, badge, className, onClick }: HomeDoorProps) {
+function HomeDoor({ title, description, badge, badgeTom, className, onClick }: HomeDoorProps) {
   return (
     <button type="button" className={className ? `lb-home__door ${className}` : 'lb-home__door'} onClick={onClick}>
       <span className="lb-home__door-body">
         <span className="lb-home__door-title">
           <span className="lb-menucard__title">{title}</span>
-          {badge && <span className="lb-home__badge">{badge}</span>}
+          {badge && <span className={badgeTom ? `lb-home__badge lb-home__badge--${badgeTom}` : 'lb-home__badge'}>{badge}</span>}
         </span>
         <span className="lb-home__door-desc">{description}</span>
       </span>
@@ -172,7 +174,7 @@ export function MainMenu({
             <HomeDoor title="Criar Mapas" description={createDescription} className="lb-home__door--novo-mapa" onClick={onCreate} />
             <HomeDoor title="Carregar Mapa existente" description="Continuar de onde parou" onClick={onLoad} />
             <HomeDoor title="Roleplay" description="Mesa narrativa, sem mapa" badge="Em construção" onClick={onRoleplay} />
-            {onLivros !== undefined && <HomeDoor title="Livros de regras" description="Fichas, NPCs de combate e itens de cada sistema" badge="Novo" onClick={onLivros} />}
+            {onLivros !== undefined && <HomeDoor title="Livros de regras" description="Fichas, NPCs de combate e itens de cada sistema" badge="Novo" badgeTom="novo" onClick={onLivros} />}
             {flags.optionsScreen && <HomeDoor title="Opções" description="Conexão, personagens, cenário" onClick={onOptions} />}
           </nav>
 
