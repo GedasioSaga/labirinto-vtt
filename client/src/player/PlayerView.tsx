@@ -91,6 +91,8 @@ import { drawStairs } from '../pixi/drawStairs'
 import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { createChamasDasFogueiras, sincronizarChamas, type ChamasDasFogueiras } from '../pixi/chamasDasFogueiras'
 import { createFogosDoMapa, type FogosDoMapa } from '../pixi/fogosDoMapa'
+import { createJudgeDoMapa, type JudgeDoMapa } from '../pixi/judgeDoMapa'
+import type { JudgeNaCena } from '../lib/batalha/judge'
 import { createPropLooksRenderer, type PropLooksCount, type PropLooksRenderer } from '../pixi/drawPropLooks'
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
@@ -263,6 +265,14 @@ interface PlayerViewProps {
    * de leve a cada 3 s enquanto a vez for dela. `null`/omitido = nenhuma.
    */
   vezTokenId?: string | null
+  /**
+   * BATALHA F3 (fatia J): onde o Judge está (`batalha.estado.judge`); `null`/
+   * omitido = fora de batalha. Por cima das fichas e da névoa (Q7), virado
+   * para a ficha da vez que ele vê; a vez que ele não vê não o vira (Q8).
+   */
+  judge?: JudgeNaCena | null
+  /** BATALHA F3: o `seq` do último gesto do Judge na fila de efeitos (`ultimoGestoDoJudge`); subir = ergue a carta. */
+  gestoDoJudge?: number | null
   /**
    * BATALHA F2 (S4): recebe a consulta da posição de uma ficha na tela (pela
    * câmera de agora: segue arrasto, zoom e deslize), assim que o mapa monta, e
@@ -1293,6 +1303,8 @@ interface Scene {
   nomesDosLugares: NomesDosLugaresRenderer
   /** OBJETO FOGO (`pixi/fogosDoMapa.ts`): as chamas por cima dos telhados, dos objetos que o recorte deixou passar; só as da vista animam. */
   fogos: FogosDoMapa
+  /** BATALHA F3 (`pixi/judgeDoMapa.ts`): o Judge por cima das fichas e da névoa; só respira na vista e com batalha. */
+  judge: JudgeDoMapa
   /**
    * NUVENS (`pixi/drawNuvens.ts`): as mesmas do mestre (tamanho do mapa e
    * relógio de parede), SOB a névoa: o preto opaco do nunca visto cobre o
@@ -1507,6 +1519,7 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   ajustarGradeDaBatalhaAVista(scene)
   scene.fogos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
+  scene.judge.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   if (zoomLayers === 'agora') syncZoomLayers(scene)
   scene.textResolution.schedule()
 }
@@ -1580,6 +1593,18 @@ function syncAnelDaVez(scene: Scene, map: MapData, vezTokenId: string | null, no
     scene.pulsoDaVez = trocou && !prefersReducedMotion() ? { start: now, tipo: 'chegada' } : null
     poseDoAnelDaVez(anel, 'chegada', scene.pulsoDaVez === null ? 1 : 0)
   }
+}
+
+/**
+ * BATALHA F3: o Judge na posição do `batalha.estado`, virado para a ficha da
+ * vez que ESTE jogador vê. Vez de ficha que ele não vê: fica olhando para onde
+ * estava (Q8: não denuncia onde está o escondido).
+ */
+function syncJudge(scene: Scene, map: MapData, judge: JudgeNaCena | null, vezTokenId: string | null): void {
+  const token = vezTokenId === null ? undefined : map.tokens.find((candidato) => candidato.id === vezTokenId)
+  const view = token === undefined ? undefined : scene.tokenViews.get(token.id)
+  const alvo = token !== undefined && view !== undefined && view.wrapper.visible ? { x: token.x, y: token.y } : null
+  scene.judge.definir({ judge, tamanhoDaCasa: map.grid, alvo })
 }
 
 /** Um quadro do anel: a animação em curso, ou a batida quando chega a hora. Sem vez, nada. */
@@ -2120,6 +2145,8 @@ function PlayerViewDoCanvas({
   luz = null,
   batalha = false,
   vezTokenId = null,
+  judge = null,
+  gestoDoJudge = null,
   onFichaNaTela,
   aoEscolherFicha,
   caminhos,
@@ -2197,6 +2224,8 @@ function PlayerViewDoCanvas({
     luz,
     batalha,
     vezTokenId,
+    judge,
+    gestoDoJudge,
     aoEscolherFicha,
     caminhos,
     waitingTokens,
@@ -3356,6 +3385,8 @@ function PlayerViewDoCanvas({
     if (drag?.kind === 'token') scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
     // BATALHA F1: o anel da vez segue a ficha (que pode ter acabado de entrar ou sair da visão).
     syncAnelDaVez(scene, currentMap, latestRef.current.vezTokenId, now)
+    // BATALHA F3: o Judge acompanha a ficha da vez (que pode ter acabado de andar, entrar ou sair da visão).
+    syncJudge(scene, currentMap, latestRef.current.judge, latestRef.current.vezTokenId)
 
     // MAPA LEMBRADO: a volta a um trecho que mudou desde a última visita pisca.
     // Só com o que chegou no pacote: nada que a névoa ou o mestre escondem entra na conta.
@@ -3679,6 +3710,14 @@ function PlayerViewDoCanvas({
           el.dataset.fogosAnimando = String(estado.animando)
         },
       })
+      // JUDGE (F3, `pixi/judgeDoMapa.ts`): a folha só baixa quando a batalha o põe na tela.
+      const judgeDoMapa = createJudgeDoMapa({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        aoMudar: (estado) => {
+          el.dataset.judge = estado.visivel ? String(estado.direcao) : 'nao'
+          el.dataset.judgeAnimando = String(estado.animando)
+        },
+      })
       // NUVENS: sem máscara própria (a névoa opaca já as cobre fora do conhecido,
       // e máscara visível pagaria o stencil a cada quadro). O relógio só roda com
       // elas andando: desligadas (chave, "Efeitos do mapa", modo leve) ou paradas, nada.
@@ -3810,6 +3849,8 @@ function PlayerViewDoCanvas({
         // Lembrança abaixo das fichas: a ficha que volta cobre o próprio contorno.
         lastSeen,
         tokens,
+        // JUDGE (F3, Q7): por cima das fichas e da névoa, sempre visível; o clique passa por ele (`eventMode = 'none'`).
+        judge: judgeDoMapa.camada,
       }))
       const baseDaFaixa = (faixa: string): Container => {
         const container = containerDaFaixa.get(faixa)
@@ -4004,6 +4045,7 @@ function PlayerViewDoCanvas({
         barrancoContainer,
         texturas,
         gradeDaBatalha,
+        judge: judgeDoMapa,
         anelDaVez: novoAnelDaVez(),
         vezDoAnel: null,
         vezAnterior: undefined,
@@ -4855,6 +4897,7 @@ function PlayerViewDoCanvas({
         scene.pilha.destruir()
         scene.chamas.destruir()
         scene.fogos.destruir()
+        scene.judge.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
@@ -4867,10 +4910,13 @@ function PlayerViewDoCanvas({
         scene.pisoDoChao.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
         scene.caminhos.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
         scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
+        scene.judge.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
       })
       resizeObserver.observe(el)
 
       redraw(scene)
+      // BATALHA F3: a primeira leitura da fila é só a base (entrar no meio da batalha não reprisa a carta).
+      scene.judge.lerFila(latestRef.current.gestoDoJudge)
       // O enquadramento pode cair exatamente em 100% (sem `onZoom`): os botões recebem o limite de qualquer jeito.
       reportZoomLimits(scene.camera.scale)
     }
@@ -4906,6 +4952,17 @@ function PlayerViewDoCanvas({
     const scene = sceneRef.current
     if (scene) syncAnelDaVez(scene, latestRef.current.map, vezTokenId, performance.now())
   }, [vezTokenId])
+
+  // BATALHA F3: o Judge que anda, a vez que troca ou a batalha que acaba só mexem nele, sem redesenhar a cena.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (scene) syncJudge(scene, latestRef.current.map, judge, vezTokenId)
+  }, [judge, vezTokenId])
+
+  // BATALHA F3: o gesto novo na fila (o mestre desfez uma linha) ergue a carta.
+  useEffect(() => {
+    sceneRef.current?.judge.lerFila(gestoDoJudge)
+  }, [gestoDoJudge])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.

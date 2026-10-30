@@ -204,6 +204,9 @@ import {
 import { tracadoDaSalaLivre } from '../lib/tracadoDaSalaLivre'
 import { createPropsRenderer, HIDDEN_PROP_GHOST_ALPHA } from './drawProps'
 import { createFogosDoMapa } from './fogosDoMapa'
+import { createJudgeDoMapa } from './judgeDoMapa'
+import { createJudgeGesture } from './judgeGesture'
+import type { JudgeNaCena } from '../lib/batalha/judge'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { drawFaccoes } from './drawFaccoes'
@@ -771,6 +774,16 @@ interface PixiCanvasProps {
    */
   vezTokenId?: string | null
   /**
+   * BATALHA F3 (fatia J): onde o Judge está na cena aberta (`judgeDaCena`);
+   * `null`/omitido = fora de batalha (ele some). Desenhado por cima das fichas
+   * (`pixi/judgeDoMapa.ts`), virado para a ficha da vez.
+   */
+  judge?: JudgeNaCena | null
+  /** BATALHA F3: o `seq` do último gesto do Judge na fila (`ultimoGestoDoJudge`); subir = ergue a carta. */
+  gestoDoJudge?: number | null
+  /** BATALHA F3: o mestre soltou o Judge arrastado, já no centro da casa (px do mundo). */
+  onJudgeSolto?: (x: number, y: number) => void
+  /**
    * BATALHA F2 (S4): recebe a consulta da posição de uma ficha da cena aberta
    * na tela — `{ x, y }` em px da JANELA (o `clientX`/`clientY` do DOM) e o
    * raio desenhado em px de tela, pela câmera de agora; `null` = ficha fora da
@@ -1003,6 +1016,9 @@ function PixiCanvasDoContexto({
   gridAlignPreview = null,
   batalhaLigada = false,
   vezTokenId = null,
+  judge = null,
+  gestoDoJudge = null,
+  onJudgeSolto,
   onFichaNaTela,
   aoEscolherFicha,
   onBackgroundImageSizeChange,
@@ -1145,6 +1161,21 @@ function PixiCanvasDoContexto({
   useEffect(() => {
     redrawTokensRef.current?.()
   }, [vezTokenId])
+  // BATALHA F3 (fatia J): o Judge vive na sessão, não no mapa; a ponte é o ref (valor vivo) + o redesenho dele.
+  const judgeRef = useRef(judge)
+  judgeRef.current = judge
+  const redrawJudgeRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    redrawJudgeRef.current?.()
+  }, [judge])
+  const gestoDoJudgeRef = useRef(gestoDoJudge)
+  gestoDoJudgeRef.current = gestoDoJudge
+  const lerFilaDoJudgeRef = useRef<((seq: number | null) => void) | null>(null)
+  useEffect(() => {
+    lerFilaDoJudgeRef.current?.(gestoDoJudge)
+  }, [gestoDoJudge])
+  const onJudgeSoltoRef = useRef(onJudgeSolto)
+  onJudgeSoltoRef.current = onJudgeSolto
 
   useEffect(() => {
     gridAlignOverlayRedrawRef.current?.(gridAlignPreview)
@@ -1324,6 +1355,14 @@ function PixiCanvasDoContexto({
           el.dataset.fogos = String(estado.fogos)
           el.dataset.fogosNaVista = String(estado.naVista)
           el.dataset.fogosAnimando = String(estado.animando)
+        },
+      })
+      // JUDGE (F3, `judgeDoMapa.ts`): por cima das fichas, dos telhados e dos fogos; respira só na vista e com batalha.
+      const judgeDoMapa = createJudgeDoMapa({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        aoMudar: (estado) => {
+          el.dataset.judge = estado.visivel ? String(estado.direcao) : 'nao'
+          el.dataset.judgeAnimando = String(estado.animando)
         },
       })
       // CARIMBOS (`drawCarimbos.ts`): os objetos que o mestre soltou, acima do
@@ -1534,6 +1573,8 @@ function PixiCanvasDoContexto({
         pinsContainer,
         telhadosContainer,
         fogosContainer: fogos.camada,
+        // JUDGE (F3): faixa fixa depois dos telhados, então a "Exportar imagem" e o conta-gotas o tiram (`nosDeTrabalho`).
+        judgeContainer: judgeDoMapa.camada,
         fantasmaDeTesteContainer,
         straightenGhostGraphics,
         floorSelectionGraphics,
@@ -1647,6 +1688,7 @@ function PixiCanvasDoContexto({
         // repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
         texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
         fogos.ajustarAVista(vistaDaCamera(camera, app.screen))
+        judgeDoMapa.ajustarAVista(vistaDaCamera(camera, app.screen))
         for (const piso of pisosNaVista) piso.ajustarAVista(vistaDaCamera(camera, app.screen))
       }
       positionWorld()
@@ -1878,6 +1920,29 @@ function PixiCanvasDoContexto({
       })
       const noiseGesture = createNoiseGesture((point) => onNoiseRef.current?.(point.x, point.y))
       /**
+       * BATALHA F3: o mestre arrasta o Judge (`judgeGesture.ts`). No arrasto só
+       * esta tela anda; ao soltar, encaixa no centro da casa (a regra da ficha,
+       * sempre, mesmo com o ímã desligado) dentro do mapa e vai à sessão.
+       */
+      const judgeGesture = createJudgeGesture({
+        posicao: () => judgeDoMapa.posicao(),
+        acertou: (ponto) => judgeDoMapa.acertou(ponto),
+        mostrar: (ponto) => judgeDoMapa.arrastar(ponto),
+        encaixar: (ponto) => {
+          const { map } = sceneState()
+          const meia = map.grid / 2
+          const x = Math.min(Math.max(ponto.x, meia), Math.max(meia, map.width * map.grid - meia))
+          const y = Math.min(Math.max(ponto.y, meia), Math.max(meia, map.height * map.grid - meia))
+          return snapPointForTarget('token', map.gridShape, x, y, map.grid)
+        },
+        soltar: (ponto) => {
+          onJudgeSoltoRef.current?.(ponto.x, ponto.y)
+          // Já na casa nova, antes de a prop voltar pela sessão: sem um quadro na posição velha.
+          judgeRef.current = { x: ponto.x, y: ponto.y }
+          redrawJudge()
+        },
+      })
+      /**
        * CONTA-GOTAS — a cor do pixel desenhado sob o ponto (px CSS da tela).
        * O stage inteiro é desenhado de novo num alvo 1×1 (`extract.pixels`):
        * a câmera (zoom/pan) é a transformação do `world` dentro do stage, e a
@@ -1946,6 +2011,7 @@ function PixiCanvasDoContexto({
       el.addEventListener('pointerleave', onCanvasPointerLeave)
       // Alt+Tab com L ou o botão apertado: keyup/pointerup nunca chegam e o laser ficaria preso ligado.
       const onWindowBlur = () => {
+        judgeGesture.cancel()
         noiseGesture.cancel()
         contaGotasGesture.cancel()
         laserGesture.cancel()
@@ -2689,6 +2755,20 @@ function PixiCanvasDoContexto({
       const redrawEditHandles = () => redrawShapeLayers(['handles'])
       const redrawPins = () => redrawShapeLayers(['pins'])
 
+      /**
+       * BATALHA F3 (fatia J): o Judge na posição da batalha, virado para a ficha
+       * da vez (que pode ter acabado de andar). Vez sem ficha neste mapa: fica
+       * olhando para onde estava. Barato sem mudança: `definir` só troca o
+       * quadro quando a direção muda.
+       */
+      const redrawJudge = () => {
+        if (exportScene !== null) return
+        const { map } = sceneState()
+        const vez = vezTokenIdRef.current
+        const ficha = vez === null ? undefined : map.tokens.find((token) => token.id === vez)
+        judgeDoMapa.definir({ judge: judgeRef.current, tamanhoDaCasa: map.grid, alvo: ficha === undefined ? null : { x: ficha.x, y: ficha.y } })
+      }
+
       const redrawTokens = () => {
         const pilhaMudou = atualizarPilha()
         if (pilhaMudou.formas) redrawShapes()
@@ -2736,6 +2816,8 @@ function PixiCanvasDoContexto({
         // O fantasma da ficha de teste segue a ficha de verdade: a cara, o
         // tamanho e a ponta da ligação dela.
         redrawFantasma()
+        // O Judge acompanha a ficha da vez que anda (e a vez que troca).
+        redrawJudge()
       }
 
       /**
@@ -3030,6 +3112,10 @@ function PixiCanvasDoContexto({
       redrawGridAlignOverlay(gridAlignPreview)
       gradeDaBatalhaRedrawRef.current = (ligada) => gradeDaBatalha.definir(ligada, sceneState().map)
       redrawTokensRef.current = redrawTokens
+      redrawJudgeRef.current = redrawJudge
+      // A primeira leitura da fila é só a base: entrar no meio da batalha não reprisa a carta.
+      judgeDoMapa.lerFila(gestoDoJudgeRef.current)
+      lerFilaDoJudgeRef.current = (seq) => judgeDoMapa.lerFila(seq)
 
       /** Tudo o que depende do mapa ou da câmera, na ordem da montagem. */
       const redrawScene = () => {
@@ -3188,6 +3274,7 @@ function PixiCanvasDoContexto({
         // A textura repetida também é recortada à vista (`ajustarAVista`, drawTexturas.ts).
         texturas.ajustarAVista(vistaDaCamera(camera, app.screen))
         fogos.ajustarAVista(vistaDaCamera(camera, app.screen))
+        judgeDoMapa.ajustarAVista(vistaDaCamera(camera, app.screen))
         for (const piso of pisosNaVista) piso.ajustarAVista(vistaDaCamera(camera, app.screen))
       })
       // O ResizePlugin do Pixi só escuta 'resize' da janela; o container pode
@@ -5993,6 +6080,8 @@ function PixiCanvasDoContexto({
         if (!spaceHeld && noiseGesture.pointerDown(event.button, toWorldPoint(event.global.x, event.global.y))) return
         // B2 — laser armado + botão esquerdo: o traço é do laser e a ferramenta ativa não roda.
         if (!spaceHeld && laserGesture.pointerDown(event.button, toWorldPoint(event.global.x, event.global.y))) return
+        // BATALHA F3: o Judge agarrado (botão esquerdo no corpo dele) não seleciona, não move ficha nem faz pan.
+        if (!spaceHeld && judgeGesture.pointerDown(event.button, toWorldPoint(event.global.x, event.global.y))) return
 
         // Botao do meio (scroll wheel) sempre faz pan, independente da ferramenta
         // ativa ou do que estiver sob o cursor. Precisa vir antes de qualquer
@@ -7120,6 +7209,8 @@ function PixiCanvasDoContexto({
         if (noiseGesture.pointerUp()) return
         // B2 — fim do traço do laser; o App manda `laser {off}` na transição.
         if (laserGesture.pointerUp()) return
+        // BATALHA F3: soltou o Judge (encaixa na casa).
+        if (judgeGesture.pointerUp()) return
 
         // Guarda ONDE e QUANDO este toque foi solto, para o toque seguinte
         // poder se medir contra ele e virar (ou não) um fechamento — ver
@@ -7623,6 +7714,7 @@ function PixiCanvasDoContexto({
         if (contaGotasGesture.pointerUp()) return
         if (noiseGesture.pointerUp()) return
         if (laserGesture.pointerUp()) return
+        if (judgeGesture.pointerUp()) return
         // Mesmo fechamento de gesto do pointerup acima — o mouse pode sair do
         // canvas no meio de um arrasto de Curva, e o gesto ainda precisa virar
         // uma entrada de undo só (senão as mudanças aplicadas via *Live ficam
@@ -7850,6 +7942,8 @@ function PixiCanvasDoContexto({
         if (laserKeyTimer !== null) activateLaserKey()
         // Traço do laser em curso (botão esquerdo pressionado): consome o move.
         if (laserGesture.pointerMove(laserPointer)) return
+        // BATALHA F3: o Judge arrastado segue o ponteiro (só nesta tela).
+        if (judgeGesture.pointerMove(laserPointer)) return
         // Armado e ocioso: sem hover nem prévia da ferramenta, só a mira.
         if (mode === 'idle' && (isLaserArmed(useLaserStore.getState()) || useNoiseStore.getState().armed || contaGotasArmado())) return
 
@@ -8687,6 +8781,12 @@ function PixiCanvasDoContexto({
       }
 
       const onKeyDown = (event: KeyboardEvent) => {
+        // BATALHA F3: Esc no meio do arrasto do Judge o devolve para onde estava, e só isso.
+        if (event.key === 'Escape' && judgeGesture.arrastando()) {
+          event.preventDefault()
+          judgeGesture.cancel()
+          return
+        }
         // No meio do giro da sala, Esc devolve a sala ao ângulo do começo — e
         // só isso: o botão ainda está apertado, então largar a seleção aqui
         // (o que o Esc faz fora do gesto) tiraria a sala da mão da pessoa.
@@ -9135,6 +9235,9 @@ function PixiCanvasDoContexto({
         propsRenderer.destruir()
         // E os fogos (saem do relógio antes do app).
         fogos.destruir()
+        // E o Judge (a folha fica no cache do `Assets` para o próximo palco).
+        judgeGesture.cancel()
+        judgeDoMapa.destruir()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('dblclick', onDblClick)
         el.removeEventListener('contextmenu', onContextMenu)
@@ -9145,6 +9248,8 @@ function PixiCanvasDoContexto({
         gridAlignOverlayRedrawRef.current = null
         gradeDaBatalhaRedrawRef.current = null
         redrawTokensRef.current = null
+        redrawJudgeRef.current = null
+        lerFilaDoJudgeRef.current = null
         resetZoomRequestRef.current = null
         cameraRequestRef.current = null
         editingRoomRef.current = null

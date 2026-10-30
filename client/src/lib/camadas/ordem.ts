@@ -103,6 +103,8 @@ export const FAIXAS_EDITOR: readonly Faixa[] = [
   faixa('telhadosContainer', ['telhado'], ['telhados']),
   // Objeto Fogo (27/10/2026): as chamas POR CIMA do telhado (a casa queimando vista de fora), `pixi/fogosDoMapa.ts`.
   faixa('fogosContainer', [], FIXA),
+  // BATALHA F3 (Q7): o Judge por cima das fichas, dos telhados e dos fogos, abaixo das alças e guias do editor (`pixi/judgeDoMapa.ts`).
+  faixa('judgeContainer', [], FIXA),
   faixa('fantasmaDeTesteContainer', [], FIXA),
   faixa('straightenGhostGraphics', [], FIXA),
   faixa('floorSelectionGraphics', [], FIXA),
@@ -183,6 +185,8 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('pins', ['pino'], ['anotacoes'], SOBRE),
   faixa('lastSeen', ['ficha'], ['tokens'], SOBRE),
   faixa('tokens', ['ficha'], ['tokens'], SOBRE),
+  // BATALHA F3 (Q7): o Judge por cima das fichas e da névoa, sempre visível (`pixi/judgeDoMapa.ts`).
+  faixa('judge', [], FIXA, SOBRE),
 ]
 
 /**

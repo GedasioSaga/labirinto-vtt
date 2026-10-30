@@ -73,6 +73,7 @@ import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
 import { tremer } from '../components/batalha/EfeitosDaBatalha'
 import type { ConsultaDaFichaNaTela } from './PlayerView'
 import { vezTokenIdDoJogador } from '../components/batalha/dadosDaFaixa'
+import { ultimoGestoDoJudge } from '../pixi/judgeDoMapa'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
@@ -1441,6 +1442,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             caminhos={state.caminhos}
             // BATALHA F1 (S4): a ficha da vez que ele vê ganha o anel com o pulso de chegada.
             vezTokenId={vezTokenIdDoJogador(state.batalhaEstado)}
+            // BATALHA F3 (fatia J): o Judge do `batalha.estado` e o gesto da fila (o desfazer do mestre ergue a carta).
+            judge={state.batalhaEstado?.judge ?? null}
+            gestoDoJudge={ultimoGestoDoJudge(state.batalhaEfeitos)}
             waitingTokens={waitingTokens}
             settings={settings}
             focusTokenId={focus.tokenId}

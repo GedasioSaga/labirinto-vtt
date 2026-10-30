@@ -47,7 +47,9 @@ import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from '
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
-import { deveAvisarJogadores, esperandoOMestre, ponteDaBatalha, useBatalhaStore, vezTokenIdDaCena } from './stores/batalhaStore'
+import { deveAvisarJogadores, efeitosDaCena, esperandoOMestre, judgeDaCena, ponteDaBatalha, useBatalhaStore, vezTokenIdDaCena } from './stores/batalhaStore'
+import { gravarJudgeLembrado, judgeInicial, lerJudgeLembrado } from './lib/batalha/judge'
+import { ultimoGestoDoJudge } from './pixi/judgeDoMapa'
 import { carryRefsOf } from './lib/carry'
 import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
@@ -483,6 +485,15 @@ const ACOES_DAS_PAREDES_AO_REDOR = {
 /** Ferramentas que criam Sala (piso em `roomFillColor`); Região usa `regionFillColor`. */
 function isRoomTool(tool: string): boolean {
   return tool === 'room' || tool === 'roomCircle' || tool === 'roomPolygon' || tool === 'roomFree'
+}
+
+/** BATALHA F3: onde o Judge fica lembrado por mapa neste aparelho; `null` quando o acesso lança (dado bloqueado). */
+function armazemDoJudge(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
 }
 
 /** Retomar a mesa: o storage do app do mestre, ou `null` quando o acesso lança (dado bloqueado). */
@@ -1403,6 +1414,39 @@ function App() {
   // BATALHA F1 (S4): a ficha da vez ganha o anel com o pulso de chegada no mapa do mestre.
   const vezTokenId = useBatalhaStore((state) => vezTokenIdDaCena(state, chaveDaCenaAberta))
   const esperandoNaBatalha = useBatalhaStore((state) => esperandoOMestre(state, chaveDaCenaAberta))
+  // BATALHA F3 (fatia J): o Judge da cena aberta e o último gesto dele na fila (o desfazer do mestre ergue a carta).
+  const judgeNaCenaAberta = useBatalhaStore((state) => judgeDaCena(state, chaveDaCenaAberta))
+  const gestoDoJudge = useBatalhaStore((state) => ultimoGestoDoJudge(efeitosDaCena(state, chaveDaCenaAberta)))
+  const aventuraDoJudge = adventure?.id ?? null
+  // A batalha ligou sem Judge: ele nasce onde o mestre o deixou neste mapa, senão 2 casas ao norte da primeira ficha da ordem.
+  useEffect(() => {
+    if (!batalhaNaCenaAberta || judgeNaCenaAberta !== null) return
+    const cena = useBatalhaStore.getState().cenas[chaveDaCenaAberta]
+    if (cena === undefined) return
+    const aberto = useMapStore.getState().map
+    const primeiroId = cena.turnos.cartas[0]?.tokenId
+    const primeira = primeiroId === undefined ? undefined : aberto.tokens.find((token) => token.id === primeiroId)
+    const largura = aberto.width * aberto.grid
+    const altura = aberto.height * aberto.grid
+    // O centro da casa do meio (os pés numa casa, como a ficha).
+    const centro = { x: (Math.floor(aberto.width / 2) + 0.5) * aberto.grid, y: (Math.floor(aberto.height / 2) + 0.5) * aberto.grid }
+    const inicial = judgeInicial(
+      lerJudgeLembrado(armazemDoJudge(), aventuraDoJudge, chaveDaCenaAberta),
+      primeira === undefined ? null : { x: primeira.x, y: primeira.y },
+      centro,
+      aberto.grid,
+      { largura, altura },
+    )
+    useBatalhaStore.getState().moverJudge(chaveDaCenaAberta, inicial.x, inicial.y)
+  }, [batalhaNaCenaAberta, judgeNaCenaAberta, chaveDaCenaAberta, aventuraDoJudge])
+  /** O mestre soltou o Judge numa casa: vai à sessão (e aos jogadores) e fica lembrado neste mapa. */
+  const soltarJudge = useCallback(
+    (x: number, y: number) => {
+      if (!useBatalhaStore.getState().moverJudge(chaveDaCenaAberta, x, y)) return
+      gravarJudgeLembrado(armazemDoJudge(), aventuraDoJudge, chaveDaCenaAberta, { x, y })
+    },
+    [chaveDaCenaAberta, aventuraDoJudge],
+  )
   /** BATALHA F2 (S4): "Escolher no mapa" ligado no painel da vez do NPC. */
   const miraDoMestreLigada = useMiraDoMestre((state) => state.mirando)
   useEffect(() => {
@@ -3187,6 +3231,9 @@ function App() {
           gridAlignPreview={gridAlignPreview}
           batalhaLigada={batalhaNaCenaAberta}
           vezTokenId={vezTokenId}
+          judge={judgeNaCenaAberta}
+          gestoDoJudge={gestoDoJudge}
+          onJudgeSolto={soltarJudge}
           onBackgroundImageSizeChange={setBackgroundImageSize}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
