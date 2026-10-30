@@ -1,0 +1,1979 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Batalha One Piece</title>
+<style>
+/* Tokens do app: copiados de client/src/theme.ts (mesmos nomes --lb-*). */
+:root {
+  color-scheme: dark;
+  --lb-color-ink: #121214;
+  --lb-color-stone: rgba(19, 19, 23, 0.94);
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-tide: #79a9cc;
+  --lb-color-tide-soft: rgba(121, 169, 204, 0.14);
+  --lb-color-arcane: #ab93d6;
+  --lb-color-arcane-soft: rgba(171, 147, 214, 0.15);
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xl: 20px;
+  --lb-space-1: 4px;
+  --lb-space-2: 8px;
+  --lb-space-3: 12px;
+  --lb-space-4: 16px;
+  --lb-space-5: 20px;
+  --lb-space-6: 24px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-md: 0 6px 16px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Batalha (proposta nova). O vermelho é a cor do sistema One Piece (sistemaOnePiece.ts:35). */
+  --bt-sangue: #b4493c;
+  --bt-sangue-escuro: #5e1d17;
+  --bt-tinta: #0c0c0e;
+  --bt-papel: var(--lb-color-parchment);
+  --bt-grupo: var(--lb-color-brass);
+  --bt-marinha: var(--lb-color-parchment-dim);
+  --bt-forma: var(--lb-color-arcane);
+  --bt-hp: var(--lb-color-ember);
+  --bt-sp: var(--lb-color-tide);
+  --bt-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  line-height: 1.45;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Barra do protótipo (não é tela do app) ---------- */
+.proto {
+  display: flex; align-items: center; gap: var(--lb-space-4); flex-wrap: wrap;
+  height: 48px; padding: 0 var(--lb-space-4);
+  border-bottom: 1px dashed var(--lb-color-line-strong);
+  background: var(--lb-color-stone-sunken);
+  font-family: var(--lb-font-utility); font-size: var(--lb-font-size-sm);
+}
+.proto__marca { color: var(--lb-color-parchment-faint); text-transform: uppercase; letter-spacing: 0.14em; font-size: var(--lb-font-size-xs); }
+.proto__grupo { display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); }
+.proto__grupo > span { padding: 0 var(--lb-space-2); color: var(--lb-color-parchment-faint); }
+.seg {
+  min-height: 26px; padding: 0 var(--lb-space-3); border: 0; border-radius: var(--lb-radius-sm);
+  background: transparent; color: var(--lb-color-parchment-dim); cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform 120ms var(--lb-gr-ease-out);
+}
+.seg:hover { background: var(--lb-color-stone-hover); color: var(--lb-color-parchment); }
+.seg:active { transform: scale(0.97); }
+.seg[aria-pressed='true'] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.seg:focus-visible, .botao:focus-visible, .proto label:focus-within, .decidir summary:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.proto label { display: flex; align-items: center; gap: 6px; color: var(--lb-color-parchment-dim); cursor: pointer; border-radius: var(--lb-radius-sm); padding: 2px 4px; }
+.proto input[type='checkbox'] { accent-color: var(--lb-color-brass); }
+.decidir { position: relative; margin-left: auto; }
+.decidir summary { cursor: pointer; list-style: none; padding: 4px 10px; border-radius: var(--lb-radius-sm); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.decidir summary::-webkit-details-marker { display: none; }
+.decidir ol {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; width: 440px; margin: 0; padding: var(--lb-space-4) var(--lb-space-4) var(--lb-space-4) 34px;
+  background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-lg); box-shadow: var(--lb-shadow-float);
+  font-family: var(--lb-font-sans); font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-dim);
+}
+.decidir li + li { margin-top: var(--lb-space-2); }
+.decidir b { color: var(--lb-color-parchment); font-weight: 600; }
+
+/* ---------- Vistas ---------- */
+.vistas { display: grid; gap: var(--lb-space-3); height: calc(100dvh - 48px); padding: var(--lb-space-3); }
+.vistas[data-modo='lado'] { grid-template-columns: 1fr 1fr; }
+.vista {
+  container: vista / inline-size;
+  position: relative; display: grid; grid-template-rows: auto auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0;
+  border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-lg); overflow: hidden;
+  background: var(--lb-color-stone-solid);
+}
+.vista__cabeca {
+  display: flex; align-items: center; gap: var(--lb-space-2); height: 26px; padding: 0 var(--lb-space-3);
+  font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--lb-color-parchment-faint); border-bottom: 1px solid var(--lb-color-line);
+}
+.vista__cabeca i { width: 7px; height: 7px; border-radius: 50%; background: var(--lb-color-brass); }
+.vista[data-papel='mestre'] .vista__cabeca i { background: var(--lb-color-parchment-dim); }
+
+/* ---------- Ordem dos turnos ---------- */
+.ordem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--lb-space-3); padding: var(--lb-space-3); border-bottom: 1px solid var(--lb-color-line); background: var(--lb-color-stone-sunken); }
+.ordem__titulo { display: flex; align-items: baseline; gap: var(--lb-space-2); margin: 0 0 var(--lb-space-2); font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--lb-color-parchment-faint); font-weight: 400; }
+.ordem__dica { margin: var(--lb-space-2) 0 0; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.cartas { position: relative; display: flex; gap: var(--lb-space-2); min-width: 0; padding-top: 6px; }
+.carta {
+  position: relative; flex: 1 1 0; min-width: 0; max-width: 176px; padding: var(--lb-space-2) var(--lb-space-2) 6px;
+  border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); box-shadow: inset 0 0 0 1px var(--lb-color-line-panel), var(--lb-shadow-bevel);
+  font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-dim);
+  transition: transform 220ms var(--lb-gr-ease-out), box-shadow var(--lb-motion-base) ease, opacity var(--lb-motion-base) ease;
+  touch-action: none; user-select: none;
+}
+.vista[data-papel='mestre'] .carta { cursor: grab; }
+.carta:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.carta[data-vez='sim'] { transform: translateY(-4px); background: linear-gradient(180deg, rgba(224, 164, 74, 0.22), var(--lb-color-stone-raised) 70%); box-shadow: inset 0 0 0 2px var(--lb-color-brass), var(--lb-shadow-md); }
+.carta[data-vez='sim']::before { content: 'VEZ'; position: absolute; top: -9px; left: 10px; padding: 0 6px; border-radius: 4px; background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: 700; letter-spacing: 0.1em; font-size: 9.5px; line-height: 16px; }
+.carta[data-proxima='sim']::before { content: 'A SEGUIR'; position: absolute; top: -8px; left: 10px; padding: 0 5px; border-radius: 4px; background: var(--lb-color-stone-hover); color: var(--lb-color-parchment-dim); letter-spacing: 0.1em; font-size: 9px; line-height: 14px; }
+.carta[data-caiu='sim'] { opacity: 0.42; filter: grayscale(1); }
+.carta[data-forma='sim'] { box-shadow: inset 0 0 0 2px var(--bt-forma), 0 0 18px rgba(171, 147, 214, 0.25); }
+.carta[data-vez='sim'][data-forma='sim'] { box-shadow: inset 0 0 0 2px var(--lb-color-brass), 0 0 0 4px rgba(171, 147, 214, 0.55), var(--lb-shadow-md); }
+.carta.arrastando { z-index: 5; cursor: grabbing; box-shadow: inset 0 0 0 2px var(--lb-color-brass-bright), var(--lb-shadow-float); transition: box-shadow var(--lb-motion-base) ease; }
+.carta__topo { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.carta__retrato { flex: none; width: 26px; height: 26px; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1.5px var(--lado); }
+.carta__nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--lb-font-sans); font-size: var(--lb-font-size-sm); font-weight: 600; color: var(--lb-color-parchment); }
+.carta__pos { color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.carta__forma { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bt-forma); letter-spacing: 0.06em; text-transform: uppercase; font-size: 9.5px; }
+.carta__linha { display: flex; justify-content: space-between; margin-top: 5px; line-height: 1.2; }
+.carta__linha b { font-weight: 600; }
+.carta__linha [data-r='hp'] { color: var(--bt-hp); }
+.carta__linha [data-r='sp'] { color: var(--bt-sp); }
+.carta__num { font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-dim); }
+.carta__oculta { margin-top: 6px; color: var(--lb-color-parchment-faint); font-style: italic; }
+.carta__pe { display: flex; justify-content: space-between; gap: 4px; margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.carta__pe em { font-style: normal; color: var(--lb-color-brass); }
+.carta__marcas { display: flex; gap: 4px; height: 12px; margin-top: 4px; align-items: center; }
+.marca { padding: 0 4px; border-radius: 3px; font-size: 9px; line-height: 12px; letter-spacing: 0.06em; background: var(--lb-color-stone-hover); color: var(--lb-color-parchment-dim); }
+.marca--conc { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.marca--logia { background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
+.marca--dado { background: var(--lb-color-arcane-soft); color: var(--bt-forma); }
+.marca--saga { background: var(--lb-color-ember-soft); color: var(--lb-color-ember); }
+.barra { position: relative; height: 6px; margin-top: 3px; border-radius: 3px; background: rgba(0, 0, 0, 0.45); overflow: hidden; }
+.barra > b, .barra > i { position: absolute; inset: 0; border-radius: inherit; transform-origin: left center; }
+.barra > b { background: rgba(255, 238, 220, 0.75); transition: transform 520ms var(--lb-gr-ease-out) 260ms; }
+.barra > i { transition: transform 360ms var(--lb-gr-ease-out); }
+.barra--hp > i { background: var(--bt-hp); }
+.barra--sp > i { background: var(--bt-sp); }
+.encaixe { position: absolute; top: 6px; bottom: 0; width: 3px; margin-left: -6px; border-radius: 2px; background: var(--lb-color-brass-bright); pointer-events: none; opacity: 0; transition: opacity 120ms ease; }
+.encaixe.ativo { opacity: 1; }
+
+.turno { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 176px; padding: var(--lb-space-2) var(--lb-space-4); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); box-shadow: inset 0 0 0 1px var(--lb-color-line-panel); font-family: var(--lb-font-utility); }
+.turno__rodada { font-size: var(--lb-font-size-xs); letter-spacing: 0.14em; color: var(--lb-color-parchment-faint); text-transform: uppercase; }
+.turno__num { font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--lb-color-parchment); }
+.turno__num small { font-size: 14px; font-weight: 400; color: var(--lb-color-parchment-faint); }
+.turno__quem { font-size: var(--lb-font-size-sm); color: var(--lado, var(--lb-color-brass)); white-space: nowrap; }
+.turno__depois { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); white-space: nowrap; }
+
+/* ---------- Corpo: palco e painel ---------- */
+.corpo { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+.vista[data-papel='mestre'] .corpo { grid-template-columns: minmax(0, 1fr) clamp(250px, 28cqw, 320px); }
+.palco { position: relative; min-height: 0; overflow: hidden; isolation: isolate; }
+.mundo {
+  position: absolute; inset: -12px;
+  background:
+    radial-gradient(110% 85% at 50% 45%, transparent 45%, rgba(70, 14, 10, 0.62) 100%),
+    linear-gradient(rgba(10, 10, 12, 0.5), rgba(10, 10, 12, 0.5)),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px 48px),
+    radial-gradient(60% 50% at 30% 40%, #8a7d66, transparent 70%),
+    radial-gradient(50% 60% at 75% 60%, #7c705c, transparent 70%),
+    #6b6150;
+}
+.efeitos { position: absolute; inset: 0; pointer-events: none; z-index: 8; }
+/* A camada das fichas cobre o palco inteiro: o tremor (translate) não pode mudar o bloco de contenção delas. */
+.fichas { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.fichas > .ficha { pointer-events: auto; }
+.efeitos > * { pointer-events: none; }
+
+/* Fichas no palco (no app: o token no mapa) */
+.ficha {
+  position: absolute; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: clamp(48px, 6cqw, 76px); transform: translate(-50%, -50%);
+  padding: 0; border: 0; background: none; cursor: default;
+}
+.ficha:enabled { cursor: crosshair; }
+.ficha:focus-visible { outline: none; }
+.ficha:focus-visible .ficha__corpo { box-shadow: var(--lb-shadow-focus); }
+.ficha__corpo { position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px var(--lado), 0 8px 18px rgba(0, 0, 0, 0.55); }
+.ficha__corpo svg { display: block; width: 100%; height: 100%; border-radius: 50%; }
+.ficha__nome { padding: 1px 8px; border-radius: var(--lb-radius-full); background: rgba(12, 12, 14, 0.82); font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.04em; white-space: nowrap; color: var(--lb-color-parchment); }
+.ficha .barra { width: 100%; height: 5px; margin: 0; }
+.ficha[data-vez='sim'] .ficha__corpo::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 2px solid var(--lb-color-brass-bright); animation: pulso 1600ms ease-in-out infinite; }
+.ficha[data-caiu='sim'] { filter: grayscale(1) brightness(0.6); }
+.ficha[data-caiu='sim'] .ficha__nome::after { content: ' · caiu'; color: var(--lb-color-ember); }
+.ficha[data-mira='pode'] .ficha__corpo { box-shadow: 0 0 0 3px var(--lb-color-ember), 0 0 0 7px rgba(226, 100, 90, 0.25), 0 8px 18px rgba(0, 0, 0, 0.55); }
+.ficha[data-mira='foco'] .ficha__corpo { box-shadow: 0 0 0 3px var(--bt-papel), 0 0 0 8px var(--bt-sangue), 0 8px 22px rgba(0, 0, 0, 0.6); }
+.palco[data-escuro='sim'] .ficha { filter: brightness(0.45); }
+@keyframes pulso { 0%, 100% { opacity: 0.25; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.04); } }
+
+/* ---------- Tiras (o menu de batalha) ---------- */
+.menu { position: absolute; z-index: 6; }
+.menu--principal { left: 2.5%; bottom: 4%; width: clamp(280px, 40cqw, 470px); }
+.menu--lista { left: 2.5%; top: 6%; bottom: 4%; width: clamp(320px, 56cqw, 760px); display: flex; flex-direction: column; }
+.menu--alvo { left: 2.5%; bottom: 4%; width: clamp(280px, 38cqw, 440px); }
+.cortina { position: absolute; inset: 0; z-index: 5; background: linear-gradient(90deg, rgba(8, 4, 4, 0.92) 0%, rgba(40, 8, 6, 0.78) 55%, rgba(8, 4, 4, 0.55) 100%); }
+.menu__cabeca { display: flex; align-items: flex-end; gap: var(--lb-space-3); margin: 0 0 10px 6px; transform: rotate(-3deg); transform-origin: left bottom; }
+.menu__quem { font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: clamp(20px, 2.6cqw, 34px); line-height: 0.95; text-transform: uppercase; letter-spacing: 0.02em; color: var(--bt-papel); text-shadow: 3px 3px 0 var(--bt-sangue); }
+.menu__economia { display: flex; gap: 6px; padding-bottom: 3px; font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.08em; text-transform: uppercase; }
+.pip { padding: 1px 6px; border-radius: 3px; background: var(--bt-papel); color: var(--bt-tinta); font-weight: 700; }
+.pip[data-gasto='sim'] { background: rgba(255, 255, 255, 0.1); color: var(--lb-color-parchment-faint); text-decoration: line-through; font-weight: 400; }
+.menu__tiras { display: flex; flex-direction: column; gap: 9px; }
+.menu--lista .menu__tiras { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 18px 30px 22px 6px; gap: 14px; scrollbar-width: thin; }
+.menu__dica { margin: 12px 0 0 8px; font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.06em; color: var(--lb-color-parchment-dim); }
+.menu__dica kbd { padding: 0 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); font-family: inherit; color: var(--lb-color-parchment); }
+
+.tira {
+  position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: 14px;
+  width: 100%; padding: 9px 22px 11px 24px; border: 0; background: none; color: var(--bt-papel); text-align: left; cursor: pointer;
+  transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px));
+  transition: transform 80ms var(--lb-gr-ease-out), color 80ms ease;
+}
+.tira::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--bt-tinta); clip-path: var(--rasgo); transition: background-color 90ms ease; }
+.tira::after { content: ''; position: absolute; inset: 0; z-index: -2; background: var(--bt-sangue); clip-path: var(--rasgo2); transform: translate(5px, 5px); transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out); }
+.tira__nome { min-width: 0; font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: clamp(18px, 2.3cqw, 30px); line-height: 1.05; letter-spacing: 0.02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.tira__lado { font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: clamp(15px, 1.7cqw, 22px); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tira__det { grid-column: 1 / -1; margin-top: 2px; font-size: clamp(11.5px, 1.1cqw, 13.5px); line-height: 1.35; color: var(--lb-color-parchment-dim); }
+.tira__chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip { padding: 1px 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.04em; white-space: nowrap; color: var(--lb-color-parchment); }
+.chip--dano { background: var(--bt-sangue); color: #fff; }
+.chip--cura { background: rgba(127, 180, 138, 0.25); color: var(--lb-color-online); }
+.chip--forma { background: var(--lb-color-arcane-soft); color: var(--bt-forma); }
+.chip--over { background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: 700; }
+.chip--mod-mais { background: rgba(127, 180, 138, 0.22); color: var(--lb-color-online); }
+.chip--mod-menos { background: var(--lb-color-ember-soft); color: var(--lb-color-ember); }
+.menu--lista .tira { padding: 12px 26px 14px 28px; }
+.menu--lista .tira__nome { font-size: clamp(20px, 2.7cqw, 36px); }
+.tira.esta { --dx: 14px; color: var(--bt-tinta); }
+.tira.esta::before { background: var(--bt-papel); }
+.tira.esta::after { transform: translate(10px, 7px); }
+.tira.esta .tira__det { color: #3b3a36; }
+.tira.esta .chip { background: rgba(12, 12, 14, 0.1); color: var(--bt-tinta); }
+.tira.esta .chip--dano { background: var(--bt-sangue); color: #fff; }
+.tira.esta .chip--forma { background: rgba(110, 80, 170, 0.18); color: #4b3482; }
+.tira.esta .chip--over { background: var(--bt-tinta); color: var(--lb-color-brass-bright); }
+.tira.esta .chip--cura { background: rgba(60, 120, 80, 0.18); color: #24603a; }
+.tira[aria-disabled='true'] { cursor: not-allowed; color: var(--lb-color-parchment-faint); }
+.tira[aria-disabled='true']::after { opacity: 0.25; }
+.tira[aria-disabled='true'] .tira__det { color: var(--lb-color-ember); }
+/* A tira em papel É o foco (a seleção segue o foco sempre); o contorno só aparece se os dois se separarem. */
+.tira:focus-visible { outline: none; }
+.tira:not(.esta):focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 5px; }
+.tira--forma::after { background: var(--bt-forma); }
+.tira--forma.esta::after { background: var(--bt-forma); }
+.tira[data-ativa='sim'] .tira__lado { color: var(--bt-forma); }
+.tira.esta[data-ativa='sim'] .tira__lado { color: #4b3482; }
+.tira__vazio { padding: 18px 24px; color: var(--lb-color-parchment-dim); }
+
+.retrato-grande { position: absolute; z-index: 6; right: 3%; bottom: 0; width: min(40cqw, 46%); height: 90%; pointer-events: none; }
+.retrato-grande svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.retrato-grande__nome { position: absolute; right: 6%; bottom: 7%; transform: rotate(-5deg); padding: 2px 14px 4px; background: var(--bt-tinta); font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: clamp(16px, 2cqw, 26px); letter-spacing: 0.04em; text-transform: uppercase; box-shadow: 6px 6px 0 var(--bt-sangue); }
+.retrato-grande__sp { position: absolute; right: 7%; bottom: calc(7% + 46px); transform: rotate(-5deg); padding: 1px 8px; background: var(--bt-tinta); font-family: var(--lb-font-utility); font-size: var(--lb-font-size-sm); letter-spacing: 0.06em; color: var(--bt-sp); font-variant-numeric: tabular-nums; }
+
+/* Mira */
+.mira {
+  position: absolute; z-index: 7; transform: translate(-50%, clamp(40px, 4.6cqw, 62px)); min-width: 230px; padding: 14px 0 0; border: 0; background: none; text-align: left; cursor: pointer;
+  pointer-events: auto;
+}
+.mira__caixa { position: relative; display: block; padding: 8px 14px 10px; background: var(--bt-papel); color: var(--bt-tinta); clip-path: polygon(0 4px, 100% 0, calc(100% - 3px) 100%, 3px calc(100% - 3px)); box-shadow: 6px 6px 0 var(--bt-sangue); }
+.mira::before { content: ''; position: absolute; left: 50%; top: 0; width: 22px; height: 15px; margin-left: -11px; background: var(--bt-papel); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.mira:focus-visible { outline: none; }
+.mira:focus-visible .mira__caixa { box-shadow: inset 0 0 0 3px var(--lb-color-brass); }
+.mira__rot { font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.14em; color: var(--bt-sangue); font-weight: 700; }
+.mira__nome { display: block; font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: 22px; line-height: 1.05; text-transform: uppercase; }
+.escala { display: grid; grid-template-columns: 1fr 8fr 5fr 5fr 1.6fr; gap: 2px; margin-top: 6px; font-family: var(--lb-font-utility); font-size: 10px; text-align: center; }
+.escala span { padding: 2px 0; background: #d8d4ca; }
+.escala span[data-s='critico'] { background: var(--bt-sangue); color: #fff; }
+.escala span[data-s='sem'] { background: #c9a59f; }
+.escala span[data-s='contra'] { background: var(--bt-tinta); color: var(--lb-color-brass-bright); }
+.escala small { display: block; font-size: 9px; opacity: 0.7; }
+.mira__nota { margin-top: 5px; font-size: 11px; color: #4a4843; }
+
+/* Faixa de espera do jogador */
+.espera {
+  position: absolute; z-index: 6; left: 3%; bottom: 5%; transform: rotate(-2deg); transform-origin: left bottom;
+  display: flex; align-items: baseline; gap: 12px; padding: 8px 20px 10px; background: var(--bt-tinta); box-shadow: 6px 6px 0 var(--lado, var(--bt-sangue));
+  font-family: var(--lb-font-utility); white-space: nowrap;
+}
+.espera b { font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-size: 22px; text-transform: uppercase; letter-spacing: 0.02em; }
+.espera span { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+/* Reação (tela do jogador atacado) */
+.reacao {
+  position: absolute; z-index: 8; left: 50%; top: 50%; width: min(520px, 86%); transform: translate(-50%, -50%);
+  padding: 18px 22px 20px; background: var(--bt-tinta); box-shadow: 8px 8px 0 var(--bt-sangue), var(--lb-shadow-float);
+  clip-path: polygon(0 6px, 100% 0, calc(100% - 4px) 100%, 4px calc(100% - 5px));
+}
+.reacao__titulo { margin: 0; font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: 40px; line-height: 1; letter-spacing: 0.02em; color: var(--bt-papel); text-shadow: 3px 3px 0 var(--bt-sangue); transform: rotate(-3deg); transform-origin: left; }
+.reacao p { margin: 10px 0 4px; }
+.reacao__regra { font-family: var(--lb-font-utility); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.reacao__linha { display: flex; align-items: center; gap: 16px; margin-top: 14px; }
+.reacao__opcoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.dado {
+  display: grid; place-items: center; width: 64px; height: 72px; flex: none;
+  clip-path: polygon(50% 0, 96% 25%, 96% 75%, 50% 100%, 4% 75%, 4% 25%);
+  background: var(--bt-papel); color: var(--bt-tinta);
+  font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: 30px; font-variant-numeric: tabular-nums;
+}
+.dado[data-s='critico'] { background: var(--bt-sangue); color: #fff; }
+.dado[data-s='contra'] { background: var(--lb-color-brass-bright); }
+.dado[data-s='esquiva'], .dado[data-s='defesa'] { background: #cfe0ea; }
+.dado-rotulo { font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; padding: 2px 8px; background: var(--bt-tinta); color: var(--bt-papel); }
+
+/* Botões do app (painel do mestre e reação) */
+.botao {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md); cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform 120ms var(--lb-gr-ease-out);
+}
+.botao:hover { background: var(--lb-color-stone-hover); }
+.botao:active { transform: scale(0.97); }
+.botao:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.botao--primario { background: var(--lb-color-brass); border-color: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: 600; }
+.botao--primario:hover { background: var(--lb-color-brass-bright); }
+.botao--batalha { background: var(--bt-sangue); border-color: var(--bt-sangue); color: #fff; font-weight: 600; }
+.botao--batalha:hover { background: #c75a4c; }
+.botao kbd { font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); opacity: 0.7; }
+
+/* Painel do mestre */
+.painel { min-height: 0; overflow-y: auto; padding: var(--lb-space-3); border-left: 1px solid var(--lb-color-line); background: var(--lb-color-stone-solid); scrollbar-width: thin; }
+.mp-secao + .mp-secao { margin-top: var(--lb-space-4); padding-top: var(--lb-space-3); border-top: 1px solid var(--lb-color-line); }
+.mp-titulo { margin: 0 0 var(--lb-space-2); font-family: var(--lb-font-utility); font-size: var(--lb-font-size-xs); font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.mp-vez { display: flex; align-items: center; gap: 10px; margin-bottom: var(--lb-space-3); }
+.mp-vez .carta__retrato { width: 36px; height: 36px; border-radius: 8px; }
+.mp-vez b { display: block; font-size: var(--lb-font-size-lg); }
+.mp-vez span { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.mp-texto { margin: 0 0 var(--lb-space-3); color: var(--lb-color-parchment-dim); }
+.mp-texto b { color: var(--lb-color-parchment); font-weight: 600; }
+.mp-espelho { margin: 0 0 var(--lb-space-3); padding: 8px 10px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); font-family: var(--lb-font-utility); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment); }
+.mp-acoes { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
+.mp-lista { display: grid; gap: 4px; margin: 0 0 var(--lb-space-3); padding: 0; border: 0; }
+.mp-lista legend { padding: 0; margin-bottom: 4px; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.mp-opcao { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--lb-radius-sm); background: var(--lb-color-stone-raised); cursor: pointer; font-size: var(--lb-font-size-sm); }
+.mp-opcao:hover { background: var(--lb-color-stone-hover); }
+.mp-opcao:has(input:checked) { background: var(--lb-color-brass-soft); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.5); }
+.mp-opcao:has(input:disabled) { opacity: 0.45; cursor: not-allowed; }
+.mp-opcao:focus-within { box-shadow: var(--lb-shadow-focus); }
+.mp-opcao input { margin: 0; accent-color: var(--lb-color-brass); }
+.mp-opcao small { color: var(--lb-color-parchment-faint); font-family: var(--lb-font-utility); white-space: nowrap; }
+.mp-check { display: flex; align-items: center; gap: 6px; margin-top: var(--lb-space-3); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); cursor: pointer; }
+.mp-check input { accent-color: var(--lb-color-brass); }
+.mp-registro { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.mp-registro li { padding-left: 10px; border-left: 2px solid var(--lb-color-line-strong); }
+.mp-registro li:first-child { border-left-color: var(--lb-color-brass); color: var(--lb-color-parchment); }
+.mp-registro em { font-style: normal; color: var(--lb-color-brass-bright); font-family: var(--lb-font-utility); }
+
+/* ---------- Efeitos ---------- */
+.faixa {
+  position: absolute; left: -6%; right: -6%; top: 38%; height: 24%; display: flex; align-items: center; gap: 4%; padding: 0 12%;
+  background: var(--bt-tinta); transform: rotate(-6deg);
+  box-shadow: 0 -6px 0 var(--bt-sangue), 0 6px 0 var(--bt-sangue);
+}
+.faixa__grande { font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: clamp(40px, 8cqw, 120px); line-height: 0.9; letter-spacing: 0.01em; color: var(--bt-papel); text-shadow: 5px 5px 0 var(--bt-sangue); white-space: nowrap; }
+.faixa__sub { font-family: var(--lb-font-utility); font-size: clamp(13px, 1.5cqw, 20px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--lb-color-parchment-dim); white-space: nowrap; }
+.faixa--pequena { top: 6%; height: 13%; }
+.faixa--pequena .faixa__grande { font-size: clamp(28px, 4.6cqw, 64px); }
+.faixa--marinha { box-shadow: 0 -5px 0 var(--bt-marinha), 0 5px 0 var(--bt-marinha); }
+.faixa--marinha .faixa__grande { text-shadow: 4px 4px 0 #3c4650; }
+.corte {
+  position: absolute; left: -8%; right: -8%; top: 30%; height: 34%; display: flex; align-items: center; overflow: hidden;
+  background: var(--bt-sangue); transform: rotate(-7deg); box-shadow: 0 -8px 0 var(--bt-tinta), 0 8px 0 var(--bt-tinta);
+}
+.corte::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle, rgba(0, 0, 0, 0.35) 1.4px, transparent 1.6px) 0 0 / 9px 9px; }
+.corte__retrato { position: relative; flex: none; width: 34%; height: 170%; margin-left: 8%; }
+.corte__retrato svg { width: 100%; height: 100%; }
+.corte__texto { position: relative; display: flex; flex-direction: column; gap: 2px; padding-left: 3%; }
+.corte__nome { font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: clamp(34px, 6.4cqw, 96px); line-height: 0.92; text-transform: uppercase; color: var(--bt-papel); text-shadow: 5px 5px 0 var(--bt-tinta); white-space: nowrap; }
+.corte__quem { font-family: var(--lb-font-utility); font-size: clamp(12px, 1.4cqw, 18px); letter-spacing: 0.2em; text-transform: uppercase; color: var(--bt-tinta); font-weight: 700; }
+.risco { position: absolute; width: 140px; height: 10px; margin: -5px 0 0 -70px; background: linear-gradient(90deg, transparent, #fff 30%, #fff 70%, transparent); transform: rotate(-32deg); }
+.numero {
+  position: absolute; transform: translate(-50%, -50%); font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700;
+  font-size: clamp(40px, 6.4cqw, 92px); line-height: 1; color: #fff; white-space: nowrap; font-variant-numeric: tabular-nums;
+  -webkit-text-stroke: 6px var(--bt-tinta); paint-order: stroke fill; text-shadow: 5px 6px 0 var(--bt-sangue);
+}
+.numero small { display: block; font-size: 0.26em; letter-spacing: 0.12em; text-align: center; -webkit-text-stroke: 4px var(--bt-tinta); text-shadow: none; }
+.numero[data-tipo='zero'] { color: var(--lb-color-parchment-dim); text-shadow: none; }
+.numero[data-tipo='cura'] { color: #a7e3b4; text-shadow: 4px 5px 0 #1f5a33; }
+.numero[data-tipo='critico'] { color: var(--lb-color-brass-bright); }
+.numero[data-tipo='buff'] { font-size: clamp(22px, 3cqw, 40px); color: var(--bt-papel); text-shadow: 3px 3px 0 var(--bt-sangue); }
+.selo-dado { position: absolute; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-left: clamp(30px, 3.4cqw, 46px); transform: translateY(-62%); }
+.selo-dado .dado { width: clamp(52px, 5cqw, 72px); height: clamp(58px, 5.6cqw, 80px); font-size: clamp(26px, 2.6cqw, 38px); box-shadow: none; }
+.selo-dado .dado-rotulo { font-size: clamp(10.5px, 1cqw, 13px); box-shadow: 3px 3px 0 var(--bt-sangue); }
+.transformacao { position: absolute; inset: 0; z-index: 9; overflow: hidden; display: grid; place-items: center; }
+.transformacao__fundo { position: absolute; inset: 0; background: radial-gradient(circle at 40% 50%, rgba(60, 40, 100, 0.9), rgba(8, 6, 12, 0.96) 70%); }
+.transformacao__raios { position: absolute; left: 40%; top: 50%; width: 150%; aspect-ratio: 1; margin: -75% 0 0 -75%; will-change: transform; background: repeating-conic-gradient(from 0deg, rgba(171, 147, 214, 0.22) 0deg 4deg, transparent 4deg 14deg); border-radius: 50%; }
+.transformacao__anel { position: absolute; left: 40%; top: 50%; width: 42%; aspect-ratio: 1; margin: -21% 0 0 -21%; border-radius: 50%; border: 8px solid var(--bt-forma); }
+.transformacao__retrato { position: absolute; left: 14%; bottom: 0; width: 40%; height: 92%; }
+.transformacao__retrato svg { width: 100%; height: 100%; }
+.transformacao__flash { position: absolute; inset: 0; background: radial-gradient(circle at 34% 55%, rgba(255, 255, 255, 0.9), rgba(220, 205, 255, 0.35) 38%, transparent 70%); opacity: 0; }
+.transformacao__texto { position: absolute; left: 46%; top: 22%; display: flex; flex-direction: column; gap: 8px; max-width: 50%; }
+.transformacao__rot { font-family: var(--lb-font-utility); font-size: clamp(12px, 1.4cqw, 18px); letter-spacing: 0.22em; text-transform: uppercase; color: var(--bt-forma); }
+.transformacao__nome { display: inline-block; align-self: flex-start; padding: 4px 18px 8px; background: var(--bt-papel); color: var(--bt-tinta); transform: rotate(-4deg); box-shadow: 8px 8px 0 var(--bt-forma); font-family: 'Bahnschrift Condensed', var(--lb-font-utility); font-stretch: condensed; font-weight: 700; font-size: clamp(28px, 5cqw, 72px); line-height: 0.95; text-transform: uppercase; }
+.transformacao__numeros { display: grid; gap: 6px; margin-top: 18px; font-family: var(--lb-font-utility); font-size: clamp(14px, 1.6cqw, 22px); font-variant-numeric: tabular-nums; }
+.transformacao__numeros div { display: flex; gap: 10px; align-items: baseline; padding: 3px 12px; background: rgba(12, 12, 14, 0.75); }
+.transformacao__numeros span { color: var(--lb-color-parchment-dim); min-width: 4.2em; }
+.transformacao__numeros b { color: var(--lb-color-online); }
+.fim { position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(8, 6, 6, 0.7); }
+
+.carta__nome--curto { display: none; }
+.barra--vazia { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0 4px, transparent 4px 8px); }
+@container vista (max-width: 980px) {
+  .cartas { gap: 6px; }
+  .carta { padding: 6px 6px 5px; }
+  .carta__pe, .carta__marcas, .carta__pos, .carta__forma { display: none; }
+  .carta__retrato { width: 20px; height: 20px; }
+  .carta__topo { gap: 4px; }
+  .carta__nome { display: none; font-size: var(--lb-font-size-xs); }
+  .carta__nome--curto { display: block; }
+  .carta__oculta span { display: none; }
+  .carta__oculta { margin-top: 26px; }
+  .turno { min-width: 132px; padding: 6px 10px; }
+  .turno__num { font-size: 20px; }
+  .menu--lista { width: 62cqw; }
+  .retrato-grande { width: 34cqw; }
+}
+@container vista (max-width: 700px) {
+  .carta__num { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ficha[data-vez='sim'] .ficha__corpo::after { animation: none; opacity: 0.85; }
+}
+:root[data-reduzido='sim'] .ficha[data-vez='sim'] .ficha__corpo::after { animation: none; opacity: 0.85; }
+:root[data-reduzido='sim'] .tira { transition: color 90ms ease; }
+</style>
+</head>
+<body>
+<header class="proto" aria-label="Controles do protótipo">
+  <span class="proto__marca">Protótipo · Batalha One Piece</span>
+  <div class="proto__grupo" role="group" aria-label="Vista">
+    <span>Vista</span>
+    <button type="button" class="seg" data-modo="mestre">Mestre</button>
+    <button type="button" class="seg" data-modo="jogador">Jogador</button>
+    <button type="button" class="seg" data-modo="lado">Lado a lado</button>
+  </div>
+  <div class="proto__grupo" role="group" aria-label="Qual jogador">
+    <span>Jogador</span>
+    <button type="button" class="seg" data-jogador="lia">Lia</button>
+    <button type="button" class="seg" data-jogador="bruno">Bruno</button>
+    <button type="button" class="seg" data-jogador="duda">Duda</button>
+  </div>
+  <label><input type="checkbox" id="chk-reduzido"> Movimento reduzido</label>
+  <label><input type="checkbox" id="chk-lento"> Câmera lenta (1/4)</label>
+  <button type="button" class="seg" id="btn-recomecar">Recomeçar</button>
+  <details class="decidir">
+    <summary>Para decidir (4)</summary>
+    <ol>
+      <li><b>Acerto:</b> o livro não tem rolagem de ataque; o golpe sempre chega e o alvo rola a reação (1d20). Fica assim, ou entra um teste de acerto (1d20 + modificador do rank)?</li>
+      <li><b>Iniciativa:</b> o livro ordena pela Agilidade. Empate: aqui rola 1d20 (regra minha). Serve, ou desempata por outra coisa?</li>
+      <li><b>Transformação:</b> aqui gasta a ação completa e o HP atual não sobe junto com o máximo (regra da ficha hoje). Fica assim?</li>
+      <li><b>Onde mora:</b> a ordem dos turnos volta ao app, mas o plano da batalha manda tirar a Iniciativa e o Confronto antigos. Substituir pelos dois de hoje, ou começar do zero?</li>
+    </ol>
+  </details>
+</header>
+<main class="vistas" id="vistas" data-modo="lado"></main>
+<div id="anuncio" class="sr-only" aria-live="polite"></div>
+
+<script>
+'use strict'
+/* =========================================================================
+ * 1. Utilidades
+ * ========================================================================= */
+const $ = (sel, el = document) => el.querySelector(sel)
+const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel))
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+const num = (n) => Math.round(n).toLocaleString('pt-BR')
+const mult = (m) => '×' + String(m).replace('.', ',')
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+const P = new URLSearchParams(location.hash.slice(1))
+const SEMENTE = Number(P.get('semente')) || 20261029
+let rngDados = mulberry32(SEMENTE)
+let rngIni = mulberry32(SEMENTE ^ 0x5bd1e995)
+let filaDados = (P.get('dados') || '').split(',').map(Number).filter((n) => n >= 1 && n <= 20)
+const filaOriginal = filaDados.slice()
+function d20() { return filaDados.length ? filaDados.shift() : 1 + Math.floor(rngDados() * 20) }
+function anunciar(texto) { const el = $('#anuncio'); el.textContent = ''; requestAnimationFrame(() => { el.textContent = texto }) }
+
+/* Movimento: tudo passa por D() (câmera lenta) e pode ser pulado com clique/Enter. */
+const MOV = { reduzido: matchMedia('(prefers-reduced-motion: reduce)').matches, lento: 1 }
+const D = (ms) => ms * MOV.lento
+let pulando = false
+const sonos = new Set()
+const vivas = new Set()
+function esperar(ms) {
+  if (pulando) return Promise.resolve()
+  return new Promise((res) => {
+    const fim = () => { clearTimeout(t); sonos.delete(fim); res() }
+    const t = setTimeout(fim, D(ms))
+    sonos.add(fim)
+  })
+}
+function animar(el, quadros, opcoes) {
+  if (!el) return Promise.resolve()
+  const a = el.animate(quadros, { fill: 'both', ...opcoes, duration: D(opcoes.duration), delay: D(opcoes.delay || 0) })
+  vivas.add(a)
+  const fim = a.finished.catch(() => {}).finally(() => vivas.delete(a))
+  if (pulando) a.finish()
+  return fim
+}
+function pular() {
+  if (S.fase !== 'resolvendo' && S.fase !== 'abertura') return
+  pulando = true
+  vivas.forEach((a) => { try { a.finish() } catch (_) { /* animação já saiu */ } })
+  sonos.forEach((f) => f())
+}
+
+/* =========================================================================
+ * 2. Regras do livro (One Piece). Arquivo:linha no README.
+ * ========================================================================= */
+// sistemaOnePiece.ts:50-69 — atributos e tabelas de rank (o rank sobe a cada limiar alcançado).
+const ATRIBUTOS = [
+  { id: 'forca', abrev: 'FOR', nome: 'Força', inicial: 1, limiares: [40, 90, 150, 320, 510, 765, 1725, 2200, 2700] },
+  { id: 'agilidade', abrev: 'AGI', nome: 'Agilidade', inicial: 1, limiares: [33, 60, 90, 140, 210, 315, 400, 600, 950] },
+  { id: 'percepcao', abrev: 'PER', nome: 'Percepção', inicial: 1, limiares: [30, 80, 130, 220, 330, 500, 750, 1125, 1500] },
+  { id: 'resistencia', abrev: 'RES', nome: 'Resistência', inicial: 0, limiares: [1, 40, 140, 240, 480, 720, 1620, 2430, 5500, 8250] },
+  { id: 'intuicao', abrev: 'INT', nome: 'Intuição', inicial: 1, limiares: [30, 80, 150, 240, 275, 360, 540, 810, 1215] },
+  { id: 'espirito', abrev: 'ESP', nome: 'Espírito', inicial: 0, limiares: [1, 35, 75, 115, 140, 210, 315, 472, 700, 1060, 1590, 2385, 2500] },
+  { id: 'carisma', abrev: 'CAR', nome: 'Carisma', inicial: 1, limiares: [20, 55, 100, 150, 200, 240, 315, 472, 700] },
+  { id: 'determinacao', abrev: 'DET', nome: 'Determinação', inicial: 1, limiares: [16, 40, 80, 130, 175, 195, 295, 440, 660, 1590, 2385, 2500] },
+]
+const ATR = Object.fromEntries(ATRIBUTOS.map((a) => [a.id, a]))
+// sistemaDeRpg.ts:192 — rankDoValor, mesma conta.
+function rankDoValor(atr, valor) { let r = atr.inicial; for (const l of atr.limiares) { if (valor < l) break; r += 1 } return r }
+// livroOnePiece.ts:30 (Status) — Resistência dá HP, Espírito dá SP; cada rank soma ao anterior.
+const HP_DO_RANK = [300, 300, 300, 300, 600, 895, 1495, 4480, 7465, 11940, 22375]
+const SP_DO_RANK = [20, 40, 60, 80, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190]
+const acumulado = (tab, r) => tab.slice(0, Math.max(0, Math.min(r, tab.length - 1)) + 1).reduce((a, b) => a + b, 0)
+// livroOnePiece.ts:24 (Mecânicas) — a cada 2 ranks, +1 no modificador.
+const modificadorDoRank = (r) => Math.floor(r / 2)
+// livroOnePiece.ts:36 (Ações de combate) — reação 1d20 sem modificador; concentração; crítico 1,5x.
+const CONCENTRACAO = [1, 1.5, 2, 3.5]
+const CRITICO = 1.5
+// livroOnePiece.ts:30 — Determinação rank 4+: redução ao perder 50% da vida.
+const REDUCAO_DET = { 4: 0.1, 5: 0.15, 6: 0.2, 7: 0.25, 8: 0.3, 9: 0.4, 10: 0.5 }
+const SAIDAS = {
+  sem: { rotulo: 'Sem reação', curto: 'acerta', fator: 1 },
+  critico: { rotulo: 'Falha crítica · ×1,5', curto: '×1,5', fator: CRITICO },
+  defesa: { rotulo: 'Defendeu · metade', curto: 'metade', fator: 0.5 },
+  esquiva: { rotulo: 'Esquivou', curto: 'nada', fator: 0 },
+  contra: { rotulo: 'Contra-ataque!', curto: 'contra', fator: 0 },
+  gasta: { rotulo: 'Reação já usada', curto: 'acerta', fator: 1 },
+}
+function saidaDoDado(d) { if (d === 1) return 'critico'; if (d >= 20) return 'contra'; if (d >= 15) return 'esquiva'; if (d >= 10) return 'defesa'; return 'sem' }
+function saidasPossiveis(d) {
+  const s = []
+  if (d >= 20) s.push('contra')
+  if (d >= 15) s.push('esquiva')
+  if (d >= 10) s.push('defesa')
+  if (s.length === 0) s.push(d === 1 ? 'critico' : 'sem')
+  return s
+}
+
+/* =========================================================================
+ * 3. Fichas de exemplo (formato da ficha do app: abas Habilidades e
+ *    Transformações, campos Ação/Efeito/Custo/Tempo/Dano, modificadores e
+ *    "Técnicas da forma"). Nomes próprios, nenhum personagem do anime.
+ * ========================================================================= */
+let seq = 0
+const tec = (nome, descricao, campos, extras = []) => ({ id: 't' + ++seq, nome, campos: { descricao, ...campos }, extras })
+const forma = (nome, descricao, modificadores, subcartoes, extras = []) => {
+  const f = { id: 'f' + ++seq, nome, campos: { descricao }, modificadores, subcartoes, extras }
+  subcartoes.forEach((s) => { s.forma = nome })
+  return f
+}
+const GRUPO = 'grupo'
+const MARINHA = 'marinha'
+const MODELOS = [
+  {
+    id: 'lia', nome: 'Lia Maré', curto: 'Lia', lado: GRUPO, jogador: true, raca: 'Skypean', oficio: 'Navegador', cor: '#f3ba66', feitio: 'pena', pos: [60, 74], saga: 2,
+    atributos: { forca: 45, agilidade: 95, percepcao: 90, resistencia: 45, intuicao: 35, espirito: 80, carisma: 30, determinacao: 20 }, escudo: 0,
+    habilidades: [
+      tec('Bastão de Bordo', 'Golpe seco com o bastão de navegação.', { acao: 'Ação simples', dano: '90' }),
+      tec('Rajada de Penas', 'Abre os braços e dispara um leque de penas duras como lâmina.', { acao: 'Ação simples', custo: '-45 de SP', dano: '260', tempo: '1' }, [{ nome: 'Alcance', valor: '6 blocos' }]),
+      tec('Corrente Ascendente', 'Uma lufada joga a Lia para o alto, longe do perigo.', { acao: 'Ação bônus', custo: '-20 de SP', efeito: '+2 blocos de deslocamento neste turno' }),
+      tec('Tempestade de Plumas', 'Um ciclone de penas corta todos os inimigos em volta.', { acao: 'Ação completa', custo: '-120 de SP', dano: '520' }, [{ nome: 'Overload', valor: 'uma vez no dia' }, { nome: 'Área', valor: 'todos os inimigos' }]),
+    ],
+    transformacoes: [
+      forma('Plumagem de Tempestade', 'A Hane Hane no Mi (Paramecia) cobre os braços da Lia de penas de aço.', [{ atributo: 'agilidade', delta: 50 }, { atributo: 'forca', delta: 50 }],
+        [tec('Mergulho da Garça', 'Mergulha do alto com as asas fechadas.', { acao: 'Ação simples', custo: '-60 de SP', dano: '380' })]),
+    ],
+  },
+  {
+    id: 'bruno', nome: 'Bruno Ferrolho', curto: 'Bruno', lado: GRUPO, jogador: true, raca: 'Ogro', oficio: 'Ferreiro', cor: '#e2645a', feitio: 'chifres', pos: [75, 81], saga: 1,
+    atributos: { forca: 160, agilidade: 60, percepcao: 35, resistencia: 150, intuicao: 20, espirito: 40, carisma: 25, determinacao: 90 }, escudo: 100,
+    habilidades: [
+      tec('Martelo de Bigorna', 'Desce o martelo de forja com as duas mãos.', { acao: 'Ação simples', dano: '140' }),
+      tec('Golpe Rebite', 'Três marteladas no mesmo ponto, como quem prega um rebite.', { acao: 'Ação simples', custo: '-30 de SP', dano: '240' }),
+      tec('Postura de Muralha', 'Finca os pés e cruza os braços na frente do corpo.', { acao: 'Ação bônus', custo: '-20 de SP', efeito: '+150 de Escudo' }),
+    ],
+    transformacoes: [
+      forma('Haki do Armamento: Punho Negro', 'O braço escurece como ferro temperado.', [{ atributo: 'forca', delta: 60 }, { atributo: 'resistencia', delta: 100 }],
+        [tec('Punho de Ferro Negro', 'Um soco com o braço endurecido pelo Haki.', { acao: 'Ação simples', custo: '-50 de SP', dano: '420' })],
+        [{ nome: 'Requisito', valor: 'Haki desperto' }]),
+    ],
+  },
+  {
+    id: 'duda', nome: 'Duda Sal', curto: 'Duda', lado: GRUPO, jogador: true, raca: 'Tritão', oficio: 'Médico', cor: '#7fb48a', feitio: 'barbatanas', pos: [89, 72], saga: 2,
+    atributos: { forca: 40, agilidade: 50, percepcao: 80, resistencia: 60, intuicao: 160, espirito: 120, carisma: 60, determinacao: 45 }, escudo: 0,
+    habilidades: [
+      tec('Palma da Maré', 'Empurra o ar como uma onda curta.', { acao: 'Ação simples', dano: '110' }),
+      tec('Sutura Rápida', 'Fecha um corte no meio da luta, com linha e agulha.', { acao: 'Ação simples', custo: '-40 de SP', efeito: 'Cura 250 HP de um aliado' }),
+      tec('Bolha Pesada', 'Uma bolha de água do mar que bate como pedra.', { acao: 'Ação bônus', custo: '-25 de SP', dano: '160' }),
+    ],
+    transformacoes: [],
+  },
+  {
+    id: 'vera', nome: 'Capitã Vera Doca', curto: 'Vera', lado: MARINHA, raca: 'Humano', oficio: 'Capitã', cor: '#79a9cc', feitio: 'quepe-gola', pos: [58, 18], logia: 1,
+    atributos: { forca: 100, agilidade: 88, percepcao: 90, resistencia: 150, intuicao: 80, espirito: 80, carisma: 60, determinacao: 80 }, escudo: 150,
+    habilidades: [
+      tec('Sabre de Serviço', 'Corte reto com o sabre da Marinha.', { acao: 'Ação simples', dano: '110' }),
+      tec('Lâmina de Névoa', 'A Nebu Nebu no Mi (Logia) vira névoa e corta de dentro dela.', { acao: 'Ação simples', custo: '-30 de SP', dano: '180' }),
+      tec('Prisão Úmida', 'Fecha a névoa em volta do alvo até ele afogar no seco.', { acao: 'Ação completa', custo: '-50 de SP', dano: '300' }),
+    ],
+    transformacoes: [],
+  },
+  {
+    id: 'otavio', nome: 'Sargento Otávio Prumo', curto: 'Otávio', lado: MARINHA, raca: 'Humano', oficio: 'Sargento', cor: '#a2a09a', feitio: 'quepe-bigode', pos: [77, 23],
+    atributos: { forca: 95, agilidade: 55, percepcao: 60, resistencia: 45, intuicao: 30, espirito: 36, carisma: 20, determinacao: 40 }, escudo: 0,
+    habilidades: [
+      tec('Rajada de Mosquete', 'Um tiro de mosquete, de joelho.', { acao: 'Ação simples', dano: '120' }),
+      tec('Baioneta Firme', 'Avança com a baioneta calada.', { acao: 'Ação simples', custo: '-20 de SP', dano: '170' }),
+    ],
+    transformacoes: [],
+  },
+  {
+    id: 'recrutaA', nome: 'Recruta Ilo', curto: 'Ilo', lado: MARINHA, raca: 'Humano', oficio: 'Recruta', cor: '#858480', feitio: 'quepe', pos: [46, 36],
+    atributos: { forca: 40, agilidade: 30, percepcao: 20, resistencia: 0, intuicao: 10, espirito: 0, carisma: 5, determinacao: 10 }, escudo: 0,
+    habilidades: [tec('Estocada', 'Uma estocada de manual.', { acao: 'Ação simples', dano: '80' })],
+    transformacoes: [],
+  },
+  {
+    id: 'recrutaB', nome: 'Recruta Teo', curto: 'Teo', lado: MARINHA, raca: 'Humano', oficio: 'Recruta', cor: '#858480', feitio: 'quepe', pos: [68, 40],
+    atributos: { forca: 40, agilidade: 30, percepcao: 20, resistencia: 0, intuicao: 10, espirito: 0, carisma: 5, determinacao: 10 }, escudo: 0,
+    habilidades: [tec('Estocada', 'Uma estocada de manual.', { acao: 'Ação simples', dano: '80' })],
+    transformacoes: [],
+  },
+]
+
+/* Leitura da ficha (o que o app faz em ajusteDaFicha.ts) */
+function formasAtivas(f) { return f.transformacoes.filter((t) => f.cartoesAtivos.includes(t.id)) }
+function total(f, atr) {
+  let v = f.atributos[atr] || 0
+  for (const t of formasAtivas(f)) for (const m of t.modificadores) if (m.atributo === atr) v += m.delta
+  return v
+}
+const rank = (f, atr) => rankDoValor(ATR[atr], total(f, atr))
+const hpMax = (f) => acumulado(HP_DO_RANK, rank(f, 'resistencia'))
+const spMax = (f) => acumulado(SP_DO_RANK, rank(f, 'espirito'))
+const deslocamento = (f) => rank(f, 'agilidade') // livroOnePiece.ts:30: Agilidade Rank N = NQ
+function tecnicasDe(f) { return [...f.habilidades, ...formasAtivas(f).flatMap((t) => t.subcartoes)] }
+const custoSP = (t) => { const m = /(\d+)\s*(?:de\s*)?SP/i.exec(t.campos.custo || ''); return m ? Number(m[1]) : 0 }
+const danoDe = (t) => { const m = /\d+/.exec(t.campos.dano || ''); return m ? Number(m[0]) : 0 }
+const curaDe = (t) => { const m = /cura\s*(\d+)/i.exec(t.campos.efeito || ''); return m ? Number(m[1]) : 0 }
+const escudoDe = (t) => { const m = /\+\s*(\d+)\s*de\s*escudo/i.exec(t.campos.efeito || ''); return m ? Number(m[1]) : 0 }
+const blocosDe = (t) => { const m = /\+\s*(\d+)\s*blocos?/i.exec(t.campos.efeito || ''); return m ? Number(m[1]) : 0 }
+const eOverload = (t) => t.extras.some((e) => /overload/i.test(e.nome))
+const eArea = (t) => t.extras.some((e) => /área|area/i.test(e.nome))
+function tipoAcao(t) {
+  const a = (t.campos.acao || '').toLowerCase()
+  if (a.includes('complet')) return 'completa'
+  if (a.includes('bônus') || a.includes('bonus')) return 'bonus'
+  if (a.includes('rea')) return 'reacao'
+  return 'simples'
+}
+function alvoDe(t) { if (curaDe(t)) return 'aliado'; if (danoDe(t)) return eArea(t) ? 'area' : 'inimigo'; return 'si' }
+const golpeBasico = (f) => f.habilidades.find((t) => custoSP(t) === 0 && danoDe(t) > 0 && tipoAcao(t) === 'simples') || null
+const ROTULO_ACAO = { simples: 'Ação simples', completa: 'Ação completa', bonus: 'Ação bônus', reacao: 'Reação' }
+
+/* =========================================================================
+ * 4. Estado
+ * ========================================================================= */
+const S = {}
+function novaFicha(m) {
+  const f = structuredClone(m)
+  f.cartoesAtivos = []
+  f.hp = hpMax(f); f.sp = spMax(f)
+  f.concentracao = 0; f.reacaoUsada = false; f.overloadUsada = false; f.caiu = false
+  f.logia = m.logia || 0; f.saga = m.saga || 0
+  return f
+}
+function estadoInicial() {
+  seq = 0
+  rngDados = mulberry32(SEMENTE); rngIni = mulberry32(SEMENTE ^ 0x5bd1e995); filaDados = filaOriginal.slice()
+  Object.assign(S, {
+    fichas: Object.fromEntries(MODELOS.map((m) => [m.id, novaFicha(m)])),
+    ordem: [], vez: 0, rodada: 1, fase: 'abertura', fim: null,
+    economia: { simples: true, bonus: true, movimento: true, extra: 0 },
+    menu: { tela: 'principal', foco: 0, tecId: null, alvos: [], alvoFoco: 0, entrada: true, versao: 0 },
+    mestreAgindo: false, reacao: null, sozinhos: false, mp: { tecId: null, alvoId: null },
+    desempate: {}, log: [], inicioResolucao: 0,
+  })
+  S.ordem = ordenarPorAgilidade(Object.keys(S.fichas))
+}
+const atual = () => S.fichas[S.ordem[S.vez]]
+const todos = () => S.ordem.map((id) => S.fichas[id])
+function registrar(texto) { S.log.unshift(texto); S.log.length = Math.min(S.log.length, 30) }
+
+// livroOnePiece.ts:36 (Rodada e Turno): "a ordem dos turnos é baseada na velocidade onde o mais veloz começa".
+function ordenarPorAgilidade(ids) {
+  const agi = (id) => total(S.fichas[id], 'agilidade')
+  const grupos = {}
+  ids.forEach((id) => { (grupos[agi(id)] ||= []).push(id) })
+  S.desempate = {}
+  Object.values(grupos).filter((g) => g.length > 1).forEach((g) => {
+    const usados = new Set()
+    g.forEach((id) => { let r; do { r = 1 + Math.floor(rngIni() * 20) } while (usados.has(r)); usados.add(r); S.desempate[id] = r })
+  })
+  return ids.slice().sort((a, b) => agi(b) - agi(a) || (S.desempate[b] || 0) - (S.desempate[a] || 0))
+}
+
+function motivoIndisponivel(f, t) {
+  const e = S.economia
+  let tipo = tipoAcao(t)
+  if (f.concentracao >= 3 && tipo === 'simples' && danoDe(t) > 0) tipo = 'completa' // carga máxima vira ação completa
+  if (tipo === 'reacao') return 'Reação: só no turno de outro'
+  if (tipo === 'completa' && !(e.simples && e.movimento)) return 'Ação completa: precisa da ação simples e do movimento livres'
+  if (tipo === 'simples' && !e.simples) return 'A ação simples deste turno já foi usada'
+  if (tipo === 'bonus' && !e.bonus) return 'A ação bônus deste turno já foi usada'
+  if (eOverload(t) && f.overloadUsada) return 'Overload: já usada hoje'
+  const c = custoSP(t)
+  if (c > f.sp) return `SP insuficiente: custa ${c}, você tem ${f.sp}`
+  return null
+}
+function gastarAcao(f, t) {
+  let tipo = tipoAcao(t)
+  if (f.concentracao >= 3 && tipo === 'simples' && danoDe(t) > 0) tipo = 'completa'
+  if (tipo === 'completa') { S.economia.simples = false; S.economia.movimento = false }
+  else if (tipo === 'bonus') S.economia.bonus = false
+  else S.economia.simples = false
+}
+function reducaoDeterminacao(f) {
+  const r = rank(f, 'determinacao')
+  if (r < 4 || f.hp > hpMax(f) / 2) return 0
+  return REDUCAO_DET[Math.min(r, 10)]
+}
+// O Escudo é vida extra (ajusteDaFicha.ts:17): o dano gasta o Escudo antes do HP; o HP para no 0.
+function aplicarDano(f, dano) {
+  const noEscudo = Math.min(f.escudo, dano)
+  f.escudo -= noEscudo
+  f.hp = Math.max(0, f.hp - (dano - noEscudo))
+  if (f.hp === 0) f.caiu = true
+  return noEscudo
+}
+function proximoVivo(desde) {
+  for (let k = 1; k <= S.ordem.length; k++) {
+    const i = (desde + k) % S.ordem.length
+    if (!S.fichas[S.ordem[i]].caiu) return i
+  }
+  return desde
+}
+function checarFim() {
+  const vivos = (lado) => todos().some((f) => f.lado === lado && !f.caiu)
+  if (!vivos(MARINHA)) S.fim = 'vitoria'
+  else if (!vivos(GRUPO)) S.fim = 'derrota'
+  return S.fim
+}
+
+/* =========================================================================
+ * 5. Retratos (silhuetas próprias, sem arte de terceiros)
+ * ========================================================================= */
+let uidSvg = 0
+const FEITIOS = {
+  pena: '<path d="M33 40 C33 18 67 18 67 40 C68 56 71 66 76 76 L62 73 C60 62 57 57 50 57 C43 57 40 62 38 73 L24 76 C29 66 32 56 33 40 Z" fill="#0c0c0e"/><path d="M62 27 C72 12 86 7 94 5 C90 14 80 25 65 31 Z" fill="COR"/>',
+  chifres: '<path d="M37 30 L31 10 L45 26 Z M63 30 L69 10 L55 26 Z" fill="COR"/>',
+  barbatanas: '<path d="M35 41 L20 33 L34 50 Z M65 41 L80 33 L66 50 Z M45 26 L50 13 L55 26 Z" fill="COR"/>',
+  quepe: '<path d="M32 33 C32 19 68 19 68 33 Z" fill="#eceae4"/><path d="M29 33 L71 33 L75 38 L33 38 Z" fill="#26262b"/>',
+  'quepe-gola': '<path d="M32 33 C32 19 68 19 68 33 Z" fill="#eceae4"/><path d="M29 33 L71 33 L75 38 L33 38 Z" fill="#26262b"/><path d="M28 74 L40 57 L47 75 Z M72 74 L60 57 L53 75 Z" fill="#eceae4"/>',
+  'quepe-bigode': '<path d="M32 33 C32 19 68 19 68 33 Z" fill="#eceae4"/><path d="M29 33 L71 33 L75 38 L33 38 Z" fill="#26262b"/><path d="M41 51 C46 47 54 47 59 51 C54 53 46 53 41 51 Z" fill="COR"/>',
+}
+function retrato(f, opcoes = {}) {
+  const id = 'ht' + ++uidSvg
+  const largo = f.feitio === 'chifres'
+  const ombros = largo ? 'M0 100 C3 76 23 63 50 63 C77 63 97 76 100 100 Z' : 'M8 100 C11 80 27 70 50 70 C73 70 89 80 92 100 Z'
+  const enfeite = (FEITIOS[f.feitio] || '').replaceAll('COR', f.cor)
+  const fundo = opcoes.semFundo ? '' : `<rect width="100" height="100" fill="#141417"/><rect width="100" height="100" fill="url(#${id})"/>`
+  const atras = f.feitio === 'pena' ? enfeite.split('/>')[0] + '/>' : ''
+  const frente = f.feitio === 'pena' ? enfeite.split('/>').slice(1).join('/>') : enfeite
+  return `<svg viewBox="0 0 100 100" preserveAspectRatio="${opcoes.cobrir ? 'xMidYMax slice' : 'xMidYMid meet'}" aria-hidden="true" focusable="false">
+    <defs><pattern id="${id}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="2.5" cy="2.5" r="1.25" fill="${f.cor}" opacity=".5"/></pattern></defs>
+    ${fundo}${atras}
+    <path d="${ombros}" fill="#0c0c0e" stroke="${f.cor}" stroke-width="1.6"/>
+    <path d="M43 55 h14 v17 h-14 Z" fill="#0c0c0e"/>
+    <ellipse cx="50" cy="41" rx="15" ry="17" fill="#0c0c0e" stroke="${f.cor}" stroke-width="1.6"/>
+    ${frente}
+  </svg>`
+}
+
+/* Borda de papel rasgado, determinística por semente. */
+function rasgo(semente, amp = 4) {
+  const r = mulberry32(semente)
+  const n = 28
+  const pts = []
+  for (let i = 0; i <= n; i++) pts.push(`${((i / n) * 100).toFixed(2)}% ${(r() * amp).toFixed(1)}px`)
+  for (let i = 1; i <= 3; i++) pts.push(`calc(100% - ${(r() * amp * 1.6).toFixed(1)}px) ${i * 25}%`)
+  for (let i = n; i >= 0; i--) pts.push(`${((i / n) * 100).toFixed(2)}% calc(100% - ${(r() * amp).toFixed(1)}px)`)
+  for (let i = 3; i >= 1; i--) pts.push(`${(r() * amp * 1.6).toFixed(1)}px ${i * 25}%`)
+  return `polygon(${pts.join(',')})`
+}
+const GIROS = [-3, -1.6, -3.4, -2, -2.8, -2.3]
+
+/* =========================================================================
+ * 6. Vistas: mestre e jogador desenham o MESMO estado
+ * ========================================================================= */
+const UI = { modo: P.get('vista') || 'lado', jogador: P.get('jogador') || 'lia' }
+const vistas = []
+function montarVistas() {
+  const raiz = $('#vistas')
+  raiz.dataset.modo = UI.modo
+  raiz.innerHTML = ''
+  vistas.length = 0
+  if (UI.modo !== 'mestre') vistas.push(criarVista('jogador', UI.jogador))
+  if (UI.modo !== 'jogador') vistas.push(criarVista('mestre'))
+  vistas.forEach((v) => raiz.appendChild(v.el))
+  $$('.seg[data-modo]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.modo === UI.modo)))
+  $$('.seg[data-jogador]').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.jogador === UI.jogador)); b.disabled = UI.modo === 'mestre' })
+  renderTudo()
+}
+function criarVista(papel, jogadorId) {
+  const el = document.createElement('section')
+  el.className = 'vista'
+  el.dataset.papel = papel
+  const nome = papel === 'mestre' ? 'Tela do mestre · vê tudo' : `Tela de ${S.fichas[jogadorId].nome} · jogadora`
+  el.setAttribute('aria-label', nome)
+  el.innerHTML = `
+    <div class="vista__cabeca"><i></i>${esc(nome)}</div>
+    <div class="ordem">
+      <div>
+        <h2 class="ordem__titulo">Ordem dos turnos <span>(${S.ordem.length})</span></h2>
+        <div class="cartas" role="list" aria-label="Ordem dos turnos"><div class="encaixe"></div></div>
+        ${papel === 'mestre' ? '<p class="ordem__dica">Arraste uma carta para mudar a ordem · com a carta em foco, Alt + ← → move</p>' : ''}
+      </div>
+      <div class="turno" aria-live="off"></div>
+    </div>
+    <div class="corpo">
+      <div class="palco"><div class="mundo"></div><div class="fichas"></div><div class="efeitos"></div><div class="interface"></div></div>
+      ${papel === 'mestre' ? '<aside class="painel" aria-label="Painel do mestre"></aside>' : ''}
+    </div>`
+  const v = { el, papel, jogadorId, cartas: {}, tokens: {}, chaveMenu: '' }
+  criarFichasNoPalco(v)
+  ligarVista(v)
+  return v
+}
+function ladoCor(f) { return f.lado === GRUPO ? 'var(--bt-grupo)' : 'var(--bt-marinha)' }
+/* O que cada um vê (vidaDaFicha.ts:20-22): o mestre vê tudo; o jogador vê os números da própria ficha,
+ * só a proporção da vida dos colegas e nada da vida de NPC. */
+function visao(v, f) {
+  if (v.papel === 'mestre') return 'tudo'
+  if (f.id === v.jogadorId) return 'tudo'
+  return f.lado === GRUPO ? 'proporcao' : 'nada'
+}
+
+function criarFichasNoPalco(v) {
+  const camada = $('.fichas', v.el)
+  Object.values(S.fichas).forEach((f) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'ficha'
+    b.dataset.id = f.id
+    b.disabled = true
+    b.style.left = f.pos[0] + '%'
+    b.style.top = f.pos[1] + '%'
+    b.style.setProperty('--lado', ladoCor(f))
+    b.innerHTML = `<span class="ficha__corpo">${retrato(f)}</span><span class="ficha__nome">${esc(f.curto)}</span><span class="barra barra--hp"><b></b><i></i></span>`
+    camada.appendChild(b)
+    v.tokens[f.id] = b
+  })
+}
+
+function renderTudo() { vistas.forEach((v) => { renderOrdem(v); renderPalco(v); renderPainel(v); renderInterface(v) }) }
+
+function cartaNova(v, f) {
+  const c = document.createElement('div')
+  c.className = 'carta'
+  c.dataset.id = f.id
+  c.setAttribute('role', 'listitem')
+  if (v.papel === 'mestre') c.tabIndex = 0
+  c.style.setProperty('--lado', ladoCor(f))
+  c.innerHTML = `
+    <div class="carta__topo"><span class="carta__retrato">${retrato(f)}</span><span class="carta__nome">${esc(f.nome)}</span><span class="carta__nome carta__nome--curto">${esc(f.curto)}</span><span class="carta__pos"></span></div>
+    <div class="carta__forma" hidden></div>
+    <div class="carta__vida">
+      <div class="carta__linha"><b data-r="hp">HP</b><span class="carta__num" data-n="hp"></span></div>
+      <div class="barra barra--hp" data-b="hp"><b></b><i></i></div>
+      <div class="carta__linha"><b data-r="sp">SP</b><span class="carta__num" data-n="sp"></span></div>
+      <div class="barra barra--sp" data-b="sp"><b></b><i></i></div>
+    </div>
+    <div class="carta__oculta" hidden><span>Vida oculta</span><div class="barra barra--vazia"></div></div>
+    <div class="carta__pe"></div>
+    <div class="carta__marcas"></div>`
+  return c
+}
+function ajustarBarra(barra, p) {
+  if (!barra) return
+  const s = `scaleX(${Math.max(0, Math.min(1, p)).toFixed(4)})`
+  barra.children[1].style.transform = s
+  barra.children[0].style.transform = s
+}
+function renderOrdem(v) {
+  const caixa = $('.cartas', v.el)
+  const vezId = S.ordem[S.vez]
+  const proxId = S.ordem[proximoVivo(S.vez)]
+  S.ordem.forEach((id, i) => {
+    const f = S.fichas[id]
+    let c = v.cartas[id]
+    if (!c) { c = cartaNova(v, f); v.cartas[id] = c; caixa.appendChild(c) }
+    const ve = visao(v, f)
+    c.dataset.vez = id === vezId && !S.fim ? 'sim' : 'nao'
+    c.dataset.proxima = id === proxId && id !== vezId && !S.fim ? 'sim' : 'nao'
+    c.dataset.caiu = f.caiu ? 'sim' : 'nao'
+    const formas = formasAtivas(f)
+    c.dataset.forma = formas.length ? 'sim' : 'nao'
+    $('.carta__pos', c).textContent = i + 1
+    const fe = $('.carta__forma', c)
+    fe.hidden = formas.length === 0
+    fe.textContent = formas.map((t) => t.nome).join(' + ')
+    $('.carta__vida', c).hidden = ve === 'nada'
+    $('.carta__oculta', c).hidden = ve !== 'nada'
+    $('[data-n="hp"]', c).textContent = ve === 'tudo' ? `${num(f.hp)}/${num(hpMax(f))}` : ''
+    $('[data-n="sp"]', c).textContent = ve === 'tudo' ? `${num(f.sp)}/${num(spMax(f))}` : ''
+    ajustarBarra($('[data-b="hp"]', c), f.hp / hpMax(f))
+    ajustarBarra($('[data-b="sp"]', c), f.sp / spMax(f))
+    const pe = $('.carta__pe', c)
+    pe.innerHTML = ve === 'tudo'
+      ? `<span>Esc <em>${num(f.escudo)}</em></span><span>Agi ${total(f, 'agilidade')}</span><span>Mov ${deslocamento(f)}</span>`
+      : (ve === 'proporcao' ? `<span>Agi ${total(f, 'agilidade')}</span><span>Mov ${deslocamento(f)}</span>` : `<span>Agi ?</span>`)
+    const marcas = []
+    if (f.concentracao) marcas.push(`<span class="marca marca--conc" title="Concentração">CONC ${f.concentracao}/3</span>`)
+    if (f.logia && ve === 'tudo') marcas.push('<span class="marca marca--logia" title="Barra de Logia: intangível a um ataque">LOGIA</span>')
+    if (f.lado === GRUPO && ve === 'tudo' && f.saga) marcas.push(`<span class="marca marca--saga" title="Pontos Saga">SAGA ${f.saga}</span>`)
+    if (f.reacaoUsada && (ve === 'tudo')) marcas.push('<span class="marca" title="Reação desta rodada já usada">SEM REAÇÃO</span>')
+    if (S.desempate[id] && v.papel === 'mestre') marcas.push(`<span class="marca marca--dado" title="Desempate de Agilidade">d20 ${S.desempate[id]}</span>`)
+    $('.carta__marcas', c).innerHTML = marcas.join('')
+    c.setAttribute('aria-label', `${i + 1}º ${f.nome}${id === vezId ? ', é a vez' : ''}${f.caiu ? ', caiu' : ''}`)
+  })
+  // reordena o DOM só se a ordem mudou (FLIP para animar)
+  const atualDom = $$('.carta', caixa).map((c) => c.dataset.id)
+  if (atualDom.join() !== S.ordem.join()) {
+    const antes = Object.fromEntries(atualDom.map((id) => [id, v.cartas[id].getBoundingClientRect().left]))
+    S.ordem.forEach((id) => caixa.appendChild(v.cartas[id]))
+    if (!MOV.reduzido) {
+      S.ordem.forEach((id) => {
+        const dx = antes[id] - v.cartas[id].getBoundingClientRect().left
+        if (Math.abs(dx) > 1) v.cartas[id].animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: D(260), easing: 'cubic-bezier(0.77, 0, 0.175, 1)' })
+      })
+    }
+  }
+  const f = atual()
+  const turno = $('.turno', v.el)
+  turno.style.setProperty('--lado', f ? ladoCor(f) : '')
+  const vivos = todos().filter((x) => !x.caiu).length
+  const pos = S.ordem.slice(0, S.vez + 1).filter((id) => !S.fichas[id].caiu).length
+  const minha = v.papel === 'jogador' && f && f.id === v.jogadorId
+  let depois = ''
+  if (v.papel === 'jogador' && !minha && !S.fim) {
+    let n = 0, i = S.vez
+    for (let k = 0; k < S.ordem.length; k++) { i = proximoVivo(i); n++; if (S.ordem[i] === v.jogadorId) break }
+    depois = S.fichas[v.jogadorId].caiu ? 'Você caiu' : `Você joga em ${n} ${n === 1 ? 'turno' : 'turnos'}`
+  } else if (!S.fim) depois = 'Depois: ' + S.fichas[S.ordem[proximoVivo(S.vez)]].nome
+  turno.innerHTML = S.fim
+    ? `<span class="turno__rodada">Rodada ${S.rodada}</span><span class="turno__num">${S.fim === 'vitoria' ? 'Vitória' : 'Derrota'}</span>`
+    : `<span class="turno__rodada">Rodada ${S.rodada}</span><span class="turno__num">Turno ${pos}<small>/${vivos}</small></span>
+       <span class="turno__quem">▸ ${minha ? 'Sua vez' : esc(f.nome)}</span><span class="turno__depois">${esc(depois)}</span>`
+}
+
+function renderPalco(v) {
+  const vezId = S.ordem[S.vez]
+  const mirando = S.fase === 'vez' && controlaMenu(v) && S.menu.tela === 'alvo'
+  const alvoFoco = mirando ? S.menu.alvos[S.menu.alvoFoco] : null
+  Object.values(S.fichas).forEach((f) => {
+    const t = v.tokens[f.id]
+    t.dataset.vez = f.id === vezId && !S.fim ? 'sim' : 'nao'
+    t.dataset.caiu = f.caiu ? 'sim' : 'nao'
+    const podeMirar = mirando && S.menu.alvos.includes(f.id)
+    t.dataset.mira = podeMirar ? (f.id === alvoFoco ? 'foco' : 'pode') : ''
+    t.disabled = !podeMirar
+    t.tabIndex = -1
+    t.setAttribute('aria-label', podeMirar ? `Mirar em ${f.nome}` : f.nome)
+    const barra = $('.barra', t)
+    const ve = visao(v, f)
+    barra.hidden = ve === 'nada'
+    ajustarBarra(barra, f.hp / hpMax(f))
+  })
+  $('.palco', v.el).dataset.escuro = controlaMenu(v) && S.fase === 'vez' && (S.menu.tela === 'habilidades' || S.menu.tela === 'transformacoes') ? 'sim' : 'nao'
+}
+
+/* =========================================================================
+ * 7. Menu de batalha (as tiras)
+ * ========================================================================= */
+function controlaMenu(v) {
+  const f = atual()
+  if (!f || f.lado !== GRUPO || S.fim || f.caiu) return false
+  if (v.papel === 'jogador') return v.jogadorId === f.id && !S.mestreAgindo
+  return S.mestreAgindo
+}
+function itensPrincipais(f) {
+  const basico = golpeBasico(f)
+  const e = S.economia
+  const ativas = formasAtivas(f)
+  const proxConc = CONCENTRACAO[Math.min(f.concentracao + 1, 3)]
+  return [
+    { id: 'atacar', nome: 'Atacar', lado: basico ? num(danoDe(basico)) : '', det: basico ? `${basico.nome} · ${ROTULO_ACAO.simples}, sem custo` : '', motivo: !basico ? 'A ficha não tem golpe sem custo' : motivoIndisponivel(f, basico) },
+    { id: 'habilidades', nome: 'Habilidades', lado: `${f.sp} SP`, det: `${tecnicasDe(f).length} na ficha${ativas.length ? ' · inclui as da forma' : ''}`, motivo: tecnicasDe(f).length ? null : 'Nenhuma habilidade.', abre: true },
+    { id: 'transformacoes', nome: 'Transformação', lado: ativas.length ? 'ATIVA' : '', det: ativas.length ? `${ativas[0].nome}` : `${f.transformacoes.length} na ficha · ação completa`, motivo: f.transformacoes.length ? null : 'Nenhuma transformação.', abre: true },
+    { id: 'concentrar', nome: 'Concentrar', lado: `${f.concentracao}/3`, det: `Abre mão da ação: próximo golpe ${mult(proxConc)}`, motivo: f.concentracao >= 3 ? 'Carga máxima: o próximo golpe vale ×3,5' : (!e.simples && !e.bonus ? 'Sem ação simples nem bônus para abrir mão' : null) },
+    { id: 'encerrar', nome: 'Encerrar vez', lado: '', det: e.movimento ? `Andar é no mapa: ${deslocamento(f) + e.extra} blocos` : 'Movimento usado pela ação completa', motivo: null },
+  ]
+}
+function itensDaLista(f) {
+  if (S.menu.tela === 'habilidades') return tecnicasDe(f).map((t) => ({ t, motivo: motivoIndisponivel(f, t) }))
+  return f.transformacoes.map((t) => {
+    const ativa = f.cartoesAtivos.includes(t.id)
+    const motivo = ativa ? null : (!(S.economia.simples && S.economia.movimento) ? 'Transformar é ação completa: a ação simples ou o movimento já foram usados' : null)
+    return { t, motivo, ativa }
+  })
+}
+function chipsDaTecnica(f, t) {
+  const c = []
+  c.push(`<span class="chip">${ROTULO_ACAO[tipoAcao(t)]}</span>`)
+  const d = danoDe(t)
+  if (d) {
+    const m = CONCENTRACAO[f.concentracao]
+    c.push(`<span class="chip chip--dano">Dano ${num(d)}${m > 1 ? ` ${mult(m)} = ${num(d * m)}` : ''}</span>`)
+  }
+  if (curaDe(t)) c.push(`<span class="chip chip--cura">${esc(t.campos.efeito)}</span>`)
+  else if (t.campos.efeito) c.push(`<span class="chip">${esc(t.campos.efeito)}</span>`)
+  if (t.campos.tempo) c.push(`<span class="chip">Tempo ${esc(t.campos.tempo)}</span>`)
+  t.extras.forEach((e) => c.push(`<span class="chip ${/overload/i.test(e.nome) ? 'chip--over' : ''}">${esc(e.nome)}: ${esc(e.valor)}</span>`))
+  if (t.forma) c.push(`<span class="chip chip--forma">Da forma: ${esc(t.forma)}</span>`)
+  return c.join('')
+}
+function chipsDaForma(f, t) {
+  const c = [`<span class="chip">${ROTULO_ACAO.completa}</span>`]
+  t.modificadores.forEach((m) => {
+    const a = ATR[m.atributo]
+    const antes = rankDoValor(a, total(f, m.atributo) - (f.cartoesAtivos.includes(t.id) ? m.delta : 0))
+    const depois = rankDoValor(a, total(f, m.atributo) + (f.cartoesAtivos.includes(t.id) ? 0 : m.delta))
+    c.push(`<span class="chip ${m.delta >= 0 ? 'chip--mod-mais' : 'chip--mod-menos'}">${a.abrev} ${m.delta >= 0 ? '+' : ''}${m.delta}${antes !== depois ? ` · R${antes}→R${depois}` : ''}</span>`)
+  })
+  if (t.subcartoes.length) c.push(`<span class="chip chip--forma">Técnicas da forma: ${t.subcartoes.map((s) => esc(s.nome)).join(', ')}</span>`)
+  t.extras.forEach((e) => c.push(`<span class="chip">${esc(e.nome)}: ${esc(e.valor)}</span>`))
+  return c.join('')
+}
+function giroDe(i, fator = 1) { return GIROS[i % GIROS.length] * fator }
+function tiraHtml(i, { id, nome, lado, det, motivo, chips, classe = '', ativa = false, semente, fator = 1 }) {
+  return `<button type="button" role="menuitem" class="tira ${classe}" data-i="${i}" data-item="${esc(id)}" data-giro="${giroDe(i, fator)}"${motivo ? ' aria-disabled="true"' : ''}${ativa ? ' data-ativa="sim"' : ''}
+    style="--giro:${giroDe(i, fator)}deg;--rasgo:${rasgo(semente)};--rasgo2:${rasgo(semente + 101, 5)}">
+    <span class="tira__nome">${esc(nome)}</span><span class="tira__lado">${esc(lado || '')}</span>
+    ${motivo || det ? `<span class="tira__det">${esc(motivo || det)}</span>` : ''}
+    ${chips ? `<span class="tira__chips">${chips}</span>` : ''}
+  </button>`
+}
+function pips(f) {
+  const e = S.economia
+  return `<span class="pip" data-gasto="${e.simples ? 'nao' : 'sim'}">Simples</span><span class="pip" data-gasto="${e.bonus ? 'nao' : 'sim'}">Bônus</span><span class="pip" data-gasto="${e.movimento ? 'nao' : 'sim'}">Mov ${deslocamento(f) + e.extra}</span>`
+}
+
+function renderInterface(v) {
+  const ui = $('.interface', v.el)
+  const f = atual()
+  let chave = 'nada'
+  if (S.fim) chave = 'fim'
+  else if (S.reacao && v.papel === 'jogador' && S.reacao.alvoId === v.jogadorId) chave = `reacao|${S.reacao.d20}|${S.reacao.saga}`
+  else if (S.fase === 'vez' && controlaMenu(v)) chave = `menu|${S.rodada}|${S.vez}|${S.menu.tela}|${S.menu.tecId}|${S.menu.versao}`
+  else if (v.papel === 'jogador' && (S.fase === 'vez' || S.fase === 'reacao')) chave = `espera|${S.rodada}|${S.vez}|${S.mestreAgindo}|${S.fase}`
+  if (chave === v.chaveMenu) { if (chave.startsWith('menu')) focarMenu(v); return }
+  const anterior = v.chaveMenu
+  v.chaveMenu = chave
+  ui.innerHTML = ''
+  if (chave === 'fim') { ui.innerHTML = `<div class="fim"><div class="faixa"><span class="faixa__grande">${S.fim === 'vitoria' ? 'VITÓRIA' : 'DERROTA'}</span><span class="faixa__sub">${S.fim === 'vitoria' ? 'A Marinha recuou' : 'O grupo caiu'}</span></div></div>`; return }
+  if (chave.startsWith('reacao')) { ui.innerHTML = reacaoHtml(); ligarReacao(v); return }
+  if (chave.startsWith('espera')) {
+    const meu = S.fichas[v.jogadorId]
+    const texto = S.mestreAgindo && f.id === v.jogadorId ? 'O mestre está agindo por você' : (f.id === v.jogadorId ? 'Sua vez' : `Vez de ${f.nome}`)
+    const sub = f.lado === MARINHA ? 'Marinha' : (f.id === v.jogadorId ? '' : 'Grupo')
+    ui.innerHTML = `<div class="espera" style="--lado:${ladoCor(f)}"><b>${esc(texto)}</b><span>${esc(sub)}${meu.caiu ? ' · você caiu' : ''}</span></div>`
+    return
+  }
+  if (!chave.startsWith('menu')) return
+  const tela = S.menu.tela
+  if (tela === 'principal') {
+    const itens = itensPrincipais(f)
+    ui.innerHTML = `<div class="menu menu--principal" role="menu" aria-label="Ações de ${esc(f.nome)}">
+      <div class="menu__cabeca"><span class="menu__quem">${esc(f.curto)}</span><span class="menu__economia">${pips(f)}</span></div>
+      <div class="menu__tiras">${itens.map((it, i) => tiraHtml(i, { ...it, semente: 300 + i * 17 })).join('')}</div>
+      <p class="menu__dica"><kbd>↑</kbd><kbd>↓</kbd> escolher · <kbd>Enter</kbd> confirmar · <kbd>→</kbd> abrir · <kbd>Esc</kbd> voltar</p>
+    </div>`
+  } else if (tela === 'habilidades' || tela === 'transformacoes') {
+    const itens = itensDaLista(f)
+    const ehForma = tela === 'transformacoes'
+    const corpo = itens.length === 0
+      ? `<p class="tira__vazio">${ehForma ? 'Nenhuma transformação.' : 'Nenhuma habilidade.'}</p>`
+      : itens.map((it, i) => ehForma
+        ? tiraHtml(i, { id: it.t.id, nome: it.t.nome, lado: it.ativa ? 'ATIVA · desfazer' : 'Completa', det: it.t.campos.descricao, motivo: it.motivo, chips: chipsDaForma(f, it.t), classe: 'tira--forma', ativa: it.ativa, semente: 700 + i * 13, fator: 0.55 })
+        : tiraHtml(i, { id: it.t.id, nome: it.t.nome, lado: custoSP(it.t) ? `${custoSP(it.t)} SP` : '0 SP', det: it.t.campos.descricao, motivo: it.motivo, chips: chipsDaTecnica(f, it.t), semente: 500 + i * 13, fator: 0.55 })).join('')
+    ui.innerHTML = `<div class="cortina"></div>
+      <div class="retrato-grande">${retrato(f, { semFundo: true, cobrir: true })}<span class="retrato-grande__sp">SP ${num(f.sp)} / ${num(spMax(f))}</span><span class="retrato-grande__nome">${esc(f.nome)}</span></div>
+      <div class="menu menu--lista" role="menu" aria-label="${ehForma ? 'Transformações' : 'Habilidades'} de ${esc(f.nome)}">
+        <div class="menu__cabeca"><span class="menu__quem">${ehForma ? 'Transformação' : 'Habilidades'}</span><span class="menu__economia">${pips(f)}</span></div>
+        <div class="menu__tiras">${corpo}</div>
+        <p class="menu__dica"><kbd>↑</kbd><kbd>↓</kbd> escolher · <kbd>Enter</kbd> usar · <kbd>Esc</kbd> ou <kbd>←</kbd> voltar</p>
+      </div>`
+  } else if (tela === 'alvo') {
+    const t = tecnicasDe(f).find((x) => x.id === S.menu.tecId)
+    const area = alvoDe(t) === 'area'
+    ui.innerHTML = `<div class="menu menu--alvo" role="group" aria-label="Escolher alvo">
+      <div class="menu__cabeca"><span class="menu__quem">${area ? 'Todos os inimigos' : 'Escolha o alvo'}</span></div>
+      <div class="menu__tiras">${tiraHtml(0, { id: 'tecnica', nome: t.nome, lado: custoSP(t) ? `${custoSP(t)} SP` : '0 SP', det: area ? 'Área: cada inimigo rola a própria reação' : 'O alvo rola a reação: 1d20 sem modificador', chips: chipsDaTecnica(f, t), classe: 'esta', semente: 900 })}</div>
+      <p class="menu__dica">${area ? '' : '<kbd>←</kbd><kbd>→</kbd> trocar · '}<kbd>Enter</kbd> confirmar · <kbd>Esc</kbd> voltar · ou clique na ficha</p>
+    </div><button type="button" class="mira" aria-live="polite"></button>`
+    posicionarMira(v)
+  }
+  ligarMenu(v)
+  focarMenu(v)
+  // entrada (depois do foco, para a tira escolhida já nascer no lugar dela)
+  const tiras = $$('.tira', ui)
+  if (tela === 'principal' && S.menu.entrada) {
+    entradaForte(v, tiras)
+  } else if ((tela === 'habilidades' || tela === 'transformacoes') && !anterior.includes(`|${tela}|`) && !anterior.includes('|alvo|')) {
+    entradaLista(v, tiras)
+  }
+}
+
+function itensFocaveis(v) { return $$('.interface .tira[data-i]', v.el) }
+function focarMenu(v) {
+  const tiras = itensFocaveis(v)
+  // não rouba o foco de quem está em outro controle (o painel do mestre, na vista lado a lado)
+  const ativo = document.activeElement
+  const podeFocar = !ativo || ativo === document.body || $('.interface', v.el).contains(ativo)
+  if (S.menu.tela === 'alvo') { posicionarMira(v); const m = $('.mira', v.el); if (m && podeFocar && ativo !== m) m.focus({ preventScroll: true }); return }
+  if (!tiras.length) return
+  let i = Math.min(S.menu.foco, tiras.length - 1)
+  if (tiras[i].getAttribute('aria-disabled') === 'true') {
+    const livre = tiras.findIndex((t) => t.getAttribute('aria-disabled') !== 'true')
+    if (livre >= 0) i = livre
+  }
+  S.menu.foco = i
+  tiras.forEach((t, k) => t.classList.toggle('esta', k === i))
+  if (podeFocar && ativo !== tiras[i]) tiras[i].focus({ preventScroll: true })
+  tiras[i].scrollIntoView({ block: 'nearest' })
+  espelharParaMestre()
+}
+function moverFoco(v, passo) {
+  const tiras = itensFocaveis(v)
+  if (!tiras.length) return
+  let i = S.menu.foco
+  for (let k = 0; k < tiras.length; k++) {
+    i = (i + passo + tiras.length) % tiras.length
+    if (tiras[i].getAttribute('aria-disabled') !== 'true') break
+  }
+  S.menu.foco = i
+  tiras.forEach((t, k) => t.classList.toggle('esta', k === i))
+  tiras[i].focus({ preventScroll: true })
+  tiras[i].scrollIntoView({ block: 'nearest' })
+  espelharParaMestre()
+}
+function abrirTela(tela, foco = 0) {
+  S.menu.tela = tela; S.menu.foco = foco; S.menu.entrada = false
+  renderTudo()
+}
+function voltar() {
+  const tela = S.menu.tela
+  if (tela === 'alvo') { const t = S.menu.tecId; S.menu.tela = S.menu.origem || 'habilidades'; S.menu.tecId = null; S.menu.foco = Math.max(0, tecnicasDe(atual()).findIndex((x) => x.id === t)); if (S.menu.tela === 'principal') S.menu.foco = 0; S.menu.entrada = false; renderTudo(); return }
+  if (tela === 'habilidades' || tela === 'transformacoes') { abrirTela('principal', tela === 'habilidades' ? 1 : 2); return }
+}
+function escolherItem(v, el) {
+  if (!el || el.getAttribute('aria-disabled') === 'true') return
+  const f = atual()
+  const tela = S.menu.tela
+  if (tela === 'principal') {
+    const id = el.dataset.item
+    if (id === 'atacar') { S.menu.origem = 'principal'; mirar(golpeBasico(f)); return }
+    if (id === 'habilidades') return abrirTela('habilidades')
+    if (id === 'transformacoes') return abrirTela('transformacoes')
+    if (id === 'concentrar') return concentrar(f)
+    if (id === 'encerrar') return encerrarVez()
+  }
+  if (tela === 'habilidades') { S.menu.origem = 'habilidades'; mirar(tecnicasDe(f).find((t) => t.id === el.dataset.item)); return }
+  if (tela === 'transformacoes') { const t = f.transformacoes.find((x) => x.id === el.dataset.item); if (f.cartoesAtivos.includes(t.id)) desfazerForma(f, t); else transformar(f, t); return }
+  if (tela === 'alvo') confirmarAlvo()
+}
+function mirar(t) {
+  const f = atual()
+  const tipo = alvoDe(t)
+  if (tipo === 'si') { usarTecnica(f, t, [f.id]); return }
+  const vivos = todos().filter((x) => !x.caiu)
+  const alvos = tipo === 'aliado' ? vivos.filter((x) => x.lado === GRUPO) : vivos.filter((x) => x.lado === MARINHA)
+  // em ordem de posição no palco (da esquerda para a direita), para as setas fazerem sentido
+  alvos.sort((a, b) => a.pos[0] - b.pos[0])
+  S.menu.tela = 'alvo'; S.menu.tecId = t.id; S.menu.alvos = alvos.map((x) => x.id); S.menu.alvoFoco = 0; S.menu.entrada = false
+  renderTudo()
+}
+function confirmarAlvo() {
+  const f = atual()
+  const t = tecnicasDe(f).find((x) => x.id === S.menu.tecId)
+  const ids = alvoDe(t) === 'area' ? S.menu.alvos.slice() : [S.menu.alvos[S.menu.alvoFoco]]
+  usarTecnica(f, t, ids)
+}
+function posicionarMira(v) {
+  const m = $('.mira', v.el)
+  if (!m) return
+  const f = atual()
+  const t = tecnicasDe(f).find((x) => x.id === S.menu.tecId)
+  if (!t) return
+  const area = alvoDe(t) === 'area'
+  const id = S.menu.alvos[S.menu.alvoFoco]
+  const alvo = S.fichas[id]
+  renderPalco(v)
+  m.style.left = alvo.pos[0] + '%'
+  m.style.top = alvo.pos[1] + '%'
+  const base = Math.round(danoDe(t) * CONCENTRACAO[f.concentracao])
+  let corpo
+  if (curaDe(t)) corpo = `<div class="mira__nota">Cura ${num(curaDe(t))} HP (até o máximo)</div>`
+  else if (alvo.logia && v.papel === 'mestre') corpo = `<div class="mira__nota">Intangível: a barra de Logia anula este golpe</div>`
+  else if (alvo.reacaoUsada) corpo = `<div class="mira__nota">Reação já usada: ${num(base)} de dano certo</div>`
+  else corpo = `<div class="escala" aria-label="Resultado pela reação do alvo">
+      <span data-s="critico">1<small>${num(base * CRITICO)}</small></span><span data-s="sem">2–9<small>${num(base)}</small></span>
+      <span data-s="defesa">10–14<small>${num(base / 2)}</small></span><span data-s="esquiva">15–19<small>0</small></span><span data-s="contra">20<small>contra</small></span>
+    </div><div class="mira__nota">Reação do alvo: 1d20 sem modificador</div>`
+  m.innerHTML = `<span class="mira__caixa"><span class="mira__rot">${area ? 'ÁREA · ' + S.menu.alvos.length + ' ALVOS' : curaDe(t) ? 'CURAR' : 'ALVO'}</span><span class="mira__nome">${esc(alvo.nome)}</span>${corpo}</span>`
+  m.setAttribute('aria-label', `Confirmar ${t.nome} em ${area ? 'todos os inimigos' : alvo.nome}`)
+}
+
+function ligarMenu(v) {
+  const ui = $('.interface', v.el)
+  ui.onclick = (e) => {
+    const tira = e.target.closest('.tira[data-i]')
+    if (tira && S.menu.tela !== 'alvo') { S.menu.foco = Number(tira.dataset.i); escolherItem(v, tira); return }
+    if (e.target.closest('.mira')) confirmarAlvo()
+  }
+  ui.onpointermove = (e) => {
+    if (e.pointerType !== 'mouse' || S.menu.tela === 'alvo') return
+    const tira = e.target.closest('.tira[data-i]')
+    if (!tira || tira.getAttribute('aria-disabled') === 'true') return
+    const i = Number(tira.dataset.i)
+    if (i !== S.menu.foco) { S.menu.foco = i; itensFocaveis(v).forEach((t, k) => t.classList.toggle('esta', k === i)); tira.focus({ preventScroll: true }); espelharParaMestre() }
+  }
+  ui.onkeydown = (e) => {
+    if (S.fase !== 'vez' || !controlaMenu(v)) return
+    const k = e.key
+    if (S.menu.tela === 'alvo') {
+      if (k === 'Escape' || k === 'Backspace') { e.preventDefault(); voltar(); return }
+      const passo = (k === 'ArrowRight' || k === 'ArrowDown') ? 1 : (k === 'ArrowLeft' || k === 'ArrowUp') ? -1 : 0
+      if (passo && S.menu.alvos.length > 1) {
+        e.preventDefault()
+        const t = tecnicasDe(atual()).find((x) => x.id === S.menu.tecId)
+        if (alvoDe(t) === 'area') return
+        S.menu.alvoFoco = (S.menu.alvoFoco + passo + S.menu.alvos.length) % S.menu.alvos.length
+        posicionarMira(v); espelharParaMestre()
+      }
+      return
+    }
+    if (k === 'ArrowDown') { e.preventDefault(); moverFoco(v, 1) }
+    else if (k === 'ArrowUp') { e.preventDefault(); moverFoco(v, -1) }
+    else if (k === 'ArrowRight' && S.menu.tela === 'principal') {
+      const el = itensFocaveis(v)[S.menu.foco]
+      if (el && (el.dataset.item === 'habilidades' || el.dataset.item === 'transformacoes')) { e.preventDefault(); escolherItem(v, el) }
+    } else if (k === 'Escape' || k === 'ArrowLeft' || k === 'Backspace') { if (S.menu.tela !== 'principal') { e.preventDefault(); voltar() } }
+  }
+}
+// tokens clicáveis só durante a mira
+function ligarVista(v) {
+  $('.fichas', v.el).addEventListener('click', (e) => {
+    const t = e.target.closest('.ficha')
+    if (!t || t.disabled || S.menu.tela !== 'alvo') return
+    const i = S.menu.alvos.indexOf(t.dataset.id)
+    if (i < 0) return
+    S.menu.alvoFoco = i
+    confirmarAlvo()
+  })
+  $('.fichas', v.el).addEventListener('pointerover', (e) => {
+    const t = e.target.closest('.ficha')
+    if (!t || t.disabled || S.menu.tela !== 'alvo') return
+    const i = S.menu.alvos.indexOf(t.dataset.id)
+    if (i >= 0 && i !== S.menu.alvoFoco) { S.menu.alvoFoco = i; vistas.forEach(posicionarMira); espelharParaMestre() }
+  })
+  if (v.papel === 'mestre') { ligarArrasto(v); ligarPainel(v) }
+}
+
+/* =========================================================================
+ * 8. Fluxo da vez
+ * ========================================================================= */
+async function iniciarVez(primeira = false) {
+  const f = atual()
+  S.economia = { simples: true, bonus: true, movimento: true, extra: 0 }
+  f.reacaoUsada = false // a reação volta no começo da própria vez
+  S.menu = { tela: 'principal', foco: 0, tecId: null, alvos: [], alvoFoco: 0, entrada: true, versao: S.menu.versao + 1, origem: null }
+  S.mestreAgindo = false
+  S.fase = 'abertura'
+  S.inicioResolucao = performance.now()
+  if (f.lado === MARINHA) sugerirParaInimigo(f)
+  renderTudo()
+  anunciar(`Rodada ${S.rodada}. Vez de ${f.nome}.`)
+  await Promise.all(vistas.map((v) => efeitoVez(v, f, primeira)))
+  pulando = false
+  S.fase = 'vez'
+  renderTudo()
+  if (f.lado === MARINHA && (S.sozinhos || mestreSimulado())) { await esperar(500); if (atual() === f && S.fase === 'vez') executarInimigo() }
+  else if (f.lado === GRUPO && mestreSimulado() && !vistas.some((v) => v.jogadorId === f.id)) { await esperar(600); if (atual() === f && S.fase === 'vez') jogarSozinho(f) }
+}
+/* Na vista só do jogador não há mestre na tela: ele é simulado (inimigos e colegas jogam sozinhos). */
+const mestreSimulado = () => !vistas.some((v) => v.papel === 'mestre')
+function jogarSozinho(f) {
+  const t = tecnicasDe(f).filter((x) => danoDe(x) && alvoDe(x) === 'inimigo' && !motivoIndisponivel(f, x)).sort((a, b) => danoDe(b) - danoDe(a))[0]
+  const alvo = todos().filter((x) => x.lado === MARINHA && !x.caiu).sort((a, b) => a.hp / hpMax(a) - b.hp / hpMax(b))[0]
+  if (!t || !alvo) { encerrarVez(); return }
+  f.jogouSozinho = true
+  usarTecnica(f, t, [alvo.id])
+}
+function encerrarVez() {
+  if (S.fim) return
+  const antes = S.vez
+  S.vez = proximoVivo(S.vez)
+  if (S.vez <= antes) { S.rodada += 1; registrar(`<em>Rodada ${S.rodada}</em>`) }
+  iniciarVez()
+}
+async function depoisDaAcao() {
+  pulando = false
+  if (checarFim()) { S.fase = 'fim'; registrar(S.fim === 'vitoria' ? '<em>Vitória</em> do grupo' : '<em>Derrota</em> do grupo'); renderTudo(); anunciar(S.fim === 'vitoria' ? 'Vitória.' : 'Derrota.'); return }
+  const f = atual()
+  if (f.caiu || f.lado === MARINHA || f.jogouSozinho) { f.jogouSozinho = false; renderTudo(); await esperar(350); encerrarVez(); return }
+  S.fase = 'vez'
+  S.menu = { ...S.menu, tela: 'principal', tecId: null, entrada: false, versao: S.menu.versao + 1 }
+  const itens = itensPrincipais(f)
+  const livre = itens.findIndex((it) => !it.motivo && it.id !== 'encerrar' && it.id !== 'transformacoes' && (it.id !== 'habilidades' || tecnicasDe(f).some((t) => !motivoIndisponivel(f, t))))
+  S.menu.foco = livre >= 0 ? livre : 4
+  renderTudo()
+}
+
+async function usarTecnica(f, t, alvoIds) {
+  S.fase = 'resolvendo'
+  S.inicioResolucao = performance.now()
+  gastarAcao(f, t)
+  f.sp -= custoSP(t)
+  if (eOverload(t)) f.overloadUsada = true
+  const fator = danoDe(t) ? CONCENTRACAO[f.concentracao] : 1
+  if (danoDe(t) && f.concentracao) f.concentracao = 0
+  registrar(`${esc(f.curto)} usa <em>${esc(t.nome)}</em>${custoSP(t) ? ` (−${custoSP(t)} SP)` : ''}${fator > 1 ? ` ${mult(fator)}` : ''}`)
+  renderTudo()
+  await Promise.all(vistas.map((v) => efeitoCorte(v, f, t)))
+  const tipo = alvoDe(t)
+  if (tipo === 'si') {
+    const esc_ = escudoDe(t), bl = blocosDe(t)
+    if (esc_) f.escudo += esc_
+    if (bl) S.economia.extra += bl
+    registrar(`${esc(f.curto)}: ${esc(t.campos.efeito)}`)
+    renderTudo()
+    await Promise.all(vistas.map((v) => efeitoTexto(v, f.id, esc_ ? `+${esc_} ESCUDO` : `+${bl} BLOCOS`)))
+  } else if (tipo === 'aliado') {
+    const alvo = S.fichas[alvoIds[0]]
+    const antes = alvo.hp
+    alvo.hp = Math.min(hpMax(alvo), alvo.hp + curaDe(t))
+    registrar(`${esc(alvo.curto)} recupera <em>${num(alvo.hp - antes)} HP</em>`)
+    renderTudo()
+    await Promise.all(vistas.map((v) => efeitoNumero(v, alvo.id, '+' + num(alvo.hp - antes), 'cura')))
+  } else {
+    await Promise.all(alvoIds.map((id, i) => esperar(i * 90).then(() => resolverGolpe(f, t, id, fator))))
+  }
+  await esperar(240)
+  depoisDaAcao()
+}
+
+async function resolverGolpe(atacante, t, alvoId, fator) {
+  const alvo = S.fichas[alvoId]
+  const base = Math.round(danoDe(t) * fator)
+  await Promise.all(vistas.map((v) => efeitoRisco(v, alvoId)))
+  // livroOnePiece.ts:66 — barra de Logia: intangível a um ataque, volta depois da batalha.
+  if (alvo.logia > 0) {
+    alvo.logia -= 1
+    registrar(`${esc(alvo.curto)} fica <em>intangível</em>: a barra de Logia acaba`)
+    renderTudo()
+    await Promise.all(vistas.map((v) => efeitoNumero(v, alvoId, '0', 'zero', 'INTANGÍVEL')))
+    return
+  }
+  let d = null
+  let saida = 'gasta'
+  if (!alvo.reacaoUsada) {
+    alvo.reacaoUsada = true
+    if (alvo.jogador) {
+      const r = await pedirReacao(alvo, atacante, t, base)
+      d = r.d20; saida = r.saida
+    } else {
+      d = d20(); saida = saidaDoDado(d)
+    }
+    await Promise.all(vistas.map((v) => efeitoDado(v, alvoId, d, saida)))
+  }
+  let dano = Math.round(base * SAIDAS[saida].fator)
+  const red = reducaoDeterminacao(alvo)
+  if (dano > 0 && red) dano = Math.round(dano * (1 - red))
+  const noEscudo = aplicarDano(alvo, dano)
+  registrar(`${esc(alvo.curto)}${d ? `: d20 <em>${d}</em> → ${SAIDAS[saida].rotulo.toLowerCase()}` : ': reação já usada'}. <em>${num(dano)}</em> de dano${noEscudo ? ` (${num(noEscudo)} no Escudo)` : ''}${red && dano ? ` · Determinação −${Math.round(red * 100)}%` : ''}${alvo.caiu ? ' · <em>caiu</em>' : ''}`)
+  anunciar(`${alvo.nome}${d ? ` rolou ${d}: ${SAIDAS[saida].rotulo}` : ''}. ${dano} de dano.`)
+  renderTudo()
+  await Promise.all(vistas.map((v) => efeitoNumero(v, alvoId, dano ? num(dano) : (saida === 'esquiva' ? 'ESQUIVOU' : '0'), dano === 0 ? 'zero' : saida === 'critico' ? 'critico' : 'dano', saida === 'critico' ? 'CRÍTICO ×1,5' : saida === 'defesa' ? 'DEFENDEU' : '', dano > 0)))
+  if (saida === 'contra') {
+    const g = golpeBasico(alvo)
+    const dc = g ? danoDe(g) : 0
+    if (dc) {
+      aplicarDano(atacante, dc)
+      registrar(`${esc(alvo.curto)} contra-ataca com <em>${esc(g.nome)}</em>: ${num(dc)} em ${esc(atacante.curto)}`)
+      renderTudo()
+      await Promise.all(vistas.map((v) => efeitoNumero(v, atacante.id, num(dc), 'dano', 'CONTRA-ATAQUE', true)))
+    }
+  }
+}
+
+function concentrar(f) {
+  // livroOnePiece.ts:36 — abre mão da ação simples (ou de outra extra); até 3 cargas.
+  if (S.economia.simples) S.economia.simples = false
+  else S.economia.bonus = false
+  f.concentracao += 1
+  registrar(`${esc(f.curto)} se <em>concentra</em> (${f.concentracao}/3): próximo golpe ${mult(CONCENTRACAO[f.concentracao])}`)
+  S.fase = 'resolvendo'; S.inicioResolucao = performance.now()
+  renderTudo()
+  Promise.all(vistas.map((v) => efeitoTexto(v, f.id, `CONCENTRAÇÃO ${f.concentracao}/3 · ${mult(CONCENTRACAO[f.concentracao])}`))).then(depoisDaAcao)
+}
+
+async function transformar(f, t) {
+  S.fase = 'resolvendo'; S.inicioResolucao = performance.now()
+  S.economia.simples = false; S.economia.movimento = false
+  const foto = () => ({ ...Object.fromEntries(ATRIBUTOS.map((a) => [a.id, total(f, a.id)])), hp: hpMax(f), sp: spMax(f), mov: deslocamento(f) })
+  const antes = foto()
+  f.cartoesAtivos.push(t.id) // como "ligar o cartão" da ficha (ajusteDaFicha.ts:67-86)
+  const depois = foto()
+  registrar(`${esc(f.curto)} ativa <em>${esc(t.nome)}</em>`)
+  anunciar(`${f.nome} ativa ${t.nome}.`)
+  const linhas = []
+  t.modificadores.forEach((m) => { const a = ATR[m.atributo]; linhas.push([a.abrev, antes[m.atributo], depois[m.atributo], `R${rankDoValor(a, antes[m.atributo])} → R${rankDoValor(a, depois[m.atributo])}`]) })
+  if (antes.hp !== depois.hp) linhas.push(['HP máx', antes.hp, depois.hp, 'o HP atual não sobe'])
+  if (antes.mov !== depois.mov) linhas.push(['Mov', antes.mov, depois.mov, 'blocos'])
+  await Promise.all(vistas.map((v) => efeitoTransformacao(v, f, t, linhas)))
+  renderTudo()
+  vistas.forEach((v) => { const c = v.cartas[f.id]; if (c && !MOV.reduzido) animar(c, [{ filter: 'brightness(1.8)' }, { filter: 'brightness(1)' }], { duration: 600, easing: EASE, fill: 'none' }) })
+  depoisDaAcao()
+}
+function desfazerForma(f, t) {
+  f.cartoesAtivos = f.cartoesAtivos.filter((id) => id !== t.id)
+  f.hp = Math.min(f.hp, hpMax(f)); f.sp = Math.min(f.sp, spMax(f)) // o máximo que cai puxa o atual (ajusteDaFicha.ts:15-17)
+  registrar(`${esc(f.curto)} desfaz <em>${esc(t.nome)}</em>`)
+  S.menu.versao += 1
+  abrirTela('principal', 2)
+}
+
+/* Reação do jogador: o livro deixa escolher pelo que o dado liberou. */
+function pedirReacao(alvo, atacante, t, base) {
+  return new Promise((resolver) => {
+    S.fase = 'reacao'
+    pulando = false
+    S.reacao = { alvoId: alvo.id, atacanteId: atacante.id, tecNome: t.nome, base, d20: null, saga: alvo.saga, resolver }
+    anunciar(`Reação de ${alvo.nome}: ${atacante.nome} usa ${t.nome}.`)
+    renderTudo()
+    // sem a tela desse jogador e sem mestre na tela, o colega rola sozinho
+    if (mestreSimulado() && !vistas.some((v) => v.jogadorId === alvo.id)) setTimeout(() => { if (S.reacao && S.reacao.alvoId === alvo.id) rolarReacao(true) }, D(400))
+  })
+}
+function rolarReacao(rolagemDoMestre = false) {
+  const r = S.reacao
+  if (!r) return
+  r.d20 = d20()
+  if (rolagemDoMestre) { fecharReacao(saidasPossiveis(r.d20)[0]); return }
+  renderTudo()
+  vistas.forEach((v) => { const dado = $('.reacao .dado', v.el); if (dado && !MOV.reduzido) animar(dado, [{ transform: 'scale(1.5) rotate(-20deg)', opacity: 0 }, { transform: 'scale(1) rotate(0)', opacity: 1 }], { duration: 220, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', fill: 'none' }) })
+}
+function rolarDeNovo() {
+  const r = S.reacao
+  const alvo = S.fichas[r.alvoId]
+  if (!alvo.saga) return
+  alvo.saga -= 1; r.saga = alvo.saga
+  registrar(`${esc(alvo.curto)} gasta um <em>Ponto Saga</em> para rolar de novo`)
+  rolarReacao()
+}
+function fecharReacao(saida) {
+  const r = S.reacao
+  S.reacao = null
+  S.fase = 'resolvendo'
+  S.inicioResolucao = performance.now()
+  renderTudo()
+  r.resolver({ d20: r.d20, saida })
+}
+function reacaoHtml() {
+  const r = S.reacao
+  const at = S.fichas[r.atacanteId]
+  const alvo = S.fichas[r.alvoId]
+  const opcoes = r.d20 == null ? '' : saidasPossiveis(r.d20).map((s, i) => {
+    const dano = Math.round(r.base * SAIDAS[s].fator)
+    const nome = { contra: 'Contra-atacar', esquiva: 'Esquivar', defesa: 'Defender', sem: 'Receber o golpe', critico: 'Receber o golpe' }[s]
+    return `<button type="button" class="botao ${i === 0 ? 'botao--batalha' : ''}" data-saida="${s}">${nome} · ${s === 'contra' ? '0 e revida' : num(dano)}</button>`
+  }).join('')
+  return `<div class="reacao" role="dialog" aria-label="Reação">
+    <h3 class="reacao__titulo">REAÇÃO</h3>
+    <p><b>${esc(at.nome)}</b> usa <b>${esc(r.tecNome)}</b> em você: <b>${num(r.base)}</b> de dano.</p>
+    <div class="reacao__regra">1d20 sem modificador · 10+ defende (metade) · 15+ esquiva (nada) · 20 contra-ataca · 1 é falha crítica (×1,5)</div>
+    <div class="reacao__linha">
+      <div class="dado" data-s="${r.d20 == null ? '' : saidaDoDado(r.d20)}">${r.d20 == null ? 'd20' : r.d20}</div>
+      <div class="reacao__opcoes">${r.d20 == null ? '<button type="button" class="botao botao--batalha" data-acao="rolar">Rolar 1d20 <kbd>Enter</kbd></button>' : opcoes}
+      ${r.d20 != null && alvo.saga ? `<button type="button" class="botao" data-acao="saga">Ponto Saga: rolar de novo (${alvo.saga})</button>` : ''}</div>
+    </div>
+  </div>`
+}
+function ligarReacao(v) {
+  const caixa = $('.reacao', v.el)
+  caixa.onclick = (e) => {
+    const b = e.target.closest('button')
+    if (!b) return
+    if (b.dataset.acao === 'rolar') rolarReacao()
+    else if (b.dataset.acao === 'saga') rolarDeNovo()
+    else if (b.dataset.saida) fecharReacao(b.dataset.saida)
+  }
+  const primeiro = $('button', caixa)
+  if (primeiro) primeiro.focus({ preventScroll: true })
+}
+
+/* =========================================================================
+ * 9. Inimigos: o jeito mais curto para o mestre
+ * ========================================================================= */
+function sugerirParaInimigo(f) {
+  const podem = tecnicasDe(f).filter((t) => danoDe(t) && !motivoIndisponivel(f, t))
+  podem.sort((a, b) => danoDe(b) - danoDe(a))
+  const alvos = todos().filter((x) => x.lado === GRUPO && !x.caiu).sort((a, b) => a.hp / hpMax(a) - b.hp / hpMax(b))
+  S.mp = { tecId: podem[0] ? podem[0].id : null, alvoId: alvos[0] ? alvos[0].id : null }
+}
+function executarInimigo() {
+  const f = atual()
+  if (f.lado !== MARINHA || S.fase !== 'vez') return
+  const t = tecnicasDe(f).find((x) => x.id === S.mp.tecId)
+  if (!t || !S.mp.alvoId || motivoIndisponivel(f, t)) return
+  usarTecnica(f, t, alvoDe(t) === 'area' ? todos().filter((x) => x.lado === GRUPO && !x.caiu).map((x) => x.id) : [S.mp.alvoId])
+}
+
+function espelharParaMestre() { vistas.filter((v) => v.papel === 'mestre').forEach(renderPainel) }
+function renderPainel(v) {
+  const p = $('.painel', v.el)
+  if (!p) return
+  const ativo = document.activeElement && p.contains(document.activeElement) ? (document.activeElement.dataset.acao || document.activeElement.value || '') : null
+  const f = atual()
+  let vez = ''
+  if (S.fim) vez = `<p class="mp-texto"><b>${S.fim === 'vitoria' ? 'Vitória do grupo.' : 'O grupo caiu.'}</b></p><div class="mp-acoes"><button type="button" class="botao botao--primario" data-acao="recomecar">Recomeçar</button></div>`
+  else if (S.reacao) {
+    const a = S.fichas[S.reacao.alvoId]
+    vez = `<p class="mp-texto">Esperando a reação de <b>${esc(a.nome)}</b> contra <b>${esc(S.reacao.tecNome)}</b> (${num(S.reacao.base)}).${S.reacao.d20 != null ? ` Rolou <b>${S.reacao.d20}</b>; escolhendo.` : ''}</p>
+      <div class="mp-acoes"><button type="button" class="botao botao--batalha" data-acao="rolar-por">${S.reacao.d20 == null ? `Rolar por ${esc(a.curto)}` : `Escolher por ${esc(a.curto)}`}</button></div>`
+  } else if (S.fase === 'resolvendo' || S.fase === 'abertura') vez = `<p class="mp-texto">Resolvendo… <span style="color:var(--lb-color-parchment-faint)">clique ou Enter pula a animação</span></p>`
+  else if (f.lado === MARINHA) {
+    const tecs = tecnicasDe(f)
+    const alvos = todos().filter((x) => x.lado === GRUPO && !x.caiu)
+    vez = `<fieldset class="mp-lista"><legend>Técnica</legend>${tecs.map((t) => {
+      const motivo = motivoIndisponivel(f, t)
+      return `<label class="mp-opcao" title="${esc(motivo || t.campos.descricao)}"><input type="radio" name="mp-tec" value="${t.id}" ${t.id === S.mp.tecId ? 'checked' : ''} ${motivo || !danoDe(t) ? 'disabled' : ''}><span>${esc(t.nome)}</span><small>${custoSP(t) ? custoSP(t) + ' SP · ' : ''}${num(danoDe(t))}</small></label>`
+    }).join('')}</fieldset>
+    <fieldset class="mp-lista"><legend>Alvo (sugerido: menos vida)</legend>${alvos.map((a) => `<label class="mp-opcao"><input type="radio" name="mp-alvo" value="${a.id}" ${a.id === S.mp.alvoId ? 'checked' : ''}><span>${esc(a.nome)}</span><small>${num(a.hp)}/${num(hpMax(a))}</small></label>`).join('')}</fieldset>
+    <div class="mp-acoes"><button type="button" class="botao botao--batalha" data-acao="executar" ${S.mp.tecId && S.mp.alvoId ? '' : 'disabled'}>Executar <kbd>Enter</kbd></button><button type="button" class="botao" data-acao="passar">Passar a vez</button></div>
+    <label class="mp-check"><input type="checkbox" data-acao="sozinhos" ${S.sozinhos ? 'checked' : ''}> Inimigos jogam sozinhos (técnica mais forte, alvo com menos vida)</label>`
+  } else if (S.mestreAgindo) {
+    vez = `<p class="mp-texto">Você está agindo por <b>${esc(f.nome)}</b>. O menu dela abriu no seu palco.</p>
+      <div class="mp-acoes"><button type="button" class="botao" data-acao="devolver">Devolver a vez a ${esc(f.curto)}</button><button type="button" class="botao" data-acao="passar">Passar a vez</button></div>`
+  } else {
+    const t = S.menu.tecId ? tecnicasDe(f).find((x) => x.id === S.menu.tecId) : null
+    const focoNome = (() => {
+      if (S.menu.tela === 'principal') { const it = itensPrincipais(f)[S.menu.foco]; return it ? it.nome : '' }
+      if (S.menu.tela === 'habilidades') { const it = tecnicasDe(f)[S.menu.foco]; return it ? it.nome : '' }
+      if (S.menu.tela === 'transformacoes') { const it = f.transformacoes[S.menu.foco]; return it ? it.nome : '' }
+      return ''
+    })()
+    const caminho = S.menu.tela === 'alvo'
+      ? `Mirando <b>${esc(S.fichas[S.menu.alvos[S.menu.alvoFoco]].nome)}</b> com ${esc(t.nome)}`
+      : `${{ principal: 'Menu', habilidades: 'Habilidades', transformacoes: 'Transformação' }[S.menu.tela]} ▸ ${esc(focoNome)}`
+    vez = `<p class="mp-texto"><b>${esc(f.nome)}</b> está escolhendo:</p><div class="mp-espelho">${caminho}</div>
+      <div class="mp-acoes"><button type="button" class="botao" data-acao="agir">Agir por ${esc(f.curto)}</button><button type="button" class="botao" data-acao="passar">Passar a vez</button></div>`
+  }
+  p.innerHTML = `
+    <section class="mp-secao"><h3 class="mp-titulo">Vez</h3>
+      ${f ? `<div class="mp-vez"><span class="carta__retrato" style="--lado:${ladoCor(f)}">${retrato(f)}</span><div><b>${esc(f.nome)}</b><span>${f.lado === GRUPO ? 'Grupo · jogadora' : 'Marinha · NPC'} · ${esc(f.raca)}, ${esc(f.oficio)}</span></div></div>` : ''}
+      ${vez}
+    </section>
+    <section class="mp-secao"><h3 class="mp-titulo">Ordem</h3>
+      <div class="mp-acoes"><button type="button" class="botao" data-acao="ordenar">Ordenar pela Agilidade</button></div>
+      <p class="mp-texto" style="margin-top:8px">Livro: o mais veloz começa. Empate: 1d20 (regra a confirmar).</p>
+    </section>
+    <section class="mp-secao"><h3 class="mp-titulo">Registro</h3><ol class="mp-registro">${S.log.slice(0, 12).map((l) => `<li>${l}</li>`).join('')}</ol></section>`
+  if (ativo) { const el = p.querySelector(`[data-acao="${ativo}"], input[value="${ativo}"]`); if (el) el.focus({ preventScroll: true }) }
+}
+function ligarPainel(v) {
+  const p = $('.painel', v.el)
+  p.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-acao]')
+    if (!b || b.disabled) return
+    const a = b.dataset.acao
+    if (a === 'executar') executarInimigo()
+    else if (a === 'passar') { registrar(`${esc(atual().curto)} passa a vez`); encerrarVez() }
+    else if (a === 'agir') { S.mestreAgindo = true; S.menu.entrada = true; renderTudo() }
+    else if (a === 'devolver') { S.mestreAgindo = false; S.menu.entrada = true; renderTudo() }
+    else if (a === 'rolar-por') { if (S.reacao.d20 == null) rolarReacao(true); else fecharReacao(saidasPossiveis(S.reacao.d20)[0]) }
+    else if (a === 'ordenar') {
+      const vezId = S.ordem[S.vez]
+      S.ordem = ordenarPorAgilidade(S.ordem)
+      S.vez = S.ordem.indexOf(vezId)
+      registrar('Ordem refeita pela <em>Agilidade</em>')
+      renderTudo()
+    } else if (a === 'recomecar') recomecar()
+  })
+  p.addEventListener('change', (e) => {
+    const i = e.target
+    if (i.name === 'mp-tec') S.mp.tecId = i.value
+    else if (i.name === 'mp-alvo') S.mp.alvoId = i.value
+    else if (i.dataset.acao === 'sozinhos') { S.sozinhos = i.checked; if (S.sozinhos && atual().lado === MARINHA && S.fase === 'vez') executarInimigo() }
+    renderPainel(v)
+  })
+}
+
+/* Reordenar a ordem dos turnos (só o mestre): arrastar, com os vizinhos abrindo espaço; Alt+setas; Esc cancela. */
+function ligarArrasto(v) {
+  const caixa = $('.cartas', v.el)
+  let arr = null
+  caixa.addEventListener('pointerdown', (e) => {
+    const c = e.target.closest('.carta')
+    if (!c || e.button !== 0) return
+    const cartas = $$('.carta', caixa)
+    arr = { c, x0: e.clientX, id: e.pointerId, ativo: false, cartas, rects: cartas.map((x) => x.getBoundingClientRect()), de: cartas.indexOf(c), para: cartas.indexOf(c) }
+  })
+  caixa.addEventListener('pointermove', (e) => {
+    if (!arr || e.pointerId !== arr.id) return
+    const dx = e.clientX - arr.x0
+    if (!arr.ativo && Math.abs(dx) < 5) return
+    if (!arr.ativo) { arr.ativo = true; arr.c.setPointerCapture(e.pointerId); arr.c.classList.add('arrastando'); arr.c.style.transition = 'none' }
+    arr.dx = dx
+    arr.c.style.translate = `${dx}px 0`
+    const meio = arr.rects[arr.de].left + arr.rects[arr.de].width / 2 + dx
+    let para = 0
+    arr.rects.forEach((r, i) => { if (i !== arr.de && meio > r.left + r.width / 2) para++ })
+    arr.para = para
+    const passo = arr.rects.length > 1 ? arr.rects[1].left - arr.rects[0].left : 0
+    arr.cartas.forEach((x, i) => {
+      if (x === arr.c) return
+      let desloc = 0
+      if (arr.de < para && i > arr.de && i <= para) desloc = -passo
+      if (arr.de > para && i >= para && i < arr.de) desloc = passo
+      x.style.transition = 'translate 180ms cubic-bezier(0.23, 1, 0.32, 1)'
+      x.style.translate = `${desloc}px 0`
+    })
+    const enc = $('.encaixe', caixa)
+    const base = caixa.getBoundingClientRect().left
+    const r = arr.rects[para]
+    enc.style.left = (para > arr.de ? r.right - base + 8 : r.left - base) + 'px'
+    enc.classList.add('ativo')
+  })
+  const soltar = (cancelar) => {
+    if (!arr) return
+    const a = arr
+    arr = null
+    $('.encaixe', caixa).classList.remove('ativo')
+    if (!a.ativo) return
+    a.c.classList.remove('arrastando')
+    a.cartas.forEach((x) => { x.style.transition = 'none'; x.style.translate = '' })
+    a.c.style.transition = ''
+    requestAnimationFrame(() => a.cartas.forEach((x) => { x.style.transition = '' }))
+    if (cancelar || a.para === a.de) { if (!MOV.reduzido) a.c.animate([{ translate: `${a.dx || 0}px 0` }, { translate: '0 0' }], { duration: D(180), easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }); return }
+    moverNaOrdem(a.c.dataset.id, a.para, false)
+  }
+  caixa.addEventListener('pointerup', () => soltar(false))
+  caixa.addEventListener('pointercancel', () => soltar(true))
+  caixa.addEventListener('keydown', (e) => {
+    const c = e.target.closest('.carta')
+    if (!c) return
+    if (e.key === 'Escape' && arr) { soltar(true); return }
+    if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
+    e.preventDefault()
+    const i = S.ordem.indexOf(c.dataset.id)
+    const para = Math.max(0, Math.min(S.ordem.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))
+    if (para !== i) { moverNaOrdem(c.dataset.id, para, true); c.focus() }
+  })
+}
+function moverNaOrdem(id, para, animarFlip) {
+  const vezId = S.ordem[S.vez]
+  const ordem = S.ordem.filter((x) => x !== id)
+  ordem.splice(para, 0, id)
+  S.ordem = ordem
+  S.vez = S.ordem.indexOf(vezId)
+  S.desempate = {}
+  registrar(`O mestre pôs ${esc(S.fichas[id].curto)} em <em>${para + 1}º</em>`)
+  anunciar(`${S.fichas[id].nome} agora é o ${para + 1}º.`)
+  if (!animarFlip) vistas.forEach((v) => { const caixa = $('.cartas', v.el); S.ordem.forEach((x) => caixa.appendChild(v.cartas[x])) })
+  renderTudo()
+}
+
+/* =========================================================================
+ * 10. Efeitos (todos com versão de movimento reduzido)
+ * ========================================================================= */
+function noPalco(v, html) {
+  const camada = $('.efeitos', v.el)
+  const t = document.createElement('template')
+  t.innerHTML = html.trim()
+  const el = t.content.firstElementChild
+  camada.appendChild(el)
+  return el
+}
+function sobre(el, f, dy = 0) { el.style.left = f.pos[0] + '%'; el.style.top = `calc(${f.pos[1]}% + ${dy}px)`; return el }
+const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)'
+const PUNCH = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+
+async function efeitoVez(v, f, primeira) {
+  const meu = v.papel === 'jogador' && v.jogadorId === f.id
+  const grande = meu || (v.papel === 'mestre' && f.lado === GRUPO && false)
+  const texto = meu ? 'SUA VEZ' : `VEZ DE ${f.curto.toUpperCase()}`
+  const sub = meu ? f.nome : (f.lado === MARINHA ? 'Marinha' : 'Grupo')
+  const el = noPalco(v, `<div class="faixa ${grande ? '' : 'faixa--pequena'} ${f.lado === MARINHA ? 'faixa--marinha' : ''}"><span class="faixa__grande">${esc(texto)}</span><span class="faixa__sub">${esc(sub)}${primeira ? ' · Rodada 1' : ''}</span></div>`)
+  const txt = $('.faixa__grande', el)
+  if (MOV.reduzido) {
+    await animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: EASE })
+    await esperar(grande ? 650 : 450)
+    await animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: EASE })
+  } else {
+    animar(txt, [{ transform: 'translateX(-14%) skewX(-12deg)', opacity: 0 }, { transform: 'translateX(0) skewX(0)', opacity: 1 }], { duration: 300, delay: 60, easing: EASE })
+    await animar(el, [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 240, easing: EASE })
+    await esperar(grande ? 420 : 300)
+    // a saída corre junto com a entrada do menu: a vez fica jogável mais cedo
+    animar(el, [{ transform: 'rotate(-6deg) translateX(0)', opacity: 1 }, { transform: 'rotate(-6deg) translateX(18%)', opacity: 0 }], { duration: 180, easing: EASE }).then(() => el.remove())
+    return
+  }
+  el.remove()
+}
+
+function entradaForte(v, tiras) {
+  const cab = $('.menu__cabeca', v.el)
+  if (MOV.reduzido) { tiras.forEach((t) => animar(t, [{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: EASE, fill: 'none' })); return }
+  animar(cab, [{ transform: 'rotate(-3deg) translate(-30px, -12px)', opacity: 0 }, { transform: 'rotate(-3deg) translate(0, 0)', opacity: 1 }], { duration: 260, easing: EASE, fill: 'none' })
+  tiras.forEach((t, i) => {
+    const g = Number(t.dataset.giro)
+    const dx = t.classList.contains('esta') ? 14 : 0
+    animar(t, [
+      { transform: `rotate(${g - 10}deg) translateX(-115%)`, opacity: 0 },
+      { transform: `rotate(${g + 1.5}deg) translateX(calc(3% + ${dx}px))`, opacity: 1, offset: 0.7 },
+      { transform: `rotate(${g}deg) translateX(${dx}px)`, opacity: 1 },
+    ], { duration: 300, delay: 50 + i * 40, easing: EASE, fill: 'backwards' })
+  })
+}
+function entradaLista(v, tiras) {
+  const ret = $('.retrato-grande', v.el)
+  const cortina = $('.cortina', v.el)
+  if (MOV.reduzido) { [cortina, ret, ...tiras].forEach((t) => t && animar(t, [{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: EASE, fill: 'none' })); return }
+  animar(cortina, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: EASE, fill: 'none' })
+  animar(ret, [{ transform: 'translateX(14%)', opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }], { duration: 320, easing: EASE, fill: 'none' })
+  tiras.forEach((t, i) => {
+    const g = Number(t.dataset.giro)
+    const dx = t.classList.contains('esta') ? 14 : 0
+    animar(t, [{ transform: `rotate(${g}deg) translateX(${dx - 48}px)`, opacity: 0 }, { transform: `rotate(${g}deg) translateX(${dx}px)`, opacity: 1 }], { duration: 240, delay: i * 35, easing: EASE, fill: 'backwards' })
+  })
+}
+
+async function efeitoCorte(v, f, t) {
+  const el = noPalco(v, `<div class="corte"><div class="corte__retrato">${retrato(f, { semFundo: true, cobrir: true })}</div><div class="corte__texto"><span class="corte__quem">${esc(f.nome)}</span><span class="corte__nome">${esc(t.nome)}</span></div></div>`)
+  const nome = $('.corte__nome', el)
+  const ret = $('.corte__retrato', el)
+  if (MOV.reduzido) {
+    await animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: EASE })
+    await esperar(420)
+    await animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: EASE })
+  } else {
+    animar(ret, [{ transform: 'translateX(-30%)' }, { transform: 'translateX(4%)' }], { duration: 620, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)' })
+    animar(nome, [{ transform: 'translateX(30%)', opacity: 0 }, { transform: 'translateX(-2%)', opacity: 1 }], { duration: 560, delay: 40, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)' })
+    await animar(el, [{ clipPath: 'inset(50% 0 50% 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 150, easing: EASE })
+    await esperar(330)
+    await animar(el, [{ transform: 'rotate(-7deg) translateX(0)', opacity: 1 }, { transform: 'rotate(-7deg) translateX(-12%)', opacity: 0 }], { duration: 150, easing: EASE })
+  }
+  el.remove()
+}
+async function efeitoRisco(v, id) {
+  if (MOV.reduzido) return
+  const f = S.fichas[id]
+  const el = sobre(noPalco(v, '<div class="risco"></div>'), f)
+  await animar(el, [{ clipPath: 'inset(0 100% 0 0)', opacity: 1 }, { clipPath: 'inset(0 0 0 0)', opacity: 1, offset: 0.55 }, { clipPath: 'inset(0 0 0 100%)', opacity: 0.6 }], { duration: 200, easing: EASE })
+  el.remove()
+}
+async function efeitoDado(v, id, valor, saida) {
+  const f = S.fichas[id]
+  const el = sobre(noPalco(v, `<div class="selo-dado"><div class="dado">?</div><span class="dado-rotulo">Reação</span></div>`), f)
+  const dado = $('.dado', el)
+  const rot = $('.dado-rotulo', el)
+  if (MOV.reduzido) {
+    dado.textContent = valor; dado.dataset.s = saida; rot.textContent = SAIDAS[saida].rotulo
+    await animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: EASE })
+    await esperar(650)
+  } else {
+    animar(el, [{ opacity: 0, transform: 'translate(-12px, -62%)' }, { opacity: 1, transform: 'translate(0, -62%)' }], { duration: 160, easing: EASE })
+    const r = mulberry32(valor * 7919 + id.length)
+    const giro = animar(dado, [{ transform: 'rotate(0)' }, { transform: 'rotate(-360deg)' }], { duration: 420, easing: 'cubic-bezier(0.2, 0.6, 0.35, 1)' })
+    for (let k = 0; k < 8 && !pulando; k++) { dado.textContent = 1 + Math.floor(r() * 20); await esperar(48) }
+    await giro
+    dado.textContent = valor; dado.dataset.s = saida; rot.textContent = SAIDAS[saida].rotulo
+    await animar(dado, [{ transform: 'scale(1.4)' }, { transform: 'scale(1)' }], { duration: 200, easing: PUNCH })
+    await esperar(360)
+  }
+  animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 160, delay: 500, easing: EASE }).then(() => el.remove())
+}
+async function efeitoNumero(v, id, texto, tipo, rotulo = '', tremer = false) {
+  const f = S.fichas[id]
+  // acima da ficha, para o clarão e o recuo dela continuarem à vista
+  const el = sobre(noPalco(v, `<div class="numero" data-tipo="${tipo}">${rotulo ? `<small>${esc(rotulo)}</small>` : ''}${esc(texto)}</div>`), f, -58)
+  const token = v.tokens[id]
+  // a borda direita do número fica perto do centro da ficha: o d20 da reação mora à direita dela
+  const x = 'calc(-100% + 22px)'
+  el.style.transform = `translate(${x}, -50%)`
+  if (MOV.reduzido) {
+    await animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: EASE })
+    await esperar(620)
+    await animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: EASE })
+    el.remove()
+    return
+  }
+  if (tremer) {
+    const mundo = $('.mundo', v.el)
+    const camadaFichas = $('.fichas', v.el)
+    const quadros = [{ translate: '0 0' }, { translate: '7px -4px' }, { translate: '-6px 4px' }, { translate: '4px -2px' }, { translate: '-2px 1px' }, { translate: '0 0' }]
+    animar(mundo, quadros, { duration: 220, easing: 'linear', fill: 'none' })
+    animar(camadaFichas, quadros, { duration: 220, easing: 'linear', fill: 'none' })
+    const lado = f.lado === MARINHA ? 1 : -1
+    animar(token, [{ filter: 'brightness(3)', translate: '0 0' }, { filter: 'brightness(1.4)', translate: `${12 * lado}px 0`, offset: 0.3 }, { filter: 'brightness(1)', translate: '0 0' }], { duration: 300, easing: EASE, fill: 'none' })
+  }
+  await animar(el, [
+    { transform: `translate(${x}, -50%) scale(0.5)`, opacity: 0 },
+    { transform: `translate(${x}, -50%) scale(1.16)`, opacity: 1, offset: 0.4 },
+    { transform: `translate(${x}, -50%) scale(1)`, opacity: 1 },
+  ], { duration: 260, easing: EASE })
+  await esperar(520)
+  await animar(el, [{ transform: `translate(${x}, -50%)`, opacity: 1 }, { transform: `translate(${x}, calc(-50% - 22px))`, opacity: 0 }], { duration: 240, easing: EASE })
+  el.remove()
+}
+async function efeitoTexto(v, id, texto) {
+  const f = S.fichas[id]
+  const el = sobre(noPalco(v, `<div class="numero" data-tipo="buff">${esc(texto)}</div>`), f, -64)
+  if (MOV.reduzido) { await animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 120 }); await esperar(700); el.remove(); return }
+  await animar(el, [{ transform: 'translate(-50%, -30%)', opacity: 0 }, { transform: 'translate(-50%, -50%)', opacity: 1 }], { duration: 220, easing: EASE })
+  await esperar(650)
+  await animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: EASE })
+  el.remove()
+}
+async function efeitoTransformacao(v, f, t, linhas) {
+  const el = noPalco(v, `<div class="transformacao">
+    <div class="transformacao__fundo"></div><div class="transformacao__raios"></div><div class="transformacao__anel"></div><div class="transformacao__anel"></div>
+    <div class="transformacao__retrato">${retrato({ ...f, cor: '#ab93d6' }, { semFundo: true, cobrir: true })}</div>
+    <div class="transformacao__texto"><span class="transformacao__rot">${esc(f.nome)} · Transformação</span><span class="transformacao__nome">${esc(t.nome)}</span>
+      <div class="transformacao__numeros">${linhas.map(([rot, a, b, nota]) => `<div><span>${esc(rot)}</span>${num(a)} → <b data-de="${a}" data-para="${b}">${num(a)}</b><small style="color:var(--lb-color-parchment-faint)">${esc(nota)}</small></div>`).join('')}</div></div>
+    <div class="transformacao__flash"></div></div>`)
+  const [fundo, raios] = [$('.transformacao__fundo', el), $('.transformacao__raios', el)]
+  const aneis = $$('.transformacao__anel', el)
+  const ret = $('.transformacao__retrato', el)
+  const nome = $('.transformacao__nome', el)
+  const rot = $('.transformacao__rot', el)
+  const linhasEl = $$('.transformacao__numeros > div', el)
+  const flash = $('.transformacao__flash', el)
+  const contar = () => $$('b[data-para]', el).forEach((b) => { b.textContent = num(Number(b.dataset.para)) })
+  if (MOV.reduzido) {
+    await animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: EASE })
+    contar()
+    await esperar(1100)
+    await animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: EASE })
+    el.remove()
+    return
+  }
+  ;[...aneis, nome, rot, ...linhasEl].forEach((x) => { x.style.opacity = '0' })
+  animar(fundo, [{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: EASE })
+  animar(raios, [{ transform: 'rotate(0)', opacity: 0 }, { transform: 'rotate(8deg)', opacity: 1, offset: 0.25 }, { transform: 'rotate(24deg)', opacity: 0.55 }], { duration: 1500, easing: 'linear' })
+  aneis.forEach((a, i) => animar(a, [{ transform: 'scale(0.35)', opacity: 1 }, { transform: 'scale(2.8)', opacity: 0 }], { duration: 620, delay: 120 + i * 110, easing: EASE }))
+  animar(ret, [{ transform: 'translateY(6%) scale(1.06)', opacity: 0 }, { transform: 'translateY(0) scale(1)', opacity: 1 }], { duration: 340, delay: 80, easing: EASE })
+  animar(flash, [{ opacity: 0 }, { opacity: 0.7, offset: 0.25 }, { opacity: 0 }], { duration: 300, delay: 300, easing: EASE })
+  animar(rot, [{ opacity: 0, transform: 'translateX(-20px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 240, delay: 380, easing: EASE })
+  animar(nome, [{ opacity: 0, transform: 'rotate(-4deg) scale(1.6)' }, { opacity: 1, transform: 'rotate(-4deg) scale(0.96)', offset: 0.7 }, { opacity: 1, transform: 'rotate(-4deg) scale(1)' }], { duration: 300, delay: 420, easing: EASE })
+  linhasEl.forEach((l, i) => animar(l, [{ opacity: 0, transform: 'translateX(-16px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 220, delay: 760 + i * 60, easing: EASE }))
+  await esperar(820)
+  // os números sobem (contagem curta, 400 ms)
+  const bs = $$('b[data-para]', el)
+  const t0 = performance.now()
+  await new Promise((res) => {
+    const passo = () => {
+      const p = pulando ? 1 : Math.min(1, (performance.now() - t0) / D(420))
+      const q = 1 - Math.pow(1 - p, 3)
+      bs.forEach((b) => { const a = Number(b.dataset.de), z = Number(b.dataset.para); b.textContent = num(a + (z - a) * q) })
+      if (p < 1) requestAnimationFrame(passo); else res()
+    }
+    requestAnimationFrame(passo)
+  })
+  await esperar(700)
+  await animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: EASE })
+  el.remove()
+}
+
+/* =========================================================================
+ * 11. Entrada global, controles do protótipo e partida
+ * ========================================================================= */
+function recomecar() {
+  estadoInicial()
+  aplicarCena()
+  montarVistas()
+  iniciarVez(true)
+}
+// Cenas prontas (para a prova e para conferir): #cena=vez-do-bruno, #cena=vez-da-marinha
+function aplicarCena() {
+  const cena = P.get('cena')
+  if (cena === 'vez-do-bruno') { S.vez = S.ordem.indexOf('bruno'); S.fichas.lia.sp -= 45; S.fichas.recrutaA.hp = 40; registrar('Cena pronta: a Lia já atacou e a Vera já agiu') }
+  if (cena === 'vez-da-marinha') { S.vez = S.ordem.indexOf('vera'); registrar('Cena pronta: vez da Capitã Vera') }
+}
+window.addEventListener('keydown', (e) => {
+  if ((S.fase === 'resolvendo' || S.fase === 'abertura') && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') && e.timeStamp > S.inicioResolucao + 80) { e.preventDefault(); pular(); return }
+  if (e.key === 'Enter' && S.fase === 'vez' && atual().lado === MARINHA && !e.repeat) {
+    const a = document.activeElement
+    if (!a || a === document.body || a.closest('.painel') && a.tagName === 'INPUT') { e.preventDefault(); executarInimigo() }
+  }
+})
+window.addEventListener('pointerdown', (e) => {
+  if ((S.fase === 'resolvendo' || S.fase === 'abertura') && e.timeStamp > S.inicioResolucao + 80 && !e.target.closest('.proto')) pular()
+})
+$$('.seg[data-modo]').forEach((b) => b.addEventListener('click', () => { UI.modo = b.dataset.modo; montarVistas() }))
+$$('.seg[data-jogador]').forEach((b) => b.addEventListener('click', () => { UI.jogador = b.dataset.jogador; montarVistas() }))
+$('#btn-recomecar').addEventListener('click', recomecar)
+const chkRed = $('#chk-reduzido')
+const chkLento = $('#chk-lento')
+function aplicarMovimento() { document.documentElement.dataset.reduzido = MOV.reduzido ? 'sim' : 'nao'; chkRed.checked = MOV.reduzido; chkLento.checked = MOV.lento > 1 }
+chkRed.addEventListener('change', () => { MOV.reduzido = chkRed.checked; aplicarMovimento() })
+chkLento.addEventListener('change', () => { MOV.lento = chkLento.checked ? 4 : 1; aplicarMovimento() })
+if (P.get('reduzido') === '1') MOV.reduzido = true
+aplicarMovimento()
+
+estadoInicial()
+aplicarCena()
+montarVistas()
+iniciarVez(true)
+</script>
+</body>
+</html>
