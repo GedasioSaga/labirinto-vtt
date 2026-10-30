@@ -161,7 +161,7 @@ function faceDaBeira(geo: GeoDoBarranco, face: FaceDoTraco, k: number, alt: Altu
  * A largura da caixa do desfoque da referência (3 passadas de caixa de 2r + 1
  * px para o desvio sigma = borrão / 2), em px do mundo a 100%.
  */
-function caixaDoDesfoque(borraoPx: number, k: number): number {
+export function caixaDoDesfoque(borraoPx: number, k: number): number {
   const sigma = borraoPx * k * 0.5
   if (sigma < 0.3) return 0.5
   const r = Math.max(1, Math.round(Math.sqrt((12 * sigma * sigma) / 3 + 1) / 2 - 0.5))
@@ -250,7 +250,7 @@ export function texturasDa(tinta: TintaDoBarranco): TexturasDaTinta {
 }
 
 /** A cor da sombra (0..1). */
-function corDe(hex: string): readonly [number, number, number] {
+export function corDe(hex: string): readonly [number, number, number] {
   const c = rgb(hex)
   return [c[0] / 255, c[1] / 255, c[2] / 255]
 }

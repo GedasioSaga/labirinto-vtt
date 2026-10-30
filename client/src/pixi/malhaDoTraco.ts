@@ -225,6 +225,13 @@ float noMar() { return textureLod(uMascara, (vPos - uOndeMascara.xy) * uOndeMasc
 `
 const FIM_DA_FACE = 'finalColor = vec4(c * c4.a, c4.a) * uColor.a;'
 const FIM_DA_BORDA = 'finalColor = c4 * uColor.a;'
+const FIM_DA_SOMBRA = 'finalColor = vec4(uSombra.rgb * a, a) * uColor.a;'
+/**
+ * A borda de cima do continente com o peso da mistura: onde o chão do alto
+ * muda, as duas linhas se cruzam em poucos px. O peso vai no vDe e no vAte do
+ * quad (a borda não lê os dois), do começo ao fim do pedaço.
+ */
+const FIM_DA_BORDA_MISTURADA = 'finalColor = c4 * uColor.a * mix(vAoLongo.z, vAoLongo.w, uv.x);'
 
 interface Programas {
   readonly face: GlProgram
@@ -233,6 +240,9 @@ interface Programas {
   /** A face e a borda com a máscara do mar (o penhasco do continente). */
   readonly faceNoMar: GlProgram
   readonly bordaNoMar: GlProgram
+  /** A sombra do pé com a máscara do mar, e a borda de cima com o peso da mistura. */
+  readonly sombraNoMar: GlProgram
+  readonly bordaMisturada: GlProgram
 }
 
 let programas: Programas | null = null
@@ -241,6 +251,11 @@ let falhaForcada = false
 
 /** Uma linha que nenhum compilador aceita: a prova de que a falha cai no Atual. */
 export const QUEBRA = '\n#error falha forcada do traco\n'
+
+/** A cópia de um shader com outra cor final. Fonte que mudou = não compila (cai no Atual). */
+function comFim(fonte: string, fim: string, novo: string): string {
+  return fonte.includes(fim) ? fonte.replace(fim, novo) : fonte + QUEBRA
+}
 
 /** A cópia "no mar" de um shader: a máscara antes do `main` e a cor final vezes ela. Fonte que mudou = não compila (cai no Atual). */
 function noMar(fonte: string, fim: string): string {
@@ -257,6 +272,8 @@ function criarProgramas(quebrar: boolean): Programas {
     sombra: new GlProgram({ vertex: vertice(true), fragment: SOMBRA + extra, name: 'traco-sombra' }),
     faceNoMar: new GlProgram({ vertex: vertice(false), fragment: noMar(FACE, FIM_DA_FACE) + extra, name: 'traco-face-no-mar' }),
     bordaNoMar: new GlProgram({ vertex: vertice(false), fragment: noMar(BORDA, FIM_DA_BORDA) + extra, name: 'traco-borda-no-mar' }),
+    sombraNoMar: new GlProgram({ vertex: vertice(true), fragment: noMar(SOMBRA, FIM_DA_SOMBRA) + extra, name: 'traco-sombra-no-mar' }),
+    bordaMisturada: new GlProgram({ vertex: vertice(false), fragment: comFim(BORDA, FIM_DA_BORDA, FIM_DA_BORDA_MISTURADA) + extra, name: 'traco-borda-misturada' }),
   }
 }
 
@@ -344,8 +361,8 @@ const compilouNoMar = new WeakMap<object, WeakMap<Programas, boolean>>()
 
 /**
  * O penhasco do continente pode sair no Desenhado neste renderer? Os três
- * do traço (`tracoCompila`: a borda de cima é a de sempre) e as duas cópias
- * com a máscara do mar.
+ * do traço (`tracoCompila`), as três cópias com a máscara do mar (a face, a
+ * linha do pé e a sombra) e a borda de cima com o peso da mistura.
  */
 export function tracoNoMarCompila(renderer: Renderer): boolean {
   if (!tracoCompila(renderer)) return false
@@ -358,7 +375,7 @@ export function tracoNoMarCompila(renderer: Renderer): boolean {
   const sabido = porJogo.get(jogo)
   if (sabido !== undefined) return sabido
   // `tracoCompila` já viu que o renderer é WebGL com contexto vivo.
-  const erro = 'gl' in renderer ? (erroNoContexto(renderer.gl, jogo.faceNoMar) ?? erroNoContexto(renderer.gl, jogo.bordaNoMar)) : 'o renderer não é WebGL'
+  const erro = 'gl' in renderer ? (erroNoContexto(renderer.gl, jogo.faceNoMar) ?? erroNoContexto(renderer.gl, jogo.bordaNoMar) ?? erroNoContexto(renderer.gl, jogo.sombraNoMar) ?? erroNoContexto(renderer.gl, jogo.bordaMisturada)) : 'o renderer não é WebGL'
   const ok = erro === null
   porJogo.set(jogo, ok)
   if (!ok) console.warn(`[desenhado] o shader do penhasco do continente não compilou nesta placa; fica o Atual (${erro})`)
@@ -519,6 +536,46 @@ export function meshDaSombra(m: MalhaDoTraco, cor: readonly [number, number, num
         uSombra: { value: new Float32Array([cor[0], cor[1], cor[2], alfa]), type: 'vec4<f32>' },
         uCaixa: { value: caixaPx, type: 'f32' },
         uProfundidade: { value: 0.8 - 0.2 * Math.min(3, Math.max(0, nivel)), type: 'f32' },
+      }),
+    },
+  })
+  const mesh = meshDe(m, shader)
+  const estado = State.for2d()
+  estado.depthTest = true
+  estado.depthMask = true
+  mesh.state = estado
+  return mesh
+}
+
+const PROFUNDIDADE_DO_CONTINENTE = 0.9
+
+/** A borda de cima do continente: a cor vezes o peso da mistura (vDe no começo do pedaço, vAte no fim). */
+export function meshDaBordaMisturada(m: MalhaDoTraco, l: LinhaNaPlaca): Mesh<Geometry, Shader> {
+  const shader = new Shader({
+    glProgram: programasDoTraco().bordaMisturada,
+    resources: {
+      uImagem: l.imagem,
+      daBorda: new UniformGroup({
+        uLinha: { value: new Float32Array([0, l.periodoPx, l.yPx, l.linhaPx]), type: 'vec4<f32>' },
+        uBorda: { value: new Float32Array([l.alturaPx, 0, l.largura, l.altura]), type: 'vec4<f32>' },
+      }),
+    },
+  })
+  return meshDe(m, shader)
+}
+
+/** A sombra do pé só onde é mar (o penhasco do continente), com o teste de profundidade da `meshDaSombra`. */
+export function meshDaSombraNoMar(m: MalhaDoTraco, cor: readonly [number, number, number], alfa: number, caixaPx: number, mascara: MascaraNaPlaca): Mesh<Geometry, Shader> {
+  const shader = new Shader({
+    glProgram: programasDoTraco().sombraNoMar,
+    resources: {
+      uMascara: mascara.imagem,
+      daSombra: new UniformGroup({
+        uSombra: { value: new Float32Array([cor[0], cor[1], cor[2], alfa]), type: 'vec4<f32>' },
+        uCaixa: { value: caixaPx, type: 'f32' },
+        // Mais longe que todo nível do barranco (0,8 a 0,2), que vem depois e por cima: a sombra dele não é recusada.
+        uProfundidade: { value: PROFUNDIDADE_DO_CONTINENTE, type: 'f32' },
+        uOndeMascara: { value: ondeDa(mascara), type: 'vec4<f32>' },
       }),
     },
   })

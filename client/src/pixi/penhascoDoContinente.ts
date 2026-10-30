@@ -3,6 +3,7 @@ import type { PerfilDoPenhasco, Segmento } from '../lib/relevo'
 import type { RegionPoint } from '../types/map'
 import {
   ALTURAS_DO_TRACO,
+  LUZ_DO_TRACO,
   alturaDaVista,
   desvioDaBorda,
   linhaDaBorda,
@@ -18,8 +19,8 @@ import {
   type PecaDoTraco,
   type QuadDoTraco,
 } from '../texturas/desenhado/traco'
-import { texturasDa, type TexturasDaTinta, type TintaDoBarranco } from './barrancoDesenhado'
-import { meshDaBorda, meshDaBordaNoMar, meshDaFaceNoMar, soltarMesh, tracoNoMarCompila, type LinhaNaPlaca, type MascaraNaPlaca } from './malhaDoTraco'
+import { caixaDoDesfoque, corDe, texturasDa, type TexturasDaTinta, type TintaDoBarranco } from './barrancoDesenhado'
+import { meshDaBordaMisturada, meshDaBordaNoMar, meshDaFaceNoMar, meshDaSombraNoMar, soltarMesh, tracoNoMarCompila, type LinhaNaPlaca, type MascaraNaPlaca } from './malhaDoTraco'
 
 /**
  * O PENHASCO DO CONTINENTE NO ESTILO DESENHADO (CONTRATO.md 11.12; pedido de
@@ -42,9 +43,13 @@ import { meshDaBorda, meshDaBordaNoMar, meshDaFaceNoMar, soltarMesh, tracoNoMarC
  *   Atual: a face e a linha do pé leem a máscara do mar. A linha de cima da
  *   borda (a grama que debruça) vai por cima da terra, sem máscara.
  * - A borda: a linha de cima pelo chão pintado do lado alto (`chaoNoAlto`,
- *   11.11) e a do pé, a água, em todo trecho onde o pé é mar.
- * - A sombra no mar continua a do relevo (a silhueta é a terra mais a parede):
- *   a sombra do pé do pacote não entra, para a costa não escurecer duas vezes.
+ *   11.11) e a do pé, a água, em todo trecho onde o pé é mar. Onde o chão do
+ *   alto muda, as duas linhas de cima se cruzam em `MISTURA_DA_BORDA_PX`: cada
+ *   uma passa da troca até a metade disso, sumindo, sem a costa ficar sem linha.
+ * - A sombra do pé do pacote (11.9), só no mar, por baixo da face: a faixa de
+ *   t / 2 a t + comprimento + 1,05 t deCostas, medida reto para o sul a partir
+ *   da costa. A sombra no mar do relevo (a da terra mais a parede) continua
+ *   por baixo de tudo.
  *
  * Geometria uma vez por geração do relevo (o perfil muda junto com a textura),
  * nunca por quadro.
@@ -257,28 +262,110 @@ function quadsDaFita(f: FitaDaCosta, face: FaceDoTraco, pedido: PedidoDoPenhasco
   return { face: quads, pecas, trechos, hMundo: H * k }
 }
 
-/** Uma linha da borda ao longo dos trechos: de `ancora - acima` a `ancora + abaixo`, o s andado pelo desvio (11.11). */
-function quadDaBorda(f: FitaDaCosta, i: number, borda: BordaDoTraco, noPe: boolean, pedido: PedidoDoPenhasco, desvio: number, hMundo: number): QuadDoTraco {
+/** O pedaço de um trecho (u de 0 a 1 ao longo dele) e o peso da linha no começo e no fim do pedaço. */
+interface PedacoDaLinha {
+  readonly u0: number
+  readonly u1: number
+  readonly peso0: number
+  readonly peso1: number
+}
+
+const TRECHO_INTEIRO: PedacoDaLinha = { u0: 0, u1: 1, peso0: 1, peso1: 1 }
+
+/**
+ * Uma linha da borda ao longo de um trecho (ou de um pedaço dele): de
+ * `ancora - acima` a `ancora + abaixo`, o s andado pelo desvio (11.11). O peso
+ * vai no vDe e no vAte (só a borda misturada lê; a linha do pé ignora).
+ */
+function quadDaBorda(f: FitaDaCosta, i: number, borda: BordaDoTraco, noPe: boolean, pedido: PedidoDoPenhasco, desvio: number, hMundo: number, pedaco: PedacoDaLinha = TRECHO_INTEIRO): QuadDoTraco {
   const { k, origem } = pedido
+  const j = i + 1
+  const em = (u: number) => {
+    const x = f.x[i] + (f.x[j] - f.x[i]) * u
+    const t = (f.h[i] + (f.h[j] - f.h[i]) * u) * k
+    const y = f.y[i] + (f.y[j] - f.y[i]) * u + (noPe ? t : 0)
+    return { x, y, t }
+  }
+  const a = em(pedaco.u0)
+  const b = em(pedaco.u1)
+  return {
+    q0: [a.x, a.y - borda.acimaPx * k],
+    q1: [b.x, b.y - borda.acimaPx * k],
+    q2: [b.x, b.y + borda.abaixoPx * k],
+    q3: [a.x, a.y + borda.abaixoPx * k],
+    sIni: (a.x - origem) / k + desvio,
+    sFim: (b.x - origem) / k + desvio,
+    vDe: pedaco.peso0,
+    vAte: pedaco.peso1,
+    baixo: BAIXO,
+    contra: false,
+    extraIni: a.t,
+    extraFim: b.t,
+    extraFixo: hMundo,
+  }
+}
+
+/** A mistura das linhas de cima onde o chão do alto muda, em px do traço (as duas juntas). */
+const MISTURA_DA_BORDA_PX = 24
+
+/**
+ * Os pedaços que uma linha de cima ganha do outro lado da troca do chão (entre
+ * o trecho `trechos[n]` e o seguinte): ela passa da troca até
+ * `MISTURA_DA_BORDA_PX / 2`, o peso caindo de 1 a 0 pela distância, por quantos
+ * trechos encostados isso pedir. As duas linhas ficam inteiras na troca, então
+ * a costa nunca fica sem linha (uma sobre a outra, sem o furo de um cruzamento).
+ */
+function pedacosDaMistura(f: FitaDaCosta, trechos: readonly number[], n: number, paraFrente: boolean, k: number): [number, PedacoDaLinha][] {
+  const alcance = (MISTURA_DA_BORDA_PX / 2) * k
+  const peso = (d: number): number => Math.max(0, 1 - d / alcance)
+  const pedacos: [number, PedacoDaLinha][] = []
+  let d = 0
+  let anterior = trechos[n] + (paraFrente ? 0 : 1)
+  for (let m = paraFrente ? n + 1 : n; m >= 0 && m < trechos.length && d < alcance; m += paraFrente ? 1 : -1) {
+    const i = trechos[m]
+    // Só trechos encostados: um vão na fita encerra a mistura.
+    if (i !== anterior + (paraFrente ? 1 : -1)) break
+    anterior = i
+    const largura = Math.max(1e-6, f.x[i + 1] - f.x[i])
+    const u = Math.min(1, (alcance - d) / largura)
+    pedacos.push([i, paraFrente ? { u0: 0, u1: u, peso0: peso(d), peso1: peso(d + u * largura) } : { u0: 1 - u, u1: 1, peso0: peso(d + u * largura), peso1: peso(d) }])
+    d += largura
+  }
+  return pedacos
+}
+
+/**
+ * A sombra do pé de um trecho (11.9), em dois jeitos pela `folga` (negativa = só
+ * o miolo, como o barranco). O shader mede d = y - y da costa no começo; o
+ * d0 e o d1 do fim levam a subida da costa ao longo do trecho, então a faixa
+ * cai reto para o sul de cada ponto da costa (u é linear em x: os lados são
+ * verticais).
+ */
+function sombraDoTrecho(f: FitaDaCosta, i: number, face: FaceDoTraco, k: number, folga: number): QuadDoTraco | null {
   const j = i + 1
   const ti = f.h[i] * k
   const tj = f.h[j] * k
-  const yi = f.y[i] + (noPe ? ti : 0)
-  const yj = f.y[j] + (noPe ? tj : 0)
+  if (ti < 0.4 && tj < 0.4) return null
+  const deCostas = Math.max(0, -(BAIXO[0] * LUZ_DO_TRACO[0] + BAIXO[1] * LUZ_DO_TRACO[1]))
+  const d0 = (t: number): number => t * 0.5
+  const d1 = (t: number): number => t + face.sombra.comprimentoPx * k + t * 1.05 * deCostas
+  const de = (t: number): number => d0(t) - folga
+  const ate = (t: number): number => Math.max(de(t), d1(t) + folga)
+  const sobe = f.y[j] - f.y[i]
   return {
-    q0: [f.x[i], yi - borda.acimaPx * k],
-    q1: [f.x[j], yj - borda.acimaPx * k],
-    q2: [f.x[j], yj + borda.abaixoPx * k],
-    q3: [f.x[i], yi + borda.abaixoPx * k],
-    sIni: (f.x[i] - origem) / k + desvio,
-    sFim: (f.x[j] - origem) / k + desvio,
-    vDe: 0,
-    vAte: 1,
+    q0: [f.x[i], f.y[i] + de(ti)],
+    q1: [f.x[j], f.y[j] + de(tj)],
+    q2: [f.x[j], f.y[j] + ate(tj)],
+    q3: [f.x[i], f.y[i] + ate(ti)],
+    sIni: d0(ti),
+    sFim: sobe + d0(tj),
+    vDe: d1(ti),
+    vAte: sobe + d1(tj),
     baixo: BAIXO,
     contra: false,
-    extraIni: ti,
-    extraFim: tj,
-    extraFixo: hMundo,
+    extraIni: f.x[i],
+    extraFim: f.y[i],
+    extraFixo: 0,
   }
 }
 
@@ -457,35 +544,66 @@ export function criarPenhascoDoContinente(aoFalhar: () => void): PenhascoDoConti
     const deCima = new Map<LinhaDaBorda, QuadDoTraco[]>()
     const linhaDoPe = borda === null || !pedido.aguaNoPe ? null : linhaDaBorda(borda, 'pe', 'agua')
     const caixa: CaixaDoMundo = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+    // A sombra do pé (11.9): o miolo cheio e a faixa inteira, pintados uma vez cada pixel pela profundidade.
+    const caixaDaSombra = caixaDoDesfoque(face.sombra.borraoPx, pedido.k)
+    const comSombra = face.sombra.jeito === 'pe'
+    const sombraMiolo: QuadDoTraco[] = []
+    const sombraToda: QuadDoTraco[] = []
+    const porLinha = (linha: LinhaDaBorda, quad: QuadDoTraco): void => {
+      const lista = deCima.get(linha) ?? []
+      lista.push(quad)
+      deCima.set(linha, lista)
+    }
     for (const f of fitas) {
       const q = quadsDaFita(f, face, pedido, pecas)
       if (q === null) continue
       const malhas = malhasDaFace(face, q.face, q.pecas)
       for (const a of ALTURAS_DO_TRACO) porAltura[a].push(malhas[a])
       for (const quad of q.face) for (const p of [quad.q0, quad.q1, quad.q2, quad.q3]) incluir(caixa, p)
+      if (comSombra) {
+        for (const i of q.trechos) {
+          const miolo = sombraDoTrecho(f, i, face, pedido.k, -1.5 * caixaDaSombra)
+          const toda = sombraDoTrecho(f, i, face, pedido.k, 1.5 * caixaDaSombra)
+          if (miolo !== null) sombraMiolo.push(miolo)
+          if (toda === null) continue
+          sombraToda.push(toda)
+          for (const p of [toda.q2, toda.q3]) incluir(caixa, p)
+        }
+      }
       if (borda === null) continue
-      for (const i of q.trechos) {
+      // O chão do lado alto de cada trecho: no meio dele, dentro da faixa da grama que debruça.
+      const linhas = q.trechos.map((i) => {
+        const xm = (f.x[i] + f.x[i + 1]) / 2
+        const ym = (f.y[i] + f.y[i + 1]) / 2 - borda.acimaPx * pedido.k * 0.5
+        return linhaDaBorda(borda, 'beira', pedido.chaoNoAlto({ x: xm, y: ym }))
+      })
+      q.trechos.forEach((i, n) => {
         if (linhaDoPe !== null) {
           const pe = quadDaBorda(f, i, borda, true, pedido, desvio, q.hMundo)
           doPe.push(pe)
           for (const p of [pe.q2, pe.q3]) incluir(caixa, p)
         }
-        // O chão do lado alto: no meio do trecho, dentro da faixa da grama que debruça.
-        const xm = (f.x[i] + f.x[i + 1]) / 2
-        const ym = (f.y[i] + f.y[i + 1]) / 2 - borda.acimaPx * pedido.k * 0.5
-        const linha = linhaDaBorda(borda, 'beira', pedido.chaoNoAlto({ x: xm, y: ym }))
-        if (linha === null) continue
-        const lista = deCima.get(linha) ?? []
-        lista.push(quadDaBorda(f, i, borda, false, pedido, desvio, q.hMundo))
-        deCima.set(linha, lista)
-      }
+        const linha = linhas[n]
+        if (linha === null) return
+        porLinha(linha, quadDaBorda(f, i, borda, false, pedido, desvio, q.hMundo))
+        // A troca do chão com o trecho seguinte (encostado): cada linha entra um pouco no vizinho, sumindo.
+        const seguinte = linhas[n + 1]
+        if (seguinte === undefined || seguinte === null || seguinte === linha || q.trechos[n + 1] !== i + 1) return
+        for (const [t, pedaco] of pedacosDaMistura(f, q.trechos, n, true, pedido.k)) porLinha(linha, quadDaBorda(f, t, borda, false, pedido, desvio, q.hMundo, pedaco))
+        for (const [t, pedaco] of pedacosDaMistura(f, q.trechos, n, false, pedido.k)) porLinha(seguinte, quadDaBorda(f, t, borda, false, pedido, desvio, q.hMundo, pedaco))
+      })
     }
     if (!Number.isFinite(caixa.minX)) return
     const m = mascaraDoMar(pedido, { minX: caixa.minX - 2, minY: caixa.minY - 2, maxX: caixa.maxX + 2, maxY: caixa.maxY + 2 })
     if (m === null) return
     mascara = new ImageSource({ resource: m.tela, autoGenerateMipmaps: false, scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' })
     const naPlaca: MascaraNaPlaca = { imagem: mascara, ...m.onde }
-    // 1. A face, uma malha por imagem; 2. a linha do pé; 3. a de cima, por cima de tudo (11.11).
+    // 0. A sombra do pé por baixo da face; 1. a face, uma malha por imagem; 2. a linha do pé; 3. a de cima, por cima de tudo (11.11).
+    const corDaSombra = corDe(face.sombra.cor)
+    for (const quads of [sombraMiolo, sombraToda]) {
+      const malha = malhaSemModulos(quads)
+      if (malha !== null) porMesh(meshDaSombraNoMar(malha, corDaSombra, face.sombra.alfa, caixaDaSombra, naPlaca))
+    }
     for (const a of ALTURAS_DO_TRACO) {
       const malha = juntarMalhas(porAltura[a])
       if (malha !== null) porMesh(meshDaFaceNoMar(malha, tx.alturas[a], face.luz, naPlaca))
@@ -507,7 +625,7 @@ export function criarPenhascoDoContinente(aoFalhar: () => void): PenhascoDoConti
     }
     for (const [linha, quads] of deCima) {
       const malha = malhaSemModulos(quads)
-      if (malha !== null) porMesh(meshDaBorda(malha, linhaNaPlaca(linha)))
+      if (malha !== null) porMesh(meshDaBordaMisturada(malha, linhaNaPlaca(linha)))
     }
   }
 
