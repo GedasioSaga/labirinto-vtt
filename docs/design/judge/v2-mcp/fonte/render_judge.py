@@ -12,7 +12,7 @@ from math import radians
 
 import bpy
 import numpy as np
-from mathutils import Quaternion
+from mathutils import Quaternion, Vector
 
 ARGS = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else ['heroi', 'folha']
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +24,15 @@ OB = bpy.data.objects
 DIRECOES = ['sul', 'sudeste', 'leste', 'nordeste', 'norte', 'noroeste', 'oeste', 'sudoeste']
 QW, QH, PX_QUADRADO, ORIGEM_ACIMA = 192, 240, 64, 0.62
 FUNDO_HEROI = [(0.0, (0.64, 0.62, 0.78)), (0.5, (0.50, 0.53, 0.72)), (1.0, (0.33, 0.39, 0.62))]
+# heroi: luz de recorte fria e forte atras (contorno azul no metal); o ceu cai para o metal nao lavar o contorno
+HDRI_HEROI = 0.28
+CONTORNO_HEROI = (14000, 8000)
+COR_CONTORNO, COR_CONTORNO2 = (0.30, 0.50, 1.0), (0.34, 0.54, 1.0)
+SEM_CONTORNO_HEROI = ['JA_cauda']
+METAIS = ('JM_m_aco', 'JJ_m_aco')   # aco liso, aco gravado e aco escuro
+# no reflexo do metal conta o brilho por area: area grande pede muita potencia (so o aco recebe esta luz)
+LUZ_METAL = {'pos': (3.6, 5.9, 3.0), 'alvo': (0.0, -0.08, 1.75), 'tam': (3.0, 3.0), 'w': 320000, 'cor': (0.07, 0.25, 1.0),
+             'sem_sombra': ['JC_capa', 'JC_capa_gola', 'JA_cauda', 'JA_crista']}
 
 
 def ligar_gpu():
@@ -83,6 +92,109 @@ def comum(amostras):
     cena.cycles.use_denoising = True
 
 
+def brilho_olhos(ligado):
+    """Brilho dos olhos do juiz: so na folha (a 64 px o olho tem 2-3 px); no heroi os olhos ja leem pelo tamanho."""
+    for lado in ('E', 'D'):
+        o = OB.get('JE_brilho_olho' + lado)
+        if o is not None:
+            o.hide_render = not ligado
+            if ligado and o.constraints:
+                o.constraints[0].target = OB['JG_cam_folha']
+
+
+def nevoa_heroi():
+    """Fundo lavanda enevoado (so o raio de camera): manchas grandes e macias de ruido clareando o degrade."""
+    nt = cena.world.node_tree
+    if nt.nodes.get('Nevoa_mistura'):
+        return
+    rp = next(n for n in nt.nodes if n.type == 'VALTORGB' and not n.name.startswith('Nevoa'))
+    fundo = rp.outputs['Color'].links[0].to_socket
+    tc = next(n for n in nt.nodes if n.type == 'TEX_COORD' and n.outputs['Window'].is_linked)
+    mp = nt.nodes.new('ShaderNodeMapping')
+    mp.inputs['Scale'].default_value = (1.0, 1.25, 1.0)
+    mp.inputs['Location'].default_value = (0.37, 0.11, 0.0)
+    nt.links.new(tc.outputs['Window'], mp.inputs['Vector'])
+    ru = nt.nodes.new('ShaderNodeTexNoise')
+    ru.inputs['Scale'].default_value = 1.7
+    ru.inputs['Detail'].default_value = 5.0
+    ru.inputs['Roughness'].default_value = 0.58
+    ru.inputs['Distortion'].default_value = 0.35
+    nt.links.new(mp.outputs['Vector'], ru.inputs['Vector'])
+    rm = nt.nodes.new('ShaderNodeValToRGB')
+    rm.name = 'Nevoa_rampa'
+    rm.color_ramp.elements[0].position, rm.color_ramp.elements[0].color = 0.40, (0, 0, 0, 1)
+    rm.color_ramp.elements[1].position, rm.color_ramp.elements[1].color = 0.70, (1, 1, 1, 1)
+    nt.links.new(ru.outputs['Fac'], rm.inputs['Fac'])
+    fat = nt.nodes.new('ShaderNodeMath')
+    fat.operation = 'MULTIPLY'
+    fat.inputs[1].default_value = 0.55
+    nt.links.new(rm.outputs['Color'], fat.inputs[0])
+    mx = nt.nodes.new('ShaderNodeMix')
+    mx.name = 'Nevoa_mistura'
+    mx.data_type = 'RGBA'
+    mx.blend_type = 'SCREEN'
+    mx.inputs['B'].default_value = (0.78, 0.76, 0.92, 1)
+    nt.links.new(fat.outputs[0], mx.inputs['Factor'])
+    nt.links.new(rp.outputs['Color'], mx.inputs['A'])
+    nt.links.new(mx.outputs['Result'], fundo)
+
+
+def sem_contorno(nomes):
+    """Light linking: as luzes de recorte nao acendem estes objetos (a cauda fica larga e de frente para elas e
+    estourava em branco). Devolve uma funcao que desfaz (a folha, se vier depois, usa a luz do arquivo)."""
+    c = bpy.data.collections.new('JL_sem_contorno')
+    for nm in nomes:
+        if OB.get(nm) is not None:
+            c.objects.link(OB[nm])
+    for co in c.collection_objects:
+        co.light_linking.link_state = 'EXCLUDE'
+    antes = {nm: OB[nm].light_linking.receiver_collection for nm in ('JL_contorno', 'JL_contorno2')}
+    for nm in antes:
+        OB[nm].light_linking.receiver_collection = c
+
+    def desfazer():
+        for nm, rc in antes.items():
+            OB[nm].light_linking.receiver_collection = rc
+        bpy.data.collections.remove(c)
+    return desfazer
+
+
+def luz_metal():
+    """Recorte azul FORTE so no metal (light linking): area grande atras e a esquerda da camera do heroi; o reflexo
+    dela vira uma faixa azul no lado esquerdo de cada peca de aco. Penas, capa e cauda nao recebem esta luz.
+    Criada so no processo do render (o arquivo nao muda). Devolve uma funcao que desfaz."""
+    c = bpy.data.collections.new('JL_so_metal')
+    for o in cena.objects:
+        if o.type == 'MESH' and any(m and m.name.startswith(METAIS) for m in o.data.materials):
+            c.objects.link(o)
+    ld = bpy.data.lights.new('JL_contorno_metal', 'AREA')
+    ld.shape, ld.size = 'RECTANGLE', LUZ_METAL['tam'][0]
+    ld.size_y = LUZ_METAL['tam'][1]
+    ld.energy, ld.color = LUZ_METAL['w'], LUZ_METAL['cor']
+    lo = bpy.data.objects.new('JL_contorno_metal', ld)
+    cena.collection.objects.link(lo)
+    lo.location = LUZ_METAL['pos']
+    lo.rotation_mode = 'QUATERNION'
+    lo.rotation_quaternion = (Vector(LUZ_METAL['alvo']) - lo.location).to_track_quat('-Z', 'Y')
+    lo.light_linking.receiver_collection = c
+    # a capa (e a cauda e a crista) nao fazem sombra desta luz: senao a capa, que cai atras do cavaleiro, apaga o recorte
+    b = bpy.data.collections.new('JL_metal_sem_sombra')
+    for nm in LUZ_METAL['sem_sombra']:
+        if OB.get(nm) is not None:
+            b.objects.link(OB[nm])
+    for co in b.collection_objects:
+        co.light_linking.link_state = 'EXCLUDE'
+    lo.light_linking.blocker_collection = b
+    print('luz do metal: pecas de aco', len(c.objects), '| sem sombra', len(b.objects))
+
+    def desfazer():
+        bpy.data.objects.remove(lo, do_unlink=True)
+        bpy.data.lights.remove(ld)
+        bpy.data.collections.remove(c)
+        bpy.data.collections.remove(b)
+    return desfazer
+
+
 def heroi():
     comum(160)
     r = cena.render
@@ -93,14 +205,26 @@ def heroi():
     for e, (pos, cor) in zip(rp.color_ramp.elements, FUNDO_HEROI):
         e.position = pos
         e.color = (*cor, 1)
-    hdri(0.45)
-    luzes(520, 7000, 4000, 120)
+    nevoa_heroi()
+    # contorno azul forte no metal: ceu mais fraco e as duas luzes de recorte (atras) bem mais fortes e mais azuis
+    hdri(HDRI_HEROI)
+    luzes(520, *CONTORNO_HEROI, 120)
+    cores = {nm: tuple(OB[nm].data.color) for nm in ('JL_contorno', 'JL_contorno2')}
+    OB['JL_contorno'].data.color = COR_CONTORNO
+    OB['JL_contorno2'].data.color = COR_CONTORNO2
+    desfazer_ligacao = sem_contorno(SEM_CONTORNO_HEROI)
+    desfazer_metal = luz_metal()
+    brilho_olhos(False)
     OB['JK_halo'].constraints[0].target = OB['JG_cam_heroi']
     OB['JP_raiz'].rotation_quaternion = (1, 0, 0, 0)
     cena.camera = OB['JG_cam_heroi']
     cena.frame_set(20)
     r.filepath = os.path.join(SAIDA, 'judge-heroi.png')
     bpy.ops.render.render(write_still=True, scene=cena.name)
+    for nm, cor in cores.items():   # a folha (se vier depois no mesmo processo) usa as cores do arquivo
+        OB[nm].data.color = cor
+    desfazer_ligacao()
+    desfazer_metal()
     print('heroi salvo', r.filepath)
 
 
@@ -112,6 +236,7 @@ def folha():
     r.image_settings.color_mode = 'RGBA'
     hdri(0.6)
     luzes(700, 2600, 1500, 140)
+    brilho_olhos(True)
     OB['JK_halo'].constraints[0].target = OB['JG_cam_folha']
     cena.camera = OB['JG_cam_folha']
     os.makedirs(TMP, exist_ok=True)
