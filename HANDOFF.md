@@ -559,6 +559,8 @@ Três frentes do usuário: (1) a 0.5.11 com a aba Sons nova e os consertos da te
 
 5. **Integração do Desenhado COMPLETA** (F3d `33b211e5`, F4b `91571af3`, etc.; prints em scratchpad/integracao-desenhado/desenhado-no-programa.jpg). Usuário: "Sim, lança" a 0.5.13 (em publicação de `bf122601`; não commitar até terminar); mapa novo segue no Atual; depois: lote novo de PORTAS Desenhado no Godot (godot/desenhado na main) e o penhasco do continente.
 
+6. FEITO: v0.5.13 PUBLICADA (`bf122601`). Lote 18 das portas Desenhado FEITO (`16adaa93`, `3515716d`). Em voo: penhasco do continente no Desenhado e a escolha Pedra/Linha por parede no painel (decisão 29/10: "Por parede, no painel", linha "Igual à de hoje"). A 0.5.14 sai com os três quando o usuário mandar.
+
 ### Critério de pronto
 - 0.5.11: `releases/latest/download/latest.json` responde 0.5.11 e a release tem setup, msi, `.sig` e `latest.json`.
 - Músicas: a aventura escolhida abre com 52 sons novos em Músicas, nas 4 categorias, com miniaturas, e o `sons.json` antigo guardado como backup ao lado.
