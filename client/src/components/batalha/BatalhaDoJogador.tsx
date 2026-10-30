@@ -9,7 +9,7 @@ import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { BotaoDeReacao } from './BotaoDeReacao'
 import { CaixaDeReacao, type ReacaoNaCaixa } from './CaixaDeReacao'
 import { MOTIVO_SEM_PERSONAGEM, armasNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
-import { EfeitosDaBatalha } from './EfeitosDaBatalha'
+import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { MenuDaVez, type ContraNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
@@ -17,12 +17,16 @@ import './batalha.css'
 import './combate.css'
 
 /**
- * A BATALHA DO JOGADOR sobre o mapa (S3): os efeitos (com a faixa SUA VEZ e o
+ * A BATALHA DO JOGADOR sobre o mapa (S3): os efeitos (com a faixa da vez e o
  * tremor), o menu da vez (e o contra-ataque guardado, fora da vez), o botão
  * REAÇÃO sempre à vista, a caixa REAÇÃO (abre sozinha quando chega golpe
  * novo) e a escolha de armas no começo (limite da ficha e ainda não
  * escolheu). Tudo lê o recorte do host (`batalhaEstado`, `batalhaEfeitos`) e
  * pede pela conexão; o resultado volta no próximo estado.
+ *
+ * Enquanto o corte do golpe ou a faixa da vez passam (o palco dos efeitos), o
+ * menu, o véu e a caixa somem e voltam depois; na SUA VEZ o menu novo só entra
+ * quando a faixa sai.
  */
 
 export interface ConexaoDaBatalha {
@@ -65,6 +69,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)
+  const [palco, setPalco] = useState<PalcoDosEfeitos>(null)
   const dispensadas = useRef(new Set<string>())
 
   const nomeDe = useMemo(() => {
@@ -169,7 +174,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const personagemDasArmas = armasDe_ === null ? null : (meus.find((candidato) => candidato.id === armasDe_) ?? null)
   const combateDasArmas = armasDe_ === null ? undefined : estado.meus?.find((meu) => meu.personagemId === armasDe_)
 
-  const mostrarMenu = cartaQueAge !== undefined && menu !== null && (estado.minhaVez || contras.length > 0)
+  // Na SUA VEZ o menu novo espera a faixa sair (tocando ou ainda na fila); nos outros palcos ele só some e volta.
+  const mostrarMenu = cartaQueAge !== undefined && menu !== null && (estado.minhaVez || contras.length > 0) && palco !== 'suaVez'
+  const noPalco = palco === null ? undefined : 'sim'
 
   // O menu mora à esquerda, centrado na altura, mas começa abaixo da faixa da
   // ordem (`.pp-batalha-faixa`, montada pelo PlayerView): a altura dela muda com
@@ -194,12 +201,13 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         consulta={consulta}
         nomeDe={nomeDe}
         imagemDe={imagemDe}
-        suaVez={estado.minhaVez && vez !== null ? { chave: `${vez}:${estado.rodada}`, nome: cartaDaVez?.nome ?? '' } : null}
+        vez={vez === null || cartaDaVez === undefined ? null : { chave: `${vez}:${estado.rodada}`, nome: cartaDaVez.nome.trim() || nomeDe(cartaDaVez.tokenId), minha: estado.minhaVez }}
         onTremor={onTremor}
+        onPalco={setPalco}
       />
-      {mostrarMenu && <div className="pp-batalha-veu" aria-hidden="true" />}
+      {mostrarMenu && <div className="pp-batalha-veu" aria-hidden="true" data-palco={noPalco} />}
       {mostrarMenu && (
-        <div ref={lugarDoMenu} className="pp-batalha-menu">
+        <div ref={lugarDoMenu} className="pp-batalha-menu" data-palco={noPalco}>
           <MenuDaVez
             key={estado.minhaVez ? `${vez}:${estado.rodada}` : 'contra'}
             quem={cartaQueAge.nome.trim() || 'Você'}
@@ -241,7 +249,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         />
       </div>
       {caixaAberta && reacoesNaCaixa.length > 0 && (
-        <div className="pp-batalha-reacao">
+        <div className="pp-batalha-reacao" data-palco={noPalco}>
           <CaixaDeReacao
             reacoes={reacoesNaCaixa}
             onPedir={(pedido) => {

@@ -748,11 +748,36 @@
   inset: 0;
 }
 
-/* Os efeitos (faixa SUA VEZ, corte, d20, número) cobrem a janela sem pegar o toque. */
+/* Os efeitos (faixa da vez, corte, d20, número) cobrem a janela sem pegar o toque. */
 .bt-efeitos.pp-batalha-efeitos {
   position: fixed;
   inset: 0;
   z-index: 8;
+}
+
+/*
+ * O PALCO: enquanto o corte do golpe ou a faixa da vez passam, os efeitos
+ * sobem por cima de tudo (menu, caixa REAÇÃO, painel aberto) e pegam o clique,
+ * que só pula; o menu da vez, o véu e a caixa REAÇÃO somem (`data-palco`, de
+ * `BatalhaDoJogador`) e voltam depois. Só opacity: some em 160 ms, volta em 220 ms.
+ */
+.bt-efeitos.pp-batalha-efeitos[data-pulavel='sim'] {
+  z-index: 12;
+}
+.pp-batalha-veu,
+.pp-batalha-menu,
+.pp-batalha-reacao {
+  transition: opacity 220ms var(--bt-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+.pp-batalha-veu[data-palco='sim'],
+.pp-batalha-menu[data-palco='sim'],
+.pp-batalha-reacao[data-palco='sim'] {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: 160ms;
+}
+.pp-batalha-menu[data-palco='sim'] > * {
+  pointer-events: none;
 }
 
 /*
@@ -829,9 +854,10 @@
   );
   pointer-events: none;
 }
+/* `backwards`: depois de entrar a animação solta a opacity, e o palco a leva a 0 por transição. */
 .pp-batalha-veu:has(+ .pp-batalha-menu > .bt-vez) {
   display: block;
-  animation: pp-veu-entra 180ms var(--bt-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: pp-veu-entra 180ms var(--bt-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) backwards;
 }
 @keyframes pp-veu-entra {
   from {

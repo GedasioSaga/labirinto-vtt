@@ -1146,7 +1146,9 @@
 .bt-efeitos > * {
   pointer-events: none;
 }
+/* O palco (corte do golpe, faixa da vez): a camada pega o clique, que só pula, e sobe por cima do que mora no mapa. */
 .bt-efeitos[data-pulavel='sim'] {
+  z-index: 12;
   pointer-events: auto;
   cursor: pointer;
 }
@@ -1186,6 +1188,18 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* A vez de outro: "VEZ DE" pequeno antes do nome grande; nome comprido corta com reticências. */
+.bt-ef-faixa[data-de='outro'] .bt-ef-faixa__sub {
+  flex: none;
+}
+.bt-ef-faixa[data-de='outro'] .bt-ef-faixa__grande {
+  min-width: 0;
+  /* A sombra de sangue (5 px) cabe dentro do corte das reticências. */
+  padding: 0 6px 6px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
 }
 .bt-ef-corte {
   position: absolute;

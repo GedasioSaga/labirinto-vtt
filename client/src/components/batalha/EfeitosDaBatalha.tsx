@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { EfeitoDaBatalha, SaidaDaReacao } from '../../lib/batalha/combate'
 import { saidasPossiveis } from '../../lib/batalha/reacao'
 import { anuncioDoEfeito, formatarNumero, movimentoReduzido, palavraDoDano, TEXTO_DA_SAIDA } from './dadosDoMenu'
@@ -8,17 +8,25 @@ import './combate.css'
 
 /**
  * OS EFEITOS DA BATALHA sobre o mapa (o `.efeitos` do protótipo aprovado),
- * nas duas telas: toca a fila de efeitos (`seq`) um depois do outro — a faixa
- * SUA VEZ (240/420/180 ms, quando a vez vira dele), o corte do golpe
- * (150/330/150 ms, retrato do atacante e o nome da técnica), o risco no alvo,
- * o d20 junto ao alvo (160 ms entra, 8 números em 380 ms, pousa em 200 ms), o
- * número do dano (bate em 260 ms até 116%, fica 520 ms, sobe e some em
- * 240 ms; "ESQUIVOU", "CONTRA-ATAQUE", "CRÍTICO") e o tremor de 220 ms
- * (`onTremor`: quem monta mexe no invólucro do mapa).
+ * nas duas telas: toca a fila (`seq`, e a troca de vez) um depois do outro,
+ * cada um só depois do anterior acabar — a faixa da vez (SUA VEZ para quem
+ * joga, "Vez de Vera" para os outros e o mestre), o corte do golpe (retrato
+ * do atacante e o nome da técnica), o risco no alvo, o d20 junto ao alvo
+ * (160 ms entra, 8 números em 380 ms, pousa em 200 ms), o número do dano
+ * (bate em 260 ms até 116%, fica 520 ms, sobe e some em 240 ms; "ESQUIVOU",
+ * "CONTRA-ATAQUE", "CRÍTICO") e o tremor de 220 ms (`onTremor`: quem monta
+ * mexe no invólucro do mapa).
+ *
+ * O corte e a faixa são o PALCO (pedido de 30/10: "passa rápido demais para
+ * alguém ver"): entram em 220 ms, SEGURAM 1,2 s legíveis e saem em 260 ms;
+ * enquanto passam, a camada sobe por cima de tudo e pega o clique, e quem
+ * monta esconde o menu da vez (`onPalco`).
  *
  * Começa no `seq` de agora (sem reprise do que já passou). Clique, Enter,
- * Espaço ou Esc pulam o que está tocando. Movimento reduzido: só aparece e
- * some, sem tremor nem risco. Só transform, opacity e clip-path.
+ * Espaço ou Esc pulam o que está tocando (no palco a tecla é só do pulo; no
+ * campo de texto ela é do texto). Movimento reduzido: só aparece e some, sem
+ * deslizar, tremor nem risco, segurando o mesmo tempo. Só transform, opacity
+ * e clip-path.
  *
  * A posição da ficha vem da consulta da S4 (px da janela), lida no começo de
  * cada efeito; ficha fora da tela não ganha d20 nem número.
@@ -30,17 +38,47 @@ export interface EfeitosDaBatalhaProps {
   nomeDe: (tokenId: string) => string
   /** A foto pequena da ficha (o retrato do corte); `null` = iniciais. */
   imagemDe: (tokenId: string) => string | null
-  /** A faixa SUA VEZ: uma chave nova (carta e rodada) toca a faixa. `null` = não é a vez dele. */
-  suaVez?: { chave: string; nome: string } | null
+  /**
+   * A faixa da troca de vez: uma chave nova (carta e rodada) toca a faixa —
+   * SUA VEZ com `minha`, senão "Vez de <nome>". `null` = sem vez à vista.
+   */
+  vez?: { chave: string; nome: string; minha: boolean } | null
   onTremor?: () => void
+  /** O palco mudou: quem monta esconde o menu da vez (e o véu) enquanto não é `null`. */
+  onPalco?: (palco: PalcoDosEfeitos) => void
   className?: string
 }
 
-type Tarefa = { tipo: 'efeito'; efeito: EfeitoDaBatalha } | { tipo: 'vez'; nome: string }
+/**
+ * O que ocupa o palco: o corte de um golpe, a faixa da vez de outro, ou a SUA
+ * VEZ (tocando ou ainda na fila: o menu novo da vez entra depois dela).
+ */
+export type PalcoDosEfeitos = 'golpe' | 'vez' | 'suaVez' | null
+
+type Tarefa = { tipo: 'efeito'; efeito: EfeitoDaBatalha } | { tipo: 'vez'; nome: string; minha: boolean }
 
 const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const PUNCH = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+/** A chegada do retrato e do nome no corte (a do protótipo). */
+const CHEGADA = 'cubic-bezier(0.2, 0.9, 0.3, 1)'
+/** O palco (corte e faixa da vez): entra, SEGURA legível e sai. Movimento reduzido segura o mesmo tempo. */
+const ENTRA_MS = 220
+const SEGURA_MS = 1200
+const SAI_MS = 260
 const TECLAS_QUE_PULAM = new Set(['Enter', ' ', 'Escape'])
+
+/** A tecla no campo de texto (chat, modificador) é do texto: não pula nem é engolida. */
+function emCampoDeTexto(alvo: EventTarget | null): boolean {
+  if (!(alvo instanceof HTMLElement)) return false
+  return alvo.isContentEditable || alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT'
+}
+
+/** O palco da tarefa que toca: só o corte do golpe e a faixa da vez. */
+function palcoDa(tarefa: Tarefa | null): PalcoDosEfeitos {
+  if (tarefa === null) return null
+  if (tarefa.tipo === 'vez') return tarefa.minha ? 'suaVez' : 'vez'
+  return tarefa.efeito.tipo === 'golpe' ? 'golpe' : null
+}
 
 function maiorSeq(efeitos: readonly EfeitoDaBatalha[]): number {
   let maior = -1
@@ -130,17 +168,38 @@ function texto(pai: HTMLElement, classe: string, conteudo: string, tag: 'span' |
   return el
 }
 
-export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, suaVez, onTremor, className }: EfeitosDaBatalhaProps) {
+export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onTremor, onPalco, className }: EfeitosDaBatalhaProps) {
   const camada = useRef<HTMLDivElement>(null)
   const palco = useRef<Palco | null>(null)
   const fila = useRef<Tarefa[]>([])
   const tocando = useRef(false)
+  const tarefaAtual = useRef<Tarefa | null>(null)
+  const palcoAvisado = useRef<PalcoDosEfeitos>(null)
   const ultimoSeq = useRef<number | null>(null)
   const ultimaVez = useRef<string | null | undefined>(undefined)
   const [anuncio, setAnuncio] = useState('')
   // As props mudam a cada render; o motor lê sempre as de agora.
-  const atuais = useRef({ consulta, nomeDe, imagemDe, onTremor })
-  atuais.current = { consulta, nomeDe, imagemDe, onTremor }
+  const atuais = useRef({ consulta, nomeDe, imagemDe, onTremor, onPalco })
+  atuais.current = { consulta, nomeDe, imagemDe, onTremor, onPalco }
+
+  /**
+   * O palco de agora: o corte e a faixa sobem a camada por cima de tudo e pegam
+   * o clique (que só pula); o d20 e o número deixam o mapa livre. A SUA VEZ
+   * ainda na fila já conta, para o menu novo da vez entrar só depois dela.
+   */
+  const avisarPalco = () => {
+    const tocandoAgora = palcoDa(tarefaAtual.current)
+    const raiz = camada.current
+    if (raiz !== null) {
+      if (tocandoAgora === null) delete raiz.dataset.pulavel
+      else raiz.dataset.pulavel = 'sim'
+    }
+    const suaVezNaFila = fila.current.some((tarefa) => tarefa.tipo === 'vez' && tarefa.minha)
+    const agora: PalcoDosEfeitos = suaVezNaFila ? 'suaVez' : tocandoAgora
+    if (agora === palcoAvisado.current) return
+    palcoAvisado.current = agora
+    atuais.current.onPalco?.(agora)
+  }
 
   useEffect(() => {
     const raiz = camada.current
@@ -161,15 +220,24 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, suaVez, 
     tocando.current = true
     const pular = () => motor.pular()
     const teclar = (evento: KeyboardEvent) => {
-      if (TECLAS_QUE_PULAM.has(evento.key)) pular()
+      if (!TECLAS_QUE_PULAM.has(evento.key) || emCampoDeTexto(evento.target)) return
+      // No palco, a tecla é só do pulo: o menu escondido atrás não age às cegas.
+      if (palcoDa(tarefaAtual.current) !== null) {
+        evento.preventDefault()
+        evento.stopPropagation()
+      }
+      pular()
     }
     window.addEventListener('keydown', teclar, true)
     window.addEventListener('pointerdown', pular, { capture: true, passive: true })
     void (async () => {
       try {
+        // Um de cada vez: o próximo só começa quando o anterior acabou (ou foi pulado).
         while (fila.current.length > 0 && palco.current === motor) {
           const tarefa = fila.current.shift() as Tarefa
           motor.pulando = false
+          tarefaAtual.current = tarefa
+          avisarPalco()
           if (tarefa.tipo === 'efeito') setAnuncio(anuncioDoEfeito(tarefa.efeito, atuais.current.nomeDe))
           await tocar(motor, tarefa)
         }
@@ -177,6 +245,8 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, suaVez, 
         window.removeEventListener('keydown', teclar, true)
         window.removeEventListener('pointerdown', pular, true)
         tocando.current = false
+        tarefaAtual.current = null
+        avisarPalco()
       }
     })()
   }
@@ -184,7 +254,7 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, suaVez, 
   const tocar = async (motor: Palco, tarefa: Tarefa) => {
     const reduzido = movimentoReduzido()
     const { consulta: consultar, nomeDe: nome, imagemDe: imagem, onTremor: tremer } = atuais.current
-    if (tarefa.tipo === 'vez') return tocarFaixa(motor, tarefa.nome, reduzido)
+    if (tarefa.tipo === 'vez') return tocarFaixa(motor, tarefa.nome, tarefa.minha, reduzido)
     const efeito = tarefa.efeito
     if (efeito.tipo === 'golpe') {
       await tocarCorte(motor, nome(efeito.atacanteTokenId), imagem(efeito.atacanteTokenId), efeito.nome, efeito.surpresa ? 'Surpresa' : efeito.overload ? 'Overload' : null, reduzido)
@@ -218,14 +288,21 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, suaVez, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [efeitos])
 
-  // SUA VEZ: só quando a vez VIRA dele (a que já era ao montar não toca).
-  const chaveDaVez = suaVez?.chave ?? null
-  useEffect(() => {
+  // A troca de vez: só quando a vez MUDA (a que já era ao montar não toca). Entra
+  // no fim da fila, depois do golpe que ainda passa. Antes da pintura, para o
+  // menu da vez nova não piscar na tela antes da faixa SUA VEZ.
+  const chaveDaVez = vez?.chave ?? null
+  useLayoutEffect(() => {
     const antes = ultimaVez.current
     ultimaVez.current = chaveDaVez
-    if (antes === undefined || chaveDaVez === null || chaveDaVez === antes) return
-    fila.current.unshift({ tipo: 'vez', nome: suaVez?.nome ?? '' })
-    tocarFila()
+    if (antes === undefined || chaveDaVez === null || chaveDaVez === antes || vez === undefined || vez === null) return
+    const minha = vez.minha
+    const nome = vez.nome.trim()
+    // A vez de outro sem nome à vista não tem o que dizer.
+    if (!minha && nome === '') return
+    fila.current.push({ tipo: 'vez', nome, minha })
+    if (tocando.current) avisarPalco()
+    else tocarFila()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveDaVez])
 
@@ -238,21 +315,40 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, suaVez, 
   )
 }
 
-async function tocarFaixa(motor: Palco, nome: string, reduzido: boolean) {
+/** Aparece, segura e some só com opacity (movimento reduzido): o mesmo tempo de leitura, sem deslizar. */
+async function tocarSoOpacidade(motor: Palco, el: HTMLElement) {
+  await motor.animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: ENTRA_MS, easing: EASE })
+  await motor.esperar(SEGURA_MS)
+  await motor.animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: SAI_MS, easing: EASE })
+  el.remove()
+}
+
+/** A faixa da troca de vez: SUA VEZ (e o nome da carta) para quem joga; "Vez de" e o nome para os outros. */
+async function tocarFaixa(motor: Palco, nome: string, minha: boolean, reduzido: boolean) {
   const el = motor.criar('bt-ef-faixa')
-  const grande = texto(el, 'bt-ef-faixa__grande', 'SUA VEZ')
-  if (nome !== '') texto(el, 'bt-ef-faixa__sub', nome)
-  if (reduzido) {
-    await motor.animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 140, easing: EASE })
-    await motor.esperar(650)
-    await motor.animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: EASE })
-    el.remove()
-    return
+  el.dataset.de = minha ? 'mim' : 'outro'
+  let grande: HTMLElement
+  if (minha) {
+    grande = texto(el, 'bt-ef-faixa__grande', 'SUA VEZ')
+    if (nome !== '') texto(el, 'bt-ef-faixa__sub', nome)
+  } else {
+    texto(el, 'bt-ef-faixa__sub', 'Vez de')
+    grande = texto(el, 'bt-ef-faixa__grande', nome)
   }
-  void motor.animar(grande, [{ transform: 'translateX(-14%) skewX(-12deg)', opacity: 0 }, { transform: 'translateX(0) skewX(0)', opacity: 1 }], { duration: 300, delay: 60, easing: EASE })
-  await motor.animar(el, [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 240, easing: EASE })
-  await motor.esperar(420)
-  await motor.animar(el, [{ transform: 'rotate(-6deg) translateX(0)', opacity: 1 }, { transform: 'rotate(-6deg) translateX(18%)', opacity: 0 }], { duration: 180, easing: EASE })
+  if (reduzido) return tocarSoOpacidade(motor, el)
+  // O título chega junto com a abertura e segue derivando devagar enquanto a faixa segura.
+  void motor.animar(
+    grande,
+    [
+      { transform: 'translateX(-14%) skewX(-12deg)', opacity: 0, easing: EASE },
+      { transform: 'translateX(0) skewX(0)', opacity: 1, offset: 0.22, easing: 'linear' },
+      { transform: 'translateX(2%) skewX(0)', opacity: 1 },
+    ],
+    { duration: ENTRA_MS + SEGURA_MS, delay: 60 },
+  )
+  await motor.animar(el, [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: ENTRA_MS, easing: EASE })
+  await motor.esperar(SEGURA_MS)
+  await motor.animar(el, [{ transform: 'rotate(-6deg) translateX(0)', opacity: 1 }, { transform: 'rotate(-6deg) translateX(18%)', opacity: 0 }], { duration: SAI_MS, easing: EASE })
   el.remove()
 }
 
@@ -276,18 +372,30 @@ async function tocarCorte(motor: Palco, quem: string, imagem: string | null, gol
   el.appendChild(caixa)
   texto(caixa, 'bt-ef-corte__quem', marca === null ? quem : `${quem} · ${marca}`)
   const nome = texto(caixa, 'bt-ef-corte__nome', golpe)
-  if (reduzido) {
-    await motor.animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: EASE })
-    await motor.esperar(420)
-    await motor.animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: EASE })
-    el.remove()
-    return
-  }
-  void motor.animar(retrato, [{ transform: 'translateX(-30%)' }, { transform: 'translateX(4%)' }], { duration: 620, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)' })
-  void motor.animar(nome, [{ transform: 'translateX(30%)', opacity: 0 }, { transform: 'translateX(-2%)', opacity: 1 }], { duration: 560, delay: 40, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)' })
-  await motor.animar(el, [{ clipPath: 'inset(50% 0 50% 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 150, easing: EASE })
-  await motor.esperar(330)
-  await motor.animar(el, [{ transform: 'rotate(-7deg) translateX(0)', opacity: 1 }, { transform: 'rotate(-7deg) translateX(-12%)', opacity: 0 }], { duration: 150, easing: EASE })
+  if (reduzido) return tocarSoOpacidade(motor, el)
+  // O retrato e o nome chegam (~600 ms) e seguem derivando devagar enquanto o corte segura legível.
+  const vida = ENTRA_MS + SEGURA_MS
+  void motor.animar(
+    retrato,
+    [
+      { transform: 'translateX(-30%)', easing: CHEGADA },
+      { transform: 'translateX(3%)', offset: 0.42, easing: 'linear' },
+      { transform: 'translateX(6%)' },
+    ],
+    { duration: vida },
+  )
+  void motor.animar(
+    nome,
+    [
+      { transform: 'translateX(30%)', opacity: 0, easing: CHEGADA },
+      { transform: 'translateX(-1%)', opacity: 1, offset: 0.4, easing: 'linear' },
+      { transform: 'translateX(-4%)', opacity: 1 },
+    ],
+    { duration: vida, delay: 40 },
+  )
+  await motor.animar(el, [{ clipPath: 'inset(50% 0 50% 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: ENTRA_MS, easing: EASE })
+  await motor.esperar(SEGURA_MS)
+  await motor.animar(el, [{ transform: 'rotate(-7deg) translateX(0)', opacity: 1 }, { transform: 'rotate(-7deg) translateX(-12%)', opacity: 0 }], { duration: SAI_MS, easing: EASE })
   el.remove()
 }
 

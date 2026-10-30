@@ -217,10 +217,12 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
 
 /**
  * S5: os efeitos da cena sobre o mapa do mestre (`App.tsx`, dentro do
- * invólucro do canvas). Lê `efeitosDaCena`; o tremor fica com quem monta.
+ * invólucro do canvas). Lê `efeitosDaCena`; o tremor fica com quem monta. A
+ * troca de vez toca a faixa "Vez de Vera" (o mestre nunca vê SUA VEZ).
  */
 export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTremor: () => void }) {
   const efeitos = useBatalhaStore((state) => efeitosDaCena(state, sceneKey))
+  const turnos = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey]?.turnos : undefined))
   const fichas = useMapStore((state) => state.map.tokens)
   const nomeDe = useMemo(() => {
     const porToken = new Map(fichas.map((ficha) => [ficha.id, ficha.name.trim()] as const))
@@ -230,7 +232,12 @@ export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTr
     const porToken = new Map(fichas.map((ficha) => [ficha.id, ficha.imageData ?? null] as const))
     return (tokenId: string) => porToken.get(tokenId) ?? null
   }, [fichas])
-  return <EfeitosDaBatalha efeitos={efeitos} consulta={consultaDoMestre} nomeDe={nomeDe} imagemDe={imagemDe} onTremor={onTremor} />
+  const carta = turnos === undefined ? null : cartaDaVez(turnos)
+  const vez =
+    carta === null || turnos === undefined
+      ? null
+      : { chave: `${carta.id}:${turnos.rodada}`, nome: fichas.find((ficha) => ficha.id === carta.tokenId)?.name.trim() || carta.nome?.trim() || 'Ficha', minha: false }
+  return <EfeitosDaBatalha efeitos={efeitos} consulta={consultaDoMestre} nomeDe={nomeDe} imagemDe={imagemDe} vez={vez} onTremor={onTremor} />
 }
 
 /** Os diálogos do mestre (menu da carta e painel da vez). */
