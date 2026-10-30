@@ -2,7 +2,11 @@ import { AlphaFilter, BlurFilter, Container, Graphics, type Geometry, type Mesh,
 import { desenhadoLigado } from '../lib/estiloDoMapa'
 import { assinarTracosDesenhados, pedirFaceDoTraco, type FaceCarregada } from '../texturas/desenhado/carregadorDoTraco'
 import { rampaDoTom } from '../texturas/desenhado/movel'
-import { lerParamsDaParede, malhasDasParedes, PAPEIS_DA_PAREDE, type CadeiaDaParede, type PapelDaParede, type ParamsDaParede } from '../texturas/desenhado/parede'
+import { ITENS_DA_PAREDE, lerParamsDaParede, malhasDasParedes, type CadeiaDaParede, type FaceDaPorta, type ItemDaParede, type PapelDaParede, type ParamsDaParede, type PortaDaCadeia } from '../texturas/desenhado/parede'
+import { FORMAS_DA_PORTA, ID_DA_FORMA, lerPlanoDaPorta, type EstadoDaFolha } from '../texturas/desenhado/porta'
+import type { DoorKind, DoorState } from '../types/map'
+import { corDaPortaNoMapa } from './drawDoors'
+import { assinarPortasAnimando, portaAnimando, publicarFolhasDesenhadas } from './portasDesenhadas'
 import { CASA_DO_TRACO, type AlturaDoTraco } from '../texturas/desenhado/traco'
 import type { Rgb } from '../texturas/ruido'
 import { SELECTION_COLOR } from './constants'
@@ -26,8 +30,12 @@ import { soltarMesh, texturaDoTraco, type ImagemNaPlaca } from './malhaDoTraco'
  *  6. `acima`: as marcas do editor (a invisível e a passagem tracejadas).
  *
  * A janela e a grade não partem a cadeia: são trechos dela com a imagem
- * própria. A porta parte (o vão é dela, `drawDoors.ts`). A visão, a névoa e o
- * bloqueio não passam por aqui: só o desenho muda.
+ * própria. A porta também, desde o lote 18 (CONTRATO 11.16), quando as imagens
+ * das portas chegaram: a parede pinta o vão (ombreiras e soleira) e, na porta
+ * parada, a folha por cima, na cor da porta (`portasDesenhadas.ts` avisa
+ * `drawDoors.ts`, que pula a folha e guarda o resto). Sem as imagens das portas,
+ * a porta parte a cadeia e o vão é do Atual. A visão, a névoa e o bloqueio não
+ * passam por aqui: só o desenho muda.
  *
  * A espessura é do MUNDO só no Desenhado (decisão do usuário): fina 12, média
  * 20, grossa 32 px do traço (vezes `grid / 64`); a contínua passa direto. No
@@ -64,10 +72,16 @@ const DESVIO_POR_FORCA = 1.29
 /** A resolução dos alvos do filtro da sombra (relativa à tela). */
 const RESOLUCAO_DA_SOMBRA = 0.5
 
+interface PortaCarregada extends FaceDaPorta {
+  readonly carregada: FaceCarregada
+}
+
 interface Tinta {
   readonly parede: FaceCarregada
   readonly janela: FaceCarregada | null
   readonly grade: FaceCarregada | null
+  /** As portas que chegaram e servem (lote 18); vazio = a porta do Atual. */
+  readonly portas: Partial<Record<DoorKind, PortaCarregada>>
   readonly params: ParamsDaParede
 }
 
@@ -78,12 +92,20 @@ function tintaPronta(): Tinta | null {
   const grade = pedirFaceDoTraco(ID_DA_GRADE)
   if (parede === null) return null
   const params = lerParamsDaParede(parede.bruto)
-  return params === null ? null : { parede, janela, grade, params }
+  if (params === null) return null
+  const portas: Partial<Record<DoorKind, PortaCarregada>> = {}
+  for (const forma of FORMAS_DA_PORTA) {
+    const carregada = pedirFaceDoTraco(ID_DA_FORMA[forma])
+    const plano = carregada === null ? null : lerPlanoDaPorta(carregada.bruto)
+    if (carregada !== null && plano !== null) portas[forma] = { carregada, face: carregada.face, plano }
+  }
+  return { parede, janela, grade, portas, params }
 }
 
 // ---------- as cadeias com as paredes do app ----------
 
 function papelDe(w: WallWithStyle): PapelDaParede {
+  if (w.door !== null) return 'porta'
   if (w.janela !== true) return 'parede'
   return w.grade === true ? 'grade' : 'janela'
 }
@@ -157,25 +179,44 @@ function juntarSoltas<T extends WallWithStyle>(cadeias: T[][], quebra: (a: T, b:
   return lista.filter((c) => c.length > 0)
 }
 
-/** As cadeias Desenhadas de um nó: as paredes desenháveis (sem porta e não invisíveis), em px do mundo. */
-function cadeiasDoNo(todas: readonly WallWithStyle[], saem: ReadonlySet<string>, p: ParamsDaParede, k: number, linhaDaCor: (c: Rgb) => number): CadeiaDaParede[] {
-  const solidas = todas.filter((w) => w.door === null && w.hidden !== true && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) > PERTO)
-  const quebra = (a: WallWithStyle, b: WallWithStyle): boolean => espessuraDoTraco(a, p, k) !== espessuraDoTraco(b, p, k) || wallColorFor(a) !== wallColorFor(b)
+/** O estado da folha (a trancada é cheia aberta ou fechada, como em `drawDoors`); `null` = a porta anda. */
+function estadoDaFolha(id: string, door: DoorState): EstadoDaFolha | null {
+  if (door.secret === true) return 'secreta'
+  if (portaAnimando(id)) return null
+  return door.locked || !door.open ? 'fechada' : 'aberta'
+}
+
+/**
+ * As cadeias Desenhadas de um nó: as paredes desenháveis (não invisíveis), em px do mundo.
+ * `comPortas`: a porta entra na cadeia como trecho (lote 18); senão ela parte a cadeia, como antes.
+ * A porta nunca parte a cadeia pela espessura ou pela cor: a cadeia é da parede.
+ */
+function cadeiasDoNo(todas: readonly WallWithStyle[], saem: ReadonlySet<string>, p: ParamsDaParede, k: number, linhaDaCor: (c: Rgb) => number, comPortas: boolean): CadeiaDaParede[] {
+  const solidas = todas.filter((w) => (comPortas || w.door === null) && w.hidden !== true && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) > PERTO)
+  const quebra = (a: WallWithStyle, b: WallWithStyle): boolean =>
+    a.door === null && b.door === null && (espessuraDoTraco(a, p, k) !== espessuraDoTraco(b, p, k) || wallColorFor(a) !== wallColorFor(b))
   const cadeias = juntarSoltas(groupWallChains(solidas, quebra), quebra)
   const out: CadeiaDaParede[] = []
-  for (const c of cadeias) {
-    const fechada = isClosedChain(c)
+  for (const solta of cadeias) {
+    const fechada = isClosedChain(solta)
+    // A fechada com porta começa logo depois da primeira porta (CONTRATO 11.16): o começo não
+    // depende da ordem em que as soltas se juntaram, e a sequência dos blocos fica a da referência.
+    const iPorta = fechada ? solta.findIndex((w) => w.door !== null) : -1
+    const c = iPorta < 0 ? solta : [...solta.slice(iPorta + 1), ...solta.slice(0, iPorta + 1)]
     const pontos: Pt[] = [[c[0].x1, c[0].y1]]
     for (const w of c) pontos.push([w.x2, w.y2])
     if (fechada) pontos.pop()
+    const dono = c.find((w) => w.door === null) ?? c[0]
+    const temPorta = c.some((w) => w.door !== null)
     out.push({
       id: c[0].id,
       pontos,
       papeis: c.map(papelDe),
       desenha: c.map((w) => saem.has(w.id)),
       fechada,
-      espessura: espessuraDoTraco(c[0], p, k),
-      linha: linhaDaCor(rgbDe(wallColorFor(c[0]))),
+      espessura: espessuraDoTraco(dono, p, k),
+      linha: linhaDaCor(rgbDe(wallColorFor(dono))),
+      portas: temPorta ? c.map((w): PortaDaCadeia | null => (w.door === null ? null : { id: w.id, forma: w.door.kind, estado: estadoDaFolha(w.id, w.door), linha: linhaDaCor(rgbDe(corDaPortaNoMapa(w.door))) })) : undefined,
     })
   }
   return out
@@ -184,6 +225,7 @@ function cadeiasDoNo(todas: readonly WallWithStyle[], saem: ReadonlySet<string>,
 // ---------- o pintor ----------
 
 const rampasGuardadas = new Map<string, Float32Array>()
+const SEM_FOLHAS: ReadonlyMap<string, number> = new Map()
 
 function rampaDa(cor: Rgb, p: ParamsDaParede): Float32Array {
   const chave = chaveDaCor(cor)
@@ -195,7 +237,10 @@ function rampaDa(cor: Rgb, p: ParamsDaParede): Float32Array {
   return r
 }
 
-function faceDoItem(t: Tinta, item: PapelDaParede): FaceCarregada {
+function faceDoItem(t: Tinta, item: ItemDaParede): FaceCarregada {
+  if (item === 'porta') return t.portas.normal?.carregada ?? t.parede
+  if (item === 'porta-dupla') return t.portas.double?.carregada ?? t.parede
+  if (item === 'porta-portao') return t.portas.gate?.carregada ?? t.parede
   return (item === 'janela' ? t.janela : item === 'grade' ? t.grade : null) ?? t.parede
 }
 
@@ -238,6 +283,12 @@ export function criarPintorDeParedes(): PintorDeParedes {
   const pararDeOuvir = assinarTracosDesenhados(() => {
     if (no !== null && ultimo !== null) desenhar(no, ultimo)
   })
+  // A porta que começa ou acaba de andar: o vão sem folha, ou a folha de volta.
+  const pararDeOuvirAsPortas = assinarPortasAnimando(() => {
+    if (no !== null && ultimo !== null) desenhar(no, ultimo)
+  })
+  /** O dono das folhas que este pintor publica (`portasDesenhadas.ts`). */
+  const dono = {}
 
   function soltarMalhas(): void {
     for (const m of meshes) {
@@ -259,7 +310,7 @@ export function criarPintorDeParedes(): PintorDeParedes {
     imagens.clear()
   }
 
-  function imagemDe(t: Tinta, item: PapelDaParede, altura: AlturaDoTraco): ImagemNaPlaca {
+  function imagemDe(t: Tinta, item: ItemDaParede, altura: AlturaDoTraco): ImagemNaPlaca {
     const face = faceDoItem(t, item)
     const chave = `${item}:${altura}`
     const pronta = imagens.get(chave)
@@ -308,6 +359,7 @@ export function criarPintorDeParedes(): PintorDeParedes {
 
   function pintarAtual(pedido: PedidoDasParedes): void {
     soltarMalhas()
+    publicarFolhasDesenhadas(dono, SEM_FOLHAS)
     sombra.visible = false
     abaixo.clear()
     acima.clear()
@@ -332,9 +384,9 @@ export function criarPintorDeParedes(): PintorDeParedes {
     const chave = JSON.stringify([
       pedido.grid,
       m,
-      todas.map((w) => [w.id, w.x1, w.y1, w.x2, w.y2, w.door === null, w.hidden === true, w.janela === true, w.grade === true, w.thickness, w.color, w.regionId, w.regionEdgeIndex]),
+      todas.map((w) => [w.id, w.x1, w.y1, w.x2, w.y2, w.door === null ? null : [w.door.kind, w.door.open, w.door.locked, w.door.secret === true, w.door.cor ?? null, portaAnimando(w.id)], w.hidden === true, w.janela === true, w.grade === true, w.thickness, w.color, w.regionId, w.regionEdgeIndex]),
       pedido.walls.map((w) => w.id),
-      [t.parede.face.id, t.janela?.face.id, t.grade?.face.id],
+      [t.parede.face.id, t.janela?.face.id, t.grade?.face.id, ...FORMAS_DA_PORTA.map((f) => t.portas[f]?.face.id)],
     ])
     if (chave === chaveDaMalha) return
     soltarMalhas()
@@ -347,9 +399,11 @@ export function criarPintorDeParedes(): PintorDeParedes {
       return cores.length - 1
     }
     const saem = new Set(pedido.walls.map((w) => w.id))
-    const cadeias = cadeiasDoNo(todas, saem, p, k, linhaDaCor)
-    const faces = { parede: t.parede.face, janela: t.janela?.face ?? null, grade: t.grade?.face ?? null }
+    const comPortas = FORMAS_DA_PORTA.some((f) => t.portas[f] !== undefined)
+    const cadeias = cadeiasDoNo(todas, saem, p, k, linhaDaCor, comPortas)
+    const faces = { parede: t.parede.face, janela: t.janela?.face ?? null, grade: t.grade?.face ?? null, portas: t.portas }
     const malhas = malhasDasParedes(cadeias, faces, p, pedido.grid, m)
+    publicarFolhasDesenhadas(dono, malhas.portas)
     if (cores.length === 0) return
     const at = atlasDasRampas(cores.map((c) => rampaDa(c, p)))
     atlas = at
@@ -366,8 +420,9 @@ export function criarPintorDeParedes(): PintorDeParedes {
     // 2. O contorno de todas as cadeias.
     if (malhas.contorno !== null) por(meshDoContorno(malhas.contorno, at, cores.length, p.contorno.valor))
     // 3. Os miolos, lote por lote (a ordem da referência), a parede antes da janela e da grade.
-    for (const lote of malhas.miolos) {
-      for (const item of PAPEIS_DA_PAREDE) {
+    // 4. As folhas das portas paradas, por cima de todos os miolos (lote 18).
+    for (const lote of [...malhas.miolos, ...malhas.folhas]) {
+      for (const item of ITENS_DA_PAREDE) {
         const malha = lote.malhas[item]
         if (malha === null) continue
         por(meshDoMiolo(malha, imagemDe(t, item, lote.altura), faceDoItem(t, item).face.luz, at, cores.length))
@@ -387,6 +442,8 @@ export function criarPintorDeParedes(): PintorDeParedes {
     desenhar,
     destroy: () => {
       pararDeOuvir()
+      pararDeOuvirAsPortas()
+      publicarFolhasDesenhadas(dono, SEM_FOLHAS)
       soltarMalhas()
       soltarImagens()
       desenhado.onRender = null

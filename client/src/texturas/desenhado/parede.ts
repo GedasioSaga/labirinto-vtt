@@ -1,4 +1,6 @@
+import type { DoorKind } from '../../types/map'
 import type { Rampa } from './movel'
+import { ID_DA_FORMA, meiaDaFolhaNoMundo, MODULO_DO_ESTADO, pedacosDaFolha, pedacosDoVao, type EstadoDaFolha, type PlanoDaPorta } from './porta'
 import { sequenciaDeModulos, type AlturaDoTraco, type FaceDoTraco } from './traco'
 
 /**
@@ -23,8 +25,21 @@ import { sequenciaDeModulos, type AlturaDoTraco, type FaceDoTraco } from './trac
 
 type Pt = readonly [number, number]
 
-export type PapelDaParede = 'parede' | 'janela' | 'grade'
-export const PAPEIS_DA_PAREDE: readonly PapelDaParede[] = ['parede', 'janela', 'grade']
+export type PapelDaParede = 'parede' | 'janela' | 'grade' | 'porta'
+/** A imagem de cada pedaço: a parede, a janela, a grade e as 3 portas (lote 18, uma imagem por forma). */
+export type ItemDaParede = 'parede' | 'janela' | 'grade' | 'porta' | 'porta-dupla' | 'porta-portao'
+export const ITENS_DA_PAREDE: readonly ItemDaParede[] = ['parede', 'janela', 'grade', 'porta', 'porta-dupla', 'porta-portao']
+
+/** A porta de um trecho de papel "porta" (CONTRATO 11.16). */
+export interface PortaDaCadeia {
+  /** O id da parede da porta (a camada das portas pula a folha que a parede pinta). */
+  readonly id: string
+  readonly forma: DoorKind
+  /** `null` = só o vão (a porta anda: a folha é da animação, por cima). */
+  readonly estado: EstadoDaFolha | null
+  /** A linha da rampa da cor da PORTA no atlas (a creme, a vermelha da trancada ou a própria). */
+  readonly linha: number
+}
 
 export interface ContornoDaParede {
   readonly px: number
@@ -160,6 +175,8 @@ export interface CadeiaDaParede {
   readonly espessura: number
   /** A linha da rampa desta cor no atlas (`malhaDaParede.ts`). */
   readonly linha: number
+  /** Por trecho, a porta dos trechos de papel "porta" (`null` nos outros). */
+  readonly portas?: readonly (PortaDaCadeia | null)[]
 }
 
 interface Geo {
@@ -228,51 +245,124 @@ function ehQuina(g: Geo, fechada: boolean, v: number): boolean {
 // ---------- as corridas ----------
 
 /** As faces conferidas dos três itens; sem a da janela ou da grade, a parede vale por elas. */
+/** A imagem e o plano de uma forma de porta (o plano sai do bloco `parede.porta` do `textura.json`). */
+export interface FaceDaPorta {
+  readonly face: FaceDoTraco
+  readonly plano: PlanoDaPorta
+}
+
 export interface FacesDaParede {
   readonly parede: FaceDoTraco
   readonly janela: FaceDoTraco | null
   readonly grade: FaceDoTraco | null
+  /** As portas por forma (lote 18); sem a forma, a normal; sem nenhuma, o trecho sai como parede. */
+  readonly portas?: Partial<Record<DoorKind, FaceDaPorta>>
 }
 
 /** Um módulo de uma corrida, em `s` do mundo. `liso` = a coluna da costura inteira. */
 interface Pedaco {
   readonly s0: number
   readonly s1: number
-  readonly item: PapelDaParede
+  readonly item: ItemDaParede
+  /** Onde a leitura começa na imagem (px da imagem): o módulo, ou o pedaço dele (a porta). */
   readonly xPx: number
   /** Px do traço; 0 = liso. */
   readonly comprimentoPx: number
   readonly espelho: boolean
 }
 
-function itemDo(papel: PapelDaParede, faces: FacesDaParede): PapelDaParede {
+/** Um pedaço da folha de uma porta (o 4º passe): só no trecho dela, na rampa da cor da porta. */
+interface PedacoDaFolha extends Pedaco {
+  readonly trecho: number
+  readonly linha: number
+}
+
+/** A forma que tem imagem: a própria, senão a normal; `null` = nenhuma (a porta fica a do Atual). */
+function formaComFace(forma: DoorKind, faces: FacesDaParede): DoorKind | null {
+  if (faces.portas?.[forma] !== undefined) return forma
+  return faces.portas?.normal !== undefined ? 'normal' : null
+}
+
+function itemDo(papel: PapelDaParede, faces: FacesDaParede): ItemDaParede {
   if (papel === 'janela' && faces.janela !== null) return 'janela'
   if (papel === 'grade' && faces.grade !== null) return 'grade'
   return 'parede'
 }
 
-function faceDoItem(item: PapelDaParede, faces: FacesDaParede): FaceDoTraco {
+function faceDoItem(item: ItemDaParede, faces: FacesDaParede): FaceDoTraco {
+  if (item === 'porta') return faces.portas?.normal?.face ?? faces.parede
+  if (item === 'porta-dupla') return faces.portas?.double?.face ?? faces.parede
+  if (item === 'porta-portao') return faces.portas?.gate?.face ?? faces.parede
   return (item === 'janela' ? faces.janela : item === 'grade' ? faces.grade : null) ?? faces.parede
 }
 
-/** Os pedaços de todas as corridas da cadeia, em ordem de s (a referência: `corridasDa`). */
-function pedacosDa(c: CadeiaDaParede, g: Geo, faces: FacesDaParede, p: ParamsDaParede, k: number, cont: number): Pedaco[] {
-  const lim: { s: number; papel: PapelDaParede }[] = []
-  for (let i = 0; i < g.nSeg; i += 1) if (i === 0 || c.papeis[i] !== c.papeis[i - 1] || ehQuina(g, c.fechada, i)) lim.push({ s: g.s[i], papel: c.papeis[i] })
-  if (c.fechada && lim.length > 1 && c.papeis[0] === c.papeis[g.nSeg - 1] && !ehQuina(g, true, 0)) {
+/** Os pedaços de todas as corridas da cadeia, em ordem de s (a referência: `corridasDa`), e os da folha das portas. */
+function pedacosDa(c: CadeiaDaParede, g: Geo, faces: FacesDaParede, p: ParamsDaParede, k: number, cont: number): { pedacos: Pedaco[]; folhas: PedacoDaFolha[] } {
+  // A porta sem imagem (nem a normal) fica parede, como antes do lote 18.
+  const portaDe = (i: number): PortaDaCadeia | null => (c.papeis[i] === 'porta' ? (c.portas?.[i] ?? null) : null)
+  const papelDe = (i: number): PapelDaParede => {
+    if (c.papeis[i] !== 'porta') return c.papeis[i]
+    const porta = portaDe(i)
+    return porta !== null && formaComFace(porta.forma, faces) !== null ? 'porta' : 'parede'
+  }
+  const lim: { s: number; papel: PapelDaParede; trecho: number }[] = []
+  for (let i = 0; i < g.nSeg; i += 1) if (i === 0 || papelDe(i) !== papelDe(i - 1) || papelDe(i) === 'porta' || ehQuina(g, c.fechada, i)) lim.push({ s: g.s[i], papel: papelDe(i), trecho: i })
+  if (c.fechada && lim.length > 1 && papelDe(0) === papelDe(g.nSeg - 1) && papelDe(0) !== 'porta' && !ehQuina(g, true, 0)) {
     // A corrida do fim continua na do começo: junta as duas (passa pelo s = 0).
     const ult = lim[lim.length - 1]
-    lim[0] = { s: ult.s - g.len, papel: ult.papel }
+    lim[0] = { s: ult.s - g.len, papel: ult.papel, trecho: ult.trecho }
     lim.pop()
   }
-  const out: Pedaco[] = []
-  for (let j = 0; j < lim.length; j += 1) {
-    let s0 = lim[j].s
+  // Os limites de cada corrida; as ombreiras da porta (11.16) saem da corrida de parede vizinha.
+  const faixas = lim.map((l, j) => {
+    let s0 = l.s
     let s1 = j + 1 < lim.length ? lim[j + 1].s : c.fechada ? lim[0].s + g.len : g.len
     if (!c.fechada && j === 0) s0 += cont
     if (!c.fechada && j === lim.length - 1) s1 -= cont
+    return { s0, s1, papel: l.papel, trecho: l.trecho, ol: 0, or: 0 }
+  })
+  const n = faixas.length
+  for (let j = 0; j < n; j += 1) {
+    const fx = faixas[j]
+    const porta = fx.papel === 'porta' ? portaDe(fx.trecho) : null
+    const forma = porta === null ? null : formaComFace(porta.forma, faces)
+    const daForma = forma === null ? undefined : faces.portas?.[forma]
+    if (daForma === undefined) continue
+    const o = daForma.plano.ombreiraPx * k
+    const ant = j > 0 ? faixas[j - 1] : c.fechada && n > 1 ? faixas[n - 1] : null
+    const dep = j + 1 < n ? faixas[j + 1] : c.fechada && n > 1 ? faixas[0] : null
+    if (ant !== null && ant.papel === 'parede' && !ehQuina(g, c.fechada, fx.trecho) && ant.s1 - ant.s0 > o + 1) {
+      ant.s1 -= o
+      fx.ol = o
+    }
+    if (dep !== null && dep.papel === 'parede' && !ehQuina(g, c.fechada, fx.trecho + 1) && dep.s1 - dep.s0 > o + 1) {
+      dep.s0 += o
+      fx.or = o
+    }
+  }
+  const out: Pedaco[] = []
+  const folhas: PedacoDaFolha[] = []
+  for (let j = 0; j < n; j += 1) {
+    const { s0, s1, trecho, ol, or } = faixas[j]
     if (s1 - s0 < 1e-6) continue
-    const item = itemDo(lim[j].papel, faces)
+    const porta = faixas[j].papel === 'porta' ? portaDe(trecho) : null
+    const forma = porta === null ? null : formaComFace(porta.forma, faces)
+    const daForma = forma === null ? undefined : faces.portas?.[forma]
+    if (porta !== null && forma !== null && daForma !== undefined) {
+      const item = ID_DA_FORMA[forma]
+      const mods = daForma.face.modulos
+      for (const q of pedacosDoVao(daForma.plano, mods[0].comprimentoPx, s0, s1, ol, or, k)) {
+        out.push({ s0: q.s0, s1: q.s1, item, xPx: mods[0].xPx + 2 * q.x0, comprimentoPx: q.comp, espelho: false })
+      }
+      if (porta.estado !== null) {
+        const m = mods[MODULO_DO_ESTADO[porta.estado]]
+        for (const q of pedacosDaFolha(daForma.plano, s0, s1, k)) {
+          folhas.push({ s0: q.s0, s1: q.s1, item, xPx: m.xPx + 2 * q.x0, comprimentoPx: q.comp, espelho: false, trecho, linha: porta.linha })
+        }
+      }
+      continue
+    }
+    const item = itemDo(faixas[j].papel, faces)
     const face = faceDoItem(item, faces)
     const L = (s1 - s0) / k
     if (item === 'parede') {
@@ -286,11 +376,11 @@ function pedacosDa(c: CadeiaDaParede, g: Geo, faces: FacesDaParede, p: ParamsDaP
       }
     } else {
       const m = face.modulos[0]
-      const n = Math.max(1, Math.round(L / m.comprimentoPx))
-      for (let i = 0; i < n; i += 1) out.push({ s0: s0 + ((s1 - s0) * i) / n, s1: s0 + ((s1 - s0) * (i + 1)) / n, item, xPx: m.xPx, comprimentoPx: m.comprimentoPx, espelho: false })
+      const vezes = Math.max(1, Math.round(L / m.comprimentoPx))
+      for (let i = 0; i < vezes; i += 1) out.push({ s0: s0 + ((s1 - s0) * i) / vezes, s1: s0 + ((s1 - s0) * (i + 1)) / vezes, item, xPx: m.xPx, comprimentoPx: m.comprimentoPx, espelho: false })
     }
   }
-  return out
+  return { pedacos: out, folhas }
 }
 
 // ---------- o T ----------
@@ -452,7 +542,7 @@ function cantos(q: Quad): Pt[] {
 /** Um lote de miolos seguidos na ordem da referência com a mesma imagem (altura). */
 export interface LoteDoMiolo {
   readonly altura: AlturaDoTraco
-  readonly malhas: Readonly<Record<PapelDaParede, MalhaDaParede | null>>
+  readonly malhas: Readonly<Record<ItemDaParede, MalhaDaParede | null>>
 }
 
 export interface MalhasDasParedes {
@@ -462,6 +552,36 @@ export interface MalhasDasParedes {
   readonly contorno: MalhaDaParede | null
   /** O passe 2: os miolos, na ordem (o T primeiro, a mais fina, a fechada por último). */
   readonly miolos: readonly LoteDoMiolo[]
+  /** O passe 3 (lote 18): as folhas das portas paradas, por cima de todos os miolos. */
+  readonly folhas: readonly LoteDoMiolo[]
+  /** As portas que a parede desenha (o vão sempre; a folha se parada), com a meia espessura da folha em px do mundo. */
+  readonly portas: ReadonlyMap<string, number>
+}
+
+function montadores(): Record<ItemDaParede, Montador> {
+  return { parede: new Montador(), janela: new Montador(), grade: new Montador(), porta: new Montador(), 'porta-dupla': new Montador(), 'porta-portao': new Montador() }
+}
+
+/** Os lotes seguidos com a mesma imagem: troca de altura fecha o lote. */
+class Lotes {
+  readonly lotes: LoteDoMiolo[] = []
+  private atual: { altura: AlturaDoTraco; m: Record<ItemDaParede, Montador> } | null = null
+
+  de(altura: AlturaDoTraco): Record<ItemDaParede, Montador> {
+    if (this.atual === null || this.atual.altura !== altura) {
+      this.fechar()
+      this.atual = { altura, m: montadores() }
+    }
+    return this.atual.m
+  }
+
+  fechar(): void {
+    if (this.atual === null) return
+    const m = this.atual.m
+    const malhas = Object.fromEntries(ITENS_DA_PAREDE.map((item) => [item, m[item].pronta()])) as Record<ItemDaParede, MalhaDaParede | null>
+    if (ITENS_DA_PAREDE.some((item) => malhas[item] !== null)) this.lotes.push({ altura: this.atual.altura, malhas })
+    this.atual = null
+  }
 }
 
 const SEM_CORTE = 1e9
@@ -504,14 +624,9 @@ export function malhasDasParedes(cadeias: readonly CadeiaDaParede[], faces: Face
     .map((c) => ({ c, t: encosta(c, cadeias, k) }))
     .sort((a, b) => Number(b.t) - Number(a.t) || a.c.espessura - b.c.espessura || Number(a.c.fechada) - Number(b.c.fechada))
     .map((x) => x.c)
-  const lotes: LoteDoMiolo[] = []
-  let atual: { altura: AlturaDoTraco; m: Record<PapelDaParede, Montador> } | null = null
-  const fechar = (): void => {
-    if (atual === null) return
-    const malhas = { parede: atual.m.parede.pronta(), janela: atual.m.janela.pronta(), grade: atual.m.grade.pronta() }
-    if (malhas.parede !== null || malhas.janela !== null || malhas.grade !== null) lotes.push({ altura: atual.altura, malhas })
-    atual = null
-  }
+  const miolos = new Lotes()
+  const folhas = new Lotes()
+  const portas = new Map<string, number>()
   for (const c of ordem) {
     const g = geos.get(c)
     if (g === undefined || g.len <= 1e-6) continue
@@ -520,13 +635,14 @@ export function malhasDasParedes(cadeias: readonly CadeiaDaParede[], faces: Face
     const hi = tt / 2 - cont
     if (hi <= 0.25 * k) continue
     const altura = alturaDaParede(c.espessura, faces.parede.limites)
-    if (atual === null || atual.altura !== altura) {
-      fechar()
-      atual = { altura, m: { parede: new Montador(), janela: new Montador(), grade: new Montador() } }
-    }
-    const montadores = atual.m
-    const pedacos = pedacosDa(c, g, faces, p, k, cont)
+    const mm = miolos.de(altura)
+    const { pedacos, folhas: daFolha } = pedacosDa(c, g, faces, p, k, cont)
     if (pedacos.length === 0) continue
+    for (const q of pedacos) if (q.item !== 'parede' && q.item !== 'janela' && q.item !== 'grade') {
+      const i = trechoEm(g, q.s0, q.s1)
+      const porta = c.portas?.[i]
+      if (porta != null && c.desenha[i]) portas.set(porta.id, meiaDaFolhaNoMundo(faceDoItem(q.item, faces).alturas[altura].hPx, hi))
+    }
     const primeiro = pedacos[0]
     const ultimo = pedacos[pedacos.length - 1]
     const lenAberta = c.fechada ? -1 : g.len
@@ -553,7 +669,7 @@ export function malhasDasParedes(cadeias: readonly CadeiaDaParede[], faces: Face
           const ate = p1 >= hiS ? SEM_CORTE : q === ultimo && !c.fechada ? p1 + m : p1
           let corte = de > -SEM_CORTE ? cortar(poli, a, d, g.s[i], de, 1) : poli
           if (ate < SEM_CORTE) corte = cortar(corte, a, d, g.s[i], ate, -1)
-          montadores[q.item].poligono(corte, {
+          mm[q.item].poligono(corte, {
             quad,
             a,
             d,
@@ -565,7 +681,37 @@ export function malhasDasParedes(cadeias: readonly CadeiaDaParede[], faces: Face
         }
       }
     }
+    // 3. As folhas desta cadeia, guardadas para depois de todos os miolos (a folha fica por cima do vão).
+    if (daFolha.length === 0) continue
+    const mf = folhas.de(altura)
+    for (const q of daFolha) {
+      const i = q.trecho
+      if (!c.desenha[i]) continue
+      const quad = quadDoTrecho(g, i, -hi - m, hi + m, 0, 0)
+      const a = g.P[i]
+      const d = g.d[i]
+      const lo = ehQuina(g, c.fechada, i) ? g.s[i] + 1e-3 : -SEM_CORTE
+      const hiS = ehQuina(g, c.fechada, i + 1) ? g.s[i + 1] - 1e-3 : SEM_CORTE
+      const corte = cortar(cortar(cantos(quad), a, d, g.s[i], q.s0, 1), a, d, g.s[i], q.s1, -1)
+      mf[q.item].poligono(corte, {
+        quad,
+        a,
+        d,
+        faixa: [g.s[i], -hi - m, hi + m, hi],
+        corte: [lo, hiS, cont, lenAberta],
+        modulo: [q.s0, q.s1, q.xPx, q.comprimentoPx],
+        extra: [1, q.linha, 0, 0],
+      })
+    }
   }
-  fechar()
-  return { faixas, contorno: contorno.pronta(), miolos: lotes }
+  miolos.fechar()
+  folhas.fechar()
+  return { faixas, contorno: contorno.pronta(), miolos: miolos.lotes, folhas: folhas.lotes, portas }
+}
+
+/** O trecho que contém o meio de [s0, s1] (o vão da porta é um trecho só). */
+function trechoEm(g: Geo, s0: number, s1: number): number {
+  const s = ((((s0 + s1) / 2) % g.len) + g.len) % g.len
+  for (let i = 0; i < g.nSeg; i += 1) if (s < g.s[i + 1]) return i
+  return g.nSeg - 1
 }

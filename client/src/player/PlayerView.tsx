@@ -3686,8 +3686,8 @@ function PlayerViewDoCanvas({
       // Só a porta de verdade toca o som; a cópia por cima do telhado anima junto e ficaria em dobro.
       const portasPorNo = criarPorNo<Container, AnimadorDePortas>(
         doors,
-        createAnimadorDePortas({ ...movimentoDasPortas, som: tocarSomDePorta }),
-        () => createAnimadorDePortas({ ...movimentoDasPortas, som: tocarSomDePorta }),
+        createAnimadorDePortas({ ...movimentoDasPortas, som: tocarSomDePorta }, { comParedeDesenhada: true }),
+        () => createAnimadorDePortas({ ...movimentoDasPortas, som: tocarSomDePorta }, { comParedeDesenhada: true }),
         (a) => a.cancelar(),
       )
       const portasNoTelhadoPorNo = criarPorNo<Container, AnimadorDePortas>(portasNoTelhado, createAnimadorDePortas(movimentoDasPortas), () => createAnimadorDePortas(movimentoDasPortas), (a) => a.cancelar())

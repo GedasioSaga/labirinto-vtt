@@ -3,6 +3,16 @@ import type { DoorState, Wall } from '../types/map'
 import { animacaoDePorta, curvaDeclaradaDoSentido, curvaDoSentido, duracaoDoSentido, type AnimacaoDePorta } from '../portas/animacoesDePorta'
 import type { EventoDeSomDaPorta } from '../portas/somDePorta'
 import { drawDoors, type PortaAnimando } from './drawDoors'
+import { assinarFolhasDesenhadas, folhaDesenhada, publicarPortasAnimando } from './portasDesenhadas'
+
+/**
+ * `comParedeDesenhada`: este animador pinta a camada das portas de verdade (não a
+ * cópia por cima do telhado). No Desenhado (lote 18) a folha parada é da parede:
+ * ele pula a folha das portas que a parede pinta e conta à parede quais andam.
+ */
+export interface OpcoesDoAnimador {
+  comParedeDesenhada?: boolean
+}
 
 /**
  * O que o animador precisa para animar. Sem isto (testes, exportação de
@@ -144,8 +154,14 @@ function mesmosIds(animando: ReadonlyMap<string, PortaAnimando>, ids: ReadonlySe
  * Sem pai (exportação de imagem, teste) não há onde pôr o irmão, e tudo vai no
  * mesmo `Graphics`, como antes.
  */
-export function createAnimadorDePortas(movimento?: MovimentoDasPortas): AnimadorDePortas {
+export function createAnimadorDePortas(movimento?: MovimentoDasPortas, opcoes?: OpcoesDoAnimador): AnimadorDePortas {
   const relogio = movimento?.now ?? (() => performance.now())
+  const comParede = opcoes?.comParedeDesenhada === true
+  const folhaDaParede = comParede ? folhaDesenhada : undefined
+  /** O dono das portas animando que este animador publica. */
+  const dono = {}
+  /** A parede trocou as folhas que pinta (chegou, saiu, o shader caiu): repinta as portas. */
+  let pararDeOuvirAsFolhas: (() => void) | null = null
   /** `open` e `locked` de cada porta no último desenho, por id de parede. */
   const estadoAntes = new Map<string, EstadoDaPorta>()
   const caminhos = new Map<string, Caminho>()
@@ -252,22 +268,24 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
       }
       animando.set(id, { animacao: caminho.animacao, progresso, abrindo: caminho.para === 1 })
     }
+    // A parede Desenhada pinta só o vão das que andam (pode repintar aqui mesmo, antes das portas).
+    if (comParede) publicarPortasAnimando(dono, animando.keys())
     const { graphics, walls, selectedWallId, cameraScale, rendererResolution, toCross } = pintura
     const acima = animando.size === 0 ? null : camadaAcima(graphics)
     if (acima === null) {
       // Nada andando, ou Graphics sem pai: todas no mesmo, como sempre foi.
-      drawDoors(graphics, walls, selectedWallId, cameraScale, rendererResolution, toCross, animando)
+      drawDoors(graphics, walls, selectedWallId, cameraScale, rendererResolution, toCross, animando, folhaDaParede)
       soltarCamada()
     } else {
       if (tudo || !mesmosIds(animando, idsNaCamada)) {
         const paradas: Wall[] = []
         const andando: Wall[] = []
         for (const wall of walls) (animando.has(wall.id) ? andando : paradas).push(wall)
-        drawDoors(graphics, paradas, selectedWallId, cameraScale, rendererResolution, toCross)
+        drawDoors(graphics, paradas, selectedWallId, cameraScale, rendererResolution, toCross, undefined, folhaDaParede)
         naCamada = andando
         idsNaCamada = new Set(animando.keys())
       }
-      drawDoors(acima, naCamada, selectedWallId, cameraScale, rendererResolution, toCross, animando)
+      drawDoors(acima, naCamada, selectedWallId, cameraScale, rendererResolution, toCross, animando, folhaDaParede)
     }
     if (caminhos.size === 0) desligarRelogio()
   }
@@ -277,6 +295,7 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
       caminhos.clear()
       desligarRelogio()
       soltarCamada()
+      if (comParede) publicarPortasAnimando(dono, [])
       return
     }
     // Movimento reduzido ligado no meio do caminho: a porta vai na hora ao estado final.
@@ -320,6 +339,11 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
     }
     if (caminhos.size === 0) desligarRelogio()
     pintura = { graphics, walls, selectedWallId, cameraScale, rendererResolution, toCross }
+    if (comParede && pararDeOuvirAsFolhas === null) {
+      pararDeOuvirAsFolhas = assinarFolhasDesenhadas(() => {
+        if (pintura !== null && !pintura.graphics.destroyed) pintar(relogio(), true)
+      })
+    }
     pintar(agora, true)
   }
 
@@ -328,6 +352,9 @@ export function createAnimadorDePortas(movimento?: MovimentoDasPortas): Animador
     caminhos.clear()
     estadoAntes.clear()
     pintura = null
+    pararDeOuvirAsFolhas?.()
+    pararDeOuvirAsFolhas = null
+    if (comParede) publicarPortasAnimando(dono, [])
     naCamada = []
     idsNaCamada = new Set()
     if (camada !== null && !camada.destroyed) camada.destroy()

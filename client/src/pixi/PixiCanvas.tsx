@@ -2158,12 +2158,12 @@ function PixiCanvasDoContexto({
        * enquanto alguma anda (`animadorDePortas.ts`).
        */
       const movimentoDasPortas = { ticker: app.ticker, reducedMotion: prefersReducedMotion, som: tocarSomDePorta }
-      const animadorDePortas = createAnimadorDePortas(movimentoDasPortas)
+      const animadorDePortas = createAnimadorDePortas(movimentoDasPortas, { comParedeDesenhada: true })
       // CAMADAS: o animador guarda o último Graphics que pintou; nó criado tem o dele.
       const animadoresDePortas = criarPorNo<Container, ReturnType<typeof createAnimadorDePortas>>(
         doorsGraphics,
         animadorDePortas,
-        () => createAnimadorDePortas(movimentoDasPortas),
+        () => createAnimadorDePortas(movimentoDasPortas, { comParedeDesenhada: true }),
         (animador) => animador.cancelar(),
       )
       aoDescartarNo.push((no) => animadoresDePortas.soltar(no))

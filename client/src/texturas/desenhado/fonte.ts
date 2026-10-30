@@ -35,6 +35,8 @@ export const IDS_DO_DESENHADO = [
   'movel-quadro-de-avisos', 'movel-sofa', 'movel-tapete', 'movel-tapete-longo', 'movel-troncos',
   // Onda 5: traços.
   'penhasco', 'penhasco-borda', 'parede', 'janela', 'grade-de-prisao',
+  // Onda 5b: as portas (lote 18).
+  'porta', 'porta-dupla', 'porta-portao',
 ] as const
 
 export type IdDoDesenhado = (typeof IDS_DO_DESENHADO)[number]

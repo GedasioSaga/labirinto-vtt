@@ -131,6 +131,7 @@ export function drawDoors(
   rendererResolution = 1,
   toCross: ReadonlySet<string> = NO_DOORS_TO_CROSS,
   animando: ReadonlyMap<string, PortaAnimando> = NENHUMA_ANIMANDO,
+  folhaDaParede: (id: string) => number | null = SEM_FOLHA_DA_PAREDE,
 ): void {
   graphics.clear()
   const screenPx = 1 / (Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1)
@@ -165,9 +166,13 @@ export function drawDoors(
     const secreta = door.secret === true
     const cadeado = door.locked && !secreta && corPropriaDaPorta(door) !== null
     const ring = cadeado ? lockedRingWidth : 0
+    // PORTA DESENHADA (lote 18, `portasDesenhadas.ts`): a parede pinta a folha parada,
+    // mais grossa; aqui fica o resto (seleção, anel, cadeado, seta, ponto, animação), na grossura dela.
+    const meiaDaParede = folhaDaParede(wall.id)
+    const daParede = meiaDaParede !== null
     // Até onde a porta vai, com o contorno escuro: o que fica por fora (anel, seleção, seta) começa aqui.
     const outerHalfLength = halfLength + edge / 2
-    const outerHalfThickness = thickness / 2 + edge / 2
+    const outerHalfThickness = daParede ? Math.max(thickness / 2, meiaDaParede) + edge / 2 : thickness / 2 + edge / 2
 
     // Seleção NÃO troca a cor: moldura em SELECTION_COLOR POR FORA da porta
     // (`SELECTION_OUTLINE_SCREEN_PX` de tela), mesma regra da parede — e por
@@ -187,7 +192,7 @@ export function drawDoors(
       ux,
       uy,
       meioComprimento: halfLength,
-      espessura: thickness,
+      espessura: daParede ? Math.max(thickness, 2 * meiaDaParede) : thickness,
       contorno: outlineWidth,
       cor: color,
       escala: cameraScale,
@@ -196,8 +201,9 @@ export function drawDoors(
     }
     const emAnimacao = secreta ? undefined : animando.get(wall.id)
     const animou = emAnimacao !== undefined && desenharAnimando(graphics, emAnimacao, porta)
-    if (secreta) traceSecretDashes(graphics, porta)
-    else if (!animou) drawDoorAtRest(graphics, porta, filled)
+    if (secreta) {
+      if (!daParede) traceSecretDashes(graphics, porta)
+    } else if (!animou && !daParede) drawDoorAtRest(graphics, porta, filled)
     if (ring > 0) {
       traceDoorRect(graphics, cx, cy, ux, uy, outerHalfLength + ring / 2, outerHalfThickness + ring / 2)
       graphics.stroke({ width: ring, color: DOOR_LOCKED_COLOR, join: 'miter' })
@@ -218,6 +224,7 @@ export function drawDoors(
 }
 
 const NO_DOORS_TO_CROSS: ReadonlySet<string> = new Set()
+const SEM_FOLHA_DA_PAREDE = (): number | null => null
 
 /**
  * O ponto de PORTAS POR ATRAVESSAR em `progresso` (0 = a cara da fechada, 1 = a

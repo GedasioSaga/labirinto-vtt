@@ -16,8 +16,8 @@ import { ALTURAS_DO_TRACO, lerBordaDoTraco, lerFaceDoTraco, type AlturaDoTraco, 
  *   depois de `ESPERA_DEPOIS_DA_FALHA_MS` (a rede do jogador pode voltar).
  */
 
-/** Os traços que o app usa: o penhasco e a borda dele (F4a); a parede, a janela e a grade (F4b). */
-export const TRACOS_DO_DESENHADO = ['penhasco', 'penhasco-borda', 'parede', 'janela', 'grade-de-prisao'] as const satisfies readonly IdDoDesenhado[]
+/** Os traços que o app usa: o penhasco e a borda dele (F4a); a parede, a janela e a grade (F4b); as portas (lote 18). */
+export const TRACOS_DO_DESENHADO = ['penhasco', 'penhasco-borda', 'parede', 'janela', 'grade-de-prisao', 'porta', 'porta-dupla', 'porta-portao'] as const satisfies readonly IdDoDesenhado[]
 export type IdDoTracoDesenhado = (typeof TRACOS_DO_DESENHADO)[number]
 
 const MEBIBYTE = 1024 * 1024
