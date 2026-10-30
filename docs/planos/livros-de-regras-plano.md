@@ -357,3 +357,12 @@ D9. Retratos das fichas citadas vão para o Google junto da pergunta?
 ## 6. Próximo passo
 Agente: `programador` (fase 0 da M1), depois das respostas D1 a D6.
 Input: este arquivo, seções 2.1, 2.3, 3 e "M1. Fase 0"; tocar só lib/personagem.ts, lib/livros/combate.ts, lib/livros/jogadores.ts, lib/livros/jogadoresVistos.ts, stores/mundoDoLivroStore.ts, types/screen.ts, lib/navigation.ts e os esqueletos de props de LivrosScreen, MundoDoLivro e QuemEntraNaBatalha. Pronto quando `rtk proxy npx tsc --noEmit` em client/ der 0 erros e o commit tiver só esses caminhos.
+
+## Decisões D1 a D6 (30/10/2026)
+- D1 Jogador com conta: ligado pela conta (usuário: "Sim, pela conta"). O nome de entrada só vale para quem entra sem conta.
+- D2 Jogador ligado sem token no mapa: aviso com "Pôr token", nada é criado sozinho (usuário).
+- D3 Ficha criada na batalha ("Quem entra na batalha?") fica no bestiário depois (orquestrador, pela recomendação).
+- D4 Campanha: pergunta só se mais de uma pasta usar o sistema (usuário).
+- D5 NPCs que já existem contam como de combate; o mestre desmarca os de cenário (usuário).
+- D6 Sem coluna da IA antes da M4 (orquestrador, pela recomendação).
+- D7 a D9 ficam para a M3 e a M4. Nota do orquestrador: o "programador" da divisão é trocado por "programador-frontend" (o código é TypeScript).
