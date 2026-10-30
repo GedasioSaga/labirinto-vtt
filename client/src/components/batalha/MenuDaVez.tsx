@@ -46,6 +46,8 @@ export interface MenuDaVezProps {
   golpesDoContra?: { armas: readonly GolpeNaTela[]; habilidades: readonly GolpeNaTela[] }
   /** O pedido saiu? (`false` = sem conexão ou recusado na hora.) */
   onAgir: (pedido: PedidoDeAcao) => boolean
+  /** "Zerar" a concentração (o botão ao lado da tira Concentrar, só com carga). Não devolve a ação gasta. Ausente = sem o botão. */
+  onZerarCarga?: () => boolean
   /** Ausente fora da vez. */
   onEncerrar?: () => boolean
   /** S4: a ficha clicada no mapa enquanto mira. */
@@ -64,7 +66,7 @@ const SEM_CONTRAS: readonly ContraNoMenu[] = []
 const TRANSFORMACAO = 'Chega na próxima fase; por enquanto, ligue pela ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onEncerrar, alvoDoMapa, onMirando, consulta, esperando } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando } = props
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
@@ -190,7 +192,17 @@ export function MenuDaVez(props: MenuDaVezProps) {
     )
   }
 
-  type ItemDoMenu = { chave: string; nome: string; lado?: string | null; detalhe?: string | null; motivo?: string | null; forma?: boolean; executar: (teclado: boolean) => void }
+  type ItemDoMenu = {
+    chave: string
+    nome: string
+    lado?: string | null
+    detalhe?: string | null
+    motivo?: string | null
+    forma?: boolean
+    executar: (teclado: boolean) => void
+    /** O botão "Zerar" ao lado da tira (só a Concentrar, com carga). Fica de fora das setas: alcança pelo Tab. */
+    zerar?: () => void
+  }
   const itens: ItemDoMenu[] = []
   if (contra !== undefined) {
     const de = contra.rotulo
@@ -225,6 +237,11 @@ export function MenuDaVez(props: MenuDaVezProps) {
       detalhe: carga === 0 ? 'Gasta a Simples: o próximo golpe sai ×1,5' : textoCarga,
       motivo: motivoDoConcentrar ?? SEM_MOTIVO,
       executar: () => agir({ tipo: 'concentrar' }),
+      // Vale mesmo com o Concentrar apagado ("Já concentrou nesta vez"): zerar não gasta ação.
+      zerar:
+        onZerarCarga === undefined || carga <= 0
+          ? undefined
+          : () => setAviso(onZerarCarga() ? null : 'Não zerou: sem conexão com o mestre.'),
     })
     if (onEncerrar !== undefined)
       itens.push({
@@ -262,7 +279,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
       <CabecaDaVez quem={modoContra || foraDaVez ? `${quem} · contra-ataque` : quem} pips={pips} carga={carga} />
       <ul className="bt-vez__tiras" aria-label={modoContra || foraDaVez ? 'Contra-ataque' : `Ações de ${quem}`}>
         {itens.map((item, indice) => (
-          <li key={item.chave}>
+          <li key={item.chave} className={item.zerar === undefined ? undefined : 'bt-vez__com-zerar'}>
             <Tira
               indice={indice}
               chave={item.chave}
@@ -281,6 +298,18 @@ export function MenuDaVez(props: MenuDaVezProps) {
                 tiras.current[indice] = elemento
               }}
             />
+            {item.zerar !== undefined && (
+              <button
+                type="button"
+                className="bt-zerar"
+                aria-label={`Zerar a concentração de ${quem} (carga ${carga} para 0; a ação gasta não volta)`}
+                title="Volta a carga a 0 (a ação gasta não volta)"
+                disabled={esperando}
+                onClick={item.zerar}
+              >
+                Zerar
+              </button>
+            )}
           </li>
         ))}
       </ul>

@@ -85,6 +85,13 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
       itens.push({ id: 'acoes-extras', rotulo: 'Ações extras…', detalhe: 'Simples, Bônus e Movimento a mais na vez desta carta', onEscolher: () => setDialogo({ tipo: 'extras', cartaId: carta.id }) })
       if (personagemId !== null)
         itens.push({ id: 'armas', rotulo: 'Armas desta batalha…', detalhe: 'Trocar as armas levadas, dentro do limite da ficha', onEscolher: () => setDialogo({ tipo: 'armas', personagemId }) })
+      if (personagemId !== null && (carta.carga ?? 0) > 0)
+        itens.push({
+          id: 'zerar-carga',
+          rotulo: `Zerar a concentração (carga ${carta.carga ?? 0})`,
+          detalhe: 'Volta a 0; a ação gasta não volta. Entra no registro',
+          onEscolher: () => store.zerarCarga(sceneKey, MESTRE, personagemId),
+        })
       if (personagemId !== null) {
         if (equipes.length === 0) {
           itens.push({ id: 'equipe-nenhuma', secao: 'Equipe', rotulo: 'Sem equipes', detalhe: 'Crie equipes no painel da batalha, no livro da mesa', desabilitado: true, onEscolher: () => {} })

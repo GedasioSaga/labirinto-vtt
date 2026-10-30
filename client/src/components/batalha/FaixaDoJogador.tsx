@@ -37,6 +37,8 @@ export interface FaixaDoJogadorProps {
   onAbrirMinhaFicha?: () => void
   /** F2: "Me dar dano" na carta dele (dano livre, vai ao registro). `false` = não saiu. Ausente = sem o item. */
   onMeDarDano?: (tokenId: string, valor: number) => boolean
+  /** "Zerar a concentração" na carta dele, a qualquer hora (só com carga). `false` = não saiu. Ausente = sem o item. */
+  onZerarMinhaCarga?: (personagemId: string) => boolean
   className?: string
 }
 
@@ -44,7 +46,7 @@ export interface FaixaDoJogadorProps {
 const PRAZO_DO_PEDIDO_MS = 4000
 const NINGUEM: readonly Personagem[] = []
 
-export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, onMeDarDano, className }: FaixaDoJogadorProps) {
+export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, onMeDarDano, onZerarMinhaCarga, className }: FaixaDoJogadorProps) {
   const [danoEm, setDanoEm] = useState<DadosDaCarta | null>(null)
   const personagens = useMemo(() => [...meus, ...aliados], [meus, aliados])
   const dados = useMemo(() => faixaDoJogador({ estado, fichas, personagens, sistema }), [estado, fichas, personagens, sistema])
@@ -102,6 +104,15 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
                 const itens: ItemDoMenuDaCarta[] = []
                 if (onAbrirMinhaFicha !== undefined) itens.push({ id: 'ficha', rotulo: 'Abrir a minha ficha', onEscolher: onAbrirMinhaFicha })
                 itens.push({ id: 'dano', rotulo: 'Me dar dano…', detalhe: 'Dano livre na sua ficha; vai ao registro', onEscolher: () => setDanoEm(carta) })
+                const { personagemId } = carta
+                // Fora da vez também: ele perde a concentração ao tomar o golpe.
+                if (onZerarMinhaCarga !== undefined && personagemId !== null && (carta.carga ?? 0) > 0)
+                  itens.push({
+                    id: 'zerar-carga',
+                    rotulo: `Zerar a concentração (carga ${carta.carga ?? 0})`,
+                    detalhe: 'Volta a 0; a ação gasta não volta. Vai ao registro',
+                    onEscolher: () => onZerarMinhaCarga(personagemId),
+                  })
                 return itens
               }
         }

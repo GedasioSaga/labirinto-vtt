@@ -52,7 +52,8 @@ import {
  *    `batalha.agir` (Atacar, Habilidade, Concentrar, o contra-ataque gasto em
  *    Mover), `batalha.reagir` (o d20 é rolado pelo HOST: o pedido não tem
  *    campo de dado), `batalha.dano` (dano livre na ficha dele) e
- *    `batalha.armas` (as armas da batalha, quando quiser, Q8).
+ *    `batalha.armas` (as armas da batalha, quando quiser, Q8) e
+ *    `batalha.zerarCarga` (zerar a concentração, a qualquer hora).
  * O host confere o resto (é a vez dele? a linha é dele?) e responde só
  * `ok: false`, sem motivo: motivo ensinaria ids.
  *
@@ -129,6 +130,13 @@ export interface BatalhaArmasMessage {
   armas: string[]
 }
 
+/** "Zerar" a concentração do personagem dele, a qualquer hora (perdeu a concentração ao tomar o golpe). Não devolve a ação gasta. */
+export interface BatalhaZerarCargaMessage {
+  type: 'batalha.zerarCarga'
+  reqId: string
+  personagemId: string
+}
+
 /** Os pedidos de batalha do jogador da F1 (entram na união `PlayerMessage`). */
 export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
 
@@ -137,7 +145,7 @@ export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
  * sem mexer no `switch` do host: B a junta à `PlayerMessage` (`protocol.ts`)
  * junto com os `case` em `hostSession.ts`.
  */
-export type BatalhaAcaoPlayerMessage = BatalhaAgirMessage | BatalhaReagirMessage | BatalhaDanoMessage | BatalhaArmasMessage
+export type BatalhaAcaoPlayerMessage = BatalhaAgirMessage | BatalhaReagirMessage | BatalhaDanoMessage | BatalhaArmasMessage | BatalhaZerarCargaMessage
 
 export interface BatalhaEstadoMessage {
   type: 'batalha.estado'
@@ -348,6 +356,13 @@ export function parseBatalhaArmas(value: unknown): BatalhaArmasMessage | null {
   const armas = lerArmas(value.armas)
   if (!textoAte(reqId, 1, REQ_ID_MAX) || !textoAte(personagemId, 1, PERSONAGEM_ID_MAX) || armas === null) return null
   return { type: 'batalha.armas', reqId, personagemId, armas }
+}
+
+export function parseBatalhaZerarCarga(value: unknown): BatalhaZerarCargaMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.zerarCarga') return null
+  const { reqId, personagemId } = value
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || !textoAte(personagemId, 1, PERSONAGEM_ID_MAX)) return null
+  return { type: 'batalha.zerarCarga', reqId, personagemId }
 }
 
 // ---- host → jogador ----

@@ -207,6 +207,7 @@ import {
   parseBatalhaEstado,
   parseBatalhaReagir,
   parseBatalhaResultado,
+  parseBatalhaZerarCarga,
   type BatalhaAcaoPlayerMessage,
   type BatalhaDesfazerMessage,
   type BatalhaPassarMessage,
@@ -1312,6 +1313,13 @@ export interface PlayerConnection {
    * ordem (`batalhaEstado.meus`). `false` = não saiu.
    */
   escolherArmasNaBatalha(personagemId: string, armas: readonly string[]): boolean
+  /**
+   * BATALHA — "Zerar" a concentração do personagem dele, a qualquer hora (não
+   * só na vez: ele a perde ao tomar o golpe). A ação gasta não volta; vira
+   * linha do registro com Desfazer. Só com carga (`batalhaEstado.meus`).
+   * `false` = não saiu.
+   */
+  zerarCargaNaBatalha(personagemId: string): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -6027,6 +6035,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const mensagem = parseBatalhaArmas({ type: 'batalha.armas', reqId: `b${nextReqId++}`, personagemId, armas })
       if (mensagem === null) return false
       return pedirNaBatalha(chaveDoPedido('armas', [personagemId, mensagem.armas]), mensagem)
+    },
+    zerarCargaNaBatalha(personagemId) {
+      const estado = state.batalhaEstado
+      if (state.status !== 'playing' || estado === undefined || !(estado.meus ?? []).some((meu) => meu.personagemId === personagemId && meu.carga > 0)) return false
+      const mensagem = parseBatalhaZerarCarga({ type: 'batalha.zerarCarga', reqId: `b${nextReqId++}`, personagemId })
+      if (mensagem === null) return false
+      return pedirNaBatalha(`zerarCarga|${personagemId}`, mensagem)
     },
     reconnect: restart,
     wake() {

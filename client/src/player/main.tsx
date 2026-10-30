@@ -1539,6 +1539,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               reagir: (pedido) => connection.reagirNaBatalha(pedido),
               escolherArmas: (personagemId, armas) => connection.escolherArmasNaBatalha(personagemId, armas),
               passarVez: (cartaId, rodada) => connection.passarVezNaBatalha(cartaId, rodada),
+              zerarCarga: (personagemId) => connection.zerarCargaNaBatalha(personagemId),
             }}
             consulta={consultaEstavel}
             alvoDoMapa={alvoDoMapa}
@@ -1687,6 +1688,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onDesfazer={(linhaId) => connection.desfazerNaBatalha(linhaId)}
             onAbrirMinhaFicha={servePersonagens ? () => setFicha({ instant: false }) : undefined}
             onMeDarDano={(tokenId, valor) => connection.darDanoEmMim(tokenId, valor)}
+            onZerarMinhaCarga={(personagemId) => connection.zerarCargaNaBatalha(personagemId)}
           />
         )}
         {/*

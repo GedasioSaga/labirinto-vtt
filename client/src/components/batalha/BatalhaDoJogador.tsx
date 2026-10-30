@@ -30,6 +30,8 @@ export interface ConexaoDaBatalha {
   reagir: (pedido: PedidoDeReacao) => boolean
   escolherArmas: (personagemId: string, armas: readonly string[]) => boolean
   passarVez: (cartaId: string, rodada: number) => boolean
+  /** "Zerar" a concentração do personagem dele. Ausente = sem o botão. */
+  zerarCarga?: (personagemId: string) => boolean
 }
 
 export interface FichaDoJogador {
@@ -88,6 +90,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const chave = estado.minhaVez && vez !== null ? chaveDaVez(estado.rodada, vez) : null
   const combate = useMemo(() => combateDoJogador(meuCombate, chave), [meuCombate, chave])
   const acoes = estado.minhaVez ? (estado.acoes ?? null) : null
+  const { zerarCarga } = conexao
 
   const menu = useMemo(() => {
     if (cartaQueAge === undefined) return null
@@ -214,6 +217,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
                 : { pendente: meuCombate.armas === null, onAbrir: () => setArmasDe(personagemId) }
             }
             onAgir={(pedido) => conexao.agir(pedido.tipo !== 'concentrar' && pedido.contraDe !== undefined ? null : vez === null ? null : { cartaId: vez, rodada: estado.rodada }, pedido)}
+            onZerarCarga={zerarCarga === undefined || personagemId === undefined ? undefined : () => zerarCarga(personagemId)}
             onEncerrar={estado.minhaVez && vez !== null ? () => conexao.passarVez(vez, estado.rodada) : undefined}
             alvoDoMapa={alvoDoMapa}
             onMirando={onMirando}

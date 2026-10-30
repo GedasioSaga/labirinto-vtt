@@ -196,6 +196,12 @@ interface BatalhaState {
   darAcoesExtras: (sceneKey: string, cartaId: string, extras: AcoesExtras | null) => boolean
   /** As armas levadas, dentro do limite; troca quando quiser (Q8): linha "acao". */
   escolherArmas: (sceneKey: string, autor: AutorDaAcao, personagemId: string, armas: readonly string[]) => boolean
+  /**
+   * "Zerar" a concentração do personagem (carga → 0), a qualquer hora: linha
+   * "acao" com Desfazer, que volta só a carga. NÃO devolve a ação gasta no
+   * Concentrar. Sem carga, ou personagem fora da ordem: `false`.
+   */
+  zerarCarga: (sceneKey: string, autor: AutorDaAcao, personagemId: string) => boolean
   /** Q4: o mestre liga ou desliga o Perfurante de um golpe que ainda tem alvo esperando (o mestre decide no fim). */
   trocarPerfurante: (sceneKey: string, golpeId: string, perfurante: boolean) => boolean
 }
@@ -340,6 +346,7 @@ function desfazerReversao(cena: BatalhaDaCena, reversao: Reversao, autor: AutorD
     case 'gasto':
     case 'acoesExtras':
     case 'combate':
+    case 'carga':
     case 'golpe':
     case 'contra':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
@@ -926,6 +933,22 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       return true
     },
 
+    zerarCarga: (sceneKey, autor, personagemId) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return false
+      const cartas = cena.turnos.cartas.filter((carta) => carta.personagemId === personagemId)
+      const combate = cena.turnos.combate?.[personagemId]
+      if (cartas.length === 0 || combate === undefined || combate.carga === 0) return false
+      const antes = combate.carga
+      const tokenIds = [...new Set(cartas.map((carta) => carta.tokenId))]
+      const nome = nomeDaCarta(cartas[0], mesaDoRpg().personagens)
+      // Só a carga: o `concentrouEm` fica (a ação gasta não volta, e ele não concentra de novo nesta vez).
+      const turnos: TurnosDaCena = { ...cena.turnos, combate: { ...(cena.turnos.combate ?? {}), [personagemId]: { ...combate, carga: 0 } } }
+      // `personagemIds` = o dono: a carga de NPC não sai ao jogador (só o mestre e o dono a veem, `dadosDaFaixa`).
+      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'acao', texto: `${nome} zerou a concentração (carga ${antes} → 0)`, autor, tokenIds, personagemIds: [personagemId], reversao: { tipo: 'carga', personagemId, antes } }))
+      return true
+    },
+
     trocarPerfurante: (sceneKey, golpeId, perfurante) => {
       const cena = cenaDe(sceneKey)
       const golpe = cena?.turnos.golpes?.find((candidato) => candidato.id === golpeId)
@@ -961,6 +984,7 @@ export const ponteDaBatalha: PonteDaBatalha = {
   reagir: (sceneKey, autor, pedido) => useBatalhaStore.getState().reagir(sceneKey, autor, pedido),
   darDano: (sceneKey, autor, tokenId, valor) => useBatalhaStore.getState().darDano(sceneKey, autor, tokenId, valor),
   escolherArmas: (sceneKey, autor, personagemId, armas) => useBatalhaStore.getState().escolherArmas(sceneKey, autor, personagemId, armas),
+  zerarCarga: (sceneKey, autor, personagemId) => useBatalhaStore.getState().zerarCarga(sceneKey, autor, personagemId),
 }
 
 type EstadoDaBatalha = Pick<BatalhaState, 'cenas'>

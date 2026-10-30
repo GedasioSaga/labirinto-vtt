@@ -298,6 +298,68 @@
 .bt-tira--pequena .bt-tira__nome {
   font-size: clamp(15px, 1.6vw, 20px);
 }
+/* "Zerar" a concentração: um carimbo à direita da tira Concentrar, só com carga. A tira não muda. */
+.bt-vez__com-zerar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bt-vez__com-zerar > .bt-tira {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.bt-zerar {
+  flex: none;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 2px solid var(--bt-papel);
+  border-radius: 3px;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--bt-sangue);
+  transform: rotate(-3deg);
+  transition:
+    transform 120ms var(--bt-ease-out),
+    background-color 80ms ease,
+    color 80ms ease;
+}
+.bt-zerar:active:not(:disabled) {
+  transform: rotate(-3deg) scale(0.97);
+}
+.bt-zerar:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 3px;
+}
+.bt-zerar:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-zerar:hover:not(:disabled) {
+    background: var(--bt-papel);
+    color: var(--bt-tinta);
+  }
+}
+/* Chega junto com a tira (sem deslizar: é o carimbo, não a tira). Pelo teclado, na hora. */
+.bt-vez:not([data-instantaneo='sim']) .bt-zerar {
+  transition:
+    transform 120ms var(--bt-ease-out),
+    background-color 80ms ease,
+    color 80ms ease,
+    opacity 200ms var(--bt-ease-out) 160ms;
+}
+@starting-style {
+  .bt-vez:not([data-instantaneo='sim']) .bt-zerar {
+    opacity: 0;
+  }
+}
 /* Entrada: as tiras deslizam da esquerda, uma depois da outra (protótipo `entradaLista`). Pelo teclado, na hora. */
 .bt-vez:not([data-instantaneo='sim']) .bt-tira {
   transition:
@@ -1257,6 +1319,10 @@
   .bt-vez-recolhido,
   .bt-botao-reacao {
     transition: none;
+  }
+  .bt-zerar,
+  .bt-vez:not([data-instantaneo='sim']) .bt-zerar {
+    transition: opacity 150ms ease;
   }
   .bt-reacao {
     transition: opacity 150ms ease;

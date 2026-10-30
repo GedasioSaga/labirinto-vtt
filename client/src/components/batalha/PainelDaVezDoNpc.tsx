@@ -35,6 +35,8 @@ export interface PainelDaVezDoNpcProps {
   sugestao: { chave: string | null; alvoTokenId: string | null }
   onExecutar: (pedido: PedidoDeAcao) => boolean
   onConcentrar: () => boolean
+  /** "Zerar" a concentração (só com carga): volta a 0, a ação gasta não volta. Ausente = sem o botão. */
+  onZerarCarga?: () => boolean
   onEncerrar: () => boolean
   onAcoesExtras: () => void
   onDarDano: () => void
@@ -45,7 +47,7 @@ export interface PainelDaVezDoNpcProps {
 }
 
 export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
-  const { nome, imagem, cor, descricao, recursos, acoes, carga, motivoDoConcentrar, armas, habilidades, alvos, sugestao, onExecutar, onConcentrar, onEncerrar, onAcoesExtras, onDarDano, consulta, alvoDoMapa, mapa } =
+  const { nome, imagem, cor, descricao, recursos, acoes, carga, motivoDoConcentrar, armas, habilidades, alvos, sugestao, onExecutar, onConcentrar, onZerarCarga, onEncerrar, onAcoesExtras, onDarDano, consulta, alvoDoMapa, mapa } =
     props
   const golpes = [...habilidades, ...armas]
   const primeiraValida = golpes.find((golpe) => golpe.motivo === null)?.chave ?? null
@@ -171,6 +173,11 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
         >
           Concentrar
         </button>
+        {onZerarCarga !== undefined && carga > 0 && (
+          <button type="button" className="bt-botao" title="Volta a 0; a ação gasta não volta" onClick={() => setAviso(onZerarCarga() ? null : 'Não zerou: a carga já estava em 0.')}>
+            Zerar concentração ({carga})
+          </button>
+        )}
         <button type="button" className="bt-botao" onClick={onAcoesExtras}>
           Ações extras
         </button>

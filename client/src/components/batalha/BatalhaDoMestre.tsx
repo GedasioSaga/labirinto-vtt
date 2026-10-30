@@ -141,6 +141,10 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const vez = { cartaId: carta.id, rodada: turnos.rodada }
   const nome = nomeDaFicha(mesa, carta.tokenId, carta)
   const doMestre = ehDoMestre(carta.personagemId, personagens)
+  const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
+  const carga = combate?.carga ?? 0
+  const { personagemId } = carta
+  const zerarCarga = personagemId === null || carga === 0 ? undefined : () => useBatalhaStore.getState().zerarCarga(sceneKey, MESTRE, personagemId)
 
   if (!doMestre) {
     return (
@@ -155,6 +159,11 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
             <button type="button" className="bt-botao" onClick={() => onDialogo({ tipo: 'dano', tokenId: null })}>
               Dar dano
             </button>
+            {zerarCarga !== undefined && (
+              <button type="button" className="bt-botao" title="Volta a 0; a ação gasta não volta" onClick={zerarCarga}>
+                Zerar concentração ({carga})
+              </button>
+            )}
           </div>
         </section>
         {reacoes}
@@ -162,7 +171,6 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
     )
   }
 
-  const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
   const arma = armasNaBatalha(personagem, combate)[0] ?? null
   const habilidades = personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, acoes, arma) : []
   const armas = golpesDeAtaque(personagem, sistema, combate, acoes)
@@ -182,7 +190,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           descricao={[personagem === null ? 'Sem ficha ligada' : 'NPC', equipe?.nome].filter(Boolean).join(' · ')}
           recursos={personagem === null ? [] : recursosDaCarta(personagem, sistema)}
           acoes={acoes}
-          carga={combate?.carga ?? 0}
+          carga={carga}
           motivoDoConcentrar={motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
           armas={armas}
           habilidades={habilidades}
@@ -193,6 +201,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           }}
           onExecutar={agir}
           onConcentrar={() => agir({ tipo: 'concentrar' })}
+          onZerarCarga={zerarCarga}
           onEncerrar={() => useBatalhaStore.getState().passarVez(sceneKey, MESTRE, vez)}
           onAcoesExtras={() => onDialogo({ tipo: 'extras', cartaId: carta.id })}
           onDarDano={() => onDialogo({ tipo: 'dano', tokenId: null })}

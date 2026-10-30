@@ -16,6 +16,7 @@ import {
   type BatalhaHostMessage,
   type BatalhaPassarMessage,
   type BatalhaReagirMessage,
+  type BatalhaZerarCargaMessage,
 } from './protocoloDaBatalha'
 
 /**
@@ -25,7 +26,8 @@ import {
  * os dois pedidos que o jogador manda (`batalha.passar`, `batalha.desfazer`).
  *
  * F2 (seção 2.4 de docs/planos/batalha-one-piece-f2-plano.md): os pedidos
- * `batalha.agir`, `batalha.reagir`, `batalha.dano` e `batalha.armas` (posse e
+ * `batalha.agir`, `batalha.reagir`, `batalha.dano`, `batalha.armas` e
+ * `batalha.zerarCarga` (posse e
  * vez conferidas aqui; a regra, na store), o mesmo `reqId` devolvendo o mesmo
  * `ok` sem agir de novo, e as animações (`batalha.efeitos`) só com fichas que
  * a tela da conexão tem, sem reprise ao entrar. O d20 da reação é rolado na
@@ -116,6 +118,8 @@ export interface BatalhaNoHost {
   dano(conexao: ConexaoNaBatalha, msg: BatalhaDanoMessage): RespostaDaBatalha
   /** F2: as armas levadas, só de personagem dele com carta na ordem; troca quando quiser (Q8). */
   armas(conexao: ConexaoNaBatalha, msg: BatalhaArmasMessage): RespostaDaBatalha
+  /** Zerar a concentração: só de personagem dele com carta na ordem, a qualquer hora (não só na vez). */
+  zerarCarga(conexao: ConexaoNaBatalha, msg: BatalhaZerarCargaMessage): RespostaDaBatalha
 }
 
 const NADA: RespostaDaBatalha = { saidas: [], mudou: false }
@@ -405,6 +409,17 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         // Personagem dele com carta na ordem. Sem "ainda não escolheu": troca quando quiser (Q8); o limite é da store.
         if (!lugar.meusPersonagens.has(msg.personagemId) || !cena.turnos.cartas.some((carta) => carta.personagemId === msg.personagemId)) return false
         return ponte.escolherArmas(lugar.sceneKey, autorDe(conexao), msg.personagemId, msg.armas)
+      })
+    },
+
+    zerarCarga(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        // Personagem dele com carta na ordem; fora da vez também (ele perde a concentração ao tomar o golpe).
+        if (!lugar.meusPersonagens.has(msg.personagemId) || !cena.turnos.cartas.some((carta) => carta.personagemId === msg.personagemId)) return false
+        return ponte.zerarCarga(lugar.sceneKey, autorDe(conexao), msg.personagemId)
       })
     },
   }

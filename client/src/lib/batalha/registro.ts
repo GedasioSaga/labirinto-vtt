@@ -10,7 +10,7 @@ import {
 } from '../ajusteDaFicha'
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import type { CombateDoPersonagem, ContraAtaque } from './combate'
+import { combateVazio, type CombateDoPersonagem, type ContraAtaque } from './combate'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import { inserirCarta, removerCarta, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -77,6 +77,12 @@ export type Reversao =
   | { tipo: 'acoesExtras'; cartaId: string; antes: AcoesExtras | null }
   /** F2: recargas, usos, Overload, carga ou armas de um personagem. `null` = não tinha combate. */
   | { tipo: 'combate'; personagemId: string; antes: CombateDoPersonagem | null }
+  /**
+   * "Zerar" a concentração: só a carga de antes. Desfazer volta SÓ a carga,
+   * sem tocar recargas, usos e armas que mudaram depois (o `combate` inteiro
+   * de antes apagaria isso).
+   */
+  | { tipo: 'carga'; personagemId: string; antes: CombateDoPersonagem['carga'] }
   /** F2: o golpe que nasceu na linha. Desfazer = tirá-lo dos pendentes (alvo que esperava não recebe mais nada) e o contra-ataque que ele deu. */
   | { tipo: 'golpe'; golpeId: string }
   /** F2 (Q6): o contra-ataque gasto na linha. Desfazer = devolvê-lo. */
@@ -286,6 +292,10 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       return { ...turnos, extras: comValor(turnos.extras, reversao.cartaId, reversao.antes) }
     case 'combate':
       return { ...turnos, combate: comValor(turnos.combate ?? {}, reversao.personagemId, reversao.antes) }
+    case 'carga': {
+      const atual = turnos.combate?.[reversao.personagemId] ?? combateVazio()
+      return { ...turnos, combate: { ...(turnos.combate ?? {}), [reversao.personagemId]: { ...atual, carga: reversao.antes } } }
+    }
     case 'golpe': {
       const golpes = (turnos.golpes ?? []).filter((golpe) => golpe.id !== reversao.golpeId)
       const contras = (turnos.contras ?? []).filter((contra) => contra.golpeId !== reversao.golpeId)
