@@ -147,6 +147,8 @@ export type EfeitoDaBatalha =
   | { seq: number; tipo: 'golpe'; golpeId: string; atacanteTokenId: string; nome: string; alvos: readonly string[]; surpresa: boolean; overload: boolean }
   | { seq: number; tipo: 'reacao'; golpeId: string | null; tokenId: string; d20: number; modificador: number; total: number }
   | { seq: number; tipo: 'dano'; tokenId: string; valor: number; saida: SaidaDaReacao | 'direto' }
+  /** F3 (fatia J): o MESTRE desfez uma linha e o Judge ergue a carta. Sem token: vai a todos na cena. */
+  | { seq: number; tipo: 'judge'; gesto: 'carta' }
 
 /** Alvos num golpe. */
 export const ALVOS_MAX = 12

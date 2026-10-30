@@ -325,6 +325,8 @@ export function anuncioDoEfeito(efeito: EfeitoDaBatalha, nomeDe: (tokenId: strin
       const palavra = palavraDoDano(efeito.saida)
       return `${nomeDe(efeito.tokenId)}: ${palavra === null ? '' : `${palavra.toLowerCase()}, `}${formatarNumero(efeito.valor)} de dano`
     }
+    case 'judge':
+      return 'O Judge ergue a carta: jogada desfeita'
   }
 }
 

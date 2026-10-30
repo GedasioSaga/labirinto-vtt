@@ -13,6 +13,7 @@ import {
   type SaidaDaReacao,
 } from './combate'
 import { corDaEquipe, equipeDe, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe } from './equipes'
+import type { JudgeNaCena } from './judge'
 import { limiteDeArmas } from './leituraDaFicha'
 import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
@@ -88,6 +89,8 @@ export interface EstadoParaJogador {
   golpes?: GolpeParaJogador[]
   /** F2 (Q6): contra-ataques ganhos por ficha dele e ainda não usados. */
   contras?: ContraParaJogador[]
+  /** F3 (fatia J): onde o Judge está, só `{ x, y }` (a direção cada tela calcula). Sempre que a batalha tem Judge. */
+  judge?: JudgeNaCena
 }
 
 /** "Simples 0/1 · Bônus 0/0 · Mov 2/4": a mesma forma de `acoesDaVez`. */
@@ -311,12 +314,17 @@ function contrasParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): Cont
  * `EFEITOS_POR_MENSAGEM` mais novos, do mais velho ao mais novo. Golpe: o
  * atacante tem de estar na tela e os alvos fora dela saem; sem alvo visível,
  * o efeito inteiro sai (o corte diria que há alguém escondido). O número do
- * dano vai a quem vê a ficha (Q5).
+ * dano vai a quem vê a ficha (Q5). O gesto do Judge (F3) não tem ficha: vai
+ * a todos, só com o tipo e o gesto.
  */
 export function efeitosParaJogador(efeitos: readonly EfeitoDaBatalha[], depoisDoSeq: number, tokensNoRecorte: ReadonlySet<string>): EfeitoParaJogador[] {
   const saem: EfeitoParaJogador[] = []
   for (const efeito of efeitos) {
     if (efeito.seq <= depoisDoSeq) continue
+    if (efeito.tipo === 'judge') {
+      saem.push({ seq: efeito.seq, tipo: 'judge', gesto: efeito.gesto })
+      continue
+    }
     if (efeito.tipo === 'golpe') {
       const alvos = efeito.alvos.filter((tokenId) => tokensNoRecorte.has(tokenId))
       if (!tokensNoRecorte.has(efeito.atacanteTokenId) || alvos.length === 0) continue
@@ -375,5 +383,7 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   if (golpesVistos.length > 0) estado.golpes = golpesVistos
   const contras = contrasParaJogador(cena, ctx)
   if (contras.length > 0) estado.contras = contras
+  // F3: só x e y, campo a campo (nada mais que a cena guarde do Judge sai junto).
+  if (cena.judge !== undefined) estado.judge = { x: cena.judge.x, y: cena.judge.y }
   return estado
 }

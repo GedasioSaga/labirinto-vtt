@@ -19,6 +19,7 @@ import {
 } from '../lib/batalha/combate'
 import { equipeDe } from '../lib/batalha/equipes'
 import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
+import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, limiteDeArmas } from '../lib/batalha/leituraDaFicha'
 import { ajustesDoDano, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
@@ -102,6 +103,8 @@ export interface InicioDaBatalha {
   combatentes: readonly CartaDaOrdem[]
   regras: RegrasDaBatalha | null
   desempate: Desempate
+  /** F3: onde o Judge nasce (`judgeInicial`). Ausente = o App põe logo depois, por `moverJudge`. */
+  judge?: JudgeNaCena
 }
 
 export interface BatalhaDaCena extends BatalhaEmTurnos {
@@ -204,6 +207,16 @@ interface BatalhaState {
   zerarCarga: (sceneKey: string, autor: AutorDaAcao, personagemId: string) => boolean
   /** Q4: o mestre liga ou desliga o Perfurante de um golpe que ainda tem alvo esperando (o mestre decide no fim). */
   trocarPerfurante: (sceneKey: string, golpeId: string, perfurante: boolean) => boolean
+
+  // ---- F3 (fatia J): o Judge ----
+  /**
+   * Põe o Judge em `(x, y)` (px do mundo, o centro da casa: quem chama já
+   * encaixou). Só o mestre (chamada direta). Não escreve linha nem se desfaz;
+   * sobe `turnosRev` para os jogadores o verem lá. Cena fora de batalha,
+   * número torto ou a mesma posição: `false`. A lembrança no aparelho
+   * (`gravarJudgeLembrado`) é de quem chama.
+   */
+  moverJudge: (sceneKey: string, x: number, y: number) => boolean
 }
 
 const SEM_CAMINHOS: Readonly<Record<string, number>> = {}
@@ -730,7 +743,9 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       const por = `${nomeDoAutor(autor)}${feito.emParte ? ' (em parte)' : ''}`
       // A cena de agora: o Desfazer da ficha passa pela aventura, e a store pode ter mudado no meio.
       const atual = cenaDe(sceneKey) ?? cena
-      gravarCena(sceneKey, { ...atual, turnos: feito.cena.turnos, regras: feito.cena.regras, registro: marcarDesfeita(atual.registro, linhaId, por, Date.now()), turnosRev: atual.turnosRev + 1 })
+      // F3: o desfazer do MESTRE faz o Judge erguer a carta em todas as telas; o do jogador, não.
+      const efeitos = autor.tipo === 'mestre' ? comEfeitos(atual.efeitos, [{ tipo: 'judge', gesto: 'carta' }]) : atual.efeitos
+      gravarCena(sceneKey, { ...atual, turnos: feito.cena.turnos, regras: feito.cena.regras, registro: marcarDesfeita(atual.registro, linhaId, por, Date.now()), efeitos, turnosRev: atual.turnosRev + 1 })
       return true
     },
 
@@ -964,6 +979,16 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       gravarCena(sceneKey, { ...cena, turnos: { ...cena.turnos, golpes: comGolpe(cena.turnos.golpes, novo) }, registro, turnosRev: cena.turnosRev + 1 })
       return true
     },
+
+    moverJudge: (sceneKey, x, y) => {
+      const cena = cenaDe(sceneKey)
+      const judge = lerJudgeNaCena({ x, y })
+      if (cena === undefined || judge === null) return false
+      if (cena.judge !== undefined && cena.judge.x === judge.x && cena.judge.y === judge.y) return false
+      // Sem linha: mover o Judge não é jogada. `turnosRev` sobe para o `batalha.estado` levar a posição nova.
+      gravarCena(sceneKey, { ...cena, judge, turnosRev: cena.turnosRev + 1 })
+      return true
+    },
   }
 })
 
@@ -974,7 +999,11 @@ function cenaDoInicio(inicio: InicioDaBatalha): BatalhaDaCena {
   const comCartas: TurnosDaCena = { ...vazios, cartas: [...inicio.combatentes] }
   const ordenados = ordenarNaOrdem(comCartas, agilidadesDasCartas(comCartas.cartas, personagens, sistema), rolarD20)
   const comeco = passarVezNaOrdem(ordenados, tokensCaidos(ordenados.cartas, personagens, sistema))
-  return { ...CENA_NOVA, turnos: comeco?.turnos ?? ordenados, regras: inicio.regras }
+  const cena: BatalhaDaCena = { ...CENA_NOVA, turnos: comeco?.turnos ?? ordenados, regras: inicio.regras }
+  // F3: o Judge que o Iniciar já trouxe (torto fica de fora; o App põe depois).
+  const judge = inicio.judge === undefined ? null : lerJudgeNaCena(inicio.judge)
+  if (judge !== null) cena.judge = judge
+  return cena
 }
 
 /**
@@ -1030,6 +1059,16 @@ const SEM_EFEITOS: readonly EfeitoDaBatalha[] = []
 export function efeitosDaCena(state: EstadoDaBatalha, sceneKey: string | null): readonly EfeitoDaBatalha[] {
   if (sceneKey === null) return SEM_EFEITOS
   return state.cenas[sceneKey]?.efeitos ?? SEM_EFEITOS
+}
+
+/**
+ * S-J1 (F3): onde o Judge está na cena, para o `PixiCanvas` do mestre;
+ * `null` fora de batalha ou antes de o App o pôr. Devolve o MESMO objeto da
+ * cena (seletor estável enquanto ele não anda).
+ */
+export function judgeDaCena(state: EstadoDaBatalha, sceneKey: string | null): JudgeNaCena | null {
+  if (sceneKey === null) return null
+  return state.cenas[sceneKey]?.judge ?? null
 }
 
 /** Ficha que o mestre move: sem personagem, ou de personagem NPC. */

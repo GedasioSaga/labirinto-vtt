@@ -17,6 +17,7 @@ import {
   type SaidaDaReacao,
 } from '../lib/batalha/combate'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
+import { lerJudgeNaCena } from '../lib/batalha/judge'
 import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { AUTOR_NO_REGISTRO_MAX, REGISTRO_PARA_JOGADOR_MAX, REGISTRO_TEXTO_MAX, type LinhaParaJogador } from '../lib/batalha/registro'
@@ -602,7 +603,12 @@ export function lerEstadoParaJogador(value: unknown): EstadoParaJogador | null {
   }
   const daF2 = lerCamposDaF2(value, minhaVez)
   if (daF2 === null) return null
-  return { rodada, turno: { n, m }, vez, proxima, minhaVez, vezForaDaVista, cartas: cartasLidas, registro: linhas, regras: regrasLidas, ...daF2 }
+  // F3 (fatia J): o Judge, só `{ x, y }` finitos no teto; torto recusa o estado.
+  const judge = opcional(value.judge, lerJudgeNaCena)
+  if (judge === null) return null
+  const estado: EstadoParaJogador = { rodada, turno: { n, m }, vez, proxima, minhaVez, vezForaDaVista, cartas: cartasLidas, registro: linhas, regras: regrasLidas, ...daF2 }
+  if (judge !== undefined) estado.judge = judge
+  return estado
 }
 
 export function parseBatalhaEstado(value: unknown): BatalhaEstadoMessage | null {
@@ -642,6 +648,9 @@ function lerEfeito(value: unknown): EfeitoParaJogador | null {
       if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !inteiroAte(valor, 0, DANO_MAX) || saida === null) return null
       return { seq, tipo: 'dano', tokenId, valor, saida }
     }
+    case 'judge':
+      // F3 (fatia J): um gesto só por enquanto; outro valor é forjado.
+      return value.gesto === 'carta' ? { seq, tipo: 'judge', gesto: 'carta' } : null
     default:
       return null
   }

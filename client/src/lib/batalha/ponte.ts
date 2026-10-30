@@ -1,5 +1,6 @@
 import type { Personagem } from '../personagem'
 import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDeReacao } from './combate'
+import type { JudgeNaCena } from './judge'
 import type { LinhaDoRegistro } from './registro'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import type { AutorDaAcao, TurnosDaCena } from './turnos'
@@ -33,6 +34,12 @@ export interface BatalhaEmTurnos {
    * efeito não se desfaz. Ausente = nenhum.
    */
   efeitos?: readonly EfeitoDaBatalha[]
+  /**
+   * F3 (fatia J): onde o Judge está no mapa. Fora de `turnos`: mover o Judge
+   * não vai ao registro nem se desfaz. Ausente = ainda não posto (o App põe
+   * logo que a batalha liga).
+   */
+  judge?: JudgeNaCena
 }
 
 /** O "Passar a vez" só vale se a vez ainda é esta carta nesta rodada: clique duplo e reenvio não passam duas vezes. */
