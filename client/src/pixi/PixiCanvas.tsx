@@ -766,6 +766,11 @@ interface PixiCanvasProps {
   /** MODO BATALHA (B5): a cena aberta está em batalha; a grade de batalha aparece por cima do mapa (`gradeDaBatalha.ts`). */
   batalhaLigada?: boolean
   /**
+   * BATALHA F1: a ficha da vez na cena aberta (`vezTokenIdDaCena`), que ganha
+   * o anel da vez e o pulso (`pixi/tokensRenderer.ts`). `null`/omitido = nenhuma.
+   */
+  vezTokenId?: string | null
+  /**
    * Reporta as dimensões NATURAIS (px) da textura de fundo carregada, depois
    * que `redrawBackground` resolve `Assets.load` — `null` sem fundo de
    * imagem ou em erro de carga. Consumido por `GridAlignControls` (via
@@ -980,6 +985,7 @@ function PixiCanvasDoContexto({
   onNaoIniciou,
   gridAlignPreview = null,
   batalhaLigada = false,
+  vezTokenId = null,
   onBackgroundImageSizeChange,
   resetZoomRequest,
   cameraRequest = null,
@@ -1102,6 +1108,13 @@ function PixiCanvasDoContexto({
   useEffect(() => {
     gradeDaBatalhaRedrawRef.current?.(batalhaLigada)
   }, [batalhaLigada])
+  // A vez da batalha: o valor vivo no ref (o primeiro desenho já sai com o anel) e o redesenho das fichas quando troca.
+  const vezTokenIdRef = useRef(vezTokenId)
+  vezTokenIdRef.current = vezTokenId
+  const redrawTokensRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    redrawTokensRef.current?.()
+  }, [vezTokenId])
 
   useEffect(() => {
     gridAlignOverlayRedrawRef.current?.(gridAlignPreview)
@@ -2674,6 +2687,8 @@ function PixiCanvasDoContexto({
           pinosDaCena(map),
           vidasDoMapa(map),
           noDaFicha,
+          // BATALHA F1: a imagem exportada é do mapa, não da sessão: sai sem o anel da vez.
+          exportScene === null ? vezTokenIdRef.current : null,
         )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
@@ -2984,6 +2999,7 @@ function PixiCanvasDoContexto({
       gridAlignOverlayRedrawRef.current = redrawGridAlignOverlay
       redrawGridAlignOverlay(gridAlignPreview)
       gradeDaBatalhaRedrawRef.current = (ligada) => gradeDaBatalha.definir(ligada, sceneState().map)
+      redrawTokensRef.current = redrawTokens
 
       /** Tudo o que depende do mapa ou da câmera, na ordem da montagem. */
       const redrawScene = () => {
@@ -9071,6 +9087,7 @@ function PixiCanvasDoContexto({
         window.removeEventListener('keyup', onKeyUp)
         gridAlignOverlayRedrawRef.current = null
         gradeDaBatalhaRedrawRef.current = null
+        redrawTokensRef.current = null
         resetZoomRequestRef.current = null
         cameraRequestRef.current = null
         editingRoomRef.current = null

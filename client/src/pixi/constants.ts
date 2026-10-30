@@ -173,3 +173,23 @@ export const TOKEN_NAME_FILL_COLOR = 0xe1ffff
  * regras estão em `constants.nomeDaFicha.test.ts`.
  */
 export const TOKEN_NAME_OUTLINE_COLOR = 0x000000
+
+/**
+ * BATALHA F1 — o anel da ficha da VEZ, no mapa do mestre e na tela do jogador
+ * (recuperado da iniciativa antiga, `c8208ff3`). Linha fina clara, SOLTA do
+ * disco (o vão diz "isto é marca, não é a ficha"): a mesma língua da parede
+ * do minimapa, sem brigar com o amarelo da seleção (`SELECTION_COLOR`), que
+ * continua dizendo "selecionado". Px de mundo.
+ */
+export const TURN_RING_COLOR = 0xffffff
+export const TURN_RING_WIDTH = 3
+/** Vão entre a borda da ficha e o anel da vez. */
+export const TURN_RING_GAP = 5
+/** O anel chega de fora, maior e transparente, quando a vez troca. */
+export const TURN_RING_PULSE_FROM_SCALE = 1.25
+/** Decisão Q4 (30/10/2026): enquanto é a vez, uma batida curta a cada tanto. O relógio do Pixi só anda durante a batida. */
+export const TURN_RING_BEAT_EVERY_MS = 3000
+export const TURN_RING_BEAT_MS = 600
+/** O quanto o anel cresce (e apaga) no meio da batida. */
+export const TURN_RING_BEAT_SCALE = 1.12
+export const TURN_RING_BEAT_MIN_ALPHA = 0.55

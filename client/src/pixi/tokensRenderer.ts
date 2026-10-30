@@ -3,7 +3,20 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { theme } from '../theme'
 import { createTokenGlides, stepGlides, syncGlide, type GlidePoint } from '../player/tokenGlide'
 import type { Token } from '../types/map'
-import { SECRET_ITEM_ALPHA, SELECTION_COLOR, TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH } from './constants'
+import {
+  SECRET_ITEM_ALPHA,
+  SELECTION_COLOR,
+  TOKEN_FRAME_COLOR,
+  TOKEN_FRAME_WIDTH,
+  TURN_RING_BEAT_EVERY_MS,
+  TURN_RING_BEAT_MIN_ALPHA,
+  TURN_RING_BEAT_MS,
+  TURN_RING_BEAT_SCALE,
+  TURN_RING_COLOR,
+  TURN_RING_GAP,
+  TURN_RING_PULSE_FROM_SCALE,
+  TURN_RING_WIDTH,
+} from './constants'
 import { drawTokenCircle, tokenCircleRadius } from './drawTokens'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from './drawTokenHealth'
 import type { HealthAmount } from '../lib/tokenHealth'
@@ -97,6 +110,38 @@ const TOKEN_LIFT_MS = Number.parseFloat(theme.motion.fast)
 const TOKEN_SETTLE_MS = Number.parseFloat(theme.motion.base)
 
 /**
+ * ANEL DA VEZ (batalha F1, decisão Q4) — quando a vez passa, o anel chega de
+ * fora, maior e transparente, e fecha sobre a ficha seguinte: o olho vai
+ * direto para quem joga, mesmo num mapa cheio. Enquanto é a vez, uma batida
+ * curta a cada `TURN_RING_BEAT_EVERY_MS`, contada por um `setTimeout` — o
+ * relógio de quadros do Pixi só roda durante a chegada e a batida, nunca o
+ * tempo todo. Movimento reduzido: só o anel parado.
+ */
+const TURN_RING_PULSE_MS = Number.parseFloat(theme.motion.base)
+/** Nome (`Container.label`) do anel da vez no wrapper — é por ele que um teste o acha. */
+export const TURN_RING_LABEL = 'vez'
+
+/** Uma animação do anel em curso: a chegada (vez trocou) ou a batida (a vez continua). */
+interface PulsoDaVez {
+  id: string
+  start: number
+  tipo: 'chegada' | 'batida'
+}
+
+/** O anel da vez num ponto da chegada: `k` 0 = de fora, transparente; 1 = assentado. */
+function poseDaChegada(ring: Graphics, k: number): void {
+  ring.scale.set(TURN_RING_PULSE_FROM_SCALE + (1 - TURN_RING_PULSE_FROM_SCALE) * k)
+  ring.alpha = k
+}
+
+/** O anel num ponto da batida: cresce e apaga até o meio, e volta. `t` 0 e 1 = parado. */
+function poseDaBatida(ring: Graphics, t: number): void {
+  const onda = Math.sin(Math.PI * t)
+  ring.scale.set(1 + (TURN_RING_BEAT_SCALE - 1) * onda)
+  ring.alpha = 1 - (1 - TURN_RING_BEAT_MIN_ALPHA) * onda
+}
+
+/**
  * O que o renderer precisa para animar. Sem isto (exportação de imagem,
  * testes), nada anima: a ficha vai direto ao estado final.
  */
@@ -136,6 +181,8 @@ export interface TokensRenderer {
    * Omitido = nenhuma barra. `Token.health` (a vida antiga do token) não é lido.
    * `noDaFicha`: CAMADAS (fatia 3b) — o nó da pilha da camada de cada ficha; a
    * vista dela muda de nó (o cache segue um só). Omitido = tudo em `container`.
+   * `vezTokenId`: BATALHA F1 — a ficha da vez, que ganha o anel da vez (e o
+   * pulso, com `motion`). Omitido = nenhuma (fora de batalha, exportação).
    *
    * Só repinta a ficha cuja pintura mudou (`TokenPaint`); a outra só anda.
    * Devolve quantos nomes nasceram ou trocaram de texto neste desenho: só
@@ -153,6 +200,7 @@ export interface TokensRenderer {
     pinos?: ReadonlyMap<string, string>,
     vidas?: VidasDaCena,
     noDaFicha?: (token: Token) => Container,
+    vezTokenId?: string | null,
   ) => number
   /** Só o zoom mudou: reescala e mostra/esconde os nomes e o tamanho dos pinos, sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
@@ -212,6 +260,8 @@ interface TokenPaint {
   token: Token
   gridSize: number
   selected: boolean
+  /** A ficha da vez (anel da vez). */
+  isTurn: boolean
   away: boolean
   /** MAPA DE CONTINENTE: a cor do pino; `null` = disco ou foto de sempre. */
   pino: string | null
@@ -226,6 +276,7 @@ function paintIsCurrent(painted: TokenPaint | null, agora: TokenPaint): boolean 
     painted.token === agora.token &&
     painted.gridSize === agora.gridSize &&
     painted.selected === agora.selected &&
+    painted.isTurn === agora.isTurn &&
     painted.away === agora.away &&
     painted.pino === agora.pino &&
     mesmaVida(painted.vida, agora.vida)
@@ -247,6 +298,11 @@ interface TokenEntry {
   photoMask: Graphics | null
   graphics: Graphics | null
   ring: Graphics
+  /** Anel da VEZ (`TURN_RING_*`): Graphics próprio, e não um traço a mais em
+   *  `ring`, porque é ele que pulsa (escala e transparência). Nasce só na
+   *  ficha da vez, logo acima de `ring`, e morre quando a vez sai: as outras
+   *  fichas continuam com os filhos de sempre. */
+  turnRing: Graphics | null
   /** Barra de vida sob o disco (`pixi/drawTokenHealth.ts`). Nasce só na
    *  ficha que TEM vida e morre quando a vida sai: ficha sem vida continua
    *  com os mesmos 4 filhos (visual, anel, nome, marcas) de antes da barra existir. */
@@ -340,6 +396,12 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
    */
   const pinosGirando = new Set<string>()
   let ticking = false
+  /** A vez do último `draw`; `undefined` antes do primeiro — abrir o mapa com a vez andando não pulsa a chegada. */
+  let lastVez: string | null | undefined = undefined
+  /** Chegada ou batida do anel da vez em curso. */
+  let pulsoDaVez: PulsoDaVez | null = null
+  /** O relógio da próxima batida (fora do Pixi: o ticker não roda entre uma batida e outra). */
+  let relogioDaBatida: ReturnType<typeof setTimeout> | null = null
 
   /** Movimento reduzido ou sem relógio: nada anima, tudo vai ao estado final. */
   function canAnimate(): boolean {
@@ -386,7 +448,72 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       if (marcador !== null) posarVistaDoMarcador(marcador, now, parado)
       if (marcador === null || parado) pinosGirando.delete(id)
     }
-    if (scaleTweens.size === 0 && glides.size === 0 && pinosGirando.size === 0) stopTicking()
+    if (pulsoDaVez !== null) {
+      const ring = cache.get(pulsoDaVez.id)?.turnRing ?? null
+      const chegada = pulsoDaVez.tipo === 'chegada'
+      const t = progressOf(pulsoDaVez.start, chegada ? TURN_RING_PULSE_MS : TURN_RING_BEAT_MS, now)
+      if (ring !== null) {
+        if (chegada) poseDaChegada(ring, easeOutCubic(t))
+        else poseDaBatida(ring, t)
+      }
+      if (ring === null || t >= 1) pulsoDaVez = null
+    }
+    if (scaleTweens.size === 0 && glides.size === 0 && pinosGirando.size === 0 && pulsoDaVez === null) stopTicking()
+  }
+
+  /** Começa a chegada ou a batida do anel de `id` (se ele tem anel e dá para animar). */
+  function pulsar(id: string, tipo: PulsoDaVez['tipo']): void {
+    const ring = cache.get(id)?.turnRing ?? null
+    if (ring === null || !canAnimate()) return
+    pulsoDaVez = { id, start: clock(), tipo }
+    if (tipo === 'chegada') poseDaChegada(ring, 0)
+    startTicking()
+  }
+
+  function pararBatidas(): void {
+    if (relogioDaBatida === null) return
+    clearTimeout(relogioDaBatida)
+    relogioDaBatida = null
+  }
+
+  /** Agenda a próxima batida da vez de agora. Sem `motion` (exportação, teste sem relógio), nunca. */
+  function agendarBatida(): void {
+    if (relogioDaBatida !== null || motion === undefined || lastVez === null || lastVez === undefined) return
+    relogioDaBatida = setTimeout(() => {
+      relogioDaBatida = null
+      const vez = lastVez
+      if (vez === null || vez === undefined) return
+      // A chegada (ou uma batida) ainda correndo: esta batida cede a vez a ela.
+      if (pulsoDaVez === null) pulsar(vez, 'batida')
+      agendarBatida()
+    }, TURN_RING_BEAT_EVERY_MS)
+  }
+
+  /**
+   * O anel da vez desta ficha: nasce logo acima do anel da ficha — por baixo
+   * da barra de vida, do nome e das marcas — e morre quando a vez sai. Fora
+   * de uma animação em curso, fica assentado (escala 1, opaco).
+   */
+  function syncTurnRing(entry: TokenEntry, tokenId: string, isTurn: boolean, outlineRadius: number): void {
+    if (!isTurn) {
+      if (entry.turnRing) {
+        entry.wrapper.removeChild(entry.turnRing)
+        entry.turnRing.destroy()
+        entry.turnRing = null
+      }
+      return
+    }
+    if (!entry.turnRing) {
+      const turnRing = new Graphics()
+      turnRing.label = TURN_RING_LABEL
+      entry.wrapper.addChildAt(turnRing, entry.wrapper.getChildIndex(entry.ring) + 1)
+      entry.turnRing = turnRing
+    }
+    entry.turnRing
+      .clear()
+      .circle(0, 0, outlineRadius + TURN_RING_GAP + TURN_RING_WIDTH / 2)
+      .stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
+    if (pulsoDaVez?.id !== tokenId) poseDaChegada(entry.turnRing, 1)
   }
 
   /** Leva a escala do wrapper de `id` até `to`, de onde ela estiver (soltar no meio do levantar assenta dali). */
@@ -424,6 +551,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     scaleTweens.clear()
     glides.clear()
     pinosGirando.clear()
+    pulsoDaVez = null
+    pararBatidas()
     stopTicking()
   }
 
@@ -470,6 +599,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     if (visual !== null) visual.visible = false
     entry.ring.clear()
     syncHealthBar(entry, null, 0)
+    syncTurnRing(entry, token.id, false, 0)
     entry.marks.clear()
     selecao.clear()
     if (selected) {
@@ -598,8 +728,16 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     pinos: ReadonlyMap<string, string> = NO_PINS,
     vidas: VidasDaCena = SEM_VIDAS,
     noDaFicha?: (token: Token) => Container,
+    vezTokenId: string | null = null,
   ): number {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
+    // A vez só pulsa a chegada na TROCA: este `draw` roda a cada passo de arrasto.
+    const vezMudou = lastVez !== undefined && vezTokenId !== lastVez
+    if (vezTokenId !== lastVez) {
+      pararBatidas()
+      pulsoDaVez = null
+    }
+    lastVez = vezTokenId
     const currentIds = new Set(tokens.map((t) => t.id))
 
     for (const [id, entry] of cache) {
@@ -647,6 +785,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           photoMask: null,
           graphics: null,
           ring,
+          turnRing: null,
           bar: null,
           label,
           marks,
@@ -685,7 +824,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       else pinosGirando.delete(token.id)
       // BARRA DE VIDA: o pino do continente não leva vida, então a dele não conta.
       const vida = pino === null ? (vidas.get(token.id) ?? null) : null
-      const pintura: TokenPaint = { token, gridSize, selected, away, pino, vida }
+      const isTurn = token.id === vezTokenId
+      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida }
       // Pintura em dia: a ficha só andou (acima). É o caso de quase toda ficha
       // a cada passo do arrasto de OUTRA.
       if (paintIsCurrent(entry.painted, pintura)) continue
@@ -821,6 +961,9 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // fica como fantasma (alpha baixo acima + contorno tracejado), clicável.
       if (ghost) strokeDashedCircle(entry.ring, outlineRadius)
       else if (token.secret === true) strokeDashedCircle(entry.ring, outlineRadius + SECRET_RING_GAP)
+      // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
+      // ler de relance no meio do mapa sem esconder a seleção.
+      syncTurnRing(entry, token.id, isTurn, outlineRadius)
 
       // Condição na ficha: pastilhas sentadas na borda de cima do disco que a
       // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
@@ -849,6 +992,9 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       applyLabelSizing(entry)
     }
     if (glides.size > 0 || pinosGirando.size > 0) startTicking()
+    // Depois da pintura: o anel da vez nova já existe. Movimento reduzido (lido só na troca): o anel aparece parado.
+    if (vezMudou && vezTokenId !== null) pulsar(vezTokenId, 'chegada')
+    if (vezTokenId !== null) agendarBatida()
     return changedLabels
   }
 

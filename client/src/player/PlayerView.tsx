@@ -97,7 +97,20 @@ import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAli
 import { screenLabelSizing } from '../pixi/screenLabel'
 import { faseDoMarcador } from '../pixi/drawMarcadorDeContinente'
 import { criarVistaDoMarcador, escalarVistaDoMarcador, pintarVistaDoMarcador, posarVistaDoMarcador, type VistaDoMarcador } from '../pixi/vistaDoMarcador'
-import { TOKEN_FRAME_COLOR, TOKEN_FRAME_WIDTH, TOKEN_NAME_FILL_COLOR, TOKEN_NAME_OUTLINE_COLOR } from '../pixi/constants'
+import {
+  TOKEN_FRAME_COLOR,
+  TOKEN_FRAME_WIDTH,
+  TOKEN_NAME_FILL_COLOR,
+  TOKEN_NAME_OUTLINE_COLOR,
+  TURN_RING_BEAT_EVERY_MS,
+  TURN_RING_BEAT_MIN_ALPHA,
+  TURN_RING_BEAT_MS,
+  TURN_RING_BEAT_SCALE,
+  TURN_RING_COLOR,
+  TURN_RING_GAP,
+  TURN_RING_PULSE_FROM_SCALE,
+  TURN_RING_WIDTH,
+} from '../pixi/constants'
 import { criarGradeDaBatalha, type GradeDaBatalha } from '../pixi/gradeDaBatalha'
 import { parseHexColor } from '../lib/tokenColor'
 import { readTokenHealth } from '../lib/tokenHealth'
@@ -231,6 +244,12 @@ interface PlayerViewProps {
   luz?: LuzDoJogador | null
   /** MODO BATALHA (B5): a cena está em batalha (`snapshot.batalha`); a grade de batalha aparece por cima do mapa. */
   batalha?: boolean
+  /**
+   * BATALHA F1: a ficha da vez, quando ele a vê (o token da carta da vez em
+   * `batalha.estado`). Ganha o anel da vez, que chega pulsando na troca e bate
+   * de leve a cada 3 s enquanto a vez for dela. `null`/omitido = nenhuma.
+   */
+  vezTokenId?: string | null
   /** MODO BATALHA (B6): o caminho andado que o host deixou ele ver (`snapshot.caminhos`). Ausente = nenhum. */
   caminhos?: CaminhosDaBatalha
   /**
@@ -1217,6 +1236,19 @@ interface Scene {
   /** MODO BATALHA (B5): a grade de batalha, recortada à vista com folga (`pixi/gradeDaBatalha.ts`). */
   gradeDaBatalha: GradeDaBatalha
   /**
+   * BATALHA F1: o anel da ficha da vez — UM Graphics, que muda de ficha (filho
+   * do wrapper dela) quando a vez anda. `vezDoAnel`: a ficha onde está agora
+   * (`null` = escondido); `vezAnterior`: a vez do último desenho (`undefined`
+   * antes do primeiro: abrir a tela com a vez andando não pulsa a chegada).
+   */
+  anelDaVez: Graphics
+  vezDoAnel: string | null
+  vezAnterior: string | null | undefined
+  raioDoAnel: number
+  pulsoDaVez: { start: number; tipo: 'chegada' | 'batida' } | null
+  /** `performance.now()` da próxima batida enquanto a vez é a mesma. */
+  proximaBatida: number
+  /**
    * CARIMBOS (`pixi/drawCarimbos.ts`): SÓ os objetos do recorte deste jogador
    * (`carimbosParaJogador`: base no que ele conhece), sob a névoa e ainda
    * recortados pelo conhecido — a copa que passa da borda não aparece.
@@ -1455,6 +1487,90 @@ function ajustarGradeDaBatalhaAVista(scene: Scene): void {
   const { width, height } = scene.app.screen
   const vista = { left: -camera.x / camera.scale, top: -camera.y / camera.scale, right: (width - camera.x) / camera.scale, bottom: (height - camera.y) / camera.scale }
   scene.gradeDaBatalha.ajustarAVista(vista, camera.scale, scene.app.renderer.resolution)
+}
+
+/** BATALHA F1: a chegada do anel dura o mesmo que a do mestre (`pixi/tokensRenderer.ts`). */
+const ANEL_DA_VEZ_CHEGADA_MS = Number.parseFloat(theme.motion.base)
+/** Nome (`Container.label`) do anel da vez: é por ele que um teste o acha. */
+export const ANEL_DA_VEZ_LABEL = 'vez'
+
+function novoAnelDaVez(): Graphics {
+  const anel = new Graphics()
+  anel.label = ANEL_DA_VEZ_LABEL
+  anel.visible = false
+  return anel
+}
+
+/**
+ * O anel num ponto da animação — as mesmas poses do mestre, repetidas aqui
+ * para a tela do jogador não importar o renderer do mestre (que traz o
+ * Tauri). Chegada: `t` 0 = de fora e transparente, 1 = assentado. Batida:
+ * cresce e apaga até o meio, e volta.
+ */
+function poseDoAnelDaVez(anel: Graphics, tipo: 'chegada' | 'batida', t: number): void {
+  if (tipo === 'chegada') {
+    const k = 1 - (1 - t) ** 3
+    anel.scale.set(TURN_RING_PULSE_FROM_SCALE + (1 - TURN_RING_PULSE_FROM_SCALE) * k)
+    anel.alpha = k
+    return
+  }
+  const onda = Math.sin(Math.PI * t)
+  anel.scale.set(1 + (TURN_RING_BEAT_SCALE - 1) * onda)
+  anel.alpha = 1 - (1 - TURN_RING_BEAT_MIN_ALPHA) * onda
+}
+
+/**
+ * Põe o anel na ficha da vez (filho do wrapper dela, por baixo do disco: fica
+ * por fora, sem cobrir nome nem barra). Vez que ele não vê, ficha fora da
+ * visão ou pino de continente: anel escondido. A vez que TROCA chega pulsando
+ * (movimento reduzido: parada).
+ */
+function syncAnelDaVez(scene: Scene, map: MapData, vezTokenId: string | null, now: number): void {
+  const anel = scene.anelDaVez
+  const trocou = scene.vezAnterior !== undefined && scene.vezAnterior !== vezTokenId
+  scene.vezAnterior = vezTokenId
+  const token = vezTokenId === null ? undefined : map.tokens.find((candidato) => candidato.id === vezTokenId)
+  const view = token === undefined ? undefined : scene.tokenViews.get(token.id)
+  if (token === undefined || view === undefined || !view.wrapper.visible || typeof token.pino === 'string') {
+    anel.visible = false
+    scene.vezDoAnel = null
+    scene.pulsoDaVez = null
+    return
+  }
+  if (anel.parent !== view.wrapper) view.wrapper.addChildAt(anel, 0)
+  const raio = tokenRadius(token, map.grid) + TURN_RING_GAP + TURN_RING_WIDTH / 2
+  if (raio !== scene.raioDoAnel) {
+    anel.clear().circle(0, 0, raio).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
+    scene.raioDoAnel = raio
+  }
+  anel.visible = true
+  if (scene.vezDoAnel !== token.id || trocou) {
+    scene.vezDoAnel = token.id
+    scene.proximaBatida = now + TURN_RING_BEAT_EVERY_MS
+    scene.pulsoDaVez = trocou && !prefersReducedMotion() ? { start: now, tipo: 'chegada' } : null
+    poseDoAnelDaVez(anel, 'chegada', scene.pulsoDaVez === null ? 1 : 0)
+  }
+}
+
+/** Um quadro do anel: a animação em curso, ou a batida quando chega a hora. Sem vez, nada. */
+function passoDoAnelDaVez(scene: Scene, now: number): void {
+  if (scene.vezDoAnel === null) return
+  let pulso = scene.pulsoDaVez
+  if (pulso === null) {
+    if (now < scene.proximaBatida) return
+    scene.proximaBatida = now + TURN_RING_BEAT_EVERY_MS
+    // Lido só na hora da batida (a cada 3 s): a pessoa pode mudar com a tela aberta.
+    if (prefersReducedMotion()) return
+    pulso = { start: now, tipo: 'batida' }
+    scene.pulsoDaVez = pulso
+  }
+  const duracao = pulso.tipo === 'chegada' ? ANEL_DA_VEZ_CHEGADA_MS : TURN_RING_BEAT_MS
+  const t = duracao <= 0 ? 1 : Math.min(1, Math.max(0, (now - pulso.start) / duracao))
+  poseDoAnelDaVez(scene.anelDaVez, pulso.tipo, t)
+  if (t >= 1) {
+    scene.pulsoDaVez = null
+    poseDoAnelDaVez(scene.anelDaVez, 'chegada', 1)
+  }
 }
 
 /**
@@ -1973,6 +2089,7 @@ function PlayerViewDoCanvas({
   ownTokens,
   luz = null,
   batalha = false,
+  vezTokenId = null,
   caminhos,
   waitingTokens = NO_WAITING,
   settings,
@@ -2047,6 +2164,7 @@ function PlayerViewDoCanvas({
     ownTokens,
     luz,
     batalha,
+    vezTokenId,
     caminhos,
     waitingTokens,
     settings,
@@ -3179,6 +3297,8 @@ function PlayerViewDoCanvas({
     // Snapshot chegou no meio do arrasto: o token arrastado fica sob o dedo.
     const drag = scene.drag
     if (drag?.kind === 'token') scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
+    // BATALHA F1: o anel da vez segue a ficha (que pode ter acabado de entrar ou sair da visão).
+    syncAnelDaVez(scene, currentMap, latestRef.current.vezTokenId, now)
 
     // MAPA LEMBRADO: a volta a um trecho que mudou desde a última visita pisca.
     // Só com o que chegou no pacote: nada que a névoa ou o mestre escondem entra na conta.
@@ -3826,6 +3946,12 @@ function PlayerViewDoCanvas({
         barrancoContainer,
         texturas,
         gradeDaBatalha,
+        anelDaVez: novoAnelDaVez(),
+        vezDoAnel: null,
+        vezAnterior: undefined,
+        raioDoAnel: -1,
+        pulsoDaVez: null,
+        proximaBatida: 0,
         carimbos,
         nomesDosLugares,
         fogos,
@@ -3969,6 +4095,10 @@ function PlayerViewDoCanvas({
       // refazem no próprio passo: com eles, não sobra nada para cá.
       const tickZoomLayers = () => syncZoomLayers(scene)
       app.ticker.add(tickZoomLayers)
+
+      // BATALHA F1: o anel da vez. Sem vez, sai na primeira linha; com vez parada, só confere o relógio da batida.
+      const tickAnelDaVez = () => passoDoAnelDaVez(scene, performance.now())
+      app.ticker.add(tickAnelDaVez)
 
       // PORTA POR CIMA DO TELHADO: enquanto um telhado desbota, as portas dele
       // são refeitas a cada quadro, e mais um quadro depois do fim — o telhado
@@ -4621,6 +4751,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickZoom)
         app.ticker.remove(tickCameraGlide)
         app.ticker.remove(tickZoomLayers)
+        app.ticker.remove(tickAnelDaVez)
         app.ticker.remove(tickPortasNoTelhado)
         app.ticker.remove(tickEdgeScroll)
         app.ticker.remove(tickSignals)
@@ -4702,6 +4833,12 @@ function PlayerViewDoCanvas({
   useEffect(() => {
     sceneRef.current?.gradeDaBatalha.definir(batalha, latestRef.current.map)
   }, [batalha])
+
+  // BATALHA F1: a vez andar só muda o anel, sem redesenhar a cena.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (scene) syncAnelDaVez(scene, latestRef.current.map, vezTokenId, performance.now())
+  }, [vezTokenId])
 
   useEffect(() => {
     // Contagem para o e2e (o desenho em si é do ticker); muda quando chega ou expira um sinal.
