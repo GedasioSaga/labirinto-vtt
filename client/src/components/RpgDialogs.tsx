@@ -13,6 +13,8 @@ import { useMapStore } from '../stores/mapStore'
 import { sistemaPorId, useRpgStore, type AberturaDoEditor } from '../stores/rpgStore'
 import { temLivro } from '../lib/livroDeRegras'
 import { aplicarAjustes, NOME_DO_MESTRE } from '../lib/ajusteDaFicha'
+import type { Personagem } from '../lib/personagem'
+import { useBatalhaStore } from '../stores/batalhaStore'
 import { FichaDePersonagemDialog, type TokenParaLigar } from './FichaDePersonagemDialog'
 import { EditorDeSistemaDialog } from './EditorDeSistemaDialog'
 import { LivroDeRegrasDialog } from './LivroDeRegrasDialog'
@@ -111,10 +113,22 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
           // Pelo histórico do mapa, como o resto do token: Ctrl+Z desliga.
           onLigarToken={(tokenId) => useMapStore.getState().updateToken(tokenId, { characterId: personagem.id })}
           // AJUSTE RÁPIDO: sobre o personagem de AGORA da aventura (o jogador pode ter mexido um instante antes), com o histórico.
+          // BATALHA F1: o que mudou vira linha no registro da batalha (autor mestre), em toda cena com ele na ordem.
           onAjustar={
             sistema === undefined
               ? undefined
-              : (ajuste) => useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => aplicarAjustes(atual, sistema, [ajuste], NOME_DO_MESTRE, Date.now()))
+              : (ajuste) => {
+                  const feito: { antes?: Personagem; depois?: Personagem } = {}
+                  const ok = useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => {
+                    feito.antes = atual
+                    feito.depois = aplicarAjustes(atual, sistema, [ajuste], NOME_DO_MESTRE, Date.now())
+                    return feito.depois
+                  })
+                  if (feito.antes !== undefined && feito.depois !== undefined && feito.antes !== feito.depois) {
+                    useBatalhaStore.getState().registrarAjuste(personagem.id, feito.antes, feito.depois, { tipo: 'mestre' })
+                  }
+                  return ok
+                }
           }
           inventario={inventario}
         />

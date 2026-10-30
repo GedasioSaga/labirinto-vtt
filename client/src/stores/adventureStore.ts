@@ -43,6 +43,7 @@ import {
 import type { AgendaDaCampanha } from '../lib/agendaDaCampanha'
 import type { Personagem } from '../lib/personagem'
 import { gravarRpgDaPasta, rpgDe, type PastaAberta, type RpgDaPasta } from '../lib/pastasDeMapas'
+import type { Equipe } from '../lib/batalha/equipes'
 import { personagemComMidia } from '../lib/imagensDaFicha'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import {
@@ -374,6 +375,19 @@ interface AdventureState {
    * `false` quando ele não existe ou no mapa solto.
    */
   apagarPersonagem: (personagemId: string) => boolean
+  /**
+   * BATALHA F1: grava a lista de EQUIPES inteira (criar, renomear, cor, apagar)
+   * no mesmo dono dos personagens — a pasta ou a aventura (decisão Q5). Lista
+   * vazia tira a chave. Pede Salvar (ou marca a pasta), fora do desfazer.
+   * `false` quando não há onde guardar (mapa solto fora de pasta que herda).
+   */
+  salvarEquipes: (equipes: readonly Equipe[]) => boolean
+  /**
+   * Põe o personagem na equipe `equipeId` (sai da que estava), ou em nenhuma
+   * (`null`). Mesma equipe de antes = nada muda. `false` sem onde guardar ou
+   * com equipe que não existe.
+   */
+  trocarEquipe: (personagemId: string, equipeId: string | null) => boolean
   /**
    * Troca a cena aberta. `false` quando não há o que trocar (mesma cena, cena
    * indisponível). `focus` centraliza a câmera nesse ponto da cena que entra.
@@ -892,7 +906,10 @@ export function hostWorldOf(state: SceneState & Partial<RpgState>, liveMap: MapD
   if (biblioteca === undefined || !temRpgNoMapa(rpg)) return mundo
   const sistemaId = sistemaAtivo(rpg)
   const sistema = sistemaId === undefined ? undefined : biblioteca.find((candidato) => candidato.id === sistemaId)
-  return { ...mundo, rpg: { sistema: sistema ?? null, personagens: personagensAtivos(rpg) } }
+  // BATALHA F1: sem equipes, o mundo vai sem a chave (todo jogador é aliado, como antes).
+  const equipes = equipesAtivas(rpg)
+  const personagens = personagensAtivos(rpg)
+  return { ...mundo, rpg: equipes.length === 0 ? { sistema: sistema ?? null, personagens } : { sistema: sistema ?? null, personagens, equipes } }
 }
 
 /** Referência estável: a sessão compara os personagens por referência para não reenviar a ficha. */
@@ -957,6 +974,43 @@ function donoDosPersonagens(
   const { adventure } = state
   if (adventure === null) return null
   return { lista: adventure.personagens, gravar: (personagens) => set({ adventure: { ...adventure, personagens }, structureDirty: true }) }
+}
+
+/** Referência estável para "sem equipes": o host compara por referência. */
+const SEM_EQUIPES: readonly Equipe[] = []
+
+/**
+ * BATALHA F1: as equipes em uso — do MESMO dono que `personagensAtivos` (a
+ * pasta quando o mapa herda, senão a aventura), porque o membro é personagem.
+ * Referência estável enquanto nada muda.
+ */
+export function equipesAtivas(state: RpgState): readonly Equipe[] {
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) return pasta.equipes ?? SEM_EQUIPES
+  return state.adventure?.equipes ?? SEM_EQUIPES
+}
+
+/** Como `donoDosPersonagens`, para as equipes. Lista vazia grava sem a chave (o arquivo de antes continua igual). */
+function donoDasEquipes(
+  get: () => AdventureState,
+  set: (patch: Partial<AdventureState>) => void,
+): { lista: readonly Equipe[] | undefined; gravar: (equipes: Equipe[]) => void } | null {
+  const state = get()
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) {
+    const gravar = (equipes: Equipe[]): void => {
+      const { equipes: _antigas, ...semEquipes } = pasta
+      set({ pasta: equipes.length === 0 ? semEquipes : { ...semEquipes, equipes }, pastaSuja: true })
+    }
+    return { lista: pasta.equipes, gravar }
+  }
+  const { adventure } = state
+  if (adventure === null) return null
+  const gravar = (equipes: Equipe[]): void => {
+    const { equipes: _antigas, ...semEquipes } = adventure
+    set({ adventure: equipes.length === 0 ? semEquipes : { ...semEquipes, equipes }, structureDirty: true })
+  }
+  return { lista: adventure.equipes, gravar }
 }
 
 function mundoDasCenas(state: SceneState, liveMap: MapData): HostWorld {
@@ -1670,6 +1724,29 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const lista = dono?.lista ?? []
     if (dono === null || !lista.some((personagem) => personagem.id === personagemId)) return false
     dono.gravar(lista.filter((personagem) => personagem.id !== personagemId))
+    return true
+  },
+
+  salvarEquipes: (equipes) => {
+    const dono = donoDasEquipes(get, set)
+    if (dono === null) return false
+    dono.gravar([...equipes])
+    return true
+  },
+
+  trocarEquipe: (personagemId, equipeId) => {
+    const dono = donoDasEquipes(get, set)
+    if (dono === null) return false
+    const equipes = dono.lista ?? []
+    if (equipeId !== null && !equipes.some((equipe) => equipe.id === equipeId)) return false
+    const antes = equipes.find((equipe) => equipe.membros.includes(personagemId))?.id ?? null
+    if (antes === equipeId) return true
+    dono.gravar(
+      equipes.map((equipe) => {
+        if (equipe.id === equipeId) return { ...equipe, membros: [...equipe.membros, personagemId] }
+        return equipe.membros.includes(personagemId) ? { ...equipe, membros: equipe.membros.filter((id) => id !== personagemId) } : equipe
+      }),
+    )
     return true
   },
 

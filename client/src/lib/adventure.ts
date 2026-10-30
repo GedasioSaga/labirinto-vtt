@@ -4,6 +4,7 @@ import { lerPeriodo, PERIODO_PADRAO } from './periodo'
 import { lerAgenda, type AgendaDaCampanha } from './agendaDaCampanha'
 import { estadosDoArquivo, type EstadoDoMundo } from './estadoDoMundo'
 import { cabinesDoArquivo, type CabineDeTransporte } from './cabine'
+import { equipesDoArquivo, type Equipe } from './batalha/equipes'
 import { personagensDoArquivo, sistemaDaAventuraDoArquivo, type Personagem } from './personagem'
 
 /**
@@ -87,6 +88,12 @@ export interface Adventure {
    * Ausente = aventura antiga, que grava sem a chave.
    */
   personagens?: Personagem[]
+  /**
+   * BATALHA F1: as equipes (nome, cor, membros = ids de personagem) de
+   * `lib/batalha/equipes.ts`. Seguem os personagens: moram aqui quando a lista
+   * ativa é a da aventura. Ausente = sem equipes (grava sem a chave).
+   */
+  equipes?: Equipe[]
   /**
    * CAMADAS (`lib/camadas`): a lista de camadas da aventura (nomes e ordem,
    * de baixo para cima), a mesma em todas as cenas; o estado de cada uma
@@ -261,6 +268,8 @@ export function parseAdventure(json: string): Adventure {
   // SISTEMA DE RPG e PERSONAGENS: idem — sem a chave, a aventura continua sem ela.
   const sistemaDeRpg = sistemaDaAventuraDoArquivo(parsed.sistemaDeRpg)
   const personagens = personagensDoArquivo(parsed.personagens)
+  // EQUIPES DA BATALHA: idem; lista vazia também grava sem a chave.
+  const equipes = equipesDoArquivo(parsed.equipes)
   // CAMADAS: idem — sem a chave, a aventura continua sem ela; entrada torta sai.
   const camadas = lerModeloDeCamadas(parsed.camadas)
   // PERÍODO DA SESSÃO: idem; 'manha' antigo abre como 'dia' e nunca volta ao arquivo.
@@ -275,6 +284,7 @@ export function parseAdventure(json: string): Adventure {
     ...(cabines === undefined ? {} : { cabines }),
     ...(sistemaDeRpg === undefined ? {} : { sistemaDeRpg }),
     ...(personagens === undefined ? {} : { personagens }),
+    ...(equipes === undefined || equipes.length === 0 ? {} : { equipes }),
     ...(camadas === undefined ? {} : { camadas }),
     ...(periodo === undefined ? {} : { periodo }),
   }

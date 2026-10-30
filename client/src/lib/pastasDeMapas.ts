@@ -4,6 +4,7 @@ import { ADVENTURE_FILE, parseAdventure } from './adventure'
 import { defaultMapsDir, ensureDir, mapDirFor, writeTextFileSafely } from './mapFileIO'
 import { levarMidiaParaAPasta, pastaDaMidiaDaAventura, PASTA_DE_MIDIA_DA_AVENTURA, trazerMidiaDaPasta } from './midiaDaPasta'
 import { personagensDoArquivo, sistemaDaAventuraDoArquivo, type Personagem } from './personagem'
+import { equipesDoArquivo, type Equipe } from './batalha/equipes'
 import { useToastStore } from '../stores/toastStore'
 
 /**
@@ -67,6 +68,8 @@ export interface RpgDaPasta {
   sistemaDeRpg?: string
   /** Os "Jogadores principais": a cópia ÚNICA que todo mapa da pasta usa. */
   personagens: Personagem[]
+  /** BATALHA F1: as equipes seguem os personagens (decisão Q5). Ausente = sem equipes. */
+  equipes?: Equipe[]
 }
 
 /** A pasta do mapa aberto, como o editor a usa (`stores/adventureStore.ts`). */
@@ -240,7 +243,13 @@ export function rpgDoArquivo(valor: unknown): RpgDaPasta {
   if (!isRecord(valor)) return RPG_VAZIO
   const sistemaDeRpg = sistemaDaAventuraDoArquivo(valor.sistemaDeRpg)
   const personagens = personagensDoArquivo(valor.personagens) ?? []
-  return sistemaDeRpg === undefined ? { personagens } : { sistemaDeRpg, personagens }
+  const equipes = equipesDoArquivo(valor.equipes)
+  return comEquipes(sistemaDeRpg === undefined ? { personagens } : { sistemaDeRpg, personagens }, equipes)
+}
+
+/** Sem equipes (ausente ou lista vazia), sem a chave: o `rpg.json` de antes continua igual. */
+function comEquipes(rpg: RpgDaPasta, equipes: Equipe[] | undefined): RpgDaPasta {
+  return equipes === undefined || equipes.length === 0 ? rpg : { ...rpg, equipes }
 }
 
 function rpgDoTexto(texto: string): RpgDaPasta | null {
@@ -252,12 +261,14 @@ function rpgDoTexto(texto: string): RpgDaPasta | null {
 }
 
 export function serializarRpg(rpg: RpgDaPasta): string {
-  return JSON.stringify({ versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens }, null, 2)
+  const equipes = rpg.equipes === undefined || rpg.equipes.length === 0 ? {} : { equipes: rpg.equipes }
+  return JSON.stringify({ versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens, ...equipes }, null, 2)
 }
 
 /** Só o RPG de uma `PastaAberta` (sem chave, nome e modo): é o que vai para o `rpg.json`. */
 export function rpgDe(pasta: RpgDaPasta): RpgDaPasta {
-  return pasta.sistemaDeRpg === undefined ? { personagens: pasta.personagens } : { sistemaDeRpg: pasta.sistemaDeRpg, personagens: pasta.personagens }
+  const base: RpgDaPasta = pasta.sistemaDeRpg === undefined ? { personagens: pasta.personagens } : { sistemaDeRpg: pasta.sistemaDeRpg, personagens: pasta.personagens }
+  return comEquipes(base, pasta.equipes)
 }
 
 // ───────────────────────────────────────────────────────────────────────────
