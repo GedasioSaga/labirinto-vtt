@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { chaveDaVez, type PedidoDeAcao, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
@@ -54,6 +54,8 @@ export interface BatalhaDoJogadorProps {
   onTremor: () => void
 }
 
+/** A classe que o PlayerView dá à `FaixaDoJogador` (player/main.tsx). */
+const CLASSE_DA_FAIXA = 'pp-batalha-faixa'
 const SEM_EFEITOS: readonly EfeitoParaJogador[] = []
 const NINGUEM: readonly Personagem[] = []
 
@@ -166,6 +168,21 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
 
   const mostrarMenu = cartaQueAge !== undefined && menu !== null && (estado.minhaVez || contras.length > 0)
 
+  // O menu mora à esquerda, centrado na altura, mas começa abaixo da faixa da
+  // ordem (`.pp-batalha-faixa`, montada pelo PlayerView): a altura dela muda com
+  // as cartas, então é medida e vai para `--pp-faixa-alto` no lugar do menu.
+  const lugarDoMenu = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const lugar = lugarDoMenu.current
+    const faixa = document.querySelector<HTMLElement>(`.${CLASSE_DA_FAIXA}`)
+    if (lugar === null || faixa === null) return
+    const medir = () => lugar.style.setProperty('--pp-faixa-alto', `${faixa.offsetHeight}px`)
+    medir()
+    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
+    observador?.observe(faixa)
+    return () => observador?.disconnect()
+  }, [mostrarMenu])
+
   return (
     <>
       <EfeitosDaBatalha
@@ -177,8 +194,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         suaVez={estado.minhaVez && vez !== null ? { chave: `${vez}:${estado.rodada}`, nome: cartaDaVez?.nome ?? '' } : null}
         onTremor={onTremor}
       />
+      {mostrarMenu && <div className="pp-batalha-veu" aria-hidden="true" />}
       {mostrarMenu && (
-        <div className="pp-batalha-menu">
+        <div ref={lugarDoMenu} className="pp-batalha-menu">
           <MenuDaVez
             key={estado.minhaVez ? `${vez}:${estado.rodada}` : 'contra'}
             quem={cartaQueAge.nome.trim() || 'Você'}

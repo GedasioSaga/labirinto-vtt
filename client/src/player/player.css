@@ -756,16 +756,92 @@
 }
 
 /*
- * O menu da vez (o `.menu--principal` do protótipo): canto de baixo à
- * esquerda, acima do mapa e abaixo do painel aberto. A caixa REAÇÃO no meio
- * de baixo, com o botão REAÇÃO logo abaixo dela; o zoom fica no canto direito.
+ * O menu da vez (o `.menu--principal` do protótipo): no lado esquerdo,
+ * centrado na altura entre a faixa da ordem (medida em `--pp-faixa-alto` por
+ * `BatalhaDoJogador`; a faixa também passa por cima da coluna do menu) e o
+ * chão, depois da coluna do painel aberta (`--pp-painel-ocupa`). Acima do
+ * mapa e abaixo do painel aberto. A caixa fica sem `transform`: a mira põe
+ * as marcas `position: fixed` sobre as fichas e precisa da janela como bloco.
+ * A caixa é só o lugar: o toque passa para o mapa fora do menu.
+ * A caixa REAÇÃO no meio de baixo, com o botão REAÇÃO logo abaixo dela; o
+ * zoom fica no canto direito.
  */
 .pp-batalha-menu {
   position: fixed;
-  left: calc(var(--pp-edge, 12px) + 12px);
+  top: max(
+    calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)),
+    calc(12px + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px)
+  );
   bottom: calc(var(--pp-chao, 12px) + 12px);
+  left: calc(var(--pp-edge, 12px) + 12px + var(--pp-painel-ocupa, 0px));
   z-index: 9;
-  max-width: calc(100% - 2 * var(--pp-edge, 12px) - 24px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  max-width: calc(100% - 2 * var(--pp-edge, 12px) - 24px - var(--pp-painel-ocupa, 0px));
+  pointer-events: none;
+}
+.pp-batalha-menu > * {
+  pointer-events: auto;
+}
+/* A altura é a do lugar (não os 78vh do componente): as tiras só rolam se não couberem. */
+.pp-batalha-menu > .bt-vez {
+  max-height: 100%;
+}
+/*
+ * Notebook de 1366x768 (no navegador sobram ~650 px de altura): as cinco
+ * tiras, a dica e o "Recolher" cabem sem rolar diminuindo o menu principal
+ * por inteiro. Só o principal: a lista e a mira (`--lista`) rolam como antes,
+ * e a mira tem as marcas fixas sobre o mapa, que o `zoom` deslocaria.
+ */
+@media (min-width: 1000px) and (max-height: 719px) {
+  .pp-batalha-menu > .bt-vez:not(.bt-vez--lista) {
+    zoom: 0.9;
+  }
+}
+@media (min-width: 1000px) and (max-height: 669px) {
+  .pp-batalha-menu > .bt-vez:not(.bt-vez--lista) {
+    zoom: 0.8;
+  }
+}
+
+/*
+ * O VÉU atrás do menu aberto: uma faixa escura à esquerda que some para a
+ * direita, para o nome, as economias e a dica lerem sobre qualquer chão. Só
+ * com o menu aberto (recolhido, ele vira o botão `.bt-vez-recolhido`), abaixo
+ * dos efeitos (z 8) e sem pegar o toque. Entra só com opacity.
+ */
+.pp-batalha-veu {
+  display: none;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 7;
+  width: min(100%, calc(var(--pp-painel-ocupa, 0px) + clamp(420px, 45vw, 760px)));
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.72) var(--pp-painel-ocupa, 0px),
+    rgba(0, 0, 0, 0.55) 60%,
+    rgba(0, 0, 0, 0.22) 85%,
+    rgba(0, 0, 0, 0)
+  );
+  pointer-events: none;
+}
+.pp-batalha-veu:has(+ .pp-batalha-menu > .bt-vez) {
+  display: block;
+  animation: pp-veu-entra 180ms var(--bt-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+@keyframes pp-veu-entra {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-batalha-veu:has(+ .pp-batalha-menu > .bt-vez) {
+    animation: none;
+  }
 }
 .pp-batalha-reacao-botao {
   position: fixed;
@@ -784,9 +860,12 @@
   overflow-y: auto;
 }
 
+/* Janela estreita: a faixa desce para baixo da barra (largura toda); o menu
+   começa abaixo dela e termina acima do botão REAÇÃO. */
 @media (max-width: 999px) {
   .pp-batalha-menu {
-    left: var(--pp-edge, 12px);
+    top: calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px);
+    left: calc(var(--pp-edge, 12px) + var(--pp-painel-ocupa, 0px));
     bottom: calc(var(--pp-chao, 12px) + 64px);
   }
 }

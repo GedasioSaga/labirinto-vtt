@@ -91,7 +91,10 @@
   flex-direction: column;
   gap: 9px;
   margin: 0;
-  padding: 4px 26px 8px 6px;
+  /* Embaixo, a ponta da última tira girada (até 3,4°: ~3% da largura) e a
+     sombra de sangue (5 px) passavam da caixa e acendiam a barra de rolagem
+     mesmo com tudo cabendo; o `%` do padding é o da largura do menu. */
+  padding: 4px 26px calc(8px + 3%) 6px;
   list-style: none;
   min-height: 0;
   overflow-y: auto;
