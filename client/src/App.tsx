@@ -47,7 +47,7 @@ import { focoDeixaDesfazerGlobal, isEditableTarget, PAUSE_NPCS_SHORTCUT } from '
 import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
-import { useBatalhaStore } from './stores/batalhaStore'
+import { deveAvisarJogadores, ponteDaBatalha, useBatalhaStore, vezTokenIdDaCena } from './stores/batalhaStore'
 import { carryRefsOf } from './lib/carry'
 import { consertarNaAventura } from './stores/revisaoAventura'
 import { useFollowPlayer } from './stores/useFollowPlayer'
@@ -156,6 +156,7 @@ import { mapaVivoLigado } from './components/SceneMapTypeControls'
 import { ComSaida } from './components/grimorio/ComSaida'
 import { SceneOverviewDialog } from './components/SceneOverview'
 import { ChipDaCena } from './components/livro/ChipDaCena'
+import { FaixaDoMestre } from './components/batalha/FaixaDoMestre'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -901,6 +902,8 @@ function App() {
         onBatalhaAndou: (sceneKey, tokenId, blocos, casas) => useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas),
         // B6: o caminho andado vai a cada jogador recortado pelo host (o dele inteiro, o do colega só à vista).
         getCaminhosDaBatalha: (sceneKey) => useBatalhaStore.getState().cenas[sceneKey] ?? null,
+        // BATALHA F1 (S1): a ordem dos turnos, o registro e as regras; o host recorta para cada jogador.
+        ponteDaBatalha,
         // Regra de 27/10: esbarrar em parede invisível REVELA (só para ele) e AVISA o mestre (o nome vem do registro do host, não do jogador).
         onEsbarrouNaParede: (nome, invisivel) =>
           useToastStore.getState().push('info', invisivel ? `${nome} esbarrou na parede invisível` : `${nome} esbarrou numa parede que ainda estava na névoa`),
@@ -1007,15 +1010,9 @@ function App() {
       useBatalhaStore.subscribe((state, previous) => {
         const anuncio = state.anuncio
         if (anuncio !== null && anuncio !== previous.anuncio) notificarPontes((ponte) => ponte.anunciarBatalha(anuncio))
-        // "Zerar caminhos" também (o `zerados` sobe): o caminho some e o jogador lê o aviso.
+        // "Zerar caminhos" também (o `zerados` sobe), e a ordem, o registro ou as regras (BATALHA F1, `turnosRev`).
         // O caminho que só soma vai com o snapshot do próprio movimento.
-        const zerou = Object.entries(state.cenas).some(([chave, cena]) => {
-          const antes = previous.cenas[chave]
-          return antes !== undefined && antes.zerados !== cena.zerados
-        })
-        if (zerou || JSON.stringify(Object.keys(state.cenas).sort()) !== JSON.stringify(Object.keys(previous.cenas).sort())) {
-          notificarPontes((ponte) => ponte.notifyBatalhaChanged())
-        }
+        if (deveAvisarJogadores(state, previous)) notificarPontes((ponte) => ponte.notifyBatalhaChanged())
       }),
     [],
   )
@@ -1395,6 +1392,8 @@ function App() {
   // MODO BATALHA (B5): a chave da cena aberta, a mesma de `tableSceneKey(world.open)` (o id da cena, senão o do mapa).
   const chaveDaCenaAberta = activeSceneId ?? map.id
   const batalhaNaCenaAberta = useBatalhaStore((state) => Object.hasOwn(state.cenas, chaveDaCenaAberta))
+  // BATALHA F1 (S4): a ficha da vez ganha o anel com o pulso de chegada no mapa do mestre.
+  const vezTokenId = useBatalhaStore((state) => vezTokenIdDaCena(state, chaveDaCenaAberta))
   useEffect(() => {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
@@ -3166,6 +3165,7 @@ function App() {
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
           batalhaLigada={batalhaNaCenaAberta}
+          vezTokenId={vezTokenId}
           onBackgroundImageSizeChange={setBackgroundImageSize}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}
@@ -3219,6 +3219,8 @@ function App() {
           onVoltar={canGoBackToScene ? handleGoBack : undefined}
           onVerTodas={() => setCenasExpandidas(true)}
         />
+        {/* BATALHA F1: a faixa da ordem dos turnos, abaixo do chip, só com a batalha ligada na cena aberta. */}
+        {batalhaNaCenaAberta && <FaixaDoMestre sceneKey={chaveDaCenaAberta} />}
         {/* PAUSA GERAL DOS NPCS: congela rotina e patrulha andando para o
             mestre narrar; fora do fluxo da barra, para ela não pular de lugar
             quando o botão aparece. */}

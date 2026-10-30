@@ -68,6 +68,8 @@ import { LabyrinthMark } from '../components/icons'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
+import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
+import { vezTokenIdDoJogador } from '../components/batalha/dadosDaFaixa'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
@@ -1420,6 +1422,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             batalha={state.batalha === true}
             // MODO BATALHA (B6): o caminho andado (o dele numerado, o dos colegas à vista).
             caminhos={state.caminhos}
+            // BATALHA F1 (S4): a ficha da vez que ele vê ganha o anel com o pulso de chegada.
+            vezTokenId={vezTokenIdDoJogador(state.batalhaEstado)}
             waitingTokens={waitingTokens}
             settings={settings}
             focusTokenId={focus.tokenId}
@@ -1619,6 +1623,24 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onOpenInventory={canOpenInventory ? (byKeyboard) => setInventory({ instant: byKeyboard }) : undefined}
           onOpenFicha={servePersonagens ? (byKeyboard) => setFicha({ instant: byKeyboard }) : undefined}
         />
+        {/*
+          BATALHA F1: a faixa da ordem dos turnos, no alto e no meio, entre o
+          painel e o canto da direita (player.css). Só com a batalha ligada na
+          cena dele; o recorte (vez, cartas, registro, regras) é do host.
+        */}
+        {state.batalhaEstado !== undefined && (
+          <FaixaDoJogador
+            className="pp-batalha-faixa"
+            estado={state.batalhaEstado}
+            meus={state.personagens?.personagens}
+            aliados={state.aliados}
+            fichas={state.map.tokens}
+            sistema={state.sistemaDeRpg ?? null}
+            onPassarVez={(cartaId, rodada) => connection.passarVezNaBatalha(cartaId, rodada)}
+            onDesfazer={(linhaId) => connection.desfazerNaBatalha(linhaId)}
+            onAbrirMinhaFicha={servePersonagens ? () => setFicha({ instant: false }) : undefined}
+          />
+        )}
         {/*
           CANTO DA DIREITA: abas de andar, "Onde estou" (a cena e a sala, num
           selo só), o selo de estado e, no pé, as rolagens, numa coluna só

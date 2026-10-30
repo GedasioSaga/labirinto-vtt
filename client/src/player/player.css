@@ -710,6 +710,35 @@
 }
 
 /*
+ * BATALHA F1: a faixa da ordem dos turnos (`FaixaDoJogador`), no alto e no
+ * meio, no vão entre o painel (esquerda) e o canto (direita), descendo junto
+ * com a faixa do alarme. As cartas que não cabem rolam dentro dela. Os dois
+ * nomes de classe vencem o `.bt-faixa` (relative) sem depender da ordem das
+ * folhas. Janela estreita: desce para baixo da barra e ocupa a largura toda;
+ * fica abaixo do painel aberto (z 10), que é o que o jogador abriu de propósito.
+ */
+.bt-faixa.pp-batalha-faixa {
+  position: fixed;
+  top: calc(12px + var(--pp-alarm-space, 0px));
+  left: 50%;
+  translate: -50% 0;
+  z-index: 9;
+  width: max-content;
+  max-width: min(820px, calc(100% - 2 * 300px));
+}
+
+@media (max-width: 999px) {
+  .bt-faixa.pp-batalha-faixa {
+    top: calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px));
+    left: var(--pp-edge, 12px);
+    right: var(--pp-edge, 12px);
+    translate: none;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/*
  * SELO DE ESTADO: "Tela acesa" e a hora do dia, os dois só informam. No
  * notebook, no fim da coluna do canto, alinhados à direita como o resto dela.
  * Em tela de gaveta (celular), presos ao canto de baixo à esquerda: a coluna

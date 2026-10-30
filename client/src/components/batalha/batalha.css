@@ -1,0 +1,964 @@
+/*
+ * BATALHA ONE PIECE, F1: a faixa da ordem, as cartas, o quadro da rodada, o
+ * registro, as janelas e o painel do mestre. Porte do protótipo aprovado
+ * (docs/design/batalha-persona/prototipo.html, `.ordem`, `.carta`, `.turno`,
+ * `.mp-*`), só com os tokens do app (`--lb-*`, theme.ts).
+ *
+ * A mesma folha serve ao mestre e ao jogador. Por isso nada aqui depende do
+ * grimório (o jogador não carrega `grimorio.css`, player/folhaSemGrimorio.test.ts).
+ */
+
+:root {
+  /* O vermelho da batalha é a cor do sistema One Piece (sistemaOnePiece.ts). */
+  --bt-sangue: #b4493c;
+  --bt-sangue-claro: #c75a4c;
+  --bt-hp: var(--lb-color-ember);
+  --bt-sp: var(--lb-color-tide);
+  --bt-lado-padrao: var(--lb-color-parchment-dim);
+  /* A troca de lugar das cartas (FLIP, FaixaDaOrdem.tsx) usa esta curva. */
+  --bt-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --bt-carta-largura: 140px;
+}
+
+/* ---------------------------------------------------------------- botões */
+.bt-botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    transform 120ms var(--lb-gr-ease-out);
+}
+.bt-botao:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.bt-botao:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.bt-botao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+.bt-botao[aria-expanded='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: rgba(224, 164, 74, 0.5);
+  color: var(--lb-color-brass-bright);
+}
+.bt-botao--primario {
+  background: var(--lb-color-brass);
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-weight: 600;
+}
+.bt-botao--batalha {
+  background: var(--bt-sangue);
+  border-color: var(--bt-sangue);
+  color: #fff;
+  font-weight: 600;
+}
+.bt-botao--fantasma {
+  background: transparent;
+  border-color: transparent;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-botao--p {
+  min-height: 26px;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-xs);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-botao:hover:not(:disabled) {
+    background: var(--lb-color-stone-hover);
+  }
+  .bt-botao--primario:hover:not(:disabled) {
+    background: var(--lb-color-brass-bright);
+  }
+  .bt-botao--batalha:hover:not(:disabled) {
+    background: var(--bt-sangue-claro);
+  }
+  .bt-botao--fantasma:hover:not(:disabled) {
+    color: var(--lb-color-parchment);
+  }
+}
+
+/* ---------------------------------------------------------------- faixa */
+.bt-faixa {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--lb-space-3);
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: var(--lb-space-2) var(--lb-space-3) var(--lb-space-3);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone);
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  line-height: 1.45;
+  pointer-events: auto;
+  transition:
+    opacity 220ms var(--lb-gr-ease-out),
+    transform 220ms var(--lb-gr-ease-out);
+}
+/* A batalha começou: a faixa entra uma vez, de leve, de cima. */
+@starting-style {
+  .bt-faixa {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.bt-faixa__esq {
+  min-width: 0;
+}
+.bt-faixa__cab {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 26px;
+}
+.bt-faixa__titulo {
+  flex: 1;
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+  white-space: nowrap;
+}
+.bt-faixa__dica {
+  margin: var(--lb-space-1) 0 0;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-faixa__vazia {
+  margin: var(--lb-space-2) 0 0;
+  padding: var(--lb-space-3);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.bt-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- cartas */
+.bt-cartas-caixa {
+  position: relative;
+  min-width: 0;
+}
+.bt-cartas {
+  position: relative;
+  display: flex;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  margin: 0;
+  /* Espaço para a fita VEZ (que sobe 4 px) e para a barra de rolagem fina. */
+  padding: 14px 4px 6px;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.bt-carta {
+  position: relative;
+  flex: none;
+  width: var(--bt-carta-largura);
+}
+.bt-carta__corpo {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: var(--lb-space-2) var(--lb-space-2) 6px;
+  border: 0;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-panel), var(--lb-shadow-bevel);
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  text-align: left;
+  user-select: none;
+  transition:
+    transform 220ms var(--lb-gr-ease-out),
+    box-shadow var(--lb-motion-base) ease,
+    opacity var(--lb-motion-base) ease;
+}
+/* Carta que entrou (incluída, "Agir de novo"): cresce de leve no lugar, não surge do nada. */
+@starting-style {
+  .bt-carta__corpo {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+button.bt-carta__corpo {
+  cursor: pointer;
+}
+.bt-carta__corpo:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-panel), var(--lb-shadow-focus);
+}
+/* Só o mestre arrasta: o dedo não rola a página por cima da carta. */
+.bt-cartas[data-arrasta='sim'] .bt-carta__corpo {
+  cursor: grab;
+  touch-action: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.bt-carta__corpo:hover {
+    background: var(--lb-color-stone-hover);
+  }
+}
+.bt-carta[data-vez='sim'] .bt-carta__corpo {
+  transform: translateY(-4px);
+  background: linear-gradient(180deg, rgba(224, 164, 74, 0.22), var(--lb-color-stone-raised) 70%);
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass), var(--lb-shadow-md);
+}
+.bt-carta__fita {
+  position: absolute;
+  top: -9px;
+  left: 10px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  line-height: 16px;
+  letter-spacing: 0.1em;
+  pointer-events: none;
+}
+.bt-carta__fita--vez {
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-weight: 700;
+}
+.bt-carta__fita--seguir {
+  top: -8px;
+  padding: 0 5px;
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment-dim);
+  font-size: 9px;
+  line-height: 14px;
+}
+.bt-carta[data-caiu='sim'] .bt-carta__corpo {
+  opacity: 0.42;
+  filter: grayscale(1);
+}
+.bt-carta--arrastando {
+  z-index: 5;
+}
+.bt-carta--arrastando .bt-carta__corpo {
+  cursor: grabbing;
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass-bright), var(--lb-shadow-float);
+  transition: box-shadow var(--lb-motion-base) ease;
+}
+.bt-carta__topo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bt-carta__retrato {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--lb-color-stone-sunken);
+  box-shadow: 0 0 0 1.5px var(--lado, var(--bt-lado-padrao));
+}
+.bt-carta__retrato img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bt-carta__retrato .lb-ficha__iniciais {
+  font-family: var(--lb-font-utility);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--lb-color-parchment);
+}
+.bt-carta__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+  color: var(--lb-color-parchment);
+}
+.bt-carta__pos {
+  color: var(--lb-color-parchment-faint);
+  font-variant-numeric: tabular-nums;
+}
+.bt-carta__linha {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 5px;
+  line-height: 1.2;
+}
+.bt-carta__linha b {
+  font-weight: 600;
+}
+.bt-carta__linha b[data-tom='vida'] {
+  color: var(--bt-hp);
+}
+.bt-carta__linha b[data-tom='energia'] {
+  color: var(--bt-sp);
+}
+.bt-carta__num {
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+.bt-carta__oculta {
+  display: block;
+  margin-top: 6px;
+  color: var(--lb-color-parchment-faint);
+  font-style: italic;
+}
+.bt-carta__marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 12px;
+  margin-top: 5px;
+}
+.bt-marca {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment-dim);
+  font-size: 9px;
+  line-height: 12px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.bt-marca--extra {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+.bt-marca--dado {
+  background: var(--lb-color-arcane-soft);
+  color: var(--lb-color-arcane);
+}
+.bt-marca--empate {
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+}
+.bt-marca--equipe {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--lado, var(--lb-color-parchment-dim));
+}
+
+/* A barra: a cor anda primeiro e o rastro claro alcança depois (o dano que some). */
+.bt-barra {
+  position: relative;
+  display: block;
+  height: 6px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.bt-barra > b,
+.bt-barra > i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left center;
+}
+.bt-barra > b {
+  background: rgba(255, 238, 220, 0.75);
+  transition: transform 480ms var(--lb-gr-ease-out) 220ms;
+}
+.bt-barra > i {
+  transition: transform 280ms var(--lb-gr-ease-out);
+}
+.bt-barra[data-tom='vida'] > i {
+  background: var(--bt-hp);
+}
+.bt-barra[data-tom='energia'] > i {
+  background: var(--bt-sp);
+}
+.bt-barra[data-tom='neutro'] > i {
+  background: var(--lb-color-parchment-dim);
+}
+
+/* O traço que mostra onde a carta arrastada vai cair. */
+.bt-encaixe {
+  position: absolute;
+  top: 14px;
+  bottom: 6px;
+  width: 3px;
+  margin-left: -6px;
+  border-radius: 2px;
+  background: var(--lb-color-brass-bright);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.bt-encaixe[data-ativo='sim'] {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------- quadro da rodada */
+.bt-turno {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 168px;
+  max-width: 220px;
+  padding: var(--lb-space-2) var(--lb-space-4);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-panel);
+  font-family: var(--lb-font-utility);
+}
+.bt-turno__rodada {
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-turno__num {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment);
+}
+.bt-turno__num small {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-turno__quem {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lado, var(--lb-color-brass));
+}
+.bt-turno__quem[data-fora='sim'] {
+  color: var(--lb-color-parchment-dim);
+  white-space: normal;
+}
+.bt-turno__depois {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-turno .bt-botao {
+  margin-top: var(--lb-space-2);
+}
+
+/* ---------------------------------------------------------------- registro */
+.bt-faixa__registro {
+  grid-column: 1 / -1;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+  scrollbar-width: thin;
+}
+.bt-registro {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-registro__linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding-left: 10px;
+  border-left: 2px solid var(--lb-color-line-strong);
+}
+.bt-registro__linha:first-child {
+  border-left-color: var(--lb-color-brass);
+  color: var(--lb-color-parchment);
+}
+.bt-registro__meta {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-brass-bright);
+}
+.bt-registro__texto {
+  overflow-wrap: anywhere;
+}
+.bt-registro__linha[data-desfeita='sim'] {
+  border-left-color: var(--lb-color-line);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-registro__linha[data-desfeita='sim'] .bt-registro__texto {
+  text-decoration: line-through;
+  text-decoration-color: var(--lb-color-parchment-faint);
+}
+.bt-registro__linha[data-desfeita='sim'] .bt-registro__meta {
+  color: var(--lb-color-parchment-faint);
+}
+.bt-registro__quem {
+  display: block;
+  font-size: var(--lb-font-size-xs);
+  font-style: italic;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-registro__vazio {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* ---------------------------------------------------------------- menu da carta (mestre) */
+.bt-menu {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  min-width: 220px;
+  max-width: 300px;
+  padding: 4px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-sm);
+  transform-origin: var(--bt-origem, 0 0);
+  transition:
+    opacity 140ms var(--lb-gr-ease-out),
+    transform 140ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .bt-menu {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.bt-menu:focus {
+  outline: none;
+}
+.bt-menu__rot {
+  padding: 6px 10px 2px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bt-menu__item:focus-visible,
+.bt-menu__item:focus {
+  outline: none;
+  background: var(--lb-color-stone-hover);
+}
+.bt-menu__item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.bt-menu__item--perigo {
+  color: var(--lb-color-ember);
+}
+.bt-menu__item small {
+  display: block;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+.bt-menu__marca {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--lado, transparent);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-strong);
+}
+.bt-menu__item[aria-checked='true'] .bt-menu__marca {
+  box-shadow: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 3px var(--lb-color-brass);
+}
+.bt-menu__sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--lb-color-line);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-menu__item:hover:not(:disabled) {
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+/* ---------------------------------------------------------------- janela (perfil, regras) */
+.bt-janela-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  padding: var(--lb-space-4);
+  background: rgba(8, 8, 10, 0.62);
+  transition: opacity 200ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .bt-janela-fundo {
+    opacity: 0;
+  }
+}
+.bt-janela {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  box-sizing: border-box;
+  width: min(100%, 560px);
+  max-height: calc(100dvh - 2 * var(--lb-space-4));
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  line-height: 1.5;
+  transition:
+    opacity 200ms var(--lb-gr-ease-out),
+    transform 200ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .bt-janela {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.bt-janela--larga {
+  width: min(100%, 1100px);
+}
+.bt-janela:focus {
+  outline: none;
+}
+.bt-janela__topo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-4) var(--lb-space-4) var(--lb-space-3);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+.bt-janela__cabeca {
+  flex: 1;
+  min-width: 0;
+}
+.bt-janela__tit {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xl);
+  font-weight: 600;
+  line-height: 1.2;
+}
+.bt-janela__desc {
+  margin: 2px 0 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-janela__fechar {
+  flex: none;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+.bt-janela__corpo {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--lb-space-4);
+  scrollbar-width: thin;
+}
+.bt-regras__nome {
+  margin: 0 0 var(--lb-space-1);
+  font-size: var(--lb-font-size-lg);
+  font-weight: 600;
+}
+.bt-regras__blocos {
+  margin: 0 0 var(--lb-space-3);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass-bright);
+}
+.bt-regras__texto {
+  margin: 0;
+  max-width: 65ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-regras__vazio {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* ---------------------------------------------------------------- painel do mestre (livro da mesa) */
+.bt-painel {
+  display: grid;
+  gap: var(--lb-space-3);
+  margin-top: var(--lb-space-3);
+  color: var(--lb-color-parchment);
+}
+.bt-secao + .bt-secao {
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+.bt-secao__titulo {
+  margin: 0 0 var(--lb-space-2);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-vez {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: var(--lb-space-3);
+}
+.bt-vez .bt-carta__retrato {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+.bt-vez__nome {
+  display: block;
+  font-size: var(--lb-font-size-lg);
+  font-weight: 600;
+}
+.bt-vez__sub {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-texto {
+  margin: 0 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-texto b {
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+}
+.bt-linha-de-campo {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--lb-space-2);
+}
+.bt-linha-de-campo > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------------- equipes */
+.bt-equipes {
+  display: grid;
+  gap: var(--lb-space-4);
+}
+.bt-equipes__lista {
+  display: grid;
+  gap: var(--lb-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bt-equipe {
+  display: grid;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  box-shadow: inset 3px 0 0 var(--lado, var(--bt-lado-padrao)), inset 0 0 0 1px var(--lb-color-line-panel);
+}
+.bt-equipe__membros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-sunken);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-panel);
+  font-size: var(--lb-font-size-sm);
+}
+.bt-chip small {
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+.bt-pessoas {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bt-pessoa {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 200px);
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 4px 8px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+}
+.bt-pessoa__nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bt-pessoa__nome small {
+  margin-left: 6px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+.bt-pessoa select {
+  min-height: 30px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+}
+.bt-pessoa select:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+/* ---------------------------------------------------------------- biblioteca de regras */
+.bt-biblioteca {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  gap: var(--lb-space-4);
+  min-height: 320px;
+}
+.bt-biblioteca__lista {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bt-biblioteca__item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bt-biblioteca__item[aria-current='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+.bt-biblioteca__item:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+.bt-biblioteca__item small {
+  display: block;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+.bt-biblioteca__vazia {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-biblioteca__item:hover {
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+/* ---------------------------------------------------------------- movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  .bt-faixa,
+  .bt-carta__corpo,
+  .bt-menu,
+  .bt-janela {
+    transition: opacity var(--lb-motion-fast) ease;
+  }
+  .bt-carta[data-vez='sim'] .bt-carta__corpo {
+    transform: none;
+  }
+  .bt-barra > b,
+  .bt-barra > i {
+    transition: none;
+  }
+  .bt-botao {
+    transition: background-color var(--lb-motion-fast) ease;
+  }
+  .bt-botao:active:not(:disabled) {
+    transform: none;
+  }
+  @starting-style {
+    .bt-faixa,
+    .bt-janela,
+    .bt-menu,
+    .bt-carta__corpo {
+      transform: none;
+    }
+  }
+}

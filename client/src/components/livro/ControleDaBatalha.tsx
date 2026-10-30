@@ -9,7 +9,15 @@ import {
   nomeParaOFio,
   type ArmazemDaAbertura,
 } from '../../lib/batalha/aberturaLembrada'
+import { combatentesIniciais, type Desempate } from '../../lib/batalha/turnos'
+import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore, type AberturaDaBatalha } from '../../stores/batalhaStore'
+import { useMapStore } from '../../stores/mapStore'
+import { useRegrasDoCampoStore } from '../../stores/regrasDoCampoStore'
+import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
+import { EscolhaDaRegra, confirmarRascunho, type RascunhoDaRegra } from '../batalha/EscolhaDaRegra'
+import { PainelDoMestre, motivoParaNaoGuardar } from '../batalha/PainelDoMestre'
+import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { assinarAberturasDeBatalha, listarAberturasDeBatalha } from '../../transicoes/aberturasDeBatalha'
 import { AberturaDeBatalhaOverlay, type AberturaPedida } from '../../transicoes/AberturaDeBatalhaOverlay'
 import { batalhaCabeNaGrade } from '../../pixi/gradeDaBatalha'
@@ -33,6 +41,13 @@ import './livro.css'
 
 /** O valor de "Nenhuma" na lista; nenhum id de abertura é vazio (o registro exige id). */
 const NENHUMA = ''
+
+/** BATALHA F1 (decisão 2): o empate de Agilidade, escolhido ao iniciar e trocado depois no painel. */
+const OPCOES_DO_DESEMPATE: readonly OpcaoDoSeg<Desempate>[] = [
+  { valor: 'd20', rotulo: '1d20' },
+  { valor: 'manual', rotulo: 'Eu decido' },
+]
+const SEM_REGRA: RascunhoDaRegra = { modo: 'nenhuma' }
 
 export const MOTIVO_SEM_BATALHA_TRIANGULAR = 'Sem batalha em mapa triangular: a grade de batalha só existe em quadrado e hex'
 
@@ -66,6 +81,10 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
   const [escolhendo, setEscolhendo] = useState(false)
   const [transicao, setTransicao] = useState(NENHUMA)
   const [nome, setNome] = useState(NOME_PADRAO_DA_BATALHA)
+  const [desempate, setDesempate] = useState<Desempate>('d20')
+  const [regra, setRegra] = useState<RascunhoDaRegra>(SEM_REGRA)
+  const regrasDaBiblioteca = useRegrasDoCampoStore((state) => state.regras)
+  const naoGuarda = useRegrasDoCampoStore((state) => motivoParaNaoGuardar(state.carregando, state.podeGravar))
   const cabe = batalhaCabeNaGrade(gridShape)
   // Encerrar sempre vale (o mapa pode ter virado triangular com a batalha ligada); só iniciar fica desligado.
   const bloqueado = !cabe && !ligada
@@ -85,6 +104,9 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     )
     setTransicao(inicial.transicao ?? NENHUMA)
     setNome(inicial.texto)
+    setRegra(SEM_REGRA)
+    // A biblioteca global de regras do campo (lida uma vez; as chamadas seguintes devolvem a mesma promessa).
+    void useRegrasDoCampoStore.getState().carregar()
     setEscolhendo(true)
   }
 
@@ -102,7 +124,12 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     if (texto !== undefined) abertura.texto = texto
     gravarAberturaLembrada(guardado, aventuraId, { transicao: transicao === NENHUMA ? null : transicao, texto: nome.slice(0, NOME_DA_BATALHA_MAX) })
     setEscolhendo(false)
-    useBatalhaStore.getState().ligar(sceneKey, abertura)
+    // BATALHA F1: entra toda ficha da cena aberta com personagem (e não escondida), pela Agilidade.
+    const aventura = useAdventureStore.getState()
+    const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura)) ?? null
+    const regras = confirmarRascunho(regra, regrasDaBiblioteca, useRegrasDoCampoStore.getState())
+    const combatentes = combatentesIniciais(useMapStore.getState().map.tokens, personagensAtivos(aventura), sistema)
+    useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate })
   }
 
   // Shift+B de qualquer ponto do editor; com a escolha aberta a tecla é dela (o Esc fecha).
@@ -178,6 +205,8 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
           <CampoSel rotulo="Abertura" opcoes={opcoes} valor={transicao} onChange={setTransicao} />
           {/* Vazio = a abertura toca sem nome; o placeholder diz isso (o "Royals" é só o valor inicial). */}
           <CampoTexto rotulo="Nome na abertura" valor={nome} onChange={setNome} maxLength={NOME_DA_BATALHA_MAX} placeholder="Sem nome" />
+          <CampoSeg rotulo="Empate na Agilidade" opcoes={OPCOES_DO_DESEMPATE} valor={desempate} onChange={setDesempate} />
+          <EscolhaDaRegra biblioteca={regrasDaBiblioteca} valor={regra} onChange={setRegra} naoGuarda={naoGuarda} />
           <Acoes>
             <Botao tipo="submit" variante="primario">
               Iniciar
@@ -188,6 +217,8 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
           </Acoes>
         </form>
       </Dialogo>
+      {/* BATALHA F1: com a batalha ligada, a vez, a ordem, as regras do campo, as equipes e o registro. */}
+      {ligada && <PainelDoMestre sceneKey={sceneKey} />}
       <AberturaDeBatalhaOverlay abertura={pedido} />
     </div>
   )
