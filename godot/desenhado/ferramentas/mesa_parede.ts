@@ -17,7 +17,8 @@ import { rgb } from '@cliente/texturas/ruido'
 import { gravarPng, lerPng, type Imagem } from './png'
 import { comporMovel, oklab, type Camada, type MovelCarregado, type ParamsDoMovel, type Rgb } from './movel'
 import { carregarFace, imagemDe, type FaceCarregada, type Tela } from './traco'
-import { costuraEntreItens, pintarParedes, type CadeiaDeParede, type FacesDaParede, type Papel, type ParamsDaParede } from './parede'
+import { costuraEntreItens, pintarParedes, type CadeiaDeParede, type FacesDaParede, type Papel, type ParamsDaParede, type PortaDaCadeia } from './parede'
+import { FORMAS_DA_PORTA, type EstadoDaFolha, type FormaDaPorta } from './porta'
 
 const CASA = 64
 const MUNDO_CASAS = 40
@@ -42,7 +43,7 @@ function argumentos(): Map<string, string> {
 
 // ---------- as cenas (casas do mundo) ----------
 
-type Item = 'parede' | 'janela' | 'grade'
+type Item = 'parede' | 'janela' | 'grade' | 'porta'
 type P = readonly [number, number]
 
 interface Cena {
@@ -51,14 +52,123 @@ interface Cena {
   readonly y: number
   readonly w: number
   readonly h: number
-  readonly cadeias: (cor: string) => CadeiaDeParede[]
+  /** `variante`: a casa das portas pinta um estado por cor (0 fechadas, 1 abertas, 2 trancadas e secreta). */
+  readonly cadeias: (cor: string, variante?: number) => CadeiaDeParede[]
   /** Salas (retângulos em casas) com a cor do chão; fora delas, o chão da cena. */
   readonly salas: readonly { x0: number; y0: number; x1: number; y1: number; cor: string }[]
   readonly fora: 'piso' | 'grama'
 }
 
-function cad(id: string, pts: readonly P[], papeis: readonly Papel[], fechada: boolean, t: number, cor: string): CadeiaDeParede {
-  return { id, pontos: pts.map(([x, y]) => [x * CASA, y * CASA] as const), papeis, fechada, espessura: t, cor: rgb(cor) as unknown as Rgb }
+function cad(id: string, pts: readonly P[], papeis: readonly Papel[], fechada: boolean, t: number, cor: string, portas?: readonly (PortaDaCadeia | null)[]): CadeiaDeParede {
+  return { id, pontos: pts.map(([x, y]) => [x * CASA, y * CASA] as const), papeis, fechada, espessura: t, cor: rgb(cor) as unknown as Rgb, ...(portas === undefined ? {} : { portas }) }
+}
+
+// ---------- as portas (lote 18, CONTRATO.md 11.16) ----------
+
+/** As cores da porta do app (pixi/drawDoors.ts): o creme, a vermelha da trancada e uma cor própria da Aparência (lib/pins.ts). */
+const COR_DA_PORTA = '#d9d2c0'
+const COR_DA_TRANCADA = '#e2645a'
+const COR_PROPRIA = '#79a9cc'
+const CONTORNO_DO_ATUAL = rgb('#15181a').map((v) => v / 255)
+/** O Atual: a folha de 4 px de TELA com o contorno de 1 px, o vão inteiro. */
+const ATUAL_PORTA_TELA = 4
+const ATUAL_PORTA_BORDA = 1
+/** O vão de cada tipo (DOOR_LENGTH_BY_KIND, stores/mapStore.ts), em casas. */
+const VAO_DA_FORMA: Readonly<Record<FormaDaPorta, number>> = { normal: 0.5, double: 1, gate: 1.5 }
+/** As grossuras do app (fina, média, grossa: parede.espessuraDoDegrauPx). */
+const GROSSURAS = [12, 20, 32] as const
+
+interface EstadoDaMesa { readonly nome: string; readonly estado: EstadoDaFolha; readonly cor: string }
+const ESTADOS_DA_MESA: readonly EstadoDaMesa[] = [
+  { nome: 'fechada', estado: 'fechada', cor: COR_DA_PORTA },
+  { nome: 'aberta', estado: 'aberta', cor: COR_DA_PORTA },
+  { nome: 'trancada', estado: 'fechada', cor: COR_DA_TRANCADA },
+  { nome: 'secreta', estado: 'secreta', cor: COR_DA_PORTA },
+  { nome: 'cor própria', estado: 'fechada', cor: COR_PROPRIA },
+]
+
+function porta(forma: FormaDaPorta, estado: EstadoDaFolha, cor: string): PortaDaCadeia {
+  return { forma, estado, cor: rgb(cor) as unknown as Rgb }
+}
+
+/** As formas das portas: 9 filas (as 3 grossuras x as 3 formas) e 5 colunas (os estados). */
+function cenaDasPortas(): Cena {
+  const cadeias = (cor: string): CadeiaDeParede[] => {
+    const out: CadeiaDeParede[] = []
+    GROSSURAS.forEach((t, ti) => FORMAS_DA_PORTA.forEach((forma, fi) => {
+      const r = ti * 3 + fi
+      const y = 0.75 + r * 1.25
+      const v = VAO_DA_FORMA[forma]
+      ESTADOS_DA_MESA.forEach((e, ei) => {
+        const x = ei * 4 + 2
+        out.push(cad(`porta-${r}-${ei}`, [[x - 1.7, y], [x - v / 2, y], [x + v / 2, y], [x + 1.7, y]], ['parede', 'porta', 'parede'], false, t, cor, [null, porta(forma, e.estado, e.cor), null]))
+      })
+    }))
+    return out
+  }
+  return { nome: 'formas', x: 0, y: 0, w: 20, h: 12, cadeias, salas: [], fora: 'piso' }
+}
+
+/** O paredão das portas: os vãos de 0,5 a 3 casas, esticados e repetidos, nas 3 grossuras. */
+function cenaDoParedaoDePortas(): Cena {
+  const vaos: readonly [number, number, FormaDaPorta][] = [[3, 0.5, 'normal'], [7, 1, 'normal'], [11.5, 2, 'normal'], [16.5, 1, 'double'], [21, 2, 'double'], [26.5, 1.5, 'gate'], [32.5, 3, 'gate']]
+  const cadeias = (cor: string): CadeiaDeParede[] => GROSSURAS.map((t, r) => {
+    const y = 12 + [0.9, 2.5, 4.1][r]
+    const pts: P[] = [[1, y]]
+    const papeis: Papel[] = []
+    const portas: (PortaDaCadeia | null)[] = []
+    for (const [x, v, forma] of vaos) {
+      pts.push([x - v / 2, y], [x + v / 2, y])
+      papeis.push('parede', 'porta')
+      portas.push(null, porta(forma, 'fechada', COR_DA_PORTA))
+    }
+    pts.push([39, y])
+    papeis.push('parede')
+    portas.push(null)
+    return cad(`paredao-${r}`, pts, papeis, false, t, cor, portas)
+  })
+  return { nome: 'paredao', x: 0, y: 12, w: 40, h: 5, cadeias, salas: [], fora: 'piso' }
+}
+
+/** A casa com as portas nos vãos dela: a dupla da frente, a normal da divisória, a de meia casa e o portão da cela. */
+function cadeiasDaCasaComPortas(cor: string, variante: number, Y: number): CadeiaDeParede[] {
+  const q = (pts: readonly P[]): P[] => pts.map(([x, y]) => [x, y + Y] as const)
+  const estado = (forma: FormaDaPorta, i: number): PortaDaCadeia => {
+    if (variante === 0) return porta(forma, 'fechada', COR_DA_PORTA)
+    if (variante === 1) return porta(forma, 'aberta', COR_DA_PORTA)
+    return [porta(forma, 'fechada', COR_DA_TRANCADA), porta(forma, 'secreta', COR_DA_PORTA), porta(forma, 'fechada', COR_PROPRIA), porta(forma, 'fechada', COR_DA_TRANCADA)][i]
+  }
+  const fora: Papel[] = ['parede', 'parede', 'grade', 'parede', 'parede', 'janela', 'parede', 'janela', 'parede', 'parede', 'janela', 'parede', 'parede', 'porta']
+  const portasDeFora = fora.map((p) => (p === 'porta' ? estado('double', 0) : null))
+  return [
+    cad('casa-fora', q([[6.5, 10.5], [14.5, 10.5], [14.5, 8.5], [14.5, 7.5], [14.5, 1.5], [11.5, 1.5], [10.5, 1.5], [5.5, 1.5], [3.5, 1.5], [1.5, 1.5], [1.5, 5.5], [1.5, 7.5], [1.5, 10.5], [5.5, 10.5]]), fora, true, 32, cor, portasDeFora),
+    cad('casa-v', q([[9.5, 1.5], [9.5, 3], [9.5, 4], [9.5, 7.5], [9.5, 9.5], [9.5, 10.5]]), ['parede', 'porta', 'parede', 'porta', 'parede'], false, 20, cor, [null, estado('normal', 1), null, estado('gate', 3), null]),
+    cad('casa-h', q([[9.5, 6.5], [11.75, 6.5], [12.25, 6.5], [14.5, 6.5]]), ['parede', 'porta', 'parede'], false, 20, cor, [null, estado('normal', 2), null]),
+  ]
+}
+
+/** O Atual da porta (pixi/drawDoors.ts, refeito por pixel): a folha cheia, o batente ou os 3 traços da secreta. */
+function pintarPortaAtual(t: Tela, buf: Float32Array, a: P, b: P, pt: PortaDaCadeia, tela: number): void {
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1])
+  const ux = (b[0] - a[0]) / l
+  const uy = (b[1] - a[1]) / l
+  const meia = (ATUAL_PORTA_TELA * tela) / 2
+  const borda = ATUAL_PORTA_BORDA * tela
+  const cor = pt.cor.map((v) => v / 255)
+  const caixa = (c0: number, c1: number, m: number): void => cobrirCapsula(buf, t, a[0] + ux * c0, a[1] + uy * c0, a[0] + ux * c1, a[1] + uy * c1, m, false)
+  const pecas: [number, number][] = []
+  if (pt.estado === 'secreta') {
+    const p = l / 5
+    for (let i = 0; i < 3; i += 1) pecas.push([2 * i * p, (2 * i + 1) * p])
+  } else pecas.push([0, l])
+  for (const [c0, c1] of pecas) caixa(c0 - borda / 2, c1 + borda / 2, meia + borda / 2)
+  aplicar(t, buf, CONTORNO_DO_ATUAL, 1)
+  for (const [c0, c1] of pecas) caixa(c0 + borda / 2, c1 - borda / 2, meia - borda / 2)
+  aplicar(t, buf, cor, 1)
+  if (pt.estado === 'aberta') {
+    caixa(borda / 2 + tela, l - borda / 2 - tela, meia - borda / 2 - tela)
+    aplicar(t, buf, CONTORNO_DO_ATUAL, 1)
+  }
 }
 
 const ESPESSURAS = [20, 32, 48] as const
@@ -106,9 +216,10 @@ function cenaDoParedao(item: Item): Cena {
 }
 
 /** A casa da família: salão, quarto e cela; quinas, T, portas, janelas e as duas grades. */
-function cenaDaCasa(): Cena {
+function cenaDaCasa(item: Item): Cena {
   const Y = 17
-  const cadeias = (cor: string): CadeiaDeParede[] => {
+  const cadeias = (cor: string, variante?: number): CadeiaDeParede[] => {
+    if (item === 'porta') return cadeiasDaCasaComPortas(cor, variante ?? 0, Y)
     const q = (pts: readonly P[]): P[] => pts.map(([x, y]) => [x, y + Y] as const)
     return [
       cad('casa-fora', q([[6.5, 10.5], [14.5, 10.5], [14.5, 8.5], [14.5, 7.5], [14.5, 1.5], [11.5, 1.5], [10.5, 1.5], [5.5, 1.5], [3.5, 1.5], [1.5, 1.5], [1.5, 5.5], [1.5, 7.5], [1.5, 10.5], [5.5, 10.5]]),
@@ -141,6 +252,12 @@ const PERTOS: Record<Item, readonly Perto[]> = {
     { nome: 'janela', cena: 'formas', x: 0.6, y: 4.6, titulo: 'as janelas de 1 e de 2 casas, Médio (32 px)' },
     { nome: 'sala', cena: 'formas', x: 22.4, y: 7.9, titulo: 'a janela de 3 casas da sala, Alto (48 px)' },
     { nome: 'casa-janela', cena: 'casa', x: 0.4, y: 22.0, titulo: 'a casa: a janela de 2 casas do salão (32 px)' },
+  ],
+  porta: [
+    { nome: 'portas', cena: 'formas', x: 0.0, y: 4.0, titulo: 'as três formas fechadas na parede média (20 px)' },
+    { nome: 'abertas', cena: 'formas', x: 4.0, y: 4.0, titulo: 'as três abertas (o batente) na parede média' },
+    { nome: 'frente', cena: 'casa', x: 4.0, y: 25.6, titulo: 'a casa: a porta dupla da frente na parede grossa (32 px)' },
+    { nome: 'cela', cena: 'casa', x: 8.0, y: 24.0, titulo: 'a casa: o portão da cela na parede média (20 px)' },
   ],
   grade: [
     { nome: 'grade', cena: 'formas', x: 0.6, y: 4.6, titulo: 'as grades de 1 e de 2 casas, Médio (32 px)' },
@@ -282,6 +399,11 @@ function pintarAtual(t: Tela, cadeias: readonly CadeiaDeParede[], k: number, z: 
         continue
       }
       aplicar(t, buf, cor, 1)
+      if (c.papeis[i] === 'porta') {
+        const pt = c.portas?.[i]
+        if (pt != null) pintarPortaAtual(t, buf, a, b, pt, tela)
+        continue
+      }
       if (c.papeis[i] === 'janela') {
         const l = Math.hypot(b[0] - a[0], b[1] - a[1])
         const nx = (-(b[1] - a[1]) / l) * (ATUAL_JANELA_VAO / 2) * tela
@@ -439,9 +561,34 @@ function pintarMoveis(t: Tela, exportado: string, casa: number, ox: number, oy: 
   for (const o of lista) { const m = carregado(o.pasta); if (m !== null) porMovel(t, sombra, m, o, casa, ox, oy, 'corpo') }
 }
 
+/** Os títulos da folha das portas (comum/mesa_parede.gd usa os da parede sem eles). */
+const TITULOS_DAS_PORTAS = {
+  formas: 'As portas a 100%: as 3 grossuras do app (fina 12, média 20, grossa 32 px) x as 3 formas (normal, dupla, portão), de cima para baixo; os estados da esquerda para a direita: fechada, aberta, trancada, secreta (o mestre vê; o jogador vê parede) e cor própria',
+  paredao: 'O paredão: vãos de 0,5 a 3 casas (normal 0,5, 1 e 2; dupla 1 e 2; portão 1,5 e 3) nas 3 grossuras, a 50% (as pontas fixas, o meio que estica, as barras que repetem)',
+  casa: 'A casa: a dupla da frente (32 px), a normal da divisória e a de meia casa, o portão da cela (20 px)',
+  casas: [
+    ['casa-desenhado-0-100.png', 'Desenhado: fechadas, parede #d8d2c4', 'casa-atual-100.png', 'Atual'],
+    ['casa-desenhado-1-100.png', 'Desenhado: abertas, parede #945f05', 'casa-atual-1-100.png', 'Atual'],
+    ['casa-desenhado-2-100.png', 'Desenhado: trancadas (vermelha), secreta e cor própria, parede #6b7079', 'casa-atual-2-100.png', 'Atual'],
+  ],
+}
+
 // ---------- principal ----------
 
+/** Os recortes do item; nas portas, o primeiro (o da folha do lote) é o da própria forma. */
+function pertosDe(item: Item, id: string): readonly Perto[] {
+  if (item !== 'porta') return PERTOS[item]
+  const primeiro = id === 'porta-dupla' ? 'frente' : id === 'porta-portao' ? 'cela' : 'portas'
+  return [...PERTOS.porta].sort((a, b) => Number(b.nome === primeiro) - Number(a.nome === primeiro))
+}
+
+/** A casa da folha do lote: nas portas, um estado por forma (a normal fechadas, a dupla abertas, o portão trancadas e secreta). */
+function familiaDe(id: string): string {
+  return `casa-desenhado-${id === 'porta-dupla' ? 1 : id === 'porta-portao' ? 2 : 0}-100.png`
+}
+
 function itemDe(id: string): Item {
+  if (id.startsWith('porta')) return 'porta'
   return id === 'janela' ? 'janela' : id === 'grade-de-prisao' ? 'grade' : 'parede'
 }
 
@@ -477,15 +624,15 @@ function principal(): void {
     avisos.push(`${id} ainda não exportada: o trecho sai como parede lisa`)
     return null
   }
-  const faces: FacesDaParede = { parede: carregarFace(pastaParede), janela: carregarSe('janela'), grade: carregarSe('grade-de-prisao') }
+  const faces: FacesDaParede = { parede: carregarFace(pastaParede), janela: carregarSe('janela'), grade: carregarSe('grade-de-prisao'), ...(item === 'porta' ? { portas: Object.fromEntries((['normal', 'double', 'gate'] as const).map((f) => [f, carregarSe(f === 'normal' ? 'porta' : f === 'double' ? 'porta-dupla' : 'porta-portao')]).filter((e) => e[1] !== null)) } : {}) }
   const params = (faces.parede.p as unknown as { parede: ParamsDaParede }).parede
   const grama100 = lerPng(join(saida, 'grama-100.png'))
   const piso100 = lerPng(join(saida, 'piso-100.png'))
   const tempos: Record<string, number> = {}
-  const cenas = [cenaDasFormas(item), cenaDoParedao(item), cenaDaCasa()]
-  const montar = (c: Cena, lado: 'desenhado' | 'atual', cor: string, k: number, z: number, x0: number, y0: number, w: number, h: number, grama: Imagem, piso: Imagem, gx: number, gy: number): Imagem => {
+  const cenas = item === 'porta' ? [cenaDasPortas(), cenaDoParedaoDePortas(), cenaDaCasa(item)] : [cenaDasFormas(item), cenaDoParedao(item), cenaDaCasa(item)]
+  const montar = (c: Cena, lado: 'desenhado' | 'atual', cor: string, k: number, z: number, x0: number, y0: number, w: number, h: number, grama: Imagem, piso: Imagem, gx: number, gy: number, variante = 0): Imagem => {
     const t = chaoDa(c, k, x0, y0, w, h, grama, piso, gx, gy)
-    const cadeias = c.cadeias(cor)
+    const cadeias = c.cadeias(cor, variante)
     if (c.nome === 'casa') pintarMoveis(t, exportado, CASA * k, x0 * CASA * k, y0 * CASA * k, avisos)
     if (lado === 'desenhado') pintarParedes(t, cadeias, faces, params, { grid: CASA * k, ox: x0 * CASA * k, oy: y0 * CASA * k })
     else pintarAtual(t, cadeias, k, z, x0 * CASA * k, y0 * CASA * k)
@@ -499,7 +646,9 @@ function principal(): void {
     const t0 = Date.now()
     const cores = c.nome === 'casa' ? CORES : [CORES[0]]
     cores.forEach((cor, i) => {
-      gravarPng(join(saida, `${c.nome}-desenhado${c.nome === 'casa' ? `-${i}` : ''}-100.png`), montar(c, 'desenhado', cor, 1, 1, c.x, c.y, W, H, grama100, piso100, gx, gy), true)
+      gravarPng(join(saida, `${c.nome}-desenhado${c.nome === 'casa' ? `-${i}` : ''}-100.png`), montar(c, 'desenhado', cor, 1, 1, c.x, c.y, W, H, grama100, piso100, gx, gy, i), true)
+      // As portas: o Atual de cada estado da casa também (a 0 é a casa-atual-100 de sempre).
+      if (item === 'porta' && c.nome === 'casa' && i > 0) gravarPng(join(saida, `casa-atual-${i}-100.png`), montar(c, 'atual', cor, 1, 1, c.x, c.y, W, H, grama100, piso100, gx, gy, i), true)
     })
     gravarPng(join(saida, `${c.nome}-atual-100.png`), montar(c, 'atual', CORES[0], 1, 1, c.x, c.y, W, H, grama100, piso100, gx, gy), true)
     // A linha do Atual tem px de TELA: para ver a 50% e a 25%, o painel é pintado para esse zoom.
@@ -508,7 +657,7 @@ function principal(): void {
     }
     tempos[c.nome] = Date.now() - t0
   }
-  for (const p of PERTOS[item]) {
+  for (const p of pertosDe(item, tipo.id)) {
     const c = cenas.find((q) => q.nome === p.cena)
     if (c === undefined) continue
     const grama = lerPng(join(saida, `grama-300-${p.nome}.png`))
@@ -523,10 +672,12 @@ function principal(): void {
     item, face: tipo.id, borda: null, bordaExportada: false, atual: true,
     // Os módulos do próprio item (a janela e a grade têm 1, de 1 casa).
     modulosCasas: carregarFace(pasta).p.face.modulos.map((m) => m.casas),
-    pertos: PERTOS[item].map((p) => ({ nome: p.nome, titulo: p.titulo })),
+    pertos: pertosDe(item, tipo.id).map((p) => ({ nome: p.nome, titulo: p.titulo })),
+    familia: familiaDe(tipo.id),
+    ...(item === 'porta' ? { titulos: TITULOS_DAS_PORTAS } : {}),
     cores: CORES, cenas: cenas.map((c) => ({ nome: c.nome, w: c.w, h: c.h })), costuraEntreItens: costura, avisos, tempos,
   }, null, 2))
-  console.log(`mesa da sala (${item}): ${cenas.length} cenas e ${PERTOS[item].length} recortes, costura entre itens ${costura.cor}/255 na cor e ${costura.relevo}/255 no relevo, ${avisos.length} aviso(s)`)
+  console.log(`mesa da sala (${item}): ${cenas.length} cenas e ${pertosDe(item, tipo.id).length} recortes, costura entre itens ${costura.cor}/255 na cor e ${costura.relevo}/255 no relevo, ${avisos.length} aviso(s)`)
 }
 
 principal()

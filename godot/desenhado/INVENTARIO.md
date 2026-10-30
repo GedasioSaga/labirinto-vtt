@@ -7,12 +7,13 @@ lote por vez, com a folha do lote (`scripts/folha_do_lote.gd`). O último lote d
 pode ter menos de 5, para um lote nunca misturar duas ondas.
 
 Levantado no código em 28/10/2026 (branch `feat/desenhado`, app 0.5.5). As fontes estão
-no fim. **79 itens em 17 lotes** (29/10: a onda 4 passou de 8 materiais para os 31
+no fim. Até a 0.5.13, **79 itens em 17 lotes** (29/10: a onda 4 passou de 8 materiais para os 31
 móveis desenhados que pegam cor, porque o caminho "só materiais" foi reprovado; no mesmo
 dia o app ganhou 6 móveis, a lareira, a fornalha de ferreiro, a bigorna, o balde de água,
 os troncos e o feno, e a onda 4 foi a 37 itens, lotes 9 a 16; a onda 5 virou o lote 17 e
-os números 75 a 79). Os números vão de 1 a 79; com o **37b** (o tronco caído, que entrou no
-lote 8 depois da numeração) são **80 pastas** em `exportado/`, fora o `material-madeira`
+os números 75 a 79). Depois da 0.5.13 a onda 5b (as portas) virou o lote 18 e os números 80 a
+82: são **82 itens em 18 lotes**. Os números vão de 1 a 82; com o **37b** (o tronco caído, que entrou no
+lote 8 depois da numeração) são **83 pastas** em `exportado/`, fora o `material-madeira`
 do caminho reprovado (onda 4).
 
 **Estado (29/10/2026, fim da onda 5): tudo entregue.** A última coluna de cada tabela diz o
@@ -239,6 +240,19 @@ uso (CONTRATO 10.11).
 | 77 | `parede` | Parede | ferramenta Parede: hoje traço de uma cor (`#d8d2c4` ou a cor do mestre) | material de parede vista de cima, tingível pela cor do mestre, repetível ao longo do traço. **Feito no lote 17** (CONTRATO 11.15: 3 alvenarias pela espessura, contorno do app em dois passes) | entregue `fd47add0` |
 | 78 | `janela` | Janela | na parede (hoje traço duplo) | trecho de janela no traço. **Feito no lote 17** (módulo de 1 casa repetido: vidro claro no meio da espessura, peitoril e ombreiras) | entregue `71e4aac0` |
 | 79 | `grade-de-prisao` | Grade de prisão | na parede (só Meio-Termo) | trecho de grade no traço. **Feito no lote 17** (módulo de 1 casa: trilho e 3 barras redondas por casa, ferro escuro da rampa) | entregue `912477ce` |
+
+## Onda 5b: as portas (3 itens, lote 18)
+
+Pedido do usuário em 29/10/2026 ("Desenhar as portas"): a parede do Desenhado é grossa (fina 12,
+média 20, grossa 32 px) e a porta ainda era o retângulo fino do Atual por cima. As 3 formas são as
+`DoorKind` do app (`pixi/drawDoors.ts`, vão de 32, 64 e 96 px pela `DOOR_LENGTH_BY_KIND`); cada uma
+tem 4 módulos de 1 casa, um por estado (CONTRATO 11.16).
+
+| # | id | Nome que o mestre vê | Onde aparece | O que o Desenhado entrega | Estado |
+|---|---|---|---|---|---|
+| 80 | `porta` | Porta | na parede, `door.kind` normal (hoje a barra creme `#d9d2c0` de 4 px de tela, a vermelha `#e2645a` trancada) | trecho de porta no traço: o vão (ombreiras e soleira), a folha fechada, o batente da aberta e os 3 traços da secreta, nas 3 alturas. **Feito no lote 18** | entregue no lote 18 |
+| 81 | `porta-dupla` | Porta dupla | idem, `door.kind` double | as duas folhas que se encontram no meio (a junta é o contorno das duas). **Feito no lote 18** | entregue no lote 18 |
+| 82 | `porta-portao` | Portão | idem, `door.kind` gate | o quadro vazado com uma travessa larga a cada 18 px (a travessa repete, os mourões das pontas ficam). **Feito no lote 18** | entregue no lote 18 |
 
 ## Fontes no código (para conferir)
 

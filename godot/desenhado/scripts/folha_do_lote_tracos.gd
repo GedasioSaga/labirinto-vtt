@@ -8,6 +8,7 @@ extends SceneTree
 ##   --prova=<pasta>        a raiz das provas, com uma pasta por id (padrão: prova/ do projeto)
 ##   --saida=<arquivo.png>  onde gravar (padrão: <prova>/lote.png)
 ##   --titulo=<texto>       título da folha (padrão: "Lote 17, traços")
+##   --legenda=<texto>      a linha de baixo do título (padrão: a do lote 17)
 ## Sai com 0 (ok), 1 (faltou a folha de algum item ou a placa não desenhou) ou 2 (uso errado).
 
 const Contrato := preload("res://comum/contrato.gd")
@@ -61,7 +62,8 @@ func _rodar() -> void:
 	fundo.size = Vector2(largura, altura)
 	vp.add_child(fundo)
 	_rotulo(vp, "%s  ·  Desenhado  ·  %d item(ns)" % [titulo, ids.size()], Vector2(MG, 16), 28, COR_TINTA, 0)
-	_rotulo(vp, "Por linha, a 50%: as formas nas 3 alturas (Baixo, Médio, Alto) e o Atual igual, o recorte de perto (300%, reduzido) nos dois, e a família: o morro (árvores, pedras, tronco, cerca, poço) no penhasco e na borda; a casa (salão, quarto, cela, móveis) na parede, na janela e na grade.", Vector2(MG, 56), 16, COR_TINTA_3, 0)
+	var legenda: String = args.get("legenda", "Por linha, a 50%: as formas nas 3 alturas (Baixo, Médio, Alto) e o Atual igual, o recorte de perto (300%, reduzido) nos dois, e a família: o morro (árvores, pedras, tronco, cerca, poço) no penhasco e na borda; a casa (salão, quarto, cela, móveis) na parede, na janela e na grade.")
+	_rotulo(vp, legenda, Vector2(MG, 56), 16, COR_TINTA_3, 0)
 	var faltou: Array[String] = []
 	for k in ids.size():
 		var id := ids[k].strip_edges()

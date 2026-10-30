@@ -1211,3 +1211,33 @@ do traço de `pixi/drawWalls.ts`. A conta de referência é `ferramentas/parede.
   (`parede.espessuraDoDegrauPx`); a contínua (1 a 64) passa direto.
 - **A janela e a grade não partem a cadeia**: são trechos dela (`wall.janela`, `wall.grade`).
   Hoje a grade só existe com o Meio-Termo ligado; no Desenhado ela é um item próprio.
+
+### 11.16 As portas (lote 18)
+
+A porta é um trecho de papel `porta` na cadeia da parede (a parede grossa passa a ir até a porta,
+em vez de a porta partir a cadeia). A conta de referência é `ferramentas/porta.ts` (o plano da
+porta e os pedaços) com `ferramentas/parede.ts` (as corridas e o 4º passe); a mesa é a da sala.
+
+- **Três formas, as `DoorKind` do app.** `texturas/porta/` (normal), `texturas/porta-dupla/`
+  (double) e `texturas/porta-portao/` (gate), todas com `porta_comum.gdshaderinc`, que inclui a
+  costura de `parede_comum.gdshaderinc`: a mesa mede a costura entre itens (deu 0/255 na cor e no
+  relevo). O vão do app é de 32, 64 e 96 px (`DOOR_LENGTH_BY_KIND`).
+- **Quatro módulos de 1 casa, um por estado, sem sorteio**: 0 o vão (as ombreiras de
+  `parede_vao` e a soleira no valor 0,30), 1 a folha fechada, 2 a aberta (o batente, a caixa
+  vazada), 3 a secreta (3 traços). Nos módulos 1 a 3 só a folha tem alfa entre as ombreiras; as
+  pontas da costura (os primeiros e os últimos `COSTURA_PX + 0,5` px) são opacas e iguais ao vão.
+- **As ombreiras ficam fora do vão.** A corrida da porta vai de `s0 - o` a `s1 + o`
+  (`parede.porta.ombreiraPx` 8 × k), tirados das corridas de parede vizinhas: o vão que se vê é o
+  vão de verdade (onde a visão e o passo passam). `o = 0` na quina, na ponta da cadeia, ao lado de
+  outra abertura ou quando a parede vizinha é curta demais (não sobra 1 px).
+- **A folha é um 4º passe, por cima do vão**, de `s0` a `s1`, na rampa da **cor da porta**
+  (`familia-pedra` com os mesmos números): a creme `#d9d2c0`, a vermelha `#e2645a` da trancada
+  ou a cor própria (`DoorState.cor`). A trancada é a folha fechada na vermelha. A folha estica
+  pelos `pedacos` do config: `fixo` guarda o comprimento × k (as pontas, o mourão, a junta da
+  dupla), `estica` divide o resto, `repete` põe `n = max(1, round(parte / (comp × k)))` cópias
+  inteiras (a travessa do portão).
+- **O que não muda**: a visão e o bloqueio (aberta, fechada, trancada) são os da porta do app; a
+  secreta é parede para o jogador (o filtro da névoa já faz isso). Durante a animação a parede
+  pinta só o vão e a animação do app desenha a folha por cima, na grossura da folha do Desenhado.
+  Sem a imagem da forma, a porta normal; sem nenhuma, o trecho volta a ser parede e a porta do
+  Atual vai por cima, como antes.

@@ -22,8 +22,17 @@
 import { rgb } from '@cliente/texturas/ruido'
 import { rampaDoTom, type Rampa, type Rgb } from './movel'
 import { desfocar, LUZ, sequenciaDeModulos, type Altura, type Amostra, type FaceCarregada, type PedacoDaSequencia, type Tela } from './traco'
+import { lerPlanoDaPorta, MODULO_DO_ESTADO, pedacosDaFolha, pedacosDoVao, type EstadoDaFolha, type FormaDaPorta, type PlanoDaPorta } from './porta'
 
-export type Papel = 'parede' | 'janela' | 'grade'
+export type Papel = 'parede' | 'janela' | 'grade' | 'porta'
+
+/** A porta de um trecho de papel "porta" (CONTRATO 11.16): a forma, o estado da folha e a cor dela. */
+export interface PortaDaCadeia {
+  readonly forma: FormaDaPorta
+  /** null = só o vão (a porta animando: a folha é da animação, por cima). */
+  readonly estado: EstadoDaFolha | null
+  readonly cor: Rgb
+}
 type Pt = readonly [number, number]
 
 export interface CadeiaDeParede {
@@ -36,6 +45,8 @@ export interface CadeiaDeParede {
   /** A espessura t, em px do mundo (o degrau vira px do mundo: parede.espessuraDoDegrauPx). */
   readonly espessura: number
   readonly cor: Rgb
+  /** Por trecho, a porta dos trechos de papel "porta" (null nos outros). */
+  readonly portas?: readonly (PortaDaCadeia | null)[]
 }
 
 export interface ParamsDaParede {
@@ -47,6 +58,8 @@ export interface FacesDaParede {
   readonly parede: FaceCarregada
   readonly janela: FaceCarregada | null
   readonly grade: FaceCarregada | null
+  /** As portas por forma (lote 18); sem a forma, a porta normal; sem nenhuma, o trecho sai como parede. */
+  readonly portas?: Partial<Record<FormaDaPorta, FaceCarregada>>
 }
 
 // ---------- a rampa (CONTRATO 10.5, a da família com o croma da pedra) ----------
@@ -139,18 +152,35 @@ function geoDa(c: CadeiaDeParede, k: number): Geo {
 
 // ---------- as corridas ----------
 
+type Pedaco = PedacoDaSequencia & { readonly x0?: number; readonly comp?: number }
+
+interface DaPorta {
+  readonly porta: PortaDaCadeia
+  readonly plano: PlanoDaPorta
+  /** O vão de verdade (sem as ombreiras), em s absoluto, e o trecho dele. */
+  readonly s0: number
+  readonly s1: number
+  readonly trecho: number
+}
+
 interface Corrida {
   readonly s0: number
   readonly s1: number
   readonly papel: Papel
   readonly face: FaceCarregada
   /** Em s absoluto (px da tela). */
-  readonly pedacos: readonly PedacoDaSequencia[]
+  readonly pedacos: readonly Pedaco[]
   /** Curta demais para módulos: a coluna da costura inteira. */
   readonly liso: boolean
+  readonly porta?: DaPorta
 }
 
-function faceDo(papel: Papel, faces: FacesDaParede): FaceCarregada {
+export function faceDaPorta(forma: FormaDaPorta, faces: FacesDaParede): FaceCarregada | null {
+  return faces.portas?.[forma] ?? faces.portas?.normal ?? null
+}
+
+function faceDo(papel: Papel, faces: FacesDaParede, forma?: FormaDaPorta): FaceCarregada {
+  if (papel === 'porta') return (forma === undefined ? null : faceDaPorta(forma, faces)) ?? faces.parede
   return (papel === 'janela' ? faces.janela : papel === 'grade' ? faces.grade : null) ?? faces.parede
 }
 
@@ -158,21 +188,57 @@ function corridasDa(c: CadeiaDeParede, g: Geo, faces: FacesDaParede, p: ParamsDa
   // Os limites de papel, em s. Na cadeia fechada com mais de um papel, começa num limite.
   // A quina também parte a corrida: a ponta de cada corrida é a coluna da costura (o meio de
   // um bloco), e o canto do esquadro estica essa coluna (ver o miolo), sem junta na quina.
-  const lim: { s: number; papel: Papel }[] = []
-  for (let i = 0; i < g.nSeg; i += 1) if (i === 0 || c.papeis[i] !== c.papeis[i - 1] || ehQuina(g, c.fechada, i)) lim.push({ s: g.s[i], papel: c.papeis[i] })
+  // A porta sem imagem da forma (nem a normal) fica parede, como antes do lote 18.
+  const papelDe = (i: number): Papel => (c.papeis[i] === 'porta' && (c.portas?.[i] == null || faceDaPorta((c.portas[i] as PortaDaCadeia).forma, faces) === null) ? 'parede' : c.papeis[i])
+  const lim: { s: number; papel: Papel; trecho: number }[] = []
+  for (let i = 0; i < g.nSeg; i += 1) if (i === 0 || papelDe(i) !== papelDe(i - 1) || papelDe(i) === 'porta' || ehQuina(g, c.fechada, i)) lim.push({ s: g.s[i], papel: papelDe(i), trecho: i })
   const out: Corrida[] = []
-  if (c.fechada && lim.length > 1 && c.papeis[0] === c.papeis[g.nSeg - 1] && !ehQuina(g, true, 0)) {
+  if (c.fechada && lim.length > 1 && papelDe(0) === papelDe(g.nSeg - 1) && papelDe(0) !== 'porta' && !ehQuina(g, true, 0)) {
     // A corrida do fim continua na do começo: junta as duas (passa pelo s = 0).
     const ult = lim[lim.length - 1]
-    lim[0] = { s: ult.s - g.len, papel: ult.papel }
+    lim[0] = { s: ult.s - g.len, papel: ult.papel, trecho: ult.trecho }
     lim.pop()
   }
-  for (let j = 0; j < lim.length; j += 1) {
-    let s0 = lim[j].s
+  // Os limites de cada corrida; as ombreiras da porta (11.16) saem da corrida de parede vizinha.
+  const faixas = lim.map((l, j) => {
+    let s0 = l.s
     let s1 = j + 1 < lim.length ? lim[j + 1].s : c.fechada ? lim[0].s + g.len : g.len
     if (!c.fechada && j === 0) s0 += cont
     if (!c.fechada && j === lim.length - 1) s1 -= cont
-    const papel = lim[j].papel
+    return { s0, s1, papel: l.papel, trecho: l.trecho, ol: 0, or: 0 }
+  })
+  for (let j = 0; j < faixas.length; j += 1) {
+    const fx = faixas[j]
+    if (fx.papel !== 'porta') continue
+    const porta = c.portas?.[fx.trecho] as PortaDaCadeia
+    const plano = lerPlanoDaPorta(faceDo('porta', faces, porta.forma).p)
+    if (plano === null) continue
+    const o = plano.ombreiraPx * k
+    const n = faixas.length
+    const ant = j > 0 ? faixas[j - 1] : c.fechada && n > 1 ? faixas[n - 1] : null
+    const dep = j + 1 < n ? faixas[j + 1] : c.fechada && n > 1 ? faixas[0] : null
+    if (ant !== null && ant.papel === 'parede' && !ehQuina(g, c.fechada, fx.trecho) && ant.s1 - ant.s0 > o + 1) {
+      ant.s1 -= o
+      fx.ol = o
+    }
+    if (dep !== null && dep.papel === 'parede' && !ehQuina(g, c.fechada, fx.trecho + 1) && dep.s1 - dep.s0 > o + 1) {
+      dep.s0 += o
+      fx.or = o
+    }
+  }
+  for (let j = 0; j < faixas.length; j += 1) {
+    const { s0, s1, papel, trecho, ol, or } = faixas[j]
+    if (papel === 'porta') {
+      const porta = c.portas?.[trecho] as PortaDaCadeia
+      const face = faceDo('porta', faces, porta.forma)
+      const plano = lerPlanoDaPorta(face.p)
+      if (plano !== null) {
+        const m0 = face.p.face.modulos[0]
+        const vao = pedacosDoVao(plano, m0.comprimentoPx, s0, s1, ol, or, k).map((q) => ({ s0: q.s0, s1: q.s1, m: 0, espelho: false, x0: q.x0, comp: q.comp }))
+        out.push({ s0: s0 - ol, s1: s1 + or, papel, face, pedacos: vao, liso: false, porta: { porta, plano, s0, s1, trecho } })
+        continue
+      }
+    }
     const face = faceDo(papel, faces)
     const L = (s1 - s0) / k
     let pedacos: PedacoDaSequencia[]
@@ -439,9 +505,10 @@ export function pintarParedes(t: Tela, cadeias: readonly CadeiaDeParede[], faces
         xi = face.p.face.modulos[0].xPx
       } else {
         const ss = s >= cr.s1 ? s - g.len : s < cr.s0 ? s + g.len : s
-        const pd = pedacoEm(cr, ss)
+        const pd = pedacoEm(cr, ss) as Pedaco
         const m = face.p.face.modulos[pd.m]
-        let x = ((ss - pd.s0) / (pd.s1 - pd.s0)) * m.comprimentoPx
+        // O pedaço da porta (11.16) lê um pedaço do módulo: de x0 a x0 + comp.
+        let x = pd.comp !== undefined ? (pd.x0 ?? 0) + ((ss - pd.s0) / (pd.s1 - pd.s0)) * pd.comp : ((ss - pd.s0) / (pd.s1 - pd.s0)) * m.comprimentoPx
         if (pd.espelho) x = m.comprimentoPx - x
         espelho = pd.espelho
         xi = m.xPx + 2 * x
@@ -463,6 +530,43 @@ export function pintarParedes(t: Tela, cadeias: readonly CadeiaDeParede[], faces
       sobre(t, px, cor, s4[3] * ponta)
     })
   }
+  // 4. As folhas das portas (11.16): por cima do vão, só de s0 a s1, na rampa da cor da PORTA.
+  for (const c of ordem) {
+    if (c.portas === undefined) continue
+    const g = geos.get(c) as Geo
+    const tt = c.espessura * k
+    const cont = contornoDa(c.espessura, p) * k
+    const hi = tt / 2 - cont
+    if (hi <= 0.25) continue
+    const alt = alturaDaParede(c.espessura)
+    for (const cr of corridasDa(c, g, faces, p, k, cont)) {
+      const dp = cr.porta
+      if (dp === undefined || dp.porta.estado === null) continue
+      const face = cr.face
+      const m = face.p.face.modulos[MODULO_DO_ESTADO[dp.porta.estado]]
+      const pedacos = pedacosDaFolha(dp.plano, dp.s0, dp.s1, k)
+      const rampa = rampaDaParede(dp.porta.cor)
+      const H = face.p.alturas[alt].hPx
+      varrerFaixa(g, c.fechada, -hi - 1, hi + 1, 0, t, o.ox, o.oy, (px, s, w, i) => {
+        if (i !== dp.trecho || s < dp.s0 || s >= dp.s1) return
+        const pd = pedacos.find((q) => s < q.s1) ?? pedacos[pedacos.length - 1]
+        const xi = m.xPx + 2 * (pd.x0 + ((s - pd.s0) / (pd.s1 - pd.s0)) * pd.comp)
+        const yi = 2 * (face.p.face.acimaPx + ((w + hi) / (2 * hi)) * H)
+        ler(face.cor[alt], xi, yi, s4)
+        if (s4[3] <= 1e-4) return
+        ler(face.relevo[alt], xi, yi, r4)
+        corDoValor(rampa, s4[0] / s4[3], cor)
+        const rx = 2 * r4[0] - 1
+        const ry = 2 * r4[1] - 1
+        const d = g.d[i]
+        const nr = g.nr[i]
+        const l = face.p.luz.face * (nr[0] * LUZ[0] + nr[1] * LUZ[1]) + face.p.luz.relevo * ((rx * d[0] + ry * nr[0]) * LUZ[0] + (rx * d[1] + ry * nr[1]) * LUZ[1])
+        acender(cor, l)
+        const ponta = c.fechada ? 1 : cobertura(s - cont + 0.5) * cobertura(g.len - cont - s + 0.5)
+        sobre(t, px, cor, s4[3] * ponta)
+      })
+    }
+  }
 }
 
 // ---------- a costura entre os itens ----------
@@ -481,7 +585,7 @@ export function costuraEntreItens(faces: FacesDaParede): { cor: number; relevo: 
     const ref = faces.parede
     const xr = ref.p.face.modulos[0].xPx
     let pa = 0
-    for (const outra of [faces.janela, faces.grade]) {
+    for (const outra of [faces.janela, faces.grade, ...Object.values(faces.portas ?? {})]) {
       if (outra === null) continue
       for (const m of outra.p.face.modulos) {
         for (const x of [m.xPx, m.xPx + m.larguraPx - 1]) {

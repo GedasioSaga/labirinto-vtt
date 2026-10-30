@@ -1,0 +1,219 @@
+{
+  "alturas": {
+    "alto": {
+      "arquivos": {
+        "cor": "face-alto.png",
+        "relevo": "face-alto-relevo.png"
+      },
+      "hCasas": 0.75,
+      "hPx": 48.0,
+      "imagem": [
+        576,
+        100
+      ]
+    },
+    "baixo": {
+      "arquivos": {
+        "cor": "face-baixo.png",
+        "relevo": "face-baixo-relevo.png"
+      },
+      "hCasas": 0.3125,
+      "hPx": 20.0,
+      "imagem": [
+        576,
+        44
+      ]
+    },
+    "medio": {
+      "arquivos": {
+        "cor": "face-medio.png",
+        "relevo": "face-medio-relevo.png"
+      },
+      "hCasas": 0.5,
+      "hPx": 32.0,
+      "imagem": [
+        576,
+        68
+      ]
+    }
+  },
+  "borda": null,
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#5e5e5e",
+  "face": {
+    "abaixoPx": 1.0,
+    "acimaPx": 1.0,
+    "canais": "cor: RGBA, cor reta, alfa reto (R = valor, 0,5 = a cor do mestre); relevo: R = 0,5 + 0,5 x ao longo, G = 0,5 + 0,5 x para baixo",
+    "conta": "x da imagem = modulo.xPx + 2 * (u espelhado ou não); y da imagem = 2 * (acimaPx + (d / t) * hPx), d = px do mundo da beira para o pé, t = a espessura do app no ponto",
+    "costura": {
+      "maior": 0.0,
+      "relevoX": 1.0,
+      "tetoEm255": 2
+    },
+    "costuraPx": 4.0,
+    "escolha": {
+      "conta": "por módulo: tv = a espessura do app no meio do módulo, em px do mundo; tv < 26: baixo; tv < 40: medio; senão alto; nunca acima da altura da beira (a face do norte de um Alto, 36%, usa a do Baixo)",
+      "limitesPx": [
+        26.0,
+        40.0
+      ]
+    },
+    "folgaPx": 4.0,
+    "modulos": [
+      {
+        "casas": 1.0,
+        "comprimentoPx": 64.0,
+        "larguraPx": 128,
+        "xPx": 8
+      },
+      {
+        "casas": 1.0,
+        "comprimentoPx": 64.0,
+        "larguraPx": 128,
+        "xPx": 152
+      },
+      {
+        "casas": 1.0,
+        "comprimentoPx": 64.0,
+        "larguraPx": 128,
+        "xPx": 296
+      },
+      {
+        "casas": 1.0,
+        "comprimentoPx": 64.0,
+        "larguraPx": 128,
+        "xPx": 440
+      }
+    ]
+  },
+  "id": "porta-dupla",
+  "idDoApp": "double",
+  "luz": {
+    "conta": "l = face * dot(baixo, LUZ) + relevo * dot(rx * aoLongo + ry * baixo, LUZ); l >= 0: mix(cor, realce_de(cor), l); l < 0: cor * (1 - 0,3 * (-l))",
+    "direcao": [
+      -0.7071,
+      -0.7071
+    ],
+    "face": 0.0,
+    "relevo": 0.55
+  },
+  "memoria": {
+    "discoBytes": 8864,
+    "memoriaBytes": 1302528,
+    "tetoDiscoBytes": 1572864,
+    "tetoMemoriaBytes": 6291456
+  },
+  "nome": "Porta dupla",
+  "parede": {
+    "papel": "porta",
+    "parede": "parede",
+    "porta": {
+      "conta": "o trecho da porta no app vai de s0 - o a s1 + o (o = ombreiraPx x k, tirado das corridas de parede vizinhas na mesma reta; 0 na quina, na ponta da cadeia e ao lado de outro vão). O vão (módulo 0): a ombreira da esquerda lê [8 - o/k, 8] da imagem, o miolo [s0, s1] lê [8, 56] esticado, a da direita [56, 56 + o/k]. A folha (módulos 1 a 3, só de s0 a s1): os pedaços fixos guardam o comprimento x k; os que esticam dividem o resto na proporção do comprimento; o que repete entra n = max(1, round(resto / (comprimento x k))) vezes inteiras. Resto menor que 0: tudo estica junto.",
+      "estados": [
+        "vao",
+        "fechada",
+        "aberta",
+        "secreta"
+      ],
+      "folhaAtePx": 56.0,
+      "folhaDePx": 8.0,
+      "forma": "double",
+      "ombreiraPx": 8.0,
+      "pedacos": [
+        {
+          "ate": 14.0,
+          "de": 8.0,
+          "jeito": "fixo"
+        },
+        {
+          "ate": 30.2,
+          "de": 14.0,
+          "jeito": "estica"
+        },
+        {
+          "ate": 33.8,
+          "de": 30.2,
+          "jeito": "fixo"
+        },
+        {
+          "ate": 50.0,
+          "de": 33.8,
+          "jeito": "estica"
+        },
+        {
+          "ate": 56.0,
+          "de": 50.0,
+          "jeito": "fixo"
+        }
+      ]
+    }
+  },
+  "parte": "face",
+  "pxPorCasa": 128,
+  "sequencia": {
+    "conta": "j = 0, 1, 2...: m(j) = floor(hash(j, 0, semente + h) * N), trocado pelo seguinte se igual ao de antes; espelho(j) = hash(j, 1, semente + h) < 0,5; h = o hash do id do traço; no laço fechado os comprimentos escalam para somar o comprimento da beira",
+    "semente": 3826
+  },
+  "sombra": {
+    "alfa": 0.25,
+    "borraoPx": 9.0,
+    "conta": "a faixa inteira de todas as paredes (a espessura toda, o contorno incluído) numa camada só, andada deslocamentoPx na direção (7, 11) normalizada, desfocada borraoPx, por baixo das paredes e por cima do chão",
+    "cor": "#0a1c28",
+    "deslocamentoPx": 5.0,
+    "direcao": [
+      7,
+      11
+    ],
+    "jeito": "deslocada"
+  },
+  "tingir": {
+    "amareloNaLuz": 0.12,
+    "claro": [
+      [
+        0.5,
+        0.0
+      ],
+      [
+        0.62,
+        0.12
+      ],
+      [
+        0.76,
+        0.26
+      ],
+      [
+        1.0,
+        0.45
+      ]
+    ],
+    "claroDesde": 0.94,
+    "conta": "valor-oklab",
+    "cromaNaLuz": 0.2,
+    "cromaNaSombra": -0.6,
+    "escuro": [
+      [
+        0.0,
+        0.42
+      ],
+      [
+        0.1,
+        0.5
+      ],
+      [
+        0.24,
+        0.64
+      ],
+      [
+        0.36,
+        0.78
+      ],
+      [
+        0.5,
+        1.0
+      ]
+    ],
+    "escuroAte": 0.1
+  },
+  "tipo": "traco"
+}

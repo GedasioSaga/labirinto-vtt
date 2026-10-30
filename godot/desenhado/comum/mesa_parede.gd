@@ -76,7 +76,7 @@ func montar(cfg: Dictionary, pasta_exportada: String, prova: String, args: Dicti
 	_escala(_ler(paineis, "formas-atual50-100.png"), 0.5).save_png(prova.path_join("atual-area50.png"))
 	_ler(paineis, "perto-%s-desenhado-300.png" % primeiro).save_png(prova.path_join("perto300.png"))
 	_ler(paineis, "perto-%s-atual-300.png" % primeiro).save_png(prova.path_join("atual-perto300.png"))
-	_escala(_ler(paineis, "casa-desenhado-0-100.png"), 0.5).save_png(prova.path_join("familia50.png"))
+	_escala(_ler(paineis, p.get("familia", "casa-desenhado-0-100.png")), 0.5).save_png(prova.path_join("familia50.png"))
 	var resumo := {"id": cfg["id"], "nome": cfg["nome"], "idDoApp": cfg.get("idDoApp"), "tipo": "traco", "parte": cfg["parte"], "onda": cfg["onda"], "lote": cfg["lote"], "mesa": "sala", "memoria": params.get("memoria", {}), "atual": {"ok": true}, "avisos": p["avisos"], "face": p["face"], "borda": null, "modulosCasas": p["modulosCasas"], "costuraEntreItens": p["costuraEntreItens"]}
 	var f := FileAccess.open(prova.path_join("resumo.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(resumo, "  "))
@@ -101,22 +101,28 @@ func _folha_da_sala(cfg: Dictionary, p: Dictionary, params: Dictionary, paineis:
 		_texto("Avisos: " + "; ".join(PackedStringArray(p["avisos"])), 15, COR_TINTA_2)
 	_y += 10
 	var fd := _ler(paineis, "formas-desenhado-100.png")
-	_texto("As formas a 100%: duas retas com o vão de uma porta, a quina, o T e a sala fechada, nas 3 espessuras (de cima para baixo)", 22)
+	# As portas (lote 18) mandam os próprios títulos; sem eles, os da parede.
+	var titulos: Dictionary = p.get("titulos", {})
+	_texto(titulos.get("formas", "As formas a 100%: duas retas com o vão de uma porta, a quina, o T e a sala fechada, nas 3 espessuras (de cima para baixo)"), 22)
 	_fila([fd], ["Desenhado"])
 	_fila([_ler(paineis, "formas-atual-100.png")], ["Atual"])
 	_texto("A 50% e a 25%", 22)
 	_fila([_escala(fd, 0.5), _escala(_ler(paineis, "formas-atual50-100.png"), 0.5)], ["Desenhado a 50%", "Atual a 50%"])
 	_fila([_escala(fd, 0.25), _escala(_ler(paineis, "formas-atual25-100.png"), 0.25)], ["Desenhado a 25%", "Atual a 25%"])
-	_texto("O paredão: 38 casas nas 3 espessuras, a 50% (procure a repetição dos módulos)", 22)
+	_texto(titulos.get("paredao", "O paredão: 38 casas nas 3 espessuras, a 50% (procure a repetição dos módulos)"), 22)
 	_fila([_escala(_ler(paineis, "paredao-desenhado-100.png"), 0.5)], ["Desenhado"])
 	_fila([_escala(_ler(paineis, "paredao-atual50-100.png"), 0.5)], ["Atual"])
 	_texto("A 300%", 22)
 	for perto in p["pertos"]:
 		_fila([_ler(paineis, "perto-%s-desenhado-300.png" % perto["nome"]), _ler(paineis, "perto-%s-atual-300.png" % perto["nome"])], ["Desenhado, %s" % perto["titulo"], "Atual"])
 	var cores: Array = p["cores"]
-	_texto("A família: a casa (salão, quarto e cela; portas, janelas e as grades) no chão de sala aprovado, tingido, com os móveis da onda 4; a grama aprovada fora", 22)
-	_fila([_ler(paineis, "casa-desenhado-0-100.png"), _ler(paineis, "casa-atual-100.png")], ["Desenhado, parede %s, a 100%%" % cores[0], "Atual (as paredes de hoje; os móveis Desenhados)"])
-	_fila([_ler(paineis, "casa-desenhado-1-100.png"), _ler(paineis, "casa-desenhado-2-100.png")], ["Desenhado, parede %s" % cores[1], "Desenhado, parede %s" % cores[2]])
+	_texto(titulos.get("casa", "A família: a casa (salão, quarto e cela; portas, janelas e as grades) no chão de sala aprovado, tingido, com os móveis da onda 4; a grama aprovada fora"), 22)
+	if titulos.has("casas"):
+		for linha in titulos["casas"]:
+			_fila([_ler(paineis, linha[0]), _ler(paineis, linha[2])], [linha[1], linha[3]])
+	else:
+		_fila([_ler(paineis, "casa-desenhado-0-100.png"), _ler(paineis, "casa-atual-100.png")], ["Desenhado, parede %s, a 100%%" % cores[0], "Atual (as paredes de hoje; os móveis Desenhados)"])
+		_fila([_ler(paineis, "casa-desenhado-1-100.png"), _ler(paineis, "casa-desenhado-2-100.png")], ["Desenhado, parede %s" % cores[1], "Desenhado, parede %s" % cores[2]])
 	_fila([_escala(_ler(paineis, "casa-desenhado-0-100.png"), 0.5), _escala(_ler(paineis, "casa-desenhado-1-100.png"), 0.5), _escala(_ler(paineis, "casa-atual50-100.png"), 0.5)], ["Desenhado a 50%", "Desenhado a 50%%, %s" % cores[1], "Atual a 50%"])
 	_texto("Arquivos (sobre xadrez; o relevo em cor: vermelho = ao longo, verde = atravessando)", 22)
 	if params.has("alturas"):
