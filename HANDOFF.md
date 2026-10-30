@@ -561,6 +561,8 @@ Três frentes do usuário: (1) a 0.5.11 com a aba Sons nova e os consertos da te
 
 6. FEITO: v0.5.13 PUBLICADA (`bf122601`). Lote 18 das portas Desenhado FEITO (`16adaa93`, `3515716d`). Em voo: penhasco do continente no Desenhado e a escolha Pedra/Linha por parede no painel (decisão 29/10: "Por parede, no painel", linha "Igual à de hoje"). A 0.5.14 sai com os três quando o usuário mandar.
 
+7. 0.5.14 PRONTA, aguardando o usuário mandar publicar: portas (`16adaa93`, `3515716d`), continente (`feb01355`, `8aea9b92`, `8a23f0d7`), Pedra/Linha no painel (`9521baed`) e na ferramenta (`33b2630f`). tsc da main exit 0. Notas em scratchpad/notas-0.5.14.md. Passos: bump 0.5.13 para 0.5.14 nos 5 arquivos, commit, gitleaks, push, publicar-versao, latest.json.
+
 ### Critério de pronto
 - 0.5.11: `releases/latest/download/latest.json` responde 0.5.11 e a release tem setup, msi, `.sig` e `latest.json`.
 - Músicas: a aventura escolhida abre com 52 sons novos em Músicas, nas 4 categorias, com miniaturas, e o `sons.json` antigo guardado como backup ao lado.
