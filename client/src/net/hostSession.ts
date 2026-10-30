@@ -3,7 +3,8 @@ import { medidaCabeNoMapa, type MedidaCompartilhada } from '../lib/batalha/ferra
 import { centroDaCasa, type Casa } from '../lib/batalha/blocos'
 import { caminhosParaJogador, type CaminhosNoMestre } from '../lib/batalha/caminhoAndado'
 import { paredesQueBarramOCaminho } from '../lib/batalha/movimentoEmBatalha'
-import type { Equipe } from '../lib/batalha/equipes'
+import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
+import type { PonteDaBatalha } from '../lib/batalha/ponte'
 import type { MedidaCompartilharMessage } from './protocoloDaMedida'
 import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
@@ -81,6 +82,8 @@ import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from '
 import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
 import { criarTiroNoHost, type TiroAoVivo, type TiroConviteResultado } from './tiroNoHost'
 import { TIRO_PARTICIPANTES_MAX, type TiroMotivoDaRecusa, type TiroPlayerMessage } from './protocoloDoTiro'
+import { criarBatalhaNoHost, type ConexaoNaBatalha, type LugarNaBatalha } from './batalhaNoHost'
+import type { BatalhaPlayerMessage } from './protocoloDaBatalha'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
@@ -1728,6 +1731,14 @@ export interface HostSessionOptions {
    * jogador recebe só o que vê (`caminhosParaJogador`). Ausente ou `null` = sem caminho.
    */
   getCaminhosDaBatalha?: (sceneKey: string) => (CaminhosNoMestre & { readonly rev: number }) | null
+  /**
+   * BATALHA F1 (ordem dos turnos): a store do mestre (`stores/batalhaStore.ts`,
+   * `ponteDaBatalha`). O host lê a cena para o recorte de cada jogador
+   * (`batalha.estado`, `batalha.aliados`) e repassa os pedidos do jogador já
+   * conferidos ("Passar a vez", Desfazer) e os ajustes rápidos da ficha (que
+   * viram linha no registro). Ausente = nenhuma ordem dos turnos sai.
+   */
+  ponteDaBatalha?: PonteDaBatalha
   /**
    * MODO BATALHA (regra de 27/10): a ficha de `nome` parou numa parede que o
    * recorte dele não tem (`invisivel`: alguma delas é parede invisível; senão
@@ -3521,6 +3532,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const pescaNoHost = criarPescaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME DE TIRO: uma barraca por pino (a de agora ou a última), com as tentativas de cada um.
   const tiroNoHost = criarTiroNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId(), agora: () => now() })
+  // BATALHA F1: o recorte da ordem dos turnos por conexão e os pedidos do jogador.
+  // `paraOFio` por função: `semDono` mora mais abaixo e ainda não existe aqui.
+  const batalhaNoHost = criarBatalhaNoHost({ ponte: options.ponteDaBatalha, agora: () => now(), paraOFio: (personagem) => semDono(personagem) })
+  // BATALHA F1 — por playerId: as fichas do último recorte que saiu para ele
+  // (`snapshotFor`) e de que mapa. É o "o que a tela dele tem" da ordem dos
+  // turnos: carta de ficha fora daqui não sai (Q1). O `sentViews` não serve
+  // sozinho — a tela da entrada (`viewFor`) não passa por ele.
+  const fichasDaTela = new Map<string, { mapId: string; fichas: readonly { id: string; name: string }[] }>()
   // Quem recebeu `lobby.waiting` depois do último mapa: o cliente apagou o
   // cartão do teste secreto, então o próximo snapshot leva os pedidos de novo.
   const lostSecretCheckCard = new Set<string>()
@@ -4368,8 +4387,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * (`lib/vidaDaFicha.ts`). Só a proporção chega ao recorte; quem a vê (ficha de
    * jogador, ou a que ele controla) o recorte decide. Sem ficha no mundo, nenhuma.
    */
-  const barrasDoMapa = (map: MapData, world: HostWorld): BarrasParaJogador | undefined =>
-    world.rpg === undefined ? undefined : barrasParaJogador(map.tokens, world.rpg.personagens, world.rpg.sistema)
+  const barrasDoMapa = (map: MapData, world: HostWorld, playerId?: string): BarrasParaJogador | undefined =>
+    world.rpg === undefined
+      ? undefined
+      : barrasParaJogador(map.tokens, world.rpg.personagens, world.rpg.sistema, playerId === undefined ? undefined : (personagensDaEquipe(playerId, world) ?? undefined))
+
+  /**
+   * BATALHA F1 (seção 3.2): os personagens cuja barra este jogador vê em
+   * qualquer ficha — os dele e os dos aliados da equipe (`aliadosDe`). `null` =
+   * a mesa não tem equipe: vale a regra de antes (toda ficha de jogador), e
+   * nada muda para quem não usa equipes. A tela da mesa não passa por aqui.
+   */
+  const personagensDaEquipe = (playerId: string, world: HostWorld): ReadonlySet<string> | null => {
+    const rpg = world.rpg
+    if (rpg === undefined || rpg.equipes === undefined || rpg.equipes.length === 0) return null
+    const meus = meusPersonagensDe(playerId, world)
+    return new Set([...meus, ...aliadosDe(meus, rpg.equipes, rpg.personagens)])
+  }
 
   /**
    * Nunca manda o mapa do host: sempre o recorte de `filterMapForPlayer`. O
@@ -4440,7 +4474,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       memory.marcas,
       oneWay,
       companionMarks(),
-      barrasDoMapa(map, world),
+      barrasDoMapa(map, world, playerId),
     )
     // CABINE DE TRANSPORTE: só as paradas que o recorte JÁ mandou ganham o
     // "aqui/longe" — nada da cabine além disso, nada de parada escondida.
@@ -4509,6 +4543,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       else memory.pinosBarrados.delete(pinId)
     }
     const recorte = marcarTrancasParaJogador(view, new Set(ownTokens), trancas, memory.pinosBarrados)
+    // BATALHA F1: as fichas que este recorte leva são as cartas que a ordem dos turnos pode mostrar a ele.
+    fichasDaTela.set(playerId, { mapId: map.id, fichas: recorte.tokens })
     // ENCONTRO MARCADO: a espera DESTE jogador se resolve antes da marca: a que acabou agora não sai marcada.
     const waitEnded = settleWait(playerId, map.id, view)
     const waiting = waitingTokensForPlayer(view, waitingTokenIds())
@@ -4630,7 +4666,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // MODO BATALHA: o `rev` do caminho andado entra — "Zerar caminhos" refaz o recorte de quem está na cena.
     const batalhaAqui = scene !== null && emBatalha(scene)
     const caminhosRev = batalhaAqui ? (options.getCaminhosDaBatalha?.(tableSceneKey(scene))?.rev ?? 0) : null
-    const session = JSON.stringify([batalhaAqui, caminhosRev, map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui), factorFor(playerId)])
+    // BATALHA F1: quem é da equipe dele entra — a troca de lado refaz as barras de vida sem o mapa mudar.
+    const equipe = personagensDaEquipe(playerId, world)
+    const session = JSON.stringify([
+      batalhaAqui,
+      caminhosRev,
+      map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui),
+      factorFor(playerId),
+      equipe === null ? null : [...equipe].sort(),
+    ])
     const sameInputs =
       last !== undefined &&
       last.playerId === playerId &&
@@ -5422,6 +5466,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // FICHA DE PERSONAGEM: a conexão nova não tem nada; numa aventura, o sistema e os personagens dele saem inteiros.
     personagensEnviados.delete(clientId)
     outbound.push(...personagensUpdate(clientId, playerId, world))
+    // BATALHA F1: a conexão nova não tem faixa. Numa cena em batalha, os aliados e
+    // o recorte da ordem saem já, depois do mapa (as cartas são fichas dele).
+    outbound.push(...batalhaNoHost.entrou(conexaoNaBatalha(clientId, playerId, world), world.rpg))
     // DANÇA: no convite, o convite de novo; no meio da música, a aba nova perdeu a música e sai.
     outbound.push(...dancaNoHost.entrou(playerId))
     // PESCA: no convite, o convite de novo; no meio da pesca, a aba nova perdeu o jogo e sai.
@@ -7518,6 +7565,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return copia
   }
 
+  /** BATALHA F1: os personagens ligados às fichas que são dele de verdade (`fichasDoPersonagem`: sem as emprestadas). */
+  const meusPersonagensDe = (playerId: string, world: HostWorld): Set<string> =>
+    new Set(fichasDoPersonagem(playerId, world).flatMap(({ token }) => (token.characterId === null ? [] : [token.characterId])))
+
+  /**
+   * BATALHA F1 — onde a conexão está na batalha: a cena DELE, em batalha, e as
+   * fichas que a tela dele tem dessa cena (`fichasDaTela`). Tela ainda de outra
+   * cena (a nova não saiu) conta como fora: nenhuma carta sai de um recorte
+   * que não é o da cena. `null` também sem ponte, sem ficha ou fora de batalha.
+   */
+  const lugarNaBatalha = (playerId: string, world: HostWorld): LugarNaBatalha | null => {
+    if (options.ponteDaBatalha === undefined || statusOf(playerId) !== 'playing') return null
+    const scene = sceneFor(playerId, world)
+    if (scene === null || !emBatalha(scene)) return null
+    const tela = fichasDaTela.get(playerId)
+    if (tela === undefined || tela.mapId !== scene.map.id) return null
+    return { sceneKey: tableSceneKey(scene), meusTokens: new Set(ownership[playerId] ?? []), fichasNaTela: tela.fichas, meusPersonagens: meusPersonagensDe(playerId, world) }
+  }
+
+  /** O nome no registro passa pela mesma regra do histórico da ficha: o jogador chamado "Mestre" vira "Mestre (jogador)". */
+  const conexaoNaBatalha = (clientId: string, playerId: string, world: HostWorld): ConexaoNaBatalha => ({
+    clientId,
+    playerId,
+    nome: nomeDoJogadorNoHistorico(players.get(playerId)?.name ?? ''),
+    lugar: lugarNaBatalha(playerId, world),
+  })
+
+  const conexoesNaBatalha = (world: HostWorld): ConexaoNaBatalha[] => [...byClient].map(([clientId, playerId]) => conexaoNaBatalha(clientId, playerId, world))
+
   /**
    * O sistema e os personagens que a conexão ainda não tem. Sem `world.rpg`
    * (mapa solto): quem nunca recebeu nada não recebe; quem recebeu (o mestre
@@ -7711,7 +7787,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const quem = nomeDoJogadorNoHistorico(nome)
     const personagem = aplicarAjustes(alvo.atual, sistema, msg.ajustes, quem, now())
     if (personagem === alvo.atual) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, true)] }
+    // BATALHA F1 (S6): o ajuste vira linha no registro de toda batalha com o personagem na ordem.
+    // ANTES de `personagemAceito`: a store do mestre pede um broadcast na hora (`notifyBatalhaChanged`),
+    // com o mundo de antes; depois de `personagemAceito` marcar a ficha nova como enviada, esse
+    // broadcast mandaria a VELHA de novo, e a tela dele piscaria o valor de antes.
+    options.ponteDaBatalha?.registrarAjuste(alvo.atual.id, alvo.atual, personagem, { tipo: 'jogador', playerId: alvo.playerId, nome: quem })
     return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, ajustadoPor: quem })
+  }
+
+  /**
+   * BATALHA F1 — "Passar a vez" e Desfazer do jogador. Aqui só "entrou?"; o
+   * resto (a cena DELE em batalha, a vez é da ficha dele nesta rodada, a linha
+   * é dele, o teto de pedidos) a `batalhaNoHost` confere contra a cena da store
+   * do mestre. Valeu: o recorte novo sai já a todos, antes da resposta — sem
+   * depender do broadcast que a store pede (o que ele já mandou não sai de novo).
+   */
+  function handleBatalha(clientId: string, msg: BatalhaPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const conexao = conexaoNaBatalha(clientId, playerId, world)
+    const resposta = msg.type === 'batalha.passar' ? batalhaNoHost.passar(conexao, msg) : batalhaNoHost.desfazer(conexao, msg)
+    const recortes = resposta.mudou ? batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg) : []
+    return { outbound: [...recortes, ...resposta.saidas] }
   }
 
   /** FICHA DE PERSONAGEM — o retrato ou a imagem de um cartão. Cartão que não existe mais: recusa. */
@@ -9521,6 +9618,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handlePlayerLaser(clientId, msg, world)
       case 'medida.compartilhar':
         return handleMedidaDoJogador(clientId, msg, world)
+      case 'batalha.passar':
+      case 'batalha.desfazer':
+        return handleBatalha(clientId, msg, world)
       case 'clue.read':
         return handleClueRead(clientId, msg, world)
       case 'clue.peers':
@@ -10502,6 +10602,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       chatGlobalSent.delete(clientId)
       sentViews.delete(clientId)
       patchClients.delete(clientId)
+      // BATALHA F1: a faixa morreu com a tela; a volta recebe o recorte inteiro de novo (`entrou`).
+      batalhaNoHost.caiu(clientId)
       const record = players.get(playerId)
       if (record !== undefined) {
         record.clientId = null // mantém o registro para permitir resume
@@ -10566,6 +10668,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastViewSwitchAt.delete(playerId)
       lastViews.delete(playerId)
       forgetPlayer(playerId)
+      // BATALHA F1: o expulso não recebe mais recorte, e o teto de pedidos e a tela dele saem.
+      batalhaNoHost.caiu(clientId)
+      batalhaNoHost.esquecer(playerId)
+      fichasDaTela.delete(playerId)
       // As listas de "Quem vê" mudaram: todos refazem no próximo broadcast.
       viewEpoch += 1
       // DANÇA: o expulso sai da dança (do convite, ou da pista como quem não passou).
@@ -11016,6 +11122,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // FICHA DE PERSONAGEM: o mestre editou a ficha de alguém, ou alguém ganhou
       // ou perdeu ficha (token): só essa conexão recebe, e só o que mudou.
       outbound.push(...syncPersonagens(world))
+      // BATALHA F1: depois dos mapas e das fichas — o recorte da ordem só mostra fichas que a
+      // tela de cada um já tem; a vez que andou, a ordem que o mestre arrastou e o fim da batalha.
+      outbound.push(...batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg))
       // Depois dos mapas: a visão nova decide que marca cada um já conhece, e
       // quem mudou de cena perde as da cena de antes.
       outbound.push(...destinationUpdates(world))

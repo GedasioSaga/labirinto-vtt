@@ -198,6 +198,14 @@ import {
   type TiroVivo,
 } from '../net/protocoloDoTiro'
 import { receberTiro, TIRO_RECUSA_AVISO_MS, tiroAceitaPronto, tiroAtirando, type TiroDoJogador } from './estadoDoTiro'
+import {
+  parseBatalhaAliados,
+  parseBatalhaEstado,
+  parseBatalhaResultado,
+  type BatalhaDesfazerMessage,
+  type BatalhaPassarMessage,
+} from '../net/protocoloDaBatalha'
+import type { EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -275,6 +283,13 @@ export type LivroDoJogador =
 /** Sem o livro inteiro neste prazo, o pedido falha (3 partes num LAN chegam em milissegundos; o túnel é mais lento). */
 export const LIVRO_PRAZO_MS = 20_000
 
+/**
+ * BATALHA F1: o "Passar a vez" (ou o Desfazer) no ar segura o mesmo pedido de
+ * novo até a resposta ou este prazo. O host responde na hora; sem resposta, o
+ * pedido morreu no caminho e o clique seguinte tem de sair.
+ */
+export const PEDIDO_DE_BATALHA_PRAZO_MS = 8_000
+
 export interface PlayerState {
   status: PlayerStatus
   map?: MapData
@@ -325,6 +340,18 @@ export interface PlayerState {
    * cada aviso. Quem toca a animação é a B5; aqui só fica o pedido.
    */
   batalhaIniciada?: { id: number; transicao?: string; texto?: string }
+  /**
+   * BATALHA F1: a ordem dos turnos como o host deixa ele ver (`batalha.estado`,
+   * `vistaParaJogador`): cartas, vez, rodada, o registro dele e as regras do
+   * campo. Ausente = a cena dele não está em batalha (ou ainda não chegou).
+   */
+  batalhaEstado?: EstadoParaJogador
+  /**
+   * BATALHA F1: os personagens dos aliados da equipe que estão na ordem
+   * (`batalha.aliados`), para o perfil e a vida da carta. Nunca NPC nem
+   * jogador de outra equipe — o host recorta. Ausente = fora da batalha.
+   */
+  aliados?: Personagem[]
   /** Cone pelo vão de prédio com teto: a tela abre o telhado só nestes retângulos. */
   glimpses?: RegionPoint[][]
   /**
@@ -1229,6 +1256,22 @@ export interface PlayerConnection {
    * livro ou o pedido não saiu (sem conexão).
    */
   pedirLivro(): boolean
+  /**
+   * BATALHA F1 — "Passar a vez" da carta `cartaId` na `rodada` que a faixa
+   * mostra (`batalhaEstado`). O host só passa se a vez ainda é essa carta nessa
+   * rodada: clique duplo e reenvio não passam duas vezes (e o mesmo pedido no
+   * ar nem sai de novo). A vez nova chega no `batalhaEstado`. `false` = não
+   * saiu: não é a vez dele, a carta ou a rodada não são as da faixa, fora da
+   * batalha ou sem conexão.
+   */
+  passarVezNaBatalha(cartaId: string, rodada: number): boolean
+  /**
+   * BATALHA F1 — Desfazer a linha `linhaId` do registro: só a que veio com
+   * `podeDesfazer` (a dele, na vez dele). A linha riscada chega no
+   * `batalhaEstado`. `false` = não saiu (linha que ele não pode desfazer, fora
+   * da batalha, sem conexão).
+   */
+  desfazerNaBatalha(linhaId: string): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -2592,6 +2635,38 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (havia) publicarAjustes(true)
   }
 
+  // BATALHA F1: os pedidos no ar, pelo reqId, com a chave do que pedem
+  // (`passar|carta|rodada` ou `desfazer|linha`) e o prazo de cada um.
+  const pedidosDeBatalha = new Map<string, { chave: string; prazo: ReturnType<typeof setTimeout> }>()
+
+  /** O pedido sai, a menos que o MESMO já esteja no ar: aí conta como saído (o host responderia `ok: false` ao segundo). */
+  function pedirNaBatalha(chave: string, mensagem: BatalhaPassarMessage | BatalhaDesfazerMessage): boolean {
+    for (const noAr of pedidosDeBatalha.values()) if (noAr.chave === chave) return true
+    if (!send(mensagem)) return false
+    const prazo = setTimeout(() => pedidosDeBatalha.delete(mensagem.reqId), PEDIDO_DE_BATALHA_PRAZO_MS)
+    pedidosDeBatalha.set(mensagem.reqId, { chave, prazo })
+    return true
+  }
+
+  /** `batalha.resultado`: o pedido sai do ar. O efeito (a vez que andou, a linha riscada) chega no `batalha.estado`. */
+  function responderPedidoDeBatalha(reqId: string): void {
+    const noAr = pedidosDeBatalha.get(reqId)
+    if (noAr === undefined) return
+    clearTimeout(noAr.prazo)
+    pedidosDeBatalha.delete(reqId)
+  }
+
+  /**
+   * A cena de antes, a espera ou a queda: nada no ar terá resposta, e a faixa
+   * de antes mentiria (a vez anda sem ele ver). O host manda o recorte de novo
+   * quando ele voltar a uma cena em batalha.
+   */
+  function esquecerBatalha(): void {
+    for (const { prazo } of pedidosDeBatalha.values()) clearTimeout(prazo)
+    pedidosDeBatalha.clear()
+    if (state.batalhaEstado !== undefined || state.aliados !== undefined) setState({ batalhaEstado: undefined, aliados: undefined })
+  }
+
   // LIVRO DE REGRAS: as partes do pedido no ar (`null` = nenhum) e o prazo dele (LIVRO_PRAZO_MS).
   let chegadaDoLivro: ChegadaDoLivro | null = null
   let livroTimer: ReturnType<typeof setTimeout> | null = null
@@ -3294,6 +3369,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (state.chatSend !== undefined) setState({ chatSend: undefined })
     // AJUSTE RÁPIDO: idem — a ficha otimista volta já ao que a mesa tem, em vez de esperar o prazo.
     perderAjustes()
+    // BATALHA F1: a faixa sai; a volta recebe o recorte de agora (o host recomeça a conexão nova do zero).
+    esquecerBatalha()
     if (sessionOver()) return
     if (state.reconnecting !== undefined) {
       // A tentativa falhou (a rede ainda não voltou): a próxima espera mais.
@@ -3946,6 +4023,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearTokenAction()
         clearWaitEndedTimer()
         clearSharedRouteTimer()
+        // BATALHA F1: sem cena, sem ordem dos turnos.
+        esquecerBatalha()
         // O teste secreto sai junto: sem mapa não há cartão; o host manda de novo, logo depois do próximo mapa, o que ele ainda não respondeu.
         // Da espera só se sai por snapshot inteiro: patch nenhum parte dela.
         received = null
@@ -4031,6 +4110,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         arrivalTokenId = typeof data.tokenId === 'string' ? data.tokenId : null
         forgetSceneLocals()
         stopWalk()
+        // BATALHA F1: a ordem era da cena de antes; a da cena nova (ou o `null`) vem logo atrás do snapshot.
+        esquecerBatalha()
         clearPassageOpenedTimer()
         clearHazardNotice()
         // O ruído era da cena de antes: a direção dele não vale no mapa novo.
@@ -4700,6 +4781,28 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ batalhaIniciada: { id: nextNoticeId++, ...abertura } })
         return
       }
+      case 'batalha.estado': {
+        // BATALHA F1: a tela da mesa fica sem faixa na F1 (R6 do plano). Campo torto derruba o recorte inteiro.
+        if (isTable) return
+        const msg = parseBatalhaEstado(data)
+        if (msg === null) return
+        // `null`: a batalha acabou (ou ele saiu da cena dela) — a faixa e os perfis dos aliados saem juntos.
+        if (msg.estado === null) esquecerBatalha()
+        // Só com mapa na tela: o recorte fala de fichas que ele tem de ver (o host o manda depois do snapshot).
+        else if (state.status === 'playing') setState({ batalhaEstado: msg.estado })
+        return
+      }
+      case 'batalha.aliados': {
+        if (isTable) return
+        const msg = parseBatalhaAliados(data)
+        if (msg !== null && state.status === 'playing') setState({ aliados: msg.personagens })
+        return
+      }
+      case 'batalha.resultado': {
+        const msg = parseBatalhaResultado(data)
+        if (msg !== null) responderPedidoDeBatalha(msg.reqId)
+        return
+      }
       case 'vehicle.rejected':
         // VEÍCULO: o "Subir"/"Descer" não valeu. Pausa já tem a faixa dela; motivo desconhecido não vira frase.
         if (state.status !== 'playing') return
@@ -4920,6 +5023,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearEnvioDePersonagemTimer()
     perderAjustes()
     clearLivroTimer()
+    esquecerBatalha()
     const current = socket
     socket = null
     current?.close()
@@ -5806,6 +5910,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         falharLivro()
       }, LIVRO_PRAZO_MS)
       return true
+    },
+    passarVezNaBatalha(cartaId, rodada) {
+      const estado = state.batalhaEstado
+      // A mesma conferência do host, antes de sair: o botão que ficou na tela depois da vez andar não manda nada.
+      if (state.status !== 'playing' || estado === undefined || !estado.minhaVez || estado.vez !== cartaId || estado.rodada !== rodada) return false
+      const mensagem: BatalhaPassarMessage = { type: 'batalha.passar', reqId: `b${nextReqId++}`, cartaId, rodada }
+      return pedirNaBatalha(`passar|${cartaId}|${rodada}`, mensagem)
+    },
+    desfazerNaBatalha(linhaId) {
+      const linha = state.batalhaEstado?.registro.find((candidata) => candidata.id === linhaId)
+      if (state.status !== 'playing' || linha === undefined || !linha.podeDesfazer || linha.desfeita !== undefined) return false
+      const mensagem: BatalhaDesfazerMessage = { type: 'batalha.desfazer', reqId: `b${nextReqId++}`, linhaId }
+      return pedirNaBatalha(`desfazer|${linhaId}`, mensagem)
     },
     reconnect: restart,
     wake() {

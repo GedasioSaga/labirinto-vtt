@@ -46,6 +46,7 @@ import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
 import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
 import { parseMedidaCompartilhar, type MedidaCompartilharMessage } from './protocoloDaMedida'
+import { parseBatalhaDesfazer, parseBatalhaPassar, type BatalhaHostMessage, type BatalhaPlayerMessage } from './protocoloDaBatalha'
 
 export type { OwnTokenElsewhere }
 
@@ -1175,6 +1176,8 @@ export type PlayerMessage =
   | MyNotesSetMessage
   // COMPARTILHAR COM O MESTRE (B6): a medida ao vivo do jogador, só ao mestre (`protocoloDaMedida.ts`).
   | MedidaCompartilharMessage
+  // BATALHA F1: "Passar a vez" e Desfazer uma linha do registro (`protocoloDaBatalha.ts`).
+  | BatalhaPlayerMessage
 
 /**
  * MINHAS NOTAS: a lista INTEIRA das anotações pessoais do jogador, de todos os
@@ -2023,6 +2026,8 @@ export type HostMessage =
   | PescaHostMessage
   // MINIGAME DE TIRO: convite, estado, início, pausa, encerramento e recusa (`protocoloDoTiro.ts`).
   | TiroHostMessage
+  // BATALHA F1: o recorte da ordem dos turnos, os aliados e a resposta aos pedidos (`protocoloDaBatalha.ts`).
+  | BatalhaHostMessage
   // SONS AO VIVO: tocar, parar, parar tudo, volume e pré-carga (`parseSomHostMessage`).
   | SomHostMessage
   | { type: 'kicked' }
@@ -3411,6 +3416,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseLivroPedir(value)
     case 'medida.compartilhar':
       return parseMedidaCompartilhar(value)
+    case 'batalha.passar':
+      return parseBatalhaPassar(value)
+    case 'batalha.desfazer':
+      return parseBatalhaDesfazer(value)
     case 'danca.pronto':
     case 'danca.toques':
     case 'danca.fim':

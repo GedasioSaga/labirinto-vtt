@@ -111,11 +111,23 @@ export function proporcaoParaJogador(vida: VidaDaFicha): TokenHealth {
  * O que o host entrega ao recorte de cada jogador: por token com vida, a
  * proporção e se a ficha é de jogador. Quem controla o token decide o resto
  * no recorte (`lib/fogFilter.ts`), que sabe de quem é cada ficha.
+ *
+ * `aliados` (BATALHA F1, equipes): os personagens dele e os dos aliados da
+ * equipe (`aliadosDe`). Com o parâmetro, `deJogador` vale só para eles — o
+ * jogador de outra equipe é visto como NPC (decisão 1) — e nunca para NPC,
+ * nem o ligado a uma ficha dele (essa ele vê por controlar). Sem o parâmetro,
+ * como antes: toda ficha de jogador.
  */
-export function barrasParaJogador(tokens: readonly TokenComFicha[], personagens: readonly Personagem[], sistema: SistemaDeRpg | null): BarrasParaJogador {
+export function barrasParaJogador(
+  tokens: readonly TokenComFicha[],
+  personagens: readonly Personagem[],
+  sistema: SistemaDeRpg | null,
+  aliados?: ReadonlySet<string>,
+): BarrasParaJogador {
   const achadas = fichasComVida(tokens, personagens, sistema)
   if (achadas.length === 0) return SEM_BARRAS
-  return new Map(achadas.map(({ tokenId, personagem, vida }) => [tokenId, { proporcao: proporcaoParaJogador(vida), deJogador: personagem.tipo === 'jogador' }]))
+  const todosVeem = (personagem: Personagem): boolean => personagem.tipo === 'jogador' && (aliados === undefined || aliados.has(personagem.id))
+  return new Map(achadas.map(({ tokenId, personagem, vida }) => [tokenId, { proporcao: proporcaoParaJogador(vida), deJogador: todosVeem(personagem) }]))
 }
 
 /** A barra que este jogador vê no token, ou `undefined`: ficha de jogador, ou NPC que ele controla (decisão 4.3). */

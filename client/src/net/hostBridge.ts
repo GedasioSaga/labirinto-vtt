@@ -332,6 +332,12 @@ export interface HostBridgeDeps {
   onBatalhaAndou?: HostSessionOptions['onBatalhaAndou']
   /** MODO BATALHA (B6): o caminho andado da cena no mestre, que cada jogador recebe recortado. */
   getCaminhosDaBatalha?: HostSessionOptions['getCaminhosDaBatalha']
+  /**
+   * BATALHA F1: a ordem dos turnos na store do mestre (`ponteDaBatalha` de
+   * `stores/batalhaStore.ts`). A sessão lê dela o recorte de cada jogador e
+   * repassa o "Passar a vez", o Desfazer e os ajustes rápidos do jogador.
+   */
+  ponteDaBatalha?: HostSessionOptions['ponteDaBatalha']
   /** MODO BATALHA: a ficha do jogador `nome` esbarrou numa parede que ele não via (`invisivel`: parede invisível); aviso só do mestre. */
   onEsbarrouNaParede?: HostSessionOptions['onEsbarrouNaParede']
   /** DIA/TARDE/NOITE: o período da sessão no mestre. O jogador só recebe o da cena dele (`luzParaJogador`). */
@@ -3721,6 +3727,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         getBatalha: deps.getBatalha,
         onBatalhaAndou: deps.onBatalhaAndou,
         getCaminhosDaBatalha: deps.getCaminhosDaBatalha,
+        ponteDaBatalha: deps.ponteDaBatalha,
         onEsbarrouNaParede: deps.onEsbarrouNaParede,
         getPeriodo: deps.getPeriodo,
         restoreSeats,
