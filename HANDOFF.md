@@ -565,7 +565,10 @@ Três frentes do usuário: (1) a 0.5.11 com a aba Sons nova e os consertos da te
 
 8. 29/10 ~23h50: **v0.5.15 PUBLICADA** (`4461059e`, só o conserto da noite `203e1cfd`; latest.json 0.5.15). Em voo: protótipo de batalha (designer-opus, liberado para commitar em docs/design/batalha-persona/). NOVO PEDIDO: protótipo de batalha estilo Persona com as regras do livro One Piece (designer-opus xhigh, docs/design/batalha-persona/; referências em scratchpad/batalha-persona/, fora do repo). Depois do protótipo: mostrar, perguntas, plan mode/grilling antes de virar código.
 
+9. 30/10: **Batalha One Piece v1, F1 FEITA na main, sem versão** (decisões `docs/planos/batalha-one-piece-2026-10-30.md`, plano `docs/planos/batalha-one-piece-f1-plano.md`, diagrama `docs/diagrams/batalha-turnos.html`). Commits: contrato `75aeedca`, lógica `4524c0b8`, pulso `3d96caf2`, host e rede `a7a6645f`, telas `b327c962`. Nada foi visto na tela (sem testes nem prints, regra do usuário). Próximo: perguntar se publica a 0.5.16 para ele jogar o roteiro de 14 itens da seção 6 do plano; depois a F2 (menu, golpe, reação, dano, armas, vez do NPC) com o mesmo fluxo (arquiteto, contrato, 3 escritores, portão único). Pendências: Visão de jogador sem a faixa (DepsDaVisao sem ponteDaBatalha), TV sem faixa, faixa do jogador abaixo de 1000 px pode ficar sob os selos do canto, ControleDaBatalha.test e hostSession.batalha.test não rodados. Em paralelo: Judge v2 em 3 versões (v2-threejs, v2-pronto, v2-blender; Blender 5.2.3 em instalação por winget com o ok do usuário; o instalador pede administrador), depois uma página para comparar.
+
 ### Critério de pronto
+- Batalha F1: `rtk proxy npx tsc --noEmit` 0 erros, `npx vite build` ok, nenhum `.rs` mudou; o usuário joga o roteiro da seção 6 do plano.
 - 0.5.11: `releases/latest/download/latest.json` responde 0.5.11 e a release tem setup, msi, `.sig` e `latest.json`.
 - Músicas: a aventura escolhida abre com 52 sons novos em Músicas, nas 4 categorias, com miniaturas, e o `sons.json` antigo guardado como backup ao lado.
 - F1a: critério no PLANO (estilo por mapa trocando no editor e no jogador; mapa antigo no Atual; build sem `data:image` dos PNG; tsc 0).
@@ -574,3 +577,4 @@ Três frentes do usuário: (1) a 0.5.11 com a aba Sons nova e os consertos da te
 - gitleaks na main antes do push: "131 commits scanned ... no leaks found", exit 0.
 - Push: `42e1be65..a224d302 main -> main`.
 - Pacote Desenhado: arrumação final com hash 615/615 iguais (`a9c17df1`, `8330d1e7`); diff da feat/desenhado fora de `godot/desenhado/` vazio antes do merge.
+- Batalha F1 (30/10, main em `b327c962`): `rtk proxy npx tsc --noEmit` em client/ = TSC_EXIT=0; `npx vite build` = "built in 22.92s", BUILD_EXIT=0; `git diff --stat a498916f..HEAD -- '*.rs'` vazio.
