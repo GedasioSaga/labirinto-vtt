@@ -236,6 +236,7 @@ import { isDaVista } from './lib/espiar'
 import type { Screen } from './types/screen'
 import { createMapScreen, parentScreen } from './lib/navigation'
 import * as mapFactory from './lib/mapFactory'
+import { estiloDoMapa } from './lib/estiloDoMapa'
 import { readDoorKey, setDoorKey } from './lib/doorKey'
 import { portaComAnimacao } from './portas/animacoesDePorta'
 import { chaveDaCorDaPorta, portaComCor } from './lib/corDaPorta'
@@ -603,6 +604,7 @@ function App() {
   const setWallJanela = useMapStore((state) => state.setWallJanela)
   const setWallPassagem = useMapStore((state) => state.setWallPassagem)
   const setWallColor = useMapStore((state) => state.setWallColor)
+  const definirFeitioDaParede = useMapStore((state) => state.definirFeitioDaParede)
   const regionStrokeWidth = useMapStore((state) => state.regionStrokeWidth)
   const setRegionStrokeWidth = useMapStore((state) => state.setRegionStrokeWidth)
   const regionStrokeJoin = useMapStore((state) => state.regionStrokeJoin)
@@ -3653,6 +3655,13 @@ function App() {
                     }
                   : undefined,
               cor: selectedWall ? { color: selectedWall.color ?? null, onColorChange: (color: string | null) => setWallColor(selectedWall.id, color) } : undefined,
+              // Pedra ou Linha só na parede selecionada e só no Desenhado: no Atual e no
+              // Simples a parede já é linha, e o controle não faria nada. A porta selecionada
+              // leva pela ficha "Parede em volta" (a escolha vale para a parede partida por ela).
+              feitio:
+                selectedWall && estiloDoMapa(map) === 'desenhado'
+                  ? { valor: selectedWall.feitio ?? 'pedra', onChange: (feitio) => definirFeitioDaParede(selectedWall.id, feitio) }
+                  : undefined,
             }}
             selectedProp={selectedProp}
             propTransform={{

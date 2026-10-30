@@ -95,6 +95,9 @@ export type WallThicknessPreset = 'thin' | 'medium' | 'thick'
  */
 export type WallThickness = WallThicknessPreset | number
 
+/** As duas escolhas do painel para a parede no Desenhado (`Wall.feitio`: só `'linha'` é gravado). */
+export type FeitioDaParede = 'pedra' | 'linha'
+
 export interface Wall extends NoPiso, NaCamada {
   id: string
   x1: number
@@ -194,6 +197,19 @@ export interface Wall extends NoPiso, NaCamada {
    * janela (`lib/fogFilter.ts`). O desenho é da MT10.
    */
   grade?: true
+  /**
+   * FEITIO DA PAREDE no estilo Desenhado (pedido de 29/10/2026: "As paredes
+   * façam ter opção de ter essas diferentes e que são linhas"): `'linha'` = a
+   * linha fina de hoje, na cor da parede (`drawWalls`), fora da cadeia de pedra
+   * (`pixi/paredesDesenhadas.ts`); ausente = a pedra do Desenhado, inclusive em
+   * mapa de antes do campo, sem linha de migração. Só `'linha'` é gravado e lido
+   * (`lib/mapFile.ts`); a escolha mora no painel da parede e vale também para
+   * os pedaços da mesma parede partida por porta (`definirFeitioDaParede`,
+   * `lib/mapFactory.ts`). No Atual e no Simples a parede já é linha e o campo
+   * não muda nada. Só DESENHO: a visão, a névoa e o bloqueio não o leem.
+   * Atravessa no recorte do jogador (`lib/fogFilter.ts` copia a parede).
+   */
+  feitio?: 'linha'
   /**
    * Cor da linha (`#rrggbb`), escolhida no painel da parede. `undefined` = a
    * cor padrão (`WALL_COLOR`, `pixi/drawWalls.ts`), sem linha de migração.

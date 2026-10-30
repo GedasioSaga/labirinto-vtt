@@ -1,5 +1,5 @@
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, CamadaId, GridSettings,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, CamadaId, GridSettings, FeitioDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
   ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha,
 } from '../types/map'
@@ -1150,6 +1150,69 @@ export function definirGrade(map: MapData, wallId: string, ligada: boolean): Map
       if (ligada) return { ...w, grade: true }
       const { grade: _grade, ...semGrade } = w
       return semGrade
+    }),
+  }
+}
+
+/** As pontas de `a` e de `b` se tocam (qualquer ponta com qualquer ponta). */
+function pontasSeTocam(a: Wall, b: Wall): boolean {
+  const perto = (x1: number, y1: number, x2: number, y2: number) => Math.abs(x1 - x2) < EDGE_PIECE_EPSILON && Math.abs(y1 - y2) < EDGE_PIECE_EPSILON
+  return perto(a.x1, a.y1, b.x1, b.y1) || perto(a.x1, a.y1, b.x2, b.y2) || perto(a.x2, a.y2, b.x1, b.y1) || perto(a.x2, a.y2, b.x2, b.y2)
+}
+
+/** As duas pontas de `b` estão na reta de `a`. */
+function naMesmaReta(a: Wall, b: Wall): boolean {
+  const dx = a.x2 - a.x1
+  const dy = a.y2 - a.y1
+  const comprimento = Math.hypot(dx, dy)
+  if (comprimento === 0) return false
+  const distancia = (x: number, y: number) => Math.abs((x - a.x1) * dy - (y - a.y1) * dx) / comprimento
+  return distancia(b.x1, b.y1) < EDGE_PIECE_EPSILON && distancia(b.x2, b.y2) < EDGE_PIECE_EPSILON
+}
+
+/**
+ * Os pedaços da MESMA parede partida por porta (`addDoorOnWall` parte em antes,
+ * porta e depois): a parede e, de pedaço em pedaço, quem encosta nela na mesma
+ * reta com uma porta no par. Duas paredes comuns que só se encostam não entram:
+ * a escolha é por parede. Parede presa a um desenho fica de fora (é do desenho).
+ */
+function pedacosDaMesmaParede(walls: readonly Wall[], alvo: Wall): Set<string> {
+  const ids = new Set([alvo.id])
+  const fila = [alvo]
+  for (let i = 0; i < fila.length; i += 1) {
+    const w = fila[i]
+    for (const outra of walls) {
+      if (ids.has(outra.id) || outra.desenhoId !== undefined) continue
+      if (w.door === null && outra.door === null) continue
+      if (!pontasSeTocam(w, outra) || !naMesmaReta(w, outra)) continue
+      ids.add(outra.id)
+      fila.push(outra)
+    }
+  }
+  return ids
+}
+
+/**
+ * FEITIO DA PAREDE (`Wall.feitio`, Desenhado, pedido de 29/10/2026): Pedra
+ * (o campo sai) ou Linha (grava `'linha'`). Vale para a parede e para os
+ * pedaços dela partidos por porta, para a porta numa parede de linha ser a
+ * porta de hoje sem o mestre trocar pedaço por pedaço. Id inexistente ou nada
+ * a mudar devolvem o MESMO `map` (sem entrada inútil no histórico).
+ */
+export function definirFeitioDaParede(map: MapData, wallId: string, feitio: FeitioDaParede): MapData {
+  const alvo = map.walls.find((w) => w.id === wallId)
+  if (alvo === undefined) return map
+  const emLinha = feitio === 'linha'
+  const ids = pedacosDaMesmaParede(map.walls, alvo)
+  const muda = (w: Wall) => ids.has(w.id) && (w.feitio === 'linha') !== emLinha
+  if (!map.walls.some(muda)) return map
+  return {
+    ...map,
+    walls: map.walls.map((w) => {
+      if (!muda(w)) return w
+      if (emLinha) return { ...w, feitio: 'linha' }
+      const { feitio: _feitio, ...dePedra } = w
+      return dePedra
     }),
   }
 }

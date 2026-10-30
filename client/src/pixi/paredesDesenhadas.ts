@@ -19,7 +19,8 @@ import { soltarMesh, texturaDoTraco, type ImagemNaPlaca } from './malhaDoTraco'
  * por nó da faixa das paredes (editor e jogador). Dentro do nó, de baixo para
  * cima:
  *  1. `vetor`: o Atual de sempre (`drawWalls`), quando o mapa não é Desenhado,
- *     as imagens ainda não chegaram ou o shader não compilou;
+ *     as imagens ainda não chegaram ou o shader não compilou; no Desenhado, só
+ *     as paredes de Linha (`Wall.feitio`), que a pedra cobre no encontro;
  *  2. `abaixo`: o contorno amarelo da seleção (parede, Sala), por baixo, como no Atual;
  *  3. a SOMBRA: a faixa inteira de todas as paredes, andada 5 px na direção
  *     (7, 11), desfocada e com alfa 0,25 (a união antes do alfa: sem dobra no cruzamento);
@@ -103,6 +104,17 @@ function tintaPronta(): Tinta | null {
 }
 
 // ---------- as cadeias com as paredes do app ----------
+
+/**
+ * PEDRA OU LINHA (`Wall.feitio`, pedido de 29/10/2026): a parede de linha fica
+ * fora da cadeia de pedra e sai como no Atual (`drawWalls`, a linha fina na cor
+ * dela, com a janela, a grade e a porta de hoje), por baixo da alvenaria. No
+ * encontro, a pedra termina na quina (o corte reto da ponta da cadeia) e a linha
+ * encosta nela por baixo, sem buraco.
+ */
+function emLinha(w: WallWithStyle): boolean {
+  return w.feitio === 'linha'
+}
 
 function papelDe(w: WallWithStyle): PapelDaParede {
   if (w.door !== null) return 'porta'
@@ -192,7 +204,7 @@ function estadoDaFolha(id: string, door: DoorState): EstadoDaFolha | null {
  * A porta nunca parte a cadeia pela espessura ou pela cor: a cadeia é da parede.
  */
 function cadeiasDoNo(todas: readonly WallWithStyle[], saem: ReadonlySet<string>, p: ParamsDaParede, k: number, linhaDaCor: (c: Rgb) => number, comPortas: boolean): CadeiaDaParede[] {
-  const solidas = todas.filter((w) => (comPortas || w.door === null) && w.hidden !== true && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) > PERTO)
+  const solidas = todas.filter((w) => (comPortas || w.door === null) && w.hidden !== true && !emLinha(w) && Math.hypot(w.x2 - w.x1, w.y2 - w.y1) > PERTO)
   const quebra = (a: WallWithStyle, b: WallWithStyle): boolean =>
     a.door === null && b.door === null && (espessuraDoTraco(a, p, k) !== espessuraDoTraco(b, p, k) || wallColorFor(a) !== wallColorFor(b))
   const cadeias = juntarSoltas(groupWallChains(solidas, quebra), quebra)
@@ -339,18 +351,18 @@ export function criarPintorDeParedes(): PintorDeParedes {
     alvo.addChild(vetor, abaixo, desenhado, acima)
   }
 
-  /** A seleção por baixo, na espessura do mundo (a do Atual é de tela). */
-  function pintarSelecao(pedido: PedidoDasParedes, larguraDe: (w: WallWithStyle) => number): void {
+  /** A seleção das paredes de pedra por baixo, na espessura do mundo (a do Atual, e a da linha, é de tela). */
+  function pintarSelecao(pedido: PedidoDasParedes, pedra: readonly WallWithStyle[], larguraDe: (w: WallWithStyle) => number): void {
     abaixo.clear()
     const borda = 2 * selectionOutlineWidth(pedido.cameraScale)
     if (pedido.highlightedRegionId !== null) {
-      const proprias = pedido.walls.filter((w) => w.regionId === pedido.highlightedRegionId)
+      const proprias = pedra.filter((w) => w.regionId === pedido.highlightedRegionId)
       for (const cadeia of groupWallChains(proprias, () => false)) {
         traceWallChain(abaixo, cadeia)
         abaixo.stroke({ width: Math.max(...cadeia.map(larguraDe)) + borda, color: SELECTION_COLOR, cap: 'square', join: 'miter' })
       }
     }
-    const escolhida = pedido.selectedWallId === null ? undefined : pedido.walls.find((w) => w.id === pedido.selectedWallId && w.door === null)
+    const escolhida = pedido.selectedWallId === null ? undefined : pedra.find((w) => w.id === pedido.selectedWallId && w.door === null)
     if (escolhida !== undefined) {
       abaixo.moveTo(escolhida.x1, escolhida.y1).lineTo(escolhida.x2, escolhida.y2)
       abaixo.stroke({ width: larguraDe(escolhida) + borda, color: SELECTION_COLOR, cap: 'square' })
@@ -367,12 +379,15 @@ export function criarPintorDeParedes(): PintorDeParedes {
   }
 
   function pintarDesenhado(pedido: PedidoDasParedes, t: Tinta): void {
-    vetor.clear()
+    // As de linha no `vetor`, por baixo da pedra, com a seleção e as marcas do Atual
+    // (`drawWalls` limpa antes; sem parede de linha, fica vazio como antes).
+    const pedra = pedido.walls.filter((w) => !emLinha(w))
+    drawWalls(vetor, pedido.walls.filter(emLinha), pedido.selectedWallId, pedido.cameraScale, pedido.rendererResolution, pedido.highlightedRegionId, pedido.marcarPassagem)
     sombra.visible = true
     const k = pedido.grid / CASA_DO_TRACO
     const p = t.params
-    pintarSelecao(pedido, (w) => (w.door === null ? espessuraDoTraco(w, p, k) * k : 0))
-    if (pedido.marcarPassagem) drawWallMarks(acima, pedido.walls, pedido.cameraScale, pedido.rendererResolution)
+    pintarSelecao(pedido, pedra, (w) => (w.door === null ? espessuraDoTraco(w, p, k) * k : 0))
+    if (pedido.marcarPassagem) drawWallMarks(acima, pedra, pedido.cameraScale, pedido.rendererResolution)
     else acima.clear()
     // A sombra: só o desfoque acompanha o zoom (px da tela), a malha não.
     const sigma = p.sombra.borraoPx * k * 0.5
@@ -384,7 +399,7 @@ export function criarPintorDeParedes(): PintorDeParedes {
     const chave = JSON.stringify([
       pedido.grid,
       m,
-      todas.map((w) => [w.id, w.x1, w.y1, w.x2, w.y2, w.door === null ? null : [w.door.kind, w.door.open, w.door.locked, w.door.secret === true, w.door.cor ?? null, portaAnimando(w.id)], w.hidden === true, w.janela === true, w.grade === true, w.thickness, w.color, w.regionId, w.regionEdgeIndex]),
+      todas.map((w) => [w.id, w.x1, w.y1, w.x2, w.y2, w.door === null ? null : [w.door.kind, w.door.open, w.door.locked, w.door.secret === true, w.door.cor ?? null, portaAnimando(w.id)], w.hidden === true, w.janela === true, w.grade === true, emLinha(w), w.thickness, w.color, w.regionId, w.regionEdgeIndex]),
       pedido.walls.map((w) => w.id),
       [t.parede.face.id, t.janela?.face.id, t.grade?.face.id, ...FORMAS_DA_PORTA.map((f) => t.portas[f]?.face.id)],
     ])

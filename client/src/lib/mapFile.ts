@@ -589,6 +589,14 @@ function gradeDoArquivo(wall: Wall): Wall {
   return semGrade
 }
 
+/** FEITIO DA PAREDE (`Wall.feitio`, Desenhado) — campo NOVO e OPCIONAL: ausente
+ *  continua ausente (pedra); só `'linha'` volta, o resto SAI. */
+function feitioDoArquivo(wall: Wall): Wall {
+  if (!('feitio' in wall) || wall.feitio === 'linha') return wall
+  const { feitio: _torto, ...semFeitio } = wall
+  return semFeitio
+}
+
 /** MODELO E COR DO TELHADO — campos NOVOS e OPCIONAIS: ausentes continuam
  *  ausentes (telha barro). Modelo fora de `MODELOS_DO_TETO` (telhas, madeira,
  *  palha desde a MT6) e cor que não é
@@ -723,10 +731,11 @@ function deserializeMapFields(json: string): MapData {
     // CAMADA (`lib/camadas`): em TODA entidade abaixo, `camada` torta perde a
     // chave (`semCamadaTorta`); ausente continua ausente.
     // GRADE DE PRISÃO (`Wall.grade`, Meio-Termo): só `true` volta (`gradeDoArquivo`).
-    walls: entityList(parsed.walls).map((w) => semCamadaTorta(gradeDoArquivo({
+    // FEITIO (`Wall.feitio`, Desenhado): só `'linha'` volta (`feitioDoArquivo`).
+    walls: entityList(parsed.walls).map((w) => semCamadaTorta(feitioDoArquivo(gradeDoArquivo({
       ...w,
       door: w.door ? doorFromFile(w.door) : null,
-    }))),
+    })))),
     lights: entityList(parsed.lights).map(lightFromFile).map(semCamadaTorta),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)

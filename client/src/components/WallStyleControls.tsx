@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Wall, WallThicknessPreset } from '../types/map'
+import type { FeitioDaParede, Wall, WallThicknessPreset } from '../types/map'
 import {
   WALL_COLOR,
   WALL_WIDTH_WORLD_MAX,
@@ -27,6 +27,14 @@ const WALL_WIDTH_INPUT_ID = 'lb-wall-thickness'
 const WALL_WIDTH_HINT_ID = 'lb-wall-thickness-hint'
 
 const WALL_COLOR_INPUT_ID = 'lb-wall-color'
+
+/** A frase do "Desenho" (Pedra | Linha), que o campo explica sob demanda. */
+const WALL_FEITIO_HINT_ID = 'lb-wall-feitio-hint'
+
+const FEITIO_OPTIONS: Array<{ value: FeitioDaParede; label: string }> = [
+  { value: 'pedra', label: 'Pedra' },
+  { value: 'linha', label: 'Linha' },
+]
 
 /** A cor padrão da linha (`WALL_COLOR`) como o `<input type="color">` a lê. */
 const WALL_COLOR_HEX = `#${WALL_COLOR.toString(16).padStart(6, '0')}`
@@ -109,6 +117,13 @@ export interface WallStyleControlsProps {
   }
   cor?: { color: string | null; onColorChange: (color: string | null) => void }
   /**
+   * PEDRA OU LINHA (`Wall.feitio`, pedido de 29/10/2026) — só da parede JÁ
+   * SELECIONADA e só com o mapa no Desenhado: no Atual e no Simples a parede já
+   * é linha, e o controle não entra (quem decide é o `App`). Trocar é um passo
+   * do Ctrl+Z e leva junto os pedaços da parede partida por porta.
+   */
+  feitio?: { valor: FeitioDaParede; onChange: (feitio: FeitioDaParede) => void }
+  /**
    * O Avançado da parede ("Ponta e canto"), como a ÚLTIMA linha deste bloco
    * (pedido painel-acervo, fatia 3), e não uma seção irmã com fio: é da
    * parede, como o da ficha é de "Trava e visibilidade". Quem monta é o
@@ -151,6 +166,7 @@ export function WallStyleControls({
   grade,
   passagem,
   cor,
+  feitio,
   avancado,
   semTitulo = false,
   parte,
@@ -186,6 +202,31 @@ export function WallStyleControls({
           <Toggle label="Deixa passar (a ficha atravessa)" checked={passagem.deixaPassar} onChange={passagem.onDeixaPassarChange} />
           <Toggle label="Deixa ver (a visão atravessa)" checked={passagem.deixaVer} onChange={passagem.onDeixaVerChange} />
         </>
+      )}
+      {mostra('essencial') && feitio && (
+        // A primeira linha do essencial: ela decide o que a cor e a espessura
+        // abaixo pintam. Rótulo primeiro filho do campo e a frase por
+        // `aria-describedby`, o contrato da dica sob demanda (como "Espessura").
+        <div className="lb-field">
+          <span className="lb-label">Desenho</span>
+          <div className="lb-seg" role="radiogroup" aria-label="Desenho da parede" aria-describedby={WALL_FEITIO_HINT_ID}>
+            {FEITIO_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={feitio.valor === value}
+                className="lb-seg__option"
+                onClick={() => feitio.onChange(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="lb-field__hint" id={WALL_FEITIO_HINT_ID}>
+            Pedra é a alvenaria do estilo Desenhado; Linha é a linha fina de sempre, na cor da parede. A visão e o passo não mudam.
+          </p>
+        </div>
       )}
       {mostra('essencial') && cor && (
         <div className="lb-section__row">

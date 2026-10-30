@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings, FeitioDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
@@ -1123,6 +1123,8 @@ interface MapStoreState {
   definirChamine: (id: string, ligada: boolean) => void
   /** GRADE DE PRISÃO numa janela sem porta (`Wall.grade`, MT10). Com histórico; o que não muda nada não gasta entrada. */
   definirGrade: (id: string, ligada: boolean) => void
+  /** FEITIO da parede no Desenhado (`Wall.feitio`): Pedra ou Linha, com os pedaços da mesma parede partida por porta. Com histórico; o que não muda nada não gasta entrada. */
+  definirFeitioDaParede: (id: string, feitio: FeitioDaParede) => void
   /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo), com histórico; `undefined` = "de cima". */
   definirVistaDosMoveis: (vista: MapData['vistaDosMoveis']) => void
   /** MANCHAS DO CHÃO da cena (`MapData.manchasDoChao`, Meio-Termo), com histórico; desligar tira o campo. */
@@ -2774,6 +2776,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     definirGrade: (id, ligada) => {
       if (mapFactory.definirGrade(get().map, id, ligada) === get().map) return
       withHistory((map) => mapFactory.definirGrade(map, id, ligada))
+    },
+    definirFeitioDaParede: (id, feitio) => {
+      if (mapFactory.definirFeitioDaParede(get().map, id, feitio) === get().map) return
+      withHistory((map) => mapFactory.definirFeitioDaParede(map, id, feitio))
     },
     definirVistaDosMoveis: (vista) => {
       if (mapFactory.definirVistaDosMoveis(get().map, vista) === get().map) return
