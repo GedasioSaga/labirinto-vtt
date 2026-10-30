@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livros de regras</title>
+<link rel="stylesheet" href="prototipo.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-jogadores" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.9-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.8 14.2c2.4.1 4.2 1.7 4.7 4.8"/></symbol>
+  <symbol id="i-npc" viewBox="0 0 24 24"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6M16 16l4 4M19 21l2-2"/><path d="M9.5 6.5 14 2h3v3l-4.5 4.5"/><path d="M5 14l4 4M7 17l-3 3M3 19l2 2"/></symbol>
+  <symbol id="i-balanca" viewBox="0 0 24 24"><path d="M12 4v16M8 20h8M5 7h14"/><path d="M5 7l-2.5 6a2.5 2.5 0 0 0 5 0z"/><path d="M19 7l-2.5 6a2.5 2.5 0 0 0 5 0z"/></symbol>
+  <symbol id="i-saude" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></symbol>
+  <symbol id="i-itens" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></symbol>
+  <symbol id="i-nota" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-mapa" viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></symbol>
+  <symbol id="i-voltar" viewBox="0 0 24 24"><path d="M10 6 4 12l6 6M4 12h16"/></symbol>
+  <symbol id="i-ia" viewBox="0 0 24 24"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z"/><path d="M18.5 14l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-engrenagem" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+  <symbol id="i-mais" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-menos" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-alca" viewBox="0 0 24 24"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" stroke-width="3"/></symbol>
+  <symbol id="i-busca" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></symbol>
+  <symbol id="i-nao" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M9 9l6 6M15 9l-6 6"/></symbol>
+  <symbol id="i-alerta" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17v.01"/></symbol>
+  <symbol id="i-elo" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-cadeado" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-livro" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h7"/></symbol>
+  <symbol id="i-bussola" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol>
+  <symbol id="i-enviar" viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-3-7z"/><path d="M11 13l9-9"/></symbol>
+  <symbol id="i-raio" viewBox="0 0 24 24"><path d="M13 3 5 13h6l-1 8 8-10h-6z"/></symbol>
+  <symbol id="i-lixo" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13"/></symbol>
+  <symbol id="i-copia" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-labirinto" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM7 7h10v10H7zM11 11h2v2"/></symbol>
+  <symbol id="i-abrir" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+</svg>
+
+<!-- ======================================================================
+     1. Tela inicial (cópia de client/src/screens/MainMenu.tsx, com a porta 04)
+     ====================================================================== -->
+<div class="tela" id="tela-inicio" data-tela="inicio">
+  <div class="lb-home" id="home">
+    <div class="lb-home__grid" aria-hidden="true"></div>
+    <div class="lb-home__glow" aria-hidden="true"></div>
+    <div class="lb-home__vignette" aria-hidden="true"></div>
+    <main class="lb-home__stage">
+      <section class="lb-home__intro">
+        <header class="lb-home__brand">
+          <p class="lb-home__eyebrow">Mesa de mapas</p>
+          <h1 class="lb-home__title" tabindex="-1" id="home-titulo">Labirinto</h1>
+          <p class="lb-home__tagline">Desenhe a masmorra. Conduza a mesa.<br>Seus jogadores só veem o que a luz alcança.</p>
+        </header>
+        <nav class="lb-home__doors" aria-label="Começar">
+          <button type="button" class="lb-home__door" data-acao="porta-fora">
+            <span class="lb-home__door-body"><span class="lb-home__door-title">Criar Mapas</span><span class="lb-home__door-desc">Planta em grade, paredes, portas e tokens</span></span>
+            <svg class="lb-home__door-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </button>
+          <button type="button" class="lb-home__door" data-acao="porta-fora">
+            <span class="lb-home__door-body"><span class="lb-home__door-title">Carregar Mapa existente</span><span class="lb-home__door-desc">Continuar de onde parou</span></span>
+            <svg class="lb-home__door-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </button>
+          <button type="button" class="lb-home__door" data-acao="porta-fora">
+            <span class="lb-home__door-body"><span class="lb-home__door-title">Roleplay <span class="lb-home__badge">Em construção</span></span><span class="lb-home__door-desc">Mesa narrativa, sem mapa</span></span>
+            <svg class="lb-home__door-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </button>
+          <button type="button" class="lb-home__door" data-acao="ir-sistemas" id="porta-livros">
+            <span class="lb-home__door-body"><span class="lb-home__door-title">Livros de regras <span class="lb-home__badge lb-home__badge--novo">Novo</span></span><span class="lb-home__door-desc">Fichas, NPCs de combate e itens de cada sistema</span></span>
+            <svg class="lb-home__door-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </button>
+        </nav>
+        <p class="lb-home__aviso" id="home-aviso" role="status" aria-live="polite"></p>
+      </section>
+      <div class="lb-home__art">
+        <svg class="lb-home__maze" id="home-labirinto" viewBox="0 0 416 416" aria-hidden="true" focusable="false"></svg>
+      </div>
+    </main>
+    <p class="lb-home__foot" aria-hidden="true"><kbd>↑</kbd> <kbd>↓</kbd> escolhe a porta · <kbd>Enter</kbd> entra</p>
+  </div>
+</div>
+
+<!-- ======================================================================
+     2. Escolha do sistema (cromo de MenuShell)
+     ====================================================================== -->
+<div class="tela" id="tela-sistemas" data-tela="sistemas" hidden>
+  <div class="lb-start">
+    <div class="lb-appbar">
+      <span class="lb-appbar__mark" aria-hidden="true"><svg class="ic"><use href="#i-labirinto"/></svg></span>
+      <nav class="lb-appbar__crumbs" aria-label="Posição na navegação">
+        <span class="lb-appbar__crumb">Labirinto</span>
+        <span class="lb-appbar__crumb lb-appbar__crumb--current" aria-current="page">Livros de regras</span>
+      </nav>
+    </div>
+    <div class="lb-start__stage">
+      <button type="button" class="bt bt--fantasma" data-acao="ir-inicio" style="align-self:flex-start"><svg class="ic"><use href="#i-voltar"/></svg>Voltar</button>
+      <header class="lb-brand">
+        <span>
+          <h1 class="lb-brand__name" tabindex="-1" id="sistemas-titulo">Livros de regras</h1>
+          <p class="lb-brand__tagline">Escolha o sistema para trabalhar dentro das regras dele</p>
+        </span>
+      </header>
+      <ul class="sis-lista">
+        <li>
+          <button type="button" class="sis" data-acao="ir-mundo">
+            <span class="sis__lombada" aria-hidden="true"><svg class="ic"><use href="#i-bussola"/></svg></span>
+            <span>
+              <span class="sis__nome" style="display:block">One Piece</span>
+              <span class="sis__quem" style="display:block">Vem com o app · batalha automática</span>
+            </span>
+            <span class="sis__dados" style="grid-column:2">
+              <span><b id="sis-jog">5</b> jogadores</span>
+              <span><b id="sis-npc">8</b> NPCs de combate</span>
+              <span><b>4</b> mapas na pasta</span>
+            </span>
+          </button>
+        </li>
+        <li>
+          <button type="button" class="sis" disabled aria-describedby="sis-motivo">
+            <span class="sis__lombada" aria-hidden="true"><svg class="ic"><use href="#i-livro"/></svg></span>
+            <span>
+              <span class="sis__nome" style="display:block">Masmorra Clássica</span>
+              <span class="sis__quem" style="display:block">Criado por você · sem batalha automática</span>
+            </span>
+            <span class="sis__motivo" id="sis-motivo">Protótipo: só o mundo do One Piece foi desenhado. A estrutura é a mesma para qualquer sistema.</span>
+          </button>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================================
+     3. O mundo do livro: lombada (marcadores), página e assistente
+     ====================================================================== -->
+<div class="tela" id="tela-mundo" data-tela="mundo" hidden>
+  <div class="mu" id="mundo" data-ia="aberto">
+    <aside class="mu-lombada" aria-label="Livro de regras One Piece">
+      <div class="mu-selo">
+        <span class="mu-selo__med" aria-hidden="true"><svg class="ic"><use href="#i-bussola"/></svg></span>
+        <div>
+          <h1 class="mu-selo__nome" tabindex="-1" id="mundo-titulo">One Piece</h1>
+          <p class="mu-selo__tipo">Mundo do livro de regras</p>
+        </div>
+      </div>
+      <div class="mu-marcadores" role="tablist" aria-orientation="vertical" aria-label="Partes do livro" id="marcadores">
+        <span class="mu-fita" id="fita" aria-hidden="true"></span>
+        <button type="button" role="tab" class="mu-marcador" id="aba-jogadores" data-aba="jogadores" aria-controls="pagina"><svg class="ic"><use href="#i-jogadores"/></svg><span>Jogadores</span><span class="mu-marcador__n" data-n="jogadores"></span></button>
+        <button type="button" role="tab" class="mu-marcador" id="aba-npcs" data-aba="npcs" aria-controls="pagina"><svg class="ic"><use href="#i-npc"/></svg><span>NPCs de combate</span><span class="mu-marcador__n" data-n="npcs"></span></button>
+        <button type="button" role="tab" class="mu-marcador" id="aba-comparar" data-aba="comparar" aria-controls="pagina"><svg class="ic"><use href="#i-balanca"/></svg><span>Comparar e balancear</span><span class="mu-marcador__n" data-n="comparar"></span></button>
+        <button type="button" role="tab" class="mu-marcador" id="aba-saude" data-aba="saude" aria-controls="pagina"><svg class="ic"><use href="#i-saude"/></svg><span>Saúde da ficha</span><span class="mu-marcador__n" data-n="saude"></span></button>
+        <button type="button" role="tab" class="mu-marcador" id="aba-itens" data-aba="itens" aria-controls="pagina"><svg class="ic"><use href="#i-itens"/></svg><span>Itens e habilidades</span><span class="mu-marcador__n" data-n="itens"></span></button>
+        <button type="button" role="tab" class="mu-marcador" id="aba-notas" data-aba="notas" aria-controls="pagina"><svg class="ic"><use href="#i-nota"/></svg><span>Anotações</span><span class="mu-marcador__n" data-n="notas"></span></button>
+        <button type="button" role="tab" class="mu-marcador" id="aba-mapa" data-aba="mapa" aria-controls="pagina"><svg class="ic"><use href="#i-mapa"/></svg><span>No mapa</span><span class="mu-marcador__n" data-n="mapa"></span></button>
+      </div>
+      <div class="mu-pe">
+        <button type="button" class="bt bt--fantasma" data-acao="ir-sistemas"><svg class="ic"><use href="#i-voltar"/></svg><span>Outros livros</span></button>
+      </div>
+    </aside>
+
+    <main class="mu-pagina" id="pagina" role="tabpanel" tabindex="0" aria-labelledby="aba-jogadores"></main>
+
+    <aside class="ia" id="ia" aria-labelledby="ia-titulo"></aside>
+  </div>
+</div>
+
+<!-- camadas por cima -->
+<div id="camada-gaveta"></div>
+<div id="camada-modal"></div>
+<section class="avisos" id="avisos-regiao" aria-label="Avisos (F8)" tabindex="-1"><ol id="avisos" role="status" aria-live="polite"></ol></section>
+
+<div class="pt" role="toolbar" aria-label="Controles do protótipo (não é tela do app)">
+  <span class="pt__rot">Protótipo</span>
+  <button type="button" class="bt bt--fantasma bt--p" data-acao="perguntas">Para decidir</button>
+  <button type="button" class="bt bt--fantasma bt--p" data-acao="movimento" aria-pressed="false" id="pt-movimento">Movimento reduzido</button>
+  <button type="button" class="bt bt--fantasma bt--p" data-acao="recomecar">Recomeçar</button>
+</div>
+
+<noscript><p style="padding:24px">O protótipo precisa de JavaScript ligado.</p></noscript>
+<script src="dados.js"></script>
+<script src="prototipo.js"></script>
+</body>
+</html>
