@@ -1,9 +1,22 @@
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import { acoesDaVez, rankDeAgilidade, type AcoesDaVez } from './acoes'
+import {
+  chaveDaVez,
+  combateVazio,
+  EFEITOS_POR_MENSAGEM,
+  GOLPES_PENDENTES_MAX,
+  NOME_DO_GOLPE_MAX,
+  type EfeitoDaBatalha,
+  type GolpeDaBatalha,
+  type RolagemDaReacao,
+  type SaidaDaReacao,
+} from './combate'
 import { corDaEquipe, equipeDe, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe } from './equipes'
+import { limiteDeArmas } from './leituraDaFicha'
 import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
-import { regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
+import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
 import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM } from './turnos'
 
 /**
@@ -19,6 +32,18 @@ import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, ty
  *    `personagemId` (abre o perfil) e o "caiu";
  *  - o estado não leva número de vida: HP/SP o jogador lê do personagem que
  *    já tem (o dele em `personagens`, o do aliado em `batalha.aliados`).
+ *
+ * F2 (seção 2.3 de docs/planos/batalha-one-piece-f2-plano.md), todos
+ * opcionais (ausente = nada):
+ *  - `acoes`: só com `minhaVez`, as ações da carta da vez ("Simples 0/1 ·
+ *    Mov 2/4");
+ *  - `meus`: recargas, usos, Overload, carga e armas SÓ dos personagens
+ *    dele com carta na ordem — nunca de aliado, NPC ou outra equipe;
+ *  - `reacoes`: os golpes esperando a reação de ficha DELE, com o dano que
+ *    chega nela (ele precisa ver "quanto");
+ *  - `golpes`: os golpes esperando reação cujo atacante e alvos estão TODOS
+ *    na tela dele ("Esperando a reação de Ilo");
+ *  - `contras` (Q6): os contra-ataques ganhos por ficha dele e não usados.
  *
  * Puro: sem store, sem rede.
  */
@@ -53,7 +78,76 @@ export interface EstadoParaJogador {
   cartas: CartaParaJogador[]
   registro: LinhaParaJogador[]
   regras: RegrasDaBatalha | null
+  /** F2: só com `minhaVez`. */
+  acoes?: AcoesParaJogador
+  /** F2: um por personagem DELE com carta na ordem. */
+  meus?: CombateParaJogador[]
+  /** F2: golpes pendentes cujo alvo é ficha DELE. */
+  reacoes?: ReacaoParaJogador[]
+  /** F2: golpes pendentes com atacante E alvos no recorte dele. */
+  golpes?: GolpeParaJogador[]
+  /** F2 (Q6): contra-ataques ganhos por ficha dele e ainda não usados. */
+  contras?: ContraParaJogador[]
 }
+
+/** "Simples 0/1 · Bônus 0/0 · Mov 2/4": a mesma forma de `acoesDaVez`. */
+export type AcoesParaJogador = AcoesDaVez
+
+export interface CombateParaJogador {
+  personagemId: string
+  /** cartaoId → turnos que faltam. */
+  recargas: Record<string, number>
+  /** cartaoId → vezes usadas nesta batalha. */
+  usos: Record<string, number>
+  overload: boolean
+  carga: number
+  /** Já concentrou na vez de agora. */
+  concentrouNestaVez: boolean
+  /** As armas levadas; `null` = ainda não escolheu. */
+  armas: string[] | null
+  /** A escolha "Armas por batalha"; `null` = sem limite. */
+  limiteDeArmas: number | null
+}
+
+export interface ReacaoParaJogador {
+  golpeId: string
+  /** A ficha DELE que reage. */
+  tokenId: string
+  /** O nome de quem ataca, como a tela dele o mostra (ou `ATACANTE_FORA_DA_VISTA`). */
+  atacante: string
+  /** O nome do golpe. */
+  nome: string
+  /** O dano que chega nele; `null` = golpe sem dano. */
+  dano: number | null
+  /** Q4: o dano vai direto ao HP. */
+  perfurante?: true
+  rolagem?: RolagemDaReacao
+}
+
+export interface AlvoParaJogador {
+  tokenId: string
+  d20?: number
+  total?: number
+  saida?: SaidaDaReacao
+}
+
+export interface GolpeParaJogador {
+  golpeId: string
+  atacanteTokenId: string
+  nome: string
+  alvos: AlvoParaJogador[]
+}
+
+export interface ContraParaJogador {
+  golpeId: string
+  /** A ficha DELE que ganhou a ação. */
+  tokenId: string
+  /** Quem a atacou, se a tela dele tem a ficha; `null` = fora da vista. */
+  atacanteTokenId: string | null
+}
+
+/** O efeito como o jogador o recebe: só com fichas que a tela dele tem. */
+export type EfeitoParaJogador = EfeitoDaBatalha
 
 /** O que o host sabe da conexão para montar o recorte. */
 export interface ContextoDoJogador {
@@ -76,6 +170,12 @@ export interface ContextoDoJogador {
 export const CARTAS_PARA_JOGADOR_MAX = 200
 /** Teto do nome da carta no fio: o nome do token é livre, e o fio não. */
 export const NOME_NA_CARTA_MAX = 80
+/** Personagens dele em `meus` (uma mesa não chega perto). */
+export const MEUS_NO_COMBATE_MAX = 16
+/** Técnicas em `recargas` e em `usos` de um personagem. */
+export const CARTOES_NO_COMBATE_MAX = 200
+/** O atacante que a tela dele não tem. */
+export const ATACANTE_FORA_DA_VISTA = 'Alguém fora da sua vista'
 
 function ladoDa(carta: CartaDaOrdem, ctx: ContextoDoJogador): LadoNaCarta {
   if (ctx.meusTokens.has(carta.tokenId)) return 'eu'
@@ -96,6 +196,136 @@ function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJoga
     if (caidos.has(carta.tokenId)) saida.caiu = true
   }
   return saida
+}
+
+/** A ficha é DELE: o token é dele, ou o personagem ligado é dele. */
+function fichaMinha(tokenId: string, personagemId: string | null, ctx: ContextoDoJogador): boolean {
+  return ctx.meusTokens.has(tokenId) || (personagemId !== null && ctx.meusPersonagens.has(personagemId))
+}
+
+/** Um mapa cartaoId → número no teto do fio. */
+function mapaNoTeto(mapa: Readonly<Record<string, number>>): Record<string, number> {
+  const saida: Record<string, number> = {}
+  for (const [chave, valor] of Object.entries(mapa).slice(0, CARTOES_NO_COMBATE_MAX)) saida[chave] = valor
+  return saida
+}
+
+/** As ações da carta da vez, quando ela é dele. */
+function acoesParaJogador(cena: BatalhaEmTurnos, daVez: CartaDaOrdem, ctx: ContextoDoJogador): AcoesParaJogador {
+  const { turnos } = cena
+  const personagem = daVez.personagemId === null ? undefined : ctx.personagens.find((candidato) => candidato.id === daVez.personagemId)
+  const rank = personagem === undefined || ctx.sistema === null ? null : rankDeAgilidade(personagem, ctx.sistema)
+  return acoesDaVez(turnos.gastos[daVez.id], turnos.extras[daVez.id], rank, cena.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO)
+}
+
+/** O combate dos personagens DELE com carta na ordem, na ordem das cartas. */
+function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombateParaJogador[] {
+  const { turnos } = cena
+  const daVez = cartaDaVez(turnos)
+  const vistos = new Set<string>()
+  const meus: CombateParaJogador[] = []
+  for (const carta of turnos.cartas) {
+    if (meus.length >= MEUS_NO_COMBATE_MAX) break
+    const { personagemId } = carta
+    if (personagemId === null || vistos.has(personagemId) || !fichaMinha(carta.tokenId, personagemId, ctx)) continue
+    vistos.add(personagemId)
+    const combate = turnos.combate?.[personagemId] ?? combateVazio()
+    const personagem = ctx.personagens.find((candidato) => candidato.id === personagemId)
+    meus.push({
+      personagemId,
+      recargas: mapaNoTeto(combate.recargas),
+      usos: mapaNoTeto(combate.usos),
+      overload: combate.overload,
+      carga: combate.carga,
+      concentrouNestaVez: daVez !== null && combate.concentrouEm === chaveDaVez(turnos.rodada, daVez.id),
+      armas: combate.armas === null ? null : [...combate.armas],
+      limiteDeArmas: personagem === undefined ? null : limiteDeArmas(personagem),
+    })
+  }
+  return meus
+}
+
+function nomeDoGolpe(golpe: GolpeDaBatalha): string {
+  return golpe.nome.slice(0, NOME_DO_GOLPE_MAX)
+}
+
+/** Os golpes esperando a reação de ficha DELE: uma caixa REAÇÃO por alvo. */
+function reacoesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJogador): ReacaoParaJogador[] {
+  const reacoes: ReacaoParaJogador[] = []
+  for (const golpe of golpes) {
+    for (const alvo of golpe.alvos) {
+      if (reacoes.length >= GOLPES_PENDENTES_MAX) return reacoes
+      if (alvo.danoFinal !== undefined || !alvo.podeReagir || !fichaMinha(alvo.tokenId, alvo.personagemId, ctx)) continue
+      const reacao: ReacaoParaJogador = {
+        golpeId: golpe.id,
+        tokenId: alvo.tokenId,
+        atacante: (ctx.tokensNoRecorte.get(golpe.atacanteTokenId) ?? ATACANTE_FORA_DA_VISTA).slice(0, NOME_NA_CARTA_MAX),
+        nome: nomeDoGolpe(golpe),
+        dano: alvo.dano,
+      }
+      if (golpe.perfurante) reacao.perfurante = true
+      if (alvo.rolagem !== undefined) reacao.rolagem = { ...alvo.rolagem }
+      reacoes.push(reacao)
+    }
+  }
+  return reacoes
+}
+
+/** Os golpes pendentes que a tela dele mostra inteiros: atacante e TODOS os alvos no recorte. Sem números de vida nem dano. */
+function golpesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJogador): GolpeParaJogador[] {
+  const saem: GolpeParaJogador[] = []
+  for (const golpe of golpes) {
+    if (saem.length >= GOLPES_PENDENTES_MAX) break
+    if (!ctx.tokensNoRecorte.has(golpe.atacanteTokenId) || !golpe.alvos.every((alvo) => ctx.tokensNoRecorte.has(alvo.tokenId))) continue
+    saem.push({
+      golpeId: golpe.id,
+      atacanteTokenId: golpe.atacanteTokenId,
+      nome: nomeDoGolpe(golpe),
+      alvos: golpe.alvos.map((alvo) => {
+        const visto: AlvoParaJogador = { tokenId: alvo.tokenId }
+        if (alvo.rolagem !== undefined) {
+          visto.d20 = alvo.rolagem.d20
+          visto.total = alvo.rolagem.total
+        }
+        if (alvo.saida !== undefined) visto.saida = alvo.saida
+        return visto
+      }),
+    })
+  }
+  return saem
+}
+
+/** Os contra-ataques (Q6) ganhos por ficha DELE. */
+function contrasParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): ContraParaJogador[] {
+  const saem: ContraParaJogador[] = []
+  for (const contra of cena.turnos.contras ?? []) {
+    if (saem.length >= GOLPES_PENDENTES_MAX) break
+    if (!fichaMinha(contra.tokenId, contra.personagemId, ctx)) continue
+    saem.push({ golpeId: contra.golpeId, tokenId: contra.tokenId, atacanteTokenId: ctx.tokensNoRecorte.has(contra.atacanteTokenId) ? contra.atacanteTokenId : null })
+  }
+  return saem
+}
+
+/**
+ * Os efeitos novos (`seq` > `depoisDoSeq`) que a tela dele pode tocar, os
+ * `EFEITOS_POR_MENSAGEM` mais novos, do mais velho ao mais novo. Golpe: o
+ * atacante tem de estar na tela e os alvos fora dela saem; sem alvo visível,
+ * o efeito inteiro sai (o corte diria que há alguém escondido). O número do
+ * dano vai a quem vê a ficha (Q5).
+ */
+export function efeitosParaJogador(efeitos: readonly EfeitoDaBatalha[], depoisDoSeq: number, tokensNoRecorte: ReadonlySet<string>): EfeitoParaJogador[] {
+  const saem: EfeitoParaJogador[] = []
+  for (const efeito of efeitos) {
+    if (efeito.seq <= depoisDoSeq) continue
+    if (efeito.tipo === 'golpe') {
+      const alvos = efeito.alvos.filter((tokenId) => tokensNoRecorte.has(tokenId))
+      if (!tokensNoRecorte.has(efeito.atacanteTokenId) || alvos.length === 0) continue
+      saem.push({ ...efeito, nome: efeito.nome.slice(0, NOME_DO_GOLPE_MAX), alvos })
+      continue
+    }
+    if (tokensNoRecorte.has(efeito.tokenId)) saem.push({ ...efeito })
+  }
+  return saem.slice(-EFEITOS_POR_MENSAGEM)
 }
 
 export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): EstadoParaJogador {
@@ -122,7 +352,7 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
     personagensVisiveis: new Set([...ctx.meusPersonagens, ...ctx.aliados]),
     npcs,
   })
-  return {
+  const estado: EstadoParaJogador = {
     rodada: turnos.rodada,
     turno: turnoNoM(turnos, visivel),
     vez: vezVisivel ? daVez.id : null,
@@ -134,4 +364,16 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
     registro,
     regras: cena.regras === null ? null : regrasParaOFio(cena.regras),
   }
+  // F2: campo vazio não sai — o estado da F1 continua igual byte a byte (o host deduplica pelo JSON).
+  if (minhaVez) estado.acoes = acoesParaJogador(cena, daVez, ctx)
+  const meus = meusNoCombate(cena, ctx)
+  if (meus.length > 0) estado.meus = meus
+  const golpes = turnos.golpes ?? []
+  const reacoes = reacoesParaJogador(golpes, ctx)
+  if (reacoes.length > 0) estado.reacoes = reacoes
+  const golpesVistos = golpesParaJogador(golpes, ctx)
+  if (golpesVistos.length > 0) estado.golpes = golpesVistos
+  const contras = contrasParaJogador(cena, ctx)
+  if (contras.length > 0) estado.contras = contras
+  return estado
 }

@@ -1,4 +1,5 @@
 import type { Personagem } from '../personagem'
+import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDeReacao } from './combate'
 import type { LinhaDoRegistro } from './registro'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import type { AutorDaAcao, TurnosDaCena } from './turnos'
@@ -26,6 +27,12 @@ export interface BatalhaEmTurnos {
   registro: readonly LinhaDoRegistro[]
   /** A cópia das regras do campo desta batalha; `null` = nenhuma. */
   regras: RegrasDaBatalha | null
+  /**
+   * F2: as animações (corte do golpe, d20 da reação, número do dano), as
+   * últimas `EFEITOS_GUARDADOS`, `seq` crescente por cena. Fora de `turnos`:
+   * efeito não se desfaz. Ausente = nenhum.
+   */
+  efeitos?: readonly EfeitoDaBatalha[]
 }
 
 /** O "Passar a vez" só vale se a vez ainda é esta carta nesta rodada: clique duplo e reenvio não passam duas vezes. */
@@ -47,4 +54,16 @@ export interface PonteDaBatalha {
    * personagem fora de batalha: nada. O Desfazer não passa por aqui.
    */
   registrarAjuste(personagemId: string, antes: Personagem, depois: Personagem, autor: AutorDaAcao): void
+  /**
+   * F2: Atacar, Habilidade, Concentrar ou o contra-ataque gasto em Mover. A
+   * store confere a regra (`podeAgir`); o host já conferiu posse e vez. `vez`
+   * null só com `contraDe` (o contra-ataque, Q6, é fora da vez). Devolve se agiu.
+   */
+  agir(sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao): boolean
+  /** F2: rolar (o d20 é do host), rerolar, escolher a saída ou Não reagir. Devolve se valeu. */
+  reagir(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeReacao): boolean
+  /** F2: dano livre numa ficha (o jogador, só na dele; o host confere). */
+  darDano(sceneKey: string, autor: AutorDaAcao, tokenId: string, valor: number): boolean
+  /** F2: as armas da aba Armas levadas para a batalha, dentro do limite; troca quando quiser (Q8). */
+  escolherArmas(sceneKey: string, autor: AutorDaAcao, personagemId: string, armas: readonly string[]): boolean
 }

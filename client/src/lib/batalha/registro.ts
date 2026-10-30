@@ -10,6 +10,7 @@ import {
 } from '../ajusteDaFicha'
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import type { CombateDoPersonagem, ContraAtaque } from './combate'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import { inserirCarta, removerCarta, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -55,6 +56,10 @@ export type Reversao =
         rodada: number
         removidas: readonly { carta: CartaDaOrdem; indice: number }[]
         gastos: TurnosDaCena['gastos']
+        /** F2: as ações extras de antes (as "rodada" somem ao passar). Ausente = a vez não mexeu nelas. */
+        extras?: TurnosDaCena['extras']
+        /** F2: o combate de antes (a recarga desce no começo da vez). Ausente = a vez não mexeu nele. */
+        combate?: TurnosDaCena['combate']
       }
     }
   /** Mover, Ordenar, desempate: os ids na ordem de antes. Desfazer reaplica às cartas que ainda existem. */
@@ -70,6 +75,12 @@ export type Reversao =
   | { tipo: 'gasto'; cartaId: string; antes: GastoDaVez | null }
   /** F2: ações extras dadas pelo mestre. `null` = não tinha extra. */
   | { tipo: 'acoesExtras'; cartaId: string; antes: AcoesExtras | null }
+  /** F2: recargas, usos, Overload, carga ou armas de um personagem. `null` = não tinha combate. */
+  | { tipo: 'combate'; personagemId: string; antes: CombateDoPersonagem | null }
+  /** F2: o golpe que nasceu na linha. Desfazer = tirá-lo dos pendentes (alvo que esperava não recebe mais nada) e o contra-ataque que ele deu. */
+  | { tipo: 'golpe'; golpeId: string }
+  /** F2 (Q6): o contra-ataque gasto na linha. Desfazer = devolvê-lo. */
+  | { tipo: 'contra'; contra: ContraAtaque }
   /** F2: um golpe = a ficha de N alvos + o gasto de quem atacou, desfeitos juntos. */
   | { tipo: 'composta'; partes: readonly Reversao[] }
 
@@ -111,8 +122,8 @@ export const REGISTRO_TEXTO_MAX = 200
 /** Teto do nome de quem fez ou desfez, no fio. */
 export const AUTOR_NO_REGISTRO_MAX = 80
 
-/** Os tipos de linha que o JOGADOR desfaz (na vez dele, só as dele). A F2 soma 'acao', 'golpe', 'reacao'... */
-export const TIPOS_QUE_O_JOGADOR_DESFAZ: ReadonlySet<TipoDaLinha> = new Set<TipoDaLinha>(['ficha'])
+/** Os tipos de linha que o JOGADOR desfaz (na vez dele, só as dele). */
+export const TIPOS_QUE_O_JOGADOR_DESFAZ: ReadonlySet<TipoDaLinha> = new Set<TipoDaLinha>(['ficha', 'acao', 'golpe', 'habilidade', 'dano', 'reacao'])
 
 /** Quem pede o Desfazer: o mestre, ou o jogador desta conexão. O nome não decide nada. */
 export type QuemDesfaz = { tipo: 'mestre' } | { tipo: 'jogador'; playerId: string }
@@ -256,6 +267,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'vez': {
       const { antes } = reversao
       let volta: TurnosDaCena = { ...turnos, vez: antes.vez, rodada: antes.rodada, gastos: antes.gastos }
+      if (antes.extras !== undefined) volta = { ...volta, extras: antes.extras }
+      if (antes.combate !== undefined) volta = { ...volta, combate: antes.combate }
       // Em ordem crescente de lugar: cada uma volta ao índice que tinha antes de a rodada virar.
       for (const { carta, indice } of [...antes.removidas].sort((a, b) => a.indice - b.indice)) volta = inserirCarta(volta, carta, indice)
       // A vez de antes pode ter sido tirada depois: aí fica onde está.
@@ -271,6 +284,21 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       return { ...turnos, gastos: comValor(turnos.gastos, reversao.cartaId, reversao.antes) }
     case 'acoesExtras':
       return { ...turnos, extras: comValor(turnos.extras, reversao.cartaId, reversao.antes) }
+    case 'combate':
+      return { ...turnos, combate: comValor(turnos.combate ?? {}, reversao.personagemId, reversao.antes) }
+    case 'golpe': {
+      const golpes = (turnos.golpes ?? []).filter((golpe) => golpe.id !== reversao.golpeId)
+      const contras = (turnos.contras ?? []).filter((contra) => contra.golpeId !== reversao.golpeId)
+      if (golpes.length === (turnos.golpes?.length ?? 0) && contras.length === (turnos.contras?.length ?? 0)) return turnos
+      return { ...turnos, golpes, contras }
+    }
+    case 'contra': {
+      const { contra } = reversao
+      const contras = turnos.contras ?? []
+      // Já está lá (desfeito duas vezes por caminhos diferentes): nada.
+      if (contras.some((guardado) => guardado.golpeId === contra.golpeId && guardado.tokenId === contra.tokenId)) return turnos
+      return { ...turnos, contras: [...contras, contra] }
+    }
     case 'composta':
       return [...reversao.partes].reverse().reduce(reverterTurnos, turnos)
     case 'equipe':

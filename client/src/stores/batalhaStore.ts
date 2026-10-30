@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Casa } from '../lib/batalha/blocos'
 import { somarNaTrilha } from '../lib/batalha/caminhoAndado'
+import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDeReacao } from '../lib/batalha/combate'
 import { equipeDe } from '../lib/batalha/equipes'
 import type { BatalhaEmTurnos, PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
 import {
@@ -35,6 +36,7 @@ import {
   tokensCaidos,
   trocarDesempate as trocarDesempateNaOrdem,
   turnosVazios,
+  type AcoesExtras,
   type AutorDaAcao,
   type CartaDaOrdem,
   type Desempate,
@@ -157,6 +159,25 @@ interface BatalhaState {
    * dele" é do host, que sabe de quem é cada ficha. A linha fica riscada.
    */
   desfazer: (sceneKey: string, linhaId: string, autor: AutorDaAcao) => boolean
+
+  // ---- F2: ações e golpe (o mestre chama direto; o jogador pela ponte). Fase 0: só o contrato, tudo devolve `false`. ----
+  /**
+   * Atacar, Habilidade, Concentrar ou o contra-ataque gasto em Mover: confere
+   * a regra (`podeAgir`), cobra o custo pela aventura, gasta a ação, marca
+   * recarga, usos e Overload, cria o golpe (alvo sem reação resolve na hora),
+   * escreve UMA linha e os efeitos. `vez` null só com `contraDe` (Q6).
+   */
+  agir: (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao) => boolean
+  /** Rola (d20 do host) ou resolve a reação; o dano final cai na ficha e a linha do golpe é atualizada. Contra-atacar (Q6) zera o dano e dá a ação extra. */
+  reagir: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeReacao) => boolean
+  /** Dano livre numa ficha: linha "dano" e efeito "dano" (a animação toca sempre). */
+  darDano: (sceneKey: string, autor: AutorDaAcao, tokenId: string, valor: number) => boolean
+  /** Ações extras do mestre para a carta (`null` tira): linha "acoesExtras". */
+  darAcoesExtras: (sceneKey: string, cartaId: string, extras: AcoesExtras | null) => boolean
+  /** As armas levadas, dentro do limite; troca quando quiser (Q8): linha "acao". */
+  escolherArmas: (sceneKey: string, autor: AutorDaAcao, personagemId: string, armas: readonly string[]) => boolean
+  /** Q4: o mestre liga ou desliga o Perfurante de um golpe que ainda tem alvo esperando (o mestre decide no fim). */
+  trocarPerfurante: (sceneKey: string, golpeId: string, perfurante: boolean) => boolean
 }
 
 const SEM_CAMINHOS: Readonly<Record<string, number>> = {}
@@ -296,6 +317,9 @@ function desfazerReversao(cena: BatalhaDaCena, reversao: Reversao, autor: AutorD
     case 'cartaRemovida':
     case 'gasto':
     case 'acoesExtras':
+    case 'combate':
+    case 'golpe':
+    case 'contra':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
   }
 }
@@ -565,6 +589,14 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       gravarCena(sceneKey, { ...atual, turnos: feito.cena.turnos, regras: feito.cena.regras, registro: marcarDesfeita(atual.registro, linhaId, por, Date.now()), turnosRev: atual.turnosRev + 1 })
       return true
     },
+
+    // F2 fase 0: o contrato. Os corpos chegam na fase 1; até lá nada muda e o pedido é recusado.
+    agir: () => false,
+    reagir: () => false,
+    darDano: () => false,
+    darAcoesExtras: () => false,
+    escolherArmas: () => false,
+    trocarPerfurante: () => false,
   }
 })
 
@@ -587,6 +619,10 @@ export const ponteDaBatalha: PonteDaBatalha = {
   passarVez: (sceneKey, autor, esperado) => useBatalhaStore.getState().passarVez(sceneKey, autor, esperado),
   desfazer: (sceneKey, linhaId, autor) => useBatalhaStore.getState().desfazer(sceneKey, linhaId, autor),
   registrarAjuste: (personagemId, antes, depois, autor) => useBatalhaStore.getState().registrarAjuste(personagemId, antes, depois, autor),
+  agir: (sceneKey, autor, vez, pedido) => useBatalhaStore.getState().agir(sceneKey, autor, vez, pedido),
+  reagir: (sceneKey, autor, pedido) => useBatalhaStore.getState().reagir(sceneKey, autor, pedido),
+  darDano: (sceneKey, autor, tokenId, valor) => useBatalhaStore.getState().darDano(sceneKey, autor, tokenId, valor),
+  escolherArmas: (sceneKey, autor, personagemId, armas) => useBatalhaStore.getState().escolherArmas(sceneKey, autor, personagemId, armas),
 }
 
 type EstadoDaBatalha = Pick<BatalhaState, 'cenas'>
@@ -615,4 +651,41 @@ export function vezTokenIdDaCena(state: EstadoDaBatalha, sceneKey: string | null
   if (sceneKey === null) return null
   const cena = state.cenas[sceneKey]
   return cena === undefined ? null : (cartaDaVez(cena.turnos)?.tokenId ?? null)
+}
+
+const SEM_EFEITOS: readonly EfeitoDaBatalha[] = []
+
+/**
+ * S5: as animações da cena para o `EfeitosDaBatalha` do mestre (`App.tsx`).
+ * Fora de batalha, a MESMA lista vazia (seletor estável).
+ */
+export function efeitosDaCena(state: EstadoDaBatalha, sceneKey: string | null): readonly EfeitoDaBatalha[] {
+  if (sceneKey === null) return SEM_EFEITOS
+  return state.cenas[sceneKey]?.efeitos ?? SEM_EFEITOS
+}
+
+/** Ficha que o mestre move: sem personagem, ou de personagem NPC. */
+function ehDoMestre(personagemId: string | null, personagens: readonly Personagem[]): boolean {
+  if (personagemId === null) return true
+  return personagens.find((personagem) => personagem.id === personagemId)?.tipo === 'npc'
+}
+
+/**
+ * S9 (Q7): o contador do marcador Batalha no livro da mesa — a vez é de NPC
+ * (1) mais as reações de NPC esperando. 0 = nada esperando o mestre. Lê os
+ * personagens da mesa na hora (o tipo do personagem não mora na batalha).
+ */
+export function esperandoOMestre(state: EstadoDaBatalha, sceneKey: string | null): number {
+  if (sceneKey === null) return 0
+  const cena = state.cenas[sceneKey]
+  if (cena === undefined) return 0
+  const { personagens } = mesaDoRpg()
+  const daVez = cartaDaVez(cena.turnos)
+  let esperando = daVez !== null && ehDoMestre(daVez.personagemId, personagens) ? 1 : 0
+  for (const golpe of cena.turnos.golpes ?? []) {
+    for (const alvo of golpe.alvos) {
+      if (alvo.danoFinal === undefined && alvo.podeReagir && ehDoMestre(alvo.personagemId, personagens)) esperando += 1
+    }
+  }
+  return esperando
 }

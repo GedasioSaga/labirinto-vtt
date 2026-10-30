@@ -2,6 +2,7 @@ import type { Token } from '../../types/map'
 import { valorDoRank } from '../ajusteDaFicha'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import type { CombateDoPersonagem, ContraAtaque, GolpeDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 
 /**
@@ -48,6 +49,8 @@ export interface AcoesExtras {
   bonus: number
   mov: number
   duracao: DuracaoDaExtra
+  /** F2: a rodada em que foi dada. As "rodada" somem quando a carta passa a vez e quando a rodada vira. */
+  rodada?: number
 }
 
 /**
@@ -79,6 +82,12 @@ export interface TurnosDaCena {
   extras: Readonly<Record<string, AcoesExtras>>
   /** F2: cartaId → o que já gastou nesta vez. */
   gastos: Readonly<Record<string, GastoDaVez>>
+  /** F2: personagemId → recargas, usos, Overload, carga e armas. Mora aqui para o Desfazer voltá-lo. Ausente = ninguém agiu. */
+  combate?: Readonly<Record<string, CombateDoPersonagem>>
+  /** F2: os golpes que ainda têm alvo esperando a reação (no máximo `GOLPES_PENDENTES_MAX`). */
+  golpes?: readonly GolpeDaBatalha[]
+  /** F2 (Q6): os contra-ataques ganhos e ainda não usados. */
+  contras?: readonly ContraAtaque[]
 }
 
 /** Quem fez a ação que entra no registro. O `nome` do jogador é o da mesa, na hora. */

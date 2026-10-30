@@ -3,13 +3,13 @@ import { create } from 'zustand'
 /**
  * LIVRO DA MESA (fatia 4 do design consolidado, docs/design/consolidado/PLANO.md):
  * qual página da direita está aberta (Grupo, Chat, Cenas, Mesa e, desde os sons
- * ao vivo, Sons). Vale enquanto
+ * ao vivo, Sons; desde a F2 da batalha, Batalha). Vale enquanto
  * o app está aberto, como a aba de antes. Se o livro está recolhido mora com o
  * App (`useLivroDaMesaAberto`), lembrado entre as sessões como a coluna da
  * direita que ele substitui.
  */
 
-export type PaginaDaMesa = 'grupo' | 'chat' | 'cenas' | 'mesa' | 'sons'
+export type PaginaDaMesa = 'grupo' | 'chat' | 'cenas' | 'batalha' | 'mesa' | 'sons'
 
 interface LivroDaMesaState {
   pagina: PaginaDaMesa
