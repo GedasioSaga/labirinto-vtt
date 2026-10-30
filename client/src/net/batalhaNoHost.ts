@@ -280,6 +280,9 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     )
   }
 
+  /** A ficha tem carta na ordem desta batalha (a reação livre e o dano livre só valem nela). */
+  const naOrdem = (cena: BatalhaEmTurnos, tokenId: string): boolean => cena.turnos.cartas.some((carta) => carta.tokenId === tokenId)
+
   /** Os alvos só entre as fichas que a tela dele tem: o pedido não acha token que ele não vê. */
   const alvosNaTela = (lugar: LugarNaBatalha, msg: BatalhaAgirMessage): boolean => {
     const { pedido } = msg
@@ -369,13 +372,15 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         const { ponte, lugar, cena } = daCena
         const { pedido } = msg
         if (pedido.golpeId === null) {
-          // Reação livre (o botão Reação sem golpe esperando): só com token dele.
-          if (!lugar.meusTokens.has(pedido.tokenId)) return false
+          // Reação livre (o botão Reação sem golpe esperando): só com token dele que está na ordem.
+          if (!lugar.meusTokens.has(pedido.tokenId) || !naOrdem(cena, pedido.tokenId)) return false
         } else {
           const golpe = (cena.turnos.golpes ?? []).find((candidato) => candidato.id === pedido.golpeId)
           const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === pedido.tokenId)
           // O golpe ainda espera, e a ficha é um alvo DELE ainda sem resolver.
           if (alvo === undefined || alvo.danoFinal !== undefined || !fichaDele(lugar, alvo.tokenId, alvo.personagemId)) return false
+          // "Não reagir" depois do d20 rolado seria fugir do resultado (o 1 natural, do crítico): só o mestre marca.
+          if (pedido.tipo === 'naoReagir' && alvo.rolagem !== undefined) return false
         }
         return ponte.reagir(lugar.sceneKey, autorDe(conexao), pedido)
       })
@@ -385,9 +390,9 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       return pedidoUnico(conexao, msg.reqId, () => {
         const daCena = cenaDa(conexao)
         if (daCena === null) return false
-        const { ponte, lugar } = daCena
-        // Só numa ficha DELE de verdade, com personagem: nunca na emprestada nem no NPC (a vida deles é do mestre).
-        if (!lugar.meusTokens.has(msg.tokenId) || !lugar.personagemDaFicha.has(msg.tokenId)) return false
+        const { ponte, lugar, cena } = daCena
+        // Só numa ficha DELE de verdade, com personagem e na ordem: nunca na emprestada nem no NPC (a vida deles é do mestre).
+        if (!lugar.meusTokens.has(msg.tokenId) || !lugar.personagemDaFicha.has(msg.tokenId) || !naOrdem(cena, msg.tokenId)) return false
         return ponte.darDano(lugar.sceneKey, autorDe(conexao), msg.tokenId, msg.valor)
       })
     },
