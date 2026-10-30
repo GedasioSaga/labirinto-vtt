@@ -10,6 +10,10 @@ import {
   type ArmazemDaAbertura,
 } from '../../lib/batalha/aberturaLembrada'
 import { combatentesIniciais, type Desempate } from '../../lib/batalha/turnos'
+import { fichaDaEscolha, modelosDeNpc, precisaPerguntar, quemPodeEntrar, type CandidatoDaBatalha, type EscolhaDaBatalha } from '../../lib/livros/combate'
+import type { Personagem } from '../../lib/personagem'
+import { useToastStore } from '../../stores/toastStore'
+import { QuemEntraNaBatalha } from './QuemEntraNaBatalha'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore, type AberturaDaBatalha } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
@@ -60,6 +64,21 @@ function armazemDoAparelho(): ArmazemDaAbertura | null {
   }
 }
 
+/** A ficha da caixa não pôde ser gravada (o mapa não tem onde guardar personagem): a batalha não começa pela metade. */
+const NAO_CRIOU_AS_FICHAS = 'Não deu para criar as fichas: este mapa não guarda personagens. A batalha não começou.'
+
+/** A caixa "Quem entra na batalha?" de uma abertura confirmada. `chave` muda a cada vez: a caixa nasce com as marcas novas. */
+interface CaixaDeQuemEntra {
+  chave: number
+  aberta: boolean
+  abertura: AberturaDaBatalha
+  candidatos: CandidatoDaBatalha[]
+  jogadoresSemFicha: number
+  /** As fichas e os modelos de quando a caixa abriu: ela é modal, nada muda a lista enquanto está à vista. */
+  personagens: readonly Personagem[]
+  modelos: Personagem[]
+}
+
 export interface ControleDaBatalhaProps {
   /** A cena aberta (`tableSceneKey`: o id da cena na aventura, ou o id do mapa solto). */
   sceneKey: string
@@ -84,6 +103,7 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
   const [nome, setNome] = useState(NOME_PADRAO_DA_BATALHA)
   const [desempate, setDesempate] = useState<Desempate>('d20')
   const [regra, setRegra] = useState<RascunhoDaRegra>(SEM_REGRA)
+  const [caixa, setCaixa] = useState<CaixaDeQuemEntra | null>(null)
   const regrasDaBiblioteca = useRegrasDoCampoStore((state) => state.regras)
   const naoGuarda = useRegrasDoCampoStore((state) => motivoParaNaoGuardar(state.carregando, state.podeGravar))
   const cabe = batalhaCabeNaGrade(gridShape)
@@ -116,6 +136,22 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     else if (cabe) abrirEscolha()
   }
 
+  /**
+   * Liga a batalha. BATALHA F1: entra toda ficha da cena aberta com personagem
+   * (e não escondida), pela Agilidade; com `incluir` (a caixa "Quem entra na
+   * batalha?"), só os tokens marcados. A regra do campo só é confirmada aqui
+   * (ela pode gravar na biblioteca): cancelar a caixa não guarda nada.
+   */
+  const ligarBatalha = (abertura: AberturaDaBatalha, incluir?: ReadonlySet<string>) => {
+    const aventura = useAdventureStore.getState()
+    const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura)) ?? null
+    const regras = confirmarRascunho(regra, regrasDaBiblioteca, useRegrasDoCampoStore.getState())
+    const combatentes = combatentesIniciais(useMapStore.getState().map.tokens, personagensAtivos(aventura), sistema, incluir)
+    useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate })
+    // BATALHA F2 (5.1): iniciar (pelo botão ou pelo Shift+B) leva o livro à página Batalha; encerrar deixa onde está.
+    useLivroDaMesaStore.getState().abrirPagina('batalha')
+  }
+
   const confirmar = (evento: FormEvent) => {
     evento.preventDefault()
     if (!cabe) return
@@ -125,21 +161,67 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     if (texto !== undefined) abertura.texto = texto
     gravarAberturaLembrada(guardado, aventuraId, { transicao: transicao === NENHUMA ? null : transicao, texto: nome.slice(0, NOME_DA_BATALHA_MAX) })
     setEscolhendo(false)
-    // BATALHA F1: entra toda ficha da cena aberta com personagem (e não escondida), pela Agilidade.
+    // MUNDO DO LIVRO (M1): NPC sem ficha de combate na cena = a caixa "Quem entra na batalha?".
+    // Sem sistema não há ficha a criar: segue direto, como antes.
     const aventura = useAdventureStore.getState()
-    const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura)) ?? null
-    const regras = confirmarRascunho(regra, regrasDaBiblioteca, useRegrasDoCampoStore.getState())
-    const combatentes = combatentesIniciais(useMapStore.getState().map.tokens, personagensAtivos(aventura), sistema)
-    useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate })
-    // BATALHA F2 (5.1): iniciar (pelo botão ou pelo Shift+B) leva o livro à página Batalha; encerrar deixa onde está.
-    useLivroDaMesaStore.getState().abrirPagina('batalha')
+    const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura))
+    const tokens = useMapStore.getState().map.tokens
+    const personagens = personagensAtivos(aventura)
+    const todos = quemPodeEntrar(tokens, personagens)
+    const ehNpc = new Set(tokens.filter((token) => token.npc === true).map((token) => token.id))
+    // Token de JOGADOR sem ficha não ganha ficha mínima: fica fora da lista, e a caixa diz quantos.
+    const candidatos = todos.filter((candidato) => candidato.situacao !== 'semFicha' || ehNpc.has(candidato.tokenId))
+    if (sistema === undefined || !precisaPerguntar(candidatos)) {
+      ligarBatalha(abertura)
+      return
+    }
+    setCaixa((antes) => ({
+      chave: (antes?.chave ?? 0) + 1,
+      aberta: true,
+      abertura,
+      candidatos,
+      jogadoresSemFicha: todos.length - candidatos.length,
+      personagens,
+      modelos: modelosDeNpc(personagens),
+    }))
+  }
+
+  /**
+   * "Iniciar com N" da caixa: cria as fichas escolhidas (mínima ou variação do
+   * modelo, com o nome do token; ficam nos NPCs de combate, decisão D3), liga
+   * cada token à ficha nova e inicia só com os marcados.
+   */
+  const confirmarQuemEntra = (escolhas: EscolhaDaBatalha[]) => {
+    if (caixa === null) return
+    setCaixa({ ...caixa, aberta: false })
+    const aventura = useAdventureStore.getState()
+    const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura))
+    const nomePorToken = new Map(useMapStore.getState().map.tokens.map((token) => [token.id, token.name]))
+    const personagens = personagensAtivos(aventura)
+    const novas: { tokenId: string; ficha: Personagem }[] = []
+    for (const escolha of escolhas) {
+      const nomeDoToken = nomePorToken.get(escolha.tokenId)
+      if (sistema === undefined || nomeDoToken === undefined) continue
+      const ficha = fichaDaEscolha(escolha.como, sistema, nomeDoToken, personagens)
+      if (ficha !== null) novas.push({ tokenId: escolha.tokenId, ficha })
+    }
+    if (novas.length > 0) {
+      if (!aventura.adicionarPersonagens(novas.map((nova) => nova.ficha))) {
+        useToastStore.getState().push('error', NAO_CRIOU_AS_FICHAS)
+        return
+      }
+      // Cada ligação é um passo do desfazer do mapa, como o "Ligar token" da ficha.
+      for (const nova of novas) useMapStore.getState().updateToken(nova.tokenId, { characterId: nova.ficha.id })
+    }
+    ligarBatalha(caixa.abertura, new Set(escolhas.map((escolha) => escolha.tokenId)))
   }
 
   // Shift+B de qualquer ponto do editor; com a escolha aberta a tecla é dela (o Esc fecha).
   const alternarAgora = useRef(alternar)
   alternarAgora.current = alternar
   const escolhendoAgora = useRef(escolhendo)
-  escolhendoAgora.current = escolhendo
+  // A caixa "Quem entra na batalha?" também é escolha: o Shift+B não liga nem abre outra por baixo dela.
+  escolhendoAgora.current = escolhendo || caixa?.aberta === true
   useEffect(() => {
     const aoTeclar = (evento: KeyboardEvent) => {
       const alvo = evento.target instanceof HTMLElement ? evento.target : null
@@ -220,6 +302,18 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
           </Acoes>
         </form>
       </Dialogo>
+      {caixa !== null && (
+        <QuemEntraNaBatalha
+          key={caixa.chave}
+          aberto={caixa.aberta}
+          candidatos={caixa.candidatos}
+          jogadoresSemFicha={caixa.jogadoresSemFicha}
+          modelos={caixa.modelos}
+          personagens={caixa.personagens}
+          onConfirmar={confirmarQuemEntra}
+          onCancelar={() => setCaixa({ ...caixa, aberta: false })}
+        />
+      )}
       <AberturaDeBatalhaOverlay abertura={pedido} />
     </div>
   )

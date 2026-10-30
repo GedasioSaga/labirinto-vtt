@@ -23,6 +23,8 @@ interface MainMenuProps {
   onLoad: () => void
   onOptions: () => void
   onRoleplay: () => void
+  /** Porta "04 · Livros de regras" (o mundo do livro, M1). Ausente = sem a porta. */
+  onLivros?: () => void
   /** Default `FEATURES`; o teste passa outro valor para provar o estado religado. */
   flags?: Readonly<FeatureFlags>
   /** Cópia de recuperação de uma abertura que fechou sem salvar; ausente = nada a oferecer. */
@@ -93,6 +95,7 @@ export function MainMenu({
   onLoad,
   onOptions,
   onRoleplay,
+  onLivros,
   flags = FEATURES,
   recovery,
   atualizador = portaDoTauri,
@@ -169,6 +172,7 @@ export function MainMenu({
             <HomeDoor title="Criar Mapas" description={createDescription} className="lb-home__door--novo-mapa" onClick={onCreate} />
             <HomeDoor title="Carregar Mapa existente" description="Continuar de onde parou" onClick={onLoad} />
             <HomeDoor title="Roleplay" description="Mesa narrativa, sem mapa" badge="Em construção" onClick={onRoleplay} />
+            {onLivros !== undefined && <HomeDoor title="Livros de regras" description="Fichas, NPCs de combate e itens de cada sistema" badge="Novo" onClick={onLivros} />}
             {flags.optionsScreen && <HomeDoor title="Opções" description="Conexão, personagens, cenário" onClick={onOptions} />}
           </nav>
 

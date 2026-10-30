@@ -109,6 +109,9 @@ import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
+import { LivrosScreen } from './screens/LivrosScreen'
+import { MundoDoLivro } from './components/livros/MundoDoLivro'
+import { useMundoDoLivroStore } from './stores/mundoDoLivroStore'
 import { withViewTransition } from './lib/viewTransition'
 import type { TransicaoEscolhida } from './transicoes/catalogo'
 import { mapChangeCause, selectAlignableUnitCount, useMapStore } from './stores/mapStore'
@@ -789,6 +792,8 @@ function App() {
   // LIVRO DA MESA (fatia 4): a página aberta (Grupo, Chat, Cenas, Mesa), a
   // página à vista ou recolhida na lombada (lembrado) e o que o chat ainda não leu.
   const paginaDaMesa = useLivroDaMesaStore((state) => state.pagina)
+  // MUNDO DO LIVRO (M1): aberto pelo atalho "Abrir o mundo do …" do livro do mestre, por cima do editor.
+  const mundoNoEditor = useMundoDoLivroStore((state) => state.aberto?.origem === 'editor')
   const [rightOpen, setRightOpen] = useLivroDaMesaAberto(room !== null)
   const [chatUnread, setChatUnread] = useState<ChatUnread>(NO_CHAT_UNREAD)
   /** Muda a cada Ctrl+K: "Objetos do mapa" abre com o cursor na busca (MapObjectsSection). */
@@ -3007,6 +3012,7 @@ function App() {
           onLoad={() => setScreen('load-map')}
           onOptions={() => setScreen('options')}
           onRoleplay={() => setScreen('roleplay')}
+          onLivros={() => setScreen('livros')}
           recovery={
             recoveryCopy && {
               mapName: recoveryCopy.map.name,
@@ -3061,6 +3067,15 @@ function App() {
     return (
       <>
         <RoleplayScreen onBack={() => setScreen(parentScreen(screen))} />
+        {toastStack}
+      </>
+    )
+  }
+
+  if (screen === 'livros') {
+    return (
+      <>
+        <LivrosScreen onBack={() => setScreen(parentScreen(screen))} />
         {toastStack}
       </>
     )
@@ -4350,6 +4365,8 @@ function App() {
       {/* PISOS NA MESMA CENA: só aparece quando a cena tem pisos (ou o mestre já saiu do térreo) — mapa de um piso não ganha controle à toa. */}
       {(pisoAtivo !== 0 || mapaTemPisos) && <PisoHud piso={pisoAtivo} onPisoChange={(piso) => useMapStore.getState().setPisoAtivo(piso)} />}
       {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      {/* MUNDO DO LIVRO pelo atalho do livro do mestre: por cima do mapa; fechar volta a ele. Antes das janelas: a ficha aberta dele vem por cima. */}
+      {mundoNoEditor && <MundoDoLivro onFechar={() => useMundoDoLivroStore.getState().fechar()} />}
       {/* Grade de sistemas de RPG e ficha de personagem: uma vez só, abertas pelo `rpgStore`. */}
       <RpgDialogs aplicarItens={aplicarItensDoMestre} garantirAventura={garantirAventuraDoMapa} />
       {exportImageState !== null && (

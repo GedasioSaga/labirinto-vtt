@@ -6,10 +6,12 @@ import { novoPersonagem, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { herdaDaPasta, personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
+import { useMundoDoLivroStore } from '../stores/mundoDoLivroStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { comAventura } from '../stores/virarAventura'
 import { useAbertaGuardada } from './CollapsibleSection'
 import { ImagemOuIniciais } from './FichaPecas'
+import { Botao } from './grimorio/Botao'
 import { Ficha } from './grimorio/Ficha'
 import { IconeDoLivro } from './livro/icones'
 import './FichaDePersonagem.css'
@@ -29,6 +31,11 @@ export interface PersonagensSectionProps {
   onImportar: () => Promise<ResultadoDaImportacao | null>
   /** PASTAS DE MAPAS: o nome da pasta quando os personagens são os dela. Ausente = os do mapa. */
   nomeDaPasta?: string
+  /**
+   * MUNDO DO LIVRO (M1): "Abrir o mundo do <sistema>", por cima do mapa.
+   * Ausente = o mapa não herda o sistema de uma pasta (sem botão).
+   */
+  onAbrirMundo?: () => void
 }
 
 /** A frase do resultado: quantos entraram, com os nomes, e quantos NPCs ficaram de fora. */
@@ -47,7 +54,7 @@ export function resumoDaImportacao(resultado: ResultadoDaImportacao): string {
  * mapa solto: criar ou importar ali pergunta antes se o mapa vira aventura,
  * porque personagens e sistema moram no `adventure.json`.
  */
-export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLivro, onAbrirFicha, onCriar, onApagar, onImportar, nomeDaPasta }: PersonagensSectionProps) {
+export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLivro, onAbrirFicha, onCriar, onApagar, onImportar, nomeDaPasta, onAbrirMundo }: PersonagensSectionProps) {
   const [aberta, setAberta] = useAbertaGuardada('personagens', false)
   const [apagando, setApagando] = useState<string | null>(null)
   const [importando, setImportando] = useState(false)
@@ -114,6 +121,13 @@ export function PersonagensSection({ sistema, sistemaId, personagens, onAbrirLiv
                 </li>
               ))}
             </ul>
+          )}
+          {onAbrirMundo !== undefined && sistema !== undefined && (
+            // Botão do grimório: ele dá ao ícone o tamanho certo (o `.lb-btn` não mede SVG).
+            <Botao variante="fantasma" largo onClick={onAbrirMundo}>
+              <IconeDoLivro nome="livro" />
+              Abrir o mundo do {sistema.nome}
+            </Botao>
           )}
           {sistema === undefined && (
             <p className="lb-field__hint">
@@ -189,6 +203,8 @@ export function PersonagensDaAventura({ garantirAventura, comLivro = true }: Per
   const sistemaId = useAdventureStore(sistemaAtivo)
   const personagens = useAdventureStore(personagensAtivos)
   const nomeDaPasta = useAdventureStore((state) => (herdaDaPasta(state) && state.pasta !== null ? state.pasta.nome : undefined))
+  // MUNDO DO LIVRO: só quando o mapa herda da pasta ("Configurar só neste mapa" fica fora do mundo).
+  const pastaId = useAdventureStore((state) => (herdaDaPasta(state) && state.pasta !== null ? state.pasta.pastaId : undefined))
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const carregarBiblioteca = useRpgStore((state) => state.carregarBiblioteca)
   const abrirLivro = useAbrirLivroDeRegras()
@@ -205,6 +221,11 @@ export function PersonagensDaAventura({ garantirAventura, comLivro = true }: Per
       personagens={personagens}
       nomeDaPasta={nomeDaPasta}
       onAbrirLivro={comLivro ? abrirLivro : undefined}
+      onAbrirMundo={
+        pastaId === undefined || sistemaId === undefined
+          ? undefined
+          : () => void useMundoDoLivroStore.getState().abrir({ sistemaId, pastaId, origem: 'editor' })
+      }
       onAbrirFicha={(id) => useRpgStore.getState().abrirFicha(id)}
       onCriar={() => {
         if (sistema === undefined) return
