@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Judge, modelo pronto</title>
+<style>
+/* Tokens do app: copiados de client/src/theme.ts (mesmos nomes --lb-*), como na v1. O app só tem tema escuro. */
+:root {
+  color-scheme: dark;
+  --lb-color-ink: #121214;
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xl: 20px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-full: 999px;
+  --lb-shadow-md: 0 6px 16px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-focus: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* cores do próprio Judge (as mesmas do modelo) */
+  --judge-cartao: #d8322c;
+  --judge-capa: #2d58b0;
+  /* céu da vista grande: a névoa fria da pintura */
+  --ceu-claro: #d7e2f4;
+  --ceu-meio: #6a7c9f;
+  --ceu-fundo: #1f2638;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font: 400 var(--lb-font-size-md)/1.5 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.topo {
+  padding: 28px 28px 18px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  column-gap: 20px;
+}
+.topo h1 { margin: 0; font: 600 44px/0.9 var(--lb-font-display); letter-spacing: 0.01em; }
+.topo p { margin: 0 0 3px; max-width: 70ch; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-lg); line-height: 1.45; }
+
+h2.secao {
+  margin: 0;
+  font: 600 var(--lb-font-size-xl)/1.15 var(--lb-font-display);
+  letter-spacing: 0.01em;
+}
+.sub { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.dica { margin: 0; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); max-width: 72ch; }
+.linha { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.so-leitor { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+[hidden] { display: none !important; } /* classe com display não pode vencer o hidden */
+
+/* ---------- vista grande ---------- */
+.vista {
+  display: grid;
+  grid-template-columns: minmax(0, 620px) minmax(0, 1fr);
+  gap: 28px;
+  padding: 0 28px 34px;
+  align-items: start;
+}
+.vista-palco {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--lb-radius-lg);
+  overflow: hidden;
+  background:
+    radial-gradient(60% 50% at 30% 22%, var(--ceu-claro) 0%, rgba(215, 226, 244, 0) 72%),
+    radial-gradient(120% 90% at 50% 40%, var(--ceu-meio) 0%, var(--ceu-fundo) 78%);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line), var(--lb-shadow-md);
+}
+#vista-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+#vista-canvas:active { cursor: grabbing; }
+#vista-canvas:focus-visible { outline: none; }
+.vista-palco:has(#vista-canvas:focus-visible) { box-shadow: inset 0 0 0 1px var(--lb-color-line), var(--lb-shadow-focus); }
+.vista-dica {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--lb-radius-sm);
+  background: rgba(19, 19, 23, 0.72);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  pointer-events: none;
+}
+.carregando {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--lb-color-parchment);
+  font: 600 var(--lb-font-size-lg)/1.3 var(--lb-font-utility);
+  transition: opacity 200ms var(--lb-gr-ease-out);
+}
+.carregando[data-pronto='true'] { opacity: 0; pointer-events: none; }
+.vista-lado { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.vista-lado p { margin: 0; max-width: 62ch; }
+.creditos { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.creditos li {
+  display: grid;
+  gap: 1px;
+  padding: 9px 12px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-bevel);
+}
+.creditos strong { font-weight: 600; }
+.creditos span { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.creditos a { color: var(--lb-color-tide); }
+.numeros { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.numeros div { padding: 8px 10px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); box-shadow: inset 0 0 0 1px var(--lb-color-line); }
+.numeros dt { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); }
+.numeros dd { margin: 0; font: 600 var(--lb-font-size-lg)/1.3 var(--lb-font-utility); }
+
+/* ---------- mesa (cena falsa, igual à v1) ---------- */
+.palco {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 28px;
+  padding: 0 28px 34px;
+  align-items: start;
+}
+.mesa { min-width: 0; display: grid; gap: 14px; }
+.ordem { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.ordem-rotulo { font: 600 var(--lb-font-size-md)/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); }
+.ordem-lista { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ordem-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px 0 4px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-bevel);
+  color: var(--lb-color-parchment-dim);
+}
+.ordem-item[aria-current='true'] { color: var(--lb-color-parchment); background: var(--lb-color-brass-soft); box-shadow: inset 0 0 0 1px var(--lb-color-brass); }
+.ordem-ponto { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--cor); color: #fbf7ec; font: 600 11px/1 var(--lb-font-utility); }
+.ordem-fora { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.mapa-moldura {
+  overflow: auto;
+  padding: 14px;
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-sunken);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line), inset 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.mapa { position: relative; margin: 0 auto; border-radius: var(--lb-radius-sm); overflow: hidden; }
+#mapa-canvas { display: block; touch-action: none; }
+#judge-vivo { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.selo {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: var(--lb-radius-sm);
+  background: rgba(19, 19, 23, 0.9);
+  box-shadow: var(--lb-shadow-md);
+  font-size: var(--lb-font-size-sm);
+}
+.acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.aviso { min-height: 1.5em; margin: 0; font-size: var(--lb-font-size-lg); }
+
+/* ---------- botões ---------- */
+.botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-bevel);
+  color: var(--lb-color-parchment);
+  font: 600 var(--lb-font-size-md)/1 var(--lb-font-sans);
+  cursor: pointer;
+  transition: transform 160ms var(--lb-gr-ease-out), background-color 150ms ease, border-color 150ms ease;
+}
+.botao:active:not(:disabled) { transform: scale(0.97); }
+.botao:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.botao:disabled { opacity: 0.45; cursor: not-allowed; }
+.botao.primario { border-color: transparent; background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); }
+.botao.cartao { border-color: rgba(226, 100, 90, 0.45); }
+.botao.cartao::before { content: ''; width: 10px; height: 14px; border-radius: 2px; background: var(--judge-cartao); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.botao.cartao[aria-pressed='true'] { background: var(--lb-color-ember-soft); border-color: var(--lb-color-ember); }
+.botao.pequeno { min-height: 36px; padding: 0 12px; font-size: var(--lb-font-size-sm); }
+@media (hover: hover) and (pointer: fine) {
+  .botao:hover:not(:disabled) { background: var(--lb-color-stone-hover); }
+  .botao.primario:hover:not(:disabled) { background: var(--lb-color-brass-bright); }
+  .botao.cartao:hover:not(:disabled) { background: var(--lb-color-ember-soft); border-color: var(--lb-color-ember); }
+}
+kbd { padding: 2px 5px; border: 1px solid currentColor; border-radius: 4px; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); opacity: 0.7; }
+
+/* ---------- painel ---------- */
+.painel { display: grid; gap: 26px; min-width: 0; }
+.painel section { display: grid; gap: 10px; }
+.painel h2 { margin: 0; font: 600 var(--lb-font-size-lg)/1.2 var(--lb-font-utility); letter-spacing: 0.01em; }
+.painel p { margin: 0; }
+.segmentado {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  padding: 3px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line);
+}
+.segmentado label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: var(--lb-color-parchment-dim);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.segmentado.pequeno label { min-height: 32px; font-size: var(--lb-font-size-sm); }
+.segmentado input { position: absolute; opacity: 0; pointer-events: none; }
+.segmentado label:has(input:checked) { background: var(--lb-color-stone-hover); color: var(--lb-color-parchment); box-shadow: var(--lb-shadow-bevel), 0 1px 2px rgba(0, 0, 0, 0.4); }
+.segmentado label:has(input:focus-visible) { box-shadow: var(--lb-shadow-focus); }
+.custos { width: 100%; border-collapse: collapse; font-size: var(--lb-font-size-sm); line-height: 1.4; }
+.custos th, .custos td { padding: 7px 8px; text-align: left; vertical-align: top; border-top: 1px solid var(--lb-color-line); }
+.custos thead th { border-top: 0; color: var(--lb-color-parchment-dim); font: 600 var(--lb-font-size-sm)/1.2 var(--lb-font-utility); }
+.custos tbody th { width: 22%; color: var(--lb-color-parchment-faint); font-weight: 500; }
+.custos td { color: var(--lb-color-parchment-dim); }
+.custos .ativo { background: var(--lb-color-brass-soft); color: var(--lb-color-parchment); }
+.custos thead th.ativo { color: var(--lb-color-brass-bright); border-radius: 6px 6px 0 0; }
+.campo { display: grid; gap: 6px; }
+.campo-topo { display: flex; justify-content: space-between; gap: 8px; }
+.campo output { color: var(--lb-color-parchment-dim); font: 500 var(--lb-font-size-sm)/1.4 var(--lb-font-utility); }
+input[type='range'] { width: 100%; accent-color: var(--lb-color-brass); }
+.caixa { display: flex; align-items: center; gap: 10px; min-height: 36px; cursor: pointer; }
+.caixa input { width: 18px; height: 18px; accent-color: var(--lb-color-brass); }
+
+/* ---------- folha de quadros ---------- */
+.folha-secao { display: grid; gap: 12px; padding: 0 28px 34px; }
+.folha-topo { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; }
+.folha-topo p { margin: 4px 0 0; max-width: 78ch; }
+.folha-moldura {
+  position: relative;
+  overflow: auto;
+  padding: 12px;
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-sunken);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line);
+}
+#folha-canvas { display: block; width: 100%; min-height: 80px; }
+.folha-moldura .selo { position: static; display: inline-block; }
+.perguntas { padding: 0 28px 40px; display: grid; gap: 10px; }
+.perguntas ol { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; font-size: var(--lb-font-size-md); max-width: 80ch; }
+
+.erro {
+  margin: 0 28px 24px;
+  padding: 14px 16px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-ember-soft);
+  box-shadow: inset 0 0 0 1px var(--lb-color-ember);
+}
+
+/* ---------- folha em tamanho real ---------- */
+dialog {
+  width: min(96vw, 1600px);
+  max-height: 92vh;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  box-shadow: var(--lb-shadow-float);
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 200ms var(--lb-gr-ease-out), transform 200ms var(--lb-gr-ease-out), overlay 200ms allow-discrete, display 200ms allow-discrete;
+}
+@starting-style { dialog[open] { opacity: 0; transform: scale(0.96); } }
+dialog::backdrop { background: rgba(8, 8, 10, 0.62); }
+.dlg-topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 12px 12px 18px; border-bottom: 1px solid var(--lb-color-line); }
+.dlg-topo h2 { margin: 0; font: 600 var(--lb-font-size-lg)/1.2 var(--lb-font-utility); }
+.dlg-corpo { overflow: auto; max-height: calc(92vh - 70px); padding: 12px; }
+#dlg-canvas { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .botao:active:not(:disabled) { transform: none; }
+  dialog { transition: opacity 150ms ease; transform: none; }
+}
+html.reduzir .botao:active:not(:disabled) { transform: none; }
+
+@media (max-width: 1180px) {
+  .palco, .vista { grid-template-columns: minmax(0, 1fr); }
+  .painel { max-width: 640px; }
+  .vista-palco { max-width: 620px; }
+}
+@media (max-width: 640px) {
+  .topo { grid-template-columns: minmax(0, 1fr); padding: 20px 16px 14px; row-gap: 8px; }
+  .palco, .vista, .folha-secao, .perguntas { padding-left: 16px; padding-right: 16px; }
+  .topo h1 { font-size: 36px; }
+  .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+<header class="topo">
+  <h1>Judge</h1>
+  <p>Versão "modelo pronto": um cavaleiro e uma ave de modelos 3D livres, adaptados aqui com pose, cores e as peças que faltavam (chifres, capa, cartão, elmo da ave, rédeas). Nada nesta página mexe no app.</p>
+</header>
+
+<div class="erro" id="erro-webgl" role="alert" hidden><strong>O 3D não abriu.</strong> <span id="erro-webgl-motivo"></span></div>
+
+<section class="vista" aria-labelledby="h-vista">
+  <div class="vista-palco">
+    <canvas id="vista-canvas" tabindex="0" role="img" aria-roledescription="vista 3D girável" aria-label="O Judge de perto, montado na ave. Arraste ou use as setas para girar."></canvas>
+    <p class="vista-dica" aria-hidden="true">Arraste para girar. Setas também.</p>
+    <p class="carregando" id="carregando" role="status">Abrindo os modelos…</p>
+  </div>
+  <div class="vista-lado">
+    <h2 class="secao" id="h-vista">O Judge de perto</h2>
+    <p>Arraste para os lados para girar e para cima ou para baixo para mudar a altura do olhar. Com a vista em foco, as setas fazem o mesmo.</p>
+    <div class="linha">
+      <button type="button" class="botao cartao" id="btn-vista-cartao" aria-pressed="false">Erguer o cartão <kbd>C</kbd></button>
+      <button type="button" class="botao" id="btn-vista-frente">De frente <kbd>F</kbd></button>
+    </div>
+    <dl class="numeros" aria-label="O que o 3D desenha">
+      <div><dt>Triângulos</dt><dd id="n-triangulos">…</dd></div>
+      <div><dt>Peças desenhadas</dt><dd id="n-pecas">…</dd></div>
+      <div><dt>Modelos (.glb)</dt><dd id="n-kb">…</dd></div>
+    </dl>
+    <h2 class="secao" style="font-size: var(--lb-font-size-lg)">De onde veio</h2>
+    <ul class="creditos">
+      <li><strong>Cavaleiro: "Knight", de Dawid2K</strong><span>CC-BY 3.0, <a href="https://poly.pizza/m/isC73B8SKq">poly.pizza/m/isC73B8SKq</a>. Com esqueleto: é ele que ergue o braço e respira.</span></li>
+      <li><strong>Ave: "Hawk Lp Rigged", de Sherkiz</strong><span>CC-BY 3.0, <a href="https://poly.pizza/m/RkN6MEbP6g">poly.pizza/m/RkN6MEbP6g</a>. Com esqueleto: asas, pescoço e pernas posados aqui.</span></li>
+      <li><strong>Couraça com ombreiras: "Armor Metal", de Quaternius</strong><span>CC0, <a href="https://poly.pizza/m/TMUoxILh9w">poly.pizza/m/TMUoxILh9w</a>.</span></li>
+    </ul>
+    <p class="dica">Feito aqui, em three.js: chifres, capa, cartão com brilho, elmo e rédeas da ave, manta da sela, penas fofas, as cores e a luz fria de contorno.</p>
+  </div>
+</section>
+
+<main class="palco">
+  <section class="mesa" aria-label="Cena de batalha falsa">
+    <div class="ordem">
+      <span class="ordem-rotulo" id="ordem-rotulo">Ordem da batalha</span>
+      <ol class="ordem-lista" id="ordem" aria-labelledby="ordem-rotulo"></ol>
+      <span class="ordem-fora">O Judge não entra na ordem e não tem ficha.</span>
+    </div>
+    <div class="mapa-moldura">
+      <div class="mapa" id="mapa">
+        <canvas id="mapa-canvas" role="img" aria-label="Mapa de batalha falso"></canvas>
+        <canvas id="judge-vivo" aria-hidden="true"></canvas>
+        <p class="selo" id="selo" hidden></p>
+      </div>
+    </div>
+    <div class="acoes">
+      <button type="button" class="botao primario" id="btn-proxima">Próxima vez <kbd>N</kbd></button>
+      <button type="button" class="botao cartao" id="btn-desfazer" aria-describedby="motivo-desfazer">Desfazer <kbd>Ctrl Z</kbd></button>
+      <button type="button" class="botao" id="btn-reiniciar">Reiniciar batalha <kbd>R</kbd></button>
+      <p class="dica" id="motivo-desfazer">Nada para desfazer ainda. Passe a vez primeiro.</p>
+    </div>
+    <p class="aviso" id="aviso" role="status" aria-live="polite"></p>
+    <p class="dica">Arraste qualquer ficha, até o Judge, para ver o giro em todas as direções. O Judge fica da 4ª linha para baixo, para caber inteiro no mapa.</p>
+  </section>
+
+  <aside class="painel" aria-label="Escolhas">
+    <section aria-labelledby="h-jeito">
+      <h2 id="h-jeito">Jeito no app</h2>
+      <div class="segmentado" role="radiogroup" aria-labelledby="h-jeito">
+        <label><input type="radio" name="jeito" value="vivo" checked>3D ao vivo</label>
+        <label><input type="radio" name="jeito" value="folha">Quadros da folha</label>
+      </div>
+      <p class="sub">A tecla M alterna. O que cada um custa:</p>
+      <table class="custos">
+        <thead>
+          <tr><th scope="col"><span class="so-leitor">Item</span></th><th scope="col" id="th-vivo">3D ao vivo</th><th scope="col" id="th-folha">Quadros da folha</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Para baixar</th><td id="t-baixar-vivo"></td><td id="t-baixar-folha"></td></tr>
+          <tr><th scope="row">Memória de vídeo</th><td id="t-memoria-vivo"></td><td id="t-memoria-folha"></td></tr>
+          <tr><th scope="row">A cada quadro</th><td id="t-quadro-vivo"></td><td id="t-quadro-folha"></td></tr>
+          <tr><th scope="row">Giro</th><td id="t-giro-vivo"></td><td id="t-giro-folha"></td></tr>
+          <tr><th scope="row">Zoom</th><td id="t-zoom-vivo"></td><td id="t-zoom-folha"></td></tr>
+          <tr><th scope="row">Mudar o modelo</th><td id="t-mudar-vivo"></td><td id="t-mudar-folha"></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="h-ajustes">
+      <h2 id="h-ajustes">Ajustes do protótipo</h2>
+      <div class="campo">
+        <div class="campo-topo"><label for="zoom">Zoom do mapa</label><output id="zoom-valor" for="zoom"></output></div>
+        <input type="range" id="zoom" min="48" max="112" step="8" value="64">
+      </div>
+      <label class="caixa"><input type="checkbox" id="reduzir"> Movimento reduzido (segue o Windows; marque para ver como fica)</label>
+    </section>
+  </aside>
+</main>
+
+<section class="folha-secao" aria-labelledby="h-folha">
+  <div class="folha-topo">
+    <div>
+      <h2 class="secao" id="h-folha">A folha de quadros</h2>
+      <p class="sub" id="folha-info">Fotografada do mesmo 3D: 8 direções nas linhas; nas colunas, 12 quadros parado (respirando) e 8 erguendo o cartão.</p>
+    </div>
+    <div class="linha">
+      <div class="segmentado pequeno" role="radiogroup" aria-label="Resolução da folha">
+        <label><input type="radio" name="pxfolha" value="32">32 px por casa</label>
+        <label><input type="radio" name="pxfolha" value="48" checked>48</label>
+        <label><input type="radio" name="pxfolha" value="64">64</label>
+      </div>
+      <button type="button" class="botao pequeno" id="btn-ver-folha" aria-describedby="motivo-folha">Tamanho real</button>
+      <button type="button" class="botao pequeno" id="btn-baixar" aria-describedby="motivo-folha">Baixar PNG</button>
+    </div>
+  </div>
+  <div class="folha-moldura">
+    <p class="selo" id="motivo-folha" hidden></p>
+    <canvas id="folha-canvas" role="img" aria-label="Folha de quadros do Judge"></canvas>
+  </div>
+</section>
+
+<section class="perguntas" aria-labelledby="h-perguntas">
+  <h2 class="secao" id="h-perguntas">O que eu preciso de você</h2>
+  <ol>
+    <li>Ficou mais perto da pintura que a v1? O que ainda está longe: a ave, a armadura, a capa ou a luz?</li>
+    <li>Qual jeito: 3D ao vivo ou quadros da folha?</li>
+    <li>Algo estranho no giro, no cartão ou na respiração? Rápido, lento, torto, em que momento?</li>
+  </ol>
+</section>
+
+<dialog id="dlg-folha" aria-labelledby="dlg-titulo">
+  <div class="dlg-topo">
+    <h2 id="dlg-titulo">Folha</h2>
+    <button type="button" class="botao pequeno" id="dlg-fechar">Fechar <kbd>Esc</kbd></button>
+  </div>
+  <div class="dlg-corpo"><canvas id="dlg-canvas"></canvas></div>
+</dialog>
+
+<script src="../vendor/three.min.js"></script>
+<script src="gltf-loader.js"></script>
+<script src="modelos-embutidos.js"></script>
+<script src="modelo-judge-pronto.js"></script>
+<script src="prototipo.js"></script>
+</body>
+</html>
