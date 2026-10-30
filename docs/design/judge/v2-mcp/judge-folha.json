@@ -1,0 +1,58 @@
+{
+  "imagem": "judge-folha.png",
+  "quadro_px": [
+    192,
+    240
+  ],
+  "pixels_por_quadrado": 64,
+  "origem_no_quadro_px": [
+    96.0,
+    200.3
+  ],
+  "linhas_direcoes": [
+    "sul",
+    "sudeste",
+    "leste",
+    "nordeste",
+    "norte",
+    "noroeste",
+    "oeste",
+    "sudoeste"
+  ],
+  "colunas": 20,
+  "animacoes": {
+    "respiracao": {
+      "colunas": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "laco": true,
+      "fps": 12
+    },
+    "erguer_carta": {
+      "colunas": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "laco": false,
+      "fps": 12
+    }
+  },
+  "camera": "ortografica, 30 graus acima, 3,75 quadrados de altura por quadro"
+}
