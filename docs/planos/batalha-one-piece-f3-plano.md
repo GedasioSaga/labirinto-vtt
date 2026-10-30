@@ -360,3 +360,9 @@ O orquestrador leva Q7 e Q8 ao usuário antes da fatia J, e Q1 a Q6 antes da fas
 - Q8: vez de alguém fora da vista do jogador: o Judge daquele jogador fica como estava.
 - Crista: "Abre a crista no meio" (folha v4.1 sendo refeita nos mesmos caminhos; a fatia J usa o arquivo que estiver em docs/design/judge/v2-mcp/ na hora da montagem).
 - Arena de testes (pedido novo, depois da fatia J): marcador "Arena de testes" no mundo do livro; fichas de cada lado ou uma só contra o Judge-boneco; o mesmo sistema de batalha numa arena pequena; o mestre controla todos os lados; nada mexe nas fichas de verdade. Boneco: começa com vida infinita e placar (dano por golpe, total, média por rodada; reage com d20 ou fica parado), com opção de ajustar HP, Escudo e modificador de reação.
+- Q1: o ganho da diferença vale para HP E SP (todo recurso com atual e máximo que a forma aumenta).
+- Q2: ligar a forma pela ficha no meio da batalha continua manual (sem ganho, sem animação).
+- Q3: ao encerrar a batalha a forma continua ligada; só a imagem volta; linha "Bruno segue em Punho Negro".
+- Q4: o selo conta pela vez do alvo (N turnos = N vezes do alvo, desconta no fim da vez dele).
+- Q5: o selo de NPC aparece para todos que veem a carta.
+- Q6: o selo sugerido pela habilidade só pega se o golpe acerta (não em Esquivar nem Contra-atacar).
