@@ -12,10 +12,12 @@ import type { AutorDaAcao } from './turnos'
  */
 
 /**
- * O que a reação deu. "naoReagiu" = escolheu Não reagir; "semReacao" =
- * Surpresa, Overload ou golpe que o alvo não pode reagir.
+ * O que a reação deu. "naoReagiu" = escolheu Não reagir (antes do dado);
+ * "passou" = rolou e preferiu Passar, tomando o golpe inteiro (no 1 natural
+ * vira "critico": passar não foge do crítico); "semReacao" = Surpresa,
+ * Overload ou golpe que o alvo não pode reagir.
  */
-export type SaidaDaReacao = 'critico' | 'cheio' | 'metade' | 'esquiva' | 'contra' | 'naoReagiu' | 'semReacao'
+export type SaidaDaReacao = 'critico' | 'cheio' | 'metade' | 'esquiva' | 'contra' | 'naoReagiu' | 'passou' | 'semReacao'
 
 /** A ação que a técnica gasta. "livre" não gasta nada. */
 export type AcaoDaTecnica = 'simples' | 'completa' | 'bonus' | 'livre'
@@ -80,6 +82,8 @@ export type PedidoDeReacao =
   /** Só uma das saídas que o dado liberou (`saidasPossiveis`). */
   | { tipo: 'escolher'; golpeId: string; tokenId: string; saida: SaidaDaReacao }
   | { tipo: 'naoReagir'; golpeId: string; tokenId: string }
+  /** Só DEPOIS do dado: toma o golpe inteiro sem usar a reação (`saidaDoPassar`: o 1 natural continua crítico). */
+  | { tipo: 'passar'; golpeId: string; tokenId: string }
 
 /** O d20 da reação, rolado pelo HOST. `vezes` conta as rerolagens (1 = a primeira). */
 export interface RolagemDaReacao {

@@ -6,8 +6,9 @@ import './combate.css'
 
 /**
  * AS REAÇÕES PENDENTES (mestre, aba Batalha): os golpes esperando reação. Os
- * de NPC na caixa REAÇÃO (Rolar, modificador, as saídas, Rolar de novo, Não
- * reagir; "Rolar todas" com mais de um). Os de jogador, "Esperando Lia", com
+ * de NPC na caixa REAÇÃO (Rolar, modificador, Não reagir antes do dado; depois
+ * as saídas, Passar e Rolar de novo; "Rolar todas" com mais de um). Passar
+ * mantém o crítico do 1 natural, como no jogador. Os de jogador, "Esperando Lia", com
  * "Rolar por ela" e "Não reagir por ela". Perfurante (Q4) por golpe: o
  * mestre decide no fim.
  */
@@ -37,7 +38,7 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
   return (
     <section className="bt-secao bt-pendentes-secao" aria-label="Reações esperando">
       <h3 className="bt-secao__titulo">Reações esperando · {itens.length}</h3>
-      {doMestre.length > 0 && <CaixaDeReacao reacoes={doMestre} onPedir={onPedir} naoReagirDepoisDoDado />}
+      {doMestre.length > 0 && <CaixaDeReacao reacoes={doMestre} onPedir={onPedir} />}
       {deJogador.length > 0 && (
         <ul className="bt-pendentes">
           {deJogador.map((item) => {

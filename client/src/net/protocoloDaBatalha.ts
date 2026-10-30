@@ -238,7 +238,7 @@ function lerAcaoDaTecnica(value: unknown): AcaoDaTecnica | null {
 }
 
 function lerSaida(value: unknown): SaidaDaReacao | null {
-  return value === 'critico' || value === 'cheio' || value === 'metade' || value === 'esquiva' || value === 'contra' || value === 'naoReagiu' || value === 'semReacao'
+  return value === 'critico' || value === 'cheio' || value === 'metade' || value === 'esquiva' || value === 'contra' || value === 'naoReagiu' || value === 'passou' || value === 'semReacao'
     ? value
     : null
 }
@@ -320,6 +320,8 @@ export function lerPedidoDeReacao(value: unknown): PedidoDeReacao | null {
     }
     case 'naoReagir':
       return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'naoReagir', golpeId, tokenId } : null
+    case 'passar':
+      return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'passar', golpeId, tokenId } : null
     default:
       return null
   }

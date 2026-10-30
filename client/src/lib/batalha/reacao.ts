@@ -31,13 +31,22 @@ export function saidasPossiveis(d20: number, total: number): SaidaDaReacao[] {
   return ['cheio']
 }
 
-/** Quanto do dano que chega passa: crítico 1,5; cheio, Não reagir e sem reação 1; metade 0,5; esquiva e contra-ataque 0. */
+/**
+ * Passar depois do dado: toma o golpe inteiro sem usar a reação. O 1 natural
+ * continua crítico (passar não foge dele). Ex.: d20 17 = "passou"; d20 1 = "critico".
+ */
+export function saidaDoPassar(d20: number): SaidaDaReacao {
+  return d20 === DADO_DO_CRITICO ? 'critico' : 'passou'
+}
+
+/** Quanto do dano que chega passa: crítico 1,5; cheio, Não reagir, Passar e sem reação 1; metade 0,5; esquiva e contra-ataque 0. */
 export function fatorDaSaida(saida: SaidaDaReacao): number {
   switch (saida) {
     case 'critico':
       return MULTIPLICADOR_DO_CRITICO
     case 'cheio':
     case 'naoReagiu':
+    case 'passou':
     case 'semReacao':
       return 1
     case 'metade':

@@ -20,7 +20,7 @@ import {
 import { equipeDe } from '../lib/batalha/equipes'
 import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
 import { armasDe, limiteDeArmas } from '../lib/batalha/leituraDaFicha'
-import { ajustesDoDano, saidasPossiveis } from '../lib/batalha/reacao'
+import { ajustesDoDano, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
 import {
   comLinha,
@@ -845,13 +845,19 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
           break
         }
         case 'escolher':
-        case 'naoReagir': {
+        case 'naoReagir':
+        case 'passar': {
           let saida: SaidaDaReacao = 'naoReagiu'
           // Depois de rolar, o jogador escolhe entre o que o dado deu: "Não reagir" no 1 natural fugiria do crítico. O mestre pode tudo.
           if (pedido.tipo === 'naoReagir' && alvo.rolagem !== undefined && autor.tipo === 'jogador') return false
           if (pedido.tipo === 'escolher') {
             if (alvo.rolagem === undefined || !saidasPossiveis(alvo.rolagem.d20, alvo.rolagem.total).includes(pedido.saida)) return false
             saida = pedido.saida
+          }
+          // Passar só depois do dado: o golpe inteiro, sem usar a reação; o 1 natural continua crítico.
+          if (pedido.tipo === 'passar') {
+            if (alvo.rolagem === undefined) return false
+            saida = saidaDoPassar(alvo.rolagem.d20)
           }
           novo = resolverAlvo(golpe, alvo.tokenId, saida)
           const resolvido = novo.alvos.find((candidato) => candidato.tokenId === alvo.tokenId)

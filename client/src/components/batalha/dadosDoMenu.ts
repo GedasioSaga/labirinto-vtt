@@ -282,6 +282,7 @@ export const TEXTO_DA_SAIDA: Record<SaidaDaReacao, { botao: string; selo: string
   esquiva: { botao: 'Esquivar', selo: 'Esquivou' },
   contra: { botao: 'Contra-atacar', selo: 'Contra-ataque!' },
   naoReagiu: { botao: 'Não reagir', selo: 'Não reagiu' },
+  passou: { botao: 'Passar', selo: 'Passou' },
   semReacao: { botao: 'Receber o golpe', selo: 'Sem reação' },
 }
 

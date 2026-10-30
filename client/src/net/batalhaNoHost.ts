@@ -385,6 +385,8 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
           if (alvo === undefined || alvo.danoFinal !== undefined || !fichaDele(lugar, alvo.tokenId, alvo.personagemId)) return false
           // "Não reagir" depois do d20 rolado seria fugir do resultado (o 1 natural, do crítico): só o mestre marca.
           if (pedido.tipo === 'naoReagir' && alvo.rolagem !== undefined) return false
+          // "Passar" é a saída do jogador DEPOIS do dado: toma o golpe inteiro e o 1 natural continua crítico (a store decide a saída).
+          if (pedido.tipo === 'passar' && alvo.rolagem === undefined) return false
         }
         return ponte.reagir(lugar.sceneKey, autorDe(conexao), pedido)
       })

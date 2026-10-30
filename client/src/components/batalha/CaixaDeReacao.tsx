@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { MODIFICADOR_DA_REACAO_MAX, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
-import { saidasPossiveis } from '../../lib/batalha/reacao'
+import { danoFinal, saidaDoPassar, saidasPossiveis } from '../../lib/batalha/reacao'
 import { formatarNumero, movimentoReduzido, saidasNaTela, TEXTO_DA_SAIDA } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
@@ -10,8 +10,10 @@ import './combate.css'
  * e quanto; o modificador (lembrado por ficha nesta sessão); Rolar 1d20 (o
  * dado é rolado no host); o d20 animado (160 ms entra, 8 números em 380 ms,
  * pousa em 200 ms); depois só as saídas que o TOTAL liberou (Q3), com o dano
- * de cada uma; Rerolar (Ponto Saga, sem limite: decisão 10); Não reagir. No
- * 20, Contra-atacar zera o dano e dá uma ação a mais (Q6).
+ * de cada uma, e Passar (toma o golpe inteiro sem usar a reação) quando o
+ * dado liberou alguma; Rerolar (Ponto Saga, sem limite: decisão 10); Não
+ * reagir, só antes do dado. No 20, Contra-atacar zera o dano e dá uma ação a
+ * mais (Q6). No 1 natural e abaixo de 10 o único botão já é receber o golpe.
  *
  * Com mais de um golpe esperando (o mestre, um por NPC atingido), uma linha
  * por golpe e "Rolar todas". Esc recolhe (o botão REAÇÃO reabre).
@@ -38,8 +40,6 @@ export interface CaixaDeReacaoProps {
   onPedir: (pedido: PedidoDeReacao) => boolean
   /** Esc ou "Depois": recolhe. Ausente = a caixa não recolhe. */
   onFechar?: () => void
-  /** "Não reagir" depois do dado: só o mestre pode. */
-  naoReagirDepoisDoDado?: boolean
 }
 
 /** O modificador de reação lembrado por ficha durante a sessão (some ao recarregar a página). */
@@ -112,13 +112,11 @@ function UmaReacao({
   sozinha,
   onPedir,
   focar,
-  naoReagirDepoisDoDado,
 }: {
   reacao: ReacaoNaCaixa
   sozinha: boolean
   onPedir: (pedido: PedidoDeReacao) => boolean
   focar: boolean
-  naoReagirDepoisDoDado: boolean
 }) {
   const [modTexto, setModTexto] = useState(() => {
     const lembrado = modificadorLembrado.get(reacao.tokenId) ?? 0
@@ -147,10 +145,13 @@ function UmaReacao({
     modificadorLembrado.set(reacao.tokenId, modificador)
     const saiu = onPedir(pedido)
     setErro(saiu ? null : 'Não saiu: sem conexão com o mestre. Tente de novo.')
-    if (saiu && pedido.tipo !== 'escolher' && pedido.tipo !== 'naoReagir') setEsperando(true)
+    // Só o dado espera a volta do host; escolher, Passar e Não reagir resolvem e a caixa sai.
+    if (saiu && (pedido.tipo === 'rolar' || pedido.tipo === 'rerolar')) setEsperando(true)
   }
   const golpeId = reacao.golpeId
   const saidas = rolagem === undefined ? [] : saidasNaTela(rolagem.d20, rolagem.total, reacao.dano)
+  // Passar só quando o dado liberou uma reação: no 1 natural e abaixo de 10 o único botão já é receber o golpe.
+  const passar = rolagem === undefined || saidas.some((saida) => saida.saida === 'cheio' || saida.saida === 'critico') ? null : saidaDoPassar(rolagem.d20)
   const textoDoModificador = rolagem === undefined || rolagem.modificador === 0 ? '' : ` ${rolagem.modificador > 0 ? '+' : '−'} ${Math.abs(rolagem.modificador)}`
 
   return (
@@ -199,6 +200,11 @@ function UmaReacao({
                   {rotuloDaSaida(saida.saida, saida.dano)}
                 </button>
               ))}
+              {passar !== null && (
+                <button type="button" className="bt-botao" title="Toma o golpe inteiro sem usar a reação" onClick={() => pedir({ tipo: 'passar', golpeId, tokenId: reacao.tokenId })}>
+                  {rotuloDaSaida(passar, reacao.dano === null ? null : danoFinal(reacao.dano, passar))}
+                </button>
+              )}
               <button type="button" className="bt-botao bt-botao--fantasma" disabled={esperando} onClick={() => pedir({ tipo: 'rerolar', golpeId, tokenId: reacao.tokenId, modificador })}>
                 {esperando ? 'Rolando…' : 'Rolar de novo'}
               </button>
@@ -212,7 +218,7 @@ function UmaReacao({
             ? '10+ defende (metade) · 15+ esquiva · 20 contra-ataca · 1 é falha crítica (×1,5). Conta o total.'
             : `d20 ${rolagem.d20}${textoDoModificador} = ${rolagem.total} · ${TEXTO_DA_SAIDA[saidasPossiveis(rolagem.d20, rolagem.total)[0] ?? 'cheio'].selo}`}
         </span>
-        {golpeId !== null && (rolagem === undefined || naoReagirDepoisDoDado) && (
+        {golpeId !== null && rolagem === undefined && (
           <button type="button" className="bt-botao bt-botao--p" onClick={() => pedir({ tipo: 'naoReagir', golpeId, tokenId: reacao.tokenId })}>
             Não reagir
           </button>
@@ -234,7 +240,7 @@ function rotuloDaSaida(saida: SaidaDaReacao, dano: number | null): string {
   return `${nome} · ${formatarNumero(dano)}`
 }
 
-export function CaixaDeReacao({ reacoes, onPedir, onFechar, naoReagirDepoisDoDado = false }: CaixaDeReacaoProps) {
+export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps) {
   const sozinha = reacoes.length === 1
   const naoRoladas = reacoes.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null)
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
@@ -253,12 +259,12 @@ export function CaixaDeReacao({ reacoes, onPedir, onFechar, naoReagirDepoisDoDad
         <span className="bt-reacao__conta">{sozinha ? '' : `${reacoes.length} golpes esperando`}</span>
       </div>
       {sozinha ? (
-        <UmaReacao reacao={reacoes[0] as ReacaoNaCaixa} sozinha onPedir={onPedir} focar naoReagirDepoisDoDado={naoReagirDepoisDoDado} />
+        <UmaReacao reacao={reacoes[0] as ReacaoNaCaixa} sozinha onPedir={onPedir} focar />
       ) : (
         <ul className="bt-reacao__lista">
           {reacoes.map((reacao, i) => (
             <li key={chaveDa(reacao)} className="bt-reacao__item">
-              <UmaReacao reacao={reacao} sozinha={false} onPedir={onPedir} focar={i === 0} naoReagirDepoisDoDado={naoReagirDepoisDoDado} />
+              <UmaReacao reacao={reacao} sozinha={false} onPedir={onPedir} focar={i === 0} />
             </li>
           ))}
         </ul>

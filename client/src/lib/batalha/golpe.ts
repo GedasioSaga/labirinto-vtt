@@ -405,6 +405,8 @@ function textoDaSaida(saida: SaidaDaReacao, dano: number): string {
       return 'contra-atacou'
     case 'naoReagiu':
       return `não reagiu, recebeu ${dano}`
+    case 'passou':
+      return `passou (tomou ${dano})`
     case 'semReacao':
       return `${dano} sem reação`
   }
