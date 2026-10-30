@@ -40,6 +40,8 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
       rotulo: 'Ofício',
       opcoes: ['Arqueólogo', 'Artista', 'Carpinteiro', 'Cientista', 'Cozinheiro', 'Ferreiro', 'Gatuno', 'Médico', 'Curandeiro', 'Navegador'],
     },
+    // Batalha F2 (Q1): quantas armas da aba Armas a ficha leva para cada batalha; vazio = sem limite.
+    { id: 'armasPorBatalha', rotulo: 'Armas por batalha', opcoes: ['1 arma', '2 armas', '3 armas', '4 armas', '5 armas', '6 armas'] },
   ],
   recursos: [
     // HP e SP gastam e voltam na sessão (450/600); o Escudo é um número só.
@@ -120,6 +122,21 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
       imagem: true,
       modificadores: true,
       subcartoes: { aba: 'habilidades', rotulo: 'Técnicas da forma' },
+    },
+    {
+      // Batalha F2: as armas que o Atacar usa ("Força + Dano da arma") e que as fórmulas leem ("Dano da Arma").
+      id: 'armas',
+      nome: 'Armas',
+      item: 'Arma',
+      vazio: 'Nenhuma arma.',
+      campos: [
+        { id: 'dano', rotulo: 'Dano', forma: 'linha' },
+        { id: 'acao', rotulo: 'Ação', forma: 'linha' },
+        { id: 'modificador', rotulo: 'Modificador', forma: 'linha' },
+        { id: 'efeito', rotulo: 'Efeito', forma: 'linha' },
+        { id: 'descricao', rotulo: 'Descrição', forma: 'paragrafo' },
+      ],
+      imagem: true,
     },
   ],
   livro: LIVRO_ONE_PIECE,

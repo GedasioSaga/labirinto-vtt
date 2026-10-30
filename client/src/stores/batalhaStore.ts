@@ -1,14 +1,33 @@
 import { create } from 'zustand'
 import type { Casa } from '../lib/batalha/blocos'
 import { somarNaTrilha } from '../lib/batalha/caminhoAndado'
-import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDeReacao } from '../lib/batalha/combate'
+import {
+  ARMAS_NA_BATALHA_MAX,
+  combateVazio,
+  CONTRAS_MAX,
+  DANO_MAX,
+  EFEITOS_GUARDADOS,
+  MODIFICADOR_DA_REACAO_MAX,
+  type AlvoDoGolpe,
+  type CombateDoPersonagem,
+  type ContraAtaque,
+  type EfeitoDaBatalha,
+  type GolpeDaBatalha,
+  type PedidoDeAcao,
+  type PedidoDeReacao,
+  type SaidaDaReacao,
+} from '../lib/batalha/combate'
 import { equipeDe } from '../lib/batalha/equipes'
+import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
+import { armasDe, limiteDeArmas } from '../lib/batalha/leituraDaFicha'
+import { ajustesDoDano, saidasPossiveis } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
 import {
   comLinha,
   desfazerFicha,
   marcarDesfeita,
   nomeDoAutor,
+  partesDoAjuste,
   novoIdDeLinha,
   proximoSeq,
   registrarAjuste as registrarAjusteNasLinhas,
@@ -16,6 +35,7 @@ import {
   textoDaLinha,
   TIPOS_QUE_O_JOGADOR_DESFAZ,
   type LinhaDoRegistro,
+  type ParteDaFicha,
   type Reversao,
   type TipoDaLinha,
 } from '../lib/batalha/registro'
@@ -43,7 +63,7 @@ import {
   type DuracaoDaExtra,
   type TurnosDaCena,
 } from '../lib/batalha/turnos'
-import { NOME_DO_MESTRE } from '../lib/ajusteDaFicha'
+import { aplicarAjustes, NOME_DO_MESTRE, type Ajuste } from '../lib/ajusteDaFicha'
 import { secureRollDie } from '../lib/dice'
 import type { Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -224,6 +244,8 @@ function nomeDaCarta(carta: CartaDaOrdem | null | undefined, personagens: readon
 }
 
 interface LinhaNova {
+  /** Ausente = id novo. O golpe já nasce apontando para a linha que o atualiza. */
+  id?: string
   tipo: TipoDaLinha
   texto: string
   tokenIds?: readonly string[]
@@ -238,7 +260,7 @@ function comMudanca(cena: BatalhaDaCena, turnos: TurnosDaCena, linha: LinhaNova 
     linha === null
       ? cena.registro
       : comLinha(cena.registro, {
-          id: novoIdDeLinha(),
+          id: linha.id ?? novoIdDeLinha(),
           seq: proximoSeq(cena.registro),
           quando: Date.now(),
           rodada: turnos.rodada,
@@ -324,6 +346,113 @@ function desfazerReversao(cena: BatalhaDaCena, reversao: Reversao, autor: AutorD
   }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// F2: golpe, reação, dano — o lado que mexe na ficha e solta os efeitos
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Um efeito antes de ganhar o `seq`. */
+type EfeitoNovo = EfeitoDaBatalha extends infer E ? (E extends EfeitoDaBatalha ? Omit<E, 'seq'> : never) : never
+
+/**
+ * O último `seq` de efeito da sessão. Um contador só para todas as cenas e
+ * batalhas: sobe sempre, então a conexão que guardou o último `seq` tocado
+ * nunca vê um número velho de novo (nem depois de a batalha acabar e outra
+ * começar).
+ */
+let ultimoSeqDeEfeito = 0
+
+function comEfeitos(efeitos: readonly EfeitoDaBatalha[] | undefined, novos: readonly EfeitoNovo[]): readonly EfeitoDaBatalha[] | undefined {
+  if (novos.length === 0) return efeitos
+  const lista: EfeitoDaBatalha[] = [...(efeitos ?? [])]
+  for (const novo of novos) {
+    ultimoSeqDeEfeito += 1
+    lista.push({ ...novo, seq: ultimoSeqDeEfeito })
+  }
+  return lista.slice(-EFEITOS_GUARDADOS)
+}
+
+function novoIdDeGolpe(): string {
+  return `golpe_${crypto.randomUUID()}`
+}
+
+/**
+ * Mexe na ficha pela aventura (o histórico dela cresce em nome de `quem`; a
+ * mudança chega ao jogador pelo `syncPersonagens` de sempre). `ajustes`
+ * recebe o personagem de AGORA (o Escudo de agora, o SP de agora). Devolve as
+ * partes que mudaram (vazio = nada), ou `null` (personagem ou sistema não
+ * existe).
+ */
+function mexerNaFicha(personagemId: string, ajustes: (atual: Personagem, sistema: SistemaDeRpg) => readonly Ajuste[], quem: string): ParteDaFicha[] | null {
+  const { sistema } = mesaDoRpg()
+  if (sistema === null) return null
+  let partes: ParteDaFicha[] | null = null
+  useAdventureStore.getState().ajustarPersonagem(personagemId, (atual) => {
+    const lista = ajustes(atual, sistema)
+    const depois = lista.length === 0 ? atual : aplicarAjustes(atual, sistema, lista, quem, Date.now())
+    partes = partesDoAjuste(atual, depois, sistema)
+    return depois
+  })
+  return partes
+}
+
+/** O nome que vai no histórico da ficha quando a batalha mexe nela. */
+function quemNaFicha(autor: AutorDaAcao): string {
+  return nomeDoAutor(autor)
+}
+
+/** O personagem de cada ficha na ordem (alvo possível); `undefined` = fora da ordem. */
+function personagemDoTokenNa(turnos: TurnosDaCena): (tokenId: string) => string | null | undefined {
+  return (tokenId) => turnos.cartas.find((carta) => carta.tokenId === tokenId)?.personagemId
+}
+
+/** O nome da ficha para o texto, pela carta dela na ordem. */
+function nomeDoTokenNa(turnos: TurnosDaCena, personagens: readonly Personagem[]): (tokenId: string) => string {
+  return (tokenId) => nomeDaCarta(turnos.cartas.find((carta) => carta.tokenId === tokenId), personagens)
+}
+
+/** A reversão de uma ficha mexida; nada mudou = nenhuma. */
+function reversaoDaFicha(personagemId: string, partes: readonly ParteDaFicha[] | null): Reversao[] {
+  return partes === null || partes.length === 0 ? [] : [{ tipo: 'ficha', personagemId, partes }]
+}
+
+/** A lista com o golpe trocado (ou tirado, se não espera mais ninguém). */
+function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: GolpeDaBatalha): GolpeDaBatalha[] {
+  const outros = (golpes ?? []).filter((candidato) => candidato.id !== golpe.id)
+  return golpePendente(golpe) ? [...outros, golpe] : outros
+}
+
+/** O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo. */
+function danoNoAlvo(alvo: AlvoDoGolpe, perfurante: boolean, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } {
+  if (alvo.danoFinal === undefined || alvo.saida === undefined) return { partes: [], efeito: null }
+  const valor = alvo.danoFinal
+  const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, perfurante), quemNaFicha(autor))
+  // A animação toca sempre (esquiva também: "ESQUIVOU" sobre a ficha).
+  return { partes: alvo.personagemId === null ? [] : reversaoDaFicha(alvo.personagemId, partes), efeito: { tipo: 'dano', tokenId: alvo.tokenId, valor, saida: alvo.saida } }
+}
+
+/** A linha do registro com outro texto e mais partes na reversão (o golpe que se resolve alvo a alvo). */
+function linhaAtualizada(registro: readonly LinhaDoRegistro[], linhaId: string, texto: string, maisPartes: readonly Reversao[]): readonly LinhaDoRegistro[] {
+  const indice = registro.findIndex((linha) => linha.id === linhaId)
+  const linha = registro[indice]
+  if (linha === undefined) return registro
+  const reversao: Reversao = maisPartes.length === 0 ? linha.reversao : { tipo: 'composta', partes: [...(linha.reversao.tipo === 'composta' ? linha.reversao.partes : [linha.reversao]), ...maisPartes] }
+  const lista = [...registro]
+  lista[indice] = { ...linha, texto: textoDaLinha(texto), reversao }
+  return lista
+}
+
+/** "+1 Simples, +1 Bônus". */
+function textoDasExtras(extras: AcoesExtras): string {
+  const partes = [extras.simples > 0 ? `+${extras.simples} Simples` : null, extras.bonus > 0 ? `+${extras.bonus} Bônus` : null, extras.mov > 0 ? `+${extras.mov} Movimento` : null]
+  return partes.filter((parte): parte is string => parte !== null).join(', ')
+}
+
+const EXTRAS_MAX = 20
+
+function contadorDeExtra(valor: number): number {
+  return Number.isFinite(valor) ? Math.min(EXTRAS_MAX, Math.max(0, Math.trunc(valor))) : 0
+}
+
 export const useBatalhaStore = create<BatalhaState>()((set, get) => {
   /** A cena ligada, ou `undefined`. */
   const cenaDe = (sceneKey: string): BatalhaDaCena | undefined => get().cenas[sceneKey]
@@ -378,7 +507,15 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       if (cena === undefined || !Number.isFinite(blocos) || blocos <= 0) return
       const caminhos = { ...cena.caminhos, [tokenId]: (cena.caminhos[tokenId] ?? 0) + blocos }
       const trilhas = { ...cena.trilhas, [tokenId]: somarNaTrilha(cena.trilhas[tokenId] ?? [], casas) }
-      gravarCena(sceneKey, { ...cena, caminhos, trilhas, rev: cena.rev + 1 })
+      const daVez = cartaDaVez(cena.turnos)
+      if (daVez === null || daVez.tokenId !== tokenId) {
+        gravarCena(sceneKey, { ...cena, caminhos, trilhas, rev: cena.rev + 1 })
+        return
+      }
+      // S7: a ficha da carta da vez andou — o "Mov 2/4" conta (e não trava, decisão 6); `turnosRev` sobe para o recorte chegar.
+      const gasto = cena.turnos.gastos[daVez.id] ?? { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
+      const turnos: TurnosDaCena = { ...cena.turnos, gastos: { ...cena.turnos.gastos, [daVez.id]: { ...gasto, blocos: gasto.blocos + blocos } } }
+      gravarCena(sceneKey, { ...cena, caminhos, trilhas, turnos, rev: cena.rev + 1, turnosRev: cena.turnosRev + 1 })
     },
 
     ligada: (sceneKey) => Object.hasOwn(get().cenas, sceneKey),
@@ -401,7 +538,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
         autor,
         texto: de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`,
         tokenIds: [...new Set([de?.tokenId, para?.tokenId].filter((id): id is string => id !== undefined))],
-        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos } },
+        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, extras: turnos.extras, combate: turnos.combate ?? {} } },
       }
       gravarCena(sceneKey, comMudanca(cena, passada.turnos, linha))
       return true
@@ -418,7 +555,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
             tipo: 'vez',
             texto: `Vez dada a ${nomeDaCarta(para, personagens)}`,
             tokenIds: para === null ? [] : [para.tokenId],
-            reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas: [], gastos: antes.gastos } },
+            reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas: [], gastos: antes.gastos, extras: antes.extras, combate: antes.combate ?? {} } },
           }
         },
       ),
@@ -590,13 +727,214 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       return true
     },
 
-    // F2 fase 0: o contrato. Os corpos chegam na fase 1; até lá nada muda e o pedido é recusado.
-    agir: () => false,
-    reagir: () => false,
-    darDano: () => false,
-    darAcoesExtras: () => false,
-    escolherArmas: () => false,
-    trocarPerfurante: () => false,
+    agir: (sceneKey, autor, vez, pedido) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return false
+      const { turnos } = cena
+      const contraDe = pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
+      // O contra-ataque (Q6) age fora da vez, pela carta da ficha que o ganhou; o resto, só a carta da vez nesta rodada.
+      const contra = contraDe === undefined ? null : ((turnos.contras ?? []).find((candidato) => candidato.golpeId === contraDe) ?? null)
+      if (contraDe !== undefined && contra === null) return false
+      if (contra === null && (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada)) return false
+      const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
+      if (carta === null) return false
+      const { personagens, sistema } = mesaDoRpg()
+      const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
+      const ctx: ContextoDoGolpe = { turnos, carta, personagem, sistema, regras: cena.regras, autor, personagens, personagemDoToken: personagemDoTokenNa(turnos) }
+      if (podeAgir(ctx, pedido) !== null) return false
+      const linhaId = novoIdDeLinha()
+      const lancado = lancarGolpe(ctx, pedido, { golpe: novoIdDeGolpe(), linha: linhaId })
+      const quem = quemNaFicha(autor)
+      // A ordem da reversão é a da seção 3.6: gasto, combate, custo, contra-ataque, golpe, fichas dos alvos.
+      const partes: Reversao[] = []
+      let novos: TurnosDaCena = turnos
+      if (lancado.gasto !== null) {
+        partes.push({ tipo: 'gasto', cartaId: carta.id, antes: turnos.gastos[carta.id] ?? null })
+        novos = { ...novos, gastos: { ...novos.gastos, [carta.id]: lancado.gasto } }
+      }
+      if (lancado.combate !== null && carta.personagemId !== null) {
+        partes.push({ tipo: 'combate', personagemId: carta.personagemId, antes: turnos.combate?.[carta.personagemId] ?? null })
+        novos = { ...novos, combate: { ...(novos.combate ?? {}), [carta.personagemId]: lancado.combate } }
+      }
+      if (lancado.custo.length > 0 && carta.personagemId !== null) {
+        const custo = lancado.custo
+        partes.push(...reversaoDaFicha(carta.personagemId, mexerNaFicha(carta.personagemId, () => custo, quem)))
+      }
+      if (lancado.contraUsado !== null) {
+        const usado = lancado.contraUsado
+        partes.push({ tipo: 'contra', contra: usado })
+        novos = { ...novos, contras: (novos.contras ?? []).filter((candidato) => !(candidato.golpeId === usado.golpeId && candidato.tokenId === usado.tokenId)) }
+      }
+      const efeitos: EfeitoNovo[] = []
+      const { golpe } = lancado
+      if (golpe !== null) {
+        partes.push({ tipo: 'golpe', golpeId: golpe.id })
+        efeitos.push({ tipo: 'golpe', golpeId: golpe.id, atacanteTokenId: golpe.atacanteTokenId, nome: golpe.nome, alvos: golpe.alvos.map((alvo) => alvo.tokenId), surpresa: golpe.surpresa, overload: golpe.overload })
+        for (const alvo of lancado.resolvidos) {
+          const feito = danoNoAlvo(alvo, golpe.perfurante, autor)
+          partes.push(...feito.partes)
+          if (feito.efeito !== null) efeitos.push(feito.efeito)
+        }
+        novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
+      }
+      const nomeDoToken = nomeDoTokenNa(turnos, personagens)
+      const quemAge = nomeDoToken(carta.tokenId)
+      let texto: string
+      let tipo: TipoDaLinha
+      if (golpe !== null) {
+        texto = textoDoGolpe(golpe, nomeDoToken)
+        tipo = pedido.tipo === 'habilidade' ? 'habilidade' : 'golpe'
+      } else if (pedido.tipo === 'concentrar') {
+        texto = `${quemAge} concentrou (carga ${lancado.combate?.carga ?? 0})`
+        tipo = 'acao'
+      } else {
+        texto = `${quemAge} usou o contra-ataque para se mover`
+        tipo = 'acao'
+      }
+      const tokenIds = [...new Set([carta.tokenId, ...(golpe?.alvos.map((alvo) => alvo.tokenId) ?? [])])]
+      // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
+      const atual = cenaDe(sceneKey) ?? cena
+      gravarCena(sceneKey, {
+        ...comMudanca(atual, novos, { id: linhaId, tipo, texto, autor, tokenIds, reversao: { tipo: 'composta', partes } }),
+        efeitos: comEfeitos(atual.efeitos, efeitos),
+      })
+      return true
+    },
+
+    reagir: (sceneKey, autor, pedido) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return false
+      const { turnos } = cena
+      const { personagens } = mesaDoRpg()
+      const nomeDoToken = nomeDoTokenNa(turnos, personagens)
+      if ((pedido.tipo === 'rolar' || pedido.tipo === 'rerolar') && (!Number.isInteger(pedido.modificador) || Math.abs(pedido.modificador) > MODIFICADOR_DA_REACAO_MAX)) return false
+      // Reação livre (o botão Reação sem golpe esperando): o d20 para todos e uma linha.
+      if (pedido.tipo === 'rolar' && pedido.golpeId === null) {
+        if (!turnos.cartas.some((carta) => carta.tokenId === pedido.tokenId)) return false
+        const d20 = rolarD20()
+        const total = d20 + pedido.modificador
+        const texto = `${nomeDoToken(pedido.tokenId)} reagiu: ${textoDaRolagem(d20, pedido.modificador, total)}`
+        gravarCena(sceneKey, {
+          ...comMudanca(cena, turnos, { tipo: 'reacao', texto, autor, tokenIds: [pedido.tokenId], reversao: { tipo: 'composta', partes: [] } }),
+          efeitos: comEfeitos(cena.efeitos, [{ tipo: 'reacao', golpeId: null, tokenId: pedido.tokenId, d20, modificador: pedido.modificador, total }]),
+        })
+        return true
+      }
+      const golpe = (turnos.golpes ?? []).find((candidato) => candidato.id === pedido.golpeId)
+      const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === pedido.tokenId)
+      if (golpe === undefined || alvo === undefined || alvo.danoFinal !== undefined) return false
+      let novo: GolpeDaBatalha
+      const efeitos: EfeitoNovo[] = []
+      const partes: Reversao[] = []
+      let contras = turnos.contras
+      switch (pedido.tipo) {
+        case 'rolar':
+        case 'rerolar': {
+          // Rolar só sem rolagem; Rerolar só com (Ponto Saga é manual, sem limite: decisão 10).
+          if (!alvo.podeReagir || (pedido.tipo === 'rolar') !== (alvo.rolagem === undefined)) return false
+          const d20 = rolarD20()
+          novo = rolarReacao(golpe, alvo.tokenId, pedido.modificador, d20)
+          efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: alvo.tokenId, d20, modificador: pedido.modificador, total: d20 + pedido.modificador })
+          break
+        }
+        case 'escolher':
+        case 'naoReagir': {
+          let saida: SaidaDaReacao = 'naoReagiu'
+          // Depois de rolar, o jogador escolhe entre o que o dado deu: "Não reagir" no 1 natural fugiria do crítico. O mestre pode tudo.
+          if (pedido.tipo === 'naoReagir' && alvo.rolagem !== undefined && autor.tipo === 'jogador') return false
+          if (pedido.tipo === 'escolher') {
+            if (alvo.rolagem === undefined || !saidasPossiveis(alvo.rolagem.d20, alvo.rolagem.total).includes(pedido.saida)) return false
+            saida = pedido.saida
+          }
+          novo = resolverAlvo(golpe, alvo.tokenId, saida)
+          const resolvido = novo.alvos.find((candidato) => candidato.tokenId === alvo.tokenId)
+          if (resolvido === undefined) return false
+          const feito = danoNoAlvo(resolvido, golpe.perfurante, autor)
+          partes.push(...feito.partes)
+          if (feito.efeito !== null) efeitos.push(feito.efeito)
+          // Q6: 20 e Contra-atacar = sem dano e uma ação a mais na hora, fora da vez (Atacar, Habilidade ou Mover).
+          if (saida === 'contra' && (contras?.length ?? 0) < CONTRAS_MAX) {
+            const ganho: ContraAtaque = { golpeId: golpe.id, tokenId: alvo.tokenId, personagemId: alvo.personagemId, atacanteTokenId: golpe.atacanteTokenId, rodada: turnos.rodada }
+            contras = [...(contras ?? []), ganho]
+          }
+          break
+        }
+      }
+      const novos: TurnosDaCena = { ...turnos, golpes: comGolpe(turnos.golpes, novo) }
+      if (contras !== undefined) novos.contras = contras
+      const atual = cenaDe(sceneKey) ?? cena
+      const registro = linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(novo, nomeDoToken), partes)
+      gravarCena(sceneKey, { ...atual, turnos: novos, registro, efeitos: comEfeitos(atual.efeitos, efeitos), turnosRev: atual.turnosRev + 1 })
+      return true
+    },
+
+    darDano: (sceneKey, autor, tokenId, valor) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined || !Number.isInteger(valor) || valor < 1 || valor > DANO_MAX) return false
+      const carta = cena.turnos.cartas.find((candidata) => candidata.tokenId === tokenId)
+      if (carta === undefined || carta.personagemId === null) return false
+      const personagemId = carta.personagemId
+      const partes = mexerNaFicha(personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, false), quemNaFicha(autor))
+      if (partes === null) return false
+      const alvo = nomeDaCarta(carta, mesaDoRpg().personagens)
+      const texto = `${nomeDoAutor(autor)} deu ${valor} de dano em ${alvo}`
+      const atual = cenaDe(sceneKey) ?? cena
+      gravarCena(sceneKey, {
+        ...comMudanca(atual, atual.turnos, { tipo: 'dano', texto, autor, tokenIds: [tokenId], reversao: { tipo: 'composta', partes: reversaoDaFicha(personagemId, partes) } }),
+        efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId, valor, saida: 'direto' }]),
+      })
+      return true
+    },
+
+    darAcoesExtras: (sceneKey, cartaId, extras) => {
+      const cena = cenaDe(sceneKey)
+      const carta = cena?.turnos.cartas.find((candidata) => candidata.id === cartaId)
+      if (cena === undefined || carta === undefined) return false
+      const antes = cena.turnos.extras[cartaId] ?? null
+      const limpas: AcoesExtras | null =
+        extras === null ? null : { simples: contadorDeExtra(extras.simples), bonus: contadorDeExtra(extras.bonus), mov: contadorDeExtra(extras.mov), duracao: extras.duracao, rodada: cena.turnos.rodada }
+      const valem = limpas !== null && limpas.simples + limpas.bonus + limpas.mov > 0 ? limpas : null
+      if (antes === null && valem === null) return false
+      const extrasNovas: Record<string, AcoesExtras> = { ...cena.turnos.extras }
+      if (valem === null) delete extrasNovas[cartaId]
+      else extrasNovas[cartaId] = valem
+      const nome = nomeDaCarta(carta, mesaDoRpg().personagens)
+      const quanto = valem?.duracao === 'sempre' ? 'em todas as vezes' : 'só nesta vez'
+      const texto = valem === null ? `Mestre tirou as ações extras de ${nome}` : `Mestre: ${textoDasExtras(valem)} para ${nome} (${quanto})`
+      gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, extras: extrasNovas }, { tipo: 'acoesExtras', texto, tokenIds: [carta.tokenId], reversao: { tipo: 'acoesExtras', cartaId, antes } }))
+      return true
+    },
+
+    escolherArmas: (sceneKey, autor, personagemId, armas) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return false
+      const tokenIds = [...new Set(cena.turnos.cartas.filter((carta) => carta.personagemId === personagemId).map((carta) => carta.tokenId))]
+      const personagem = mesaDoRpg().personagens.find((candidato) => candidato.id === personagemId)
+      if (tokenIds.length === 0 || personagem === undefined) return false
+      // Q8: troca quando quiser, sempre dentro do limite da ficha; só armas da aba Armas, sem repetir.
+      const daFicha = armasDe(personagem)
+      const limite = limiteDeArmas(personagem) ?? ARMAS_NA_BATALHA_MAX
+      if (new Set(armas).size !== armas.length || armas.length > limite || !armas.every((id) => daFicha.some((arma) => arma.id === id))) return false
+      const antes: CombateDoPersonagem | null = cena.turnos.combate?.[personagemId] ?? null
+      const base = antes ?? combateVazio()
+      if (base.armas !== null && base.armas.length === armas.length && base.armas.every((id, i) => armas[i] === id)) return true
+      const nomes = armas.map((id) => daFicha.find((arma) => arma.id === id)?.nome ?? 'arma')
+      const lista = nomes.length === 0 ? 'nenhuma arma' : nomes.length === 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`
+      const turnos: TurnosDaCena = { ...cena.turnos, combate: { ...(cena.turnos.combate ?? {}), [personagemId]: { ...base, armas: [...armas] } } }
+      // `personagemIds` = o dono das armas: a linha das armas de NPC não sai ao jogador (as armas dele são segredo).
+      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'acao', texto: `${personagem.nome} levou ${lista}`, autor, tokenIds, personagemIds: [personagemId], reversao: { tipo: 'combate', personagemId, antes } }))
+      return true
+    },
+
+    trocarPerfurante: (sceneKey, golpeId, perfurante) => {
+      const cena = cenaDe(sceneKey)
+      const golpe = cena?.turnos.golpes?.find((candidato) => candidato.id === golpeId)
+      if (cena === undefined || golpe === undefined || golpe.perfurante === perfurante) return false
+      const novo: GolpeDaBatalha = { ...golpe, perfurante }
+      const registro = linhaAtualizada(cena.registro, golpe.linhaId, textoDoGolpe(novo, nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)), [])
+      gravarCena(sceneKey, { ...cena, turnos: { ...cena.turnos, golpes: comGolpe(cena.turnos.golpes, novo) }, registro, turnosRev: cena.turnosRev + 1 })
+      return true
+    },
   }
 })
 
