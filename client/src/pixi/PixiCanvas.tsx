@@ -771,6 +771,23 @@ interface PixiCanvasProps {
    */
   vezTokenId?: string | null
   /**
+   * BATALHA F2 (S4): recebe a consulta da posição de uma ficha da cena aberta
+   * na tela — `{ x, y }` em px da JANELA (o `clientX`/`clientY` do DOM) e o
+   * raio desenhado em px de tela, pela câmera de agora; `null` = ficha fora da
+   * cena aberta ou escondida pela camada —, assim que o canvas fica pronto, e
+   * uma que só devolve `null` quando ele desmonta. Quem monta guarda a
+   * consulta num ref (num `setState` a função viraria atualizador).
+   */
+  onFichaNaTela?: (consulta: (tokenId: string) => { x: number; y: number; raio: number } | null) => void
+  /**
+   * BATALHA F2 (S4): a MIRA armada. Com ela, o clique esquerdo numa ficha a
+   * escolhe como alvo em vez de selecionar ou arrastar, com qualquer
+   * ferramenta na mão; fora de ficha, o clique esquerdo não faz nada (nem
+   * seleção, nem desenho). A câmera continua (botão do meio, Espaço, roda) e
+   * o clique direito abre os menus de sempre. Ausente = o editor de sempre.
+   */
+  aoEscolherFicha?: (tokenId: string) => void
+  /**
    * Reporta as dimensões NATURAIS (px) da textura de fundo carregada, depois
    * que `redrawBackground` resolve `Assets.load` — `null` sem fundo de
    * imagem ou em erro de carga. Consumido por `GridAlignControls` (via
@@ -986,6 +1003,8 @@ function PixiCanvasDoContexto({
   gridAlignPreview = null,
   batalhaLigada = false,
   vezTokenId = null,
+  onFichaNaTela,
+  aoEscolherFicha,
   onBackgroundImageSizeChange,
   resetZoomRequest,
   cameraRequest = null,
@@ -1022,6 +1041,17 @@ function PixiCanvasDoContexto({
   useEffect(() => {
     menuDoTokenRef.current = menuDoToken
   }, [menuDoToken])
+  // BATALHA F2 (S4): a mira (o `pointerdown` lê o valor vivo) e a consulta da ficha na tela, montada no `setup()`.
+  const aoEscolherFichaRef = useRef(aoEscolherFicha)
+  aoEscolherFichaRef.current = aoEscolherFicha
+  const onFichaNaTelaRef = useRef(onFichaNaTela)
+  const consultaDaFichaRef = useRef<((tokenId: string) => { x: number; y: number; raio: number } | null) | null>(null)
+  useEffect(() => {
+    onFichaNaTelaRef.current = onFichaNaTela
+    // Callback nova com o canvas já pronto: ela recebe a consulta de agora (a da montagem foi à antiga).
+    const consulta = consultaDaFichaRef.current
+    if (consulta !== null) onFichaNaTela?.(consulta)
+  }, [onFichaNaTela])
   const focusObstaclesRef = useRef(focusObstacles)
   useEffect(() => {
     focusObstaclesRef.current = focusObstacles
@@ -3121,6 +3151,18 @@ function PixiCanvasDoContexto({
         return dataUrlToBytes(await pending)
       }
       onImageExporterChangeRef.current?.(exportImage)
+      // BATALHA F2 (S4): onde a ficha da cena aberta está na tela, pela câmera de agora. A
+      // posição é a da store: a ficha do jogador que ainda desliza já responde no ponto final.
+      const fichaNaTela = (tokenId: string): { x: number; y: number; raio: number } | null => {
+        if (destroyed) return null
+        const map = doPisoEmEdicao(useMapStore.getState().map)
+        const token = visibleTokens(map.tokens, map.hiddenLayers).find((candidato) => candidato.id === tokenId)
+        if (token === undefined) return null
+        const caixa = app.canvas.getBoundingClientRect()
+        return { x: caixa.left + camera.x + token.x * camera.scale, y: caixa.top + camera.y + token.y * camera.scale, raio: tokenRadiusOf(token, map.grid) * camera.scale }
+      }
+      consultaDaFichaRef.current = fichaNaTela
+      onFichaNaTelaRef.current?.(fichaNaTela)
       // Onda 3, item 21 — a moldura depende do MESMO gatilho que a grade
       // (câmera/showGrid/grid/gridShape, ver comentário de
       // `unsubscribeGridOffset` abaixo): sem `width`/`height` na assinatura
@@ -5974,6 +6016,17 @@ function PixiCanvasDoContexto({
           return
         }
 
+        // BATALHA F2 (S4): a MIRA armada fica com o botão esquerdo, com qualquer ferramenta:
+        // na ficha, escolhe o alvo; fora dela, nada (nem seleção, nem desenho por baixo).
+        const mira = aoEscolherFichaRef.current
+        if (mira !== undefined && event.button === 0) {
+          mode = 'idle'
+          const mapaDaMira = doPisoEmEdicao(useMapStore.getState().map)
+          const alvo = findTokenAt(visibleTokens(mapaDaMira.tokens, mapaDaMira.hiddenLayers), toWorldPoint(event.global.x, event.global.y), mapaDaMira.grid, pinosNoToque(mapaDaMira))
+          if (alvo !== null) mira(alvo.id)
+          return
+        }
+
         // Botão direito no token que tem menu (o de jogador): quem age é o
         // menu dele, aberto pelo `contextmenu` logo depois. A ferramenta não
         // roda — nem seleção, nem arrasto, nem traço de parede por baixo.
@@ -8748,6 +8801,10 @@ function PixiCanvasDoContexto({
           }
         }
 
+        // BATALHA F2 (S4): mirando, o teclado é da mira (setas trocam o alvo, Espaço marca):
+        // nenhum atalho do editor roda por baixo — a seta não empurra a ficha selecionada.
+        if (aoEscolherFichaRef.current !== undefined) return
+
         const action = resolveShortcut({
           key: event.key,
           ctrlKey: event.ctrlKey,
@@ -9092,6 +9149,8 @@ function PixiCanvasDoContexto({
         cameraRequestRef.current = null
         editingRoomRef.current = null
         onImageExporterChangeRef.current?.(null)
+        consultaDaFichaRef.current = null
+        onFichaNaTelaRef.current?.(() => null)
       }
     }
 

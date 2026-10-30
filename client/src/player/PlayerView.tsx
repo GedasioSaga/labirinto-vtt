@@ -181,7 +181,7 @@ import { drawSharedRoute, sharedRouteLabel } from './drawSharedRoute'
 import type { SharedRoute } from './playerConnection'
 import { createTokenGlides, stepGlides, syncGlide, type TokenGlides } from './tokenGlide'
 import { applyTokenTouch, prepareTokenLayer } from './tokenTouch'
-import { findTappedOtherToken } from './tokenCard'
+import { findOtherTokenAt, findTappedOtherToken } from './tokenCard'
 import {
   NO_TOUCH,
   NO_ZOOM_STEP,
@@ -218,6 +218,19 @@ export interface FocusPointRequest {
   seq: number
 }
 
+/** BATALHA F2 (S4): onde uma ficha está na tela, em px da JANELA (o `clientX`/`clientY` do DOM), e o raio desenhado dela em px de tela. */
+export interface FichaNaTela {
+  x: number
+  y: number
+  raio: number
+}
+
+/** A consulta que o mapa entrega a quem monta (`onFichaNaTela`). `null` = a ficha não está desenhada agora (fora do recorte, escondida, mapa ainda montando). */
+export type ConsultaDaFichaNaTela = (tokenId: string) => FichaNaTela | null
+
+/** A consulta depois que o mapa desmonta: nenhuma ficha está desenhada. */
+const NENHUMA_FICHA_NA_TELA: ConsultaDaFichaNaTela = () => null
+
 interface PlayerViewProps {
   map: MapData
   vision: RegionPoint[][]
@@ -250,6 +263,23 @@ interface PlayerViewProps {
    * de leve a cada 3 s enquanto a vez for dela. `null`/omitido = nenhuma.
    */
   vezTokenId?: string | null
+  /**
+   * BATALHA F2 (S4): recebe a consulta da posição de uma ficha na tela (pela
+   * câmera de agora: segue arrasto, zoom e deslize), assim que o mapa monta, e
+   * uma que só devolve `null` quando ele desmonta (a perda do WebGL remonta e
+   * entrega outra). Quem monta guarda a consulta num ref — num `setState` a
+   * função viraria atualizador — e a chama no quadro em que desenha (o corte
+   * do golpe, o d20 da reação, o número do dano, a marca da mira).
+   */
+  onFichaNaTela?: (consulta: ConsultaDaFichaNaTela) => void
+  /**
+   * BATALHA F2 (S4): a MIRA armada. Com ela, o toque curto numa ficha (a dele
+   * inclusive, para a habilidade em si mesmo) a escolhe como alvo em vez de
+   * abrir o cartão ou arrastar; o toque fora de ficha não faz nada (nem pino,
+   * nem porta, nem andar), e segurar não vira sinal. A câmera continua livre
+   * (arrastar, pinça, roda). Ausente = o mapa de sempre.
+   */
+  aoEscolherFicha?: (tokenId: string) => void
   /** MODO BATALHA (B6): o caminho andado que o host deixou ele ver (`snapshot.caminhos`). Ausente = nenhum. */
   caminhos?: CaminhosDaBatalha
   /**
@@ -2090,6 +2120,8 @@ function PlayerViewDoCanvas({
   luz = null,
   batalha = false,
   vezTokenId = null,
+  onFichaNaTela,
+  aoEscolherFicha,
   caminhos,
   waitingTokens = NO_WAITING,
   settings,
@@ -2165,6 +2197,7 @@ function PlayerViewDoCanvas({
     luz,
     batalha,
     vezTokenId,
+    aoEscolherFicha,
     caminhos,
     waitingTokens,
     settings,
@@ -2856,6 +2889,30 @@ function PlayerViewDoCanvas({
   }
 
   /**
+   * BATALHA F2 (S4): com a mira armada, a ficha sob o ponto da TELA — qualquer
+   * uma desenhada agora, a dele inclusive —, a de cima primeiro, com a folga
+   * de dedo do pino. A porta não disputa: mirando, o toque não abre porta.
+   */
+  function fichaDaMiraAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const { map } = latestRef.current
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const desenhadas = map.tokens.filter((token) => scene.tokenViews.get(token.id)?.wrapper.visible === true)
+    // Sem "fichas próprias" a pular: na mira, a dele também é alvo.
+    const token = findOtherTokenAt(desenhadas, [], point, map.grid, DOOR_TAP_TOLERANCE_PX / scene.camera.scale)
+    return token === null ? null : token.id
+  }
+
+  /** BATALHA F2 (S4): a posição de tela de uma ficha desenhada agora (`ConsultaDaFichaNaTela`), em px da janela. */
+  function fichaNaTela(tokenId: string): FichaNaTela | null {
+    const scene = sceneRef.current
+    const view = scene?.tokenViews.get(tokenId)
+    if (scene === null || view === undefined || !view.wrapper.visible) return null
+    const naTela = scene.world.toGlobal(view.wrapper.position)
+    const caixa = scene.app.canvas.getBoundingClientRect()
+    return { x: caixa.left + naTela.x, y: caixa.top + naTela.y, raio: view.radius * scene.camera.scale }
+  }
+
+  /**
    * ITEM NO MAPA: a imagem de item no chão sob o ponto da TELA, a de cima
    * primeiro, com a folga de dedo do pino. Só quando alguém ouve o toque (como
    * a ficha alheia), e só o que veio no recorte e nas camadas à mostra.
@@ -3429,7 +3486,8 @@ function PlayerViewDoCanvas({
       current.onAcaoNoOlhar()
       return
     }
-    if (event.altKey || current.signalArmed || current.measureArmed || current.laserArmed || current.destinationArmed || current.noteArmed) return
+    // BATALHA F2 (S4): a mira também — a própria ficha vira alvo pelo toque no palco, e não anda.
+    if (event.altKey || current.signalArmed || current.measureArmed || current.laserArmed || current.destinationArmed || current.noteArmed || current.aoEscolherFicha !== undefined) return
     event.stopPropagation()
     // Outro gesto já em curso (o segundo dedo nem chega aqui: a captura do palco o fez pinça).
     if (scene.drag !== null) return
@@ -4473,6 +4531,8 @@ function PlayerViewDoCanvas({
         }
         scene.drag = { kind: 'pan', pointerId, lastX: x, lastY: y, startX: x, startY: y, canTap: true }
         cancelLongPress()
+        // BATALHA F2 (S4): mirando, segurar não vira sinal nem menu — o toque é para escolher o alvo.
+        if (latestRef.current.aoEscolherFicha !== undefined) return
         // Dedo em cima de um PINO ou de uma PORTA não arma o sinal. São
         // controles: quem aperta ali quer ler o cartão ou abrir a porta, e
         // demorar meio segundo para soltar (tela engasgada) não muda a
@@ -4617,6 +4677,13 @@ function PlayerViewDoCanvas({
           const olhar = latestRef.current.onAcaoNoOlhar
           if (olhar !== undefined) {
             if (toqueAcionaria(scene, drag.startX, drag.startY)) olhar()
+            return
+          }
+          // BATALHA F2 (S4): mirando, o toque escolhe a ficha como alvo; fora de ficha não faz nada (nem pino, porta, sala ou andar).
+          const mira = latestRef.current.aoEscolherFicha
+          if (mira !== undefined) {
+            const alvo = fichaDaMiraAtScreen(scene, drag.startX, drag.startY)
+            if (alvo !== null) mira(alvo)
             return
           }
           // Mais de um pino sob o dedo: o jogador escolhe ("Aqui há 2 coisas").
@@ -4958,6 +5025,21 @@ function PlayerViewDoCanvas({
     endOwnLaser(scene)
   }, [laserArmed])
 
+  useEffect(() => {
+    // BATALHA F2 (S4): a consulta lê a cena viva pelo ref (antes do Pixi montar, `null`); ao desmontar, a que não acha nada.
+    if (onFichaNaTela === undefined) return
+    onFichaNaTela(fichaNaTela)
+    return () => onFichaNaTela(NENHUMA_FICHA_NA_TELA)
+    // `fichaNaTela` fora das dependências: ela só lê refs, e a da primeira renderização serve até desmontar.
+  }, [onFichaNaTela])
+
+  useEffect(() => {
+    // BATALHA F2 (S4): desarmou a mira no meio de um toque: o toque que sobrar volta a ser o de sempre.
+    if (aoEscolherFicha !== undefined) return
+    const scene = sceneRef.current
+    if (scene?.drag?.kind === 'pan') scene.drag = { ...scene.drag, canTap: false }
+  }, [aoEscolherFicha])
+
   return (
     <>
       <div
@@ -4965,7 +5047,12 @@ function PlayerViewDoCanvas({
         // MODO OLHAR: a marca diz ao bloqueio da janela de teste (`visaoDeTeste/bloqueioDeEntrada.ts`)
         // que este é o mapa, cuja câmera fica livre; o que vira ação aqui dentro é barrado acima.
         data-camera-livre={onAcaoNoOlhar === undefined ? undefined : ''}
-        style={{ position: 'fixed', inset: 0, touchAction: 'none', cursor: signalArmed || measureArmed || laserArmed || destinationArmed || noteArmed ? 'crosshair' : undefined }}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          touchAction: 'none',
+          cursor: signalArmed || measureArmed || laserArmed || destinationArmed || noteArmed || aoEscolherFicha !== undefined ? 'crosshair' : undefined,
+        }}
       />
       {/* Véu da chegada: logo depois do mapa e sem z-index, acima do canvas e abaixo de todo o HUD. */}
       <div ref={veilRef} data-testid="map-veil" aria-hidden="true" style={VEIL_STYLE} />

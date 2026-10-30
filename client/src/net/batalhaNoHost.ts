@@ -4,14 +4,18 @@ import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
 import type { BatalhaEmTurnos, PonteDaBatalha } from '../lib/batalha/ponte'
 import { podeDesfazer } from '../lib/batalha/registro'
 import { cartaDaVez, type AutorDaAcao } from '../lib/batalha/turnos'
-import { vistaParaJogador, type ContextoDoJogador } from '../lib/batalha/vistaDoJogador'
+import { efeitosParaJogador, vistaParaJogador, type ContextoDoJogador, type EfeitoParaJogador } from '../lib/batalha/vistaDoJogador'
 import {
   ALIADOS_MAX,
   JANELA_DOS_PEDIDOS_DE_BATALHA_MS,
   PEDIDOS_DE_BATALHA_POR_JANELA,
+  type BatalhaAgirMessage,
+  type BatalhaArmasMessage,
+  type BatalhaDanoMessage,
   type BatalhaDesfazerMessage,
   type BatalhaHostMessage,
   type BatalhaPassarMessage,
+  type BatalhaReagirMessage,
 } from './protocoloDaBatalha'
 
 /**
@@ -19,6 +23,13 @@ import {
  * docs/planos/batalha-one-piece-f1-plano.md): o recorte da ordem dos turnos
  * por conexão (`batalha.estado`), os aliados da equipe (`batalha.aliados`) e
  * os dois pedidos que o jogador manda (`batalha.passar`, `batalha.desfazer`).
+ *
+ * F2 (seção 2.4 de docs/planos/batalha-one-piece-f2-plano.md): os pedidos
+ * `batalha.agir`, `batalha.reagir`, `batalha.dano` e `batalha.armas` (posse e
+ * vez conferidas aqui; a regra, na store), o mesmo `reqId` devolvendo o mesmo
+ * `ok` sem agir de novo, e as animações (`batalha.efeitos`) só com fichas que
+ * a tela da conexão tem, sem reprise ao entrar. O d20 da reação é rolado na
+ * store (processo do host); nenhum pedido traz dado.
  *
  * Puro e síncrono como a `tiroNoHost`: a `hostSession` diz onde cada conexão
  * está e que fichas a tela dela tem; o estado da batalha mora na store do
@@ -46,6 +57,8 @@ export interface LugarNaBatalha {
   fichasNaTela: readonly { id: string; name: string }[]
   /** Os personagens ligados às fichas que são dele de verdade (sem as emprestadas). */
   meusPersonagens: ReadonlySet<string>
+  /** F2: tokenId → personagemId das mesmas fichas de `meusPersonagens` (o dano livre só vale numa delas). */
+  personagemDaFicha: ReadonlyMap<string, string>
 }
 
 export interface ConexaoNaBatalha {
@@ -91,9 +104,24 @@ export interface BatalhaNoHost {
   passar(conexao: ConexaoNaBatalha, msg: BatalhaPassarMessage): RespostaDaBatalha
   /** Desfazer: só a linha dele, de tipo que o jogador desfaz, e só na vez dele (`podeDesfazer`). */
   desfazer(conexao: ConexaoNaBatalha, msg: BatalhaDesfazerMessage): RespostaDaBatalha
+  /**
+   * F2: agir. Na vez: a carta da vez nesta rodada, token dele e personagem
+   * dele. Fora da vez (`vez` null): só um contra-ataque guardado de ficha dele
+   * (Q6). Alvos só entre as fichas que a tela dele tem.
+   */
+  agir(conexao: ConexaoNaBatalha, msg: BatalhaAgirMessage): RespostaDaBatalha
+  /** F2: reagir. Com golpe: o golpe está pendente e a ficha é alvo dele ainda sem resolver. Livre: token dele. */
+  reagir(conexao: ConexaoNaBatalha, msg: BatalhaReagirMessage): RespostaDaBatalha
+  /** F2: dano livre só numa ficha dele com personagem. */
+  dano(conexao: ConexaoNaBatalha, msg: BatalhaDanoMessage): RespostaDaBatalha
+  /** F2: as armas levadas, só de personagem dele com carta na ordem; troca quando quiser (Q8). */
+  armas(conexao: ConexaoNaBatalha, msg: BatalhaArmasMessage): RespostaDaBatalha
 }
 
 const NADA: RespostaDaBatalha = { saidas: [], mudou: false }
+
+/** F2: as respostas guardadas por conexão para o `reqId` repetido (o cliente não tem mais que isso no ar). */
+const RESPOSTAS_GUARDADAS = 32
 
 const mesmasReferencias = (a: readonly Personagem[], b: readonly Personagem[]): boolean => a.length === b.length && a.every((personagem, i) => personagem === b[i])
 
@@ -104,6 +132,10 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   const aliadosEnviados = new Map<string, readonly Personagem[]>()
   // Por playerId: os instantes dos pedidos na janela (PEDIDOS_DE_BATALHA_POR_JANELA).
   const pedidos = new Map<string, number[]>()
+  // F2, por clientId: a cena e o último `seq` de efeito já passado à conexão (enviado ou pulado). Ausente = marca no próximo sync, sem reprise.
+  const efeitoVisto = new Map<string, { sceneKey: string; seq: number }>()
+  // F2, por clientId: reqId → ok, as últimas RESPOSTAS_GUARDADAS, na ordem de chegada.
+  const respostas = new Map<string, Map<string, boolean>>()
 
   /** Mais um pedido do jogador na janela; `false` = passou do teto. */
   const cabePedido = (playerId: string): boolean => {
@@ -146,6 +178,7 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     const cena = lugar === null || deps.ponte === undefined ? null : deps.ponte.cena(lugar.sceneKey)
     if (lugar === null || cena === null) {
       aliadosEnviados.delete(clientId)
+      efeitoVisto.delete(clientId)
       if (!estadoEnviado.has(clientId)) return []
       // O `null` leva a faixa e os perfis dos aliados embora (o jogador limpa os dois).
       estadoEnviado.delete(clientId)
@@ -166,7 +199,27 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       saidas.push({ clientId, msg: { type: 'batalha.estado', estado } })
       estadoEnviado.set(clientId, texto)
     }
+    // Os efeitos DEPOIS do recorte: o jogador só os aceita com a faixa na tela.
+    const efeitos = efeitosNovos(clientId, lugar.sceneKey, cena, ctx.tokensNoRecorte)
+    if (efeitos !== null) saidas.push({ clientId, msg: { type: 'batalha.efeitos', efeitos } })
     return saidas
+  }
+
+  /**
+   * F2: os efeitos de `seq` maior que o último passado à conexão, só com
+   * fichas que a tela dela tem (`efeitosParaJogador`). A marca anda até o
+   * último `seq` da cena mesmo quando nada sai: o efeito que ela não pôde ver
+   * não vira reprise depois. Primeira vez nesta cena (entrada, volta, cena
+   * nova) ou `seq` que recomeçou: só marca. `null` = nada a mandar.
+   */
+  const efeitosNovos = (clientId: string, sceneKey: string, cena: BatalhaEmTurnos, tokensNoRecorte: ReadonlyMap<string, string>): EfeitoParaJogador[] | null => {
+    const todos = cena.efeitos ?? []
+    const ultimo = todos.at(-1)?.seq ?? 0
+    const visto = efeitoVisto.get(clientId)
+    efeitoVisto.set(clientId, { sceneKey, seq: ultimo })
+    if (visto === undefined || visto.sceneKey !== sceneKey || visto.seq > ultimo || visto.seq === ultimo) return null
+    const novos = efeitosParaJogador(todos, visto.seq, new Set(tokensNoRecorte.keys()))
+    return novos.length === 0 ? null : novos
   }
 
   const resultado = (clientId: string, reqId: string, ok: boolean): SaidaDaBatalha => ({ clientId, msg: { type: 'batalha.resultado', reqId, ok } })
@@ -174,24 +227,91 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   /** O autor no registro. O nome não decide nada: quem pode é conferido pelo `playerId`. */
   const autorDe = (conexao: ConexaoNaBatalha): AutorDaAcao => ({ tipo: 'jogador', playerId: conexao.playerId, nome: conexao.nome })
 
+  /**
+   * F2: o pedido passa pelo teto e, se o `reqId` já veio desta conexão, a
+   * resposta de antes sai de novo sem `decidir` (sem agir de novo). Por
+   * conexão: o `reqId` nasce no cliente, e outra conexão pode repeti-lo.
+   * `decidir` devolve o `ok` (recusa do host ou o que a store fez).
+   */
+  const pedidoUnico = (conexao: ConexaoNaBatalha, reqId: string, decidir: () => boolean): RespostaDaBatalha => {
+    if (!cabePedido(conexao.playerId)) return NADA
+    const guardadas = respostas.get(conexao.clientId) ?? new Map<string, boolean>()
+    const antes = guardadas.get(reqId)
+    if (antes !== undefined) return { saidas: [resultado(conexao.clientId, reqId, antes)], mudou: false }
+    const ok = decidir()
+    guardadas.set(reqId, ok)
+    if (guardadas.size > RESPOSTAS_GUARDADAS) {
+      const maisVelha = guardadas.keys().next()
+      if (maisVelha.done !== true) guardadas.delete(maisVelha.value)
+    }
+    respostas.set(conexao.clientId, guardadas)
+    return { saidas: [resultado(conexao.clientId, reqId, ok)], mudou: ok }
+  }
+
+  /** A cena em batalha da conexão, com a ponte; `null` = fora (o pedido é recusado). */
+  const cenaDa = (conexao: ConexaoNaBatalha): { ponte: PonteDaBatalha; lugar: LugarNaBatalha; cena: BatalhaEmTurnos } | null => {
+    const { ponte } = deps
+    const { lugar } = conexao
+    if (ponte === undefined || lugar === null) return null
+    const cena = ponte.cena(lugar.sceneKey)
+    return cena === null ? null : { ponte, lugar, cena }
+  }
+
+  /** A ficha é DELE: o token é dele, ou o personagem ligado é dele (a mesma regra do recorte, `vistaDoJogador`). */
+  const fichaDele = (lugar: LugarNaBatalha, tokenId: string, personagemId: string | null): boolean =>
+    lugar.meusTokens.has(tokenId) || (personagemId !== null && lugar.meusPersonagens.has(personagemId))
+
+  /** Na vez: a carta da vez, nesta rodada, token dele e personagem dele. Fora da vez: um contra-ataque guardado de ficha dele. */
+  const podePedirAcao = (lugar: LugarNaBatalha, cena: BatalhaEmTurnos, msg: BatalhaAgirMessage): boolean => {
+    const { vez, pedido } = msg
+    if (vez === null) {
+      // O parser só deixa `vez` null com `contraDe`; o `concentrar` nunca chega aqui.
+      const contraDe = pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
+      return contraDe !== undefined && (cena.turnos.contras ?? []).some((contra) => contra.golpeId === contraDe && fichaDele(lugar, contra.tokenId, contra.personagemId))
+    }
+    const daVez = cartaDaVez(cena.turnos)
+    return (
+      daVez !== null &&
+      daVez.id === vez.cartaId &&
+      cena.turnos.rodada === vez.rodada &&
+      lugar.meusTokens.has(daVez.tokenId) &&
+      daVez.personagemId !== null &&
+      lugar.meusPersonagens.has(daVez.personagemId)
+    )
+  }
+
+  /** Os alvos só entre as fichas que a tela dele tem: o pedido não acha token que ele não vê. */
+  const alvosNaTela = (lugar: LugarNaBatalha, msg: BatalhaAgirMessage): boolean => {
+    const { pedido } = msg
+    if (pedido.tipo !== 'atacar' && pedido.tipo !== 'habilidade') return true
+    const naTela = new Set(lugar.fichasNaTela.map((ficha) => ficha.id))
+    return pedido.alvos.every((alvo) => naTela.has(alvo.tokenId))
+  }
+
   return {
     sync(conexoes, mesa) {
       // Conexão que caiu ou saiu não recebe mais nada: a chave dela só ocuparia memória.
       const vivas = new Set(conexoes.map((conexao) => conexao.clientId))
       for (const clientId of estadoEnviado.keys()) if (!vivas.has(clientId)) estadoEnviado.delete(clientId)
       for (const clientId of aliadosEnviados.keys()) if (!vivas.has(clientId)) aliadosEnviados.delete(clientId)
+      for (const clientId of efeitoVisto.keys()) if (!vivas.has(clientId)) efeitoVisto.delete(clientId)
+      for (const clientId of respostas.keys()) if (!vivas.has(clientId)) respostas.delete(clientId)
       return conexoes.flatMap((conexao) => syncDe(conexao, mesa))
     },
 
     entrou(conexao, mesa) {
       estadoEnviado.delete(conexao.clientId)
       aliadosEnviados.delete(conexao.clientId)
+      // Sem reprise: o primeiro sync marca o `seq` de agora e não manda os velhos.
+      efeitoVisto.delete(conexao.clientId)
       return syncDe(conexao, mesa)
     },
 
     caiu(clientId) {
       estadoEnviado.delete(clientId)
       aliadosEnviados.delete(clientId)
+      efeitoVisto.delete(clientId)
+      respostas.delete(clientId)
     },
 
     esquecer(playerId) {
@@ -229,6 +349,58 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       if (linha === undefined || !podeDesfazer(linha, { tipo: 'jogador', playerId: conexao.playerId }, vezDele)) return recusa
       const ok = ponte.desfazer(lugar.sceneKey, msg.linhaId, autorDe(conexao))
       return { saidas: [resultado(conexao.clientId, msg.reqId, ok)], mudou: ok }
+    },
+
+    // F2: uma recusa só, sem motivo, como na F1. A store confere a regra (`podeAgir` etc.) e rola o d20.
+    agir(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        if (!podePedirAcao(lugar, cena, msg) || !alvosNaTela(lugar, msg)) return false
+        return ponte.agir(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido)
+      })
+    },
+
+    reagir(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        const { pedido } = msg
+        if (pedido.golpeId === null) {
+          // Reação livre (o botão Reação sem golpe esperando): só com token dele.
+          if (!lugar.meusTokens.has(pedido.tokenId)) return false
+        } else {
+          const golpe = (cena.turnos.golpes ?? []).find((candidato) => candidato.id === pedido.golpeId)
+          const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === pedido.tokenId)
+          // O golpe ainda espera, e a ficha é um alvo DELE ainda sem resolver.
+          if (alvo === undefined || alvo.danoFinal !== undefined || !fichaDele(lugar, alvo.tokenId, alvo.personagemId)) return false
+        }
+        return ponte.reagir(lugar.sceneKey, autorDe(conexao), pedido)
+      })
+    },
+
+    dano(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar } = daCena
+        // Só numa ficha DELE de verdade, com personagem: nunca na emprestada nem no NPC (a vida deles é do mestre).
+        if (!lugar.meusTokens.has(msg.tokenId) || !lugar.personagemDaFicha.has(msg.tokenId)) return false
+        return ponte.darDano(lugar.sceneKey, autorDe(conexao), msg.tokenId, msg.valor)
+      })
+    },
+
+    armas(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        // Personagem dele com carta na ordem. Sem "ainda não escolheu": troca quando quiser (Q8); o limite é da store.
+        if (!lugar.meusPersonagens.has(msg.personagemId) || !cena.turnos.cartas.some((carta) => carta.personagemId === msg.personagemId)) return false
+        return ponte.escolherArmas(lugar.sceneKey, autorDe(conexao), msg.personagemId, msg.armas)
+      })
     },
   }
 }

@@ -82,8 +82,8 @@ import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from '
 import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
 import { criarTiroNoHost, type TiroAoVivo, type TiroConviteResultado } from './tiroNoHost'
 import { TIRO_PARTICIPANTES_MAX, type TiroMotivoDaRecusa, type TiroPlayerMessage } from './protocoloDoTiro'
-import { criarBatalhaNoHost, type ConexaoNaBatalha, type LugarNaBatalha } from './batalhaNoHost'
-import type { BatalhaPlayerMessage } from './protocoloDaBatalha'
+import { criarBatalhaNoHost, type ConexaoNaBatalha, type LugarNaBatalha, type RespostaDaBatalha } from './batalhaNoHost'
+import type { BatalhaAcaoPlayerMessage, BatalhaPlayerMessage } from './protocoloDaBatalha'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
@@ -7569,6 +7569,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const meusPersonagensDe = (playerId: string, world: HostWorld): Set<string> =>
     new Set(fichasDoPersonagem(playerId, world).flatMap(({ token }) => (token.characterId === null ? [] : [token.characterId])))
 
+  /** BATALHA F2: tokenId → personagemId das fichas que são dele de verdade (as mesmas de `meusPersonagensDe`). */
+  const personagemDasFichasDe = (playerId: string, world: HostWorld): Map<string, string> => {
+    const mapa = new Map<string, string>()
+    for (const { token } of fichasDoPersonagem(playerId, world)) if (token.characterId !== null) mapa.set(token.id, token.characterId)
+    return mapa
+  }
+
   /**
    * BATALHA F1 — onde a conexão está na batalha: a cena DELE, em batalha, e as
    * fichas que a tela dele tem dessa cena (`fichasDaTela`). Tela ainda de outra
@@ -7581,7 +7588,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (scene === null || !emBatalha(scene)) return null
     const tela = fichasDaTela.get(playerId)
     if (tela === undefined || tela.mapId !== scene.map.id) return null
-    return { sceneKey: tableSceneKey(scene), meusTokens: new Set(ownership[playerId] ?? []), fichasNaTela: tela.fichas, meusPersonagens: meusPersonagensDe(playerId, world) }
+    const personagemDaFicha = personagemDasFichasDe(playerId, world)
+    return {
+      sceneKey: tableSceneKey(scene),
+      meusTokens: new Set(ownership[playerId] ?? []),
+      fichasNaTela: tela.fichas,
+      meusPersonagens: new Set(personagemDaFicha.values()),
+      personagemDaFicha,
+    }
   }
 
   /** O nome no registro passa pela mesma regra do histórico da ficha: o jogador chamado "Mestre" vira "Mestre (jogador)". */
@@ -7801,14 +7815,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * é dele, o teto de pedidos) a `batalhaNoHost` confere contra a cena da store
    * do mestre. Valeu: o recorte novo sai já a todos, antes da resposta — sem
    * depender do broadcast que a store pede (o que ele já mandou não sai de novo).
+   *
+   * F2 (S1): agir, reagir, dano livre e armas pelo mesmo caminho — posse, vez,
+   * alvos na tela e `reqId` repetido na `batalhaNoHost`; a regra e o d20 na
+   * store, pela ponte. Valeu: o recorte e os efeitos saem a todos antes da resposta.
    */
-  function handleBatalha(clientId: string, msg: BatalhaPlayerMessage, world: HostWorld): HostResult {
+  function handleBatalha(clientId: string, msg: BatalhaPlayerMessage | BatalhaAcaoPlayerMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     const conexao = conexaoNaBatalha(clientId, playerId, world)
-    const resposta = msg.type === 'batalha.passar' ? batalhaNoHost.passar(conexao, msg) : batalhaNoHost.desfazer(conexao, msg)
+    const resposta = respostaDaBatalha(conexao, msg)
     const recortes = resposta.mudou ? batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg) : []
     return { outbound: [...recortes, ...resposta.saidas] }
+  }
+
+  function respostaDaBatalha(conexao: ConexaoNaBatalha, msg: BatalhaPlayerMessage | BatalhaAcaoPlayerMessage): RespostaDaBatalha {
+    switch (msg.type) {
+      case 'batalha.passar':
+        return batalhaNoHost.passar(conexao, msg)
+      case 'batalha.desfazer':
+        return batalhaNoHost.desfazer(conexao, msg)
+      case 'batalha.agir':
+        return batalhaNoHost.agir(conexao, msg)
+      case 'batalha.reagir':
+        return batalhaNoHost.reagir(conexao, msg)
+      case 'batalha.dano':
+        return batalhaNoHost.dano(conexao, msg)
+      case 'batalha.armas':
+        return batalhaNoHost.armas(conexao, msg)
+    }
   }
 
   /** FICHA DE PERSONAGEM — o retrato ou a imagem de um cartão. Cartão que não existe mais: recusa. */
@@ -9620,6 +9655,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleMedidaDoJogador(clientId, msg, world)
       case 'batalha.passar':
       case 'batalha.desfazer':
+      case 'batalha.agir':
+      case 'batalha.reagir':
+      case 'batalha.dano':
+      case 'batalha.armas':
         return handleBatalha(clientId, msg, world)
       case 'clue.read':
         return handleClueRead(clientId, msg, world)

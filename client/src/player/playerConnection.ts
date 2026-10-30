@@ -199,13 +199,22 @@ import {
 } from '../net/protocoloDoTiro'
 import { receberTiro, TIRO_RECUSA_AVISO_MS, tiroAceitaPronto, tiroAtirando, type TiroDoJogador } from './estadoDoTiro'
 import {
+  parseBatalhaAgir,
   parseBatalhaAliados,
+  parseBatalhaArmas,
+  parseBatalhaDano,
+  parseBatalhaEfeitos,
   parseBatalhaEstado,
+  parseBatalhaReagir,
   parseBatalhaResultado,
+  type BatalhaAcaoPlayerMessage,
   type BatalhaDesfazerMessage,
   type BatalhaPassarMessage,
+  type BatalhaPlayerMessage,
 } from '../net/protocoloDaBatalha'
-import type { EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
+import type { EfeitoParaJogador, EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
+import { EFEITOS_POR_MENSAGEM, type PedidoDeAcao, type PedidoDeReacao } from '../lib/batalha/combate'
+import type { VezEsperada } from '../lib/batalha/ponte'
 
 /**
  * Cliente WebSocket do jogador, sem React e sem DOM: o socket e o storage são
@@ -352,6 +361,14 @@ export interface PlayerState {
    * jogador de outra equipe — o host recorta. Ausente = fora da batalha.
    */
   aliados?: Personagem[]
+  /**
+   * BATALHA F2: as animações novas da cena dele (`batalha.efeitos`: corte do
+   * golpe, d20 da reação, número do dano), só com fichas que a tela dele tem.
+   * Fila com `seq` crescente, as `EFEITOS_POR_MENSAGEM` mais novas; quem toca
+   * guarda o último `seq` tocado. Zera com a faixa (cena nova, fim da batalha,
+   * queda): numa batalha nova o `seq` pode recomeçar. Ausente = nenhum.
+   */
+  batalhaEfeitos?: EfeitoParaJogador[]
   /** Cone pelo vão de prédio com teto: a tela abre o telhado só nestes retângulos. */
   glimpses?: RegionPoint[][]
   /**
@@ -1272,6 +1289,29 @@ export interface PlayerConnection {
    * da batalha, sem conexão).
    */
   desfazerNaBatalha(linhaId: string): boolean
+  /**
+   * BATALHA F2 — Atacar, Habilidade, Concentrar ou o contra-ataque gasto em
+   * Mover. `vez` = a carta e a rodada da faixa (`batalhaEstado`); `null` só no
+   * contra-ataque (`pedido.contraDe` de um `contras` dele, Q6). O resultado
+   * (golpe, reação esperada, ações gastas) chega no `batalhaEstado`. `false` =
+   * não saiu: não é a vez dele, contra-ataque que ele não tem, pedido torto,
+   * fora da batalha ou sem conexão. O mesmo pedido no ar não sai de novo.
+   */
+  agirNaBatalha(vez: VezEsperada | null, pedido: PedidoDeAcao): boolean
+  /**
+   * BATALHA F2 — rolar (o d20 é rolado no host), rerolar, escolher a saída ou
+   * Não reagir. Com `golpeId`, só para um golpe em `batalhaEstado.reacoes`
+   * com essa ficha. `false` = não saiu.
+   */
+  reagirNaBatalha(pedido: PedidoDeReacao): boolean
+  /** BATALHA F2 — dano livre (1 a `DANO_MAX`) numa ficha dele. `false` = não saiu. */
+  darDanoEmMim(tokenId: string, valor: number): boolean
+  /**
+   * BATALHA F2 — as armas da aba Armas que o personagem leva (troca quando
+   * quiser, Q8; a store confere o limite). Só personagem dele com carta na
+   * ordem (`batalhaEstado.meus`). `false` = não saiu.
+   */
+  escolherArmasNaBatalha(personagemId: string, armas: readonly string[]): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -2640,7 +2680,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   const pedidosDeBatalha = new Map<string, { chave: string; prazo: ReturnType<typeof setTimeout> }>()
 
   /** O pedido sai, a menos que o MESMO já esteja no ar: aí conta como saído (o host responderia `ok: false` ao segundo). */
-  function pedirNaBatalha(chave: string, mensagem: BatalhaPassarMessage | BatalhaDesfazerMessage): boolean {
+  function pedirNaBatalha(chave: string, mensagem: BatalhaPlayerMessage | BatalhaAcaoPlayerMessage): boolean {
     for (const noAr of pedidosDeBatalha.values()) if (noAr.chave === chave) return true
     if (!send(mensagem)) return false
     const prazo = setTimeout(() => pedidosDeBatalha.delete(mensagem.reqId), PEDIDO_DE_BATALHA_PRAZO_MS)
@@ -2664,7 +2704,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function esquecerBatalha(): void {
     for (const { prazo } of pedidosDeBatalha.values()) clearTimeout(prazo)
     pedidosDeBatalha.clear()
-    if (state.batalhaEstado !== undefined || state.aliados !== undefined) setState({ batalhaEstado: undefined, aliados: undefined })
+    if (state.batalhaEstado !== undefined || state.aliados !== undefined || state.batalhaEfeitos !== undefined) {
+      setState({ batalhaEstado: undefined, aliados: undefined, batalhaEfeitos: undefined })
+    }
+  }
+
+  /**
+   * BATALHA F2: os efeitos novos entram no fim da fila. O que já estava com
+   * `seq` igual ou maior que o primeiro novo sai (reenvio, ou uma batalha nova
+   * que recomeçou o `seq`); a fila guarda as `EFEITOS_POR_MENSAGEM` mais novas.
+   */
+  function receberEfeitos(novos: readonly EfeitoParaJogador[]): void {
+    const primeiro = novos[0]
+    if (primeiro === undefined) return
+    const antes = (state.batalhaEfeitos ?? []).filter((efeito) => efeito.seq < primeiro.seq)
+    setState({ batalhaEfeitos: [...antes, ...novos].slice(-EFEITOS_POR_MENSAGEM) })
+  }
+
+  /** A chave de um pedido de ação/reação no ar: o mesmo pedido (clique duplo) não sai duas vezes. */
+  function chaveDoPedido(prefixo: string, pedido: unknown): string {
+    return `${prefixo}|${JSON.stringify(pedido)}`
   }
 
   // LIVRO DE REGRAS: as partes do pedido no ar (`null` = nenhum) e o prazo dele (LIVRO_PRAZO_MS).
@@ -4803,6 +4862,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (msg !== null) responderPedidoDeBatalha(msg.reqId)
         return
       }
+      case 'batalha.efeitos': {
+        // BATALHA F2: só com a faixa na tela (a mesa fica sem, como na F1). Campo torto derruba a mensagem inteira.
+        if (isTable) return
+        const msg = parseBatalhaEfeitos(data)
+        if (msg !== null && state.status === 'playing' && state.batalhaEstado !== undefined) receberEfeitos(msg.efeitos)
+        return
+      }
       case 'vehicle.rejected':
         // VEÍCULO: o "Subir"/"Descer" não valeu. Pausa já tem a faixa dela; motivo desconhecido não vira frase.
         if (state.status !== 'playing') return
@@ -5923,6 +5989,44 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || linha === undefined || !linha.podeDesfazer || linha.desfeita !== undefined) return false
       const mensagem: BatalhaDesfazerMessage = { type: 'batalha.desfazer', reqId: `b${nextReqId++}`, linhaId }
       return pedirNaBatalha(`desfazer|${linhaId}`, mensagem)
+    },
+    // BATALHA F2: cada pedido passa pelo MESMO parser do host antes de sair (pedido torto não sai) e
+    // pela conferência que o recorte deixa fazer aqui; posse, vez e regra o host e a store conferem de novo.
+    agirNaBatalha(vez, pedido) {
+      const estado = state.batalhaEstado
+      if (state.status !== 'playing' || estado === undefined) return false
+      if (vez === null) {
+        // Fora da vez, só o contra-ataque que ele ganhou (Q6) e ainda não usou.
+        const contraDe = pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
+        if (contraDe === undefined || !(estado.contras ?? []).some((contra) => contra.golpeId === contraDe)) return false
+      } else if (!estado.minhaVez || estado.vez !== vez.cartaId || estado.rodada !== vez.rodada) return false
+      const mensagem = parseBatalhaAgir({ type: 'batalha.agir', reqId: `b${nextReqId++}`, vez, pedido })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('agir', [mensagem.vez, mensagem.pedido]), mensagem)
+    },
+    reagirNaBatalha(pedido) {
+      const estado = state.batalhaEstado
+      if (state.status !== 'playing' || estado === undefined) return false
+      // Golpe esperando: só a caixa REAÇÃO dele (esse golpe nessa ficha). Reação livre (`rolar` sem golpe): só ficha dele.
+      if (pedido.golpeId === null) {
+        if (!(state.ownTokens ?? []).includes(pedido.tokenId)) return false
+      } else if (!(estado.reacoes ?? []).some((reacao) => reacao.golpeId === pedido.golpeId && reacao.tokenId === pedido.tokenId)) return false
+      const mensagem = parseBatalhaReagir({ type: 'batalha.reagir', reqId: `b${nextReqId++}`, pedido })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('reagir', mensagem.pedido), mensagem)
+    },
+    darDanoEmMim(tokenId, valor) {
+      if (state.status !== 'playing' || state.batalhaEstado === undefined || !(state.ownTokens ?? []).includes(tokenId)) return false
+      const mensagem = parseBatalhaDano({ type: 'batalha.dano', reqId: `b${nextReqId++}`, tokenId, valor })
+      if (mensagem === null) return false
+      return pedirNaBatalha(`dano|${tokenId}|${valor}`, mensagem)
+    },
+    escolherArmasNaBatalha(personagemId, armas) {
+      const estado = state.batalhaEstado
+      if (state.status !== 'playing' || estado === undefined || !(estado.meus ?? []).some((meu) => meu.personagemId === personagemId)) return false
+      const mensagem = parseBatalhaArmas({ type: 'batalha.armas', reqId: `b${nextReqId++}`, personagemId, armas })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('armas', [personagemId, mensagem.armas]), mensagem)
     },
     reconnect: restart,
     wake() {

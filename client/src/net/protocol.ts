@@ -46,7 +46,17 @@ import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
 import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
 import { parseMedidaCompartilhar, type MedidaCompartilharMessage } from './protocoloDaMedida'
-import { parseBatalhaDesfazer, parseBatalhaPassar, type BatalhaHostMessage, type BatalhaPlayerMessage } from './protocoloDaBatalha'
+import {
+  parseBatalhaAgir,
+  parseBatalhaArmas,
+  parseBatalhaDano,
+  parseBatalhaDesfazer,
+  parseBatalhaPassar,
+  parseBatalhaReagir,
+  type BatalhaAcaoPlayerMessage,
+  type BatalhaHostMessage,
+  type BatalhaPlayerMessage,
+} from './protocoloDaBatalha'
 
 export type { OwnTokenElsewhere }
 
@@ -1178,6 +1188,8 @@ export type PlayerMessage =
   | MedidaCompartilharMessage
   // BATALHA F1: "Passar a vez" e Desfazer uma linha do registro (`protocoloDaBatalha.ts`).
   | BatalhaPlayerMessage
+  // BATALHA F2: agir, reagir, dano livre e armas levadas (`protocoloDaBatalha.ts`).
+  | BatalhaAcaoPlayerMessage
 
 /**
  * MINHAS NOTAS: a lista INTEIRA das anotações pessoais do jogador, de todos os
@@ -3420,6 +3432,14 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseBatalhaPassar(value)
     case 'batalha.desfazer':
       return parseBatalhaDesfazer(value)
+    case 'batalha.agir':
+      return parseBatalhaAgir(value)
+    case 'batalha.reagir':
+      return parseBatalhaReagir(value)
+    case 'batalha.dano':
+      return parseBatalhaDano(value)
+    case 'batalha.armas':
+      return parseBatalhaArmas(value)
     case 'danca.pronto':
     case 'danca.toques':
     case 'danca.fim':
