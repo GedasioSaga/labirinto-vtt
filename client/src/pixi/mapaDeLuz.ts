@@ -426,7 +426,10 @@ function matrizDaLuz(luz: LuzNoMapa): Matrix {
 
 export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz {
   const queda = criarTexturaDaQueda()
-  const textura = RenderTexture.create({ width: 1, height: 1, resolution: 1 })
+  // `dynamic`: sem ele o Sprite do Pixi não ouve o `resize` da textura e guarda o
+  // tamanho antigo; a janela que cresce à noite deixava a tinta só num retângulo
+  // no canto superior esquerdo, do tamanho da tela de antes.
+  const textura = RenderTexture.create({ width: 1, height: 1, resolution: 1, dynamic: true })
   const sprite = new Sprite(textura)
   sprite.label = 'mapaDeLuz'
   sprite.blendMode = 'multiply'
