@@ -27,6 +27,8 @@
   color: var(--bt-papel);
 }
 .bt-vez--lista {
+  /* A leitura ao lado (`.bt-detalhe--lado`) se mede daqui. */
+  position: relative;
   width: clamp(300px, 46vw, 680px);
 }
 .bt-vez__cabeca {
@@ -104,6 +106,8 @@
 .bt-vez--lista .bt-vez__tiras {
   gap: 13px;
   padding-top: 10px;
+  /* A borda rasgada e o giro da tira precisam de folga à esquerda: a primeira letra não encosta no corte. */
+  padding-left: 12px;
 }
 .bt-vez__dica {
   margin: 10px 0 0 8px;
@@ -385,22 +389,34 @@
   }
 }
 
-/* O detalhe da técnica (seta para a direita): conta do dano, efeito, extras. */
+/*
+ * A LEITURA da técnica (o texto inteiro da ficha): no lugar, sob a tira, e na
+ * seta do painel do NPC; rolagem própria quando o texto é longo. Cada campo
+ * com o rótulo em cima e o texto embaixo, com as quebras de linha da ficha.
+ */
 .bt-detalhe {
   margin: 4px 0 0 18px;
   padding: 10px 14px 12px;
+  max-height: min(46vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   background: var(--bt-papel);
   color: var(--bt-tinta);
   clip-path: polygon(0 4px, 100% 0, calc(100% - 3px) 100%, 3px calc(100% - 3px));
   box-shadow: 6px 6px 0 var(--bt-sangue);
   font-size: var(--lb-font-size-sm);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 .bt-detalhe dl {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 10px;
+  gap: 8px;
   margin: 0;
+}
+.bt-detalhe__linha {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
 }
 .bt-detalhe dt {
   font-family: var(--lb-font-utility);
@@ -413,6 +429,58 @@
 .bt-detalhe dd {
   margin: 0;
   overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.bt-detalhe__linha[data-agora='sim'] dd {
+  color: #8a2c22;
+  font-weight: 600;
+}
+/*
+ * Ao lado da lista, quando cabe na janela: a caixa de descrição (a do
+ * Persona), em papel como a tira escolhida, presa no alto da coluna. Troca de
+ * técnica só troca o texto; abrir entra de leve em 180 ms.
+ */
+.bt-detalhe.bt-detalhe--lado {
+  position: absolute;
+  z-index: 1;
+  margin: 0;
+  padding: 14px 18px 16px;
+  clip-path: none;
+  box-shadow: 7px 7px 0 var(--bt-sangue);
+  font-size: var(--lb-font-size-md);
+  line-height: 1.5;
+  transition:
+    opacity 180ms var(--bt-ease-out),
+    transform 180ms var(--bt-ease-out);
+}
+/* Pelo teclado (`data-instantaneo`), na hora, como as tiras. */
+@starting-style {
+  .bt-vez:not([data-instantaneo='sim']) > .bt-detalhe.bt-detalhe--lado {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+.bt-detalhe__nome {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--bt-tinta);
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(18px, 1.8vw, 24px);
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.bt-detalhe__custo {
+  flex: none;
+  color: var(--bt-sangue);
+  font-variant-numeric: tabular-nums;
 }
 
 /* "Ações": o menu recolhido, para o mapa ficar livre. */
@@ -1339,10 +1407,14 @@
   .bt-vez:not([data-instantaneo='sim']) .bt-zerar {
     transition: opacity 150ms ease;
   }
-  .bt-reacao {
+  .bt-reacao,
+  .bt-detalhe.bt-detalhe--lado {
     transition: opacity 150ms ease;
   }
   @starting-style {
+    .bt-vez:not([data-instantaneo='sim']) > .bt-detalhe.bt-detalhe--lado {
+      transform: none;
+    }
     .bt-vez:not([data-instantaneo='sim']) .bt-tira {
       transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px));
     }

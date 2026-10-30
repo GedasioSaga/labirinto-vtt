@@ -59,6 +59,60 @@ export interface GolpeNaTela {
   perfurante: boolean
   /** Presente = apagado, com a frase. */
   motivo: string | null
+  /** O texto inteiro da ficha, para ler antes de usar (a caixa de leitura da lista). */
+  leitura: readonly LinhaDaLeitura[]
+}
+
+/** Uma linha da leitura inteira: o rótulo do campo e o texto como a ficha diz. */
+export interface LinhaDaLeitura {
+  rotulo: string
+  texto: string
+  /** O campo da ficha de onde veio ("custo", "tempo"...); ausente nos extras. */
+  campo?: string
+}
+
+/** A leitura começa por estes campos (descrição, efeito, dano, ação, custo, tempo); os outros da aba seguem a ordem dela. */
+const ORDEM_DA_LEITURA = ['descricao', 'efeito', 'dano', 'acao', 'custo', 'tempo'] as const
+const ROTULO_DA_LEITURA: Record<(typeof ORDEM_DA_LEITURA)[number], string> = {
+  descricao: 'Descrição',
+  efeito: 'Efeito',
+  dano: 'Dano',
+  acao: 'Ação',
+  custo: 'Custo',
+  tempo: 'Tempo',
+}
+
+/**
+ * O cartão inteiro em linhas de leitura: cada campo da aba com texto, o dano
+ * com a fórmula da ficha e a conta já feita ("Conta: 160 Força + 5 Balmung =
+ * 165"), e os extras (Overload, Requisito, Alcance...) pelo nome que a ficha
+ * deu. Campo vazio não entra.
+ */
+export function leituraDoCartao(cartao: CartaoDaFicha | null, sistema: SistemaDeRpg | null, abaId: string, dano: DanoNaTela): LinhaDaLeitura[] {
+  const campos = sistema?.abas.find((aba) => aba.id === abaId)?.campos ?? []
+  const rotuloDe = new Map<string, string>(Object.entries(ROTULO_DA_LEITURA))
+  for (const campo of campos) rotuloDe.set(campo.id, campo.rotulo.trim() || rotuloDe.get(campo.id) || campo.id)
+  const primeiros: readonly string[] = ORDEM_DA_LEITURA
+  const ids = [...primeiros, ...campos.map((campo) => campo.id).filter((id) => !primeiros.includes(id))]
+  const linhas: LinhaDaLeitura[] = []
+  for (const id of ids) {
+    const texto = (cartao?.campos[id] ?? '').trim()
+    const rotulo = rotuloDe.get(id) ?? id
+    if (id === 'dano') {
+      if (texto !== '') linhas.push({ rotulo, texto, campo: id })
+      // A conta só quando diz algo além da fórmula (a fórmula "-" já é "sem dano").
+      if (!dano.semDano && dano.conta !== texto) linhas.push({ rotulo: texto === '' ? rotulo : 'Conta', texto: dano.conta, campo: id })
+      continue
+    }
+    if (texto !== '') linhas.push({ rotulo, texto, campo: id })
+  }
+  for (const extra of cartao?.extras ?? []) {
+    const nome = extra.nome.trim()
+    const valor = extra.valor.trim()
+    if (nome === '' && valor === '') continue
+    linhas.push(valor === '' || nome === '' ? { rotulo: 'Extra', texto: valor || nome } : { rotulo: nome, texto: valor })
+  }
+  return linhas
 }
 
 /** Uma ficha que pode ser alvo, como a mira a lista. */
@@ -139,7 +193,12 @@ export function danoNaTela(leitura: LeituraDoDano): DanoNaTela {
   }
 }
 
-function golpeDaTecnica(tecnica: TecnicaNoMenu, combate: CombateDoPersonagem | undefined, arma: CartaoDaFicha | null): GolpeNaTela {
+/** A aba das técnicas (a das transformações também guarda técnicas desta aba). */
+const ABA_DAS_TECNICAS = 'habilidades'
+const ABA_DAS_ARMAS = 'armas'
+
+function golpeDaTecnica(tecnica: TecnicaNoMenu, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, arma: CartaoDaFicha | null): GolpeNaTela {
+  const dano = danoNaTela(tecnica.dano)
   const golpe: GolpeNaTela = {
     chave: `tecnica:${tecnica.cartao.id}`,
     tipo: 'habilidade',
@@ -152,10 +211,11 @@ function golpeDaTecnica(tecnica: TecnicaNoMenu, combate: CombateDoPersonagem | u
     acao: tecnica.acao,
     acaoTexto: textoDaAcao(tecnica.acao),
     tempoTexto: textoDoTempo(tecnica.tempo, combate, tecnica.cartao.id),
-    dano: danoNaTela(tecnica.dano),
+    dano,
     overload: tecnica.overload,
     perfurante: tecnica.perfurante,
     motivo: tecnica.motivo,
+    leitura: leituraDoCartao(tecnica.cartao, sistema, ABA_DAS_TECNICAS, dano),
   }
   if (tecnica.forma !== undefined) golpe.forma = tecnica.forma
   return golpe
@@ -169,7 +229,7 @@ export function golpesDeHabilidade(
   acoes: AcoesDaVez | null,
   arma: CartaoDaFicha | null,
 ): GolpeNaTela[] {
-  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma).map((tecnica) => golpeDaTecnica(tecnica, combate, arma))
+  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma).map((tecnica) => golpeDaTecnica(tecnica, sistema, combate, arma))
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */
@@ -181,6 +241,8 @@ export function armasNaBatalha(personagem: Personagem | null, combate: Pick<Comb
   return todas.filter((arma) => levadas.includes(arma.id))
 }
 
+const DESCRICAO_DO_DESARMADO = 'Sem arma: o dano é a Força.'
+
 /** O Atacar: uma tira por arma levada; sem arma, o ataque desarmado (Força). Q2: Força + dano da arma, editável. */
 export function golpesDeAtaque(personagem: Personagem | null, sistema: SistemaDeRpg | null, combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez | null): GolpeNaTela[] {
   const carga = combate?.carga ?? 0
@@ -189,13 +251,15 @@ export function golpesDeAtaque(personagem: Personagem | null, sistema: SistemaDe
     const acaoDaFicha: AcaoDaTecnica = lida === null || lida === 'passiva' ? 'simples' : lida
     const gasta = acaoDoGolpe(acaoDaFicha, carga) ?? acaoDaFicha
     const dano = personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null }))
+    const descricao = arma === null ? DESCRICAO_DO_DESARMADO : (arma.campos.descricao ?? arma.campos.efeito ?? '').trim()
     return {
       chave: arma === null ? 'ataque' : `arma:${arma.id}`,
       tipo: 'atacar',
       cartaoId: null,
       armaId: arma?.id ?? null,
       nome: arma === null ? 'Ataque desarmado' : arma.nome.trim() || 'Arma sem nome',
-      descricao: arma === null ? 'Sem arma: o dano é a Força.' : (arma.campos.descricao ?? arma.campos.efeito ?? '').trim(),
+      descricao,
+      leitura: arma === null ? [{ rotulo: 'Descrição', texto: DESCRICAO_DO_DESARMADO }, ...leituraDoCartao(null, sistema, ABA_DAS_ARMAS, dano)] : leituraDoCartao(arma, sistema, ABA_DAS_ARMAS, dano),
       custoTexto: null,
       custo: { tipo: 'nada' },
       acao: acaoDaFicha,

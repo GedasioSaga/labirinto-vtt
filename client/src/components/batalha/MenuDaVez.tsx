@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import type { PedidoDeAcao } from '../../lib/batalha/combate'
 import { pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
-import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas } from './ListaDeTecnicas'
+import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
 import { MiraDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
 import './batalha.css'
 import './combate.css'
@@ -277,7 +277,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
   return (
     <div className="bt-vez" data-instantaneo={porTeclado ? 'sim' : 'nao'} onKeyDown={teclar} aria-busy={esperando ? true : undefined}>
       <CabecaDaVez quem={modoContra || foraDaVez ? `${quem} · contra-ataque` : quem} pips={pips} carga={carga} />
-      <ul className="bt-vez__tiras" aria-label={modoContra || foraDaVez ? 'Contra-ataque' : `Ações de ${quem}`}>
+      <ul className="bt-vez__tiras" aria-label={modoContra || foraDaVez ? 'Contra-ataque' : `Ações de ${quem}`} onScroll={semRolarDeLado}>
         {itens.map((item, indice) => (
           <li key={item.chave} className={item.zerar === undefined ? undefined : 'bt-vez__com-zerar'}>
             <Tira
