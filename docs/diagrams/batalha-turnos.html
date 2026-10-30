@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batalha: turnos e recorte</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1000px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Fluxo de dados · Batalha One Piece, F1</p>
+    <h1>A ordem dos turnos sai do mestre, passa pelo recorte do host e chega a cada jogador</h1>
+
+    <svg viewBox="0 0 992 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="batalha-turnos-title batalha-turnos-desc">
+      <title id="batalha-turnos-title">Batalha: turnos, equipes e registro</title>
+      <desc id="batalha-turnos-desc">O mestre muda o estado da batalha (ordem, vez, registro, regras do campo), o host recorta por jogador pela equipe sem nunca mandar NPC, e o jogador recebe o estado e os aliados; o pedido de passar a vez ou desfazer volta validado pelo host, e o ajuste de ficha vira linha do registro.</desc>
+      <defs>
+        <marker id="batalha-turnos-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="batalha-turnos-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="batalha-turnos-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- Conectores primeiro -->
+      <!-- Disco carrega as regras na store e as equipes no host -->
+      <line x1="420" y1="72" x2="420" y2="120" stroke="#4f5d75" stroke-width="1" marker-end="url(#batalha-turnos-arrow)"/>
+      <rect x="360" y="88" width="52" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="386" y="97" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REGRAS</text>
+      <line x1="560" y1="72" x2="560" y2="120" stroke="#4f5d75" stroke-width="1" marker-end="url(#batalha-turnos-arrow)"/>
+      <rect x="568" y="88" width="52" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="594" y="97" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">EQUIPES</text>
+
+      <!-- Caminho de ida -->
+      <line x1="216" y1="148" x2="280" y2="148" stroke="#eb6c36" stroke-width="1" marker-end="url(#batalha-turnos-arrow-accent)"/>
+      <rect x="228" y="128" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="248" y="137" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">AÇÃO</text>
+      <line x1="464" y1="148" x2="528" y2="148" stroke="#4f5d75" stroke-width="1" marker-end="url(#batalha-turnos-arrow)"/>
+      <rect x="476" y="128" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="496" y="137" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">AVISA</text>
+      <line x1="712" y1="148" x2="776" y2="148" stroke="#4f5d75" stroke-width="1" marker-end="url(#batalha-turnos-arrow)"/>
+      <rect x="720" y="128" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="744" y="137" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RECORTE</text>
+
+      <!-- Volta: pedido do jogador, validado pelo host -->
+      <path d="M868 176 V208 A8 8 0 0 1 860 216 H648 A8 8 0 0 1 640 208 V176" fill="none" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#batalha-turnos-arrow-link)"/>
+      <rect x="716" y="196" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="756" y="205" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VEZ · DESFAZER</text>
+      <path d="M576 176 V224 A8 8 0 0 1 568 232 H432 A8 8 0 0 1 424 224 V176" fill="none" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#batalha-turnos-arrow-link)"/>
+      <rect x="476" y="212" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="500" y="221" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VALIDA</text>
+
+      <!-- Ajuste de ficha vira linha do registro -->
+      <line x1="328" y1="272" x2="328" y2="176" stroke="#4f5d75" stroke-width="1" marker-end="url(#batalha-turnos-arrow)"/>
+      <rect x="264" y="216" width="56" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="292" y="225" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REGISTRA</text>
+
+      <!-- Nós -->
+      <rect x="392" y="24" width="200" height="48" rx="6" fill="#f5f5f5"/>
+      <rect x="392" y="24" width="200" height="48" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="492" y="44" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Disco</text>
+      <text x="492" y="60" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">equipes · regras do campo</text>
+
+      <rect x="32" y="120" width="184" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="32" y="120" width="184" height="56" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="124" y="144" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mestre</text>
+      <text x="124" y="160" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">faixa · painel da vez · registro</text>
+
+      <rect x="280" y="120" width="184" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="280" y="120" width="184" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="372" y="144" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Estado da batalha</text>
+      <text x="372" y="160" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">batalhaStore + lib/batalha</text>
+
+      <rect x="528" y="120" width="184" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="528" y="120" width="184" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="620" y="144" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Host recorta</text>
+      <text x="620" y="160" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">batalhaNoHost · NPC nunca</text>
+
+      <rect x="776" y="120" width="184" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="776" y="120" width="184" height="56" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="868" y="144" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tela do jogador</text>
+      <text x="868" y="160" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">batalha.estado · .aliados</text>
+
+      <rect x="280" y="272" width="184" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="280" y="272" width="184" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="372" y="296" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ajuste de ficha</text>
+      <text x="372" y="312" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">RpgDialogs · personagem.ajustar</text>
+
+      <!-- Legenda: faixa horizontal no pé -->
+      <line x1="24" y1="356" x2="968" y2="356" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="24" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+      <line x1="120" y1="376" x2="152" y2="376" stroke="#4f5d75" stroke-width="1" marker-end="url(#batalha-turnos-arrow)"/>
+      <text x="164" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">estado do mestre até o jogador</text>
+      <line x1="372" y1="376" x2="404" y2="376" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#batalha-turnos-arrow-link)"/>
+      <text x="416" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">pedido do jogador pela rede</text>
+      <rect x="612" y="370" width="16" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="636" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">onde mora a regra: estado e quem vê o quê</text>
+    </svg>
+  </div>
+</body>
+</html>
