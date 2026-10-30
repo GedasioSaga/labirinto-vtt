@@ -81,13 +81,13 @@ export function PainelDaBatalha({
         {daVez === undefined ? (
           <p className="bt-texto">{semCartas ? 'Ninguém na ordem ainda.' : 'Ninguém na vez: "Passar a vez" começa pela primeira carta.'}</p>
         ) : (
-          <div className="bt-vez">
+          <div className="bt-painel-vez">
             <span className="bt-carta__retrato" style={daVez.cor === null ? undefined : ({ '--lado': daVez.cor } as CSSProperties)}>
               <ImagemOuIniciais imagem={daVez.imagem} nome={daVez.nome} />
             </span>
-            <span>
-              <span className="bt-vez__nome">{daVez.nome}</span>
-              <span className="bt-vez__sub">
+            <span className="bt-painel-vez__quem">
+              <span className="bt-painel-vez__nome">{daVez.nome}</span>
+              <span className="bt-painel-vez__sub">
                 {[daVez.equipe, daVez.npc ? 'NPC' : daVez.personagemId === null ? 'sem ficha' : 'jogador', daVez.caiu ? 'caiu' : null].filter(Boolean).join(' · ')}
               </span>
             </span>

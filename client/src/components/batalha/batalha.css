@@ -749,9 +749,14 @@ button.bt-carta__corpo {
 /* ---------------------------------------------------------------- painel do mestre (livro da mesa) */
 .bt-painel {
   display: grid;
+  /* Coluna que encolhe até a página: sem o minmax, um filho largo estica o painel inteiro para fora do livro. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--lb-space-3);
   margin-top: var(--lb-space-3);
   color: var(--lb-color-parchment);
+}
+.bt-secao {
+  min-width: 0;
 }
 .bt-secao + .bt-secao {
   padding-top: var(--lb-space-3);
@@ -766,23 +771,32 @@ button.bt-carta__corpo {
   text-transform: uppercase;
   color: var(--lb-color-parchment-faint);
 }
-.bt-vez {
+/* O "Empate na Agilidade" não estica além do que as duas opções pedem num livro mais largo. */
+.bt-painel .gr-seg {
+  max-width: 320px;
+}
+/* Quem está na vez, no painel. Nome próprio: `.bt-vez` é o menu de tiras (combate.css), que tem largura fixa e coluna. */
+.bt-painel-vez {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: var(--lb-space-3);
 }
-.bt-vez .bt-carta__retrato {
+.bt-painel-vez .bt-carta__retrato {
   width: 36px;
   height: 36px;
   border-radius: 8px;
 }
-.bt-vez__nome {
+.bt-painel-vez__quem {
+  min-width: 0;
+}
+.bt-painel-vez__nome {
   display: block;
   font-size: var(--lb-font-size-lg);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
-.bt-vez__sub {
+.bt-painel-vez__sub {
   font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-dim);
 }
@@ -790,6 +804,7 @@ button.bt-carta__corpo {
   margin: 0 0 var(--lb-space-2);
   font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-dim);
+  overflow-wrap: break-word;
 }
 .bt-texto b {
   color: var(--lb-color-parchment);

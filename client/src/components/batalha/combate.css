@@ -884,6 +884,7 @@
 /* ---------------------------------------------------------------- painel da vez do NPC e reações pendentes (mestre, aba Batalha) */
 .bt-npc {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--lb-space-3);
 }
 .bt-npc__quem {
