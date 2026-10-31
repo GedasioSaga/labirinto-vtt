@@ -40,9 +40,19 @@ export function chooseTextResolution(rendererResolution: number, effectiveScale:
   return Math.max(base, Math.min(wanted, capped))
 }
 
+/**
+ * Sem canvas 2D (o jsdom dos testes) a medida do Pixi estoura: vale 0, a
+ * "desconhecida" do `chooseTextResolution`, como a `larguraDoTexto` das
+ * pílulas. Desde que a falha do setup vira a tela de erro do mapa, um estouro
+ * aqui derrubaria a cena inteira por causa de um ajuste de nitidez.
+ */
 function largestLocalSide(text: Text): number {
-  const { width, height } = text.bounds
-  return Math.max(Math.abs(width), Math.abs(height))
+  try {
+    const { width, height } = text.bounds
+    return Math.max(Math.abs(width), Math.abs(height))
+  } catch {
+    return 0
+  }
 }
 
 /**
