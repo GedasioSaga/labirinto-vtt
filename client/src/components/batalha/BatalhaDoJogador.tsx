@@ -1,15 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { chaveDaVez, type PedidoDeAcao, type PedidoDeReacao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
+import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
 import { formasNoMenu } from '../../lib/batalha/transformacao'
-import { ATACANTE_FORA_DA_VISTA, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
+import { ATACANTE_FORA_DA_VISTA, selosParaOBonus, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { BotaoDeReacao } from './BotaoDeReacao'
-import { CaixaDeReacao, type ReacaoNaCaixa } from './CaixaDeReacao'
+import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './CaixaDeReacao'
 import { MOTIVO_SEM_PERSONAGEM, armasNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
@@ -74,6 +75,13 @@ const CLASSE_DA_FAIXA = 'pp-batalha-faixa'
 const SEM_EFEITOS: readonly EfeitoParaJogador[] = []
 const NINGUEM: readonly Personagem[] = []
 
+/** Tipos de habilidade F2: o "+3 na reação" dos selos de quem reage, como a caixa o mostra; nenhum = ausente. */
+function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusDaReacaoNaTela | undefined {
+  const bonus = bonusDaBatalha(selos, tokenId)
+  const partes = partesDoBonus(bonus, ALVO_DA_REACAO)
+  return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
+}
+
 export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez' }: BatalhaDoJogadorProps) {
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
@@ -108,11 +116,14 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const combate = useMemo(() => combateDoJogador(meuCombate, chave), [meuCombate, chave])
   const acoes = estado.minhaVez ? (estado.acoes ?? null) : null
   const { zerarCarga } = conexao
+  // Tipos de habilidade F2: os selos do recorte (a carta extra repete os do token: conta uma vez), na forma que `bonusDaBatalha` lê.
+  const selosQueSomam = useMemo(() => selosParaOBonus(estado.cartas), [estado.cartas])
 
   const menu = useMemo(() => {
     if (cartaQueAge === undefined) return null
     const arma = armasNaBatalha(personagem, combate)[0] ?? null
-    const habilidades = (comAcoes: typeof acoes) => (personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, comAcoes, arma) : [])
+    const bonus = bonusDaBatalha(selosQueSomam, cartaQueAge.tokenId)
+    const habilidades = (comAcoes: typeof acoes) => (personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, comAcoes, arma, bonus) : [])
     const vistos = new Set<string>()
     const alvos: AlvoNaMira[] = []
     for (const carta of estado.cartas) {
@@ -133,14 +144,14 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       })
     }
     return {
-      armas: golpesDeAtaque(personagem, sistema, combate, acoes),
+      armas: golpesDeAtaque(personagem, sistema, combate, acoes, bonus),
       habilidades: habilidades(acoes),
-      contra: { armas: golpesDeAtaque(personagem, sistema, combate, null), habilidades: habilidades(null) },
+      contra: { armas: golpesDeAtaque(personagem, sistema, combate, null, bonus), habilidades: habilidades(null) },
       alvos,
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
       formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : [],
     }
-  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, nomeDe, imagemDe, meus])
+  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, nomeDe, imagemDe, meus, selosQueSomam])
 
   const contrasNoMenu = useMemo<ContraNoMenu[]>(
     () =>
@@ -160,6 +171,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       if (reacao.perfurante) item.perfurante = true
       if (reacao.perfurante && reacao.perfuracao !== undefined) item.perfuracao = reacao.perfuracao
       if (reacao.rolagem !== undefined) item.rolagem = reacao.rolagem
+      const bonus = bonusDaReacaoDe(selosQueSomam, reacao.tokenId)
+      if (bonus !== undefined) item.bonus = bonus
       // Tipos de habilidade F1: as técnicas de reação da ficha dele que reage (o recorte só traz alvo que reage).
       const personagemDoAlvo = estado.cartas.find((carta) => carta.tokenId === reacao.tokenId && carta.lado === 'eu')?.personagemId
       const dele = personagemDoAlvo === undefined ? undefined : meus.find((candidato) => candidato.id === personagemDoAlvo)
@@ -169,7 +182,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       }
       return item
     })
-  }, [estado.reacoes, estado.cartas, estado.meus, meus, sistema, nomeDe])
+  }, [estado.reacoes, estado.cartas, estado.meus, meus, sistema, nomeDe, selosQueSomam])
 
   // Golpe novo esperando: a caixa abre sozinha (uma vez por golpe).
   const vistosGolpes = useRef(new Set<string>())
@@ -190,8 +203,13 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   }, [reacoes, livre])
 
   const minhaFicha = estado.cartas.find((carta) => carta.lado === 'eu' && carta.caiu !== true) ?? estado.cartas.find((carta) => carta.lado === 'eu')
+  const bonusDaLivre = minhaFicha === undefined ? undefined : bonusDaReacaoDe(selosQueSomam, minhaFicha.tokenId)
   const reacoesNaCaixa: ReacaoNaCaixa[] =
-    reacoes.length > 0 ? reacoes : livre && minhaFicha !== undefined ? [{ golpeId: null, tokenId: minhaFicha.tokenId, atacante: '', nome: '', dano: null }] : []
+    reacoes.length > 0
+      ? reacoes
+      : livre && minhaFicha !== undefined
+        ? [{ golpeId: null, tokenId: minhaFicha.tokenId, atacante: '', nome: '', dano: null, ...(bonusDaLivre === undefined ? {} : { bonus: bonusDaLivre }) }]
+        : []
 
   // ---- as armas: no começo, com limite e sem escolha, a janela abre (uma vez; Cancelar não reabre)
   const semEscolha = (estado.meus ?? []).find((meu) => meu.limiteDeArmas !== null && meu.armas === null && !dispensadas.current.has(meu.personagemId))

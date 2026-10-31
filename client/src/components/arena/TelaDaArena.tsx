@@ -6,7 +6,7 @@ import type { PedidoDeAcao, PedidoDeReacao } from '../../lib/batalha/combate'
 import type { Equipe } from '../../lib/batalha/equipes'
 import { armasDe, limiteDeArmas, recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import type { BatalhaEmTurnos, VezEsperada } from '../../lib/batalha/ponte'
-import { selosDoToken } from '../../lib/batalha/selos'
+import { alvosDeMod, selosDoToken } from '../../lib/batalha/selos'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { cartaDaVez } from '../../lib/batalha/turnos'
 import type { EstadoParaJogador, LadoNaCarta } from '../../lib/batalha/vistaDoJogador'
@@ -143,11 +143,13 @@ interface DialogoNaArenaProps {
   dialogo: DialogoDaArena
   cena: BatalhaEmTurnos
   sessao: SessaoDaArena
+  /** Tipos de habilidade F2: as linhas de modificador do "Pôr selo..." vêm dos atributos do sistema. */
+  sistema: SistemaDeRpg
   onFechar: () => void
 }
 
 /** Os diálogos do mestre, sobre a batalha da arena (o hospedeiro da mesa lê a aventura e o mapa: não serve aqui). */
-function DialogoNaArena({ dialogo, cena, sessao, onFechar }: DialogoNaArenaProps) {
+function DialogoNaArena({ dialogo, cena, sessao, sistema, onFechar }: DialogoNaArenaProps) {
   const { turnos } = cena
   const loja = batalhaDaArena.getState()
 
@@ -164,7 +166,9 @@ function DialogoNaArena({ dialogo, cena, sessao, onFechar }: DialogoNaArenaProps
     return (
       <SeloDialog
         quem={nomeDoToken(sessao, tokenId)}
-        selo={selo === null ? null : { nome: selo.nome, turnos: selo.turnos }}
+        selo={selo === null ? null : { nome: selo.nome, turnos: selo.turnos, ...(selo.mods === undefined ? {} : { mods: selo.mods }) }}
+        alvosDeMod={alvosDeMod(sistema)}
+        corFixa={selo?.cartaoId === undefined ? undefined : (selo.natureza ?? 'condicao')}
         onConfirmar={(pedido) => (seloId === null ? loja.porSelo(CENA_DA_ARENA, tokenId, pedido) : loja.editarSelo(CENA_DA_ARENA, seloId, pedido))}
         onTirar={seloId === null ? undefined : () => loja.tirarSelo(CENA_DA_ARENA, seloId)}
         onFechar={onFechar}
@@ -432,7 +436,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
       {perfil !== undefined && (
         <PerfilDaCarta personagem={perfil} sistema={sistema} descricao={descricaoDoPerfil} imagemDaForma={aparenciaDaForma(turnos.formas?.[perfil.id], perfil)} onFechar={() => setPerfilId(null)} />
       )}
-      {dialogo !== null && <DialogoNaArena dialogo={dialogo} cena={cena} sessao={sessao} onFechar={() => setDialogo(null)} />}
+      {dialogo !== null && <DialogoNaArena dialogo={dialogo} cena={cena} sessao={sessao} sistema={sistema} onFechar={() => setDialogo(null)} />}
     </>
   )
 }

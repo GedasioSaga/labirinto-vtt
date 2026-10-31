@@ -7,14 +7,15 @@ import {
   PERFURACAO_MAX,
   PERFURACAO_MIN,
   type AcaoDaTecnica,
+  type BonusDaBatalha,
   type CombateDoPersonagem,
   type EfeitoDaBatalha,
   type SaidaDaReacao,
-  type SeloPedido,
+  type SeloDoGolpe,
 } from '../../lib/batalha/combate'
-import { seloDaTecnica } from '../../lib/batalha/selos'
+import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/selos'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
-import { rotuloDoTipo } from '../../lib/batalha/tiposDaHabilidade'
+import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
   CAMPO_DA_ACAO,
   CATEGORIAS_DE_ARMA,
@@ -79,8 +80,20 @@ export interface GolpeNaTela {
   motivo: string | null
   /** O texto inteiro da ficha, para ler antes de usar (a caixa de leitura da lista). */
   leitura: readonly LinhaDaLeitura[]
-  /** F3: o selo que o texto sugere ("Atordoa por 1 turno"); a mira o traz marcado. Ausente = nenhum. */
-  selo?: SeloPedido
+  /**
+   * F3: o selo que o texto sugere ("Atordoa por 1 turno"); a mira o traz
+   * marcado. Ausente = nenhum. Tipos de habilidade F2: Buff e Debuff sempre
+   * trazem um, com os mods lidos do Efeito e a natureza (a cor).
+   */
+  selo?: SeloDoGolpe
+  /** Tipos de habilidade F2: as opções das linhas "atributo / delta" do selo (só Buff e Debuff); ausente = o selo sem mods. */
+  alvosDeMod?: readonly AlvoDeMod[]
+  /** Tipos de habilidade F2: se o alvo reage (Buff "nunca", Debuff "sempre"); ausente = como sempre (reage se há dano). */
+  reacao?: ReacaoDoTipo
+  /** Tipos de habilidade F2: Buff, a mira começa em quem usa (aliados também marcáveis). */
+  alvoEmSi?: boolean
+  /** Tipos de habilidade F2: o bônus dos selos de quem age que entrou na conta (`bonusDaBatalha`); ausente = nenhum. */
+  bonus?: BonusDaBatalha
   /** Atacar com arma: a categoria da ficha ("De fogo"); ausente = a ficha não diz. */
   categoria?: string
   /** Atacar com arma: a capacidade da ficha ("6"), só mostra; ausente = a ficha não diz. */
@@ -253,7 +266,7 @@ const ABA_DAS_ARMAS = 'armas'
  * F1): uma por tipo de bala da arma que entra na conta, com o dano da técnica
  * já feito com ela. Sem arma, arma sem balas ou fórmula sem bala: nenhuma.
  */
-function balasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha | null): BalaNaTela[] {
+function balasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha | null, bonus: BonusDaBatalha | undefined): BalaNaTela[] {
   const formula = cartao.campos[CAMPO_DO_DANO] ?? ''
   if (arma === null || arma.balas.length === 0 || !formulaUsaBala(formula)) return []
   return arma.balas.map((bala) => ({
@@ -262,15 +275,31 @@ function balasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: 
     danoTexto: bala.dano,
     efeito: bala.efeito,
     quantidade: bala.quantidade,
-    dano: danoNaTela(lerDano(formula, { personagem, sistema, arma, vidaDoAlvo: null, bala })),
+    dano: danoNaTela(lerDano(formula, { personagem, sistema, arma, vidaDoAlvo: null, bala, bonusDaBatalha: bonus })),
   }))
 }
 
-function golpeDaTecnica(tecnica: TecnicaNoMenu, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, arma: ArmaDaFicha | null): GolpeNaTela {
+/** O bônus que vai junto do golpe (para pintar a conta): só quando algum selo soma. */
+function comBonus(bonus: BonusDaBatalha | undefined): { bonus?: BonusDaBatalha } {
+  return bonus === undefined || Object.keys(bonus).length === 0 ? {} : { bonus }
+}
+
+function golpeDaTecnica(
+  tecnica: TecnicaNoMenu,
+  personagem: Personagem,
+  sistema: SistemaDeRpg,
+  combate: CombateDoPersonagem | undefined,
+  arma: ArmaDaFicha | null,
+  bonus: BonusDaBatalha | undefined,
+): GolpeNaTela {
   const dano = danoNaTela(tecnica.dano)
-  const balas = balasDaTecnica(tecnica.cartao, personagem, sistema, arma)
+  const balas = balasDaTecnica(tecnica.cartao, personagem, sistema, arma, bonus)
+  const tipo = tecnica.tipo.tipo
   const golpe: GolpeNaTela = {
     ...(balas.length === 0 ? {} : { balas }),
+    ...comBonus(bonus),
+    reacao: reacaoDoTipo(tipo),
+    alvoEmSi: alvoPadraoEmSi(tipo),
     tipoTexto: rotuloDoTipo(tecnica.tipo.tipo),
     tipoInferido: tecnica.tipo.inferido,
     chave: `tecnica:${tecnica.cartao.id}`,
@@ -292,20 +321,27 @@ function golpeDaTecnica(tecnica: TecnicaNoMenu, personagem: Personagem, sistema:
     leitura: leituraDoCartao(tecnica.cartao, sistema, ABA_DAS_TECNICAS, dano),
   }
   if (tecnica.forma !== undefined) golpe.forma = tecnica.forma
-  const selo = seloDaTecnica(tecnica.cartao)
+  // Tipos de habilidade F2: Buff e Debuff trazem o selo com mods (editável na mira); o resto, o "por N turnos" de sempre.
+  const selo = seloSugeridoDaTecnica(tecnica.cartao, sistema)
   if (selo !== null) golpe.selo = selo
+  if (selo?.natureza === 'buff' || selo?.natureza === 'debuff') golpe.alvosDeMod = alvosDeMod(sistema)
   return golpe
 }
 
-/** As técnicas (Habilidades + as das transformações ligadas), com o motivo de cada apagada. `acoes` null = fora da vez (contra-ataque). */
+/**
+ * As técnicas (Habilidades + as das transformações ligadas), com o motivo de
+ * cada apagada. `acoes` null = fora da vez (contra-ataque). `bonus` (tipos de
+ * habilidade F2) = o `bonusDaBatalha` de quem age: entra na conta do dano.
+ */
 export function golpesDeHabilidade(
   personagem: Personagem,
   sistema: SistemaDeRpg,
   combate: CombateDoPersonagem | undefined,
   acoes: AcoesDaVez | null,
   arma: ArmaDaFicha | null,
+  bonus?: BonusDaBatalha,
 ): GolpeNaTela[] {
-  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma))
+  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus))
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */
@@ -319,11 +355,21 @@ export function armasNaBatalha(personagem: Personagem | null, combate: Pick<Comb
 
 const DESCRICAO_DO_DESARMADO = 'Sem arma: o dano é a Força.'
 
-/** O Atacar: uma tira por arma levada; sem arma, o ataque desarmado (Força). Q2: Força + dano da arma, editável. */
-export function golpesDeAtaque(personagem: Personagem | null, sistema: SistemaDeRpg | null, combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez | null): GolpeNaTela[] {
+/**
+ * O Atacar: uma tira por arma levada; sem arma, o ataque desarmado (Força).
+ * Q2: Força + dano da arma, editável. `bonus` (tipos de habilidade F2) = o
+ * `bonusDaBatalha` de quem age ("FOR +20" entra na Força da conta).
+ */
+export function golpesDeAtaque(
+  personagem: Personagem | null,
+  sistema: SistemaDeRpg | null,
+  combate: CombateDoPersonagem | undefined,
+  acoes: AcoesDaVez | null,
+  bonus?: BonusDaBatalha,
+): GolpeNaTela[] {
   const carga = combate?.carga ?? 0
   const danoCom = (arma: ArmaDaFicha | null, bala: BalaDaArma | null): DanoNaTela =>
-    personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null }, bala))
+    personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }, bala))
   const golpeDe = (arma: ArmaDaFicha | null): GolpeNaTela => {
     const lida = arma === null ? null : lerAcao(arma.campos[CAMPO_DA_ACAO] ?? '').acao
     const acaoDaFicha: AcaoDaTecnica = lida === null || lida === 'passiva' ? 'simples' : lida
@@ -338,6 +384,7 @@ export function golpesDeAtaque(personagem: Personagem | null, sistema: SistemaDe
         : arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: bala.efeito, quantidade: bala.quantidade, dano: danoCom(arma, bala) }))
     return {
       ...(selo === null ? {} : { selo }),
+      ...comBonus(bonus),
       ...(categoria === null ? {} : { categoria }),
       ...(arma === null || arma.capacidade === null ? {} : { capacidade: arma.capacidade }),
       ...(balas.length === 0 ? {} : { balas }),

@@ -1,8 +1,9 @@
 import { useId, useState, type FormEvent } from 'react'
-import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type SeloPedido } from '../../lib/batalha/combate'
-import { SELOS_PRONTOS, ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
+import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type NaturezaDoSelo, type SeloPedido } from '../../lib/batalha/combate'
+import { SELOS_PRONTOS, ehNomeDeSelo, naturezaDosMods, textoDoSelo, type AlvoDeMod } from '../../lib/batalha/selos'
 import { lerInteiro } from './dadosDoMenu'
 import { JanelaDaBatalha } from './JanelaDaBatalha'
+import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import './batalha.css'
 import './combate.css'
 
@@ -12,13 +13,22 @@ import './combate.css'
  * vez. Os prontos em botões (Atordoado, Cego, ...), o nome livre (até 24) e a
  * duração: N turnos (1 a 99, contados na vez do alvo, Q4) ou "até tirar".
  * Cada mudança vira linha "selo" no registro; o Desfazer volta.
+ *
+ * Tipos de habilidade F2: as linhas "atributo / delta" (o que o selo soma
+ * enquanto existe, até 4) e a prévia da pílula na cor que a carta vai
+ * mostrar: só somas = verde, só perdas = roxo, sem linha ou misturado = a de
+ * sempre; o selo de técnica guarda a cor do Tipo (`corFixa`).
  */
 
 export interface SeloDialogProps {
   /** O nome da ficha ("Ilo"). */
   quem: string
-  /** O selo a editar; `null` = pôr um novo. */
+  /** O selo a editar (com os mods); `null` = pôr um novo. */
   selo: SeloPedido | null
+  /** As opções das linhas de modificador (`alvosDeMod(sistema)`). */
+  alvosDeMod: readonly AlvoDeMod[]
+  /** Ao editar um selo posto por técnica: a cor do Tipo, que não muda com as linhas. Ausente = a cor segue o sinal das linhas. */
+  corFixa?: NaturezaDoSelo
   /** O pedido valeu? `false` mantém a janela, com o aviso. */
   onConfirmar: (selo: SeloPedido) => boolean
   /** Só ao editar: tira o selo. */
@@ -28,17 +38,24 @@ export interface SeloDialogProps {
 
 const TURNOS_PADRAO = '1'
 
-export function SeloDialog({ quem, selo, onConfirmar, onTirar, onFechar }: SeloDialogProps) {
+/** O nome da cor na prévia (o leitor de tela não vê a cor). */
+const NOME_DA_NATUREZA: Record<NaturezaDoSelo, string> = { buff: 'buff, verde', debuff: 'debuff, roxo', passiva: 'passiva, dourado', condicao: 'condição, a cor de sempre' }
+
+export function SeloDialog({ quem, selo, alvosDeMod, corFixa, onConfirmar, onTirar, onFechar }: SeloDialogProps) {
   const idBase = useId()
   const [nome, setNome] = useState(selo?.nome ?? '')
   const [ateTirar, setAteTirar] = useState(selo !== null && selo.turnos === null)
   const [turnosTexto, setTurnosTexto] = useState(selo === null || selo.turnos === null ? TURNOS_PADRAO : String(selo.turnos))
+  const [linhas, setLinhas] = useState<LinhaDeMod[]>(() => linhasDosMods(selo?.mods))
   const [erro, setErro] = useState<string | null>(null)
   const limpo = nome.trim()
   const turnos = ateTirar ? null : lerInteiro(turnosTexto, TURNOS_DO_SELO_MAX)
   const nomeValido = ehNomeDeSelo(limpo)
   const turnosValidos = ateTirar || (turnos !== null && turnos >= 1)
   const editando = selo !== null
+  const lidos = modsDasLinhas(linhas, alvosDeMod)
+  const natureza: NaturezaDoSelo = corFixa ?? ('mods' in lidos ? naturezaDosMods(lidos.mods) : undefined) ?? 'condicao'
+  const resumo = resumoDasLinhas(linhas, alvosDeMod)
 
   const confirmar = (evento: FormEvent) => {
     evento.preventDefault()
@@ -52,7 +69,13 @@ export function SeloDialog({ quem, selo, onConfirmar, onTirar, onFechar }: SeloD
       document.getElementById(`${idBase}-turnos`)?.focus()
       return
     }
-    if (onConfirmar({ nome: limpo, turnos })) onFechar()
+    if ('erro' in lidos) {
+      setErro(lidos.erro)
+      return
+    }
+    // Sem linha que valha, o pedido vai sem `mods` (editar assim tira os que havia).
+    const pedido: SeloPedido = lidos.mods.length > 0 ? { nome: limpo, turnos, mods: lidos.mods } : { nome: limpo, turnos }
+    if (onConfirmar(pedido)) onFechar()
     else setErro(editando ? 'Não salvou: o selo saiu (alguém desfez) ou a ficha saiu da batalha.' : 'Não pôs: a ficha saiu da batalha ou já tem selos demais.')
   }
 
@@ -133,6 +156,24 @@ export function SeloDialog({ quem, selo, onConfirmar, onTirar, onFechar }: SeloD
             Até tirar <small>não desconta; sai quando você tirar</small>
           </label>
         </fieldset>
+        <LinhasDeMods
+          idBase={idBase}
+          linhas={linhas}
+          alvos={alvosDeMod}
+          dica="somam na conta enquanto o selo existir"
+          onMudar={(novas) => {
+            setErro(null)
+            setLinhas(novas)
+          }}
+        />
+        <p className="bt-selo-form__previa">
+          <span className="bt-selo-form__previa-rot">Na carta</span>
+          <span className="bt-selo bt-selo--previa" data-natureza={natureza === 'condicao' ? undefined : natureza}>
+            {previa ?? (limpo || 'Selo')}
+            {resumo !== '' && <span className="bt-selo__mods">{resumo}</span>}
+          </span>
+          <small>{corFixa !== undefined ? `cor do Tipo da técnica (${NOME_DA_NATUREZA[natureza]})` : NOME_DA_NATUREZA[natureza]}</small>
+        </p>
         {erro !== null && (
           <p className="bt-form__erro" role="alert">
             {erro}

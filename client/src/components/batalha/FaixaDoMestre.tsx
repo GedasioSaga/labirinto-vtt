@@ -102,11 +102,16 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         })
       }
       // F3: os selos da ficha (por token: a carta extra mostra os mesmos).
-      itens.push({ id: 'por-selo', secao: 'Selos', rotulo: 'Pôr selo…', detalhe: 'Atordoado, Cego… com turnos ou até tirar', onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId: null }) })
+      itens.push({ id: 'por-selo', secao: 'Selos', rotulo: 'Pôr selo…', detalhe: 'Atordoado, Cego… turnos e modificadores', onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId: null }) })
       for (const selo of carta.selos ?? []) {
         const seloId = selo.id
         if (seloId === null) continue
-        itens.push({ id: `selo-${seloId}`, rotulo: `${selo.texto}…`, detalhe: 'Editar ou tirar', onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId }) })
+        itens.push({
+          id: `selo-${seloId}`,
+          rotulo: `${selo.texto}…`,
+          detalhe: selo.mods === '' ? 'Editar ou tirar' : `${selo.mods} · editar ou tirar`,
+          onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId }),
+        })
       }
       if (personagemId !== null && (carta.carga ?? 0) > 0)
         itens.push({

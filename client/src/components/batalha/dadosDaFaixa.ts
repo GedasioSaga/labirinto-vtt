@@ -1,7 +1,8 @@
 import { maximoComposto } from '../../lib/ajusteDaFicha'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
-import { selosDoToken, textoDoSelo } from '../../lib/batalha/selos'
+import type { ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
+import { selosDoToken, textoDoSelo, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, nomeDaFormaLigada } from '../../lib/batalha/transformacao'
 import { proximaCarta, tokensCaidos, turnoNoM, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { CartaParaJogador, EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
@@ -70,11 +71,37 @@ export interface SeloNaCarta {
   turnos: number | null
   /** "Atordoado 2"; "Cego" (até tirar). */
   texto: string
+  /** Tipos de habilidade F2: a cor da pílula (buff verde, debuff roxo, passiva dourada); ausente = condição, a de sempre. */
+  natureza?: Exclude<NaturezaDoSelo, 'condicao'>
+  /** Tipos de habilidade F2: o que o selo soma ("FOR +20, Dano +30"); vazio = nada. */
+  mods: string
+}
+
+/** Um selo como a store (mestre) ou o recorte (jogador) o guardam: só o que a pílula lê. */
+interface SeloLido {
+  id?: string
+  nome: string
+  turnos: number | null
+  mods?: readonly ModDoSelo[]
+  natureza?: NaturezaDoSelo
 }
 
 /** As cartas do mesmo token mostram os mesmos selos (a extra também). */
-function selosNaCarta(selos: readonly { id?: string; nome: string; turnos: number | null }[] | undefined): SeloNaCarta[] {
-  return (selos ?? []).map((selo) => ({ id: selo.id ?? null, nome: selo.nome, turnos: selo.turnos, texto: textoDoSelo(selo) }))
+function selosNaCarta(selos: readonly SeloLido[] | undefined, sistema: SistemaDeRpg | null): SeloNaCarta[] {
+  return (selos ?? []).map((selo) => {
+    const naCarta: SeloNaCarta = { id: selo.id ?? null, nome: selo.nome, turnos: selo.turnos, texto: textoDoSelo(selo), mods: textoDosMods(selo.mods, sistema) }
+    if (selo.natureza !== undefined && selo.natureza !== 'condicao') naCarta.natureza = selo.natureza
+    return naCarta
+  })
+}
+
+const NOME_DA_NATUREZA: Record<Exclude<NaturezaDoSelo, 'condicao'>, string> = { buff: 'Buff', debuff: 'Debuff', passiva: 'Passiva' }
+
+/** "Buff · Fúria: FOR +20, 2 turnos"; "Cego: até o mestre tirar". O título da pílula e o que o leitor de tela diz. */
+export function textoLongoDoSelo(selo: SeloNaCarta): string {
+  const duracao = selo.turnos === null ? 'até o mestre tirar' : `${selo.turnos} ${selo.turnos === 1 ? 'turno' : 'turnos'}`
+  const corpo = `${selo.nome}: ${selo.mods === '' ? duracao : `${selo.mods}, ${duracao}`}`
+  return selo.natureza === undefined ? corpo : `${NOME_DA_NATUREZA[selo.natureza]} · ${corpo}`
 }
 
 export interface DadosDaFaixa {
@@ -158,7 +185,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema }:
       nome: ficha?.name.trim() || carta.nome?.trim() || personagem?.nome || NOME_SEM_FICHA,
       imagem: aparenciaDaForma(forma, personagem) ?? ficha?.imageData ?? personagem?.retrato ?? null,
       forma: nomeDaFormaLigada(forma, personagem),
-      selos: selosNaCarta(selosDoToken(turnos.selos, carta.tokenId)),
+      selos: selosNaCarta(selosDoToken(turnos.selos, carta.tokenId), sistema),
       cor: equipe?.cor ?? null,
       equipe: equipe?.nome ?? null,
       vida: recursos.length > 0 ? 'numeros' : 'sem',
@@ -220,7 +247,7 @@ function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined
     // F3: a imagem da forma (o host só manda a de cartão ligado) vence a foto e o retrato.
     imagem: aparencia ?? ficha?.imageData ?? (carta.lado === 'outro' ? null : (personagem?.retrato ?? null)),
     forma: carta.forma ?? null,
-    selos: selosNaCarta(carta.selos),
+    selos: selosNaCarta(carta.selos, sistema),
     cor: carta.equipe?.cor ?? null,
     equipe: carta.equipe?.nome ?? null,
     vida,

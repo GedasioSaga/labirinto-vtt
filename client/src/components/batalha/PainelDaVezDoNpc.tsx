@@ -89,7 +89,11 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
                 <span className="bt-opcao__nome">
                   {item.nome}
                   {item.tipoTexto !== undefined && (
-                    <span className="bt-etq bt-etq--tipo" title={item.tipoInferido === true ? `Tipo: ${item.tipoTexto} (pela Ação)` : `Tipo: ${item.tipoTexto}`}>
+                    <span
+                      className="bt-etq bt-etq--tipo"
+                      data-natureza={item.alvosDeMod === undefined ? undefined : item.selo?.natureza}
+                      title={item.tipoInferido === true ? `Tipo: ${item.tipoTexto} (pela Ação)` : `Tipo: ${item.tipoTexto}`}
+                    >
                       {item.tipoTexto}
                     </span>
                   )}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type MouseEvent } from 'react'
 import { ImagemOuIniciais } from '../FichaPecas'
-import type { DadosDaCarta, RecursoNaCarta } from './dadosDaFaixa'
+import { textoLongoDoSelo, type DadosDaCarta, type RecursoNaCarta } from './dadosDaFaixa'
 import { movimentoReduzido } from './dadosDoMenu'
 import './batalha.css'
 
@@ -70,7 +70,7 @@ export function descricaoDaCarta(carta: DadosDaCarta, posicao: number, vez: bool
   if (carta.vida === 'oculta') partes.push('vida oculta')
   if ((carta.carga ?? 0) > 0) partes.push(`concentração ${carta.carga}`)
   if (carta.forma) partes.push(`em ${carta.forma}`)
-  for (const selo of carta.selos ?? []) partes.push(selo.turnos === null ? `${selo.nome} até tirar` : `${selo.nome} por ${selo.turnos} ${selo.turnos === 1 ? 'turno' : 'turnos'}`)
+  for (const selo of carta.selos ?? []) partes.push(textoLongoDoSelo(selo))
   if (carta.caiu) partes.push('caiu')
   if (doMestre && carta.d20 !== null) partes.push(`desempate d20 ${carta.d20}`)
   if (doMestre && carta.empate !== null) partes.push('empatado na Agilidade')
@@ -133,9 +133,11 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
               key={selo.id ?? `${i}:${selo.texto}`}
               className="bt-selo"
               data-selo={doMestre && selo.id !== null ? selo.id : undefined}
-              title={doMestre && selo.id !== null ? `${selo.texto}: clique para editar ou tirar` : selo.turnos === null ? `${selo.nome}: até o mestre tirar` : selo.texto}
+              data-natureza={selo.natureza}
+              title={doMestre && selo.id !== null ? `${textoLongoDoSelo(selo)}. Clique para editar ou tirar` : textoLongoDoSelo(selo)}
             >
               {selo.texto}
+              {selo.mods !== '' && <span className="bt-selo__mods">{selo.mods}</span>}
             </span>
           ))}
         </span>

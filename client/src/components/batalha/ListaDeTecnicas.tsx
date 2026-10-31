@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref, type UIEvent } from 'react'
+import { ContaComBonus } from './ContaComBonus'
 import { textoDaCarga, type GolpeNaTela, type LinhaDaLeitura, type PipDaVez } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
@@ -171,7 +172,11 @@ export function ChipsDoGolpe({ golpe }: { golpe: GolpeNaTela }) {
   return (
     <>
       {golpe.tipoTexto !== undefined && (
-        <span className="bt-etq bt-etq--tipo" title={golpe.tipoInferido === true ? `Tipo: ${golpe.tipoTexto} (pela Ação; o campo Tipo da ficha está vazio)` : `Tipo: ${golpe.tipoTexto}`}>
+        <span
+          className="bt-etq bt-etq--tipo"
+          data-natureza={golpe.alvosDeMod === undefined ? undefined : golpe.selo?.natureza}
+          title={golpe.tipoInferido === true ? `Tipo: ${golpe.tipoTexto} (pela Ação; o campo Tipo da ficha está vazio)` : `Tipo: ${golpe.tipoTexto}`}
+        >
           {golpe.tipoTexto}
         </span>
       )}
@@ -437,7 +442,8 @@ export function DetalheDoGolpe({ id, golpe, comNome, className, style, refDaCaix
         {linhasDoGolpe(golpe).map((linha, i) => (
           <div key={`${i}:${linha.rotulo}`} className="bt-detalhe__linha" data-agora={linha.campo === 'motivo' ? 'sim' : undefined}>
             <dt>{linha.rotulo}</dt>
-            <dd>{linha.texto}</dd>
+            {/* Tipos de habilidade F2: a conta do dano pinta o bônus dos selos de quem age ("+20 (Fúria)"). */}
+            <dd>{linha.texto === golpe.dano.conta ? <ContaComBonus conta={linha.texto} bonus={golpe.bonus} /> : linha.texto}</dd>
           </div>
         ))}
       </dl>

@@ -18,6 +18,20 @@
   /* A troca de lugar das cartas (FLIP, FaixaDaOrdem.tsx) usa esta curva. */
   --bt-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --bt-carta-largura: 140px;
+  /*
+   * Tipos de habilidade F2: a cor do selo pela natureza (buff verde, debuff
+   * roxo, passiva dourada; a condição segue no vermelho de sempre). A clara
+   * serve no escuro (carta, caixa, janela); a "tinta" no papel (mira, leitura).
+   */
+  --bt-buff: var(--lb-color-online);
+  --bt-buff-fundo: var(--lb-color-online-soft);
+  --bt-buff-tinta: #2b6338;
+  --bt-debuff: var(--lb-color-arcane);
+  --bt-debuff-fundo: var(--lb-color-arcane-soft);
+  --bt-debuff-tinta: #55398c;
+  --bt-passiva: var(--lb-color-brass);
+  --bt-passiva-fundo: var(--lb-color-brass-soft);
+  --bt-passiva-tinta: #7a5310;
 }
 
 /* ---------------------------------------------------------------- botões */
@@ -421,13 +435,15 @@ button.bt-carta__corpo {
   margin-top: 5px;
 }
 .bt-selo {
+  --selo-cor: var(--lb-color-ember);
+  --selo-fundo: var(--lb-color-ember-soft);
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   padding: 0 4px;
   border-radius: 3px;
-  background: var(--lb-color-ember-soft);
-  color: var(--lb-color-ember);
+  background: var(--selo-fundo);
+  color: var(--selo-cor);
   font-family: var(--lb-font-utility);
   font-size: 9px;
   font-weight: 700;
@@ -436,6 +452,27 @@ button.bt-carta__corpo {
   text-transform: uppercase;
   white-space: nowrap;
 }
+/* Tipos de habilidade F2: a natureza troca só as duas cores; tamanho e forma ficam. */
+.bt-selo[data-natureza='buff'] {
+  --selo-cor: var(--bt-buff);
+  --selo-fundo: var(--bt-buff-fundo);
+}
+.bt-selo[data-natureza='debuff'] {
+  --selo-cor: var(--bt-debuff);
+  --selo-fundo: var(--bt-debuff-fundo);
+}
+.bt-selo[data-natureza='passiva'] {
+  --selo-cor: var(--bt-passiva);
+  --selo-fundo: var(--bt-passiva-fundo);
+}
+/* "FOR +20" depois do nome: mesma cor, peso menor, sem caixa alta (é número, não rótulo). */
+.bt-selo__mods {
+  margin-left: 4px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
 /* No mestre o selo da carta abre editar e tirar: mostra que é clicável. */
 @media (hover: hover) and (pointer: fine) {
   .bt-selo[data-selo] {
@@ -443,7 +480,7 @@ button.bt-carta__corpo {
     transition: background-color var(--lb-motion-fast) ease;
   }
   .bt-selo[data-selo]:hover {
-    background: rgba(226, 100, 90, 0.3);
+    background: color-mix(in srgb, var(--selo-cor) 30%, transparent);
   }
 }
 /* Os selos da ficha da vez no painel do mestre: botões que abrem editar e tirar. */
@@ -474,7 +511,7 @@ button.bt-carta__corpo {
 }
 @media (hover: hover) and (pointer: fine) {
   .bt-selo--botao:hover {
-    background: rgba(226, 100, 90, 0.3);
+    background: color-mix(in srgb, var(--selo-cor) 30%, transparent);
   }
 }
 

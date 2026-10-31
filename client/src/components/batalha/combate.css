@@ -2182,6 +2182,269 @@
   color: var(--lb-color-ember);
 }
 
+/*
+ * Tipos de habilidade F2: as linhas "atributo / delta" do selo (mira de
+ * Buff/Debuff e "Pôr selo..."). No papel da mira por padrão; a janela do
+ * mestre (escura) troca o fundo dos campos. A barra à esquerda da linha diz o
+ * sinal: verde soma, roxo tira (a mesma cor que a pílula vai ter).
+ */
+.bt-mods {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.bt-mods__legenda {
+  margin-bottom: 2px;
+  padding: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5d5a54;
+}
+.bt-mods__legenda small {
+  margin-left: 6px;
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.bt-mods__lista {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bt-mods__linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9ch 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 3px 3px 9px;
+  border-radius: 3px;
+  background: rgba(12, 12, 14, 0.06);
+  box-shadow: inset 3px 0 0 rgba(12, 12, 14, 0.18);
+  transition:
+    opacity 160ms var(--bt-ease-out),
+    transform 160ms var(--bt-ease-out),
+    box-shadow var(--lb-motion-fast) ease;
+}
+@starting-style {
+  .bt-mods__linha {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+.bt-mods__linha[data-sinal='mais'] {
+  box-shadow: inset 3px 0 0 var(--bt-buff-tinta);
+}
+.bt-mods__linha[data-sinal='menos'] {
+  box-shadow: inset 3px 0 0 var(--bt-debuff-tinta);
+}
+.bt-mods select {
+  min-width: 0;
+  min-height: 32px;
+  border: 1px solid rgba(12, 12, 14, 0.35);
+  border-radius: 3px;
+  background: #fffaf0;
+  color: var(--bt-tinta);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+}
+.bt-mods select:focus-visible {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 1px;
+}
+.bt-mods select[aria-invalid='true'] {
+  border-color: var(--bt-sangue);
+  box-shadow: inset 0 0 0 1px var(--bt-sangue);
+}
+.bt-num.bt-mods__delta {
+  width: 100%;
+}
+.bt-mods__tirar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #5d5a54;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease,
+    transform 120ms var(--bt-ease-out);
+}
+.bt-mods__tirar:active {
+  transform: scale(0.97);
+}
+.bt-mods__tirar:focus-visible {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-mods__tirar:hover {
+    background: rgba(12, 12, 14, 0.1);
+    color: var(--bt-sangue);
+  }
+}
+.bt-mods__pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.bt-mods__nota,
+.bt-mods__vazio {
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  color: #5d5a54;
+}
+/* Movimento reduzido: a linha nova só acende (sem descer); a cor do sinal segue. */
+@media (prefers-reduced-motion: reduce) {
+  .bt-mods__linha {
+    transition:
+      opacity 160ms var(--bt-ease-out),
+      box-shadow var(--lb-motion-fast) ease;
+  }
+}
+
+/* A janela do mestre é escura: os mesmos campos, no tom dela. */
+.bt-selo-form .bt-mods__legenda,
+.bt-selo-form .bt-mods__nota,
+.bt-selo-form .bt-mods__vazio {
+  color: var(--lb-color-parchment-faint);
+}
+.bt-selo-form .bt-mods__linha {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 3px 0 0 var(--lb-color-line-strong);
+}
+.bt-selo-form .bt-mods__linha[data-sinal='mais'] {
+  box-shadow: inset 3px 0 0 var(--bt-buff);
+}
+.bt-selo-form .bt-mods__linha[data-sinal='menos'] {
+  box-shadow: inset 3px 0 0 var(--bt-debuff);
+}
+.bt-selo-form .bt-mods select {
+  background: var(--lb-color-stone-sunken);
+  border-color: var(--lb-color-line-strong);
+  color: var(--lb-color-parchment);
+}
+.bt-selo-form .bt-mods__tirar {
+  color: var(--lb-color-parchment-dim);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-selo-form .bt-mods__tirar:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--lb-color-ember);
+  }
+}
+/* A prévia da pílula, no tamanho de leitura (a da carta é 9px). */
+.bt-selo-form__previa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-selo-form__previa-rot {
+  font-family: var(--lb-font-utility);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.bt-selo.bt-selo--previa {
+  padding: 0 7px;
+  font-size: var(--lb-font-size-xs);
+  line-height: 22px;
+}
+
+/* Tipos de habilidade F2: o selo sugerido na mira ganha a cor da natureza (Buff verde, Debuff roxo). */
+.bt-mira__selo[data-natureza='buff'][data-marcado='sim'] {
+  background: color-mix(in srgb, var(--bt-buff-tinta) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bt-buff-tinta) 45%, transparent);
+}
+.bt-mira__selo[data-natureza='debuff'][data-marcado='sim'] {
+  background: color-mix(in srgb, var(--bt-debuff-tinta) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bt-debuff-tinta) 45%, transparent);
+}
+/* Os campos do selo são uma fila flexível: as linhas de modificador ocupam a largura inteira. */
+.bt-mira__selo-campos .bt-mods {
+  flex: 1 1 100%;
+}
+.bt-mira__selo-mods {
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--bt-sangue);
+}
+.bt-mira__selo[data-natureza='buff'] .bt-mira__selo-mods {
+  color: var(--bt-buff-tinta);
+}
+.bt-mira__selo[data-natureza='debuff'] .bt-mira__selo-mods {
+  color: var(--bt-debuff-tinta);
+}
+
+/*
+ * O bônus dos selos na conta ("+20 (Fúria)"), de leve: a cor da natureza e
+ * um fundo quase nada. Claro no escuro (caixa, painel); tinta no papel.
+ */
+.bt-bonus {
+  --bonus-cor: var(--bt-buff);
+  padding: 0 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--bonus-cor) 14%, transparent);
+  color: var(--bonus-cor);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.bt-bonus[data-sinal='menos'] {
+  --bonus-cor: var(--bt-debuff);
+}
+.bt-papel .bt-bonus,
+.bt-detalhe .bt-bonus {
+  --bonus-cor: var(--bt-buff-tinta);
+}
+.bt-papel .bt-bonus[data-sinal='menos'],
+.bt-detalhe .bt-bonus[data-sinal='menos'] {
+  --bonus-cor: var(--bt-debuff-tinta);
+}
+.bt-mod__origem {
+  font-size: var(--lb-font-size-xs);
+}
+.bt-botao .bt-bonus {
+  margin-left: 2px;
+  font-size: var(--lb-font-size-xs);
+}
+
+/* O Tipo Buff/Debuff na tira e no painel do NPC: o contorno na cor da natureza. */
+.bt-etq--tipo[data-natureza='buff'] {
+  box-shadow: inset 0 0 0 1px var(--bt-buff);
+  color: var(--bt-buff);
+}
+.bt-etq--tipo[data-natureza='debuff'] {
+  box-shadow: inset 0 0 0 1px var(--bt-debuff);
+  color: var(--bt-debuff);
+}
+.bt-tira[data-esta='sim'] .bt-etq--tipo[data-natureza='buff'] {
+  box-shadow: inset 0 0 0 1px var(--bt-buff-tinta);
+  color: var(--bt-buff-tinta);
+}
+.bt-tira[data-esta='sim'] .bt-etq--tipo[data-natureza='debuff'] {
+  box-shadow: inset 0 0 0 1px var(--bt-debuff-tinta);
+  color: var(--bt-debuff-tinta);
+}
+
 /* ---------------------------------------------------------------- F3: a transformação sobre o mapa (palco) */
 .bt-ef-transformacao {
   position: absolute;

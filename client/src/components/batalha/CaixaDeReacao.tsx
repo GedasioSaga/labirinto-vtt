@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { PERFURACAO_MAX, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { MODIFICADOR_DA_REACAO_MAX, PERFURACAO_MAX, type ParteDoBonus, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
 import { danoFinal, divisaoDoDano, porcentagemQuePerfura, saidaDoPassar, saidasPossiveis } from '../../lib/batalha/reacao'
 import type { ReacaoComTecnica } from '../../lib/batalha/reacaoComTecnica'
+import { origemDoBonus } from './ContaComBonus'
 import { formatarNumero, lerModificadorDaReacao, movimentoReduzido, saidasNaTela, TEXTO_DA_SAIDA } from './dadosDoMenu'
 import { TecnicasDaReacao } from './TecnicasDaReacao'
 import './batalha.css'
@@ -19,6 +20,11 @@ import './combate.css'
  *
  * Tipos de habilidade F1: antes do d20, "Usar técnica" (`TecnicasDaReacao`)
  * com as técnicas de reação de quem reage, no lugar do dado.
+ *
+ * Tipos de habilidade F2: o modificador começa com o "+3 na reação" dos
+ * selos de quem reage (`bonusDaReacao`), com a origem ao lado ("+3 (Foco)");
+ * o campo segue editável. O lembrado por ficha guarda só a parte digitada à
+ * mão: quando o selo sai, o modificador volta sem ele.
  *
  * Com mais de um golpe esperando (o mestre, um por NPC atingido), uma linha
  * por golpe e "Rolar todas". Esc recolhe (o botão REAÇÃO reabre).
@@ -41,6 +47,20 @@ export interface ReacaoNaCaixa {
   rolagem?: RolagemDaReacao
   /** Tipos de habilidade F1: as técnicas de reação de quem reage (`reacoesParaOAlvo`); ausente ou vazia = sem a seção Usar técnica. */
   tecnicas?: readonly ReacaoComTecnica[]
+  /** Tipos de habilidade F2: o "reacao" dos selos de quem reage: o total (`bonusDaReacao`) e as partes ("+3 (Foco)"). Ausente = nenhum. */
+  bonus?: BonusDaReacaoNaTela
+}
+
+/** O bônus de reação como a caixa o mostra. */
+export interface BonusDaReacaoNaTela {
+  total: number
+  partes: readonly ParteDoBonus[]
+}
+
+/** O modificador que a caixa abre: o digitado à mão da última vez mais o bônus dos selos, no teto. */
+export function modificadorInicial(tokenId: string, bonus: BonusDaReacaoNaTela | undefined): number {
+  const soma = (modificadorLembrado.get(tokenId) ?? 0) + (bonus?.total ?? 0)
+  return Math.max(-MODIFICADOR_DA_REACAO_MAX, Math.min(MODIFICADOR_DA_REACAO_MAX, soma))
 }
 
 /** ", perfurante (direto no HP)" ou ", perfurante 30% (60 direto no HP, o resto pelo Escudo)". */
@@ -129,9 +149,11 @@ function UmaReacao({
   focar: boolean
 }) {
   const [modTexto, setModTexto] = useState(() => {
-    const lembrado = modificadorLembrado.get(reacao.tokenId) ?? 0
-    return lembrado === 0 ? '' : String(lembrado)
+    const inicial = modificadorInicial(reacao.tokenId, reacao.bonus)
+    return inicial === 0 ? '' : String(inicial)
   })
+  const origem = reacao.bonus === undefined ? '' : origemDoBonus(reacao.bonus.partes)
+  const idDaOrigem = useId()
   const [esperando, setEsperando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const primeiro = useRef<HTMLButtonElement>(null)
@@ -152,7 +174,8 @@ function UmaReacao({
   const modificador = lerModificadorDaReacao(modTexto)
   const pedir = (pedido: PedidoDeReacao) => {
     if (esperando) return
-    modificadorLembrado.set(reacao.tokenId, modificador)
+    // Só a parte à mão fica lembrada: o bônus do selo volta sozinho enquanto o selo existir.
+    modificadorLembrado.set(reacao.tokenId, modificador - (reacao.bonus?.total ?? 0))
     const saiu = onPedir(pedido)
     setErro(saiu ? null : 'Não saiu: sem conexão com o mestre. Tente de novo.')
     // Só o dado espera a volta do host (também a técnica que rola); escolher, Passar, Não reagir e a técnica sem dado resolvem e a caixa sai.
@@ -189,7 +212,21 @@ function UmaReacao({
               </button>
               <label className="bt-mod">
                 Modificador
-                <input className="bt-num" inputMode="numeric" value={modTexto} placeholder="0" onChange={(evento) => setModTexto(evento.target.value)} />
+                <input
+                  className="bt-num"
+                  inputMode="numeric"
+                  value={modTexto}
+                  placeholder="0"
+                  aria-describedby={origem === '' ? undefined : idDaOrigem}
+                  onChange={(evento) => setModTexto(evento.target.value)}
+                />
+                {origem !== '' && (
+                  <small id={idDaOrigem} className="bt-mod__origem" title="Vem dos selos de quem reage; o campo segue editável">
+                    <span className="bt-bonus" data-sinal={(reacao.bonus?.total ?? 0) < 0 ? 'menos' : 'mais'}>
+                      {origem}
+                    </span>
+                  </small>
+                )}
               </label>
             </>
           ) : golpeId === null ? (
@@ -300,7 +337,7 @@ export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps
               onClick={() => {
                 for (const reacao of naoRoladas) {
                   if (reacao.golpeId === null) continue
-                  onPedir({ tipo: 'rolar', golpeId: reacao.golpeId, tokenId: reacao.tokenId, modificador: modificadorLembrado.get(reacao.tokenId) ?? 0 })
+                  onPedir({ tipo: 'rolar', golpeId: reacao.golpeId, tokenId: reacao.tokenId, modificador: modificadorInicial(reacao.tokenId, reacao.bonus) })
                 }
               }}
             >

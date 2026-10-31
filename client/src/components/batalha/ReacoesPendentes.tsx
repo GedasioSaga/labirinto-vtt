@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import type { PedidoDeReacao } from '../../lib/batalha/combate'
 import { porcentagemQuePerfura } from '../../lib/batalha/reacao'
 import { CaixaDeReacao, type ReacaoNaCaixa } from './CaixaDeReacao'
+import { origemDoBonus } from './ContaComBonus'
 import { formatarNumero, lerPerfuracao, saidasNaTela, textoDoPerfurante } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
@@ -115,8 +116,18 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
                 </span>
                 <span className="bt-pendente__acoes">
                   {rolagem === undefined ? (
-                    <button type="button" className="bt-botao bt-botao--p" onClick={() => onPedir({ tipo: 'rolar', golpeId: item.golpeId, tokenId: item.tokenId, modificador: 0 })}>
+                    <button
+                      type="button"
+                      className="bt-botao bt-botao--p"
+                      title={item.bonus === undefined ? undefined : `Rola com ${origemDoBonus(item.bonus.partes)}, dos selos de ${item.alvo}`}
+                      onClick={() => onPedir({ tipo: 'rolar', golpeId: item.golpeId, tokenId: item.tokenId, modificador: item.bonus?.total ?? 0 })}
+                    >
                       Rolar por {item.alvo}
+                      {item.bonus !== undefined && (
+                        <span className="bt-bonus" data-sinal={item.bonus.total < 0 ? 'menos' : 'mais'}>
+                          {origemDoBonus(item.bonus.partes)}
+                        </span>
+                      )}
                     </button>
                   ) : (
                     saidasNaTela(rolagem.d20, rolagem.total, item.dano).map((saida) => (

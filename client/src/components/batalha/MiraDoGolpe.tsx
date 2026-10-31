@@ -17,6 +17,8 @@ import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
 import { BotaoDaCalculadora, CalculadoraDeDano } from './CalculadoraDeDano'
+import { ContaComBonus } from './ContaComBonus'
+import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import {
   contaDoGolpe,
   formatarNumero,
@@ -46,6 +48,12 @@ import './combate.css'
  * pedido leva o `balaId`. Na técnica cuja fórmula diz "Dano da Bala" (tipos
  * de habilidade F1), a mesma escolha refaz a conta da técnica; o pedido de
  * habilidade não tem `balaId`: a bala vai no dano de cada alvo.
+ *
+ * Tipos de habilidade F2: Buff começa marcado em quem usa (aliados também
+ * marcáveis) e não pede reação; Debuff mira um inimigo, que reage (esquivou,
+ * o selo não pega). O selo deles traz as linhas "atributo / delta" lidas do
+ * Efeito, editáveis (pôr e tirar linha, até 4). A conta do dano pinta o
+ * bônus dos selos de quem age ("+20 (Fúria)").
  *
  * Esc volta à lista; Enter num campo lança.
  */
@@ -147,19 +155,40 @@ export interface MiraDoGolpeProps {
 
 const ACOES_PERGUNTADAS: readonly AcaoDaTecnica[] = ['simples', 'completa', 'bonus', 'livre']
 const NOTA_DA_REACAO = 'O alvo rola 1d20 para reagir: 10+ defende (metade), 15+ esquiva, 20 contra-ataca; 1 é crítico (×1,5).'
+const NOTA_DO_BUFF = 'Buff: ninguém reage. O selo pega em todos que você marcar.'
+const NOTA_DO_DEBUFF_SEM_DANO = 'O alvo rola 1d20 para reagir: se esquivar ou contra-atacar, o selo não pega.'
 
 function primeiroAlvo(alvos: readonly AlvoNaMira[]): string | null {
   const validos = alvos.filter((alvo) => !alvo.motivo)
   return (validos.find((alvo) => alvo.lado === 'outro' && !alvo.caiu) ?? validos.find((alvo) => !alvo.caiu))?.tokenId ?? null
 }
 
+/** A nota do pé da mira: se o alvo reage, como `alvosDoGolpe` (golpe.ts) decide. */
+function notaDaReacao(golpe: GolpeNaTela, semReacao: boolean): string {
+  if (golpe.reacao === 'nunca') return NOTA_DO_BUFF
+  if (semReacao) return golpe.overload ? 'Overload: o alvo não reage.' : 'Surpresa: o alvo não reage.'
+  if (golpe.dano.semDano) return golpe.reacao === 'sempre' ? NOTA_DO_DEBUFF_SEM_DANO : 'Sem dano: o alvo não reage.'
+  return NOTA_DA_REACAO
+}
+
+/** Buff (tipos de habilidade F2): a mira começa em quem usa (o "você" da lista; no mestre, o NPC da vez). */
+function voceNaLista(alvos: readonly AlvoNaMira[]): string | null {
+  const meus = alvos.filter((alvo) => alvo.lado === 'eu' && !alvo.motivo)
+  return (meus.find((alvo) => !alvo.caiu) ?? meus[0])?.tokenId ?? null
+}
+
+/** Quem a mira marca ao abrir: Buff em si; a sugestão do NPC; o primeiro de outra equipe. */
+function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoInicial: string | null | undefined): string[] {
+  const emSi = golpe.alvoEmSi === true ? voceNaLista(alvos) : null
+  if (emSi !== null) return [emSi]
+  const sugerido = alvoInicial !== undefined && alvoInicial !== null && alvos.some((alvo) => alvo.tokenId === alvoInicial && !alvo.motivo) ? alvoInicial : null
+  const primeiro = sugerido ?? (alvoInicial === undefined ? primeiroAlvo(alvos) : null)
+  return primeiro === null ? [] : [primeiro]
+}
+
 export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa }: MiraDoGolpeProps) {
   const idBase = useId()
-  const [marcados, setMarcados] = useState<readonly string[]>(() => {
-    const sugerido = alvoInicial !== undefined && alvoInicial !== null && alvos.some((alvo) => alvo.tokenId === alvoInicial && !alvo.motivo) ? alvoInicial : null
-    const primeiro = sugerido ?? (alvoInicial === undefined ? primeiroAlvo(alvos) : null)
-    return primeiro === null ? [] : [primeiro]
-  })
+  const [marcados, setMarcados] = useState<readonly string[]>(() => marcadosAoAbrir(golpe, alvos, alvoInicial))
   const [foco, setFoco] = useState<string | null>(() => marcados[0] ?? null)
   const [baseTexto, setBaseTexto] = useState(golpe.dano.valor === null ? '' : String(golpe.dano.valor))
   const [editados, setEditados] = useState<Readonly<Record<string, string>>>({})
@@ -174,6 +203,10 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const [comSelo, setComSelo] = useState(sugerido !== null)
   const [seloNome, setSeloNome] = useState(sugerido?.nome ?? '')
   const [seloTurnos, setSeloTurnos] = useState(sugerido?.turnos === null || sugerido === null ? '' : String(sugerido.turnos))
+  // Tipos de habilidade F2: Buff e Debuff trazem as linhas "atributo / delta" lidas do Efeito (sugestão, sempre editável).
+  const alvosDeMod = golpe.alvosDeMod
+  const [linhasDoSelo, setLinhasDoSelo] = useState<LinhaDeMod[]>(() => linhasDosMods(sugerido?.mods))
+  const resumoDoSelo = alvosDeMod === undefined ? '' : resumoDasLinhas(linhasDoSelo, alvosDeMod)
   const [erro, setErro] = useState<string | null>(null)
   // A bala da arma (Atacar com arma de fogo ou híbrida): `null` = sem bala especial, o dano da arma.
   const balas = golpe.balas ?? SEM_BALAS
@@ -200,6 +233,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const base = semDano ? null : lerInteiro(baseTexto, DANO_MAX)
   const comSurpresa = surpresa && !contra
   const semReacao = comSurpresa || golpe.overload
+  const buff = golpe.reacao === 'nunca'
   const comPerfurante = !semDano && perfurante
   /** A porcentagem digitada (1 a 100); `null` = torta. Só conta com o Perfurante ligado. */
   const perfuracao = lerPerfuracao(perfuracaoTexto)
@@ -261,6 +295,14 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
         return
       }
       selo = { nome, turnos }
+      if (alvosDeMod !== undefined) {
+        const lidos = modsDasLinhas(linhasDoSelo, alvosDeMod)
+        if ('erro' in lidos) {
+          setErro(lidos.erro)
+          return
+        }
+        if (lidos.mods.length > 0) selo.mods = lidos.mods
+      }
     }
     const saiu = onLancar({
       alvos: pedidoDeAlvos,
@@ -360,7 +402,9 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
               />
             </label>
             <BotaoDaCalculadora aberta={calculando} controla={`${idBase}-calc`} botao={botaoDaCalculadora} onAlternar={() => setCalculando((antes) => !antes)} />
-            <small className="bt-mira__nota">{danoAtual.conta}</small>
+            <small className="bt-mira__nota" title={danoAtual.conta}>
+              <ContaComBonus conta={danoAtual.conta} bonus={golpe.bonus} />
+            </small>
           </div>
         )}
         {!semDano && calculando && (
@@ -380,7 +424,13 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
           />
         )}
         <fieldset className="bt-mira__alvos">
-          <legend>{alvos.length === 0 ? 'Nenhuma ficha à vista para mirar' : 'Alvos · Espaço marca, setas trocam, clique na ficha no mapa'}</legend>
+          <legend>
+            {alvos.length === 0
+              ? 'Nenhuma ficha à vista para mirar'
+              : buff
+                ? 'Quem recebe · você e aliados; Espaço marca, ou clique na ficha no mapa'
+                : 'Alvos · Espaço marca, setas trocam, clique na ficha no mapa'}
+          </legend>
           {alvos.map((alvo) => {
             const marcado = marcadosSet.has(alvo.tokenId)
             const baseDoAlvo = marcado ? baseDe(alvo.tokenId) : null
@@ -520,7 +570,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
           </div>
         )}
         {sugerido !== null && (
-          <div className="bt-mira__selo" data-marcado={comSelo ? 'sim' : 'nao'}>
+          <div className="bt-mira__selo" data-marcado={comSelo ? 'sim' : 'nao'} data-natureza={sugerido.natureza}>
             <label className="bt-chave">
               <input
                 type="checkbox"
@@ -533,7 +583,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
               />
               <span className="bt-chave__trilho" aria-hidden="true" />
               Selo: {seloNome.trim() || sugerido.nome} · {textoDosTurnos(seloTurnos.trim() === '' ? null : lerInteiro(seloTurnos, TURNOS_DO_SELO_MAX))}
-              <small>sugerido pela técnica; pega só se o golpe acertar</small>
+              {resumoDoSelo !== '' && <span className="bt-mira__selo-mods">{resumoDoSelo}</span>}
+              <small>{buff ? 'sugerido pela técnica; pega em quem você marcar' : 'sugerido pela técnica; pega só se o golpe acertar'}</small>
             </label>
             {comSelo && (
               <div className="bt-mira__selo-campos">
@@ -564,12 +615,24 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                   />
                   <small className="bt-mira__nota">vazio = até o mestre tirar</small>
                 </label>
+                {alvosDeMod !== undefined && (
+                  <LinhasDeMods
+                    idBase={`${idBase}-selo`}
+                    linhas={linhasDoSelo}
+                    alvos={alvosDeMod}
+                    dica="lidas do Efeito; confira e ajuste"
+                    onMudar={(linhas) => {
+                      setErro(null)
+                      setLinhasDoSelo(linhas)
+                    }}
+                  />
+                )}
               </div>
             )}
             {!comSelo && <span className="bt-sr">{`Selo ${textoDoSelo(sugerido)} desmarcado: o golpe não põe selo.`}</span>}
           </div>
         )}
-        <p className="bt-mira__nota">{semReacao ? (golpe.overload ? 'Overload: o alvo não reage.' : 'Surpresa: o alvo não reage.') : NOTA_DA_REACAO}</p>
+        <p className="bt-mira__nota">{notaDaReacao(golpe, semReacao)}</p>
         {erro !== null && (
           <p className="bt-mira__erro" role="alert">
             {erro}
