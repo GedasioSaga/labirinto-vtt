@@ -249,7 +249,8 @@ describe('prévia do rank', () => {
 describe('personagem da prévia', () => {
   it('mostra cada parte do sistema: primeira opção, recurso pela metade, atributo no primeiro limiar, um cartão por aba', () => {
     const exemplo = personagemDeExemplo(SISTEMA_ONE_PIECE)
-    expect(exemplo.escolhas).toEqual({ raca: 'Humano', oficio: 'Arqueólogo' })
+    // "Armas por batalha" é escolha desde a Batalha F2: na prévia, a primeira opção também.
+    expect(exemplo.escolhas).toEqual({ raca: 'Humano', oficio: 'Arqueólogo', armasPorBatalha: '1 arma' })
     expect(exemplo.recursos.hp).toBe(8)
     expect(exemplo.maximos.hp).toBe(10)
     expect(exemplo.atributos.forca).toBe(40)

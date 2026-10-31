@@ -78,7 +78,8 @@ describe('rank do One Piece (rank.rs)', () => {
     expect(SISTEMA_ONE_PIECE.escolhas.find((escolha) => escolha.id === 'raca')?.opcoes).toEqual(['Humano', 'Skypean', 'Tritão', 'Lunariano', 'Ogro', 'Mink'])
     expect(SISTEMA_ONE_PIECE.escolhas.find((escolha) => escolha.id === 'oficio')?.opcoes).toHaveLength(10)
     expect(SISTEMA_ONE_PIECE.recursos.map((recurso) => recurso.nome)).toEqual(['HP', 'SP', 'Escudo'])
-    expect(SISTEMA_ONE_PIECE.abas.map((aba) => aba.nome)).toEqual(['Habilidades', 'Perícias', 'Vantagens', 'Desvantagens', 'Transformações'])
+    // Armas (Batalha F2) e Itens (mundo do livro M3) vêm depois das cinco do projeto-rpg-v2.
+    expect(SISTEMA_ONE_PIECE.abas.map((aba) => aba.nome)).toEqual(['Habilidades', 'Perícias', 'Vantagens', 'Desvantagens', 'Transformações', 'Armas', 'Itens'])
     const habilidades = SISTEMA_ONE_PIECE.abas[0]
     expect(habilidades.campos.filter((campo) => campo.forma === 'linha').map((campo) => campo.rotulo)).toEqual(['Ação', 'Efeito', 'Custo', 'Tempo', 'Dano'])
   })
