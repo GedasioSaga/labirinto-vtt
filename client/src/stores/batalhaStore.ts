@@ -88,6 +88,8 @@ import {
   proximoSeq,
   registrarAjuste as registrarAjusteNasLinhas,
   reverterTurnos,
+  semOContraGasto,
+  semOLigarDeGraca,
   textoDaLinha,
   TIPOS_QUE_O_JOGADOR_DESFAZ,
   type LinhaDoRegistro,
@@ -567,6 +569,15 @@ function golpesDaReversao(reversao: Reversao): string[] {
   return reversao.tipo === 'composta' ? reversao.partes.flatMap(golpesDaReversao) : []
 }
 
+/** Os contra-ataques que a linha deu: todo contra do golpe que nasceu nela (`tokenId` null) e o da reação com técnica que saiu "contra". */
+function contrasDaReversao(reversao: Reversao): { golpeId: string; tokenId: string | null }[] {
+  const doGolpe = golpesDaReversao(reversao).map((golpeId) => ({ golpeId, tokenId: null }))
+  const daReacao = reacoesComTecnicaDe(reversao)
+    .filter((parte) => parte.golpe.alvos.some((alvo) => alvo.tokenId === parte.tokenId && alvo.saida === 'contra'))
+    .map((parte) => ({ golpeId: parte.golpe.id, tokenId: parte.tokenId }))
+  return [...doGolpe, ...daReacao]
+}
+
 /** O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo; com `perfuracao`, só aquela porcentagem pula o Escudo. */
 function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } {
   if (alvo.danoFinal === undefined || alvo.saida === undefined) return { partes: [], efeito: null }
@@ -628,12 +639,15 @@ function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGo
 }
 
 /**
- * Tipos de habilidade F3: as partes "combate" de antes dos lembretes que um
- * gancho pôs (Iniciar, virada da rodada, dano), para o Desfazer da linha
- * tirá-los e devolver a chave a `lembradas`.
+ * Tipos de habilidade F3: as partes "combate" dos lembretes que um gancho
+ * pôs (Iniciar, virada da rodada, dano), para o Desfazer da linha tirar SÓ
+ * eles e a chave deles em `lembradas`.
  */
 function partesDosLembretes(feito: TurnosComLembretes): Reversao[] {
-  return feito.mudaram.map(({ personagemId, antes }): Reversao => ({ tipo: 'combate', personagemId, antes }))
+  return feito.mudaram.flatMap(({ personagemId, antes }): Reversao[] => {
+    const depois = feito.turnos.combate?.[personagemId]
+    return depois === undefined ? [] : [{ tipo: 'combate', personagemId, antes, depois }]
+  })
 }
 
 const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus' }
@@ -760,9 +774,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
 
   /**
    * Tipos de habilidade F3: a passiva (`PedidoDePassiva`). Ver `passiva` em
-   * `BatalhaState`. A reversão de Ativar é [combate, ficha, selo]; Desligar e
-   * Aplicar não voltam o lembrete (o combate inteiro de antes apagaria
-   * recarga e uso posteriores), só o selo e a ficha.
+   * `BatalhaState`. A reversão de Ativar é [combate, ficha, selo]; a de
+   * Desligar, [combate, selos]; a de Aplicar, [combate, selo, ficha]. O
+   * "combate" volta só o que a linha mudou (o lembrete tirado, os usos), e
+   * vem primeiro: no Desfazer, o selo volta antes e o lembrete "a cada turno"
+   * acha a passiva ligada.
    */
   const mudarPassiva = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDePassiva): boolean => {
     const cena = cenaDe(sceneKey)
@@ -791,6 +807,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     const nome = cartao.nome.trim() || 'a passiva'
     const quem = quemNaFicha(autor)
     const partes: Reversao[] = []
+    // O lembrete que Aplicar e Desligar tiram volta no Desfazer (só ele: a parte "combate" volta o que a linha mudou).
+    const parteDoLembrete: Reversao[] = semOLembrete === combateBase ? [] : [{ tipo: 'combate', personagemId, antes: combateAntes, depois: semOLembrete }]
     const tokenIds = new Set([carta.tokenId])
     let novos: TurnosDaCena
     let texto: string
@@ -799,26 +817,36 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const efeito = efeitoPorTurno(cartao, sistema)
       const selo = selosDaPassiva(turnos.selos, personagemId, cartao.id)[0]
       if (efeito === null || selo === undefined) return false
+      partes.push(...parteDoLembrete)
       novos = comCombate(turnos, semOLembrete)
       if (efeito.mods.length > 0) {
         const mods = modsSomados(selo.mods, efeito.mods)
         const depois: SeloDaBatalha = { ...selo }
         if (mods.length > 0) depois.mods = mods
         else delete depois.mods
-        partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })
+        partes.push({ tipo: 'selo', seloId: selo.id, antes: selo, editado: true })
         novos = { ...novos, selos: (novos.selos ?? []).map((candidato) => (candidato.id === selo.id ? depois : candidato)) }
       }
-      partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoPorTurno(atual, sistemaDaMesa, efeito), quem)))
+      // HP e SP em quem tem o selo, como os mods: no oponente, "o alvo perde 20 de HP a cada turno" não tira do dono.
+      const doSelo = turnos.cartas.find((candidata) => candidata.tokenId === selo.tokenId)?.personagemId ?? null
+      if (doSelo !== null) partes.push(...reversaoDaFicha(doSelo, mexerNaFicha(mesa, doSelo, (atual, sistemaDaMesa) => ajustesDoPorTurno(atual, sistemaDaMesa, efeito), quem)))
       tokenIds.add(selo.tokenId)
-      texto = `${nome} (a cada turno) em ${dono}: ${textoDoPorTurno(efeito, sistema)}`
+      texto = `${nome} (a cada turno) em ${nomeDoToken(selo.tokenId)}: ${textoDoPorTurno(efeito, sistema)}`
     } else if (!pedido.ligar) {
       const tirados = selosDaPassiva(turnos.selos, personagemId, cartao.id)
       const ids = new Set(tirados.map((selo) => selo.id))
+      partes.push(...parteDoLembrete)
       for (const selo of tirados) {
         partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })
         tokenIds.add(selo.tokenId)
       }
       novos = { ...comCombate(turnos, semOLembrete), selos: (turnos.selos ?? []).filter((selo) => !ids.has(selo.id)) }
+      const unico = tirados.length === 1 && partes.length === 1 ? tirados[0] : undefined
+      const semOLigar = unico === undefined ? null : semOLigarDeGraca(cena.registro, autor, unico.id)
+      if (semOLigar !== null) {
+        gravarCena(sceneKey, { ...comMudanca(cena, novos, null), registro: semOLigar })
+        return true
+      }
       texto = `${dono} desligou ${nome}`
     } else {
       // Ativar: tudo calculado ANTES de cobrar (selo que não cabe no teto recusa sem mexer na ficha).
@@ -836,7 +864,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const chave = chaveDoGatilho(cartao.id, gatilhoDaPassiva(cartao))
       const usada = semLembretes(depoisDaTecnica(combateBase, { cartao, tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''), overload: ehOverload(cartao) }), cartao.id)
       const combate = chave === null ? usada : comLembrada(usada, chave)
-      if (combate !== combateBase) partes.push({ tipo: 'combate', personagemId, antes: combateAntes })
+      if (combate !== combateBase) partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate })
       partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quem)))
       partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
       novos = { ...comCombate(turnos, combate), selos }
@@ -847,6 +875,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const doSelo = textoDoSeloComMods(selo, sistema)
       const escolha = variante === null ? '' : ` (${variante.rotulo})`
       texto = `${dono} ativou ${nome}${escolha}${emQuem}${pago}${doSelo === nome ? '' : ` · ${doSelo}`}`
+    }
+    // O custo de HP do Ativar e o HP que o Aplicar tira podem levar alguém abaixo do gatilho de vida (o mesmo ponto do dano).
+    if (partes.some((parte) => parte.tipo === 'ficha')) {
+      const lembrados = lembrarDepoisDoDano(novos)
+      partes.push(...partesDosLembretes(lembrados))
+      novos = lembrados.turnos
     }
     // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
     // `personagemIds` = o dono: a linha da passiva de NPC (custo, HP) não sai ao jogador.
@@ -902,7 +936,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     const { personagens, sistema } = mesaDoRpg()
     const nome = nomeDoTokenNa(cena.turnos, personagens)(antes.tokenId)
     const texto = depois === null ? `Mestre tirou ${textoDoSelo(antes)} de ${nome}` : `Mestre: ${textoDoSeloComMods(antes, sistema)} → ${textoDoSeloComMods(depois, sistema)} em ${nome}`
-    gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, selos }, { tipo: 'selo', texto, tokenIds: [antes.tokenId], reversao: { tipo: 'selo', seloId, antes } }))
+    const reversao: Reversao = depois === null ? { tipo: 'selo', seloId, antes } : { tipo: 'selo', seloId, antes, editado: true }
+    gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, selos }, { tipo: 'selo', texto, tokenIds: [antes.tokenId], reversao }))
     return true
   }
 
@@ -923,6 +958,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     // F3: o desfazer do MESTRE faz o Judge erguer a carta em todas as telas; o do jogador, não.
     const efeitos = autor.tipo === 'mestre' ? comEfeitos(atual.efeitos, [{ tipo: 'judge', gesto: 'carta' }]) : atual.efeitos
     let registro = marcarDesfeita(atual.registro, linhaId, por, Date.now())
+    // O contra-ataque que esta linha deu e alguém já gastou: o Desfazer de quem gastou não o devolve mais.
+    for (const { golpeId, tokenId } of contrasDaReversao(linha.reversao)) registro = semOContraGasto(registro, golpeId, tokenId)
     const nomeDoToken = nomeDoTokenNa(feito.cena.turnos, mesaDoRpg().personagens)
     for (const parte of reacoesComTecnicaDe(linha.reversao)) {
       const voltou = feito.cena.turnos.golpes?.find((golpe) => golpe.id === parte.golpe.id)
@@ -959,7 +996,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     let novos: TurnosDaCena = { ...turnos, golpes: comGolpe(turnos.golpes, feita.golpe) }
     // `depoisDaTecnica` devolve o MESMO combate quando a técnica não marca nada (sem recarga, usos nem Overload).
     if (feita.combate !== combateBase) {
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null })
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois: feita.combate })
       novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: feita.combate } }
     }
     if (feita.custo.length > 0) {
@@ -1308,7 +1345,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
         novos = { ...novos, gastos: { ...novos.gastos, [carta.id]: lancado.gasto } }
       }
       if (lancado.combate !== null && carta.personagemId !== null) {
-        partes.push({ tipo: 'combate', personagemId: carta.personagemId, antes: turnos.combate?.[carta.personagemId] ?? null })
+        partes.push({ tipo: 'combate', personagemId: carta.personagemId, antes: turnos.combate?.[carta.personagemId] ?? null, depois: lancado.combate })
         novos = { ...novos, combate: { ...(novos.combate ?? {}), [carta.personagemId]: lancado.combate } }
       }
       if (lancado.custo.length > 0 && carta.personagemId !== null) {
@@ -1509,9 +1546,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       if (base.armas !== null && base.armas.length === armas.length && base.armas.every((id, i) => armas[i] === id)) return true
       const nomes = armas.map((id) => daFicha.find((arma) => arma.id === id)?.nome ?? 'arma')
       const lista = nomes.length === 0 ? 'nenhuma arma' : nomes.length === 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`
-      const turnos: TurnosDaCena = { ...cena.turnos, combate: { ...(cena.turnos.combate ?? {}), [personagemId]: { ...base, armas: [...armas] } } }
+      const depois: CombateDoPersonagem = { ...base, armas: [...armas] }
+      const turnos: TurnosDaCena = { ...cena.turnos, combate: { ...(cena.turnos.combate ?? {}), [personagemId]: depois } }
       // `personagemIds` = o dono das armas: a linha das armas de NPC não sai ao jogador (as armas dele são segredo).
-      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'acao', texto: `${personagem.nome} levou ${lista}`, autor, tokenIds, personagemIds: [personagemId], reversao: { tipo: 'combate', personagemId, antes } }))
+      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'acao', texto: `${personagem.nome} levou ${lista}`, autor, tokenIds, personagemIds: [personagemId], reversao: { tipo: 'combate', personagemId, antes, depois } }))
       return true
     },
 

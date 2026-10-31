@@ -10,8 +10,9 @@ import {
 } from '../ajusteDaFicha'
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { combateVazio, type AlvoDoGolpe, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type SeloDaBatalha } from './combate'
+import { combateVazio, type AlvoDoGolpe, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type LembreteDaPassiva, type SeloDaBatalha } from './combate'
 import { semEvoluida } from './escolhaEEvolucao'
+import { passivasLigadas } from './passivas'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import { inserirCarta, removerCarta, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -80,8 +81,12 @@ export type Reversao =
   | { tipo: 'gasto'; cartaId: string; antes: GastoDaVez | null }
   /** F2: ações extras dadas pelo mestre. `null` = não tinha extra. */
   | { tipo: 'acoesExtras'; cartaId: string; antes: AcoesExtras | null }
-  /** F2: recargas, usos, Overload, carga ou armas de um personagem. `null` = não tinha combate. */
-  | { tipo: 'combate'; personagemId: string; antes: CombateDoPersonagem | null }
+  /**
+   * F2: recargas, usos, Overload, carga, armas, lembretes, lembradas ou
+   * evoluídas de um personagem, antes e depois da linha. `antes` `null` = não
+   * tinha combate. Desfazer volta SÓ o que a linha mudou (`combateSemALinha`).
+   */
+  | { tipo: 'combate'; personagemId: string; antes: CombateDoPersonagem | null; depois: CombateDoPersonagem }
   /**
    * "Zerar" a concentração: só a carga de antes. Desfazer volta SÓ a carga,
    * sem tocar recargas, usos e armas que mudaram depois (o `combate` inteiro
@@ -96,8 +101,12 @@ export type Reversao =
   | { tipo: 'composta'; partes: readonly Reversao[] }
   /** F3: a forma (e a imagem) de um personagem antes da linha. `null` = não tinha. */
   | { tipo: 'forma'; personagemId: string; antes: FormaNaBatalha | null }
-  /** F3: um selo antes da linha (pôr = `null`; editar e tirar = o de antes). */
-  | { tipo: 'selo'; seloId: string; antes: SeloDaBatalha | null }
+  /**
+   * F3: um selo antes da linha (pôr = `null`; editar e tirar = o de antes).
+   * `editado` = a linha trocou o selo sem tirá-lo: se ele sumiu depois
+   * (desligado, desfeito, acabou), o Desfazer não o põe de volta.
+   */
+  | { tipo: 'selo'; seloId: string; antes: SeloDaBatalha | null; editado?: true }
   /**
    * Tipos de habilidade F1: a reação com técnica (`reagirComTecnica`).
    * `golpe` = o golpe logo DEPOIS da reação; `alvoAntes` = o alvo antes dela.
@@ -265,6 +274,39 @@ export function marcarDesfeita(registro: readonly LinhaDoRegistro[], linhaId: st
   return lista
 }
 
+/**
+ * O golpe ou a reação que deu o contra-ataque foi desfeito: a linha que já
+ * o gastou perde a parte "contra", e o Desfazer dela não o devolve mais (o
+ * contra não expira: ficaria uma ação extra fantasma pelo resto da batalha).
+ * `tokenId` `null` = todo contra do golpe. Nenhuma linha muda = a MESMA lista.
+ */
+export function semOContraGasto(registro: readonly LinhaDoRegistro[], golpeId: string, tokenId: string | null): readonly LinhaDoRegistro[] {
+  const ehOContra = (parte: Reversao): boolean => parte.tipo === 'contra' && parte.contra.golpeId === golpeId && (tokenId === null || parte.contra.tokenId === tokenId)
+  let mudou = false
+  const lista = registro.map((linha) => {
+    const { reversao } = linha
+    if (linha.desfeita !== undefined || reversao.tipo !== 'composta' || !reversao.partes.some(ehOContra)) return linha
+    mudou = true
+    return { ...linha, reversao: { ...reversao, partes: reversao.partes.filter((parte) => !ehOContra(parte)) } }
+  })
+  return mudou ? lista : registro
+}
+
+/**
+ * Tipos de habilidade F3: o Desligar logo depois do Ligar de graça (sem
+ * custo, uso, recarga nem lembrete: a linha só pôs o selo `seloId`) do mesmo
+ * autor tira a linha do Ligar em vez de escrever outra. Ida e volta não fica
+ * no registro (como no ajuste da ficha), e o vaivém não empurra as linhas
+ * velhas para fora do teto. `null` = a última linha não é esse Ligar.
+ */
+export function semOLigarDeGraca(registro: readonly LinhaDoRegistro[], autor: AutorDaAcao, seloId: string): readonly LinhaDoRegistro[] | null {
+  const ultima = registro[registro.length - 1]
+  if (ultima === undefined || ultima.desfeita !== undefined || ultima.tipo !== 'habilidade' || !mesmoAutor(ultima.autor, autor)) return null
+  const { reversao } = ultima
+  const parte = reversao.tipo === 'composta' && reversao.partes.length === 1 ? reversao.partes[0] : undefined
+  return parte?.tipo === 'selo' && parte.seloId === seloId && parte.antes === null ? registro.slice(0, -1) : null
+}
+
 /** A ordem nos ids de `antes`; carta que não estava lá (entrou depois) vai ao fim, na ordem em que está. */
 function naOrdemDe(cartas: readonly CartaDaOrdem[], antes: readonly string[]): CartaDaOrdem[] {
   const porId = new Map(cartas.map((carta) => [carta.id, carta]))
@@ -285,11 +327,11 @@ function comValor<T>(registro: Readonly<Record<string, T>>, chave: string, valor
   return novo
 }
 
-/** Os selos com o de `seloId` trocado por `selo` (no mesmo lugar); `null` tira; ausente e não-nulo entra no fim. */
-function comSelo(selos: readonly SeloDaBatalha[], seloId: string, selo: SeloDaBatalha | null): readonly SeloDaBatalha[] {
+/** Os selos com o de `seloId` trocado por `selo` (no mesmo lugar); `null` tira. Ausente: o tirado volta no fim; o `editado` fica fora. */
+function comSelo(selos: readonly SeloDaBatalha[], seloId: string, selo: SeloDaBatalha | null, editado: boolean): readonly SeloDaBatalha[] {
   const indice = selos.findIndex((guardado) => guardado.id === seloId)
   if (selo === null) return indice === -1 ? selos : selos.filter((guardado) => guardado.id !== seloId)
-  if (indice === -1) return [...selos, selo]
+  if (indice === -1) return editado ? selos : [...selos, selo]
   const lista = [...selos]
   lista[indice] = selo
   return lista
@@ -304,6 +346,9 @@ function comSelo(selos: readonly SeloDaBatalha[], seloId: string, selo: SeloDaBa
  *    lista com este alvo esperando e só os alvos que já estavam resolvidos
  *    (um alvo que esperava e se resolveu depois não volta a esperar). Se a
  *    reação só rolou o dado, o golpe não volta.
+ *  - Golpe pendente SEM este alvo (outra reação desfeita antes o refez
+ *    de uma foto em que este ainda esperava): o alvo volta a esperar, no
+ *    lugar dele, se a ficha segue na ordem.
  *  - O contra-ataque que a reação deu ("contra") sai.
  */
 function semAReacaoComTecnica(turnos: TurnosDaCena, reversao: Extract<Reversao, { tipo: 'reacaoComTecnica' }>): TurnosDaCena {
@@ -316,7 +361,11 @@ function semAReacaoComTecnica(turnos: TurnosDaCena, reversao: Extract<Reversao, 
   if (pendente !== undefined) {
     const agora = pendente.alvos.find((alvo) => alvo.tokenId === tokenId)
     const resolvidoDepois = !resolveuNaReacao && agora?.danoFinal !== undefined
-    if (agora !== undefined && !resolvidoDepois) novosGolpes = golpes.map((candidato) => (candidato.id !== golpe.id ? candidato : { ...candidato, alvos: candidato.alvos.map((alvo) => (alvo.tokenId === tokenId ? alvoAntes : alvo)) }))
+    const lugar = (alvo: AlvoDoGolpe): number => golpe.alvos.findIndex((candidato) => candidato.tokenId === alvo.tokenId)
+    const alvosDeVolta = (alvos: readonly AlvoDoGolpe[]): readonly AlvoDoGolpe[] =>
+      agora === undefined ? [...alvos, alvoAntes].sort((a, b) => lugar(a) - lugar(b)) : alvos.map((alvo) => (alvo.tokenId === tokenId ? alvoAntes : alvo))
+    const volta = agora === undefined ? turnos.cartas.some((carta) => carta.tokenId === tokenId) : !resolvidoDepois
+    if (volta) novosGolpes = golpes.map((candidato) => (candidato.id !== golpe.id ? candidato : { ...candidato, alvos: alvosDeVolta(candidato.alvos) }))
   } else if (resolveuNaReacao) {
     const alvos = golpe.alvos.filter((alvo) => alvo.tokenId === tokenId || alvo.danoFinal !== undefined).map((alvo) => (alvo.tokenId === tokenId ? alvoAntes : alvo))
     novosGolpes = [...golpes, { ...golpe, alvos }]
@@ -325,6 +374,102 @@ function semAReacaoComTecnica(turnos: TurnosDaCena, reversao: Extract<Reversao, 
   const semOContra = depois?.saida === 'contra' ? contras.filter((contra) => !(contra.golpeId === golpe.id && contra.tokenId === tokenId)) : contras
   if (novosGolpes === golpes && semOContra.length === contras.length) return turnos
   return { ...turnos, golpes: novosGolpes, contras: semOContra }
+}
+
+/** O número do cartão no mapa; ausente = 0. Só as chaves do próprio objeto (o id vem da ficha). */
+function numeroDe(mapa: Readonly<Record<string, number>>, chave: string): number {
+  return Object.hasOwn(mapa, chave) ? (mapa[chave] ?? 0) : 0
+}
+
+/** Recargas ou usos de agora sem o que a linha somou: por delta, para não apagar o uso de outra linha; 0 ou menos sai. */
+function numerosSemALinha(atual: Readonly<Record<string, number>>, antes: Readonly<Record<string, number>>, depois: Readonly<Record<string, number>>): Readonly<Record<string, number>> {
+  const volta: Record<string, number> = { ...atual }
+  for (const chave of new Set([...Object.keys(antes), ...Object.keys(depois)])) {
+    const somou = numeroDe(depois, chave) - numeroDe(antes, chave)
+    if (somou === 0) continue
+    const valor = numeroDe(volta, chave) - somou
+    if (valor > 0) volta[chave] = valor
+    else delete volta[chave]
+  }
+  return volta
+}
+
+/** O campo volta ao de antes só se a linha o mudou e ninguém mudou depois (o de agora ainda é o que ela deixou). */
+function campoSemALinha<T>(atual: T, antes: T, depois: T, igual: (a: T, b: T) => boolean = Object.is): T {
+  return !igual(antes, depois) && igual(atual, depois) ? antes : atual
+}
+
+function mesmasArmas(a: readonly string[] | null, b: readonly string[] | null): boolean {
+  return a === b || (a !== null && b !== null && a.length === b.length && a.every((id, i) => id === b[i]))
+}
+
+/** A lista de agora sem o que a linha pôs e com o que ela tirou (o que já saiu ou já voltou fica como está). */
+function listaSemALinha(atual: readonly string[], antes: readonly string[], depois: readonly string[]): readonly string[] {
+  const pos = depois.filter((item) => !antes.includes(item))
+  const tirou = antes.filter((item) => !depois.includes(item) && !atual.includes(item))
+  if (pos.length === 0 && tirou.length === 0) return atual
+  return [...atual.filter((item) => !pos.includes(item)), ...tirou]
+}
+
+function mesmoLembrete(a: LembreteDaPassiva | undefined, b: LembreteDaPassiva | undefined): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.tipo === b.tipo && a.chave === b.chave && a.rodada === b.rodada && a.tokenId === b.tokenId)
+}
+
+/**
+ * O lembrete que o Desfazer devolve ainda vale? "A cada turno": só com a
+ * passiva ligada. "Ativar": só desligada e com a chave em `lembradas` (o
+ * Desfazer do dano que o pôs tira a chave: o lembrete não volta com a vida
+ * acima do gatilho).
+ */
+function lembreteVale(lembrete: LembreteDaPassiva, lembradas: readonly string[], ligadas: ReadonlySet<string>): boolean {
+  return lembrete.tipo === 'porTurno' ? ligadas.has(lembrete.cartaoId) : !ligadas.has(lembrete.cartaoId) && lembradas.includes(lembrete.chave)
+}
+
+/** Os lembretes de agora com os da linha desfeitos, passiva a passiva: o que ela pôs sai e o que ela tirou volta, se ninguém mexeu depois. */
+function lembretesSemALinha(
+  atual: readonly LembreteDaPassiva[],
+  antes: readonly LembreteDaPassiva[],
+  depois: readonly LembreteDaPassiva[],
+  lembradas: readonly string[],
+  ligadas: ReadonlySet<string>,
+): readonly LembreteDaPassiva[] {
+  const daPassiva = (lista: readonly LembreteDaPassiva[], cartaoId: string): LembreteDaPassiva | undefined => lista.find((lembrete) => lembrete.cartaoId === cartaoId)
+  let volta = atual
+  for (const cartaoId of new Set([...antes, ...depois].map((lembrete) => lembrete.cartaoId))) {
+    const deAntes = daPassiva(antes, cartaoId)
+    const deixou = daPassiva(depois, cartaoId)
+    if (mesmoLembrete(deAntes, deixou) || !mesmoLembrete(daPassiva(volta, cartaoId), deixou)) continue
+    const ficam = volta.filter((lembrete) => lembrete.cartaoId !== cartaoId)
+    volta = deAntes !== undefined && lembreteVale(deAntes, lembradas, ligadas) ? [...ficam, deAntes] : ficam
+  }
+  return volta
+}
+
+/**
+ * O combate de agora sem o que a linha mudou (`antes` → `depois`), e nada
+ * mais: recargas e usos por delta; o resto campo a campo, só se ninguém o
+ * mudou depois. O combate inteiro de antes apagaria a evolução, o lembrete ou
+ * o uso de uma linha posterior, e devolveria o que outra linha já desfez.
+ * Lista vazia e campo ausente saem do objeto.
+ */
+function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>): CombateDoPersonagem {
+  const { concentrouEm: _concentrou, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
+  const concentrouEm = campoSemALinha(atual.concentrouEm, antes.concentrouEm, depois.concentrouEm)
+  const lembradas = listaSemALinha(atual.lembradas ?? [], antes.lembradas ?? [], depois.lembradas ?? [])
+  const lembretes = lembretesSemALinha(atual.lembretes ?? [], antes.lembretes ?? [], depois.lembretes ?? [], lembradas, ligadas)
+  const evoluidas = listaSemALinha(atual.evoluidas ?? [], antes.evoluidas ?? [], depois.evoluidas ?? [])
+  return {
+    ...fixos,
+    recargas: numerosSemALinha(atual.recargas, antes.recargas, depois.recargas),
+    usos: numerosSemALinha(atual.usos, antes.usos, depois.usos),
+    overload: campoSemALinha(atual.overload, antes.overload, depois.overload),
+    carga: campoSemALinha(atual.carga, antes.carga, depois.carga),
+    armas: campoSemALinha(atual.armas, antes.armas, depois.armas, mesmasArmas),
+    ...(concentrouEm === undefined ? {} : { concentrouEm }),
+    ...(lembradas.length === 0 ? {} : { lembradas }),
+    ...(lembretes.length === 0 ? {} : { lembretes }),
+    ...(evoluidas.length === 0 ? {} : { evoluidas }),
+  }
 }
 
 /**
@@ -355,8 +500,11 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       return { ...turnos, gastos: comValor(turnos.gastos, reversao.cartaId, reversao.antes) }
     case 'acoesExtras':
       return { ...turnos, extras: comValor(turnos.extras, reversao.cartaId, reversao.antes) }
-    case 'combate':
-      return { ...turnos, combate: comValor(turnos.combate ?? {}, reversao.personagemId, reversao.antes) }
+    case 'combate': {
+      const { personagemId } = reversao
+      const volta = combateSemALinha(turnos.combate?.[personagemId] ?? combateVazio(), reversao.antes ?? combateVazio(), reversao.depois, passivasLigadas(turnos.selos, personagemId))
+      return { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: volta } }
+    }
     case 'carga': {
       const atual = turnos.combate?.[reversao.personagemId] ?? combateVazio()
       return { ...turnos, combate: { ...(turnos.combate ?? {}), [reversao.personagemId]: { ...atual, carga: reversao.antes } } }
@@ -379,7 +527,7 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'forma':
       return { ...turnos, formas: comValor(turnos.formas ?? {}, reversao.personagemId, reversao.antes) }
     case 'selo':
-      return { ...turnos, selos: comSelo(turnos.selos ?? [], reversao.seloId, reversao.antes) }
+      return { ...turnos, selos: comSelo(turnos.selos ?? [], reversao.seloId, reversao.antes, reversao.editado === true) }
     case 'reacaoComTecnica':
       return semAReacaoComTecnica(turnos, reversao)
     case 'evolucao': {
