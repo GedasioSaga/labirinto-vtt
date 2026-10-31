@@ -71,7 +71,8 @@ import {
  *    `batalha.armas` (as armas da batalha, quando quiser, Q8) e
  *    `batalha.zerarCarga` (zerar a concentração, a qualquer hora);
  *  - F3 (fatia T): nenhuma mensagem nova; `batalha.agir` aceita `transformar`
- *    e `destransformar`, e `atacar`/`habilidade` aceitam `selo?`.
+ *    e `destransformar`, e `atacar`/`habilidade` aceitam `selo?`;
+ *  - balas: `atacar` aceita `balaId?` (só com `armaId`).
  * O host confere o resto (é a vez dele? a linha é dele?) e responde só
  * `ok: false`, sem motivo: motivo ensinaria ids.
  *
@@ -267,6 +268,12 @@ function lerContraDe(value: unknown): string | undefined | false {
   return textoAte(value, 1, ID_DA_BATALHA_MAX) ? value : false
 }
 
+/** `balaId` ausente, ou o id do subcartão da bala (a mesma forma do id de cartão). `false` = torto. */
+function lerBalaId(value: unknown): string | undefined | false {
+  if (value === undefined) return undefined
+  return textoAte(value, 1, CARTAO_ID_MAX) ? value : false
+}
+
 /** `perfuracao` ausente, ou o inteiro de 1 a 100. `false` = torto (fração, 0, acima de 100, texto). */
 function lerPerfuracao(value: unknown): number | undefined | false {
   if (value === undefined) return undefined
@@ -300,12 +307,16 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const contraDe = lerContraDe(value.contraDe)
       const selo = lerSeloOpcional(value.selo)
       const perfuracao = lerPerfuracao(value.perfuracao)
+      const balaId = lerBalaId(value.balaId)
       const alvosLidos = lerAlvosDoPedido(alvos, 1)
-      if (!cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean' || contraDe === false || selo === false || perfuracao === false) return null
+      if (!cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean' || contraDe === false || selo === false || perfuracao === false || balaId === false) return null
+      // Bala sem arma não existe: a bala é subcartão da arma.
+      if (balaId !== undefined && armaId === null) return null
       const pedido: PedidoDeAcao = { tipo: 'atacar', armaId, alvos: alvosLidos, surpresa, perfurante }
       if (perfuracao !== undefined) pedido.perfuracao = perfuracao
       if (contraDe !== undefined) pedido.contraDe = contraDe
       if (selo !== undefined) pedido.selo = selo
+      if (balaId !== undefined) pedido.balaId = balaId
       return pedido
     }
     case 'habilidade': {

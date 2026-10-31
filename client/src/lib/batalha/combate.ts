@@ -55,8 +55,11 @@ export interface PedidoDeAlvo {
  * `PERFURACAO_MIN` a `PERFURACAO_MAX`); ausente com `perfurante` = 100 (tudo).
  */
 export type PedidoDeAcao =
-  /** F3: `selo` = o sugerido pela habilidade, marcado na mira; pega só se o golpe acerta (Q6). */
-  | { tipo: 'atacar'; armaId: string | null; alvos: readonly PedidoDeAlvo[]; surpresa: boolean; perfurante: boolean; perfuracao?: number; contraDe?: string; selo?: SeloPedido }
+  /**
+   * F3: `selo` = o sugerido pela habilidade, marcado na mira; pega só se o golpe acerta (Q6).
+   * `balaId` = o tipo de bala da arma (subcartão "Tipos de bala"); exige `armaId`. Ausente = como antes.
+   */
+  | { tipo: 'atacar'; armaId: string | null; alvos: readonly PedidoDeAlvo[]; surpresa: boolean; perfurante: boolean; perfuracao?: number; contraDe?: string; selo?: SeloPedido; balaId?: string }
   | {
       tipo: 'habilidade'
       cartaoId: string
@@ -140,6 +143,15 @@ export interface GolpeDaBatalha {
   alvos: readonly AlvoDoGolpe[]
   /** F3: o selo que o golpe põe em cada alvo que ele acerta (Q6). */
   selo?: SeloPedido
+  /** A bala do Atacar (o registro diz "atira com Rosa Fúnebre (Bala de Prata)"); `efeito` vazio não vem. */
+  bala?: BalaDoGolpe
+}
+
+/** A bala que o golpe usou, como o registro a mostra. */
+export interface BalaDoGolpe {
+  id: string
+  nome: string
+  efeito?: string
 }
 
 /**

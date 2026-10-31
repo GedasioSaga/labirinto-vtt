@@ -33,6 +33,11 @@ export interface ContextoDaFormula {
   arma: CartaoDaFicha | null
   /** A vida do alvo, quando quem calcula pode vê-la; `null` = não sabe (o jogador nunca vê a do NPC). */
   vidaDoAlvo: { atual: number; maximo: number } | null
+  /**
+   * A bala escolhida no Atacar (`BalaDaArma`, só nome e dano): muda o "Dano
+   * da arma". Ausente ou `null` = sem bala. Só `danoDoAtaque` a põe aqui.
+   */
+  bala?: { nome: string; dano: string } | null
 }
 
 export type LeituraDoDano =
@@ -116,7 +121,7 @@ interface Parcial {
 /** Erro de leitura que sobe até `lerDano` e vira a saída. */
 type Falha = { tipo: 'naoEntende' } | { tipo: 'precisaArma' }
 
-const ENFEITES: ReadonlySet<string> = new Set(['dano', 'base', 'pontos'])
+const ENFEITES: ReadonlySet<string> = new Set(['dano', 'base', 'pontos', 'extra'])
 
 function formatarNumero(valor: number): string {
   return Number.isInteger(valor) ? String(valor) : String(valor).replace('.', ',')
@@ -249,16 +254,38 @@ class Leitor {
     return { valor, conta: `${formatarNumero(valor)} ${atributo.nome}` }
   }
 
+  /**
+   * O "Dano da arma". Com bala escolhida (`ctx.bala`): "+15" soma ao da arma
+   * ("20 Rosa Fúnebre + 15 Bala de Prata"), "40" troca o da arma ("40 Bala
+   * Explosiva"); bala sem dano = o da arma.
+   */
   private danoDaArma(): Parcial | null {
     if (!this.podeArma) return this.falhar({ tipo: 'naoEntende' })
-    const { arma } = this.ctx
+    const { arma, bala } = this.ctx
     if (arma === null) return this.falhar({ tipo: 'precisaArma' })
-    const lista = tokens(arma.campos[CAMPO_DO_DANO] ?? '')
+    const nomeDaBala = bala === undefined || bala === null ? '' : bala.nome.trim() || 'Bala'
+    const lista = bala === undefined || bala === null ? [] : tokens(bala.dano)
+    if (lista === null) return this.falhar({ tipo: 'naoEntende' })
+    const [sinal, ...resto] = lista
+    const daArma = (): Parcial | null => this.trecho(tokens(arma.campos[CAMPO_DO_DANO] ?? ''), arma.nome.trim() || 'Arma')
+    // Sem bala, bala sem dano, ou só "-"/"+": o dano da arma.
+    if (sinal === undefined || (sinal.tipo === 'op' && (sinal.op === '+' || sinal.op === '-') && resto.length === 0)) return daArma()
+    if (sinal.tipo !== 'op' || (sinal.op !== '+' && sinal.op !== '-')) return this.trecho(lista, nomeDaBala)
+    const base = daArma()
+    if (base === null) return null
+    const somado = this.trecho(resto, nomeDaBala)
+    if (somado === null) return null
+    const valor = sinal.op === '+' ? somado.valor : -somado.valor
+    return { valor: base.valor + valor, conta: `${base.conta} ${valor < 0 ? '-' : '+'} ${formatarNumero(Math.abs(valor))} ${nomeDaBala}` }
+  }
+
+  /** Um dano de cartão (arma ou bala), sem arma dentro: "20" vira "20 Rosa Fúnebre". */
+  private trecho(lista: Token[] | null, rotulo: string): Parcial | null {
     if (lista === null || lista.length === 0) return this.falhar({ tipo: 'naoEntende' })
     const leitor = new Leitor(lista, this.ctx, false)
     const lido = leitor.ler()
     if (lido === null) return this.falhar(leitor.falha ?? { tipo: 'naoEntende' })
-    return { valor: lido.valor, conta: `${formatarNumero(lido.valor)} ${arma.nome.trim() || 'Arma'}` }
+    return { valor: lido.valor, conta: `${formatarNumero(lido.valor)} ${rotulo}` }
   }
 
   /** Os enfeites depois de um número ou variável; "de" + palavra desconhecida vira rótulo. */
@@ -333,7 +360,12 @@ function lerDanoSemForca(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
   return { tipo: 'valor', valor, conta: `${lido.conta} = ${valor}` }
 }
 
-/** Q2: o dano do Atacar: "Força + Dano da arma" (Balmung: "160 Força + 5 Balmung = 165"); sem arma, a Força. Editável sempre. */
-export function danoDoAtaque(ctx: ContextoDaFormula): LeituraDoDano {
-  return lerDano(ctx.arma === null ? FORMULA_DO_ATAQUE_SEM_ARMA : FORMULA_DO_ATAQUE, ctx)
+/**
+ * Q2: o dano do Atacar: "Força + Dano da arma" (Balmung: "160 Força + 5 Balmung = 165"); sem arma, a Força. Editável sempre.
+ * Com `bala` (a arma de fogo ou híbrida): "+15" soma ("160 Força + 20 Rosa Fúnebre + 15 Bala de Prata = 195"),
+ * "40" troca o dano da arma ("160 Força + 40 Bala Explosiva = 200"); a força do NPC vale do mesmo jeito.
+ */
+export function danoDoAtaque(ctx: ContextoDaFormula, bala?: { nome: string; dano: string } | null): LeituraDoDano {
+  const comBala = bala === undefined || bala === null || ctx.arma === null ? ctx : { ...ctx, bala }
+  return lerDano(ctx.arma === null ? FORMULA_DO_ATAQUE_SEM_ARMA : FORMULA_DO_ATAQUE, comBala)
 }

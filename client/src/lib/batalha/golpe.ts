@@ -12,6 +12,7 @@ import {
   PERFURACAO_MAX,
   type AcaoDaTecnica,
   type AlvoDoGolpe,
+  type BalaDoGolpe,
   type CombateDoPersonagem,
   type ContraAtaque,
   type GolpeDaBatalha,
@@ -21,7 +22,22 @@ import {
 } from './combate'
 import { equipeDe, type Equipe } from './equipes'
 import { danoDoAtaque } from './formula'
-import { armasDe, ehOverload, lerAcao, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, type LeituraDoCusto } from './leituraDaFicha'
+import {
+  armasDe,
+  balaDaArma,
+  ehOverload,
+  lerAcao,
+  lerCusto,
+  lerTempo,
+  recursoDoCusto,
+  tecnicaPorId,
+  CAMPO_DA_ACAO,
+  CAMPO_DO_CUSTO,
+  CAMPO_DO_TEMPO,
+  type ArmaDaFicha,
+  type BalaDaArma,
+  type LeituraDoCusto,
+} from './leituraDaFicha'
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
@@ -97,6 +113,8 @@ export interface SugestaoDoNpc {
 
 /** O nome do golpe sem arma nem técnica. */
 export const NOME_DO_ATAQUE = 'Ataque'
+/** O efeito da bala no registro: a linha inteira tem `REGISTRO_TEXTO_MAX`, e o efeito vem por último. */
+export const EFEITO_DA_BALA_NO_REGISTRO_MAX = 80
 
 /** O contra-ataque (Q6) que o pedido usa, ou `null` (pedido da vez). `undefined` = pediu um que não existe. */
 function contraDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): ContraAtaque | null | undefined {
@@ -117,7 +135,7 @@ function combateDe(ctx: ContextoDoGolpe): CombateDoPersonagem {
 }
 
 /** A arma pedida, entre as da ficha e (se já escolheu) as levadas. `undefined` = arma que não vale. */
-function armaDoPedido(ctx: ContextoDoGolpe, armaId: string | null): CartaoDaFicha | null | undefined {
+function armaDoPedido(ctx: ContextoDoGolpe, armaId: string | null): ArmaDaFicha | null | undefined {
   if (armaId === null) return null
   if (ctx.personagem === null) return undefined
   const levadas = combateDe(ctx).armas
@@ -195,7 +213,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       return personagem.cartoesAtivos.includes(pedido.cartaoId) ? null : 'A forma não está ativa'
     }
     case 'atacar': {
-      if (armaDoPedido(ctx, pedido.armaId) === undefined) return 'Arma fora das levadas para a batalha'
+      const arma = armaDoPedido(ctx, pedido.armaId)
+      if (arma === undefined) return 'Arma fora das levadas para a batalha'
+      if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
       const motivo = motivoDosAlvos(ctx, pedido.alvos, 1)
       if (motivo !== null) return motivo
       const acao = acaoDoGolpe('simples', combate.carga)
@@ -293,6 +313,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   // F3 (Q6): o selo marcado na mira vai junto; pega em cada alvo que o golpe acerta (a store aplica).
   const selo = pedido.selo === undefined ? null : seloPedidoValido(pedido.selo)
   if (selo !== null) golpe.selo = selo
+  const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
+  if (bala !== null) golpe.bala = balaDoGolpe(bala)
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
   if (combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
   return {
@@ -305,6 +327,12 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
     acao: contra !== null ? null : acao,
     cargaUsada: combate.carga,
   }
+}
+
+/** A bala como o golpe a guarda: o efeito cortado para caber no registro, e só quando há. */
+function balaDoGolpe(bala: BalaDaArma): BalaDoGolpe {
+  const efeito = bala.efeito.length <= EFEITO_DA_BALA_NO_REGISTRO_MAX ? bala.efeito : `${bala.efeito.slice(0, EFEITO_DA_BALA_NO_REGISTRO_MAX - 1).trimEnd()}…`
+  return efeito.length === 0 ? { id: bala.id, nome: bala.nome } : { id: bala.id, nome: bala.nome, efeito }
 }
 
 function comAlvo(golpe: GolpeDaBatalha, tokenId: string, mudar: (alvo: AlvoDoGolpe) => AlvoDoGolpe | null): GolpeDaBatalha {
@@ -395,9 +423,9 @@ export function sugestaoParaNpc(npc: Personagem, cena: BatalhaEmTurnos, ctx: Con
   return { cartaoId, armaId, alvoTokenId }
 }
 
-/** Q2: o dano do Atacar com a arma escolhida, para a tela já preencher (editável). `null` = a ficha não diz. */
-export function danoSugeridoDoAtaque(personagem: Personagem, sistema: SistemaDeRpg, arma: CartaoDaFicha | null): number | null {
-  const lido = danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null })
+/** Q2: o dano do Atacar com a arma (e a bala) escolhida, para a tela já preencher (editável). `null` = a ficha não diz. */
+export function danoSugeridoDoAtaque(personagem: Personagem, sistema: SistemaDeRpg, arma: CartaoDaFicha | null, bala?: BalaDaArma | null): number | null {
+  const lido = danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null }, bala)
   return lido.tipo === 'valor' ? lido.valor : null
 }
 
@@ -454,13 +482,21 @@ function marcaDoPerfurante(golpe: GolpeDaBatalha): string | null {
 /**
  * A linha do golpe, refeita a cada alvo resolvido:
  * "Lia usa Rajada de Penas em Ilo: 260 · d20 7+2 = 9 · recebeu 260";
- * "Lia usa Rajada em Ilo e Teo: Ilo d20 15+0 = 15 · esquivou · Teo esperando reação".
+ * "Lia usa Rajada em Ilo e Teo: Ilo d20 15+0 = 15 · esquivou · Teo esperando reação";
+ * com bala: "Lia atira com Rosa Fúnebre (Bala de Prata) em Ilo: 195 · recebeu 195 · efeito: sangra".
  */
 export function textoDoGolpe(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: string) => string): string {
+  const linha = textoDoGolpeSemBala(golpe, nomeDoToken)
+  const efeito = golpe.bala?.efeito
+  return efeito === undefined ? linha : `${linha} · efeito: ${efeito}`
+}
+
+function textoDoGolpeSemBala(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: string) => string): string {
   const marcas = [golpe.surpresa ? 'Surpresa' : null, golpe.overload ? 'Overload' : null, marcaDoPerfurante(golpe), golpe.contraDe !== undefined ? 'contra-ataque' : null].filter((marca): marca is string => marca !== null)
   const nomes = golpe.alvos.map((alvo) => nomeDoToken(alvo.tokenId))
   const emQuem = nomes.length === 0 ? '' : ` em ${nomes.length === 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`}`
-  const comeco = `${nomeDoToken(golpe.atacanteTokenId)} usa ${golpe.nome}${emQuem}${marcas.length > 0 ? ` (${marcas.join(', ')})` : ''}`
+  const acao = golpe.bala === undefined ? `usa ${golpe.nome}` : `atira com ${golpe.nome} (${golpe.bala.nome})`
+  const comeco = `${nomeDoToken(golpe.atacanteTokenId)} ${acao}${emQuem}${marcas.length > 0 ? ` (${marcas.join(', ')})` : ''}`
   const [unico] = golpe.alvos
   if (golpe.alvos.length === 1 && unico !== undefined) {
     const detalhe = textoDoAlvo(unico)
