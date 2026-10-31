@@ -5,16 +5,18 @@ import {
   DANO_MAX,
   MULTIPLICADOR_DA_SURPRESA,
   NOME_DO_SELO_MAX,
+  PERFURACAO_MAX,
   TURNOS_DO_SELO_MAX,
   type AcaoDaTecnica,
   type PedidoDeAcao,
   type PedidoDeAlvo,
   type SeloPedido,
 } from '../../lib/batalha/combate'
+import { divisaoDoDano } from '../../lib/batalha/reacao'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
-import { contaDoGolpe, formatarNumero, lerInteiro, textoDaAcao, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import { contaDoGolpe, formatarNumero, lerInteiro, lerPerfuracao, textoDaAcao, textoDoPerfurante, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
 
@@ -40,6 +42,8 @@ export interface EscolhaDaMira {
   alvos: PedidoDeAlvo[]
   surpresa: boolean
   perfurante: boolean
+  /** Com `perfurante`: quanto perfura, de 1 a 100; `null` = tudo (100%). */
+  perfuracao: number | null
   /** O custo confirmado; `null` = o da ficha. */
   custo: number | null
   /** A ação escolhida; `null` = a da ficha. */
@@ -51,7 +55,9 @@ export interface EscolhaDaMira {
 /** O pedido de um golpe da mira (o mesmo no menu do jogador e no painel do NPC). */
 export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): PedidoDeAcao {
   const selo = escolha.selo === null ? {} : { selo: escolha.selo }
-  if (golpe.tipo === 'atacar') return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...selo }
+  // A porcentagem só vai quando é parcial: 100% é o Perfurante de sempre, o pedido sem o campo.
+  const perfuracao = escolha.perfurante && escolha.perfuracao !== null && escolha.perfuracao < PERFURACAO_MAX ? { perfuracao: escolha.perfuracao } : {}
+  if (golpe.tipo === 'atacar') return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...perfuracao, ...selo }
   return {
     tipo: 'habilidade',
     cartaoId: golpe.cartaoId ?? '',
@@ -59,6 +65,7 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
     alvos: escolha.alvos,
     surpresa: escolha.surpresa,
     perfurante: escolha.perfurante,
+    ...perfuracao,
     custo: escolha.custo,
     acao: escolha.acao,
     ...selo,
@@ -113,6 +120,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const [editados, setEditados] = useState<Readonly<Record<string, string>>>({})
   const [surpresa, setSurpresa] = useState(false)
   const [perfurante, setPerfurante] = useState(golpe.perfurante)
+  // Quanto perfura: o número que a habilidade diz ("perfura 50%") ou 100 (tudo direto no HP).
+  const [perfuracaoTexto, setPerfuracaoTexto] = useState(String(golpe.perfuracao ?? PERFURACAO_MAX))
   const [custoTexto, setCustoTexto] = useState(golpe.custo.tipo === 'pergunta' && golpe.custo.sugestao !== null ? String(golpe.custo.sugestao) : '')
   const [acao, setAcao] = useState<AcaoDaTecnica | ''>('')
   // F3: o selo sugerido começa marcado; desmarcar tira do golpe.
@@ -137,6 +146,9 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const base = semDano ? null : lerInteiro(baseTexto, DANO_MAX)
   const comSurpresa = surpresa && !contra
   const semReacao = comSurpresa || golpe.overload
+  const comPerfurante = !semDano && perfurante
+  /** A porcentagem digitada (1 a 100); `null` = torta. Só conta com o Perfurante ligado. */
+  const perfuracao = lerPerfuracao(perfuracaoTexto)
 
   /** A BASE do alvo (a store aplica concentração e Surpresa): a editada, ou a do golpe. */
   const baseDe = (tokenId: string): number | null => {
@@ -178,6 +190,10 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       setErro('A ficha não diz a ação: escolha Simples, Completa, Bônus ou Livre.')
       return
     }
+    if (comPerfurante && perfuracao === null) {
+      setErro('Quanto perfura vai de 1 a 100%. Com 100, tudo vai direto no HP.')
+      return
+    }
     let selo: SeloPedido | null = null
     if (sugerido !== null && comSelo) {
       const nome = seloNome.trim()
@@ -192,7 +208,15 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       }
       selo = { nome, turnos }
     }
-    const saiu = onLancar({ alvos: pedidoDeAlvos, surpresa: comSurpresa, perfurante: !semDano && perfurante, custo, acao: golpe.acao === null && acao !== '' ? acao : null, selo })
+    const saiu = onLancar({
+      alvos: pedidoDeAlvos,
+      surpresa: comSurpresa,
+      perfurante: comPerfurante,
+      perfuracao: comPerfurante && perfuracao !== null && perfuracao < PERFURACAO_MAX ? perfuracao : null,
+      custo,
+      acao: golpe.acao === null && acao !== '' ? acao : null,
+      selo,
+    })
     if (!saiu) setErro('O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
   }
 
@@ -246,6 +270,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             const baseDoAlvo = marcado ? baseDe(alvo.tokenId) : null
             const conta = baseDoAlvo === null ? null : contaDoGolpe(baseDoAlvo, carga, comSurpresa)
             const editado = editados[alvo.tokenId] !== undefined
+            // Perfurante parcial: quanto do que chega vai direto no HP ("· 123 direto no HP").
+            const direto = conta === null || !comPerfurante || perfuracao === null || perfuracao >= PERFURACAO_MAX ? '' : ` · ${formatarNumero(divisaoDoDano(conta.valor, perfuracao).direto)} direto no HP`
             return (
               <div key={alvo.tokenId} className="bt-alvo" data-apagado={alvo.motivo ? 'sim' : undefined}>
                 <input
@@ -292,7 +318,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                     {editado ? (
                       <>
                         <em>editado</em>
-                        {conta !== null && ` · chega ${conta.conta}`}{' '}
+                        {conta !== null && ` · chega ${conta.conta}${direto}`}{' '}
                         <button
                           type="button"
                           className="bt-botao bt-botao--fantasma bt-botao--p"
@@ -309,7 +335,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                     ) : conta === null ? (
                       'Digite o dano base'
                     ) : (
-                      `chega ${conta.conta}`
+                      `chega ${conta.conta}${direto}`
                     )}
                   </span>
                 )}
@@ -346,11 +372,35 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                 Surpresa <small>×{formatarNumero(MULTIPLICADOR_DA_SURPRESA)}, sem reação</small>
               </label>
             )}
-            <label className="bt-chave">
-              <input type="checkbox" role="switch" checked={perfurante} onChange={(evento) => setPerfurante(evento.target.checked)} />
-              <span className="bt-chave__trilho" aria-hidden="true" />
-              Perfurante <small>direto no HP, sem gastar o Escudo</small>
-            </label>
+            <span className="bt-perfura">
+              <label className="bt-chave">
+                <input type="checkbox" role="switch" checked={perfurante} aria-describedby={`${idBase}-perfura`} onChange={(evento) => setPerfurante(evento.target.checked)} />
+                <span className="bt-chave__trilho" aria-hidden="true" />
+                Perfurante
+              </label>
+              {perfurante && (
+                <label className="bt-perfura__quanto">
+                  <span className="bt-sr">Quanto perfura, em %</span>
+                  <input
+                    className="bt-num"
+                    inputMode="numeric"
+                    maxLength={3}
+                    value={perfuracaoTexto}
+                    aria-invalid={perfuracao === null ? true : undefined}
+                    aria-describedby={`${idBase}-perfura`}
+                    onFocus={(evento) => evento.target.select()}
+                    onChange={(evento) => {
+                      setErro(null)
+                      setPerfuracaoTexto(evento.target.value)
+                    }}
+                  />
+                  <span aria-hidden="true">%</span>
+                </label>
+              )}
+              <small id={`${idBase}-perfura`} className="bt-perfura__texto">
+                {!perfurante ? textoDoPerfurante(PERFURACAO_MAX) : perfuracao === null ? 'de 1 a 100%: quanto vai direto no HP' : textoDoPerfurante(perfuracao)}
+              </small>
+            </span>
           </div>
         )}
         {sugerido !== null && (

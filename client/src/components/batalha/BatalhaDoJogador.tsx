@@ -157,6 +157,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       const item: ReacaoNaCaixa = { golpeId: reacao.golpeId, tokenId: reacao.tokenId, atacante: reacao.atacante === ATACANTE_FORA_DA_VISTA ? 'Alguém fora da sua vista' : reacao.atacante, nome: reacao.nome, dano: reacao.dano }
       if (variasFichas) item.alvo = nomeDe(reacao.tokenId)
       if (reacao.perfurante) item.perfurante = true
+      if (reacao.perfurante && reacao.perfuracao !== undefined) item.perfuracao = reacao.perfuracao
       if (reacao.rolagem !== undefined) item.rolagem = reacao.rolagem
       return item
     })

@@ -153,6 +153,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           perfurante: golpe.perfurante,
           doMestre: ehDoMestre(alvo.personagemId, personagens),
         }
+        if (golpe.perfuracao !== undefined) item.perfuracao = golpe.perfuracao
         if (alvo.rolagem !== undefined) item.rolagem = alvo.rolagem
         itens.push(item)
       }
@@ -168,7 +169,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
     <ReacoesPendentes
       itens={pendentes}
       onPedir={(pedido) => useBatalhaStore.getState().reagir(sceneKey, MESTRE, pedido)}
-      onTrocarPerfurante={(golpeId, perfurante) => useBatalhaStore.getState().trocarPerfurante(sceneKey, golpeId, perfurante)}
+      onTrocarPerfurante={(golpeId, perfurante, perfuracao) => useBatalhaStore.getState().trocarPerfurante(sceneKey, golpeId, perfurante, perfuracao)}
     />
   )
   if (carta === null) return reacoes

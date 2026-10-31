@@ -1,6 +1,8 @@
+import { useEffect, useId, useState } from 'react'
 import type { PedidoDeReacao } from '../../lib/batalha/combate'
+import { porcentagemQuePerfura } from '../../lib/batalha/reacao'
 import { CaixaDeReacao, type ReacaoNaCaixa } from './CaixaDeReacao'
-import { formatarNumero, saidasNaTela } from './dadosDoMenu'
+import { formatarNumero, lerPerfuracao, saidasNaTela, textoDoPerfurante } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
 
@@ -25,7 +27,65 @@ export interface PendenteNaTela extends ReacaoNaCaixa {
 export interface ReacoesPendentesProps {
   itens: readonly PendenteNaTela[]
   onPedir: (pedido: PedidoDeReacao) => boolean
-  onTrocarPerfurante: (golpeId: string, perfurante: boolean) => boolean
+  /** `perfuracao` (1 a 100) troca também quanto perfura; ausente = fica a do golpe. */
+  onTrocarPerfurante: (golpeId: string, perfurante: boolean, perfuracao?: number) => boolean
+}
+
+/**
+ * O Perfurante de um golpe esperando reação, com quanto perfura ao lado (só
+ * ligado). O número vale ao sair do campo ou no Enter (cada troca reescreve a
+ * linha do registro); Esc ou número torto voltam ao do golpe.
+ */
+function PerfuranteDoGolpe({ item, onTrocar }: { item: PendenteNaTela; onTrocar: ReacoesPendentesProps['onTrocarPerfurante'] }) {
+  const idTexto = useId()
+  const porcentagem = porcentagemQuePerfura(true, item.perfuracao)
+  const [texto, setTexto] = useState(String(porcentagem))
+  // O golpe trocou por fora (o registro desfeito, outra janela): o campo acompanha.
+  useEffect(() => setTexto(String(porcentagem)), [porcentagem])
+  const lida = lerPerfuracao(texto)
+  const confirmar = () => {
+    if (lida === null) setTexto(String(porcentagem))
+    else if (lida !== porcentagem && !onTrocar(item.golpeId, true, lida)) setTexto(String(porcentagem))
+  }
+  return (
+    <span className="bt-perfura">
+      <label className="bt-chave">
+        <input type="checkbox" role="switch" checked={item.perfurante} aria-describedby={idTexto} onChange={(evento) => onTrocar(item.golpeId, evento.target.checked)} />
+        <span className="bt-chave__trilho" aria-hidden="true" />
+        {item.nome}: perfurante
+      </label>
+      {item.perfurante && (
+        <label className="bt-perfura__quanto">
+          <span className="bt-sr">Quanto {item.nome} perfura, em %</span>
+          <input
+            className="bt-num"
+            inputMode="numeric"
+            maxLength={3}
+            value={texto}
+            aria-invalid={lida === null ? true : undefined}
+            aria-describedby={idTexto}
+            onFocus={(evento) => evento.target.select()}
+            onChange={(evento) => setTexto(evento.target.value)}
+            onBlur={confirmar}
+            onKeyDown={(evento) => {
+              if (evento.key === 'Enter') {
+                evento.preventDefault()
+                confirmar()
+              } else if (evento.key === 'Escape' && texto !== String(porcentagem)) {
+                evento.preventDefault()
+                evento.stopPropagation()
+                setTexto(String(porcentagem))
+              }
+            }}
+          />
+          <span aria-hidden="true">%</span>
+        </label>
+      )}
+      <small id={idTexto} className="bt-perfura__texto">
+        {item.perfurante ? textoDoPerfurante(lida ?? porcentagem) : 'direto no HP'}
+      </small>
+    </span>
+  )
 }
 
 export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: ReacoesPendentesProps) {
@@ -76,11 +136,7 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
       {golpes.size > 0 && (
         <div className="bt-npc__chaves bt-sobre-escuro">
           {[...golpes.values()].map((item) => (
-            <label key={item.golpeId} className="bt-chave">
-              <input type="checkbox" role="switch" checked={item.perfurante} onChange={(evento) => onTrocarPerfurante(item.golpeId, evento.target.checked)} />
-              <span className="bt-chave__trilho" aria-hidden="true" />
-              {item.nome}: perfurante <small>direto no HP</small>
-            </label>
+            <PerfuranteDoGolpe key={item.golpeId} item={item} onTrocar={onTrocarPerfurante} />
           ))}
         </div>
       )}

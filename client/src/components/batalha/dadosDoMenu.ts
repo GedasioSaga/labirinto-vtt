@@ -3,6 +3,8 @@ import {
   CARGA_MAX,
   MULTIPLICADOR_DA_CARGA,
   MULTIPLICADOR_DA_SURPRESA,
+  PERFURACAO_MAX,
+  PERFURACAO_MIN,
   type AcaoDaTecnica,
   type CombateDoPersonagem,
   type EfeitoDaBatalha,
@@ -11,7 +13,7 @@ import {
 } from '../../lib/batalha/combate'
 import { seloDaTecnica } from '../../lib/batalha/selos'
 import { danoDoAtaque, type LeituraDoDano } from '../../lib/batalha/formula'
-import { CAMPO_DA_ACAO, armasDe, lerAcao, type LeituraDoCusto, type LeituraDoTempo } from '../../lib/batalha/leituraDaFicha'
+import { CAMPO_DA_ACAO, armasDe, lerAcao, perfuracaoDe, type LeituraDoCusto, type LeituraDoTempo } from '../../lib/batalha/leituraDaFicha'
 import { danoFinal, danoQueChega, saidasPossiveis } from '../../lib/batalha/reacao'
 import type { CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
@@ -59,6 +61,8 @@ export interface GolpeNaTela {
   overload: boolean
   /** Q4: o valor inicial do interruptor Perfurante. */
   perfurante: boolean
+  /** Quanto perfura, de 1 a 100, quando a habilidade diz ("perfura 50%"); `null` = não diz (a mira começa em 100). */
+  perfuracao: number | null
   /** Presente = apagado, com a frase. */
   motivo: string | null
   /** O texto inteiro da ficha, para ler antes de usar (a caixa de leitura da lista). */
@@ -222,6 +226,7 @@ function golpeDaTecnica(tecnica: TecnicaNoMenu, sistema: SistemaDeRpg, combate: 
     dano,
     overload: tecnica.overload,
     perfurante: tecnica.perfurante,
+    perfuracao: tecnica.perfuracao ?? null,
     motivo: tecnica.motivo,
     leitura: leituraDoCartao(tecnica.cartao, sistema, ABA_DAS_TECNICAS, dano),
   }
@@ -280,6 +285,8 @@ export function golpesDeAtaque(personagem: Personagem | null, sistema: SistemaDe
       dano,
       overload: false,
       perfurante: false,
+      // A arma que diz "perfura 50%" já traz o número, para quando ligarem o Perfurante.
+      perfuracao: arma === null ? null : perfuracaoDe(arma),
       motivo: acoes === null ? null : motivoDaAcao(acoes, gasta),
     }
   }
@@ -338,6 +345,19 @@ export function textoDaCarga(carga: number): string | null {
   if (carga <= 0) return null
   const vezes = MULTIPLICADOR_DA_CARGA[Math.min(CARGA_MAX, carga)] ?? 1
   return `Carga ${carga} · próximo golpe ×${formatarNumero(vezes)}`
+}
+
+/** A porcentagem do Perfurante digitada: inteiro de 1 a 100, ou `null` (vazio, 0, mais de 100, texto). */
+export function lerPerfuracao(texto: string): number | null {
+  const limpo = texto.trim().replace(/\s*%$/, '')
+  if (!/^\d{1,3}$/.test(limpo)) return null
+  const valor = Number(limpo)
+  return valor >= PERFURACAO_MIN && valor <= PERFURACAO_MAX ? valor : null
+}
+
+/** O que o Perfurante faz: "direto no HP, sem gastar o Escudo" (100%) ou "30% direto no HP, o resto passa pelo Escudo". */
+export function textoDoPerfurante(porcentagem: number): string {
+  return porcentagem >= PERFURACAO_MAX ? 'direto no HP, sem gastar o Escudo' : `${porcentagem}% direto no HP, o resto passa pelo Escudo`
 }
 
 /** O dano que chega e a conta ao lado: "205 × 2 concentração × 1,5 Surpresa = 615". */

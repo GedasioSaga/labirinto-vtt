@@ -779,8 +779,51 @@
   color: #5d5a54;
 }
 .bt-sobre-escuro .bt-chave small,
+.bt-sobre-escuro .bt-perfura__texto,
 .bt-sobre-escuro .bt-linha-campo > span:first-child {
   color: var(--lb-color-parchment-faint);
+}
+
+/*
+ * Perfurante com a porcentagem: o interruptor, o campo "quanto perfura" (só
+ * com ele ligado) e o que acontece com o dano ("30% direto no HP, o resto
+ * passa pelo Escudo"). O campo entra deslizando um pouco do interruptor.
+ */
+.bt-perfura {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.bt-perfura__quanto {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+  color: var(--bt-tinta);
+  transition:
+    opacity 160ms var(--bt-ease-out),
+    transform 160ms var(--bt-ease-out);
+}
+@starting-style {
+  .bt-perfura__quanto {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+.bt-perfura__quanto .bt-num {
+  width: 5ch;
+  min-height: 28px;
+}
+.bt-sobre-escuro .bt-perfura__quanto {
+  color: var(--lb-color-parchment);
+}
+.bt-perfura__texto {
+  font-size: var(--lb-font-size-sm);
+  color: #5d5a54;
+  font-variant-numeric: tabular-nums;
 }
 .bt-sobre-escuro .bt-chave__trilho {
   background: rgba(255, 255, 255, 0.18);
@@ -1880,11 +1923,15 @@
     transition: opacity 150ms ease;
   }
   .bt-reacao,
-  .bt-detalhe.bt-detalhe--lado {
+  .bt-detalhe.bt-detalhe--lado,
+  .bt-perfura__quanto {
     transition: opacity 150ms ease;
   }
   @starting-style {
     .bt-vez:not([data-instantaneo='sim']) > .bt-detalhe.bt-detalhe--lado {
+      transform: none;
+    }
+    .bt-perfura__quanto {
       transform: none;
     }
     .bt-vez:not([data-instantaneo='sim']) .bt-tira {

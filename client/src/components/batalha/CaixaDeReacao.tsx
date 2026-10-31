@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { MODIFICADOR_DA_REACAO_MAX, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
-import { danoFinal, saidaDoPassar, saidasPossiveis } from '../../lib/batalha/reacao'
+import { MODIFICADOR_DA_REACAO_MAX, PERFURACAO_MAX, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
+import { danoFinal, divisaoDoDano, porcentagemQuePerfura, saidaDoPassar, saidasPossiveis } from '../../lib/batalha/reacao'
 import { formatarNumero, movimentoReduzido, saidasNaTela, TEXTO_DA_SAIDA } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
@@ -31,7 +31,17 @@ export interface ReacaoNaCaixa {
   /** O dano que chega; `null` = golpe sem dano. */
   dano: number | null
   perfurante?: boolean
+  /** Com `perfurante`, quando é parcial: quanto do dano vai direto ao HP (1 a 99); ausente = tudo. */
+  perfuracao?: number
   rolagem?: RolagemDaReacao
+}
+
+/** ", perfurante (direto no HP)" ou ", perfurante 30% (60 direto no HP, o resto pelo Escudo)". */
+function textoDoPerfuranteNaCaixa(reacao: ReacaoNaCaixa, dano: number): string {
+  if (reacao.perfurante !== true) return ''
+  const porcentagem = porcentagemQuePerfura(true, reacao.perfuracao)
+  if (porcentagem >= PERFURACAO_MAX) return ', perfurante (direto no HP)'
+  return `, perfurante ${porcentagem}% (${formatarNumero(divisaoDoDano(dano, porcentagem).direto)} direto no HP, o resto pelo Escudo)`
 }
 
 export interface CaixaDeReacaoProps {
@@ -166,7 +176,7 @@ function UmaReacao({
             </>
           )}
           <b>{reacao.atacante}</b> usa <b>{reacao.nome}</b> em {reacao.alvo === undefined ? 'você' : reacao.alvo}
-          {reacao.dano === null ? ' (sem dano).' : <>: <b>{formatarNumero(reacao.dano)}</b> de dano{reacao.perfurante ? ', perfurante (direto no HP)' : ''}.</>}
+          {reacao.dano === null ? ' (sem dano).' : <>: <b>{formatarNumero(reacao.dano)}</b> de dano{textoDoPerfuranteNaCaixa(reacao, reacao.dano)}.</>}
         </p>
       )}
       <div className="bt-reacao__linha">
