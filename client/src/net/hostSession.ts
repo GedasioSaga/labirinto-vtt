@@ -3575,6 +3575,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // BATALHA F1: o recorte da ordem dos turnos por conexão e os pedidos do jogador.
   // `paraOFio` (lib/personagem.ts): o mesmo funil da lista do jogador, sem conta nem nada do mundo do livro.
   const batalhaNoHost = criarBatalhaNoHost({ ponte: options.ponteDaBatalha, agora: () => now(), paraOFio })
+  // Sobe a cada `broadcast`: o pedido de batalha sabe se a store já mandou o recorte DE DENTRO da ação (`handleBatalha`).
+  let broadcastsFeitos = 0
   // BATALHA F1 — por playerId: as fichas do último recorte que saiu para ele
   // (`snapshotFor`) e de que mapa. É o "o que a tela dele tem" da ordem dos
   // turnos: carta de ficha fora daqui não sai (Q1). O `sentViews` não serve
@@ -7887,13 +7889,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * F2 (S1): agir, reagir, dano livre e armas pelo mesmo caminho — posse, vez,
    * alvos na tela e `reqId` repetido na `batalhaNoHost`; a regra e o d20 na
    * store, pela ponte. Valeu: o recorte e os efeitos saem a todos antes da resposta.
+   *
+   * `world` é o de ANTES da ação (o integrador o leu ao receber a mensagem). A
+   * store do mestre pede um broadcast na hora (`notifyBatalhaChanged`), ainda
+   * dentro da ação e com o mundo de agora: esse já levou os aliados e a faixa
+   * com a ficha nova (a forma, o HP). Sincronizar de novo com `world` mandaria
+   * por cima a ficha velha (os aliados vão pela referência). Só sem esse
+   * broadcast o recorte sai daqui.
    */
   function handleBatalha(clientId: string, msg: BatalhaPlayerMessage | BatalhaAcaoPlayerMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     const conexao = conexaoNaBatalha(clientId, playerId, world)
+    const broadcastsAntes = broadcastsFeitos
     const resposta = respostaDaBatalha(conexao, msg)
-    const recortes = resposta.mudou ? batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg) : []
+    const jaSaiu = broadcastsFeitos !== broadcastsAntes
+    const recortes = resposta.mudou && !jaSaiu ? batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg) : []
     return { outbound: [...recortes, ...resposta.saidas] }
   }
 
@@ -11164,6 +11175,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     broadcast(source) {
       const world = toWorld(source)
+      broadcastsFeitos += 1
       rev += 1
       waitsEndedInViews = false
       // Antes dos recortes, e em toda cena: quem está longe da porta também não pode herdar ferrolho morto.
