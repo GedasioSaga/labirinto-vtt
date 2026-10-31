@@ -10,8 +10,10 @@ import { selosDoToken } from '../../lib/batalha/selos'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { cartaDaVez } from '../../lib/batalha/turnos'
 import type { EstadoParaJogador, LadoNaCarta } from '../../lib/batalha/vistaDoJogador'
+import type { ResolverDeImagem } from '../../lib/midia'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import type { Token } from '../../types/map'
 import { recursoDeVida, vidasDaCena } from '../../lib/vidaDaFicha'
 import type { FotosDaForma, SelosNasFichas } from '../../pixi/tokenPhotoSprite'
 import { ultimoGestoDoJudge } from '../../pixi/judgeDoMapa'
@@ -71,6 +73,23 @@ type DialogoDaArena =
 const SEM_SELOS: SelosNasFichas = new Map()
 const SEM_FOTOS: FotosDaForma = new Map()
 const PLACAR_VAZIO: ContaDoPlacar = { golpes: [], total: 0, rodadas: 0, mediaPorRodada: 0 }
+
+/**
+ * A foto de cada ficha no palco: a forma ligada vence; sem ela, o retrato da
+ * cópia pelo mesmo resolvedor da ficha no mundo (`useImagemDaMesa`), o que
+ * cobre o retrato de mídia (`midia:`, da pasta) que a montagem deixa de fora.
+ * O retrato embutido já vem no token (`imageData`) e segue por lá. A moldura
+ * fica na cor do lado (`Token.color`), como no mapa.
+ */
+function fotosDoPalco(formas: FotosDaForma | null, tokens: readonly Token[], copias: readonly Personagem[], resolver: ResolverDeImagem): FotosDaForma | null {
+  const fotos = new Map(formas ?? SEM_FOTOS)
+  for (const token of tokens) {
+    if (fotos.has(token.id) || (token.imageData ?? null) !== null || token.characterId === null) continue
+    const src = resolver(copias.find((copia) => copia.id === token.characterId)?.retrato)
+    if (src !== null) fotos.set(token.id, src)
+  }
+  return fotos.size === 0 ? null : fotos
+}
 
 /** O lado do token na arena (o boneco joga no Lado B). */
 function ladoDoToken(sessao: SessaoDaArena, tokenId: string): LadoDaArena | null {
@@ -207,7 +226,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
   const registro = useMemo(() => linhasDoMestre(cena.registro), [cena.registro])
   const vidas = useMemo(() => vidasDaCena(sessao.tokens, sessao.copias, sistema), [sessao, sistema])
   const selos = useSelosEstaveis(selosNasFichasDoMestre(turnos)) ?? SEM_SELOS
-  const fotoDaForma = useFotosEstaveis(fotosDaFormaDoMestre(turnos, sessao.copias, resolver)) ?? SEM_FOTOS
+  const fotoDaForma = useFotosEstaveis(fotosDoPalco(fotosDaFormaDoMestre(turnos, sessao.copias, resolver), sessao.tokens, sessao.copias, resolver)) ?? SEM_FOTOS
   const gestoDoJudge = ultimoGestoDoJudge(efeitos)
 
   const vezTokenId = cartaDaVez(turnos)?.tokenId ?? null
