@@ -6,7 +6,8 @@ import { AjustesDoBoneco } from './AjustesDoBoneco'
 /**
  * O PLACAR DO JUDGE-BONECO (docs/planos/batalha-arena-de-testes-plano.md
  * §4.4, decisão 2 do usuário): o dano total em destaque, a média por rodada
- * (total dividido pela rodada atual, que conta as rodadas em que errou) e cada
+ * (total dividido pelas rodadas que contam: as completas, as em que errou
+ * inclusive, e a atual só depois que um golpe dela entrou) e cada
  * golpe, do mais novo para o mais velho: rodada, quem bateu, o golpe e a conta
  * Escudo + HP. Só mostra: a conta vem pronta (`placarDoBoneco`), e o Desfazer
  * do registro tira o golpe daqui sozinho.
@@ -17,8 +18,6 @@ import { AjustesDoBoneco } from './AjustesDoBoneco'
 
 export interface PlacarDoBonecoProps {
   conta: ContaDoPlacar
-  /** A rodada de agora (a média divide por ela). */
-  rodada: number
   boneco: Ajustes
   onAjustar: (ajuste: Partial<Ajustes>) => void
   comEscudo: boolean
@@ -85,7 +84,7 @@ function PopoverDosAjustes({ id, rotuloId, gatilho, onFechar, children }: Popove
   )
 }
 
-export function PlacarDoBoneco({ conta, rodada, boneco, onAjustar, comEscudo, comVida, ajustesAbertos, onAjustesAbertos }: PlacarDoBonecoProps) {
+export function PlacarDoBoneco({ conta, boneco, onAjustar, comEscudo, comVida, ajustesAbertos, onAjustesAbertos }: PlacarDoBonecoProps) {
   const tituloId = useId()
   const popId = useId()
   const ajustar = useRef<HTMLButtonElement>(null)
@@ -123,7 +122,7 @@ export function PlacarDoBoneco({ conta, rodada, boneco, onAjustar, comEscudo, co
           <dt>Média por rodada</dt>
           <dd className="ar-placar__medio">{MEDIA.format(conta.mediaPorRodada)}</dd>
           <dd className="ar-placar__div">
-            {formatarNumero(conta.total)} em {rodada} {rodada === 1 ? 'rodada' : 'rodadas'}
+            {formatarNumero(conta.total)} em {conta.rodadas} {conta.rodadas === 1 ? 'rodada' : 'rodadas'}
           </dd>
         </div>
       </dl>

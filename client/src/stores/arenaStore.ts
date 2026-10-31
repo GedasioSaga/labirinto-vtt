@@ -20,7 +20,7 @@ import {
   type SessaoDaArena,
 } from '../lib/arena/tipos'
 import type { ParedeDoPasso } from '../lib/batalha/blocos'
-import type { EfeitoDaBatalha } from '../lib/batalha/combate'
+import type { EfeitoDaBatalha, GolpeDaBatalha } from '../lib/batalha/combate'
 import { recursoDoEscudo } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { passoEmBatalha } from '../lib/batalha/movimentoEmBatalha'
@@ -116,30 +116,39 @@ let relogioDoBoneco: ReturnType<typeof setTimeout> | null = null
 
 function guardarNomesDosGolpes(efeitos: readonly EfeitoDaBatalha[] | undefined): void {
   for (const efeito of efeitos ?? []) {
-    if (efeito.tipo === 'golpe' && !nomesDosGolpes.has(efeito.golpeId)) nomesDosGolpes.set(efeito.golpeId, { nome: efeito.nome, atacanteTokenId: efeito.atacanteTokenId })
+    if (efeito.tipo === 'golpe' && !nomesDosGolpes.has(efeito.golpeId)) nomesDosGolpes.set(efeito.golpeId, { nome: efeito.nome, atacanteTokenId: efeito.atacanteTokenId, alvos: efeito.alvos })
   }
 }
 
-/** O contexto do placar da sessão; `null` = sem boneco. */
-function contextoDoPlacar(sessao: SessaoDaArena, sistema: SistemaDeRpg | null): ContextoDoPlacar | null {
+/** Os golpes pendentes em que o boneco ainda não reagiu (`turnos.golpes` da cena). */
+function esperandoOBoneco(golpes: readonly GolpeDaBatalha[] | undefined, bonecoTokenId: string): Set<string> {
+  const esperando = new Set<string>()
+  for (const golpe of golpes ?? []) if (golpe.alvos.some((alvo) => alvo.tokenId === bonecoTokenId && alvo.danoFinal === undefined)) esperando.add(golpe.id)
+  return esperando
+}
+
+/** O contexto do placar da sessão; `null` = sem boneco. `golpes` = os pendentes da cena (o que espera o boneco fica fora). */
+function contextoDoPlacar(sessao: SessaoDaArena, sistema: SistemaDeRpg | null, golpes: readonly GolpeDaBatalha[] | undefined): ContextoDoPlacar | null {
   if (sessao.boneco === null) return null
   return {
     bonecoPersonagemId: sessao.boneco.personagemId,
+    bonecoTokenId: sessao.boneco.tokenId,
     idDaVida: recursoDeVida(sistema)?.id ?? null,
     idDoEscudo: sistema === null ? null : (recursoDoEscudo(sistema)?.id ?? null),
     golpes: nomesDosGolpes,
+    esperando: esperandoOBoneco(golpes, sessao.boneco.tokenId),
     nomeDoToken: (tokenId) => sessao.tokens.find((token) => token.id === tokenId)?.name ?? 'Ficha',
   }
 }
 
 /** As linhas que saíram do teto do registro viram golpes congelados no placar antes de sumir. */
-function congelarOsQueSairam(antes: readonly LinhaDoRegistro[], depois: readonly LinhaDoRegistro[]): void {
+function congelarOsQueSairam(antes: readonly LinhaDoRegistro[], depois: readonly LinhaDoRegistro[], pendentes: readonly GolpeDaBatalha[] | undefined): void {
   // Só o teto tira linha do registro (o Desfazer só risca).
   if (depois.length < REGISTRO_MAX) return
   const ficaram = new Set(depois.map((linha) => linha.id))
   const sairam = antes.filter((linha) => !ficaram.has(linha.id))
   const sessao = useArenaStore.getState().sessao
-  const ctx = sessao === null ? null : contextoDoPlacar(sessao, sistemaDaSessao(sessao))
+  const ctx = sessao === null ? null : contextoDoPlacar(sessao, sistemaDaSessao(sessao), pendentes)
   if (sessao === null || ctx === null || sairam.length === 0) return
   const golpes = sairam.flatMap((linha): GolpeNoPlacar[] => {
     const golpe = golpeNoPlacar(linha, ctx)
@@ -348,7 +357,7 @@ batalhaDaArena.subscribe((estado, anterior) => {
   if (cena === undefined) return
   guardarNomesDosGolpes(cena.efeitos)
   const antes = anterior.cenas[CENA_DA_ARENA]
-  if (antes !== undefined && antes.registro !== cena.registro) congelarOsQueSairam(antes.registro, cena.registro)
+  if (antes !== undefined && antes.registro !== cena.registro) congelarOsQueSairam(antes.registro, cena.registro, cena.turnos.golpes)
   agendarOBoneco()
 })
 
@@ -361,10 +370,11 @@ export function usePlacarDaArena(): ContaDoPlacar | null {
   const sessao = useArenaStore((state) => state.sessao)
   const registro = batalhaDaArena((state) => state.cenas[CENA_DA_ARENA]?.registro)
   const rodada = batalhaDaArena((state) => state.cenas[CENA_DA_ARENA]?.turnos.rodada)
+  const golpes = batalhaDaArena((state) => state.cenas[CENA_DA_ARENA]?.turnos.golpes)
   const biblioteca = useRpgStore((state) => state.biblioteca)
   return useMemo(() => {
     if (sessao === null || registro === undefined || rodada === undefined) return null
-    const ctx = contextoDoPlacar(sessao, sistemaPorId(biblioteca, sessao.sistemaId) ?? null)
+    const ctx = contextoDoPlacar(sessao, sistemaPorId(biblioteca, sessao.sistemaId) ?? null, golpes)
     return ctx === null ? null : placarDoBoneco(registro, ctx, sessao.placarCongelado, rodada)
-  }, [sessao, registro, rodada, biblioteca])
+  }, [sessao, registro, rodada, golpes, biblioteca])
 }

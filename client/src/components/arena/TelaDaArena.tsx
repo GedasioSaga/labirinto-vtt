@@ -70,7 +70,7 @@ type DialogoDaArena =
 
 const SEM_SELOS: SelosNasFichas = new Map()
 const SEM_FOTOS: FotosDaForma = new Map()
-const PLACAR_VAZIO: ContaDoPlacar = { golpes: [], total: 0, mediaPorRodada: 0 }
+const PLACAR_VAZIO: ContaDoPlacar = { golpes: [], total: 0, rodadas: 0, mediaPorRodada: 0 }
 
 /** O lado do token na arena (o boneco joga no Lado B). */
 function ladoDoToken(sessao: SessaoDaArena, tokenId: string): LadoDaArena | null {
@@ -400,7 +400,6 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         <div className="ar-placar-lugar">
           <PlacarDoBoneco
             conta={placar ?? PLACAR_VAZIO}
-            rodada={turnos.rodada}
             boneco={boneco}
             onAjustar={(ajuste) => useArenaStore.getState().ajustarBoneco(ajuste)}
             comEscudo={recursoDoEscudo(sistema) !== null}

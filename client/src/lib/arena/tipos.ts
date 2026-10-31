@@ -132,7 +132,9 @@ export interface GolpeNoPlacar {
 export interface ContaDoPlacar {
   golpes: readonly GolpeNoPlacar[]
   total: number
-  /** Decisão 2: `total` dividido pela rodada atual (conta as rodadas em que errou). */
+  /** As rodadas que a média divide: as completas (as em que errou inclusive) e a atual só depois que um golpe dela entrou (`placar.ts`). */
+  rodadas: number
+  /** Decisão 2: `total` dividido por `rodadas` (0 rodadas = 0). */
   mediaPorRodada: number
 }
 
