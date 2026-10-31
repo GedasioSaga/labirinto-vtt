@@ -8,6 +8,7 @@ import {
   DANO_MAX,
   EFEITOS_GUARDADOS,
   MODIFICADOR_DA_REACAO_MAX,
+  PERFURACAO_MAX,
   type AlvoDoGolpe,
   type CombateDoPersonagem,
   type ContraAtaque,
@@ -30,7 +31,7 @@ import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoD
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, limiteDeArmas } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
-import { ajustesDoDano, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
+import { ajustesDoDano, perfuracaoValida, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
 import {
   comLinha,
@@ -221,8 +222,12 @@ export interface BatalhaState {
    * Concentrar. Sem carga, ou personagem fora da ordem: `false`.
    */
   zerarCarga: (sceneKey: string, autor: AutorDaAcao, personagemId: string) => boolean
-  /** Q4: o mestre liga ou desliga o Perfurante de um golpe que ainda tem alvo esperando (o mestre decide no fim). */
-  trocarPerfurante: (sceneKey: string, golpeId: string, perfurante: boolean) => boolean
+  /**
+   * Q4: o mestre liga ou desliga o Perfurante de um golpe que ainda tem alvo
+   * esperando (o mestre decide no fim). `perfuracao` (1 a 100) troca também a
+   * porcentagem; ausente = fica a do golpe. Porcentagem torta: `false`.
+   */
+  trocarPerfurante: (sceneKey: string, golpeId: string, perfurante: boolean, perfuracao?: number) => boolean
 
   // ---- F3 (fatia J): o Judge ----
   /**
@@ -473,11 +478,11 @@ function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: GolpeDaB
   return golpePendente(golpe) ? [...outros, golpe] : outros
 }
 
-/** O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo. */
-function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, perfurante: boolean, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } {
+/** O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo; com `perfuracao`, só aquela porcentagem pula o Escudo. */
+function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } {
   if (alvo.danoFinal === undefined || alvo.saida === undefined) return { partes: [], efeito: null }
   const valor = alvo.danoFinal
-  const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, perfurante), quemNaFicha(autor))
+  const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, golpe.perfurante, golpe.perfuracao), quemNaFicha(autor))
   // A animação toca sempre (esquiva também: "ESQUIVOU" sobre a ficha).
   return { partes: alvo.personagemId === null ? [] : reversaoDaFicha(alvo.personagemId, partes), efeito: { tipo: 'dano', tokenId: alvo.tokenId, valor, saida: alvo.saida } }
 }
@@ -970,7 +975,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
         partes.push({ tipo: 'golpe', golpeId: golpe.id })
         efeitos.push({ tipo: 'golpe', golpeId: golpe.id, atacanteTokenId: golpe.atacanteTokenId, nome: golpe.nome, alvos: golpe.alvos.map((alvo) => alvo.tokenId), surpresa: golpe.surpresa, overload: golpe.overload })
         for (const alvo of lancado.resolvidos) {
-          const feito = danoNoAlvo(mesa, alvo, golpe.perfurante, autor)
+          const feito = danoNoAlvo(mesa, alvo, golpe, autor)
           partes.push(...feito.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
@@ -1061,7 +1066,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
           novo = resolverAlvo(golpe, alvo.tokenId, saida)
           const resolvido = novo.alvos.find((candidato) => candidato.tokenId === alvo.tokenId)
           if (resolvido === undefined) return false
-          const feito = danoNoAlvo(mesa, resolvido, golpe.perfurante, autor)
+          const feito = danoNoAlvo(mesa, resolvido, golpe, autor)
           partes.push(...feito.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
@@ -1161,11 +1166,16 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       return true
     },
 
-    trocarPerfurante: (sceneKey, golpeId, perfurante) => {
+    trocarPerfurante: (sceneKey, golpeId, perfurante, perfuracao) => {
       const cena = cenaDe(sceneKey)
       const golpe = cena?.turnos.golpes?.find((candidato) => candidato.id === golpeId)
-      if (cena === undefined || golpe === undefined || golpe.perfurante === perfurante) return false
-      const novo: GolpeDaBatalha = { ...golpe, perfurante }
+      const lida = perfuracao === undefined ? undefined : perfuracaoValida(perfuracao)
+      if (cena === undefined || golpe === undefined || lida === null) return false
+      // 100 = o Perfurante inteiro, que é o golpe sem o campo (a mesma forma de `lancarGolpe`).
+      const porcentagem = lida === undefined ? golpe.perfuracao : lida < PERFURACAO_MAX ? lida : undefined
+      if (golpe.perfurante === perfurante && golpe.perfuracao === porcentagem) return false
+      const { perfuracao: _antiga, ...semPorcentagem } = golpe
+      const novo: GolpeDaBatalha = porcentagem === undefined ? { ...semPorcentagem, perfurante } : { ...semPorcentagem, perfurante, perfuracao: porcentagem }
       const registro = linhaAtualizada(cena.registro, golpe.linhaId, textoDoGolpe(novo, nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)), [])
       gravarCena(sceneKey, { ...cena, turnos: { ...cena.turnos, golpes: comGolpe(cena.turnos.golpes, novo) }, registro, turnosRev: cena.turnosRev + 1 })
       return true

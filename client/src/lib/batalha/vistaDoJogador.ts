@@ -151,6 +151,8 @@ export interface ReacaoParaJogador {
   dano: number | null
   /** Q4: o dano vai direto ao HP. */
   perfurante?: true
+  /** Só com `perfurante`, quando é parcial: quanto do dano vai direto ao HP (1 a 99). */
+  perfuracao?: number
   rolagem?: RolagemDaReacao
 }
 
@@ -333,6 +335,7 @@ function reacoesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJo
         dano: alvo.dano,
       }
       if (golpe.perfurante) reacao.perfurante = true
+      if (golpe.perfurante && golpe.perfuracao !== undefined) reacao.perfuracao = golpe.perfuracao
       if (alvo.rolagem !== undefined) reacao.rolagem = { ...alvo.rolagem }
       reacoes.push(reacao)
     }

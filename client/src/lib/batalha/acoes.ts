@@ -10,6 +10,7 @@ import {
   ehOverload,
   ehPerfurante,
   lerAcao,
+  perfuracaoDe,
   lerCusto,
   lerTempo,
   recursoDoCusto,
@@ -112,6 +113,8 @@ export interface TecnicaNoMenu {
   overload: boolean
   /** Q4: o valor inicial do interruptor Perfurante. */
   perfurante: boolean
+  /** A porcentagem que a habilidade diz que perfura ("perfura 50%"); ausente = não diz (100%). */
+  perfuracao?: number
   motivo: string | null
 }
 
@@ -215,6 +218,8 @@ export function tecnicasNoMenu(
       motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes),
     }
     if (forma !== undefined) tecnica.forma = forma
+    const perfuracao = perfuracaoDe(cartao)
+    if (perfuracao !== null) tecnica.perfuracao = perfuracao
     return tecnica
   })
 }

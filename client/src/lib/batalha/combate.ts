@@ -51,11 +51,12 @@ export interface PedidoDeAlvo {
  * O que quem age pede. `contraDe` = é o contra-ataque (Q6) ganho no golpe com
  * esse id: fora da vez, sem gastar ação da vez. `perfurante` (Q4) = o dano vai
  * direto ao HP, sem gastar o Escudo; liga sozinho quando a habilidade diz, e
- * quem ataca pode desligar.
+ * quem ataca pode desligar. `perfuracao` = quanto do dano perfura (inteiro de
+ * `PERFURACAO_MIN` a `PERFURACAO_MAX`); ausente com `perfurante` = 100 (tudo).
  */
 export type PedidoDeAcao =
   /** F3: `selo` = o sugerido pela habilidade, marcado na mira; pega só se o golpe acerta (Q6). */
-  | { tipo: 'atacar'; armaId: string | null; alvos: readonly PedidoDeAlvo[]; surpresa: boolean; perfurante: boolean; contraDe?: string; selo?: SeloPedido }
+  | { tipo: 'atacar'; armaId: string | null; alvos: readonly PedidoDeAlvo[]; surpresa: boolean; perfurante: boolean; perfuracao?: number; contraDe?: string; selo?: SeloPedido }
   | {
       tipo: 'habilidade'
       cartaoId: string
@@ -63,6 +64,7 @@ export type PedidoDeAcao =
       alvos: readonly PedidoDeAlvo[]
       surpresa: boolean
       perfurante: boolean
+      perfuracao?: number
       /** O custo confirmado na tela; `null` = o da ficha. */
       custo: number | null
       /** Só quando a ficha não diz; `null` = a da ficha. */
@@ -131,6 +133,8 @@ export interface GolpeDaBatalha {
   overload: boolean
   /** Q4: o dano vai direto ao HP, sem gastar o Escudo. O mestre pode trocar enquanto há alvo esperando. */
   perfurante: boolean
+  /** Quanto do dano perfura, de 1 a 100; ausente = 100. Só vale com `perfurante`. */
+  perfuracao?: number
   /** O golpe é um contra-ataque ganho no golpe com este id. */
   contraDe?: string
   alvos: readonly AlvoDoGolpe[]
@@ -237,6 +241,9 @@ export const CARGA_MAX = 3
 export const MULTIPLICADOR_DA_CARGA = [1, 1.5, 2, 3.5] as const
 export const MULTIPLICADOR_DA_SURPRESA = 1.5
 export const MULTIPLICADOR_DO_CRITICO = 1.5
+/** A porcentagem do Perfurante: de 1% a 100% do dano vai direto ao HP. */
+export const PERFURACAO_MIN = 1
+export const PERFURACAO_MAX = 100
 /** = `DICE_MODIFIER_LIMIT` (lib/dice.ts). */
 export const MODIFICADOR_DA_REACAO_MAX = 99
 /** Teto de um dano (no pedido, no efeito e no dano livre). */

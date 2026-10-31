@@ -2,7 +2,7 @@ import type { Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
-import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLICADOR_DO_CRITICO, type SaidaDaReacao } from './combate'
+import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLICADOR_DO_CRITICO, PERFURACAO_MAX, PERFURACAO_MIN, type SaidaDaReacao } from './combate'
 import { recursoDoEscudo } from './leituraDaFicha'
 
 /**
@@ -69,17 +69,44 @@ export function danoFinal(chega: number, saida: SaidaDaReacao): number {
   return Math.max(0, Math.floor(chega * fatorDaSaida(saida)))
 }
 
+/** A porcentagem lida: inteiro de 1 a 100, ou `null`. */
+export function perfuracaoValida(valor: unknown): number | null {
+  return typeof valor === 'number' && Number.isInteger(valor) && valor >= PERFURACAO_MIN && valor <= PERFURACAO_MAX ? valor : null
+}
+
+/** Quanto do golpe perfura, de 0 a 100: 0 sem `perfurante`; com ele, `perfuracao` ou 100 (ausente ou torta = tudo, como antes da porcentagem). */
+export function porcentagemQuePerfura(perfurante: boolean, perfuracao?: number): number {
+  if (!perfurante) return 0
+  return perfuracaoValida(perfuracao) ?? PERFURACAO_MAX
+}
+
+/**
+ * Como `dano` se divide: `direto` vai ao HP sem tocar no Escudo; `peloEscudo`
+ * gasta o Escudo primeiro. A parte direta arredonda PARA BAIXO (como todo dano
+ * do jogo) e o que sobra vai pelo Escudo, então a soma é sempre o dano inteiro.
+ * Ex.: 200 a 30% = 60 direto + 140 pelo Escudo; 99 a 50% = 49 + 50.
+ */
+export function divisaoDoDano(dano: number, porcentagem: number): { direto: number; peloEscudo: number } {
+  const inteiro = Math.max(0, Math.floor(dano))
+  const parte = Math.min(PERFURACAO_MAX, Math.max(0, Math.trunc(porcentagem)))
+  const direto = Math.floor((inteiro * parte) / PERFURACAO_MAX)
+  return { direto, peloEscudo: inteiro - direto }
+}
+
 /**
  * Os ajustes que põem `dano` na ficha. Q4: gasta o Escudo primeiro e o resto
  * vai ao HP; `perfurante` vai direto ao HP. Ex.: Escudo 50, HP 450, dano 130
- * = Escudo 0, HP 370. O HP para no 0 (`aplicarAjuste` limita). Dano 0 ou
- * sistema sem vida: nenhum ajuste.
+ * = Escudo 0, HP 370. Com `perfuracao` só aquela porcentagem vai direto e o
+ * resto passa pelo Escudo (`divisaoDoDano`). Ex.: Escudo 100, dano 200 a 30% =
+ * 60 direto, 140 no Escudo (100) e 40 no HP: Escudo 0, HP −100. O HP para no 0
+ * (`aplicarAjuste` limita). Dano 0 ou sistema sem vida: nenhum ajuste.
  */
-export function ajustesDoDano(personagem: Personagem, sistema: SistemaDeRpg, dano: number, perfurante: boolean): Ajuste[] {
+export function ajustesDoDano(personagem: Personagem, sistema: SistemaDeRpg, dano: number, perfurante: boolean, perfuracao?: number): Ajuste[] {
   if (!(dano > 0)) return []
   const ajustes: Ajuste[] = []
-  let resto = Math.floor(dano)
-  const escudo = perfurante ? null : recursoDoEscudo(sistema)
+  const { direto, peloEscudo } = divisaoDoDano(dano, porcentagemQuePerfura(perfurante, perfuracao))
+  let resto = peloEscudo
+  const escudo = resto > 0 ? recursoDoEscudo(sistema) : null
   if (escudo !== null) {
     const temEscudo = numeroDaFicha(personagem.recursos, escudo.id)
     const gasto = Math.min(Math.max(0, temEscudo), resto)
@@ -88,7 +115,8 @@ export function ajustesDoDano(personagem: Personagem, sistema: SistemaDeRpg, dan
       resto -= gasto
     }
   }
+  const noHp = direto + resto
   const vida = recursoDeVida(sistema)
-  if (resto > 0 && vida !== null) ajustes.push({ parte: 'recurso', chave: vida.id, valor: Math.max(0, numeroDaFicha(personagem.recursos, vida.id) - resto) })
+  if (noHp > 0 && vida !== null) ajustes.push({ parte: 'recurso', chave: vida.id, valor: Math.max(0, numeroDaFicha(personagem.recursos, vida.id) - noHp) })
   return ajustes
 }

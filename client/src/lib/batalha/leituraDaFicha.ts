@@ -1,7 +1,7 @@
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { RecursoDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
-import type { AcaoDaTecnica } from './combate'
+import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
 import { normalizar } from './formula'
 
 /**
@@ -137,6 +137,26 @@ export function ehPerfurante(cartao: CartaoDaFicha): boolean {
     const normal = normalizar(texto)
     return SINAIS_DE_PERFURANTE.some((sinal) => sinal.test(normal))
   })
+}
+
+/** "perfura 50%", "perfurante de 50 %"; e "50% perfurante", "50% de perfuração". */
+const SINAIS_DA_PERFURACAO = [/perfura\w*\s*(?:de\s*|em\s*)?(\d{1,3})\s*%/, /(\d{1,3})\s*%\s*(?:de\s*)?perfura/]
+
+/**
+ * A porcentagem que a habilidade diz que perfura ("perfura 50%", "50%
+ * perfurante"), de 1 a 100; `null` = não diz (o Perfurante, se ligado, é
+ * 100%). É a sugestão inicial da mira; quem ataca e o mestre podem trocar.
+ */
+export function perfuracaoDe(cartao: CartaoDaFicha): number | null {
+  const textos = [...Object.values(cartao.campos), ...cartao.extras.flatMap((extra) => [extra.nome, extra.valor])]
+  for (const texto of textos) {
+    const normal = normalizar(texto)
+    for (const sinal of SINAIS_DA_PERFURACAO) {
+      const numero = Number(sinal.exec(normal)?.[1])
+      if (Number.isInteger(numero) && numero >= PERFURACAO_MIN && numero <= PERFURACAO_MAX) return numero
+    }
+  }
+  return null
 }
 
 /** Uma técnica e, se vem de transformação ligada, o nome da forma. */

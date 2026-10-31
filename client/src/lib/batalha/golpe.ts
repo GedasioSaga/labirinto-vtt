@@ -9,6 +9,7 @@ import {
   combateVazio,
   DANO_MAX,
   GOLPES_PENDENTES_MAX,
+  PERFURACAO_MAX,
   type AcaoDaTecnica,
   type AlvoDoGolpe,
   type CombateDoPersonagem,
@@ -22,7 +23,7 @@ import { equipeDe, type Equipe } from './equipes'
 import { danoDoAtaque } from './formula'
 import { armasDe, ehOverload, lerAcao, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, type LeituraDoCusto } from './leituraDaFicha'
 import type { BatalhaEmTurnos } from './ponte'
-import { danoFinal, danoQueChega } from './reacao'
+import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { seloPedidoValido } from './selos'
 import { formaDaFicha, motivoDaForma } from './transformacao'
@@ -285,6 +286,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
     perfurante: pedido.perfurante,
     alvos,
   }
+  // A porcentagem só vai quando é parcial: 100 é o Perfurante de sempre (golpe sem o campo).
+  const perfuracao = perfuracaoValida(pedido.perfuracao)
+  if (perfuracao !== null && perfuracao < PERFURACAO_MAX) golpe.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) golpe.contraDe = pedido.contraDe
   // F3 (Q6): o selo marcado na mira vai junto; pega em cada alvo que o golpe acerta (a store aplica).
   const selo = pedido.selo === undefined ? null : seloPedidoValido(pedido.selo)
@@ -440,13 +444,20 @@ function textoDoAlvo(alvo: AlvoDoGolpe): string {
   return pedacos.join(' · ')
 }
 
+/** "perfurante" (tudo direto no HP), "perfurante 30%" (parcial) ou nada. */
+function marcaDoPerfurante(golpe: GolpeDaBatalha): string | null {
+  const porcentagem = porcentagemQuePerfura(golpe.perfurante, golpe.perfuracao)
+  if (porcentagem === 0) return null
+  return porcentagem < PERFURACAO_MAX ? `perfurante ${porcentagem}%` : 'perfurante'
+}
+
 /**
  * A linha do golpe, refeita a cada alvo resolvido:
  * "Lia usa Rajada de Penas em Ilo: 260 · d20 7+2 = 9 · recebeu 260";
  * "Lia usa Rajada em Ilo e Teo: Ilo d20 15+0 = 15 · esquivou · Teo esperando reação".
  */
 export function textoDoGolpe(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: string) => string): string {
-  const marcas = [golpe.surpresa ? 'Surpresa' : null, golpe.overload ? 'Overload' : null, golpe.perfurante ? 'perfurante' : null, golpe.contraDe !== undefined ? 'contra-ataque' : null].filter((marca): marca is string => marca !== null)
+  const marcas = [golpe.surpresa ? 'Surpresa' : null, golpe.overload ? 'Overload' : null, marcaDoPerfurante(golpe), golpe.contraDe !== undefined ? 'contra-ataque' : null].filter((marca): marca is string => marca !== null)
   const nomes = golpe.alvos.map((alvo) => nomeDoToken(alvo.tokenId))
   const emQuem = nomes.length === 0 ? '' : ` em ${nomes.length === 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`}`
   const comeco = `${nomeDoToken(golpe.atacanteTokenId)} usa ${golpe.nome}${emQuem}${marcas.length > 0 ? ` (${marcas.join(', ')})` : ''}`

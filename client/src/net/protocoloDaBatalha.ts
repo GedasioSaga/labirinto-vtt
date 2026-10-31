@@ -13,6 +13,8 @@ import {
   NOME_DO_GOLPE_MAX,
   NUMERO_DA_FORMA_MAX,
   NUMEROS_DA_FORMA_MAX,
+  PERFURACAO_MAX,
+  PERFURACAO_MIN,
   ROTULO_DO_NUMERO_MAX,
   SELOS_POR_TOKEN_MAX,
   TURNOS_DO_SELO_MAX,
@@ -265,6 +267,12 @@ function lerContraDe(value: unknown): string | undefined | false {
   return textoAte(value, 1, ID_DA_BATALHA_MAX) ? value : false
 }
 
+/** `perfuracao` ausente, ou o inteiro de 1 a 100. `false` = torto (fração, 0, acima de 100, texto). */
+function lerPerfuracao(value: unknown): number | undefined | false {
+  if (value === undefined) return undefined
+  return inteiroAte(value, PERFURACAO_MIN, PERFURACAO_MAX) ? value : false
+}
+
 /** F3: o selo do pedido (o sugerido na mira). Turnos de 1 a `TURNOS_DO_SELO_MAX`, ou `null` = até tirar. */
 export function lerSeloPedido(value: unknown): SeloPedido | null {
   if (!isRecord(value)) return null
@@ -291,9 +299,11 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const { armaId, alvos, surpresa, perfurante } = value
       const contraDe = lerContraDe(value.contraDe)
       const selo = lerSeloOpcional(value.selo)
+      const perfuracao = lerPerfuracao(value.perfuracao)
       const alvosLidos = lerAlvosDoPedido(alvos, 1)
-      if (!cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean' || contraDe === false || selo === false) return null
+      if (!cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean' || contraDe === false || selo === false || perfuracao === false) return null
       const pedido: PedidoDeAcao = { tipo: 'atacar', armaId, alvos: alvosLidos, surpresa, perfurante }
+      if (perfuracao !== undefined) pedido.perfuracao = perfuracao
       if (contraDe !== undefined) pedido.contraDe = contraDe
       if (selo !== undefined) pedido.selo = selo
       return pedido
@@ -302,12 +312,14 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const { cartaoId, armaId, alvos, surpresa, perfurante, custo, acao } = value
       const contraDe = lerContraDe(value.contraDe)
       const selo = lerSeloOpcional(value.selo)
+      const perfuracao = lerPerfuracao(value.perfuracao)
       // Habilidade de suporte pode não ter alvo.
       const alvosLidos = lerAlvosDoPedido(alvos, 0)
       const acaoLida = acao === null ? null : lerAcaoDaTecnica(acao)
       if (!textoAte(cartaoId, 1, CARTAO_ID_MAX) || !cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean') return null
-      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false) return null
+      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false || perfuracao === false) return null
       const pedido: PedidoDeAcao = { tipo: 'habilidade', cartaoId, armaId, alvos: alvosLidos, surpresa, perfurante, custo, acao: acaoLida }
+      if (perfuracao !== undefined) pedido.perfuracao = perfuracao
       if (contraDe !== undefined) pedido.contraDe = contraDe
       if (selo !== undefined) pedido.selo = selo
       return pedido
@@ -565,13 +577,18 @@ function lerRolagem(value: unknown): RolagemDaReacao | null {
 
 function lerReacao(value: unknown): ReacaoParaJogador | null {
   if (!isRecord(value)) return null
-  const { golpeId, tokenId, atacante, nome, dano, perfurante, rolagem } = value
+  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, rolagem } = value
   if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(atacante, 1, NOME_NA_CARTA_MAX)) return null
   if (!textoAte(nome, 0, NOME_DO_GOLPE_MAX) || (dano !== null && !inteiroAte(dano, 0, DANO_MAX))) return null
   const reacao: ReacaoParaJogador = { golpeId, tokenId, atacante, nome, dano }
   if (perfurante !== undefined) {
     if (perfurante !== true) return null
     reacao.perfurante = true
+  }
+  // A porcentagem só anda com o Perfurante (sem ele não há o que perfurar).
+  if (perfuracao !== undefined) {
+    if (reacao.perfurante !== true || !inteiroAte(perfuracao, PERFURACAO_MIN, PERFURACAO_MAX)) return null
+    reacao.perfuracao = perfuracao
   }
   if (rolagem !== undefined) {
     const lida = lerRolagem(rolagem)
