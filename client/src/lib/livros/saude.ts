@@ -132,6 +132,8 @@ function lerCampoDaAcao(texto: string): LeituraDoCampo | null {
   if (acao.acao === null) {
     return { estado: 'naoLe', leitura: '', motivo: 'Tipo de ação desconhecido. O app entende Simples, Bônus, Completa, Livre, Reação, OVERLOAD, Transformação e Passiva.' }
   }
+  // "Reação" sozinha (Passo de Valsa): usada na caixa REAÇÃO, sem gastar ação da vez.
+  if (acao.soReacao === true) return { estado: 'lido', leitura: 'Reação (não gasta ação da vez)', motivo: '' }
   const partes = [NOME_DA_ACAO[acao.acao]]
   if (acao.tambemReacao) partes.push('Reação')
   if (acao.overload) partes.push('OVERLOAD')

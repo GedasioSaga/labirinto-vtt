@@ -1,4 +1,5 @@
 import { CATEGORIAS_DE_ARMA } from './batalha/leituraDaFicha'
+import { CAMPO_DO_TIPO, TIPOS_DE_HABILIDADE } from './batalha/tiposDaHabilidade'
 import { CATALOGOS_ONE_PIECE, LIVRO_ONE_PIECE } from './livroOnePiece'
 import { FORMATO_DO_SISTEMA, type SistemaDeRpg } from './sistemaDeRpg'
 
@@ -79,6 +80,9 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
       campos: [
         { id: 'descricao', rotulo: 'Descrição', forma: 'paragrafo' },
         { id: 'acao', rotulo: 'Ação', forma: 'linha' },
+        // Tipos de habilidade F1: como a habilidade entra em jogo. Vazio = deduzido da Ação (`lerTipo`).
+        // Vale também nas técnicas das transformações (mesmo molde) e no catálogo do livro.
+        { id: CAMPO_DO_TIPO, rotulo: 'Tipo', forma: 'linha', opcoes: TIPOS_DE_HABILIDADE.map((tipo) => tipo.rotulo) },
         { id: 'efeito', rotulo: 'Efeito', forma: 'linha' },
         { id: 'custo', rotulo: 'Custo', forma: 'linha' },
         { id: 'tempo', rotulo: 'Tempo', forma: 'linha' },

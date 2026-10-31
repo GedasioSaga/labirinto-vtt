@@ -18,6 +18,7 @@ import {
   type LeituraDoCusto,
   type LeituraDoTempo,
 } from './leituraDaFicha'
+import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
 import type { AcoesExtras, GastoDaVez } from './turnos'
 
 /**
@@ -115,6 +116,8 @@ export interface TecnicaNoMenu {
   perfurante: boolean
   /** A porcentagem que a habilidade diz que perfura ("perfura 50%"); ausente = não diz (100%). */
   perfuracao?: number
+  /** Tipos de habilidade F1: o tipo (campo Tipo, ou deduzido da Ação) e se aparece também na caixa REAÇÃO. */
+  tipo: LeituraDoTipo
   motivo: string | null
 }
 
@@ -148,10 +151,15 @@ export function acaoDoGolpe(acao: AcaoDaTecnica | null, carga: number): AcaoDaTe
   return carga >= CARGA_MAX ? 'completa' : acao
 }
 
+/** O motivo da técnica de Tipo Reação no menu da vez: ela só se usa na caixa REAÇÃO. */
+export const MOTIVO_DA_REACAO_PURA = 'Reação: use na caixa REAÇÃO'
+
 /**
  * Por que a técnica está apagada, ou `null` (pode). `acoes` null = fora da
  * vez (contra-ataque, Q6): a ação da vez não conta. Na ordem do menu:
- * passiva, transformação (F3), Overload, recarga, usos, ação, custo.
+ * passiva, reação pura, transformação (F3), Overload, recarga, usos, ação,
+ * custo. `comoReacao` (tipos de habilidade F1) = usada NA CAIXA REAÇÃO: o
+ * tipo Reação e a ação não contam (passe `acoes` null); passiva continua fora.
  */
 export function motivoDaTecnica(
   tecnica: Pick<TecnicaNoMenu, 'cartao' | 'custo' | 'acao' | 'tempo' | 'overload'> & { transformacao: boolean },
@@ -159,9 +167,12 @@ export function motivoDaTecnica(
   sistema: SistemaDeRpg,
   combate: CombateDoPersonagem | undefined,
   acoes: AcoesDaVez | null,
+  comoReacao?: boolean,
 ): string | null {
   const { cartao } = tecnica
-  if (tecnica.acao === 'passiva') return 'Passiva: vale sempre'
+  const tipo = lerTipo(cartao).tipo
+  if (tecnica.acao === 'passiva' || tipo === 'passiva') return 'Passiva: vale sempre'
+  if (tipo === 'reacao' && comoReacao !== true) return MOTIVO_DA_REACAO_PURA
   if (tecnica.transformacao) return 'É transformação: use a tira Transformação'
   if (tecnica.overload && combate?.overload === true) return 'Overload: já usado nesta batalha'
   const recarga = combate?.recargas[cartao.id] ?? 0
@@ -215,6 +226,7 @@ export function tecnicasNoMenu(
       dano: lerDano(cartao.campos[CAMPO_DO_DANO] ?? '', { personagem, sistema, arma, vidaDoAlvo: null }),
       overload: base.overload,
       perfurante: ehPerfurante(cartao),
+      tipo: lerTipo(cartao),
       motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes),
     }
     if (forma !== undefined) tecnica.forma = forma

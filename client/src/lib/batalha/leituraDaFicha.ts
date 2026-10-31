@@ -39,6 +39,11 @@ export interface LeituraDaAcao {
   overload: boolean
   transformacao: boolean
   tambemReacao: boolean
+  /**
+   * Ação "Reação" sozinha (Passo de Valsa): não gasta ação da vez (`acao`
+   * "livre") e só se usa na caixa REAÇÃO (`lerTipo` dá "reacao"). Ausente = não.
+   */
+  soReacao?: true
 }
 
 export type LeituraDoTempo = { tipo: 'livre' } | { tipo: 'recarga'; turnos: number } | { tipo: 'usos'; vezes: number } | { tipo: 'overload' } | { tipo: 'texto'; texto: string }
@@ -73,7 +78,7 @@ export function lerCusto(texto: string, personagem: Personagem): LeituraDoCusto 
   return { tipo: 'pergunta', recurso: falaDeVida ? 'hp' : 'sp', sugestao: null, texto }
 }
 
-/** "Ação Simples", "Completa", "Bônus", "Livre", "Reação/Ação Completa", "OVERLOAD | TRANSFORMAÇÃO", "Passiva...". */
+/** "Ação Simples", "Completa", "Bônus", "Livre", "Reação/Ação Completa", "OVERLOAD | TRANSFORMAÇÃO", "Passiva...", "Reação" (livre, `soReacao`). */
 export function lerAcao(texto: string): LeituraDaAcao {
   const normal = normalizar(texto)
   const leitura: LeituraDaAcao = { acao: null, overload: false, transformacao: false, tambemReacao: false }
@@ -93,6 +98,8 @@ export function lerAcao(texto: string): LeituraDaAcao {
   }
   // Overload e Transformação sem ação escrita gastam a vez inteira.
   if (leitura.acao === null && (leitura.overload || leitura.transformacao)) leitura.acao = 'completa'
+  // "Reação" sozinha: não gasta ação da vez (decisão 8 do plano dos tipos de habilidade).
+  if (leitura.acao === null && leitura.tambemReacao) return { ...leitura, acao: 'livre', soReacao: true }
   return leitura
 }
 

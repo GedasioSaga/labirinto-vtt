@@ -14,7 +14,7 @@ import { normalizar } from './formula'
  */
 
 /** Os prontos do "Pôr selo...", em botões. */
-export const SELOS_PRONTOS = ['Atordoado', 'Cego', 'Sangrando', 'Queimando', 'Envenenado', 'Paralisado', 'Lento', 'Preso', 'Confuso'] as const
+export const SELOS_PRONTOS = ['Atordoado', 'Cego', 'Sangrando', 'Queimando', 'Envenenado', 'Paralisado', 'Lento', 'Preso', 'Confuso', 'Marcado'] as const
 
 /** O nome quando nem a palavra-chave nem a técnica dão um. */
 const NOME_DO_SELO_PADRAO = 'Selo'
@@ -53,6 +53,8 @@ const PALAVRAS_DO_SELO: readonly { sinal: RegExp; nome: (typeof SELOS_PRONTOS)[n
   { sinal: /\blento\b|lentidao/, nome: 'Lento' },
   { sinal: /prende|imobiliza/, nome: 'Preso' },
   { sinal: /confunde/, nome: 'Confuso' },
+  // Tipos de habilidade F1: a marca que a reação põe em quem atacou ("marca de tinta").
+  { sinal: /\bmarca/, nome: 'Marcado' },
 ]
 
 /**
