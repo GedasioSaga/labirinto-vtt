@@ -112,6 +112,23 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       tapeteLongo: ['tecido:vinho'],
       // Objeto Fogo (27/10/2026): sem material, como a chama da fogueira (o chão queimado tem cor própria).
       fogo: [],
+      // Móveis de casa (28/10/2026).
+      fogao: ['metal:ferro', 'puxadores:latao'],
+      geladeira: ['madeira:carvalho', 'ferragens:latao'],
+      pia: ['pedra:granito', 'madeira:carvalho'],
+      balcao: ['madeira:nogueira', 'barra:latao'],
+      pratos: [],
+      privada: ['madeira:nogueira', 'ferragens:latao'],
+      sofa: ['tecido:vinho', 'madeira:nogueira'],
+      poltrona: ['tecido:vinho', 'madeira:nogueira'],
+      // Lareira e oficina (29/10/2026).
+      lareira: ['pedra:arenito', 'madeira:nogueira'],
+      fornalha: ['pedra:granito', 'madeira:carvalho'],
+      bigorna: ['metal:ferro', 'madeira:carvalho'],
+      balde: ['madeira:pinho', 'aros:ferro'],
+      // Troncos e feno (29/10/2026).
+      troncos: ['lenha:lenhaCarvalho'],
+      feno: [],
     })
   })
 

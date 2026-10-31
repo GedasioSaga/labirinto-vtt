@@ -86,8 +86,8 @@ describe('criarMovel — o móvel que a ferramenta Objetos põe', () => {
 
 describe('silhueta redonda', () => {
   it('só o barril e a fogueira (de cima) são redondos', () => {
-    // MT4: mais a mesa redonda, o vaso e o poço, peças novas redondas.
-    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco'])
+    // MT4: mais a mesa redonda, o vaso e o poço, peças novas redondas; e o balde de água (29/10).
+    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde'])
     expect(ehMovelRedondo('fogueira', 'lado')).toBe(false)
     expect(ehMovelRedondo('barril', 'lado')).toBe(true)
     expect(ehMovelRedondo(undefined)).toBe(false)
@@ -677,7 +677,9 @@ describe('armário de cozinha e aparador — encostados na parede, com vista de 
 
   it('tipo desconhecido (arquivo de uma versão futura) não tem traço nem contorno de lado, em vez de derrubar o desenho', () => {
     // `JSON.parse` devolve `any`: é o tipo torto que um arquivo de outra versão traria.
-    const futuro: TipoMobilia = JSON.parse('"lareira"')
+    // A lareira, o exemplo de antes, virou móvel de verdade em 29/10: o futuro agora é outro.
+    const futuro: TipoMobilia = JSON.parse('"estatuaDeBronze"')
+    expect(TIPOS_MOBILIA).not.toContain(futuro)
     expect(tracosDoGlifo(futuro, 40, 40)).toEqual([])
     expect(tracosDoGlifo(futuro, 40, 40, 'lado')).toEqual([])
     expect(contornoDeLado(futuro, 40, 40)).toBeNull()

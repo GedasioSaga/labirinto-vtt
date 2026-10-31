@@ -107,8 +107,9 @@ describe('FichaDoObjeto', () => {
     expect(ficha('Para os jogadores')?.textContent).toContain('Rótulo para jogadores')
   })
 
-  it('cama: as cores do travesseiro e do cobertor moram na Aparência, não no essencial', () => {
-    montar(<FichaDoObjeto prop={criarMovel('catre', { x: 300, y: 200 }, 64, 'c1')} {...ligacoes()} />)
+  it('cama em linhas: as cores do travesseiro e do cobertor moram na Aparência, não no essencial', () => {
+    // Com o Meio-Termo ligado (MT12, 27/10) a cama texturizada mostra materiais; as cores livres ficam no Desenho "Linhas".
+    montar(<FichaDoObjeto prop={{ ...criarMovel('catre', { x: 300, y: 200 }, 64, 'c1'), mobiliaDesenho: 'linhas' }} {...ligacoes()} />)
     expect(ficha('Aparência')?.textContent).toContain('Cor do travesseiro')
     expect(ficha('Aparência')?.textContent).toContain('Cor do cobertor')
     expect(container.querySelector('.gr-essencial')?.textContent).not.toContain('Cor do travesseiro')

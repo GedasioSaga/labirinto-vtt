@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { trocarObraNoTeste } from '../lib/estiloDoMapa'
 import { createEmptyMap } from '../lib/mapFactory'
 import { criarMovel, TIPOS_MOBILIA } from '../lib/mobilia'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
@@ -32,6 +33,9 @@ describe('painel de propriedades — o móvel selecionado', () => {
 
   beforeEach(() => {
     Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)
+    // As cores livres e o "Preencher" são do móvel em linhas: com o Meio-Termo
+    // ligado para todos (MT12, 27/10) o clássico texturizado mostra materiais.
+    trocarObraNoTeste(false)
     window.localStorage.clear()
     onTipoChange.mockClear()
     onAparenciaChange.mockClear()
@@ -53,6 +57,7 @@ describe('painel de propriedades — o móvel selecionado', () => {
     act(() => root.unmount())
     container.remove()
     window.localStorage.clear()
+    trocarObraNoTeste()
   })
 
   /** Como o App liga com a ferramenta Selecionar e UM objeto selecionado. */
@@ -113,9 +118,11 @@ describe('painel de propriedades — o móvel selecionado', () => {
     renderObjeto(MESA)
     const tipo = campo('Tipo')
     if (!(tipo instanceof HTMLSelectElement)) throw new Error('"Tipo" devia ser um select')
+    // O catálogo inteiro, com as 14 peças de 28 e 29/10 (casa, lareira e oficina, troncos e feno).
     expect(Array.from(tipo.options).map((o) => texto(o))).toEqual([
-      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Sebe', 'Jardineira', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Fogo', 'Tapete', 'Tapete longo',
-      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta',
+      'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
+      'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
+      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
     ])
     expect(tipo.value).toBe('mesa')
 

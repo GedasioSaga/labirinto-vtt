@@ -93,7 +93,8 @@ describe('guardas no fonte: editor e jogador pelo mesmo caminho', () => {
     expect(fonte).toMatch(/telhadoParaDesenhar\(r, peekedSet\.has\(r\.id\) \? scene\.peekedRoofs : scene\.roofs\)/)
     expect(fonte).not.toContain('corDoTetoOuPadrao(')
     expect(fonte).toContain('r.room?.chamine ?? null')
-    expect(fonte).toContain('drawPropSilhouettes(no, itens, scale, res, vistaDosMoveis)')
+    // Desde o Desenhado (29/10) o móvel mede na grade do mapa: a grade vai junto da vista.
+    expect(fonte).toContain('drawPropSilhouettes(no, itens, scale, res, vistaDosMoveis, currentMap.grid)')
     expect(fonte).toContain('nos, vistaDosMoveis ?? null])')
   })
 })

@@ -28,6 +28,23 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   tapeteLongo: [1, 4],
   // Objeto Fogo (27/10/2026): nasce na Chama; Fogaréu e Incêndio são escolhas do painel.
   fogo: [1, 1],
+  // Móveis de casa (28/10/2026).
+  fogao: [1, 1],
+  geladeira: [1, 0.75],
+  pia: [1, 0.6],
+  balcao: [2, 0.6],
+  pratos: [0.5, 0.5],
+  privada: [0.5, 0.6],
+  sofa: [2, 1],
+  poltrona: [1, 1],
+  // Lareira e oficina (29/10/2026).
+  lareira: [2, 1],
+  fornalha: [1.5, 1.5],
+  bigorna: [1, 0.5],
+  balde: [0.5, 0.5],
+  // Troncos e feno (29/10/2026).
+  troncos: [2, 1],
+  feno: [1.5, 1],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -46,10 +63,24 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   placaDeSeta: ['Placa de seta', 'uma placa de seta'],
   tapeteLongo: ['Tapete longo', 'um tapete longo'],
   fogo: ['Fogo', 'um fogo'],
+  fogao: ['Fogão', 'um fogão'],
+  geladeira: ['Geladeira', 'uma geladeira'],
+  pia: ['Pia', 'uma pia'],
+  balcao: ['Balcão', 'um balcão'],
+  pratos: ['Pratos', 'uns pratos'],
+  privada: ['Privada', 'uma privada'],
+  sofa: ['Sofá', 'um sofá'],
+  poltrona: ['Poltrona', 'uma poltrona'],
+  lareira: ['Lareira', 'uma lareira'],
+  fornalha: ['Fornalha de ferreiro', 'uma fornalha de ferreiro'],
+  bigorna: ['Bigorna', 'uma bigorna'],
+  balde: ['Balde de água', 'um balde de água'],
+  troncos: ['Troncos', 'uns troncos'],
+  feno: ['Feno', 'feno'],
 }
 
 describe('peças novas: registro', () => {
-  it('os 14 tipos dos lotes 1 e 2 e o Fogo estão no catálogo de tipos, depois dos 11 de antes', () => {
+  it('os 14 tipos dos lotes 1 e 2, o Fogo e as 14 peças de 28 e 29/10 estão no catálogo de tipos, depois dos 11 de antes', () => {
     expect(PECAS_NOVAS).toEqual(Object.keys(TAMANHOS))
     expect(TIPOS_MOBILIA.slice(0, 11)).toEqual(['barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'cerca', 'armario', 'aparador', 'fogueira', 'tapete'])
     for (const tipo of PECAS_NOVAS) {
@@ -86,9 +117,9 @@ describe('peças novas: registro', () => {
     expect([carroca.width / GRADE, carroca.height / GRADE]).toEqual([2, 1.25])
   })
 
-  it('silhueta redonda: a mesa redonda, o poço e o vaso; o resto é retângulo', () => {
+  it('silhueta redonda: a mesa redonda, o poço, o vaso e o balde de água; o resto é retângulo', () => {
     const redondos = PECAS_NOVAS.filter((tipo) => ehMovelRedondo(tipo))
-    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco'])
+    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde'])
   })
 
   it('cada peça tem desenho de linhas (o provisório antes da imagem), nas duas vistas quando tem vista', () => {

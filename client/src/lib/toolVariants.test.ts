@@ -201,7 +201,7 @@ describe('TOOL_VARIANTS', () => {
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['objeto', 'parte'])
   })
 
-  it('Objetos oferece os 11 móveis, as 9 peças novas da MT4, as 5 da MT5 e o Fogo na ordem do catálogo (as mesas novas depois da Mesa, sebe e jardineira depois da Cerca, o Fogo depois da Fogueira, tapete longo depois do Tapete, arco e placa no fim), com o nome que o mestre lê', () => {
+  it('Objetos oferece os 11 móveis, as 9 peças novas da MT4, as 5 da MT5, o Fogo e as 14 peças de 28 e 29/10 na ordem do catálogo (o balde depois do Barril, pratos depois das mesas, sofá e poltrona depois da Cadeira, a cozinha depois do Armário, lareira e oficina depois do Fogo, troncos e feno no fim), com o nome que o mestre lê', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     expect(entry.groups).toHaveLength(1)
@@ -209,15 +209,17 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.storeKey).toBe('mobiliaTipo')
     expect(grupo.label).toBe('Objeto')
     expect(grupo.options.map((o) => o.value)).toEqual([
-      'barril', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'cadeira', 'cerca', 'sebe', 'jardineira', 'armario', 'aparador', 'fogueira', 'fogo', 'tapete', 'tapeteLongo',
-      'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta',
+      'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
+      'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
+      'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta', 'troncos', 'feno',
     ])
-    expect(grupo.options).toHaveLength(26)
+    expect(grupo.options).toHaveLength(40)
     expect(grupo.options.map((o) => o.label)).toEqual([
-      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Cadeira', 'Cerca', 'Sebe', 'Jardineira', 'Armário de cozinha', 'Aparador', 'Fogueira', 'Fogo', 'Tapete', 'Tapete longo',
-      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta',
+      'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
+      'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
+      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
     ])
-    expect(grupo.options[3].description).toBe('Clique no mapa para pôr uma cama.')
+    expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
     expect(novas.map((v) => grupo.options.find((o) => o.value === v)?.description)).toEqual([
       'Clique no mapa para pôr uma mesa quadrada.',
