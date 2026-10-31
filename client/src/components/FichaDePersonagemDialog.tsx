@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { salvarSobreOAtual, type Ajuste } from '../lib/ajusteDaFicha'
-import { PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
+import { comNotaDoMestre, NOTA_DO_MESTRE_MAX, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { FichaDePersonagem } from './FichaDePersonagem'
 import { CloseIcon } from './icons'
+import './livros/anotacoes.css'
 
 /** Um token da cena aberta, como o "Ligar a um token" o oferece. */
 export interface TokenParaLigar {
@@ -69,7 +70,17 @@ export function FichaDePersonagemDialog({
   const [rascunho, setRascunho] = useState(personagem)
   const [perguntaDeSaida, setPerguntaDeSaida] = useState(false)
   const [ligado, setLigado] = useState<string | null>(null)
-  const mudou = editando && rascunho !== base
+  /**
+   * ANOTAÇÃO DO MESTRE (M2): no rascunho como o resto, mas à parte da ficha —
+   * `salvarSobreOAtual` mantém a nota de agora (para o Salvar comum não a
+   * apagar), então a nota escrita aqui entra DEPOIS dele, pelo funil único
+   * `comNotaDoMestre`. Esta janela só existe do lado do mestre (RpgDialogs e
+   * GavetaDaFicha); o jogador nem recebe a nota (`paraOFio`).
+   */
+  const [nota, setNota] = useState(personagem.notaDoMestre ?? '')
+  const notaMudou = nota !== (base.notaDoMestre ?? '')
+  const notaId = useId()
+  const mudou = editando && (rascunho !== base || notaMudou)
 
   useEffect(() => {
     const opener = document.activeElement
@@ -81,12 +92,15 @@ export function FichaDePersonagemDialog({
 
   const salvar = () => {
     // Sobre a ficha de AGORA: o dano que o jogador tomou durante a edição não volta atrás.
-    onSalvar(salvarSobreOAtual(base, { ...rascunho, nome: rascunho.nome.trim() || PERSONAGEM_SEM_NOME }, personagem))
+    const salvo = salvarSobreOAtual(base, { ...rascunho, nome: rascunho.nome.trim() || PERSONAGEM_SEM_NOME }, personagem)
+    // Nota não mexida: vale a de agora (pode ter mudado na página Anotações enquanto esta janela editava).
+    onSalvar(notaMudou ? comNotaDoMestre(salvo, nota) : salvo)
     setEditando(false)
     setPerguntaDeSaida(false)
   }
   const descartar = () => {
     setRascunho(personagem)
+    setNota(personagem.notaDoMestre ?? '')
     setEditando(false)
     setPerguntaDeSaida(false)
   }
@@ -178,6 +192,7 @@ export function FichaDePersonagemDialog({
                       // A edição começa da ficha de agora: os ajustes rápidos feitos depois de abrir a janela entram.
                       setBase(personagem)
                       setRascunho(personagem)
+                      setNota(personagem.notaDoMestre ?? '')
                       setEditando(true)
                     }}
                   >
@@ -233,6 +248,34 @@ export function FichaDePersonagemDialog({
               inventario={inventario}
             />
           )}
+          <section className="lb-ficha-nota" aria-labelledby={`${notaId}-titulo`}>
+            <div className="lb-ficha-nota__cab">
+              <h3 className="lb-ficha-nota__tit" id={`${notaId}-titulo`}>
+                {editando ? <label htmlFor={notaId}>Anotação do mestre</label> : 'Anotação do mestre'}
+              </h3>
+              <span className="lb-ficha-nota__privado">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                </svg>
+                Só você vê
+              </span>
+            </div>
+            {editando ? (
+              <textarea
+                id={notaId}
+                className="lb-input lb-textarea lb-ficha-nota__campo"
+                value={nota}
+                maxLength={NOTA_DO_MESTRE_MAX}
+                placeholder="Segredos, ganchos, o que ele quer, como reage se perder..."
+                onChange={(event) => setNota(event.target.value)}
+              />
+            ) : (personagem.notaDoMestre ?? '').trim().length > 0 ? (
+              <p className="lb-ficha-nota__texto">{personagem.notaDoMestre}</p>
+            ) : (
+              <p className="lb-ficha-nota__vazio">Sem anotação.{sistema !== undefined ? ' Escreva em Editar ou na página Anotações do livro de regras.' : ''}</p>
+            )}
+          </section>
         </div>
       </div>
     </div>,

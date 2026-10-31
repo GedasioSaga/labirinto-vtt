@@ -9,6 +9,7 @@ import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { escolhasDaFicha, formatarForca, formatarNumero, forcaMexida, gravarNoMundo, primeiroNome, Retrato, semCenario, trocarFicha } from './comum'
 import { IconeDoMundo } from './icones'
 import { NovoNpcDialog, type ModoDoNovoNpc } from './NovoNpcDialog'
+import { EditorDaNota, SoVoceVe } from './PaginaAnotacoes'
 
 /**
  * Página NPCS DE COMBATE do mundo do livro (M1): o bestiário. À esquerda,
@@ -145,6 +146,7 @@ function DetalheDoNpc({ personagem, personagens, deCombate, sistema, aoVivo, onF
   const variacoes = variacoesDe(personagem.id, deCombate)
   const escolhas = escolhasDaFicha(personagem, sistema)
   const sliderId = `mu-forca-${personagem.id}`
+  const notaId = `mu-nota-npc-${personagem.id}`
   const nome = personagem.nome
 
   const irParaCenario = () =>
@@ -295,6 +297,14 @@ function DetalheDoNpc({ personagem, personagens, deCombate, sistema, aoVivo, onF
           </div>
         </div>
       )}
+
+      <div className="mu-bes-bloco">
+        <h4 className="mu-bes-bloco__tit mu-bes-bloco__tit--nota">
+          <label htmlFor={notaId}>Anotação do mestre</label>
+          <SoVoceVe />
+        </h4>
+        <EditorDaNota personagem={personagem} campoId={notaId} curto />
+      </div>
     </section>
   )
 }

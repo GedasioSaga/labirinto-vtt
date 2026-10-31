@@ -1,0 +1,83 @@
+/*
+ * ANOTAÇÕES (M2): a nota do mestre nos três lugares em que ela aparece.
+ *  - a página Anotações e o bloco no detalhe do NPC: dentro de `.lb-mundo`
+ *    (usam os tokens `--lb-gr-*` do mundo, definidos em mundo.css);
+ *  - a janela de ficha do mestre (`FichaDePersonagemDialog`): em portal no
+ *    `body`, FORA de `.lb-mundo`, então só tokens globais `--lb-*`.
+ * Arquivo próprio para não disputar o mundo.css; importado pela página e
+ * pela janela. Seletores com `.lb-mundo` na frente onde empatariam com o
+ * mundo.css (este arquivo pode entrar antes dele na cascata).
+ */
+
+/* ---------- Página Anotações ---------- */
+.mu-not { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.mu-not-lista { position: sticky; top: 0; display: flex; flex-direction: column; gap: 8px; padding: 6px; }
+.mu-not-lista ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.mu-not-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mu-not-item:hover { background: var(--lb-gr-hover); }
+}
+.mu-not-item[aria-current='true'] { background: var(--lb-color-brass-soft); box-shadow: inset 2px 0 0 var(--lb-color-brass); }
+.mu-not-item__txt { min-width: 0; }
+.mu-not-item__nome { display: block; font-size: var(--lb-font-size-md); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-not-item__previa { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mu-not-ed { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mu-not-ed__cab { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mu-not-ed__nome { flex: 1; min-width: 0; margin: 0; font-family: var(--lb-font-display); font-size: 22px; line-height: 1.15; overflow-wrap: anywhere; }
+.mu-not-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- O selo e o campo (página e detalhe do NPC) ---------- */
+.mu-privado { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: var(--lb-font-size-sm); font-weight: 400; color: var(--lb-color-parchment-dim); }
+.mu-not-area {
+  display: block;
+  width: 100%;
+  min-height: 260px;
+  padding: 10px 12px;
+  background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color var(--lb-motion-fast) ease;
+}
+.mu-not-area--curta { min-height: 112px; }
+.mu-not-area::placeholder { color: var(--lb-color-parchment-faint); }
+.lb-mundo .mu-not-area:focus-visible { outline: none; border-color: var(--lb-color-brass); box-shadow: 0 0 0 3px rgba(224, 164, 74, 0.18); }
+.mu-not-pe { display: flex; justify-content: space-between; gap: 12px; min-height: 18px; margin-top: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.mu-not-pe__limite { color: var(--lb-color-brass-bright); font-variant-numeric: tabular-nums; }
+.mu-bes-bloco__tit--nota { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+@media (max-width: 980px) {
+  .mu-not { grid-template-columns: minmax(0, 1fr); }
+  .mu-not-lista { position: static; }
+}
+
+/* ---------- Janela de ficha do mestre (fora do .lb-mundo) ---------- */
+.lb-ficha-nota { margin-top: var(--lb-space-4); padding-top: var(--lb-space-3); border-top: 1px solid var(--lb-color-line); }
+.lb-ficha-nota__cab { display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-2); margin: 0 0 var(--lb-space-2); }
+.lb-ficha-nota__tit { margin: 0; font-size: var(--lb-font-size-md); font-weight: var(--lb-font-weight-semibold); color: var(--lb-color-parchment-dim); }
+.lb-ficha-nota__privado { display: inline-flex; align-items: center; gap: var(--lb-space-1); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.lb-ficha-nota__privado svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.lb-ficha-nota__texto { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--lb-font-size-md); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment); }
+.lb-ficha-nota__vazio { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.lb-ficha-nota__campo { width: 100%; min-height: 112px; }
