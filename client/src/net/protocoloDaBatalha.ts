@@ -9,6 +9,8 @@ import {
   EFEITOS_POR_MENSAGEM,
   GOLPES_PENDENTES_MAX,
   MODIFICADOR_DA_REACAO_MAX,
+  MODS_POR_SELO_MAX,
+  NATUREZAS_DO_SELO,
   NOME_DA_FORMA_MAX,
   NOME_DO_GOLPE_MAX,
   NUMERO_DA_FORMA_MAX,
@@ -21,6 +23,7 @@ import {
   TURNOS_DO_SELO_MAX,
   type AcaoDaForma,
   type AcaoDaTecnica,
+  type ModDoSelo,
   type NumeroDaForma,
   type PedidoDeAcao,
   type PedidoDeAlvo,
@@ -36,7 +39,7 @@ import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { AUTOR_NO_REGISTRO_MAX, REGISTRO_PARA_JOGADOR_MAX, REGISTRO_TEXTO_MAX, type LinhaParaJogador } from '../lib/batalha/registro'
 import { lerRegrasDaBatalha, type RegrasDaBatalha } from '../lib/batalha/regrasDoCampo'
-import { ehNomeDeSelo } from '../lib/batalha/selos'
+import { ehAlvoDeMod, ehNomeDeSelo } from '../lib/batalha/selos'
 import type { DuracaoDaExtra } from '../lib/batalha/turnos'
 import {
   APARENCIAS_MAX,
@@ -76,7 +79,10 @@ import {
  *    e `destransformar`, e `atacar`/`habilidade` aceitam `selo?`;
  *  - balas: `atacar` aceita `balaId?` (só com `armaId`);
  *  - tipos de habilidade F1: `batalha.reagir` aceita `tecnica` (a técnica
- *    de reação no lugar do d20; "rolar" com `modificador`).
+ *    de reação no lugar do d20; "rolar" com `modificador`);
+ *  - tipos de habilidade F2: o selo do pedido aceita `mods?` (as linhas
+ *    "atributo / delta" do Buff/Debuff); a carta do recorte leva `mods` e
+ *    `natureza` de cada selo.
  * O host confere o resto (é a vez dele? a linha é dele?) e responde só
  * `ok: false`, sem motivo: motivo ensinaria ids.
  *
@@ -284,12 +290,31 @@ function lerPerfuracao(value: unknown): number | undefined | false {
   return inteiroAte(value, PERFURACAO_MIN, PERFURACAO_MAX) ? value : false
 }
 
-/** F3: o selo do pedido (o sugerido na mira). Turnos de 1 a `TURNOS_DO_SELO_MAX`, ou `null` = até tirar. */
+/**
+ * F3: o selo do pedido (o sugerido na mira). Turnos de 1 a `TURNOS_DO_SELO_MAX`, ou `null` = até tirar.
+ * Tipos de habilidade F2: `mods` opcional, até `MODS_POR_SELO_MAX` (lista vazia = sem mods). Se o alvo
+ * é atributo do sistema, quem confere é a store (`seloPedidoValido`); natureza e cartaoId nunca vêm do fio.
+ */
 export function lerSeloPedido(value: unknown): SeloPedido | null {
   if (!isRecord(value)) return null
   const { nome, turnos } = value
-  if (!ehNomeDeSelo(nome) || (turnos !== null && !inteiroAte(turnos, 1, TURNOS_DO_SELO_MAX))) return null
-  return { nome, turnos }
+  const mods = lerModsOpcionais(value.mods, 0)
+  if (!ehNomeDeSelo(nome) || (turnos !== null && !inteiroAte(turnos, 1, TURNOS_DO_SELO_MAX)) || mods === false) return null
+  return mods === undefined || mods.length === 0 ? { nome, turnos } : { nome, turnos, mods }
+}
+
+/** Tipos de habilidade F2: uma linha "atributo / delta". Alvo com a forma de id, delta inteiro dentro de ±`DANO_MAX`. */
+function lerModDoSelo(value: unknown): ModDoSelo | null {
+  if (!isRecord(value)) return null
+  const { alvo, delta } = value
+  return ehAlvoDeMod(alvo) && inteiroAte(delta, -DANO_MAX, DANO_MAX) ? { alvo, delta } : null
+}
+
+/** `mods` ausente, ou a lista de `minimo` a `MODS_POR_SELO_MAX` itens. `false` = torto. */
+function lerModsOpcionais(value: unknown, minimo: number): ModDoSelo[] | undefined | false {
+  if (value === undefined) return undefined
+  const mods = lerLista(value, MODS_POR_SELO_MAX, lerModDoSelo)
+  return mods === null || mods.length < minimo ? false : mods
 }
 
 /** `selo` ausente, ou o selo lido. `false` = torto. */
@@ -522,12 +547,21 @@ function lerCarta(value: unknown): CartaParaJogador | null {
   return carta
 }
 
-/** F3: o selo na carta. Turnos de 0 a `TURNOS_DO_SELO_MAX` (0 = acaba no fim desta vez), ou `null` = até tirar. */
+/**
+ * F3: o selo na carta. Turnos de 0 a `TURNOS_DO_SELO_MAX` (0 = acaba no fim desta vez), ou `null` = até tirar.
+ * Tipos de habilidade F2: `mods` (1 a `MODS_POR_SELO_MAX`) e `natureza` em enum fechado, os dois opcionais.
+ */
 function lerSeloVisto(value: unknown): SeloParaJogador | null {
   if (!isRecord(value)) return null
-  const { nome, turnos } = value
-  if (!ehNomeDeSelo(nome) || (turnos !== null && !inteiroAte(turnos, 0, TURNOS_DO_SELO_MAX))) return null
-  return { nome, turnos }
+  const { nome, turnos, natureza } = value
+  const mods = lerModsOpcionais(value.mods, 1)
+  const naturezaLida = NATUREZAS_DO_SELO.find((candidata) => candidata === natureza)
+  if (!ehNomeDeSelo(nome) || (turnos !== null && !inteiroAte(turnos, 0, TURNOS_DO_SELO_MAX)) || mods === false) return null
+  if (natureza !== undefined && naturezaLida === undefined) return null
+  const selo: SeloParaJogador = { nome, turnos }
+  if (mods !== undefined) selo.mods = mods
+  if (naturezaLida !== undefined) selo.natureza = naturezaLida
+  return selo
 }
 
 function lerLinha(value: unknown): LinhaParaJogador | null {

@@ -17,6 +17,8 @@ import {
   TURNOS_DO_SELO_MAX,
   type EfeitoDaBatalha,
   type GolpeDaBatalha,
+  type ModDoSelo,
+  type NaturezaDoSelo,
   type NumeroDaForma,
   type RolagemDaReacao,
   type SaidaDaReacao,
@@ -27,7 +29,7 @@ import { limiteDeArmas } from './leituraDaFicha'
 import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
-import { ehNomeDeSelo, selosDoToken } from './selos'
+import { ehNomeDeSelo, selosDoToken, type SeloQueSoma } from './selos'
 import { aparenciaDaForma, nomeDaFormaLigada } from './transformacao'
 import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from './turnos'
 
@@ -80,10 +82,16 @@ export interface CartaParaJogador {
   selos?: SeloParaJogador[]
 }
 
-/** F3: um selo como sai na carta. `turnos` null = até o mestre tirar. */
+/**
+ * F3: um selo como sai na carta. `turnos` null = até o mestre tirar.
+ * Tipos de habilidade F2: os mods (só deltas, nunca o número da ficha) e a
+ * natureza (cor da pílula; ausente = condição).
+ */
 export interface SeloParaJogador {
   nome: string
   turnos: number | null
+  mods?: ModDoSelo[]
+  natureza?: NaturezaDoSelo
 }
 
 export interface EstadoParaJogador {
@@ -236,6 +244,22 @@ function formaESelosDaCarta(saida: CartaParaJogador, carta: CartaDaOrdem, turnos
     .filter((selo) => ehNomeDeSelo(selo.nome))
     .slice(0, SELOS_POR_TOKEN_MAX)
   if (selos.length > 0) saida.selos = selos
+}
+
+/**
+ * Tipos de habilidade F2: os selos do recorte na forma que `bonusDaBatalha`
+ * lê, um token só uma vez (a carta extra repete os selos da ficha). Na tela do
+ * jogador: `bonusDaBatalha(selosParaOBonus(estado.cartas), tokenId)`.
+ */
+export function selosParaOBonus(cartas: readonly Pick<CartaParaJogador, 'tokenId' | 'selos'>[]): SeloQueSoma[] {
+  const vistos = new Set<string>()
+  const selos: SeloQueSoma[] = []
+  for (const carta of cartas) {
+    if (vistos.has(carta.tokenId)) continue
+    vistos.add(carta.tokenId)
+    for (const selo of carta.selos ?? []) selos.push(selo.mods === undefined ? { tokenId: carta.tokenId, nome: selo.nome } : { tokenId: carta.tokenId, nome: selo.nome, mods: selo.mods })
+  }
+  return selos
 }
 
 function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJogador, caidos: ReadonlySet<string>, turnos: TurnosDaCena): CartaParaJogador {

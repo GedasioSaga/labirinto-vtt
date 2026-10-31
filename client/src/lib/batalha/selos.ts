@@ -1,5 +1,17 @@
 import type { CartaoDaFicha } from '../personagem'
-import { NOME_DO_SELO_MAX, SELOS_MAX, SELOS_POR_TOKEN_MAX, TURNOS_DO_SELO_MAX, type SaidaDaReacao, type SeloDaBatalha, type SeloPedido } from './combate'
+import { idValido } from '../sistemaDeRpg'
+import {
+  ALVO_DO_MOD_MAX,
+  NOME_DO_SELO_MAX,
+  SELOS_MAX,
+  SELOS_POR_TOKEN_MAX,
+  TURNOS_DO_SELO_MAX,
+  type BonusDaBatalha,
+  type ParteDoBonus,
+  type SaidaDaReacao,
+  type SeloDaBatalha,
+  type SeloPedido,
+} from './combate'
 import { normalizar } from './formula'
 
 /**
@@ -156,4 +168,47 @@ export function textoDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'turnos'>): strin
 /** "Atordoado acabou em Ilo · Cego acabou em Ilo": o pedaço que vai no fim da linha da vez. */
 export function textoDosQueAcabaram(acabaram: readonly SeloDaBatalha[], nomeDe: (tokenId: string) => string): string {
   return acabaram.map((selo) => `${selo.nome} acabou em ${nomeDe(selo.tokenId)}`).join(' · ')
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Tipos de habilidade F2: o que os selos somam (Buff/Debuff, seção 4c)
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Alvo de mod que o fio aceita: a forma de um id de atributo (letras, números, - e _), no teto. */
+export function ehAlvoDeMod(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= ALVO_DO_MOD_MAX && idValido(value)
+}
+
+/** O que um selo precisa ter para somar: de quem é, o nome (que a conta mostra) e os mods. */
+export type SeloQueSoma = Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'mods'>
+
+/**
+ * O bônus dos selos da ficha `tokenId`: por alvo, as partes "+20 (Fúria)" na
+ * ordem em que os selos foram postos; delta 0 não entra. A MESMA conta em
+ * todas as telas (menu, mira, painel do NPC, caixa de reação). O jogador
+ * passa `selosParaOBonus(estado.cartas)`.
+ */
+export function bonusDaBatalha(selos: readonly SeloQueSoma[] | undefined, tokenId: string): BonusDaBatalha {
+  // Map e não objeto: o alvo veio do fio, e "constructor" num objeto já existe.
+  const porAlvo = new Map<string, ParteDoBonus[]>()
+  for (const selo of selos ?? []) {
+    if (selo.tokenId !== tokenId) continue
+    for (const mod of selo.mods ?? []) {
+      if (mod.delta === 0) continue
+      const partes = porAlvo.get(mod.alvo) ?? []
+      partes.push({ nome: selo.nome, delta: mod.delta })
+      porAlvo.set(mod.alvo, partes)
+    }
+  }
+  return Object.fromEntries(porAlvo)
+}
+
+/** As partes de um alvo do bônus ("forca", "dano", "reacao"); nenhuma = lista vazia. Só as do próprio objeto. */
+export function partesDoBonus(bonus: BonusDaBatalha | undefined, alvo: string): readonly ParteDoBonus[] {
+  return bonus !== undefined && Object.hasOwn(bonus, alvo) ? (bonus[alvo] ?? []) : []
+}
+
+/** A soma de um alvo do bônus; sem selo, 0. */
+export function totalDoBonus(bonus: BonusDaBatalha | undefined, alvo: string): number {
+  return partesDoBonus(bonus, alvo).reduce((soma, parte) => soma + parte.delta, 0)
 }

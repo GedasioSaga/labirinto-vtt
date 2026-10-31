@@ -1,6 +1,7 @@
 import { atributoComposto } from '../ajusteDaFicha'
 import { FORCA_PADRAO, aplicarForca, forcaDe, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import type { BonusDaBatalha } from './combate'
 
 /**
  * O DANO DA FICHA, F2 (seção 3.2 de docs/planos/batalha-one-piece-f2-plano.md):
@@ -45,6 +46,13 @@ export interface ContextoDaFormula {
    * ("Dano da Bala" = 0).
    */
   bala?: { nome: string; dano: string } | null
+  /**
+   * Tipos de habilidade F2: o que os selos de quem age somam
+   * (`bonusDaBatalha`). Atributo: entra no total dele com o nome do selo na
+   * conta ("160 Força +20 (Fúria)"); "dano": no fim da sugestão ("= 165 +30
+   * (Fúria) = 195"). Ausente = sem selo (a Saúde e o livro não passam).
+   */
+  bonusDaBatalha?: BonusDaBatalha
 }
 
 export type LeituraDoDano =

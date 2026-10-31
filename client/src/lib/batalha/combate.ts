@@ -170,8 +170,8 @@ export interface GolpeDaBatalha {
   /** O golpe é um contra-ataque ganho no golpe com este id. */
   contraDe?: string
   alvos: readonly AlvoDoGolpe[]
-  /** F3: o selo que o golpe põe em cada alvo que ele acerta (Q6). */
-  selo?: SeloPedido
+  /** F3: o selo que o golpe põe em cada alvo que ele acerta (Q6). Tipos de habilidade F2: com a natureza e a técnica que o pôs. */
+  selo?: SeloDoGolpe
   /** A bala do Atacar (o registro diz "atira com Rosa Fúnebre (Bala de Prata)"); `efeito` vazio não vem. */
   bala?: BalaDoGolpe
 }
@@ -254,13 +254,67 @@ export interface SeloDaBatalha {
   contadoNaRodada?: number
   /** O nome da técnica que o pôs. */
   origem?: string
+  /** Tipos de habilidade F2: o que o selo soma enquanto existe ("FOR +20"); ausente = nada. */
+  mods?: readonly ModDoSelo[]
+  /** Tipos de habilidade F2: o cartaoId da habilidade que o pôs; ausente = posto à mão. */
+  cartaoId?: string
+  /** Tipos de habilidade F2: a cor da pílula; ausente = "condicao" (como antes). */
+  natureza?: NaturezaDoSelo
 }
 
 /** O selo como chega no pedido (o sugerido na mira, ou o do mestre). `turnos` null = até tirar. */
 export interface SeloPedido {
   nome: string
   turnos: number | null
+  /** Tipos de habilidade F2: as linhas "atributo / delta" da mira ou do "Pôr selo...". O host filtra pelo sistema (`seloPedidoValido`). */
+  mods?: readonly ModDoSelo[]
 }
+
+/**
+ * O selo que o golpe guarda para pôr em quem acerta: o do pedido mais o que
+ * o HOST tira da técnica (nunca do fio): a natureza pelo Tipo (Buff, Debuff)
+ * e o cartaoId.
+ */
+export interface SeloDoGolpe extends SeloPedido {
+  natureza?: NaturezaDoSelo
+  cartaoId?: string
+}
+
+/**
+ * Tipos de habilidade F2 (Buff/Debuff, seções 3.3 e 4c do plano): o que um
+ * selo soma enquanto existe. `alvo` = id de atributo do sistema,
+ * `ALVO_DO_DANO` (soma no fim da sugestão do golpe) ou `ALVO_DA_REACAO`
+ * (modificador inicial da caixa de reação). `delta` com sinal: "perde 15 de
+ * Agilidade" = -15.
+ */
+export interface ModDoSelo {
+  alvo: string
+  delta: number
+}
+
+/** A cor da pílula do selo: buff verde, debuff roxo, passiva dourada, condicao como sempre. */
+export type NaturezaDoSelo = 'buff' | 'debuff' | 'passiva' | 'condicao'
+
+/** As naturezas, para o enum fechado do fio. */
+export const NATUREZAS_DO_SELO: readonly NaturezaDoSelo[] = ['buff', 'debuff', 'passiva', 'condicao']
+
+/** Um pedaço do bônus como a conta o mostra: "+20 (Fúria)". `nome` = o nome do selo. */
+export interface ParteDoBonus {
+  nome: string
+  delta: number
+}
+
+/**
+ * O que os selos de UMA ficha somam agora (`bonusDaBatalha`): alvo do mod →
+ * as partes, na ordem em que os selos foram postos. Sem selo com mod = `{}`.
+ * O mesmo objeto para o menu, a mira, o painel do NPC e a caixa de reação.
+ */
+export type BonusDaBatalha = Readonly<Record<string, readonly ParteDoBonus[]>>
+
+/** O alvo do mod que soma no dano sugerido do golpe ("+30 de dano"). */
+export const ALVO_DO_DANO = 'dano'
+/** O alvo do mod que soma no modificador da reação ("+3 na reação"). */
+export const ALVO_DA_REACAO = 'reacao'
 
 /** F3: a ação que Ativar a forma gasta (o campo Ação; vazio = Completa). */
 export type AcaoDaForma = 'simples' | 'completa' | 'bonus'
@@ -301,6 +355,10 @@ export const TURNOS_DO_SELO_MAX = 99
 export const SELOS_POR_TOKEN_MAX = 8
 /** F3: selos numa cena. */
 export const SELOS_MAX = 120
+/** Tipos de habilidade F2: linhas "atributo / delta" num selo. O delta fica dentro de ±`DANO_MAX`. */
+export const MODS_POR_SELO_MAX = 4
+/** Tipos de habilidade F2: teto do alvo de um mod no fio (um id de atributo, "dano" ou "reacao"). */
+export const ALVO_DO_MOD_MAX = 40
 /** F3: linhas na prévia da forma (e no efeito). */
 export const NUMEROS_DA_FORMA_MAX = 16
 /** F3: teto do rótulo e da nota de um número da forma no fio. */
