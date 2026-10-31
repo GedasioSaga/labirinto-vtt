@@ -22,7 +22,7 @@ import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { recursoDeVida } from '../../lib/vidaDaFicha'
 import { INIMIGOS_POR_NPC_MAX, useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { useToastStore } from '../../stores/toastStore'
-import { formatarForca, formatarNumero, forcaMexida, gravarNoMundo, Retrato } from './comum'
+import { avisarComDesfazer, formatarForca, formatarNumero, forcaMexida, gravarNoMundo, Retrato } from './comum'
 import { IconeDoMundo } from './icones'
 
 /**
@@ -442,9 +442,7 @@ export function PaginaComparar({ personagens, sistema, onVerSaude }: PaginaCompa
   const esvaziar = () => {
     const antes = { grupo, inimigos }
     useMundoDoLivroStore.getState().limparEncontro()
-    useToastStore.getState().push('info', 'Encontro esvaziado.', undefined, {
-      actions: [{ label: 'Desfazer', run: () => useMundoDoLivroStore.setState(antes) }],
-    })
+    avisarComDesfazer('Encontro esvaziado.', () => useMundoDoLivroStore.setState(antes))
   }
 
   const deixar = (alvo: AlvoDoPeso) => {

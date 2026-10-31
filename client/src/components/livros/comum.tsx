@@ -101,30 +101,46 @@ export async function gravarNoMundo(mudanca: MudancaDoMundo, aviso?: AvisoDaMuda
   }
   if (aviso === undefined) return true
   const desfazer = aviso.desfazer
-  toasts.push(
-    'info',
-    aviso.texto,
-    undefined,
-    desfazer === undefined
-      ? undefined
-      : {
-          actions: [
-            {
-              label: 'Desfazer',
-              run: () => {
-                useMundoDoLivroStore
-                  .getState()
-                  .mudar(desfazer)
-                  .then(
-                    () => useToastStore.getState().push('info', 'Desfeito.'),
-                    (erro: unknown) => useToastStore.getState().push('error', `Não deu para desfazer: ${mensagemDoErro(erro)}`),
-                  )
-              },
-            },
-          ],
-        },
-  )
+  if (desfazer === undefined) {
+    toasts.push('info', aviso.texto)
+    return true
+  }
+  avisarComDesfazer(aviso.texto, () => {
+    useMundoDoLivroStore
+      .getState()
+      .mudar(desfazer)
+      .then(
+        () => useToastStore.getState().push('info', 'Desfeito.'),
+        (erro: unknown) => useToastStore.getState().push('error', `Não deu para desfazer: ${mensagemDoErro(erro)}`),
+      )
+  })
   return true
+}
+
+/** O aviso com Desfazer do mundo que está na tela agora (id do toast), ou nenhum. */
+let avisoDoDesfazer: string | null = null
+
+/**
+ * Aviso com Desfazer do mundo do livro: UM por vez, o da última mudança. O
+ * novo tira o anterior da tela; com os dois juntos, o primeiro Desfazer da
+ * pilha voltava a mudança velha (a variação) e não a que a pessoa acabou de
+ * fazer (o Justo).
+ */
+export function avisarComDesfazer(texto: string, desfazer: () => void): void {
+  const toasts = useToastStore.getState()
+  if (avisoDoDesfazer !== null) toasts.dismiss(avisoDoDesfazer)
+  const id = toasts.push('info', texto, undefined, {
+    actions: [
+      {
+        label: 'Desfazer',
+        run: () => {
+          if (avisoDoDesfazer === id) avisoDoDesfazer = null
+          desfazer()
+        },
+      },
+    ],
+  })
+  avisoDoDesfazer = id
 }
 
 /** Sem a marca "Só no cenário": volta à ordem dos turnos. A chave sai do objeto (nada de `soCenario: undefined` gravado). */
