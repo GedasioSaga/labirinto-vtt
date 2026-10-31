@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { equipeDe } from '../../lib/batalha/equipes'
+import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
@@ -167,6 +168,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
           personagem={perfil}
           sistema={sistema}
           descricao={[equipeDoPerfil?.nome, perfil.tipo === 'npc' ? 'NPC' : 'Jogador', 'só leitura'].filter(Boolean).join(' · ')}
+          imagemDaForma={aparenciaDaForma(cena.turnos.formas?.[perfil.id], perfil)}
           onFechar={() => setPerfilId(null)}
         />
       )}

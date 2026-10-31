@@ -9,6 +9,7 @@ import {
   nomeParaOFio,
   type ArmazemDaAbertura,
 } from '../../lib/batalha/aberturaLembrada'
+import { formasQueSeguem } from '../../lib/batalha/transformacao'
 import { combatentesIniciais, type Desempate } from '../../lib/batalha/turnos'
 import { fichaDaEscolha, modelosDeNpc, precisaPerguntar, quemPodeEntrar, type CandidatoDaBatalha, type EscolhaDaBatalha } from '../../lib/livros/combate'
 import type { Personagem } from '../../lib/personagem'
@@ -131,8 +132,21 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     setEscolhendo(true)
   }
 
+  /**
+   * F3 (Q3): a forma ativada pelo menu CONTINUA ligada depois do Encerrar (a
+   * ficha manda); só a imagem volta, porque o registro das formas some com a
+   * batalha. Lido antes de desligar: um aviso por forma, que fica até o mestre fechar.
+   */
+  const encerrar = () => {
+    const batalha = useBatalhaStore.getState()
+    const cena = Object.hasOwn(batalha.cenas, sceneKey) ? batalha.cenas[sceneKey] : undefined
+    const seguem = cena === undefined ? [] : formasQueSeguem(cena.turnos.formas, personagensAtivos(useAdventureStore.getState()))
+    batalha.desligar(sceneKey)
+    for (const linha of seguem) useToastStore.getState().push('instrucao', `${linha}: a forma continua ligada na ficha, só a imagem voltou ao normal. Desligue pela ficha se quiser.`)
+  }
+
   const alternar = () => {
-    if (ligada) useBatalhaStore.getState().desligar(sceneKey)
+    if (ligada) encerrar()
     else if (cabe) abrirEscolha()
   }
 
