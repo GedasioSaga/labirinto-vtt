@@ -200,3 +200,12 @@ Jogadores vendo a arena (rede), salvar a arena em disco, paredes e terreno, regr
 4. No modo "lados", o Judge fica de árbitro (ao norte, virando para a vez)? Recomendo SIM.
 5. O mesmo NPC várias vezes no mesmo lado (3 Marinheiros)? Recomendo SIM, até 6 por lado.
 6. Recomeçar pede confirmação? Recomendo NÃO (é teste).
+
+## Decisões (30/10/2026)
+1. Reação do boneco no modo d20: automática, a melhor defesa que o dado liberou, sem contra-ataque (usuário).
+2. Média por rodada: dano total dividido pela rodada atual (usuário).
+3. A arena abre em tela cheia por cima do mundo; "Sair da arena" volta (usuário).
+4. No modo de dois lados o Judge fica de árbitro (usuário).
+5. Pode repetir o mesmo NPC no mesmo lado, até 6 por lado (orquestrador, pela recomendação).
+6. Recomeçar não pede confirmação (orquestrador, pela recomendação; o Desfazer cobre engano).
+Nota do orquestrador: "programador" na divisão vira "programador-frontend" (o código é TypeScript).
