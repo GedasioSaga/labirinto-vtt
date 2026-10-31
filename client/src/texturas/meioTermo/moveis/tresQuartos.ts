@@ -37,6 +37,8 @@ export const TOM_DA_FRENTE = 0.74
 export const ESPESSURA_DO_TAMPO = 0.06 * G
 /** Força do contato da base com o chão na 3/4 (a sombra de baixo, firme, no pé). */
 const FORCA_DA_SOMBRA_DE_BAIXO = 0.34
+/** A sombra de baixo das pilhas de troncos e de feno, mais forte: quase toda ela fica debaixo da pilha. */
+const FORCA_DA_SOMBRA_DAS_PILHAS = 0.38
 
 export type ModoDoTresQuartos = 'derivado' | 'em-pe'
 
@@ -53,6 +55,8 @@ export interface PerfilDoTresQuartos {
    * cuja sombra cai no tampo da mesa, e não no chão debaixo dela.
    */
   readonly sombrasSobem?: boolean
+  /** Força da sombra de baixo do móvel em pé, no lugar de `FORCA_DA_SOMBRA_DE_BAIXO` (as pilhas baixas e largas). */
+  readonly forcaDaSombraDeBaixo?: number
 }
 
 /**
@@ -117,8 +121,10 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   balde: DERIVADO,
   // Troncos e feno (29/10/2026) ficam como de cima, como a bigorna: derivados, a pilha inteira subia num
   // bloco e a frente varrida (lisa, sem as toras nem os fardos) virava uma tábua chapada embaixo.
-  troncos: EM_PE,
-  feno: EM_PE,
+  // A pilha é baixa e larga: a sombra de baixo some quase toda debaixo das toras e dos fardos, então vai
+  // mais forte (31/10/2026, aprovado no antes/depois) para a pilha assentar no chão.
+  troncos: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  feno: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */
@@ -303,7 +309,7 @@ function ehRedonda(f: Forma): boolean {
 }
 
 /** A sombra de baixo do móvel em pé: um borrão achatado logo debaixo da base. */
-function sombraDeBaixoDoEmPe(cena: Cena): Sombra | null {
+function sombraDeBaixoDoEmPe(cena: Cena, forca: number): Sombra | null {
   let x0 = Infinity
   let x1 = -Infinity
   let base = -Infinity
@@ -315,7 +321,7 @@ function sombraDeBaixoDoEmPe(cena: Cena): Sombra | null {
   }
   if (!Number.isFinite(base)) return null
   const rx = ((x1 - x0) / 2) * 0.92
-  return { forma: elipse((x0 + x1) / 2, base - 0.6, rx, Math.max(1.6, 0.05 * G)), z: 0, suave: 1.6, forca: FORCA_DA_SOMBRA_DE_BAIXO }
+  return { forma: elipse((x0 + x1) / 2, base - 0.6, rx, Math.max(1.6, 0.05 * G)), z: 0, suave: 1.6, forca }
 }
 
 /**
@@ -324,7 +330,7 @@ function sombraDeBaixoDoEmPe(cena: Cena): Sombra | null {
  */
 export function cenaEmTresQuartos(cena: Cena, perfil: PerfilDoTresQuartos, peca: CriarPeca): Cena {
   if (perfil.modo === 'em-pe') {
-    const sombra = sombraDeBaixoDoEmPe(cena)
+    const sombra = sombraDeBaixoDoEmPe(cena, perfil.forcaDaSombraDeBaixo ?? FORCA_DA_SOMBRA_DE_BAIXO)
     return sombra === null ? cena : { ...cena, sombras: [...cena.sombras, sombra] }
   }
   const estruturas: Estrutura[] = []
