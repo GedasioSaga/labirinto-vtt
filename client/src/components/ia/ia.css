@@ -1,0 +1,419 @@
+/* =========================================================================
+ * ASSISTENTE DO MESTRE (M4) — porte da seção 13 de
+ * docs/design/livros-de-regras/prototipo.css, o protótipo aprovado. Mesmos
+ * tokens do mundo (--lb-*, --lb-gr-*) e os primitivos dele (.mu-bt,
+ * .mu-campo, .mu-entrada, .mu-chips). Classes com o prefixo `ia-`.
+ * ========================================================================= */
+
+.lb-mundo {
+  --mu-ia: 368px;
+}
+
+/* A terceira coluna do mundo: lombada | página | assistente. */
+.lb-mundo[data-ia='aberto'] {
+  grid-template-columns: var(--mu-lombada) minmax(0, 1fr) var(--mu-ia);
+}
+
+/* O botão "Assistente" com a coluna fechada, no canto da página; o cabeçalho da página dá lugar a ele. */
+.ia-abrir {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  z-index: 3;
+}
+.lb-mundo[data-ia='fechado'] .mu-pg-cab {
+  padding-right: 128px;
+}
+
+.ia-painel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--lb-color-stone-solid);
+  border-left: 1px solid var(--lb-color-line-panel);
+  animation: mu-aparece 200ms var(--lb-gr-ease-out) both;
+}
+
+.ia-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px 10px 16px;
+}
+.ia-cab__tit {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--lb-font-display);
+  font-size: 19px;
+  font-weight: 400;
+}
+.ia-cab__tit small {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Modos: um seletor segmentado (radiogroup, setas trocam). */
+.ia-modos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  margin: 0 12px;
+  padding: 3px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+}
+.ia-modo {
+  min-height: 30px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease;
+}
+.ia-modo[aria-checked='true'] {
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment);
+  box-shadow: var(--lb-shadow-bevel), var(--lb-shadow-sm);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ia-modo:hover:not([aria-checked='true']) { color: var(--lb-color-parchment); }
+}
+.ia-modo__dica {
+  margin: 8px 16px 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Fichas na conversa */
+.ia-fichas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 10px;
+  border-radius: var(--lb-radius-md);
+  border: 1px solid var(--lb-color-line);
+}
+.ia-fichas__cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.ia-fichas__cab span:last-child { font-variant-numeric: tabular-nums; }
+.ia-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 2px 0 3px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-raised);
+  border: 1px solid var(--lb-color-line-strong);
+  font-size: var(--lb-font-size-md);
+  /* Sem entrada animada: a ficha citada aparece enquanto o mestre digita (dezenas de vezes), e movimento ali só atrasa. */
+}
+.ia-chip:not(:has(.mu-bt)) { padding-right: 10px; }
+.ia-chip__nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ia-chip .mu-retrato { width: 22px; height: 22px; box-shadow: none; }
+.ia-chip .mu-retrato .lb-ficha__iniciais { font-size: 9px; }
+.ia-chip .mu-bt { width: 24px; min-height: 24px; border-radius: 50%; }
+.ia-chip--auto { border-style: dashed; }
+.ia-fichas__vazio {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.ia-lendo {
+  margin: 8px 16px 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.ia-lendo b { font-weight: 500; color: var(--lb-color-parchment-dim); }
+
+/* A conversa */
+.ia-conversa {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 12px 8px;
+  border-top: 1px solid var(--lb-color-line);
+}
+.ia-msg {
+  max-width: 100%;
+  font-size: var(--lb-font-size-md);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  animation: ia-msg-entra 200ms var(--lb-gr-ease-out) both;
+}
+@keyframes ia-msg-entra { from { opacity: 0; transform: translateY(6px); } }
+.ia-msg--mestre {
+  align-self: flex-end;
+  max-width: 86%;
+  padding: 8px 12px;
+  border-radius: 12px 12px 4px 12px;
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+  white-space: pre-wrap;
+  /* A pergunta sai do Enter do próprio mestre: aparece na hora; só a resposta da IA entra deslizando. */
+  animation: none;
+}
+.ia-msg--ia {
+  padding: 10px 12px;
+  border-radius: var(--lb-radius-md);
+  border: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-sunken);
+}
+.ia-msg--ia .lb-marcacao { font-size: inherit; line-height: inherit; color: var(--lb-color-parchment); }
+.ia-msg--ia .lb-marcacao > * { margin: 0 0 6px; }
+.ia-msg--ia .lb-marcacao > :last-child { margin-bottom: 0; }
+.ia-msg--ia .lb-marcacao ul,
+.ia-msg--ia .lb-marcacao ol { padding-left: 18px; }
+.ia-msg--ia .lb-marcacao li + li { margin-top: 3px; }
+.ia-msg--ia .lb-marcacao h3,
+.ia-msg--ia .lb-marcacao h4,
+.ia-msg--ia .lb-marcacao h5 {
+  margin: 8px 0 4px;
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  font-weight: 600;
+  color: var(--lb-color-brass-bright);
+}
+.ia-msg--ia .lb-marcacao > :first-child { margin-top: 0; }
+.ia-msg--ia .lb-marcacao blockquote {
+  padding-left: 10px;
+  border-left: 2px solid var(--lb-gr-filete-latao);
+  color: var(--lb-color-parchment-dim);
+}
+.ia-msg--ia .lb-marcacao code {
+  font-family: var(--lb-font-utility);
+  font-size: 0.92em;
+}
+.ia-msg--erro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 8px 12px;
+  border-radius: var(--lb-radius-md);
+  border: 1px solid rgba(226, 100, 90, 0.45);
+  color: var(--mu-erro-texto);
+}
+.ia-msg__acao {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lb-color-brass-bright);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ia-msg--pensando {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+  color: var(--lb-color-parchment-faint);
+}
+.ia-msg--pensando i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: ia-ponto 900ms ease-in-out infinite;
+}
+.ia-msg--pensando i:nth-child(2) { animation-delay: 150ms; }
+.ia-msg--pensando i:nth-child(3) { animation-delay: 300ms; }
+@keyframes ia-ponto { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+
+.ia-vazio { margin: 0; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-faint); }
+.ia-sugestoes { display: flex; flex-direction: column; gap: 6px; }
+.ia-sugestao {
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-color-line);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.ia-sugestao:active:not(:disabled) { transform: scale(0.98); }
+.ia-sugestao:disabled { opacity: 0.45; cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) {
+  .ia-sugestao:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); color: var(--lb-color-parchment); }
+}
+
+/* A caixa da pergunta */
+.ia-compor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--lb-color-line);
+}
+.ia-compor__lin { display: flex; gap: 8px; align-items: flex-end; }
+.ia-area { resize: vertical; line-height: 1.5; }
+.ia-compor__caixa {
+  flex: 1;
+  min-height: 40px;
+  max-height: 140px;
+  resize: none;
+  background: var(--lb-color-stone-sunken);
+  border-color: var(--lb-color-line-strong);
+}
+.ia-enviar { width: 40px; min-height: 40px; padding: 0; }
+.ia-compor__pe {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+.ia-kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 2px 5px;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  text-align: center;
+}
+.ia-semchave { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); }
+.ia-semchave button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* A engrenagem */
+.ia-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 12px 10px;
+  padding: 12px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-gr-filete-latao);
+  animation: ia-msg-entra 180ms var(--lb-gr-ease-out) both;
+}
+.ia-config__tit { margin: 0; font-size: var(--lb-font-size-md); font-weight: 600; }
+.ia-config__lin { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ia-config__estado { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ia-config__estado--ok { color: var(--lb-color-online); }
+.ia-config__apagar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--mu-erro-texto);
+}
+
+/* Gerar NPC: o formulário e a ficha para revisar */
+.ia-gerar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--lb-radius-md);
+  border: 1px solid var(--lb-gr-filete-latao);
+  background: var(--lb-color-stone-sunken);
+  animation: ia-msg-entra 200ms var(--lb-gr-ease-out) both;
+}
+.ia-gerar__tit { margin: 0; font-size: var(--lb-font-size-md); font-weight: 600; }
+.ia-npc {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--lb-radius-md);
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  border: 1px solid var(--lb-gr-filete-latao);
+  animation: ia-msg-entra 220ms var(--lb-gr-ease-out) both;
+}
+.ia-npc__cab { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; align-items: center; }
+.ia-npc__nome { margin: 0; font-family: var(--lb-font-display); font-size: 18px; font-weight: 400; line-height: 1.15; overflow-wrap: anywhere; }
+.ia-npc__sub { margin: 2px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ia-npc__desc { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ia-atrs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ia-atr {
+  padding: 6px 8px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete);
+}
+.ia-atr__ab { display: block; font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility); letter-spacing: 0.08em; color: var(--lb-color-parchment-faint); }
+.ia-atr__val { display: block; margin-top: 4px; font: 500 14px / 1 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.ia-atr__rank { margin-left: 3px; font-size: 11px; color: var(--lb-color-parchment-faint); }
+.ia-npc__aba { display: flex; flex-direction: column; gap: 6px; }
+.ia-npc__aba-tit { margin: 0; font-size: var(--lb-font-size-sm); font-weight: 600; color: var(--lb-color-parchment-dim); }
+.ia-npc__tec { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: var(--lb-font-size-sm); }
+.ia-npc__tec li { padding: 6px 8px; border-radius: var(--lb-radius-sm); border: 1px solid var(--lb-color-line); }
+.ia-npc__tec b { display: block; font-size: var(--lb-font-size-md); font-weight: 500; color: var(--lb-color-parchment); }
+.ia-npc__tec span { color: var(--lb-color-parchment-dim); }
+.ia-npc__acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Janela estreita: a coluna vira gaveta por cima da página (mesmo corte de `CONSULTA_DA_GAVETA_DA_IA`). */
+@media (max-width: 1240px) {
+  .lb-mundo[data-ia='aberto'] { grid-template-columns: var(--mu-lombada) minmax(0, 1fr); }
+  .ia-painel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 4;
+    width: min(var(--mu-ia), 100vw);
+    box-shadow: var(--lb-shadow-float);
+    animation-name: ia-gaveta-entra;
+    animation-duration: 240ms;
+  }
+  @keyframes ia-gaveta-entra { from { transform: translateX(24px); opacity: 0; } }
+}
+
+/* Movimento reduzido: nada desliza; ficam só opacidade e cor. */
+@media (prefers-reduced-motion: reduce) {
+  .ia-msg,
+  .ia-config,
+  .ia-gerar,
+  .ia-npc,
+  .ia-painel { animation-name: mu-aparece; }
+  .ia-sugestao { transition-property: border-color, color; }
+  .ia-sugestao:active:not(:disabled) { transform: none; }
+  .ia-msg--pensando i { animation-duration: 1600ms; }
+}

@@ -2,8 +2,11 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, type Keybo
 import { entraNaBatalha } from '../../lib/livros/combate'
 import { lerSaude } from '../../lib/livros/saude'
 import { useCatalogoStore } from '../../stores/catalogoStore'
+import { useIaStore } from '../../stores/iaStore'
 import { useMundoDoLivroStore, usePersonagensDoMundo, type AbaDoMundo } from '../../stores/mundoDoLivroStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
+import { IconeDaIa } from '../ia/icones'
+import { ID_DO_TEXTO_DA_IA, PainelDaIa } from '../ia/PainelDaIa'
 import { usePastaDoMundo } from './comum'
 import { GavetaDaFicha } from './GavetaDaFicha'
 import { IconeDoMundo, type NomeDoIconeDoMundo } from './icones'
@@ -18,8 +21,9 @@ import './mundo.css'
 
 /**
  * O MUNDO DE UM LIVRO DE REGRAS (M1, docs/planos/livros-de-regras-plano.md
- * §3): marcadores à esquerda e a página no meio (sem a coluna da IA até a M4,
- * decisão D6). Lê o que está aberto em `useMundoDoLivroStore` e as fichas por
+ * §3): marcadores à esquerda, a página no meio e, desde a M4, o Assistente do
+ * mestre na coluna da direita (components/ia/; em janela estreita vira gaveta
+ * por cima da página). Lê o que está aberto em `useMundoDoLivroStore` e as fichas por
  * `usePersonagensDoMundo`; abre pela tela inicial (dentro da `LivrosScreen`)
  * ou por cima do editor (atalho no livro do mestre), em camada própria.
  * Porte fiel do protótipo aprovado (docs/design/livros-de-regras/).
@@ -76,6 +80,9 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   const fitaPosta = useRef(false)
   /** A troca veio das setas: a fita pula sem deslizar (movimento em ação de teclado só atrasa). */
   const trocaPeloTeclado = useRef(false)
+  const iaAberta = useIaStore((state) => state.aberta)
+  const abrirIaRef = useRef<HTMLButtonElement>(null)
+  const iaAbertaAntes = useRef(iaAberta)
 
   useEffect(() => {
     void useRpgStore.getState().carregarBiblioteca()
@@ -104,6 +111,13 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     window.addEventListener('resize', aoRedimensionar)
     return () => window.removeEventListener('resize', aoRedimensionar)
   }, [aba])
+
+  // O assistente fechou com o foco dentro dele (o foco caiu no corpo): volta para o botão "Assistente", que reabre.
+  useEffect(() => {
+    const fechou = iaAbertaAntes.current && !iaAberta
+    iaAbertaAntes.current = iaAberta
+    if (fechou && (document.activeElement === document.body || document.activeElement === null)) abrirIaRef.current?.focus()
+  }, [iaAberta])
 
   // Esc com o foco fora do mundo (no corpo da página): fecha também. Com uma janela aberta por cima, é dela.
   useEffect(() => {
@@ -213,8 +227,22 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     pagina = <PaginaNpcs personagens={personagens} sistema={sistema} />
   }
 
+  /** O assistente precisa do sistema e das fichas lidas: sem eles (lendo, erro, sistema ausente) a coluna nem aparece. */
+  const assistente = erro === null && personagens !== null && sistema !== undefined ? { sistema, personagens } : null
+
+  /** "Assistente": abre a coluna com o foco já na caixa da pergunta (no quadro seguinte, quando ela existe). */
+  const abrirAssistente = () => {
+    useIaStore.getState().abrir()
+    requestAnimationFrame(() => document.getElementById(ID_DO_TEXTO_DA_IA)?.focus())
+  }
+
   return (
-    <section className="lb-mundo" aria-label={`Mundo do livro de regras ${nomeDoSistema}`} onKeyDown={aoTeclar}>
+    <section
+      className="lb-mundo"
+      aria-label={`Mundo do livro de regras ${nomeDoSistema}`}
+      onKeyDown={aoTeclar}
+      data-ia={assistente === null ? undefined : iaAberta ? 'aberto' : 'fechado'}
+    >
       <aside className="mu-lombada" aria-label={`Livro de regras ${nomeDoSistema}`}>
         <div className="mu-selo">
           <span className="mu-selo__med" aria-hidden="true">
@@ -272,6 +300,16 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
       <div className="mu-pagina" id={ID_DA_PAGINA} role="tabpanel" tabIndex={0} aria-labelledby={idDaAba(aba)}>
         {pagina}
       </div>
+
+      {assistente !== null &&
+        (iaAberta ? (
+          <PainelDaIa pastaId={aberto.pastaId} sistema={assistente.sistema} personagens={assistente.personagens} />
+        ) : (
+          <button ref={abrirIaRef} type="button" className="mu-bt mu-bt--latao ia-abrir" aria-controls="ia-painel" aria-expanded={false} onClick={abrirAssistente}>
+            <IconeDaIa nome="ia" />
+            Assistente
+          </button>
+        ))}
 
       <GavetaDaFicha sistema={sistema} sistemaId={aberto.sistemaId} />
     </section>
