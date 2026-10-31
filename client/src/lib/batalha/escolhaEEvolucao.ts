@@ -54,7 +54,7 @@ const EXTRA_DAS_CONDICOES = /^condic(?:ao|oes) (?:d[aoe] )?(?:evolution|evolucao
 const EXTRA_DO_LINK = /^evolui (?:para|pra)$/
 
 /** Os nomes que o botão "+ Evolução" da ficha cria (o leitor aceita também os de antes: "Evolution", "Condições do Evolution"). */
-export const EXTRAS_DA_EVOLUCAO = { texto: 'Evolução', condicoes: 'Condições da evolução', para: 'Evolui para' } as const
+export const EXTRAS_DA_EVOLUCAO = { texto: 'Evolução', condicoes: 'Condições da evolução', para: 'Evolui para' } as const // `as const` só congela os literais (readonly); não afirma tipo nenhum
 
 /** O nome que o botão "+ Opção" da ficha cria: "Opção 2", "Opção 3"... (a principal é a 1), sem repetir nome que já existe. */
 export function nomeDaNovaOpcao(cartao: Pick<CartaoDaFicha, 'extras'>): string {
