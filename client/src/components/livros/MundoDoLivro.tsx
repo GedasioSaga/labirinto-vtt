@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent } from 'react'
 import { entraNaBatalha } from '../../lib/livros/combate'
 import { lerSaude } from '../../lib/livros/saude'
+import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useMundoDoLivroStore, usePersonagensDoMundo, type AbaDoMundo } from '../../stores/mundoDoLivroStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { usePastaDoMundo } from './comum'
@@ -8,6 +9,7 @@ import { GavetaDaFicha } from './GavetaDaFicha'
 import { IconeDoMundo, type NomeDoIconeDoMundo } from './icones'
 import { PaginaAnotacoes } from './PaginaAnotacoes'
 import { PaginaComparar } from './PaginaComparar'
+import { PaginaItens } from './PaginaItens'
 import { PaginaJogadores } from './PaginaJogadores'
 import { PaginaNpcs } from './PaginaNpcs'
 import { PaginaSaude } from './PaginaSaude'
@@ -33,6 +35,7 @@ const MARCADORES: readonly { aba: AbaDoMundo; rotulo: string; icone: NomeDoIcone
   { aba: 'npcs', rotulo: 'NPCs de combate', icone: 'npc' },
   { aba: 'comparar', rotulo: 'Comparar e balancear', icone: 'balanca' },
   { aba: 'saude', rotulo: 'Saúde da ficha', icone: 'saude' },
+  { aba: 'itens', rotulo: 'Itens e habilidades', icone: 'itens' },
   { aba: 'anotacoes', rotulo: 'Anotações', icone: 'nota' },
   { aba: 'arena', rotulo: 'Arena de testes', icone: 'boneco' },
 ]
@@ -47,9 +50,6 @@ const PaginaArena = lazy(() => import('../arena/PaginaArena').then((modulo) => (
 /** A camada cheia da luta da arena: com ela aberta, o Esc não fecha o mundo atrás (ver `TelaDaArena`). */
 const SELETOR_DA_ARENA = '.ar-tela'
 
-/** Os marcadores das próximas fases: aparecem apagados, com "em breve", sem página nem clique. */
-const EM_BREVE: readonly { rotulo: string; icone: NomeDoIconeDoMundo }[] = [{ rotulo: 'Itens e habilidades', icone: 'itens' }]
-
 const idDaAba = (aba: AbaDoMundo): string => `mu-aba-${aba}`
 const ID_DA_PAGINA = 'mu-pagina'
 
@@ -63,6 +63,8 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   const bibliotecaLida = useRpgStore((state) => state.bibliotecaLida)
   const pasta = usePastaDoMundo(aberto?.pastaId)
   const sistema = aberto === null ? undefined : sistemaPorId(biblioteca, aberto.sistemaId)
+  /** As entradas do catálogo deste livro (as do mestre e as do livro), para o número do marcador Itens e habilidades. */
+  const noCatalogo = useCatalogoStore((state) => (aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.length + state.doLivro.length : null))
   /** Quantos campos a batalha não lê (o número do marcador Saúde da ficha, em latão quando há). */
   const naoLidos = useMemo(
     () => (personagens === null || sistema === undefined ? null : lerSaude(personagens, sistema).achados.filter((achado) => achado.leitura.estado === 'naoLe').length),
@@ -79,6 +81,11 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     void useRpgStore.getState().carregarBiblioteca()
     tituloRef.current?.focus()
   }, [])
+
+  // O catálogo do livro abre com o mundo (o número do marcador já aparece); a página Itens usa o mesmo.
+  useEffect(() => {
+    if (sistema !== undefined && useCatalogoStore.getState().sistemaId !== sistema.id) void useCatalogoStore.getState().abrir(sistema)
+  }, [sistema])
 
   // A fita de latão vai até o marcador aberto: a primeira vez sem deslizar, depois a cada troca (e se a lombada encolher).
   useLayoutEffect(() => {
@@ -118,6 +125,7 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     // As fichas escolhidas para comparar; nenhuma = sem número.
     comparar: comparando === 0 ? null : comparando,
     saude: naoLidos,
+    itens: noCatalogo,
     anotacoes: personagens === null ? null : personagens.filter((personagem) => (personagem.notaDoMestre ?? '').trim().length > 0).length,
     // A Arena de testes não tem contagem.
     arena: null,
@@ -185,6 +193,8 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     pagina = <PaginaComparar personagens={personagens} sistema={sistema} onVerSaude={() => trocarAba('saude', false)} />
   } else if (aba === 'saude') {
     pagina = <PaginaSaude personagens={personagens} sistema={sistema} />
+  } else if (aba === 'itens') {
+    pagina = <PaginaItens personagens={personagens} sistema={sistema} />
   } else if (aba === 'anotacoes') {
     pagina = <PaginaAnotacoes personagens={personagens} />
   } else if (aba === 'arena') {
@@ -250,19 +260,6 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
               )
             })}
           </div>
-          <hr />
-          <p className="mu-embreve__tit" id="mu-embreve">
-            Nas próximas versões
-          </p>
-          <ul className="mu-embreve" aria-labelledby="mu-embreve">
-            {EM_BREVE.map((item) => (
-              <li key={item.rotulo} className="mu-embreve__item" title={`${item.rotulo}: chega numa próxima versão`}>
-                <IconeDoMundo nome={item.icone} />
-                <span>{item.rotulo}</span>
-                <span className="mu-embreve__tag">em breve</span>
-              </li>
-            ))}
-          </ul>
         </div>
         <div className="mu-pe">
           <button type="button" className="mu-bt mu-bt--fantasma" onClick={onFechar}>

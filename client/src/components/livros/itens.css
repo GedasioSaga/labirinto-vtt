@@ -1,0 +1,187 @@
+/*
+ * ITENS, ARMAS E HABILIDADES (M3): porte da seção 9 de
+ * docs/design/livros-de-regras/prototipo.css (catálogo + ficha que recebe),
+ * com o prefixo `mu-` do mundo. Arquivo próprio, como anotacoes.css, para não
+ * disputar o mundo.css; importado pela página e pela janela de entrada. A
+ * janela vive em portal no `body` (fora de `.lb-mundo`): os seletores dela
+ * usam só os tokens globais --lb-* e os --lb-gr-* do grimório.
+ */
+
+/* ---------- Página: catálogo à esquerda, ficha que recebe à direita ---------- */
+.mu-cat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 20px; align-items: start; }
+.mu-cat-col { min-width: 0; }
+.mu-cat-busca { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-bottom: 12px; }
+
+.mu-busca { position: relative; }
+.mu-busca > .mu-ic { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--lb-color-parchment-faint); pointer-events: none; }
+.mu-busca .mu-entrada { padding-left: 32px; padding-right: 40px; }
+/* O X nativo do campo de busca sai: o nosso tem rótulo, alvo maior e devolve o foco ao campo. */
+.mu-busca .mu-entrada::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.mu-busca .mu-kbd,
+.mu-busca__limpar { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
+.mu-busca .mu-kbd { right: 8px; pointer-events: none; }
+/* Com o cursor no campo o atalho já fez o trabalho: a dica sai, na hora (o "/" é tecla: nada de esmaecer). */
+.mu-busca:focus-within .mu-kbd { opacity: 0; }
+/* O botão de limpar vive centrado pelo translate: a pressão soma a escala em vez de trocar o transform. */
+.mu-busca .mu-busca__limpar:active:not(:disabled) { transform: translateY(-50%) scale(0.97); }
+
+.mu-kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 2px 5px;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  text-align: center;
+}
+
+/* ---------- Cartões do catálogo ---------- */
+.mu-cat-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+/* Fora da tela o cartão não é desenhado (o catálogo pode ter centenas). */
+.mu-cat-lista > li { min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 150px; }
+.mu-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  padding: 12px 12px 10px;
+  cursor: grab;
+  user-select: none;
+  transition:
+    border-color var(--lb-motion-fast) ease,
+    opacity var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.mu-item:active { cursor: grabbing; }
+.mu-item[draggable='false'] { cursor: default; }
+.mu-item--arrastando { opacity: 0.4; transform: scale(0.98); }
+/* A entrada recém-criada: o contorno de latão diz onde ela caiu e se apaga sozinho. */
+.mu-item--destacado { outline: 1px solid transparent; animation: mu-it-destaque 1600ms ease both; }
+.mu-item__cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.mu-item__nome { min-width: 0; margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.mu-item__txt {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+.mu-item__campos { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.mu-item__campos span { min-width: 0; overflow-wrap: anywhere; }
+.mu-item__campos b { font-weight: 500; color: var(--lb-color-parchment); font-family: var(--lb-font-utility); }
+.mu-item__pe { display: flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 4px; }
+.mu-item__alca { display: inline-flex; color: var(--lb-color-parchment-faint); }
+.mu-item__acoes { display: flex; align-items: center; justify-content: flex-end; gap: 2px; min-width: 0; margin-left: auto; }
+.mu-item__acoes .mu-bt--p:not(.mu-bt--ic) { margin-left: 4px; }
+/* "Já está em Aira": fica focável e legível, mas sem cara de botão que age. */
+.lb-mundo .mu-item__ja { border-color: transparent; background: transparent; color: var(--lb-color-online); cursor: default; }
+.lb-mundo .mu-item__ja:active:not(:disabled) { transform: none; }
+@media (hover: hover) and (pointer: fine) {
+  .lb-mundo .mu-item__ja:hover:not(:disabled) { border-color: transparent; }
+}
+.mu-item__ja .mu-ic { width: 14px; height: 14px; stroke-width: 2; }
+.mu-item__sem { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); text-align: right; }
+.mu-etiqueta--livro { background: var(--lb-gr-hover-forte); color: var(--lb-gr-gravado); }
+.mu-etiqueta--catalogo { background: var(--lb-color-online-soft); color: var(--lb-color-online); }
+
+.mu-cat-mais { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 14px; }
+
+.mu-it-estado { margin: -10px 0 16px; }
+.mu-it-aviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: -6px 0 18px;
+  padding: 10px 12px;
+  border: 1px solid rgba(226, 100, 90, 0.45);
+  border-radius: var(--lb-radius-sm);
+  color: var(--mu-erro-texto);
+  font-size: var(--lb-font-size-md);
+}
+.mu-it-aviso span { flex: 1 1 280px; min-width: 0; }
+
+/* Leitor de tela só (rótulo da busca, contagem dos resultados, os rádios do tipo). */
+.mu-it-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- Ficha que recebe ---------- */
+.mu-destino {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 40px);
+  padding: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.mu-destino__tit { margin: 0; font-size: var(--lb-font-size-md); font-weight: 600; }
+.mu-destino__quem { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mu-destino__quem-txt { flex: 1; min-width: 0; }
+.mu-destino__nome { display: block; font-family: var(--lb-font-display); font-size: 17px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-destino__sub { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-destino__recusa { margin: 0; padding: 8px 10px; border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); }
+.mu-destino__secoes { display: flex; flex-direction: column; margin: 0 -8px; }
+.mu-destino__secao {
+  padding: 6px 8px;
+  border: 1px dashed transparent;
+  border-radius: var(--lb-radius-sm);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+.mu-destino__secao h4 { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 6px; font-size: var(--lb-font-size-md); font-weight: 600; }
+.mu-destino__secao h4 small { font-weight: 400; color: var(--lb-color-parchment-faint); font-family: var(--lb-font-utility); white-space: nowrap; }
+.mu-destino__secao ul { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; font-size: var(--lb-font-size-md); color: var(--lb-color-parchment-dim); }
+.mu-destino__secao li { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
+.mu-destino__secao li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-destino__dano { flex: none; font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.mu-destino__mais { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+/* O que acabou de entrar fica em latão. Sem esmaecer: o "Pôr em" é o caminho do teclado, e a cor já conta o que mudou. */
+.mu-destino__secao li.mu-destino__novo { color: var(--lb-color-brass-bright); }
+.mu-destino__vazio { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.mu-destino__solta { display: none; margin: 6px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-brass-bright); }
+/* Arrastando: a seção que recebe ganha o tracejado e o convite; com o cartão em cima do painel, enche de latão. */
+.mu-destino--ativo .mu-destino__secao[data-aceita='sim'] { border-color: var(--lb-gr-filete-latao); }
+.mu-destino--ativo .mu-destino__secao[data-aceita='sim'] .mu-destino__solta { display: block; }
+.mu-destino--sobre .mu-destino__secao[data-aceita='sim'] { border-style: solid; border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); }
+
+/* Só cor: segura o latão um instante e apaga (vale também com movimento reduzido). */
+@keyframes mu-it-destaque {
+  from, 40% { border-color: var(--lb-color-brass); outline-color: var(--lb-color-brass); }
+}
+
+/* ---------- Janela de entrada (portal, fora do .lb-mundo) ---------- */
+.mu-ent-tipos { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.mu-ent-tipos legend { padding: 0; margin-bottom: 5px; }
+.mu-ent-tipo { position: relative; cursor: pointer; }
+.mu-ent-tipo:has(input:checked) { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); color: var(--lb-color-parchment); }
+.mu-ent-tipo:has(input:focus-visible) { box-shadow: var(--lb-shadow-focus); }
+.mu-ent-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.mu-ent-area { min-height: 104px; resize: vertical; line-height: 1.5; }
+.mu-ent-contador { font-variant-numeric: tabular-nums; color: var(--lb-color-brass-bright); }
+.mu-ent-pe { flex-wrap: wrap; align-items: center; }
+.mu-ent-pe__erro { flex: 1 1 100%; margin: 0 0 4px; }
+
+@media (max-width: 980px) {
+  .mu-cat { grid-template-columns: minmax(0, 1fr); }
+  .mu-destino { position: static; max-height: none; overflow: visible; }
+}
+@media (max-width: 520px) {
+  .mu-ent-campos { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Movimento reduzido: o cartão arrastado só esmaece; nada encolhe nem aparece aos poucos. */
+@media (prefers-reduced-motion: reduce) {
+  .mu-item { transition-property: opacity, border-color; }
+  .mu-item--arrastando { transform: none; }
+  .mu-busca .mu-busca__limpar:active:not(:disabled) { transform: translateY(-50%); }
+}

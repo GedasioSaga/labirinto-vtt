@@ -90,6 +90,30 @@ const TRACOS = {
       <path d="M12 17l-4 4M12 17l4 4M12 17v4" />
     </>
   ),
+  /** O visto: lido (Saúde), Fácil (Comparar), já está na ficha (Itens). */
+  ok: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  relogio: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v4l3 2" />
+    </>
+  ),
+  nao: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M9 9l6 6M15 9l-6 6" />
+    </>
+  ),
+  raio: <path d="M13 3 5 13h6l-1 8 8-10h-6z" />,
+  menos: <path d="M5 12h14" />,
+  busca: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.2-4.2" />
+    </>
+  ),
+  /** A alça de arrastar: seis pontos (traço grosso, como no protótipo). */
+  alca: <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" strokeWidth={3} />,
 } as const
 
 export type NomeDoIconeDoMundo = keyof typeof TRACOS

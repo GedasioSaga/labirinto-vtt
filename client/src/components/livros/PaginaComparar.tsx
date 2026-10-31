@@ -35,32 +35,11 @@ import { IconeDoMundo } from './icones'
  * fichas, o grupo e os inimigos são estado de sessão do mundoDoLivroStore.
  */
 
-/** Os traços do protótipo que o conjunto do mundo (icones.tsx) ainda não tem. */
-const TRACOS = {
-  ok: <path d="M5 12.5l4.5 4.5L19 7.5" />,
-  nao: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M9 9l6 6M15 9l-6 6" />
-    </>
-  ),
-  raio: <path d="M13 3 5 13h6l-1 8 8-10h-6z" />,
-  menos: <path d="M5 12h14" />,
-} as const
-
-function Traco({ nome }: { nome: keyof typeof TRACOS }) {
-  return (
-    <svg className="mu-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      {TRACOS[nome]}
-    </svg>
-  )
-}
-
 function IconeDoPeso({ peso }: { peso: PesoDoEncontro }) {
-  if (peso === 'facil') return <Traco nome="ok" />
+  if (peso === 'facil') return <IconeDoMundo nome="ok" />
   if (peso === 'justo') return <IconeDoMundo nome="balanca" />
   if (peso === 'duro') return <IconeDoMundo nome="alerta" />
-  return <Traco nome="nao" />
+  return <IconeDoMundo nome="nao" />
 }
 
 /** O que o golpe sem número mostra no lugar do dano, em cinza. */
@@ -291,7 +270,7 @@ function PassoDoInimigo({ resumo, quantos }: { resumo: ResumoDoInimigo; quantos:
       </span>
       <span className="mu-passo__ctrl" role="group" aria-label={`Quantos ${nome}`}>
         <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label={`Um ${nome} a menos`} disabled={quantos === 0} onClick={() => mudar(quantos - 1)}>
-          <Traco nome="menos" />
+          <IconeDoMundo nome="menos" />
         </button>
         <output aria-live="polite" className={quantos > 0 ? 'mu-passo__n mu-passo__n--tem' : 'mu-passo__n'}>
           {quantos}
@@ -397,7 +376,7 @@ function Veredito({ resultado, personagens, onDeixar, onVerSaude }: VereditoProp
         <span className="mu-pg-nota">Ajustar a força dos inimigos:</span>
         {ALVOS.map((alvo) => (
           <button key={alvo} type="button" className={alvo === peso ? 'mu-bt mu-bt--p mu-bt--latao' : 'mu-bt mu-bt--p'} disabled={travado !== null} onClick={() => onDeixar(alvo)}>
-            <Traco nome="raio" />
+            <IconeDoMundo nome="raio" />
             Deixar {NOME_DO_PESO[alvo]}
           </button>
         ))}

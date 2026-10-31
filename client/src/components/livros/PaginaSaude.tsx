@@ -35,31 +35,9 @@ import { IconeDoMundo } from './icones'
  * com Desfazer no aviso. Variação não conta: corrige-se no modelo.
  */
 
-/** Os traços do protótipo que o conjunto do mundo (icones.tsx) ainda não tem. */
-const TRACOS = {
-  ok: <path d="M5 12.5l4.5 4.5L19 7.5" />,
-  relogio: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 8v4l3 2" />
-    </>
-  ),
-  nao: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M9 9l6 6M15 9l-6 6" />
-    </>
-  ),
-} as const
-
 function IconeDoEstado({ estado }: { estado: EstadoDaLeitura }) {
   if (estado === 'aMao') return <IconeDoMundo nome="nota" />
-  const nome = estado === 'lido' ? 'ok' : estado === 'naHora' ? 'relogio' : 'nao'
-  return (
-    <svg className="mu-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      {TRACOS[nome]}
-    </svg>
-  )
+  return <IconeDoMundo nome={estado === 'lido' ? 'ok' : estado === 'naHora' ? 'relogio' : 'nao'} />
 }
 
 function SeloDoEstado({ estado }: { estado: EstadoDaLeitura }) {

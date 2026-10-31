@@ -22,11 +22,10 @@ import { editarRpgDaPasta } from './rpgDaPasta'
 export type AbaDaM2 = 'comparar' | 'saude' | 'anotacoes'
 
 /**
- * Os marcadores do mundo: os da M1, os da M2 e a Arena de testes
- * (docs/planos/batalha-arena-de-testes-plano.md). Itens e habilidades chega
- * com a M3.
+ * Os marcadores do mundo: os da M1, os da M2, Itens e habilidades (M3) e a
+ * Arena de testes (docs/planos/batalha-arena-de-testes-plano.md).
  */
-export type AbaDoMundo = 'jogadores' | 'npcs' | AbaDaM2 | 'arena'
+export type AbaDoMundo = 'jogadores' | 'npcs' | AbaDaM2 | 'itens' | 'arena'
 
 /**
  * O Comparar (M2): estado de SESSÃO, nada em disco. Ids de personagem da
