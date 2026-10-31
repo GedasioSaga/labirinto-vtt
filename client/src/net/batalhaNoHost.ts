@@ -116,7 +116,9 @@ export interface BatalhaNoHost {
    * (Q6). Alvos só entre as fichas que a tela dele tem.
    * F3: `transformar` e `destransformar` só na vez (a forma é do personagem da
    * carta da vez; a store confere o cartão). Selo à mão é só do mestre (direto
-   * na store): pelo fio, só o sugerido que vai no golpe.
+   * na store): pelo fio, só o sugerido que vai no golpe. Tipos de habilidade
+   * F2: os mods desse selo a store filtra pelo sistema (`seloPedidoValido`);
+   * natureza e cartaoId ela tira da técnica, nunca do pedido.
    */
   agir(conexao: ConexaoNaBatalha, msg: BatalhaAgirMessage): RespostaDaBatalha
   /** F2: reagir. Com golpe: o golpe está pendente e a ficha é alvo dele ainda sem resolver. Livre: token dele. */

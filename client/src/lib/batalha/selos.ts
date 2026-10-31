@@ -273,6 +273,33 @@ export function textoDosMods(mods: readonly ModDoSelo[] | undefined, sistema: Si
   return (mods ?? []).map((mod) => textoDoMod(mod, sistema)).join(', ')
 }
 
+/** "Fúria 2 (FOR +20)", "Cego" (sem mods, como `textoDoSelo`): o selo na linha do registro. */
+export function textoDoSeloComMods(selo: Pick<SeloDaBatalha, 'nome' | 'turnos' | 'mods'>, sistema: SistemaDeRpg | null): string {
+  const mods = textoDosMods(selo.mods, sistema)
+  return mods.length === 0 ? textoDoSelo(selo) : `${textoDoSelo(selo)} (${mods})`
+}
+
+/** Os mesmos mods, na mesma ordem (ausente = lista vazia). */
+export function modsIguais(a: readonly ModDoSelo[] | undefined, b: readonly ModDoSelo[] | undefined): boolean {
+  const [x, y] = [a ?? [], b ?? []]
+  return x.length === y.length && x.every((mod, i) => mod.alvo === y[i]?.alvo && mod.delta === y[i]?.delta)
+}
+
+/**
+ * O selo editado pelo mestre: nome, turnos e mods novos (o `total` passa a
+ * ser os turnos novos; a marca "já contou nesta rodada" fica). O selo de
+ * técnica guarda a cor do Tipo; o posto à mão segue o sinal dos mods novos.
+ */
+export function seloEditado(antes: SeloDaBatalha, pedido: SeloPedido): SeloDaBatalha {
+  const depois: SeloDaBatalha = { ...antes, nome: pedido.nome, turnos: pedido.turnos, total: pedido.turnos }
+  delete depois.mods
+  delete depois.natureza
+  if (pedido.mods !== undefined && pedido.mods.length > 0) depois.mods = pedido.mods
+  const natureza = antes.cartaoId !== undefined ? antes.natureza : naturezaDosMods(pedido.mods)
+  if (natureza !== undefined && natureza !== 'condicao') depois.natureza = natureza
+  return depois
+}
+
 /**
  * A cor do selo que o MESTRE põe à mão: só somas = buff, só perdas = debuff;
  * sem mods ou misturado = condição (ausente). O selo de técnica leva a do

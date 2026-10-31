@@ -24,7 +24,19 @@ import {
   type SeloPedido,
 } from '../lib/batalha/combate'
 import { gastarAcao } from '../lib/batalha/acoes'
-import { comSeloNovo, criarSelo, novoIdDeSelo, pegaOSelo, seloPedidoValido, textoDoSelo, textoDosQueAcabaram } from '../lib/batalha/selos'
+import {
+  comSeloNovo,
+  criarSelo,
+  modsIguais,
+  naturezaDosMods,
+  novoIdDeSelo,
+  pegaOSelo,
+  seloEditado,
+  seloPedidoValido,
+  textoDoSelo,
+  textoDoSeloComMods,
+  textoDosQueAcabaram,
+} from '../lib/batalha/selos'
 import { ativarForma, desfazerForma, formaDaFicha } from '../lib/batalha/transformacao'
 import { equipeDe } from '../lib/batalha/equipes'
 import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaReacaoComTecnica, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
@@ -241,9 +253,12 @@ export interface BatalhaState {
   moverJudge: (sceneKey: string, x: number, y: number) => boolean
 
   // ---- F3 (fatia T): selos à mão. Só o mestre (chamada direta). Ativar e Desfazer a forma vão pelo `agir`. ----
-  /** "Pôr selo..." na ficha (com carta na ordem): linha "selo" com reversão `selo` (antes `null`). Teto `SELOS_POR_TOKEN_MAX` por ficha e `SELOS_MAX` na cena. */
+  /**
+   * "Pôr selo..." na ficha (com carta na ordem): linha "selo" com reversão `selo` (antes `null`). Teto `SELOS_POR_TOKEN_MAX` por ficha e `SELOS_MAX` na cena.
+   * Tipos de habilidade F2: com `mods` (filtrados pelo sistema); a cor vem do sinal deles (`naturezaDosMods`).
+   */
   porSelo: (sceneKey: string, tokenId: string, selo: SeloPedido) => boolean
-  /** Troca nome e turnos de um selo (o `total` passa a ser os turnos novos): linha "selo" com o de antes. */
+  /** Troca nome, turnos e mods de um selo (o `total` passa a ser os turnos novos): linha "selo" com o de antes (`seloEditado`). */
   editarSelo: (sceneKey: string, seloId: string, selo: SeloPedido) => boolean
   /** Tira o selo: linha "selo" com o de antes. */
   tirarSelo: (sceneKey: string, seloId: string) => boolean
@@ -677,8 +692,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     const antes = cena?.turnos.selos?.find((selo) => selo.id === seloId)
     if (cena === undefined || antes === undefined) return false
     const selos = (cena.turnos.selos ?? []).flatMap((selo) => (selo.id !== seloId ? [selo] : depois === null ? [] : [depois]))
-    const nome = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(antes.tokenId)
-    const texto = depois === null ? `Mestre tirou ${textoDoSelo(antes)} de ${nome}` : `Mestre: ${textoDoSelo(antes)} → ${textoDoSelo(depois)} em ${nome}`
+    const { personagens, sistema } = mesaDoRpg()
+    const nome = nomeDoTokenNa(cena.turnos, personagens)(antes.tokenId)
+    const texto = depois === null ? `Mestre tirou ${textoDoSelo(antes)} de ${nome}` : `Mestre: ${textoDoSeloComMods(antes, sistema)} → ${textoDoSeloComMods(depois, sistema)} em ${nome}`
     gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, selos }, { tipo: 'selo', texto, tokenIds: [antes.tokenId], reversao: { tipo: 'selo', seloId, antes } }))
     return true
   }
@@ -1313,13 +1329,15 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
 
     porSelo: (sceneKey, tokenId, pedido) => {
       const cena = cenaDe(sceneKey)
-      const selo = seloPedidoValido(pedido, mesaDoRpg().sistema)
+      const { personagens, sistema } = mesaDoRpg()
+      const selo = seloPedidoValido(pedido, sistema)
       if (cena === undefined || selo === null || !cena.turnos.cartas.some((carta) => carta.tokenId === tokenId)) return false
       const { turnos } = cena
-      const novo = criarSelo(tokenId, selo, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null })
+      // Tipos de habilidade F2: a cor do selo à mão vem do sinal dos mods ("Reação +3" = buff).
+      const novo = criarSelo(tokenId, { ...selo, natureza: naturezaDosMods(selo.mods) }, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null })
       const selos = comSeloNovo(turnos.selos, novo)
       if (selos === null) return false
-      const texto = `Mestre pôs ${textoDoSelo(novo)} em ${nomeDoTokenNa(turnos, mesaDoRpg().personagens)(tokenId)}`
+      const texto = `Mestre pôs ${textoDoSeloComMods(novo, sistema)} em ${nomeDoTokenNa(turnos, personagens)(tokenId)}`
       gravarCena(sceneKey, comMudanca(cena, { ...turnos, selos }, { tipo: 'selo', texto, tokenIds: [tokenId], reversao: { tipo: 'selo', seloId: novo.id, antes: null } }))
       return true
     },
@@ -1328,9 +1346,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const selo = seloPedidoValido(pedido, mesaDoRpg().sistema)
       const antes = cenaDe(sceneKey)?.turnos.selos?.find((candidato) => candidato.id === seloId)
       if (selo === null || antes === undefined) return false
-      if (antes.nome === selo.nome && antes.turnos === selo.turnos) return false
-      // Turnos novos = o total novo; a marca "já contou nesta rodada" fica.
-      return mudarSelo(sceneKey, seloId, { ...antes, nome: selo.nome, turnos: selo.turnos, total: selo.turnos })
+      if (antes.nome === selo.nome && antes.turnos === selo.turnos && modsIguais(antes.mods, selo.mods)) return false
+      return mudarSelo(sceneKey, seloId, seloEditado(antes, selo))
     },
 
     tirarSelo: (sceneKey, seloId) => mudarSelo(sceneKey, seloId, null),

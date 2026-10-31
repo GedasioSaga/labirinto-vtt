@@ -5,8 +5,10 @@ import { acoesDaVez, rankDeAgilidade, type AcoesDaVez } from './acoes'
 import {
   chaveDaVez,
   combateVazio,
+  DANO_MAX,
   EFEITOS_POR_MENSAGEM,
   GOLPES_PENDENTES_MAX,
+  MODS_POR_SELO_MAX,
   NOME_DA_FORMA_MAX,
   NOME_DO_GOLPE_MAX,
   NOME_DO_SELO_MAX,
@@ -22,6 +24,7 @@ import {
   type NumeroDaForma,
   type RolagemDaReacao,
   type SaidaDaReacao,
+  type SeloDaBatalha,
 } from './combate'
 import { corDaEquipe, equipeDe, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe } from './equipes'
 import type { JudgeNaCena } from './judge'
@@ -29,7 +32,7 @@ import { limiteDeArmas } from './leituraDaFicha'
 import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
-import { ehNomeDeSelo, selosDoToken, type SeloQueSoma } from './selos'
+import { ehAlvoDeMod, ehNomeDeSelo, selosDoToken, type SeloQueSoma } from './selos'
 import { aparenciaDaForma, nomeDaFormaLigada } from './transformacao'
 import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from './turnos'
 
@@ -230,7 +233,7 @@ function personagemDaCarta(carta: CartaDaOrdem, ctx: ContextoDoJogador): Persona
   return carta.personagemId === null ? undefined : ctx.personagens.find((candidato) => candidato.id === carta.personagemId)
 }
 
-/** F3: a forma (nome) e os selos que a carta mostra a quem a vê (Q5: também de NPC). Nada de número. */
+/** F3: a forma (nome) e os selos que a carta mostra a quem a vê (Q5: também de NPC). Nada de número da ficha (os mods são deltas). */
 function formaESelosDaCarta(saida: CartaParaJogador, carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: ContextoDoJogador): void {
   if (carta.personagemId !== null) {
     const forma = nomeDaFormaLigada(turnos.formas?.[carta.personagemId], personagemDaCarta(carta, ctx))
@@ -239,11 +242,27 @@ function formaESelosDaCarta(saida: CartaParaJogador, carta: CartaDaOrdem, turnos
     if (noTeto.length > 0) saida.forma = noTeto
   }
   const selos = selosDoToken(turnos.selos, carta.tokenId)
-    .map((selo): SeloParaJogador => ({ nome: selo.nome.slice(0, NOME_DO_SELO_MAX), turnos: selo.turnos === null ? null : Math.max(0, Math.min(TURNOS_DO_SELO_MAX, Math.round(selo.turnos))) }))
+    .map(seloNaCarta)
     // Nome torto (vazio, quebra de linha) fica de fora pelo mesmo motivo.
     .filter((selo) => ehNomeDeSelo(selo.nome))
     .slice(0, SELOS_POR_TOKEN_MAX)
   if (selos.length > 0) saida.selos = selos
+}
+
+/**
+ * Um selo como a carta o mostra. Tipos de habilidade F2: os mods vão (são
+ * deltas, nunca o número da ficha, também de NPC), nos tetos do fio; a
+ * natureza vai fora "condicao" (a ausência). O cartaoId e a origem, não.
+ */
+function seloNaCarta(selo: SeloDaBatalha): SeloParaJogador {
+  const saida: SeloParaJogador = { nome: selo.nome.slice(0, NOME_DO_SELO_MAX), turnos: selo.turnos === null ? null : Math.max(0, Math.min(TURNOS_DO_SELO_MAX, Math.round(selo.turnos))) }
+  const mods = (selo.mods ?? [])
+    .filter((mod) => ehAlvoDeMod(mod.alvo) && Number.isInteger(mod.delta) && mod.delta !== 0 && Math.abs(mod.delta) <= DANO_MAX)
+    .slice(0, MODS_POR_SELO_MAX)
+    .map((mod) => ({ alvo: mod.alvo, delta: mod.delta }))
+  if (mods.length > 0) saida.mods = mods
+  if (selo.natureza !== undefined && selo.natureza !== 'condicao') saida.natureza = selo.natureza
+  return saida
 }
 
 /**
