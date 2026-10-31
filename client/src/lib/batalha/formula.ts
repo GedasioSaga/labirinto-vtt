@@ -15,7 +15,8 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
  * Variáveis (sem acento e sem caixa): o nome ou a abreviação de cada atributo
  * do sistema (o TOTAL, `atributoComposto`), e "dano da arma", "dano de arma"
  * ou "arma" (o campo Dano da arma, lido pela mesma gramática, sem arma
- * dentro). Enfeite depois de número ou variável: "de dano", "de dano base",
+ * dentro), e "dano da bala" (o dano da bala escolhida na mira; 0 sem bala).
+ * Enfeite depois de número ou variável: "de dano", "de dano base",
  * "dano", "base", "pontos"; "de" + palavra desconhecida vira rótulo da conta
  * ("50 de queimadura" = "50 queimadura"). Qualquer outra palavra, dado
  * ("1d6") ou sobra = `naoEntende`: leitura errada é pior que vazia (R3).
@@ -37,8 +38,11 @@ export interface ContextoDaFormula {
   /** A vida do alvo, quando quem calcula pode vê-la; `null` = não sabe (o jogador nunca vê a do NPC). */
   vidaDoAlvo: { atual: number; maximo: number } | null
   /**
-   * A bala escolhida no Atacar (`BalaDaArma`, só nome e dano): muda o "Dano
-   * da arma". Ausente ou `null` = sem bala. Só `danoDoAtaque` a põe aqui.
+   * A bala escolhida na mira (`BalaDaArma`, só nome e dano). No Atacar
+   * (`danoDoAtaque`) muda o "Dano da arma". Numa fórmula que diz "Dano da
+   * Bala" (tipos de habilidade F1), é o número da bala ("+15" = 15) e o "Dano
+   * da arma" fica o da arma sozinha. Ausente ou `null` = sem bala especial
+   * ("Dano da Bala" = 0).
    */
   bala?: { nome: string; dano: string } | null
 }
@@ -134,16 +138,39 @@ function formatarNumero(valor: number): string {
   return Number.isInteger(valor) ? String(valor) : String(valor).replace('.', ',')
 }
 
+/** "dano da bala", "dano de bala", "dano do bala" a partir do token `i`. */
+function ehDanoDaBala(lista: readonly Token[], i: number): boolean {
+  const [primeira, segunda, terceira] = [lista[i], lista[i + 1], lista[i + 2]]
+  return (
+    primeira?.tipo === 'palavra' &&
+    primeira.chave === 'dano' &&
+    segunda?.tipo === 'palavra' &&
+    (segunda.chave === 'da' || segunda.chave === 'de' || segunda.chave === 'do') &&
+    terceira?.tipo === 'palavra' &&
+    terceira.chave === 'bala'
+  )
+}
+
+/** A fórmula fala do "Dano da Bala"? A tela usa para oferecer a escolha da bala também na técnica. */
+export function formulaUsaBala(texto: string): boolean {
+  const lista = tokens(semPontuacaoFinal(texto))
+  return lista !== null && lista.some((_, i) => ehDanoDaBala(lista, i))
+}
+
 /** O leitor de uma fórmula. `arma` false = dentro do dano da arma (sem arma de novo). */
 class Leitor {
   private i = 0
   falha: Falha | null = null
+  /** A fórmula tem "Dano da Bala": então o "Dano da arma" não soma a bala de novo. */
+  private readonly falaDaBala: boolean
 
   constructor(
     private readonly lista: readonly Token[],
     private readonly ctx: ContextoDaFormula,
     private readonly podeArma: boolean,
-  ) {}
+  ) {
+    this.falaDaBala = lista.some((_, i) => ehDanoDaBala(lista, i))
+  }
 
   ler(): Parcial | null {
     const soma = this.soma()
@@ -238,10 +265,14 @@ class Leitor {
     return parcial === null ? null : this.enfeites(parcial)
   }
 
-  /** "dano da arma", "dano de arma", "arma", ou um atributo. */
+  /** "dano da arma", "dano de arma", "arma", "dano da bala", ou um atributo. */
   private variavel(): Parcial | null {
     const primeira = this.olhar()
     if (primeira === undefined || primeira.tipo !== 'palavra') return this.falhar({ tipo: 'naoEntende' })
+    if (ehDanoDaBala(this.lista, this.i)) {
+      this.i += 3
+      return this.danoDaBala()
+    }
     const segunda = this.olhar(1)
     const terceira = this.olhar(2)
     const ehDanoDaArma =
@@ -268,7 +299,9 @@ class Leitor {
    */
   private danoDaArma(): Parcial | null {
     if (!this.podeArma) return this.falhar({ tipo: 'naoEntende' })
-    const { arma, bala } = this.ctx
+    const { arma } = this.ctx
+    // Com "Dano da Bala" na mesma fórmula, a bala já entra por lá: aqui, só a arma.
+    const bala = this.falaDaBala ? null : this.ctx.bala
     if (arma === null) return this.falhar({ tipo: 'precisaArma' })
     const nomeDaBala = bala === undefined || bala === null ? '' : bala.nome.trim() || 'Bala'
     const lista = bala === undefined || bala === null ? [] : tokens(semPontuacaoFinal(bala.dano))
@@ -284,6 +317,20 @@ class Leitor {
     if (somado === null) return null
     const valor = sinal.op === '+' ? somado.valor : -somado.valor
     return { valor: base.valor + valor, conta: `${base.conta} ${valor < 0 ? '-' : '+'} ${formatarNumero(Math.abs(valor))} ${nomeDaBala}` }
+  }
+
+  /**
+   * O "Dano da Bala" (tipos de habilidade F1, resposta solta de 31/10): o
+   * número da bala escolhida na mira, sem o sinal de soma ("+15" = "15 Bala de
+   * Prata", "40" = "40 Bala Explosiva"). Sem bala especial, ou bala sem dano:
+   * 0 ("0 sem bala"). Não precisa de arma.
+   */
+  private danoDaBala(): Parcial | null {
+    if (!this.podeArma) return this.falhar({ tipo: 'naoEntende' })
+    const { bala } = this.ctx
+    const texto = bala === undefined || bala === null ? '' : semPontuacaoFinal(bala.dano).replace(/^\+\s*/u, '')
+    if (bala === undefined || bala === null || texto.length === 0) return { valor: 0, conta: '0 sem bala' }
+    return this.trecho(tokens(texto), bala.nome.trim() || 'Bala')
   }
 
   /** Um dano de cartão (arma ou bala), sem arma dentro: "20" vira "20 Rosa Fúnebre". */

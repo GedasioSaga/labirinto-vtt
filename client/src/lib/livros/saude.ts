@@ -1,4 +1,4 @@
-import { CAMPO_DO_DANO, lerDano, normalizar, type ContextoDaFormula } from '../batalha/formula'
+import { CAMPO_DO_DANO, formulaUsaBala, lerDano, normalizar, type ContextoDaFormula } from '../batalha/formula'
 import {
   ABA_DAS_TECNICAS,
   CAMPO_DA_ACAO,
@@ -164,8 +164,11 @@ function motivoDoNaoEntende(texto: string): string {
   // Os dois grupos sempre casam quando o regex casa (o 1º pode ser vazio: "d20").
   if (dado !== null) return `Dado (${dado[1]}d${dado[2]}) não entra na conta: o app não rola por você.`
   if (normal.length > DANO_COMPRIDO) return 'Texto comprido demais para ser conta: parece descrição.'
-  return 'O app não entende esta conta. Ele lê números, atributos (Força, FOR), "Dano da arma" e "% da vida do alvo".'
+  return 'O app não entende esta conta. Ele lê números, atributos (Força, FOR), "Dano da arma", "Dano da Bala" e "% da vida do alvo".'
 }
+
+/** O "Dano da Bala" sai da bala escolhida na mira. */
+const MOTIVO_DA_BALA = 'O "Dano da Bala" vem da bala escolhida na mira (0 sem bala especial).'
 
 /**
  * O Dano do cartão pelos funis da batalha (`lerDano`, já com a força). Valor
@@ -182,12 +185,14 @@ export function lerDanoDoCartao(texto: string, cartao: CartaoDaFicha, personagem
     case 'semDano':
       return null
     case 'valor':
+      // "Dano da Bala": o número muda com a bala escolhida na mira (aqui, sem bala = 0).
+      if (formulaUsaBala(texto)) return { estado: 'naHora', leitura: lido.conta, motivo: MOTIVO_DA_BALA, valor: lido.valor }
       return { estado: 'lido', leitura: lido.conta, motivo: lido.aviso ?? '', valor: lido.valor }
     case 'precisaArma': {
       const arma = armasDe(personagem)[0]
       if (arma === undefined) return { estado: 'naHora', leitura: lido.conta, motivo: 'Pede o "Dano da arma" e a ficha não tem arma na aba Armas.', valor: null }
       const comArma = lerDano(texto, { ...ctx, arma })
-      const motivo = 'Usa a arma escolhida na hora do golpe.'
+      const motivo = formulaUsaBala(texto) ? `Usa a arma escolhida na hora do golpe. ${MOTIVO_DA_BALA}` : 'Usa a arma escolhida na hora do golpe.'
       return comArma.tipo === 'valor'
         ? { estado: 'naHora', leitura: `${comArma.conta} (com ${arma.nome})`, motivo: comArma.aviso === undefined ? motivo : `${motivo} ${comArma.aviso}`, valor: comArma.valor }
         : { estado: 'naHora', leitura: lido.conta, motivo, valor: null }
