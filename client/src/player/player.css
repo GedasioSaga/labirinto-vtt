@@ -716,15 +716,23 @@
  * nomes de classe vencem o `.bt-faixa` (relative) sem depender da ordem das
  * folhas. Janela estreita: desce para baixo da barra e ocupa a largura toda;
  * fica abaixo do painel aberto (z 10), que é o que o jogador abriu de propósito.
+ * O vão começa DEPOIS da coluna do painel aberta (`--pp-painel-ocupa`, que já
+ * traz o respiro): centrada na tela, a faixa entrava 160 px por baixo do painel
+ * a 1440 px e escondia a carta da vez. À direita, o que o canto come na altura
+ * da faixa (`--pp-canto-ocupa`, medido pela `FaixaDoJogador`; sem medida, os
+ * 288 px de antes), com o vão de 12 px. Painel fechado: a mesma folga dos dois
+ * lados, a faixa fica no meio. `left` + `right` + `margin: auto` centra a faixa
+ * no vão; `fit-content` a encolhe para caber nele (as cartas encolhem, depois rolam).
  */
 .bt-faixa.pp-batalha-faixa {
   position: fixed;
   top: calc(12px + var(--pp-alarm-space, 0px));
-  left: 50%;
-  translate: -50% 0;
+  left: max(calc(var(--pp-canto-ocupa, 288px) + 12px), calc(var(--pp-edge, 12px) + var(--pp-painel-ocupa, 0px)));
+  right: calc(var(--pp-canto-ocupa, 288px) + 12px);
   z-index: 9;
-  width: max-content;
-  max-width: min(820px, calc(100% - 2 * 300px));
+  width: fit-content;
+  max-width: 820px;
+  margin-inline: auto;
 }
 
 @media (max-width: 999px) {
@@ -797,7 +805,9 @@
     calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)),
     calc(12px + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px)
   );
-  bottom: calc(var(--pp-chao, 12px) + 12px);
+  /* Termina acima do botão REAÇÃO (chão + 8 + 44 de toque + 12 de vão): a mira alta
+     descia até o chão e o botão cobria o "Voltar Esc". */
+  bottom: calc(var(--pp-chao, 12px) + 64px);
   left: calc(var(--pp-edge, 12px) + 12px + var(--pp-painel-ocupa, 0px));
   z-index: 9;
   display: flex;
@@ -813,6 +823,27 @@
 /* A altura é a do lugar (não os 78vh do componente): as tiras só rolam se não couberem. */
 .pp-batalha-menu > .bt-vez {
   max-height: 100%;
+}
+/*
+ * Os anéis da mira (`.bt-marcas-da-mira`, fixos sobre as fichas) moram dentro
+ * do menu: com o z 8 deles, a ficha embaixo do formulário pintava o anel POR
+ * CIMA do papel. Abaixo de tudo do menu (z negativo na pilha dele, que é o
+ * z 9 fixo), continuam acima do mapa e do véu, e o formulário os cobre.
+ */
+.pp-batalha-menu .bt-marcas-da-mira {
+  z-index: -1;
+}
+/*
+ * A mira alta (vários alvos, selo) passava do lugar do menu e descia até o
+ * botão REAÇÃO: rola dentro dele. Só a tela da mira: a lista tem a leitura ao
+ * lado (`.bt-detalhe--lado`), fora da caixa, que a rolagem cortaria. O pé de
+ * 8 px é a sombra de sangue do papel.
+ */
+.pp-batalha-menu > .bt-vez--lista:has(> .bt-mira) {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
 }
 /*
  * Notebook de 1366x768 (no navegador sobram ~650 px de altura): as cinco

@@ -55,6 +55,8 @@ const VOLTA_MS = 180
 const CURVA_DA_TROCA = 'cubic-bezier(0.77, 0, 0.175, 1)'
 const CURVA_DA_VOLTA = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const VIZINHO_ABRINDO = `translate ${VOLTA_MS}ms ${CURVA_DA_VOLTA}`
+/** Respiro em volta da carta da vez quando a fila rola até ela (o contorno de latão e a sombra). */
+const FOLGA_DA_VEZ_PX = 4
 
 /** Sem `matchMedia` (jsdom, WebView antiga) vale o movimento normal. Cópia do grimório, que o jogador não carrega. */
 function movimentoReduzido(): boolean {
@@ -129,6 +131,23 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
     focoDepois.current = null
     if (focar !== null) ol.querySelector<HTMLElement>(`.bt-carta[data-id="${CSS.escape(focar)}"] .bt-carta__corpo`)?.focus({ preventScroll: false })
   })
+
+  // A vez andou (ou a faixa abriu): a carta da vez fica à vista. Só a fila de cartas
+  // rola, nunca a página; a carta já inteira na janela não mexe nada.
+  const vezAgora = dados.vez
+  useEffect(() => {
+    const ol = lista.current
+    if (ol === null || vezAgora === null) return
+    const carta = ol.querySelector<HTMLElement>(`.bt-carta[data-id="${CSS.escape(vezAgora)}"]`)
+    if (carta === null) return
+    const inicio = carta.offsetLeft - FOLGA_DA_VEZ_PX
+    const fim = carta.offsetLeft + carta.offsetWidth + FOLGA_DA_VEZ_PX
+    const destino = inicio < ol.scrollLeft ? inicio : fim > ol.scrollLeft + ol.clientWidth ? fim - ol.clientWidth : null
+    if (destino === null || Math.max(0, destino) === ol.scrollLeft) return
+    // Sem `scrollTo` no elemento (jsdom): o pulo seco.
+    if (typeof ol.scrollTo !== 'function') ol.scrollLeft = Math.max(0, destino)
+    else ol.scrollTo({ left: Math.max(0, destino), behavior: movimentoReduzido() ? 'auto' : 'smooth' })
+  }, [vezAgora, ordem])
 
   // A carta do menu saiu da ordem (outro tirou, desfez): o menu fecha.
   const cartaDoMenu = menu === null ? undefined : dados.cartas.find((carta) => carta.id === menu.cartaId)

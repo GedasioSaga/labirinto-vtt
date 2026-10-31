@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -40,6 +40,55 @@ export interface FaixaDoJogadorProps {
   /** "Zerar a concentração" na carta dele, a qualquer hora (só com carga). `false` = não saiu. Ausente = sem o item. */
   onZerarMinhaCarga?: (personagemId: string) => boolean
   className?: string
+}
+
+/** A variável que diz quanto o canto da direita do jogador come do alto da tela (player.css). */
+const CANTO_OCUPA_VAR = '--pp-canto-ocupa'
+
+/**
+ * O canto da direita do jogador (`.pp-canto`: abas de andar, "Onde estou",
+ * "Tela acesa") só come o alto da tela até a peça mais larga NA ALTURA DA
+ * FAIXA; as rolagens moram no pé e não contam. Mede essa largura e põe na
+ * raiz (`--pp-canto-ocupa`), para a faixa da ordem usar o vão de verdade: a
+ * reserva fixa de 300 px deixava a 4ª carta rolando com o painel aberto.
+ */
+function useCantoOcupa(className: string | undefined) {
+  useLayoutEffect(() => {
+    const canto = document.querySelector<HTMLElement>('.pp-canto')
+    if (canto === null || className === undefined) return
+    const raiz = document.documentElement
+    // A caixa das rolagens estica até o alto da coluna, mas a lista mora no pé dela e
+    // cresce para cima: conta a lista (quando sobe até a faixa), não a caixa.
+    const pecas = () => Array.from(canto.children).flatMap((peca) => (peca.classList.contains('pp-rolagens') ? Array.from(peca.querySelectorAll('.pp-dice-feed')) : [peca]))
+    const medir = () => {
+      const faixa = document.querySelector<HTMLElement>(`.${className.split(' ')[0]}`)
+      const fundo = faixa === null ? Number.POSITIVE_INFINITY : faixa.getBoundingClientRect().bottom
+      let esquerda = window.innerWidth
+      for (const peca of pecas()) {
+        const caixa = peca.getBoundingClientRect()
+        if (caixa.width > 0 && caixa.height > 0 && caixa.top < fundo) esquerda = Math.min(esquerda, caixa.left)
+      }
+      raiz.style.setProperty(CANTO_OCUPA_VAR, `${Math.ceil(window.innerWidth - esquerda)}px`)
+    }
+    const tamanho = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
+    const vigiar = () => {
+      tamanho?.disconnect()
+      tamanho?.observe(canto)
+      for (const peca of pecas()) tamanho?.observe(peca)
+      medir()
+    }
+    // Aba de andar que chega ou sai, a lista de rolagens que nasce: vigia a peça nova.
+    const filhos = typeof MutationObserver === 'undefined' ? null : new MutationObserver(vigiar)
+    filhos?.observe(canto, { childList: true, subtree: true })
+    window.addEventListener('resize', medir)
+    vigiar()
+    return () => {
+      tamanho?.disconnect()
+      filhos?.disconnect()
+      window.removeEventListener('resize', medir)
+      raiz.style.removeProperty(CANTO_OCUPA_VAR)
+    }
+  }, [className])
 }
 
 /** Sem resposta do host neste prazo, o botão volta (o pedido foi recusado ou se perdeu). */
@@ -84,6 +133,8 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
     if (carta.minha) onAbrirMinhaFicha?.()
     else if (carta.personagemId !== null) setPerfilId(carta.personagemId)
   }
+
+  useCantoOcupa(className)
 
   const vez = estado.vez
   const daCarta = perfil === undefined ? undefined : dados.cartas.find((carta) => carta.personagemId === perfil.id)
