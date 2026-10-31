@@ -281,6 +281,19 @@
   background: var(--bt-tinta);
   color: var(--lb-color-brass-bright);
 }
+/* A categoria da arma (Branca, De fogo...): o selo vazado, para não brigar com o dano. */
+.bt-etq--categoria {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bt-tira[data-esta='sim'] .bt-etq--categoria,
+.bt-mira__arma .bt-etq.bt-etq--categoria {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(12, 12, 14, 0.45);
+  color: var(--bt-tinta);
+}
 .bt-tira[aria-disabled='true'] {
   cursor: not-allowed;
   color: var(--lb-color-parchment-faint);
@@ -1862,6 +1875,82 @@
 .bt-num.bt-num--texto {
   width: 16ch;
   text-align: left;
+}
+
+/* A arma na mira: a categoria e a capacidade, logo abaixo do nome. */
+.bt-mira__arma {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: -4px 0 0;
+}
+.bt-mira__arma .bt-etq {
+  background: rgba(12, 12, 14, 0.1);
+  color: var(--bt-tinta);
+}
+/* A escolha da bala: uma linha por tipo, como os alvos; a marcada no tom do sangue. */
+.bt-mira__balas {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.bt-mira__balas legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: var(--lb-font-size-xs);
+  color: #5d5a54;
+}
+.bt-bala {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: rgba(12, 12, 14, 0.06);
+  cursor: pointer;
+  font-size: var(--lb-font-size-sm);
+}
+.bt-bala:has(input:checked) {
+  background: rgba(180, 73, 60, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(180, 73, 60, 0.55);
+}
+.bt-bala:focus-within {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 1px;
+}
+.bt-bala input[type='radio'] {
+  margin: 0;
+  accent-color: var(--bt-sangue);
+}
+.bt-bala__nome {
+  display: grid;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.bt-bala__det {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  color: #5d5a54;
+}
+.bt-bala__dano {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bt-bala__fonte {
+  font-size: var(--lb-font-size-xs);
+  color: #5d5a54;
 }
 
 /* F3: pôr, editar e tirar selo (janela do mestre). */

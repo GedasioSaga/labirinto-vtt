@@ -13,7 +13,17 @@ import {
 } from '../../lib/batalha/combate'
 import { seloDaTecnica } from '../../lib/batalha/selos'
 import { danoDoAtaque, type LeituraDoDano } from '../../lib/batalha/formula'
-import { CAMPO_DA_ACAO, armasDe, lerAcao, perfuracaoDe, type LeituraDoCusto, type LeituraDoTempo } from '../../lib/batalha/leituraDaFicha'
+import {
+  CAMPO_DA_ACAO,
+  CATEGORIAS_DE_ARMA,
+  armasDe,
+  lerAcao,
+  perfuracaoDe,
+  type ArmaDaFicha,
+  type BalaDaArma,
+  type LeituraDoCusto,
+  type LeituraDoTempo,
+} from '../../lib/batalha/leituraDaFicha'
 import { danoFinal, danoQueChega, saidasPossiveis } from '../../lib/batalha/reacao'
 import type { CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
@@ -69,6 +79,25 @@ export interface GolpeNaTela {
   leitura: readonly LinhaDaLeitura[]
   /** F3: o selo que o texto sugere ("Atordoa por 1 turno"); a mira o traz marcado. Ausente = nenhum. */
   selo?: SeloPedido
+  /** Atacar com arma: a categoria da ficha ("De fogo"); ausente = a ficha não diz. */
+  categoria?: string
+  /** Atacar com arma: a capacidade da ficha ("6"), só mostra; ausente = a ficha não diz. */
+  capacidade?: string
+  /** Atacar com arma: os tipos de bala, cada um com o dano já feito; ausente = a arma não tem balas. */
+  balas?: readonly BalaNaTela[]
+}
+
+/** Um tipo de bala na mira: o texto da ficha e o dano do ataque com ela. */
+export interface BalaNaTela {
+  id: string
+  nome: string
+  /** Como a ficha diz: "+15" soma ao dano da arma, "40" troca; vazio = o da arma. */
+  danoTexto: string
+  efeito: string
+  /** Texto livre, só mostra: o app não conta tiros. */
+  quantidade: string
+  /** O dano do Atacar com esta bala ("160 Força + 20 Rosa + 15 Prata = 195"). */
+  dano: DanoNaTela
 }
 
 /** Uma linha da leitura inteira: o rótulo do campo e o texto como a ficha diz. */
@@ -248,7 +277,7 @@ export function golpesDeHabilidade(
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */
-export function armasNaBatalha(personagem: Personagem | null, combate: Pick<CombateDoPersonagem, 'armas'> | undefined): CartaoDaFicha[] {
+export function armasNaBatalha(personagem: Personagem | null, combate: Pick<CombateDoPersonagem, 'armas'> | undefined): ArmaDaFicha[] {
   if (personagem === null) return []
   const todas = armasDe(personagem)
   const levadas = combate?.armas
@@ -261,15 +290,25 @@ const DESCRICAO_DO_DESARMADO = 'Sem arma: o dano é a Força.'
 /** O Atacar: uma tira por arma levada; sem arma, o ataque desarmado (Força). Q2: Força + dano da arma, editável. */
 export function golpesDeAtaque(personagem: Personagem | null, sistema: SistemaDeRpg | null, combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez | null): GolpeNaTela[] {
   const carga = combate?.carga ?? 0
-  const golpeDe = (arma: CartaoDaFicha | null): GolpeNaTela => {
+  const danoCom = (arma: ArmaDaFicha | null, bala: BalaDaArma | null): DanoNaTela =>
+    personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null }, bala))
+  const golpeDe = (arma: ArmaDaFicha | null): GolpeNaTela => {
     const lida = arma === null ? null : lerAcao(arma.campos[CAMPO_DA_ACAO] ?? '').acao
     const acaoDaFicha: AcaoDaTecnica = lida === null || lida === 'passiva' ? 'simples' : lida
     const gasta = acaoDoGolpe(acaoDaFicha, carga) ?? acaoDaFicha
-    const dano = personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null }))
+    const dano = danoCom(arma, null)
     const descricao = arma === null ? DESCRICAO_DO_DESARMADO : (arma.campos.descricao ?? arma.campos.efeito ?? '').trim()
     const selo = arma === null ? null : seloDaTecnica(arma)
+    const categoria = arma === null || arma.categoria === null ? null : (CATEGORIAS_DE_ARMA.find((candidata) => candidata.id === arma.categoria)?.rotulo ?? null)
+    const balas: BalaNaTela[] =
+      arma === null
+        ? []
+        : arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: bala.efeito, quantidade: bala.quantidade, dano: danoCom(arma, bala) }))
     return {
       ...(selo === null ? {} : { selo }),
+      ...(categoria === null ? {} : { categoria }),
+      ...(arma === null || arma.capacidade === null ? {} : { capacidade: arma.capacidade }),
+      ...(balas.length === 0 ? {} : { balas }),
       chave: arma === null ? 'ataque' : `arma:${arma.id}`,
       tipo: 'atacar',
       cartaoId: null,

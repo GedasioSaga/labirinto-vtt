@@ -88,7 +88,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
                 <input type="radio" name="bt-golpe-do-npc" checked={escolhida === item.chave} disabled={item.motivo !== null} onChange={() => setEscolhida(item.chave)} />
                 <span className="bt-opcao__nome">
                   {item.nome}
-                  <small>{item.motivo ?? [item.acaoTexto, item.dano.valor === null ? (item.dano.semDano ? 'sem dano' : 'dano à mão') : `dano ${formatarNumero(item.dano.valor)}`, item.tempoTexto].filter(Boolean).join(' · ')}</small>
+                  <small>{item.motivo ?? [item.categoria, item.capacidade === undefined ? null : `Cap. ${item.capacidade}`, item.acaoTexto, item.dano.valor === null ? (item.dano.semDano ? 'sem dano' : 'dano à mão') : `dano ${formatarNumero(item.dano.valor)}`, item.tempoTexto].filter(Boolean).join(' · ')}</small>
                 </span>
                 <span className="bt-opcao__lado">
                   {sugestao.chave === item.chave && <span className="bt-opcao__sug">sugerido</span>} {item.custoTexto ?? ''}

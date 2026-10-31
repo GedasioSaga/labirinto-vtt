@@ -190,6 +190,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
       <div className="bt-vez bt-vez--lista" data-instantaneo="sim">
         <CabecaDaVez quem={quem} pips={pips} carga={carga} />
         <MiraDoGolpe
+          key={tela.golpe.chave}
           golpe={tela.golpe}
           carga={carga}
           alvos={alvos}

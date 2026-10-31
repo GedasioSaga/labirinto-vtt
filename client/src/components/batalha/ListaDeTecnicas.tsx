@@ -171,11 +171,14 @@ export function ChipsDoGolpe({ golpe }: { golpe: GolpeNaTela }) {
   return (
     <>
       {golpe.forma !== undefined && <span className="bt-etq bt-etq--forma">{golpe.forma}</span>}
+      {golpe.categoria !== undefined && <span className="bt-etq bt-etq--categoria">{golpe.categoria}</span>}
+      {golpe.capacidade !== undefined && <span className="bt-etq" title={`Capacidade: ${golpe.capacidade}`}>Cap. {golpe.capacidade}</span>}
       <span className="bt-etq">{golpe.acaoTexto}</span>
       {!golpe.dano.semDano && <span className="bt-etq bt-etq--dano">{golpe.dano.valor === null ? 'Dano: fórmula' : `Dano ${golpe.dano.valor}`}</span>}
       {golpe.tempoTexto !== null && <span className={golpe.overload ? 'bt-etq bt-etq--over' : 'bt-etq'}>{golpe.tempoTexto}</span>}
       {golpe.overload && golpe.tempoTexto !== 'Overload' && <span className="bt-etq bt-etq--over">Overload</span>}
       {golpe.perfurante && <span className="bt-etq">Perfurante</span>}
+      {golpe.balas !== undefined && <span className="bt-etq">{golpe.balas.length === 1 ? '1 tipo de bala' : `${golpe.balas.length} tipos de bala`}</span>}
     </>
   )
 }

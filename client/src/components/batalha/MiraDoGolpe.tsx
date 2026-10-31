@@ -17,7 +17,18 @@ import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
 import { BotaoDaCalculadora, CalculadoraDeDano } from './CalculadoraDeDano'
-import { contaDoGolpe, formatarNumero, lerInteiro, lerPerfuracao, textoDaAcao, textoDoPerfurante, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import {
+  contaDoGolpe,
+  formatarNumero,
+  lerInteiro,
+  lerPerfuracao,
+  textoDaAcao,
+  textoDoPerfurante,
+  type AlvoNaMira,
+  type BalaNaTela,
+  type DanoNaTela,
+  type GolpeNaTela,
+} from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
 
@@ -30,7 +41,9 @@ import './combate.css'
  * Surpresa (×1,5, sem reação), Perfurante (Q4), a nota da reação e Lançar.
  * F3: o selo que a técnica sugere ("por 1 turno" = "Selo: Atordoado · 1
  * turno") vem marcado, com nome e turnos editáveis e o desmarcar; pega só no
- * alvo que o golpe acerta (Q6).
+ * alvo que o golpe acerta (Q6). Atacar com arma de balas: a escolha da bala
+ * ("Sem bala especial" = o dano da arma) refaz o Dano base e a conta, e o
+ * pedido leva o `balaId`.
  *
  * Esc volta à lista; Enter num campo lança.
  */
@@ -51,6 +64,8 @@ export interface EscolhaDaMira {
   acao: AcaoDaTecnica | null
   /** F3: o selo sugerido, se ficou marcado (editado ou não); `null` = sem selo. */
   selo: SeloPedido | null
+  /** Atacar com arma de balas: o tipo de bala escolhido; ausente = "Sem bala especial" (o dano da arma). */
+  balaId?: string
 }
 
 /** O pedido de um golpe da mira (o mesmo no menu do jogador e no painel do NPC). */
@@ -58,7 +73,11 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
   const selo = escolha.selo === null ? {} : { selo: escolha.selo }
   // A porcentagem só vai quando é parcial: 100% é o Perfurante de sempre, o pedido sem o campo.
   const perfuracao = escolha.perfurante && escolha.perfuracao !== null && escolha.perfuracao < PERFURACAO_MAX ? { perfuracao: escolha.perfuracao } : {}
-  if (golpe.tipo === 'atacar') return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...perfuracao, ...selo }
+  if (golpe.tipo === 'atacar') {
+    // A bala só vai com a arma (o pedido sem `armaId` e com `balaId` é torto).
+    const bala = golpe.armaId !== null && escolha.balaId !== undefined ? { balaId: escolha.balaId } : {}
+    return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...perfuracao, ...selo, ...bala }
+  }
   return {
     tipo: 'habilidade',
     cartaoId: golpe.cartaoId ?? '',
@@ -76,6 +95,29 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
 /** "1 turno", "2 turnos", "até tirar". */
 function textoDosTurnos(turnos: number | null): string {
   return turnos === null ? 'até tirar' : `${turnos} ${turnos === 1 ? 'turno' : 'turnos'}`
+}
+
+const SEM_BALAS: readonly BalaNaTela[] = []
+
+/**
+ * Uma bala na escolha da mira: o nome, o dano como a ficha diz ("+15" soma,
+ * "40" troca) e o total do ataque com ela; embaixo, o efeito numa linha (o
+ * texto inteiro no `title`) e a quantidade, que só mostra.
+ */
+function OpcaoDeBala({ nome, marcada, titulo, danoTexto, total, detalhe, onEscolher }: { nome: string; marcada: boolean; titulo: string; danoTexto: string; total: DanoNaTela; detalhe: string; onEscolher: () => void }) {
+  return (
+    <label className="bt-bala" title={detalhe === '' ? undefined : detalhe}>
+      <input type="radio" name={nome} checked={marcada} onChange={onEscolher} />
+      <span className="bt-bala__nome">
+        {titulo}
+        {detalhe !== '' && <small className="bt-bala__det">{detalhe}</small>}
+      </span>
+      <span className="bt-bala__dano">
+        <span className="bt-bala__fonte">{danoTexto}</span>
+        <b>{total.valor === null ? 'à mão' : `= ${formatarNumero(total.valor)}`}</b>
+      </span>
+    </label>
+  )
 }
 
 export interface MiraDoGolpeProps {
@@ -131,6 +173,11 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const [seloNome, setSeloNome] = useState(sugerido?.nome ?? '')
   const [seloTurnos, setSeloTurnos] = useState(sugerido?.turnos === null || sugerido === null ? '' : String(sugerido.turnos))
   const [erro, setErro] = useState<string | null>(null)
+  // A bala da arma (Atacar com arma de fogo ou híbrida): `null` = sem bala especial, o dano da arma.
+  const balas = golpe.balas ?? SEM_BALAS
+  const [balaId, setBalaId] = useState<string | null>(null)
+  const balaEscolhida = balaId === null ? null : (balas.find((bala) => bala.id === balaId) ?? null)
+  const danoAtual = balaEscolhida?.dano ?? golpe.dano
   const caixas = useRef<Map<string, HTMLInputElement>>(new Map())
   // A calculadora do Dano base: abre no lugar, "Usar este valor" põe o número no campo.
   const [calculando, setCalculando] = useState(false)
@@ -221,6 +268,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       custo,
       acao: golpe.acao === null && acao !== '' ? acao : null,
       selo,
+      ...(balaEscolhida === null ? {} : { balaId: balaEscolhida.id }),
     })
     if (!saiu) setErro('O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
   }
@@ -241,6 +289,15 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     if (proximo !== undefined) caixas.current.get(proximo.tokenId)?.focus()
   }
 
+  /** Trocar a bala refaz a conta: o Dano base vira o da bala, e os danos editados por alvo voltam à conta. */
+  const escolherBala = (id: string | null) => {
+    const dano = id === null ? golpe.dano : (balas.find((bala) => bala.id === id)?.dano ?? golpe.dano)
+    setErro(null)
+    setBalaId(id)
+    setBaseTexto(dano.valor === null ? '' : String(dano.valor))
+    setEditados({})
+  }
+
   const marcadosSet = useMemo(() => new Set(marcados), [marcados])
   const verbo = rotuloDoLancar ?? 'Lançar'
   const textoDoLancar = marcados.length > 1 ? `${verbo} em ${marcados.length} alvos` : verbo
@@ -252,6 +309,38 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
         <h3 className="bt-mira__nome" id={`${idBase}-nome`}>
           {golpe.nome}
         </h3>
+        {(golpe.categoria !== undefined || golpe.capacidade !== undefined) && (
+          <p className="bt-mira__arma">
+            {golpe.categoria !== undefined && <span className="bt-etq bt-etq--categoria">{golpe.categoria}</span>}
+            {golpe.capacidade !== undefined && <span className="bt-etq" title={`Capacidade: ${golpe.capacidade}`}>Cap. {golpe.capacidade}</span>}
+          </p>
+        )}
+        {balas.length > 0 && (
+          <fieldset className="bt-mira__balas">
+            <legend>Bala · a conta do dano muda com ela</legend>
+            <OpcaoDeBala
+              nome={`${idBase}-bala`}
+              marcada={balaId === null}
+              titulo="Sem bala especial"
+              danoTexto="o da arma"
+              total={golpe.dano}
+              detalhe="Atira com o dano da própria arma."
+              onEscolher={() => escolherBala(null)}
+            />
+            {balas.map((bala) => (
+              <OpcaoDeBala
+                key={bala.id}
+                nome={`${idBase}-bala`}
+                marcada={balaId === bala.id}
+                titulo={bala.nome}
+                danoTexto={bala.danoTexto === '' ? 'o da arma' : bala.danoTexto}
+                total={bala.dano}
+                detalhe={[bala.efeito, bala.quantidade === '' ? '' : `Qtd. ${bala.quantidade}`].filter(Boolean).join(' · ')}
+                onEscolher={() => escolherBala(bala.id)}
+              />
+            ))}
+          </fieldset>
+        )}
         {!semDano && (
           <div className="bt-linha-campo">
             <label className="bt-linha-campo">
@@ -269,7 +358,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
               />
             </label>
             <BotaoDaCalculadora aberta={calculando} controla={`${idBase}-calc`} botao={botaoDaCalculadora} onAlternar={() => setCalculando((antes) => !antes)} />
-            <small className="bt-mira__nota">{golpe.dano.conta}</small>
+            <small className="bt-mira__nota">{danoAtual.conta}</small>
           </div>
         )}
         {!semDano && calculando && (
