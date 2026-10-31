@@ -4,21 +4,28 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { acoesDaVez, rankDeAgilidade, type AcoesDaVez } from './acoes'
 import {
   chaveDaVez,
+  CHAVE_DA_LEMBRADA_MAX,
   combateVazio,
   DANO_MAX,
   EFEITOS_POR_MENSAGEM,
   GOLPES_PENDENTES_MAX,
+  ID_DO_CARTAO_MAX,
+  LEMBRADAS_MAX,
+  LEMBRETES_MAX,
   MODS_POR_SELO_MAX,
   NOME_DA_FORMA_MAX,
   NOME_DO_GOLPE_MAX,
   NOME_DO_SELO_MAX,
   NUMERO_DA_FORMA_MAX,
   NUMEROS_DA_FORMA_MAX,
+  PASSIVAS_ATIVAS_MAX,
   ROTULO_DO_NUMERO_MAX,
   SELOS_POR_TOKEN_MAX,
   TURNOS_DO_SELO_MAX,
+  type CombateDoPersonagem,
   type EfeitoDaBatalha,
   type GolpeDaBatalha,
+  type LembreteDaPassiva,
   type ModDoSelo,
   type NaturezaDoSelo,
   type NumeroDaForma,
@@ -29,6 +36,7 @@ import {
 import { corDaEquipe, equipeDe, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe } from './equipes'
 import type { JudgeNaCena } from './judge'
 import { limiteDeArmas } from './leituraDaFicha'
+import { passivasLigadas } from './passivas'
 import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
@@ -148,6 +156,12 @@ export interface CombateParaJogador {
   armas: string[] | null
   /** A escolha "Armas por batalha"; `null` = sem limite. */
   limiteDeArmas: number | null
+  /** Tipos de habilidade F3: os lembretes de passiva esperando ESTE dono ("Ativar / Agora não", "Aplicar / pular"). Ausente = nenhum. */
+  lembretes?: LembreteDaPassiva[]
+  /** Tipos de habilidade F3: as chaves de gatilho que já lembraram. Ausente = nenhuma. */
+  lembradas?: string[]
+  /** Tipos de habilidade F3: os cartaoIds das passivas ligadas (o "Ativa" da tira; o selo na carta não leva o cartaoId). Ausente = nenhuma. */
+  passivasAtivas?: string[]
 }
 
 export interface ReacaoParaJogador {
@@ -345,7 +359,7 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
     vistos.add(personagemId)
     const combate = turnos.combate?.[personagemId] ?? combateVazio()
     const personagem = ctx.personagens.find((candidato) => candidato.id === personagemId)
-    meus.push({
+    const meu: CombateParaJogador = {
       personagemId,
       recargas: mapaNoTeto(combate.recargas),
       usos: mapaNoTeto(combate.usos),
@@ -354,9 +368,30 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
       concentrouNestaVez: daVez !== null && combate.concentrouEm === chaveDaVez(turnos.rodada, daVez.id),
       armas: combate.armas === null ? null : [...combate.armas],
       limiteDeArmas: personagem === undefined ? null : limiteDeArmas(personagem),
-    })
+    }
+    meus.push(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]))
   }
   return meus
+}
+
+/**
+ * Tipos de habilidade F3: os lembretes, as chaves lembradas e as passivas
+ * ligadas do personagem DELE (o NPC nunca chega aqui: `meus` só leva ficha
+ * dele). Nos tetos do fio; campo vazio não sai (o JSON de quem não tem
+ * passiva fica igual byte a byte).
+ */
+function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem, ativas: readonly string[]): CombateParaJogador {
+  const cabe = (cartaoId: string): boolean => cartaoId.length >= 1 && cartaoId.length <= ID_DO_CARTAO_MAX
+  const lembretes = (combate.lembretes ?? [])
+    .filter((lembrete) => cabe(lembrete.cartaoId) && lembrete.chave.length >= 1 && lembrete.chave.length <= CHAVE_DA_LEMBRADA_MAX && lembrete.rodada >= 1)
+    .slice(0, LEMBRETES_MAX)
+    .map((lembrete): LembreteDaPassiva => ({ cartaoId: lembrete.cartaoId, tokenId: lembrete.tokenId, tipo: lembrete.tipo, chave: lembrete.chave, rodada: lembrete.rodada }))
+  const lembradas = (combate.lembradas ?? []).filter((chave) => chave.length >= 1 && chave.length <= CHAVE_DA_LEMBRADA_MAX).slice(-LEMBRADAS_MAX)
+  const passivasAtivas = ativas.filter(cabe).slice(0, PASSIVAS_ATIVAS_MAX)
+  if (lembretes.length > 0) meu.lembretes = lembretes
+  if (lembradas.length > 0) meu.lembradas = lembradas
+  if (passivasAtivas.length > 0) meu.passivasAtivas = passivasAtivas
+  return meu
 }
 
 function nomeDoGolpe(golpe: GolpeDaBatalha): string {
