@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent,
 import { createPortal } from 'react-dom'
 import {
   abaDeDestino,
+  BALAS_POR_ENTRADA_MAX,
   camposDoTipo,
   chaveDoNomeDaEntrada,
   DADOS_DO_TIPO,
@@ -11,12 +12,16 @@ import {
   itemLimpo,
   novoIdDeEntrada,
   TIPOS_DO_CATALOGO,
+  type BalaDoCatalogo,
   type ItemDoCatalogo,
   type TipoDoCatalogo,
 } from '../../lib/livros/catalogo'
-import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../../lib/batalha/leituraDaFicha'
+import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../../stores/catalogoStore'
+import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo } from '../escolhaDeCampo'
 import { formatarNumero, movimentoReduzido } from './comum'
+import { IconeDoMundo } from './icones'
 import './mundo.css'
 import './itens.css'
 
@@ -44,7 +49,30 @@ const CONTADOR_A_PARTIR_DE = 0.8
 const FOCAVEIS = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /** Exemplo de formato em alguns campos (os que a batalha lê do jeito do roteiro: "35", "Ação Simples"). */
-const EXEMPLO_DO_CAMPO: Readonly<Record<string, string>> = { dano: 'ex.: 35', acao: 'ex.: Ação Simples', quantidade: 'ex.: 1' }
+const EXEMPLO_DO_CAMPO: Readonly<Record<string, string>> = { dano: 'ex.: 35', acao: 'ex.: Ação Simples', quantidade: 'ex.: 1', capacidade: 'ex.: 6' }
+/** O mesmo, na bala: o Dano dela soma ("+15") ou troca ("40") o da arma. */
+const EXEMPLO_DO_CAMPO_DA_BALA: Readonly<Record<string, string>> = { dano: 'ex.: +15 ou 40', efeito: 'ex.: Queimadura', quantidade: 'ex.: 12' }
+
+/** Um tipo de bala na janela: a chave só segura o foco e o React no lugar; não vai para o catálogo. */
+interface BalaEmEdicao {
+  chave: string
+  nome: string
+  campos: Record<string, string>
+}
+
+let ultimaChaveDeBala = 0
+function novaBalaEmEdicao(bala?: BalaDoCatalogo): BalaEmEdicao {
+  ultimaChaveDeBala += 1
+  return { chave: `bala-${ultimaChaveDeBala}`, nome: bala?.nome ?? '', campos: { ...(bala?.campos ?? {}) } }
+}
+
+/** O molde das balas da arma (a aba dos subcartões "Tipos de bala"); `undefined` = o tipo não é arma ou a arma deste sistema não tem balas. */
+function moldeDasBalas(sistema: SistemaDeRpg, tipo: TipoDoCatalogo): { rotulo: string; aba: AbaDoSistema } | undefined {
+  if (tipo !== 'arma') return undefined
+  const sub = abaDeDestino(sistema, tipo)?.subcartoes
+  const aba = sub === undefined ? undefined : abaDoSistema(sistema, sub.aba)
+  return sub === undefined || aba === undefined ? undefined : { rotulo: sub.rotulo, aba }
+}
 
 function mensagemDoErro(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
@@ -69,15 +97,36 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const [texto, setTexto] = useState(editando?.texto ?? '')
   /** Todos os campos digitados, de qualquer tipo: trocar de Arma para Habilidade e voltar não perde o Dano. */
   const [campos, setCampos] = useState<Record<string, string>>(() => ({ ...(editando?.campos ?? {}) }))
+  const [balas, setBalas] = useState<BalaEmEdicao[]>(() => (editando?.balas ?? []).map(novaBalaEmEdicao))
+  const [erroDaBala, setErroDaBala] = useState<{ chave: string; texto: string } | null>(null)
   const [erroDoNome, setErroDoNome] = useState<string | null>(null)
   const [erroDoDisco, setErroDoDisco] = useState<string | null>(null)
   const [gravando, setGravando] = useState(false)
   const [saindo, setSaindo] = useState(false)
   const [mexeu, setMexeu] = useState(false)
+  /** O nome de cada bala, para o foco ir à que nasceu ou à que falta nome. */
+  const nomesDasBalas = useRef(new Map<string, HTMLInputElement>())
+  /** Depois do próximo desenho das balas, o foco vai ao nome desta bala, ou ao "+ Bala" (`'botao'`, depois de remover). */
+  const balaParaFocar = useRef<string | null>(null)
+  const botaoDaBala = useRef<HTMLButtonElement>(null)
 
   const camposDoTipoEscolhido = camposDoTipo(sistema, tipo)
   const semAba = abaDeDestino(sistema, tipo) === undefined
   const pertoDoLimite = texto.length >= ENTRADA_TEXTO_MAX * CONTADOR_A_PARTIR_DE
+  const molde = moldeDasBalas(sistema, tipo)
+  // Arma com categoria que não atira: Capacidade e balas saem da janela, mas continuam guardadas (como na ficha).
+  const semTiro = tipo === 'arma' && categoriaSemTiro(campos)
+  const camposMostrados = semTiro ? camposDoTipoEscolhido.filter((campo) => campo.id !== CAMPO_DA_CAPACIDADE) : camposDoTipoEscolhido
+  const avisoSemTiro = semTiro ? avisoDoQueFicaGuardado((campos[CAMPO_DA_CAPACIDADE] ?? '').trim().length > 0, molde === undefined ? 0 : balas.length) : null
+  const balasCheias = balas.length >= BALAS_POR_ENTRADA_MAX
+
+  useEffect(() => {
+    const alvo = balaParaFocar.current
+    if (alvo === null) return
+    balaParaFocar.current = null
+    if (alvo === 'botao') botaoDaBala.current?.focus()
+    else nomesDasBalas.current.get(alvo)?.focus()
+  }, [balas])
 
   useEffect(() => {
     const abriu = document.activeElement
@@ -99,12 +148,64 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     setErroDoDisco(null)
   }
 
+  const mexerNasBalas = (mudar: (atuais: BalaEmEdicao[]) => BalaEmEdicao[]) => {
+    setBalas(mudar)
+    setErroDaBala(null)
+    mexer()
+  }
+  const adicionarBala = () => {
+    const nova = novaBalaEmEdicao()
+    balaParaFocar.current = nova.chave
+    mexerNasBalas((atuais) => [...atuais, nova])
+  }
+  const moverBala = (indice: number, delta: -1 | 1) =>
+    mexerNasBalas((atuais) => {
+      const alvo = indice + delta
+      if (alvo < 0 || alvo >= atuais.length) return atuais
+      const novas = [...atuais]
+      novas[indice] = atuais[alvo]
+      novas[alvo] = atuais[indice]
+      return novas
+    })
+  const removerBala = (chave: string) => {
+    balaParaFocar.current = 'botao'
+    mexerNasBalas((atuais) => atuais.filter((bala) => bala.chave !== chave))
+  }
+  const trocarNaBala = (chave: string, mudar: (bala: BalaEmEdicao) => BalaEmEdicao) => mexerNasBalas((atuais) => atuais.map((bala) => (bala.chave === chave ? mudar(bala) : bala)))
+
+  /**
+   * As balas que vão para o catálogo: linha toda vazia sai; bala com Dano ou
+   * Efeito mas sem nome trava o Salvar (o catálogo jogaria ela fora calado).
+   * `undefined` = a janela não mostra balas (tipo sem molde): o catálogo mantém as que já tinha.
+   */
+  const montarBalas = (): { balas: BalaDoCatalogo[] | undefined } | { erro: string; chave: string } => {
+    if (molde === undefined) return { balas: undefined }
+    const ids = new Set(molde.aba.campos.map((campo) => campo.id))
+    const prontas: BalaDoCatalogo[] = []
+    for (const [indice, bala] of balas.entries()) {
+      const camposDaBala = Object.fromEntries(Object.entries(bala.campos).filter(([chave, valor]) => ids.has(chave) && valor.trim().length > 0))
+      if (bala.nome.trim().length === 0) {
+        if (Object.keys(camposDaBala).length === 0) continue
+        // Escondida (a arma não atira), a bala não tem onde receber o nome: guarda com o nome do molde.
+        if (semTiro) {
+          prontas.push({ nome: molde.aba.item, campos: camposDaBala })
+          continue
+        }
+        return { erro: `Dê um nome à bala ${indice + 1}.`, chave: bala.chave }
+      }
+      prontas.push({ nome: bala.nome, campos: camposDaBala })
+    }
+    return { balas: prontas }
+  }
+
   /** A entrada que o formulário monta (só os campos do tipo escolhido), ou a frase do que falta. */
-  const montar = (): { item: ItemDoCatalogo } | { erro: string } => {
+  const montar = (): { item: ItemDoCatalogo } | { erro: string; bala?: string } => {
     const ids = new Set(camposDoTipoEscolhido.map((campo) => campo.id))
     const doTipo = Object.fromEntries(Object.entries(campos).filter(([chave]) => ids.has(chave)))
-    const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: doTipo })
+    const balasMontadas = montarBalas()
+    const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined })
     if (item === null) return { erro: 'Dê um nome à entrada.' }
+    if ('erro' in balasMontadas) return { erro: balasMontadas.erro, bala: balasMontadas.chave }
     const chave = chaveDoNomeDaEntrada(item.nome)
     const repetida = useCatalogoStore.getState().itens.some((outro) => outro.id !== item.id && outro.tipo === item.tipo && chaveDoNomeDaEntrada(outro.nome) === chave)
     if (repetida) return { erro: `Já existe ${item.nome} em ${DADOS_DO_TIPO[item.tipo].nome}. Use outro nome.` }
@@ -116,6 +217,11 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     if (gravando) return
     const montado = montar()
     if ('erro' in montado) {
+      if (montado.bala !== undefined) {
+        setErroDaBala({ chave: montado.bala, texto: montado.erro })
+        nomesDasBalas.current.get(montado.bala)?.focus()
+        return
+      }
       setErroDoNome(montado.erro)
       nomeRef.current?.focus()
       return
@@ -243,10 +349,41 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
             )}
           </div>
 
-          {camposDoTipoEscolhido.length > 0 && (
+          {camposMostrados.length > 0 && (
             <div className="mu-ent-campos">
-              {camposDoTipoEscolhido.map((campo) => {
+              {camposMostrados.map((campo) => {
                 const id = `${campoIdBase}-${campo.id}`
+                if (campo.opcoes !== undefined) {
+                  const escolha = escolhaDoCampo(campo.opcoes, campos[campo.id] ?? '', tipo === 'arma' && campo.id === CAMPO_DA_CATEGORIA)
+                  const aviso = campo.id === CAMPO_DA_CATEGORIA ? avisoSemTiro : null
+                  return (
+                    <div key={campo.id} className="mu-campo">
+                      <label htmlFor={id}>{campo.rotulo}</label>
+                      <select
+                        className="mu-seletor"
+                        id={id}
+                        value={escolha.selecionada}
+                        aria-describedby={aviso === null ? undefined : `${id}-aviso`}
+                        onChange={(event) => {
+                          const valor = event.target.value
+                          setCampos((atuais) => ({ ...atuais, [campo.id]: valor }))
+                          mexer()
+                        }}
+                      >
+                        {escolha.opcoes.map((opcao) => (
+                          <option key={opcao.valor} value={opcao.valor}>
+                            {opcao.rotulo}
+                          </option>
+                        ))}
+                      </select>
+                      {aviso !== null && (
+                        <span className="mu-campo__dica" id={`${id}-aviso`}>
+                          {aviso}
+                        </span>
+                      )}
+                    </div>
+                  )
+                }
                 return (
                   <div key={campo.id} className="mu-campo">
                     <label htmlFor={id}>{campo.rotulo}</label>
@@ -267,6 +404,97 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
                 )
               })}
             </div>
+          )}
+
+          {molde !== undefined && !semTiro && (
+            <fieldset className="mu-ent-balas">
+              <legend className="mu-campo__rot">{molde.rotulo}</legend>
+              {balas.length === 0 ? (
+                <p className="mu-campo__dica mu-ent-balas__vazio">Nenhum tipo de bala. No Atacar, a arma de fogo ou híbrida escolhe um deles.</p>
+              ) : (
+                <ol className="mu-ent-balas__lista">
+                  {balas.map((bala, indice) => {
+                    const id = `${campoIdBase}-${bala.chave}`
+                    const nomeParaLer = bala.nome.trim() || `bala ${indice + 1}`
+                    const erro = erroDaBala?.chave === bala.chave ? erroDaBala.texto : null
+                    return (
+                      <li key={bala.chave} className="mu-ent-bala">
+                        <div className="mu-ent-bala__topo">
+                          <div className="mu-campo mu-ent-bala__nome">
+                            <label htmlFor={`${id}-nome`}>Nome</label>
+                            <input
+                              ref={(el) => {
+                                if (el === null) nomesDasBalas.current.delete(bala.chave)
+                                else nomesDasBalas.current.set(bala.chave, el)
+                              }}
+                              className="mu-entrada"
+                              id={`${id}-nome`}
+                              value={bala.nome}
+                              maxLength={ENTRADA_NOME_MAX}
+                              autoComplete="off"
+                              placeholder={`ex.: ${molde.aba.item} incendiária`}
+                              aria-invalid={erro !== null}
+                              aria-describedby={erro !== null ? `${id}-erro` : undefined}
+                              onChange={(event) => {
+                                const valor = event.target.value
+                                trocarNaBala(bala.chave, (atual) => ({ ...atual, nome: valor }))
+                              }}
+                            />
+                          </div>
+                          <div className="mu-ent-bala__acoes">
+                            <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" disabled={indice === 0} aria-label={`Subir ${nomeParaLer}`} onClick={() => moverBala(indice, -1)}>
+                              Subir
+                            </button>
+                            <button
+                              type="button"
+                              className="mu-bt mu-bt--p mu-bt--fantasma"
+                              disabled={indice === balas.length - 1}
+                              aria-label={`Descer ${nomeParaLer}`}
+                              onClick={() => moverBala(indice, 1)}
+                            >
+                              Descer
+                            </button>
+                            <button type="button" className="mu-bt mu-bt--ic mu-bt--p" aria-label={`Remover ${nomeParaLer}`} title="Remover" onClick={() => removerBala(bala.chave)}>
+                              <IconeDoMundo nome="lixo" />
+                            </button>
+                          </div>
+                        </div>
+                        {erro !== null && (
+                          <span className="mu-campo__erro" id={`${id}-erro`} role="alert">
+                            {erro}
+                          </span>
+                        )}
+                        <div className="mu-ent-bala__campos">
+                          {molde.aba.campos.map((campo) => (
+                            <div key={campo.id} className="mu-campo">
+                              <label htmlFor={`${id}-${campo.id}`}>{campo.rotulo}</label>
+                              <input
+                                className="mu-entrada"
+                                id={`${id}-${campo.id}`}
+                                value={bala.campos[campo.id] ?? ''}
+                                maxLength={ENTRADA_CAMPO_MAX}
+                                autoComplete="off"
+                                placeholder={EXEMPLO_DO_CAMPO_DA_BALA[campo.id]}
+                                onChange={(event) => {
+                                  const valor = event.target.value
+                                  trocarNaBala(bala.chave, (atual) => ({ ...atual, campos: { ...atual.campos, [campo.id]: valor } }))
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ol>
+              )}
+              <div className="mu-ent-balas__pe">
+                <button ref={botaoDaBala} type="button" className="mu-bt mu-bt--p mu-bt--latao" disabled={balasCheias} onClick={adicionarBala}>
+                  + {molde.aba.item}
+                </button>
+                {balasCheias && <span className="mu-campo__dica">Até {formatarNumero(BALAS_POR_ENTRADA_MAX)} tipos de bala por arma.</span>}
+              </div>
+            </fieldset>
           )}
 
           <div className="mu-campo">

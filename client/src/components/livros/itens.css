@@ -168,6 +168,17 @@
 .mu-ent-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
 .mu-ent-area { min-height: 104px; resize: vertical; line-height: 1.5; }
 .mu-ent-contador { font-variant-numeric: tabular-nums; color: var(--lb-color-brass-bright); }
+/* Tipos de bala da arma: cada bala é um bloco com o nome e as ações na primeira linha, os campos embaixo. */
+.mu-ent-balas { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.mu-ent-balas legend { padding: 0; margin-bottom: 5px; }
+.mu-ent-balas__vazio { margin: 0; }
+.mu-ent-balas__lista { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mu-ent-bala { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-sm); background: var(--lb-gr-hover); }
+.mu-ent-bala__topo { display: flex; align-items: flex-end; gap: 8px; }
+.mu-ent-bala__nome { flex: 1 1 auto; }
+.mu-ent-bala__acoes { display: flex; flex: none; align-items: center; gap: 2px; padding-bottom: 2px; }
+.mu-ent-bala__campos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; }
+.mu-ent-balas__pe { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .mu-ent-pe { flex-wrap: wrap; align-items: center; }
 .mu-ent-pe__erro { flex: 1 1 100%; margin: 0 0 4px; }
 
@@ -177,6 +188,8 @@
 }
 @media (max-width: 520px) {
   .mu-ent-campos { grid-template-columns: minmax(0, 1fr); }
+  .mu-ent-bala__campos { grid-template-columns: minmax(0, 1fr); }
+  .mu-ent-bala__topo { flex-wrap: wrap; }
 }
 
 /* Movimento reduzido: o cartão arrastado só esmaece; nada encolhe nem aparece aos poucos. */

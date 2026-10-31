@@ -1,11 +1,12 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { camposVisiveis, cartoesDaAba, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
-import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import { CAMPO_DO_DANO } from '../lib/batalha/formula'
-import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
+import { ABA_DAS_ARMAS, ABA_DAS_BALAS, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../lib/batalha/leituraDaFicha'
 import { CampoDeDano } from './CampoDeDano'
+import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, rotuloDaCategoria } from './escolhaDeCampo'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
@@ -30,14 +31,16 @@ export interface FichaAbasProps {
 
 export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar }: FichaAbasProps) {
   const idBase = useId()
-  const [ativaId, setAtivaId] = useState(sistema.abas[0]?.id ?? '')
+  // As balas moram dentro do cartão da arma ("Tipos de bala"): a aba só aparece na barra se alguma bala ficou solta nela.
+  const abas = sistema.abas.filter((aba) => aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0)
+  const [ativaId, setAtivaId] = useState(abas[0]?.id ?? '')
   const refs = useRef(new Map<string, HTMLButtonElement>())
-  const ativa = sistema.abas.find((aba) => aba.id === ativaId) ?? sistema.abas[0]
+  const ativa = abas.find((aba) => aba.id === ativaId) ?? abas[0]
   if (ativa === undefined) return <p className="lb-ficha__vazio">Este sistema não tem abas.</p>
 
   // Setas andam entre as abas, Home/End vão às pontas: o padrão de abas da WAI-ARIA.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const ids = sistema.abas.map((aba) => aba.id)
+    const ids = abas.map((aba) => aba.id)
     const at = ids.indexOf(ativaId)
     const alvo =
       event.key === 'ArrowRight' ? ids[(at + 1) % ids.length] : event.key === 'ArrowLeft' ? ids[(at - 1 + ids.length) % ids.length] : event.key === 'Home' ? ids[0] : event.key === 'End' ? ids[ids.length - 1] : undefined
@@ -53,7 +56,7 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
   return (
     <div className="lb-ficha__abas">
       <div className="lb-ficha__abas-lista" role="tablist" aria-label={`Abas da ficha de ${personagem.nome}`} onKeyDown={onKeyDown}>
-        {sistema.abas.map((aba) => {
+        {abas.map((aba) => {
           const quantos = cartoesDaAba(personagem, aba.id).length
           return (
             <button
@@ -111,6 +114,16 @@ function abreviacao(sistema: SistemaDeRpg, atributoId: string): string {
   return sistema.atributos.find((atributo) => atributo.id === atributoId)?.abreviacao ?? atributoId.slice(0, 3).toUpperCase()
 }
 
+/**
+ * A arma tem categoria que não atira (Branca, Arremesso, Natural)? Então a
+ * Capacidade e os tipos de bala saem da tela; o dado fica guardado e volta se
+ * a categoria voltar a De fogo ou Híbrida. Sem categoria (arma antiga, ou
+ * texto fora da lista) mostra tudo, como antes.
+ */
+function armaQueNaoAtira(aba: AbaDoSistema, cartao: CartaoDaFicha): boolean {
+  return aba.id === ABA_DAS_ARMAS && categoriaSemTiro(cartao.campos)
+}
+
 /** "Rótulo: valor" com o rótulo em destaque, como o dono da mesa lê a técnica no Discord. */
 function LinhasDoCartao({ linhas, denso }: { linhas: { rotulo: string; valor: string }[]; denso?: boolean }) {
   if (linhas.length === 0) return null
@@ -137,8 +150,13 @@ interface CartaoLidoProps {
 }
 
 function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
-  const sub = aba.subcartoes === undefined ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
+  const ehArma = aba.id === ABA_DAS_ARMAS
+  const semTiro = armaQueNaoAtira(aba, cartao)
+  const sub = aba.subcartoes === undefined || semTiro ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
   const atributos = aba.atributos === true ? cartao.atributos.map((id) => abreviacao(sistema, id)) : []
+  // Na arma, a Categoria sobe para o selo ao lado do nome; a Capacidade some quando a arma não atira.
+  const categoria = ehArma ? rotuloDaCategoria(cartao.campos) : null
+  const abaLida = ehArma ? { ...aba, campos: aba.campos.filter((campo) => campo.id !== CAMPO_DA_CATEGORIA && !(semTiro && campo.id === CAMPO_DA_CAPACIDADE)) } : aba
   return (
     <li className="lb-cartao" data-ativo={ativo && aba.modificadores === true ? '' : undefined}>
       <div className="lb-cartao__corpo">
@@ -148,6 +166,7 @@ function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
         <div className="lb-cartao__texto">
           <div className="lb-cartao__topo">
             <h4 className="lb-cartao__nome">{cartao.nome}</h4>
+            {categoria !== null && <span className="lb-ficha__chip lb-ficha__chip--categoria">{categoria}</span>}
             {atributos.length > 0 && <span className="lb-ficha__chip lb-ficha__chip--atributos">{atributos.join(' · ')}</span>}
             {onLigar !== undefined && (
               // Nome fixo e o estado no aria-pressed: o leitor de tela diz "Ativar Forma Híbrida, pressionado".
@@ -157,7 +176,7 @@ function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
             )}
             {onLigar === undefined && ativo && aba.modificadores === true && <span className="lb-cartao__ativa">Ativa</span>}
           </div>
-          {paragrafosDoCartao(aba, cartao).map((paragrafo, i) => (
+          {paragrafosDoCartao(abaLida, cartao).map((paragrafo, i) => (
             <p key={i} className="lb-cartao__paragrafo">
               {paragrafo}
             </p>
@@ -172,8 +191,8 @@ function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
               ))}
             </div>
           )}
-          <LinhasDoCartao linhas={camposVisiveis(aba, cartao, 'linha')} />
-          {camposVisiveis(aba, cartao, 'destaque').map((campo, i) => (
+          <LinhasDoCartao linhas={camposVisiveis(abaLida, cartao, 'linha')} />
+          {camposVisiveis(abaLida, cartao, 'destaque').map((campo, i) => (
             <p key={`${campo.rotulo}-${i}`} className="lb-cartao__destaque">
               <span className="lb-cartao__destaque-rotulo">{campo.rotulo}: </span>
               {campo.valor}
@@ -183,6 +202,7 @@ function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
       </div>
       {sub !== undefined && cartao.subcartoes.length > 0 && (
         <div className="lb-cartao__subs">
+          {ehArma && aba.subcartoes !== undefined && <span className="lb-cartao__subs-rotulo">{aba.subcartoes.rotulo}</span>}
           {cartao.subcartoes.map((subcartao) => (
             <div key={subcartao.id} className="lb-cartao__sub">
               <span className="lb-cartao__sub-nome">{subcartao.nome}</span>
@@ -332,8 +352,11 @@ interface CartaoEditavelProps {
 
 function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onRemover, onSubir, onDescer, escolherImagem }: CartaoEditavelProps) {
   const ehArma = !daArma && aba.id === ABA_DAS_ARMAS
+  const semTiro = ehArma && armaQueNaoAtira(aba, cartao)
   const [erroDaImagem, setErroDaImagem] = useState<string | null>(null)
   const sub = aba.subcartoes === undefined ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
+  const capacidadeGuardada = (cartao.campos[CAMPO_DA_CAPACIDADE] ?? '').trim().length > 0
+  const guardadoSemTiro = semTiro ? avisoDoQueFicaGuardado(capacidadeGuardada, cartao.subcartoes.length) : null
   const trocarCampo = (campoId: string, valor: string) => onChange({ ...cartao, campos: { ...cartao.campos, [campoId]: valor } })
   const pedirImagem = async () => {
     setErroDaImagem(null)
@@ -356,7 +379,16 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
           <input className="lb-input" value={cartao.nome} onChange={(event) => onChange({ ...cartao, nome: event.target.value })} />
         </label>
         {aba.campos.map((campo) =>
-          campo.id === CAMPO_DO_DANO ? (
+          semTiro && campo.id === CAMPO_DA_CAPACIDADE ? null : campo.opcoes !== undefined ? (
+            <CampoDeEscolha
+              key={campo.id}
+              campo={campo}
+              valor={cartao.campos[campo.id] ?? ''}
+              casarComCategoria={ehArma && campo.id === CAMPO_DA_CATEGORIA}
+              aviso={campo.id === CAMPO_DA_CATEGORIA ? guardadoSemTiro : null}
+              onChange={(valor) => trocarCampo(campo.id, valor)}
+            />
+          ) : campo.id === CAMPO_DO_DANO ? (
             <CampoDeDano
               key={campo.id}
               rotulo={campo.rotulo}
@@ -482,7 +514,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
             </button>
           </fieldset>
         )}
-        {sub !== undefined && aba.subcartoes !== undefined && (
+        {sub !== undefined && aba.subcartoes !== undefined && !semTiro && (
           <fieldset className="lb-cartao__grupo">
             <legend className="lb-label">{aba.subcartoes.rotulo}</legend>
             <ListaEditavel
@@ -510,6 +542,43 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
         </div>
       </div>
     </details>
+  )
+}
+
+interface CampoDeEscolhaProps {
+  campo: CampoDoCartao
+  valor: string
+  /** A Categoria da arma: "arma de fogo" casa com De fogo, como a batalha lê. */
+  casarComCategoria: boolean
+  /** Frase embaixo da caixa (o que ficou guardado fora da tela); `null` = nenhuma. */
+  aviso: string | null
+  onChange: (valor: string) => void
+}
+
+/** Campo com lista fechada (`opcoes`): caixa de escolha com "—" para vazio, que guarda o texto da opção. */
+function CampoDeEscolha({ campo, valor, casarComCategoria, aviso, onChange }: CampoDeEscolhaProps) {
+  const caixaId = useId()
+  const avisoId = useId()
+  const escolha = escolhaDoCampo(campo.opcoes ?? [], valor, casarComCategoria)
+  // Rótulo por `htmlFor`, não envolvendo: o aviso fica fora do nome da caixa e entra só como descrição.
+  return (
+    <div className="lb-field">
+      <label className="lb-label" htmlFor={caixaId}>
+        {campo.rotulo}
+      </label>
+      <select id={caixaId} className="lb-input" value={escolha.selecionada} aria-describedby={aviso === null ? undefined : avisoId} onChange={(event) => onChange(event.target.value)}>
+        {escolha.opcoes.map((opcao) => (
+          <option key={opcao.valor} value={opcao.valor}>
+            {opcao.rotulo}
+          </option>
+        ))}
+      </select>
+      {aviso !== null && (
+        <p className="lb-field__hint" id={avisoId}>
+          {aviso}
+        </p>
+      )}
+    </div>
   )
 }
 

@@ -127,6 +127,14 @@
   color: var(--lb-color-parchment-dim);
 }
 
+/* A Categoria da arma (Branca, De fogo...): selo de latão ao lado do nome, lido antes das linhas. */
+.lb-ficha__chip--categoria {
+  flex: none;
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
 .lb-ficha__chip--botao {
   min-height: var(--lb-control-min);
   font-family: var(--lb-font-utility);
@@ -1097,6 +1105,15 @@
   padding-top: var(--lb-space-3);
   border-top: 1px solid var(--lb-color-line);
   font-size: var(--lb-font-size-md);
+}
+
+/* "Tipos de bala": o título pequeno da lista de dentro da arma. */
+.lb-cartao__subs-rotulo {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim);
 }
 
 .lb-cartao__sub-nome {
