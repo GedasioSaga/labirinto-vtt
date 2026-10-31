@@ -787,7 +787,8 @@
 /*
  * Perfurante com a porcentagem: o interruptor, o campo "quanto perfura" (só
  * com ele ligado) e o que acontece com o dano ("30% direto no HP, o resto
- * passa pelo Escudo"). O campo entra deslizando um pouco do interruptor.
+ * passa pelo Escudo"). O campo aparece na hora: a mira abre sem animação, e
+ * a bolinha do interruptor já responde ao clique.
  */
 .bt-perfura {
   display: inline-flex;
@@ -803,15 +804,6 @@
   font-size: var(--lb-font-size-sm);
   font-weight: 600;
   color: var(--bt-tinta);
-  transition:
-    opacity 160ms var(--bt-ease-out),
-    transform 160ms var(--bt-ease-out);
-}
-@starting-style {
-  .bt-perfura__quanto {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
 }
 .bt-perfura__quanto .bt-num {
   width: 5ch;
@@ -824,6 +816,198 @@
   font-size: var(--lb-font-size-sm);
   color: #5d5a54;
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A CALCULADORA DO DANO (`CalculadoraDeDano.tsx`): abre no lugar, abaixo do
+ * campo. Papel sobre papel na mira; pedra na janela de Dar dano (as cores vêm
+ * das variáveis `--calc-*`). Entra com opacidade e 4 px; fecha na hora.
+ */
+.bt-calc-junto {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.bt-calc-botao svg {
+  flex: none;
+}
+.bt-calc {
+  --calc-fundo: rgba(12, 12, 14, 0.06);
+  --calc-linha: rgba(12, 12, 14, 0.16);
+  --calc-tinta: var(--bt-tinta);
+  --calc-apagada: #5d5a54;
+  --calc-campo: #fffaf0;
+  --calc-tecla: #fffaf0;
+  --calc-tecla-borda: rgba(12, 12, 14, 0.22);
+  --calc-sinal: rgba(180, 73, 60, 0.1);
+  --calc-sinal-tinta: #8a2c22;
+  display: grid;
+  gap: 8px;
+  box-sizing: border-box;
+  width: min(100%, 340px);
+  padding: 8px 12px 12px;
+  border: 1px solid var(--calc-linha);
+  border-radius: 4px;
+  background: var(--calc-fundo);
+  color: var(--calc-tinta);
+  transition:
+    opacity 160ms var(--bt-ease-out),
+    transform 160ms var(--bt-ease-out);
+}
+@starting-style {
+  .bt-calc {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.bt-janela .bt-calc {
+  --calc-fundo: var(--lb-color-stone-sunken);
+  --calc-linha: var(--lb-color-line-panel);
+  --calc-tinta: var(--lb-color-parchment);
+  --calc-apagada: var(--lb-color-parchment-dim);
+  --calc-campo: var(--lb-color-stone-solid);
+  --calc-tecla: var(--lb-color-stone-raised);
+  --calc-tecla-borda: var(--lb-color-line-strong);
+  --calc-sinal: rgba(180, 73, 60, 0.2);
+  --calc-sinal-tinta: #f0a59a;
+}
+.bt-calc__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bt-calc__titulo {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--calc-sinal-tinta);
+}
+.bt-calc__fechar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--calc-apagada);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.bt-calc__campo {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 4px 10px;
+  border: 1px solid var(--calc-tecla-borda);
+  border-radius: 3px;
+  background: var(--calc-campo);
+  color: var(--calc-tinta);
+  font: inherit;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.bt-calc__campo::placeholder {
+  color: var(--calc-apagada);
+  opacity: 0.7;
+}
+.bt-calc__fechar:focus-visible,
+.bt-calc__campo:focus-visible,
+.bt-calc__tecla:focus-visible {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 1px;
+}
+/* O resultado ao vivo: a conta numa linha à esquerda, o número grande à direita. */
+.bt-calc__resultado {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  min-height: 2.4em;
+  font-size: var(--lb-font-size-sm);
+}
+.bt-calc__passos {
+  color: var(--calc-apagada);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.bt-calc__valor {
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--calc-tinta);
+}
+.bt-calc__dica,
+.bt-calc__motivo {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--calc-apagada);
+}
+.bt-calc__motivo {
+  color: var(--calc-sinal-tinta);
+}
+/* Teclas grandes: 4 por fileira em cima, 5 na de baixo (a grade tem 20 colunas). */
+.bt-calc__teclas {
+  display: grid;
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+  gap: 5px;
+}
+.bt-calc__tecla {
+  grid-column: span 5;
+  min-height: 44px;
+  border: 1px solid var(--calc-tecla-borda);
+  border-radius: 4px;
+  background: var(--calc-tecla);
+  color: var(--calc-tinta);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition:
+    transform 100ms var(--bt-ease-out),
+    border-color 120ms ease;
+}
+.bt-calc__tecla[data-cinco='sim'] {
+  grid-column: span 4;
+}
+.bt-calc__tecla[data-tipo='sinal'] {
+  background: var(--calc-sinal);
+  color: var(--calc-sinal-tinta);
+}
+.bt-calc__tecla[data-tipo='acao'] {
+  color: var(--calc-apagada);
+}
+.bt-calc__tecla:active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-calc__tecla:hover,
+  .bt-calc__fechar:hover {
+    border-color: currentColor;
+    color: var(--calc-tinta);
+  }
+  .bt-calc__tecla[data-tipo='sinal']:hover {
+    color: var(--calc-sinal-tinta);
+  }
+}
+.bt-calc__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bt-calc__acoes .bt-botao {
+  min-height: 36px;
 }
 .bt-sobre-escuro .bt-chave__trilho {
   background: rgba(255, 255, 255, 0.18);
@@ -1924,14 +2108,20 @@
   }
   .bt-reacao,
   .bt-detalhe.bt-detalhe--lado,
-  .bt-perfura__quanto {
+  .bt-calc {
     transition: opacity 150ms ease;
+  }
+  .bt-calc__tecla {
+    transition: border-color 120ms ease;
+  }
+  .bt-calc__tecla:active {
+    transform: none;
   }
   @starting-style {
     .bt-vez:not([data-instantaneo='sim']) > .bt-detalhe.bt-detalhe--lado {
       transform: none;
     }
-    .bt-perfura__quanto {
+    .bt-calc {
       transform: none;
     }
     .bt-vez:not([data-instantaneo='sim']) .bt-tira {

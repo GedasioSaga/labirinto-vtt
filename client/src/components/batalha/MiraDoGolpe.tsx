@@ -16,6 +16,7 @@ import { divisaoDoDano } from '../../lib/batalha/reacao'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
+import { BotaoDaCalculadora, CalculadoraDeDano } from './CalculadoraDeDano'
 import { contaDoGolpe, formatarNumero, lerInteiro, lerPerfuracao, textoDaAcao, textoDoPerfurante, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
@@ -131,6 +132,10 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const [seloTurnos, setSeloTurnos] = useState(sugerido?.turnos === null || sugerido === null ? '' : String(sugerido.turnos))
   const [erro, setErro] = useState<string | null>(null)
   const caixas = useRef<Map<string, HTMLInputElement>>(new Map())
+  // A calculadora do Dano base: abre no lugar, "Usar este valor" põe o número no campo.
+  const [calculando, setCalculando] = useState(false)
+  const campoDaBase = useRef<HTMLInputElement>(null)
+  const botaoDaCalculadora = useRef<HTMLButtonElement>(null)
 
   // S4: clicar numa ficha no mapa marca ou desmarca o alvo.
   const ultimoSeq = useRef(alvoDoMapa?.seq ?? -1)
@@ -248,20 +253,40 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
           {golpe.nome}
         </h3>
         {!semDano && (
-          <label className="bt-linha-campo">
-            <span>Dano base</span>
-            <input
-              className="bt-num"
-              inputMode="numeric"
-              value={baseTexto}
-              aria-invalid={base === null ? true : undefined}
-              onChange={(evento) => {
-                setErro(null)
-                setBaseTexto(evento.target.value)
-              }}
-            />
+          <div className="bt-linha-campo">
+            <label className="bt-linha-campo">
+              <span>Dano base</span>
+              <input
+                ref={campoDaBase}
+                className="bt-num"
+                inputMode="numeric"
+                value={baseTexto}
+                aria-invalid={base === null ? true : undefined}
+                onChange={(evento) => {
+                  setErro(null)
+                  setBaseTexto(evento.target.value)
+                }}
+              />
+            </label>
+            <BotaoDaCalculadora aberta={calculando} controla={`${idBase}-calc`} botao={botaoDaCalculadora} onAlternar={() => setCalculando((antes) => !antes)} />
             <small className="bt-mira__nota">{golpe.dano.conta}</small>
-          </label>
+          </div>
+        )}
+        {!semDano && calculando && (
+          <CalculadoraDeDano
+            id={`${idBase}-calc`}
+            inicial={baseTexto}
+            onUsar={(dano) => {
+              setErro(null)
+              setBaseTexto(String(dano))
+              setCalculando(false)
+              campoDaBase.current?.focus()
+            }}
+            onFechar={() => {
+              setCalculando(false)
+              botaoDaCalculadora.current?.focus()
+            }}
+          />
         )}
         <fieldset className="bt-mira__alvos">
           <legend>{alvos.length === 0 ? 'Nenhuma ficha à vista para mirar' : 'Alvos · Espaço marca, setas trocam, clique na ficha no mapa'}</legend>

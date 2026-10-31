@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { DANO_MAX } from '../../lib/batalha/combate'
+import { BotaoDaCalculadora, CalculadoraDeDano } from './CalculadoraDeDano'
 import { lerInteiro } from './dadosDoMenu'
 import { JanelaDaBatalha } from './JanelaDaBatalha'
 import './batalha.css'
@@ -31,6 +32,11 @@ export function DarDanoDialog({ titulo = 'Dar dano', alvos, alvoInicial, onConfi
   const [valorTexto, setValorTexto] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const valor = lerInteiro(valorTexto, DANO_MAX)
+  // A calculadora do dano: abre no lugar, "Usar este valor" põe o número no campo.
+  const idBase = useId()
+  const [calculando, setCalculando] = useState(false)
+  const campo = useRef<HTMLInputElement>(null)
+  const botaoDaCalculadora = useRef<HTMLButtonElement>(null)
 
   const confirmar = (evento: FormEvent) => {
     evento.preventDefault()
@@ -62,20 +68,41 @@ export function DarDanoDialog({ titulo = 'Dar dano', alvos, alvoInicial, onConfi
             </select>
           </label>
         )}
-        <label className="bt-form__linha">
-          <span>{sozinho ? `Dano em ${alvos[0]?.nome ?? 'você'}` : 'Dano'}</span>
-          <input
-            className="bt-num"
-            inputMode="numeric"
-            autoFocus
-            value={valorTexto}
-            aria-invalid={erro !== null && (valor === null || valor < 1) ? true : undefined}
-            onChange={(evento) => {
+        <div className="bt-form__linha">
+          <label htmlFor={`${idBase}-dano`}>{sozinho ? `Dano em ${alvos[0]?.nome ?? 'você'}` : 'Dano'}</label>
+          <span className="bt-calc-junto">
+            <input
+              ref={campo}
+              id={`${idBase}-dano`}
+              className="bt-num"
+              inputMode="numeric"
+              autoFocus
+              value={valorTexto}
+              aria-invalid={erro !== null && (valor === null || valor < 1) ? true : undefined}
+              onChange={(evento) => {
+                setErro(null)
+                setValorTexto(evento.target.value)
+              }}
+            />
+            <BotaoDaCalculadora aberta={calculando} controla={`${idBase}-calc`} botao={botaoDaCalculadora} onAlternar={() => setCalculando((antes) => !antes)} />
+          </span>
+        </div>
+        {calculando && (
+          <CalculadoraDeDano
+            id={`${idBase}-calc`}
+            inicial={valorTexto}
+            onUsar={(dano) => {
               setErro(null)
-              setValorTexto(evento.target.value)
+              setValorTexto(String(dano))
+              setCalculando(false)
+              campo.current?.focus()
+            }}
+            onFechar={() => {
+              setCalculando(false)
+              botaoDaCalculadora.current?.focus()
             }}
           />
-        </label>
+        )}
         {erro !== null && (
           <p className="bt-form__erro" role="alert">
             {erro}
