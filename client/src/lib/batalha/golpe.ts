@@ -19,6 +19,8 @@ import {
   type PedidoDeAcao,
   type PedidoDeAlvo,
   type SaidaDaReacao,
+  type SeloDoGolpe,
+  type SeloPedido,
 } from './combate'
 import { equipeDe, type Equipe } from './equipes'
 import { danoDoAtaque } from './formula'
@@ -42,6 +44,7 @@ import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { seloPedidoValido } from './selos'
+import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
 import { formaDaFicha, motivoDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -164,6 +167,8 @@ interface TecnicaPedida {
   tempo: ReturnType<typeof lerTempo>
   overload: boolean
   transformacao: boolean
+  /** Tipos de habilidade F2: Buff não pede reação; Debuff pede mesmo sem dano. */
+  tipo: TipoDaHabilidade
 }
 
 function tecnicaPedida(personagem: Personagem, sistema: SistemaDeRpg, pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>): TecnicaPedida | null {
@@ -182,6 +187,7 @@ function tecnicaPedida(personagem: Personagem, sistema: SistemaDeRpg, pedido: Ex
     tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
     overload: ehOverload(cartao),
     transformacao: lidaAcao.transformacao,
+    tipo: lerTipo(cartao).tipo,
   }
 }
 
@@ -253,11 +259,15 @@ export function ajustesDoCusto(personagem: Personagem, sistema: SistemaDeRpg, cu
   return [{ parte: 'recurso', chave: recurso.id, valor: Math.max(0, numeroDaFicha(personagem.recursos, recurso.id) - custo.valor) }]
 }
 
-/** Os alvos do golpe: o dano que chega e se reagem. Sem reação (Surpresa, Overload, sem dano) já saem resolvidos. */
-function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carga: number, surpresa: boolean, overload: boolean): AlvoDoGolpe[] {
+/**
+ * Os alvos do golpe: o dano que chega e se reagem. Sem reação (Surpresa,
+ * Overload, sem dano, Buff) já saem resolvidos. Debuff reage mesmo sem dano
+ * (`reacaoDoTipo`): o selo só pega se acertar.
+ */
+function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carga: number, surpresa: boolean, overload: boolean, reacao: ReacaoDoTipo): AlvoDoGolpe[] {
   return alvos.map((pedido): AlvoDoGolpe => {
     const dano = pedido.dano === null ? null : danoQueChega(pedido.dano, carga, surpresa)
-    const podeReagir = dano !== null && !surpresa && !overload
+    const podeReagir = !surpresa && !overload && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null))
     const alvo: AlvoDoGolpe = { tokenId: pedido.tokenId, personagemId: ctx.personagemDoToken(pedido.tokenId) ?? null, dano, podeReagir }
     if (podeReagir) return alvo
     const saida: SaidaDaReacao = 'semReacao'
@@ -290,7 +300,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   const acaoBase = pedido.tipo === 'atacar' ? 'simples' : tecnica?.acao
   const acao = acaoBase === undefined || acaoBase === null || acaoBase === 'passiva' ? null : acaoDoGolpe(acaoBase, combate.carga)
   const overload = tecnica?.overload ?? false
-  const alvos = alvosDoGolpe(ctx, pedido.alvos, combate.carga, pedido.surpresa, overload)
+  const alvos = alvosDoGolpe(ctx, pedido.alvos, combate.carga, pedido.surpresa, overload, reacaoDoTipo(tecnica?.tipo ?? null))
   const arma = armaDoPedido(ctx, pedido.armaId) ?? null
   const golpe: GolpeDaBatalha = {
     id: ids.golpe,
@@ -311,8 +321,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   if (perfuracao !== null && perfuracao < PERFURACAO_MAX) golpe.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) golpe.contraDe = pedido.contraDe
   // F3 (Q6): o selo marcado na mira vai junto; pega em cada alvo que o golpe acerta (a store aplica).
-  const selo = pedido.selo === undefined ? null : seloPedidoValido(pedido.selo)
-  if (selo !== null) golpe.selo = selo
+  const selo = pedido.selo === undefined ? null : seloPedidoValido(pedido.selo, sistema)
+  if (selo !== null) golpe.selo = tecnica === null ? selo : seloDaTecnicaNoGolpe(selo, tecnica)
   const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
@@ -333,6 +343,12 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
 function balaDoGolpe(bala: BalaDaArma): BalaDoGolpe {
   const efeito = bala.efeito.length <= EFEITO_DA_BALA_NO_REGISTRO_MAX ? bala.efeito : `${bala.efeito.slice(0, EFEITO_DA_BALA_NO_REGISTRO_MAX - 1).trimEnd()}…`
   return efeito.length === 0 ? { id: bala.id, nome: bala.nome } : { id: bala.id, nome: bala.nome, efeito }
+}
+
+/** Tipos de habilidade F2: o selo da técnica leva a natureza do Tipo (Buff, Debuff) e o cartaoId, tirados aqui e nunca do fio. */
+function seloDaTecnicaNoGolpe(selo: SeloPedido, tecnica: TecnicaPedida): SeloDoGolpe {
+  const natureza = naturezaDoTipo(tecnica.tipo)
+  return natureza === undefined ? { ...selo, cartaoId: tecnica.cartao.id } : { ...selo, natureza, cartaoId: tecnica.cartao.id }
 }
 
 function comAlvo(golpe: GolpeDaBatalha, tokenId: string, mudar: (alvo: AlvoDoGolpe) => AlvoDoGolpe | null): GolpeDaBatalha {
@@ -442,7 +458,21 @@ export function textoDaRolagem(d20: number, modificador: number, total: number):
   return `d20 ${d20}${comSinal(modificador)} = ${total}`
 }
 
-function textoDaSaida(saida: SaidaDaReacao, dano: number): string {
+/** Golpe sem dano (Buff, Debuff de suporte): o que aconteceu, sem o "recebeu 0". */
+const SAIDA_SEM_DANO: Readonly<Record<SaidaDaReacao, string>> = {
+  critico: 'crítico',
+  cheio: 'acertou',
+  metade: 'defendeu, mas acertou',
+  esquiva: 'esquivou',
+  contra: 'contra-atacou',
+  naoReagiu: 'não reagiu',
+  passou: 'passou',
+  semReacao: 'sem reação',
+}
+
+/** `dano` null = golpe sem dano. */
+function textoDaSaida(saida: SaidaDaReacao, dano: number | null): string {
+  if (dano === null) return SAIDA_SEM_DANO[saida]
   switch (saida) {
     case 'critico':
       return `crítico, recebeu ${dano}`
@@ -477,7 +507,7 @@ function comATecnica(alvo: AlvoDoGolpe): string {
 function textoDoAlvo(alvo: AlvoDoGolpe): string {
   const pedacos: string[] = []
   if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}${comATecnica(alvo)}`)
-  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.danoFinal)}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
+  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   return pedacos.join(' · ')
 }
@@ -491,7 +521,7 @@ export function textoDaReacaoComTecnica(alvo: AlvoDoGolpe, nomeDoToken: (tokenId
   const tecnica = alvo.tecnica
   const comeco = `${nomeDoToken(alvo.tokenId)} reage com ${tecnica?.nome ?? 'técnica'}${tecnica?.aMao === true ? ' (à mão)' : ''}`
   if (alvo.rolagem !== undefined) return `${comeco}: ${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}`
-  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) return `${comeco}: ${textoDaSaida(alvo.saida, alvo.danoFinal)}`
+  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) return `${comeco}: ${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}`
   return comeco
 }
 

@@ -1,8 +1,9 @@
 import type { CartaoDaFicha } from '../personagem'
-import type { SeloPedido } from './combate'
+import type { SistemaDeRpg } from '../sistemaDeRpg'
+import type { NaturezaDoSelo, SeloDoGolpe, SeloPedido } from './combate'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, lerAcao } from './leituraDaFicha'
-import { lerDuracao, type SELOS_PRONTOS } from './selos'
+import { lerDuracao, seloComMods, seloDaTecnica, type SELOS_PRONTOS } from './selos'
 
 /**
  * TIPOS DE HABILIDADE, F1 (docs/planos/batalha-tipos-de-habilidade-plano.md,
@@ -76,6 +77,47 @@ export function lerTipo(cartao: Pick<CartaoDaFicha, 'campos'>): LeituraDoTipo {
   const leitura: LeituraDoTipo = { tipo, inferido: escrito === null, tambemReacao: tipo === 'reacao' || acao.tambemReacao }
   if (escrito === null && texto.length > 0) leitura.foraDaLista = texto
   return leitura
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Buff/Debuff (seção 4c, Fase 2)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Se o alvo do golpe reage. "nunca" = Buff (é ajuda: sem caixa de reação);
+ * "sempre" = Debuff, mesmo sem dano (esquivou = o selo não pega, Q6);
+ * "comDano" = o resto, como sempre foi (golpe sem dano não pede reação).
+ * Surpresa e Overload continuam tirando a reação de todos.
+ */
+export type ReacaoDoTipo = 'nunca' | 'sempre' | 'comDano'
+
+/** A reação que o Tipo pede; `null` = Atacar (sem técnica). */
+export function reacaoDoTipo(tipo: TipoDaHabilidade | null): ReacaoDoTipo {
+  if (tipo === 'buff') return 'nunca'
+  return tipo === 'debuff' ? 'sempre' : 'comDano'
+}
+
+/** Quem a mira marca ao abrir: Buff = quem usa (aliados também marcáveis); Debuff e o resto = um inimigo. */
+export function alvoPadraoEmSi(tipo: TipoDaHabilidade): boolean {
+  return tipo === 'buff'
+}
+
+/** A cor do selo que a técnica põe, pelo Tipo; `undefined` = condição (a de sempre). */
+export function naturezaDoTipo(tipo: TipoDaHabilidade): NaturezaDoSelo | undefined {
+  return tipo === 'buff' || tipo === 'debuff' || tipo === 'passiva' ? tipo : undefined
+}
+
+/**
+ * O selo que a mira sugere para a técnica (marcado e editável, nunca aplicado
+ * escondido). Buff e Debuff: sempre um, com nome, turnos e mods lidos do
+ * Efeito (`seloComMods`), a natureza do Tipo e o cartaoId; o resto: o de
+ * "por N turnos" de sempre (`seloDaTecnica`), ou `null`. Ex.: Fúria (Buff,
+ * "Ganha +20 de Força por 2 turnos") = Fúria 2, [forca +20], buff.
+ */
+export function seloSugeridoDaTecnica(cartao: CartaoDaFicha, sistema: SistemaDeRpg): SeloDoGolpe | null {
+  const { tipo } = lerTipo(cartao)
+  if (tipo !== 'buff' && tipo !== 'debuff') return seloDaTecnica(cartao)
+  return { ...seloComMods(cartao, sistema), natureza: tipo, cartaoId: cartao.id }
 }
 
 // ───────────────────────────────────────────────────────────────────────────

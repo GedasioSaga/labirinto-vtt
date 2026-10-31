@@ -377,3 +377,12 @@ export function combateVazio(): CombateDoPersonagem {
 export function chaveDaVez(rodada: number, cartaId: string): string {
   return `${rodada}:${cartaId}`
 }
+
+/**
+ * Tipos de habilidade F2: as partes de um alvo do bônus ("forca", "dano",
+ * "reacao"); nenhuma = lista vazia. Só as do próprio objeto: o alvo pode ter
+ * vindo do fio, e "constructor" num objeto já existe.
+ */
+export function partesDoBonus(bonus: BonusDaBatalha | undefined, alvo: string): readonly ParteDoBonus[] {
+  return bonus !== undefined && Object.hasOwn(bonus, alvo) ? (bonus[alvo] ?? []) : []
+}

@@ -1,7 +1,7 @@
 import { atributoComposto } from '../ajusteDaFicha'
 import { FORCA_PADRAO, aplicarForca, forcaDe, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import type { BonusDaBatalha } from './combate'
+import { ALVO_DO_DANO, partesDoBonus, type BonusDaBatalha, type ParteDoBonus } from './combate'
 
 /**
  * O DANO DA FICHA, F2 (seção 3.2 de docs/planos/batalha-one-piece-f2-plano.md):
@@ -296,8 +296,11 @@ class Leitor {
     const atributo = this.ctx.sistema.atributos.find((candidato) => normalizar(candidato.nome) === primeira.chave || normalizar(candidato.abreviacao) === primeira.chave || candidato.id === primeira.chave)
     if (atributo === undefined) return this.falhar({ tipo: 'naoEntende' })
     this.i += 1
-    const valor = atributoComposto(this.ctx.personagem, atributo.id).total
-    return { valor, conta: `${formatarNumero(valor)} ${atributo.nome}` }
+    const total = atributoComposto(this.ctx.personagem, atributo.id).total
+    // Tipos de habilidade F2: o selo soma no atributo, e a conta diz qual ("160 Força +20 (Fúria)").
+    const partes = partesDoBonus(this.ctx.bonusDaBatalha, atributo.id)
+    const valor = partes.reduce((soma, parte) => soma + parte.delta, total)
+    return { valor, conta: `${formatarNumero(total)} ${atributo.nome}${textoDoBonus(partes)}` }
   }
 
   /**
@@ -439,7 +442,24 @@ function trechoDoDano(texto: string): TrechoDoDano | null {
 }
 
 export function lerDano(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
-  return comForca(lerDanoSemForca(texto, ctx), ctx.personagem)
+  return comBonusDeDano(comForca(lerDanoSemForca(texto, ctx), ctx.personagem), ctx.bonusDaBatalha)
+}
+
+/** " +20 (Fúria) -15 (Lento)": as partes de um bônus como a conta as mostra (com espaço na frente; nenhuma = vazio). */
+export function textoDoBonus(partes: readonly ParteDoBonus[]): string {
+  return partes.map((parte) => ` ${parte.delta < 0 ? '-' : '+'}${formatarNumero(Math.abs(parte.delta))} (${parte.nome})`).join('')
+}
+
+/**
+ * Tipos de habilidade F2: o "dano" dos selos soma no FIM da sugestão, depois
+ * da força do NPC ("= 165 +30 (Fúria) = 195"), nunca abaixo de 0. Só no dano
+ * lido: sem número, a tela pede à mão (e o mestre corrige pelo registro).
+ */
+function comBonusDeDano(leitura: LeituraDoDano, bonus: BonusDaBatalha | undefined): LeituraDoDano {
+  const partes = partesDoBonus(bonus, ALVO_DO_DANO)
+  if (leitura.tipo !== 'valor' || partes.length === 0) return leitura
+  const valor = Math.max(0, partes.reduce((soma, parte) => soma + parte.delta, leitura.valor))
+  return { ...leitura, valor, conta: `${leitura.conta}${textoDoBonus(partes)} = ${valor}` }
 }
 
 function lerDanoSemForca(texto: string, ctx: ContextoDaFormula): LeituraDoDano {

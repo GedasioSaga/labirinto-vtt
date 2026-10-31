@@ -165,7 +165,7 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   if (!SAIDAS_DA_TECNICA.includes(pedido.saida)) return 'Saída que a técnica não dá'
   if (pedido.modificador !== undefined && (pedido.saida !== 'rolar' || !Number.isInteger(pedido.modificador) || Math.abs(pedido.modificador) > MODIFICADOR_DA_REACAO_MAX)) return 'Modificador só ao rolar, de -99 a 99'
   if (pedido.custo !== null && (!Number.isInteger(pedido.custo) || pedido.custo < 0 || pedido.custo > CUSTO_MAX)) return 'Custo inválido'
-  if (pedido.seloNoAtacante !== undefined && seloPedidoValido(pedido.seloNoAtacante) === null) return 'Selo inválido'
+  if (pedido.seloNoAtacante !== undefined && seloPedidoValido(pedido.seloNoAtacante, ctx.sistema) === null) return 'Selo inválido'
   const { personagem, sistema } = ctx
   if (personagem === null || sistema === null) return 'Ficha sem personagem não reage com técnica'
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
@@ -228,6 +228,6 @@ export function reagirComTecnica(
   novo = comTecnicaNoAlvo(novo, tokenId, marca)
   const alvo = novo.alvos.find((candidato) => candidato.tokenId === tokenId)
   if (alvo === undefined) return null
-  const selo = pedido.seloNoAtacante === undefined ? null : seloPedidoValido(pedido.seloNoAtacante)
+  const selo = pedido.seloNoAtacante === undefined ? null : seloPedidoValido(pedido.seloNoAtacante, sistema)
   return { golpe: novo, alvo, combate: depoisDaTecnica(combate, tecnica), custo: ajustesDoCusto(personagem, sistema, tecnica.custo), seloNoAtacante: selo }
 }

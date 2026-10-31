@@ -1313,7 +1313,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
 
     porSelo: (sceneKey, tokenId, pedido) => {
       const cena = cenaDe(sceneKey)
-      const selo = seloPedidoValido(pedido)
+      const selo = seloPedidoValido(pedido, mesaDoRpg().sistema)
       if (cena === undefined || selo === null || !cena.turnos.cartas.some((carta) => carta.tokenId === tokenId)) return false
       const { turnos } = cena
       const novo = criarSelo(tokenId, selo, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null })
@@ -1325,7 +1325,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     },
 
     editarSelo: (sceneKey, seloId, pedido) => {
-      const selo = seloPedidoValido(pedido)
+      const selo = seloPedidoValido(pedido, mesaDoRpg().sistema)
       const antes = cenaDe(sceneKey)?.turnos.selos?.find((candidato) => candidato.id === seloId)
       if (selo === null || antes === undefined) return false
       if (antes.nome === selo.nome && antes.turnos === selo.turnos) return false

@@ -1,7 +1,7 @@
 import { valorDoRank } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
-import { CARGA_MAX, type AcaoDaTecnica, type CombateDoPersonagem } from './combate'
+import { CARGA_MAX, type AcaoDaTecnica, type BonusDaBatalha, type CombateDoPersonagem } from './combate'
 import { CAMPO_DO_DANO, lerDano, type LeituraDoDano } from './formula'
 import {
   CAMPO_DA_ACAO,
@@ -199,7 +199,8 @@ export function motivoDaTecnica(
 /**
  * As técnicas do menu com o motivo de cada apagada. `acoes` null = fora da
  * vez (o contra-ataque). O dano é lido sem a vida do alvo (o menu não sabe o
- * alvo ainda; a mira relê com ele).
+ * alvo ainda; a mira relê com ele). `bonus` (tipos de habilidade F2) = o
+ * `bonusDaBatalha` de quem age: entra no dano com o nome do selo na conta.
  */
 export function tecnicasNoMenu(
   personagem: Personagem,
@@ -207,6 +208,7 @@ export function tecnicasNoMenu(
   combate: CombateDoPersonagem | undefined,
   acoes: AcoesDaVez | null,
   arma: CartaoDaFicha | null,
+  bonus?: BonusDaBatalha,
 ): TecnicaNoMenu[] {
   return tecnicasComForma(personagem, sistema).map(({ cartao, forma }) => {
     const leituraDaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
@@ -223,7 +225,7 @@ export function tecnicasNoMenu(
       custo: base.custo,
       acao: base.acao,
       tempo: base.tempo,
-      dano: lerDano(cartao.campos[CAMPO_DO_DANO] ?? '', { personagem, sistema, arma, vidaDoAlvo: null }),
+      dano: lerDano(cartao.campos[CAMPO_DO_DANO] ?? '', { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }),
       overload: base.overload,
       perfurante: ehPerfurante(cartao),
       tipo: lerTipo(cartao),
