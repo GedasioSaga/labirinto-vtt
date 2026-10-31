@@ -3,6 +3,7 @@ import type { Ajuste } from '../lib/ajusteDaFicha'
 import type { Personagem, TipoDePersonagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { HistoricoDaFicha } from './AjusteRapido'
+import { CampoQueColaImagem } from './CampoQueColaImagem'
 import type { LivroDaFicha } from './EscolherDoLivro'
 import { FichaAbas } from './FichaAbas'
 import { ImagemOuIniciais } from './FichaPecas'
@@ -214,17 +215,24 @@ function BlocoEditavel({ personagem, sistema, onChange, escolherImagem, tituloId
       <h2 id={tituloId} className="lb-sr-only">
         {personagem.nome}
       </h2>
-      <Retrato personagem={personagem} />
-      <div className="lb-ficha__retrato-acoes">
-        <button type="button" className="lb-btn lb-btn--compact" onClick={() => void pedirRetrato()}>
-          {personagem.retrato === null ? 'Escolher retrato…' : 'Trocar retrato…'}
-        </button>
-        {personagem.retrato !== null && (
-          <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => onChange({ ...personagem, retrato: null })}>
-            Tirar retrato
+      <CampoQueColaImagem
+        className="lb-ficha__retrato-cola"
+        rotulo={`Retrato de ${personagem.nome}: clique e cole com Ctrl+V`}
+        onImagem={(retrato) => onChange({ ...personagem, retrato })}
+        onAviso={setErroDoRetrato}
+      >
+        <Retrato personagem={personagem} />
+        <div className="lb-ficha__retrato-acoes">
+          <button type="button" className="lb-btn lb-btn--compact" onClick={() => void pedirRetrato()}>
+            {personagem.retrato === null ? 'Escolher retrato…' : 'Trocar retrato…'}
           </button>
-        )}
-      </div>
+          {personagem.retrato !== null && (
+            <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => onChange({ ...personagem, retrato: null })}>
+              Tirar retrato
+            </button>
+          )}
+        </div>
+      </CampoQueColaImagem>
       {erroDoRetrato !== null && (
         <p className="lb-field__error" role="alert">
           {erroDoRetrato}

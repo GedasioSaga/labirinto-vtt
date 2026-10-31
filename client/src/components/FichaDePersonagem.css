@@ -1160,8 +1160,43 @@
 
 .lb-cartao__imagem-edit {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-control-gap);
+}
+
+/* Campo de imagem que aceita Ctrl+V (CampoQueColaImagem): a borda diz onde
+   o colar vai cair — tracejada com o mouse em cima, cheia com o foco dentro. */
+.lb-cola-imagem {
+  margin: calc(-1 * var(--lb-space-1));
+  padding: var(--lb-space-1);
+  border: 1px dashed transparent;
+  border-radius: var(--lb-radius-sm);
+  outline: none;
+  transition: border-color 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-cola-imagem:hover {
+    border-color: var(--lb-color-line-divider);
+  }
+}
+
+.lb-cola-imagem:focus-within {
+  border-style: solid;
+  border-color: var(--lb-color-brass);
+}
+
+.lb-cola-imagem__dica {
+  color: var(--lb-color-parchment-faint);
+  font-size: 0.85em;
+}
+
+.lb-ficha__retrato-cola {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  text-align: center;
 }
 
 .lb-cartao__grupo {

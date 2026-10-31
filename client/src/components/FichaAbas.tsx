@@ -4,6 +4,7 @@ import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } fro
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
+import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 
 /**
@@ -355,7 +356,12 @@ function CartaoEditavel({ cartao, aba, sistema, aberto, onChange, onRemover, onS
         {aba.imagem === true && (
           <div className="lb-field">
             <span className="lb-label">Imagem</span>
-            <div className="lb-cartao__imagem-edit">
+            <CampoQueColaImagem
+              className="lb-cartao__imagem-edit"
+              rotulo={`Imagem de ${cartao.nome}: clique e cole com Ctrl+V`}
+              onImagem={(imagem) => onChange({ ...cartao, imagem })}
+              onAviso={setErroDaImagem}
+            >
               <div className="lb-cartao__imagem"><ImagemOuIniciais imagem={cartao.imagem} nome={cartao.nome} /></div>
               <button type="button" className="lb-btn lb-btn--compact" onClick={() => void pedirImagem()}>
                 {cartao.imagem === null ? 'Escolher imagem…' : 'Trocar imagem…'}
@@ -365,7 +371,7 @@ function CartaoEditavel({ cartao, aba, sistema, aberto, onChange, onRemover, onS
                   Tirar
                 </button>
               )}
-            </div>
+            </CampoQueColaImagem>
             {erroDaImagem !== null && (
               <p className="lb-field__error" role="alert">
                 {erroDaImagem}
