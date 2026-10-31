@@ -305,9 +305,13 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
     case 'geladeira':
       // A tampa de zinco da caixa de gelo e o fecho da frente.
       return [...quadro(-hw * 0.62, -hh * 0.62, hw * 0.62, hh * 0.3), { x1: 0, y1: hh * 0.3, x2: 0, y2: hh }]
-    case 'pia':
-      // A cuba de pedra à esquerda e o balde à direita.
-      return [...quadro(-hw * 0.86, -hh * 0.66, hw * 0.08, hh * 0.66), ...aro(altura * 0.62, altura * 0.62, hw * 0.52, 0)]
+    case 'pia': {
+      // A cuba de pedra à esquerda e o balde à direita. O balde tem teto pela
+      // largura: na pia esticada estreita e alta ele não sai da caixa (centro
+      // 0,26 + raio 0,22 da largura = 0,48); no tamanho padrão manda a altura.
+      const balde = Math.min(altura * 0.62, largura * 0.44)
+      return [...quadro(-hw * 0.86, -hh * 0.66, hw * 0.08, hh * 0.66), ...aro(balde, balde, hw * 0.52, 0)]
+    }
     case 'balcao':
       // A moldura da frente do tampo e a barra de pé, de ponta a ponta.
       return [linha(-hw, hh * 0.4, hw), linha(-hw * 0.96, hh * 0.86, hw * 0.96)]
@@ -347,11 +351,13 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         })
       }
       // A pilha de toras: a tora de cima de ponta a ponta, com o corte (o anel) nas duas pontas.
+      // O anel tem teto pela largura (0,42 + 0,08 = 0,5 dela): nos troncos estreitos e altos não sai da caixa.
+      const corte = Math.min(altura * 0.2, largura * 0.16)
       return [
         linha(-hw * 0.84, -hh / 3, hw * 0.84),
         linha(-hw * 0.84, hh / 3, hw * 0.84),
-        ...aro(altura * 0.2, altura * 0.6, -hw * 0.84, 0),
-        ...aro(altura * 0.2, altura * 0.6, hw * 0.84, 0),
+        ...aro(corte, altura * 0.6, -hw * 0.84, 0),
+        ...aro(corte, altura * 0.6, hw * 0.84, 0),
       ]
     }
     case 'feno':
