@@ -19,6 +19,7 @@ import {
   type SeloDaBatalha,
   type SeloPedido,
 } from './combate'
+import { varianteDoPedido } from './escolhaEEvolucao'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, ehOverload, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { ehNomeDeSelo, lerDuracao, lerMods, seloPedidoValido, selosDoToken, textoDoMod } from './selos'
@@ -713,6 +714,8 @@ export function motivoDaPassiva(ctx: ContextoDaPassiva, pedido: PedidoDePassiva)
   }
   if (!pedido.ligar) return ligada ? null : 'A passiva não está ativa'
   if (ligada) return 'A passiva já está ativa'
+  // Tipos de habilidade F4 (mudança mínima na F3): a opção do Ativar (Melodia) tem de ser opção desta passiva.
+  if (pedido.variante !== undefined && varianteDoPedido(cartao, pedido.variante) === null) return 'Opção não encontrada na passiva'
   if (pedido.custo !== null && (!Number.isInteger(pedido.custo) || pedido.custo < 0 || pedido.custo > CUSTO_MAX)) return 'Custo inválido'
   if (pedido.selo !== undefined && seloPedidoValido(pedido.selo, sistema) === null) return 'Selo inválido'
   const alvoTokenId = pedido.alvoTokenId ?? pedido.tokenId

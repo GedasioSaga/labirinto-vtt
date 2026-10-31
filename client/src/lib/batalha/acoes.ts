@@ -2,12 +2,12 @@ import { valorDoRank } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
 import { CARGA_MAX, type AcaoDaTecnica, type BonusDaBatalha, type CombateDoPersonagem } from './combate'
+import { motivoDaEvolucao, overloadNaBatalha } from './escolhaEEvolucao'
 import { CAMPO_DO_DANO, lerDano, type LeituraDoDano } from './formula'
 import {
   CAMPO_DA_ACAO,
   CAMPO_DO_CUSTO,
   CAMPO_DO_TEMPO,
-  ehOverload,
   ehPerfurante,
   lerAcao,
   perfuracaoDe,
@@ -15,6 +15,7 @@ import {
   lerTempo,
   recursoDoCusto,
   tecnicasComForma,
+  tecnicasDe,
   type LeituraDoCusto,
   type LeituraDoTempo,
 } from './leituraDaFicha'
@@ -157,9 +158,12 @@ export const MOTIVO_DA_REACAO_PURA = 'Reação: use na caixa REAÇÃO'
 /**
  * Por que a técnica está apagada, ou `null` (pode). `acoes` null = fora da
  * vez (contra-ataque, Q6): a ação da vez não conta. Na ordem do menu:
- * passiva, reação pura, transformação (F3), Overload, recarga, usos, ação,
- * custo. `comoReacao` (tipos de habilidade F1) = usada NA CAIXA REAÇÃO: o
- * tipo Reação e a ação não contam (passe `acoes` null); passiva continua fora.
+ * passiva, reação pura, transformação (F3), evolução (tipos de habilidade
+ * F4: "Evolução: evolua X primeiro", "Evoluiu: use Y"), Overload, recarga,
+ * usos, ação, custo. `comoReacao` (tipos de habilidade F1) = usada NA CAIXA
+ * REAÇÃO: o tipo Reação e a ação não contam (passe `acoes` null); passiva
+ * continua fora. O `overload` de quem chama já conta o uso evoluído
+ * (`overloadNaBatalha`).
  */
 export function motivoDaTecnica(
   tecnica: Pick<TecnicaNoMenu, 'cartao' | 'custo' | 'acao' | 'tempo' | 'overload'> & { transformacao: boolean },
@@ -174,6 +178,8 @@ export function motivoDaTecnica(
   if (tecnica.acao === 'passiva' || tipo === 'passiva') return 'Passiva: vale sempre'
   if (tipo === 'reacao' && comoReacao !== true) return MOTIVO_DA_REACAO_PURA
   if (tecnica.transformacao) return 'É transformação: use a tira Transformação'
+  const evolucao = motivoDaEvolucao(cartao, tecnicasDe(personagem, sistema), combate?.evoluidas)
+  if (evolucao !== null) return evolucao
   if (tecnica.overload && combate?.overload === true) return 'Overload: já usado nesta batalha'
   const recarga = combate?.recargas[cartao.id] ?? 0
   if (recarga > 0) return `Recarga: ${turnos(recarga)}`
@@ -210,14 +216,17 @@ export function tecnicasNoMenu(
   arma: CartaoDaFicha | null,
   bonus?: BonusDaBatalha,
 ): TecnicaNoMenu[] {
-  return tecnicasComForma(personagem, sistema).map(({ cartao, forma }) => {
+  const tecnicas = tecnicasComForma(personagem, sistema)
+  const todas = tecnicas.map((tecnica) => tecnica.cartao)
+  return tecnicas.map(({ cartao, forma }) => {
     const leituraDaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
     const base = {
       cartao,
       custo: lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem),
       acao: leituraDaAcao.acao,
       tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
-      overload: ehOverload(cartao),
+      // Tipos de habilidade F4: a base evoluída sem "Evolui para" cujo texto diz OVERLOAD conta como Overload.
+      overload: overloadNaBatalha(cartao, todas, combate?.evoluidas),
       transformacao: leituraDaAcao.transformacao,
     }
     const tecnica: TecnicaNoMenu = {

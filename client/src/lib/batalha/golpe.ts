@@ -23,16 +23,17 @@ import {
   type SeloPedido,
 } from './combate'
 import { equipeDe, type Equipe } from './equipes'
+import { overloadNaBatalha, usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
 import { danoDoAtaque } from './formula'
 import {
   armasDe,
   balaDaArma,
-  ehOverload,
   lerAcao,
   lerCusto,
   lerTempo,
   recursoDoCusto,
   tecnicaPorId,
+  tecnicasDe,
   CAMPO_DA_ACAO,
   CAMPO_DO_CUSTO,
   CAMPO_DO_TEMPO,
@@ -169,12 +170,19 @@ interface TecnicaPedida {
   transformacao: boolean
   /** Tipos de habilidade F2: Buff não pede reação; Debuff pede mesmo sem dano. */
   tipo: TipoDaHabilidade
+  /** Tipos de habilidade F4: o uso evoluído sem "Evolui para" (o registro diz "(evoluída)"). */
+  evoluida: boolean
 }
 
-function tecnicaPedida(personagem: Personagem, sistema: SistemaDeRpg, pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>): TecnicaPedida | null {
+/**
+ * A técnica do pedido. `evoluidas` (tipos de habilidade F4) = as do combate
+ * de quem age: a base evoluída sem link cujo texto diz OVERLOAD vira Overload.
+ */
+function tecnicaPedida(personagem: Personagem, sistema: SistemaDeRpg, pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>, evoluidas: readonly string[] | undefined): TecnicaPedida | null {
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return null
   const { cartao } = achada
+  const todas = tecnicasDe(personagem, sistema)
   const lidaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
   const lidoCusto = lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
   // A tela confirma o custo: o número dela vale sobre o da ficha, no recurso que a ficha diz (SP por padrão).
@@ -185,9 +193,10 @@ function tecnicaPedida(personagem: Personagem, sistema: SistemaDeRpg, pedido: Ex
     custo,
     acao: lidaAcao.acao ?? pedido.acao,
     tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
-    overload: ehOverload(cartao),
+    overload: overloadNaBatalha(cartao, todas, evoluidas),
     transformacao: lidaAcao.transformacao,
     tipo: lerTipo(cartao).tipo,
+    evoluida: usoEvoluido(cartao, todas, evoluidas),
   }
 }
 
@@ -230,8 +239,10 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
     case 'habilidade': {
       const { personagem, sistema } = ctx
       if (personagem === null || sistema === null) return 'Ficha sem personagem não usa habilidade'
-      const tecnica = tecnicaPedida(personagem, sistema, pedido)
+      const tecnica = tecnicaPedida(personagem, sistema, pedido, combate.evoluidas)
       if (tecnica === null) return 'Técnica não encontrada na ficha'
+      // Tipos de habilidade F4: a opção dos chips da mira tem de ser opção desta técnica.
+      if (pedido.variante !== undefined && varianteDoPedido(tecnica.cartao, pedido.variante) === null) return 'Opção não encontrada na técnica'
       if (tecnica.acao === null) return 'Escolha a ação da técnica'
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
       if (armaDoPedido(ctx, pedido.armaId) === undefined) return 'Arma fora das levadas para a batalha'
@@ -296,7 +307,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
     return { ...vazio, gasto: gastarAcao(gastoAtual, acao), combate: { ...combate, carga: cargaNova, concentrouEm: chaveDaVez(ctx.turnos.rodada, ctx.carta.id) }, acao }
   }
   const { personagem, sistema } = ctx
-  const tecnica = pedido.tipo === 'habilidade' && personagem !== null && sistema !== null ? tecnicaPedida(personagem, sistema, pedido) : null
+  const tecnica = pedido.tipo === 'habilidade' && personagem !== null && sistema !== null ? tecnicaPedida(personagem, sistema, pedido, combate.evoluidas) : null
   const acaoBase = pedido.tipo === 'atacar' ? 'simples' : tecnica?.acao
   const acao = acaoBase === undefined || acaoBase === null || acaoBase === 'passiva' ? null : acaoDoGolpe(acaoBase, combate.carga)
   const overload = tecnica?.overload ?? false
@@ -325,6 +336,12 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   if (selo !== null) golpe.selo = tecnica === null ? selo : seloDaTecnicaNoGolpe(selo, tecnica)
   const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
+  // Tipos de habilidade F4: a opção escolhida e o uso evoluído vão para o registro ("Medicina (Cirugia)").
+  if (tecnica !== null && pedido.tipo === 'habilidade') {
+    const variante = pedido.variante === undefined ? null : varianteDoPedido(tecnica.cartao, pedido.variante)
+    if (variante !== null) golpe.variante = variante.rotulo
+    if (tecnica.evoluida) golpe.evoluida = true
+  }
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
   if (combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
   return {
@@ -527,6 +544,12 @@ export function textoDaReacaoComTecnica(alvo: AlvoDoGolpe, nomeDoToken: (tokenId
   return comeco
 }
 
+/** Tipos de habilidade F4: "Medicina (Cirugia)", "CAÇA AS BRUXAS! (evoluída)"; sem escolha nem evolução, só o nome. */
+function nomeComEscolha(golpe: GolpeDaBatalha): string {
+  const marcas = [golpe.evoluida === true ? 'evoluída' : null, golpe.variante ?? null].filter((marca): marca is string => marca !== null)
+  return marcas.length === 0 ? golpe.nome : `${golpe.nome} (${marcas.join(', ')})`
+}
+
 /** "perfurante" (tudo direto no HP), "perfurante 30%" (parcial) ou nada. */
 function marcaDoPerfurante(golpe: GolpeDaBatalha): string | null {
   const porcentagem = porcentagemQuePerfura(golpe.perfurante, golpe.perfuracao)
@@ -550,7 +573,7 @@ function textoDoGolpeSemBala(golpe: GolpeDaBatalha, nomeDoToken: (tokenId: strin
   const marcas = [golpe.surpresa ? 'Surpresa' : null, golpe.overload ? 'Overload' : null, marcaDoPerfurante(golpe), golpe.contraDe !== undefined ? 'contra-ataque' : null].filter((marca): marca is string => marca !== null)
   const nomes = golpe.alvos.map((alvo) => nomeDoToken(alvo.tokenId))
   const emQuem = nomes.length === 0 ? '' : ` em ${nomes.length === 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`}`
-  const acao = golpe.bala === undefined ? `usa ${golpe.nome}` : `atira com ${golpe.nome} (${golpe.bala.nome})`
+  const acao = golpe.bala === undefined ? `usa ${nomeComEscolha(golpe)}` : `atira com ${golpe.nome} (${golpe.bala.nome})`
   const comeco = `${nomeDoToken(golpe.atacanteTokenId)} ${acao}${emQuem}${marcas.length > 0 ? ` (${marcas.join(', ')})` : ''}`
   const [unico] = golpe.alvos
   if (golpe.alvos.length === 1 && unico !== undefined) {
