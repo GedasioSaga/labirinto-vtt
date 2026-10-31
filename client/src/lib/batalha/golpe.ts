@@ -43,7 +43,7 @@ import {
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
-import { seloPedidoValido } from './selos'
+import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
 import { formaDaFicha, motivoDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
@@ -429,7 +429,9 @@ export function sugestaoParaNpc(npc: Personagem, cena: BatalhaEmTurnos, ctx: Con
   if (sistema === null) return { cartaoId: null, armaId, alvoTokenId }
   const daVez = cartaDaVez(cena.turnos)
   const acoes = daVez !== null && daVez.personagemId === npc.id ? acoesDaCarta({ turnos: cena.turnos, carta: daVez, personagem: npc, sistema, regras: cena.regras }) : null
-  const disponiveis = tecnicasNoMenu(npc, sistema, combate, acoes, arma).filter((tecnica) => tecnica.motivo === null && tecnica.custo.tipo !== 'pergunta')
+  // Tipos de habilidade F2: os selos do NPC da vez entram no dano de cada técnica (a mesma conta do painel).
+  const bonus = daVez !== null && daVez.personagemId === npc.id ? bonusDaBatalha(cena.turnos.selos, daVez.tokenId) : undefined
+  const disponiveis = tecnicasNoMenu(npc, sistema, combate, acoes, arma, bonus).filter((tecnica) => tecnica.motivo === null && tecnica.custo.tipo !== 'pergunta')
   let escolhida: { cartaoId: string; dano: number } | null = null
   for (const tecnica of disponiveis) {
     if (tecnica.dano.tipo !== 'valor') continue
