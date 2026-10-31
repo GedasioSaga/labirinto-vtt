@@ -374,16 +374,18 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
       armas: combate.armas === null ? null : [...combate.armas],
       limiteDeArmas: personagem === undefined ? null : limiteDeArmas(personagem),
     }
-    meus.push(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]))
+    // Passivas e evoluções só do personagem DELE: o token de NPC que ele controla entra em `meus`, mas o lembrete
+    // "vida abaixo de 50%" contaria a vida do NPC.
+    meus.push(ctx.meusPersonagens.has(personagemId) ? comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]) : meu)
   }
   return meus
 }
 
 /**
  * Tipos de habilidade F3: os lembretes, as chaves lembradas e as passivas
- * ligadas do personagem DELE (o NPC nunca chega aqui: `meus` só leva ficha
- * dele). F4: e as técnicas evoluídas. Nos tetos do fio; campo vazio não sai
- * (o JSON de quem não tem passiva nem evolução fica igual byte a byte).
+ * ligadas do personagem DELE (nunca as do NPC cujo token ele controla). F4:
+ * e as técnicas evoluídas. Nos tetos do fio; campo vazio não sai (o JSON de
+ * quem não tem passiva nem evolução fica igual byte a byte).
  */
 function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem, ativas: readonly string[]): CombateParaJogador {
   const cabe = (cartaoId: string): boolean => cartaoId.length >= 1 && cartaoId.length <= ID_DO_CARTAO_MAX
