@@ -258,6 +258,8 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     const efeito = tarefa.efeito
     // F3: o gesto do Judge toca no mapa (`pixi/judgeDoMapa.ts`); aqui só o anúncio da região viva.
     if (efeito.tipo === 'judge') return
+    // F3 (fatia T), fase 0: transformação, forma desfeita e selo acabado ainda só têm o anúncio; a animação chega na T-C.
+    if (efeito.tipo === 'transformacao' || efeito.tipo === 'forma' || efeito.tipo === 'selo') return
     if (efeito.tipo === 'golpe') {
       await tocarCorte(motor, nome(efeito.atacanteTokenId), imagem(efeito.atacanteTokenId), efeito.nome, efeito.surpresa ? 'Surpresa' : efeito.overload ? 'Overload' : null, reduzido)
       if (!reduzido) await Promise.all(efeito.alvos.map((tokenId) => tocarRisco(motor, motor.posicao(consultar, tokenId))))

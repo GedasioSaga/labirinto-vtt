@@ -118,7 +118,11 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
       nome: 'Transformações',
       item: 'Transformação',
       vazio: 'Nenhuma transformação.',
-      campos: [{ id: 'descricao', rotulo: 'Descrição', forma: 'paragrafo' }],
+      campos: [
+        { id: 'descricao', rotulo: 'Descrição', forma: 'paragrafo' },
+        // F3 (decisão 16): a ação que Ativar a forma gasta na batalha. Vazio = Completa (`lerAcao`).
+        { id: 'acao', rotulo: 'Ação', forma: 'linha' },
+      ],
       imagem: true,
       modificadores: true,
       subcartoes: { aba: 'habilidades', rotulo: 'Técnicas da forma' },

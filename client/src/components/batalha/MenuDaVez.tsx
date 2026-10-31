@@ -93,7 +93,9 @@ export function MenuDaVez(props: MenuDaVezProps) {
   const textoCarga = textoDaCarga(carga)
 
   const agir = (pedido: PedidoDeAcao): boolean => {
-    const comContra: PedidoDeAcao = contra !== undefined && pedido.tipo !== 'concentrar' ? { ...pedido, contraDe: contra.golpeId } : pedido
+    // F3: Ativar e Desfazer a forma nunca são contra-ataque.
+    const semContra = pedido.tipo === 'concentrar' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar'
+    const comContra: PedidoDeAcao = contra !== undefined && !semContra ? { ...pedido, contraDe: contra.golpeId } : pedido
     const saiu = onAgir(comContra)
     setAviso(saiu ? null : 'Não saiu: sem conexão com o mestre, ou a vez já passou.')
     if (saiu && contra !== undefined) setContraId(null)

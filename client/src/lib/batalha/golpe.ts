@@ -24,6 +24,7 @@ import { armasDe, ehOverload, lerAcao, lerCusto, lerTempo, recursoDoCusto, tecni
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
+import { MOTIVO_AINDA_NAO } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -178,6 +179,10 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       return motivoDoConcentrar(combate, acoes, chaveDaVez(ctx.turnos.rodada, ctx.carta.id))
     case 'mover':
       return null
+    // F3, fase 0: a regra de Ativar e Desfazer a forma chega na fase 1 da fatia T.
+    case 'transformar':
+    case 'destransformar':
+      return MOTIVO_AINDA_NAO
     case 'atacar': {
       if (armaDoPedido(ctx, pedido.armaId) === undefined) return 'Arma fora das levadas para a batalha'
       const motivo = motivoDosAlvos(ctx, pedido.alvos, 1)
@@ -241,7 +246,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   const combate = combateDe(ctx)
   const gastoAtual = ctx.turnos.gastos[ctx.carta.id] ?? { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
   const vazio: GolpeLancado = { golpe: null, resolvidos: [], gasto: null, combate: null, custo: [], contraUsado: contra, acao: null, cargaUsada: 0 }
-  if (pedido.tipo === 'mover') return vazio
+  // F3: Ativar e Desfazer a forma não lançam golpe (a regra deles mora em `transformacao.ts`).
+  if (pedido.tipo === 'mover' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return vazio
   if (pedido.tipo === 'concentrar') {
     const acao = acaoDoConcentrar(acoesDaCarta(ctx))
     // Até `CARGA_MAX` (3): o Concentrar com carga 3 já sai apagado em `podeAgir`.

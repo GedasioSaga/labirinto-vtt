@@ -16,6 +16,7 @@ import {
   type PedidoDeAcao,
   type PedidoDeReacao,
   type SaidaDaReacao,
+  type SeloPedido,
 } from '../lib/batalha/combate'
 import { equipeDe } from '../lib/batalha/equipes'
 import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
@@ -217,6 +218,14 @@ interface BatalhaState {
    * (`gravarJudgeLembrado`) é de quem chama.
    */
   moverJudge: (sceneKey: string, x: number, y: number) => boolean
+
+  // ---- F3 (fatia T): selos à mão. Só o mestre (chamada direta). Fase 0: só o contrato, tudo devolve `false`. ----
+  /** "Pôr selo..." na ficha: linha "selo" com reversão `selo` (antes `null`). Teto `SELOS_POR_TOKEN_MAX` por ficha e `SELOS_MAX` na cena. */
+  porSelo: (sceneKey: string, tokenId: string, selo: SeloPedido) => boolean
+  /** Troca nome e turnos de um selo (o `total` passa a ser os turnos novos): linha "selo" com o de antes. */
+  editarSelo: (sceneKey: string, seloId: string, selo: SeloPedido) => boolean
+  /** Tira o selo: linha "selo" com o de antes. */
+  tirarSelo: (sceneKey: string, seloId: string) => boolean
 }
 
 const SEM_CAMINHOS: Readonly<Record<string, number>> = {}
@@ -362,6 +371,8 @@ function desfazerReversao(cena: BatalhaDaCena, reversao: Reversao, autor: AutorD
     case 'carga':
     case 'golpe':
     case 'contra':
+    case 'forma':
+    case 'selo':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
   }
 }
@@ -750,6 +761,8 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
     },
 
     agir: (sceneKey, autor, vez, pedido) => {
+      // F3, fase 0: Ativar e Desfazer a forma ainda não fazem nada (a regra chega na fase 1 da fatia T).
+      if (pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return false
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return false
       const { turnos } = cena
@@ -989,6 +1002,11 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       gravarCena(sceneKey, { ...cena, judge, turnosRev: cena.turnosRev + 1 })
       return true
     },
+
+    // F3 (fatia T), fase 0: o contrato. Pôr, editar e tirar selo chegam na fase 1 (T-A); até lá, nada muda.
+    porSelo: () => false,
+    editarSelo: () => false,
+    tirarSelo: () => false,
   }
 })
 

@@ -54,7 +54,8 @@ export interface PedidoDeAlvo {
  * quem ataca pode desligar.
  */
 export type PedidoDeAcao =
-  | { tipo: 'atacar'; armaId: string | null; alvos: readonly PedidoDeAlvo[]; surpresa: boolean; perfurante: boolean; contraDe?: string }
+  /** F3: `selo` = o sugerido pela habilidade, marcado na mira; pega só se o golpe acerta (Q6). */
+  | { tipo: 'atacar'; armaId: string | null; alvos: readonly PedidoDeAlvo[]; surpresa: boolean; perfurante: boolean; contraDe?: string; selo?: SeloPedido }
   | {
       tipo: 'habilidade'
       cartaoId: string
@@ -67,10 +68,19 @@ export type PedidoDeAcao =
       /** Só quando a ficha não diz; `null` = a da ficha. */
       acao: AcaoDaTecnica | null
       contraDe?: string
+      selo?: SeloPedido
     }
   | { tipo: 'concentrar' }
   /** Q6: o contra-ataque gasto em se mover. Só marca (e tira o atalho); o movimento em si é o arrasto de sempre. */
   | { tipo: 'mover'; contraDe: string }
+  /**
+   * F3: Ativar a forma pelo menu. `acao` = a escolhida na tela; `trocarImagem`
+   * = a caixa "Trocar a imagem". Nunca é contra-ataque: `contraDe` existe só
+   * como `undefined`, para quem lê `pedido.contraDe` sem olhar o tipo.
+   */
+  | { tipo: 'transformar'; cartaoId: string; acao: AcaoDaForma; trocarImagem: boolean; contraDe?: undefined }
+  /** F3: "Desfazer a forma" (ação livre). Nunca é contra-ataque. */
+  | { tipo: 'destransformar'; cartaoId: string; contraDe?: undefined }
 
 /** Os tipos de pedido de ação, para o enum fechado do fio. */
 export type TipoDoPedidoDeAcao = PedidoDeAcao['tipo']
@@ -124,6 +134,8 @@ export interface GolpeDaBatalha {
   /** O golpe é um contra-ataque ganho no golpe com este id. */
   contraDe?: string
   alvos: readonly AlvoDoGolpe[]
+  /** F3: o selo que o golpe põe em cada alvo que ele acerta (Q6). */
+  selo?: SeloPedido
 }
 
 /**
@@ -149,6 +161,64 @@ export type EfeitoDaBatalha =
   | { seq: number; tipo: 'dano'; tokenId: string; valor: number; saida: SaidaDaReacao | 'direto' }
   /** F3 (fatia J): o MESTRE desfez uma linha e o Judge ergue a carta. Sem token: vai a todos na cena. */
   | { seq: number; tipo: 'judge'; gesto: 'carta' }
+  /**
+   * F3 (fatia T): a forma ligou. `imagem` = a da forma, se o dono quis trocar.
+   * `numeros` (a prévia: "FOR 160 → 220") só sai a quem é dono ou aliado do
+   * token (`efeitosParaJogador`); ausente = só o nome.
+   */
+  | { seq: number; tipo: 'transformacao'; tokenId: string; forma: string; imagem: string | null; numeros?: readonly NumeroDaForma[] }
+  /** F3 (fatia T): desfez a forma (ação livre). Texto curto sobre o token. */
+  | { seq: number; tipo: 'forma'; tokenId: string; forma: string; ligou: false }
+  /** F3 (fatia T): um selo acabou ("ATORDOADO ACABOU"). */
+  | { seq: number; tipo: 'selo'; tokenId: string; nome: string; acabou: true }
+
+/** Um número que a forma muda: "FOR 160 → 220", "HP máx 1.200 → 1.800", "HP 900 → 1.500". */
+export interface NumeroDaForma {
+  rotulo: string
+  de: number
+  para: number
+  nota?: string
+}
+
+/**
+ * F3: a forma ativada PELO MENU nesta batalha, por personagemId
+ * (`TurnosDaCena.formas`). `imagem` = `CartaoDaFicha.imagem` se o dono quis
+ * trocar a do token e do retrato; vale só enquanto o cartão segue ligado
+ * (`aparenciaDaForma`).
+ */
+export interface FormaNaBatalha {
+  cartaoId: string
+  imagem: string | null
+}
+
+/**
+ * F3: um selo com duração na carta ("Atordoado 2"). Por TOKEN: a carta extra
+ * mostra o mesmo. Conta na vez do alvo (Q4): desconta no fim da vez dele, no
+ * máximo 1 vez por rodada.
+ */
+export interface SeloDaBatalha {
+  /** `selo_<uuid>`. */
+  id: string
+  tokenId: string
+  /** Até `NOME_DO_SELO_MAX`. */
+  nome: string
+  /** Os turnos que faltam; `null` = até o mestre tirar. */
+  turnos: number | null
+  total: number | null
+  /** A rodada em que já descontou (1 vez por rodada). */
+  contadoNaRodada?: number
+  /** O nome da técnica que o pôs. */
+  origem?: string
+}
+
+/** O selo como chega no pedido (o sugerido na mira, ou o do mestre). `turnos` null = até tirar. */
+export interface SeloPedido {
+  nome: string
+  turnos: number | null
+}
+
+/** F3: a ação que Ativar a forma gasta (o campo Ação; vazio = Completa). */
+export type AcaoDaForma = 'simples' | 'completa' | 'bonus'
 
 /** Alvos num golpe. */
 export const ALVOS_MAX = 12
@@ -175,6 +245,22 @@ export const DANO_MAX = 1_000_000
 export const CUSTO_MAX = 1_000_000
 /** Teto do nome do golpe (o da arma ou da habilidade) no fio. */
 export const NOME_DO_GOLPE_MAX = 80
+/** F3: teto do nome de um selo. */
+export const NOME_DO_SELO_MAX = 24
+/** F3: teto dos turnos de um selo. */
+export const TURNOS_DO_SELO_MAX = 99
+/** F3: selos numa ficha (e numa carta no fio). */
+export const SELOS_POR_TOKEN_MAX = 8
+/** F3: selos numa cena. */
+export const SELOS_MAX = 120
+/** F3: linhas na prévia da forma (e no efeito). */
+export const NUMEROS_DA_FORMA_MAX = 16
+/** F3: teto do rótulo e da nota de um número da forma no fio. */
+export const ROTULO_DO_NUMERO_MAX = 40
+/** F3: teto do nome da forma (o nome do cartão) no fio. */
+export const NOME_DA_FORMA_MAX = 80
+/** F3: teto de um número da forma no fio (o mesmo do dano). */
+export const NUMERO_DA_FORMA_MAX = DANO_MAX
 
 /** O combate de quem ainda não fez nada nesta batalha. */
 export function combateVazio(): CombateDoPersonagem {

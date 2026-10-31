@@ -3,7 +3,7 @@ import { valorDoRank } from '../ajusteDaFicha'
 import { entraNaBatalha } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import type { CombateDoPersonagem, ContraAtaque, GolpeDaBatalha } from './combate'
+import type { CombateDoPersonagem, ContraAtaque, FormaNaBatalha, GolpeDaBatalha, SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 
 /**
@@ -89,6 +89,10 @@ export interface TurnosDaCena {
   golpes?: readonly GolpeDaBatalha[]
   /** F2 (Q6): os contra-ataques ganhos e ainda não usados. */
   contras?: readonly ContraAtaque[]
+  /** F3: personagemId → a forma ativada pelo menu nesta batalha (e a imagem escolhida). Ausente = nenhuma. */
+  formas?: Readonly<Record<string, FormaNaBatalha>>
+  /** F3: os selos com duração, por token (no máximo `SELOS_MAX`). Ausente = nenhum. */
+  selos?: readonly SeloDaBatalha[]
 }
 
 /** Quem fez a ação que entra no registro. O `nome` do jogador é o da mesa, na hora. */
@@ -347,6 +351,8 @@ function primeiraQueJoga(cartas: readonly CartaDaOrdem[], inicio: number, caidos
 export interface VezPassada {
   turnos: TurnosDaCena
   removidas: CartaNoLugar[]
+  /** F3: os selos da carta que SAIU que chegaram a 0 e saíram (para o texto da linha e o efeito). Ausente = nenhum. */
+  acabaram?: SeloDaBatalha[]
 }
 
 /**

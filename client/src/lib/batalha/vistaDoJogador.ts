@@ -1,3 +1,4 @@
+import { ehImagemDaMesa } from '../midia'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { acoesDaVez, rankDeAgilidade, type AcoesDaVez } from './acoes'
@@ -6,9 +7,17 @@ import {
   combateVazio,
   EFEITOS_POR_MENSAGEM,
   GOLPES_PENDENTES_MAX,
+  NOME_DA_FORMA_MAX,
   NOME_DO_GOLPE_MAX,
+  NOME_DO_SELO_MAX,
+  NUMERO_DA_FORMA_MAX,
+  NUMEROS_DA_FORMA_MAX,
+  ROTULO_DO_NUMERO_MAX,
+  SELOS_POR_TOKEN_MAX,
+  TURNOS_DO_SELO_MAX,
   type EfeitoDaBatalha,
   type GolpeDaBatalha,
+  type NumeroDaForma,
   type RolagemDaReacao,
   type SaidaDaReacao,
 } from './combate'
@@ -18,7 +27,9 @@ import { limiteDeArmas } from './leituraDaFicha'
 import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
-import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM } from './turnos'
+import { ehNomeDeSelo, selosDoToken } from './selos'
+import { aparenciaDaForma, nomeDaFormaLigada } from './transformacao'
+import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from './turnos'
 
 /**
  * O RECORTE DA BATALHA PARA UM JOGADOR (F1, seções 2.1 e 3.2 do plano): o que
@@ -63,6 +74,16 @@ export interface CartaParaJogador {
   extra?: DuracaoDaExtra
   /** Só "eu" e "aliado": a vida chegou a 0. */
   caiu?: true
+  /** F3: o nome da forma ativada pelo menu e ainda ligada ("Punho Negro"). Para todos que veem a carta, também de NPC. */
+  forma?: string
+  /** F3 (Q5): os selos da ficha ("Atordoado 2"). Para todos que veem a carta, também de NPC. */
+  selos?: SeloParaJogador[]
+}
+
+/** F3: um selo como sai na carta. `turnos` null = até o mestre tirar. */
+export interface SeloParaJogador {
+  nome: string
+  turnos: number | null
 }
 
 export interface EstadoParaJogador {
@@ -91,6 +112,12 @@ export interface EstadoParaJogador {
   contras?: ContraParaJogador[]
   /** F3 (fatia J): onde o Judge está, só `{ x, y }` (a direção cada tela calcula). Sempre que a batalha tem Judge. */
   judge?: JudgeNaCena
+  /**
+   * F3: tokenId → a imagem da forma (`midia:<id>` ou a embutida) que vence a
+   * foto do token e o retrato. Só fichas com carta no recorte dele, só forma
+   * com imagem escolhida e cartão ainda ligado.
+   */
+  aparencias?: Record<string, string>
 }
 
 /** "Simples 0/1 · Bônus 0/0 · Mov 2/4": a mesma forma de `acoesDaVez`. */
@@ -179,6 +206,8 @@ export const MEUS_NO_COMBATE_MAX = 16
 export const CARTOES_NO_COMBATE_MAX = 200
 /** O atacante que a tela dele não tem. */
 export const ATACANTE_FORA_DA_VISTA = 'Alguém fora da sua vista'
+/** F3: imagens de forma em `aparencias` (uma por ficha com carta no recorte). */
+export const APARENCIAS_MAX = CARTAS_PARA_JOGADOR_MAX
 
 function ladoDa(carta: CartaDaOrdem, ctx: ContextoDoJogador): LadoNaCarta {
   if (ctx.meusTokens.has(carta.tokenId)) return 'eu'
@@ -187,7 +216,27 @@ function ladoDa(carta: CartaDaOrdem, ctx: ContextoDoJogador): LadoNaCarta {
   return ctx.aliados.has(carta.personagemId) ? 'aliado' : 'outro'
 }
 
-function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJogador, caidos: ReadonlySet<string>): CartaParaJogador {
+function personagemDaCarta(carta: CartaDaOrdem, ctx: ContextoDoJogador): Personagem | undefined {
+  return carta.personagemId === null ? undefined : ctx.personagens.find((candidato) => candidato.id === carta.personagemId)
+}
+
+/** F3: a forma (nome) e os selos que a carta mostra a quem a vê (Q5: também de NPC). Nada de número. */
+function formaESelosDaCarta(saida: CartaParaJogador, carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: ContextoDoJogador): void {
+  if (carta.personagemId !== null) {
+    const forma = nomeDaFormaLigada(turnos.formas?.[carta.personagemId], personagemDaCarta(carta, ctx))
+    const noTeto = forma?.slice(0, NOME_DA_FORMA_MAX) ?? ''
+    // Cartão sem nome não sai: o fio recusa forma vazia e derrubaria o estado inteiro.
+    if (noTeto.length > 0) saida.forma = noTeto
+  }
+  const selos = selosDoToken(turnos.selos, carta.tokenId)
+    .map((selo): SeloParaJogador => ({ nome: selo.nome.slice(0, NOME_DO_SELO_MAX), turnos: selo.turnos === null ? null : Math.max(0, Math.min(TURNOS_DO_SELO_MAX, Math.round(selo.turnos))) }))
+    // Nome torto (vazio, quebra de linha) fica de fora pelo mesmo motivo.
+    .filter((selo) => ehNomeDeSelo(selo.nome))
+    .slice(0, SELOS_POR_TOKEN_MAX)
+  if (selos.length > 0) saida.selos = selos
+}
+
+function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJogador, caidos: ReadonlySet<string>, turnos: TurnosDaCena): CartaParaJogador {
   const lado = ladoDa(carta, ctx)
   const saida: CartaParaJogador = { id: carta.id, tokenId: carta.tokenId, nome: nome.slice(0, NOME_NA_CARTA_MAX), lado }
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, ctx.equipes)
@@ -198,7 +247,24 @@ function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJoga
     if (carta.personagemId !== null) saida.personagemId = carta.personagemId
     if (caidos.has(carta.tokenId)) saida.caiu = true
   }
+  formaESelosDaCarta(saida, carta, turnos, ctx)
   return saida
+}
+
+/** F3: as imagens de forma das fichas cujas cartas saem (uma por token). Só referência de mídia ou a embutida. */
+function aparenciasParaJogador(cartas: readonly CartaDaOrdem[], turnos: TurnosDaCena, ctx: ContextoDoJogador): Record<string, string> {
+  const aparencias: Record<string, string> = {}
+  if (turnos.formas === undefined) return aparencias
+  const vistos = new Set<string>()
+  for (const carta of cartas) {
+    if (vistos.size >= APARENCIAS_MAX) break
+    if (carta.personagemId === null || vistos.has(carta.tokenId)) continue
+    const imagem = aparenciaDaForma(turnos.formas[carta.personagemId], personagemDaCarta(carta, ctx))
+    if (imagem === null || !ehImagemDaMesa(imagem)) continue
+    aparencias[carta.tokenId] = imagem
+    vistos.add(carta.tokenId)
+  }
+  return aparencias
 }
 
 /** A ficha é DELE: o token é dele, ou o personagem ligado é dele. */
@@ -316,13 +382,36 @@ function contrasParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): Cont
  * o efeito inteiro sai (o corte diria que há alguém escondido). O número do
  * dano vai a quem vê a ficha (Q5). O gesto do Judge (F3) não tem ficha: vai
  * a todos, só com o tipo e o gesto.
+ *
+ * F3 (fatia T): "transformacao", "forma" e "selo" só com a ficha no recorte,
+ * campo a campo. Os `numeros` da forma saem SÓ se o token está em
+ * `numerosVisiveis` (fichas dele e dos aliados: a mesma regra da vida);
+ * ausente = nenhum número sai (NPC nunca entra no conjunto).
  */
-export function efeitosParaJogador(efeitos: readonly EfeitoDaBatalha[], depoisDoSeq: number, tokensNoRecorte: ReadonlySet<string>): EfeitoParaJogador[] {
+export function efeitosParaJogador(
+  efeitos: readonly EfeitoDaBatalha[],
+  depoisDoSeq: number,
+  tokensNoRecorte: ReadonlySet<string>,
+  numerosVisiveis?: ReadonlySet<string>,
+): EfeitoParaJogador[] {
   const saem: EfeitoParaJogador[] = []
   for (const efeito of efeitos) {
     if (efeito.seq <= depoisDoSeq) continue
     if (efeito.tipo === 'judge') {
       saem.push({ seq: efeito.seq, tipo: 'judge', gesto: efeito.gesto })
+      continue
+    }
+    if (efeito.tipo === 'transformacao') {
+      if (tokensNoRecorte.has(efeito.tokenId)) saem.push(transformacaoParaJogador(efeito, numerosVisiveis?.has(efeito.tokenId) === true))
+      continue
+    }
+    if (efeito.tipo === 'forma') {
+      if (tokensNoRecorte.has(efeito.tokenId)) saem.push({ seq: efeito.seq, tipo: 'forma', tokenId: efeito.tokenId, forma: efeito.forma.slice(0, NOME_DA_FORMA_MAX), ligou: false })
+      continue
+    }
+    if (efeito.tipo === 'selo') {
+      const nome = efeito.nome.slice(0, NOME_DO_SELO_MAX)
+      if (tokensNoRecorte.has(efeito.tokenId) && ehNomeDeSelo(nome)) saem.push({ seq: efeito.seq, tipo: 'selo', tokenId: efeito.tokenId, nome, acabou: true })
       continue
     }
     if (efeito.tipo === 'golpe') {
@@ -336,6 +425,33 @@ export function efeitosParaJogador(efeitos: readonly EfeitoDaBatalha[], depoisDo
   return saem.slice(-EFEITOS_POR_MENSAGEM)
 }
 
+type EfeitoDaTransformacao = Extract<EfeitoDaBatalha, { tipo: 'transformacao' }>
+
+/** A transformação campo a campo; os números (no teto) só com `comNumeros`. */
+function transformacaoParaJogador(efeito: EfeitoDaTransformacao, comNumeros: boolean): EfeitoDaTransformacao {
+  const saida: EfeitoDaTransformacao = {
+    seq: efeito.seq,
+    tipo: 'transformacao',
+    tokenId: efeito.tokenId,
+    forma: efeito.forma.slice(0, NOME_DA_FORMA_MAX),
+    imagem: ehImagemDaMesa(efeito.imagem) ? efeito.imagem : null,
+  }
+  if (comNumeros && efeito.numeros !== undefined && efeito.numeros.length > 0) {
+    saida.numeros = efeito.numeros.slice(0, NUMEROS_DA_FORMA_MAX).map((numero): NumeroDaForma => {
+      const visto: NumeroDaForma = { rotulo: numero.rotulo.slice(0, ROTULO_DO_NUMERO_MAX), de: numeroNoFio(numero.de), para: numeroNoFio(numero.para) }
+      if (numero.nota !== undefined) visto.nota = numero.nota.slice(0, ROTULO_DO_NUMERO_MAX)
+      return visto
+    })
+  }
+  return saida
+}
+
+/** Inteiro no teto do fio (o fio recusa fração e número fora do teto, e derrubaria o efeito). Não finito = 0. */
+function numeroNoFio(valor: number): number {
+  if (!Number.isFinite(valor)) return 0
+  return Math.max(-NUMERO_DA_FORMA_MAX, Math.min(NUMERO_DA_FORMA_MAX, Math.round(valor)))
+}
+
 export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): EstadoParaJogador {
   const { turnos } = cena
   const caidos = tokensCaidos(turnos.cartas, ctx.personagens, ctx.sistema)
@@ -343,7 +459,7 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   for (const carta of turnos.cartas) {
     if (cartas.length >= CARTAS_PARA_JOGADOR_MAX) break
     const nome = ctx.tokensNoRecorte.get(carta.tokenId)
-    if (nome !== undefined) cartas.push(cartaParaJogador(carta, nome, ctx, caidos))
+    if (nome !== undefined) cartas.push(cartaParaJogador(carta, nome, ctx, caidos, turnos))
   }
   // "Visível" = o que de fato sai (no recorte E dentro do teto): turno e próxima contam o mesmo que a faixa mostra.
   const idsQueSaem = new Set(cartas.map((carta) => carta.id))
@@ -385,5 +501,8 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   if (contras.length > 0) estado.contras = contras
   // F3: só x e y, campo a campo (nada mais que a cena guarde do Judge sai junto).
   if (cena.judge !== undefined) estado.judge = { x: cena.judge.x, y: cena.judge.y }
+  // F3 (fatia T): as imagens de forma só das fichas cujas cartas saem.
+  const aparencias = aparenciasParaJogador(turnos.cartas.filter(visivel), turnos, ctx)
+  if (Object.keys(aparencias).length > 0) estado.aparencias = aparencias
   return estado
 }

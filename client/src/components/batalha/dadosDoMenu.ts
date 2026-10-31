@@ -391,6 +391,13 @@ export function anuncioDoEfeito(efeito: EfeitoDaBatalha, nomeDe: (tokenId: strin
     }
     case 'judge':
       return 'O Judge ergue a carta: jogada desfeita'
+    // F3 (fatia T): o texto da região viva; a animação é da T-C.
+    case 'transformacao':
+      return `${nomeDe(efeito.tokenId)} ativa ${efeito.forma}`
+    case 'forma':
+      return `${nomeDe(efeito.tokenId)} desfaz ${efeito.forma}`
+    case 'selo':
+      return `${efeito.nome} acabou em ${nomeDe(efeito.tokenId)}`
   }
 }
 

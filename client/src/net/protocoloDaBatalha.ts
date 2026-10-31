@@ -1,3 +1,4 @@
+import { ehImagemDaMesa } from '../lib/midia'
 import { personagemDoArquivo, type Personagem } from '../lib/personagem'
 import {
   ALVOS_MAX,
@@ -8,13 +9,22 @@ import {
   EFEITOS_POR_MENSAGEM,
   GOLPES_PENDENTES_MAX,
   MODIFICADOR_DA_REACAO_MAX,
+  NOME_DA_FORMA_MAX,
   NOME_DO_GOLPE_MAX,
+  NUMERO_DA_FORMA_MAX,
+  NUMEROS_DA_FORMA_MAX,
+  ROTULO_DO_NUMERO_MAX,
+  SELOS_POR_TOKEN_MAX,
+  TURNOS_DO_SELO_MAX,
+  type AcaoDaForma,
   type AcaoDaTecnica,
+  type NumeroDaForma,
   type PedidoDeAcao,
   type PedidoDeAlvo,
   type PedidoDeReacao,
   type RolagemDaReacao,
   type SaidaDaReacao,
+  type SeloPedido,
 } from '../lib/batalha/combate'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
 import { lerJudgeNaCena } from '../lib/batalha/judge'
@@ -22,8 +32,10 @@ import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { AUTOR_NO_REGISTRO_MAX, REGISTRO_PARA_JOGADOR_MAX, REGISTRO_TEXTO_MAX, type LinhaParaJogador } from '../lib/batalha/registro'
 import { lerRegrasDaBatalha, type RegrasDaBatalha } from '../lib/batalha/regrasDoCampo'
+import { ehNomeDeSelo } from '../lib/batalha/selos'
 import type { DuracaoDaExtra } from '../lib/batalha/turnos'
 import {
+  APARENCIAS_MAX,
   CARTAS_PARA_JOGADOR_MAX,
   CARTOES_NO_COMBATE_MAX,
   MEUS_NO_COMBATE_MAX,
@@ -38,6 +50,7 @@ import {
   type GolpeParaJogador,
   type LadoNaCarta,
   type ReacaoParaJogador,
+  type SeloParaJogador,
 } from '../lib/batalha/vistaDoJogador'
 
 /**
@@ -54,7 +67,9 @@ import {
  *    Mover), `batalha.reagir` (o d20 é rolado pelo HOST: o pedido não tem
  *    campo de dado), `batalha.dano` (dano livre na ficha dele) e
  *    `batalha.armas` (as armas da batalha, quando quiser, Q8) e
- *    `batalha.zerarCarga` (zerar a concentração, a qualquer hora).
+ *    `batalha.zerarCarga` (zerar a concentração, a qualquer hora);
+ *  - F3 (fatia T): nenhuma mensagem nova; `batalha.agir` aceita `transformar`
+ *    e `destransformar`, e `atacar`/`habilidade` aceitam `selo?`.
  * O host confere o resto (é a vez dele? a linha é dele?) e responde só
  * `ok: false`, sem motivo: motivo ensinaria ids.
  *
@@ -250,6 +265,24 @@ function lerContraDe(value: unknown): string | undefined | false {
   return textoAte(value, 1, ID_DA_BATALHA_MAX) ? value : false
 }
 
+/** F3: o selo do pedido (o sugerido na mira). Turnos de 1 a `TURNOS_DO_SELO_MAX`, ou `null` = até tirar. */
+export function lerSeloPedido(value: unknown): SeloPedido | null {
+  if (!isRecord(value)) return null
+  const { nome, turnos } = value
+  if (!ehNomeDeSelo(nome) || (turnos !== null && !inteiroAte(turnos, 1, TURNOS_DO_SELO_MAX))) return null
+  return { nome, turnos }
+}
+
+/** `selo` ausente, ou o selo lido. `false` = torto. */
+function lerSeloOpcional(value: unknown): SeloPedido | undefined | false {
+  if (value === undefined) return undefined
+  return lerSeloPedido(value) ?? false
+}
+
+function lerAcaoDaForma(value: unknown): AcaoDaForma | null {
+  return value === 'simples' || value === 'completa' || value === 'bonus' ? value : null
+}
+
 /** O pedido de ação, enum fechado no `tipo`. */
 export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
   if (!isRecord(value)) return null
@@ -257,22 +290,26 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
     case 'atacar': {
       const { armaId, alvos, surpresa, perfurante } = value
       const contraDe = lerContraDe(value.contraDe)
+      const selo = lerSeloOpcional(value.selo)
       const alvosLidos = lerAlvosDoPedido(alvos, 1)
-      if (!cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean' || contraDe === false) return null
+      if (!cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean' || contraDe === false || selo === false) return null
       const pedido: PedidoDeAcao = { tipo: 'atacar', armaId, alvos: alvosLidos, surpresa, perfurante }
       if (contraDe !== undefined) pedido.contraDe = contraDe
+      if (selo !== undefined) pedido.selo = selo
       return pedido
     }
     case 'habilidade': {
       const { cartaoId, armaId, alvos, surpresa, perfurante, custo, acao } = value
       const contraDe = lerContraDe(value.contraDe)
+      const selo = lerSeloOpcional(value.selo)
       // Habilidade de suporte pode não ter alvo.
       const alvosLidos = lerAlvosDoPedido(alvos, 0)
       const acaoLida = acao === null ? null : lerAcaoDaTecnica(acao)
       if (!textoAte(cartaoId, 1, CARTAO_ID_MAX) || !cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean') return null
-      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false) return null
+      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false) return null
       const pedido: PedidoDeAcao = { tipo: 'habilidade', cartaoId, armaId, alvos: alvosLidos, surpresa, perfurante, custo, acao: acaoLida }
       if (contraDe !== undefined) pedido.contraDe = contraDe
+      if (selo !== undefined) pedido.selo = selo
       return pedido
     }
     case 'concentrar':
@@ -281,13 +318,24 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const contraDe = lerContraDe(value.contraDe)
       return contraDe === undefined || contraDe === false ? null : { tipo: 'mover', contraDe }
     }
+    // F3 (fatia T): Ativar e Desfazer a forma. Sempre na vez (nunca contra-ataque).
+    case 'transformar': {
+      const { cartaoId, trocarImagem } = value
+      const acao = lerAcaoDaForma(value.acao)
+      if (!textoAte(cartaoId, 1, CARTAO_ID_MAX) || acao === null || typeof trocarImagem !== 'boolean') return null
+      return { tipo: 'transformar', cartaoId, acao, trocarImagem }
+    }
+    case 'destransformar': {
+      const { cartaoId } = value
+      return textoAte(cartaoId, 1, CARTAO_ID_MAX) ? { tipo: 'destransformar', cartaoId } : null
+    }
     default:
       return null
   }
 }
 
 function contraDoPedido(pedido: PedidoDeAcao): string | undefined {
-  return pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
+  return pedido.tipo === 'concentrar' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar' ? undefined : pedido.contraDe
 }
 
 export function parseBatalhaAgir(value: unknown): BatalhaAgirMessage | null {
@@ -402,7 +450,25 @@ function lerCarta(value: unknown): CartaParaJogador | null {
     if (caiu !== true || ladoLido === 'outro') return null
     carta.caiu = true
   }
+  // F3 (fatia T): o nome da forma e os selos vão a quem vê a carta, de qualquer lado (Q5).
+  if (value.forma !== undefined) {
+    if (!textoAte(value.forma, 1, NOME_DA_FORMA_MAX)) return null
+    carta.forma = value.forma
+  }
+  if (value.selos !== undefined) {
+    const selos = lerLista(value.selos, SELOS_POR_TOKEN_MAX, lerSeloVisto)
+    if (selos === null || selos.length === 0) return null
+    carta.selos = selos
+  }
   return carta
+}
+
+/** F3: o selo na carta. Turnos de 0 a `TURNOS_DO_SELO_MAX` (0 = acaba no fim desta vez), ou `null` = até tirar. */
+function lerSeloVisto(value: unknown): SeloParaJogador | null {
+  if (!isRecord(value)) return null
+  const { nome, turnos } = value
+  if (!ehNomeDeSelo(nome) || (turnos !== null && !inteiroAte(turnos, 0, TURNOS_DO_SELO_MAX))) return null
+  return { nome, turnos }
 }
 
 function lerLinha(value: unknown): LinhaParaJogador | null {
@@ -606,9 +672,26 @@ export function lerEstadoParaJogador(value: unknown): EstadoParaJogador | null {
   // F3 (fatia J): o Judge, só `{ x, y }` finitos no teto; torto recusa o estado.
   const judge = opcional(value.judge, lerJudgeNaCena)
   if (judge === null) return null
+  // F3 (fatia T): as imagens de forma, só de fichas com carta na lista.
+  const aparencias = opcional(value.aparencias, (item) => lerAparencias(item, new Set(cartasLidas.map((carta) => carta.tokenId))))
+  if (aparencias === null) return null
   const estado: EstadoParaJogador = { rodada, turno: { n, m }, vez, proxima, minhaVez, vezForaDaVista, cartas: cartasLidas, registro: linhas, regras: regrasLidas, ...daF2 }
   if (judge !== undefined) estado.judge = judge
+  if (aparencias !== undefined) estado.aparencias = aparencias
   return estado
+}
+
+/** F3: tokenId → imagem da forma (referência de mídia ou a embutida). Token sem carta na lista = forjado; vazio também. */
+function lerAparencias(value: unknown, tokensDasCartas: ReadonlySet<string>): Record<string, string> | null {
+  if (!isRecord(value)) return null
+  const entradas = Object.entries(value)
+  if (entradas.length === 0 || entradas.length > APARENCIAS_MAX) return null
+  const lidas: Record<string, string> = {}
+  for (const [tokenId, imagem] of entradas) {
+    if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !tokensDasCartas.has(tokenId) || !ehImagemDaMesa(imagem)) return null
+    lidas[tokenId] = imagem
+  }
+  return lidas
 }
 
 export function parseBatalhaEstado(value: unknown): BatalhaEstadoMessage | null {
@@ -651,9 +734,44 @@ function lerEfeito(value: unknown): EfeitoParaJogador | null {
     case 'judge':
       // F3 (fatia J): um gesto só por enquanto; outro valor é forjado.
       return value.gesto === 'carta' ? { seq, tipo: 'judge', gesto: 'carta' } : null
+    // F3 (fatia T): a forma ligou (números só a dono e aliado: quem monta é o host), desfez, selo acabou.
+    case 'transformacao': {
+      const { tokenId, forma, imagem } = value
+      if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(forma, 0, NOME_DA_FORMA_MAX) || (imagem !== null && !ehImagemDaMesa(imagem))) return null
+      const efeito: EfeitoParaJogador = { seq, tipo: 'transformacao', tokenId, forma, imagem }
+      if (value.numeros !== undefined) {
+        const numeros = lerLista(value.numeros, NUMEROS_DA_FORMA_MAX, lerNumeroDaForma)
+        if (numeros === null || numeros.length === 0) return null
+        efeito.numeros = numeros
+      }
+      return efeito
+    }
+    case 'forma': {
+      const { tokenId, forma } = value
+      if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(forma, 0, NOME_DA_FORMA_MAX) || value.ligou !== false) return null
+      return { seq, tipo: 'forma', tokenId, forma, ligou: false }
+    }
+    case 'selo': {
+      const { tokenId, nome } = value
+      if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !ehNomeDeSelo(nome) || value.acabou !== true) return null
+      return { seq, tipo: 'selo', tokenId, nome, acabou: true }
+    }
     default:
       return null
   }
+}
+
+/** F3: uma linha da prévia da forma ("FOR 160 → 220"). */
+function lerNumeroDaForma(value: unknown): NumeroDaForma | null {
+  if (!isRecord(value)) return null
+  const { rotulo, de, para, nota } = value
+  if (!textoAte(rotulo, 0, ROTULO_DO_NUMERO_MAX) || !inteiroAte(de, -NUMERO_DA_FORMA_MAX, NUMERO_DA_FORMA_MAX) || !inteiroAte(para, -NUMERO_DA_FORMA_MAX, NUMERO_DA_FORMA_MAX)) return null
+  const numero: NumeroDaForma = { rotulo, de, para }
+  if (nota !== undefined) {
+    if (!textoAte(nota, 0, ROTULO_DO_NUMERO_MAX)) return null
+    numero.nota = nota
+  }
+  return numero
 }
 
 /** Os efeitos novos; o `seq` sobe estritamente (fora de ordem = forjado). */

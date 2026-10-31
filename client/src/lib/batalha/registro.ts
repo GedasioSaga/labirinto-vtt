@@ -10,7 +10,7 @@ import {
 } from '../ajusteDaFicha'
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { combateVazio, type CombateDoPersonagem, type ContraAtaque } from './combate'
+import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type SeloDaBatalha } from './combate'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import { inserirCarta, removerCarta, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -37,6 +37,8 @@ export type TipoDaLinha =
   | 'vez' | 'ordem' | 'cartaExtra' | 'combatente' | 'equipe' | 'ficha' | 'regras' | 'desempate'
   // F2: a F1 nunca escreve; a tela já sabe mostrar.
   | 'acao' | 'golpe' | 'reacao' | 'dano' | 'habilidade' | 'acoesExtras' | 'transformacao'
+  // F3 (fatia T): o mestre pôs, editou ou tirou um selo.
+  | 'selo'
 
 /** Um número da ficha que a linha mudou, de quanto para quanto. Cartão: 1 = ligado, 0 = desligado. */
 export interface ParteDaFicha {
@@ -60,6 +62,8 @@ export type Reversao =
         extras?: TurnosDaCena['extras']
         /** F2: o combate de antes (a recarga desce no começo da vez). Ausente = a vez não mexeu nele. */
         combate?: TurnosDaCena['combate']
+        /** F3: os selos de antes (a carta que sai desconta). Ausente = a vez não mexeu neles. */
+        selos?: TurnosDaCena['selos']
       }
     }
   /** Mover, Ordenar, desempate: os ids na ordem de antes. Desfazer reaplica às cartas que ainda existem. */
@@ -89,6 +93,10 @@ export type Reversao =
   | { tipo: 'contra'; contra: ContraAtaque }
   /** F2: um golpe = a ficha de N alvos + o gasto de quem atacou, desfeitos juntos. */
   | { tipo: 'composta'; partes: readonly Reversao[] }
+  /** F3: a forma (e a imagem) de um personagem antes da linha. `null` = não tinha. */
+  | { tipo: 'forma'; personagemId: string; antes: FormaNaBatalha | null }
+  /** F3: um selo antes da linha (pôr = `null`; editar e tirar = o de antes). */
+  | { tipo: 'selo'; seloId: string; antes: SeloDaBatalha | null }
 
 export interface LinhaDoRegistro {
   id: string
@@ -129,7 +137,7 @@ export const REGISTRO_TEXTO_MAX = 200
 export const AUTOR_NO_REGISTRO_MAX = 80
 
 /** Os tipos de linha que o JOGADOR desfaz (na vez dele, só as dele). */
-export const TIPOS_QUE_O_JOGADOR_DESFAZ: ReadonlySet<TipoDaLinha> = new Set<TipoDaLinha>(['ficha', 'acao', 'golpe', 'habilidade', 'dano', 'reacao'])
+export const TIPOS_QUE_O_JOGADOR_DESFAZ: ReadonlySet<TipoDaLinha> = new Set<TipoDaLinha>(['ficha', 'acao', 'golpe', 'habilidade', 'dano', 'reacao', 'transformacao'])
 
 /** Quem pede o Desfazer: o mestre, ou o jogador desta conexão. O nome não decide nada. */
 export type QuemDesfaz = { tipo: 'mestre' } | { tipo: 'jogador'; playerId: string }
@@ -263,6 +271,16 @@ function comValor<T>(registro: Readonly<Record<string, T>>, chave: string, valor
   return novo
 }
 
+/** Os selos com o de `seloId` trocado por `selo` (no mesmo lugar); `null` tira; ausente e não-nulo entra no fim. */
+function comSelo(selos: readonly SeloDaBatalha[], seloId: string, selo: SeloDaBatalha | null): readonly SeloDaBatalha[] {
+  const indice = selos.findIndex((guardado) => guardado.id === seloId)
+  if (selo === null) return indice === -1 ? selos : selos.filter((guardado) => guardado.id !== seloId)
+  if (indice === -1) return [...selos, selo]
+  const lista = [...selos]
+  lista[indice] = selo
+  return lista
+}
+
 /**
  * Desfaz na ordem dos turnos o que a reversão guarda. Ficha, equipe e regras
  * não moram aqui (a store as volta por outro caminho): para elas, o MESMO
@@ -275,6 +293,7 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       let volta: TurnosDaCena = { ...turnos, vez: antes.vez, rodada: antes.rodada, gastos: antes.gastos }
       if (antes.extras !== undefined) volta = { ...volta, extras: antes.extras }
       if (antes.combate !== undefined) volta = { ...volta, combate: antes.combate }
+      if (antes.selos !== undefined) volta = { ...volta, selos: antes.selos }
       // Em ordem crescente de lugar: cada uma volta ao índice que tinha antes de a rodada virar.
       for (const { carta, indice } of [...antes.removidas].sort((a, b) => a.indice - b.indice)) volta = inserirCarta(volta, carta, indice)
       // A vez de antes pode ter sido tirada depois: aí fica onde está.
@@ -311,6 +330,10 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     }
     case 'composta':
       return [...reversao.partes].reverse().reduce(reverterTurnos, turnos)
+    case 'forma':
+      return { ...turnos, formas: comValor(turnos.formas ?? {}, reversao.personagemId, reversao.antes) }
+    case 'selo':
+      return { ...turnos, selos: comSelo(turnos.selos ?? [], reversao.seloId, reversao.antes) }
     case 'equipe':
     case 'ficha':
     case 'regras':
