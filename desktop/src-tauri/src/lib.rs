@@ -1,6 +1,7 @@
 use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
+pub mod ia;
 pub mod net;
 pub mod visao_jogador;
 
@@ -33,6 +34,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(net::commands::NetState::default())
+        .manage(ia::IaEstado::default())
         .invoke_handler(tauri::generate_handler![
             grant_fs_access,
             net::commands::net_start_room,
@@ -48,7 +50,12 @@ pub fn run() {
             net::commands::animacoes_ler_arquivo,
             visao_jogador::abrir_visao_jogador,
             visao_jogador::mostrar_visao_jogador,
-            visao_jogador::fechar_visao_jogador
+            visao_jogador::fechar_visao_jogador,
+            // Assistente do mestre (M4): só a janela main; a chave nunca volta.
+            ia::ia_chaves_estado,
+            ia::ia_chaves_guardar,
+            ia::ia_chaves_apagar,
+            ia::ia_gerar
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

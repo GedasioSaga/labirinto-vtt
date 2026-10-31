@@ -41,3 +41,7 @@ panic = "abort"
 codegen-units = 1
 lto = true
 opt-level = "s"
+
+[target."cfg(windows)".dependencies]
+keyring-core = "1.0.0"
+windows-native-keyring-store = { version = "1.1.0", default-features = false }
