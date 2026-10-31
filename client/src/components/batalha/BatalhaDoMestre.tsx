@@ -103,13 +103,19 @@ function alvosDaOrdem(mesa: Mesa, cartas: readonly CartaDaOrdem[], quemAge: Cart
   for (const carta of cartas) {
     if (vistos.has(carta.tokenId)) continue
     vistos.add(carta.tokenId)
-    const equipe = carta.personagemId === null ? null : (equipeDe(carta.personagemId, mesa.equipes)?.id ?? null)
+    const equipeDaCarta = carta.personagemId === null ? null : (equipeDe(carta.personagemId, mesa.equipes) ?? null)
+    const equipe = equipeDaCarta?.id ?? null
+    const personagem = carta.personagemId === null ? undefined : mesa.personagens.find((candidato) => candidato.id === carta.personagemId)
+    const forma = carta.personagemId === null ? undefined : mesa.cena?.turnos?.formas?.[carta.personagemId]
     alvos.push({
       tokenId: carta.tokenId,
       nome: nomeDaFicha(mesa, carta.tokenId, carta),
       lado: carta.tokenId === quemAge.tokenId ? 'eu' : equipe !== null && equipe === equipeDeQuem ? 'aliado' : 'outro',
       caiu: caidos.has(carta.tokenId),
       motivo: carta.personagemId === null ? MOTIVO_SEM_PERSONAGEM : null,
+      // A mesma imagem da carta na faixa (`faixaDoMestre`): a forma vence a foto do token, que vence o retrato.
+      imagem: aparenciaDaForma(forma, personagem) ?? mesa.fichas.find((ficha) => ficha.id === carta.tokenId)?.imageData ?? personagem?.retrato ?? null,
+      cor: equipeDaCarta?.cor ?? null,
     })
   }
   return alvos

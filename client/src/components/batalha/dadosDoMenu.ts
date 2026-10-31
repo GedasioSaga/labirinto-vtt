@@ -128,6 +128,10 @@ export interface AlvoNaMira {
   caiu: boolean
   /** Presente = não pode ser alvo (ficha sem personagem), com a frase. */
   motivo?: string | null
+  /** A miniatura: a imagem da forma, a foto do token ou o retrato (referência ou embutida, como na faixa); ausente = as iniciais. */
+  imagem?: string | null
+  /** A cor da equipe, no anel da miniatura; ausente = o anel neutro. */
+  cor?: string | null
 }
 
 /** A ficha sem personagem não é alvo (a store recusa): fica na lista, apagada. */

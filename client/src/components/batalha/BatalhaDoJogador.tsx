@@ -124,6 +124,11 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         caiu: carta.caiu === true,
         // A carta "outro" não diz se tem personagem: o host confere.
         motivo: carta.lado !== 'outro' && carta.personagemId === undefined ? MOTIVO_SEM_PERSONAGEM : null,
+        // A imagem da carta na faixa: a forma, a foto do token e o retrato. O retrato só vem de
+        // personagem que ele já tem (`meus`): a carta "outro" da mesa não traz `personagemId`, e na
+        // Arena, onde o mestre vê tudo, o lado de lá também ganha o retrato.
+        imagem: imagemDe(carta.tokenId) ?? meus.find((candidato) => candidato.id === carta.personagemId)?.retrato ?? null,
+        cor: carta.equipe?.cor ?? null,
       })
     }
     return {
@@ -134,7 +139,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
       formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : [],
     }
-  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, nomeDe])
+  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, nomeDe, imagemDe, meus])
 
   const contrasNoMenu = useMemo<ContraNoMenu[]>(
     () =>

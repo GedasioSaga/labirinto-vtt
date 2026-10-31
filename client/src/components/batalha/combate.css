@@ -607,11 +607,49 @@
   accent-color: var(--bt-sangue);
 }
 .bt-alvo__nome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+}
+.bt-alvo__texto {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+}
+/* A miniatura do alvo: a foto redonda (ou as iniciais no disco da equipe) no anel da cor da equipe. */
+.bt-alvo__foto {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--lado, var(--bt-lado-padrao)) 72%, var(--bt-tinta));
+  box-shadow:
+    0 0 0 2px var(--lado, var(--bt-lado-padrao)),
+    0 1px 2px rgba(12, 12, 14, 0.35);
+}
+.bt-alvo__foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bt-alvo__foto[data-caiu='sim'] img {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+.bt-alvo__iniciais {
+  font-family: var(--lb-font-utility);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: #fff;
+  user-select: none;
 }
 .bt-alvo__nome small {
   font-weight: 400;

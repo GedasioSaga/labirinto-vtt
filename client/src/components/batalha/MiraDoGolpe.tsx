@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react'
 import {
   ALVOS_MAX,
   CUSTO_MAX,
@@ -12,6 +12,8 @@ import {
   type SeloPedido,
 } from '../../lib/batalha/combate'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
+import { iniciais } from '../FichaPecas'
+import { useImagemDaMesa } from '../ImagemDaMesa'
 import { contaDoGolpe, formatarNumero, lerInteiro, textoDaAcao, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
@@ -260,9 +262,12 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                   onFocus={() => setFoco(alvo.tokenId)}
                 />
                 <label className="bt-alvo__nome" htmlFor={`${idBase}-${alvo.tokenId}`}>
-                  {alvo.nome} {alvo.lado !== 'outro' && <small>{alvo.lado === 'eu' ? '· você' : '· aliado'}</small>}
-                  {alvo.caiu && <small> · caiu</small>}
-                  {alvo.motivo && <small> · {alvo.motivo}</small>}
+                  <MiniaturaDoAlvo imagem={alvo.imagem} nome={alvo.nome} cor={alvo.cor} caiu={alvo.caiu} />
+                  <span className="bt-alvo__texto">
+                    {alvo.nome} {alvo.lado !== 'outro' && <small>{alvo.lado === 'eu' ? '· você' : '· aliado'}</small>}
+                    {alvo.caiu && <small> · caiu</small>}
+                    {alvo.motivo && <small> · {alvo.motivo}</small>}
+                  </span>
                 </label>
                 {marcado && !semDano ? (
                   <span className="bt-alvo__dano">
@@ -422,6 +427,23 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       </form>
       {consulta !== undefined && consulta !== null && <MarcasDaMira consulta={consulta} tokenIds={alvos.map((alvo) => alvo.tokenId)} marcados={marcadosSet} foco={foco} />}
     </>
+  )
+}
+
+/**
+ * A miniatura redonda do alvo, à esquerda do nome: a foto (forma, token ou
+ * retrato, pelo resolvedor da tela) ou, sem ela, as iniciais no disco da cor
+ * da equipe, no anel da mesma cor. Foto que não carrega volta às iniciais.
+ * Decorativa (o nome já está no rótulo): fica fora da leitura de tela.
+ */
+function MiniaturaDoAlvo({ imagem, nome, cor, caiu }: { imagem: string | null | undefined; nome: string; cor: string | null | undefined; caiu: boolean }) {
+  const src = useImagemDaMesa()(imagem)
+  const [falhou, setFalhou] = useState<string | null>(null)
+  const estilo = cor ? ({ '--lado': cor } as CSSProperties) : undefined
+  return (
+    <span className="bt-alvo__foto" style={estilo} data-caiu={caiu ? 'sim' : undefined} aria-hidden="true">
+      {src !== null && falhou !== src ? <img src={src} alt="" draggable={false} onError={() => setFalhou(src)} /> : <span className="bt-alvo__iniciais">{iniciais(nome)}</span>}
+    </span>
   )
 }
 
