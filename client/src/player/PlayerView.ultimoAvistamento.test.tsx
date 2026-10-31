@@ -186,7 +186,7 @@ describe('PlayerView — onde vi o colega pela última vez', () => {
     await monta(pacote([ANA_FICHA, BRUNO]))
     const camadas = mundo().children
     const fantasmas = camadaDosFantasmas()
-    expect(camadas.indexOf(fantasmas)).toBe(camadas.length - 2)
+    expect(camadas.indexOf(fantasmas)).toBe(camadas.length - 3) // logo abaixo das fichas; a última faixa é a do Judge (BATALHA F3)
     expect(fantasmas.eventMode).toBe('none')
   })
 

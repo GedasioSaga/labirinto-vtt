@@ -123,9 +123,9 @@ function mundo(): Container {
   return world
 }
 
-/** A ficha da Ana: a camada das fichas é a última do mundo (`world.addChild(…, pins, tokens)`). */
+/** A ficha da Ana: a camada das fichas é a penúltima do mundo (`world.addChild(…, pins, tokens, judge)`: o Judge da BATALHA F3 vem por cima). */
 function fichaDaAna(): Container {
-  const ficha = mundo().children.at(-1)?.children[0]
+  const ficha = mundo().children.at(-2)?.children[0]
   if (!(ficha instanceof Container)) throw new Error('a ficha da Ana não está no mundo')
   return ficha
 }

@@ -86,7 +86,7 @@ function mundo(): Container {
 /** A ficha da Ana: a da camada de fichas que está no ponto dela. */
 function fichaDaAna(): Container {
   const ficha = mundo()
-    .children.at(-1)
+    .children.at(-2) // a última faixa é a do Judge (BATALHA F3), por cima das fichas
     ?.children.find((filho) => filho.x === ANA.x && filho.y === ANA.y)
   if (!(ficha instanceof Container)) throw new Error('a ficha da Ana não está no mundo')
   return ficha

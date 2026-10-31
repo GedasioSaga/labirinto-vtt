@@ -90,11 +90,12 @@ function mundo(): Container {
 
 /**
  * A camada do caminho do colega: logo abaixo da régua
- * (`addChild(world, revisit, personalNotes, pulse, route, measure, …)`). A
- * revisita e as anotações pessoais (outras features) entraram antes dela.
+ * (`addChild(world, revisit, personalNotes, pulse, caminhos, numerosDoCaminho, route, measure, …)`).
+ * A revisita, as anotações pessoais e o caminho andado da batalha (B6, com os
+ * números dele) entraram antes dela.
  */
 function camadaDoCaminho(): Graphics {
-  const camada = palco().children[4]
+  const camada = palco().children[6]
   if (!(camada instanceof Graphics)) throw new Error('a PlayerView não montou a camada do caminho')
   return camada
 }

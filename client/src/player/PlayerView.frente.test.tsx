@@ -112,9 +112,9 @@ function mundo(): Container {
   return world
 }
 
-/** A camada das fichas é a última do mundo, acima da névoa. */
+/** A camada das fichas é a penúltima do mundo, acima da névoa (a última é a do Judge, BATALHA F3). */
 function camadaDasFichas(): Container {
-  const camada = mundo().children.at(-1)
+  const camada = mundo().children.at(-2) // a última faixa é a do Judge (BATALHA F3), por cima das fichas
   if (!(camada instanceof Container)) throw new Error('a PlayerView não montou a camada das fichas')
   return camada
 }

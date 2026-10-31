@@ -53,9 +53,9 @@ vi.mock('../pixi/drawRelevo', async (importOriginal) => {
     ...real,
     createRelevoRenderer: (opcoes: OpcoesDoRelevo = {}) => {
       const relevo = real.createRelevoRenderer({ ...opcoes, gerarTextura: async () => new Texture() })
+      // O renderer inteiro (camada, penhasco, gerarAParte, destruir); só o `atualizar` é espiado.
       return {
-        camada: relevo.camada,
-        destruir: relevo.destruir,
+        ...relevo,
         atualizar: (entrada: EntradaDoRelevo | null) => {
           registro.entradas.push(entrada)
           relevo.atualizar(entrada)

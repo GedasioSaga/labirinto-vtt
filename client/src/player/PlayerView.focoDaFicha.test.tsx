@@ -118,7 +118,7 @@ function mundo(): Container {
 }
 
 function fichaDaAna(): Container {
-  const ficha = mundo().children.at(-1)?.children[0]
+  const ficha = mundo().children.at(-2)?.children[0] // a última faixa é a do Judge (BATALHA F3), por cima das fichas
   if (!(ficha instanceof Container)) throw new Error('a ficha da Ana não está no mundo')
   return ficha
 }

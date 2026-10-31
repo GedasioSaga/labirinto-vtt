@@ -126,8 +126,14 @@ function corDe(i: Instrucao): number | undefined {
   return i.data.style.color
 }
 
+/**
+ * Índice no `world` da camada com um Graphics que pinta com `cor`, nela ou num
+ * descendente: desde o Desenhado (29/10) paredes e traços moram num contêiner
+ * por nó, com o Graphics do Atual dentro.
+ */
 function indiceDaCamada(world: Container, cor: number): number {
-  const i = world.children.findIndex((filho) => filho instanceof Graphics && filho.context.instructions.some((ins) => corDe(ins) === cor))
+  const pinta = (no: Container) => no instanceof Graphics && no.context.instructions.some((ins) => corDe(ins) === cor)
+  const i = world.children.findIndex((filho) => contem(filho, pinta))
   if (i < 0) throw new Error(`nenhuma camada pinta com ${cor.toString(16)}`)
   return i
 }

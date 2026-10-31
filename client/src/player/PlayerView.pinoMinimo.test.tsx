@@ -112,11 +112,11 @@ function mundo(): Container {
 }
 
 /**
- * O desenho dos pinos: `world.addChild(…, marks, pins, lastSeen, tokens)` — a
- * lembrança da última vista (outra feature) entrou entre os pinos e as fichas.
+ * O desenho dos pinos: `world.addChild(…, marks, pins, lastSeen, tokens, judge)` — a
+ * lembrança da última vista (outra feature) entrou entre os pinos e as fichas, e o Judge da BATALHA F3 por cima de tudo.
  */
 function desenhoDosPinos(): Graphics {
-  const desenho = mundo().children.at(-3)?.children[0]
+  const desenho = mundo().children.at(-4)?.children[0]
   if (!(desenho instanceof Graphics)) throw new Error('a camada de pinos não tem o Graphics dos pinos')
   return desenho
 }

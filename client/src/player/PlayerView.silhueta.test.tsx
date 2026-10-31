@@ -100,6 +100,16 @@ function camadasCom(world: Container, teste: (i: Instrucao) => boolean): Graphic
   return world.children.filter((c): c is Graphics => c instanceof Graphics && c.context.instructions.some(teste))
 }
 
+/**
+ * A camada do mundo que guarda, nela ou num descendente, um Graphics com
+ * alguma instrução que passa em `teste`: desde o Desenhado (29/10) as paredes
+ * moram num contêiner por nó, com o Graphics do Atual dentro.
+ */
+function camadaQueGuarda(world: Container, teste: (i: Instrucao) => boolean): Container | undefined {
+  const guarda = (no: Container): boolean => (no instanceof Graphics && no.context.instructions.some(teste)) || no.children.some(guarda)
+  return world.children.find(guarda)
+}
+
 /** Caixa de cada silhueta pintada na camada: centro e tamanho do `poly`. */
 function silhuetas(camada: Graphics): { cx: number; cy: number; w: number; h: number }[] {
   return camada.context.instructions.filter(ehPreenchimentoDeSilhueta).map((i) => {
@@ -207,8 +217,8 @@ describe('PlayerView — o objeto que chega no recorte aparece na tela como silh
     expect(Math.abs(cama.cy - 180)).toBeLessThanOrEqual(umPixel)
 
     // Abaixo da parede: por cima, a silhueta apagaria o traço onde o móvel encosta.
-    const [paredes] = camadasCom(world, ehTracoDeParede)
-    expect(paredes).toBeDefined()
+    const paredes = camadaQueGuarda(world, ehTracoDeParede)
+    if (paredes === undefined) throw new Error('nenhuma camada do mundo traça as paredes')
     expect(world.getChildIndex(camada)).toBeLessThan(world.getChildIndex(paredes))
   })
 
