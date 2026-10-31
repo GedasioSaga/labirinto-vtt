@@ -128,6 +128,7 @@ const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
 import { drawMapBounds } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
+import type { FotosDaForma, SelosNasFichas } from './tokenPhotoSprite'
 import { createFantasmaDeTesteRenderer } from './fantasmaDeTeste'
 import { fantasmaNaCena } from './drawFantasmaDeTeste'
 import type { FantasmaDeTeste } from '../net/visaoDeTeste/tipos'
@@ -784,6 +785,18 @@ interface PixiCanvasProps {
   /** BATALHA F3: o mestre soltou o Judge arrastado, já no centro da casa (px do mundo). */
   onJudgeSolto?: (x: number, y: number) => void
   /**
+   * BATALHA F3 (fatia T): por tokenId, a imagem da forma ligada que vence a
+   * foto da ficha (`aparenciaDaForma`), com o src JÁ PRONTO para carregar: a
+   * embutida ou a URL da mídia. `null`/omitido = nenhuma. A referência estável
+   * evita repintar: o mapa novo só quando alguma imagem muda.
+   */
+  fotoDaForma?: FotosDaForma | null
+  /**
+   * BATALHA F3 (fatia T): por tokenId, os selos da ficha (`selosDoToken`),
+   * escritos acima do disco ("ATORDOADO 2"). `null`/omitido = nenhum.
+   */
+  selosNasFichas?: SelosNasFichas | null
+  /**
    * BATALHA F2 (S4): recebe a consulta da posição de uma ficha da cena aberta
    * na tela — `{ x, y }` em px da JANELA (o `clientX`/`clientY` do DOM) e o
    * raio desenhado em px de tela, pela câmera de agora; `null` = ficha fora da
@@ -1019,6 +1032,8 @@ function PixiCanvasDoContexto({
   judge = null,
   gestoDoJudge = null,
   onJudgeSolto,
+  fotoDaForma = null,
+  selosNasFichas = null,
   onFichaNaTela,
   aoEscolherFicha,
   onBackgroundImageSizeChange,
@@ -1158,9 +1173,14 @@ function PixiCanvasDoContexto({
   const vezTokenIdRef = useRef(vezTokenId)
   vezTokenIdRef.current = vezTokenId
   const redrawTokensRef = useRef<(() => void) | null>(null)
+  // BATALHA F3 (fatia T): a imagem da forma e os selos vivem na sessão, não no mapa; a mesma ponte da vez.
+  const fotoDaFormaRef = useRef(fotoDaForma)
+  fotoDaFormaRef.current = fotoDaForma
+  const selosNasFichasRef = useRef(selosNasFichas)
+  selosNasFichasRef.current = selosNasFichas
   useEffect(() => {
     redrawTokensRef.current?.()
-  }, [vezTokenId])
+  }, [vezTokenId, fotoDaForma, selosNasFichas])
   // BATALHA F3 (fatia J): o Judge vive na sessão, não no mapa; a ponte é o ref (valor vivo) + o redesenho dele.
   const judgeRef = useRef(judge)
   judgeRef.current = judge
@@ -2799,6 +2819,9 @@ function PixiCanvasDoContexto({
           noDaFicha,
           // BATALHA F1: a imagem exportada é do mapa, não da sessão: sai sem o anel da vez.
           exportScene === null ? vezTokenIdRef.current : null,
+          // BATALHA F3: idem para a imagem da forma e os selos.
+          exportScene === null ? (fotoDaFormaRef.current ?? undefined) : undefined,
+          exportScene === null ? (selosNasFichasRef.current ?? undefined) : undefined,
         )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem

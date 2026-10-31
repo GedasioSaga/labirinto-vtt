@@ -33,6 +33,10 @@ import {
  * a tela da conexão tem, sem reprise ao entrar. O d20 da reação é rolado na
  * store (processo do host); nenhum pedido traz dado.
  *
+ * F3 (fatia T): os números da forma (efeito "transformacao") só às conexões
+ * donas da ficha ou aliadas (`numerosVisiveis`); a imagem da forma e os selos
+ * vão no recorte (`vistaParaJogador`).
+ *
  * Puro e síncrono como a `tiroNoHost`: a `hostSession` diz onde cada conexão
  * está e que fichas a tela dela tem; o estado da batalha mora na store do
  * mestre e chega pela ponte (`PonteDaBatalha`). Este módulo não lê store nem
@@ -110,6 +114,9 @@ export interface BatalhaNoHost {
    * F2: agir. Na vez: a carta da vez nesta rodada, token dele e personagem
    * dele. Fora da vez (`vez` null): só um contra-ataque guardado de ficha dele
    * (Q6). Alvos só entre as fichas que a tela dele tem.
+   * F3: `transformar` e `destransformar` só na vez (a forma é do personagem da
+   * carta da vez; a store confere o cartão). Selo à mão é só do mestre (direto
+   * na store): pelo fio, só o sugerido que vai no golpe.
    */
   agir(conexao: ConexaoNaBatalha, msg: BatalhaAgirMessage): RespostaDaBatalha
   /** F2: reagir. Com golpe: o golpe está pendente e a ficha é alvo dele ainda sem resolver. Livre: token dele. */
@@ -204,7 +211,7 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       estadoEnviado.set(clientId, texto)
     }
     // Os efeitos DEPOIS do recorte: o jogador só os aceita com a faixa na tela.
-    const efeitos = efeitosNovos(clientId, lugar.sceneKey, cena, ctx.tokensNoRecorte)
+    const efeitos = efeitosNovos(clientId, lugar.sceneKey, cena, ctx.tokensNoRecorte, numerosVisiveisDe(cena, ctx))
     if (efeitos !== null) saidas.push({ clientId, msg: { type: 'batalha.efeitos', efeitos } })
     return saidas
   }
@@ -216,14 +223,34 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
    * não vira reprise depois. Primeira vez nesta cena (entrada, volta, cena
    * nova) ou `seq` que recomeçou: só marca. `null` = nada a mandar.
    */
-  const efeitosNovos = (clientId: string, sceneKey: string, cena: BatalhaEmTurnos, tokensNoRecorte: ReadonlyMap<string, string>): EfeitoParaJogador[] | null => {
+  const efeitosNovos = (
+    clientId: string,
+    sceneKey: string,
+    cena: BatalhaEmTurnos,
+    tokensNoRecorte: ReadonlyMap<string, string>,
+    numerosVisiveis: ReadonlySet<string>,
+  ): EfeitoParaJogador[] | null => {
     const todos = cena.efeitos ?? []
     const ultimo = todos.at(-1)?.seq ?? 0
     const visto = efeitoVisto.get(clientId)
     efeitoVisto.set(clientId, { sceneKey, seq: ultimo })
     if (visto === undefined || visto.sceneKey !== sceneKey || visto.seq > ultimo || visto.seq === ultimo) return null
-    const novos = efeitosParaJogador(todos, visto.seq, new Set(tokensNoRecorte.keys()))
+    const novos = efeitosParaJogador(todos, visto.seq, new Set(tokensNoRecorte.keys()), numerosVisiveis)
     return novos.length === 0 ? null : novos
+  }
+
+  /**
+   * F3: as fichas cujos números da forma saem a esta conexão (os `numeros` do
+   * efeito "transformacao"): as dele e as dos aliados de equipe, a mesma regra
+   * da vida na carta (`ladoDa` da vista: "eu" ou "aliado"). NPC nunca entra.
+   */
+  const numerosVisiveisDe = (cena: BatalhaEmTurnos, ctx: ContextoDoJogador): ReadonlySet<string> => {
+    const visiveis = new Set<string>(ctx.meusTokens)
+    for (const carta of cena.turnos.cartas) {
+      const { personagemId } = carta
+      if (personagemId !== null && (ctx.meusPersonagens.has(personagemId) || ctx.aliados.has(personagemId))) visiveis.add(carta.tokenId)
+    }
+    return visiveis
   }
 
   const resultado = (clientId: string, reqId: string, ok: boolean): SaidaDaBatalha => ({ clientId, msg: { type: 'batalha.resultado', reqId, ok } })
@@ -268,6 +295,8 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   /** Na vez: a carta da vez, nesta rodada, token dele e personagem dele. Fora da vez: um contra-ataque guardado de ficha dele. */
   const podePedirAcao = (lugar: LugarNaBatalha, cena: BatalhaEmTurnos, msg: BatalhaAgirMessage): boolean => {
     const { vez, pedido } = msg
+    // F3: Ativar e Desfazer a forma só na vez dele, na ficha da vez (que é dele): nunca fora da vez, nem na ficha de outro.
+    if ((pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') && vez === null) return false
     if (vez === null) {
       // O parser só deixa `vez` null com `contraDe`; o `concentrar` nunca chega aqui.
       const contraDe = pedido.tipo === 'concentrar' ? undefined : pedido.contraDe

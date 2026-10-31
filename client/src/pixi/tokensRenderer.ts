@@ -24,7 +24,17 @@ import { mesmaVida, type VidaDaFicha, type VidasDaCena } from '../lib/vidaDaFich
 import { parseHexColor, tokenFillColor } from '../lib/tokenColor'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { isTokenPhotoData, tokenPhotoLabel, tokenPhotoRef } from '../lib/tokenPhoto'
-import { fitPhotoSprite, textureFromDataUrl } from './tokenPhotoSprite'
+import {
+  criarTextoDosSelos,
+  escalarTextoDosSelos,
+  fitPhotoSprite,
+  pintarTextoDosSelos,
+  textoDosSelosNaFicha,
+  texturaDaForma,
+  textureFromDataUrl,
+  type FotosDaForma,
+  type SelosNasFichas,
+} from './tokenPhotoSprite'
 import { useToastStore } from '../stores/toastStore'
 import { screenLabelSizing } from './screenLabel'
 import { tokenConditionsOf } from '../lib/tokenConditions'
@@ -183,6 +193,10 @@ export interface TokensRenderer {
    * vista dela muda de nó (o cache segue um só). Omitido = tudo em `container`.
    * `vezTokenId`: BATALHA F1 — a ficha da vez, que ganha o anel da vez (e o
    * pulso, com `motion`). Omitido = nenhuma (fora de batalha, exportação).
+   * `fotoDaForma`: BATALHA F3 — por tokenId, a imagem da forma ligada (src já
+   * pronto: embutida ou URL da mídia), que vence a foto do token enquanto vale.
+   * `selos`: BATALHA F3 — por tokenId, os selos da ficha ("ATORDOADO 2"),
+   * escritos logo acima do disco. Omitidos = nenhum (fora de batalha, exportação).
    *
    * Só repinta a ficha cuja pintura mudou (`TokenPaint`); a outra só anda.
    * Devolve quantos nomes nasceram ou trocaram de texto neste desenho: só
@@ -201,6 +215,8 @@ export interface TokensRenderer {
     vidas?: VidasDaCena,
     noDaFicha?: (token: Token) => Container,
     vezTokenId?: string | null,
+    fotoDaForma?: FotosDaForma,
+    selos?: SelosNasFichas,
   ) => number
   /** Só o zoom mudou: reescala e mostra/esconde os nomes e o tamanho dos pinos, sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
@@ -226,6 +242,8 @@ interface ScaleTween {
 const NO_REMOTE_MOVES: ReadonlySet<string> = new Set()
 const NO_PINS: ReadonlyMap<string, string> = new Map()
 const SEM_VIDAS: VidasDaCena = new Map()
+const SEM_FORMAS: FotosDaForma = new Map()
+const SEM_SELOS: SelosNasFichas = new Map()
 
 /** Anel de seleção no chão do pino, em px de tela: a elipse de um anel deitado, na mesma inclinação do pino. */
 const MARCADOR_SELECAO_RX = 15
@@ -267,6 +285,10 @@ interface TokenPaint {
   pino: string | null
   /** BARRA DE VIDA: a vida da ficha ligada; `null` = sem barra. */
   vida: VidaDaFicha | null
+  /** BATALHA F3: a imagem da forma que vence a foto; `null` = a foto (ou o disco) de sempre. */
+  forma: string | null
+  /** BATALHA F3: o texto dos selos ("ATORDOADO 2"); `''` = nenhum. */
+  selos: string
 }
 
 /** A última pintura da ficha ainda vale para estas entradas? */
@@ -279,6 +301,8 @@ function paintIsCurrent(painted: TokenPaint | null, agora: TokenPaint): boolean 
     painted.isTurn === agora.isTurn &&
     painted.away === agora.away &&
     painted.pino === agora.pino &&
+    painted.forma === agora.forma &&
+    painted.selos === agora.selos &&
     mesmaVida(painted.vida, agora.vida)
   )
 }
@@ -313,6 +337,11 @@ interface TokenEntry {
    *  cima do disco, do anel e do nome. Filha do wrapper e não do visual: o
    *  disco gira com `Token.rotation`, a marca fica em pé. */
   marks: Graphics
+  /** BATALHA F3: os selos da ficha ("ATORDOADO 2") acima do disco. Nasce só
+   *  na primeira vez que a ficha ganha selo e depois só se esvazia (`Text`
+   *  nunca é destruído no meio da sessão): ficha sem selo continua com os
+   *  filhos de sempre. */
+  selos: Text | null
   /** `Token.image` já carregado no `sprite` atual, ou null enquanto nenhuma
    *  imagem foi carregada ainda (token sem imagem, ou sprite recém-criado). */
   loadedSrc: string | null
@@ -568,6 +597,26 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     entry.label.scale.set(sizing.scale)
     entry.label.visible = sizing.visible && (entry.painted === null || entry.painted.pino === null)
     if (entry.marcador !== null) escalarVistaDoMarcador(entry.marcador, lastCameraScale)
+    if (entry.selos !== null) escalarTextoDosSelos(entry.selos, lastCameraScale)
+  }
+
+  /**
+   * BATALHA F3: os selos da ficha acima do disco. O texto nasce na primeira
+   * ficha com selo e depois só se esvazia. Devolve `true` quando um `Text`
+   * nasceu ou trocou de texto (a resolução do texto precisa ser refeita).
+   */
+  function syncSelos(entry: TokenEntry, conteudo: string, outlineRadius: number): boolean {
+    let texto = entry.selos
+    if (texto === null) {
+      if (conteudo === '') return false
+      texto = criarTextoDosSelos()
+      // Por cima de tudo que é da ficha, marcas inclusive.
+      entry.wrapper.addChild(texto)
+      entry.selos = texto
+    }
+    const mudou = texto.text !== conteudo
+    pintarTextoDosSelos(texto, conteudo, outlineRadius, lastCameraScale)
+    return mudou && conteudo !== ''
   }
 
   function setCameraScale(cameraScale: number): void {
@@ -601,6 +650,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     syncHealthBar(entry, null, 0)
     syncTurnRing(entry, token.id, false, 0)
     entry.marks.clear()
+    syncSelos(entry, '', 0)
     selecao.clear()
     if (selected) {
       selecao.ellipse(0, 0, MARCADOR_SELECAO_RX, MARCADOR_SELECAO_RY).fill({ color: SELECTION_COLOR, alpha: 0.18 })
@@ -729,6 +779,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     vidas: VidasDaCena = SEM_VIDAS,
     noDaFicha?: (token: Token) => Container,
     vezTokenId: string | null = null,
+    fotoDaForma: FotosDaForma = SEM_FORMAS,
+    selos: SelosNasFichas = SEM_SELOS,
   ): number {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     // A vez só pulsa a chegada na TROCA: este `draw` roda a cada passo de arrasto.
@@ -789,6 +841,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           bar: null,
           label,
           marks,
+          selos: null,
           loadedSrc: null,
           loadedData: null,
           loadedUrl: null,
@@ -825,7 +878,10 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // BARRA DE VIDA: o pino do continente não leva vida, então a dele não conta.
       const vida = pino === null ? (vidas.get(token.id) ?? null) : null
       const isTurn = token.id === vezTokenId
-      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida }
+      // BATALHA F3: a forma e os selos, como a vida, não vão no pino do continente.
+      const forma = pino === null ? (fotoDaForma.get(token.id) ?? null) : null
+      const textoDosSelos = pino === null ? textoDosSelosNaFicha(selos.get(token.id)) : ''
+      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida, forma, selos: textoDosSelos }
       // Pintura em dia: a ficha só andou (acima). É o caso de quase toda ficha
       // a cada passo do arrasto de OUTRA.
       if (paintIsCurrent(entry.painted, pintura)) continue
@@ -851,7 +907,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // `addToken` cru que vários specs e2e fazem via `page.evaluate`. Sem
       // isso, `undefined !== null` entrava no ramo "tem imagem" e quebrava em
       // `convertFileSrc(undefined)` onde a ponte do Tauri não existe.
-      const photoRef = tokenPhotoRef(token)
+      // BATALHA F3: a imagem da forma vence a foto (e o disco) enquanto vale.
+      const photoRef = forma ?? tokenPhotoRef(token)
       if (photoRef !== null) {
         const sprite = ensureSprite(entry)
         const radius = (gridSize * token.size) / 2
@@ -879,7 +936,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         // Limite conhecido: quando a cópia embutida não pôde ser gerada
         // (`null`, o melhor esforço de App.tsx, que já avisa a pessoa), não
         // sobra testemunha do conteúdo e o comportamento volta a ser o antigo.
-        const photoData = token.imageData ?? null
+        // A imagem da forma não tem cópia embutida a comparar: o src É o conteúdo.
+        const photoData = forma === null ? (token.imageData ?? null) : null
         if (entry.loadedSrc !== photoRef || entry.loadedData !== photoData) {
           entry.loadToken += 1
           const localLoadToken = entry.loadToken
@@ -902,9 +960,16 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           // Pixi não sabe carregar data URL (ver pixi/tokenPhotoSprite.ts).
           // Ela também não precisa de descarga de cache: a própria referência
           // É o conteúdo, então conteúdo novo já é URL nova.
-          const carregar: Promise<Texture> = isTokenPhotoData(imagePath)
-            ? textureFromDataUrl(imagePath)
-            : textureDoArquivo(currentEntry, convertFileSrc(imagePath))
+          // BATALHA F3: a forma vem pronta (embutida ou URL da mídia), sem
+          // `convertFileSrc`. A foto do arquivo continua no cache do Pixi: a
+          // marca da URL sai para a volta dela não descarregar o que não mudou.
+          if (forma !== null) currentEntry.loadedUrl = null
+          const carregar: Promise<Texture> =
+            forma !== null
+              ? texturaDaForma(imagePath)
+              : isTokenPhotoData(imagePath)
+                ? textureFromDataUrl(imagePath)
+                : textureDoArquivo(currentEntry, convertFileSrc(imagePath))
           carregar
             .then((texture) => {
               if (cache.get(token.id) !== currentEntry || currentEntry.loadToken !== localLoadToken || !currentEntry.sprite) return
@@ -969,6 +1034,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
       // jogadores" esmaecem a marca junto, pelo alpha do wrapper.
       drawTokenConditions(entry.marks, tokenConditionsOf(token), outlineRadius, gridSize)
+      // BATALHA F3: os selos ("ATORDOADO 2") logo acima das marcas, em pé como elas.
+      if (syncSelos(entry, textoDosSelos, outlineRadius)) changedLabels += 1
 
       // VOLTO JÁ: o disco apaga e o selo diz por quê. O alpha do wrapper
       // (fantasma/secreta) continua valendo por cima: o selo não revela nada.

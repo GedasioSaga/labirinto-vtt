@@ -117,7 +117,17 @@ import { criarGradeDaBatalha, type GradeDaBatalha } from '../pixi/gradeDaBatalha
 import { parseHexColor } from '../lib/tokenColor'
 import { readTokenHealth } from '../lib/tokenHealth'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
-import { fitPhotoSprite, textureFromDataUrl } from '../pixi/tokenPhotoSprite'
+import {
+  criarTextoDosSelos,
+  escalarTextoDosSelos,
+  fitPhotoSprite,
+  pintarTextoDosSelos,
+  textoDosSelosNaFicha,
+  texturaDaForma,
+  textureFromDataUrl,
+  type FotosDaForma,
+  type SelosNasFichas,
+} from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
 import { playerTokenAlpha } from '../lib/tokenHiding'
 import { tokenConditionsOf } from '../lib/tokenConditions'
@@ -273,6 +283,18 @@ interface PlayerViewProps {
   judge?: JudgeNaCena | null
   /** BATALHA F3: o `seq` do último gesto do Judge na fila de efeitos (`ultimoGestoDoJudge`); subir = ergue a carta. */
   gestoDoJudge?: number | null
+  /**
+   * BATALHA F3 (fatia T): por tokenId, a imagem da forma ligada que vence a
+   * foto da ficha (`batalha.estado.aparencias`), com o src JÁ PRONTO para
+   * carregar (`resolverComBase(URL_DA_MIDIA_NA_SALA)` ou a embutida).
+   * `null`/omitido = nenhuma. Referência estável: o mapa novo só quando muda.
+   */
+  fotoDaForma?: FotosDaForma | null
+  /**
+   * BATALHA F3 (fatia T, Q5): por tokenId, os selos das cartas que ele vê
+   * (`batalha.estado.cartas[i].selos`), escritos acima do disco. `null`/omitido = nenhum.
+   */
+  selosNasFichas?: SelosNasFichas | null
   /**
    * BATALHA F2 (S4): recebe a consulta da posição de uma ficha na tela (pela
    * câmera de agora: segue arrasto, zoom e deslize), assim que o mapa monta, e
@@ -686,7 +708,9 @@ interface TokenView {
   pino: string | null
   /** O pino (`pixi/vistaDoMarcador.ts`): nasce na primeira vez que a ficha vira pino e só se esconde depois. */
   marcador: VistaDoMarcador | null
-  /** Referência já carregada em `photo`: sem isto, todo snapshot recarregaria a mesma foto. */
+  /** BATALHA F3: os selos ("ATORDOADO 2") acima do disco. Nasce na primeira vez que a ficha ganha selo e depois só se esvazia. */
+  selos: Text | null
+  /** Referência já carregada em `photo` (a foto ou a imagem da forma): sem isto, todo snapshot recarregaria a mesma foto. */
   loadedPhoto: string | null
   /** Contador do carregamento em curso — o mesmo guard de pixi/tokensRenderer.ts, para a foto antiga não vencer a nova. */
   loadSeq: number
@@ -729,8 +753,9 @@ function roomLabelObstacles(map: MapData): LabelObstacle[] {
  * TexturePool.returnTexture. Só a GEOMETRIA (círculo chapado ou moldura +
  * máscara da foto, e as marcas de condição); a textura chega depois e é
  * assunto de `syncTokenPhoto`. Exportada para o teste da condição na ficha.
+ * `forma`: BATALHA F3 — a imagem da forma que vence a foto (e o disco); `null` = a de sempre.
  */
-export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, waiting = false): void {
+export function paintTokenView(view: TokenView, token: Token, grid: number, own: boolean, waiting = false, forma: string | null = null): void {
   const radius = tokenRadius(token, grid)
   // MAPA DE CONTINENTE: o recorte só põe `pino` em ficha de jogador numa cena Continente.
   const pino = typeof token.pino === 'string' ? token.pino : null
@@ -751,7 +776,7 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
   view.radius = radius
   view.own = own
   view.body.clear()
-  if (tokenPhotoRef(token) === null) {
+  if (forma === null && tokenPhotoRef(token) === null) {
     view.photo.visible = false
     view.body.circle(0, 0, radius).fill({ color })
     if (!own) view.body.stroke({ width: 2, color: TOKEN_OUTLINE })
@@ -805,6 +830,8 @@ function paintMarcadorView(view: TokenView, token: Token, cor: string, own: bool
   drawTokenLock(view.lock, false, radius)
   drawTokenFrozen(view.frost, false, radius)
   paintCompanion(view, undefined)
+  // BATALHA F3: o pino não leva selo, como não leva vida.
+  if (view.selos !== null) pintarTextoDosSelos(view.selos, '', radius, 1)
   view.label.text = token.name
   let marcador = view.marcador
   if (marcador === null) {
@@ -924,10 +951,14 @@ export function syncFacing(view: TokenView, token: Token, turns: TokenTurns, syn
   syncFacingNib(view, sync.cameraScale)
 }
 
-/** Carrega a foto nova, se mudou, e reencaixa no círculo quando a textura chega. */
-function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
-  const ref = tokenPhotoRef(token)
-  if (ref === null || !isTokenPhotoData(ref)) {
+/**
+ * Carrega a foto nova, se mudou, e reencaixa no círculo quando a textura chega.
+ * BATALHA F3: `forma` (a imagem da forma, já pronta) vence a foto; a da mídia
+ * vem por URL da sala e vai ao `Assets.load` (`texturaDaForma`).
+ */
+function syncTokenPhoto(view: TokenView, token: Token, grid: number, forma: string | null = null): void {
+  const ref = forma ?? tokenPhotoRef(token)
+  if (ref === null || (forma === null && !isTokenPhotoData(ref))) {
     view.loadedPhoto = null
     return
   }
@@ -936,7 +967,7 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
   view.loadSeq += 1
   const seq = view.loadSeq
   const photoRadius = Math.max(1, tokenRadius(token, grid) - TOKEN_FRAME_WIDTH)
-  void textureFromDataUrl(ref)
+  void (forma === null ? textureFromDataUrl(ref) : texturaDaForma(ref))
     .then((texture) => {
       // Trocou de foto de novo (ou a cena morreu) durante o carregamento: a antiga não vence.
       if (view.loadSeq !== seq || view.photo.destroyed) return
@@ -951,8 +982,29 @@ function syncTokenPhoto(view: TokenView, token: Token, grid: number): void {
     })
 }
 
+/**
+ * BATALHA F3: os selos da ficha acima do disco. O texto nasce na primeira vez
+ * que a ficha ganha selo (por cima de tudo dela) e depois só se esvazia.
+ */
+function syncSelosDaVista(view: TokenView, conteudo: string, cameraScale: number): void {
+  let texto = view.selos
+  if (texto === null) {
+    if (conteudo === '') return
+    texto = criarTextoDosSelos()
+    view.wrapper.addChild(texto)
+    view.selos = texto
+  }
+  pintarTextoDosSelos(texto, conteudo, view.radius, cameraScale)
+}
+
+/** A chave da pintura com a imagem da forma: ligar ou desligar a forma troca o disco pela foto (e de volta). */
+function chaveDaVista(token: Token, grid: number, own: boolean, waiting: boolean, forma: string | null): string {
+  const chave = tokenViewKey(token, grid, own, waiting)
+  return forma === null ? chave : `${chave}|forma`
+}
+
 /** Exportada para o teste da condição na ficha (`PlayerView.condicoes.test.ts`). */
-export function createTokenView(token: Token, grid: number, own: boolean, waiting = false): TokenView {
+export function createTokenView(token: Token, grid: number, own: boolean, waiting = false, forma: string | null = null): TokenView {
   const wrapper = new Container()
   const body = new Graphics()
   const photo = new Sprite(Texture.EMPTY)
@@ -1004,13 +1056,14 @@ export function createTokenView(token: Token, grid: number, own: boolean, waitin
     alert,
     lock,
     frost,
-    key: tokenViewKey(token, grid, own, waiting),
+    key: chaveDaVista(token, grid, own, waiting, forma),
     pino: null,
     marcador: null,
+    selos: null,
     loadedPhoto: null,
     loadSeq: 0,
   }
-  paintTokenView(view, token, grid, own, waiting)
+  paintTokenView(view, token, grid, own, waiting, forma)
   return view
 }
 
@@ -1021,6 +1074,8 @@ export function createTokenView(token: Token, grid: number, own: boolean, waitin
  */
 export function sizeTokenView(view: TokenView, cameraScale: number, showNames: boolean): void {
   if (view.marcador !== null) escalarVistaDoMarcador(view.marcador, cameraScale)
+  // BATALHA F3: os selos são da batalha, não do nome: "Mostrar nomes" não os esconde.
+  if (view.selos !== null) escalarTextoDosSelos(view.selos, cameraScale)
   if (view.pino === null) {
     sizeTokenLabel(view.label, cameraScale, showNames)
     return
@@ -2147,6 +2202,8 @@ function PlayerViewDoCanvas({
   vezTokenId = null,
   judge = null,
   gestoDoJudge = null,
+  fotoDaForma = null,
+  selosNasFichas = null,
   onFichaNaTela,
   aoEscolherFicha,
   caminhos,
@@ -2226,6 +2283,8 @@ function PlayerViewDoCanvas({
     vezTokenId,
     judge,
     gestoDoJudge,
+    fotoDaForma,
+    selosNasFichas,
     aoEscolherFicha,
     caminhos,
     waitingTokens,
@@ -3335,10 +3394,14 @@ function PlayerViewDoCanvas({
     // CAMADAS (fatia 4b): a ficha de camada escolhida desenha no nó dela; as vistas seguem por id e só mudam de nó.
     const camadasDasFichas = contextoDoJogador(currentMap)
     const noDaFicha = noDoItem(scene.pilha.nosDaFaixa('tokens'), (t: Token) => camadasDasFichas.camadaDe('ficha', t))
+    // BATALHA F3 (fatia T): a imagem da forma e os selos que o recorte da batalha mandou (só de fichas que ele vê).
+    const { fotoDaForma, selosNasFichas } = latestRef.current
     for (const token of currentMap.tokens) {
       const isOwn = ownSet.has(token.id)
       const isWaiting = waitingSet.has(token.id)
-      const key = tokenViewKey(token, currentMap.grid, isOwn, isWaiting)
+      // O pino do continente não leva a forma (nem o selo, abaixo), como não leva a vida.
+      const forma = typeof token.pino === 'string' ? null : (fotoDaForma?.get(token.id) ?? null)
+      const key = chaveDaVista(token, currentMap.grid, isOwn, isWaiting, forma)
       let view = scene.tokenViews.get(token.id)
       // Onde a ficha está desenhada agora; `null` = não estava na tela (nova, ou
       // voltando para a visão): aparece no lugar, sem vir de onde estava escondida.
@@ -3347,18 +3410,19 @@ function PlayerViewDoCanvas({
       const shownFacing = view?.wrapper.visible === true && view.facing !== null ? view.facingNib.rotation : null
       if (!view) {
         const tokenId = token.id
-        view = createTokenView(token, currentMap.grid, isOwn, isWaiting)
+        view = createTokenView(token, currentMap.grid, isOwn, isWaiting, forma)
         view.wrapper.on('pointerdown', (event: FederatedPointerEvent) => startTokenDrag(scene, tokenId, event))
         scene.tokens.addChild(view.wrapper)
         scene.tokenViews.set(tokenId, view)
       } else if (view.key !== key) {
         view.key = key
-        paintTokenView(view, token, currentMap.grid, isOwn, isWaiting)
+        paintTokenView(view, token, currentMap.grid, isOwn, isWaiting, forma)
       }
       const noDela = noDaFicha === undefined ? scene.tokens : noDaFicha(token)
       if (view.wrapper.parent !== noDela) noDela.addChild(view.wrapper)
       // Fora do `if` de propósito: trocar uma foto por outra não muda a chave.
-      syncTokenPhoto(view, token, currentMap.grid)
+      syncTokenPhoto(view, token, currentMap.grid, forma)
+      syncSelosDaVista(view, view.pino === null ? textoDosSelosNaFicha(selosNasFichas?.get(token.id)) : '', scene.camera.scale)
       // A posse muda sem a view nascer de novo (o mestre atribui ou tira a ficha).
       // A ficha sob o dedo continua agarrada: a posse sozinha devolveria a mão aberta no meio do arrasto.
       syncTokenLift(view.wrapper, isOwn, token.id === draggedId)
@@ -4940,7 +5004,8 @@ function PlayerViewDoCanvas({
     const scene = sceneRef.current
     if (scene) redraw(scene)
     // `arrivalKey` também: a chegada que só muda a chave (levado enquanto olhava outro andar) fica registrada já.
-  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, ownTokens, waitingTokens, settings, arrivalKey])
+    // BATALHA F3: a forma que liga ou desliga e o selo que entra, conta ou sai repintam as fichas (raro: um por ação).
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, ownTokens, waitingTokens, settings, arrivalKey, fotoDaForma, selosNasFichas])
 
   // MODO BATALHA (B5): ligar ou desligar a batalha só mexe na grade de batalha, sem redesenhar a cena.
   useEffect(() => {
