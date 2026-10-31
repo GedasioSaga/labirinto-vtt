@@ -235,8 +235,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
   }
 }
 
-/** O combate depois de usar a técnica: recarga, usos, Overload. */
-function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: TecnicaPedida): CombateDoPersonagem {
+/** O combate depois de usar a técnica: recarga, usos, Overload. O mesmo no golpe e na reação com técnica. */
+export function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: Pick<TecnicaPedida, 'cartao' | 'tempo' | 'overload'>): CombateDoPersonagem {
   const { id } = tecnica.cartao
   let novo = combate
   if (tecnica.tempo.tipo === 'recarga') novo = { ...novo, recargas: { ...novo.recargas, [id]: tecnica.tempo.turnos } }
@@ -245,8 +245,8 @@ function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: TecnicaPedida): 
   return novo
 }
 
-/** Os ajustes do custo pago. */
-function ajustesDoCusto(personagem: Personagem, sistema: SistemaDeRpg, custo: LeituraDoCusto): Ajuste[] {
+/** Os ajustes do custo pago. O mesmo no golpe e na reação com técnica. */
+export function ajustesDoCusto(personagem: Personagem, sistema: SistemaDeRpg, custo: LeituraDoCusto): Ajuste[] {
   if (custo.tipo !== 'valor' || custo.valor <= 0) return []
   const recurso = recursoDoCusto(sistema, custo.recurso)
   if (recurso === null) return []
@@ -463,13 +463,36 @@ function textoDaSaida(saida: SaidaDaReacao, dano: number): string {
   }
 }
 
-/** O que aconteceu com um alvo: esperando, rolou, resolveu. */
+/** "com Passo de Valsa", "com Passo de Valsa (à mão)": a técnica da reação, quando houve. */
+function comATecnica(alvo: AlvoDoGolpe): string {
+  if (alvo.tecnica === undefined) return ''
+  return ` com ${alvo.tecnica.nome}${alvo.tecnica.aMao === true ? ' (à mão)' : ''}`
+}
+
+/**
+ * O que aconteceu com um alvo: esperando, rolou, resolveu. Com técnica de
+ * reação: "esquivou com Passo de Valsa"; rolando com ela, "d20 12+3 = 15 com
+ * Giro da Lança".
+ */
 function textoDoAlvo(alvo: AlvoDoGolpe): string {
   const pedacos: string[] = []
-  if (alvo.rolagem !== undefined) pedacos.push(textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total))
-  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(textoDaSaida(alvo.saida, alvo.danoFinal))
+  if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}${comATecnica(alvo)}`)
+  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.danoFinal)}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   return pedacos.join(' · ')
+}
+
+/**
+ * A linha da reação com técnica (tipos de habilidade F1): "Vincent reage com
+ * Passo de Valsa: esquivou"; trocada na hora, "(à mão)"; rolando com ela,
+ * "Vincent reage com Giro da Lança: d20 12+3 = 15". Nunca custo nem SP.
+ */
+export function textoDaReacaoComTecnica(alvo: AlvoDoGolpe, nomeDoToken: (tokenId: string) => string): string {
+  const tecnica = alvo.tecnica
+  const comeco = `${nomeDoToken(alvo.tokenId)} reage com ${tecnica?.nome ?? 'técnica'}${tecnica?.aMao === true ? ' (à mão)' : ''}`
+  if (alvo.rolagem !== undefined) return `${comeco}: ${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}`
+  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) return `${comeco}: ${textoDaSaida(alvo.saida, alvo.danoFinal)}`
+  return comeco
 }
 
 /** "perfurante" (tudo direto no HP), "perfurante 30%" (parcial) ou nada. */

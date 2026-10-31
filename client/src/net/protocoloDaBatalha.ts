@@ -16,6 +16,7 @@ import {
   PERFURACAO_MAX,
   PERFURACAO_MIN,
   ROTULO_DO_NUMERO_MAX,
+  SAIDAS_DA_TECNICA,
   SELOS_POR_TOKEN_MAX,
   TURNOS_DO_SELO_MAX,
   type AcaoDaForma,
@@ -26,6 +27,7 @@ import {
   type PedidoDeReacao,
   type RolagemDaReacao,
   type SaidaDaReacao,
+  type SaidaDaTecnica,
   type SeloPedido,
 } from '../lib/batalha/combate'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
@@ -72,7 +74,9 @@ import {
  *    `batalha.zerarCarga` (zerar a concentração, a qualquer hora);
  *  - F3 (fatia T): nenhuma mensagem nova; `batalha.agir` aceita `transformar`
  *    e `destransformar`, e `atacar`/`habilidade` aceitam `selo?`;
- *  - balas: `atacar` aceita `balaId?` (só com `armaId`).
+ *  - balas: `atacar` aceita `balaId?` (só com `armaId`);
+ *  - tipos de habilidade F1: `batalha.reagir` aceita `tecnica` (a técnica
+ *    de reação no lugar do d20; "rolar" com `modificador`).
  * O host confere o resto (é a vez dele? a linha é dele?) e responde só
  * `ok: false`, sem motivo: motivo ensinaria ids.
  *
@@ -394,8 +398,40 @@ export function lerPedidoDeReacao(value: unknown): PedidoDeReacao | null {
       return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'naoReagir', golpeId, tokenId } : null
     case 'passar':
       return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'passar', golpeId, tokenId } : null
+    // Tipos de habilidade F1: a técnica de reação no lugar do d20.
+    case 'tecnica':
+      return lerReacaoComTecnica(value, golpeId, tokenId)
     default:
       return null
+  }
+}
+
+function lerSaidaDaTecnica(value: unknown): SaidaDaTecnica | null {
+  return SAIDAS_DA_TECNICA.find((saida) => saida === value) ?? null
+}
+
+/**
+ * Tipos de habilidade F1: `{ tipo: 'tecnica', golpeId, tokenId, cartaoId,
+ * saida, custo, modificador?, seloNoAtacante? }`. Saída em enum fechado,
+ * custo de 0 a `CUSTO_MAX` ou `null`, modificador só com "rolar", selo pela
+ * regra do selo do pedido. Nenhum dado: quem rola é o host.
+ */
+function lerReacaoComTecnica(value: Record<string, unknown>, golpeId: unknown, tokenId: string): PedidoDeReacao | null {
+  const { cartaoId, custo, modificador } = value
+  const saida = lerSaidaDaTecnica(value.saida)
+  const selo = lerSeloOpcional(value.seloNoAtacante)
+  if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX) || saida === null || selo === false) return null
+  if (custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) return null
+  if (modificador !== undefined && (saida !== 'rolar' || !lerModificador(modificador))) return null
+  return {
+    tipo: 'tecnica',
+    golpeId,
+    tokenId,
+    cartaoId,
+    saida,
+    custo,
+    ...(modificador === undefined ? {} : { modificador }),
+    ...(selo === undefined ? {} : { seloNoAtacante: selo }),
   }
 }
 

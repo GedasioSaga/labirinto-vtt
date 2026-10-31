@@ -19,6 +19,24 @@ import type { AutorDaAcao } from './turnos'
  */
 export type SaidaDaReacao = 'critico' | 'cheio' | 'metade' | 'esquiva' | 'contra' | 'naoReagiu' | 'passou' | 'semReacao'
 
+/**
+ * Tipos de habilidade, F1 (docs/planos/batalha-tipos-de-habilidade-plano.md,
+ * seção 4f): o que a técnica de reação faz no lugar do d20. "rolar" = rola o
+ * d20 de sempre COM a técnica (Giro da Lança: gasta custo e recarga e põe o
+ * nome na linha); as outras resolvem o alvo na hora, sem dado.
+ */
+export type SaidaDaTecnica = 'esquiva' | 'metade' | 'contra' | 'cheio' | 'rolar'
+
+/** As saídas que quem reage com técnica pode escolher (a lida vem marcada e é trocável, decisão 2). Enum fechado do fio. */
+export const SAIDAS_DA_TECNICA: readonly SaidaDaTecnica[] = ['esquiva', 'metade', 'contra', 'cheio', 'rolar']
+
+/** A técnica com que o alvo reagiu, como o golpe a guarda para o registro. `aMao` = trocou a saída que a ficha diz. */
+export interface TecnicaDaReacao {
+  cartaoId: string
+  nome: string
+  aMao?: true
+}
+
 /** A ação que a técnica gasta. "livre" não gasta nada. */
 export type AcaoDaTecnica = 'simples' | 'completa' | 'bonus' | 'livre'
 
@@ -99,6 +117,15 @@ export type PedidoDeReacao =
   | { tipo: 'naoReagir'; golpeId: string; tokenId: string }
   /** Só DEPOIS do dado: toma o golpe inteiro sem usar a reação (`saidaDoPassar`: o 1 natural continua crítico). */
   | { tipo: 'passar'; golpeId: string; tokenId: string }
+  /**
+   * Tipos de habilidade F1: reagir COM a técnica de reação `cartaoId`, antes do
+   * d20 e sem ele. `saida` = a lida da ficha ou a trocada na tela (uma de
+   * `SAIDAS_DA_TECNICA`); "rolar" rola o d20 do host com `modificador` (só
+   * nela). Cobra o custo (`custo` = o confirmado na tela; `null` = o da
+   * ficha), marca recarga, usos e Overload e não gasta ação da vez.
+   * `seloNoAtacante` = o selo sugerido ("Marcado"), marcado na caixa.
+   */
+  | { tipo: 'tecnica'; golpeId: string; tokenId: string; cartaoId: string; saida: SaidaDaTecnica; custo: number | null; modificador?: number; seloNoAtacante?: SeloPedido }
 
 /** O d20 da reação, rolado pelo HOST. `vezes` conta as rerolagens (1 = a primeira). */
 export interface RolagemDaReacao {
@@ -118,6 +145,8 @@ export interface AlvoDoGolpe {
   saida?: SaidaDaReacao
   /** Presente = resolvido. No contra-ataque (Q6) é 0. */
   danoFinal?: number
+  /** Tipos de habilidade F1: reagiu com esta técnica (o registro diz "esquivou com Passo de Valsa"). */
+  tecnica?: TecnicaDaReacao
 }
 
 export interface GolpeDaBatalha {

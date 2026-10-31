@@ -10,7 +10,7 @@ import {
 } from '../ajusteDaFicha'
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type SeloDaBatalha } from './combate'
+import { combateVazio, type AlvoDoGolpe, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type SeloDaBatalha } from './combate'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import { inserirCarta, removerCarta, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -97,6 +97,13 @@ export type Reversao =
   | { tipo: 'forma'; personagemId: string; antes: FormaNaBatalha | null }
   /** F3: um selo antes da linha (pôr = `null`; editar e tirar = o de antes). */
   | { tipo: 'selo'; seloId: string; antes: SeloDaBatalha | null }
+  /**
+   * Tipos de habilidade F1: a reação com técnica (`reagirComTecnica`).
+   * `golpe` = o golpe logo DEPOIS da reação; `alvoAntes` = o alvo antes dela.
+   * Desfazer = o alvo volta a esperar reação (e sai o contra-ataque que ela
+   * deu). A store não volta o golpe cuja linha já foi desfeita.
+   */
+  | { tipo: 'reacaoComTecnica'; golpe: GolpeDaBatalha; tokenId: string; alvoAntes: AlvoDoGolpe }
 
 export interface LinhaDoRegistro {
   id: string
@@ -282,6 +289,38 @@ function comSelo(selos: readonly SeloDaBatalha[], seloId: string, selo: SeloDaBa
 }
 
 /**
+ * Desfaz a reação com técnica: o alvo volta a esperar reação.
+ *  - Golpe ainda pendente: o alvo volta ao de antes, salvo se ele se
+ *    resolveu DEPOIS por outro caminho (rolou com a técnica e escolheu a
+ *    saída do dado: o dano dessa escolha mora na linha do golpe).
+ *  - Golpe fora dos pendentes (a reação resolveu o último alvo): volta à
+ *    lista com este alvo esperando e só os alvos que já estavam resolvidos
+ *    (um alvo que esperava e se resolveu depois não volta a esperar). Se a
+ *    reação só rolou o dado, o golpe não volta.
+ *  - O contra-ataque que a reação deu ("contra") sai.
+ */
+function semAReacaoComTecnica(turnos: TurnosDaCena, reversao: Extract<Reversao, { tipo: 'reacaoComTecnica' }>): TurnosDaCena {
+  const { golpe, tokenId, alvoAntes } = reversao
+  const depois = golpe.alvos.find((alvo) => alvo.tokenId === tokenId)
+  const resolveuNaReacao = depois?.danoFinal !== undefined
+  const golpes = turnos.golpes ?? []
+  const pendente = golpes.find((candidato) => candidato.id === golpe.id)
+  let novosGolpes: readonly GolpeDaBatalha[] = golpes
+  if (pendente !== undefined) {
+    const agora = pendente.alvos.find((alvo) => alvo.tokenId === tokenId)
+    const resolvidoDepois = !resolveuNaReacao && agora?.danoFinal !== undefined
+    if (agora !== undefined && !resolvidoDepois) novosGolpes = golpes.map((candidato) => (candidato.id !== golpe.id ? candidato : { ...candidato, alvos: candidato.alvos.map((alvo) => (alvo.tokenId === tokenId ? alvoAntes : alvo)) }))
+  } else if (resolveuNaReacao) {
+    const alvos = golpe.alvos.filter((alvo) => alvo.tokenId === tokenId || alvo.danoFinal !== undefined).map((alvo) => (alvo.tokenId === tokenId ? alvoAntes : alvo))
+    novosGolpes = [...golpes, { ...golpe, alvos }]
+  }
+  const contras = turnos.contras ?? []
+  const semOContra = depois?.saida === 'contra' ? contras.filter((contra) => !(contra.golpeId === golpe.id && contra.tokenId === tokenId)) : contras
+  if (novosGolpes === golpes && semOContra.length === contras.length) return turnos
+  return { ...turnos, golpes: novosGolpes, contras: semOContra }
+}
+
+/**
  * Desfaz na ordem dos turnos o que a reversão guarda. Ficha, equipe e regras
  * não moram aqui (a store as volta por outro caminho): para elas, o MESMO
  * estado. A composta volta da última parte para a primeira.
@@ -334,6 +373,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       return { ...turnos, formas: comValor(turnos.formas ?? {}, reversao.personagemId, reversao.antes) }
     case 'selo':
       return { ...turnos, selos: comSelo(turnos.selos ?? [], reversao.seloId, reversao.antes) }
+    case 'reacaoComTecnica':
+      return semAReacaoComTecnica(turnos, reversao)
     case 'equipe':
     case 'ficha':
     case 'regras':

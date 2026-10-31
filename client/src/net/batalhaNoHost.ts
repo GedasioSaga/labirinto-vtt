@@ -416,6 +416,9 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
           if (pedido.tipo === 'naoReagir' && alvo.rolagem !== undefined) return false
           // "Passar" é a saída do jogador DEPOIS do dado: toma o golpe inteiro e o 1 natural continua crítico (a store decide a saída).
           if (pedido.tipo === 'passar' && alvo.rolagem === undefined) return false
+          // Tipos de habilidade F1: a técnica vem NO LUGAR do d20 (antes dele), só em golpe que deixa reagir e em ficha com personagem.
+          // A técnica ser do personagem, de reação, disponível e paga, e a saída no conjunto, a store confere (`motivoDaReacaoComTecnica`).
+          if (pedido.tipo === 'tecnica' && (!alvo.podeReagir || alvo.rolagem !== undefined || alvo.personagemId === null)) return false
         }
         return ponte.reagir(lugar.sceneKey, autorDe(conexao), pedido)
       })

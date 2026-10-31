@@ -27,7 +27,8 @@ import { gastarAcao } from '../lib/batalha/acoes'
 import { comSeloNovo, criarSelo, novoIdDeSelo, pegaOSelo, seloPedidoValido, textoDoSelo, textoDosQueAcabaram } from '../lib/batalha/selos'
 import { ativarForma, desfazerForma, formaDaFicha } from '../lib/batalha/transformacao'
 import { equipeDe } from '../lib/batalha/equipes'
-import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
+import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaReacaoComTecnica, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
+import { motivoDaReacaoComTecnica, reagirComTecnica, type PedidoDeTecnica } from '../lib/batalha/reacaoComTecnica'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, limiteDeArmas } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
@@ -374,6 +375,12 @@ function desfazerReversao(mesa: MesaDaBatalha, cena: BatalhaDaCena, reversao: Re
     }
     case 'regras':
       return { cena: { ...cena, regras: reversao.antes }, emParte: false, ok: true }
+    case 'reacaoComTecnica': {
+      // A linha do golpe já desfeita: o golpe não volta a esperar (o resto da reação, custo e selos, volta pelas outras partes).
+      const linhaDoGolpe = cena.registro.find((linha) => linha.id === reversao.golpe.linhaId)
+      if (linhaDoGolpe?.desfeita !== undefined) return { cena, emParte: false, ok: true }
+      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
+    }
     case 'composta': {
       let atual = cena
       let emParte = false
@@ -476,6 +483,18 @@ function reversaoDaFicha(personagemId: string, partes: readonly ParteDaFicha[] |
 function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: GolpeDaBatalha): GolpeDaBatalha[] {
   const outros = (golpes ?? []).filter((candidato) => candidato.id !== golpe.id)
   return golpePendente(golpe) ? [...outros, golpe] : outros
+}
+
+/** As partes "reacaoComTecnica" de uma reversão (a linha da reação com técnica). */
+function reacoesComTecnicaDe(reversao: Reversao): Extract<Reversao, { tipo: 'reacaoComTecnica' }>[] {
+  if (reversao.tipo === 'reacaoComTecnica') return [reversao]
+  return reversao.tipo === 'composta' ? reversao.partes.flatMap(reacoesComTecnicaDe) : []
+}
+
+/** Os golpes que nasceram na linha (partes "golpe"). */
+function golpesDaReversao(reversao: Reversao): string[] {
+  if (reversao.tipo === 'golpe') return [reversao.golpeId]
+  return reversao.tipo === 'composta' ? reversao.partes.flatMap(golpesDaReversao) : []
 }
 
 /** O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo; com `perfuracao`, só aquela porcentagem pula o Escudo. */
@@ -661,6 +680,106 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     const nome = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(antes.tokenId)
     const texto = depois === null ? `Mestre tirou ${textoDoSelo(antes)} de ${nome}` : `Mestre: ${textoDoSelo(antes)} → ${textoDoSelo(depois)} em ${nome}`
     gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, selos }, { tipo: 'selo', texto, tokenIds: [antes.tokenId], reversao: { tipo: 'selo', seloId, antes } }))
+    return true
+  }
+
+  /**
+   * Reverte a linha e a deixa riscada, sem conferir quem pede (o `desfazer`
+   * confere). A reação com técnica desfeita refaz o texto da linha do golpe
+   * (o alvo volta a "esperando reação").
+   */
+  const desfazerLinha = (sceneKey: string, linhaId: string, autor: AutorDaAcao): boolean => {
+    const cena = cenaDe(sceneKey)
+    const linha = cena?.registro.find((candidata) => candidata.id === linhaId)
+    if (cena === undefined || linha === undefined || linha.desfeita !== undefined) return false
+    const feito = desfazerReversao(mesa, cena, linha.reversao, autor)
+    if (!feito.ok) return false
+    const por = `${nomeDoAutor(autor)}${feito.emParte ? ' (em parte)' : ''}`
+    // A cena de agora: o Desfazer da ficha passa pela aventura, e a store pode ter mudado no meio.
+    const atual = cenaDe(sceneKey) ?? cena
+    // F3: o desfazer do MESTRE faz o Judge erguer a carta em todas as telas; o do jogador, não.
+    const efeitos = autor.tipo === 'mestre' ? comEfeitos(atual.efeitos, [{ tipo: 'judge', gesto: 'carta' }]) : atual.efeitos
+    let registro = marcarDesfeita(atual.registro, linhaId, por, Date.now())
+    const nomeDoToken = nomeDoTokenNa(feito.cena.turnos, mesaDoRpg().personagens)
+    for (const parte of reacoesComTecnicaDe(linha.reversao)) {
+      const voltou = feito.cena.turnos.golpes?.find((golpe) => golpe.id === parte.golpe.id)
+      if (voltou !== undefined) registro = linhaAtualizada(registro, voltou.linhaId, textoDoGolpe(voltou, nomeDoToken), [])
+    }
+    gravarCena(sceneKey, { ...atual, turnos: feito.cena.turnos, regras: feito.cena.regras, registro, efeitos, turnosRev: atual.turnosRev + 1 })
+    return true
+  }
+
+  /**
+   * Tipos de habilidade F1: a reação COM TÉCNICA (sem d20, ou "rolar" com o
+   * d20 do host). Confere a regra (`motivoDaReacaoComTecnica`), cobra o custo
+   * pela aventura, marca recarga, usos e Overload, resolve o alvo (dano,
+   * selo do golpe, contra-ataque da Q6), põe o selo em quem atacou se pedido
+   * e escreve a linha "reacao" própria, com Desfazer que volta tudo e devolve
+   * o alvo à espera. Não gasta ação da vez. A linha do golpe ganha o texto
+   * novo ("esquivou com Passo de Valsa").
+   */
+  const reagirComTecnicaNaCena = (sceneKey: string, cena: BatalhaDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe, autor: AutorDaAcao, pedido: PedidoDeTecnica): boolean => {
+    const { turnos } = cena
+    const personagemId = alvo.personagemId
+    if (personagemId === null) return false
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
+    const combateAntes = turnos.combate?.[personagemId]
+    if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes }, alvo, pedido) !== null || personagem === null || sistema === null) return false
+    const d20 = pedido.saida === 'rolar' ? rolarD20() : null
+    const combateBase = combateAntes ?? combateVazio()
+    const feita = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, d20)
+    if (feita === null) return false
+    const quem = quemNaFicha(autor)
+    const partes: Reversao[] = [{ tipo: 'reacaoComTecnica', golpe: feita.golpe, tokenId: alvo.tokenId, alvoAntes: alvo }]
+    const efeitos: EfeitoNovo[] = []
+    let novos: TurnosDaCena = { ...turnos, golpes: comGolpe(turnos.golpes, feita.golpe) }
+    // `depoisDaTecnica` devolve o MESMO combate quando a técnica não marca nada (sem recarga, usos nem Overload).
+    if (feita.combate !== combateBase) {
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: feita.combate } }
+    }
+    if (feita.custo.length > 0) {
+      const custo = feita.custo
+      partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, () => custo, quem)))
+    }
+    const { alvo: depois } = feita
+    if (depois.rolagem !== undefined && depois.danoFinal === undefined) {
+      efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: depois.tokenId, d20: depois.rolagem.d20, modificador: depois.rolagem.modificador, total: depois.rolagem.total })
+    } else {
+      const dano = danoNoAlvo(mesa, depois, golpe, autor)
+      partes.push(...dano.partes)
+      if (dano.efeito !== null) efeitos.push(dano.efeito)
+      // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo (Metade, Receber).
+      const selado = seloDoGolpe(novos, golpe, depois)
+      if (selado !== null) {
+        partes.push(selado.parte)
+        novos = { ...novos, selos: selado.selos }
+      }
+      // Q6: Contra = sem dano e uma ação a mais na hora (sai no Desfazer pela parte "reacaoComTecnica").
+      if (depois.saida === 'contra' && (novos.contras?.length ?? 0) < CONTRAS_MAX) {
+        const ganho: ContraAtaque = { golpeId: golpe.id, tokenId: depois.tokenId, personagemId: depois.personagemId, atacanteTokenId: golpe.atacanteTokenId, rodada: turnos.rodada }
+        novos = { ...novos, contras: [...(novos.contras ?? []), ganho] }
+      }
+    }
+    // O selo da técnica em QUEM ATACOU ("Marcado"), se marcado na caixa e o atacante segue na ordem.
+    if (feita.seloNoAtacante !== null && turnos.cartas.some((carta) => carta.tokenId === golpe.atacanteTokenId)) {
+      const selo = criarSelo(golpe.atacanteTokenId, feita.seloNoAtacante, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: depois.tecnica?.nome })
+      const selos = comSeloNovo(novos.selos, selo)
+      if (selos !== null) {
+        partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
+        novos = { ...novos, selos }
+      }
+    }
+    const nomeDoToken = nomeDoTokenNa(turnos, personagens)
+    // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
+    const atual = cenaDe(sceneKey) ?? cena
+    const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(feita.golpe, nomeDoToken), []) }
+    const texto = textoDaReacaoComTecnica(depois, nomeDoToken)
+    gravarCena(sceneKey, {
+      ...comMudanca(comOGolpe, novos, { tipo: 'reacao', texto, autor, tokenIds: [...new Set([depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
+      efeitos: comEfeitos(atual.efeitos, efeitos),
+    })
     return true
   }
 
@@ -918,15 +1037,14 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const linha = cena?.registro.find((candidata) => candidata.id === linhaId)
       if (cena === undefined || linha === undefined || linha.desfeita !== undefined) return false
       if (autor.tipo === 'jogador' && (linha.autor.tipo !== 'jogador' || linha.autor.playerId !== autor.playerId || !TIPOS_QUE_O_JOGADOR_DESFAZ.has(linha.tipo))) return false
-      const feito = desfazerReversao(mesa, cena, linha.reversao, autor)
-      if (!feito.ok) return false
-      const por = `${nomeDoAutor(autor)}${feito.emParte ? ' (em parte)' : ''}`
-      // A cena de agora: o Desfazer da ficha passa pela aventura, e a store pode ter mudado no meio.
-      const atual = cenaDe(sceneKey) ?? cena
-      // F3: o desfazer do MESTRE faz o Judge erguer a carta em todas as telas; o do jogador, não.
-      const efeitos = autor.tipo === 'mestre' ? comEfeitos(atual.efeitos, [{ tipo: 'judge', gesto: 'carta' }]) : atual.efeitos
-      gravarCena(sceneKey, { ...atual, turnos: feito.cena.turnos, regras: feito.cena.regras, registro: marcarDesfeita(atual.registro, linhaId, por, Date.now()), efeitos, turnosRev: atual.turnosRev + 1 })
-      return true
+      // Tipos de habilidade F1: desfazer o golpe desfaz ANTES as reações com técnica a ele (o custo de quem reagiu volta).
+      const golpeIds = new Set(golpesDaReversao(linha.reversao))
+      if (golpeIds.size > 0) {
+        for (const outra of cena.registro) {
+          if (outra.desfeita === undefined && reacoesComTecnicaDe(outra.reversao).some((parte) => golpeIds.has(parte.golpe.id))) desfazerLinha(sceneKey, outra.id, autor)
+        }
+      }
+      return desfazerLinha(sceneKey, linhaId, autor)
     },
 
     agir: (sceneKey, autor, vez, pedido) => {
@@ -1033,6 +1151,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const golpe = (turnos.golpes ?? []).find((candidato) => candidato.id === pedido.golpeId)
       const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === pedido.tokenId)
       if (golpe === undefined || alvo === undefined || alvo.danoFinal !== undefined) return false
+      // Tipos de habilidade F1: a técnica de reação no lugar do d20 tem linha própria.
+      if (pedido.tipo === 'tecnica') return reagirComTecnicaNaCena(sceneKey, cena, golpe, alvo, autor, pedido)
       let novo: GolpeDaBatalha
       const efeitos: EfeitoNovo[] = []
       const partes: Reversao[] = []
