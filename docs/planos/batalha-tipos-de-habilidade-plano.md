@@ -205,3 +205,10 @@ Por fase, nesta ordem, com a saída colada no handoff:
 ## Respostas soltas da correção em lote (31/10/2026)
 - Campo de Contenção ("Concentração" na Ação): "Ação Completa e mantém" (gasta a Completa para ativar e fica ativa pagando 15 SP por turno; "manter" no Efeito). Aplicar na ficha real no próximo lote (app fechado, backup).
 - Desenhar o alvo ("Dano da Bala + Dano da Arma + Percepção"): "Ensinar 'Dano da Bala' ao app": o leitor entende "Dano da Bala" = dano da bala escolhida na mira (0 sem bala especial); a fórmula fica. Entra na F1 desta feature (lógica L).
+
+## Decisões do usuário (31/10/2026)
+1. Tipos: "As 7. Porque realmente é muito personalizado e pode ser que eu peça pra você pôr mais no futuro." Um campo Tipo com Ativa, Passiva, Reação, Buff, Debuff, Evolução e Escolha (um por habilidade), numa lista FÁCIL DE AUMENTAR (uma constante única; ficha com tipo fora da lista mostra "(fora da lista)" e não perde o valor). As marcas automáticas de Evolução/Escolha pelos extras continuam como sugestão.
+2. Reação automática: resultado lido do texto e trocável na hora; "role" vira "Rolar com a técnica".
+3. Passiva: "Lembra, pergunta se ativa e dá os buffs é claro." Nunca ativa sozinha: lembrete "Ativar / Agora não" no gatilho; ao ativar, aplica os buffs/selos dela.
+4. Efeito por turno: lembrete com Aplicar no começo da vez (pode pular).
+5. (orquestrador, pela recomendação) A versão evoluída fica apagada até "Evoluir".
