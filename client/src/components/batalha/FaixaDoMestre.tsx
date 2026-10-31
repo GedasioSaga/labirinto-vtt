@@ -178,7 +178,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         <PerfilDaCarta
           personagem={perfil}
           sistema={sistema}
-          descricao={[equipeDoPerfil?.nome, perfil.tipo === 'npc' ? 'NPC' : 'Jogador', 'só leitura'].filter(Boolean).join(' · ')}
+          descricao={[equipeDoPerfil?.nome, perfil.tipo === 'npc' ? 'NPC' : 'Jogador', cartaDoPerfil !== undefined && passivasDoPerfil.length > 0 ? 'ficha só para ler, passivas ativam aqui' : 'só leitura'].filter(Boolean).join(' · ')}
           imagemDaForma={aparenciaDaForma(cena.turnos.formas?.[perfil.id], perfil)}
           passivas={
             cartaDoPerfil === undefined || passivasDoPerfil.length === 0 ? undefined : (

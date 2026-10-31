@@ -15,8 +15,9 @@ import {
   type SeloPedido,
   type TecnicaDaReacao,
 } from './combate'
+import { overloadNaBatalha } from './escolhaEEvolucao'
 import { ajustesDoCusto, depoisDaTecnica, resolverAlvo, rolarReacao } from './golpe'
-import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, ehOverload, lerAcao, lerCusto, lerTempo, tecnicaPorId, tecnicasComForma, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
+import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, lerAcao, lerCusto, lerTempo, tecnicaPorId, tecnicasComForma, tecnicasDe, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { seloPedidoValido } from './selos'
 import { lerTipo, modoDaReacao, saidaSugerida, seloDaReacao, type LeituraDoTipo, type ModoDaReacao } from './tiposDaHabilidade'
 
@@ -75,7 +76,12 @@ interface TecnicaConfirmada {
   transformacao: boolean
 }
 
-function confirmar(cartao: CartaoDaFicha, forma: string | undefined, personagem: Personagem, custo: number | null): TecnicaConfirmada {
+/**
+ * A técnica com o custo da tela. `evoluidas` (tipos de habilidade F4) = as do
+ * combate de quem reage: a base evoluída sem "Evolui para" cujo texto diz
+ * OVERLOAD conta como Overload aqui também (`overloadNaBatalha`).
+ */
+function confirmar(cartao: CartaoDaFicha, forma: string | undefined, personagem: Personagem, sistema: SistemaDeRpg, custo: number | null, evoluidas: readonly string[] | undefined): TecnicaConfirmada {
   const lidaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
   const lidoCusto = lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
   // A tela confirma o custo: o número dela vale sobre o da ficha, no recurso que a ficha diz (SP por padrão), como no golpe.
@@ -86,7 +92,7 @@ function confirmar(cartao: CartaoDaFicha, forma: string | undefined, personagem:
     custo: custo === null ? lidoCusto : { tipo: 'valor', recurso, valor: custo, porTurno: false },
     tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
     acao: lidaAcao.acao,
-    overload: ehOverload(cartao),
+    overload: overloadNaBatalha(cartao, tecnicasDe(personagem, sistema), evoluidas),
     transformacao: lidaAcao.transformacao,
   }
   if (forma !== undefined) tecnica.forma = forma
@@ -124,7 +130,7 @@ function comoBotao(tecnica: TecnicaConfirmada, personagem: Personagem, sistema: 
 export function reacoesDisponiveis(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): ReacaoComTecnica[] {
   return tecnicasComForma(personagem, sistema)
     .filter(({ cartao }) => lerTipo(cartao).tambemReacao)
-    .map(({ cartao, forma }) => comoBotao(confirmar(cartao, forma, personagem, null), personagem, sistema, combate))
+    .map(({ cartao, forma }) => comoBotao(confirmar(cartao, forma, personagem, sistema, null, combate?.evoluidas), personagem, sistema, combate))
 }
 
 /** O que a reação com técnica olha do alvo: o do golpe (mestre) ou o do recorte (`ReacaoParaJogador`, que só traz alvo que reage). */
@@ -170,7 +176,7 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   if (personagem === null || sistema === null) return 'Ficha sem personagem não reage com técnica'
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return 'Técnica não encontrada na ficha'
-  const tecnica = confirmar(achada.cartao, achada.forma, personagem, pedido.custo)
+  const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, ctx.combate?.evoluidas)
   if (!tecnica.tipo.tambemReacao) return 'Esta técnica não é de reação'
   if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
   return motivoDaTecnica(tecnica, personagem, sistema, ctx.combate, null, true)
@@ -212,7 +218,7 @@ export function reagirComTecnica(
 ): ReacaoFeita | null {
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return null
-  const tecnica = confirmar(achada.cartao, achada.forma, personagem, pedido.custo)
+  const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, combate.evoluidas)
   const sugerida = saidaSugerida(modoDaReacao(tecnica.cartao))
   const marca: TecnicaDaReacao = { cartaoId: tecnica.cartao.id, nome: tecnica.cartao.nome.trim() || TECNICA_SEM_NOME }
   if (sugerida !== null && pedido.saida !== sugerida) marca.aMao = true

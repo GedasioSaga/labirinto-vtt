@@ -1,6 +1,8 @@
 import { Assets, Sprite, Text, Texture } from 'pixi.js'
+import type { NaturezaDoSelo } from '../lib/batalha/combate'
 import { textoDoSelo } from '../lib/batalha/selos'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { theme } from '../theme'
 import { screenLabelSizing } from './screenLabel'
 
 /**
@@ -59,6 +61,8 @@ export type FotosDaForma = ReadonlyMap<string, string>
 export interface SeloNaFicha {
   nome: string
   turnos: number | null
+  /** Tipos de habilidade F2: a cor da linha (buff verde, debuff roxo, passiva dourada); ausente ou "condicao" = o âmbar de sempre. */
+  natureza?: NaturezaDoSelo
 }
 
 /** Por tokenId, os selos da ficha na ordem em que foram postos. */
@@ -76,10 +80,32 @@ const SELOS_NA_FICHA_FOLGA = 0.35
 /** Folga mínima em px de mundo, para a ficha pequena. */
 const SELOS_NA_FICHA_FOLGA_MIN = 4
 
-/** "ATORDOADO 2", um por linha; "CEGO" sem número quando é até tirar. Sem selo = texto vazio. */
+/**
+ * A cor da linha pela natureza do selo (a mesma das pílulas da carta,
+ * batalha.css `--bt-buff`/`--bt-debuff`/`--bt-passiva`): o texto marca a linha
+ * com a etiqueta (`<buff>FÚRIA 2</buff>`) e o estilo pinta (`tagStyles` do
+ * Pixi). A condição fica sem etiqueta: o âmbar de sempre.
+ */
+const COR_DA_NATUREZA: Readonly<Record<Exclude<NaturezaDoSelo, 'condicao'>, string>> = {
+  buff: theme.color.online,
+  debuff: theme.color.arcane,
+  passiva: theme.color.brass,
+}
+
+/** O "<" do nome viraria etiqueta com as cores ligadas: troca pelo "‹" (o nome do selo é texto livre do mestre). */
+function semEtiqueta(texto: string): string {
+  return texto.replaceAll('<', '‹')
+}
+
+/** "ATORDOADO 2", um por linha; "CEGO" sem número quando é até tirar; buff, debuff e passiva na cor deles. Sem selo = texto vazio. */
 export function textoDosSelosNaFicha(selos: readonly SeloNaFicha[] | undefined): string {
   if (selos === undefined || selos.length === 0) return ''
-  return selos.map((selo) => textoDoSelo(selo).toLocaleUpperCase('pt-BR')).join('\n')
+  return selos
+    .map((selo) => {
+      const linha = semEtiqueta(textoDoSelo(selo).toLocaleUpperCase('pt-BR'))
+      return selo.natureza === undefined || selo.natureza === 'condicao' ? linha : `<${selo.natureza}>${linha}</${selo.natureza}>`
+    })
+    .join('\n')
 }
 
 /**
@@ -97,6 +123,11 @@ export function criarTextoDosSelos(): Text {
       align: 'center',
       fill: SELOS_NA_FICHA_FILL,
       stroke: { color: SELOS_NA_FICHA_OUTLINE, width: 3 },
+      tagStyles: {
+        buff: { fill: COR_DA_NATUREZA.buff },
+        debuff: { fill: COR_DA_NATUREZA.debuff },
+        passiva: { fill: COR_DA_NATUREZA.passiva },
+      },
     },
   })
   // Pé do texto no alto do disco: com mais selos, as linhas sobem.

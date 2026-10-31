@@ -8,7 +8,8 @@ import type { FotosDaForma, SeloNaFicha, SelosNasFichas } from '../../pixi/token
 
 /**
  * BATALHA F3 (fatia T): o que a batalha pinta no MAPA, por ficha: a imagem da
- * forma no lugar da foto e os selos acima do disco. Puro, menos o gancho do
+ * forma no lugar da foto e os selos acima do disco (tipos de habilidade F2:
+ * com a natureza, que pinta a linha). Puro, menos o gancho do
  * fim: quem monta (App do mestre, Session do jogador) chama e passa ao canvas.
  *
  * O canvas repinta quando a referência muda, e a batalha troca `turnos` a cada
@@ -48,7 +49,7 @@ export function selosNasFichasDoMestre(turnos: TurnosDaCena | undefined): SelosN
   const porFicha = new Map<string, SeloNaFicha[]>()
   for (const selo of selos) {
     const lista = porFicha.get(selo.tokenId) ?? []
-    lista.push({ nome: selo.nome, turnos: selo.turnos })
+    lista.push(selo.natureza === undefined ? { nome: selo.nome, turnos: selo.turnos } : { nome: selo.nome, turnos: selo.turnos, natureza: selo.natureza })
     porFicha.set(selo.tokenId, lista)
   }
   return porFicha
@@ -62,7 +63,7 @@ export function selosNasFichasDoJogador(estado: EstadoParaJogador | null | undef
     if (carta.selos === undefined || carta.selos.length === 0 || porFicha.has(carta.tokenId)) continue
     porFicha.set(
       carta.tokenId,
-      carta.selos.map((selo) => ({ nome: selo.nome, turnos: selo.turnos })),
+      carta.selos.map((selo) => (selo.natureza === undefined ? { nome: selo.nome, turnos: selo.turnos } : { nome: selo.nome, turnos: selo.turnos, natureza: selo.natureza })),
     )
   }
   return porFicha.size === 0 ? null : porFicha
@@ -81,7 +82,7 @@ function mesmosSelos(a: SelosNasFichas | null, b: SelosNasFichas | null): boolea
   for (const [tokenId, lista] of a) {
     const outra = b.get(tokenId)
     if (outra === undefined || outra.length !== lista.length) return false
-    if (lista.some((selo, i) => selo.nome !== outra[i].nome || selo.turnos !== outra[i].turnos)) return false
+    if (lista.some((selo, i) => selo.nome !== outra[i].nome || selo.turnos !== outra[i].turnos || selo.natureza !== outra[i].natureza)) return false
   }
   return true
 }

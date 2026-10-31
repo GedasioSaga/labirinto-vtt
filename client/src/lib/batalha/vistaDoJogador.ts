@@ -196,6 +196,8 @@ export interface GolpeParaJogador {
   atacanteTokenId: string
   nome: string
   alvos: AlvoParaJogador[]
+  /** Tipos de habilidade F4: o rótulo da opção escolhida ("Cirugia"), até `NOME_DO_GOLPE_MAX`. Ausente = sem escolha. */
+  variante?: string
 }
 
 export interface ContraParaJogador {
@@ -433,7 +435,7 @@ function golpesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJog
   for (const golpe of golpes) {
     if (saem.length >= GOLPES_PENDENTES_MAX) break
     if (!ctx.tokensNoRecorte.has(golpe.atacanteTokenId) || !golpe.alvos.every((alvo) => ctx.tokensNoRecorte.has(alvo.tokenId))) continue
-    saem.push({
+    const golpeVisto: GolpeParaJogador = {
       golpeId: golpe.id,
       atacanteTokenId: golpe.atacanteTokenId,
       nome: nomeDoGolpe(golpe),
@@ -446,7 +448,11 @@ function golpesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJog
         if (alvo.saida !== undefined) visto.saida = alvo.saida
         return visto
       }),
-    })
+    }
+    // Tipos de habilidade F4: só o rótulo da opção (o nome da técnica já vai); nada da ficha além dele.
+    const variante = golpe.variante?.trim().slice(0, NOME_DO_GOLPE_MAX)
+    if (variante !== undefined && variante !== '') golpeVisto.variante = variante
+    saem.push(golpeVisto)
   }
   return saem
 }

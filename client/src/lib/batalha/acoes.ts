@@ -175,7 +175,7 @@ export function motivoDaTecnica(
 ): string | null {
   const { cartao } = tecnica
   const tipo = lerTipo(cartao).tipo
-  if (tecnica.acao === 'passiva' || tipo === 'passiva') return 'Passiva: vale sempre'
+  if (tecnica.acao === 'passiva' || tipo === 'passiva') return 'Passiva: use a tira Passivas'
   if (tipo === 'reacao' && comoReacao !== true) return MOTIVO_DA_REACAO_PURA
   if (tecnica.transformacao) return 'É transformação: use a tira Transformação'
   const evolucao = motivoDaEvolucao(cartao, tecnicasDe(personagem, sistema), combate?.evoluidas)

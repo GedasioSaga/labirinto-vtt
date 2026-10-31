@@ -849,7 +849,10 @@ function lerGolpeVisto(value: unknown): GolpeParaJogador | null {
   const alvos = lerLista(value.alvos, ALVOS_MAX, lerAlvoVisto)
   if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !textoAte(atacanteTokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 0, NOME_DO_GOLPE_MAX)) return null
   if (alvos === null || alvos.length === 0) return null
-  return { golpeId, atacanteTokenId, nome, alvos }
+  // Tipos de habilidade F4: a opção escolhida, opcional; presente e torta recusa o golpe.
+  const { variante } = value
+  if (variante !== undefined && !textoAte(variante, 1, NOME_DO_GOLPE_MAX)) return null
+  return variante === undefined ? { golpeId, atacanteTokenId, nome, alvos } : { golpeId, atacanteTokenId, nome, alvos, variante }
 }
 
 function lerContra(value: unknown): ContraParaJogador | null {
