@@ -18,7 +18,7 @@ import type { RedeDosSons } from '../../net/ponteDosSons'
 vi.mock('@tauri-apps/plugin-fs', async () => (await import('../../lib/sons/discoFalso.fixture')).fsFalso)
 vi.mock('@tauri-apps/api/path', async () => (await import('../../lib/sons/discoFalso.fixture')).pathFalso)
 
-const { fsFalso, limparDisco } = await import('../../lib/sons/discoFalso.fixture')
+const { APPDATA, fsFalso, limparDisco } = await import('../../lib/sons/discoFalso.fixture')
 const { useAdventureStore } = await import('../../stores/adventureStore')
 const { useBibliotecaDeSonsStore } = await import('../../stores/bibliotecaDeSonsStore')
 const { useToastStore } = await import('../../stores/toastStore')
@@ -256,8 +256,10 @@ describe('Página Sons na sala: a ponte leva o som à mesa', () => {
     await clicar(ouvir)
     expect(motor.tocar).toHaveBeenCalledTimes(2)
     expect(rede.tocarSomAoVivo).toHaveBeenCalledTimes(1)
-    const volume = document.querySelector<HTMLInputElement>('.lb-sons-editor__volume input[type="range"]')
-    if (volume === null) throw new Error('sem a faixa de volume')
+    // A faixa Volume do lápis é o `CampoFaixa` do grimório (29/10): achada pelo rótulo dela.
+    const rotuloDoVolume = [...document.querySelectorAll<HTMLLabelElement>('.lb-sons-editor label')].find((rotulo) => rotulo.textContent === 'Volume')
+    const volume = rotuloDoVolume === undefined ? null : document.getElementById(rotuloDoVolume.htmlFor)
+    if (!(volume instanceof HTMLInputElement) || volume.type !== 'range') throw new Error('sem a faixa de volume')
     await act(async () => {
       const definir = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
       definir?.call(volume, '30')
@@ -313,12 +315,13 @@ describe('Página Sons na sala: a ponte leva o som à mesa', () => {
     expect(rede.precarregarSonsAoVivo).toHaveBeenCalledTimes(vezes)
   })
 
-  it('a pasta da aventura vai à ponte da sala', async () => {
+  // Desde a biblioteca global (29/10), a sala serve `/sons/<id>` de `<appData>/sons`, e não da pasta da aventura.
+  it('a pasta da biblioteca global de sons vai à ponte da sala', async () => {
     const rede = redeFalsa()
     desfazer.push(registrarRedeDosSons(rede))
     await montar(motorFalso())
     await abrirComSons([GRITO])
-    await esperar(() => expect(rede.mudarPastaDosSons).toHaveBeenLastCalledWith(AVENTURA))
+    await esperar(() => expect(rede.mudarPastaDosSons).toHaveBeenLastCalledWith(`${APPDATA}/sons`))
   })
 
   it(`pré-carga: 33 favoritos pequenos viram só ${PRE_CARGA_MAX_ARQUIVOS}, na ordem; 1 MB exato entra e 1 MB + 1 byte não`, () => {

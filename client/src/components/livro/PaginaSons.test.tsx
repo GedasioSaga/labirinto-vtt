@@ -496,8 +496,10 @@ describe('o lápis', () => {
     // Configuração: nunca deixa o mapa "não salvo".
     expect(hasUnsavedWork()).toBe(false)
     await esperar(() => {
-      const gravado = arquivos.get(`${AVENTURA}/sons.json`)
+      // A biblioteca é global desde 29/10: grava em `<appData>/sons/sons.json`, nunca na pasta da aventura.
+      const gravado = arquivos.get('C:/appdata/sons/sons.json')
       expect(typeof gravado).toBe('string')
+      expect(arquivos.has(`${AVENTURA}/sons.json`)).toBe(false)
       const lido = JSON.parse(String(gravado)) as BibliotecaDeSons
       expect(lido.efeitos.find((efeito) => efeito.id === porta)).toMatchObject({ nome: 'Porta da cripta 🚪', volume: 0.35, loop: true, favorito: true, atalho: 3 })
       expect(lido.efeitos.find((efeito) => efeito.id === trovao)?.atalho).toBeUndefined()
