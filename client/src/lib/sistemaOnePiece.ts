@@ -142,6 +142,18 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
       ],
       imagem: true,
     },
+    {
+      // Mundo do livro M3 (decisão 4): o que o personagem carrega; o catálogo põe aqui o tipo "item".
+      id: 'itens',
+      nome: 'Itens',
+      item: 'Item',
+      vazio: 'Nenhum item.',
+      campos: [
+        { id: 'quantidade', rotulo: 'Quantidade', forma: 'linha' },
+        { id: 'efeito', rotulo: 'Efeito', forma: 'linha' },
+        { id: 'descricao', rotulo: 'Descrição', forma: 'paragrafo' },
+      ],
+    },
   ],
   livro: LIVRO_ONE_PIECE,
   catalogos: CATALOGOS_ONE_PIECE,
