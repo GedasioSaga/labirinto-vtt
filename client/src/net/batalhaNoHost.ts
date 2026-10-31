@@ -15,6 +15,7 @@ import {
   type BatalhaDesfazerMessage,
   type BatalhaHostMessage,
   type BatalhaPassarMessage,
+  type BatalhaPassivaMessage,
   type BatalhaReagirMessage,
   type BatalhaZerarCargaMessage,
 } from './protocoloDaBatalha'
@@ -129,6 +130,13 @@ export interface BatalhaNoHost {
   armas(conexao: ConexaoNaBatalha, msg: BatalhaArmasMessage): RespostaDaBatalha
   /** Zerar a concentração: só de personagem dele com carta na ordem, a qualquer hora (não só na vez). */
   zerarCarga(conexao: ConexaoNaBatalha, msg: BatalhaZerarCargaMessage): RespostaDaBatalha
+  /**
+   * Tipos de habilidade F3: a passiva de ficha DELE de verdade (token e
+   * personagem dele, carta na ordem), fora da vez. O alvo escolhido, só entre
+   * as fichas que a tela dele tem. A regra (é passiva, ligada ou não, custo,
+   * teto de selos, Aplicar só com o lembrete) a store confere.
+   */
+  passiva(conexao: ConexaoNaBatalha, msg: BatalhaPassivaMessage): RespostaDaBatalha
 }
 
 const NADA: RespostaDaBatalha = { saidas: [], mudou: false }
@@ -456,6 +464,22 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         // Personagem dele com carta na ordem; fora da vez também (ele perde a concentração ao tomar o golpe).
         if (!lugar.meusPersonagens.has(msg.personagemId) || !cena.turnos.cartas.some((carta) => carta.personagemId === msg.personagemId)) return false
         return ponte.zerarCarga(lugar.sceneKey, autorDe(conexao), msg.personagemId)
+      })
+    },
+
+    passiva(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        const { pedido } = msg
+        const carta = cena.turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)
+        // A passiva é do personagem de uma ficha DELE de verdade: nunca da emprestada nem do NPC (essas o mestre ativa).
+        if (ponte.passiva === undefined || carta === undefined || carta.personagemId === null) return false
+        if (!lugar.meusTokens.has(carta.tokenId) || !lugar.meusPersonagens.has(carta.personagemId)) return false
+        // O oponente escolhido, só entre as fichas que a tela dele tem: o pedido não acha token que ele não vê.
+        if (pedido.tipo === 'passiva' && pedido.alvoTokenId !== undefined && !lugar.fichasNaTela.some((ficha) => ficha.id === pedido.alvoTokenId)) return false
+        return ponte.passiva(lugar.sceneKey, autorDe(conexao), pedido)
       })
     },
   }

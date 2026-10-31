@@ -1,5 +1,5 @@
 import type { Personagem } from '../personagem'
-import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDeReacao } from './combate'
+import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDePassiva, PedidoDeReacao } from './combate'
 import type { JudgeNaCena } from './judge'
 import type { LinhaDoRegistro } from './registro'
 import type { RegrasDaBatalha } from './regrasDoCampo'
@@ -75,4 +75,11 @@ export interface PonteDaBatalha {
   escolherArmas(sceneKey: string, autor: AutorDaAcao, personagemId: string, armas: readonly string[]): boolean
   /** Zera a concentração guardada (carga → 0), a qualquer hora; não devolve a ação gasta. Sem carga: `false`. */
   zerarCarga(sceneKey: string, autor: AutorDaAcao, personagemId: string): boolean
+  /**
+   * Tipos de habilidade F3: Ativar/Desligar a passiva, Aplicar o "a cada
+   * turno" ou "Agora não", fora da vez. A store confere a regra
+   * (`motivoDaPassiva`); o host já conferiu que a ficha é dele. Opcional: a
+   * ponte sem passivas (dublê de teste antigo) recusa o pedido.
+   */
+  passiva?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDePassiva): boolean
 }

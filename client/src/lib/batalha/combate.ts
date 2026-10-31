@@ -57,7 +57,60 @@ export interface CombateDoPersonagem {
    * escolheu. Troca quando quiser, sempre dentro do limite (Q8).
    */
   armas: readonly string[] | null
+  /**
+   * Tipos de habilidade F3: as chaves "cartaoId:gatilho" (`chaveDoGatilho`)
+   * cujo lembrete já saiu (ou cuja passiva já foi ativada): o gatilho não
+   * lembra de novo nesta batalha. Ausente = nenhuma.
+   */
+  lembradas?: readonly string[]
+  /**
+   * Tipos de habilidade F3: os lembretes de passiva esperando o dono (ou o
+   * mestre, no NPC): "Ativar / Agora não" no gatilho e "Aplicar / pular" no
+   * começo da vez. A passiva NUNCA ativa sozinha (decisões 3 e 4). Ausente = nenhum.
+   */
+  lembretes?: readonly LembreteDaPassiva[]
 }
+
+/**
+ * Tipos de habilidade F3: um lembrete de passiva. "ativar" = o gatilho bateu
+ * (início, rodada N, vida abaixo de N%): a tela pergunta "Ativar / Agora
+ * não". "porTurno" = a passiva ligada tem efeito "a cada turno" (Fortaleza:
+ * HP +30, FOR +10): no começo da vez do dono, "Aplicar / pular".
+ */
+export interface LembreteDaPassiva {
+  cartaoId: string
+  /** A ficha do dono em que a tela mostra o lembrete (a primeira carta dele na ordem). */
+  tokenId: string
+  tipo: TipoDoLembrete
+  /** A chave do gatilho (`chaveDoGatilho`) ou, no "porTurno", `cartaoId:turno`. */
+  chave: string
+  /** A rodada em que o lembrete saiu. */
+  rodada: number
+}
+
+export type TipoDoLembrete = 'ativar' | 'porTurno'
+
+/** Os tipos de lembrete, para o enum fechado do fio. */
+export const TIPOS_DO_LEMBRETE: readonly TipoDoLembrete[] = ['ativar', 'porTurno']
+
+/**
+ * Tipos de habilidade F3 (Passivas, seções 3.3 e 4b do plano, com as decisões
+ * 3 e 4 do usuário): o que o dono (ou o mestre) pede sobre uma passiva. Vale
+ * FORA da vez e não gasta ação. `tokenId` = a ficha do dono (a passiva é do
+ * personagem dela). Mensagem própria no fio (`batalha.passiva`): não é
+ * `PedidoDeAcao`.
+ *  - "passiva": `ligar` true = Ativar (cobra o custo, conta usos e recarga do
+ *    Tempo, põe o selo dourado com os mods no dono ou em `alvoTokenId`);
+ *    `ligar` false = Desligar (tira o selo). `custo` = o confirmado na tela
+ *    (`null` = o da ficha); `selo` = o sugerido e editado na tela (ausente =
+ *    o que o host lê da ficha, `seloDaPassiva`).
+ *  - "lembrete": a resposta ao lembrete. `aplicar` true = Aplicar o efeito
+ *    "a cada turno" (só com a passiva ligada); false = "Agora não" / pular.
+ *    O "Ativar" do lembrete é o pedido "passiva" com `ligar` true.
+ */
+export type PedidoDePassiva =
+  | { tipo: 'passiva'; tokenId: string; cartaoId: string; ligar: boolean; alvoTokenId?: string; custo: number | null; selo?: SeloPedido }
+  | { tipo: 'lembrete'; tokenId: string; cartaoId: string; aplicar: boolean }
 
 /** Um alvo como chega no pedido, ANTES da reação. `dano` null = golpe sem dano. */
 export interface PedidoDeAlvo {
@@ -260,6 +313,12 @@ export interface SeloDaBatalha {
   cartaoId?: string
   /** Tipos de habilidade F2: a cor da pílula; ausente = "condicao" (como antes). */
   natureza?: NaturezaDoSelo
+  /**
+   * Tipos de habilidade F3: o personagem dono da passiva que pôs o selo
+   * (Desligar e o estado "Ativa" acham o selo por aqui, também no oponente
+   * escolhido). Só do host: nunca sai ao jogador. Ausente = não é de passiva.
+   */
+  donoId?: string
 }
 
 /** O selo como chega no pedido (o sugerido na mira, ou o do mestre). `turnos` null = até tirar. */
@@ -359,6 +418,16 @@ export const SELOS_MAX = 120
 export const MODS_POR_SELO_MAX = 4
 /** Tipos de habilidade F2: teto do alvo de um mod no fio (um id de atributo, "dano" ou "reacao"). */
 export const ALVO_DO_MOD_MAX = 40
+/** Tipos de habilidade F3: teto do id de cartão no recorte (o mesmo do fio, `CARTAO_ID_MAX` de protocoloDaBatalha.ts). */
+export const ID_DO_CARTAO_MAX = 128
+/** Tipos de habilidade F3: teto de uma chave de `lembradas` ("cartaoId:rodada3"). */
+export const CHAVE_DA_LEMBRADA_MAX = 160
+/** Tipos de habilidade F3: chaves em `lembradas` por personagem (passou, as mais velhas saem). */
+export const LEMBRADAS_MAX = 100
+/** Tipos de habilidade F3: lembretes esperando por personagem. */
+export const LEMBRETES_MAX = 16
+/** Tipos de habilidade F3: passivas ligadas por personagem no recorte. */
+export const PASSIVAS_ATIVAS_MAX = 50
 /** F3: linhas na prévia da forma (e no efeito). */
 export const NUMEROS_DA_FORMA_MAX = 16
 /** F3: teto do rótulo e da nota de um número da forma no fio. */

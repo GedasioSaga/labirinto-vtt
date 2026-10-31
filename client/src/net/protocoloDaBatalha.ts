@@ -4,10 +4,13 @@ import {
   ALVOS_MAX,
   ARMAS_NA_BATALHA_MAX,
   CARGA_MAX,
+  CHAVE_DA_LEMBRADA_MAX,
   CUSTO_MAX,
   DANO_MAX,
   EFEITOS_POR_MENSAGEM,
   GOLPES_PENDENTES_MAX,
+  LEMBRADAS_MAX,
+  LEMBRETES_MAX,
   MODIFICADOR_DA_REACAO_MAX,
   MODS_POR_SELO_MAX,
   NATUREZAS_DO_SELO,
@@ -15,17 +18,21 @@ import {
   NOME_DO_GOLPE_MAX,
   NUMERO_DA_FORMA_MAX,
   NUMEROS_DA_FORMA_MAX,
+  PASSIVAS_ATIVAS_MAX,
   PERFURACAO_MAX,
   PERFURACAO_MIN,
   ROTULO_DO_NUMERO_MAX,
   SAIDAS_DA_TECNICA,
   SELOS_POR_TOKEN_MAX,
+  TIPOS_DO_LEMBRETE,
   TURNOS_DO_SELO_MAX,
   type AcaoDaForma,
   type AcaoDaTecnica,
+  type LembreteDaPassiva,
   type ModDoSelo,
   type NumeroDaForma,
   type PedidoDeAcao,
+  type PedidoDePassiva,
   type PedidoDeAlvo,
   type PedidoDeReacao,
   type RolagemDaReacao,
@@ -166,6 +173,17 @@ export interface BatalhaZerarCargaMessage {
   personagemId: string
 }
 
+/**
+ * Tipos de habilidade F3: Ativar/Desligar uma passiva, ou responder ao
+ * lembrete dela (Aplicar o "a cada turno", "Agora não"). Fora da vez, sem
+ * gastar ação. Mensagem própria (não é `batalha.agir`): a passiva não é golpe.
+ */
+export interface BatalhaPassivaMessage {
+  type: 'batalha.passiva'
+  reqId: string
+  pedido: PedidoDePassiva
+}
+
 /** Os pedidos de batalha do jogador da F1 (entram na união `PlayerMessage`). */
 export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
 
@@ -174,7 +192,7 @@ export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
  * sem mexer no `switch` do host: B a junta à `PlayerMessage` (`protocol.ts`)
  * junto com os `case` em `hostSession.ts`.
  */
-export type BatalhaAcaoPlayerMessage = BatalhaAgirMessage | BatalhaReagirMessage | BatalhaDanoMessage | BatalhaArmasMessage | BatalhaZerarCargaMessage
+export type BatalhaAcaoPlayerMessage = BatalhaAgirMessage | BatalhaReagirMessage | BatalhaDanoMessage | BatalhaArmasMessage | BatalhaZerarCargaMessage | BatalhaPassivaMessage
 
 export interface BatalhaEstadoMessage {
   type: 'batalha.estado'
@@ -500,6 +518,41 @@ export function parseBatalhaZerarCarga(value: unknown): BatalhaZerarCargaMessage
   return { type: 'batalha.zerarCarga', reqId, personagemId }
 }
 
+/**
+ * Tipos de habilidade F3: o pedido da passiva, enum fechado no `tipo`. Ids no
+ * teto, custo de 0 a `CUSTO_MAX` ou `null`, selo pela regra do selo do
+ * pedido (natureza, cartaoId e dono o host tira da ficha, nunca do fio).
+ */
+export function lerPedidoDePassiva(value: unknown): PedidoDePassiva | null {
+  if (!isRecord(value)) return null
+  const { tokenId, cartaoId } = value
+  if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX)) return null
+  switch (value.tipo) {
+    case 'passiva': {
+      const { ligar, custo, alvoTokenId } = value
+      const selo = lerSeloOpcional(value.selo)
+      if (typeof ligar !== 'boolean' || (custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || selo === false) return null
+      if (alvoTokenId !== undefined && !textoAte(alvoTokenId, 1, ID_DA_BATALHA_MAX)) return null
+      const pedido: PedidoDePassiva = { tipo: 'passiva', tokenId, cartaoId, ligar, custo }
+      if (alvoTokenId !== undefined) pedido.alvoTokenId = alvoTokenId
+      if (selo !== undefined) pedido.selo = selo
+      return pedido
+    }
+    case 'lembrete':
+      return typeof value.aplicar === 'boolean' ? { tipo: 'lembrete', tokenId, cartaoId, aplicar: value.aplicar } : null
+    default:
+      return null
+  }
+}
+
+export function parseBatalhaPassiva(value: unknown): BatalhaPassivaMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.passiva') return null
+  const { reqId } = value
+  const pedido = lerPedidoDePassiva(value.pedido)
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || pedido === null) return null
+  return { type: 'batalha.passiva', reqId, pedido }
+}
+
 // ---- host → jogador ----
 
 function lerLado(value: unknown): LadoNaCarta | null {
@@ -641,7 +694,34 @@ function lerCombate(value: unknown): CombateParaJogador | null {
   if (!textoAte(personagemId, 1, PERSONAGEM_ID_MAX) || recargas === null || usos === null || typeof overload !== 'boolean') return null
   if (!inteiroAte(carga, 0, CARGA_MAX) || typeof concentrouNestaVez !== 'boolean' || (value.armas !== null && armas === null)) return null
   if (limiteDeArmas !== null && !inteiroAte(limiteDeArmas, 1, LIMITE_DE_ARMAS_MAX)) return null
-  return { personagemId, recargas, usos, overload, carga, concentrouNestaVez, armas, limiteDeArmas }
+  const combate: CombateParaJogador = { personagemId, recargas, usos, overload, carga, concentrouNestaVez, armas, limiteDeArmas }
+  return comPassivasLidas(combate, value)
+}
+
+/** Tipos de habilidade F3: um lembrete de passiva. Tipo em enum fechado; ids, chave e rodada no teto. */
+function lerLembrete(value: unknown): LembreteDaPassiva | null {
+  if (!isRecord(value)) return null
+  const { cartaoId, tokenId, chave, rodada } = value
+  const tipo = TIPOS_DO_LEMBRETE.find((candidato) => candidato === value.tipo)
+  if (!textoAte(cartaoId, 1, CARTAO_ID_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || tipo === undefined) return null
+  if (!textoAte(chave, 1, CHAVE_DA_LEMBRADA_MAX) || !inteiroAte(rodada, 1, RODADA_MAX)) return null
+  return { cartaoId, tokenId, tipo, chave, rodada }
+}
+
+function lerChaveLembrada(value: unknown): string | null {
+  return textoAte(value, 1, CHAVE_DA_LEMBRADA_MAX) ? value : null
+}
+
+/** Tipos de habilidade F3: `lembretes`, `lembradas` e `passivasAtivas`, cada um ausente ou lista no teto. Torto = `null` (derruba o combate). */
+function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unknown>): CombateParaJogador | null {
+  const lembretes = value.lembretes === undefined ? undefined : lerLista(value.lembretes, LEMBRETES_MAX, lerLembrete)
+  const lembradas = value.lembradas === undefined ? undefined : lerLista(value.lembradas, LEMBRADAS_MAX, lerChaveLembrada)
+  const ativas = value.passivasAtivas === undefined ? undefined : lerLista(value.passivasAtivas, PASSIVAS_ATIVAS_MAX, lerCartaoId)
+  if (lembretes === null || lembradas === null || ativas === null) return null
+  if (lembretes !== undefined) combate.lembretes = lembretes
+  if (lembradas !== undefined) combate.lembradas = lembradas
+  if (ativas !== undefined) combate.passivasAtivas = ativas
+  return combate
 }
 
 function lerD20(value: unknown): value is number {

@@ -205,6 +205,7 @@ import {
   parseBatalhaDano,
   parseBatalhaEfeitos,
   parseBatalhaEstado,
+  parseBatalhaPassiva,
   parseBatalhaReagir,
   parseBatalhaResultado,
   parseBatalhaZerarCarga,
@@ -214,7 +215,7 @@ import {
   type BatalhaPlayerMessage,
 } from '../net/protocoloDaBatalha'
 import type { EfeitoParaJogador, EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
-import { EFEITOS_POR_MENSAGEM, type PedidoDeAcao, type PedidoDeReacao } from '../lib/batalha/combate'
+import { EFEITOS_POR_MENSAGEM, type PedidoDeAcao, type PedidoDePassiva, type PedidoDeReacao } from '../lib/batalha/combate'
 import type { VezEsperada } from '../lib/batalha/ponte'
 
 /**
@@ -1320,6 +1321,14 @@ export interface PlayerConnection {
    * `false` = não saiu.
    */
   zerarCargaNaBatalha(personagemId: string): boolean
+  /**
+   * BATALHA, tipos de habilidade F3 — a passiva da ficha dele, fora da vez:
+   * Ativar/Desligar (`tipo` "passiva") ou a resposta ao lembrete (`tipo`
+   * "lembrete": Aplicar o "a cada turno" ou "Agora não"). Só ficha dele com
+   * personagem no recorte (`batalhaEstado.meus`); o Aplicar e o "Agora não",
+   * só com o lembrete esperando. `false` = não saiu.
+   */
+  passivaNaBatalha(pedido: PedidoDePassiva): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -6042,6 +6051,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const mensagem = parseBatalhaZerarCarga({ type: 'batalha.zerarCarga', reqId: `b${nextReqId++}`, personagemId })
       if (mensagem === null) return false
       return pedirNaBatalha(`zerarCarga|${personagemId}`, mensagem)
+    },
+    passivaNaBatalha(pedido) {
+      const estado = state.batalhaEstado
+      if (state.status !== 'playing' || estado === undefined || !(state.ownTokens ?? []).includes(pedido.tokenId)) return false
+      // Responder ao lembrete só com ele esperando (o host confere de novo).
+      if (pedido.tipo === 'lembrete' && !(estado.meus ?? []).some((meu) => (meu.lembretes ?? []).some((lembrete) => lembrete.cartaoId === pedido.cartaoId))) return false
+      const mensagem = parseBatalhaPassiva({ type: 'batalha.passiva', reqId: `b${nextReqId++}`, pedido })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('passiva', mensagem.pedido), mensagem)
     },
     reconnect: restart,
     wake() {

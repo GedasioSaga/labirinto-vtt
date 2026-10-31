@@ -52,6 +52,7 @@ import {
   parseBatalhaDano,
   parseBatalhaDesfazer,
   parseBatalhaPassar,
+  parseBatalhaPassiva,
   parseBatalhaReagir,
   parseBatalhaZerarCarga,
   type BatalhaAcaoPlayerMessage,
@@ -3443,6 +3444,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseBatalhaArmas(value)
     case 'batalha.zerarCarga':
       return parseBatalhaZerarCarga(value)
+    case 'batalha.passiva':
+      return parseBatalhaPassiva(value)
     case 'danca.pronto':
     case 'danca.toques':
     case 'danca.fim':
