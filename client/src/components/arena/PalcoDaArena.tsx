@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { PalcoDaArenaProps } from '../../lib/arena/tipos'
 import { criarPalcoDaArena, type DadosDoPalco, type PalcoPixiDaArena } from '../../pixi/palcoDaArena'
+import type { Bounds } from '../../pixi/world'
 import { useToastStore } from '../../stores/toastStore'
 
 /**
@@ -34,6 +35,7 @@ export function PalcoDaArena(props: PalcoDaArenaProps) {
         useToastStore.getState().push('error', 'A arena não conseguiu desenhar o palco (WebGL indisponível).')
       },
       aoPerderContexto: () => setGeracao((atual) => atual + 1),
+      obstaculos: () => obstaculosSobre(el),
     })
     palco.current = novo
     propsRef.current.onConsulta(novo.consulta)
@@ -58,6 +60,29 @@ export function PalcoDaArena(props: PalcoDaArenaProps) {
   }, [tokens, grade, vezTokenId, vidas, selos, fotoDaForma, judge, judgeAlvo, gestoDoJudge, bonecoTokenId])
 
   return <div ref={caixa} className="arena-palco" aria-label="Palco da arena" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }} />
+}
+
+/** Colunas (comem a esquerda ou a direita do palco): o menu da vez e o placar do Judge. */
+const COLUNAS_POR_CIMA = ['.pp-batalha-menu > *', '.ar-placar-lugar']
+/** Faixas (comem o alto): a ordem dos turnos. */
+const FAIXAS_POR_CIMA = ['.pp-batalha-faixa']
+
+/**
+ * O que flutua sobre o palco agora, em px relativos ao canvas, para o
+ * enquadramento (`freeArea`). Coluna vira a altura inteira e faixa a largura
+ * inteira: o menu em modo lista é mais largo que alto e, medido como veio,
+ * comeria o alto em vez da esquerda.
+ */
+function obstaculosSobre(el: HTMLElement): Bounds[] {
+  const tela = el.closest('.ar-tela')
+  if (tela === null) return []
+  const base = el.getBoundingClientRect()
+  const medir = (seletores: string[]) =>
+    seletores.flatMap((seletor) => Array.from(tela.querySelectorAll<HTMLElement>(seletor))).map((peca) => peca.getBoundingClientRect()).filter((caixa) => caixa.width > 0 && caixa.height > 0)
+  return [
+    ...medir(COLUNAS_POR_CIMA).map((caixa) => ({ minX: caixa.left - base.left, maxX: caixa.right - base.left, minY: 0, maxY: base.height })),
+    ...medir(FAIXAS_POR_CIMA).map((caixa) => ({ minX: 0, maxX: base.width, minY: caixa.top - base.top, maxY: caixa.bottom - base.top })),
+  ]
 }
 
 function dadosDe(props: PalcoDaArenaProps): DadosDoPalco {

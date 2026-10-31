@@ -328,6 +328,10 @@
 }
 .ar-tela .pp-batalha-menu > * { pointer-events: auto; }
 .ar-tela .pp-batalha-menu > .bt-vez { max-height: 100%; }
+/* os anéis da mira (fixos sobre as fichas) ficam abaixo do formulário, ainda acima do palco e do véu */
+.ar-tela .pp-batalha-menu .bt-marcas-da-mira { z-index: -1; }
+/* a mira alta rola dentro do lugar do menu, sem descer até o botão REAÇÃO (só a mira: a lista tem a leitura ao lado, fora da caixa) */
+.ar-tela .pp-batalha-menu > .bt-vez--lista:has(> .bt-mira) { overflow-y: auto; overscroll-behavior: contain; padding-bottom: 8px; scrollbar-width: thin; }
 
 /* o véu atrás do menu aberto: escurece a esquerda para o texto ler sobre a grade */
 .ar-tela .pp-batalha-veu {
@@ -445,13 +449,24 @@
 /* o total que acabou de mudar acende em latão e volta: o golpe novo chegou */
 @keyframes ar-acende { from { color: var(--lb-color-brass-bright); } }
 
-@media (max-width: 1180px) {
+/*
+ * As colunas da montagem medem a PÁGINA, não a janela: com o assistente aberto
+ * (368 px à direita) a página tem ~760 px numa janela de 1440, e as três
+ * colunas (mínimo 832 px) cortavam o Lado B. 880/600 px de página são os
+ * antigos 1180/760 px de janela sem a lombada e o respiro.
+ */
+.ar-pg { container: ar-pg / inline-size; }
+@container ar-pg (max-width: 879px) {
   .ar-montagem { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ar-fichas { grid-column: 1 / -1; }
+}
+@container ar-pg (max-width: 599px) {
+  .ar-montagem { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1180px) {
   .ar-barra__aviso { display: none; }
 }
 @media (max-width: 760px) {
-  .ar-montagem { grid-template-columns: minmax(0, 1fr); }
   .ar-comecar { align-items: stretch; max-width: none; width: 100%; }
   .ar-comecar .mu-pg-nota,
   .ar-comecar .mu-campo__erro { text-align: left; }

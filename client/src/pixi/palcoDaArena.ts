@@ -10,7 +10,7 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
 import { findTokenAt } from './tokenInteraction'
 import { createTokensRenderer } from './tokensRenderer'
-import { fitCamera, panBy, zoomAt, type Camera } from './world'
+import { fitCamera, freeArea, panBy, zoomAt, type Bounds, type Camera } from './world'
 
 /**
  * O PALCO DA ARENA DE TESTES (Escritor B da fase 1, seção 3b "D1" de
@@ -48,6 +48,12 @@ export interface OpcoesDoPalco {
   aoFalhar: (erro: unknown) => void
   /** O contexto WebGL caiu: quem montou troca este palco por um novo. */
   aoPerderContexto: () => void
+  /**
+   * O que flutua por cima do palco (faixa da ordem, menu da vez, placar), em px
+   * relativos ao canvas: o enquadramento põe a grade na parte que sobra
+   * (`freeArea`). Ausente = o canvas inteiro.
+   */
+  obstaculos?: () => Bounds[]
 }
 
 export interface PalcoPixiDaArena {
@@ -203,7 +209,14 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
     const enquadrar = () => {
       const { width, height } = app.screen
       if (width <= 0 || height <= 0 || colunas <= 0 || linhas <= 0) return
-      camera = fitCamera({ minX: 0, minY: 0, maxX: colunas * CASA_DA_ARENA, maxY: linhas * CASA_DA_ARENA }, { width, height }, MARGEM_DO_ENQUADRE)
+      // Na parte que a faixa, o menu e o placar não cobrem: a ficha do Lado A não nasce embaixo do menu.
+      const livre = freeArea({ width, height }, opcoes.obstaculos?.() ?? [])
+      const naArea = fitCamera(
+        { minX: 0, minY: 0, maxX: colunas * CASA_DA_ARENA, maxY: linhas * CASA_DA_ARENA },
+        { width: livre.maxX - livre.minX, height: livre.maxY - livre.minY },
+        MARGEM_DO_ENQUADRE,
+      )
+      camera = { scale: naArea.scale, x: naArea.x + livre.minX, y: naArea.y + livre.minY }
       aplicarCamera()
       tarefaDosTextos.schedule()
     }
