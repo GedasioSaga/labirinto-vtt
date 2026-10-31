@@ -67,6 +67,8 @@ export interface CartaoSemImagem {
   atributos: string[]
   modificadores: Modificador[]
   subcartoes: CartaoSemImagem[]
+  /** `CartaoDaFicha.aMao`: volta na edição do jogador para o Salvar dele não apagar a marca do mestre. */
+  aMao?: true
 }
 
 /**
@@ -260,7 +262,7 @@ function cartao(value: unknown, nivel: 1 | 2): CartaoSemImagem | null {
   const modificadores = lista(value.modificadores, PERSONAGEM_MODIFICADORES_MAX, modificador)
   const subcartoes = lista<CartaoSemImagem>(value.subcartoes, nivel === 1 ? PERSONAGEM_CARTOES_MAX : 0, (sub) => cartao(sub, 2))
   if (nome === null || campos === null || extras === null || atributos === null || modificadores === null || subcartoes === null) return null
-  return { id: value.id, nome, campos, extras, atributos, modificadores, subcartoes }
+  return { id: value.id, nome, campos, extras, atributos, modificadores, subcartoes, ...(value.aMao === true ? { aMao: true } : {}) }
 }
 
 /** Os ids de cartão de uma lista, subcartões juntos. */
@@ -434,5 +436,6 @@ export function cartaoSemImagem(cartao: CartaoDaFicha): CartaoSemImagem {
     atributos: cartao.atributos,
     modificadores: cartao.modificadores,
     subcartoes: cartao.subcartoes.map(cartaoSemImagem),
+    ...(cartao.aMao === true ? { aMao: true } : {}),
   }
 }

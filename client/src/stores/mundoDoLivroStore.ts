@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { sincronizarVariacoes } from '../lib/livros/combate'
+import { COMPARAR_MAX } from '../lib/livros/encontro'
 import { lerRpgDaPasta } from '../lib/pastasDeMapas'
 import type { Personagem } from '../lib/personagem'
 import { herdaDaPasta, useAdventureStore } from './adventureStore'
@@ -23,6 +24,28 @@ import { editarRpgDaPasta } from './rpgDaPasta'
  */
 export type AbaDoMundo = 'jogadores' | 'npcs' | 'arena'
 
+/**
+ * Os marcadores da M2 (Comparar, Saúde da ficha, Anotações). Ficam FORA de
+ * `AbaDoMundo` na fase 0: MundoDoLivro.tsx tem `Record<AbaDoMundo, ...>` e os
+ * MARCADORES, e o arquivo está com a Arena agora. O escritor B junta os dois
+ * (`AbaDoMundo = ... | AbaDaM2`) no mesmo commit em que monta as páginas.
+ */
+export type AbaDaM2 = 'comparar' | 'saude' | 'anotacoes'
+
+/**
+ * O Comparar (M2): estado de SESSÃO, nada em disco. Ids de personagem da
+ * pasta aberta; id que sumiu da pasta é ignorado pelas contas
+ * (lib/livros/encontro.ts). Zera a cada `abrir`.
+ */
+export interface EncontroDoComparar {
+  /** As fichas lado a lado, na ordem em que foram escolhidas (máx. `COMPARAR_MAX`). */
+  comparar: string[]
+  /** Quem está no grupo (jogadores e NPCs aliados). */
+  grupo: string[]
+  /** NPC inimigo -> quantos (1 ou mais; 0 sai). */
+  inimigos: Record<string, number>
+}
+
 /** De onde o mundo abriu: a porta 04 da tela inicial, ou o atalho no livro do mestre (por cima do mapa). */
 export type OrigemDoMundo = 'inicio' | 'editor'
 
@@ -42,7 +65,7 @@ export interface FichaAbertaNoMundo {
 /** Uma mudança na lista de fichas da pasta: recebe a do disco, devolve a nova (sem mutar). */
 export type MudancaDoMundo = (personagens: Personagem[]) => Personagem[]
 
-interface MundoDoLivroState {
+interface MundoDoLivroState extends EncontroDoComparar {
   aberto: MundoAberto | null
   aba: AbaDoMundo
   /** As fichas da pasta como o disco tinha na última leitura ou gravação; `null` = ainda não lidas. */
@@ -68,6 +91,24 @@ interface MundoDoLivroState {
    * perdem a primeira. Lança com a razão.
    */
   mudar: (mudanca: MudancaDoMundo) => Promise<void>
+  /** Põe ou tira a ficha das colunas; cheia (`COMPARAR_MAX`) não põe mais. */
+  alternarComparar: (personagemId: string) => void
+  /** Põe ou tira a ficha do grupo (sai dos inimigos se estava lá). */
+  alternarNoGrupo: (personagemId: string) => void
+  /** Quantos deste NPC entre os inimigos; 0 ou menos tira (sai do grupo se estava lá). */
+  quantosInimigos: (personagemId: string, quantidade: number) => void
+  /** Esvazia grupo e inimigos (as colunas ficam). */
+  limparEncontro: () => void
+}
+
+const ENCONTRO_VAZIO: EncontroDoComparar = { comparar: [], grupo: [], inimigos: {} }
+/** Teto de cópias de um NPC no encontro: o passo da tela, não regra do jogo. */
+const INIMIGOS_POR_NPC_MAX = 20
+
+function semChave(registro: Record<string, number>, chave: string): Record<string, number> {
+  if (!(chave in registro)) return registro
+  const { [chave]: _saiu, ...resto } = registro
+  return resto
 }
 
 export const useMundoDoLivroStore = create<MundoDoLivroState>()((set, get) => {
@@ -98,7 +139,7 @@ export const useMundoDoLivroStore = create<MundoDoLivroState>()((set, get) => {
     fichaAberta: null,
 
     abrir: async (aberto) => {
-      set({ aberto, aba: 'jogadores', daPasta: null, erro: null, npcEscolhido: null, fichaAberta: null })
+      set({ aberto, aba: 'jogadores', daPasta: null, erro: null, npcEscolhido: null, fichaAberta: null, ...ENCONTRO_VAZIO })
       await recarregar()
     },
     fechar: () => set({ aberto: null, daPasta: null, erro: null, npcEscolhido: null, fichaAberta: null }),
@@ -118,6 +159,27 @@ export const useMundoDoLivroStore = create<MundoDoLivroState>()((set, get) => {
       )
       return vez
     },
+
+    ...ENCONTRO_VAZIO,
+    alternarComparar: (personagemId) =>
+      set(({ comparar }) => {
+        if (comparar.includes(personagemId)) return { comparar: comparar.filter((id) => id !== personagemId) }
+        if (comparar.length >= COMPARAR_MAX) return {}
+        return { comparar: [...comparar, personagemId] }
+      }),
+    alternarNoGrupo: (personagemId) =>
+      set(({ grupo, inimigos }) =>
+        grupo.includes(personagemId)
+          ? { grupo: grupo.filter((id) => id !== personagemId) }
+          : { grupo: [...grupo, personagemId], inimigos: semChave(inimigos, personagemId) },
+      ),
+    quantosInimigos: (personagemId, quantidade) =>
+      set(({ grupo, inimigos }) => {
+        const n = Number.isFinite(quantidade) ? Math.min(INIMIGOS_POR_NPC_MAX, Math.floor(quantidade)) : 0
+        if (n <= 0) return { inimigos: semChave(inimigos, personagemId) }
+        return { grupo: grupo.filter((id) => id !== personagemId), inimigos: { ...inimigos, [personagemId]: n } }
+      }),
+    limparEncontro: () => set({ grupo: [], inimigos: {} }),
   }
 })
 

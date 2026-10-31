@@ -53,6 +53,13 @@ export interface CartaoDaFicha {
   modificadores: Modificador[]
   /** Cartões de outra aba dentro deste (técnicas da transformação). */
   subcartoes: CartaoDaFicha[]
+  /**
+   * MUNDO DO LIVRO (M2, decisão 6): o golpe é À MÃO de propósito — na batalha
+   * o número é digitado. A Saúde da ficha o mostra em cinza e fora da
+   * porcentagem (`lib/livros/saude.ts`). Ausente = a leitura decide. É dado da
+   * ficha (vai ao jogador e volta na edição dele), não do mestre.
+   */
+  aMao?: true
 }
 
 /**
@@ -230,6 +237,24 @@ export function nomeDoJogadorLimpo(nome: string): string {
 }
 
 /**
+ * MUNDO DO LIVRO (M2, Anotações): a ficha com a nota do mestre trocada, como
+ * a leitura do disco a guardaria — cortada em `NOTA_DO_MESTRE_MAX`; em branco
+ * = sem nota (o campo sai). Texto igual ao de agora devolve a MESMA referência.
+ * Funil único da nota: a página Anotações (`mundo.mudar`) e a janela de ficha
+ * do mestre, que aplica a nota DEPOIS de `salvarSobreOAtual` (aquele preserva
+ * a nota de agora, para o Salvar comum não a apagar).
+ */
+export function comNotaDoMestre(personagem: Personagem, texto: string): Personagem {
+  const nota = cortado(texto, NOTA_DO_MESTRE_MAX)
+  if (nota.trim().length === 0) {
+    if (personagem.notaDoMestre === undefined) return personagem
+    const { notaDoMestre: _antiga, ...semNota } = personagem
+    return semNota
+  }
+  return personagem.notaDoMestre === nota ? personagem : { ...personagem, notaDoMestre: nota }
+}
+
+/**
  * O personagem como ele vai pela rede, a QUALQUER jogador: sem a conta dona
  * e sem nada do mundo do livro (força, modelo, cenário, nome de entrada,
  * anotação). É o funil único de `Personagem` para o fio (`net/hostSession.ts`:
@@ -371,6 +396,8 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     imagem: imagemDoArquivo(value.imagem),
     modificadores: semNulos((Array.isArray(value.modificadores) ? value.modificadores : []).map(modificadorDoArquivo)),
     subcartoes: semNulos((Array.isArray(value.subcartoes) ? value.subcartoes : []).map(cartaoDoArquivo)),
+    // Só o `true` conta: qualquer outro valor (ficha de antes, valor torto) é "a leitura decide".
+    ...(value.aMao === true ? { aMao: true } : {}),
   }
 }
 
