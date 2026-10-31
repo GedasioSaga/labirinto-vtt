@@ -20,6 +20,9 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
  * ("50 de queimadura" = "50 queimadura"). Qualquer outra palavra, dado
  * ("1d6") ou sobra = `naoEntende`: leitura errada é pior que vazia (R3).
  *
+ * Antes da gramática: sai a pontuação final ("30 de dano." , "base;") e o
+ * rótulo "Dano:" / "Dano 1:"; com várias partes rotuladas na mesma célula,
+ * lê só a primeira e avisa (`aviso`). Texto antes do primeiro rótulo = não lê.
  * Atalho antes da gramática: "N% de/da vida/HP (atual/máxima) do alvo".
  * Resultado arredondado para BAIXO, nunca negativo.
  *
@@ -43,8 +46,12 @@ export interface ContextoDaFormula {
 export type LeituraDoDano =
   /** "-": habilidade de suporte. */
   | { tipo: 'semDano' }
-  /** "(160 Força + 20) + 8 Gram = 188". */
-  | { tipo: 'valor'; valor: number; conta: string }
+  /**
+   * "(160 Força + 20) + 8 Gram = 188". `aviso` = a leitura deixou algo de
+   * fora que a pessoa precisa saber (a célula com "Dano 1:" e "Dano 2:" leu
+   * só o primeiro).
+   */
+  | { tipo: 'valor'; valor: number; conta: string; aviso?: string }
   /** Fala de "Dano da Arma" e não há arma escolhida. */
   | { tipo: 'precisaArma'; conta: string }
   /** "% da vida do alvo" sem a vida do alvo conhecida. */
@@ -264,10 +271,10 @@ class Leitor {
     const { arma, bala } = this.ctx
     if (arma === null) return this.falhar({ tipo: 'precisaArma' })
     const nomeDaBala = bala === undefined || bala === null ? '' : bala.nome.trim() || 'Bala'
-    const lista = bala === undefined || bala === null ? [] : tokens(bala.dano)
+    const lista = bala === undefined || bala === null ? [] : tokens(semPontuacaoFinal(bala.dano))
     if (lista === null) return this.falhar({ tipo: 'naoEntende' })
     const [sinal, ...resto] = lista
-    const daArma = (): Parcial | null => this.trecho(tokens(arma.campos[CAMPO_DO_DANO] ?? ''), arma.nome.trim() || 'Arma')
+    const daArma = (): Parcial | null => this.trecho(tokens(semPontuacaoFinal(arma.campos[CAMPO_DO_DANO] ?? '')), arma.nome.trim() || 'Arma')
     // Sem bala, bala sem dano, ou só "-"/"+": o dano da arma.
     if (sinal === undefined || (sinal.tipo === 'op' && (sinal.op === '+' || sinal.op === '-') && resto.length === 0)) return daArma()
     if (sinal.tipo !== 'op' || (sinal.op !== '+' && sinal.op !== '-')) return this.trecho(lista, nomeDaBala)
@@ -337,7 +344,43 @@ function comForca(leitura: LeituraDoDano, personagem: Personagem): LeituraDoDano
   const forca = forcaDe(personagem)
   if (leitura.tipo !== 'valor' || forca === FORCA_PADRAO) return leitura
   const valor = aplicarForca(leitura.valor, forca)
-  return { tipo: 'valor', valor, conta: `${leitura.conta} x${formatarNumero(forca)} = ${valor}` }
+  return { ...leitura, valor, conta: `${leitura.conta} x${formatarNumero(forca)} = ${valor}` }
+}
+
+/** Pontuação de fim de frase que a ficha costuma deixar: "30 de dano.", "45 de dano base;". */
+const PONTUACAO_FINAL = /[\s.;!]+$/u
+
+/** "Dano:", "Dano 1:", "dano 2 :" — o rótulo de uma parte da célula. */
+const ROTULO_DO_DANO = /\bdano\s*(\d*)\s*:/giu
+
+function semPontuacaoFinal(texto: string): string {
+  return texto.replace(PONTUACAO_FINAL, '').trim()
+}
+
+/** O trecho que a gramática lê, e o aviso quando a célula tinha mais de uma parte rotulada. `null` = ambíguo. */
+interface TrechoDoDano {
+  texto: string
+  aviso?: string
+}
+
+/**
+ * Tira o rótulo "Dano N:" e a pontuação final. Com várias partes rotuladas
+ * ("Dano 1: ... Dano 2: ..."), lê só a primeira e avisa. Texto antes do
+ * primeiro rótulo ("Corte Dano 1: 20") é ambíguo: `null`.
+ */
+function trechoDoDano(texto: string): TrechoDoDano | null {
+  const rotulos: RegExpExecArray[] = []
+  const busca = new RegExp(ROTULO_DO_DANO)
+  for (let achado = busca.exec(texto); achado !== null; achado = busca.exec(texto)) rotulos.push(achado)
+  const [primeiro, segundo] = rotulos
+  if (primeiro === undefined) return { texto: semPontuacaoFinal(texto) }
+  if (texto.slice(0, primeiro.index).trim().length > 0) return null
+  const fim = segundo === undefined ? texto.length : segundo.index
+  // Entre uma parte e a seguinte a ficha põe "/", "|" ou ",": não é conta, é separador.
+  const parte = semPontuacaoFinal(texto.slice(primeiro.index + primeiro[0].length, fim).replace(/[\s/|,]+$/u, ''))
+  if (segundo === undefined) return { texto: parte }
+  const nome = primeiro[1] === undefined || primeiro[1] === '' ? 'Dano' : `Dano ${primeiro[1]}`
+  return { texto: parte, aviso: `A célula tem ${rotulos.length} partes de dano; lido só o "${nome}".` }
 }
 
 export function lerDano(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
@@ -345,16 +388,23 @@ export function lerDano(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
 }
 
 function lerDanoSemForca(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
-  const normal = normalizar(texto)
+  const trecho = trechoDoDano(texto)
+  if (trecho === null) return { tipo: 'naoEntende', texto }
+  const lido = lerTrecho(trecho.texto, texto, ctx)
+  return lido.tipo === 'valor' && trecho.aviso !== undefined ? { ...lido, aviso: trecho.aviso } : lido
+}
+
+function lerTrecho(limpo: string, texto: string, ctx: ContextoDaFormula): LeituraDoDano {
+  const normal = normalizar(limpo)
   if (normal === '-') return { tipo: 'semDano' }
   if (normal.length === 0 || normal.length > FORMULA_MAX) return { tipo: 'naoEntende', texto }
   const porcentagem = lerPorcentagem(normal, ctx)
   if (porcentagem !== null) return porcentagem
-  const lista = tokens(texto)
+  const lista = tokens(limpo)
   if (lista === null || lista.length === 0) return { tipo: 'naoEntende', texto }
   const leitor = new Leitor(lista, ctx, true)
   const lido = leitor.ler()
-  if (lido === null) return leitor.falha?.tipo === 'precisaArma' ? { tipo: 'precisaArma', conta: texto.trim() } : { tipo: 'naoEntende', texto }
+  if (lido === null) return leitor.falha?.tipo === 'precisaArma' ? { tipo: 'precisaArma', conta: limpo } : { tipo: 'naoEntende', texto }
   if (!Number.isFinite(lido.valor)) return { tipo: 'naoEntende', texto }
   const valor = Math.max(0, Math.floor(lido.valor))
   return { tipo: 'valor', valor, conta: `${lido.conta} = ${valor}` }

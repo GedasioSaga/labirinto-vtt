@@ -180,14 +180,14 @@ export function lerDanoDoCartao(texto: string, cartao: CartaoDaFicha, personagem
     case 'semDano':
       return null
     case 'valor':
-      return { estado: 'lido', leitura: lido.conta, motivo: '', valor: lido.valor }
+      return { estado: 'lido', leitura: lido.conta, motivo: lido.aviso ?? '', valor: lido.valor }
     case 'precisaArma': {
       const arma = armasDe(personagem)[0]
       if (arma === undefined) return { estado: 'naHora', leitura: lido.conta, motivo: 'Pede o "Dano da arma" e a ficha não tem arma na aba Armas.', valor: null }
       const comArma = lerDano(texto, { ...ctx, arma })
       const motivo = 'Usa a arma escolhida na hora do golpe.'
       return comArma.tipo === 'valor'
-        ? { estado: 'naHora', leitura: `${comArma.conta} (com ${arma.nome})`, motivo, valor: comArma.valor }
+        ? { estado: 'naHora', leitura: `${comArma.conta} (com ${arma.nome})`, motivo: comArma.aviso === undefined ? motivo : `${motivo} ${comArma.aviso}`, valor: comArma.valor }
         : { estado: 'naHora', leitura: lido.conta, motivo, valor: null }
     }
     case 'precisaAlvo':
