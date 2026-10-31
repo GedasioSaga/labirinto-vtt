@@ -277,6 +277,11 @@ function extrasDaEvolucao(cartao: Pick<CartaoDaFicha, 'extras'>): { texto: strin
   return achou ? lidos : null
 }
 
+/** O cartão já tem algum extra da evolução ("Evolução", "Condições...", "Evolui para"): o "+ Evolução" da ficha não repete. */
+export function temExtrasDaEvolucao(cartao: Pick<CartaoDaFicha, 'extras'>): boolean {
+  return extrasDaEvolucao(cartao) !== null
+}
+
 /** Só o link: a técnica de "Evolui para" (sem a sugestão por nome, que varre todas). */
 function linkDe(cartao: CartaoDaFicha, todos: readonly CartaoDaFicha[]): CartaoDaFicha | null {
   const paraEscrito = extrasDaEvolucao(cartao)?.paraEscrito ?? ''
@@ -401,12 +406,22 @@ export function motivoDoEvoluir(ctx: ContextoDaEvolucao, pedido: PedidoDeEvoluca
   const carta = turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)
   if (carta === undefined || carta.personagemId !== personagem.id) return 'A ficha não está na luta'
   if (ctx.soNaVez && cartaDaVez(turnos)?.personagemId !== personagem.id) return 'Evoluir só na sua vez'
+  return motivoDoEvoluirNaFicha(personagem, sistema, turnos.combate?.[personagem.id]?.evoluidas, pedido)
+}
+
+/**
+ * A parte de `motivoDoEvoluir` que só olha a ficha e as evoluídas (sem a
+ * ordem): a técnica existe e evolui, não está apagada esperando a base, ainda
+ * não evoluiu, custo no teto e SP que dá. A tela do jogador usa esta (o
+ * recorte não traz a ordem inteira; a vez ela confere à parte); o host
+ * confere tudo de novo.
+ */
+export function motivoDoEvoluirNaFicha(personagem: Personagem, sistema: SistemaDeRpg, evoluidas: readonly string[] | undefined, pedido: Pick<PedidoDeEvolucao, 'cartaoId' | 'custo'>): string | null {
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return 'Técnica não encontrada na ficha'
   const { cartao } = achada
   const todos = tecnicasDe(personagem, sistema)
   if (evolucaoDe(cartao, todos) === null) return 'Esta técnica não evolui'
-  const evoluidas = turnos.combate?.[personagem.id]?.evoluidas
   if (evoluiuNaBatalha(evoluidas, cartao.id)) return 'Já evoluiu nesta batalha'
   const apagada = motivoDaEvolucao(cartao, todos, evoluidas)
   if (apagada !== null) return apagada

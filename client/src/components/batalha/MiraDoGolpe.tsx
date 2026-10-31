@@ -30,6 +30,7 @@ import {
   type BalaNaTela,
   type DanoNaTela,
   type GolpeNaTela,
+  type OpcaoNaTela,
 } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
@@ -55,6 +56,11 @@ import './combate.css'
  * Efeito, editáveis (pôr e tirar linha, até 4). A conta do dano pinta o
  * bônus dos selos de quem age ("+20 (Fúria)").
  *
+ * Tipos de habilidade F4: a técnica "um ou outro" abre com os chips das
+ * opções logo abaixo do nome (a principal marcada); trocar a opção refaz o
+ * Dano base e o selo com o que o texto dela diz (tudo segue editável), e a
+ * escolhida vai no pedido e no registro ("Medicina (Cirugia)").
+ *
  * Esc volta à lista; Enter num campo lança.
  */
 
@@ -76,6 +82,8 @@ export interface EscolhaDaMira {
   selo: SeloPedido | null
   /** Atacar com arma de balas: o tipo de bala escolhido; ausente = "Sem bala especial" (o dano da arma). */
   balaId?: string
+  /** Tipos de habilidade F4: a chave da opção escolhida nos chips; ausente = a técnica não tem escolha. */
+  variante?: string
 }
 
 /** O pedido de um golpe da mira (o mesmo no menu do jogador e no painel do NPC). */
@@ -99,6 +107,7 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
     custo: escolha.custo,
     acao: escolha.acao,
     ...selo,
+    ...(escolha.variante === undefined ? {} : { variante: escolha.variante }),
   }
 }
 
@@ -163,11 +172,11 @@ function primeiroAlvo(alvos: readonly AlvoNaMira[]): string | null {
   return (validos.find((alvo) => alvo.lado === 'outro' && !alvo.caiu) ?? validos.find((alvo) => !alvo.caiu))?.tokenId ?? null
 }
 
-/** A nota do pé da mira: se o alvo reage, como `alvosDoGolpe` (golpe.ts) decide. */
-function notaDaReacao(golpe: GolpeNaTela, semReacao: boolean): string {
+/** A nota do pé da mira: se o alvo reage, como `alvosDoGolpe` (golpe.ts) decide. `semDano` = o da opção escolhida. */
+function notaDaReacao(golpe: GolpeNaTela, semReacao: boolean, semDano: boolean): string {
   if (golpe.reacao === 'nunca') return NOTA_DO_BUFF
   if (semReacao) return golpe.overload ? 'Overload: o alvo não reage.' : 'Surpresa: o alvo não reage.'
-  if (golpe.dano.semDano) return golpe.reacao === 'sempre' ? NOTA_DO_DEBUFF_SEM_DANO : 'Sem dano: o alvo não reage.'
+  if (semDano) return golpe.reacao === 'sempre' ? NOTA_DO_DEBUFF_SEM_DANO : 'Sem dano: o alvo não reage.'
   return NOTA_DA_REACAO
 }
 
@@ -198,8 +207,13 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const [perfuracaoTexto, setPerfuracaoTexto] = useState(String(golpe.perfuracao ?? PERFURACAO_MAX))
   const [custoTexto, setCustoTexto] = useState(golpe.custo.tipo === 'pergunta' && golpe.custo.sugestao !== null ? String(golpe.custo.sugestao) : '')
   const [acao, setAcao] = useState<AcaoDaTecnica | ''>('')
+  // Tipos de habilidade F4: a opção "um ou outro" (a principal primeiro); a dela troca o dano e o selo sugeridos.
+  const opcoes = golpe.opcoes
+  const [opcaoChave, setOpcaoChave] = useState<string | null>(opcoes?.[0]?.chave ?? null)
+  const opcao = opcoes?.find((candidata) => candidata.chave === opcaoChave) ?? null
+  const danoDaOpcao = opcao?.dano ?? golpe.dano
   // F3: o selo sugerido começa marcado; desmarcar tira do golpe.
-  const sugerido = golpe.selo ?? null
+  const sugerido = opcao?.selo ?? golpe.selo ?? null
   const [comSelo, setComSelo] = useState(sugerido !== null)
   const [seloNome, setSeloNome] = useState(sugerido?.nome ?? '')
   const [seloTurnos, setSeloTurnos] = useState(sugerido?.turnos === null || sugerido === null ? '' : String(sugerido.turnos))
@@ -212,7 +226,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const balas = golpe.balas ?? SEM_BALAS
   const [balaId, setBalaId] = useState<string | null>(null)
   const balaEscolhida = balaId === null ? null : (balas.find((bala) => bala.id === balaId) ?? null)
-  const danoAtual = balaEscolhida?.dano ?? golpe.dano
+  const danoAtual = balaEscolhida?.dano ?? danoDaOpcao
   const caixas = useRef<Map<string, HTMLInputElement>>(new Map())
   // A calculadora do Dano base: abre no lugar, "Usar este valor" põe o número no campo.
   const [calculando, setCalculando] = useState(false)
@@ -229,7 +243,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     setMarcados((antes) => (antes.includes(alvoDoMapa.tokenId) ? antes.filter((id) => id !== alvoDoMapa.tokenId) : [...antes, alvoDoMapa.tokenId].slice(-ALVOS_MAX)))
   }, [alvoDoMapa, alvos])
 
-  const semDano = golpe.dano.semDano
+  const semDano = danoDaOpcao.semDano
   const base = semDano ? null : lerInteiro(baseTexto, DANO_MAX)
   const comSurpresa = surpresa && !contra
   const semReacao = comSurpresa || golpe.overload
@@ -313,6 +327,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       acao: golpe.acao === null && acao !== '' ? acao : null,
       selo,
       ...(balaEscolhida === null ? {} : { balaId: balaEscolhida.id }),
+      ...(opcao === null ? {} : { variante: opcao.chave }),
     })
     if (!saiu) setErro('O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
   }
@@ -333,9 +348,31 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     if (proximo !== undefined) caixas.current.get(proximo.tokenId)?.focus()
   }
 
+  /**
+   * Tipos de habilidade F4: trocar a opção refaz o Dano base (o do texto dela,
+   * ou o da técnica) e o selo sugerido (o dela, ou o da técnica), marcado de
+   * novo; os danos editados por alvo voltam à conta. A opção com dano próprio
+   * tira a bala (a conta da bala é a da fórmula da técnica).
+   */
+  const escolherOpcao = (chave: string) => {
+    const escolhida = opcoes?.find((candidata) => candidata.chave === chave)
+    if (escolhida === undefined || chave === opcaoChave) return
+    const dano = escolhida.dano ?? golpe.dano
+    const selo = escolhida.selo ?? golpe.selo ?? null
+    setErro(null)
+    setOpcaoChave(chave)
+    if (escolhida.dano !== null) setBalaId(null)
+    setBaseTexto(dano.valor === null ? '' : String(dano.valor))
+    setEditados({})
+    setComSelo(selo !== null)
+    setSeloNome(selo?.nome ?? '')
+    setSeloTurnos(selo === null || selo.turnos === null ? '' : String(selo.turnos))
+    setLinhasDoSelo(linhasDosMods(selo?.mods))
+  }
+
   /** Trocar a bala refaz a conta: o Dano base vira o da bala, e os danos editados por alvo voltam à conta. */
   const escolherBala = (id: string | null) => {
-    const dano = id === null ? golpe.dano : (balas.find((bala) => bala.id === id)?.dano ?? golpe.dano)
+    const dano = id === null ? danoDaOpcao : (balas.find((bala) => bala.id === id)?.dano ?? danoDaOpcao)
     setErro(null)
     setBalaId(id)
     setBaseTexto(dano.valor === null ? '' : String(dano.valor))
@@ -359,6 +396,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             {golpe.capacidade !== undefined && <span className="bt-etq" title={`Capacidade: ${golpe.capacidade}`}>Cap. {golpe.capacidade}</span>}
           </p>
         )}
+        {opcoes !== undefined && <ChipsDaOpcao idBase={idBase} opcoes={opcoes} escolhida={opcao} onEscolher={escolherOpcao} />}
         {balas.length > 0 && (
           <fieldset className="bt-mira__balas">
             <legend>{golpe.tipo === 'habilidade' ? 'Bala · entra no "Dano da Bala" da técnica' : 'Bala · a conta do dano muda com ela'}</legend>
@@ -632,7 +670,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             {!comSelo && <span className="bt-sr">{`Selo ${textoDoSelo(sugerido)} desmarcado: o golpe não põe selo.`}</span>}
           </div>
         )}
-        <p className="bt-mira__nota">{notaDaReacao(golpe, semReacao)}</p>
+        <p className="bt-mira__nota">{notaDaReacao(golpe, semReacao, semDano)}</p>
         {erro !== null && (
           <p className="bt-mira__erro" role="alert">
             {erro}
@@ -656,6 +694,33 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       </form>
       {consulta !== undefined && consulta !== null && <MarcasDaMira consulta={consulta} tokenIds={alvos.map((alvo) => alvo.tokenId)} marcados={marcadosSet} foco={foco} />}
     </>
+  )
+}
+
+/**
+ * Tipos de habilidade F4: os chips "um ou outro" (rádio, setas trocam) e,
+ * embaixo, o texto da escolhida, para ler o que ela faz antes de lançar. Os
+ * mesmos chips servem ao Ativar da passiva com opções (Melodia).
+ */
+export function ChipsDaOpcao({ idBase, opcoes, escolhida, onEscolher }: { idBase: string; opcoes: readonly OpcaoNaTela[]; escolhida: OpcaoNaTela | null; onEscolher: (chave: string) => void }) {
+  const texto = escolhida?.texto.trim() ?? ''
+  return (
+    <fieldset className="bt-escolha" aria-describedby={texto === '' ? undefined : `${idBase}-opcao-texto`}>
+      <legend>Opção · um ou outro</legend>
+      <div className="bt-escolha__chips">
+        {opcoes.map((opcao) => (
+          <label key={opcao.chave} className="bt-escolha__chip" title={opcao.texto === '' ? undefined : opcao.texto}>
+            <input type="radio" className="bt-sr" name={`${idBase}-opcao`} checked={escolhida?.chave === opcao.chave} onChange={() => onEscolher(opcao.chave)} />
+            {opcao.rotulo}
+          </label>
+        ))}
+      </div>
+      {texto !== '' && (
+        <p className="bt-escolha__texto" id={`${idBase}-opcao-texto`}>
+          {texto}
+        </p>
+      )}
+    </fieldset>
   )
 }
 

@@ -1,15 +1,17 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { CUSTO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type LembreteDaPassiva, type PedidoDePassiva, type SeloPedido } from '../../lib/batalha/combate'
+import { cartaoDaVariante, temEscolha, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_EFEITO } from '../../lib/batalha/leituraDaFicha'
-import { passivasDe, passivasLigadas, textoDoPorTurno, type EstadoDaPassiva, type PassivaNaTira } from '../../lib/batalha/passivas'
+import { passivasDe, passivasLigadas, seloDaPassiva, textoDoPorTurno, type EstadoDaPassiva, type PassivaNaTira } from '../../lib/batalha/passivas'
 import { alvosDeMod, ehNomeDeSelo, selosDoToken } from '../../lib/batalha/selos'
 import type { CartaDaOrdem, TurnosDaCena } from '../../lib/batalha/turnos'
 import type { CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
-import { lerInteiro, textoDoCusto, type AlvoNaMira, type PipDaVez } from './dadosDoMenu'
+import { lerInteiro, textoDoCusto, type AlvoNaMira, type OpcaoNaTela, type PipDaVez } from './dadosDoMenu'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import { CabecaDaVez, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
+import { ChipsDaOpcao } from './MiraDoGolpe'
 import './batalha.css'
 import './combate.css'
 
@@ -29,7 +31,11 @@ import './combate.css'
  *  - `LembretesDaPassiva`: a faixa pequena "Melodia pronta · Rodada 3:
  *    Ativar / Agora não" e "Fortaleza · a cada turno: HP +30, FOR +10:
  *    Aplicar / Pular". Ativar sai num clique quando não há o que perguntar
- *    (selo no dono, custo lido); senão abre o painel ali embaixo.
+ *    (selo no dono, custo lido, sem opção); senão abre o painel ali embaixo.
+ *
+ * Tipos de habilidade F4: a passiva "um ou outro" (Melodia) pede a opção no
+ * Ativar (os chips da mira, `ChipsDaOpcao`); a escolhida troca o efeito
+ * mostrado e o selo sugerido (o que o texto dela diz) e vai no pedido.
  *
  * Tudo fora da vez e sem gastar ação. Mestre e Arena pedem pela store; o
  * jogador, pela conexão (o host confere a posse da ficha).
@@ -114,8 +120,8 @@ function detalheDaPassiva(passiva: PassivaNaTira): string {
   }
 }
 
-function efeitoDaPassiva(passiva: PassivaNaTira): string {
-  const texto = (passiva.cartao.campos[CAMPO_DO_EFEITO] ?? '').trim()
+/** O efeito no painel; `texto` = o da opção escolhida (tipos de habilidade F4), senão o Efeito da ficha. */
+function efeitoDaPassiva(passiva: PassivaNaTira, texto: string = (passiva.cartao.campos[CAMPO_DO_EFEITO] ?? '').trim()): string {
   if (texto === '-' || texto.toLowerCase() === 'passiva') return ''
   return texto.length <= EFEITO_NO_PAINEL_MAX ? texto : `${texto.slice(0, EFEITO_NO_PAINEL_MAX).trimEnd()}…`
 }
@@ -125,9 +131,23 @@ function nomeCurto(passiva: PassivaNaTira): string {
   return passiva.nome.replace(/\s*\([^)]*\)/g, '').trim() || passiva.nome
 }
 
-/** Ativar pergunta algo antes (oponente, custo que a ficha não fecha)? Senão o lembrete ativa num clique. */
+/** Ativar pergunta algo antes (oponente, custo que a ficha não fecha, a opção "um ou outro")? Senão o lembrete ativa num clique. */
 function precisaPerguntar(passiva: PassivaNaTira): boolean {
-  return passiva.alvo === 'oponente' || passiva.custo.tipo === 'pergunta'
+  return passiva.alvo === 'oponente' || passiva.custo.tipo === 'pergunta' || temEscolha(passiva.cartao)
+}
+
+/** Tipos de habilidade F4: as opções da passiva para os chips (o selo de cada uma o painel lê na hora); uma só = `null`. */
+function opcoesDaPassiva(passiva: PassivaNaTira): OpcaoNaTela[] | null {
+  const variantes = variantesDe(passiva.cartao)
+  if (variantes.length < 2) return null
+  return variantes.map((variante) => ({ chave: variante.chave, rotulo: variante.rotulo, texto: variante.texto, principal: variante.principal, dano: null, selo: null }))
+}
+
+/** Tipos de habilidade F4: "2 opções" na linha e na tira da passiva com escolha. */
+function MarcaDasOpcoesDaPassiva({ passiva }: { passiva: PassivaNaTira }) {
+  const total = variantesDe(passiva.cartao).length
+  if (total < 2) return null
+  return <span className="bt-etq bt-etq--opcoes">{total} opções</span>
 }
 
 function alvosOrdenados(alvos: readonly AlvoDaPassiva[]): AlvoDaPassiva[] {
@@ -165,6 +185,10 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
   const [seloNome, setSeloNome] = useState(passiva.selo.nome)
   const [seloTurnos, setSeloTurnos] = useState(passiva.selo.turnos === null ? '' : String(passiva.selo.turnos))
   const [linhas, setLinhas] = useState<LinhaDeMod[]>(() => linhasDosMods(passiva.selo.mods))
+  // Tipos de habilidade F4: a opção "um ou outro" (a principal primeiro).
+  const opcoes = useMemo(() => opcoesDaPassiva(passiva), [passiva])
+  const [opcaoChave, setOpcaoChave] = useState<string | null>(() => opcoes?.[0]?.chave ?? null)
+  const opcao = opcoes?.find((candidata) => candidata.chave === opcaoChave) ?? null
   const [erro, setErro] = useState<string | null>(null)
   const campoDoAlvo = useRef<HTMLSelectElement>(null)
   const campoDoCusto = useRef<HTMLInputElement>(null)
@@ -172,7 +196,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
 
   const mods = alvosDeMod(sistema)
   const resumo = resumoDasLinhas(linhas, mods)
-  const efeito = efeitoDaPassiva(passiva)
+  const efeito = opcao === null || opcao.principal ? efeitoDaPassiva(passiva) : efeitoDaPassiva(passiva, opcao.texto)
   const motivo = ligada ? null : passiva.motivo
   const custo = textoDoCusto(passiva.custo)
   const podeAplicar = ligada && passiva.porTurno !== null && (aplicarLivre || passiva.lembrete?.tipo === 'porTurno')
@@ -192,6 +216,19 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
     const saiu = onPedir(pedido)
     setErro(saiu ? null : falhou)
     if (saiu) onFeito?.()
+  }
+
+  /** Trocar a opção refaz o selo sugerido com o que o texto dela diz (nome, turnos, mods), como na mira. */
+  const escolherOpcao = (chave: string) => {
+    if (chave === opcaoChave) return
+    const variante = variantesDe(passiva.cartao).find((candidata) => candidata.chave === chave)
+    if (variante === undefined) return
+    const selo = variante.principal || sistema === null ? passiva.selo : seloDaPassiva(cartaoDaVariante(passiva.cartao, variante), sistema)
+    setErro(null)
+    setOpcaoChave(chave)
+    setSeloNome(selo.nome)
+    setSeloTurnos(selo.turnos === null ? '' : String(selo.turnos))
+    setLinhas(linhasDosMods(selo.mods))
   }
 
   const enviar = (evento?: FormEvent) => {
@@ -238,6 +275,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
     if (lidos.mods.length > 0) selo.mods = lidos.mods
     const pedido: PedidoDePassiva = { tipo: 'passiva', tokenId, cartaoId, ligar: true, custo: custoPedido, selo }
     if (alvoId !== tokenId) pedido.alvoTokenId = alvoId
+    if (opcao !== null) pedido.variante = opcao.chave
     pedir(pedido, 'Não ativou: sem conexão com o mestre, ou a regra recusou (custo, recarga, selos). Tente de novo.')
   }
 
@@ -289,7 +327,8 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
           </div>
         )}
       </dl>
-      {efeito !== '' && <p className="bt-forma__texto">{efeito}</p>}
+      {!ligada && opcoes !== null && <ChipsDaOpcao idBase={idBase} opcoes={opcoes} escolhida={opcao} onEscolher={escolherOpcao} />}
+      {efeito !== '' && (ligada || opcoes === null) && <p className="bt-forma__texto">{efeito}</p>}
       {!ligada && (
         <>
           <label className="bt-linha-campo">
@@ -426,6 +465,7 @@ function ChipsDaPassiva({ passiva }: { passiva: PassivaNaTira }) {
     <>
       {passiva.lembrete !== null && <span className="bt-etq bt-etq--passiva">Lembrete</span>}
       {custo !== null && <span className="bt-etq">{custo}</span>}
+      <MarcaDasOpcoesDaPassiva passiva={passiva} />
       {passiva.porTurno !== null && <span className="bt-etq">A cada turno</span>}
       {passiva.forma !== undefined && <span className="bt-etq bt-etq--forma">{passiva.forma}</span>}
       {passiva.overload && <span className="bt-etq bt-etq--over">Overload</span>}
@@ -595,6 +635,7 @@ export function PassivasDaFicha({ passivas, tokenId, alvos, sistema, aplicarLivr
               </span>
               <span className="bt-opcao__lado">
                 {passiva.lembrete !== null && <span className="bt-etq bt-etq--passiva">lembrete</span>}{' '}
+                <MarcaDasOpcoesDaPassiva passiva={passiva} />{' '}
                 <span className="bt-passivas__estado" data-estado={passiva.estado}>
                   {ROTULO_DO_ESTADO[passiva.estado].toLowerCase()}
                 </span>

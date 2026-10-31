@@ -14,14 +14,17 @@ import {
   type SeloDoGolpe,
 } from '../../lib/batalha/combate'
 import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/selos'
+import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
   CAMPO_DA_ACAO,
+  CAMPO_DO_EFEITO,
   CATEGORIAS_DE_ARMA,
   armasDe,
   lerAcao,
   perfuracaoDe,
+  tecnicasDe,
   type ArmaDaFicha,
   type BalaDaArma,
   type LeituraDoCusto,
@@ -108,6 +111,49 @@ export interface GolpeNaTela {
   tipoTexto?: string
   /** Só na habilidade: o Tipo veio da Ação, não do campo Tipo (o selo diz "pela Ação"). */
   tipoInferido?: boolean
+  /** Tipos de habilidade F4: a marca e o estado da evolução nesta batalha; ausente = a técnica não evolui nem é evoluída. */
+  evolucao?: EvolucaoNaTela
+  /** Tipos de habilidade F4: as opções "um ou outro" (a principal primeiro), os chips da mira; ausente = sem escolha. */
+  opcoes?: readonly OpcaoNaTela[]
+}
+
+/**
+ * Tipos de habilidade F4: a evolução como a tira e o detalhe a mostram.
+ * "Evolui" = a base que ainda pode evoluir; "Evoluída" = a versão evoluída
+ * (o "Evolui para" de outra) ou a base evoluída sem link; "Evoluiu" = a base
+ * com link que já evoluiu (apagada: "Evoluiu: use Y").
+ */
+export interface EvolucaoNaTela {
+  marca: 'Evolui' | 'Evoluída' | 'Evoluiu'
+  /** A base ainda não evoluiu nesta batalha: o detalhe dá o botão Evoluir. */
+  podeEvoluir: boolean
+  /** O nome da técnica do "Evolui para", achada na ficha; `null` = sem link. */
+  para: string | null
+  /** O nome escrito em "Evolui para" que não acha técnica nenhuma; `null` = achou, ou não escreveu. */
+  paraNaoAchada: string | null
+  /** Sem link, o texto da Evolution diz OVERLOAD: o uso evoluído é Overload. */
+  overload: boolean
+  /** "Condições do Evolution" ('' = não tem). O app só mostra. */
+  condicoes: string
+  /** O título da marca: o que ela quer dizer nesta batalha. */
+  dica: string
+}
+
+/**
+ * Tipos de habilidade F4: uma opção da habilidade na mira (`variantesDe`), com
+ * o que ela já preenche (`preenchimentoDaVariante`); tudo segue editável.
+ */
+export interface OpcaoNaTela {
+  /** O que vai no pedido (`variante`). */
+  chave: string
+  /** O chip: "Efeito principal", "Cirugia". */
+  rotulo: string
+  texto: string
+  principal: boolean
+  /** O dano lido do texto da opção; `null` = o do campo Dano (o da técnica). */
+  dano: DanoNaTela | null
+  /** O selo que o texto da opção traz; `null` = o da técnica. */
+  selo: SeloDoGolpe | null
 }
 
 /** Um tipo de bala na mira: o texto da ficha e o dano do ataque com ela. */
@@ -284,6 +330,53 @@ function comBonus(bonus: BonusDaBatalha | undefined): { bonus?: BonusDaBatalha }
   return bonus === undefined || Object.keys(bonus).length === 0 ? {} : { bonus }
 }
 
+/**
+ * Tipos de habilidade F4: a evolução da técnica nesta batalha (`todas` = as
+ * técnicas que valem agora). Base que evolui: "Evolui" até Evoluir; depois,
+ * "Evoluída" (sem link: o efeito vira o da Evolution) ou "Evoluiu" (com link:
+ * apagada, use a outra). A técnica do "Evolui para" de outra: "Evoluída"
+ * (apagada até a base evoluir: o motivo vem de `motivoDaTecnica`).
+ */
+function evolucaoNaTela(cartao: CartaoDaFicha, todas: readonly CartaoDaFicha[], evoluidas: readonly string[] | undefined): EvolucaoNaTela | undefined {
+  const evolucao = evolucaoDe(cartao, todas)
+  if (evolucao === null) {
+    const [base] = basesDaEvolucao(cartao, todas)
+    if (base === undefined) return undefined
+    const nomeDaBase = base.nome.trim() || 'a base'
+    return { marca: 'Evoluída', podeEvoluir: false, para: null, paraNaoAchada: null, overload: false, condicoes: '', dica: `A versão evoluída de ${nomeDaBase}: libera quando ${nomeDaBase} evoluir nesta batalha` }
+  }
+  const evoluiu = evoluiuNaBatalha(evoluidas, cartao.id)
+  const para = evolucao.para === null ? null : evolucao.para.nome.trim() || 'a evoluída'
+  const paraNaoAchada = evolucao.para === null && evolucao.paraEscrito !== '' ? evolucao.paraEscrito : null
+  const base = { podeEvoluir: !evoluiu, para, paraNaoAchada, overload: evolucao.para === null && evolucao.overload, condicoes: evolucao.condicoes }
+  if (!evoluiu) {
+    const vira = para !== null ? `vira ${para}` : evolucao.overload ? 'o efeito vira o da Evolução, como Overload' : 'o efeito vira o da Evolução'
+    return { ...base, marca: 'Evolui', dica: `Evolui nesta batalha: ${vira}` }
+  }
+  if (para !== null) return { ...base, marca: 'Evoluiu', dica: `Evoluiu nesta batalha: use ${para}` }
+  return { ...base, marca: 'Evoluída', dica: base.overload ? 'Evoluída nesta batalha: vale o efeito da Evolução, como Overload' : 'Evoluída nesta batalha: vale o efeito da Evolução' }
+}
+
+/** Tipos de habilidade F4: as opções da técnica com o pré-preenchimento de cada uma; uma só (sem escolha) = `undefined`. */
+function opcoesNaTela(cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha | null, bonus: BonusDaBatalha | undefined): OpcaoNaTela[] | undefined {
+  const variantes = variantesDe(cartao)
+  if (variantes.length < 2) return undefined
+  const ctx = { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }
+  return variantes.map((variante) => {
+    // A principal é a técnica como sempre: o dano e o selo do golpe.
+    const lido = variante.principal ? { dano: null, selo: null } : preenchimentoDaVariante(cartao, variante, ctx)
+    return { chave: variante.chave, rotulo: variante.rotulo, texto: variante.texto, principal: variante.principal, dano: lido.dano === null ? null : danoNaTela(lido.dano), selo: lido.selo }
+  })
+}
+
+/** Tipos de habilidade F4: a base evoluída sem link lê o efeito da Evolution no lugar do Efeito (e diz que é o evoluído). */
+function leituraEvoluida(leitura: LinhaDaLeitura[], efeito: string): LinhaDaLeitura[] {
+  const linha: LinhaDaLeitura = { rotulo: 'Efeito evoluído', texto: efeito, campo: CAMPO_DO_EFEITO }
+  const indice = leitura.findIndex((candidata) => candidata.campo === CAMPO_DO_EFEITO)
+  if (indice < 0) return [linha, ...leitura]
+  return leitura.map((candidata, i) => (i === indice ? linha : candidata))
+}
+
 function golpeDaTecnica(
   tecnica: TecnicaNoMenu,
   personagem: Personagem,
@@ -291,6 +384,7 @@ function golpeDaTecnica(
   combate: CombateDoPersonagem | undefined,
   arma: ArmaDaFicha | null,
   bonus: BonusDaBatalha | undefined,
+  todas: readonly CartaoDaFicha[],
 ): GolpeNaTela {
   const dano = danoNaTela(tecnica.dano)
   const balas = balasDaTecnica(tecnica.cartao, personagem, sistema, arma, bonus)
@@ -324,7 +418,20 @@ function golpeDaTecnica(
   // Tipos de habilidade F2: Buff e Debuff trazem o selo com mods (editável na mira); o resto, o "por N turnos" de sempre.
   const selo = seloSugeridoDaTecnica(tecnica.cartao, sistema)
   if (selo !== null) golpe.selo = selo
-  if (selo?.natureza === 'buff' || selo?.natureza === 'debuff') golpe.alvosDeMod = alvosDeMod(sistema)
+  // Tipos de habilidade F4: a evolução nesta batalha e as opções "um ou outro".
+  const evolucao = evolucaoNaTela(tecnica.cartao, todas, combate?.evoluidas)
+  if (evolucao !== undefined) golpe.evolucao = evolucao
+  if (usoEvoluido(tecnica.cartao, todas, combate?.evoluidas)) {
+    const efeito = efeitoNaBatalha(tecnica.cartao, todas, combate?.evoluidas)
+    golpe.leitura = leituraEvoluida(golpe.leitura.slice(), efeito)
+    // A linha da tira vinha do Efeito (sem Descrição): passa a ser o evoluído, o que vale agora.
+    if ((tecnica.cartao.campos.descricao ?? '').trim() === '' && efeito.trim() !== '') golpe.descricao = efeito.trim()
+  }
+  const opcoes = opcoesNaTela(tecnica.cartao, personagem, sistema, arma, bonus)
+  if (opcoes !== undefined) golpe.opcoes = opcoes
+  // As linhas "atributo / delta" do selo: Buff e Debuff, ou a opção cujo texto traz mods (senão a mira os perderia).
+  const comMods = selo?.natureza === 'buff' || selo?.natureza === 'debuff' || (opcoes ?? []).some((opcao) => (opcao.selo?.mods?.length ?? 0) > 0)
+  if (comMods) golpe.alvosDeMod = alvosDeMod(sistema)
   return golpe
 }
 
@@ -341,7 +448,8 @@ export function golpesDeHabilidade(
   arma: ArmaDaFicha | null,
   bonus?: BonusDaBatalha,
 ): GolpeNaTela[] {
-  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus))
+  const todas = tecnicasDe(personagem, sistema)
+  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas))
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */
@@ -455,6 +563,8 @@ export function combateDoJogador(meu: CombateParaJogador | undefined, chaveDaVez
   const carga = Math.min(CARGA_MAX, Math.max(0, Math.trunc(meu.carga))) as CombateDoPersonagem['carga']
   const combate: CombateDoPersonagem = { recargas: meu.recargas, usos: meu.usos, overload: meu.overload, carga, armas: meu.armas }
   if (meu.concentrouNestaVez && chaveDaVezAgora !== null) combate.concentrouEm = chaveDaVezAgora
+  // Tipos de habilidade F4: as evoluídas apagam e liberam técnicas no menu e valem como Overload na caixa REAÇÃO.
+  if (meu.evoluidas !== undefined && meu.evoluidas.length > 0) combate.evoluidas = meu.evoluidas
   return combate
 }
 

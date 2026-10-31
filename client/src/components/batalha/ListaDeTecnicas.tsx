@@ -1,6 +1,7 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref, type UIEvent } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type UIEvent } from 'react'
+import { CUSTO_MAX } from '../../lib/batalha/combate'
 import { ContaComBonus } from './ContaComBonus'
-import { textoDaCarga, type GolpeNaTela, type LinhaDaLeitura, type PipDaVez } from './dadosDoMenu'
+import { lerInteiro, textoDaCarga, type EvolucaoNaTela, type GolpeNaTela, type LinhaDaLeitura, type PipDaVez } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
 
@@ -20,6 +21,11 @@ import './combate.css'
  * volta. O mouse escolhe a tira passando por cima; no toque, o primeiro toque
  * lê e o segundo escolhe. Tira apagada recebe foco (para o motivo ser lido) e
  * não escolhe.
+ *
+ * Tipos de habilidade F4: as marcas "Evolui", "Evoluída", "Evoluiu" e "2
+ * opções" nos chips; no alto da leitura da técnica que ainda evolui, o
+ * Evoluir (custo em SP opcional, o motivo quando não pode). Dentro dele as
+ * teclas são do campo; Esc volta à tira.
  */
 
 const GIROS = [-3, -1.6, -2.6, -1.2, -3.4, -2] as const
@@ -169,6 +175,26 @@ export function CabecaDaVez({ quem, pips, carga, titulo }: { quem: string; pips:
   )
 }
 
+/** Tipos de habilidade F4: a marca da evolução ("Evolui", "Evoluída", "Evoluiu"), com o que ela quer dizer no título. */
+export function MarcaDaEvolucao({ evolucao }: { evolucao: EvolucaoNaTela }) {
+  const marca = evolucao.marca === 'Evolui' ? 'evolui' : evolucao.marca === 'Evoluída' ? 'evoluida' : 'evoluiu'
+  return (
+    <span className="bt-etq bt-etq--evolucao" data-marca={marca} title={evolucao.dica}>
+      {evolucao.marca}
+    </span>
+  )
+}
+
+/** Tipos de habilidade F4: "2 opções", com as opções no título. */
+export function MarcaDasOpcoes({ golpe }: { golpe: GolpeNaTela }) {
+  if (golpe.opcoes === undefined) return null
+  return (
+    <span className="bt-etq bt-etq--opcoes" title={`Um ou outro: ${golpe.opcoes.map((opcao) => opcao.rotulo).join(' ou ')}. A escolha é na mira.`}>
+      {golpe.opcoes.length} opções
+    </span>
+  )
+}
+
 /** Os chips Ação · Dano · Tempo de um golpe. */
 export function ChipsDoGolpe({ golpe }: { golpe: GolpeNaTela }) {
   return (
@@ -182,6 +208,8 @@ export function ChipsDoGolpe({ golpe }: { golpe: GolpeNaTela }) {
           {golpe.tipoTexto}
         </span>
       )}
+      {golpe.evolucao !== undefined && <MarcaDaEvolucao evolucao={golpe.evolucao} />}
+      <MarcaDasOpcoes golpe={golpe} />
       {golpe.forma !== undefined && <span className="bt-etq bt-etq--forma">{golpe.forma}</span>}
       {golpe.categoria !== undefined && <span className="bt-etq bt-etq--categoria">{golpe.categoria}</span>}
       {golpe.capacidade !== undefined && <span className="bt-etq" title={`Capacidade: ${golpe.capacidade}`}>Cap. {golpe.capacidade}</span>}
@@ -209,6 +237,18 @@ export interface ListaDeTecnicasProps {
   instantaneo?: boolean
   /** O que dizer sem golpe nenhum. */
   vazio: string
+  /** Tipos de habilidade F4: o Evoluir na leitura da técnica que ainda evolui. Ausente = sem o botão. */
+  evoluir?: EvoluirNaTela
+}
+
+/**
+ * Tipos de habilidade F4: o Evoluir da leitura. `motivo` = por que não evolui
+ * agora, com o custo digitado (`null` = pode); `onEvoluir` pede (`false` =
+ * não saiu). Quem monta decide a regra (o mestre sempre; o jogador, na vez).
+ */
+export interface EvoluirNaTela {
+  motivo: (cartaoId: string, custo: number | null) => string | null
+  onEvoluir: (cartaoId: string, custo: number | null) => boolean
 }
 
 /** A leitura ao lado da lista: largura entre o mínimo e o máximo, com o vão até a lista e a folga até a borda da janela. */
@@ -227,7 +267,7 @@ function mesmoLugar(a: LugarDaLeitura, b: LugarDaLeitura): boolean {
   return a.largura === b.largura && a.topo === b.topo && a.altura === b.altura
 }
 
-export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVoltar, armas, instantaneo, vazio }: ListaDeTecnicasProps) {
+export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVoltar, armas, instantaneo, vazio, evoluir }: ListaDeTecnicasProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const coluna = useRef<HTMLUListElement>(null)
   const leitura = useRef<HTMLDivElement>(null)
@@ -288,8 +328,30 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVol
     onEscolher(golpe)
   }
 
+  // Evoluiu: o bloco some da leitura; o foco volta à tira (a marca nova está nela).
+  const evoluirAqui: EvoluirNaTela | undefined =
+    evoluir === undefined
+      ? undefined
+      : {
+          motivo: evoluir.motivo,
+          onEvoluir: (cartaoId, custo) => {
+            const saiu = evoluir.onEvoluir(cartaoId, custo)
+            if (saiu) tiras.current[atual]?.focus()
+            return saiu
+          },
+        }
+
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
     toque.current = null
+    // No Evoluir as teclas são do campo e do botão (seta não troca de tira); Esc volta à tira.
+    if (evento.target instanceof HTMLElement && evento.target.closest('.bt-evoluir') !== null) {
+      if (evento.key === 'Escape') {
+        evento.preventDefault()
+        evento.stopPropagation()
+        tiras.current[atual]?.focus()
+      }
+      return
+    }
     if (andarComSetas(evento, tiras.current, atual)) return
     if (evento.key === 'Escape' || evento.key === 'ArrowLeft') {
       evento.preventDefault()
@@ -368,7 +430,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVol
                     tiras.current[indice] = elemento
                   }}
                 />
-                {aberta && lugar.tipo === 'lugar' && <DetalheDoGolpe id={id} golpe={golpe} refDaCaixa={leitura} />}
+                {aberta && lugar.tipo === 'lugar' && <DetalheDoGolpe id={id} golpe={golpe} refDaCaixa={leitura} evoluir={evoluirAqui} />}
               </li>
             )
           })}
@@ -382,6 +444,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVol
           className="bt-detalhe--lado"
           style={{ left: `calc(100% + ${VAO_DA_LEITURA}px)`, top: lugar.topo, width: lugar.largura, maxHeight: lugar.altura }}
           refDaCaixa={leitura}
+          evoluir={evoluirAqui}
         />
       )}
       <p className="bt-vez__dica">
@@ -409,6 +472,8 @@ export interface DetalheDoGolpeProps {
   className?: string
   style?: CSSProperties
   refDaCaixa?: Ref<HTMLDivElement>
+  /** Tipos de habilidade F4: o Evoluir, na técnica que ainda evolui. Ausente = só a leitura. */
+  evoluir?: EvoluirNaTela
 }
 
 /**
@@ -426,12 +491,16 @@ function linhasDoGolpe(golpe: GolpeNaTela): LinhaDaLeitura[] {
         ]
   const tempoDaFicha = golpe.leitura.find((linha) => linha.campo === 'tempo')?.texto ?? null
   if (golpe.tempoTexto !== null && golpe.tempoTexto !== tempoDaFicha) linhas.push({ rotulo: 'Nesta batalha', texto: golpe.tempoTexto })
+  // Tipos de habilidade F4: o "Evolui para" escrito que não acha técnica: sem link, evoluir troca o efeito pelo da Evolução.
+  const naoAchada = golpe.evolucao?.paraNaoAchada ?? null
+  if (naoAchada !== null) linhas.push({ rotulo: 'Evolução', texto: `"${naoAchada}" não está entre as técnicas: evoluir troca o efeito pelo da Evolução` })
   if (golpe.motivo !== null) linhas.push({ rotulo: 'Agora', texto: golpe.motivo, campo: 'motivo' })
   return linhas
 }
 
 /** A leitura inteira de um golpe (na lista do jogador e na seta do painel do NPC no mestre), com rolagem própria. */
-export function DetalheDoGolpe({ id, golpe, comNome, className, style, refDaCaixa }: DetalheDoGolpeProps) {
+export function DetalheDoGolpe({ id, golpe, comNome, className, style, refDaCaixa, evoluir }: DetalheDoGolpeProps) {
+  const evolucao = golpe.evolucao
   return (
     <div ref={refDaCaixa} className={className === undefined ? 'bt-detalhe' : `bt-detalhe ${className}`} id={id} style={style}>
       {comNome && (
@@ -440,6 +509,7 @@ export function DetalheDoGolpe({ id, golpe, comNome, className, style, refDaCaix
           {golpe.custoTexto !== null && <span className="bt-detalhe__custo">{golpe.custoTexto}</span>}
         </p>
       )}
+      {evoluir !== undefined && evolucao?.podeEvoluir === true && golpe.cartaoId !== null && <EvoluirDaTecnica key={golpe.chave} cartaoId={golpe.cartaoId} evolucao={evolucao} evoluir={evoluir} />}
       <dl>
         {linhasDoGolpe(golpe).map((linha, i) => (
           <div key={`${i}:${linha.rotulo}`} className="bt-detalhe__linha" data-agora={linha.campo === 'motivo' ? 'sim' : undefined}>
@@ -450,5 +520,70 @@ export function DetalheDoGolpe({ id, golpe, comNome, className, style, refDaCaix
         ))}
       </dl>
     </div>
+  )
+}
+
+/** O custo digitado no Evoluir: só algarismos (o `lerInteiro` sozinho aceitaria "12a"). */
+const SO_ALGARISMOS = /^[0-9]+$/
+
+/**
+ * Tipos de habilidade F4: o Evoluir no alto da leitura (é a única ação dela):
+ * o destino ("Vira SUPER CAÇA AS BRUXAS!" ou "o efeito vira o da Evolução"),
+ * o custo em SP opcional e o motivo quando não pode. A condição da Evolution
+ * o app não confere: ela está no texto logo abaixo, e quem aperta decide.
+ */
+function EvoluirDaTecnica({ cartaoId, evolucao, evoluir }: { cartaoId: string; evolucao: EvolucaoNaTela; evoluir: EvoluirNaTela }) {
+  const id = useId()
+  const [custoTexto, setCustoTexto] = useState('')
+  const [erro, setErro] = useState<string | null>(null)
+  const limpo = custoTexto.trim()
+  const custo = limpo === '' ? null : lerInteiro(limpo, CUSTO_MAX)
+  const torto = limpo !== '' && (!SO_ALGARISMOS.test(limpo) || Number(limpo) > CUSTO_MAX)
+  const motivo = torto ? `O custo é um número de 0 a ${CUSTO_MAX} (vazio = sem custo)` : evoluir.motivo(cartaoId, custo)
+  const destino = evolucao.para !== null ? `vira ${evolucao.para}` : evolucao.overload ? 'o efeito vira o da Evolução, como Overload' : 'o efeito vira o da Evolução'
+
+  const enviar = (evento: FormEvent) => {
+    evento.preventDefault()
+    if (motivo !== null) {
+      setErro(motivo)
+      return
+    }
+    const saiu = evoluir.onEvoluir(cartaoId, custo)
+    setErro(saiu ? null : 'Não evoluiu: sem conexão com o mestre, ou a regra recusou. Tente de novo.')
+  }
+
+  return (
+    <form className="bt-evoluir" onSubmit={enviar} aria-labelledby={`${id}-titulo`} noValidate>
+      <p className="bt-evoluir__titulo" id={`${id}-titulo`}>
+        Evoluir <span className="bt-evoluir__destino">· {destino}</span>
+      </p>
+      <div className="bt-evoluir__linha">
+        <label className="bt-evoluir__custo">
+          <span>Custo SP</span>
+          <input
+            className="bt-num"
+            inputMode="numeric"
+            value={custoTexto}
+            placeholder="0"
+            aria-invalid={torto ? true : undefined}
+            onChange={(evento) => {
+              setErro(null)
+              setCustoTexto(evento.target.value)
+            }}
+          />
+        </label>
+        <button type="submit" className="bt-botao bt-botao--evoluir" disabled={motivo !== null} aria-describedby={`${id}-nota`}>
+          Evoluir
+        </button>
+      </div>
+      <p className={motivo === null ? 'bt-evoluir__nota' : 'bt-evoluir__nota bt-evoluir__nota--motivo'} id={`${id}-nota`}>
+        {motivo ?? (evolucao.condicoes === '' ? 'Só nesta batalha, sem gastar ação.' : 'Só nesta batalha, sem gastar ação. A condição está no texto: o app não confere.')}
+      </p>
+      {erro !== null && erro !== motivo && (
+        <p className="bt-evoluir__nota bt-evoluir__nota--motivo" role="alert">
+          {erro}
+        </p>
+      )}
+    </form>
   )
 }

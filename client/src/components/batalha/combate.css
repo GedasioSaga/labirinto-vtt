@@ -2894,3 +2894,217 @@
     }
   }
 }
+
+/* =========================================================================
+ * TIPOS DE HABILIDADE F4: a Escolha (um ou outro) e a Evolução.
+ * As marcas nas tiras seguem o selo vazado do Tipo; o Evoluir mora no alto
+ * do papel da leitura; os chips da opção ficam na mira, antes do Lançar.
+ * Movimento: só o aperto (scale 0.97, 120 ms), como os botões da casa.
+ * ========================================================================= */
+
+/* "Evolui" (pode virar): contorno tracejado, a promessa. "Evoluída" (é a forma nova): cheio. "Evoluiu" (a base que já virou): apagado. */
+.bt-etq--evolucao {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bt-etq--evolucao[data-marca='evolui'] {
+  box-shadow: none;
+  outline: 1px dashed rgba(255, 255, 255, 0.55);
+  outline-offset: -1px;
+}
+.bt-etq--evolucao[data-marca='evoluida'] {
+  background: var(--lb-color-parchment);
+  box-shadow: none;
+  color: var(--bt-tinta);
+  font-weight: 700;
+}
+.bt-etq--evolucao[data-marca='evoluiu'] {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-tira[data-esta='sim'] .bt-etq--evolucao {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(12, 12, 14, 0.45);
+  color: var(--bt-tinta);
+}
+.bt-tira[data-esta='sim'] .bt-etq--evolucao[data-marca='evolui'] {
+  box-shadow: none;
+  outline-color: rgba(12, 12, 14, 0.6);
+}
+.bt-tira[data-esta='sim'] .bt-etq--evolucao[data-marca='evoluida'] {
+  background: var(--bt-tinta);
+  box-shadow: none;
+  color: var(--bt-papel);
+}
+.bt-tira[data-esta='sim'] .bt-etq--evolucao[data-marca='evoluiu'] {
+  box-shadow: inset 0 0 0 1px rgba(12, 12, 14, 0.25);
+  color: #5d5a54;
+}
+
+/* "N opções": o número em algarismo de tabela, sem caixa alta (é contagem, não categoria). */
+.bt-etq--opcoes {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-tira[data-esta='sim'] .bt-etq--opcoes {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(12, 12, 14, 0.35);
+  color: var(--bt-tinta);
+}
+/* Na linha do painel do NPC (e nas passivas dele), no tamanho do selo do Tipo. */
+.bt-opcao__nome .bt-etq--evolucao,
+.bt-opcao__nome .bt-etq--opcoes {
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 10px;
+  vertical-align: 1px;
+}
+.bt-opcao__lado .bt-etq--opcoes {
+  padding: 0 5px;
+  font-size: 10px;
+}
+
+/* Os chips "um ou outro" na mira (papel): a escolhida vira tinta com a sombra do sangue, como a tira escolhida. */
+.bt-escolha {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.bt-escolha legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: var(--lb-font-size-xs);
+  color: #5d5a54;
+}
+.bt-escolha__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.bt-escolha__chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 2px 12px;
+  border-radius: 3px;
+  background: rgba(12, 12, 14, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(12, 12, 14, 0.3);
+  color: var(--bt-tinta);
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    transform 120ms var(--bt-ease-out);
+}
+.bt-escolha__chip:has(input:checked) {
+  background: var(--bt-tinta);
+  box-shadow: 3px 3px 0 var(--bt-sangue);
+  color: var(--bt-papel);
+}
+.bt-escolha__chip:has(input:focus-visible) {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 2px;
+}
+.bt-escolha__chip:active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-escolha__chip:hover:not(:has(input:checked)) {
+    background: rgba(12, 12, 14, 0.12);
+  }
+}
+.bt-escolha__texto {
+  margin: 0;
+  max-height: 8.5em;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #4a4843;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* O Evoluir no alto da leitura (papel): a caixa tracejada repete a marca "Evolui" da tira. */
+.bt-evoluir {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px dashed rgba(12, 12, 14, 0.45);
+  border-radius: 3px;
+  background: rgba(12, 12, 14, 0.04);
+}
+.bt-evoluir__titulo {
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bt-sangue);
+}
+.bt-evoluir__destino {
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--bt-tinta);
+  overflow-wrap: anywhere;
+}
+.bt-evoluir__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.bt-evoluir__custo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bt-evoluir__custo > span {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5d5a54;
+}
+.bt-evoluir__custo .bt-num {
+  width: 6ch;
+}
+.bt-evoluir__nota {
+  margin: 0;
+  font-size: 12px;
+  color: #4a4843;
+  white-space: normal;
+}
+.bt-evoluir__nota--motivo {
+  color: #8a2c22;
+  font-weight: 600;
+}
+.bt-botao--evoluir {
+  min-height: 32px;
+  background: var(--bt-tinta);
+  border-color: var(--bt-tinta);
+  color: var(--bt-papel);
+  font-weight: 700;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-botao.bt-botao--evoluir:hover:not(:disabled) {
+    background: #2b2a27;
+  }
+}

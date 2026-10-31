@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
+import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
@@ -14,6 +15,7 @@ import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './C
 import { MOTIVO_SEM_PERSONAGEM, armasNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
+import type { EvoluirNaTela } from './ListaDeTecnicas'
 import { MenuDaVez, type ContraNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
@@ -47,6 +49,8 @@ export interface ConexaoDaBatalha {
   zerarCarga?: (personagemId: string) => boolean
   /** Tipos de habilidade F3: Ativar/Desligar a passiva e responder o lembrete. Ausente = sem a tira Passivas nem os lembretes. */
   passiva?: (pedido: PedidoDePassiva) => boolean
+  /** Tipos de habilidade F4: Evoluir a técnica nesta batalha (o jogador, na vez dele). Ausente = sem o botão Evoluir. */
+  evoluir?: (pedido: PedidoDeEvolucao) => boolean
 }
 
 export interface FichaDoJogador {
@@ -199,6 +203,17 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   // Na Arena o mestre opera tudo ("Vez de Lia"): aplica o "a cada turno" quando quiser, como na aba Batalha.
   const operaComoMestre = textoDaVez === 'vezDe'
 
+  // ---- Tipos de habilidade F4: o Evoluir na leitura das Habilidades. O jogador, só na vez dele (o contra-ataque guardado é
+  // fora dela); na Arena o mestre opera e evolui sempre. A regra da ficha é a do host (`motivoDoEvoluirNaFicha`); ele confere de novo.
+  const pedirEvolucao = conexao.evoluir
+  const evoluir: EvoluirNaTela | undefined =
+    pedirEvolucao === undefined || cartaQueAge === undefined || personagem === null || sistema === null
+      ? undefined
+      : {
+          motivo: (cartaoId, custo) => (!operaComoMestre && !estado.minhaVez ? 'Evoluir só na sua vez' : motivoDoEvoluirNaFicha(personagem, sistema, meuCombate?.evoluidas, { cartaoId, custo })),
+          onEvoluir: (cartaoId, custo) => pedirEvolucao({ tipo: 'evoluir', tokenId: cartaQueAge.tokenId, cartaoId, custo }),
+        }
+
   // ---- a reação
   const reacoes = useMemo<ReacaoNaCaixa[]>(() => {
     const variasFichas = new Set((estado.reacoes ?? []).map((reacao) => reacao.tokenId)).size > 1
@@ -330,6 +345,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             formas={menu.formas}
             personagemId={personagemId ?? null}
             passivas={conexao.passiva === undefined || menu.passivas.length === 0 ? undefined : { itens: menu.passivas, tokenId: cartaQueAge.tokenId, sistema, onPedir: conexao.passiva }}
+            evoluir={evoluir}
           />
         </div>
       )}

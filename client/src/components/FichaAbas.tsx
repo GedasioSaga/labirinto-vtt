@@ -1,10 +1,11 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { camposVisiveis, cartoesDaAba, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { Ajuste } from '../lib/ajusteDaFicha'
+import { EXTRAS_DA_EVOLUCAO, nomeDaNovaOpcao, sugestaoDeEvolucao, temExtrasDaEvolucao } from '../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO } from '../lib/batalha/formula'
-import { ABA_DAS_ARMAS, ABA_DAS_BALAS, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../lib/batalha/leituraDaFicha'
+import { ABA_DAS_ARMAS, ABA_DAS_BALAS, ABA_DAS_TECNICAS, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../lib/batalha/leituraDaFicha'
 import { CampoDeDano } from './CampoDeDano'
 import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, rotuloDaCategoria, rotuloDoVazio } from './escolhaDeCampo'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
@@ -335,6 +336,20 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
   )
 }
 
+/**
+ * Tipos de habilidade F4: todas as técnicas da ficha (Habilidades e as de
+ * dentro das transformações, ligadas ou não), para o "+ Evolução" sugerir o
+ * "Evolui para" pelo nome.
+ */
+function tecnicasDaFicha(personagem: Personagem, sistema: SistemaDeRpg): CartaoDaFicha[] {
+  const tecnicas = [...cartoesDaAba(personagem, ABA_DAS_TECNICAS)]
+  for (const aba of sistema.abas) {
+    if (aba.subcartoes?.aba !== ABA_DAS_TECNICAS) continue
+    for (const cartao of cartoesDaAba(personagem, aba.id)) tecnicas.push(...cartao.subcartoes)
+  }
+  return tecnicas
+}
+
 interface CartaoEditavelProps {
   cartao: CartaoDaFicha
   aba: AbaDoSistema
@@ -358,6 +373,37 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
   const capacidadeGuardada = (cartao.campos[CAMPO_DA_CAPACIDADE] ?? '').trim().length > 0
   const guardadoSemTiro = semTiro ? avisoDoQueFicaGuardado(capacidadeGuardada, cartao.subcartoes.length) : null
   const trocarCampo = (campoId: string, valor: string) => onChange({ ...cartao, campos: { ...cartao.campos, [campoId]: valor } })
+  // Tipos de habilidade F4: "+ Evolução" e "+ Opção" só nas técnicas; criam os extras com o nome que a batalha lê.
+  const ehTecnica = aba.id === ABA_DAS_TECNICAS && aba.extras === true
+  const jaEvolui = ehTecnica && temExtrasDaEvolucao(cartao)
+  const [avisoDoExtra, setAvisoDoExtra] = useState<string | null>(null)
+  const valoresDosExtras = useRef<(HTMLInputElement | null)[]>([])
+  const focarNoExtra = useRef<number | null>(null)
+  useEffect(() => {
+    if (focarNoExtra.current === null) return
+    valoresDosExtras.current[focarNoExtra.current]?.focus()
+    focarNoExtra.current = null
+  })
+  const acrescentarEvolucao = () => {
+    const sugestao = sugestaoDeEvolucao(cartao, tecnicasDaFicha(personagem, sistema))
+    const para = sugestao?.nome.trim() ?? ''
+    focarNoExtra.current = cartao.extras.length
+    onChange({
+      ...cartao,
+      extras: [...cartao.extras, { nome: EXTRAS_DA_EVOLUCAO.texto, valor: '' }, { nome: EXTRAS_DA_EVOLUCAO.condicoes, valor: '' }, { nome: EXTRAS_DA_EVOLUCAO.para, valor: para }],
+    })
+    setAvisoDoExtra(
+      para === ''
+        ? 'Evolução: o texto do efeito evoluído. "Evolui para": o nome da técnica evoluída; vazio, evoluir troca o efeito por este texto. Vale só na batalha em que evoluir.'
+        : `"Evolui para" sugerido pelo nome: ${para}. Na batalha ela fica apagada até alguém Evoluir esta; apague o valor se não for ela.`,
+    )
+  }
+  const acrescentarOpcao = () => {
+    const nome = nomeDaNovaOpcao(cartao)
+    focarNoExtra.current = cartao.extras.length
+    onChange({ ...cartao, extras: [...cartao.extras, { nome, valor: '' }] })
+    setAvisoDoExtra(`${nome}: escreva o que ela faz (a opção 1 é o Efeito). Na batalha a mira pede uma ou outra, e o registro diz qual.`)
+  }
   const pedirImagem = async () => {
     setErroDaImagem(null)
     try {
@@ -494,8 +540,11 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
                   onChange={(event) => onChange({ ...cartao, extras: cartao.extras.map((atual, j) => (j === i ? { ...atual, nome: event.target.value } : atual)) })}
                 />
                 <input
+                  ref={(elemento) => {
+                    valoresDosExtras.current[i] = elemento
+                  }}
                   className="lb-input"
-                  aria-label={`Valor do campo extra ${i + 1}`}
+                  aria-label={extra.nome.trim() === '' ? `Valor do campo extra ${i + 1}` : `Valor de ${extra.nome.trim()}`}
                   placeholder="Valor"
                   value={extra.valor}
                   onChange={(event) => onChange({ ...cartao, extras: cartao.extras.map((atual, j) => (j === i ? { ...atual, valor: event.target.value } : atual)) })}
@@ -510,9 +559,32 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
                 </button>
               </div>
             ))}
-            <button type="button" className="lb-btn lb-btn--compact lb-cartao__acrescentar" onClick={() => onChange({ ...cartao, extras: [...cartao.extras, { nome: '', valor: '' }] })}>
-              + Campo
-            </button>
+            <div className="lb-cartao__acrescentar-linha">
+              <button type="button" className="lb-btn lb-btn--compact lb-cartao__acrescentar" onClick={() => onChange({ ...cartao, extras: [...cartao.extras, { nome: '', valor: '' }] })}>
+                + Campo
+              </button>
+              {ehTecnica && (
+                <>
+                  <button
+                    type="button"
+                    className="lb-btn lb-btn--ghost lb-btn--compact"
+                    disabled={jaEvolui}
+                    title={jaEvolui ? 'Já tem os campos da evolução' : 'Cria "Evolução", "Condições da evolução" e "Evolui para"'}
+                    onClick={acrescentarEvolucao}
+                  >
+                    + Evolução
+                  </button>
+                  <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" title={`Cria "${nomeDaNovaOpcao(cartao)}": um ou outro na batalha`} onClick={acrescentarOpcao}>
+                    + Opção
+                  </button>
+                </>
+              )}
+            </div>
+            {avisoDoExtra !== null && (
+              <p className="lb-field__hint" role="status">
+                {avisoDoExtra}
+              </p>
+            )}
           </fieldset>
         )}
         {sub !== undefined && aba.subcartoes !== undefined && !semTiro && (

@@ -4,7 +4,7 @@ import type { PedidoDeAcao } from '../../lib/batalha/combate'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
-import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
+import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
 import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
 import { ListaDePassivasDoMenu, type PassivasNoMenu } from './PassivasDaBatalha'
 import './batalha.css'
@@ -67,6 +67,8 @@ export interface MenuDaVezProps {
   personagemId?: string | null
   /** Tipos de habilidade F3: as passivas da ficha que age. Ausente ou sem itens = sem a tira Passivas. */
   passivas?: PassivasNoMenu
+  /** Tipos de habilidade F4: o Evoluir na leitura das Habilidades (a técnica que ainda evolui). Ausente = sem o botão. */
+  evoluir?: EvoluirNaTela
 }
 
 type Tela = { tipo: 'menu' } | { tipo: 'lista'; de: 'atacar' | 'habilidade' } | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' } | { tipo: 'formas' } | { tipo: 'passivas' }
@@ -77,7 +79,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir } = props
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
@@ -163,6 +165,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
         instantaneo={porTeclado}
         armas={tela.de === 'atacar' ? escolhaDeArmas : undefined}
         vazio={tela.de === 'atacar' ? 'Nenhuma arma levada para esta batalha.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
+        evoluir={tela.de === 'habilidade' ? evoluir : undefined}
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
         onEscolher={(golpe) => abrir({ tipo: 'mira', golpe, de: tela.de }, false)}
       />

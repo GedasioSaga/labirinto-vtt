@@ -1555,6 +1555,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               passarVez: (cartaId, rodada) => connection.passarVezNaBatalha(cartaId, rodada),
               zerarCarga: (personagemId) => connection.zerarCargaNaBatalha(personagemId),
               passiva: (pedido) => connection.passivaNaBatalha(pedido),
+              evoluir: (pedido) => connection.evoluirNaBatalha(pedido),
             }}
             consulta={consultaEstavel}
             alvoDoMapa={alvoDoMapa}

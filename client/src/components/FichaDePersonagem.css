@@ -1251,6 +1251,14 @@
   align-self: flex-start;
 }
 
+/* "+ Campo" e, nas técnicas, "+ Evolução" e "+ Opção" (tipos de habilidade F4), lado a lado. */
+.lb-cartao__acrescentar-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
 .lb-cartao__acoes {
   display: flex;
   flex-wrap: wrap;

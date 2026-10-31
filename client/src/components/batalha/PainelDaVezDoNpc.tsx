@@ -6,7 +6,7 @@ import { ImagemOuIniciais } from '../FichaPecas'
 import type { RecursoNaCarta } from './dadosDaFaixa'
 import { economiaEmTexto, formatarNumero, textoDaAcao, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import { PainelDaForma, nomeDaForma } from './ListaDeFormas'
-import { DetalheDoGolpe } from './ListaDeTecnicas'
+import { DetalheDoGolpe, MarcaDaEvolucao, MarcaDasOpcoes, type EvoluirNaTela } from './ListaDeTecnicas'
 import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha } from './MiraDoGolpe'
 import './batalha.css'
 import './combate.css'
@@ -20,7 +20,9 @@ import './combate.css'
  * (sem "jogam sozinhos"). F3: a Transformação do NPC (o mesmo painel da forma
  * do jogador, aberto pela seta) e os selos da ficha da vez. Tipos de
  * habilidade F3: os lembretes das passivas do NPC no alto (antes da economia,
- * longe dos botões do pé) e a lista Passivas depois da Transformação.
+ * longe dos botões do pé) e a lista Passivas depois da Transformação. Tipos
+ * de habilidade F4: as marcas "Evolui", "Evoluída", "Evoluiu" e "2 opções"
+ * nas técnicas, o Evoluir no detalhe (a seta) e os chips da opção na mira.
  */
 
 export interface PainelDaVezDoNpcProps {
@@ -58,6 +60,8 @@ export interface PainelDaVezDoNpcProps {
   lembretes?: ReactNode
   /** Tipos de habilidade F3: a lista Passivas (`PassivasDaFicha`). */
   passivas?: ReactNode
+  /** Tipos de habilidade F4: o Evoluir no detalhe da técnica que ainda evolui (o mestre evolui sempre). Ausente = sem o botão. */
+  evoluir?: EvoluirNaTela
 }
 
 const SEM_FORMAS: readonly FormaNoMenu[] = []
@@ -65,7 +69,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
   const { nome, imagem, cor, descricao, recursos, acoes, carga, motivoDoConcentrar, armas, habilidades, alvos, sugestao, onExecutar, onConcentrar, onZerarCarga, onEncerrar, onAcoesExtras, onDarDano, consulta, alvoDoMapa, mapa } =
     props
-  const { formas = SEM_FORMAS, personagemId = null, selos, lembretes, passivas } = props
+  const { formas = SEM_FORMAS, personagemId = null, selos, lembretes, passivas, evoluir } = props
   const [formaAberta, setFormaAberta] = useState<string | null>(null)
   const golpes = [...habilidades, ...armas]
   const primeiraValida = golpes.find((golpe) => golpe.motivo === null)?.chave ?? null
@@ -103,6 +107,8 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
                       {item.tipoTexto}
                     </span>
                   )}
+                  {item.evolucao !== undefined && <MarcaDaEvolucao evolucao={item.evolucao} />}
+                  <MarcaDasOpcoes golpe={item} />
                   <small>{item.motivo ?? [item.categoria, item.capacidade === undefined ? null : `Cap. ${item.capacidade}`, item.acaoTexto, item.dano.valor === null ? (item.dano.semDano ? 'sem dano' : 'dano à mão') : `dano ${formatarNumero(item.dano.valor)}`, item.tempoTexto].filter(Boolean).join(' · ')}</small>
                 </span>
                 <span className="bt-opcao__lado">
@@ -121,7 +127,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
                   ›
                 </button>
               </label>
-              {expandido && <DetalheDoGolpe golpe={item} />}
+              {expandido && <DetalheDoGolpe golpe={item} evoluir={evoluir} />}
             </div>
           )
         })}

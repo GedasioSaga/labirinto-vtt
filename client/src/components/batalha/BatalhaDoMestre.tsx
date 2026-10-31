@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDePassiva } from '../../lib/batalha/combate'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
+import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
@@ -312,6 +313,11 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           consulta={consultaDoMestre}
           alvoDoMapa={alvoDoMapa}
           mapa={{ ligado: mirando, onTrocar: (ligado) => useMiraDoMestre.getState().mirar(ligado) }}
+          evoluir={{
+            // Tipos de habilidade F4: o mestre evolui sempre (fora da vez também); a regra é a da store.
+            motivo: (cartaoId, custo) => motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: false }, { tipo: 'evoluir', tokenId: carta.tokenId, cartaoId, custo }),
+            onEvoluir: (cartaoId, custo) => useBatalhaStore.getState().evoluir(sceneKey, MESTRE, { tipo: 'evoluir', tokenId: carta.tokenId, cartaoId, custo }),
+          }}
         />
       </section>
       <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={carta.personagemId} />
