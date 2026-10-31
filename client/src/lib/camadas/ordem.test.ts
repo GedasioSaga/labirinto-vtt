@@ -53,6 +53,8 @@ const EDITOR_HOJE: [string, string[]][] = [
   ['pinsContainer', ['anotacoes']],
   ['telhadosContainer', ['telhados']],
   ['fogosContainer', []],
+  // BATALHA F3 (Q7): o Judge por cima das fichas, dos telhados e dos fogos, abaixo das alças do editor.
+  ['judgeContainer', []],
   ['fantasmaDeTesteContainer', []],
   ['straightenGhostGraphics', []],
   ['floorSelectionGraphics', []],
@@ -82,6 +84,9 @@ const JOGADOR_HOJE: [string, string[]][] = [
   ['texturasContainer', ['terreno']],
   ['relevoMask', ['terreno']],
   ['relevoContainer', ['terreno']],
+  // BARRANCO (28/10): logo acima do relevo, com a máscara do conhecido.
+  ['barrancoMask', ['terreno']],
+  ['barrancoContainer', ['terreno']],
   ['regionStrokes', ['salas']],
   ['paths', ['anotacoes']],
   ['carimbosMask', ['terreno']],
@@ -119,6 +124,8 @@ const JOGADOR_HOJE: [string, string[]][] = [
   ['pins', ['anotacoes']],
   ['lastSeen', ['tokens']],
   ['tokens', ['tokens']],
+  // BATALHA F3 (Q7): o Judge por cima das fichas e da névoa, faixa fixa.
+  ['judge', []],
 ]
 
 function pares(ordem: readonly EntradaDaOrdem[]): [string, string[]][] {
@@ -142,10 +149,10 @@ describe('FAIXAS de hoje', () => {
     expect(FAIXAS_JOGADOR.map((f) => [f.id, [...f.camadas]])).toEqual(JOGADOR_HOJE)
   })
 
-  it('no jogador, tudo da planta fica sob a névoa e só luz de longe, telhado, porta no telhado, pílula, marca, pino e ficha ficam por cima', () => {
+  it('no jogador, tudo da planta fica sob a névoa e só luz de longe, telhado, porta no telhado, pílula, marca, pino, ficha e o Judge ficam por cima', () => {
     const sobre = FAIXAS_JOGADOR.filter((f) => f.zona === 'sobre-a-nevoa').map((f) => f.id)
     const semZona = FAIXAS_JOGADOR.filter((f) => f.zona === undefined).map((f) => f.id)
-    expect(sobre).toEqual(['farLights', 'roofCut', 'roofs', 'peekedRoofs', 'peekMask', 'portasNoTelhado', 'fogos', 'gradeDaBatalha', 'nomesDosLugares', 'marks', 'pins', 'lastSeen', 'tokens'])
+    expect(sobre).toEqual(['farLights', 'roofCut', 'roofs', 'peekedRoofs', 'peekMask', 'portasNoTelhado', 'fogos', 'gradeDaBatalha', 'nomesDosLugares', 'marks', 'pins', 'lastSeen', 'tokens', 'judge'])
     expect(semZona).toEqual(['fogUnknown', 'knownMask', 'fogDim', 'visionMask', 'concealed'])
   })
 })
