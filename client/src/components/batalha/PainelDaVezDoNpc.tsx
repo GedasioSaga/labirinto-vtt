@@ -1,11 +1,13 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import type { PedidoDeAcao } from '../../lib/batalha/combate'
+import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { ImagemOuIniciais } from '../FichaPecas'
 import type { RecursoNaCarta } from './dadosDaFaixa'
-import { economiaEmTexto, formatarNumero, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import { economiaEmTexto, formatarNumero, textoDaAcao, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import { PainelDaForma, nomeDaForma } from './ListaDeFormas'
 import { DetalheDoGolpe } from './ListaDeTecnicas'
-import { MiraDoGolpe, type ConsultaDaFicha } from './MiraDoGolpe'
+import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha } from './MiraDoGolpe'
 import './batalha.css'
 import './combate.css'
 
@@ -15,7 +17,8 @@ import './combate.css'
  * técnicas e armas com a seta para o detalhe, a técnica e o alvo sugeridos já
  * marcados (`sugestaoParaNpc`), o dano editável com a conta, Surpresa,
  * Perfurante, Concentrar, Executar e Encerrar vez. Nada acontece sem Executar
- * (sem "jogam sozinhos").
+ * (sem "jogam sozinhos"). F3: a Transformação do NPC (o mesmo painel da forma
+ * do jogador, aberto pela seta) e os selos da ficha da vez.
  */
 
 export interface PainelDaVezDoNpcProps {
@@ -44,11 +47,20 @@ export interface PainelDaVezDoNpcProps {
   consulta?: ConsultaDaFicha | null
   alvoDoMapa?: { tokenId: string; seq: number } | null
   mapa?: { ligado: boolean; onTrocar: (ligado: boolean) => void }
+  /** F3: as formas da ficha do NPC (`formasNoMenu`). */
+  formas?: readonly FormaNoMenu[]
+  personagemId?: string | null
+  /** F3: os selos da ficha da vez e o "Pôr selo…" (quem monta abre a janela). */
+  selos?: ReactNode
 }
+
+const SEM_FORMAS: readonly FormaNoMenu[] = []
 
 export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
   const { nome, imagem, cor, descricao, recursos, acoes, carga, motivoDoConcentrar, armas, habilidades, alvos, sugestao, onExecutar, onConcentrar, onZerarCarga, onEncerrar, onAcoesExtras, onDarDano, consulta, alvoDoMapa, mapa } =
     props
+  const { formas = SEM_FORMAS, personagemId = null, selos } = props
+  const [formaAberta, setFormaAberta] = useState<string | null>(null)
   const golpes = [...habilidades, ...armas]
   const primeiraValida = golpes.find((golpe) => golpe.motivo === null)?.chave ?? null
   const [escolhida, setEscolhida] = useState<string | null>(() => (sugestao.chave !== null && golpes.some((golpe) => golpe.chave === sugestao.chave && golpe.motivo === null) ? sugestao.chave : primeiraValida))
@@ -124,6 +136,49 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
         {economiaEmTexto(acoes)}
         {textoCarga !== null && ` · ${textoCarga}`}
       </p>
+      {selos}
+      {formas.length > 0 && (
+        <div className="bt-npc__lista bt-npc__formas" role="group" aria-label="Transformação">
+          <p className="bt-npc__legenda">Transformação</p>
+          {formas.map((forma) => {
+            const id = forma.cartao.id
+            const aberta = formaAberta === id
+            return (
+              <div key={id}>
+                <div className="bt-opcao bt-opcao--forma" data-ligada={forma.ligada ? 'sim' : 'nao'}>
+                  <span className="bt-opcao__nome">
+                    {nomeDaForma(forma)}
+                    <small>{forma.ligada ? 'Ativa · desfazer é ação livre' : `${textoDaAcao(forma.acaoDaFicha)}${forma.numeros.length > 0 ? ` · muda ${forma.numeros.length}` : ''}`}</small>
+                  </span>
+                  <span className="bt-opcao__lado">{forma.ligada && <span className="bt-opcao__sug bt-opcao__sug--forma">ativa</span>}</span>
+                  <button type="button" className="bt-seta" aria-expanded={aberta} aria-label={`${forma.ligada ? 'Desfazer' : 'Ativar'} ${nomeDaForma(forma)}`} onClick={() => setFormaAberta(aberta ? null : id)}>
+                    ›
+                  </button>
+                </div>
+                {aberta && (
+                  <PainelDaForma
+                    forma={forma}
+                    acoes={acoes}
+                    personagemId={personagemId}
+                    onAtivar={(acao, trocarImagem) => {
+                      const saiu = onExecutar({ tipo: 'transformar', cartaoId: id, acao, trocarImagem })
+                      if (saiu) setFormaAberta(null)
+                      return saiu
+                    }}
+                    onDesfazer={() => {
+                      const saiu = onExecutar({ tipo: 'destransformar', cartaoId: id })
+                      if (saiu) setFormaAberta(null)
+                      return saiu
+                    }}
+                    onVoltar={() => setFormaAberta(null)}
+                    className="bt-forma--npc"
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
       {grupo('Habilidades', habilidades)}
       {grupo('Atacar', armas)}
       {golpes.length === 0 && <p className="bt-texto">Sem técnica nem arma na ficha: dê dano à mão ou encerre a vez.</p>}
@@ -140,22 +195,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
           consulta={consulta}
           alvoDoMapa={alvoDoMapa}
           mapa={mapa}
-          onLancar={(escolha) =>
-            executar(
-              golpe.tipo === 'atacar'
-                ? { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante }
-                : {
-                    tipo: 'habilidade',
-                    cartaoId: golpe.cartaoId ?? '',
-                    armaId: golpe.armaId,
-                    alvos: escolha.alvos,
-                    surpresa: escolha.surpresa,
-                    perfurante: escolha.perfurante,
-                    custo: escolha.custo,
-                    acao: escolha.acao,
-                  },
-            )
-          }
+          onLancar={(escolha) => executar(pedidoDoGolpe(golpe, escolha))}
         />
       )}
       {aviso !== null && (

@@ -1,6 +1,8 @@
 import { maximoComposto } from '../../lib/ajusteDaFicha'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
+import { selosDoToken, textoDoSelo } from '../../lib/batalha/selos'
+import { aparenciaDaForma, nomeDaFormaLigada } from '../../lib/batalha/transformacao'
 import { proximaCarta, tokensCaidos, turnoNoM, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { CartaParaJogador, EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import { numeroDaFicha, type Personagem } from '../../lib/personagem'
@@ -55,6 +57,24 @@ export interface DadosDaCarta {
   npc: boolean
   /** F2: a concentração guardada (0 a 3). Só o mestre e o dono veem. Ausente = 0. */
   carga?: number
+  /** F3: o nome da forma ativada pelo menu e ainda ligada ("Punho Negro"): contorno roxo e o nome na carta. */
+  forma?: string | null
+  /** F3: os selos da ficha ("ATORDOADO 2"). Para todos que veem a carta (Q5). */
+  selos?: readonly SeloNaCarta[]
+}
+
+/** F3: um selo como a carta o mostra. `id` só no mestre (clicar edita ou tira). */
+export interface SeloNaCarta {
+  id: string | null
+  nome: string
+  turnos: number | null
+  /** "Atordoado 2"; "Cego" (até tirar). */
+  texto: string
+}
+
+/** As cartas do mesmo token mostram os mesmos selos (a extra também). */
+function selosNaCarta(selos: readonly { id?: string; nome: string; turnos: number | null }[] | undefined): SeloNaCarta[] {
+  return (selos ?? []).map((selo) => ({ id: selo.id ?? null, nome: selo.nome, turnos: selo.turnos, texto: textoDoSelo(selo) }))
 }
 
 export interface DadosDaFaixa {
@@ -130,11 +150,15 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema }:
     const personagem = carta.personagemId === null ? undefined : personagemPorId.get(carta.personagemId)
     const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
     const recursos = personagem === undefined ? [] : recursosDaCarta(personagem, sistema)
+    // F3: a forma ativada pelo menu (só enquanto o cartão segue ligado) e a imagem dela, que vence a foto.
+    const forma = carta.personagemId === null ? undefined : turnos.formas?.[carta.personagemId]
     return {
       id: carta.id,
       tokenId: carta.tokenId,
       nome: ficha?.name.trim() || carta.nome?.trim() || personagem?.nome || NOME_SEM_FICHA,
-      imagem: ficha?.imageData ?? personagem?.retrato ?? null,
+      imagem: aparenciaDaForma(forma, personagem) ?? ficha?.imageData ?? personagem?.retrato ?? null,
+      forma: nomeDaFormaLigada(forma, personagem),
+      selos: selosNaCarta(selosDoToken(turnos.selos, carta.tokenId)),
       cor: equipe?.cor ?? null,
       equipe: equipe?.nome ?? null,
       vida: recursos.length > 0 ? 'numeros' : 'sem',
@@ -186,14 +210,17 @@ function turnosAteAMinha(estado: EstadoParaJogador): number | null {
   return null
 }
 
-function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined, personagem: Personagem | undefined, sistema: SistemaDeRpg | null): DadosDaCarta {
+function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined, personagem: Personagem | undefined, sistema: SistemaDeRpg | null, aparencia: string | undefined): DadosDaCarta {
   const recursos = carta.lado !== 'outro' && personagem !== undefined ? recursosDaCarta(personagem, sistema) : []
   const vida: VidaNaCarta = carta.lado === 'outro' ? 'oculta' : recursos.length > 0 ? 'numeros' : 'sem'
   return {
     id: carta.id,
     tokenId: carta.tokenId,
     nome: carta.nome.trim() || NOME_SEM_FICHA,
-    imagem: ficha?.imageData ?? (carta.lado === 'outro' ? null : (personagem?.retrato ?? null)),
+    // F3: a imagem da forma (o host só manda a de cartão ligado) vence a foto e o retrato.
+    imagem: aparencia ?? ficha?.imageData ?? (carta.lado === 'outro' ? null : (personagem?.retrato ?? null)),
+    forma: carta.forma ?? null,
+    selos: selosNaCarta(carta.selos),
     cor: carta.equipe?.cor ?? null,
     equipe: carta.equipe?.nome ?? null,
     vida,
@@ -213,7 +240,13 @@ export function faixaDoJogador({ estado, fichas, personagens, sistema }: Entrada
   const fichaPorId = porId(fichas)
   const personagemPorId = porId(personagens)
   const cartas = estado.cartas.map((carta) => {
-    const dados = cartaDoJogador(carta, fichaPorId.get(carta.tokenId), carta.personagemId === undefined ? undefined : personagemPorId.get(carta.personagemId), sistema)
+    const dados = cartaDoJogador(
+      carta,
+      fichaPorId.get(carta.tokenId),
+      carta.personagemId === undefined ? undefined : personagemPorId.get(carta.personagemId),
+      sistema,
+      estado.aparencias?.[carta.tokenId],
+    )
     // F2: a carga só do que é dele (o recorte não manda a dos outros).
     const meu = carta.lado === 'eu' ? estado.meus?.find((combate) => combate.personagemId === carta.personagemId) : undefined
     return meu === undefined ? dados : { ...dados, carga: meu.carga }

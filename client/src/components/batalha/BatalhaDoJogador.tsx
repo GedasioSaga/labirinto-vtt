@@ -3,6 +3,7 @@ import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { chaveDaVez, type PedidoDeAcao, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import type { VezEsperada } from '../../lib/batalha/ponte'
+import { formasNoMenu } from '../../lib/batalha/transformacao'
 import { ATACANTE_FORA_DA_VISTA, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -78,10 +79,13 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     for (const carta of estado.cartas) if (carta.nome.trim() !== '') porToken.set(carta.tokenId, carta.nome.trim())
     return (tokenId: string) => porToken.get(tokenId) || 'Ficha'
   }, [fichas, estado.cartas])
+  // F3: a imagem da forma (o host manda só a de cartão ligado) vence a foto no corte e na transformação.
+  const aparencias = estado.aparencias
   const imagemDe = useMemo(() => {
     const porToken = new Map(fichas.map((ficha) => [ficha.id, ficha.imageData ?? null] as const))
-    return (tokenId: string) => porToken.get(tokenId) ?? null
-  }, [fichas])
+    const daForma = (tokenId: string) => (aparencias !== undefined && Object.hasOwn(aparencias, tokenId) ? aparencias[tokenId] : undefined)
+    return (tokenId: string) => daForma(tokenId) ?? porToken.get(tokenId) ?? null
+  }, [fichas, aparencias])
 
   // ---- a vez e o contra-ataque
   const vez = estado.vez
@@ -120,6 +124,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       habilidades: habilidades(acoes),
       contra: { armas: golpesDeAtaque(personagem, sistema, combate, null), habilidades: habilidades(null) },
       alvos,
+      // F3: a tira Transformação (com a prévia dos números da ficha dele).
+      formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : [],
     }
   }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, nomeDe])
 
@@ -230,6 +236,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             alvoDoMapa={alvoDoMapa}
             onMirando={onMirando}
             consulta={consulta}
+            formas={menu.formas}
+            personagemId={personagemId ?? null}
           />
         </div>
       )}

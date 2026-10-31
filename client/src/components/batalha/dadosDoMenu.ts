@@ -7,7 +7,9 @@ import {
   type CombateDoPersonagem,
   type EfeitoDaBatalha,
   type SaidaDaReacao,
+  type SeloPedido,
 } from '../../lib/batalha/combate'
+import { seloDaTecnica } from '../../lib/batalha/selos'
 import { danoDoAtaque, type LeituraDoDano } from '../../lib/batalha/formula'
 import { CAMPO_DA_ACAO, armasDe, lerAcao, type LeituraDoCusto, type LeituraDoTempo } from '../../lib/batalha/leituraDaFicha'
 import { danoFinal, danoQueChega, saidasPossiveis } from '../../lib/batalha/reacao'
@@ -61,6 +63,8 @@ export interface GolpeNaTela {
   motivo: string | null
   /** O texto inteiro da ficha, para ler antes de usar (a caixa de leitura da lista). */
   leitura: readonly LinhaDaLeitura[]
+  /** F3: o selo que o texto sugere ("Atordoa por 1 turno"); a mira o traz marcado. Ausente = nenhum. */
+  selo?: SeloPedido
 }
 
 /** Uma linha da leitura inteira: o rótulo do campo e o texto como a ficha diz. */
@@ -218,6 +222,8 @@ function golpeDaTecnica(tecnica: TecnicaNoMenu, sistema: SistemaDeRpg, combate: 
     leitura: leituraDoCartao(tecnica.cartao, sistema, ABA_DAS_TECNICAS, dano),
   }
   if (tecnica.forma !== undefined) golpe.forma = tecnica.forma
+  const selo = seloDaTecnica(tecnica.cartao)
+  if (selo !== null) golpe.selo = selo
   return golpe
 }
 
@@ -252,7 +258,9 @@ export function golpesDeAtaque(personagem: Personagem | null, sistema: SistemaDe
     const gasta = acaoDoGolpe(acaoDaFicha, carga) ?? acaoDaFicha
     const dano = personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null }))
     const descricao = arma === null ? DESCRICAO_DO_DESARMADO : (arma.campos.descricao ?? arma.campos.efeito ?? '').trim()
+    const selo = arma === null ? null : seloDaTecnica(arma)
     return {
+      ...(selo === null ? {} : { selo }),
       chave: arma === null ? 'ataque' : `arma:${arma.id}`,
       tipo: 'atacar',
       cartaoId: null,
@@ -391,7 +399,7 @@ export function anuncioDoEfeito(efeito: EfeitoDaBatalha, nomeDe: (tokenId: strin
     }
     case 'judge':
       return 'O Judge ergue a carta: jogada desfeita'
-    // F3 (fatia T): o texto da região viva; a animação é da T-C.
+    // F3 (fatia T): o texto da região viva (a animação toca em `EfeitosDaBatalha`).
     case 'transformacao':
       return `${nomeDe(efeito.tokenId)} ativa ${efeito.forma}`
     case 'forma':

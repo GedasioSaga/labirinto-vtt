@@ -73,6 +73,8 @@ import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
 import { tremer } from '../components/batalha/EfeitosDaBatalha'
 import type { ConsultaDaFichaNaTela } from './PlayerView'
 import { vezTokenIdDoJogador } from '../components/batalha/dadosDaFaixa'
+import { fotosDaFormaDoJogador, selosNasFichasDoJogador, useFotosEstaveis, useSelosEstaveis } from '../components/batalha/marcasNoMapa'
+import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { ultimoGestoDoJudge } from '../pixi/judgeDoMapa'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
@@ -750,6 +752,11 @@ const HANDSHAKE_DEADLINE_MS = 8_000
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
 export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar, ajustesDaDanca, ajustesDaPesca, ajustesDoTiro }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
+  // BATALHA F3 (fatia T): a imagem da forma e os selos nas fichas do mapa; o mesmo objeto enquanto nada muda.
+  const resolverDaMesa = useImagemDaMesa()
+  const batalhaEstado = state.batalhaEstado
+  const fotoDaForma = useFotosEstaveis(useMemo(() => fotosDaFormaDoJogador(batalhaEstado, resolverDaMesa), [batalhaEstado, resolverDaMesa]))
+  const selosNasFichas = useSelosEstaveis(useMemo(() => selosNasFichasDoJogador(batalhaEstado), [batalhaEstado]))
   // DANÇA (SONS F5d): a música importada vem da sala por `/sons/<id>`, com a chave desta conexão (lida a cada pedido).
   const musicaDaSala = useMemo(() => fontesDaSala(() => connection.chaveDaMidia()), [connection])
   // PACOTE DE ANIMAÇÕES do mestre (transição, porta, cenário), ao entrar na
@@ -1445,6 +1452,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // BATALHA F3 (fatia J): o Judge do `batalha.estado` e o gesto da fila (o desfazer do mestre ergue a carta).
             judge={state.batalhaEstado?.judge ?? null}
             gestoDoJudge={ultimoGestoDoJudge(state.batalhaEfeitos)}
+            // BATALHA F3 (fatia T): a forma no lugar da foto e os selos acima do disco.
+            fotoDaForma={fotoDaForma}
+            selosNasFichas={selosNasFichas}
             waitingTokens={waitingTokens}
             settings={settings}
             focusTokenId={focus.tokenId}

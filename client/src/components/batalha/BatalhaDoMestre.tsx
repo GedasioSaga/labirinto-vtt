@@ -4,7 +4,9 @@ import { chaveDaVez, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
-import { cartaDaVez, tokensCaidos, type CartaDaOrdem } from '../../lib/batalha/turnos'
+import { selosDoToken, textoDoSelo } from '../../lib/batalha/selos'
+import { aparenciaDaForma, formasNoMenu } from '../../lib/batalha/transformacao'
+import { cartaDaVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
@@ -20,19 +22,48 @@ import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
 import { ReacoesPendentes, type PendenteNaTela } from './ReacoesPendentes'
+import { SeloDialog } from './SeloDialog'
 
 /**
  * A BATALHA DO MESTRE na aba Batalha (S2): lê a cena na store e liga o painel
  * da vez (o do NPC, ou "Vez de Lia" com as Ações extras e o Dar dano), as
  * reações pendentes e os diálogos do mestre (dar dano, ações extras, armas
- * desta batalha), que o menu da carta da faixa também abre. Toda ação vai
- * direto à `batalhaStore` (o host avisa os jogadores).
+ * desta batalha, F3: pôr, editar e tirar selo), que o menu da carta da faixa
+ * também abre. Toda ação vai direto à `batalhaStore` (o host avisa os
+ * jogadores).
  */
 
 const MESTRE = { tipo: 'mestre' } as const
 
-/** O que o mestre abriu pelo menu da carta ou pelo painel. */
-export type DialogoDoMestre = { tipo: 'dano'; tokenId: string | null } | { tipo: 'extras'; cartaId: string } | { tipo: 'armas'; personagemId: string }
+/** O que o mestre abriu pelo menu da carta ou pelo painel. `seloId` null = pôr um selo novo. */
+export type DialogoDoMestre =
+  | { tipo: 'dano'; tokenId: string | null }
+  | { tipo: 'extras'; cartaId: string }
+  | { tipo: 'armas'; personagemId: string }
+  | { tipo: 'selo'; tokenId: string; seloId: string | null }
+
+/** F3: os selos da ficha da vez, em botões (editar ou tirar), e "Pôr selo…". */
+function SelosDaVez({ turnos, tokenId, nome, onDialogo }: { turnos: TurnosDaCena; tokenId: string; nome: string; onDialogo: (dialogo: DialogoDoMestre) => void }) {
+  const selos = selosDoToken(turnos.selos, tokenId)
+  return (
+    <div className="bt-selos-da-vez" role="group" aria-label={`Selos de ${nome}`}>
+      {selos.map((selo) => (
+        <button
+          key={selo.id}
+          type="button"
+          className="bt-selo bt-selo--botao"
+          aria-label={`${textoDoSelo(selo)}: editar ou tirar`}
+          onClick={() => onDialogo({ tipo: 'selo', tokenId, seloId: selo.id })}
+        >
+          {textoDoSelo(selo)}
+        </button>
+      ))}
+      <button type="button" className="bt-botao bt-botao--p" onClick={() => onDialogo({ tipo: 'selo', tokenId, seloId: null })}>
+        Pôr selo…
+      </button>
+    </div>
+  )
+}
 
 interface Mesa {
   cena: BatalhaDaCena | undefined
@@ -165,6 +196,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
               </button>
             )}
           </div>
+          <SelosDaVez turnos={turnos} tokenId={carta.tokenId} nome={nome} onDialogo={onDialogo} />
         </section>
         {reacoes}
       </>
@@ -178,6 +210,9 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos })
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
   const agir = (pedido: PedidoDeAcao) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)
+  // F3: as formas do NPC (a tira Transformação do painel) e a imagem da forma ligada, que vence a foto.
+  const formas = personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : []
+  const aparencia = carta.personagemId === null || personagem === null ? null : aparenciaDaForma(turnos.formas?.[carta.personagemId], personagem)
 
   return (
     <>
@@ -185,7 +220,10 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         <PainelDaVezDoNpc
           key={chave}
           nome={nome}
-          imagem={mesa.fichas.find((ficha) => ficha.id === carta.tokenId)?.imageData ?? personagem?.retrato ?? null}
+          imagem={aparencia ?? mesa.fichas.find((ficha) => ficha.id === carta.tokenId)?.imageData ?? personagem?.retrato ?? null}
+          formas={formas}
+          personagemId={carta.personagemId}
+          selos={<SelosDaVez turnos={turnos} tokenId={carta.tokenId} nome={nome} onDialogo={onDialogo} />}
           cor={equipe?.cor ?? null}
           descricao={[personagem === null ? 'Sem ficha ligada' : 'NPC', equipe?.nome].filter(Boolean).join(' · ')}
           recursos={personagem === null ? [] : recursosDaCarta(personagem, sistema)}
@@ -224,14 +262,24 @@ export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTr
   const efeitos = useBatalhaStore((state) => efeitosDaCena(state, sceneKey))
   const turnos = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey]?.turnos : undefined))
   const fichas = useMapStore((state) => state.map.tokens)
+  const personagens = useAdventureStore(personagensAtivos)
   const nomeDe = useMemo(() => {
     const porToken = new Map(fichas.map((ficha) => [ficha.id, ficha.name.trim()] as const))
     return (tokenId: string) => porToken.get(tokenId) || 'Ficha'
   }, [fichas])
+  // F3: a imagem da forma ligada vence a foto no corte do golpe.
+  const formas = turnos?.formas
+  const cartas = turnos?.cartas
   const imagemDe = useMemo(() => {
-    const porToken = new Map(fichas.map((ficha) => [ficha.id, ficha.imageData ?? null] as const))
+    const porToken = new Map<string, string | null>(fichas.map((ficha) => [ficha.id, ficha.imageData ?? null] as const))
+    for (const carta of cartas ?? []) {
+      if (carta.personagemId === null) continue
+      const forma = formas?.[carta.personagemId]
+      const aparencia = forma === undefined ? null : aparenciaDaForma(forma, personagens.find((candidato) => candidato.id === carta.personagemId))
+      if (aparencia !== null) porToken.set(carta.tokenId, aparencia)
+    }
     return (tokenId: string) => porToken.get(tokenId) ?? null
-  }, [fichas])
+  }, [fichas, cartas, formas, personagens])
   const carta = turnos === undefined ? null : cartaDaVez(turnos)
   const vez =
     carta === null || turnos === undefined
@@ -253,6 +301,21 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
       .filter((carta) => !vistos.has(carta.tokenId) && vistos.add(carta.tokenId))
       .map((carta) => ({ tokenId: carta.tokenId, nome: nomeDaFicha(mesa, carta.tokenId, carta) }))
     return <DarDanoDialog alvos={alvos} alvoInicial={dialogo.tokenId} onConfirmar={(tokenId, valor) => store.darDano(sceneKey, MESTRE, tokenId, valor)} onFechar={onFechar} />
+  }
+  if (dialogo.tipo === 'selo') {
+    const { tokenId, seloId } = dialogo
+    const selo = seloId === null ? null : (selosDoToken(turnos.selos, tokenId).find((candidato) => candidato.id === seloId) ?? null)
+    // O selo saiu (desfeito, acabou) com a janela aberta: ela fecha.
+    if (seloId !== null && selo === null) return null
+    return (
+      <SeloDialog
+        quem={nomeDaFicha(mesa, tokenId)}
+        selo={selo === null ? null : { nome: selo.nome, turnos: selo.turnos }}
+        onConfirmar={(pedido) => (seloId === null ? store.porSelo(sceneKey, tokenId, pedido) : store.editarSelo(sceneKey, seloId, pedido))}
+        onTirar={seloId === null ? undefined : () => store.tirarSelo(sceneKey, seloId)}
+        onFechar={onFechar}
+      />
+    )
   }
   if (dialogo.tipo === 'extras') {
     const carta = turnos.cartas.find((candidata) => candidata.id === dialogo.cartaId)

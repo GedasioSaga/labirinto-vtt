@@ -1,5 +1,17 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { ALVOS_MAX, CUSTO_MAX, DANO_MAX, MULTIPLICADOR_DA_SURPRESA, type AcaoDaTecnica, type PedidoDeAlvo } from '../../lib/batalha/combate'
+import {
+  ALVOS_MAX,
+  CUSTO_MAX,
+  DANO_MAX,
+  MULTIPLICADOR_DA_SURPRESA,
+  NOME_DO_SELO_MAX,
+  TURNOS_DO_SELO_MAX,
+  type AcaoDaTecnica,
+  type PedidoDeAcao,
+  type PedidoDeAlvo,
+  type SeloPedido,
+} from '../../lib/batalha/combate'
+import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { contaDoGolpe, formatarNumero, lerInteiro, textoDaAcao, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
@@ -11,6 +23,9 @@ import './combate.css'
  * lado ("205 × 2 concentração = 410"; "editado" quando mudou), o custo
  * perguntado quando a ficha não diz, a ação perguntada quando a ficha não diz,
  * Surpresa (×1,5, sem reação), Perfurante (Q4), a nota da reação e Lançar.
+ * F3: o selo que a técnica sugere ("por 1 turno" = "Selo: Atordoado · 1
+ * turno") vem marcado, com nome e turnos editáveis e o desmarcar; pega só no
+ * alvo que o golpe acerta (Q6).
  *
  * Esc volta à lista; Enter num campo lança.
  */
@@ -27,6 +42,30 @@ export interface EscolhaDaMira {
   custo: number | null
   /** A ação escolhida; `null` = a da ficha. */
   acao: AcaoDaTecnica | null
+  /** F3: o selo sugerido, se ficou marcado (editado ou não); `null` = sem selo. */
+  selo: SeloPedido | null
+}
+
+/** O pedido de um golpe da mira (o mesmo no menu do jogador e no painel do NPC). */
+export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): PedidoDeAcao {
+  const selo = escolha.selo === null ? {} : { selo: escolha.selo }
+  if (golpe.tipo === 'atacar') return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...selo }
+  return {
+    tipo: 'habilidade',
+    cartaoId: golpe.cartaoId ?? '',
+    armaId: golpe.armaId,
+    alvos: escolha.alvos,
+    surpresa: escolha.surpresa,
+    perfurante: escolha.perfurante,
+    custo: escolha.custo,
+    acao: escolha.acao,
+    ...selo,
+  }
+}
+
+/** "1 turno", "2 turnos", "até tirar". */
+function textoDosTurnos(turnos: number | null): string {
+  return turnos === null ? 'até tirar' : `${turnos} ${turnos === 1 ? 'turno' : 'turnos'}`
 }
 
 export interface MiraDoGolpeProps {
@@ -74,6 +113,11 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const [perfurante, setPerfurante] = useState(golpe.perfurante)
   const [custoTexto, setCustoTexto] = useState(golpe.custo.tipo === 'pergunta' && golpe.custo.sugestao !== null ? String(golpe.custo.sugestao) : '')
   const [acao, setAcao] = useState<AcaoDaTecnica | ''>('')
+  // F3: o selo sugerido começa marcado; desmarcar tira do golpe.
+  const sugerido = golpe.selo ?? null
+  const [comSelo, setComSelo] = useState(sugerido !== null)
+  const [seloNome, setSeloNome] = useState(sugerido?.nome ?? '')
+  const [seloTurnos, setSeloTurnos] = useState(sugerido?.turnos === null || sugerido === null ? '' : String(sugerido.turnos))
   const [erro, setErro] = useState<string | null>(null)
   const caixas = useRef<Map<string, HTMLInputElement>>(new Map())
 
@@ -132,7 +176,21 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       setErro('A ficha não diz a ação: escolha Simples, Completa, Bônus ou Livre.')
       return
     }
-    const saiu = onLancar({ alvos: pedidoDeAlvos, surpresa: comSurpresa, perfurante: !semDano && perfurante, custo, acao: golpe.acao === null && acao !== '' ? acao : null })
+    let selo: SeloPedido | null = null
+    if (sugerido !== null && comSelo) {
+      const nome = seloNome.trim()
+      if (!ehNomeDeSelo(nome)) {
+        setErro(`Dê um nome ao selo (até ${NOME_DO_SELO_MAX} letras), ou desmarque o selo.`)
+        return
+      }
+      const turnos = seloTurnos.trim() === '' ? null : lerInteiro(seloTurnos, TURNOS_DO_SELO_MAX)
+      if (seloTurnos.trim() !== '' && (turnos === null || turnos < 1)) {
+        setErro(`Os turnos do selo vão de 1 a ${TURNOS_DO_SELO_MAX} (vazio = até tirar).`)
+        return
+      }
+      selo = { nome, turnos }
+    }
+    const saiu = onLancar({ alvos: pedidoDeAlvos, surpresa: comSurpresa, perfurante: !semDano && perfurante, custo, acao: golpe.acao === null && acao !== '' ? acao : null, selo })
     if (!saiu) setErro('O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
   }
 
@@ -288,6 +346,56 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
               <span className="bt-chave__trilho" aria-hidden="true" />
               Perfurante <small>direto no HP, sem gastar o Escudo</small>
             </label>
+          </div>
+        )}
+        {sugerido !== null && (
+          <div className="bt-mira__selo" data-marcado={comSelo ? 'sim' : 'nao'}>
+            <label className="bt-chave">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={comSelo}
+                onChange={(evento) => {
+                  setErro(null)
+                  setComSelo(evento.target.checked)
+                }}
+              />
+              <span className="bt-chave__trilho" aria-hidden="true" />
+              Selo: {seloNome.trim() || sugerido.nome} · {textoDosTurnos(seloTurnos.trim() === '' ? null : lerInteiro(seloTurnos, TURNOS_DO_SELO_MAX))}
+              <small>sugerido pela técnica; pega só se o golpe acertar</small>
+            </label>
+            {comSelo && (
+              <div className="bt-mira__selo-campos">
+                <label className="bt-linha-campo">
+                  <span>Nome</span>
+                  <input
+                    className="bt-num bt-num--texto"
+                    maxLength={NOME_DO_SELO_MAX}
+                    value={seloNome}
+                    aria-invalid={ehNomeDeSelo(seloNome.trim()) ? undefined : true}
+                    onChange={(evento) => {
+                      setErro(null)
+                      setSeloNome(evento.target.value)
+                    }}
+                  />
+                </label>
+                <label className="bt-linha-campo">
+                  <span>Turnos</span>
+                  <input
+                    className="bt-num"
+                    inputMode="numeric"
+                    value={seloTurnos}
+                    placeholder="até tirar"
+                    onChange={(evento) => {
+                      setErro(null)
+                      setSeloTurnos(evento.target.value)
+                    }}
+                  />
+                  <small className="bt-mira__nota">vazio = até o mestre tirar</small>
+                </label>
+              </div>
+            )}
+            {!comSelo && <span className="bt-sr">{`Selo ${textoDoSelo(sugerido)} desmarcado: o golpe não põe selo.`}</span>}
           </div>
         )}
         <p className="bt-mira__nota">{semReacao ? (golpe.overload ? 'Overload: o alvo não reage.' : 'Surpresa: o alvo não reage.') : NOTA_DA_REACAO}</p>

@@ -165,6 +165,8 @@ import { FaixaDoMestre } from './components/batalha/FaixaDoMestre'
 import { EfeitosDoMestre } from './components/batalha/BatalhaDoMestre'
 import { tremer } from './components/batalha/EfeitosDaBatalha'
 import { escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
+import { fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelosEstaveis } from './components/batalha/marcasNoMapa'
+import { useImagemDaMesa } from './components/ImagemDaMesa'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
 import { currentObjectKey, isFindObjectShortcut } from './lib/mapObjects'
@@ -1417,6 +1419,13 @@ function App() {
   // BATALHA F3 (fatia J): o Judge da cena aberta e o último gesto dele na fila (o desfazer do mestre ergue a carta).
   const judgeNaCenaAberta = useBatalhaStore((state) => judgeDaCena(state, chaveDaCenaAberta))
   const gestoDoJudge = useBatalhaStore((state) => ultimoGestoDoJudge(efeitosDaCena(state, chaveDaCenaAberta)))
+  // BATALHA F3 (fatia T): a imagem da forma e os selos nas fichas do mapa; o mesmo objeto enquanto nada muda.
+  const turnosDaCenaAberta = useBatalhaStore((state) => (Object.hasOwn(state.cenas, chaveDaCenaAberta) ? state.cenas[chaveDaCenaAberta].turnos : undefined))
+  const resolverDaMesa = useImagemDaMesa()
+  const fotoDaForma = useFotosEstaveis(
+    useMemo(() => fotosDaFormaDoMestre(turnosDaCenaAberta, personagensEmUso, resolverDaMesa), [turnosDaCenaAberta, personagensEmUso, resolverDaMesa]),
+  )
+  const selosNasFichas = useSelosEstaveis(useMemo(() => selosNasFichasDoMestre(turnosDaCenaAberta), [turnosDaCenaAberta]))
   const aventuraDoJudge = adventure?.id ?? null
   // A batalha ligou sem Judge: ele nasce onde o mestre o deixou neste mapa, senão 2 casas ao norte da primeira ficha da ordem.
   useEffect(() => {
@@ -3234,6 +3243,8 @@ function App() {
           judge={judgeNaCenaAberta}
           gestoDoJudge={gestoDoJudge}
           onJudgeSolto={soltarJudge}
+          fotoDaForma={fotoDaForma}
+          selosNasFichas={selosNasFichas}
           onBackgroundImageSizeChange={setBackgroundImageSize}
           resetZoomRequest={resetZoomRequest}
           cameraRequest={sceneCameraRequest}

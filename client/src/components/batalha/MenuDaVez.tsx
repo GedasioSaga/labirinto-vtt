@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import type { PedidoDeAcao } from '../../lib/batalha/combate'
+import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
 import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
-import { MiraDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
+import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
 import './batalha.css'
 import './combate.css'
 
 /**
  * O MENU DA VEZ do JOGADOR (o `.menu--principal` do protótipo aprovado):
- * tiras Atacar, Habilidades, Transformação (apagada até a próxima fase),
- * Concentrar ("Carga 1 · próximo golpe ×1,5") e Encerrar vez; a cabeça com o
+ * tiras Atacar, Habilidades, Transformação (F3: acende quando a ficha tem
+ * forma e abre a `ListaDeFormas`), Concentrar ("Carga 1 · próximo golpe ×1,5") e Encerrar vez; a cabeça com o
  * nome e a economia ("Simples 1 · Bônus 0 · Mov 2/4", Mov vermelho quando
  * passa). Atacar e Habilidades abrem a lista; o golpe escolhido abre a mira.
  *
@@ -57,16 +59,21 @@ export interface MenuDaVezProps {
   consulta?: ConsultaDaFicha | null
   /** Esperando o host responder um pedido: as tiras ficam paradas. */
   esperando?: boolean
+  /** F3: as formas da ficha (`formasNoMenu`). Vazio ou ausente = a tira Transformação apagada. */
+  formas?: readonly FormaNoMenu[]
+  /** F3: de quem é a ficha (lembra "trocar a imagem" no aparelho). */
+  personagemId?: string | null
 }
 
-type Tela = { tipo: 'menu' } | { tipo: 'lista'; de: 'atacar' | 'habilidade' } | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' }
+type Tela = { tipo: 'menu' } | { tipo: 'lista'; de: 'atacar' | 'habilidade' } | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' } | { tipo: 'formas' }
 
 const SEM_MOTIVO = null
 const SEM_CONTRAS: readonly ContraNoMenu[] = []
-const TRANSFORMACAO = 'Chega na próxima fase; por enquanto, ligue pela ficha'
+const SEM_FORMAS: readonly FormaNoMenu[] = []
+const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null } = props
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
@@ -103,20 +110,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
   }
 
   const lancar = (golpe: GolpeNaTela, escolha: EscolhaDaMira): boolean => {
-    const pedido: PedidoDeAcao =
-      golpe.tipo === 'atacar'
-        ? { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante }
-        : {
-            tipo: 'habilidade',
-            cartaoId: golpe.cartaoId ?? '',
-            armaId: golpe.armaId,
-            alvos: escolha.alvos,
-            surpresa: escolha.surpresa,
-            perfurante: escolha.perfurante,
-            custo: escolha.custo,
-            acao: escolha.acao,
-          }
-    const saiu = agir(pedido)
+    const saiu = agir(pedidoDoGolpe(golpe, escolha))
     if (saiu) {
       setTela({ tipo: 'menu' })
       setAtual(0)
@@ -167,6 +161,26 @@ export function MenuDaVez(props: MenuDaVezProps) {
         vazio={tela.de === 'atacar' ? 'Nenhuma arma levada para esta batalha.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
         onEscolher={(golpe) => abrir({ tipo: 'mira', golpe, de: tela.de }, false)}
+      />
+    )
+  }
+
+  if (tela.tipo === 'formas') {
+    return (
+      <ListaDeFormas
+        pips={pips}
+        carga={carga}
+        formas={formas}
+        acoes={acoes}
+        personagemId={personagemId}
+        instantaneo={porTeclado}
+        esperando={esperando}
+        onAgir={agir}
+        onFeito={() => {
+          setTela({ tipo: 'menu' })
+          setAtual(0)
+        }}
+        onVoltar={() => abrir({ tipo: 'menu' }, true)}
       />
     )
   }
@@ -231,7 +245,16 @@ export function MenuDaVez(props: MenuDaVezProps) {
       )
     itens.push({ chave: 'atacar', nome: 'Atacar', lado: armas.length > 0 && armas[0]?.chave !== 'ataque' ? `${armas.length} ${armas.length === 1 ? 'arma' : 'armas'}` : null, executar: (t) => abrir({ tipo: 'lista', de: 'atacar' }, t) })
     itens.push({ chave: 'habilidades', nome: 'Habilidades', lado: habilidades.length > 0 ? String(habilidades.length) : null, executar: (t) => abrir({ tipo: 'lista', de: 'habilidade' }, t) })
-    itens.push({ chave: 'transformacao', nome: 'Transformação', forma: true, motivo: TRANSFORMACAO, executar: () => {} })
+    const ligada = formas.find((forma) => forma.ligada)
+    itens.push({
+      chave: 'transformacao',
+      nome: 'Transformação',
+      forma: true,
+      lado: ligada !== undefined ? 'ATIVA' : formas.length > 0 ? String(formas.length) : null,
+      detalhe: ligada !== undefined ? `Em ${nomeDaForma(ligada)} · desfazer é ação livre` : formas.length === 1 ? nomeDaForma(formas[0] as FormaNoMenu) : null,
+      motivo: formas.length === 0 ? SEM_TRANSFORMACAO : SEM_MOTIVO,
+      executar: (t) => abrir({ tipo: 'formas' }, t),
+    })
     itens.push({
       chave: 'concentrar',
       nome: 'Concentrar',

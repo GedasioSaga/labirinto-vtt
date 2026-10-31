@@ -380,6 +380,96 @@ button.bt-carta__corpo {
   color: var(--lado, var(--lb-color-parchment-dim));
 }
 
+/*
+ * F3: a FORMA ligada pelo menu (o `.carta__forma` do protótipo): contorno roxo
+ * e o nome da forma sob o nome da ficha. O roxo é o `--bt-forma` (combate.css),
+ * com o arcano do tema de reserva: a faixa do jogador pode carregar só esta folha.
+ */
+.bt-carta[data-forma='sim'] .bt-carta__corpo {
+  box-shadow: inset 0 0 0 2px var(--bt-forma, var(--lb-color-arcane)), var(--lb-shadow-bevel);
+}
+.bt-carta[data-forma='sim'][data-vez='sim'] .bt-carta__corpo {
+  box-shadow:
+    inset 0 0 0 2px var(--lb-color-brass),
+    0 0 0 2px var(--bt-forma, var(--lb-color-arcane)),
+    var(--lb-shadow-md);
+}
+.bt-carta__forma {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bt-forma, var(--lb-color-arcane));
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* F3: os selos sob as barras ("ATORDOADO 2"). */
+.bt-carta__selos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 5px;
+}
+.bt-selo {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+  font-family: var(--lb-font-utility);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* No mestre o selo da carta abre editar e tirar: mostra que é clicável. */
+@media (hover: hover) and (pointer: fine) {
+  .bt-selo[data-selo] {
+    cursor: pointer;
+    transition: background-color var(--lb-motion-fast) ease;
+  }
+  .bt-selo[data-selo]:hover {
+    background: rgba(226, 100, 90, 0.3);
+  }
+}
+/* Os selos da ficha da vez no painel do mestre: botões que abrem editar e tirar. */
+.bt-selos-da-vez {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--lb-space-2);
+}
+.bt-selo--botao {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  font-size: var(--lb-font-size-xs);
+  line-height: 26px;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    transform 120ms var(--lb-gr-ease-out);
+}
+.bt-selo--botao:active {
+  transform: scale(0.97);
+}
+.bt-selo--botao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-selo--botao:hover {
+    background: rgba(226, 100, 90, 0.3);
+  }
+}
+
 /* A barra: a cor anda primeiro e o rastro claro alcança depois (o dano que some). */
 .bt-barra {
   position: relative;
@@ -972,6 +1062,12 @@ button.bt-carta__corpo {
     transition: background-color var(--lb-motion-fast) ease;
   }
   .bt-botao:active:not(:disabled) {
+    transform: none;
+  }
+  .bt-selo--botao {
+    transition: background-color var(--lb-motion-fast) ease;
+  }
+  .bt-selo--botao:active {
     transform: none;
   }
   @starting-style {

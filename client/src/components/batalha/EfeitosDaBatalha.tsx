@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { EfeitoDaBatalha, SaidaDaReacao } from '../../lib/batalha/combate'
+import type { EfeitoDaBatalha, NumeroDaForma, SaidaDaReacao } from '../../lib/batalha/combate'
 import { saidasPossiveis } from '../../lib/batalha/reacao'
+import { ehRefDeMidia, type ResolverDeImagem } from '../../lib/midia'
+import { useImagemDaMesa } from '../ImagemDaMesa'
 import { anuncioDoEfeito, formatarNumero, movimentoReduzido, palavraDoDano, TEXTO_DA_SAIDA } from './dadosDoMenu'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
 import './batalha.css'
@@ -30,6 +32,13 @@ import './combate.css'
  *
  * A posição da ficha vem da consulta da S4 (px da janela), lida no começo de
  * cada efeito; ficha fora da tela não ganha d20 nem número.
+ *
+ * F3 (fatia T): a TRANSFORMAÇÃO, porte do `efeitoTransformacao` do protótipo
+ * aprovado (cerca de 2,2 s, também palco): o palco roxo, os raios girando, dois
+ * anéis estourando, o retrato (a imagem da forma, senão a da ficha), o clarão
+ * curto, o nome da forma batendo no centro e os números subindo (só para o
+ * dono e os aliados: sem `numeros`, só o nome). A forma desfeita e o selo que
+ * acabou são um texto curto sobre a ficha (220/650/200 ms).
  */
 
 export interface EfeitosDaBatalhaProps {
@@ -50,10 +59,11 @@ export interface EfeitosDaBatalhaProps {
 }
 
 /**
- * O que ocupa o palco: o corte de um golpe, a faixa da vez de outro, ou a SUA
- * VEZ (tocando ou ainda na fila: o menu novo da vez entra depois dela).
+ * O que ocupa o palco: o corte de um golpe, a transformação, a faixa da vez
+ * de outro, ou a SUA VEZ (tocando ou ainda na fila: o menu novo da vez entra
+ * depois dela).
  */
-export type PalcoDosEfeitos = 'golpe' | 'vez' | 'suaVez' | null
+export type PalcoDosEfeitos = 'golpe' | 'transformacao' | 'vez' | 'suaVez' | null
 
 type Tarefa = { tipo: 'efeito'; efeito: EfeitoDaBatalha } | { tipo: 'vez'; nome: string; minha: boolean }
 
@@ -66,6 +76,10 @@ const ENTRA_MS = 220
 const SEGURA_MS = 1200
 const SAI_MS = 260
 const TECLAS_QUE_PULAM = new Set(['Enter', ' ', 'Escape'])
+/** O texto curto sobre a ficha (forma desfeita, selo que acabou): entra, segura e sai. */
+const AVISO_ENTRA_MS = 220
+const AVISO_SEGURA_MS = 650
+const AVISO_SAI_MS = 200
 
 /** A tecla no campo de texto (chat, modificador) é do texto: não pula nem é engolida. */
 function emCampoDeTexto(alvo: EventTarget | null): boolean {
@@ -77,7 +91,18 @@ function emCampoDeTexto(alvo: EventTarget | null): boolean {
 function palcoDa(tarefa: Tarefa | null): PalcoDosEfeitos {
   if (tarefa === null) return null
   if (tarefa.tipo === 'vez') return tarefa.minha ? 'suaVez' : 'vez'
+  if (tarefa.efeito.tipo === 'transformacao') return 'transformacao'
   return tarefa.efeito.tipo === 'golpe' ? 'golpe' : null
+}
+
+/**
+ * O `src` de uma imagem da mesa: a referência `midia:` passa pelo resolvedor
+ * da tela (o jogador na sala, o mestre pela ponte de arquivos); sem base
+ * conhecida, fica `null` (iniciais). A embutida e o resto passam como vieram.
+ */
+function srcDaImagem(resolver: ResolverDeImagem, valor: string | null): string | null {
+  if (valor === null || valor === '') return null
+  return ehRefDeMidia(valor) ? resolver(valor) : (resolver(valor) ?? valor)
 }
 
 function maiorSeq(efeitos: readonly EfeitoDaBatalha[]): number {
@@ -178,9 +203,10 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
   const ultimoSeq = useRef<number | null>(null)
   const ultimaVez = useRef<string | null | undefined>(undefined)
   const [anuncio, setAnuncio] = useState('')
+  const resolver = useImagemDaMesa()
   // As props mudam a cada render; o motor lê sempre as de agora.
-  const atuais = useRef({ consulta, nomeDe, imagemDe, onTremor, onPalco })
-  atuais.current = { consulta, nomeDe, imagemDe, onTremor, onPalco }
+  const atuais = useRef({ consulta, nomeDe, imagemDe, onTremor, onPalco, resolver })
+  atuais.current = { consulta, nomeDe, imagemDe, onTremor, onPalco, resolver }
 
   /**
    * O palco de agora: o corte e a faixa sobem a camada por cima de tudo e pegam
@@ -253,20 +279,26 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
 
   const tocar = async (motor: Palco, tarefa: Tarefa) => {
     const reduzido = movimentoReduzido()
-    const { consulta: consultar, nomeDe: nome, imagemDe: imagem, onTremor: tremer } = atuais.current
+    const { consulta: consultar, nomeDe: nome, imagemDe: imagem, onTremor: tremer, resolver: resolverImagem } = atuais.current
     if (tarefa.tipo === 'vez') return tocarFaixa(motor, tarefa.nome, tarefa.minha, reduzido)
     const efeito = tarefa.efeito
     // F3: o gesto do Judge toca no mapa (`pixi/judgeDoMapa.ts`); aqui só o anúncio da região viva.
     if (efeito.tipo === 'judge') return
-    // F3 (fatia T), fase 0: transformação, forma desfeita e selo acabado ainda só têm o anúncio; a animação chega na T-C.
-    if (efeito.tipo === 'transformacao' || efeito.tipo === 'forma' || efeito.tipo === 'selo') return
+    if (efeito.tipo === 'transformacao') {
+      const retrato = srcDaImagem(resolverImagem, efeito.imagem) ?? srcDaImagem(resolverImagem, imagem(efeito.tokenId))
+      return tocarTransformacao(motor, nome(efeito.tokenId), retrato, efeito.forma, efeito.numeros ?? [], reduzido)
+    }
     if (efeito.tipo === 'golpe') {
-      await tocarCorte(motor, nome(efeito.atacanteTokenId), imagem(efeito.atacanteTokenId), efeito.nome, efeito.surpresa ? 'Surpresa' : efeito.overload ? 'Overload' : null, reduzido)
+      const retrato = srcDaImagem(resolverImagem, imagem(efeito.atacanteTokenId))
+      await tocarCorte(motor, nome(efeito.atacanteTokenId), retrato, efeito.nome, efeito.surpresa ? 'Surpresa' : efeito.overload ? 'Overload' : null, reduzido)
       if (!reduzido) await Promise.all(efeito.alvos.map((tokenId) => tocarRisco(motor, motor.posicao(consultar, tokenId))))
       return
     }
     const onde = motor.posicao(consultar, efeito.tokenId)
     if (onde === null) return
+    // F3: a forma desfeita e o selo que acabou: o texto curto sobre a ficha.
+    if (efeito.tipo === 'forma') return tocarAviso(motor, onde, `${efeito.forma} desfeito`, 'forma', reduzido)
+    if (efeito.tipo === 'selo') return tocarAviso(motor, onde, `${efeito.nome} acabou`, 'selo', reduzido)
     if (efeito.tipo === 'reacao') return tocarDado(motor, onde, efeito.d20, efeito.modificador, efeito.total, reduzido)
     if (efeito.valor > 0 && !reduzido) tremer?.()
     return tocarNumero(motor, onde, efeito.valor, efeito.saida, reduzido)
@@ -477,6 +509,152 @@ async function tocarNumero(motor: Palco, onde: { x: number; y: number; raio: num
   )
   await motor.esperar(520)
   await motor.animar(el, [{ transform: base, opacity: 1 }, { transform: `${base} translateY(-22px)`, opacity: 0 }], { duration: 240, easing: EASE })
+  el.remove()
+}
+
+function filho(pai: HTMLElement, classe: string): HTMLElement {
+  const el = document.createElement('div')
+  el.className = classe
+  pai.appendChild(el)
+  return el
+}
+
+/** Os números da forma sobem do "de" ao "para" (ease-out cúbico). Pulado ou aba escondida: vão direto ao fim. */
+function contarNumeros(motor: Palco, alvos: readonly { el: HTMLElement; de: number; para: number }[], ms: number): Promise<void> {
+  return new Promise((resolver) => {
+    const inicio = performance.now()
+    let feito = false
+    const fim = () => {
+      if (feito) return
+      feito = true
+      for (const alvo of alvos) alvo.el.textContent = formatarNumero(alvo.para)
+      resolver()
+    }
+    const passo = () => {
+      if (feito) return
+      const p = motor.pulando ? 1 : Math.min(1, (performance.now() - inicio) / ms)
+      const q = 1 - Math.pow(1 - p, 3)
+      for (const alvo of alvos) alvo.el.textContent = formatarNumero(Math.round(alvo.de + (alvo.para - alvo.de) * q))
+      if (p < 1) window.requestAnimationFrame(passo)
+      else fim()
+    }
+    window.requestAnimationFrame(passo)
+    // O quadro pode não vir (aba escondida): o relógio garante o fim.
+    void motor.esperar(ms + 60).then(fim)
+  })
+}
+
+/**
+ * A TRANSFORMAÇÃO (porte do `efeitoTransformacao` do protótipo): o palco roxo
+ * entra em 160 ms, os raios giram 1,5 s, dois anéis estouram de 0,35 a 2,8 em
+ * 620 ms (aos 120 e 230 ms), o retrato sobe em 340 ms, o clarão de 300 ms aos
+ * 300 ms, o rótulo aos 380 ms, o nome bate de 1,6 a 1 aos 420 ms, as linhas
+ * dos números aos 760 ms (+60 ms cada), contam em 420 ms, seguram 700 ms e
+ * tudo sai em 220 ms. Movimento reduzido: aparece, números já no fim, some.
+ */
+async function tocarTransformacao(motor: Palco, quem: string, imagem: string | null, forma: string, numeros: readonly NumeroDaForma[], reduzido: boolean) {
+  const el = motor.criar('bt-ef-transformacao')
+  const fundo = filho(el, 'bt-ef-transformacao__fundo')
+  const raios = filho(el, 'bt-ef-transformacao__raios')
+  const aneis = [filho(el, 'bt-ef-transformacao__anel'), filho(el, 'bt-ef-transformacao__anel')]
+  const retrato = filho(el, 'bt-ef-transformacao__retrato')
+  if (imagem !== null) {
+    const foto = document.createElement('img')
+    foto.src = imagem
+    foto.alt = ''
+    retrato.appendChild(foto)
+  } else {
+    texto(retrato, 'bt-ef-transformacao__iniciais', iniciais(quem))
+  }
+  const caixa = filho(el, 'bt-ef-transformacao__texto')
+  const rotulo = texto(caixa, 'bt-ef-transformacao__rot', `${quem} · Transformação`)
+  const nome = texto(caixa, 'bt-ef-transformacao__nome', forma)
+  const linhas: HTMLElement[] = []
+  const contas: { el: HTMLElement; de: number; para: number }[] = []
+  if (numeros.length > 0) {
+    const lista = filho(caixa, 'bt-ef-transformacao__numeros')
+    for (const numero of numeros) {
+      const linha = filho(lista, '')
+      texto(linha, '', numero.rotulo)
+      linha.appendChild(document.createTextNode(`${formatarNumero(numero.de)} → `))
+      const valor = document.createElement('b')
+      valor.textContent = formatarNumero(numero.de)
+      linha.appendChild(valor)
+      if (numero.nota !== undefined && numero.nota !== '') texto(linha, '', numero.nota, 'small')
+      linhas.push(linha)
+      contas.push({ el: valor, de: numero.de, para: numero.para })
+    }
+  }
+  const clarao = filho(el, 'bt-ef-transformacao__clarao')
+
+  if (reduzido) {
+    for (const conta of contas) conta.el.textContent = formatarNumero(conta.para)
+    await motor.animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: EASE })
+    await motor.esperar(1100)
+    await motor.animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: EASE })
+    el.remove()
+    return
+  }
+
+  void motor.animar(fundo, [{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: EASE })
+  void motor.animar(
+    raios,
+    [
+      { transform: 'rotate(0deg)', opacity: 0 },
+      { transform: 'rotate(8deg)', opacity: 1, offset: 0.25 },
+      { transform: 'rotate(24deg)', opacity: 0.55 },
+    ],
+    { duration: 1500, easing: 'linear' },
+  )
+  aneis.forEach((anel, i) => {
+    void motor.animar(anel, [{ transform: 'scale(0.35)', opacity: 1 }, { transform: 'scale(2.8)', opacity: 0 }], { duration: 620, delay: 120 + i * 110, easing: EASE })
+  })
+  void motor.animar(retrato, [{ transform: 'translateY(6%) scale(1.06)', opacity: 0 }, { transform: 'translateY(0) scale(1)', opacity: 1 }], { duration: 340, delay: 80, easing: EASE })
+  void motor.animar(clarao, [{ opacity: 0 }, { opacity: 0.7, offset: 0.25 }, { opacity: 0 }], { duration: 300, delay: 300, easing: EASE })
+  void motor.animar(rotulo, [{ opacity: 0, transform: 'translateX(-20px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 240, delay: 380, easing: EASE })
+  void motor.animar(
+    nome,
+    [
+      { opacity: 0, transform: 'rotate(-4deg) scale(1.6)' },
+      { opacity: 1, transform: 'rotate(-4deg) scale(0.96)', offset: 0.7 },
+      { opacity: 1, transform: 'rotate(-4deg) scale(1)' },
+    ],
+    { duration: 300, delay: 420, easing: EASE },
+  )
+  linhas.forEach((linha, i) => {
+    void motor.animar(linha, [{ opacity: 0, transform: 'translateX(-16px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 220, delay: 760 + i * 60, easing: EASE })
+  })
+  await motor.esperar(820)
+  if (contas.length > 0) await contarNumeros(motor, contas, 420)
+  await motor.esperar(contas.length > 0 ? 700 : 900)
+  await motor.animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: EASE })
+  el.remove()
+}
+
+/** O texto curto sobre a ficha ("PUNHO NEGRO DESFEITO", "ATORDOADO ACABOU"): sobe de leve, segura e some subindo. */
+async function tocarAviso(motor: Palco, onde: { x: number; y: number; raio: number }, conteudo: string, tipo: 'forma' | 'selo', reduzido: boolean) {
+  const el = motor.criar('bt-ef-aviso')
+  el.dataset.tipo = tipo
+  el.textContent = conteudo
+  const base = `translate(${onde.x}px, ${onde.y - onde.raio - 10}px) translate(-50%, -100%)`
+  el.style.transform = base
+  if (reduzido) {
+    await motor.animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: AVISO_ENTRA_MS, easing: EASE })
+    await motor.esperar(AVISO_SEGURA_MS)
+    await motor.animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: AVISO_SAI_MS, easing: EASE })
+    el.remove()
+    return
+  }
+  await motor.animar(
+    el,
+    [
+      { transform: `${base} translateY(8px) scale(0.96)`, opacity: 0 },
+      { transform: `${base} translateY(0) scale(1)`, opacity: 1 },
+    ],
+    { duration: AVISO_ENTRA_MS, easing: EASE },
+  )
+  await motor.esperar(AVISO_SEGURA_MS)
+  await motor.animar(el, [{ transform: base, opacity: 1 }, { transform: `${base} translateY(-10px)`, opacity: 0 }], { duration: AVISO_SAI_MS, easing: EASE })
   el.remove()
 }
 

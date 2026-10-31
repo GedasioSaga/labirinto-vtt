@@ -1389,8 +1389,431 @@
   color: var(--lb-color-brass-bright);
 }
 
+/* ---------------------------------------------------------------- F3: o painel da forma (Transformação) */
+.bt-forma__rot {
+  color: var(--bt-forma);
+}
+.bt-forma__texto {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+/* A prévia: "FOR 160 → 220", uma linha por número, em tinta sobre o papel. */
+.bt-forma__numeros {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+.bt-forma__numeros > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 2px 10px;
+  background: var(--bt-tinta);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-forma__numeros dt {
+  min-width: 5.5em;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-forma__numeros dd {
+  margin: 0;
+}
+.bt-forma__numeros b {
+  color: var(--lb-color-online);
+}
+.bt-forma__numeros small {
+  color: var(--lb-color-parchment-faint);
+}
+.bt-forma__tecnicas {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  overflow-wrap: anywhere;
+}
+.bt-forma__tecnicas > span:first-child {
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(110, 80, 170, 0.18);
+  color: #4b3482;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bt-forma__tecnicas small {
+  color: #5d5a54;
+}
+/* A ação em 3 botões (rádios de verdade: as setas trocam, como todo grupo de rádio). */
+.bt-forma__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.bt-forma__acoes legend {
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5d5a54;
+}
+.bt-forma__acao {
+  position: relative;
+  cursor: pointer;
+}
+.bt-forma__acao input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.bt-forma__acao > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 2px solid var(--bt-tinta);
+  border-radius: 3px;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition:
+    background-color 80ms ease,
+    color 80ms ease,
+    transform 120ms var(--bt-ease-out);
+}
+.bt-forma__acao small {
+  font-family: var(--lb-font-utility);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+.bt-forma__acao input:checked + span {
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  box-shadow: 3px 3px 0 var(--bt-forma);
+}
+.bt-forma__acao:active > span {
+  transform: scale(0.97);
+}
+.bt-forma__acao input:focus-visible + span {
+  outline: 2px solid var(--bt-forma);
+  outline-offset: 2px;
+}
+.bt-forma .bt-chave input:checked + .bt-chave__trilho {
+  background: var(--bt-forma);
+}
+.bt-forma__motivo {
+  color: #8a2c22;
+  font-weight: 600;
+}
+.bt-botao--forma {
+  background: var(--bt-forma);
+  border-color: var(--bt-forma);
+  color: var(--bt-tinta);
+  font-weight: 700;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-botao.bt-botao--forma:hover:not(:disabled) {
+    background: #c3b1e3;
+  }
+}
+/* No painel do NPC a forma abre sob a linha, mais estreita (a aba Batalha é uma coluna). */
+.bt-forma--npc {
+  margin: 6px 0 4px;
+}
+.bt-npc__legenda {
+  margin: 0 0 4px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-opcao--forma {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  cursor: default;
+}
+.bt-opcao--forma[data-ligada='sim'] {
+  box-shadow: inset 2px 0 0 var(--bt-forma);
+}
+.bt-opcao__sug--forma {
+  background: var(--bt-forma);
+  color: var(--bt-tinta);
+}
+
+/* F3: o selo sugerido na mira (marcado; nome e turnos editáveis). */
+.bt-mira__selo {
+  display: grid;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  background: rgba(12, 12, 14, 0.06);
+}
+.bt-mira__selo[data-marcado='sim'] {
+  background: rgba(180, 73, 60, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(180, 73, 60, 0.45);
+}
+.bt-mira__selo .bt-chave small {
+  display: block;
+  flex-basis: 100%;
+}
+.bt-mira__selo .bt-chave {
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+.bt-mira__selo-campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.bt-num.bt-num--texto {
+  width: 16ch;
+  text-align: left;
+}
+
+/* F3: pôr, editar e tirar selo (janela do mestre). */
+.bt-selo-form__prontos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.bt-selo-form__prontos legend,
+.bt-selo-form__duracao legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-selo-form__campo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.bt-selo-form__conta {
+  min-width: 4ch;
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+.bt-selo-form .bt-num {
+  background: var(--lb-color-stone-sunken);
+  border-color: var(--lb-color-line-strong);
+  color: var(--lb-color-parchment);
+}
+.bt-selo-form .bt-num:disabled {
+  opacity: 0.45;
+}
+.bt-selo-form__duracao {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.bt-selo-form__opcao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+}
+.bt-selo-form__opcao input[type='radio'] {
+  margin: 0;
+  accent-color: var(--bt-sangue);
+}
+.bt-selo-form__opcao small {
+  color: var(--lb-color-parchment-faint);
+}
+.bt-selo-form__tirar {
+  margin-right: auto;
+  color: var(--lb-color-ember);
+}
+
+/* ---------------------------------------------------------------- F3: a transformação sobre o mapa (palco) */
+.bt-ef-transformacao {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.bt-ef-transformacao__fundo {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 40% 50%, rgba(60, 40, 100, 0.9), rgba(8, 6, 12, 0.96) 70%);
+}
+.bt-ef-transformacao__raios {
+  position: absolute;
+  left: 40%;
+  top: 50%;
+  width: 150%;
+  aspect-ratio: 1;
+  margin: -75% 0 0 -75%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(171, 147, 214, 0.22) 0deg 4deg, transparent 4deg 14deg);
+  will-change: transform;
+}
+.bt-ef-transformacao__anel {
+  position: absolute;
+  left: 40%;
+  top: 50%;
+  width: 42%;
+  aspect-ratio: 1;
+  margin: -21% 0 0 -21%;
+  border: 8px solid var(--bt-forma);
+  border-radius: 50%;
+}
+.bt-ef-transformacao__retrato {
+  position: absolute;
+  left: 14%;
+  bottom: 0;
+  width: 40%;
+  height: 92%;
+  display: grid;
+  place-items: end center;
+}
+.bt-ef-transformacao__retrato img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+}
+.bt-ef-transformacao__iniciais {
+  display: grid;
+  place-items: center;
+  width: min(70%, 60cqh);
+  aspect-ratio: 1;
+  margin-bottom: 14%;
+  border-radius: 50%;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  box-shadow:
+    0 0 0 5px var(--bt-tinta),
+    0 0 0 9px var(--bt-forma);
+  font-family: var(--bt-titulo);
+  font-weight: 700;
+  font-size: clamp(36px, 7cqw, 110px);
+}
+.bt-ef-transformacao__clarao {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 34% 55%, rgba(255, 255, 255, 0.9), rgba(220, 205, 255, 0.35) 38%, transparent 70%);
+  opacity: 0;
+}
+.bt-ef-transformacao__texto {
+  position: absolute;
+  left: 46%;
+  top: 22%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 50%;
+}
+.bt-ef-transformacao__rot {
+  font-family: var(--lb-font-utility);
+  font-size: clamp(12px, 1.4cqw, 18px);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bt-forma);
+  overflow-wrap: anywhere;
+}
+.bt-ef-transformacao__nome {
+  display: inline-block;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 4px 18px 8px;
+  background: var(--bt-papel);
+  color: var(--bt-tinta);
+  transform: rotate(-4deg);
+  box-shadow: 8px 8px 0 var(--bt-forma);
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(28px, 5cqw, 72px);
+  line-height: 0.95;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.bt-ef-transformacao__numeros {
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
+  font-family: var(--lb-font-utility);
+  font-size: clamp(14px, 1.6cqw, 22px);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment);
+}
+.bt-ef-transformacao__numeros > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  align-items: baseline;
+  padding: 3px 12px;
+  background: rgba(12, 12, 14, 0.75);
+}
+.bt-ef-transformacao__numeros span {
+  min-width: 4.2em;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-ef-transformacao__numeros b {
+  color: var(--lb-color-online);
+}
+.bt-ef-transformacao__numeros small {
+  color: var(--lb-color-parchment-faint);
+}
+/* A forma desfeita e o selo que acabou: o texto curto sobre a ficha, no molde do número do dano, menor. */
+.bt-ef-aviso {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 2px 10px 4px;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  box-shadow: 4px 4px 0 var(--bt-sangue);
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: clamp(16px, 2.2cqw, 28px);
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.bt-ef-aviso[data-tipo='forma'] {
+  box-shadow: 4px 4px 0 var(--bt-forma);
+}
+
 /* ---------------------------------------------------------------- movimento reduzido: aparece e some */
 @media (prefers-reduced-motion: reduce) {
+  .bt-forma__acao > span {
+    transition:
+      background-color 80ms ease,
+      color 80ms ease;
+  }
+  .bt-forma__acao:active > span {
+    transform: none;
+  }
   .bt-tira,
   .bt-vez:not([data-instantaneo='sim']) .bt-tira,
   .bt-vez__cabeca {

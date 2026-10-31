@@ -85,6 +85,28 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
       itens.push({ id: 'acoes-extras', rotulo: 'Ações extras…', detalhe: 'Simples, Bônus e Movimento a mais na vez desta carta', onEscolher: () => setDialogo({ tipo: 'extras', cartaId: carta.id }) })
       if (personagemId !== null)
         itens.push({ id: 'armas', rotulo: 'Armas desta batalha…', detalhe: 'Trocar as armas levadas, dentro do limite da ficha', onEscolher: () => setDialogo({ tipo: 'armas', personagemId }) })
+      // F3: a forma ativada pelo menu. Desfazer é ação livre, mas só na vez da carta (a store confere a vez).
+      const forma = personagemId === null ? undefined : turnos?.formas?.[personagemId]
+      if (forma !== undefined && carta.forma) {
+        const naVez = jaEaVez && turnos !== undefined
+        itens.push({
+          id: 'desfazer-forma',
+          rotulo: `Desfazer a forma (${carta.forma})`,
+          detalhe: naVez ? 'Ação livre; entra no registro, o Desfazer volta' : 'Fora da vez: desligue pela ficha',
+          desabilitado: !naVez,
+          onEscolher: () => {
+            if (turnos === undefined) return
+            store.agir(sceneKey, MESTRE, { cartaId: carta.id, rodada: turnos.rodada }, { tipo: 'destransformar', cartaoId: forma.cartaoId })
+          },
+        })
+      }
+      // F3: os selos da ficha (por token: a carta extra mostra os mesmos).
+      itens.push({ id: 'por-selo', secao: 'Selos', rotulo: 'Pôr selo…', detalhe: 'Atordoado, Cego… com turnos ou até tirar', onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId: null }) })
+      for (const selo of carta.selos ?? []) {
+        const seloId = selo.id
+        if (seloId === null) continue
+        itens.push({ id: `selo-${seloId}`, rotulo: `${selo.texto}…`, detalhe: 'Editar ou tirar', onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId }) })
+      }
       if (personagemId !== null && (carta.carga ?? 0) > 0)
         itens.push({
           id: 'zerar-carga',
@@ -120,7 +142,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
       })
       return itens
     },
-    [dados, equipes, sceneKey],
+    [dados, equipes, sceneKey, turnos],
   )
 
   if (cena === undefined || dados === null) return null
@@ -138,6 +160,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         regras={cena.regras}
         registro={registro}
         onDesfazer={(linhaId) => useBatalhaStore.getState().desfazer(sceneKey, linhaId, MESTRE)}
+        onSelo={(carta, seloId) => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId })}
       />
       {perfil !== undefined && (
         <PerfilDaCarta

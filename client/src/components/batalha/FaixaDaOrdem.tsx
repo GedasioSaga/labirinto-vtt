@@ -44,6 +44,8 @@ export interface FaixaDaOrdemProps {
   onDesfazer: (linhaId: string) => void
   pendentes?: ReadonlySet<string>
   className?: string
+  /** F3, mestre: o clique caiu num selo da carta (`data-selo`): abre editar e tirar no lugar do menu. */
+  onSelo?: (carta: DadosDaCarta, seloId: string) => void
 }
 
 /** Arrastar só começa depois deste tanto: clique com a mão tremendo continua clique. */
@@ -82,7 +84,7 @@ function moverVoltando(el: HTMLElement, dx: number): void {
   el.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: VOLTA_MS, easing: CURVA_DA_VOLTA })
 }
 
-export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil, abrePerfil, onPassarVez, passandoVez, regras, registro, onDesfazer, pendentes, className }: FaixaDaOrdemProps) {
+export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil, abrePerfil, onPassarVez, passandoVez, regras, registro, onDesfazer, pendentes, className, onSelo }: FaixaDaOrdemProps) {
   const doMestre = papel === 'mestre'
   const arrasta = doMestre && onMover !== undefined
   const tituloId = useId()
@@ -251,6 +253,14 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
   const comMenu = (carta: DadosDaCarta) => menuDaCarta !== undefined && (doMestre || menuDaCarta(carta).length > 0)
   const clicar = (carta: DadosDaCarta, evento: MouseEvent<HTMLButtonElement>) => {
     if (cliqueEngolido.current) return
+    // F3: o selo da carta do mestre abre editar e tirar (pelo teclado, os selos ficam no menu da carta).
+    const selo = onSelo === undefined || !(evento.target instanceof Element) ? null : evento.target.closest<HTMLElement>('[data-selo]')
+    const seloId = selo?.dataset.selo
+    if (onSelo !== undefined && seloId !== undefined && seloId !== '') {
+      setMenu(null)
+      onSelo(carta, seloId)
+      return
+    }
     if (comMenu(carta)) {
       const ancora = evento.currentTarget
       setMenu((aberto) => (aberto?.cartaId === carta.id ? null : { cartaId: carta.id, ancora }))
