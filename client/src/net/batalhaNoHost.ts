@@ -13,6 +13,7 @@ import {
   type BatalhaArmasMessage,
   type BatalhaDanoMessage,
   type BatalhaDesfazerMessage,
+  type BatalhaEvoluirMessage,
   type BatalhaHostMessage,
   type BatalhaPassarMessage,
   type BatalhaPassivaMessage,
@@ -137,6 +138,13 @@ export interface BatalhaNoHost {
    * teto de selos, Aplicar só com o lembrete) a store confere.
    */
   passiva(conexao: ConexaoNaBatalha, msg: BatalhaPassivaMessage): RespostaDaBatalha
+  /**
+   * Tipos de habilidade F4: Evoluir a técnica de ficha DELE de verdade (token
+   * e personagem dele, carta na ordem), só na vez de uma carta dele com o
+   * mesmo personagem. A regra (a técnica evolui, ainda não evoluiu, SP) a
+   * store confere.
+   */
+  evoluir(conexao: ConexaoNaBatalha, msg: BatalhaEvoluirMessage): RespostaDaBatalha
 }
 
 const NADA: RespostaDaBatalha = { saidas: [], mudou: false }
@@ -480,6 +488,23 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         // O oponente escolhido, só entre as fichas que a tela dele tem: o pedido não acha token que ele não vê.
         if (pedido.tipo === 'passiva' && pedido.alvoTokenId !== undefined && !lugar.fichasNaTela.some((ficha) => ficha.id === pedido.alvoTokenId)) return false
         return ponte.passiva(lugar.sceneKey, autorDe(conexao), pedido)
+      })
+    },
+
+    evoluir(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        const { pedido } = msg
+        const carta = cena.turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)
+        // A técnica é do personagem de uma ficha DELE de verdade: nunca da emprestada nem do NPC (essas o mestre evolui).
+        if (ponte.evoluir === undefined || carta === undefined || carta.personagemId === null) return false
+        if (!lugar.meusTokens.has(carta.tokenId) || !lugar.meusPersonagens.has(carta.personagemId)) return false
+        // Só na vez dele: a carta da vez é token dele com o MESMO personagem (a store confere de novo).
+        const daVez = cartaDaVez(cena.turnos)
+        if (daVez === null || daVez.personagemId !== carta.personagemId || !lugar.meusTokens.has(daVez.tokenId)) return false
+        return ponte.evoluir(lugar.sceneKey, autorDe(conexao), pedido)
       })
     },
   }

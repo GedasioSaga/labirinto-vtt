@@ -7926,6 +7926,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return batalhaNoHost.zerarCarga(conexao, msg)
       case 'batalha.passiva':
         return batalhaNoHost.passiva(conexao, msg)
+      case 'batalha.evoluir':
+        return batalhaNoHost.evoluir(conexao, msg)
     }
   }
 
@@ -9744,6 +9746,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'batalha.armas':
       case 'batalha.zerarCarga':
       case 'batalha.passiva':
+      case 'batalha.evoluir':
         return handleBatalha(clientId, msg, world)
       case 'clue.read':
         return handleClueRead(clientId, msg, world)

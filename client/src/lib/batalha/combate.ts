@@ -69,6 +69,12 @@ export interface CombateDoPersonagem {
    * começo da vez. A passiva NUNCA ativa sozinha (decisões 3 e 4). Ausente = nenhum.
    */
   lembretes?: readonly LembreteDaPassiva[]
+  /**
+   * Tipos de habilidade F4: os cartaoIds BASE que evoluíram nesta batalha
+   * (`PedidoDeEvolucao`). Vale só nesta batalha: a evolução permanente é
+   * editar a ficha. Ausente = nenhum. Até `EVOLUIDAS_MAX`.
+   */
+  evoluidas?: readonly string[]
 }
 
 /**
@@ -107,10 +113,28 @@ export const TIPOS_DO_LEMBRETE: readonly TipoDoLembrete[] = ['ativar', 'porTurno
  *  - "lembrete": a resposta ao lembrete. `aplicar` true = Aplicar o efeito
  *    "a cada turno" (só com a passiva ligada); false = "Agora não" / pular.
  *    O "Ativar" do lembrete é o pedido "passiva" com `ligar` true.
+ *  - Tipos de habilidade F4: `variante` = a opção escolhida no Ativar da
+ *    passiva com escolha (Melodia): a `chave` de `variantesDe`, até
+ *    `NOME_DO_GOLPE_MAX`. Sem `selo`, o host lê o selo do texto da opção.
  */
 export type PedidoDePassiva =
-  | { tipo: 'passiva'; tokenId: string; cartaoId: string; ligar: boolean; alvoTokenId?: string; custo: number | null; selo?: SeloPedido }
+  | { tipo: 'passiva'; tokenId: string; cartaoId: string; ligar: boolean; alvoTokenId?: string; custo: number | null; selo?: SeloPedido; variante?: string }
   | { tipo: 'lembrete'; tokenId: string; cartaoId: string; aplicar: boolean }
+
+/**
+ * Tipos de habilidade F4 (Evolução, seções 3.3 e 4d do plano, decisão 5 do
+ * usuário): Evoluir a técnica `cartaoId` do personagem da ficha `tokenId`
+ * NESTA batalha. Ação livre (não gasta ação). O jogador, só na vez de uma
+ * carta do personagem; o mestre, sempre. `custo` = o digitado na tela, em SP
+ * (`null` = sem custo: o app não confere a condição, só a mostra). Mensagem
+ * própria no fio (`batalha.evoluir`): não é `PedidoDeAcao`.
+ */
+export interface PedidoDeEvolucao {
+  tipo: 'evoluir'
+  tokenId: string
+  cartaoId: string
+  custo: number | null
+}
 
 /** Um alvo como chega no pedido, ANTES da reação. `dano` null = golpe sem dano. */
 export interface PedidoDeAlvo {
@@ -145,6 +169,12 @@ export type PedidoDeAcao =
       acao: AcaoDaTecnica | null
       contraDe?: string
       selo?: SeloPedido
+      /**
+       * Tipos de habilidade F4: a opção escolhida nos chips da mira (a
+       * `chave` de `variantesDe`), até `NOME_DO_GOLPE_MAX`. Ausente = sem
+       * escolha. Vai no registro: "Harvey usa Medicina (Cirugia)".
+       */
+      variante?: string
     }
   | { tipo: 'concentrar' }
   /** Q6: o contra-ataque gasto em se mover. Só marca (e tira o atalho); o movimento em si é o arrasto de sempre. */
@@ -227,6 +257,10 @@ export interface GolpeDaBatalha {
   selo?: SeloDoGolpe
   /** A bala do Atacar (o registro diz "atira com Rosa Fúnebre (Bala de Prata)"); `efeito` vazio não vem. */
   bala?: BalaDoGolpe
+  /** Tipos de habilidade F4: o rótulo da opção escolhida ("Medicina (Cirugia)" no registro). Ausente = sem escolha. */
+  variante?: string
+  /** Tipos de habilidade F4: o uso evoluído da técnica sem "Evolui para" ("CAÇA AS BRUXAS! (evoluída)"). */
+  evoluida?: true
 }
 
 /** A bala que o golpe usou, como o registro a mostra. */
@@ -428,6 +462,8 @@ export const LEMBRADAS_MAX = 100
 export const LEMBRETES_MAX = 16
 /** Tipos de habilidade F3: passivas ligadas por personagem no recorte. */
 export const PASSIVAS_ATIVAS_MAX = 50
+/** Tipos de habilidade F4: técnicas evoluídas por personagem numa batalha (e no recorte). */
+export const EVOLUIDAS_MAX = 50
 /** F3: linhas na prévia da forma (e no efeito). */
 export const NUMEROS_DA_FORMA_MAX = 16
 /** F3: teto do rótulo e da nota de um número da forma no fio. */

@@ -1,5 +1,5 @@
 import type { Personagem } from '../personagem'
-import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDePassiva, PedidoDeReacao } from './combate'
+import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDeEvolucao, PedidoDePassiva, PedidoDeReacao } from './combate'
 import type { JudgeNaCena } from './judge'
 import type { LinhaDoRegistro } from './registro'
 import type { RegrasDaBatalha } from './regrasDoCampo'
@@ -82,4 +82,11 @@ export interface PonteDaBatalha {
    * ponte sem passivas (dublê de teste antigo) recusa o pedido.
    */
   passiva?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDePassiva): boolean
+  /**
+   * Tipos de habilidade F4: Evoluir a técnica nesta batalha (ação livre). A
+   * store confere a regra (`motivoDoEvoluir`: na vez do personagem, a técnica
+   * evolui, ainda não evoluiu, SP que dá); o host já conferiu que a ficha é
+   * dele. Opcional, como `passiva`: a ponte sem evolução recusa.
+   */
+  evoluir?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao): boolean
 }

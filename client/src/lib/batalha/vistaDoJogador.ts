@@ -162,6 +162,8 @@ export interface CombateParaJogador {
   lembradas?: string[]
   /** Tipos de habilidade F3: os cartaoIds das passivas ligadas (o "Ativa" da tira; o selo na carta não leva o cartaoId). Ausente = nenhuma. */
   passivasAtivas?: string[]
+  /** Tipos de habilidade F4: os cartaoIds base que evoluíram nesta batalha (o menu apaga e libera por eles). Ausente = nenhum. */
+  evoluidas?: string[]
 }
 
 export interface ReacaoParaJogador {

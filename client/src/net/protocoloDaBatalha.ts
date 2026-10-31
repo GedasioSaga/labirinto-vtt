@@ -8,6 +8,7 @@ import {
   CUSTO_MAX,
   DANO_MAX,
   EFEITOS_POR_MENSAGEM,
+  EVOLUIDAS_MAX,
   GOLPES_PENDENTES_MAX,
   LEMBRADAS_MAX,
   LEMBRETES_MAX,
@@ -32,6 +33,7 @@ import {
   type ModDoSelo,
   type NumeroDaForma,
   type PedidoDeAcao,
+  type PedidoDeEvolucao,
   type PedidoDePassiva,
   type PedidoDeAlvo,
   type PedidoDeReacao,
@@ -90,6 +92,10 @@ import {
  *  - tipos de habilidade F2: o selo do pedido aceita `mods?` (as linhas
  *    "atributo / delta" do Buff/Debuff); a carta do recorte leva `mods` e
  *    `natureza` de cada selo.
+ *  - tipos de habilidade F3: `batalha.passiva` (Ativar/Desligar, lembrete);
+ *  - tipos de habilidade F4: `habilidade` e a passiva aceitam `variante?`
+ *    (a opção escolhida); `batalha.evoluir` (Evoluir a técnica nesta
+ *    batalha); o combate do recorte leva `evoluidas`.
  * O host confere o resto (é a vez dele? a linha é dele?) e responde só
  * `ok: false`, sem motivo: motivo ensinaria ids.
  *
@@ -184,6 +190,17 @@ export interface BatalhaPassivaMessage {
   pedido: PedidoDePassiva
 }
 
+/**
+ * Tipos de habilidade F4: Evoluir a técnica nesta batalha. Ação livre, na vez
+ * do personagem (o host confere). Mensagem própria (não é `batalha.agir`):
+ * evoluir não é golpe nem gasta ação.
+ */
+export interface BatalhaEvoluirMessage {
+  type: 'batalha.evoluir'
+  reqId: string
+  pedido: PedidoDeEvolucao
+}
+
 /** Os pedidos de batalha do jogador da F1 (entram na união `PlayerMessage`). */
 export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
 
@@ -192,7 +209,14 @@ export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
  * sem mexer no `switch` do host: B a junta à `PlayerMessage` (`protocol.ts`)
  * junto com os `case` em `hostSession.ts`.
  */
-export type BatalhaAcaoPlayerMessage = BatalhaAgirMessage | BatalhaReagirMessage | BatalhaDanoMessage | BatalhaArmasMessage | BatalhaZerarCargaMessage | BatalhaPassivaMessage
+export type BatalhaAcaoPlayerMessage =
+  | BatalhaAgirMessage
+  | BatalhaReagirMessage
+  | BatalhaDanoMessage
+  | BatalhaArmasMessage
+  | BatalhaZerarCargaMessage
+  | BatalhaPassivaMessage
+  | BatalhaEvoluirMessage
 
 export interface BatalhaEstadoMessage {
   type: 'batalha.estado'
@@ -341,6 +365,16 @@ function lerSeloOpcional(value: unknown): SeloPedido | undefined | false {
   return lerSeloPedido(value) ?? false
 }
 
+/**
+ * Tipos de habilidade F4: `variante` ausente, ou a chave da opção (1 a
+ * `NOME_DO_GOLPE_MAX`). Se é opção da técnica, quem confere é a store
+ * (`varianteDoPedido`). `false` = torto.
+ */
+function lerVarianteOpcional(value: unknown): string | undefined | false {
+  if (value === undefined) return undefined
+  return textoAte(value, 1, NOME_DO_GOLPE_MAX) ? value : false
+}
+
 function lerAcaoDaForma(value: unknown): AcaoDaForma | null {
   return value === 'simples' || value === 'completa' || value === 'bonus' ? value : null
 }
@@ -371,15 +405,17 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const contraDe = lerContraDe(value.contraDe)
       const selo = lerSeloOpcional(value.selo)
       const perfuracao = lerPerfuracao(value.perfuracao)
+      const variante = lerVarianteOpcional(value.variante)
       // Habilidade de suporte pode não ter alvo.
       const alvosLidos = lerAlvosDoPedido(alvos, 0)
       const acaoLida = acao === null ? null : lerAcaoDaTecnica(acao)
       if (!textoAte(cartaoId, 1, CARTAO_ID_MAX) || !cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean') return null
-      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false || perfuracao === false) return null
+      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false || perfuracao === false || variante === false) return null
       const pedido: PedidoDeAcao = { tipo: 'habilidade', cartaoId, armaId, alvos: alvosLidos, surpresa, perfurante, custo, acao: acaoLida }
       if (perfuracao !== undefined) pedido.perfuracao = perfuracao
       if (contraDe !== undefined) pedido.contraDe = contraDe
       if (selo !== undefined) pedido.selo = selo
+      if (variante !== undefined) pedido.variante = variante
       return pedido
     }
     case 'concentrar':
@@ -531,11 +567,13 @@ export function lerPedidoDePassiva(value: unknown): PedidoDePassiva | null {
     case 'passiva': {
       const { ligar, custo, alvoTokenId } = value
       const selo = lerSeloOpcional(value.selo)
-      if (typeof ligar !== 'boolean' || (custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || selo === false) return null
+      const variante = lerVarianteOpcional(value.variante)
+      if (typeof ligar !== 'boolean' || (custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || selo === false || variante === false) return null
       if (alvoTokenId !== undefined && !textoAte(alvoTokenId, 1, ID_DA_BATALHA_MAX)) return null
       const pedido: PedidoDePassiva = { tipo: 'passiva', tokenId, cartaoId, ligar, custo }
       if (alvoTokenId !== undefined) pedido.alvoTokenId = alvoTokenId
       if (selo !== undefined) pedido.selo = selo
+      if (variante !== undefined) pedido.variante = variante
       return pedido
     }
     case 'lembrete':
@@ -551,6 +589,27 @@ export function parseBatalhaPassiva(value: unknown): BatalhaPassivaMessage | nul
   const pedido = lerPedidoDePassiva(value.pedido)
   if (!textoAte(reqId, 1, REQ_ID_MAX) || pedido === null) return null
   return { type: 'batalha.passiva', reqId, pedido }
+}
+
+/**
+ * Tipos de habilidade F4: `{ tipo: 'evoluir', tokenId, cartaoId, custo }`.
+ * Ids no teto, custo de 0 a `CUSTO_MAX` ou `null`. Se a técnica evolui, se é
+ * a vez e se a ficha é dele, quem confere é o host e a store.
+ */
+export function lerPedidoDeEvolucao(value: unknown): PedidoDeEvolucao | null {
+  if (!isRecord(value) || value.tipo !== 'evoluir') return null
+  const { tokenId, cartaoId, custo } = value
+  if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX)) return null
+  if (custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) return null
+  return { tipo: 'evoluir', tokenId, cartaoId, custo }
+}
+
+export function parseBatalhaEvoluir(value: unknown): BatalhaEvoluirMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.evoluir') return null
+  const { reqId } = value
+  const pedido = lerPedidoDeEvolucao(value.pedido)
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || pedido === null) return null
+  return { type: 'batalha.evoluir', reqId, pedido }
 }
 
 // ---- host → jogador ----
@@ -712,15 +771,20 @@ function lerChaveLembrada(value: unknown): string | null {
   return textoAte(value, 1, CHAVE_DA_LEMBRADA_MAX) ? value : null
 }
 
-/** Tipos de habilidade F3: `lembretes`, `lembradas` e `passivasAtivas`, cada um ausente ou lista no teto. Torto = `null` (derruba o combate). */
+/**
+ * Tipos de habilidade F3: `lembretes`, `lembradas` e `passivasAtivas`, cada um ausente ou lista no teto.
+ * F4: `evoluidas` também. Torto = `null` (derruba o combate).
+ */
 function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unknown>): CombateParaJogador | null {
   const lembretes = value.lembretes === undefined ? undefined : lerLista(value.lembretes, LEMBRETES_MAX, lerLembrete)
   const lembradas = value.lembradas === undefined ? undefined : lerLista(value.lembradas, LEMBRADAS_MAX, lerChaveLembrada)
   const ativas = value.passivasAtivas === undefined ? undefined : lerLista(value.passivasAtivas, PASSIVAS_ATIVAS_MAX, lerCartaoId)
-  if (lembretes === null || lembradas === null || ativas === null) return null
+  const evoluidas = value.evoluidas === undefined ? undefined : lerLista(value.evoluidas, EVOLUIDAS_MAX, lerCartaoId)
+  if (lembretes === null || lembradas === null || ativas === null || evoluidas === null) return null
   if (lembretes !== undefined) combate.lembretes = lembretes
   if (lembradas !== undefined) combate.lembradas = lembradas
   if (ativas !== undefined) combate.passivasAtivas = ativas
+  if (evoluidas !== undefined) combate.evoluidas = evoluidas
   return combate
 }
 

@@ -205,6 +205,7 @@ import {
   parseBatalhaDano,
   parseBatalhaEfeitos,
   parseBatalhaEstado,
+  parseBatalhaEvoluir,
   parseBatalhaPassiva,
   parseBatalhaReagir,
   parseBatalhaResultado,
@@ -215,7 +216,7 @@ import {
   type BatalhaPlayerMessage,
 } from '../net/protocoloDaBatalha'
 import type { EfeitoParaJogador, EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
-import { EFEITOS_POR_MENSAGEM, type PedidoDeAcao, type PedidoDePassiva, type PedidoDeReacao } from '../lib/batalha/combate'
+import { EFEITOS_POR_MENSAGEM, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDePassiva, type PedidoDeReacao } from '../lib/batalha/combate'
 import type { VezEsperada } from '../lib/batalha/ponte'
 
 /**
@@ -1329,6 +1330,13 @@ export interface PlayerConnection {
    * só com o lembrete esperando. `false` = não saiu.
    */
   passivaNaBatalha(pedido: PedidoDePassiva): boolean
+  /**
+   * BATALHA, tipos de habilidade F4 — Evoluir a técnica da ficha dele nesta
+   * batalha (ação livre, na vez dele; o host confere a vez e a regra). Só
+   * ficha dele com personagem no recorte (`batalhaEstado.meus`), ainda não
+   * evoluída. `false` = não saiu.
+   */
+  evoluirNaBatalha(pedido: PedidoDeEvolucao): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -6060,6 +6068,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const mensagem = parseBatalhaPassiva({ type: 'batalha.passiva', reqId: `b${nextReqId++}`, pedido })
       if (mensagem === null) return false
       return pedirNaBatalha(chaveDoPedido('passiva', mensagem.pedido), mensagem)
+    },
+    evoluirNaBatalha(pedido) {
+      const estado = state.batalhaEstado
+      if (state.status !== 'playing' || estado === undefined || !(state.ownTokens ?? []).includes(pedido.tokenId)) return false
+      // Já evoluída nesta batalha não sai de novo (o host confere de novo).
+      if ((estado.meus ?? []).some((meu) => (meu.evoluidas ?? []).includes(pedido.cartaoId))) return false
+      const mensagem = parseBatalhaEvoluir({ type: 'batalha.evoluir', reqId: `b${nextReqId++}`, pedido })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('evoluir', mensagem.pedido), mensagem)
     },
     reconnect: restart,
     wake() {

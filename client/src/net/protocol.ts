@@ -51,6 +51,7 @@ import {
   parseBatalhaArmas,
   parseBatalhaDano,
   parseBatalhaDesfazer,
+  parseBatalhaEvoluir,
   parseBatalhaPassar,
   parseBatalhaPassiva,
   parseBatalhaReagir,
@@ -3446,6 +3447,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseBatalhaZerarCarga(value)
     case 'batalha.passiva':
       return parseBatalhaPassiva(value)
+    case 'batalha.evoluir':
+      return parseBatalhaEvoluir(value)
     case 'danca.pronto':
     case 'danca.toques':
     case 'danca.fim':
