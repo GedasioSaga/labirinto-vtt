@@ -23,7 +23,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   copyFile: vi.fn(async () => undefined),
 }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({ save: vi.fn(async () => null), open: vi.fn(async () => null) }))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(async () => undefined) }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(async () => undefined), isTauri: () => false }))
 vi.mock('@tauri-apps/api/path', () => ({
   appDataDir: vi.fn(async () => 'C:/appdata'),
   join: vi.fn(async (...parts: string[]) => parts.join('/')),
