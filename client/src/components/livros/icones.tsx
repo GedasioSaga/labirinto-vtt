@@ -81,6 +81,15 @@ const TRACOS = {
       <path d="M12 10v4M12 17v.01" />
     </>
   ),
+  /** A Arena de testes: o boneco de treino (cabeça, travessa dos braços, poste e o pé em tripé). */
+  boneco: (
+    <>
+      <circle cx="12" cy="5.5" r="2.5" />
+      <path d="M5 10.5h14M12 8v9" />
+      <path d="M9 10.5v4h6v-4" />
+      <path d="M12 17l-4 4M12 17l4 4M12 17v4" />
+    </>
+  ),
 } as const
 
 export type NomeDoIconeDoMundo = keyof typeof TRACOS

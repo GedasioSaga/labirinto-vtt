@@ -59,6 +59,13 @@ export interface BatalhaDoJogadorProps {
   alvoDoMapa: { tokenId: string; seq: number } | null
   onMirando: (mirando: boolean) => void
   onTremor: () => void
+  /**
+   * A faixa da troca de vez: "suaVez" (o jogador, padrão) ou "vezDe" ("Vez de
+   * Lia"), para a Arena de testes, onde o mestre joga por todas as fichas e
+   * toda vez seria "SUA VEZ". Com "vezDe" o menu novo entra sob a faixa (fica
+   * escondido pelo palco) em vez de esperar ela sair.
+   */
+  textoDaVez?: 'suaVez' | 'vezDe'
 }
 
 /** A classe que o PlayerView dá à `FaixaDoJogador` (player/main.tsx). */
@@ -66,7 +73,7 @@ const CLASSE_DA_FAIXA = 'pp-batalha-faixa'
 const SEM_EFEITOS: readonly EfeitoParaJogador[] = []
 const NINGUEM: readonly Personagem[] = []
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez' }: BatalhaDoJogadorProps) {
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)
@@ -207,7 +214,11 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         consulta={consulta}
         nomeDe={nomeDe}
         imagemDe={imagemDe}
-        vez={vez === null || cartaDaVez === undefined ? null : { chave: `${vez}:${estado.rodada}`, nome: cartaDaVez.nome.trim() || nomeDe(cartaDaVez.tokenId), minha: estado.minhaVez }}
+        vez={
+          vez === null || cartaDaVez === undefined
+            ? null
+            : { chave: `${vez}:${estado.rodada}`, nome: cartaDaVez.nome.trim() || nomeDe(cartaDaVez.tokenId), minha: estado.minhaVez && textoDaVez === 'suaVez' }
+        }
         onTremor={onTremor}
         onPalco={setPalco}
       />

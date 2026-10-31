@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 import { entraNaBatalha } from '../../lib/livros/combate'
 import { useMundoDoLivroStore, usePersonagensDoMundo, type AbaDoMundo } from '../../stores/mundoDoLivroStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
@@ -26,7 +26,18 @@ export interface MundoDoLivroProps {
 const MARCADORES: readonly { aba: AbaDoMundo; rotulo: string; icone: NomeDoIconeDoMundo }[] = [
   { aba: 'jogadores', rotulo: 'Jogadores', icone: 'jogadores' },
   { aba: 'npcs', rotulo: 'NPCs de combate', icone: 'npc' },
+  { aba: 'arena', rotulo: 'Arena de testes', icone: 'boneco' },
 ]
+
+/**
+ * A Arena de testes (docs/planos/batalha-arena-de-testes-plano.md) entra em
+ * pedaço próprio: o palco Pixi dela e a batalha da arena só carregam quando o
+ * marcador abre, sem pesar na abertura do editor.
+ */
+const PaginaArena = lazy(() => import('../arena/PaginaArena').then((modulo) => ({ default: modulo.PaginaArena })))
+
+/** A camada cheia da luta da arena: com ela aberta, o Esc não fecha o mundo atrás (ver `TelaDaArena`). */
+const SELETOR_DA_ARENA = '.ar-tela'
 
 /** Os marcadores das próximas fases: aparecem apagados, com "em breve", sem página nem clique. */
 const EM_BREVE: readonly { rotulo: string; icone: NomeDoIconeDoMundo }[] = [
@@ -82,7 +93,7 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     const aoTeclar = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return
       if (document.activeElement !== document.body && document.activeElement !== null) return
-      if (useMundoDoLivroStore.getState().fichaAberta !== null || document.querySelector('.mu-modal-fundo') !== null) return
+      if (useMundoDoLivroStore.getState().fichaAberta !== null || document.querySelector('.mu-modal-fundo') !== null || document.querySelector(SELETOR_DA_ARENA) !== null) return
       onFechar()
     }
     window.addEventListener('keydown', aoTeclar)
@@ -157,6 +168,18 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     )
   } else if (aba === 'jogadores') {
     pagina = <PaginaJogadores personagens={personagens} sistema={sistema} mapas={pasta?.mapas ?? null} />
+  } else if (aba === 'arena') {
+    pagina = (
+      <Suspense
+        fallback={
+          <div className="mu-pg" aria-busy="true">
+            <p className="mu-pg-nota">Abrindo a arena…</p>
+          </div>
+        }
+      >
+        <PaginaArena personagens={personagens} sistema={sistema} sistemaId={aberto.sistemaId} />
+      </Suspense>
+    )
   } else {
     pagina = <PaginaNpcs personagens={personagens} sistema={sistema} />
   }

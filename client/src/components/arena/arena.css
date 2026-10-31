@@ -1,0 +1,482 @@
+/* =========================================================================
+ * ARENA DE TESTES DE BATALHA (docs/planos/batalha-arena-de-testes-plano.md
+ * §4.4). Duas partes:
+ *  1. a MONTAGEM, uma página do mundo do livro (dentro de .lb-mundo): os
+ *     primitivos .mu-* do mundo (botão, cartão, campo) e o resto com .ar-*;
+ *  2. a LUTA em tela cheia (.ar-tela, num portal no <body>, por cima do
+ *     mundo): a barra de couro, o palco, a faixa da ordem do mestre, o menu da
+ *     vez e a caixa REAÇÃO do jogador (as classes .pp-batalha-* que o
+ *     BatalhaDoJogador põe; o player.css não carrega aqui) e o placar do Judge.
+ * Só tokens do app (--lb-*, --lb-gr-*); a cor de cada lado vem da equipe
+ * virtual da arena por --ar-cor (EQUIPE_DO_LADO).
+ * ========================================================================= */
+
+/* =========================================================================
+ * 1. Montagem
+ * ========================================================================= */
+.ar-pg { max-width: 1240px; }
+
+.ar-comecar { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 320px; }
+.ar-comecar .mu-pg-nota,
+.ar-comecar .mu-campo__erro { text-align: right; }
+.ar-comecar__bt { min-height: 40px; padding: 0 20px; font-size: var(--lb-font-size-lg); }
+
+.ar-aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 9px 12px;
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-gr-gravado-forte);
+  font-size: var(--lb-font-size-md);
+}
+.ar-aviso .mu-ic { color: var(--lb-color-brass-bright); }
+
+.ar-opcoes { display: flex; flex-wrap: wrap; gap: 14px 28px; margin-bottom: 18px; }
+.ar-opcao { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.ar-opcao > legend { padding: 0; margin-bottom: 6px; }
+
+/* controle segmentado: rádios de verdade (setas trocam), o texto é o botão */
+.ar-seg {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+}
+.ar-seg--cheio { display: flex; }
+.ar-seg--cheio .ar-seg__op { flex: 1; }
+.ar-seg__op { position: relative; display: flex; }
+.ar-seg__op input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.ar-seg__op span {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: calc(var(--lb-radius-sm) - 2px);
+  color: var(--lb-color-parchment-dim);
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease;
+}
+.ar-seg__op small { font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+@media (hover: hover) and (pointer: fine) {
+  .ar-seg__op input:not(:checked):hover + span { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
+}
+.ar-seg__op input:checked + span { background: var(--lb-color-brass-soft); color: var(--lb-color-parchment); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.ar-seg__op input:checked + span small { color: var(--lb-gr-gravado); }
+.ar-seg__op input:focus-visible + span { box-shadow: var(--lb-shadow-focus); }
+
+/* três colunas: as fichas da pasta | Lado A | Lado B (ou o Judge-boneco) */
+.ar-montagem {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.15fr) minmax(250px, 1fr) minmax(250px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.ar-fichas { display: flex; flex-direction: column; gap: 6px; padding: 12px 8px 8px; }
+.ar-fichas__tit,
+.ar-lado__tit { margin: 0; font-size: var(--lb-font-size-lg); font-weight: 600; }
+.ar-fichas__tit { padding: 0 8px 4px; }
+.ar-fichas__grupo-tit { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 2px; padding: 0 8px; font-size: var(--lb-font-size-sm); font-weight: 400; color: var(--lb-color-parchment-faint); }
+.ar-fichas__grupo-tit small { font-family: var(--lb-font-utility); font-size: var(--lb-font-size-sm); }
+.ar-fichas__lista,
+.ar-lado__lista { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.ar-fichas__vazio { margin: 4px 8px 8px; }
+
+.ar-ficha {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: var(--lb-radius-sm);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ar-ficha:hover { background: var(--lb-gr-hover); }
+}
+.ar-ficha__txt { display: flex; flex-direction: column; min-width: 0; }
+.ar-ficha__nome { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-ficha__sub { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-ficha__botoes { display: flex; gap: 4px; }
+
+/* "+ A" / "+ B": o contorno na cor do lado */
+.ar-mais {
+  min-width: 46px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--ar-cor) 55%, transparent);
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment);
+  font: 600 var(--lb-font-size-md) / 1 var(--lb-font-utility);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.ar-mais[data-esta='sim'] { background: color-mix(in srgb, var(--ar-cor) 16%, transparent); }
+.ar-mais:active:not(:disabled) { transform: scale(0.97); }
+.ar-mais:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) {
+  .ar-mais:hover:not(:disabled) { background: color-mix(in srgb, var(--ar-cor) 22%, transparent); border-color: var(--ar-cor); }
+}
+
+/* a coluna de um lado: o filete de cima na cor dele */
+.ar-lado { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-top: 3px solid var(--ar-cor, var(--lb-gr-filete-latao)); }
+.ar-lado__cab { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.ar-lado__marca { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--ar-cor); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ar-cor) 22%, transparent); }
+.ar-lado__tit { flex: 1; }
+.ar-lado__n { font: 500 var(--lb-font-size-md) / 1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.ar-lado__n--cheio { color: var(--lb-color-brass-bright); }
+.ar-lado__vazio { margin: 0; padding: 14px 12px; border: 1px dashed var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-md); }
+
+.ar-escolha {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  padding: 4px 4px 4px 6px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+  border: 1px solid var(--lb-gr-filete);
+}
+.ar-escolha__nome { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-escolha--sumiu .ar-escolha__nome { color: var(--mu-erro-texto); font-weight: 400; }
+.ar-vezes { display: inline-flex; align-items: center; gap: 2px; }
+.ar-vezes__n { min-width: 30px; text-align: center; font: 600 var(--lb-font-size-md) / 1 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+
+/* o Judge-boneco no lugar do Lado B */
+.ar-boneco { border-top-color: var(--lb-gr-latao-2); }
+.ar-boneco__med,
+.ar-barra__med {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 8px;
+  color: var(--lb-color-brass-contrast);
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 55%, var(--lb-gr-latao-3));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.ar-boneco__med { width: 28px; height: 28px; }
+.ar-boneco__med .mu-ic { width: 18px; height: 18px; stroke-width: 1.8; }
+.ar-boneco__sub { margin: -4px 0 0; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-md); max-width: 46ch; }
+
+/* a troca do Lado B pelo cartão do boneco (e de volta): só entra, sem sair animado */
+.ar-montagem > .ar-lado:last-child {
+  transition:
+    opacity 180ms var(--lb-gr-ease-out),
+    transform 180ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .ar-montagem > .ar-lado:last-child { opacity: 0; transform: translateY(4px); }
+}
+
+/* =========================================================================
+ * Ajustes do boneco (na montagem e no popover do placar)
+ * ========================================================================= */
+.ar-ajustes { display: flex; flex-direction: column; gap: 12px; }
+.ar-ajustes__grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ar-ajustes__reage { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.ar-ajustes__reage > legend { padding: 0; margin-bottom: 6px; }
+.ar-ajustes__nota { margin: 0; max-width: 52ch; }
+.ar-ajuste__linha { display: flex; align-items: center; gap: 4px; }
+.ar-ajuste__num { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; text-align: right; }
+.ar-ajuste__num:disabled { color: var(--lb-color-parchment-dim); opacity: 1; cursor: not-allowed; }
+.ar-passo { min-width: 32px; min-height: 32px; font-family: var(--lb-font-utility); font-size: var(--lb-font-size-lg); }
+
+/* a chave "Vida infinita": um checkbox de verdade, o trilho é só o desenho */
+.ar-chave { position: relative; display: inline-flex; align-items: center; gap: 10px; min-height: 30px; cursor: pointer; font-weight: 500; }
+.ar-chave input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.ar-chave__trilho {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex: none;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-hover);
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-forte);
+  transition: background-color var(--lb-motion-fast) ease;
+}
+.ar-chave__trilho::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--lb-color-parchment-dim);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  transition:
+    transform 160ms var(--lb-gr-ease-out),
+    background-color var(--lb-motion-fast) ease;
+}
+.ar-chave input:checked + .ar-chave__trilho { background: var(--lb-gr-latao-3); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.ar-chave input:checked + .ar-chave__trilho::after { transform: translateX(14px); background: var(--lb-gr-latao-1); }
+.ar-chave input:focus-visible + .ar-chave__trilho { box-shadow: var(--lb-shadow-focus); }
+.ar-chave:has(input:disabled) { opacity: 0.55; cursor: not-allowed; }
+
+/* =========================================================================
+ * 2. A luta em tela cheia
+ * ========================================================================= */
+.ar-tela {
+  --ar-barra: 60px;
+  /* os primitivos do mundo usados aqui leem estes dois (definidos em .lb-mundo, que fica atrás) */
+  --mu-erro-texto: #f0897f;
+  --mu-apagado: 0.62;
+  /*
+   * Por cima do mundo (z 28) e abaixo dos avisos (z 30), para o Recomeçar e o
+   * Desfazer aparecerem; o menu da carta e as janelas da batalha vão num
+   * portal próprio, acima disso (900 e 1000).
+   */
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  display: grid;
+  grid-template-rows: var(--ar-barra) minmax(0, 1fr);
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  animation: ar-aparece 200ms var(--lb-gr-ease-out) both;
+}
+.ar-tela :focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.ar-ligando { grid-row: 2; align-self: center; justify-self: center; margin: 0; color: var(--lb-color-parchment-faint); }
+
+/* a barra do alto: o couro do livro, o medalhão de latão, a rodada e as saídas */
+.ar-barra {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 0 14px 0 16px;
+  background: linear-gradient(180deg, var(--lb-gr-couro-3), var(--lb-gr-couro-2) 60%, var(--lb-gr-couro-1));
+  border-bottom: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 0 rgba(255, 236, 200, 0.05), 0 6px 18px rgba(0, 0, 0, 0.35);
+  animation: ar-barra-entra 260ms var(--lb-gr-ease-drawer) both;
+}
+.ar-barra__med { width: 36px; height: 36px; }
+.ar-barra__med .mu-ic { width: 22px; height: 22px; stroke-width: 1.7; }
+.ar-barra__txt { min-width: 0; }
+.ar-barra__tit { margin: 0; font-family: var(--lb-font-display); font-size: 21px; font-weight: 400; line-height: 1.1; color: var(--lb-gr-gravado-forte); white-space: nowrap; }
+.ar-barra__tit:focus-visible { box-shadow: none; }
+.ar-barra__sub { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 2px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-gr-gravado); }
+.ar-barra__rodada { font-family: var(--lb-font-utility); font-weight: 600; color: var(--lb-color-brass-bright); font-variant-numeric: tabular-nums; }
+.ar-barra__aviso { display: flex; align-items: center; gap: 6px; margin: 0 0 0 auto; font-size: var(--lb-font-size-sm); color: var(--lb-gr-gravado); white-space: nowrap; }
+.ar-barra__aviso .mu-ic { width: 14px; height: 14px; }
+.ar-barra__acoes { display: flex; align-items: center; gap: 6px; }
+.ar-barra .mu-bt--fantasma { color: var(--lb-gr-gravado); }
+
+/* o palco ocupa tudo abaixo da barra; a ficha mirada vira alvo */
+.ar-palco { position: relative; grid-row: 2; min-width: 0; min-height: 0; overflow: hidden; }
+.ar-palco[data-mirando='sim'] { cursor: crosshair; }
+
+/* a faixa da ordem do mestre: no alto, no meio, abaixo da barra (as cartas que não cabem rolam nela) */
+.ar-tela .bt-faixa.pp-batalha-faixa {
+  position: fixed;
+  top: calc(var(--ar-barra) + 10px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 9;
+  width: max-content;
+  max-width: min(820px, calc(100% - 2 * 312px));
+}
+
+/* os efeitos (faixa da vez, corte, d20, número) cobrem a tela sem pegar o toque; no palco, pegam (o clique pula) */
+.ar-tela .bt-efeitos.pp-batalha-efeitos { position: fixed; inset: 0; z-index: 8; }
+.ar-tela .bt-efeitos.pp-batalha-efeitos[data-pulavel='sim'] { z-index: 12; }
+
+/* enquanto o corte ou a faixa da vez passam, o menu, o véu e a caixa somem (só opacity) */
+.ar-tela .pp-batalha-veu,
+.ar-tela .pp-batalha-menu,
+.ar-tela .pp-batalha-reacao { transition: opacity 220ms var(--lb-gr-ease-out); }
+.ar-tela .pp-batalha-veu[data-palco='sim'],
+.ar-tela .pp-batalha-menu[data-palco='sim'],
+.ar-tela .pp-batalha-reacao[data-palco='sim'] { opacity: 0; pointer-events: none; transition-duration: 160ms; }
+.ar-tela .pp-batalha-menu[data-palco='sim'] > * { pointer-events: none; }
+
+/* o menu da vez à esquerda, abaixo da faixa (medida em --pp-faixa-alto pelo BatalhaDoJogador) */
+.ar-tela .pp-batalha-menu {
+  position: fixed;
+  top: calc(var(--ar-barra) + 10px + var(--pp-faixa-alto, 0px) + 12px);
+  bottom: 76px;
+  left: 20px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  max-width: calc(100% - 40px);
+  pointer-events: none;
+}
+.ar-tela .pp-batalha-menu > * { pointer-events: auto; }
+.ar-tela .pp-batalha-menu > .bt-vez { max-height: 100%; }
+
+/* o véu atrás do menu aberto: escurece a esquerda para o texto ler sobre a grade */
+.ar-tela .pp-batalha-veu {
+  display: none;
+  position: fixed;
+  top: var(--ar-barra);
+  bottom: 0;
+  left: 0;
+  z-index: 7;
+  width: min(100%, clamp(420px, 45vw, 760px));
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.5) 60%, rgba(0, 0, 0, 0.2) 85%, rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+.ar-tela .pp-batalha-veu:has(+ .pp-batalha-menu > .bt-vez) { display: block; animation: ar-aparece 180ms var(--lb-gr-ease-out) backwards; }
+
+/* o botão REAÇÃO no meio de baixo, a caixa logo acima dele */
+.ar-tela .pp-batalha-reacao-botao { position: fixed; left: 50%; bottom: 16px; translate: -50% 0; z-index: 9; }
+.ar-tela .pp-batalha-reacao { position: fixed; left: 50%; bottom: 76px; translate: -50% 0; z-index: 11; max-height: calc(100% - var(--ar-barra) - 100px); overflow-y: auto; }
+
+/* =========================================================================
+ * Placar do Judge (modo boneco): à direita, abaixo da barra
+ * ========================================================================= */
+.ar-placar-lugar {
+  position: fixed;
+  top: calc(var(--ar-barra) + 10px);
+  right: 12px;
+  z-index: 9;
+  display: flex;
+  width: 288px;
+  max-height: calc(100% - var(--ar-barra) - 96px);
+}
+.ar-placar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-lg);
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  box-shadow: var(--lb-shadow-lg), inset 0 1px 0 rgba(255, 236, 200, 0.05);
+}
+.ar-placar__cab { display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 10px 14px; border-bottom: 1px solid var(--lb-gr-filete); }
+.ar-placar__cab-txt { flex: 1; min-width: 0; }
+.ar-placar__tit { margin: 0; font-family: var(--lb-font-display); font-size: 18px; font-weight: 400; line-height: 1.15; }
+.ar-placar__resumo { margin: 2px 0 0; font: 500 var(--lb-font-size-sm) / 1.3 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+
+/* o total é o que o olho lê primeiro; a média, logo ao lado e menor */
+.ar-placar__numeros { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 4px 12px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--lb-gr-filete); }
+/* no HTML o rótulo vem antes (leitor de tela); na tela, o número em cima */
+.ar-placar__numeros > div { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+.ar-placar__numeros dt { order: 2; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.ar-placar__numeros dd { order: 1; margin: 0; }
+.ar-placar__numeros .ar-placar__div { order: 3; }
+.ar-placar__grande { font: 600 34px / 1 var(--lb-font-utility); color: var(--lb-color-parchment); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; animation: ar-acende 700ms var(--lb-gr-ease-out); }
+.ar-placar__medio { font: 600 22px / 1.15 var(--lb-font-utility); color: var(--lb-color-parchment); font-variant-numeric: tabular-nums; padding-top: 10px; }
+.ar-placar__div { font: 500 var(--lb-font-size-xs) / 1.3 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.ar-placar__vazio { margin: 0; padding: 14px; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-md); }
+
+.ar-placar__golpes { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 6px; list-style: none; }
+.ar-golpe {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'rodada quem total'
+    'rodada conta total';
+  gap: 0 8px;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: var(--lb-radius-sm);
+  transition:
+    opacity 200ms var(--lb-gr-ease-out),
+    transform 200ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .ar-golpe { opacity: 0; transform: translateY(-4px); }
+}
+.ar-golpe + .ar-golpe { border-top: 1px solid var(--lb-gr-filete); border-top-left-radius: 0; border-top-right-radius: 0; }
+.ar-golpe__rodada { grid-area: rodada; align-self: start; padding-top: 2px; font: 600 var(--lb-font-size-sm) / 1 var(--lb-font-utility); color: var(--lb-gr-gravado); font-variant-numeric: tabular-nums; }
+.ar-golpe__quem { grid-area: quem; display: flex; gap: 6px; min-width: 0; align-items: baseline; }
+.ar-golpe__nome { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; max-width: 55%; }
+.ar-golpe__golpe { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-golpe__conta { grid-area: conta; display: flex; flex-wrap: wrap; gap: 0 5px; font: 500 var(--lb-font-size-sm) / 1.35 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.ar-golpe__total { grid-area: total; font: 600 var(--lb-font-size-lg) / 1 var(--lb-font-utility); color: var(--lb-color-parchment); font-variant-numeric: tabular-nums; }
+
+/* o popover dos ajustes: preso ao placar, cresce do canto do "Ajustar" */
+.ar-pop {
+  position: absolute;
+  top: 52px;
+  right: 8px;
+  z-index: 2;
+  width: min(320px, calc(100vw - 32px));
+  max-height: calc(100vh - var(--ar-barra) - 90px);
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-md);
+  background: linear-gradient(180deg, var(--lb-gr-cartao-alto), var(--lb-gr-cartao));
+  box-shadow: var(--lb-shadow-float);
+  transform-origin: top right;
+  transition:
+    opacity 160ms var(--lb-gr-ease-out),
+    transform 160ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .ar-pop { opacity: 0; transform: scale(0.96); }
+}
+.ar-pop__tit { margin: 0 0 12px; font-size: var(--lb-font-size-lg); font-weight: 600; }
+
+/* =========================================================================
+ * Entradas (uma vez por abertura), janela estreita e movimento reduzido
+ * ========================================================================= */
+@keyframes ar-aparece { from { opacity: 0; } }
+@keyframes ar-barra-entra { from { transform: translateY(-8px); opacity: 0; } }
+/* o total que acabou de mudar acende em latão e volta: o golpe novo chegou */
+@keyframes ar-acende { from { color: var(--lb-color-brass-bright); } }
+
+@media (max-width: 1180px) {
+  .ar-montagem { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ar-fichas { grid-column: 1 / -1; }
+  .ar-barra__aviso { display: none; }
+}
+@media (max-width: 760px) {
+  .ar-montagem { grid-template-columns: minmax(0, 1fr); }
+  .ar-comecar { align-items: stretch; max-width: none; width: 100%; }
+  .ar-comecar .mu-pg-nota,
+  .ar-comecar .mu-campo__erro { text-align: left; }
+}
+@media (max-width: 999px) {
+  .ar-tela { --ar-barra: 56px; }
+  .ar-barra__sub { display: none; }
+  .ar-barra__acoes .mu-bt { padding: 0 9px; }
+  .ar-tela .bt-faixa.pp-batalha-faixa { left: 12px; right: 12px; translate: none; width: auto; max-width: none; }
+  .ar-placar-lugar { top: auto; bottom: 76px; width: min(288px, calc(100% - 24px)); max-height: 46vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ar-barra { animation-name: ar-aparece; }
+  .ar-chave__trilho::after { transition-property: background-color; }
+  .ar-montagem > .ar-lado:last-child,
+  .ar-golpe,
+  .ar-pop { transition-property: opacity; }
+  .ar-mais:active:not(:disabled) { transform: none; }
+  .ar-tela .pp-batalha-veu:has(+ .pp-batalha-menu > .bt-vez) { animation: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  @starting-style {
+    .ar-montagem > .ar-lado:last-child,
+    .ar-golpe { transform: none; }
+    .ar-pop { transform: none; }
+  }
+}
