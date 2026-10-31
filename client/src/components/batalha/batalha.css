@@ -181,12 +181,20 @@
   list-style: none;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  /* Quando rola, para com a carta inteira na borda (o respiro de 4 px do padding). */
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 4px;
   scrollbar-width: thin;
 }
+/* Sem lugar para todas, as cartas encolhem até 116 px (o "1.200/1.200" ainda cabe ao lado do HP)
+   antes de a fila rolar: a 4ª carta não sai mais cortada pelo quadro da rodada. */
 .bt-carta {
   position: relative;
-  flex: none;
+  /* `width` (e não só a base) para a faixa medir as cartas com 140 e só encolher quando falta lugar. */
+  flex: 0 1 auto;
   width: var(--bt-carta-largura);
+  min-width: 116px;
+  scroll-snap-align: start;
 }
 .bt-carta__corpo {
   position: relative;
