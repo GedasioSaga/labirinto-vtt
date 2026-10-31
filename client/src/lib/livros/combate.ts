@@ -66,9 +66,10 @@ export function semForca(personagem: Personagem): Personagem {
 
 /**
  * Grava a força nova (no passo do deslizante) e reescala o HP ATUAL na mesma
- * proporção: o NPC a 50% continua a 50%. O máximo não é gravado multiplicado
- * — a força só entra na leitura (`maximoComposto`). Jogador não tem força: sai
- * como entrou. Mesma força = a mesma referência.
+ * proporção do máximo: o NPC cheio continua cheio e o a 50% continua a 50%.
+ * O máximo não é gravado multiplicado — a força só entra na leitura
+ * (`maximoComposto`). Jogador não tem força: sai como entrou. Mesma força = a
+ * mesma referência.
  */
 export function trocarForca(personagem: Personagem, nova: number): Personagem {
   if (personagem.tipo !== 'npc') return personagem
@@ -80,9 +81,23 @@ export function trocarForca(personagem: Personagem, nova: number): Personagem {
   if (atual !== undefined && forca !== antiga) {
     // Ficha de um número só (sem máximo gravado): o máximo base É o atual. Grava antes, senão reescalar o atual arrastaria a base junto.
     if (personagem.maximos[RECURSO_QUE_A_FORCA_MULTIPLICA] === undefined) copia.maximos = { ...personagem.maximos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: atual }
-    copia.recursos = { ...personagem.recursos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: Math.round((atual * forca) / antiga) }
+    copia.recursos = { ...personagem.recursos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: atualNaForcaNova(atual, personagem, copia) }
   }
   return copia
+}
+
+/**
+ * O atual na proporção dos dois máximos lidos (`maximoComposto`, com força,
+ * modificador e forma). Cheio vira o máximo novo exato: a conta pela razão das
+ * forças arredondava o atual e o máximo cada um por si, e o cheio saía 1 abaixo
+ * do máximo depois de "Deixar Justo" e Desfazer (1.151 → 500/501 → 1.150/1.151).
+ */
+function atualNaForcaNova(atual: number, antes: Personagem, depois: Personagem): number {
+  const maximoAntes = maximoComposto(antes, RECURSO_QUE_A_FORCA_MULTIPLICA).total
+  const maximoDepois = maximoComposto(depois, RECURSO_QUE_A_FORCA_MULTIPLICA).total
+  if (atual === maximoAntes) return maximoDepois
+  // Máximo 0 com atual fora dele (ficha torta): não há proporção, o número fica.
+  return maximoAntes > 0 ? Math.round((atual * maximoDepois) / maximoAntes) : atual
 }
 
 /** "Soltar do modelo": a variação vira NPC único, com a ficha que tem agora. */
