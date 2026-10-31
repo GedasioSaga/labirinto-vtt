@@ -76,6 +76,12 @@ export interface CampoDoCartao {
   id: string
   rotulo: string
   forma: FormaDoCampo
+  /**
+   * Lista fechada sugerida (a Categoria da arma). A ficha de hoje ainda
+   * desenha o campo como `linha` de texto livre; quem lê o valor casa com a
+   * lista sem acento e sem caixa. Ausente = texto livre.
+   */
+  opcoes?: string[]
 }
 
 /**
@@ -295,7 +301,10 @@ function escolhaDoArquivo(value: unknown): EscolhaDoSistema | null {
 function campoDoArquivo(value: unknown): CampoDoCartao | null {
   if (!isRecord(value) || !idValido(value.id)) return null
   const forma = FORMAS.find((candidata) => candidata === value.forma) ?? 'linha'
-  return { id: value.id, rotulo: texto(value.rotulo) || value.id, forma }
+  const campo: CampoDoCartao = { id: value.id, rotulo: texto(value.rotulo) || value.id, forma }
+  const opcoes = [...new Set(lista(value.opcoes).map(texto).filter((opcao) => opcao.length > 0))]
+  if (opcoes.length > 0) campo.opcoes = opcoes
+  return campo
 }
 
 function abaDoArquivo(value: unknown): AbaDoSistema | null {

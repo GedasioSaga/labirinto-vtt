@@ -94,7 +94,9 @@ export const useCatalogoStore = create<CatalogoState>()((set, get) => {
       const { itens } = get()
       const existe = itens.some((atual) => atual.id === limpo.id)
       if (!existe && itens.length >= CATALOGO_MAX) return Promise.reject(new Error(CATALOGO_CHEIO))
-      return gravar(existe ? itens.map((atual) => (atual.id === limpo.id ? limpo : atual)) : [...itens, limpo])
+      // A janela de entrada ainda não edita balas (`balas` ausente): o Salvar dela não apaga as que a arma já tinha.
+      const comBalas = (atual: ItemDoCatalogo): ItemDoCatalogo => (limpo.balas === undefined && atual.balas !== undefined ? { ...limpo, balas: atual.balas } : limpo)
+      return gravar(existe ? itens.map((atual) => (atual.id === limpo.id ? comBalas(atual) : atual)) : [...itens, limpo])
     },
 
     apagarEntrada: (id) => {

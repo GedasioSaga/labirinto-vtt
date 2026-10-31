@@ -2,7 +2,7 @@ import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personage
 import type { RecursoDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
 import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
-import { normalizar } from './formula'
+import { CAMPO_DO_DANO, normalizar } from './formula'
 
 /**
  * LEITURA DA FICHA PARA A BATALHA, F2 (seção 3.1 de
@@ -203,9 +203,110 @@ export function recursoDoEscudo(sistema: SistemaDeRpg): RecursoDoSistema | null 
   return sistema.recursos.find((candidato) => candidato.id === 'escudo' || normalizar(candidato.nome) === 'escudo') ?? null
 }
 
-/** Os cartões da aba Armas. */
-export function armasDe(personagem: Personagem): CartaoDaFicha[] {
-  return personagem.abas[ABA_DAS_ARMAS] ?? []
+/** O molde das balas: a aba dos subcartões "Tipos de bala" da arma (`lib/sistemaOnePiece.ts`). */
+export const ABA_DAS_BALAS = 'balas'
+/** Os campos da arma e da bala que a batalha lê. */
+export const CAMPO_DA_CATEGORIA = 'categoria'
+export const CAMPO_DA_CAPACIDADE = 'capacidade'
+export const CAMPO_DO_EFEITO = 'efeito'
+export const CAMPO_DA_QUANTIDADE = 'quantidade'
+
+export type CategoriaDaArma = 'branca' | 'deFogo' | 'arremesso' | 'hibrida' | 'natural'
+
+/** As categorias, na ordem da escolha do cartão, com o texto que a ficha guarda. */
+export const CATEGORIAS_DE_ARMA: readonly { id: CategoriaDaArma; rotulo: string }[] = [
+  { id: 'branca', rotulo: 'Branca' },
+  { id: 'deFogo', rotulo: 'De fogo' },
+  { id: 'arremesso', rotulo: 'Arremesso' },
+  { id: 'hibrida', rotulo: 'Híbrida' },
+  { id: 'natural', rotulo: 'Natural' },
+]
+
+/** As categorias que disparam: só nelas a Capacidade e as balas fazem sentido. */
+const CATEGORIAS_QUE_ATIRAM: ReadonlySet<CategoriaDaArma> = new Set<CategoriaDaArma>(['deFogo', 'hibrida'])
+
+/** Um tipo de bala da arma (subcartão "Tipos de bala"). Textos como a ficha guarda, aparados. */
+export interface BalaDaArma {
+  id: string
+  /** Nunca vazio: "Bala sem nome" quando o cartão não tem. */
+  nome: string
+  /** "+15" = soma ao dano da arma; "40" = troca o dano da arma; vazio = o da arma. Lido por `danoDoAtaque`. */
+  dano: string
+  efeito: string
+  /** Texto livre, só mostra: o app não conta tiros. */
+  quantidade: string
+}
+
+/** A arma da aba Armas com o que a batalha lê dela. É o próprio cartão, mais as leituras. */
+export interface ArmaDaFicha extends CartaoDaFicha {
+  /** `null` = vazio ou texto fora da lista (mapas antigos: sem categoria). */
+  categoria: CategoriaDaArma | null
+  /** Texto livre ("6"), só mostra; vazio = `null`. */
+  capacidade: string | null
+  balas: BalaDaArma[]
+}
+
+export const BALA_SEM_NOME = 'Bala sem nome'
+
+/** "Branca", "arma branca", "De fogo", "fogo", "de arremesso", "Hibrida"... `null` = vazio ou outra coisa. */
+export function lerCategoria(texto: string): CategoriaDaArma | null {
+  const normal = normalizar(texto).replace(/^arma /, '').replace(/^de /, '')
+  if (normal === 'branca') return 'branca'
+  if (normal === 'fogo') return 'deFogo'
+  if (normal === 'arremesso') return 'arremesso'
+  if (normal === 'hibrida') return 'hibrida'
+  if (normal === 'natural') return 'natural'
+  return null
+}
+
+/** A categoria dispara (De fogo, Híbrida)? É quando a tela mostra Capacidade e balas. */
+export function categoriaAtira(categoria: CategoriaDaArma | null): boolean {
+  return categoria !== null && CATEGORIAS_QUE_ATIRAM.has(categoria)
+}
+
+function balaDoCartao(cartao: CartaoDaFicha): BalaDaArma {
+  return {
+    id: cartao.id,
+    nome: cartao.nome.trim() || BALA_SEM_NOME,
+    dano: (cartao.campos[CAMPO_DO_DANO] ?? '').trim(),
+    efeito: (cartao.campos[CAMPO_DO_EFEITO] ?? '').trim(),
+    quantidade: (cartao.campos[CAMPO_DA_QUANTIDADE] ?? '').trim(),
+  }
+}
+
+/** A arma lida: categoria, capacidade e os tipos de bala (subcartões), todos na ordem da ficha. */
+export function lerArma(cartao: CartaoDaFicha): ArmaDaFicha {
+  const capacidade = (cartao.campos[CAMPO_DA_CAPACIDADE] ?? '').trim()
+  return {
+    ...cartao,
+    categoria: lerCategoria(cartao.campos[CAMPO_DA_CATEGORIA] ?? ''),
+    capacidade: capacidade.length === 0 ? null : capacidade,
+    balas: cartao.subcartoes.map(balaDoCartao),
+  }
+}
+
+/**
+ * As leituras guardadas pela lista da aba: a mesma lista de cartões devolve as
+ * MESMAS armas, e a tela que compara por referência (memo, efeito) não vê
+ * arma "nova" a cada desenho (antes das balas, `armasDe` devolvia a própria
+ * lista da ficha). A lista devolvida é compartilhada: não a mude.
+ */
+const ARMAS_LIDAS = new WeakMap<readonly CartaoDaFicha[], ArmaDaFicha[]>()
+const SEM_ARMAS: readonly CartaoDaFicha[] = []
+
+/** Os cartões da aba Armas, cada um com categoria, capacidade e balas (`lerArma`). */
+export function armasDe(personagem: Personagem): ArmaDaFicha[] {
+  const cartoes = personagem.abas[ABA_DAS_ARMAS] ?? SEM_ARMAS
+  const guardadas = ARMAS_LIDAS.get(cartoes)
+  if (guardadas !== undefined) return guardadas
+  const lidas = cartoes.map(lerArma)
+  ARMAS_LIDAS.set(cartoes, lidas)
+  return lidas
+}
+
+/** A bala da arma pelo id. `null` = a arma não tem essa bala. */
+export function balaDaArma(arma: ArmaDaFicha, balaId: string): BalaDaArma | null {
+  return arma.balas.find((bala) => bala.id === balaId) ?? null
 }
 
 /** O limite da escolha "Armas por batalha", pelo número do começo ("2 armas" = 2). Vazio ou torto = sem limite (`null`). */

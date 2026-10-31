@@ -61,6 +61,18 @@ export interface ItemDoCatalogo {
    * Campo vazio não é guardado.
    */
   campos: Record<string, string>
+  /**
+   * Só na arma: os tipos de bala (os subcartões "Tipos de bala" da ficha),
+   * na ordem. Ausente = a entrada não diz (catálogo antigo, ou a janela que
+   * ainda não edita balas): quem grava mantém as que já estavam.
+   */
+  balas?: BalaDoCatalogo[]
+}
+
+/** Um tipo de bala da arma do catálogo: nome e os campos da aba das balas (`dano`, `efeito`, `quantidade`). */
+export interface BalaDoCatalogo {
+  nome: string
+  campos: Record<string, string>
 }
 
 /** Uma perícia, vantagem ou desvantagem lida do livro do sistema. Nunca gravada. */
@@ -85,6 +97,8 @@ export const ENTRADA_TEXTO_MAX = 600
 /** Valor de um campo (Dano, Ação...): é uma linha da ficha. */
 export const ENTRADA_CAMPO_MAX = 200
 const CAMPOS_POR_ENTRADA_MAX = 16
+/** Tipos de bala de uma arma do catálogo. */
+export const BALAS_POR_ENTRADA_MAX = 16
 /** Chave de campo que o arquivo pode trazer: a mesma forma dos ids da ficha. */
 const CHAVE_DE_CAMPO = /^[A-Za-z][A-Za-z0-9_-]{0,39}$/
 const ID_DE_ENTRADA = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/
@@ -140,12 +154,27 @@ function camposLimpos(value: unknown): Record<string, string> {
  * campos limpos. `null` = sem nome (não entra). Funil único da leitura do
  * arquivo e do "Salvar" da janela de entrada.
  */
-export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown }): ItemDoCatalogo | null {
+export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown }): ItemDoCatalogo | null {
   if (typeof item.id !== 'string' || !ID_DE_ENTRADA.test(item.id) || !ehTipoDoCatalogo(item.tipo) || typeof item.nome !== 'string') return null
   const nome = cortar(item.nome.trim(), ENTRADA_NOME_MAX).trim()
   if (nome.length === 0) return null
   const texto = typeof item.texto === 'string' ? cortar(item.texto.trim(), ENTRADA_TEXTO_MAX).trim() : ''
-  return { id: item.id, tipo: item.tipo, nome, texto, campos: camposLimpos(item.campos) }
+  const limpo: ItemDoCatalogo = { id: item.id, tipo: item.tipo, nome, texto, campos: camposLimpos(item.campos) }
+  // Só a arma leva balas; lista que não é lista conta como "não diz".
+  if (item.tipo === 'arma' && Array.isArray(item.balas)) limpo.balas = balasLimpas(item.balas)
+  return limpo
+}
+
+/** As balas limpas: nome aparado e cortado (sem nome sai), campos como os da entrada, teto `BALAS_POR_ENTRADA_MAX`. */
+function balasLimpas(brutas: readonly unknown[]): BalaDoCatalogo[] {
+  const balas: BalaDoCatalogo[] = []
+  for (const bruta of brutas) {
+    if (balas.length === BALAS_POR_ENTRADA_MAX) break
+    if (!isRecord(bruta) || typeof bruta.nome !== 'string') continue
+    const nome = cortar(bruta.nome.trim(), ENTRADA_NOME_MAX).trim()
+    if (nome.length > 0) balas.push({ nome, campos: camposLimpos(bruta.campos) })
+  }
+  return balas
 }
 
 /** O catálogo do disco, tolerante: entrada torta sai, id repetido fica o primeiro, teto `CATALOGO_MAX`. */
@@ -156,7 +185,7 @@ export function catalogoDoArquivo(value: unknown): ItemDoCatalogo[] {
   for (const bruto of brutos) {
     if (itens.length === CATALOGO_MAX) break
     if (!isRecord(bruto)) continue
-    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos })
+    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas })
     if (item === null || ids.has(item.id)) continue
     ids.add(item.id)
     itens.push(item)
@@ -207,7 +236,22 @@ function cartaoDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, sistema: 
   }
   const idsDosAtributos = new Set(sistema.atributos.map((atributo) => atributo.id))
   const atributos = aba.atributos === true && ehDoLivro(entrada) ? entrada.atributos.filter((id) => idsDosAtributos.has(id)) : []
-  return { ...novoCartao(entrada.nome), campos, atributos }
+  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema) }
+}
+
+/** As balas da arma do catálogo como subcartões da aba de destino; o campo que a aba das balas não tem fica de fora. */
+function balasDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, sistema: SistemaDeRpg): CartaoDaFicha[] {
+  if (ehDoLivro(entrada) || entrada.balas === undefined || aba.subcartoes === undefined) return []
+  const molde = abaDoSistema(sistema, aba.subcartoes.aba)
+  if (molde === undefined) return []
+  return entrada.balas.map((bala) => {
+    const campos: Record<string, string> = {}
+    for (const campo of molde.campos) {
+      const valor = bala.campos[campo.id]
+      if (valor !== undefined && valor.trim().length > 0) campos[campo.id] = valor
+    }
+    return { ...novoCartao(bala.nome), campos }
+  })
 }
 
 /**
@@ -238,7 +282,8 @@ export function tirarDaFicha(personagem: Personagem, abaId: string, cartaoId: st
 
 /** O cartão da ficha como entrada do catálogo. `null` = sem nome, ou com o nome de fábrica ("Arma"). */
 function itemDoCartao(cartao: CartaoDaFicha, tipo: TipoDoCatalogo): ItemDoCatalogo | null {
-  const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos })
+  const balas = tipo === 'arma' && cartao.subcartoes.length > 0 ? cartao.subcartoes.map((sub) => ({ nome: sub.nome, campos: sub.campos })) : undefined
+  const item = itemLimpo({ id: novoIdDeEntrada(), tipo, nome: cartao.nome, texto: cartao.campos[CAMPO_DA_DESCRICAO] ?? '', campos: cartao.campos, balas })
   if (item === null || chaveDoNomeDaEntrada(item.nome) === chaveDoNomeDaEntrada(DADOS_DO_TIPO[tipo].um)) return null
   return item
 }
@@ -281,7 +326,8 @@ export function buscarNoCatalogo<T extends EntradaParaFicha>(entradas: readonly 
   return entradas.filter((entrada) => {
     if (filtro !== 'todos' && entrada.tipo !== filtro) return false
     if (palavras.length === 0) return true
-    const alvo = normalizarParaBusca([entrada.nome, entrada.texto, ...Object.values(entrada.campos), DADOS_DO_TIPO[entrada.tipo].um].join(' '))
+    const balas = ehDoLivro(entrada) ? [] : (entrada.balas ?? []).flatMap((bala) => [bala.nome, ...Object.values(bala.campos)])
+    const alvo = normalizarParaBusca([entrada.nome, entrada.texto, ...Object.values(entrada.campos), ...balas, DADOS_DO_TIPO[entrada.tipo].um].join(' '))
     return palavras.every((palavra) => alvo.includes(palavra))
   })
 }

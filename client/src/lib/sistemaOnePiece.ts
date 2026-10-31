@@ -1,3 +1,4 @@
+import { CATEGORIAS_DE_ARMA } from './batalha/leituraDaFicha'
 import { CATALOGOS_ONE_PIECE, LIVRO_ONE_PIECE } from './livroOnePiece'
 import { FORMATO_DO_SISTEMA, type SistemaDeRpg } from './sistemaDeRpg'
 
@@ -133,14 +134,33 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
       nome: 'Armas',
       item: 'Arma',
       vazio: 'Nenhuma arma.',
+      // Categoria (vazia = sem categoria, como nos mapas antigos) e Capacidade ("6", só mostra: o app
+      // não conta tiros). A ficha ainda não esconde campo por categoria: Capacidade e balas aparecem sempre.
       campos: [
+        { id: 'categoria', rotulo: 'Categoria', forma: 'linha', opcoes: CATEGORIAS_DE_ARMA.map((categoria) => categoria.rotulo) },
         { id: 'dano', rotulo: 'Dano', forma: 'linha' },
         { id: 'acao', rotulo: 'Ação', forma: 'linha' },
         { id: 'modificador', rotulo: 'Modificador', forma: 'linha' },
+        { id: 'capacidade', rotulo: 'Capacidade', forma: 'linha' },
         { id: 'efeito', rotulo: 'Efeito', forma: 'linha' },
         { id: 'descricao', rotulo: 'Descrição', forma: 'paragrafo' },
       ],
       imagem: true,
+      // Os tipos de bala da arma de fogo ou híbrida; o Atacar escolhe um (`danoDoAtaque`).
+      subcartoes: { aba: 'balas', rotulo: 'Tipos de bala' },
+    },
+    {
+      // O molde das balas de dentro da arma. Dano "+15" soma ao da arma; "40" troca o da arma.
+      // Como toda aba de subcartões, aparece também como aba própria da ficha.
+      id: 'balas',
+      nome: 'Balas',
+      item: 'Bala',
+      vazio: 'Nenhuma bala solta. As balas de cada arma ficam no cartão da arma, em Tipos de bala.',
+      campos: [
+        { id: 'dano', rotulo: 'Dano', forma: 'linha' },
+        { id: 'efeito', rotulo: 'Efeito', forma: 'linha' },
+        { id: 'quantidade', rotulo: 'Quantidade', forma: 'linha' },
+      ],
     },
     {
       // Mundo do livro M3 (decisão 4): o que o personagem carrega; o catálogo põe aqui o tipo "item".
