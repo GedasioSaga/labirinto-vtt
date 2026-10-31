@@ -1,0 +1,195 @@
+/*
+ * O campo Dano do cartão (CampoDeDano.tsx): o teclado de variáveis só aparece
+ * com o foco dentro do campo, e a prévia fica numa linha discreta embaixo.
+ * Só `var(--lb-*)` de theme.ts.
+ */
+
+.lb-dano__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+/* Fórmula | Personalizado: pequeno, ao lado do rótulo; não compete com o campo. */
+.lb-dano__modo {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-dano__modo-botao {
+  min-height: 22px;
+  padding: 0 var(--lb-space-2);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-faint);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-dano__modo-botao[aria-pressed='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-dano__modo-botao[aria-pressed='false']:hover {
+    color: var(--lb-color-parchment);
+  }
+}
+
+.lb-dano__campo {
+  font-variant-numeric: tabular-nums;
+}
+
+/* O teclado nasce com o foco: sem animação (o Tab chega aqui dezenas de vezes). */
+.lb-dano__teclado {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1) var(--lb-space-2);
+}
+
+.lb-dano:focus-within .lb-dano__teclado {
+  display: flex;
+}
+
+.lb-dano__grupo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+}
+
+/* Os operadores, separados das variáveis por um traço. */
+.lb-dano__grupo--ops {
+  padding-left: var(--lb-space-2);
+  border-left: 1px solid var(--lb-color-line-strong);
+}
+
+.lb-dano__tecla {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-height: 26px;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-family: inherit;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-dano__tecla--op {
+  justify-content: center;
+  min-width: 26px;
+  padding: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-dano__tecla:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-dano__tecla:hover {
+    border-color: var(--lb-color-brass);
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-dano__tecla:active {
+    transform: none;
+  }
+}
+
+.lb-dano__tecla-valor {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* A prévia: o selo diz quem calcula, o total vem em destaque e a conta ao lado. */
+.lb-dano__previa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--lb-space-2);
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Campo vazio: o "Sem dano" só aparece com o foco, para não repetir em todo cartão de suporte. */
+.lb-dano__previa[data-estado='vazio'] {
+  display: none;
+}
+
+.lb-dano:focus-within .lb-dano__previa[data-estado='vazio'] {
+  display: flex;
+}
+
+.lb-dano__selo {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-dano__previa[data-estado='lido'] .lb-dano__selo {
+  color: var(--lb-color-online);
+}
+
+.lb-dano__previa[data-estado='naHora'] .lb-dano__selo {
+  color: var(--lb-color-tide);
+}
+
+/* "Não entende" só fica vermelho fora do campo: enquanto a conta é escrita, ela ainda está pela metade. */
+.lb-dano__previa[data-estado='naoLe'] .lb-dano__selo {
+  color: var(--lb-color-ember);
+}
+
+.lb-dano:focus-within .lb-dano__previa[data-estado='naoLe'] .lb-dano__selo {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-dano__total {
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment);
+}
+
+.lb-dano__conta {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.lb-dano__frase {
+  flex-basis: 100%;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-dano__previa[data-estado='suporte'] .lb-dano__frase {
+  flex-basis: auto;
+}

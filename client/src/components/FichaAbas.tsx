@@ -3,6 +3,9 @@ import { camposVisiveis, cartoesDaAba, novoCartao, paragrafosDoCartao, type Cart
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { Ajuste } from '../lib/ajusteDaFicha'
+import { CAMPO_DO_DANO } from '../lib/batalha/formula'
+import { ABA_DAS_ARMAS } from '../lib/batalha/leituraDaFicha'
+import { CampoDeDano } from './CampoDeDano'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
@@ -76,7 +79,7 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
       </div>
       <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${ativa.id}`}>
         {editando ? (
-          <ListaEditavel key={ativa.id} aba={ativa} sistema={sistema} cartoes={cartoes} onChange={trocarCartoes} escolherImagem={escolherImagem} livro={livro} />
+          <ListaEditavel key={ativa.id} aba={ativa} sistema={sistema} personagem={personagem} cartoes={cartoes} onChange={trocarCartoes} escolherImagem={escolherImagem} livro={livro} />
         ) : cartoes.length === 0 ? (
           <p className="lb-ficha__vazio">{ativa.vazio}</p>
         ) : (
@@ -205,15 +208,19 @@ function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
 interface ListaEditavelProps {
   aba: AbaDoSistema
   sistema: SistemaDeRpg
+  /** A ficha em edição: a prévia do Dano lê os atributos dela. */
+  personagem: Personagem
   cartoes: CartaoDaFicha[]
   onChange: (cartoes: CartaoDaFicha[]) => void
   escolherImagem: () => Promise<string | null>
   /** Dentro de outro cartão (técnicas da transformação): botões menores, e sem "Escolher do livro". */
   aninhada?: boolean
+  /** Dentro de uma arma (as balas): o Dano delas não oferece "Dano da Arma". */
+  daArma?: boolean
   livro?: LivroDaFicha
 }
 
-function ListaEditavel({ aba, sistema, cartoes, onChange, escolherImagem, aninhada = false, livro }: ListaEditavelProps) {
+function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherImagem, aninhada = false, daArma = false, livro }: ListaEditavelProps) {
   // O cartão que acabou de nascer abre aberto; os outros ficam fechados numa linha cada.
   const [recemCriado, setRecemCriado] = useState<string | null>(null)
   const [escolhendo, setEscolhendo] = useState(false)
@@ -259,6 +266,8 @@ function ListaEditavel({ aba, sistema, cartoes, onChange, escolherImagem, aninha
           cartao={cartao}
           aba={aba}
           sistema={sistema}
+          personagem={personagem}
+          daArma={daArma}
           aberto={cartao.id === recemCriado}
           onChange={(novo) => trocar(cartao.id, novo)}
           onRemover={() => onChange(cartoes.filter((atual) => atual.id !== cartao.id))}
@@ -310,6 +319,9 @@ interface CartaoEditavelProps {
   cartao: CartaoDaFicha
   aba: AbaDoSistema
   sistema: SistemaDeRpg
+  personagem: Personagem
+  /** Cartão de dentro de uma arma (bala). */
+  daArma: boolean
   aberto: boolean
   onChange: (cartao: CartaoDaFicha) => void
   onRemover: () => void
@@ -318,7 +330,8 @@ interface CartaoEditavelProps {
   escolherImagem: () => Promise<string | null>
 }
 
-function CartaoEditavel({ cartao, aba, sistema, aberto, onChange, onRemover, onSubir, onDescer, escolherImagem }: CartaoEditavelProps) {
+function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onRemover, onSubir, onDescer, escolherImagem }: CartaoEditavelProps) {
+  const ehArma = !daArma && aba.id === ABA_DAS_ARMAS
   const [erroDaImagem, setErroDaImagem] = useState<string | null>(null)
   const sub = aba.subcartoes === undefined ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
   const trocarCampo = (campoId: string, valor: string) => onChange({ ...cartao, campos: { ...cartao.campos, [campoId]: valor } })
@@ -342,16 +355,30 @@ function CartaoEditavel({ cartao, aba, sistema, aberto, onChange, onRemover, onS
           <span className="lb-label">Nome</span>
           <input className="lb-input" value={cartao.nome} onChange={(event) => onChange({ ...cartao, nome: event.target.value })} />
         </label>
-        {aba.campos.map((campo) => (
-          <label key={campo.id} className="lb-field">
-            <span className="lb-label">{campo.rotulo}</span>
-            {campo.forma === 'linha' ? (
-              <input className="lb-input" value={cartao.campos[campo.id] ?? ''} onChange={(event) => trocarCampo(campo.id, event.target.value)} />
-            ) : (
-              <textarea className="lb-input lb-textarea" value={cartao.campos[campo.id] ?? ''} onChange={(event) => trocarCampo(campo.id, event.target.value)} />
-            )}
-          </label>
-        ))}
+        {aba.campos.map((campo) =>
+          campo.id === CAMPO_DO_DANO ? (
+            <CampoDeDano
+              key={campo.id}
+              rotulo={campo.rotulo}
+              campoId={campo.id}
+              cartao={cartao}
+              personagem={personagem}
+              sistema={sistema}
+              semDanoDaArma={ehArma || daArma}
+              ehArma={ehArma}
+              onChange={onChange}
+            />
+          ) : (
+            <label key={campo.id} className="lb-field">
+              <span className="lb-label">{campo.rotulo}</span>
+              {campo.forma === 'linha' ? (
+                <input className="lb-input" value={cartao.campos[campo.id] ?? ''} onChange={(event) => trocarCampo(campo.id, event.target.value)} />
+              ) : (
+                <textarea className="lb-input lb-textarea" value={cartao.campos[campo.id] ?? ''} onChange={(event) => trocarCampo(campo.id, event.target.value)} />
+              )}
+            </label>
+          ),
+        )}
         {aba.atributos === true && <EscolhaDeAtributos sistema={sistema} escolhidos={cartao.atributos} onChange={(atributos) => onChange({ ...cartao, atributos })} />}
         {aba.imagem === true && (
           <div className="lb-field">
@@ -458,7 +485,16 @@ function CartaoEditavel({ cartao, aba, sistema, aberto, onChange, onRemover, onS
         {sub !== undefined && aba.subcartoes !== undefined && (
           <fieldset className="lb-cartao__grupo">
             <legend className="lb-label">{aba.subcartoes.rotulo}</legend>
-            <ListaEditavel aba={sub} sistema={sistema} cartoes={cartao.subcartoes} onChange={(subcartoes) => onChange({ ...cartao, subcartoes })} escolherImagem={escolherImagem} aninhada />
+            <ListaEditavel
+              aba={sub}
+              sistema={sistema}
+              personagem={personagem}
+              cartoes={cartao.subcartoes}
+              onChange={(subcartoes) => onChange({ ...cartao, subcartoes })}
+              escolherImagem={escolherImagem}
+              aninhada
+              daArma={ehArma}
+            />
           </fieldset>
         )}
         <div className="lb-cartao__acoes">
