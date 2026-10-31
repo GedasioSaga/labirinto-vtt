@@ -1,6 +1,6 @@
 [package]
 name = "labirinto"
-version = "0.5.21"
+version = "0.5.22"
 description = "Labirinto VTT"
 edition = "2021"
 
