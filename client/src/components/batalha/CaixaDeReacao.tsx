@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { MODIFICADOR_DA_REACAO_MAX, PERFURACAO_MAX, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
+import { PERFURACAO_MAX, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
 import { danoFinal, divisaoDoDano, porcentagemQuePerfura, saidaDoPassar, saidasPossiveis } from '../../lib/batalha/reacao'
-import { formatarNumero, movimentoReduzido, saidasNaTela, TEXTO_DA_SAIDA } from './dadosDoMenu'
+import type { ReacaoComTecnica } from '../../lib/batalha/reacaoComTecnica'
+import { formatarNumero, lerModificadorDaReacao, movimentoReduzido, saidasNaTela, TEXTO_DA_SAIDA } from './dadosDoMenu'
+import { TecnicasDaReacao } from './TecnicasDaReacao'
 import './batalha.css'
 import './combate.css'
 
@@ -14,6 +16,9 @@ import './combate.css'
  * dado liberou alguma; Rerolar (Ponto Saga, sem limite: decisão 10); Não
  * reagir, só antes do dado. No 20, Contra-atacar zera o dano e dá uma ação a
  * mais (Q6). No 1 natural e abaixo de 10 o único botão já é receber o golpe.
+ *
+ * Tipos de habilidade F1: antes do d20, "Usar técnica" (`TecnicasDaReacao`)
+ * com as técnicas de reação de quem reage, no lugar do dado.
  *
  * Com mais de um golpe esperando (o mestre, um por NPC atingido), uma linha
  * por golpe e "Rolar todas". Esc recolhe (o botão REAÇÃO reabre).
@@ -34,6 +39,8 @@ export interface ReacaoNaCaixa {
   /** Com `perfurante`, quando é parcial: quanto do dano vai direto ao HP (1 a 99); ausente = tudo. */
   perfuracao?: number
   rolagem?: RolagemDaReacao
+  /** Tipos de habilidade F1: as técnicas de reação de quem reage (`reacoesParaOAlvo`); ausente ou vazia = sem a seção Usar técnica. */
+  tecnicas?: readonly ReacaoComTecnica[]
 }
 
 /** ", perfurante (direto no HP)" ou ", perfurante 30% (60 direto no HP, o resto pelo Escudo)". */
@@ -60,13 +67,6 @@ const PASSO_DO_GIRO_MS = 48
 
 function chaveDa(reacao: ReacaoNaCaixa): string {
   return `${reacao.golpeId ?? 'livre'}:${reacao.tokenId}`
-}
-
-function lerModificador(texto: string): number {
-  const limpo = texto.trim().replace(/^\+/, '')
-  const valor = Number(limpo)
-  if (limpo === '' || limpo === '-' || !Number.isFinite(valor)) return 0
-  return Math.max(-MODIFICADOR_DA_REACAO_MAX, Math.min(MODIFICADOR_DA_REACAO_MAX, Math.trunc(valor)))
 }
 
 /** O d20 que gira e pousa quando a rolagem do host chega. */
@@ -149,14 +149,14 @@ function UmaReacao({
     if (focar) primeiro.current?.focus({ preventScroll: true })
   }, [focar, chaveDaRolagem])
 
-  const modificador = lerModificador(modTexto)
+  const modificador = lerModificadorDaReacao(modTexto)
   const pedir = (pedido: PedidoDeReacao) => {
     if (esperando) return
     modificadorLembrado.set(reacao.tokenId, modificador)
     const saiu = onPedir(pedido)
     setErro(saiu ? null : 'Não saiu: sem conexão com o mestre. Tente de novo.')
-    // Só o dado espera a volta do host; escolher, Passar e Não reagir resolvem e a caixa sai.
-    if (saiu && (pedido.tipo === 'rolar' || pedido.tipo === 'rerolar')) setEsperando(true)
+    // Só o dado espera a volta do host (também a técnica que rola); escolher, Passar, Não reagir e a técnica sem dado resolvem e a caixa sai.
+    if (saiu && (pedido.tipo === 'rolar' || pedido.tipo === 'rerolar' || (pedido.tipo === 'tecnica' && pedido.saida === 'rolar'))) setEsperando(true)
   }
   const golpeId = reacao.golpeId
   const saidas = rolagem === undefined ? [] : saidasNaTela(rolagem.d20, rolagem.total, reacao.dano)
@@ -222,6 +222,18 @@ function UmaReacao({
           )}
         </div>
       </div>
+      {golpeId !== null && rolagem === undefined && reacao.tecnicas !== undefined && (
+        <TecnicasDaReacao
+          tecnicas={reacao.tecnicas}
+          golpeId={golpeId}
+          tokenId={reacao.tokenId}
+          atacante={reacao.atacante}
+          dano={reacao.dano}
+          modificadorInicial={modTexto}
+          esperando={esperando}
+          onPedir={pedir}
+        />
+      )}
       <div className="bt-reacao__pe">
         <span className="bt-reacao__regra">
           {rolagem === undefined

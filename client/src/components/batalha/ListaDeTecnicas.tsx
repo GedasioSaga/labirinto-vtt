@@ -170,6 +170,11 @@ export function CabecaDaVez({ quem, pips, carga, titulo }: { quem: string; pips:
 export function ChipsDoGolpe({ golpe }: { golpe: GolpeNaTela }) {
   return (
     <>
+      {golpe.tipoTexto !== undefined && (
+        <span className="bt-etq bt-etq--tipo" title={golpe.tipoInferido === true ? `Tipo: ${golpe.tipoTexto} (pela Ação; o campo Tipo da ficha está vazio)` : `Tipo: ${golpe.tipoTexto}`}>
+          {golpe.tipoTexto}
+        </span>
+      )}
       {golpe.forma !== undefined && <span className="bt-etq bt-etq--forma">{golpe.forma}</span>}
       {golpe.categoria !== undefined && <span className="bt-etq bt-etq--categoria">{golpe.categoria}</span>}
       {golpe.capacidade !== undefined && <span className="bt-etq" title={`Capacidade: ${golpe.capacidade}`}>Cap. {golpe.capacidade}</span>}

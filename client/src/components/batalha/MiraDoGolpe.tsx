@@ -43,7 +43,9 @@ import './combate.css'
  * turno") vem marcado, com nome e turnos editáveis e o desmarcar; pega só no
  * alvo que o golpe acerta (Q6). Atacar com arma de balas: a escolha da bala
  * ("Sem bala especial" = o dano da arma) refaz o Dano base e a conta, e o
- * pedido leva o `balaId`.
+ * pedido leva o `balaId`. Na técnica cuja fórmula diz "Dano da Bala" (tipos
+ * de habilidade F1), a mesma escolha refaz a conta da técnica; o pedido de
+ * habilidade não tem `balaId`: a bala vai no dano de cada alvo.
  *
  * Esc volta à lista; Enter num campo lança.
  */
@@ -317,14 +319,14 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
         )}
         {balas.length > 0 && (
           <fieldset className="bt-mira__balas">
-            <legend>Bala · a conta do dano muda com ela</legend>
+            <legend>{golpe.tipo === 'habilidade' ? 'Bala · entra no "Dano da Bala" da técnica' : 'Bala · a conta do dano muda com ela'}</legend>
             <OpcaoDeBala
               nome={`${idBase}-bala`}
               marcada={balaId === null}
               titulo="Sem bala especial"
-              danoTexto="o da arma"
+              danoTexto={golpe.tipo === 'habilidade' ? 'bala 0' : 'o da arma'}
               total={golpe.dano}
-              detalhe="Atira com o dano da própria arma."
+              detalhe={golpe.tipo === 'habilidade' ? 'O "Dano da Bala" da fórmula vale 0.' : 'Atira com o dano da própria arma.'}
               onEscolher={() => escolherBala(null)}
             />
             {balas.map((bala) => (
@@ -333,7 +335,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                 nome={`${idBase}-bala`}
                 marcada={balaId === bala.id}
                 titulo={bala.nome}
-                danoTexto={bala.danoTexto === '' ? 'o da arma' : bala.danoTexto}
+                danoTexto={bala.danoTexto === '' ? (golpe.tipo === 'habilidade' ? 'bala 0' : 'o da arma') : bala.danoTexto}
                 total={bala.dano}
                 detalhe={[bala.efeito, bala.quantidade === '' ? '' : `Qtd. ${bala.quantidade}`].filter(Boolean).join(' · ')}
                 onEscolher={() => escolherBala(bala.id)}

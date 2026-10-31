@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { chaveDaVez, type PedidoDeAcao, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
+import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { formasNoMenu } from '../../lib/batalha/transformacao'
 import { ATACANTE_FORA_DA_VISTA, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
@@ -159,9 +160,16 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       if (reacao.perfurante) item.perfurante = true
       if (reacao.perfurante && reacao.perfuracao !== undefined) item.perfuracao = reacao.perfuracao
       if (reacao.rolagem !== undefined) item.rolagem = reacao.rolagem
+      // Tipos de habilidade F1: as técnicas de reação da ficha dele que reage (o recorte só traz alvo que reage).
+      const personagemDoAlvo = estado.cartas.find((carta) => carta.tokenId === reacao.tokenId && carta.lado === 'eu')?.personagemId
+      const dele = personagemDoAlvo === undefined ? undefined : meus.find((candidato) => candidato.id === personagemDoAlvo)
+      if (dele !== undefined && sistema !== null) {
+        const combateDele = combateDoJogador(estado.meus?.find((meu) => meu.personagemId === dele.id), null)
+        item.tecnicas = reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele)
+      }
       return item
     })
-  }, [estado.reacoes, nomeDe])
+  }, [estado.reacoes, estado.cartas, estado.meus, meus, sistema, nomeDe])
 
   // Golpe novo esperando: a caixa abre sozinha (uma vez por golpe).
   const vistosGolpes = useRef(new Set<string>())

@@ -68,7 +68,7 @@ export interface LeituraDoTipo {
  * ("Reação/Ação Completa") = ativa com `tambemReacao`; Fortaleza ("Passiva")
  * = passiva.
  */
-export function lerTipo(cartao: CartaoDaFicha): LeituraDoTipo {
+export function lerTipo(cartao: Pick<CartaoDaFicha, 'campos'>): LeituraDoTipo {
   const acao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
   const texto = (cartao.campos[CAMPO_DO_TIPO] ?? '').trim()
   const escrito = tipoDoTexto(texto)

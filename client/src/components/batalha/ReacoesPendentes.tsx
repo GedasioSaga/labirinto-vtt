@@ -9,7 +9,9 @@ import './combate.css'
 /**
  * AS REAÇÕES PENDENTES (mestre, aba Batalha): os golpes esperando reação. Os
  * de NPC na caixa REAÇÃO (Rolar, modificador, Não reagir antes do dado; depois
- * as saídas, Passar e Rolar de novo; "Rolar todas" com mais de um). Passar
+ * as saídas, Passar e Rolar de novo; "Rolar todas" com mais de um; antes do
+ * dado, "Usar técnica" com as técnicas de reação do NPC, que
+ * `BatalhaDoMestre` põe em `tecnicas`). Passar
  * mantém o crítico do 1 natural, como no jogador. Os de jogador, "Esperando Lia", com
  * "Rolar por ela" e "Não reagir por ela". Perfurante (Q4) por golpe: o
  * mestre decide no fim.

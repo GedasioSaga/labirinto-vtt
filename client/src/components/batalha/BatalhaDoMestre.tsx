@@ -4,6 +4,7 @@ import { chaveDaVez, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
+import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import { selosDoToken, textoDoSelo } from '../../lib/batalha/selos'
 import { aparenciaDaForma, formasNoMenu } from '../../lib/batalha/transformacao'
 import { cartaDaVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
@@ -155,13 +156,16 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         }
         if (golpe.perfuracao !== undefined) item.perfuracao = golpe.perfuracao
         if (alvo.rolagem !== undefined) item.rolagem = alvo.rolagem
+        // Tipos de habilidade F1: o NPC reage também com técnica (a caixa do mestre, por NPC).
+        const doNpc = item.doMestre && alvo.personagemId !== null ? personagens.find((candidato) => candidato.id === alvo.personagemId) : undefined
+        if (doNpc !== undefined && sistema !== null) item.tecnicas = reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id])
         itens.push(item)
       }
     }
     return itens
     // `mesa` muda junto com as fichas e os personagens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turnos, mesa.fichas, personagens])
+  }, [turnos, mesa.fichas, personagens, sistema])
 
   if (cena === undefined || turnos === undefined) return null
 

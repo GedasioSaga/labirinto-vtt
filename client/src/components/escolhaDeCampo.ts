@@ -1,5 +1,6 @@
 import { normalizar } from '../lib/batalha/formula'
 import { CAMPO_DA_CATEGORIA, CATEGORIAS_DE_ARMA, categoriaAtira, lerCategoria } from '../lib/batalha/leituraDaFicha'
+import { CAMPO_DO_TIPO, lerTipo, rotuloDoTipo } from '../lib/batalha/tiposDaHabilidade'
 
 /**
  * As peças comuns da caixa de escolha de um campo com `opcoes` (a Categoria
@@ -19,15 +20,29 @@ export interface EscolhaDoCampo {
   opcoes: OpcaoDaEscolha[]
 }
 
+/** O texto da opção vazia da caixa. */
+const ROTULO_DO_VAZIO = '—'
+
 /**
- * As opções da caixa para o valor guardado. Vazio = "—". O valor casa com a
+ * O texto da opção vazia de um campo. No Tipo da habilidade, vazio não é
+ * "nada": a batalha deduz pela Ação, então a caixa diz o que vale
+ * ("— pela Ação (Reação)"). Nos outros campos, "—".
+ */
+export function rotuloDoVazio(campoId: string, campos: Readonly<Record<string, string>>): string {
+  if (campoId !== CAMPO_DO_TIPO) return ROTULO_DO_VAZIO
+  const deduzido = lerTipo({ campos: { ...campos, [CAMPO_DO_TIPO]: '' } }).tipo
+  return `${ROTULO_DO_VAZIO} pela Ação (${rotuloDoTipo(deduzido)})`
+}
+
+/**
+ * As opções da caixa para o valor guardado. Vazio = "—" (ou `rotuloDoVazio`). O valor casa com a
  * lista sem acento e sem caixa; a Categoria da arma casa também como a batalha
  * lê ("arma de fogo" = De fogo). Texto que não casa (ficha antiga) vira uma
  * opção a mais, "(fora da lista)": a caixa nunca troca o valor sozinha.
  */
-export function escolhaDoCampo(opcoes: readonly string[], valor: string, casarComCategoria: boolean): EscolhaDoCampo {
+export function escolhaDoCampo(opcoes: readonly string[], valor: string, casarComCategoria: boolean, rotuloDoVazio = ROTULO_DO_VAZIO): EscolhaDoCampo {
   const atual = valor.trim()
-  const base: OpcaoDaEscolha[] = [{ valor: '', rotulo: '—' }, ...opcoes.map((opcao) => ({ valor: opcao, rotulo: opcao }))]
+  const base: OpcaoDaEscolha[] = [{ valor: '', rotulo: rotuloDoVazio }, ...opcoes.map((opcao) => ({ valor: opcao, rotulo: opcao }))]
   if (atual.length === 0) return { selecionada: '', opcoes: base }
   const porTexto = opcoes.find((opcao) => normalizar(opcao) === normalizar(atual))
   const categoria = casarComCategoria ? lerCategoria(atual) : null

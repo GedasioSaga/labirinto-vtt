@@ -6,7 +6,7 @@ import type { Ajuste } from '../lib/ajusteDaFicha'
 import { CAMPO_DO_DANO } from '../lib/batalha/formula'
 import { ABA_DAS_ARMAS, ABA_DAS_BALAS, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../lib/batalha/leituraDaFicha'
 import { CampoDeDano } from './CampoDeDano'
-import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, rotuloDaCategoria } from './escolhaDeCampo'
+import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, rotuloDaCategoria, rotuloDoVazio } from './escolhaDeCampo'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
@@ -385,6 +385,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
               campo={campo}
               valor={cartao.campos[campo.id] ?? ''}
               casarComCategoria={ehArma && campo.id === CAMPO_DA_CATEGORIA}
+              vazio={rotuloDoVazio(campo.id, cartao.campos)}
               aviso={campo.id === CAMPO_DA_CATEGORIA ? guardadoSemTiro : null}
               onChange={(valor) => trocarCampo(campo.id, valor)}
             />
@@ -550,16 +551,18 @@ interface CampoDeEscolhaProps {
   valor: string
   /** A Categoria da arma: "arma de fogo" casa com De fogo, como a batalha lê. */
   casarComCategoria: boolean
+  /** O texto da opção vazia ("—"; no Tipo da habilidade, o que a Ação deduz). */
+  vazio: string
   /** Frase embaixo da caixa (o que ficou guardado fora da tela); `null` = nenhuma. */
   aviso: string | null
   onChange: (valor: string) => void
 }
 
 /** Campo com lista fechada (`opcoes`): caixa de escolha com "—" para vazio, que guarda o texto da opção. */
-function CampoDeEscolha({ campo, valor, casarComCategoria, aviso, onChange }: CampoDeEscolhaProps) {
+function CampoDeEscolha({ campo, valor, casarComCategoria, vazio, aviso, onChange }: CampoDeEscolhaProps) {
   const caixaId = useId()
   const avisoId = useId()
-  const escolha = escolhaDoCampo(campo.opcoes ?? [], valor, casarComCategoria)
+  const escolha = escolhaDoCampo(campo.opcoes ?? [], valor, casarComCategoria, vazio)
   // Rótulo por `htmlFor`, não envolvendo: o aviso fica fora do nome da caixa e entra só como descrição.
   return (
     <div className="lb-field">

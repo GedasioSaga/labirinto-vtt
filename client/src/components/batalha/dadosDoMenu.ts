@@ -2,6 +2,7 @@ import { acaoDoGolpe, motivoDaAcao, tecnicasNoMenu, type AcoesDaVez, type Tecnic
 import {
   CARGA_MAX,
   MULTIPLICADOR_DA_CARGA,
+  MODIFICADOR_DA_REACAO_MAX,
   MULTIPLICADOR_DA_SURPRESA,
   PERFURACAO_MAX,
   PERFURACAO_MIN,
@@ -12,7 +13,8 @@ import {
   type SeloPedido,
 } from '../../lib/batalha/combate'
 import { seloDaTecnica } from '../../lib/batalha/selos'
-import { danoDoAtaque, type LeituraDoDano } from '../../lib/batalha/formula'
+import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
+import { rotuloDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
   CAMPO_DA_ACAO,
   CATEGORIAS_DE_ARMA,
@@ -83,8 +85,16 @@ export interface GolpeNaTela {
   categoria?: string
   /** Atacar com arma: a capacidade da ficha ("6"), só mostra; ausente = a ficha não diz. */
   capacidade?: string
-  /** Atacar com arma: os tipos de bala, cada um com o dano já feito; ausente = a arma não tem balas. */
+  /**
+   * Os tipos de bala, cada um com o dano já feito; ausente = sem escolha. No
+   * Atacar, os da arma de fogo ou híbrida; na habilidade cuja fórmula diz
+   * "Dano da Bala", os da arma que entra na conta.
+   */
   balas?: readonly BalaNaTela[]
+  /** Só na habilidade: o Tipo ("Reação"), o selo pequeno da tira. */
+  tipoTexto?: string
+  /** Só na habilidade: o Tipo veio da Ação, não do campo Tipo (o selo diz "pela Ação"). */
+  tipoInferido?: boolean
 }
 
 /** Um tipo de bala na mira: o texto da ficha e o dano do ataque com ela. */
@@ -238,9 +248,31 @@ export function danoNaTela(leitura: LeituraDoDano): DanoNaTela {
 const ABA_DAS_TECNICAS = 'habilidades'
 const ABA_DAS_ARMAS = 'armas'
 
-function golpeDaTecnica(tecnica: TecnicaNoMenu, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, arma: CartaoDaFicha | null): GolpeNaTela {
+/**
+ * As balas da técnica cuja fórmula diz "Dano da Bala" (tipos de habilidade
+ * F1): uma por tipo de bala da arma que entra na conta, com o dano da técnica
+ * já feito com ela. Sem arma, arma sem balas ou fórmula sem bala: nenhuma.
+ */
+function balasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha | null): BalaNaTela[] {
+  const formula = cartao.campos[CAMPO_DO_DANO] ?? ''
+  if (arma === null || arma.balas.length === 0 || !formulaUsaBala(formula)) return []
+  return arma.balas.map((bala) => ({
+    id: bala.id,
+    nome: bala.nome,
+    danoTexto: bala.dano,
+    efeito: bala.efeito,
+    quantidade: bala.quantidade,
+    dano: danoNaTela(lerDano(formula, { personagem, sistema, arma, vidaDoAlvo: null, bala })),
+  }))
+}
+
+function golpeDaTecnica(tecnica: TecnicaNoMenu, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, arma: ArmaDaFicha | null): GolpeNaTela {
   const dano = danoNaTela(tecnica.dano)
+  const balas = balasDaTecnica(tecnica.cartao, personagem, sistema, arma)
   const golpe: GolpeNaTela = {
+    ...(balas.length === 0 ? {} : { balas }),
+    tipoTexto: rotuloDoTipo(tecnica.tipo.tipo),
+    tipoInferido: tecnica.tipo.inferido,
     chave: `tecnica:${tecnica.cartao.id}`,
     tipo: 'habilidade',
     cartaoId: tecnica.cartao.id,
@@ -271,9 +303,9 @@ export function golpesDeHabilidade(
   sistema: SistemaDeRpg,
   combate: CombateDoPersonagem | undefined,
   acoes: AcoesDaVez | null,
-  arma: CartaoDaFicha | null,
+  arma: ArmaDaFicha | null,
 ): GolpeNaTela[] {
-  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma).map((tecnica) => golpeDaTecnica(tecnica, sistema, combate, arma))
+  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma))
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */
@@ -478,6 +510,14 @@ export function movimentoReduzido(): boolean {
 }
 
 /** Um inteiro de 0 ao teto, a partir do que foi digitado; `null` = vazio ou inválido. */
+/** O modificador de reação digitado ("+3", "-2"); vazio ou torto = 0, no teto de ±`MODIFICADOR_DA_REACAO_MAX`. */
+export function lerModificadorDaReacao(texto: string): number {
+  const limpo = texto.trim().replace(/^\+/, '')
+  const valor = Number(limpo)
+  if (limpo === '' || limpo === '-' || !Number.isFinite(valor)) return 0
+  return Math.max(-MODIFICADOR_DA_REACAO_MAX, Math.min(MODIFICADOR_DA_REACAO_MAX, Math.trunc(valor)))
+}
+
 export function lerInteiro(texto: string, teto: number): number | null {
   const limpo = texto.replace(/\D/g, '')
   if (limpo === '') return null

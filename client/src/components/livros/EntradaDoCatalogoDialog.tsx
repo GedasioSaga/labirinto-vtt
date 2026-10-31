@@ -19,7 +19,7 @@ import {
 import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../../lib/batalha/leituraDaFicha'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../../stores/catalogoStore'
-import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo } from '../escolhaDeCampo'
+import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, rotuloDoVazio } from '../escolhaDeCampo'
 import { formatarNumero, movimentoReduzido } from './comum'
 import { IconeDoMundo } from './icones'
 import './mundo.css'
@@ -354,7 +354,7 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
               {camposMostrados.map((campo) => {
                 const id = `${campoIdBase}-${campo.id}`
                 if (campo.opcoes !== undefined) {
-                  const escolha = escolhaDoCampo(campo.opcoes, campos[campo.id] ?? '', tipo === 'arma' && campo.id === CAMPO_DA_CATEGORIA)
+                  const escolha = escolhaDoCampo(campo.opcoes, campos[campo.id] ?? '', tipo === 'arma' && campo.id === CAMPO_DA_CATEGORIA, rotuloDoVazio(campo.id, campos))
                   const aviso = campo.id === CAMPO_DA_CATEGORIA ? avisoSemTiro : null
                   return (
                     <div key={campo.id} className="mu-campo">

@@ -281,14 +281,19 @@
   background: var(--bt-tinta);
   color: var(--lb-color-brass-bright);
 }
-/* A categoria da arma (Branca, De fogo...): o selo vazado, para não brigar com o dano. */
-.bt-etq--categoria {
+/*
+ * A categoria da arma (Branca, De fogo...) e o Tipo da habilidade (Ativa,
+ * Reação...): o selo vazado, para não brigar com o dano.
+ */
+.bt-etq--categoria,
+.bt-etq--tipo {
   background: transparent;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 .bt-tira[data-esta='sim'] .bt-etq--categoria,
+.bt-tira[data-esta='sim'] .bt-etq--tipo,
 .bt-mira__arma .bt-etq.bt-etq--categoria {
   background: transparent;
   box-shadow: inset 0 0 0 1px rgba(12, 12, 14, 0.45);
@@ -1140,6 +1145,159 @@
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
+/*
+ * USAR TÉCNICA (tipos de habilidade F1): um cartão por técnica de reação,
+ * antes do d20. A saída lida do texto vem marcada (papel sobre tinta, como a
+ * tira escolhida) e repetida no botão; as outras são vazadas.
+ */
+.bt-tecs {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.bt-tecs__titulo {
+  margin: 0 0 8px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-tecs__titulo span {
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-tecs__lista {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bt-tec {
+  padding: 10px 12px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 3px 0 0 var(--bt-sangue);
+}
+.bt-tec[data-apagada='sim'] {
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.12);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-tec__cabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.bt-tec__nome {
+  min-width: 0;
+  margin-right: 2px;
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bt-papel);
+  overflow-wrap: anywhere;
+}
+.bt-tec[data-apagada='sim'] .bt-tec__nome {
+  color: var(--lb-color-parchment-dim);
+}
+.bt-tec__motivo {
+  margin: 4px 0 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-tec__saidas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+}
+.bt-tec__saida {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 9px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+.bt-tec__saida:has(input:checked) {
+  background: var(--bt-papel);
+  box-shadow: none;
+  color: var(--bt-tinta);
+  font-weight: 600;
+}
+.bt-tec__saida:has(input:focus-visible) {
+  outline: 2px solid var(--bt-sangue-claro);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-tec__saida:hover:not(:has(input:checked)) {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--lb-color-parchment);
+  }
+}
+.bt-tec__lida {
+  padding: 0 4px;
+  border-radius: 2px;
+  background: var(--bt-sangue);
+  color: #fff;
+  font-family: var(--lb-font-utility);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.bt-tec__extras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 8px;
+}
+.bt-tec__extras .bt-chave {
+  color: var(--lb-color-parchment-dim);
+}
+.bt-tec__pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 10px;
+}
+.bt-tec__pe .bt-botao {
+  min-height: 32px;
+}
+.bt-tec__res {
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.bt-tec__mao {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-brass-bright);
+}
 .bt-dado {
   display: grid;
   place-items: center;
@@ -1325,6 +1483,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--lb-color-parchment);
+}
+.bt-opcao__nome .bt-etq--tipo {
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 10px;
+  vertical-align: 1px;
 }
 .bt-opcao__nome small {
   display: block;
