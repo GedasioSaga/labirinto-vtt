@@ -99,7 +99,7 @@ const gruposDoMenu = (nome: string) =>
 const radiosDe = (nome: string, grupo: string) =>
   Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
 /** Os objetos do menu do Objeto, nas 3 partes (MT5), na ordem de leitura. */
-const radiosDoObjeto = () => ['Dentro de casa', 'Rua e jardim', 'Feira'].flatMap((parte) => radiosDe('Objeto', parte))
+const radiosDoObjeto = () => ['Dentro de casa', 'Rua e jardim', 'Feira', 'Oficina', 'Fazenda'].flatMap((parte) => radiosDe('Objeto', parte))
 
 describe('Toolbar — grupos do protótipo consolidado (fatia 6)', () => {
   it('5 grupos com nome, na ordem: Escolher, Construir, Terreno, Esconder e revelar, Anotar', () => {
@@ -193,7 +193,7 @@ describe('Toolbar — botão Sala (as quatro salas e a Região)', () => {
   it('o menu tem Forma com os nomes curtos; escolher Circular arma a Sala Circular e fecha', () => {
     const onSelectTool = render('select', 'brush')
     act(() => botao('Opções de Sala').click())
-    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Preenchimento'])
+    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Preenchimento', 'Desenho da parede'])
     expect(radiosDe('Sala', 'Forma').map((r) => r.getAttribute('aria-label'))).toEqual(['Retângulo', 'Circular', 'Polígono', 'Livre', 'Região'])
     act(() => radiosDe('Sala', 'Forma').find((r) => r.getAttribute('aria-label') === 'Circular')?.click())
     expect(onSelectTool).toHaveBeenCalledWith('roomCircle')
@@ -212,7 +212,8 @@ describe('Toolbar — botão Sala (as quatro salas e a Região)', () => {
   it('com o Polígono, o menu traz também os lados; com a Região, o preenchimento', () => {
     render('roomPolygon', 'brush')
     act(() => botao('Opções de Sala').click())
-    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Preenchimento', 'Lados do polígono'])
+    // "Desenho da parede" (pedra ou linha, 29/10) fecha o menu das salas que fazem parede.
+    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Preenchimento', 'Lados do polígono', 'Desenho da parede'])
   })
 })
 
@@ -240,7 +241,7 @@ describe('Toolbar — Sala livre: Parede e Arredondar', () => {
   it('com a Sala livre, o menu da Sala oferece Criar (Sala ou Parede) e Arredondar, acima do preenchimento', () => {
     render('roomFree', 'brush')
     act(() => botao('Opções de Sala').click())
-    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Criar', 'Arredondar', 'Preenchimento'])
+    expect(gruposDoMenu('Sala')).toEqual(['Forma', 'Criar', 'Arredondar', 'Preenchimento', 'Desenho da parede'])
     expect(radiosDe('Sala', 'Criar').map((r) => r.getAttribute('aria-label'))).toEqual(['Sala', 'Parede'])
     expect(radiosDe('Sala', 'Arredondar').map((r) => r.getAttribute('aria-label'))).toEqual(['Desligado', 'Ligado'])
     // O padrão é o de hoje: Sala, cantos vivos.
@@ -280,21 +281,25 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 26 objetos em 3 partes (Dentro de casa, Rua e jardim, Feira), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 40 objetos em 5 partes (Dentro de casa, Rua e jardim, Feira, Oficina, Fazenda), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
-    expect(gruposDoMenu('Objeto')).toEqual(['Colocar', 'Dentro de casa', 'Rua e jardim', 'Feira'])
+    expect(gruposDoMenu('Objeto')).toEqual(['Colocar', 'Dentro de casa', 'Rua e jardim', 'Feira', 'Oficina', 'Fazenda'])
     expect(radiosDe('Objeto', 'Colocar').map((r) => r.getAttribute('aria-label'))).toEqual(['Móvel', 'Imagem'])
     const radios = radiosDoObjeto()
-    // Lidos em pares (a grade tem 2 colunas): Mesa ao lado da Cadeira, as mesas novas juntas, os dois tapetes juntos.
+    // Lidos em pares (a grade tem 2 colunas): Mesa ao lado da Cadeira, as mesas novas juntas, os dois tapetes juntos;
+    // a casa de 28/10 (sofá, cozinha, privada) e a lareira em Dentro de casa; a oficina e a fazenda de 29/10 no fim.
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
-      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Armário de cozinha', 'Aparador', 'Tapete', 'Tapete longo',
+      'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Sofá', 'Poltrona', 'Armário de cozinha', 'Aparador',
+      'Balcão', 'Pratos', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Tapete', 'Tapete longo', 'Lareira',
       'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Lampião', 'Fogueira', 'Fogo', 'Lápide',
       'Barraca de feira', 'Carroça', 'Quadro de avisos',
+      'Fornalha de ferreiro', 'Bigorna', 'Balde de água',
+      'Troncos', 'Feno',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(26)
+    expect(new Set(desenhos).size).toBe(40)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 4 ? 'true' : 'false')))
   })
 
