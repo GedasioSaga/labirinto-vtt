@@ -11,6 +11,7 @@ import {
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { combateVazio, type AlvoDoGolpe, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type SeloDaBatalha } from './combate'
+import { semEvoluida } from './escolhaEEvolucao'
 import type { RegrasDaBatalha } from './regrasDoCampo'
 import { inserirCarta, removerCarta, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -104,6 +105,12 @@ export type Reversao =
    * deu). A store não volta o golpe cuja linha já foi desfeita.
    */
   | { tipo: 'reacaoComTecnica'; golpe: GolpeDaBatalha; tokenId: string; alvoAntes: AlvoDoGolpe }
+  /**
+   * Tipos de habilidade F4: a técnica que evoluiu na linha. Desfazer tira SÓ
+   * ela de `evoluidas` (o combate inteiro de antes apagaria recarga e uso
+   * posteriores).
+   */
+  | { tipo: 'evolucao'; personagemId: string; cartaoId: string }
 
 export interface LinhaDoRegistro {
   id: string
@@ -375,6 +382,11 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       return { ...turnos, selos: comSelo(turnos.selos ?? [], reversao.seloId, reversao.antes) }
     case 'reacaoComTecnica':
       return semAReacaoComTecnica(turnos, reversao)
+    case 'evolucao': {
+      const atual = turnos.combate?.[reversao.personagemId]
+      const depois = atual === undefined ? undefined : semEvoluida(atual, reversao.cartaoId)
+      return atual === undefined || depois === undefined || depois === atual ? turnos : { ...turnos, combate: { ...(turnos.combate ?? {}), [reversao.personagemId]: depois } }
+    }
     case 'equipe':
     case 'ficha':
     case 'regras':

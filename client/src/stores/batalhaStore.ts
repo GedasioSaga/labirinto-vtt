@@ -15,6 +15,7 @@ import {
   type EfeitoDaBatalha,
   type GolpeDaBatalha,
   type PedidoDeAcao,
+  type PedidoDeEvolucao,
   type PedidoDePassiva,
   type PedidoDeReacao,
   type AcaoDaForma,
@@ -40,6 +41,7 @@ import {
 } from '../lib/batalha/selos'
 import { ativarForma, desfazerForma, formaDaFicha } from '../lib/batalha/transformacao'
 import { equipeDe } from '../lib/batalha/equipes'
+import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
   ajustesDoCusto,
   depoisDaTecnica,
@@ -72,7 +74,7 @@ import {
 } from '../lib/batalha/passivas'
 import { motivoDaReacaoComTecnica, reagirComTecnica, type PedidoDeTecnica } from '../lib/batalha/reacaoComTecnica'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
-import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, tecnicaPorId } from '../lib/batalha/leituraDaFicha'
+import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { ajustesDoDano, perfuracaoValida, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
@@ -304,6 +306,16 @@ export interface BatalhaState {
    * junto). Selo que não cabe no teto: `false`, nada muda.
    */
   passiva: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDePassiva) => boolean
+
+  // ---- Tipos de habilidade F4: evolução (o mestre chama direto, por qualquer ficha, a qualquer hora; o jogador pela ponte, na vez dele) ----
+  /**
+   * Evoluir a técnica da ficha `pedido.tokenId` NESTA batalha (ação livre).
+   * Regra em `motivoDoEvoluir`. Cobra o custo digitado (SP) pela aventura,
+   * grava em `evoluidas` e escreve a linha "habilidade" ("Siegfried evoluiu
+   * CAÇA AS BRUXAS! → SUPER CAÇA AS BRUXAS!") com Desfazer que tira a
+   * evolução e devolve o SP.
+   */
+  evoluir: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao) => boolean
 }
 
 const SEM_CAMINHOS: Readonly<Record<string, number>> = {}
@@ -463,6 +475,7 @@ function desfazerReversao(mesa: MesaDaBatalha, cena: BatalhaDaCena, reversao: Re
     case 'contra':
     case 'forma':
     case 'selo':
+    case 'evolucao':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
   }
 }
@@ -810,7 +823,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     } else {
       // Ativar: tudo calculado ANTES de cobrar (selo que não cabe no teto recusa sem mexer na ficha).
       const custo = custoDaPassiva(cartao, personagem, pedido.custo)
-      const pedidoDoSelo = pedido.selo === undefined ? seloDaPassiva(cartao, sistema) : seloPedidoValido(pedido.selo, sistema)
+      // Tipos de habilidade F4: a opção escolhida (Melodia); sem selo editado, o selo sai do texto dela.
+      const variante = pedido.variante === undefined ? null : varianteDoPedido(cartao, pedido.variante)
+      const pedidoDoSelo = pedido.selo === undefined ? seloDaPassiva(variante === null ? cartao : cartaoDaVariante(cartao, variante), sistema) : seloPedidoValido(pedido.selo, sistema)
       const alvoTokenId = pedido.alvoTokenId ?? carta.tokenId
       if (pedidoDoSelo === null) return false
       const onde = { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: cartao.nome }
@@ -830,12 +845,51 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const emQuem = alvoTokenId === carta.tokenId ? '' : ` em ${nomeDoToken(alvoTokenId)}`
       // O selo com o mesmo nome e sem mods nem turnos ("Fortaleza · Fortaleza") não diz nada a mais.
       const doSelo = textoDoSeloComMods(selo, sistema)
-      texto = `${dono} ativou ${nome}${emQuem}${pago}${doSelo === nome ? '' : ` · ${doSelo}`}`
+      const escolha = variante === null ? '' : ` (${variante.rotulo})`
+      texto = `${dono} ativou ${nome}${escolha}${emQuem}${pago}${doSelo === nome ? '' : ` · ${doSelo}`}`
     }
     // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
     // `personagemIds` = o dono: a linha da passiva de NPC (custo, HP) não sai ao jogador.
     const atual = cenaDe(sceneKey) ?? cena
     gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'habilidade', texto, autor, tokenIds: [...tokenIds], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    return true
+  }
+
+  /**
+   * Tipos de habilidade F4: Evoluir (`PedidoDeEvolucao`). Ver `evoluir` em
+   * `BatalhaState`. A reversão é [evolucao, ficha]: o Desfazer tira só esta
+   * técnica de `evoluidas` e devolve o SP. O custo e o SP saem do texto do
+   * NPC: a linha pode chegar a jogador da equipe dele.
+   */
+  const evoluirTecnica = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao): boolean => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined) return false
+    const { turnos } = cena
+    const carta = turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)
+    if (carta === undefined || carta.personagemId === null) return false
+    const personagemId = carta.personagemId
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
+    if (motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: autor.tipo === 'jogador' }, pedido) !== null || personagem === null || sistema === null) return false
+    const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
+    const evolucao = achada === null ? null : evolucaoDe(achada.cartao, tecnicasDe(personagem, sistema))
+    if (achada === null || evolucao === null) return false
+    const { cartao } = achada
+    const combate = comEvoluida(turnos.combate?.[personagemId] ?? combateVazio(), cartao.id)
+    const novos: TurnosDaCena = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
+    const custo = custoDaEvolucao(pedido.custo)
+    const partes: Reversao[] = [{ tipo: 'evolucao', personagemId, cartaoId: cartao.id }]
+    partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))))
+    const dono = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
+    const nome = cartao.nome.trim() || 'a técnica'
+    // Com link: "→ SUPER CAÇA AS BRUXAS!"; sem link e o texto diz OVERLOAD: o uso evoluído é Overload.
+    const destino = evolucao.para !== null ? ` → ${evolucao.para.nome.trim() || 'a evoluída'}` : evolucao.overload ? ' (agora Overload)' : ''
+    const recurso = recursoDoCusto(sistema, 'sp')?.nome ?? 'SP'
+    const pago = custo.tipo === 'valor' && personagem.tipo === 'jogador' ? ` (${custo.valor} ${recurso})` : ''
+    const texto = `${dono} evoluiu ${nome}${destino}${pago}`
+    // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'habilidade', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
     return true
   }
 
@@ -1528,6 +1582,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     tirarSelo: (sceneKey, seloId) => mudarSelo(sceneKey, seloId, null),
 
     passiva: (sceneKey, autor, pedido) => mudarPassiva(sceneKey, autor, pedido),
+
+    evoluir: (sceneKey, autor, pedido) => evoluirTecnica(sceneKey, autor, pedido),
   }
 }
 
@@ -1579,6 +1635,7 @@ export const ponteDaBatalha: PonteDaBatalha = {
   escolherArmas: (sceneKey, autor, personagemId, armas) => useBatalhaStore.getState().escolherArmas(sceneKey, autor, personagemId, armas),
   zerarCarga: (sceneKey, autor, personagemId) => useBatalhaStore.getState().zerarCarga(sceneKey, autor, personagemId),
   passiva: (sceneKey, autor, pedido) => useBatalhaStore.getState().passiva(sceneKey, autor, pedido),
+  evoluir: (sceneKey, autor, pedido) => useBatalhaStore.getState().evoluir(sceneKey, autor, pedido),
 }
 
 type EstadoDaBatalha = Pick<BatalhaState, 'cenas'>

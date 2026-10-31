@@ -8,6 +8,7 @@ import {
   combateVazio,
   DANO_MAX,
   EFEITOS_POR_MENSAGEM,
+  EVOLUIDAS_MAX,
   GOLPES_PENDENTES_MAX,
   ID_DO_CARTAO_MAX,
   LEMBRADAS_MAX,
@@ -379,8 +380,8 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
 /**
  * Tipos de habilidade F3: os lembretes, as chaves lembradas e as passivas
  * ligadas do personagem DELE (o NPC nunca chega aqui: `meus` só leva ficha
- * dele). Nos tetos do fio; campo vazio não sai (o JSON de quem não tem
- * passiva fica igual byte a byte).
+ * dele). F4: e as técnicas evoluídas. Nos tetos do fio; campo vazio não sai
+ * (o JSON de quem não tem passiva nem evolução fica igual byte a byte).
  */
 function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem, ativas: readonly string[]): CombateParaJogador {
   const cabe = (cartaoId: string): boolean => cartaoId.length >= 1 && cartaoId.length <= ID_DO_CARTAO_MAX
@@ -390,9 +391,12 @@ function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem
     .map((lembrete): LembreteDaPassiva => ({ cartaoId: lembrete.cartaoId, tokenId: lembrete.tokenId, tipo: lembrete.tipo, chave: lembrete.chave, rodada: lembrete.rodada }))
   const lembradas = (combate.lembradas ?? []).filter((chave) => chave.length >= 1 && chave.length <= CHAVE_DA_LEMBRADA_MAX).slice(-LEMBRADAS_MAX)
   const passivasAtivas = ativas.filter(cabe).slice(0, PASSIVAS_ATIVAS_MAX)
+  // Tipos de habilidade F4: as técnicas evoluídas nesta batalha (só ids; o menu apaga e libera por elas).
+  const evoluidas = (combate.evoluidas ?? []).filter(cabe).slice(-EVOLUIDAS_MAX)
   if (lembretes.length > 0) meu.lembretes = lembretes
   if (lembradas.length > 0) meu.lembradas = lembradas
   if (passivasAtivas.length > 0) meu.passivasAtivas = passivasAtivas
+  if (evoluidas.length > 0) meu.evoluidas = evoluidas
   return meu
 }
 
