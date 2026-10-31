@@ -54,14 +54,16 @@
   overflow-wrap: anywhere;
 }
 /*
- * Na mira o menu inteiro rola (`.pp-batalha-menu > .bt-vez--lista:has(> .bt-mira)`,
- * em player.css e arena.css), e a rolagem corta o que passa da caixa: girada
- * -3° pela ponta de baixo à esquerda, a cabeça sobe até 5,2% da própria
- * largura na ponta direita, e as maiúsculas passam um pouco da linha
- * (line-height 0,95). A margem em % é da largura do menu, que é a da cabeça:
- * o nome longo, que quebra e chega à ponta, também cabe.
+ * Girada -3° pela ponta de baixo à esquerda, a cabeça sobe até 5,2% da
+ * própria largura na ponta direita, e as maiúsculas passam um pouco da linha
+ * (line-height 0,95): o nome saía da caixa por cima. Na mira, a rolagem do
+ * menu cortava (`.pp-batalha-menu > .bt-vez--lista:has(> .bt-mira)`); no menu
+ * principal, que enche o lugar e começa 12 px abaixo da faixa da ordem, a
+ * faixa (o mesmo z 9, montada depois no PlayerView) pintava por cima das
+ * letras. O espaço vale em toda tela da vez. A margem em % é da largura do
+ * menu, que é a da cabeça: o nome longo, que quebra e chega à ponta, também cabe.
  */
-.bt-vez--lista:has(> .bt-mira) > .bt-vez__cabeca {
+.bt-vez > .bt-vez__cabeca {
   margin-top: calc(6px + 5.3%);
 }
 .bt-vez__economia {
