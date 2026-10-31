@@ -1554,6 +1554,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               escolherArmas: (personagemId, armas) => connection.escolherArmasNaBatalha(personagemId, armas),
               passarVez: (cartaId, rodada) => connection.passarVezNaBatalha(cartaId, rodada),
               zerarCarga: (personagemId) => connection.zerarCargaNaBatalha(personagemId),
+              passiva: (pedido) => connection.passivaNaBatalha(pedido),
             }}
             consulta={consultaEstavel}
             alvoDoMapa={alvoDoMapa}
@@ -1703,6 +1704,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onAbrirMinhaFicha={servePersonagens ? () => setFicha({ instant: false }) : undefined}
             onMeDarDano={(tokenId, valor) => connection.darDanoEmMim(tokenId, valor)}
             onZerarMinhaCarga={(personagemId) => connection.zerarCargaNaBatalha(personagemId)}
+            onPassiva={(pedido) => connection.passivaNaBatalha(pedido)}
           />
         )}
         {/*

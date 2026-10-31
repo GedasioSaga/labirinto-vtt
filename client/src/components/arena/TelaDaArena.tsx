@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { equipesDaArena, vistaDaArena, AUTOR_DA_ARENA } from '../../lib/arena/estadoDaArena'
 import { CENA_DA_ARENA, GRADES_DA_ARENA, type ContaDoPlacar, type LadoDaArena, type SessaoDaArena } from '../../lib/arena/tipos'
-import type { PedidoDeAcao, PedidoDeReacao } from '../../lib/batalha/combate'
+import type { PedidoDeAcao, PedidoDePassiva, PedidoDeReacao } from '../../lib/batalha/combate'
 import type { Equipe } from '../../lib/batalha/equipes'
 import { armasDe, limiteDeArmas, recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import type { BatalhaEmTurnos, VezEsperada } from '../../lib/batalha/ponte'
@@ -23,6 +23,7 @@ import { useMundoDoLivroStore, usePersonagensDoMundo } from '../../stores/mundoD
 import { useToastStore } from '../../stores/toastStore'
 import { AcoesExtrasDialog } from '../batalha/AcoesExtrasDialog'
 import { BatalhaDoJogador, type ConexaoDaBatalha } from '../batalha/BatalhaDoJogador'
+import { PassivasDaFicha, alvosDaOrdemParaPassiva, passivasNaCena } from '../batalha/PassivasDaBatalha'
 import { DarDanoDialog } from '../batalha/DarDanoDialog'
 import { faixaDoMestre, linhasDoMestre, type DadosDaCarta } from '../batalha/dadosDaFaixa'
 import { tremer } from '../batalha/EfeitosDaBatalha'
@@ -250,6 +251,8 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
       escolherArmas: (personagemId, armas) => batalhaDaArena.getState().escolherArmas(CENA_DA_ARENA, AUTOR_DA_ARENA, personagemId, armas),
       passarVez: (cartaId, rodada) => batalhaDaArena.getState().passarVez(CENA_DA_ARENA, AUTOR_DA_ARENA, { cartaId, rodada }),
       zerarCarga: (personagemId) => batalhaDaArena.getState().zerarCarga(CENA_DA_ARENA, AUTOR_DA_ARENA, personagemId),
+      // Tipos de habilidade F3: o menu da vez e os lembretes das passivas (o mestre opera todos os lados).
+      passiva: (pedido: PedidoDePassiva) => batalhaDaArena.getState().passiva(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
     }),
     [],
   )
@@ -327,6 +330,11 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
 
   const perfil = perfilId === null ? undefined : sessao.copias.find((personagem) => personagem.id === perfilId)
   const descricaoDoPerfil = perfil === undefined ? '' : [quemNoPerfil(sessao, equipes, perfil.id), 'cópia da arena', 'só leitura'].filter(Boolean).join(' · ')
+  // Tipos de habilidade F3: as passivas da cópia no perfil (o mestre ativa e desliga as de qualquer lado).
+  const cartaDoPerfil = perfil === undefined ? undefined : turnos.cartas.find((carta) => carta.personagemId === perfil.id)
+  const passivasDoPerfil = perfil === undefined || cartaDoPerfil === undefined ? [] : passivasNaCena(perfil, sistema, turnos, cartaDoPerfil.tokenId)
+  const equipeDoPerfil = perfil === undefined ? undefined : equipes.find((equipe) => equipe.membros.includes(perfil.id))
+  const nomeNaArena = (tokenId: string) => sessao.tokens.find((token) => token.id === tokenId)?.name.trim() || 'Ficha'
   const modo = sessao.montagem.modo === 'boneco' ? 'Contra o Judge-boneco' : 'Dois lados'
 
   return (
@@ -434,7 +442,25 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
       )}
 
       {perfil !== undefined && (
-        <PerfilDaCarta personagem={perfil} sistema={sistema} descricao={descricaoDoPerfil} imagemDaForma={aparenciaDaForma(turnos.formas?.[perfil.id], perfil)} onFechar={() => setPerfilId(null)} />
+        <PerfilDaCarta
+          personagem={perfil}
+          sistema={sistema}
+          descricao={descricaoDoPerfil}
+          imagemDaForma={aparenciaDaForma(turnos.formas?.[perfil.id], perfil)}
+          passivas={
+            cartaDoPerfil === undefined || passivasDoPerfil.length === 0 ? undefined : (
+              <PassivasDaFicha
+                passivas={passivasDoPerfil}
+                tokenId={cartaDoPerfil.tokenId}
+                alvos={alvosDaOrdemParaPassiva(turnos.cartas, nomeNaArena, cartaDoPerfil.tokenId, (personagemId) => personagemId !== null && equipeDoPerfil?.membros.includes(personagemId) === true)}
+                sistema={sistema}
+                aplicarLivre
+                onPedir={(pedido) => batalhaDaArena.getState().passiva(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido)}
+              />
+            )
+          }
+          onFechar={() => setPerfilId(null)}
+        />
       )}
       {dialogo !== null && <DialogoNaArena dialogo={dialogo} cena={cena} sessao={sessao} sistema={sistema} onFechar={() => setDialogo(null)} />}
     </>

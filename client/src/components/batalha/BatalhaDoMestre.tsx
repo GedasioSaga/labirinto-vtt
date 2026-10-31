@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDePassiva } from '../../lib/batalha/combate'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
@@ -22,6 +22,7 @@ import { MOTIVO_SEM_PERSONAGEM, armasNaBatalha, economiaEmTexto, golpesDeAtaque,
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
+import { LembretesDaPassiva, PassivasDaFicha, lembretesNaTela, passivasNaCena, type LembreteNaTela } from './PassivasDaBatalha'
 import { ReacoesPendentes, type PendenteNaTela } from './ReacoesPendentes'
 import { SeloDialog } from './SeloDialog'
 
@@ -31,7 +32,10 @@ import { SeloDialog } from './SeloDialog'
  * reações pendentes e os diálogos do mestre (dar dano, ações extras, armas
  * desta batalha, F3: pôr, editar e tirar selo), que o menu da carta da faixa
  * também abre. Toda ação vai direto à `batalhaStore` (o host avisa os
- * jogadores).
+ * jogadores). Tipos de habilidade F3: os lembretes e a lista Passivas do NPC
+ * da vez moram no painel dele; os lembretes dos OUTROS NPCs (o gatilho bate
+ * fora da vez deles: rodada, dano) ficam numa seção curta acima das reações.
+ * Os das fichas dos jogadores são dos jogadores (a tela deles pergunta).
  */
 
 const MESTRE = { tipo: 'mestre' } as const
@@ -127,6 +131,31 @@ function alvosDaOrdem(mesa: Mesa, cartas: readonly CartaDaOrdem[], quemAge: Cart
   return alvos
 }
 
+/** Tipos de habilidade F3: a passiva pedida pelo mestre (qualquer ficha, a qualquer hora). */
+function pedirPassiva(sceneKey: string) {
+  return (pedido: PedidoDePassiva) => useBatalhaStore.getState().passiva(sceneKey, MESTRE, pedido)
+}
+
+/** Tipos de habilidade F3: os lembretes dos NPCs fora do `exceto` (o da vez, que os vê no painel), com o nome de cada um. */
+function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string; mesa: Mesa; turnos: TurnosDaCena; exceto: string | null }) {
+  const itens: LembreteNaTela[] = []
+  for (const [personagemId, combate] of Object.entries(turnos.combate ?? {})) {
+    if (personagemId === exceto || (combate.lembretes ?? []).length === 0) continue
+    const personagem = mesa.personagens.find((candidato) => candidato.id === personagemId)
+    const carta = turnos.cartas.find((candidata) => candidata.personagemId === personagemId)
+    if (personagem?.tipo !== 'npc' || carta === undefined) continue
+    const passivas = passivasNaCena(personagem, mesa.sistema, turnos, carta.tokenId)
+    itens.push(...lembretesNaTela(combate.lembretes, passivas, alvosDaOrdem(mesa, turnos.cartas, carta), nomeDaFicha(mesa, carta.tokenId, carta)))
+  }
+  if (itens.length === 0) return null
+  return (
+    <section className="bt-secao" aria-label="Lembretes das passivas dos NPCs">
+      <h3 className="bt-secao__titulo">Passivas dos NPCs</h3>
+      <LembretesDaPassiva itens={itens} sistema={mesa.sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} className="bt-lembretes--npc" />
+    </section>
+  )
+}
+
 /** O painel da vez e as reações pendentes, no alto da aba Batalha. */
 export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onDialogo: (dialogo: DialogoDoMestre) => void }) {
   const mesa = useMesa(sceneKey)
@@ -185,7 +214,13 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
       onTrocarPerfurante={(golpeId, perfurante, perfuracao) => useBatalhaStore.getState().trocarPerfurante(sceneKey, golpeId, perfurante, perfuracao)}
     />
   )
-  if (carta === null) return reacoes
+  if (carta === null)
+    return (
+      <>
+        <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={null} />
+        {reacoes}
+      </>
+    )
 
   const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
   const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras })
@@ -218,6 +253,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           </div>
           <SelosDaVez turnos={turnos} tokenId={carta.tokenId} nome={nome} sistema={sistema} onDialogo={onDialogo} />
         </section>
+        <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={null} />
         {reacoes}
       </>
     )
@@ -235,6 +271,10 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   // F3: as formas do NPC (a tira Transformação do painel) e a imagem da forma ligada, que vence a foto.
   const formas = personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : []
   const aparencia = carta.personagemId === null || personagem === null ? null : aparenciaDaForma(turnos.formas?.[carta.personagemId], personagem)
+  // Tipos de habilidade F3: as passivas do NPC da vez e os lembretes dele (o mestre aplica o "a cada turno" quando quiser).
+  const alvos = alvosDaOrdem(mesa, turnos.cartas, carta)
+  const passivas = passivasNaCena(personagem, sistema, turnos, carta.tokenId)
+  const lembretes = lembretesNaTela(combate?.lembretes, passivas, alvos)
 
   return (
     <>
@@ -246,6 +286,10 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           formas={formas}
           personagemId={carta.personagemId}
           selos={<SelosDaVez turnos={turnos} tokenId={carta.tokenId} nome={nome} sistema={sistema} onDialogo={onDialogo} />}
+          lembretes={lembretes.length === 0 ? undefined : <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} className="bt-lembretes--npc" />}
+          passivas={
+            passivas.length === 0 ? undefined : <PassivasDaFicha passivas={passivas} tokenId={carta.tokenId} alvos={alvos} sistema={sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} />
+          }
           cor={equipe?.cor ?? null}
           descricao={[personagem === null ? 'Sem ficha ligada' : 'NPC', equipe?.nome].filter(Boolean).join(' · ')}
           recursos={personagem === null ? [] : recursosDaCarta(personagem, sistema)}
@@ -254,7 +298,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           motivoDoConcentrar={motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
           armas={armas}
           habilidades={habilidades}
-          alvos={alvosDaOrdem(mesa, turnos.cartas, carta)}
+          alvos={alvos}
           sugestao={{
             chave: sugestao === null ? null : sugestao.cartaoId !== null ? `tecnica:${sugestao.cartaoId}` : sugestao.armaId !== null ? `arma:${sugestao.armaId}` : null,
             alvoTokenId: sugestao?.alvoTokenId ?? null,
@@ -270,6 +314,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           mapa={{ ligado: mirando, onTrocar: (ligado) => useMiraDoMestre.getState().mirar(ligado) }}
         />
       </section>
+      <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={carta.personagemId} />
       {reacoes}
     </>
   )

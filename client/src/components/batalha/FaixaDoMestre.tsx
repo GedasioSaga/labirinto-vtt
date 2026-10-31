@@ -9,6 +9,7 @@ import { DialogoDoMestreNaCena, type DialogoDoMestre } from './BatalhaDoMestre'
 import { faixaDoMestre, linhasDoMestre, type DadosDaCarta } from './dadosDaFaixa'
 import { FaixaDaOrdem } from './FaixaDaOrdem'
 import type { ItemDoMenuDaCarta } from './MenuDaCarta'
+import { PassivasDaFicha, alvosDaOrdemParaPassiva, passivasNaCena } from './PassivasDaBatalha'
 import { PerfilDaCarta } from './PerfilDaCarta'
 
 /**
@@ -154,6 +155,11 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
   if (cena === undefined || dados === null) return null
   const perfil = perfilId === null ? undefined : personagens.find((personagem) => personagem.id === perfilId)
   const equipeDoPerfil = perfil === undefined ? null : equipeDe(perfil.id, equipes)
+  // Tipos de habilidade F3: as passivas do perfil (o mestre ativa e desliga as de qualquer ficha), na primeira carta dele.
+  const cartaDoPerfil = perfil === undefined ? undefined : cena.turnos.cartas.find((carta) => carta.personagemId === perfil.id)
+  const passivasDoPerfil = perfil === undefined || cartaDoPerfil === undefined ? [] : passivasNaCena(perfil, sistema, cena.turnos, cartaDoPerfil.tokenId)
+  const nomeDe = (tokenId: string) => fichas.find((ficha) => ficha.id === tokenId)?.name.trim() || cena.turnos.cartas.find((carta) => carta.tokenId === tokenId)?.nome?.trim() || 'Ficha'
+  const mesmoLado = (personagemId: string | null) => equipeDoPerfil !== null && personagemId !== null && equipeDe(personagemId, equipes)?.id === equipeDoPerfil.id
 
   return (
     <>
@@ -174,6 +180,18 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
           sistema={sistema}
           descricao={[equipeDoPerfil?.nome, perfil.tipo === 'npc' ? 'NPC' : 'Jogador', 'só leitura'].filter(Boolean).join(' · ')}
           imagemDaForma={aparenciaDaForma(cena.turnos.formas?.[perfil.id], perfil)}
+          passivas={
+            cartaDoPerfil === undefined || passivasDoPerfil.length === 0 ? undefined : (
+              <PassivasDaFicha
+                passivas={passivasDoPerfil}
+                tokenId={cartaDoPerfil.tokenId}
+                alvos={alvosDaOrdemParaPassiva(cena.turnos.cartas, nomeDe, cartaDoPerfil.tokenId, mesmoLado)}
+                sistema={sistema}
+                aplicarLivre
+                onPedir={(pedido) => useBatalhaStore.getState().passiva(sceneKey, MESTRE, pedido)}
+              />
+            )
+          }
           onFechar={() => setPerfilId(null)}
         />
       )}

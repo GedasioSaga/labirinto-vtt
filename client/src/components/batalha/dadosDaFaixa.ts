@@ -99,7 +99,9 @@ const NOME_DA_NATUREZA: Record<Exclude<NaturezaDoSelo, 'condicao'>, string> = { 
 
 /** "Buff · Fúria: FOR +20, 2 turnos"; "Cego: até o mestre tirar". O título da pílula e o que o leitor de tela diz. */
 export function textoLongoDoSelo(selo: SeloNaCarta): string {
-  const duracao = selo.turnos === null ? 'até o mestre tirar' : `${selo.turnos} ${selo.turnos === 1 ? 'turno' : 'turnos'}`
+  // Tipos de habilidade F3: a pílula dourada sem turnos fica até o dono desligar a passiva.
+  const ateTirar = selo.natureza === 'passiva' ? 'até desligar' : 'até o mestre tirar'
+  const duracao = selo.turnos === null ? ateTirar : `${selo.turnos} ${selo.turnos === 1 ? 'turno' : 'turnos'}`
   const corpo = `${selo.nome}: ${selo.mods === '' ? duracao : `${selo.mods}, ${duracao}`}`
   return selo.natureza === undefined ? corpo : `${NOME_DA_NATUREZA[selo.natureza]} · ${corpo}`
 }

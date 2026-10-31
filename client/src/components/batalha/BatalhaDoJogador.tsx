@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeReacao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
@@ -16,6 +16,7 @@ import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { MenuDaVez, type ContraNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
+import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
 import './batalha.css'
 import './combate.css'
 
@@ -30,6 +31,11 @@ import './combate.css'
  * Enquanto o corte do golpe ou a faixa da vez passam (o palco dos efeitos), o
  * menu, o véu e a caixa somem e voltam depois; na SUA VEZ o menu novo só entra
  * quando a faixa sai.
+ *
+ * Tipos de habilidade F3: os lembretes das passivas dele numa faixa pequena
+ * no alto da coluna do menu, logo abaixo da faixa da ordem; o menu desce a
+ * altura deles (nada da vez fica por baixo; o botão REAÇÃO segue embaixo), e
+ * a tira Passivas no menu da vez.
  */
 
 export interface ConexaoDaBatalha {
@@ -39,6 +45,8 @@ export interface ConexaoDaBatalha {
   passarVez: (cartaId: string, rodada: number) => boolean
   /** "Zerar" a concentração do personagem dele. Ausente = sem o botão. */
   zerarCarga?: (personagemId: string) => boolean
+  /** Tipos de habilidade F3: Ativar/Desligar a passiva e responder o lembrete. Ausente = sem a tira Passivas nem os lembretes. */
+  passiva?: (pedido: PedidoDePassiva) => boolean
 }
 
 export interface FichaDoJogador {
@@ -72,6 +80,8 @@ export interface BatalhaDoJogadorProps {
 
 /** A classe que o PlayerView dá à `FaixaDoJogador` (player/main.tsx). */
 const CLASSE_DA_FAIXA = 'pp-batalha-faixa'
+/** O vão entre os lembretes das passivas e o menu da vez, embaixo deles. */
+const VAO_DOS_LEMBRETES = 10
 const SEM_EFEITOS: readonly EfeitoParaJogador[] = []
 const NINGUEM: readonly Personagem[] = []
 
@@ -119,11 +129,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   // Tipos de habilidade F2: os selos do recorte (a carta extra repete os do token: conta uma vez), na forma que `bonusDaBatalha` lê.
   const selosQueSomam = useMemo(() => selosParaOBonus(estado.cartas), [estado.cartas])
 
-  const menu = useMemo(() => {
-    if (cartaQueAge === undefined) return null
-    const arma = armasNaBatalha(personagem, combate)[0] ?? null
-    const bonus = bonusDaBatalha(selosQueSomam, cartaQueAge.tokenId)
-    const habilidades = (comAcoes: typeof acoes) => (personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, comAcoes, arma, bonus) : [])
+  // As fichas da ordem do ponto de vista dele: os alvos da mira e o oponente da passiva.
+  const alvos = useMemo(() => {
     const vistos = new Set<string>()
     const alvos: AlvoNaMira[] = []
     for (const carta of estado.cartas) {
@@ -143,6 +150,15 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         cor: carta.equipe?.cor ?? null,
       })
     }
+    return alvos
+  }, [estado.cartas, nomeDe, imagemDe, meus])
+
+  const menu = useMemo(() => {
+    if (cartaQueAge === undefined) return null
+    const arma = armasNaBatalha(personagem, combate)[0] ?? null
+    const bonus = bonusDaBatalha(selosQueSomam, cartaQueAge.tokenId)
+    const habilidades = (comAcoes: typeof acoes) => (personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, comAcoes, arma, bonus) : [])
+    const selosDoDono = estado.cartas.find((carta) => carta.tokenId === cartaQueAge.tokenId)?.selos?.length ?? 0
     return {
       armas: golpesDeAtaque(personagem, sistema, combate, acoes, bonus),
       habilidades: habilidades(acoes),
@@ -150,8 +166,10 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       alvos,
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
       formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : [],
+      // Tipos de habilidade F3: a tira Passivas (as ligadas vêm do recorte, `passivasAtivas`).
+      passivas: passivasNoRecorte(personagem, sistema, estado.rodada, meuCombate, selosDoDono),
     }
-  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, nomeDe, imagemDe, meus, selosQueSomam])
+  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvos, selosQueSomam])
 
   const contrasNoMenu = useMemo<ContraNoMenu[]>(
     () =>
@@ -161,6 +179,25 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       })),
     [contras, nomeDe],
   )
+
+  // ---- os lembretes das passivas (Tipos de habilidade F3): os de todas as fichas dele, com o nome quando ele tem mais de uma
+  const comPassiva = conexao.passiva !== undefined
+  const lembretes = useMemo<LembreteNaTela[]>(() => {
+    if (!comPassiva) return []
+    const varios = (estado.meus?.length ?? 0) > 1
+    const itens: LembreteNaTela[] = []
+    for (const meu of estado.meus ?? []) {
+      const primeiro = meu.lembretes?.[0]
+      if (primeiro === undefined) continue
+      const dele = meus.find((candidato) => candidato.id === meu.personagemId)
+      const selosDoDono = estado.cartas.find((carta) => carta.tokenId === primeiro.tokenId)?.selos?.length ?? 0
+      const passivas = passivasNoRecorte(dele, sistema, estado.rodada, meu, selosDoDono)
+      itens.push(...lembretesNaTela(meu.lembretes, passivas, alvos, varios ? nomeDe(primeiro.tokenId) : undefined))
+    }
+    return itens
+  }, [comPassiva, estado.meus, estado.rodada, estado.cartas, meus, sistema, alvos, nomeDe])
+  // Na Arena o mestre opera tudo ("Vez de Lia"): aplica o "a cada turno" quando quiser, como na aba Batalha.
+  const operaComoMestre = textoDaVez === 'vezDe'
 
   // ---- a reação
   const reacoes = useMemo<ReacaoNaCaixa[]>(() => {
@@ -226,17 +263,28 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   // O menu mora à esquerda, centrado na altura, mas começa abaixo da faixa da
   // ordem (`.pp-batalha-faixa`, montada pelo PlayerView): a altura dela muda com
   // as cartas, então é medida e vai para `--pp-faixa-alto` no lugar do menu.
+  // Os lembretes das passivas usam a mesma medida: moram logo abaixo da faixa.
   const lugarDoMenu = useRef<HTMLDivElement>(null)
+  const lugarDosLembretes = useRef<HTMLDivElement>(null)
+  const comLembretes = lembretes.length > 0
   useLayoutEffect(() => {
-    const lugar = lugarDoMenu.current
+    const menuNaTela = lugarDoMenu.current
+    const avisos = lugarDosLembretes.current
     const faixa = document.querySelector<HTMLElement>(`.${CLASSE_DA_FAIXA}`)
-    if (lugar === null || faixa === null) return
-    const medir = () => lugar.style.setProperty('--pp-faixa-alto', `${faixa.offsetHeight}px`)
+    if ((menuNaTela === null && avisos === null) || faixa === null) return
+    const medir = () => {
+      const alto = `${faixa.offsetHeight}px`
+      menuNaTela?.style.setProperty('--pp-faixa-alto', alto)
+      avisos?.style.setProperty('--pp-faixa-alto', alto)
+      // Com lembrete, o menu começa abaixo dele (e do vão): nenhum botão da vez fica por baixo.
+      menuNaTela?.style.setProperty('--pp-lembretes-alto', avisos === null ? '0px' : `${avisos.offsetHeight + VAO_DOS_LEMBRETES}px`)
+    }
     medir()
     const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
     observador?.observe(faixa)
+    if (avisos !== null) observador?.observe(avisos)
     return () => observador?.disconnect()
-  }, [mostrarMenu])
+  }, [mostrarMenu, comLembretes])
 
   return (
     <>
@@ -281,7 +329,13 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             consulta={consulta}
             formas={menu.formas}
             personagemId={personagemId ?? null}
+            passivas={conexao.passiva === undefined || menu.passivas.length === 0 ? undefined : { itens: menu.passivas, tokenId: cartaQueAge.tokenId, sistema, onPedir: conexao.passiva }}
           />
+        </div>
+      )}
+      {comLembretes && conexao.passiva !== undefined && (
+        <div ref={lugarDosLembretes} className="pp-batalha-lembretes" data-palco={noPalco}>
+          <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre={operaComoMestre} onPedir={conexao.passiva} />
         </div>
       )}
       <div className="pp-batalha-reacao-botao">

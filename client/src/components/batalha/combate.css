@@ -2653,3 +2653,244 @@
     }
   }
 }
+
+/* =========================================================================
+ * Tipos de habilidade F3: PASSIVAS (PassivasDaBatalha.tsx). O dourado da
+ * natureza "passiva" (--bt-passiva no escuro, --bt-passiva-tinta no papel),
+ * no mesmo desenho das tiras, do painel da forma e das cartas de técnica.
+ * Movimento: só o lembrete que chega (opacity e transform, 200 ms).
+ * ========================================================================= */
+
+/* A tira Passivas (e cada passiva na lista do menu): a sombra rasgada dourada. */
+.bt-tira--passiva::after {
+  background: var(--bt-passiva);
+}
+.bt-etq--passiva {
+  background: var(--bt-passiva-fundo);
+  color: var(--bt-passiva);
+  font-weight: 700;
+}
+.bt-tira[data-esta='sim'] .bt-etq--passiva {
+  background: color-mix(in srgb, var(--bt-passiva-tinta) 16%, transparent);
+  color: var(--bt-passiva-tinta);
+}
+
+/* O botão de Ativar e de Aplicar: o latão da passiva (o mesmo peso do Ativar da forma). */
+.bt-botao--passiva {
+  background: var(--bt-passiva);
+  border-color: var(--bt-passiva);
+  color: var(--lb-color-brass-contrast);
+  font-weight: 700;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-botao.bt-botao--passiva:hover:not(:disabled) {
+    background: var(--lb-color-brass-bright);
+  }
+}
+
+/* O papel da passiva: o rótulo em tinta dourada; a leitura em faixas escuras, como os números da forma. */
+.bt-passiva__rot {
+  color: var(--bt-passiva-tinta);
+}
+.bt-passiva__leitura {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+}
+.bt-passiva__leitura > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 3px 10px;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+}
+.bt-passiva__leitura dt {
+  min-width: 7em;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-passiva__leitura dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.bt-passiva__leitura small {
+  color: var(--lb-color-parchment-faint);
+}
+
+/* O selo sugerido no papel: a pílula dourada em tinta (a clara some no pergaminho). */
+.bt-mira__selo[data-natureza='passiva'][data-marcado='sim'] {
+  background: color-mix(in srgb, var(--bt-passiva-tinta) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bt-passiva-tinta) 45%, transparent);
+}
+.bt-mira__selo[data-natureza='passiva'] .bt-mira__selo-mods {
+  color: var(--bt-passiva-tinta);
+}
+.bt-papel .bt-selo[data-natureza='passiva'] {
+  --selo-cor: var(--bt-passiva-tinta);
+  --selo-fundo: color-mix(in srgb, var(--bt-passiva) 28%, transparent);
+  font-size: 11px;
+  line-height: 16px;
+  vertical-align: 1px;
+}
+.bt-passiva__selo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+}
+.bt-passiva__selo small {
+  flex-basis: 100%;
+  font-weight: 400;
+  color: #5d5a54;
+}
+
+/* As linhas (painel do NPC, perfil, janela do jogador): a ativa ganha o fio dourado à esquerda. */
+.bt-opcao--passiva {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  cursor: default;
+}
+.bt-opcao--passiva[data-estado='ativa'] {
+  box-shadow: inset 2px 0 0 var(--bt-passiva);
+}
+.bt-passivas__ativas {
+  color: var(--bt-passiva);
+}
+.bt-passivas__estado {
+  padding: 0 5px;
+  border-radius: 3px;
+  font-family: var(--lb-font-utility);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.bt-passivas__estado[data-estado='ativa'] {
+  background: var(--bt-passiva);
+  color: var(--lb-color-brass-contrast);
+  box-shadow: none;
+}
+.bt-passivas__estado[data-estado='pronta'] {
+  color: var(--bt-passiva);
+  box-shadow: inset 0 0 0 1px var(--bt-passiva);
+}
+.bt-opcao__lado .bt-etq--passiva {
+  padding: 0 5px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* No perfil da carta as passivas vêm antes da ficha, separadas dela. */
+.bt-perfil__passivas {
+  margin-bottom: var(--lb-space-4);
+  padding-bottom: var(--lb-space-3);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+/*
+ * A FAIXA DE LEMBRETES: tinta com o fio e a sombra douradas (o carimbo da
+ * passiva), o texto à esquerda e as duas respostas à direita; numa coluna
+ * estreita (painel do NPC) as respostas descem para baixo do texto sozinhas.
+ */
+.bt-lembretes__lista {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 6px 6px 0;
+  list-style: none;
+}
+.bt-lembrete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 7px 8px 7px 12px;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  box-shadow:
+    inset 3px 0 0 var(--bt-passiva),
+    4px 4px 0 color-mix(in srgb, var(--bt-passiva) 55%, transparent);
+  animation: bt-lembrete-entra 200ms var(--bt-ease-out) backwards;
+}
+@keyframes bt-lembrete-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.bt-lembrete__texto {
+  flex: 1 1 220px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.bt-lembrete__texto b {
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-size: 17px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--bt-passiva);
+}
+.bt-lembrete__marca {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  background: var(--bt-passiva);
+  transform: rotate(45deg);
+  vertical-align: 2px;
+}
+.bt-lembrete__quem,
+.bt-lembrete__det {
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}
+.bt-lembrete__acoes {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bt-lembrete__motivo {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-ember);
+}
+/* O papel aberto pelo Ativar… (oponente ou custo a confirmar) desce dentro do lembrete. */
+.bt-lembrete__papel {
+  flex-basis: 100%;
+  margin: 4px 6px 6px 0;
+}
+/* No painel do mestre (coluna estreita, já escura): sem a sombra, que encostava na borda da aba. */
+.bt-lembretes--npc .bt-lembrete {
+  box-shadow: inset 3px 0 0 var(--bt-passiva);
+  background: var(--lb-color-stone-raised);
+}
+.bt-lembretes--npc .bt-lembretes__lista {
+  padding: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bt-lembrete {
+    animation-name: bt-lembrete-aparece;
+  }
+  @keyframes bt-lembrete-aparece {
+    from {
+      opacity: 0;
+    }
+  }
+}

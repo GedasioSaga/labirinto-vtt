@@ -18,7 +18,9 @@ import './combate.css'
  * marcados (`sugestaoParaNpc`), o dano editável com a conta, Surpresa,
  * Perfurante, Concentrar, Executar e Encerrar vez. Nada acontece sem Executar
  * (sem "jogam sozinhos"). F3: a Transformação do NPC (o mesmo painel da forma
- * do jogador, aberto pela seta) e os selos da ficha da vez.
+ * do jogador, aberto pela seta) e os selos da ficha da vez. Tipos de
+ * habilidade F3: os lembretes das passivas do NPC no alto (antes da economia,
+ * longe dos botões do pé) e a lista Passivas depois da Transformação.
  */
 
 export interface PainelDaVezDoNpcProps {
@@ -52,6 +54,10 @@ export interface PainelDaVezDoNpcProps {
   personagemId?: string | null
   /** F3: os selos da ficha da vez e o "Pôr selo…" (quem monta abre a janela). */
   selos?: ReactNode
+  /** Tipos de habilidade F3: a faixa de lembretes das passivas do NPC (`LembretesDaPassiva`). */
+  lembretes?: ReactNode
+  /** Tipos de habilidade F3: a lista Passivas (`PassivasDaFicha`). */
+  passivas?: ReactNode
 }
 
 const SEM_FORMAS: readonly FormaNoMenu[] = []
@@ -59,7 +65,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
   const { nome, imagem, cor, descricao, recursos, acoes, carga, motivoDoConcentrar, armas, habilidades, alvos, sugestao, onExecutar, onConcentrar, onZerarCarga, onEncerrar, onAcoesExtras, onDarDano, consulta, alvoDoMapa, mapa } =
     props
-  const { formas = SEM_FORMAS, personagemId = null, selos } = props
+  const { formas = SEM_FORMAS, personagemId = null, selos, lembretes, passivas } = props
   const [formaAberta, setFormaAberta] = useState<string | null>(null)
   const golpes = [...habilidades, ...armas]
   const primeiraValida = golpes.find((golpe) => golpe.motivo === null)?.chave ?? null
@@ -141,6 +147,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
           </span>
         </div>
       </div>
+      {lembretes}
       <p className="bt-npc__perfil">
         {economiaEmTexto(acoes)}
         {textoCarga !== null && ` · ${textoCarga}`}
@@ -188,6 +195,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
           })}
         </div>
       )}
+      {passivas}
       {grupo('Habilidades', habilidades)}
       {grupo('Atacar', armas)}
       {golpes.length === 0 && <p className="bt-texto">Sem técnica nem arma na ficha: dê dano à mão ou encerre a vez.</p>}

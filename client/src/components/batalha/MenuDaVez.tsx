@@ -6,13 +6,15 @@ import { pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './da
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
 import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
 import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
+import { ListaDePassivasDoMenu, type PassivasNoMenu } from './PassivasDaBatalha'
 import './batalha.css'
 import './combate.css'
 
 /**
  * O MENU DA VEZ do JOGADOR (o `.menu--principal` do protótipo aprovado):
  * tiras Atacar, Habilidades, Transformação (F3: acende quando a ficha tem
- * forma e abre a `ListaDeFormas`), Concentrar ("Carga 1 · próximo golpe ×1,5") e Encerrar vez; a cabeça com o
+ * forma e abre a `ListaDeFormas`), Passivas (tipos de habilidade F3: só com
+ * passiva na ficha; abre a `ListaDePassivasDoMenu`, Ativar/Desligar sem gastar ação), Concentrar ("Carga 1 · próximo golpe ×1,5") e Encerrar vez; a cabeça com o
  * nome e a economia ("Simples 1 · Bônus 0 · Mov 2/4", Mov vermelho quando
  * passa). Atacar e Habilidades abrem a lista; o golpe escolhido abre a mira.
  *
@@ -63,9 +65,11 @@ export interface MenuDaVezProps {
   formas?: readonly FormaNoMenu[]
   /** F3: de quem é a ficha (lembra "trocar a imagem" no aparelho). */
   personagemId?: string | null
+  /** Tipos de habilidade F3: as passivas da ficha que age. Ausente ou sem itens = sem a tira Passivas. */
+  passivas?: PassivasNoMenu
 }
 
-type Tela = { tipo: 'menu' } | { tipo: 'lista'; de: 'atacar' | 'habilidade' } | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' } | { tipo: 'formas' }
+type Tela = { tipo: 'menu' } | { tipo: 'lista'; de: 'atacar' | 'habilidade' } | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' } | { tipo: 'formas' } | { tipo: 'passivas' }
 
 const SEM_MOTIVO = null
 const SEM_CONTRAS: readonly ContraNoMenu[] = []
@@ -73,7 +77,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas } = props
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
@@ -185,6 +189,20 @@ export function MenuDaVez(props: MenuDaVezProps) {
     )
   }
 
+  if (tela.tipo === 'passivas' && passivas !== undefined) {
+    return (
+      <ListaDePassivasDoMenu
+        pips={pips}
+        carga={carga}
+        passivas={passivas}
+        alvos={alvos}
+        instantaneo={porTeclado}
+        esperando={esperando}
+        onVoltar={() => abrir({ tipo: 'menu' }, true)}
+      />
+    )
+  }
+
   if (tela.tipo === 'mira') {
     return (
       <div className="bt-vez bt-vez--lista" data-instantaneo="sim">
@@ -216,6 +234,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
     detalhe?: string | null
     motivo?: string | null
     forma?: boolean
+    passiva?: boolean
     executar: (teclado: boolean) => void
     /** O botão "Zerar" ao lado da tira (só a Concentrar, com carga). Fica de fora das setas: alcança pelo Tab. */
     zerar?: () => void
@@ -256,6 +275,25 @@ export function MenuDaVez(props: MenuDaVezProps) {
       motivo: formas.length === 0 ? SEM_TRANSFORMACAO : SEM_MOTIVO,
       executar: (t) => abrir({ tipo: 'formas' }, t),
     })
+    // Tipos de habilidade F3: só com passiva na ficha (quem não tem não ganha uma tira apagada a mais).
+    const itensPassivos = passivas?.itens ?? []
+    if (itensPassivos.length > 0) {
+      const ativas = itensPassivos.filter((passiva) => passiva.estado === 'ativa')
+      const prontas = itensPassivos.filter((passiva) => passiva.estado === 'pronta')
+      itens.push({
+        chave: 'passivas',
+        nome: 'Passivas',
+        passiva: true,
+        lado: ativas.length > 0 ? `${ativas.length} ATIVA${ativas.length === 1 ? '' : 'S'}` : String(itensPassivos.length),
+        detalhe:
+          ativas.length > 0
+            ? `${ativas.map((passiva) => passiva.nome).join(', ')} · desligar não gasta ação`
+            : prontas.length > 0
+              ? `${prontas.map((passiva) => passiva.nome).join(', ')} pronta${prontas.length === 1 ? '' : 's'} · ativar não gasta ação`
+              : 'Ativar e desligar não gastam ação',
+        executar: (t) => abrir({ tipo: 'passivas' }, t),
+      })
+    }
     itens.push({
       chave: 'concentrar',
       nome: 'Concentrar',
@@ -314,6 +352,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
               detalhe={item.detalhe}
               motivo={item.motivo}
               forma={item.forma}
+              passiva={item.passiva}
               esta={atual === indice}
               onFoco={() => setAtual(indice)}
               onEscolher={() => {

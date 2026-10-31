@@ -1,11 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import type { PedidoDePassiva } from '../../lib/batalha/combate'
 import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { faixaDoJogador, linhasDoJogador, type DadosDaCarta, type FichaNaFaixa } from './dadosDaFaixa'
 import { DarDanoDialog } from './DarDanoDialog'
 import { FaixaDaOrdem } from './FaixaDaOrdem'
+import { JanelaDaBatalha } from './JanelaDaBatalha'
 import type { ItemDoMenuDaCarta } from './MenuDaCarta'
+import { PassivasDaFicha, passivasNoRecorte, type AlvoDaPassiva } from './PassivasDaBatalha'
 import { PerfilDaCarta } from './PerfilDaCarta'
 
 /**
@@ -15,6 +18,10 @@ import { PerfilDaCarta } from './PerfilDaCarta'
  * dele (o host decide com `podeDesfazer`). Clicar na carta de aliado abre o
  * perfil, só leitura; na própria, a ficha de sempre; na de NPC ou de outra
  * equipe, nada.
+ *
+ * Tipos de habilidade F3: na carta dele, "Passivas (N)…" abre a lista das
+ * passivas dele (Ativar/Desligar a qualquer hora, fora da vez, sem gastar
+ * ação); o menu da vez só existe na vez dele.
  *
  * Os pedidos vão ao host; o resultado chega no próximo `batalha.estado`.
  * Enquanto não chega, o botão diz "Passando…" e o Desfazer, "Desfazendo…"
@@ -39,6 +46,8 @@ export interface FaixaDoJogadorProps {
   onMeDarDano?: (tokenId: string, valor: number) => boolean
   /** "Zerar a concentração" na carta dele, a qualquer hora (só com carga). `false` = não saiu. Ausente = sem o item. */
   onZerarMinhaCarga?: (personagemId: string) => boolean
+  /** Tipos de habilidade F3: Ativar/Desligar a passiva da ficha dele. `false` = não saiu. Ausente = sem o item "Passivas". */
+  onPassiva?: (pedido: PedidoDePassiva) => boolean
   className?: string
 }
 
@@ -95,8 +104,9 @@ function useCantoOcupa(className: string | undefined) {
 const PRAZO_DO_PEDIDO_MS = 4000
 const NINGUEM: readonly Personagem[] = []
 
-export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, onMeDarDano, onZerarMinhaCarga, className }: FaixaDoJogadorProps) {
+export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, onMeDarDano, onZerarMinhaCarga, onPassiva, className }: FaixaDoJogadorProps) {
   const [danoEm, setDanoEm] = useState<DadosDaCarta | null>(null)
+  const [passivasEm, setPassivasEm] = useState<DadosDaCarta | null>(null)
   const personagens = useMemo(() => [...meus, ...aliados], [meus, aliados])
   const dados = useMemo(() => faixaDoJogador({ estado, fichas, personagens, sistema }), [estado, fichas, personagens, sistema])
   const registro = useMemo(() => linhasDoJogador(estado.registro), [estado.registro])
@@ -139,6 +149,25 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
   const vez = estado.vez
   const daCarta = perfil === undefined ? undefined : dados.cartas.find((carta) => carta.personagemId === perfil.id)
 
+  // Tipos de habilidade F3: as passivas da ficha dele, pelo recorte (as ligadas em `passivasAtivas`).
+  const passivasDaCarta = (carta: DadosDaCarta) => {
+    const personagem = carta.personagemId === null ? undefined : meus.find((candidato) => candidato.id === carta.personagemId)
+    const combate = estado.meus?.find((meu) => meu.personagemId === carta.personagemId)
+    return passivasNoRecorte(personagem, sistema, estado.rodada, combate, carta.selos?.length ?? 0)
+  }
+  const alvosDasPassivas = useMemo(() => {
+    const vistos = new Set<string>()
+    const alvos: AlvoDaPassiva[] = []
+    for (const carta of estado.cartas) {
+      if (vistos.has(carta.tokenId)) continue
+      vistos.add(carta.tokenId)
+      alvos.push({ tokenId: carta.tokenId, nome: carta.nome.trim() || fichas.find((ficha) => ficha.id === carta.tokenId)?.name.trim() || 'Ficha', lado: carta.lado })
+    }
+    return alvos
+  }, [estado.cartas, fichas])
+  const cartaDasPassivas = passivasEm === null ? undefined : dados.cartas.find((carta) => carta.tokenId === passivasEm.tokenId && carta.minha)
+  const passivasAbertas = cartaDasPassivas === undefined ? [] : passivasDaCarta(cartaDasPassivas)
+
   return (
     <>
       <FaixaDaOrdem
@@ -148,13 +177,24 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
         onAbrirPerfil={abrir}
         abrePerfil={abre}
         menuDaCarta={
-          onMeDarDano === undefined
+          onMeDarDano === undefined && onPassiva === undefined
             ? undefined
             : (carta): ItemDoMenuDaCarta[] => {
                 if (!carta.minha) return []
                 const itens: ItemDoMenuDaCarta[] = []
                 if (onAbrirMinhaFicha !== undefined) itens.push({ id: 'ficha', rotulo: 'Abrir a minha ficha', onEscolher: onAbrirMinhaFicha })
-                itens.push({ id: 'dano', rotulo: 'Me dar dano…', detalhe: 'Dano livre na sua ficha; vai ao registro', onEscolher: () => setDanoEm(carta) })
+                // Tipos de habilidade F3: só com passiva na ficha.
+                const passivas = onPassiva === undefined ? [] : passivasDaCarta(carta)
+                if (passivas.length > 0) {
+                  const ativas = passivas.filter((passiva) => passiva.estado === 'ativa').length
+                  itens.push({
+                    id: 'passivas',
+                    rotulo: `Passivas (${passivas.length})…`,
+                    detalhe: ativas > 0 ? `${ativas === 1 ? '1 ativa' : `${ativas} ativas`} · ativar e desligar sem gastar ação` : 'Ativar e desligar a qualquer hora, sem gastar ação',
+                    onEscolher: () => setPassivasEm(carta),
+                  })
+                }
+                if (onMeDarDano !== undefined) itens.push({ id: 'dano', rotulo: 'Me dar dano…', detalhe: 'Dano livre na sua ficha; vai ao registro', onEscolher: () => setDanoEm(carta) })
                 const { personagemId } = carta
                 // Fora da vez também: ele perde a concentração ao tomar o golpe.
                 if (onZerarMinhaCarga !== undefined && personagemId !== null && (carta.carga ?? 0) > 0)
@@ -192,6 +232,11 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
           imagemDaForma={daCarta === undefined ? null : (estado.aparencias?.[daCarta.tokenId] ?? null)}
           onFechar={() => setPerfilId(null)}
         />
+      )}
+      {cartaDasPassivas !== undefined && onPassiva !== undefined && (
+        <JanelaDaBatalha titulo={`Passivas de ${cartaDasPassivas.nome || 'você'}`} descricao="Fora da vez, sem gastar ação. Desfazer na linha do registro volta tudo." onFechar={() => setPassivasEm(null)}>
+          <PassivasDaFicha passivas={passivasAbertas} tokenId={cartaDasPassivas.tokenId} alvos={alvosDasPassivas} sistema={sistema} onPedir={onPassiva} mostrarVazio />
+        </JanelaDaBatalha>
       )}
       {danoEm !== null && onMeDarDano !== undefined && (
         <DarDanoDialog titulo="Me dar dano" alvos={[{ tokenId: danoEm.tokenId, nome: danoEm.nome }]} onConfirmar={onMeDarDano} onFechar={() => setDanoEm(null)} />

@@ -774,11 +774,13 @@
 }
 .pp-batalha-veu,
 .pp-batalha-menu,
+.pp-batalha-lembretes,
 .pp-batalha-reacao {
   transition: opacity 220ms var(--bt-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 .pp-batalha-veu[data-palco='sim'],
 .pp-batalha-menu[data-palco='sim'],
+.pp-batalha-lembretes[data-palco='sim'],
 .pp-batalha-reacao[data-palco='sim'] {
   opacity: 0;
   pointer-events: none;
@@ -801,9 +803,10 @@
  */
 .pp-batalha-menu {
   position: fixed;
-  top: max(
-    calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)),
-    calc(12px + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px)
+  /* Tipos de habilidade F3: com lembrete de passiva, o menu começa abaixo dele (`--pp-lembretes-alto`, medido por `BatalhaDoJogador`). */
+  top: calc(
+    max(calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)), calc(12px + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px)) +
+      var(--pp-lembretes-alto, 0px)
   );
   /* Termina acima do botão REAÇÃO (chão + 8 + 44 de toque + 12 de vão): a mira alta
      descia até o chão e o botão cobria o "Voltar Esc". */
@@ -900,6 +903,25 @@
     animation: none;
   }
 }
+/*
+ * Tipos de habilidade F3: os LEMBRETES das passivas ("Melodia pronta: Ativar /
+ * Agora não") no alto da coluna do menu, onde o menu começaria; o menu desce
+ * a altura deles (`--pp-lembretes-alto`), então nenhum botão da vez fica por
+ * baixo. A faixa da ordem fica acima, o botão REAÇÃO embaixo. Muitos ou com
+ * o papel aberto: rolam dentro do próprio lugar.
+ */
+.pp-batalha-lembretes {
+  position: fixed;
+  top: max(calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)), calc(12px + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px));
+  left: calc(var(--pp-edge, 12px) + 12px + var(--pp-painel-ocupa, 0px));
+  z-index: 9;
+  width: max-content;
+  max-width: min(560px, calc(100% - 2 * var(--pp-edge, 12px) - 24px - var(--pp-painel-ocupa, 0px)));
+  max-height: 45vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
 .pp-batalha-reacao-botao {
   position: fixed;
   left: 50%;
@@ -921,9 +943,13 @@
    começa abaixo dela e termina acima do botão REAÇÃO. */
 @media (max-width: 999px) {
   .pp-batalha-menu {
-    top: calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px);
+    top: calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px + var(--pp-lembretes-alto, 0px));
     left: calc(var(--pp-edge, 12px) + var(--pp-painel-ocupa, 0px));
     bottom: calc(var(--pp-chao, 12px) + 64px);
+  }
+  .pp-batalha-lembretes {
+    top: calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px);
+    left: calc(var(--pp-edge, 12px) + var(--pp-painel-ocupa, 0px));
   }
 }
 

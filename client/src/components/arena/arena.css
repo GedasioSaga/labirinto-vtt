@@ -306,16 +306,18 @@
 /* enquanto o corte ou a faixa da vez passam, o menu, o véu e a caixa somem (só opacity) */
 .ar-tela .pp-batalha-veu,
 .ar-tela .pp-batalha-menu,
+.ar-tela .pp-batalha-lembretes,
 .ar-tela .pp-batalha-reacao { transition: opacity 220ms var(--lb-gr-ease-out); }
 .ar-tela .pp-batalha-veu[data-palco='sim'],
 .ar-tela .pp-batalha-menu[data-palco='sim'],
+.ar-tela .pp-batalha-lembretes[data-palco='sim'],
 .ar-tela .pp-batalha-reacao[data-palco='sim'] { opacity: 0; pointer-events: none; transition-duration: 160ms; }
 .ar-tela .pp-batalha-menu[data-palco='sim'] > * { pointer-events: none; }
 
 /* o menu da vez à esquerda, abaixo da faixa (medida em --pp-faixa-alto pelo BatalhaDoJogador) */
 .ar-tela .pp-batalha-menu {
   position: fixed;
-  top: calc(var(--ar-barra) + 10px + var(--pp-faixa-alto, 0px) + 12px);
+  top: calc(var(--ar-barra) + 10px + var(--pp-faixa-alto, 0px) + 12px + var(--pp-lembretes-alto, 0px));
   bottom: 76px;
   left: 20px;
   z-index: 9;
@@ -332,6 +334,20 @@
 .ar-tela .pp-batalha-menu .bt-marcas-da-mira { z-index: -1; }
 /* a mira alta rola dentro do lugar do menu, sem descer até o botão REAÇÃO (só a mira: a lista tem a leitura ao lado, fora da caixa) */
 .ar-tela .pp-batalha-menu > .bt-vez--lista:has(> .bt-mira) { overflow-y: auto; overscroll-behavior: contain; padding-bottom: 8px; scrollbar-width: thin; }
+
+/* os lembretes das passivas (tipos de habilidade F3) no alto da coluna do menu; o menu desce a altura deles */
+.ar-tela .pp-batalha-lembretes {
+  position: fixed;
+  top: calc(var(--ar-barra) + 10px + var(--pp-faixa-alto, 0px) + 12px);
+  left: 20px;
+  z-index: 9;
+  width: max-content;
+  max-width: min(560px, calc(100% - 40px));
+  max-height: 45vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
 
 /* o véu atrás do menu aberto: escurece a esquerda para o texto ler sobre a grade */
 .ar-tela .pp-batalha-veu {

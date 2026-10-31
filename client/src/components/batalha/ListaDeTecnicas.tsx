@@ -67,6 +67,8 @@ export interface TiraProps {
   chips?: ReactNode
   esta: boolean
   forma?: boolean
+  /** Tipos de habilidade F3: a tira da passiva (a sombra dourada). */
+  passiva?: boolean
   pequena?: boolean
   expandida?: boolean
   controla?: string
@@ -79,7 +81,7 @@ export interface TiraProps {
   refDaTira?: (elemento: HTMLButtonElement | null) => void
 }
 
-export function Tira({ indice, chave, nome, lado, detalhe, motivo, chips, esta, forma, pequena, expandida, controla, descritaPor, onEscolher, onFoco, onApontar, refDaTira }: TiraProps) {
+export function Tira({ indice, chave, nome, lado, detalhe, motivo, chips, esta, forma, passiva, pequena, expandida, controla, descritaPor, onEscolher, onFoco, onApontar, refDaTira }: TiraProps) {
   const estilo = useMemo(() => {
     const semente = sementeDe(chave)
     return {
@@ -89,7 +91,7 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, chips, esta, 
       '--i': indice,
     } as CSSProperties
   }, [chave, indice])
-  const classe = ['bt-tira', forma ? 'bt-tira--forma' : '', pequena ? 'bt-tira--pequena' : ''].filter(Boolean).join(' ')
+  const classe = ['bt-tira', forma ? 'bt-tira--forma' : '', passiva ? 'bt-tira--passiva' : '', pequena ? 'bt-tira--pequena' : ''].filter(Boolean).join(' ')
   const linha = motivo ?? detalhe ?? null
   return (
     <button
