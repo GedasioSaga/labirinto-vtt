@@ -18,19 +18,15 @@ import { editarRpgDaPasta } from './rpgDaPasta'
  * cópia lida do disco (`daPasta`). Um dono só por situação.
  */
 
-/**
- * Os marcadores da M1 e a Arena de testes (docs/planos/batalha-arena-de-testes-plano.md).
- * Os outros (Comparar, Saúde, Itens, Anotações) chegam com a fase deles.
- */
-export type AbaDoMundo = 'jogadores' | 'npcs' | 'arena'
+/** Os marcadores da M2: Comparar e balancear, Saúde da ficha e Anotações. */
+export type AbaDaM2 = 'comparar' | 'saude' | 'anotacoes'
 
 /**
- * Os marcadores da M2 (Comparar, Saúde da ficha, Anotações). Ficam FORA de
- * `AbaDoMundo` na fase 0: MundoDoLivro.tsx tem `Record<AbaDoMundo, ...>` e os
- * MARCADORES, e o arquivo está com a Arena agora. O escritor B junta os dois
- * (`AbaDoMundo = ... | AbaDaM2`) no mesmo commit em que monta as páginas.
+ * Os marcadores do mundo: os da M1, os da M2 e a Arena de testes
+ * (docs/planos/batalha-arena-de-testes-plano.md). Itens e habilidades chega
+ * com a M3.
  */
-export type AbaDaM2 = 'comparar' | 'saude' | 'anotacoes'
+export type AbaDoMundo = 'jogadores' | 'npcs' | AbaDaM2 | 'arena'
 
 /**
  * O Comparar (M2): estado de SESSÃO, nada em disco. Ids de personagem da
@@ -102,8 +98,8 @@ interface MundoDoLivroState extends EncontroDoComparar {
 }
 
 const ENCONTRO_VAZIO: EncontroDoComparar = { comparar: [], grupo: [], inimigos: {} }
-/** Teto de cópias de um NPC no encontro: o passo da tela, não regra do jogo. */
-const INIMIGOS_POR_NPC_MAX = 20
+/** Teto de cópias de um NPC no encontro: o passo da tela, não regra do jogo (o "+" do Comparar para aqui). */
+export const INIMIGOS_POR_NPC_MAX = 20
 
 function semChave(registro: Record<string, number>, chave: string): Record<string, number> {
   if (!(chave in registro)) return registro

@@ -1,12 +1,16 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, type KeyboardEvent } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent } from 'react'
 import { entraNaBatalha } from '../../lib/livros/combate'
+import { lerSaude } from '../../lib/livros/saude'
 import { useMundoDoLivroStore, usePersonagensDoMundo, type AbaDoMundo } from '../../stores/mundoDoLivroStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { usePastaDoMundo } from './comum'
 import { GavetaDaFicha } from './GavetaDaFicha'
 import { IconeDoMundo, type NomeDoIconeDoMundo } from './icones'
+import { PaginaAnotacoes } from './PaginaAnotacoes'
+import { PaginaComparar } from './PaginaComparar'
 import { PaginaJogadores } from './PaginaJogadores'
 import { PaginaNpcs } from './PaginaNpcs'
+import { PaginaSaude } from './PaginaSaude'
 import '../FichaDePersonagem.css'
 import './mundo.css'
 
@@ -23,9 +27,13 @@ export interface MundoDoLivroProps {
   onFechar: () => void
 }
 
+/** Na ordem do protótipo (os capítulos do livro); a Arena de testes, que é ferramenta e não capítulo, fica por último. */
 const MARCADORES: readonly { aba: AbaDoMundo; rotulo: string; icone: NomeDoIconeDoMundo }[] = [
   { aba: 'jogadores', rotulo: 'Jogadores', icone: 'jogadores' },
   { aba: 'npcs', rotulo: 'NPCs de combate', icone: 'npc' },
+  { aba: 'comparar', rotulo: 'Comparar e balancear', icone: 'balanca' },
+  { aba: 'saude', rotulo: 'Saúde da ficha', icone: 'saude' },
+  { aba: 'anotacoes', rotulo: 'Anotações', icone: 'nota' },
   { aba: 'arena', rotulo: 'Arena de testes', icone: 'boneco' },
 ]
 
@@ -40,12 +48,7 @@ const PaginaArena = lazy(() => import('../arena/PaginaArena').then((modulo) => (
 const SELETOR_DA_ARENA = '.ar-tela'
 
 /** Os marcadores das próximas fases: aparecem apagados, com "em breve", sem página nem clique. */
-const EM_BREVE: readonly { rotulo: string; icone: NomeDoIconeDoMundo }[] = [
-  { rotulo: 'Comparar e balancear', icone: 'balanca' },
-  { rotulo: 'Saúde da ficha', icone: 'saude' },
-  { rotulo: 'Itens e habilidades', icone: 'itens' },
-  { rotulo: 'Anotações', icone: 'nota' },
-]
+const EM_BREVE: readonly { rotulo: string; icone: NomeDoIconeDoMundo }[] = [{ rotulo: 'Itens e habilidades', icone: 'itens' }]
 
 const idDaAba = (aba: AbaDoMundo): string => `mu-aba-${aba}`
 const ID_DA_PAGINA = 'mu-pagina'
@@ -54,10 +57,17 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   const aberto = useMundoDoLivroStore((state) => state.aberto)
   const aba = useMundoDoLivroStore((state) => state.aba)
   const erro = useMundoDoLivroStore((state) => state.erro)
+  const comparando = useMundoDoLivroStore((state) => state.comparar.length)
   const personagens = usePersonagensDoMundo()
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const bibliotecaLida = useRpgStore((state) => state.bibliotecaLida)
   const pasta = usePastaDoMundo(aberto?.pastaId)
+  const sistema = aberto === null ? undefined : sistemaPorId(biblioteca, aberto.sistemaId)
+  /** Quantos campos a batalha não lê (o número do marcador Saúde da ficha, em latão quando há). */
+  const naoLidos = useMemo(
+    () => (personagens === null || sistema === undefined ? null : lerSaude(personagens, sistema).achados.filter((achado) => achado.leitura.estado === 'naoLe').length),
+    [personagens, sistema],
+  )
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const marcadoresRef = useRef<HTMLDivElement>(null)
   const fitaRef = useRef<HTMLSpanElement>(null)
@@ -101,11 +111,14 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   }, [onFechar])
 
   if (aberto === null) return null
-  const sistema = sistemaPorId(biblioteca, aberto.sistemaId)
   const nomeDoSistema = sistema?.nome ?? aberto.sistemaId
   const contagem: Record<AbaDoMundo, number | null> = {
     jogadores: personagens === null ? null : personagens.filter((personagem) => personagem.tipo === 'jogador').length,
     npcs: personagens === null ? null : personagens.filter((personagem) => personagem.tipo === 'npc' && entraNaBatalha(personagem)).length,
+    // As fichas escolhidas para comparar; nenhuma = sem número.
+    comparar: comparando === 0 ? null : comparando,
+    saude: naoLidos,
+    anotacoes: personagens === null ? null : personagens.filter((personagem) => (personagem.notaDoMestre ?? '').trim().length > 0).length,
     // A Arena de testes não tem contagem.
     arena: null,
   }
@@ -168,6 +181,12 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     )
   } else if (aba === 'jogadores') {
     pagina = <PaginaJogadores personagens={personagens} sistema={sistema} mapas={pasta?.mapas ?? null} />
+  } else if (aba === 'comparar') {
+    pagina = <PaginaComparar personagens={personagens} sistema={sistema} onVerSaude={() => trocarAba('saude', false)} />
+  } else if (aba === 'saude') {
+    pagina = <PaginaSaude personagens={personagens} sistema={sistema} />
+  } else if (aba === 'anotacoes') {
+    pagina = <PaginaAnotacoes personagens={personagens} />
   } else if (aba === 'arena') {
     pagina = (
       <Suspense
@@ -206,6 +225,7 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
             {MARCADORES.map((marcador) => {
               const ativo = marcador.aba === aba
               const n = contagem[marcador.aba]
+              const alerta = marcador.aba === 'saude' && n !== null && n > 0
               return (
                 <button
                   key={marcador.aba}
@@ -220,7 +240,12 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
                 >
                   <IconeDoMundo nome={marcador.icone} />
                   <span>{marcador.rotulo}</span>
-                  <span className="mu-marcador__n">{n === null ? '' : n}</span>
+                  <span
+                    className={alerta ? 'mu-marcador__n mu-marcador__n--alerta' : 'mu-marcador__n'}
+                    title={alerta ? `${n} ${n === 1 ? 'campo que o app não lê' : 'campos que o app não lê'}` : undefined}
+                  >
+                    {n === null ? '' : n}
+                  </span>
                 </button>
               )
             })}
