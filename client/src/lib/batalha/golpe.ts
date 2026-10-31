@@ -24,7 +24,8 @@ import { armasDe, ehOverload, lerAcao, lerCusto, lerTempo, recursoDoCusto, tecni
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
-import { MOTIVO_AINDA_NAO } from './transformacao'
+import { seloPedidoValido } from './selos'
+import { formaDaFicha, motivoDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -179,10 +180,19 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       return motivoDoConcentrar(combate, acoes, chaveDaVez(ctx.turnos.rodada, ctx.carta.id))
     case 'mover':
       return null
-    // F3, fase 0: a regra de Ativar e Desfazer a forma chega na fase 1 da fatia T.
-    case 'transformar':
-    case 'destransformar':
-      return MOTIVO_AINDA_NAO
+    // F3 (fatia T): Ativar gasta a ação escolhida; Desfazer é ação livre (só precisa estar ligada).
+    case 'transformar': {
+      const { personagem, sistema } = ctx
+      if (personagem === null || sistema === null) return 'Ficha sem personagem não se transforma'
+      if (formaDaFicha(personagem, sistema, pedido.cartaoId) === null) return 'Forma não encontrada na ficha'
+      if (personagem.cartoesAtivos.includes(pedido.cartaoId)) return 'A forma já está ativa'
+      return motivoDaForma({ ligada: false }, pedido.acao, acoes)
+    }
+    case 'destransformar': {
+      const { personagem, sistema } = ctx
+      if (personagem === null || sistema === null) return 'Ficha sem personagem não se transforma'
+      return personagem.cartoesAtivos.includes(pedido.cartaoId) ? null : 'A forma não está ativa'
+    }
     case 'atacar': {
       if (armaDoPedido(ctx, pedido.armaId) === undefined) return 'Arma fora das levadas para a batalha'
       const motivo = motivoDosAlvos(ctx, pedido.alvos, 1)
@@ -276,6 +286,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
     alvos,
   }
   if (pedido.contraDe !== undefined) golpe.contraDe = pedido.contraDe
+  // F3 (Q6): o selo marcado na mira vai junto; pega em cada alvo que o golpe acerta (a store aplica).
+  const selo = pedido.selo === undefined ? null : seloPedidoValido(pedido.selo)
+  if (selo !== null) golpe.selo = selo
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
   if (combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
   return {

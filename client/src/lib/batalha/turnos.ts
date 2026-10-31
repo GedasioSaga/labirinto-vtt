@@ -5,6 +5,7 @@ import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { CombateDoPersonagem, ContraAtaque, FormaNaBatalha, GolpeDaBatalha, SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
+import { contarSelos } from './selos'
 
 /**
  * ORDEM DOS TURNOS DA BATALHA ONE PIECE (F1 de
@@ -361,10 +362,13 @@ export interface VezPassada {
  * rodada" saem e a vez vai à primeira que joga. Os gastos da vez zeram.
  * `null` = ninguém joga (todos caídos, ou ordem vazia).
  */
-export function passarVez(turnos: TurnosDaCena, caidos: ReadonlySet<string>): VezPassada | null {
+export function passarVez(antes: TurnosDaCena, caidos: ReadonlySet<string>): VezPassada | null {
+  // F3 (Q4): os selos da carta que SAI descontam antes de tudo; os que acabaram vão no resultado.
+  const { turnos, acabaram } = descontarSelosDaVez(antes)
+  const comAcabaram = (passada: VezPassada): VezPassada => (acabaram.length === 0 ? passada : { ...passada, acabaram })
   const atual = turnos.vez === null ? -1 : turnos.cartas.findIndex((carta) => carta.id === turnos.vez)
   const seguinte = primeiraQueJoga(turnos.cartas, atual + 1, caidos)
-  if (seguinte !== null) return { turnos: aoComecarAVez({ ...turnos, vez: seguinte.id, gastos: SEM_GASTOS }, turnos.vez, seguinte, false), removidas: [] }
+  if (seguinte !== null) return comAcabaram({ turnos: aoComecarAVez({ ...turnos, vez: seguinte.id, gastos: SEM_GASTOS }, turnos.vez, seguinte, false), removidas: [] })
   const removidas: CartaNoLugar[] = []
   const ficam: CartaDaOrdem[] = []
   turnos.cartas.forEach((carta, indice) => {
@@ -375,14 +379,34 @@ export function passarVez(turnos: TurnosDaCena, caidos: ReadonlySet<string>): Ve
   if (primeira === null) return null
   const fora = new Set(removidas.map(({ carta }) => carta.id))
   const virada: TurnosDaCena = { ...turnos, cartas: ficam, vez: primeira.id, rodada: turnos.rodada + 1, gastos: SEM_GASTOS, extras: semChaves(turnos.extras, fora), d20: semChaves(turnos.d20, fora), empates: semChaves(turnos.empates, fora) }
-  return { turnos: aoComecarAVez(virada, turnos.vez, primeira, true), removidas }
+  return comAcabaram({ turnos: aoComecarAVez(virada, turnos.vez, primeira, true), removidas })
 }
 
-/** O mestre dá a vez a qualquer carta (até a de quem caiu). Carta que não existe: nada. */
-export function darVez(turnos: TurnosDaCena, cartaId: string): TurnosDaCena {
-  const para = turnos.cartas.find((carta) => carta.id === cartaId)
-  if (turnos.vez === cartaId || para === undefined) return turnos
+/**
+ * O mestre dá a vez a qualquer carta (até a de quem caiu). Carta que não
+ * existe: nada. F3 (Q4): os selos da carta que sai descontam como no
+ * "Passar a vez" (os que acabaram: `selosQueSairam`).
+ */
+export function darVez(antes: TurnosDaCena, cartaId: string): TurnosDaCena {
+  const para = antes.cartas.find((carta) => carta.id === cartaId)
+  if (antes.vez === cartaId || para === undefined) return antes
+  const { turnos } = descontarSelosDaVez(antes)
   return aoComecarAVez({ ...turnos, vez: cartaId, gastos: SEM_GASTOS }, turnos.vez, para, false)
+}
+
+/** F3 (Q4): a carta da vez SAI: os selos da ficha dela descontam 1 (1 vez por rodada). Sem vez ou sem selo: os MESMOS turnos. */
+function descontarSelosDaVez(turnos: TurnosDaCena): { turnos: TurnosDaCena; acabaram: SeloDaBatalha[] } {
+  const saindo = cartaDaVez(turnos)
+  if (saindo === null || turnos.selos === undefined || turnos.selos.length === 0) return { turnos, acabaram: [] }
+  const contados = contarSelos(turnos.selos, saindo.tokenId, turnos.rodada)
+  return contados.selos === turnos.selos ? { turnos, acabaram: [] } : { turnos: { ...turnos, selos: contados.selos }, acabaram: contados.acabaram }
+}
+
+/** Os selos que estavam em `antes` e não estão em `depois` (os que o `darVez` fez acabar). */
+export function selosQueSairam(antes: TurnosDaCena, depois: TurnosDaCena): SeloDaBatalha[] {
+  if (antes.selos === depois.selos) return []
+  const ficam = new Set((depois.selos ?? []).map((selo) => selo.id))
+  return (antes.selos ?? []).filter((selo) => !ficam.has(selo.id))
 }
 
 /**
@@ -519,7 +543,14 @@ export function adicionarCartaExtra(turnos: TurnosDaCena, tokenId: string, indic
 export function normalizar(turnos: TurnosDaCena, tokenIdsDaCena: ReadonlySet<string>): TurnosDaCena {
   const fora = new Set(turnos.cartas.filter((carta) => !tokenIdsDaCena.has(carta.tokenId)).map((carta) => carta.id))
   const semAsCartas = fora.size === 0 ? turnos : semCartas(turnos, fora)
-  return golpesNaCena(semAsCartas, tokenIdsDaCena)
+  return selosNaCena(golpesNaCena(semAsCartas, tokenIdsDaCena), tokenIdsDaCena)
+}
+
+/** F3: selo de ficha que sumiu da cena sai. Nada a tirar = o mesmo objeto. */
+function selosNaCena(turnos: TurnosDaCena, tokenIdsDaCena: ReadonlySet<string>): TurnosDaCena {
+  if (turnos.selos === undefined) return turnos
+  const ficam = turnos.selos.filter((selo) => tokenIdsDaCena.has(selo.tokenId))
+  return ficam.length === turnos.selos.length ? turnos : { ...turnos, selos: ficam }
 }
 
 /**

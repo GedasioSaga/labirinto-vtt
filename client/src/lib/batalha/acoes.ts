@@ -159,7 +159,7 @@ export function motivoDaTecnica(
 ): string | null {
   const { cartao } = tecnica
   if (tecnica.acao === 'passiva') return 'Passiva: vale sempre'
-  if (tecnica.transformacao) return 'Transformação: ligue pela ficha'
+  if (tecnica.transformacao) return 'É transformação: use a tira Transformação'
   if (tecnica.overload && combate?.overload === true) return 'Overload: já usado nesta batalha'
   const recarga = combate?.recargas[cartao.id] ?? 0
   if (recarga > 0) return `Recarga: ${turnos(recarga)}`

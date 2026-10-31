@@ -15,9 +15,16 @@ import {
   type GolpeDaBatalha,
   type PedidoDeAcao,
   type PedidoDeReacao,
+  type AcaoDaForma,
+  type FormaNaBatalha,
+  type NumeroDaForma,
   type SaidaDaReacao,
+  type SeloDaBatalha,
   type SeloPedido,
 } from '../lib/batalha/combate'
+import { gastarAcao } from '../lib/batalha/acoes'
+import { comSeloNovo, criarSelo, novoIdDeSelo, pegaOSelo, seloPedidoValido, textoDoSelo, textoDosQueAcabaram } from '../lib/batalha/selos'
+import { ativarForma, desfazerForma, formaDaFicha } from '../lib/batalha/transformacao'
 import { equipeDe } from '../lib/batalha/equipes'
 import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
@@ -54,6 +61,7 @@ import {
   ordenarPelaAgilidade as ordenarNaOrdem,
   passarVez as passarVezNaOrdem,
   removerCarta as removerCartaDaOrdem,
+  selosQueSairam,
   tirarCombatente as tirarCombatenteDaOrdem,
   tokensCaidos,
   trocarDesempate as trocarDesempateNaOrdem,
@@ -63,6 +71,7 @@ import {
   type CartaDaOrdem,
   type Desempate,
   type DuracaoDaExtra,
+  type GastoDaVez,
   type TurnosDaCena,
 } from '../lib/batalha/turnos'
 import { aplicarAjustes, NOME_DO_MESTRE, type Ajuste } from '../lib/ajusteDaFicha'
@@ -219,8 +228,8 @@ interface BatalhaState {
    */
   moverJudge: (sceneKey: string, x: number, y: number) => boolean
 
-  // ---- F3 (fatia T): selos à mão. Só o mestre (chamada direta). Fase 0: só o contrato, tudo devolve `false`. ----
-  /** "Pôr selo..." na ficha: linha "selo" com reversão `selo` (antes `null`). Teto `SELOS_POR_TOKEN_MAX` por ficha e `SELOS_MAX` na cena. */
+  // ---- F3 (fatia T): selos à mão. Só o mestre (chamada direta). Ativar e Desfazer a forma vão pelo `agir`. ----
+  /** "Pôr selo..." na ficha (com carta na ordem): linha "selo" com reversão `selo` (antes `null`). Teto `SELOS_POR_TOKEN_MAX` por ficha e `SELOS_MAX` na cena. */
   porSelo: (sceneKey: string, tokenId: string, selo: SeloPedido) => boolean
   /** Troca nome e turnos de um selo (o `total` passa a ser os turnos novos): linha "selo" com o de antes. */
   editarSelo: (sceneKey: string, seloId: string, selo: SeloPedido) => boolean
@@ -245,6 +254,8 @@ const MESTRE: AutorDaAcao = { tipo: 'mestre' }
 /** Janela em que movimentos seguidos da mesma carta pelo mestre viram uma linha (Alt + seta repetido). */
 const JANELA_DO_MOVIMENTO_MS = 5_000
 const LADOS_DO_D20 = 20
+/** A vez que ainda não gastou nada. */
+const GASTO_ZERO: GastoDaVez = { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
 
 function semACena(cenas: Readonly<Record<string, BatalhaDaCena>>, sceneKey: string): Record<string, BatalhaDaCena> {
   const resto: Record<string, BatalhaDaCena> = {}
@@ -472,6 +483,48 @@ function linhaAtualizada(registro: readonly LinhaDoRegistro[], linhaId: string, 
   return lista
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// F3 (fatia T): forma e selos
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Como `mexerNaFicha`, mas com o personagem novo pronto (a forma passa pelo
+ * `aplicarAjustes` em `transformacao.ts`). `mudar` devolve `null` = não deu:
+ * a ficha fica e volta `null`.
+ */
+function trocarFicha(personagemId: string, mudar: (atual: Personagem, sistema: SistemaDeRpg) => Personagem | null): ParteDaFicha[] | null {
+  const { sistema } = mesaDoRpg()
+  if (sistema === null) return null
+  let partes: ParteDaFicha[] | null = null
+  useAdventureStore.getState().ajustarPersonagem(personagemId, (atual) => {
+    const depois = mudar(atual, sistema)
+    if (depois === null) return atual
+    partes = partesDoAjuste(atual, depois, sistema)
+    return depois
+  })
+  return partes
+}
+
+/** Os selos de antes na reversão da vez: só quando a vez os mexeu (senão o Desfazer da vez apagaria selo posto depois). */
+function selosDeAntes(antes: TurnosDaCena, depois: TurnosDaCena): { selos?: TurnosDaCena['selos'] } {
+  return antes.selos === depois.selos ? {} : { selos: antes.selos ?? [] }
+}
+
+/** Um efeito "selo" por selo que acabou ("ATORDOADO ACABOU"). */
+function efeitosDosSelos(acabaram: readonly SeloDaBatalha[]): EfeitoNovo[] {
+  return acabaram.map((selo): EfeitoNovo => ({ tipo: 'selo', tokenId: selo.tokenId, nome: selo.nome, acabou: true }))
+}
+
+/** Q6: o selo do golpe no alvo que ele ACERTOU (resolvido com saída que pega). Sem selo, sem acerto ou no teto: `null`. */
+function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
+  if (golpe.selo === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida)) return null
+  const selo = criarSelo(alvo.tokenId, golpe.selo, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: golpe.nome })
+  const selos = comSeloNovo(turnos.selos, selo)
+  return selos === null ? null : { selos, parte: { tipo: 'selo', seloId: selo.id, antes: null } }
+}
+
+const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus' }
+
 /** "+1 Simples, +1 Bônus". */
 function textoDasExtras(extras: AcoesExtras): string {
   const partes = [extras.simples > 0 ? `+${extras.simples} Simples` : null, extras.bonus > 0 ? `+${extras.bonus} Bônus` : null, extras.mov > 0 ? `+${extras.mov} Movimento` : null]
@@ -500,6 +553,92 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
     const turnos = mudar(cena.turnos)
     if (turnos === cena.turnos) return false
     gravarCena(sceneKey, comMudanca(cena, turnos, linha(cena.turnos, turnos)))
+    return true
+  }
+
+  /**
+   * F3 (fatia T): Ativar a forma (gasta a ação escolhida, liga o cartão, o
+   * atual ganha a diferença do máximo, Q1) ou Desfazer a forma (ação livre).
+   * Só na vez da carta. A ficha muda pela aventura; a linha "transformacao"
+   * leva a reversão composta [gasto, ficha, forma] e o texto sem números.
+   */
+  const mudarForma = (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: Extract<PedidoDeAcao, { tipo: 'transformar' | 'destransformar' }>): boolean => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined || vez === null) return false
+    const { turnos } = cena
+    if (turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada) return false
+    const carta = cartaDaVez(turnos)
+    if (carta === null || carta.personagemId === null) return false
+    const personagemId = carta.personagemId
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
+    if (personagem === null || sistema === null) return false
+    const ctx: ContextoDoGolpe = { turnos, carta, personagem, sistema, regras: cena.regras, autor, personagens, personagemDoToken: personagemDoTokenNa(turnos) }
+    if (podeAgir(ctx, pedido) !== null) return false
+    const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
+    const nomeDaForma = cartao?.nome.trim() || 'a forma'
+    const quem = quemNaFicha(autor)
+    const quemAge = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
+    const formaAntes = turnos.formas?.[personagemId] ?? null
+    const partes: Reversao[] = []
+    const efeitos: EfeitoNovo[] = []
+    let novos: TurnosDaCena = turnos
+    let texto: string
+    if (pedido.tipo === 'transformar') {
+      let numeros: NumeroDaForma[] = []
+      const fichaMudou = trocarFicha(personagemId, (atual, sistemaDaMesa) => {
+        const feito = ativarForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now())
+        if (feito !== null) numeros = feito.numeros
+        return feito?.personagem ?? null
+      })
+      if (fichaMudou === null) return false
+      partes.push({ tipo: 'gasto', cartaId: carta.id, antes: turnos.gastos[carta.id] ?? null })
+      novos = { ...novos, gastos: { ...novos.gastos, [carta.id]: gastarAcao(turnos.gastos[carta.id] ?? GASTO_ZERO, pedido.acao) } }
+      // O Desfazer volta as partes de trás para a frente: o cartão vem PRIMEIRO aqui para o ganho voltar antes de
+      // desligar (1.500/1.800 → 900/1.800 → 900/1.200). Na ordem de `partesDoAjuste`, o corte do desligar viria antes
+      // e o delta tiraria o ganho de novo (1.200 − 600 = 600).
+      const cartaoPrimeiro = [...fichaMudou.filter((parte) => parte.parte === 'cartao'), ...fichaMudou.filter((parte) => parte.parte !== 'cartao')]
+      partes.push(...reversaoDaFicha(personagemId, cartaoPrimeiro))
+      const imagem = pedido.trocarImagem ? (cartao?.imagem ?? null) : null
+      const forma: FormaNaBatalha = { cartaoId: pedido.cartaoId, imagem }
+      partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
+      novos = { ...novos, formas: { ...(novos.formas ?? {}), [personagemId]: forma } }
+      const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: carta.tokenId, forma: nomeDaForma, imagem }
+      if (numeros.length > 0) efeito.numeros = numeros
+      efeitos.push(efeito)
+      texto = `${quemAge} ativa ${nomeDaForma} (${ROTULO_DA_ACAO_DA_FORMA[pedido.acao]})`
+    } else {
+      const fichaMudou = trocarFicha(personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
+      if (fichaMudou === null) return false
+      partes.push(...reversaoDaFicha(personagemId, fichaMudou))
+      // A imagem e o nome na carta saem junto (só se eram desta forma).
+      if (formaAntes !== null && formaAntes.cartaoId === pedido.cartaoId) {
+        partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
+        const formas = { ...(novos.formas ?? {}) }
+        delete formas[personagemId]
+        novos = { ...novos, formas }
+      }
+      efeitos.push({ tipo: 'forma', tokenId: carta.tokenId, forma: nomeDaForma, ligou: false })
+      texto = `${quemAge} desfaz ${nomeDaForma} (ação livre)`
+    }
+    // A ficha passou pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, {
+      ...comMudanca(atual, novos, { tipo: 'transformacao', texto, autor, tokenIds: [carta.tokenId], reversao: { tipo: 'composta', partes } }),
+      efeitos: comEfeitos(atual.efeitos, efeitos),
+    })
+    return true
+  }
+
+  /** O selo trocado (`depois`) ou tirado (`null`), com a linha "selo" do mestre. */
+  const mudarSelo = (sceneKey: string, seloId: string, depois: SeloDaBatalha | null): boolean => {
+    const cena = cenaDe(sceneKey)
+    const antes = cena?.turnos.selos?.find((selo) => selo.id === seloId)
+    if (cena === undefined || antes === undefined) return false
+    const selos = (cena.turnos.selos ?? []).flatMap((selo) => (selo.id !== seloId ? [selo] : depois === null ? [] : [depois]))
+    const nome = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(antes.tokenId)
+    const texto = depois === null ? `Mestre tirou ${textoDoSelo(antes)} de ${nome}` : `Mestre: ${textoDoSelo(antes)} → ${textoDoSelo(depois)} em ${nome}`
+    gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, selos }, { tipo: 'selo', texto, tokenIds: [antes.tokenId], reversao: { tipo: 'selo', seloId, antes } }))
     return true
   }
 
@@ -564,32 +703,39 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       const de = cartaDaVez(turnos)
       const para = cartaDaVez(passada.turnos)
       const virou = passada.turnos.rodada !== turnos.rodada ? ` (rodada ${passada.turnos.rodada})` : ''
+      const acabaram = passada.acabaram ?? []
+      // F3 (Q4): "· Atordoado acabou em Ilo" no fim da linha da vez.
+      const fimDosSelos = acabaram.length === 0 ? '' : ` · ${textoDosQueAcabaram(acabaram, nomeDoTokenNa(turnos, personagens))}`
       const linha: LinhaNova = {
         tipo: 'vez',
         autor,
-        texto: de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`,
+        texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${fimDosSelos}`,
         tokenIds: [...new Set([de?.tokenId, para?.tokenId].filter((id): id is string => id !== undefined))],
-        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, extras: turnos.extras, combate: turnos.combate ?? {} } },
+        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, extras: turnos.extras, combate: turnos.combate ?? {}, ...selosDeAntes(turnos, passada.turnos) } },
       }
-      gravarCena(sceneKey, comMudanca(cena, passada.turnos, linha))
+      gravarCena(sceneKey, { ...comMudanca(cena, passada.turnos, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
       return true
     },
 
-    darVez: (sceneKey, cartaId) =>
-      mudarTurnos(
-        sceneKey,
-        (turnos) => darVezNaOrdem(turnos, cartaId),
-        (antes, depois) => {
-          const { personagens } = mesaDoRpg()
-          const para = cartaDaVez(depois)
-          return {
-            tipo: 'vez',
-            texto: `Vez dada a ${nomeDaCarta(para, personagens)}`,
-            tokenIds: para === null ? [] : [para.tokenId],
-            reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas: [], gastos: antes.gastos, extras: antes.extras, combate: antes.combate ?? {} } },
-          }
-        },
-      ),
+    darVez: (sceneKey, cartaId) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return false
+      const antes = cena.turnos
+      const depois = darVezNaOrdem(antes, cartaId)
+      if (depois === antes) return false
+      const { personagens } = mesaDoRpg()
+      const para = cartaDaVez(depois)
+      const acabaram = selosQueSairam(antes, depois)
+      const fimDosSelos = acabaram.length === 0 ? '' : ` · ${textoDosQueAcabaram(acabaram, nomeDoTokenNa(antes, personagens))}`
+      const linha: LinhaNova = {
+        tipo: 'vez',
+        texto: `Vez dada a ${nomeDaCarta(para, personagens)}${fimDosSelos}`,
+        tokenIds: para === null ? [] : [para.tokenId],
+        reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas: [], gastos: antes.gastos, extras: antes.extras, combate: antes.combate ?? {}, ...selosDeAntes(antes, depois) } },
+      }
+      gravarCena(sceneKey, { ...comMudanca(cena, depois, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
+      return true
+    },
 
     moverCarta: (sceneKey, cartaId, indice) => {
       const cena = cenaDe(sceneKey)
@@ -761,8 +907,8 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
     },
 
     agir: (sceneKey, autor, vez, pedido) => {
-      // F3, fase 0: Ativar e Desfazer a forma ainda não fazem nada (a regra chega na fase 1 da fatia T).
-      if (pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return false
+      // F3 (fatia T): Ativar e Desfazer a forma têm caminho próprio (não lançam golpe).
+      if (pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return mudarForma(sceneKey, autor, vez, pedido)
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return false
       const { turnos } = cena
@@ -809,6 +955,12 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
           const feito = danoNoAlvo(alvo, golpe.perfurante, autor)
           partes.push(...feito.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
+          // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
+          const selado = seloDoGolpe(novos, golpe, alvo)
+          if (selado !== null) {
+            partes.push(selado.parte)
+            novos = { ...novos, selos: selado.selos }
+          }
         }
         novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
       }
@@ -862,6 +1014,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       const efeitos: EfeitoNovo[] = []
       const partes: Reversao[] = []
       let contras = turnos.contras
+      let selos = turnos.selos
       switch (pedido.tipo) {
         case 'rolar':
         case 'rerolar': {
@@ -893,6 +1046,12 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
           const feito = danoNoAlvo(resolvido, golpe.perfurante, autor)
           partes.push(...feito.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
+          // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
+          const selado = seloDoGolpe(turnos, golpe, resolvido)
+          if (selado !== null) {
+            partes.push(selado.parte)
+            selos = selado.selos
+          }
           // Q6: 20 e Contra-atacar = sem dano e uma ação a mais na hora, fora da vez (Atacar, Habilidade ou Mover).
           if (saida === 'contra' && (contras?.length ?? 0) < CONTRAS_MAX) {
             const ganho: ContraAtaque = { golpeId: golpe.id, tokenId: alvo.tokenId, personagemId: alvo.personagemId, atacanteTokenId: golpe.atacanteTokenId, rodada: turnos.rodada }
@@ -903,6 +1062,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       }
       const novos: TurnosDaCena = { ...turnos, golpes: comGolpe(turnos.golpes, novo) }
       if (contras !== undefined) novos.contras = contras
+      if (selos !== undefined) novos.selos = selos
       const atual = cenaDe(sceneKey) ?? cena
       const registro = linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(novo, nomeDoToken), partes)
       gravarCena(sceneKey, { ...atual, turnos: novos, registro, efeitos: comEfeitos(atual.efeitos, efeitos), turnosRev: atual.turnosRev + 1 })
@@ -1003,10 +1163,29 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       return true
     },
 
-    // F3 (fatia T), fase 0: o contrato. Pôr, editar e tirar selo chegam na fase 1 (T-A); até lá, nada muda.
-    porSelo: () => false,
-    editarSelo: () => false,
-    tirarSelo: () => false,
+    porSelo: (sceneKey, tokenId, pedido) => {
+      const cena = cenaDe(sceneKey)
+      const selo = seloPedidoValido(pedido)
+      if (cena === undefined || selo === null || !cena.turnos.cartas.some((carta) => carta.tokenId === tokenId)) return false
+      const { turnos } = cena
+      const novo = criarSelo(tokenId, selo, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null })
+      const selos = comSeloNovo(turnos.selos, novo)
+      if (selos === null) return false
+      const texto = `Mestre pôs ${textoDoSelo(novo)} em ${nomeDoTokenNa(turnos, mesaDoRpg().personagens)(tokenId)}`
+      gravarCena(sceneKey, comMudanca(cena, { ...turnos, selos }, { tipo: 'selo', texto, tokenIds: [tokenId], reversao: { tipo: 'selo', seloId: novo.id, antes: null } }))
+      return true
+    },
+
+    editarSelo: (sceneKey, seloId, pedido) => {
+      const selo = seloPedidoValido(pedido)
+      const antes = cenaDe(sceneKey)?.turnos.selos?.find((candidato) => candidato.id === seloId)
+      if (selo === null || antes === undefined) return false
+      if (antes.nome === selo.nome && antes.turnos === selo.turnos) return false
+      // Turnos novos = o total novo; a marca "já contou nesta rodada" fica.
+      return mudarSelo(sceneKey, seloId, { ...antes, nome: selo.nome, turnos: selo.turnos, total: selo.turnos })
+    },
+
+    tirarSelo: (sceneKey, seloId) => mudarSelo(sceneKey, seloId, null),
   }
 })
 
