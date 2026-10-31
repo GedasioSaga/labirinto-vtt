@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import { create, type StoreApi, type UseBoundStore } from 'zustand'
 import type { Casa } from '../lib/batalha/blocos'
 import { somarNaTrilha } from '../lib/batalha/caminhoAndado'
 import {
@@ -29,6 +29,7 @@ import { equipeDe } from '../lib/batalha/equipes'
 import { golpePendente, lancarGolpe, podeAgir, resolverAlvo, rolarReacao, textoDaRolagem, textoDoGolpe, type ContextoDoGolpe } from '../lib/batalha/golpe'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, limiteDeArmas } from '../lib/batalha/leituraDaFicha'
+import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { ajustesDoDano, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
 import {
@@ -78,8 +79,7 @@ import { aplicarAjustes, NOME_DO_MESTRE, type Ajuste } from '../lib/ajusteDaFich
 import { secureRollDie } from '../lib/dice'
 import type { Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
-import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
-import { sistemaPorId, useRpgStore } from './rpgStore'
+import { mesaDaAventura } from './mesaDaAventura'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -100,6 +100,12 @@ import { sistemaPorId, useRpgStore } from './rpgStore'
  * se escolhe o caminho e se escreve a linha do registro. Toda mudança disso
  * sobe `turnosRev` — e NÃO o `rev` dos caminhos, que faria snapshot inteiro do
  * mapa a cada vez (`deveAvisarJogadores`). O host lê pela `ponteDaBatalha`.
+ *
+ * ARENA DE TESTES, fase 0 (docs/planos/batalha-arena-de-testes-plano.md §4.2):
+ * a store nasce de uma FÁBRICA, `criarBatalhaStore(mesa)`, e as fichas vêm só
+ * da mesa recebida (`lib/batalha/mesa.ts`). `useBatalhaStore` é a instância da
+ * mesa de verdade (`mesaDaAventura`), a única que o App, o host e a ponte
+ * assinam; a arena cria a dela com as cópias, isolada de tudo isso.
  */
 
 /** A abertura escolhida ao ligar: id da animação de transição e o texto dela ("Royals"). Os dois opcionais. */
@@ -136,7 +142,7 @@ export interface AnuncioDaBatalha extends AberturaDaBatalha {
   sceneKey: string
 }
 
-interface BatalhaState {
+export interface BatalhaState {
   cenas: Readonly<Record<string, BatalhaDaCena>>
   anuncio: AnuncioDaBatalha | null
   /**
@@ -263,11 +269,15 @@ function semACena(cenas: Readonly<Record<string, BatalhaDaCena>>, sceneKey: stri
   return resto
 }
 
-/** O sistema e os personagens em uso na mesa (aventura ou pasta). */
-function mesaDoRpg(): { personagens: readonly Personagem[]; sistema: SistemaDeRpg | null } {
-  const aventura = useAdventureStore.getState()
-  const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura)) ?? null
-  return { personagens: personagensAtivos(aventura), sistema }
+/** O sistema e os personagens em uso na mesa (aventura ou pasta; na arena, as cópias). */
+interface FichasDaMesa {
+  personagens: readonly Personagem[]
+  sistema: SistemaDeRpg | null
+}
+
+/** O sistema e os personagens em uso na mesa, lidos agora. */
+function fichasDaMesa(mesa: MesaDaBatalha): FichasDaMesa {
+  return { personagens: mesa.personagens(), sistema: mesa.sistema() }
 }
 
 function rolarD20(): number {
@@ -339,14 +349,14 @@ interface Desfeito {
   ok: boolean
 }
 
-/** Desfaz a reversão: a ordem na própria cena; ficha e equipe pela aventura; regras na cópia. */
-function desfazerReversao(cena: BatalhaDaCena, reversao: Reversao, autor: AutorDaAcao): Desfeito {
+/** Desfaz a reversão: a ordem na própria cena; ficha e equipe pela mesa (a aventura); regras na cópia. */
+function desfazerReversao(mesa: MesaDaBatalha, cena: BatalhaDaCena, reversao: Reversao, autor: AutorDaAcao): Desfeito {
   switch (reversao.tipo) {
     case 'ficha': {
-      const { sistema } = mesaDoRpg()
+      const sistema = mesa.sistema()
       if (sistema === null) return { cena, emParte: false, ok: false }
       let emParte = false
-      const ok = useAdventureStore.getState().ajustarPersonagem(reversao.personagemId, (atual) => {
+      const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => {
         const feito = desfazerFicha(atual, sistema, reversao.partes, quemDesfezNaFicha(autor), Date.now())
         emParte = feito.emParte
         return feito.personagem
@@ -354,7 +364,7 @@ function desfazerReversao(cena: BatalhaDaCena, reversao: Reversao, autor: AutorD
       return { cena, emParte, ok }
     }
     case 'equipe': {
-      const ok = useAdventureStore.getState().trocarEquipe(reversao.personagemId, reversao.antes)
+      const ok = mesa.trocarEquipe(reversao.personagemId, reversao.antes)
       return { cena, emParte: false, ok }
     }
     case 'regras':
@@ -365,7 +375,7 @@ function desfazerReversao(cena: BatalhaDaCena, reversao: Reversao, autor: AutorD
       let ok = true
       // Da última parte para a primeira, como foram feitas ao contrário.
       for (const parte of [...reversao.partes].reverse()) {
-        const feito = desfazerReversao(atual, parte, autor)
+        const feito = desfazerReversao(mesa, atual, parte, autor)
         atual = feito.cena
         emParte = emParte || feito.emParte
         ok = ok && feito.ok
@@ -418,17 +428,17 @@ function novoIdDeGolpe(): string {
 }
 
 /**
- * Mexe na ficha pela aventura (o histórico dela cresce em nome de `quem`; a
- * mudança chega ao jogador pelo `syncPersonagens` de sempre). `ajustes`
- * recebe o personagem de AGORA (o Escudo de agora, o SP de agora). Devolve as
- * partes que mudaram (vazio = nada), ou `null` (personagem ou sistema não
- * existe).
+ * Mexe na ficha pela mesa (na aventura, o histórico dela cresce em nome de
+ * `quem` e a mudança chega ao jogador pelo `syncPersonagens` de sempre).
+ * `ajustes` recebe o personagem de AGORA (o Escudo de agora, o SP de agora).
+ * Devolve as partes que mudaram (vazio = nada), ou `null` (personagem ou
+ * sistema não existe).
  */
-function mexerNaFicha(personagemId: string, ajustes: (atual: Personagem, sistema: SistemaDeRpg) => readonly Ajuste[], quem: string): ParteDaFicha[] | null {
-  const { sistema } = mesaDoRpg()
+function mexerNaFicha(mesa: MesaDaBatalha, personagemId: string, ajustes: (atual: Personagem, sistema: SistemaDeRpg) => readonly Ajuste[], quem: string): ParteDaFicha[] | null {
+  const sistema = mesa.sistema()
   if (sistema === null) return null
   let partes: ParteDaFicha[] | null = null
-  useAdventureStore.getState().ajustarPersonagem(personagemId, (atual) => {
+  mesa.ajustarPersonagem(personagemId, (atual) => {
     const lista = ajustes(atual, sistema)
     const depois = lista.length === 0 ? atual : aplicarAjustes(atual, sistema, lista, quem, Date.now())
     partes = partesDoAjuste(atual, depois, sistema)
@@ -464,10 +474,10 @@ function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: GolpeDaB
 }
 
 /** O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo. */
-function danoNoAlvo(alvo: AlvoDoGolpe, perfurante: boolean, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } {
+function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, perfurante: boolean, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } {
   if (alvo.danoFinal === undefined || alvo.saida === undefined) return { partes: [], efeito: null }
   const valor = alvo.danoFinal
-  const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, perfurante), quemNaFicha(autor))
+  const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, perfurante), quemNaFicha(autor))
   // A animação toca sempre (esquiva também: "ESQUIVOU" sobre a ficha).
   return { partes: alvo.personagemId === null ? [] : reversaoDaFicha(alvo.personagemId, partes), efeito: { tipo: 'dano', tokenId: alvo.tokenId, valor, saida: alvo.saida } }
 }
@@ -492,11 +502,11 @@ function linhaAtualizada(registro: readonly LinhaDoRegistro[], linhaId: string, 
  * `aplicarAjustes` em `transformacao.ts`). `mudar` devolve `null` = não deu:
  * a ficha fica e volta `null`.
  */
-function trocarFicha(personagemId: string, mudar: (atual: Personagem, sistema: SistemaDeRpg) => Personagem | null): ParteDaFicha[] | null {
-  const { sistema } = mesaDoRpg()
+function trocarFicha(mesa: MesaDaBatalha, personagemId: string, mudar: (atual: Personagem, sistema: SistemaDeRpg) => Personagem | null): ParteDaFicha[] | null {
+  const sistema = mesa.sistema()
   if (sistema === null) return null
   let partes: ParteDaFicha[] | null = null
-  useAdventureStore.getState().ajustarPersonagem(personagemId, (atual) => {
+  mesa.ajustarPersonagem(personagemId, (atual) => {
     const depois = mudar(atual, sistema)
     if (depois === null) return atual
     partes = partesDoAjuste(atual, depois, sistema)
@@ -537,7 +547,14 @@ function contadorDeExtra(valor: number): number {
   return Number.isFinite(valor) ? Math.min(EXTRAS_MAX, Math.max(0, Math.trunc(valor))) : 0
 }
 
-export const useBatalhaStore = create<BatalhaState>()((set, get) => {
+/**
+ * O corpo da store (o que era o inicializador do `create`), preso à `mesa`:
+ * toda leitura e gravação de ficha das ações passa por ela.
+ */
+function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setState'], get: StoreApi<BatalhaState>['getState']): BatalhaState {
+  /** O sistema e os personagens da mesa desta store, lidos agora. */
+  const mesaDoRpg = (): FichasDaMesa => fichasDaMesa(mesa)
+
   /** A cena ligada, ou `undefined`. */
   const cenaDe = (sceneKey: string): BatalhaDaCena | undefined => get().cenas[sceneKey]
 
@@ -586,7 +603,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
     let texto: string
     if (pedido.tipo === 'transformar') {
       let numeros: NumeroDaForma[] = []
-      const fichaMudou = trocarFicha(personagemId, (atual, sistemaDaMesa) => {
+      const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => {
         const feito = ativarForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now())
         if (feito !== null) numeros = feito.numeros
         return feito?.personagem ?? null
@@ -608,7 +625,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       efeitos.push(efeito)
       texto = `${quemAge} ativa ${nomeDaForma} (${ROTULO_DA_ACAO_DA_FORMA[pedido.acao]})`
     } else {
-      const fichaMudou = trocarFicha(personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
+      const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
       if (fichaMudou === null) return false
       partes.push(...reversaoDaFicha(personagemId, fichaMudou))
       // A imagem e o nome na carta saem junto (só se eram desta forma).
@@ -657,7 +674,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
         set({ anuncio: novo })
         return
       }
-      set({ cenas: { ...cenas, [sceneKey]: inicio === undefined ? CENA_NOVA : cenaDoInicio(inicio) }, anuncio: novo })
+      set({ cenas: { ...cenas, [sceneKey]: inicio === undefined ? CENA_NOVA : cenaDoInicio(mesa, inicio) }, anuncio: novo })
     },
 
     desligar: (sceneKey) => {
@@ -854,13 +871,14 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
     },
 
     trocarEquipe: (personagemId, equipeId) => {
-      const aventura = useAdventureStore.getState()
-      const equipes = equipesAtivas(aventura)
+      // Lidos ANTES de trocar, como a foto da aventura de antes: a equipe e o nome não mudam com a troca.
+      const equipes = mesa.equipes()
+      const personagens = mesa.personagens()
       const antes = equipeDe(personagemId, equipes)
       if ((antes?.id ?? null) === equipeId) return true
-      if (!aventura.trocarEquipe(personagemId, equipeId)) return false
+      if (!mesa.trocarEquipe(personagemId, equipeId)) return false
       const depois = equipeId === null ? null : (equipes.find((equipe) => equipe.id === equipeId) ?? null)
-      const personagem = personagensAtivos(aventura).find((candidato) => candidato.id === personagemId)
+      const personagem = personagens.find((candidato) => candidato.id === personagemId)
       const texto = `${personagem?.nome ?? 'Personagem'}: ${antes?.nome ?? 'sem equipe'} → ${depois?.nome ?? 'sem equipe'}`
       const cenas = { ...get().cenas }
       for (const { chave, cena, tokenIds } of cenasComOPersonagem(cenas, personagemId)) {
@@ -895,7 +913,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       const linha = cena?.registro.find((candidata) => candidata.id === linhaId)
       if (cena === undefined || linha === undefined || linha.desfeita !== undefined) return false
       if (autor.tipo === 'jogador' && (linha.autor.tipo !== 'jogador' || linha.autor.playerId !== autor.playerId || !TIPOS_QUE_O_JOGADOR_DESFAZ.has(linha.tipo))) return false
-      const feito = desfazerReversao(cena, linha.reversao, autor)
+      const feito = desfazerReversao(mesa, cena, linha.reversao, autor)
       if (!feito.ok) return false
       const por = `${nomeDoAutor(autor)}${feito.emParte ? ' (em parte)' : ''}`
       // A cena de agora: o Desfazer da ficha passa pela aventura, e a store pode ter mudado no meio.
@@ -939,7 +957,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       }
       if (lancado.custo.length > 0 && carta.personagemId !== null) {
         const custo = lancado.custo
-        partes.push(...reversaoDaFicha(carta.personagemId, mexerNaFicha(carta.personagemId, () => custo, quem)))
+        partes.push(...reversaoDaFicha(carta.personagemId, mexerNaFicha(mesa, carta.personagemId, () => custo, quem)))
       }
       if (lancado.contraUsado !== null) {
         const usado = lancado.contraUsado
@@ -952,7 +970,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
         partes.push({ tipo: 'golpe', golpeId: golpe.id })
         efeitos.push({ tipo: 'golpe', golpeId: golpe.id, atacanteTokenId: golpe.atacanteTokenId, nome: golpe.nome, alvos: golpe.alvos.map((alvo) => alvo.tokenId), surpresa: golpe.surpresa, overload: golpe.overload })
         for (const alvo of lancado.resolvidos) {
-          const feito = danoNoAlvo(alvo, golpe.perfurante, autor)
+          const feito = danoNoAlvo(mesa, alvo, golpe.perfurante, autor)
           partes.push(...feito.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
@@ -1043,7 +1061,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
           novo = resolverAlvo(golpe, alvo.tokenId, saida)
           const resolvido = novo.alvos.find((candidato) => candidato.tokenId === alvo.tokenId)
           if (resolvido === undefined) return false
-          const feito = danoNoAlvo(resolvido, golpe.perfurante, autor)
+          const feito = danoNoAlvo(mesa, resolvido, golpe.perfurante, autor)
           partes.push(...feito.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
@@ -1075,7 +1093,7 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
       const carta = cena.turnos.cartas.find((candidata) => candidata.tokenId === tokenId)
       if (carta === undefined || carta.personagemId === null) return false
       const personagemId = carta.personagemId
-      const partes = mexerNaFicha(personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, false), quemNaFicha(autor))
+      const partes = mexerNaFicha(mesa, personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, false), quemNaFicha(autor))
       if (partes === null) return false
       const alvo = nomeDaCarta(carta, mesaDoRpg().personagens)
       const texto = `${nomeDoAutor(autor)} deu ${valor} de dano em ${alvo}`
@@ -1187,11 +1205,27 @@ export const useBatalhaStore = create<BatalhaState>()((set, get) => {
 
     tirarSelo: (sceneKey, seloId) => mudarSelo(sceneKey, seloId, null),
   }
-})
+}
+
+/**
+ * A FÁBRICA (arena, fase 0): uma store de batalha nova, que lê e grava as
+ * fichas só pela `mesa`. Cada chamada é uma store separada, com as cenas
+ * dela; só o contador `ultimoSeqDeEfeito` é do módulo (sobe sempre, não
+ * atrapalha ninguém).
+ */
+export function criarBatalhaStore(mesa: MesaDaBatalha): UseBoundStore<StoreApi<BatalhaState>> {
+  return create<BatalhaState>()((set, get) => estadoDaBatalha(mesa, set, get))
+}
+
+/** Uma store de batalha (a da mesa de verdade ou a da arena). */
+export type LojaDaBatalha = ReturnType<typeof criarBatalhaStore>
+
+/** A batalha da mesa de verdade (aventura ou pasta): a que o App, o host e a ponte usam. */
+export const useBatalhaStore: LojaDaBatalha = criarBatalhaStore(mesaDaAventura)
 
 /** A cena que nasce do Iniciar: a ordem pela Agilidade (com o desempate escolhido), a vez na primeira que joga, as regras. */
-function cenaDoInicio(inicio: InicioDaBatalha): BatalhaDaCena {
-  const { personagens, sistema } = mesaDoRpg()
+function cenaDoInicio(mesa: MesaDaBatalha, inicio: InicioDaBatalha): BatalhaDaCena {
+  const { personagens, sistema } = fichasDaMesa(mesa)
   const vazios = turnosVazios(inicio.desempate)
   const comCartas: TurnosDaCena = { ...vazios, cartas: [...inicio.combatentes] }
   const ordenados = ordenarNaOrdem(comCartas, agilidadesDasCartas(comCartas.cartas, personagens, sistema), rolarD20)
@@ -1277,13 +1311,14 @@ function ehDoMestre(personagemId: string | null, personagens: readonly Personage
 /**
  * S9 (Q7): o contador do marcador Batalha no livro da mesa — a vez é de NPC
  * (1) mais as reações de NPC esperando. 0 = nada esperando o mestre. Lê os
- * personagens da mesa na hora (o tipo do personagem não mora na batalha).
+ * personagens da mesa na hora (o tipo do personagem não mora na batalha);
+ * `mesa` ausente = a de verdade (a arena passa a dela).
  */
-export function esperandoOMestre(state: EstadoDaBatalha, sceneKey: string | null): number {
+export function esperandoOMestre(state: EstadoDaBatalha, sceneKey: string | null, mesa: MesaDaBatalha = mesaDaAventura): number {
   if (sceneKey === null) return 0
   const cena = state.cenas[sceneKey]
   if (cena === undefined) return 0
-  const { personagens } = mesaDoRpg()
+  const personagens = mesa.personagens()
   const daVez = cartaDaVez(cena.turnos)
   let esperando = daVez !== null && ehDoMestre(daVez.personagemId, personagens) ? 1 : 0
   for (const golpe of cena.turnos.golpes ?? []) {

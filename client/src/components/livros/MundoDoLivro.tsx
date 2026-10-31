@@ -95,6 +95,8 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   const contagem: Record<AbaDoMundo, number | null> = {
     jogadores: personagens === null ? null : personagens.filter((personagem) => personagem.tipo === 'jogador').length,
     npcs: personagens === null ? null : personagens.filter((personagem) => personagem.tipo === 'npc' && entraNaBatalha(personagem)).length,
+    // A Arena de testes não tem contagem.
+    arena: null,
   }
 
   const trocarAba = (nova: AbaDoMundo, focar: boolean) => {

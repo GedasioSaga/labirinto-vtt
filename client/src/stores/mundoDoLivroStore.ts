@@ -17,8 +17,11 @@ import { editarRpgDaPasta } from './rpgDaPasta'
  * cópia lida do disco (`daPasta`). Um dono só por situação.
  */
 
-/** Os marcadores da M1. Os outros (Comparar, Saúde, Itens, Anotações) chegam com a fase deles. */
-export type AbaDoMundo = 'jogadores' | 'npcs'
+/**
+ * Os marcadores da M1 e a Arena de testes (docs/planos/batalha-arena-de-testes-plano.md).
+ * Os outros (Comparar, Saúde, Itens, Anotações) chegam com a fase deles.
+ */
+export type AbaDoMundo = 'jogadores' | 'npcs' | 'arena'
 
 /** De onde o mundo abriu: a porta 04 da tela inicial, ou o atalho no livro do mestre (por cima do mapa). */
 export type OrigemDoMundo = 'inicio' | 'editor'
