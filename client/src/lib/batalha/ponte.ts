@@ -73,7 +73,7 @@ export interface PonteDaBatalha {
   darDano(sceneKey: string, autor: AutorDaAcao, tokenId: string, valor: number): boolean
   /** F2: as armas da aba Armas levadas para a batalha, dentro do limite; troca quando quiser (Q8). */
   escolherArmas(sceneKey: string, autor: AutorDaAcao, personagemId: string, armas: readonly string[]): boolean
-  /** Zera a concentração guardada (carga → 0), a qualquer hora; não devolve a ação gasta. Sem carga: `false`. */
+  /** Zera a concentração guardada (carga → 0), a qualquer hora; na mesma vez do Concentrar, devolve a ação que ele gastou (C2). Sem carga: `false`. */
   zerarCarga(sceneKey: string, autor: AutorDaAcao, personagemId: string): boolean
   /**
    * Tipos de habilidade F3: Ativar/Desligar a passiva, Aplicar o "a cada

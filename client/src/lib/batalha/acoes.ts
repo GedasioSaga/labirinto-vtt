@@ -143,13 +143,13 @@ export function motivoDaAcao(acoes: AcoesDaVez, acao: AcaoDaTecnica): string | n
 }
 
 /**
- * A ação que o golpe gasta de fato: com carga 3 a técnica vira Completa
- * (livro, "Atenção 3"); a Livre continua livre. `null` = a ficha não diz (a
- * tela pergunta).
+ * A ação que o golpe gasta de fato: a da ficha. C1 (lote de 01/11): com a 3ª
+ * carga ele ainda move e ataca normalmente, então a carga não troca mais a
+ * ação pela Completa. `null` = a ficha não diz (a tela pergunta). O
+ * `_carga` fica só para as telas que ainda o passam.
  */
-export function acaoDoGolpe(acao: AcaoDaTecnica | null, carga: number): AcaoDaTecnica | null {
-  if (acao === null || acao === 'livre') return acao
-  return carga >= CARGA_MAX ? 'completa' : acao
+export function acaoDoGolpe(acao: AcaoDaTecnica | null, _carga?: number): AcaoDaTecnica | null {
+  return acao
 }
 
 /** O motivo da técnica de Tipo Reação no menu da vez: ela só se usa na caixa REAÇÃO. */
@@ -254,19 +254,29 @@ export function tecnicasNoMenu(
   })
 }
 
+/** C1 (lote de 01/11): a concentração que leva a carga a 3 não gasta ação. */
+function concentrarEhLivre(carga: number): boolean {
+  return carga === CARGA_MAX - 1
+}
+
 /**
  * Por que o Concentrar está apagado, ou `null` (pode). Gasta a Simples (ou a
- * Bônus, se só sobrou ela), uma vez por vez, carga até 3. `chaveDaVez` =
- * `chaveDaVez(rodada, cartaId)`.
+ * Bônus, se só sobrou ela), uma vez por vez, carga até 3; a 3ª é livre (C1).
+ * `chaveDaVez` = `chaveDaVez(rodada, cartaId)`.
  */
 export function motivoDoConcentrar(combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez, chaveDaVez: string): string | null {
+  const carga = combate?.carga ?? 0
   if (combate?.concentrouEm === chaveDaVez) return 'Já concentrou nesta vez'
-  if ((combate?.carga ?? 0) >= CARGA_MAX) return 'Carga no máximo'
-  if (!sobra(acoes.simples) && !sobra(acoes.bonus)) return 'A ação simples deste turno já foi usada'
+  if (carga >= CARGA_MAX) return 'Carga no máximo'
+  if (!concentrarEhLivre(carga) && !sobra(acoes.simples) && !sobra(acoes.bonus)) return 'A ação simples deste turno já foi usada'
   return null
 }
 
-/** O que o Concentrar gasta: a Simples, ou a Bônus se só sobrou ela (livro). */
-export function acaoDoConcentrar(acoes: AcoesDaVez): 'simples' | 'bonus' {
+/** A ação que o Concentrar gasta. */
+export type AcaoDoConcentrar = 'simples' | 'bonus' | 'livre'
+
+/** O que o Concentrar gasta: a Simples, ou a Bônus se só sobrou ela (livro); a 3ª carga, nada (C1). */
+export function acaoDoConcentrar(acoes: AcoesDaVez, carga: number): AcaoDoConcentrar {
+  if (concentrarEhLivre(carga)) return 'livre'
   return sobra(acoes.simples) ? 'simples' : 'bonus'
 }

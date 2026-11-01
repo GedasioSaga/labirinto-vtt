@@ -53,6 +53,12 @@ export interface CombateDoPersonagem {
   /** "rodada:cartaId" da vez em que concentrou (uma vez por vez). */
   concentrouEm?: string
   /**
+   * C2 (lote de 01/11): a ação que o Concentrar de `concentrouEm` gastou e a
+   * linha dele. Zerar na mesma vez devolve essa ação. Ausente = a 3ª carga
+   * (livre, C1) ou ainda não concentrou.
+   */
+  concentrouCom?: ConcentracaoGasta
+  /**
    * cartaoIds da aba Armas levados para a batalha; `null` = ainda não
    * escolheu. Troca quando quiser, sempre dentro do limite (Q8).
    */
@@ -75,6 +81,12 @@ export interface CombateDoPersonagem {
    * editar a ficha. Ausente = nenhum. Até `EVOLUIDAS_MAX`.
    */
   evoluidas?: readonly string[]
+}
+
+/** C2: o que o Concentrar da vez gastou (a Simples ou a Bônus) e a linha que o registrou. */
+export interface ConcentracaoGasta {
+  acao: 'simples' | 'bonus'
+  linhaId: string
 }
 
 /**

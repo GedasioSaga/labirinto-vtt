@@ -107,6 +107,13 @@ export type Reversao =
    * de antes apagaria isso).
    */
   | { tipo: 'carga'; personagemId: string; antes: CombateDoPersonagem['carga'] }
+  /**
+   * C2 (lote de 01/11): o Zerar na mesma vez do Concentrar devolveu a ação
+   * que ele gastou. Desfazer = gasta de novo, por delta, SÓ se ainda é aquela
+   * vez (`cartaId` na `rodada`) e se a linha do Concentrar não foi desfeita
+   * (a store confere: desfeita, a ação já voltou por ela).
+   */
+  | { tipo: 'acaoDevolvida'; cartaId: string; rodada: number; acao: 'simples' | 'bonus'; linhaDoConcentrar: string }
   /** F2: o golpe que nasceu na linha. Desfazer = tirá-lo dos pendentes (alvo que esperava não recebe mais nada) e o contra-ataque que ele deu. */
   | { tipo: 'golpe'; golpeId: string }
   /** F2 (Q6): o contra-ataque gasto na linha. Desfazer = devolvê-lo. */
@@ -433,6 +440,10 @@ function campoSemALinha<T>(atual: T, antes: T, depois: T, igual: (a: T, b: T) =>
   return !igual(antes, depois) && igual(atual, depois) ? antes : atual
 }
 
+function mesmaConcentracao(a: CombateDoPersonagem['concentrouCom'], b: CombateDoPersonagem['concentrouCom']): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.acao === b.acao && a.linhaId === b.linhaId)
+}
+
 function mesmasArmas(a: readonly string[] | null, b: readonly string[] | null): boolean {
   return a === b || (a !== null && b !== null && a.length === b.length && a.every((id, i) => id === b[i]))
 }
@@ -487,8 +498,9 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
+  const { concentrouEm: _concentrou, concentrouCom: _com, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
   const concentrouEm = campoSemALinha(atual.concentrouEm, antes.concentrouEm, depois.concentrouEm)
+  const concentrouCom = campoSemALinha(atual.concentrouCom, antes.concentrouCom, depois.concentrouCom, mesmaConcentracao)
   const lembradas = listaSemALinha(atual.lembradas ?? [], antes.lembradas ?? [], depois.lembradas ?? [])
   const lembretes = lembretesSemALinha(atual.lembretes ?? [], antes.lembretes ?? [], depois.lembretes ?? [], lembradas, ligadas)
   const evoluidas = listaSemALinha(atual.evoluidas ?? [], antes.evoluidas ?? [], depois.evoluidas ?? [])
@@ -500,6 +512,7 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     carga: campoSemALinha(atual.carga, antes.carga, depois.carga),
     armas: campoSemALinha(atual.armas, antes.armas, depois.armas, mesmasArmas),
     ...(concentrouEm === undefined ? {} : { concentrouEm }),
+    ...(concentrouCom === undefined ? {} : { concentrouCom }),
     ...(lembradas.length === 0 ? {} : { lembradas }),
     ...(lembretes.length === 0 ? {} : { lembretes }),
     ...(evoluidas.length === 0 ? {} : { evoluidas }),
@@ -542,6 +555,12 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'carga': {
       const atual = turnos.combate?.[reversao.personagemId] ?? combateVazio()
       return { ...turnos, combate: { ...(turnos.combate ?? {}), [reversao.personagemId]: { ...atual, carga: reversao.antes } } }
+    }
+    case 'acaoDevolvida': {
+      // Outra vez (a vez passou e o gasto zerou): gastar agora tiraria a ação de outra vez.
+      if (turnos.vez !== reversao.cartaId || turnos.rodada !== reversao.rodada) return turnos
+      const gasto = turnos.gastos[reversao.cartaId] ?? { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
+      return { ...turnos, gastos: { ...turnos.gastos, [reversao.cartaId]: { ...gasto, [reversao.acao]: gasto[reversao.acao] + 1 } } }
     }
     case 'golpe': {
       const golpes = (turnos.golpes ?? []).filter((golpe) => golpe.id !== reversao.golpeId)

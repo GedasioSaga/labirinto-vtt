@@ -3,6 +3,7 @@ import type { Casa } from '../lib/batalha/blocos'
 import { somarNaTrilha } from '../lib/batalha/caminhoAndado'
 import {
   ARMAS_NA_BATALHA_MAX,
+  chaveDaVez,
   combateVazio,
   CONTRAS_MAX,
   DANO_MAX,
@@ -290,8 +291,10 @@ export interface BatalhaState {
   escolherArmas: (sceneKey: string, autor: AutorDaAcao, personagemId: string, armas: readonly string[]) => boolean
   /**
    * "Zerar" a concentração do personagem (carga → 0), a qualquer hora: linha
-   * "acao" com Desfazer, que volta só a carga. NÃO devolve a ação gasta no
-   * Concentrar. Sem carga, ou personagem fora da ordem: `false`.
+   * "acao" com Desfazer, que volta só a carga. C2 (lote de 01/11): na MESMA
+   * vez do Concentrar, devolve a ação que ele gastou e libera concentrar de
+   * novo ("é como se não tivesse feito nada"). Sem carga, ou personagem fora
+   * da ordem: `false`.
    */
   zerarCarga: (sceneKey: string, autor: AutorDaAcao, personagemId: string) => boolean
   /**
@@ -580,6 +583,11 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
       if (!podeVoltar) return { cena, emParte: false, ok: true }
       if (mesa.criarInvocado === undefined || !mesa.criarInvocado(sceneKey, reversao.personagem, reversao.token)) return { cena, emParte: true, ok: true }
       return { cena: { ...cena, turnos: { ...cena.turnos, invocados: [...(cena.turnos.invocados ?? []), invocado] } }, emParte: false, ok: true }
+    }
+    case 'acaoDevolvida': {
+      // C2: a linha do Concentrar já desfeita devolveu a ação por ela; gastar de novo tiraria uma ação que nada gastou.
+      if (linhaDesfeita(cena.registro, reversao.linhaDoConcentrar)) return { cena, emParte: false, ok: true }
+      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
     }
     case 'vez':
     case 'ordem':
@@ -1284,7 +1292,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       texto = textoDoGolpe(golpe, nomeDoToken)
       tipo = pedido.tipo === 'habilidade' ? 'habilidade' : 'golpe'
     } else if (pedido.tipo === 'concentrar') {
-      texto = `${quemAge} concentrou (carga ${lancado.combate?.carga ?? 0})`
+      texto = `${quemAge} concentrou (carga ${lancado.combate?.carga ?? 0}${lancado.acao === 'livre' ? ', sem gastar ação' : ''})`
       tipo = 'acao'
     } else {
       texto = `${quemAge} usou o contra-ataque para se mover`
@@ -1867,10 +1875,24 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const antes = combate.carga
       const tokenIds = [...new Set(cartas.map((carta) => carta.tokenId))]
       const nome = nomeDaCarta(cartas[0], mesaDoRpg().personagens)
-      // Só a carga: o `concentrouEm` fica (a ação gasta não volta, e ele não concentra de novo nesta vez).
-      const turnos: TurnosDaCena = { ...cena.turnos, combate: { ...(cena.turnos.combate ?? {}), [personagemId]: { ...combate, carga: 0 } } }
+      const { turnos: turnosAntes } = cena
+      // C2: concentrou NESTA vez e zerou = não fez nada: a ação do Concentrar volta e ele pode concentrar de novo.
+      const daVez = cartaDaVez(turnosAntes)
+      const mesmaVez = daVez !== null && daVez.personagemId === personagemId && combate.concentrouEm === chaveDaVez(turnosAntes.rodada, daVez.id)
+      const { concentrouEm: _em, concentrouCom: _com, ...semAVez } = combate
+      const depois: CombateDoPersonagem = mesmaVez ? { ...semAVez, carga: 0 } : { ...combate, carga: 0 }
+      let turnos: TurnosDaCena = { ...turnosAntes, combate: { ...(turnosAntes.combate ?? {}), [personagemId]: depois } }
+      // A reversão "combate" volta só o que mudou (a carga, a vez do Concentrar), por campo: nada que outra linha mexeu depois.
+      const partes: Reversao[] = [{ tipo: 'combate', personagemId, antes: combate, depois }]
+      const devolvida = mesmaVez ? combate.concentrouCom : undefined
+      if (daVez !== null && devolvida !== undefined) {
+        const gasto = turnosAntes.gastos[daVez.id] ?? GASTO_ZERO
+        turnos = { ...turnos, gastos: { ...turnos.gastos, [daVez.id]: { ...gasto, [devolvida.acao]: Math.max(0, gasto[devolvida.acao] - 1) } } }
+        partes.push({ tipo: 'acaoDevolvida', cartaId: daVez.id, rodada: turnosAntes.rodada, acao: devolvida.acao, linhaDoConcentrar: devolvida.linhaId })
+      }
+      const texto = `${nome} zerou a concentração (carga ${antes} → 0)${devolvida === undefined ? '' : ' · a ação do Concentrar voltou'}`
       // `personagemIds` = o dono: a carga de NPC não sai ao jogador (só o mestre e o dono a veem, `dadosDaFaixa`).
-      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'acao', texto: `${nome} zerou a concentração (carga ${antes} → 0)`, autor, tokenIds, personagemIds: [personagemId], reversao: { tipo: 'carga', personagemId, antes } }))
+      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'acao', texto, autor, tokenIds, personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
       return true
     },
 

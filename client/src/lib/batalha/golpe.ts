@@ -294,9 +294,10 @@ function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carg
 
 /**
  * O golpe lançado. Só depois de `podeAgir` devolver `null` (aqui não se
- * confere de novo). Concentrar: gasta a Simples (ou a Bônus), carga + 1.
- * Atacar e Habilidade: gastam a ação (com carga 3, a Completa), zeram a
- * carga, cobram o custo, marcam recarga, usos e Overload. O contra-ataque
+ * confere de novo). Concentrar: gasta a Simples (ou a Bônus), carga + 1; a
+ * 3ª carga não gasta ação (C1). Atacar e Habilidade: gastam a ação da ficha
+ * (a carga não a troca mais, C1), zeram a carga, cobram o custo, marcam
+ * recarga, usos e Overload. O contra-ataque
  * (Q6) não gasta ação da vez e sai da lista.
  */
 export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { golpe: string; linha: string }): GolpeLancado {
@@ -307,10 +308,14 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   // F3: Ativar e Desfazer a forma não lançam golpe (a regra deles mora em `transformacao.ts`).
   if (pedido.tipo === 'mover' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return vazio
   if (pedido.tipo === 'concentrar') {
-    const acao = acaoDoConcentrar(acoesDaCarta(ctx))
+    const acao = acaoDoConcentrar(acoesDaCarta(ctx), combate.carga)
     // Até `CARGA_MAX` (3): o Concentrar com carga 3 já sai apagado em `podeAgir`.
     const cargaNova: CombateDoPersonagem['carga'] = combate.carga === 0 ? 1 : combate.carga === 1 ? 2 : 3
-    return { ...vazio, gasto: gastarAcao(gastoAtual, acao), combate: { ...combate, carga: cargaNova, concentrouEm: chaveDaVez(ctx.turnos.rodada, ctx.carta.id) }, acao }
+    // C2: guarda a ação gasta e a linha, para o Zerar na mesma vez devolvê-la. A 3ª carga é livre (C1): nada a devolver.
+    const { concentrouCom: _velha, ...semAVelha } = combate
+    const concentrado: CombateDoPersonagem = { ...semAVelha, carga: cargaNova, concentrouEm: chaveDaVez(ctx.turnos.rodada, ctx.carta.id) }
+    if (acao !== 'livre') concentrado.concentrouCom = { acao, linhaId: ids.linha }
+    return { ...vazio, gasto: acao === 'livre' ? null : gastarAcao(gastoAtual, acao), combate: concentrado, acao }
   }
   const { personagem, sistema } = ctx
   const tecnica = pedido.tipo === 'habilidade' && personagem !== null && sistema !== null ? tecnicaPedida(personagem, sistema, pedido, combate.evoluidas) : null
