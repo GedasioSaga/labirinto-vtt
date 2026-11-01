@@ -1,6 +1,7 @@
 import { ehImagemDaMesa } from '../midia'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { acoesDaVez, rankDeAgilidade, type AcoesDaVez } from './acoes'
 import {
   chaveDaVez,
@@ -13,6 +14,7 @@ import {
   ID_DO_CARTAO_MAX,
   LEMBRADAS_MAX,
   LEMBRETES_MAX,
+  MEMBROS_DO_BANDO_MAX,
   MODS_POR_SELO_MAX,
   NOME_DA_FORMA_MAX,
   NOME_DO_GOLPE_MAX,
@@ -92,6 +94,27 @@ export interface CartaParaJogador {
   forma?: string
   /** F3 (Q5): os selos da ficha ("Atordoado 2"). Para todos que veem a carta, também de NPC. */
   selos?: SeloParaJogador[]
+  /** Invocação: a carta é a do BANDO de um dono (`tokenId` = `bando_<dono>`, não é token do mapa). */
+  bando?: BandoParaJogador
+}
+
+/**
+ * Invocação (decisões 3 e 7 de docs/planos/batalha-invocacao-plano.md): o
+ * bando como a carta o mostra. A carta sai se a tela dele tem o dono ou algum
+ * invocado; `membros` = só os invocados que a tela dele tem.
+ */
+export interface BandoParaJogador {
+  /** O dono, só se a tela dele tem a ficha. */
+  donoTokenId?: string
+  membros: MembroDoBandoParaJogador[]
+}
+
+export interface MembroDoBandoParaJogador {
+  tokenId: string
+  /** O nome do token como a tela dele o mostra. */
+  nome: string
+  /** SÓ do lado do dono ("eu" ou "aliado"): a vida do invocado, como a de um aliado. Nunca ao lado oposto. */
+  vida?: { atual: number; maximo: number }
 }
 
 /**
@@ -313,6 +336,45 @@ function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJoga
   }
   formaESelosDaCarta(saida, carta, turnos, ctx)
   return saida
+}
+
+/** Teto da vida de um invocado no fio (o mesmo do dano). */
+const VIDA_DO_INVOCADO_MAX = DANO_MAX
+/** O nome da carta do bando quando a tela dele não tem o dono. */
+export const NOME_DO_BANDO_FORA_DA_VISTA = 'Bando'
+
+/**
+ * Invocação: a carta do bando para esta conexão, ou `null` (a tela dele não
+ * tem o dono nem nenhum invocado). O lado é o do DONO; a vida de cada
+ * invocado sai só com o lado "eu" ou "aliado" (decisão 7). O nome usa o nome
+ * do dono na tela dele, nunca o de trabalho do mestre.
+ */
+function bandoParaJogador(carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: ContextoDoJogador): CartaParaJogador | null {
+  const { bando } = carta
+  if (bando === undefined) return null
+  const todos = (turnos.invocados ?? []).filter((invocado) => invocado.donoTokenId === bando.donoTokenId)
+  const nomeDoDono = ctx.tokensNoRecorte.get(bando.donoTokenId)
+  const vistos = todos.filter((invocado) => ctx.tokensNoRecorte.has(invocado.tokenId)).slice(0, MEMBROS_DO_BANDO_MAX)
+  if (nomeDoDono === undefined && vistos.length === 0) return null
+  const donoPersonagemId = todos[0]?.donoPersonagemId ?? turnos.cartas.find((candidata) => candidata.tokenId === bando.donoTokenId)?.personagemId ?? null
+  const lado = ladoDa({ ...carta, tokenId: bando.donoTokenId, personagemId: donoPersonagemId }, ctx)
+  const recurso = recursoDeVida(ctx.sistema)
+  const membros = vistos.map((invocado): MembroDoBandoParaJogador => {
+    const membro: MembroDoBandoParaJogador = { tokenId: invocado.tokenId, nome: (ctx.tokensNoRecorte.get(invocado.tokenId) ?? invocado.nome).slice(0, NOME_NA_CARTA_MAX) }
+    const personagem = ctx.personagens.find((candidato) => candidato.id === invocado.personagemId)
+    const vida = lado === 'outro' || recurso === null || personagem === undefined ? null : vidaDoPersonagem(personagem, recurso)
+    if (vida !== null) membro.vida = { atual: vidaNoFio(vida.atual), maximo: Math.max(1, vidaNoFio(vida.maximo)) }
+    return membro
+  })
+  const nome = nomeDoDono === undefined ? NOME_DO_BANDO_FORA_DA_VISTA : `Bando de ${nomeDoDono}`
+  const saida: CartaParaJogador = { id: carta.id, tokenId: carta.tokenId, nome: nome.slice(0, NOME_NA_CARTA_MAX), lado, bando: { membros } }
+  if (nomeDoDono !== undefined && saida.bando !== undefined) saida.bando.donoTokenId = bando.donoTokenId
+  return saida
+}
+
+/** Inteiro de 0 ao teto (o fio recusa fração). */
+function vidaNoFio(valor: number): number {
+  return Number.isFinite(valor) ? Math.max(0, Math.min(VIDA_DO_INVOCADO_MAX, Math.round(valor))) : 0
 }
 
 /** F3: as imagens de forma das fichas cujas cartas saem (uma por token). Só referência de mídia ou a embutida. */
@@ -553,6 +615,11 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   const cartas: CartaParaJogador[] = []
   for (const carta of turnos.cartas) {
     if (cartas.length >= CARTAS_PARA_JOGADOR_MAX) break
+    if (carta.bando !== undefined) {
+      const doBando = bandoParaJogador(carta, turnos, ctx)
+      if (doBando !== null) cartas.push(doBando)
+      continue
+    }
     const nome = ctx.tokensNoRecorte.get(carta.tokenId)
     if (nome !== undefined) cartas.push(cartaParaJogador(carta, nome, ctx, caidos, turnos))
   }

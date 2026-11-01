@@ -14,8 +14,11 @@ import {
   type ContraAtaque,
   type EfeitoDaBatalha,
   type GolpeDaBatalha,
+  type InvocadoNaBatalha,
+  type NumerosDoInvocado,
   type PedidoDeAcao,
   type PedidoDeEvolucao,
+  type PedidoDeInvocacao,
   type PedidoDePassiva,
   type PedidoDeReacao,
   type AcaoDaForma,
@@ -26,6 +29,25 @@ import {
   type SeloPedido,
 } from '../lib/batalha/combate'
 import { gastarAcao } from '../lib/batalha/acoes'
+import {
+  chaveDoGastoDoInvocado,
+  comBandosEmDia,
+  comunsQueSaem,
+  invocadoDaPendencia,
+  invocadoDoToken,
+  membrosDoBando,
+  motivoDaInvocacao,
+  nomeDaColocacao,
+  novoIdDeInvocacao,
+  numerosValidos,
+  pedirInvocacao,
+  pendenciaPorId,
+  type ContextoDaInvocacao,
+} from '../lib/batalha/invocacao'
+import { fichaDoInvocado } from '../lib/livros/combate'
+import { isTokenPhotoData } from '../lib/tokenPhoto'
+import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
+import type { Token } from '../types/map'
 import {
   comSeloNovo,
   criarSelo,
@@ -43,6 +65,7 @@ import { ativarForma, desfazerForma, formaDaFicha } from '../lib/batalha/transfo
 import { equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
+  acoesDaCarta,
   ajustesDoCusto,
   depoisDaTecnica,
   golpePendente,
@@ -81,6 +104,8 @@ import type { BatalhaEmTurnos, PonteDaBatalha, VezEsperada } from '../lib/batalh
 import {
   comLinha,
   desfazerFicha,
+  ehPersonagemDeInvocado,
+  linhaDesfeita,
   marcarDesfeita,
   nomeDoAutor,
   partesDoAjuste,
@@ -318,6 +343,56 @@ export interface BatalhaState {
    * evolução e devolve o SP.
    */
   evoluir: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao) => boolean
+
+  // ---- Invocação (docs/planos/batalha-invocacao-plano.md). O jogador só `invocar`, pela ponte; o resto é do mestre. ----
+  /**
+   * Pedir a técnica de Tipo Invocação da ficha `pedido.tokenId` (o dono), na
+   * vez de uma carta do mesmo personagem. Regra em `motivoDaInvocacao`
+   * (máximo = colocados + pendentes, carga do Ultra, recarga, SP, ação).
+   * Gasta a ação, cobra o custo pela aventura, marca recarga e usos, gasta a
+   * carga (Ultra) e cria a PENDÊNCIA em `turnos.invocacoes` (sem token
+   * ainda). Linha "habilidade" ("Ryoko invocou 1 Lobo com Chamado do Lobo")
+   * com Desfazer que tira a pendência (ou o invocado, se já posto) e devolve
+   * SP, recarga, carga e a ação. Mesa sem mapa (a arena): `false`.
+   */
+  invocar: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeInvocacao) => boolean
+  /**
+   * O MESTRE põe a pendência no mapa em `onde` (px do mundo; quem chama já
+   * encaixou na casa): cria o personagem temporário (`fichaDoInvocado`) e o
+   * token (imagem do cartão se ela for embutida, ou `ajuste.imageData`; sem
+   * nenhuma = disco de iniciais) e o põe no bando do dono (a carta do bando
+   * nasce logo depois da do dono, se ainda não há). Ultra: os comuns do mesmo
+   * dono saem. `ajuste` = os números e o nome editados (sem eles, os da
+   * pendência; pendência sem números exige `ajuste.numeros`). Linha
+   * "invocacao" com Desfazer (o invocado sai, a pendência volta, os comuns
+   * voltam). Devolve o tokenId novo, ou `null` (nada mudou).
+   */
+  colocarInvocado: (sceneKey: string, invocacaoId: string, onde: OndeNasceOInvocado, ajuste?: AjusteDaColocacao) => string | null
+  /** O mestre cancela a pendência: é o Desfazer da linha do pedido (o SP, a recarga e a carga voltam). */
+  cancelarInvocacao: (sceneKey: string, invocacaoId: string) => boolean
+  /**
+   * Na vez da carta do BANDO, o mestre age com o invocado `tokenId` (Atacar
+   * ou Habilidade, com a ficha temporária dele; o dano vem no pedido, como
+   * sempre). Cada invocado tem a Simples e o movimento dele
+   * (`acoesDoInvocado`). Mesmo caminho do `agir`: linha, efeitos, alvo
+   * invocado sem reação, HP 0 tira o invocado do mapa.
+   */
+  agirComInvocado: (sceneKey: string, vez: VezEsperada, tokenId: string, pedido: PedidoDeAcao) => boolean
+}
+
+/** Invocação: onde o invocado nasce (px do mundo, o centro da casa) e em que piso; `piso` ausente = o térreo. */
+export interface OndeNasceOInvocado {
+  x: number
+  y: number
+  piso?: number
+}
+
+/** Invocação: o que o mestre ajusta ao colocar (decisão 10: os números do Ultra são sugestão). Tudo opcional. */
+export interface AjusteDaColocacao {
+  nome?: string
+  numeros?: NumerosDoInvocado
+  /** A foto pronta do token (`data:image/...`), quando a do cartão é `midia:` (quem chama resolve). `null` = disco de iniciais. */
+  imageData?: string | null
 }
 
 const SEM_CAMINHOS: Readonly<Record<string, number>> = {}
@@ -426,12 +501,27 @@ interface Desfeito {
   ok: boolean
 }
 
-/** Desfaz a reversão: a ordem na própria cena; ficha e equipe pela mesa (a aventura); regras na cópia. */
-function desfazerReversao(mesa: MesaDaBatalha, cena: BatalhaDaCena, reversao: Reversao, autor: AutorDaAcao): Desfeito {
+/**
+ * Invocação: tira o invocado do mapa (token e personagem temporário pela
+ * mesa) e da lista; a parte "invocadoSaiu" guarda como estavam, para o
+ * Desfazer. A carta do bando sem ninguém sai depois, por `comBandosEmDia`.
+ */
+function tirarDoMapa(mesa: MesaDaBatalha, sceneKey: string, turnos: TurnosDaCena, invocado: InvocadoNaBatalha): { turnos: TurnosDaCena; parte: Reversao } {
+  const tirado = mesa.tirarInvocado?.(sceneKey, invocado.personagemId, invocado.tokenId) ?? { personagem: null, token: null }
+  const invocados = (turnos.invocados ?? []).filter((candidato) => candidato.tokenId !== invocado.tokenId)
+  return { turnos: { ...turnos, invocados }, parte: { tipo: 'invocadoSaiu', invocado, personagem: tirado.personagem, token: tirado.token } }
+}
+
+/** Desfaz a reversão: a ordem na própria cena; ficha e equipe pela mesa (a aventura); regras na cópia; o invocado pela mesa (mapa e aventura). */
+function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDaCena, reversao: Reversao, autor: AutorDaAcao): Desfeito {
   switch (reversao.tipo) {
     case 'ficha': {
       const sistema = mesa.sistema()
       if (sistema === null) return { cena, emParte: false, ok: false }
+      // Invocação: o personagem temporário que já saiu do mapa não volta por aqui; o resto da linha volta ("em parte").
+      if (!mesa.personagens().some((personagem) => personagem.id === reversao.personagemId) && ehPersonagemDeInvocado(cena.registro, reversao.personagemId)) {
+        return { cena, emParte: true, ok: true }
+      }
       let emParte = false
       const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => {
         const feito = desfazerFicha(atual, sistema, reversao.partes, quemDesfezNaFicha(autor), Date.now())
@@ -458,12 +548,38 @@ function desfazerReversao(mesa: MesaDaBatalha, cena: BatalhaDaCena, reversao: Re
       let ok = true
       // Da última parte para a primeira, como foram feitas ao contrário.
       for (const parte of [...reversao.partes].reverse()) {
-        const feito = desfazerReversao(mesa, atual, parte, autor)
+        const feito = desfazerReversao(mesa, sceneKey, atual, parte, autor)
         atual = feito.cena
         emParte = emParte || feito.emParte
         ok = ok && feito.ok
       }
       return { cena: atual, emParte, ok }
+    }
+    case 'invocacaoPedida': {
+      // A pendência sai; se o mestre já a pôs no mapa, o invocado que veio dela também (decisão 11).
+      const { pendente } = reversao
+      let turnos = cena.turnos
+      const invocacoes = (turnos.invocacoes ?? []).filter((candidata) => candidata.id !== pendente.id)
+      if (invocacoes.length !== (turnos.invocacoes?.length ?? 0)) turnos = { ...turnos, invocacoes }
+      const veio = (turnos.invocados ?? []).find((invocado) => invocado.pedidoId === pendente.id)
+      if (veio !== undefined) turnos = tirarDoMapa(mesa, sceneKey, turnos, veio).turnos
+      return { cena: { ...cena, turnos }, emParte: false, ok: true }
+    }
+    case 'invocacaoColocada': {
+      // O invocado sai (se ainda está) e a pendência volta a esperar, se o pedido não foi desfeito.
+      const { pendente, invocado } = reversao
+      let turnos = cena.turnos
+      if (invocadoDoToken(turnos, invocado.tokenId) !== null) turnos = tirarDoMapa(mesa, sceneKey, turnos, invocado).turnos
+      if (!linhaDesfeita(cena.registro, pendente.linhaId) && pendenciaPorId(turnos, pendente.id) === null) turnos = { ...turnos, invocacoes: [...(turnos.invocacoes ?? []), pendente] }
+      return { cena: { ...cena, turnos }, emParte: false, ok: true }
+    }
+    case 'invocadoSaiu': {
+      // Só volta quem foi posto por linhas ainda de pé (desfazer fora de ordem não ressuscita) e não está em campo.
+      const { invocado } = reversao
+      const podeVoltar = !linhaDesfeita(cena.registro, invocado.linhaId) && !linhaDesfeita(cena.registro, invocado.linhaDoPedido) && invocadoDoToken(cena.turnos, invocado.tokenId) === null
+      if (!podeVoltar) return { cena, emParte: false, ok: true }
+      if (mesa.criarInvocado === undefined || !mesa.criarInvocado(sceneKey, reversao.personagem, reversao.token)) return { cena, emParte: true, ok: true }
+      return { cena: { ...cena, turnos: { ...cena.turnos, invocados: [...(cena.turnos.invocados ?? []), invocado] } }, emParte: false, ok: true }
     }
     case 'vez':
     case 'ordem':
@@ -536,14 +652,52 @@ function quemNaFicha(autor: AutorDaAcao): string {
   return nomeDoAutor(autor)
 }
 
-/** O personagem de cada ficha na ordem (alvo possível); `undefined` = fora da ordem. */
+/** O personagem de cada ficha na ordem (alvo possível) e de cada invocado em campo; `undefined` = fora da ordem. */
 function personagemDoTokenNa(turnos: TurnosDaCena): (tokenId: string) => string | null | undefined {
-  return (tokenId) => turnos.cartas.find((carta) => carta.tokenId === tokenId)?.personagemId
+  return (tokenId) => turnos.cartas.find((carta) => carta.tokenId === tokenId)?.personagemId ?? invocadoDoToken(turnos, tokenId)?.personagemId
 }
 
-/** O nome da ficha para o texto, pela carta dela na ordem. */
+/** O nome da ficha para o texto, pela carta dela na ordem (o invocado, pelo nome dele). */
 function nomeDoTokenNa(turnos: TurnosDaCena, personagens: readonly Personagem[]): (tokenId: string) => string {
-  return (tokenId) => nomeDaCarta(turnos.cartas.find((carta) => carta.tokenId === tokenId), personagens)
+  return (tokenId) => {
+    const carta = turnos.cartas.find((candidata) => candidata.tokenId === tokenId)
+    return carta === undefined ? (invocadoDoToken(turnos, tokenId)?.nome ?? nomeDaCarta(carta, personagens)) : nomeDaCarta(carta, personagens)
+  }
+}
+
+/** Invocação: o texto da carta do bando ("Bando de Ryoko"), pelo nome do dono na ordem. */
+function nomeDoBandoNa(turnos: TurnosDaCena, personagens: readonly Personagem[]): (donoTokenId: string) => string {
+  const nomeDoToken = nomeDoTokenNa(turnos, personagens)
+  return (donoTokenId) => `Bando de ${nomeDoToken(donoTokenId)}`
+}
+
+/**
+ * Invocação (decisão 9): os invocados com a vida em 0 saem do mapa e do
+ * bando. Lê a ficha de AGORA (depois do dano pela mesa). As partes
+ * "invocadoSaiu" vão na linha do dano; os nomes, no texto dela.
+ */
+function semOsCaidos(mesa: MesaDaBatalha, sceneKey: string, turnos: TurnosDaCena): { turnos: TurnosDaCena; partes: Reversao[]; nomes: string[] } {
+  const recurso = recursoDeVida(mesa.sistema())
+  if (recurso === null || (turnos.invocados ?? []).length === 0) return { turnos, partes: [], nomes: [] }
+  const personagens = mesa.personagens()
+  let novos = turnos
+  const partes: Reversao[] = []
+  const nomes: string[] = []
+  for (const invocado of turnos.invocados ?? []) {
+    const personagem = personagens.find((candidato) => candidato.id === invocado.personagemId)
+    const vida = personagem === undefined ? null : vidaDoPersonagem(personagem, recurso)
+    if (vida === null || vida.atual > 0) continue
+    const tirado = tirarDoMapa(mesa, sceneKey, novos, invocado)
+    novos = tirado.turnos
+    partes.push(tirado.parte)
+    nomes.push(invocado.nome)
+  }
+  return { turnos: novos, partes, nomes }
+}
+
+/** " · Lobo saiu do mapa" para o texto da linha; ninguém saiu = vazio. */
+function textoDosQueSairam(nomes: readonly string[]): string {
+  return nomes.length === 0 ? '' : ` · ${nomes.join(', ')} ${nomes.length === 1 ? 'saiu' : 'saíram'} do mapa`
 }
 
 /** A reversão de uma ficha mexida; nada mudou = nenhuma. */
@@ -950,7 +1104,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     const cena = cenaDe(sceneKey)
     const linha = cena?.registro.find((candidata) => candidata.id === linhaId)
     if (cena === undefined || linha === undefined || linha.desfeita !== undefined) return false
-    const feito = desfazerReversao(mesa, cena, linha.reversao, autor)
+    const feito = desfazerReversao(mesa, sceneKey, cena, linha.reversao, autor)
     if (!feito.ok) return false
     const por = `${nomeDoAutor(autor)}${feito.emParte ? ' (em parte)' : ''}`
     // A cena de agora: o Desfazer da ficha passa pela aventura, e a store pode ter mudado no meio.
@@ -965,7 +1119,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const voltou = feito.cena.turnos.golpes?.find((golpe) => golpe.id === parte.golpe.id)
       if (voltou !== undefined) registro = linhaAtualizada(registro, voltou.linhaId, textoDoGolpe(voltou, nomeDoToken), [])
     }
-    gravarCena(sceneKey, { ...atual, turnos: feito.cena.turnos, regras: feito.cena.regras, registro, efeitos, turnosRev: atual.turnosRev + 1 })
+    // Invocação: o invocado que saiu ou voltou leva a carta do bando junto (some sem ninguém, volta com o mesmo id).
+    const turnos = comBandosEmDia(feito.cena.turnos, nomeDoBandoNa(feito.cena.turnos, mesaDoRpg().personagens))
+    gravarCena(sceneKey, { ...atual, turnos, regras: feito.cena.regras, registro, efeitos, turnosRev: atual.turnosRev + 1 })
     return true
   }
 
@@ -1047,6 +1203,104 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     return true
   }
 
+  /**
+   * O corpo do `agir`: lança o golpe (ou concentra, ou move pelo contra) pela
+   * carta `carta`. `turnosDoCtx` são os turnos que a regra lê (para o
+   * invocado, com o gasto DELE no lugar do da carta do bando); `chaveDoGasto`
+   * é onde o gasto novo é gravado (`carta.id`, ou a chave do membro do
+   * bando). A base do que muda é sempre `cena.turnos`.
+   */
+  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedido: PedidoDeAcao): boolean => {
+    const { turnos } = cena
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
+    const ctx: ContextoDoGolpe = {
+      turnos: turnosDoCtx,
+      carta,
+      personagem,
+      sistema,
+      regras: cena.regras,
+      autor,
+      personagens,
+      personagemDoToken: personagemDoTokenNa(turnos),
+      // Invocação (decisão 8): o invocado não reage; o dano nele resolve na hora.
+      semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null,
+    }
+    if (podeAgir(ctx, pedido) !== null) return false
+    const linhaId = novoIdDeLinha()
+    const lancado = lancarGolpe(ctx, pedido, { golpe: novoIdDeGolpe(), linha: linhaId })
+    const quem = quemNaFicha(autor)
+    // A ordem da reversão é a da seção 3.6: gasto, combate, custo, contra-ataque, golpe, fichas dos alvos.
+    const partes: Reversao[] = []
+    let novos: TurnosDaCena = turnos
+    if (lancado.gasto !== null) {
+      partes.push({ tipo: 'gasto', cartaId: chaveDoGasto, antes: turnos.gastos[chaveDoGasto] ?? null })
+      novos = { ...novos, gastos: { ...novos.gastos, [chaveDoGasto]: lancado.gasto } }
+    }
+    if (lancado.combate !== null && carta.personagemId !== null) {
+      partes.push({ tipo: 'combate', personagemId: carta.personagemId, antes: turnos.combate?.[carta.personagemId] ?? null, depois: lancado.combate })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [carta.personagemId]: lancado.combate } }
+    }
+    if (lancado.custo.length > 0 && carta.personagemId !== null) {
+      const custo = lancado.custo
+      partes.push(...reversaoDaFicha(carta.personagemId, mexerNaFicha(mesa, carta.personagemId, () => custo, quem)))
+    }
+    if (lancado.contraUsado !== null) {
+      const usado = lancado.contraUsado
+      partes.push({ tipo: 'contra', contra: usado })
+      novos = { ...novos, contras: (novos.contras ?? []).filter((candidato) => !(candidato.golpeId === usado.golpeId && candidato.tokenId === usado.tokenId)) }
+    }
+    const efeitos: EfeitoNovo[] = []
+    const { golpe } = lancado
+    if (golpe !== null) {
+      partes.push({ tipo: 'golpe', golpeId: golpe.id })
+      efeitos.push({ tipo: 'golpe', golpeId: golpe.id, atacanteTokenId: golpe.atacanteTokenId, nome: golpe.nome, alvos: golpe.alvos.map((alvo) => alvo.tokenId), surpresa: golpe.surpresa, overload: golpe.overload })
+      for (const alvo of lancado.resolvidos) {
+        const feito = danoNoAlvo(mesa, alvo, golpe, autor)
+        partes.push(...feito.partes)
+        if (feito.efeito !== null) efeitos.push(feito.efeito)
+        // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
+        const selado = seloDoGolpe(novos, golpe, alvo)
+        if (selado !== null) {
+          partes.push(selado.parte)
+          novos = { ...novos, selos: selado.selos }
+        }
+      }
+      novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
+    }
+    // Invocação (decisão 9): o invocado que o dano levou a 0 sai do mapa e do bando.
+    const caidos = semOsCaidos(mesa, sceneKey, novos)
+    partes.push(...caidos.partes)
+    novos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
+    // Tipos de habilidade F3: o dano dos alvos sem reação (e o custo de HP) pode levar alguém abaixo do gatilho de vida.
+    const lembrados = lembrarDepoisDoDano(novos)
+    partes.push(...partesDosLembretes(lembrados))
+    novos = lembrados.turnos
+    const nomeDoToken = nomeDoTokenNa(turnos, personagens)
+    const quemAge = nomeDoToken(carta.tokenId)
+    let texto: string
+    let tipo: TipoDaLinha
+    if (golpe !== null) {
+      texto = textoDoGolpe(golpe, nomeDoToken)
+      tipo = pedido.tipo === 'habilidade' ? 'habilidade' : 'golpe'
+    } else if (pedido.tipo === 'concentrar') {
+      texto = `${quemAge} concentrou (carga ${lancado.combate?.carga ?? 0})`
+      tipo = 'acao'
+    } else {
+      texto = `${quemAge} usou o contra-ataque para se mover`
+      tipo = 'acao'
+    }
+    texto += textoDosQueSairam(caidos.nomes)
+    const tokenIds = [...new Set([carta.tokenId, ...(golpe?.alvos.map((alvo) => alvo.tokenId) ?? [])])]
+    // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, {
+      ...comMudanca(atual, novos, { id: linhaId, tipo, texto, autor, tokenIds, reversao: { tipo: 'composta', partes } }),
+      efeitos: comEfeitos(atual.efeitos, efeitos),
+    })
+    return true
+  }
+
   return {
     cenas: {},
     anuncio: null,
@@ -1067,8 +1321,13 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
 
     desligar: (sceneKey) => {
       const { cenas } = get()
-      if (!Object.hasOwn(cenas, sceneKey)) return
-      set({ cenas: semACena(cenas, sceneKey) })
+      const cena = Object.hasOwn(cenas, sceneKey) ? cenas[sceneKey] : undefined
+      // Invocação (decisão 10): o fim da batalha tira os invocados e os personagens temporários (nada vai ao bestiário).
+      // Primeiro os da lista; depois a varredura pela marca pega o que sobrou (token tirado à mão, pendência perdida).
+      for (const invocado of cena?.turnos.invocados ?? []) mesa.tirarInvocado?.(sceneKey, invocado.personagemId, invocado.tokenId)
+      mesa.limparInvocados?.(sceneKey)
+      if (cena === undefined) return
+      set({ cenas: semACena(get().cenas, sceneKey) })
     },
 
     zerarCaminhos: (sceneKey) => {
@@ -1083,13 +1342,15 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const caminhos = { ...cena.caminhos, [tokenId]: (cena.caminhos[tokenId] ?? 0) + blocos }
       const trilhas = { ...cena.trilhas, [tokenId]: somarNaTrilha(cena.trilhas[tokenId] ?? [], casas) }
       const daVez = cartaDaVez(cena.turnos)
-      if (daVez === null || daVez.tokenId !== tokenId) {
+      // Invocação: na vez do bando, quem anda é um membro; o "Mov" conta no gasto dele.
+      const chave = daVez === null ? null : daVez.bando === undefined ? (daVez.tokenId === tokenId ? daVez.id : null) : membrosDoBando(cena.turnos, daVez).some((membro) => membro.tokenId === tokenId) ? chaveDoGastoDoInvocado(daVez.id, tokenId) : null
+      if (chave === null) {
         gravarCena(sceneKey, { ...cena, caminhos, trilhas, rev: cena.rev + 1 })
         return
       }
       // S7: a ficha da carta da vez andou — o "Mov 2/4" conta (e não trava, decisão 6); `turnosRev` sobe para o recorte chegar.
-      const gasto = cena.turnos.gastos[daVez.id] ?? { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
-      const turnos: TurnosDaCena = { ...cena.turnos, gastos: { ...cena.turnos.gastos, [daVez.id]: { ...gasto, blocos: gasto.blocos + blocos } } }
+      const gasto = cena.turnos.gastos[chave] ?? GASTO_ZERO
+      const turnos: TurnosDaCena = { ...cena.turnos, gastos: { ...cena.turnos.gastos, [chave]: { ...gasto, blocos: gasto.blocos + blocos } } }
       gravarCena(sceneKey, { ...cena, caminhos, trilhas, turnos, rev: cena.rev + 1, turnosRev: cena.turnosRev + 1 })
     },
 
@@ -1329,81 +1590,122 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       if (contraDe !== undefined && contra === null) return false
       if (contra === null && (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada)) return false
       const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
-      if (carta === null) return false
+      // Invocação: na carta do bando, o mestre age pelo invocado (`agirComInvocado`), nunca pela carta.
+      if (carta === null || carta.bando !== undefined) return false
+      return agirComACarta(sceneKey, cena, autor, carta, turnos, carta.id, pedido)
+    },
+
+    agirComInvocado: (sceneKey, vez, tokenId, pedido) => {
+      if ((pedido.tipo !== 'atacar' && pedido.tipo !== 'habilidade') || pedido.contraDe !== undefined) return false
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return false
+      const { turnos } = cena
+      if (turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada) return false
+      const bando = cartaDaVez(turnos)
+      const invocado = bando === null ? undefined : membrosDoBando(turnos, bando).find((membro) => membro.tokenId === tokenId)
+      if (bando === null || invocado === undefined) return false
+      // O invocado age como se fosse a carta da vez, com o gasto DELE (a Simples de cada um é dele).
+      const chave = chaveDoGastoDoInvocado(bando.id, tokenId)
+      const carta: CartaDaOrdem = { id: bando.id, tokenId, personagemId: invocado.personagemId, nome: invocado.nome }
+      const doInvocado: TurnosDaCena = { ...turnos, gastos: { ...turnos.gastos, [bando.id]: turnos.gastos[chave] ?? GASTO_ZERO } }
+      return agirComACarta(sceneKey, cena, MESTRE, carta, doInvocado, chave, pedido)
+    },
+
+    invocar: (sceneKey, autor, pedido) => {
+      const cena = cenaDe(sceneKey)
+      // Mesa sem mapa (a arena) não invoca: não há onde pôr o token.
+      if (cena === undefined || mesa.criarInvocado === undefined) return false
+      const { turnos } = cena
+      const dono = turnos.cartas.find((carta) => carta.tokenId === pedido.tokenId && carta.bando === undefined)
+      const daVez = cartaDaVez(turnos)
+      if (dono === undefined || dono.personagemId === null || daVez === null || daVez.bando !== undefined) return false
+      const personagemId = dono.personagemId
       const { personagens, sistema } = mesaDoRpg()
-      const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
-      const ctx: ContextoDoGolpe = { turnos, carta, personagem, sistema, regras: cena.regras, autor, personagens, personagemDoToken: personagemDoTokenNa(turnos) }
-      if (podeAgir(ctx, pedido) !== null) return false
+      const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
+      const ctx: ContextoDaInvocacao = { personagem, sistema, turnos, acoes: acoesDaCarta({ turnos, carta: daVez, personagem, sistema, regras: cena.regras }) }
+      if (motivoDaInvocacao(ctx, pedido) !== null) return false
       const linhaId = novoIdDeLinha()
-      const lancado = lancarGolpe(ctx, pedido, { golpe: novoIdDeGolpe(), linha: linhaId })
-      const quem = quemNaFicha(autor)
-      // A ordem da reversão é a da seção 3.6: gasto, combate, custo, contra-ataque, golpe, fichas dos alvos.
-      const partes: Reversao[] = []
-      let novos: TurnosDaCena = turnos
-      if (lancado.gasto !== null) {
-        partes.push({ tipo: 'gasto', cartaId: carta.id, antes: turnos.gastos[carta.id] ?? null })
-        novos = { ...novos, gastos: { ...novos.gastos, [carta.id]: lancado.gasto } }
+      const pedida = pedirInvocacao({ ...ctx, autor, donoTokenId: dono.tokenId }, pedido, { pendente: novoIdDeInvocacao(), linha: linhaId })
+      if (pedida === null) return false
+      // Desfazer de trás para a frente: lembretes, a pendência (e o invocado que veio dela), o SP, a recarga e a carga, a ação.
+      const partes: Reversao[] = [
+        { tipo: 'gasto', cartaId: daVez.id, antes: turnos.gastos[daVez.id] ?? null },
+        { tipo: 'combate', personagemId, antes: turnos.combate?.[personagemId] ?? null, depois: pedida.combate },
+      ]
+      const { custo } = pedida
+      if (custo.length > 0) partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, () => custo, quemNaFicha(autor))))
+      partes.push({ tipo: 'invocacaoPedida', pendente: pedida.pendente })
+      let novos: TurnosDaCena = {
+        ...turnos,
+        gastos: { ...turnos.gastos, [daVez.id]: pedida.gasto },
+        combate: { ...(turnos.combate ?? {}), [personagemId]: pedida.combate },
+        invocacoes: [...(turnos.invocacoes ?? []), pedida.pendente],
       }
-      if (lancado.combate !== null && carta.personagemId !== null) {
-        partes.push({ tipo: 'combate', personagemId: carta.personagemId, antes: turnos.combate?.[carta.personagemId] ?? null, depois: lancado.combate })
-        novos = { ...novos, combate: { ...(novos.combate ?? {}), [carta.personagemId]: lancado.combate } }
-      }
-      if (lancado.custo.length > 0 && carta.personagemId !== null) {
-        const custo = lancado.custo
-        partes.push(...reversaoDaFicha(carta.personagemId, mexerNaFicha(mesa, carta.personagemId, () => custo, quem)))
-      }
-      if (lancado.contraUsado !== null) {
-        const usado = lancado.contraUsado
-        partes.push({ tipo: 'contra', contra: usado })
-        novos = { ...novos, contras: (novos.contras ?? []).filter((candidato) => !(candidato.golpeId === usado.golpeId && candidato.tokenId === usado.tokenId)) }
-      }
-      const efeitos: EfeitoNovo[] = []
-      const { golpe } = lancado
-      if (golpe !== null) {
-        partes.push({ tipo: 'golpe', golpeId: golpe.id })
-        efeitos.push({ tipo: 'golpe', golpeId: golpe.id, atacanteTokenId: golpe.atacanteTokenId, nome: golpe.nome, alvos: golpe.alvos.map((alvo) => alvo.tokenId), surpresa: golpe.surpresa, overload: golpe.overload })
-        for (const alvo of lancado.resolvidos) {
-          const feito = danoNoAlvo(mesa, alvo, golpe, autor)
-          partes.push(...feito.partes)
-          if (feito.efeito !== null) efeitos.push(feito.efeito)
-          // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
-          const selado = seloDoGolpe(novos, golpe, alvo)
-          if (selado !== null) {
-            partes.push(selado.parte)
-            novos = { ...novos, selos: selado.selos }
-          }
-        }
-        novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
-      }
-      // Tipos de habilidade F3: o dano dos alvos sem reação (e o custo de HP) pode levar alguém abaixo do gatilho de vida.
+      // O custo de HP pode levar o dono abaixo do gatilho de vida (o mesmo ponto do golpe).
       const lembrados = lembrarDepoisDoDano(novos)
       partes.push(...partesDosLembretes(lembrados))
       novos = lembrados.turnos
-      const nomeDoToken = nomeDoTokenNa(turnos, personagens)
-      const quemAge = nomeDoToken(carta.tokenId)
-      let texto: string
-      let tipo: TipoDaLinha
-      if (golpe !== null) {
-        texto = textoDoGolpe(golpe, nomeDoToken)
-        tipo = pedido.tipo === 'habilidade' ? 'habilidade' : 'golpe'
-      } else if (pedido.tipo === 'concentrar') {
-        texto = `${quemAge} concentrou (carga ${lancado.combate?.carga ?? 0})`
-        tipo = 'acao'
-      } else {
-        texto = `${quemAge} usou o contra-ataque para se mover`
-        tipo = 'acao'
-      }
-      const tokenIds = [...new Set([carta.tokenId, ...(golpe?.alvos.map((alvo) => alvo.tokenId) ?? [])])]
+      // O SP só aparece na linha da ficha de jogador (o de NPC nunca vai à mesa).
+      const recurso = pedida.pago === null || sistema === null ? null : (recursoDoCusto(sistema, pedida.pago.recurso)?.nome ?? pedida.pago.recurso.toUpperCase())
+      const pago = pedida.pago !== null && personagem !== null && personagem.tipo === 'jogador' ? ` (${pedida.pago.valor} ${recurso ?? ''})` : ''
+      const texto = `${nomeDoTokenNa(turnos, personagens)(dono.tokenId)} invocou 1 ${pedida.pendente.nome} com ${pedida.tecnica}${pago}`
       // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
       const atual = cenaDe(sceneKey) ?? cena
-      gravarCena(sceneKey, {
-        ...comMudanca(atual, novos, { id: linhaId, tipo, texto, autor, tokenIds, reversao: { tipo: 'composta', partes } }),
-        efeitos: comEfeitos(atual.efeitos, efeitos),
-      })
+      gravarCena(sceneKey, comMudanca(atual, novos, { id: linhaId, tipo: 'habilidade', texto, autor, tokenIds: [dono.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
       return true
     },
 
-    reagir: (sceneKey, autor, pedido) => {
+    colocarInvocado: (sceneKey, invocacaoId, onde, ajuste = {}) => {
+      const cena = cenaDe(sceneKey)
+      const sistema = mesa.sistema()
+      if (cena === undefined || sistema === null || mesa.criarInvocado === undefined) return null
+      const { turnos } = cena
+      const pendente = pendenciaPorId(turnos, invocacaoId)
+      if (pendente === null || !Number.isFinite(onde.x) || !Number.isFinite(onde.y) || (onde.piso !== undefined && !Number.isInteger(onde.piso))) return null
+      // Os números do texto, ou os que o mestre ajustou (o Ultra só sugere, decisão 10); torto = nada muda.
+      const pedidos = ajuste.numeros ?? pendente.numeros
+      const numeros = pedidos === null ? null : numerosValidos(pedidos)
+      if (numeros === null) return null
+      const nome = nomeDaColocacao(pendente, ajuste.nome)
+      const personagem = fichaDoInvocado(sistema, nome, { hp: numeros.hp, dano: numeros.dano }, pendente.donoPersonagemId, sceneKey)
+      const token: Token = { id: crypto.randomUUID(), characterId: personagem.id, name: nome, x: onde.x, y: onde.y, size: 1, image: null }
+      // A foto só vale embutida (`data:image/...`); `midia:` do cartão quem chama resolve e manda em `ajuste.imageData`.
+      const foto = ajuste.imageData === undefined ? pendente.imagem : ajuste.imageData
+      if (isTokenPhotoData(foto)) token.imageData = foto
+      if (onde.piso !== undefined && onde.piso !== 0) token.piso = onde.piso
+      if (!mesa.criarInvocado(sceneKey, personagem, token)) return null
+      const linhaId = novoIdDeLinha()
+      const invocado = invocadoDaPendencia(pendente, { tokenId: token.id, personagemId: personagem.id, linhaId, nome, numeros })
+      let novos: TurnosDaCena = {
+        ...turnos,
+        invocacoes: (turnos.invocacoes ?? []).filter((candidata) => candidata.id !== pendente.id),
+        invocados: [...(turnos.invocados ?? []), invocado],
+      }
+      // Desfazer de trás para a frente: os comuns voltam, depois o invocado sai e a pendência volta.
+      const partes: Reversao[] = [{ tipo: 'invocacaoColocada', pendente, invocado }]
+      // Ultra (decisão 10): os comuns do mesmo dono e da mesma técnica saem quando ele entra.
+      const saem = comunsQueSaem(turnos, pendente)
+      for (const comum of saem) {
+        const tirado = tirarDoMapa(mesa, sceneKey, novos, comum)
+        novos = tirado.turnos
+        partes.push(tirado.parte)
+      }
+      const personagens = mesa.personagens()
+      novos = comBandosEmDia(novos, nomeDoBandoNa(novos, personagens))
+      const texto = `${nomeDoTokenNa(turnos, personagens)(pendente.donoTokenId)}: ${nome} entrou no mapa${textoDosQueSairam(saem.map((comum) => comum.nome))}`
+      const atual = cenaDe(sceneKey) ?? cena
+      gravarCena(sceneKey, comMudanca(atual, novos, { id: linhaId, tipo: 'invocacao', texto, autor: MESTRE, tokenIds: [pendente.donoTokenId, token.id], personagemIds: [pendente.donoPersonagemId], reversao: { tipo: 'composta', partes } }))
+      return token.id
+    },
+
+    cancelarInvocacao: (sceneKey, invocacaoId) => {
+      const cena = cenaDe(sceneKey)
+      const pendente = cena === undefined ? null : pendenciaPorId(cena.turnos, invocacaoId)
+      // É o Desfazer da linha do pedido: a pendência sai e o SP, a recarga, a carga e a ação voltam.
+      return pendente !== null && desfazerLinha(sceneKey, pendente.linhaId, MESTRE)
+    },
+
+    reagir:(sceneKey, autor, pedido) => {
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return false
       const { turnos } = cena
@@ -1495,18 +1797,21 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     darDano: (sceneKey, autor, tokenId, valor) => {
       const cena = cenaDe(sceneKey)
       if (cena === undefined || !Number.isInteger(valor) || valor < 1 || valor > DANO_MAX) return false
-      const carta = cena.turnos.cartas.find((candidata) => candidata.tokenId === tokenId)
-      if (carta === undefined || carta.personagemId === null) return false
-      const personagemId = carta.personagemId
+      // A ficha da ordem, ou o invocado em campo (que não tem carta própria: está no bando).
+      const personagemId = personagemDoTokenNa(cena.turnos)(tokenId)
+      if (personagemId === undefined || personagemId === null) return false
       const partes = mexerNaFicha(mesa, personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, false), quemNaFicha(autor))
       if (partes === null) return false
-      const alvo = nomeDaCarta(carta, mesaDoRpg().personagens)
-      const texto = `${nomeDoAutor(autor)} deu ${valor} de dano em ${alvo}`
+      const alvo = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(tokenId)
       const atual = cenaDe(sceneKey) ?? cena
+      // Invocação (decisão 9): o invocado que o dano levou a 0 sai do mapa e do bando.
+      const caidos = semOsCaidos(mesa, sceneKey, atual.turnos)
+      const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
+      const texto = `${nomeDoAutor(autor)} deu ${valor} de dano em ${alvo}${textoDosQueSairam(caidos.nomes)}`
       // Tipos de habilidade F3: o gatilho de vida depois do dano livre (o mesmo ponto do golpe).
-      const lembrados = lembrarDepoisDoDano(atual.turnos)
+      const lembrados = lembrarDepoisDoDano(semCaidos)
       gravarCena(sceneKey, {
-        ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [tokenId], reversao: { tipo: 'composta', partes: [...reversaoDaFicha(personagemId, partes), ...partesDosLembretes(lembrados)] } }),
+        ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [tokenId], reversao: { tipo: 'composta', partes: [...reversaoDaFicha(personagemId, partes), ...caidos.partes, ...partesDosLembretes(lembrados)] } }),
         efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId, valor, saida: 'direto' }]),
       })
       return true
@@ -1674,6 +1979,7 @@ export const ponteDaBatalha: PonteDaBatalha = {
   zerarCarga: (sceneKey, autor, personagemId) => useBatalhaStore.getState().zerarCarga(sceneKey, autor, personagemId),
   passiva: (sceneKey, autor, pedido) => useBatalhaStore.getState().passiva(sceneKey, autor, pedido),
   evoluir: (sceneKey, autor, pedido) => useBatalhaStore.getState().evoluir(sceneKey, autor, pedido),
+  invocar: (sceneKey, autor, pedido) => useBatalhaStore.getState().invocar(sceneKey, autor, pedido),
 }
 
 type EstadoDaBatalha = Pick<BatalhaState, 'cenas'>

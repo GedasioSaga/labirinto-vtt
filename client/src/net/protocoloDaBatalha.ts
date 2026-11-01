@@ -12,6 +12,7 @@ import {
   GOLPES_PENDENTES_MAX,
   LEMBRADAS_MAX,
   LEMBRETES_MAX,
+  MEMBROS_DO_BANDO_MAX,
   MODIFICADOR_DA_REACAO_MAX,
   MODS_POR_SELO_MAX,
   NATUREZAS_DO_SELO,
@@ -34,6 +35,7 @@ import {
   type NumeroDaForma,
   type PedidoDeAcao,
   type PedidoDeEvolucao,
+  type PedidoDeInvocacao,
   type PedidoDePassiva,
   type PedidoDeAlvo,
   type PedidoDeReacao,
@@ -58,6 +60,7 @@ import {
   NOME_NA_CARTA_MAX,
   type AcoesParaJogador,
   type AlvoParaJogador,
+  type BandoParaJogador,
   type CartaParaJogador,
   type CombateParaJogador,
   type ContraParaJogador,
@@ -65,6 +68,7 @@ import {
   type EstadoParaJogador,
   type GolpeParaJogador,
   type LadoNaCarta,
+  type MembroDoBandoParaJogador,
   type ReacaoParaJogador,
   type SeloParaJogador,
 } from '../lib/batalha/vistaDoJogador'
@@ -96,6 +100,9 @@ import {
  *  - tipos de habilidade F4: `habilidade` e a passiva aceitam `variante?`
  *    (a opção escolhida); `batalha.evoluir` (Evoluir a técnica nesta
  *    batalha); o combate do recorte leva `evoluidas`.
+ *  - invocação: `batalha.invocar` (pedir a técnica de Tipo Invocação; o
+ *    mestre põe no mapa); a carta do recorte aceita `bando?` (os invocados de
+ *    um dono, com a vida só do lado dele).
  * O host confere o resto (é a vez dele? a linha é dele?) e responde só
  * `ok: false`, sem motivo: motivo ensinaria ids.
  *
@@ -201,6 +208,17 @@ export interface BatalhaEvoluirMessage {
   pedido: PedidoDeEvolucao
 }
 
+/**
+ * Invocação (docs/planos/batalha-invocacao-plano.md): pedir a técnica de
+ * Tipo Invocação na vez dele. Nasce a pendência; quem põe no mapa é o
+ * mestre. Mensagem própria (não é `batalha.agir`): não é golpe.
+ */
+export interface BatalhaInvocarMessage {
+  type: 'batalha.invocar'
+  reqId: string
+  pedido: PedidoDeInvocacao
+}
+
 /** Os pedidos de batalha do jogador da F1 (entram na união `PlayerMessage`). */
 export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
 
@@ -217,6 +235,7 @@ export type BatalhaAcaoPlayerMessage =
   | BatalhaZerarCargaMessage
   | BatalhaPassivaMessage
   | BatalhaEvoluirMessage
+  | BatalhaInvocarMessage
 
 export interface BatalhaEstadoMessage {
   type: 'batalha.estado'
@@ -612,6 +631,31 @@ export function parseBatalhaEvoluir(value: unknown): BatalhaEvoluirMessage | nul
   return { type: 'batalha.evoluir', reqId, pedido }
 }
 
+/**
+ * Invocação: `{ tipo: 'invocar', tokenId, cartaoId, opcao, custo, acao }`.
+ * Ids no teto, a chave da opção de 1 a `NOME_DO_GOLPE_MAX`, custo de 0 a
+ * `CUSTO_MAX` ou `null`, ação em enum fechado ou `null`. Se a técnica é de
+ * invocação, se a opção existe, o máximo, a carga e a vez, quem confere é o
+ * host e a store (`motivoDaInvocacao`).
+ */
+export function lerPedidoDeInvocacao(value: unknown): PedidoDeInvocacao | null {
+  if (!isRecord(value) || value.tipo !== 'invocar') return null
+  const { tokenId, cartaoId, opcao, custo, acao } = value
+  if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX) || !textoAte(opcao, 1, NOME_DO_GOLPE_MAX)) return null
+  if (custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) return null
+  const acaoLida = acao === null ? null : lerAcaoDaTecnica(acao)
+  if (acao !== null && acaoLida === null) return null
+  return { tipo: 'invocar', tokenId, cartaoId, opcao, custo, acao: acaoLida }
+}
+
+export function parseBatalhaInvocar(value: unknown): BatalhaInvocarMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.invocar') return null
+  const { reqId } = value
+  const pedido = lerPedidoDeInvocacao(value.pedido)
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || pedido === null) return null
+  return { type: 'batalha.invocar', reqId, pedido }
+}
+
 // ---- host → jogador ----
 
 function lerLado(value: unknown): LadoNaCarta | null {
@@ -656,7 +700,39 @@ function lerCarta(value: unknown): CartaParaJogador | null {
     if (selos === null || selos.length === 0) return null
     carta.selos = selos
   }
+  if (value.bando !== undefined) {
+    const bando = lerBando(value.bando, ladoLido)
+    if (bando === null) return null
+    carta.bando = bando
+  }
   return carta
+}
+
+/**
+ * Invocação: o bando na carta. Dono opcional (só se a tela dele tem a
+ * ficha), até `MEMBROS_DO_BANDO_MAX` membros. A vida do invocado só vem do
+ * lado do dono: vida numa carta de "outro" é mensagem forjada (decisão 7).
+ */
+function lerBando(value: unknown, lado: LadoNaCarta): BandoParaJogador | null {
+  if (!isRecord(value)) return null
+  const { donoTokenId } = value
+  if (donoTokenId !== undefined && !textoAte(donoTokenId, 1, ID_DA_BATALHA_MAX)) return null
+  const membros = lerLista(value.membros, MEMBROS_DO_BANDO_MAX, (membro) => lerMembroDoBando(membro, lado))
+  if (membros === null) return null
+  const bando: BandoParaJogador = { membros }
+  if (donoTokenId !== undefined) bando.donoTokenId = donoTokenId
+  return bando
+}
+
+function lerMembroDoBando(value: unknown, lado: LadoNaCarta): MembroDoBandoParaJogador | null {
+  if (!isRecord(value)) return null
+  const { tokenId, nome, vida } = value
+  if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 0, NOME_NA_CARTA_MAX)) return null
+  const membro: MembroDoBandoParaJogador = { tokenId, nome }
+  if (vida === undefined) return membro
+  if (lado === 'outro' || !isRecord(vida) || !inteiroAte(vida.atual, 0, DANO_MAX) || !inteiroAte(vida.maximo, 1, DANO_MAX)) return null
+  membro.vida = { atual: vida.atual, maximo: vida.maximo }
+  return membro
 }
 
 /**

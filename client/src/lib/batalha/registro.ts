@@ -10,7 +10,19 @@ import {
 } from '../ajusteDaFicha'
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { combateVazio, type AlvoDoGolpe, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type LembreteDaPassiva, type SeloDaBatalha } from './combate'
+import type { Token } from '../../types/map'
+import {
+  combateVazio,
+  type AlvoDoGolpe,
+  type CombateDoPersonagem,
+  type ContraAtaque,
+  type FormaNaBatalha,
+  type GolpeDaBatalha,
+  type InvocacaoPendente,
+  type InvocadoNaBatalha,
+  type LembreteDaPassiva,
+  type SeloDaBatalha,
+} from './combate'
 import { semEvoluida } from './escolhaEEvolucao'
 import { passivasLigadas } from './passivas'
 import type { RegrasDaBatalha } from './regrasDoCampo'
@@ -41,6 +53,8 @@ export type TipoDaLinha =
   | 'acao' | 'golpe' | 'reacao' | 'dano' | 'habilidade' | 'acoesExtras' | 'transformacao'
   // F3 (fatia T): o mestre pôs, editou ou tirou um selo.
   | 'selo'
+  // Invocação: o mestre pôs um invocado no mapa (o pedido em si é uma linha "habilidade").
+  | 'invocacao'
 
 /** Um número da ficha que a linha mudou, de quanto para quanto. Cartão: 1 = ligado, 0 = desligado. */
 export interface ParteDaFicha {
@@ -120,6 +134,26 @@ export type Reversao =
    * posteriores).
    */
   | { tipo: 'evolucao'; personagemId: string; cartaoId: string }
+  /**
+   * Invocação: o pedido aceito (a pendência nasceu). Desfazer = a pendência
+   * sai e, se o mestre já a pôs no mapa, o invocado que veio dela também (o
+   * token e o personagem temporário saem pela mesa; o SP, a recarga e a
+   * carga voltam pelas partes "ficha" e "combate" da mesma linha).
+   */
+  | { tipo: 'invocacaoPedida'; pendente: InvocacaoPendente }
+  /**
+   * Invocação: o mestre pôs a pendência no mapa. Desfazer = o invocado sai
+   * (token, personagem, lista) e a pendência volta a esperar, se a linha do
+   * pedido não foi desfeita.
+   */
+  | { tipo: 'invocacaoColocada'; pendente: InvocacaoPendente; invocado: InvocadoNaBatalha }
+  /**
+   * Invocação: o invocado saiu do mapa (HP 0, ou o comum quando o Ultra
+   * entra). `personagem` e `token` = como estavam ao sair (`null` = já não
+   * existia). Desfazer = volta, SÓ se as linhas que o puseram (o pedido e a
+   * colocação) não foram desfeitas e ele não está em campo.
+   */
+  | { tipo: 'invocadoSaiu'; invocado: InvocadoNaBatalha; personagem: Personagem | null; token: Token | null }
 
 export interface LinhaDoRegistro {
   id: string
@@ -535,11 +569,34 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       const depois = atual === undefined ? undefined : semEvoluida(atual, reversao.cartaoId)
       return atual === undefined || depois === undefined || depois === atual ? turnos : { ...turnos, combate: { ...(turnos.combate ?? {}), [reversao.personagemId]: depois } }
     }
+    // A ficha, a equipe e as regras voltam pela mesa; as três da invocação mexem no mapa e no personagem temporário (a store).
     case 'equipe':
     case 'ficha':
     case 'regras':
+    case 'invocacaoPedida':
+    case 'invocacaoColocada':
+    case 'invocadoSaiu':
       return turnos
   }
+}
+
+/** A linha existe e foi desfeita (a que saiu do teto do registro conta como NÃO desfeita). */
+export function linhaDesfeita(registro: readonly LinhaDoRegistro[], linhaId: string): boolean {
+  return registro.find((linha) => linha.id === linhaId)?.desfeita !== undefined
+}
+
+/** As partes de uma reversão, abrindo as compostas. */
+function partesDe(reversao: Reversao): Reversao[] {
+  return reversao.tipo === 'composta' ? reversao.partes.flatMap(partesDe) : [reversao]
+}
+
+/**
+ * Invocação: o personagem foi o temporário de um invocado desta batalha (uma
+ * linha o pôs no mapa). O Desfazer de outra linha que mexeu na ficha dele,
+ * depois que ele saiu, volta "em parte" em vez de falhar inteiro.
+ */
+export function ehPersonagemDeInvocado(registro: readonly LinhaDoRegistro[], personagemId: string): boolean {
+  return registro.some((linha) => partesDe(linha.reversao).some((parte) => parte.tipo === 'invocacaoColocada' && parte.invocado.personagemId === personagemId))
 }
 
 /**

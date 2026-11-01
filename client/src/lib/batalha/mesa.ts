@@ -1,3 +1,4 @@
+import type { Token } from '../../types/map'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Equipe } from './equipes'
@@ -30,4 +31,15 @@ export interface MesaDaBatalha {
   ajustarPersonagem(personagemId: string, ajustar: (atual: Personagem) => Personagem): boolean
   /** Põe o personagem na equipe `equipeId` (ou em nenhuma, `null`). `false` = não deu (equipe que não existe, nada onde gravar). */
   trocarEquipe(personagemId: string, equipeId: string | null): boolean
+  /**
+   * INVOCAÇÃO (docs/planos/batalha-invocacao-plano.md): o personagem
+   * temporário e o token do invocado entram juntos na cena `sceneKey` (o que
+   * já existe com o mesmo id fica como está; `null` = só o outro). `false` =
+   * não deu, e nada fica. Opcional: a mesa sem mapa (a arena) não invoca.
+   */
+  criarInvocado?(sceneKey: string, personagem: Personagem | null, token: Token | null): boolean
+  /** Invocação: tira o token e o personagem temporário. Devolve como estavam (`null` = já não existia). */
+  tirarInvocado?(sceneKey: string, personagemId: string, tokenId: string): { personagem: Personagem | null; token: Token | null }
+  /** Invocação, fim da batalha: tira todo personagem temporário nascido nesta cena (`invocadoNaCena`) e os tokens ligados a eles. */
+  limparInvocados?(sceneKey: string): void
 }

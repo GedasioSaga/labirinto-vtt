@@ -206,6 +206,7 @@ import {
   parseBatalhaEfeitos,
   parseBatalhaEstado,
   parseBatalhaEvoluir,
+  parseBatalhaInvocar,
   parseBatalhaPassiva,
   parseBatalhaReagir,
   parseBatalhaResultado,
@@ -216,7 +217,7 @@ import {
   type BatalhaPlayerMessage,
 } from '../net/protocoloDaBatalha'
 import type { EfeitoParaJogador, EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
-import { EFEITOS_POR_MENSAGEM, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDePassiva, type PedidoDeReacao } from '../lib/batalha/combate'
+import { EFEITOS_POR_MENSAGEM, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDeInvocacao, type PedidoDePassiva, type PedidoDeReacao } from '../lib/batalha/combate'
 import type { VezEsperada } from '../lib/batalha/ponte'
 
 /**
@@ -1337,6 +1338,12 @@ export interface PlayerConnection {
    * evoluída. `false` = não saiu.
    */
   evoluirNaBatalha(pedido: PedidoDeEvolucao): boolean
+  /**
+   * BATALHA, invocação — pedir a técnica de Tipo Invocação da ficha dele (na
+   * vez dele; o host confere a ficha, a vez e a regra). Nasce a pendência; o
+   * mestre põe o invocado no mapa. Só ficha dele. `false` = não saiu.
+   */
+  invocarNaBatalha(pedido: PedidoDeInvocacao): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -6077,6 +6084,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const mensagem = parseBatalhaEvoluir({ type: 'batalha.evoluir', reqId: `b${nextReqId++}`, pedido })
       if (mensagem === null) return false
       return pedirNaBatalha(chaveDoPedido('evoluir', mensagem.pedido), mensagem)
+    },
+    invocarNaBatalha(pedido) {
+      const estado = state.batalhaEstado
+      if (state.status !== 'playing' || estado === undefined || !(state.ownTokens ?? []).includes(pedido.tokenId)) return false
+      const mensagem = parseBatalhaInvocar({ type: 'batalha.invocar', reqId: `b${nextReqId++}`, pedido })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('invocar', mensagem.pedido), mensagem)
     },
     reconnect: restart,
     wake() {

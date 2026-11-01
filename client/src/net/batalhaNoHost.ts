@@ -15,6 +15,7 @@ import {
   type BatalhaDesfazerMessage,
   type BatalhaEvoluirMessage,
   type BatalhaHostMessage,
+  type BatalhaInvocarMessage,
   type BatalhaPassarMessage,
   type BatalhaPassivaMessage,
   type BatalhaReagirMessage,
@@ -145,6 +146,14 @@ export interface BatalhaNoHost {
    * store confere.
    */
   evoluir(conexao: ConexaoNaBatalha, msg: BatalhaEvoluirMessage): RespostaDaBatalha
+  /**
+   * Invocação: pedir a técnica de Tipo Invocação de ficha DELE de verdade
+   * (token dele, ligado ao personagem dele: `personagemDaFicha`), só na vez
+   * de uma carta dele com o mesmo personagem. Nasce a pendência; quem põe no
+   * mapa é o mestre. A regra (técnica, opção, máximo, carga, SP) a store
+   * confere. Mesmo limite de taxa e dedupe de `reqId` dos outros pedidos.
+   */
+  invocar(conexao: ConexaoNaBatalha, msg: BatalhaInvocarMessage): RespostaDaBatalha
 }
 
 const NADA: RespostaDaBatalha = { saidas: [], mudou: false }
@@ -507,6 +516,24 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         const daVez = cartaDaVez(cena.turnos)
         if (daVez === null || daVez.personagemId !== carta.personagemId || !lugar.meusTokens.has(daVez.tokenId)) return false
         return ponte.evoluir(lugar.sceneKey, autorDe(conexao), pedido)
+      })
+    },
+
+    invocar(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        const { pedido } = msg
+        const carta = cena.turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId && candidata.bando === undefined)
+        if (ponte.invocar === undefined || carta === undefined || carta.personagemId === null) return false
+        // A técnica é do personagem de uma ficha DELE de verdade (o token ligado à ficha dele): nunca da emprestada nem do
+        // NPC que ele controla (essas o mestre invoca; a recusa por SP contaria quanto o NPC tem).
+        if (!lugar.meusTokens.has(carta.tokenId) || lugar.personagemDaFicha.get(carta.tokenId) !== carta.personagemId) return false
+        // Só na vez dele: a carta da vez é token dele com o MESMO personagem (a store confere de novo).
+        const daVez = cartaDaVez(cena.turnos)
+        if (daVez === null || daVez.personagemId !== carta.personagemId || !lugar.meusTokens.has(daVez.tokenId)) return false
+        return ponte.invocar(lugar.sceneKey, autorDe(conexao), pedido)
       })
     },
   }

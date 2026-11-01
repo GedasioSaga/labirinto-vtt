@@ -1,5 +1,8 @@
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
+import * as mapFactory from '../lib/mapFactory'
+import type { MapData, Token } from '../types/map'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
+import { useMapStore } from './mapStore'
 import { sistemaPorId, useRpgStore } from './rpgStore'
 
 /**
@@ -11,12 +14,74 @@ import { sistemaPorId, useRpgStore } from './rpgStore'
  * aventura (o histórico da ficha cresce e a mudança chega ao jogador pelo
  * `syncPersonagens` de sempre).
  *
+ * INVOCAÇÃO (docs/planos/batalha-invocacao-plano.md): o personagem
+ * temporário do invocado entra pela aventura (como as fichas do "Quem entra
+ * na batalha?") e o token pelo mapa da cena: o aberto pelo `useMapStore`
+ * (passo do desfazer do mapa, como o "Ligar token"), o de fundo pelo
+ * `updateBackgroundScene`.
+ *
  * Cada leitura pega o estado de AGORA; nada fica guardado aqui.
  */
+
+/** A cena da batalha é a aberta no editor (a chave é a de `App.tsx`: a cena da aventura, ou o mapa solto). */
+function cenaAberta(sceneKey: string): boolean {
+  return (useAdventureStore.getState().activeSceneId ?? useMapStore.getState().map.id) === sceneKey
+}
+
+/** Os tokens da cena: a aberta, ou a de fundo já carregada; cena que não está à mão = nenhum. */
+function tokensDaCena(sceneKey: string): readonly Token[] {
+  if (cenaAberta(sceneKey)) return useMapStore.getState().map.tokens
+  const slot = useAdventureStore.getState().cache[sceneKey]
+  return slot !== undefined && slot.status === 'ok' ? slot.map.tokens : []
+}
+
+/** Muda o mapa da cena: a aberta por `naAberta`, a de fundo por `mudar`. `false` = cena que não está à mão. */
+function mudarACena(sceneKey: string, naAberta: () => void, mudar: (map: MapData) => MapData): boolean {
+  if (cenaAberta(sceneKey)) {
+    naAberta()
+    return true
+  }
+  const aventura = useAdventureStore.getState()
+  if (aventura.cache[sceneKey]?.status !== 'ok') return false
+  aventura.updateBackgroundScene(sceneKey, mudar)
+  return true
+}
+
+function tirarToken(sceneKey: string, tokenId: string): void {
+  mudarACena(sceneKey, () => useMapStore.getState().removeToken(tokenId), (map) => mapFactory.removeToken(map, tokenId))
+}
+
 export const mesaDaAventura: MesaDaBatalha = {
   personagens: () => personagensAtivos(useAdventureStore.getState()),
   sistema: () => sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(useAdventureStore.getState())) ?? null,
   equipes: () => equipesAtivas(useAdventureStore.getState()),
   ajustarPersonagem: (personagemId, ajustar) => useAdventureStore.getState().ajustarPersonagem(personagemId, ajustar),
   trocarEquipe: (personagemId, equipeId) => useAdventureStore.getState().trocarEquipe(personagemId, equipeId),
+
+  criarInvocado: (sceneKey, personagem, token) => {
+    const aventura = useAdventureStore.getState()
+    const novoPersonagem = personagem !== null && !personagensAtivos(aventura).some((candidato) => candidato.id === personagem.id)
+    if (novoPersonagem && !aventura.adicionarPersonagens([personagem])) return false
+    if (token === null || tokensDaCena(sceneKey).some((candidato) => candidato.id === token.id)) return true
+    if (mudarACena(sceneKey, () => useMapStore.getState().addToken(token), (map) => mapFactory.addToken(map, token))) return true
+    // Sem cena onde pôr o token: o personagem que acabou de entrar sai (nada fica pela metade).
+    if (novoPersonagem) useAdventureStore.getState().apagarPersonagem(personagem.id)
+    return false
+  },
+
+  tirarInvocado: (sceneKey, personagemId, tokenId) => {
+    const personagem = personagensAtivos(useAdventureStore.getState()).find((candidato) => candidato.id === personagemId) ?? null
+    const token = tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId) ?? null
+    if (token !== null) tirarToken(sceneKey, tokenId)
+    if (personagem !== null) useAdventureStore.getState().apagarPersonagem(personagemId)
+    return { personagem, token }
+  },
+
+  limparInvocados: (sceneKey) => {
+    const temporarios = personagensAtivos(useAdventureStore.getState()).filter((personagem) => personagem.combate?.invocadoNaCena === sceneKey)
+    if (temporarios.length === 0) return
+    const ids = new Set(temporarios.map((personagem) => personagem.id))
+    for (const token of tokensDaCena(sceneKey)) if (token.characterId !== null && ids.has(token.characterId)) tirarToken(sceneKey, token.id)
+    for (const personagem of temporarios) useAdventureStore.getState().apagarPersonagem(personagem.id)
+  },
 }
