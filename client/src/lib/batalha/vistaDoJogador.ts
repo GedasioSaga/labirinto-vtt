@@ -1,4 +1,4 @@
-import { ehImagemDaMesa } from '../midia'
+import { ehImagemDaMesa, ehRefDeMidia } from '../midia'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
@@ -168,6 +168,13 @@ export interface EstadoParaJogador {
    * com imagem escolhida e cartão ainda ligado.
    */
   aparencias?: Record<string, string>
+  /**
+   * C8/C9: tokenId → o retrato (só `midia:<id>`, uma referência curta) da
+   * ficha de JOGADOR cuja carta sai, para a foto no círculo das faixas quando
+   * o token não tem foto (decisão do usuário 01/11: todo jogador vê a foto do
+   * colega). Nunca de NPC.
+   */
+  retratos?: Record<string, string>
 }
 
 /** "Simples 0/1 · Bônus 0/0 · Mov 2/4": a mesma forma de `acoesDaVez`. */
@@ -477,6 +484,21 @@ function aparenciasParaJogador(cartas: readonly CartaDaOrdem[], turnos: TurnosDa
     vistos.add(carta.tokenId)
   }
   return aparencias
+}
+
+/** C8/C9: os retratos das fichas de JOGADOR cujas cartas saem (um por token), só referência de mídia; NPC nunca. */
+function retratosParaJogador(cartas: readonly CartaDaOrdem[], ctx: ContextoDoJogador): Record<string, string> {
+  const retratos: Record<string, string> = {}
+  let vistos = 0
+  for (const carta of cartas) {
+    if (vistos >= APARENCIAS_MAX) break
+    if (Object.hasOwn(retratos, carta.tokenId)) continue
+    const personagem = personagemDaCarta(carta, ctx)
+    if (personagem?.tipo !== 'jogador' || !ehRefDeMidia(personagem.retrato)) continue
+    retratos[carta.tokenId] = personagem.retrato
+    vistos += 1
+  }
+  return retratos
 }
 
 /** A ficha é DELE: o token é dele, ou o personagem ligado é dele. */
@@ -794,5 +816,7 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   // F3 (fatia T): as imagens de forma só das fichas cujas cartas saem.
   const aparencias = aparenciasParaJogador(turnos.cartas.filter(visivel), turnos, ctx)
   if (Object.keys(aparencias).length > 0) estado.aparencias = aparencias
+  const retratos = retratosParaJogador(turnos.cartas.filter(visivel), ctx)
+  if (Object.keys(retratos).length > 0) estado.retratos = retratos
   return estado
 }

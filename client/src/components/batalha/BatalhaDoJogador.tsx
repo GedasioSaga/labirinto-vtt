@@ -124,15 +124,15 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const aparencias = estado.aparencias
   const imagemDe = useMemo(() => {
     const porToken = new Map(fichas.map((ficha) => [ficha.id, ficha.imageData ?? null] as const))
-    // C8 (lote de 01/11): token sem foto usa o retrato da ficha que ele tem (a dele e, na Arena, todas).
-    const retratos = new Map<string, string>()
+    // C8 (lote de 01/11): token sem foto usa o retrato da ficha que ele tem (a dele e, na Arena, todas) ou o que o host manda dos colegas.
+    const retratos = new Map<string, string>(Object.entries(estado.retratos ?? {}))
     for (const carta of estado.cartas) {
       const retrato = carta.personagemId === undefined ? null : (meus.find((candidato) => candidato.id === carta.personagemId)?.retrato ?? null)
       if (retrato) retratos.set(carta.tokenId, retrato)
     }
     const daForma = (tokenId: string) => (aparencias !== undefined && Object.hasOwn(aparencias, tokenId) ? aparencias[tokenId] : undefined)
     return (tokenId: string) => daForma(tokenId) ?? (porToken.get(tokenId) || retratos.get(tokenId)) ?? null
-  }, [fichas, aparencias, estado.cartas, meus])
+  }, [fichas, aparencias, estado.cartas, estado.retratos, meus])
 
   // ---- a vez e o contra-ataque
   const vez = estado.vez

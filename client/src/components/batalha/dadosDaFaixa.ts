@@ -317,15 +317,15 @@ function turnosAteAMinha(estado: EstadoParaJogador): number | null {
   return null
 }
 
-function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined, personagem: Personagem | undefined, sistema: SistemaDeRpg | null, aparencia: string | undefined): DadosDaCarta {
+function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined, personagem: Personagem | undefined, sistema: SistemaDeRpg | null, aparencia: string | undefined, retrato: string | undefined): DadosDaCarta {
   const recursos = carta.lado !== 'outro' && personagem !== undefined ? recursosDaCarta(personagem, sistema) : []
   const vida: VidaNaCarta = carta.lado === 'outro' ? 'oculta' : recursos.length > 0 ? 'numeros' : 'sem'
   return {
     id: carta.id,
     tokenId: carta.tokenId,
     nome: carta.nome.trim() || NOME_SEM_FICHA,
-    // F3: a imagem da forma (o host só manda a de cartão ligado) vence a foto e o retrato.
-    imagem: aparencia ?? ficha?.imageData ?? (carta.lado === 'outro' ? null : (personagem?.retrato ?? null)),
+    // F3: a imagem da forma (o host só manda a de cartão ligado) vence a foto e o retrato; C8/C9: por último, o retrato do colega que o host manda.
+    imagem: aparencia ?? ficha?.imageData ?? (carta.lado === 'outro' ? null : (personagem?.retrato ?? null)) ?? retrato ?? null,
     forma: carta.forma ?? null,
     selos: selosNaCarta(carta.selos, sistema),
     cor: carta.equipe?.cor ?? null,
@@ -382,6 +382,7 @@ export function faixaDoJogador({ estado, fichas, personagens, sistema }: Entrada
       carta.personagemId === undefined ? undefined : personagemPorId.get(carta.personagemId),
       sistema,
       estado.aparencias?.[carta.tokenId],
+      estado.retratos?.[carta.tokenId],
     )
     // F2: a carga só do que é dele (o recorte não manda a dos outros).
     const meu = carta.lado === 'eu' ? estado.meus?.find((combate) => combate.personagemId === carta.personagemId) : undefined

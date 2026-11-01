@@ -1,4 +1,4 @@
-import { ehImagemDaMesa } from '../lib/midia'
+import { ehImagemDaMesa, ehRefDeMidia } from '../lib/midia'
 import { personagemDoArquivo, type Personagem } from '../lib/personagem'
 import {
   ALVOS_MAX,
@@ -1131,22 +1131,27 @@ export function lerEstadoParaJogador(value: unknown): EstadoParaJogador | null {
   const judge = opcional(value.judge, lerJudgeNaCena)
   if (judge === null) return null
   // F3 (fatia T): as imagens de forma, só de fichas com carta na lista.
-  const aparencias = opcional(value.aparencias, (item) => lerAparencias(item, new Set(cartasLidas.map((carta) => carta.tokenId))))
+  const tokensDasCartas = new Set(cartasLidas.map((carta) => carta.tokenId))
+  const aparencias = opcional(value.aparencias, (item) => lerAparencias(item, tokensDasCartas))
   if (aparencias === null) return null
+  // C8/C9: os retratos dos colegas, só referência de mídia (curta), de fichas com carta na lista.
+  const retratos = opcional(value.retratos, (item) => lerAparencias(item, tokensDasCartas, ehRefDeMidia))
+  if (retratos === null) return null
   const estado: EstadoParaJogador = { rodada, turno: { n, m }, vez, proxima, minhaVez, vezForaDaVista, cartas: cartasLidas, registro: linhas, regras: regrasLidas, ...daF2 }
   if (judge !== undefined) estado.judge = judge
   if (aparencias !== undefined) estado.aparencias = aparencias
+  if (retratos !== undefined) estado.retratos = retratos
   return estado
 }
 
 /** F3: tokenId → imagem da forma (referência de mídia ou a embutida). Token sem carta na lista = forjado; vazio também. */
-function lerAparencias(value: unknown, tokensDasCartas: ReadonlySet<string>): Record<string, string> | null {
+function lerAparencias(value: unknown, tokensDasCartas: ReadonlySet<string>, imagemValida: (imagem: unknown) => imagem is string = ehImagemDaMesa): Record<string, string> | null {
   if (!isRecord(value)) return null
   const entradas = Object.entries(value)
   if (entradas.length === 0 || entradas.length > APARENCIAS_MAX) return null
   const lidas: Record<string, string> = {}
   for (const [tokenId, imagem] of entradas) {
-    if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !tokensDasCartas.has(tokenId) || !ehImagemDaMesa(imagem)) return null
+    if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !tokensDasCartas.has(tokenId) || !imagemValida(imagem)) return null
     lidas[tokenId] = imagem
   }
   return lidas
