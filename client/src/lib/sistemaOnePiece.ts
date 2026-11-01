@@ -1,3 +1,4 @@
+import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from './batalha/formula'
 import { CATEGORIAS_DE_ARMA } from './batalha/leituraDaFicha'
 import { CAMPO_DO_TIPO, TIPOS_DE_HABILIDADE } from './batalha/tiposDaHabilidade'
 import { CATALOGOS_ONE_PIECE, LIVRO_ONE_PIECE } from './livroOnePiece'
@@ -143,6 +144,9 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
       campos: [
         { id: 'categoria', rotulo: 'Categoria', forma: 'linha', opcoes: CATEGORIAS_DE_ARMA.map((categoria) => categoria.rotulo) },
         { id: 'dano', rotulo: 'Dano', forma: 'linha' },
+        // O atributo que o Atacar soma ao Dano (o atirador soma a Percepção). A caixa lista os atributos do
+        // sistema da ficha (`opcoesDoCampo`); vazio = Força, como antes (`formulaDoAtaque`).
+        { id: CAMPO_DO_ATRIBUTO_DO_ATAQUE, rotulo: 'Soma no ataque', forma: 'linha' },
         { id: 'acao', rotulo: 'Ação', forma: 'linha' },
         { id: 'modificador', rotulo: 'Modificador', forma: 'linha' },
         { id: 'capacidade', rotulo: 'Capacidade', forma: 'linha' },

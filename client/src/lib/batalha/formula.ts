@@ -1,6 +1,6 @@
 import { atributoComposto } from '../ajusteDaFicha'
 import { FORCA_PADRAO, aplicarForca, forcaDe, type CartaoDaFicha, type Personagem } from '../personagem'
-import type { SistemaDeRpg } from '../sistemaDeRpg'
+import type { AtributoDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { ALVO_DO_DANO, partesDoBonus, type BonusDaBatalha, type ParteDoBonus } from './combate'
 
 /**
@@ -73,9 +73,18 @@ export type LeituraDoDano =
 
 /** O campo Dano dos cartões (técnica e arma). */
 export const CAMPO_DO_DANO = 'dano'
-/** Q2: o dano do Atacar com arma. Sem arma, só a Força. */
-export const FORMULA_DO_ATAQUE = 'Força + Dano da arma'
-const FORMULA_DO_ATAQUE_SEM_ARMA = 'Força'
+/**
+ * O campo "Soma no ataque" da arma (pedido de 31/10/2026, o Vincent atirador):
+ * o atributo que o Atacar soma ao Dano da arma, guardado como o nome do
+ * atributo. Vazio, ausente (ficha antiga) ou um atributo que o sistema não tem
+ * = a Força, como antes (`atributoDoAtaque`).
+ */
+export const CAMPO_DO_ATRIBUTO_DO_ATAQUE = 'atributoDoAtaque'
+/** O atributo do Atacar quando a arma não diz outro, e sempre no ataque desarmado. */
+export const ATRIBUTO_PADRAO_DO_ATAQUE = 'Força'
+/** Q2: o dano do Atacar com arma que não diz outro atributo. Sem arma, só a Força. */
+export const FORMULA_DO_ATAQUE = `${ATRIBUTO_PADRAO_DO_ATAQUE} + Dano da arma`
+const FORMULA_DO_ATAQUE_SEM_ARMA = ATRIBUTO_PADRAO_DO_ATAQUE
 /** Fórmula mais comprida que isto não é fórmula: é descrição. */
 const FORMULA_MAX = 200
 
@@ -157,6 +166,49 @@ function ehDanoDaBala(lista: readonly Token[], i: number): boolean {
     terceira?.tipo === 'palavra' &&
     terceira.chave === 'bala'
   )
+}
+
+/** O atributo de uma palavra já normalizada: o nome, a abreviação ou o id. `null` = o sistema não tem. */
+function atributoPelaChave(sistema: SistemaDeRpg, chave: string): AtributoDoSistema | null {
+  return sistema.atributos.find((candidato) => normalizar(candidato.nome) === chave || normalizar(candidato.abreviacao) === chave || candidato.id === chave) ?? null
+}
+
+/**
+ * O atributo que um texto do "Soma no ataque" nomeia, casado como a fórmula
+ * casa ("Percepção", "percepcao", "PER"). Vazio, ou um que o sistema não tem
+ * = `null`: o Atacar soma a Força.
+ */
+export function lerAtributoDoAtaque(texto: string, sistema: SistemaDeRpg): AtributoDoSistema | null {
+  const chave = normalizar(texto)
+  return chave.length === 0 ? null : atributoPelaChave(sistema, chave)
+}
+
+/** O atributo que o Atacar com esta arma soma (o campo "Soma no ataque"). `null` = a arma não diz: a Força. */
+export function atributoDoAtaque(arma: CartaoDaFicha, sistema: SistemaDeRpg): AtributoDoSistema | null {
+  return lerAtributoDoAtaque(arma.campos[CAMPO_DO_ATRIBUTO_DO_ATAQUE] ?? '', sistema)
+}
+
+/**
+ * A palavra que a gramática lê de volta como este atributo: o nome, a
+ * abreviação ou o id, o primeiro que é uma palavra só e que casa com ELE (um
+ * nome de duas palavras, "Força de Vontade", a gramática não lê). `null` =
+ * nenhum serve.
+ */
+function palavraDoAtributo(sistema: SistemaDeRpg, atributo: AtributoDoSistema): string | null {
+  const candidatas = [atributo.nome, atributo.abreviacao, atributo.id].map((texto) => texto.trim())
+  return candidatas.find((texto) => PALAVRA.exec(texto)?.[0] === texto && atributoPelaChave(sistema, normalizar(texto))?.id === atributo.id) ?? null
+}
+
+/**
+ * A fórmula do Atacar: "Percepção + Dano da arma" com a arma que soma a
+ * Percepção; a arma que não diz (ou diz um atributo que o sistema não tem)
+ * soma a Força; sem arma, só a Força.
+ */
+export function formulaDoAtaque(arma: CartaoDaFicha | null, sistema: SistemaDeRpg): string {
+  if (arma === null) return FORMULA_DO_ATAQUE_SEM_ARMA
+  const atributo = atributoDoAtaque(arma, sistema)
+  const palavra = atributo === null ? null : palavraDoAtributo(sistema, atributo)
+  return palavra === null ? FORMULA_DO_ATAQUE : `${palavra} + Dano da arma`
 }
 
 /** A fórmula fala do "Dano da Bala"? A tela usa para oferecer a escolha da bala também na técnica. */
@@ -293,8 +345,8 @@ class Leitor {
       this.i += ehDanoDaArma ? 3 : 1
       return this.danoDaArma()
     }
-    const atributo = this.ctx.sistema.atributos.find((candidato) => normalizar(candidato.nome) === primeira.chave || normalizar(candidato.abreviacao) === primeira.chave || candidato.id === primeira.chave)
-    if (atributo === undefined) return this.falhar({ tipo: 'naoEntende' })
+    const atributo = atributoPelaChave(this.ctx.sistema, primeira.chave)
+    if (atributo === null) return this.falhar({ tipo: 'naoEntende' })
     this.i += 1
     const total = atributoComposto(this.ctx.personagem, atributo.id).total
     // Tipos de habilidade F2: o selo soma no atributo, e a conta diz qual ("160 Força +20 (Fúria)").
@@ -487,10 +539,12 @@ function lerTrecho(limpo: string, texto: string, ctx: ContextoDaFormula): Leitur
 
 /**
  * Q2: o dano do Atacar: "Força + Dano da arma" (Balmung: "160 Força + 5 Balmung = 165"); sem arma, a Força. Editável sempre.
+ * A arma que diz outro atributo no "Soma no ataque" soma ele no lugar da Força (`formulaDoAtaque`:
+ * "10 Percepção + 20 Rosa Fúnebre = 30"); o selo que sobe aquele atributo entra nele.
  * Com `bala` (a arma de fogo ou híbrida): "+15" soma ("160 Força + 20 Rosa Fúnebre + 15 Bala de Prata = 195"),
  * "40" troca o dano da arma ("160 Força + 40 Bala Explosiva = 200"); a força do NPC vale do mesmo jeito.
  */
 export function danoDoAtaque(ctx: ContextoDaFormula, bala?: { nome: string; dano: string } | null): LeituraDoDano {
   const comBala = bala === undefined || bala === null || ctx.arma === null ? ctx : { ...ctx, bala }
-  return lerDano(ctx.arma === null ? FORMULA_DO_ATAQUE_SEM_ARMA : FORMULA_DO_ATAQUE, comBala)
+  return lerDano(formulaDoAtaque(ctx.arma, ctx.sistema), comBala)
 }

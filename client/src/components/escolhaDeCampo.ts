@@ -1,6 +1,7 @@
-import { normalizar } from '../lib/batalha/formula'
+import { ATRIBUTO_PADRAO_DO_ATAQUE, CAMPO_DO_ATRIBUTO_DO_ATAQUE, lerAtributoDoAtaque, normalizar } from '../lib/batalha/formula'
 import { CAMPO_DA_CATEGORIA, CATEGORIAS_DE_ARMA, categoriaAtira, lerCategoria } from '../lib/batalha/leituraDaFicha'
 import { CAMPO_DO_TIPO, lerTipo, rotuloDoTipo } from '../lib/batalha/tiposDaHabilidade'
+import type { CampoDoCartao, SistemaDeRpg } from '../lib/sistemaDeRpg'
 
 /**
  * As peças comuns da caixa de escolha de um campo com `opcoes` (a Categoria
@@ -29,6 +30,7 @@ const ROTULO_DO_VAZIO = '—'
  * ("— pela Ação (Reação)"). Nos outros campos, "—".
  */
 export function rotuloDoVazio(campoId: string, campos: Readonly<Record<string, string>>): string {
+  if (campoId === CAMPO_DO_ATRIBUTO_DO_ATAQUE) return `${ROTULO_DO_VAZIO} ${ATRIBUTO_PADRAO_DO_ATAQUE} (padrão)`
   if (campoId !== CAMPO_DO_TIPO) return ROTULO_DO_VAZIO
   const deduzido = lerTipo({ campos: { ...campos, [CAMPO_DO_TIPO]: '' } }).tipo
   return `${ROTULO_DO_VAZIO} pela Ação (${rotuloDoTipo(deduzido)})`
@@ -50,6 +52,32 @@ export function escolhaDoCampo(opcoes: readonly string[], valor: string, casarCo
   const casada = porTexto ?? porCategoria
   if (casada !== undefined) return { selecionada: casada, opcoes: base }
   return { selecionada: atual, opcoes: [...base, { valor: atual, rotulo: `${atual} (fora da lista)` }] }
+}
+
+/**
+ * As opções da caixa de um campo; `undefined` = texto livre. O "Soma no
+ * ataque" da arma lista os atributos do sistema da ficha (não uma lista fixa:
+ * o sistema editado leva os atributos dele); os outros, as `opcoes` do molde.
+ */
+export function opcoesDoCampo(campo: CampoDoCartao, sistema: SistemaDeRpg): readonly string[] | undefined {
+  if (campo.id === CAMPO_DO_ATRIBUTO_DO_ATAQUE) return sistema.atributos.map((atributo) => atributo.nome)
+  return campo.opcoes
+}
+
+/**
+ * O valor que a caixa casa com as opções. No "Soma no ataque", casa como a
+ * batalha lê: "PER" e "percepcao" mostram Percepção. O valor guardado não muda.
+ */
+export function valorDaEscolha(campoId: string, valor: string, sistema: SistemaDeRpg): string {
+  if (campoId !== CAMPO_DO_ATRIBUTO_DO_ATAQUE) return valor
+  return lerAtributoDoAtaque(valor, sistema)?.nome ?? valor
+}
+
+/** O "Soma no ataque" guarda um atributo que o sistema não tem? Então avisa que o Atacar soma a Força. `null` = nada a dizer. */
+export function avisoDoAtributoDoAtaque(valor: string, sistema: SistemaDeRpg): string | null {
+  const texto = valor.trim()
+  if (texto.length === 0 || lerAtributoDoAtaque(texto, sistema) !== null) return null
+  return `"${texto}" não é um atributo deste sistema: o Atacar soma a ${ATRIBUTO_PADRAO_DO_ATAQUE}.`
 }
 
 /** A Categoria guardada nos campos é uma que não atira (Branca, Arremesso, Natural)? Vazia ou fora da lista: não. */

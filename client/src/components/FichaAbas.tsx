@@ -4,10 +4,10 @@ import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } fro
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import { EXTRAS_DA_EVOLUCAO, nomeDaNovaOpcao, sugestaoDeEvolucao, temExtrasDaEvolucao } from '../lib/batalha/escolhaEEvolucao'
-import { CAMPO_DO_DANO } from '../lib/batalha/formula'
+import { CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO } from '../lib/batalha/formula'
 import { ABA_DAS_ARMAS, ABA_DAS_BALAS, ABA_DAS_TECNICAS, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../lib/batalha/leituraDaFicha'
 import { CampoDeDano } from './CampoDeDano'
-import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, rotuloDaCategoria, rotuloDoVazio } from './escolhaDeCampo'
+import { avisoDoAtributoDoAtaque, avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, opcoesDoCampo, rotuloDaCategoria, rotuloDoVazio, valorDaEscolha } from './escolhaDeCampo'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
@@ -425,14 +425,15 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
           <input className="lb-input" value={cartao.nome} onChange={(event) => onChange({ ...cartao, nome: event.target.value })} />
         </label>
         {aba.campos.map((campo) =>
-          semTiro && campo.id === CAMPO_DA_CAPACIDADE ? null : campo.opcoes !== undefined ? (
+          semTiro && campo.id === CAMPO_DA_CAPACIDADE ? null : opcoesDoCampo(campo, sistema) !== undefined ? (
             <CampoDeEscolha
               key={campo.id}
               campo={campo}
+              sistema={sistema}
               valor={cartao.campos[campo.id] ?? ''}
               casarComCategoria={ehArma && campo.id === CAMPO_DA_CATEGORIA}
               vazio={rotuloDoVazio(campo.id, cartao.campos)}
-              aviso={campo.id === CAMPO_DA_CATEGORIA ? guardadoSemTiro : null}
+              aviso={campo.id === CAMPO_DA_CATEGORIA ? guardadoSemTiro : campo.id === CAMPO_DO_ATRIBUTO_DO_ATAQUE ? avisoDoAtributoDoAtaque(cartao.campos[campo.id] ?? '', sistema) : null}
               onChange={(valor) => trocarCampo(campo.id, valor)}
             />
           ) : campo.id === CAMPO_DO_DANO ? (
@@ -620,6 +621,8 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
 
 interface CampoDeEscolhaProps {
   campo: CampoDoCartao
+  /** O sistema da ficha: o "Soma no ataque" lista os atributos dele. */
+  sistema: SistemaDeRpg
   valor: string
   /** A Categoria da arma: "arma de fogo" casa com De fogo, como a batalha lê. */
   casarComCategoria: boolean
@@ -630,11 +633,11 @@ interface CampoDeEscolhaProps {
   onChange: (valor: string) => void
 }
 
-/** Campo com lista fechada (`opcoes`): caixa de escolha com "—" para vazio, que guarda o texto da opção. */
-function CampoDeEscolha({ campo, valor, casarComCategoria, vazio, aviso, onChange }: CampoDeEscolhaProps) {
+/** Campo com lista fechada (`opcoesDoCampo`): caixa de escolha com "—" para vazio, que guarda o texto da opção. */
+function CampoDeEscolha({ campo, sistema, valor, casarComCategoria, vazio, aviso, onChange }: CampoDeEscolhaProps) {
   const caixaId = useId()
   const avisoId = useId()
-  const escolha = escolhaDoCampo(campo.opcoes ?? [], valor, casarComCategoria, vazio)
+  const escolha = escolhaDoCampo(opcoesDoCampo(campo, sistema) ?? [], valorDaEscolha(campo.id, valor, sistema), casarComCategoria, vazio)
   // Rótulo por `htmlFor`, não envolvendo: o aviso fica fora do nome da caixa e entra só como descrição.
   return (
     <div className="lb-field">

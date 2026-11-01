@@ -16,10 +16,11 @@ import {
   type ItemDoCatalogo,
   type TipoDoCatalogo,
 } from '../../lib/livros/catalogo'
+import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from '../../lib/batalha/formula'
 import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../../lib/batalha/leituraDaFicha'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../../stores/catalogoStore'
-import { avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, rotuloDoVazio } from '../escolhaDeCampo'
+import { avisoDoAtributoDoAtaque, avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, opcoesDoCampo, rotuloDoVazio, valorDaEscolha } from '../escolhaDeCampo'
 import { formatarNumero, movimentoReduzido } from './comum'
 import { IconeDoMundo } from './icones'
 import './mundo.css'
@@ -353,9 +354,11 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
             <div className="mu-ent-campos">
               {camposMostrados.map((campo) => {
                 const id = `${campoIdBase}-${campo.id}`
-                if (campo.opcoes !== undefined) {
-                  const escolha = escolhaDoCampo(campo.opcoes, campos[campo.id] ?? '', tipo === 'arma' && campo.id === CAMPO_DA_CATEGORIA, rotuloDoVazio(campo.id, campos))
-                  const aviso = campo.id === CAMPO_DA_CATEGORIA ? avisoSemTiro : null
+                const opcoes = opcoesDoCampo(campo, sistema)
+                if (opcoes !== undefined) {
+                  const valor = campos[campo.id] ?? ''
+                  const escolha = escolhaDoCampo(opcoes, valorDaEscolha(campo.id, valor, sistema), tipo === 'arma' && campo.id === CAMPO_DA_CATEGORIA, rotuloDoVazio(campo.id, campos))
+                  const aviso = campo.id === CAMPO_DA_CATEGORIA ? avisoSemTiro : campo.id === CAMPO_DO_ATRIBUTO_DO_ATAQUE ? avisoDoAtributoDoAtaque(valor, sistema) : null
                   return (
                     <div key={campo.id} className="mu-campo">
                       <label htmlFor={id}>{campo.rotulo}</label>

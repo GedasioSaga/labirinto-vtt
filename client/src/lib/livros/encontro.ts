@@ -1,5 +1,5 @@
 import { maximoComposto, valorDoRank } from '../ajusteDaFicha'
-import { CAMPO_DO_DANO, danoDoAtaque } from '../batalha/formula'
+import { ATRIBUTO_PADRAO_DO_ATAQUE, CAMPO_DO_DANO, atributoDoAtaque, danoDoAtaque } from '../batalha/formula'
 import { armasDe, ehOverload, lerAcao, lerCusto, recursoDoCusto, recursoDoEscudo, tecnicasComForma, CAMPO_DA_ACAO, CAMPO_DO_CUSTO } from '../batalha/leituraDaFicha'
 import { fatorDaSaida, saidasPossiveis } from '../batalha/reacao'
 import { FORCA_MAX, FORCA_MIN, forcaDe, forcaNoPasso, numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
@@ -161,7 +161,10 @@ function ataquesDe(personagem: Personagem, sistema: SistemaDeRpg): GolpeDaFicha[
     const lido = danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null })
     const nome = arma === null ? NOME_DO_ATAQUE : `${NOME_DO_ATAQUE} (${arma.nome})`
     if (lido.tipo === 'valor') return { cartao: null, nome, valor: lido.valor, conta: lido.conta, estado: 'lido' }
-    return { cartao: null, nome, valor: null, conta: arma === null ? 'Força' : `Força + ${arma.nome}`, estado: 'naoLe' }
+    // A arma que soma outro atributo ("Soma no ataque") diz qual: "Percepção + Rosa Fúnebre".
+    const atributo = arma === null ? null : atributoDoAtaque(arma, sistema)
+    const somado = atributo?.nome ?? ATRIBUTO_PADRAO_DO_ATAQUE
+    return { cartao: null, nome, valor: null, conta: arma === null ? somado : `${somado} + ${arma.nome}`, estado: 'naoLe' }
   })
 }
 
