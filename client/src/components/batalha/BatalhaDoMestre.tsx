@@ -124,6 +124,20 @@ function personagemDaEquipe(mesa: Mesa, personagemId: string | null): string | n
   return (mesa.cena?.turnos?.invocados ?? SEM_INVOCADOS).find((invocado) => invocado.personagemId === personagemId)?.donoPersonagemId ?? personagemId
 }
 
+/**
+ * O lado de um personagem na mira do mestre: a equipe dele. Sem equipe
+ * cadastrada, o lado implícito de `aliadosDe` (todo jogador é aliado de todo
+ * jogador) e os NPCs do outro; sem isso, tudo era "outro" e o aliado do lobo
+ * ou do NPC da vez vinha no meio dos inimigos.
+ */
+function ladoDoPersonagem(mesa: Mesa, personagemId: string | null): string | null {
+  const daEquipe = personagemDaEquipe(mesa, personagemId)
+  if (daEquipe === null) return null
+  if (mesa.equipes !== undefined && mesa.equipes.length > 0) return equipeDe(daEquipe, mesa.equipes)?.id ?? null
+  const tipo = mesa.personagens.find((personagem) => personagem.id === daEquipe)?.tipo
+  return tipo === undefined ? null : `tipo:${tipo}`
+}
+
 /** O HP de um invocado (a ficha temporária dele); sem ficha ou sem vida, `null`. */
 function vidaDoInvocado(mesa: Mesa, invocado: InvocadoNaBatalha): { atual: number; maximo: number } | null {
   const personagem = mesa.personagens.find((candidato) => candidato.id === invocado.personagemId)
@@ -134,8 +148,7 @@ function vidaDoInvocado(mesa: Mesa, invocado: InvocadoNaBatalha): { atual: numbe
 /** Os alvos da mira do mestre: uma por ficha na ordem, do ponto de vista de quem age. A carta do bando vira os invocados dela. */
 function alvosDaOrdem(mesa: Mesa, cartas: readonly CartaDaOrdem[], quemAge: CartaDaOrdem): AlvoNaMira[] {
   const caidos = tokensCaidos(cartas, mesa.personagens, mesa.sistema)
-  const daEquipe = personagemDaEquipe(mesa, quemAge.personagemId)
-  const equipeDeQuem = daEquipe === null ? null : (equipeDe(daEquipe, mesa.equipes)?.id ?? null)
+  const ladoDeQuem = ladoDoPersonagem(mesa, quemAge.personagemId)
   const invocados = mesa.cena?.turnos?.invocados ?? SEM_INVOCADOS
   const vistos = new Set<string>()
   const alvos: AlvoNaMira[] = []
@@ -151,7 +164,7 @@ function alvosDaOrdem(mesa: Mesa, cartas: readonly CartaDaOrdem[], quemAge: Cart
         alvos.push({
           tokenId: invocado.tokenId,
           nome: ficha?.name.trim() || invocado.nome,
-          lado: invocado.tokenId === quemAge.tokenId ? 'eu' : equipeDoDono !== null && equipeDoDono.id === equipeDeQuem ? 'aliado' : 'outro',
+          lado: invocado.tokenId === quemAge.tokenId ? 'eu' : ladoDeQuem !== null && ladoDoPersonagem(mesa, invocado.donoPersonagemId) === ladoDeQuem ? 'aliado' : 'outro',
           caiu: vida !== null && vida.atual <= 0,
           motivo: null,
           imagem: ficha?.imageData ?? null,
@@ -163,13 +176,12 @@ function alvosDaOrdem(mesa: Mesa, cartas: readonly CartaDaOrdem[], quemAge: Cart
     if (vistos.has(carta.tokenId)) continue
     vistos.add(carta.tokenId)
     const equipeDaCarta = carta.personagemId === null ? null : (equipeDe(carta.personagemId, mesa.equipes) ?? null)
-    const equipe = equipeDaCarta?.id ?? null
     const personagem = carta.personagemId === null ? undefined : mesa.personagens.find((candidato) => candidato.id === carta.personagemId)
     const forma = carta.personagemId === null ? undefined : mesa.cena?.turnos?.formas?.[carta.personagemId]
     alvos.push({
       tokenId: carta.tokenId,
       nome: nomeDaFicha(mesa, carta.tokenId, carta),
-      lado: carta.tokenId === quemAge.tokenId ? 'eu' : equipe !== null && equipe === equipeDeQuem ? 'aliado' : 'outro',
+      lado: carta.tokenId === quemAge.tokenId ? 'eu' : ladoDeQuem !== null && ladoDoPersonagem(mesa, carta.personagemId) === ladoDeQuem ? 'aliado' : 'outro',
       caiu: caidos.has(carta.tokenId),
       motivo: carta.personagemId === null ? MOTIVO_SEM_PERSONAGEM : null,
       // A mesma imagem da carta na faixa (`faixaDoMestre`): a forma vence a foto do token, que vence o retrato.
@@ -526,10 +538,16 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
 
   if (dialogo.tipo === 'dano') {
     const vistos = new Set<string>()
+    const invocados = turnos.invocados ?? SEM_INVOCADOS
+    // A carta do bando não é ficha (a store recusa): o dano vai em cada invocado dele, pelo nome do token.
+    const doBando = (carta: CartaDaOrdem) => membrosDoBando({ invocados }, carta).map((invocado) => ({ tokenId: invocado.tokenId, nome: mesa.fichas.find((ficha) => ficha.id === invocado.tokenId)?.name.trim() || invocado.nome }))
     const alvos = turnos.cartas
-      .filter((carta) => !vistos.has(carta.tokenId) && vistos.add(carta.tokenId))
-      .map((carta) => ({ tokenId: carta.tokenId, nome: nomeDaFicha(mesa, carta.tokenId, carta) }))
-    return <DarDanoDialog alvos={alvos} alvoInicial={dialogo.tokenId} onConfirmar={(tokenId, valor) => store.darDano(sceneKey, MESTRE, tokenId, valor)} onFechar={onFechar} />
+      .flatMap((carta) => (carta.bando === undefined ? [{ tokenId: carta.tokenId, nome: nomeDaFicha(mesa, carta.tokenId, carta) }] : doBando(carta)))
+      .filter((alvo) => !vistos.has(alvo.tokenId) && vistos.add(alvo.tokenId))
+    // Aberto pela carta do bando: começa no primeiro invocado dele.
+    const cartaDoBando = turnos.cartas.find((carta) => carta.bando !== undefined && carta.tokenId === dialogo.tokenId)
+    const inicial = cartaDoBando === undefined ? dialogo.tokenId : (doBando(cartaDoBando)[0]?.tokenId ?? null)
+    return <DarDanoDialog alvos={alvos} alvoInicial={inicial} onConfirmar={(tokenId, valor) => store.darDano(sceneKey, MESTRE, tokenId, valor)} onFechar={onFechar} />
   }
   if (dialogo.tipo === 'selo') {
     const { tokenId, seloId } = dialogo

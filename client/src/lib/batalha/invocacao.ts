@@ -100,7 +100,8 @@ const SINAIS_DO_HP: readonly RegExp[] = [/(\d+)\s*(?:de\s+)?(?:hp|vida|pv)\b/, /
 const SINAIS_DO_DANO: readonly RegExp[] = [/(\d+)\s*(?:de\s+)?dano\b/, /\bdano\s*(?:de\s+)?(\d+)/]
 const SINAIS_DOS_BLOCOS: readonly RegExp[] = [/(\d+)\s*(?:blocos?|casas?|quadrados?)\b/]
 const SINAIS_DO_MAXIMO: readonly RegExp[] = [
-  /\b(?:no\s+maximo|maximo\s+de)\s+(\d+|um|uma|dois|duas|tres|quatro|cinco|seis)\b/,
+  // "no máximo 3", "máximo de 3" e o "máximo 3" da ficha (decisão 1); "máximo 40 de HP" não é quantos em campo.
+  /\b(?:no\s+)?maximo\s+(?:de\s+)?(\d+|um|uma|dois|duas|tres|quatro|cinco|seis)\b(?!\s*(?:de\s+)?(?:hp|vida|pv|dano|blocos?|casas?|quadrados?)\b)/,
   /\b(?:so|apenas|somente)\s+(?:pode\s+(?:ter|haver|existir)\s+)?(\d+|um|uma|dois|duas|tres|quatro|cinco|seis)\b/,
 ]
 const SINAIS_DA_CARGA: readonly RegExp[] = [/concentra\w*\s+(?:de\s+)?(\d)\s*(?:x|vezes)?\b/, /\b(\d)\s*x\s+(?:de\s+)?concentra/, /\bcarga\s+(?:de\s+)?(\d)\b/]

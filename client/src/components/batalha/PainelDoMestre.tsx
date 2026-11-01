@@ -56,6 +56,8 @@ export function PainelDoMestre({ sceneKey }: PainelDoMestreProps) {
   const foraDaOrdem = useMemo<FichaForaDaOrdem[]>(() => {
     if (turnos === undefined) return []
     const naOrdem = new Set(turnos.cartas.map((carta) => carta.tokenId))
+    // O invocado age na carta do bando do dono; "Incluir" daria a ele uma segunda vez na ordem.
+    for (const invocado of turnos.invocados ?? []) naOrdem.add(invocado.tokenId)
     return fichas.filter((ficha) => !naOrdem.has(ficha.id)).map((ficha) => ({ tokenId: ficha.id, nome: `${ficha.name.trim() || 'Ficha sem nome'}${ficha.hidden === true ? ' (escondida)' : ''}` }))
   }, [turnos, fichas])
 
