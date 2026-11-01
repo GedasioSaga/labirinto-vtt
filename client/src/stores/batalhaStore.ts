@@ -8,6 +8,7 @@ import {
   CONTRAS_MAX,
   DANO_MAX,
   EFEITOS_GUARDADOS,
+  INVOCACOES_PENDENTES_MAX,
   MODIFICADOR_DA_REACAO_MAX,
   PERFURACAO_MAX,
   type AlvoDoGolpe,
@@ -44,13 +45,19 @@ import {
   comunsQueSaem,
   invocadoDaPendencia,
   invocadoDoToken,
+  lerInvocacao,
   membrosDoBando,
   motivoDaInvocacao,
   nomeDaColocacao,
+  nomeNumerado,
   novoIdDeInvocacao,
   numerosValidos,
+  opcaoDaInvocacao,
   pedirInvocacao,
   pendenciaPorId,
+  quantosNoCampo,
+  semBandosVazios,
+  ultraEmCampo,
   type ContextoDaInvocacao,
 } from '../lib/batalha/invocacao'
 import { fichaDoInvocado } from '../lib/livros/combate'
@@ -117,6 +124,7 @@ import {
   comLinha,
   desfazerFicha,
   ehPersonagemDeInvocado,
+  invocadoSaiuPorLinha,
   linhaDesfeita,
   marcarDesfeita,
   nomeDoAutor,
@@ -607,9 +615,29 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
       // O invocado sai (se ainda está) e a pendência volta a esperar, se o pedido não foi desfeito.
       const { pendente, invocado } = reversao
       let turnos = cena.turnos
-      if (invocadoDoToken(turnos, invocado.tokenId) !== null) turnos = tirarDoMapa(mesa, sceneKey, turnos, invocado).turnos
-      if (!linhaDesfeita(cena.registro, pendente.linhaId) && pendenciaPorId(turnos, pendente.id) === null) turnos = { ...turnos, invocacoes: [...(turnos.invocacoes ?? []), pendente] }
+      const emCampo = invocadoDoToken(turnos, invocado.tokenId) !== null
+      if (emCampo) turnos = tirarDoMapa(mesa, sceneKey, turnos, invocado).turnos
+      // Já saiu por outra linha de pé (HP 0, o Ultra): a pendência não volta (passaria do máximo e "ressuscitaria" com HP cheio).
+      const saiuPorOutraLinha = !emCampo && invocadoSaiuPorLinha(cena.registro, invocado.tokenId)
+      if (!saiuPorOutraLinha && !linhaDesfeita(cena.registro, pendente.linhaId) && pendenciaPorId(turnos, pendente.id) === null) turnos = { ...turnos, invocacoes: [...(turnos.invocacoes ?? []), pendente] }
       return { cena: { ...cena, turnos }, emParte: false, ok: true }
+    }
+    case 'invocacaoCancelada': {
+      // A pendência volta só se ainda cabe: no teto, no máximo da opção (um pedido novo pode ter tomado o lugar) e sem o Ultra em campo.
+      const { pendente } = reversao
+      const { turnos } = cena
+      const dono = mesa.personagens().find((personagem) => personagem.id === pendente.donoPersonagemId)
+      const sistema = mesa.sistema()
+      const achada = dono === undefined || sistema === null ? null : tecnicaPorId(dono, sistema, pendente.cartaoId)
+      const leitura = achada === null ? null : lerInvocacao(achada.cartao)
+      const maximo = leitura === null ? null : (opcaoDaInvocacao(leitura, pendente.opcao)?.maximo ?? null)
+      const cabe =
+        pendenciaPorId(turnos, pendente.id) === null &&
+        (turnos.invocacoes?.length ?? 0) < INVOCACOES_PENDENTES_MAX &&
+        (maximo === null || quantosNoCampo(turnos, pendente.donoPersonagemId, pendente.cartaoId, pendente.opcao) < maximo) &&
+        !ultraEmCampo(turnos, pendente)
+      if (!cabe) return { cena, emParte: true, ok: true }
+      return { cena: { ...cena, turnos: { ...turnos, invocacoes: [...(turnos.invocacoes ?? []), pendente] } }, emParte: false, ok: true }
     }
     case 'invocadoSaiu': {
       // Só volta quem foi posto por linhas ainda de pé (desfazer fora de ordem não ressuscita) e não está em campo.
@@ -1616,7 +1644,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
         set({ anuncio: novo })
         return
       }
-      set({ cenas: { ...cenas, [sceneKey]: inicio === undefined ? CENA_NOVA : cenaDoInicio(mesa, inicio) }, anuncio: novo })
+      // Invocação: o app fechado no meio da batalha deixou lobos salvos (personagem temporário e token).
+      // Saem ANTES da ordem, e a carta de um deles que o mestre escolheu não entra.
+      const sobras = new Set(mesa.personagens().filter((personagem) => personagem.combate?.invocadoNaCena === sceneKey).map((personagem) => personagem.id))
+      if (sobras.size > 0) mesa.limparInvocados?.(sceneKey)
+      const semSobras = inicio === undefined || sobras.size === 0 ? inicio : { ...inicio, combatentes: inicio.combatentes.filter((carta) => carta.personagemId === null || !sobras.has(carta.personagemId)) }
+      set({ cenas: { ...get().cenas, [sceneKey]: semSobras === undefined ? CENA_NOVA : cenaDoInicio(mesa, semSobras) }, anuncio: novo })
     },
 
     desligar: (sceneKey) => {
@@ -1664,8 +1697,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const { turnos } = cena
       if (esperado !== undefined && (turnos.vez !== esperado.cartaId || turnos.rodada !== esperado.rodada)) return false
       const { personagens, sistema } = mesaDoRpg()
-      const passada = passarVezNaOrdem(turnos, tokensCaidos(turnos.cartas, personagens, sistema))
-      if (passada === null) return false
+      const passadaNaOrdem = passarVezNaOrdem(turnos, tokensCaidos(turnos.cartas, personagens, sistema))
+      if (passadaNaOrdem === null) return false
+      // Invocação: a carta do bando que ficou vazia na vez dela sai agora; o Desfazer da vez a põe de volta no lugar.
+      const semVazios = semBandosVazios(passadaNaOrdem.turnos, turnos.cartas)
+      const passada = semVazios.removidas.length === 0 ? passadaNaOrdem : { ...passadaNaOrdem, turnos: semVazios.turnos, removidas: [...passadaNaOrdem.removidas, ...semVazios.removidas] }
       // Tipos de habilidade F3: na virada, o lembrete das passivas de "rodada N"; no começo da vez, o "a cada turno" do dono.
       // Só o combate muda, e a reversão "vez" já guarda o combate inteiro de antes: o Desfazer da vez tira os lembretes.
       const virada = passada.turnos.rodada !== turnos.rodada ? comLembretesDoMomento('rodada', passada.turnos, { personagens, sistema }).turnos : passada.turnos
@@ -1691,8 +1727,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return false
       const antes = cena.turnos
-      const dada = darVezNaOrdem(antes, cartaId)
-      if (dada === antes) return false
+      const dadaNaOrdem = darVezNaOrdem(antes, cartaId)
+      if (dadaNaOrdem === antes) return false
+      // Invocação: a carta do bando que ficou vazia na vez dela sai agora; o Desfazer da vez a põe de volta no lugar.
+      const { turnos: dada, removidas } = semBandosVazios(dadaNaOrdem, antes.cartas)
       const { personagens, sistema } = mesaDoRpg()
       // Tipos de habilidade F3: o "a cada turno" do dono no começo da vez dada (a reversão "vez" volta o combate).
       const depois = comLembretesDaVez(dada, { personagens, sistema }).turnos
@@ -1703,7 +1741,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
         tipo: 'vez',
         texto: `Vez dada a ${nomeDaCarta(para, personagens)}${fimDosSelos}`,
         tokenIds: para === null ? [] : [para.tokenId],
-        reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas: [], gastos: antes.gastos, extras: antes.extras, combate: antes.combate ?? {}, ...selosDeAntes(antes, depois) } },
+        reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas, gastos: antes.gastos, extras: antes.extras, combate: antes.combate ?? {}, ...selosDeAntes(antes, depois) } },
       }
       gravarCena(sceneKey, { ...comMudanca(cena, depois, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
       return true
@@ -1771,7 +1809,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
 
     tirarCombatente: (sceneKey, tokenId) => {
       const cena = cenaDe(sceneKey)
-      if (cena === undefined) return false
+      // Invocação: a carta do bando não sai assim (todo Desfazer a recriaria sem aviso): saem os membros dela.
+      if (cena === undefined || cena.turnos.cartas.some((carta) => carta.tokenId === tokenId && carta.bando !== undefined)) return false
       const { turnos, removidas } = tirarCombatenteDaOrdem(cena.turnos, tokenId)
       const primeira = removidas[0]
       if (primeira === undefined) return false
@@ -1797,7 +1836,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return false
       const feito = removerCartaDaOrdem(cena.turnos, cartaId)
-      if (feito === null) return false
+      // Invocação: a carta do bando não sai assim (todo Desfazer a recriaria sem aviso): saem os membros dela.
+      if (feito === null || feito.removida.carta.bando !== undefined) return false
       const { carta, indice } = feito.removida
       const nome = nomeDaCarta(carta, mesaDoRpg().personagens)
       const linha: LinhaNova = {
@@ -1929,7 +1969,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       if (pedida === null) return false
       // Desfazer de trás para a frente: lembretes, a pendência (e o invocado que veio dela), o SP, a recarga e a carga, a ação.
       const partes: Reversao[] = [
-        { tipo: 'gasto', cartaId: daVez.id, antes: turnos.gastos[daVez.id] ?? null },
+        // A ação só volta se ainda é esta vez: o Cancelar da pendência numa vez depois não zera o gasto de agora.
+        { tipo: 'gasto', cartaId: daVez.id, antes: turnos.gastos[daVez.id] ?? null, vez: { cartaId: daVez.id, rodada: turnos.rodada } },
         { tipo: 'combate', personagemId, antes: turnos.combate?.[personagemId] ?? null, depois: pedida.combate },
       ]
       const { custo } = pedida
@@ -1962,11 +2003,14 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const { turnos } = cena
       const pendente = pendenciaPorId(turnos, invocacaoId)
       if (pendente === null || !Number.isFinite(onde.x) || !Number.isFinite(onde.y) || (onde.piso !== undefined && !Number.isInteger(onde.piso))) return null
+      // Decisão 10: o comum pendente de antes do Ultra não entra ao lado dele (o mestre cancela a pendência e o custo volta).
+      if (ultraEmCampo(turnos, pendente)) return null
       // Os números do texto, ou os que o mestre ajustou (o Ultra só sugere, decisão 10); torto = nada muda.
       const pedidos = ajuste.numeros ?? pendente.numeros
       const numeros = pedidos === null ? null : numerosValidos(pedidos)
       if (numeros === null) return null
-      const nome = nomeDaColocacao(pendente, ajuste.nome)
+      // "Lobo 1", "Lobo 2", "Lobo 3": os do mesmo dono com o mesmo nome ganham número (a lista "Quem age" e o mapa dizem qual é qual).
+      const nome = nomeNumerado(turnos, pendente, nomeDaColocacao(pendente, ajuste.nome))
       const personagem = fichaDoInvocado(sistema, nome, { hp: numeros.hp, dano: numeros.dano }, pendente.donoPersonagemId, sceneKey)
       const token: Token = { id: crypto.randomUUID(), characterId: personagem.id, name: nome, x: onde.x, y: onde.y, size: 1, image: null }
       // A foto só vale embutida (`data:image/...`); `midia:` do cartão quem chama resolve e manda em `ajuste.imageData`.
@@ -2001,8 +2045,15 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     cancelarInvocacao: (sceneKey, invocacaoId) => {
       const cena = cenaDe(sceneKey)
       const pendente = cena === undefined ? null : pendenciaPorId(cena.turnos, invocacaoId)
+      if (cena === undefined || pendente === null) return false
       // É o Desfazer da linha do pedido: a pendência sai e o SP, a recarga, a carga e a ação voltam.
-      return pendente !== null && desfazerLinha(sceneKey, pendente.linhaId, MESTRE)
+      if (cena.registro.some((linha) => linha.id === pendente.linhaId)) return desfazerLinha(sceneKey, pendente.linhaId, MESTRE)
+      // A linha do pedido saiu do teto do registro: não há o que devolver, mas a pendência não fica presa.
+      const turnos: TurnosDaCena = { ...cena.turnos, invocacoes: (cena.turnos.invocacoes ?? []).filter((candidata) => candidata.id !== pendente.id) }
+      const nomeDoDono = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(pendente.donoTokenId)
+      const texto = `Mestre cancelou 1 ${pendente.nome} de ${nomeDoDono} (o pedido já saiu do registro: o custo não volta)`
+      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'invocacao', texto, tokenIds: [pendente.donoTokenId], personagemIds: [pendente.donoPersonagemId], reversao: { tipo: 'invocacaoCancelada', pendente } }))
+      return true
     },
 
     reagir:(sceneKey, autor, pedido) => {
@@ -2109,19 +2160,32 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       // A ficha da ordem, ou o invocado em campo (que não tem carta própria: está no bando).
       const personagemId = personagemDoTokenNa(cena.turnos)(tokenId)
       if (personagemId === undefined || personagemId === null) return false
-      const partes = mexerNaFicha(mesa, personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, false), quemNaFicha(autor))
+      // R6: a forma ligada do alvo que reduz o dano recebido (Resiliente: -20%) vale também no dano livre do mestre.
+      let dado = valor
+      let reducao = ''
+      const partes = mexerNaFicha(
+        mesa,
+        personagemId,
+        (atual, sistema) => {
+          const { reducaoDoDano, formaDaReducao } = efeitosDasFormasLigadas(atual, sistema)
+          dado = danoComAReducao(valor, reducaoDoDano)
+          reducao = reducaoDoDano > 0 ? ` (${formaDaReducao ?? 'forma'} -${reducaoDoDano}%)` : ''
+          return ajustesDoDano(atual, sistema, dado, false)
+        },
+        quemNaFicha(autor),
+      )
       if (partes === null) return false
       const alvo = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(tokenId)
       const atual = cenaDe(sceneKey) ?? cena
       // Invocação (decisão 9): o invocado que o dano levou a 0 sai do mapa e do bando.
       const caidos = semOsCaidos(mesa, sceneKey, atual.turnos)
       const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
-      const texto = `${nomeDoAutor(autor)} deu ${valor} de dano em ${alvo}${textoDosQueSairam(caidos.nomes)}`
+      const texto = `${nomeDoAutor(autor)} deu ${dado} de dano em ${alvo}${reducao}${textoDosQueSairam(caidos.nomes)}`
       // Tipos de habilidade F3: o gatilho de vida depois do dano livre (o mesmo ponto do golpe).
       const lembrados = lembrarDepoisDoDano(semCaidos)
       gravarCena(sceneKey, {
         ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [tokenId], reversao: { tipo: 'composta', partes: [...reversaoDaFicha(personagemId, partes), ...caidos.partes, ...partesDosLembretes(lembrados)] } }),
-        efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId, valor, saida: 'direto' }]),
+        efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId, valor: dado, saida: 'direto' }]),
       })
       return true
     },

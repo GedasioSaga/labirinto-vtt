@@ -1,8 +1,8 @@
 import { aplicarAjustes, atributoComposto, cartoesQueLigam, maximoComposto, temMaximo, type Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { motivoDaAcao, type AcoesDaVez } from './acoes'
-import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type FormaNaBatalha, type NumeroDaForma } from './combate'
+import { motivoDaAcao, type AcoesDaVez, type MovimentoDaForma } from './acoes'
+import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type CombateDoPersonagem, type FormaNaBatalha, type NumeroDaForma } from './combate'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, lerAcao } from './leituraDaFicha'
 
@@ -58,9 +58,11 @@ export function usosDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | nul
 export interface EfeitosDasFormas {
   /** Quanto do dano recebido sai (20 = -20%), de 0 a 100. */
   reducaoDoDano: number
+  /** O nome da forma dessa redução ("Resiliente"), para o registro; `null` = nenhuma reduz. */
+  formaDaReducao: string | null
   /** Casas a mais de deslocamento (a maior vale, não somam); `null` = nenhuma. */
   deslocamentoAMais: number | null
-  /** Teto do deslocamento (o menor vale); `null` = sem teto. */
+  /** Teto do deslocamento da vez inteira (o menor vale); `null` = sem teto. */
   deslocamentoMax: number | null
   /** Ataques a mais por rodada ao usar Atacar (o maior vale). */
   ataquesExtras: number
@@ -68,11 +70,15 @@ export interface EfeitosDasFormas {
 
 /** R6: o que as formas ligadas do personagem fazem na batalha agora. Nenhuma: tudo zerado. */
 export function efeitosDasFormasLigadas(personagem: Personagem, sistema: SistemaDeRpg): EfeitosDasFormas {
-  const efeitos: EfeitosDasFormas = { reducaoDoDano: 0, deslocamentoAMais: null, deslocamentoMax: null, ataquesExtras: 0 }
+  const efeitos: EfeitosDasFormas = { reducaoDoDano: 0, formaDaReducao: null, deslocamentoAMais: null, deslocamentoMax: null, ataquesExtras: 0 }
   for (const cartao of cartoesQueLigam(personagem, sistema)) {
     if (!personagem.cartoesAtivos.includes(cartao.id)) continue
     const reducao = /-\s*(\d+)\s*%/.exec(cartao.campos[CAMPO_DO_DANO_RECEBIDO] ?? '')
-    if (reducao !== null) efeitos.reducaoDoDano = Math.max(efeitos.reducaoDoDano, Math.min(100, Number.parseInt(reducao[1] ?? '0', 10)))
+    const porcento = reducao === null ? 0 : Math.min(100, Number.parseInt(reducao[1] ?? '0', 10))
+    if (porcento > efeitos.reducaoDoDano) {
+      efeitos.reducaoDoDano = porcento
+      efeitos.formaDaReducao = cartao.nome.trim() || 'forma'
+    }
     const deslocamento = normalizar(cartao.campos[CAMPO_DO_DESLOCAMENTO] ?? '')
     const aMais = /\+\s*(\d+)/.exec(deslocamento)
     const teto = /max\w*\s*(\d+)/.exec(deslocamento)
@@ -86,6 +92,24 @@ export function efeitosDasFormasLigadas(personagem: Personagem, sistema: Sistema
 /** R6: o dano que chega com a redução das formas (Resiliente: -20%), arredondado. */
 export function danoComAReducao(dano: number, reducaoDoDano: number): number {
   return reducaoDoDano <= 0 ? dano : Math.max(0, Math.round((dano * (100 - reducaoDoDano)) / 100))
+}
+
+/**
+ * R6: o que as formas ligadas mudam na vez de quem age (`acoesDaVez`): o
+ * deslocamento e o ataque adicional, com os já feitos na `rodada`. O mesmo
+ * no mestre (`acoesDaCarta`) e no recorte do jogador.
+ */
+export function formaNaVez(personagem: Personagem, sistema: SistemaDeRpg, combate: Pick<CombateDoPersonagem, 'ataquesExtras'> | undefined, rodada: number): MovimentoDaForma {
+  const efeitos = efeitosDasFormasLigadas(personagem, sistema)
+  const vez: MovimentoDaForma = { aMais: efeitos.deslocamentoAMais, max: efeitos.deslocamentoMax }
+  if (efeitos.ataquesExtras > 0) vez.ataquesExtras = { total: efeitos.ataquesExtras, usados: combate?.ataquesExtras?.rodada === rodada ? combate.ataquesExtras.usados : 0 }
+  return vez
+}
+
+/** R6: o combate depois do ataque adicional da forma: +1 nesta `rodada` (outra rodada recomeça do 1). */
+export function comAtaqueExtra(combate: CombateDoPersonagem, rodada: number): CombateDoPersonagem {
+  const usados = combate.ataquesExtras?.rodada === rodada ? combate.ataquesExtras.usados : 0
+  return { ...combate, ataquesExtras: { rodada, usados: usados + 1 } }
 }
 /** C6 (lote de 01/11): o que é preciso para transformar ("Vida abaixo de 50%"). Só mostra: o app não confere. */
 export const CAMPO_DO_REQUISITO = 'requisito'

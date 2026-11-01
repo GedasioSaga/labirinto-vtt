@@ -22,7 +22,7 @@ import { normalizar } from './formula'
 import { ajustesDoCusto, depoisDaTecnica } from './golpe'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, lerAcao, lerCusto, lerTempo, tecnicaPorId, tecnicasDe, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { lerTipo } from './tiposDaHabilidade'
-import { cartaDaVez, inserirCarta, removerCarta, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
+import { cartaDaVez, inserirCarta, removerCarta, type AutorDaAcao, type CartaDaOrdem, type CartaNoLugar, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
  * INVOCAÇÃO, F1 (docs/planos/batalha-invocacao-plano.md, com as decisões do
@@ -319,6 +319,51 @@ export function comunsQueSaem(turnos: Pick<TurnosDaCena, 'invocados'>, pendente:
   return (turnos.invocados ?? SEM_INVOCADOS).filter((invocado) => !invocado.ultra && invocado.donoPersonagemId === pendente.donoPersonagemId && invocado.cartaoId === pendente.cartaoId)
 }
 
+/**
+ * O Ultra do MESMO dono e da MESMA técnica está em campo: o comum não entra
+ * ao lado dele (decisão 10: o Ultra tira os comuns; o comum pendente de antes
+ * não volta por trás). Ultra entrando: sempre `false`.
+ */
+export function ultraEmCampo(turnos: Pick<TurnosDaCena, 'invocados'>, de: Pick<InvocacaoPendente, 'ultra' | 'donoPersonagemId' | 'cartaoId'>): boolean {
+  if (de.ultra) return false
+  return (turnos.invocados ?? SEM_INVOCADOS).some((invocado) => invocado.ultra && invocado.donoPersonagemId === de.donoPersonagemId && invocado.cartaoId === de.cartaoId)
+}
+
+/** O motivo de recusar o comum com o Ultra em campo (a store recusa colocar; a regra do pedido, pedir). */
+export const MOTIVO_DO_COMUM_COM_O_ULTRA = 'Com o Ultra em campo, os comuns não entram'
+
+/** O espaço do número no fim do nome (" 61": os números não passam de `INVOCADOS_MAX` + 1). */
+const SUFIXO_DO_NUMERO_MAX = 4
+
+/** "Lobo 2" com a base "Lobo" = 2; outro nome, ou sem número no fim, `null`. */
+function numeroNoFim(nome: string, base: string): number | null {
+  if (!nome.startsWith(`${base} `)) return null
+  const resto = nome.slice(base.length + 1)
+  return /^\d{1,3}$/.test(resto) ? Number.parseInt(resto, 10) : null
+}
+
+/**
+ * O nome do invocado no mapa com o número dele entre os do MESMO dono e do
+ * mesmo nome ("Lobo 1", "Lobo 2", "Lobo 3"): o menor número livre, para a
+ * lista "Quem age" e o mapa dizerem qual é qual. O Ultra (um só, decisão 10)
+ * só ganha número se outro do dono já tem o mesmo nome. No teto do nome.
+ */
+export function nomeNumerado(turnos: Pick<TurnosDaCena, 'invocados'>, de: Pick<InvocacaoPendente, 'ultra' | 'donoTokenId'>, nome: string): string {
+  const base = nome.length + SUFIXO_DO_NUMERO_MAX > NOME_DO_INVOCADO_MAX ? nome.slice(0, NOME_DO_INVOCADO_MAX - SUFIXO_DO_NUMERO_MAX).trimEnd() : nome
+  const usados = new Set<number>()
+  let mesmoNome = false
+  for (const invocado of turnos.invocados ?? SEM_INVOCADOS) {
+    if (invocado.donoTokenId !== de.donoTokenId) continue
+    if (invocado.nome === nome) mesmoNome = true
+    const numero = numeroNoFim(invocado.nome, base)
+    if (numero !== null) usados.add(numero)
+  }
+  if (de.ultra && !mesmoNome && usados.size === 0) return nome
+  let numero = 1
+  while (usados.has(numero)) numero += 1
+  return `${base} ${numero}`
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // O pedido (o jogador pede, o mestre pede pelo NPC dele)
 // ───────────────────────────────────────────────────────────────────────────
@@ -389,6 +434,8 @@ export function motivoDaInvocacao(ctx: ContextoDaInvocacao, pedido: PedidoDeInvo
   if ((turnos.invocacoes?.length ?? 0) >= INVOCACOES_PENDENTES_MAX) return 'Invocações demais esperando o mestre'
   if ((turnos.invocados?.length ?? 0) + (turnos.invocacoes?.length ?? 0) >= INVOCADOS_MAX) return 'Invocados demais em campo'
   if (opcao.maximo !== null && quantosNoCampo(turnos, personagem.id, tecnica.cartao.id, opcao.chave) >= opcao.maximo) return `No máximo ${opcao.maximo} em campo`
+  // Decisão 10: o comum pedido com o Ultra em campo pagaria por uma pendência que nunca entra.
+  if (ultraEmCampo(turnos, { ultra: opcao.ultra, donoPersonagemId: personagem.id, cartaoId: tecnica.cartao.id })) return MOTIVO_DO_COMUM_COM_O_ULTRA
   if (combate.carga < opcao.carga) return `Precisa de concentração ${opcao.carga} (tem ${combate.carga})`
   if (tecnica.acao === null) return 'Escolha a ação da técnica'
   if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
@@ -524,15 +571,17 @@ export function membrosDoBando(turnos: Pick<TurnosDaCena, 'invocados'>, carta: P
 /**
  * A ordem com os bandos em dia: cada dono com invocado em campo tem UMA
  * carta de bando, logo depois das cartas dele (a original e as extras; sem
- * carta, no fim); a de dono sem invocado sai (a vez anda, sem virar a
- * rodada). O id é fixo, então a carta que sai e volta é a mesma. `nomeDoBando`
- * = o texto da carta ("Bando de Ryoko"). Nada a mudar = o MESMO objeto.
+ * carta, no fim); a de dono sem invocado sai, MENOS a que está com a vez: o
+ * último membro que cai na vez do próprio bando não anda a vez sem linha (o
+ * Desfazer não a traria de volta); ela sai quando a vez passar
+ * (`semBandosVazios`). O id é fixo, então a carta que sai e volta é a mesma.
+ * `nomeDoBando` = o texto da carta ("Bando de Ryoko"). Nada a mudar = o MESMO objeto.
  */
 export function comBandosEmDia(turnos: TurnosDaCena, nomeDoBando: (donoTokenId: string) => string): TurnosDaCena {
   const donos = [...new Set((turnos.invocados ?? SEM_INVOCADOS).map((invocado) => invocado.donoTokenId))]
   let novos = turnos
   for (const carta of turnos.cartas) {
-    if (carta.bando === undefined || donos.includes(carta.bando.donoTokenId)) continue
+    if (carta.bando === undefined || donos.includes(carta.bando.donoTokenId) || carta.id === turnos.vez) continue
     novos = removerCarta(novos, carta.id)?.turnos ?? novos
   }
   for (const donoTokenId of donos) {
@@ -546,6 +595,28 @@ export function comBandosEmDia(turnos: TurnosDaCena, nomeDoBando: (donoTokenId: 
     novos = inserirCarta(novos, carta, depoisDoDono < 0 ? undefined : depoisDoDono)
   }
   return novos
+}
+
+/**
+ * Depois de a vez andar (passar ou dar a vez): as cartas de bando sem
+ * ninguém que não estão com a vez saem (a que `comBandosEmDia` guardou
+ * enquanto era a vez dela), cada uma com o lugar que tinha em `antes` (a
+ * ordem de antes de a vez andar), para a reversão "vez" pô-las de volta no
+ * mesmo lugar. Nenhuma = os MESMOS turnos.
+ */
+export function semBandosVazios(turnos: TurnosDaCena, antes: readonly CartaDaOrdem[]): { turnos: TurnosDaCena; removidas: CartaNoLugar[] } {
+  const donos = new Set((turnos.invocados ?? SEM_INVOCADOS).map((invocado) => invocado.donoTokenId))
+  const removidas: CartaNoLugar[] = []
+  let novos = turnos
+  for (const carta of turnos.cartas) {
+    if (carta.bando === undefined || donos.has(carta.bando.donoTokenId) || carta.id === turnos.vez) continue
+    const feito = removerCarta(novos, carta.id)
+    if (feito === null) continue
+    novos = feito.turnos
+    const indice = antes.findIndex((candidata) => candidata.id === carta.id)
+    removidas.push({ carta, indice: indice < 0 ? feito.removida.indice : indice })
+  }
+  return { turnos: novos, removidas }
 }
 
 /** A chave do gasto de um invocado na vez do bando (`TurnosDaCena.gastos`): cada um tem a Simples e o movimento dele. */

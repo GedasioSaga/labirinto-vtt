@@ -2,7 +2,7 @@ import type { Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
-import { acaoDoConcentrar, acaoDoGolpe, acoesDaVez, gastarAcao, motivoDaAcao, motivoDaTecnica, motivoDoConcentrar, rankDeAgilidade, tecnicasNoMenu, type AcoesDaVez } from './acoes'
+import { acaoDoConcentrar, acaoDoGolpe, acoesDaVez, gastarAcao, motivoDaTecnica, motivoDoAtacar, motivoDoConcentrar, rankDeAgilidade, tecnicasNoMenu, usaOAtaqueExtra, type AcoesDaVez } from './acoes'
 import {
   ALVOS_MAX,
   chaveDaVez,
@@ -48,7 +48,7 @@ import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
-import { efeitosDasFormasLigadas, formaDaFicha, formaLivre, motivoDaForma, usosDaForma } from './transformacao'
+import { comAtaqueExtra, formaDaFicha, formaLivre, formaNaVez, motivoDaForma, usosDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -138,10 +138,10 @@ function contraDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): ContraAtaqu
 /** As ações da carta na vez (com as extras e o "Mov" da regra do campo). */
 export function acoesDaCarta(ctx: Pick<ContextoDoGolpe, 'turnos' | 'carta' | 'personagem' | 'sistema' | 'regras'>): AcoesDaVez {
   const rank = ctx.personagem === null || ctx.sistema === null ? null : rankDeAgilidade(ctx.personagem, ctx.sistema)
-  // R6: o deslocamento das formas ligadas (Ignição +2, Resiliente no máximo 6).
-  const formas = ctx.personagem === null || ctx.sistema === null ? null : efeitosDasFormasLigadas(ctx.personagem, ctx.sistema)
-  const movimento = formas === null ? undefined : { aMais: formas.deslocamentoAMais, max: formas.deslocamentoMax }
-  return acoesDaVez(ctx.turnos.gastos[ctx.carta.id], ctx.turnos.extras[ctx.carta.id], rank, ctx.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO, movimento)
+  // R6: o deslocamento das formas ligadas (Ignição +2, Resiliente no máximo 6 na vez) e o ataque adicional da Ignição.
+  const combate = ctx.carta.personagemId === null ? undefined : ctx.turnos.combate?.[ctx.carta.personagemId]
+  const forma = ctx.personagem === null || ctx.sistema === null ? undefined : formaNaVez(ctx.personagem, ctx.sistema, combate, ctx.turnos.rodada)
+  return acoesDaVez(ctx.turnos.gastos[ctx.carta.id], ctx.turnos.extras[ctx.carta.id], rank, ctx.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO, forma)
 }
 
 function combateDe(ctx: ContextoDoGolpe): CombateDoPersonagem {
@@ -248,8 +248,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
       const motivo = motivoDosAlvos(ctx, pedido.alvos, 1)
       if (motivo !== null) return motivo
-      const acao = acaoDoGolpe('simples', combate.carga)
-      return acoes === null || acao === null ? null : motivoDaAcao(acoes, acao)
+      // R6: depois de um Atacar na vez, o ataque adicional da forma (Ignição) cabe sem a Simples.
+      return acoes === null ? null : motivoDoAtacar(acoes)
     }
     case 'habilidade': {
       const { personagem, sistema } = ctx
@@ -367,10 +367,15 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   }
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
   if (combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
+  // R6: o Atacar da vez marca o gasto (libera o ataque adicional da forma); o adicional não gasta a Simples e conta na rodada.
+  const naVez = contra === null && pedido.tipo === 'atacar' ? acoesDaCarta(ctx) : null
+  const extra = naVez !== null && usaOAtaqueExtra(naVez)
+  if (extra) combateNovo = comAtaqueExtra(combateNovo, ctx.turnos.rodada)
+  const gasto = contra !== null || acao === null || extra ? null : gastarAcao(gastoAtual, acao)
   return {
     golpe,
     resolvidos: alvos.filter((alvo) => alvo.danoFinal !== undefined),
-    gasto: contra !== null || acao === null ? null : gastarAcao(gastoAtual, acao),
+    gasto: gasto !== null && pedido.tipo === 'atacar' ? { ...gasto, atacou: true } : gasto,
     combate: ctx.carta.personagemId === null || combateNovo === combate ? null : combateNovo,
     custo: tecnica === null || personagem === null || sistema === null ? [] : ajustesDoCusto(personagem, sistema, tecnica.custo),
     contraUsado: contra,

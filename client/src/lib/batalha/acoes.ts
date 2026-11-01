@@ -45,37 +45,67 @@ export interface AcoesDaVez {
   bonus: Contagem
   /** `limite` null = sistema sem rank de Agilidade ("Mov 3", sem teto). */
   blocos: { andados: number; limite: number | null }
+  /**
+   * R6 (lote de 01/11): o ataque adicional da forma ligada (Ignição: "ao usar
+   * a ação Atacar pode realizar um ataque adicional, apenas uma vez por
+   * rodada"). `usadas`/`total` = nesta rodada; `liberado` = já usou Atacar
+   * nesta vez. Ausente = nenhuma forma ligada dá.
+   */
+  ataqueExtra?: { usadas: number; total: number; liberado: boolean }
 }
 
 const GASTO_ZERO: GastoDaVez = { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
 
-/** As ações da vez da carta, com o que já gastou e as extras do mestre. */
 /**
- * R6 (lote de 01/11): o deslocamento das formas ligadas, por ação de
- * Movimento: `aMais` casas somadas (Ignição: +2) e `max` o teto (Resiliente:
- * 6). Quem lê da ficha é `efeitosDasFormasLigadas` (transformacao.ts).
+ * R6 (lote de 01/11): o que as formas ligadas mudam na vez. `aMais` = casas
+ * somadas em cada ação de Movimento (Ignição: +2); `max` = o teto do
+ * deslocamento da VEZ inteira, somadas todas as ações de Movimento
+ * (Resiliente: 6); `ataquesExtras` = o ataque adicional ao usar Atacar
+ * (Ignição: 1 por rodada), com os já feitos nesta rodada. Quem lê da ficha é
+ * `formaNaVez` (transformacao.ts).
  */
 export interface MovimentoDaForma {
   aMais: number | null
   max: number | null
+  /** Ausente = a forma não dá ataque adicional. */
+  ataquesExtras?: { total: number; usados: number }
 }
 
-/** As casas de UMA ação de Movimento: rank × blocos por rank, mais o da forma, no teto dela. */
-function blocosPorMovimento(rankDeAgilidade: number, blocosPorRank: number, forma: MovimentoDaForma | undefined): number {
-  const base = rankDeAgilidade * blocosPorRank + (forma?.aMais ?? 0)
-  return forma?.max === null || forma?.max === undefined ? base : Math.min(base, forma.max)
+/** As casas da vez: (rank × blocos por rank + o da forma) por Movimento que sobrou, no teto da forma para a vez. */
+function limiteDosBlocos(rankDeAgilidade: number, blocosPorRank: number, sobram: number, forma: MovimentoDaForma | undefined): number {
+  const total = (rankDeAgilidade * blocosPorRank + (forma?.aMais ?? 0)) * sobram
+  return forma?.max === null || forma?.max === undefined ? total : Math.min(total, forma.max)
 }
 
+/** As ações da vez da carta, com o que já gastou e as extras do mestre. */
 export function acoesDaVez(gasto: GastoDaVez | undefined, extras: AcoesExtras | undefined, rankDeAgilidade: number | null, blocosPorRank: number, forma?: MovimentoDaForma): AcoesDaVez {
   const gastas = gasto ?? GASTO_ZERO
   const movimento: Contagem = { usadas: gastas.movimento, total: 1 + (extras?.mov ?? 0) }
   const sobram = Math.max(0, movimento.total - movimento.usadas)
-  return {
+  const acoes: AcoesDaVez = {
     simples: { usadas: gastas.simples, total: 1 + (extras?.simples ?? 0) },
     movimento,
     bonus: { usadas: gastas.bonus, total: extras?.bonus ?? 0 },
-    blocos: { andados: gastas.blocos, limite: rankDeAgilidade === null ? null : blocosPorMovimento(rankDeAgilidade, blocosPorRank, forma) * sobram },
+    blocos: { andados: gastas.blocos, limite: rankDeAgilidade === null ? null : limiteDosBlocos(rankDeAgilidade, blocosPorRank, sobram, forma) },
   }
+  const ataquesExtras = forma?.ataquesExtras
+  if (ataquesExtras !== undefined && ataquesExtras.total > 0) acoes.ataqueExtra = { usadas: ataquesExtras.usados, total: ataquesExtras.total, liberado: gastas.atacou === true }
+  return acoes
+}
+
+/**
+ * R6: o Atacar de agora é o ataque adicional da forma (Ignição): já usou a
+ * ação Atacar nesta vez e ainda não fez o adicional desta rodada. Não gasta a
+ * Simples.
+ */
+export function usaOAtaqueExtra(acoes: AcoesDaVez): boolean {
+  const extra = acoes.ataqueExtra
+  return extra !== undefined && extra.liberado && extra.usadas < extra.total
+}
+
+/** Por que o Atacar não cabe na vez, ou `null`: com o ataque adicional livre, cabe; senão, a regra da Simples. */
+export function motivoDoAtacar(acoes: AcoesDaVez): string | null {
+  return usaOAtaqueExtra(acoes) ? null : motivoDaAcao(acoes, 'simples')
 }
 
 /** O rank da Agilidade pela tabela do sistema; `null` = sistema sem o atributo ou sem tabela. */

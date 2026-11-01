@@ -93,8 +93,13 @@ export type Reversao =
   | { tipo: 'equipe'; personagemId: string; antes: string | null; depois: string | null }
   | { tipo: 'ficha'; personagemId: string; partes: readonly ParteDaFicha[] }
   | { tipo: 'regras'; antes: RegrasDaBatalha | null }
-  /** F2: ações gastas na vez (Simples, Movimento, Bônus). `null` = não tinha gasto nenhum. */
-  | { tipo: 'gasto'; cartaId: string; antes: GastoDaVez | null }
+  /**
+   * F2: ações gastas na vez (Simples, Movimento, Bônus). `null` = não tinha
+   * gasto nenhum. `vez` (invocação): o gasto só volta se ainda é aquela vez
+   * (`cartaId` na `rodada`); o pedido cancelado numa vez depois não zera o
+   * gasto da vez de agora. Ausente = volta sempre.
+   */
+  | { tipo: 'gasto'; cartaId: string; antes: GastoDaVez | null; vez?: { cartaId: string; rodada: number } }
   /** F2: ações extras dadas pelo mestre. `null` = não tinha extra. */
   | { tipo: 'acoesExtras'; cartaId: string; antes: AcoesExtras | null }
   /**
@@ -176,6 +181,12 @@ export type Reversao =
    * pedido não foi desfeita.
    */
   | { tipo: 'invocacaoColocada'; pendente: InvocacaoPendente; invocado: InvocadoNaBatalha }
+  /**
+   * Invocação: o mestre cancelou a pendência cujo pedido já saiu do teto do
+   * registro (sem custo a devolver). Desfazer = a pendência volta, SÓ se
+   * ainda cabe (no teto de pendências e no máximo da opção) e não está lá.
+   */
+  | { tipo: 'invocacaoCancelada'; pendente: InvocacaoPendente }
   /**
    * Invocação: o invocado saiu do mapa (HP 0, ou o comum quando o Ultra
    * entra). `personagem` e `token` = como estavam ao sair (`null` = já não
@@ -466,6 +477,10 @@ function mesmaConcentracao(a: CombateDoPersonagem['concentrouCom'], b: CombateDo
   return a === b || (a !== undefined && b !== undefined && a.acao === b.acao && a.linhaId === b.linhaId)
 }
 
+function mesmosAtaquesExtras(a: CombateDoPersonagem['ataquesExtras'], b: CombateDoPersonagem['ataquesExtras']): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.rodada === b.rodada && a.usados === b.usados)
+}
+
 function mesmasArmas(a: readonly string[] | null, b: readonly string[] | null): boolean {
   return a === b || (a !== null && b !== null && a.length === b.length && a.every((id, i) => id === b[i]))
 }
@@ -520,8 +535,9 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
+  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
   const semReacao = campoSemALinha(atual.semReacao, antes.semReacao, depois.semReacao)
+  const ataquesExtras = campoSemALinha(atual.ataquesExtras, antes.ataquesExtras, depois.ataquesExtras, mesmosAtaquesExtras)
   const concentrouEm = campoSemALinha(atual.concentrouEm, antes.concentrouEm, depois.concentrouEm)
   const concentrouCom = campoSemALinha(atual.concentrouCom, antes.concentrouCom, depois.concentrouCom, mesmaConcentracao)
   const lembradas = listaSemALinha(atual.lembradas ?? [], antes.lembradas ?? [], depois.lembradas ?? [])
@@ -537,6 +553,7 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     ...(concentrouEm === undefined ? {} : { concentrouEm }),
     ...(concentrouCom === undefined ? {} : { concentrouCom }),
     ...(semReacao === undefined ? {} : { semReacao }),
+    ...(ataquesExtras === undefined ? {} : { ataquesExtras }),
     ...(lembradas.length === 0 ? {} : { lembradas }),
     ...(lembretes.length === 0 ? {} : { lembretes }),
     ...(evoluidas.length === 0 ? {} : { evoluidas }),
@@ -568,6 +585,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'cartaRemovida':
       return inserirCarta(turnos, reversao.carta, reversao.indice)
     case 'gasto':
+      // Outra vez (a vez passou e o gasto zerou): voltar a foto zeraria o gasto da vez de agora.
+      if (reversao.vez !== undefined && (turnos.vez !== reversao.vez.cartaId || turnos.rodada !== reversao.vez.rodada)) return turnos
       return { ...turnos, gastos: comValor(turnos.gastos, reversao.cartaId, reversao.antes) }
     case 'acoesExtras':
       return { ...turnos, extras: comValor(turnos.extras, reversao.cartaId, reversao.antes) }
@@ -631,12 +650,13 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       const depois = atual === undefined ? undefined : semEvoluida(atual, reversao.cartaoId)
       return atual === undefined || depois === undefined || depois === atual ? turnos : { ...turnos, combate: { ...(turnos.combate ?? {}), [reversao.personagemId]: depois } }
     }
-    // A ficha, a equipe e as regras voltam pela mesa; as três da invocação mexem no mapa e no personagem temporário (a store).
+    // A ficha, a equipe e as regras voltam pela mesa; as da invocação mexem no mapa, no personagem temporário e na ficha do dono (a store).
     case 'equipe':
     case 'ficha':
     case 'regras':
     case 'invocacaoPedida':
     case 'invocacaoColocada':
+    case 'invocacaoCancelada':
     case 'invocadoSaiu':
       return turnos
   }
@@ -659,6 +679,16 @@ function partesDe(reversao: Reversao): Reversao[] {
  */
 export function ehPersonagemDeInvocado(registro: readonly LinhaDoRegistro[], personagemId: string): boolean {
   return registro.some((linha) => partesDe(linha.reversao).some((parte) => parte.tipo === 'invocacaoColocada' && parte.invocado.personagemId === personagemId))
+}
+
+/**
+ * Invocação: o invocado do token saiu do mapa por uma linha ainda de pé (HP
+ * 0, o Ultra que entrou). O Desfazer da colocação não devolve a pendência
+ * dele: passaria do máximo e ele voltaria com o HP cheio. Saiu sem linha
+ * (Ctrl+Z do mapa logo depois de pôr) = `false`.
+ */
+export function invocadoSaiuPorLinha(registro: readonly LinhaDoRegistro[], tokenId: string): boolean {
+  return registro.some((linha) => linha.desfeita === undefined && partesDe(linha.reversao).some((parte) => parte.tipo === 'invocadoSaiu' && parte.invocado.tokenId === tokenId))
 }
 
 /**

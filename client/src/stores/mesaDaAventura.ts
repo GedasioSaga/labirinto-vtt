@@ -18,7 +18,8 @@ import { sistemaPorId, useRpgStore } from './rpgStore'
  * temporário do invocado entra pela aventura (como as fichas do "Quem entra
  * na batalha?") e o token pelo mapa da cena: o aberto pelo `useMapStore`
  * (passo do desfazer do mapa, como o "Ligar token"), o de fundo pelo
- * `updateBackgroundScene`.
+ * `updateBackgroundScene`. A SAÍDA do token fica fora do desfazer do mapa
+ * (`tirarToken`).
  *
  * Cada leitura pega o estado de AGORA; nada fica guardado aqui.
  */
@@ -47,8 +48,20 @@ function mudarACena(sceneKey: string, naAberta: () => void, mudar: (map: MapData
   return true
 }
 
+/**
+ * O token do invocado sai FORA do desfazer do mapa, como a mudança de um
+ * jogador (`applyPlayerChange`): sai também de cada passo guardado. Pelo
+ * `removeToken` ele entraria no Ctrl+Z, e o Ctrl+Z traria de volta um token
+ * ligado a um personagem temporário já apagado, que nada mais limpa e fica
+ * salvo. Quem traz o invocado de volta é o Desfazer da batalha (`criarInvocado`).
+ */
 function tirarToken(sceneKey: string, tokenId: string): void {
-  mudarACena(sceneKey, () => useMapStore.getState().removeToken(tokenId), (map) => mapFactory.removeToken(map, tokenId))
+  const semOToken = (map: MapData): MapData => (map.tokens.some((token) => token.id === tokenId) ? mapFactory.removeToken(map, tokenId) : map)
+  if (cenaAberta(sceneKey)) {
+    useMapStore.getState().applyPlayerChange(semOToken)
+    return
+  }
+  useAdventureStore.getState().applyPlayerChangeToBackgroundScene(sceneKey, semOToken)
 }
 
 export const mesaDaAventura: MesaDaBatalha = {

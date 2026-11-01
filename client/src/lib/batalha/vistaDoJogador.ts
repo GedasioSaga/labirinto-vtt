@@ -47,7 +47,7 @@ import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
 import { ehAlvoDeMod, ehNomeDeSelo, selosDoToken, type SeloQueSoma } from './selos'
-import { aparenciaDaForma, efeitosDasFormasLigadas, nomeDaFormaLigada } from './transformacao'
+import { aparenciaDaForma, formaNaVez, nomeDaFormaLigada } from './transformacao'
 import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from './turnos'
 
 /**
@@ -99,7 +99,7 @@ export interface CartaParaJogador {
   selos?: SeloParaJogador[]
   /** C10 (lote de 01/11): só "eu" e "aliado": o Escudo atual. Sem Escudo (0, ou o sistema não tem) = ausente. Nunca de NPC. */
   escudo?: number
-  /** Invocação: a carta é a do BANDO de um dono (`tokenId` = `bando_<dono>`, não é token do mapa). */
+  /** Invocação: a carta é a do BANDO de um dono (`tokenId` = `bando_<dono>`, ou `bando_fora_N` com o dono fora da vista; não é token do mapa). */
   bando?: BandoParaJogador
 }
 
@@ -400,14 +400,28 @@ function escudoDaCarta(carta: CartaDaOrdem, ctx: ContextoDoJogador): number {
 const VIDA_DO_INVOCADO_MAX = DANO_MAX
 /** O nome da carta do bando quando a tela dele não tem o dono. */
 export const NOME_DO_BANDO_FORA_DA_VISTA = 'Bando'
+/** O começo do id da carta do bando cujo dono a tela dele não tem: `bando_fora_1`, `bando_fora_2` (nunca o tokenId do dono). */
+const PREFIXO_DO_BANDO_FORA_DA_VISTA = 'bando_fora_'
+
+/**
+ * O lado do bando: o da ficha do dono que é DELE de verdade (`meusPersonagens`)
+ * ou de aliado. O atalho de `meusTokens` do `ladoDa` não vale aqui: o NPC
+ * emprestado (ownership) mostraria a vida dos invocados do NPC.
+ */
+function ladoDoDono(donoPersonagemId: string | null, ctx: ContextoDoJogador): LadoNaCarta {
+  if (donoPersonagemId === null) return 'outro'
+  if (ctx.meusPersonagens.has(donoPersonagemId)) return 'eu'
+  return ctx.aliados.has(donoPersonagemId) ? 'aliado' : 'outro'
+}
 
 /**
  * Invocação: a carta do bando para esta conexão, ou `null` (a tela dele não
  * tem o dono nem nenhum invocado). O lado é o do DONO; a vida de cada
  * invocado sai só com o lado "eu" ou "aliado" (decisão 7). O nome usa o nome
- * do dono na tela dele, nunca o de trabalho do mestre.
+ * do dono na tela dele, nunca o de trabalho do mestre. Dono fora da vista:
+ * o id (e o tokenId) da carta é `idForaDaVista`, não o `bando_<tokenId do dono>`.
  */
-function bandoParaJogador(carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: ContextoDoJogador): CartaParaJogador | null {
+function bandoParaJogador(carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: ContextoDoJogador, idForaDaVista: () => string): CartaParaJogador | null {
   const { bando } = carta
   if (bando === undefined) return null
   const todos = (turnos.invocados ?? []).filter((invocado) => invocado.donoTokenId === bando.donoTokenId)
@@ -415,7 +429,7 @@ function bandoParaJogador(carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: Contex
   const vistos = todos.filter((invocado) => ctx.tokensNoRecorte.has(invocado.tokenId)).slice(0, MEMBROS_DO_BANDO_MAX)
   if (nomeDoDono === undefined && vistos.length === 0) return null
   const donoPersonagemId = todos[0]?.donoPersonagemId ?? turnos.cartas.find((candidata) => candidata.tokenId === bando.donoTokenId)?.personagemId ?? null
-  const lado = ladoDa({ ...carta, tokenId: bando.donoTokenId, personagemId: donoPersonagemId }, ctx)
+  const lado = ladoDoDono(donoPersonagemId, ctx)
   const recurso = recursoDeVida(ctx.sistema)
   const membros = vistos.map((invocado): MembroDoBandoParaJogador => {
     const membro: MembroDoBandoParaJogador = { tokenId: invocado.tokenId, nome: (ctx.tokensNoRecorte.get(invocado.tokenId) ?? invocado.nome).slice(0, NOME_NA_CARTA_MAX) }
@@ -424,10 +438,11 @@ function bandoParaJogador(carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: Contex
     if (vida !== null) membro.vida = { atual: vidaNoFio(vida.atual), maximo: Math.max(1, vidaNoFio(vida.maximo)) }
     return membro
   })
-  const nome = nomeDoDono === undefined ? NOME_DO_BANDO_FORA_DA_VISTA : `Bando de ${nomeDoDono}`
-  const saida: CartaParaJogador = { id: carta.id, tokenId: carta.tokenId, nome: nome.slice(0, NOME_NA_CARTA_MAX), lado, bando: { membros } }
-  if (nomeDoDono !== undefined && saida.bando !== undefined) saida.bando.donoTokenId = bando.donoTokenId
-  return saida
+  if (nomeDoDono === undefined) {
+    const id = idForaDaVista()
+    return { id, tokenId: id, nome: NOME_DO_BANDO_FORA_DA_VISTA, lado, bando: { membros } }
+  }
+  return { id: carta.id, tokenId: carta.tokenId, nome: `Bando de ${nomeDoDono}`.slice(0, NOME_NA_CARTA_MAX), lado, bando: { donoTokenId: bando.donoTokenId, membros } }
 }
 
 /** Inteiro de 0 ao teto (o fio recusa fração). */
@@ -468,10 +483,10 @@ function acoesParaJogador(cena: BatalhaEmTurnos, daVez: CartaDaOrdem, ctx: Conte
   const { turnos } = cena
   const personagem = daVez.personagemId === null ? undefined : ctx.personagens.find((candidato) => candidato.id === daVez.personagemId)
   const rank = personagem === undefined || ctx.sistema === null ? null : rankDeAgilidade(personagem, ctx.sistema)
-  // R6: o mesmo deslocamento das formas que a store usa (`acoesDaCarta`).
-  const formas = personagem === undefined || ctx.sistema === null ? null : efeitosDasFormasLigadas(personagem, ctx.sistema)
-  const movimento = formas === null ? undefined : { aMais: formas.deslocamentoAMais, max: formas.deslocamentoMax }
-  return acoesDaVez(turnos.gastos[daVez.id], turnos.extras[daVez.id], rank, cena.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO, movimento)
+  // R6: o mesmo deslocamento e o mesmo ataque adicional das formas que a store usa (`acoesDaCarta`).
+  const combate = daVez.personagemId === null ? undefined : turnos.combate?.[daVez.personagemId]
+  const forma = personagem === undefined || ctx.sistema === null ? undefined : formaNaVez(personagem, ctx.sistema, combate, turnos.rodada)
+  return acoesDaVez(turnos.gastos[daVez.id], turnos.extras[daVez.id], rank, cena.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO, forma)
 }
 
 /** O combate dos personagens DELE com carta na ordem, na ordem das cartas. */
@@ -702,19 +717,30 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   const { turnos } = cena
   const caidos = tokensCaidos(turnos.cartas, ctx.personagens, ctx.sistema)
   const cartas: CartaParaJogador[] = []
+  // O id real de cada carta que sai → o id com que ela sai (o do bando com o dono fora da vista é outro).
+  const idNoFio = new Map<string, string>()
+  let bandosForaDaVista = 0
+  const idForaDaVista = (): string => {
+    bandosForaDaVista += 1
+    return `${PREFIXO_DO_BANDO_FORA_DA_VISTA}${bandosForaDaVista}`
+  }
   for (const carta of turnos.cartas) {
     if (cartas.length >= CARTAS_PARA_JOGADOR_MAX) break
     if (carta.bando !== undefined) {
-      const doBando = bandoParaJogador(carta, turnos, ctx)
-      if (doBando !== null) cartas.push(doBando)
+      const doBando = bandoParaJogador(carta, turnos, ctx, idForaDaVista)
+      if (doBando !== null) {
+        cartas.push(doBando)
+        idNoFio.set(carta.id, doBando.id)
+      }
       continue
     }
     const nome = ctx.tokensNoRecorte.get(carta.tokenId)
-    if (nome !== undefined) cartas.push(cartaParaJogador(carta, nome, ctx, caidos, turnos))
+    if (nome === undefined) continue
+    cartas.push(cartaParaJogador(carta, nome, ctx, caidos, turnos))
+    idNoFio.set(carta.id, carta.id)
   }
   // "Visível" = o que de fato sai (no recorte E dentro do teto): turno e próxima contam o mesmo que a faixa mostra.
-  const idsQueSaem = new Set(cartas.map((carta) => carta.id))
-  const visivel = (carta: CartaDaOrdem): boolean => idsQueSaem.has(carta.id)
+  const visivel = (carta: CartaDaOrdem): boolean => idNoFio.has(carta.id)
   const daVez = cartaDaVez(turnos)
   const vezVisivel = daVez !== null && visivel(daVez)
   const minhaVez = daVez !== null && ctx.meusTokens.has(daVez.tokenId)
@@ -730,9 +756,9 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   const estado: EstadoParaJogador = {
     rodada: turnos.rodada,
     turno: turnoNoM(turnos, visivel),
-    vez: vezVisivel ? daVez.id : null,
+    vez: vezVisivel ? (idNoFio.get(daVez.id) ?? null) : null,
     // A próxima é a da vez seguinte: igual à vez só quando ela é a única que joga.
-    proxima: proxima !== null && proxima.id !== turnos.vez ? proxima.id : null,
+    proxima: proxima !== null && proxima.id !== turnos.vez ? (idNoFio.get(proxima.id) ?? null) : null,
     minhaVez,
     vezForaDaVista: daVez !== null && !vezVisivel,
     cartas,

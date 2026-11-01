@@ -64,6 +64,12 @@ export interface CombateDoPersonagem {
    */
   semReacao?: true
   /**
+   * R6 (lote de 01/11): os ataques adicionais da forma ligada (Ignição) já
+   * feitos e em que rodada ("apenas uma vez por rodada"). Outra rodada = 0.
+   * Ausente = nenhum.
+   */
+  ataquesExtras?: { rodada: number; usados: number }
+  /**
    * cartaoIds da aba Armas levados para a batalha; `null` = ainda não
    * escolheu. Troca quando quiser, sempre dentro do limite (Q8).
    */

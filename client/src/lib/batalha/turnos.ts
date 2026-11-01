@@ -73,6 +73,8 @@ export interface GastoDaVez {
   bonus: number
   /** Blocos andados nesta vez, para o "Mov 2/4" (conta e não trava, decisão 6). */
   blocos: number
+  /** R6 (lote de 01/11): usou a ação Atacar nesta vez (libera o ataque adicional da forma, `ataqueExtra`). Ausente = não. */
+  atacou?: true
 }
 
 export interface TurnosDaCena {
@@ -590,7 +592,8 @@ export function adicionarCartaExtra(turnos: TurnosDaCena, tokenId: string, indic
 export function normalizar(turnos: TurnosDaCena, tokenIdsDaCena: ReadonlySet<string>): TurnosDaCena {
   const comInvocados = invocadosNaCena(turnos, tokenIdsDaCena)
   const donosComInvocado = new Set((comInvocados.invocados ?? []).map((invocado) => invocado.donoTokenId))
-  const fica = (carta: CartaDaOrdem): boolean => (carta.bando === undefined ? tokenIdsDaCena.has(carta.tokenId) : donosComInvocado.has(carta.bando.donoTokenId))
+  // A carta do bando com a vez fica mesmo vazia (o último membro caiu na vez dela): ela sai quando a vez passar, com linha.
+  const fica = (carta: CartaDaOrdem): boolean => (carta.bando === undefined ? tokenIdsDaCena.has(carta.tokenId) : donosComInvocado.has(carta.bando.donoTokenId) || carta.id === turnos.vez)
   const fora = new Set(comInvocados.cartas.filter((carta) => !fica(carta)).map((carta) => carta.id))
   const semAsCartas = fora.size === 0 ? comInvocados : semCartas(comInvocados, fora)
   return selosNaCena(golpesNaCena(semAsCartas, tokenIdsDaCena), tokenIdsDaCena)

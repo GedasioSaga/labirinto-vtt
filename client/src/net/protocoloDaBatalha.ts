@@ -897,7 +897,15 @@ function lerAcoes(value: unknown): AcoesParaJogador | null {
   const { andados, limite } = value.blocos
   if (simples === null || movimento === null || bonus === null || !inteiroAte(andados, 0, BLOCOS_NO_FIO_MAX)) return null
   if (limite !== null && !inteiroAte(limite, 0, BLOCOS_NO_FIO_MAX)) return null
-  return { simples, movimento, bonus, blocos: { andados, limite } }
+  const acoes: AcoesParaJogador = { simples, movimento, bonus, blocos: { andados, limite } }
+  // R6 (lote de 01/11): o ataque adicional da forma ligada (Ignição). Ausente = a forma não dá.
+  if (value.ataqueExtra !== undefined) {
+    const extra = isRecord(value.ataqueExtra) ? lerContagem(value.ataqueExtra) : null
+    const liberado = isRecord(value.ataqueExtra) ? value.ataqueExtra.liberado : undefined
+    if (extra === null || typeof liberado !== 'boolean') return null
+    acoes.ataqueExtra = { ...extra, liberado }
+  }
+  return acoes
 }
 
 /** cartaoId → contador, até `CARTOES_NO_COMBATE_MAX` chaves. */
