@@ -83,8 +83,7 @@ export function efeitosDasFormasLigadas(personagem: Personagem, sistema: Sistema
   const efeitos: EfeitosDasFormas = { reducaoDoDano: 0, formaDaReducao: null, deslocamentoAMais: null, deslocamentoMax: null, ataquesExtras: 0 }
   for (const cartao of cartoesQueLigam(personagem, sistema)) {
     if (!personagem.cartoesAtivos.includes(cartao.id)) continue
-    const reducao = /-\s*(\d+)\s*%/.exec(cartao.campos[CAMPO_DO_DANO_RECEBIDO] ?? '')
-    const porcento = reducao === null ? 0 : Math.min(100, Number.parseInt(reducao[1] ?? '0', 10))
+    const porcento = reducaoDaForma(cartao) ?? 0
     if (porcento > efeitos.reducaoDoDano) {
       efeitos.reducaoDoDano = porcento
       efeitos.formaDaReducao = cartao.nome.trim() || 'forma'
@@ -95,6 +94,12 @@ export function efeitosDasFormasLigadas(personagem: Personagem, sistema: Sistema
     efeitos.ataquesExtras = Math.max(efeitos.ataquesExtras, ataquesExtrasDaForma(cartao) ?? 0)
   }
   return efeitos
+}
+
+/** R6: o Dano recebido de UMA forma ("-20%" = 20), no teto de 100; `null` = a ficha não diz. */
+export function reducaoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | null {
+  const reducao = /-\s*(\d+)\s*%/.exec(cartao.campos[CAMPO_DO_DANO_RECEBIDO] ?? '')
+  return reducao === null ? null : Math.min(100, Number.parseInt(reducao[1] ?? '0', 10))
 }
 
 /** R6: o campo Deslocamento de UMA forma ("+2", "máx 6"), no teto do campo; cada parte `null` = a ficha não diz. */

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import type { AcaoDaForma, PedidoDeAcao } from '../../lib/batalha/combate'
 import { armazemDoAparelho, gravarEscolhaDaImagem, lerEscolhaDaImagem } from '../../lib/batalha/escolhaDaImagem'
-import { ataquesExtrasDaForma, deslocamentoDaForma, formaLivre, motivoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
+import { ataquesExtrasDaForma, deslocamentoDaForma, formaLivre, motivoDaForma, reducaoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
 import { formatarNumero, textoDaAcao, type PipDaVez } from './dadosDoMenu'
 import { CabecaDaVez, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
 import './batalha.css'
@@ -100,6 +100,7 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
   const usos = usosDaForma(forma.cartao)
   const deslocamento = textoDoDeslocamento(forma)
   const ataquesExtras = textoDosAtaquesExtras(forma)
+  const reducao = reducaoDaForma(forma.cartao)
 
   const ativar = (evento?: FormEvent) => {
     evento?.preventDefault()
@@ -132,7 +133,7 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
         {nome}
       </h3>
       {descricao !== '' && <p className="bt-forma__texto">{descricao}</p>}
-      {(forma.requisito !== null || (!forma.ligada && forma.troca.length > 0) || usos !== null || deslocamento !== null || ataquesExtras !== null) && (
+      {(forma.requisito !== null || (!forma.ligada && forma.troca.length > 0) || usos !== null || reducao !== null || deslocamento !== null || ataquesExtras !== null) && (
         <dl className="bt-passiva__leitura bt-forma__leitura">
           {forma.requisito !== null && (
             <div>
@@ -156,6 +157,12 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
             <div>
               <dt>Usos</dt>
               <dd>{usos === 1 ? '1 vez por batalha' : `${usos} vezes por batalha`}</dd>
+            </div>
+          )}
+          {reducao !== null && (
+            <div>
+              <dt>Dano recebido</dt>
+              <dd>-{formatarNumero(reducao)}% de todo dano que chega</dd>
             </div>
           )}
           {deslocamento !== null && (

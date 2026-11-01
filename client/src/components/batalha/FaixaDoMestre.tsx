@@ -59,7 +59,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
       const personagemId = carta.personagemId
       if (personagemId !== null) {
         itens.push({ id: 'perfil', rotulo: 'Ver perfil', detalhe: 'A ficha só para ler', onEscolher: () => setPerfilId(personagemId) })
-        itens.push({ id: 'ficha', rotulo: 'Abrir a ficha', detalhe: 'Ajustar HP e SP entra no registro', onEscolher: () => useRpgStore.getState().abrirFicha(personagemId) })
+        itens.push({ id: 'ficha', rotulo: 'Abrir a ficha', detalhe: 'A ficha inteira, para editar', onEscolher: () => useRpgStore.getState().abrirFicha(personagemId) })
       }
       const jaEaVez = carta.id === dados?.vez
       itens.push({
