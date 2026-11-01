@@ -50,7 +50,23 @@ export interface AcoesDaVez {
 const GASTO_ZERO: GastoDaVez = { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
 
 /** As ações da vez da carta, com o que já gastou e as extras do mestre. */
-export function acoesDaVez(gasto: GastoDaVez | undefined, extras: AcoesExtras | undefined, rankDeAgilidade: number | null, blocosPorRank: number): AcoesDaVez {
+/**
+ * R6 (lote de 01/11): o deslocamento das formas ligadas, por ação de
+ * Movimento: `aMais` casas somadas (Ignição: +2) e `max` o teto (Resiliente:
+ * 6). Quem lê da ficha é `efeitosDasFormasLigadas` (transformacao.ts).
+ */
+export interface MovimentoDaForma {
+  aMais: number | null
+  max: number | null
+}
+
+/** As casas de UMA ação de Movimento: rank × blocos por rank, mais o da forma, no teto dela. */
+function blocosPorMovimento(rankDeAgilidade: number, blocosPorRank: number, forma: MovimentoDaForma | undefined): number {
+  const base = rankDeAgilidade * blocosPorRank + (forma?.aMais ?? 0)
+  return forma?.max === null || forma?.max === undefined ? base : Math.min(base, forma.max)
+}
+
+export function acoesDaVez(gasto: GastoDaVez | undefined, extras: AcoesExtras | undefined, rankDeAgilidade: number | null, blocosPorRank: number, forma?: MovimentoDaForma): AcoesDaVez {
   const gastas = gasto ?? GASTO_ZERO
   const movimento: Contagem = { usadas: gastas.movimento, total: 1 + (extras?.mov ?? 0) }
   const sobram = Math.max(0, movimento.total - movimento.usadas)
@@ -58,7 +74,7 @@ export function acoesDaVez(gasto: GastoDaVez | undefined, extras: AcoesExtras | 
     simples: { usadas: gastas.simples, total: 1 + (extras?.simples ?? 0) },
     movimento,
     bonus: { usadas: gastas.bonus, total: extras?.bonus ?? 0 },
-    blocos: { andados: gastas.blocos, limite: rankDeAgilidade === null ? null : rankDeAgilidade * blocosPorRank * sobram },
+    blocos: { andados: gastas.blocos, limite: rankDeAgilidade === null ? null : blocosPorMovimento(rankDeAgilidade, blocosPorRank, forma) * sobram },
   }
 }
 

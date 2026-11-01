@@ -132,6 +132,10 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
         { id: 'requisito', rotulo: 'Requisito', forma: 'linha' },
         // Lote de 01/11 (R2): formas do mesmo Grupo se trocam na batalha; vazio = acumula com as outras.
         { id: 'grupo', rotulo: 'Grupo', forma: 'linha' },
+        { id: 'danoRecebido', rotulo: 'Dano recebido', forma: 'linha' },
+        { id: 'deslocamento', rotulo: 'Deslocamento', forma: 'linha' },
+        { id: 'ataquesExtras', rotulo: 'Ataques extras', forma: 'linha' },
+        { id: 'usos', rotulo: 'Usos por batalha', forma: 'linha' },
       ],
       imagem: true,
       modificadores: true,

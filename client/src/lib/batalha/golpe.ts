@@ -48,7 +48,7 @@ import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
-import { formaDaFicha, motivoDaForma } from './transformacao'
+import { efeitosDasFormasLigadas, formaDaFicha, formaLivre, motivoDaForma, usosDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -138,7 +138,10 @@ function contraDoPedido(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): ContraAtaqu
 /** As ações da carta na vez (com as extras e o "Mov" da regra do campo). */
 export function acoesDaCarta(ctx: Pick<ContextoDoGolpe, 'turnos' | 'carta' | 'personagem' | 'sistema' | 'regras'>): AcoesDaVez {
   const rank = ctx.personagem === null || ctx.sistema === null ? null : rankDeAgilidade(ctx.personagem, ctx.sistema)
-  return acoesDaVez(ctx.turnos.gastos[ctx.carta.id], ctx.turnos.extras[ctx.carta.id], rank, ctx.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO)
+  // R6: o deslocamento das formas ligadas (Ignição +2, Resiliente no máximo 6).
+  const formas = ctx.personagem === null || ctx.sistema === null ? null : efeitosDasFormasLigadas(ctx.personagem, ctx.sistema)
+  const movimento = formas === null ? undefined : { aMais: formas.deslocamentoAMais, max: formas.deslocamentoMax }
+  return acoesDaVez(ctx.turnos.gastos[ctx.carta.id], ctx.turnos.extras[ctx.carta.id], rank, ctx.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO, movimento)
 }
 
 function combateDe(ctx: ContextoDoGolpe): CombateDoPersonagem {
@@ -226,9 +229,13 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
     case 'transformar': {
       const { personagem, sistema } = ctx
       if (personagem === null || sistema === null) return 'Ficha sem personagem não se transforma'
-      if (formaDaFicha(personagem, sistema, pedido.cartaoId) === null) return 'Forma não encontrada na ficha'
+      const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
+      if (cartao === null) return 'Forma não encontrada na ficha'
       if (personagem.cartoesAtivos.includes(pedido.cartaoId)) return 'A forma já está ativa'
-      return motivoDaForma({ ligada: false }, pedido.acao, acoes)
+      // R6: "Usos por batalha" (Ignição: 2) e a Ação "Livre" (liga sem gastar ação).
+      const usos = usosDaForma(cartao)
+      if (usos !== null && (ctx.turnos.combate?.[personagem.id]?.usos[cartao.id] ?? 0) >= usos) return `Já usou as ${usos} vezes desta batalha`
+      return formaLivre(cartao) ? null : motivoDaForma({ ligada: false }, pedido.acao, acoes)
     }
     case 'destransformar': {
       const { personagem, sistema } = ctx
@@ -552,7 +559,7 @@ function textoDoAlvo(alvo: AlvoDoGolpe): string {
   const pedacos: string[] = []
   if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}${comATecnica(alvo)}`)
   if (alvo.semDano === true) pedacos.push('passou sem dano')
-  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
+  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.reducao === undefined ? '' : ` (forma −${alvo.reducao}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   return pedacos.join(' · ')
 }

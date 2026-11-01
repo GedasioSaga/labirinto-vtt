@@ -379,6 +379,8 @@ export interface AlvoDoGolpe {
   marcado?: true
   /** R3 (lote de 01/11): passou sem tomar dano (saída "esquiva", `danoFinal` 0). */
   semDano?: true
+  /** R6 (lote de 01/11): a forma ligada do alvo tirou este tanto por cento do dano (Resiliente: 20). */
+  reducao?: number
 }
 
 export interface GolpeDaBatalha {

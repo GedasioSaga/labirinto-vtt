@@ -47,7 +47,7 @@ import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
 import { ehAlvoDeMod, ehNomeDeSelo, selosDoToken, type SeloQueSoma } from './selos'
-import { aparenciaDaForma, nomeDaFormaLigada } from './transformacao'
+import { aparenciaDaForma, efeitosDasFormasLigadas, nomeDaFormaLigada } from './transformacao'
 import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from './turnos'
 
 /**
@@ -468,7 +468,10 @@ function acoesParaJogador(cena: BatalhaEmTurnos, daVez: CartaDaOrdem, ctx: Conte
   const { turnos } = cena
   const personagem = daVez.personagemId === null ? undefined : ctx.personagens.find((candidato) => candidato.id === daVez.personagemId)
   const rank = personagem === undefined || ctx.sistema === null ? null : rankDeAgilidade(personagem, ctx.sistema)
-  return acoesDaVez(turnos.gastos[daVez.id], turnos.extras[daVez.id], rank, cena.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO)
+  // R6: o mesmo deslocamento das formas que a store usa (`acoesDaCarta`).
+  const formas = personagem === undefined || ctx.sistema === null ? null : efeitosDasFormasLigadas(personagem, ctx.sistema)
+  const movimento = formas === null ? undefined : { aMais: formas.deslocamentoAMais, max: formas.deslocamentoMax }
+  return acoesDaVez(turnos.gastos[daVez.id], turnos.extras[daVez.id], rank, cena.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO, movimento)
 }
 
 /** O combate dos personagens DELE com carta na ordem, na ordem das cartas. */

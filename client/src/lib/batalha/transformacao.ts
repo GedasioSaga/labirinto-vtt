@@ -24,6 +24,69 @@ import { CAMPO_DA_ACAO, lerAcao } from './leituraDaFicha'
  * diferentes, ou sem grupo, acumulam como antes.
  */
 export const CAMPO_DO_GRUPO = 'grupo'
+/**
+ * R6 (lote de 01/11, os modos Lunarianos Ignição e Resiliente): os campos da
+ * forma que mexem na batalha enquanto ela está ligada. Texto livre, lido com
+ * folga: "Dano recebido" = "-20%"; "Deslocamento" = "+2" e/ou "máx 6";
+ * "Ataques extras" = "1" (por rodada, ao usar Atacar); "Usos por batalha" =
+ * "2". A Ação "Livre" liga e desliga sem gastar ação.
+ */
+export const CAMPO_DO_DANO_RECEBIDO = 'danoRecebido'
+export const CAMPO_DO_DESLOCAMENTO = 'deslocamento'
+export const CAMPO_DOS_ATAQUES_EXTRAS = 'ataquesExtras'
+export const CAMPO_DOS_USOS = 'usos'
+/** Teto do que o texto pode pedir (texto torto não vira 1000 ataques). */
+const NUMERO_DO_CAMPO_MAX = 99
+
+/** O primeiro inteiro do campo, de 1 ao teto; ausente ou torto, `null`. */
+function inteiroDoCampo(cartao: Pick<CartaoDaFicha, 'campos'>, campo: string): number | null {
+  const achado = /\d+/.exec(cartao.campos[campo] ?? '')
+  const numero = achado === null ? Number.NaN : Number.parseInt(achado[0], 10)
+  return Number.isInteger(numero) && numero >= 1 && numero <= NUMERO_DO_CAMPO_MAX ? numero : null
+}
+
+/** R6: a forma liga e desliga sem gastar ação (Ação "Livre"). */
+export function formaLivre(cartao: Pick<CartaoDaFicha, 'campos'>): boolean {
+  return normalizar(cartao.campos[CAMPO_DA_ACAO] ?? '').trim().startsWith('livre')
+}
+
+/** R6: quantas vezes a forma liga numa batalha; `null` = sem limite. */
+export function usosDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | null {
+  return inteiroDoCampo(cartao, CAMPO_DOS_USOS)
+}
+
+export interface EfeitosDasFormas {
+  /** Quanto do dano recebido sai (20 = -20%), de 0 a 100. */
+  reducaoDoDano: number
+  /** Casas a mais de deslocamento (a maior vale, não somam); `null` = nenhuma. */
+  deslocamentoAMais: number | null
+  /** Teto do deslocamento (o menor vale); `null` = sem teto. */
+  deslocamentoMax: number | null
+  /** Ataques a mais por rodada ao usar Atacar (o maior vale). */
+  ataquesExtras: number
+}
+
+/** R6: o que as formas ligadas do personagem fazem na batalha agora. Nenhuma: tudo zerado. */
+export function efeitosDasFormasLigadas(personagem: Personagem, sistema: SistemaDeRpg): EfeitosDasFormas {
+  const efeitos: EfeitosDasFormas = { reducaoDoDano: 0, deslocamentoAMais: null, deslocamentoMax: null, ataquesExtras: 0 }
+  for (const cartao of cartoesQueLigam(personagem, sistema)) {
+    if (!personagem.cartoesAtivos.includes(cartao.id)) continue
+    const reducao = /-\s*(\d+)\s*%/.exec(cartao.campos[CAMPO_DO_DANO_RECEBIDO] ?? '')
+    if (reducao !== null) efeitos.reducaoDoDano = Math.max(efeitos.reducaoDoDano, Math.min(100, Number.parseInt(reducao[1] ?? '0', 10)))
+    const deslocamento = normalizar(cartao.campos[CAMPO_DO_DESLOCAMENTO] ?? '')
+    const aMais = /\+\s*(\d+)/.exec(deslocamento)
+    const teto = /max\w*\s*(\d+)/.exec(deslocamento)
+    if (aMais !== null) efeitos.deslocamentoAMais = Math.max(efeitos.deslocamentoAMais ?? 0, Math.min(NUMERO_DO_CAMPO_MAX, Number.parseInt(aMais[1] ?? '0', 10)))
+    if (teto !== null) efeitos.deslocamentoMax = Math.min(efeitos.deslocamentoMax ?? NUMERO_DO_CAMPO_MAX, Number.parseInt(teto[1] ?? '0', 10))
+    efeitos.ataquesExtras = Math.max(efeitos.ataquesExtras, inteiroDoCampo(cartao, CAMPO_DOS_ATAQUES_EXTRAS) ?? 0)
+  }
+  return efeitos
+}
+
+/** R6: o dano que chega com a redução das formas (Resiliente: -20%), arredondado. */
+export function danoComAReducao(dano: number, reducaoDoDano: number): number {
+  return reducaoDoDano <= 0 ? dano : Math.max(0, Math.round((dano * (100 - reducaoDoDano)) / 100))
+}
 /** C6 (lote de 01/11): o que é preciso para transformar ("Vida abaixo de 50%"). Só mostra: o app não confere. */
 export const CAMPO_DO_REQUISITO = 'requisito'
 

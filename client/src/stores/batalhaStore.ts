@@ -72,7 +72,7 @@ import {
   textoDoSeloComMods,
   textoDosQueAcabaram,
 } from '../lib/batalha/selos'
-import { ativarForma, desfazerForma, formaDaFicha } from '../lib/batalha/transformacao'
+import { ativarForma, danoComAReducao, desfazerForma, efeitosDasFormasLigadas, formaDaFicha, formaLivre, usosDaForma } from '../lib/batalha/transformacao'
 import { equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
@@ -828,7 +828,13 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   const atacante = golpe.atacantePersonagemId === null ? undefined : mesa.personagens().find((personagem) => personagem.id === golpe.atacantePersonagemId)
   const passiva = sistema === null || atacante === undefined ? null : (passivaDaMarca(atacante, sistema)?.cartao ?? null)
   const tecnicaQueMarca = golpe.marca === undefined ? null : { id: golpe.marca, nome: golpe.nome }
-  return acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, tecnicaQueMarca })
+  const acerto = acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, tecnicaQueMarca })
+  // R6: a forma ligada do alvo que reduz o dano recebido (Resiliente: -20%), depois do dobro da marca.
+  const dele = alvo.personagemId === null || sistema === null ? undefined : mesa.personagens().find((personagem) => personagem.id === alvo.personagemId)
+  const { danoFinal } = acerto.alvo
+  if (dele === undefined || sistema === null || danoFinal === undefined || danoFinal <= 0) return acerto
+  const { reducaoDoDano } = efeitosDasFormasLigadas(dele, sistema)
+  return reducaoDoDano <= 0 ? acerto : { ...acerto, alvo: { ...acerto.alvo, danoFinal: danoComAReducao(danoFinal, reducaoDoDano), reducao: reducaoDoDano } }
 }
 
 /** A linha do registro com outro texto e mais partes na reversão (o golpe que se resolve alvo a alvo). */
@@ -975,8 +981,19 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
         return feito?.personagem ?? null
       })
       if (fichaMudou === null) return false
-      partes.push({ tipo: 'gasto', cartaId: carta.id, antes: turnos.gastos[carta.id] ?? null })
-      novos = { ...novos, gastos: { ...novos.gastos, [carta.id]: gastarAcao(turnos.gastos[carta.id] ?? GASTO_ZERO, pedido.acao) } }
+      // R6: a forma "Livre" não gasta ação; a de "Usos por batalha" conta o uso (o Desfazer o devolve pela parte "combate").
+      const livre = cartao !== null && formaLivre(cartao)
+      if (!livre) {
+        partes.push({ tipo: 'gasto', cartaId: carta.id, antes: turnos.gastos[carta.id] ?? null })
+        novos = { ...novos, gastos: { ...novos.gastos, [carta.id]: gastarAcao(turnos.gastos[carta.id] ?? GASTO_ZERO, pedido.acao) } }
+      }
+      if (cartao !== null && usosDaForma(cartao) !== null) {
+        const combateAntes = turnos.combate?.[personagemId]
+        const base = combateAntes ?? combateVazio()
+        const depois: CombateDoPersonagem = { ...base, usos: { ...base.usos, [cartao.id]: (base.usos[cartao.id] ?? 0) + 1 } }
+        partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
+        novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
+      }
       // O Desfazer volta as partes de trás para a frente: o cartão vem PRIMEIRO aqui para o ganho voltar antes de
       // desligar (1.500/1.800 → 900/1.800 → 900/1.200). Na ordem de `partesDoAjuste`, o corte do desligar viria antes
       // e o delta tiraria o ganho de novo (1.200 − 600 = 600).
@@ -989,7 +1006,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: carta.tokenId, forma: nomeDaForma, imagem }
       if (numeros.length > 0) efeito.numeros = numeros
       efeitos.push(efeito)
-      texto = `${quemAge} ativa ${nomeDaForma} (${ROTULO_DA_ACAO_DA_FORMA[pedido.acao]})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
+      const comoAtiva = cartao !== null && formaLivre(cartao) ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
+      texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
     } else {
       const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
       if (fichaMudou === null) return false
