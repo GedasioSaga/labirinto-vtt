@@ -1124,3 +1124,75 @@ button.bt-carta__corpo {
     }
   }
 }
+
+/* ---------------------------------------------------------------- invocação F3: a carta do bando */
+/* Os rostos empilhados no lugar do retrato, no anel da cor do dono; a faixa da mesma cor na borda esquerda diz "de quem". */
+.bt-carta[data-bando='sim'] .bt-carta__corpo {
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-panel), inset 3px 0 0 var(--lado, var(--bt-lado-padrao)), var(--lb-shadow-bevel);
+}
+.bt-carta[data-bando='sim'][data-vez='sim'] .bt-carta__corpo {
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass), inset 5px 0 0 var(--lado, var(--bt-lado-padrao)), var(--lb-shadow-md);
+}
+.bt-carta__rostos {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 26px;
+}
+.bt-carta__rosto {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--lb-color-stone-sunken);
+  box-shadow: 0 0 0 1.5px var(--lb-color-stone-raised), 0 0 0 3px var(--lado, var(--bt-lado-padrao));
+}
+.bt-carta__rosto + .bt-carta__rosto {
+  margin-left: -8px;
+}
+.bt-carta__rosto:nth-child(1) {
+  z-index: 3;
+}
+.bt-carta__rosto:nth-child(2) {
+  z-index: 2;
+}
+.bt-carta__rosto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bt-carta__rosto .lb-ficha__iniciais {
+  font-family: var(--lb-font-utility);
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--lb-color-parchment);
+}
+.bt-carta__membros {
+  display: grid;
+  gap: 3px;
+  margin-top: 4px;
+}
+.bt-carta__membro {
+  display: block;
+  min-width: 0;
+}
+.bt-carta__membro-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb-color-parchment);
+}
+.bt-barra.bt-barra--fina {
+  height: 3px;
+  margin-top: 2px;
+}
+.bt-carta__membro .bt-carta__linha {
+  margin-top: 0;
+}
+.bt-carta__membro .bt-carta__oculta {
+  display: inline;
+  margin: 0;
+}

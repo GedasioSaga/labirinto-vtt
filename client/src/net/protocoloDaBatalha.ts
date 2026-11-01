@@ -18,6 +18,7 @@ import {
   NATUREZAS_DO_SELO,
   NOME_DA_FORMA_MAX,
   NOME_DO_GOLPE_MAX,
+  NOME_DO_INVOCADO_MAX,
   NUMERO_DA_FORMA_MAX,
   NUMEROS_DA_FORMA_MAX,
   PASSIVAS_ATIVAS_MAX,
@@ -56,6 +57,7 @@ import {
   APARENCIAS_MAX,
   CARTAS_PARA_JOGADOR_MAX,
   CARTOES_NO_COMBATE_MAX,
+  INVOCACOES_DO_DONO_MAX,
   MEUS_NO_COMBATE_MAX,
   NOME_NA_CARTA_MAX,
   type AcoesParaJogador,
@@ -67,6 +69,7 @@ import {
   type EfeitoParaJogador,
   type EstadoParaJogador,
   type GolpeParaJogador,
+  type InvocacaoDoDono,
   type LadoNaCarta,
   type MembroDoBandoParaJogador,
   type ReacaoParaJogador,
@@ -856,12 +859,24 @@ function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unk
   const lembradas = value.lembradas === undefined ? undefined : lerLista(value.lembradas, LEMBRADAS_MAX, lerChaveLembrada)
   const ativas = value.passivasAtivas === undefined ? undefined : lerLista(value.passivasAtivas, PASSIVAS_ATIVAS_MAX, lerCartaoId)
   const evoluidas = value.evoluidas === undefined ? undefined : lerLista(value.evoluidas, EVOLUIDAS_MAX, lerCartaoId)
-  if (lembretes === null || lembradas === null || ativas === null || evoluidas === null) return null
+  // Invocação F3: as pendências e os postos do dono (nome, rótulo, opção; nada de números).
+  const invocacoes = value.invocacoes === undefined ? undefined : lerLista(value.invocacoes, INVOCACOES_DO_DONO_MAX, lerInvocacaoDoDono)
+  if (lembretes === null || lembradas === null || ativas === null || evoluidas === null || invocacoes === null) return null
+  if (invocacoes !== undefined) combate.invocacoes = invocacoes
   if (lembretes !== undefined) combate.lembretes = lembretes
   if (lembradas !== undefined) combate.lembradas = lembradas
   if (ativas !== undefined) combate.passivasAtivas = ativas
   if (evoluidas !== undefined) combate.evoluidas = evoluidas
   return combate
+}
+
+/** Invocação F3: um invocado do dono no recorte. Ids, opção, nome e rótulo no teto; `posto` booleano. */
+function lerInvocacaoDoDono(value: unknown): InvocacaoDoDono | null {
+  if (!isRecord(value)) return null
+  const { id, cartaoId, opcao, nome, rotulo, posto } = value
+  if (!textoAte(id, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX) || !textoAte(opcao, 1, NOME_DO_GOLPE_MAX)) return null
+  if (!textoAte(nome, 0, NOME_DO_INVOCADO_MAX) || !textoAte(rotulo, 0, NOME_DO_GOLPE_MAX) || typeof posto !== 'boolean') return null
+  return { id, cartaoId, opcao, nome, rotulo, posto }
 }
 
 function lerD20(value: unknown): value is number {

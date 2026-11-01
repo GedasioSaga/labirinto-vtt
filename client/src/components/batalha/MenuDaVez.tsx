@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
-import type { PedidoDeAcao } from '../../lib/batalha/combate'
+import type { AcaoDaTecnica, PedidoDeAcao } from '../../lib/batalha/combate'
+import type { OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
+import type { MotivoDaOpcao } from './dadosDaInvocacao'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
 import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
+import { MiraDaInvocacao } from './MiraDaInvocacao'
 import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
 import { ListaDePassivasDoMenu, type PassivasNoMenu } from './PassivasDaBatalha'
 import './batalha.css'
@@ -30,6 +33,33 @@ export interface ContraNoMenu {
   golpeId: string
   /** "contra Vera": de qual golpe veio (há como guardar mais de um). */
   rotulo: string
+}
+
+/**
+ * Invocação F3: o que o menu precisa para a técnica de Tipo Invocação (a
+ * mira da invocação e o "esperando o mestre"). Ausente = a mesa não invoca
+ * (a Arena): a técnica fica apagada.
+ */
+export interface InvocarNoMenu {
+  /** As opções e a imagem da técnica; `null` = não é invocação. */
+  leitura: (cartaoId: string) => { opcoes: readonly OpcaoDaInvocacao[]; imagem: string | null } | null
+  contar: (cartaoId: string, opcao: OpcaoDaInvocacao) => number
+  motivo: (cartaoId: string) => MotivoDaOpcao
+  onInvocar: (cartaoId: string, opcao: string, custo: number | null, acao: AcaoDaTecnica | null) => boolean
+  /** Os invocados dele que esperam o mestre pôr no mapa. */
+  esperando: readonly { id: string; nome: string }[]
+}
+
+/** A técnica de Tipo Invocação numa mesa sem o Invocar, ou fora da vez. */
+const SEM_INVOCAR = 'Invocação: não vale nesta mesa'
+const INVOCAR_SO_NA_VEZ = 'Invocação: só na sua vez'
+
+/** "1 Lobo", "2 Lobos e 1 Ultra Lobo": quem espera o mestre, contado por nome. */
+export function textoDaEspera(esperando: readonly { nome: string }[]): string {
+  const contagem = new Map<string, number>()
+  for (const item of esperando) contagem.set(item.nome, (contagem.get(item.nome) ?? 0) + 1)
+  const partes = [...contagem].map(([nome, quantos]) => `${quantos} ${nome}`)
+  return partes.length <= 1 ? (partes[0] ?? '') : `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}`
 }
 
 export interface MenuDaVezProps {
@@ -69,9 +99,17 @@ export interface MenuDaVezProps {
   passivas?: PassivasNoMenu
   /** Tipos de habilidade F4: o Evoluir na leitura das Habilidades (a técnica que ainda evolui). Ausente = sem o botão. */
   evoluir?: EvoluirNaTela
+  /** Invocação F3: a mira da invocação. Ausente = a técnica de Tipo Invocação fica apagada. */
+  invocacao?: InvocarNoMenu
 }
 
-type Tela = { tipo: 'menu' } | { tipo: 'lista'; de: 'atacar' | 'habilidade' } | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' } | { tipo: 'formas' } | { tipo: 'passivas' }
+type Tela =
+  | { tipo: 'menu' }
+  | { tipo: 'lista'; de: 'atacar' | 'habilidade' }
+  | { tipo: 'mira'; golpe: GolpeNaTela; de: 'atacar' | 'habilidade' }
+  | { tipo: 'invocacao'; golpe: GolpeNaTela }
+  | { tipo: 'formas' }
+  | { tipo: 'passivas' }
 
 const SEM_MOTIVO = null
 const SEM_CONTRAS: readonly ContraNoMenu[] = []
@@ -79,7 +117,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao } = props
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
@@ -87,7 +125,10 @@ export function MenuDaVez(props: MenuDaVezProps) {
   const contra = contras.find((candidato) => candidato.golpeId === contraId) ?? (foraDaVez && contras.length === 1 ? contras[0] : undefined)
   const modoContra = contra !== undefined
   const armas = modoContra && golpesDoContra !== undefined ? golpesDoContra.armas : props.armas
-  const habilidades = modoContra && golpesDoContra !== undefined ? golpesDoContra.habilidades : props.habilidades
+  // Invocação F3: sem o Invocar (Arena) ou no contra-ataque, a técnica de Tipo Invocação fica apagada.
+  const habilidadesDaFicha = modoContra && golpesDoContra !== undefined ? golpesDoContra.habilidades : props.habilidades
+  const motivoSemInvocar = invocacao === undefined ? SEM_INVOCAR : modoContra || foraDaVez ? INVOCAR_SO_NA_VEZ : null
+  const habilidades = motivoSemInvocar === null ? habilidadesDaFicha : habilidadesDaFicha.map((golpe) => (golpe.invocacao === true ? { ...golpe, motivo: motivoSemInvocar } : golpe))
   const [recolhido, setRecolhido] = useState(false)
   const [porTeclado, setPorTeclado] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -167,7 +208,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
         vazio={tela.de === 'atacar' ? 'Nenhuma arma levada para esta batalha.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
         evoluir={tela.de === 'habilidade' ? evoluir : undefined}
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
-        onEscolher={(golpe) => abrir({ tipo: 'mira', golpe, de: tela.de }, false)}
+        onEscolher={(golpe) => abrir(golpe.invocacao === true && tela.de === 'habilidade' ? { tipo: 'invocacao', golpe } : { tipo: 'mira', golpe, de: tela.de }, false)}
       />
     )
   }
@@ -204,6 +245,35 @@ export function MenuDaVez(props: MenuDaVezProps) {
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
       />
     )
+  }
+
+  if (tela.tipo === 'invocacao' && invocacao !== undefined && tela.golpe.cartaoId !== null) {
+    const { cartaoId } = tela.golpe
+    const leitura = invocacao.leitura(cartaoId)
+    if (leitura !== null)
+      return (
+        <div className="bt-vez bt-vez--lista" data-instantaneo="sim">
+          <CabecaDaVez quem={quem} pips={pips} carga={carga} />
+          <MiraDaInvocacao
+            key={tela.golpe.chave}
+            golpe={tela.golpe}
+            opcoes={leitura.opcoes}
+            imagem={leitura.imagem}
+            contar={(opcao) => invocacao.contar(cartaoId, opcao)}
+            motivo={invocacao.motivo(cartaoId)}
+            quemPede="jogador"
+            onVoltar={() => abrir({ tipo: 'lista', de: 'habilidade' }, true)}
+            onInvocar={(opcao, custo, acao) => {
+              const saiu = invocacao.onInvocar(cartaoId, opcao, custo, acao)
+              if (saiu) {
+                setTela({ tipo: 'menu' })
+                setAtual(0)
+              }
+              return saiu
+            }}
+          />
+        </div>
+      )
   }
 
   if (tela.tipo === 'mira') {
@@ -344,6 +414,12 @@ export function MenuDaVez(props: MenuDaVezProps) {
   return (
     <div className="bt-vez" data-instantaneo={porTeclado ? 'sim' : 'nao'} onKeyDown={teclar} aria-busy={esperando ? true : undefined}>
       <CabecaDaVez quem={modoContra || foraDaVez ? `${quem} · contra-ataque` : quem} pips={pips} carga={carga} />
+      {invocacao !== undefined && invocacao.esperando.length > 0 && (
+        <p className="bt-vez__espera" role="status">
+          <span className="bt-vez__espera-ponto" aria-hidden="true" />
+          Esperando o mestre pôr no mapa: {textoDaEspera(invocacao.esperando)}
+        </p>
+      )}
       <ul className="bt-vez__tiras" aria-label={modoContra || foraDaVez ? 'Contra-ataque' : `Ações de ${quem}`} onScroll={semRolarDeLado}>
         {itens.map((item, indice) => (
           <li key={item.chave} className={item.zerar === undefined ? undefined : 'bt-vez__com-zerar'}>

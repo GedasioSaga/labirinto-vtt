@@ -3108,3 +3108,363 @@
     background: #2b2a27;
   }
 }
+
+/* ---------------------------------------------------------------- invocação (F3 de docs/planos/batalha-invocacao-plano.md) */
+/* A ficha de quem vem: o bloco de tinta com a sombra do sangue (a mesma da opção escolhida); o Ultra troca a sombra pelo latão. */
+.bt-invoca__ficha {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 3px;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  box-shadow: 4px 4px 0 var(--bt-sangue);
+  transition: opacity var(--lb-motion-fast) ease, box-shadow var(--lb-motion-fast) ease;
+}
+.bt-invoca__ficha[data-ultra='sim'] {
+  box-shadow: 4px 4px 0 var(--lb-color-brass);
+}
+.bt-invoca__ficha[data-apagada='sim'] {
+  opacity: 0.55;
+}
+.bt-invoca__retrato {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--lb-color-stone-sunken);
+  box-shadow: 0 0 0 2px var(--bt-papel);
+}
+.bt-invoca__retrato img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bt-invoca__retrato .lb-ficha__iniciais {
+  font-family: var(--bt-titulo);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--bt-papel);
+}
+.bt-invoca__corpo {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.bt-invoca__quem {
+  font-family: var(--bt-titulo);
+  font-stretch: condensed;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.05;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.bt-invoca__numeros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+}
+.bt-invoca__numeros > div {
+  display: grid;
+  min-width: 0;
+}
+.bt-invoca__numeros dt {
+  font-family: var(--lb-font-utility);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-invoca__numeros dd {
+  margin: 0;
+  font-family: var(--bt-titulo);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.bt-invoca__numeros dd small {
+  font-family: var(--lb-font-utility);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--lb-color-parchment-dim);
+}
+/* Os sugeridos (Ultra) vêm sublinhados: o mestre ajusta ao colocar. */
+.bt-invoca__numeros[data-sugeridos='sim'] dd {
+  color: var(--lb-color-brass-bright);
+  text-decoration: underline dashed 1px;
+  text-underline-offset: 4px;
+}
+.bt-invoca__sugeridos {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-invoca__regras {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: #3d3b37;
+}
+.bt-invoca__regras li {
+  position: relative;
+  padding-left: 14px;
+}
+.bt-invoca__regras li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.5em;
+  width: 6px;
+  height: 6px;
+  background: var(--bt-sangue);
+  transform: rotate(45deg);
+}
+/* O porquê de o Invocar estar apagado, perto do botão. */
+.bt-invoca__motivo {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--bt-sangue);
+  color: #8a2c22;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+}
+.bt-invoca__conta {
+  margin-left: 8px;
+  font-family: var(--lb-font-utility);
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+.bt-escolha__chip[data-apagada='sim'] {
+  box-shadow: inset 0 0 0 1px rgba(12, 12, 14, 0.3);
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgba(12, 12, 14, 0.07) 6px 7px);
+  color: #5d5a54;
+}
+.bt-escolha__chip[data-apagada='sim']:has(input:checked) {
+  background-color: #4a4843;
+  background-image: none;
+  color: var(--bt-papel);
+}
+
+/* Invocação F3: "Esperando o mestre pôr no mapa: 1 Lobo" no menu da vez e na coluna dos lembretes do jogador. */
+.bt-vez__espera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 18px 8px 6px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  background: rgba(224, 164, 74, 0.14);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.3;
+}
+.bt-vez__espera-ponto {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-bright);
+  animation: bt-espera 1.6s ease-in-out infinite;
+}
+@keyframes bt-espera {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bt-vez__espera-ponto {
+    animation: none;
+  }
+}
+.pp-batalha-lembretes .bt-vez__espera {
+  margin: 0 0 6px;
+  background: rgba(20, 18, 16, 0.86);
+}
+
+/* Invocação F3, mestre: a lista Invocações (pôr no mapa), o Colocar armado e a vez do bando. */
+.bt-invocacao[data-armada='sim'] {
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass);
+}
+.bt-invocacao__linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.bt-invocacao__rosto {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--lb-color-stone-raised);
+  box-shadow: 0 0 0 1.5px var(--lado, var(--lb-color-line-strong));
+}
+.bt-invocacao__rosto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bt-invocacao__rosto .lb-ficha__iniciais {
+  font-family: var(--bt-titulo);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lb-color-parchment);
+}
+.bt-invocacao__texto {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.bt-invocacao__texto small {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+  font-variant-numeric: tabular-nums;
+}
+.bt-invocacao__pergunta {
+  flex-basis: 100%;
+  color: var(--lb-color-parchment);
+}
+.bt-invocacao__editor {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--lb-color-line);
+}
+.bt-invocacao__campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5em, 1fr));
+  gap: 6px 12px;
+}
+.bt-invocacao__editor .bt-linha-campo > span:first-child {
+  min-width: 3.5em;
+  color: var(--lb-color-parchment-faint);
+}
+/* No painel escuro do mestre, o campo é de pedra (o mesmo do modificador da reação). */
+.bt-invocacao__editor .bt-num {
+  background: var(--lb-color-stone-raised);
+  border-color: var(--lb-color-line-strong);
+  color: var(--lb-color-parchment);
+}
+.bt-invocacao__editor .bt-num--texto {
+  width: 13ch;
+  text-align: left;
+}
+/* Os sugeridos (Ultra): tracejado de latão até o mestre conferir. */
+.bt-invocacao__editor .bt-num[data-sugerido='sim'] {
+  border-style: dashed;
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass-bright);
+}
+.bt-invocacao__sugeridos {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+}
+
+/* "Clique na casa onde o Lobo nasce": sobre o mapa, embaixo e no meio, enquanto o Colocar está armado. */
+.bt-aviso-colocacao {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 8px 8px 8px 14px;
+  border-radius: 4px;
+  background: rgba(20, 18, 16, 0.92);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass-soft), var(--lb-shadow-float);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  transform: translateX(-50%);
+  transition:
+    opacity 180ms var(--bt-ease-out),
+    transform 180ms var(--bt-ease-out);
+}
+@starting-style {
+  .bt-aviso-colocacao {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+.bt-aviso-colocacao b {
+  color: var(--lb-color-brass-bright);
+}
+.lb-editor__canvas--colocando canvas {
+  cursor: crosshair !important;
+}
+
+/* A vez do bando: os rostos empilhados no lugar do retrato, e quem já atacou fica de lado. */
+.bt-npc__retrato.bt-bando__rostos {
+  display: flex;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+.bt-bando__rosto {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--lb-color-stone-raised);
+  box-shadow: 0 0 0 2px var(--lb-color-stone-sunken), 0 0 0 3.5px var(--lado, var(--lb-color-line-strong));
+}
+.bt-bando__rosto + .bt-bando__rosto {
+  margin-left: -10px;
+}
+.bt-bando__rosto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bt-bando__rosto .lb-ficha__iniciais {
+  font-family: var(--bt-titulo);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lb-color-parchment);
+}
+.bt-opcao--membro {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+.bt-opcao--membro[data-atacou='sim'] .bt-opcao__nome {
+  color: var(--lb-color-parchment-dim);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bt-aviso-colocacao {
+    transition: opacity 180ms ease;
+  }
+}
+.bt-invocacao__editor p {
+  margin: 0;
+}

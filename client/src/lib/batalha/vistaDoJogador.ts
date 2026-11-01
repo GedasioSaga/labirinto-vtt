@@ -14,8 +14,10 @@ import {
   ID_DO_CARTAO_MAX,
   LEMBRADAS_MAX,
   LEMBRETES_MAX,
+  INVOCACOES_PENDENTES_MAX,
   MEMBROS_DO_BANDO_MAX,
   MODS_POR_SELO_MAX,
+  NOME_DO_INVOCADO_MAX,
   NOME_DA_FORMA_MAX,
   NOME_DO_GOLPE_MAX,
   NOME_DO_SELO_MAX,
@@ -188,7 +190,30 @@ export interface CombateParaJogador {
   passivasAtivas?: string[]
   /** Tipos de habilidade F4: os cartaoIds base que evoluíram nesta batalha (o menu apaga e libera por eles). Ausente = nenhum. */
   evoluidas?: string[]
+  /**
+   * Invocação F3: os invocados DESTE dono, esperando o mestre colocar (`posto` false) ou já no mapa. Só do
+   * personagem dele: o nome e a opção, nunca números (o HP do invocado vai no bando, só do lado do dono).
+   * A tela conta o máximo da opção e mostra "esperando o mestre colocar". Ausente = nenhum.
+   */
+  invocacoes?: InvocacaoDoDono[]
 }
+
+/** Invocação F3: um invocado do dono, como a tela dele o mostra. */
+export interface InvocacaoDoDono {
+  /** O id da pendência (`invocacao_<uuid>`) ou o tokenId do invocado posto. */
+  id: string
+  cartaoId: string
+  /** A chave da opção (`lerInvocacao`), para contar o máximo dela. */
+  opcao: string
+  /** O nome no mapa ("Lobo"). */
+  nome: string
+  /** O nome da opção na ficha ("LOBOS COMUNS"). */
+  rotulo: string
+  posto: boolean
+}
+
+/** Invocação F3: teto da lista do dono (as pendências da mesa + um bando cheio). */
+export const INVOCACOES_DO_DONO_MAX = INVOCACOES_PENDENTES_MAX + MEMBROS_DO_BANDO_MAX
 
 export interface ReacaoParaJogador {
   golpeId: string
@@ -438,7 +463,7 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
     }
     // Passivas e evoluções só do personagem DELE: o token de NPC que ele controla entra em `meus`, mas o lembrete
     // "vida abaixo de 50%" contaria a vida do NPC.
-    meus.push(ctx.meusPersonagens.has(personagemId) ? comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]) : meu)
+    meus.push(ctx.meusPersonagens.has(personagemId) ? comInvocacoesDoDono(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]), turnos, personagemId) : meu)
   }
   return meus
 }
@@ -463,6 +488,27 @@ function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem
   if (lembradas.length > 0) meu.lembradas = lembradas
   if (passivasAtivas.length > 0) meu.passivasAtivas = passivasAtivas
   if (evoluidas.length > 0) meu.evoluidas = evoluidas
+  return meu
+}
+
+/**
+ * Invocação F3: as pendências e os invocados postos do personagem DELE (nome,
+ * rótulo e a opção; nada de números). No teto do fio; nenhum = campo ausente.
+ */
+function comInvocacoesDoDono(meu: CombateParaJogador, turnos: TurnosDaCena, personagemId: string): CombateParaJogador {
+  const cabe = (de: { cartaoId: string; opcao: string; rotulo: string }): boolean =>
+    de.cartaoId.length >= 1 && de.cartaoId.length <= ID_DO_CARTAO_MAX && de.opcao.length >= 1 && de.opcao.length <= NOME_DO_GOLPE_MAX && de.rotulo.length <= NOME_DO_GOLPE_MAX
+  const nomeNoTeto = (nome: string): string => nome.slice(0, NOME_DO_INVOCADO_MAX)
+  const lista: InvocacaoDoDono[] = []
+  for (const pendente of turnos.invocacoes ?? []) {
+    if (pendente.donoPersonagemId !== personagemId || !cabe(pendente)) continue
+    lista.push({ id: pendente.id, cartaoId: pendente.cartaoId, opcao: pendente.opcao, nome: nomeNoTeto(pendente.nome), rotulo: pendente.rotulo, posto: false })
+  }
+  for (const invocado of turnos.invocados ?? []) {
+    if (invocado.donoPersonagemId !== personagemId || !cabe({ ...invocado, rotulo: '' })) continue
+    lista.push({ id: invocado.tokenId, cartaoId: invocado.cartaoId, opcao: invocado.opcao, nome: nomeNoTeto(invocado.nome), rotulo: '', posto: true })
+  }
+  if (lista.length > 0) meu.invocacoes = lista.slice(0, INVOCACOES_DO_DONO_MAX)
   return meu
 }
 

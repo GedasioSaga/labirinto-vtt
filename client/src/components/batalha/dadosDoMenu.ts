@@ -1,4 +1,4 @@
-import { acaoDoGolpe, motivoDaAcao, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
+import { acaoDoGolpe, motivoDaAcao, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
 import {
   CARGA_MAX,
   MULTIPLICADOR_DA_CARGA,
@@ -115,6 +115,8 @@ export interface GolpeNaTela {
   evolucao?: EvolucaoNaTela
   /** Tipos de habilidade F4: as opções "um ou outro" (a principal primeiro), os chips da mira; ausente = sem escolha. */
   opcoes?: readonly OpcaoNaTela[]
+  /** Invocação F3: a técnica de Tipo Invocação. Abre a mira da invocação (não lança golpe); o `motivo` é o do Invocar. */
+  invocacao?: boolean
 }
 
 /**
@@ -385,6 +387,7 @@ function golpeDaTecnica(
   arma: ArmaDaFicha | null,
   bonus: BonusDaBatalha | undefined,
   todas: readonly CartaoDaFicha[],
+  acoes: AcoesDaVez | null,
 ): GolpeNaTela {
   const dano = danoNaTela(tecnica.dano)
   const balas = balasDaTecnica(tecnica.cartao, personagem, sistema, arma, bonus)
@@ -415,6 +418,12 @@ function golpeDaTecnica(
     leitura: leituraDoCartao(tecnica.cartao, sistema, ABA_DAS_TECNICAS, dano),
   }
   if (tecnica.forma !== undefined) golpe.forma = tecnica.forma
+  // Invocação F3: a regra do Invocar (`motivoDaInvocacao`): a técnica como toda técnica, sem a carga virar Completa.
+  if (tipo === 'invocacao') {
+    golpe.invocacao = true
+    const { transformacao } = lerAcao(tecnica.cartao.campos[CAMPO_DA_ACAO] ?? '')
+    golpe.motivo = motivoDaTecnica({ ...tecnica, transformacao }, personagem, sistema, combate === undefined ? undefined : { ...combate, carga: 0 }, acoes, false, true)
+  }
   // Tipos de habilidade F2: Buff e Debuff trazem o selo com mods (editável na mira); o resto, o "por N turnos" de sempre.
   const selo = seloSugeridoDaTecnica(tecnica.cartao, sistema)
   if (selo !== null) golpe.selo = selo
@@ -449,7 +458,7 @@ export function golpesDeHabilidade(
   bonus?: BonusDaBatalha,
 ): GolpeNaTela[] {
   const todas = tecnicasDe(personagem, sistema)
-  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas))
+  return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes))
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */

@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDePassiva } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type InvocadoNaBatalha, type PedidoDeAcao, type PedidoDePassiva } from '../../lib/batalha/combate'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
+import { acoesDoInvocado, comunsQueSaem, membrosDoBando, motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
@@ -19,8 +20,11 @@ import { AcoesExtrasDialog } from './AcoesExtrasDialog'
 import { DarDanoDialog } from './DarDanoDialog'
 import { EfeitosDaBatalha } from './EfeitosDaBatalha'
 import { recursosDaCarta } from './dadosDaFaixa'
+import { invocacaoDaFicha, nomeDoBando, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { MOTIVO_SEM_PERSONAGEM, armasNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
+import { InvocacoesPendentes, PainelDoBando, type MembroNaVez, type PendenciaNaTela } from './InvocacoesDoMestre'
+import type { InvocarNoMenu } from './MenuDaVez'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
 import { LembretesDaPassiva, PassivasDaFicha, lembretesNaTela, passivasNaCena, type LembreteNaTela } from './PassivasDaBatalha'
@@ -105,13 +109,50 @@ function ehDoMestre(personagemId: string | null, personagens: readonly Personage
   return personagens.find((personagem) => personagem.id === personagemId)?.tipo === 'npc'
 }
 
-/** Os alvos da mira do mestre: uma por ficha na ordem, do ponto de vista de quem age. */
+const SEM_INVOCADOS: readonly InvocadoNaBatalha[] = []
+
+/** O personagem que dá a equipe: o invocado conta como o dono (a ficha temporária dele não tem equipe). */
+function personagemDaEquipe(mesa: Mesa, personagemId: string | null): string | null {
+  if (personagemId === null) return null
+  return (mesa.cena?.turnos?.invocados ?? SEM_INVOCADOS).find((invocado) => invocado.personagemId === personagemId)?.donoPersonagemId ?? personagemId
+}
+
+/** O HP de um invocado (a ficha temporária dele); sem ficha ou sem vida, `null`. */
+function vidaDoInvocado(mesa: Mesa, invocado: InvocadoNaBatalha): { atual: number; maximo: number } | null {
+  const personagem = mesa.personagens.find((candidato) => candidato.id === invocado.personagemId)
+  const vida = personagem === undefined ? undefined : recursosDaCarta(personagem, mesa.sistema).find((recurso) => recurso.tom === 'vida')
+  return vida === undefined ? null : { atual: vida.atual, maximo: vida.maximo }
+}
+
+/** Os alvos da mira do mestre: uma por ficha na ordem, do ponto de vista de quem age. A carta do bando vira os invocados dela. */
 function alvosDaOrdem(mesa: Mesa, cartas: readonly CartaDaOrdem[], quemAge: CartaDaOrdem): AlvoNaMira[] {
   const caidos = tokensCaidos(cartas, mesa.personagens, mesa.sistema)
-  const equipeDeQuem = quemAge.personagemId === null ? null : (equipeDe(quemAge.personagemId, mesa.equipes)?.id ?? null)
+  const daEquipe = personagemDaEquipe(mesa, quemAge.personagemId)
+  const equipeDeQuem = daEquipe === null ? null : (equipeDe(daEquipe, mesa.equipes)?.id ?? null)
+  const invocados = mesa.cena?.turnos?.invocados ?? SEM_INVOCADOS
   const vistos = new Set<string>()
   const alvos: AlvoNaMira[] = []
   for (const carta of cartas) {
+    if (carta.bando !== undefined) {
+      // Invocação: o invocado não tem carta; é alvo como qualquer ficha, da equipe do dono.
+      for (const invocado of membrosDoBando({ invocados }, carta)) {
+        if (vistos.has(invocado.tokenId)) continue
+        vistos.add(invocado.tokenId)
+        const equipeDoDono = equipeDe(invocado.donoPersonagemId, mesa.equipes)
+        const vida = vidaDoInvocado(mesa, invocado)
+        const ficha = mesa.fichas.find((candidata) => candidata.id === invocado.tokenId)
+        alvos.push({
+          tokenId: invocado.tokenId,
+          nome: ficha?.name.trim() || invocado.nome,
+          lado: invocado.tokenId === quemAge.tokenId ? 'eu' : equipeDoDono !== null && equipeDoDono.id === equipeDeQuem ? 'aliado' : 'outro',
+          caiu: vida !== null && vida.atual <= 0,
+          motivo: null,
+          imagem: ficha?.imageData ?? null,
+          cor: equipeDoDono?.cor ?? null,
+        })
+      }
+      continue
+    }
     if (vistos.has(carta.tokenId)) continue
     vistos.add(carta.tokenId)
     const equipeDaCarta = carta.personagemId === null ? null : (equipeDe(carta.personagemId, mesa.equipes) ?? null)
@@ -135,6 +176,43 @@ function alvosDaOrdem(mesa: Mesa, cartas: readonly CartaDaOrdem[], quemAge: Cart
 /** Tipos de habilidade F3: a passiva pedida pelo mestre (qualquer ficha, a qualquer hora). */
 function pedirPassiva(sceneKey: string) {
   return (pedido: PedidoDePassiva) => useBatalhaStore.getState().passiva(sceneKey, MESTRE, pedido)
+}
+
+/**
+ * Invocação F3: um invocado na vez do bando, com a economia dele e os golpes
+ * da ficha temporária (o "Golpe" com o dano dele; sem técnica, o Atacar).
+ */
+function membroNaVez(mesa: Mesa, turnos: TurnosDaCena, bando: CartaDaOrdem, invocado: InvocadoNaBatalha): MembroNaVez {
+  const personagem = mesa.personagens.find((candidato) => candidato.id === invocado.personagemId) ?? null
+  const acoes = acoesDoInvocado(turnos, bando.id, invocado)
+  const combate = turnos.combate?.[invocado.personagemId]
+  const bonus = bonusDaBatalha(turnos.selos, invocado.tokenId)
+  const habilidades = personagem !== null && mesa.sistema !== null ? golpesDeHabilidade(personagem, mesa.sistema, combate, acoes, null, bonus) : []
+  const ficha = mesa.fichas.find((candidata) => candidata.id === invocado.tokenId)
+  const quemAge: CartaDaOrdem = { id: bando.id, tokenId: invocado.tokenId, personagemId: invocado.personagemId, nome: invocado.nome }
+  return {
+    tokenId: invocado.tokenId,
+    nome: ficha?.name.trim() || invocado.nome,
+    imagem: ficha?.imageData ?? null,
+    vida: vidaDoInvocado(mesa, invocado),
+    acoes,
+    golpes: habilidades.length > 0 ? habilidades : golpesDeAtaque(personagem, mesa.sistema, combate, acoes, bonus),
+    alvos: alvosDaOrdem(mesa, turnos.cartas, quemAge),
+  }
+}
+
+/** Invocação F3: o Invocar do NPC da vez, com a regra da store (`motivoDaInvocacao`). */
+function invocarDoNpc(sceneKey: string, personagem: Personagem, sistema: SistemaDeRpg | null, turnos: TurnosDaCena, carta: CartaDaOrdem, acoes: ReturnType<typeof acoesDaCarta>): InvocarNoMenu {
+  return {
+    leitura: (cartaoId) => {
+      const lida = invocacaoDaFicha(personagem, sistema, cartaoId)
+      return lida === null ? null : { opcoes: lida.opcoes, imagem: lida.imagem }
+    },
+    contar: (cartaoId, opcao) => quantosNoCampo(turnos, personagem.id, cartaoId, opcao.chave),
+    motivo: (cartaoId) => (opcao, custo, acao) => motivoDaInvocacao({ personagem, sistema, turnos, acoes }, pedidoDeInvocacao(carta.tokenId, cartaoId, opcao.chave, custo, acao)),
+    onInvocar: (cartaoId, opcao, custo, acao) => useBatalhaStore.getState().invocar(sceneKey, MESTRE, pedidoDeInvocacao(carta.tokenId, cartaoId, opcao, custo, acao)),
+    esperando: [],
+  }
 }
 
 /** Tipos de habilidade F3: os lembretes dos NPCs fora do `exceto` (o da vez, que os vê no painel), com o nome de cada um. */
@@ -206,8 +284,31 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnos, mesa.fichas, personagens, sistema])
 
+  // Invocação F3: as pendências que esperam o mestre pôr no mapa ("Ryoko invocou 1 Lobo").
+  const pendenciasDeInvocacao = useMemo<PendenciaNaTela[]>(() => {
+    if (turnos === undefined) return []
+    return (turnos.invocacoes ?? []).map((pendente) => {
+      const saem = comunsQueSaem(turnos, pendente)
+      return {
+        id: pendente.id,
+        dono: nomeDaFicha(mesa, pendente.donoTokenId),
+        nome: pendente.nome,
+        rotulo: pendente.rotulo,
+        ultra: pendente.ultra,
+        numeros: pendente.numeros,
+        sugeridos: pendente.sugeridos,
+        imagem: pendente.imagem,
+        saem: saem.length,
+        nomeDosQueSaem: saem[0]?.nome ?? null,
+      }
+    })
+    // `mesa` muda junto com as fichas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnos, mesa.fichas])
+
   if (cena === undefined || turnos === undefined) return null
 
+  const invocacoes = <InvocacoesPendentes sceneKey={sceneKey} itens={pendenciasDeInvocacao} onCancelar={(invocacaoId) => useBatalhaStore.getState().cancelarInvocacao(sceneKey, invocacaoId)} />
   const reacoes = (
     <ReacoesPendentes
       itens={pendentes}
@@ -218,14 +319,47 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   if (carta === null)
     return (
       <>
+        {invocacoes}
         <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={null} />
         {reacoes}
       </>
     )
 
+  const vez = { cartaId: carta.id, rodada: turnos.rodada }
+  const encerrar = () => useBatalhaStore.getState().passarVez(sceneKey, MESTRE, vez)
+
+  // Invocação F3: a vez do bando. Os invocados são do mestre; cada um ataca e anda o dele.
+  if (carta.bando !== undefined) {
+    const { donoTokenId } = carta.bando
+    const cartaDoDono = turnos.cartas.find((candidata) => candidata.tokenId === donoTokenId && candidata.bando === undefined)
+    const equipeDoDono = cartaDoDono === undefined || cartaDoDono.personagemId === null ? null : equipeDe(cartaDoDono.personagemId, equipes)
+    const membros = membrosDoBando(turnos, carta)
+    const nomeDaCarta = nomeDoBando(membros, nomeDaFicha(mesa, donoTokenId, cartaDoDono), carta.nome ?? 'Bando')
+    return (
+      <>
+        {invocacoes}
+        <section className="bt-secao" aria-label={`Vez de ${nomeDaCarta}`}>
+          <PainelDoBando
+            key={chave}
+            nome={nomeDaCarta}
+            cor={equipeDoDono?.cor ?? null}
+            membros={membros.map((invocado) => membroNaVez(mesa, turnos, carta, invocado))}
+            onAgir={(tokenId, pedido) => useBatalhaStore.getState().agirComInvocado(sceneKey, vez, tokenId, pedido)}
+            onEncerrar={encerrar}
+            onDarDano={() => onDialogo({ tipo: 'dano', tokenId: null })}
+            consulta={consultaDoMestre}
+            alvoDoMapa={alvoDoMapa}
+            mapa={{ ligado: mirando, onTrocar: (ligado) => useMiraDoMestre.getState().mirar(ligado) }}
+          />
+        </section>
+        <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={null} />
+        {reacoes}
+      </>
+    )
+  }
+
   const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
   const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras })
-  const vez = { cartaId: carta.id, rodada: turnos.rodada }
   const nome = nomeDaFicha(mesa, carta.tokenId, carta)
   const doMestre = ehDoMestre(carta.personagemId, personagens)
   const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
@@ -236,6 +370,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   if (!doMestre) {
     return (
       <>
+        {invocacoes}
         <section className="bt-secao" aria-label="A vez">
           <h3 className="bt-secao__titulo">Vez de {nome}</h3>
           <p className="bt-npc__perfil">{economiaEmTexto(acoes)}</p>
@@ -279,6 +414,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
 
   return (
     <>
+      {invocacoes}
       <section className="bt-secao" aria-label={`Vez de ${nome}`}>
         <PainelDaVezDoNpc
           key={chave}
@@ -307,7 +443,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           onExecutar={agir}
           onConcentrar={() => agir({ tipo: 'concentrar' })}
           onZerarCarga={zerarCarga}
-          onEncerrar={() => useBatalhaStore.getState().passarVez(sceneKey, MESTRE, vez)}
+          onEncerrar={encerrar}
           onAcoesExtras={() => onDialogo({ tipo: 'extras', cartaId: carta.id })}
           onDarDano={() => onDialogo({ tipo: 'dano', tokenId: null })}
           consulta={consultaDoMestre}
@@ -318,6 +454,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
             motivo: (cartaoId, custo) => motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: false }, { tipo: 'evoluir', tokenId: carta.tokenId, cartaoId, custo }),
             onEvoluir: (cartaoId, custo) => useBatalhaStore.getState().evoluir(sceneKey, MESTRE, { tipo: 'evoluir', tokenId: carta.tokenId, cartaoId, custo }),
           }}
+          invocacao={personagem === null ? undefined : invocarDoNpc(sceneKey, personagem, sistema, turnos, carta, acoes)}
         />
       </section>
       <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={carta.personagemId} />

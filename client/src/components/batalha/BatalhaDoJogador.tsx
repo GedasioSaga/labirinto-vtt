@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDeInvocacao, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
@@ -14,9 +14,10 @@ import { BotaoDeReacao } from './BotaoDeReacao'
 import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './CaixaDeReacao'
 import { MOTIVO_SEM_PERSONAGEM, armasNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
+import { invocacaoDaFicha, motivoNoJogador, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import type { EvoluirNaTela } from './ListaDeTecnicas'
-import { MenuDaVez, type ContraNoMenu } from './MenuDaVez'
+import { MenuDaVez, textoDaEspera, type ContraNoMenu, type InvocarNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
 import './batalha.css'
@@ -51,6 +52,8 @@ export interface ConexaoDaBatalha {
   passiva?: (pedido: PedidoDePassiva) => boolean
   /** Tipos de habilidade F4: Evoluir a técnica nesta batalha (o jogador, na vez dele). Ausente = sem o botão Evoluir. */
   evoluir?: (pedido: PedidoDeEvolucao) => boolean
+  /** Invocação F3: pedir a técnica de Tipo Invocação (o mestre põe no mapa). Ausente = a técnica fica apagada (a Arena). */
+  invocar?: (pedido: PedidoDeInvocacao) => boolean
 }
 
 export interface FichaDoJogador {
@@ -138,6 +141,16 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     const vistos = new Set<string>()
     const alvos: AlvoNaMira[] = []
     for (const carta of estado.cartas) {
+      // Invocação F3: a carta do bando não é ficha do mapa; os invocados dela são os alvos, com a cor do dono.
+      if (carta.bando !== undefined) {
+        const dono = carta.bando.donoTokenId === undefined ? undefined : estado.cartas.find((candidata) => candidata.tokenId === carta.bando?.donoTokenId && candidata.bando === undefined)
+        for (const membro of carta.bando.membros) {
+          if (vistos.has(membro.tokenId)) continue
+          vistos.add(membro.tokenId)
+          alvos.push({ tokenId: membro.tokenId, nome: membro.nome.trim() || nomeDe(membro.tokenId), lado: carta.lado === 'outro' ? 'outro' : 'aliado', caiu: false, motivo: null, imagem: imagemDe(membro.tokenId), cor: dono?.equipe?.cor ?? null })
+        }
+        continue
+      }
       if (vistos.has(carta.tokenId)) continue
       vistos.add(carta.tokenId)
       alvos.push({
@@ -214,6 +227,27 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
           onEvoluir: (cartaoId, custo) => pedirEvolucao({ tipo: 'evoluir', tokenId: cartaQueAge.tokenId, cartaoId, custo }),
         }
 
+  // ---- Invocação F3: a mira da invocação (as opções da ficha dele, o máximo pelo recorte) e o "esperando o mestre".
+  const pedirInvocacao = conexao.invocar
+  const minhasInvocacoes = meuCombate?.invocacoes
+  const golpesDoMenu = menu?.habilidades
+  const invocacao = useMemo<InvocarNoMenu | undefined>(() => {
+    if (pedirInvocacao === undefined || cartaQueAge === undefined) return undefined
+    const contar = (cartaoId: string, opcao: string) => (minhasInvocacoes ?? []).filter((item) => item.cartaoId === cartaoId && item.opcao === opcao).length
+    return {
+      leitura: (cartaoId) => invocacaoDaFicha(personagem, sistema, cartaoId),
+      contar: (cartaoId, opcao) => contar(cartaoId, opcao.chave),
+      motivo: (cartaoId) => {
+        const daTecnica = golpesDoMenu?.find((golpe) => golpe.cartaoId === cartaoId)?.motivo ?? null
+        return (opcao) => motivoNoJogador(opcao, contar(cartaoId, opcao.chave), combate?.carga ?? 0, daTecnica)
+      },
+      onInvocar: (cartaoId, opcao, custo, acao) => pedirInvocacao(pedidoDeInvocacao(cartaQueAge.tokenId, cartaoId, opcao, custo, acao)),
+      esperando: (minhasInvocacoes ?? []).filter((item) => !item.posto),
+    }
+  }, [pedirInvocacao, cartaQueAge, minhasInvocacoes, personagem, sistema, golpesDoMenu, combate])
+  // Fora da vez (e com mais de uma ficha), a espera de todas as fichas dele fica na coluna dos lembretes.
+  const esperandoOMestre = useMemo(() => (estado.meus ?? []).flatMap((meu) => (meu.invocacoes ?? []).filter((item) => !item.posto)), [estado.meus])
+
   // ---- a reação
   const reacoes = useMemo<ReacaoNaCaixa[]>(() => {
     const variasFichas = new Set((estado.reacoes ?? []).map((reacao) => reacao.tokenId)).size > 1
@@ -281,7 +315,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   // Os lembretes das passivas usam a mesma medida: moram logo abaixo da faixa.
   const lugarDoMenu = useRef<HTMLDivElement>(null)
   const lugarDosLembretes = useRef<HTMLDivElement>(null)
-  const comLembretes = lembretes.length > 0
+  const comEspera = esperandoOMestre.length > 0 && conexao.invocar !== undefined
+  const comLembretes = lembretes.length > 0 || (comEspera && !mostrarMenu)
   useLayoutEffect(() => {
     const menuNaTela = lugarDoMenu.current
     const avisos = lugarDosLembretes.current
@@ -346,12 +381,19 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             personagemId={personagemId ?? null}
             passivas={conexao.passiva === undefined || menu.passivas.length === 0 ? undefined : { itens: menu.passivas, tokenId: cartaQueAge.tokenId, sistema, onPedir: conexao.passiva }}
             evoluir={evoluir}
+            invocacao={invocacao}
           />
         </div>
       )}
-      {comLembretes && conexao.passiva !== undefined && (
+      {comLembretes && (conexao.passiva !== undefined || comEspera) && (
         <div ref={lugarDosLembretes} className="pp-batalha-lembretes" data-palco={noPalco}>
-          <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre={operaComoMestre} onPedir={conexao.passiva} />
+          {comEspera && !mostrarMenu && (
+            <p className="bt-vez__espera" role="status">
+              <span className="bt-vez__espera-ponto" aria-hidden="true" />
+              Esperando o mestre pôr no mapa: {textoDaEspera(esperandoOMestre)}
+            </p>
+          )}
+          {lembretes.length > 0 && conexao.passiva !== undefined && <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre={operaComoMestre} onPedir={conexao.passiva} />}
         </div>
       )}
       <div className="pp-batalha-reacao-botao">

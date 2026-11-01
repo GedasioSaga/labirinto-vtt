@@ -165,6 +165,8 @@ import { FaixaDoMestre } from './components/batalha/FaixaDoMestre'
 import { EfeitosDoMestre } from './components/batalha/BatalhaDoMestre'
 import { tremer } from './components/batalha/EfeitosDaBatalha'
 import { escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
+import { escolherCasaDoMestre, useColocacaoDoMestre } from './components/batalha/colocacaoDoMestre'
+import { AvisoDaColocacao } from './components/batalha/InvocacoesDoMestre'
 import { fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelosEstaveis } from './components/batalha/marcasNoMapa'
 import { useImagemDaMesa } from './components/ImagemDaMesa'
 import { MarcasDaCena } from './components/MarcasDaCena'
@@ -1458,6 +1460,9 @@ function App() {
   )
   /** BATALHA F2 (S4): "Escolher no mapa" ligado no painel da vez do NPC. */
   const miraDoMestreLigada = useMiraDoMestre((state) => state.mirando)
+  /** INVOCAÇÃO F3: o "Escolher no mapa" do Colocar (a cena da colocação armada). */
+  const cenaDaColocacao = useColocacaoDoMestre((state) => state.armada?.sceneKey ?? null)
+  const colocandoInvocado = batalhaNaCenaAberta && cenaDaColocacao === chaveDaCenaAberta
   useEffect(() => {
     useDestinationStore.getState().setMarks(masterDestinationMarks(roomPlayers, openSceneId))
   }, [roomPlayers, openSceneId])
@@ -3235,7 +3240,11 @@ function App() {
           DOM também põe os avisos que esperam resposta no começo do Tab. */}
       {toastStack}
       {/* Em captura, antes do mapa: o gesto que seleciona traz a Ficha animada (`useFichaAFrente`). */}
-      <div className="lb-editor__canvas" ref={canvasHostRef} onPointerDownCapture={(event) => apertarNoMapa(event)}>
+      <div
+        className={colocandoInvocado ? 'lb-editor__canvas lb-editor__canvas--colocando' : 'lb-editor__canvas'}
+        ref={canvasHostRef}
+        onPointerDownCapture={(event) => apertarNoMapa(event)}
+      >
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
           batalhaLigada={batalhaNaCenaAberta}
@@ -3271,9 +3280,12 @@ function App() {
           // BATALHA F2 (S4): a posição das fichas para os efeitos e a mira; "Escolher no mapa" ligado na aba Batalha = o clique mira.
           onFichaNaTela={guardarConsultaDoMestre}
           aoEscolherFicha={miraDoMestreLigada && batalhaNaCenaAberta ? escolherFichaDoMestre : undefined}
+          aoEscolherCasa={colocandoInvocado ? escolherCasaDoMestre : undefined}
         />
         {/* BATALHA F2 (S5, S8): corte do golpe, d20, número do dano; o tremor mexe no invólucro do canvas. */}
         {batalhaNaCenaAberta && <EfeitosDoMestre sceneKey={chaveDaCenaAberta} onTremor={() => tremer(canvasHostRef.current)} />}
+        {/* INVOCAÇÃO F3: "Clique na casa onde o Lobo nasce", com o Cancelar (Esc). */}
+        {colocandoInvocado && <AvisoDaColocacao />}
         {/* Fechado, o menu ainda sai em 120 ms com os rótulos de quando fechou (`ComSaida`). */}
         <ComSaida>
         {tokenMenu !== null && tokenDoMenu !== undefined && jogadoresDoMenu.length > 0 && (

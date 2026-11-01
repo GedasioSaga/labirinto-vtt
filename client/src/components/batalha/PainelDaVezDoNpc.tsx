@@ -7,6 +7,8 @@ import type { RecursoNaCarta } from './dadosDaFaixa'
 import { economiaEmTexto, formatarNumero, textoDaAcao, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import { PainelDaForma, nomeDaForma } from './ListaDeFormas'
 import { DetalheDoGolpe, MarcaDaEvolucao, MarcaDasOpcoes, type EvoluirNaTela } from './ListaDeTecnicas'
+import type { InvocarNoMenu } from './MenuDaVez'
+import { MiraDaInvocacao } from './MiraDaInvocacao'
 import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha } from './MiraDoGolpe'
 import './batalha.css'
 import './combate.css'
@@ -23,6 +25,8 @@ import './combate.css'
  * longe dos botões do pé) e a lista Passivas depois da Transformação. Tipos
  * de habilidade F4: as marcas "Evolui", "Evoluída", "Evoluiu" e "2 opções"
  * nas técnicas, o Evoluir no detalhe (a seta) e os chips da opção na mira.
+ * Invocação F3: a técnica de Tipo Invocação abre a mira da invocação (as
+ * opções, o custo e o Invocar); nunca é a escolhida de começo.
  */
 
 export interface PainelDaVezDoNpcProps {
@@ -62,17 +66,24 @@ export interface PainelDaVezDoNpcProps {
   passivas?: ReactNode
   /** Tipos de habilidade F4: o Evoluir no detalhe da técnica que ainda evolui (o mestre evolui sempre). Ausente = sem o botão. */
   evoluir?: EvoluirNaTela
+  /** Invocação F3: as opções e o Invocar do NPC (a regra é a da store). Ausente = a técnica fica apagada. */
+  invocacao?: InvocarNoMenu
 }
+
+/** A técnica de Tipo Invocação numa mesa sem o Invocar (a Arena). */
+const SEM_INVOCAR = 'Invocação: não vale nesta mesa'
 
 const SEM_FORMAS: readonly FormaNoMenu[] = []
 
 export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
   const { nome, imagem, cor, descricao, recursos, acoes, carga, motivoDoConcentrar, armas, habilidades, alvos, sugestao, onExecutar, onConcentrar, onZerarCarga, onEncerrar, onAcoesExtras, onDarDano, consulta, alvoDoMapa, mapa } =
     props
-  const { formas = SEM_FORMAS, personagemId = null, selos, lembretes, passivas, evoluir } = props
+  const { formas = SEM_FORMAS, personagemId = null, selos, lembretes, passivas, evoluir, invocacao } = props
   const [formaAberta, setFormaAberta] = useState<string | null>(null)
-  const golpes = [...habilidades, ...armas]
-  const primeiraValida = golpes.find((golpe) => golpe.motivo === null)?.chave ?? null
+  const habilidadesNaTela = invocacao !== undefined ? habilidades : habilidades.map((golpe) => (golpe.invocacao === true ? { ...golpe, motivo: SEM_INVOCAR } : golpe))
+  const golpes = [...habilidadesNaTela, ...armas]
+  // A invocação não começa escolhida: o de sempre é o golpe (e a sugestão nunca é invocação).
+  const primeiraValida = golpes.find((golpe) => golpe.motivo === null && golpe.invocacao !== true)?.chave ?? null
   const [escolhida, setEscolhida] = useState<string | null>(() => (sugestao.chave !== null && golpes.some((golpe) => golpe.chave === sugestao.chave && golpe.motivo === null) ? sugestao.chave : primeiraValida))
   const [aberto, setAberto] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -202,10 +213,21 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
         </div>
       )}
       {passivas}
-      {grupo('Habilidades', habilidades)}
+      {grupo('Habilidades', habilidadesNaTela)}
       {grupo('Atacar', armas)}
       {golpes.length === 0 && <p className="bt-texto">Sem técnica nem arma na ficha: dê dano à mão ou encerre a vez.</p>}
-      {golpe !== null && (
+      {golpe !== null && golpe.invocacao === true && (
+        <MiraDaInvocacaoDoNpc
+          key={golpe.chave}
+          golpe={golpe}
+          invocacao={invocacao}
+          onInvocou={() => {
+            setAviso(null)
+            setEscolhida(primeiraValida)
+          }}
+        />
+      )}
+      {golpe !== null && golpe.invocacao !== true && (
         <MiraDoGolpe
           key={golpe.chave}
           golpe={golpe}
@@ -253,5 +275,29 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
       </div>
       {motivoDoConcentrar !== null && <p className="bt-npc__perfil">Concentrar: {motivoDoConcentrar}</p>}
     </div>
+  )
+}
+
+/** A mira da invocação no painel do NPC: o mestre pede pelo NPC e depois põe no mapa pela lista Invocações. */
+function MiraDaInvocacaoDoNpc({ golpe, invocacao, onInvocou }: { golpe: GolpeNaTela; invocacao: InvocarNoMenu | undefined; onInvocou: () => void }) {
+  const { cartaoId } = golpe
+  const leitura = invocacao === undefined || cartaoId === null ? null : invocacao.leitura(cartaoId)
+  if (invocacao === undefined || cartaoId === null || leitura === null) return <p className="bt-texto">A ficha não diz quem vem: confira as opções da técnica.</p>
+  return (
+    <MiraDaInvocacao
+      golpe={golpe}
+      opcoes={leitura.opcoes}
+      imagem={leitura.imagem}
+      contar={(opcao) => invocacao.contar(cartaoId, opcao)}
+      motivo={invocacao.motivo(cartaoId)}
+      quemPede="mestre"
+      semVoltar
+      onVoltar={() => {}}
+      onInvocar={(opcao, custo, acao) => {
+        const saiu = invocacao.onInvocar(cartaoId, opcao, custo, acao)
+        if (saiu) onInvocou()
+        return saiu
+      }}
+    />
   )
 }

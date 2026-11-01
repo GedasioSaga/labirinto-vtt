@@ -814,6 +814,13 @@ interface PixiCanvasProps {
    */
   aoEscolherFicha?: (tokenId: string) => void
   /**
+   * INVOCAÇÃO F3: o Colocar do mestre armado. O clique esquerdo escolhe a
+   * casa onde o invocado nasce (o centro dela, dentro do mapa, a regra da
+   * ficha), com qualquer ferramenta na mão; nada de seleção nem desenho por
+   * baixo. A câmera e o clique direito seguem. Ausente = o editor de sempre.
+   */
+  aoEscolherCasa?: (ponto: { x: number; y: number }) => void
+  /**
    * Reporta as dimensões NATURAIS (px) da textura de fundo carregada, depois
    * que `redrawBackground` resolve `Assets.load` — `null` sem fundo de
    * imagem ou em erro de carga. Consumido por `GridAlignControls` (via
@@ -1036,6 +1043,7 @@ function PixiCanvasDoContexto({
   selosNasFichas = null,
   onFichaNaTela,
   aoEscolherFicha,
+  aoEscolherCasa,
   onBackgroundImageSizeChange,
   resetZoomRequest,
   cameraRequest = null,
@@ -1075,6 +1083,8 @@ function PixiCanvasDoContexto({
   // BATALHA F2 (S4): a mira (o `pointerdown` lê o valor vivo) e a consulta da ficha na tela, montada no `setup()`.
   const aoEscolherFichaRef = useRef(aoEscolherFicha)
   aoEscolherFichaRef.current = aoEscolherFicha
+  const aoEscolherCasaRef = useRef(aoEscolherCasa)
+  aoEscolherCasaRef.current = aoEscolherCasa
   const onFichaNaTelaRef = useRef(onFichaNaTela)
   const consultaDaFichaRef = useRef<((tokenId: string) => { x: number; y: number; raio: number } | null) | null>(null)
   useEffect(() => {
@@ -6130,6 +6140,19 @@ function PixiCanvasDoContexto({
 
         // BATALHA F2 (S4): a MIRA armada fica com o botão esquerdo, com qualquer ferramenta:
         // na ficha, escolhe o alvo; fora dela, nada (nem seleção, nem desenho por baixo).
+        // INVOCAÇÃO F3: o Colocar armado fica com o botão esquerdo: a casa clicada é onde o invocado nasce.
+        const colocar = aoEscolherCasaRef.current
+        if (colocar !== undefined && event.button === 0) {
+          mode = 'idle'
+          const { map } = sceneState()
+          const ponto = toWorldPoint(event.global.x, event.global.y)
+          const meia = map.grid / 2
+          const x = Math.min(Math.max(ponto.x, meia), Math.max(meia, map.width * map.grid - meia))
+          const y = Math.min(Math.max(ponto.y, meia), Math.max(meia, map.height * map.grid - meia))
+          colocar(snapPointForTarget('token', map.gridShape, x, y, map.grid))
+          return
+        }
+
         const mira = aoEscolherFichaRef.current
         if (mira !== undefined && event.button === 0) {
           mode = 'idle'

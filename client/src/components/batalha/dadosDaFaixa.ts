@@ -1,13 +1,15 @@
 import { maximoComposto } from '../../lib/ajusteDaFicha'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
+import { membrosDoBando } from '../../lib/batalha/invocacao'
 import { nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
 import type { ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
 import { selosDoToken, textoDoSelo, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, nomeDaFormaLigada } from '../../lib/batalha/transformacao'
-import { proximaCarta, tokensCaidos, turnoNoM, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from '../../lib/batalha/turnos'
+import { proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { CartaParaJogador, EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import { numeroDaFicha, type Personagem } from '../../lib/personagem'
 import type { RecursoDoSistema, SistemaDeRpg, TomDoRecurso } from '../../lib/sistemaDeRpg'
+import { nomeDoBando } from './dadosDaInvocacao'
 
 /**
  * O QUE A FAIXA DA ORDEM MOSTRA (F1 da batalha One Piece, seção 4 do plano):
@@ -62,6 +64,16 @@ export interface DadosDaCarta {
   forma?: string | null
   /** F3: os selos da ficha ("ATORDOADO 2"). Para todos que veem a carta (Q5). */
   selos?: readonly SeloNaCarta[]
+  /** Invocação F3: a carta é a do BANDO ("Lobos de Ryoko"): os invocados, cada um com a vida quando quem olha pode ver. */
+  bando?: { membros: readonly MembroNaCarta[] }
+}
+
+/** Invocação F3: um invocado na carta do bando. `vida` `null` = quem olha não vê (lado oposto). */
+export interface MembroNaCarta {
+  tokenId: string
+  nome: string
+  imagem: string | null
+  vida: { atual: number; maximo: number } | null
 }
 
 /** F3: um selo como a carta o mostra. `id` só no mestre (clicar edita ou tira). */
@@ -175,6 +187,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema }:
   const personagemPorId = porId(personagens)
   const caidos = tokensCaidos(turnos.cartas, personagens, sistema)
   const cartas = turnos.cartas.map((carta): DadosDaCarta => {
+    if (carta.bando !== undefined) return cartaDoBandoNoMestre(carta, turnos, { fichaPorId, personagemPorId, equipes, sistema })
     const ficha = fichaPorId.get(carta.tokenId)
     const personagem = carta.personagemId === null ? undefined : personagemPorId.get(carta.personagemId)
     const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
@@ -213,6 +226,45 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema }:
     minhaVez: false,
     vezForaDaVista: false,
     depois: daProxima === null ? null : `Depois: ${daProxima.nome}`,
+  }
+}
+
+/**
+ * Invocação F3: a carta do bando no mestre: os invocados com a vida (o mestre
+ * vê tudo), o nome "Lobos de Ryoko" e a cor da equipe do dono.
+ */
+function cartaDoBandoNoMestre(
+  carta: CartaDaOrdem,
+  turnos: TurnosDaCena,
+  mesa: { fichaPorId: ReadonlyMap<string, FichaNaFaixa>; personagemPorId: ReadonlyMap<string, Personagem>; equipes: readonly Equipe[] | undefined; sistema: SistemaDeRpg | null },
+): DadosDaCarta {
+  const membros = membrosDoBando(turnos, carta).map((invocado): MembroNaCarta => {
+    const ficha = mesa.fichaPorId.get(invocado.tokenId)
+    const personagem = mesa.personagemPorId.get(invocado.personagemId)
+    const vida = personagem === undefined ? undefined : recursosDaCarta(personagem, mesa.sistema).find((recurso) => recurso.tom === 'vida')
+    return { tokenId: invocado.tokenId, nome: ficha?.name.trim() || invocado.nome, imagem: ficha?.imageData ?? null, vida: vida === undefined ? null : { atual: vida.atual, maximo: vida.maximo } }
+  })
+  const donoTokenId = carta.bando?.donoTokenId ?? ''
+  const doDono = turnos.cartas.find((candidata) => candidata.tokenId === donoTokenId && candidata.bando === undefined)
+  const donoNome = mesa.fichaPorId.get(donoTokenId)?.name.trim() || doDono?.nome?.trim() || (doDono?.personagemId == null ? undefined : mesa.personagemPorId.get(doDono.personagemId)?.nome) || null
+  const equipe = doDono?.personagemId == null ? null : equipeDe(doDono.personagemId, mesa.equipes)
+  return {
+    id: carta.id,
+    tokenId: carta.tokenId,
+    nome: nomeDoBando(membros, donoNome, carta.nome ?? 'Bando'),
+    imagem: membros[0]?.imagem ?? null,
+    cor: equipe?.cor ?? null,
+    equipe: equipe?.nome ?? null,
+    vida: 'sem',
+    recursos: [],
+    caiu: false,
+    extra: null,
+    d20: turnos.d20[carta.id] ?? null,
+    empate: turnos.empates[carta.id] ?? null,
+    personagemId: null,
+    minha: false,
+    npc: false,
+    bando: { membros },
   }
 }
 
@@ -264,11 +316,38 @@ function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined
   }
 }
 
+/** Invocação F3: a carta do bando no jogador: a vida só vem do lado do dono (o host corta); a cor é a do dono. */
+function cartaDoBandoNoJogador(carta: CartaParaJogador, estado: EstadoParaJogador, fichaPorId: ReadonlyMap<string, FichaNaFaixa>): DadosDaCarta {
+  const bando = carta.bando ?? { membros: [] }
+  const membros = bando.membros.map((membro): MembroNaCarta => ({ tokenId: membro.tokenId, nome: membro.nome.trim() || NOME_SEM_FICHA, imagem: fichaPorId.get(membro.tokenId)?.imageData ?? null, vida: membro.vida ?? null }))
+  const doDono = bando.donoTokenId === undefined ? undefined : estado.cartas.find((candidata) => candidata.tokenId === bando.donoTokenId && candidata.bando === undefined)
+  const donoNome = bando.donoTokenId === undefined ? null : fichaPorId.get(bando.donoTokenId)?.name.trim() || doDono?.nome.trim() || null
+  return {
+    id: carta.id,
+    tokenId: carta.tokenId,
+    nome: nomeDoBando(membros, donoNome, carta.nome),
+    imagem: membros[0]?.imagem ?? null,
+    cor: doDono?.equipe?.cor ?? null,
+    equipe: doDono?.equipe?.nome ?? null,
+    vida: 'sem',
+    recursos: [],
+    caiu: false,
+    extra: null,
+    d20: null,
+    empate: null,
+    personagemId: null,
+    minha: false,
+    npc: false,
+    bando: { membros },
+  }
+}
+
 /** A faixa como o JOGADOR a vê: o recorte do host com a vida dele e a dos aliados. */
 export function faixaDoJogador({ estado, fichas, personagens, sistema }: EntradaDoJogador): DadosDaFaixa {
   const fichaPorId = porId(fichas)
   const personagemPorId = porId(personagens)
   const cartas = estado.cartas.map((carta) => {
+    if (carta.bando !== undefined) return cartaDoBandoNoJogador(carta, estado, fichaPorId)
     const dados = cartaDoJogador(
       carta,
       fichaPorId.get(carta.tokenId),

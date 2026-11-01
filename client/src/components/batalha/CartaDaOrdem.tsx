@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type MouseEvent } from 'react'
 import { ImagemOuIniciais } from '../FichaPecas'
-import { textoLongoDoSelo, type DadosDaCarta, type RecursoNaCarta } from './dadosDaFaixa'
+import { textoLongoDoSelo, type DadosDaCarta, type MembroNaCarta, type RecursoNaCarta } from './dadosDaFaixa'
 import { movimentoReduzido } from './dadosDoMenu'
 import './batalha.css'
 
@@ -59,6 +59,60 @@ function Barra({ recurso }: { recurso: RecursoNaCarta }) {
   )
 }
 
+/** Invocação F3: quantos invocados a carta do bando lista; o resto vira "+N". */
+const MEMBROS_NA_CARTA = 3
+/** Invocação F3: quantos rostos se empilham no lugar do retrato. */
+const ROSTOS_DO_BANDO = 3
+
+/** Invocação F3: os rostos dos invocados empilhados no lugar do retrato (o primeiro na frente). */
+function RostosDoBando({ membros, nome }: { membros: readonly MembroNaCarta[]; nome: string }) {
+  const rostos = membros.slice(0, ROSTOS_DO_BANDO)
+  if (rostos.length === 0)
+    return (
+      <span className="bt-carta__retrato">
+        <ImagemOuIniciais imagem={null} nome={nome} />
+      </span>
+    )
+  return (
+    <span className="bt-carta__rostos" data-quantos={rostos.length} aria-hidden="true">
+      {rostos.map((membro) => (
+        <span key={membro.tokenId} className="bt-carta__rosto">
+          <ImagemOuIniciais imagem={membro.imagem} nome={membro.nome} />
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** Invocação F3: a lista curta do bando: nome e, se quem olha pode ver, a vida em número e barra. */
+function MembrosDoBando({ membros }: { membros: readonly MembroNaCarta[] }) {
+  const vistos = membros.slice(0, MEMBROS_NA_CARTA)
+  const resto = membros.length - vistos.length
+  return (
+    <span className="bt-carta__membros">
+      {vistos.map((membro) => {
+        const proporcao = membro.vida === null || membro.vida.maximo <= 0 ? 0 : Math.max(0, Math.min(1, membro.vida.atual / membro.vida.maximo))
+        return (
+          <span key={membro.tokenId} className="bt-carta__membro">
+            <span className="bt-carta__linha">
+              <span className="bt-carta__membro-nome">{membro.nome}</span>
+              {membro.vida === null ? <span className="bt-carta__oculta">oculta</span> : <span className="bt-carta__num">{numero.format(membro.vida.atual)}/{numero.format(membro.vida.maximo)}</span>}
+            </span>
+            {membro.vida !== null && (
+              <span className="bt-barra bt-barra--fina" data-tom="vida" aria-hidden="true">
+                <b style={{ transform: `scaleX(${proporcao.toFixed(4)})` }} />
+                <i style={{ transform: `scaleX(${proporcao.toFixed(4)})` }} />
+              </span>
+            )}
+          </span>
+        )
+      })}
+      {resto > 0 && <span className="bt-carta__oculta">+{resto} no bando</span>}
+      {membros.length === 0 && <span className="bt-carta__oculta">Ninguém à vista</span>}
+    </span>
+  )
+}
+
 /** O que o leitor de tela diz da carta: posição, nome, vez, vida e marcas, numa frase. */
 export function descricaoDaCarta(carta: DadosDaCarta, posicao: number, vez: boolean, proxima: boolean, doMestre: boolean): string {
   const partes = [`${posicao}º ${carta.nome}`]
@@ -68,6 +122,7 @@ export function descricaoDaCarta(carta: DadosDaCarta, posicao: number, vez: bool
   if (carta.extra !== null) partes.push(carta.extra === 'rodada' ? 'carta extra só nesta rodada' : 'carta extra em todas as rodadas')
   if (carta.vida === 'numeros') for (const recurso of carta.recursos) partes.push(`${recurso.rotulo} ${recurso.atual} de ${recurso.maximo}`)
   if (carta.vida === 'oculta') partes.push('vida oculta')
+  for (const membro of carta.bando?.membros ?? []) partes.push(membro.vida === null ? membro.nome : `${membro.nome} HP ${membro.vida.atual} de ${membro.vida.maximo}`)
   if ((carta.carga ?? 0) > 0) partes.push(`concentração ${carta.carga}`)
   if (carta.forma) partes.push(`em ${carta.forma}`)
   for (const selo of carta.selos ?? []) partes.push(textoLongoDoSelo(selo))
@@ -110,9 +165,13 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
         )
       )}
       <span className="bt-carta__topo">
-        <span className="bt-carta__retrato">
-          <ImagemOuIniciais imagem={carta.imagem} nome={carta.nome} />
-        </span>
+        {carta.bando !== undefined ? (
+          <RostosDoBando membros={carta.bando.membros} nome={carta.nome} />
+        ) : (
+          <span className="bt-carta__retrato">
+            <ImagemOuIniciais imagem={carta.imagem} nome={carta.nome} />
+          </span>
+        )}
         <span className="bt-carta__nome" title={carta.nome}>
           {carta.nome}
         </span>
@@ -125,7 +184,8 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
       )}
       {carta.vida === 'numeros' && carta.recursos.map((recurso) => <Barra key={recurso.id} recurso={recurso} />)}
       {carta.vida === 'oculta' && <span className="bt-carta__oculta">Vida oculta</span>}
-      {carta.vida === 'sem' && <span className="bt-carta__oculta">{carta.personagemId === null ? 'Sem ficha ligada' : 'Sem vida na ficha'}</span>}
+      {carta.bando !== undefined && <MembrosDoBando membros={carta.bando.membros} />}
+      {carta.vida === 'sem' && carta.bando === undefined && <span className="bt-carta__oculta">{carta.personagemId === null ? 'Sem ficha ligada' : 'Sem vida na ficha'}</span>}
       {selos.length > 0 && (
         <span className="bt-carta__selos" aria-hidden="true">
           {selos.map((selo, i) => (
@@ -172,6 +232,7 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
       data-proxima={proxima ? 'sim' : 'nao'}
       data-caiu={carta.caiu ? 'sim' : 'nao'}
       data-forma={forma === null ? undefined : 'sim'}
+      data-bando={carta.bando === undefined ? undefined : 'sim'}
       style={estilo}
     >
       {onClique === undefined ? (
