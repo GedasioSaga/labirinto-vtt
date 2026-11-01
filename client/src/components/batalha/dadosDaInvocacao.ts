@@ -1,5 +1,5 @@
 import type { AcaoDaTecnica, NumerosDoInvocado, PedidoDeInvocacao } from '../../lib/batalha/combate'
-import { lerInvocacao, type OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
+import { lerInvocacao, MOTIVO_DO_COMUM_COM_O_ULTRA, type OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
 import { tecnicaPorId } from '../../lib/batalha/leituraDaFicha'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -12,7 +12,7 @@ import { formatarNumero } from './dadosDoMenu'
  *
  * O mestre tem a cena inteira e usa `motivoDaInvocacao` (a mesma regra da
  * store). O jogador só tem o recorte: `motivoNoJogador` repete a parte que ele
- * consegue ver (máximo em campo, carga e o motivo da técnica); os tetos da
+ * consegue ver (máximo em campo, Ultra em campo, carga e o motivo da técnica); os tetos da
  * mesa inteira o host confere e a recusa volta como aviso.
  */
 
@@ -56,11 +56,13 @@ export function opcoesNaTela(
 
 /**
  * O motivo do lado do JOGADOR, na mesma ordem de `motivoDaInvocacao`:
- * máximo da opção (colocados + pendentes dele), a carga que ela exige e o
- * motivo da técnica (recarga, usos, ação, SP), que o menu já calcula.
+ * máximo da opção (colocados + pendentes dele), o comum com o Ultra dele em
+ * campo (`ultraEmCampo`: o Ultra da mesma técnica já posto), a carga que ela
+ * exige e o motivo da técnica (recarga, usos, ação, SP), que o menu já calcula.
  */
-export function motivoNoJogador(opcao: Pick<OpcaoDaInvocacao, 'maximo' | 'carga'>, emCampo: number, carga: number, motivoDaTecnica: string | null): string | null {
+export function motivoNoJogador(opcao: Pick<OpcaoDaInvocacao, 'maximo' | 'carga' | 'ultra'>, emCampo: number, ultraEmCampo: boolean, carga: number, motivoDaTecnica: string | null): string | null {
   if (opcao.maximo !== null && emCampo >= opcao.maximo) return `No máximo ${opcao.maximo} em campo`
+  if (!opcao.ultra && ultraEmCampo) return MOTIVO_DO_COMUM_COM_O_ULTRA
   if (carga < opcao.carga) return `Precisa de concentração ${opcao.carga} (tem ${carga})`
   return motivoDaTecnica
 }

@@ -1,4 +1,4 @@
-import { acaoDoGolpe, motivoDaAcao, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
+import { acaoDoGolpe, motivoDoAtacar, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
 import {
   CARGA_MAX,
   MULTIPLICADOR_DA_CARGA,
@@ -497,6 +497,13 @@ export function armasNaBatalha(personagem: Personagem | null, combate: Pick<Comb
 
 const DESCRICAO_DO_DESARMADO = 'Sem arma: o dano é a Força.'
 
+/** R6: o que sobra do ataque adicional da forma nesta rodada ("+1 ataque"); `null` = fora da vez, nenhuma forma dá, ou já usou. */
+function textoDoAtaqueExtra(acoes: AcoesDaVez | null): string | null {
+  if (acoes === null || acoes.ataqueExtra === undefined) return null
+  const sobram = acoes.ataqueExtra.total - acoes.ataqueExtra.usadas
+  return sobram <= 0 ? null : `+${sobram} ${sobram === 1 ? 'ataque' : 'ataques'}`
+}
+
 /**
  * O Atacar: uma tira por arma levada; sem arma, o ataque desarmado (Força).
  * Q2: Força + dano da arma, editável. `bonus` (tipos de habilidade F2) = o
@@ -541,13 +548,15 @@ export function golpesDeAtaque(
       custo: { tipo: 'nada' },
       acao: acaoDaFicha,
       acaoTexto: textoDaAcao(gasta),
-      tempoTexto: null,
+      // R6: o ataque adicional da forma ligada (Ignição) aparece como etiqueta do Atacar.
+      tempoTexto: textoDoAtaqueExtra(acoes),
       dano,
       overload: false,
       perfurante: false,
       // A arma que diz "perfura 50%" já traz o número, para quando ligarem o Perfurante.
       perfuracao: arma === null ? null : perfuracaoDe(arma),
-      motivo: acoes === null ? null : motivoDaAcao(acoes, gasta),
+      // R6: a mesma regra do host (`podeAgir`): depois do primeiro Atacar, o adicional da forma cabe sem a Simples.
+      motivo: acoes === null ? null : motivoDoAtacar(acoes),
     }
   }
   const armas = armasNaBatalha(personagem, combate)

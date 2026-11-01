@@ -319,14 +319,16 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
           detalhe: 'Volta a 0; a ação gasta não volta. Entra no registro',
           onEscolher: () => loja.zerarCarga(CENA_DA_ARENA, AUTOR_DA_ARENA, personagemId),
         })
-      itens.push({
-        id: 'tirar',
-        secao: 'Batalha',
-        rotulo: 'Tirar da batalha',
-        detalhe: 'Sai da ordem com as cartas extras; o Desfazer do registro volta',
-        perigo: true,
-        onEscolher: () => loja.tirarCombatente(CENA_DA_ARENA, carta.tokenId),
-      })
+      // Invocação (pedido de 01/11): a carta do bando não tem "Tirar da batalha" (a store recusa).
+      if (carta.bando === undefined)
+        itens.push({
+          id: 'tirar',
+          secao: 'Batalha',
+          rotulo: 'Tirar da batalha',
+          detalhe: 'Sai da ordem com as cartas extras; o Desfazer do registro volta',
+          perigo: true,
+          onEscolher: () => loja.tirarCombatente(CENA_DA_ARENA, carta.tokenId),
+        })
       return itens
     },
     [dados, boneco, turnos],

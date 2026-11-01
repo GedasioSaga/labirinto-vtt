@@ -352,11 +352,14 @@ export function PainelDoBando({ nome, cor, membros, onAgir, onEncerrar, onDarDan
         </span>
         <div>
           <b className="bt-npc__nome">Vez de {nome}</b>
-          <span className="bt-npc__perfil">{membros.length === 1 ? '1 invocado' : `${membros.length} invocados`} · cada um ataca uma vez e anda o dele</span>
+          <span className="bt-npc__perfil">
+            {membros.length === 0 ? 'Nenhum invocado em campo' : `${membros.length === 1 ? '1 invocado' : `${membros.length} invocados`} · cada um ataca uma vez e anda o dele`}
+          </span>
         </div>
       </div>
+      {/* Invocação (lote de 01/11): o último que caiu na vez do bando deixa a carta com a vez até o mestre passar. */}
       {membros.length === 0 ? (
-        <p className="bt-texto">Nenhum invocado em campo: encerre a vez.</p>
+        <p className="bt-texto">Ninguém para agir: encerre a vez.</p>
       ) : (
         <fieldset className="bt-npc__lista">
           <legend>Quem age</legend>

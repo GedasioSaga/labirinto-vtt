@@ -79,14 +79,28 @@ export function efeitosDasFormasLigadas(personagem: Personagem, sistema: Sistema
       efeitos.reducaoDoDano = porcento
       efeitos.formaDaReducao = cartao.nome.trim() || 'forma'
     }
-    const deslocamento = normalizar(cartao.campos[CAMPO_DO_DESLOCAMENTO] ?? '')
-    const aMais = /\+\s*(\d+)/.exec(deslocamento)
-    const teto = /max\w*\s*(\d+)/.exec(deslocamento)
-    if (aMais !== null) efeitos.deslocamentoAMais = Math.max(efeitos.deslocamentoAMais ?? 0, Math.min(NUMERO_DO_CAMPO_MAX, Number.parseInt(aMais[1] ?? '0', 10)))
-    if (teto !== null) efeitos.deslocamentoMax = Math.min(efeitos.deslocamentoMax ?? NUMERO_DO_CAMPO_MAX, Number.parseInt(teto[1] ?? '0', 10))
-    efeitos.ataquesExtras = Math.max(efeitos.ataquesExtras, inteiroDoCampo(cartao, CAMPO_DOS_ATAQUES_EXTRAS) ?? 0)
+    const { aMais, max } = deslocamentoDaForma(cartao)
+    if (aMais !== null) efeitos.deslocamentoAMais = Math.max(efeitos.deslocamentoAMais ?? 0, aMais)
+    if (max !== null) efeitos.deslocamentoMax = Math.min(efeitos.deslocamentoMax ?? NUMERO_DO_CAMPO_MAX, max)
+    efeitos.ataquesExtras = Math.max(efeitos.ataquesExtras, ataquesExtrasDaForma(cartao) ?? 0)
   }
   return efeitos
+}
+
+/** R6: o campo Deslocamento de UMA forma ("+2", "máx 6"), no teto do campo; cada parte `null` = a ficha não diz. */
+export function deslocamentoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): { aMais: number | null; max: number | null } {
+  const deslocamento = normalizar(cartao.campos[CAMPO_DO_DESLOCAMENTO] ?? '')
+  const aMais = /\+\s*(\d+)/.exec(deslocamento)
+  const teto = /max\w*\s*(\d+)/.exec(deslocamento)
+  return {
+    aMais: aMais === null ? null : Math.min(NUMERO_DO_CAMPO_MAX, Number.parseInt(aMais[1] ?? '0', 10)),
+    max: teto === null ? null : Math.min(NUMERO_DO_CAMPO_MAX, Number.parseInt(teto[1] ?? '0', 10)),
+  }
+}
+
+/** R6: os ataques a mais por rodada ao usar Atacar de UMA forma (Ignição: 1); `null` = a ficha não diz. */
+export function ataquesExtrasDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | null {
+  return inteiroDoCampo(cartao, CAMPO_DOS_ATAQUES_EXTRAS)
 }
 
 /** R6: o dano que chega com a redução das formas (Resiliente: -20%), arredondado. */

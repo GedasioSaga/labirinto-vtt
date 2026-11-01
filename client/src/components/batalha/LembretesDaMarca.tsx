@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import type { PedidoDeMarca } from '../../lib/batalha/combate'
+import type { BonusDaBatalha, PedidoDeMarca } from '../../lib/batalha/combate'
 import { modificadorDoTeste, motivoDaMarca, passivaDaMarca, type ComoMarca } from '../../lib/batalha/marca'
 import { numeroDaFicha, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -30,14 +30,25 @@ export interface MarcaNaTela {
   teste: { nome: string; cd: number | null; modificador: number } | null
 }
 
-/** O lembrete da ficha: a passiva e o teste dela, ou `null` (a passiva saiu da ficha). */
-export function marcaNaTela(lembrete: { id: string; alvoTokenId: string }, personagem: Personagem | undefined, sistema: SistemaDeRpg | null, nomeDe: (tokenId: string) => string, quem?: string): MarcaNaTela | null {
+/**
+ * O lembrete da ficha: a passiva e o teste dela, ou `null` (a passiva saiu da
+ * ficha). `bonus` = o `bonusDaBatalha` de quem atirou: os selos somam no
+ * atributo do teste, como o host faz ao rolar (`modificadorDoTeste`).
+ */
+export function marcaNaTela(
+  lembrete: { id: string; alvoTokenId: string },
+  personagem: Personagem | undefined,
+  sistema: SistemaDeRpg | null,
+  nomeDe: (tokenId: string) => string,
+  bonus: BonusDaBatalha | undefined,
+  quem?: string,
+): MarcaNaTela | null {
   if (personagem === undefined || sistema === null) return null
   const achada = passivaDaMarca(personagem, sistema)
   if (achada === null) return null
   const { cartao, leitura } = achada
   const sp = sistema.recursos.find((recurso) => recurso.tom === 'energia')
-  const teste = leitura.teste === null ? null : { nome: leitura.teste.nome, cd: leitura.teste.cd, modificador: modificadorDoTeste(personagem, sistema, leitura.teste.atributoId) }
+  const teste = leitura.teste === null ? null : { nome: leitura.teste.nome, cd: leitura.teste.cd, modificador: modificadorDoTeste(personagem, sistema, leitura.teste.atributoId, bonus) }
   const item: MarcaNaTela = {
     id: lembrete.id,
     alvo: nomeDe(lembrete.alvoTokenId),

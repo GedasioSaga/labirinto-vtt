@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import type { AcaoDaForma, PedidoDeAcao } from '../../lib/batalha/combate'
 import { armazemDoAparelho, gravarEscolhaDaImagem, lerEscolhaDaImagem } from '../../lib/batalha/escolhaDaImagem'
-import { formaLivre, motivoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
+import { ataquesExtrasDaForma, deslocamentoDaForma, formaLivre, motivoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
 import { formatarNumero, textoDaAcao, type PipDaVez } from './dadosDoMenu'
 import { CabecaDaVez, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
 import './batalha.css'
@@ -45,6 +45,24 @@ export function linhaDaFormaDoNpc(forma: FormaNoMenu): string {
   return [textoDaAtivacao(forma, forma.acaoDaFicha), forma.numeros.length > 0 ? `muda ${forma.numeros.length}` : '', forma.requisito === null ? '' : `requisito: ${forma.requisito}`].filter((parte) => parte !== '').join(' · ')
 }
 
+function blocos(quantos: number): string {
+  return `${formatarNumero(quantos)} ${quantos === 1 ? 'bloco' : 'blocos'}`
+}
+
+/** R6: o Deslocamento da forma no painel ("+2 blocos por Movimento · no máximo 6 blocos na vez"); `null` = não mexe. */
+function textoDoDeslocamento(forma: FormaNoMenu): string | null {
+  const { aMais, max } = deslocamentoDaForma(forma.cartao)
+  const partes = [aMais === null ? '' : `+${blocos(aMais)} por Movimento`, max === null ? '' : `no máximo ${blocos(max)} na vez`].filter((parte) => parte !== '')
+  return partes.length === 0 ? null : partes.join(' · ')
+}
+
+/** R6: os Ataques extras da forma no painel ("+1 ataque por rodada ao usar Atacar"); `null` = não dá. */
+function textoDosAtaquesExtras(forma: FormaNoMenu): string | null {
+  const quantos = ataquesExtrasDaForma(forma.cartao)
+  if (quantos === null) return null
+  return `+${formatarNumero(quantos)} ${quantos === 1 ? 'ataque' : 'ataques'} por rodada ao usar Atacar`
+}
+
 /** R6: o que Ativar gasta, na tira e no botão: "sem gastar ação" na forma Livre, senão a ação. */
 function textoDaAtivacao(forma: FormaNoMenu, acao: AcaoDaForma): string {
   return formaLivre(forma.cartao) ? 'sem gastar ação' : textoDaAcao(acao)
@@ -80,6 +98,8 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
   const motivo = forma.ligada || livre ? null : motivoDaForma(forma, acao, acoes)
   const comImagem = forma.imagem !== null
   const usos = usosDaForma(forma.cartao)
+  const deslocamento = textoDoDeslocamento(forma)
+  const ataquesExtras = textoDosAtaquesExtras(forma)
 
   const ativar = (evento?: FormEvent) => {
     evento?.preventDefault()
@@ -112,7 +132,7 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
         {nome}
       </h3>
       {descricao !== '' && <p className="bt-forma__texto">{descricao}</p>}
-      {(forma.requisito !== null || (!forma.ligada && forma.troca.length > 0) || usos !== null) && (
+      {(forma.requisito !== null || (!forma.ligada && forma.troca.length > 0) || usos !== null || deslocamento !== null || ataquesExtras !== null) && (
         <dl className="bt-passiva__leitura bt-forma__leitura">
           {forma.requisito !== null && (
             <div>
@@ -136,6 +156,18 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
             <div>
               <dt>Usos</dt>
               <dd>{usos === 1 ? '1 vez por batalha' : `${usos} vezes por batalha`}</dd>
+            </div>
+          )}
+          {deslocamento !== null && (
+            <div>
+              <dt>Deslocamento</dt>
+              <dd>{deslocamento}</dd>
+            </div>
+          )}
+          {ataquesExtras !== null && (
+            <div>
+              <dt>Ataques extras</dt>
+              <dd>{ataquesExtras}</dd>
             </div>
           )}
         </dl>

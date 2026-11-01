@@ -237,12 +237,12 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     for (const meu of estado.meus ?? []) {
       const dele = meus.find((candidato) => candidato.id === meu.personagemId)
       for (const lembrete of meu.marcas ?? []) {
-        const item = marcaNaTela(lembrete, dele, sistema, nomeDe, varios ? nomeDe(lembrete.tokenId) : undefined)
+        const item = marcaNaTela(lembrete, dele, sistema, nomeDe, bonusDaBatalha(selosQueSomam, lembrete.tokenId), varios ? nomeDe(lembrete.tokenId) : undefined)
         if (item !== null) itens.push(item)
       }
     }
     return itens
-  }, [pedirMarca, estado.meus, meus, sistema, nomeDe])
+  }, [pedirMarca, estado.meus, meus, sistema, nomeDe, selosQueSomam])
   // Na Arena o mestre opera tudo ("Vez de Lia"): aplica o "a cada turno" quando quiser, como na aba Batalha.
   const operaComoMestre = textoDaVez === 'vezDe'
 
@@ -269,7 +269,10 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       contar: (cartaoId, opcao) => contar(cartaoId, opcao.chave),
       motivo: (cartaoId) => {
         const daTecnica = golpesDoMenu?.find((golpe) => golpe.cartaoId === cartaoId)?.motivo ?? null
-        return (opcao) => motivoNoJogador(opcao, contar(cartaoId, opcao.chave), combate?.carga ?? 0, daTecnica)
+        // Decisão 10: o Ultra desta técnica já posto (o recorte diz a opção dos dele) recusa os comuns.
+        const ultras = new Set((invocacaoDaFicha(personagem, sistema, cartaoId)?.opcoes ?? []).filter((opcao) => opcao.ultra).map((opcao) => opcao.chave))
+        const ultraEmCampo = (minhasInvocacoes ?? []).some((item) => item.posto && item.cartaoId === cartaoId && ultras.has(item.opcao))
+        return (opcao) => motivoNoJogador(opcao, contar(cartaoId, opcao.chave), ultraEmCampo, combate?.carga ?? 0, daTecnica)
       },
       onInvocar: (cartaoId, opcao, custo, acao) => pedirInvocacao(pedidoDeInvocacao(cartaQueAge.tokenId, cartaoId, opcao, custo, acao)),
       esperando: (minhasInvocacoes ?? []).filter((item) => !item.posto),

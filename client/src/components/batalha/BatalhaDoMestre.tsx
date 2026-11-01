@@ -238,7 +238,7 @@ function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string
   for (const lembrete of turnos.lembretesDaMarca ?? []) {
     const personagem = mesa.personagens.find((candidato) => candidato.id === lembrete.personagemId)
     if (personagem?.tipo !== 'npc') continue
-    const item = marcaNaTela(lembrete, personagem, mesa.sistema, (tokenId) => nomeDaFicha(mesa, tokenId), nomeDaFicha(mesa, lembrete.tokenId))
+    const item = marcaNaTela(lembrete, personagem, mesa.sistema, (tokenId) => nomeDaFicha(mesa, tokenId), bonusDaBatalha(turnos.selos, lembrete.tokenId), nomeDaFicha(mesa, lembrete.tokenId))
     if (item !== null) marcas.push(item)
   }
   if (itens.length === 0 && marcas.length === 0) return null
