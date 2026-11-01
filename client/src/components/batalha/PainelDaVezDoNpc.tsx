@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import type { AcoesDaVez } from '../../lib/batalha/acoes'
+import { MOTIVO_JA_CONCENTROU, type AcoesDaVez } from '../../lib/batalha/acoes'
 import type { PedidoDeAcao } from '../../lib/batalha/combate'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { ImagemOuIniciais } from '../FichaPecas'
@@ -259,7 +259,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
           Concentrar
         </button>
         {onZerarCarga !== undefined && carga > 0 && (
-          <button type="button" className="bt-botao" title="Volta a 0; a ação gasta não volta" onClick={() => setAviso(onZerarCarga() ? null : 'Não zerou: a carga já estava em 0.')}>
+          <button type="button" className="bt-botao" title={motivoDoConcentrar === MOTIVO_JA_CONCENTROU ? 'Volta a 0 e desfaz o Concentrar desta vez' : 'Volta a 0; a ação gasta não volta'} onClick={() => setAviso(onZerarCarga() ? null : 'Não zerou: a carga já estava em 0.')}>
             Zerar concentração ({carga})
           </button>
         )}

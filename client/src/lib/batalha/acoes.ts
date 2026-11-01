@@ -300,6 +300,9 @@ export function tecnicasNoMenu(
   })
 }
 
+/** O Concentrar já usado nesta vez; com ele, zerar desfaz o Concentrar da vez (C2: a ação volta). */
+export const MOTIVO_JA_CONCENTROU = 'Já concentrou nesta vez'
+
 /** C1 (lote de 01/11): a concentração que leva a carga a 3 não gasta ação. */
 function concentrarEhLivre(carga: number): boolean {
   return carga === CARGA_MAX - 1
@@ -312,7 +315,7 @@ function concentrarEhLivre(carga: number): boolean {
  */
 export function motivoDoConcentrar(combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez, chaveDaVez: string): string | null {
   const carga = combate?.carga ?? 0
-  if (combate?.concentrouEm === chaveDaVez) return 'Já concentrou nesta vez'
+  if (combate?.concentrouEm === chaveDaVez) return MOTIVO_JA_CONCENTROU
   if (carga >= CARGA_MAX) return 'Carga no máximo'
   if (!concentrarEhLivre(carga) && !sobra(acoes.simples) && !sobra(acoes.bonus)) return 'A ação simples deste turno já foi usada'
   return null

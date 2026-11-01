@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { AcoesDaVez } from '../../lib/batalha/acoes'
+import { MOTIVO_JA_CONCENTROU, type AcoesDaVez } from '../../lib/batalha/acoes'
 import type { AcaoDaTecnica, PedidoDeAcao } from '../../lib/batalha/combate'
 import type { OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
 import type { MotivoDaOpcao } from './dadosDaInvocacao'
@@ -121,6 +121,8 @@ export function MenuDaVez(props: MenuDaVezProps) {
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
+  // C2: zerar na mesma vez do Concentrar desfaz o Concentrar (a ação volta); depois, a ação gasta não volta.
+  const efeitoDoZerar = motivoDoConcentrar === MOTIVO_JA_CONCENTROU ? 'desfaz o Concentrar desta vez' : 'a ação gasta não volta'
   // Fora da vez com um só guardado, ele já é o escolhido; com mais de um, ele escolhe.
   const contra = contras.find((candidato) => candidato.golpeId === contraId) ?? (foraDaVez && contras.length === 1 ? contras[0] : undefined)
   const modoContra = contra !== undefined
@@ -446,8 +448,8 @@ export function MenuDaVez(props: MenuDaVezProps) {
               <button
                 type="button"
                 className="bt-zerar"
-                aria-label={`Zerar a concentração de ${quem} (carga ${carga} para 0; a ação gasta não volta)`}
-                title="Volta a carga a 0 (a ação gasta não volta)"
+                aria-label={`Zerar a concentração de ${quem} (carga ${carga} para 0; ${efeitoDoZerar})`}
+                title={`Volta a carga a 0 (${efeitoDoZerar})`}
                 disabled={esperando}
                 onClick={item.zerar}
               >
