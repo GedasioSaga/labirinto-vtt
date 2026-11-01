@@ -3,7 +3,7 @@ import { valorDoRank } from '../ajusteDaFicha'
 import { entraNaBatalha } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import type { CombateDoPersonagem, ContraAtaque, FormaNaBatalha, GolpeDaBatalha, InvocacaoPendente, InvocadoNaBatalha, SeloDaBatalha } from './combate'
+import type { CombateDoPersonagem, ContraAtaque, FormaNaBatalha, GolpeDaBatalha, InvocacaoPendente, InvocadoNaBatalha, LembreteDaMarca, SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { contarSelos } from './selos'
 
@@ -105,6 +105,8 @@ export interface TurnosDaCena {
   invocados?: readonly InvocadoNaBatalha[]
   /** Invocação: os pedidos aceitos esperando o mestre pôr no mapa (no máximo `INVOCACOES_PENDENTES_MAX`). Ausente = nenhum. */
   invocacoes?: readonly InvocacaoPendente[]
+  /** R1 (lote de 01/11): os lembretes "Marcar o alvo?" esperando resposta (no máximo `LEMBRETES_DA_MARCA_MAX`). Ausente = nenhum. */
+  lembretesDaMarca?: readonly LembreteDaMarca[]
 }
 
 /** Quem fez a ação que entra no registro. O `nome` do jogador é o da mesa, na hora. */

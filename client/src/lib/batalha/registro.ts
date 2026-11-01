@@ -20,6 +20,7 @@ import {
   type GolpeDaBatalha,
   type InvocacaoPendente,
   type InvocadoNaBatalha,
+  type LembreteDaMarca,
   type LembreteDaPassiva,
   type SeloDaBatalha,
 } from './combate'
@@ -114,6 +115,20 @@ export type Reversao =
    * (a store confere: desfeita, a ação já voltou por ela).
    */
   | { tipo: 'acaoDevolvida'; cartaId: string; rodada: number; acao: 'simples' | 'bonus'; linhaDoConcentrar: string }
+  /**
+   * R1 (lote de 01/11): o golpe acertou a marca e ela saiu (o dobro do dano
+   * volta pela parte "ficha"). Desfazer = a marca volta, SÓ se a linha que a
+   * pôs não foi desfeita e o alvo não ganhou outra marca (a store confere).
+   */
+  | { tipo: 'marcaUsada'; selo: SeloDaBatalha }
+  /** R1: o acerto deixou o lembrete "Marcar o alvo?". Desfazer = o lembrete sai (se ainda espera). */
+  | { tipo: 'lembreteDaMarca'; lembrete: LembreteDaMarca }
+  /**
+   * R1: a resposta ao lembrete (marcou, ou falhou no teste). Desfazer = o
+   * lembrete volta a esperar, SÓ se a linha do golpe que o deixou segue de pé
+   * e o alvo não está marcado (a store confere).
+   */
+  | { tipo: 'lembreteDaMarcaRespondido'; lembrete: LembreteDaMarca }
   /** F2: o golpe que nasceu na linha. Desfazer = tirá-lo dos pendentes (alvo que esperava não recebe mais nada) e o contra-ataque que ele deu. */
   | { tipo: 'golpe'; golpeId: string }
   /** F2 (Q6): o contra-ataque gasto na linha. Desfazer = devolvê-lo. */
@@ -561,6 +576,23 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       if (turnos.vez !== reversao.cartaId || turnos.rodada !== reversao.rodada) return turnos
       const gasto = turnos.gastos[reversao.cartaId] ?? { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
       return { ...turnos, gastos: { ...turnos.gastos, [reversao.cartaId]: { ...gasto, [reversao.acao]: gasto[reversao.acao] + 1 } } }
+    }
+    case 'marcaUsada': {
+      const { selo } = reversao
+      const selos = turnos.selos ?? []
+      // Uma marca por alvo: com outra marca (ou esta) lá, nada volta.
+      if (selos.some((guardado) => guardado.id === selo.id || (guardado.tokenId === selo.tokenId && guardado.marca === true))) return turnos
+      return { ...turnos, selos: [...selos, selo] }
+    }
+    case 'lembreteDaMarca': {
+      const lembretes = turnos.lembretesDaMarca ?? []
+      const ficam = lembretes.filter((lembrete) => lembrete.id !== reversao.lembrete.id)
+      return ficam.length === lembretes.length ? turnos : { ...turnos, lembretesDaMarca: ficam }
+    }
+    case 'lembreteDaMarcaRespondido': {
+      const lembretes = turnos.lembretesDaMarca ?? []
+      if (lembretes.some((lembrete) => lembrete.id === reversao.lembrete.id)) return turnos
+      return { ...turnos, lembretesDaMarca: [...lembretes, reversao.lembrete] }
     }
     case 'golpe': {
       const golpes = (turnos.golpes ?? []).filter((golpe) => golpe.id !== reversao.golpeId)

@@ -28,6 +28,7 @@ import { danoDoAtaque } from './formula'
 import {
   armasDe,
   balaDaArma,
+  categoriaAtira,
   lerAcao,
   lerCusto,
   lerTempo,
@@ -41,6 +42,7 @@ import {
   type BalaDaArma,
   type LeituraDoCusto,
 } from './leituraDaFicha'
+import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
@@ -347,6 +349,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   if (selo !== null) golpe.selo = tecnica === null ? selo : seloDaTecnicaNoGolpe(selo, tecnica)
   const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
+  // R1: a técnica que marca ao acertar (Desenhar o Alvo) e a arma que atira (o acerto lembra a passiva de marca).
+  if (tecnica !== null && sistema !== null && lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar') golpe.marca = tecnica.cartao.id
+  if (arma !== null && categoriaAtira(arma.categoria)) golpe.armaQueAtira = true
   // Tipos de habilidade F4: a opção escolhida e o uso evoluído vão para o registro ("Medicina (Cirugia)").
   if (tecnica !== null && pedido.tipo === 'habilidade') {
     const variante = pedido.variante === undefined ? null : varianteDoPedido(tecnica.cartao, pedido.variante)
@@ -537,7 +542,7 @@ function comATecnica(alvo: AlvoDoGolpe): string {
 function textoDoAlvo(alvo: AlvoDoGolpe): string {
   const pedacos: string[] = []
   if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}${comATecnica(alvo)}`)
-  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
+  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   return pedacos.join(' · ')
 }

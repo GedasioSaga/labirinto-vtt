@@ -20,6 +20,7 @@ import {
   type PedidoDeAcao,
   type PedidoDeEvolucao,
   type PedidoDeInvocacao,
+  type PedidoDeMarca,
   type PedidoDePassiva,
   type PedidoDeReacao,
   type AcaoDaForma,
@@ -46,10 +47,12 @@ import {
   type ContextoDaInvocacao,
 } from '../lib/batalha/invocacao'
 import { fichaDoInvocado } from '../lib/livros/combate'
+import { acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca, type AcertoNaMarca } from '../lib/batalha/marca'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
 import type { Token } from '../types/map'
 import {
+  bonusDaBatalha,
   comSeloNovo,
   criarSelo,
   modsIguais,
@@ -151,7 +154,7 @@ import {
 } from '../lib/batalha/turnos'
 import { aplicarAjustes, NOME_DO_MESTRE, type Ajuste } from '../lib/ajusteDaFicha'
 import { secureRollDie } from '../lib/dice'
-import type { Personagem } from '../lib/personagem'
+import { numeroDaFicha, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { mesaDaAventura } from './mesaDaAventura'
 
@@ -381,6 +384,17 @@ export interface BatalhaState {
    * invocado sem reação, HP 0 tira o invocado do mapa.
    */
   agirComInvocado: (sceneKey: string, vez: VezEsperada, tokenId: string, pedido: PedidoDeAcao) => boolean
+
+  // ---- Lote de 01/11 (docs/planos/batalha-lote-01-11-plano.md). O mestre chama direto; o jogador pela ponte, só na ficha dele. ----
+  /**
+   * R1: a resposta ao lembrete "Marcar o alvo?" (`turnos.lembretesDaMarca`).
+   * "sp" cobra o SP da passiva; "teste" rola d20 + modificador (o rank do
+   * atributo) contra a CD, com o d20 para todos; "passou"/"falhou" = rolou
+   * fora; "agoraNao" tira o lembrete sem linha. Passou: selo "Marcado" (sem
+   * turnos) no alvo. Linha "habilidade" com Desfazer (o SP, a marca e o
+   * lembrete voltam). Alvo já marcado ou fora da ordem: `false`.
+   */
+  marcar: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeMarca) => boolean
 }
 
 /** Invocação: onde o invocado nasce (px do mundo, o centro da casa) e em que piso; `piso` ausente = o térreo. */
@@ -589,6 +603,21 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
       if (linhaDesfeita(cena.registro, reversao.linhaDoConcentrar)) return { cena, emParte: false, ok: true }
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
     }
+    case 'marcaUsada': {
+      // R1: a marca só volta com a linha que a pôs de pé (desfazer fora de ordem não ressuscita) e o alvo ainda na ordem.
+      const { selo } = reversao
+      const posta = selo.linhaDaMarca === undefined || !linhaDesfeita(cena.registro, selo.linhaDaMarca)
+      if (!posta || !cena.turnos.cartas.some((carta) => carta.tokenId === selo.tokenId)) return { cena, emParte: false, ok: true }
+      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
+    }
+    case 'lembreteDaMarcaRespondido': {
+      // R1: o lembrete só volta a esperar se o golpe que o deixou segue de pé e o alvo não ganhou marca.
+      const { lembrete } = reversao
+      if (linhaDesfeita(cena.registro, lembrete.linhaId) || marcaDoToken(cena.turnos.selos, lembrete.alvoTokenId) !== undefined) return { cena, emParte: false, ok: true }
+      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
+    }
+    case 'lembreteDaMarca':
+      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
     case 'vez':
     case 'ordem':
     case 'cartaNova':
@@ -747,6 +776,23 @@ function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaB
   const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, golpe.perfurante, golpe.perfuracao), quemNaFicha(autor))
   // A animação toca sempre (esquiva também: "ESQUIVOU" sobre a ficha).
   return { partes: alvo.personagemId === null ? [] : reversaoDaFicha(alvo.personagemId, partes), efeito: { tipo: 'dano', tokenId: alvo.tokenId, valor, saida: alvo.saida } }
+}
+
+function novoIdDaMarca(): string {
+  return `marca_${crypto.randomUUID()}`
+}
+
+/**
+ * R1 (lote de 01/11): o alvo resolvido passa pela marca ANTES do dano na
+ * ficha (o dobro sai no número do dano e no texto). A passiva de marca é a do
+ * personagem de quem atacou; a técnica que marca é a do golpe (`golpe.marca`).
+ */
+function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): AcertoNaMarca {
+  const sistema = mesa.sistema()
+  const atacante = golpe.atacantePersonagemId === null ? undefined : mesa.personagens().find((personagem) => personagem.id === golpe.atacantePersonagemId)
+  const passiva = sistema === null || atacante === undefined ? null : (passivaDaMarca(atacante, sistema)?.cartao ?? null)
+  const tecnicaQueMarca = golpe.marca === undefined ? null : { id: golpe.marca, nome: golpe.nome }
+  return acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, tecnicaQueMarca })
 }
 
 /** A linha do registro com outro texto e mais partes na reversão (o golpe que se resolve alvo a alvo). */
@@ -1094,6 +1140,75 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     return true
   }
 
+  /** R1: a resposta ao lembrete da marca. Ver `marcar` em `BatalhaState`. */
+  const marcarOAlvo = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeMarca): boolean => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined) return false
+    const { turnos } = cena
+    const lembrete = (turnos.lembretesDaMarca ?? []).find((candidato) => candidato.id === pedido.lembreteId)
+    if (lembrete === undefined) return false
+    const semOLembrete: TurnosDaCena = { ...turnos, lembretesDaMarca: (turnos.lembretesDaMarca ?? []).filter((candidato) => candidato.id !== lembrete.id) }
+    // "Agora não": só tira o lembrete, sem linha (como na passiva).
+    if (pedido.como === 'agoraNao') {
+      gravarCena(sceneKey, comMudanca(cena, semOLembrete, null))
+      return true
+    }
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = personagens.find((candidato) => candidato.id === lembrete.personagemId)
+    const achada = personagem === undefined || sistema === null ? null : passivaDaMarca(personagem, sistema)
+    if (personagem === undefined || sistema === null || achada === null || achada.cartao.id !== lembrete.cartaoId) return false
+    // O alvo segue na ordem e sem marca (uma marca por alvo).
+    if (!turnos.cartas.some((carta) => carta.tokenId === lembrete.alvoTokenId) || marcaDoToken(turnos.selos, lembrete.alvoTokenId) !== undefined) return false
+    const recursoDoSp = recursoDoCusto(sistema, 'sp')
+    const sp = recursoDoSp === null ? 0 : numeroDaFicha(personagem.recursos, recursoDoSp.id)
+    const { leitura } = achada
+    if (motivoDaMarca(leitura, pedido.como, sp) !== null) return false
+    const linhaId = novoIdDeLinha()
+    const efeitos: EfeitoNovo[] = []
+    let passou: boolean
+    let detalhe: string
+    if (pedido.como === 'teste' && leitura.teste !== null && leitura.teste.cd !== null) {
+      const d20 = rolarD20()
+      const modificador = modificadorDoTeste(personagem, sistema, leitura.teste.atributoId, bonusDaBatalha(turnos.selos, lembrete.tokenId))
+      const total = d20 + modificador
+      passou = total >= leitura.teste.cd
+      detalhe = `${leitura.teste.nome} ${textoDaRolagem(d20, modificador, total)} contra CD ${leitura.teste.cd}`
+      efeitos.push({ tipo: 'reacao', golpeId: null, tokenId: lembrete.tokenId, d20, modificador, total })
+    } else if (pedido.como === 'sp') {
+      passou = true
+      detalhe = personagem.tipo === 'jogador' ? `${leitura.sp ?? 0} ${recursoDoSp?.nome ?? 'SP'}` : 'pagou'
+    } else {
+      passou = pedido.como === 'passou'
+      detalhe = 'teste rolado fora'
+    }
+    let novos = semOLembrete
+    const partes: Reversao[] = [{ tipo: 'lembreteDaMarcaRespondido', lembrete }]
+    if (passou) {
+      // A marca é calculada ANTES de cobrar: selo que não cabe no teto recusa sem mexer no SP.
+      const marca = criarMarca(novos, lembrete.alvoTokenId, { selo: novoIdDaMarca(), linha: linhaId }, achada.cartao)
+      const selos = comSeloNovo(novos.selos, marca)
+      if (selos === null) return false
+      if (pedido.como === 'sp' && leitura.sp !== null) {
+        const custo = leitura.sp
+        partes.push(...reversaoDaFicha(personagem.id, mexerNaFicha(mesa, personagem.id, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, { tipo: 'valor', recurso: 'sp', valor: custo, porTurno: false }), quemNaFicha(autor))))
+      }
+      partes.push({ tipo: 'selo', seloId: marca.id, antes: null })
+      novos = { ...novos, selos }
+    }
+    const nomeDoToken = nomeDoTokenNa(turnos, personagens)
+    const nome = achada.cartao.nome.trim() || 'a passiva'
+    const texto = passou
+      ? `${nomeDoToken(lembrete.tokenId)} marcou ${nomeDoToken(lembrete.alvoTokenId)} (${nome} · ${detalhe})`
+      : `${nomeDoToken(lembrete.tokenId)} não marcou ${nomeDoToken(lembrete.alvoTokenId)} (${nome} · ${detalhe} · falhou)`
+    // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, {
+      ...comMudanca(atual, novos, { id: linhaId, tipo: 'habilidade', texto, autor, tokenIds: [lembrete.tokenId, lembrete.alvoTokenId], personagemIds: [personagem.id], reversao: { tipo: 'composta', partes } }),
+      efeitos: comEfeitos(atual.efeitos, efeitos),
+    })
+    return true
+  }
+
   /** O selo trocado (`depois`) ou tirado (`null`), com a linha "selo" do mestre. */
   const mudarSelo = (sceneKey: string, seloId: string, depois: SeloDaBatalha | null): boolean => {
     const cena = cenaDe(sceneKey)
@@ -1157,12 +1272,15 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes }, alvo, pedido) !== null || personagem === null || sistema === null) return false
     const d20 = pedido.saida === 'rolar' ? rolarD20() : null
     const combateBase = combateAntes ?? combateVazio()
-    const feita = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, d20)
-    if (feita === null) return false
+    const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, d20)
+    if (lida === null) return false
+    // R1: resolvido na reação, o alvo passa pela marca antes do dano (o golpe da reversão já leva o dobro).
+    const acerto = lida.alvo.danoFinal === undefined ? null : acertoComMarca(mesa, turnos, lida.golpe, lida.alvo)
+    const feita = acerto === null ? lida : { ...lida, alvo: acerto.alvo, golpe: golpeComOAlvo(lida.golpe, acerto.alvo) }
     const quem = quemNaFicha(autor)
-    const partes: Reversao[] = [{ tipo: 'reacaoComTecnica', golpe: feita.golpe, tokenId: alvo.tokenId, alvoAntes: alvo }]
+    const partes: Reversao[] = [{ tipo: 'reacaoComTecnica', golpe: feita.golpe, tokenId: alvo.tokenId, alvoAntes: alvo }, ...(acerto?.partes ?? [])]
     const efeitos: EfeitoNovo[] = []
-    let novos: TurnosDaCena = { ...turnos, golpes: comGolpe(turnos.golpes, feita.golpe) }
+    let novos: TurnosDaCena = { ...(acerto?.turnos ?? turnos), golpes: comGolpe(turnos.golpes, feita.golpe) }
     // `depoisDaTecnica` devolve o MESMO combate quando a técnica não marca nada (sem recarga, usos nem Overload).
     if (feita.combate !== combateBase) {
       partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois: feita.combate })
@@ -1264,13 +1382,18 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       novos = { ...novos, contras: (novos.contras ?? []).filter((candidato) => !(candidato.golpeId === usado.golpeId && candidato.tokenId === usado.tokenId)) }
     }
     const efeitos: EfeitoNovo[] = []
-    const { golpe } = lancado
+    let golpe = lancado.golpe
     if (golpe !== null) {
       partes.push({ tipo: 'golpe', golpeId: golpe.id })
       efeitos.push({ tipo: 'golpe', golpeId: golpe.id, atacanteTokenId: golpe.atacanteTokenId, nome: golpe.nome, alvos: golpe.alvos.map((alvo) => alvo.tokenId), surpresa: golpe.surpresa, overload: golpe.overload })
-      for (const alvo of lancado.resolvidos) {
+      for (const resolvido of lancado.resolvidos) {
+        // R1: a marca antes do dano (o dobro, a marca da técnica, o lembrete da passiva).
+        const acerto = acertoComMarca(mesa, novos, golpe, resolvido)
+        novos = acerto.turnos
+        golpe = golpeComOAlvo(golpe, acerto.alvo)
+        const alvo = acerto.alvo
         const feito = danoNoAlvo(mesa, alvo, golpe, autor)
-        partes.push(...feito.partes)
+        partes.push(...feito.partes, ...acerto.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
         // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
         const selado = seloDoGolpe(novos, golpe, alvo)
@@ -1747,6 +1870,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const partes: Reversao[] = []
       let contras = turnos.contras
       let selos = turnos.selos
+      // R1: os turnos depois da marca (os lembretes da marca moram neles); os selos seguem em `selos`.
+      let marcados: TurnosDaCena = turnos
       switch (pedido.tipo) {
         case 'rolar':
         case 'rerolar': {
@@ -1773,13 +1898,19 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
             saida = saidaDoPassar(alvo.rolagem.d20)
           }
           novo = resolverAlvo(golpe, alvo.tokenId, saida)
-          const resolvido = novo.alvos.find((candidato) => candidato.tokenId === alvo.tokenId)
-          if (resolvido === undefined) return false
+          const semMarca = novo.alvos.find((candidato) => candidato.tokenId === alvo.tokenId)
+          if (semMarca === undefined) return false
+          // R1: a marca antes do dano (o dobro, a marca da técnica, o lembrete da passiva).
+          const acerto = acertoComMarca(mesa, turnos, novo, semMarca)
+          marcados = acerto.turnos
+          selos = marcados.selos
+          novo = golpeComOAlvo(novo, acerto.alvo)
+          const resolvido = acerto.alvo
           const feito = danoNoAlvo(mesa, resolvido, golpe, autor)
-          partes.push(...feito.partes)
+          partes.push(...feito.partes, ...acerto.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
-          const selado = seloDoGolpe(turnos, golpe, resolvido)
+          const selado = seloDoGolpe(marcados, golpe, resolvido)
           if (selado !== null) {
             partes.push(selado.parte)
             selos = selado.selos
@@ -1792,7 +1923,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
           break
         }
       }
-      let novos: TurnosDaCena = { ...turnos, golpes: comGolpe(turnos.golpes, novo) }
+      let novos: TurnosDaCena = { ...marcados, golpes: comGolpe(turnos.golpes, novo) }
       if (contras !== undefined) novos.contras = contras
       if (selos !== undefined) novos.selos = selos
       // Tipos de habilidade F3: o alvo resolvido tomou o dano: o gatilho de vida lê a ficha de agora (a reversão vai na linha do golpe).
@@ -1954,6 +2085,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     passiva: (sceneKey, autor, pedido) => mudarPassiva(sceneKey, autor, pedido),
 
     evoluir: (sceneKey, autor, pedido) => evoluirTecnica(sceneKey, autor, pedido),
+
+    marcar: (sceneKey, autor, pedido) => marcarOAlvo(sceneKey, autor, pedido),
   }
 }
 

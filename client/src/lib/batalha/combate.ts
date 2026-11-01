@@ -334,6 +334,8 @@ export interface AlvoDoGolpe {
   danoFinal?: number
   /** Tipos de habilidade F1: reagiu com esta técnica (o registro diz "esquivou com Passo de Valsa"). */
   tecnica?: TecnicaDaReacao
+  /** R1 (lote de 01/11): o golpe acertou a marca dele: `danoFinal` já é o dobro, e a marca saiu. */
+  marcado?: true
 }
 
 export interface GolpeDaBatalha {
@@ -365,6 +367,42 @@ export interface GolpeDaBatalha {
   variante?: string
   /** Tipos de habilidade F4: o uso evoluído da técnica sem "Evolui para" ("CAÇA AS BRUXAS! (evoluída)"). */
   evoluida?: true
+  /** R1 (lote de 01/11): o cartaoId da técnica que marca quem ela acerta (Desenhar o Alvo), sem custo nem teste. Tirado da ficha pelo host. */
+  marca?: string
+  /** R1: o golpe usou arma que atira (De fogo, Híbrida): o acerto lembra a passiva de marca de quem atirou. */
+  armaQueAtira?: true
+}
+
+/**
+ * R1 (lote de 01/11): o lembrete "Marcar o alvo?" que o acerto com arma que
+ * atira deixa para o dono da passiva de marca (`marca.ts`). Mora em
+ * `TurnosDaCena.lembretesDaMarca`, por cena. Nunca marca sozinho.
+ */
+export interface LembreteDaMarca {
+  /** `marca_<uuid>`. */
+  id: string
+  /** A linha do golpe que acertou: desfeita, o lembrete não volta. */
+  linhaId: string
+  golpeId: string
+  /** A passiva de marca (Olhar Artístico). */
+  cartaoId: string
+  /** A ficha de quem atirou (a tela mostra o lembrete nela). */
+  tokenId: string
+  personagemId: string
+  /** Quem foi acertado e pode ser marcado. */
+  alvoTokenId: string
+  rodada: number
+}
+
+/**
+ * R1: a resposta ao lembrete da marca. "sp" = paga o SP da passiva; "teste" =
+ * o host rola d20 + modificador do atributo contra a CD; "passou"/"falhou" =
+ * rolou fora ("rolei fora"); "agoraNao" = tira o lembrete, sem linha.
+ */
+export interface PedidoDeMarca {
+  tipo: 'marcar'
+  lembreteId: string
+  como: 'sp' | 'teste' | 'passou' | 'falhou' | 'agoraNao'
 }
 
 /** A bala que o golpe usou, como o registro a mostra. */
@@ -457,6 +495,10 @@ export interface SeloDaBatalha {
    * escolhido). Só do host: nunca sai ao jogador. Ausente = não é de passiva.
    */
   donoId?: string
+  /** R1 (lote de 01/11): é a MARCA (`marca.ts`): o próximo golpe que acerta dá o dobro e a tira. Ausente = selo comum. */
+  marca?: true
+  /** R1: a linha que pôs a marca. Desfeita, o Desfazer de quem usou a marca não a devolve. Só do host. */
+  linhaDaMarca?: string
 }
 
 /** O selo como chega no pedido (o sugerido na mira, ou o do mestre). `turnos` null = até tirar. */
