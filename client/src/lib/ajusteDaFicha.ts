@@ -127,9 +127,31 @@ export function maximoBase(personagem: Personagem, recursoId: string): number {
  */
 export function maximoComposto(personagem: Personagem, recursoId: string): ValorComposto {
   const valor = composto(maximoBase(personagem, recursoId), numeroDaFicha(personagem.modificadoresDosRecursos, recursoId), parcelasDosCartoes(personagem, recursoId))
-  const forca = recursoId === RECURSO_QUE_A_FORCA_MULTIPLICA ? forcaDe(personagem) : FORCA_PADRAO
+  const forca = forcaDoRecurso(personagem, recursoId)
   const total = Math.max(0, aplicarForca(valor.total, forca))
   return forca === FORCA_PADRAO ? { ...valor, total } : { ...valor, total, forca }
+}
+
+/** A força que multiplica o recurso: só o HP do NPC de combate; o resto, a padrão. */
+export function forcaDoRecurso(personagem: Personagem, recursoId: string): number {
+  return recursoId === RECURSO_QUE_A_FORCA_MULTIPLICA ? forcaDe(personagem) : FORCA_PADRAO
+}
+
+/**
+ * O atual como se DIGITA: o HP normal, sem a força. Decisão do usuário
+ * (01/11): com Força ×1,5 o número digitado é o HP normal e o app põe a força
+ * por cima. O campo mostra este número e devolve por `ajusteDoAtualDigitado`,
+ * para o que aparece ser o que ele aceita (o "Máximo" do painel já é a base).
+ */
+export function atualSemForca(personagem: Personagem, recursoId: string): number {
+  const forca = forcaDoRecurso(personagem, recursoId)
+  const atual = numeroDaFicha(personagem.recursos, recursoId)
+  return forca === FORCA_PADRAO ? atual : Math.round(atual / forca)
+}
+
+/** O ajuste do atual digitado como HP normal: a força entra aqui, uma vez (par de `atualSemForca`). */
+export function ajusteDoAtualDigitado(personagem: Personagem, recursoId: string, digitado: number): Ajuste {
+  return { parte: 'recurso', chave: recursoId, valor: aplicarForca(digitado, forcaDoRecurso(personagem, recursoId)) }
 }
 
 /** O recurso tem atual e máximo neste sistema? Chave que o sistema não conhece: não. */
