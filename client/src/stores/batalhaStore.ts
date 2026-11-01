@@ -17,7 +17,10 @@ import {
   type GolpeDaBatalha,
   type InvocadoNaBatalha,
   type NumerosDoInvocado,
+  type MudancaDoAjuste,
   type PedidoDeAcao,
+  type PedidoDeAjusteNaBatalha,
+  type PedidoDoContador,
   type PedidoDeEvolucao,
   type PedidoDeInvocacao,
   type PedidoDeMarca,
@@ -29,7 +32,11 @@ import {
   type SaidaDaReacao,
   type SeloDaBatalha,
   type SeloPedido,
+  DANO_MAX as DELTA_DO_AJUSTE_MAX,
+  MUDANCAS_DO_AJUSTE_MAX,
+  NOME_DO_SELO_MAX,
 } from '../lib/batalha/combate'
+import { contadorDoPersonagem, motivoDoContador, nivelDoContador, seloDoContador, selosComONivel } from '../lib/batalha/contador'
 import { gastarAcao } from '../lib/batalha/acoes'
 import {
   chaveDoGastoDoInvocado,
@@ -153,7 +160,7 @@ import {
   type GastoDaVez,
   type TurnosDaCena,
 } from '../lib/batalha/turnos'
-import { aplicarAjustes, NOME_DO_MESTRE, type Ajuste } from '../lib/ajusteDaFicha'
+import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
 import { secureRollDie } from '../lib/dice'
 import { numeroDaFicha, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -396,6 +403,19 @@ export interface BatalhaState {
    * lembrete voltam). Alvo já marcado ou fora da ordem: `false`.
    */
   marcar: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeMarca) => boolean
+  /**
+   * R4 (lote de 01/11): o "Ajustar..." da carta: atual e máximo de HP, SP e
+   * Escudo na ficha, e um modificador de atributo (selo sem turnos) até a
+   * batalha acabar. Linha "ficha" com Desfazer por diff. Quem pode qual ficha
+   * é do host (o jogador, só a dele de verdade).
+   */
+  ajustar: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeAjusteNaBatalha) => boolean
+  /**
+   * R5 (lote de 01/11): "ganhar" sobe 1 nível do contador (a polaridade do
+   * Vagn) gastando a reação até a vez dele; "zerar" é só do mestre. Linha
+   * "habilidade" com Desfazer por diff do nível.
+   */
+  contador: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDoContador) => boolean
 }
 
 /** Invocação: onde o invocado nasce (px do mundo, o centro da casa) e em que piso; `piso` ausente = o térreo. */
@@ -618,6 +638,7 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
     }
     case 'lembreteDaMarca':
+    case 'contador':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
     case 'vez':
     case 'ordem':
@@ -741,6 +762,20 @@ function textoDosQueSairam(nomes: readonly string[]): string {
 /** A reversão de uma ficha mexida; nada mudou = nenhuma. */
 function reversaoDaFicha(personagemId: string, partes: readonly ParteDaFicha[] | null): Reversao[] {
   return partes === null || partes.length === 0 ? [] : [{ tipo: 'ficha', personagemId, partes }]
+}
+
+/** R5: a ficha do token gastou a reação no contador (fica sem reagir até a vez dela). */
+function gastouAReacao(turnos: TurnosDaCena, tokenId: string): boolean {
+  const personagemId = personagemDoTokenNa(turnos)(tokenId)
+  return personagemId !== undefined && personagemId !== null && turnos.combate?.[personagemId]?.semReacao === true
+}
+
+/** R4: a mudança do "Ajustar..." dentro do sistema e dos tetos (o fio já cortou o tamanho). */
+function mudancaValida(sistema: SistemaDeRpg, mudanca: MudancaDoAjuste): boolean {
+  if (mudanca.tipo === 'atributo') {
+    return sistema.atributos.some((atributo) => atributo.id === mudanca.atributoId) && Number.isInteger(mudanca.delta) && mudanca.delta !== 0 && Math.abs(mudanca.delta) <= DELTA_DO_AJUSTE_MAX
+  }
+  return sistema.recursos.some((recurso) => recurso.id === mudanca.recursoId) && Number.isInteger(mudanca.valor) && mudanca.valor >= 0 && mudanca.valor <= NUMERO_DA_FICHA_MAX
 }
 
 /** A lista com o golpe trocado (ou tirado, se não espera mais ninguém). */
@@ -1210,6 +1245,95 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     return true
   }
 
+  /**
+   * R4: o "Ajustar..." (ver `ajustar` no estado). Mudança torta (recurso ou
+   * atributo que o sistema não tem, número fora do teto) recusa o pedido
+   * inteiro, antes de mexer em nada.
+   */
+  const ajustarNaBatalha = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeAjusteNaBatalha): boolean => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined) return false
+    const { turnos } = cena
+    const personagemId = personagemDoTokenNa(turnos)(pedido.tokenId)
+    const sistema = mesa.sistema()
+    const { mudancas } = pedido
+    if (personagemId === undefined || personagemId === null || sistema === null || mudancas.length === 0 || mudancas.length > MUDANCAS_DO_AJUSTE_MAX) return false
+    if (!mudancas.every((mudanca) => mudancaValida(sistema, mudanca))) return false
+    const naFicha = mudancas.filter((mudanca) => mudanca.tipo !== 'atributo')
+    const partes: Reversao[] = []
+    if (naFicha.length > 0) {
+      const ajustes = (atual: Personagem): Ajuste[] =>
+        naFicha.flatMap((mudanca): Ajuste[] =>
+          mudanca.tipo === 'atual' ? [ajusteDoAtualDigitado(atual, mudanca.recursoId, mudanca.valor)] : mudanca.tipo === 'maximo' ? [{ parte: 'maximo', chave: mudanca.recursoId, valor: mudanca.valor }] : [],
+        )
+      partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, ajustes, quemNaFicha(autor))))
+    }
+    const atual = cenaDe(sceneKey) ?? cena
+    let novos = atual.turnos
+    const pedacos: string[] = []
+    for (const mudanca of mudancas) {
+      if (mudanca.tipo === 'atributo') {
+        const nome = sistema.atributos.find((atributo) => atributo.id === mudanca.atributoId)?.nome ?? mudanca.atributoId
+        const sinal = mudanca.delta > 0 ? `+${mudanca.delta}` : String(mudanca.delta)
+        const selo: SeloDaBatalha = {
+          ...criarSelo(pedido.tokenId, { nome: `${nome} ${sinal}`.slice(0, NOME_DO_SELO_MAX), turnos: null, mods: [{ alvo: mudanca.atributoId, delta: mudanca.delta }], natureza: mudanca.delta > 0 ? 'buff' : 'debuff' }, { id: novoIdDeSelo(), rodada: novos.rodada, tokenDaVez: cartaDaVez(novos)?.tokenId ?? null, origem: 'Ajustar' }),
+          ajuste: true,
+        }
+        const selos = comSeloNovo(novos.selos, selo)
+        if (selos === null) continue
+        novos = { ...novos, selos }
+        partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
+        pedacos.push(`${nome} ${sinal} até o fim da batalha`)
+        continue
+      }
+      const recurso = sistema.recursos.find((candidato) => candidato.id === mudanca.recursoId)
+      pedacos.push(`${recurso?.nome ?? mudanca.recursoId}${mudanca.tipo === 'maximo' ? ' máximo' : ''} ${mudanca.valor}`)
+    }
+    if (partes.length === 0) return false
+    const nomeDoToken = nomeDoTokenNa(turnos, mesaDoRpg().personagens)
+    // `personagemIds` = a ficha: a linha de ajuste de NPC (HP, atributo) não sai ao jogador.
+    const texto = `${nomeDoAutor(autor)} ajustou ${nomeDoToken(pedido.tokenId)}: ${pedacos.join(' · ')}`
+    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'ficha', texto, autor, tokenIds: [pedido.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    return true
+  }
+
+  /** R5: o contador (ver `contador` no estado). O "sem reação" mora no combate; o nível, no selo do token. */
+  const mexerNoContador = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDoContador): boolean => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined || (pedido.tipo === 'zerar' && autor.tipo !== 'mestre')) return false
+    const { turnos } = cena
+    const carta = turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId && candidata.bando === undefined)
+    const personagemId = carta?.personagemId ?? null
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = personagens.find((candidato) => candidato.id === personagemId)
+    const achado = personagem === undefined || sistema === null ? null : contadorDoPersonagem(personagem, sistema)
+    if (personagemId === null || achado === null || achado.cartao.id !== pedido.cartaoId) return false
+    const { leitura } = achado
+    const combateAntes = turnos.combate?.[personagemId]
+    const nivel = nivelDoContador(turnos, pedido.tokenId, pedido.cartaoId)
+    if (motivoDoContador(pedido.tipo, nivel, leitura.danoPorNivel.length, combateAntes?.semReacao === true) !== null) return false
+    const molde = seloDoContador(turnos, pedido.tokenId, pedido.cartaoId) ?? {
+      ...criarSelo(pedido.tokenId, { nome: leitura.nome, turnos: null, natureza: 'buff', cartaoId: achado.cartao.id }, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: achado.cartao.nome }),
+      contador: 0,
+    }
+    // Selo novo acima do teto da ficha ou da cena: recusa sem gastar a reação.
+    if (nivel === 0 && comSeloNovo(turnos.selos, molde) === null) return false
+    const delta = pedido.tipo === 'ganhar' ? 1 : -nivel
+    const selos = selosComONivel(turnos.selos ?? [], molde, leitura.nome, leitura.danoPorNivel, delta)
+    const partes: Reversao[] = [{ tipo: 'contador', selo: molde, nome: leitura.nome, danoPorNivel: leitura.danoPorNivel, delta }]
+    let novos: TurnosDaCena = { ...turnos, selos: [...selos] }
+    if (pedido.tipo === 'ganhar') {
+      const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), semReacao: true }
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
+    }
+    const nome = nomeDoTokenNa(turnos, personagens)(pedido.tokenId)
+    const dano = leitura.danoPorNivel[nivel] ?? 0
+    const texto = pedido.tipo === 'ganhar' ? `${nome} carregou ${leitura.nome}: nível ${nivel + 1} (+${dano} de dano) · sem reação até a vez dele` : `${nomeDoAutor(autor)} zerou ${leitura.nome} de ${nome}`
+    gravarCena(sceneKey, comMudanca(cena, novos, { tipo: 'habilidade', texto, autor, tokenIds: [pedido.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    return true
+  }
+
   /** O selo trocado (`depois`) ou tirado (`null`), com a linha "selo" do mestre. */
   const mudarSelo = (sceneKey: string, seloId: string, depois: SeloDaBatalha | null): boolean => {
     const cena = cenaDe(sceneKey)
@@ -1376,7 +1500,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       personagens,
       personagemDoToken: personagemDoTokenNa(turnos),
       // Invocação (decisão 8): o invocado não reage; o dano nele resolve na hora.
-      semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null,
+      // R5: quem gastou a reação no contador também não reage (até a vez dele).
+      semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null || gastouAReacao(turnos, tokenId),
     }
     if (podeAgir(ctx, pedido) !== null) return false
     const linhaId = novoIdDeLinha()
@@ -2109,6 +2234,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     evoluir: (sceneKey, autor, pedido) => evoluirTecnica(sceneKey, autor, pedido),
 
     marcar: (sceneKey, autor, pedido) => marcarOAlvo(sceneKey, autor, pedido),
+    ajustar: (sceneKey, autor, pedido) => ajustarNaBatalha(sceneKey, autor, pedido),
+    contador: (sceneKey, autor, pedido) => mexerNoContador(sceneKey, autor, pedido),
   }
 }
 

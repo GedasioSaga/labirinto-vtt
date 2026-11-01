@@ -59,6 +59,11 @@ export interface CombateDoPersonagem {
    */
   concentrouCom?: ConcentracaoGasta
   /**
+   * R5 (lote de 01/11): gastou a reação (carregar o contador, a polaridade
+   * do Vagn) e fica sem reação até o começo da vez dele. Ausente = tem.
+   */
+  semReacao?: true
+  /**
    * cartaoIds da aba Armas levados para a batalha; `null` = ainda não
    * escolheu. Troca quando quiser, sempre dentro do limite (Q8).
    */
@@ -320,6 +325,36 @@ export type PedidoDeReacao =
    */
   | { tipo: 'semDano'; golpeId: string; tokenId: string }
 
+/**
+ * R4 (lote de 01/11): o "Ajustar..." da carta. "atual" e "maximo" mexem na
+ * ficha (o atual do HP do NPC com força é o HP NORMAL, decisão do usuário:
+ * `ajusteDoAtualDigitado`); "atributo" põe um selo sem turnos com o delta no
+ * atributo, até a batalha acabar. O mestre ajusta qualquer ficha; o jogador
+ * só a dele de verdade (o host confere).
+ */
+export type MudancaDoAjuste =
+  | { tipo: 'atual' | 'maximo'; recursoId: string; valor: number }
+  | { tipo: 'atributo'; atributoId: string; delta: number }
+
+export interface PedidoDeAjusteNaBatalha {
+  tokenId: string
+  mudancas: readonly MudancaDoAjuste[]
+}
+
+/** Mudanças num "Ajustar..." só (HP, SP, Escudo, os máximos e um atributo cabem). */
+export const MUDANCAS_DO_AJUSTE_MAX = 8
+
+/**
+ * R5 (lote de 01/11): subir 1 nível do contador `cartaoId` gastando a reação
+ * (o jogador, na ficha dele), ou zerar (só o mestre). A regra é da store
+ * (`motivoDoContador`).
+ */
+export interface PedidoDoContador {
+  tipo: 'ganhar' | 'zerar'
+  tokenId: string
+  cartaoId: string
+}
+
 /** O d20 da reação, rolado pelo HOST. `vezes` conta as rerolagens (1 = a primeira). */
 export interface RolagemDaReacao {
   d20: number
@@ -507,6 +542,10 @@ export interface SeloDaBatalha {
   marca?: true
   /** R1: a linha que pôs a marca. Desfeita, o Desfazer de quem usou a marca não a devolve. Só do host. */
   linhaDaMarca?: string
+  /** R5 (lote de 01/11): o nível do contador do cartão `cartaoId` (`contador.ts`). Ausente = selo comum. */
+  contador?: number
+  /** R4 (lote de 01/11): o modificador de atributo do "Ajustar...". Na carta de NPC, nunca sai ao jogador. */
+  ajuste?: true
 }
 
 /** O selo como chega no pedido (o sugerido na mira, ou o do mestre). `turnos` null = até tirar. */

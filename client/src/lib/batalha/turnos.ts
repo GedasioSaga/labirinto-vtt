@@ -472,10 +472,12 @@ function recargasDescendo(
 ): TurnosDaCena['combate'] {
   if (combate === undefined || personagemId === null) return combate
   const dele = combate[personagemId]
-  if (dele === undefined || Object.keys(dele.recargas).length === 0) return combate
+  if (dele === undefined || (Object.keys(dele.recargas).length === 0 && dele.semReacao === undefined)) return combate
   const recargas: Record<string, number> = {}
   for (const [cartaoId, faltam] of Object.entries(dele.recargas)) if (faltam > 1) recargas[cartaoId] = faltam - 1
-  return { ...combate, [personagemId]: { ...dele, recargas } }
+  // R5 (lote de 01/11): a reação gasta no contador volta no começo da vez dele.
+  const { semReacao: _gasta, ...comReacao } = dele
+  return { ...combate, [personagemId]: { ...comReacao, recargas } }
 }
 
 /** O registro sem as chaves de `fora`; nada a tirar = o mesmo objeto. */

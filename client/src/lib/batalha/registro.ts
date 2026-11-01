@@ -24,6 +24,7 @@ import {
   type LembreteDaPassiva,
   type SeloDaBatalha,
 } from './combate'
+import { selosComONivel } from './contador'
 import { semEvoluida } from './escolhaEEvolucao'
 import { passivasLigadas } from './passivas'
 import type { RegrasDaBatalha } from './regrasDoCampo'
@@ -129,6 +130,12 @@ export type Reversao =
    * e o alvo não está marcado (a store confere).
    */
   | { tipo: 'lembreteDaMarcaRespondido'; lembrete: LembreteDaMarca }
+  /**
+   * R5 (lote de 01/11): o contador subiu (ou zerou) `delta` níveis. O
+   * Desfazer tira `delta` do nível de AGORA (por diff: outra linha que subiu
+   * continua valendo); `selo` é o molde para recriar no Desfazer do zerar.
+   */
+  | { tipo: 'contador'; selo: SeloDaBatalha; nome: string; danoPorNivel: readonly number[]; delta: number }
   /** F2: o golpe que nasceu na linha. Desfazer = tirá-lo dos pendentes (alvo que esperava não recebe mais nada) e o contra-ataque que ele deu. */
   | { tipo: 'golpe'; golpeId: string }
   /** F2 (Q6): o contra-ataque gasto na linha. Desfazer = devolvê-lo. */
@@ -513,7 +520,8 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, concentrouCom: _com, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
+  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
+  const semReacao = campoSemALinha(atual.semReacao, antes.semReacao, depois.semReacao)
   const concentrouEm = campoSemALinha(atual.concentrouEm, antes.concentrouEm, depois.concentrouEm)
   const concentrouCom = campoSemALinha(atual.concentrouCom, antes.concentrouCom, depois.concentrouCom, mesmaConcentracao)
   const lembradas = listaSemALinha(atual.lembradas ?? [], antes.lembradas ?? [], depois.lembradas ?? [])
@@ -528,6 +536,7 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     armas: campoSemALinha(atual.armas, antes.armas, depois.armas, mesmasArmas),
     ...(concentrouEm === undefined ? {} : { concentrouEm }),
     ...(concentrouCom === undefined ? {} : { concentrouCom }),
+    ...(semReacao === undefined ? {} : { semReacao }),
     ...(lembradas.length === 0 ? {} : { lembradas }),
     ...(lembretes.length === 0 ? {} : { lembretes }),
     ...(evoluidas.length === 0 ? {} : { evoluidas }),
@@ -589,6 +598,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       const ficam = lembretes.filter((lembrete) => lembrete.id !== reversao.lembrete.id)
       return ficam.length === lembretes.length ? turnos : { ...turnos, lembretesDaMarca: ficam }
     }
+    case 'contador':
+      return { ...turnos, selos: selosComONivel(turnos.selos ?? [], reversao.selo, reversao.nome, reversao.danoPorNivel, -reversao.delta) }
     case 'lembreteDaMarcaRespondido': {
       const lembretes = turnos.lembretesDaMarca ?? []
       if (lembretes.some((lembrete) => lembrete.id === reversao.lembrete.id)) return turnos
