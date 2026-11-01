@@ -74,6 +74,12 @@ export interface ContextoDoGolpe {
   personagens: readonly Personagem[]
   /** tokenId → personagemId de cada ficha da cena (os alvos possíveis); `null` = ficha sem personagem; `undefined` = fora da cena. */
   personagemDoToken: (tokenId: string) => string | null | undefined
+  /**
+   * Invocação (decisão 8 de docs/planos/batalha-invocacao-plano.md): a ficha
+   * nunca reage (o invocado): o golpe nela vai direto ao dano, sem caixa de
+   * reação. Ausente = todo alvo reage como sempre.
+   */
+  semReacao?: (tokenId: string) => boolean
 }
 
 /** O que `lancarGolpe` devolve para a store aplicar. */
@@ -278,7 +284,7 @@ export function ajustesDoCusto(personagem: Personagem, sistema: SistemaDeRpg, cu
 function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carga: number, surpresa: boolean, overload: boolean, reacao: ReacaoDoTipo): AlvoDoGolpe[] {
   return alvos.map((pedido): AlvoDoGolpe => {
     const dano = pedido.dano === null ? null : danoQueChega(pedido.dano, carga, surpresa)
-    const podeReagir = !surpresa && !overload && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null))
+    const podeReagir = !surpresa && !overload && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null)) && ctx.semReacao?.(pedido.tokenId) !== true
     const alvo: AlvoDoGolpe = { tokenId: pedido.tokenId, personagemId: ctx.personagemDoToken(pedido.tokenId) ?? null, dano, podeReagir }
     if (podeReagir) return alvo
     const saida: SaidaDaReacao = 'semReacao'

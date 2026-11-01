@@ -202,6 +202,40 @@ export function fichaMinima(sistema: SistemaDeRpg, nome: string): Personagem {
   return ficha
 }
 
+/** Os números do invocado como a ficha temporária os recebe (já conferidos por quem chama). */
+export interface NumerosDaFichaDoInvocado {
+  hp: number
+  dano: number
+}
+
+/**
+ * INVOCAÇÃO (docs/planos/batalha-invocacao-plano.md): o personagem
+ * TEMPORÁRIO de um invocado, no molde da `fichaMinima`: NPC de força 1, HP
+ * `hp`/`hp` no recurso da força e a técnica "Golpe" com o dano `dano` (Ação
+ * Simples), com a marca `invocadoPor` (o dono) e `invocadoNaCena` (a batalha).
+ * Sistema sem o recurso ou sem a aba das técnicas: o que faltar fica de fora.
+ */
+export function fichaDoInvocado(sistema: SistemaDeRpg, nome: string, numeros: NumerosDaFichaDoInvocado, donoId: string, sceneKey: string): Personagem {
+  const ficha: Personagem = { ...novoPersonagem(sistema, 'npc', nome), combate: { forca: FORCA_PADRAO, invocadoPor: donoId, invocadoNaCena: sceneKey } }
+  if (sistema.recursos.some((recurso) => recurso.id === RECURSO_QUE_A_FORCA_MULTIPLICA)) {
+    ficha.recursos = { ...ficha.recursos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: numeros.hp }
+    ficha.maximos = { [RECURSO_QUE_A_FORCA_MULTIPLICA]: numeros.hp }
+  }
+  const aba = sistema.abas.find((candidata) => candidata.id === ABA_DAS_TECNICAS)
+  if (aba !== undefined && aba.campos.some((campo) => campo.id === CAMPO_DO_DANO)) {
+    const golpe = novoCartao(NOME_DO_GOLPE_MINIMO)
+    golpe.campos = { [CAMPO_DO_DANO]: String(numeros.dano) }
+    if (aba.campos.some((campo) => campo.id === CAMPO_DA_ACAO)) golpe.campos[CAMPO_DA_ACAO] = ACAO_DO_GOLPE_MINIMO
+    ficha.abas = { ...ficha.abas, [ABA_DAS_TECNICAS]: [golpe] }
+  }
+  return ficha
+}
+
+/** O personagem é o temporário de um invocado (sai no fim da batalha, nunca vai ao bestiário). */
+export function ehInvocadoTemporario(personagem: Personagem): boolean {
+  return personagem.combate?.invocadoPor !== undefined
+}
+
 /**
  * "Nova variação" (e o "Como Recruta da Marinha" do Iniciar): a ficha do
  * modelo copiada, com id e nome novos, força 1, HP cheio, sem histórico, sem
@@ -285,7 +319,7 @@ export function fichaDaEscolha(como: ComoEntra, sistema: SistemaDeRpg, nomeDoTok
 
 /** Os NPCs que servem de modelo na caixa e no "Novo NPC": de combate (não "Só no cenário") e que não são variação. */
 export function modelosDeNpc(personagens: readonly Personagem[]): Personagem[] {
-  return personagens.filter((personagem) => personagem.tipo === 'npc' && personagem.soCenario !== true && !ehVariacao(personagem))
+  return personagens.filter((personagem) => personagem.tipo === 'npc' && personagem.soCenario !== true && !ehVariacao(personagem) && !ehInvocadoTemporario(personagem))
 }
 
 /** A caixa só abre quando há token sem ficha de combate; sem nenhum, o Iniciar segue direto como antes. */

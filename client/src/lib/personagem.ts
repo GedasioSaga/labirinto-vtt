@@ -182,6 +182,14 @@ export interface MarcaDeCombate {
    * registro da batalha e o Desfazer apontam para ela.
    */
   criadoNaBatalha?: true
+  /**
+   * Invocação (docs/planos/batalha-invocacao-plano.md): o personagem
+   * TEMPORÁRIO de um invocado (o lobo do Chamado do Lobo). `invocadoPor` = o
+   * personagemId do dono; `invocadoNaCena` = a chave da batalha em que nasceu.
+   * Sai no fim da batalha (nunca vai ao bestiário). Ausentes = ficha comum.
+   */
+  invocadoPor?: string
+  invocadoNaCena?: string
 }
 
 export const FORCA_MIN = 0.5
@@ -482,6 +490,8 @@ function marcaDeCombateDoArquivo(value: unknown): MarcaDeCombate | undefined {
   const marca: MarcaDeCombate = { forca: numeroFinito(value.forca) ? forcaNoPasso(value.forca) : FORCA_PADRAO }
   if (typeof value.modeloId === 'string' && value.modeloId.length > 0 && value.modeloId.length <= MODELO_ID_MAX) marca.modeloId = value.modeloId
   if (value.criadoNaBatalha === true) marca.criadoNaBatalha = true
+  if (typeof value.invocadoPor === 'string' && value.invocadoPor.length > 0 && value.invocadoPor.length <= MODELO_ID_MAX) marca.invocadoPor = value.invocadoPor
+  if (typeof value.invocadoNaCena === 'string' && value.invocadoNaCena.length > 0 && value.invocadoNaCena.length <= MODELO_ID_MAX) marca.invocadoNaCena = value.invocadoNaCena
   return marca
 }
 

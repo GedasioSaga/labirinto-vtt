@@ -3,7 +3,7 @@ import { valorDoRank } from '../ajusteDaFicha'
 import { entraNaBatalha } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import type { CombateDoPersonagem, ContraAtaque, FormaNaBatalha, GolpeDaBatalha, SeloDaBatalha } from './combate'
+import type { CombateDoPersonagem, ContraAtaque, FormaNaBatalha, GolpeDaBatalha, InvocacaoPendente, InvocadoNaBatalha, SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { contarSelos } from './selos'
 
@@ -43,6 +43,13 @@ export interface CartaDaOrdem {
   nome?: string
   /** Só na carta extra: quanto ela dura e em que rodada nasceu. */
   extra?: { duracao: DuracaoDaExtra; criadaNaRodada: number }
+  /**
+   * Invocação: a carta do BANDO de um dono (decisão 3 de
+   * docs/planos/batalha-invocacao-plano.md). `tokenId` = `id` =
+   * `bando_<donoTokenId>` (não é token do mapa) e `personagemId` null: quem
+   * age é o mestre, com cada invocado (`membrosDoBando` em `invocacao.ts`).
+   */
+  bando?: { donoTokenId: string }
 }
 
 /** F2: ações a mais que o mestre deu para a vez de uma carta (atacar duas vezes). Na F1, nunca preenchido. */
@@ -94,6 +101,10 @@ export interface TurnosDaCena {
   formas?: Readonly<Record<string, FormaNaBatalha>>
   /** F3: os selos com duração, por token (no máximo `SELOS_MAX`). Ausente = nenhum. */
   selos?: readonly SeloDaBatalha[]
+  /** Invocação: os invocados no mapa (no máximo `INVOCADOS_MAX`). Agem na carta do bando do dono. Ausente = nenhum. */
+  invocados?: readonly InvocadoNaBatalha[]
+  /** Invocação: os pedidos aceitos esperando o mestre pôr no mapa (no máximo `INVOCACOES_PENDENTES_MAX`). Ausente = nenhum. */
+  invocacoes?: readonly InvocacaoPendente[]
 }
 
 /** Quem fez a ação que entra no registro. O `nome` do jogador é o da mesa, na hora. */
@@ -301,8 +312,10 @@ function comExtrasAoLado(originais: readonly CartaDaOrdem[], extras: readonly Ca
  * carta extra fica logo depois da original. A vez não muda de carta.
  */
 export function ordenarPelaAgilidade(turnos: TurnosDaCena, agilidades: ReadonlyMap<string, number>, rolarD20: () => number): TurnosDaCena {
-  const originais = turnos.cartas.filter((carta) => carta.extra === undefined)
-  const extras = turnos.cartas.filter((carta) => carta.extra !== undefined)
+  // Invocação: a carta do bando não entra na conta; volta logo depois das cartas do dono (`comBandosAoLado`).
+  const bandos = turnos.cartas.filter((carta) => carta.bando !== undefined)
+  const originais = turnos.cartas.filter((carta) => carta.extra === undefined && carta.bando === undefined)
+  const extras = turnos.cartas.filter((carta) => carta.extra !== undefined && carta.bando === undefined)
   const agilidade = (carta: CartaDaOrdem): number => agilidades.get(carta.id) ?? 0
   const ordenadas = [...originais].sort((a, b) => agilidade(b) - agilidade(a))
   const grupos: CartaDaOrdem[][] = []
@@ -330,7 +343,23 @@ export function ordenarPelaAgilidade(turnos: TurnosDaCena, agilidades: ReadonlyM
     for (const [cartaId, valor] of rolagens) d20[cartaId] = valor
     final.push(...[...grupo].sort((a, b) => (rolagens.get(b.id) ?? 0) - (rolagens.get(a.id) ?? 0)))
   }
-  return { ...turnos, cartas: comExtrasAoLado(final, extras), d20, empates }
+  return { ...turnos, cartas: comBandosAoLado(comExtrasAoLado(final, extras), bandos), d20, empates }
+}
+
+/** Invocação: cada carta de bando logo depois da última carta do dono dela; dono sem carta = no fim, na ordem em que estava. */
+function comBandosAoLado(cartas: readonly CartaDaOrdem[], bandos: readonly CartaDaOrdem[]): CartaDaOrdem[] {
+  const ordem = [...cartas]
+  const semDono: CartaDaOrdem[] = []
+  for (const bando of bandos) {
+    const dono = bando.bando?.donoTokenId
+    let depois = -1
+    ordem.forEach((carta, indice) => {
+      if (carta.tokenId === dono) depois = indice + 1
+    })
+    if (depois < 0) semDono.push(bando)
+    else ordem.splice(depois, 0, bando)
+  }
+  return [...ordem, ...semDono]
 }
 
 /** Troca o modo de desempate. As marcas do modo antigo saem: o próximo "Ordenar" faz as do novo. */
@@ -398,8 +427,17 @@ export function darVez(antes: TurnosDaCena, cartaId: string): TurnosDaCena {
 function descontarSelosDaVez(turnos: TurnosDaCena): { turnos: TurnosDaCena; acabaram: SeloDaBatalha[] } {
   const saindo = cartaDaVez(turnos)
   if (saindo === null || turnos.selos === undefined || turnos.selos.length === 0) return { turnos, acabaram: [] }
-  const contados = contarSelos(turnos.selos, saindo.tokenId, turnos.rodada)
-  return contados.selos === turnos.selos ? { turnos, acabaram: [] } : { turnos: { ...turnos, selos: contados.selos }, acabaram: contados.acabaram }
+  // Invocação: a carta do bando não tem token; descontam os selos de cada invocado dela.
+  const bando = saindo.bando
+  const tokenIds = bando === undefined ? [saindo.tokenId] : (turnos.invocados ?? []).filter((invocado) => invocado.donoTokenId === bando.donoTokenId).map((invocado) => invocado.tokenId)
+  let selos = turnos.selos
+  const acabaram: SeloDaBatalha[] = []
+  for (const tokenId of tokenIds) {
+    const contados = contarSelos(selos, tokenId, turnos.rodada)
+    selos = contados.selos
+    acabaram.push(...contados.acabaram)
+  }
+  return selos === turnos.selos ? { turnos, acabaram: [] } : { turnos: { ...turnos, selos }, acabaram }
 }
 
 /** Os selos que estavam em `antes` e não estão em `depois` (os que o `darVez` fez acabar). */
@@ -533,17 +571,32 @@ function semCartas(turnos: TurnosDaCena, fora: ReadonlySet<string>): TurnosDaCen
  */
 export function adicionarCartaExtra(turnos: TurnosDaCena, tokenId: string, indice: number, duracao: DuracaoDaExtra): { turnos: TurnosDaCena; carta: CartaDaOrdem } | null {
   const original = turnos.cartas.find((carta) => carta.tokenId === tokenId && carta.extra === undefined) ?? turnos.cartas.find((carta) => carta.tokenId === tokenId)
-  if (original === undefined) return null
+  // Invocação: o bando não ganha carta extra (ela nasceria sem o `bando` e sem token no mapa).
+  if (original === undefined || original.bando !== undefined) return null
   const carta: CartaDaOrdem = { id: novoIdDeCarta(), tokenId, personagemId: original.personagemId, extra: { duracao, criadaNaRodada: turnos.rodada } }
   if (original.nome !== undefined) carta.nome = original.nome
   return { turnos: inserirCarta(turnos, carta, indice), carta }
 }
 
-/** Cartas de fichas que sumiram da cena saem (a vez anda, sem virar a rodada). Nada sumiu = o mesmo objeto. */
+/**
+ * Cartas de fichas que sumiram da cena saem (a vez anda, sem virar a rodada).
+ * Invocação: o invocado cujo token sumiu sai da lista; a carta do bando fica
+ * enquanto algum invocado dela está na cena. Nada sumiu = o mesmo objeto.
+ */
 export function normalizar(turnos: TurnosDaCena, tokenIdsDaCena: ReadonlySet<string>): TurnosDaCena {
-  const fora = new Set(turnos.cartas.filter((carta) => !tokenIdsDaCena.has(carta.tokenId)).map((carta) => carta.id))
-  const semAsCartas = fora.size === 0 ? turnos : semCartas(turnos, fora)
+  const comInvocados = invocadosNaCena(turnos, tokenIdsDaCena)
+  const donosComInvocado = new Set((comInvocados.invocados ?? []).map((invocado) => invocado.donoTokenId))
+  const fica = (carta: CartaDaOrdem): boolean => (carta.bando === undefined ? tokenIdsDaCena.has(carta.tokenId) : donosComInvocado.has(carta.bando.donoTokenId))
+  const fora = new Set(comInvocados.cartas.filter((carta) => !fica(carta)).map((carta) => carta.id))
+  const semAsCartas = fora.size === 0 ? comInvocados : semCartas(comInvocados, fora)
   return selosNaCena(golpesNaCena(semAsCartas, tokenIdsDaCena), tokenIdsDaCena)
+}
+
+/** Invocação: invocado cujo token sumiu da cena sai (o personagem temporário dele sai no fim da batalha). Nada a tirar = o mesmo objeto. */
+function invocadosNaCena(turnos: TurnosDaCena, tokenIdsDaCena: ReadonlySet<string>): TurnosDaCena {
+  if (turnos.invocados === undefined) return turnos
+  const ficam = turnos.invocados.filter((invocado) => tokenIdsDaCena.has(invocado.tokenId))
+  return ficam.length === turnos.invocados.length ? turnos : { ...turnos, invocados: ficam }
 }
 
 /** F3: selo de ficha que sumiu da cena sai. Nada a tirar = o mesmo objeto. */

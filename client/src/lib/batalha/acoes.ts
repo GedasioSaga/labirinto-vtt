@@ -155,6 +155,9 @@ export function acaoDoGolpe(acao: AcaoDaTecnica | null, carga: number): AcaoDaTe
 /** O motivo da técnica de Tipo Reação no menu da vez: ela só se usa na caixa REAÇÃO. */
 export const MOTIVO_DA_REACAO_PURA = 'Reação: use na caixa REAÇÃO'
 
+/** Invocação: a técnica de Tipo Invocação não lança golpe; ela pede um invocado (`batalha.invocar`). */
+export const MOTIVO_DA_INVOCACAO = 'Invocação: use Invocar'
+
 /**
  * Por que a técnica está apagada, ou `null` (pode). `acoes` null = fora da
  * vez (contra-ataque, Q6): a ação da vez não conta. Na ordem do menu:
@@ -163,7 +166,9 @@ export const MOTIVO_DA_REACAO_PURA = 'Reação: use na caixa REAÇÃO'
  * usos, ação, custo. `comoReacao` (tipos de habilidade F1) = usada NA CAIXA
  * REAÇÃO: o tipo Reação e a ação não contam (passe `acoes` null); passiva
  * continua fora. O `overload` de quem chama já conta o uso evoluído
- * (`overloadNaBatalha`).
+ * (`overloadNaBatalha`). `comoInvocacao` (invocação) = pedida pelo Invocar:
+ * sem ele, a técnica de Tipo Invocação sai apagada (`MOTIVO_DA_INVOCACAO`),
+ * para não ser usada como golpe comum.
  */
 export function motivoDaTecnica(
   tecnica: Pick<TecnicaNoMenu, 'cartao' | 'custo' | 'acao' | 'tempo' | 'overload'> & { transformacao: boolean },
@@ -172,11 +177,13 @@ export function motivoDaTecnica(
   combate: CombateDoPersonagem | undefined,
   acoes: AcoesDaVez | null,
   comoReacao?: boolean,
+  comoInvocacao?: boolean,
 ): string | null {
   const { cartao } = tecnica
   const tipo = lerTipo(cartao).tipo
   if (tecnica.acao === 'passiva' || tipo === 'passiva') return 'Passiva: use a tira Passivas'
   if (tipo === 'reacao' && comoReacao !== true) return MOTIVO_DA_REACAO_PURA
+  if (tipo === 'invocacao' && comoInvocacao !== true) return MOTIVO_DA_INVOCACAO
   if (tecnica.transformacao) return 'É transformação: use a tira Transformação'
   const evolucao = motivoDaEvolucao(cartao, tecnicasDe(personagem, sistema), combate?.evoluidas)
   if (evolucao !== null) return evolucao

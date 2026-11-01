@@ -136,6 +136,98 @@ export interface PedidoDeEvolucao {
   custo: number | null
 }
 
+/**
+ * INVOCAÇÃO (docs/planos/batalha-invocacao-plano.md): os números de um
+ * invocado. `blocos` = o movimento fixo dele na vez do bando (decisão 3).
+ */
+export interface NumerosDoInvocado {
+  hp: number
+  dano: number
+  blocos: number
+}
+
+/**
+ * Invocação: pedir a técnica de Tipo Invocação da ficha `tokenId` (o dono).
+ * Na vez de uma carta do mesmo personagem; gasta a ação da técnica, cobra o
+ * custo, marca recarga e usos e, na opção que exige concentração (Ultra),
+ * gasta a carga. Nasce uma invocação PENDENTE: o mestre põe no mapa depois
+ * (`colocarInvocado`). `opcao` = a `chave` de `opcoesDaInvocacao`; `custo` =
+ * o confirmado na tela (`null` = o da ficha); `acao` = só quando a ficha não
+ * diz. Mensagem própria no fio (`batalha.invocar`): não é `PedidoDeAcao`.
+ */
+export interface PedidoDeInvocacao {
+  tipo: 'invocar'
+  tokenId: string
+  cartaoId: string
+  opcao: string
+  custo: number | null
+  acao: AcaoDaTecnica | null
+}
+
+/**
+ * Invocação: o pedido aceito e ainda não posto no mapa. Só do mestre (o
+ * jogador vê a linha do registro). `numeros` = os lidos do texto (ou, no
+ * Ultra, os sugeridos: `sugeridos`); `null` = o texto não diz, o mestre
+ * digita ao colocar. `imagem` = a do cartão da técnica (`midia:` ou embutida).
+ */
+export interface InvocacaoPendente {
+  /** `invocacao_<uuid>`. */
+  id: string
+  /** A linha "habilidade" do pedido (o Desfazer dela tira a pendência, ou o invocado). */
+  linhaId: string
+  rodada: number
+  autor: AutorDaAcao
+  donoTokenId: string
+  donoPersonagemId: string
+  cartaoId: string
+  opcao: string
+  /** O nome da opção ("LOBOS COMUNS"), para o aviso ao mestre. */
+  rotulo: string
+  ultra: boolean
+  /** O nome do invocado no mapa ("Lobo", "Ultra Lobo"). */
+  nome: string
+  numeros: NumerosDoInvocado | null
+  sugeridos: boolean
+  imagem: string | null
+}
+
+/**
+ * Invocação: um invocado no mapa. Tem token e personagem temporário próprios
+ * (o HP mora no personagem); não tem carta: age na carta do bando do dono
+ * (`CartaDaOrdem.bando`). Não reage (golpe nele vai direto ao dano).
+ */
+export interface InvocadoNaBatalha {
+  tokenId: string
+  personagemId: string
+  donoTokenId: string
+  donoPersonagemId: string
+  cartaoId: string
+  opcao: string
+  ultra: boolean
+  nome: string
+  /** Movimento fixo por vez do bando. */
+  blocos: number
+  /** O dano do golpe dele (a técnica "Golpe" da ficha temporária). */
+  dano: number
+  /** A pendência de onde veio (o Desfazer do pedido tira o invocado). */
+  pedidoId: string
+  /** A linha "habilidade" do pedido. Desfeita = nada traz este invocado de volta. */
+  linhaDoPedido: string
+  /** A linha "invocacao" que o pôs no mapa. Desfeita = nada traz este invocado de volta. */
+  linhaId: string
+}
+
+/** Invocação: pendências numa cena. */
+export const INVOCACOES_PENDENTES_MAX = 20
+/** Invocação: invocados no mapa numa cena. */
+export const INVOCADOS_MAX = 60
+/** Invocação: membros de um bando no recorte do jogador. */
+export const MEMBROS_DO_BANDO_MAX = 16
+/** Invocação: teto do nome do invocado (o nome do token). */
+export const NOME_DO_INVOCADO_MAX = 40
+/** Invocação: teto do movimento fixo de um invocado. */
+export const BLOCOS_DO_INVOCADO_MAX = 99
+
 /** Um alvo como chega no pedido, ANTES da reação. `dano` null = golpe sem dano. */
 export interface PedidoDeAlvo {
   tokenId: string

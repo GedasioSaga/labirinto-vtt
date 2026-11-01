@@ -35,6 +35,8 @@ export const TIPOS_DE_HABILIDADE = [
   { id: 'debuff', rotulo: 'Debuff' },
   { id: 'evolucao', rotulo: 'Evolução' },
   { id: 'escolha', rotulo: 'Escolha' },
+  // Invocação (docs/planos/batalha-invocacao-plano.md): a técnica põe um invocado no mapa (`invocacao.ts`).
+  { id: 'invocacao', rotulo: 'Invocação' },
 ] as const satisfies readonly { id: string; rotulo: string }[]
 
 export type TipoDaHabilidade = (typeof TIPOS_DE_HABILIDADE)[number]['id']
