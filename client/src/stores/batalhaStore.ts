@@ -882,9 +882,14 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     let texto: string
     if (pedido.tipo === 'transformar') {
       let numeros: NumeroDaForma[] = []
+      // R2: as formas do mesmo grupo que a troca desligou (os cartões voltam pela parte "ficha" no Desfazer).
+      let desligadas: string[] = []
       const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => {
         const feito = ativarForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now())
-        if (feito !== null) numeros = feito.numeros
+        if (feito !== null) {
+          numeros = feito.numeros
+          desligadas = feito.desligadas.map((cartaoDesligado) => cartaoDesligado.nome.trim() || 'a forma')
+        }
         return feito?.personagem ?? null
       })
       if (fichaMudou === null) return false
@@ -902,7 +907,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: carta.tokenId, forma: nomeDaForma, imagem }
       if (numeros.length > 0) efeito.numeros = numeros
       efeitos.push(efeito)
-      texto = `${quemAge} ativa ${nomeDaForma} (${ROTULO_DA_ACAO_DA_FORMA[pedido.acao]})`
+      texto = `${quemAge} ativa ${nomeDaForma} (${ROTULO_DA_ACAO_DA_FORMA[pedido.acao]})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
     } else {
       const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
       if (fichaMudou === null) return false

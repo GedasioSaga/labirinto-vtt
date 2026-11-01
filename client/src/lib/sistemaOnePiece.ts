@@ -128,6 +128,10 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
         { id: 'descricao', rotulo: 'Descrição', forma: 'paragrafo' },
         // F3 (decisão 16): a ação que Ativar a forma gasta na batalha. Vazio = Completa (`lerAcao`).
         { id: 'acao', rotulo: 'Ação', forma: 'linha' },
+        // Lote de 01/11 (C6): o que é preciso para transformar; só mostra. Ficha antiga sem o campo = vazio.
+        { id: 'requisito', rotulo: 'Requisito', forma: 'linha' },
+        // Lote de 01/11 (R2): formas do mesmo Grupo se trocam na batalha; vazio = acumula com as outras.
+        { id: 'grupo', rotulo: 'Grupo', forma: 'linha' },
       ],
       imagem: true,
       modificadores: true,

@@ -1,8 +1,9 @@
-import { aplicarAjustes, atributoComposto, cartoesQueLigam, maximoComposto, temMaximo } from '../ajusteDaFicha'
+import { aplicarAjustes, atributoComposto, cartoesQueLigam, maximoComposto, temMaximo, type Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { motivoDaAcao, type AcoesDaVez } from './acoes'
 import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type FormaNaBatalha, type NumeroDaForma } from './combate'
+import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, lerAcao } from './leituraDaFicha'
 
 /**
@@ -17,9 +18,48 @@ import { CAMPO_DA_ACAO, lerAcao } from './leituraDaFicha'
  * Puro: sem store, sem rede.
  */
 
+/**
+ * R2 (lote de 01/11): o campo Grupo. Formas do MESMO grupo se trocam (ligar
+ * a Parte 2 desliga a Parte 1 e fica só com os modificadores da 2); grupos
+ * diferentes, ou sem grupo, acumulam como antes.
+ */
+export const CAMPO_DO_GRUPO = 'grupo'
+/** C6 (lote de 01/11): o que é preciso para transformar ("Vida abaixo de 50%"). Só mostra: o app não confere. */
+export const CAMPO_DO_REQUISITO = 'requisito'
+
+/** O grupo como a ficha o escreve, aparado; vazio ou "-" = sem grupo (`null`). */
+export function grupoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): string | null {
+  const texto = (cartao.campos[CAMPO_DO_GRUPO] ?? '').trim()
+  return texto.length === 0 || texto === '-' ? null : texto
+}
+
+/** O requisito como a ficha o escreve, aparado; vazio ou "-" = nenhum (`null`). */
+export function requisitoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): string | null {
+  const texto = (cartao.campos[CAMPO_DO_REQUISITO] ?? '').trim()
+  return texto.length === 0 || texto === '-' ? null : texto
+}
+
+/** As formas LIGADAS do mesmo grupo de `cartao` (sem ele): as que Ativar desliga. Sem grupo = nenhuma. Grupo comparado sem caixa nem acento. */
+export function formasQueTroca(personagem: Personagem, sistema: SistemaDeRpg, cartao: CartaoDaFicha): CartaoDaFicha[] {
+  const grupo = grupoDaForma(cartao)
+  if (grupo === null) return []
+  const chave = normalizar(grupo)
+  return cartoesQueLigam(personagem, sistema).filter((outra) => {
+    if (outra.id === cartao.id || !personagem.cartoesAtivos.includes(outra.id)) return false
+    const dela = grupoDaForma(outra)
+    return dela !== null && normalizar(dela) === chave
+  })
+}
+
 export interface FormaNoMenu {
   cartao: CartaoDaFicha
   ligada: boolean
+  /** R2: o grupo da forma ("Lunariano"); `null` = sem grupo (acumula com tudo). */
+  grupo: string | null
+  /** R2: os nomes das formas ligadas do mesmo grupo que Ativar desliga ("troca com Forma Híbrida Parte 1"). */
+  troca: string[]
+  /** C6: o que é preciso para transformar, como a ficha escreve; `null` = a ficha não diz. */
+  requisito: string | null
   /** O campo Ação; vazio ou ilegível = "completa". */
   acaoDaFicha: AcaoDaForma
   imagem: string | null
@@ -62,6 +102,9 @@ export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoe
     return {
       cartao,
       ligada,
+      grupo: grupoDaForma(cartao),
+      troca: ligada ? [] : formasQueTroca(personagem, sistema, cartao).map((outra) => outra.nome),
+      requisito: requisitoDaForma(cartao),
       acaoDaFicha,
       imagem: cartao.imagem,
       numeros: previa?.numeros ?? [],
@@ -71,9 +114,9 @@ export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoe
   })
 }
 
-/** As chaves que os modificadores do cartão mexem, separadas: atributos e recursos de atual e máximo. */
-function chavesDoCartao(cartao: CartaoDaFicha, sistema: SistemaDeRpg): { atributos: string[]; recursos: string[] } {
-  const chaves = [...new Set(cartao.modificadores.map((mod) => mod.atributo))]
+/** As chaves que os modificadores dos cartões mexem, separadas: atributos e recursos de atual e máximo. */
+function chavesDoCartao(cartoes: readonly CartaoDaFicha[], sistema: SistemaDeRpg): { atributos: string[]; recursos: string[] } {
+  const chaves = [...new Set(cartoes.flatMap((cartao) => cartao.modificadores.map((mod) => mod.atributo)))]
   return {
     atributos: sistema.atributos.filter((atributo) => chaves.includes(atributo.id)).map((atributo) => atributo.id),
     recursos: sistema.recursos.filter((recurso) => chaves.includes(recurso.id) && temMaximo(sistema, recurso.id)).map((recurso) => recurso.id),
@@ -81,8 +124,8 @@ function chavesDoCartao(cartao: CartaoDaFicha, sistema: SistemaDeRpg): { atribut
 }
 
 /** "FOR 160 → 220", "HP máx 1.200 → 1.800", "HP 900 → 1.500": o que mudou de `antes` para `depois`, na ordem atributos, depois cada recurso (máximo e atual). */
-function numerosDaForma(antes: Personagem, depois: Personagem, sistema: SistemaDeRpg, cartao: CartaoDaFicha): NumeroDaForma[] {
-  const { atributos, recursos } = chavesDoCartao(cartao, sistema)
+function numerosDaForma(antes: Personagem, depois: Personagem, sistema: SistemaDeRpg, cartoes: readonly CartaoDaFicha[]): NumeroDaForma[] {
+  const { atributos, recursos } = chavesDoCartao(cartoes, sistema)
   const numeros: NumeroDaForma[] = []
   for (const atributo of sistema.atributos) {
     if (!atributos.includes(atributo.id)) continue
@@ -106,22 +149,33 @@ function numerosDaForma(antes: Personagem, depois: Personagem, sistema: SistemaD
  * Ativar: liga o cartão e, para cada recurso de atual e máximo que a forma
  * AUMENTA, soma a diferença do máximo ao atual (Q1: HP e SP; o
  * `aplicarAjuste` limita no máximo novo). Máximo que cai: o corte do ligar já
- * resolve. Tudo pelo `aplicarAjustes`, com o histórico da ficha em nome de
- * `quem`. `null` = não ativou (não é forma da ficha, ou já está ligada).
+ * resolve. R2: antes, desliga as formas ligadas do mesmo grupo
+ * (`formasQueTroca`): fica só com os modificadores da nova, e a diferença do
+ * máximo conta desde antes da troca. Tudo pelo `aplicarAjustes`, com o
+ * histórico da ficha em nome de `quem`. `null` = não ativou (não é forma da
+ * ficha, ou já está ligada). `desligadas` = os cartões que a troca desligou.
  */
-export function ativarForma(personagem: Personagem, sistema: SistemaDeRpg, cartaoId: string, quem: string, quando: number): { personagem: Personagem; numeros: NumeroDaForma[] } | null {
+export function ativarForma(
+  personagem: Personagem,
+  sistema: SistemaDeRpg,
+  cartaoId: string,
+  quem: string,
+  quando: number,
+): { personagem: Personagem; numeros: NumeroDaForma[]; desligadas: CartaoDaFicha[] } | null {
   const cartao = formaDaFicha(personagem, sistema, cartaoId)
   if (cartao === null || personagem.cartoesAtivos.includes(cartaoId)) return null
-  const { recursos } = chavesDoCartao(cartao, sistema)
+  const desligadas = formasQueTroca(personagem, sistema, cartao)
+  const { recursos } = chavesDoCartao([cartao, ...desligadas], sistema)
   const maximosAntes = new Map(recursos.map((recurso) => [recurso, maximoComposto(personagem, recurso).total]))
-  const ligado = aplicarAjustes(personagem, sistema, [{ parte: 'cartao', chave: cartaoId, valor: 1 }], quem, quando)
+  const trocas: Ajuste[] = [...desligadas.map((outra): Ajuste => ({ parte: 'cartao', chave: outra.id, valor: 0 })), { parte: 'cartao', chave: cartaoId, valor: 1 }]
+  const ligado = aplicarAjustes(personagem, sistema, trocas, quem, quando)
   if (!ligado.cartoesAtivos.includes(cartaoId)) return null
   const ganhos = recursos.flatMap((recurso) => {
     const diferenca = maximoComposto(ligado, recurso).total - (maximosAntes.get(recurso) ?? 0)
     return diferenca > 0 ? [{ parte: 'recurso' as const, chave: recurso, valor: numeroDaFicha(ligado.recursos, recurso) + diferenca }] : []
   })
   const depois = ganhos.length === 0 ? ligado : aplicarAjustes(ligado, sistema, ganhos, quem, quando)
-  return { personagem: depois, numeros: numerosDaForma(personagem, depois, sistema, cartao) }
+  return { personagem: depois, numeros: numerosDaForma(personagem, depois, sistema, [cartao, ...desligadas]), desligadas }
 }
 
 /** "Desfazer a forma" (ação livre): desliga o cartão; o corte do máximo já resolve o atual. `null` = não estava ligada. */
