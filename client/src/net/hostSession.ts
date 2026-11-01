@@ -7930,6 +7930,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return batalhaNoHost.evoluir(conexao, msg)
       case 'batalha.invocar':
         return batalhaNoHost.invocar(conexao, msg)
+      case 'batalha.marcar':
+        return batalhaNoHost.marcar(conexao, msg)
+      case 'batalha.ajustar':
+        return batalhaNoHost.ajustar(conexao, msg)
+      case 'batalha.contador':
+        return batalhaNoHost.contador(conexao, msg)
     }
   }
 
@@ -9750,6 +9756,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'batalha.passiva':
       case 'batalha.evoluir':
       case 'batalha.invocar':
+      case 'batalha.marcar':
+      case 'batalha.ajustar':
+      case 'batalha.contador':
         return handleBatalha(clientId, msg, world)
       case 'clue.read':
         return handleClueRead(clientId, msg, world)

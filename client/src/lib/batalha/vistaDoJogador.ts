@@ -1,5 +1,5 @@
 import { ehImagemDaMesa } from '../midia'
-import type { Personagem } from '../personagem'
+import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { acoesDaVez, rankDeAgilidade, type AcoesDaVez } from './acoes'
@@ -40,7 +40,8 @@ import {
 } from './combate'
 import { corDaEquipe, equipeDe, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe } from './equipes'
 import type { JudgeNaCena } from './judge'
-import { limiteDeArmas } from './leituraDaFicha'
+import { limiteDeArmas, recursoDoEscudo } from './leituraDaFicha'
+import { LEMBRETES_DA_MARCA_MAX } from './marca'
 import { passivasLigadas } from './passivas'
 import type { BatalhaEmTurnos } from './ponte'
 import { registroParaJogador, type LinhaParaJogador } from './registro'
@@ -94,8 +95,10 @@ export interface CartaParaJogador {
   caiu?: true
   /** F3: o nome da forma ativada pelo menu e ainda ligada ("Punho Negro"). Para todos que veem a carta, também de NPC. */
   forma?: string
-  /** F3 (Q5): os selos da ficha ("Atordoado 2"). Para todos que veem a carta, também de NPC. */
+  /** F3 (Q5): os selos da ficha ("Atordoado 2"). Para todos que veem a carta, também de NPC (fora o "Ajustar..." do mestre, R4). */
   selos?: SeloParaJogador[]
+  /** C10 (lote de 01/11): só "eu" e "aliado": o Escudo atual. Sem Escudo (0, ou o sistema não tem) = ausente. Nunca de NPC. */
+  escudo?: number
   /** Invocação: a carta é a do BANDO de um dono (`tokenId` = `bando_<dono>`, não é token do mapa). */
   bando?: BandoParaJogador
 }
@@ -196,6 +199,24 @@ export interface CombateParaJogador {
    * A tela conta o máximo da opção e mostra "esperando o mestre colocar". Ausente = nenhum.
    */
   invocacoes?: InvocacaoDoDono[]
+  /** R5 (lote de 01/11): gastou a reação no contador e não reage até a vez dele. Ausente = reage. */
+  semReacao?: true
+  /**
+   * R1 (lote de 01/11): os lembretes da marca DESTE atirador ("Marcar o
+   * alvo? Pagar SP · Teste · Agora não"). O custo e o teste a tela lê da
+   * ficha dele (`passivaDaMarca`); responde por `batalha.marcar`. Ausente = nenhum.
+   */
+  marcas?: MarcaParaJogador[]
+}
+
+/** R1: um lembrete da marca como a tela do atirador o mostra. */
+export interface MarcaParaJogador {
+  id: string
+  /** O token de quem atirou (dele). */
+  tokenId: string
+  alvoTokenId: string
+  /** A passiva da marca (Olhar Artístico). */
+  cartaoId: string
 }
 
 /** Invocação F3: um invocado do dono, como a tela dele o mostra. */
@@ -309,6 +330,8 @@ function formaESelosDaCarta(saida: CartaParaJogador, carta: CartaDaOrdem, turnos
     if (noTeto.length > 0) saida.forma = noTeto
   }
   const selos = selosDoToken(turnos.selos, carta.tokenId)
+    // R4: o "Ajustar..." do mestre num NPC (modificador de atributo) não sai a quem não é da ficha.
+    .filter((selo) => selo.ajuste !== true || saida.lado !== 'outro')
     .map(seloNaCarta)
     // Nome torto (vazio, quebra de linha) fica de fora pelo mesmo motivo.
     .filter((selo) => ehNomeDeSelo(selo.nome))
@@ -358,9 +381,19 @@ function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJoga
   if (lado !== 'outro') {
     if (carta.personagemId !== null) saida.personagemId = carta.personagemId
     if (caidos.has(carta.tokenId)) saida.caiu = true
+    const escudo = escudoDaCarta(carta, ctx)
+    if (escudo > 0) saida.escudo = escudo
   }
   formaESelosDaCarta(saida, carta, turnos, ctx)
   return saida
+}
+
+/** C10: o Escudo atual da ficha da carta, no teto do fio; sem ficha ou sem Escudo no sistema, 0. Só para "eu" e "aliado". */
+function escudoDaCarta(carta: CartaDaOrdem, ctx: ContextoDoJogador): number {
+  const personagem = personagemDaCarta(carta, ctx)
+  const escudo = ctx.sistema === null ? null : recursoDoEscudo(ctx.sistema)
+  if (personagem === undefined || escudo === null) return 0
+  return Math.max(0, Math.min(DANO_MAX, Math.round(numeroDaFicha(personagem.recursos, escudo.id))))
 }
 
 /** Teto da vida de um invocado no fio (o mesmo do dano). */
@@ -463,6 +496,13 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
     }
     // Passivas e evoluções só do personagem DELE: o token de NPC que ele controla entra em `meus`, mas o lembrete
     // "vida abaixo de 50%" contaria a vida do NPC.
+    if (combate.semReacao === true) meu.semReacao = true
+    // R1: os lembretes da marca do personagem DELE, de token dele (o SP e o teste são do personagem dele).
+    const marcas = (turnos.lembretesDaMarca ?? [])
+      .filter((lembrete) => lembrete.personagemId === personagemId && ctx.meusPersonagens.has(personagemId) && ctx.meusTokens.has(lembrete.tokenId))
+      .slice(-LEMBRETES_DA_MARCA_MAX)
+      .map((lembrete) => ({ id: lembrete.id, tokenId: lembrete.tokenId, alvoTokenId: lembrete.alvoTokenId, cartaoId: lembrete.cartaoId }))
+    if (marcas.length > 0) meu.marcas = marcas
     meus.push(ctx.meusPersonagens.has(personagemId) ? comInvocacoesDoDono(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]), turnos, personagemId) : meu)
   }
   return meus

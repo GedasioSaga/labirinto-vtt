@@ -52,7 +52,10 @@ import {
   parseBatalhaDano,
   parseBatalhaDesfazer,
   parseBatalhaEvoluir,
+  parseBatalhaAjustar,
+  parseBatalhaContador,
   parseBatalhaInvocar,
+  parseBatalhaMarcar,
   parseBatalhaPassar,
   parseBatalhaPassiva,
   parseBatalhaReagir,
@@ -3452,6 +3455,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseBatalhaEvoluir(value)
     case 'batalha.invocar':
       return parseBatalhaInvocar(value)
+    case 'batalha.marcar':
+      return parseBatalhaMarcar(value)
+    case 'batalha.ajustar':
+      return parseBatalhaAjustar(value)
+    case 'batalha.contador':
+      return parseBatalhaContador(value)
     case 'danca.pronto':
     case 'danca.toques':
     case 'danca.fim':

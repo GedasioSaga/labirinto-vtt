@@ -44,7 +44,14 @@ import {
   type SaidaDaReacao,
   type SaidaDaTecnica,
   type SeloPedido,
+  MUDANCAS_DO_AJUSTE_MAX,
+  type MudancaDoAjuste,
+  type PedidoDeAjusteNaBatalha,
+  type PedidoDoContador,
+  type PedidoDeMarca,
 } from '../lib/batalha/combate'
+import { NUMERO_DA_FICHA_MAX } from '../lib/ajusteDaFicha'
+import { COMO_MARCA, LEMBRETES_DA_MARCA_MAX } from '../lib/batalha/marca'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
 import { lerJudgeNaCena } from '../lib/batalha/judge'
 import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
@@ -70,6 +77,7 @@ import {
   type EstadoParaJogador,
   type GolpeParaJogador,
   type InvocacaoDoDono,
+  type MarcaParaJogador,
   type LadoNaCarta,
   type MembroDoBandoParaJogador,
   type ReacaoParaJogador,
@@ -222,6 +230,30 @@ export interface BatalhaInvocarMessage {
   pedido: PedidoDeInvocacao
 }
 
+/**
+ * R1 (lote de 01/11): responder ao lembrete da marca (Pagar SP, Teste de
+ * Percepção, "rolei fora" Passou/Falhou, Agora não). Só o dono de quem atirou.
+ */
+export interface BatalhaMarcarMessage {
+  type: 'batalha.marcar'
+  reqId: string
+  pedido: PedidoDeMarca
+}
+
+/** R4 (lote de 01/11): o "Ajustar..." numa ficha DELE de verdade (o mestre ajusta qualquer uma, na tela dele). */
+export interface BatalhaAjustarMessage {
+  type: 'batalha.ajustar'
+  reqId: string
+  pedido: PedidoDeAjusteNaBatalha
+}
+
+/** R5 (lote de 01/11): ganhar 1 nível do contador gastando a reação. Zerar é só do mestre: nunca pelo fio. */
+export interface BatalhaContadorMessage {
+  type: 'batalha.contador'
+  reqId: string
+  pedido: PedidoDoContador
+}
+
 /** Os pedidos de batalha do jogador da F1 (entram na união `PlayerMessage`). */
 export type BatalhaPlayerMessage = BatalhaPassarMessage | BatalhaDesfazerMessage
 
@@ -239,6 +271,9 @@ export type BatalhaAcaoPlayerMessage =
   | BatalhaPassivaMessage
   | BatalhaEvoluirMessage
   | BatalhaInvocarMessage
+  | BatalhaMarcarMessage
+  | BatalhaAjustarMessage
+  | BatalhaContadorMessage
 
 export interface BatalhaEstadoMessage {
   type: 'batalha.estado'
@@ -662,6 +697,53 @@ export function parseBatalhaInvocar(value: unknown): BatalhaInvocarMessage | nul
   return { type: 'batalha.invocar', reqId, pedido }
 }
 
+/** R1: `{ tipo: 'marcar', lembreteId, como }`, `como` em enum fechado. Se o lembrete é dele, o host confere. */
+export function parseBatalhaMarcar(value: unknown): BatalhaMarcarMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.marcar' || !isRecord(value.pedido)) return null
+  const { reqId } = value
+  const { tipo, lembreteId, como } = value.pedido
+  const comoLido = COMO_MARCA.find((candidato) => candidato === como)
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || tipo !== 'marcar' || !textoAte(lembreteId, 1, ID_DA_BATALHA_MAX) || comoLido === undefined) return null
+  return { type: 'batalha.marcar', reqId, pedido: { tipo: 'marcar', lembreteId, como: comoLido } }
+}
+
+/** R4: uma mudança do "Ajustar...": id no teto do alvo de selo, valor de 0 ao teto da ficha, delta não zero. O sistema, a store confere. */
+function lerMudancaDoAjuste(value: unknown): MudancaDoAjuste | null {
+  if (!isRecord(value)) return null
+  const { tipo } = value
+  if (tipo === 'atributo') {
+    const { atributoId, delta } = value
+    return ehAlvoDeMod(atributoId) && inteiroAte(delta, -DANO_MAX, DANO_MAX) && delta !== 0 ? { tipo, atributoId, delta } : null
+  }
+  if (tipo !== 'atual' && tipo !== 'maximo') return null
+  const { recursoId, valor } = value
+  return ehAlvoDeMod(recursoId) && inteiroAte(valor, 0, NUMERO_DA_FICHA_MAX) ? { tipo, recursoId, valor } : null
+}
+
+/** R4: `{ tokenId, mudancas }`, de 1 a `MUDANCAS_DO_AJUSTE_MAX` mudanças; uma torta recusa tudo. */
+export function parseBatalhaAjustar(value: unknown): BatalhaAjustarMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.ajustar' || !isRecord(value.pedido)) return null
+  const { reqId } = value
+  const { tokenId, mudancas } = value.pedido
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !Array.isArray(mudancas) || mudancas.length === 0 || mudancas.length > MUDANCAS_DO_AJUSTE_MAX) return null
+  const lidas: MudancaDoAjuste[] = []
+  for (const mudanca of mudancas) {
+    const lida = lerMudancaDoAjuste(mudanca)
+    if (lida === null) return null
+    lidas.push(lida)
+  }
+  return { type: 'batalha.ajustar', reqId, pedido: { tokenId, mudancas: lidas } }
+}
+
+/** R5: `{ tipo: 'ganhar', tokenId, cartaoId }`. "zerar" recusa aqui: é só do mestre. */
+export function parseBatalhaContador(value: unknown): BatalhaContadorMessage | null {
+  if (!isRecord(value) || value.type !== 'batalha.contador' || !isRecord(value.pedido)) return null
+  const { reqId } = value
+  const { tipo, tokenId, cartaoId } = value.pedido
+  if (!textoAte(reqId, 1, REQ_ID_MAX) || tipo !== 'ganhar' || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX)) return null
+  return { type: 'batalha.contador', reqId, pedido: { tipo, tokenId, cartaoId } }
+}
+
 // ---- host → jogador ----
 
 function lerLado(value: unknown): LadoNaCarta | null {
@@ -695,6 +777,11 @@ function lerCarta(value: unknown): CartaParaJogador | null {
   if (caiu !== undefined) {
     if (caiu !== true || ladoLido === 'outro') return null
     carta.caiu = true
+  }
+  // C10: o Escudo só nas cartas dele e dos aliados: na de "outro" (NPC), é mensagem forjada.
+  if (value.escudo !== undefined) {
+    if (ladoLido === 'outro' || !inteiroAte(value.escudo, 1, DANO_MAX)) return null
+    carta.escudo = value.escudo
   }
   // F3 (fatia T): o nome da forma e os selos vão a quem vê a carta, de qualquer lado (Q5).
   if (value.forma !== undefined) {
@@ -870,7 +957,25 @@ function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unk
   if (lembradas !== undefined) combate.lembradas = lembradas
   if (ativas !== undefined) combate.passivasAtivas = ativas
   if (evoluidas !== undefined) combate.evoluidas = evoluidas
+  // R5: sem reação até a vez dele; R1: os lembretes da marca do atirador.
+  if (value.semReacao !== undefined) {
+    if (value.semReacao !== true) return null
+    combate.semReacao = true
+  }
+  if (value.marcas !== undefined) {
+    const marcas = lerLista(value.marcas, LEMBRETES_DA_MARCA_MAX, lerMarcaParaJogador)
+    if (marcas === null || marcas.length === 0) return null
+    combate.marcas = marcas
+  }
   return combate
+}
+
+/** R1: um lembrete da marca no recorte do atirador. Só ids, no teto. */
+function lerMarcaParaJogador(value: unknown): MarcaParaJogador | null {
+  if (!isRecord(value)) return null
+  const { id, tokenId, alvoTokenId, cartaoId } = value
+  if (!textoAte(id, 1, ID_DA_BATALHA_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(alvoTokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX)) return null
+  return { id, tokenId, alvoTokenId, cartaoId }
 }
 
 /** Invocação F3: um invocado do dono no recorte. Ids, opção, nome e rótulo no teto; `posto` booleano. */

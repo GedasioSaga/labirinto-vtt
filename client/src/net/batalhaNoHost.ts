@@ -10,6 +10,9 @@ import {
   JANELA_DOS_PEDIDOS_DE_BATALHA_MS,
   PEDIDOS_DE_BATALHA_POR_JANELA,
   type BatalhaAgirMessage,
+  type BatalhaAjustarMessage,
+  type BatalhaContadorMessage,
+  type BatalhaMarcarMessage,
   type BatalhaArmasMessage,
   type BatalhaDanoMessage,
   type BatalhaDesfazerMessage,
@@ -154,6 +157,16 @@ export interface BatalhaNoHost {
    * confere. Mesmo limite de taxa e dedupe de `reqId` dos outros pedidos.
    */
   invocar(conexao: ConexaoNaBatalha, msg: BatalhaInvocarMessage): RespostaDaBatalha
+  /**
+   * R1 (lote de 01/11): responder ao lembrete da marca. Só o dono de quem
+   * atirou, com a ficha DELE de verdade (o SP e o teste são do personagem
+   * dele). A regra (passiva, alvo sem marca, SP) a store confere.
+   */
+  marcar(conexao: ConexaoNaBatalha, msg: BatalhaMarcarMessage): RespostaDaBatalha
+  /** R4 (lote de 01/11): o "Ajustar..." só na ficha DELE de verdade (nunca a emprestada, o NPC que ele controla nem o invocado). */
+  ajustar(conexao: ConexaoNaBatalha, msg: BatalhaAjustarMessage): RespostaDaBatalha
+  /** R5 (lote de 01/11): ganhar 1 nível do contador, na ficha DELE de verdade. A regra (reação livre, máximo) a store confere. */
+  contador(conexao: ConexaoNaBatalha, msg: BatalhaContadorMessage): RespostaDaBatalha
 }
 
 const NADA: RespostaDaBatalha = { saidas: [], mudou: false }
@@ -318,6 +331,16 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   /** A ficha é DELE: o token é dele, ou o personagem ligado é dele (a mesma regra do recorte, `vistaDoJogador`). */
   const fichaDele = (lugar: LugarNaBatalha, tokenId: string, personagemId: string | null): boolean =>
     lugar.meusTokens.has(tokenId) || (personagemId !== null && lugar.meusPersonagens.has(personagemId))
+
+  /**
+   * R4/R5 (lote de 01/11): a carta do token na ordem é a ficha DELE de
+   * verdade: token dele, ligado ao personagem dele (`personagemDaFicha`).
+   * Nunca a emprestada, o NPC que ele controla nem o invocado do bando.
+   */
+  const fichaDeVerdade = (lugar: LugarNaBatalha, cena: BatalhaEmTurnos, tokenId: string): boolean => {
+    const carta = cena.turnos.cartas.find((candidata) => candidata.tokenId === tokenId && candidata.bando === undefined)
+    return carta !== undefined && carta.personagemId !== null && lugar.meusTokens.has(tokenId) && lugar.personagemDaFicha.get(tokenId) === carta.personagemId
+  }
 
   /** Na vez: a carta da vez, nesta rodada, token dele e personagem dele. Fora da vez: um contra-ataque guardado de ficha dele. */
   const podePedirAcao = (lugar: LugarNaBatalha, cena: BatalhaEmTurnos, msg: BatalhaAgirMessage): boolean => {
@@ -534,6 +557,39 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         const daVez = cartaDaVez(cena.turnos)
         if (daVez === null || daVez.personagemId !== carta.personagemId || !lugar.meusTokens.has(daVez.tokenId)) return false
         return ponte.invocar(lugar.sceneKey, autorDe(conexao), pedido)
+      })
+    },
+
+    marcar(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        const lembrete = (cena.turnos.lembretesDaMarca ?? []).find((candidato) => candidato.id === msg.pedido.lembreteId)
+        if (ponte.marcar === undefined || lembrete === undefined) return false
+        if (!lugar.meusTokens.has(lembrete.tokenId) || lugar.personagemDaFicha.get(lembrete.tokenId) !== lembrete.personagemId) return false
+        return ponte.marcar(lugar.sceneKey, autorDe(conexao), msg.pedido)
+      })
+    },
+
+    ajustar(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        if (ponte.ajustar === undefined || !fichaDeVerdade(lugar, cena, msg.pedido.tokenId)) return false
+        return ponte.ajustar(lugar.sceneKey, autorDe(conexao), msg.pedido)
+      })
+    },
+
+    contador(conexao, msg) {
+      return pedidoUnico(conexao, msg.reqId, () => {
+        const daCena = cenaDa(conexao)
+        if (daCena === null) return false
+        const { ponte, lugar, cena } = daCena
+        // O fio só deixa "ganhar"; zerar é do mestre, na tela dele.
+        if (ponte.contador === undefined || msg.pedido.tipo !== 'ganhar' || !fichaDeVerdade(lugar, cena, msg.pedido.tokenId)) return false
+        return ponte.contador(lugar.sceneKey, autorDe(conexao), msg.pedido)
       })
     },
   }

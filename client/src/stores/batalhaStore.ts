@@ -2289,6 +2289,9 @@ export const ponteDaBatalha: PonteDaBatalha = {
   passiva: (sceneKey, autor, pedido) => useBatalhaStore.getState().passiva(sceneKey, autor, pedido),
   evoluir: (sceneKey, autor, pedido) => useBatalhaStore.getState().evoluir(sceneKey, autor, pedido),
   invocar: (sceneKey, autor, pedido) => useBatalhaStore.getState().invocar(sceneKey, autor, pedido),
+  marcar: (sceneKey, autor, pedido) => useBatalhaStore.getState().marcar(sceneKey, autor, pedido),
+  ajustar: (sceneKey, autor, pedido) => useBatalhaStore.getState().ajustar(sceneKey, autor, pedido),
+  contador: (sceneKey, autor, pedido) => useBatalhaStore.getState().contador(sceneKey, autor, pedido),
 }
 
 type EstadoDaBatalha = Pick<BatalhaState, 'cenas'>

@@ -206,7 +206,10 @@ import {
   parseBatalhaEfeitos,
   parseBatalhaEstado,
   parseBatalhaEvoluir,
+  parseBatalhaAjustar,
+  parseBatalhaContador,
   parseBatalhaInvocar,
+  parseBatalhaMarcar,
   parseBatalhaPassiva,
   parseBatalhaReagir,
   parseBatalhaResultado,
@@ -217,7 +220,16 @@ import {
   type BatalhaPlayerMessage,
 } from '../net/protocoloDaBatalha'
 import type { EfeitoParaJogador, EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
-import { EFEITOS_POR_MENSAGEM, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDeInvocacao, type PedidoDePassiva, type PedidoDeReacao } from '../lib/batalha/combate'
+import {
+  EFEITOS_POR_MENSAGEM,
+  type PedidoDeAcao,
+  type PedidoDeAjusteNaBatalha,
+  type PedidoDeEvolucao,
+  type PedidoDeInvocacao,
+  type PedidoDeMarca,
+  type PedidoDePassiva,
+  type PedidoDeReacao,
+} from '../lib/batalha/combate'
 import type { VezEsperada } from '../lib/batalha/ponte'
 
 /**
@@ -1344,6 +1356,16 @@ export interface PlayerConnection {
    * mestre põe o invocado no mapa. Só ficha dele. `false` = não saiu.
    */
   invocarNaBatalha(pedido: PedidoDeInvocacao): boolean
+  /**
+   * R1 (lote de 01/11): responder ao lembrete da marca ("Marcar o alvo?":
+   * Pagar SP, Teste, rolei fora Passou/Falhou, Agora não). O host confere que
+   * o lembrete é de token dele. `false` = não saiu.
+   */
+  marcarNaBatalha(pedido: PedidoDeMarca): boolean
+  /** R4 (lote de 01/11): o "Ajustar..." da ficha dele (atual/máximo, modificador de atributo). `false` = não saiu. */
+  ajustarNaBatalha(pedido: PedidoDeAjusteNaBatalha): boolean
+  /** R5 (lote de 01/11): ganhar 1 nível do contador (a polaridade) gastando a reação. `false` = não saiu. */
+  ganharContadorNaBatalha(tokenId: string, cartaoId: string): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -6091,6 +6113,24 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const mensagem = parseBatalhaInvocar({ type: 'batalha.invocar', reqId: `b${nextReqId++}`, pedido })
       if (mensagem === null) return false
       return pedirNaBatalha(chaveDoPedido('invocar', mensagem.pedido), mensagem)
+    },
+    marcarNaBatalha(pedido) {
+      if (state.status !== 'playing' || state.batalhaEstado === undefined) return false
+      const mensagem = parseBatalhaMarcar({ type: 'batalha.marcar', reqId: `b${nextReqId++}`, pedido })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('marcar', mensagem.pedido), mensagem)
+    },
+    ajustarNaBatalha(pedido) {
+      if (state.status !== 'playing' || state.batalhaEstado === undefined || !(state.ownTokens ?? []).includes(pedido.tokenId)) return false
+      const mensagem = parseBatalhaAjustar({ type: 'batalha.ajustar', reqId: `b${nextReqId++}`, pedido })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('ajustar', mensagem.pedido), mensagem)
+    },
+    ganharContadorNaBatalha(tokenId, cartaoId) {
+      if (state.status !== 'playing' || state.batalhaEstado === undefined || !(state.ownTokens ?? []).includes(tokenId)) return false
+      const mensagem = parseBatalhaContador({ type: 'batalha.contador', reqId: `b${nextReqId++}`, pedido: { tipo: 'ganhar', tokenId, cartaoId } })
+      if (mensagem === null) return false
+      return pedirNaBatalha(chaveDoPedido('contador', mensagem.pedido), mensagem)
     },
     reconnect: restart,
     wake() {

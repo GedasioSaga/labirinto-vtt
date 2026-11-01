@@ -1,5 +1,15 @@
 import type { Personagem } from '../personagem'
-import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDeEvolucao, PedidoDeInvocacao, PedidoDePassiva, PedidoDeReacao } from './combate'
+import type {
+  EfeitoDaBatalha,
+  PedidoDeAcao,
+  PedidoDeAjusteNaBatalha,
+  PedidoDoContador,
+  PedidoDeEvolucao,
+  PedidoDeInvocacao,
+  PedidoDeMarca,
+  PedidoDePassiva,
+  PedidoDeReacao,
+} from './combate'
 import type { JudgeNaCena } from './judge'
 import type { LinhaDoRegistro } from './registro'
 import type { RegrasDaBatalha } from './regrasDoCampo'
@@ -96,4 +106,10 @@ export interface PonteDaBatalha {
    * que a ficha é dele e a vez. Opcional: a ponte sem invocação recusa.
    */
   invocar?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeInvocacao): boolean
+  /** R1 (lote de 01/11): responder ao lembrete da marca. Opcional, como `passiva`. */
+  marcar?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeMarca): boolean
+  /** R4 (lote de 01/11): o "Ajustar..." (ficha e modificador de atributo até o fim da batalha). Opcional. */
+  ajustar?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeAjusteNaBatalha): boolean
+  /** R5 (lote de 01/11): ganhar (ou, o mestre, zerar) o contador. Opcional. */
+  contador?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDoContador): boolean
 }
