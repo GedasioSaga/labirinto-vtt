@@ -415,6 +415,15 @@ export function resolverAlvo(golpe: GolpeDaBatalha, tokenId: string, saida: Said
   })
 }
 
+/**
+ * R3 (lote de 01/11): o alvo passa sem tomar dano, rolado ou não. Saída
+ * "esquiva" com `danoFinal` 0, para nada adiante (selo, marca, contra) ler um
+ * acerto. Já resolvido: o MESMO golpe.
+ */
+export function passarSemDano(golpe: GolpeDaBatalha, tokenId: string): GolpeDaBatalha {
+  return comAlvo(golpe, tokenId, (alvo) => (alvo.danoFinal !== undefined ? null : { ...alvo, saida: 'esquiva', danoFinal: 0, semDano: true }))
+}
+
 /** O golpe ainda tem alvo esperando? */
 export function golpePendente(golpe: GolpeDaBatalha): boolean {
   return golpe.alvos.some((alvo) => alvo.danoFinal === undefined)
@@ -542,7 +551,8 @@ function comATecnica(alvo: AlvoDoGolpe): string {
 function textoDoAlvo(alvo: AlvoDoGolpe): string {
   const pedacos: string[] = []
   if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}${comATecnica(alvo)}`)
-  if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
+  if (alvo.semDano === true) pedacos.push('passou sem dano')
+  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   return pedacos.join(' · ')
 }

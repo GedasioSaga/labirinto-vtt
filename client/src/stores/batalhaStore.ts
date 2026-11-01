@@ -75,6 +75,7 @@ import {
   golpePendente,
   lancarGolpe,
   podeAgir,
+  passarSemDano,
   resolverAlvo,
   rolarReacao,
   textoDaReacaoComTecnica,
@@ -1335,6 +1336,26 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
   }
 
   /**
+   * R3 (lote de 01/11): o alvo passa sem tomar dano, antes ou depois do dado.
+   * Nada de ficha, selo, marca nem contra: só o golpe resolvido e a linha
+   * "reacao" própria ("Siegfried passou sem dano"), cujo Desfazer devolve o
+   * alvo à espera pela mesma parte da reação com técnica.
+   */
+  const passarSemDanoNaCena = (sceneKey: string, cena: BatalhaDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe, autor: AutorDaAcao): boolean => {
+    const novo = passarSemDano(golpe, alvo.tokenId)
+    if (novo === golpe) return false
+    const nomeDoToken = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)
+    const atual = cenaDe(sceneKey) ?? cena
+    const novos: TurnosDaCena = { ...atual.turnos, golpes: comGolpe(atual.turnos.golpes, novo) }
+    const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(novo, nomeDoToken), []) }
+    const texto = `${nomeDoToken(alvo.tokenId)} passou sem dano`
+    const linha: LinhaNova = { tipo: 'reacao', texto, autor, tokenIds: [...new Set([alvo.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'reacaoComTecnica', golpe: novo, tokenId: alvo.tokenId, alvoAntes: alvo } }
+    if (alvo.personagemId !== null) linha.personagemIds = [alvo.personagemId]
+    gravarCena(sceneKey, comMudanca(comOGolpe, novos, linha))
+    return true
+  }
+
+  /**
    * O corpo do `agir`: lança o golpe (ou concentra, ou move pelo contra) pela
    * carta `carta`. `turnosDoCtx` são os turnos que a regra lê (para o
    * invocado, com o gasto DELE no lugar do da carta do bando); `chaveDoGasto`
@@ -1865,6 +1886,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       if (golpe === undefined || alvo === undefined || alvo.danoFinal !== undefined) return false
       // Tipos de habilidade F1: a técnica de reação no lugar do d20 tem linha própria.
       if (pedido.tipo === 'tecnica') return reagirComTecnicaNaCena(sceneKey, cena, golpe, alvo, autor, pedido)
+      if (pedido.tipo === 'semDano') return passarSemDanoNaCena(sceneKey, cena, golpe, alvo, autor)
       let novo: GolpeDaBatalha
       const efeitos: EfeitoNovo[] = []
       const partes: Reversao[] = []

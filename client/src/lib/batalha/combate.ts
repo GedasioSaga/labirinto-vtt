@@ -313,6 +313,12 @@ export type PedidoDeReacao =
    * `seloNoAtacante` = o selo sugerido ("Marcado"), marcado na caixa.
    */
   | { tipo: 'tecnica'; golpeId: string; tokenId: string; cartaoId: string; saida: SaidaDaTecnica; custo: number | null; modificador?: number; seloNoAtacante?: SeloPedido }
+  /**
+   * R3 (lote de 01/11): passa SEM tomar dano, antes ou depois do dado (o mestre
+   * decidiu na mesa que não pegou). Não é acerto: sem dano, sem selo, sem marca.
+   * Linha "reacao" própria, com Desfazer que devolve o alvo à espera.
+   */
+  | { tipo: 'semDano'; golpeId: string; tokenId: string }
 
 /** O d20 da reação, rolado pelo HOST. `vezes` conta as rerolagens (1 = a primeira). */
 export interface RolagemDaReacao {
@@ -336,6 +342,8 @@ export interface AlvoDoGolpe {
   tecnica?: TecnicaDaReacao
   /** R1 (lote de 01/11): o golpe acertou a marca dele: `danoFinal` já é o dobro, e a marca saiu. */
   marcado?: true
+  /** R3 (lote de 01/11): passou sem tomar dano (saída "esquiva", `danoFinal` 0). */
+  semDano?: true
 }
 
 export interface GolpeDaBatalha {

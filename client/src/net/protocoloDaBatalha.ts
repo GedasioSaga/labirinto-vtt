@@ -499,6 +499,9 @@ export function lerPedidoDeReacao(value: unknown): PedidoDeReacao | null {
       return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'naoReagir', golpeId, tokenId } : null
     case 'passar':
       return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'passar', golpeId, tokenId } : null
+    // R3 (lote de 01/11): passar sem tomar dano, antes ou depois do dado (o host confere que o alvo é dele e espera).
+    case 'semDano':
+      return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) ? { tipo: 'semDano', golpeId, tokenId } : null
     // Tipos de habilidade F1: a técnica de reação no lugar do d20.
     case 'tecnica':
       return lerReacaoComTecnica(value, golpeId, tokenId)
