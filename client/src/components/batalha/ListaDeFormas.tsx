@@ -94,8 +94,8 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
   const nome = nomeDaForma(forma)
   const descricao = descricaoDaForma(forma)
   const livre = formaLivre(forma.cartao)
-  // R6: a forma Livre liga e desliga sem gastar ação: a economia da vez não apaga o Ativar (o host confere os usos).
-  const motivo = forma.ligada || livre ? null : motivoDaForma(forma, acao, acoes)
+  // R6: a forma Livre liga e desliga sem gastar ação: a economia da vez não apaga o Ativar; os usos acabados apagam sempre.
+  const motivo = forma.ligada ? null : (forma.motivoDosUsos ?? (livre ? null : motivoDaForma(forma, acao, acoes)))
   const comImagem = forma.imagem !== null
   const usos = usosDaForma(forma.cartao)
   const deslocamento = textoDoDeslocamento(forma)

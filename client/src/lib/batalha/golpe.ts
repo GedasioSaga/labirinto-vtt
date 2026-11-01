@@ -48,7 +48,7 @@ import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
-import { comAtaqueExtra, formaDaFicha, formaLivre, formaNaVez, motivoDaForma, usosDaForma } from './transformacao'
+import { comAtaqueExtra, formaDaFicha, formaLivre, formaNaVez, motivoDaForma, motivoDosUsosDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -233,8 +233,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (cartao === null) return 'Forma não encontrada na ficha'
       if (personagem.cartoesAtivos.includes(pedido.cartaoId)) return 'A forma já está ativa'
       // R6: "Usos por batalha" (Ignição: 2) e a Ação "Livre" (liga sem gastar ação).
-      const usos = usosDaForma(cartao)
-      if (usos !== null && (ctx.turnos.combate?.[personagem.id]?.usos[cartao.id] ?? 0) >= usos) return `Já usou as ${usos} vezes desta batalha`
+      const esgotada = motivoDosUsosDaForma(cartao, ctx.turnos.combate?.[personagem.id]?.usos)
+      if (esgotada !== null) return esgotada
       return formaLivre(cartao) ? null : motivoDaForma({ ligada: false }, pedido.acao, acoes)
     }
     case 'destransformar': {

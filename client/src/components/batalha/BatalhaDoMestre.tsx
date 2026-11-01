@@ -433,7 +433,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
   const agir = (pedido: PedidoDeAcao) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)
   // F3: as formas do NPC (a tira Transformação do painel) e a imagem da forma ligada, que vence a foto.
-  const formas = personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : []
+  const formas = personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate?.usos) : []
   const aparencia = carta.personagemId === null || personagem === null ? null : aparenciaDaForma(turnos.formas?.[carta.personagemId], personagem)
   // Tipos de habilidade F3: as passivas do NPC da vez e os lembretes dele (o mestre aplica o "a cada turno" quando quiser).
   const alvos = alvosDaOrdem(mesa, turnos.cartas, carta)

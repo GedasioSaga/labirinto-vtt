@@ -55,6 +55,16 @@ export function usosDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | nul
   return inteiroDoCampo(cartao, CAMPO_DOS_USOS)
 }
 
+/**
+ * R6: a forma de "Usos por batalha" que já ligou todas as vezes, com a frase;
+ * `null` = ainda pode (ou não tem limite). `usados` = `combate.usos` do
+ * personagem. O host recusa com a mesma frase (`golpe.ts`); a tela apaga o Ativar.
+ */
+export function motivoDosUsosDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>, usados: Readonly<Record<string, number>> | undefined): string | null {
+  const usos = usosDaForma(cartao)
+  return usos !== null && (usados?.[cartao.id] ?? 0) >= usos ? `Já usou as ${usos} vezes desta batalha` : null
+}
+
 export interface EfeitosDasFormas {
   /** Quanto do dano recebido sai (20 = -20%), de 0 a 100. */
   reducaoDoDano: number
@@ -170,6 +180,8 @@ export interface FormaNoMenu {
   tecnicas: string[]
   /** Apagada com a ação DA FICHA e por quê; `null` = pode. O seletor relê com `motivoDaForma`. */
   motivo: string | null
+  /** R6: os "Usos por batalha" acabaram (`motivoDosUsosDaForma`); ausente ou `null` = ainda pode. Vale também na forma Livre. */
+  motivoDosUsos?: string | null
 }
 
 /** A ação que Ativar a forma gasta, pelo campo Ação: Simples, Completa ou Bônus; o resto (vazio, Livre, ilegível) = Completa. */
@@ -194,9 +206,10 @@ export function motivoDaForma(forma: Pick<FormaNoMenu, 'ligada'>, acao: AcaoDaFo
 }
 
 /** As formas da ficha para a tira Transformação, com a prévia de cada uma desligada. */
-export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoes: AcoesDaVez | null): FormaNoMenu[] {
+export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoes: AcoesDaVez | null, usados?: Readonly<Record<string, number>>): FormaNoMenu[] {
   return cartoesQueLigam(personagem, sistema).map((cartao) => {
     const ligada = personagem.cartoesAtivos.includes(cartao.id)
+    const motivoDosUsos = ligada ? null : motivoDosUsosDaForma(cartao, usados)
     const acaoDaFicha = acaoDaForma(cartao)
     // A prévia é a própria ativação feita no ar (o histórico e o relógio não importam aqui).
     const previa = ligada ? null : ativarForma(personagem, sistema, cartao.id, '', 0)
@@ -210,7 +223,8 @@ export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoe
       imagem: cartao.imagem,
       numeros: previa?.numeros ?? [],
       tecnicas: cartao.subcartoes.map((subcartao) => subcartao.nome),
-      motivo: motivoDaForma({ ligada }, acaoDaFicha, acoes),
+      motivo: motivoDosUsos ?? motivoDaForma({ ligada }, acaoDaFicha, acoes),
+      motivoDosUsos,
     }
   })
 }

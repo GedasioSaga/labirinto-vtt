@@ -197,7 +197,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       // C4: inimigos do mais perto ao mais longe, aliados depois, ele por último.
       alvos: alvosNaOrdemDaMira(alvos, fichas, cartaQueAge.tokenId, tamanhoDaCasa),
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
-      formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : [],
+      formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate?.usos) : [],
       // Tipos de habilidade F3: a tira Passivas (as ligadas vêm do recorte, `passivasAtivas`).
       passivas: passivasNoRecorte(personagem, sistema, estado.rodada, meuCombate, selosDoDono),
     }
