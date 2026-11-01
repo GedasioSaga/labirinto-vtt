@@ -697,14 +697,15 @@ export function parseBatalhaInvocar(value: unknown): BatalhaInvocarMessage | nul
   return { type: 'batalha.invocar', reqId, pedido }
 }
 
-/** R1: `{ tipo: 'marcar', lembreteId, como }`, `como` em enum fechado. Se o lembrete é dele, o host confere. */
+/** R1: `{ tipo: 'marcar', lembreteId, como, modificador? }`, `como` em enum fechado, modificador só com "teste". Se o lembrete é dele, o host confere. */
 export function parseBatalhaMarcar(value: unknown): BatalhaMarcarMessage | null {
   if (!isRecord(value) || value.type !== 'batalha.marcar' || !isRecord(value.pedido)) return null
   const { reqId } = value
-  const { tipo, lembreteId, como } = value.pedido
+  const { tipo, lembreteId, como, modificador } = value.pedido
   const comoLido = COMO_MARCA.find((candidato) => candidato === como)
   if (!textoAte(reqId, 1, REQ_ID_MAX) || tipo !== 'marcar' || !textoAte(lembreteId, 1, ID_DA_BATALHA_MAX) || comoLido === undefined) return null
-  return { type: 'batalha.marcar', reqId, pedido: { tipo: 'marcar', lembreteId, como: comoLido } }
+  if (modificador !== undefined && (comoLido !== 'teste' || !lerModificador(modificador))) return null
+  return { type: 'batalha.marcar', reqId, pedido: { tipo: 'marcar', lembreteId, como: comoLido, ...(modificador === undefined ? {} : { modificador }) } }
 }
 
 /** R4: uma mudança do "Ajustar...": id no teto do alvo de selo, valor de 0 ao teto da ficha, delta não zero. O sistema, a store confere. */
@@ -782,6 +783,11 @@ function lerCarta(value: unknown): CartaParaJogador | null {
   if (value.escudo !== undefined) {
     if (ladoLido === 'outro' || !inteiroAte(value.escudo, 1, DANO_MAX)) return null
     carta.escudo = value.escudo
+  }
+  // C10: o cheio da barra só junto do Escudo e acima dele.
+  if (value.escudoMax !== undefined) {
+    if (carta.escudo === undefined || !inteiroAte(value.escudoMax, carta.escudo + 1, DANO_MAX)) return null
+    carta.escudoMax = value.escudoMax
   }
   // F3 (fatia T): o nome da forma e os selos vão a quem vê a carta, de qualquer lado (Q5).
   if (value.forma !== undefined) {

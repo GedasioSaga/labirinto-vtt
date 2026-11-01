@@ -3,7 +3,7 @@ import type { BonusDaBatalha, PedidoDeMarca } from '../../lib/batalha/combate'
 import { modificadorDoTeste, motivoDaMarca, passivaDaMarca, type ComoMarca } from '../../lib/batalha/marca'
 import { numeroDaFicha, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
-import { formatarNumero } from './dadosDoMenu'
+import { formatarNumero, lerModificadorDaReacao } from './dadosDoMenu'
 import './batalha.css'
 import './combate.css'
 
@@ -61,20 +61,25 @@ export function marcaNaTela(
   return item
 }
 
-/** "d20 + 3, 15 ou mais"; sem CD = só o "rolei fora". */
-function textoDoTeste(teste: NonNullable<MarcaNaTela['teste']>): string {
-  const mod = teste.modificador === 0 ? '' : ` ${teste.modificador > 0 ? '+' : '−'} ${Math.abs(teste.modificador)}`
+/** "d20 + 3, 15 ou mais"; sem CD = só o "rolei fora". `modificador` = o do campo (o do rank ou o digitado). */
+function textoDoTeste(teste: NonNullable<MarcaNaTela['teste']>, modificador: number): string {
+  const mod = modificador === 0 ? '' : ` ${modificador > 0 ? '+' : '−'} ${Math.abs(modificador)}`
   return teste.cd === null ? `d20${mod}` : `d20${mod}, ${teste.cd} ou mais`
 }
 
 function UmaMarca({ item, esperando, onResponder }: { item: MarcaNaTela; esperando?: boolean; onResponder: (pedido: PedidoDeMarca) => boolean }) {
   const id = useId()
   const [erro, setErro] = useState<string | null>(null)
+  // O modificador vem do rank (+1 a cada 2) e o campo deixa trocar na mão; só o trocado vai no pedido.
+  const automatico = item.teste?.modificador ?? 0
+  const [modTexto, setModTexto] = useState(() => String(automatico))
+  const modificador = lerModificadorDaReacao(modTexto)
   const leitura = { tipo: 'passiva' as const, sp: item.sp, teste: item.teste === null ? null : { atributoId: '', nome: item.teste.nome, cd: item.teste.cd } }
   const motivo = (como: ComoMarca) => motivoDaMarca(leitura, como, item.spAtual)
   const responder = (como: ComoMarca) => {
     if (esperando) return
-    const saiu = onResponder({ tipo: 'marcar', lembreteId: item.id, como })
+    const pedido: PedidoDeMarca = como === 'teste' && modificador !== automatico ? { tipo: 'marcar', lembreteId: item.id, como, modificador } : { tipo: 'marcar', lembreteId: item.id, como }
+    const saiu = onResponder(pedido)
     setErro(saiu ? null : 'Não saiu: sem conexão com o mestre, ou o alvo já está marcado.')
   }
   const motivoDoSp = item.sp === null ? null : motivo('sp')
@@ -98,9 +103,15 @@ function UmaMarca({ item, esperando, onResponder }: { item: MarcaNaTela; esperan
           </button>
         )}
         {item.teste !== null && comTesteNoApp && (
-          <button type="button" className={item.sp === null ? 'bt-botao bt-botao--passiva' : 'bt-botao'} disabled={esperando} title={`O app rola ${textoDoTeste(item.teste)}`} onClick={() => responder('teste')}>
-            Teste de {item.teste.nome} <small>{textoDoTeste(item.teste)}</small>
+          <button type="button" className={item.sp === null ? 'bt-botao bt-botao--passiva' : 'bt-botao'} disabled={esperando} title={`O app rola ${textoDoTeste(item.teste, modificador)}`} onClick={() => responder('teste')}>
+            Teste de {item.teste.nome} <small>{textoDoTeste(item.teste, modificador)}</small>
           </button>
+        )}
+        {item.teste !== null && comTesteNoApp && (
+          <label className="bt-mod" title={`Do rank: ${automatico >= 0 ? '+' : '−'}${Math.abs(automatico)} (+1 a cada 2 ranks). Dá para trocar.`}>
+            Modificador
+            <input className="bt-num" inputMode="numeric" value={modTexto} placeholder="0" disabled={esperando} onChange={(evento) => setModTexto(evento.target.value)} />
+          </label>
         )}
         <button type="button" className="bt-botao" disabled={esperando} onClick={() => responder('agoraNao')}>
           Agora não

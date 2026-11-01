@@ -51,7 +51,7 @@ export function PainelDoMestre({ sceneKey }: PainelDoMestreProps) {
   const [rascunho, setRascunho] = useState<RascunhoDaRegra>({ modo: 'nenhuma' })
 
   const turnos = cena?.turnos
-  const dados = useMemo(() => (turnos === undefined ? null : faixaDoMestre({ turnos, fichas, personagens, equipes, sistema })), [turnos, fichas, personagens, equipes, sistema])
+  const dados = useMemo(() => (turnos === undefined ? null : faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, registro: cena?.registro })), [turnos, fichas, personagens, equipes, sistema, cena?.registro])
   const registro = useMemo(() => (cena === undefined ? [] : linhasDoMestre(cena.registro)), [cena])
   const foraDaOrdem = useMemo<FichaForaDaOrdem[]>(() => {
     if (turnos === undefined) return []

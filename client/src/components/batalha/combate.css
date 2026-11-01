@@ -3643,9 +3643,12 @@
   flex-basis: 100%;
 }
 
-/* C10: o Escudo na carta, sem barra (o Escudo não tem máximo). */
+/* C10: o Escudo na carta, com barra como o HP e o SP; o cheio é o maior Escudo que ele teve na batalha. */
 .bt-carta__linha b[data-tom='escudo'] {
   color: var(--lb-color-parchment);
+}
+.bt-barra[data-tom='escudo'] > i {
+  background: var(--lb-color-parchment);
 }
 
 /* Invocação: o invocado que age, aceso no mapa (o anel de papel, sem o vermelho da mira). */

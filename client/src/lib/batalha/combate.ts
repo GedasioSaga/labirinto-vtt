@@ -454,6 +454,8 @@ export interface PedidoDeMarca {
   tipo: 'marcar'
   lembreteId: string
   como: 'sp' | 'teste' | 'passou' | 'falhou' | 'agoraNao'
+  /** Só com "teste": o modificador digitado na tela, que vence o do rank. Ausente = o do rank. */
+  modificador?: number
 }
 
 /** A bala que o golpe usou, como o registro a mostra. */

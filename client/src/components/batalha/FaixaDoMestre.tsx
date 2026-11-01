@@ -46,8 +46,8 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
 
   const turnos = cena?.turnos
   const dados = useMemo(
-    () => (turnos === undefined ? null : faixaDoMestre({ turnos, fichas, personagens, equipes, sistema })),
-    [turnos, fichas, personagens, equipes, sistema],
+    () => (turnos === undefined ? null : faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, registro: cena?.registro })),
+    [turnos, fichas, personagens, equipes, sistema, cena?.registro],
   )
   const registro = useMemo(() => (cena === undefined ? [] : linhasDoMestre(cena.registro)), [cena])
 

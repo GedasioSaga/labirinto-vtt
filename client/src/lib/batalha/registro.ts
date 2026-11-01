@@ -692,6 +692,23 @@ export function invocadoSaiuPorLinha(registro: readonly LinhaDoRegistro[], token
 }
 
 /**
+ * C10: o maior Escudo que a ficha teve nesta batalha, lido do registro (toda
+ * mudança da ficha na batalha vai numa linha com o "de" e o "para"). É o
+ * cheio da barra do Escudo, que não tem máximo na ficha. Nenhuma linha mexeu
+ * no Escudo = 0 (quem chama usa o atual).
+ */
+export function escudoMaisAlto(registro: readonly Pick<LinhaDoRegistro, 'reversao'>[], personagemId: string, escudoId: string): number {
+  let maior = 0
+  for (const linha of registro) {
+    for (const parte of partesDe(linha.reversao)) {
+      if (parte.tipo !== 'ficha' || parte.personagemId !== personagemId) continue
+      for (const mudanca of parte.partes) if (mudanca.parte === 'recurso' && mudanca.chave === escudoId) maior = Math.max(maior, mudanca.de, mudanca.para)
+    }
+  }
+  return maior
+}
+
+/**
  * Os números que mudaram de `antes` para `depois`: o atual de cada recurso,
  * o máximo BASE (gravar o máximo de uma ficha de antes não conta) e as
  * transformações ligadas ou desligadas. Na ordem recurso, máximo, cartão.

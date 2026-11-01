@@ -61,7 +61,7 @@ import {
   type ContextoDaInvocacao,
 } from '../lib/batalha/invocacao'
 import { fichaDoInvocado } from '../lib/livros/combate'
-import { acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca, type AcertoNaMarca } from '../lib/batalha/marca'
+import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca, type AcertoNaMarca } from '../lib/batalha/marca'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
 import type { Token } from '../types/map'
@@ -1251,7 +1251,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     let detalhe: string
     if (pedido.como === 'teste' && leitura.teste !== null && leitura.teste.cd !== null) {
       const d20 = rolarD20()
-      const modificador = modificadorDoTeste(personagem, sistema, leitura.teste.atributoId, bonusDaBatalha(turnos.selos, lembrete.tokenId))
+      // O digitado na tela vence o do rank (o parse do fio já limitou o número).
+      const modificador = pedido.modificador ?? modificadorDoTeste(personagem, sistema, leitura.teste.atributoId, bonusDaBatalha(turnos.selos, lembrete.tokenId))
       const total = d20 + modificador
       passou = total >= leitura.teste.cd
       detalhe = `${leitura.teste.nome} ${textoDaRolagem(d20, modificador, total)} contra CD ${leitura.teste.cd}`
@@ -1481,8 +1482,15 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       }
     }
     // O selo da técnica em QUEM ATACOU ("Marcado"), se marcado na caixa e o atacante segue na ordem.
-    if (feita.seloNoAtacante !== null && turnos.cartas.some((carta) => carta.tokenId === golpe.atacanteTokenId)) {
-      const selo = criarSelo(golpe.atacanteTokenId, feita.seloNoAtacante, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: depois.tecnica?.nome })
+    // "Marcado" é a MARCA de verdade (Passo de Valsa, decisão do usuário 01/11): o próximo golpe que acertar dá o dobro; uma por alvo.
+    const linhaId = novoIdDeLinha()
+    const marcaNoAtacante = feita.seloNoAtacante?.nome === NOME_DA_MARCA && depois.tecnica !== undefined
+    const atacanteJaMarcado = marcaNoAtacante && marcaDoToken(novos.selos, golpe.atacanteTokenId) !== undefined
+    if (feita.seloNoAtacante !== null && !atacanteJaMarcado && turnos.cartas.some((carta) => carta.tokenId === golpe.atacanteTokenId)) {
+      const selo =
+        marcaNoAtacante && depois.tecnica !== undefined
+          ? criarMarca(novos, golpe.atacanteTokenId, { selo: novoIdDaMarca(), linha: linhaId }, { id: depois.tecnica.cartaoId, nome: depois.tecnica.nome })
+          : criarSelo(golpe.atacanteTokenId, feita.seloNoAtacante, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: depois.tecnica?.nome })
       const selos = comSeloNovo(novos.selos, selo)
       if (selos !== null) {
         partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
@@ -1499,7 +1507,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
     const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(feita.golpe, nomeDoToken), []) }
     const texto = textoDaReacaoComTecnica(depois, nomeDoToken)
     gravarCena(sceneKey, {
-      ...comMudanca(comOGolpe, novos, { tipo: 'reacao', texto, autor, tokenIds: [...new Set([depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
+      ...comMudanca(comOGolpe, novos, { id: linhaId, tipo: 'reacao', texto, autor, tokenIds: [...new Set([depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
     })
     return true

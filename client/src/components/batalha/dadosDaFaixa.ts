@@ -2,7 +2,7 @@ import { maximoComposto } from '../../lib/ajusteDaFicha'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
 import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import { membrosDoBando } from '../../lib/batalha/invocacao'
-import { nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
+import { escudoMaisAlto, nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
 import type { ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
 import { selosDoToken, textoDoSelo, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, nomeDaFormaLigada } from '../../lib/batalha/transformacao'
@@ -73,6 +73,8 @@ export interface DadosDaCarta {
    * e o de aliado (o host corta o de NPC).
    */
   escudo?: number
+  /** C10: o cheio da barra do Escudo, o maior que ele teve na batalha (`escudoMaisAlto`). Ausente = o atual (barra cheia). */
+  escudoMax?: number
 }
 
 /** Invocação F3: um invocado na carta do bando. `vida` `null` = quem olha não vê (lado oposto). */
@@ -160,12 +162,12 @@ export function recursosQueAparecem(sistema: SistemaDeRpg | null): RecursoDoSist
     .slice(0, RECURSOS_NA_CARTA)
 }
 
-/** C10: o Escudo atual da ficha (o mestre vê todos); sem Escudo no sistema ou 0 = ausente. */
-function escudoDaFicha(personagem: Personagem | undefined, sistema: SistemaDeRpg | null): number | undefined {
+/** C10: o Escudo atual da ficha (o mestre vê todos) e o cheio da barra (o maior na batalha); sem Escudo no sistema ou 0 = ausente. */
+function escudoDaFicha(personagem: Personagem | undefined, sistema: SistemaDeRpg | null, registro: readonly Pick<LinhaDoRegistro, 'reversao'>[]): { escudo?: number; escudoMax?: number } {
   const escudo = sistema === null ? null : recursoDoEscudo(sistema)
-  if (personagem === undefined || escudo === null) return undefined
+  if (personagem === undefined || escudo === null) return {}
   const lido = numeroDaFicha(personagem.recursos, escudo.id)
-  return Number.isFinite(lido) && lido > 0 ? Math.round(lido) : undefined
+  return comEscudo(Number.isFinite(lido) && lido > 0 ? Math.round(lido) : undefined, escudoMaisAlto(registro, personagem.id, escudo.id))
 }
 
 /** HP/SP do personagem com o máximo efetivo (base + modificador + cartões), a mesma conta da ficha. */
@@ -181,8 +183,10 @@ export function recursosDaCarta(personagem: Personagem, sistema: SistemaDeRpg | 
   return saida
 }
 
-function comEscudo(escudo: number | undefined): { escudo?: number } {
-  return escudo === undefined || escudo <= 0 ? {} : { escudo }
+/** O Escudo que vai na carta: zerado some; o cheio só quando passa do atual (senão a barra está cheia). */
+function comEscudo(escudo: number | undefined, maximo: number | undefined): { escudo?: number; escudoMax?: number } {
+  if (escudo === undefined || escudo <= 0) return {}
+  return maximo === undefined || maximo <= escudo ? { escudo } : { escudo, escudoMax: Math.round(maximo) }
 }
 
 function porId<T extends { id: string }>(lista: readonly T[]): Map<string, T> {
@@ -198,10 +202,12 @@ export interface EntradaDoMestre {
   personagens: readonly Personagem[]
   equipes: readonly Equipe[] | undefined
   sistema: SistemaDeRpg | null
+  /** O registro da cena: o cheio da barra do Escudo sai dele. Ausente (Arena) = a barra cheia no atual. */
+  registro?: readonly Pick<LinhaDoRegistro, 'reversao'>[]
 }
 
 /** A faixa como o MESTRE a vê: tudo, com d20, empate e os números de todos. */
-export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema }: EntradaDoMestre): DadosDaFaixa {
+export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, registro = [] }: EntradaDoMestre): DadosDaFaixa {
   const fichaPorId = porId(fichas)
   const personagemPorId = porId(personagens)
   const caidos = tokensCaidos(turnos.cartas, personagens, sistema)
@@ -232,7 +238,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema }:
       minha: false,
       npc: personagem?.tipo === 'npc',
       carga: carta.personagemId === null ? 0 : (turnos.combate?.[carta.personagemId]?.carga ?? 0),
-      ...comEscudo(escudoDaFicha(personagem, sistema)),
+      ...escudoDaFicha(personagem, sistema, registro),
     }
   })
   const proxima = proximaCarta(turnos, caidos)
@@ -334,7 +340,7 @@ function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined
     minha: carta.lado === 'eu',
     npc: false,
     // C10: o host só manda o Escudo da ficha dele e do aliado.
-    ...comEscudo(carta.lado === 'outro' ? undefined : carta.escudo),
+    ...(carta.lado === 'outro' ? {} : comEscudo(carta.escudo, carta.escudoMax)),
   }
 }
 

@@ -16,6 +16,7 @@ import {
 import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/selos'
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
+import { lerMarca } from '../../lib/batalha/marca'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
   CAMPO_DA_ACAO,
@@ -450,7 +451,8 @@ function golpeDaTecnica(
     golpe.motivo = motivoDaTecnica({ ...tecnica, transformacao }, personagem, sistema, combate === undefined ? undefined : { ...combate, carga: 0 }, acoes, false, true)
   }
   // Tipos de habilidade F2: Buff e Debuff trazem o selo com mods (editável na mira); o resto, o "por N turnos" de sempre.
-  const selo = seloSugeridoDaTecnica(tecnica.cartao, sistema)
+  // A técnica que marca ao acertar (Desenhar o Alvo, Tipo Debuff) já põe a marca: o selo do Tipo deixaria o alvo marcado duas vezes.
+  const selo = lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar' ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema)
   if (selo !== null) golpe.selo = selo
   // Tipos de habilidade F4: a evolução nesta batalha e as opções "um ou outro".
   const evolucao = evolucaoNaTela(tecnica.cartao, todas, combate?.evoluidas)

@@ -122,16 +122,39 @@ function detalheDaPassiva(passiva: PassivaNaTira): string {
   }
 }
 
-/** O efeito no painel; `texto` = o da opção escolhida (tipos de habilidade F4), senão o Efeito da ficha. */
-function efeitoDaPassiva(passiva: PassivaNaTira, texto: string = (passiva.cartao.campos[CAMPO_DO_EFEITO] ?? '').trim()): string {
-  if (texto === '-' || texto.toLowerCase() === 'passiva') return ''
+/** O campo que não diz nada: vazio, "-" ou só "Passiva". */
+function semTexto(texto: string): boolean {
+  return texto === '' || texto === '-' || texto.toLowerCase() === 'passiva'
+}
+
+/**
+ * C5: o que a passiva faz: o Efeito da ficha; quando ele só diz "Passiva"
+ * (a Fortaleza da May), os extras ("Regeneração de Juggernaut: ...") e, sem
+ * eles, a Descrição (as Mecânicas gerais da fruta do Vagn). Nada = ''.
+ */
+function textoDaPassiva(passiva: PassivaNaTira): string {
+  const { campos, extras } = passiva.cartao
+  const efeito = (campos[CAMPO_DO_EFEITO] ?? '').trim()
+  if (!semTexto(efeito)) return efeito
+  const dosExtras = extras
+    .filter((extra) => !semTexto(extra.valor.trim()))
+    .map((extra) => (extra.nome.trim() === '' ? extra.valor.trim() : `${extra.nome.trim()}: ${extra.valor.trim()}`))
+    .join(' · ')
+  if (dosExtras !== '') return dosExtras
+  const descricao = (campos.descricao ?? '').trim()
+  return semTexto(descricao) ? '' : descricao
+}
+
+/** O efeito no painel; `texto` = o da opção escolhida (tipos de habilidade F4), senão o da ficha (`textoDaPassiva`). */
+function efeitoDaPassiva(passiva: PassivaNaTira, texto: string = textoDaPassiva(passiva)): string {
+  if (semTexto(texto)) return ''
   return texto.length <= EFEITO_NO_PAINEL_MAX ? texto : `${texto.slice(0, EFEITO_NO_PAINEL_MAX).trimEnd()}…`
 }
 
-/** C5: o que a passiva faz, para a tira (a tira corta em duas linhas; o papel tem o texto inteiro). Sem efeito na ficha = `null`. */
+/** C5: o que a passiva faz, para a tira (a tira corta em duas linhas; o papel tem o texto inteiro). Sem texto na ficha = `null`. */
 function resumoDaPassiva(passiva: PassivaNaTira): string | null {
-  const texto = (passiva.cartao.campos[CAMPO_DO_EFEITO] ?? '').trim()
-  if (texto === '' || texto === '-' || texto.toLowerCase() === 'passiva') return null
+  const texto = textoDaPassiva(passiva)
+  if (texto === '') return null
   return texto.length <= RESUMO_NA_TIRA_MAX ? texto : `${texto.slice(0, RESUMO_NA_TIRA_MAX).trimEnd()}…`
 }
 
@@ -242,7 +265,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
   const mods = alvosDeMod(sistema)
   const resumo = resumoDasLinhas(linhas, mods)
   const efeito = opcao === null || opcao.principal ? efeitoDaPassiva(passiva) : efeitoDaPassiva(passiva, opcao.texto)
-  const textoInteiro = (opcao === null || opcao.principal ? (passiva.cartao.campos[CAMPO_DO_EFEITO] ?? '') : opcao.texto).trim()
+  const textoInteiro = (opcao === null || opcao.principal ? textoDaPassiva(passiva) : opcao.texto).trim()
   const motivo = ligada ? null : passiva.motivo
   const custo = textoDoCusto(passiva.custo)
   const podeAplicar = ligada && passiva.porTurno !== null && (aplicarLivre || passiva.lembrete?.tipo === 'porTurno')

@@ -44,7 +44,7 @@ import { limiteDeArmas, recursoDoEscudo } from './leituraDaFicha'
 import { LEMBRETES_DA_MARCA_MAX } from './marca'
 import { passivasLigadas } from './passivas'
 import type { BatalhaEmTurnos } from './ponte'
-import { registroParaJogador, type LinhaParaJogador } from './registro'
+import { escudoMaisAlto, registroParaJogador, type LinhaDoRegistro, type LinhaParaJogador } from './registro'
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
 import { ehAlvoDeMod, ehNomeDeSelo, selosDoToken, type SeloQueSoma } from './selos'
 import { aparenciaDaForma, formaNaVez, nomeDaFormaLigada } from './transformacao'
@@ -99,6 +99,8 @@ export interface CartaParaJogador {
   selos?: SeloParaJogador[]
   /** C10 (lote de 01/11): só "eu" e "aliado": o Escudo atual. Sem Escudo (0, ou o sistema não tem) = ausente. Nunca de NPC. */
   escudo?: number
+  /** C10: o cheio da barra do Escudo (o maior na batalha), só quando passa do atual. Vai junto do `escudo`. */
+  escudoMax?: number
   /** Invocação: a carta é a do BANDO de um dono (`tokenId` = `bando_<dono>`, ou `bando_fora_N` com o dono fora da vista; não é token do mapa). */
   bando?: BandoParaJogador
 }
@@ -371,7 +373,7 @@ export function selosParaOBonus(cartas: readonly Pick<CartaParaJogador, 'tokenId
   return selos
 }
 
-function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJogador, caidos: ReadonlySet<string>, turnos: TurnosDaCena): CartaParaJogador {
+function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJogador, caidos: ReadonlySet<string>, turnos: TurnosDaCena, registro: readonly LinhaDoRegistro[]): CartaParaJogador {
   const lado = ladoDa(carta, ctx)
   const saida: CartaParaJogador = { id: carta.id, tokenId: carta.tokenId, nome: nome.slice(0, NOME_NA_CARTA_MAX), lado }
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, ctx.equipes)
@@ -382,7 +384,11 @@ function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJoga
     if (carta.personagemId !== null) saida.personagemId = carta.personagemId
     if (caidos.has(carta.tokenId)) saida.caiu = true
     const escudo = escudoDaCarta(carta, ctx)
-    if (escudo > 0) saida.escudo = escudo
+    if (escudo > 0) {
+      saida.escudo = escudo
+      const cheio = cheioDoEscudo(carta, ctx, registro)
+      if (cheio > escudo) saida.escudoMax = cheio
+    }
   }
   formaESelosDaCarta(saida, carta, turnos, ctx)
   return saida
@@ -394,6 +400,13 @@ function escudoDaCarta(carta: CartaDaOrdem, ctx: ContextoDoJogador): number {
   const escudo = ctx.sistema === null ? null : recursoDoEscudo(ctx.sistema)
   if (personagem === undefined || escudo === null) return 0
   return Math.max(0, Math.min(DANO_MAX, Math.round(numeroDaFicha(personagem.recursos, escudo.id))))
+}
+
+/** C10: o cheio da barra do Escudo (o maior na batalha, `escudoMaisAlto`), no teto do fio; 0 = nenhuma linha mexeu nele. */
+function cheioDoEscudo(carta: CartaDaOrdem, ctx: ContextoDoJogador, registro: readonly LinhaDoRegistro[]): number {
+  const escudo = ctx.sistema === null ? null : recursoDoEscudo(ctx.sistema)
+  if (carta.personagemId === null || escudo === null) return 0
+  return Math.max(0, Math.min(DANO_MAX, Math.round(escudoMaisAlto(registro, carta.personagemId, escudo.id))))
 }
 
 /** Teto da vida de um invocado no fio (o mesmo do dano). */
@@ -736,7 +749,7 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
     }
     const nome = ctx.tokensNoRecorte.get(carta.tokenId)
     if (nome === undefined) continue
-    cartas.push(cartaParaJogador(carta, nome, ctx, caidos, turnos))
+    cartas.push(cartaParaJogador(carta, nome, ctx, caidos, turnos, cena.registro))
     idNoFio.set(carta.id, carta.id)
   }
   // "Visível" = o que de fato sai (no recorte E dentro do teto): turno e próxima contam o mesmo que a faixa mostra.

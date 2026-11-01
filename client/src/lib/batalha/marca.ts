@@ -122,15 +122,20 @@ export function marcaDoToken(selos: readonly SeloDaBatalha[] | undefined, tokenI
   return (selos ?? []).find((selo) => selo.tokenId === tokenId && selo.marca === true)
 }
 
+/** Regra do usuário (01/11): +1 no teste a cada 2 ranks do atributo, arredondando para baixo (R1 = 0, R2-R3 = +1, R4-R5 = +2). */
+const RANKS_POR_PONTO = 2
+
 /**
- * O modificador do teste: o RANK do atributo (o "Modificador de Rank" das
- * fichas), com o que os selos somam no atributo. Atributo sem tabela de
- * rank = 0 (somar o valor inteiro passaria sempre).
+ * O modificador do teste: metade do RANK do atributo, para baixo
+ * (`RANKS_POR_PONTO`), com o que os selos somam no atributo. Atributo sem
+ * tabela de rank = 0 (somar o valor inteiro passaria sempre). A tela deixa
+ * trocar o número na mão (`PedidoDeMarca.modificador`).
  */
 export function modificadorDoTeste(personagem: Personagem, sistema: SistemaDeRpg, atributoId: string, bonus?: BonusDaBatalha): number {
   const atributo = sistema.atributos.find((candidato) => candidato.id === atributoId)
   if (atributo === undefined) return 0
-  return rankDoValor(atributo.rank, valorDoRank(personagem, atributoId) + totalDoBonus(bonus, atributoId)) ?? 0
+  const rank = rankDoValor(atributo.rank, valorDoRank(personagem, atributoId) + totalDoBonus(bonus, atributoId)) ?? 0
+  return Math.floor(rank / RANKS_POR_PONTO)
 }
 
 /** A marca nova no alvo: "Marcado", sem turnos, debuff. `linhaId` = a linha que a pôs (o Desfazer de quem a usou só a devolve com ela de pé). */

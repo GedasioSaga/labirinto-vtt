@@ -351,13 +351,15 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   const perfuracao = perfuracaoValida(pedido.perfuracao)
   if (perfuracao !== null && perfuracao < PERFURACAO_MAX) golpe.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) golpe.contraDe = pedido.contraDe
+  // R1: a técnica que marca ao acertar (Desenhar o Alvo) e a arma que atira (o acerto lembra a passiva de marca).
+  if (tecnica !== null && sistema !== null && lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar') golpe.marca = tecnica.cartao.id
   // F3 (Q6): o selo marcado na mira vai junto; pega em cada alvo que o golpe acerta (a store aplica).
-  const selo = pedido.selo === undefined ? null : seloPedidoValido(pedido.selo, sistema)
+  // Com a marca, o selo não vai: a mira de antes (ou de um jogador sem a versão nova) mandava o do Tipo Debuff, e o alvo ficava marcado duas vezes.
+  const selo = pedido.selo === undefined || golpe.marca !== undefined ? null : seloPedidoValido(pedido.selo, sistema)
   if (selo !== null) golpe.selo = tecnica === null ? selo : seloDaTecnicaNoGolpe(selo, tecnica)
   const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
-  // R1: a técnica que marca ao acertar (Desenhar o Alvo) e a arma que atira (o acerto lembra a passiva de marca).
-  if (tecnica !== null && sistema !== null && lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar') golpe.marca = tecnica.cartao.id
+  // R1: a arma que atira (o acerto lembra a passiva de marca).
   if (arma !== null && categoriaAtira(arma.categoria)) golpe.armaQueAtira = true
   // Tipos de habilidade F4: a opção escolhida e o uso evoluído vão para o registro ("Medicina (Cirugia)").
   if (tecnica !== null && pedido.tipo === 'habilidade') {
