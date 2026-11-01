@@ -255,6 +255,8 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
       passiva: (pedido: PedidoDePassiva) => batalhaDaArena.getState().passiva(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
       // Tipos de habilidade F4: o Evoluir na leitura das Habilidades (o mestre evolui sempre).
       evoluir: (pedido: PedidoDeEvolucao) => batalhaDaArena.getState().evoluir(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
+      // R1 (lote de 01/11): o lembrete da marca (o mestre responde por todos os lados).
+      marcar: (pedido) => batalhaDaArena.getState().marcar(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
     }),
     [],
   )

@@ -54,6 +54,8 @@ const ORDEM_DO_LADO: Record<AlvoDaPassiva['lado'], number> = { outro: 0, aliado:
 
 /** O texto do efeito que cabe no painel (a ficha às vezes traz parágrafos). */
 const EFEITO_NO_PAINEL_MAX = 280
+/** C5: o corte do que a passiva faz na tira (duas linhas na largura do menu). */
+const RESUMO_NA_TIRA_MAX = 110
 
 // ───────────────────────────────────────────────────────────────────────────
 // De onde a tela tira as passivas
@@ -124,6 +126,49 @@ function detalheDaPassiva(passiva: PassivaNaTira): string {
 function efeitoDaPassiva(passiva: PassivaNaTira, texto: string = (passiva.cartao.campos[CAMPO_DO_EFEITO] ?? '').trim()): string {
   if (texto === '-' || texto.toLowerCase() === 'passiva') return ''
   return texto.length <= EFEITO_NO_PAINEL_MAX ? texto : `${texto.slice(0, EFEITO_NO_PAINEL_MAX).trimEnd()}…`
+}
+
+/** C5: o que a passiva faz, para a tira (a tira corta em duas linhas; o papel tem o texto inteiro). Sem efeito na ficha = `null`. */
+function resumoDaPassiva(passiva: PassivaNaTira): string | null {
+  const texto = (passiva.cartao.campos[CAMPO_DO_EFEITO] ?? '').trim()
+  if (texto === '' || texto === '-' || texto.toLowerCase() === 'passiva') return null
+  return texto.length <= RESUMO_NA_TIRA_MAX ? texto : `${texto.slice(0, RESUMO_NA_TIRA_MAX).trimEnd()}…`
+}
+
+/** Quantas letras do começo bastam para dizer que dois textos são o mesmo. */
+const COMECO_COMPARADO = 32
+
+function mesmoComeco(a: string, b: string): boolean {
+  const corte = (texto: string) => texto.replace(/\s+/g, ' ').trim().slice(0, COMECO_COMPARADO).toLowerCase()
+  return corte(a) !== '' && corte(a) === corte(b)
+}
+
+/**
+ * C5: na tira, o gatilho que é o próprio efeito não se repete: o estado já
+ * está no canto ("ESPERA") e o resumo, logo abaixo, mostra o efeito.
+ */
+function detalheNaTira(passiva: PassivaNaTira, resumo: string | null): string {
+  const esperaOuPronta = passiva.estado === 'pronta' || passiva.estado === 'espera'
+  const repete = esperaOuPronta && resumo !== null && mesmoComeco(passiva.textoDoGatilho, resumo)
+  const motivo = passiva.motivo !== null && passiva.estado !== 'ativa' ? passiva.motivo : null
+  return [repete ? null : detalheDaPassiva(passiva), motivo].filter(Boolean).join(' · ')
+}
+
+/** C5: o efeito no papel, com "Ler mais" quando passa do corte (o texto inteiro abre ali mesmo). */
+function EfeitoComLerMais({ curto, inteiro }: { curto: string; inteiro: string }) {
+  const [aberto, setAberto] = useState(false)
+  const id = useId()
+  const corta = curto !== inteiro
+  return (
+    <div className="bt-forma__texto bt-ler-mais">
+      <p id={id}>{aberto || !corta ? inteiro : curto}</p>
+      {corta && (
+        <button type="button" className="bt-ler-mais__botao" aria-expanded={aberto} aria-controls={id} onClick={() => setAberto((antes) => !antes)}>
+          {aberto ? 'Ler menos' : 'Ler mais'}
+        </button>
+      )}
+    </div>
+  )
 }
 
 /** O nome no lembrete, sem o "(Passiva)" que a ficha costuma pôr: a faixa é de uma linha. */
@@ -197,6 +242,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
   const mods = alvosDeMod(sistema)
   const resumo = resumoDasLinhas(linhas, mods)
   const efeito = opcao === null || opcao.principal ? efeitoDaPassiva(passiva) : efeitoDaPassiva(passiva, opcao.texto)
+  const textoInteiro = (opcao === null || opcao.principal ? (passiva.cartao.campos[CAMPO_DO_EFEITO] ?? '') : opcao.texto).trim()
   const motivo = ligada ? null : passiva.motivo
   const custo = textoDoCusto(passiva.custo)
   const podeAplicar = ligada && passiva.porTurno !== null && (aplicarLivre || passiva.lembrete?.tipo === 'porTurno')
@@ -328,7 +374,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
         )}
       </dl>
       {!ligada && opcoes !== null && <ChipsDaOpcao idBase={idBase} opcoes={opcoes} escolhida={opcao} onEscolher={escolherOpcao} />}
-      {efeito !== '' && (ligada || opcoes === null) && <p className="bt-forma__texto">{efeito}</p>}
+      {efeito !== '' && (ligada || opcoes === null) && <EfeitoComLerMais curto={efeito} inteiro={textoInteiro} />}
       {!ligada && (
         <>
           <label className="bt-linha-campo">
@@ -562,7 +608,8 @@ export function ListaDePassivasDoMenu({ pips, carga, passivas, alvos, instantane
                 chave={`passiva:${item.cartao.id}`}
                 nome={item.nome}
                 lado={ROTULO_DO_ESTADO[item.estado].toUpperCase()}
-                detalhe={item.motivo !== null && item.estado !== 'ativa' ? `${detalheDaPassiva(item)} · ${item.motivo}` : detalheDaPassiva(item)}
+                detalhe={detalheNaTira(item, resumoDaPassiva(item))}
+                resumo={resumoDaPassiva(item)}
                 chips={<ChipsDaPassiva passiva={item} />}
                 passiva
                 esta={atual === indice}

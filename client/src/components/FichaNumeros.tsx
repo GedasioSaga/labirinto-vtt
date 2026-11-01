@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { atributoComposto, comSinal, maximoComposto, textoDaConta, trocarNumero, valorDoRank, type Ajuste, type ValorComposto } from '../lib/ajusteDaFicha'
+import { ajusteDoAtualDigitado, atributoComposto, atualSemForca, comSinal, forcaDoRecurso, maximoComposto, textoDaConta, trocarNumero, valorDoRank, type Ajuste, type ValorComposto } from '../lib/ajusteDaFicha'
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../lib/personagem'
 import { rankDoValor, rotuloDoRank, type AtributoDoSistema, type RecursoDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { BotaoPasso, DicaDoAjuste, LinhaDeAjuste, PainelDeAjuste } from './AjusteRapido'
@@ -170,11 +170,23 @@ function PainelDoRecurso({ id, recurso, personagem, onAjustar, onFechar }: Paine
     )
   }
   const maximo = maximoComposto(personagem, recurso.id)
+  // Item 10 do lote de 01/11: com Força (o HP do NPC de combate), o Atual se digita como o HP normal e o app põe a força por cima.
+  const forca = forcaDoRecurso(personagem, recurso.id)
+  const atualDigitado = atualSemForca(personagem, recurso.id)
   return (
     <PainelDeAjuste id={id} rotulo={`Ajustar ${recurso.nome}`} titulo={recurso.nome} resumo={`${atual}/${maximo.total}`} onFechar={onFechar}>
       {(dicaId) => (
         <>
-          <LinhaDeAjuste rotulo="Atual" nome={recurso.nome} valor={atual} min={0} max={maximo.total} onTrocar={ajustar('recurso')} dicaId={dicaId} />
+          <LinhaDeAjuste
+            rotulo="Atual"
+            nome={recurso.nome}
+            valor={atualDigitado}
+            min={0}
+            max={forca === 1 ? maximo.total : Math.round(maximo.total / forca)}
+            onTrocar={(valor) => onAjustar(ajusteDoAtualDigitado(personagem, recurso.id, valor))}
+            dicaId={dicaId}
+          />
+          {forca !== 1 && <p className="lb-ajuste__conta">Atual sem a Força ×{String(forca).replace('.', ',')}: o app multiplica (fica {atual})</p>}
           <LinhaDeAjuste rotulo="Máximo" nome={`${recurso.nome} máximo`} valor={maximo.base} min={0} onTrocar={ajustar('maximo')} dicaId={dicaId} />
           <LinhaDeAjuste rotulo="Modificador" nome={`modificador do máximo de ${recurso.nome}`} valor={maximo.modificador} modo="valor" onTrocar={ajustar('modRecurso')} dicaId={dicaId} />
           {(maximo.modificador !== 0 || maximo.cartoes.length > 0) && <p className="lb-ajuste__conta">Máximo {textoDaConta(maximo)}</p>}
@@ -314,7 +326,12 @@ export function RecursosEditaveis({ personagem, sistema, onChange }: NumerosEdit
             <span className="lb-ficha__mini" aria-hidden="true">
               Atual
             </span>
-            <CampoNumero rotulo={`${recurso.nome} atual`} valor={numeroDaFicha(personagem.recursos, recurso.id)} onChange={trocar('recurso', recurso.id)} />
+            {/* Item 10 do lote de 01/11: o Atual do HP com Força se digita como o HP normal; o app põe a força por cima. */}
+            <CampoNumero
+              rotulo={`${recurso.nome} atual`}
+              valor={atualSemForca(personagem, recurso.id)}
+              onChange={(valor) => onChange(trocarNumero(personagem, 'recurso', recurso.id, ajusteDoAtualDigitado(personagem, recurso.id, valor).valor))}
+            />
             <span className="lb-ficha__mini" aria-hidden="true">
               Máximo
             </span>

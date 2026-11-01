@@ -746,7 +746,7 @@ function MiniaturaDoAlvo({ imagem, nome, cor, caiu }: { imagem: string | null | 
  * anel de papel em quem está marcado. A câmera anda: a posição é relida a
  * cada quadro enquanto a mira está aberta (poucas fichas, só transform).
  */
-export function MarcasDaMira({ consulta, tokenIds, marcados, foco }: { consulta: ConsultaDaFicha; tokenIds: readonly string[]; marcados: ReadonlySet<string>; foco: string | null }) {
+export function MarcasDaMira({ consulta, tokenIds, marcados, foco, variante }: { consulta: ConsultaDaFicha; tokenIds: readonly string[]; marcados: ReadonlySet<string>; foco: string | null; variante?: 'quem' }) {
   const camada = useRef<HTMLDivElement>(null)
   useEffect(() => {
     let quadro = 0
@@ -774,7 +774,7 @@ export function MarcasDaMira({ consulta, tokenIds, marcados, foco }: { consulta:
   return (
     <div ref={camada} className="bt-marcas-da-mira" aria-hidden="true">
       {tokenIds.map((tokenId) => (
-        <span key={tokenId} className="bt-marca-mira" data-alvo={tokenId} data-foco={marcados.has(tokenId) || foco === tokenId ? 'sim' : 'nao'} style={{ opacity: 0 }} />
+        <span key={tokenId} className={variante === 'quem' ? 'bt-marca-mira bt-marca-mira--quem' : 'bt-marca-mira'} data-alvo={tokenId} data-foco={marcados.has(tokenId) || foco === tokenId ? 'sim' : 'nao'} style={{ opacity: 0 }} />
       ))}
     </div>
   )

@@ -4,8 +4,8 @@ import type { PedidoDeAcao } from '../../lib/batalha/combate'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { ImagemOuIniciais } from '../FichaPecas'
 import type { RecursoNaCarta } from './dadosDaFaixa'
-import { economiaEmTexto, formatarNumero, textoDaAcao, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
-import { PainelDaForma, nomeDaForma } from './ListaDeFormas'
+import { economiaEmTexto, formatarNumero, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import { PainelDaForma, linhaDaFormaDoNpc, nomeDaForma } from './ListaDeFormas'
 import { DetalheDoGolpe, MarcaDaEvolucao, MarcaDasOpcoes, type EvoluirNaTela } from './ListaDeTecnicas'
 import type { InvocarNoMenu } from './MenuDaVez'
 import { MiraDaInvocacao } from './MiraDaInvocacao'
@@ -181,7 +181,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
                 <div className="bt-opcao bt-opcao--forma" data-ligada={forma.ligada ? 'sim' : 'nao'}>
                   <span className="bt-opcao__nome">
                     {nomeDaForma(forma)}
-                    <small>{forma.ligada ? 'Ativa · desfazer é ação livre' : `${textoDaAcao(forma.acaoDaFicha)}${forma.numeros.length > 0 ? ` · muda ${forma.numeros.length}` : ''}`}</small>
+                    <small>{forma.ligada ? 'Ativa · desfazer é ação livre' : linhaDaFormaDoNpc(forma)}</small>
                   </span>
                   <span className="bt-opcao__lado">{forma.ligada && <span className="bt-opcao__sug bt-opcao__sug--forma">ativa</span>}</span>
                   <button type="button" className="bt-seta" aria-expanded={aberta} aria-label={`${forma.ligada ? 'Desfazer' : 'Ativar'} ${nomeDaForma(forma)}`} onClick={() => setFormaAberta(aberta ? null : id)}>

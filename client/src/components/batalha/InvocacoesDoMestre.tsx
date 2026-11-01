@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import { BLOCOS_DO_INVOCADO_MAX, DANO_MAX, NOME_DO_INVOCADO_MAX, type NumerosDoInvocado, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { numerosValidos } from '../../lib/batalha/invocacao'
@@ -9,7 +9,7 @@ import { ImagemOuIniciais } from '../FichaPecas'
 import { useColocacaoDoMestre } from './colocacaoDoMestre'
 import { economiaDoInvocado, pluralDoNome, textoDosNumeros } from './dadosDaInvocacao'
 import { formatarNumero, lerInteiro, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
-import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha } from './MiraDoGolpe'
+import { MarcasDaMira, MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha } from './MiraDoGolpe'
 import './batalha.css'
 import './combate.css'
 
@@ -333,9 +333,15 @@ export function PainelDoBando({ nome, cor, membros, onAgir, onEncerrar, onDarDan
   const golpe = quem?.golpes.find((candidato) => candidato.chave === golpeChave && candidato.motivo === null) ?? valido
   const [aviso, setAviso] = useState<string | null>(null)
   const estilo = cor === null ? undefined : ({ '--lado': cor } as CSSProperties)
+  // Invocação (pedido de 01/11): o lobo apontado em "Quem age" (o mouse ou o foco) acende no mapa; sem apontar, o escolhido.
+  const [apontado, setApontado] = useState<string | null>(null)
+  const destaque = apontado ?? quem?.tokenId ?? null
+  const destaques = useMemo(() => (destaque === null ? [] : [destaque]), [destaque])
+  const marcadosDoDestaque = useMemo(() => new Set(destaques), [destaques])
 
   return (
     <div className="bt-npc bt-bando" style={estilo}>
+      {consulta !== undefined && consulta !== null && destaques.length > 0 && <MarcasDaMira consulta={consulta} tokenIds={destaques} marcados={marcadosDoDestaque} foco={destaque} variante="quem" />}
       <div className="bt-npc__quem">
         <span className="bt-npc__retrato bt-bando__rostos" aria-hidden="true">
           {membros.slice(0, 3).map((membro) => (
@@ -357,7 +363,15 @@ export function PainelDoBando({ nome, cor, membros, onAgir, onEncerrar, onDarDan
           {membros.map((membro) => {
             const atacou = membro.acoes.simples.usadas >= membro.acoes.simples.total
             return (
-              <label key={membro.tokenId} className="bt-opcao bt-opcao--membro" data-atacou={atacou ? 'sim' : undefined}>
+              <label
+                key={membro.tokenId}
+                className="bt-opcao bt-opcao--membro"
+                data-atacou={atacou ? 'sim' : undefined}
+                onPointerEnter={() => setApontado(membro.tokenId)}
+                onPointerLeave={() => setApontado((antes) => (antes === membro.tokenId ? null : antes))}
+                onFocus={() => setApontado(membro.tokenId)}
+                onBlur={() => setApontado((antes) => (antes === membro.tokenId ? null : antes))}
+              >
                 <input
                   type="radio"
                   name={`${idBase}-quem`}

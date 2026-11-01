@@ -31,6 +31,7 @@ import {
   type LeituraDoTempo,
 } from '../../lib/batalha/leituraDaFicha'
 import { danoFinal, danoQueChega, saidasPossiveis } from '../../lib/batalha/reacao'
+import { blocosEntreTokens, ordenarAlvosDaMira } from '../../lib/batalha/ordemDosAlvos'
 import type { CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -240,6 +241,30 @@ export interface AlvoNaMira {
 
 /** A ficha sem personagem não é alvo (a store recusa): fica na lista, apagada. */
 export const MOTIVO_SEM_PERSONAGEM = 'sem ficha ligada'
+
+/** Uma ficha do mapa como a ordem da mira a lê: a posição (px do mundo); sem posição, vai para o fim do lado dela. */
+export interface FichaComPosicao {
+  id: string
+  x?: number
+  y?: number
+}
+
+/**
+ * C4 (lote de 01/11): os alvos na ordem da mira, do ponto de vista de `deTokenId`:
+ * inimigos do mais perto ao mais longe, os aliados depois, quem age por último
+ * (`ordenarAlvosDaMira`). `tamanhoDaCasa` ausente (a Arena) = a conta em px, que
+ * dá a mesma ordem fora do empate dentro da casa.
+ */
+export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fichas: readonly FichaComPosicao[], deTokenId: string, tamanhoDaCasa?: number): T[] {
+  const porId = new Map(fichas.map((ficha) => [ficha.id, ficha] as const))
+  const ponto = (tokenId: string) => {
+    const ficha = porId.get(tokenId)
+    return ficha === undefined || ficha.x === undefined || ficha.y === undefined ? undefined : { x: ficha.x, y: ficha.y }
+  }
+  const casa = tamanhoDaCasa !== undefined && Number.isFinite(tamanhoDaCasa) && tamanhoDaCasa > 0 ? tamanhoDaCasa : 1
+  const origem = ponto(deTokenId)
+  return ordenarAlvosDaMira(alvos, (tokenId) => blocosEntreTokens(origem, ponto(tokenId), casa))
+}
 
 const ROTULO_DA_ACAO: Record<AcaoDaTecnica | 'passiva', string> = {
   simples: 'Simples',

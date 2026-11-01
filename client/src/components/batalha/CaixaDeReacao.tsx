@@ -178,7 +178,7 @@ function UmaReacao({
     modificadorLembrado.set(reacao.tokenId, modificador - (reacao.bonus?.total ?? 0))
     const saiu = onPedir(pedido)
     setErro(saiu ? null : 'Não saiu: sem conexão com o mestre. Tente de novo.')
-    // Só o dado espera a volta do host (também a técnica que rola); escolher, Passar, Não reagir e a técnica sem dado resolvem e a caixa sai.
+    // Só o dado espera a volta do host (também a técnica que rola); escolher, Passar, Passar sem dano, Não reagir e a técnica sem dado resolvem e a caixa sai.
     if (saiu && (pedido.tipo === 'rolar' || pedido.tipo === 'rerolar' || (pedido.tipo === 'tecnica' && pedido.saida === 'rolar'))) setEsperando(true)
   }
   const golpeId = reacao.golpeId
@@ -277,10 +277,24 @@ function UmaReacao({
             ? '10+ defende (metade) · 15+ esquiva · 20 contra-ataca · 1 é falha crítica (×1,5). Conta o total.'
             : `d20 ${rolagem.d20}${textoDoModificador} = ${rolagem.total} · ${TEXTO_DA_SAIDA[saidasPossiveis(rolagem.d20, rolagem.total)[0] ?? 'cheio'].selo}`}
         </span>
-        {golpeId !== null && rolagem === undefined && (
-          <button type="button" className="bt-botao bt-botao--p" onClick={() => pedir({ tipo: 'naoReagir', golpeId, tokenId: reacao.tokenId })}>
-            Não reagir
-          </button>
+        {golpeId !== null && (
+          <span className="bt-reacao__pe-acoes">
+            {/* R3 (lote de 01/11): o golpe não pegou na mesa: sem dano e sem selo, antes ou depois do dado; vai ao registro e o mestre desfaz. */}
+            <button
+              type="button"
+              className="bt-botao bt-botao--p bt-botao--fantasma"
+              disabled={esperando}
+              title="O golpe não pega: sem dano, sem selo. Vai ao registro e o mestre pode desfazer."
+              onClick={() => pedir({ tipo: 'semDano', golpeId, tokenId: reacao.tokenId })}
+            >
+              Passar sem tomar dano
+            </button>
+            {rolagem === undefined && (
+              <button type="button" className="bt-botao bt-botao--p" onClick={() => pedir({ tipo: 'naoReagir', golpeId, tokenId: reacao.tokenId })}>
+                Não reagir
+              </button>
+            )}
+          </span>
         )}
       </div>
       {erro !== null && (

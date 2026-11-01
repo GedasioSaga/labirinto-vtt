@@ -585,6 +585,11 @@
 }
 .bt-mira__alvos {
   display: grid;
+  /* C3 (01/11): com o max-height, a linha "auto" encolhia até o min-height do
+     alvo (40px) e a linha da conta passava por cima do alvo seguinte. Cada
+     linha fica do tamanho do conteúdo; o que sobrar rola. */
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 4px;
   margin: 0;
   padding: 0;
@@ -1691,6 +1696,26 @@
     0 -6px 0 var(--bt-sangue),
     0 6px 0 var(--bt-sangue);
 }
+/* C9 (lote de 01/11): a foto de quem tem a vez, num círculo que vaza um pouco da faixa (o anel de sangue a recorta). */
+.bt-ef-faixa__foto {
+  position: relative;
+  flex: none;
+  height: 128%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bt-tinta);
+  box-shadow:
+    0 0 0 5px var(--bt-tinta),
+    0 0 0 9px var(--bt-sangue);
+  font-family: var(--bt-titulo);
+  font-size: clamp(26px, 5cqw, 72px);
+}
+/* A faixa gira -6deg; a foto volta de pé dentro do círculo. */
+.bt-ef-faixa__foto img {
+  rotate: 6deg;
+  scale: 1.12;
+}
 .bt-ef-faixa__grande {
   font-family: var(--bt-titulo);
   font-stretch: condensed;
@@ -1758,6 +1783,23 @@
     0 0 0 9px var(--bt-papel);
   font-family: var(--bt-titulo);
   font-size: clamp(30px, 6cqw, 80px);
+}
+.bt-ef-corte__retrato img,
+.bt-ef-faixa__foto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+}
+/* Sem foto: as iniciais em papel sobre a tinta. */
+.bt-ef-corte__retrato[data-iniciais='sim'],
+.bt-ef-faixa__foto[data-iniciais='sim'] {
+  display: grid;
+  place-items: center;
+  background: var(--bt-tinta);
+  color: var(--bt-papel);
+  font-weight: 700;
 }
 .bt-ef-corte__texto {
   position: relative;
@@ -2454,11 +2496,11 @@
 .bt-ef-transformacao__fundo {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 40% 50%, rgba(60, 40, 100, 0.9), rgba(8, 6, 12, 0.96) 70%);
+  background: radial-gradient(circle at 30% 50%, rgba(60, 40, 100, 0.9), rgba(8, 6, 12, 0.96) 70%);
 }
 .bt-ef-transformacao__raios {
   position: absolute;
-  left: 40%;
+  left: 30%;
   top: 50%;
   width: 150%;
   aspect-ratio: 1;
@@ -2469,7 +2511,7 @@
 }
 .bt-ef-transformacao__anel {
   position: absolute;
-  left: 40%;
+  left: 30%;
   top: 50%;
   width: 42%;
   aspect-ratio: 1;
@@ -2478,33 +2520,37 @@
   border-radius: 50%;
 }
 .bt-ef-transformacao__retrato {
+  /* C7 (lote de 01/11): a foto num círculo no centro dos anéis, sem cortar torto; o centro fica no translate (a animação usa o transform). */
   position: absolute;
-  left: 14%;
-  bottom: 0;
-  width: 40%;
-  height: 92%;
+  left: 30%;
+  top: 50%;
+  translate: -50% -50%;
+  width: min(26%, 58cqh);
+  aspect-ratio: 1;
   display: grid;
-  place-items: end center;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bt-tinta);
+  box-shadow:
+    0 0 0 6px var(--bt-tinta),
+    0 0 0 11px var(--bt-forma),
+    14px 14px 0 11px rgba(0, 0, 0, 0.45);
 }
 .bt-ef-transformacao__retrato img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: bottom center;
+  object-fit: cover;
+  /* Rosto costuma morar no alto da arte: o recorte segura o terço de cima. */
+  object-position: center 22%;
 }
 .bt-ef-transformacao__iniciais {
   display: grid;
   place-items: center;
-  width: min(70%, 60cqh);
-  aspect-ratio: 1;
-  margin-bottom: 14%;
-  border-radius: 50%;
-  background: var(--bt-tinta);
+  width: 100%;
+  height: 100%;
   color: var(--bt-papel);
-  box-shadow:
-    0 0 0 5px var(--bt-tinta),
-    0 0 0 9px var(--bt-forma);
   font-family: var(--bt-titulo);
   font-weight: 700;
   font-size: clamp(36px, 7cqw, 110px);
@@ -2512,7 +2558,7 @@
 .bt-ef-transformacao__clarao {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 34% 55%, rgba(255, 255, 255, 0.9), rgba(220, 205, 255, 0.35) 38%, transparent 70%);
+  background: radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.9), rgba(220, 205, 255, 0.35) 38%, transparent 70%);
   opacity: 0;
 }
 .bt-ef-transformacao__texto {
@@ -3467,4 +3513,145 @@
 }
 .bt-invocacao__editor p {
   margin: 0;
+}
+
+/* ---------------------------------------------------------------- Lote de 01/11 (telas) */
+
+/* C5: o que a técnica ou a passiva faz, embaixo da linha do estado; duas linhas, o resto no papel ("Ler mais"). */
+.bt-tira__resumo {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--lb-color-parchment);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bt-tira[data-esta='sim'] .bt-tira__resumo {
+  color: var(--bt-tinta);
+}
+.bt-ler-mais p {
+  margin: 0;
+}
+.bt-ler-mais__botao {
+  margin-top: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--bt-sangue);
+  font: inherit;
+  font-size: var(--lb-font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.bt-ler-mais__botao:focus-visible {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 2px;
+}
+
+/* C6/R2/R6: Requisito, Troca e Usos da forma, nas mesmas linhas de tinta da leitura da passiva. */
+.bt-forma__leitura {
+  margin: 2px 0;
+}
+
+/* R3: "Passar sem tomar dano" ao lado do "Não reagir", no pé da caixa. */
+.bt-reacao__pe-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* R1: o lembrete da marca: o mesmo carimbo das passivas, com a cor de sangue da marca. */
+.bt-lembrete--marca {
+  box-shadow:
+    inset 3px 0 0 var(--bt-sangue-claro),
+    4px 4px 0 color-mix(in srgb, var(--bt-sangue) 55%, transparent);
+}
+.bt-lembretes--npc .bt-lembrete--marca {
+  box-shadow: inset 3px 0 0 var(--bt-sangue-claro);
+}
+.bt-lembrete--marca .bt-lembrete__texto b {
+  color: var(--bt-sangue-claro);
+}
+.bt-lembrete--marca .bt-lembrete__marca {
+  background: var(--bt-sangue-claro);
+}
+.bt-lembrete__acoes .bt-botao small {
+  margin-left: 4px;
+  font-size: var(--lb-font-size-xs);
+  font-weight: 400;
+  opacity: 0.8;
+}
+.bt-lembrete__fora {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* R4: Ajustar... — os recursos numa grade (nome, atual, máximo); o atributo embaixo. */
+.bt-ajuste__grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.bt-ajuste__linha {
+  display: contents;
+}
+.bt-ajuste__cabeca {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-ajuste__nome {
+  display: grid;
+  font-weight: 600;
+}
+.bt-ajuste__nome[data-tom='vida'] {
+  color: var(--bt-hp);
+}
+.bt-ajuste__nome[data-tom='energia'] {
+  color: var(--bt-sp);
+}
+.bt-ajuste__nome small {
+  font-weight: 400;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-ajuste__sem {
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-faint);
+}
+.bt-ajuste__atributo {
+  flex-wrap: wrap;
+}
+.bt-ajuste__atributo .bt-mira__nota {
+  flex-basis: 100%;
+}
+
+/* C10: o Escudo na carta, sem barra (o Escudo não tem máximo). */
+.bt-carta__linha b[data-tom='escudo'] {
+  color: var(--lb-color-parchment);
+}
+
+/* Invocação: o invocado que age, aceso no mapa (o anel de papel, sem o vermelho da mira). */
+.bt-marca-mira--quem,
+.bt-marca-mira--quem[data-foco='sim'] {
+  box-shadow:
+    0 0 0 3px var(--bt-papel),
+    0 0 0 7px color-mix(in srgb, var(--lado, var(--bt-papel)) 45%, transparent);
 }

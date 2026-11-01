@@ -140,6 +140,15 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
                   <button type="button" className="bt-botao bt-botao--p bt-botao--fantasma" onClick={() => onPedir({ tipo: 'naoReagir', golpeId: item.golpeId, tokenId: item.tokenId })}>
                     Não reagir por {item.alvo}
                   </button>
+                  {/* R3 (lote de 01/11): o mestre decide na mesa que o golpe não pegou (antes ou depois do dado). */}
+                  <button
+                    type="button"
+                    className="bt-botao bt-botao--p bt-botao--fantasma"
+                    title="O golpe não pega: sem dano, sem selo. Vai ao registro, com Desfazer."
+                    onClick={() => onPedir({ tipo: 'semDano', golpeId: item.golpeId, tokenId: item.tokenId })}
+                  >
+                    Passar sem dano
+                  </button>
                 </span>
               </li>
             )

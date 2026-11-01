@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDeInvocacao, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDeInvocacao, type PedidoDeMarca, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
@@ -12,13 +12,14 @@ import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { BotaoDeReacao } from './BotaoDeReacao'
 import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './CaixaDeReacao'
-import { MOTIVO_SEM_PERSONAGEM, armasNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
+import { MOTIVO_SEM_PERSONAGEM, alvosNaOrdemDaMira, armasNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { invocacaoDaFicha, motivoNoJogador, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import type { EvoluirNaTela } from './ListaDeTecnicas'
 import { MenuDaVez, textoDaEspera, type ContraNoMenu, type InvocarNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
+import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
 import './batalha.css'
 import './combate.css'
@@ -54,12 +55,17 @@ export interface ConexaoDaBatalha {
   evoluir?: (pedido: PedidoDeEvolucao) => boolean
   /** Invocação F3: pedir a técnica de Tipo Invocação (o mestre põe no mapa). Ausente = a técnica fica apagada (a Arena). */
   invocar?: (pedido: PedidoDeInvocacao) => boolean
+  /** R1 (lote de 01/11): responder o lembrete da marca. Ausente = sem os lembretes da marca. */
+  marcar?: (pedido: PedidoDeMarca) => boolean
 }
 
 export interface FichaDoJogador {
   id: string
   name: string
   imageData?: string | null
+  /** C4: a posição no mapa (px do mundo), para a ordem dos alvos por distância. */
+  x?: number
+  y?: number
 }
 
 export interface BatalhaDoJogadorProps {
@@ -83,6 +89,8 @@ export interface BatalhaDoJogadorProps {
    * escondido pelo palco) em vez de esperar ela sair.
    */
   textoDaVez?: 'suaVez' | 'vezDe'
+  /** C4: o lado da casa do mapa (px), para a ordem dos alvos. Ausente = a conta em px (a Arena). */
+  tamanhoDaCasa?: number
 }
 
 /** A classe que o PlayerView dá à `FaixaDoJogador` (player/main.tsx). */
@@ -99,7 +107,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez' }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa }: BatalhaDoJogadorProps) {
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)
@@ -116,9 +124,15 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const aparencias = estado.aparencias
   const imagemDe = useMemo(() => {
     const porToken = new Map(fichas.map((ficha) => [ficha.id, ficha.imageData ?? null] as const))
+    // C8 (lote de 01/11): token sem foto usa o retrato da ficha que ele tem (a dele e, na Arena, todas).
+    const retratos = new Map<string, string>()
+    for (const carta of estado.cartas) {
+      const retrato = carta.personagemId === undefined ? null : (meus.find((candidato) => candidato.id === carta.personagemId)?.retrato ?? null)
+      if (retrato) retratos.set(carta.tokenId, retrato)
+    }
     const daForma = (tokenId: string) => (aparencias !== undefined && Object.hasOwn(aparencias, tokenId) ? aparencias[tokenId] : undefined)
-    return (tokenId: string) => daForma(tokenId) ?? porToken.get(tokenId) ?? null
-  }, [fichas, aparencias])
+    return (tokenId: string) => daForma(tokenId) ?? (porToken.get(tokenId) || retratos.get(tokenId)) ?? null
+  }, [fichas, aparencias, estado.cartas, meus])
 
   // ---- a vez e o contra-ataque
   const vez = estado.vez
@@ -180,13 +194,14 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       armas: golpesDeAtaque(personagem, sistema, combate, acoes, bonus),
       habilidades: habilidades(acoes),
       contra: { armas: golpesDeAtaque(personagem, sistema, combate, null, bonus), habilidades: habilidades(null) },
-      alvos,
+      // C4: inimigos do mais perto ao mais longe, aliados depois, ele por último.
+      alvos: alvosNaOrdemDaMira(alvos, fichas, cartaQueAge.tokenId, tamanhoDaCasa),
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
       formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes) : [],
       // Tipos de habilidade F3: a tira Passivas (as ligadas vêm do recorte, `passivasAtivas`).
       passivas: passivasNoRecorte(personagem, sistema, estado.rodada, meuCombate, selosDoDono),
     }
-  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvos, selosQueSomam])
+  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvos, selosQueSomam, fichas, tamanhoDaCasa])
 
   const contrasNoMenu = useMemo<ContraNoMenu[]>(
     () =>
@@ -213,6 +228,21 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     }
     return itens
   }, [comPassiva, estado.meus, estado.rodada, estado.cartas, meus, sistema, alvos, nomeDe])
+  // ---- R1 (lote de 01/11): os lembretes da marca, de todas as fichas dele (o nome quando ele tem mais de uma).
+  const pedirMarca = conexao.marcar
+  const marcas = useMemo<MarcaNaTela[]>(() => {
+    if (pedirMarca === undefined) return []
+    const varios = (estado.meus?.length ?? 0) > 1
+    const itens: MarcaNaTela[] = []
+    for (const meu of estado.meus ?? []) {
+      const dele = meus.find((candidato) => candidato.id === meu.personagemId)
+      for (const lembrete of meu.marcas ?? []) {
+        const item = marcaNaTela(lembrete, dele, sistema, nomeDe, varios ? nomeDe(lembrete.tokenId) : undefined)
+        if (item !== null) itens.push(item)
+      }
+    }
+    return itens
+  }, [pedirMarca, estado.meus, meus, sistema, nomeDe])
   // Na Arena o mestre opera tudo ("Vez de Lia"): aplica o "a cada turno" quando quiser, como na aba Batalha.
   const operaComoMestre = textoDaVez === 'vezDe'
 
@@ -316,7 +346,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const lugarDoMenu = useRef<HTMLDivElement>(null)
   const lugarDosLembretes = useRef<HTMLDivElement>(null)
   const comEspera = esperandoOMestre.length > 0 && conexao.invocar !== undefined
-  const comLembretes = lembretes.length > 0 || (comEspera && !mostrarMenu)
+  const comLembretes = lembretes.length > 0 || marcas.length > 0 || (comEspera && !mostrarMenu)
   useLayoutEffect(() => {
     const menuNaTela = lugarDoMenu.current
     const avisos = lugarDosLembretes.current
@@ -347,7 +377,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         vez={
           vez === null || cartaDaVez === undefined
             ? null
-            : { chave: `${vez}:${estado.rodada}`, nome: cartaDaVez.nome.trim() || nomeDe(cartaDaVez.tokenId), minha: estado.minhaVez && textoDaVez === 'suaVez' }
+            : { chave: `${vez}:${estado.rodada}`, nome: cartaDaVez.nome.trim() || nomeDe(cartaDaVez.tokenId), minha: estado.minhaVez && textoDaVez === 'suaVez', ...(cartaDaVez.bando === undefined ? { tokenId: cartaDaVez.tokenId } : {}) }
         }
         onTremor={onTremor}
         onPalco={setPalco}
@@ -385,7 +415,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
           />
         </div>
       )}
-      {comLembretes && (conexao.passiva !== undefined || comEspera) && (
+      {comLembretes && (conexao.passiva !== undefined || comEspera || marcas.length > 0) && (
         <div ref={lugarDosLembretes} className="pp-batalha-lembretes" data-palco={noPalco}>
           {comEspera && !mostrarMenu && (
             <p className="bt-vez__espera" role="status">
@@ -393,6 +423,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
               Esperando o mestre pôr no mapa: {textoDaEspera(esperandoOMestre)}
             </p>
           )}
+          {marcas.length > 0 && pedirMarca !== undefined && <LembretesDaMarca itens={marcas} onResponder={pedirMarca} />}
           {lembretes.length > 0 && conexao.passiva !== undefined && <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre={operaComoMestre} onPedir={conexao.passiva} />}
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { contadorDoPersonagem, motivoDoContador, nivelDoContador } from '../../lib/batalha/contador'
 import { equipeDe } from '../../lib/batalha/equipes'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
@@ -84,6 +85,9 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
       if (carta.extra !== null) itens.push({ id: 'tirar-extra', rotulo: 'Tirar esta carta extra', onEscolher: () => store.removerCarta(sceneKey, carta.id) })
       // F2: o golpe à mão do mestre, as ações a mais e as armas levadas.
       itens.push({ id: 'dano', secao: 'Combate', rotulo: 'Dar dano…', detalhe: 'Gasta o Escudo primeiro; entra no registro', onEscolher: () => setDialogo({ tipo: 'dano', tokenId: carta.tokenId }) })
+      // R4 (lote de 01/11): HP, SP, Escudo e um atributo à mão, em qualquer carta com ficha.
+      if (personagemId !== null && carta.bando === undefined && sistema !== null)
+        itens.push({ id: 'ajustar', rotulo: 'Ajustar…', detalhe: 'HP, SP e Escudo (atual e máximo) e um atributo; entra no registro', onEscolher: () => setDialogo({ tipo: 'ajustar', tokenId: carta.tokenId, personagemId }) })
       itens.push({ id: 'acoes-extras', rotulo: 'Ações extras…', detalhe: 'Simples, Bônus e Movimento a mais na vez desta carta', onEscolher: () => setDialogo({ tipo: 'extras', cartaId: carta.id }) })
       if (personagemId !== null)
         itens.push({ id: 'armas', rotulo: 'Armas desta batalha…', detalhe: 'Trocar as armas levadas, dentro do limite da ficha', onEscolher: () => setDialogo({ tipo: 'armas', personagemId }) })
@@ -114,6 +118,29 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
           onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId }),
         })
       }
+      // R5 (lote de 01/11): o contador da ficha (a Polaridade do Vagn): carregar gasta a reação; zerar é só do mestre.
+      const personagemDaCarta = personagemId === null ? undefined : personagens.find((candidato) => candidato.id === personagemId)
+      const contador = personagemDaCarta === undefined || sistema === null || carta.bando !== undefined ? null : contadorDoPersonagem(personagemDaCarta, sistema)
+      if (contador !== null && personagemId !== null && turnos !== undefined) {
+        const nivel = nivelDoContador(turnos, carta.tokenId, contador.cartao.id)
+        const maximo = contador.leitura.danoPorNivel.length
+        const motivo = motivoDoContador('ganhar', nivel, maximo, turnos.combate?.[personagemId]?.semReacao === true)
+        const pedido = { tokenId: carta.tokenId, cartaoId: contador.cartao.id }
+        itens.push({
+          id: 'contador-ganhar',
+          rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
+          detalhe: motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`,
+          desabilitado: motivo !== null,
+          onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'ganhar', ...pedido }),
+        })
+        if (nivel > 0)
+          itens.push({
+            id: 'contador-zerar',
+            rotulo: `Zerar ${contador.leitura.nome}`,
+            detalhe: 'Volta a 0 e o dano a mais sai; entra no registro',
+            onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'zerar', ...pedido }),
+          })
+      }
       if (personagemId !== null && (carta.carga ?? 0) > 0)
         itens.push({
           id: 'zerar-carga',
@@ -139,17 +166,19 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
           itens.push({ id: 'equipe-sem', rotulo: 'Sem equipe', marcado: atual === null, onEscolher: () => store.trocarEquipe(personagemId, null) })
         }
       }
-      itens.push({
-        id: 'tirar',
-        secao: 'Batalha',
-        rotulo: 'Tirar da batalha',
-        detalhe: 'Sai da ordem com as cartas extras; o Desfazer do registro volta',
-        perigo: true,
-        onEscolher: () => store.tirarCombatente(sceneKey, carta.tokenId),
-      })
+      // Invocação (pedido de 01/11): a carta do bando não tem "Tirar da batalha".
+      if (carta.bando === undefined)
+        itens.push({
+          id: 'tirar',
+          secao: 'Batalha',
+          rotulo: 'Tirar da batalha',
+          detalhe: 'Sai da ordem com as cartas extras; o Desfazer do registro volta',
+          perigo: true,
+          onEscolher: () => store.tirarCombatente(sceneKey, carta.tokenId),
+        })
       return itens
     },
-    [dados, equipes, sceneKey, turnos],
+    [dados, equipes, sceneKey, turnos, personagens, sistema],
   )
 
   if (cena === undefined || dados === null) return null

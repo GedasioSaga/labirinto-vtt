@@ -1,5 +1,6 @@
 import { maximoComposto } from '../../lib/ajusteDaFicha'
 import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
+import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import { membrosDoBando } from '../../lib/batalha/invocacao'
 import { nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
 import type { ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
@@ -66,6 +67,12 @@ export interface DadosDaCarta {
   selos?: readonly SeloNaCarta[]
   /** Invocação F3: a carta é a do BANDO ("Lobos de Ryoko"): os invocados, cada um com a vida quando quem olha pode ver. */
   bando?: { membros: readonly MembroNaCarta[] }
+  /**
+   * C10 (lote de 01/11): o Escudo atual, junto do HP e do SP. Ausente (ou 0) = a
+   * linha some; volta quando algo recupera o Escudo. O jogador só recebe o dele
+   * e o de aliado (o host corta o de NPC).
+   */
+  escudo?: number
 }
 
 /** Invocação F3: um invocado na carta do bando. `vida` `null` = quem olha não vê (lado oposto). */
@@ -145,12 +152,20 @@ const ORDEM_DO_TOM: Record<TomDoRecurso, number> = { vida: 0, energia: 1, neutro
 const NOME_SEM_FICHA = 'Ficha'
 
 /** Os recursos de atual e máximo do sistema, vida primeiro, energia depois. */
-function recursosQueAparecem(sistema: SistemaDeRpg | null): RecursoDoSistema[] {
+export function recursosQueAparecem(sistema: SistemaDeRpg | null): RecursoDoSistema[] {
   if (sistema === null) return []
   return sistema.recursos
     .filter((recurso) => recurso.atualEMaximo === true)
     .sort((a, b) => ORDEM_DO_TOM[a.tom] - ORDEM_DO_TOM[b.tom])
     .slice(0, RECURSOS_NA_CARTA)
+}
+
+/** C10: o Escudo atual da ficha (o mestre vê todos); sem Escudo no sistema ou 0 = ausente. */
+function escudoDaFicha(personagem: Personagem | undefined, sistema: SistemaDeRpg | null): number | undefined {
+  const escudo = sistema === null ? null : recursoDoEscudo(sistema)
+  if (personagem === undefined || escudo === null) return undefined
+  const lido = numeroDaFicha(personagem.recursos, escudo.id)
+  return Number.isFinite(lido) && lido > 0 ? Math.round(lido) : undefined
 }
 
 /** HP/SP do personagem com o máximo efetivo (base + modificador + cartões), a mesma conta da ficha. */
@@ -164,6 +179,10 @@ export function recursosDaCarta(personagem: Personagem, sistema: SistemaDeRpg | 
     saida.push({ id: recurso.id, rotulo: recurso.nome, tom: recurso.tom, atual, maximo })
   }
   return saida
+}
+
+function comEscudo(escudo: number | undefined): { escudo?: number } {
+  return escudo === undefined || escudo <= 0 ? {} : { escudo }
 }
 
 function porId<T extends { id: string }>(lista: readonly T[]): Map<string, T> {
@@ -213,6 +232,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema }:
       minha: false,
       npc: personagem?.tipo === 'npc',
       carga: carta.personagemId === null ? 0 : (turnos.combate?.[carta.personagemId]?.carga ?? 0),
+      ...comEscudo(escudoDaFicha(personagem, sistema)),
     }
   })
   const proxima = proximaCarta(turnos, caidos)
@@ -313,6 +333,8 @@ function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined
     personagemId: carta.lado === 'outro' ? null : (carta.personagemId ?? null),
     minha: carta.lado === 'eu',
     npc: false,
+    // C10: o host só manda o Escudo da ficha dele e do aliado.
+    ...comEscudo(carta.lado === 'outro' ? undefined : carta.escudo),
   }
 }
 

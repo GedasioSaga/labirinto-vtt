@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import type { AcaoDaForma, PedidoDeAcao } from '../../lib/batalha/combate'
 import { armazemDoAparelho, gravarEscolhaDaImagem, lerEscolhaDaImagem } from '../../lib/batalha/escolhaDaImagem'
-import { motivoDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
+import { formaLivre, motivoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
 import { formatarNumero, textoDaAcao, type PipDaVez } from './dadosDoMenu'
 import { CabecaDaVez, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
 import './batalha.css'
@@ -34,6 +34,22 @@ function descricaoDaForma(forma: FormaNoMenu): string {
   return (forma.cartao.campos.descricao ?? forma.cartao.campos.efeito ?? '').trim()
 }
 
+/** C6: a linha da tira desligada: o requisito primeiro (o que é preciso para transformar), depois a descrição. */
+function detalheDaForma(forma: FormaNoMenu): string | null {
+  const partes = [forma.requisito === null ? '' : `Requisito: ${forma.requisito}`, descricaoDaForma(forma)].filter((parte) => parte !== '')
+  return partes.length === 0 ? null : partes.join(' · ')
+}
+
+/** A linha curta da forma desligada no painel do NPC: a ação (ou "sem gastar ação"), quantos números muda e o requisito. */
+export function linhaDaFormaDoNpc(forma: FormaNoMenu): string {
+  return [textoDaAtivacao(forma, forma.acaoDaFicha), forma.numeros.length > 0 ? `muda ${forma.numeros.length}` : '', forma.requisito === null ? '' : `requisito: ${forma.requisito}`].filter((parte) => parte !== '').join(' · ')
+}
+
+/** R6: o que Ativar gasta, na tira e no botão: "sem gastar ação" na forma Livre, senão a ação. */
+function textoDaAtivacao(forma: FormaNoMenu, acao: AcaoDaForma): string {
+  return formaLivre(forma.cartao) ? 'sem gastar ação' : textoDaAcao(acao)
+}
+
 export interface PainelDaFormaProps {
   forma: FormaNoMenu
   /** `null` = sem a economia à vista (o motivo vem só da forma). */
@@ -59,8 +75,11 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
   const [erro, setErro] = useState<string | null>(null)
   const nome = nomeDaForma(forma)
   const descricao = descricaoDaForma(forma)
-  const motivo = forma.ligada ? null : motivoDaForma(forma, acao, acoes)
+  const livre = formaLivre(forma.cartao)
+  // R6: a forma Livre liga e desliga sem gastar ação: a economia da vez não apaga o Ativar (o host confere os usos).
+  const motivo = forma.ligada || livre ? null : motivoDaForma(forma, acao, acoes)
   const comImagem = forma.imagem !== null
+  const usos = usosDaForma(forma.cartao)
 
   const ativar = (evento?: FormEvent) => {
     evento?.preventDefault()
@@ -93,6 +112,34 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
         {nome}
       </h3>
       {descricao !== '' && <p className="bt-forma__texto">{descricao}</p>}
+      {(forma.requisito !== null || (!forma.ligada && forma.troca.length > 0) || usos !== null) && (
+        <dl className="bt-passiva__leitura bt-forma__leitura">
+          {forma.requisito !== null && (
+            <div>
+              <dt>Requisito</dt>
+              <dd>
+                {forma.requisito}
+                <small> · o app não confere: veja na mesa</small>
+              </dd>
+            </div>
+          )}
+          {!forma.ligada && forma.troca.length > 0 && (
+            <div>
+              <dt>Troca</dt>
+              <dd>
+                desliga {forma.troca.join(', ')}
+                <small> · mesmo grupo{forma.grupo === null ? '' : ` (${forma.grupo})`}: fica só com os números desta</small>
+              </dd>
+            </div>
+          )}
+          {usos !== null && (
+            <div>
+              <dt>Usos</dt>
+              <dd>{usos === 1 ? '1 vez por batalha' : `${usos} vezes por batalha`}</dd>
+            </div>
+          )}
+        </dl>
+      )}
       {forma.numeros.length > 0 && (
         <dl className="bt-forma__numeros" aria-label={forma.ligada ? 'O que a forma mudou' : 'O que muda ao ativar'}>
           {forma.numeros.map((numero, i) => (
@@ -113,7 +160,8 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
           <small>{forma.ligada ? ' · já estão em Habilidades' : ' · entram em Habilidades quando ativa'}</small>
         </p>
       )}
-      {!forma.ligada && (
+      {!forma.ligada && livre && <p className="bt-mira__nota">Ação Livre na ficha: liga e desliga sem gastar ação.</p>}
+      {!forma.ligada && !livre && (
         <fieldset className="bt-forma__acoes">
           <legend>Ação para ativar</legend>
           {ACOES_DA_FORMA.map((opcao) => (
@@ -160,7 +208,7 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
           disabled={esperando || motivo !== null}
           aria-describedby={motivo === null ? undefined : `${idBase}-motivo`}
         >
-          {forma.ligada ? 'Desfazer a forma · ação livre' : `Ativar · ${textoDaAcao(acao)}`} <kbd>Enter</kbd>
+          {forma.ligada ? 'Desfazer a forma · ação livre' : `Ativar · ${textoDaAtivacao(forma, acao)}`} <kbd>Enter</kbd>
         </button>
         {onVoltar !== undefined && (
           <button type="button" className="bt-botao" onClick={onVoltar}>
@@ -271,14 +319,15 @@ export function ListaDeFormas({ pips, carga, formas, acoes, personagemId, instan
                 indice={indice}
                 chave={`forma:${item.cartao.id}`}
                 nome={nomeDaForma(item)}
-                lado={item.ligada ? 'ATIVA' : textoDaAcao(item.acaoDaFicha)}
-                detalhe={item.ligada ? 'Ativa: escolha para desfazer (ação livre)' : descricaoDaForma(item) || null}
+                lado={item.ligada ? 'ATIVA' : formaLivre(item.cartao) ? 'LIVRE' : textoDaAcao(item.acaoDaFicha)}
+                detalhe={item.ligada ? 'Ativa: escolha para desfazer (ação livre)' : detalheDaForma(item)}
                 chips={
                   <>
                     {item.ligada && <span className="bt-etq bt-etq--forma">Ativa</span>}
                     {item.numeros.length > 0 && <span className="bt-etq">{item.numeros.length === 1 ? 'Muda 1 número' : `Muda ${item.numeros.length} números`}</span>}
                     {item.tecnicas.length > 0 && <span className="bt-etq bt-etq--forma">{item.tecnicas.length === 1 ? '1 técnica' : `${item.tecnicas.length} técnicas`}</span>}
                     {item.imagem !== null && <span className="bt-etq">Imagem própria</span>}
+                    {!item.ligada && item.troca.length > 0 && <span className="bt-etq bt-etq--forma">Troca com {item.troca.join(', ')}</span>}
                   </>
                 }
                 forma

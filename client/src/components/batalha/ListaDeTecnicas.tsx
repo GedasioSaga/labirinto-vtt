@@ -70,6 +70,8 @@ export interface TiraProps {
   /** A linha de baixo; com `motivo`, o motivo toma o lugar. */
   detalhe?: string | null
   motivo?: string | null
+  /** C5: o que a técnica faz, curto, embaixo da linha de baixo (duas linhas no máximo; o texto inteiro no papel). */
+  resumo?: string | null
   chips?: ReactNode
   esta: boolean
   forma?: boolean
@@ -87,7 +89,7 @@ export interface TiraProps {
   refDaTira?: (elemento: HTMLButtonElement | null) => void
 }
 
-export function Tira({ indice, chave, nome, lado, detalhe, motivo, chips, esta, forma, passiva, pequena, expandida, controla, descritaPor, onEscolher, onFoco, onApontar, refDaTira }: TiraProps) {
+export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips, esta, forma, passiva, pequena, expandida, controla, descritaPor, onEscolher, onFoco, onApontar, refDaTira }: TiraProps) {
   const estilo = useMemo(() => {
     const semente = sementeDe(chave)
     return {
@@ -122,6 +124,7 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, chips, esta, 
       <span className="bt-tira__nome">{nome}</span>
       <span className="bt-tira__lado">{lado ?? ''}</span>
       {linha !== null && linha !== '' && <span className="bt-tira__det">{linha}</span>}
+      {resumo !== undefined && resumo !== null && resumo !== '' && <span className="bt-tira__resumo">{resumo}</span>}
       {chips !== undefined && chips !== null && <span className="bt-tira__chips">{chips}</span>}
     </button>
   )

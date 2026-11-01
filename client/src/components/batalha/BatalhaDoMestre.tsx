@@ -17,16 +17,18 @@ import { efeitosDaCena, useBatalhaStore, type BatalhaDaCena } from '../../stores
 import { useMapStore } from '../../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { AcoesExtrasDialog } from './AcoesExtrasDialog'
+import { AjustarDialog } from './AjustarDialog'
 import { DarDanoDialog } from './DarDanoDialog'
 import { EfeitosDaBatalha } from './EfeitosDaBatalha'
 import { recursosDaCarta } from './dadosDaFaixa'
 import { invocacaoDaFicha, nomeDoBando, pedidoDeInvocacao } from './dadosDaInvocacao'
-import { MOTIVO_SEM_PERSONAGEM, armasNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
+import { MOTIVO_SEM_PERSONAGEM, alvosNaOrdemDaMira, armasNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { InvocacoesPendentes, PainelDoBando, type MembroNaVez, type PendenciaNaTela } from './InvocacoesDoMestre'
 import type { InvocarNoMenu } from './MenuDaVez'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
+import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
 import { LembretesDaPassiva, PassivasDaFicha, lembretesNaTela, passivasNaCena, type LembreteNaTela } from './PassivasDaBatalha'
 import { ReacoesPendentes, type PendenteNaTela } from './ReacoesPendentes'
 import { SeloDialog } from './SeloDialog'
@@ -51,6 +53,8 @@ export type DialogoDoMestre =
   | { tipo: 'extras'; cartaId: string }
   | { tipo: 'armas'; personagemId: string }
   | { tipo: 'selo'; tokenId: string; seloId: string | null }
+  /** R4 (lote de 01/11): o "Ajustar..." da carta. */
+  | { tipo: 'ajustar'; tokenId: string; personagemId: string }
 
 /** F3: os selos da ficha da vez, em botões (editar ou tirar), e "Pôr selo…". F2 dos tipos: a cor da natureza e os mods ("FOR +20"). */
 function SelosDaVez({ turnos, tokenId, nome, sistema, onDialogo }: { turnos: TurnosDaCena; tokenId: string; nome: string; sistema: SistemaDeRpg | null; onDialogo: (dialogo: DialogoDoMestre) => void }) {
@@ -82,7 +86,9 @@ function SelosDaVez({ turnos, tokenId, nome, sistema, onDialogo }: { turnos: Tur
 
 interface Mesa {
   cena: BatalhaDaCena | undefined
-  fichas: readonly { id: string; name: string; imageData?: string | null }[]
+  fichas: readonly { id: string; name: string; imageData?: string | null; x?: number; y?: number }[]
+  /** C4: o lado da casa (px), para a ordem dos alvos por distância. */
+  tamanhoDaCasa?: number
   personagens: readonly Personagem[]
   equipes: readonly Equipe[] | undefined
   sistema: SistemaDeRpg | null
@@ -91,12 +97,13 @@ interface Mesa {
 function useMesa(sceneKey: string): Mesa {
   const cena = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey] : undefined))
   const fichas = useMapStore((state) => state.map.tokens)
+  const tamanhoDaCasa = useMapStore((state) => state.map.grid)
   const personagens = useAdventureStore(personagensAtivos)
   const equipes = useAdventureStore(equipesAtivas)
   const sistemaId = useAdventureStore(sistemaAtivo)
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const sistema = useMemo(() => sistemaPorId(biblioteca, sistemaId) ?? null, [biblioteca, sistemaId])
-  return { cena, fichas, personagens, equipes, sistema }
+  return { cena, fichas, tamanhoDaCasa, personagens, equipes, sistema }
 }
 
 function nomeDaFicha(mesa: Mesa, tokenId: string, carta?: CartaDaOrdem): string {
@@ -170,7 +177,7 @@ function alvosDaOrdem(mesa: Mesa, cartas: readonly CartaDaOrdem[], quemAge: Cart
       cor: equipeDaCarta?.cor ?? null,
     })
   }
-  return alvos
+  return alvosNaOrdemDaMira(alvos, mesa.fichas, quemAge.tokenId, mesa.tamanhoDaCasa)
 }
 
 /** Tipos de habilidade F3: a passiva pedida pelo mestre (qualquer ficha, a qualquer hora). */
@@ -226,11 +233,20 @@ function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string
     const passivas = passivasNaCena(personagem, mesa.sistema, turnos, carta.tokenId)
     itens.push(...lembretesNaTela(combate.lembretes, passivas, alvosDaOrdem(mesa, turnos.cartas, carta), nomeDaFicha(mesa, carta.tokenId, carta)))
   }
-  if (itens.length === 0) return null
+  // R1 (lote de 01/11): a marca de atirador NPC (a do jogador, ele responde na tela dele).
+  const marcas: MarcaNaTela[] = []
+  for (const lembrete of turnos.lembretesDaMarca ?? []) {
+    const personagem = mesa.personagens.find((candidato) => candidato.id === lembrete.personagemId)
+    if (personagem?.tipo !== 'npc') continue
+    const item = marcaNaTela(lembrete, personagem, mesa.sistema, (tokenId) => nomeDaFicha(mesa, tokenId), nomeDaFicha(mesa, lembrete.tokenId))
+    if (item !== null) marcas.push(item)
+  }
+  if (itens.length === 0 && marcas.length === 0) return null
   return (
     <section className="bt-secao" aria-label="Lembretes das passivas dos NPCs">
       <h3 className="bt-secao__titulo">Passivas dos NPCs</h3>
-      <LembretesDaPassiva itens={itens} sistema={mesa.sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} className="bt-lembretes--npc" />
+      {marcas.length > 0 && <LembretesDaMarca itens={marcas} onResponder={(pedido) => useBatalhaStore.getState().marcar(sceneKey, MESTRE, pedido)} className="bt-lembretes--npc" />}
+      {itens.length > 0 && <LembretesDaPassiva itens={itens} sistema={mesa.sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} className="bt-lembretes--npc" />}
     </section>
   )
 }
@@ -484,9 +500,12 @@ export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTr
     const porToken = new Map<string, string | null>(fichas.map((ficha) => [ficha.id, ficha.imageData ?? null] as const))
     for (const carta of cartas ?? []) {
       if (carta.personagemId === null) continue
+      const personagem = personagens.find((candidato) => candidato.id === carta.personagemId)
       const forma = formas?.[carta.personagemId]
-      const aparencia = forma === undefined ? null : aparenciaDaForma(forma, personagens.find((candidato) => candidato.id === carta.personagemId))
+      const aparencia = forma === undefined ? null : aparenciaDaForma(forma, personagem)
       if (aparencia !== null) porToken.set(carta.tokenId, aparencia)
+      // C8 (lote de 01/11): token sem foto usa o retrato da ficha no corte e na faixa, como a carta da ordem.
+      else if (!porToken.get(carta.tokenId) && personagem?.retrato) porToken.set(carta.tokenId, personagem.retrato)
     }
     return (tokenId: string) => porToken.get(tokenId) ?? null
   }, [fichas, cartas, formas, personagens])
@@ -494,7 +513,7 @@ export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTr
   const vez =
     carta === null || turnos === undefined
       ? null
-      : { chave: `${carta.id}:${turnos.rodada}`, nome: fichas.find((ficha) => ficha.id === carta.tokenId)?.name.trim() || carta.nome?.trim() || 'Ficha', minha: false }
+      : { chave: `${carta.id}:${turnos.rodada}`, nome: fichas.find((ficha) => ficha.id === carta.tokenId)?.name.trim() || carta.nome?.trim() || 'Ficha', minha: false, ...(carta.bando === undefined ? { tokenId: carta.tokenId } : {}) }
   return <EfeitosDaBatalha efeitos={efeitos} consulta={consultaDoMestre} nomeDe={nomeDe} imagemDe={imagemDe} vez={vez} onTremor={onTremor} />
 }
 
@@ -525,6 +544,20 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
         corFixa={selo?.cartaoId === undefined ? undefined : (selo.natureza ?? 'condicao')}
         onConfirmar={(pedido) => (seloId === null ? store.porSelo(sceneKey, tokenId, pedido) : store.editarSelo(sceneKey, seloId, pedido))}
         onTirar={seloId === null ? undefined : () => store.tirarSelo(sceneKey, seloId)}
+        onFechar={onFechar}
+      />
+    )
+  }
+  if (dialogo.tipo === 'ajustar') {
+    const personagem = mesa.personagens.find((candidato) => candidato.id === dialogo.personagemId)
+    if (personagem === undefined || mesa.sistema === null) return null
+    return (
+      <AjustarDialog
+        quem={nomeDaFicha(mesa, dialogo.tokenId)}
+        tokenId={dialogo.tokenId}
+        personagem={personagem}
+        sistema={mesa.sistema}
+        onConfirmar={(pedido) => store.ajustar(sceneKey, MESTRE, pedido)}
         onFechar={onFechar}
       />
     )

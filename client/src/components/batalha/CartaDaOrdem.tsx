@@ -121,6 +121,7 @@ export function descricaoDaCarta(carta: DadosDaCarta, posicao: number, vez: bool
   else if (proxima) partes.push('a seguir')
   if (carta.extra !== null) partes.push(carta.extra === 'rodada' ? 'carta extra só nesta rodada' : 'carta extra em todas as rodadas')
   if (carta.vida === 'numeros') for (const recurso of carta.recursos) partes.push(`${recurso.rotulo} ${recurso.atual} de ${recurso.maximo}`)
+  if ((carta.escudo ?? 0) > 0) partes.push(`Escudo ${carta.escudo}`)
   if (carta.vida === 'oculta') partes.push('vida oculta')
   for (const membro of carta.bando?.membros ?? []) partes.push(membro.vida === null ? membro.nome : `${membro.nome} HP ${membro.vida.atual} de ${membro.vida.maximo}`)
   if ((carta.carga ?? 0) > 0) partes.push(`concentração ${carta.carga}`)
@@ -183,6 +184,13 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
         </span>
       )}
       {carta.vida === 'numeros' && carta.recursos.map((recurso) => <Barra key={recurso.id} recurso={recurso} />)}
+      {/* C10 (lote de 01/11): o Escudo junto do HP e do SP; zerado, a linha some. */}
+      {(carta.escudo ?? 0) > 0 && carta.bando === undefined && (
+        <span className="bt-carta__linha bt-carta__linha--escudo">
+          <b data-tom="escudo">Escudo</b>
+          <span className="bt-carta__num">{numero.format(carta.escudo ?? 0)}</span>
+        </span>
+      )}
       {carta.vida === 'oculta' && <span className="bt-carta__oculta">Vida oculta</span>}
       {carta.bando !== undefined && <MembrosDoBando membros={carta.bando.membros} />}
       {carta.vida === 'sem' && carta.bando === undefined && <span className="bt-carta__oculta">{carta.personagemId === null ? 'Sem ficha ligada' : 'Sem vida na ficha'}</span>}

@@ -51,7 +51,7 @@ export interface EfeitosDaBatalhaProps {
    * A faixa da troca de vez: uma chave nova (carta e rodada) toca a faixa —
    * SUA VEZ com `minha`, senão "Vez de <nome>". `null` = sem vez à vista.
    */
-  vez?: { chave: string; nome: string; minha: boolean } | null
+  vez?: { chave: string; nome: string; minha: boolean; tokenId?: string } | null
   onTremor?: () => void
   /** O palco mudou: quem monta esconde o menu da vez (e o véu) enquanto não é `null`. */
   onPalco?: (palco: PalcoDosEfeitos) => void
@@ -65,7 +65,7 @@ export interface EfeitosDaBatalhaProps {
  */
 export type PalcoDosEfeitos = 'golpe' | 'transformacao' | 'vez' | 'suaVez' | null
 
-type Tarefa = { tipo: 'efeito'; efeito: EfeitoDaBatalha } | { tipo: 'vez'; nome: string; minha: boolean }
+type Tarefa = { tipo: 'efeito'; efeito: EfeitoDaBatalha } | { tipo: 'vez'; nome: string; minha: boolean; tokenId: string | null }
 
 const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const PUNCH = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
@@ -280,7 +280,11 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
   const tocar = async (motor: Palco, tarefa: Tarefa) => {
     const reduzido = movimentoReduzido()
     const { consulta: consultar, nomeDe: nome, imagemDe: imagem, onTremor: tremer, resolver: resolverImagem } = atuais.current
-    if (tarefa.tipo === 'vez') return tocarFaixa(motor, tarefa.nome, tarefa.minha, reduzido)
+    if (tarefa.tipo === 'vez') {
+      // C9: a foto de quem tem a vez no círculo da faixa (a forma ligada vence, como no corte).
+      const foto = tarefa.tokenId === null ? null : srcDaImagem(resolverImagem, imagem(tarefa.tokenId))
+      return tocarFaixa(motor, tarefa.nome, tarefa.tokenId === null ? undefined : foto, tarefa.minha, reduzido)
+    }
     const efeito = tarefa.efeito
     // F3: o gesto do Judge toca no mapa (`pixi/judgeDoMapa.ts`); aqui só o anúncio da região viva.
     if (efeito.tipo === 'judge') return
@@ -336,7 +340,7 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     const nome = vez.nome.trim()
     // A vez de outro sem nome à vista não tem o que dizer.
     if (!minha && nome === '') return
-    fila.current.push({ tipo: 'vez', nome, minha })
+    fila.current.push({ tipo: 'vez', nome, minha, tokenId: vez.tokenId ?? null })
     if (tocando.current) avisarPalco()
     else tocarFila()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -359,10 +363,40 @@ async function tocarSoOpacidade(motor: Palco, el: HTMLElement) {
   el.remove()
 }
 
-/** A faixa da troca de vez: SUA VEZ (e o nome da carta) para quem joga; "Vez de" e o nome para os outros. */
-async function tocarFaixa(motor: Palco, nome: string, minha: boolean, reduzido: boolean) {
+/**
+ * A foto redonda (corte, faixa): a imagem cobrindo o círculo, ou as iniciais em
+ * tinta. A imagem que não carrega (arquivo sumido) também vira as iniciais, em
+ * vez de um círculo vazio.
+ */
+function fotoRedonda(pai: HTMLElement, classe: string, imagem: string | null, nome: string): HTMLElement {
+  const roda = document.createElement('div')
+  roda.className = classe
+  const comIniciais = () => {
+    roda.replaceChildren()
+    roda.dataset.iniciais = 'sim'
+    roda.textContent = iniciais(nome)
+  }
+  if (imagem !== null) {
+    const foto = document.createElement('img')
+    foto.alt = ''
+    foto.addEventListener('error', comIniciais, { once: true })
+    foto.src = imagem
+    roda.appendChild(foto)
+  } else {
+    comIniciais()
+  }
+  pai.appendChild(roda)
+  return roda
+}
+
+/**
+ * A faixa da troca de vez: SUA VEZ (e o nome da carta) para quem joga; "Vez de" e o nome para os outros.
+ * C9 (lote de 01/11): a foto de quem tem a vez num círculo à esquerda; `imagem` undefined = sem ficha à vista (sem o círculo).
+ */
+async function tocarFaixa(motor: Palco, nome: string, imagem: string | null | undefined, minha: boolean, reduzido: boolean) {
   const el = motor.criar('bt-ef-faixa')
   el.dataset.de = minha ? 'mim' : 'outro'
+  const roda = imagem === undefined ? null : fotoRedonda(el, 'bt-ef-faixa__foto', imagem, nome)
   let grande: HTMLElement
   if (minha) {
     grande = texto(el, 'bt-ef-faixa__grande', 'SUA VEZ')
@@ -372,6 +406,18 @@ async function tocarFaixa(motor: Palco, nome: string, minha: boolean, reduzido: 
     grande = texto(el, 'bt-ef-faixa__grande', nome)
   }
   if (reduzido) return tocarSoOpacidade(motor, el)
+  // A foto chega um passo antes do título e deriva junto com ele (o mesmo sentido, menos distância).
+  if (roda !== null) {
+    void motor.animar(
+      roda,
+      [
+        { transform: 'translateX(-24%)', easing: CHEGADA },
+        { transform: 'translateX(0)', offset: 0.22, easing: 'linear' },
+        { transform: 'translateX(2%)' },
+      ],
+      { duration: ENTRA_MS + SEGURA_MS },
+    )
+  }
   // O título chega junto com a abertura e segue derivando devagar enquanto a faixa segura.
   void motor.animar(
     grande,
@@ -382,7 +428,8 @@ async function tocarFaixa(motor: Palco, nome: string, minha: boolean, reduzido: 
     ],
     { duration: ENTRA_MS + SEGURA_MS, delay: 60 },
   )
-  await motor.animar(el, [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: ENTRA_MS, easing: EASE })
+  // A abertura corta com folga em cima e embaixo: a foto que vaza da faixa e as linhas de sangue abrem junto, sem pular no fim.
+  await motor.animar(el, [{ clipPath: 'inset(-40% 100% -40% 0)' }, { clipPath: 'inset(-40% 0 -40% 0)' }], { duration: ENTRA_MS, easing: EASE })
   await motor.esperar(SEGURA_MS)
   await motor.animar(el, [{ transform: 'rotate(-6deg) translateX(0)', opacity: 1 }, { transform: 'rotate(-6deg) translateX(18%)', opacity: 0 }], { duration: SAI_MS, easing: EASE })
   el.remove()
@@ -390,19 +437,7 @@ async function tocarFaixa(motor: Palco, nome: string, minha: boolean, reduzido: 
 
 async function tocarCorte(motor: Palco, quem: string, imagem: string | null, golpe: string, marca: string | null, reduzido: boolean) {
   const el = motor.criar('bt-ef-corte')
-  const retrato = document.createElement('div')
-  retrato.className = 'bt-ef-corte__retrato'
-  if (imagem !== null) {
-    const foto = document.createElement('img')
-    foto.src = imagem
-    foto.alt = ''
-    foto.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block'
-    retrato.appendChild(foto)
-  } else {
-    retrato.style.cssText = 'display:grid;place-items:center;background:var(--bt-tinta);color:var(--bt-papel)'
-    retrato.textContent = iniciais(quem)
-  }
-  el.appendChild(retrato)
+  const retrato = fotoRedonda(el, 'bt-ef-corte__retrato', imagem, quem)
   const caixa = document.createElement('div')
   caixa.className = 'bt-ef-corte__texto'
   el.appendChild(caixa)
@@ -558,13 +593,18 @@ async function tocarTransformacao(motor: Palco, quem: string, imagem: string | n
   const raios = filho(el, 'bt-ef-transformacao__raios')
   const aneis = [filho(el, 'bt-ef-transformacao__anel'), filho(el, 'bt-ef-transformacao__anel')]
   const retrato = filho(el, 'bt-ef-transformacao__retrato')
+  const comIniciais = () => {
+    retrato.replaceChildren()
+    texto(retrato, 'bt-ef-transformacao__iniciais', iniciais(quem))
+  }
   if (imagem !== null) {
     const foto = document.createElement('img')
-    foto.src = imagem
     foto.alt = ''
+    foto.addEventListener('error', comIniciais, { once: true })
+    foto.src = imagem
     retrato.appendChild(foto)
   } else {
-    texto(retrato, 'bt-ef-transformacao__iniciais', iniciais(quem))
+    comIniciais()
   }
   const caixa = filho(el, 'bt-ef-transformacao__texto')
   const rotulo = texto(caixa, 'bt-ef-transformacao__rot', `${quem} · Transformação`)

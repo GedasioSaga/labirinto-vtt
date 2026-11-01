@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import type { PedidoDePassiva } from '../../lib/batalha/combate'
+import type { PedidoDeAjusteNaBatalha, PedidoDePassiva } from '../../lib/batalha/combate'
+import { contadorDoPersonagem } from '../../lib/batalha/contador'
 import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { faixaDoJogador, linhasDoJogador, type DadosDaCarta, type FichaNaFaixa } from './dadosDaFaixa'
+import { AjustarDialog } from './AjustarDialog'
 import { DarDanoDialog } from './DarDanoDialog'
 import { FaixaDaOrdem } from './FaixaDaOrdem'
 import { JanelaDaBatalha } from './JanelaDaBatalha'
@@ -48,7 +50,23 @@ export interface FaixaDoJogadorProps {
   onZerarMinhaCarga?: (personagemId: string) => boolean
   /** Tipos de habilidade F3: Ativar/Desligar a passiva da ficha dele. `false` = não saiu. Ausente = sem o item "Passivas". */
   onPassiva?: (pedido: PedidoDePassiva) => boolean
+  /** R4 (lote de 01/11): "Ajustar..." na carta dele (HP, SP, Escudo, atributo). `false` = não saiu. Ausente = sem o item. */
+  onAjustar?: (pedido: PedidoDeAjusteNaBatalha) => boolean
+  /** R5 (lote de 01/11): "Carregar" o contador da ficha dele (a Polaridade), gastando a reação. `false` = não saiu. Ausente = sem o item. */
+  onCarregar?: (tokenId: string, cartaoId: string) => boolean
   className?: string
+}
+
+/** R5: o nível do contador pelo selo da carta ("Polaridade 2"); sem selo = 0. */
+function nivelNaCarta(carta: DadosDaCarta, nome: string): number {
+  const prefixo = `${nome.toLowerCase()} `
+  for (const selo of carta.selos ?? []) {
+    const texto = selo.nome.toLowerCase()
+    if (!texto.startsWith(prefixo)) continue
+    const nivel = Number.parseInt(texto.slice(prefixo.length), 10)
+    if (Number.isInteger(nivel) && nivel > 0) return nivel
+  }
+  return 0
 }
 
 /** A variável que diz quanto o canto da direita do jogador come do alto da tela (player.css). */
@@ -104,8 +122,9 @@ function useCantoOcupa(className: string | undefined) {
 const PRAZO_DO_PEDIDO_MS = 4000
 const NINGUEM: readonly Personagem[] = []
 
-export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, onMeDarDano, onZerarMinhaCarga, onPassiva, className }: FaixaDoJogadorProps) {
+export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, onMeDarDano, onZerarMinhaCarga, onPassiva, onAjustar, onCarregar, className }: FaixaDoJogadorProps) {
   const [danoEm, setDanoEm] = useState<DadosDaCarta | null>(null)
+  const [ajusteEm, setAjusteEm] = useState<DadosDaCarta | null>(null)
   const [passivasEm, setPassivasEm] = useState<DadosDaCarta | null>(null)
   const personagens = useMemo(() => [...meus, ...aliados], [meus, aliados])
   const dados = useMemo(() => faixaDoJogador({ estado, fichas, personagens, sistema }), [estado, fichas, personagens, sistema])
@@ -177,7 +196,7 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
         onAbrirPerfil={abrir}
         abrePerfil={abre}
         menuDaCarta={
-          onMeDarDano === undefined && onPassiva === undefined
+          onMeDarDano === undefined && onPassiva === undefined && onAjustar === undefined && onCarregar === undefined
             ? undefined
             : (carta): ItemDoMenuDaCarta[] => {
                 if (!carta.minha) return []
@@ -196,6 +215,24 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
                 }
                 if (onMeDarDano !== undefined) itens.push({ id: 'dano', rotulo: 'Me dar dano…', detalhe: 'Dano livre na sua ficha; vai ao registro', onEscolher: () => setDanoEm(carta) })
                 const { personagemId } = carta
+                const personagem = personagemId === null ? undefined : meus.find((candidato) => candidato.id === personagemId)
+                // R4: só a ficha dele (o host confere de novo).
+                if (onAjustar !== undefined && personagem !== undefined && sistema !== null)
+                  itens.push({ id: 'ajustar', rotulo: 'Ajustar…', detalhe: 'HP, SP, Escudo e um atributo; vai ao registro', onEscolher: () => setAjusteEm(carta) })
+                // R5: o contador da ficha (a Polaridade): gasta a reação até a vez dele; zerar é do mestre.
+                const contador = onCarregar === undefined || personagem === undefined || sistema === null ? null : contadorDoPersonagem(personagem, sistema)
+                if (contador !== null && onCarregar !== undefined) {
+                  const nivel = nivelNaCarta(carta, contador.leitura.nome)
+                  const maximo = contador.leitura.danoPorNivel.length
+                  const semReacao = estado.meus?.find((meu) => meu.personagemId === personagemId)?.semReacao === true
+                  itens.push({
+                    id: 'carregar',
+                    rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
+                    detalhe: semReacao ? 'Já gastou a reação: volta na sua vez' : nivel >= maximo ? 'Já está no máximo' : `Perde a reação até a sua vez; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`,
+                    desabilitado: semReacao || nivel >= maximo,
+                    onEscolher: () => onCarregar(carta.tokenId, contador.cartao.id),
+                  })
+                }
                 // Fora da vez também: ele perde a concentração ao tomar o golpe.
                 if (onZerarMinhaCarga !== undefined && personagemId !== null && (carta.carga ?? 0) > 0)
                   itens.push({
@@ -238,6 +275,10 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
           <PassivasDaFicha passivas={passivasAbertas} tokenId={cartaDasPassivas.tokenId} alvos={alvosDasPassivas} sistema={sistema} onPedir={onPassiva} mostrarVazio />
         </JanelaDaBatalha>
       )}
+      {ajusteEm !== null && onAjustar !== undefined && sistema !== null && (() => {
+        const personagem = ajusteEm.personagemId === null ? undefined : meus.find((candidato) => candidato.id === ajusteEm.personagemId)
+        return personagem === undefined ? null : <AjustarDialog quem={ajusteEm.nome || 'você'} tokenId={ajusteEm.tokenId} personagem={personagem} sistema={sistema} onConfirmar={onAjustar} onFechar={() => setAjusteEm(null)} />
+      })()}
       {danoEm !== null && onMeDarDano !== undefined && (
         <DarDanoDialog titulo="Me dar dano" alvos={[{ tokenId: danoEm.tokenId, nome: danoEm.nome }]} onConfirmar={onMeDarDano} onFechar={() => setDanoEm(null)} />
       )}

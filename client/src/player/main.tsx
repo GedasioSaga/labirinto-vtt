@@ -1557,7 +1557,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               passiva: (pedido) => connection.passivaNaBatalha(pedido),
               evoluir: (pedido) => connection.evoluirNaBatalha(pedido),
               invocar: (pedido) => connection.invocarNaBatalha(pedido),
+              marcar: (pedido) => connection.marcarNaBatalha(pedido),
             }}
+            tamanhoDaCasa={state.map.grid}
             consulta={consultaEstavel}
             alvoDoMapa={alvoDoMapa}
             onMirando={setMirandoNaBatalha}
@@ -1707,6 +1709,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onMeDarDano={(tokenId, valor) => connection.darDanoEmMim(tokenId, valor)}
             onZerarMinhaCarga={(personagemId) => connection.zerarCargaNaBatalha(personagemId)}
             onPassiva={(pedido) => connection.passivaNaBatalha(pedido)}
+            onAjustar={(pedido) => connection.ajustarNaBatalha(pedido)}
+            onCarregar={(tokenId, cartaoId) => connection.ganharContadorNaBatalha(tokenId, cartaoId)}
           />
         )}
         {/*
