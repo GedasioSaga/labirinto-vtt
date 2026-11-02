@@ -1,6 +1,6 @@
 import { aplicarAjustes, NOME_DO_MESTRE } from '../../lib/ajusteDaFicha'
 import { escolherImagemDaFicha } from '../../lib/arquivosDaFicha'
-import { soltarDoModelo } from '../../lib/livros/combate'
+import { mexeuNoQueVemDoModelo, soltarDoModelo } from '../../lib/livros/combate'
 import { FORCA_PADRAO, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useMundoDoLivroStore, usePersonagensDoMundo } from '../../stores/mundoDoLivroStore'
@@ -15,17 +15,7 @@ import { gravarNoMundo, trocarFicha } from './comum'
  * para ligar: o mundo não tem cena aberta.
  */
 
-/**
- * As partes que a variação recebe do modelo (`sincronizarVariacoes`,
- * lib/livros/combate.ts). Só para AVISAR: mexer nelas na ficha da variação
- * some no próximo sincronismo, e o mestre precisa saber na hora.
- */
-const PARTES_DO_MODELO = ['atributos', 'modificadoresDosAtributos', 'maximos', 'modificadoresDosRecursos', 'abas', 'escolhas', 'etiquetas', 'descricao'] as const
-
-function mexeuNoQueVemDoModelo(antes: Personagem, salvo: Personagem): boolean {
-  return PARTES_DO_MODELO.some((parte) => JSON.stringify(antes[parte]) !== JSON.stringify(salvo[parte]))
-}
-
+// O aviso usa as mesmas partes que `sincronizarVariacoes` copia (`mexeuNoQueVemDoModelo`, lib/livros/combate.ts): mexer nelas some no próximo sincronismo.
 async function salvarNoMundo(salvo: Personagem, antes: Personagem, modelo: Personagem | undefined): Promise<void> {
   const gravou = await gravarNoMundo((lista) => trocarFicha(lista, salvo.id, () => salvo))
   if (!gravou || modelo === undefined || !mexeuNoQueVemDoModelo(antes, salvo)) return

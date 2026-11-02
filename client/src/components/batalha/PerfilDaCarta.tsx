@@ -23,13 +23,19 @@ export interface PerfilDaCartaProps {
   imagemDaForma?: string | null
   /** Tipos de habilidade F3: a lista Passivas da ficha (quem monta decide se age). Ausente = nada. */
   passivas?: ReactNode
+  /**
+   * Quem abriu o perfil. 'jogador' desliga o que é do mestre na ficha
+   * (`tipoEditavel`: o bloco de NPC da ficha Dragon Ball). Ausente = 'mestre'.
+   * A ficha padrão fora da edição não muda com isto.
+   */
+  quemOlha?: 'mestre' | 'jogador'
   onFechar: () => void
 }
 
 const NADA_MUDA = () => {}
 const SEM_IMAGEM = () => Promise.resolve(null)
 
-export function PerfilDaCarta({ personagem, sistema, descricao, imagemDaForma, passivas, onFechar }: PerfilDaCartaProps) {
+export function PerfilDaCarta({ personagem, sistema, descricao, imagemDaForma, passivas, quemOlha = 'mestre', onFechar }: PerfilDaCartaProps) {
   // Só leitura (`onChange` não grava): trocar o retrato aqui não chega à ficha.
   const mostrado = useMemo(
     () => (imagemDaForma === undefined || imagemDaForma === null ? personagem : { ...personagem, retrato: imagemDaForma }),
@@ -41,7 +47,7 @@ export function PerfilDaCarta({ personagem, sistema, descricao, imagemDaForma, p
       {sistema === null ? (
         <p className="bt-regras__vazio">Esta mesa não tem sistema de RPG: o perfil não tem o que mostrar.</p>
       ) : (
-        <FichaDoSistema personagem={mostrado} sistema={sistema} editando={false} onChange={NADA_MUDA} escolherImagem={SEM_IMAGEM} />
+        <FichaDoSistema personagem={mostrado} sistema={sistema} editando={false} onChange={NADA_MUDA} escolherImagem={SEM_IMAGEM} tipoEditavel={quemOlha === 'mestre'} />
       )}
     </JanelaDaBatalha>
   )

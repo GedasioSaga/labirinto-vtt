@@ -275,14 +275,19 @@ export function comNotaDoMestre(personagem: Personagem, texto: string): Personag
  * O personagem como ele vai pela rede, a QUALQUER jogador: sem a conta dona
  * e sem nada do mundo do livro (força, modelo, cenário, nome de entrada,
  * anotação). A ficha Dragon Ball (`dbt`) vai junto, como as abas: é a ficha
- * que o jogador lê e edita. É o funil único de `Personagem` para o fio (`net/hostSession.ts`:
+ * que o jogador lê e edita, menos o bloco de NPC (ND, categoria, rank), que é
+ * do mestre. É o funil único de `Personagem` para o fio (`net/hostSession.ts`:
  * lista do jogador e batalha). Sem nenhum desses campos devolve a MESMA
  * referência: o host compara por referência para não reenviar.
  */
 export function paraOFio(personagem: Personagem): Personagem {
   const { dono, combate, soCenario, nomeDoJogador, notaDoMestre, ...publico } = personagem
-  if (dono === undefined && combate === undefined && soCenario === undefined && nomeDoJogador === undefined && notaDoMestre === undefined) return personagem
-  return publico
+  const npcDaFicha = personagem.dbt?.npc
+  if (dono === undefined && combate === undefined && soCenario === undefined && nomeDoJogador === undefined && notaDoMestre === undefined && npcDaFicha === undefined) return personagem
+  if (publico.dbt === undefined || npcDaFicha === undefined) return publico
+  // Sem a chave, como a ficha de jogador (nada de `npc: undefined`).
+  const { npc: _doMestre, ...fichaPublica } = publico.dbt
+  return { ...publico, dbt: fichaPublica }
 }
 
 export const PERSONAGEM_SEM_NOME = 'Personagem sem nome'

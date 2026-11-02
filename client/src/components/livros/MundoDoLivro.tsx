@@ -58,6 +58,8 @@ const CompararDBT = lazy(() => import('../dbt/mundo/CompararDBT').then((modulo) 
 /** A camada cheia da luta da arena: com ela aberta, o Esc não fecha o mundo atrás (ver `TelaDaArena`). */
 const SELETOR_DA_ARENA = '.ar-tela'
 
+const ABAS_SO_DO_MOTOR_PADRAO: readonly AbaDoMundo[] = ['saude', 'itens', 'arena']
+
 const idDaAba = (aba: AbaDoMundo): string => `mu-aba-${aba}`
 const ID_DA_PAGINA = 'mu-pagina'
 
@@ -72,14 +74,18 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   const pasta = usePastaDoMundo(aberto?.pastaId)
   const sistema = aberto === null ? undefined : sistemaPorId(biblioteca, aberto.sistemaId)
   const dragonBall = motorDoSistema(sistema) === MOTOR_DRAGON_BALL
-  /** A Arena de testes do Dragon Ball ainda não existe: o marcador some para ele (a do motor padrão lê regras do One Piece). */
-  const marcadores = dragonBall ? MARCADORES.filter((marcador) => marcador.aba !== 'arena') : MARCADORES
+  /**
+   * Saúde da ficha, Itens e habilidades e a Arena de testes leem os campos do
+   * motor padrão (One Piece): no Dragon Ball os marcadores somem (NPCs e
+   * Comparar têm versão própria).
+   */
+  const marcadores = dragonBall ? MARCADORES.filter((marcador) => !ABAS_SO_DO_MOTOR_PADRAO.includes(marcador.aba)) : MARCADORES
   /** As entradas do catálogo deste livro (as do mestre e as do livro), para o número do marcador Itens e habilidades. */
   const noCatalogo = useCatalogoStore((state) => (aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.length + state.doLivro.length : null))
   /** Quantos campos a batalha não lê (o número do marcador Saúde da ficha, em latão quando há). */
   const naoLidos = useMemo(
-    () => (personagens === null || sistema === undefined ? null : lerSaude(personagens, sistema).achados.filter((achado) => achado.leitura.estado === 'naoLe').length),
-    [personagens, sistema],
+    () => (personagens === null || sistema === undefined || dragonBall ? null : lerSaude(personagens, sistema).achados.filter((achado) => achado.leitura.estado === 'naoLe').length),
+    [personagens, sistema, dragonBall],
   )
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const marcadoresRef = useRef<HTMLDivElement>(null)
@@ -224,9 +230,9 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     )
   } else if (aba === 'comparar') {
     pagina = <PaginaComparar personagens={personagens} sistema={sistema} onVerSaude={() => trocarAba('saude', false)} />
-  } else if (aba === 'saude') {
+  } else if (aba === 'saude' && !dragonBall) {
     pagina = <PaginaSaude personagens={personagens} sistema={sistema} />
-  } else if (aba === 'itens') {
+  } else if (aba === 'itens' && !dragonBall) {
     pagina = <PaginaItens personagens={personagens} sistema={sistema} />
   } else if (aba === 'anotacoes') {
     pagina = <PaginaAnotacoes personagens={personagens} />

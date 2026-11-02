@@ -5,7 +5,7 @@ import { carregarNpcsProntos, INDICE_DOS_NPCS_PRONTOS, type ResumoDeNpcProntoDBT
 import { CATEGORIAS_DE_NPC, RANKS, type CategoriaDeNpcDBT, type ColecaoDeNpcProntoDBT, type NpcProntoDBT, type RankDBT } from '../../../lib/dbt/modelo'
 import { NOME_DA_CATEGORIA } from '../../../lib/dbt/regras/ficha'
 import { nomeNormalizado, type TabelaDeRanksDBT } from '../../../lib/dbt/regras/tecnicas'
-import { modelosDeNpc, novaVariacao, soltarDoModelo } from '../../../lib/livros/combate'
+import { modelosDeNpc, novaVariacao } from '../../../lib/livros/combate'
 import type { Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import { PERSONAGEM_NOME_MAX } from '../../../net/protocoloDoPersonagem'
@@ -19,12 +19,12 @@ import './mundoDBT.css'
  * "Novo NPC" do bestiário Dragon Ball (plano docs/planos/sistema-dragon-ball.md,
  * item 9): um dos NPCs prontos das sagas e do Enma Daioh (busca e filtros,
  * prévia com a ficha que vai ser gravada), um NPC em branco (categoria, rank,
- * EP e atributos 8) ou a cópia de um NPC da pasta. O ND escolhido aqui dá
+ * EP e atributos 8) ou a variação de um NPC da pasta. O ND escolhido aqui dá
  * o PV (ND × vida por golpe). Grava pelo funil do mundo, com Desfazer.
  *
- * Cópia, não variação: sincronizarVariacoes (lib/livros/combate.ts) não leva
- * o bloco `dbt` do modelo, então uma variação ficaria com o PV do modelo e o
- * ND dela. A cópia nasce solta e cada uma se ajusta na própria ficha.
+ * Variação como no One Piece: sincronizarVariacoes (lib/livros/combate.ts)
+ * leva o bloco `dbt` do modelo junto com os máximos, então ND, EP, técnicas e
+ * PV máximo ficam coerentes; só o estado da mesa é da variação.
  */
 
 export type ModoDoNovoNpcDBT = { tipo: 'novo'; modeloId?: string }
@@ -300,7 +300,7 @@ export function NovoNpcDBTDialog({ modo, sistema, personagens, ranks, onClose, o
   const montar = (): { ficha: Personagem } | { erro: string } => {
     if (nomeLimpo.length === 0) return { erro: 'Dê um nome ao NPC.' }
     if (personagens.some((personagem) => chaveDoNome(personagem.nome) === chaveDoNome(nomeLimpo))) return { erro: `Já existe “${nomeLimpo}” neste livro. Use outro nome.` }
-    if (modeloEscolhido !== undefined) return { ficha: variacaoInteira(soltarDoModelo(novaVariacao(modeloEscolhido, nomeLimpo))) }
+    if (modeloEscolhido !== undefined) return { ficha: variacaoInteira(novaVariacao(modeloEscolhido, nomeLimpo)) }
     if (nd === 'invalido') return { erro: `O ND é um número inteiro de 1 a ${ND_MAXIMO}, ou em branco para escolher depois.` }
     if (comeco === BRANCO) {
       if (ep === 'invalido') return { erro: `A EP é um número inteiro de 0 a ${EP_MAXIMA}.` }
@@ -324,7 +324,7 @@ export function NovoNpcDBTDialog({ modo, sistema, personagens, ranks, onClose, o
     }
     const { ficha } = montado
     setGravando(true)
-    const de = modeloEscolhido !== undefined ? ` como cópia de ${modeloEscolhido.nome}` : npcPronto !== undefined && comeco === PRONTO ? ` a partir de ${npcPronto.nome}` : ''
+    const de = modeloEscolhido !== undefined ? ` como variação de ${modeloEscolhido.nome}` : npcPronto !== undefined && comeco === PRONTO ? ` a partir de ${npcPronto.nome}` : ''
     const gravou = await gravarNoMundo((lista) => [...lista, ficha], {
       texto: `${ficha.nome} entrou no bestiário${de}.`,
       desfazer: (lista) => lista.filter((personagem) => personagem.id !== ficha.id),
@@ -365,7 +365,7 @@ export function NovoNpcDBTDialog({ modo, sistema, personagens, ranks, onClose, o
   let dica: string
   if (comeco === PRONTO) dica = 'Ficha impressa do livro: atributos, PK, CA, EP, técnicas, passivas e transformações. O PV sai do ND.'
   else if (comeco === BRANCO) dica = 'Atributos em 8 e nenhuma técnica: a ficha abre em seguida para você preencher.'
-  else dica = modeloEscolhido === undefined ? '' : `Copia a ficha de ${modeloEscolhido.nome} com outro nome. Depois cada um se ajusta na própria ficha.`
+  else dica = modeloEscolhido === undefined ? '' : `Variação de ${modeloEscolhido.nome}: a mesma ficha com outro nome, e o que mudar no modelo muda nela. Para ajustar só ela, use Soltar do modelo.`
 
   return createPortal(
     <div
@@ -389,7 +389,7 @@ export function NovoNpcDBTDialog({ modo, sistema, personagens, ranks, onClose, o
             Novo NPC de combate
           </h2>
           <p className="mu-modal__sub" id={`${id}-sub`}>
-            Um NPC pronto das sagas, uma ficha em branco ou a cópia de um NPC que já está aqui.
+            Um NPC pronto das sagas, uma ficha em branco ou a variação de um NPC que já está aqui.
           </p>
         </div>
         <div className="mu-modal__corpo dbm">
@@ -399,7 +399,7 @@ export function NovoNpcDBTDialog({ modo, sistema, personagens, ranks, onClose, o
               <option value={PRONTO}>NPC pronto do livro</option>
               <option value={BRANCO}>Ficha em branco</option>
               {modelos.length > 0 && (
-                <optgroup label="Cópia de um NPC da pasta">
+                <optgroup label="Variação de um NPC da pasta">
                   {modelos.map((modelo) => (
                     <option key={modelo.id} value={`${PREFIXO_DO_MODELO}${modelo.id}`}>
                       Como {modelo.nome}
@@ -447,7 +447,7 @@ export function NovoNpcDBTDialog({ modo, sistema, personagens, ranks, onClose, o
                 </div>
               </div>
             ) : (
-              <p className="mu-pg-nota">A cópia nasce com a ficha inteira do original e PV e PK cheios.</p>
+              <p className="mu-pg-nota">A variação nasce com a ficha inteira do modelo e PV e PK cheios.</p>
             )}
             <PreviaDoNpc previa={previa} ranks={ranks} fichas={fichas} pedirPronto={comeco === PRONTO} onTentarDeNovo={() => {
                 setFichas({ estado: 'lendo' })

@@ -455,6 +455,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
           sistema={sistema}
           descricao={descricaoDoPerfil}
           imagemDaForma={aparenciaDaForma(turnos.formas?.[perfil.id], perfil)}
+          quemOlha="mestre"
           passivas={
             cartaDoPerfil === undefined || passivasDoPerfil.length === 0 ? undefined : (
               <PassivasDaFicha

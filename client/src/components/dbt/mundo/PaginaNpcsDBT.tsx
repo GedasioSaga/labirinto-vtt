@@ -115,9 +115,9 @@ function DetalheDoNpc({ personagem, personagens, deCombate, ranks, onNovoNpc }: 
   }
 
   let de: string
-  if (modeloId !== undefined) de = `Variação de ${modelo?.nome ?? 'um modelo'}: nasceu com a ficha dele.`
+  if (modeloId !== undefined) de = `Variação de ${modelo?.nome ?? 'um modelo'}: segue a ficha dele.`
   else if (variacoes.length > 0) de = `Modelo com ${variacoes.length} ${variacoes.length === 1 ? 'variação' : 'variações'}.`
-  else de = 'NPC único. Copie a ficha para ter outros iguais.'
+  else de = 'NPC único. Crie uma variação para ter outros iguais.'
 
   return (
     <section className="mu-cartao mu-bes-det" aria-labelledby="mu-bes-nome">
@@ -174,11 +174,10 @@ function DetalheDoNpc({ personagem, personagens, deCombate, ranks, onNovoNpc }: 
         )}
       </div>
 
-      {/* Cópia solta, não variação: a sincronização das variações não leva a ficha Dragon Ball (bloco dbt), veja NovoNpcDBTDialog. */}
       {modeloId === undefined && (
         <div className="mu-bes-bloco">
-          <h4 className="mu-bes-bloco__tit">{variacoes.length > 0 ? 'Cópias e variações' : 'Cópias'}</h4>
-          <p className="mu-bes-bloco__sub">Mesma ficha com outro nome. Bom para “3 Saibamans”, cada um ajustado na própria ficha.</p>
+          <h4 className="mu-bes-bloco__tit">Variações</h4>
+          <p className="mu-bes-bloco__sub">Mesma ficha com outro nome: mudar o modelo muda todas. Bom para “3 Saibamans”.</p>
           <div className="mu-pg-acoes">
             {variacoes.map((variacao) => (
               <button key={variacao.id} type="button" className="mu-chip" onClick={() => useMundoDoLivroStore.getState().escolherNpc(variacao.id)}>
@@ -192,7 +191,7 @@ function DetalheDoNpc({ personagem, personagens, deCombate, ranks, onNovoNpc }: 
               onClick={() => onNovoNpc({ tipo: 'novo', modeloId: personagem.id })}
             >
               <IconeDoMundo nome="copia" />
-              Copiar ficha
+              Nova variação
             </button>
           </div>
         </div>

@@ -267,6 +267,7 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
           sistema={sistema}
           descricao={[daCarta?.equipe, 'aliado', 'só leitura'].filter(Boolean).join(' · ')}
           imagemDaForma={daCarta === undefined ? null : (estado.aparencias?.[daCarta.tokenId] ?? null)}
+          quemOlha="jogador"
           onFechar={() => setPerfilId(null)}
         />
       )}

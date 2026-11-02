@@ -83,10 +83,12 @@ export function penalidadeDeEscala(epAtacante: number, epAlvo: number): number {
 
 /**
  * Vitória automática interpretativa (2.3.4, p. 11): quando a EP maior é o
- * dobro (ou mais) da menor. Exemplos do livro: 10 vence 5; 3 vence 1. Pelo
- * texto, contra EP 0 qualquer EP acima vence; o mestre decide se aplica.
+ * dobro (ou mais) da menor. Exemplos do livro: 10 vence 5; 3 vence 1. Só
+ * com a EP menor >= 1 (decisão 24 de docs/planos/dbt-batalha.md): pela letra,
+ * EP 0 perderia para qualquer EP 1. O mestre decide se aplica.
  */
 export function vitoriaAutomatica(epA: number, epB: number): 'a' | 'b' | null {
+  if (Math.min(epA, epB) < 1) return null
   if (epA > epB && epA >= 2 * epB) return 'a'
   if (epB > epA && epB >= 2 * epA) return 'b'
   return null

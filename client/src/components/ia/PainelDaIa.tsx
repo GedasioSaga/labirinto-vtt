@@ -13,6 +13,7 @@ import {
   type ModoDaIa,
 } from '../../lib/ia/prompts'
 import type { NivelDoNpc } from '../../lib/ia/gerarNpc'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../../stores/catalogoStore'
@@ -91,6 +92,8 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
   const porFichaRef = useRef<HTMLSelectElement>(null)
   const modosRef = useRef<Partial<Record<ModoDaIa, HTMLButtonElement | null>>>({})
   const foraDoApp = !isTauri()
+  // O gerador monta ficha do motor padrão (abas e campos do One Piece): no Dragon Ball ele sairia torto.
+  const geraNpc = motorDoSistema(sistema) !== MOTOR_DRAGON_BALL
 
   // A conversa é da pasta aberta; o cofre e o modelo, do computador. O catálogo do sistema quem abre é o mundo (MundoDoLivro).
   useEffect(() => {
@@ -401,8 +404,8 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
             </div>
           ),
         )}
-        {gerando && <GerarNpcForm onGerar={gerarNpc} onCancelar={() => useIaStore.getState().abrirGerar(false)} />}
-        {gerado !== null && <NpcGerado npc={gerado} sistema={sistema} personagens={personagens} onGerarOutro={abrirGerar} />}
+        {geraNpc && gerando && <GerarNpcForm onGerar={gerarNpc} onCancelar={() => useIaStore.getState().abrirGerar(false)} />}
+        {geraNpc && gerado !== null && <NpcGerado npc={gerado} sistema={sistema} personagens={personagens} onGerarOutro={abrirGerar} />}
         {pensando && (
           <div className="ia-msg ia-msg--pensando" role="status">
             <i />
@@ -456,10 +459,12 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
           </button>
         </div>
         <div className="ia-compor__pe">
-          <button type="button" className="mu-bt mu-bt--p mu-bt--latao" onClick={abrirGerar} aria-expanded={gerando} disabled={pensando || foraDoApp}>
-            <IconeDaIa nome="ia" />
-            Gerar NPC
-          </button>
+          {geraNpc && (
+            <button type="button" className="mu-bt mu-bt--p mu-bt--latao" onClick={abrirGerar} aria-expanded={gerando} disabled={pensando || foraDoApp}>
+              <IconeDaIa nome="ia" />
+              Gerar NPC
+            </button>
+          )}
           <span>
             <kbd className="ia-kbd">Enter</kbd> envia · <kbd className="ia-kbd">Shift</kbd>+<kbd className="ia-kbd">Enter</kbd> quebra a linha
           </span>

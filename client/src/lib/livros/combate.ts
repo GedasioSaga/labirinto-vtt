@@ -1,5 +1,6 @@
 import type { Token } from '../../types/map'
 import { maximoComposto } from '../ajusteDaFicha'
+import type { FichaDBT } from '../dbt/modelo'
 import {
   FORCA_PADRAO,
   RECURSO_QUE_A_FORCA_MULTIPLICA,
@@ -118,8 +119,40 @@ function mesmoValor(a: unknown, b: unknown): boolean {
   return a === b || JSON.stringify(a) === JSON.stringify(b)
 }
 
-/** O que a variação recebe do modelo; o resto (id, nome, recursos atuais, cartões ligados, histórico, combate, nota) é dela. */
-const PARTES_DO_MODELO = ['atributos', 'modificadoresDosAtributos', 'maximos', 'modificadoresDosRecursos', 'abas', 'escolhas', 'etiquetas', 'descricao'] as const
+/**
+ * O que a variação recebe do modelo; o resto (id, nome, recursos atuais,
+ * cartões ligados, histórico, combate, nota) é dela. `dbt` só existe no
+ * Dragon Ball (o One Piece nunca tem) e vem sem o estado da mesa
+ * (`dbtDaVariacao`).
+ */
+const PARTES_DO_MODELO = ['atributos', 'modificadoresDosAtributos', 'maximos', 'modificadoresDosRecursos', 'abas', 'escolhas', 'etiquetas', 'descricao', 'dbt'] as const
+
+/**
+ * A ficha Dragon Ball da variação: técnicas, ND, EP, raça e o resto do
+ * modelo, com o estado da mesa da própria variação (a forma ligada, se o
+ * modelo ainda a tem, o Ki bloqueado e os contadores com o desgaste entre
+ * batalhas). Sem ficha no modelo, fica a da variação.
+ */
+function dbtDaVariacao(variacao: FichaDBT | undefined, modelo: FichaDBT | undefined): FichaDBT | undefined {
+  if (modelo === undefined || variacao === undefined) return modelo ?? variacao
+  const formaLigada = modelo.transformacoes.some((forma) => forma.id === variacao.transformacaoAtiva) ? variacao.transformacaoAtiva : null
+  return { ...modelo, transformacaoAtiva: formaLigada, kiBloqueado: variacao.kiBloqueado, contadores: variacao.contadores }
+}
+
+/** A ficha Dragon Ball sem o estado da mesa: o que a variação recebe do modelo. */
+function dbtDoModelo(ficha: FichaDBT | undefined): FichaDBT | undefined {
+  return ficha === undefined ? undefined : { ...ficha, transformacaoAtiva: null, kiBloqueado: 0, contadores: [] }
+}
+
+/**
+ * Mexeu, na ficha de uma variação, no que vem do modelo (some no próximo
+ * sincronismo)? Só para AVISAR o mestre na hora (`GavetaDaFicha`).
+ */
+export function mexeuNoQueVemDoModelo(antes: Personagem, salvo: Personagem): boolean {
+  return PARTES_DO_MODELO.some((parte) =>
+    parte === 'dbt' ? !mesmoValor(dbtDoModelo(antes.dbt), dbtDoModelo(salvo.dbt)) : !mesmoValor(antes[parte], salvo[parte]),
+  )
+}
 
 /** O modelo na raiz: variação de variação copia do primeiro modelo. Ciclo ou modelo ausente = `undefined`. */
 function modeloRaiz(modeloId: string, porId: ReadonlyMap<string, Personagem>): Personagem | undefined {
@@ -137,6 +170,13 @@ function modeloRaiz(modeloId: string, porId: ReadonlyMap<string, Personagem>): P
 function variacaoSincronizada(variacao: Personagem, modelo: Personagem): Personagem {
   let copia: Personagem | null = null
   for (const parte of PARTES_DO_MODELO) {
+    if (parte === 'dbt') {
+      const dbt = dbtDaVariacao(variacao.dbt, modelo.dbt)
+      if (dbt === undefined || mesmoValor(variacao.dbt, dbt)) continue
+      copia ??= { ...variacao }
+      copia.dbt = dbt
+      continue
+    }
     if (mesmoValor(variacao[parte], modelo[parte])) continue
     copia ??= { ...variacao }
     // Cada parte com o tipo dela: a atribuição por chave genérica não estreita a união.
@@ -155,7 +195,8 @@ function variacaoSincronizada(variacao: Personagem, modelo: Personagem): Persona
 
 /**
  * VARIAÇÃO MATERIALIZADA: cada variação recebe do modelo atributos,
- * modificadores, máximos, abas, escolhas, etiquetas e descrição; fica com o
+ * modificadores, máximos, abas, escolhas, etiquetas, descrição e a ficha
+ * Dragon Ball (sem o estado da mesa, `dbtDaVariacao`); fica com o
  * id, o nome, o retrato próprio (sem ele, o do modelo), os recursos atuais,
  * os cartões ligados, o histórico, o combate e a nota. Modelo apagado (ou
  * ciclo de modelos, de arquivo mexido à mão): a variação perde `modeloId` e

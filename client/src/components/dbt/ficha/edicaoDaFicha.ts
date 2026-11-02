@@ -33,6 +33,7 @@ import {
   type TracoDBT,
   type VarianteDeRacaDBT,
 } from '../../../lib/dbt/modelo'
+import { fichaDepoisDoDescanso } from '../../../lib/dbt/batalha/leitura'
 import { type DerivadosDaFichaDBT, PDL_DO_MARCO_DE_ATRIBUTO, PONTOS_POR_MARCO_DE_ATRIBUTO, aumentosDaFicha, derivadosDaFicha, marcosPassados, maximosDosRecursos } from '../../../lib/dbt/regras/ficha'
 import { tecnicaDaPronta } from '../../../lib/dbt/regras/npc'
 import { type TabelaDeRanksDBT, catalogoDeRotulos, indexarRanks, nomeNormalizado } from '../../../lib/dbt/regras/tecnicas'
@@ -363,13 +364,16 @@ export function somarPdl(ficha: FichaDBT, delta: number): FichaDBT {
   return pdl === ficha.pdl ? ficha : { ...ficha, pdl }
 }
 
-/** Descanso longo (8.5.1): o Ki bloqueado sai, PV e PK voltam ao máximo. */
+/**
+ * Descanso longo (8.5.1): PV e PK voltam ao máximo e o desgaste entre
+ * batalhas sai (Ki bloqueado e os contadores da forma máxima e do Choque),
+ * pela mesma conta da batalha para as duas não divergirem.
+ */
 export function descansoLongo(personagem: Personagem, derivados: DerivadosDaFichaDBT): Personagem {
-  const ficha = fichaDe(personagem)
   return {
     ...personagem,
     recursos: { ...personagem.recursos, pv: derivados.pvMax.valor, pk: derivados.pkMax.valor },
-    dbt: ficha.kiBloqueado === 0 ? ficha : { ...ficha, kiBloqueado: 0 },
+    dbt: fichaDepoisDoDescanso(fichaDe(personagem)),
   }
 }
 
