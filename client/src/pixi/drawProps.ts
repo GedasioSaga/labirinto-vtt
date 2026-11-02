@@ -9,7 +9,7 @@ import { desenhadoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
-import { ehMovelDeCimaDaMesa, ehMovelDoChao, temChama } from '../lib/mobilia'
+import { ehMovelDeCimaDaMesa, ehMovelDoChao, temParteAnimada } from '../lib/mobilia'
 import { emOrdemDoTresQuartos, tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
 
@@ -221,7 +221,8 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       propsById.set(prop.id, prop)
       if (prop.mobilia !== undefined) {
         drawFurniture(container, prop, view)
-        if (temChama(prop.mobilia)) fogueiras.add(prop.id)
+        // Fogueira, lareira e fornalha (a chama) e o chafariz (a água): a parte animada fica até a poda.
+        if (temParteAnimada(prop.mobilia)) fogueiras.add(prop.id)
         markPropState(prop, selectedPropId)
         continue
       }

@@ -45,6 +45,8 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   // Troncos e feno (29/10/2026).
   troncos: [2, 1],
   feno: [1.5, 1],
+  // Chafariz (02/11/2026): as duas formas nascem em 2 x 2.
+  chafariz: [2, 2],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -77,6 +79,7 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   balde: ['Balde de água', 'um balde de água'],
   troncos: ['Troncos', 'uns troncos'],
   feno: ['Feno', 'feno'],
+  chafariz: ['Chafariz', 'um chafariz'],
 }
 
 describe('peças novas: registro', () => {
@@ -157,7 +160,8 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     expect(TIPOS_NO_CATALOGO.slice(-4)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno'])
     // 26 de antes, os 8 móveis de casa de 28/10/2026 (fogão, geladeira, pia, balcão, pratos, privada, sofá, poltrona)
     // e os 6 de 29/10/2026 (lareira, fornalha, bigorna, balde, troncos, feno).
-    expect(TIPOS_NO_CATALOGO).toHaveLength(40)
+    // E o chafariz de 02/11/2026, logo depois do poço.
+    expect(TIPOS_NO_CATALOGO).toHaveLength(41)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

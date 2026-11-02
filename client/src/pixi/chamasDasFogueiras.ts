@@ -3,6 +3,21 @@ import type { MapData, Prop } from '../types/map'
 import { chamaDoMovel } from '../lib/mobilia'
 import { deslocamentoDaChama } from '../lib/mobilia/vistaTresQuartos'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
+import { ehChafariz } from '../lib/mobilia/chafariz'
+import {
+  aguaCorrendo,
+  aplicarPoseDaAgua,
+  criarAguaNoPalco,
+  criarFormasDaAgua,
+  destruirFormasDaAgua,
+  escreverPoseDaAgua,
+  novaPoseDaAgua,
+  POSE_FIXA_DA_AGUA,
+  poseDaAgua,
+  posicionarAgua,
+  type AguaNoPalco,
+  type FormasDaAgua,
+} from './aguaDosChafarizes'
 
 /**
  * A CHAMA DAS FOGUEIRAS (protótipo aprovado em 14/10/2026,
@@ -29,6 +44,12 @@ import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
  * pelo mestre (`chamaDoMovel`): a lareira tem três línguas no mesmo nó (as
  * duas de trás com borda e miolo próprios, cada uma na sua fase), a fornalha
  * uma. As fagulhas saem só da língua principal. Apagada, o nó sai.
+ *
+ * O CHAFARIZ (02/11/2026) anda no mesmo relógio: a água ligada (o jato, as
+ * gotas e os anéis, `aguaDosChafarizes.ts`) é um nó por chafariz, posto pelo
+ * mesmo `colocar` e podado pelo mesmo `podar`, então a névoa, a camada, a tela
+ * do jogador e o "menos movimento" valem para a água como valem para a chama.
+ * Desligada, o nó sai.
  *
  * O relógio só fica inscrito com ao menos uma fogueira e movimento normal; com
  * "menos movimento" do sistema a chama fica na pose fixa (`POSE_FIXA`). Sem
@@ -247,6 +268,8 @@ export interface MovimentoDasChamas {
 /** O que a tela anota para a medida de desempenho e a conferência. */
 export interface EstadoDasChamas {
   chamas: number
+  /** Chafarizes com a água correndo (02/11/2026). */
+  aguas: number
   animando: boolean
 }
 
@@ -301,9 +324,13 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
   const { movimento, aoMudar } = opcoes
   const agora = movimento?.agora ?? (() => performance.now())
   const chamas = new Map<string, ChamaNoPalco>()
+  // A água dos chafarizes: um nó por chafariz com a água ligada, no mesmo relógio.
+  const aguas = new Map<string, AguaNoPalco>()
   // Uma pose só para o quadro inteiro: `aplicar` lê na hora, antes da próxima fogueira reescrever.
   const poseDoQuadro = novaPose()
+  const poseDaAguaDoQuadro = novaPoseDaAgua()
   let contextos: FormasDaChama | null = null
+  let contextosDaAgua: FormasDaAgua | null = null
   let noRelogio = false
   let parada = movimento === undefined || movimento.reducedMotion()
   let conferidoEm = 0
@@ -316,9 +343,16 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     return contextos
   }
 
+  /** As formas da água nascem com o primeiro chafariz e ficam até o fim. */
+  function formasDaAgua(): FormasDaAgua {
+    if (contextosDaAgua !== null) return contextosDaAgua
+    contextosDaAgua = criarFormasDaAgua()
+    return contextosDaAgua
+  }
+
   function avisar(): void {
-    const estado = { chamas: chamas.size, animando: noRelogio }
-    const chave = `${estado.chamas}:${estado.animando}`
+    const estado = { chamas: chamas.size, aguas: aguas.size, animando: noRelogio }
+    const chave = `${estado.chamas}:${estado.aguas}:${estado.animando}`
     if (chave === avisado) return
     avisado = chave
     aoMudar?.(estado)
@@ -382,6 +416,30 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     if (!chama.no.destroyed) chama.no.destroy({ children: true })
   }
 
+  function removerAgua(id: string): void {
+    const agua = aguas.get(id)
+    if (agua === undefined) return
+    aguas.delete(id)
+    if (!agua.no.destroyed) agua.no.destroy({ children: true })
+  }
+
+  /** O nó da água de um chafariz (`null` = desligada ou sem tamanho: o nó que havia sai). */
+  function colocarAgua(prop: PropDaChama, tela: TelaDasChamas): Container | null {
+    const medidas = aguaCorrendo(prop)
+    if (medidas === null || !Number.isFinite(prop.x) || !Number.isFinite(prop.y)) {
+      removerAgua(prop.id)
+      return null
+    }
+    let agua = aguas.get(prop.id)
+    if (agua === undefined || agua.no.destroyed) {
+      agua = criarAguaNoPalco(prop.id, formasDaAgua(), medidas, faseDaFogueira(prop.id))
+      aguas.set(prop.id, agua)
+    }
+    posicionarAgua(agua, prop, medidas, tela.cameraScale)
+    aplicarPoseDaAgua(agua, poseDaAgua(agora(), agua.fase, parada))
+    return agua.no
+  }
+
   function entrarNoRelogio(): void {
     if (noRelogio || movimento === undefined) return
     noRelogio = true
@@ -401,6 +459,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       aplicar(chama, POSE_FIXA)
       aplicarExtras(chama, 0, true)
     }
+    for (const agua of aguas.values()) if (!agua.no.destroyed) aplicarPoseDaAgua(agua, POSE_FIXA_DA_AGUA)
     sairDoRelogio()
     avisar()
   }
@@ -424,7 +483,14 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       aplicarExtras(chama, t, false)
       aplicar(chama, escreverPose(t, chama.fase, poseDoQuadro))
     }
-    if (chamas.size === 0) {
+    for (const [id, agua] of aguas) {
+      if (agua.no.destroyed) {
+        aguas.delete(id)
+        continue
+      }
+      aplicarPoseDaAgua(agua, escreverPoseDaAgua(t, agua.fase, poseDaAguaDoQuadro))
+    }
+    if (chamas.size === 0 && aguas.size === 0) {
       sairDoRelogio()
       avisar()
     }
@@ -432,6 +498,12 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
 
   return {
     colocar(prop, tela) {
+      // O chafariz tem água, não chama (e o que era fogueira e virou chafariz leva a chama embora).
+      if (ehChafariz(prop.mobilia)) {
+        remover(prop.id)
+        return colocarAgua(prop, tela)
+      }
+      removerAgua(prop.id)
       const forma = chamaDoMovel(prop)
       if (forma === null || !Number.isFinite(prop.x) || !Number.isFinite(prop.y)) {
         remover(prop.id)
@@ -470,13 +542,14 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     },
     podar(presentes) {
       for (const id of [...chamas.keys()]) if (!presentes.has(id)) remover(id)
+      for (const id of [...aguas.keys()]) if (!presentes.has(id)) removerAgua(id)
       const reduzido = movimento === undefined || movimento.reducedMotion()
       if (reduzido) {
-        // Passou a pedir menos movimento: a chama para na pose fixa, uma vez.
+        // Passou a pedir menos movimento: a chama (e a água) para na pose fixa, uma vez.
         if (!parada) parar()
       } else {
         parada = false
-        if (chamas.size > 0) entrarNoRelogio()
+        if (chamas.size > 0 || aguas.size > 0) entrarNoRelogio()
         else sairDoRelogio()
       }
       avisar()
@@ -484,6 +557,11 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     destruir() {
       sairDoRelogio()
       for (const id of [...chamas.keys()]) remover(id)
+      for (const id of [...aguas.keys()]) removerAgua(id)
+      if (contextosDaAgua !== null) {
+        destruirFormasDaAgua(contextosDaAgua)
+        contextosDaAgua = null
+      }
       if (contextos !== null) {
         contextos.borda.destroy()
         contextos.miolo.destroy()

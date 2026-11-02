@@ -125,6 +125,10 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // mais forte (31/10/2026, aprovado no antes/depois) para a pilha assentar no chão.
   troncos: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
   feno: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // O chafariz (02/11/2026) fica como de cima, como a bigorna: a 3/4 sobe cada peça pela estrutura que
+  // contém o meio dela, e o meio da água da bacia é o meio do prato; derivado, a bacia inteira subia com
+  // a coluna. Em pé, o jato animado também fica no lugar (sem deslocamento, como a chama da lareira).
+  chafariz: EM_PE,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

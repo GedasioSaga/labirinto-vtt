@@ -13,6 +13,15 @@ import {
 import { ofereceDesenhoEmLinhas } from './mobilia/desenhoDoMovel'
 import { ehMovelComFogoDeCasa, FOGOS_DO_MOVEL, linguasDoFogoDeCasa } from './mobilia/fogoDeCasa'
 import { CASAS_DA_FORMA_DA_PILHA, ehMovelDePilha, formaDaPilha, formaDoMovelDePilha, normalizarFormaDaPilha, type FormaDaPilha } from './mobilia/pilhas'
+import {
+  aguaDoChafariz,
+  ehChafariz,
+  formaDoChafariz,
+  gravarFormaDoChafariz,
+  normalizarFormaDoChafariz,
+  type AguaDoChafariz,
+  type FormaDoChafariz,
+} from './mobilia/chafariz'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -266,7 +275,14 @@ export function varianteDoFogo(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): nu
  * mesma porta da leitura, da edição e da travessia.
  */
 function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): Prop['mobiliaForma'] {
-  return normalizarFormaDoTapete(tipo, valor) ?? normalizarFormaDosPratos(tipo, valor) ?? normalizarFogoDoMovel(tipo, valor) ?? normalizarFormaDaPilha(tipo, valor)
+  return (
+    normalizarFormaDoTapete(tipo, valor) ??
+    normalizarFormaDosPratos(tipo, valor) ??
+    normalizarFogoDoMovel(tipo, valor) ??
+    normalizarFormaDaPilha(tipo, valor) ??
+    // O chafariz (02/11/2026): a forma e a água num campo só (`'quadrado'`, `'desligada'`, `'quadrado-desligada'`).
+    normalizarFormaDoChafariz(tipo, valor)
+  )
 }
 
 /** `prop` com a forma na forma que o mapa guarda: o campo só existe no tapete redondo e nos pratos vazio ou em pilha. Mesma referência se nada muda. */
@@ -902,6 +918,15 @@ export function temChama(tipo: TipoMobilia | undefined): boolean {
 }
 
 /**
+ * Móvel com PARTE ANIMADA no relógio da chama (`pixi/chamasDasFogueiras.ts`):
+ * os de chama e o chafariz (02/11/2026), a água que corre. O renderer dos
+ * objetos lê esta lista para saber de quem cuidar no fim da passada.
+ */
+export function temParteAnimada(tipo: TipoMobilia | undefined): boolean {
+  return temChama(tipo) || ehChafariz(tipo)
+}
+
+/**
  * A chama de qualquer móvel que tem uma (`null` = não tem, ou está apagada):
  * a fogueira, sempre acesa, e a lareira e a fornalha com o fogo aceso
  * (`lib/mobilia/fogoDeCasa.ts`, a mesma disposição da imagem parada). A
@@ -1525,6 +1550,27 @@ export function movelComOutraFormaDaPilha(prop: Prop, forma: FormaDaPilha, grade
 /** A forma dos troncos ou do feno deste objeto (`undefined` em outro tipo). */
 export function formaDaPilhaDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>): FormaDaPilha | undefined {
   return ehMovelDePilha(prop.mobilia) ? formaDaPilha(prop.mobilia, prop.mobiliaForma) : undefined
+}
+
+/**
+ * A "Forma" do CHAFARIZ (Redondo | Quadrado): o mesmo chafariz na outra
+ * forma, no MESMO tamanho (as duas formas têm a mesma pegada de partida, e o
+ * mestre pode ter esticado). A água fica como estava. Outro tipo devolve o
+ * mesmo objeto.
+ */
+export function movelComOutraFormaDoChafariz(prop: Prop, forma: FormaDoChafariz): Prop {
+  if (!ehChafariz(prop.mobilia)) return prop
+  return comFormaGravada(prop, gravarFormaDoChafariz(forma, aguaDoChafariz(prop.mobiliaForma)))
+}
+
+/**
+ * A "Água" do CHAFARIZ (Ligada | Desligada): o mesmo chafariz com a água no
+ * outro estado, no mesmo tamanho e na mesma forma. Só o desligado é gravado.
+ * Outro tipo devolve o mesmo objeto.
+ */
+export function movelComOutraAguaDoChafariz(prop: Prop, agua: AguaDoChafariz): Prop {
+  if (!ehChafariz(prop.mobilia)) return prop
+  return comFormaGravada(prop, gravarFormaDoChafariz(formaDoChafariz(prop.mobiliaForma), agua))
 }
 
 export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {

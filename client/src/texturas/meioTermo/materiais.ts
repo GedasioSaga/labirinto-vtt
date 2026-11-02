@@ -192,6 +192,9 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   // anéis sai dela). O feno é a palha e a corda, fixas: um tom só, contido, sem escolha que não muda nada.
   troncos: [lugar('lenha', 'Madeira', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
   feno: [],
+  // O chafariz (02/11/2026): a pedra da bacia, da coluna e do prato, no arenito claro da praça (a água
+  // azul-petróleo lê melhor sobre a pedra clara). A água é fixa, a mesma do poço e do balde.
+  chafariz: [lugar('pedra', 'Pedra', PEDRAS, 'arenito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

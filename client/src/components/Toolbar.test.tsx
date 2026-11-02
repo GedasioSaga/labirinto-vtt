@@ -281,7 +281,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 40 objetos em 5 partes (Dentro de casa, Rua e jardim, Feira, Oficina, Fazenda), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 41 objetos em 5 partes (Dentro de casa, Rua e jardim, Feira, Oficina, Fazenda), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', 'Dentro de casa', 'Rua e jardim', 'Feira', 'Oficina', 'Fazenda'])
@@ -292,14 +292,14 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
       'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Sofá', 'Poltrona', 'Armário de cozinha', 'Aparador',
       'Balcão', 'Pratos', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Tapete', 'Tapete longo', 'Lareira',
-      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Lampião', 'Fogueira', 'Fogo', 'Lápide',
+      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Chafariz', 'Lampião', 'Fogueira', 'Fogo', 'Lápide',
       'Barraca de feira', 'Carroça', 'Quadro de avisos',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água',
       'Troncos', 'Feno',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(40)
+    expect(new Set(desenhos).size).toBe(41)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 4 ? 'true' : 'false')))
   })
 

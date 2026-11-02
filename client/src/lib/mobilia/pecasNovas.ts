@@ -25,6 +25,7 @@ export const PECAS_NOVAS = [
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
   'troncos', 'feno',
+  'chafariz',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -97,6 +98,9 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   troncos: { rotulo: 'Troncos', artigo: 'uns troncos', tamanho: { largura: 2, altura: 1 }, redonda: false },
   // "Clique no mapa para pôr feno.": o feno é de monte, não se conta (sem artigo).
   feno: { rotulo: 'Feno', artigo: 'feno', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  // O chafariz (02/11/2026): as duas formas (Redondo, Quadrado) têm a mesma pegada de partida. A silhueta
+  // redonda depende da forma (`lib/mobilia/chafariz.ts`), não da ficha: `redonda` fica falso aqui.
+  chafariz: { rotulo: 'Chafariz', artigo: 'um chafariz', tamanho: { largura: 2, altura: 2 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -132,6 +136,7 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     balde: valor(f.balde),
     troncos: valor(f.troncos),
     feno: valor(f.feno),
+    chafariz: valor(f.chafariz),
   }
 }
 
@@ -152,7 +157,8 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
  * lote 2, em `moveisMt5.test.ts` e `pixi/rasterDosMoveis.sementesMt5.test.ts`.
  */
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
-  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca',
+  // O chafariz (02/11/2026) entra logo depois do poço: no seletor de tipo, a água da praça fica junta.
+  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'barraca', 'carroca',
   'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
@@ -371,6 +377,25 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         { x1: -hw / 3, y1: hh * 0.02, x2: -hw / 3, y2: hh * 0.92 },
         { x1: hw / 3, y1: -hh * 0.92, x2: hw / 3, y2: hh * 0.92 },
       ]
+    // O chafariz (02/11/2026): a borda de dentro da bacia, o prato no meio e o bico. A silhueta (a elipse no
+    // Redondo, a caixa no Quadrado) é a borda de fora; no Quadrado a borda de dentro é o oitavado.
+    case 'chafariz': {
+      const menor = Math.min(hw, hh)
+      const prato = aro(menor * 0.8, menor * 0.8)
+      const bico = aro(menor * 0.15, menor * 0.15)
+      if (variante === 1) {
+        const x = hw * 0.97 - menor * 0.15
+        const y = hh * 0.97 - menor * 0.15
+        const c = Math.min(menor * 0.36, x, y)
+        const oito: [number, number][] = [[-x + c, -y], [x - c, -y], [x, -y + c], [x, y - c], [x - c, y], [-x + c, y], [-x, y - c], [-x, -y + c]]
+        const borda = oito.map(([x1, y1], i) => {
+          const [x2, y2] = oito[(i + 1) % oito.length]
+          return { x1, y1, x2, y2 }
+        })
+        return [...borda, ...prato, ...bico]
+      }
+      return [...aro(largura * 0.97 - menor * 0.3, altura * 0.97 - menor * 0.3), ...prato, ...bico]
+    }
   }
 }
 

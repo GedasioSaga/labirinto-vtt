@@ -36,9 +36,10 @@ import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
-  movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel,
+  movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel, movelComOutraFormaDoChafariz, movelComOutraAguaDoChafariz,
   type AparenciaDoMovelPatch,
 } from './mobilia'
+import { aguaDoChafariz, formaDoChafariz, type AguaDoChafariz, type FormaDoChafariz } from './mobilia/chafariz'
 import { CASAS_DO_TAMANHO_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from './mobilia/fogo'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
@@ -938,6 +939,28 @@ export function trocarFormaDaPilha(map: MapData, propId: string, forma: FormaDaP
   if (alvo === undefined || formaDaPilhaDoMovel(alvo) === undefined || formaDaPilhaDoMovel(alvo) === forma) return map
   const trocado = movelComOutraFormaDaPilha(alvo, forma, map.grid)
   return trocado === alvo ? map : { ...map, props: map.props.map((p) => (p === alvo ? trocado : p)) }
+}
+
+/**
+ * "Forma" do painel do CHAFARIZ (Redondo | Quadrado): a pegada e a água ficam
+ * (`movelComOutraFormaDoChafariz`). A mesma forma, outro tipo ou id que não
+ * existe devolvem o MESMO mapa (a store não empilha passo vazio).
+ */
+export function trocarFormaDoChafariz(map: MapData, propId: string, forma: FormaDoChafariz): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia !== 'chafariz' || formaDoChafariz(alvo.mobiliaForma) === forma) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraFormaDoChafariz(p, forma) : p)) }
+}
+
+/**
+ * "Água" do painel do CHAFARIZ (Ligada | Desligada): a pegada e a forma ficam
+ * (`movelComOutraAguaDoChafariz`). O mesmo estado, outro tipo ou id que não
+ * existe devolvem o MESMO mapa.
+ */
+export function trocarAguaDoChafariz(map: MapData, propId: string, agua: AguaDoChafariz): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia !== 'chafariz' || aguaDoChafariz(alvo.mobiliaForma) === agua) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraAguaDoChafariz(p, agua) : p)) }
 }
 
 /**

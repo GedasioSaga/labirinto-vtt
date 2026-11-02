@@ -50,6 +50,7 @@ import { montarBigorna } from './bigorna'
 import { montarBalde } from './balde'
 import { montarTroncos } from './troncos'
 import { montarFeno } from './feno'
+import { montarChafariz } from './chafariz'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -102,6 +103,8 @@ const MONTADORES = {
   // Troncos e feno (29/10/2026): a forma (toras ou lenha; fardos ou monte) chega na `variante`, como a dos pratos.
   troncos: montarTroncos,
   feno: montarFeno,
+  // O chafariz (02/11/2026): a forma (redondo, quadrado) e a água (ligada, desligada) chegam na `variante`.
+  chafariz: montarChafariz,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -133,6 +136,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
   'troncos', 'feno',
+  'chafariz',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

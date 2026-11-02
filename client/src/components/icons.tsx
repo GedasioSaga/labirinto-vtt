@@ -677,6 +677,16 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M9 8.5v11M15 8.5v11M5.5 8.5 4.6 6.6M12 8.5l.3-2M18.4 8.5l1-1.8" />
         </>
       )
+    // O chafariz (02/11/2026), de lado: a bacia larga embaixo, a coluna, o prato e o jato abrindo em dois
+    // arcos que caem nas bordas do prato. As duas formas dividem o ícone (o painel troca a forma).
+    case 'chafariz':
+      return (
+        <>
+          <path d="M3 15.5h18l-1.6 5H4.6z" />
+          <path d="M11 15.5v-3.2h2v3.2M7.5 9.5h9c0 1.6-2 2.8-4.5 2.8s-4.5-1.2-4.5-2.8z" />
+          <path d="M12 9.5V3.5M12 3.5c-2.2 0-3.6 1.6-4 4M12 3.5c2.2 0 3.6 1.6 4 4" />
+        </>
+      )
   }
 }
 

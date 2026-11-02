@@ -560,7 +560,8 @@ export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; reado
       'armario', 'aparador', 'balcao', 'pratos', 'fogao', 'geladeira', 'pia', 'privada', 'tapete', 'tapeteLongo', 'lareira',
     ],
   },
-  { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'lampiao', 'fogueira', 'fogo', 'lapide'] },
+  // O chafariz (02/11/2026) ao lado do poço: a água da praça no mesmo par.
+  { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'chafariz', 'lampiao', 'fogueira', 'fogo', 'lapide'] },
   { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos'] },
   // A oficina do ferreiro (29/10/2026): a fornalha e a bigorna lado a lado, o balde de água da têmpera embaixo.
   { titulo: 'Oficina', tipos: ['fornalha', 'bigorna', 'balde'] },

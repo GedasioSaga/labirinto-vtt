@@ -30,6 +30,16 @@ import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_ALPHA, PROP_SILHOUETTE
 import type { FogoDoMovel, FormaDoTapete, FormaDosPratos, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { FOGOS_DO_MOVEL, ROTULO_DO_FOGO_DO_MOVEL, ehMovelComFogoDeCasa } from '../lib/mobilia/fogoDeCasa'
 import { FORMAS_DA_PILHA, ROTULO_DA_FORMA_DA_PILHA, ehMovelDePilha, formaDaPilha, type FormaDaPilha } from '../lib/mobilia/pilhas'
+import {
+  AGUAS_DO_CHAFARIZ,
+  FORMAS_DO_CHAFARIZ,
+  ROTULO_DA_AGUA_DO_CHAFARIZ,
+  ROTULO_DA_FORMA_DO_CHAFARIZ,
+  aguaDoChafariz,
+  formaDoChafariz,
+  type AguaDoChafariz,
+  type FormaDoChafariz,
+} from '../lib/mobilia/chafariz'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
@@ -78,6 +88,16 @@ export interface MobiliaControlsProps {
    * Ausente = o painel não oferece a forma.
    */
   onFormaDaPilhaChange?: (id: string, forma: FormaDaPilha) => void
+  /**
+   * Chafariz: troca a forma (Redondo | Quadrado) no lugar; o tamanho e a água
+   * ficam. Ausente = o painel não oferece a forma.
+   */
+  onFormaDoChafarizChange?: (id: string, forma: FormaDoChafariz) => void
+  /**
+   * Chafariz: liga ou desliga a água (Ligada | Desligada) no lugar; o tamanho
+   * e a forma ficam. Ausente = o painel não oferece a água.
+   */
+  onAguaDoChafarizChange?: (id: string, agua: AguaDoChafariz) => void
   /** Um eixo da aparência por vez: "Preencher", "Cor" ou "Cor da linha" (`null` = volta ao padrão). */
   onAparenciaChange: (id: string, patch: AparenciaDoMovelPatch) => void
 }
@@ -278,6 +298,8 @@ export function MobiliaControls({
   onFormaDosPratosChange,
   onFogoChange,
   onFormaDaPilhaChange,
+  onFormaDoChafarizChange,
+  onAguaDoChafarizChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
   const baseId = useId()
@@ -412,6 +434,46 @@ export function MobiliaControls({
                   onClick={() => onFormaDaPilhaChange(prop.id, opcao)}
                 >
                   {ROTULO_DA_FORMA_DA_PILHA[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* O chafariz: a forma (a bacia redonda ou a oitavada) e a água, no mesmo segmentado da lareira.
+            Desligada, o jato, as gotas e os anéis somem e a água fica parada na bacia. */}
+        {tipo === 'chafariz' && onFormaDoChafarizChange !== undefined && (
+          <div className="lb-field">
+            <span className="lb-label">Forma</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Forma">
+              {FORMAS_DO_CHAFARIZ.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={formaDoChafariz(prop.mobiliaForma) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onFormaDoChafarizChange(prop.id, opcao)}
+                >
+                  {ROTULO_DA_FORMA_DO_CHAFARIZ[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {tipo === 'chafariz' && onAguaDoChafarizChange !== undefined && (
+          <div className="lb-field">
+            <span className="lb-label">Água</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Água">
+              {AGUAS_DO_CHAFARIZ.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={aguaDoChafariz(prop.mobiliaForma) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onAguaDoChafarizChange(prop.id, opcao)}
+                >
+                  {ROTULO_DA_AGUA_DO_CHAFARIZ[opcao]}
                 </button>
               ))}
             </div>

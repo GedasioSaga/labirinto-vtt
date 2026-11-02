@@ -1724,8 +1724,10 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  prato cheio. A LAREIRA e a FORNALHA (29/10/2026) guardam aqui o fogo:
    *  só `'apagado'` é gravado; ausente = aceso. Os TRONCOS e o FENO
    *  (29/10/2026) guardam a forma: só `'lenha'` (troncos) e `'monte'` (feno);
-   *  ausente = a pilha de toras e os fardos. */
-  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha
+   *  ausente = a pilha de toras e os fardos. O CHAFARIZ (02/11/2026) guarda a
+   *  forma e a água juntas: `'quadrado'`, `'desligada'` ou
+   *  `'quadrado-desligada'`; ausente = redondo com a água ligada. */
+  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
    *  o desenho de sempre — sem linha de migração. Vale só na cama (`catre`):
@@ -1781,6 +1783,10 @@ export type FogoDoMovel = import('../lib/mobilia/fogoDeCasa').FogoDoMovel
 export type FormaDaPilha = import('../lib/mobilia/pilhas').FormaDaPilha
 /** A forma dos troncos e do feno que o mapa grava: só a segunda de cada um. */
 export type FormaGravadaDaPilha = import('../lib/mobilia/pilhas').FormaGravadaDaPilha
+/** O chafariz (`lib/mobilia/chafariz.ts`): a forma (Redondo | Quadrado), a água (Ligada | Desligada) e o que o mapa grava. */
+export type FormaDoChafariz = import('../lib/mobilia/chafariz').FormaDoChafariz
+export type AguaDoChafariz = import('../lib/mobilia/chafariz').AguaDoChafariz
+export type FormaGravadaDoChafariz = import('../lib/mobilia/chafariz').FormaGravadaDoChafariz
 
 export interface DrawingPoint {
   x: number

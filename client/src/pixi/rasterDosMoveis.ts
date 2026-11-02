@@ -3,6 +3,7 @@ import type { Prop } from '../types/map'
 import { cordaDaCerca, ehMovelDeCimaDaMesa, ehMovelDoChao, formaDoTapete, geometriaDaCerca, normalizarCorDeTecido, normalizarCorDoMovel, varianteDoFogo, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
 import { varianteDaLapide } from '../lib/mobilia/pecasNovas'
 import { ehMovelDePilha, varianteDaPilha } from '../lib/mobilia/pilhas'
+import { varianteDoChafariz } from '../lib/mobilia/chafariz'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LUGARES_DE_MATERIAL, materialMaisPerto, type OpcaoDeMaterial } from '../texturas/meioTermo/materiais'
@@ -238,6 +239,8 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     ...(prop.mobilia === 'lareira' || prop.mobilia === 'fornalha' ? { variante: varianteDoFogo(prop) } : {}),
     // Os troncos e o feno: a forma (toras ou lenha; fardos ou monte) é a variante do desenho.
     ...(ehMovelDePilha(prop.mobilia) ? { variante: varianteDaPilha(prop.mobilia, prop.mobiliaForma) } : {}),
+    // O chafariz: a forma e a água (o prato cheio ou seco, a espuma) são a variante do desenho.
+    ...(prop.mobilia === 'chafariz' ? { variante: varianteDoChafariz(prop.mobiliaForma) } : {}),
     ...(giroDaImagem(prop) !== 0 ? { giro: giroDaImagem(prop) } : {}),
   }
   const parcial = { vistaDoMapa: 'de-cima' as VistaDoMapa, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }

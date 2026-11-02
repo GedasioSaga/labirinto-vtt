@@ -22,6 +22,7 @@ import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { saiComTextura } from '../lib/mobilia/desenhoDoMovel'
 import { varianteDaPilha } from '../lib/mobilia/pilhas'
+import { formaDoChafariz, varianteDaFormaDoChafariz } from '../lib/mobilia/chafariz'
 import { emOrdemDoTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
@@ -283,7 +284,12 @@ function ownOutline(prop: PropSilhouette): Point[] | null {
 /** Silhueta curva (a elipse inscrita): o barril, a fogueira de cima e o tapete redondo de cima. */
 function hasRoundSilhouette(prop: PropSilhouette): boolean {
   const vista = vistaDoMovel(prop)
-  return ehMovelRedondo(prop.mobilia, vista) || (prop.mobilia === 'tapete' && vista === 'frente' && formaDoTapete(prop) === 'redondo')
+  return (
+    ehMovelRedondo(prop.mobilia, vista) ||
+    (prop.mobilia === 'tapete' && vista === 'frente' && formaDoTapete(prop) === 'redondo') ||
+    // O chafariz (02/11/2026): redondo na forma Redondo, a caixa no Quadrado.
+    (prop.mobilia === 'chafariz' && formaDoChafariz(prop.mobiliaForma) === 'redondo')
+  )
 }
 
 /** As áreas de cor própria do móvel, no referencial dele: a borda e o medalhão do tapete, os tecidos da cama. */
@@ -334,7 +340,9 @@ function roundSilhouettePoints(prop: PropSilhouette): number[] {
  */
 function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number, edge: SilhouettePaint): void {
   if (prop.mobilia === undefined) return
-  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop), formaDoTapete(prop), varianteDaPilha(prop.mobilia, prop.mobiliaForma))
+  // A variante do glifo: a forma dos troncos e do feno, ou a do chafariz (0 redondo, 1 quadrado).
+  const variante = prop.mobilia === 'chafariz' ? varianteDaFormaDoChafariz(prop.mobiliaForma) : varianteDaPilha(prop.mobilia, prop.mobiliaForma)
+  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop), formaDoTapete(prop), variante)
   if (segments.length === 0) return
   const trig = rotationTrig(prop.rotation ?? 0)
   const center = { x: prop.x, y: prop.y }

@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings, FeitioDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
   PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo,
 } from '../types/map'
@@ -1039,6 +1039,11 @@ interface MapStoreState {
    *  empilhada; Fardos empilhados | Monte de feno): a pegada da forma nova,
    *  centro no lugar. Um passo no desfazer; a mesma forma ou outro tipo não entram. */
   trocarFormaDaPilha: (id: string, forma: FormaDaPilha) => void
+  /** PROPRIEDADES DO CHAFARIZ — "Forma" (Redondo | Quadrado) e "Água" (Ligada |
+   *  Desligada): no lugar, o tamanho fica. Um passo no desfazer cada; o mesmo
+   *  valor ou outro tipo não entram. */
+  trocarFormaDoChafariz: (id: string, forma: FormaDoChafariz) => void
+  trocarAguaDoChafariz: (id: string, agua: AguaDoChafariz) => void
   /** PROPRIEDADES DO FOGO — "Tamanho" (Chama | Fogaréu | Incêndio): a pegada do
    *  tamanho, centro no lugar. Um passo no desfazer; o mesmo tamanho ou outro
    *  tipo não entram. */
@@ -2671,6 +2676,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     trocarFormaDaPilha: (id, forma) => {
       if (mapFactory.trocarFormaDaPilha(get().map, id, forma) === get().map) return
       withHistory((map) => mapFactory.trocarFormaDaPilha(map, id, forma))
+    },
+    trocarFormaDoChafariz: (id, forma) => {
+      if (mapFactory.trocarFormaDoChafariz(get().map, id, forma) === get().map) return
+      withHistory((map) => mapFactory.trocarFormaDoChafariz(map, id, forma))
+    },
+    trocarAguaDoChafariz: (id, agua) => {
+      if (mapFactory.trocarAguaDoChafariz(get().map, id, agua) === get().map) return
+      withHistory((map) => mapFactory.trocarAguaDoChafariz(map, id, agua))
     },
     trocarTamanhoDoFogo: (id, tamanho) => {
       if (mapFactory.trocarTamanhoDoFogo(get().map, id, tamanho) === get().map) return
