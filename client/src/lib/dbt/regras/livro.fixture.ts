@@ -138,6 +138,15 @@ export const DRENO_DE_KI = rotulo({
 export const SOMATICA = rotulo({ nome: 'Somática', categoria: 'negativo', custo: { tipo: 'fixo', pontos: -2 }, custoTexto: '-2', pagina: 81 })
 export const VERBAL = rotulo({ nome: 'Verbal', categoria: 'negativo', custo: { tipo: 'fixo', pontos: -2 }, custoTexto: '-2', pagina: 80 })
 export const CONDICIONADA = rotulo({ nome: 'Condicionada', categoria: 'negativo', custo: { tipo: 'faixa', minimo: -1, maximo: -2 }, custoTexto: '-1 a -2', pagina: 81 })
+export const FRAGMENTACAO = rotulo({
+  nome: 'Técnica de Fragmentação – Ki',
+  categoria: 'ki',
+  custo: { tipo: 'fixo', pontos: 2 },
+  custoTexto: '2',
+  pagina: 71,
+  modificadorDeKi: ki({ inicial: 6, outros: { por_1_5m_raio_extra: 4 } }),
+  alcance: { forma: 'raio_de_fragmentacao', inicialM: 7.5, porPontoExtraM: null, medidasM: {} },
+})
 
 export const ROTULOS_DO_LIVRO: RotuloDBT[] = [
   TECNICA_DE_KI,
@@ -155,6 +164,7 @@ export const ROTULOS_DO_LIVRO: RotuloDBT[] = [
   SOMATICA,
   VERBAL,
   CONDICIONADA,
+  FRAGMENTACAO,
 ]
 
 export const CATALOGO = catalogoDeRotulos(ROTULOS_DO_LIVRO)

@@ -81,6 +81,14 @@ describe('PV (3.0.3, p. 12-13)', () => {
     expect(pv.valor).toBe(75)
     expect(pv.formula).toContain('ND ainda não escolhido')
   })
+
+  it('NPC com ND mas sem a tabela de vida por golpe culpa a tabela, não o ND', () => {
+    const npc = fichaDeTeste({ npc: { nd: 3, categoria: 'comum', rank: 'E', passivas: [], prontoId: null } })
+    const pv = pvMaximo(npc, atributosDeTeste({ con: 15 }), null, null)
+    expect(pv.valor).toBe(75)
+    expect(pv.formula).toContain('tabela de vida por golpe indisponível')
+    expect(pv.formula).not.toContain('ND ainda não escolhido')
+  })
 })
 
 describe('PK (3.0.4, p. 13)', () => {

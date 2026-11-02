@@ -14,6 +14,7 @@ import {
   EFEITO_NEGATIVO,
   ENGOLFANTE,
   EXAUSTIVA,
+  FRAGMENTACAO,
   PROJETIL,
   RAJADA_CONTINUA,
   RANKS_DO_LIVRO,
@@ -147,6 +148,12 @@ describe('orçamento de rótulos (p. 60)', () => {
     const montada = montar(tecnicaDeTeste({ rank: 'C', rotulos: [escolhido(ENGOLFANTE), escolhido(EFEITO_NEGATIVO, { variavel: 2 })] }))
     expect(montada.positivos).toBe(2 + 3 + 2)
     expect(montada.avisos.map((a) => a.codigo)).toContain('efeito-negativo-em-area')
+  })
+
+  it('Fragmentação divide o dano de um acerto só e continua alvo único: Efeito Negativo não paga a taxa de área (p. 71)', () => {
+    const montada = montar(tecnicaDeTeste({ rank: 'C', rotulos: [escolhido(PROJETIL), escolhido(FRAGMENTACAO), escolhido(EFEITO_NEGATIVO, { variavel: 2 })] }))
+    expect(montada.positivos).toBe(1 + 2 + 2)
+    expect(montada.avisos.map((a) => a.codigo)).not.toContain('efeito-negativo-em-area')
   })
 })
 

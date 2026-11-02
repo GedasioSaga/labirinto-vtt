@@ -87,9 +87,11 @@ const DIMINUIR_PRECISAO = 'diminuir precisao'
 /**
  * Formas de alcance de alvo único. Qualquer outro alcance é área, e aí o
  * Efeito Negativo consome antes todos os positivos base (p. 76). O Arco cai
- * num ponto: só vira área quando outro alcance de área entra junto.
+ * num ponto: só vira área quando outro alcance de área entra junto. A
+ * Fragmentação tem raio, mas divide o dano de um acerto só e continua sendo
+ * alvo único (p. 71).
  */
-const FORMAS_DE_ALVO_UNICO: ReadonlySet<string> = new Set(['toque', 'avanco_ate_impacto', 'projetil_alvo_unico', 'parabolico_ate_alvo_ou_ponto'])
+const FORMAS_DE_ALVO_UNICO: ReadonlySet<string> = new Set(['toque', 'avanco_ate_impacto', 'projetil_alvo_unico', 'parabolico_ate_alvo_ou_ponto', 'raio_de_fragmentacao'])
 
 /** Os três estágios de efeito: ¼, ½ e inteiro, arredondando para baixo (p. 59: ¼ de 50 = 12; o NPC Esfera de Ki D imprime 08-17-34). */
 export function faixaDoDano(base: number): FaixaDeDanoDBT {

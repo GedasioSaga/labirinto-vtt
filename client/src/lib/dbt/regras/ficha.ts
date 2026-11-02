@@ -201,7 +201,8 @@ export function pvMaximo(ficha: FichaDBT, atributos: AtributosDBT, raca: RacaDBT
   const marcos = marcosPassados(ficha.pdl, PDL_DO_MARCO_DE_VIDA)
   const valor = con * PV_POR_CON + vida * (1 + marcos)
   let formula = `CON ${con} × ${PV_POR_CON} + raça ${vida} × (1 + ${marcos}) = ${valor}`
-  if (npc !== undefined) formula += ' (ND ainda não escolhido: vale a conta do jogador)'
+  if (npc !== undefined && npc.nd === null) formula += ' (ND ainda não escolhido: vale a conta do jogador)'
+  else if (npc !== undefined) formula += ' (tabela de vida por golpe indisponível: vale a conta do jogador)'
   return derivado(ficha, 'pvMax', valor, formula)
 }
 
