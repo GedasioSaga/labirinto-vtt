@@ -1,5 +1,5 @@
 import { cleanPlayerName } from './chat'
-import { ATRIBUTO_INICIAL, fichaDBTVazia, lerFichaDBT, type FichaDBT } from './dbt/modelo'
+import { ATRIBUTO_INICIAL, fichaDBTVazia, lerFichaDBT, LIMITES_DBT, type FichaDBT } from './dbt/modelo'
 import { ehImagemDaMesa } from './midia'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from './motores'
 import type { AbaDoSistema, SistemaDeRpg } from './sistemaDeRpg'
@@ -144,7 +144,7 @@ export interface Personagem {
    * DRAGON BALL TALES: a parte estruturada da ficha (raça, PDL, perícias,
    * técnicas, transformações...), lida só por `lerFichaDBT`. Ausente = ficha
    * de outro motor (o One Piece nunca tem). Vai ao jogador como o resto da
-   * ficha, e volta na edição dele como uma parte inteira.
+   * ficha, e volta na edição dele só nos campos que mudaram (`camposDBTMudados`).
    */
   dbt?: FichaDBT
   /**
@@ -508,6 +508,108 @@ function dbtDoArquivo(value: unknown): Pick<Personagem, 'dbt'> {
   if (value === undefined) return {}
   const dbt = lerFichaDBT(value)
   return dbt === null ? {} : { dbt }
+}
+
+/**
+ * DRAGON BALL TALES NA EDIÇÃO: a ficha estruturada se troca CAMPO DE TOPO a
+ * campo (como as abas, aba a aba), e não inteira — senão o Salvar de quem
+ * mudou só a história devolveria a transformação ligada, o PK bloqueado e os
+ * contadores de quando a edição abriu, por cima do que a mesa mudou nesse
+ * meio-tempo. A versão não entra: é a do app.
+ */
+export type CampoDaFichaDBT = Exclude<keyof FichaDBT, 'versao'>
+export type CamposDaFichaDBT = Partial<Pick<FichaDBT, CampoDaFichaDBT>>
+
+/** Todos os campos de topo; o `satisfies` acusa o campo novo da FichaDBT que ficar de fora (ele não viajaria). */
+const CAMPO_DA_FICHA_DBT = {
+  raca: true,
+  variante: true,
+  racaLivre: true,
+  pdl: true,
+  epInicial: true,
+  aumentos: true,
+  periciasTreinadas: true,
+  talentos: true,
+  movimentos: true,
+  tecnicas: true,
+  transformacoes: true,
+  transformacaoAtiva: true,
+  inventario: true,
+  caracteristicas: true,
+  contadores: true,
+  tamanho: true,
+  idade: true,
+  personalidade: true,
+  historia: true,
+  notas: true,
+  kiBloqueado: true,
+  ajustes: true,
+  npc: true,
+} as const satisfies Record<CampoDaFichaDBT, true>
+
+// Cast seguro: o `satisfies` acima prende as chaves aos campos, e Object.keys só devolve string[].
+const CAMPOS_DA_FICHA_DBT = Object.keys(CAMPO_DA_FICHA_DBT) as CampoDaFichaDBT[]
+
+/** A variante e a raça livre só valem com a raça delas: mudou uma, vão as três. */
+const CAMPOS_DBT_JUNTOS: readonly CampoDaFichaDBT[] = ['raca', 'variante', 'racaLivre']
+
+function copiarCampoDBT<K extends CampoDaFichaDBT>(destino: CamposDaFichaDBT, origem: CamposDaFichaDBT, campo: K): void {
+  destino[campo] = origem[campo]
+}
+
+/**
+ * Os campos que o rascunho mudou em relação à `base` (a ficha de quando a
+ * edição abriu; sem base = ficha nova, vão todos). Nada mudou = `undefined`.
+ * O `npc` que some do rascunho vai como `undefined`: tira no mestre, e na
+ * rede o JSON o descarta (o jogador não tem `npc`).
+ */
+export function camposDBTMudados(base: FichaDBT | undefined, rascunho: FichaDBT): CamposDaFichaDBT | undefined {
+  const mudou = (campo: CampoDaFichaDBT): boolean => JSON.stringify(base?.[campo]) !== JSON.stringify(rascunho[campo])
+  const racaMudou = CAMPOS_DBT_JUNTOS.some(mudou)
+  const campos: CamposDaFichaDBT = {}
+  for (const campo of CAMPOS_DA_FICHA_DBT) {
+    if (mudou(campo) || (racaMudou && CAMPOS_DBT_JUNTOS.includes(campo))) copiarCampoDBT(campos, rascunho, campo)
+  }
+  return Object.keys(campos).length === 0 ? undefined : campos
+}
+
+/**
+ * Os campos que entram por cima da ficha de AGORA; o resto fica como está.
+ * Passa de novo pelo leitor do disco: a transformação ligada que não existe
+ * mais na lista de agora volta a "forma normal".
+ */
+export function aplicarCamposDBT(atual: FichaDBT, campos: CamposDaFichaDBT): FichaDBT {
+  const juntos: CamposDaFichaDBT = { ...atual }
+  for (const campo of CAMPOS_DA_FICHA_DBT) {
+    if (campo in campos) copiarCampoDBT(juntos, campos, campo)
+  }
+  // `null` só sai de não-registro ou versão futura, e aqui é a versão de agora: fica a de agora por garantia.
+  return lerFichaDBT({ ...juntos, versao: atual.versao }) ?? atual
+}
+
+/** Id da forma ligada como veio da rede: texto curto ou "forma normal"; quem confere se ela existe é `aplicarCamposDBT`. */
+function idDaFormaAtiva(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null
+  const limpo = valor.trim()
+  return limpo.length > 0 && limpo.length <= LIMITES_DBT.id ? limpo : null
+}
+
+/**
+ * Os campos da ficha Dragon Ball que vieram da rede, cada um preso nos tetos
+ * do leitor do disco. Não é registro, ou é de versão futura = `null` (o
+ * pedido é recusado). Só os campos que vieram voltam.
+ */
+export function camposDBTDaRede(valor: unknown): CamposDaFichaDBT | null {
+  if (!isRecord(valor)) return null
+  const lida = lerFichaDBT(valor)
+  if (lida === null) return null
+  const campos: CamposDaFichaDBT = {}
+  for (const campo of CAMPOS_DA_FICHA_DBT) {
+    if (campo in valor) copiarCampoDBT(campos, lida, campo)
+  }
+  // O leitor confere a forma ligada contra a lista que veio junto, que pode não ter vindo: aqui só o formato.
+  if ('transformacaoAtiva' in valor) campos.transformacaoAtiva = idDaFormaAtiva(valor.transformacaoAtiva)
+  return campos
 }
 
 /** A marca de combate do disco: força torta vale a padrão; modelo que não é texto curto sai. */

@@ -1,6 +1,5 @@
 import { NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
-import { lerFichaDBT, type FichaDBT } from '../lib/dbt/modelo'
-import { PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
+import { camposDBTDaRede, PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CamposDaFichaDBT, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
 import { CATALOGOS_DO_LIVRO, type ChaveDoCatalogo, type ResumoDoLivro } from '../lib/livroDeRegras'
 import { idValido, lerSistemaDeRpg, LIVRO_CAPITULOS_MAX, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
@@ -91,11 +90,11 @@ export interface PartesDoPersonagem {
   modificadoresDosAtributos?: Record<string, number>
   abas?: Record<string, CartaoSemImagem[]>
   /**
-   * DRAGON BALL TALES: a ficha estruturada INTEIRA (`Personagem.dbt`), que
-   * troca a de agora — não chave a chave: técnica e transformação apontam uma
-   * para a outra por id, e meia ficha de cada lado quebraria isso.
+   * DRAGON BALL TALES: os campos de topo da ficha estruturada (`Personagem.dbt`)
+   * que mudaram, cada um inteiro; o host os põe sobre a de agora e confere de
+   * novo a transformação ligada (`aplicarCamposDBT`, lib/personagem.ts).
    */
-  dbt?: FichaDBT
+  dbt?: CamposDaFichaDBT
 }
 
 export interface PersonagemCriarMessage {
@@ -332,7 +331,7 @@ export function parsePartesDoPersonagem(value: unknown): PartesDoPersonagem | nu
   }
   if (value.dbt !== undefined) {
     // O leitor do disco: prende cada texto e lista nos `LIMITES_DBT`; o que não é ficha recusa a mensagem.
-    const dbt = lerFichaDBT(value.dbt)
+    const dbt = camposDBTDaRede(value.dbt)
     if (dbt === null) return null
     partes.dbt = dbt
   }

@@ -1,8 +1,11 @@
+import type { FichaDBT } from './dbt/modelo'
 import {
   FORCA_PADRAO,
   HISTORICO_MAX,
   RECURSO_QUE_A_FORCA_MULTIPLICA,
+  aplicarCamposDBT,
   aplicarForca,
+  camposDBTMudados,
   forcaDe,
   numeroDaFicha,
   type CartaoDaFicha,
@@ -448,5 +451,17 @@ export function salvarSobreOAtual(base: Personagem, rascunho: Personagem, atual:
   if (atual.nomeDoJogador !== undefined) salvo.nomeDoJogador = atual.nomeDoJogador
   if (atual.notaDoMestre !== undefined) salvo.notaDoMestre = atual.notaDoMestre
   for (const campo of CAMPOS_NUMERICOS) salvo[campo] = { ...atual[campo], ...chavesMudadas(base[campo], rascunho[campo]) }
+  // DRAGON BALL: só os campos que o mestre mudou; a transformação ligada e o PK bloqueado de agora ficam.
+  const dbt = dbtSobreOAtual(base.dbt, rascunho.dbt, atual.dbt)
+  if (dbt === undefined) delete salvo.dbt
+  else salvo.dbt = dbt
   return salvo
+}
+
+/** A ficha Dragon Ball do Salvar do mestre: sem rascunho, a de agora; sem a de agora, a do rascunho. */
+function dbtSobreOAtual(base: FichaDBT | undefined, rascunho: FichaDBT | undefined, atual: FichaDBT | undefined): FichaDBT | undefined {
+  if (rascunho === undefined) return atual
+  if (atual === undefined) return rascunho
+  const campos = camposDBTMudados(base, rascunho)
+  return campos === undefined ? atual : aplicarCamposDBT(atual, campos)
 }

@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { aplicarPartes, ERRO_FICHA_DBT_GRANDE, mensagensDoSalvar, partesMudadas, type MensagemDoSalvar } from '../../net/edicaoDoPersonagem'
 import { PLAYER_MESSAGE_MAX_BYTES } from '../../net/protocol'
 import { parsePartesDoPersonagem } from '../../net/protocoloDoPersonagem'
+import { salvarSobreOAtual } from '../ajusteDaFicha'
 import { copiaDoSistema, rascunhoDaCopia, rascunhoDoSistema, sistemaDoRascunho } from '../editorDeSistema'
 import { editavelNoEditor, motorDoSistema } from '../motores'
 import { novoPersonagem, paraOFio, personagemDoArquivo, type Personagem } from '../personagem'
@@ -118,21 +119,21 @@ describe('Personagem.dbt', () => {
 })
 
 describe('edição do jogador com dbt', () => {
-  it('o host aceita a ficha Dragon Ball inteira e recusa a torta', () => {
-    const dbt = { ...fichaDBTVazia(), pdl: 1000 }
-    expect(parsePartesDoPersonagem({ dbt })).toEqual({ dbt })
+  it('o host aceita só os campos Dragon Ball que vieram, presos nos tetos, e recusa a ficha torta', () => {
+    expect(parsePartesDoPersonagem({ dbt: { pdl: 1000 } })).toEqual({ dbt: { pdl: 1000 } })
+    expect(parsePartesDoPersonagem({ dbt: { transformacaoAtiva: 'tra_1' } })).toEqual({ dbt: { transformacaoAtiva: 'tra_1' } })
     expect(parsePartesDoPersonagem({ dbt: 'x' })).toBeNull()
     expect(parsePartesDoPersonagem({ dbt: { versao: 99 } })).toBeNull()
   })
 
-  it('o Salvar manda a ficha Dragon Ball só quando ela mudou, inteira', () => {
+  it('o Salvar manda só os campos Dragon Ball que mudaram; a raça leva a variante junto', () => {
     const base = goku()
     expect(partesMudadas(base, { ...base, descricao: 'Saiyajin.' })).toEqual({ descricao: 'Saiyajin.' })
-    const rascunho = { ...base, dbt: { ...base.dbt, pdl: 5000 } }
-    expect(salvar(base, rascunho)).toEqual({
+    expect(salvar(base, { ...base, dbt: { ...base.dbt, pdl: 5000 } })).toEqual({
       ok: true,
-      mensagens: [{ type: 'personagem.editar', reqId: 'p1', personagemId: 'pers_goku', partes: { dbt: rascunho.dbt } }],
+      mensagens: [{ type: 'personagem.editar', reqId: 'p1', personagemId: 'pers_goku', partes: { dbt: { pdl: 5000 } } }],
     })
+    expect(partesMudadas(base, { ...base, dbt: { ...base.dbt, raca: 'saiyajin' } }).dbt).toEqual({ raca: 'saiyajin', variante: '', racaLivre: null })
   })
 
   it('ficha Dragon Ball que sozinha passa do teto da mesa é recusada antes de enviar', () => {
@@ -142,10 +143,41 @@ describe('edição do jogador com dbt', () => {
     expect(resultado).toEqual({ ok: false, erro: ERRO_FICHA_DBT_GRANDE })
   })
 
-  it('no host, a ficha Dragon Ball troca a de agora; sem dbt nas partes, nada muda nela', () => {
+  it('no host, os campos entram sobre a ficha de agora; sem dbt nas partes, nada muda nela', () => {
     const atual = goku()
-    const nova = { ...fichaDBTVazia(), pdl: 9000 }
-    expect(aplicarPartes(atual, { dbt: nova }).dbt).toEqual(nova)
+    expect(aplicarPartes(atual, { dbt: { pdl: 9000 } }).dbt).toEqual({ ...atual.dbt, pdl: 9000 })
     expect(aplicarPartes(atual, { nome: 'Kakarotto' }).dbt).toBe(atual.dbt)
+  })
+
+  it('o jogador muda só a história e não desfaz a transformação nem o PK bloqueado que a mesa mudou nesse meio-tempo', () => {
+    const base = goku()
+    const forma = { id: 'tra_ssj', livroId: null, nome: 'Super Saiyajin', estagio: 1, ep: 1, custoKi: 0, kiPorRodada: 0, efeitos: '', origem: '' }
+    const agora = { ...base, dbt: { ...base.dbt, transformacoes: [forma], transformacaoAtiva: 'tra_ssj', kiBloqueado: 3 } }
+    const lida = personagemDoArquivo(JSON.parse(JSON.stringify(agora)))
+    const partes = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(base, { ...base, dbt: { ...base.dbt, historia: 'Veio de Vegeta.' } }))))
+    expect(lida).not.toBeNull()
+    expect(partes).not.toBeNull()
+    if (lida === null || partes === null) return
+    const salvo = aplicarPartes(lida, partes).dbt
+    expect(salvo?.historia).toBe('Veio de Vegeta.')
+    expect(salvo?.transformacaoAtiva).toBe('tra_ssj')
+    expect(salvo?.kiBloqueado).toBe(3)
+  })
+
+  it('forma ligada que não existe mais na lista de agora volta à forma normal', () => {
+    const atual = goku()
+    expect(aplicarPartes(atual, { dbt: { transformacaoAtiva: 'tra_sumiu' } }).dbt?.transformacaoAtiva).toBeNull()
+  })
+
+  it('personagem sem ficha Dragon Ball (One Piece) não ganha uma pela rede', () => {
+    const luffy = { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Luffy'), id: 'pers_luffy' }
+    expect('dbt' in aplicarPartes(luffy, { dbt: { pdl: 9000 } })).toBe(false)
+  })
+
+  it('o Salvar do mestre troca só os campos Dragon Ball que ele mudou', () => {
+    const base = goku()
+    const agora = { ...base, dbt: { ...base.dbt, kiBloqueado: 5 } }
+    const salvo = salvarSobreOAtual(base, { ...base, dbt: { ...base.dbt, notas: 'Treina com Kaioh.' } }, agora)
+    expect(salvo.dbt).toEqual({ ...base.dbt, kiBloqueado: 5, notas: 'Treina com Kaioh.' })
   })
 })

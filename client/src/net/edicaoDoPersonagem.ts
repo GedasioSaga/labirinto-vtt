@@ -1,4 +1,4 @@
-import { PERSONAGEM_SEM_NOME, type CartaoDaFicha, type Personagem } from '../lib/personagem'
+import { aplicarCamposDBT, camposDBTMudados, PERSONAGEM_SEM_NOME, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import {
   cartaoSemImagem,
@@ -63,8 +63,9 @@ export function partesMudadas(base: Personagem, rascunho: Personagem): PartesDoP
     return mesmoTexto((base.abas[abaId] ?? []).map(cartaoSemImagem), semImagem) ? [] : [[abaId, semImagem]]
   })
   if (abas.length > 0) partes.abas = Object.fromEntries(abas)
-  // A ficha Dragon Ball vai inteira quando mudou; sumir do rascunho não apaga a do host (não há parte para isso).
-  if (rascunho.dbt !== undefined && !mesmoTexto(base.dbt, rascunho.dbt)) partes.dbt = rascunho.dbt
+  // A ficha Dragon Ball vai só nos campos que mudaram; sumir do rascunho não apaga a do host (não há parte para isso).
+  const dbt = rascunho.dbt === undefined ? undefined : camposDBTMudados(base.dbt, rascunho.dbt)
+  if (dbt !== undefined) partes.dbt = dbt
   return partes
 }
 
@@ -130,7 +131,7 @@ export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes
     atual = { abas: { [abaId]: cartoes } }
     if (!opcoes.cabe(sonda(atual))) return { ok: false, erro: ERRO_ABA_GRANDE }
   }
-  // A ficha Dragon Ball é uma parte só: vai junto do último pacote se couber, senão sozinha.
+  // Os campos da ficha Dragon Ball vão juntos (a raça com a variante): com o último pacote se couber, senão sozinhos.
   if (dbt !== undefined) {
     const junto: PartesDoPersonagem = { ...atual, dbt }
     if (opcoes.cabe(sonda(junto))) {
@@ -175,7 +176,8 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem): Pe
     ...(partes.etiquetas === undefined ? {} : { etiquetas: partes.etiquetas }),
     escolhas: { ...atual.escolhas, ...partes.escolhas },
     abas: { ...atual.abas, ...abasNovas },
-    ...(partes.dbt === undefined ? {} : { dbt: partes.dbt }),
+    // Só sobre a ficha Dragon Ball que já existe: personagem de outro motor não ganha uma pela rede.
+    ...(partes.dbt === undefined || atual.dbt === undefined ? {} : { dbt: aplicarCamposDBT(atual.dbt, partes.dbt) }),
   }
   for (const campo of NUMEROS_DA_FICHA) aplicado[campo] = { ...atual[campo], ...partes[campo] }
   return aplicado
