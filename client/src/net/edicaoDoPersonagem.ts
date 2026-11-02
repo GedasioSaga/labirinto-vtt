@@ -180,6 +180,12 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem): Pe
     ...(partes.dbt === undefined || atual.dbt === undefined ? {} : { dbt: aplicarCamposDBT(atual.dbt, partes.dbt) }),
   }
   for (const campo of NUMEROS_DA_FICHA) aplicado[campo] = { ...atual[campo], ...partes[campo] }
+  // NPC do Dragon Ball: o PV máximo sai do ND (ND × vida por golpe), e o ND não vai ao jogador
+  // (`paraOFio`). A conta dele seria a de jogador: o máximo que ele manda não vale, o do host fica.
+  if (atual.tipo === 'npc' && atual.dbt !== undefined && partes.maximos !== undefined && Object.hasOwn(partes.maximos, 'pv')) {
+    const { pv: _doJogador, ...semPv } = aplicado.maximos
+    aplicado.maximos = Object.hasOwn(atual.maximos, 'pv') ? { ...semPv, pv: atual.maximos.pv } : semPv
+  }
   return aplicado
 }
 

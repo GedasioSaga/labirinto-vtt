@@ -48,7 +48,10 @@ import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
 import { deveAvisarJogadores, efeitosDaCena, esperandoOMestre, judgeDaCena, ponteDaBatalha, useBatalhaStore, vezTokenIdDaCena } from './stores/batalhaStore'
-import { deveAvisarJogadoresDBT, esperandoOMestreDBT, useBatalhaDBTStore, vezTokenIdDaCenaDBT } from './stores/batalhaDBTStore'
+import { deveAvisarJogadoresDBT, esperandoOMestreDBT, ponteDaBatalhaDBT, useBatalhaDBTStore, vezTokenIdDaCenaDBT } from './stores/batalhaDBTStore'
+import { PaginaDaBatalhaDBT } from './components/dbt/batalha/PaginaDaBatalhaDBT'
+import { escolherFichaDoMestreDBT, useMiraDBT } from './components/dbt/batalha/miraDBT'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from './lib/motores'
 import { gravarJudgeLembrado, judgeInicial, lerJudgeLembrado } from './lib/batalha/judge'
 import { ultimoGestoDoJudge } from './pixi/judgeDoMapa'
 import { carryRefsOf } from './lib/carry'
@@ -139,6 +142,7 @@ import {
   sceneDeletionInfo,
   sceneList,
   sceneMaps,
+  sistemaAtivo,
   stairTravelPanel,
   subscribeToServedScenes,
   subscribeToTravelLinks,
@@ -228,7 +232,7 @@ import { tiroNoPainel } from './components/tiroNoPainel'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
 import { acoesDoModeloDeCamadasCom, garantirAventura, garantirAventuraParaCamadas } from './stores/virarAventura'
-import { useRpgStore } from './stores/rpgStore'
+import { sistemaPorId, useRpgStore } from './stores/rpgStore'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
@@ -934,6 +938,8 @@ function App() {
         getCaminhosDaBatalha: (sceneKey) => useBatalhaStore.getState().cenas[sceneKey] ?? useBatalhaDBTStore.getState().cenas[sceneKey] ?? null,
         // BATALHA F1 (S1): a ordem dos turnos, o registro e as regras; o host recorta para cada jogador.
         ponteDaBatalha,
+        // BATALHA DBT: a mesma coisa para a batalha Dragon Ball (`batalhaDBT.*`); cada cena está numa store só.
+        ponteDaBatalhaDBT,
         // Regra de 27/10: esbarrar em parede invisível REVELA (só para ele) e AVISA o mestre (o nome vem do registro do host, não do jogador).
         onEsbarrouNaParede: (nome, invisivel) =>
           useToastStore.getState().push('info', invisivel ? `${nome} esbarrou na parede invisível` : `${nome} esbarrou numa parede que ainda estava na névoa`),
@@ -1481,6 +1487,14 @@ function App() {
   )
   /** BATALHA F2 (S4): "Escolher no mapa" ligado no painel da vez do NPC. */
   const miraDoMestreLigada = useMiraDoMestre((state) => state.mirando)
+  /** BATALHA DBT: o "Escolher no mapa" do painel Dragon Ball; mira separada, uma batalha não acende a da outra. */
+  const miraDBTLigada = useMiraDBT((state) => state.mirando)
+  /**
+   * BATALHA DBT: a mesa (aventura ou pasta) roda no motor Dragon Ball Tales.
+   * Escolhe a página Batalha do livro; sem sistema ou em outro motor, é a do One Piece de sempre.
+   */
+  const idDoSistemaDaMesa = useAdventureStore(sistemaAtivo)
+  const mesaDragonBall = useRpgStore((state) => motorDoSistema(sistemaPorId(state.biblioteca, idDoSistemaDaMesa)) === MOTOR_DRAGON_BALL)
   /** INVOCAÇÃO F3: o "Escolher no mapa" do Colocar (a cena da colocação armada). */
   const cenaDaColocacao = useColocacaoDoMestre((state) => state.armada?.sceneKey ?? null)
   const colocandoInvocado = batalhaNaCenaAberta && cenaDaColocacao === chaveDaCenaAberta
@@ -3300,7 +3314,10 @@ function App() {
           fichaDoFantasma={fichaDoFantasma}
           // BATALHA F2 (S4): a posição das fichas para os efeitos e a mira; "Escolher no mapa" ligado na aba Batalha = o clique mira.
           onFichaNaTela={guardarConsultaDoMestre}
-          aoEscolherFicha={miraDoMestreLigada && batalhaNaCenaAberta ? escolherFichaDoMestre : undefined}
+          // BATALHA DBT: a mira do painel Dragon Ball, só com a cena aberta numa batalha DBT (a cena nunca está nas duas).
+          aoEscolherFicha={
+            miraDoMestreLigada && batalhaNaCenaAberta ? escolherFichaDoMestre : miraDBTLigada && batalhaDBTNaCenaAberta ? escolherFichaDoMestreDBT : undefined
+          }
           aoEscolherCasa={colocandoInvocado ? escolherCasaDoMestre : undefined}
         />
         {/* BATALHA F2 (S5, S8): corte do golpe, d20, número do dano; o tremor mexe no invólucro do canvas. */}
@@ -4365,7 +4382,14 @@ function App() {
         }
         chat={sala === undefined ? undefined : chatDaMesa()}
         mesa={sala === undefined ? undefined : <PaginaMesa {...sala} livroDeRegras={<BotaoDoLivroDeRegras />} />}
-        batalha={<PaginaDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />}
+        // BATALHA DBT: a página pelo motor do sistema da mesa; uma página só = um Shift+B só.
+        batalha={
+          mesaDragonBall ? (
+            <PaginaDaBatalhaDBT sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />
+          ) : (
+            <PaginaDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />
+          )
+        }
         // BATALHA F2 (S9, Q7): vez de NPC ou reação de NPC esperando acende o contador do marcador Batalha.
         esperandoNaBatalha={esperandoNaBatalha}
         cenas={

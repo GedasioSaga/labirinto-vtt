@@ -173,6 +173,7 @@ import { secureRollDie } from '../lib/dice'
 import { numeroDaFicha, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { mesaDaAventura } from './mesaDaAventura'
+import { useBatalhaDBTStore } from './batalhaDBTStore'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -1648,6 +1649,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, set: StoreApi<BatalhaState>['setSt
       if (abertura.transicao !== undefined) novo.transicao = abertura.transicao
       if (abertura.texto !== undefined) novo.texto = abertura.texto
       const jaLigada = Object.hasOwn(cenas, sceneKey)
+      // BATALHA DBT: a cena já está na batalha Dragon Ball. Não liga por cima nem anuncia (a mesma cena nunca fica nas duas).
+      if (!jaLigada && useBatalhaDBTStore.getState().ligada(sceneKey)) return
       if (jaLigada) {
         set({ anuncio: novo })
         return

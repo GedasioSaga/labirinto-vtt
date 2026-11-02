@@ -637,11 +637,27 @@ export function barreiraNaAcao(t: Trabalho, id: IdDoCombatente, tecnica: Tecnica
   escrever(t, `${c.nome} ergue ${tecnica.nome}: CA +${tecnica.barreira} até o próximo turno`)
 }
 
+/** A marca do mestre pelo TIPO do efeito (`true` aplica, `false` desliga); tipo ausente = a marca de sempre. */
+export type MarcasDosEfeitosPorTipo = Partial<Record<EfeitoPrevisto['tipo'], boolean>>
+
+/**
+ * As edições do cartão do modo manual mais a marca por tipo. Por tipo porque
+ * o efeito que ENTRA com o crítico ou a margem trocados (a quebra de armadura,
+ * o gatilho) não tem índice na lista que o cartão abriu, e o mestre precisa
+ * poder desligá-lo também. O comando leva `EdicoesDoMestre`; um objeto deste
+ * tipo cabe ali como está e chega inteiro aqui.
+ */
+export interface EdicoesDoAtaqueDBT extends EdicoesDoMestre {
+  aplicarEfeitosPorTipo?: MarcasDosEfeitosPorTipo
+}
+
 /**
  * Cartão do modo manual, etapa ataque (seção 15): o mestre troca d20, CA,
  * faixa, crítico ou dano; o resto se recalcula a partir do que mudou.
+ * Marcas dos efeitos: na lista antiga, o índice manda e o tipo vem depois;
+ * na lista refeita, o tipo manda (é a única marca que alcança o efeito novo).
  */
-export function editarAtaque(t: Trabalho, ataque: AtaqueResolvido, edicoes: EdicoesDoMestre): AtaqueResolvido {
+export function editarAtaque(t: Trabalho, ataque: AtaqueResolvido, edicoes: EdicoesDoAtaqueDBT): AtaqueResolvido {
   const alvo = combatente(t, ataque.alvoId)
   const tecnica = tecnicaDe(t, ataque.atacanteId, ataque.tecnica.id)
   let novo = ataque
@@ -661,10 +677,14 @@ export function editarAtaque(t: Trabalho, ataque: AtaqueResolvido, edicoes: Edic
   novo = { ...novo, danoPrevisto: previstoDe(t, novo, faixa, novo.critico) }
   if (edicoes.dano !== undefined && Number.isFinite(edicoes.dano)) novo = { ...novo, danoPrevisto: Math.max(0, Math.trunc(edicoes.dano)) }
   if (edicoes.mitigacao !== undefined && Number.isFinite(edicoes.mitigacao)) novo = { ...novo, mitigacao: Math.max(0, Math.trunc(edicoes.mitigacao)) }
-  // As marcas do mestre são pelos índices do cartão (a lista antiga).
-  const marcados = ataque.efeitos.map((previsto, indice) => ({ ...previsto, aplicar: edicoes.aplicarEfeitos?.[indice] ?? previsto.aplicar }))
+  // As marcas do mestre são pelos índices do cartão (a lista antiga); a marca por tipo vale onde o índice não diz nada.
+  const porTipo = edicoes.aplicarEfeitosPorTipo ?? {}
+  const marcados = ataque.efeitos.map((previsto, indice) => ({ ...previsto, aplicar: edicoes.aplicarEfeitos?.[indice] ?? porTipo[previsto.tipo] ?? previsto.aplicar }))
   if (tecnica === undefined || (novo.critico === ataque.critico && novo.margem === ataque.margem)) return { ...novo, efeitos: marcados }
-  // Gatilho e quebra de armadura dependem do crítico e da margem: refaz, levando a marca do mestre pelo tipo.
+  // Gatilho e quebra de armadura dependem do crítico e da margem: refaz. O efeito que entrou agora só tem a marca por tipo.
   const refeitos = efeitosPrevistos(t, ataque.atacanteId, tecnica, novo.critico, novo.margem)
-  return { ...novo, efeitos: refeitos.map((previsto) => ({ ...previsto, aplicar: marcados.find((antigo) => antigo.tipo === previsto.tipo)?.aplicar ?? previsto.aplicar })) }
+  return {
+    ...novo,
+    efeitos: refeitos.map((previsto) => ({ ...previsto, aplicar: porTipo[previsto.tipo] ?? marcados.find((antigo) => antigo.tipo === previsto.tipo)?.aplicar ?? previsto.aplicar })),
+  }
 }

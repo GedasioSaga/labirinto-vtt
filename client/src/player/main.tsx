@@ -70,6 +70,9 @@ import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
 import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
 import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
+import { BatalhaDoJogadorDBT, type EnvioDaBatalhaDBT, type RespostaDoEnvioDBT } from '../components/dbt/batalha/BatalhaDoJogadorDBT'
+import type { TecnicaNoMenu } from '../components/dbt/batalha/MenuDeAcoesDBT'
+import { lerFichaParaBatalha, type FichaLida } from '../lib/dbt/batalha/leitura'
 import { tremer } from '../components/batalha/EfeitosDaBatalha'
 import type { ConsultaDaFichaNaTela } from './PlayerView'
 import { vezTokenIdDoJogador } from '../components/batalha/dadosDaFaixa'
@@ -749,6 +752,23 @@ const NO_FOCUS: FocusRequest = { tokenId: null, seq: 0, animate: false, snap: fa
  */
 const HANDSHAKE_DEADLINE_MS = 8_000
 
+/** BATALHA DBT: o host recusou sem dizer por quê (a conferência dele não ensina ids nem vezes). */
+const RECUSA_DBT_SEM_MOTIVO = 'O mestre recusou o pedido.'
+/** BATALHA DBT: o pedido nem saiu daqui (fora da vez que a tela mostra, conexão fechada, pedido torto). */
+const PEDIDO_DBT_NAO_SAIU = 'O pedido não saiu. Confira a conexão e tente de novo.'
+
+/**
+ * BATALHA DBT: a última recusa do host (`batalhaDBT.resultado` com `ok: false`)
+ * até o próximo recorte. Pedido aceito muda o recorte e a recusa velha sai;
+ * recusado, o recorte não muda e o aviso fica. Os dois no mesmo quadro: fica a recusa.
+ */
+function useRecusaDaBatalhaDBT(recusa: PlayerState['batalhaDBTRecusa'], vista: PlayerState['batalhaDBTEstado']): string | null {
+  const [mostrada, setMostrada] = useState<PlayerState['batalhaDBTRecusa']>(undefined)
+  useEffect(() => setMostrada(undefined), [vista])
+  useEffect(() => setMostrada(recusa), [recusa])
+  return mostrada === undefined ? null : (mostrada.motivo ?? RECUSA_DBT_SEM_MOTIVO)
+}
+
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
 export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar, ajustesDaDanca, ajustesDaPesca, ajustesDoTiro }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
@@ -810,6 +830,43 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const [mirandoNaBatalha, setMirandoNaBatalha] = useState(false)
   const [alvoDoMapa, setAlvoDoMapa] = useState<{ tokenId: string; seq: number } | null>(null)
   const escolherNoMapa = useCallback((tokenId: string) => setAlvoDoMapa((antes) => ({ tokenId, seq: (antes?.seq ?? 0) + 1 })), [])
+  /**
+   * BATALHA DBT: os pedidos do jogador pela conexão. Saiu = sem resposta (a do
+   * host chega depois, por `recusaDaBatalhaDBT`); não saiu = recusa na hora.
+   * A vez vai pela própria vista da conexão.
+   */
+  const enviarNaBatalhaDBT = useMemo<EnvioDaBatalhaDBT>(() => {
+    const saiu = (enviado: boolean): RespostaDoEnvioDBT => (enviado ? undefined : { ok: false, motivo: PEDIDO_DBT_NAO_SAIU })
+    return {
+      declarar: ({ combatenteId, transformacaoId }) => saiu(connection.declararNaBatalhaDBT(combatenteId, transformacaoId)),
+      agir: ({ combatenteId, opcao, alvos, extras }) => saiu(connection.agirNaBatalhaDBT(combatenteId, opcao, alvos, extras)),
+      responder: ({ pendenciaId, combatenteId, opcao, aposta, atributo }) =>
+        saiu(connection.responderNaBatalhaDBT(pendenciaId, combatenteId, opcao, { ...(aposta === undefined ? {} : { aposta }), ...(atributo === undefined ? {} : { atributo }) })),
+      passar: ({ combatenteId }) => saiu(connection.passarVezNaBatalhaDBT(combatenteId)),
+      desfazer: (linhaId) => saiu(connection.desfazerNaBatalhaDBT(linhaId)),
+    }
+  }, [connection])
+  const recusaDaBatalhaDBT = useRecusaDaBatalhaDBT(state.batalhaDBTRecusa, state.batalhaDBTEstado)
+  const personagensDoJogador = state.personagens?.personagens
+  const sistemaDoJogador = state.sistemaDeRpg ?? null
+  /**
+   * BATALHA DBT: Básica e Acumulação de uma técnica da ficha dele, para o menu
+   * anunciar básicos e a Carga por Ki. Cada ficha é lida uma vez por lista de personagens.
+   */
+  const tecnicaDoPersonagemDBT = useMemo(() => {
+    const lidas = new Map<string, FichaLida | null>()
+    return (personagemId: string, tecnicaId: string): TecnicaNoMenu | null => {
+      let lida = lidas.get(personagemId)
+      if (lida === undefined) {
+        const personagem = personagensDoJogador?.find((candidato) => candidato.id === personagemId)
+        lida = personagem === undefined ? null : lerFichaParaBatalha(personagem, sistemaDoJogador)
+        lidas.set(personagemId, lida)
+      }
+      // Ficha sem `dbt` (lida null) ou técnica que saiu da ficha: o menu fica sem os extras.
+      const tecnica = lida === null ? undefined : lida.tecnicas.find((candidata) => candidata.id === tecnicaId)
+      return tecnica === undefined ? null : { basica: tecnica.basica, acumulacao: tecnica.acumulacao }
+    }
+  }, [personagensDoJogador, sistemaDoJogador])
   /** BATALHA F2 (S8): o invólucro do mapa, que treme 220 ms no golpe que acerta. */
   const mapaQueTreme = useRef<HTMLDivElement>(null)
   /** Pino aberto no cartão; `null` = cartão fechado. */
@@ -1448,9 +1505,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // MODO BATALHA (B6): o caminho andado (o dele numerado, o dos colegas à vista).
             caminhos={state.caminhos}
             // BATALHA F1 (S4): a ficha da vez que ele vê ganha o anel com o pulso de chegada.
-            vezTokenId={vezTokenIdDoJogador(state.batalhaEstado)}
+            // BATALHA DBT: sem batalha One Piece na cena, a vez do recorte DBT (só ficha que a tela dele tem).
+            vezTokenId={vezTokenIdDoJogador(state.batalhaEstado) ?? state.batalhaDBTEstado?.vez ?? null}
             // BATALHA F3 (fatia J): o Judge do `batalha.estado` e o gesto da fila (o desfazer do mestre ergue a carta).
-            judge={state.batalhaEstado?.judge ?? null}
+            judge={state.batalhaEstado?.judge ?? state.batalhaDBTEstado?.judge ?? null}
             gestoDoJudge={ultimoGestoDoJudge(state.batalhaEfeitos)}
             // BATALHA F3 (fatia T): a forma no lugar da foto e os selos acima do disco.
             fotoDaForma={fotoDaForma}
@@ -1532,7 +1590,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onFichaNaTela={(consulta) => {
               consultaDaFicha.current = consulta
             }}
-            aoEscolherFicha={mirandoNaBatalha && state.batalhaEstado !== undefined ? escolherNoMapa : undefined}
+            aoEscolherFicha={mirandoNaBatalha && (state.batalhaEstado !== undefined || state.batalhaDBTEstado !== undefined) ? escolherNoMapa : undefined}
           />
         )}
         </div>
@@ -1564,6 +1622,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             alvoDoMapa={alvoDoMapa}
             onMirando={setMirandoNaBatalha}
             onTremor={() => tremer(mapaQueTreme.current)}
+          />
+        )}
+        {/*
+          BATALHA DBT: o menu da vez, as respostas que esperam por ele e a
+          caixa de reação da batalha Dragon Ball, só com o recorte DBT da cena
+          dele (a cena nunca está nas duas batalhas). A mira é a mesma do mapa.
+        */}
+        {state.batalhaDBTEstado !== undefined && otherFloor === null && (
+          <BatalhaDoJogadorDBT
+            vista={state.batalhaDBTEstado}
+            enviar={enviarNaBatalhaDBT}
+            recusa={recusaDaBatalhaDBT}
+            mira={{ ligada: mirandoNaBatalha, onLigar: setMirandoNaBatalha, alvo: alvoDoMapa }}
+            tecnicaDoPersonagem={tecnicaDoPersonagemDBT}
           />
         )}
         <PlayerPanel

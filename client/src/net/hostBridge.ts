@@ -342,6 +342,13 @@ export interface HostBridgeDeps {
    * repassa o "Passar a vez", o Desfazer e os ajustes rápidos do jogador.
    */
   ponteDaBatalha?: HostSessionOptions['ponteDaBatalha']
+  /**
+   * BATALHA DBT: a batalha Dragon Ball Tales na store do mestre
+   * (`ponteDaBatalhaDBT` de `stores/batalhaDBTStore.ts`). Mesmo papel da
+   * ponte de cima, pelas mensagens `batalhaDBT.*`; sem ela a batalha DBT não
+   * vai aos jogadores.
+   */
+  ponteDaBatalhaDBT?: HostSessionOptions['ponteDaBatalhaDBT']
   /** MODO BATALHA: a ficha do jogador `nome` esbarrou numa parede que ele não via (`invisivel`: parede invisível); aviso só do mestre. */
   onEsbarrouNaParede?: HostSessionOptions['onEsbarrouNaParede']
   /** DIA/TARDE/NOITE: o período da sessão no mestre. O jogador só recebe o da cena dele (`luzParaJogador`). */
@@ -3830,6 +3837,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         onBatalhaAndou: deps.onBatalhaAndou,
         getCaminhosDaBatalha: deps.getCaminhosDaBatalha,
         ponteDaBatalha: deps.ponteDaBatalha,
+        ponteDaBatalhaDBT: deps.ponteDaBatalhaDBT,
         onEsbarrouNaParede: deps.onEsbarrouNaParede,
         getPeriodo: deps.getPeriodo,
         restoreSeats,

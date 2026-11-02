@@ -15,6 +15,7 @@ import {
   type RotuloEscolhidoDBT,
   type TecnicaProntaDBT,
 } from '../../../lib/dbt/modelo'
+import { fichaDepoisDoDescanso } from '../../../lib/dbt/batalha/leitura'
 import { modificadorDoAtributo } from '../../../lib/dbt/regras/atributos'
 import { distribuicaoDoAtaque } from '../../../lib/dbt/regras/dano'
 import { derivadosDaFicha, NOME_DA_CATEGORIA, pkMaximo, pvMaximo, type DerivadosDaFichaDBT } from '../../../lib/dbt/regras/ficha'
@@ -204,9 +205,17 @@ export function personagemDeNpcEmBranco(sistema: SistemaDeRpg, nome: string, { c
   return { ...base, recursos: { ...base.recursos, pv, pk }, maximos: { pv, pk }, dbt: ficha, combate: { forca: FORCA_PADRAO } }
 }
 
-/** A variação nasce inteira: PV e PK atuais nos máximos que veio do modelo. */
+/**
+ * A variação nasce inteira, como depois de um Descanso Longo: PV e PK atuais
+ * nos máximos que veio do modelo, sem o desgaste dele (Ki bloqueado e os
+ * contadores, `fichaDepoisDoDescanso`) e na forma normal (o modelo podia
+ * estar transformado).
+ */
 export function variacaoInteira(variacao: Personagem): Personagem {
-  return { ...variacao, recursos: { ...variacao.recursos, ...variacao.maximos } }
+  const inteira: Personagem = { ...variacao, recursos: { ...variacao.recursos, ...variacao.maximos } }
+  if (variacao.dbt === undefined) return inteira
+  const descansada = fichaDepoisDoDescanso(variacao.dbt)
+  return { ...inteira, dbt: descansada.transformacaoAtiva === null ? descansada : { ...descansada, transformacaoAtiva: null } }
 }
 
 // ───────────────────────────────────────────────────────────────────────────

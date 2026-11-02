@@ -81,6 +81,13 @@ export interface CartaDBT {
   /** O nome do token na tela dele (nunca o nome da ficha do NPC). */
   nome: string
   lado: LadoNaVistaDBT
+  /**
+   * Do mesmo lado da batalha que um combatente dele (a equipe; sem equipe,
+   * PJ com PJ e NPC com NPC): o NPC que luta com ele é "outro" no `lado` mas
+   * não é inimigo. Opcional: o leitor do fio que ainda não o conhece o deixa
+   * de fora, e quem lê cai no `lado`.
+   */
+  mesmoLado?: boolean
   /** Total da iniciativa (público); null = ainda não rolou. */
   iniciativa: number | null
   /** Só "eu" e "aliado". */
@@ -167,7 +174,12 @@ export interface VistaDBT {
   vez: string | null
   /** A vez é de um combatente dele. */
   minhaVez: boolean
-  turno: { n: number; m: number }
+  /**
+   * `basicosUsados`: os básicos já usados no turno do combatente dele que tem a
+   * vez (o próximo rola com -n; anunciar mais de 3 só antes do 1º, 9.2); 0 fora
+   * da vez dele. Opcional pelo mesmo motivo do `mesmoLado`.
+   */
+  turno: { n: number; m: number; basicosUsados?: number }
   cartas: readonly CartaDBT[]
   meus: readonly MeuCombatenteDBT[]
   declaracoes: readonly DeclaracaoDBT[]
@@ -327,7 +339,8 @@ function recursoDe(valor: { atual: number; max: number }): RecursoNaVistaDBT {
   return { atual: valor.atual, max: valor.max }
 }
 
-function cartasDaVista(cena: NucleoDBT, fichas: Fichas, ctx: ContextoDoJogadorDBT): CartaDBT[] {
+/** `meusLados`: os lados da batalha dos combatentes dele (posse de verdade, `ehMeu`). */
+function cartasDaVista(cena: NucleoDBT, fichas: Fichas, ctx: ContextoDoJogadorDBT, meusLados: ReadonlySet<Lado>): CartaDBT[] {
   const cartas: CartaDBT[] = []
   for (const id of cena.ordem.cartas) {
     const c = Object.hasOwn(cena.combatentes, id) ? cena.combatentes[id] : undefined
@@ -340,6 +353,7 @@ function cartasDaVista(cena: NucleoDBT, fichas: Fichas, ctx: ContextoDoJogadorDB
       tokenId: id,
       nome: cortar(nome, NOME_DBT_MAX),
       lado,
+      mesmoLado: meusLados.has(c.lado),
       iniciativa: c.iniciativa?.total ?? null,
       pv: f === null ? null : recursoDe(f.pv),
       pk: f === null ? null : recursoDe(f.pk),
@@ -485,14 +499,16 @@ export function vistaParaJogadorDBT(cena: CenaParaVistaDBT, fichas: Fichas, ctx:
   const declaracoes = declaracoesDaVista(cena, fichas, meus)
   const nomeNaTela = (id: string): string => ctx.tokensNoRecorte.get(id) ?? FORA_DA_VISTA_DBT
   const vez = cena.ordem.vez
+  // Os básicos do turno só quando o turno é de um combatente dele: o de NPC não interessa ao menu dele.
+  const basicosUsados = cena.turno !== null && meusIds.has(cena.turno.combatenteId) ? cena.turno.basicosUsados : 0
   const vista: VistaDBT = {
     fase: cena.fase,
     rodada: cena.ordem.rodada,
     modo: cena.opcoes.modo,
     vez: vez !== null && ctx.tokensNoRecorte.has(vez) && vez.length <= ID_DBT_MAX ? vez : null,
     minhaVez: vez !== null && meusIds.has(vez),
-    turno: turnoNoM(cena),
-    cartas: cartasDaVista(cena, fichas, ctx),
+    turno: { ...turnoNoM(cena), basicosUsados },
+    cartas: cartasDaVista(cena, fichas, ctx, new Set(meus.map((c) => c.lado))),
     meus: meusDaVista(t, cena, fichas, ctx, meus),
     declaracoes,
     pendencias: delas
