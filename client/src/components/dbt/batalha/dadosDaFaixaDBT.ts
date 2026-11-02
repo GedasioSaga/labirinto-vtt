@@ -205,15 +205,19 @@ export function faixaDoJogadorDBT({ vista, fichas, meus }: EntradaDoJogadorDBT):
     }
   })
   const vez = vista.fase === 'combate' ? vista.vez : null
+  // Com gente fora da vista na ordem (`turno.m` conta todos), não dá para contar
+  // quem joga antes: sem "A SEGUIR" e sem "Você joga em N turnos", que mentiriam.
+  const ordemInteira = naFaixa.length >= vista.turno.m
   return {
     fase: vista.fase,
     cartas: naFaixa,
     vez,
-    proxima: proximaDe(naFaixa, vez),
+    proxima: ordemInteira ? proximaDe(naFaixa, vez) : null,
     rodada: vista.rodada,
     turno: vista.turno,
     minhaVez: vista.minhaVez,
-    vezForaDaVista: vista.fase === 'combate' && vista.vez === null && naFaixa.length > 0,
-    depois: vista.minhaVez ? null : depoisDoJogador(naFaixa, vez),
+    // `turno.n` é 0 quando ninguém tem a vez (o mestre tirou quem estava nela): aí não é "fora da vista".
+    vezForaDaVista: vista.fase === 'combate' && vista.vez === null && vista.turno.n > 0,
+    depois: vista.minhaVez || !ordemInteira ? null : depoisDoJogador(naFaixa, vez),
   }
 }

@@ -81,19 +81,32 @@ function movimentoReduzido(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 }
 
+/** Um campo booleano que o `EfeitoDBT` ainda não declara; `null` = não veio. */
+function marcaDe(efeito: EfeitoDBT, campo: 'critico' | 'erroCritico'): boolean | null {
+  const valor: unknown = (efeito as unknown as Record<string, unknown>)[campo]
+  return typeof valor === 'boolean' ? valor : null
+}
+
 /**
- * O efeito diz "crítico"? O `EfeitoDBT` ainda não leva o campo; enquanto não
- * levar, o 20 natural que acertou é crítico (o crítico com margem menor, por
- * Exposto ou Golpe Crítico, aparece como a faixa).
+ * O efeito diz "crítico"? O `EfeitoDBT` ainda não leva o campo (quando levar,
+ * ele manda). Enquanto não levar, o 20 natural que acertou é crítico, e isso
+ * bate com o motor: só o ataque rolado vira efeito (a rajada mantida, de total
+ * fixo, não rola nem gera efeito) e o 20 rolado sempre passa da margem de
+ * crítico. O crítico de 16 a 19 (Exposto, Golpe Crítico) não dá para saber
+ * daqui: aparece como "Completo", que é a faixa que o motor dá a ele.
  */
 function criticoDe(efeito: EfeitoDBT): boolean {
-  if ('critico' in efeito && typeof efeito.critico === 'boolean') return efeito.critico
-  return efeito.d20 === NATURAL_CRITICO && efeito.faixa !== null && efeito.faixa !== 'erro'
+  return marcaDe(efeito, 'critico') ?? (efeito.d20 === NATURAL_CRITICO && efeito.faixa !== null && efeito.faixa !== 'erro')
+}
+
+/** Erro crítico: o campo, quando vier; senão o 1 natural rolado (o motor faz o mesmo fora do total fixo). */
+function erroCriticoDe(efeito: EfeitoDBT): boolean {
+  return marcaDe(efeito, 'erroCritico') ?? (efeito.d20 === NATURAL_ERRO && efeito.faixa === 'erro')
 }
 
 function tomDaRolagem(efeito: EfeitoDBT): { tom: Tom; texto: string } {
   if (efeito.faixa === null) return { tom: 'dado', texto: 'Rolou' }
-  if (efeito.faixa === 'erro') return efeito.d20 === NATURAL_ERRO ? { tom: 'erro-critico', texto: 'Erro crítico' } : { tom: 'erro', texto: 'Erro' }
+  if (efeito.faixa === 'erro') return erroCriticoDe(efeito) ? { tom: 'erro-critico', texto: 'Erro crítico' } : { tom: 'erro', texto: 'Erro' }
   if (criticoDe(efeito)) return { tom: 'critico', texto: `Crítico · ${NOME_DA_FAIXA[efeito.faixa]}` }
   return { tom: FAIXA_DO_TOM[efeito.faixa], texto: NOME_DA_FAIXA[efeito.faixa] }
 }
@@ -148,8 +161,12 @@ export function EfeitosDBT({ efeitos, consulta, registro, formaDe, condicaoDe, c
       novos.push({ ...estouro, ...onde, chave: `${efeito.seq}:${tokenId}:${estouro.lugar}`, atraso: ordem * ESCALONAR_MS })
     }
     for (const efeito of chegaram) {
-      const alvo = efeito.tokenIds[efeito.tokenIds.length - 1] ?? null
-      if (alvo === null) continue
+      const alvo = alvoDoEfeito(efeito)
+      if (alvo === null) {
+        // Golpe com um dos dois fora da vista: sem saber quem sobrou, nada em cima de ninguém.
+        if (efeito.tipo === 'rolagem') ultimoAlvo.current = null
+        continue
+      }
       if (efeito.tipo === 'rolagem') {
         ultimoAlvo.current = alvo
         const { tom, texto } = tomDaRolagem(efeito)
@@ -229,6 +246,18 @@ export function EfeitosDBT({ efeitos, consulta, registro, formaDe, condicaoDe, c
       </span>
     </div>
   )
+}
+
+/**
+ * Em quem o aviso vai. O golpe (rolagem com faixa) vem do motor como
+ * [atacante, alvo]; no jogador o host tira quem está fora da vista, e o que
+ * sobra sozinho pode ser qualquer um dos dois: `null`, para não pôr o
+ * resultado no atacante. O resto (teste de morte, dano, condição, forma) tem
+ * um token só.
+ */
+function alvoDoEfeito(efeito: EfeitoDBT): string | null {
+  if (efeito.tipo === 'rolagem' && efeito.faixa !== null) return efeito.tokenIds.length === 2 ? (efeito.tokenIds[1] ?? null) : null
+  return efeito.tokenIds[efeito.tokenIds.length - 1] ?? null
 }
 
 /** Acima e abaixo da ficha com folga; o número e o anel no meio dela. */
