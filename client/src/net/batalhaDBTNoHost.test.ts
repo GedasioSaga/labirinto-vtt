@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
-import { fichaDBTVazia } from '../lib/dbt/modelo'
+import { fichaDBTVazia, type NpcDaFichaDBT } from '../lib/dbt/modelo'
 import type { PonteDaBatalhaDBT } from '../lib/dbt/batalha/ponte'
 import type { AutorDBT } from '../lib/dbt/batalha/tipos'
 import { SISTEMA_DRAGON_BALL } from '../lib/dbt/sistemaDragonBall'
@@ -122,6 +122,40 @@ describe('batalhaDBTNoHost', () => {
     loja.getState().desligar(CENA)
     expect(host.sync([ana], mesa)).toEqual([{ clientId: 'c-ana', msg: { type: 'batalhaDBT.estado', estado: null } }])
     expect(host.sync([ana], mesa)).toEqual([])
+  })
+
+  it('manda o aliado na ordem antes do recorte, pelo paraOFio, e uma vez só', () => {
+    const { loja, host, bia, mesa } = montar()
+    // Sem equipes, todo jogador que não é dele é aliado: Goku é aliado da Bia. Dado de mestre na ficha não pode sair.
+    const npc: NpcDaFichaDBT = { nd: 3, categoria: 'elite', rank: 'B', passivas: [], prontoId: null }
+    const comSegredo = mesa.personagens.map((personagem) =>
+      personagem.id !== 'goku' || personagem.dbt === undefined ? personagem : { ...personagem, dono: 'conta-1', notaDoMestre: 'segredo', dbt: { ...personagem.dbt, npc } },
+    )
+    const mesaComSegredo = { personagens: comSegredo }
+    const saidas = host.entrou(bia, mesaComSegredo)
+    expect(saidas.map((saida) => saida.msg.type)).toEqual(['batalhaDBT.aliados', 'batalhaDBT.estado'])
+    const aliados = saidas[0]?.msg
+    if (aliados?.type !== 'batalhaDBT.aliados') throw new Error('sem aliados')
+    expect(aliados.personagens.map((personagem) => personagem.id)).toEqual(['goku'])
+    const goku = aliados.personagens[0]
+    expect(goku?.dono).toBeUndefined()
+    expect(goku?.notaDoMestre).toBeUndefined()
+    expect(goku?.dbt).toBeDefined()
+    expect(goku?.dbt?.npc).toBeUndefined()
+    // O NPC nunca vai como aliado; a carta do aliado traz o personagem para o perfil.
+    const estado = saidas[1]?.msg
+    if (estado?.type !== 'batalhaDBT.estado' || estado.estado === null) throw new Error('sem recorte')
+    expect(estado.estado.cartas.find((carta) => carta.tokenId === 't-goku')?.personagemId).toBe('goku')
+    // Nada mudou: o sync não repete os aliados.
+    expect(host.sync([bia], mesaComSegredo).some((saida) => saida.msg.type === 'batalhaDBT.aliados')).toBe(false)
+    // Ao desligar, só o `null` (o jogador limpa a faixa e os aliados juntos).
+    loja.getState().desligar(CENA)
+    expect(host.sync([bia], mesaComSegredo)).toEqual([{ clientId: 'c-bia', msg: { type: 'batalhaDBT.estado', estado: null } }])
+  })
+
+  it('quem não tem aliado na ordem não recebe lista vazia', () => {
+    const { host, ana, mesa } = montar()
+    expect(host.entrou(ana, mesa).some((saida) => saida.msg.type === 'batalhaDBT.aliados')).toBe(false)
   })
 
   it('cena que não está na batalha DBT (One Piece) não recebe batalhaDBT.*', () => {

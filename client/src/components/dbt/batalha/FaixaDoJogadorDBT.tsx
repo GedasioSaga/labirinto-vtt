@@ -13,8 +13,8 @@ import { linhasDoJogadorDBT } from './RegistroDBT'
  * o recorte do host (`batalhaDBT.estado`), com PV e Ki só dele e dos aliados;
  * NPC e outro lado mostram "PV e Ki ocultos". "Passar a vez" só na vez dele;
  * o Desfazer, só na linha que o host deixa (`podeDesfazer`). Clicar na carta
- * dele abre o perfil só leitura (`quemOlha="jogador"`); a de aliado abre
- * quando o recorte trouxer o personagem dela.
+ * dele ou na de um aliado abre o perfil só leitura (`quemOlha="jogador"`); o
+ * personagem do aliado chega à parte (`batalhaDBT.aliados`).
  *
  * Os pedidos vão ao host com o mesmo `enviar` da `BatalhaDoJogadorDBT`;
  * enquanto a resposta não chega, o botão diz "Passando…" e o Desfazer,
@@ -28,6 +28,8 @@ export interface FaixaDoJogadorDBTProps {
   enviar: Pick<EnvioDaBatalhaDBT, 'passar' | 'desfazer'>
   /** Os personagens dele (`state.personagens?.personagens`): o perfil e o retrato da carta dele. */
   meus?: readonly Personagem[]
+  /** Os personagens dos aliados (`state.batalhaDBTAliados`); ausente = ainda não chegaram (ou sem aliado na ordem). */
+  aliados?: readonly Personagem[]
   /** As fichas do mapa dele (só a foto pequena atravessa o recorte). */
   fichas: readonly FichaNaFaixaDBT[]
   sistema: SistemaDeRpg | null
@@ -95,13 +97,15 @@ async function recusaDe(fazer: () => RespostaDoEnvioDBT | Promise<RespostaDoEnvi
   }
 }
 
-export function FaixaDoJogadorDBT({ vista, enviar, meus = NINGUEM, fichas, sistema, recusa = null, className }: FaixaDoJogadorDBTProps) {
-  // Só abre o que ele tem: o host manda o personagem só nas cartas "eu" e "aliado"; a do aliado abre quando a ficha dele está em `meus`.
+export function FaixaDoJogadorDBT({ vista, enviar, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, recusa = null, className }: FaixaDoJogadorDBTProps) {
+  // Os dele e os dos aliados: o retrato e o perfil da carta saem daqui.
+  const conhecidos = useMemo(() => [...meus, ...aliados], [meus, aliados])
+  // Só abre o que ele tem: o host manda o personagem só nas cartas "eu" e "aliado"; a carta abre quando a ficha está em `conhecidos`.
   const dados = useMemo(() => {
-    const base = faixaDoJogadorDBT({ vista, fichas, meus })
-    const temPerfil = (personagemId: string | null) => personagemId !== null && meus.some((personagem) => personagem.id === personagemId)
+    const base = faixaDoJogadorDBT({ vista, fichas, meus: conhecidos })
+    const temPerfil = (personagemId: string | null) => personagemId !== null && conhecidos.some((personagem) => personagem.id === personagemId)
     return { ...base, cartas: base.cartas.map((carta) => (temPerfil(carta.personagemId) ? carta : { ...carta, personagemId: null })) }
-  }, [vista, fichas, meus])
+  }, [vista, fichas, conhecidos])
   const registro = useMemo(() => linhasDoJogadorDBT(vista.registro), [vista.registro])
   const [perfilId, setPerfilId] = useState<string | null>(null)
   const [minhaRecusa, setMinhaRecusa] = useState<string | null>(null)
@@ -129,7 +133,7 @@ export function FaixaDoJogadorDBT({ vista, enviar, meus = NINGUEM, fichas, siste
   useEffect(() => setMinhaRecusa(null), [chaveDaVez])
 
   // O perfil de quem saiu do recorte fecha.
-  const perfil = perfilId === null ? undefined : meus.find((personagem) => personagem.id === perfilId)
+  const perfil = perfilId === null ? undefined : conhecidos.find((personagem) => personagem.id === perfilId)
   useEffect(() => {
     if (perfilId !== null && perfil === undefined) setPerfilId(null)
   }, [perfilId, perfil])

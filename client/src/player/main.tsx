@@ -1809,6 +1809,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             vista={vistaDBT}
             enviar={enviarNaBatalhaDBT}
             meus={state.personagens?.personagens}
+            aliados={state.batalhaDBTAliados}
             fichas={state.map.tokens}
             sistema={state.sistemaDeRpg ?? null}
             recusa={otherFloor === null ? null : recusaDaBatalhaDBT}

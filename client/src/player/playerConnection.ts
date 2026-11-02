@@ -221,6 +221,7 @@ import {
 } from '../net/protocoloDaBatalha'
 import type { EfeitoParaJogador, EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
 import {
+  parseBatalhaDBTAliados,
   parseBatalhaDBTEfeitos,
   parseBatalhaDBTEstado,
   parseBatalhaDBTPlayerMessage,
@@ -403,6 +404,12 @@ export interface PlayerState {
    * o registro público. Ausente = a cena dele não está numa batalha DBT.
    */
   batalhaDBTEstado?: VistaDBT
+  /**
+   * BATALHA DBT: os personagens dos aliados da equipe que estão na ordem
+   * (`batalhaDBT.aliados`), para o perfil só leitura da carta. Nunca NPC nem
+   * jogador de outra equipe — o host recorta. Ausente = fora da batalha DBT.
+   */
+  batalhaDBTAliados?: Personagem[]
   /** BATALHA DBT: as animações novas (`batalhaDBT.efeitos`), `seq` crescente, as mais novas. Zera com o recorte. */
   batalhaDBTEfeitos?: EfeitoDBT[]
   /** BATALHA DBT: o último pedido recusado pelo host (`id` sobe a cada recusa, para a tela avisar uma vez). */
@@ -2816,8 +2823,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clearTimeout(noAr.prazo)
       pedidosDeBatalha.delete(reqId)
     }
-    if (state.batalhaDBTEstado !== undefined || state.batalhaDBTEfeitos !== undefined || state.batalhaDBTRecusa !== undefined) {
-      setState({ batalhaDBTEstado: undefined, batalhaDBTEfeitos: undefined, batalhaDBTRecusa: undefined })
+    if (state.batalhaDBTEstado !== undefined || state.batalhaDBTAliados !== undefined || state.batalhaDBTEfeitos !== undefined || state.batalhaDBTRecusa !== undefined) {
+      setState({ batalhaDBTEstado: undefined, batalhaDBTAliados: undefined, batalhaDBTEfeitos: undefined, batalhaDBTRecusa: undefined })
     }
   }
 
@@ -5008,6 +5015,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (msg === null) return
         if (msg.estado === null) esquecerBatalhaDBT()
         else if (state.status === 'playing') setState({ batalhaDBTEstado: msg.estado })
+        return
+      }
+      case 'batalhaDBT.aliados': {
+        // Antes do recorte: a carta do aliado já acha o personagem dele. Um personagem torto derruba a lista inteira.
+        if (isTable) return
+        const msg = parseBatalhaDBTAliados(data)
+        if (msg !== null && state.status === 'playing') setState({ batalhaDBTAliados: msg.personagens })
         return
       }
       case 'batalhaDBT.resultado': {

@@ -1,4 +1,5 @@
 import { lerJudgeNaCena } from '../lib/batalha/judge'
+import { personagemDoArquivo, type Personagem } from '../lib/personagem'
 import {
   APOSTA_DO_CHOQUE_MAX,
   BASICOS_ANUNCIADOS_MAX,
@@ -65,6 +66,9 @@ import {
  * Do host para o jogador:
  *  - `batalhaDBT.estado`: o recorte (`vistaParaJogadorDBT`), só quando muda;
  *    `null` uma vez ao sair;
+ *  - `batalhaDBT.aliados`: os personagens dos aliados de equipe que estão na
+ *    ordem (o perfil só leitura da carta), pelo `paraOFio`: sem dado de mestre
+ *    nem o bloco de NPC da ficha;
  *  - `batalhaDBT.resultado`: a resposta a cada pedido, pelo `reqId`;
  *  - `batalhaDBT.efeitos`: as animações novas que a tela dele pode tocar.
  *
@@ -83,6 +87,12 @@ export const PEDIDOS_DBT_POR_JANELA = 20
 export const JANELA_DOS_PEDIDOS_DBT_MS = 5_000
 export const MOTIVO_DBT_MAX = 120
 const NIVEL_DE_VOO_MAX = 3
+/** Personagens num `batalhaDBT.aliados`: uma mesa não chega perto (o mesmo número do One Piece, contado à parte). */
+export const ALIADOS_DBT_MAX = 64
+/** Id de personagem: o mesmo teto de `PERSONAGEM_ID_MAX` (protocoloDoPersonagem.ts). */
+const PERSONAGEM_ID_DBT_MAX = 128
+/** Os campos só do mestre que o `paraOFio` tira: no fio, são mensagem forjada. */
+const CAMPOS_DO_MESTRE = ['dono', 'combate', 'soCenario', 'nomeDoJogador', 'notaDoMestre'] as const
 
 // ---- tipos ----
 
@@ -151,8 +161,14 @@ export interface BatalhaDBTEfeitosMessage {
   efeitos: EfeitoDBT[]
 }
 
+/** Até `ALIADOS_DBT_MAX` personagens de jogador, sem id repetido. Lista vazia = nenhum aliado na ordem. */
+export interface BatalhaDBTAliadosMessage {
+  type: 'batalhaDBT.aliados'
+  personagens: Personagem[]
+}
+
 /** As mensagens de batalha DBT do host (entram na união `HostMessage`). */
-export type BatalhaDBTHostMessage = BatalhaDBTEstadoMessage | BatalhaDBTResultadoMessage | BatalhaDBTEfeitosMessage
+export type BatalhaDBTHostMessage = BatalhaDBTEstadoMessage | BatalhaDBTResultadoMessage | BatalhaDBTEfeitosMessage | BatalhaDBTAliadosMessage
 
 // ---- leitores genéricos ----
 
@@ -594,4 +610,26 @@ export function parseBatalhaDBTEfeitos(value: unknown): BatalhaDBTEfeitosMessage
   if (efeitos === null) return null
   for (let i = 1; i < efeitos.length; i += 1) if (efeitos[i].seq <= efeitos[i - 1].seq) return null
   return { type: 'batalhaDBT.efeitos', efeitos }
+}
+
+/**
+ * Um aliado: só personagem de JOGADOR (o host nunca manda NPC), sem campo de
+ * mestre e sem o bloco de NPC da ficha (o `paraOFio` tira os dois). A ficha
+ * Dragon Ball que veio e não se lê derruba: o perfil mostraria a ficha sem ela.
+ */
+function lerAliado(value: unknown): Personagem | null {
+  if (!isRecord(value) || !textoAte(value.id, 1, PERSONAGEM_ID_DBT_MAX) || value.tipo !== 'jogador') return null
+  if (CAMPOS_DO_MESTRE.some((campo) => value[campo] !== undefined)) return null
+  if (isRecord(value.dbt) && value.dbt.npc !== undefined) return null
+  const personagem = personagemDoArquivo(value)
+  if (personagem === null || (value.dbt !== undefined && personagem.dbt === undefined)) return null
+  return personagem
+}
+
+/** Os aliados na ordem: um personagem torto, de mestre ou repetido derruba a mensagem inteira. */
+export function parseBatalhaDBTAliados(value: unknown): BatalhaDBTAliadosMessage | null {
+  if (!isRecord(value) || value.type !== 'batalhaDBT.aliados') return null
+  const personagens = lerLista(value.personagens, ALIADOS_DBT_MAX, lerAliado)
+  if (personagens === null || new Set(personagens.map((personagem) => personagem.id)).size !== personagens.length) return null
+  return { type: 'batalhaDBT.aliados', personagens }
 }

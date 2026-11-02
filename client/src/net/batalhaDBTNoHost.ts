@@ -11,8 +11,9 @@ import {
   type CenaParaVistaDBT,
   type ContextoDoJogadorDBT,
 } from '../lib/dbt/batalha/vista'
-import type { Personagem } from '../lib/personagem'
+import { paraOFio, type Personagem } from '../lib/personagem'
 import {
+  ALIADOS_DBT_MAX,
   JANELA_DOS_PEDIDOS_DBT_MS,
   MOTIVO_DBT_MAX,
   PEDIDOS_DBT_POR_JANELA,
@@ -28,8 +29,9 @@ import {
  * BATALHA DRAGON BALL TALES — o lado do host (docs/planos/dbt-batalha.md,
  * seção 17). O molde do One Piece (`batalhaNoHost.ts`) COPIADO, não
  * importado (aquele arquivo mistura regra do One Piece): o recorte por
- * conexão com diff pelo JSON, o teto de pedidos por jogador, o `reqId`
- * idempotente por conexão, os efeitos pelo `seq` e o `null` uma vez ao sair.
+ * conexão com diff pelo JSON, os aliados da equipe pela referência (pelo
+ * `paraOFio`), o teto de pedidos por jogador, o `reqId` idempotente por
+ * conexão, os efeitos pelo `seq` e o `null` uma vez ao sair.
  * Teto, respostas guardadas e marca de efeito são DESTE módulo: nada se
  * mistura com a batalha One Piece.
  *
@@ -117,9 +119,26 @@ const RESPOSTAS_GUARDADAS = 32
 const METROS_POR_CASA_PADRAO = 1.5
 const SEM_PERSONAGENS: readonly Personagem[] = []
 
+const mesmasReferencias = (a: readonly Personagem[], b: readonly Personagem[]): boolean => a.length === b.length && a.every((personagem, i) => personagem === b[i])
+
+/**
+ * Os aliados que estão NA ORDEM desta batalha, na ordem da aventura e até o
+ * teto: o perfil só abre pela carta, e o aliado fora da luta seria só peso no fio.
+ */
+function aliadosNaOrdem(cena: CenaParaVistaDBT, aliados: ReadonlySet<string>, personagens: readonly Personagem[]): Personagem[] {
+  const naOrdem = new Set<string>()
+  for (const id of cena.ordem.cartas) {
+    const personagemId = Object.hasOwn(cena.combatentes, id) ? cena.combatentes[id].personagemId : null
+    if (personagemId !== null && aliados.has(personagemId)) naOrdem.add(personagemId)
+  }
+  return personagens.filter((personagem) => naOrdem.has(personagem.id)).slice(0, ALIADOS_DBT_MAX)
+}
+
 export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTNoHost {
   // Por clientId: o JSON do último `batalhaDBT.estado`. Ausente = nada enviado (ou o `null` já foi).
   const estadoEnviado = new Map<string, string>()
+  // Por clientId: os aliados do último `batalhaDBT.aliados`, pela referência.
+  const aliadosEnviados = new Map<string, readonly Personagem[]>()
   // Por playerId: os instantes dos pedidos DBT na janela.
   const pedidos = new Map<string, number[]>()
   // Por clientId: a cena e o último `seq` de efeito já passado. Ausente = marca no próximo sync, sem reprise.
@@ -167,14 +186,23 @@ export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTN
     const { clientId, lugar } = conexao
     const cena = lugar === null || deps.ponte === undefined ? null : deps.ponte.cena(lugar.sceneKey)
     if (lugar === null || cena === null) {
+      aliadosEnviados.delete(clientId)
       efeitoVisto.delete(clientId)
       if (!estadoEnviado.has(clientId)) return []
       // Uma vez só: a cena saiu da batalha (ou ele saiu da cena). A cena de One Piece nunca recebeu nada daqui.
+      // O `null` leva a faixa e os perfis dos aliados embora (o jogador limpa os dois).
       estadoEnviado.delete(clientId)
       return [{ clientId, msg: { type: 'batalhaDBT.estado', estado: null } }]
     }
     const ctx = contextoDe(conexao, lugar, mesa)
     const saidas: SaidaDaBatalhaDBT[] = []
+    // Os aliados ANTES do recorte: quando a faixa chega, a carta do aliado já acha o personagem dele.
+    const aliados = aliadosNaOrdem(cena, ctx.aliados, mesa?.personagens ?? SEM_PERSONAGENS)
+    const antes = aliadosEnviados.get(clientId)
+    // Primeira vez sem aliado nenhum não manda a lista vazia: ausente, para o jogador, já é "nenhum".
+    const mudaram = antes === undefined ? aliados.length > 0 : !mesmasReferencias(antes, aliados)
+    if (mudaram) saidas.push({ clientId, msg: { type: 'batalhaDBT.aliados', personagens: aliados.map(paraOFio) } })
+    aliadosEnviados.set(clientId, aliados)
     const estado = vistaParaJogadorDBT(cena, fichasDa(lugar.sceneKey), ctx)
     const texto = JSON.stringify(estado)
     if (estadoEnviado.get(clientId) !== texto) {
@@ -250,6 +278,7 @@ export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTN
       // Conexão que caiu ou saiu não recebe mais nada: a chave dela só ocuparia memória.
       const vivas = new Set(conexoes.map((conexao) => conexao.clientId))
       for (const clientId of estadoEnviado.keys()) if (!vivas.has(clientId)) estadoEnviado.delete(clientId)
+      for (const clientId of aliadosEnviados.keys()) if (!vivas.has(clientId)) aliadosEnviados.delete(clientId)
       for (const clientId of efeitoVisto.keys()) if (!vivas.has(clientId)) efeitoVisto.delete(clientId)
       for (const clientId of respostas.keys()) if (!vivas.has(clientId)) respostas.delete(clientId)
       const fichasDa = leitorDeFichas()
@@ -258,6 +287,7 @@ export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTN
 
     entrou(conexao, mesa) {
       estadoEnviado.delete(conexao.clientId)
+      aliadosEnviados.delete(conexao.clientId)
       // Sem reprise: o primeiro sync marca o `seq` de agora e não manda os velhos.
       efeitoVisto.delete(conexao.clientId)
       return syncDe(conexao, mesa, leitorDeFichas())
@@ -265,6 +295,7 @@ export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTN
 
     caiu(clientId) {
       estadoEnviado.delete(clientId)
+      aliadosEnviados.delete(clientId)
       efeitoVisto.delete(clientId)
       respostas.delete(clientId)
     },

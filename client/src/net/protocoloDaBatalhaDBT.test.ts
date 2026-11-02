@@ -4,9 +4,13 @@
  * leitor estrito do jogador recusa vida de NPC e campo torto.
  */
 import { describe, expect, it } from 'vitest'
+import { SISTEMA_DRAGON_BALL } from '../lib/dbt/sistemaDragonBall'
+import { novoPersonagem } from '../lib/personagem'
 import {
+  ALIADOS_DBT_MAX,
   lerVistaDBT,
   parseBatalhaDBTAgir,
+  parseBatalhaDBTAliados,
   parseBatalhaDBTEfeitos,
   parseBatalhaDBTPlayerMessage,
   parseBatalhaDBTResponder,
@@ -62,6 +66,23 @@ describe('protocoloDaBatalhaDBT', () => {
     const forjada = { ...VISTA, cartas: [VISTA.cartas[0], { ...VISTA.cartas[1], pv: { atual: 1, max: 50 } }] }
     expect(lerVistaDBT(forjada)).toBeNull()
     expect(lerVistaDBT({ ...VISTA, fase: 'fim' })).toBeNull()
+  })
+
+  it('aliados: só jogador, sem dado de mestre, sem bloco de NPC, sem repetir', () => {
+    const vegeta = { ...novoPersonagem(SISTEMA_DRAGON_BALL, 'jogador', 'Vegeta'), id: 'vegeta' }
+    const lida = parseBatalhaDBTAliados({ type: 'batalhaDBT.aliados', personagens: [vegeta] })
+    expect(lida?.personagens.map((personagem) => personagem.id)).toEqual(['vegeta'])
+    expect(lida?.personagens[0]?.dbt).toBeDefined()
+    expect(parseBatalhaDBTAliados({ type: 'batalhaDBT.aliados', personagens: [] })).toEqual({ type: 'batalhaDBT.aliados', personagens: [] })
+    const aliados = (...personagens: unknown[]) => parseBatalhaDBTAliados({ type: 'batalhaDBT.aliados', personagens })
+    expect(aliados({ ...vegeta, tipo: 'npc' })).toBeNull()
+    expect(aliados({ ...vegeta, dono: 'conta-1' })).toBeNull()
+    expect(aliados({ ...vegeta, notaDoMestre: 'segredo' })).toBeNull()
+    expect(aliados({ ...vegeta, dbt: { ...vegeta.dbt, npc: { nd: 3 } } })).toBeNull()
+    expect(aliados({ ...vegeta, dbt: { versao: 999 } })).toBeNull()
+    expect(aliados(vegeta, vegeta)).toBeNull()
+    expect(aliados({ ...vegeta, id: 'x'.repeat(129) })).toBeNull()
+    expect(aliados(...Array.from({ length: ALIADOS_DBT_MAX + 1 }, (_, i) => ({ ...vegeta, id: `v${i}` })))).toBeNull()
   })
 
   it('efeitos fora de ordem são forjados', () => {
