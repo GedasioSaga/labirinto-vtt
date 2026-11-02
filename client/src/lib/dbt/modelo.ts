@@ -855,7 +855,10 @@ function aumentoDoArquivo(valor: unknown): AumentoDeAtributoDBT | null {
   if (!ehRegistro(valor)) return null
   const atributo = IDS_DOS_ATRIBUTOS.find((id) => id === valor.atributo)
   const pontos = valor.pontos === 1 ? 1 : valor.pontos === 2 ? 2 : null
-  const marco = inteiroOuNulo(valor.marco, 1, MARCO_MAX)
+  // Marco fora da faixa é torto e sai (não existe marco 0): preso na borda, viraria um aumento a mais
+  // no marco 1, passando do "+2 em um ou +1 em dois" por marco (3.0.11, p. 14).
+  const brutoDoMarco = valor.marco
+  const marco = typeof brutoDoMarco === 'number' && Number.isInteger(brutoDoMarco) && brutoDoMarco >= 1 && brutoDoMarco <= MARCO_MAX ? brutoDoMarco : null
   if (atributo === undefined || pontos === null || marco === null) return null
   return { marco, atributo, pontos }
 }

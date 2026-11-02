@@ -78,7 +78,8 @@ export function estagioPelaMargem(margem: number, limiares: LimiaresDeDanoDBT): 
 
 /** −1 no ataque por nível de EP que o alvo tem acima do atacante (2.3.2, p. 10). Soma com o +EP passivo (2.3.1). */
 export function penalidadeDeEscala(epAtacante: number, epAlvo: number): number {
-  return -Math.max(0, epAlvo - epAtacante)
+  // `min(0, …)` e não `-max(0, …)`: sem penalidade é 0, nunca -0 (que a tela mostraria e o Object.is distingue).
+  return Math.min(0, epAtacante - epAlvo)
 }
 
 /**
