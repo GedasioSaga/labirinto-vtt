@@ -1768,8 +1768,11 @@ export interface HostSessionOptions {
    * nenhuma cena em batalha. Só vale em grade quadrada.
    */
   getBatalha?: (sceneKey: string) => boolean
-  /** MODO BATALHA: o host aceitou `blocos` (> 0) para a ficha `tokenId` na cena `sceneKey`, andando `casas` — o caminho andado soma. */
-  onBatalhaAndou?: (sceneKey: string, tokenId: string, blocos: number, casas: readonly Casa[]) => void
+  /**
+   * MODO BATALHA: o host aceitou `blocos` (> 0) para a ficha `tokenId` na cena `sceneKey`, andando `casas` — o caminho andado soma.
+   * `jogador` é quem andou (só passo de jogador passa aqui): a batalha DBT assina a linha com ele, para ele poder desfazer.
+   */
+  onBatalhaAndou?: (sceneKey: string, tokenId: string, blocos: number, casas: readonly Casa[], jogador: { playerId: string; nome: string }) => void
   /**
    * MODO BATALHA (B6): o caminho andado da cena `sceneKey` no mestre
    * (`stores/batalhaStore.ts`), com o `rev` que sobe a cada mudança. Cada
@@ -6064,7 +6067,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (drive !== null && !drive.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: drive.reason })
     // MODO BATALHA: os blocos aceitos somam no caminho andado (no mestre) e vão na resposta.
     const blocos = result.blocos === undefined ? {} : { blocos: result.blocos }
-    if (result.blocos !== undefined && result.blocos > 0) options.onBatalhaAndou?.(tableSceneKey(scene), msg.tokenId, result.blocos, result.caminho ?? [])
+    if (result.blocos !== undefined && result.blocos > 0) {
+      const jogador = { playerId, nome: nomeDoJogadorNoHistorico(players.get(playerId)?.name ?? '') }
+      options.onBatalhaAndou?.(tableSceneKey(scene), msg.tokenId, result.blocos, result.caminho ?? [], jogador)
+    }
     // ESBARRÃO (regra de 27/10): a parede que barrou passa a valer para ele e o mestre fica sabendo.
     // A resposta ao jogador não muda de forma: quem mostra a parede é o próximo recorte dele.
     const esbarrao = batalha === undefined || result.blocos === undefined ? [] : paredesDoEsbarrao(floorMap, playerId, msg, ownership, occupants, batalha.paredesDoJogador, result.blocos)

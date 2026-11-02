@@ -925,10 +925,11 @@ function App() {
         // BATALHA DBT: a cena em batalha Dragon Ball também conta (o caminho andado é infra das duas).
         getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey) || useBatalhaDBTStore.getState().ligada(sceneKey),
         // O passo vai à store que tem a cena (a mesma cena nunca está nas duas).
-        onBatalhaAndou: (sceneKey, tokenId, blocos, casas) =>
+        // Na DBT a linha leva o jogador que andou, para o Desfazer dele valer.
+        onBatalhaAndou: (sceneKey, tokenId, blocos, casas, jogador) =>
           useBatalhaStore.getState().ligada(sceneKey)
             ? useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas)
-            : useBatalhaDBTStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas),
+            : useBatalhaDBTStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas, { tipo: 'jogador', ...jogador }),
         // B6: o caminho andado vai a cada jogador recortado pelo host (o dele inteiro, o do colega só à vista).
         getCaminhosDaBatalha: (sceneKey) => useBatalhaStore.getState().cenas[sceneKey] ?? useBatalhaDBTStore.getState().cenas[sceneKey] ?? null,
         // BATALHA F1 (S1): a ordem dos turnos, o registro e as regras; o host recorta para cada jogador.
