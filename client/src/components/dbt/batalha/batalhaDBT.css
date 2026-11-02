@@ -68,6 +68,8 @@
 /* ---------- Seção ---------- */
 .dbb-sec {
   display: grid;
+  /* Coluna presa à largura do painel: sem isso o seletor de forma (nome longo) alarga a seção e ela vaza à direita. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 .dbb-sec__t {
@@ -520,7 +522,8 @@
 }
 .dbb-ini li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  /* O nome guarda um mínimo legível: só com minmax(0, …) o seletor de forma (max-content) o espremia até uma letra. */
+  grid-template-columns: minmax(min(6ch, 30%), 1fr) minmax(0, max-content) auto;
   align-items: center;
   gap: 8px;
   min-height: 40px;
@@ -537,6 +540,10 @@
   font-size: 18px;
   text-align: right;
   color: var(--db-amber-hi);
+}
+.dbb-ini .dbf-sel {
+  width: 100%;
+  min-width: 0;
 }
 .dbb-ini .dbf-inp {
   width: 64px;
