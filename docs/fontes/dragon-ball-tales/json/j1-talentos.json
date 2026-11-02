@@ -1,0 +1,498 @@
+{
+  "fonte": "Livro do Jogador V0.5, 5.2 Lista de Talentos (p. 48-55)",
+  "nota": "Talentos não têm tag [KI: X] no livro; custo=null. custo_no_texto lista números de custo citados no efeito (regex), o efeito é o texto oficial.",
+  "itens": [
+    {
+      "id": "tl01",
+      "nome": "ESPÍRITO DE COMBATE",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Sempre que o usuário acerta o primeiro ataque corpo a corpo apenas físico em seu turno de ação, ele recupera uma pequena quantidade de Ki, igual a metade do que foi gasto.",
+      "pagina": 48
+    },
+    {
+      "id": "tl02",
+      "nome": "RESISTÊNCIA INABALÁVEL",
+      "tipo": "Passiva/Ativa",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Ao ativar essa habilidade, o usuário reduz o dano recebido de ataques físicos até o início do seu próximo turno. A redução é de 3 pontos de dano para cada 1 ponto de Ki gasto, com um gasto mínimo de 1 ponto de Ki.",
+      "pagina": 49
+    },
+    {
+      "id": "tl03",
+      "nome": "CONTRA-ATAQUE INSTANTÂNEO",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Se evitar um golpe graças a sua CA de forma natural, pode aplicar sem custo de Ki um golpe com rótulo de “Ataque Básico” se houver, de Rank D.",
+      "pagina": 49
+    },
+    {
+      "id": "tl04",
+      "nome": "COMBO BRUTAL",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Se o primeiro ataque dado no turno de ação acertar de forma natural, ou seja, sem utilizar de ativas ou qualquer tipo de vantagem, o usuário pode continuar um combo, onde pode desferir o mesmo golpe de forma repetida, sem a penalidade natural de não poder repetir a mesma técnica no turno de ação, e enquanto você a acertar, pode continuar a utilizando até errar ou encerrar o combo.",
+      "pagina": 49
+    },
+    {
+      "id": "tl05",
+      "nome": "FORÇA SOBRE-HUMANA",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Seus ataques corpo a corpo têm um bônus extra de dano baseado na sua Força. Dessa forma, sempre que aplicar dano com ataques físicos corpo a corpo, adicione seu modificador de força ao dano final de forma extra.",
+      "pagina": 49
+    },
+    {
+      "id": "tl06",
+      "nome": "AVANÇO DE OPORTUNIDADE",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Não causa ataques de oportunidade, caso esteja se movendo unicamente em direção ao inimigo para o aplicar um golpe no final. Caso não aplique o golpe no final, os ataques de oportunidade serão considerados.",
+      "pagina": 49
+    },
+    {
+      "id": "tl07",
+      "nome": "INSTINTO DE LUTA",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Quando está com menos de 50% de vida, seus ataques físicos se tornam mais rápidos e fortes, recebendo vantagem na primeira ação do seu turno de ação. Caso chegue a 10% da vida, a vantagem é para todas as ações do turno de ação.",
+      "pagina": 49
+    },
+    {
+      "id": "tl08",
+      "nome": "MURALHA HUMANA",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Se um aliado próximo (até 3,0m de você) for alvo de um ataque, você pode interceptá-lo e sofrer o dano no lugar dele como uma reação. Caso seja dano em área, você irá receber o dano dele e o dano que você receberia também.",
+      "pagina": 49
+    },
+    {
+      "id": "tl09",
+      "nome": "ADRENALINA SELVAGEM",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Sempre que recebe dano crítico, o usuário ganha um aumento temporário de Ki na próxima rodada, equivalente a metade da rolagem de acerto que causou o dano crítico. Após encerrar o próximo turno do guerreiro, ele perde o Ki Extra.",
+      "pagina": 49
+    },
+    {
+      "id": "tl10",
+      "nome": "MOVIMENTO MARCIAL EXTRA",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Recebe um movimento marcial extra. Essa passiva pode ser escolhida várias vezes.",
+      "pagina": 49
+    },
+    {
+      "id": "tl11",
+      "nome": "DESPERTAR DO LOBO",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Quando luta contra múltiplos inimigos, ganha um aumento em sua velocidade e reflexos, permitindo que reaja melhor contra ataques simultâneos. Caso esteja em desvantagem numérica, suas rolagens em reação são feitas com vantagem.",
+      "pagina": 49
+    },
+    {
+      "id": "tl12",
+      "nome": "TÉCNICA DA MEMÓRIA CORPORAL",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Quando um inimigo repete o mesmo ataque contra você consecutivamente, seu corpo se adapta, concedendo um bônus de +1 na CA contra essa técnica específica a cada repetição seguida. Caso o oponente interrompa a sequência com outro ataque e só então volte a usá-la, o bônus permanece. No entanto, se ele deixar de utilizá-la por uma rodada completa, o efeito é perdido.",
+      "pagina": 50
+    },
+    {
+      "id": "tl13",
+      "nome": "RUPTURA MUSCULAR",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Após um combo bem-sucedido de três ou mais ataques físicos contra o mesmo alvo em uma única rodada, caso todos acertem, o oponente deve realizar um Teste de Constituição contra a maior rolagem de Acerto do Usuário entre os golpes desferidos. Se falhar, ele sofre Fadiga, perdendo uma quantidade de Ki igual à metade do maior Ki gasto pelo usuário em sua rodada de ataque.",
+      "pagina": 50
+    },
+    {
+      "id": "tl14",
+      "nome": "CORAÇÃO INDOMÁVEL",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Quando o usuário chega a 1 de vida pela primeira vez em um combate, ele pode continuar atacando até o final de sua próxima rodada. Todo dano recebido é ignorado, a não ser que o dano passe uma quantidade igual a vida total do usuário. Após o fim da rodada, o guerreiro cai inconsciente, e mesmo se levantado com técnica de cura, inicia a próxima rodada com metade dos pontos de Ki consumidos. Essa passiva não ativa mais de uma vez por batalha.",
+      "pagina": 50
+    },
+    {
+      "id": "tl15",
+      "nome": "GOLPE RESQUÍCIO",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Quando o usuário sofre um golpe crítico, seu corpo “memoriza” o impacto e seu próximo ataque contra o mesmo alvo tem um bônus de dano equivalente ao dano mínimo da técnica que causou o crítico causaria.",
+      "pagina": 50
+    },
+    {
+      "id": "tl16",
+      "nome": "LUTADOR DO ÚLTIMO ROUND",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Se for o último membro do grupo em pé, ganha uma resistência absurda à dor, ficando imune a efeitos negativos e negando a todos que estão em você enquanto você for o último do seu grupo de pé. Caso alguém se levante, e volte a lutar com você a passiva é desativada e não pode voltar a ser ativada pelo resto da sessão.",
+      "pagina": 50
+    },
+    {
+      "id": "tl17",
+      "nome": "IMPACTO DEVASTADOR",
+      "tipo": "Passiva/Ativa",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Ao realizar um ataque de dano físico corpo a corpo com o alcance de toque e acertar, o usuário pode uma vez por rodada de ataque utilizar o dobro de Ki que aquele ataque necessita, para fazer uma onda de choque de 9,0m em cone atrás do alvo se espalhar, aplicando a rolagem de acerto e dano a todos que estiverem na área.",
+      "pagina": 50
+    },
+    {
+      "id": "tl18",
+      "nome": "PONTO DE RUPTURA",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Após apanhar o suficiente, o usuário aprende a \"ler\" o estilo do inimigo. Após receber dano crítico 2 vezes do mesmo alvo na mesma batalha, fica imune a danos críticos do alvo, negando-os completamente e os transformando em danos de estágio mínimo.",
+      "pagina": 50
+    },
+    {
+      "id": "tl19",
+      "nome": "LENDA VIVA",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Se o usuário sobreviver a um ataque que normalmente o derrubaria (vida abaixo de 10%), ele entra em um estado especial onde seu próximo golpe é considerado um acerto crítico se for rolado de forma natural entre 16-20.",
+      "pagina": 50
+    },
+    {
+      "id": "tl20",
+      "nome": "ECO DE COMBATE",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Quando o usuário finaliza um inimigo com um golpe corpo a corpo, ele ganha um efeito residual de aceleração, permitindo que seu próximo ataque seja instantâneo e sem custo de Ki.",
+      "pagina": 50
+    },
+    {
+      "id": "tl21",
+      "nome": "ATAQUE GENÉRICO PODEROSO",
+      "tipo": "Ativa",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode disparar um ataque básico de Ki, sem nome ou efeitos especiais, focado apenas na precisão determinada por Inteligência. O ataque tem alcance inicial de 6 metros, aumentando em +1,5 metro por cada 1 ponto de Ki gasto. O custo base de Ki para ativar essa técnica é 1 ponto. Essa técnica não possui dano base variável, dependendo exclusivamente do Ki gasto para sua execução. Ou seja, ao acertar o alvo, o dano causado será igual à quantidade de Ki utilizada no ataque, na proporção de 1:2, ou seja, 1 Ponto de Ki equivale a 2 Pontos de Dano.",
+      "pagina": 51
+    },
+    {
+      "id": "tl22",
+      "nome": "MAGO DE KI",
+      "tipo": "Ativa/Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": [
+        "06"
+      ],
+      "efeito": "O Mago de Ki não é apenas um guerreiro que dispara projéteis de energia – ele reescreve as regras da realidade usando sua maestria sobre o Ki. Diferente de um usuário comum de Ki, que foca em destruição e controle de campo, o Mago de Ki manipula a própria essência do Ki de formas inimagináveis, criando efeitos únicos e interagindo com a energia de maneiras impossíveis para outros guerreiros, além de dominar os aspectos elementais do Ki. Sempre que o Mago de Ki usa uma técnica de energia, ele pode alterá-la no meio da ação uma vez por rodada, com custo adicional de 06 de Ki. Ele pode escolher uma das seguintes alterações antes ou depois de lançar o ataque:\nCurva Perfeita – A técnica pode mudar de direção no ar, podendo perseguir o inimigo ou contornar obstáculos, permitindo que role novamente a jogada de acerto.\nKi Vibracional – A técnica atravessa armaduras e barreiras energéticas, ignorando aumentos de CA dados por técnicas.\nKi Reaproveitado – Reabsorve um ataque próprio antes de ele atingir o inimigo, recuperando metade do Ki gasto, ao ver a reação dele.\nKi Elemental – Adiciona a técnica o dano de um dos tipos elementais existentes (Fogo, Elétrico e Gélido), mesmo que ela não tenha esse rótulo integrado a ela.\nKi de Retrocesso – Se o ataque errar, ele pode voltar para o usuário e ser lançado novamente no próximo turno sem custo extra, no entanto seu turno de ação se encerra no momento em que declara que irá usar isto.",
+      "pagina": 51
+    },
+    {
+      "id": "tl23",
+      "nome": "CONTROLE DE KI",
+      "tipo": "Ativa",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário dessa característica é capaz de aumentar o dano dos seus golpes que tem por base o Ki, não envolvendo os híbridos ou físicos. Antes de utilizar sua técnica, e fazer a rolagem o usuário pode declarar que vai gastar uma quantidade extra de Ki para aumentar o dano final do golpe caso ele acerte, na proporção de 1:1.",
+      "pagina": 51
+    },
+    {
+      "id": "tl24",
+      "nome": "DEFESA CONTÍNUA DE KI",
+      "tipo": "Ativa/Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Ao utilizar uma reação defensiva de mitigação através do Ki, o usuário pode gastar uma quantidade adicional de Ki igual ao custo original da reação para manter a mitigação de dano de forma passiva até o início do seu próximo turno ou até ativar uma nova reação, cancelando a anterior. Enquanto estiver nesse estado, o usuário não poderá usar outras reações ou ações caso seja usada em turno de ação.",
+      "pagina": 51
+    },
+    {
+      "id": "tl25",
+      "nome": "ELO DE KI",
+      "tipo": "Ativa",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode conectar sua energia a um aliado ou inimigo, permitindo transferir Ki em uma proporção de 1:1.\nAlcance de Toque: A transferência ocorre sem custo adicional de Ki.\nAlcance à Distância: Se o alvo estiver a longa distância, o usuário gasta 1 ponto de Ki para cada 1,5 metro entre ele e o alvo. A transferência só pode ocorrer se não houver barreiras ou interferências que impeçam o fluxo do Ki entre os dois.",
+      "pagina": 51
+    },
+    {
+      "id": "tl26",
+      "nome": "PONTO ZERO",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode reduzir o custo de Ki da primeira técnica conjurada na rodada de ataque pela metade se não tiver se movido sendo voluntária ou involuntariamente durante sua última rodada, e a atual representando sua concentração. Caso se mova a passiva não é ativada.",
+      "pagina": 52
+    },
+    {
+      "id": "tl27",
+      "nome": "EXPLOSÃO RADIAL",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Ao atingir um inimigo com uma técnica de Ki e ela não for em área e sim de alvo único, a energia residual reverbera ao redor, causando o dano mínimo que a técnica daria a todos os inimigos em um raio de 3,0 metros, sem a necessidade de rolagem de acerto. No entanto, o alvo pode negar esse dano se gastar uma quantidade de Ki equivalente à metade do que você gastou utilizando a técnica, ou pode reagir normalmente.",
+      "pagina": 52
+    },
+    {
+      "id": "tl28",
+      "nome": "VÓRTICE DE KI",
+      "tipo": "Ativa",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode girar sua energia em um redemoinho invisível ao seu redor, criando uma barreira energética natural. Isso reduz em um estágio de dano de uma técnica de Ki até no máximo o mínimo, caso o usuário gaste uma quantidade de Ki equivalente ao que foi utilizado na técnica para o causar dano.",
+      "pagina": 52
+    },
+    {
+      "id": "tl29",
+      "nome": "MANIFESTAÇÃO SUPREMA",
+      "tipo": "Ativa/Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode transcender os limites normais da energia. Uma vez por combate, ao ativar uma técnica de Rank A ou Z, ele pode ignorar completamente o custo de Ki, liberando-a em sua forma máxima, desde que também seja a única que irá utilizar nessa rodada de ataque. No entanto, após esse uso, todas as suas técnicas custam o dobro de Ki pelos próximos três turnos.",
+      "pagina": 52
+    },
+    {
+      "id": "tl30",
+      "nome": "FORJA ESPIRITUAL",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode solidificar sua energia, moldando armas ou objetos temporários de pura energia. Para isso, ele deve canalizar o Dano Mínimo de um Rank, gastando o Custo Máximo de Ki desse Rank para a conjurar. Uma vez criada, a arma de energia pode ser utilizada por três rodadas sem necessidade de gastar Ki adicional. No entanto, o usuário só pode desferir um ataque por rodada com essa arma. O ataque pode ser realizado com uma rolagem baseada em Inteligência ou Força, no caso de combate corpo a corpo. Ranks A e Z não podem ser utilizados para essa técnica.",
+      "pagina": 52
+    },
+    {
+      "id": "tl31",
+      "nome": "KI ESPIRAL",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode transformar sua energia em movimento contínuo, criando uma força giratória ao redor de seus ataques. Ao gastar o dobro de Ki necessário para conjurar a técnica, você pode adicionar temporariamente o tipo de dano perfurante a ela, podendo fazer isso apenas uma vez por rodada.",
+      "pagina": 52
+    },
+    {
+      "id": "tl32",
+      "nome": "MANTRA DO KI INFINITO",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode entrar em um estado de meditação acelerada. Se ele ficar um turno inteiro sem atacar e receber dano se concentrando e recitando seu mantra, no próximo turno de ação suas técnicas custam metade do Ki.",
+      "pagina": 52
+    },
+    {
+      "id": "tl33",
+      "nome": "EXPANSÃO ZEN",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "O usuário pode expandir sua consciência e sentir todas as fontes de energia ao seu redor, ignorando furtividade, ilusões e camuflagem. Sempre que quiser, ao custo de nenhum Ki, pode solicitar uma rolagem de Inteligência vs Possível Rolagem de Furtividade se houver alguém ao redor, ou Rolagem específica definida pelo narrador, a depender se existirem ilusões ou camuflagem na cena.",
+      "pagina": 53
+    },
+    {
+      "id": "tl34",
+      "nome": "REFLEXO ESPIRITUAL",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Ao atingir um estado de sintonia total com sua energia, o usuário pode, uma vez por combate, reagir automaticamente a um ataque sem precisar gastar Ki, desviando ou bloqueando um golpe com reflexos sobre-humanos.",
+      "pagina": 53
+    },
+    {
+      "id": "tl35",
+      "nome": "EXPURGO ESPIRITUAL",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Quando o usuário sofre uma condição negativa ele pode gastar uma quantidade de Ki para expulsar a anomalia de seu corpo. Tendo que gastar uma quantidade de Ki igual ao da técnica que o causou o efeito negativo, desde que essa condição não impeça suas ações.",
+      "pagina": 53
+    },
+    {
+      "id": "tl36",
+      "nome": "MANTO RADIANTE",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Ao atingir 20% ou menos de vida, o corpo do usuário entra em um estado de superalimentação, dobrando a regeneração natural de Ki e reduzindo pela metade o custo das técnicas por dois turnos.",
+      "pagina": 53
+    },
+    {
+      "id": "tl37",
+      "nome": "REFORÇO DE KI",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Ao cair de uma grande altura ou ser lançado longe, o usuário concentra energia ao redor do corpo para evitar ser deslocado, gastando assim metade do Ki necessário da técnica que o lançou.",
+      "pagina": 53
+    },
+    {
+      "id": "tl38",
+      "nome": "ONDA DE RETORNO",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Se o usuário mitigar ou não for acertado por um ataque de energia, ele absorve parte da energia residual e converte em Ki próprio, convertendo metade do Ki usado para uso próprio. Isso faz com que lutar contra ele com ataques energéticos seja sempre um risco, pois ele pode usar essa força contra o oponente. No entanto, ele só pode usar essa característica uma vez por rodada.",
+      "pagina": 53
+    },
+    {
+      "id": "tl39",
+      "nome": "CORPO LEVE COMO KI",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "A maestria do usuário permite que ele se torne mais ágil conforme usa seu próprio Ki. Permite como reação, uma vez por rodada adicione o modificador de Inteligência a sua CA para tentar evitar um golpe ou diminuir seus danos. Fazer isso gasta Ki equivalente ao dobro do modificador utilizado.",
+      "pagina": 53
+    },
+    {
+      "id": "tl40",
+      "nome": "MARCA DE ASSINATURA",
+      "tipo": "Ativa/Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Você aprende o “cheiro energético” do alvo e passa a persegui-lo pelo fluxo de Ki, não pelos olhos. Como ação, escolha um alvo visível e faça um Teste de Sentido de Ki vs Controle de Ki do Alvo. Se vencer, ele fica “Marcado” até o fim da cena ou combate. Contra um alvo Marcado: você pode atacá-lo mesmo sem visão perfeita, desde que ainda haja trajetória plausível; ilusões simples, pós-imagens, fumaça, poeira e ocultação visual não anulam seu disparo; se o alvo tentar esconder o Ki ou fugir com deslocamento extremo, você sabe sua direção geral.",
+      "pagina": 53
+    },
+    {
+      "id": "tl41",
+      "nome": "CÂMERA DE COMPRESSÃO",
+      "tipo": "Ativa/Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Você consegue reter o excedente do próprio fluxo energético e convertê-lo em disparos “preparados”. Ao encerrar seu turno com pelo menos 4 Ki não gastos, você pode converter 2 Ki restantes em 1 Carga Comprimida. Máximo de 3 Cargas Comprimidas armazenadas. Quando usar uma técnica ofensiva de Ki à distância, pode gastar 1 Carga para escolher 1 dos efeitos:\nDisparo Silencioso: a técnica não pode ser percebida por Sentido de Ki antes da resolução, dessa forma caso não esteja no campo de visão do alvo ela é considerada um ataque furtivo;\nDisparo Fino: ela ignora a primeira interferência leve de cobertura, obstáculo parcial ou proteção improvisada;\nDisparo Estável: tomar dano não interrompe sua preparação imediata para essa técnica, ou de qualquer requisito que necessite do não recebimento de dano;",
+      "pagina": 53
+    },
+    {
+      "id": "tl42",
+      "nome": "PULSO DE INTERCEPTAÇÃO",
+      "tipo": "Ativa",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Você aprendeu a “cortar” disparos alheios no ar com um pulso de emissão contrário. Quando um aliado visível for alvo de uma técnica de Ki à distância, você pode reagir, desde que tenha linha plausível para o disparo inimigo. Faça um Teste de Inteligência vs Acerto do Usuário. Se vencer, escolha 1:\nreduzir o dano sofrido em 1 estágio;\nanular um efeito secundário da técnica, ou seja, um rótulo;\ndeslocar a trajetória o suficiente para fazer o ataque atingir o chão, uma parede ou um ponto vazio próximo (apenas disponível se superar a rolagem de acerto do alvo em uma quantidade maior do que a EP dele).",
+      "pagina": 54
+    },
+    {
+      "id": "tl43",
+      "nome": "LEITURA BALÍSTICA DE KI",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Depois de ver um padrão energético uma vez, você passa a enxergar a intenção do disparo antes dele nascer. Sempre que um inimigo usar uma mesma técnica de Ki pela segunda vez na cena, você pode “registrá-la”. A partir daí, contra aquela técnica específica, você passa a poder escolher 1 das opções abaixo sempre que ela for usada contra você:\nreceber 1 estágio a menos de dano se ela acertar;\nreceber vantagem para resistir à condição que ela tentar aplicar;\nsaber, antes da rolagem, se ela foi alterada por algum efeito como curva, carga, fragmentação, ricochete, reação em cadeia ou atraso.",
+      "pagina": 54
+    },
+    {
+      "id": "tl44",
+      "nome": "NÚCLEO DE RETENÇÃO",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Seu corpo aprendeu a segurar Ki instável sem colapsar, permitindo emissões violentas sem perder todo o controle. Quando usar uma técnica de Ki que: aumente custo, use carga, exija esforço extra, ou tenha drawback energético, você pode ativar este talento para escolher 1:\nadiar o custo colateral para o fim do turno;\nconverter parte do desgaste em bloqueio pós-combate em vez de penalidade imediata;\nimpedir que a técnica deixe você completamente zerado naquele exato momento, ficando com 1 Ki funcional até o fim da ação.",
+      "pagina": 54
+    },
+    {
+      "id": "tl45",
+      "nome": "LEITURA DE AURA DE COMBATE",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Você aprendeu a “ler” um lutador antes mesmo de trocar golpes de verdade. Ao observar alguém por alguns instantes, você pode pedir ao narrador uma leitura verdadeira sobre o alvo ao utilizar um Teste de Sentido de Ki, e a depender do seu resultado a critério do narrador ele pode te informar como: se ele está escondendo poder; se está emocionalmente instável; se está ferido, exausto ou segurando algo; se sua energia parece maligna, artificial, mutante ou treinada de forma incomum.",
+      "pagina": 54
+    },
+    {
+      "id": "tl46",
+      "nome": "KI INEXPRESSIVO",
+      "tipo": "Passiva",
+      "requisitos": "Ter a perícia “Controle de Ki” treinada (texto do talento).",
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Seu fluxo energético é controlado a tal ponto que outros têm dificuldade em saber o que você realmente pretende fazer, apenas podendo ter esse talento se tiver a perícia “Controle de Ki” treinada. Você pode:\nesconder seu verdadeiro poder de Scouters e percepção comum;\nfingir exaustão, fraqueza ou falta de domínio;\nparecer civil, inofensivo ou “sem Ki” por breves períodos;\nmascarar emoções e intenção hostil através do próprio fluxo energético.",
+      "pagina": 55
+    },
+    {
+      "id": "tl47",
+      "nome": "GUIA DOS MUNDOS HOSTIS",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Você sabe sobreviver em desertos, florestas, montanhas, mundos selvagens, ruínas, luas e planetas desconhecidos. Você pode: evitar que o grupo se perca; encontrar rota segura, abrigo ou água; reconhecer território perigoso; perceber quando um ambiente “parece morto demais” ou repleto de predadores; rastrear alguém não só por pegadas, mas por resíduos energéticos e alteração do ambiente. Considerando assim, que você sempre tem sucesso em Testes de Sobrevivência.",
+      "pagina": 55
+    },
+    {
+      "id": "tl48",
+      "nome": "VOZ DO MESTRE",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Sua fala tem peso. Não porque é bonita, mas porque carrega presença, convicção e energia real. Você pode usar sua palavra para: acalmar multidões, evitar pânico, impedir luta desnecessária, impor respeito em arenas, dojos e facções, ou transformar uma cena social tensa num “momento de escuta”. Utilizando assim sua Intimidação como teste principal resistido aos alvos afetados que devem realizar Teste de Sabedoria, a depender do seu sucesso e do quanto ele ultrapassou a resistência dos alvos, o narrador determina o quão profundo vai sua influência.",
+      "pagina": 55
+    },
+    {
+      "id": "tl49",
+      "nome": "NOME QUE CORRE PELAS ESTRELAS",
+      "tipo": "Passiva",
+      "requisitos": null,
+      "custo": null,
+      "custo_no_texto": null,
+      "efeito": "Seu nome, apelido, estilo, feitos ou escola já são conhecidos em algum circuito marcial, facção, planeta ou submundo. Quando entrar em: arena, dojo, colônia, mundo guerreiro, mercado de tecnologia, ou ambiente de lutadores. Você pode acionar sua reputação para obter 1 vantagem narrativa plausível, como:\naudiência com alguém importante;\nreconhecimento imediato;\nrival interessado;\ndesconto, respeito ou proteção temporária;\ninformação de bastidor;\nconvite para torneio, treino ou missão.",
+      "pagina": 55
+    }
+  ]
+}

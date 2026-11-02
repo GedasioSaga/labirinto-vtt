@@ -1,0 +1,30 @@
+{
+  "fonte": "Livro do Narrador - V0.1.pdf, 4.0.4 ETAPA 4 – ATRBITOS DE PNJ'S (p. 18-19)",
+  "natureza": "boa prática, não regra rígida ('A distribuição de atributos não precisa seguir regras rígidas')",
+  "atributos": ["FOR", "DES", "CON", "INT", "POD", "SAB", "PRE"],
+  "categorias": {
+    "Comum": {
+      "teto": 16,
+      "quantos_no_teto": "um ou dois atributos",
+      "demais_max": 12,
+      "demais_texto_verbatim": "Restante entre 12 ou menos.",
+      "excedente": {"acima_de": 16, "reduzir_de_outro_atributo_por_ponto": 2},
+      "texto_verbatim": ["Máximo de 16 em um ou dois atributos.", "Restante entre 12 ou menos.", "Para cada ponto acima de 16, reduza 2 pontos de outro atributo."]
+    },
+    "Elite": {
+      "teto": 20,
+      "segundo_atributo_max": 16,
+      "demais_min": 12,
+      "demais_max": 14,
+      "demais_texto_verbatim": "Restante entre 14 a 12.",
+      "excedente": {"acima_de": 20, "reduzir_de_outro_atributo_por_ponto": 3},
+      "texto_verbatim": ["Podem ter até 20 em um atributo, 16 em outro.", "Restante entre 14 a 12.", "Para passar de 20, reduza 3 pontos de outro atributo por ponto acima."]
+    },
+    "Chefão": {
+      "teto": 30,
+      "demais": null,
+      "excedente": null,
+      "texto_verbatim": ["Podem chegar até 30 em um atributo.", "Sem limites fixos nos demais, mas use o bom senso narrativo."]
+    }
+  }
+}

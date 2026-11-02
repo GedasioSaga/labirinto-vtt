@@ -1,0 +1,1598 @@
+[
+  {
+    "nome": "Mirio Jo",
+    "fonte": "Enma Daioh - 2025.pdf — Capítulo I: Fichas de PnJ (concurso 'Livro do Ema-Daioh', adaptação do Projeto RR)",
+    "saga": null,
+    "criador": "rodrigoninjajorge",
+    "nd": null,
+    "nd_texto_verbatim": "ND ( )",
+    "categoria": "Elite",
+    "rank": "C",
+    "cabecalho_verbatim": "ND ( ) – Elite Rank C",
+    "atributos": {
+      "FOR": {
+        "valor": 14,
+        "mod": 2
+      },
+      "DES": {
+        "valor": 16,
+        "mod": 3
+      },
+      "CON": {
+        "valor": 15,
+        "mod": 2
+      },
+      "INT": {
+        "valor": 16,
+        "mod": 3
+      },
+      "POD": {
+        "valor": 14,
+        "mod": 2
+      },
+      "SAB": {
+        "valor": 12,
+        "mod": 1
+      },
+      "PRE": {
+        "valor": 13,
+        "mod": 1
+      }
+    },
+    "PV": null,
+    "PV_texto_verbatim": "PV: --",
+    "PK": 28,
+    "CA": 15,
+    "VEL": "9,0m",
+    "EP": 2,
+    "EP_texto_verbatim": "02",
+    "pericias": [],
+    "talentos": [],
+    "tecnicas": [
+      {
+        "nome": "Esfera de Ki",
+        "cabecalho_verbatim": "[Esfera de Ki – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Esfera de Ki – D]: O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 5
+      },
+      {
+        "nome": "Golpe Marcial",
+        "cabecalho_verbatim": "[Golpe Marcial – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Toque, com Avanço de 6,0m em Linha.",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Golpe Marcial – D]: O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha. - Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 5
+      },
+      {
+        "nome": "Voo da Mariposa – “Kōchō Gekishin”",
+        "cabecalho_verbatim": "[Voo da Mariposa – “Kōchō Gekishin” - C]",
+        "tipo": "ofensiva",
+        "rank": "C",
+        "descricao": "Mirio libera um Ki agressivo por todo o corpo, fazendo sua aura vibrar como asas etéreas. Em seguida, dispara em velocidade máxima contra um ou vários inimigos, realizando uma investida explosiva que deixa um rastro cortante no ar. O impacto é tão rápido que os adversários veem apenas um brilho antes de serem atingidos.",
+        "dano": "08-17-34",
+        "custo": "Ki: 10",
+        "alcance": "Toque, com Rastro de 6,0m e Avanço de 6,0m",
+        "rotulos_positivos": {
+          "pontos": 6,
+          "lista_verbatim": "Técnica de Ki, Rastro, Estocada, Cortante"
+        },
+        "rotulos_negativos": {
+          "pontos": 3,
+          "lista_verbatim": "Somática, Condicionada"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Voo da Mariposa – “Kōchō Gekishin” - C]: Mirio libera um Ki agressivo por todo o corpo, fazendo sua aura vibrar como asas etéreas. Em seguida, dispara em velocidade máxima contra um ou vários inimigos, realizando uma investida explosiva que deixa um rastro cortante no ar. O impacto é tão rápido que os adversários veem apenas um brilho antes de serem atingidos. [Dano: 08-17-34] [Ki: 10] - Alcance: Toque, com Rastro de 6,0m e Avanço de 6,0m - Rótulos Positivos (6): Técnica de Ki, Rastro, Estocada, Cortante - Rótulos Negativos (3): Somática, Condicionada",
+        "pagina": 6
+      },
+      {
+        "nome": "Chifre do Inseto – “Mushi no Tsuno”",
+        "cabecalho_verbatim": "[Chifre do Inseto – “Mushi no Tsuno” - B]",
+        "tipo": "ofensiva",
+        "rank": "B",
+        "descricao": "O usuário finca sua espada no torso do inimigo, mirando uma área não letal porém dolorosamente precisa. Usando o impulso e o Ki concentrado, ele arremessa o alvo para cima e o persegue no ar, continuando a sequência de ataques antes que o oponente sequer recupere o fôlego.",
+        "dano": "11-22-44",
+        "custo": "Ki: 08",
+        "alcance": "Toque.",
+        "rotulos_positivos": {
+          "pontos": 8,
+          "lista_verbatim": "Técnica de Ki, Técnica Básica, Perfurante"
+        },
+        "rotulos_negativos": {
+          "pontos": 4,
+          "lista_verbatim": "Somática, Verbal"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Chifre do Inseto – “Mushi no Tsuno” - B]: O usuário finca sua espada no torso do inimigo, mirando uma área não letal porém dolorosamente precisa. Usando o impulso e o Ki concentrado, ele arremessa o alvo para cima e o persegue no ar, continuando a sequência de ataques antes que o oponente sequer recupere o fôlego. [Dano: 11-22-44] [Ki: 08] - Alcance: Toque. - Rótulos Positivos (8): Técnica de Ki, Técnica Básica, Perfurante - Rótulos Negativos (4): Somática, Verbal",
+        "pagina": 6
+      },
+      {
+        "nome": "Gorilla Punch – “Kyōshin Gōriki”",
+        "cabecalho_verbatim": "[Gorilla Punch – “Kyōshin Gōriki” - B]",
+        "tipo": "ofensiva",
+        "rank": "B",
+        "descricao": "O Saiyajin concentra toda a brutalidade de sua raça em seus punhos. Apesar do movimento mais lento, cada soco libera uma força devastadora, capaz de imobilizar inimigos apenas pelo impacto. Ossos se quebram, o ar vibra e o golpe reverbera como o soco de um gorila colossal.",
+        "dano": "19-38-76",
+        "custo": "Ki: 18",
+        "alcance": "Toque, com Avanço em 6,0m",
+        "rotulos_positivos": {
+          "pontos": 8,
+          "lista_verbatim": "Técnica Física, Adicionar Condição (Paralisado), Aumentar Dano por Ki, Dano Potente, Estocada"
+        },
+        "rotulos_negativos": {
+          "pontos": 4,
+          "lista_verbatim": "Somático, Verbal"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Gorilla Punch – “Kyōshin Gōriki” - B]: O Saiyajin concentra toda a brutalidade de sua raça em seus punhos. Apesar do movimento mais lento, cada soco libera uma força devastadora, capaz de imobilizar inimigos apenas pelo impacto. Ossos se quebram, o ar vibra e o golpe reverbera como o soco de um gorila colossal. [Dano: 19-38-76] [Ki: 18] - Alcance: Toque, com Avanço em 6,0m - Rótulos Positivos (8): Técnica Física, Adicionar Condição (Paralisado), Aumentar Dano por Ki, Dano Potente, Estocada - Rótulos Negativos (4): Somático, Verbal",
+        "pagina": 6
+      },
+      {
+        "nome": "Enxame de Cortes – “Hachimitsu Renda”",
+        "cabecalho_verbatim": "[Enxame de Cortes – “Hachimitsu Renda” - A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "Ao canalizar Ki pela espada, o espadachim cria uma lâmina adicional na outra mão, formada puramente de energia cortante. Ele então libera uma rajada de microcortes, como um enxame de lâminas vivas. Cada golpe atinge em diferentes ângulos, confundindo o inimigo enquanto o cerca com dezenas de ataques de Ki cortante.",
+        "dano": "17-34-68",
+        "custo": "Ki: 14",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica de Ki, Técnica Básica, Cortante, Projétil"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somática, Verbal, Condicionada"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Enxame de Cortes – “Hachimitsu Renda” - A]: Ao canalizar Ki pela espada, o espadachim cria uma lâmina adicional na outra mão, formada puramente de energia cortante. Ele então libera uma rajada de microcortes, como um enxame de lâminas vivas. Cada golpe atinge em diferentes ângulos, confundindo o inimigo enquanto o cerca com dezenas de ataques de Ki cortante. [Dano: 17-34-68] [Ki: 14] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (10): Técnica de Ki, Técnica Básica, Cortante, Projétil - Rótulos Negativos (5): Somática, Verbal, Condicionada",
+        "pagina": 6
+      },
+      {
+        "nome": "Estilo do Macaco – “Saru Shingan Ryū”",
+        "cabecalho_verbatim": "[Estilo do Macaco – “Saru Shingan Ryū” – C]",
+        "tipo": "especial",
+        "rank": "C",
+        "descricao": "Dominando sua cauda como um quinto membro, o Saiyajin desferra golpes inesperados em aberturas impossíveis para braços e pernas. A cauda chicoteia, bloqueia, prende e atordoa, criando um estilo imprevisível e caótico que confunde completamente a defesa do adversário. Mecanicamente: O usuário pode utilizar qualquer golpe que seja de dano físico através de sua cauda uma vez por rodada, mesmo que já tenha sido utilizado replicando o efeito do rótulo de “Técnica Básica”.",
+        "dano": null,
+        "custo": "Ki: --",
+        "alcance": null,
+        "efeito": null,
+        "texto_verbatim": "[Estilo do Macaco – “Saru Shingan Ryū” – C]: Dominando sua cauda como um quinto membro, o Saiyajin desferra golpes inesperados em aberturas impossíveis para braços e pernas. A cauda chicoteia, bloqueia, prende e atordoa, criando um estilo imprevisível e caótico que confunde completamente a defesa do adversário. Mecanicamente: O usuário pode utilizar qualquer golpe que seja de dano físico através de sua cauda uma vez por rodada, mesmo que já tenha sido utilizado replicando o efeito do rótulo de “Técnica Básica”. [Ki: --]",
+        "pagina": 7
+      }
+    ],
+    "transformacoes": [],
+    "passivas_e_ativas_unicas": [
+      {
+        "nome": "Espírito Altruísta",
+        "tipo": "Passiva/Ativa",
+        "texto_verbatim": "Sempre que um aliado a até 9m falhar em um teste de ataque, teste de resistência ou teste de perícia, Mirio uma vez por rodada desde que consiga reagir pode usar sua Reação para permitir que o aliado repita o teste.",
+        "pagina": 7
+      },
+      {
+        "nome": "Mentor de Combate",
+        "tipo": "Passiva/Ativa",
+        "texto_verbatim": "No começo de um combate, Mirio pode utilizar seu turno de ação inteiro sem agir para “guiar” um aliado. Esse aliado ganha um efeito chamado Instinto Guiado, que dura 3 rodadas: • O alvo tem vantagem em todas suas rolagens, enquanto Mirio estiver a no mínimo 1,5m deste.",
+        "pagina": 7
+      },
+      {
+        "nome": "Pavor Específico",
+        "tipo": "Passiva",
+        "texto_verbatim": "Ao ver vermes, larvas ou enxames, faça um Teste de Sabedoria CD 13. • Se falhar, Mirio fica Aterrorizado por 1d4 rodadas. • Se for tocado por eles, a falha é automática. • Enquanto Aterrorizado, ele não pode aproximar-se da fonte do medo e deve gastar seu movimento se afastando.",
+        "pagina": 7
+      },
+      {
+        "nome": "Vergonha Paralisante",
+        "tipo": "Passiva",
+        "texto_verbatim": "Ao interagir com mulheres desconhecidas em situações sociais diretas (pedido, conversa íntima, elogio etc.) ele deve realizar um Teste de Sabedoria CD 16. • Falha: Mirio fica Desconcertado, perdendo sua capacidade de agir por 1 minuto. • Em combate, se isso acontecer, ele também não pode usar Reações. • Esse efeito desaparece se ele não estiver sendo observado pela mulher em questão.",
+        "pagina": 7
+      },
+      {
+        "nome": "Trauma",
+        "tipo": "Passiva",
+        "texto_verbatim": "Quando Mirio vê cenas de massacre, aldeias destruídas, sangue demais ou algo ligado ao trauma, ele deve fazer um Teste de Sabedoria CD 16. • Falha: Ele entra em Estado de Colapso por 1 rodada. o Não pode atacar ou reagir e perde toda sua CA. o Não pode se mover mais que 1,5m.",
+        "pagina": 7
+      }
+    ],
+    "background_verbatim": "Mirio é um Saiyajin refugiado, sua família era de classe baixa e não tinham atenção da força frieza, por isso, ninguém sentiu falta quando eles fugiram usando\numa Nave velha que ficava nos depósitos no reino, e que sorte, poucos anos depois, o Planeta foi destruído, a família se estabeleceu em um planeta que era supostamente inabitado e inóspito, mas a verdadeira vida do planeta ficava debaixo do planeta, que era oco, o planeta era chamado pelos seus habitantes de Forja Oca, lá, a natureza se misturava com as cidades bem habitadas e harmoniosas, seus habitantes os saradins são um povo cuja aparência parece com insetos robóticos, mas que suas faces parecem mais uma máscara plana.\nDe início, a família foi tratada como invasores saiyajins comuns, mas o contrário foi provado com o testemunho do Pai Nizinra men (Nissin Lamem) e com a notícia da destruição do Planeta Vegeta, com isso, eles lentamente ganharam seu lugar junto ao povo Saradin, sua cultura pacifica mas militar era algo que a família saiyajin se identificava, Mirio fez muitos amigos e aprendeu com seus novos irmãos a arte da forja e do manuseio de Espadas, crescer em um povo tão pacifico e altruísta criou um senso de dever e justiça no coração de Mirio, ele teve de lutar com eventuais Bandidos e bestas que viviam nos Abismos ou na superfície do planeta, porém, uma coisa que Mirio nunca fez, foi tirar a vida de alguém, porque sentia que matar era um ato imperdoável, com uma exceção, Frezza, Mirio Prometeu que um dia iria mata-lo mesmo que ele soubesse que provavelmente jamais iria cumprir, porque uma vez que entraram no planeta, não tinha como sair, porque a tecnologia do planeta não era avançada para criar naves intergalácticas, mas seu irmão\n\fCurponu Dus (Cup Noodles) e o líder de avanços tecnológicos do planeta conseguiram estudar a base da tecnologia da força frieza para criar tecnologia espacial, mas esse avanço custou um grande preço.\nQuando a nave foi consertada e mais naves com molde parecido foram confeccionadas, o Gps da nave original voltou a funcionar e o exército frezza foi tirar satisfação, um pelotão de soldados invadiram o planeta e começaram uma verdadeira GUERRA, Saradins e Soldados do Frezza sendo mortos por todo lado, Mirio foi uma das peças fundamentais para a luta, mesmo que não eliminasse nenhum inimigo, ele foi o que mais nocauteou soldados, junto com seu irmão que usava de Pistolas de Ki e seus amigos Saradianos Byzourrin (Besourin) e Kabuto que voavam com suas asas, o \"time dos mocinhos\" estava vencendo até que o verdadeiro problema apareceu, Dodoria, um problema que nem todo o planeta junto poderia combater, a partir desse momento, a batalha virou completamente, Mirio levou uma surra e foi jogado para o outro lado do planeta, nocauteado, já os familiares, amigos e o povo do planeta Saradin foram exterminados.\nQuando Mirio acordou, o planeta era só destroços, o \"teto\" do planete desmoronou e devastou a paisagem paradisíaca e utópica que vivia debaixo do planeta, não sobrou ninguém, com o pouco que sobrou, Mirio conseguiu se curar, e sobreviver, com uma marca em seu corpo e sua mente, os últimos dias no planeta foram gastos fazendo uma homenagem para o povo saradin, seus amigos e a família de mirio, no último dia, ele pegou a última nave que sobrou, a nave que sua família usou para fugir para esse planeta e voou para buscar força e aliados para exterminar toda a força Frezza.",
+    "cabecalhos_de_secao_verbatim": [
+      "TÉCNICAS OFENSIVAS – Mirio Jo",
+      "TÉCNICAS ESPECIAIS – Mirio Jo",
+      "PASSIVAS E ATIVAS ÚNICAS – Mirio Jo"
+    ],
+    "outros": [
+      "PV não preenchido no original ('PV: ---'). O suplemento diz (p. 2): a ND não está previamente definida; o narrador ajusta conforme o confronto (1x1, 1x5...). Calcular PV = ND x Vida-por-Golpe(categoria, rank) do Livro do Narrador 4.0.2. Perícias e talentos não aparecem nas fichas deste suplemento.",
+      "[Estilo do Macaco – C] não tem bloco 'Efeito:'; a regra mecânica está na descrição após 'Mecanicamente:'."
+    ],
+    "pagina": {
+      "inicio": 4,
+      "fim": 7,
+      "nota": "Números de página impressos no rodapé do PDF. O PDF tem 40 páginas e o último número impresso é 39; a página do PDF provavelmente é impressa+1 (capa), não conferido visualmente."
+    }
+  },
+  {
+    "nome": "Jota Pe",
+    "fonte": "Enma Daioh - 2025.pdf — Capítulo I: Fichas de PnJ (concurso 'Livro do Ema-Daioh', adaptação do Projeto RR)",
+    "saga": null,
+    "criador": "jpmotan",
+    "nd": null,
+    "nd_texto_verbatim": "ND ( )",
+    "categoria": "Elite",
+    "rank": "D",
+    "cabecalho_verbatim": "ND ( ) – Elite Rank D",
+    "atributos": {
+      "FOR": {
+        "valor": 16,
+        "mod": 3
+      },
+      "DES": {
+        "valor": 16,
+        "mod": 3
+      },
+      "CON": {
+        "valor": 10,
+        "mod": 0
+      },
+      "INT": {
+        "valor": 12,
+        "mod": 1
+      },
+      "POD": {
+        "valor": 13,
+        "mod": 1
+      },
+      "SAB": {
+        "valor": 16,
+        "mod": 3
+      },
+      "PRE": {
+        "valor": 10,
+        "mod": 0
+      }
+    },
+    "PV": null,
+    "PV_texto_verbatim": "PV: --",
+    "PK": 26,
+    "CA": 15,
+    "VEL": "9,0m",
+    "EP": 2,
+    "EP_texto_verbatim": "02",
+    "pericias": [],
+    "talentos": [],
+    "tecnicas": [
+      {
+        "nome": "Esfera de Ki",
+        "cabecalho_verbatim": "[Esfera de Ki – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Esfera de Ki – D]: O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 8
+      },
+      {
+        "nome": "Golpe Marcial",
+        "cabecalho_verbatim": "[Golpe Marcial – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Toque, com Avanço de 6,0m em Linha.",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Golpe Marcial – D]: O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha. - Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 9
+      },
+      {
+        "nome": "Soco Rompe-Guarda – “Hoko Breaker”",
+        "cabecalho_verbatim": "[Soco Rompe-Guarda – “Hoko Breaker” - C]",
+        "tipo": "ofensiva",
+        "rank": "C",
+        "descricao": "Jota Pe concentra o Ki na base do punho e desfere um golpe curto, seco e preciso, mirando não a força bruta, mas o ponto estrutural da guarda inimiga. O impacto vibra pelos braços do alvo como um choque nervoso, fazendo seus músculos abrirem brechas involuntárias. O alvo o qual se atingido deve realizar um Teste de Constituição vs CD da Técnica, ou irá receber a condição “Exposto”.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Toque, com Avanço de 6,0m",
+        "rotulos_positivos": {
+          "pontos": 6,
+          "lista_verbatim": "Técnica Física, Estocada, Adicionar Condição (Exposto)"
+        },
+        "rotulos_negativos": {
+          "pontos": 3,
+          "lista_verbatim": "Somático, Descontrole"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Soco Rompe-Guarda – “Hoko Breaker” - C]: Jota Pe concentra o Ki na base do punho e desfere um golpe curto, seco e preciso, mirando não a força bruta, mas o ponto estrutural da guarda inimiga. O impacto vibra pelos braços do alvo como um choque nervoso, fazendo seus músculos abrirem brechas involuntárias. O alvo o qual se atingido deve realizar um Teste de Constituição vs CD da Técnica, ou irá receber a condição “Exposto”. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m - Rótulos Positivos (6): Técnica Física, Estocada, Adicionar Condição (Exposto) - Rótulos Negativos (3): Somático, Descontrole",
+        "pagina": 9
+      },
+      {
+        "nome": "Contra-Impacto Saiyajin – “Saru Reverse”",
+        "cabecalho_verbatim": "[Contra-Impacto Saiyajin – “Saru Reverse” - B]",
+        "tipo": "ofensiva",
+        "rank": "B",
+        "descricao": "Jota Pe aguarda o ataque inimigo até o último segundo. Assim que o adversário inicia o golpe, ele gira o tronco e usa o próprio impulso do ataque oponente como alavanca para um soco brutal no torso. A técnica canaliza o erro e a pressa do inimigo em dano direto.",
+        "dano": "14-22-44",
+        "custo": "Ki: 08",
+        "alcance": "Toque",
+        "rotulos_positivos": {
+          "pontos": 8,
+          "lista_verbatim": "Técnica Física, Técnica Básica, Reativa"
+        },
+        "rotulos_negativos": {
+          "pontos": 4,
+          "lista_verbatim": "Somático, Verbal"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Contra-Impacto Saiyajin – “Saru Reverse” - B]: Jota Pe aguarda o ataque inimigo até o último segundo. Assim que o adversário inicia o golpe, ele gira o tronco e usa o próprio impulso do ataque oponente como alavanca para um soco brutal no torso. A técnica canaliza o erro e a pressa do inimigo em dano direto. [Dano: 14-22-44] [Ki: 08] - Alcance: Toque - Rótulos Positivos (8): Técnica Física, Técnica Básica, Reativa - Rótulos Negativos (4): Somático, Verbal",
+        "pagina": 9
+      },
+      {
+        "nome": "Punho de Repulsão – “Kiai Backfist”",
+        "cabecalho_verbatim": "[Punho de Repulsão – “Kiai Backfist” - A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "Ao sentir o ataque do adversário se aproximar, Jota Pe libera uma explosão curta de Ki que desvia o golpe por milímetros e, no mesmo movimento, gira o braço para um backfist veloz que atinge o inimigo com força angular. O ataque parece instantâneo, como um reflexo aprimorado pelo Ki.",
+        "dano": "17-34-68",
+        "custo": "Ki: 12",
+        "alcance": "Toque",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica Física, Técnica Básica, Reativa"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somático, Verbal, Descontrole"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Punho de Repulsão – “Kiai Backfist” - A]: Ao sentir o ataque do adversário se aproximar, Jota Pe libera uma explosão curta de Ki que desvia o golpe por milímetros e, no mesmo movimento, gira o braço para um backfist veloz que atinge o inimigo com força angular. O ataque parece instantâneo, como um reflexo aprimorado pelo Ki. [Dano: 17-34-68] [Ki: 12] - Alcance: Toque - Rótulos Positivos (10): Técnica Física, Técnica Básica, Reativa - Rótulos Negativos (5): Somático, Verbal, Descontrole",
+        "pagina": 9
+      },
+      {
+        "nome": "Corte Dimensional — “Shihai no Kireme”",
+        "cabecalho_verbatim": "[Corte Dimensional — “Shihai no Kireme” – A]",
+        "tipo": "especial",
+        "rank": "A",
+        "descricao": "Jota não corta apenas matéria. Ele corta conceitos, padrões, movimentos, reações. Durante o combate, seus olhos seguem cada microexpressão, cada tensão muscular, cada partícula de Ki que se move no corpo do oponente. Aos poucos, a dança do inimigo deixa de ser caos e se torna lógica — previsível, inevitável. É como se Jota atravessasse a barreira entre o espaço normal e um espaço “onde tudo já aconteceu”. Quando finalmente completa a leitura do adversário, seu corpo entra em um estado único: Uma única respiração; um passo silencioso; e então o golpe. A lâmina se acende com um brilho fino, quase translúcido, e atravessa o alvo em um corte que parece surgir de outro plano, ignorando armaduras, bloqueios, velocidade e até distância curta. O inimigo não consegue reagir — porque, naquele instante, Jota está cortando a inevitabilidade do movimento. O Corte Dimensional não falha. Ele é executado apenas quando o mundo concede a Jota a compreensão final do adversário — e quando isso ocorre, o golpe é absoluto.",
+        "dano": null,
+        "custo": "Ki: --",
+        "alcance": null,
+        "efeito": "• Jota precisa “ler” o inimigo antes que o Corte Dimensional possa ser usado. A adaptação ocorre automaticamente conforme o combate se desenvolve. A cada vez que Jota realiza ou recebe um ataque que causa dano, ele acumula 1 Marca de Adaptação contra aquele inimigo específico. • Ao atingir o número de marcas de adaptação igual a Escala de Poder do Inimigo x 5, Jota é considerado “adaptado”. • Ao ser considerado “adaptado”, todos os golpes do usuário passam a ter de forma passiva o rótulo de “Dano Cortante”, ao qual para ser ativado o seu efeito o usuário precisa apenas acertar o oponente não importando o estágio de acerto. • O usuário quando “adaptado” pode utilizar seus PK’s para corrigir o acerto do seu ataque, pagando 1 PK para cada valor faltante até chegar no ideal para superar a CA do inimigo, e considerar que o golpe o atingiu.",
+        "texto_verbatim": "[Corte Dimensional — “Shihai no Kireme” – A]: Jota não corta apenas matéria. Ele corta conceitos, padrões, movimentos, reações. Durante o combate, seus olhos seguem cada microexpressão, cada tensão muscular, cada partícula de Ki que se move no corpo do oponente. Aos poucos, a dança do inimigo deixa de ser caos e se torna lógica — previsível, inevitável. É como se Jota atravessasse a barreira entre o espaço normal e um espaço “onde tudo já aconteceu”. Quando finalmente completa a leitura do adversário, seu corpo entra em um estado único: Uma única respiração; um passo silencioso; e então o golpe. A lâmina se acende com um brilho fino, quase translúcido, e atravessa o alvo em um corte que parece surgir de outro plano, ignorando armaduras, bloqueios, velocidade e até distância curta. O inimigo não consegue reagir — porque, naquele instante, Jota está cortando a inevitabilidade do movimento. O Corte Dimensional não falha. Ele é executado apenas quando o mundo concede a Jota a compreensão final do adversário — e quando isso ocorre, o golpe é absoluto. [Ki: --] Efeito: • Jota precisa “ler” o inimigo antes que o Corte Dimensional possa ser usado. A adaptação ocorre automaticamente conforme o combate se desenvolve. A cada vez que Jota realiza ou recebe um ataque que causa dano, ele acumula 1 Marca de Adaptação contra aquele inimigo específico. • Ao atingir o número de marcas de adaptação igual a Escala de Poder do Inimigo x 5, Jota é considerado “adaptado”. • Ao ser considerado “adaptado”, todos os golpes do usuário passam a ter de forma passiva o rótulo de “Dano Cortante”, ao qual para ser ativado o seu efeito o usuário precisa apenas acertar o oponente não importando o estágio de acerto. • O usuário quando “adaptado” pode utilizar seus PK’s para corrigir o acerto do seu ataque, pagando 1 PK para cada valor faltante até chegar no ideal para superar a CA do inimigo, e considerar que o golpe o atingiu.",
+        "pagina": 10
+      },
+      {
+        "nome": "Mente Calma — “Shizuka no Kokoro”",
+        "cabecalho_verbatim": "[Mente Calma — “Shizuka no Kokoro” – C]",
+        "tipo": "especial",
+        "rank": "C",
+        "descricao": "Jota esvazia sua mente e começa a desviar por um curto período de tempo de qualquer ataque, porém sua concentração precisa permanecer precisa, ao menor descontrole seu instinto falha e ele para de desviar dos ataques. Dessa forma, ao receber um ataque, gastando os PK’s dessa técnica, como reação o usuário pode utilizar uma Rolagem de Sabedoria contra o Acerto do Inimigo, onde caso iguale ou passe o valor, esquiva e ignora completamente o ataque.",
+        "dano": null,
+        "custo": "Ki: 02",
+        "alcance": null,
+        "efeito": null,
+        "texto_verbatim": "[Mente Calma — “Shizuka no Kokoro” – C]: Jota esvazia sua mente e começa a desviar por um curto período de tempo de qualquer ataque, porém sua concentração precisa permanecer precisa, ao menor descontrole seu instinto falha e ele para de desviar dos ataques. Dessa forma, ao receber um ataque, gastando os PK’s dessa técnica, como reação o usuário pode utilizar uma Rolagem de Sabedoria contra o Acerto do Inimigo, onde caso iguale ou passe o valor, esquiva e ignora completamente o ataque. [Ki: 02]",
+        "pagina": 10
+      }
+    ],
+    "transformacoes": [],
+    "passivas_e_ativas_unicas": [
+      {
+        "nome": "Serenidade Inabalável",
+        "tipo": "Passiva/Ativa",
+        "texto_verbatim": "Sempre que Jota sofrer um ataque, uma provocação ou um efeito que tente induzi-lo a medo, raiva ou impulsividade, ele pode fazer um Teste de Sabedoria CD 10. • Sucesso: Ele entra em Serenidade, ganhando por 1 rodada: o Vantagem em testes de ataque. o +1,5m de movimento livre que não provoca ataque de oportunidade o Ganha imunidade a quaisquer efeitos com contexto mental. • Falha: Nada acontece, mas Jota ainda mantém a compostura (nenhum efeito negativo adicional).",
+        "pagina": 11
+      },
+      {
+        "nome": "Respeito ao Lutador Determinado",
+        "tipo": "Passiva/Ativa",
+        "texto_verbatim": "Quando Jota vê um aliado ou inimigo continuar lutando mesmo com 25% ou menos de PV, ele gasta metade dos PK’s necessários em suas Reações que envolvam proteger o aliado ou reagir ao inimigo, ambos que causaram o seu respeito.",
+        "pagina": 11
+      }
+    ],
+    "background_verbatim": "Jota é um humano do planeta Terra que treinou a vida inteira para se\nfortalecer como amante das artes marciais. Porém, um dia presenciou seres de níveis planetários ameaçando seu lar. Nesse momento, percebeu que existia uma barreira gigantesca entre sua espécie e outras, algo que talvez apenas esforço físico não fosse capaz de superar. Mesmo em meio à frustração, Jota não desistiu. Decidiu desenvolver um novo estilo de luta, capaz de lidar com ameaças que a pura força bruta não resolveria.",
+    "cabecalhos_de_secao_verbatim": [
+      "TÉCNICAS OFENSIVAS – Jota Pe",
+      "TÉCNICAS ESPECIAIS – Jota Pe",
+      "PASSIVAS E ATIVAS ÚNICAS – Jota Pe"
+    ],
+    "outros": [
+      "PV não preenchido no original ('PV: ---'). O suplemento diz (p. 2): a ND não está previamente definida; o narrador ajusta conforme o confronto (1x1, 1x5...). Calcular PV = ND x Vida-por-Golpe(categoria, rank) do Livro do Narrador 4.0.2. Perícias e talentos não aparecem nas fichas deste suplemento.",
+      "[Contra-Impacto Saiyajin – B] traz '[Dano: 14-22-44]' (quebra de linha '14-' / '22-44' no PDF). O primeiro valor 14 destoa do padrão de Rank B das outras fichas (11-22-44); transcrito como está."
+    ],
+    "pagina": {
+      "inicio": 8,
+      "fim": 11,
+      "nota": "Números de página impressos no rodapé do PDF. O PDF tem 40 páginas e o último número impresso é 39; a página do PDF provavelmente é impressa+1 (capa), não conferido visualmente."
+    }
+  },
+  {
+    "nome": "Gorudan",
+    "fonte": "Enma Daioh - 2025.pdf — Capítulo I: Fichas de PnJ (concurso 'Livro do Ema-Daioh', adaptação do Projeto RR)",
+    "saga": null,
+    "criador": "SkullStriker",
+    "nd": null,
+    "nd_texto_verbatim": "ND ( )",
+    "categoria": "Elite",
+    "rank": "C",
+    "cabecalho_verbatim": "ND ( ) – Elite Rank C",
+    "atributos": {
+      "FOR": {
+        "valor": 16,
+        "mod": 3
+      },
+      "DES": {
+        "valor": 14,
+        "mod": 2
+      },
+      "CON": {
+        "valor": 12,
+        "mod": 1
+      },
+      "INT": {
+        "valor": 16,
+        "mod": 3
+      },
+      "POD": {
+        "valor": 18,
+        "mod": 4
+      },
+      "SAB": {
+        "valor": 10,
+        "mod": 0
+      },
+      "PRE": {
+        "valor": 8,
+        "mod": -1
+      }
+    },
+    "PV": null,
+    "PV_texto_verbatim": "PV: --",
+    "PK": 36,
+    "CA": 14,
+    "VEL": "9,0m",
+    "EP": 2,
+    "EP_texto_verbatim": "02",
+    "pericias": [],
+    "talentos": [],
+    "tecnicas": [
+      {
+        "nome": "Esfera de Ki",
+        "cabecalho_verbatim": "[Esfera de Ki – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Esfera de Ki – D]: O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 13
+      },
+      {
+        "nome": "Golpe Marcial",
+        "cabecalho_verbatim": "[Golpe Marcial – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Toque, com Avanço de 6,0m em Linha.",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Golpe Marcial – D]: O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha. - Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 13
+      },
+      {
+        "nome": "Impacto Infernal do Oni Carmesim – Shura Enkō",
+        "cabecalho_verbatim": "[Impacto Infernal do Oni Carmesim – Shura Enkō – A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "Carregando o braço com um fogo carmesim que se contorce como chamas vivas de outro plano. Seu corpo parece carregar o peso de um oni enfurecido, e por um breve instante uma sombra demoníaca projeta-se atrás dele, sincronizando o movimento. .",
+        "dano": "22-44-88",
+        "custo": "Ki: 26",
+        "alcance": "Alvo em Cone de 9,0m",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica Física, Técnica Básica, Engolfante, Aumento de Dano por Ki"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somático, Verbal, Descontrole"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Impacto Infernal do Oni Carmesim – Shura Enkō – A]: Carregando o braço com um fogo carmesim que se contorce como chamas vivas de outro plano. Seu corpo parece carregar o peso de um oni enfurecido, e por um breve instante uma sombra demoníaca projeta-se atrás dele, sincronizando o movimento. . [Dano: 22-44-88] [Ki: 26] - Alcance: Alvo em Cone de 9,0m - Rótulos Positivos (10): Técnica Física, Técnica Básica, Engolfante, Aumento de Dano por Ki - Rótulos Negativos (5): Somático, Verbal, Descontrole",
+        "pagina": 13
+      },
+      {
+        "nome": "Punho do Portão Desperto – \"Kaimon Reiken\"",
+        "cabecalho_verbatim": "[Punho do Portão Desperto – \"Kaimon Reiken\" – A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "O usuário canaliza Ki através de seu corpo, abrindo simbolicamente o “Portão Espiritual”, uma fronteira entre o mundo físico e o mundo oculto. Quando o portão se abre, seu punho é envolto por uma energia etérea azul-escura, marcada por chamas espirituais que cintilam como fogo frio. Ao desferir o golpe, a energia é expulsa para fora em forma de uma onda espiritual expansiva, que atravessa matéria física e vibrações dimensionais.",
+        "dano": "31-62-124",
+        "custo": "Ki: 26",
+        "alcance": "Pessoal, com Área de Raio de 7,5",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica de Ki, Expansiva, Rajada Contínua, Impacto, Aumentar Dano por Ki"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somático, Verbal, Condicionada"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Punho do Portão Desperto – \"Kaimon Reiken\" – A]: O usuário canaliza Ki através de seu corpo, abrindo simbolicamente o “Portão Espiritual”, uma fronteira entre o mundo físico e o mundo oculto. Quando o portão se abre, seu punho é envolto por uma energia etérea azul-escura, marcada por chamas espirituais que cintilam como fogo frio. Ao desferir o golpe, a energia é expulsa para fora em forma de uma onda espiritual expansiva, que atravessa matéria física e vibrações dimensionais. [Dano: 31-62-124] [Ki: 26] - Alcance: Pessoal, com Área de Raio de 7,5 - Rótulos Positivos (10): Técnica de Ki, Expansiva, Rajada Contínua, Impacto, Aumentar Dano por Ki - Rótulos Negativos (5): Somático, Verbal, Condicionada",
+        "pagina": 13
+      },
+      {
+        "nome": "Correntes do Juiz Supremo – Enma no Kusari",
+        "cabecalho_verbatim": "[Correntes do Juiz Supremo – Enma no Kusari – A]",
+        "tipo": "especial",
+        "rank": "A",
+        "descricao": "Das mãos do Oni irrompem correntes espectrais marcadas com selos do submundo, cada elo pulsando com o peso do julgamento de Enma Daioh. As correntes serpentam pelo ar como serpentes famintas, atravessando matéria física e espiritual sem distinção. Ao tocar o alvo, elas o enredam e o arrastam em direção ao Oni, drenando sua energia vital e seu Ki como pagamento pelo pecado de enfrentá-lo. Ninguém escapa do toque das correntes que julgam até mesmo almas errantes.",
+        "dano": null,
+        "custo": "Ki: 14",
+        "alcance": null,
+        "efeito": "• O usuário faz uma rolagem de Ataque com Inteligência contra o alvo, caso o acerte ele será considerado “acorrentado” espiritualmente a você. O usuário deve gastar por rodada os PK’s desta técnica especial para manter o vínculo. • Alvos que estão acorrentados a você e gastam PK’s recuperam os PV’s do usuário igual a quantidade de PK’s gasta. • Alvos que estão acorrentados a você e curam seus PV’s por qualquer tipo de fonte de cura seja natural ou mágica, adiciona metade da pontuação de cura como PK’s bônus ao Oni, esses que podem ser utilizados a qualquer momento até o final da batalha. • Para quebrar o vínculo espiritual com o Oni, o alvo deve realizar uma ação uma rolagem de Força ou Constituição, em que a mesma supere o valor de acerto inicial que fez a corrente se vincular a si. A tentativa apenas pode ocorrer no início do turno de ação do afetado sendo a primeira ação, e caso falhe perde seu turno de ação automaticamente.",
+        "texto_verbatim": "[Correntes do Juiz Supremo – Enma no Kusari – A]: Das mãos do Oni irrompem correntes espectrais marcadas com selos do submundo, cada elo pulsando com o peso do julgamento de Enma Daioh. As correntes serpentam pelo ar como serpentes famintas, atravessando matéria física e espiritual sem distinção. Ao tocar o alvo, elas o enredam e o arrastam em direção ao Oni, drenando sua energia vital e seu Ki como pagamento pelo pecado de enfrentá-lo. Ninguém escapa do toque das correntes que julgam até mesmo almas errantes. [Ki: 14] Efeito: • O usuário faz uma rolagem de Ataque com Inteligência contra o alvo, caso o acerte ele será considerado “acorrentado” espiritualmente a você. O usuário deve gastar por rodada os PK’s desta técnica especial para manter o vínculo. • Alvos que estão acorrentados a você e gastam PK’s recuperam os PV’s do usuário igual a quantidade de PK’s gasta. • Alvos que estão acorrentados a você e curam seus PV’s por qualquer tipo de fonte de cura seja natural ou mágica, adiciona metade da pontuação de cura como PK’s bônus ao Oni, esses que podem ser utilizados a qualquer momento até o final da batalha. • Para quebrar o vínculo espiritual com o Oni, o alvo deve realizar uma ação uma rolagem de Força ou Constituição, em que a mesma supere o valor de acerto inicial que fez a corrente se vincular a si. A tentativa apenas pode ocorrer no início do turno de ação do afetado sendo a primeira ação, e caso falhe perde seu turno de ação automaticamente.",
+        "pagina": 14
+      },
+      {
+        "nome": "Correntes do Juiz Supremo – Enma no Kusari",
+        "cabecalho_verbatim": "[Correntes do Juiz Supremo – Enma no Kusari – A]",
+        "tipo": "especial",
+        "rank": "A",
+        "descricao": "O Oni ergue sua aura e o chão treme como se os portões do inferno se abrissem sob seus pés. Da escuridão profunda surge a forma colossal de uma mão espiritual — a própria Mão do Julgamento de Enma Daioh. Moldada em fogo púrpura e tormento ancestral, ela desce do alto com velocidade implacável. A mão pode esmagar como um veredito fatal ou segurar o oponente entre dedos espirituais que aprisionam até mesmo almas. Diante desta técnica, nenhum mortal, yokai ou espírito se mantém de pé sem enfrentar o julgamento final.",
+        "dano": null,
+        "custo": "Ki: 10",
+        "alcance": null,
+        "efeito": "• O usuário faz uma rolagem de Ataque com Inteligência contra o alvo, caso ele seja acertado ele está sob influência permanente da regra do rótulo de “Técnica de Selamento”. Onde não há como se desvencilhar de seus efeitos, a não ser matando o usuário.",
+        "texto_verbatim": "[Correntes do Juiz Supremo – Enma no Kusari – A]: O Oni ergue sua aura e o chão treme como se os portões do inferno se abrissem sob seus pés. Da escuridão profunda surge a forma colossal de uma mão espiritual — a própria Mão do Julgamento de Enma Daioh. Moldada em fogo púrpura e tormento ancestral, ela desce do alto com velocidade implacável. A mão pode esmagar como um veredito fatal ou segurar o oponente entre dedos espirituais que aprisionam até mesmo almas. Diante desta técnica, nenhum mortal, yokai ou espírito se mantém de pé sem enfrentar o julgamento final. [Ki: 10] Efeito: • O usuário faz uma rolagem de Ataque com Inteligência contra o alvo, caso ele seja acertado ele está sob influência permanente da regra do rótulo de “Técnica de Selamento”. Onde não há como se desvencilhar de seus efeitos, a não ser matando o usuário.",
+        "pagina": 14
+      }
+    ],
+    "transformacoes": [
+      {
+        "nome": "Modo Assalto",
+        "estagio": "Estágio 1",
+        "descricao": "Quando o Oni desperta essa forma, o ar ao seu redor se distorce como se o mundo estivesse hesitando entre medo e respeito. Um calor profundo começa a pulsar de dentro de seu peito, não como fogo comum, mas como a chama primitiva do submundo — a mesma que incendeia as forjas espirituais de Enma Daioh.Sua pele escurecida começa a brilhar, primeiro em tons rubros, depois em vermelho incandescente, até finalmente arder em chamas vivas, como metal recém-fundido prestes a ser moldado. Enquanto estiver nesse estado, todas as suas técnicas ofensivas passam a ser automaticamente classificadas como \"Dano Elemental – Ígneo\", mesmo que originalmente não possuam esse rótulo em sua composição.",
+        "ep_bonus": "+02",
+        "custo": "Ki: 06",
+        "texto_verbatim": "Modo Assalto – Estágio 1: Quando o Oni desperta essa forma, o ar ao seu redor se distorce como se o mundo estivesse hesitando entre medo e respeito. Um calor profundo começa a pulsar de dentro de seu peito, não como fogo comum, mas como a chama primitiva do submundo — a mesma que incendeia as forjas espirituais de Enma Daioh.Sua pele escurecida começa a brilhar, primeiro em tons rubros, depois em vermelho incandescente, até finalmente arder em chamas vivas, como metal recém-fundido prestes a ser moldado. Enquanto estiver nesse estado, todas as suas técnicas ofensivas passam a ser automaticamente classificadas como \"Dano Elemental – Ígneo\", mesmo que originalmente não possuam esse rótulo em sua composição. [EP: +02] [KI: 06]",
+        "pagina": 15
+      }
+    ],
+    "passivas_e_ativas_unicas": [
+      {
+        "nome": "Orgulho do Guardião Rubro",
+        "tipo": "Passiva",
+        "texto_verbatim": "O Oni possui um orgulho disciplinado e um senso rígido de justiça. Ele jamais recua quando está protegendo inocentes. Sempre que o Oni estiver protegendo uma criança, um idoso ou alguém de coração puro, ele entra no estado de Determinação Guardiã, ganhando vantagem em todas suas rolagens que tenham conexão com os protegidos, enquanto eles estiverem no seu campo de visão.",
+        "pagina": 15
+      },
+      {
+        "nome": "Vício em Doces",
+        "tipo": "Passiva",
+        "texto_verbatim": "Oni ou não, ele tem um fraco incontrolável por doces do mundo dos vivos. Se o Oni consumir um doce durante o descanso curto ou longo, ele inicia a próxima batalha com PK’s extras igual a sua EP Base x 5. Porém, se alguém exibe um doce dentro do campo de visão do Oni… ele deve fazer um Teste de Sabedoria CD 14. • Sucesso: Ele se controla. • Falha: Não pode reagir naquela rodada — distraído visualizando o doce.",
+        "pagina": 15
+      }
+    ],
+    "background_verbatim": "Os Ogres sempre foram vistos apenas como burocratas e guardas do\nSubmundo, trabalhando sob as ordens de Enma Daioh. Porém, entre eles, alguns se destacam pela disciplina, força e potencial espiritual. Gorudan é um desses.\nDesde jovem, recusou-se a aceitar que os Ogres fossem apenas \"secretários da morte\". Ele treinou duro, misturando artes marciais com técnicas espirituais herdadas de sua linhagem Oni. Com o tempo, ganhou respeito no Submundo, tornando-se um dos guardiões responsáveis por impedir a fuga de almas malignas.\nSua ambição é simples e grandiosa: provar que os Ogres podem ser reconhecidos como uma raça de guerreiros no universo, não apenas servos invisíveis. Assim, conseguir provar o valor de sua raça e conquistar um lugar de honra entre os grandes guerreiros do multiverso.",
+    "cabecalhos_de_secao_verbatim": [
+      "TÉCNICAS OFENSIVAS – Gorudan",
+      "TÉCNICAS ESPECIAIS – Gorudan",
+      "TRANSFORMAÇÕES – Gorudan",
+      "PASSIVAS E ATIVAS ÚNICAS – Gorudan"
+    ],
+    "outros": [
+      "PV não preenchido no original ('PV: ---'). O suplemento diz (p. 2): a ND não está previamente definida; o narrador ajusta conforme o confronto (1x1, 1x5...). Calcular PV = ND x Vida-por-Golpe(categoria, rank) do Livro do Narrador 4.0.2. Perícias e talentos não aparecem nas fichas deste suplemento.",
+      "Erro do original: as duas técnicas especiais têm o mesmo cabeçalho '[Correntes do Juiz Supremo – Enma no Kusari – A]'. A segunda ([Ki: 10]) descreve a 'Mão do Julgamento de Enma Daioh' e aplica permanentemente o rótulo 'Técnica de Selamento'."
+    ],
+    "pagina": {
+      "inicio": 12,
+      "fim": 15,
+      "nota": "Números de página impressos no rodapé do PDF. O PDF tem 40 páginas e o último número impresso é 39; a página do PDF provavelmente é impressa+1 (capa), não conferido visualmente."
+    }
+  },
+  {
+    "nome": "Erik Ko’nuar",
+    "fonte": "Enma Daioh - 2025.pdf — Capítulo I: Fichas de PnJ (concurso 'Livro do Ema-Daioh', adaptação do Projeto RR)",
+    "saga": null,
+    "criador": "paulovitorsc",
+    "nd": null,
+    "nd_texto_verbatim": "ND ( )",
+    "categoria": "Elite",
+    "rank": "Z",
+    "cabecalho_verbatim": "ND ( ) – Elite Rank Z",
+    "atributos": {
+      "FOR": {
+        "valor": 18,
+        "mod": 4
+      },
+      "DES": {
+        "valor": 14,
+        "mod": 2
+      },
+      "CON": {
+        "valor": 12,
+        "mod": 1
+      },
+      "INT": {
+        "valor": 18,
+        "mod": 4
+      },
+      "POD": {
+        "valor": 16,
+        "mod": 4
+      },
+      "SAB": {
+        "valor": 14,
+        "mod": 2
+      },
+      "PRE": {
+        "valor": 15,
+        "mod": 2
+      }
+    },
+    "PV": null,
+    "PV_texto_verbatim": "PV: --",
+    "PK": 32,
+    "CA": 16,
+    "VEL": "9,0m",
+    "EP": 4,
+    "EP_texto_verbatim": "04",
+    "pericias": [],
+    "talentos": [],
+    "tecnicas": [
+      {
+        "nome": "Esfera de Ki",
+        "cabecalho_verbatim": "[Esfera de Ki – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Esfera de Ki – D]: O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 17
+      },
+      {
+        "nome": "Golpe Marcial",
+        "cabecalho_verbatim": "[Golpe Marcial – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Toque, com Avanço de 6,0m em Linha.",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Golpe Marcial – D]: O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha. - Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 17
+      },
+      {
+        "nome": "Erros do Futuro",
+        "cabecalho_verbatim": "[Erros do Futuro – Z]",
+        "tipo": "especial",
+        "rank": "Z",
+        "descricao": "Quando recebe uma ferida grave, o usuário manipula as próprias linhas temporais do corpo. Em vez de retroceder o mundo, ele retrocede apenas a parte atingida, costurando pele, músculo e energia ao seu estado anterior. A ferida simplesmente desaparece, como se tivesse sido arrancada da história. Se um corte o atinge às 1h30, ele faz aquele fragmento do corpo voltar para 1h15 — um instante em que o golpe ainda não existia. E quando o fluxo alcança de novo 1h30, nada acontece: o destino já foi corrigido. Ele não cura o presente. Ele apaga o passado que jamais deveria ter acontecido.",
+        "dano": null,
+        "custo": "Ki: Variável",
+        "alcance": null,
+        "efeito": "• Ignora todo dano recebido na última rodada, voltando aos PV’s que tinha no exato momento que iniciou o último turno anterior. Para fazer isto, o usuário deve gastar uma quantidade de PK’s igual ao número de ações ofensivas de todos durante o combate que houveram entre o início do seu turno anterior e o atual, onde cada ação é igual a 1 PK.",
+        "texto_verbatim": "[Erros do Futuro – Z]: Quando recebe uma ferida grave, o usuário manipula as próprias linhas temporais do corpo. Em vez de retroceder o mundo, ele retrocede apenas a parte atingida, costurando pele, músculo e energia ao seu estado anterior. A ferida simplesmente desaparece, como se tivesse sido arrancada da história. Se um corte o atinge às 1h30, ele faz aquele fragmento do corpo voltar para 1h15 — um instante em que o golpe ainda não existia. E quando o fluxo alcança de novo 1h30, nada acontece: o destino já foi corrigido. Ele não cura o presente. Ele apaga o passado que jamais deveria ter acontecido. [Ki: Variável] Efeito • Ignora todo dano recebido na última rodada, voltando aos PV’s que tinha no exato momento que iniciou o último turno anterior. Para fazer isto, o usuário deve gastar uma quantidade de PK’s igual ao número de ações ofensivas de todos durante o combate que houveram entre o início do seu turno anterior e o atual, onde cada ação é igual a 1 PK.",
+        "pagina": 18
+      },
+      {
+        "nome": "Camadas Temporais",
+        "cabecalho_verbatim": "[Camadas Temporais – Z]",
+        "tipo": "especial",
+        "rank": "Z",
+        "descricao": "O tempo funciona como uma árvore cheia de ramificações. Cada indecisão cria linhas diferentes: em uma eu compro uma goiaba, em outra pego um ônibus. Para não virar caos infinito, todas essas linhas ficam sobrepostas, como camadas empilhadas. Com essa técnica capacidade do usuário se torna saltar entre essas camadas, mas somente dentro de eventos que já foram vividos. Num combate o usuário pode explorar as pequenas variações das suas próprias escolhas: numa linha ataco, noutra defendo, noutra avanço. Saltando entre essas versões de mim mesmo, encontro a rota onde minha sobrevivência é possível.",
+        "dano": null,
+        "custo": "Ki: 12, +01 Acumulável por Nova Ação",
+        "alcance": null,
+        "efeito": "• Após realizar uma ação, o usuário pode ativar sua técnica especial, e ignorar a última ação que fez e realizar uma nova ação, que pode ser a mesma ou outra diferente. Ele poderá fazer isto repetidamente, enquanto tiver PK’s para pagar por isto. Ao finalizar o uso, o usuário pode escolher qual das ações será a verdadeira e descartar todas as outras.",
+        "texto_verbatim": "[Camadas Temporais – Z]: O tempo funciona como uma árvore cheia de ramificações. Cada indecisão cria linhas diferentes: em uma eu compro uma goiaba, em outra pego um ônibus. Para não virar caos infinito, todas essas linhas ficam sobrepostas, como camadas empilhadas. Com essa técnica capacidade do usuário se torna saltar entre essas camadas, mas somente dentro de eventos que já foram vividos. Num combate o usuário pode explorar as pequenas variações das suas próprias escolhas: numa linha ataco, noutra defendo, noutra avanço. Saltando entre essas versões de mim mesmo, encontro a rota onde minha sobrevivência é possível. [Ki: 12, +01 Acumulável por Nova Ação] Efeito: • Após realizar uma ação, o usuário pode ativar sua técnica especial, e ignorar a última ação que fez e realizar uma nova ação, que pode ser a mesma ou outra diferente. Ele poderá fazer isto repetidamente, enquanto tiver PK’s para pagar por isto. Ao finalizar o uso, o usuário pode escolher qual das ações será a verdadeira e descartar todas as outras.",
+        "pagina": 18
+      },
+      {
+        "nome": "Retroceder a Alma",
+        "cabecalho_verbatim": "[Retroceder a Alma – Z]",
+        "tipo": "especial",
+        "rank": "Z",
+        "descricao": "O usuário aprende a retroceder apenas o Ki, e não o corpo. Isso permite que seus ataques existam em mais de um ponto do tempo ao mesmo tempo. Ele pode fazer um golpe de Ki que já acertou repetir o impacto, pois retrocede o ataque no tempo enquanto o acerto permanece no presente. Da mesma forma, pode fazer uma esfera de Ki que errou voltar ao momento em que foi disparada, obtendo uma nova chance de atingir o alvo sem que o inimigo perceba. Com domínio avançado, o usuário consegue enviar seu Ki para outras camadas temporais, ajudando versões alternativas de si mesmo com ataques que se manifestam em linhas temporais paralelas.",
+        "dano": null,
+        "custo": "Ki: Variável",
+        "alcance": null,
+        "efeito": "• O usuário pode repetir gastando todos os seus PK’s todas as suas ações e exatos acertos que fez na rodada anterior no mesmo alvo ou em um alvo diferente a sua escolha.",
+        "texto_verbatim": "[Retroceder a Alma – Z]: O usuário aprende a retroceder apenas o Ki, e não o corpo. Isso permite que seus ataques existam em mais de um ponto do tempo ao mesmo tempo. Ele pode fazer um golpe de Ki que já acertou repetir o impacto, pois retrocede o ataque no tempo enquanto o acerto permanece no presente. Da mesma forma, pode fazer uma esfera de Ki que errou voltar ao momento em que foi disparada, obtendo uma nova chance de atingir o alvo sem que o inimigo perceba. Com domínio avançado, o usuário consegue enviar seu Ki para outras camadas temporais, ajudando versões alternativas de si mesmo com ataques que se manifestam em linhas temporais paralelas. [Ki: Variável] Efeito: • O usuário pode repetir gastando todos os seus PK’s todas as suas ações e exatos acertos que fez na rodada anterior no mesmo alvo ou em um alvo diferente a sua escolha.",
+        "pagina": 18
+      }
+    ],
+    "transformacoes": [],
+    "passivas_e_ativas_unicas": [],
+    "background_verbatim": "Erik Ko’nuar\nTempo... Isso, para mim, é um assunto delicado. Em que ano estamos? Ou melhor, em que ano eu deveria estar... Há um tempo, eu vi esse objeto. Um brinco. Um brinco dos seres nomeados como “Deuses da Criação”, conhecidos no universo como Supremos Senhores Kaioh. Mas o que eu não sabia era que esses seres existem em cada aspecto individual da existência vida, morte e tempo. Andando na minha cidade natal, antes de ir para o trabalho, eu vi esse objeto no chão. Parecendo uma pedra, estava totalmente queimado. Após levá-lo para casa e limpá-lo rapidamente, percebi que aquilo era um brinco, e que parecia ser bem valioso. Pensei logo em vender. Mas antes, eu o coloquei na orelha e olhei para o relógio. Vi que eram umas 6h40 da manhã e que meu trabalho era só às 8h. Fiz uma conta rápida e percebi que ainda dava tempo de pegar o trem. Corri até a estação, peguei o trem e fui para o meu trabalho. Chegando à empresa, fui direto para o computador e comecei aquela manhã cansativa. Levantei-me, fui tomar um café e entrei no banheiro. Então, de repente, eu estava andando na rua de novo. Olhei para o lado e vi uma pedra meio queimada. Antes de ir para o trabalho, eu havia visto esse objeto no chão e levado para casa para limpá-lo. Rapidamente percebi que aquilo era um brinco, que parecia ser bem valioso. Pensei logo em vender. Então fui olhar o relógio e vi... espera. Ainda são 6h40? Eu jurei que já tinha feito mais... coisas?\n\fNaquele momento, percebi. Eu podia voltar no tempo.\nRevivi esse dia umas cem vezes antes de começar a notar as mudanças temporais. Meu corpo, no começo, não percebia essa distorção. Mas toda vez que eu olhava para o relógio, me dava conta do tempo que retrocedia. Usei isso, no começo, para entender meus “poderes” e fui atrás de respostas. Estudei muito e compreendi a existência do ki, e dos lutadores que pareciam deuses em combate. Afundei nesse mundo de ki e, quando percebi, eu conseguia ver o “tempo” como uma linha. E mais do que ver... eu podia mudá-la.\nQuando puxava essa linha, eu voltava no tempo. Aos poucos, aprendi a usar esses poderes em objetos. Jogava uma bola de papel no chão e conseguia retroceder apenas aquele objeto. E assim começou a minha jornada como guerreiro... o próximo terráqueo mais procurado da Galáxia do Norte pela Federação Galáctica. Bem, eu ainda tenho muita história para contar. Então você, que está lendo isso... já pensou em voltar? Em lutar contra os seus erros? Em se sentir livre dos seus arrependimentos? Eu te garanto... ess..\n— Hey! Achamos ele! PEGUEM-NO!!! Termino minha gravação aqui. Até mais.",
+    "cabecalhos_de_secao_verbatim": [
+      "TÉCNICAS OFENSIVAS – Erik Ko’nuar",
+      "TÉCNICAS ESPECIAIS – Gorudan"
+    ],
+    "outros": [
+      "PV não preenchido no original ('PV: ---'). O suplemento diz (p. 2): a ND não está previamente definida; o narrador ajusta conforme o confronto (1x1, 1x5...). Calcular PV = ND x Vida-por-Golpe(categoria, rank) do Livro do Narrador 4.0.2. Perícias e talentos não aparecem nas fichas deste suplemento.",
+      "Erro do original: o cabeçalho das técnicas especiais de Erik diz 'TÉCNICAS ESPECIAIS – Gorudan' (p. 18). Erik não tem seção de passivas/ativas únicas nem transformações. Linha de título no PDF: 'Erik Ko’nuar – Ema Daioh 2025'."
+    ],
+    "pagina": {
+      "inicio": 16,
+      "fim": 19,
+      "nota": "Números de página impressos no rodapé do PDF. O PDF tem 40 páginas e o último número impresso é 39; a página do PDF provavelmente é impressa+1 (capa), não conferido visualmente."
+    }
+  },
+  {
+    "nome": "Amai Kēki",
+    "fonte": "Enma Daioh - 2025.pdf — Capítulo I: Fichas de PnJ (concurso 'Livro do Ema-Daioh', adaptação do Projeto RR)",
+    "saga": null,
+    "criador": "_yurao",
+    "nd": null,
+    "nd_texto_verbatim": "ND ( )",
+    "categoria": "Elite",
+    "rank": "D",
+    "cabecalho_verbatim": "ND ( ) – Elite Rank D",
+    "atributos": {
+      "FOR": {
+        "valor": 10,
+        "mod": 0
+      },
+      "DES": {
+        "valor": 12,
+        "mod": 1
+      },
+      "CON": {
+        "valor": 10,
+        "mod": 0
+      },
+      "INT": {
+        "valor": 14,
+        "mod": 2
+      },
+      "POD": {
+        "valor": 16,
+        "mod": 3
+      },
+      "SAB": {
+        "valor": 14,
+        "mod": 2
+      },
+      "PRE": {
+        "valor": 20,
+        "mod": 5
+      }
+    },
+    "PV": null,
+    "PV_texto_verbatim": "PV: --",
+    "PK": 32,
+    "CA": 13,
+    "VEL": "9,0m",
+    "EP": 2,
+    "EP_texto_verbatim": "02",
+    "pericias": [],
+    "talentos": [],
+    "tecnicas": [
+      {
+        "nome": "Esfera de Ki",
+        "cabecalho_verbatim": "[Esfera de Ki – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Esfera de Ki – D]: O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 21
+      },
+      {
+        "nome": "Golpe Marcial",
+        "cabecalho_verbatim": "[Golpe Marcial – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Toque, com Avanço de 6,0m em Linha.",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Golpe Marcial – D]: O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha. - Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 21
+      },
+      {
+        "nome": "Disparo Sombrio – “Dākushotto”",
+        "cabecalho_verbatim": "[Disparo Sombrio – “Dākushotto” – B]",
+        "tipo": "ofensiva",
+        "rank": "B",
+        "descricao": "Uma técnica que permite lançar uma onda continua de ki sombrio capaz de afetar tudo em seu alcance, após unir suas mãos em frente da testa.",
+        "dano": "15-30-60",
+        "custo": "Ki: 18",
+        "alcance": "Pessoal, com Área em Cone de 7,5m",
+        "rotulos_positivos": {
+          "pontos": 8,
+          "lista_verbatim": "Técnica de Ki, Engolfante, Sombrio, Potente, Aumentar Dano por Ki"
+        },
+        "rotulos_negativos": {
+          "pontos": 4,
+          "lista_verbatim": "Somático, Verbal"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Disparo Sombrio – “Dākushotto” – B]: Uma técnica que permite lançar uma onda continua de ki sombrio capaz de afetar tudo em seu alcance, após unir suas mãos em frente da testa. [Dano: 15-30-60] [Ki: 18] - Alcance: Pessoal, com Área em Cone de 7,5m, - Rótulos Positivos (8): Técnica de Ki, Engolfante, Sombrio, Potente, Aumentar Dano por Ki - Rótulos Negativos (4): Somático, Verbal",
+        "pagina": 21
+      },
+      {
+        "nome": "Aura do Deus Raijin – “Raijin no Ora”",
+        "cabecalho_verbatim": "[Aura do Deus Raijin – “Raijin no Ora” – B]",
+        "tipo": "ofensiva",
+        "rank": "B",
+        "descricao": "Uma técnica capaz de cobrir seu corpo com energia elétrica, assim causando explosão elétrica potente causando danos ao inimigo.",
+        "dano": "11-22-44",
+        "custo": "Ki: 08",
+        "alcance": "Pessoal, com Área de Raio de 6,0m",
+        "rotulos_positivos": {
+          "pontos": 8,
+          "lista_verbatim": "Técnica de Ki, Elétrico, Potente, Expansiva"
+        },
+        "rotulos_negativos": {
+          "pontos": 4,
+          "lista_verbatim": "Somático, Verbal"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Aura do Deus Raijin – “Raijin no Ora” – B]: Uma técnica capaz de cobrir seu corpo com energia elétrica, assim causando explosão elétrica potente causando danos ao inimigo. [Dano: 11-22-44] [Ki: 08] - Alcance: Pessoal, com Área de Raio de 6,0m - Rótulos Positivos (8): Técnica de Ki, Elétrico, Potente, Expansiva - Rótulos Negativos (4): Somático, Verbal",
+        "pagina": 21
+      },
+      {
+        "nome": "Chute Ardente – “Honō no Keri”",
+        "cabecalho_verbatim": "[Chute Ardente – “Honō no Keri” – A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "Uma técnica que combina um chute físico no seu alvo, com um dano flamejante explosive, com um avanço preciso e danos potentes.",
+        "dano": "17-34-68",
+        "custo": "Ki: 12",
+        "alcance": "Toque, com Avanço em Rastro de 6,0m",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica Física, Toque, Rastro, Estocada, Ígneo, Potente Acumulação"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somático, Verbal, Condicionada"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Chute Ardente – “Honō no Keri” – A]: Uma técnica que combina um chute físico no seu alvo, com um dano flamejante explosive, com um avanço preciso e danos potentes. [Dano: 17-34-68] [Ki: 12] - Alcance: Toque, com Avanço em Rastro de 6,0m - Rótulos Positivos (10): Técnica Física, Toque, Rastro, Estocada, Ígneo, Potente Acumulação - Rótulos Negativos (5): Somático, Verbal, Condicionada",
+        "pagina": 22
+      },
+      {
+        "nome": "Esfera de Cura – “Hīringusufia”",
+        "cabecalho_verbatim": "[Esfera de Cura – “Hīringusufia” - A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "Desde que o alvo esteja ferido o alvo pode estender suas duas mãos em direção a ele e preferindo palavras mágicas em sussurros restaurar seus ferimentos e até mesmo suas roupas no processo.",
+        "dano": null,
+        "cura": "17-34-68",
+        "custo": "Ki: 14",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica Mágica, Projétil, Adicionar Cura, Reativa"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Verbal, Somática, Inofensiva"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Esfera de Cura – “Hīringusufia” - A]: Desde que o alvo esteja ferido o alvo pode estender suas duas mãos em direção a ele e preferindo palavras mágicas em sussurros restaurar seus ferimentos e até mesmo suas roupas no processo. [Cura: 17-34-68] [Ki: 14] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (10): Técnica Mágica, Projétil, Adicionar Cura, Reativa - Rótulos Negativos (5): Verbal, Somática, Inofensiva",
+        "pagina": 22
+      },
+      {
+        "nome": "Atomic Ball",
+        "cabecalho_verbatim": "[Atomic Ball – A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "Uma técnica realiza com a palma da mão na frente para lançar uma esfera de ki grande com capacidade de desintegração em escala subatômica.",
+        "dano": "17-34-68",
+        "custo": "Ki: 14",
+        "alcance": "Alvo Único em 9,0m, com Área de Raio de 7,5m",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica de Ki, Projétil, Desintegrante, Expansiva"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somático, Verbal, Condicionada"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Atomic Ball – A]: Uma técnica realiza com a palma da mão na frente para lançar uma esfera de ki grande com capacidade de desintegração em escala subatômica. [Dano: 17-34-68] [Ki: 14] - Alcance: Alvo Único em 9,0m, com Área de Raio de 7,5m - Rótulos Positivos (10): Técnica de Ki, Projétil, Desintegrante, Expansiva - Rótulos Negativos (5): Somático, Verbal, Condicionada",
+        "pagina": 22
+      },
+      {
+        "nome": "Artes da Visão Distante",
+        "cabecalho_verbatim": "[Artes da Visão Distante – D]",
+        "tipo": "especial",
+        "rank": "D",
+        "descricao": "Domínio raro entre os habitantes dos Reinos Superiores, as Artes da Visão Distante permitem que o usuário projete sua consciência para observar eventos em tempo real em qualquer parte dos Reinos Inferiores. Aqueles que dominam essa técnica podem enxergar lugares, pessoas e até detectar distúrbios no fluxo de energia vital à grandes distâncias, sem serem notados. Usuários experientes conseguem usar a técnica para monitorar batalhas, investigar ameaças ou buscar conhecimento oculto. No entanto, é amplamente conhecido que alguns indivíduos — em especial certos Deuses menores e Anciãos entediados — abusam vergonhosamente dessa habilidade para espiar atividades triviais, como torneios de vôlei de praia femininos ou banhos em fontes termais (também femininos), alegando \"interesse cultural\".",
+        "dano": null,
+        "custo": "Ki: Variável",
+        "alcance": null,
+        "efeito": "• O usuário pode gastar 1 ponto de Ki para observar um local ou indivíduo à distância por até 1 ação de quem está sendo observado, ou seja, para cada ato narrado pelo narrador de quem está sendo observado o usuário perde 1 ponto de Ki que só poderá ser regenerado após um descanso longo. • A cena observada é apenas visual (sem som) e não pode interagir com o plano físico. • O alvo deve estar em um mesmo plano de existência e não estar protegido por barreiras mentais ou campos de energia específicos. • Requer um Teste de Presença vs. Sabedoria do alvo se for usado para espionagem consciente, caso o alvo possa ter alguma forma de detectar que está sendo observado, se não o teste não é exigido.",
+        "texto_verbatim": "[Artes da Visão Distante – D]: Domínio raro entre os habitantes dos Reinos Superiores, as Artes da Visão Distante permitem que o usuário projete sua consciência para observar eventos em tempo real em qualquer parte dos Reinos Inferiores. Aqueles que dominam essa técnica podem enxergar lugares, pessoas e até detectar distúrbios no fluxo de energia vital à grandes distâncias, sem serem notados. Usuários experientes conseguem usar a técnica para monitorar batalhas, investigar ameaças ou buscar conhecimento oculto. No entanto, é amplamente conhecido que alguns indivíduos — em especial certos Deuses menores e Anciãos entediados — abusam vergonhosamente dessa habilidade para espiar atividades triviais, como torneios de vôlei de praia femininos ou banhos em fontes termais (também femininos), alegando \"interesse cultural\". [Ki: Variável] Efeito: • O usuário pode gastar 1 ponto de Ki para observar um local ou indivíduo à distância por até 1 ação de quem está sendo observado, ou seja, para cada ato narrado pelo narrador de quem está sendo observado o usuário perde 1 ponto de Ki que só poderá ser regenerado após um descanso longo. • A cena observada é apenas visual (sem som) e não pode interagir com o plano físico. • O alvo deve estar em um mesmo plano de existência e não estar protegido por barreiras mentais ou campos de energia específicos. • Requer um Teste de Presença vs. Sabedoria do alvo se for usado para espionagem consciente, caso o alvo possa ter alguma forma de detectar que está sendo observado, se não o teste não é exigido.",
+        "pagina": 22
+      },
+      {
+        "nome": "Marca de Selamento do Ki - “Ki no Fūin-in”",
+        "cabecalho_verbatim": "[Marca de Selamento do Ki - “Ki no Fūin-in” – B]",
+        "tipo": "especial",
+        "rank": "B",
+        "descricao": "Uma técnica mística que permite o usuário criar uma marca amaldiçoada quando encara um alvo, aponta para ele e fala nome da técnica rolando um Teste de Presença vs Constituição do alvo, caso este falhe ficará marcado enquanto no início dos turnos do usuário ele mantiver essa técnica especial gastando seus PK’s. Um usuário marcado faz com que toda técnica ofensiva que o atinja tenha o efeito do rótulo “Técnica de Selamento”, para o atacante, caso ele opte por isto.",
+        "dano": null,
+        "custo": "Ki: 06",
+        "alcance": null,
+        "efeito": null,
+        "texto_verbatim": "[Marca de Selamento do Ki - “Ki no Fūin-in” – B]: Uma técnica mística que permite o usuário criar uma marca amaldiçoada quando encara um alvo, aponta para ele e fala nome da técnica rolando um Teste de Presença vs Constituição do alvo, caso este falhe ficará marcado enquanto no início dos turnos do usuário ele mantiver essa técnica especial gastando seus PK’s. Um usuário marcado faz com que toda técnica ofensiva que o atinja tenha o efeito do rótulo “Técnica de Selamento”, para o atacante, caso ele opte por isto. [Ki: 06]",
+        "pagina": 23
+      }
+    ],
+    "transformacoes": [],
+    "passivas_e_ativas_unicas": [
+      {
+        "nome": "Coração de Novela",
+        "tipo": "Passiva",
+        "texto_verbatim": "Apesar de sua força espiritual, ela é movida por fortes emoções — talvez por assistir dramas românticos demais. Quando algo desperta seu senso de justiça ou toca seu lado sensível, ela se torna mais determinada, agindo com intensidade incomum. Sempre que presencia injustiça direta ou testemunha alguém em sofrimento emocional, sua postura muda: ela age rápido, protege sem hesitar e seu poder espiritual flui com mais convicção.",
+        "pagina": 23
+      },
+      {
+        "nome": "Humor das Sombras",
+        "tipo": "Passiva",
+        "texto_verbatim": "Fã silenciosa de programas de humor e sátiras humanas, ela aprendeu a encarar o mundo espiritual sem se deixar corroer pela seriedade do ofício. Sua visão leve do submundo a torna menos suscetível ao medo e à tensão — e, às vezes, ela usa piadas ou provocações para quebrar o ritmo do inimigo. Quando o ambiente ou o inimigo tenta criar pressão psicológica, sua resposta tende a ser irreverente, sarcástica e surpreendentemente eficaz, sendo imunes a efeitos de controle mental e de qualquer fonte de medo.",
+        "pagina": 23
+      },
+      {
+        "nome": "O Chute da Solução Simples",
+        "tipo": "Passiva",
+        "texto_verbatim": "Ela prefere técnicas espirituais elaboradas… mas conhece a verdade universal: às vezes, a resposta ideal é um chute bem dado. Em combate contra alguém que considere um inimigo, pode utilizar o “Chute Ardente”, uma vez por rodada contra este inimigo, sem gasto de PK’s, em ação ou reação.",
+        "pagina": 23
+      }
+    ],
+    "background_verbatim": "Sendo uma ex Habitante do segundo reino demoníaco por motivo de\ndescontentamento com a situação de lá, Amai Kēki é uma Glind nascida de um fruto comum que ocasionalmente transita entre dimensões. Sendo encontrada maior parte no tempo no outro mundo, no inferno aonde ocorre o seu treinamento, e no paraíso onde possui uma casinha. De tempos em tempos ela começa a viajar pelas dimensões apenas para visita-los e para se atualizar sobre os acontecimentos que ocorreram no universo.\nSendo Possuidora de técnicas desenvolvidas ao longo dos anos de seu treinamento que envolvem ki e magia, sendo a última a suas favoritas, ela se tornou uma bruxa com uma força notável devido as suas habilidades. E depois de uma batalha contra um poderoso majin, e quase morrer. Amai Kēki após essa derrota decidiu que continuaria seu treino com um discípulo de coração justo para repassar seu conhecimento e para com isso conseguir formar alguém bastante poderoso e além aumentar a suas próprias habilidades, para quem sabe mudar o rumo das coisas ruins que acontecem no universo.",
+    "cabecalhos_de_secao_verbatim": [
+      "TÉCNICAS OFENSIVAS – Amai Keki",
+      "TÉCNICAS ESPECIAIS – Amai Keki",
+      "PASSIVAS E ATIVAS ÚNICAS – Amai Keki"
+    ],
+    "outros": [
+      "PV não preenchido no original ('PV: ---'). O suplemento diz (p. 2): a ND não está previamente definida; o narrador ajusta conforme o confronto (1x1, 1x5...). Calcular PV = ND x Vida-por-Golpe(categoria, rank) do Livro do Narrador 4.0.2. Perícias e talentos não aparecem nas fichas deste suplemento.",
+      "Nome grafado 'Amai Kēki' no título da ficha e 'Amai Keki' nos cabeçalhos de seção. 'Esfera de Cura' está listada em TÉCNICAS OFENSIVAS mas é de cura ([Cura: 17-34-68], rótulo 'Adicionar Cura', negativo 'Inofensiva')."
+    ],
+    "pagina": {
+      "inicio": 20,
+      "fim": 23,
+      "nota": "Números de página impressos no rodapé do PDF. O PDF tem 40 páginas e o último número impresso é 39; a página do PDF provavelmente é impressa+1 (capa), não conferido visualmente."
+    }
+  },
+  {
+    "nome": "Yama",
+    "fonte": "Enma Daioh - 2025.pdf — Capítulo I: Fichas de PnJ (concurso 'Livro do Ema-Daioh', adaptação do Projeto RR)",
+    "saga": null,
+    "criador": "kk_hiro",
+    "nd": null,
+    "nd_texto_verbatim": "ND ( )",
+    "categoria": "Elite",
+    "rank": "Z",
+    "cabecalho_verbatim": "ND ( ) – Elite Rank Z",
+    "atributos": {
+      "FOR": {
+        "valor": 20,
+        "mod": 5
+      },
+      "DES": {
+        "valor": 15,
+        "mod": 2
+      },
+      "CON": {
+        "valor": 15,
+        "mod": 2
+      },
+      "INT": {
+        "valor": 16,
+        "mod": 3
+      },
+      "POD": {
+        "valor": 22,
+        "mod": 6
+      },
+      "SAB": {
+        "valor": 14,
+        "mod": 2
+      },
+      "PRE": {
+        "valor": 8,
+        "mod": -1
+      }
+    },
+    "PV": null,
+    "PV_texto_verbatim": "PV: --",
+    "PK": 44,
+    "CA": 17,
+    "VEL": "9,0m",
+    "EP": 5,
+    "EP_texto_verbatim": "05",
+    "pericias": [],
+    "talentos": [],
+    "tecnicas": [
+      {
+        "nome": "Esfera de Ki",
+        "cabecalho_verbatim": "[Esfera de Ki – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Esfera de Ki – D]: O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 25
+      },
+      {
+        "nome": "Golpe Marcial",
+        "cabecalho_verbatim": "[Golpe Marcial – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Toque, com Avanço de 6,0m em Linha.",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Golpe Marcial – D]: O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha. - Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 25
+      },
+      {
+        "nome": "Comet Omega Rampage",
+        "cabecalho_verbatim": "[Comet Omega Rampage – C]",
+        "tipo": "ofensiva",
+        "rank": "C",
+        "descricao": "Yama avança em velocidade extrema, desferindo socos e chutes que se sucedem sem pausa. Cada impacto provoca pequenas explosões e fragmentos que se espalham pelo campo. Ao final do combo, uma onda de energia massiva persegue o inimigo, colidindo com força devastadora.",
+        "dano": "08-17-34",
+        "custo": "Ki: 06",
+        "alcance": "Toque",
+        "rotulos_positivos": {
+          "pontos": 6,
+          "lista_verbatim": "Técnica Física, Toque, Rajada Contínua, Carga Crescente, Potente"
+        },
+        "rotulos_negativos": {
+          "pontos": 3,
+          "lista_verbatim": "Somático, Condicionada"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Comet Omega Rampage – C]: Yama avança em velocidade extrema, desferindo socos e chutes que se sucedem sem pausa. Cada impacto provoca pequenas explosões e fragmentos que se espalham pelo campo. Ao final do combo, uma onda de energia massiva persegue o inimigo, colidindo com força devastadora. [Dano: 08-17-34] [Ki: 06] - Alcance: Toque - Rótulos Positivos (6): Técnica Física, Toque, Rajada Contínua, Carga Crescente, Potente - Rótulos Negativos (3): Somático, Condicionada",
+        "pagina": 26
+      },
+      {
+        "nome": "Void Crusher",
+        "cabecalho_verbatim": "[Void Crusher – B]",
+        "tipo": "ofensiva",
+        "rank": "B",
+        "descricao": "Uma energia se condensa ao redor do punho, distorcendo o espaço à frente. O ar vibra com intensidade e fissuras surgem no chão enquanto Yama avança. Ao colidir com o alvo, o impacto rasga tudo em linha reta, criando uma onda destrutiva que arrasta o inimigo.",
+        "dano": "19-38-76",
+        "custo": "Ki: 18",
+        "alcance": "Toque, com Avanço em Linha (Todos os Inimigos na Linha são Atingidos) 6,0m",
+        "rotulos_positivos": {
+          "pontos": 8,
+          "lista_verbatim": "Técnica de Ki, Dano Absoluto, Aumentar Dano por Ki, Técnica de Impacto, Estocada"
+        },
+        "rotulos_negativos": {
+          "pontos": 4,
+          "lista_verbatim": "Somática, Verbal"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Void Crusher – B]: Uma energia se condensa ao redor do punho, distorcendo o espaço à frente. O ar vibra com intensidade e fissuras surgem no chão enquanto Yama avança. Ao colidir com o alvo, o impacto rasga tudo em linha reta, criando uma onda destrutiva que arrasta o inimigo. [Dano: 19-38-76] [Ki: 18] - Alcance: Toque, com Avanço em Linha (Todos os Inimigos na Linha são Atingidos) 6,0m - Rótulos Positivos (8): Técnica de Ki, Dano Absoluto, Aumentar Dano por Ki, Técnica de Impacto, Estocada - Rótulos Negativos (4): Somática, Verbal",
+        "pagina": 26
+      },
+      {
+        "nome": "Dragon’s Reversal",
+        "cabecalho_verbatim": "[Dragon’s Reversal - B]",
+        "tipo": "ofensiva",
+        "rank": "B",
+        "descricao": "Ao ser alvo de um golpe, Yama não recua — ele avança. Aproveita o impacto para agarrar o inimigo e devolver a força com um golpe direto.",
+        "dano": "14-22-44",
+        "custo": "Ki: 08",
+        "alcance": "Toque",
+        "rotulos_positivos": {
+          "pontos": 8,
+          "lista_verbatim": "Técnica Física, Técnica Básica, Reativa"
+        },
+        "rotulos_negativos": {
+          "pontos": 4,
+          "lista_verbatim": "Somático, Verbal"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Dragon’s Reversal - B]: Ao ser alvo de um golpe, Yama não recua — ele avança. Aproveita o impacto para agarrar o inimigo e devolver a força com um golpe direto. [Dano: 14-22-44] [Ki: 08] - Alcance: Toque - Rótulos Positivos (8): Técnica Física, Técnica Básica, Reativa - Rótulos Negativos (4): Somático, Verbal",
+        "pagina": 26
+      },
+      {
+        "nome": "Gigantic Lariat",
+        "cabecalho_verbatim": "[Gigantic Lariat – A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "Yama avança em velocidade extrema, agarrando múltiplos inimigos em sequência. Cada alvo é arremessado pelo campo de batalha, colidindo com obstáculos e levantando fragmentos de rocha. .",
+        "dano": "29-58-116",
+        "custo": "Ki: 26",
+        "alcance": "Toque, com Avanço em Linha (Todos os Inimigos na Linha são Atingidos) 6,0m",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica Físico, Dano Absoluto, Aumentar Dano por Ki, Técnica de Impacto, Estocada, Eco de Fúria"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somática, Verbal, Descontrole"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Gigantic Lariat – A]: Yama avança em velocidade extrema, agarrando múltiplos inimigos em sequência. Cada alvo é arremessado pelo campo de batalha, colidindo com obstáculos e levantando fragmentos de rocha. . [Dano: 29-58-116] [Ki: 26] - Alcance: Toque, com Avanço em Linha (Todos os Inimigos na Linha são Atingidos) 6,0m - Rótulos Positivos (10): Técnica Físico, Dano Absoluto, Aumentar Dano por Ki, Técnica de Impacto, Estocada, Eco de Fúria - Rótulos Negativos (5): Somática, Verbal, Descontrole",
+        "pagina": 26
+      },
+      {
+        "nome": "Planet Shatter Slam",
+        "cabecalho_verbatim": "[Planet Shatter Slam – A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "O solo treme enquanto Yama concentra toda sua energia no punho e aumenta a pressão local. Ao descer com força total, o impacto rasga o chão em uma onda concentrada, lançando fragmentos incandescentes ao redor.",
+        "dano": "17-34-68",
+        "custo": "Ki: 12",
+        "alcance": "Toque, com Avanço em Linha de 6,0m",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica de Ki, Toque, Potente, Estocada, Desintegrante, Acumulação"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somático, Verbal, Condicionada"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Planet Shatter Slam – A]: O solo treme enquanto Yama concentra toda sua energia no punho e aumenta a pressão local. Ao descer com força total, o impacto rasga o chão em uma onda concentrada, lançando fragmentos incandescentes ao redor. [Dano: 17-34-68] [Ki: 12] - Alcance: Toque, com Avanço em Linha de 6,0m - Rótulos Positivos (10): Técnica de Ki, Toque, Potente, Estocada, Desintegrante, Acumulação - Rótulos Negativos (5): Somático, Verbal, Condicionada",
+        "pagina": 27
+      },
+      {
+        "nome": "Red Shift Counter",
+        "cabecalho_verbatim": "[Red Shift Counter – Z]",
+        "tipo": "ofensiva",
+        "rank": "Z",
+        "descricao": "Quando cercado, Yama finca os pés no chão e recebe o golpe frontal sem se mover. No instante seguinte, o chão abaixo dele se parte e os inimigos são puxados pela própria força de volta ao alcance. Yama os intercepta com um golpe giratório, esmagando tudo sob o peso dos punhos.",
+        "dano": "32-65-130",
+        "custo": "Ki: 18",
+        "alcance": "Toque",
+        "rotulos_positivos": {
+          "pontos": 12,
+          "lista_verbatim": "Técnica Física, Técnica Básica, Reativa"
+        },
+        "rotulos_negativos": {
+          "pontos": 6,
+          "lista_verbatim": "Somático, Verbal, Descontrole, Posicionamento Preciso"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Red Shift Counter – Z]: Quando cercado, Yama finca os pés no chão e recebe o golpe frontal sem se mover. No instante seguinte, o chão abaixo dele se parte e os inimigos são puxados pela própria força de volta ao alcance. Yama os intercepta com um golpe giratório, esmagando tudo sob o peso dos punhos. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque - Rótulos Positivos (12): Técnica Física, Técnica Básica, Reativa - Rótulos Negativos (6): Somático, Verbal, Descontrole, Posicionamento Preciso",
+        "pagina": 27
+      },
+      {
+        "nome": "World Breaker",
+        "cabecalho_verbatim": "[World Breaker – Z]",
+        "tipo": "ofensiva",
+        "rank": "Z",
+        "descricao": "A técnica suprema de Yama, onde reúne toda sua energia em uma única batida do coração. O ar ao redor se curva, e o chão se deforma, antes que o soco seja lançado, Yama salta para o alto. Então, desfere um único golpe para baixo, liberando uma onda de ki que se expande em um raio esférico colossal, devastando tudo em seu alcance. Pedras, destroços e o próprio solo são lançados aos céus, enquanto o vento gerado pelo impacto é suficiente para desestabilizar qualquer inimigo próximo.",
+        "dano": "32-65-130",
+        "custo": "Ki: 18",
+        "alcance": "Toque, com Área de Raio de 9,0m",
+        "rotulos_positivos": {
+          "pontos": 12,
+          "lista_verbatim": "Técnica Física, Toque, Desintegrante, Expansiva, Potente"
+        },
+        "rotulos_negativos": {
+          "pontos": 6,
+          "lista_verbatim": "Somático, Verbal, Posicionamento Crítico"
+        },
+        "efeito": null,
+        "texto_verbatim": "[World Breaker – Z]: A técnica suprema de Yama, onde reúne toda sua energia em uma única batida do coração. O ar ao redor se curva, e o chão se deforma, antes que o soco seja lançado, Yama salta para o alto. Então, desfere um único golpe para baixo, liberando uma onda de ki que se expande em um raio esférico colossal, devastando tudo em seu alcance. Pedras, destroços e o próprio solo são lançados aos céus, enquanto o vento gerado pelo impacto é suficiente para desestabilizar qualquer inimigo próximo. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque, com Área de Raio de 9,0m - Rótulos Positivos (12): Técnica Física, Toque, Desintegrante, Expansiva, Potente - Rótulos Negativos (6): Somático, Verbal, Posicionamento Crítico",
+        "pagina": 27
+      },
+      {
+        "nome": "Omega Howl",
+        "cabecalho_verbatim": "[Omega Howl – Z]",
+        "tipo": "ofensiva",
+        "rank": "Z",
+        "descricao": "Yama solta um grito que ressoa pelo ar, canalizando uma onda de ki à frente. A corrente de poder distorce o ambiente e provoca faíscas que saltam para todos os lados. Ao atingir o inimigo, a onda de choque derruba e com chance de Atordoar caso não passe em um Teste de Constituição vs CD da Técnica, enquanto fragmentos de energia se espalham como relâmpagos.",
+        "dano": "58-117-234",
+        "custo": "Ki: 44",
+        "alcance": "Pessoal, com Área de Raio de 9,0m",
+        "rotulos_positivos": {
+          "pontos": 12,
+          "lista_verbatim": "Técnica Física, Pessoal, Expansiva, Efeito Negativo (Atordoar), Aumentar Dano por Ki"
+        },
+        "rotulos_negativos": {
+          "pontos": 6,
+          "lista_verbatim": "Somático, Verbal, Posicionamento Crítico"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Omega Howl – Z]: Yama solta um grito que ressoa pelo ar, canalizando uma onda de ki à frente. A corrente de poder distorce o ambiente e provoca faíscas que saltam para todos os lados. Ao atingir o inimigo, a onda de choque derruba e com chance de Atordoar caso não passe em um Teste de Constituição vs CD da Técnica, enquanto fragmentos de energia se espalham como relâmpagos. [Dano: 58-117-234] [Ki: 44] - Alcance: Pessoal, com Área de Raio de 9,0m - Rótulos Positivos (12): Técnica Física, Pessoal, Expansiva, Efeito Negativo (Atordoar), Aumentar Dano por Ki - Rótulos Negativos (6): Somático, Verbal, Posicionamento Crítico",
+        "pagina": 27
+      },
+      {
+        "nome": "Rashin",
+        "cabecalho_verbatim": "[Rashin – A]",
+        "tipo": "especial",
+        "rank": "A",
+        "descricao": "O ápice do instinto de Yama. Reagindo ao “Espírito de Combate” (Ki) de todos ao redor. Com essa técnica, Yama sente o poder e a intenção de luta de cada ser em seu alcance. O Rashin permite que Yama leia o ritmo, a respiração e o impulso do inimigo antes mesmo do golpe ser lançado. Ele percebe pontos vitais, brechas naturais e a densidade de energia em cada ataque, moldando sua ofensiva com precisão inumana. Seus punhos passam a se mover como se fossem atraídos magneticamente pelos órgãos vitais. Quanto mais intenso o espírito de luta do adversário, mais rápido o Rashin age.",
+        "dano": null,
+        "custo": "Ki: Variável",
+        "alcance": null,
+        "efeito": "• Devio ao Rashin, quanto maior a Escala de Poder do inimigo, maior é o acerto do usuário. Assim, este pode gastar 1 PK por EP do alvo até o limite do mesmo, e adicionar o valor em PK’s gastos como modificador de acerto ao seu próximo golpe desferido. • Os PK’s gastos dessa forma não são recuperados no início da próxima rodada.",
+        "texto_verbatim": "[Rashin – A]: O ápice do instinto de Yama. Reagindo ao “Espírito de Combate” (Ki) de todos ao redor. Com essa técnica, Yama sente o poder e a intenção de luta de cada ser em seu alcance. O Rashin permite que Yama leia o ritmo, a respiração e o impulso do inimigo antes mesmo do golpe ser lançado. Ele percebe pontos vitais, brechas naturais e a densidade de energia em cada ataque, moldando sua ofensiva com precisão inumana. Seus punhos passam a se mover como se fossem atraídos magneticamente pelos órgãos vitais. Quanto mais intenso o espírito de luta do adversário, mais rápido o Rashin age. [Ki: Variável] Efeito: • Devio ao Rashin, quanto maior a Escala de Poder do inimigo, maior é o acerto do usuário. Assim, este pode gastar 1 PK por EP do alvo até o limite do mesmo, e adicionar o valor em PK’s gastos como modificador de acerto ao seu próximo golpe desferido. • Os PK’s gastos dessa forma não são recuperados no início da próxima rodada.",
+        "pagina": 28
+      }
+    ],
+    "transformacoes": [],
+    "passivas_e_ativas_unicas": [
+      {
+        "nome": "Conquista Absoluta",
+        "tipo": "Passiva",
+        "texto_verbatim": "A cada batalha, Yama sente o mundo inteiro comprimido a um único ponto: o próximo oponente digno. Seu corpo reage ao conflito como se a luta fosse o único oxigênio que ele precisa. Quanto mais forte o adversário, mais vivo ele se sente — e mais sua aura roxo-clara se intensifica, como se o próprio universo estivesse sendo puxado para dentro de sua fúria crescente. Diante de inimigos poderosos, sua mente gélida se aquieta, mas seu poder desperta sem limites. A sensação é de inevitabilidade: Yama cresce junto do perigo. • Sempre que Yama sofrer dano de um inimigo com atributo maior que o dele (For, Dex, Poder, etc.), ele recebe +1 acúmulo de Conquista (máx. Igual a sua EP). • Cada acúmulo dá +03 de dano bônus em suas técnicas e +1 em testes de resistência. • Ao atingir o máximo acúmulos, Yama entra em Estado de Predação: Seus ataques ignoram 50% de mitigação. • Os acúmulos se perdem após 1 turno sem causar dano ao alvo que atributo maior que o seu.",
+        "pagina": 28
+      },
+      {
+        "nome": "Código da Guerra Honesta",
+        "tipo": "Passiva/Ativa",
+        "texto_verbatim": "Mesmo cruel, Yama honra a linguagem da violência. Ele não engana, não mente e não usa truques. Quando levanta o punho e anuncia um golpe, é uma sentença de morte declarada. Ele luta como acredita que todos deveriam lutar: direto, brutal e inevitável. Para Yama, respeito não está na bondade — está na seriedade do confronto. Se Yama anunciar (“declarar”) o alvo de seu próximo ataque antes dele acontecer, ele recebe Vantagem na Rolagem de Ataque, porém seu inimigo gasta metade dos PK’s em suas reações contra ele.",
+        "pagina": 28
+      }
+    ],
+    "background_verbatim": "O planeta Yharon é um dos berços da civilização Saiyajin, um povo forjado na guerra, onde o valor de cada indivíduo se media pelo poder que carregava. Nessa cultura implacável nasceu Yama, uma criança cuja energia de combate ultrapassava qualquer registro conhecido. Os detectores de ki falhavam diante dele; alguns simplesmente se desfaziam em faíscas.\nOs anciões o chamaram de anomalia, temendo o que poderia se tornar, o Conselho de Guerra selou seu poder com uma máscara de contenção, uma prisão viva que drenava sua energia e punia qualquer sinal de descontrole. Mesmo com o selo, Yama cresceu como um prodígio militar. Seu foco e disciplina contrastavam com a selvageria de seus pares. Aos oito anos, venceu seu primeiro torneio de seleção; aos dez, já participava de missões reais.\nEm seu olhar, havia algo diferente, um brilho feroz, quase instintivo, que muitos comparavam a um Oozaru sem forma. O ponto de virada veio durante a invasão ao planeta Veynar, uma lua rebelde rica em energia. Yama foi enviado junto a uma tropa para eliminar Kaelor, o Gladiador de Ferro. A batalha entre os dois foi longa e brutal; cada impacto fazia as cavernas de cristal vibrarem. Yama sentia seus ossos racharem, mas sorria com êxtase. Quando finalmente esmagou Kaelor sob o próprio punho, compreendeu algo que mudaria seu destino: a força dos outros era o alimento da sua própria ascensão. A partir daquele momento, Yama deixou de lutar por Yharon. Lutava por si mesmo, pela sensação de ultrapassar limites, de subjugar o impossível.\n\fAo retornar, foi celebrado pela vitória, mas censurado pela ferocidade. Em resposta, ergueu a cabeça e declarou diante do Conselho:\n— “Vocês não passam de combustível para me tornar mais forte. E eu serei o mais forte de toda a criação.” Essa arrogância foi o primeiro sinal de ruptura.\nEm uma missão seguinte, no planeta Klyrion, Yama enfrentou um exército rebelde. A vitória veio fácil — fácil demais. Enfurecido pela ausência de desafio, voltou-se contra seus próprios companheiros. O campo de batalha tornou-se ruínas e cinzas; quando a poeira baixou, não havia diferença entre aliados e inimigos.\nConsiderado uma ameaça à própria raça, Yama foi levado de volta a Yharon. Diante do Rei Saiyajin, arrancou sua máscara e libertou o poder que havia contido por anos. O trono tremeu sob a explosão de energia. O Rei, assumindo a forma dourada de um Saiyajin, o enfrentou. A luta foi curta. Um único golpe pôs Yama ao chão, marcado com uma cicatriz. Em silêncio, o Rei o encarou triste e disse:\n— “O universo precisa de monstros, mas Yharon já criou o suficiente. Vá. Prove o que tanto deseja. E, se voltar, traga algo que valha o trono.”\nExilado para os confins da galáxia, Yama recebeu uma nova máscara, não para contê-lo, mas para lembrá-lo de que ainda não era o mais forte. Desde então, vaga entre as estrelas, buscando adversários dignos. A cada vitória, sente o eco da própria fúria chamando-o para ir além. Porque, em seu íntimo, Yama acredita que a criação inteira existe apenas para testá-lo — e que um dia, inevitavelmente, tudo se curvará diante de sua força.",
+    "cabecalhos_de_secao_verbatim": [
+      "TÉCNICAS OFENSIVAS – Yama",
+      "TÉCNICAS ESPECIAIS – Yama",
+      "PASSIVAS E ATIVAS ÚNICAS – Yama"
+    ],
+    "outros": [
+      "PV não preenchido no original ('PV: ---'). O suplemento diz (p. 2): a ND não está previamente definida; o narrador ajusta conforme o confronto (1x1, 1x5...). Calcular PV = ND x Vida-por-Golpe(categoria, rank) do Livro do Narrador 4.0.2. Perícias e talentos não aparecem nas fichas deste suplemento.",
+      "[Dragon’s Reversal - B] também traz '[Dano: 14-22-44]'. [Red Shift Counter – Z] '[Dano: 32-65-130]' (quebra de linha no PDF)."
+    ],
+    "pagina": {
+      "inicio": 24,
+      "fim": 28,
+      "nota": "Números de página impressos no rodapé do PDF. O PDF tem 40 páginas e o último número impresso é 39; a página do PDF provavelmente é impressa+1 (capa), não conferido visualmente."
+    }
+  },
+  {
+    "nome": "Majin Rakthar",
+    "fonte": "Enma Daioh - 2025.pdf — Capítulo I: Fichas de PnJ (concurso 'Livro do Ema-Daioh', adaptação do Projeto RR)",
+    "saga": null,
+    "criador": "smagiic",
+    "nd": null,
+    "nd_texto_verbatim": "ND ( )",
+    "categoria": "Chefão",
+    "rank": "B",
+    "cabecalho_verbatim": "ND ( ) – Chefão Rank B",
+    "atributos": {
+      "FOR": {
+        "valor": 20,
+        "mod": 5
+      },
+      "DES": {
+        "valor": 22,
+        "mod": 6
+      },
+      "CON": {
+        "valor": 20,
+        "mod": 4
+      },
+      "INT": {
+        "valor": 18,
+        "mod": 4
+      },
+      "POD": {
+        "valor": 22,
+        "mod": 6
+      },
+      "SAB": {
+        "valor": 8,
+        "mod": -1
+      },
+      "PRE": {
+        "valor": 8,
+        "mod": -1
+      }
+    },
+    "PV": null,
+    "PV_texto_verbatim": "PV: --",
+    "PK": 44,
+    "CA": 22,
+    "VEL": "9,0m",
+    "EP": 6,
+    "EP_texto_verbatim": "06",
+    "pericias": [],
+    "talentos": [],
+    "tecnicas": [
+      {
+        "nome": "Esfera de Ki",
+        "cabecalho_verbatim": "[Esfera de Ki – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Alvo Único em 9,0m",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Esfera de Ki – D]: O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m - Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 30
+      },
+      {
+        "nome": "Golpe Marcial",
+        "cabecalho_verbatim": "[Golpe Marcial – D]",
+        "tipo": "ofensiva",
+        "rank": "D",
+        "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+        "dano": "08-17-34",
+        "custo": "Ki: 08",
+        "alcance": "Toque, com Avanço de 6,0m em Linha.",
+        "rotulos_positivos": {
+          "pontos": 4,
+          "lista_verbatim": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 2,
+          "lista_verbatim": "Somática"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Golpe Marcial – D]: O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha. - Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki. - Rótulos Negativos (2): Somática",
+        "pagina": 30
+      },
+      {
+        "nome": "Ataque de Bola Mística",
+        "cabecalho_verbatim": "[Ataque de Bola Mística – B]",
+        "tipo": "ofensiva",
+        "rank": "B",
+        "descricao": "O usuário se enrola como uma bola e se lança contra o oponente, derrubando-o. Em seguida, ele voa para longe e investe contra ele, derrubando-o várias vezes. Finalmente, o usuário voa alto no ar e investe para baixo, derrubando o oponente no chão, causando uma grande quantidade de dano.",
+        "dano": "12-25-50",
+        "custo": "Ki: 18",
+        "alcance": "Toque, com Avanço em 9,0m.",
+        "rotulos_positivos": {
+          "pontos": 8,
+          "lista_verbatim": "Técnica Física, Estocada, Contundente, Aumento de Dano Por Ki"
+        },
+        "rotulos_negativos": {
+          "pontos": 4,
+          "lista_verbatim": "Somática, Verbal"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Ataque de Bola Mística – B]: O usuário se enrola como uma bola e se lança contra o oponente, derrubando-o. Em seguida, ele voa para longe e investe contra ele, derrubando-o várias vezes. Finalmente, o usuário voa alto no ar e investe para baixo, derrubando o oponente no chão, causando uma grande quantidade de dano. [Dano: 12-25-50] [KI: 18] - Alcance: Toque, com Avanço em 9,0m. - Rótulos Positivos (8): Técnica Física, Estocada, Contundente, Aumento de Dano Por Ki - Rótulos Negativos (4): Somática, Verbal",
+        "pagina": 30
+      },
+      {
+        "nome": "Calamity Blaster",
+        "cabecalho_verbatim": "[Calamity Blaster – A]",
+        "tipo": "ofensiva",
+        "rank": "A",
+        "descricao": "O usuário dispara um feixe rosa simples, perfeitamente redondo (parece uma esfera quando olhado diretamente para baixo) da palma da mão. Pode ser disparado facilmente sem carga ou postura especial.",
+        "dano": "20-40-80",
+        "custo": "Ki: 26",
+        "alcance": "Alvo em Linha de 12,0m",
+        "rotulos_positivos": {
+          "pontos": 10,
+          "lista_verbatim": "Técnica de Ki, Rastro, Perfurante, Potente, Aumentar Dano por Ki, Queima-Roupa"
+        },
+        "rotulos_negativos": {
+          "pontos": 5,
+          "lista_verbatim": "Somática, Verbal, Descontrole"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Calamity Blaster – A]: O usuário dispara um feixe rosa simples, perfeitamente redondo (parece uma esfera quando olhado diretamente para baixo) da palma da mão. Pode ser disparado facilmente sem carga ou postura especial. [Dano: 20-40-80] [KI: 26] - Alcance: Alvo em Linha de 12,0m - Rótulos Positivos (10): Técnica de Ki, Rastro, Perfurante, Potente, Aumentar Dano por Ki, Queima-Roupa - Rótulos Negativos (5): Somática, Verbal, Descontrole",
+        "pagina": 30
+      },
+      {
+        "nome": "Planet Burst",
+        "cabecalho_verbatim": "[Planet Burst – Z]",
+        "tipo": "ofensiva",
+        "rank": "Z",
+        "descricao": "Primeiro, o usuário levanta uma mão no ar e reúne sua energia na forma de uma esfera de energia gigante, rosa-choque. Uma vez pronta após uma rodada de carregamento, ele lança a esfera de energia no oponente, causando uma enorme quantidade de dano.",
+        "dano": "56-113-226",
+        "custo": "Ki: 44",
+        "alcance": "Alvo Único em 9,0m, com Explosão em Raio de 9,0m",
+        "rotulos_positivos": {
+          "pontos": 12,
+          "lista_verbatim": "Técnica de Ki, Projétil, Expansiva, Potente, Aumentar Dano por Ki."
+        },
+        "rotulos_negativos": {
+          "pontos": 6,
+          "lista_verbatim": "Somática, Verbal, Descontrole, Carregamento"
+        },
+        "efeito": null,
+        "texto_verbatim": "[Planet Burst – Z]: Primeiro, o usuário levanta uma mão no ar e reúne sua energia na forma de uma esfera de energia gigante, rosa-choque. Uma vez pronta após uma rodada de carregamento, ele lança a esfera de energia no oponente, causando uma enorme quantidade de dano. [Dano: 56-113-226] [KI: 44] - Alcance: Alvo Único em 9,0m, com Explosão em Raio de 9,0m - Rótulos Positivos (12): Técnica de Ki, Projétil, Expansiva, Potente, Aumentar Dano por Ki. - Rótulos Negativos (6): Somática, Verbal, Descontrole, Carregamento",
+        "pagina": 31
+      }
+    ],
+    "transformacoes": [],
+    "passivas_e_ativas_unicas": [
+      {
+        "nome": "Os Sete Movimentos da Dança Rubra",
+        "tipo": "Passiva",
+        "texto_verbatim": "Rakthar é um combatente de domínio total de energia bruta, misturando ataques Majin com manipulação gravitacional. Seu estilo é ritmado e imprevisível, alternando entre movimentos lentos e explosões de velocidade insana. Há algo de ritualístico em sua forma de lutar, como se cada confronto fosse uma performance macabra onde o adversário é simultaneamente espectador e vítima e onde o sangue derramado serve como aplauso. Ao início de seu turno de ação, seu coração começa a bater forte, aumentando o compasso a cada rodada. Dessa forma, ativando uma variação dessa passiva a cada rodada que se passa seguindo a ordem, reiniciando na oitava rodada, em um ciclo infinito até a batalha encerrar. ✓ Crimson Pulse — O Primeiro Batimento: Rakthar condensa seu Ki em forma líquida e o dispara como uma onda pulsante que desintegra matéria e absorve energia vital. A próxima técnica que utilizar, irá ter de forma passiva, os rótulos “Alcance em Cone de X metros”, Tipo de Dano “Desintegrante”, Tipo de Dano “Drenagem”. Onde para ativar o efeito dos rótulos basta acertar o inimigo ao invés de dobrar o limite necessário para causar um estágio de dano máximo. ✓ Crimson Rapture — O Segundo Batimento: Técnica corpo a corpo onde Rakthar transforma seus membros em lâminas líquidas vibrantes, desferindo golpes rítmicos que atravessam carne e energia. Cada impacto produz uma pulsação sonora profunda, como uma batida cardíaca amplificada — a sinfonia do colapso. Até o final da rodada do Segundo Batimento, todos seus golpes físicos tem o rótulo “Tipo de Dano Cortante”, caso os golpes já tenham este rótulo, eles são ativados duas vezes. ✓ Selo Invertido — O Terceiro Batimento: O símbolo Majin em sua testa se distorce, emitindo uma onda psíquica que desestabiliza o foco e a coordenação do adversário. Todos os alvos a frente do alvo em um Cone de X metros, devem realizar um Teste de Constituição vs CD do Usuário, onde em falha gastam do dobro de PK’s até o início do próximo turno de ação do Majin. ✓ Graviton Veil — O Quarto Batimento: O Majin cria um campo gravitacional denso ao redor do corpo, curvando projéteis e ataques energéticos — uma defesa viva. Até o início do seu próximo turno, não pode ser atingido por técnicas ofensivas com o rótulo de Projétil, de forma absoluta. ✓ Graviton Maelstrom — O Quinto Batimento: Girando o corpo em um redemoinho denso de energia e sangue líquido, Rakthar cria um vórtice gravitacional devastador, com uma área de raio de X metros a partir do Majin. Os golpes formam uma espiral viva que deforma o espaço ao redor e arremessa inimigos próximos — uma dança infernal de gravidade e carnificina. Todos na área estão sob o efeito do rótulo “Dano Gravitacional”, até o fim do próximo turno do Majin, sem direito a resistência. ✓ Majin Overdrive — O Sexto Batimento: Um grito silencioso que colapsa a energia local, drenando o ki de todos os seres próximos e fundindo com o seu próprio poder. Todos os alvos a frente do alvo em um Cone de X metros, devem realizar um Teste de Constituição vs CD do Usuário, caso falhem perdem metade de seus PK’s atuais, e estes são convertidos em Dano Bônus para próxima técnica ofensiva que o usuário desferir. ✓ Ritual da Ruína — O Sétimo Batimento: A Técnica Final. O sangue de Rakthar escapa do corpo e o envolve em um manto líquido, assumindo uma forma viva. Nesse estado, cada golpe acerta o corpo e o espírito ao mesmo tempo. Todo dano causado pelo Majin até o final de seu próximo turno de ação, será também aplicado nos PK’s do alvo, sem direito a teste de resistência.",
+        "pagina": 31,
+        "texto_intro_verbatim": "Rakthar é um combatente de domínio total de energia bruta, misturando ataques Majin com manipulação gravitacional. Seu estilo é ritmado e imprevisível, alternando entre movimentos lentos e explosões de velocidade insana. Há algo de ritualístico em sua forma de lutar, como se cada confronto fosse uma performance macabra onde o adversário é simultaneamente espectador e vítima e onde o sangue derramado serve como aplauso. Ao início de seu turno de ação, seu coração começa a bater forte, aumentando o compasso a cada rodada. Dessa forma, ativando uma variação dessa passiva a cada rodada que se passa seguindo a ordem, reiniciando na oitava rodada, em um ciclo infinito até a batalha encerrar.",
+        "batimentos": [
+          {
+            "rodada_no_ciclo": 1,
+            "nome": "Crimson Pulse",
+            "batimento": "O Primeiro Batimento",
+            "texto_verbatim": "Rakthar condensa seu Ki em forma líquida e o dispara como uma onda pulsante que desintegra matéria e absorve energia vital. A próxima técnica que utilizar, irá ter de forma passiva, os rótulos “Alcance em Cone de X metros”, Tipo de Dano “Desintegrante”, Tipo de Dano “Drenagem”. Onde para ativar o efeito dos rótulos basta acertar o inimigo ao invés de dobrar o limite necessário para causar um estágio de dano máximo."
+          },
+          {
+            "rodada_no_ciclo": 2,
+            "nome": "Crimson Rapture",
+            "batimento": "O Segundo Batimento",
+            "texto_verbatim": "Técnica corpo a corpo onde Rakthar transforma seus membros em lâminas líquidas vibrantes, desferindo golpes rítmicos que atravessam carne e energia. Cada impacto produz uma pulsação sonora profunda, como uma batida cardíaca amplificada — a sinfonia do colapso. Até o final da rodada do Segundo Batimento, todos seus golpes físicos tem o rótulo “Tipo de Dano Cortante”, caso os golpes já tenham este rótulo, eles são ativados duas vezes."
+          },
+          {
+            "rodada_no_ciclo": 3,
+            "nome": "Selo Invertido",
+            "batimento": "O Terceiro Batimento",
+            "texto_verbatim": "O símbolo Majin em sua testa se distorce, emitindo uma onda psíquica que desestabiliza o foco e a coordenação do adversário. Todos os alvos a frente do alvo em um Cone de X metros, devem realizar um Teste de Constituição vs CD do Usuário, onde em falha gastam do dobro de PK’s até o início do próximo turno de ação do Majin."
+          },
+          {
+            "rodada_no_ciclo": 4,
+            "nome": "Graviton Veil",
+            "batimento": "O Quarto Batimento",
+            "texto_verbatim": "O Majin cria um campo gravitacional denso ao redor do corpo, curvando projéteis e ataques energéticos — uma defesa viva. Até o início do seu próximo turno, não pode ser atingido por técnicas ofensivas com o rótulo de Projétil, de forma absoluta."
+          },
+          {
+            "rodada_no_ciclo": 5,
+            "nome": "Graviton Maelstrom",
+            "batimento": "O Quinto Batimento",
+            "texto_verbatim": "Girando o corpo em um redemoinho denso de energia e sangue líquido, Rakthar cria um vórtice gravitacional devastador, com uma área de raio de X metros a partir do Majin. Os golpes formam uma espiral viva que deforma o espaço ao redor e arremessa inimigos próximos — uma dança infernal de gravidade e carnificina. Todos na área estão sob o efeito do rótulo “Dano Gravitacional”, até o fim do próximo turno do Majin, sem direito a resistência."
+          },
+          {
+            "rodada_no_ciclo": 6,
+            "nome": "Majin Overdrive",
+            "batimento": "O Sexto Batimento",
+            "texto_verbatim": "Um grito silencioso que colapsa a energia local, drenando o ki de todos os seres próximos e fundindo com o seu próprio poder. Todos os alvos a frente do alvo em um Cone de X metros, devem realizar um Teste de Constituição vs CD do Usuário, caso falhem perdem metade de seus PK’s atuais, e estes são convertidos em Dano Bônus para próxima técnica ofensiva que o usuário desferir."
+          },
+          {
+            "rodada_no_ciclo": 7,
+            "nome": "Ritual da Ruína",
+            "batimento": "O Sétimo Batimento",
+            "texto_verbatim": "A Técnica Final. O sangue de Rakthar escapa do corpo e o envolve em um manto líquido, assumindo uma forma viva. Nesse estado, cada golpe acerta o corpo e o espírito ao mesmo tempo. Todo dano causado pelo Majin até o final de seu próximo turno de ação, será também aplicado nos PK’s do alvo, sem direito a teste de resistência."
+          }
+        ]
+      }
+    ],
+    "background_verbatim": "Nascido da falha de um experimento de purificação do Ki Majin, o recipiente que o continha se desfez e o que restou foi uma poça de sangue viva. Desse fracasso, emergiu Rakthar, uma anomalia carmesim, a personificação da negação da pureza, um líquido pulsante que se recusava a morrer.\nO responsável foi um mago esquecido do Sétimo Universo, trabalhando em seu laboratório isolado no planeta Gorgul Prime. Sua ambição era criar um Majin capaz de processar emoções humanas sem sucumbir a elas. O resultado, ironicamente, foi uma criatura que não apenas absorve emoções - ele as domina completamente.\nPor eras incontáveis, Rakthar perambulou entre mundos devastados pela guerra. Cada conflito presenciado, cada gota de ódio e desespero absorvida tornava seu corpo mais denso, sua consciência mais aguçada. Seu corpo - uma massa de sangue vivo entrelaçado com energia vital condensada - começou a distorcer a própria realidade ao seu redor. A gravidade se curva em sua presença.\nHoje, ele é um andarilho entre realidades como um eco vermelho que não sabe se busca redenção pela vida que nunca teve ou a paz que só a aniquilação total pode trazer.\nDiz-se que, quando ele fala, o som vibra em frequências que quebram a vontade de quem o escuta.",
+    "cabecalhos_de_secao_verbatim": [
+      "TÉCNICAS OFENSIVAS – Majin Rakthar",
+      "PASSIVAS E ATIVAS ÚNICAS – Majin Rakthar"
+    ],
+    "outros": [
+      "PV não preenchido no original ('PV: ---'). O suplemento diz (p. 2): a ND não está previamente definida; o narrador ajusta conforme o confronto (1x1, 1x5...). Calcular PV = ND x Vida-por-Golpe(categoria, rank) do Livro do Narrador 4.0.2. Perícias e talentos não aparecem nas fichas deste suplemento.",
+      "Único 'Chefão' do suplemento. Atributos acima do teto Elite (DES 22, POD 22). '[Calamity Blaster – A]' '[Dano: 20-40-80]' (quebra de linha no PDF). A passiva 'Os Sete Movimentos da Dança Rubra' tem 7 batimentos em ciclo, reiniciando na oitava rodada; desmembrados em 'batimentos'."
+    ],
+    "pagina": {
+      "inicio": 29,
+      "fim": 32,
+      "nota": "Números de página impressos no rodapé do PDF. O PDF tem 40 páginas e o último número impresso é 39; a página do PDF provavelmente é impressa+1 (capa), não conferido visualmente."
+    }
+  }
+]

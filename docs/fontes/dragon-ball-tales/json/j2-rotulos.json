@@ -1,0 +1,2504 @@
+{
+  "fonte": "Livro do Jogador - V0.5 (3) (3).pdf, Cap. IV, 6.1-6.5, pp. impressas 61-83 (PDF = impressa + 1)",
+  "convencoes": {
+    "custo": "string exata do livro entre parênteses após o nome",
+    "custo_pontos.tipo": "fixo | faixa | variavel | variavel_com_minimo | consome_todos_positivos_base ('?', ver 6.0.3) | igual_ao_efeito_negativo ('-?')",
+    "negativos": "valores negativos = pontos de rótulo devolvidos à técnica",
+    "modificador_ki": "efeito do rótulo no custo de Ki da técnica (null = o texto não altera o Ki)",
+    "acumula": "true quando o texto prevê investir o rótulo mais de uma vez / pontos extras; null quando o texto é silente"
+  },
+  "contagem": {
+    "base": 19,
+    "tipo_dano": 30,
+    "ki": 13,
+    "generico": 31,
+    "negativo": 41
+  },
+  "rotulos": [
+    {
+      "nome": "Técnica Física",
+      "categoria": "base",
+      "custo": "0",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 0,
+        "max": 0
+      },
+      "efeito": "Baseadas em força bruta e combate corpo a corpo. O acerto é determinado pelo atributo Força. O tipo de dano base da técnica é físico.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": false,
+      "restricoes": [
+        "O acerto é determinado pelo atributo Força",
+        "O tipo de dano base da técnica é físico"
+      ],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Técnica de Ki",
+      "categoria": "base",
+      "custo": "0",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 0,
+        "max": 0
+      },
+      "efeito": "Utilizam a energia vital para criar ataques destrutivos à distância ou a curta distância. O acerto é determinado pelo atributo Inteligência. O tipo de dano base da técnica é energético.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": false,
+      "restricoes": [
+        "O acerto é determinado pelo atributo Inteligência",
+        "O tipo de dano base da técnica é energético"
+      ],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Técnicas Mágicas",
+      "categoria": "base",
+      "custo": "1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 1,
+        "max": 1
+      },
+      "efeito": "Utilizam Ki refinado combinado com energia arcana para criar efeitos sobrenaturais. Seu acerto é baseado em Presença, e apenas personagens com a característica \"Mago de Ki\" (Ki Master) podem desenvolvê-las naturalmente, salvo talentos ou habilidades raciais específicas. Exemplos incluem ataques elementais, feitiços de controle, curas e encantamentos.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": false,
+      "restricoes": [
+        "Seu acerto é baseado em Presença",
+        "apenas personagens com a característica \"Mago de Ki\" (Ki Master) podem desenvolvê-las naturalmente, salvo talentos ou habilidades raciais específicas"
+      ],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Técnica Híbrida",
+      "categoria": "base",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Combinam aspectos das Técnicas Físicas, Técnicas de Ki ou Técnicas Mágicas (Rótulo Especial) em um único ataque. O acerto pode ser baseado em Força, Inteligência ou Presença dependendo do tipo base de técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": false,
+      "restricoes": [
+        "O acerto pode ser baseado em Força, Inteligência ou Presença dependendo do tipo base de técnica"
+      ],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Alcance – Toque",
+      "categoria": "base",
+      "custo": "0",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 0,
+        "max": 0
+      },
+      "efeito": "O usuário deve estar em contato direto com o alvo para acertar, com o mínimo alcance de 1,5m.",
+      "modificador_ki": null,
+      "alcance": {
+        "forma": "toque",
+        "inicial_m": 1.5
+      },
+      "acumula": false,
+      "restricoes": [],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Alcance – Expansivo",
+      "categoria": "base",
+      "custo": "1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 1,
+        "max": 1
+      },
+      "efeito": "O ataque cobre uma área ao redor do usuário, atingindo múltiplos inimigos próximos. Atinge todos os alvos ao redor do usuário no alcance de 1,5m caso esteja usando Grid.",
+      "modificador_ki": null,
+      "alcance": {
+        "forma": "area_ao_redor_do_usuario",
+        "inicial_m": 1.5
+      },
+      "acumula": false,
+      "restricoes": [],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Alcance – Estocada",
+      "categoria": "base",
+      "custo": "1 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 1,
+        "max": null
+      },
+      "efeito": "Técnica de alcance toque com um avanço brusco e rápido, cobrindo até 6,0 metros antes do impacto, e aumenta o custo da técnica em +2. Para cada 1 ponto de rótulo extra investido além do inicial aumenta o avanço em 1,5m e o custo da técnica em +2.",
+      "modificador_ki": {
+        "inicial": 2,
+        "por_ponto_extra": 2
+      },
+      "alcance": {
+        "forma": "avanco_ate_impacto",
+        "inicial_m": 6.0,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Alcance – Vórtice",
+      "categoria": "base",
+      "custo": "2 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 2,
+        "max": null
+      },
+      "efeito": "O ataque forma uma zona de impacto ao redor do usuário, com o alcance de 4,5m de raio, e aumenta o custo da técnica em +2. Caso combinado com o rótulo de Rajada Contínua, inimigos que estiverem na área no momento de conjuração irão receber o dano, assim como inimigos que iniciarem seus turnos na área de conjuração ou entrarem na área de conjuração a qualquer momento. Para cada 1 ponto de rótulo extra investido além do inicial aumenta o alcance em 1,5m, além do custo da técnica em Ki em +2.",
+      "modificador_ki": {
+        "inicial": 2,
+        "por_ponto_extra": 2
+      },
+      "alcance": {
+        "forma": "zona_raio_ao_redor_do_usuario",
+        "inicial_m": 4.5,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Alcance – Explosivo",
+      "categoria": "base",
+      "custo": "2 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 2,
+        "max": null
+      },
+      "efeito": "Técnicas que liberam energia ao redor de um ponto escolhido dentro do alcance, acertando um raio de 3,0 metros. O ponto escolhido sempre será o alvo atingido ou o alcance final que a técnica pode alcançar, escolher ele aumenta o custo da técnica em +3. Sozinho esse rótulo não é capaz de definir o ponto escolhido, necessitando de outros rótulos de alcance para combinação. Rótulos que causam danos em área não podem ser combinados juntamente a este, pois fica indeterminado o ponto escolhido, que deve ser em alvo único. Para cada 1 ponto de rótulo extra investido além do inicial aumenta a área em 1,5m, além do custo da técnica em Ki em +3.",
+      "modificador_ki": {
+        "inicial": 3,
+        "por_ponto_extra": 3
+      },
+      "alcance": {
+        "forma": "raio_em_ponto_escolhido",
+        "inicial_m": 3.0,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [
+        "Sozinho esse rótulo não é capaz de definir o ponto escolhido, necessitando de outros rótulos de alcance para combinação",
+        "Rótulos que causam danos em área não podem ser combinados juntamente a este"
+      ],
+      "pagina": 61,
+      "pagina_pdf": 62
+    },
+    {
+      "nome": "Alcance – Rastro",
+      "categoria": "base",
+      "custo": "1 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 1,
+        "max": null
+      },
+      "efeito": "Técnicas que percorrem um trajeto, atingindo todos ao longo do caminho em linha até o limite do alcance que é inicial de 6,0m e aumenta o custo da técnica em +2. Para cada 1 ponto de rótulo extra investido além do inicial aumenta o alcance em 3,0m, além do custo da técnica em Ki em +2.",
+      "modificador_ki": {
+        "inicial": 2,
+        "por_ponto_extra": 2
+      },
+      "alcance": {
+        "forma": "linha",
+        "inicial_m": 6.0,
+        "por_ponto_extra_m": 3.0
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 62,
+      "pagina_pdf": 63
+    },
+    {
+      "nome": "Alcance – Engolfante",
+      "categoria": "base",
+      "custo": "2 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 2,
+        "max": null
+      },
+      "efeito": "Técnica que atinge todos em um cone de 6,0m, partindo do usuário, aumenta o custo da técnica em +3. Para cada 1 ponto de rótulo extra investido além do inicial aumenta a área em 1,5m, além do custo da técnica em Ki em +3.",
+      "modificador_ki": {
+        "inicial": 3,
+        "por_ponto_extra": 3,
+        "nota": "o exemplo 6.7 usa +4"
+      },
+      "alcance": {
+        "forma": "cone_a_partir_do_usuario",
+        "inicial_m": 6.0,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 62,
+      "pagina_pdf": 63
+    },
+    {
+      "nome": "Alcance – Projétil",
+      "categoria": "base",
+      "custo": "1 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 1,
+        "max": null
+      },
+      "efeito": "Disparos direcionados de Ki ou golpes lançados à distância, com alcance inicial de 9,0m e aumenta o custo da técnica em +2. Para cada 1 ponto de rótulo extra investido além do inicial aumenta o alcance em 1,5m, além do custo da técnica em Ki em +2.",
+      "modificador_ki": {
+        "inicial": 2,
+        "por_ponto_extra": 2
+      },
+      "alcance": {
+        "forma": "projetil_alvo_unico",
+        "inicial_m": 9.0,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 62,
+      "pagina_pdf": 63
+    },
+    {
+      "nome": "Alcance – Arco",
+      "categoria": "base",
+      "custo": "2 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 2,
+        "max": null
+      },
+      "efeito": "O usuário lança a técnica em trajetória parabólica até um alvo ou ponto a até 9,0m e aumenta o custo da técnica em +3. A trajetória passa por cima de criaturas e coberturas, desde que exista espaço livre acima do percurso. Tetos, cúpulas, galhos densos ou barreiras superiores podem impedir o uso, a critério do narrador. Quando combinado com um rótulo de alcance em área que não seja centrado no usuário, a área nasce do ponto de queda. Para cada 1 ponto de rótulo extra investido além do inicial aumenta o alcance em 1,5m, além do custo da técnica em Ki em +3.",
+      "modificador_ki": {
+        "inicial": 3,
+        "por_ponto_extra": 3
+      },
+      "alcance": {
+        "forma": "parabolico_ate_alvo_ou_ponto",
+        "inicial_m": 9.0,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [
+        "Tetos, cúpulas, galhos densos ou barreiras superiores podem impedir o uso, a critério do narrador"
+      ],
+      "pagina": 62,
+      "pagina_pdf": 63
+    },
+    {
+      "nome": "Alcance – Meia-Lua",
+      "categoria": "base",
+      "custo": "2 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 2,
+        "max": null
+      },
+      "efeito": "O usuário desfere um golpe em arco semicircular à sua frente, atingindo todos os alvos sobre a curvatura do golpe, mas não os que estiverem no espaço interno entre o usuário e o arco. O alcance inicial da curvatura é de 3,0m, cobrindo um semicírculo de 180°. Quando combinado com um alcance não em área, a meia-lua surge no ponto final do alcance combinado. Para cada 1 ponto de rótulo extra investido além do inicial aumenta a área em 1,5m, além do custo da técnica em Ki em +4.",
+      "modificador_ki": {
+        "inicial": null,
+        "por_ponto_extra": 4,
+        "nota": "o texto não dá aumento inicial de Ki"
+      },
+      "alcance": {
+        "forma": "arco_semicircular_180",
+        "inicial_m": 3.0,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 62,
+      "pagina_pdf": 63
+    },
+    {
+      "nome": "Alcance – Coluna",
+      "categoria": "base",
+      "custo": "3 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 3,
+        "max": null
+      },
+      "efeito": "O usuário faz a técnica eclodir em uma coluna vertical num ponto visível a até 9,0m e aumenta o custo da técnica em +2. A coluna possui raio inicial de 3,0m e atinge criaturas em qualquer nível de altura que cruze sua projeção vertical, do solo ao ar. Pode atingir simultaneamente alvos no chão, em voo baixo e em voo alto, desde que estejam dentro da mesma projeção. Para cada 1 ponto de rótulo extra investido além do inicial aumenta o alcance em 1,5m, além do custo da técnica em Ki em +2.",
+      "modificador_ki": {
+        "inicial": 2,
+        "por_ponto_extra": 2
+      },
+      "alcance": {
+        "forma": "coluna_vertical_em_ponto",
+        "inicial_m": 9.0,
+        "raio_m": 3.0,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 62,
+      "pagina_pdf": 63
+    },
+    {
+      "nome": "Alcance – Anel",
+      "categoria": "base",
+      "custo": "3 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 3,
+        "max": null
+      },
+      "efeito": "O usuário desfere um golpe em forma de anel, criando uma área circular vazia no centro, aumentando o custo da técnica em +2. Usado sozinho, o anel é centrado no usuário. Seu raio externo inicial é de 4,5m, e o raio interno seguro é de 1,5m. Criaturas dentro do centro vazio não são atingidas. Quando combinado com um alcance não em área, o centro do anel passa a ser o ponto final do alcance combinado. Para cada 1 ponto de rótulo extra investido além do inicial aumenta a área em 1,5m, além do custo da técnica em Ki em +2.",
+      "modificador_ki": {
+        "inicial": 2,
+        "por_ponto_extra": 2
+      },
+      "alcance": {
+        "forma": "anel",
+        "raio_externo_m": 4.5,
+        "raio_interno_seguro_m": 1.5,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 63,
+      "pagina_pdf": 64
+    },
+    {
+      "nome": "Alcance – Paralelas",
+      "categoria": "base",
+      "custo": "3 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 3,
+        "max": null
+      },
+      "efeito": "O usuário executa a técnica em duas linhas retas paralelas ao mesmo tempo. Cada linha tem alcance inicial de 6,0m, e ambas ficam separadas por uma faixa segura de 1,5m entre elas, aumentando o custo da técnica em +3. Usado sozinho, parte do usuário. Quando combinado com um alcance não em área, ambas as linhas partem do ponto final do alcance combinado. Para cada 1 ponto de rótulo extra investido além do inicial, aumenta o comprimento de ambas as linhas em 1,5m, além do custo da técnica em Ki em +3.",
+      "modificador_ki": {
+        "inicial": 3,
+        "por_ponto_extra": 3
+      },
+      "alcance": {
+        "forma": "duas_linhas_paralelas",
+        "inicial_m": 6.0,
+        "faixa_segura_m": 1.5,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 63,
+      "pagina_pdf": 64
+    },
+    {
+      "nome": "Alcance – Linha Quebrada",
+      "categoria": "base",
+      "custo": "3 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 3,
+        "max": null
+      },
+      "efeito": "O usuário desfere a técnica em um trajeto composto por duas linhas retas consecutivas, formando uma única dobra, aumentando o custo da técnica em +2. O alcance total inicial é de 6,0m, distribuído livremente entre os dois trechos. A dobra pode formar até 90°. A técnica atinge todos os alvos tocados pelo trajeto. O caminho precisa estar fisicamente livre; este rótulo não ignora cobertura nem atravessa bloqueios totais. Para cada 1 ponto de rótulo extra investido além do inicial aumenta o alcance em 1,5m, além do custo da técnica em Ki em +3.",
+      "modificador_ki": {
+        "inicial": 2,
+        "por_ponto_extra": 3
+      },
+      "alcance": {
+        "forma": "duas_linhas_uma_dobra_ate_90",
+        "inicial_m": 6.0,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [
+        "O caminho precisa estar fisicamente livre; este rótulo não ignora cobertura nem atravessa bloqueios totais"
+      ],
+      "pagina": 63,
+      "pagina_pdf": 64
+    },
+    {
+      "nome": "Alcance – Meteórico",
+      "categoria": "base",
+      "custo": "3 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": 3,
+        "max": null
+      },
+      "efeito": "O usuário escolhe um ponto visível a até 9,0m, e a técnica despenca verticalmente sobre ele, aumentando o custo da técnica em +3. A área inicial de impacto é um raio de 1,5m. Diferente de Projétil, o trajeto até o ponto não é horizontal: criaturas entre o usuário e o alvo não fornecem cobertura nem bloqueiam o ataque, mas tetos, abóbadas, cavernas baixas e barreiras acima do ponto de impacto podem impedir o uso. Para cada 1 ponto de rótulo extra investido além do inicial aumenta o alcance em 1,5m, além do custo da técnica em Ki em +3.",
+      "modificador_ki": {
+        "inicial": 3,
+        "por_ponto_extra": 3
+      },
+      "alcance": {
+        "forma": "queda_vertical_em_ponto",
+        "inicial_m": 9.0,
+        "raio_m": 1.5,
+        "por_ponto_extra_m": 1.5
+      },
+      "acumula": true,
+      "restricoes": [
+        "tetos, abóbadas, cavernas baixas e barreiras acima do ponto de impacto podem impedir o uso"
+      ],
+      "pagina": 63,
+      "pagina_pdf": 64
+    },
+    {
+      "nome": "Dano de Cerco",
+      "categoria": "tipo_dano",
+      "custo": "1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 1,
+        "max": 1
+      },
+      "efeito": "A técnica causa o dobro de dano em estruturas.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 63,
+      "pagina_pdf": 64
+    },
+    {
+      "nome": "Dano Cortante",
+      "categoria": "tipo_dano",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Técnica focada em cortes profundos e mutilação, altera o tipo do dano da técnica para \"Cortante\". Além disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição ou Destreza vs o Acerto Rolado, a depender do resultado o seguinte acontece (Não Afetado Pela Escala Alteração de Escala de Poder):\n\n- • Se o alvo falhar por 12 ou mais, perde a cabeça ou metade do corpo, se não possuir propriedades regenerativas, a morte é considerada automática.\n- • Se o alvo falhar por 6 a 11, perde permanentemente se não possuir propriedades regenerativas, um dos braços ou pernas a escolha do atacante.\n- • Se o alvo falhar por 3 a 5, sofre dano extra equivalente ao Dano Médio, que a técnica daria somado ao dano causado.\n- • Se o alvo falhar por 1 a 2, sofre dano extra equivalente ao Dano Mínimo, que a técnica daria somado ao dano causado.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 63,
+      "pagina_pdf": 64
+    },
+    {
+      "nome": "Dano Perfurante",
+      "categoria": "tipo_dano",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Técnica focada em perfurar armaduras e corpos resistentes, altere o tipo de dano da técnica para \"Perfurante\". Além disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição ou Destreza vs o Acerto Rolado, a depender do resultado o seguinte acontece (Não Afetado Pela Escala Alteração de Escala de Poder):\n\n- • Se o alvo falhar por 12 ou mais, perde 6 pontos de CA até o final de seu próximo turno, sendo acumulativo.\n- • Se o alvo falhar por 6 a 11, perde 4 pontos de CA até o final de seu próximo turno sendo acumulativo.\n- • Se o alvo falhar por 3 a 5, perde 2 pontos de CA até o final de seu próximo turno, sendo acumulativo.\n- • Se o alvo falhar por 1 a 2, perde 1 pontos de CA até o final de seu próximo turno, sendo acumulativo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [
+        "sendo acumulativo"
+      ],
+      "pagina": 64,
+      "pagina_pdf": 65
+    },
+    {
+      "nome": "Dano Contundente",
+      "categoria": "tipo_dano",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Técnica focada em impactos massivos que fazem o alvo tremer com a força dos golpes, altere o tipo de dano da técnica para \"Contundente\". Além disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição ou Destreza vs o Acerto Rolado, a depender do resultado o seguinte acontece (Não Afetado Pela Escala Alteração de Escala de Poder):\n\n- • Se o alvo falhar por 12 ou mais, o gasto de Ki é aumentado em x5 até o final de seu próximo turno, não é acumulativo.\n- • Se o alvo falhar por 6 a 11, o gasto de Ki é aumentado em x4 até o final de seu próximo turno, não é acumulativo.\n- • Se o alvo falhar por 3 a 5, o gasto de Ki é aumentado em x3 até o final de seu próximo turno, não é acumulativo.\n- • Se o alvo falhar por 1 a 2, o gasto de Ki é aumentado em x2 até o final de seu próximo turno, não é acumulativo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": false,
+      "restricoes": [
+        "não é acumulativo"
+      ],
+      "pagina": 64,
+      "pagina_pdf": 65
+    },
+    {
+      "nome": "Dano Potente",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnicas focadas em causar o máximo de dano possível, altere o tipo de dano da técnica para \"Potente\". Além disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição ou Destreza vs o Acerto Rolado, caso o alvo não passe a técnica irá ignorar qualquer mitigação de dano.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 64,
+      "pagina_pdf": 65
+    },
+    {
+      "nome": "Dano Dilacerante",
+      "categoria": "tipo_dano",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Técnicas que deixam ferimentos internos tão graves que se tornam impossíveis de curar, altere o tipo de dano da técnica para \"Dilacerante\". Além disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, caso o alvo não passe ele não poderá regenerar o dano específico causado até o final da batalha.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 65,
+      "pagina_pdf": 66
+    },
+    {
+      "nome": "Dano Consumidor",
+      "categoria": "tipo_dano",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Técnicas que reduzem um ser vivo a pó, sem deixar vestígios, altere o tipo de dano da técnica para \"Consumidor\". Alvos que cheguem a 0 de PV's por conta de uma técnica com este tipo de dano, não tem direito a Salvaguardas Contra Morte, sendo considerado que seus corpos foram reduzidos a nada, caso não passem em um Teste de Constituição vs Acerto da Rolado, assim evitando que quaisquer talentos e características que façam o alvo retornar a batalha sejam cancelados.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 65,
+      "pagina_pdf": 66
+    },
+    {
+      "nome": "Dano Elemental – Ígneo",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnicas que conseguem utilizar o Ki para manipular ou produzir o elemento do fogo, altere o tipo de dano da técnica para \"Ígneo\". Além disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, caso o alvo não passe, ele passa a receber ao final de cada um dos seus turnos dano de fogo das queimaduras equivalente ao dano mínimo da técnica que causou o efeito. Esse dano não é acumulativo, logo caso receba novamente este efeito, prevalece o que causar maior dano. Para livrar-se do dano, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": false,
+      "restricoes": [
+        "Esse dano não é acumulativo, logo caso receba novamente este efeito, prevalece o que causar maior dano"
+      ],
+      "pagina": 65,
+      "pagina_pdf": 66
+    },
+    {
+      "nome": "Dano Elemental – Elétrico",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnicas que conseguem utilizar o Ki para manipular ou produzir o elemento do raio, altere o tipo de dano da técnica para \"Elétrico\". Além disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, caso o alvo não passe seu corpo fica carregado, tornando-se uma espécie de para-raios onde enquanto estiver dessa forma, todas as rolagens de acerto contra o alvo que sejam oriundas de técnicas com o dano elemental elétrico, são considerados acertos automáticos, onde causam no mínimo dano médio. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 65,
+      "pagina_pdf": 66
+    },
+    {
+      "nome": "Dano Elemental – Gélido",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnicas que conseguem utilizar o Ki para manipular ou produzir o elemento da água alterando seu estado, altere o tipo de dano da técnica para \"Gélido\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, caso o alvo não passe seu corpo fica encrostado de gelo, dificultando seus movimentos e refletindo isso na necessidade de gastar mais Ki para agir com normalidade, onde caso o afetado não gaste uma quantidade de Pk's a mais ao utilizar suas ações ou reações, igual a pontuação que foi passada na CA pela rolagem de acerto, o alvo realiza sua ação com desvantagem, além de perder metade do deslocamento. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 65,
+      "pagina_pdf": 66
+    },
+    {
+      "nome": "Dano Elemental - Dano Sombrio",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnicas imbuídas com energia negativa, corrompendo corpo e espírito. Altere o tipo de dano para \"Sombrio\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, caso o alvo não passe seu corpo fica imbuído de Ki Negativo descontrolado, fazendo com que suas ações causem dano a si mesmo de forma passiva, recebendo dano fixo sempre que gastar Ki, equivalente a 1 PK gasto 1 de Dano recebido. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 66,
+      "pagina_pdf": 67
+    },
+    {
+      "nome": "Dano Desintegrante",
+      "categoria": "tipo_dano",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Técnicas que desintegram matéria em escala subatômica. Altere o tipo de dano para \"Desintegrante\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, a depender do resultado o seguinte acontece (Não Afetado Pela Escala Alteração de Escala de Poder):\n\n- • Se o alvo falhar por 12 ou mais, sofre dano extra equivalente ao Dano Crítico de um Dano Máximo, que a técnica daria somado ao dano causado.\n- • Se o alvo falhar por 6 a 11, sofre dano extra equivalente ao Dano Máximo, que a técnica daria somado ao dano causado.\n- • Se o alvo falhar por 3 a 5, sofre dano extra equivalente ao Dano Médio, que a técnica daria somado ao dano causado.\n- • Se o alvo falhar por 1 a 2, sofre dano extra equivalente ao Dano Mínimo, que a técnica daria somado ao dano causado.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 66,
+      "pagina_pdf": 67
+    },
+    {
+      "nome": "Dano Psíquico",
+      "categoria": "tipo_dano",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Técnicas que atingem a mente diretamente. Altere o tipo de dano para \"Psíquico\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Sabedoria vs o Acerto Rolado, a depender do resultado o seguinte acontece (Não Afetado Pela Escala Alteração de Escala de Poder):\n\n- • Se o alvo falhar por 12 ou mais, sofre desvantagem em suas rolagens de ataque e reação, além disso caso erre um golpe recebe em si metade do dano médio que ele causaria como dano verdadeiro, isso até livrar-se do efeito que é equivalente a ter sucesso em uma nova rolagem do Teste do Rótulo.\n- • Se o alvo falhar por 6 a 11, sofre desvantagem em suas rolagens de ataque e reação, além disso caso erre um golpe recebe em si metade do dano mínimo que ele causaria como dano verdadeiro, isso até livrar-se do efeito que é equivalente a ter sucesso em uma nova rolagem do Teste do Rótulo.\n- • Se o alvo falhar por 3 a 5, sofre desvantagem em suas rolagens de ataque e reação até livrar-se do efeito que é equivalente a ter sucesso em uma nova rolagem do Teste do Rótulo.\n- • Se o alvo falhar por 1 a 2, sofre desvantagem em suas rolagens de ataque até livrar-se do efeito que é equivalente a ter sucesso em uma nova rolagem do Teste do Rótulo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 66,
+      "pagina_pdf": 67
+    },
+    {
+      "nome": "Dano Temporal",
+      "categoria": "tipo_dano",
+      "custo": "6",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 6,
+        "max": 6
+      },
+      "efeito": "Técnicas que distorcem o tempo ao redor do alvo. Altere o tipo de dano para \"Temporal\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, a depender do resultado o seguinte acontece (Não Afetado Pela Escala Alteração de Escala de Poder):\n\n- • Se o alvo falhar por 12 ou mais, sofre dano por turno de ação equivalente ao dano crítico de um dano máximo que a técnica pode causar até o fim da batalha\n- • Se o alvo falhar por 6 a 11, sofre dano por turno de ação equivalente ao dano máximo que a técnica pode causar até o fim da batalha.\n- • Se o alvo falhar por 3 a 5, sofre dano por turno de ação equivalente ao dano médio que a técnica pode causar até o fim da batalha.\n- • Se o alvo falhar por 1 a 2, sofre dano por turno de ação equivalente ao dano mínimo que a técnica pode causar até o fim da batalha.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 67,
+      "pagina_pdf": 68
+    },
+    {
+      "nome": "Dano Vibratório",
+      "categoria": "tipo_dano",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Técnicas que usam vibrações ultrassônicas para causar dano interno. Altere o tipo de dano para \"Vibratório\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, caso o alvo não passe seu corpo fica completamente instável por conta das vibrações, e não pode mais mitigar dano. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 67,
+      "pagina_pdf": 68
+    },
+    {
+      "nome": "Dano Sonoro",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnicas que usam ondas sonoras para desestabilizar o alvo. Altere o tipo de dano para \"Sonoro\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, caso o alvo não passe seu corpo fica desestabilizado e suas reações prejudicadas apenas podendo ser roladas com desvantagem. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 67,
+      "pagina_pdf": 68
+    },
+    {
+      "nome": "Dano Gravitacional",
+      "categoria": "tipo_dano",
+      "custo": "5",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 5,
+        "max": 5
+      },
+      "efeito": "Técnicas que manipulam a gravidade, esmagando ou limitando movimento. Altere o tipo de dano para \"Gravitacional\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Destreza ou Força vs o Acerto Rolado, caso o alvo não passe seu corpo fica a mercê do causador do efeito, fazendo com que sua ação de movimento seja controlada por ele e não seja mais sua perdendo ela, mas, somente no turno de ação do alvo ele pode te mover, no seu turno não há mais ação de movimento. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 68,
+      "pagina_pdf": 69
+    },
+    {
+      "nome": "Dano de Drenagem",
+      "categoria": "tipo_dano",
+      "custo": "5",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 5,
+        "max": 5
+      },
+      "efeito": "Técnicas que drenam energia vital. Altere o tipo de dano para \"Drenagem\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Inteligência vs o Acerto Rolado, caso o alvo não passe seu corpo fica lincado de forma involuntária ao alvo, todo o Ki que é gasto por você em suas rodadas de ação ou reação é repassado para o alvo causador do efeito como Pontos de Vida. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 68,
+      "pagina_pdf": 69
+    },
+    {
+      "nome": "Dano Espiritual",
+      "categoria": "tipo_dano",
+      "custo": "5",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 5,
+        "max": 5
+      },
+      "efeito": "Técnicas que drenam energia vital. Altere o tipo de dano para \"Drenagem\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Poder vs o Acerto Rolado, caso o alvo não passe seu corpo fica lincado de forma involuntária ao alvo, todo o Ki que é gasto por você em suas rodadas de ação ou reação é repassado para o alvo causador do efeito como Pontos de Ki extras que ficam disponíveis até serem gastos. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 68,
+      "pagina_pdf": 69
+    },
+    {
+      "nome": "Dano Caótico",
+      "categoria": "tipo_dano",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Técnicas instáveis e imprevisíveis, feitas com Ki descontrolado. Altere o tipo de dano para \"Caótico\". Além disso disso, causar dano Crítico ou dobrar o limite necessário para causar um estágio de dano máximo, (por exemplo o estágio de dano máximo é 6, e você ultrapassar a CA do inimigo por 12) faz com que o alvo deva realizar um Teste de Constituição vs o Acerto Rolado, caso o alvo não passe seu corpo fica em estado caótico e sempre que realizar qualquer ação que gaste de Ki, tem 50% de chance de gastar o dobro para a realizar. Para livrar-se do efeito, no início dos seus turnos ele pode repetir o teste, sempre contra o mesmo resultado do acerto rolado, caso supere irá anular o efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 68,
+      "pagina_pdf": 69
+    },
+    {
+      "nome": "Dano Tracionante",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnica que aplica força de tração, puxão ou arraste violento sobre o alvo. Ao causar dano, o alvo pode ser puxado em linha reta em direção ao usuário, conforme o estágio de dano:\n\n- • 1,5m em dano mínimo\n- • 3,0m em dano médio\n- • 4,5m em dano máximo\n\nO alvo pode resistir com um Teste de Força ou Destreza contra o Acerto da Técnica. Se passar, não é puxado. Se colidir com uma criatura, ambas ficam adjacentes e a criatura atingida pelo arrasto sofre dano mínimo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 69,
+      "pagina_pdf": 70
+    },
+    {
+      "nome": "Dano Pregante",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnica que fixa o alvo a uma superfície por pressão, estaca, pressão de impacto ou cravação. Se o alvo estiver adjacente a uma parede, chão, coluna, rocha, árvore, estrutura ou superfície sólida relevante, ao causar dano ele realiza uma Teste de Destreza contra Acerto da Técnica; em falha, fica \"Pregado\" até o fim de seu próximo turno de ação.\n\n- • Pregado: o alvo não pode usar Ação de Movimento para sair do espaço atual. Ele ainda pode agir normalmente.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 69,
+      "pagina_pdf": 70
+    },
+    {
+      "nome": "Dano Desarmante",
+      "categoria": "tipo_dano",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Técnica que golpeia arma, escudo, foco, instrumento ou item empunhado com precisão desarticuladora. Ao causar dano máximo, o alvo realiza uma Teste de Força ou Destreza contra o Acerto do Usuário. Em falha, o usuário escolhe um item empunhado pelo alvo, que é imediatamente derrubado em um espaço adjacente em até 4,5m. Se a falha for por 5 ou mais, o usuário também escolhe em qual espaço válido a até 9,0m o item cai.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "Ao causar dano máximo"
+      ],
+      "pagina": 69,
+      "pagina_pdf": 70
+    },
+    {
+      "nome": "Dano Laçante",
+      "categoria": "tipo_dano",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Técnica que fere de forma a prender, enroscar, enlaçar ou engatar o alvo ao usuário ou ao ponto de impacto. Ao causar dano, o usuário pode declarar o alvo como \"Laçado\" até o fim do próximo turno do usuário.\n\n- • Laçado: sempre que o alvo tentar aumentar a distância em relação ao usuário além da distância atual entre ambos, deve gastar PK extra igual à Escala de Poder do Usuário, para cada 1,5m. Se não puder ou não quiser pagar, seu movimento termina imediatamente no ponto atual.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 69,
+      "pagina_pdf": 70
+    },
+    {
+      "nome": "Dano Lancinante",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnica que explora feridas já abertas ou o desequilíbrio gerado por danos recentes. Se o alvo já tiver sofrido dano desde o fim de seu último turno de ação, esta técnica causa um estágio de dano acima do resultado normal:\n\n- • mínimo vira médio\n- • médio vira máximo\n- • máximo recebe dano bônus igual ao dano mínimo da técnica",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 69,
+      "pagina_pdf": 70
+    },
+    {
+      "nome": "Dano Cisalhante",
+      "categoria": "tipo_dano",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Técnica que atinge em continuidade, atravessando um corpo e buscando o que está logo atrás. Se esta técnica causar dano ao alvo principal, e houver uma segunda criatura em linha reta imediatamente atrás dele, a até um número de metros igual a Escala de Poder do usuário na proporção de 1:4,5m, o usuário pode resolver a mesma rolagem de Acerto contra esse segundo alvo, e assim consecutivamente enquanto houver alvos.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 69,
+      "pagina_pdf": 70
+    },
+    {
+      "nome": "Dano Farpante",
+      "categoria": "tipo_dano",
+      "custo": "5",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 5,
+        "max": 5
+      },
+      "efeito": "Técnica que deixa fragmentos, dentes, lascas ou pontas agressivas alojadas na ferida. Ao causar dano, o alvo fica \"Farpado\" até o fim de seu próximo turno de ação.\n\n- • Farpado: a primeira vez nesse período em que o alvo: se mover mais de 1,5m, ou for movido à força por qualquer efeito, sofre dano mínimo da técnica e o efeito se encerra.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 70,
+      "pagina_pdf": 71
+    },
+    {
+      "nome": "Dano Descompassante",
+      "categoria": "tipo_dano",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Técnica que quebra o ritmo corporal do alvo, arruinando seu tempo de resposta. Ao causar dano, o alvo realiza uma Salvaguarda de Sabedoria contra o Acerto do Usuário. Em falha, na próxima rodada, sua posição de iniciativa passa a ser imediatamente depois da posição do usuário que o afetou.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 70,
+      "pagina_pdf": 71
+    },
+    {
+      "nome": "Dano de Quebra",
+      "categoria": "tipo_dano",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Técnica que pune defesas técnicas mal-sucedidas, esmagando a postura defensiva do alvo. Se o alvo usar uma reação de mitigação ou efeito similar contra este ataque e ainda assim sofrer ao menos dano mínimo, ele não pode voltar a usar essa mesma técnica ou reação específica até o fim de seu próximo turno de ação.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 70,
+      "pagina_pdf": 71
+    },
+    {
+      "nome": "Dano Pulsante",
+      "categoria": "tipo_dano",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Técnica que responde bem à repetição do mesmo padrão de dano sobre o mesmo corpo. A primeira vez em cada rodada que um alvo sofrer dano com este rótulo, nada adicional acontece. Mas se ele voltar a sofrer dano com \"Pulsante\" na mesma rodada, esse segundo dano sobe um estágio: mínimo vira médio, médio vira máximo e máximo recebe dano bônus igual ao dano mínimo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 70,
+      "pagina_pdf": 71
+    },
+    {
+      "nome": "Técnica de Acumulação – Ki",
+      "categoria": "ki",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Envolve acumular energia em um ponto, para conseguir uma quantidade maior de dano no inimigo. Você gasta uma rodada ou uma quantidade de Ki para considerar o seu acúmulo.\n\n- Para Carga com Rodadas: A cada rodada acumulando energia, o dano da técnica aumenta um estágio, sendo uma rodada é igual a uma carga. Se o ataque acertar, ele sobe o estágio de Dano Mínimo → Dano Médio → Dano Máximo conforme as cargas acumuladas. Se o acúmulo ultrapassar o estágio máximo, o dano final recebe um bônus equivalente ao dano mínimo da técnica por rodada extra. Vamos aos exemplos:\n  - • Ex.1: Se um atacante passa três rodadas carregando e, rolar o acerto que atinge o Dano Máximo, como ele acumulou energia além do necessário, recebe um bônus adicional de três vezes o dano mínimo da técnica. Se a técnica causa 50 de dano e seu dano mínimo é 12, o total final será 86 de dano (50 + 12x3), já que ele tem três cargas extras acumuladas que vão além do dano máximo.\n  - • Ex.2: Caso o atacante tenha carregado por três rodadas, mas a rolagem resulte em Dano Mínimo, o acúmulo eleva o dano diretamente para o Dano Máximo (já que a diferença entre mínimo e máximo é de dois estágios). Como ainda sobra uma rodada extra, ela se converte em um bônus adicional de dano mínimo. Se a técnica causa 50 de dano e seu dano mínimo é 12, o total final será 62 de dano (50 + 12).\n- Para Carga com Ki: O usuário pode acelerar o carregamento gastando Ki extra. Cada carga equivale ao custo normal da técnica em Ki. Se uma técnica custa 5 de Ki, gastar 10 de Ki permite lançá-la instantaneamente como se tivesse sido carregada por uma rodada, seguindo as mesmas regras da carga por rodada. No entanto, não se pode misturar a carga de Ki com a Carga por Rodada, apenas pode escolher separadamente como a técnica vai ser carregada.",
+      "modificador_ki": {
+        "carga_com_ki": "cada carga = custo normal da técnica em Ki"
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "não se pode misturar a carga de Ki com a Carga por Rodada"
+      ],
+      "pagina": 70,
+      "pagina_pdf": 71
+    },
+    {
+      "nome": "Técnica de Invisível – Ki",
+      "categoria": "ki",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Essa técnica permite disfarçar seu Ki de forma tão precisa que ele se torna imperceptível para o inimigo. Como resultado, se o alvo tentar usar uma reação que exija uma rolagem contra uma técnica com esse rótulo, ele faz a rolagem com desvantagem. Caso a reação não exija rolagem, o alvo simplesmente não saberá de onde o ataque veio, dificultando sua resposta de forma interpretativa, mas, ainda podendo reagir.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 71,
+      "pagina_pdf": 72
+    },
+    {
+      "nome": "Técnica de Fragmentação – Ki",
+      "categoria": "ki",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Essa técnica permite fragmentar o ataque em múltiplos disparos menores, atingindo mais de um alvo sem deixar de ser considerada uma técnica de alvo único, não podendo ser um rótulo utilizado em técnicas de dano em área. O usuário realiza uma única rolagem de acerto contra um alvo principal, que determinará o dano total da técnica. Após isso, o dano pode ser dividido entre outros alvos próximos, desde que estejam dentro do alcance da técnica e possam ser acertados pela rolagem de acerto inicial, a área de alcance da fragmentação é igual a 7,5m de raio, esse rótulo aumenta em +6 o Ki da técnica, pode aumentar em +1,5m de raio o alcance a cada +4 de Ki investido nesse rótulo para aumentar o raio. Dessa forma, o usuário pode distribuir o dano livremente entre os alvos atingidos, sem ultrapassar o total determinado pela rolagem inicial, e ainda permanecendo uma parte no alvo principal, e distribuindo efeitos negativos se a técnica possuir.\n\n- • Ex.1: Um lutador dispara uma rajada de energia com Técnica de Fragmentação que causa 60 de dano ao acertar o alvo principal. Como a técnica permite dividir esse dano entre o alvo principal e outros ao redor no alcance, o usuário decide transferir 30 de dano para um inimigo próximo e os outros 30 ficam no alvo principal. Caso prefira, poderia distribuir o dano de forma diferente, como 40 para um alvo e 20 para outro, desde que o total não exceda o dano inicial causado, no entanto, pelo menos algum valor deve ficar para o alvo principal, a não ser que ele não seja atingido pela rolagem de acerto, mas os outros ao redor sim.",
+      "modificador_ki": {
+        "inicial": 6,
+        "por_1_5m_raio_extra": 4
+      },
+      "alcance": {
+        "forma": "raio_de_fragmentacao",
+        "inicial_m": 7.5
+      },
+      "acumula": null,
+      "restricoes": [
+        "não podendo ser um rótulo utilizado em técnicas de dano em área"
+      ],
+      "pagina": 71,
+      "pagina_pdf": 72
+    },
+    {
+      "nome": "Técnica Guiada – Ki",
+      "categoria": "ki",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Essa técnica permite ao usuário redirecionar o ataque em pleno trajeto, tornando a esquiva do inimigo mais difícil. Caso a rolagem de acerto resulte em uma falha, o atacante pode gastar uma quantidade de Ki equivalente ao custo original da técnica para realizar uma nova rolagem de acerto. O usuário pode escolher entre tentar atingir o inimigo imediatamente ou esperar até seu próximo turno para reposicionar o ataque e tentar acertar novamente.",
+      "modificador_ki": {
+        "por_nova_rolagem": "custo original da técnica"
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 71,
+      "pagina_pdf": 72
+    },
+    {
+      "nome": "Técnica de Implosão – Ki",
+      "categoria": "ki",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Essa técnica permite que, caso o ataque falhe, ele não desapareça, mas permaneça pairando ao redor do inimigo, acumulando energia com um dano equivalente ao dano mínimo da técnica a cada erro. Em qualquer momento posterior do combate, desde que o usuário tenha Ki suficiente, ele pode gastar a mesma quantidade necessária para utilizar a técnica e realizar uma nova rolagem de acerto. Caso acerte, toda a energia acumulada implode em um único ponto, causando no alvo todo o dano acumulado, de forma fixa, apenas dependendo de acertar o alvo. Além disso, mesmo que a técnica acerte, o usuário pode optar por não causar dano imediatamente e, em vez disso, deixar a energia flutuando ao redor do inimigo com o dano que ela causaria, mas, isso o faz perder aquele acerto. Isso permite acumular mais dano ao longo do combate, tornando o ataque final ainda mais devastador, quando o implodir.\n\n- • Ex.1: Um guerreiro lança sua Técnica de Implosão contra um inimigo, mas erra. A energia fica flutuando ao redor do oponente, acumulando 20 de dano (equivalente ao dano mínimo da técnica). No turno seguinte, ele tenta novamente… e erra outra vez. Agora, a energia acumulada soma 40 de dano. Mais uma tentativa… e mais um erro! A técnica continua pairando, elevando o dano acumulado para 60. Cansado de errar, o guerreiro decide apostar tudo. Ele reúne seu Ki, faz uma nova rolagem de acerto e, desta vez, finalmente acerta. Toda a energia acumulada implode de uma só vez, causando 60 de dano fixo, destruindo o inimigo em uma explosão massiva.",
+      "modificador_ki": {
+        "por_nova_rolagem": "a mesma quantidade necessária para utilizar a técnica"
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 72,
+      "pagina_pdf": 73
+    },
+    {
+      "nome": "Técnica Expansiva – Ki",
+      "categoria": "ki",
+      "custo": "?",
+      "custo_pontos": {
+        "tipo": "consome_todos_positivos_base",
+        "min": null,
+        "max": null
+      },
+      "efeito": "Essa técnica gera uma explosão que se expande rapidamente, aumentando sua área de efeito. Sendo a área em raio, onde o alcance é equivalente a 1,5m por rótulo investido nessa técnica, ou seja, se você investir 3 a área seria de 4,5m de raio. Obrigatoriamente a base da técnica deve ser de Alcance Projétil.\n\n- • Ao tentar acertar, a explosão atinge não apenas o alvo principal, mas também todos os inimigos em um raio próximo equivalente ao da técnica.\n- • Não funciona para técnicas que já são em área.",
+      "modificador_ki": null,
+      "alcance": {
+        "forma": "raio_ao_redor_do_alvo",
+        "por_rotulo_investido_m": 1.5
+      },
+      "acumula": null,
+      "restricoes": [
+        "Obrigatoriamente a base da técnica deve ser de Alcance Projétil",
+        "Não funciona para técnicas que já são em área"
+      ],
+      "pagina": 72,
+      "pagina_pdf": 73
+    },
+    {
+      "nome": "Reação em Cadeia – Ki",
+      "categoria": "ki",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Permite que a técnica, ao atingir um alvo, tenha a capacidade de ir saltando para outro alvo próximo, mantendo a rolagem de acerto inicial, se o alvo mais próximo puder ser acertado por essa rolagem, a técnica salta para causar dano a ele sem custo adicional de Ki. No entanto, se a técnica errar qualquer um dos alvos subsequentes, ela é interrompida e não prossegue, encerrando a reação em cadeia, ou quando não houver mais alvos.",
+      "modificador_ki": {
+        "por_salto": 0
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 72,
+      "pagina_pdf": 73
+    },
+    {
+      "nome": "Ricochete – Ki",
+      "categoria": "ki",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Permite que, caso a técnica erro o alvo, ela possa quicar em um obstáculo próximo (como uma parede, rocha ou qualquer estrutura sólida) e, em seguida, tentar um novo ataque em um ângulo diferente, sendo o alcance da técnica novo considerado a partir daquele ponto a um novo alvo, se possível interpretativamente, a depender do local de combate. O novo alvo não pode ser o mesmo que já tenha sido alvejado pelo seu ricochete naquela rodada, caso não tenha novos alvos, a técnica se encerra.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 72,
+      "pagina_pdf": 73
+    },
+    {
+      "nome": "Explosão Retardada – Ki",
+      "categoria": "ki",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Permite uma técnica em que o projétil de Ki, ao atingir o alvo, fica preso a ele sem causar dano imediato. O usuário tem total controle sobre o momento da detonação, podendo ativar a explosão a qualquer instante sem precisar gastar Ki adicional. O alvo, ao perceber que foi atingido, pode gastar Ki equivalente ao custo de Ki gasto pelo usuário para se livrar do projétil. Se o alvo não fizer isso, o projétil permanece no alvo. Caso o usuário deseje, ele pode ativar a explosão a qualquer momento, causando o dano da técnica. Além disso, o usuário pode enganar o alvo, fazendo-o reagir ao projétil e, após isso, decidir não ativar a explosão, forçando o inimigo a gastar recursos sem necessidade. Em resumo, o projétil de Ki permanece no alvo até o momento da detonação, e o usuário pode manipular o tempo da explosão ou até enganar o inimigo para que ele gaste recursos de forma desnecessária.",
+      "modificador_ki": {
+        "detonacao": 0
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 73,
+      "pagina_pdf": 74
+    },
+    {
+      "nome": "Ativação Remota – Ki",
+      "categoria": "ki",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Permite que o usuário controle o momento exato em que a técnica será ativada, mesmo após seu lançamento. Ao utilizar essa técnica, o projétil de Ki ou o efeito da técnica é disparado inicialmente sem causar dano imediato, ficando suspenso ou em espera até o momento desejado. O usuário pode, então, ativar a técnica a qualquer momento durante o combate, sem gastar mais Ki, apenas determinando o instante em que a técnica causará o impacto desejado, assim realizando as rolagens necessárias.",
+      "modificador_ki": {
+        "ativacao": 0
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 73,
+      "pagina_pdf": 74
+    },
+    {
+      "nome": "Técnica de Selamento – Ki",
+      "categoria": "ki",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "As Técnicas de Selamento são utilizadas para aprisionar um inimigo com Ki, seja temporária ou permanentemente. Em situações onde um oponente não pode ser derrotado devido a um Poder de Luta (PDL) muito superior, o selamento pode ser uma alternativa para garantir a vitória temporária. Ao utilizar essa técnica e acertar o inimigo, inicia-se uma disputa de testes resistidos, onde o usuário precisa obter um determinado número de sucessos para selar o alvo completamente.\n\nRegras do Selamento:\n\n- • O número de sucessos necessários é igual a Escala de Poder do alvo.\n- • A disputa ocorre entre um Atributo do Selador e um Atributo de Resistência do alvo, ambos determinados na criação da técnica, de acordo com a coerência do efeito.\n- • Cada nova tentativa de selamento custa Ki equivalente ao custo da técnica.\n- • Se o usuário obtiver todos os sucessos necessários, o alvo é selado.\n- • Importante: Selar um inimigo não concede aumento de PDL para nenhum dos envolvidos na batalha.\n\nCaso o alvo consiga causar qualquer dano ao selador, todos os sucessos obtidos até o momento são anulados, e o processo deve recomeçar do zero. Para tentar selar novamente, o usuário precisará gastar o custo total de Ki da técnica e continuar realizando testes resistidos, consumindo mais Ki a cada tentativa, até alcançar o número necessário de sucessos.",
+      "modificador_ki": {
+        "por_tentativa": "custo da técnica"
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 73,
+      "pagina_pdf": 74
+    },
+    {
+      "nome": "Adicionar Cura",
+      "categoria": "ki",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Este rótulo permite que a técnica cure um alvo em uma quantidade de Pontos de Vida (PV) equivalente ao seu dano base. No entanto, técnicas de cura no sistema, não são permitidas quando se trata de \"autocura\", ou seja, você jamais pode usar uma técnica de cura para se curar, apenas a terceiros. Além disso, obrigatoriamente esse rótulo deve estar acompanhado do rótulo \"Técnica Mágica\", sendo considerado uma. Cumpridos esses requisitos, o usuário deve rolar o dado de acerto contra a Classe de Armadura (CA) do aliado, assim como faria em um ataque comum. A quantidade curada segue a mecânica de variação de dano do sistema, aplicado a ela também a variação por escala, no entanto de uma maneira diferente:\n\n- • Se o acerto for 6- negativo da CA: Cura mínima (¼ do valor base).\n- • Se o acerto for 1~5 negativos da CA: Cura média (½ do valor base).\n- • Se o acerto for igual ou superior a CA: Cura completa (valor total da técnica).",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "você jamais pode usar uma técnica de cura para se curar, apenas a terceiros",
+        "obrigatoriamente esse rótulo deve estar acompanhado do rótulo \"Técnica Mágica\""
+      ],
+      "pagina": 73,
+      "pagina_pdf": 74
+    },
+    {
+      "nome": "Adicionar Classe de Armadura",
+      "categoria": "ki",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Este rótulo permite que a técnica adicione uma quantidade de CA até o final do próximo turno do alvo, equivalente a +1 por rótulo deste investido na técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 74,
+      "pagina_pdf": 75
+    },
+    {
+      "nome": "Técnica Básica",
+      "categoria": "generico",
+      "custo": "?",
+      "custo_pontos": {
+        "tipo": "consome_todos_positivos_base",
+        "min": null,
+        "max": null
+      },
+      "efeito": "Técnica pura e direta com tipo de dano e alcance determinado em sua criação, com poucas modificações complexas. Por ser considerada uma técnica básica, pode ser utilizada de forma repetida no seu turno de ação. Serve para os ataques básicos como socos e esferas de ki genéricas.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": false,
+      "restricoes": [],
+      "pagina": 74,
+      "pagina_pdf": 75
+    },
+    {
+      "nome": "Aumentar Dano por Ki",
+      "categoria": "generico",
+      "custo": "1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 1,
+        "max": 1
+      },
+      "efeito": "O usuário pode aumentar o dano base de sua técnica, investindo 1 ponto extra de Ki para aumentar o dano em +4. No entanto, esse bônus não pode ultrapassar o limite máximo de Dano e de Ki por rank da técnica.",
+      "modificador_ki": {
+        "por_1_ki": "+4 de dano"
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "esse bônus não pode ultrapassar o limite máximo de Dano e de Ki por rank da técnica"
+      ],
+      "pagina": 74,
+      "pagina_pdf": 75
+    },
+    {
+      "nome": "Aumentar Precisão",
+      "categoria": "generico",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Envolve concentrar-se para aumentar a precisão do seu próximo golpe, podendo assim aumentar a rolagem de acerto em +1 para cada rótulo deste colocado em sua técnica. Fazer isto, também aumenta o custo de Ki dela em +4 para cada rótulo deste em sua técnica.",
+      "modificador_ki": {
+        "por_rotulo": 4
+      },
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 74,
+      "pagina_pdf": 75
+    },
+    {
+      "nome": "Técnica Variável",
+      "categoria": "generico",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Essa técnica tem duas versões, cada uma com um tipo de dano diferente entre os existentes, permitindo então que o atacante alterne entre esses tipos conforme a sua vontade no momento de conjuração.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 74,
+      "pagina_pdf": 75
+    },
+    {
+      "nome": "Técnica à Queima-Roupa",
+      "categoria": "generico",
+      "custo": "1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 1,
+        "max": 1
+      },
+      "efeito": "Permite que mesmo sendo uma técnica de longo alcance não sofra da regra de combate de \"Sob Ameaça\".",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": false,
+      "restricoes": [],
+      "pagina": 74,
+      "pagina_pdf": 75
+    },
+    {
+      "nome": "Técnica Combinada",
+      "categoria": "generico",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Essa técnica permite fundir-se com outra que possua o mesmo rótulo e o mesmo tipo de dano, criando um único ataque mais poderoso. A fusão pode ocorrer entre técnicas de um mesmo personagem ou de personagens diferentes. Ao utilizar uma Técnica Combinada, cada usuário envolvido realiza uma rolagem de acerto separada. Caso apenas uma das rolagens acerte, o dano final será o dano total da técnica que acertou, somado ao dano mínimo da técnica que errou. Se ambas acertarem, o dano das técnicas é somado normalmente. Caso seja um personagem utilizando junto de outro, essa técnica ofensiva poderá ser gasta como uma reação, ou seja, fora da sua iniciativa, podendo ser executada desde que tenha recurso para isto.\n\n- • Ex.1: Dois guerreiros disparam técnicas combinadas de Ki contra um inimigo. O primeiro acerta sua rolagem e causaria 80 de dano, enquanto o segundo erra, cujo dano mínimo seria 20. Como uma das técnicas acertou, o dano final será 80 + 20, totalizando 100 de dano. Caso ambos tivessem acertado, o dano total seria a soma integral de ambas as técnicas.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "outra que possua o mesmo rótulo e o mesmo tipo de dano"
+      ],
+      "pagina": 74,
+      "pagina_pdf": 75
+    },
+    {
+      "nome": "Técnica de Cooperação",
+      "categoria": "generico",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Esse rótulo exige que a técnica com ele esteja em dois personagens. Quando ativada, ambos executam o ataque juntos, compartilhando os custos da técnica: sendo cada um a metade dos Pontos de Ki necessários para a conjuração. Ambos realizam uma rolagem de acerto e, entre os resultados, o maior será considerado como o acerto da técnica, aumentando as chances de sucesso. O personagem que não estiver no seu turno de ação, perde ele, caso já tenha o utilizado enquanto principal tenta conjurar, ela não será possível de uso.",
+      "modificador_ki": {
+        "divisao": "cada um paga metade"
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "Esse rótulo exige que a técnica com ele esteja em dois personagens"
+      ],
+      "pagina": 75,
+      "pagina_pdf": 76
+    },
+    {
+      "nome": "Técnica de Pós-Imagem",
+      "categoria": "generico",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Utilizando sua velocidade extrema, o usuário cria uma pós-imagem, simulando a execução de uma técnica. O oponente, ao reagir, precisa fazer uma rolagem de Sabedoria contra o teste de acerto do usuário para perceber o truque.\n\n- • Se o alvo superar o teste, ele percebe a ilusão a tempo e pode trocar sua reação para algo mais adequado à verdadeira intenção do ataque.\n- • Se o alvo falhar, ele é enganado e não pode trocar a reação escolhida contra a pós-imagem, ficando vulnerável. O usuário, ao ver qual reação foi utilizada, pode trocar seu ataque na última hora para outra técnica, surpreendendo o inimigo, que não poderá alterar sua resposta.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 75,
+      "pagina_pdf": 76
+    },
+    {
+      "nome": "Técnica Devastadora",
+      "categoria": "generico",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Se o inimigo estiver sofrendo qualquer efeito negativo, o dano causado pela técnica aumenta em um estágio caso acerte. Caso o ataque já tenha alcançado o estágio máximo de dano, o usuário adiciona um valor extra ao dano final equivalente ao dano mínimo que a técnica causaria.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 75,
+      "pagina_pdf": 76
+    },
+    {
+      "nome": "Técnica de Impacto",
+      "categoria": "generico",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Essa técnica atinge o inimigo e causa deslocamento. O deslocamento causado depende do estágio de dano do acerto, sendo 3 metros para dano mínimo, 6 metros para dano médio e 9 metros para dano máximo, isso caso não passem em um teste de Acerto da Técnica vs Rolagem de Destreza ou Constituição o que for escolhido pelo alvo. Se o alvo colidir com uma estrutura sólida, como uma parede de pedra ou metal resistente, sofre dano extra equivalente ao dano mínimo da técnica. Caso atinja um objeto destrutível, como uma árvore ou um muro de tijolos, a estrutura pode ser destruída. Se houver um inimigo ou aliado no caminho, ele pode ser atingido pelo impacto, sofrendo dano mínimo da técnica e sendo responsável por ser considerado uma estrutura, além disso é deslocado junto ao alvo original e recebe dano mínimo, caso não passe em mesmo teste. O inimigo ou aliado, é considerado atingido se estiver na linha de impacto, e também a rolagem de acerto do usuário utilizada para atingir o alvo original, supere a sua CA.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 75,
+      "pagina_pdf": 76
+    },
+    {
+      "nome": "Rajada Contínua",
+      "categoria": "generico",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Permite ao usuário prolongar os efeitos de uma técnica, mantendo o ataque ativo na mesma área e contra os mesmos inimigos na rodada seguinte. Para isso, o usuário deve continuar gastando a mesma quantidade de Ki exigida para a técnica e não pode realizar outras ações ou reações enquanto mantém a rajada. Se os alvos permanecerem dentro da área da técnica, eles continuam sofrendo dano sem necessidade de uma nova rolagem de acerto, pois a técnica segue ativa com o mesmo acerto original. Caso seja uma técnica de alvo único, se o alvo se movimentar para fora do alcance máximo, a rajada é interrompida.\n\n- • Ex.1: O usuário dispara uma poderosa Rajada Contínua de Ki, atingindo três inimigos dentro de sua área de efeito e causando dano médio. Ele decide manter o ataque na rodada seguinte, gastando novamente a mesma quantia de Ki, enquanto mantém o foco na técnica. Os inimigos que não saírem da área continuarão sofrendo dano automaticamente. No entanto, se um dos alvos conseguir se afastar antes do próximo turno do usuário, considera que ele escapou da rajada e não sofrendo mais dano contínuo. Se a técnica for de alvo único, deverá se afastar até que o alcance da técnica não o atinja mais, a anulando assim como a rolagem dela, necessitando ao usuário se aproximar e fazer nova rolagem.",
+      "modificador_ki": {
+        "por_rodada_mantida": "mesma quantidade de Ki exigida para a técnica"
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "não pode realizar outras ações ou reações enquanto mantém a rajada"
+      ],
+      "pagina": 76,
+      "pagina_pdf": 77
+    },
+    {
+      "nome": "Golpe Crítico",
+      "categoria": "generico",
+      "custo": "5",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 5,
+        "max": 5
+      },
+      "efeito": "Diminui em 1, a rolagem considerada como acerto crítico por essa técnica, ou seja, de 20 vai para 19 e assim acumuladamente por cada um deste rótulo investido na técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 76,
+      "pagina_pdf": 77
+    },
+    {
+      "nome": "Ataque Curvo",
+      "categoria": "generico",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Permite que a técnica siga uma trajetória curva, superando obstáculos como coberturas ou paredes, permitindo atingir alvos que se encontram atrás de uma barreira parcial. A técnica ignora a coberturas parciais do inimigo de qualquer tipo, mas a rolagem de acerto será feita com desvantagem devido à dificuldade de contornar o obstáculo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 76,
+      "pagina_pdf": 77
+    },
+    {
+      "nome": "Ataque Espectral",
+      "categoria": "generico",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Permite que o ataque atravesse objetos sólidos sem ser interrompido ou causar danos a eles, até atingir um alvo vivo, ignorando coberturas totais. O ataque não explode nem causa danos colaterais aos objetos ou estruturas no caminho, passando através deles até alcançar o alvo. Porém, o ataque só atinge alvos vivos, ou seja, personagens, inimigos ou criaturas.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 76,
+      "pagina_pdf": 77
+    },
+    {
+      "nome": "Carga Crescente",
+      "categoria": "generico",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Permite que uma técnica se intensifica a cada utilização no mesmo alvo. A cada vez que o usuário executa a técnica contra um alvo específico, o dano final aumenta em uma quantidade fixa igual a 5, tornando-se progressivamente mais potente. Esse aumento pode ser acumulado até o momento em que o usuário errar a técnica, não podendo esse rótulo ser aplicado com o de Salvaguardas.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "não podendo esse rótulo ser aplicado com o de Salvaguardas"
+      ],
+      "pagina": 76,
+      "pagina_pdf": 77
+    },
+    {
+      "nome": "Efeito Negativo",
+      "categoria": "generico",
+      "custo": "Variável",
+      "custo_pontos": {
+        "tipo": "variavel",
+        "min": null,
+        "max": null
+      },
+      "efeito": "Permite que o usuário incorpore um efeito negativo à sua técnica, impactando diretamente o alvo caso ele falhe em um teste de resistência. Se esse rótulo é adicionado a uma técnica que causa dano, o teste apenas vai ocorrer se o alvo receber dano, se for em uma técnica que não causa dano e o foco é aplicar o efeito, basta apenas o acerto. Caso a técnica seja de dano ou efeito em área, todos os rótulos positivos dela são consumidos, antes de aplicar a quantidade de rótulos que a condição irá consumir. A condição imposta pode variar dentre as disponíveis no sistema, sendo o valor de rótulos desse efeito igual ao valor designado ao efeito negativo que é exposto expressamente nele. Se a condição escolhida não tiver uma duração específica, ela permanece até o final do próximo turno do alvo afetado. Sempre que esta técnica for aplicada, o inimigo terá direito a um teste de resistência apropriado, que pode ser baseado em Destreza, Constituição, Sabedoria ou outra resistência pertinente, dependendo do efeito adicionado.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "Caso a técnica seja de dano ou efeito em área, todos os rótulos positivos dela são consumidos, antes de aplicar a quantidade de rótulos que a condição irá consumir"
+      ],
+      "pagina": 76,
+      "pagina_pdf": 77
+    },
+    {
+      "nome": "Aumentar Dificuldade",
+      "categoria": "generico",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Fortalece a técnica ao intensificar sua força, velocidade ou complexidade, tornando-a mais difícil de resistir. Ao aplicar esse efeito, a Classe de Dificuldade (CD) dos testes de resistência contra a técnica é aumentada, dificultando o seu sucesso ao resistir a Salvaguarda imposta pela técnica. Cada rótulo deste investido em uma técnica aumenta em +1 a CD dela, além de também aumentar o custo de Ki dela em +8.",
+      "modificador_ki": {
+        "por_rotulo": 8
+      },
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 77,
+      "pagina_pdf": 78
+    },
+    {
+      "nome": "Precisão",
+      "categoria": "generico",
+      "custo": "Variável",
+      "custo_pontos": {
+        "tipo": "variavel",
+        "min": null,
+        "max": null
+      },
+      "efeito": "Permite que o usuário controle sua técnica com precisão, protegendo aliados dentro da área de efeito. Ao ativar a técnica, o usuário pode selecionar um número de criaturas igual ao custo do rótulo investido na técnica, sendo na proporção de 1:3, ou seja, a cada 1 ponto de rótulo 3 aliados não são atingidos.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 77,
+      "pagina_pdf": 78
+    },
+    {
+      "nome": "Técnica Reativa",
+      "categoria": "generico",
+      "custo": "?",
+      "custo_pontos": {
+        "tipo": "consome_todos_positivos_base",
+        "min": null,
+        "max": null
+      },
+      "efeito": "Permite a técnica que o usuário tenha a capacidade de a utilizar fora do próprio turno, ativando-a apenas como uma reação a uma ação ou reação inimiga, e não a outra situação. Assim como uma técnica ofensiva comum, não pode ser utilizada mais de uma vez durante seu turno de reação, a não ser que tenha o rótulo de \"Técnica Básica\". Lembrando que, turnos de reações podem acontecer vários durante uma batalha, então, um novo turno de reação causado por um inimigo diferente, automaticamente permite a utilização novamente de uma técnica que tenha este rótulo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "não pode ser utilizada mais de uma vez durante seu turno de reação, a não ser que tenha o rótulo de \"Técnica Básica\""
+      ],
+      "pagina": 77,
+      "pagina_pdf": 78
+    },
+    {
+      "nome": "Técnica Defensiva",
+      "categoria": "generico",
+      "custo": "1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 1,
+        "max": 1
+      },
+      "efeito": "Permite a capacidade de converter o dano que a técnica causaria em mitigação direta de dano recebido. Quando um inimigo ataca e acerta, o usuário pode rolar um teste de acerto com essa técnica, utilizando o valor de acerto do oponente como se fosse a Classe de Armadura (CA) a ser superada. Dependendo da rolagem atingido, a mitigação será proporcional ao dano que a técnica normalmente causaria, seguindo os estágios a seguir:\n\n- • Se o acerto for 6- negativo do Acerto Inimigo: Mitigação mínima (¼ do valor base).\n- • Se o acerto for 1~5 negativos do Acerto Inimigo: Mitigação média (½ do valor base).\n- • Se o acerto for igual ou superior Acerto Inimigo: Mitigação completa (valor total da técnica).",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 77,
+      "pagina_pdf": 78
+    },
+    {
+      "nome": "Técnica de Barreira",
+      "categoria": "generico",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Permite que a técnica ao ser utilizada aumente a CA do usuário temporariamente até o início de seu próximo turno. O aumento é equivalente a +1 a cada rótulo investido nessa técnica, além disso cada aumento resulta em uma adição no custo de Ki de +3. Caso tenha outra técnica com esse mesmo rótulo, ela não poderá ser utilizada no mesmo turno de ação ou reação.",
+      "modificador_ki": {
+        "por_rotulo": 3
+      },
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [
+        "Caso tenha outra técnica com esse mesmo rótulo, ela não poderá ser utilizada no mesmo turno de ação ou reação"
+      ],
+      "pagina": 78,
+      "pagina_pdf": 79
+    },
+    {
+      "nome": "Adicionar Salvaguarda",
+      "categoria": "generico",
+      "custo": "?",
+      "custo_pontos": {
+        "tipo": "consome_todos_positivos_base",
+        "min": null,
+        "max": null
+      },
+      "efeito": "Concede à técnica a propriedade de sempre atingir o alvo, substituindo a rolagem de acerto por um teste de Salvaguarda de atributo condizente com a técnica. O alvo deve realizar uma Salvaguarda apropriada contra a Classe de Dificuldade (CD) da técnica, e o dano será determinado conforme o resultado do teste, seguindo a escala invertida de estágios de dano:\n\n- • Se o alvo falhar por 6 ou mais, sofre Dano Máximo.\n- • Se o alvo falhar por 3 a 5, sofre Dano Médio.\n- • Se o alvo falhar por 1 a 2, sofre Dano Mínimo.\n\nCaso o alvo passe no teste de Salvaguarda, ele evita completamente os efeitos da técnica. As regras de escala de poder se aplicam da mesma forma. O Valor da Salvaguarda, depender do atributo de conjuração da técnica, seguindo a seguinte regra: 8 + Modificador do Atributo de Acerto + Escala de Poder Base, não entrando nessa regra, a Escala de Poder Bônus que é dada por transformações",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "8 + Modificador do Atributo de Acerto + Escala de Poder Base"
+      ],
+      "pagina": 78,
+      "pagina_pdf": 79
+    },
+    {
+      "nome": "Gatilho Passivo",
+      "categoria": "generico",
+      "custo": "?",
+      "custo_pontos": {
+        "tipo": "consome_todos_positivos_base",
+        "min": null,
+        "max": null
+      },
+      "efeito": "A técnica é conjurada automaticamente sem necessidade de uma ação, quando o gatilho que é condicionado a ela é feito, no entanto ela jamais poderá ser conjurada como uma ação ou reação, mas, seguindo a regra de que ativada uma vez, apenas poderá ter uma nova ativação no início do seu próximo turno de ação. Os gatilhos podem variar interpretativamente, sendo desde sofrer um dano, a uma ação específica do próprio usuário ou de terceiros. Ela apenas será ativada, caso você tenha recursos necessários para isso de forma passiva.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "ela jamais poderá ser conjurada como uma ação ou reação",
+        "apenas poderá ter uma nova ativação no início do seu próximo turno de ação"
+      ],
+      "pagina": 78,
+      "pagina_pdf": 79
+    },
+    {
+      "nome": "Presságio",
+      "categoria": "generico",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Ao causar dano, o usuário escolhe uma das seguintes condutas do alvo até o fim do próximo turno de ação dele: usar uma ação ofensiva; usar uma reação; ou aumentar sua distância do usuário em mais de 1,5m. Se o alvo cumprir a conduta escolhida, o presságio se cumpre: ele sofre imediatamente o dano mínimo da técnica, sem nova rolagem, e o efeito se encerra. O alvo só pode sofrer esse efeito uma vez por aplicação de Presságio.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 78,
+      "pagina_pdf": 79
+    },
+    {
+      "nome": "Lastro",
+      "categoria": "generico",
+      "custo": "5",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 5,
+        "max": 5
+      },
+      "efeito": "Ao causar dano, o usuário pode deixar um lastro no alvo ou no ponto atingido até o fim do seu próximo turno de ação.\n\n- • Se a técnica era de alvo único, o lastro fica no alvo e se move com ele.\n- • Se era de área, o lastro fica no ponto de impacto.\n\nEnquanto o lastro persistir, a próxima técnica do usuário com alcance não em área pode ser conjurada como se: o ponto de origem fosse o lastro; e a medição de alcance partisse dele. Se o usuário não aproveitar até o prazo, o lastro se dissipa.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 78,
+      "pagina_pdf": 79
+    },
+    {
+      "nome": "Isolante",
+      "categoria": "generico",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Ao causar dano, o alvo fica \"Isolado até o fim de seu próximo turno de ação. Enquanto estiver neste estado, outros personagens não podem usar reações em defesa dele, nem reagir para: mitigar o dano que ele receberia, tomar dano em seu lugar, ou protegê-lo diretamente por técnica ou efeito reativo. O alvo ainda pode usar suas próprias reações normalmente, salvo outras regras.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 78,
+      "pagina_pdf": 79
+    },
+    {
+      "nome": "Revés",
+      "categoria": "generico",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Ao causar dano, o alvo fica em Revés até o início do próximo turno do usuário. A primeira técnica ofensiva que esse alvo usar contra o usuário nesse período sofre uma redução de eficácia: se causaria dano máximo, causa dano médio; se causaria dano médio, causa dano mínimo; se causaria dano mínimo é como se não houvesse acertado.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Amortecedora",
+      "categoria": "generico",
+      "custo": "4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 4,
+        "max": 4
+      },
+      "efeito": "Ao causar dano, o usuário cria uma camada de amortecimento contra aquele mesmo alvo até o início de seu próximo turno. A próxima vez que aquele alvo causar dano ao usuário nesse período, o dano final recebido é reduzido em valor fixo igual ao dano mínimo da técnica que gerou o amortecimento. Se o dano for reduzido a 0, ele é negado normalmente. Após reduzir um ataque, o efeito se encerra.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Brecha",
+      "categoria": "generico",
+      "custo": "2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 2,
+        "max": 2
+      },
+      "efeito": "Ao causar dano, o alvo abre uma janela de mobilidade para os inimigos. Até o fim do próximo turno do usuário: aliados do usuário podem entrar, sair ou circular pelo alcance ameaçado do alvo sem provocar Ataque de Oportunidade dele.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Rastreante",
+      "categoria": "generico",
+      "custo": "3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 3,
+        "max": 3
+      },
+      "efeito": "Ao causar dano, o alvo fica rastreado até o fim do próximo turno do usuário. Enquanto estiver assim, em relação ao usuário: não pode se beneficiar de Furtividade; não pode esconder seu fluxo de mana, presença ou posição; e não pode ser tratado como alvo oculto por meios comuns de ocultação ou supressão.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Difusão",
+      "categoria": "generico",
+      "custo": "5",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": 5,
+        "max": 5
+      },
+      "efeito": "Se a técnica causar dano e aplicar qualquer efeito não ligado diretamente ao dano bruto, o usuário pode difundi-lo. Escolha uma segunda criatura válida a até 3,0m do alvo original. Essa segunda criatura não sofre dano, mas recebe um dos seguintes elementos da técnica, à escolha do usuário, se houver: um efeito de rótulo, uma condição negativa aplicada pela técnica, ou outro efeito secundário claramente separado do dano. A segunda criatura resolve normalmente qualquer teste de resistência exigida por esse efeito.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Exaustiva",
+      "categoria": "negativo",
+      "custo": "-4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -4,
+        "max": -4
+      },
+      "efeito": "O usuário gasta o dobro de Ki para usar essa técnica.",
+      "modificador_ki": {
+        "multiplicador": 2
+      },
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Dreno de Ki",
+      "categoria": "negativo",
+      "custo": "Variável",
+      "custo_pontos": {
+        "tipo": "variavel",
+        "min": null,
+        "max": null
+      },
+      "efeito": "A técnica consome Ki além do custo base, reduzindo a eficiência energética. Aumenta o custo da técnica de Ki em +3 em troca de dar um rótulo negativo a técnica, para cada 3 de Ki a mais, adiciona mais um rótulo negativo.",
+      "modificador_ki": {
+        "por_ponto_negativo": 3
+      },
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Carregamento",
+      "categoria": "negativo",
+      "custo": "-1 a Variável",
+      "custo_pontos": {
+        "tipo": "variavel_com_minimo",
+        "min": -1,
+        "max": null
+      },
+      "efeito": "A técnica precisa de 1 rodada completa de concentração antes de ser disparada, contando o carregamento mesmo que receba danos. A cada rodada extra que você adicionar aumenta em -1 o rótulo negativo da técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Técnica de Doação",
+      "categoria": "negativo",
+      "custo": "-4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -4,
+        "max": -4
+      },
+      "efeito": "Técnica que necessita do Ki de terceiros para ser conjurada, onde aliados devem doar Ki ao conjurador gastando em reação uma quantidade de Ki igual a exigida pela técnica, podendo doar o próprio Ki para conjuração dela. O usuário não pode usar o próprio Ki para conjuração.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 79,
+      "pagina_pdf": 80
+    },
+    {
+      "nome": "Ki Instável",
+      "categoria": "negativo",
+      "custo": "-4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -4,
+        "max": -4
+      },
+      "efeito": "O usuário deve rolar um Teste de Poder x Acerto da Técnica depois de usar a técnica; se falhar, gasta o Ki, mas a técnica não sai.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Concentração",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica necessita que você não tenha recebido nenhuma fonte de dano durante a última rodada e o turno.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Diminuir Precisão",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "A técnica é instável e de difícil conjurador, o que faz você diminuir a precisão do seu próximo golpe, diminuindo a rolagem de acerto em -1 para cada rótulo deste colocado em sua técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Posicionamento Preciso",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "O usuário não pode se movimentar mais do que a metade da sua movimentação total durante a rodada, ou não poderá conjurar essa técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Posicionamento Crítico",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "O usuário não pode se movimentar durante a rodada, ou não poderá conjurar essa técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Recarga Precisa",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "O usuário não pode utilizar a técnica novamente por uma rodada após o uso. Para cada rodada que o usuário não pode utilizar a técnica novamente, aumente o valor do rótulo em -2.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": true,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Descontrole",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "Uma vez usada ou canalizada, a técnica não pode ser interrompida.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Recuo Poderoso",
+      "categoria": "negativo",
+      "custo": "-3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -3,
+        "max": -3
+      },
+      "efeito": "Uma vez que conjure a técnica mesmo que acerte ou erre ela, você recebe um dano de recuo igual ao dano mínimo que a técnica pode causar.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Alcance Fixo",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica não pode ter seu alcance alterado de nenhuma forma sendo externa ou interna.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Área Específica",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica apenas pode ser usada em: terra, ar, água ou vácuo. Devendo o usuário escolher uma das três opções, sendo que na opção de vácuo o custo do rótulo aumentar para -3.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "na opção de vácuo o custo do rótulo aumentar para -3"
+      ],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Condicionada",
+      "categoria": "negativo",
+      "custo": "-1 a -2",
+      "custo_pontos": {
+        "tipo": "faixa",
+        "min": -1,
+        "max": -2
+      },
+      "efeito": "A técnica apenas pode ser usada após uma ação ou evento específico, este deve ser determinado na criação. Essa ação pode ser sua ou de um inimigo, e no geral apenas pode ser interpretativa (não podendo ser algo genérico como simplesmente seu inimigo falar ou atacar). Caso o seu personagem, ou o inimigo não executem essa ação, a técnica não pode ser usada. Se a ação depende do seu personagem o custo é -1, se depender do inimigo o custo é -2.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "Se a ação depende do seu personagem o custo é -1, se depender do inimigo o custo é -2"
+      ],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Verbal",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica apenas pode ser usada caso você grite ou diga o nome dela em voz alta. Caso não consiga, a técnica ainda é conjurada, mas, a rolagem de acerto é feita com desvantagem.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 80,
+      "pagina_pdf": 81
+    },
+    {
+      "nome": "Somática",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica apenas pode ser usada caso você faça algum gesto com suas mãos ou outra parte do corpo. Caso não consiga, a técnica ainda é conjurada, mas, a rolagem de acerto é feita com desvantagem.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Objeto",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica apenas pode ser usada caso você esteja portando em mãos um objeto específico que faz parte da sua conjuração. Caso não consiga, a técnica ainda é conjurada, mas, a rolagem de acerto é feita com desvantagem.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Técnica Dependente",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "A técnica apenas pode ser usada caso você tenha utilizado outra técnica antes a qual deixou pré-determinado na criação, que era necessária para o seu uso. Caso não tenha feito, simplesmente não poderá usar a técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Sobrecarga",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "Após usar a técnica, você não poderá utilizar outra técnica do mesmo Rank até o início do seu próximo turno, incluindo as técnicas de reação.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Foco Total",
+      "categoria": "negativo",
+      "custo": "-4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -4,
+        "max": -4
+      },
+      "efeito": "Você pode usar essa técnica se ela for a única que você for utilizar até o início do seu próximo turno, incluindo as técnicas de reação.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Cansativa",
+      "categoria": "negativo",
+      "custo": "-3",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -3,
+        "max": -3
+      },
+      "efeito": "No início do seu próximo turno, você não é capaz de regenerar automaticamente o Ki gasto para conjurar essa técnica, apenas voltando a regenerar no turno seguinte a este.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Inofensiva",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica não pode ser utilizada para causar dano de nenhuma forma direta ou indiretamente.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Efeito Colateral",
+      "categoria": "negativo",
+      "custo": "-?",
+      "custo_pontos": {
+        "tipo": "igual_ao_efeito_negativo",
+        "min": null,
+        "max": null
+      },
+      "efeito": "Após a conjuração da técnica, no final do seu turno, o usuário deve rolar uma rolagem de Constituição vs Acerto da própria técnica, ou vai receber o efeito negativo escolhido para fazer parte deste rótulo. O custo do efeito negativo é o que determina o rótulo negativo desta técnica.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Esforço Supremo",
+      "categoria": "negativo",
+      "custo": "-6",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -6,
+        "max": -6
+      },
+      "efeito": "Após utilizar essa técnica, não poderá mais usar técnicas nesse turno e na rodada, e além disso, perderá o seu turno de ação seguinte, mas, poderá voltar a usar técnicas reativas nesse meio tempo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Danos por Esforço",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "Uma vez que conjure a técnica mesmo que acerte ou erre ela, caso você esteja com menos da metade da sua vida ou dos seus pontos de ki, você recebe um dano de recuo igual ao dano mínimo que a técnica pode causar.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Técnica de Fácil Rebote",
+      "categoria": "negativo",
+      "custo": "-4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -4,
+        "max": -4
+      },
+      "efeito": "Caso erre a técnica, o alvo deve rolar um teste de Inteligência vs Acerto da Técnica caso seja de energia ou Destreza vs Acerto da Técnica caso seja física, se ele superar, irá rebater de alguma forma a energia ou o dano de impacto da técnica, de volta para você, sendo a rolagem que utilizou para superar o acerto, o novo acerto da sua própria técnica que irá em sua direção. Você pode fazer o mesmo, até que ela finalmente acerte um alvo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Postura Quebrada",
+      "categoria": "negativo",
+      "custo": "-4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -4,
+        "max": -4
+      },
+      "efeito": "Caso utilize essa técnica, não poderá usar técnicas de reação até o início do seu próximo turno.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 81,
+      "pagina_pdf": 82
+    },
+    {
+      "nome": "Golpe Cego",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "O usuário deve rolar um Teste de Inteligência ou Destreza vs Acerto da Técnica depois de atacar; se falhar, a técnica atinge um alvo aleatório, respeitando a regra de alcance da técnica. Esse rótulo apenas pode ser utilizado em técnicas que tenham longo alcance.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [
+        "Esse rótulo apenas pode ser utilizado em técnicas que tenham longo alcance"
+      ],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Previsível",
+      "categoria": "negativo",
+      "custo": "-4",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -4,
+        "max": -4
+      },
+      "efeito": "Caso utilize essa técnica e erre ou o oponente consiga mitigar completamente o dano ou o evitar de alguma forma, o alvo ganha uma reação com custo de Ki gratuito automática, que apenas pode ser utilizada contra você.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Ostensiva",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "A técnica exige uma preparação perceptível, impossível de esconder por completo. Ao declarar seu uso, o alvo principal percebe claramente a intenção do usuário antes da resolução. Contra esse uso da técnica, o alvo recebe:\n\n- • +1 na CA, se a técnica for resolvida por Acerto;\n- • ou +1 na primeira Resistência exigida por ela, se for o caso.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Luminescente",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "A técnica deixa um brilho, rastro ou assinatura evidente. Após usá-la, até o início do próximo turno de ação do usuário: ele não pode se beneficiar de Furtividade, ocultação ou supressão de presença; e testes feitos para localizá-lo, percebê-lo ou rastrear seu fluxo são feitos com vantagem.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Sangria",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica exige sacrifício vital para estabilizar sua execução. Ao usá-la, o usuário sofre dano não mitigável igual à sua EP. Esse dano ocorre independentemente de acerto ou erro; não pode ser evitado por mitigação comum; e não conta como dano causado por inimigo.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Inicial",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "A técnica só pode ser usada no início do ritmo ofensivo do usuário. Ela só pode ser a primeira ação que gaste PK no turno de ação do personagem. Se o usuário já tiver gasto PK antes dela no turno, ou já tiver usado outra técnica, reação convertida em ação, talento ou gasto relevante de esforço, ela não pode ser conjurada naquele turno.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Terminal",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica encerra o ímpeto ofensivo do usuário naquele turno. Depois de resolver essa técnica durante o turno de ação, o usuário: não pode mais gastar PK no restante do próprio turno de ação. Ele ainda pode: falar, posicionar-se se ainda não o fez antes da conjuração, e usar reações normalmente depois, salvo outras restrições.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Monotemática",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica prende o fluxo do usuário a um único padrão ofensivo. Após usá-la, até o início do próximo turno de ação, o usuário não pode utilizar técnicas com tipo de dano diferente do tipo de dano dessa técnica. Se a técnica possuir múltiplos tipos de dano, define-se na criação qual deles dita a restrição principal, se você já usou um tipo de dano diferente do determinado nessa técnica antes de sua utilização, ela já não poderá ser utilizada.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Alcance Minguante",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica perde amplitude conforme é repetida no mesmo confronto. Cada vez que a técnica for usada novamente na mesma batalha, seu alcance máximo é reduzido em 1,5m, cumulativamente.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 82,
+      "pagina_pdf": 83
+    },
+    {
+      "nome": "Solo Firme",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "A técnica depende de apoio corporal pleno. Ela não pode ser usada enquanto o usuário estiver: voando, caindo, escalando, nadando, montado em criatura em deslocamento, ou sem apoio estável no chão/superfície.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 83,
+      "pagina_pdf": 84
+    },
+    {
+      "nome": "Espaço Aberto",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "A técnica exige espaço físico livre para se formar. Ela não pode ser usada em ambientes onde não haja pelo menos 3,0m de espaço livre acima do usuário e do ponto de origem da técnica, como: túneis muito baixos, passagens comprimidas, dutos, ou estruturas excessivamente fechadas.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 83,
+      "pagina_pdf": 84
+    },
+    {
+      "nome": "Linha Pura",
+      "categoria": "negativo",
+      "custo": "-1",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -1,
+        "max": -1
+      },
+      "efeito": "A técnica exige trajetória perfeitamente limpa. Ela não pode ser usada se houver qualquer tipo de cobertura, mesmo parcial, entre: o usuário e o alvo, ou o usuário e o ponto de origem/impacto escolhido. Também não pode ser usada se outro corpo ocupar de forma relevante a linha de execução.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 83,
+      "pagina_pdf": 84
+    },
+    {
+      "nome": "Braço Morto",
+      "categoria": "negativo",
+      "custo": "-2",
+      "custo_pontos": {
+        "tipo": "fixo",
+        "min": -2,
+        "max": -2
+      },
+      "efeito": "A técnica entorpece o membro, arma ou foco que a executou. Após resolver a técnica, a arma, mão ou membro diverso usado para executá-la: não pode ser usado novamente para outra técnica ou reação ofensiva até o início do próximo turno de ação do usuário. O item ainda pode ser segurado, mas não empregado ofensivamente.",
+      "modificador_ki": null,
+      "alcance": null,
+      "acumula": null,
+      "restricoes": [],
+      "pagina": 83,
+      "pagina_pdf": 84
+    }
+  ]
+}

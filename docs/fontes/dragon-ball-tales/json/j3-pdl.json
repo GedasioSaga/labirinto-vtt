@@ -1,0 +1,30 @@
+{
+  "fonte": "Livro do Jogador V0.5. Recorte j3: 8.6 e 8.7 (pp. impressas 108-110) e Registro V0.3 (p. 123). Marcos de 3.0.x (PDF pp. 13-15) estão FORA do recorte j3 e entram só como referência cruzada, marcados com 'fora_do_recorte': true.",
+  "definicao": "Poder de Luta (PDL) é a forma como o sistema Dragon Ball Tales mede o avanço dos personagens, substituindo o sistema tradicional de níveis por algo mais fiel ao universo da obra original. O PDL representa a força total de um personagem e é usado como requisito para adquirir novas técnicas, talentos, transformações e para medir o seu crescimento ao longo da campanha. Ele é acumulado ao longo da jornada do personagem através de batalhas vencidas, treinamentos intensos ou feitos significativos. A quantidade de PDL ganha é sempre determinada pelo Mestre, podendo variar conforme o desafio enfrentado ou a importância do feito.",
+  "pagina_definicao": 109,
+  "formula": {
+    "pdl_base": "PDL Base: É o valor real e sistemático usado para desbloquear transformações, técnicas, talentos e efeitos mecânicos do jogo. (não é calculado: é concedido pelo Mestre e acumulado)",
+    "pdl_interpretativo": "PDL Interpretativo = PDL Base x (Escala de Poder x 10)",
+    "opcional": true,
+    "efeito_mecanico": "Contudo, ela não interfere nas regras de combate ou progressão, sendo puramente uma ferramenta para enriquecer a interpretação.",
+    "exemplo": "um personagem com 10.000 PDL e com Escala de Poder 0 tem apenas esse valor base, no entanto, um com escala de poder 1 tem cerca de 100.000 de Poder de Luta!",
+    "nota": "Aplicada literalmente, EP 0 dá 0; o texto diz que com EP 0 vale o próprio PDL Base.",
+    "pagina": 110
+  },
+  "marcos": [
+    {"a_cada_pdl": 5000, "ganho": "+1 Slot de Técnica", "texto": "A cada 5.000 pontos de Poder de Luta (PDL), o personagem recebe +1 Slot de Técnica adicional.", "secao": "8.6", "pagina": 109, "fora_do_recorte": false},
+    {"a_cada_pdl": 10000, "ganho": "Permissão para trocar o escopo de técnicas (descartar antigas e criar novas)", "texto": "No entanto, um jogador apenas pode trocar suas técnicas no sentido de descartar antigas, e criar novas, apenas a cada 10.000 PDL", "secao": "8.6", "pagina": 109, "fora_do_recorte": false},
+    {"a_cada_pdl": 20000, "ganho": "1 Talento ou Movimento Marcial (não os dois)", "texto": "Progressão por PDL: A cada 20.000 PDL, o personagem poderá escolher apenas um dos seguintes ganhos: 1 Talento, ou Movimento Marcial. Não é possível obter os dois simultaneamente por esse meio.", "secao": "Registro V0.3", "pagina": 123, "fora_do_recorte": false},
+    {"a_cada_pdl": 10000, "ganho": "Aumento de Vida conforme a Raça, e +1 de Ki, e +2 ST’s", "texto": "A cada 10.000 PDL → Aumento de Vida conforme a Raça, e +1 de Ki, e +2 ST’s", "secao": "3.0.11", "pagina": 14, "fora_do_recorte": true},
+    {"a_cada_pdl": 20000, "ganho": "+1 Talento ou Movimento Marcial.", "texto": "A cada 20.000 PDL → +1 Talento ou Movimento Marcial.", "secao": "3.0.11", "pagina": 14, "fora_do_recorte": true},
+    {"a_cada_pdl": 30000, "ganho": "Aumento de Atributo (+2 em um ou +1 em dois)", "texto": "A cada 30.000 PDL → Aumento de Atributo (+2 em um ou +1 em dois)", "secao": "3.0.11", "pagina": 14, "fora_do_recorte": true},
+    {"a_cada_pdl": 40000, "ganho": "Aumento da Escala Natural (+1 EP)", "texto": "A cada 40.000 PDL → Aumento da Escala Natural (+1 EP)", "secao": "3.0.11", "pagina": 14, "fora_do_recorte": true}
+  ],
+  "outros_requisitos_no_recorte": [
+    {"texto": "A exaustão por técnicas conta a partir da técnica do Rank mais alto que o personagem pode acessar (A partir do Rank C); 5% dos PKs totais bloqueados por uso, ao fim da batalha.", "secao": "8.5.1.2", "pagina": 105}
+  ],
+  "comparar_personagens": {
+    "regra_no_recorte": "O recorte j3 não traz regra de 'comparar personagens' por PDL; o PDL Interpretativo é a única fórmula de comparação e é narrativa. A comparação mecânica de força é feita por Escala de Poder (8.8 Destruição Planetária: 'Se o destruidor superar em mais que o dobro a Escala de Poder dos defensores, eles não podem impedir, nem iniciar combate'; 9.5.6 Choque de Poder só na mesma Escala).",
+    "fora_do_recorte": "2.3.2-2.3.4 (PDF pp. 10-12): -1 no ataque por ponto de diferença de EP; limiares de dano deslocados em -1 por ponto de EP de vantagem; vitória automática interpretativa quando a EP de um é o dobro da do outro."
+  }
+}

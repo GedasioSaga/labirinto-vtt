@@ -1,0 +1,11 @@
+# 9.2 O TURNO DE AÇÃO
+
+> Fonte: pp. impressas 113-114 (PDF pp. 114-115).
+
+**O Turno de Ação acontece quando chega a sua vez na ordem da iniciativa.** Nesse momento, apenas o seu personagem pode agir de maneira ofensiva, utilizando sua Ki para realizar ataques, usar técnicas, ativar talentos, se transformar ou fazer qualquer outra ação que consuma esse recurso. O Ki aqui funciona como um sistema de pontos de ação, e todas as ações custam uma quantidade específica desse recurso. **Movimentar-se durante o turno de ação não consome Ki, mas só pode ser feito uma única vez por turno, respeitando a movimentação máxima do personagem.** Ações narrativas, como conversar, pegar ou entregar objetos, também são livres e não consomem Ki.
+
+Algumas regras importantes devem ser respeitadas durante o Turno de Ação. Primeiramente, **um personagem não pode utilizar a mesma ação duas vezes seguidas**, **exceto se ela possuir o rótulo "Ataque Básico"**. Nesse caso, ele pode repetir, mas com penalidades. A cada repetição do ataque básico dentro do mesmo turno, aplica-se um redutor de -1 acumulativo à rolagem. Ou seja, se você atacar três vezes seguidas com ataques básicos, a primeira rolagem será normal, a segunda com -1, a terceira com -2, e assim por diante. Mesmo que use técnicas diferentes, se ambas possuírem o mesmo rótulo, a penalidade ainda será aplicada.
+
+Além disso, existe uma limitação importante quanto à execução de múltiplos ataques básicos. **Caso o personagem deseje realizar mais de três ataques básicos no mesmo turno, ele deve anunciar isso antecipadamente antes de começar as rolagens. Caso isso não seja feito, não será permitido realizar mais ataques básicos além do terceiro.** Quando o número de ataques básicos ultrapassa três, todos os ataques são condensados em uma única rolagem de dado, somando os redutores. Por exemplo, se você desejar realizar cinco ataques básicos, precisará rolar 1d20 -10 de uma só vez. Essa regra serve para agilizar o sistema e manter o ritmo fluido da batalha.
+
+> Nota do transcritor: com redutores 0, -1, -2, -3, -4 para cinco ataques, a soma é -10, que bate com o exemplo "1d20 -10". O texto não diz como o dano/acerto de uma rolagem condensada se reparte entre os ataques.

@@ -1,0 +1,58 @@
+{
+  "fonte": "Livro do Jogador V0.5, 2.2 (p. 8), 2.3 (p. 9-11), 3.0.3-3.0.6 e 3.0.11 (p. 12-14)",
+  "itens": [
+    {
+      "id": "pdl", "nome": "Poder de Luta (PDL)", "secao": "2.2.1", "pagina": 8,
+      "formula": null,
+      "formula_texto": "Concedido pelo narrador (ao final de cada sessão, com base nos acontecimentos e no desenvolvimento do personagem). Acumulativo.",
+      "descricao": "No sistema Dragon Ball Tales, não se utiliza um sistema de níveis tradicional, mas sim a nomenclatura Poder de Luta (PDL), inspirado no conceito do anime. Ele funciona como uma medida da força de um personagem e serve para destravar novas habilidades, melhorias e avanços. O poder de luta aumenta a cada batalha e feito do seu personagem, sendo ele concedido pelo narrador.",
+      "marcos": [
+        {"a_cada": 10000, "ganho": "Aumento de Vida conforme a Raça, e +1 de Ki, e +2 ST’s"},
+        {"a_cada": 20000, "ganho": "+1 Talento ou Movimento Marcial."},
+        {"a_cada": 30000, "ganho": "Aumento de Atributo (+2 em um ou +1 em dois)"},
+        {"a_cada": 40000, "ganho": "Aumento da Escala Natural (+1 EP)"}
+      ]
+    },
+    {
+      "id": "pv", "nome": "Pontos de Vida (PV)", "secao": "2.2.2 / 3.0.3", "pagina": 8,
+      "formula": "(CON * 5) + vida_extra_raca + vida_extra_raca * floor(PDL / 10000)",
+      "formula_texto": "O Cálculo de PV é (Constituição x 05) + Pontuação de Raça. A cada 10.000 PDL, o personagem recebe um aumento fixo de PV baseado na sua raça. [3.0.3] Pontuação de Vida Inicial Base igual a (Constituição x 5) + Pontos de Raça.",
+      "exemplo": "CON 12 → 60 PV base; raça +12 → 72 PV iniciais; aos 10.000 PDL sobe +12 → 84 PV.",
+      "nota": "O exemplo do livro soma os Pontos de Raça já no PDL 0. 3.0.2 diz que quem começa abaixo de 10.000 PDL tem 'sua vida apenas o cálculo com a constituição' — ambiguidade (ver digest).",
+      "descricao": "Os Pontos de Vida representam a resistência de um personagem, e não necessariamente ferimentos graves. O dano recebido reduz essa pontuação, e sua representação narrativa depende do tipo de ataque recebido e da descrição do Mestre e do jogador."
+    },
+    {
+      "id": "pk", "nome": "Pontos de Ki (PK)", "secao": "2.2.3 / 3.0.4", "pagina": 8,
+      "formula": "(POD * 2) + floor(PDL / 10000)",
+      "formula_texto": "O Cálculo de PK é (Poder x 02). [3.0.4] A cada 10.000 PDL acumulado, o valor de PK do personagem aumenta naturalmente em +1.",
+      "exemplo": "POD 14 → 28 PK base; +1 a cada 10.000 PDL.",
+      "descricao": "O Ki é a energia vital de um personagem, utilizada para a execução de técnicas especiais e transformações. Quando os Pontos de Ki acabam, o personagem fica exausto e incapaz de realizar ataques ou reações."
+    },
+    {
+      "id": "ca", "nome": "Classe de Armadura (CA)", "secao": "2.2.4 / 3.0.5", "pagina": 8,
+      "formula": "10 + mod(DES) + EP_base",
+      "formula_texto": "A Classe de Armadura é definida por 10 + Modificador de Destreza + Escala de Poder Base (Escala de Poder Bônus não é Somado a CA).",
+      "descricao": "A Classe de Armadura define a dificuldade de um inimigo acertar o personagem. Também influencia o dano recebido quando um golpe supera a CA.",
+      "faixas_de_dano": [
+        {"margem": "não supera a CA", "resultado": "erra"},
+        {"margem": "1-2", "resultado": "dano mínimo (1/4 do dano)"},
+        {"margem": "3-5", "resultado": "dano médio (1/2 do dano)"},
+        {"margem": "6+", "resultado": "dano completo (Dano total da técnica)"}
+      ],
+      "exemplo": "CA 18: rolar 19 → mínimo; 22 → médio; 25 → completo."
+    },
+    {
+      "id": "st", "nome": "Slots de Técnicas (ST)", "secao": "2.2.5 / 3.0.6", "pagina": 8,
+      "formula": "20 + ((1 + mod(SAB)) * 5) + 2 * floor(PDL / 10000)",
+      "formula_variante": {"raca": "Terráqueo — Humano Marcial (Aprendizado Marcial, 4.7.1)", "formula": "20 + ((1 + mod(SAB)) * 10) + 2 * floor(PDL / 10000)"},
+      "formula_texto": "Cada personagem começa com 20 + ((1 + Modificador de Sabedoria) x 05) ST base. A cada 10.000 mil PDL, o número de slots aumenta em +2 de forma natural.",
+      "descricao": "Determinam quantas técnicas ele pode usar ativamente. Cada técnica tem um Ranking (E a Z), e ocupa um número específico de ST. O personagem pode conhecer várias técnicas (Técnicas Conhecidas), mas só pode usar um número limitado por vez (Técnicas Ativas). As técnicas ativas podem ser trocadas após um descanso longo."
+    },
+    {
+      "id": "ep", "nome": "Escala de Poder (EP)", "secao": "2.3", "pagina": 9,
+      "formula": "EP_total = EP_base + EP_bonus_transformacao; EP_base = EP_inicial + floor(PDL / 40000)",
+      "formula_texto": "Cada personagem começa com uma Escala de Poder (EP) base de 0 ou maior, a ser determinado pelo narrador [...] aumentando assim a EP base de um personagem a cada 40,000 PDL’s acumulados, o elevando permanentemente em +1 de EP base. [...] Geralmente uma transformação te concede uma quantidade de EP’s e enquanto você a mantiver ativa, ela irá elevar a escala do seu personagem no valor determinado por ela.",
+      "descricao": "Ver j1-escala_de_poder.json."
+    }
+  ]
+}

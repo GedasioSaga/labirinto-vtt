@@ -1,0 +1,31 @@
+# Capítulo IV — Técnicas — 6.9 Desenvolvendo uma Técnica Especial
+
+> Fonte: "Livro do Jogador - V0.5 (3) (3).pdf", páginas impressas 89–92 (PDF 90–93). Transcrição fiel. (No sumário o título aparece como "6.9 Desenvolvendo de Técnica Especial".)
+
+## 6.9 DESENVOLVENDO UMA TÉCNICA ESPECIAL
+
+Ao criar uma técnica especial, além das limitações interpretativas estabelecidas pelos Rankings, podem surgir situações e efeitos que não possuem uma previsão direta no sistema. Quando isso ocorrer, cabe ao Narrador e ao jogador chegarem a um consenso sobre como a técnica funcionará. Para facilitar esse processo, estabelecemos algumas diretrizes que servirão como referência no desenvolvimento dessas habilidades.
+
+Se a técnica conceder bônus em atributos, aumento de dano, mitigação de dano, movimentação adicional, imunidades, efeitos especiais, ações extras ou qualquer outro benefício que normalmente quebre uma regra padrão do sistema, utilize o Rank das Técnicas Ofensivas como base para o balanceamento. Mas como isso funciona na prática? Vamos a um exemplo: Se uma técnica especial aumenta temporariamente um atributo, esse aumento deve ser proporcional à quantidade de rótulos positivos que uma técnica ofensiva do mesmo Rank poderia ter. Ou seja, se uma técnica especial simula um efeito semelhante ao Kaioken e é classificada como Rank A, ela poderia conceder um aumento de até +5 em um atributo, pois essa é a média de modificadores para técnicas desse nível. No entanto, técnicas absolutas não devem existir. Nenhuma habilidade deve fornecer apenas efeitos positivos sem um custo ou desvantagem proporcional. Para equilibrar isso, você pode aplicar penalidades como:
+
+- ✓ Impedir a recuperação de Ki por uma rodada.
+- ✓ Causar um dano fixo mínimo, de acordo com o Rank da técnica, mas sem torná-lo excessivamente punitivo.
+- ✓ Adicionar um custo de Ki proporcional ao efeito da técnica.
+- ✓ Aplicar um rótulo negativo já existente no sistema.
+
+O objetivo é "moldar" o sistema para se adaptar à situação específica, garantindo que o Narrador e o jogador trabalhem juntos de forma justa e flexível. No fim das contas, o mais importante é que a experiência de jogo seja divertida e equilibrada para todos na mesa. O sistema serve como uma base, mas são vocês que criarão as regras e adaptações que melhor se encaixam no seu estilo de jogo.
+
+Se você estiver inseguro sobre o equilíbrio da sua técnica ou com receio de criar algo muito poderoso, não se preocupe! Nossa comunidade no Discord conta com jogadores experientes e os próprios desenvolvedores do sistema, prontos para oferecer feedback e ajudar no balanceamento das suas criações.
+
+Além disso, os criadores do sistema disponibilizam suplementos por saga, onde técnicas icônicas do anime são adaptadas e prontas para uso, todas com o selo de aprovação oficial. Recomendamos conferir esse material para se inspirar e entender melhor como equilibrar suas próprias técnicas!
+
+No entanto, o que você deve focar é: Técnicas Especiais nada mais são que Técnicas que não tem previsão no sistema, por não haver rótulos ou regras simulando. Logo, elas são especiais, porque ficam acima do próprio sistema. Então se você quer criar uma técnica, e não tem rótulo que faça ela existir, ela naturalmente é uma Técnica Especial.
+
+A seguir exemplos de técnica únicas, fora do anime que você poderia criar por Rank, para estimular sua criatividade e te dar uma base de como adaptar a sua técnica especial.
+
+- ✓ **[Olhos da Verdade – E]:** O usuário desenvolve uma percepção aguçada, detectando microexpressões, variações na respiração e fluxos de Ki básicos. Isso permite, perceber mentiras e rastrear assinaturas energéticas fracas, podendo visualizar oponentes invisíveis. O usuário rolar um Teste de Acerto de Inteligência vs Teste de Inteligência ou Presença do alvo, onde caso acerte irá detectar mentiras ditas pelo alvo além de ter acesso a sua assinatura energética, podendo o visualizar mesmo invisível, esse efeito persiste enquanto o usuário gastar 2 de Ki a cada início de seu turno. **[Ação] [2 KI]**
+- ✓ **[Passo Fantasma – D]:** Com um impulso súbito de Ki, o usuário se move de forma errática, criando a ilusão de desaparecer momentaneamente. Isso permite evitar um ataque ou reposicionar-se rapidamente. No entanto, essa técnica não funciona contra ataques em área. Para utilizá-la, o usuário realiza um Teste de Destreza contra o Acerto da Técnica do oponente. Se o resultado da rolagem de Destreza for igual ou superior à diferença pelo qual o ataque ultrapassou sua Classe de Armadura (CA), diminui em um o estágio de dano que foi causado pelo acerto, caso o estágio de dano tenha sido "mínimo" ao diminuir faz com que a técnica tenha errado. **[Reação] [4 KI]**
+- ✓ **[Diluição Espiritual – C]:** O usuário reduz drasticamente sua assinatura de Ki, dificultando seu rastreamento e percepção pelos inimigos. Além disso, um leve campo de distorção é criado ao seu redor, confundindo os oponentes. Ao ativar essa técnica, os inimigos devem realizar um Teste de Sabedoria, resistindo contra um Teste de Inteligência do usuário. Caso falhem, eles sofrem desvantagem em todas as rolagens de acerto contra o usuário até o início de seu próximo turno. **[Ação ou Reação] [6 KI]**
+- ✓ **[Passagem Negativa – B]:** O usuário cria uma brecha na interação entre sua energia e o ambiente, permitindo atravessar barreiras físicas ou campos de energia por um breve instante. Isso pode ser usado para atravessar paredes finas, escapar de confinamentos ou evitar técnicas de aprisionamento. **[Ação ou Reação] [8 KI]**
+- ✓ **[Fenda Dimensional Leve – A]:** O usuário ao ativar essa técnica, o usuário cria uma fenda conectando dois pontos dentro de um raio de 18 metros. A partir dessa fenda, ele pode conjurar uma de suas técnicas ofensivas como se estivesse no local de destino, sem precisar se mover fisicamente. Na prática, a técnica é lançada na fenda à sua frente e emerge no ponto escolhido, surpreendendo o oponente ao ignorar a trajetória convencional. **[Ação] [10 KI]**
+- ✓ **[Existência Vazia – Z]:** O usuário se torna intangível por breves momentos, ignorando ataques físicos e energéticos. Durante esse estado, não pode atacar ou interagir com o mundo físico. Reaparece no mesmo local após o efeito acabar. **[Reação] [12 KI]**

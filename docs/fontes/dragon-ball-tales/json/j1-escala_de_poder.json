@@ -1,0 +1,32 @@
+{
+  "fonte": "Livro do Jogador V0.5, 2.3 Escala de Poder (p. 9-11)",
+  "regras": [
+    {"secao": "2.3", "nome": "Ganho de EP", "texto": "o aumento de EP acontece apenas de duas maneiras: Transformações ou Acúmulo de PDL. [...] aumentando assim a EP base de um personagem a cada 40,000 PDL’s acumulados, o elevando permanentemente em +1 de EP base, que independente de transformação."},
+    {"secao": "2.3.1", "nome": "Ganho de Modificado Passivo", "texto": "Naturalmente, a Escala de Poder de um personagem o concede um bônus em todas as suas rolagens igual ao seu valor, ou seja, um personagem com EP 1, terá +1 em todas as suas rolagens, um personagem com EP 10 terá +10 em todas as suas rolagens.", "formula": "bonus_em_todas_rolagens = EP"},
+    {"secao": "2.3.2", "nome": "Dificuldade em Acertar", "texto": "A diferença de EP entre o personagem e seu inimigo também aplica uma redução em suas rolagens, sendo na proporção de 1:1, dessa forma a cada 1 de diferença que existir de escala de poder entre você e seu inimigo, será diminuído em -1 as suas rolagens de ataque para tentar o acertar com técnicas no geral. Assim, um personagem que está enfrentando um inimigo que tem 2 de EP superior à sua, irá receber -2 em suas rolagens de ataque contra ele.", "formula": "penalidade_ataque = -(EP_alvo - EP_atacante) quando EP_alvo > EP_atacante"},
+    {"secao": "2.3.3", "nome": "Facilidade ao Causar Dano", "texto": "O acerto na Classe de Armadura (CA) que determina o Dano Mínimo é reduzido em -1, assim como os critérios para Dano Médio e Dano Completo. [...] Essa vantagem se intensifica em -1 para cada nível de diferença de escala entre os combatentes."},
+    {"secao": "2.3.4", "nome": "Vitória Automática Interpretativa", "texto": "Acaso a diferença de EP entre os personagens seja o dobro em relação ao personagem que está em desvantagem, a vitória do combate é considerada automática e interpretativa por conta da superioridade daquele que está com a escala superior. Um exemplo seria um personagem com EP 5 enfrentando um EP 10, a vitória é automática do personagem de EP 10. Da mesma forma que um personagem de EP 1 perde automaticamente contra um personagem de EP 3. A diferença entre as escalas de poder, jamais podem ser o dobro."}
+  ],
+  "base_sem_diferenca": {"fonte": "2.2.4", "minimo": "1 a 2", "medio": "3 a 5", "completo": "6+"},
+  "tabela_intervalos": {
+    "descricao": "Margem (resultado do ataque - CA do alvo) necessária para cada estágio de dano, conforme a diferença de EP a favor do atacante. Coluna 'Dif. EP' transcrita como no livro (valores negativos).",
+    "colunas": ["dif_ep", "minimo", "medio", "completo"],
+    "linhas": [
+      {"dif_ep": -1, "minimo": "1", "medio": "2 a 4", "completo": "5 +"},
+      {"dif_ep": -2, "minimo": "0", "medio": "1 a 3", "completo": "4 +"},
+      {"dif_ep": -3, "minimo": "-1", "medio": "0 a 2", "completo": "3 +"},
+      {"dif_ep": -4, "minimo": "-2", "medio": "-1 a 1", "completo": "2 +"},
+      {"dif_ep": -5, "minimo": "-3", "medio": "-2 a -1", "completo": "0 +"},
+      {"dif_ep": -6, "minimo": "-4", "medio": "-3 a -2", "completo": "-1 +"},
+      {"dif_ep": -7, "minimo": "-5", "medio": "-4 a -3", "completo": "-2 +"},
+      {"dif_ep": -8, "minimo": "-6", "medio": "-5 a -4", "completo": "-3 +"},
+      {"dif_ep": -9, "minimo": "-7", "medio": "-6 a -5", "completo": "-4 +"},
+      {"dif_ep": -10, "minimo": "-8", "medio": "-7 a -6", "completo": "-5 +"}
+    ],
+    "inconsistencias": [
+      "A linha -1 da tabela (mínimo 1, médio 2 a 4, completo 5+) não aplica exatamente -1 ao critério base de 2.2.4 (mínimo 1-2, médio 3-5, completo 6+) — encurta o mínimo para 1 ponto; o texto de 2.3.3 dá esses mesmos valores para -1.",
+      "O texto de 2.3.3 diz que com +2 EP o mínimo 'passa a ser 0' e com +3 'se ajusta para -1' — bate com as linhas -2 e -3.",
+      "Da linha -5 em diante o padrão quebra: médio passa a ter 2 valores (-2 a -1) e completo salta de 2+ para 0+ (esperado 1+); linhas -6..-10 seguem esse novo padrão."
+    ]
+  }
+}

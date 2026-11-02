@@ -1,0 +1,58 @@
+{
+  "fonte": "Livro do Jogador V0.5, PDF p. 128 (rodapé impresso 127). Página só imagem; campos lidos visualmente. Sem título 'Apêndice A' no livro.",
+  "secoes": [
+    {"ordem": 1, "secao": "Cabeçalho", "posicao": "topo", "campos": [
+      {"rotulo": "PDL:", "tipo": "texto", "forma": "caixa dentro de ilustração de cápsula, canto superior direito"}
+    ]},
+    {"ordem": 2, "secao": "Identificação", "posicao": "faixa abaixo do logotipo", "campos": [
+      {"rotulo": "Nome do personagem", "tipo": "texto", "forma": "linha, metade esquerda"},
+      {"rotulo": "Raça", "tipo": "texto", "forma": "linha"},
+      {"rotulo": "Tamanho", "tipo": "texto", "forma": "linha"},
+      {"rotulo": "Idade", "tipo": "texto", "forma": "linha"},
+      {"rotulo": "Personalidade", "tipo": "texto", "forma": "linha"}
+    ]},
+    {"ordem": 3, "secao": "Atributos Primários", "posicao": "coluna esquerda", "campos": [
+      {"rotulo": "Força", "tipo": "numero", "forma": "caixa quadrada + oval na base (provável modificador, sem rótulo)"},
+      {"rotulo": "Destreza", "tipo": "numero", "forma": "caixa + oval"},
+      {"rotulo": "Constituição", "tipo": "numero", "forma": "caixa + oval"},
+      {"rotulo": "Inteligência", "tipo": "numero", "forma": "caixa + oval"},
+      {"rotulo": "Sabedoria", "tipo": "numero", "forma": "caixa + oval"},
+      {"rotulo": "Poder", "tipo": "numero", "forma": "caixa + oval"},
+      {"rotulo": "Presença", "tipo": "numero", "forma": "caixa + oval"}
+    ]},
+    {"ordem": 4, "secao": "Defesa e Escala", "posicao": "segunda coluna, topo", "campos": [
+      {"rotulo": "Classe de Armadura", "tipo": "numero", "forma": "ícone de escudo"},
+      {"rotulo": "Escala de Poder", "tipo": "numero", "forma": "ícone de chama (campo único, sem Base/Bônus)"}
+    ]},
+    {"ordem": 5, "secao": "Recursos", "posicao": "terceira coluna, topo", "campos": [
+      {"rotulo": "PV", "tipo": "numero", "forma": "caixa retangular"},
+      {"rotulo": "PK", "tipo": "numero", "forma": "caixa retangular"},
+      {"rotulo": "DESLOCAMENTO", "tipo": "numero", "forma": "caixa retangular"}
+    ]},
+    {"ordem": 6, "secao": "Características de Raça", "posicao": "quarta coluna, topo", "campos": [
+      {"rotulo": "Características de Raça", "tipo": "texto_longo", "forma": "quadro"}
+    ]},
+    {"ordem": 7, "secao": "Perícias", "posicao": "segunda coluna, abaixo de Escala de Poder", "campos": [
+      {"rotulo": "Atletismo (FOR)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Acrobacia (DES)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Furtividade (DES)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Controle de KI (POD)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Análise (INT)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Ciência (INT)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Conhecimento (INT)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Percepção (SAB)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Sentido de KI (SAB)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Sobrevivência (SAB)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Intimidação (PRE)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Persuasão (PRE)", "tipo": "marcador", "forma": "círculo + rótulo"},
+      {"rotulo": "Enganação (PRE)", "tipo": "marcador", "forma": "círculo + rótulo"}
+    ]},
+    {"ordem": 8, "secao": "Técnicas e Transformações", "posicao": "colunas 3-4, meio", "campos": [
+      {"rotulo": "Técnicas e Transformações", "tipo": "texto_longo", "forma": "quadro grande com marca d'água 'PROJETO RR'"}
+    ]},
+    {"ordem": 9, "secao": "Talentos e Movimentos Marciais", "posicao": "rodapé, largura total", "campos": [
+      {"rotulo": "Talentos e Movimentos Marciais", "tipo": "texto_longo", "forma": "quadro"}
+    ]}
+  ],
+  "ausentes_na_ficha": ["Slots de Técnicas (ST)", "Carga/itens/armadura", "Escala de Poder Base vs Bônus", "Iniciativa", "PK bloqueado por exaustão", "Condições ativas", "Salvaguardas contra a morte", "Nível de altura", "Estilo de Luta", "Variante racial"]
+}

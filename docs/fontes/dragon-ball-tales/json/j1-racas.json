@@ -1,0 +1,453 @@
+{
+  "fonte": "Livro do Jogador V0.5, Capítulo II — Raças (p. 16-35)",
+  "regra_geral": "Vida inicial = (Constituição x 5) + Pontos de Raça; a cada 10.000 PDL soma-se a vida extra da raça (3.0.3). Nenhuma raça deste livro dá bônus/ajuste direto de atributo (ajustes_de_atributo = null).",
+  "itens": [
+    {
+      "id": "androide",
+      "nome": "ANDROIDES",
+      "pagina": 17,
+      "descricao": "Os Androides são seres artificiais criados por cientistas, organizações ou entidades com tecnologia avançada. Alguns são completamente mecânicos, enquanto outros possuem elementos biológicos misturados com componentes sintéticos. Todos compartilham um traço comum: não possuem um Ki Natural e, portanto, não podem ser detectados por rastreio de ki ou rastreadores convencionais.\n\nNo entanto, cada variação de Androide possui uma abordagem única de energia, durabilidade e características especiais. A cada 10.000 PDL base, um Androide adiciona +10 extra na sua vida.",
+      "vida_extra_por_10000_pdl": 10,
+      "ajustes_de_atributo": null,
+      "variantes": [
+        {
+          "secao": "4.1.1",
+          "nome": "ANDROIDES ILIMITADOS",
+          "descricao": "Possuem um núcleo de energia autossustentável que os permite operar indefinidamente. Contudo, quando ultrapassam seus limites, correm o risco de colapso temporário:",
+          "tracos": [
+            {
+              "nome": "Indetectável",
+              "efeito": "Não pode ser detectado por Ki Sense ou Rastreadores. Seu Poder de Luta é indefinível para terceiros, pois é completamente artificial."
+            },
+            {
+              "nome": "Núcleo de Energia Renovável",
+              "efeito": "Ao chegar a 0 Pontos de Ki, o Androide pode continuar a gastar energia em valores negativos até um limite igual ao seu total de Pontos de Ki. Rolagens feitas com os valores negativos de Ki são feitas com desvantagem pelo superaquecimento. Ao atingir o limite do seu valor negativo de Ki, o núcleo do Androide entra em colapso e ele fica atordoado até o final de sua próxima rodada, perdendo também sua CA nesse processo, ficando completamente vulnerável. Os ilimitados não são afetados pela regra de Exaustão de Ki."
+            },
+            {
+              "nome": "Traço Racial Secundário",
+              "efeito": "Pode escolher um traço racial de sua base biológica (ex: Terráqueo) para incorporar ao seu Androide."
+            }
+          ]
+        },
+        {
+          "secao": "4.1.2",
+          "nome": "ANDROIDES ABSORVENTES",
+          "descricao": "Em vez de possuírem um núcleo de energia próprio, esses Androides devem roubar energia de outras fontes para se manterem operacionais, e mais poderosos:",
+          "tracos": [
+            {
+              "nome": "Indetectável",
+              "efeito": "Não pode ser detectado por Ki Sense ou Rastreadores. Seu Poder de Luta é indefinível para terceiros, pois é completamente artificial."
+            },
+            {
+              "nome": "Drenar Energia",
+              "efeito": "Pode realizar uma ação de agarrar contra um inimigo e, caso tenha sucesso, absorver 10% dos Pontos de Ki totais do alvo a cada turno enquanto mantiver o agarro. Este Ki absorvido, não poderá ser recuperado pelo alvo até o final da batalha."
+            },
+            {
+              "nome": "Absorção Passiva",
+              "efeito": "Quando atingido por uma técnica de energia, recupera metade dos Pontos de Ki gastos pelo inimigo para lançar a técnica, não podendo ultrapassar o armazenamento seu valor de ki total."
+            }
+          ]
+        },
+        {
+          "secao": "4.1.3",
+          "nome": "CIBORGUES",
+          "descricao": "Um organismo que combina partes orgânicas (naturais) e cibernéticas (mecânicas ou artificiais), geralmente para aprimorar suas capacidades:",
+          "tracos": [
+            {
+              "nome": "Indetectável",
+              "efeito": "Não pode ser detectado por Ki Sense ou Rastreadores. Seu Poder de Luta é indefinível para terceiros, pois é completamente artificial."
+            },
+            {
+              "nome": "Inorgânico",
+              "efeito": "Por serem feitos em sua maioria de partes artificiais não precisem comer, eles precisam hidratar. Também, suas células se deterioram mais lentamente, então eles envelhecem também lentamente, sendo comparados quase a imortalidade temporal."
+            },
+            {
+              "nome": "Imunidade Cibernética",
+              "efeito": "Imune a efeitos negativos no geral que não envolvam destruir ou imobilizar seu corpo."
+            }
+          ]
+        },
+        {
+          "secao": "4.1.4",
+          "nome": "BIO-ANDROIDES",
+          "descricao": "Criados a partir de engenharia biológica avançada, misturam células de diferentes raças para obter uma ampla gama de habilidades, ficando vetados apenas a adquirir as características da raça Androide, por não poderem ser replicadas biologicamente:",
+          "tracos": [
+            {
+              "nome": "Composição Genética Múltipla",
+              "efeito": "Pode escolher até 3 características raciais diferentes sendo vetadas as características especiais, cada uma de uma raça distinta as combinando. Caso tenha sido criado a partir das células e informações de outros guerreiros, tem acesso as técnicas que estes tinham no momento da coleta, tendo todas as técnicas consideradas como “ativas” sem estar na contagem dos seus Slot’s de Técnicas. Caso queira ter mais características além dos três padrões, para cada nova característica sofre uma redução de -2 em dois atributos à escolha do Narrador, representando a dificuldade de estabilizar sua biologia híbrida, de forma acumulativa."
+            }
+          ]
+        }
+      ],
+      "caracteristicas_especiais": [],
+      "transformacoes": []
+    },
+    {
+      "id": "freeza_clan",
+      "nome": "FREEZA CLAN",
+      "pagina": 19,
+      "descricao": "O Clã de Freeza é uma raça misteriosa e incrivelmente poderosa, conhecida por sua resiliência extrema e capacidade de evoluir através de transformações únicas. Apenas alguns membros desta espécie foram vistos, todos pertencentes à mesma linhagem, e sua reputação como os guerreiros mais fortes do universo é amplamente reconhecida. A cada 10.000 PDL base, um Freeza Clan adiciona +14 extra na sua vida.",
+      "vida_extra_por_10000_pdl": 14,
+      "ajustes_de_atributo": null,
+      "variantes": [
+        {
+          "secao": "4.2.1",
+          "nome": "VARIAÇÃO ÚNICA (FREEZA CLAN)",
+          "descricao": "Não existem variações nessa raça, todos os membros compartilham das mesmas características.",
+          "tracos": [
+            {
+              "nome": "Duro de Matar",
+              "efeito": "Membros do Clã de Freeza não morrem ao chegar a 0 PV (Pontos de Vida). Eles continuam lutando normalmente até atingirem um valor negativo igual à metade de sua vida total. No entanto, enquanto nesse estágio todas as rolagens feitas por ele são em desvantagem, assim como as feitas contra ele são com vantagem."
+            },
+            {
+              "nome": "Supremacia Biológica",
+              "efeito": "Não precisam respirar e são imunes a venenos, doenças e efeitos de fadiga. Podem sobreviver no vácuo do espaço sem penalidades e não precisam rolar fazer Teste de Salvaguarda contra Morte ao serem derrotados. Se seu corpo não for desintegrado, ele vai permanecer vivo e irá voltar a vida depois de um descanso longo."
+            },
+            {
+              "nome": "Mutações Genéticas",
+              "efeito": "O Clã de Freeza não precisa de anos para crescer em força— eles nascem poderosos. Treinam e evoluem o dobro da velocidade de outras raças (Interpretativo). Gastam metade dos Slots de Técnica para aprender golpes, permitindo que acumulem mais técnicas que outras raças."
+            }
+          ]
+        }
+      ],
+      "caracteristicas_especiais": [
+        {
+          "secao": "4.2.1.1",
+          "nome": "FORMA ALTERNATIVA",
+          "texto": "Os membros do Clã Freeza possuem um controle absoluto sobre seus corpos e níveis de poder, podendo assumir uma Forma Alternativa mais fraca para ocultar sua verdadeira força ou manipular seus oponentes. Essa forma alternativa reduz seus Pontos de Vida para metade do valor total, permitindo que o jogador redistribua seus atributos livremente, desde que nenhum deles ultrapasse os valores da sua forma verdadeira. O personagem pode também alterar seu estilo de luta e suas características de estilo, mas não pode trocar suas técnicas conhecidas.\n\nAo atingir 0 PV nessa forma, sua verdadeira forma é automaticamente revelada no início de seu próximo turno, e o dano excedente não é transferido para a forma completa. Durante esse curto período de transição, o personagem não pode ser alvo de ataques nem agir, retornando ao combate apenas no início do seu turno seguinte. No entanto, os Pontos de Ki não são restaurados, e qualquer gasto feito na Forma Alternativa se mantém ao assumir a forma verdadeira.\n\nO custo dessa habilidade vem com uma penalidade significativa: ao revelar sua verdadeira forma, o personagem perde permanentemente a passiva \"Duro de Matar\" pelo restante do combate. Isso significa que, se sua verdadeira forma atingir 0 PV, ele não poderá continuar lutando além desse limite e cairá normalmente."
+        }
+      ],
+      "transformacoes": []
+    },
+    {
+      "id": "majin",
+      "nome": "MAJIN",
+      "pagina": 20,
+      "descricao": "Os Majins são seres de constituição sobrenatural, dotados de corpos maleáveis e uma biologia quase indestrutível. Originalmente surgidos de um ser primitivo, espalharam-se e evoluíram em formas diversas, desenvolvendo características únicas ao longo das eras. Seu corpo é composto por uma matéria elástica e regenerativa, permitindo-lhes resistir a ferimentos fatais, mudar de forma e até mesmo absorver o poder de outras criaturas. A cada 10.000 PDL base, um Majin adiciona +12 extra na sua vida.",
+      "vida_extra_por_10000_pdl": 12,
+      "ajustes_de_atributo": null,
+      "variantes": [
+        {
+          "secao": "4.3.1",
+          "nome": "VARIAÇÃO ÚNICA (MAJIN)",
+          "descricao": "Não existem variações nessa raça, todos os membros compartilham das mesmas características.",
+          "tracos": [
+            {
+              "nome": "Regeneração Sobrenatural",
+              "efeito": "A matéria viva que compõe um Majin se reconstrói rapidamente, tornando-os incrivelmente resistentes. Ao final de cada rodada, podem regenerar metade do maior dano individual sofrido naquela rodada, mesmo que sua vida tenha chegado a 0. Um Majin apenas morre se receber dano negativo igual a sua vida total enquanto estiver com 0 de vida, esperando o início de seu próximo turno para se regenerar. Se regenerar após ter ficado com 0 pontos de vida, implica no Majin começar seu turno com metade do seu Ki total."
+            },
+            {
+              "nome": "Morfologia Caótica",
+              "efeito": "A biologia dos Majins desafia as leis naturais, permitindo que alterem sua estrutura corporal conforme necessário. Uma vez por rodada de ataque, podem substituir temporariamente seu maior atributo por outro para utilizar seu modificador na próxima ação. Esse ajuste consome Ki igual ao modificador trocado. Além disso, podem realizar ataques físicos de toque a até 6 metros de distância, esticando seus membros, podendo esticar ainda mais gastando 1 Ponto de Ki por mais 1,5m de alcance. São imunes a restrições como ao agarrar, imobilizações ou qualquer condição que os impeça de se mover, devido à sua constituição maleável. No entanto, essa imunidade não se aplica contra adversários com Escala de Poder pelo menos dois níveis acima da sua."
+            }
+          ]
+        }
+      ],
+      "caracteristicas_especiais": [
+        {
+          "secao": "4.3.1.1",
+          "nome": "ABSORÇÃO",
+          "texto": "Uma das habilidades mais temidas e icônicas dos Majins é a capacidade de absorver outros seres, assimilando suas características físicas, mentais e técnicas. Essa absorção é feita em combate, mas só pode ser realizada sob condições específicas: O alvo precisa estar reduzido a 0 Pontos de Vida (PV) — ou seja, totalmente derrotado e inconsciente. Ao ter sucesso, o usuário recebe:\n\nAtributos Aprimorados: O Majin compara os próprios atributos com os do alvo absorvido. Para cada atributo individual, ele substitui o seu valor pelo valor do alvo caso este seja maior. Se por exemplo, o Majin tem Força 12 e o alvo tem Força 16, a Força do Majin passa a ser 16. Caso o atributo do alvo seja menor, nada acontece naquele valor.\n\nTécnicas Aprendidas: O Majin aprende todas as técnicas e talentos conhecidos pelo alvo no momento da absorção.\n\nEscala de Poder Assimilada: Se o oponente tiver uma Escala de Poder base superior à do Majin, este a substitui pela escala absorvida. Caso a Escala do inimigo seja maior apenas por causa de uma transformação, ela não é assimilada. O Majin só absorve a Escala natural (base) do oponente.\n\nLimite de Absorções: Um Majin pode manter um número máximo de seres absorvidos igual à sua própria Escala de Poder Base. Por exemplo, um Majin com Escala de Poder 3 pode manter até 3 seres absorvidos simultaneamente. O jogador pode libertar um ou mais absorvidos a qualquer momento, se desejar. Ao fazer isso, o Majin perde imediatamente todas as melhorias adquiridas daquela absorção específica (atributos, técnicas e Escala de Poder, se for o caso)."
+        }
+      ],
+      "transformacoes": []
+    },
+    {
+      "id": "namekuseijin",
+      "nome": "NAMEKUSEIJINS",
+      "pagina": 22,
+      "descricao": "Também chamados de Namekujin ou Namekos, os Namekuseijins são uma raça antiga de seres com traços de lesmas e plantas. Originários de Namekusei, são notáveis por sua sabedoria, habilidades mágicas, regeneração natural e por serem os criadores das lendárias Esferas do Dragão. A cada 10.000 PDL base, um Namekuseijin adiciona +10 extra na sua vida.",
+      "vida_extra_por_10000_pdl": 10,
+      "ajustes_de_atributo": null,
+      "variantes": [
+        {
+          "secao": "4.4.1",
+          "nome": "CLÃ GUERREIRO",
+          "descricao": "Namekuseijins focados no combate físico e marcial. São os protetores naturais do seu povo e dotados de uma força de combate excepcional e autoconhecimento do próprio corpo.",
+          "tracos": [
+            {
+              "nome": "Corpo do Guerreiro",
+              "efeito": "O Namekuseijin pode gastar 1 de Ki para estender seus braços ou pernas, aumentando seu alcance em +6 metros. Além disso, ele pode ampliar ainda mais essa distância ao gastar 1 pontos de Ki para cada +1,5 metro adicional. Com essa habilidade, o Namekuseijin pode agarrar inimigos à distância, realizar técnicas que normalmente exigiriam alcance de toque e até mesmo puxar o inimigo até si ou se impulsionar em direção a ele, criando diversas possibilidades estratégicas em combate."
+            },
+            {
+              "nome": "Regeneração de Namek",
+              "efeito": "Desde que a cabeça não seja destruída, qualquer ferimento (inclusive perda de membros ou órgãos) é regenerável. Ao utilizar uma ação, onde se gasta a mesma quantidade de Ki que o inimigo gastou para causar aquele o dano, o Namek o regenera por completo. Fazer isto é extremamente cansativo, então o Namek não recupera o Ki gasto para a regeneração apenas na rodada seguinte."
+            },
+            {
+              "nome": "Sobrevivência Prolongada",
+              "efeito": "Não precisam comer, apenas ingerir água, podendo passar longos períodos sem ela. Além disso, envelhecem de forma extremamente lenta, sendo considerados quase imortais em termos biológicos."
+            }
+          ]
+        },
+        {
+          "secao": "4.4.1",
+          "nome": "CLÃ DRAGÃO",
+          "descricao": "Namekuseijins do Clã Dragão são místicos por natureza e extremamente raros, possuindo uma conexão profunda com as forças primordiais do universo. Diferente dos membros do Clã Guerreiro, que se dedicam ao combate, os Namekuseijins do Clã Dragão dominam o Ki de maneira espiritual e ritualística, sendo os únicos capazes de criar as lendárias Esferas do Dragão.",
+          "tracos": [
+            {
+              "nome": "Regeneração de Namek",
+              "efeito": "Desde que a cabeça não seja destruída, qualquer ferimento (inclusive perda de membros ou órgãos) é regenerável. Ao utilizar uma ação, onde se gasta a mesma quantidade de Ki que o inimigo gastou para causar aquele o dano, o Namek o regenera por completo. Fazer isto é extremamente cansativo, então o Namek não recupera o Ki gasto para a regeneração apenas na rodada seguinte."
+            },
+            {
+              "nome": "Sobrevivência Prolongada",
+              "efeito": "Não precisam comer, apenas ingerir água, podendo passar longos períodos sem ela. Além disso, envelhecem de forma extremamente lenta, sendo considerados quase imortais em termos biológicos."
+            },
+            {
+              "nome": "Magia Namekuseijin",
+              "efeito": "Naturalmente recebe o talento “Mago de Ki”. Junto a isso, pode utilizar as regras da criação das esferas do dragão."
+            }
+          ]
+        }
+      ],
+      "caracteristicas_especiais": [
+        {
+          "secao": "4.4.1.1",
+          "nome": "FUSÃO NAMEK",
+          "texto": "Os Namekuseijins possuem uma habilidade única conhecida como Fusão Namek, um ritual sagrado onde dois indivíduos combinam suas essências em um único ser superior. Diferente das fusões temporárias, essa técnica é permanente e resulta na criação de um novo Namekuseijin, mais poderoso e com um vasto conhecimento acumulado, recebendo os seguintes benefícios:\n\nAtributos Aprimorados: O novo Namekuseijin mantém os maiores valores de cada atributo entre os dois indivíduos fusionados, garantindo uma versão mais forte e equilibrada.\n\nConhecimento e Técnicas Unificadas: O personagem resultante herda todas as técnicas dos Namekuseijins envolvidos na fusão, permitindo que ele utilize um repertório mais amplo de habilidades, as técnicas extras não são contadas no cálculo de Slot’s de Técnicas, estando sempre ativas.\n\nEscala de Poder Prevalente: Caso os Namekuseijins envolvidos tenham escalas de poder diferentes, o personagem fundido assume a escala mais alta entre eles.\n\nEscolha do Corpo Base: O jogador deve escolher qual dos dois corpos será dominante. O personagem resultante assumirá esse corpo como sua base, mantendo sua aparência e estilo de combate, enquanto o outro é absorvido, necessitando novo cálculo de PV’s e PK’s além de ST. Pequenos traços do Namekuseijin absorvido podem se manifestar, como mudanças sutis na tonalidade da pele, altura ou feições.\n\nSinergia de Personalidade: As personalidades dos dois indivíduos se combinam, podendo resultar em uma mentalidade híbrida ou na predominância de um dos Namekuseijins. O jogador pode decidir como essa fusão afeta o comportamento do personagem."
+        },
+        {
+          "secao": "4.4.1.2",
+          "nome": "ESFERAS DO DRAGÃO",
+          "texto": "Os membros do Clã Dragão possuem a habilidade única de forjar Esferas do Dragão, artefatos mágicos de grande poder que permitem a realização de desejos. O processo de criação exige concentração, conhecimento e uma grande quantidade de Ki, e cada conjunto de Esferas é ligado diretamente ao poder e essência de seu criador. Veja a seguir, como as esferas são criadas:\n\nApenas um Namekuseijin do Clã Dragão pode forjar um conjunto de Esferas do Dragão.\n\nA criação das Esferas requer um ritual longo e exaustivo, consumindo uma porção significativa do Ki do criador. (Interpretativo)\n\nUm Namekuseijin pode manter apenas um conjunto de Esferas por vez. Se ele morrer, as Esferas se tornam pedras inertes.\n\nAs Esferas podem ser refeitas caso sejam destruídas, mas o processo exige tempo e preparação. (Interpretativo)\n\nA capacidade do Dragão em conceder desejos é limitada pelo poder do seu criador. Assim, quanto mais forte for o Namekuseijin que criou as Esferas, mais grandiosos serão os desejos que podem ser realizados. Veja a seguir as regras para concessão de desejos:\n\nO Dragão pode cumprir qualquer desejo, desde que o evento envolvido ou o alvo do desejo não seja mais forte que o criador das Esferas, usando o Poder de Luta para métrica.\n\nO Poder de Luta sistematicamente determina até onde o Dragão dos Desejos consegue chegar, variando de desejos simples a poderes cósmicos\n\nO número de desejos possíveis varia de acordo com a escala de poder base (não contando aumento com transformações) do Namekuseijin que criou as Esferas, dividida por dois, sendo sempre no mínimo um.\n\nAs Esferas só podem ser usadas após um tempo de recarga determinado pelo criador (no mínimo um ano).\n\n| PDL DO CRIADOR | PODER DOS DESEJOS CONCEDIDOS |\n|---|---|\n| 0 – 20.000 PDL | Desejos simples – Cura de doenças, recuperação de energia, criação de objetos mundanos (comida, roupas, armas simples), obtenção de informações. |\n| 20.001 – 50.000 PDL | Ressurreição de 1 pessoa, reconstrução de estruturas pequenas, aumento leve de atributos (+10% em Ki, Vida ou Força), teletransporte local. |\n| 50.001 – 90.000 PDL | Ressurreição de até 3 pessoas, reconstrução de vilarejos ou pequenas cidades, criação de técnicas simples. |\n| 90.001 – 130.000 PDL | Ressurreição de um grupo (até 10 pessoas), aumento moderado de atributos (+25% em Ki ou Vida), reconstrução de cidades médias, concessão de talentos menores. |\n| 130.001 – 160.000 PDL | Aumento significativo de poder (+1 Escala Natural), fortalecimento de transformações existentes, criação de técnicas raras, teletransporte entre continentes. |\n| 160.001 – 180.000 PDL | Restauração de grandes regiões, aumento elevado de atributos (+50% em Ki ou Vida), remoção de fraquezas naturais (ex: sensibilidade a Ki, vulnerabilidades específicas). |\n| 180.001 – 200.000 PDL | Desejos quase divinos – recriação de áreas planetárias, alteração da fisiologia (como imunidade ao envelhecimento), manipulação limitada do tempo (reverter eventos de até 1 dia), criação de formas de vida conscientes. |"
+        }
+      ],
+      "transformacoes": []
+    },
+    {
+      "id": "saiyajin",
+      "nome": "SAIYAJINS",
+      "pagina": 25,
+      "descricao": "Os Saiyajins são uma raça guerreira nascida para a batalha, conhecida por sua ferocidade e capacidade de superar limites. Apesar de sua aparência semelhante à dos terráqueos, possuem diferenças biológicas significativas, como sua musculatura mais densa, resistência excepcional e uma cauda de macaco que desempenha um papel fundamental em seu desenvolvimento e transformações.\n\nOs Saiyajins são instintivamente movidos pelo desejo de se tornarem mais fortes, e sua evolução acontece principalmente através da superação de desafios mortais. Esse talento inato os tornou uma das espécies mais temidas do universo, sendo responsáveis por conquistas e batalhas lendárias ao longo das eras. A cada 10.000 PDL base, um Sayajin adiciona +12 extra na sua vida.",
+      "vida_extra_por_10000_pdl": 12,
+      "ajustes_de_atributo": null,
+      "variantes": [
+        {
+          "secao": "4.5.1",
+          "nome": "SAIYAJIN PURO",
+          "descricao": "Os Saiyajins puros são os descendentes diretos da raça guerreira original. Eles possuem uma agressividade natural, um instinto de combate apurado e a capacidade de crescer exponencialmente após sobreviverem a batalhas quase fatais.",
+          "tracos": [
+            {
+              "nome": "Zenkai",
+              "efeito": "Os Saiyajins possuem uma capacidade única de evoluir rapidamente após sobreviverem a combates extremos. Sempre que são levados ao limite entre a vida e a morte, seus corpos se fortalecem e se adaptam para evitar que a situação se repita. Sempre que um Saiyajin chega às Portas da Morte e sobrevive sem a ajuda de técnicas de cura que o levantam automaticamente, ele recebe um aumento permanente de 10% do seu PDL Base, Pontos de Vida e Pontos de Ki, representando sua evolução natural, após o fim da batalha. Esse crescimento só ocorre uma vez por combate, e o benefício é aplicado apenas após a recuperação do Saiyajin."
+            },
+            {
+              "nome": "Raça Guerreira",
+              "efeito": "O espírito de luta dos Saiyajins é inigualável. Durante um combate, a cada 2 rodadas completas em que o Saiyajin esteja envolvido ativamente (atacando, defendendo ou sendo alvo de ataques), ele entra em Estado de Combate Total, recebendo um bônus de +1 em todas as suas rolagens de forma acumulativa. No entanto, caso o Saiyajin sofra qualquer condição negativa que o faça perder a consciência (como desmaio, paralisia mental ou atordoamento total), ele perde imediatamente todo o acúmulo de poder obtido por esta habilidade, precisando reiniciar o processo a partir da próxima rodada ativa."
+            },
+            {
+              "nome": "Cauda Saiyajin",
+              "efeito": "Permite utilizar ataques físicos mesmo que esteja com as mãos impedidas de fazer isto. Além disso permite a utilização da Característica Especial: Transformação em Ōzaru. No entanto, ela também é um ponto fraco, caso a ela seja agarrada o Sayajin tem desvantagem em todas as rolagens que fizer, e se ela for arrancada, ele fica com a desvantagem de forma permanente até realizar um descanso longo."
+            }
+          ]
+        },
+        {
+          "secao": "4.5.2",
+          "nome": "SAIYAJIN HÍBRIDO",
+          "descricao": "Frutos da união entre Saiyajins seres humanoides aos quais é possível a procriação, os híbridos possuem um potencial de crescimento acelerado e uma capacidade de adaptação superior, herdando o instinto de batalha dos Saiyajins e as características da raça híbrida a qual foram inseridos.",
+          "tracos": [
+            {
+              "nome": "Sangue Saiyajin (30% ou 60%)",
+              "efeito": "Caso você tenha herdado 30% dos genes Saiyajin você escolhe uma das três características de Saiyajin Sangue Puro. Caso tenha sido 60% você herda duas. A soma das porcentagens entre o Sangue Sayajin e a Alteração Genética não pode passar de 100% e não pode ser menor que 100%."
+            },
+            {
+              "nome": "Alteração Genética (40% ou 70%)",
+              "efeito": "Caso você tenha herdado 40% dos genes da raça a qual se está acontecendo a hibridização, você recebe uma característica a sua escolha dessa raça. Caso tenha sido 70% você herda duas. A soma das porcentagens entre o Sangue Sayajin e a Alteração Genética não pode passar de 100% e não pode ser menor que 100%."
+            },
+            {
+              "nome": null,
+              "efeito": "A maior porcentagem entre as heranças, irá herdar a característica especial da raça."
+            }
+          ]
+        }
+      ],
+      "caracteristicas_especiais": [
+        {
+          "secao": "4.5.1.1",
+          "nome": "TRANSFORMAÇÃO EM ŌZARU",
+          "texto": "Saiyajins que possuem sua cauda intacta podem acessar uma de suas formas mais primordiais e destrutivas: o Ōzaru. Essa transformação ocorre quando um Saiyajin com cauda é exposto à luz de uma lua cheia ou a uma fonte artificial que emita pelo menos 17 milhões de zenos de ondas Blutz. Ao se transformar, o Saiyajin assume a forma de um macaco gigante, multiplicando drasticamente sua força e resistência, mas perdendo parte do controle sobre seus próprios atos, caso seja uma criança.\n\nCaracterística da Transformação: Ao se transformar em Ōzaru, o Saiyajin atinge a categoria de tamanho “Enorme”, tornando-se uma força colossal no campo de batalha. Seu corpo se torna extremamente resistente, recebendo Pontos de Vida temporários iguais ao seu total de PV. No entanto, devido ao seu tamanho massivo, ataques contra você têm vantagem.\n\nA transformação é encerrada caso sua cauda seja cortada ou se os Pontos de Vida temporários sejam completamente reduzidos, ou pelas regras padrões você perca a consciência de alguma forma, seja por atordoamento ou perda de pontos de vida. Após retornar à forma normal, o Saiyajin não pode se transformar novamente até completar um descanso longo, ou até que sua cauda nasça novamente se ela não foi arrancada corretamente. Adicionalmente, recebe a característica enquanto transformado “Ataque Genérico de Ōzaru”. [EP: +01] [KI: 03]\n\nAtaque Genérico de Ōzaru (Ativa) – O usuário pode disparar uma rajada de Ki com a boca, sua precisão é com Inteligência. O ataque tem o alcance de 12,0m com raio de explosão de 6,0m. O custo base para ativar é de 01 de Pontos de Ki. Essa técnica não possui dano base variável, dependendo exclusivamente do Ki gasto para sua execução. Ou seja, ao acertar o alvo, o dano causado será igual à quantidade de Ki utilizada no ataque, na proporção de 1:3, ou seja, 1 Ponto de Ki equivale a 3 Pontos de Dano."
+        },
+        {
+          "secao": "4.5.1.2",
+          "nome": "O SUPER SAIYAJIN",
+          "texto": "O Super Saiyajin não é apenas uma transformação, mas um renascimento através do sofrimento, da fúria e da necessidade incontrolável de superar qualquer obstáculo. Ele desperta nas profundezas da alma de um Saiyajin quando este é levado ao limite absoluto — seja pela dor da perda, pela frustração de sua própria fraqueza ou pelo desejo inquebrantável de proteger aquilo que ama.\n\nPara atingir o estado lendário pela primeira vez, um Saiyajin precisa passar por uma experiência extrema que o empurre além de qualquer limite físico ou emocional. Exemplos clássicos dessa transformação incluem:\n\nSon Goku: O primeiro a despertar o Super Saiyajin em mil anos. Após testemunhar a cruel execução de Kuririn pelas mãos de Freeza, sua fúria rompeu suas barreiras naturais, transformando-o no guerreiro dourado que mudaria o curso da história.\n\nVegeta: Durante seu treinamento brutal, movido pelo ódio de ser sempre superado por Kakarotto e pela frustração de sua própria impotência, ele abraçou seu orgulho e se forçou à evolução.\n\nCaracterísticas da Transformação de Super Sayajin:\n\nSuper Saiyajin – Estágio 1: Ao atingir esse estado, o Saiyajin desperta um poder explosivo que o impulsiona a superar seus limites constantemente. Sempre que falhar em um teste de rolagem, pode gastar Pontos de Ki (como Ação ou Reação) equivalente à diferença entre o resultado obtido e o necessário para o sucesso, transformando a falha em êxito. Essa mecânica representa a resiliência e determinação incomparáveis da raça Saiyajin. [EP: +02] [KI: 06]\n\nSuper Saiyajin – Estágio 2: Além dos efeitos do Estágio 1, o usuário ganha controle total sobre sua energia em combate. Agora, pode gastar Pontos de Ki para aumentar o valor de qualquer rolagem na proporção de 1:1, independentemente de já ter acertado ou não. Isso significa que pode transformar erros em acertos e até maximizar o dano de ataques bem-sucedidos. [EP: +03] [KI: 09]\n\nSuper Saiyajin – Estágio 3: A transformação atinge um nível ainda mais intenso. Além dos efeitos anteriores, o Ki gasto pelo Saiyajin durante a rodada de ação é acumulado como dano extra que pode ser aplicado a qualquer momento em soma a algum de seus ataques, esse acumulo é perdido caso o Saiyajin sofra qualquer perda de consciência [EP: +04] [KI: 12]"
+        }
+      ],
+      "transformacoes": [
+        {
+          "nome": "Ōzaru",
+          "secao": "4.5.1.1",
+          "requisito": "Cauda intacta; exposição à luz de uma lua cheia ou a uma fonte artificial que emita pelo menos 17 milhões de zenos de ondas Blutz.",
+          "custo": "[KI: 03]",
+          "custo_ki": 3,
+          "ep_bonus": 1,
+          "efeitos": [
+            "Categoria de tamanho “Enorme”.",
+            "Pontos de Vida temporários iguais ao seu total de PV.",
+            "Ataques contra você têm vantagem.",
+            "Encerra se a cauda for cortada, se os PV temporários forem reduzidos a zero, ou se perder a consciência; após voltar, não pode se transformar de novo até descanso longo (ou até a cauda nascer de novo se não foi arrancada corretamente).",
+            "Recebe enquanto transformado “Ataque Genérico de Ōzaru” (Ativa): rajada de Ki pela boca, acerto por Inteligência, alcance 12,0m, raio de explosão 6,0m, custo base 01 PK, dano = Ki gasto na proporção 1:3 (1 PK = 3 de dano)."
+          ]
+        },
+        {
+          "nome": "Super Saiyajin – Estágio 1",
+          "secao": "4.5.1.2",
+          "requisito": "Experiência extrema que empurre o Saiyajin além de qualquer limite físico ou emocional (primeira vez).",
+          "custo": "[KI: 06]",
+          "custo_ki": 6,
+          "ep_bonus": 2,
+          "efeitos": [
+            "Sempre que falhar em um teste de rolagem, pode gastar Pontos de Ki (como Ação ou Reação) equivalente à diferença entre o resultado obtido e o necessário para o sucesso, transformando a falha em êxito."
+          ]
+        },
+        {
+          "nome": "Super Saiyajin – Estágio 2",
+          "secao": "4.5.1.2",
+          "requisito": "Super Saiyajin – Estágio 1 (texto: 'Além dos efeitos do Estágio 1').",
+          "custo": "[KI: 09]",
+          "custo_ki": 9,
+          "ep_bonus": 3,
+          "efeitos": [
+            "Efeitos do Estágio 1.",
+            "Pode gastar Pontos de Ki para aumentar o valor de qualquer rolagem na proporção de 1:1, independentemente de já ter acertado ou não."
+          ]
+        },
+        {
+          "nome": "Super Saiyajin – Estágio 3",
+          "secao": "4.5.1.2",
+          "requisito": "Estágios anteriores (texto: 'Além dos efeitos anteriores').",
+          "custo": "[KI: 12]",
+          "custo_ki": 12,
+          "ep_bonus": 4,
+          "efeitos": [
+            "Efeitos anteriores.",
+            "O Ki gasto durante a rodada de ação é acumulado como dano extra que pode ser aplicado a qualquer momento em soma a algum de seus ataques; o acúmulo é perdido caso sofra qualquer perda de consciência."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "glind",
+      "nome": "GLINDS",
+      "pagina": 28,
+      "descricao": "Glinds são uma raça mística e raríssima, oriunda do Segundo Reino dos Demônios, onde surgem a partir de cinco lendárias árvores conhecidas como Árvores Glind. A cada alguns séculos, um novo Glind nasce de uma dessas árvores, sendo considerado irmão de outros gerados pela mesma raiz. Com o tempo, as Árvores Glind foram morrendo, tornando essa raça praticamente extinta no presente.\n\nSem gênero definido, os Glinds são seres puros de energia e sabedoria, podendo manifestar traços físicos diversos. Após a criação do universo pelo Super Majin Limes, parte deles foi escolhida como Kaiohs e Kaiohshins, com a função de zelar pela ordem cósmica e equilíbrio dos universos. Outros, permaneceram no Reino dos Demônios por motivos pessoais. Embora não confirmado, acredita-se que todos os Kaiohs e Kaiohshins dos doze universos sejam Glinds. A cada 10.000 PDL base, um Glind adiciona +08 extras na sua vida.",
+      "vida_extra_por_10000_pdl": 8,
+      "ajustes_de_atributo": null,
+      "variantes": [
+        {
+          "secao": "4.6.1",
+          "nome": "GLIND DE FRUTA COMUM",
+          "descricao": "Esta é a forma mais comum da raça Glind, seres divinos originários das Árvores Divinas que dão origem aos Kaioshins. Nascidos de frutas menos poderosas dessas árvores sagradas, os Glind de Fruta Comum possuem uma conexão natural com a ordem cósmica, mas carecem do potencial divino pleno das variações superiores.",
+          "tracos": [
+            {
+              "nome": "Telepatia Universal",
+              "efeito": "Pode se comunicar mentalmente com qualquer ser que aceite sua presença, e com quem você já tenha interagido independentemente da distância ou dimensão. Também pode servir de canal para que outros realizem comunicações telepáticas ao tocá-lo."
+            },
+            {
+              "nome": "Teletransporte Universal",
+              "efeito": "Desde que já tenha visitado ou visto claramente o local, o Glind pode se teletransportar até ele com concentração. Pode levar um número de aliados igual à sua Escala de Poder. Essa habilidade não pode ser usada como Reação de Esquiva automática, pois exige foco."
+            },
+            {
+              "nome": "Essência Estável",
+              "efeito": "Glinds são biologicamente perfeitos. Eles são imunes a doenças, envenenamentos e quaisquer mutações físicas indesejadas. Além disso, efeitos que alterem sua forma física têm desvantagem contra você. Somando a isto, Glinds tem uma logenvidade absurda, sendo imortais perante o tempo, mas, podem ser mortos como seres mortais comuns."
+            }
+          ]
+        },
+        {
+          "secao": "4.6.2",
+          "nome": "GLIND DE FRUTA DOURADA (ESPECIAL)",
+          "descricao": "Entre todas as Árvores Glind, há uma única que, a cada dezenas de milhares de anos, gera uma Fruta Dourada — símbolo da mais alta pureza e destino cósmico. Da Fruta Dourada nasce um Glind Supremo, destinado a tornar-se o Supremo Senhor Kaioh, guardião do equilíbrio universal, conselheiro dos Deuses da Destruição, e autoridade máxima entre os Shin-jins.\n\nEste ser carrega consigo não apenas sabedoria ancestral, mas também um elo natural com as forças criadoras do cosmos. Sua existência é sagrada, e sua queda significaria desequilíbrio nos tecidos da realidade.",
+          "tracos": [
+            {
+              "nome": "Telepatia Universal",
+              "efeito": "Pode se comunicar mentalmente com qualquer ser que aceite sua presença, e com quem você já tenha interagido independentemente da distância ou dimensão. Também pode servir de canal para que outros realizem comunicações telepáticas ao tocá-lo."
+            },
+            {
+              "nome": "Teletransporte Universal",
+              "efeito": "Desde que já tenha visitado ou visto claramente o local, o Glind pode se teletransportar até ele com concentração. Pode levar um número de aliados igual à sua Escala de Poder. Essa habilidade não pode ser usada como Reação de Esquiva automática, pois exige foco."
+            },
+            {
+              "nome": "Essência Estável",
+              "efeito": "Glinds são biologicamente perfeitos. Eles são imunes a doenças, envenenamentos e quaisquer mutações físicas indesejadas. Além disso, efeitos que alterem sua forma física têm desvantagem contra você. Somando a isto, Glinds tem uma logenvidade absurda, sendo imortais perante o tempo, mas, podem ser mortos como seres mortais comuns."
+            }
+          ]
+        }
+      ],
+      "caracteristicas_especiais": [
+        {
+          "secao": "4.6.2.1",
+          "nome": "O SUPREMO SENHOR KAIOH",
+          "texto": "Entre todas as Árvores Glind, há uma única que, a cada dezenas de milhares de anos, gera uma Fruta Dourada — símbolo da mais alta pureza e destino cósmico. Da Fruta Dourada nasce um Glind Supremo, destinado a tornar-se o Supremo Senhor Kaioh, guardião do equilíbrio universal, conselheiro dos Deuses da Destruição, e autoridade máxima entre os Shin-jins.\n\nEste ser carrega consigo não apenas sabedoria ancestral, mas também um elo natural com as forças criadoras do cosmos. Sua existência é sagrada, e sua queda significaria desequilíbrio nos tecidos da realidade.\n\nInserir esse tipo de Glind na história nas mãos de um jogador deve ser feito com cautela, já que ele eleva naturalmente a campanha a um nível universal de maneira fácil. Por sua fácil conexão com o Deus da Destruição do seu universo, os deveres dele e sua fácil locomoção, além de acesso os artefatos inestimáveis como os Brinco Potara e o Anel do Tempo, além de também controle do Planeta Supremo. Dessa forma, fica a cargo do Narrador e dos jogadores, decidir se vai haver algum jogador que naturalmente terá acesso a tamanhos poderes e responsabilidade tão cedo.\n\nConexão com o Deus da Destruição: É o escolhido para se tornar um Kaiohshin, recebendo o título de Deus da Criação. Ao fazer isso, ganha acesso aos Brincos Potara, autoridade sobre o Planeta Supremo e vínculo com um Deus da Destruição, tornando-se parte essencial do equilíbrio universal.\n\nDeus da Criação: Você se torna responsável pela manutenção da vida e evolução do universo que representa. Periodicamente, deve participar de rituais ou decisões que envolvam o destino de raças, planetas e eventos universais. O narrador pode apresentar missões divinas relacionadas a isso.\n\nCriação: Ao se tornar um Deus da Criação ou Aprendiz de Deus da Criação, o Glind desperta o poder de moldar a realidade. Esse dom cresce conforme ele compreende seu papel no universo. Tradicionalmente, um Glind aprende a usar esse poder sob orientação de outro Deus da Criação. A quantidade de criações e sua escala são definidas pelo PDL do personagem e devem ser acordadas entre narrador e jogador, conforme o ritmo da história. O uso dessa habilidade é limitado, sendo recomendado 1 ou 2 vezes por arco ou sessão, a critério da mesa. Consulte a Tabela de Criação:\n\n| PDL REQUERIDO | DOMÍNIO CRIATIVO | EXEMPLOS DE CRIAÇÕES | RESTRIÇÃO |\n|---|---|---|---|\n| 0 – 9.999 | Forma Simbólica | Emblemas sagrados, selos, runas vivas, orbes que revelam verdades, pequenos avatares simbólicos | Só funcionam com Ki do criador |\n| 10.000 – 29.999 | Vida Primordial | Criação de criaturas sencientes (animais, seres espirituais, guardiões), com função única | Possuem alma, mas não livre-arbítrio |\n| 30.000 – 59.999 | Linhagens e Raças | Criar uma nova raça ou linhagem especial, como os Ancestrais Yardrats, ou a raça Shinling, filhos espirituais dos Kaiohs | Cada raça criada ocupa 1 espaço permanente do Glind que é representado por sua escala de poder. |\n| 60.000 – 89.999 | Ecossistemas Inteiros | Florestas de Ki, lagos que curam a alma, montanhas que amplificam o poder, biomas com mecânicas únicas | Limitado a 1 por planeta |\n| 90.000 – 129.999 | Planetas e Reinos | Criação de planetas inteiros com condições cósmicas únicas, zonas temporais distorcidas, reinos entre dimensões | Leva dias ou rituais para criar |\n| 130.000 – 179.999 | Entidades Místicas | Criação de deuses menores, guardiões cósmicos, seres eternos com propósitos fixos (ex: um juiz do tempo, um ceifador da ordem) | O criador sempre sente o que sua entidade sente |\n| 180.000+ | Legado da Criação | Criação de um conceito vivo: como uma emoção que afeta os mortais, uma forma de energia nova (ex: “Energia da Harmonia”), ou mesmo um novo destino universal | — |"
+        },
+        {
+          "secao": "4.6.2.2",
+          "nome": "OS BRINCOS POTARA",
+          "texto": "Os Brincos Potara são artefatos sagrados dos Glinds, criados pelos primeiros Deuses da Criação como expressão máxima da união entre forças, ideais e destinos. Quando dois indivíduos colocam os brincos em orelhas opostas, são fundidos imediatamente em um único ser, combinando corpo, mente e poder. Essa nova entidade é superior à soma dos dois, reunindo as habilidades, memórias e técnicas de ambos, mas assumindo uma nova identidade.\n\nFusões entre dois mortais duram apenas uma hora, ou até que o Ki se esgote, ou o corpo fundido seja atordoado vezes iguais à metade da sua Escala de Poder. Já fusões entre um Glind e qualquer outro ser são permanentes, com o Glind assumindo o controle total do novo corpo e mantendo sua consciência dominante. Esse tipo de fusão só pode ser desfeito por forças extremamente raras, como a absorção por um Majin, que desmantela a alma divina do Glind.\n\nCada corpo só pode realizar uma fusão Potara em sua vida. Após isso, os brincos perdem completamente sua eficácia sobre aquele ser. Pela natureza complexa e poderosa dessa mecânica, se houver qualquer possibilidade de que dois personagens se fundam durante a campanha, é indispensável que a ficha da fusão seja criada previamente, em conjunto com o mestre, pois fazer isso durante a sessão pode quebrar o ritmo e dificultar o andamento do jogo.\n\nEm fusões entre dois mortais, os jogadores compartilham o controle da fusão. Mas, caso um Glind esteja envolvido, o controle do novo ser fundido pertence exclusivamente ao jogador do Glind. O uso dos Potara é um evento raro e impactante — é uma mecânica extremamente poderosa que altera completamente o rumo da narrativa e deve ser usada com cuidado.\n\nAo se fundirem a nova ficha do personagem deve ser feita com:\n\nAtributos: Para cada atributo, o maior valor entre os dois personagens prevalece. Atenção: Esse novo valor dos atributos não afeta PV ou Ki ou Slot’s.\n\nEscala de Poder (EP): A Escala de Poder Base dos dois personagens é somada.\n\nPV, Ki: Some metade do valor atual de cada um dos dois personagens para definir os novos Pontos de Vida. No entanto, os Pontos de Ki são a soma dos dois multiplicado por três.\n\nTécnicas e Estilos: A fusão acessa todas as Técnicas, Técnicas Especiais, Transformações e Características de Combate dos dois personagens, sem restrição de Slots de Poder.\n\nCriação de Técnicas Lendárias: Cada jogador escolhe duas técnicas de seu personagem. Essas técnicas são fundidas, combinando rótulos positivos e negativos, criando técnicas únicas e lendárias, com apoio do mestre, além disso o custo de Ki também é fundido.\n\nDuração da Fusão: A fusão dura até o fim do combate, ou até: o Ki da Fusão se esgotar. Diferente do sistema padrão, quando fundidos as pontuações de Ki dos personagens se fundem, mas, não se regeneram no início dos turnos. Dessa forma, quando essa pontuação é zerada a fusão de encerra."
+        },
+        {
+          "secao": "4.6.2.3",
+          "nome": "O ANEL DO TEMPO",
+          "texto": "O Anel do Tempo é uma relíquia sagrada e única, entregue apenas àquele que ascende ao posto de Supremo Senhor Kaioh, o mais elevado entre os Glinds. Forjado no Coração do Tempo pelos primeiros Deuses da Criação, esse anel não é apenas um objeto, mas uma chave para os segredos mais profundos da existência.\n\nSua função vai além da simples viagem temporal. Ele não permite a alteração direta da linha do tempo principal — pois isso está acima até mesmo da vontade dos Deuses —, mas permite visitar diferentes linhas temporais, observar eventos futuros ou passados, e até testemunhar futuros possíveis. O portador do Anel do Tempo carrega consigo a responsabilidade de compreender os ciclos do universo, mantendo o equilíbrio das eras.\n\nO uso do Anel exige sabedoria. Ele só pode ser utilizado por um Glind com o título de Supremo Senhor Kaioh, e apenas quando suas intenções forem justas e seu coração estiver em paz com seu papel como protetor da Criação. Forçar o uso do Anel sem permissão ou com fins egoístas pode causar ressonâncias temporais, distorções no fluxo do tempo, ou até mesmo abrir rachaduras entre realidades — consequências perigosas até mesmo para divindades.\n\nNarrativamente, o Anel permite ao jogador:\n\nObservar o passado de um personagem ou evento com detalhes profundos.\n\nAcessar linhas alternativas para buscar respostas, aliados ou visões.\n\nSer o único capaz de identificar e interferir contra anomalias temporais ou seres deslocados no tempo.\n\nPrever um possível futuro com base nas ações atuais da história.\n\nCriar uma Nova Linha Temporal, ignorando acontecimentos da sua linha temporal original, mas, isso é considerado um crime e um tabu dos Deuses.\n\nContudo, o uso do Anel deve ser sempre interpretado, e nunca como uma habilidade de combate. Ele é uma ferramenta de exploração narrativa, revelação e responsabilidade cósmica. O Supremo Senhor Kaioh não manipula o tempo — ele o compreende, guia e vigia. O portador deste anel não é um mestre do tempo. Ele é seu guardião, mas, como bem sabemos pode ser usado para o mal. Em Dragon Ball, viajar no tempo não corrige o passado — cria uma nova linha temporal. Isso significa que, ao alterar eventos, você não salva sua realidade original, apenas gera uma nova onde as coisas são diferentes. A dor, o caos e os personagens que ficaram para trás continuam existindo. E aí... você consegue viver em paz sabendo disso?"
+        }
+      ],
+      "transformacoes": []
+    },
+    {
+      "id": "terraqueo",
+      "nome": "TERRÁQUEOS",
+      "pagina": 33,
+      "descricao": "Terráqueos são os habitantes nativos da Terra, compartilhando seu planeta com animais falantes, monstros e criaturas mágicas. Embora pareçam frágeis diante de raças cósmicas como Saiyajins ou Namekujins, os Terráqueos surpreendem com sua adaptabilidade, genialidade e uma força de vontade inquebrável. Muitos foram esquecidos em meio ao caos universal..., mas subestimá-los é sempre um erro.\n\nApenas 75% dos terráqueos são “humanos normais”. O restante inclui seres híbridos, animais antropomórficos e tipos monstruosos — todos categorizados dentro da mesma raça. A cada 10.000 PDL base, um Terráqueo adiciona +06 extras na sua vida.",
+      "vida_extra_por_10000_pdl": 6,
+      "ajustes_de_atributo": null,
+      "variantes": [
+        {
+          "secao": "4.7.1",
+          "nome": "HUMANO MARCIAL",
+          "descricao": "Os humanos marciais em Dragon Ball representam uma das forças mais determinadas e resilientes do universo, destacando-se não por linhagens alienígenas ou poderes divinos, mas por pura disciplina, treino intenso e espírito de superação. Embora sejam limitados em comparação a Saiyajins ou Namekuseijins em termos de poder bruto, a humanidade sempre demonstra pode rivalizar com seres muito mais poderosos quando guiada por determinação e técnica.",
+          "tracos": [
+            {
+              "nome": "Aprendizado Marcial",
+              "efeito": "Humanos tem uma facilidade para o aprendizado, e grande desenvoltura. O cálculo de Slot’s de Técnica de um Humano Marcial é de 20 + ((1 + Modificador de Sabedoria) x 10)."
+            },
+            {
+              "nome": "Mestre Marcial",
+              "efeito": "Você treinou com os melhores mestres do planeta, e esse legado vive em seu corpo e mente. Na criação da do personagem, ele tem acesso a 1 Movimento Marcial. Depois disso, a cada 20.000 PDL pode desenvolver +1 gratuitamente, além do que você ganha de forma natural."
+            },
+            {
+              "nome": "Improvisador de Batalha",
+              "efeito": "Você é rápido pra pensar e adaptar. Uma vez por turno de ação, você pode modificar uma técnica básica (ataque físico ou de Ki simples) com um efeito narrativo criativo, com aprovação do narrador. Por exemplo: um ataque que joga poeira nos olhos do inimigo, uma rajada de Ki que quica em uma parede, ou um chute que joga o inimigo para o alto. Se a ideia for boa, o narrador concede um pequeno bônus ou condição extra. Se for genérica, ou não muito possível, apenas recebe vantagem na rolagem."
+            }
+          ]
+        },
+        {
+          "secao": "4.7.2",
+          "nome": "HUMANO CIENTISTA",
+          "descricao": "Os humanos cientistas são gênios criativos, capazes de desafiar as leis da física, da biologia e até mesmo da lógica universal com suas invenções. Não dominam a energia pela força ou instinto, mas sim por sua mente afiada. Eles não são apenas inteligentes — eles são visionários.",
+          "tracos": [
+            {
+              "nome": "Inteligência Superior",
+              "efeito": "Você pode usar seu modificador de Inteligência para testes envolvendo criação, engenharia, medicina, análise tática, modificação de seres vivos, ou qualquer outro aspecto científico. Isso afeta seu controle de Ki, e agora não pode mais rolar inteligência para realizar golpes de Ki, ficando impossibilitado do seu uso. Sua inteligência pode ser rolada como acerto para armas, e objetos ofensivos que você crie."
+            }
+          ]
+        }
+      ],
+      "caracteristicas_especiais": [
+        {
+          "secao": "4.7.2.1",
+          "nome": "CRIAÇÃO TECNOLÓGICA",
+          "texto": "Cientistas não desenvolvem técnicas comuns como guerreiros e mestres de Ki. Em vez disso, eles criam equipamentos, armas e bugigangas — objetos tecnológicos que funcionam exatamente como técnicas, com rótulos, custos e efeitos, mas que podem ser usados por qualquer pessoa. Se você constrói uma arma que dispara um raio de energia, ela será um Raio de Energia em qualquer mão, desde que o portador tenha Ki p suficiente para ativá-la. Esses objetos seguem as mesmas regras de técnicas quanto ao custo de criação e uso, mas têm uma diferença fundamental: usam os Slot’s de Técnica do Cientista como “Slot’s de Criatividade”.\n\nUma arma criada com 10 Slot’s, ocupa esses Slot’s permanentemente até ser destruída.\n\nSó após a destruição de um objeto é que seus Slot’s podem ser reutilizados para novos inventos.\n\nAlém disso, como seus projetos são complexos demais para mentes comuns, qualquer personagem sem a característica Inteligência Superior faz testes com desvantagem ao usar suas criações, caso você não esteja presente no combate de alguma forma para orientá-los, seja pessoalmente ou por pontos de comunicação."
+        },
+        {
+          "secao": "4.7.2.2",
+          "nome": "ESTILO DE LUTA CIENTÍFICO",
+          "texto": "Cientistas não possuem estilo de luta nem criam técnicas da forma tradicional ou podem desenvolver talentos. Em vez disso, dedicam-se à criação de Androides: seres artificiais com corpo físico, alma sintética e um núcleo energético que substitui o uso de Ki. Esses Androides não são simples máquinas — são seres conscientes, capazes de lutar, aprender e evoluir ao lado de seu criador.\n\nA cada 1 Escala de Poder (EP) conquistada pelo Cientista, ele pode construir um Androide ou Bio-Androide, cujo Poder de Luta inicial será igual ao dele e crescerá junto com ele. A ficha do Androide segue todas as regras padrão de criação de personagens, sendo controlada pelo jogador ou pelo mestre, conforme acordado na mesa.\n\nBio-Androides são versões avançadas que exigem coleta interpretativa de material genético de aliados ou inimigos. Eles têm acesso às técnicas dos seres usados como base, sem gastar slots de técnicas, e podem combinar até 1 variação genética por EP do Cientista (ex: EP 2 = 2 fontes genéticas).\n\nA Escala de Poder do Cientista representa apenas sua genialidade científica — não influencia combate diretamente, não contando assim a regra para os cientistas. Androides destruídos podem ser reconstruídos caso o núcleo tenha sobrevivido, mas Bio-Androides não têm essa sorte. Por equilíbrio e bom senso narrativo, é recomendado que o Cientista leve apenas 1 criação por vez para combate. Porém, se o mestre e a mesa concordarem, múltiplos Androides podem ser usados."
+        },
+        {
+          "secao": "4.7.2.3",
+          "nome": "CAPACIDADE CIENTÍFICA",
+          "texto": "Enquanto muitos buscam dominar o Ki ou a força física, você escolheu o caminho da mente. Seu corpo pode não ser o mais forte, mas sua genialidade molda realidades. Para você, o PDL não mede força bruta, mas a capacidade de criar o impossível. Cada avanço representa invenções que desafiam a lógica: naves, cápsulas, máquinas do tempo. Você não só acompanha os guerreiros — você os equipa, guia e muitas vezes os salva. No caos de deuses e monstros, sua mente é a arma mais poderosa. A seguir, a tabela de escalonamento de genialidade:\n\n| PDL | INVENÇÃO DESCOBERTA | RESUMO NARRATIVO |\n|---|---|---|\n| 1.000 | Gadgets Úteis | Dispositivos simples: suporte, espionagem e exploração. |\n| 3.000 | Tecnologia de Ki | Interação com Ki: detecção, amplificação, defesa. |\n| 5.000 | Cápsulas Multiuso | Armazenamento compacto de equipamentos e veículos. |\n| 7.500 | *(célula vazia no original; “Cápsulas Multiuso” aparece centralizada entre as linhas 5.000 e 7.500)* | rastrear, ouvir, prever eventos. |\n| 10.000 | Transporte Espacial | Naves para viagens planetárias e exploração cósmica. |\n| 15.000 | Ambientes Controlados | Simulações para treinos, testes e contenção. |\n| 20.000 | Drones / IA | Assistentes com IA para escaneamento e defesa. |\n| 30.000 | Manipulação Biológica | Cura, melhorias genéticas e energéticas. |\n| 40.000 | Camuflagem/Invisibilidade | Esconde pessoas, estruturas e Ki. |\n| 50.000 | Tecnologia Subespacial | Rastreamento avançado de esferas ou alvos. |\n| 75.000 | Compressão / Distorção | Armazena edifícios e distorção espacial |\n| 100.000 | Pesquisa Temporal | Observa linhas temporais, envia sinais no tempo. |\n| 150.000 | Máquina do Tempo | Viagem no Tempo Possível |\n| 200.000+ | Impacto Planetário | Transforma planetas com tecnologia avançada. |"
+        }
+      ],
+      "transformacoes": []
+    }
+  ]
+}

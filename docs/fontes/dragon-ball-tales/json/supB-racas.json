@@ -1,0 +1,1196 @@
+[
+  {
+    "id": "lupino",
+    "nome": "Lupinos",
+    "arquivo": "Os Lupinos.pdf",
+    "tipo": "raca",
+    "descricao_curta": "Lobos humanoides do Universo 9 (Trio do Perigo: Bergamo, Basil, Lavender); ki indetectável, garras e instinto de alcateia; três cores com característica especial única (Azul, Dourado, Vermelho).",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Garras Afiadas",
+        "efeito": "Os Lupinos tem naturalmente ao utilizarem técnicas de combate e dano físico com as mãos e alcance toque, o rótulo de \"Dano Cortante\", mesmo que tais técnicas não tenham esse rótulo."
+      },
+      {
+        "nome": "Ki Indetectável",
+        "efeito": "Os Lupinos conseguem disfarçar a sua presença por completo de maneira natural, sendo impossíveis de se detectar via métodos de detecção por Ki, ao menos que os mesmos queiram isso. Fora essa possibilidade, se o método de detecção for através do Ki, eles são considerados indetectáveis, assim como não é possível mensurar seu poder."
+      },
+      {
+        "nome": "Instinto de Alcateia",
+        "efeito": "Os Lupinos são uma raça que andam por natureza de forma predominante em alcateia, todos no geral se conhecem de alguma forma quase como se fosse um instinto natural. Dessa forma, desde que um aliado seu seja da sua mesma raça, você e ele tem os rótulos \"Técnica Combinada\" e \"Técnica de Cooperação\" em todas as suas técnicas ofensivas, mesmo que por natureza, elas não o tenham."
+      },
+      {
+        "nome": "Lupino Azul",
+        "efeito": "Lupinos Azuis são conhecidos por sua maioria por serem extremamente raros e os \"alfas\" das alcateias graças a sua capacidade inata de reter danos e transformar eles em poder. Naturalmente um Lupino dessa cor pode:\n\n- ✓ Ao início do seu turno de ação, o dano mínimo do maior rank de técnica que poderia ter sido causado a ele naquela rodada (ou seja, mesmo que a técnica não tenha o atingido ou que o usuário tenha anulado ou mitigado o dano de qualquer maneira), pode ser utilizado como dano bônus na rolagem de uma de suas técnicas ofensivas ou em reação, apenas uma vez por rodada.\n- ✓ Adicionalmente, também ao início do seu turno de ação, metade do maior dano individual que poderia ter sido causado a ele naquela rodada (seguindo a mesma regra anterior), é acumulado em uma contagem que ao chegar a uma quantidade equivalente à sua vida total, faz com que o corpo do usuário aumente em um estágio de tamanho imediatamente, isso pode ser repetido até chegar ao estágio de tamanho máximo, seguindo o indicativo a seguir juntamente com os bônus por tamanho superior:\n\n| Estágio | Grid | Altura aprox. |\n|---|---|---|\n| Médio → Grande | 2x2 | ≈ 05 m |\n| Grande → Enorme | 3x3 | ≈ 10 m |\n| Enorme → Imenso | 4x4 | ≈ 20 m |\n\n- Técnicas Ofensivas ganham +3m de alcance por estágio de aumento, independentemente do tipo de alcance delas, sendo em área ou alvo único.\n- O usuário não pode ser agarrado ou flanqueado por criaturas menores que seu tamanho.\n- Alvos que não estejam na mesma escala de tamanho que a sua, tem desvantagem nas rolagens Testes que envolvam atributos físicos impostos por você (Força, Destreza e Constituição).\n- O Aumento da sua massa corporal também aumenta a sua resistência, para cada escala de tamanho inferior a você for seu inimigo, você mitiga naturalmente 05 de Dano.\n- Inimigos menores em escala do que você, ganham vantagem em todos os ataques, pela maior área exposta.\n- Naturalmente, contra inimigos com escala de tamanho menor do que você, seus golpes físicos tem o rótulo de \"Dano Contundente\" mesmo que não tenham em sua composição."
+      },
+      {
+        "nome": "Lupino Dourado",
+        "efeito": "Lupinos Dourados são conhecidos por sua maioria por serem extremamente traiçoeiros e com uma grande capacidade de aplicar envenenamento com sua aura venenosa que vem oriunda de seu estômago. São conhecidos por comerem as mais podres carniças para entrarem em decomposição em sua barriga e gerar assim a aura venenosa que é expelida de sua boca, e utilizada para o ataque. Dessa forma, Lupinos dessa cor podem:\n\n- ✓ Adicionar a suas técnicas ofensivas não importando o tipo, de forma natural ao utilizar das mesmas o rótulo \"Adicionar Efeito Negativo\" para a condição \"Envenenado\", onde esse efeito pode ser causado várias vezes pela mesma técnica, fortalecendo e retirando a desvantagem dessa condição.\n- ✓ Adicionalmente, caso o alvo já esteja envenenado, e receba outra vez o mesmo efeito, ele começa a se acumular, assim fazendo com que seja necessário para o alvo, superar várias vezes o efeito negativo \"Envenenado\", para realmente o encerrar completamente."
+      },
+      {
+        "nome": "Lupino Vermelho",
+        "efeito": "Lupinos Vermelhos são conhecidos por sua maioria por serem extremamente mutáveis, seus corpos são extremamente resistentes a substâncias dopaminérgicas que normalmente matariam qualquer um que as consumisse.\n\nDentre as existentes no Universo, existe uma fruta em específica chamada \"A Coisa\", essa quando consumida por qualquer outro ser vivo, faz seu corpo entrar em um estado de aprimoramento energético, que infla seus músculos até que o usuário exploda. No entanto, o organismo resistente do Lupino Vermelho o faz resistir a isto, e desfrutar do poder concedido, dessa forma uma vez por descanso longo ele pode consumir essa fruta e:\n\n- ✓ Nesse estado, seu corpo aumenta em massa muscular e constituição física, bem como em tamanho. O usuário exibe um comportamento bastante selvagem. A tonalidade de sua aura também muda para um esquema vermelho e preto. Nesse modo, o usuário fica muito mais forte e rápido (apesar de sua massa muscular e tamanho). Dessa forma, recebe vantagem em todas as suas rolagens que envolvem os atributos Força, Destreza e Constituição, e caso esteja sofrendo penalidades por diferença de Escala de Poder, elas são anuladas, mas, os benefícios do inimigo ainda são mantidos. Esse modo dura um número de rodadas igual a Escala de Poder Base do usuário."
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 12,
+      "subtipos_por_cor": [
+        "Lupino Azul",
+        "Lupino Dourado",
+        "Lupino Vermelho"
+      ],
+      "nota": "Cada Lupino tem uma das três Características Especiais Únicas conforme a cor (texto não diz explicitamente que é escolha única, mas é implícito).",
+      "md": "md/supB-lupinos.md"
+    }
+  },
+  {
+    "id": "saiyajin-lamina-de-ki",
+    "nome": "Saiyajin da Lâmina de Ki",
+    "arquivo": "Saiyajin da Lâmina de Ki.pdf",
+    "tipo": "tecnicas",
+    "raca_base": "Saiyajin",
+    "descricao_curta": "Kit de técnicas do estilo de Kabbash, o Cortador de Deuses: lâminas de Ki na palma da mão (18 ofensivas E→Z + 4 especiais).",
+    "ajustes_de_atributo": null,
+    "tracos": [],
+    "transformacoes": [],
+    "tecnicas": [
+      {
+        "nome": "Estocada Laminar",
+        "rank": "E",
+        "custo": "03",
+        "efeito": "O usuário estende a palma da mão e a reveste de Ki em formato de lâmina, logo em seguida salta em direção do inimigo para o aplicar um golpe direto. [Dano: 03-06-12] [Ki: 03] - Alcance: Toque, com Avanço de 6,0m em Linha.\n- Rótulos Positivos (2): Técnica Básica, Técnica de Ki, Estocada\n- Rótulos Negativos (1): Posicionamento Preciso"
+      },
+      {
+        "nome": "Golpe Laminar",
+        "rank": "E",
+        "custo": "04",
+        "efeito": "Após o uso de \"Estocada Laminar\" o usuário ainda com seu palmar revestido de Ki em formato de lâmina, aplica um segundo golpe direto no inimigo. [Dano: 06-12-24] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (2): Técnica Básica, Técnica de Ki, Aumentar Dano por Ki\n- Rótulos Negativos (1): Técnica Dependente (Estocada Laminar uma Vez na Rodada)"
+      },
+      {
+        "nome": "Combo Laminar",
+        "rank": "E",
+        "custo": "04",
+        "efeito": "Após o uso de \"Golpe Laminar\" o usuário ainda com seu palmar revestido de Ki em formato de lâmina, o desprende de sua mão e lança em um dos pés do inimigo, na tentativa de não só o causar dano como o deixar \"Enraizado\" caso não passe em um Teste de Destreza vs CD da Técnica. [Dano: 06-12-24] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (2): Adicionar Condição (Enraizado), Técnica de Ki, Aumentar Dano por Ki\n- Rótulos Negativos (1): Técnica Dependente (Estocada Laminar uma Vez na Rodada)"
+      },
+      {
+        "nome": "Lâmina Média de Ki",
+        "rank": "D",
+        "custo": "04",
+        "efeito": "AO usuário concentra o seu Ki no seu palmar, fazendo com que a partir dele uma lâmina média de ki se forme, extremamente afiada e brilhante. Logo em seguida desfere um golpe direto no inimigo com intenção de o cortar. [Dano: 06-13-26] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica de Ki, Dano Cortante\n- Rótulos Negativos (2): Somática"
+      },
+      {
+        "nome": "Corte Laminar",
+        "rank": "D",
+        "custo": "09",
+        "efeito": "O usuário faz um movimento horizontal com sua mão escolhida a qual brilha e lança um corte de ki no ar que vai em direção do inimigo para o causar dano. [Dano: 09-19-38] [Ki: 09] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (4): Técnica de Ki, Aumentar Dano por Ki, Projétil, Potente\n- Rótulos Negativos (2): Somática"
+      },
+      {
+        "nome": "Perfuração Laminar",
+        "rank": "D",
+        "custo": "09",
+        "efeito": "O usuário ergue o palmar e o coloca a frente do corpo do inimigo, logo em seguida ativa sua lâmina de ki, que cresce e perfura o corpo do alvo a frente. [Dano: 11-23-46] [Ki: 09] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (4): Técnica de Ki, Aumentar Dano por Ki, Perfurante\n- Rótulos Negativos (2): Somática"
+      },
+      {
+        "nome": "Rastro Laminar",
+        "rank": "C",
+        "custo": "10",
+        "efeito": "O usuário cresce a lâmina de ki no seu palmar, e em seguida avança atingindo a todos que estiverem no trajeto até o final dele. [Dano: 08-17-34] [Ki: 10] - Alcance: Toque, com Rastro de 6,0m e Avanço de 6,0m\n- Rótulos Positivos (6): Técnica de Ki, Rastro, Estocada, Cortante\n- Rótulos Negativos (3): Somática, Condicionada"
+      },
+      {
+        "nome": "Meia Lua Laminar",
+        "rank": "C",
+        "custo": "12",
+        "efeito": "O usuário cresce a lâmina de ki no seu palmar em um tamanho extremo o suficiente para em um movimento atingir todos os inimigos com sua lâmina em uma área de cone. [Dano: 08-17-34] [Ki: 12] - Alcance: Alvo em Área de Cone de 9,0m\n- Rótulos Positivos (6): Técnica de Ki, Engolfante, Potente\n- Rótulos Negativos (3): Somática, Condicionada"
+      },
+      {
+        "nome": "Lua Cheia Laminar",
+        "rank": "C",
+        "custo": "12",
+        "efeito": "O usuário cresce a lâmina de ki no seu palmar e em um giro rápido atinge todos ao seu redor o cortando e aplicando dano. [Dano: 14-29-58] [Ki: 12] - Alcance: Toque, ao Redor do Usuário.\n- Rótulos Positivos (6): Técnica de Ki, Aumentar Dano por Ki, Cortante, Expansivo\n- Rótulos Negativos (3): Somática, Condicionada"
+      },
+      {
+        "nome": "Lâmina Completa de Ki",
+        "rank": "B",
+        "custo": "08",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki brilhante e intensa do seu palmar, de tamanho médio capaz de cortar facilmente seus inimigos. [Dano: 11-22-44] [Ki: 08] - Alcance: Toque.\n- Rótulos Positivos (8): Técnica de Ki, Técnica Básica, Cortante\n- Rótulos Negativos (4): Somática, Verbal"
+      },
+      {
+        "nome": "Lâmina Dilacerante",
+        "rank": "B",
+        "custo": "18",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki brilhante e intensa do seu palmar, em um ataque completo, desfere um corte no inimigo tão poderoso e profundo que é difícil até mesmo de o curar, deixando uma cicatriz talvez permanente. [Dano: 21-42-84] [Ki: 18] - Alcance: Toque.\n- Rótulos Positivos (8): Técnica de Ki, Aumentar Dano por Ki, Cortante, Dilacerante\n- Rótulos Negativos (4): Somática, Verbal"
+      },
+      {
+        "nome": "Verdadeira Lua Cheia",
+        "rank": "B",
+        "custo": "18",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki brilhante e intensa do seu palmar, logo em seguida o usuário gira e desfere uma onda de ki ao seu redor com a lâmina, atingindo a todos na área. [Dano: 11-22-44] [Ki: 18] - Alcance: Pessoal, com Área de Raio em 10,5m\n- Rótulos Positivos (8): Técnica de Ki, Vórtice, Potente\n- Rótulos Negativos (4): Somática, Verbal"
+      },
+      {
+        "nome": "Perfurar os Céus",
+        "rank": "A",
+        "custo": "26",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki brilhante que é capaz de perfurar a todos que estejam na área de sua invocação longos metros de distância. [Dano: 17-34-68] [Ki: 26] - Alcance: Pessoal, com Rastro em Linha de 21,0m\n- Rótulos Positivos (10): Técnica de Ki, Rastro, Perfurante\n- Rótulos Negativos (5): Somática, Verbal, Condicionada"
+      },
+      {
+        "nome": "Verdadeira Lâmina de Ki",
+        "rank": "A",
+        "custo": "26",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki diferente das outras, seu brilho é tão intenso que é capaz de iluminar toda a escuridão de um local. Ao deferir um golpe com ela é capaz de não somente cortar, mas perfurar o inimigo ao mesmo tempo, pela intensidade de seu poder. [Dano: 31-62-124] [Ki: 26] - Alcance: Pessoal, com Rastro em Linha de 21,0m\n- Rótulos Positivos (10): Técnica de Ki, Aumentar Dano por Ki, Perfurante, Cortante, Potente\n- Rótulos Negativos (5): Somática, Verbal, Condicionada"
+      },
+      {
+        "nome": "Dança da Lâmina de Ki",
+        "rank": "A",
+        "custo": "14",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki em sua mão, e logo em seguida ele a balança no ar em movimentos marciais, lançando a partir delas diversas pequenas lâminas que perfuram e ficam fincadas no corpo do inimigo. Após isso, a qualquer momento, o usuário pode optar por as fazerem explodir e causando danos ao alvo. [Dano: 17-34-68] [Ki: 14] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (10): Técnica de Ki, Técnica Básica, Explosão Retardada, Projétil\n- Rótulos Negativos (5): Somática, Verbal, Condicionada"
+      },
+      {
+        "nome": "Lâmina Divina de Ki",
+        "rank": "Z",
+        "custo": "18",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki em sua mão, ela emana um brilho divino e é capaz de cortar qualquer material, ser atingido por essa lâmina, é a certeza de sentença de morte. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque.\n- Rótulos Positivos (12): Técnica de Ki, Técnica Básica, Cortante, Potente\n- Rótulos Negativos (6): Somática, Verbal, Condicionada"
+      },
+      {
+        "nome": "Santuário Laminar",
+        "rank": "Z",
+        "custo": "18",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki em sua mão, logo em seguida ele a finca no chão ficando de joelhos, e sua aura se expande em uma área de raio, onde qualquer um que entre nela, permanece nela ou inicie seu turno de ação nela recebe o dano dessa técnica de forma constante. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque.\n- Rótulos Positivos (12): Técnica de Ki, Técnica Expansiva, Rajada Contínua, Cortante\n- Rótulos Negativos (6): Somática, Verbal, Condicionada"
+      },
+      {
+        "nome": "Lâmina Matadora de Deuses",
+        "rank": "Z",
+        "custo": "44",
+        "efeito": "O usuário dita o nome da técnica e cresce a lâmina de ki em sua mão em um Ki extremamente poderoso que emana raios, faz o chão rachar e eleva estruturas ao redor. Após isso, desfere um corte preciso no oponente, capaz de simplesmente obliterar sua existência, é o seu golpe mais poderoso. [Dano: 58-117-234] [Ki: 44] - Alcance: Toque.\n- Rótulos Positivos (12): Técnica de Ki, Aumentar Dano por Ki, Cortante, Perfurante, Potente, Elétrico\n- Rótulos Negativos (6): Somática, Verbal, Condicionada"
+      },
+      {
+        "nome": "Área de Domínio",
+        "rank": "D",
+        "custo": "02",
+        "efeito": "O usuário realiza uma ação para ativar sua técnica especial. A ativação tem um custo base de 2 Pontos de Ki (PK) e cria uma área de efeito com raio de 3 metros, centrada no próprio usuário. Ao gastar 2 PK adicionais, o raio da área aumenta em 1,5 metro, de forma acumulativa. A área acompanha o movimento do usuário enquanto estiver ativa.\nEnquanto a técnica estiver em vigor, qualquer inimigo que entrar ou sair da área sofrerá um ataque de oportunidade. Esse ataque pode ser realizado com qualquer técnica que atinja o alvo, sem custo de Pontos de Ki. A técnica apenas perde sua ativação se o usuário perder a consciência de alguma forma ou gastar todos os seus PK's em um turno de ação ou reação. [Ação] [02 KI]"
+      },
+      {
+        "nome": "Corte Universal",
+        "rank": "C",
+        "custo": "04",
+        "efeito": "Ao elevar seu Ki, o usuário passa a imbuir suas técnicas ofensivas com propriedade cortante. Isso permite que qualquer técnica ofensiva utilizada — mesmo aquelas que originalmente não possuam o rótulo \"Dano Cortante\" — seja considerada como tal durante seu uso.\nEssa modificação exige um gasto adicional de Ki equivalente ao custo desta técnica especial. [Ação] [04 KI]"
+      },
+      {
+        "nome": "Corte Leve como Ki",
+        "rank": "B",
+        "custo": "06",
+        "efeito": "Ao intensificar seu Ki e refinar seu controle sobre ele, o usuário alcança tamanha maestria que pode executar múltiplos golpes com técnicas básicas cortantes sem sofrer penalidades.\nEnquanto esta técnica estiver ativa, desde que a técnica ofensiva utilizada possua os rótulos \"Técnica Básica\" e \"Dano Cortante\", o usuário não recebe modificadores negativos por usar mais de um golpe por turno de ação.\nPara cada técnica ofensiva executada nesse estado, é necessário pagar, além do custo da técnica utilizada, o custo adicional equivalente ao desta técnica especial. [Ação] [06 KI]"
+      },
+      {
+        "nome": "Espada da Esperança",
+        "rank": "A",
+        "custo": "00",
+        "efeito": "Quando as esperanças e energias de todos são reunidas como uma Genki-Dama, o usuário então absorve o poder em seu corpo — fazendo com que uma Espada de Luz se manifeste e se torne muito maior e mais poderosa com seu ki incorporado, criando uma rápida mistura de partículas de ki azuis e douradas antes de se tornar um branco brilhante.\nApenas aqueles com coração puro conseguem invocar e controlar essa energia sem sofrer graves consequências — um coração impuro pode resultar na explosão da técnica contra o próprio usuário.\nDiferente da Genki-Dama comum, essa não precisa de preparação, os seres vivos voluntariamente doam sua energia por ter fé e esperança, e se fundindo ao corpo do usuário ele consegue manifestar a \"Genki-Sword of Hope\". [Ação] [00 KI]\n\n**Efeito:** O Narrador rola 1d20 e multiplica o resultado pela Escala de Poder do planeta para determinar o dano inicial da Genki-Sword, caso seja uma Genki-Sword \"Universal\" onde outros planetas enviam sua energia, essa rolagem é feita para cada planeta. Outros personagens podem usar suas ações para doar Ki, aumentando o dano final na proporção de 1 ponto de Ki = +1 de dano. Adicionalmente:\n- ✓ Se Diferente da Genki-Dama comum, ela segue as regras normais de ataque para técnicas. Se o alvo for interpretativamente maligno, a Genki-Sword causa dano crítico garantido ao acertar.\n- ✓ Diferente da Genki-Dama comum que é em área, a Genki-Sword é em Alvo Único e no Alcance de Toque. Além disso, ela não é um golpe único como a Genki-Dama original, ela pode ser utilizada como se estivesse utilizando um Rótulo de \"Técnica Básica\", no entanto, também diferente da original, o dano dela segue as regras de dano escalonado. Você pode utilizar a Genki-Sword para aplicar golpes um número de vezes igual a sua Escala de Poder Total.\n- ✓ A Genki-Sword é tão poderosa, que é capaz de destruir corpos de seres imortais, desde que esses sejam considerados \"Malignos\". No entanto, tenha cuidado, pois, a essência imortal de um ser não é destruída, apenas o seu corpo físico."
+      }
+    ],
+    "talentos": [],
+    "outros": {
+      "personagem_inspiracao": "Kabbash",
+      "nota": "Sem traços raciais; é um pacote de técnicas.",
+      "md": "md/supB-saiyajin-lamina-de-ki.md"
+    }
+  },
+  {
+    "id": "saiyajin-potencial",
+    "nome": "Saiyajin Potêncial",
+    "arquivo": "Saiyajin do Potêncial.pdf",
+    "tipo": "variante",
+    "raca_base": "Saiyajin",
+    "descricao_curta": "Saiyajin cujo poder reprimido irrompe por emoção extrema: Estado de Ruptura com Cargas de Potencial, versões reforçadas do Super Saiyajin, kit de técnicas e 10 passivas raciais únicas.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "O Poder Oculto",
+        "efeito": "O verdadeiro poder do Saiyajin Potencial permanece comprimido no corpo até ser forçado a emergir. Uma vez por combate, quando uma das condições ocorrer, o usuário pode ativar esta característica como Reação: ser reduzido a 50% ou menos dos Pontos de Vida por fonte hostil; ver um aliado que possa perceber chegar às Portas da Morte; sofrer um evento de intensa ruptura emocional, a critério do Narrador.\n  Ao ativar, o Saiyajin entra em Estado de Ruptura por 3 rodadas e recebe 2 Cargas de Potencial. No início de cada um de seus turnos durante esse estado, recebe +1 Carga de Potencial, até o máximo de 3.\n  Enquanto estiver em Estado de Ruptura, o usuário pode gastar 1 Carga de Potencial para ativar um dos efeitos abaixo, caso zere suas cargas, você perde o acesso ao efeito:\n  - ➢ Rompante Instintivo: mover-se até 9 metros sem provocar reações;\n  - ➢ Casca Emocional: reduzir em 1 estágio o dano de um ataque que acabou de acertá-lo;\n  - ➢ Explosão Direcionada: sua próxima Técnica Ofensiva de Ki, até o fim do turno, ignora metade da mitigação de reações do inimigo;\n  - ➢ Potencializar: aumenta em um estágio de dano a próxima técnica de dano causada a um inimigo. Caso ultrapasse o estágio máximo, adicionado o dano mínimo que a técnica daria como dano bônus."
+      },
+      {
+        "nome": "Fúria Catalisadora",
+        "efeito": "Enquanto estiver em Estado de Ruptura, o ao utilizar técnicas ofensivas, os seus valores de PK's são diminuidos para serem sempre iguais ao valor base do Rank, mesmo que tenha rótulos que aumentem a quantidade de PK's para a utilização. Isto uma quantidade de vezes igual a sua EP."
+      },
+      {
+        "nome": "Cauda Saiyajin",
+        "efeito": "Permite utilizar ataques físicos mesmo que esteja com as mãos impedidas de fazer isto. Além disso permite a utilização da Característica Especial: Transformação em Ōzaru. No entanto, ela também é um ponto fraco, caso a ela seja agarrada o Sayajin tem desvantagem em todas as rolagens que fizer, e se ela for arrancada, ele fica com a desvantagem de forma permanente até realizar um descanso longo."
+      }
+    ],
+    "transformacoes": [
+      {
+        "nome": "Transformação em Ōzaru",
+        "requisito": "Cauda intacta; luz da lua cheia ou fonte artificial de ≥ 17 milhões de zenos de ondas Blutz",
+        "custo": "[EP: +01] [KI: 03]",
+        "duracao": "Até cortarem a cauda, zerar os PV temporários ou perder a consciência; reuso após descanso longo",
+        "efeitos": "Saiyajins que possuem sua cauda intacta podem acessar uma de suas formas mais primordiais e destrutivas: o Ōzaru. Essa transformação ocorre quando um Saiyajin com cauda é exposto à luz de uma lua cheia ou a uma fonte artificial que emita pelo menos 17 milhões de zenos de ondas Blutz. Ao se transformar, o Saiyajin assume a forma de um macaco gigante, multiplicando drasticamente sua força e resistência, mas perdendo parte do controle sobre seus próprios atos, caso seja uma criança.\n\n- ➢ Característica da Transformação: Ao se transformar em Ōzaru, o Saiyajin atinge a categoria de tamanho \"Enorme\", tornando-se uma força colossal no campo de batalha. Seu corpo se torna extremamente resistente, recebendo Pontos de Vida temporários iguais ao seu total de PV. No entanto, devido ao seu tamanho massivo, ataques contra você têm vantagem.\n- ➢ A transformação é encerrada caso sua cauda seja cortada ou se os Pontos de Vida temporários sejam completamente reduzidos, ou pelas regras padrões você perca a consciência de alguma forma, seja por atordoamento ou perda de pontos de vida. Após retornar à forma normal, o Saiyajin não pode se transformar novamente até completar um descanso longo, ou até que sua cauda nasça novamente se ela não foi arrancada corretamente. Adicionalmente, recebe a característica enquanto transformado \"Ataque Genérico de Ōzaru\". [EP: +01] [KI: 03]\n- ➢ Ataque Genérico de Ōzaru (Ativa) – O usuário pode disparar uma rajada de Ki com a boca, sua precisão é com Inteligência. O ataque tem o alcance de 12,0m com raio de explosão de 6,0m. O custo base para ativar é de 01 de Pontos de Ki. Essa técnica não possui dano base variável, dependendo exclusivamente do Ki gasto para sua execução. Ou seja, ao acertar o alvo, o dano causado será igual à quantidade de Ki utilizada no ataque, na proporção de 1:3, ou seja, 1 Ponto de Ki equivale a 3 Pontos de Dano."
+      },
+      {
+        "nome": "Super Saiyajin Potêncial (Estágios 1-3)",
+        "requisito": "Estar transformado em Super Saiyajin e em Estado de Ruptura",
+        "custo": "1 Carga de Potencial, uma vez por turno de ação",
+        "duracao": "Enquanto transformado e em Estado de Ruptura",
+        "efeitos": "O Saiyajin Potencial acessa normalmente as transformações Saiyajins já existentes. Porém, enquanto estiver em Estado de Ruptura, suas formas de Super Saiyajin se tornam mais fortes que o padrão.\n\nUma vez por turno de ação, enquanto estiver transformado e em Estado de Ruptura, o usuário pode gastar 1 Carga de Potencial para fortalecer o estágio atual da transformação.\n\n- ➢ Super Saiyajin Potêncial – Estágio 1: Além dos efeitos normais do Estágio 1, quando o usuário gastar Ki para transformar uma falha em êxito, ele pode consumir 1 Carga de Potencial para converter a quantidade toda de Ki gasta (tanto para transformar a falha, quanto para conjuração da técnica) em Dano Latente. Esse Dano Latente pode ser somado como dano bônus ao próximo ataque que acertar até o fim do turno seguinte, a escolha do usuário.\n- ➢ Super Saiyajin Potêncial – Estágio 2: Além dos efeitos normais do Estágio 2, a primeira vez por rodada que o usuário gastar Ki para aumentar uma rolagem, ele pode consumir 1 Carga de Potencial para fazer com que cada 1 Ki gasto conceda +2, em vez de +1. Esse efeito só vale para uma rolagem por rodada.\n- ➢ Super Saiyajin Potêncial – Estágio 3: Além dos efeitos normais do Estágio 3, o usuário pode consumir 1 Carga de Potencial para fazer com que o dano acumulado pelo gasto de Ki não precise ser aplicado de uma só vez. Até o fim do turno seguinte, ele pode dividir esse dano extra entre múltiplos ataques, da forma que desejar."
+      }
+    ],
+    "tecnicas": [
+      {
+        "nome": "Aparo",
+        "rank": "E",
+        "custo": "01",
+        "efeito": "O usuário utiliza do seu antebraço para aparar o golpe vindo em sua direção, mitigando dano. [Dano: 03-06-12] [Ki: 01] - Alcance: Pessoal\n- Rótulos Positivos (2): Técnica de Ki, Pessoal, Reativa, Defensiva\n- Rótulos Negativos (1): Descontrole"
+      },
+      {
+        "nome": "Golpe do Machado",
+        "rank": "E",
+        "custo": "01",
+        "efeito": "O usuário junta ambas as mãos e desfere um golpe que é capaz de fazer o inimigo que está voando cair, isto caso ele não passe por um Teste de Destreza vs CD da Técnica, caso falhe recebe a condição \"Caído\" até sua resolução. Essa técnica apenas pode ser utilizada em inimigos que estejam voando. [Dano: 03-06-12] [Ki: 01] - Alcance: Toque\n- Rótulos Positivos (2): Técnica Física, Toque, Condição – Caído\n- Rótulos Negativos (1): Condicionada"
+      },
+      {
+        "nome": "Elevar Ki",
+        "rank": "E",
+        "custo": "04",
+        "efeito": "O usuário reveste o seu corpo com sua aura, elevando o seu Ki e aumentando sua resistência temporariamente. Após isso, desfere um soco no alvo, caso acerte o golpe ganha +1 de CA até o início de seu próximo turno. [Dano: 03-06-12] [Ki: 04] - Alcance: Pessoal, com Toque\n- Rótulos Positivos (2): Técnica de Ki, Toque, Técnica de Barreira\n- Rótulos Negativos (1): Descontrole"
+      },
+      {
+        "nome": "Interceptar",
+        "rank": "D",
+        "custo": "04",
+        "efeito": "O usuário desfere um soco com o braço direito no oponente que caso o acerte e cause dano, isola ele de ser alvejado por técnicas de aliados. [Dano: 06-12-24] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Toque, Isolante\n- Rótulos Negativos (2): Somática"
+      },
+      {
+        "nome": "Quebra de Rítmo",
+        "rank": "D",
+        "custo": "04",
+        "efeito": "O usuário desfere um soco com o braço direito no oponente que caso o acerte e cause dano, quebra sua postura e eficiência, fazendo com que no próximo dano causado por esse alvo no usuário seja diminuído em um estágio, isto até o início do seu próximo turno. [Dano: 06-12-24] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Toque, Revés\n- Rótulos Negativos (2): Somática"
+      },
+      {
+        "nome": "Bloqueio em \"X\"",
+        "rank": "D",
+        "custo": "09",
+        "efeito": "O usuário fecha os braços em formato de \"X\" a frente do corpo, mitigando danos recebidos em reação. [Dano: 11-23-46] [Ki: 09] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Reativa, Defensiva, Aumentar Dano por Ki\n- Rótulos Negativos (2): Somática"
+      },
+      {
+        "nome": "Obliterar",
+        "rank": "C",
+        "custo": "12",
+        "efeito": "O usuário eleva seu Ki e o concentra, os músculos do seu braço direito se aumentam, e logo em seguida um soco devastador é desferido no alvo com +1 no Acerto, forte o suficiente para evaporar seu corpo com força bruta. [Dano: 10-21-42] [Ki: 12] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Toque, Aumentar Precisão, Aumentar Dano Base, Consumidor\n- Rótulos Negativos (3): Somática, Espaço Aberto"
+      },
+      {
+        "nome": "Intercepta",
+        "rank": "C",
+        "custo": "12",
+        "efeito": "O usuário defende com seu braço direito, após com o esquerdo e por fim expande seu Ki, mitigando danos e ganhando +1 de CA até o início de seu próximo turno. [Dano: 10-21-42] [Ki: 12] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Reativa, Defensiva, Técnica de Barreira\n- Rótulos Negativos (3): Somática, Condicionada"
+      },
+      {
+        "nome": "Esfera da Mão Única",
+        "rank": "C",
+        "custo": "12",
+        "efeito": "O usuário concentra uma grande quantidade de energia no braço direito, uma esfera amarelada surge do seu palmar, o mesmo Segura seu pulso, e logo em seguida dispara essa forte onda de Ki no alvo. [Dano: 12-25-50] [KI: 12] - Alcance: Alvo Único de 9,0m\n- Rótulos Positivos (6): Técnica de Ki, Projétil, Contudente, Aumentar Dano por Ki\n- Rótulos Negativos (3): Somática, Condicional"
+      },
+      {
+        "nome": "Masenko",
+        "rank": "B",
+        "custo": "11",
+        "efeito": "O ataque é realizado com o usuário colocando as duas mãos acima da cabeça, com as palmas voltadas para o alvo, e uma mão na frente da outra, com os dedos em direções opostas. Ao empurrar as mãos para a frente, o usuário chama o nome e dispara um feixe de energia amarela, branca ou laranja. [Dano: 12-22-44] [KI: 11] - Alcance: 6,0m em Área de Cone.\n- Rótulos Positivos (8): Técnica de Ki, Engolfante, Técnica de Acumulação, Rajada Contínua.\n- Rótulos Negativos (4): Somática, Verbal."
+      },
+      {
+        "nome": "Contra-Ataque Destro",
+        "rank": "B",
+        "custo": "08",
+        "efeito": "O usuário pode em reação, após receber um ataque de um inimigo, contra-atacar desferindo um soco direto no alvo com seu braço direito. [Dano: 11-22-44] [KI: 08] - Alcance: Toque\n- Rótulos Positivos (8): Técnica Física, Reativa, Contundente\n- Rótulos Negativos (4): Somática, Condicionada"
+      },
+      {
+        "nome": "Estocada Destra",
+        "rank": "B",
+        "custo": "18",
+        "efeito": "O usuário eleva o seu Ki, sua aura aumenta, e então avança em velocidade contra o inimigo desferindo um forte soco com o braço direito no alcance final. [Dano: 12-25-50] [KI: 18] - Alcance: Toque, com Avanço em 9,0m.\n- Rótulos Positivos (8): Técnica Física, Estocada, Contundente, Aumento de Dano Por Ki\n- Rótulos Negativos (4): Somática, Verbal"
+      },
+      {
+        "nome": "Super Kamehameha",
+        "rank": "A",
+        "custo": "26",
+        "efeito": "Os fundamentos desta técnica não são diferentes dos de um Kamehameha comum. As únicas características que definem o Super Kamehameha são a maior geração de ki e um nível de poder mais elevado. Isso frequentemente faz com que o acúmulo de ki brilhe intensamente e afaste ligeiramente as mãos do usuário durante o carregamento. A porção bulbosa do feixe perto das mãos do usuário é muito maior quando disparada, e o feixe em si é maior do que o normal [Dano: 29-58-116] [KI: 26] - Alcance: Alvo em Linha de 6,0m\n- Rótulos Positivos (10): Técnica de Ki, Técnica de Acumulação, Rajada Contínua, Rastro, Aumento de Dano por Ki, Dano Potente\n- Rótulos Negativos (5): Somática, Verbal, Descontrole"
+      },
+      {
+        "nome": "Destra Reativa",
+        "rank": "A",
+        "custo": "12",
+        "efeito": "Ao sentir o ataque do adversário se aproximar consigo, o usuário libera uma explosão de Ki, e desfere um rápido soco com seu braço direito no estômago do alvo. [Dano: 17-34-68] [Ki: 12] - Alcance: Toque\n- Rótulos Positivos (10): Técnica Física, Técnica Básica, Reativa\n- Rótulos Negativos (5): Somático, Verbal, Descontrole"
+      },
+      {
+        "nome": "Liberar Aura",
+        "rank": "A",
+        "custo": "26",
+        "efeito": "O usuário canaliza Ki através de seu corpo, sua aura se eleva, e logo em seguida a expande de uma forma que sua pressão e poder atingem todos ao seu redor causando danos continuamente, enquanto mantiver a liberação. [Dano: 31-62-124] [Ki: 26] - Alcance: Pessoal, com Área de Raio de 7,5\n- Rótulos Positivos (10): Técnica de Ki, Expansiva, Rajada Contínua, Impacto, Aumentar Dano por Ki\n- Rótulos Negativos (5): Somático, Verbal, Condicionada"
+      },
+      {
+        "nome": "Ultimate Kamehameha",
+        "rank": "Z",
+        "custo": "44",
+        "efeito": "Os fundamentos desta técnica não são diferentes dos de um Kamehameha comum. As únicas características que definem o Super Kamehameha são a maior geração de ki e um nível de poder mais elevado. Isso frequentemente faz com que o acúmulo de ki brilhe intensamente e afaste ligeiramente as mãos do usuário durante o carregamento. A porção bulbosa do feixe perto das mãos do usuário é muito maior quando disparada, e o feixe em si é maior do que o normal [Dano: 52-105-210] [KI: 44] - Alcance: Alvo em Linha de 9,0m\n- Rótulos Positivos (12): Técnica de Ki, Técnica de Acumulação, Rajada Contínua, Rastro, Aumento de Dano por Ki, Dano Potente\n- Rótulos Negativos (6): Somática, Verbal, Descontrole, Condicionada"
+      },
+      {
+        "nome": "Destra Absoluta",
+        "rank": "Z",
+        "custo": "18",
+        "efeito": "O usuário desfere um soco preciso carregado com todo o seu poder, com o braço direito, tendo a capacidade de conseguir dano crítico entre 18-20. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque\n- Rótulos Positivos (12): Técnica Física, Golpe Crítico, Rajada Contínua\n- Rótulos Negativos (6): Somático, Verbal, Descontrole, Condicionada"
+      },
+      {
+        "nome": "Rerforço Total",
+        "rank": "Z",
+        "custo": "27",
+        "efeito": "O usuário eleva o seu Ki concentrando em todos os músculos do seu corpo, uma aura intense o envolve, mitigando danos e aumentando em +3 de CA até o início do próximo turno do usuário. [Mitigação: 32-65-130] [Ki: 27]- Alcance: Pessoal\n- Rótulos Positivos (12): Técnica Física, Reativa, Defensiva, Técnica de Barreira\n- Rótulos Negativos (6): Somática, Verbal, Inofensiva"
+      },
+      {
+        "nome": "Instinto do Último Sobrevivente",
+        "rank": "E",
+        "custo": "2",
+        "efeito": "O usuário desenvolve uma leitura extrema de hostilidade, microtensões no ar e intenções assassinas, fruto de anos lutando em ruínas e emboscadas.\nEfeito: Quando você ou um aliado em até 6 metros forem alvo de um ataque vindo de um inimigo oculto, invisível ou fora do campo de visão, você pode ativar esta técnica para identificar instantaneamente a origem da ameaça. Faça um Teste de Inteligência contra Destreza do agressor. Se vencer, até o fim do seu próximo turno você:\n- ✓ não pode ser Surpreendido por esse alvo;\n- ✓ percebe a posição dele mesmo sem vê-lo diretamente;\n- ✓ ignora camuflagem, invisibilidade ou cobertura para fins de percepção.\n\n[Reação] [2 KI]"
+      },
+      {
+        "nome": "Contrapeso do Guerreiro Ferido",
+        "rank": "D",
+        "custo": "4",
+        "efeito": "Anos lutando com o corpo ensinaram o usuário a redistribuir o Ki pelo tronco e pelas pernas, corrigindo seu posicionamento e resistência do corpo.\nEfeito: Quando você sofrer um efeito de um efeito negativo não mental, pode ativar esta técnica. Faça um Teste de Destreza contra o teste que gerou o efeito negative. Se vencer: anula a aplicação do efeito. Apenasp ode utilizar isto, uma quantidade de vezes igual a sua EP.\n[Reação] [4 KI]"
+      },
+      {
+        "nome": "Manto de Guerra Saiyajin",
+        "rank": "C",
+        "custo": "6",
+        "efeito": "O usuário reveste o corpo com uma película precisa de Ki, endurecendo os pontos de impacto e estabilizando a postura em combate prolongado.\nEfeito: Ao ativar, até o início do seu próximo turno, você recebe: +2 de CA; a primeira vez que sofrer dano nesse período, reduza o dano em 1 estágio; vantagem em testes para resistir a derrubar, empurrar, desarmar ou agarrar. Além disso, se estiver com 50% ou menos da Vida máxima, os valores aumentam para: +3 de CA ao invés de +2.\nNo fim do efeito, você recupera apenas metade do Ki na próxima rodada, e não pode utilizar técnicas com o rótulo de técnica básica.\n[Ação ou Reação] [6 KI]"
+      },
+      {
+        "nome": "Instinto Sereno do Predador",
+        "rank": "C",
+        "custo": "6",
+        "efeito": "O Saiyajin desacelera a respiração, esvazia a mente e deixa o corpo reagir apenas ao fluxo hostil de Ki ao redor.\nEfeito: Ao ser alvo de uma Técnica Ofensiva de alvo único, o usuário pode usar esta técnica como Reação. Faça um Teste de Sabedoria contra o Acerto da Técnica inimiga. Se igualar ou superar, o ataque erra completamente. Não funciona contra técnicas em área, ou Salvaguarda.\n[Reação] [6 KI]"
+      },
+      {
+        "nome": "Raiz Saiayjin",
+        "rank": "C",
+        "custo": "6",
+        "efeito": "Dominando a cauda como um quinto membro real, o Saiyajin entra em uma postura de combate feral, atacando por ângulos que membros comuns não alcançam.\nEfeito: Ao ativar esta técnica, até o início do seu próximo turno, a primeira vez que o usuário realizar um golpe físico corpo a corpo, ele pode imediatamente realizar um segundo golpe com a cauda contra o mesmo alvo ou outro alvo adjacente, replicando o efeito do rótulo Técnica Básica.\n[Ação] [6 KI]"
+      },
+      {
+        "nome": "Caçador Saiyajin",
+        "rank": "A",
+        "custo": "10",
+        "efeito": "O Saiyajin mergulha no espírito de combate do alvo e passa a ler impulsos musculares, variações de Ki, ritmo de respiração e aberturas vitais como um predador lendo a presa.\nEfeito: Escolha um alvo em até 18 metros que você possa perceber. Até o fim do seu próximo turno, sempre que esse alvo usar uma Técnica, gastar Ki ou realizar um ataque, você recebe 1 Marca de Caça, até o máximo de 3. Se a Escala de Poder do alvo for maior que a sua, você recebe 1 Marca adicional imediatamente ao ativar.\nAntes do seu próximo golpe contra esse alvo, você pode gastar qualquer quantidade de Marcas. Para cada Marca gasta, escolha 1 efeito:\n- ✓ rolar o acerto novamente e ficar com o novo resultado;\n- ✓ reduzir em 1 estágio a mitigação vinda de reações.\n\n[Ação] [10 KI]"
+      }
+    ],
+    "talentos": [
+      {
+        "nome": "RUPTURA PREMATURA (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Quando o usuário sofre Dano Máximo de uma fonte hostil, mas ainda não ativou Poder Oculto, ele recebe 1 Carga Latente. Essa Carga Latente não pode ser usada imediatamente. Caso o usuário ative Poder Oculto até o fim da próxima rodada, essa Carga Latente se transforma em 1 Carga de Potencial adicional, podendo ultrapassar o limite normal e chegar a 4 Cargas apenas no turno da ativação. Caso o Poder Oculto não seja ativado até esse período, a Carga Latente desaparece. Essa passiva só pode ser ativada uma vez por combate."
+      },
+      {
+        "nome": "CORPO QUE RECUSA O LIMITE (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Enquanto estiver em Estado de Ruptura, a primeira vez por combate que o usuário seria reduzido a 0 Pontos de Vida, ele pode gastar 2 Cargas de Potencial para permanecer com 1 Ponto de Vida. Após utilizar esse efeito, o usuário recebe Exaustão de Ruptura até o fim do seu próximo turno, ficando incapaz de utilizar o efeito Potencializar durante esse período."
+      },
+      {
+        "nome": "POTENCIAL QUE SANGRA (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Enquanto estiver em Estado de Ruptura, sempre que o usuário sofrer Dano Médio ou Dano Máximo, ele pode converter parte do trauma recebido em energia. Caso tenha sofrido Dano Médio, recupera 2 Pontos de Ki adicionais no início do seu próximo turno. Caso tenha sofrido Dano Máximo, recupera 4 Pontos de Ki adicionais no início do seu próximo turno. Esse efeito só pode ocorrer uma quantidade de vezes por rodada igual a sua EP Total."
+      },
+      {
+        "nome": "FÚRIA DE RESPOSTA (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Enquanto estiver em Estado de Ruptura, se um inimigo causar Dano Médio ou Dano Máximo no usuário, o próximo ataque do usuário contra esse mesmo inimigo recebe +1 no Acerto, isso de forma acumulativa. Esse bônus dura até o fim do próximo turno do usuário e só pode estar ativo contra um inimigo por vez."
+      },
+      {
+        "nome": "RUPTURA EM CADEIA (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Enquanto estiver em Estado de Ruptura, a primeira vez por rodada que o usuário gastar 1 Carga de Potencial e causar Dano Máximo com a ação beneficiada, ele recupera 1 Carga de Potencial. A Carga recuperada não pode ser usada no mesmo ataque ou reação que a gerou. Caso o ataque erre ou cause apenas Dano Mínimo ou Médio, nenhuma Carga é recuperada."
+      },
+      {
+        "nome": "ÓDIO CONCENTRADO (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Ao ativar Poder Oculto, o usuário escolhe um inimigo visível como Foco da Ruptura. Enquanto estiver em Estado de Ruptura, a primeira Técnica Ofensiva usada contra o Foco da Ruptura em cada turno custa -X Pontos de Ki onde X é igual a sua EP. Caso o usuário ataque outro alvo antes de atacar o Foco da Ruptura naquele turno, perde esse benefício até o início do seu próximo turno. O custo final da técnica nunca pode ser reduzido abaixo de 1 Ponto de Ki por meio dessa passiva."
+      },
+      {
+        "nome": "INSTINTO DE ERUPÇÃO (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Quando o usuário entra em Estado de Ruptura, ele pode escolher imediatamente um dos seguintes efeitos sem gastar Carga de Potencial: mover-se até 4,5 metros sem provocar reações; remover uma condição física simples que limite seu movimento; ou reduzir em 1 estágio o próximo dano recebido antes do início do seu próximo turno. Esse efeito só ocorre no momento em que o Poder Oculto é ativado."
+      },
+      {
+        "nome": "MEMÓRIA DO DESESPERO (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Durante o Estado de Ruptura, quando o usuário falhar em uma rolagem de ataque ou teste resistido por 3 pontos ou menos, ele pode gastar 1 Carga de Potencial para transformar a falha em sucesso. Caso utilize esse efeito, o usuário não pode utilizar Potencializar até o fim do mesmo turno. Essa passiva só pode ser usada uma vez por rodada."
+      },
+      {
+        "nome": "RUPTURA MUSCULAR SAIYAJIN (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Enquanto estiver em Estado de Ruptura, se o usuário acertar o mesmo alvo com duas Técnicas Físicas corpo a corpo no mesmo turno, ele pode gastar 1 Carga de Potencial para forçar o alvo a realizar um Teste de Constituição contra o maior Acerto obtido pelo usuário nesse turno. Se o alvo falhar, sofre Colapso de Postura, fazendo com que sua próxima reação defensiva antes do fim da rodada custe +3 Pontos de Ki. Essa passiva só pode ser ativada uma vez por rodada."
+      },
+      {
+        "nome": "ÚLTIMA FAÍSCA DO POTENCIAL (Passiva)",
+        "requisito": "Ser da raça (Passiva Racial Única)",
+        "efeito": "Quando o Estado de Ruptura terminaria, caso o usuário esteja com 25% ou menos dos Pontos de Vida máximos, ele pode prolongar a Ruptura por 1 rodada adicional. Durante essa rodada extra, o usuário não recebe Carga de Potencial no início do turno e não pode utilizar Casca Emocional. Ao fim da rodada adicional, o usuário perde todo o Ki restante e inicia o próximo turno com apenas metade do seu Ki máximo. Essa passiva só pode ser ativada uma vez por combate."
+      }
+    ],
+    "outros": {
+      "vida_por_10000_pdl": 12,
+      "recursos_novos": [
+        "Estado de Ruptura (3 rodadas)",
+        "Cargas de Potencial (máx. 3; 4 no turno de ativação via Ruptura Prematura)",
+        "Carga Latente",
+        "Dano Latente",
+        "Marcas de Caça"
+      ],
+      "nota": "As 'Passivas Raciais Únicas' foram colocadas em talentos (sem requisito declarado além da raça).",
+      "md": "md/supB-saiyajin-potencial.md"
+    }
+  },
+  {
+    "id": "terraqueo-artista-marcial",
+    "nome": "Terráqueo Artista Marcial",
+    "arquivo": "Terráqueo Artista Marcial.pdf",
+    "tipo": "tecnicas",
+    "raca_base": "Terráqueo",
+    "descricao_curta": "Kit de técnicas do estilo de Tien Shinhan: socos, reações e técnicas especiais marciais (18 ofensivas E→Z + 4 especiais, incluindo Técnica Multiforma).",
+    "ajustes_de_atributo": null,
+    "tracos": [],
+    "transformacoes": [],
+    "tecnicas": [
+      {
+        "nome": "Soco de Impacto",
+        "rank": "E",
+        "custo": "04",
+        "efeito": "O usuário consegue desferir um soco poderoso o suficiente para causar dano a todos ao seu redor. [Dano: 06-12-24] [Ki: 04] - Alcance: Toque, com Alcance em Área de 1,5m\n- Rótulos Positivos (2): Técnica Física, Expansivo, Aumento de Dano por Ki\n- Rótulos Negativos (1): Posicionamento Preciso"
+      },
+      {
+        "nome": "Punho Traiçoeiro",
+        "rank": "E",
+        "custo": "01",
+        "efeito": "O usuário soca o alvo e em velocidade muda a postura do seu soco, podendo utilizar o rótulo de \"Pós-Imagem\" para continuar com o soco, ou enganar a reação do inimigo trocando a técnica, enquanto ele não pode trocar a reação ou o ato de não reagir. [Dano: 03-06-12] [Ki: 01] - Alcance: Toque\n- Rótulos Positivos (2): Técnica Física, Técnica Pós-Imagem\n- Rótulos Negativos (1): Posicionamento Preciso"
+      },
+      {
+        "nome": "Soco de Impacto (segunda técnica com o mesmo nome no original)",
+        "rank": "E",
+        "custo": "04",
+        "efeito": "O usuário consegue desferir uma grande sequência de socos consecutivos no alvo. [Dano: 06-12-24] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (2): Técnica Física, Técnica Básica, Aumento de Dano por Ki\n- Rótulos Negativos (1): Descontrole"
+      },
+      {
+        "nome": "Desengajar",
+        "rank": "D",
+        "custo": "09",
+        "efeito": "O usuário concentra todo o seu Ki no palmar e depois desfere um soco poderoso o suficiente para arremessar o alvo para longe em uma quantidade de metros a depender do estágio de dano causado. Se o alvo colidir com uma estrutura, recebe dano mínimo equivalente a técnica. [Dano: 11-23-46] [Ki: 09] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Técnica de Impacto, Aumento de Dano por Ki\n- Rótulos Negativos (2): Somático"
+      },
+      {
+        "nome": "Soco Crescente",
+        "rank": "D",
+        "custo": "04",
+        "efeito": "O usuário consegue desferir socos consecutivos que aumentando o dano do impacto a cada vez que acertam. [Dano: 06-13-26] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Carga Crescente, Técnica Básica\n- Rótulos Negativos (2): Somático"
+      },
+      {
+        "nome": "Soco Desnorteante",
+        "rank": "D",
+        "custo": "04",
+        "efeito": "O usuário desfere um soco direto no queixo do alvo, este que se acertado deve realizar um Teste de Constituição vs CD da Técnica ou irá receber a condição \"Desnorteado\". [Dano: 06-13-26] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Adicionar Condição (Desnorteado)\n- Rótulos Negativos (2): Somático"
+      },
+      {
+        "nome": "Soco da Exposição",
+        "rank": "C",
+        "custo": "08",
+        "efeito": "O usuário avança em velocidade e desfere uma cotovelada direta no peito do alvo, ao qual se atingido deve realizar um Teste de Constituição vs CD da Técnica, ou irá receber a condição \"Exposto\". [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m\n- Rótulos Positivos (6): Técnica Física, Estocada, Adicionar Condição (Exposto)\n- Rótulos Negativos (3): Somático, Descontrole"
+      },
+      {
+        "nome": "Soco Devastante",
+        "rank": "C",
+        "custo": "06",
+        "efeito": "O usuário banha seus punhos com Ki, e consegue desferir socos poderosos que causam mais impacto caso o inimigo esteja sofrendo qualquer condição negativa. [Dano: 08-17-34] [Ki: 06] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Técnica Devastadora, Técnica Básica\n- Rótulos Negativos (3): Somático, Descontrole"
+      },
+      {
+        "nome": "Soco da Potência",
+        "rank": "C",
+        "custo": "12",
+        "efeito": "O punho do usuário brilha intensamente e após um movimento desfere um soco potente que é capaz de causar danos devastadores a quem estiver sofrendo qualquer condição negativa. [Dano: 14-29-58] [Ki: 12] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Técnica Devastadora, Aumentar Dano por Ki, Potente\n- Rótulos Negativos (3): Somático, Descontrole"
+      },
+      {
+        "nome": "Soco Reativo",
+        "rank": "B",
+        "custo": "08",
+        "efeito": "O punho do usuário é rápido, e entre os golpes do oponente consegue reagir e aplicar dano no mesmo. [Dano: 14-22-44] [Ki: 08] - Alcance: Toque\n- Rótulos Positivos (8): Técnica Física, Técnica Básica, Reativa\n- Rótulos Negativos (4): Somático, Verbal"
+      },
+      {
+        "nome": "Soco em Potência Total",
+        "rank": "B",
+        "custo": "18",
+        "efeito": "O punho cerra o punho e seus músculos crescem, seu Ki eleva e desfere um soco tão poderoso no rosto do inimigo que todo o local onde estiver estremece. Caso acerte, o alvo deve realizar um Teste de Constituição vs CD da Técnica, ou irá receber a condição \"Atordoado\". [Dano: 21-42-84] [Ki: 18] - Alcance: Toque\n- Rótulos Positivos (8): Técnica Física, Adicionar Condição (Atordoado), Aumentar Dano por Ki, Dano Potente\n- Rótulos Negativos (4): Somático, Verbal"
+      },
+      {
+        "nome": "Indicador Paralisante",
+        "rank": "B",
+        "custo": "18",
+        "efeito": "O usuário avança em velocidade na direção do alvo, fica frente a frente dele e move o braço com o dedo indicador e desfere um golpe com ele no meio do peito do alvo. Caso atingido este deve realizar um Teste de Constituição vs CD da Técnica, ou irá receber a condição \"Paralisado\", [Dano: 19-38-76] [Ki: 18] - Alcance: Toque, com Avanço em 6,0m\n- Rótulos Positivos (8): Técnica Física, Adicionar Condição (Paralisado), Aumentar Dano por Ki, Dano Potente, Estocada\n- Rótulos Negativos (4): Somático, Verbal"
+      },
+      {
+        "nome": "Soco Reativo Superior",
+        "rank": "A",
+        "custo": "12",
+        "efeito": "O usuário reage ainda mais rapidamente e de forma mais poderosa a ataque inimigos os revidando com socos precisos e poderosos. [Dano: 17-34-68] [Ki: 12] - Alcance: Toque\n- Rótulos Positivos (10): Técnica Física, Técnica Básica, Reativa\n- Rótulos Negativos (5): Somático, Verbal, Descontrole"
+      },
+      {
+        "nome": "Rajada Marcial",
+        "rank": "A",
+        "custo": "26",
+        "efeito": "O usuário começa a desferir uma sequência de socos consecutivos e imparáveis devastando o inimigo sem parar até que não sobre mais nada. [Dano: 31-62-124] [Ki: 26] - Alcance: Toque\n- Rótulos Positivos (10): Técnica Física, Rajada Contínua, Devastadora, Acumulação, Aumento de Dano por Ki\n- Rótulos Negativos (5): Somático, Verbal, Descontrole"
+      },
+      {
+        "nome": "Soco Superior",
+        "rank": "A",
+        "custo": "26",
+        "efeito": "O usuário desfere um soco poderoso o suficiente para gerar uma onda cinética de vácuo em cone causando dano a todos na área. [Dano: 22-44-88] [Ki: 26] - Alcance: Alvo em Cone de 9,0m\n- Rótulos Positivos (10): Técnica Física, Técnica Básica, Engolfante, Aumento de Dano por Ki\n- Rótulos Negativos (5): Somático, Verbal, Descontrole"
+      },
+      {
+        "nome": "Soco Reativo Supremo",
+        "rank": "Z",
+        "custo": "18",
+        "efeito": "O usuário reage perfeitamente aos golpes do oponente os revidando com socos precisos e poderosos e completamente devastadores. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque\n- Rótulos Positivos (12): Técnica Física, Técnica Básica, Reativa\n- Rótulos Negativos (6): Somático, Verbal, Descontrole, Posicionamento Preciso"
+      },
+      {
+        "nome": "Soco da Precisão Fatal",
+        "rank": "Z",
+        "custo": "44",
+        "efeito": "O usuário respira fundo, concentra todo o seu poder em seu punho, e desfere um soco tão poderoso, rápido e preciso que é capaz de destruir e devastar qualquer um que seja atingido por ele. Essa técnica tem +4 de acerto natural. [Dano: 58-117-234] [Ki: 44] - Alcance: Toque\n- Rótulos Positivos (12): Técnica Física, Aumentar Dano por Ki, Potente, Cerco\n- Rótulos Negativos (6): Somático, Verbal, Descontrole, Posicionamento Preciso"
+      },
+      {
+        "nome": "Socos em Área Devastadores",
+        "rank": "Z",
+        "custo": "18",
+        "efeito": "O usuário desfere socos tão poderosos e potentes que seu poder ressoa na sua área ao redor. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque, com Raio de 9,0m\n- Rótulos Positivos (12): Técnica Física, Técnica Básica, Expansiva\n- Rótulos Negativos (6): Somático, Verbal, Descontrole, Posicionamento Preciso"
+      },
+      {
+        "nome": "Técnica das Quatro Bruxas",
+        "rank": "C",
+        "custo": "06",
+        "efeito": "O usuário desenvolve temporariamente dois braços extras nas costas, aparentemente abaixo das escápulas. Isso permite que ele desfira técnicas que tem o rótulo \"Técnica Básica\" sem a desvantagem de receber o redutor no modificador. Isso ocorre desde que pague o custo de Ki dessa Técnica no início da sua rodada, mantendo o efeito até o início da sua próxima rodada.\n[Ação] [KI 06]"
+      },
+      {
+        "nome": "Verdadeiro Artista Marcial",
+        "rank": "C",
+        "custo": "04",
+        "efeito": "O usuário desenvolve a capacidade de combinar mecanicamente suas técnicas ofensivas físicas com os movimentos marciais, fazendo com que ambos possam ser combinados ao mesmo tempo, adicionando os efeitos de uma técnica marcial, a uma técnica ofensiva a sua escolha. Isso ocorre desde que pague o custo de Ki dessa Técnica no início da sua rodada, mantendo o efeito até o início da sua próxima rodada.\n[Ação] [KI 04]"
+      },
+      {
+        "nome": "Postura de Poder",
+        "rank": "D",
+        "custo": "02",
+        "efeito": "O usuário assume uma postura marcial em que libera completamente o seu potencial marcial, fazendo com que possa utilizar suas manobras marciais como se tivessem o rótulo \"Reativo\" mesmo que não possam ser usadas dessa maneira, ou seja, em reações. Isso ocorre desde que pague o custo de Ki dessa Técnica no início da sua rodada, mantendo o efeito até o início da sua próxima rodada.\n[Ação] [KI 02]"
+      },
+      {
+        "nome": "Técnica Multiforma",
+        "rank": "B",
+        "custo": "Interpretativo",
+        "efeito": "Para executá-la, o usuário se energiza e se divide em dois, podendo chegar em um número de clones ao mesmo tempo igual sua Escala de Poder Base. Esses clones são tangíveis, não apenas impressões deixadas pela velocidade.\nMecanicamente para cada divisão feita o usuário divide seu Ki por 2 criando um clone de si que é capaz de usar todas as suas técnicas e transformações, todo dano que aquele clone recebe é repassado para o original, apenas desaparecendo quando o original perde a consciência ou morre. Os Clones não recebem efeitos negativos, e tem a mesma CA e EP que o alvo tiver no momento da divisão, além de terem a mesma iniciativa que o original assim como deslocamento.\nVocê pode desfazer os clones com uma ação em seu turno de ação ou em reação, mas, apenas um por vez nas duas possibilidades a cada rodada. Assim como também no momento de criar, podem ser feitos em turno de ação e reação, mas, apenas um por turno nas duas oportunidades.\n[Ação] [KI Interpretativo]"
+      }
+    ],
+    "talentos": [],
+    "outros": {
+      "personagem_inspiracao": "Tien Shinhan",
+      "nota": "Duas técnicas Rank E com o mesmo nome 'Soco de Impacto' no original.",
+      "md": "md/supB-terraqueo-artista-marcial.md"
+    }
+  },
+  {
+    "id": "terraqueo-vital",
+    "nome": "Terráqueo Vital",
+    "arquivo": "Terráqueo Vital.pdf",
+    "tipo": "tecnicas",
+    "raca_base": "Terráqueo",
+    "descricao_curta": "Kit de técnicas do estilo Hokuto Shinken (pontos vitais): golpes que aplicam condições negativas (18 ofensivas E→Z + 5 especiais).",
+    "ajustes_de_atributo": null,
+    "tracos": [],
+    "transformacoes": [],
+    "tecnicas": [
+      {
+        "nome": "Hokuto Ko",
+        "rank": "E",
+        "custo": "01",
+        "efeito": "O usuário desfere um golpe preciso em um ponto vital específico do inimigo, onde caso acertado ele deve realizar um Teste de Sabedoria vs CD da Técnica, onde caso falhe recebe o efeito \"Lacuna Mental\". [Dano: 03-06-12] [Ki: 01] - Alcance: Toque\n- Rótulos Positivos (2): Técnica Física, Adicionar Condição (Lacuna Mental)\n- Rótulos Negativos (1): Descontrole"
+      },
+      {
+        "nome": "Hokuto Nebukai",
+        "rank": "E",
+        "custo": "01",
+        "efeito": "O usuário desfere um golpe preciso na garganta do oponente o impedir de falar, e logo em seguida dois golpes rápidos em suas coxas o impedindo de mover suas pernas, isso caso o alvo seja atingido e não passe em um Teste de Constituição vs CD da Técnica, onde em falha recebe o efeito \"Enraizado\" e \"Silenciado\" ao mesmo tempo. [Dano: 03-06-12] [Ki: 01] - Alcance: Toque\n- Rótulos Positivos (2): Técnica Física, Adicionar Condição (Enraizado e Silenciado)\n- Rótulos Negativos (1): Descontrole"
+      },
+      {
+        "nome": "Hokuto Osore",
+        "rank": "E",
+        "custo": "01",
+        "efeito": "O usuário desfere um golpe preciso nas temporas do inimigo visando com que altere sua visão e faça o inimigo o ver mais poderoso e monstruoso do que realmente é. Isso ocorre o inimigo seja acertado devendo realizar um Teste de Sabedoria vs CD da Técnica, onde em falha recebe o efeito \"Intimidado\". [Dano: 03-06-12] [Ki: 01] - Alcance: Toque\n- Rótulos Positivos (2): Técnica Física, Adicionar Condição (Intimidado)\n- Rótulos Negativos (1): Descontrole"
+      },
+      {
+        "nome": "Hokuto Konran",
+        "rank": "D",
+        "custo": "04",
+        "efeito": "O usuário desfere um golpe preciso no meio da testa do oponente, onde esse caso acertado deve realizar um Teste de Sabedoria vs CD da Técnica, onde em falha recebe o efeito \"Desnorteado\". [Dano: 06-13-26] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Adicionar Condição (Desnorteado)\n- Rótulos Negativos (2): Somático"
+      },
+      {
+        "nome": "Hokuto Doku",
+        "rank": "D",
+        "custo": "04",
+        "efeito": "O usuário desfere um golpe preciso no ponto vital do coração do usuário o fazendo continuar bombeando o sangue, mas, não renovando o oxigênio, transformando assim o sangue do alvo em algo venenoso para seu corpo. Dessa forma, caso o alvo seja acertado deve realizar um Teste de Constituição vs CD da Técnica, onde em falha recebe o efeito \"Envenenado\". [Dano: 06-13-26] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Adicionar Condição (Envenenado)\n- Rótulos Negativos (2): Somático"
+      },
+      {
+        "nome": "Hokuto Ki",
+        "rank": "D",
+        "custo": "04",
+        "efeito": "O usuário desfere um golpe preciso no ponto vital abaixo da gargante do alvo, afetando seu controle de Ki. Dessa forma, caso o alvo seja acertado deve realizar um Teste de Inteligência vs CD da Técnica, onde em falha recebe o efeito \"Sobrecarregado\". [Dano: 06-13-26] [Ki: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Adicionar Condição (Sobrecarregado)\n- Rótulos Negativos (2): Somático"
+      },
+      {
+        "nome": "Hokuto Usugitanai",
+        "rank": "C",
+        "custo": "06",
+        "efeito": "O usuário altera o seu Ki de positivo para negativo em uma técnica de precisão direta, seus dedos brilham em uma aura escura e logo em seguida aplica um golpe preciso no oponente. Esse que se acerto deve realizar um Teste de Poder vs CD da Técnica, onde em falha recebe o efeito \"Paralisado\". [Dano: 08-17-34] [Ki: 06] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Adicionar Condição (Paralisado), Sombrio\n- Rótulos Negativos (3): Somático, Descontrole"
+      },
+      {
+        "nome": "Hokuto Kowareta",
+        "rank": "C",
+        "custo": "06",
+        "efeito": "O usuário altera o seu Ki para que ele tenha um efeito caótico ao entrar em contato com o Ki inimigo isso, em uma técnica de precisão direta, seus dedos brilham em uma aura trêmula e logo em seguida aplica um golpe preciso no oponente. Esse que se acerto deve realizar um Teste de Poder vs CD da Técnica, onde em falha recebe o efeito \"Quebrado\". [Dano: 08-17-34] [Ki: 06] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Adicionar Condição (Quebrado), Caótico\n- Rótulos Negativos (3): Somático, Descontrole"
+      },
+      {
+        "nome": "Hokuto Migotona",
+        "rank": "C",
+        "custo": "06",
+        "efeito": "O usuário desfere um ataque direto no centro do corpo do oponente com suas mãos cobertas por Ki. Caso acerte o inimigo deve realizar um Teste de Constituição vs CD da Técnica, onde em falha recebe o efeito \"Atordoado\" e \"Enraizado\". [Dano: 08-17-34] [Ki: 06] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Adicionar Condição (Atordoado e Enraizado)\n- Rótulos Negativos (3): Somático, Descontrole"
+      },
+      {
+        "nome": "Ganzan Ryōzan Ha",
+        "rank": "B",
+        "custo": "08",
+        "efeito": "O usuário posiciona a mão como se fosse uma faca com a intenção de o golpear e partir a cabeça do oponente. Caso acerte o inimigo deve realizar um Teste de Destreza vs CD da Técnica, onde em falha recebe o efeito \"Sangrando\". [Dano: 11-22-44] [Ki: 08] - Alcance: Toque\n- Rótulos Positivos (8): Técnica Física, Adicionar Condição (Sangrando), Cortante\n- Rótulos Negativos (4): Somático, Verbal"
+      },
+      {
+        "nome": "Hokuto Dan Kotsukin",
+        "rank": "B",
+        "custo": "18",
+        "efeito": "O usuário posiciona a mão e em uma incrível velocidade avança em direção ao alvo e atinge todo o grupo muscular do corpo do inimigo. Caso acerte o inimigo deve realizar um Teste de Constituição vs CD da Técnica, onde em falha recebe o efeito \"Quebrado\". [Dano: 19-38-76] [Ki: 18] - Alcance: Toque\n- Rótulos Positivos (8): Técnica Física, Adicionar Condição (Quebrado), Dilacerante, Aumentar Dano por Ki, Estocada\n- Rótulos Negativos (4): Somático, Verbal"
+      },
+      {
+        "nome": "Hokuto Sōkin Jizai Kyaku",
+        "rank": "B",
+        "custo": "08",
+        "efeito": "O usuário posiciona a mão e desfere um golpe direto na nuca do inimigo, e depois em diversos pontos do corpo, os estimulando a agir conforme ele queira com uma precisão cirúrgica de apertar os pontos certos para replicar movimentos. Caso acerte o inimigo deve realizar um Teste de Sabedoria vs CD da Técnica, onde em falha recebe o efeito \"Controle Mental\", onde até o final do próximo turno do alvo, o usuário irá escolher quais ações ele vai realizar, desde que não sejam táticas ou ofensivas, seguindo as regras do efeito negativo. [Dano: 11-22-44] [Ki: 08] - Alcance: Toque\n- Rótulos Positivos (8): Técnica Física, Adicionar Condição (Controle Mental), Cortante\n- Rótulos Negativos (4): Somático, Verbal"
+      },
+      {
+        "nome": "Hokuto Supirichuaru",
+        "rank": "A",
+        "custo": "12",
+        "efeito": "O usuário posiciona a mão e desfere uma série de golpes nos pontos responsáveis pelo Ki no corpo do usuário. Caso acerte o inimigo deve realizar um Teste de Inteligência vs CD da Técnica, onde em falha recebe o efeito \"Lacuna Mental\" e \"Quebrado\". [Dano: 17-34-68] [Ki: 12] - Alcance: Toque\n- Rótulos Positivos (10): Técnica Física, Adicionar Condição (Quebrado e Lacuna Mental), Espiritual\n- Rótulos Negativos (5): Somático, Verbal, Descontrole"
+      },
+      {
+        "nome": "Hokuto Jūyōna",
+        "rank": "A",
+        "custo": "12",
+        "efeito": "O usuário posiciona a mão e desfere uma série de golpes nos pontos responsáveis pela vitalidade e saúde no corpo do usuário. Caso acerte o inimigo deve realizar um Teste de Destreza vs CD da Técnica, onde em falha recebe o efeito \"Exposto\" e \"Caído\". [Dano: 17-34-68] [Ki: 12] - Alcance: Toque\n- Rótulos Positivos (10): Técnica Física, Adicionar Condição (Exposto e Caído), Drenagem\n- Rótulos Negativos (5): Somático, Verbal, Descontrole"
+      },
+      {
+        "nome": "Hokuto Shita",
+        "rank": "A",
+        "custo": "12",
+        "efeito": "O usuário posiciona a mão e desfere repetidos golpes na cabeça do alvo em uma velocidade alucinante. Caso acerte o inimigo deve realizar um Teste de Sabedoria vs CD da Técnica, onde em falha recebe o efeito \"Confusão Mental\". [Dano: 17-34-68] [Ki: 12] - Alcance: Toque\n- Rótulos Positivos (10): Técnica Física, Adicionar Condição (Confusão Mental), Temporal\n- Rótulos Negativos (5): Somático, Verbal, Descontrole"
+      },
+      {
+        "nome": "Tenshō Honretsu",
+        "rank": "Z",
+        "custo": "44",
+        "efeito": "O usuário posiciona as mãos em concha e concentra uma enorme quantidade de Ki a lançando a sua frente e devastando tudo na área de forma desintegrante. [Dano: 49-99-198] [Ki: 44] - Alcance: Área em Cone de 9,0m\n- Rótulos Positivos (12): Técnica de Ki, Engolfante, Desintegrante, Acumulação\n- Rótulos Negativos (6): Somático, Verbal, Descontrole, Condicionada"
+      },
+      {
+        "nome": "Hokuto Jūha Zan",
+        "rank": "Z",
+        "custo": "18",
+        "efeito": "O usuário faz seus punhos brilharem em Ki e desfere golpes tão poderosos que persistem até mesmo através do tempo causando dano no inimigo caso acertado corretamente. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque\n- Rótulos Positivos (10): Técnica Física, Técnica Básica, Temporal\n- Rótulos Negativos (6): Somático, Verbal, Descontrole, Condicionada"
+      },
+      {
+        "nome": "Hokuto Ujō Mōshō Ha",
+        "rank": "Z",
+        "custo": "18",
+        "efeito": "O usuário começa a desferir uma sequência de socos contínua focando nos pontos fracos do oponente, tendo a capacidade de conseguir dano crítico entre 18-20. [Dano: 32-65-130] [Ki: 18] - Alcance: Toque\n- Rótulos Positivos (12): Técnica Física, Golpe Crítico, Rajada Contínua\n- Rótulos Negativos (6): Somático, Verbal, Descontrole, Condicionada"
+      },
+      {
+        "nome": "Musō Tensei",
+        "rank": "Z",
+        "custo": "12",
+        "efeito": "A técnica suprema do estilo Hokuto Shinken. Ao ativá-la, o usuário torna-se intangível a técnicas físicos e danos do mesmo tipo, podendo ser afetado apenas por Ki até o final de sua próxima rodada. Além disso, ganha acesso a todas as técnicas ofensivas de inimigos que tenha enfrentado e derrotado (direta ou indiretamente), assim como de aliados falecidos com os quais tenha estabelecido algum vínculo. Todas essas técnicas passam a ter o rótulo \"Reativo\", podendo ser usadas tanto em ações quanto em reações.\n[Ação] [KI 12]"
+      },
+      {
+        "nome": "Hokuto Hyakuretsu Ken",
+        "rank": "B",
+        "custo": "Variável",
+        "efeito": "Sempre que o usuário aplicar um efeito negativo no alvo por meio de técnicas ofensivas, ele pode rolar 1d20 e armazenar o valor como dano fixo. Esse dano pode ser aplicado ao alvo a qualquer momento, dentro ou fora do turno de ação do usuário, sendo acumulativo a cada vez que novamente aplicar qualquer efeito negativo ao alvo oriundo de técnicas ofensivas. Para liberar o dano armazenado, o usuário deve gastar 1 PK por efeito negativo aplicado, causando o dano correspondente as rolagens acumuladas de uma só vez, sem direito a reação ou mitigação.\n[Ação] [KI Variável]"
+      },
+      {
+        "nome": "Gedokujutsu",
+        "rank": "C",
+        "custo": "Variável",
+        "efeito": "O usuário é capaz de utilizar o estilo de Hokuto Shinken em si, através de ação ou reação para automaticamente livrar-se de um efeito negativo que esteja sendo aplicado ao seu corpo gastando um custo de KI equivalente ao custo em rótulo da condição negativa que está sendo aplicada nele.\n[Ação] [KI Variável]"
+      },
+      {
+        "nome": "Suieishin",
+        "rank": "C",
+        "custo": "03",
+        "efeito": "O usuário é capaz de utilizar o estilo de Hokuto Shinken banhando em seus olhos, replicar movimentos marciais e técnicas ofensivas que seu oponente tenha usado contra ele durante a batalha, desde que antes de utilizar o movimento ou a técnica gaste o custo de Ki dessa técnica especial.\n[Ação] [KI 03]"
+      },
+      {
+        "nome": "Hokuto Kyomu Shidan",
+        "rank": "D",
+        "custo": "02",
+        "efeito": "O usuário é capaz de utilizar o estilo de Hokuto Shinken em um oponente derrotado, pressionando os pontos de pressão de sua cabeça desde que ele seja um ser biológico e humanoide e apagar suas memórias em uma quantidade de tempo equivalente a Escala de Poder do total do usuário no momento de utilização sendo na proporção de 1:1 ou seja cada 1 de EP se apaga 1 ano de memória do alvo.\n[Ação] [KI 02]"
+      }
+    ],
+    "talentos": [],
+    "outros": {
+      "personagem_inspiracao": "Retsudo (Hokuto no Ken)",
+      "md": "md/supB-terraqueo-vital.md"
+    }
+  },
+  {
+    "id": "tribo-glass",
+    "nome": "Tribo Glass",
+    "arquivo": "Tribo Glass.pdf",
+    "tipo": "raca",
+    "descricao_curta": "Raça cristalina do planeta Silecia (destruído por Chilled): refrata técnicas de Ki, se reconstrói dos cacos e torna técnicas invisíveis.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Refração de Ki",
+        "efeito": "A Tribo Glass possui uma resistência natural a ataques baseados em energia, sua estrutura cristalina permitindo que refratem e dissipem energia. Sempre que recebem qualquer técnica de ki, podem realizar um Teste de Inteligência vs Acerto da Técnica, independente dela ter te causado dano ou não.\n  Caso tenha sucesso, você pode redirecionar essa técnica, agora com o seu acerto e sem gasto de PK's a um novo alvo respeitando os rótulos presentes na técnica original, dessa forma ao atingir o novo alvo a técnica não terá a mesma potência, tendo obrigatoriamente um estágio de dano a menos do que o que será causado na refração, não diminuindo menor do que o mínimo."
+      },
+      {
+        "nome": "Reconstrução de Cacos",
+        "efeito": "Quando reduzido a 0 Pontos de Vida, um personagem da Tribo Glass pode tentar um Teste de Constituição vs Acerto do inimigo que a reduziu a 0 Pontos de Vida, caso tenha sucesso retorna a batalha com 10% da sua vida total e pode agir normalmente, caso falhe pode tentar novamente no início do que seria sua próxima rodada. A única forma de destruir um membro desse povo é causando dano negativo enquanto despedaçada igual a sua vida total."
+      },
+      {
+        "nome": "Refração de Luz",
+        "efeito": "No início de seu turno de ação, um personagem da Tribo Glass pode gastar uma quantidade de PK's equivalente ao inimigo mais poderoso em batalha para ativar o seu modo refração total, seu corpo começa absorver toda luz do ambiente, dessa forma até o final de seu próximo turno, todas as suas Técnicas de Ki têm mesmo que não possuam, o rótulo \"Técnica Invisível\"."
+      },
+      {
+        "nome": "Corpo de Refração Total",
+        "efeito": "Membros da Tribulo Glass uma vez por turno de ação, são capazes de adicionar temporariamente um dos rótulos a seguir a uma de suas técnicas ofensivas de Ki, desde que gastem a quantidade a mais na hora de sua conjuração, dando propriedades únicas as suas técnicas por conseguirem a conjurar literalmente por qualquer parte do seu corpo feito de vidro:\n\n| Rótulo | Custo adicional |\n|---|---|\n| ✓ Técnica de Fragmentação de Ki | 2 KI |\n| ✓ Reação em Cadeia - Ki | 4 KI |\n| ✓ Ricochete de Ki | 3 KI |\n| ✓ Técnica de Pós-Imagem | 2 KI |\n| ✓ Ataque Espectral | 3 KI |"
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 10,
+      "md": "md/supB-tribo-glass.md"
+    }
+  },
+  {
+    "id": "saiyajin-maligno",
+    "nome": "Saiyajin Maligno",
+    "arquivo": "Variante - Saiyajin Maligno.pdf",
+    "tipo": "variante",
+    "raca_base": "Saiyajin",
+    "descricao_curta": "Variante especial inspirada em Cumber: Zenkai ao matar com crueldade, aura que impõe -1 acumulativo, cauda de sombras e Aura Maligna que força fúria.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Zenkai Brutal",
+        "efeito": "Diferente de um Saiyajin comum que fica mais poderoso conforme luta e testa seus limites até a beira da morte, a variação Maligna é capaz de ativar o Zenkai ao matar da forma mais brutal possível o seu inimigo durante um combate. Dessa forma, sempre que um Saiyajin Maligno eliminar o seu inimigo principal durante o combate de forma cruel e torturante, ao final do combate se ainda estiver consciente pode fazer um Teste de D20 CD 10, similar ao de \"Portas da Morte\", caso você chegue a três sucessos ativa o Zenkai em três fracassos não foi uma morte digna de alimentar a sua fome de energia negativa. Ao ativar o Zenkai maligno, você recebe um aumento permanente de 10% do seu PDL Base, Pontos de Vida e Pontos de Ki, representando sua evolução natural, após o fim da batalha. Esse crescimento só ocorre uma vez por combate e por inimigo."
+      },
+      {
+        "nome": "Aura Negativa",
+        "efeito": "Durante um combate, a cada 2 rodadas completas em que o Saiyajin Maligno esteja envolvido ativamente em combate contra um alvo (atacando, defendendo ou sendo alvo de ataques), o alvo entra em Estado de Negatividade, recebendo um bônus de -1 em todas as suas rolagens de forma acumulativa. No entanto, caso o inimigo passe uma rodada inteira sem interagir com você de nenhuma forma, se afastado, não recebendo golpes seus que o acertem, ou você o atacando, este perde imediatamente todo o acúmulo de poder obtido por esta habilidade, precisando reiniciar o processo a partir da próxima rodada ativa."
+      },
+      {
+        "nome": "Cauda Saiyajin Sombria",
+        "efeito": "Permite utilizar ataques físicos mesmo que esteja com as mãos impedidas de fazer isto. Além disso permite a utilização da Característica Especial: Transformação em Ōzaru. No entanto, diferente de uma causa Saiyajin comum, esta é feita do seu próprio Ki em sombras, não podendo ser cortada ou agarrada para enfraquecer o Saiyajin."
+      },
+      {
+        "nome": "Aura Maligna",
+        "efeito": "A Aura Maligna é uma energia maligna, negra e carmesim escura, que envolve um Saiyajin Maligno, que a emite constantemente ao se energizar e pode manipulá-la para criar várias formas, como mãos ou caudas feitas de sombra. A aura possui a capacidade de corromper outros seres que entrem em contato com ela, o que torna um Saiyajin Maligno extremamente perigoso. Dessa forma:\n\n- ➢ Sempre que um inimigo alvejar um Saiyajin Maligno com técnicas de alcance corpo a corpo e o acertar, o Saiyajin pode rolar um Teste de Poder vs Acerto do Alvo onde caso supere o inimigo este ficara banhado em sua aura maligna até o final de seu próximo turno. Onde enquanto banhado por essa aura, entra em um estado de fúria, ao qual irá sempre atacar o alvo mais próximo a ele, e gastar em seu turno de ação, todo o seus PK's possíveis, sempre começando com seus golpes do maior custo para o menor, não podendo utilizar técnicas especiais e escolher a ordem, apenas encerrando o turno quando seus PK's forem esgotados até a impossibilidade de uso de novas técnicas. O mesmo acontece se o Saiyajin o toca com golpes corpo a corpo ou pelo uso da Característica Especial – Manipulação de Aura Maligna, porém a rolagem é diferente, caso ele acerte o alvo o mesmo deve rolar o Teste de Poder vs Acerto do Saiyajin, onde em falha sofre os efeitos descritos anteriormente."
+      },
+      {
+        "nome": "Manipulação de Aura Maligna",
+        "efeito": "A Aura Maligna do Saiyajin é viva e manipulada por ele, podendo se estender além do seu corpo em formato de braços de sombras que fazem o que ele bem entender, ao liberar sua aura para ser usada dessa forma ele pode:\n\n- ✓ Ofensivamente você pode utilizar ela como se fosse um ataque a distância genérico de qualquer rank até o limite que você consegue dominar, ou seja, se por exemplo você quiser aplicar um dano com o máximo possível que uma técnica Rank A chegaria, você teria que de acordo com a tabela de dano das técnicas usar 26 de Ki para causar 124 de dano, ou 12 de Ki para causar 68.\n- ✓ Na forma de suporte, com a aura maligna você pode redirecionar uma técnica que você utilizou e errou desde que ela tenha o rótulo de \"Projétil\", assim gastando metade do custo de Ki que utilizou para a conjurar, para assim fazer uma nova rolagem de ataque no mesmo alvo, ou contra alguém próximo.\n- ✓ Você também pode utilizar a ação especial \"Agarrar\" a distância, e sem a necessidade de estar próximo, e utilizar Inteligência no acerto do agarrão. Além disso, um personagem agarrado pela aura por você, gasta o dobro de Ki em ações de reação, e tem sua ação de movimentação não só negada como também controlada por você, podendo te deslocar uma quantidade de metros igual ao deslocamento do agarrado, mas, somente no turno do agarrante. Caso queira deslocar mais do que isto deve gastar 1 PK para cada 1,5m a mais."
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 12,
+      "nota": "Transformação em Ōzaru citada (via Cauda Saiyajin Sombria), regras no livro básico.",
+      "md": "md/supB-saiyajin-maligno.md"
+    }
+  },
+  {
+    "id": "zahha-clan",
+    "nome": "Zahha Clan",
+    "arquivo": "Zahha Clan.pdf",
+    "tipo": "clan",
+    "descricao_curta": "Os Zathari de Xylos, 'Caçadores de Magos': meio dano de técnicas mágicas, anulação de magia em reação, aura de distorção mágica e telecinese gratuita com duas espadas.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Caçador de Magos",
+        "efeito": "Os Zahha Clan, são espadachins primordiais focados em destruir e controlar o uso da magia no universo. Dessa forma, desde cedo graças ao seu treinamento especial, são resistentes a técnicas ofensivas mágicas, recebem sendo a metade do dano que iria receber quando atingido por técnicas que tenham esse rótulo."
+      },
+      {
+        "nome": "Anulador Mágico",
+        "efeito": "Como uma reação, sem a necessidade de testes um membro do Zahha Clan pode anular uma técnica mágica, seja ofensiva, especial ou oriunda de características raciais, desde que esteja no alcance da sua visão. Essa anulação sem testes apenas ocorre se o alvo utilizador da magia, estiver em uma Escala de Poder inferior ou igual ao usuário. Caso não esteja, será necessário um Teste de Poder ou Inteligência do Usuário vs Acerto da Técnica do Mágica utilizada."
+      },
+      {
+        "nome": "Aura de Distorção Mágica",
+        "efeito": "Os Zahha Clan, conseguem graças ao seu treinamento específico e a composição do seu corpo e Ki, gerar uma aura ao seu redor equivalente a própria Escala de Poder, na proporção de 1:1,5m em raio. Caso uma técnica mágica seja ofensiva, especial ou oriunda de uma característica racial for conjurada dentro desta área de raio, ela tem 50% de chance de não ser realizada, e ainda sim os PK's serão gastos pelo utilizador."
+      },
+      {
+        "nome": "Mestre Telecinético",
+        "efeito": "A marca registrada dos Zahha Clan é o uso de duas espadas especiais que são controladas através de sua telecinese. Tendo assim um estilo de telecinese avançada, tem acesso a uma técnica especial gratuita, que é a telecinese, essa que não conta na sua quantidade de técnicas especiais disponíveis e não tem custo de utilização.\n\nGraças a esse estilo combativo, os membros dessa raça se tornam aptos guerreiros em combate, principalmente quando utilizam o seu estilo de combate anti-magia. Dessa forma, sendo detentores de:\n\n- ➢ **[Telecinese de Zahha]**: É uma técnica é uma técnica que permite ao usuário manipular objetos e outras pessoas com o poder da mente. Seu alcance é igual ao dobro deslocamento máximo do personagem em raio, podendo ser aumentado em +1,5m gastando 1 PK a mais no momento de a utilizar, assim de forma indefinida. [Ki: -]\n\nEfeito:\n- ✓ Ofensivamente você pode utilizar ela como se fosse um ataque a distância genérico de qualquer rank até o limite que você consegue dominar, ou seja, se por exemplo você quiser aplicar um dano com o máximo possível que uma técnica Rank A chegaria, você teria que de acordo com a tabela de dano das técnicas usar 26 de Ki para causar 124 de dano, ou 12 de Ki para causar 68.\n- ✓ Na forma de suporte, com a telecinese você pode redirecionar uma técnica que você utilizou e errou desde que ela tenha o rótulo de \"Projétil\", assim gastando metade do custo de Ki que utilizou para a conjurar, para assim fazer uma nova rolagem de ataque no mesmo alvo, ou contra alguém próximo.\n- ✓ Você também pode utilizar a ação especial \"Agarrar\" a distância, e sem a necessidade de estar próximo, e utilizar Inteligência no acerto do agarrão. Além disso, um personagem agarrado pela telecinese por você, gasta o dobro de Ki em ações de reação, e tem sua ação de movimentação não só negada como também controlada por você, podendo te deslocar uma quantidade de metros igual ao deslocamento do agarrado, mas, somente no turno do agarrante. Caso queira deslocar mais do que isto deve gastar 1 PK para cada 1,5m a mais.\n- ✓ Os Zahha Clan utilizam sua telecinese através de suas Espadas Caça Magos Especiais, elas fazem praticamente parte deles. Cada membro dessa raça, detém duas dessas espadas, elas flutuam ao redor do usuário, e podem se na área de raio ao redor dele no limite de sua telecinese. A partir dessas lâminas, o usuário é capaz de conjurar qualquer uma de suas técnicas especiais, ofensivas, características raciais, movimentos marciais ou passivas como se estivesse naquele local, sem quaisquer restrições ou custos adicionais."
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 8,
+      "nota": "Concede a técnica especial gratuita [Telecinese de Zahha] [Ki: -], fora da contagem de técnicas especiais.",
+      "md": "md/supB-zahha-clan.md"
+    }
+  },
+  {
+    "id": "heeter",
+    "nome": "Heeters (Heeter Guerreiro)",
+    "arquivo": "ilide.info-heetersnosnosnlsnls-ls-odnondodnlndondondondl-pr_2ea456469b6c072b33a9b75eb131a7b8.pdf",
+    "tipo": "raca",
+    "descricao_curta": "Família/raça do Universo 7 (Elec, Gas, Oil, Macki); a versão jogável é o guerreiro: bônus acumulativo após falhar em testes, meio PK perdido ao errar, modo berserker e materialização de armas de Ki.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Progressão Pura",
+        "efeito": "Os Heeters ganham experiência de combate lutando contra inimigos poderosos e sendo levado ao limite, seus movimentos se tornam mais aguçados e sua força cresce, semelhante à forma como a destreza de um Saiyajin cresce com a luta. Sua taxa de crescimento e adaptabilidade são impressionantes. Sempre que um membro dessa raça é forçado a realizar qualquer Teste Resistido ou Teste de Salvaguarda e falha, na próxima vez que realizar qualquer um destes tipos de teste contra o mesmo inimigo ou outro, acumula +1 de modificador bônus que é válido apenas nestes tipos de testes, sendo somável. Esse bônus apenas permanece até o final da batalha."
+      },
+      {
+        "nome": "Estado Relaxado",
+        "efeito": "Os Heeters tem um estado natural de combate em instinto incrível onde membros dessa raça permanecem em um estado relaxado até o momento em que precisa atacar, liberando rapidamente toda a sua força em rajadas para maximizar o ataque por um breve momento, permitindo-lhe controlar 100% do seu poder, e então diminuindo o ritmo para evitar o desperdício de energia. Dessa maneira, mesmo que um Heeter erre um golpe, ele perde apenas metade dos PK's gastos ao invés de todos os PK's como normalmente acontece com qualquer guerreiro, conservando desperdício de energia, podendo fazer isso um número de vezes durante uma rodada, igual a Escala de Poder Base."
+      },
+      {
+        "nome": "Liberação de Instinto",
+        "efeito": "Os Heeters podem liberar seu poder escondido ao liberar seu instinto, embora isso possam fazer eles perderem o controle. Esta característica faz com que sua massa muscular cresça grandemente, os olhos ficam brancos, seus dentes ficam mais pontiagudos, e dois chifres saem de sua testa para baixo. Neste estado, ele fica selvagem e age por instinto destrutivo, incapaz de distinguir entre aliados e inimigos, atacando sempre o alvo vivo mais próximo, perdem a capacidade de reação, e apenas encerram o turno de ação caso tenham gasto PK's até não conseguir mais. Em troca disso, recebem vantagens em todas as suas rolagens, e a capacidade de mesmo em vantagem realizar uma nova rolagem em um mesmo teste ou ação, uma quantidade de vezes igual a sua Escala de Poder Base durante seu turno de ação, essa nova rolagem não é em vantagem, prevalecendo sempre o maior dado rolado entre as tentativas. Uma vez ativo esse modo, ele apenas é encerrado por perda de consciência ou o fim da batalha, podendo ser apenas ativado uma vez por descanso longo."
+      },
+      {
+        "nome": "Materialização",
+        "efeito": "A técnica de assinatura de um Heeter e seu principal método de luta é sua habilidade de conjurar coisas do nada, que ele usa para produzir um vasto arsenal de armas de combate corpo a corpo e de estilo medieval, incluindo: uma arma semelhante a um forcado, uma lança, um cajado de espada, uma lança de justa, um dardo, um grande machado de batalha, uma estrela da manhã que altera o tamanho, um martelo gigante, uma arma semelhante a um martelo de meteoro, uma bola de demolição, uma cimitarra, várias kunai, bem como várias espadas montadas no pulso, garras, lâminas semelhantes a hélices de quatro pontas e vários tipos de escudos.\n\nO usuário também pode criar várias paredes grandes e pontiagudas que podem ser usadas para esmagar seus alvos entre elas. Ele também é capaz de manifestar novas roupas para substituir as danificadas. Dessa forma sistematicamente, essa característica funciona:\n\n- ✓ Ao utilizar uma Técnica Ofensiva, o usuário pode adicionar qualquer um dos rótulos de Tipo de Dano existentes, porém apenas um dessa forma, ao custo de gastar uma quantidade de Ki a mais no uso da técnica igual ao valor do rótulo. Representando assim, a criação dessa arma materializada de \"Ki\" que foi utilizada para o uso de sua ação. Se estendendo também fora do combate, de maneira interpretativa. Após o uso, o objeto é desfeito."
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 12,
+      "md": "md/supB-heeters.md"
+    }
+  },
+  {
+    "id": "hera-seijin",
+    "nome": "Hera-seijins",
+    "arquivo": "ilide.info-hera-seijins-pr_fbf73d1b960e94416599b6b957fc90ff.pdf",
+    "tipo": "raca",
+    "descricao_curta": "Raça do planeta-nebulosa Chrysalis com Núcleo de Ressonância: Ki não gasto acumula, regenera PK na reação, reduz dano de Ki e tem modo potencializado pelos cristais.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Manipulação Hera",
+        "efeito": "Hera-seijins são manipuladores natos de Ki, nunca os desperdiçando. Sempre que encerrarem seu turno de ação ou reação com Ki não utilizado, ele fica acumulado e é somado no próximo turno de ação, nunca sendo desperdiçado, sendo isso equivalente a qualquer quantidade de PK's."
+      },
+      {
+        "nome": "Amplificação de Ressonância",
+        "efeito": "Devido à sua conexão inata com seu Núcleo de Ressonância e a energia ambiente de Chrysalis, os Hera-seijin regeneram passivamente metade dos seus PK's em seu turno de reação, esses PK's regenerados apenas podem ser utilizados em técnicas que tenham o rótulo \"Reativo\"."
+      },
+      {
+        "nome": "Resistência Cristalina",
+        "efeito": "Chrysalis fez com que os corpos dos Hera-seijins fossem mais resistentes a Técnicas de Ki. Sempre que receber um golpe que seja baseado em dano de energia através do Ki, o usuário naturalmente diminui em um estágio o dano causado, desde que pague uma quantidade de PK's equivalente a Escala de Poder do inimigo que causou o dano. Caso seja uma técnica de Ki que envolve carregamento, diminui apenas uma carga."
+      }
+    ],
+    "transformacoes": [
+      {
+        "nome": "Núcleos de Ressonância (modo potencializado)",
+        "requisito": "Ativar no turno de ação; portar cristais (bijuterias)",
+        "custo": "1 PK na 1ª rodada, +1 acumulativo a cada nova rodada, pago no início do turno de ação; o contador só zera em descanso longo",
+        "duracao": "Enquanto pagar o custo",
+        "efeitos": "Você carrega diversos cristais no seu corpo, sejam eles em formatos de bijuterias como brincos, colares ou outros formatos que desejar. Nesses cristais permanece o poder oculto do ambiente de Chrysalis, este que é o responsável por te fazer poderoso e ter tanta afinidade com a manipulação de Ki. Essa característica te permite:\n\n- ✓ Durante o combate, você é capaz de liberar a energia armazenada de Chrysalis durante o seu turno de ação. Fazer isso faz os cristais em bijuterias do seu corpo brilharem, a cor de sua pele e cabelo mudam e sua musculatura se eleva, mostrando seu corpo potencializado pela energia dos cristais.\n- ✓ Nesse modo, o usuário é capaz de em todas suas técnicas de Ki permite aumentar o dano da técnica após utilizar ela gastando Ki para isso, sendo na proporção de 1:3, ou seja, para cara 1 PK extra gasto após o uso da técnica e a definição da escala de dano que será causada.\n- ✓ No entanto, manter essa forma de poder é custoso, a cada rodada que você mantem essa forma você gasta 1 PK's que se acumulam em +1 para cada nova rodada, esses que devem ser gastos sempre no início do seu turno de ação.\n- ✓ Desativar esse modo aprimorado não reseta o custo de PK's dessa característica, ao ativar novamente, ela continuará a contar de onde parou, até que realize um descanso longo."
+      }
+    ],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 12,
+      "md": "md/supB-hera-seijins.md"
+    }
+  },
+  {
+    "id": "makyan",
+    "nome": "Makyans (Makyanos)",
+    "arquivo": "ilide.info-mak-yans-pr_84959e51ad58f2d85c7b9dc07d513468.pdf",
+    "tipo": "raca",
+    "descricao_curta": "Raça demoníaca ligada à errante Estrela Makyo (Garlic Jr.): todas as técnicas sombrias, bônus de PK por 1d100 de distância da estrela, névoa corruptora e Dead Zone.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Afinidade Malígna",
+        "efeito": "Os Makyans são um tipo de raça malígna que usa uma fonte de energia distorcida do Ki própria que é oriunda da Estrela Makyo. Dessa forma, naturalmente todas as suas técnicas, independente de sua escolha, tem gratuitamente o rótulo \"Dano Elemental – Sombrio\". Além disso, para aplicar os efeitos deste rótulo, o membro dessa raça apenas precisa aplicar o estágio de \"dano completo\" no alvo."
+      },
+      {
+        "nome": "Estrela Makyo",
+        "efeito": "A fonte de poder e energia dos Makyans vem diretamente de um planeta maligno que se move em órbita livre pelo universo, em uma velocidade absurda. Dele vem toda a fonte de poder maligno de um membro dessa raça, quanto mais próximo dele mais poderoso é o usuário. Sempre no início de uma batalha, o narrador irá jogar 1d100, o resultado irá determinar a quantos mil anos luz está a Estrela Makyo nesse momento, isso irá determinar quais bônus a seguir estão disponíveis para o Makyan (Bônus que não envolvem o aumento de PK's das Escalas Inferiores se Somam com as Superiores, ou seja, se você está com efeitos de 02~30, você terá acumulado os bônus extras das 31~90):\n\n  | 1d100 | Distância | Efeito |\n  |---|---|---|\n  | 01 | 1,000 anos luz | Está a 1,000 anos Luz do Makyan assim o fazendo atingir o máximo de poder que a energia da Estrela Makyo é possível a conceder. Nesse estado, os PK's do usuário são dobrados, e sempre no início do seu turno de ação o maior dano causado a ele na rodada passada é regenerado. Além disso, seu primeiro ataque no turno de ação, recebe vantagem. |\n  | 02~30 | 2,000 a 30,000 anos luz | Adicionando aos seus PK's totais uma quantidade equivalente a 50% fixos até o final da batalha. Nesse estado, sempre no início do seu turno de ação o menor dano causado a ele na rodada passada é regenerado. |\n  | 31~60 | 31,000 a 60,000 anos luz | Adicionando aos seus PK's totais uma quantidade equivalente a 40% fixos até o final da batalha. Nesse estado, recebe vantagem para resistir a efeitos negativos. |\n  | 61~90 | 61,000 a 90,000 anos luz | Adicionando aos seus PK's totais uma quantidade equivalente a 30% fixos até o final da batalha. Nesse estado, recebe vantagem para detectar inimigos através do Ki. |\n  | 91~99 | 91,000 a 99,000 anos luz | Adicionando aos seus PK's totais uma quantidade equivalente a 20% fixos até o final da batalha. Nesse estado, não recebe nenhum efeito adicional. |\n  | 100 | mais de 100,000 anos luz | Assim sendo a forma mais fraca do Makyan, não tendo qualquer acréscimo em seus PK's, e fazendo com que todas suas rolagens sejam feitas com desvantagem. |"
+      },
+      {
+        "nome": "Produção de Névoa",
+        "efeito": "O Makyan é capaz de produzir uma vez por descanso longo uma substância negra líquida que evapora em contato com o ar, liberando uma névoa espessa e escura. Quando liberada, essa névoa cobre uma área ampla (1,5m de Raio para cada 1 PK gasto ao Liberar) e permanece ativa por 10 minutos, a menos que dispersada por técnicas específicas (Técnicas que tenham o mesmo Alcance em Área de Raio que a Substância está ocupado).\n  - ✓ Qualquer ser vivo que respire a névoa deve fazer um Teste de Sabedoria ou Constituição (CD 15 + Escala de Poder Base do Usuário) no início de cada turno que permanecer na área. Se falhar, o alvo é corrompido por desejos materiais e hedonistas, tornando se hostil a aliados e obsessivo por riqueza, prazer e violência. Caso inicie o turno fora da área, o efeito é encerrado, mas os acúmulos não, somente sendo resetados ao final do combate.\n  - ✓ Após 3 falhas cumulativas, o alvo sofre uma Transformação Demoníaca Involuntária, ganhando: íris rosadas, pupilas apagadas e caninos alongados além de \"Vampirismo Demoníaco\".\n  - ✓ Vampirismo Demoníaco: Se um infectado ferir outro personagem corpo a corpo, o alvo deve realizar um novo teste de resistência ou se torna infectado, sempre para cada dano causado. Após 24 horas contínuas sob influência da névoa, a infecção se torna permanente. Somente a Água Sagrada (itens raros ou bênçãos especiais) pode curar a corrupção. Após 24h, nem mesmo ela funciona."
+      },
+      {
+        "nome": "Dead Zone",
+        "efeito": "Os Makyans possuem uma conexão profunda com sua energia sombria, e com ela são capazes de rasgar a realidade e abrir um vórtice para uma dimensão paralela conhecida como Zona Morta — um lugar de vazio absoluto e trevas eternas.\n\nAo ativar essa técnica, o usuário cria uma fenda dimensional que suga tudo ao seu redor com uma força gravitacional implacável. Para abrir a Zona Morta, o usuário deve gastar uma quantidade de PK equivalente à Escala de Poder (EP) de cada alvo presente na área afetada, além de um custo adicional que define a área de efeito da técnica.\n\n**Área de Efeito:** Cone de 1,5m por 1 PK gasto adicional. Por exemplo, um cone de 6 metros (4 PKs) afetando 2 alvos com EP 5 custaria 4 (área) + 10 (EP dos alvos) = 14 PKs. Após aberta, a Zona Morta permanece ativa enquanto o usuário continuar pagando, no início de seus turnos, o custo em PK equivalente ao EP dos alvos ainda afetados por ela.\n\n**Efeitos da Zona Morta:**\n- Todos os alvos que iniciam seus turnos dentro da área perdem automaticamente sua ação de movimento.\n- Eles devem realizar um Teste de Força ou Destreza (à escolha do alvo) em confronto direto contra o Poder do usuário. O usuário realiza uma rolagem de Poder a cada rodada e esse valor se mantém para todos os testes daquele turno.\n- Se o teste falhar, o alvo é arrastado até a boca do vórtice.\n- No início do seu próximo turno, o alvo deve realizar um novo teste. Se falhar novamente, ele é completamente sugado para dentro da Zona Morta.\n\n**Enquanto Dentro da Zona Morta:**\n- Alvos sugados podem tentar sair caso a Zona ainda esteja aberta, utilizando uma ação de movimento e repetindo o teste de Força ou Destreza contra o Poder do usuário.\n- Em caso de sucesso, eles retornam para a área da boca do vórtice (fora da zona interna).\n- Caso a Zona seja fechada com alvos ainda presos, eles permanecem na dimensão até que o usuário a reabra, dando-lhes nova chance de escapar sob as mesmas regras anteriores.\n- O tempo dentro da Zona Morta flui igual ao tempo do plano material.\n\n**Considerações Adicionais:**\n- Se o usuário estiver dentro da área do cone ao abrir a Zona, ele também poderá ser afetado e deverá realizar os testes como qualquer outro alvo.\n- Alvos dentro do cone que sofram ataques corpo a corpo com intenção de empurrão para dentro da Zona, realizam seus testes de resistência com desvantagem."
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 8,
+      "md": "md/supB-makyans.md"
+    }
+  },
+  {
+    "id": "metal-freeza-clan",
+    "nome": "Metal Freeza Clan",
+    "arquivo": "ilide.info-metalfreezaclanihihibuvonibunibunibinkbibibi-pr_ccd6d7c67f043e281e3260c0b73d86b5.pdf",
+    "tipo": "variante",
+    "raca_base": "Freeza Clan",
+    "descricao_curta": "Variação especial do Clã Freeza fundida à Grande Estrela Gete: corpo verdadeiro escondido, PV divididos em Avatares que compartilham PK, renascimento imune ao golpe que o matou.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Renascimento",
+        "efeito": "O Metal Freeza Clan está com seu corpo original fundido a \"Grande Estrela Gate\", esse sistema biomecânico assimilou seu poder e se tornou capaz de o replicar. Enquanto seu corpo original não for destruído dentro do núcleo deste local, uma nova versão do seu corpo irá ressurgir, e sempre mais poderosa que a anterior, sendo imune a última técnica ofensiva ou especial que destruiu o seu \"Avatar Principal\", não recebendo quaisquer danos ou efeitos dela."
+      },
+      {
+        "nome": "Avatares",
+        "efeito": "Seu verdadeiro corpo está presente dentro da \"Grande Estrela Gate\", ele tem uma quantidade de PV's variável a depender da sua escolha, os outros PV's do seu corpo podem ser distribuídos em \"Avatares\", esses nada mais são que versões com a cópia exata da sua ficha. Todos os Avatares compartilham dos mesmos PK's, ou seja, quando um gasta PK's em uma ação todos perdem aquela quantidade ao mesmo tempo. Cada Avatar age junto durante a sua rodada de Ação, o que possibilita que você possa utilizar a mesma técnica ou estratégia durante o mesmo turno de ação, mesmo que você não tenha o rótulo de \"Técnica Básica\" ou tenha uso único, pois como cada Avatar conta como uma entidade única, ao realizarem uma ação isso não impede mecanicamente dos outros realizarem a mesma, pois não contam como o mesmo usuário. Em combate, o seu Avatar que possuir a maior parte dos seus PV's em sua distribuição, é considerado o seu \"Avatar Principal\", e o mínimo de PV's que um Avatar pode ter é equivalente a 10% da sua Vida Total."
+      },
+      {
+        "nome": "Supremacia de Metal",
+        "efeito": "O corpo dos seus avatares é feito de um metal líquido especial, o que o torna extremamente resistente a golpes físicos. Naturalmente, golpes que tenham o rótulo de \"Técnica Física\" e sejam usados contra seus avatares e a você, são rolados com desvantagem. Além disso, não precisam respirar e são imunes a venenos, doenças e efeitos de fadiga. Podem sobreviver no vácuo do espaço sem penalidades e não precisam rolar fazer Teste de Salvaguarda contra Morte ao serem derrotados. Se seu corpo não for desintegrado, ele vai permanecer vivo e irá voltar a vida depois de um descanso longo."
+      },
+      {
+        "nome": "Metal Core",
+        "efeito": "O seu verdadeiro corpo, e poder está dentro da \"Estrela Gate\", caso inimigos adentrem dentro desse local para o destruir de forma definitiva destruindo o seu corpo principal, terão que entrar dentro do seu \"Covil\". Ao iniciarem uma batalha dentro do \"Metal Core\" contra a sua versão original fundida a tecnologia, você irá adquirir certas características:\n\n- ➢ Dentro do Metal Core, onde está seu corpo original, ele ativa o seu modo de defesa, e fica com todos os seus PV's originais assim como PK's e uma iniciativa própria. Ele não segue a regra da sua característica \"Avatar\" logo, seu corpo original não compartilha seus PK's entre seus avatares e não age junto com eles.\n- ➢ Seus Avatares continuam a seguir a regra original, sem ter alteração nela são divididos conforme os seus PV's e compartilham os PK's entre si. Dessa forma, ativar o modo de defesa dentro do seu Metal Core, garante que você tenha uma forma de si com todos os seus PV's e PK's próprios, enquanto pode ser os avatares seguindo a mesma regra anterior."
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 14,
+      "md": "md/supB-metal-freeza-clan.md"
+    }
+  },
+  {
+    "id": "moroan",
+    "nome": "Moroans",
+    "arquivo": "ilide.info-moroansddddffgfrrffftfgfftffffgggggggggggggggg-pr_e7c9d1a7294b4d5d766b972d792a9a29.pdf",
+    "tipo": "raca",
+    "descricao_curta": "Raça mágica de Xylos (Moro): técnicas viram Mágicas, rótulos elementais pagos em PK, testes com Presença, absorção vital (PK bônus permanentes, Destruição Planetária) e assimilação de seres derrotados.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "O Verdadeiro Mago de Ki",
+        "efeito": "Os Moroans são seres nascidos na magia, e manipular ela é algo inerente a sua existência. Dessa forma, ao gastar uma quantidade de PK's no início do seu turno de ação equivalente a maior Escala de Poder inimiga presente em combate, automaticamente faça suas técnicas ofensivas terem o rótulo \"Técnica Mágica\" mesmo sem ter esse rótulo, até o final de seu próximo turno. Além disso, os mesmos tem naturalmente o talento \"Mago de Ki\" sem qualquer custo."
+      },
+      {
+        "nome": "Adepto Elemental",
+        "efeito": "Morans são dominadores presentes de todos os elementos, os subjugando através da magia. Durante o seu turno de ação, o usuário é capaz de adicionar qualquer rótulo de tipagem elemental as suas técnicas ofensivas, desde que pague em PK's extras na conjuração, sendo o valor equivalente ao rótulo, ou seja, se ele é um rótulo de custo 2 você vai gastar +2 PK's para o imbuir em sua técnica ofensiva."
+      },
+      {
+        "nome": "Avatar da Magia",
+        "efeito": "Morans são capazes de fazer tudo com magia, alterando a realidade e suas regras ao seu favor. Ao gastar uma quantidade de PK's equivalente a metade do CD de dificuldade de um teste que se está sendo imposto ao usuário, o mesmo pode realizar a rolagem dele com o atributo de Presença."
+      },
+      {
+        "nome": "Absorção Vital Moroan",
+        "efeito": "Um Moran é capaz de absorver a energia vital de um indivíduo ou planeta e a utilizar ao seu completo favor o deixando mais poderoso. Esses seres são tão terríveis, que são capazes de absorver toda a energia da vida de um planeta, o matando e se alimentando e ficando mais poderoso com isso. Dessa forma, um Moroan é capaz de:\n\n- ➢ Ao aplicar técnicas ofensivas que tenham o rótulo \"Técnica Mágica\", caso elas acertem o inimigo e causem ao menos um ponto de dano, o alvo deve realizar um Teste de Poder vs Acerto do Inimigo, onde caso não passe perde uma quantidade de PK's equivalente a metade dos PK's gastos pelo Moroan para conjurar sua técnica ofensiva. Esses PK's são revertidos ao Moroan, que escolhe ou os converter em PV's ou em PK's bônus que podem ser utilizados a qualquer momento, mas, não recuperados no inicio de seu turno de ação assim como os PK's originais. Diferente de absorções de energia comuns, um Moroan não perde os PK's bônus acumulados após o final de uma batalha, apenas os perdendo caso deseje os utilizar.\n- ➢ Cada 1 PK bônus absorvido por um Moroan se converte a 1 ano de vida extra que ele acumula, ou seja, desde que exista energia para absorver e deixar armazenada, um Moroan pode viver para sempre, rejuvenescendo quase que infinitamente a sua existência e seu corpo.\n- ➢ Caso o Moroan tenha uma Escala de Poder maior que a Escala de Poder do planeta onde ele está, ele pode realizar uma Ação de \"Destruição Planetária\" onde ele começa a absorver a vida do planeta e dos seres vivos que estão abaixo de sua EP, recebendo uma quantidade de PK's ou PV's bônus igual a 1d20 x Escala de Poder do Planeta para determinar quantos PK's ou PV's bônus foram consumidos pelo Moroan ao absorver a energia daquele planeta, matando toda sua população, vida e o transformando em um planeta completamente morto, apenas sobrando aqueles que tem EP igual ou superior ao Moroan. Diferente da \"Destruição Planetária\" comum, não existe forma de deter essa técnica mágica de um Moroan, no entanto, alguém que tenha aprendido a Técnica Especial de \"Fissão Espiritual\" pode retirar toda energia absorvida pelo Moroan, e devolver a todos os habitantes os fazendo voltar a vida assim como ao planeta. Um Moroan apenas consegue fazer essa ação, uma vez por planeta."
+      },
+      {
+        "nome": "Assimilação Moroan",
+        "efeito": "Uma das habilidades mais temidas de um Moroan é a capacidade de absorver outros seres, assimilando suas características físicas, mentais e técnicas após consumir o ser vivo o engolindo de uma vez através de sua boca. Essa absorção é feita em combate, mas só pode ser realizada sob condições específicas: O alvo precisa estar reduzido a 0 Pontos de Vida (PV) — ou seja, totalmente derrotado e inconsciente. Ao ter sucesso, o usuário recebe:\n\n- ✓ Atributos Aprimorados: O Moroan compara os próprios atributos com os do alvo absorvido. Para cada atributo individual, ele substitui o seu valor pelo valor do alvo caso este seja maior. Se por exemplo, o Moroan tem Força 12 e o alvo tem Força 16, a Força do Moroan passa a ser 16. Caso o atributo do alvo seja menor, nada acontece naquele valor.\n- ✓ Técnicas Aprendidas: O Moroan aprende todas as técnicas e talentos conhecidos pelo alvo no momento da absorção.\n- ✓ Escala de Poder Assimilada: Se o oponente tiver uma Escala de Poder base superior à do Moroan, este a substitui pela escala absorvida. Caso a Escala do inimigo seja maior apenas por causa de uma transformação, ela não é assimilada. O Majin só absorve a Escala natural (base) do oponente.\n- ✓ Limite de Absorções: Um Moroan pode manter um número máximo de seres absorvidos igual à sua própria Escala de Poder Base. Por exemplo, um Moroan com Escala de Poder 3 pode manter até 3 seres absorvidos simultaneamente. O jogador pode libertar um ou mais absorvidos a qualquer momento, se desejar. Ao fazer isso, o Moroan perde imediatamente todas as melhorias adquiridas daquela absorção específica (atributos, técnicas e Escala de Poder, se for o caso).\n- ✓ Assimilação Perfeita: Um Moroan também adquiri as características raciais e transformações do ser absorvido, as combinando com as suas."
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 10,
+      "talento_gratuito": "Mago de Ki",
+      "md": "md/supB-moroans.md"
+    }
+  },
+  {
+    "id": "namekuseijin-mutante",
+    "nome": "Namekuseijin Mutante",
+    "arquivo": "ilide.info-namekuseijin-mutante-pr_0e0973b720a6d9b9647f86bcf413f4c3.pdf",
+    "tipo": "variante",
+    "raca_base": "Namekuseijin",
+    "descricao_curta": "Variante inspirada em Lord Slug: braços elásticos sem limite de uso, regeneração ilimitada com custo dobrado acumulativo e gigantificação por Ki até 60 m.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Corpo Mutante",
+        "efeito": "O Namekuseijin pode gastar 1 de Ki para estender seus braços ou pernas, aumentando seu alcance em +9 metros. Além disso, ele pode ampliar ainda mais essa distância ao gastar 1 pontos de Ki para cada +1,5 metro adicional. Com essa habilidade, o Namekuseijin pode agarrar inimigos à distância, realizar técnicas que normalmente exigiriam alcance de toque e até mesmo puxar o inimigo até si ou se impulsionar em direção a ele, criando diversas possibilidades estratégicas em combate. Diferente da versão comum, essa não tem limite de apenas um uso por turno, podendo ter sua utilização sem limites."
+      },
+      {
+        "nome": "Regeneração Mutante",
+        "efeito": "Desde que a cabeça não seja destruída, qualquer ferimento (inclusive perda de membros ou órgãos) é regenerável. Tudo o que é preciso, é que o Namek utilize uma ação, onde gasta a mesma quantidade de Ki que o usuário gastou para causar aquele dano a ele, e então o recupera. Fazer isto é extremamente cansativo, então a próxima ação ofensiva (técnicas ofensivas apenas) que for fazer irá gastar o dobro de Ki. Diferente da regeneração Namekuseijin normal, essa não tem limite de uso em seu turno de ação ou reação, no entanto, da mesma forma que não há limite de uso, o gasto dobrado de Ki também é acumulado, ou seja, curar-se duas vezes com a regeneração mutante, fará com que as próximas duas ações gastem o dobro."
+      },
+      {
+        "nome": "Sobrevivência Prolongada",
+        "efeito": "Não precisam comer, apenas ingerir água, podendo passar longos períodos sem ela. Além disso, envelhecem de forma extremamente lenta, sendo considerados quase imortais em termos biológicos."
+      }
+    ],
+    "transformacoes": [
+      {
+        "nome": "Verdadeira Gigantificação",
+        "requisito": "Gasto de Ki (não limitada pela Escala de Poder)",
+        "custo": "PK 02 (Grande) / 04 (Enorme) / 06 (Imenso) / 08 (Final), pago ao final de cada turno de ação",
+        "duracao": "Enquanto mantiver o gasto de Ki",
+        "efeitos": "Diferente da Gigantificação comum dos Namekuseijins, a versão mutante dessa característica não se limite a sua Escala de Poder, e sim ao Gasto de Ki podendo atingir a qualquer momento as versões entre o Grande e Imenso a desejo do usuário desde que mantenha o constante gasto de Ki ao final de cada um de seus turnos de ação. Pelo uso de Ki de forma forçada para acelerar a regeneração das suas células e provocar a gigantificação, suas células mutantes não só o tornam gigante como dão benefícios que jamais são encontrados em um Namek comum, isto conforme exposto a seguir:\n\n| Estágio | Grid | Altura aprox. | Requisito |\n|---|---|---|---|\n| Médio → Grande | 2x2 | ≈ 5 m | PK's 02 |\n| Grande → Enorme | 3x3 | ≈ 10 m | PK's 04 |\n| Enorme → Imenso | 4x4 | ≈ 20 m | PK's 06 |\n| Imenso → Final | 5x5 | ≈ 60 m | PK's 08 |\n\nCom o aumento do tamanho:\n- Técnicas Ofensivas ganham +3m de alcance por estágio de aumento, independente do tipo de alcance delas, sendo em área ou alvo único.\n- O usuário não pode ser agarrado ou flanqueado por criaturas menores que seu tamanho.\n- Alvos que não estejam na mesma escala de tamanho que a sua, tem desvantagem nas rolagens Testes que envolvam atributos físicos impostos por você (Força, Destreza e Constituição).\n- O Aumento da sua massa corporal também aumenta a sua resistência, para cada escala de tamanho inferior a você for seu inimigo, você mitiga naturalmente 05 de Dano.\n- Inimigos menores em escala do que você, ganham vantagem em todos os ataques, pela maior área exposta.\n- Naturalmente, contra inimigos com escala de tamanho menor do que você, seus golpes físicos tem o rótulo de \"Dano Contundente\" mesmo que não tenham em sua composição."
+      }
+    ],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 10,
+      "md": "md/supB-namekuseijin-mutante.md"
+    }
+  },
+  {
+    "id": "purrlian",
+    "nome": "Purrlians (O Legado da Destruição)",
+    "arquivo": "ilide.info-o-legado-da-destruicao-pr_b13090690442b0c27604d177812f46b2.pdf",
+    "tipo": "raca",
+    "descricao_curta": "Raça de Bills/Champa/Dyspo do planeta Mau: dívida de descanso, PK bônus por refeição, humor 1d6 por combate, Anjo-mentor e transformação Legado da Destruição em 6 estágios até Hakaishin.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Fisiologia Anômala",
+        "efeito": "Os Purrlians são é leves, ágeis e surpreendentemente resistentes, apesar da aparência frágil. Eles comem muito, dorme por longos períodos e tem um humor instável, o que intriga e intimida os outros.\n  Você pode permanecer acordado por dias sem penalidades. Pode usar habilidades que exigem descanso (curto ou longo) mesmo sem tê-lo feito, mas acumula a \"dívida de descanso\": para cada uso antecipado, seu próximo descanso será estendido pelo tempo equivalente (ex: +8h para um descanso longo não feito). Isso se acumula até ser pago.\n  Da mesma forma, você regenera seus PVs completamente após combates, mesmo sem descanso — mas a fadiga acumulada pode te forçar a dormir por muito mais tempo depois, na mesma regra anterior. Caso você acumule um número de horas para dormir superior a sua Constituição x 5, você dorme instantaneamente no meio da batalha, ficando completamente vulnerável."
+      },
+      {
+        "nome": "Apetite Cósmico",
+        "efeito": "Os Purrlians consomem quantidades absurdas de comida e — o que intriga, ou irrita, os que estão ao seu redor.\n  Após uma refeição completa, você ganha uma quantidade de PKs bônus que não contam como seus PK's base equivalentes a nota que você dá a comida, se você gostou ou não da comida irá depender de um Teste de Constituição vs CD Estabelecido pelo Narrador, ao gostar você recebe PK's extras igual ao seu valor do atributo de Poder, que podem ser usados a qualquer momento, mas, nunca recuperados necessitando uma nova refeição para acumulação. Você pode usar essa característica uma vez por Descanso Longo.\n  No entanto, caso não goste da refeição, irá ficar irritado e dificilmente qualquer coisa irá te parecer apetitosa, sua raiva irá te consumir e deve ser descontada de alguma maneira, sua vontade vai ser de destruir sem motivo algum, não recebendo PK's Bônus e não fazendo uma nova refeição até um novo Descanso Longo onde seu humor vai estabilizar."
+      },
+      {
+        "nome": "Temperamento Volátil",
+        "efeito": "O humor da sua espécie é um fenômeno à parte — instável, intenso e muitas vezes incompreensível. Antes de cada combate, role 1d6 para determinar seu estado emocional dominante conforme abaixo:\n\n  | 1d6 | Estado | Efeito |\n  |---|---|---|\n  | 1 | Letárgico – \"Isso nem vale meu tempo...\" | Você age por último na primeira rodada ignorando a iniciativa rolada, mas ignora o primeiro efeito negativo que o afetaria durante a luta ou dano a sua escolha a qualquer momento que escolher, como se simplesmente não ligasse para o perigo. |\n  | 2 | Fascinado – \"Uau, que ser curioso...\" | Você pode no seu turno de ação escanear um inimigo (descobre CA, PV atual ou maior Rank de técnica conhecida). Testes de Percepção têm vantagem até o fim do combate. |\n  | 3 | Sarcástico – \"Sério que é só isso?\" | O primeiro ataque contra você sofre desvantagem, e você provoca o inimigo automaticamente (ele tem desvantagem para atacar outros alvos até o próximo turno quando ele realizar o primeiro ataque contra você a qualquer momento). Porém, não pode usar reações na primeira rodada do combate. |\n  | 4 | Petulante – \"Vamos acabar logo com isso.\" | Seu primeiro ataque bem-sucedido no combate causa dano máximo independente da rolagem de acerto, necessitando apenas acertar. Porém, você não pode usar ações de suporte, cura ou mitigação na 1º e 2º rodadas, por puro desprezo. |\n  | 5 | Extático – \"ISSO! ISSO É O QUE EU QUERIA!\" | Todos os ataques com vantagem sempre que você desejar durante a batalha. Entretanto, sofre -1 na CA até o início do próximo turno, por empolgação excessiva, isso se acumula sempre que você escolher ter rolagens com vantagem no seu turno de ataque. |\n  | 6 | Furioso – \"EU VOU ACABAR COM VOCÊ AGORA!\" | Seus ataques causam um de estágio de dano a mais sempre que você desejar durante a batalha, caso já tenha causado estágio máximo, é acrescentado um bônus de dano ao ataque equivalente ao mínimo de dano que a técnica ofensiva daria. Entretanto, sempre que fizer isso sua guarda e você fica propenso ao mesmo, por estar em fúria. |"
+      },
+      {
+        "nome": "Divindade Escolhida",
+        "efeito": "Você foi escolhido por um Anjo, que se tornou seu mestre, guia e eterno companheiro. A relação entre vocês é profunda e perpétua: ele é seu mentor, mas também seu amigo mais próximo. Ainda assim, os Anjos são neutros por essência — jamais interferem em lutas diretamente, nem te salvam em combate.\nTudo o que ele pode fazer é te treinar, orientar e esperar que você desperte o Deus da Destruição que há em você. Se falhar… ele encontrará outro candidato.\n\nBenefícios do Anjo-Mentor (1x por Descanso Longo cada):\n- Conhecimento Absoluto: Faça uma pergunta a seu Anjo. Se existir uma resposta, ele a dará com clareza.\n- Cura Fora de Combate: Ele pode curar você ou um aliado completamente fora de combate, sem necessidade de descanso. Se pedido em batalha, ele apenas impede a morte: o alvo recebe 3 sucessos automáticos em salvaguardas contra a morte.\n- Viagem Interdimensional: Seu Anjo pode te transportar para qualquer lugar dentro do seu universo — ou até entre universos.\n- Retrocesso Temporal: Volte 1 rodada no tempo, anulando ações, danos ou efeitos daquela rodada (inclusive sua própria morte, se for o caso). Só pode ser feito no turno em que for ativado.\n- Rastreador Cósmico: Permite que localize qualquer ser vivo em qualquer universo e consiga ver onde ele está e o que está acontecendo."
+      }
+    ],
+    "transformacoes": [
+      {
+        "nome": "O Legado da Destruição",
+        "requisito": null,
+        "custo": null,
+        "duracao": null,
+        "efeitos": "Você foi escolhido.\nUm Anjo — ser de sabedoria absoluta e poder incompreensível — viu em você o potencial raro e perigoso: o de ascender à condição de um Deus da Destruição. Não por herança ou linhagem, mas por mérito, instinto e brutalidade contida. A partir deste momento, você carrega o Legado da Destruição, uma semente de energia cósmica que cresce dentro de você e exige domínio absoluto do seu corpo, alma e vontade.\n\nEssa escolha não é um título; é uma responsabilidade que transcende a vida mortal. Para alcançar o estado divino, você deverá treinar, se fortalecer e superar os seis estágios da Destruição, desbloqueando fragmentos do poder divino até que finalmente possa suportar — e controlar — a totalidade dessa energia.\n\nCada estágio representa uma fase de despertar do seu potencial como futuro Deus da Destruição. Eles só podem ser alcançados através de marcos narrativos importantes e um alto Poder de Luta (PDL), a critério do Mestre. Ao atingir cada estágio, você desbloqueia novos poderes, habilidades e escolhas.\n\nCaracterísticas da Transformação do Legado da Destruição:\n\n| Estágio | EP | KI |\n|---|---|---|\n| 1 | +02 | 06 |\n| 2 | +03 | 09 |\n| 3 | +04 | 12 |\n| 4 | +05 | 16 |\n| 5 | +06 | 22 |\n| 6 | +07 | 30 |"
+      },
+      {
+        "nome": "Legado da Destruição – Estágio 1",
+        "requisito": "Escolhido por um Anjo; marco narrativo + alto PDL, a critério do Mestre",
+        "custo": "[EP: +02] [KI: 06]",
+        "duracao": null,
+        "efeitos": "Ao atingir esse estado, o aprendiz de Hakaishin é capaz de ter acesso limitado a energia da destruição. Além de ficar mais poderoso e sua aura ser predominante em roxa, ele pode usar em reação uma quantidade de Ki gasto igual ao que o seu atacante utilizou para conjurar a técnica e a destruir a anulando, seja movimento marcial, passiva ou técnica ofensiva, desde que gaste energia, ela pode ser destruída. Apenas é possível fazer isso com técnicas ofensivas de rank abaixo ao rank máximo que você domina no momento. Para o restante, não tem limitação a não ser o gasto de Ki. [EP: +02] [KI: 06]"
+      },
+      {
+        "nome": "Legado da Destruição – Estágio 2",
+        "requisito": "Marco narrativo + alto PDL",
+        "custo": "[EP: +03] [KI: 09]",
+        "duracao": null,
+        "efeitos": "Além dos efeitos do Estágio 1, o usuário ganha controle avançado da energia da destruição, finalmente chegou em seu estágio de graduação a qual recebe sua primeira argola dourada que pode ser colocada na orelha. Nesse estágio, o usuário é capaz de ignorar qualquer mitigação de dano oriunda por técnicas que tenham o rótulo \"Defensiva\", desde que gaste uma quantidade de Ki a mais equivalente a Escala de Poder do alvo. [EP: +03] [KI: 09]"
+      },
+      {
+        "nome": "Legado da Destruição – Estágio 3",
+        "requisito": "Marco narrativo + alto PDL",
+        "custo": "[EP: +04] [KI: 12]",
+        "duracao": null,
+        "efeitos": "Ganha sua segunda argola dourada, que pode ser colocada no braço mostrando sua graduação com a destruição. Nesse estágio, torna-se capaz de destruir técnicas mesmo que de Rank superior ao que tenha aprendido, e o gasto para realizar isto é cortado pela metade um número de vezes durante o combate igual a sua Escala de Poder. [EP: +04] [KI: 12]"
+      },
+      {
+        "nome": "Legado da Destruição – Estágio 4",
+        "requisito": "Marco narrativo + alto PDL",
+        "custo": "[EP: +05] [KI: 16]",
+        "duracao": null,
+        "efeitos": "Ao atingir esse estado, recebe a primeira parte das vestes do Deus da Destruição o colar em seu peito. A partir desse estágio a sua graduação é avançada, você recebe a passiva \"Acesso ao Ki Divino\", e a partir de agora não necessita mais gastar Ki para ignorar a mitigação do alvo, sendo todo o seu dano considerado verdadeiro a partir desse estágio. [EP: +05] [KI: 16]"
+      },
+      {
+        "nome": "Legado da Destruição – Estágio 5",
+        "requisito": "Marco narrativo + alto PDL",
+        "custo": "[EP: +06] [KI: 22]",
+        "duracao": null,
+        "efeitos": "Ao atingir esse estágio, completa as veses de Deus da Destruição, sendo considerado praticamente graduado, apenas necessitando ser reconhecido ao título. Nesse estágio, a aura de destruição em você é tão grande, que se golpes oriundos de Ki o atingirem se o atacante não gastar uma quantidade de Ki extra equivalente a sua Escala de Poder, apenas metade do dano é aplicado em seu corpo, a outra metade é simplesmente aniquilada. O Contrário também acontece, golpes de Ki da Destruição aplicados por você, mesmo que errem o alvo deve gastar uma quantidade de Ki igual a sua Escala de Poder, ou irá receber ainda sim o dano mínimo que aquela técnica causaria. [EP: +06] [KI: 22]"
+      },
+      {
+        "nome": "Legado da Destruição – Estágio 6",
+        "requisito": "Marco narrativo + alto PDL",
+        "custo": "[EP: +07] [KI: 30]",
+        "duracao": null,
+        "efeitos": "Você atingiu a graduação completa e se transformou em um Hakaishin de um dos Universos existentes poupados por Zeno. Não existe nada que você não possa vencer ou apagar, desde que o seu inimigo não tenha no mínimo uma Escala de Poder superior a sua em um, você pode vencer ele ao agarrar com sucesso e proferir um \"Hakai\" gastando uma quantidade de Ki equivalente a Escala de Poder do Alvo x 2, caso tenha o Ki suficiente para isto, independente de reações o alvo é aniquilado e apagado da existente, sem direito a simplesmente reagir. Você pode usar essa característica uma vez por Descanso Longo. O mesmo vale para planetas, e qualquer coisa na existência, não há nada que não possa ser destruído. [EP: +07] [KI: 30]"
+      }
+    ],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": null,
+      "nota": "Único suplemento sem a regra de vida extra por 10.000 PDL.",
+      "md": "md/supB-purrlians-legado-da-destruicao.md"
+    }
+  },
+  {
+    "id": "saibaman",
+    "nome": "Saibamans",
+    "arquivo": "ilide.info-saibamanss-jbsjbsibdivsibeiveibekbdobeobdobelb-pr_a7e7f342ff851423f289e22820e4bbf5.pdf",
+    "tipo": "raca",
+    "descricao_curta": "Raça do planeta Vexx com glândulas de secreção: imune a químicos e terreno difícil, rastreio por odor, couraça que reduz dano físico, garras/ácido/autoexplosão e reprodução por semente.",
+    "ajustes_de_atributo": null,
+    "tracos": [
+      {
+        "nome": "Adaptação Química Aprimorada",
+        "efeito": "Os Saibamans possuem uma resistência natural a venenos, toxinas e gases nocivos, eles são imunes a qualquer variante química, seus corpos absorvem e se adaptam rapidamente. Além disso, eles se adaptam mais rapidamente a novos ambientes, não sofrendo também qualquer desvantagem ambiental imposta por um planeta, seja ela climática ou estrutural, não se aplicando efeitos de terreno que possam diminuir sua movimentação por serem considerados terrenos difíceis em nenhuma situação."
+      },
+      {
+        "nome": "Percepção Quimiosensorial",
+        "efeito": "Os sentidos olfativo e gustativo dos Saibamans são extremamente desenvolvidos. Eles podem identificar substâncias químicas no ar e no solo com grande precisão, rastrear criaturas pelo odor, detectar mudanças sutis no ambiente e até mesmo identificar o estado emocional de outros seres através de seus feromônios. Dito isto, para rastrear alvos dentro de um local do tamanho de até uma grande cidade, um Saibaman não precisa de testes, tendo acerto automático e sabendo exatamente onde ele está, como está se sentindo, estado físico e etc. No entanto, fora do alcance de cidade, dentro da área de um planeta, deve realizar um Teste de Percepção vs CD definida pelo Narrador, para obter o mesmo efeito de rastreamento perfeito."
+      },
+      {
+        "nome": "Couraça Quitinoso-Flexível",
+        "efeito": "A pele dos Saibamans é naturalmente resistente, oferecendo uma pequena defesa passiva contra ataques físicos. Eles recebem uma redução de dano base em ataques não energéticos. Danos físicos são diminuídos fixamente em um valor igual a Escala de Poder do Saibaman. Caso ele gaste uma quantidade de PK's equivalente à sua própria Escala de Poder no início do seu turno de ação, até o final do seu próximo turno aumenta dessa diminuição em igual ao dobro da sua Escala de Poder."
+      },
+      {
+        "nome": "Corpos Especiais",
+        "efeito": "Saibamans tem corpos especiais, adaptados para os auxiliarem em combate, são pequenas armas biológicas capazes de:\n\n- ➢ No início de seu turno de ação, o Saibaman pode ativar garras afiadas presente em suas mãos, gastando uma quantidade de PK's equivalente a Escala de Poder do alvo mais poderoso que ele irá alvejar durante seu turno, com isso até o final de seu próximo turno, todas as técnicas físicas do Saibaman possuem o rótulo \"Dano Cortante\".\n- ➢ Saibamans podem abrir uma parte de sua cabeça e secretar um ácido extremamente corrosivo em direção ao alvo, esse que se atingido deve realizar um Teste de Destreza vs Acerto do Saibaman (Acerto com Inteligência se for a Longa Distância e com Força se for Corpo a Corpo, sendo o alcançasse de 9,0m em linha), onde caso não passe se tem negado qualquer CA bônus que seja concedida seja por técnicas ou equipamentos, mas, não a CA natural concedida por Destreza e Escala de Poder.\n- ➢ Em uma situação desesperadora, o Saibaman pode superaquecer e instabilizar suas glândulas de secreção, causando uma explosão controlada de energia química. Primeiramente o usuário deve realizar uma ação de \"Agarrar\" no inimigo caso tenha sucesso pode começar a se sobrecarregar. Para cada 1 PK gasto se sobrecarregando enquanto agarrado com o inimigo, ao se explodir irá causar 3 de Dano Fixo, ou seja, que ignora mitigação e não será necessário rolar acerto se no momento da explosão você estiver agarrado ao seu alvo, podendo se explodir a qualquer momento, esperando um novo turno de ação para acumular mais dano ou simplesmente já se explodir momento depois do agarrão. Ao se explodir o Saibaman morre, mas, transforma o fim da sua vida no fim da vida do seu inimigo."
+      },
+      {
+        "nome": "Reprodução Saibaman",
+        "efeito": "Saibamans uma vez durante sua vida são capazes de gerar uma semente de si, que quando plantada em um solo minimamente fértil, o faz germinar e gerar uma cópia exata de si, com todas as suas técnicas, habilidades, lembranças e personalidade daquele que o gerou. Isso apenas pode ser feito uma vez por Saibaman. O novo exemplar gerado da semente apenas consegue gerar uma nova semente após o período de 9 meses de maturação interna, replicando o mesmo processo."
+      }
+    ],
+    "transformacoes": [],
+    "tecnicas": [],
+    "talentos": [],
+    "outros": {
+      "vida_por_10000_pdl": 8,
+      "md": "md/supB-saibamans.md"
+    }
+  }
+]

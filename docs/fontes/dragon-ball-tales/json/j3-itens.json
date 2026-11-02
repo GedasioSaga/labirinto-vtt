@@ -1,0 +1,51 @@
+{
+  "fonte": "Livro do Jogador V0.5, 8.2 e 8.3, pp. impressas 100-103 (PDF 101-104)",
+  "regra_de_carga": {
+    "slots_base": 5,
+    "slots_por_mod_forca": 5,
+    "formula": "5 + (Modificador de Força × 5)",
+    "texto": "Todo personagem possui 5 slots de carga base. Para cada +1 de modificador de Força, o personagem recebe +5 slots adicionais.",
+    "exemplo": "Um personagem com FOR 14 (+2 de modificador) teria 5 + (2 × 5) = 15 slots de itens.",
+    "excesso": "Se um personagem tentar carregar mais do que sua capacidade permite, ele sofre penalidades narrativas, como: Dificuldade para se mover com agilidade, Incapacidade de realizar certas tarefas rapidamente, Exposição em situações de fuga ou infiltração, e etc.",
+    "pagina": 100
+  },
+  "itens": [
+    {"nome": "Cápsula Hoi-Poi padrão", "tipo": null, "custo": null, "carga": 1, "efeito": null, "tabela": "8.2 exemplos de carga", "pagina": 101},
+    {"nome": "Comunicador de longo alcance", "tipo": null, "custo": null, "carga": 1, "efeito": null, "tabela": "8.2 exemplos de carga", "pagina": 101},
+    {"nome": "Armadura de batalha completa", "tipo": null, "custo": null, "carga": 3, "efeito": null, "tabela": "8.2 exemplos de carga", "pagina": 101},
+    {"nome": "Radar de Esferas do Dragão", "tipo": null, "custo": null, "carga": 2, "efeito": null, "tabela": "8.2 exemplos de carga", "pagina": 101, "nota": "Na tabela de 8.3 o mesmo item aparece com carga 1."},
+    {"nome": "Kit de primeiros socorros", "tipo": null, "custo": null, "carga": 2, "efeito": null, "tabela": "8.2 exemplos de carga", "pagina": 101},
+    {"nome": "Alimentos e água para um dia", "tipo": null, "custo": null, "carga": 1, "efeito": null, "tabela": "8.2 exemplos de carga", "pagina": 101},
+    {"nome": "Livro antigo ou artefato sagrado", "tipo": null, "custo": null, "carga": 1, "efeito": null, "tabela": "8.2 exemplos de carga", "pagina": 101},
+
+    {"nome": "Cápsula Hoi-Poi (vazia)", "tipo": "Narrativo", "custo": null, "carga": 1, "efeito": "Pode guardar qualquer objeto de até 5 espaços. Portátil e reutilizável.", "tabela": "8.3 sugestões", "pagina": 101},
+    {"nome": "Cápsula Hoi-Poi (com veículo)", "tipo": "Narrativo", "custo": null, "carga": 3, "efeito": "Contém um carro, moto ou pequeno transporte aéreo.", "tabela": "8.3 sugestões", "pagina": 101},
+    {"nome": "Radar das Esferas do Dragão", "tipo": "Narrativo", "custo": null, "carga": 1, "efeito": "Dispositivo para rastrear Esferas do Dragão.", "tabela": "8.3 sugestões", "pagina": 101},
+    {"nome": "Scouter (Detector de Ki)", "tipo": "Narrativo", "custo": null, "carga": 1, "efeito": "Mede o poder de luta de oponentes. Pode ser sobrecarregado.", "tabela": "8.3 sugestões", "pagina": 101},
+    {"nome": "Comunicador Portátil", "tipo": "Narrativo", "custo": null, "carga": 1, "efeito": "Permite comunicação à distância entre aliados.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Mochila ou Kit de Sobrevivência", "tipo": "Narrativo", "custo": null, "carga": 2, "efeito": "Equipamentos de acampamento, comida e água para 1 dia.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Livro Antigo ou Relíquia", "tipo": "Narrativo", "custo": null, "carga": 2, "efeito": "Contém informações valiosas, pode ser chave para desbloquear locais ou segredos.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Semente dos Deuses", "tipo": "Especial", "custo": null, "carga": 1, "efeito": "Cura total de PV e Ki. Uso único.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Bastão Mágico (Nyoibō)", "tipo": "Especial", "custo": null, "carga": 3, "efeito": "Arma única, pode se estender para ataques ou movimentos.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Brincos Potara (par)", "tipo": "Especial", "custo": null, "carga": 1, "efeito": "Permite fusão. Uso único por par.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Nuvem Voadora (Kintoun)", "tipo": "Especial", "custo": null, "carga": 4, "efeito": "Transporte para personagens de coração puro.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Cristal de Energia Antiga", "tipo": "Especial/Ritual", "custo": null, "carga": 2, "efeito": "Pode ser usado para técnicas únicas, ou rituais Ki.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Esfera do Dragão", "tipo": "Narrativo/Lendário", "custo": null, "carga": 1, "efeito": "As famosas esferas, não preciso falar muito né?", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Cápsula com Casa Portátil", "tipo": "Narrativo", "custo": null, "carga": 3, "efeito": "Contém um pequeno lar funcional. Ideal para descanso.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Roupas Tradicionais (Gi)", "tipo": "Narrativo", "custo": null, "carga": 1, "efeito": "Estilo do personagem. Pode ser estilizada com brasões ou símbolos.", "tabela": "8.3 sugestões", "pagina": 102},
+    {"nome": "Cinto com Bolsas Extras", "tipo": "Acessório", "custo": null, "carga": 1, "efeito": "Concede +2 espaços de item temporariamente. Não acumulativo.", "tabela": "8.3 sugestões", "pagina": 102}
+  ],
+  "armaduras": {
+    "regra": "Todas as armaduras ocupam espaço de item. O uso de armaduras deve ser interpretativo e estar alinhado com o estilo do personagem. Qualquer armadura, é destruída caso se receba um dano crítico, assim perdendo o bônus daquela CA até que seja reposta.",
+    "pagina": 103,
+    "lista": [
+      {"nome": "Roupa de Combate Leve", "tipo": "Armadura", "custo": null, "carga": 2, "bonus_ca": 1, "penalidade": "Nenhuma", "penalidade_ki_por_turno": 0, "efeito": "+1 CA", "observacoes": "Ex: Uniforme da Corporação Cápsula, trajes Namekuseijins."},
+      {"nome": "Armadura de Batalha Padrão", "tipo": "Armadura", "custo": null, "carga": 4, "bonus_ca": 2, "penalidade": "-5 Ki por turno", "penalidade_ki_por_turno": 5, "efeito": "+2 CA", "observacoes": "Ex: Armadura Saiyajin, Armadura de Elite de Freeza."},
+      {"nome": "Armadura Pesada/Blindada", "tipo": "Armadura", "custo": null, "carga": 6, "bonus_ca": 3, "penalidade": "-10 Ki por turno", "penalidade_ki_por_turno": 10, "efeito": "+3 CA", "observacoes": "Ex: Blindagem Bio-Android, Trajes de contenção de energia."}
+    ]
+  },
+  "notas": [
+    "O livro não define preço/custo monetário para nenhum item: campo 'custo' fica null.",
+    "Itens narrativos 'não impactam diretamente as regras de combate'; itens com efeito mecânico ficam 'a critério do Narrador e Jogadores'."
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "fonte": "Livro do Jogador V0.5, 8.4, pp. impressas 103-104 (PDF 104-105)",
+  "rolagem_de_ataque": "Sempre que um ataque é feito, o atacante rola um D20 e soma os modificadores apropriados (atributo, escala de poder, bônus temporários, etc.). O resultado dessa rolagem é então comparado com a CA do alvo. A partir daí, o dano é calculado com base na diferença entre o valor final do ataque e a CA do defensor.",
+  "margem": "margem = valor final do ataque - CA do alvo",
+  "estagios": [
+    {"nome": "Erro", "limiar": "margem <= 0", "margem_min": null, "margem_max": 0, "fracao_dano": 0,
+     "efeitos": "Se o valor do ataque for igual ou inferior à CA do alvo, o ataque erra completamente. Nenhum dano é causado — o golpe foi bloqueado, desviado, ou o inimigo simplesmente errou o alvo."},
+    {"nome": "Dano mínimo (raspão)", "limiar": "margem 1 a 2", "margem_min": 1, "margem_max": 2, "fracao_dano": 0.25,
+     "efeitos": "Se o valor do ataque superar a CA em apenas 1 ou 2 pontos, o golpe acerta de raspão, ou o defensor conseguiu amortecer boa parte do impacto. Neste caso, o personagem sofre dano mínimo, equivalente a 25% (¼) do dano total da técnica ou ataque utilizado."},
+    {"nome": "Dano médio", "limiar": "margem 3 a 5", "margem_min": 3, "margem_max": 5, "fracao_dano": 0.5,
+     "efeitos": "Se o ataque superar a CA entre 3 e 5 pontos, o golpe acerta com mais firmeza. Ele não foi completamente eficaz, mas passou pelas defesas com certa precisão. Isso representa um dano médio, correspondente a 50% (½) do valor total da técnica."},
+    {"nome": "Dano total (completo)", "limiar": "margem >= 6", "margem_min": 6, "margem_max": null, "fracao_dano": 1.0,
+     "efeitos": "Se o ataque superar a CA em 6 ou mais pontos, o acerto foi limpo, direto e eficaz. O defensor foi pego de surpresa, não teve tempo de reagir ou não conseguiu se proteger a tempo. Neste caso, o dano é total, ou seja, o valor completo da técnica é aplicado."}
+  ],
+  "exemplo": "Por exemplo, imagine que um personagem tem CA 18. Se um inimigo fizer uma rolagem de ataque e conseguir um resultado total de 17, o ataque erra completamente. Se o resultado for 19 ou 20, ele acerta de leve, e o personagem sofre apenas ¼ do dano. Se for 21, 22 ou 23, o golpe é mais direto, e o dano aplicado será metade. Mas se o ataque for 24 ou superior, o dano será integral — o golpe acertou com força total.",
+  "modificadores_de_estagio": [
+    {"origem": "Acerto Crítico (9.4)", "texto": "O ataque acerta automaticamente, mesmo que o valor final da rolagem não ultrapasse a Classe de Armadura (CA) do inimigo. Você causa o dano total da técnica, sem necessidade de rolagem de dano parcial ou efeitos reduzidos. Além disso, o dano final (já com bônus e modificadores aplicados) é dobrado.", "pagina": 115},
+    {"origem": "Erro Crítico (9.4)", "texto": "O ataque falha automaticamente, mesmo que o valor final fosse suficiente para atingir o alvo.", "pagina": 115},
+    {"origem": "Condição Sangrando (9.7)", "texto": "Todo dano causado ao personagem é elevado a um estágio caso seja acertado.", "pagina": 121},
+    {"origem": "Condição Quebra de Guarda (9.7)", "texto": "O próximo ataque que atingir ignora a CA, durando até ser atingido ou até o fim do próximo turno de ação do afetado.", "pagina": 121},
+    {"origem": "Condição Desnorteado (9.7)", "texto": "Recebe -2 em todas as rolagens de Acerto e na CA.", "pagina": 120},
+    {"origem": "Choque de Poder (9.5.6)", "texto": "o personagem derrotado recebe o dano máximo da técnica do vencedor, ignorando qualquer tipo de Defesa (CA). Como se não bastasse, metade do dano máximo da técnica do perdedor é somado ao dano total causado", "pagina": 117},
+    {"origem": "Diferença de Escala de Poder (2.3.3, PDF p. 11, FORA DO RECORTE j3)", "texto": "Cada nível de EP a mais do atacante desloca os três limiares em -1 (ex.: +1 EP: mínimo 1, médio 2-4, completo 5+; +2 EP: mínimo 0, médio 1-3, completo 4+; +3 EP: mínimo -1 ...). Tabela completa até -10 na p. impressa 10.", "pagina": 10}
+  ],
+  "fontes_de_ca": "a CA pode ser aumentada de diversas formas, incluindo bônus provenientes de Destreza, talentos específicos, equipamentos criados para aumentar a CA, técnicas de proteção ou mesmo transformações que elevam os reflexos e capacidades defensivas do personagem. Da mesma forma, penalidades temporárias podem reduzir a CA, como estar surpreso, imobilizado ou exausto",
+  "formula_ca_fora_do_recorte": "3.0.5 (PDF p. 14): CA = 10 + Modificador de Destreza + Escala de Poder Base (Escala de Poder Bônus não é Somado a CA)",
+  "arredondamento": "não especificado no livro"
+}

@@ -1,0 +1,40 @@
+{
+  "fonte": "Livro do Narrador - V0.1.pdf",
+  "ameaca_por_diferenca_de_escala": {
+    "secao": "4.0.3 ETAPA 3 – ESCALA DE PODER (p. 18)",
+    "regra": "diferenca = EP do PNJ - EP dos jogadores",
+    "faixas": [
+      {"diferenca": "< 0", "texto_verbatim": "Escala abaixo → Combate fácil.", "dificuldade": "fácil"},
+      {"diferenca": "0", "texto_verbatim": "Escala igual → Combate equilibrado.", "dificuldade": "equilibrado"},
+      {"diferenca": "+1", "texto_verbatim": "Escala +1 acima dos jogadores → Desafio difícil.", "dificuldade": "difícil"},
+      {"diferenca": ">= +2", "texto_verbatim": "Escala +2 ou mais acima → Desafio mortal.", "dificuldade": "mortal"}
+    ],
+    "nota_verbatim": "Ela não precisa ser direta, pode ser alcançada com transformações também. Use isso para ajustar o nível de ameaça sem mexer só nos PVs."
+  },
+  "escala_inicial_de_campanha": {
+    "secao": "2.2.1 ESCALA DE PODER: O BÔNUS DO PROTAGONISMO (p. 7)",
+    "faixas": [
+      {"ep": "0", "uso": "história mais humilde, ao estilo Dragon Ball Clássico"},
+      {"ep": "1 ou 2", "uso": "lutadores treinados, mestres de técnicas, veteranos de guerra ou filhos de deuses (o mais indicado)"},
+      {"ep": "3 ou mais", "uso": "nível de elite; reservar para personagens já consagrados ou risco planetário/intergaláctico imediato"}
+    ]
+  },
+  "pdl_inicial": {
+    "secao": "2.2.2 DEFININDO O PDL INICIAL (p. 7-8)",
+    "primeiro_marco": 10000,
+    "regra_campanha_gradual": "manter PDL inicial abaixo de 10.000",
+    "faixa_sugerida": {"min": 100, "max": 1000},
+    "evitar": "PDL zerado",
+    "incentivo": "premiar com mais PDL inicial históricos mais elaborados"
+  },
+  "progressao_de_escala": {
+    "secao": "3.3 AVALIANDO UMA TRANSFORMAÇÃO (p. 14-15)",
+    "natural": {"a_cada_pdl": 40000, "incremento": 1},
+    "transformacao": "pode elevar a escala em vários pontos de uma só vez (ex.: Escala Natural 3 -> 6 ou 7)",
+    "nota": "Transformação é, além da evolução por PDL, a única coisa que pode evoluir a Escala de Poder."
+  },
+  "tecnicas_especiais_por_escala": {
+    "secao": "3.2.2 TÉCNICA ESPECIAL NÃO OFENSIVA (p. 13)",
+    "texto_verbatim": "Um jogador pode ter ativo apenas uma técnica especial por escala de poder que ele tiver, por motivos de balanceamento."
+  }
+}

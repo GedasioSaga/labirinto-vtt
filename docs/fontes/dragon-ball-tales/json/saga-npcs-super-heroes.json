@@ -1,0 +1,1490 @@
+{
+  "fonte": "ilide.info-saga-super-heroes-pr_844003c8b6c336126aa7a12e1c09c526.pdf",
+  "saga_chave": "super-heroes",
+  "licenca": "Dragon Ball Tales (fan-made), CC BY-NC-SA",
+  "total_npcs": 4,
+  "avisos_extracao": [],
+  "npcs": [
+    {
+      "nome": "Beast Gohan",
+      "saga": "Saga Heroes",
+      "titulo_ficha": "Beast Gohan – Saga Heroes",
+      "nd": null,
+      "categoria": "Chefão",
+      "rank": "Z",
+      "categoria_rank_verbatim": "Chefão Rank Z",
+      "atributos": {
+        "FOR": {
+          "valor": 20,
+          "mod": 5
+        },
+        "DES": {
+          "valor": 20,
+          "mod": 5
+        },
+        "CON": {
+          "valor": 16,
+          "mod": 3
+        },
+        "INT": {
+          "valor": 18,
+          "mod": 4
+        },
+        "POD": {
+          "valor": 22,
+          "mod": 6
+        },
+        "SAB": {
+          "valor": 14,
+          "mod": 2
+        },
+        "PRE": {
+          "valor": 14,
+          "mod": 2
+        }
+      },
+      "PV": "---",
+      "PK": 54,
+      "CA": 22,
+      "VEL": "9,0m",
+      "EP": 7,
+      "pericias": [],
+      "tecnicas": [
+        {
+          "nome": "Esfera de Ki",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+          "efeito": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m.\n- Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 5
+        },
+        {
+          "nome": "Golpe Marcial",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Toque, com Avanço de 6,0m em Linha",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+          "efeito": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha.\n- Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 5
+        },
+        {
+          "nome": "Rasgo do Demônio",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "04",
+          "dano": "06-13-26",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "06-13-26"
+            ],
+            [
+              "KI",
+              "04"
+            ]
+          ],
+          "alcance": "Toque",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Física, Contundente"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "Enquanto grita \"Olha só!\", o usuário avança em direção ao oponente e o joga no ar com uma cotovelada. Em seguida, ele voa e aplica um gancho no estômago do oponente.",
+          "efeito": "Enquanto grita \"Olha só!\", o usuário avança em direção ao oponente e o joga no ar com uma cotovelada. Em seguida, ele voa e aplica um gancho no estômago do oponente. [Dano: 06-13-26] [KI: 04] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Contundente\n- Rótulos Negativos (2): Somática",
+          "pagina": 6
+        },
+        {
+          "nome": "Ataque do Dragão Voador",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "04",
+          "dano": "12-25-50",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-25-50"
+            ],
+            [
+              "KI",
+              "04"
+            ]
+          ],
+          "alcance": "Toque, com Avanço em Linha de 6,0m",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica Física, Contundente, Aumento de Dano por Ki, Estocada"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Descontrole"
+          },
+          "descricao": "O usuário ataca avançando com um gancho certeiro na barriga do oponente. Em seguida, ele desfere um rápido uppercut no queixo do oponente, causando uma grande quantidade de dano.",
+          "efeito": "O usuário ataca avançando com um gancho certeiro na barriga do oponente. Em seguida, ele desfere um rápido uppercut no queixo do oponente, causando uma grande quantidade de dano. [Dano: 12-25-50] [KI: 04] - Alcance: Toque, com Avanço em Linha de 6,0m\n- Rótulos Positivos (6): Técnica Física, Contundente, Aumento de Dano por Ki, Estocada\n- Rótulos Negativos (3): Somática, Descontrole",
+          "pagina": 6
+        },
+        {
+          "nome": "Onda Super Explosiva",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "12",
+          "dano": "10-21-42",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "10-21-42"
+            ],
+            [
+              "KI",
+              "12"
+            ]
+          ],
+          "alcance": "Pessoal, Área de Raio de 6,0m",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica de Ki, Vórtice, Aumenta Dano Por Ki, Dano Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Descontrole"
+          },
+          "descricao": "O usuário carrega energia ao redor do corpo e, em seguida, explode com uma gigantesca esfera de energia ao redor.",
+          "efeito": "O usuário carrega energia ao redor do corpo e, em seguida, explode com uma gigantesca esfera de energia ao redor. [Dano: 10-21-42] [KI: 12] - Alcance: Pessoal, Área de Raio de 6,0m\n- Rótulos Positivos (6): Técnica de Ki, Vórtice, Aumenta Dano Por Ki, Dano Potente\n- Rótulos Negativos (3): Somática, Descontrole",
+          "pagina": 6
+        },
+        {
+          "nome": "Kamehameha",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "11",
+          "dano": "12-22-44",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-22-44"
+            ],
+            [
+              "KI",
+              "11"
+            ]
+          ],
+          "alcance": "6,0m em Área de Cone",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Engolfante, Técnica de Acumulação, Rajada Contínua"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário une as mãos ao lado do corpo em formato de concha, concentrando sua energia enquanto entoa \"Ka... Me... Ha... Me..Ha!\". Com um grito, projeta as mãos à frente, liberando um feixe azul devastador que avança destruindo tudo em seu caminho, em uma área de cone, atingindo a todos no local.",
+          "efeito": "O usuário une as mãos ao lado do corpo em formato de concha, concentrando sua energia enquanto entoa \"Ka... Me... Ha... Me..Ha!\". Com um grito, projeta as mãos à frente, liberando um feixe azul devastador que avança destruindo tudo em seu caminho, em uma área de cone, atingindo a todos no local. [Dano: 12-22-44] [KI: 11] - Alcance: 6,0m em Área de Cone.\n- Rótulos Positivos (8): Técnica de Ki, Engolfante, Técnica de Acumulação, Rajada Contínua.\n- Rótulos Negativos (4): Somática, Verbal.",
+          "pagina": 6
+        },
+        {
+          "nome": "Masenko",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "11",
+          "dano": "12-22-44",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-22-44"
+            ],
+            [
+              "KI",
+              "11"
+            ]
+          ],
+          "alcance": "6,0m em Área de Cone",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Engolfante, Técnica de Acumulação, Rajada Contínua"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O ataque é realizado com o usuário colocando as duas mãos acima da cabeça, com as palmas voltadas para o alvo, e uma mão na frente da outra, com os dedos em direções opostas. Ao empurrar as mãos para a frente, o usuário chama o nome e dispara um feixe de energia amarela, branca ou laranja.",
+          "efeito": "O ataque é realizado com o usuário colocando as duas mãos acima da cabeça, com as palmas voltadas para o alvo, e uma mão na frente da outra, com os dedos em direções opostas. Ao empurrar as mãos para a frente, o usuário chama o nome e dispara um feixe de energia amarela, branca ou laranja. [Dano: 12-22-44] [KI: 11] - Alcance: 6,0m em Área de Cone.\n- Rótulos Positivos (8): Técnica de Ki, Engolfante, Técnica de Acumulação, Rajada Contínua.\n- Rótulos Negativos (4): Somática, Verbal.",
+          "pagina": 6
+        },
+        {
+          "nome": "Contra-ataque de Estocada",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "08",
+          "dano": "11-22-44",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "11-22-44"
+            ],
+            [
+              "KI",
+              "08"
+            ]
+          ],
+          "alcance": "Toque",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica Física, Reativa, Contundente"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Condicionada"
+          },
+          "descricao": "O usuário após o ataque do oponente, dá um soco nele com o punho esquerdo e depois o afasta com o punho direito, causando uma grande quantidade de dano.",
+          "efeito": "O usuário após o ataque do oponente, dá um soco nele com o punho esquerdo e depois o afasta com o punho direito, causando uma grande quantidade de dano. [Dano: 11-22-44] [KI: 08] - Alcance: Toque\n- Rótulos Positivos (8): Técnica Física, Reativa, Contundente\n- Rótulos Negativos (4): Somática, Condicionada",
+          "pagina": 7
+        },
+        {
+          "nome": "Makankōsappō",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "10",
+          "dano": "12-22-44",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-22-44"
+            ],
+            [
+              "KI",
+              "10"
+            ]
+          ],
+          "alcance": "Alvo Único de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Projétil, Perfurante, Acumulação"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O movimento é realizado tocando os dedos indicador e médio de uma das mãos na testa e acumulando ki suficiente para atacar. Sua velocidade muda de acordo com o nível de potência do usuário. Quando pronto, os dedos são estendidos para a frente e dois finos feixes de energia são liberados deles. Um permanece reto enquanto o outro se enrola em torno do feixe reto. O feixe resultante é bastante poderoso, perfurando a maioria dos alvos e explodindo naqueles que não consegue.",
+          "efeito": "O movimento é realizado tocando os dedos indicador e médio de uma das mãos na testa e acumulando ki suficiente para atacar. Sua velocidade muda de acordo com o nível de potência do usuário. Quando pronto, os dedos são estendidos para a frente e dois finos feixes de energia são liberados deles. Um permanece reto enquanto o outro se enrola em torno do feixe reto. O feixe resultante é bastante poderoso, perfurando a maioria dos alvos e explodindo naqueles que não consegue. [Dano: 12-22-44] [KI: 10] - Alcance: Alvo Único de 9,0m\n- Rótulos Positivos (8): Técnica de Ki, Projétil, Perfurante, Acumulação\n- Rótulos Negativos (4): Somática, Verbal.",
+          "pagina": 7
+        },
+        {
+          "nome": "Super Kamehameha",
+          "tipo": "Ofensiva",
+          "rank": "A",
+          "custo": "26",
+          "dano": "29-58-116",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "29-58-116"
+            ],
+            [
+              "KI",
+              "26"
+            ]
+          ],
+          "alcance": "Alvo em Linha de 6,0m",
+          "rotulos_positivos": {
+            "pontos": 10,
+            "lista": "Técnica de Ki, Técnica de Acumulação, Rajada Contínua, Rastro, Aumento de Dano por Ki, Dano Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 5,
+            "lista": "Somática, Verbal, Descontrole"
+          },
+          "descricao": "Os fundamentos desta técnica não são diferentes dos de um Kamehameha comum. As únicas características que definem o Super Kamehameha são a maior geração de ki e um nível de poder mais elevado. Isso frequentemente faz com que o acúmulo de ki brilhe intensamente e afaste ligeiramente as mãos do usuário durante o carregamento. A porção bulbosa do feixe perto das mãos do usuário é muito maior quando disparada, e o feixe em si é maior do que o normal",
+          "efeito": "Os fundamentos desta técnica não são diferentes dos de um Kamehameha comum. As únicas características que definem o Super Kamehameha são a maior geração de ki e um nível de poder mais elevado. Isso frequentemente faz com que o acúmulo de ki brilhe intensamente e afaste ligeiramente as mãos do usuário durante o carregamento. A porção bulbosa do feixe perto das mãos do usuário é muito maior quando disparada, e o feixe em si é maior do que o normal [Dano: 29-58-116] [KI: 26] - Alcance: Alvo em Linha de 6,0m\n- Rótulos Positivos (10): Técnica de Ki, Técnica de Acumulação, Rajada Contínua, Rastro, Aumento de Dano por Ki, Dano Potente\n- Rótulos Negativos (5): Somática, Verbal, Descontrole",
+          "pagina": 7
+        },
+        {
+          "nome": "Ultimate Kamehameha",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "44",
+          "dano": "52-105-210",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "52-105-210"
+            ],
+            [
+              "KI",
+              "44"
+            ]
+          ],
+          "alcance": "Alvo em Linha de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica de Ki, Técnica de Acumulação, Rajada Contínua, Rastro, Aumento de Dano por Ki, Dano Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Somática, Verbal, Descontrole, Condicionada"
+          },
+          "descricao": "Os fundamentos desta técnica não são diferentes dos de um Kamehameha comum. As únicas características que definem o Super Kamehameha são a maior geração de ki e um nível de poder mais elevado. Isso frequentemente faz com que o acúmulo de ki brilhe intensamente e afaste ligeiramente as mãos do usuário durante o carregamento. A porção bulbosa do feixe perto das mãos do usuário é muito maior quando disparada, e o feixe em si é maior do que o normal",
+          "efeito": "Os fundamentos desta técnica não são diferentes dos de um Kamehameha comum. As únicas características que definem o Super Kamehameha são a maior geração de ki e um nível de poder mais elevado. Isso frequentemente faz com que o acúmulo de ki brilhe intensamente e afaste ligeiramente as mãos do usuário durante o carregamento. A porção bulbosa do feixe perto das mãos do usuário é muito maior quando disparada, e o feixe em si é maior do que o normal [Dano: 52-105-210] [KI: 44] - Alcance: Alvo em Linha de 9,0m\n- Rótulos Positivos (12): Técnica de Ki, Técnica de Acumulação, Rajada Contínua, Rastro, Aumento de Dano por Ki, Dano Potente\n- Rótulos Negativos (6): Somática, Verbal, Descontrole, Condicionada",
+          "pagina": 7
+        }
+      ],
+      "transformacoes": [
+        {
+          "nome": "Super Saiyajin",
+          "estagio": "Estágio 1",
+          "ep": "+02",
+          "custo_ki": "06",
+          "efeitos": "Ao atingir esse estado, o Saiyajin desperta um poder explosivo que o impulsiona a superar seus limites constantemente. Sempre que falhar em um teste de rolagem, pode gastar Pontos de Ki (como Ação ou Reação) equivalente à diferença entre o resultado obtido e o necessário para o sucesso, transformando a falha em êxito. Essa mecânica representa a resiliência e determinação incomparáveis da raça Saiyajin. [EP: +02] [KI: 06]",
+          "pagina": 8
+        },
+        {
+          "nome": "Super Saiyajin",
+          "estagio": "Estágio 2",
+          "ep": "+03",
+          "custo_ki": "09",
+          "efeitos": "Além dos efeitos do Estágio 1, o usuário ganha controle total sobre sua energia em combate. Agora, pode gastar Pontos de Ki para aumentar o valor de qualquer rolagem na proporção de 1:1, independentemente de já ter acertado ou não. Isso significa que pode transformar erros em acertos e até maximizar o dano de ataques bem sucedidos. [EP: +03] [KI: 09]",
+          "pagina": 8
+        },
+        {
+          "nome": "Forma Mística",
+          "estagio": "Estágio Especial",
+          "ep": "-",
+          "custo_ki": "09",
+          "efeitos": "Após ter seu potencial despertado pelo Supremo Senhor Kaioh, o usuário alcança sua Forma Mística, um estado único que representa a liberação total de suas capacidades latentes.\n• Hereditariedade de Poderes: O usuário mantém todos os efeitos passivos e ativos das transformações que possuía no momento em que adquiriu a Forma Mística.\n• Escala de Poder Base: O bônus de Escala de Poder concedido por sua transformação mais forte no momento em que se desperta essa forma, passa a ser considerado Escala de Poder Base.\n• Custo de Ativação: Para ativar a Forma Mística, o usuário deve gastar a mesma quantidade de PK’s exigida por sua transformação mais poderosa na época em que obteve esta forma. A Forma Mística só pode ser adquirida uma única vez. [EP: -] [KI: 09] \" Gohan , ouça com atenção! Você tem o potencial de se tornar o ser mais poderoso da Terra . Você precisa acreditar em si mesmo e liberar esse poder! É hora de fazer ou morrer — então, use toda a sua força para proteger o seu mundo e todos nele! \" - Piccolo",
+          "pagina": 8
+        },
+        {
+          "nome": "Beast",
+          "estagio": "Estágio Especial",
+          "ep": "+07",
+          "custo_ki": "30",
+          "efeitos": "Beast representa o ápice do poder oculto de Gohan, uma forma onde sua natureza humana e Saiyajin convergem em um estado único, incontrolável e devastador. Diferente de outras transformações, não se trata apenas de aumentar o poder, mas de liberar um instinto primal que rompe todos os limites, trazendo à tona um guerreiro que parece inatingível. Nesta forma, os olhos de Gohan brilham em vermelho intenso com pupilas negras, transmitindo pura ferocidade. Seu cabelo se torna cinza-prateado, longo e arrepiado. Sua aura explode em uma mistura de branco-azulado com tons magenta, envolta por relâmpagos carmesim, liberando um fluxo de ki tão intenso que se assemelha a um gêiser de energia. Ao atingir esse estágio, o usuário atinge um nível de poder transcendental, onde mesmo sem utilização de Ki Divino ele é capaz de rivalizar com os Deuses. Assim, enquanto neste modo, a regra de Escala de Poder tanto comum quanto divina, não se aplica a você, quando se trata de inimigos com escalas superiores. Adicionalmente, o usuário recebe “Beast Mode”. As passivas e ativas de transformação não especiais anteriores, são acumuladas nessa forma. [Beast Mode]: Uma vez por turno de ação, o usuário pode sacrificar 20% de seus PK’s totais (que só serão recuperados após um Descanso Longo) para elevar qualquer técnica ofensiva ao Rank Z.\n• O dano da técnica será definido como o máximo permitido pelo Rank Z.\n• Além disso, o usuário poderá adicionar efeitos de outros rótulos à técnica, no momento da ativação, sem custo adicional de PK’s caso o rótulo exija, respeitando apenas o limite de rótulos, sem a adição de negativos que uma Técnica Rank Z possui. Dessa forma, se for transformado uma Rank B que consumiu todos seus rótulos em uma Rank Z, significa que se terá 4 rótulos disponíveis, já que uma Rank B que consumiu todos seus rótulos tem 8 disponíveis e uma Rank Z tem 12, a diferença é de 4.\n• O único gasto necessário para essa utilização é o sacrifício fixo e permanente dos 20% de PK’s até o próximo descanso longo, então mesmo que uma Técnica Rank Z por natureza tenha custo de 18 a 44 PK’s, essa técnica transformada será utilizada apenas com o custo fixo exposto anteriormente.\n• Uma Técnica Rank Z, pode se beneficiar o Beast Mode, onde a única vantagem é o custo menor (mas permanente) de ativação em PK’s. [EP: +07] [KI: 30]",
+          "pagina": 8
+        }
+      ],
+      "talentos": [],
+      "passivas_ativas": [
+        {
+          "nome": "Super Saiyajin Poder Completo",
+          "tipo": "Ativa/Passiva",
+          "texto": "Ao dominar a transformação, o Super Saiyajin – Estágio 1 é capaz de reter a transformação quase inconscientemente, permitindo que eles se transformem aparentemente indefinidamente. Assim, ao adquirir essa passiva, o personagem não precisa mais gastar Ki para entrar no estado de Super Saiyajin.",
+          "pagina": 9
+        },
+        {
+          "nome": "Liberar Potência Máxima",
+          "tipo": "Ativa/Passiva",
+          "texto": "Uma técnica de Explosão De Ki, que permite a Gohan recuperar instantaneamente todo o seu ki, coloca-o em Poder MÁXIMO. No entanto, o seu ki não irá voltar a regenerar no início da próxima rodada.",
+          "pagina": 10
+        },
+        {
+          "nome": "É só isso que você tem? Ok, então. Acho que é a minha vez",
+          "tipo": "Passiva",
+          "texto": "Caso o usuário seja atingido por um golpe que cause dano mínimo ou simplesmente não seja atingido pela técnica ofensiva de seu inimigo, automaticamente, o usuário ganha uma ação onde pode utilizar uma técnica ofensiva de rank igual a que deixou de o atingir ou causou dano mínimo contra o inimigo, sem o custo de PK’s. Essa passiva apenas funciona uma vez por inimigo durante uma rodada, reiniciando na próxima.",
+          "pagina": 10
+        }
+      ],
+      "outros": [],
+      "pagina": 5,
+      "pagina_impressa": 4,
+      "arquivo": "ilide.info-saga-super-heroes-pr_844003c8b6c336126aa7a12e1c09c526.pdf"
+    },
+    {
+      "nome": "Piccolo",
+      "saga": "Saga Heroes",
+      "titulo_ficha": "Piccolo – Saga Heroes",
+      "nd": null,
+      "categoria": "Elite",
+      "rank": "Z",
+      "categoria_rank_verbatim": "Elite Rank Z",
+      "atributos": {
+        "FOR": {
+          "valor": 20,
+          "mod": 5
+        },
+        "DES": {
+          "valor": 16,
+          "mod": 3
+        },
+        "CON": {
+          "valor": 18,
+          "mod": 4
+        },
+        "INT": {
+          "valor": 22,
+          "mod": 6
+        },
+        "POD": {
+          "valor": 18,
+          "mod": 4
+        },
+        "SAB": {
+          "valor": 24,
+          "mod": 7
+        },
+        "PRE": {
+          "valor": 18,
+          "mod": 4
+        }
+      },
+      "PV": "---",
+      "PK": 38,
+      "CA": 19,
+      "VEL": "9,0m",
+      "EP": 6,
+      "pericias": [],
+      "tecnicas": [
+        {
+          "nome": "Esfera de Ki",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+          "efeito": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 11
+        },
+        {
+          "nome": "Golpe Marcial",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Toque, com Avanço de 6,0m em Linha",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+          "efeito": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha.\n- Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 11
+        },
+        {
+          "nome": "Masenko",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "11",
+          "dano": "12-22-44",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-22-44"
+            ],
+            [
+              "KI",
+              "11"
+            ]
+          ],
+          "alcance": "6,0m em Área de Cone",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Engolfante, Técnica de Acumulação, Rajada Contínua"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O ataque é realizado com o usuário colocando as duas mãos acima da cabeça, com as palmas voltadas para o alvo, e uma mão na frente da outra, com os dedos em direções opostas. Ao empurrar as mãos para a frente, o usuário chama o nome e dispara um feixe de energia amarela, branca ou laranja.",
+          "efeito": "O ataque é realizado com o usuário colocando as duas mãos acima da cabeça, com as palmas voltadas para o alvo, e uma mão na frente da outra, com os dedos em direções opostas. Ao empurrar as mãos para a frente, o usuário chama o nome e dispara um feixe de energia amarela, branca ou laranja. [Dano: 12-22-44] [KI: 11] - Alcance: 6,0m em Área de Cone.\n- Rótulos Positivos (8): Técnica de Ki, Engolfante, Técnica de Acumulação, Rajada Contínua.\n- Rótulos Negativos (4): Somática, Verbal.",
+          "pagina": 12
+        },
+        {
+          "nome": "Onda Demoníaca",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "12",
+          "dano": "12-25-50",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-25-50"
+            ],
+            [
+              "KI",
+              "12"
+            ]
+          ],
+          "alcance": "Alvo Único de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica de Ki, Projétil, Contudente, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Condicional"
+          },
+          "descricao": "O usuário dispara uma onda de energia muito poderosa com uma única mão, com o outro braço apoiando aquele que está disparando o ataque.",
+          "efeito": "O usuário dispara uma onda de energia muito poderosa com uma única mão, com o outro braço apoiando aquele que está disparando o ataque. [Dano: 12-25-50] [KI: 12] - Alcance: Alvo Único de 9,0m\n- Rótulos Positivos (6): Técnica de Ki, Projétil, Contudente, Aumentar Dano por Ki\n- Rótulos Negativos (3): Somática, Condicional",
+          "pagina": 12
+        },
+        {
+          "nome": "Onda Super Explosiva",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "12",
+          "dano": "10-21-42",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "10-21-42"
+            ],
+            [
+              "KI",
+              "12"
+            ]
+          ],
+          "alcance": "Pessoal, Área de Raio de 6,0m",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica de Ki, Vórtice, Aumenta Dano Por Ki, Dano Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Descontrole"
+          },
+          "descricao": "O usuário carrega energia ao redor do corpo e, em seguida, explode com uma gigantesca esfera de energia ao redor.",
+          "efeito": "O usuário carrega energia ao redor do corpo e, em seguida, explode com uma gigantesca esfera de energia ao redor. [Dano: 10-21-42] [KI: 12] - Alcance: Pessoal, Área de Raio de 6,0m\n- Rótulos Positivos (6): Técnica de Ki, Vórtice, Aumenta Dano Por Ki, Dano Potente\n- Rótulos Negativos (3): Somática, Descontrole",
+          "pagina": 12
+        },
+        {
+          "nome": "Hellzone Granade",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "08",
+          "dano": "8-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "8-17-34"
+            ],
+            [
+              "KI",
+              "08"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica de Ki, Implosão, Projétil, Potente Consumidor"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Condicionada"
+          },
+          "descricao": "Primeiro, o usuário joga seu oponente para o alto e aponta ambas as mãos para o alto. Em seguida, ele carrega uma grande cúpula de energia amarela ao seu redor. Dessa cúpula, ele expele uma onda gigantesca de energia em direção ao oponente, causando uma quantidade enorme de dano.",
+          "efeito": "Primeiro, o usuário joga seu oponente para o alto e aponta ambas as mãos para o alto. Em seguida, ele carrega uma grande cúpula de energia amarela ao seu redor. Dessa cúpula, ele expele uma onda gigantesca de energia em direção ao oponente, causando uma quantidade enorme de dano. [Dano: 8-17-34] [KI: 08] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (6): Técnica de Ki, Implosão, Projétil, Potente Consumidor\n- Rótulos Negativos (3): Somática, Condicionada",
+          "pagina": 12
+        },
+        {
+          "nome": "Granada de Luz",
+          "tipo": "Ofensiva",
+          "rank": "B ",
+          "custo": "18",
+          "dano": "19-38-76",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "19-38-76"
+            ],
+            [
+              "KI",
+              "18"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m, com Explosão em Raio de 6,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Projétil, Expansiva, Potente, Aumentar Dano por Ki Estocada"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário junta as mãos à frente enquanto carrega uma esfera de energia amarela. Em seguida, ele as aproxima e dispara a esfera de energia, causando uma quantidade enorme de dano.",
+          "efeito": "O usuário junta as mãos à frente enquanto carrega uma esfera de energia amarela. Em seguida, ele as aproxima e dispara a esfera de energia, causando uma quantidade enorme de dano. [Dano: 19-38-76] [KI: 18] - Alcance: Alvo Único em 9,0m, com Explosão em Raio de 6,0m.\n- Rótulos Positivos (8): Técnica de Ki, Projétil, Expansiva, Potente, Aumentar Dano por Ki Estocada\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 12
+        },
+        {
+          "nome": "Makankōsappō",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "10",
+          "dano": "12-22-44",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-22-44"
+            ],
+            [
+              "KI",
+              "10"
+            ]
+          ],
+          "alcance": "Alvo Único de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Projétil, Perfurante, Acumulação"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O movimento é realizado tocando os dedos indicador e médio de uma das mãos na testa e acumulando ki suficiente para atacar. Sua velocidade muda de acordo com o nível de potência do usuário. Quando pronto, os dedos são estendidos para a frente e dois finos feixes de energia são liberados deles. Um permanece reto enquanto o outro se enrola em torno do feixe reto. O feixe resultante é bastante poderoso, perfurando a maioria dos alvos e explodindo naqueles que não consegue.",
+          "efeito": "O movimento é realizado tocando os dedos indicador e médio de uma das mãos na testa e acumulando ki suficiente para atacar. Sua velocidade muda de acordo com o nível de potência do usuário. Quando pronto, os dedos são estendidos para a frente e dois finos feixes de energia são liberados deles. Um permanece reto enquanto o outro se enrola em torno do feixe reto. O feixe resultante é bastante poderoso, perfurando a maioria dos alvos e explodindo naqueles que não consegue. [Dano: 12-22-44] [KI: 10] - Alcance: Alvo Único de 9,0m\n- Rótulos Positivos (8): Técnica de Ki, Projétil, Perfurante, Acumulação\n- Rótulos Negativos (4): Somática, Verbal.",
+          "pagina": 13
+        },
+        {
+          "nome": "Multiple Makankosappo",
+          "tipo": "Ofensiva",
+          "rank": "A",
+          "custo": "16",
+          "dano": "17-34-68",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "17-34-68"
+            ],
+            [
+              "KI",
+              "16"
+            ]
+          ],
+          "alcance": "Alvo Único de em Linha de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 10,
+            "lista": "Técnica de Ki, Técnica Básica, Perfurante, Rastro"
+          },
+          "rotulos_negativos": {
+            "pontos": 5,
+            "lista": "Verbal, Somática, Posicionamento Preciso"
+          },
+          "descricao": "O usuário posiciona o dedo indicador e do meio ereto e concentra Ki na ponta de cada um, logo em seguida desfere uma rajada de Ki agora aprimorada e em espiral, que transpassa e atinge tudo que estiver em seu alcance, causando também dano perfurante. Diferente das outras versões, essa pode ser usada repetidamente",
+          "efeito": "O usuário posiciona o dedo indicador e do meio ereto e concentra Ki na ponta de cada um, logo em seguida desfere uma rajada de Ki agora aprimorada e em espiral, que transpassa e atinge tudo que estiver em seu alcance, causando também dano perfurante. Diferente das outras versões, essa pode ser usada repetidamente [Dano: 17-34-68] [KI: 16] - Alcance: Alvo Único de em Linha de 9,0m\n- Rótulos Positivos (10): Técnica de Ki, Técnica Básica, Perfurante, Rastro\n- Rótulos Negativos (5): Verbal, Somática, Posicionamento Preciso",
+          "pagina": 13
+        },
+        {
+          "nome": "True Makankosappo",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "44",
+          "dano": "54-109-218",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "54-109-218"
+            ],
+            [
+              "KI",
+              "44"
+            ]
+          ],
+          "alcance": "Alvo Único de em Linha de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica de Ki, Rastro, Perfurante, Aumentar Dano por Ki, Dilacerante, Queima-Roupa, Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Verbal, Somática, Posicionamento Crítico"
+          },
+          "descricao": "O usuário posiciona o dedo indicador e do meio ereto e concentra Ki na ponta de cada um, logo em seguida desfere uma rajada de Ki agora aprimorada e em espiral, que transpassa e atinge tudo que estiver em seu alcance, causando também dano perfurante. Sendo a versão potencializada, com poder destrutivo total.",
+          "efeito": "O usuário posiciona o dedo indicador e do meio ereto e concentra Ki na ponta de cada um, logo em seguida desfere uma rajada de Ki agora aprimorada e em espiral, que transpassa e atinge tudo que estiver em seu alcance, causando também dano perfurante. Sendo a versão potencializada, com poder destrutivo total. [Dano: 54-109-218] [KI: 44] - Alcance: Alvo Único de em Linha de 9,0m\n- Rótulos Positivos (12): Técnica de Ki, Rastro, Perfurante, Aumentar Dano por Ki, Dilacerante, Queima-Roupa, Potente\n- Rótulos Negativos (6): Verbal, Somática, Posicionamento Crítico",
+          "pagina": 13
+        }
+      ],
+      "transformacoes": [
+        {
+          "nome": "Orange",
+          "estagio": "Estágio Especial",
+          "ep": "+05",
+          "custo_ki": "16",
+          "efeitos": "Esta é a primeira transformação genuína de um Namek, alcançada após despertar seu verdadeiro potencial Namekuseijin através de um desejo a Shenlong. Essa forma se manifesta através de uma mudança drástica em seu corpo e ki, tornando-o mais imponente e poderoso. Quando ativa a transformação, o Namek cresce em altura e massa muscular, adquirindo uma presença colossal. Sua pele assume um tom alaranjado intenso, suas pupilas ficam vermelhas e marcas negras surgem ao redor de seus olhos. As antenas se erguem para cima, as unhas se encurtam e suas feições tornam-se mais severas: maçãs do rosto saltadas, maxilar definido e queixo largo. A aura que o envolve é pesada e vibrante, reforçando sua imponência. O Ki do usuário é convertido para “Divino” nesse estágio, e adicionalmente recebe “Resistência de Asija”. [Resistência de Asija]: Neste estágio, a resistência do Namek é quase absoluta. Enquanto transformado, desde que como reação ou no início de seu turno de ação, o usuário pague a mesma quantidade de PK’s que é necessária para atingir essa forma, todos os danos causados a ele até o início de seu próximo turno de ação, serão diminuídos em um estágio (acumulando com outros efeitos do tipo), e adicionalmente efeitos oriundos de rótulos não são aplicados no alvo, sendo eles passivos, ativos ou condições negativas. Caso o dano do alvo já seja considerado um dano de estágio mínimo e este seja diminuído em um estágio, o usuário simplesmente não recebe o dano. [EP: +05] [KI: 16]",
+          "pagina": 13
+        }
+      ],
+      "talentos": [],
+      "passivas_ativas": [],
+      "outros": [],
+      "pagina": 11,
+      "pagina_impressa": 10,
+      "arquivo": "ilide.info-saga-super-heroes-pr_844003c8b6c336126aa7a12e1c09c526.pdf"
+    },
+    {
+      "nome": "Gammas",
+      "saga": "Saga Heroes",
+      "titulo_ficha": "Gammas – Saga Heroes",
+      "nd": null,
+      "categoria": "Elite",
+      "rank": "Z",
+      "categoria_rank_verbatim": "Elite Rank Z",
+      "atributos": {
+        "FOR": {
+          "valor": 20,
+          "mod": 5
+        },
+        "DES": {
+          "valor": 16,
+          "mod": 3
+        },
+        "CON": {
+          "valor": 18,
+          "mod": 4
+        },
+        "INT": {
+          "valor": 20,
+          "mod": 5
+        },
+        "POD": {
+          "valor": 20,
+          "mod": 5
+        },
+        "SAB": {
+          "valor": 14,
+          "mod": 2
+        },
+        "PRE": {
+          "valor": 16,
+          "mod": 3
+        }
+      },
+      "PV": "---",
+      "PK": 40,
+      "CA": 25,
+      "VEL": "9,0m",
+      "EP": 12,
+      "pericias": [],
+      "tecnicas": [
+        {
+          "nome": "Esfera de Ki",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+          "efeito": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 15
+        },
+        {
+          "nome": "Golpe Marcial",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Toque, com Avanço de 6,0m em Linha",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+          "efeito": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha.\n- Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 15
+        },
+        {
+          "nome": "Barrage Shots",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "12",
+          "dano": "12-25-50",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-25-50"
+            ],
+            [
+              "Ki",
+              "12"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica de Ki, Projétil, Rajada Contínua, Carga Crescente, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Verbal, Descontrole"
+          },
+          "descricao": "O usuário concentra sua energia no blaster que está segurando, e logo em seguida desfere vários pequenos disparos contra o inimigo.",
+          "efeito": "O usuário concentra sua energia no blaster que está segurando, e logo em seguida desfere vários pequenos disparos contra o inimigo. [Dano: 12-25-50] [Ki: 12] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (6): Técnica de Ki, Projétil, Rajada Contínua, Carga Crescente, Aumentar Dano por Ki\n- Rótulos Negativos (3): Verbal, Descontrole",
+          "pagina": 16
+        },
+        {
+          "nome": "Shooting Strike",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "18",
+          "dano": "12-25-50",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "12-25-50"
+            ],
+            [
+              "KI",
+              "18"
+            ]
+          ],
+          "alcance": "Toque, com Avanço em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica Física, Estocada, Contundente, Aumento de Dano Por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário carrega o seu Ki e com um impulse vindo de cima a baixo, ergue uma de suas pernas e concentra Ki em sua ponta a fazendo brilhar, logo em seguida, avança contra o alvo e desfere um golpe devastador com seu chute.",
+          "efeito": "O usuário carrega o seu Ki e com um impulse vindo de cima a baixo, ergue uma de suas pernas e concentra Ki em sua ponta a fazendo brilhar, logo em seguida, avança contra o alvo e desfere um golpe devastador com seu chute. [Dano: 12-25-50] [KI: 18] - Alcance: Toque, com Avanço em 9,0m.\n- Rótulos Positivos (8): Técnica Física, Estocada, Contundente, Aumento de Dano Por Ki\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 16
+        },
+        {
+          "nome": "Simple Laser",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "18",
+          "dano": "19-38-76",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "19-38-76"
+            ],
+            [
+              "Ki",
+              "18"
+            ]
+          ],
+          "alcance": "Alvo Único em Linha em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Técnica de Acumulação, Projétil, Aumentar Dano por Ki, Dano Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "Dispara uma onda de energia em linha a frente em direção ao alvo, devastando tudo a frente até o seu encontro.",
+          "efeito": "Dispara uma onda de energia em linha a frente em direção ao alvo, devastando tudo a frente até o seu encontro. [Dano: 19-38-76] [Ki: 18] - Alcance: Alvo Único em Linha em 9,0m.\n- Rótulos Positivos (8): Técnica de Ki, Técnica de Acumulação, Projétil, Aumentar Dano por Ki, Dano Potente.\n- Rótulos Negativos (4): Somática, Verbal.",
+          "pagina": 16
+        },
+        {
+          "nome": "Super Gamma Blast",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "18",
+          "dano": "19-38-76",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "19-38-76"
+            ],
+            [
+              "KI",
+              "18"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m, com Explosão em Raio de 6,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Projétil, Expansiva, Potente, Aumentar Dano por Ki Estocada"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário concentra energia na ponta de seu blaster criando uma grande esfera de Ki, e logo em seguida, dispara ela contra seu alvo.",
+          "efeito": "O usuário concentra energia na ponta de seu blaster criando uma grande esfera de Ki, e logo em seguida, dispara ela contra seu alvo. [Dano: 19-38-76] [KI: 18] - Alcance: Alvo Único em 9,0m, com Explosão em Raio de 6,0m.\n- Rótulos Positivos (8): Técnica de Ki, Projétil, Expansiva, Potente, Aumentar Dano por Ki Estocada\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 16
+        },
+        {
+          "nome": "Barreira Perfeita",
+          "tipo": "Ofensiva (reacao defensiva)",
+          "rank": "B",
+          "custo": "18",
+          "dano": null,
+          "mitigacao": "21-42-84",
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Mitigação",
+              "21-42-84"
+            ],
+            [
+              "KI",
+              "18"
+            ]
+          ],
+          "alcance": "Pessoal",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Reativa, Defensiva, Aumentar Dano por Ki, Barreira"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário junta os braços e as pernas enquanto carrega uma aura roxa ao redor do corpo. Ele então os separa e expele uma barreira gigante ao redor do corpo, capaz de bloquear certos ataques. Primeiramente eleva a CA do usuário em +2, caso ainda sim seja atingido mitiga o dano conforme a mitigação da técnica.",
+          "efeito": "O usuário junta os braços e as pernas enquanto carrega uma aura roxa ao redor do corpo. Ele então os separa e expele uma barreira gigante ao redor do corpo, capaz de bloquear certos ataques. Primeiramente eleva a CA do usuário em +2, caso ainda sim seja atingido mitiga o dano conforme a mitigação da técnica. [Mitigação: 21-42-84] [KI: 18] - Alcance: Pessoal\n- Rótulos Positivos (8): Reativa, Defensiva, Aumentar Dano por Ki, Barreira\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 16
+        },
+        {
+          "nome": "Estilo Ciclone! Tornado Super Furacão",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "40",
+          "dano": "29-59-118",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "29-59-118"
+            ],
+            [
+              "Ki",
+              "40"
+            ]
+          ],
+          "alcance": "Pessoal, com Cone de 18,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica Física, Engolfante, Contundente"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Somático, Verbal, Posicionamento Crítico"
+          },
+          "descricao": "O usuário estando posicionado a frente do oponente, o soca enquanto repetidamente criando um enorme tornado com a força e a repetição de seus golpes que causa uma quantidade enorme de dano ao alvo e a tudo atrás do mesmo.",
+          "efeito": "O usuário estando posicionado a frente do oponente, o soca enquanto repetidamente criando um enorme tornado com a força e a repetição de seus golpes que causa uma quantidade enorme de dano ao alvo e a tudo atrás do mesmo. [Dano: 29-59-118] [Ki: 40] - Alcance: Pessoal, com Cone de 18,0m\n- Rótulos Positivos (12): Técnica Física, Engolfante, Contundente\n- Rótulos Negativos (6): Somático, Verbal, Posicionamento Crítico",
+          "pagina": 17
+        },
+        {
+          "nome": "Core Breaker",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "44",
+          "dano": "52-105-210",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "52-105-210"
+            ],
+            [
+              "KI",
+              "44"
+            ]
+          ],
+          "alcance": "Toque, com Alvo em Linha de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica de Ki, Técnica de Acumulação, Rajada Contínua, Rastro, Aumento de Dano por Ki, Dano Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Somática, Verbal, Descontrole, Condicionada"
+          },
+          "descricao": "Ao ascender aos céus e liberar toda a sua energia em uma aura gigantesca e esférica, o usuário desaba sobre o alvo em uma explosão gigantesca, porém, controlada e precisa em um único ponto a sua escolha.",
+          "efeito": "Ao ascender aos céus e liberar toda a sua energia em uma aura gigantesca e esférica, o usuário desaba sobre o alvo em uma explosão gigantesca, porém, controlada e precisa em um único ponto a sua escolha. [Dano: 52-105-210] [KI: 44] - Alcance: Toque, com Alvo em Linha de 9,0m\n- Rótulos Positivos (12): Técnica de Ki, Técnica de Acumulação, Rajada Contínua, Rastro, Aumento de Dano por Ki, Dano Potente\n- Rótulos Negativos (6): Somática, Verbal, Descontrole, Condicionada",
+          "pagina": 17
+        }
+      ],
+      "transformacoes": [],
+      "talentos": [],
+      "passivas_ativas": [
+        {
+          "nome": "Poses Heroicas",
+          "tipo": "Ativa",
+          "texto": "Sempre que realizar uma Técnica Ofensiva ou uma Reação, caso o usuário realize uma pose heroica a qual faça ele se orgulhar (Teste de Presença CD 15), a técnica utilizada terá sua rolagem feita com vantagem. O usuário pode usar essa passiva uma vez por alvo, reiniciando os usos no início de seu próximo turno.",
+          "pagina": 17
+        }
+      ],
+      "outros": [],
+      "pagina": 15,
+      "pagina_impressa": 14,
+      "arquivo": "ilide.info-saga-super-heroes-pr_844003c8b6c336126aa7a12e1c09c526.pdf"
+    },
+    {
+      "nome": "Cell Max",
+      "saga": "Saga Heroes",
+      "titulo_ficha": "Cell Max – Saga Heroes",
+      "nd": null,
+      "categoria": "Chefão",
+      "rank": "Z",
+      "categoria_rank_verbatim": "Chefão Rank Z",
+      "atributos": {
+        "FOR": {
+          "valor": 22,
+          "mod": 6
+        },
+        "DES": {
+          "valor": 20,
+          "mod": 5
+        },
+        "CON": {
+          "valor": 24,
+          "mod": 7
+        },
+        "INT": {
+          "valor": 18,
+          "mod": 5
+        },
+        "POD": {
+          "valor": 24,
+          "mod": 7
+        },
+        "SAB": {
+          "valor": 8,
+          "mod": -1
+        },
+        "PRE": {
+          "valor": 8,
+          "mod": -1
+        }
+      },
+      "PV": "---",
+      "PK": 50,
+      "CA": 29,
+      "VEL": "9,0m",
+      "EP": 14,
+      "pericias": [],
+      "tecnicas": [
+        {
+          "nome": "Esfera de Ki",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+          "efeito": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 18
+        },
+        {
+          "nome": "Golpe Marcial",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Toque, com Avanço de 6,0m em Linha",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+          "efeito": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha.\n- Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 18
+        },
+        {
+          "nome": "Mouth Energy Wave",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "18",
+          "dano": "15-30-60",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "15-30-60"
+            ],
+            [
+              "Ki",
+              "18"
+            ]
+          ],
+          "alcance": "Pessoal, com Área em Cone de 7,5m,",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Engolfante, Desintegrante, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somático, Verbal"
+          },
+          "descricao": "O usuário estende carrega energia através de sua boca e logo em seguida a expele completamente em uma rajada de energia roxa intense a sua frente.",
+          "efeito": "O usuário estende carrega energia através de sua boca e logo em seguida a expele completamente em uma rajada de energia roxa intense a sua frente.[Dano: 15-30-60] [Ki: 18] - Alcance: Pessoal, com Área em Cone de 7,5m,\n- Rótulos Positivos (8): Técnica de Ki, Engolfante, Desintegrante, Aumentar Dano por Ki\n- Rótulos Negativos (4): Somático, Verbal",
+          "pagina": 19
+        },
+        {
+          "nome": "Eye Beam",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "18",
+          "dano": "19-38-76",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "19-38-76"
+            ],
+            [
+              "Ki",
+              "18"
+            ]
+          ],
+          "alcance": "Alvo Único em Linha em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Técnica de Acumulação, Projétil, Aumentar Dano por Ki, Dano Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "Dispara uma onda de energia em linha através dos olhos no alvo desejado.",
+          "efeito": "Dispara uma onda de energia em linha através dos olhos no alvo desejado. [Dano: 19-38-76] [Ki: 18] - Alcance: Alvo Único em Linha em 9,0m.\n- Rótulos Positivos (8): Técnica de Ki, Técnica de Acumulação, Projétil, Aumentar Dano por Ki, Dano Potente.\n- Rótulos Negativos (4): Somática, Verbal.",
+          "pagina": 19
+        },
+        {
+          "nome": "Barreira Perfeita",
+          "tipo": "Ofensiva (reacao defensiva)",
+          "rank": "B",
+          "custo": "18",
+          "dano": null,
+          "mitigacao": "21-42-84",
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Mitigação",
+              "21-42-84"
+            ],
+            [
+              "KI",
+              "18"
+            ]
+          ],
+          "alcance": "Pessoal",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Reativa, Defensiva, Aumentar Dano por Ki, Barreira"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário junta os braços e as pernas enquanto carrega uma aura roxa ao redor do corpo. Ele então os separa e expele uma barreira gigante ao redor do corpo, capaz de bloquear certos ataques. Primeiramente eleva a CA do usuário em +2, caso ainda sim seja atingido mitiga o dano conforme a mitigação da técnica.",
+          "efeito": "O usuário junta os braços e as pernas enquanto carrega uma aura roxa ao redor do corpo. Ele então os separa e expele uma barreira gigante ao redor do corpo, capaz de bloquear certos ataques. Primeiramente eleva a CA do usuário em +2, caso ainda sim seja atingido mitiga o dano conforme a mitigação da técnica. [Mitigação: 21-42-84] [KI: 18] - Alcance: Pessoal\n- Rótulos Positivos (8): Reativa, Defensiva, Aumentar Dano por Ki, Barreira\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 19
+        },
+        {
+          "nome": "Disaster Ray",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "18",
+          "dano": "32-65-130",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "32-65-130"
+            ],
+            [
+              "Ki",
+              "18"
+            ]
+          ],
+          "alcance": "Pessoal, com Área de Raio de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica Física, Desintegrante, Expansiva, Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Somático, Verbal, Posicionamento Crítico"
+          },
+          "descricao": "O usuário se contorce de raiva enquanto as manchas pretas em sua armadura brilham em roxo antes de emitir lasers enormes de suas manchas, cauda e pontas dos dedos em todas as direções.",
+          "efeito": "O usuário se contorce de raiva enquanto as manchas pretas em sua armadura brilham em roxo antes de emitir lasers enormes de suas manchas, cauda e pontas dos dedos em todas as direções. [Dano: 32-65-130] [Ki: 18] - Alcance: Pessoal, com Área de Raio de 9,0m\n- Rótulos Positivos (12): Técnica Física, Desintegrante, Expansiva, Potente\n- Rótulos Negativos (6): Somático, Verbal, Posicionamento Crítico",
+          "pagina": 19
+        },
+        {
+          "nome": "Max Mouth Energy Wave",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "40",
+          "dano": "32-65-130",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "32-65-130"
+            ],
+            [
+              "Ki",
+              "40"
+            ]
+          ],
+          "alcance": "Pessoal, com Cone de 18,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica de Ki, Engolfante, Desintegrante"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Somático, Verbal, Posicionamento Crítico"
+          },
+          "descricao": "O usuário concentra o Ki desintegrante em sua boca, o expele desintegrando em uma grande rajada de cone absoluta reduzindo tudo a sua frente ao nada.",
+          "efeito": "O usuário concentra o Ki desintegrante em sua boca, o expele desintegrando em uma grande rajada de cone absoluta reduzindo tudo a sua frente ao nada. [Dano: 32-65-130] [Ki: 40] - Alcance: Pessoal, com Cone de 18,0m\n- Rótulos Positivos (12): Técnica de Ki, Engolfante, Desintegrante\n- Rótulos Negativos (6): Somático, Verbal, Posicionamento Crítico",
+          "pagina": 19
+        },
+        {
+          "nome": "Max Bomb",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "44",
+          "dano": "56-113-226",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "56-113-226"
+            ],
+            [
+              "Ki",
+              "44"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m, com Área de Raio de 9,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica de Ki, Projétil, Desintegrante, Expansiva, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Somático, Verbal, Posicionamento Crítico"
+          },
+          "descricao": "O usuário concentra o Ki gritando e uma esfera verde com uma aparência de um buraco negro do tamanho de uma lua começa a carregar sob sua cabeça, logo em seguida ela começa a se condensar e é lançada contra o alvo, com um pode de destruição mais do que planetária.",
+          "efeito": "O usuário concentra o Ki gritando e uma esfera verde com uma aparência de um buraco negro do tamanho de uma lua começa a carregar sob sua cabeça, logo em seguida ela começa a se condensar e é lançada contra o alvo, com um pode de destruição mais do que planetária. [Dano: 56-113-226] [Ki: 44] - Alcance: Alvo Único em 9,0m, com Área de Raio de 9,0m\n- Rótulos Positivos (12): Técnica de Ki, Projétil, Desintegrante, Expansiva, Aumentar Dano por Ki\n- Rótulos Negativos (6): Somático, Verbal, Posicionamento Crítico",
+          "pagina": 20
+        }
+      ],
+      "transformacoes": [],
+      "talentos": [],
+      "passivas_ativas": [
+        {
+          "nome": "Bio-Androide Max",
+          "tipo": "Passiva",
+          "texto": "Cell tem acesso as características das raças: Saiyajin, Namekuseijin, Freeza Clan e Humano. Podendo as usar livremente, menos as variações de Humano Cientista. Além disso, Cell tem acesso a passiva do Super Saiyajin – Estágio 1,2 e 3, de forma natural sem a necessidade de transformação.",
+          "pagina": 20
+        },
+        {
+          "nome": "Graças aos Avanços Tecnológicos!",
+          "tipo": "Passiva",
+          "texto": "Cell Max graças a grande avanço tecnológico, tem o corpo tão resistente e poderoso que apenas técnicas que atinjam o núcleo em sua cabeça, são capazes de realmente causar algum dano ao mesmo. Assim, o usuário apenas pode receber dano caso, antes de rolagem do seu inimigo este faça um Teste de Destreza CD 20, onde caso falhe o golpe ainda vai acontecer e vai pegar em qualquer lugar do corpo do usuário, e não vai causar dano algum a ele. Sempre que o inimigo errar, a CD diminui em -1 até o máximo de 14.",
+          "pagina": 20
+        },
+        {
+          "nome": "Autodestruição",
+          "tipo": "Ativa/Passiva",
+          "texto": "Cell é capaz de se autodestruir, sua destruição é capaz de destruir um planeta com facilidade e todos os habitantes dentro dele, sabendo que no fim, ele vai voltar a se regenerar. A destruição acontece em 5 rodadas, e caso ele recebe dano, é instantânea.",
+          "pagina": 20
+        }
+      ],
+      "outros": [],
+      "pagina": 18,
+      "pagina_impressa": 17,
+      "arquivo": "ilide.info-saga-super-heroes-pr_844003c8b6c336126aa7a12e1c09c526.pdf"
+    }
+  ]
+}

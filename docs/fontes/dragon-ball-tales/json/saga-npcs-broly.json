@@ -1,0 +1,639 @@
+{
+  "fonte": "ilide.info-broly-pr_fdfb1a08fe616b60bb77834f0e834fdf.pdf",
+  "saga_chave": "broly",
+  "licenca": "Dragon Ball Tales (fan-made), CC BY-NC-SA",
+  "total_npcs": 1,
+  "avisos_extracao": [],
+  "npcs": [
+    {
+      "nome": "Broly, o Lendário Super Saiyajin",
+      "saga": "Broly (filme Dragon Ball Super: Broly)",
+      "titulo_ficha": "Broly, o Lendário Super Saiyajin",
+      "nd": null,
+      "categoria": "Chefão",
+      "rank": "Z",
+      "categoria_rank_verbatim": "Chefão Rank Z",
+      "atributos": {
+        "FOR": {
+          "valor": 24,
+          "mod": 7
+        },
+        "DES": {
+          "valor": 20,
+          "mod": 5
+        },
+        "CON": {
+          "valor": 22,
+          "mod": 6
+        },
+        "INT": {
+          "valor": 18,
+          "mod": 4
+        },
+        "POD": {
+          "valor": 22,
+          "mod": 6
+        },
+        "SAB": {
+          "valor": 16,
+          "mod": 3
+        },
+        "PRE": {
+          "valor": 14,
+          "mod": 2
+        }
+      },
+      "PV": "---",
+      "PK": 54,
+      "CA": 20,
+      "VEL": "9,0m",
+      "EP": 5,
+      "pericias": [],
+      "tecnicas": [
+        {
+          "nome": "Esfera de Ki",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos.",
+          "efeito": "O usuário ergue o palmar estendido e lança uma esfera de ki no inimigo, causando danos. [Dano: 08-17-34] [Ki: 08] - Alcance: Alvo Único em 9,0m.\n- Rótulos Positivos (4): Técnica Básica, Técnica de Ki, Projétil, Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 9
+        },
+        {
+          "nome": "Golpe Marcial",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Toque, com Avanço de 6,0m em Linha",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance.",
+          "efeito": "O usuário desaparece e avança em velocidade por 6,0m em linha, reaparecendo no fim do alcance e desferindo golpes marciais em quem estiver no alcance. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque, com Avanço de 6,0m em Linha.\n- Rótulos Positivos (4): Técnica Básica, Técnica Física, Estocada e Aumentar Dano por Ki.\n- Rótulos Negativos (2): Somática",
+          "pagina": 9
+        },
+        {
+          "nome": "Bloody Smash",
+          "tipo": "Ofensiva",
+          "rank": "D",
+          "custo": "08",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Toque",
+          "rotulos_positivos": {
+            "pontos": 4,
+            "lista": "Técnica Física, Dano Absoluto, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 2,
+            "lista": "Somática"
+          },
+          "descricao": "Primeiro, o usuário chuta o oponente para o alto, agarra sua cabeça e o joga no chão. Em seguida, ele esmaga a cabeça do oponente contra o chão e pisa em suas costas, causando uma grande quantidade de dano.",
+          "efeito": "Primeiro, o usuário chuta o oponente para o alto, agarra sua cabeça e o joga no chão. Em seguida, ele esmaga a cabeça do oponente contra o chão e pisa em suas costas, causando uma grande quantidade de dano. [Dano: 08-17-34] [Ki: 08] - Alcance: Toque\n- Rótulos Positivos (4): Técnica Física, Dano Absoluto, Aumentar Dano por Ki\n- Rótulos Negativos (2): Somática",
+          "pagina": 10
+        },
+        {
+          "nome": "Onda Super Explosiva",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "12",
+          "dano": "10-21-42",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "10-21-42"
+            ],
+            [
+              "KI",
+              "12"
+            ]
+          ],
+          "alcance": "Pessoal, Área de Raio de 6,0m",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica de Ki, Vórtice, Aumenta Dano Por Ki, Dano Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Descontrole"
+          },
+          "descricao": "O usuário carrega energia ao redor do corpo e, em seguida, explode com uma gigantesca esfera de energia ao redor.",
+          "efeito": "O usuário carrega energia ao redor do corpo e, em seguida, explode com uma gigantesca esfera de energia ao redor. [Dano: 10-21-42] [KI: 12] - Alcance: Pessoal, Área de Raio de 6,0m\n- Rótulos Positivos (6): Técnica de Ki, Vórtice, Aumenta Dano Por Ki, Dano Potente\n- Rótulos Negativos (3): Somática, Descontrole",
+          "pagina": 10
+        },
+        {
+          "nome": "Machine Gun Shot",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "06",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "06"
+            ]
+          ],
+          "alcance": "Toque",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica Básica, Dano Absoluto"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Descontrole"
+          },
+          "descricao": "Primeiro, o usuário chuta o oponente para o alto, agarra sua cabeça e o joga no chão. Em seguida, ele esmaga a cabeça do oponente contra o chão e pisa em suas costas, causando uma grande quantidade de dano.",
+          "efeito": "Primeiro, o usuário chuta o oponente para o alto, agarra sua cabeça e o joga no chão. Em seguida, ele esmaga a cabeça do oponente contra o chão e pisa em suas costas, causando uma grande quantidade de dano. [Dano: 08-17-34] [Ki: 06] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Básica, Dano Absoluto\n- Rótulos Negativos (3): Somática, Descontrole",
+          "pagina": 10
+        },
+        {
+          "nome": "Crushing in Hands",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "06",
+          "dano": "08-17-34",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "08-17-34"
+            ],
+            [
+              "Ki",
+              "06"
+            ]
+          ],
+          "alcance": "Toque",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica Física, Dano Absoluto, Finalizadora"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Descontrole"
+          },
+          "descricao": "O usuário agarra o oponente com força e esmaga seus ossos.",
+          "efeito": "O usuário agarra o oponente com força e esmaga seus ossos. [Dano: 08-17-34] [Ki: 06] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Dano Absoluto, Finalizadora\n- Rótulos Negativos (3): Somática, Descontrole",
+          "pagina": 10
+        },
+        {
+          "nome": "Bone Crusher",
+          "tipo": "Ofensiva",
+          "rank": "C",
+          "custo": "06",
+          "dano": "14-29-58",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "14-29-58"
+            ],
+            [
+              "Ki",
+              "06"
+            ]
+          ],
+          "alcance": "Toque",
+          "rotulos_positivos": {
+            "pontos": 6,
+            "lista": "Técnica Física, Dano Absoluto, Aumentar Dano por Ki, Potente"
+          },
+          "rotulos_negativos": {
+            "pontos": 3,
+            "lista": "Somática, Descontrole"
+          },
+          "descricao": "O usuário envolve o oponente em um abraço de urso extremamente brutal, levantando-o do chão no processo.",
+          "efeito": "O usuário envolve o oponente em um abraço de urso extremamente brutal, levantando-o do chão no processo. [Dano: 14-29-58] [Ki: 06] - Alcance: Toque\n- Rótulos Positivos (6): Técnica Física, Dano Absoluto, Aumentar Dano por Ki, Potente\n- Rótulos Negativos (3): Somática, Descontrole",
+          "pagina": 10
+        },
+        {
+          "nome": "Blaster Meteor",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "08",
+          "dano": "11-22-44",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "11-22-44"
+            ],
+            [
+              "Ki",
+              "08"
+            ]
+          ],
+          "alcance": "Pessoal, com Área de Raio de 6,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Eco de Fúria, Reciclagem, Expansiva"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "Primeiro, o usuário forma um Escudo de Energia ao redor do corpo. Em seguida, ele abre as mãos para os lados e libera várias rajadas de energia poderosas que atingem o alvo, causando uma quantidade enorme de dano.",
+          "efeito": "Primeiro, o usuário forma um Escudo de Energia ao redor do corpo. Em seguida, ele abre as mãos para os lados e libera várias rajadas de energia poderosas que atingem o alvo, causando uma quantidade enorme de dano. [Dano: 11-22-44] [Ki: 08] - Alcance: Pessoal, com Área de Raio de 6,0m\n- Rótulos Positivos (8): Técnica de Ki, Eco de Fúria, Reciclagem, Expansiva\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 10
+        },
+        {
+          "nome": "Barreira de Ki",
+          "tipo": "Ofensiva (reacao defensiva)",
+          "rank": "B",
+          "custo": "18",
+          "dano": null,
+          "mitigacao": "21-42-84",
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Mitigação",
+              "21-42-84"
+            ],
+            [
+              "Ki",
+              "18"
+            ]
+          ],
+          "alcance": "Pessoal",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Reativa, Defensiva, Aumentar Dano por Ki, Barreira"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário junta os braços e as pernas enquanto carrega uma aura verde ao redor do corpo. Ele então os separa e expele uma barreira gigante ao redor do corpo, capaz de bloquear certos ataques. Primeiramente eleva a CA do usuário em +2, caso ainda sim seja atingido mitiga o dano conforme a mitigação da técnica.",
+          "efeito": "O usuário junta os braços e as pernas enquanto carrega uma aura verde ao redor do corpo. Ele então os separa e expele uma barreira gigante ao redor do corpo, capaz de bloquear certos ataques. Primeiramente eleva a CA do usuário em +2, caso ainda sim seja atingido mitiga o dano conforme a mitigação da técnica. [Mitigação: 21-42-84] [Ki: 18] - Alcance: Pessoal\n- Rótulos Positivos (8): Reativa, Defensiva, Aumentar Dano por Ki, Barreira\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 11
+        },
+        {
+          "nome": "Eraser Blow",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "18",
+          "dano": "21-42-84",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "21-42-84"
+            ],
+            [
+              "Ki",
+              "18"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Dano Absoluto, Aumentar Dano por Ki, Destruidor Planetário"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário carrega uma esfera massiva de Ki verde e aproxima ela na barriga do oponente. Ele então lança a mão com o Canhão de Apagador para a frente e, à queima-roupa em uma explosão descomunal.",
+          "efeito": "O usuário carrega uma esfera massiva de Ki verde e aproxima ela na barriga do oponente. Ele então lança a mão com o Canhão de Apagador para a frente e, à queima-roupa em uma explosão descomunal. [Dano: 21-42-84] [Ki: 18] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (8): Técnica de Ki, Dano Absoluto, Aumentar Dano por Ki, Destruidor Planetário\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 11
+        },
+        {
+          "nome": "Eraser Cannon",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "18",
+          "dano": "19-38-76",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "19-38-76"
+            ],
+            [
+              "Ki",
+              "18"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Projétil, Dano Absoluto, Aumentar Dano por Ki, Técnica de Amplificação"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "Primeiro, o usuário libera uma energia verde-clara ao redor do corpo e a reúne na palma da mão para formar uma esfera de energia. Em seguida, ele acena para a frente e dispara o ataque contra o oponente, causando uma grande quantidade de dano.",
+          "efeito": "Primeiro, o usuário libera uma energia verde-clara ao redor do corpo e a reúne na palma da mão para formar uma esfera de energia. Em seguida, ele acena para a frente e dispara o ataque contra o oponente, causando uma grande quantidade de dano. [Dano: 19-38-76] [Ki: 18] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (8): Técnica de Ki, Projétil, Dano Absoluto, Aumentar Dano por Ki, Técnica de Amplificação\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 11
+        },
+        {
+          "nome": "Gigantic Buster",
+          "tipo": "Ofensiva",
+          "rank": "B",
+          "custo": "18",
+          "dano": "19-38-76",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "19-38-76"
+            ],
+            [
+              "Ki",
+              "18"
+            ]
+          ],
+          "alcance": "Toque, com Avanço em 6,0m",
+          "rotulos_positivos": {
+            "pontos": 8,
+            "lista": "Técnica de Ki, Dano Absoluto, Aumentar Dano por Ki, Técnica de Impacto, Estocada"
+          },
+          "rotulos_negativos": {
+            "pontos": 4,
+            "lista": "Somática, Verbal"
+          },
+          "descricao": "O usuário grita \"Saia!\" enquanto investe contra o oponente e o joga para o alto com um uppercut. Em seguida, ele voa e cai no chão, onde dá uma cabeçada no oponente que cai antes de derrubá-lo com um chute giratório.",
+          "efeito": "O usuário grita \"Saia!\" enquanto investe contra o oponente e o joga para o alto com um uppercut. Em seguida, ele voa e cai no chão, onde dá uma cabeçada no oponente que cai antes de derrubá-lo com um chute giratório. [Dano: 19-38-76] [Ki: 18] - Alcance: Toque, com Avanço em 6,0m\n- Rótulos Positivos (8): Técnica de Ki, Dano Absoluto, Aumentar Dano por Ki, Técnica de Impacto, Estocada\n- Rótulos Negativos (4): Somática, Verbal",
+          "pagina": 11
+        },
+        {
+          "nome": "Gigantic Hammer",
+          "tipo": "Ofensiva",
+          "rank": "A",
+          "custo": "26",
+          "dano": "29-58-116",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "29-58-116"
+            ],
+            [
+              "Ki",
+              "26"
+            ]
+          ],
+          "alcance": "Toque, com Avanço em 6,0m",
+          "rotulos_positivos": {
+            "pontos": 10,
+            "lista": "Técnica Físico, Dano Absoluto, Aumentar Dano por Ki, Técnica de Impacto, Estocada, Eco de Fúria"
+          },
+          "rotulos_negativos": {
+            "pontos": 5,
+            "lista": "Somática, Verbal, Descontrole"
+          },
+          "descricao": "Primeiro, o usuário golpeia o oponente com um enorme varal . Em seguida, ele agarra o oponente pelos ombros e o levanta para dar um chute vertical no ar. Em seguida, ele se teletransporta para a frente do oponente, agarra-o pela cabeça e voa para baixo para esmagá-lo no chão . Por fim, o usuário pega o oponente pela cabeça e o acerta com um uppercut no estômago, jogando-o para o ar, causando uma enorme quantidade de dano. .",
+          "efeito": "Primeiro, o usuário golpeia o oponente com um enorme varal . Em seguida, ele agarra o oponente pelos ombros e o levanta para dar um chute vertical no ar. Em seguida, ele se teletransporta para a frente do oponente, agarra-o pela cabeça e voa para baixo para esmagá-lo no chão . Por fim, o usuário pega o oponente pela cabeça e o acerta com um uppercut no estômago, jogando-o para o ar, causando uma enorme quantidade de dano. . [Dano: 29-58-116] [Ki: 26] - Alcance: Toque, com Avanço em 6,0m\n- Rótulos Positivos (10): Técnica Físico, Dano Absoluto, Aumentar Dano por Ki, Técnica de Impacto, Estocada, Eco de Fúria\n- Rótulos Negativos (5): Somática, Verbal, Descontrole",
+          "pagina": 11
+        },
+        {
+          "nome": "Eraser Shot Volley",
+          "tipo": "Ofensiva",
+          "rank": "A",
+          "custo": "26",
+          "dano": "29-58-116",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "29-58-116"
+            ],
+            [
+              "Ki",
+              "26"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 10,
+            "lista": "Técnica de Ki, Projétil, Dano Absoluto, Aumentar Dano por Ki, Técnica de Amplificação, Rajada Contínua"
+          },
+          "rotulos_negativos": {
+            "pontos": 5,
+            "lista": "Somática, Verbal, Descontrole"
+          },
+          "descricao": "O usuário retrai a mão direita e carrega uma esfera de energia verde. Em seguida, move a mão para a frente e dispara várias esferas de energia compactas e poderosas que acompanham os movimentos do oponente, causando dano considerável.",
+          "efeito": "O usuário retrai a mão direita e carrega uma esfera de energia verde. Em seguida, move a mão para a frente e dispara várias esferas de energia compactas e poderosas que acompanham os movimentos do oponente, causando dano considerável. [Dano: 29-58-116] [Ki: 26] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (10): Técnica de Ki, Projétil, Dano Absoluto, Aumentar Dano por Ki, Técnica de Amplificação, Rajada Contínua\n- Rótulos Negativos (5): Somática, Verbal, Descontrole",
+          "pagina": 12
+        },
+        {
+          "nome": "Omega Blaster",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "44",
+          "dano": "56-113-226",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "56-113-226"
+            ],
+            [
+              "Ki",
+              "44"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica de Ki, Destruidor Planetário, Dano Absoluto, Distorção Dimensional, Projétil, Aumentar Dano por Ki"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Somática, Verbal, Descontrole, Posicionamento Preciso"
+          },
+          "descricao": "O usuário lança uma pequena esfera de energia verde-limão que se transforma em uma enorme bomba de energia com poder devastador. Ele não só pode controlar o tamanho do ataque, como também impulsioná-lo para frente remotamente com a mão e energizá-lo lançando rajadas de ki adicionais, tornando-o ainda mais poderoso e destrutivo o suficiente para destruir o planeta inteiro.",
+          "efeito": "O usuário lança uma pequena esfera de energia verde-limão que se transforma em uma enorme bomba de energia com poder devastador. Ele não só pode controlar o tamanho do ataque, como também impulsioná-lo para frente remotamente com a mão e energizá-lo lançando rajadas de ki adicionais, tornando-o ainda mais poderoso e destrutivo o suficiente para destruir o planeta inteiro. [Dano: 56-113-226] [Ki: 44] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (12): Técnica de Ki, Destruidor Planetário, Dano Absoluto, Distorção Dimensional, Projétil, Aumentar Dano por Ki\n- Rótulos Negativos (6): Somática, Verbal, Descontrole, Posicionamento Preciso",
+          "pagina": 12
+        },
+        {
+          "nome": "Double Eraser Cannon",
+          "tipo": "Ofensiva",
+          "rank": "Z",
+          "custo": "44",
+          "dano": "56-113-226",
+          "mitigacao": null,
+          "cura": null,
+          "campos_colchete": [
+            [
+              "Dano",
+              "56-113-226"
+            ],
+            [
+              "Ki",
+              "44"
+            ]
+          ],
+          "alcance": "Alvo Único em 9,0m",
+          "rotulos_positivos": {
+            "pontos": 12,
+            "lista": "Técnica de Ki, Projétil, Dano Absoluto, Aumentar Dano por Ki, Técnica de Amplificação, Destruidor Planetário"
+          },
+          "rotulos_negativos": {
+            "pontos": 6,
+            "lista": "Somática, Verbal, Descontrole, Posicionamento Preciso"
+          },
+          "descricao": "Primeiro, o usuário libera uma energia verde-clara ao redor do corpo e a reúne na palma da mão para formar uma esfera de energia. Em seguida, ele acena para a frente e dispara o ataque contra o oponente, causando uma grande quantidade de dano.",
+          "efeito": "Primeiro, o usuário libera uma energia verde-clara ao redor do corpo e a reúne na palma da mão para formar uma esfera de energia. Em seguida, ele acena para a frente e dispara o ataque contra o oponente, causando uma grande quantidade de dano. [Dano: 56-113-226] [Ki: 44] - Alcance: Alvo Único em 9,0m\n- Rótulos Positivos (12): Técnica de Ki, Projétil, Dano Absoluto, Aumentar Dano por Ki, Técnica de Amplificação, Destruidor Planetário\n- Rótulos Negativos (6): Somática, Verbal, Descontrole, Posicionamento Preciso",
+          "pagina": 12
+        }
+      ],
+      "transformacoes": [
+        {
+          "nome": "Forma “Ikari”",
+          "estagio": "Estágio 1",
+          "ep": "+02",
+          "custo_ki": "06",
+          "efeitos": "Nesse estágio, o Saiyajin é capaz de utilizar todos os benefícios presentes na Transformação em Ōzaru, sem a necessidade de uma causa ou aumentar o seu tamanho, seus músculos aumentam ligeiramente, seu cabelo fica arrepiado, mas não muda de cor e a íris dos seus olhos ficam amareladas.\nAdicionalmente os PV’s extras não são perdidos caso sofra qualquer efeito negativo de perda de consciência, esse aumento de PV’s apenas é concedido uma vez por batalha. [EP: +02] [KI: 06]",
+          "pagina": 12
+        },
+        {
+          "nome": "Super Saiyajin Lendário Presságio",
+          "estagio": "Estágio 2",
+          "ep": "+03",
+          "custo_ki": "09",
+          "efeitos": "A princípio os músculos do usuário aumentam levemente, seu cabelo assume um tom azul-neon com um tom roxo, e seu pigmento de pele é bronzeado, o usuário não ganha tanto poder quanto ele teria se tivesse transformado em sua forma verdadeira. Ao atingir esse estágio, a Escala de Poder do usuário se eleva por rodada em +1 até chegar no limite de igualdade do maior inimigo em campo. Quando esse limite chega, seus cabelos mudam para a cor dourada com uma aura esverdeada. Adicionalmente, o usuário também ganha acesso a 10 rótulos exclusivos para se ter em técnicas que apenas podem ser usadas nesse estágio. [EP: +03] [KI: 09]",
+          "pagina": 13
+        },
+        {
+          "nome": "O Lendário Super Saiyajin",
+          "estagio": "Estágio 3",
+          "ep": "+04",
+          "custo_ki": "12",
+          "efeitos": "A transformação lendária que apenas ocorre em um Saiayjin a cada 1.000 anos. A altura do usuário e sua massa muscular aumentam grandemente após transformar-se; durante sua transformação, sua pele racha-se e revela energia verde em seu corpo. Seu cabelo é verde, e a presença de pupila em seus olhos é nula. Esse estágio é a definição de “Poder Ilimitado”, pois ao alcançar ele, o usuário ganha +1 de Escala de Poder a cada rodada em combate, acumulando infinitamente, mesmo que receba efeitos negativos de atordoamento ou de perda de consciência, a única coisa que acontece é o não ganho de escala naquele turno, sua transformação continua e o acumulado juntamente. [EP: +04] [KI: 12]",
+          "pagina": 13
+        }
+      ],
+      "talentos": [],
+      "passivas_ativas": [
+        {
+          "nome": "Mais um Inseto Nojento Disposto a Morrer...",
+          "tipo": "Passiva",
+          "texto": "que Broly atingir um inimigo com menos da metade de sua vida, ele recebe +5 no dano de forma acumulável infinitamente contra esse inimigo até que ele morra ou seja curado acima de 50%. Caso seja curado esse contador também é resetado.",
+          "pagina": 13
+        },
+        {
+          "nome": "Está Enganado, Sou o Próprio Demônio!",
+          "tipo": "Ativa/Passiva",
+          "texto": "Durante 1 rodada, Broly entra em estado berserker demoníaco e todas as suas rolagens são feitas com vantagem. Apenas pode usar essa característica novamente, após outras 2 rodadas. Caso os inimigos sejam de Escala de Poder inferior, ele sempre irá causar dano máximo.",
+          "pagina": 13
+        },
+        {
+          "nome": "E o que é ser Racional?!",
+          "tipo": "Ativa/Passiva",
+          "texto": "Broly pode optar por ter vantagem em todas as suas rolagens defensivas, desde que os inimigos também possam ter vantagem contra ele na mesma rodada de uso.",
+          "pagina": 13
+        },
+        {
+          "nome": "Aproxime-se, Prometo que não Deixo Você Morrer Tão Facilmente.",
+          "tipo": "Ativa/Passiva",
+          "texto": "Broly pode otpar ao poder finalizar um alvo em não o matar. Ao invés disso, reduz o inimigo a 1 PV e o deixa com status \"Atordoado\" por uma quantidade de rodadas igual a Escala de Poder total de Broly. Apenas para brincar com seu inimigo.",
+          "pagina": 13
+        },
+        {
+          "nome": "Eu os Admiro, pois é isso que um Saiayajin de Raça Pura Faria!",
+          "tipo": "Passiva",
+          "texto": "Sempre que estiver lutando contra um inimigo que tenha conseguido resistir a uma rodada contra ele, sendo que o próprio esteja em uma escala de poder superior, Broly fica empolgado e pode uma vez por rodada utilizar uma ação abaixo do Rank A sem o custo de Ki.",
+          "pagina": 14
+        },
+        {
+          "nome": "Tinha que ser assim, se não ficaria aborrecido.",
+          "tipo": "Passiva",
+          "texto": "Ativada automaticamente quando Broly perde 30% da vida de uma só vez, Broly pode usar qualquer uma de suas técnicas como se tivesse o rótulo “Reativo” logo em seguida a perder essa quantidade de vida.",
+          "pagina": 14
+        },
+        {
+          "nome": "Você gosta mesmo do seu filho?!",
+          "tipo": "Passiva",
+          "texto": "Ao atacar alguém próximo de um inimigo importante (mentor, filho, mestre ou protegido declarado), Broly recebe vantagem nas suas rolagens de ataque.",
+          "pagina": 14
+        },
+        {
+          "nome": "Você será o primeiro a morrer, é melhor ficar preparado.",
+          "tipo": "Passiva",
+          "texto": "Escolhe um inimigo como “Alvo Marcado”. Enquanto o inimigo estiver vivo, Broly ganha +1 em todas as jogadas contra ele, sempre que esse inimigo causar Dano a Broly, o mesmo fica empolgado e pode utilizar qualquer uma de suas técnicas contra ele, como se tivesse o rótulo “Dano Absoluto” e “Reativo”, mesmo que ela não tenha.",
+          "pagina": 14
+        },
+        {
+          "nome": "Meu Ki Está Acumulado, tenho que Libera-lo!",
+          "tipo": "Passiva",
+          "texto": "Sempre que Broly gasta Ki, ele acumula uma quantidade de dano fixo com um acerto com inteligência que pode ser exalada a qualquer momento em uma área de 12,0m de raio, atingido a todos no local e causando grandes quantidades de dano, e devastação completa. Após o uso, o contador reseta. Ele pode usar isso tanto em seu turno de ação, quanto reação.",
+          "pagina": 14
+        }
+      ],
+      "outros": [],
+      "pagina": 9,
+      "pagina_impressa": 8,
+      "arquivo": "ilide.info-broly-pr_fdfb1a08fe616b60bb77834f0e834fdf.pdf"
+    }
+  ]
+}

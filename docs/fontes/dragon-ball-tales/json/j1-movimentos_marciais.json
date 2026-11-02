@@ -1,0 +1,931 @@
+{
+  "fonte": "Livro do Jogador V0.5, 5.1 Lista de Movimentos Marciais (p. 38-48)",
+  "regras_gerais": [
+    "Movimentos Marciais Seguidos do Símbolo (*) podem ser utilizados em conjunto com técnicas ofensivas físicas, e não apenas como uma ação separada. Assim, adicionando seus efeitos em conjunto com a técnica. [símbolo vermelho no livro]",
+    "Movimentos Marciais seguidos do Símbolo (*) podem ser utilizado em conjunto com técnicas ofensivas de Ki, e não apenas como uma ação separada. Assim, adicionando seus efeitos em conjunto com a técnica. [símbolo azul no livro]"
+  ],
+  "nota": "combinavel_com derivado da cor do * no PDF (vermelho=físico, azul=Ki). testes e distancias_m extraídos por regex do texto do efeito; o texto do efeito é o oficial.",
+  "itens": [
+    {
+      "id": "mm01",
+      "nome": "Punho Quebrador de Ondas",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Sabedoria vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "O lutador canaliza sua energia no punho e desfere um golpe giratório capaz de romper projéteis ou atingir um inimigo com impacto devastador. O lutador desfere um golpe contra um alvo adjacente. Se acertar, e o oponente estiver carregando uma técnica de Ki (mas ainda não a lançou) ou mantendo algum golpe de rajada, ele deve fazer um Teste de Sabedoria vs Acerto do Usuário. Se falhar, a técnica é dissipada sem efeito, podendo ser usando tanto como ação quanto como reação.",
+      "pagina": 38
+    },
+    {
+      "id": "mm02",
+      "nome": "Tapa da Humilhação",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [
+        "Sabedoria vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "Um tapa estrondoso com a palma da mão, seguido de um segundo tapa com o dorso, projetado para humilhar o oponente em combate. Este golpe não visa causar dano, mas sim desestabilizar e envergonhar o inimigo. Se atingir o oponente, ele deve fazer um teste de Sabedoria vs Acerto do Usuário. Se falhar, o alvo fica constrangido (ele recebe -2 em todas as jogadas de ataque e reação até o fim do próximo turno).",
+      "pagina": 38
+    },
+    {
+      "id": "mm03",
+      "nome": "Punho Paralisante",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "É um golpe preciso que usa o polegar estendido para atingir pontos estratégicos do corpo do oponente, pressionando terminações nervosas e articulações. Quando acertado, o alvo sente uma dor aguda que afeta sua mobilidade. Ele tem sua velocidade de deslocamento reduzida pela metade até o final do próximo turno, caso não passe em um Teste de Constituição vs Acerto do Usuário.",
+      "pagina": 38
+    },
+    {
+      "id": "mm04",
+      "nome": "Martelo do Trovão",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 6,
+      "custo_ki_texto": "[KI: 06]",
+      "requisitos": null,
+      "testes": [
+        "Força ou Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [
+        "6,0",
+        "1,5"
+      ],
+      "efeito": "É um golpe brutal onde o lutador une ambas as mãos acima da cabeça e as arremessa para baixo em um movimento explosivo, atingindo o topo do adversário com força esmagadora. Se acertado, o alvo é deslocado para baixo ou para o lado a escolha do usuário uma quantidade de metros igual a 6,0m, aumentando em +1,5m para cada 1 ponto de Ki extra que gastar, isso caso não passe em um Teste de Força ou Constituição vs Acerto do Usuário. Caso o alvo seja atravesse alguma estrutura durante seu deslocamento, o próximo dano causado a ele terá seu estágio aumentando em mais um caso o acerte, se o acerto já tinha determinado dano completo, aumente o dano da técnica equivalente ao dano mínimo que ela daria somando ao dano causado.",
+      "pagina": 38
+    },
+    {
+      "id": "mm05",
+      "nome": "Investida do Touro",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [
+        "Força ou Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [
+        "3,0"
+      ],
+      "efeito": "É uma cabeçada devastadora que combina força bruta com precisão estratégica. O lutador analisa os movimentos do oponente antes de girar o torso para longe e então se impulsionar com violência, desferindo o golpe com todo o peso de seu corpo. Se acertado, o alvo é empurrado alguns metros (3,0m) para trás e perde a estabilidade, recebendo o efeito negativo “Caído”, se não passar em um Teste de Força ou Constituição vs Acerto do Usuário. Caso esteja em uma luta área, perde a capacidade de voar, caindo ao chão, apenas podendo levantar a voo novamente se livrar-se da condição.",
+      "pagina": 38
+    },
+    {
+      "id": "mm06",
+      "nome": "Contra-Golpe Implacável",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "É uma técnica que exige coragem e precisão, onde o lutador aceita o impacto do ataque inimigo para devolver um golpe devastador no mesmo instante. Ao ativar esse movimento, o usuário permite que o ataque do oponente acerte, mas no exato momento do impacto, ele revida com um golpe próprio com intenção de causar dano, mesmo que ele não tenha rótulo de reação.",
+      "pagina": 39
+    },
+    {
+      "id": "mm07",
+      "nome": "Braço do Furacão",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Destreza ou Força vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "É um movimento veloz e agressivo onde o lutador avança contra o oponente com um impulso explosivo, estendendo o braço em um golpe direcionado ao pescoço ou parte superior do corpo. Se acertado, o inimigo deve fazer um Teste de Destreza ou Força vs Acerto do Usuário, onde caso falhe o usuário pode “arrastar” o inimigo por todo o deslocamento que ele tiver, até onde bem entender, ficando engajado com ele ao final.",
+      "pagina": 39
+    },
+    {
+      "id": "mm08",
+      "nome": "Toque do Dragão Adormecido",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 6,
+      "custo_ki_texto": "[KI: 06]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "É uma técnica secreta que atinge pontos vitais do oponente de forma sutil, retardando o impacto para um momento inesperado. Ao acertar o golpe, o usuário marca o inimigo com um toque preciso, sem causar dano imediato. O dano do próximo ataque físico desferido após a ativação da técnica fica armazenado e pode ser liberado a qualquer momento durante a batalha, até o usuário ficar inconsciente ou decidir ativá-lo. Essa habilidade permite ao lutador aplicar o dano no momento mais estratégico, surpreendendo o adversário. Não é possível armazenar mais de um dano por vez.",
+      "pagina": 39
+    },
+    {
+      "id": "mm09",
+      "nome": "Explosão Ensurdecedora",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 5,
+      "custo_ki_texto": "[KI: 05]",
+      "requisitos": null,
+      "testes": [
+        "Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "É uma técnica brutal e desestabilizadora onde o lutador desfere um golpe simultâneo com ambas as mãos em concha contra os ouvidos do oponente, gerando uma pressão intensa que afeta seu equilíbrio e percepção. Se acertado, o alvo fica temporariamente desorientado, sofrendo uma penalidade de - 2 em sua CA para o próximo golpe que for aplicado nele além de não ser capaz de ouvir nada até o início de seu próximo turno, caso ele não passe em um Teste de Constituição vs Acerto do Usuário.",
+      "pagina": 39
+    },
+    {
+      "id": "mm10",
+      "nome": "Cotovelo da Liberdade",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "É um movimento defensivo que permite ao lutador se desvencilhar de oponentes que tentam prendê-lo em combate corpo a corpo. Ao perceber que o inimigo se aproxima demais, o usuário desfere uma cotovelada rápida e precisa, forçando o adversário a recuar instintivamente. Se bem-sucedido, o lutador é considerado desengajado, podendo se mover livremente sem provocar ataques de oportunidade. Essa técnica é especialmente útil contra inimigos que tentam restringir sua movimentação ou cercá-lo.",
+      "pagina": 39
+    },
+    {
+      "id": "mm11",
+      "nome": "Impacto Meteórico",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Destreza vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "É uma técnica devastadora onde o lutador utiliza todo o seu corpo para impulsionar um soco massivo de cima para baixo. Ao inclinar-se e girar como um lançador de baseball, ele canaliza uma força tremenda no movimento, tornando o golpe quase impossível de bloquear diretamente.\nCaso acerte o alvo deve realizar um Teste de Destreza vs Acerto do Usuário, onde se falhar sua defesa é considerada quebrada para o próximo golpe físico que receber, isso significa que qualquer rolagem defensiva que fizer será feita com desvantagem, ou a rolagem de acerto do usuário será feita com vantagem, isso fica a decisão do usuário.",
+      "pagina": 39
+    },
+    {
+      "id": "mm12",
+      "nome": "Soco da Serpente Traiçoeira",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Destreza ou Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "Esse golpe foi desenvolvido para atordoar o oponente, deixando-o vulnerável para um próximo ataque. Um soco potente é desferido na caixa torácica, causando um impacto que desestabiliza o alvo. Por ser um golpe desleal, seu uso pode resultar na perda de honra, dependendo do contexto e da situação. Caso atingido o alvo deve rolar um Teste de Destreza ou Constituição vs Acerto do Usuário, onde se falhar o próximo golpe físico que ele receber é garantido como dano completo.",
+      "pagina": 40
+    },
+    {
+      "id": "mm13",
+      "nome": "Gume Relâmpago",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 5,
+      "custo_ki_texto": "[KI: 05]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "É um movimento onde o lutador endurece sua mão como uma lâmina e desfere um golpe rápido e preciso contra o corpo desprotegido do adversário. Dessa forma, faz com que o próximo golpe físico que o usuário aplicar tenha temporariamente o rótulo de “Dano Cortante” mesmo que não o tenha.",
+      "pagina": 40
+    },
+    {
+      "id": "mm14",
+      "nome": "Investida Fantasma",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [
+        "6,0",
+        "3,0"
+      ],
+      "efeito": "É um movimento ágil onde o lutador avança rapidamente contra o oponente, podendo se deslocar 6,0m em linha sem gastar sua ação de movimento, aumentando em +3,0m para cada 1 de Ki a mais que utilizar usando a investida.",
+      "pagina": 40
+    },
+    {
+      "id": "mm15",
+      "nome": "Onda Impactante",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [
+        "9,0",
+        "1,5"
+      ],
+      "efeito": "É uma técnica avançada onde o lutador concentra sua força em um golpe de palma devastador, liberando uma onda de impacto que se propaga à distância. Com esse movimento, ele pode executar uma técnica física corpo a corpo como se fosse à distância de 9,0 metros, aumentando esse alcance em +1,5 metros para cada ponto extra de Ki gasto. Isso permite surpreender inimigos que acreditam estar fora do alcance, além de ser uma ferramenta valiosa contra adversários ágeis ou alvos aéreos",
+      "pagina": 40
+    },
+    {
+      "id": "mm16",
+      "nome": "Rugido da Terra",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 6,
+      "custo_ki_texto": "[KI: 06]",
+      "requisitos": null,
+      "testes": [
+        "Destreza ou Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [
+        "6,0",
+        "1,5"
+      ],
+      "efeito": "É uma técnica onde o lutador concentra sua força e desfere um golpe brutal contra o solo, liberando uma onda de choque devastadora. Essa vibração se espalha em um raio de 6,0 metros, podendo desequilibrar inimigos e derrubar objetos ao redor. Qualquer adversário dentro da área sofre uma forte oscilação, sendo forçado a perder sua ação de movimento no próximo turno caso não passe em um Teste de Destreza ou Constituição vs Acerto do Usuário. Além disso, estruturas frágeis podem rachar ou até desmoronar dependendo da intensidade do golpe. O alcance pode ser ampliado para aumentar a área de efeito em +1,5 metros para cada 1 pontos extras de Ki gastos.",
+      "pagina": 40
+    },
+    {
+      "id": "mm17",
+      "nome": "Ciclone de Destruição",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 8,
+      "custo_ki_texto": "[KI: 08]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [
+        "3",
+        "1,5"
+      ],
+      "efeito": "É uma técnica onde o lutador gira violentamente seu corpo com os braços estendidos, criando uma poderosa barreira de força ao seu redor. Qualquer inimigo dentro de um raio de 3 metros é forçado a se afastar 1,5 metros e perde qualquer bônus de flanqueamento contra o usuário, além de ser considerado desengajado. Além disso, o lutador se torna imune a flanqueamento até o início do seu próximo turno, dificultando ataques coordenados.",
+      "pagina": 40
+    },
+    {
+      "id": "mm18",
+      "nome": "Sombras Cortantes",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 6,
+      "custo_ki_texto": "[KI: 06]",
+      "requisitos": null,
+      "testes": [
+        "Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "É uma técnica secreta que exige um profundo conhecimento da circulação de energia vital e da anatomia do alvo. O lutador avança em um movimento quase imperceptível e reaparece atrás do oponente sem que este perceba ter sido atingido. Durante esse instante, ele golpeia múltiplos pontos vitais do corpo do alvo, interrompendo temporariamente seu fluxo de energia. Dessa forma, caso o alvo não passe em um Teste de Constituição vs Acerto do Usuário, ele irá gastar o Dobro de Ki, no próximo golpe que ele realizar.",
+      "pagina": 41
+    },
+    {
+      "id": "mm19",
+      "nome": "Dança do Furacão Ascendente",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "É uma técnica secreta utilizada por lutadores que dominam o fluxo do vento e a força centrífuga. Ao aplicar esse golpe, o usuário transforma sua própria queda em um impulso devastador. Caso esteja no estado de caído, ele pode imediatamente executar um ataque de dano físico e, simultaneamente, se levantar sem gastar o Ki necessária para se levantar.",
+      "pagina": 41
+    },
+    {
+      "id": "mm20",
+      "nome": "Tempestade Tríplice",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Constituição ou Destreza vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "É uma sequência de chutes acrobáticos devastadores, onde o lutador avança rapidamente contra o oponente em pleno ar. O primeiro chute atinge a face do adversário, enquanto a outra perna já se posiciona para um segundo golpe, ainda mais impactante. Para finalizar, o lutador executa uma giratória aérea que, se bem-sucedida, força o oponente ao chão. Caso o alvo falhe em um Teste de Constituição ou Destreza vs Acerto do Usuário, ele é considerado caído, e a próxima ação ou reação que ele fizer será rolada com desvantagem.",
+      "pagina": 41
+    },
+    {
+      "id": "mm21",
+      "nome": "Garra do Dragão Celeste",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [
+        "Destreza vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "É uma técnica avançada de artes marciais que permite ao lutador adaptar seu ataque no último instante. O usuário salta no ar e, no meio do movimento, altera repentinamente sua trajetória para surpreender o oponente com um golpe poderoso. Se o ataque inicial for bem-sucedido, o lutador pode trocar a técnica utilizada no último momento (ou seja, após ver a reação e as rolagens de reação do alvo), escolhendo qualquer outro golpe físico que conheça e aplicando-o com a mesma rolagem de ataque já realizada. O alvo deve realizar um Teste de Destreza vs Acerto do Usuário, caso não passe ele não poderá mudar também a sua reação.",
+      "pagina": 41
+    },
+    {
+      "id": "mm22",
+      "nome": "Postura da Garça Flamejante",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "É uma técnica que permite ao lutador assumir uma posição equilibrada e precisa, elevando uma das pernas para preparar um chute devastador. Enquanto nessa postura, o lutador recebe um bônus de +1 no acerto de seus golpes físicos para cada rodada que ficar nessa posição, utilizar qualquer ação de movimento, o faz perder todo bônus acumulado, ou ser forçado a se movimentar por outros golpes, além disso o gasto de Ki é constante.",
+      "pagina": 41
+    },
+    {
+      "id": "mm23",
+      "nome": "Impacto Sísmico",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [
+        "Destreza vs Acerto do Usuário",
+        "Destreza vs Acerto do Usuário"
+      ],
+      "distancias_m": [
+        "3,0",
+        "9",
+        "1,5"
+      ],
+      "efeito": "É uma técnica onde o lutador canaliza sua força em um poderoso pisão no chão, gerando uma onda de impacto. Ao usá-la, ele pode escolher entre dois efeitos:\nOnda de Choque Circular: O tremor se espalha em um raio de 3,0m ao redor do lutador, forçando todos os inimigos na área a fazerem um teste de resistência de Destreza vs Acerto do Usuário. Caso falhem, são derrubados e considerados caídos.\nFenda Direcionada: O impacto concentra sua energia em uma linha reta de 9m de alcance e 1,5m de largura, atingindo todos os inimigos na trajetória.\nOs alvos devem fazer um teste de resistência de Destreza vs Acerto do Usuário. Caso falhem, são derrubados e considerados caídos.",
+      "pagina": 41
+    },
+    {
+      "id": "mm24",
+      "nome": "Joelho Ferido",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [
+        "Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "É um golpe poderoso em que o lutador desfere um chute baixo com a canela na parte externa da coxa do oponente, atingindo o nervo femoral. O impacto enfraquece a perna do alvo, dificultando seus movimentos e reduzindo sua mobilidade. Se acertado, o oponente perde metade de seu deslocamento até o início do próximo turno, caso não passe em um Teste de Constituição vs Acerto do Usuário.",
+      "pagina": 42
+    },
+    {
+      "id": "mm25",
+      "nome": "Bloqueio Técnico",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Esta técnica avançada de bloqueio permite ao lutador adotar posturas defensivas que se conectam diretamente a seus próprios ataques. Permite ao usuário utilizar um golpe físico como uma reação de mitigação, mesmo que não tenha essa função e esse rótulo.",
+      "pagina": 42
+    },
+    {
+      "id": "mm26",
+      "nome": "Defletir Ki",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Essa técnica permite ao usuário concentrar sua força no punho para desviar um projétil direcionado a ele, rebatendo-o para longe. Para executar esse movimento, ambos os combatentes devem estar no mínimo, na mesma Escala de Poder. O usuário pode utilizá-lo como uma reação, gastando a mesma quantidade de Ki que o atacante empregou no golpe. O sucesso da defesa depende de um Teste de Força contra o Acerto do oponente; caso o resultado do usuário seja superior, o ataque é anulado e repelido.",
+      "pagina": 42
+    },
+    {
+      "id": "mm27",
+      "nome": "Treino com Pesos",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 10,
+      "custo_ki_texto": "[KI: 10]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [
+        "1,5"
+      ],
+      "efeito": "Essa técnica permite ao usuário utilizar uma roupa mais pesada que o comum durante a batalha, enquanto ele estiver utilizando essa roupa ele terá que pagar constantemente o custo de PK’s desse movimento marcial. A cada rodada que ele fica pagando esse custo e lutando com essa desvantagem, ele acumula +01 em sua CA além de 1,5m de deslocamento a mais, esse acumulo pode ir ao máximo da sua Escala de Poder Base. Após retirar as roupas pesadas, e desfrutar dos benefícios, eles ficam ativos até o final da batalha.",
+      "pagina": 42
+    },
+    {
+      "id": "mm28",
+      "nome": "Postura da Brutalidade",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Ao usar essa técnica, você sacrifica toda a sua defesa no até o final de seu próximo turno (sua CA cai pela metade), mas em contra partida aumenta os estágios de dano causados por você em +01 pelo mesmo período. Caso sua técnica já tenha chegado ao estágio de dano máximo, ela ganha um bônus de dano extra igual ao mínimo de dano que ela causaria.",
+      "pagina": 42
+    },
+    {
+      "id": "mm29",
+      "nome": "Postura do Equilíbrio",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 5,
+      "custo_ki_texto": "[KI: 05]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Para ativar essa postura você deve ter menos de 50% da sua Vida. Ao realizar ela seus movimentos marciais usados apenas durante o seu turno de ação, tem 50% de chance de não consumirem Ki ao serem utilizados, enquanto você mantiver essa postura.",
+      "pagina": 42
+    },
+    {
+      "id": "mm30",
+      "nome": "Postura do Sacrifício",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 6,
+      "custo_ki_texto": "[KI: 06]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você pode ativar essa postura no início do seu turno de ação, ela possibilita que você utilize técnicas ofensivas pagando Pontos de Vida por isso, em uma proporção de 2:1, ou seja, 2 PV’s equivalem a 1 PK, desde que você esteja com 0 PK’s. Você apenas pode usar esse benefício durante seu turno de ação, e uma quantidade de vezes igual a sua Escala de Poder Base, ou seja, se você por exemplo tem 2 de EP durante seu turno de ação você pode usar duas técnicas ofensivas gastando Pontos de Vida por isso, desde que você tenha chegado a 0 PK’s durante o turno de ação.",
+      "pagina": 42
+    },
+    {
+      "id": "mm31",
+      "nome": "Postura do Terror",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Sabedoria vs Acerto da Técnica"
+      ],
+      "distancias_m": [
+        "1,5"
+      ],
+      "efeito": "Você pode ativar essa postura no início do seu turno de ação, você adota uma postura que eleva a sua aura e retira o espírito de luta dos seus inimigos. Após a ativação, uma aura de raio ao seu redor igual a sua Escala de Poder sendo 1 EP = 1,5m se faz presente, todos na área que tiverem uma EP menor do que a sua devem fazer um Teste de Sabedoria vs Acerto da Técnica, onde se não passarem, perdem o direito a turno de reação enquanto estiverem na área da sua aura, ao saírem podem reagir, mas, ao entrar novamente devem fazer a mesma rolagem.",
+      "pagina": 43
+    },
+    {
+      "id": "mm32",
+      "nome": "Postura da Destruição",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [
+        "1,5"
+      ],
+      "efeito": "Você adota uma postura agressiva, que faz com que seus golpes físicos de toque usados no turno de ação causem dano as estruturas e ao chão ao redor, os rachando. Ao desferir um golpe físico de toque, ele transforma a área ao seu redor igual a sua Escala de Poder sendo 1 EP = 1,5m em “Terreno Difícil”, ou seja, o deslocamento no local é considerado pela metade até o final da batalha.",
+      "pagina": 43
+    },
+    {
+      "id": "mm33",
+      "nome": "Postura da Velocidade",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 5,
+      "custo_ki_texto": "[KI: 05]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você adota essa postura e foca completamente na sua velocidade de ataque até o final do seu turno de ação, sempre que você acertar uma técnica física ofensiva sem o rótulo de “Técnica Básica”, após isso você é capaz de utilizar uma “Técnica Básica” de Rank D ou inferior sem gastar PK’s ou receber modificador negativo.",
+      "pagina": 43
+    },
+    {
+      "id": "mm34",
+      "nome": "Soco Perfeito",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": 6,
+      "custo_ki_texto": "[KI: 06]",
+      "requisitos": null,
+      "testes": [
+        "Constituição vs Acerto da Técnica"
+      ],
+      "distancias_m": [],
+      "efeito": "Você faz com que sua próxima técnica ofensiva física de alcance de toque seja capaz de ignorar CA bônus adquirida por técnicas do seu inimigo ou armaduras, considerando assim apenas a CA base do alvo, desde que ele não passe em um Teste de Constituição vs Acerto da Técnica.",
+      "pagina": 43
+    },
+    {
+      "id": "mm35",
+      "nome": "Postura da Efetividade",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 7,
+      "custo_ki_texto": "[KI: 07]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você adota uma postura a qual faz com que seus ataques físicos corpo a corpo tenham o mínimo de desgaste de energia possível. Ao realizar um ataque deste tipo durante seu turno de ação e errar seu inimigo, metade dos seus PK’s gastos é reaproveitada e retorna para você.",
+      "pagina": 43
+    },
+    {
+      "id": "mm36",
+      "nome": "Punho Descarregado",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_fisicas",
+      "custo_ki": "Variável",
+      "custo_ki_texto": "[KI: Variável]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Ao usar este movimento, você pode abrir mão de todo seus PK’s restantes para causar +1 de dano bônus no seu próximo ataque físico corpo a corpo para cada 1 pontos de PK’s sacrificados até uma quantidade a sua escolha.",
+      "pagina": 43
+    },
+    {
+      "id": "mm37",
+      "nome": "Passo Vetorial",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [
+        "1,5",
+        "1,5"
+      ],
+      "efeito": "O lutador dispara micro-impulsos de Ki nos pés e quadris, mudando o próprio ângulo de ataque num instante. Como Ação, desloque-se até X metros de voo sem gastar sua ação de movimento e sem provocar Ataque de Oportunidade, onde X é igual a sua Escala de Poder na proporção de 1:1,5m. Se fizer um ataque desde que técnica ofensiva de ki logo depois, recebe +2 no Acerto. Como Reação, quando um ataque errar sua CA por até 2 pontos ou mais, você pode se deslocar 1,5m imediatamente, sem provocar ataques de oportunidade.",
+      "pagina": 43
+    },
+    {
+      "id": "mm38",
+      "nome": "Estalo Fotônico",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [
+        "Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "Ao concentrar seu Ki em uma técnica ofensiva, propositalmente você aumenta sua emissão de poder, gerando um clarão seco e brutal. Personagens que consigam te enxergar de frente fazem Teste de Constituição vs Acerto do Usuário, em falha ficam Cegos até o fim do próximo turno de ação deles. Os alvos atingidos podem gastar uma quantidade de PK’s igual a EP do usuário em reação, para representar que rapidamente fecharam os olhos.",
+      "pagina": 44
+    },
+    {
+      "id": "mm39",
+      "nome": "Interferência",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Inteligência vs Acerto da Técnica"
+      ],
+      "distancias_m": [],
+      "efeito": "O usuário utiliza seu Ki para enfraquecer o ataque do inimigo desferido contra ele, usando rajadas ou esferas concentradas. Dessa forma, em reação o usuário realiza um Teste de Inteligência vs Acerto da Técnica, se vencer, reduza o dano sofrido em 1 estágio. Se isso fizer o dano cair para abaixo do estágio mínimo, o usuário ganha em reação, a oportunidade de realizar uma técnica ofensiva de ki, do mesmo rank utilizando pelo atacante, sem o gasto de PK’s. Caso opte por não fazer isto, é permitido então que ele possa utilizar novamente esse movimento como reação.",
+      "pagina": 44
+    },
+    {
+      "id": "mm40",
+      "nome": "Afinar Ki",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 6,
+      "custo_ki_texto": "[KI: 06]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "O usuário afina o Ki em um fio de impacto e o injeta no golpe, criando um corte energético de altíssima precisão, fazer isso permite que uma técnica ofensiva de Ki tenha o rótulo de dano “Cortante”, mesmo que não o tenha naturalmente. Adicionalmente, se o alvo receber dano máximo, este recebe a condição negativa “Sangrando”, sem direito a testes de resistência a aplicação.",
+      "pagina": 44
+    },
+    {
+      "id": "mm41",
+      "nome": "Nódulo de Supressão",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": null,
+      "custo_ki_texto": null,
+      "requisitos": null,
+      "testes": [
+        "Constituição vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "O usuário concentra seu disparo de Ki em atingir um ponto do fluxo energético do alvo, travando o Ki dele por um instante. Ao utilizar esse movimento, caso acerte o alvo com uma técnica ofensiva de Ki, este deve realizar um Teste de Constituição vs Acerto do Usuário, em caso de falha fica “Sobrecarregado”, se o alvo já estiver sob esse efeito, em vez disso, até o final de seu próximo turno de ação, as técnicas gerais do alvo custam + X Ki adicionais, onde X é a Escala de Poder do Usuário.",
+      "pagina": 44
+    },
+    {
+      "id": "mm42",
+      "nome": "Postura do Círculo Vazio",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você assume uma guarda compacta, de braços curtos e eixo central fechado, própria para disparos quase colados ao corpo do oponente. Até o início do seu próximo turno de ação:\nsuas técnicas de Ki de longo alcance usadas contra inimigos não sofrem a desvantagem de Combate Sob Ameaça;\no usuário se torna capaz de utilizar técnicas de ki de longo alcance em reação para causar mitigação de dano mesmo sem o rótulo reativo ou defensivo, quando receber ataques de técnicas ofensivas que tenham o alcance de toque.",
+      "pagina": 44
+    },
+    {
+      "id": "mm43",
+      "nome": "Película de Ki",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [
+        "Inteligência vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "Você ergue uma película curva de Ki na frente do corpo e desvia o grosso de uma rajada. Quando for alvo de uma técnica de Ki de projétil, linha ou rajada, faça um Teste de Inteligência vs Acerto do Usuário. Se vencer, reduza o dano em 1 estágio. Se o ataque cair para erro ou dano mínimo, você pode redirecionar o resíduo para outro alvo utilizando o mesmo alcance da trajetória original e o mesmo acerto do usuário, a outro alvo que possa ser atingido.",
+      "pagina": 44
+    },
+    {
+      "id": "mm44",
+      "nome": "Leitura de Fluxo",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [
+        "Perícia “Análise” vs o Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "Ao ver o padrão energético de um oponente, você “lê” a assinatura daquela técnica e passa a antecipá-la. Após testemunhar um inimigo usar uma técnica ofensiva contra você, marque essa técnica até o final do seu próximo turno de ação. Na próxima vez que ele usar essa mesma técnica, você pode realizar um Teste de Perícia “Análise” vs o Acerto do Usuário, caso vença você recebe:\n+2 na CA contra ela, e\nvantagem no teste para resistir a qualquer condição negativa que ela aplique.",
+      "pagina": 45
+    },
+    {
+      "id": "mm45",
+      "nome": "Asa Impulsora",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você libera um impulso de Ki curto e lateral, como se criasse uma “asa” momentânea de energia para mudar a linha do corpo no ar. Se estiver voando, você pode mudar 1 nível de altura sem pagar o custo normal dessa alteração. Se usar este movimento antes de um ataque ou técnica ofensiva no mesmo turno, recebe +2 no Acerto contra alvos em nível diferente do seu. Como Reação, pode usá-lo para evitar queda imediata sem precisar do teste normal de estabilização.",
+      "pagina": 45
+    },
+    {
+      "id": "mm46",
+      "nome": "Ruptura de Cadência",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [
+        "Inteligência vs Teste do Atributo de Acerto do Usuário da técnica a qual está se beneficiando dos rótulos ou tipo de ação citados anteriormente"
+      ],
+      "distancias_m": [
+        "9,0"
+      ],
+      "efeito": "Você emite uma onda de Ki em reação com alcance até 9,0m e precisa que quebra o timing da técnica inimiga, desfazendo sua preparação. Quando um inimigo iniciar uma técnica com Carregamento, Concentração, Ação Oculta ou outro preparo explícito, faça um Teste de Inteligência vs Teste do Atributo de Acerto do Usuário da técnica a qual está se beneficiando dos rótulos ou tipo de ação citados anteriormente.\nSe vencer, a preparação é interrompida.\nO alvo perde o Ki já investidos no processo.\nSe a técnica já estivesse parcialmente pronta, ela se torna “Previsível” até o fim do próximo turno do alvo, concedendo +2 de CA contra ela.",
+      "pagina": 45
+    },
+    {
+      "id": "mm47",
+      "nome": "Postura da Emissão Serena",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "O usuário desacelera a respiração, alinha ombros, quadril e fluxo de Ki, assumindo uma base perfeita para disparos de longo alcance. Até o início do seu próximo turno de ação:\na primeira técnica ofensiva de Ki de longo alcance em alvo único que você usar recebe +1 no Acerto;\ncaso a primeira técnica ofensiva de ki de longo alcance seja em área, ela não irá causar danos a aliados dentro da área;\nse você não tiver se movido antes de dispará-la, ela também ignora coberturas.",
+      "pagina": 45
+    },
+    {
+      "id": "mm48",
+      "nome": "Costura Vetorial",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 1,
+      "custo_ki_texto": "[KI: 01]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Com pequenos ajustes nos dedos, pulsos e olhar, o usuário dobra sutilmente a linha de emissão da técnica, costurando sua trajetória pelo campo. Ao usar uma técnica ofensiva de Ki que tenha o alcance de rastro, você evita que mesmo que um alvo aliado esteja na trajetória, ele não seja atingido.",
+      "pagina": 45
+    },
+    {
+      "id": "mm49",
+      "nome": "Âncora de Pulso",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [
+        "Inteligência vs Acerto do Usuário"
+      ],
+      "distancias_m": [],
+      "efeito": "O usuário fixa o próprio fluxo energético em um único eixo, impedindo que impactos, tremores ou dor quebrem a estabilidade da emissão. Até o início do seu próximo turno de ação, a primeira vez que você: sofrer dano, for empurrado, ou receber uma condição que normalmente atrapalharia uma técnica em preparo, você pode fazer um Teste de Inteligência vs Acerto do Usuário. Se passar, mantém normalmente sua Concentração, Carregamento, Postura ou preparação de técnica.",
+      "pagina": 45
+    },
+    {
+      "id": "mm50",
+      "nome": "Recuo Balístico",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [
+        "3"
+      ],
+      "efeito": "O usuário aproveita o próprio recuo da emissão para deslizar o corpo, reposicionando-se logo após disparar ou logo antes de ser alcançado. Sempre que você usar uma técnica ofensiva de Ki à distância, pode gastar este movimento para: mover-se 3m, ou subir/descer 1 nível de altura no combate aéreo sem pagar o custo normal. Esse deslocamento não provoca Ataque de Oportunidade.",
+      "pagina": 46
+    },
+    {
+      "id": "mm51",
+      "nome": "Círculo de Pré-Mira",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "O usuário analisa microvariações de postura, fluxo de Ki e padrão respiratório do alvo, criando um disparo “pré-calibrado”. Escolha 1 alvo visível. Até o início do seu próximo turno de ação, a primeira técnica ofensiva de Ki de longo alcance que você usar contra ele: recebe +1 estágio de dano, caso acerte; mas você não pode aplicar esse benefício contra outro alvo.",
+      "pagina": 46
+    },
+    {
+      "id": "mm52",
+      "nome": "Reserva de Reflexo",
+      "simbolo": "*",
+      "combinavel_com": "tecnicas_ofensivas_ki",
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Ao invés de gastar toda sua energia em ofensiva, o usuário retém parte do fluxo em circulação curta, mantendo uma reserva de resposta instantânea. Durante seu turno de ação, após usar pelo menos 1 técnica ofensiva de Ki, você pode ativar esta técnica. Até o início do seu próximo turno:\nos próximos 2 Ki que você gastar em reações são considerados já preparados;\nna prática, a primeira reação de Ki que você usar nesse período tem seu custo reduzido em 2 Ki (mínimo 1).",
+      "pagina": 46
+    },
+    {
+      "id": "mm53",
+      "nome": "Leitura de Guarda",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [
+        "Análise vs Teste de Percepção do Alvo"
+      ],
+      "distancias_m": [],
+      "efeito": "Você observa o padrão de respiração, apoio e guarda do alvo, identificando a falha mais provável em sua defesa. Faça um Teste de Análise vs Teste de Percepção do Alvo, se vencer, até o início do seu próximo turno: seu próximo ataque contra esse alvo recebe +01 no Acerto.",
+      "pagina": 46
+    },
+    {
+      "id": "mm54",
+      "nome": "Finta de Assinatura",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 5,
+      "custo_ki_texto": "[KI: 05]",
+      "requisitos": null,
+      "testes": [
+        "Enganação vs Sentido de Ki ou Percepção do alvo"
+      ],
+      "distancias_m": [],
+      "efeito": "Você altera seu fluxo de Ki e intenção corporal por um instante, escondendo o verdadeiro vetor do golpe. Faça um Teste de Enganação vs Sentido de Ki ou Percepção do alvo. Se vencer:\no alvo sofre -2 na CA contra sua próxima técnica ofensiva ou técnica básico até o fim do seu próximo turno;\nse usada como Reação, você também pode impor desvantagem ao primeiro ataque que ele fizer contra você até o fim do turno atual.",
+      "pagina": 46
+    },
+    {
+      "id": "mm55",
+      "nome": "Postura do Caçador",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você assume uma movimentação econômica, previsora e paciente, típica de quem caça sem desperdiçar energia. Até o início do seu próximo turno: você ignora a primeira penalidade narrativa de terreno difícil, obstáculos leves ou visibilidade parcial; recebe +2 em testes para rastrear, perseguir ou manter pressão sobre um alvo em fuga; se atacar um alvo que tentou se afastar de você desde seu turno anterior, recebe +2 no Acerto contra ele.",
+      "pagina": 46
+    },
+    {
+      "id": "mm56",
+      "nome": "Expansão de Intimidação",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Seu Ki se expande de forma opressiva, forçando o alvo a hesitar, mesmo antes do ataque. Faça um teste de Intimidação resistido por Sabedoria ou Presença do alvo. Se vencer, ele fica “Intimidado”. Se já estiver “Intimidado”, em vez disso ele fica “Exposto” até o início do próximo turno dele.",
+      "pagina": 46
+    },
+    {
+      "id": "mm57",
+      "nome": "Diagnóstico de Combate",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você trata o corpo e o fluxo energético do oponente como um sistema a ser desmontado, prevendo colapsos e tensões. Escolha um alvo visível e faça um teste de Ciência resistido por Constituição ou Análise do alvo. Se vencer, escolha 1:\ndescobrir qual atributo entre FOR, DES ou CON parece mais vulnerável naquele momento;\nreceber +2 na próxima rolagem para aplicar condição negativa contra ele;\nfazer com que a próxima condição Quebrado, Sobrecarregado ou Desnorteado aplicada a ele tenha a CD aumentada em +2.",
+      "pagina": 47
+    },
+    {
+      "id": "mm58",
+      "nome": "Eco de Sentido",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você lê a oscilação do Ki inimigo antes da manifestação completa do ataque. Quando um inimigo a até alcance sensorial usar uma técnica de Ki, faça um teste em reação de Sentido de Ki resistido por Controle de Ki do Alvo. Se vencer, escolha 1:\nreceber +2 na CA contra essa técnica;\nreceber vantagem no teste contra a condição que ela aplicar;\nidentificar se a técnica possui carregamento, armadilha, ricochete, guiada ou efeito oculto, se houver.",
+      "pagina": 47
+    },
+    {
+      "id": "mm59",
+      "nome": "Palavra de Eixo",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 3,
+      "custo_ki_texto": "[KI: 03]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você usa um comando calmo, preciso e carregado de presença para recentrar um aliado em meio ao caos. Escolha um aliado que possa ouvi-lo ou percebê-lo. Faça um teste de Persuasão contra CD 10 ou contra a CD da condição, a critério do narrador. Se passar, escolha 1:\no aliado ignora os efeitos de Desnorteado até o fim do próximo turno dele;\no aliado recebe +2 no próximo teste resistido que fizer até o início do seu próximo turno;\no aliado reduz em X o custo de Ki da próxima reação que usar, onde X é a Escala de Poder do usuário.",
+      "pagina": 47
+    },
+    {
+      "id": "mm60",
+      "nome": "Arquivo de Lendas",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 1,
+      "custo_ki_texto": "[KI: 01]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você recupera instantaneamente referências de estilos, técnicas famosas, arquétipos de raça ou comportamentos clássicos de combate. Faça um teste de Conhecimento contra uma CD definida pelo narrador conforme o alvo. Se passar, escolha 1 informação mecânica sobre ele: um talento/estilo provável; uma fraqueza tática visível; a natureza do tipo de técnica que ele mais favorece; uma pista sobre transformação, origem ou padrão de luta. Podendo ser usado uma vez por alvo em combate.",
+      "pagina": 47
+    },
+    {
+      "id": "mm61",
+      "nome": "Janela de Percepção",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [
+        "1,5"
+      ],
+      "efeito": "Seu olhar capta a mínima abertura deixada por um golpe largo, impulso exagerado ou técnica mal encaixada. Quando um inimigo errar um ataque contra você por 2 ou mais pontos, faça um teste de Percepção resistido por Destreza ou Análise dele. Se vencer, você pode imediatamente escolher 1:\nmover-se X metros sem provocar Ataque de Oportunidade, onde X é igual a Escala de Poder do Usuário em proporção 1:1,5m;\nreceber +2 no Acerto contra esse alvo até o fim do seu próximo turno;\nfazer com que ele fique “Desequilibrado” se estiver voando.",
+      "pagina": 47
+    },
+    {
+      "id": "mm62",
+      "nome": "Blefe",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 4,
+      "custo_ki_texto": "[KI: 04]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você finge fraqueza, quebra de guarda ou exaustão para induzir o inimigo a se expor demais. Quando um inimigo declarar um ataque contra você, antes da rolagem, faça um teste de Enganação resistido por Percepção ou Análise dele. Se vencer: o ataque dele sofre -2 no Acerto; e, se ainda assim errar, o inimigo fica Exposto até o início do próximo turno dele.",
+      "pagina": 48
+    },
+    {
+      "id": "mm63",
+      "nome": "Rastro de Presságio",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você lê microvestígios do ambiente, fluxo de poeira, vento, marcas de deslocamento e resíduos de Ki para prever a rota de fuga. Escolha um inimigo que tenha se movido desde o último turno dele. Faça um teste de Sobrevivência resistido por Furtividade, Destreza ou Enganação do alvo. Se vencer, até o fim da rodada: você sempre sabe a direção imediata do deslocamento dele; ignora camuflagem leve e truques simples de ocultação dele; recebe +2 no Acerto contra esse alvo se ele estiver em cobertura parcial ou fugindo.",
+      "pagina": 48
+    },
+    {
+      "id": "mm64",
+      "nome": "Manto de Intenção Vazia",
+      "simbolo": null,
+      "combinavel_com": null,
+      "custo_ki": 2,
+      "custo_ki_texto": "[KI: 02]",
+      "requisitos": null,
+      "testes": [],
+      "distancias_m": [],
+      "efeito": "Você reduz ao mínimo suas flutuações emocionais e energéticas, tornando difícil prever sua intenção real. Até o início do seu próximo turno: testes de Análise, Percepção, Sentido de Ki ou Enganação feitos para antecipar você sofrem -2; a primeira vez que você usar uma técnica ofensiva nesse período, o alvo não pode ganhar bônus por leitura prévia, salvo habilidade específica.",
+      "pagina": 48
+    }
+  ]
+}

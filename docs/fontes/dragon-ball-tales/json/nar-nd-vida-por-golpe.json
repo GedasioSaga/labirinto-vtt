@@ -1,0 +1,25 @@
+{
+  "fonte": "Livro do Narrador - V0.1.pdf, 4.0.2 ETAPA 2 – COMO CALCULAR A VIDA DE UM PNJ? (p. 17-18)",
+  "nome_do_metodo": "Escalonamento de Vida",
+  "pergunta_guia": "Com quantos golpes de determinado Rank esse personagem deve cair?",
+  "formula": "PV = ND x vida_por_golpe[categoria][rank]",
+  "notacao_nd": "ND <N> – Rank <X> (<Categoria>)",
+  "nota_nd": "O livro usa 'ND' como 'nível de dificuldade' (4.0.2); o suplemento Enma Daioh usa 'Nível de Desafio'. N = número de golpes do Rank X que o PNJ aguenta.",
+  "unidade": "PV por golpe",
+  "categorias": ["Comum", "Elite", "Chefão"],
+  "ranks": ["E", "D", "C", "B", "A", "Z"],
+  "vida_por_golpe": {
+    "Comum":  {"E": 12, "D": 26, "C": 34, "B": 44, "A": 68,  "Z": 130},
+    "Elite":  {"E": 14, "D": 32, "C": 42, "B": 58, "A": 80,  "Z": 175},
+    "Chefão": {"E": 20, "D": 46, "C": 58, "B": 80, "A": 124, "Z": 234}
+  },
+  "titulos_das_tabelas_verbatim": {
+    "Comum": "Personagens Comuns",
+    "Elite": "Personagens de Elite",
+    "Chefão": "Personagens Chefões"
+  },
+  "exemplos_do_livro": [
+    {"categoria": "Comum", "rank": "E", "golpes": 3, "pv": 36, "nd_texto": "ND 3 – Rank E (Comum)", "conta_verbatim": "3 x 12 = 36 de Vida"},
+    {"categoria": "Chefão", "rank": "Z", "golpes": 10, "pv": 2340, "nd_texto": "ND 10 – Rank Z (Chefão)", "conta_verbatim": "10 x 234 = 2.340 de Vida"}
+  ]
+}

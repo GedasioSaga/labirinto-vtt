@@ -1,0 +1,70 @@
+{
+  "fonte": "Livro do Jogador - V0.5 (3) (3).pdf, 6.0.2 (p. impressa 58, PDF 59); slots: 8.x, p. impressa 109 (PDF 110)",
+  "convencoes": {
+    "rotulos_positivos_base": "primeiro número de 'Rótulos Disponíveis' = Pontos de Rótulo gratuitos do Rank",
+    "rotulos_total_maximo": "número entre parênteses = total com o máximo de rótulos negativos (positivos base x 2)",
+    "slots_st": "custo em Slots de Técnica (ST) para manter a técnica ativa; tabela fora do Cap. IV (p. 109)"
+  },
+  "ranks": [
+    {"rank": "E", "nome": "Técnica Básica", "pdl": 10000, "dano_base_min": 12, "dano_base_max": 24, "custo_ki_min": 1, "custo_ki_max": 4, "rotulos_disponiveis": "1 (2)", "rotulos_positivos_base": 1, "rotulos_total_maximo": 2, "slots_st": 2, "slots_descricao": "Técnicas simples e utilitárias", "tecnica_especial_ki_minimo": 2, "pagina": 58},
+    {"rank": "D", "nome": "Técnica Simples", "pdl": 20000, "dano_base_min": 26, "dano_base_max": 46, "custo_ki_min": 4, "custo_ki_max": 9, "rotulos_disponiveis": "2 (4)", "rotulos_positivos_base": 2, "rotulos_total_maximo": 4, "slots_st": 4, "slots_descricao": "Técnicas básicas, com uso prático", "tecnica_especial_ki_minimo": 4, "pagina": 58},
+    {"rank": "C", "nome": "Técnica Intermediária", "pdl": 30000, "dano_base_min": 34, "dano_base_max": 58, "custo_ki_min": 6, "custo_ki_max": 12, "rotulos_disponiveis": "3 (6)", "rotulos_positivos_base": 3, "rotulos_total_maximo": 6, "slots_st": 6, "slots_descricao": "Técnicas intermediárias", "tecnica_especial_ki_minimo": 6, "pagina": 58},
+    {"rank": "B", "nome": "Técnica Avançada", "pdl": 40000, "dano_base_min": 44, "dano_base_max": 84, "custo_ki_min": 8, "custo_ki_max": 18, "rotulos_disponiveis": "4 (8)", "rotulos_positivos_base": 4, "rotulos_total_maximo": 8, "slots_st": 8, "slots_descricao": "Técnicas poderosas e características", "tecnica_especial_ki_minimo": 8, "pagina": 58},
+    {"rank": "A", "nome": "Técnica Épica", "pdl": 80000, "dano_base_min": 68, "dano_base_max": 124, "custo_ki_min": 12, "custo_ki_max": 26, "rotulos_disponiveis": "5 (10)", "rotulos_positivos_base": 5, "rotulos_total_maximo": 10, "slots_st": 10, "slots_descricao": "Técnicas avançadas e de grande impacto", "tecnica_especial_ki_minimo": 10, "pagina": 58},
+    {"rank": "Z", "nome": "Técnica Lendária", "pdl": 120000, "dano_base_min": 130, "dano_base_max": 234, "custo_ki_min": 18, "custo_ki_max": 44, "rotulos_disponiveis": "6 (12)", "rotulos_positivos_base": 6, "rotulos_total_maximo": 12, "slots_st": 14, "slots_descricao": "Técnicas lendárias e transformações épicas", "tecnica_especial_ki_minimo": 12, "pagina": 58}
+  ],
+  "regras": {
+    "tipos_de_tecnica": [
+      {"tipo": "Física", "atributo_acerto": "Força", "tipo_dano_base": "físico", "rotulo": "Técnica Física", "custo": 0},
+      {"tipo": "de Ki", "atributo_acerto": "Inteligência", "tipo_dano_base": "energético", "rotulo": "Técnica de Ki", "custo": 0},
+      {"tipo": "Mágica", "atributo_acerto": "Presença", "tipo_dano_base": null, "rotulo": "Técnicas Mágicas", "custo": 1, "requisito": "característica \"Mago de Ki\" (Ki Master), salvo talentos ou habilidades raciais específicas"},
+      {"tipo": "Híbrida", "atributo_acerto": "Força, Inteligência ou Presença dependendo do tipo base de técnica", "tipo_dano_base": null, "rotulo": "Técnica Híbrida", "custo": 2}
+    ],
+    "estagios_de_dano": {
+      "texto": "Acerto abaixo da CA → O ataque erra. Acerto superior em 1-2 pontos → Dano mínimo (¼ do dano base). Acerto superior em 3-5 pontos → Dano médio (½ do dano base). Acerto superior em 6 ou mais pontos → Dano completo (100% do dano base).",
+      "tabela": [
+        {"margem_acerto_menos_ca": "< 0", "resultado": "erra"},
+        {"margem_acerto_menos_ca": "1-2", "resultado": "minimo", "fracao": 0.25},
+        {"margem_acerto_menos_ca": "3-5", "resultado": "medio", "fracao": 0.5},
+        {"margem_acerto_menos_ca": ">= 6", "resultado": "completo", "fracao": 1.0}
+      ],
+      "exemplo": "dano base 50: Mínimo ¼ de 50 = 12; Médio ½ de 50 = 25; Completo 50",
+      "lacuna": "margem 0 (acerto igual à CA) não é coberta pelo texto",
+      "pagina": 59
+    },
+    "dano_base_na_criacao": "No estágio de criação da técnica, o dano base é sempre considerado o mínimo da tabela, ou seja, uma técnica de Rank E sem personalização avançada terá sempre o dano base de 12.",
+    "ki_como_pontos_de_acao": "Quando ele é reduzido a zero, significa que o personagem não tem mais energia disponível para conjurar técnicas. No entanto no início de seu próximo turno a sua pontuação retorna ao máximo simbolizando você carregando sua aura. Dessa forma, nesse sistema Ki funciona como um sistema de \"Pontos de Ação\".",
+    "pdl_base": "Essa recomendação define o mínimo de Poder de Luta necessário para um personagem desenvolver ou aprender uma técnica de determinado Ranking.",
+    "pontos_de_rotulo": "Cada rótulo possui um custo chamado Pontos de Rótulo, que define quantos rótulos uma técnica pode ter.",
+    "rotulos_negativos": "Cada rótulo negativo concede uma quantidade de pontos extras para adicionar um rótulo positivo. Assim, ao incluir 2 rótulos negativos que valem por -1, a técnica ganha 2 pontos adicionais, permitindo um total de 4 rótulos.",
+    "limite_negativos": "A quantidade máxima de rótulos negativos que uma técnica pode ter é igual ao número de rótulos positivos base do seu Rank. Por exemplo, uma técnica de Rank Z, que possui 6 rótulos positivos base, pode alcançar 12 rótulos no total se o jogador adicionar 6 rótulos negativos.",
+    "rotulo_interrogacao": "rótulos com \"?\" significam que eles consomem todos os pontos positivos base da técnica, ou seja, se a técnica tem 2 rótulos positivos disponíveis, ao colocar um rótulo que tenha a interrogação ele custa exatamente a quantidade de rótulos positivos disponíveis da técnica, restando apenas por negativos, para ter mais pontos.",
+    "tecnica_especial_quando": "Técnicas Especiais nada mais são que Técnicas que não tem previsão no sistema, por não haver rótulos ou regras simulando.",
+    "variacao_de_dano_ficha": {"minimo": "1/4 do Valor Base", "medio": "1/2 do Valor Base", "completo": "O Valor Base", "pagina": 84},
+    "slots_texto": "Técnicas Especiais e Transformações, não consomem ST’s para ficarem ativas, pois geralmente são ganhas interpretativamente. (p. 109) A cada 5.000 pontos de Poder de Luta (PDL), o personagem recebe +1 Slot de Técnica adicional. (p. 109)",
+    "troca_de_tecnicas": "um jogador apenas pode trocar suas técnicas no sentido de descartar antigas, e criar novas, apenas a cada 10.000 PDL (p. 109)"
+  },
+  "exemplo_kamehameha": {
+    "pagina": "85-86",
+    "rank": "B",
+    "rotulos": [
+      {"nome": "Técnica de Ki", "custo": 0},
+      {"nome": "Alcance – Engolfante", "custo": 2},
+      {"nome": "Técnica de Acumulação – Ki", "custo": 4},
+      {"nome": "Rajada Contínua", "custo": 2},
+      {"nome": "Somática", "custo": -2},
+      {"nome": "Verbal", "custo": -2}
+    ],
+    "pontos_positivos": 8,
+    "pontos_negativos": 4,
+    "dano_base": 44,
+    "custo_ki_passo4": 12,
+    "dano_passo5": {"minimo": 11, "medio": 22, "maximo": 44},
+    "ficha_final": "[Kamehameha - B] ... [Dano]: (12 - 22 - 44) [KI: 11] - Alcance: 6,0m em Área de Cone. - Rótulos Positivos (8): Alcance Engolfante, Técnica de Acumulação, Rajada Contínua. - Rótulos Negativos (4): Somática, Verbal.",
+    "inconsistencias": [
+      "Passo 4 diz Engolfante +4 de Ki; 6.1 diz +3",
+      "Passo 4 Custo de Ki = 12; ficha final [KI: 11]",
+      "Passo 5 Dano Mínimo 11; ficha final 12"
+    ]
+  }
+}

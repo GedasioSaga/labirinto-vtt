@@ -1,0 +1,47 @@
+{
+  "fonte": "Livro do Jogador V0.5, 2.0-2.1 (p. 6-7)",
+  "regras": {
+    "modificador": "O modificador é um número bônus fixo que é adicionado às suas rolagens com aquele atributo. Todos os atributos começam com valor 8, o que gera um modificador de –1. A cada número acima disso, o modificador aumenta em +1. Por exemplo: 10 gera +0, 12 gera +1, 14 gera +2, e assim por diante.",
+    "modificador_formula_inferida": "floor((valor - 10) / 2) — reproduz 8→-1, 10→+0, 12→+1, 14→+2 (o texto diz 'a cada número acima disso, o modificador aumenta em +1', mas os exemplos só fecham com +1 a cada 2 pontos)",
+    "valor_inicial": 8,
+    "pontos_para_distribuir": 28,
+    "proporcao_compra": "1:1, sem limites iniciais (3.0.2)"
+  },
+  "itens": [
+    {
+      "id": "for", "nome": "Força", "abreviacao": "FOR", "secao": "2.1.1", "pagina": 6,
+      "descricao": "Representa a capacidade física bruta do personagem. Ela afeta diretamente o acerto de técnicas ofensivas físicas e influencia sua capacidade de carga. De maneira sistemática, cada modificador de Força (+1, +2, etc.) concede espaços adicionais para carregar itens. Isso não significa que um personagem com Força baixa não pode portar objetos, mas sim que aqueles com maior Força têm maior facilidade para manejar e transportar equipamentos pesados.",
+      "usos": ["acerto de técnicas ofensivas físicas", "capacidade de carga (cada modificador de Força concede espaços adicionais para carregar itens)"]
+    },
+    {
+      "id": "des", "nome": "Destreza", "abreviacao": "DES", "secao": "2.1.2", "pagina": 6,
+      "descricao": "Determina a Classe de Armadura (CA) do personagem, que pode ser interpretada tanto como velocidade quanto como reflexos ou resistência. A CA representa a dificuldade que um adversário tem para acertá-lo com ataques físicos ou energéticos. Quanto maior a destreza, mais difícil será ser atingido e menor será o dano recebido ao receber golpes.",
+      "usos": ["Classe de Armadura (CA = 10 + mod. DES + EP Base)"]
+    },
+    {
+      "id": "con", "nome": "Constituição", "abreviacao": "CON", "secao": "2.1.3", "pagina": 6,
+      "descricao": "Representa a resistência física do personagem. Ela determina seus Pontos de Vida (PV), que indicam sua capacidade de suportar danos antes de ser derrotado ou morto. Ela é o valor que determina o quanto seu personagem aguenta receber danos.",
+      "usos": ["Pontos de Vida (PV = Constituição x 5 + Pontos de Raça) — usa o VALOR, não o modificador"]
+    },
+    {
+      "id": "int", "nome": "Inteligência", "abreviacao": "INT", "secao": "2.1.4", "pagina": 6,
+      "descricao": "Diferente de outros sistemas, a Inteligência aqui tem uma função variável, dependendo da raça do personagem. Sua principal função está ligada à inteligência de combate e ao controle do Ki, determinando o acerto de técnicas de energia. Porém, algumas raças podem utilizar a Inteligência para outros fins, como avanços científicos e conhecimentos gerais. Um bom exemplo disso é Goku: um gênio em combate, mas extremamente ingênuo em outros aspectos.",
+      "usos": ["acerto de técnicas de energia (Ki)", "usos raciais alternativos (ex.: Humano Cientista — ciência, armas e objetos criados)"]
+    },
+    {
+      "id": "sab", "nome": "Sabedoria", "abreviacao": "SAB", "secao": "2.1.5", "pagina": 7,
+      "descricao": "Está ligada à percepção e intuição do personagem, mas seu impacto principal no sistema está no gerenciamento de técnicas. Quanto maior o valor de Sabedoria, mais slots de técnicas esses que determinam quantas técnicas aprendidas o seu personagem pode ter ativa. Naturalmente, o número de slots aumenta conforme o Poder de Luta (PDL) sobe, mas investir em Sabedoria concede um bônus extra, permitindo aprender e manter mais técnicas prontas para uso.",
+      "usos": ["Slots de Técnicas (ST = 20 + ((1 + mod. SAB) x 05))", "percepção e intuição", "resistência em vários movimentos marciais (Teste de Sabedoria vs Acerto do Usuário)"]
+    },
+    {
+      "id": "pod", "nome": "Poder", "abreviacao": "POD", "secao": "2.1.6", "pagina": 7,
+      "descricao": "Representa a quantidade de Ki que um personagem possui. Enquanto a Inteligência define a precisão e controle do Ki (como uma \"mangueira\" regulando o fluxo de água), o Poder determina a reserva total de energia disponível (a \"fonte de água\").",
+      "usos": ["Pontos de Ki (PK = Poder x 02) — usa o VALOR, não o modificador"]
+    },
+    {
+      "id": "pre", "nome": "Presença", "abreviacao": "PRE", "secao": "2.1.7", "pagina": 7,
+      "descricao": "Rege a capacidade de influência social do personagem, abrangendo testes de carisma, intimidação e persuasão. Além disso, ela pode ser utilizada como atributo de acerto para técnicas que tenham natureza mágica ou espiritual, tornando-se um atributo versátil para certos estilos de combate e interações narrativas.",
+      "usos": ["testes de carisma, intimidação e persuasão", "acerto de técnicas mágicas/espirituais"]
+    }
+  ]
+}
