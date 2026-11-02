@@ -51,9 +51,19 @@ function golpeDaJanela(janela: JanelaDBTParaJogador): GolpeNaTela {
   return { atacante: janela.atacante, alvo: janela.alvo, tecnica: janela.tecnica, total: null, d20: null, ca: null, faixa: janela.faixa, critico: janela.critico, dano: janela.danoPrevisto }
 }
 
+/**
+ * A carta é do lado de quem age? O recorte do host diz em `mesmoLado` quando
+ * o traz (o lado escolhido em "Quem entra na batalha?"); sem o campo, vale o
+ * `lado` da vista ("outro" = do outro lado).
+ */
+function doMesmoLado(carta: CartaDBT): boolean {
+  if ('mesmoLado' in carta && typeof carta.mesmoLado === 'boolean') return carta.mesmoLado
+  return carta.lado !== 'outro'
+}
+
 function candidatosDaVista(cartas: readonly CartaDBT[], atorId: string, alvo: OpcaoDeAcao['alvo']): CandidatoAoAlvo[] {
   const vivas = cartas.filter((carta) => carta.situacao !== 'morto' && carta.tokenId !== atorId)
-  const escolhidas = alvo === 'inimigo' ? vivas.filter((carta) => carta.lado === 'outro') : alvo === 'aliado' ? vivas.filter((carta) => carta.lado !== 'outro') : alvo === 'qualquer' ? vivas : []
+  const escolhidas = alvo === 'inimigo' ? vivas.filter((carta) => !doMesmoLado(carta)) : alvo === 'aliado' ? vivas.filter(doMesmoLado) : alvo === 'qualquer' ? vivas : []
   return escolhidas.map((carta) => ({ id: carta.tokenId, nome: carta.nome, ...(carta.pv === null ? {} : { detalhe: `PV ${carta.pv.atual}/${carta.pv.max}` }) }))
 }
 

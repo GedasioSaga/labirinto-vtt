@@ -18,7 +18,7 @@ export function PaginaDaBatalhaDBT(props: ControleDaBatalhaDBTProps) {
         <PainelDoMestreDBT sceneKey={props.sceneKey} />
       ) : (
         <p className="lb-batalha-pagina__vazia">
-          Sem batalha nesta cena. Ao iniciar, as fichas da cena entram, cada uma declara se transforma antes, a iniciativa sai de d20 + DES + EP, e esta página mostra a
+          Sem batalha nesta cena. Ao iniciar, você escolhe quais fichas da cena entram e de que lado, cada uma declara se transforma antes, a iniciativa sai de d20 + DES + EP, e esta página mostra a
           vez, as ações com o custo de Ki, as reações, a ordem e o registro.
         </p>
       )}

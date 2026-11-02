@@ -14,7 +14,7 @@ import './batalhaDBT.css'
 import { avisosDoMestre, candidatosDoAlvo, cartasDaBatalha, fichaDoCombatente, linhaParaDesfazer, opcoesDaVez, tituloDaPendencia, type Fichas } from './dadosDaBatalhaDBT'
 import { MenuDeAcoesDBT, type CandidatoAoAlvo } from './MenuDeAcoesDBT'
 import { useMiraDBT } from './miraDBT'
-import { OrdemDoMestreDBT } from './OrdemDoMestreDBT'
+import { OrdemDoMestreDBT, ladosDaBatalhaDBT } from './OrdemDoMestreDBT'
 import { PainelIniciativaDBT } from './PainelIniciativaDBT'
 import { PendenciaDoMestreDBT, type RespostaDoMestre } from './PendenciaDBT'
 import { Secao } from './pecasDaBatalhaDBT'
@@ -101,6 +101,8 @@ export function PainelDoMestreDBT({ sceneKey }: PainelDoMestreDBTProps) {
     if (combatentes === undefined) return []
     return entrantesDaCena(tokens, personagens, equipes, new Set(tokens.map((token) => token.id))).filter((entrante) => !Object.hasOwn(combatentes, entrante.tokenId))
   }, [tokens, personagens, equipes, combatentes])
+
+  const lados = useMemo(() => ladosDaBatalhaDBT(equipes), [equipes])
 
   if (cena === undefined) return null
 
@@ -212,7 +214,7 @@ export function PainelDoMestreDBT({ sceneKey }: PainelDoMestreDBTProps) {
 
       {cena.fase === 'combate' && (
         <Secao titulo="Ordem" nota="⋯ abre o menu de cada um">
-          <OrdemDoMestreDBT cartas={cartas} combate vez={cena.ordem.vez} personagemDe={(id) => cena.combatentes[id]?.personagemId ?? null} deFora={deFora} mestre={mestre} />
+          <OrdemDoMestreDBT cartas={cartas} combate vez={cena.ordem.vez} personagemDe={(id) => cena.combatentes[id]?.personagemId ?? null} deFora={deFora} mestre={mestre} lados={lados} />
         </Secao>
       )}
 

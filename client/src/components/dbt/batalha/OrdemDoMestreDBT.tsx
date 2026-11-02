@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { COMPORTAMENTO, nomeDaCondicao } from '../../../lib/dbt/batalha/condicoes'
+import { LADO_DOS_JOGADORES, LADO_DOS_NPCS } from '../../../lib/dbt/batalha/inicio'
 import type { AcaoDoMestreDBT, EntranteDBT, IdDaCondicao, SituacaoDeMorte } from '../../../lib/dbt/batalha/tipos'
 import { useRpgStore } from '../../../stores/rpgStore'
 import { MenuDaCarta, type ItemDoMenuDaCarta } from '../../batalha/MenuDaCarta'
@@ -24,59 +25,109 @@ export interface OrdemDoMestreDBTProps {
   /** Tokens da cena com ficha que não estão na batalha. */
   deFora: readonly EntranteDBT[]
   mestre: (acao: AcaoDoMestreDBT) => boolean
+  /** Os lados para "Lado" no menu (`ladosDaBatalhaDBT`); ausente = sem a seção. */
+  lados?: readonly LadoNoMenuDBT[]
 }
 
 const CONDICOES: readonly IdDaCondicao[] = Object.keys(COMPORTAMENTO) as IdDaCondicao[]
 const SITUACOES: readonly SituacaoDeMorte[] = ['de-pe', 'salvaguarda', 'inconsciente', 'morto']
 
-type Caixa = { tipo: 'condicao'; carta: CartaDBT } | { tipo: 'temporario'; carta: CartaDBT }
+/** A caixa que um item do menu abre (condição ou modificador temporário). */
+export type CaixaDoMenuDBT = { tipo: 'condicao'; carta: CartaDBT } | { tipo: 'temporario'; carta: CartaDBT }
 
-export function OrdemDoMestreDBT({ cartas, combate, vez, personagemDe, deFora, mestre }: OrdemDoMestreDBTProps) {
-  const [menu, setMenu] = useState<{ carta: CartaDBT; ancora: HTMLElement } | null>(null)
-  const [caixa, setCaixa] = useState<Caixa | null>(null)
-  const [incluir, setIncluir] = useState('')
-  const nomeDaVez = cartas.find((carta) => carta.id === vez)?.nome ?? null
+/** Um lado da batalha no menu: a equipe, ou os lados de partida "Jogadores" e "NPCs". */
+export interface LadoNoMenuDBT {
+  id: string
+  nome: string
+  cor: string | null
+}
 
-  const itensDe = (carta: CartaDBT): ItemDoMenuDaCarta[] => {
-    const indice = cartas.findIndex((candidata) => candidata.id === carta.id)
-    const itens: ItemDoMenuDaCarta[] = []
-    const personagemId = personagemDe(carta.id)
-    if (personagemId !== null) itens.push({ id: 'ficha', rotulo: 'Abrir a ficha', detalhe: 'PV e Ki também se ajustam por lá', onEscolher: () => useRpgStore.getState().abrirFicha(personagemId) })
-    if (combate) {
-      itens.push({ id: 'vez', secao: 'Vez', rotulo: 'Dar a vez', desabilitado: carta.vez, detalhe: carta.vez ? 'Já é a vez dele' : 'Fecha o turno de quem está e começa o dele', onEscolher: () => mestre({ tipo: 'darAVez', combatenteId: carta.id }) })
-    }
-    itens.push({ id: 'subir', secao: combate ? undefined : 'Ordem', rotulo: 'Subir na ordem', desabilitado: indice <= 0, onEscolher: () => mestre({ tipo: 'moverCarta', combatenteId: carta.id, posicao: indice - 1 }) })
-    itens.push({ id: 'descer', rotulo: 'Descer na ordem', desabilitado: indice >= cartas.length - 1, onEscolher: () => mestre({ tipo: 'moverCarta', combatenteId: carta.id, posicao: indice + 1 }) })
-    itens.push({ id: 'condicao', secao: 'Condições', rotulo: 'Pôr condição…', onEscolher: () => setCaixa({ tipo: 'condicao', carta }) })
-    for (const condicao of carta.condicoes) itens.push({ id: `tirar:${condicao.id}`, rotulo: `Tirar ${condicao.nome}`, onEscolher: () => mestre({ tipo: 'tirarCondicao', combatenteId: carta.id, condicaoId: condicao.id }) })
-    itens.push({ id: 'temporario', rotulo: 'Modificador temporário…', detalhe: 'Acerto, CA ou dano por algumas rodadas', onEscolher: () => setCaixa({ tipo: 'temporario', carta }) })
-    for (const temporario of carta.temporarios) itens.push({ id: `tirar-temp:${temporario.id}`, rotulo: `Tirar ${temporario.rotulo}`, onEscolher: () => mestre({ tipo: 'tirarTemporario', combatenteId: carta.id, temporarioId: temporario.id }) })
-    itens.push({
-      id: 'desvantagem',
-      secao: 'Reações',
-      rotulo: 'Reação em Desvantagem',
-      marcado: carta.reacaoEmDesvantagem,
-      detalhe: 'Reação defensiva sem gastar Ki (precisa ter o Ki)',
-      onEscolher: () => mestre({ tipo: 'desvantagem', combatenteId: carta.id, ligada: !carta.reacaoEmDesvantagem }),
-    })
-    if (combate && vez !== null && vez !== carta.id && nomeDaVez !== null) {
-      itens.push({ id: 'oportunidade', rotulo: `Ataque de oportunidade em ${nomeDaVez}`, detalhe: 'Técnica de ação, Ki normal', onEscolher: () => mestre({ tipo: 'acaoGratuita', combatenteId: carta.id, contra: vez, motivo: 'oportunidade' }) })
-      itens.push({ id: 'gratuita', rotulo: `Ação gratuita contra ${nomeDaVez}`, detalhe: 'Técnica previsível errou: sem Ki', onEscolher: () => mestre({ tipo: 'acaoGratuita', combatenteId: carta.id, contra: vez, motivo: 'previsivel' }) })
-    }
-    if (carta.acaoOculta !== null) itens.push({ id: 'oculta', rotulo: 'Disparar a Ação Oculta', detalhe: carta.acaoOculta.texto === '' ? `${carta.acaoOculta.ki} Ki reservados` : carta.acaoOculta.texto, onEscolher: () => mestre({ tipo: 'dispararOculta', combatenteId: carta.id }) })
-    if (carta.voo > 0) itens.push({ id: 'derrubar', rotulo: 'Derrubar do voo', detalhe: 'Abre a queda (estabilizar ou cair)', onEscolher: () => mestre({ tipo: 'derrubar', combatenteId: carta.id }) })
-    SITUACOES.forEach((situacao, posicao) =>
-      itens.push({
-        id: `situacao:${situacao}`,
-        secao: posicao === 0 ? 'Situação' : undefined,
-        rotulo: NOME_DA_SITUACAO[situacao],
-        marcado: carta.situacao === situacao,
-        onEscolher: () => mestre({ tipo: 'situacao', combatenteId: carta.id, situacao }),
-      }),
-    )
-    itens.push({ id: 'tirar', secao: 'Batalha', rotulo: 'Tirar da batalha', perigo: true, onEscolher: () => mestre({ tipo: 'tirar', combatenteId: carta.id }) })
-    return itens
+/** Os lados que o mestre pode dar a uma carta: as equipes da mesa e os dois de partida. */
+export function ladosDaBatalhaDBT(equipes: readonly { id: string; nome: string; cor: string }[]): LadoNoMenuDBT[] {
+  return [...equipes.map((equipe) => ({ id: equipe.id, nome: equipe.nome, cor: equipe.cor })), { id: LADO_DOS_JOGADORES, nome: 'Jogadores', cor: null }, { id: LADO_DOS_NPCS, nome: 'NPCs', cor: null }]
+}
+
+export interface ContextoDoMenuDBT {
+  cartas: readonly CartaDBT[]
+  combate: boolean
+  vez: string | null
+  personagemDe: (id: string) => string | null
+  mestre: (acao: AcaoDoMestreDBT) => boolean
+  abrirCaixa: (caixa: CaixaDoMenuDBT) => void
+  lados?: readonly LadoNoMenuDBT[]
+}
+
+/**
+ * O menu da carta do mestre (seção 15), o mesmo na ordem do painel e na faixa
+ * do mapa: dar a vez, mover, condição, modificador, Reação em Desvantagem,
+ * derrubar, ação gratuita, Ação Oculta, lado, situação e tirar.
+ */
+export function itensDoMestreDBT(carta: CartaDBT, { cartas, combate, vez, personagemDe, mestre, abrirCaixa, lados }: ContextoDoMenuDBT): ItemDoMenuDaCarta[] {
+  const indice = cartas.findIndex((candidata) => candidata.id === carta.id)
+  const nomeDaVez = cartas.find((candidata) => candidata.id === vez)?.nome ?? null
+  const itens: ItemDoMenuDaCarta[] = []
+  const personagemId = personagemDe(carta.id)
+  if (personagemId !== null) itens.push({ id: 'ficha', rotulo: 'Abrir a ficha', detalhe: 'PV e Ki também se ajustam por lá', onEscolher: () => useRpgStore.getState().abrirFicha(personagemId) })
+  if (combate) {
+    itens.push({ id: 'vez', secao: 'Vez', rotulo: 'Dar a vez', desabilitado: carta.vez, detalhe: carta.vez ? 'Já é a vez dele' : 'Fecha o turno de quem está e começa o dele', onEscolher: () => mestre({ tipo: 'darAVez', combatenteId: carta.id }) })
   }
+  itens.push({ id: 'subir', secao: combate ? undefined : 'Ordem', rotulo: 'Subir na ordem', desabilitado: indice <= 0, onEscolher: () => mestre({ tipo: 'moverCarta', combatenteId: carta.id, posicao: indice - 1 }) })
+  itens.push({ id: 'descer', rotulo: 'Descer na ordem', desabilitado: indice >= cartas.length - 1, onEscolher: () => mestre({ tipo: 'moverCarta', combatenteId: carta.id, posicao: indice + 1 }) })
+  itens.push({ id: 'condicao', secao: 'Condições', rotulo: 'Pôr condição…', onEscolher: () => abrirCaixa({ tipo: 'condicao', carta }) })
+  for (const condicao of carta.condicoes) itens.push({ id: `tirar:${condicao.id}`, rotulo: `Tirar ${condicao.nome}`, onEscolher: () => mestre({ tipo: 'tirarCondicao', combatenteId: carta.id, condicaoId: condicao.id }) })
+  itens.push({ id: 'temporario', rotulo: 'Modificador temporário…', detalhe: 'Acerto, CA ou dano por algumas rodadas', onEscolher: () => abrirCaixa({ tipo: 'temporario', carta }) })
+  for (const temporario of carta.temporarios) itens.push({ id: `tirar-temp:${temporario.id}`, rotulo: `Tirar ${temporario.rotulo}`, onEscolher: () => mestre({ tipo: 'tirarTemporario', combatenteId: carta.id, temporarioId: temporario.id }) })
+  itens.push({
+    id: 'desvantagem',
+    secao: 'Reações',
+    rotulo: 'Reação em Desvantagem',
+    marcado: carta.reacaoEmDesvantagem,
+    detalhe: 'Reação defensiva sem gastar Ki (precisa ter o Ki)',
+    onEscolher: () => mestre({ tipo: 'desvantagem', combatenteId: carta.id, ligada: !carta.reacaoEmDesvantagem }),
+  })
+  if (combate && vez !== null && vez !== carta.id && nomeDaVez !== null) {
+    itens.push({ id: 'oportunidade', rotulo: `Ataque de oportunidade em ${nomeDaVez}`, detalhe: 'Técnica de ação, Ki normal', onEscolher: () => mestre({ tipo: 'acaoGratuita', combatenteId: carta.id, contra: vez, motivo: 'oportunidade' }) })
+    itens.push({ id: 'gratuita', rotulo: `Ação gratuita contra ${nomeDaVez}`, detalhe: 'Técnica previsível errou: sem Ki', onEscolher: () => mestre({ tipo: 'acaoGratuita', combatenteId: carta.id, contra: vez, motivo: 'previsivel' }) })
+  }
+  if (carta.acaoOculta !== null) itens.push({ id: 'oculta', rotulo: 'Disparar a Ação Oculta', detalhe: carta.acaoOculta.texto === '' ? `${carta.acaoOculta.ki} Ki reservados` : carta.acaoOculta.texto, onEscolher: () => mestre({ tipo: 'dispararOculta', combatenteId: carta.id }) })
+  if (carta.voo > 0) itens.push({ id: 'derrubar', rotulo: 'Derrubar do voo', detalhe: 'Abre a queda (estabilizar ou cair)', onEscolher: () => mestre({ tipo: 'derrubar', combatenteId: carta.id }) })
+  // O lado decide quem é inimigo e quem é aliado no alvo das técnicas.
+  for (const [posicao, lado] of (lados ?? []).entries()) {
+    itens.push({
+      id: `lado:${lado.id}`,
+      secao: posicao === 0 ? 'Lado' : undefined,
+      rotulo: lado.nome,
+      cor: lado.cor,
+      marcado: carta.lado === lado.id,
+      onEscolher: () => {
+        if (carta.lado !== lado.id) mestre({ tipo: 'lado', combatenteId: carta.id, lado: lado.id })
+      },
+    })
+  }
+  SITUACOES.forEach((situacao, posicao) =>
+    itens.push({
+      id: `situacao:${situacao}`,
+      secao: posicao === 0 ? 'Situação' : undefined,
+      rotulo: NOME_DA_SITUACAO[situacao],
+      marcado: carta.situacao === situacao,
+      onEscolher: () => mestre({ tipo: 'situacao', combatenteId: carta.id, situacao }),
+    }),
+  )
+  itens.push({ id: 'tirar', secao: 'Batalha', rotulo: 'Tirar da batalha', perigo: true, onEscolher: () => mestre({ tipo: 'tirar', combatenteId: carta.id }) })
+  return itens
+}
+
+/** A caixa aberta pelo menu da carta (condição ou modificador). */
+export function CaixaDaOrdemDBT({ caixa, onFechar, mestre }: { caixa: CaixaDoMenuDBT; onFechar: () => void; mestre: (acao: AcaoDoMestreDBT) => boolean }) {
+  return caixa.tipo === 'condicao' ? <CaixaDeCondicao carta={caixa.carta} onFechar={onFechar} mestre={mestre} /> : <CaixaDeTemporario carta={caixa.carta} onFechar={onFechar} mestre={mestre} />
+}
+
+export function OrdemDoMestreDBT({ cartas, combate, vez, personagemDe, deFora, mestre, lados }: OrdemDoMestreDBTProps) {
+  const [menu, setMenu] = useState<{ carta: CartaDBT; ancora: HTMLElement } | null>(null)
+  const [caixa, setCaixa] = useState<CaixaDoMenuDBT | null>(null)
+  const [incluir, setIncluir] = useState('')
+
+  const itensDe = (carta: CartaDBT): ItemDoMenuDaCarta[] => itensDoMestreDBT(carta, { cartas, combate, vez, personagemDe, mestre, abrirCaixa: setCaixa, lados })
 
   const entranteEscolhido = deFora.find((entrante) => entrante.tokenId === incluir)
 
@@ -145,8 +196,7 @@ export function OrdemDoMestreDBT({ cartas, combate, vez, personagemDe, deFora, m
         </div>
       )}
       {menu !== null && <MenuDaCarta ancora={menu.ancora} rotulo={`Ações de ${menu.carta.nome}`} itens={itensDe(menu.carta)} onFechar={() => setMenu(null)} />}
-      {caixa?.tipo === 'condicao' && <CaixaDeCondicao carta={caixa.carta} onFechar={() => setCaixa(null)} mestre={mestre} />}
-      {caixa?.tipo === 'temporario' && <CaixaDeTemporario carta={caixa.carta} onFechar={() => setCaixa(null)} mestre={mestre} />}
+      {caixa !== null && <CaixaDaOrdemDBT caixa={caixa} onFechar={() => setCaixa(null)} mestre={mestre} />}
     </>
   )
 }

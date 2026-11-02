@@ -753,3 +753,302 @@
     transition: none;
   }
 }
+
+/*
+ * ---------- A faixa da ordem DBT (`FaixaDaOrdemDBT`) ----------
+ * A mesma faixa do One Piece (batalha.css); só o que é do Dragon Ball muda.
+ * A raiz não leva `.dbf` (as regras de elemento dela mexeriam nos botões da
+ * faixa): as cores vêm da paleta do app. A forma é dourada (o poder sobe),
+ * não o roxo das formas do One Piece.
+ */
+.dbb-fx {
+  --bt-forma: var(--lb-color-brass-bright);
+}
+.dbb-fx-selo--voo {
+  --selo-cor: var(--lb-color-tide);
+  --selo-fundo: var(--lb-color-tide-soft);
+}
+.dbb-fx-ini {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font-variant-numeric: tabular-nums;
+}
+.dbb-fx-caiu {
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+}
+.dbb-fx-aviso {
+  margin: var(--lb-space-2) 0 0;
+  padding: 6px 10px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+}
+/* O registro dentro da faixa: os tokens do Scouter sem a moldura do painel. */
+.dbf.dbb-fx-registro {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--lb-font-size-sm);
+}
+
+/* ---------- "Quem entra na batalha?" (QuemEntraNaBatalhaDBT) ---------- */
+.dbb-entra__todos {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--lb-color-line);
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+  cursor: pointer;
+}
+.dbb-entra__todos input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--lb-color-brass);
+  cursor: pointer;
+}
+.dbb-entra__todos input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+select.gr-entrada.dbb-entra__lado {
+  width: auto;
+  min-width: 112px;
+  max-width: 168px;
+  min-height: 36px;
+}
+select.gr-entrada.dbb-entra__lado:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * ---------- Os efeitos sobre o mapa (`EfeitosDBT`) ----------
+ * Uma camada que não pega clique, sobre o mapa do mestre (absoluta, como
+ * `.bt-efeitos`) ou sobre a janela do jogador (`dbe--janela`). Cada aviso é
+ * um pino parado na ficha e, dentro dele, a peça que mexe: entra em ~180 ms
+ * (ease-out, de 6 px abaixo e 96%), fica legível e sai em ~230 ms subindo.
+ * Só transform e opacity. O destaque é o mesmo da faixa do golpe: Completo e
+ * Crítico acesos em âmbar; o resto é texto colorido sobre pedra.
+ */
+.dbf.dbe {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  overflow: hidden;
+  pointer-events: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  container-type: normal;
+}
+.dbf.dbe.dbe--janela {
+  position: fixed;
+}
+.dbe-pino {
+  position: absolute;
+  translate: -50% 0;
+}
+.dbe-pino[data-lugar='acima'] {
+  translate: -50% -100%;
+}
+.dbe-pino[data-lugar='centro'] {
+  translate: -50% -50%;
+}
+.dbe-chip,
+.dbe-numero,
+.dbe-anel {
+  animation-delay: var(--dbe-atraso, 0ms);
+  animation-fill-mode: both;
+  animation-timing-function: var(--lb-gr-ease-out);
+}
+.dbe-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--lb-color-stone-solid);
+  box-shadow:
+    inset 0 0 0 1px var(--dbe-linha, var(--lb-color-line-strong)),
+    var(--lb-shadow-md);
+  color: var(--dbe-cor, var(--lb-color-parchment));
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  animation-name: dbe-chip;
+  animation-duration: 1300ms;
+}
+.dbe-chip__d20 {
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  opacity: 0.78;
+}
+.dbe-chip[data-tom='erro'] {
+  --dbe-cor: var(--db-bad);
+  --dbe-linha: rgba(255, 123, 107, 0.45);
+}
+.dbe-chip[data-tom='erro-critico'] {
+  background: var(--db-bad);
+  color: var(--db-amber-ink);
+  box-shadow: var(--lb-shadow-md);
+}
+.dbe-chip[data-tom='minimo'] {
+  --dbe-cor: var(--lb-color-parchment-dim);
+  --dbe-linha: var(--db-amber-line);
+}
+.dbe-chip[data-tom='medio'],
+.dbe-chip[data-tom='forma'] {
+  --dbe-cor: var(--db-amber-hi);
+  --dbe-linha: var(--db-amber-line);
+}
+.dbe-chip[data-tom='completo'],
+.dbe-chip[data-tom='critico'] {
+  background: var(--db-amber);
+  color: var(--db-amber-ink);
+  box-shadow:
+    0 0 14px var(--db-amber-glow),
+    var(--lb-shadow-md);
+}
+.dbe-chip[data-tom='critico'] {
+  font-size: 14px;
+}
+.dbe-chip[data-tom='sem-forma'] {
+  --dbe-cor: var(--lb-color-parchment-dim);
+}
+.dbe-chip[data-tom='condicao'] {
+  --dbe-cor: var(--lb-color-ember);
+  --dbe-linha: rgba(226, 100, 90, 0.4);
+}
+.dbe-chip[data-tom='reacao'] {
+  --dbe-cor: var(--db-ki-hi);
+  --dbe-linha: var(--db-ki-glow);
+}
+/* O número do dano e da cura: grande, sem caixa, subindo devagar do meio da ficha. */
+.dbe-numero {
+  display: block;
+  color: var(--db-pv-hi);
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 0 10px var(--db-pv-glow);
+  animation-name: dbe-numero;
+  animation-duration: 1200ms;
+}
+.dbe-numero[data-tom='cura'] {
+  color: var(--db-neg);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 0 10px rgba(127, 180, 138, 0.45);
+}
+/* O anel do crítico e da forma: abre da ficha para fora e apaga. */
+.dbe-anel {
+  position: absolute;
+  translate: -50% -50%;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--db-amber),
+    0 0 16px var(--db-amber-glow);
+  animation-name: dbe-anel;
+  animation-duration: 700ms;
+}
+.dbe-anel[data-tom='critico'] {
+  box-shadow:
+    0 0 0 2px var(--db-amber-hi),
+    0 0 0 6px var(--db-amber-soft),
+    0 0 20px var(--db-amber-glow);
+}
+.dbe-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@keyframes dbe-chip {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(1);
+  }
+}
+@keyframes dbe-numero {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.94);
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    animation-timing-function: linear;
+  }
+  78% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-18px) scale(1);
+  }
+}
+@keyframes dbe-anel {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+/* Só aparece e some: sem deslizar, sem crescer (o anel nem nasce, ver EfeitosDBT). */
+@keyframes dbe-some {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dbe-chip,
+  .dbe-numero,
+  .dbe-anel {
+    animation-name: dbe-some;
+    animation-timing-function: ease;
+  }
+}
