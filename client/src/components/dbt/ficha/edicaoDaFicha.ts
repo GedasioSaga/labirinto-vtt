@@ -173,6 +173,7 @@ export function referenciaDosRecursos(personagem: Personagem): ReferenciaDosRecu
  * A conta parte sempre da referência, nunca da tecla anterior: digitar "80" no
  * PV máximo passa por "8" e não pode curar ninguém no caminho. Mudança no
  * próprio atual (digitado, descanso) vira a nova referência e só é limitada.
+ * NPC sem o bloco de ND mantém o PV máximo que já tem gravado.
  * Sem mudança devolve o MESMO personagem.
  */
 export function comMaximosDaRegra(
@@ -181,10 +182,13 @@ export function comMaximosDaRegra(
   proximo: Personagem,
 ): { personagem: Personagem; referencia: ReferenciaDosRecursos } {
   const alvo = maximosDosRecursos(derivadosDe(proximo))
+  // NPC sem o bloco `npc` (o perfil que o jogador recebe sem o ND, `paraOFio`, ou NPC antigo de ND por escolher):
+  // a conta do jogador não sabe a vida dele, e gravá-la trocaria no host o ND × vida por golpe. O máximo gravado fica.
+  const vidaGravada = proximo.tipo === 'npc' && proximo.dbt?.npc === undefined ? proximo.maximos.pv : undefined
   let saida = proximo
   const novaReferencia = { ...referencia }
   for (const id of IDS_DOS_RECURSOS) {
-    const novo = alvo[id]
+    const novo = id === 'pv' && vidaGravada !== undefined ? vidaGravada : alvo[id]
     const pedido = proximo.recursos[id] ?? 0
     if (pedido !== (anterior.recursos[id] ?? 0)) novaReferencia[id] = { atual: Math.min(novo, Math.max(0, pedido)), maximo: novo }
     const base = novaReferencia[id]

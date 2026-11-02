@@ -1,6 +1,7 @@
 import type { Token } from '../../types/map'
 import { maximoComposto } from '../ajusteDaFicha'
-import type { FichaDBT } from '../dbt/modelo'
+import { CONTADOR_CHOQUE_USADO, CONTADOR_USOS_TRANSF_MAXIMA } from '../dbt/batalha/leitura'
+import { LIMITES_DBT, type ContadorDBT, type FichaDBT } from '../dbt/modelo'
 import {
   FORCA_PADRAO,
   RECURSO_QUE_A_FORCA_MULTIPLICA,
@@ -127,21 +128,51 @@ function mesmoValor(a: unknown, b: unknown): boolean {
  */
 const PARTES_DO_MODELO = ['atributos', 'modificadoresDosAtributos', 'maximos', 'modificadoresDosRecursos', 'abas', 'escolhas', 'etiquetas', 'descricao', 'dbt'] as const
 
-/**
- * A ficha Dragon Ball da variação: técnicas, ND, EP, raça e o resto do
- * modelo, com o estado da mesa da própria variação (a forma ligada, se o
- * modelo ainda a tem, o Ki bloqueado e os contadores com o desgaste entre
- * batalhas). Sem ficha no modelo, fica a da variação.
- */
-function dbtDaVariacao(variacao: FichaDBT | undefined, modelo: FichaDBT | undefined): FichaDBT | undefined {
-  if (modelo === undefined || variacao === undefined) return modelo ?? variacao
-  const formaLigada = modelo.transformacoes.some((forma) => forma.id === variacao.transformacaoAtiva) ? variacao.transformacaoAtiva : null
-  return { ...modelo, transformacaoAtiva: formaLigada, kiBloqueado: variacao.kiBloqueado, contadores: variacao.contadores }
+/** Os contadores que a batalha Dragon Ball grava (desgaste até o Descanso Longo): o número é sempre da variação. */
+const CONTADORES_DO_DESGASTE: readonly string[] = [CONTADOR_USOS_TRANSF_MAXIMA, CONTADOR_CHOQUE_USADO]
+
+function ehDesgaste(contador: ContadorDBT): boolean {
+  return CONTADORES_DO_DESGASTE.includes(contador.id)
 }
 
-/** A ficha Dragon Ball sem o estado da mesa: o que a variação recebe do modelo. */
-function dbtDoModelo(ficha: FichaDBT | undefined): FichaDBT | undefined {
-  return ficha === undefined ? undefined : { ...ficha, transformacaoAtiva: null, kiBloqueado: 0, contadores: [] }
+/** O estado da mesa de uma ficha Dragon Ball: a forma ligada, o Ki bloqueado e os contadores. */
+type MesaDBT = Pick<FichaDBT, 'transformacaoAtiva' | 'kiBloqueado' | 'contadores'>
+
+/** Variação que ainda não tem ficha Dragon Ball (ou acabou de nascer): nada do estado da mesa do modelo. */
+const MESA_VAZIA: MesaDBT = { transformacaoAtiva: null, kiBloqueado: 0, contadores: [] }
+
+/**
+ * Os contadores da variação: os do modelo (nome e máximo são definição da
+ * ficha) com o número de agora da variação, pelo id; contador novo no modelo
+ * chega com o número do modelo, menos o desgaste, que nasce em 0. O desgaste
+ * que só a variação tem fica, até o teto de contadores.
+ */
+function contadoresDaVariacao(daVariacao: readonly ContadorDBT[], doModelo: readonly ContadorDBT[]): ContadorDBT[] {
+  const porId = new Map(daVariacao.map((contador) => [contador.id, contador]))
+  const doModeloComONumero = doModelo.map((contador) => {
+    const atual = porId.get(contador.id)?.atual ?? (ehDesgaste(contador) ? 0 : contador.atual)
+    return { ...contador, atual: contador.maximo === null ? atual : Math.min(atual, contador.maximo) }
+  })
+  const idsDoModelo = new Set(doModelo.map((contador) => contador.id))
+  const desgasteSoDaVariacao = daVariacao.filter((contador) => ehDesgaste(contador) && !idsDoModelo.has(contador.id))
+  return [...doModeloComONumero, ...desgasteSoDaVariacao].slice(0, LIMITES_DBT.contadores)
+}
+
+/**
+ * A ficha Dragon Ball da variação: técnicas, ND, EP, raça, contadores e o
+ * resto do modelo, com o estado da mesa da própria variação (a forma ligada,
+ * se o modelo ainda a tem, o Ki bloqueado e o número de cada contador).
+ */
+function dbtDaVariacao(mesa: MesaDBT, modelo: FichaDBT): FichaDBT {
+  const formaLigada = modelo.transformacoes.some((forma) => forma.id === mesa.transformacaoAtiva) ? mesa.transformacaoAtiva : null
+  return { ...modelo, transformacaoAtiva: formaLigada, kiBloqueado: mesa.kiBloqueado, contadores: contadoresDaVariacao(mesa.contadores, modelo.contadores) }
+}
+
+/** A ficha Dragon Ball sem o estado da mesa (o número dos contadores e o desgaste fora): o que a variação recebe do modelo. */
+function dbtSemAMesa(ficha: FichaDBT | undefined): FichaDBT | undefined {
+  if (ficha === undefined) return undefined
+  const contadores = ficha.contadores.filter((contador) => !ehDesgaste(contador)).map((contador) => ({ ...contador, atual: 0 }))
+  return { ...ficha, ...MESA_VAZIA, contadores }
 }
 
 /**
@@ -150,7 +181,7 @@ function dbtDoModelo(ficha: FichaDBT | undefined): FichaDBT | undefined {
  */
 export function mexeuNoQueVemDoModelo(antes: Personagem, salvo: Personagem): boolean {
   return PARTES_DO_MODELO.some((parte) =>
-    parte === 'dbt' ? !mesmoValor(dbtDoModelo(antes.dbt), dbtDoModelo(salvo.dbt)) : !mesmoValor(antes[parte], salvo[parte]),
+    parte === 'dbt' ? !mesmoValor(dbtSemAMesa(antes.dbt), dbtSemAMesa(salvo.dbt)) : !mesmoValor(antes[parte], salvo[parte]),
   )
 }
 
@@ -171,8 +202,10 @@ function variacaoSincronizada(variacao: Personagem, modelo: Personagem): Persona
   let copia: Personagem | null = null
   for (const parte of PARTES_DO_MODELO) {
     if (parte === 'dbt') {
-      const dbt = dbtDaVariacao(variacao.dbt, modelo.dbt)
-      if (dbt === undefined || mesmoValor(variacao.dbt, dbt)) continue
+      // Sem ficha no modelo, fica a da variação.
+      if (modelo.dbt === undefined) continue
+      const dbt = dbtDaVariacao(variacao.dbt ?? MESA_VAZIA, modelo.dbt)
+      if (mesmoValor(variacao.dbt, dbt)) continue
       copia ??= { ...variacao }
       copia.dbt = dbt
       continue
@@ -293,6 +326,8 @@ export function novaVariacao(modelo: Personagem, nome: string): Personagem {
     historico: [],
     combate: { forca: FORCA_PADRAO, modeloId: raiz },
   }
+  // A ficha Dragon Ball nasce sem o estado da mesa do modelo (forma ligada, Ki bloqueado, desgaste da última luta).
+  if (modelo.dbt !== undefined) variacao.dbt = dbtDaVariacao(MESA_VAZIA, modelo.dbt)
   const temHp = variacao.recursos[RECURSO_QUE_A_FORCA_MULTIPLICA] !== undefined || variacao.maximos[RECURSO_QUE_A_FORCA_MULTIPLICA] !== undefined
   if (temHp) variacao.recursos = { ...variacao.recursos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: maximoComposto(variacao, RECURSO_QUE_A_FORCA_MULTIPLICA).total }
   return variacao
