@@ -1,7 +1,7 @@
 # Digest — Suplementos de Saga (fichas de PnJ) do Dragon Ball Tales
 
 Fontes (fan-made, CC BY-NC-SA, Projeto RR / VLiscius e FNishiguchi): `Saga Saiyajins.pdf`, `ilide.info-saga-freeza-pr_….pdf`, `ilide.info-saga-super-heroes-pr_….pdf`, `ilide.info-saga-zero-humanos-pr_….pdf`, `ilide.info-broly-pr_….pdf`.
-Saídas: `json/saga-npcs-<saga>.json` (fichas), `md/saga-<saga>-regras.md` (regra fora de ficha). Extração automática por `scripts_saga/parse_saga.py` sobre `txt/*.txt` (pdftotext -layout); não foi possível renderizar páginas (pdftoppm ausente), então nenhuma ficha foi conferida visualmente.
+Saídas: `json/saga-npcs-<saga>.json` (fichas), `md/saga-<saga>-regras.md` (regra fora de ficha). Extração automática por `scripts_saga/parse_saga.py` sobre `txt/*.txt` (pdftotext -layout); não foi possível renderizar páginas (pdftoppm ausente), então nenhuma ficha foi conferida visualmente na extração. Em 02/11/2026, 6 fichas foram conferidas contra a página renderizada (PyMuPDF); ver §5.
 
 ## 1. Contagem por saga
 
@@ -71,3 +71,28 @@ Transformação: `nome, estagio, ep, custo_ki, efeitos (integral), pagina`. Pass
 - CA abaixo de 10+DES+EP: Goku (Namekusei) 15 vs 16; Yamcha, Rikum e Gurdo 10 vs 11.
 - "Rótulos Positivos (N)" nem sempre fecha com a soma dos rótulos listados (o número entre parênteses parece ser o teto do rank). O parser guarda o número e a lista sem recalcular.
 - Grafias do original mantidas (Saiayjin, Contudente, otpar, esquivalente).
+
+## 5. Conferência visual (02/11/2026)
+
+Páginas renderizadas com PyMuPDF (110 dpi) e lidas como imagem; comparadas campo a campo com o JSON da fonte e com `client/src/lib/dbt/dados/npcsProntosDados.ts`: categoria/rank, 7 atributos com mod, PV, PK, CA, VEL, EP, técnicas (nome, rank, faixa de dano/mitigação, Ki, alcance, pontos e lista de rótulos), transformações (estágio, EP, Ki) e passivas. As fichas não têm PDL nem ND preenchida (ND sempre "( )", PV sempre "---").
+
+| Ficha | Páginas do PDF (impressa) | Resultado |
+|---|---|---|
+| Nappa (Saiyajins) | 27–28 (26–27) | bate |
+| Freeza, o Imperador do Universo (Freeza) | 17–20 (16–19) | bate |
+| Cell Max (Super Hero) | 18–20 (17–19) | bate |
+| Vegetto (Zero Humanos) | 48–55 (47–54) | **corrigido**: Final Kamehameha tinha `rotulos_positivos`/`rotulos_negativos` = null; o PDF lista os rótulos com "(?)" no lugar dos pontos e o parser não reconheceu. Agora `pontos: null` + lista. O gerador passou a tirar a linha "Rótulos … (?):" do `efeito` |
+| Broly, o Lendário Super Saiyajin (Broly) | 9–13 (8–12) | bate |
+| Gorudan (Enma Daioh) | 13–16 (12–15) | bate |
+
+Erro de transcrição em 1 de 6 fichas (abaixo do limite de 2 que pediria outra amostra). Varredura nos 6 JSONs de NPC: o caso "(?)" só ocorre no Final Kamehameha.
+
+Confirmado na imagem (era só texto extraído): Vegetto PK 345 e FOR 24 (+6); Cell Max INT 18 (+5); Broly FOR 24 (+7). Página do PDF = impressa + 1 nos 5 suplementos de saga e no Enma Daioh (Gorudan: impressa 12 = PDF 13), o que confirma a nota "provavelmente impressa+1" de `nar-npcs-enma.json`.
+
+### PDF ambíguo (dado mantido como está)
+
+- **Final Kamehameha** (Vegetto, PDF 48): "Rótulos Positivos (?)" e "Rótulos Negativos (?)" — o próprio original não dá os pontos (rank "Fusão"). Pontos ficam `null`.
+- **Spirit Sword** (Vegetto, PDF 53): sem etiqueta `[Ki: …]`; o texto diz que o Ki e o dano dependem do rank escolhido ao invocar (ex.: 44 de dano = Rank B = 08 Ki). Custo fica `null`.
+- **Kaio-Ken** (Vegetto, PDF 49): `[KI: 06 ~ 12]` é uma faixa, mais `+02/+04/+06` por multiplicador; o custo fica como texto "06 ~ 12".
+- **Gorudan** (Enma, PDF 15): as duas técnicas especiais têm o mesmo cabeçalho "Correntes do Juiz Supremo – Enma no Kusari – A" (Ki 14 e Ki 10); a segunda descreve a "Mão do Julgamento de Enma Daioh". Mantido, já anotado em `outros`.
+- **Página das técnicas**: nas sagas, `pagina` da técnica é a página do PDF (Nappa, Esfera de Ki: 27), mas a `pagina` da ficha gerada é a impressa (26). No Enma as duas são a impressa. Não é erro do PDF; fica registrado para quem mostrar o número de página.

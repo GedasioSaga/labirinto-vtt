@@ -9712,14 +9712,22 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Alvo Único em 9,0m com Área de Cone de 6,0m a partir do ponto que atingir o primeiro alvo',
         rotulosPositivos: {
           pontos: null,
-          nomes: [],
+          nomes: [
+            'Técnica de Ki',
+            'Acumulação',
+            'Potente',
+            'Aumentar Dano por Ki',
+            'Projétil',
+            'Engolfante',
+            'Rajada Contínua',
+          ],
         },
         rotulosNegativos: {
           pontos: null,
-          nomes: [],
+          nomes: ['Somática', 'Verbal'],
         },
         descricao: 'Primeiro, Vegito junta as mãos em concha ao lado do corpo, como se estivesse praticando o Kamehameha , e concentra o ki em uma esfera de energia dourada. Em seguida, ele estende as duas mãos para a frente, como se estivesse realizando o Flash Final , e lança a esfera no oponente, dizimando-o.',
-        efeito: 'Rótulos Positivos (?): Técnica de Ki, Acumulação, Potente, Aumentar Dano por Ki, Projétil, Engolfante, Rajada Contínua.\n- Rótulos Negativos (?): Somática, Verbal',
+        efeito: '',
         pagina: 48,
       },
       {

@@ -199,7 +199,7 @@ function rotulosImpressos(valor) {
 const ETIQUETA = /\[\s*(?:dano|ki|mitiga[çc][ãa]o|cura|ca|ep)\s*:[^\]]*\]/gi
 /** Alcance e rótulos ocupam o resto da linha (os campos separados já guardam isso). */
 const LINHA_DE_ALCANCE = /[–-]?[ \t]*alcance[ \t]*:[^\n]*/gi
-const LINHA_DE_ROTULOS = /[–-]?[ \t]*r[óo]tulos[ \t]+(?:positivos|negativos)[ \t]*\(\d+\)[ \t]*:[^\n]*/gi
+const LINHA_DE_ROTULOS = /[–-]?[ \t]*r[óo]tulos[ \t]+(?:positivos|negativos)[ \t]*\((?:\d+|\?)\)[ \t]*:[^\n]*/gi
 
 /** Texto de técnica do livro → a prosa sem as etiquetas [Dano], [Ki], o Alcance e os Rótulos. */
 function prosaDaTecnica(texto) {
