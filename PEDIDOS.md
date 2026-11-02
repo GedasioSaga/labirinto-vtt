@@ -2043,6 +2043,7 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 ## Pedido de 02/11/2026 — Chafariz nos Objetos (registro literal)
 - Literal (02/11/2026, depois de publicar a 0.5.30): "Em Objetos, eu quero que vocÊ crie um Chafariz". Não existe hoje (`client/src/lib/mobilia/tipos.ts`). Fila: perguntas de forma, água e aprovação; depois o móvel na main (Atual e Simples), como a Lareira e o Balde de água.
 - Respostas (02/11/2026): água "Água que se mexe" (jato, gotas e anéis animados como a chama da Fogueira; controle "Água: Ligada | Desligada" no painel; "menos movimento" deixa parado); forma "Redondo + Quadrado" (duas formas, 2 x 2 casas, esticável até 4 x 4); aprovação "Direto no programa" (prints para o ok); Desenhado "Junto da próxima onda". Fila: designer-opus na main faz o Chafariz no estilo de hoje e no Simples, sem rodar testes (só tsc e vite build), prints em scratchpad/chafariz/.
+- 02/11/2026: FEITO na main, sem versão: Chafariz em "Rua e jardim" depois do Poço, formas Redondo e Quadrado, Água Ligada/Desligada, água animada no relógio da chama (`6e566528`). tsc e vite build ok; sem testes. Prints em scratchpad/chafariz/ aguardando o ok.
 
 ## Pedido de 02/11/2026 — Cata-vento nos Objetos (registro literal)
 - Literal (02/11/2026, com o Chafariz em andamento): "Eu quero agora que você faça um cata vento." Não existe hoje. Fila: perguntas de tipo, giro e tamanho; entra depois do Chafariz (mesmos arquivos de Objetos, um escritor por vez); aprovação e Desenhado seguem o padrão do Chafariz (prints; Desenhado na próxima onda).
