@@ -48,7 +48,9 @@ import { sistemaPorId, useRpgStore } from './rpgStore'
  *   `ID_DO_TOKEN_DO_JUDGE` (o mesmo jeito do Judge-boneco do One Piece), que
  *   não entra na batalha.
  * - Os bonecos não agem: na vez deles a vez passa sozinha e, numa janela de
- *   reação, eles respondem "Não reagir" (PK 0: não pagam reação).
+ *   reação, eles respondem "Não reagir" (PK 0: não pagam reação). Depois de
+ *   um Desfazer, ficam quietos até a próxima ação do mestre; e a montagem
+ *   pede ao menos uma ficha (só bonecos girariam a vez sem fim).
  * - Desfazer (Ctrl+Z e o botão do alto) volta a última coisa feita na arena:
  *   a linha do registro de pé (o Desfazer da batalha DBT), ou o movimento, o
  *   Judge e o ajuste de boneco, o que for mais novo.
@@ -216,9 +218,15 @@ export function temNoLadoDBT(montagem: MontagemDaArenaDBT, lado: LadoDaArena, fi
   return montagem.escolhas.some((escolha) => escolha.lado === lado && existe.has(escolha.personagemId)) || montagem.bonecos.some((boneco) => boneco.lado === lado)
 }
 
-/** Dá para começar: alguém de cada lado (ficha ou boneco). */
+/** Alguma ficha que ainda existe, em qualquer lado (os bonecos não contam). */
+export function temFichaNaMontagemDBT(montagem: MontagemDaArenaDBT, fichas: readonly Pick<Personagem, 'id'>[]): boolean {
+  const existe = new Set(fichas.map((ficha) => ficha.id))
+  return montagem.escolhas.some((escolha) => existe.has(escolha.personagemId))
+}
+
+/** Dá para começar: alguém de cada lado (ficha ou boneco) e ao menos uma ficha (só bonecos passariam a vez sem fim). */
 export function montagemProntaDBT(montagem: MontagemDaArenaDBT, fichas: readonly Pick<Personagem, 'id'>[]): boolean {
-  return temNoLadoDBT(montagem, 'a', fichas) && temNoLadoDBT(montagem, 'b', fichas)
+  return temNoLadoDBT(montagem, 'a', fichas) && temNoLadoDBT(montagem, 'b', fichas) && temFichaNaMontagemDBT(montagem, fichas)
 }
 
 /** As duas equipes da arena, com as cópias de cada lado (o id é o lado como a batalha o lê). */
@@ -342,13 +350,38 @@ function comPasso(passos: readonly PassoDaArenaDBT[], passo: PassoDaArenaDBT): P
 // ───────────────────────────────────────────────────────────────────────────
 
 let relogioDosBonecos: ReturnType<typeof setTimeout> | null = null
+/**
+ * O `turnosRev` da batalha logo depois do último Desfazer: enquanto a batalha
+ * não mudar dali (a próxima ação do mestre), os bonecos ficam quietos. Sem
+ * isso, desfazer o "Não reagir" ou o "passa a vez" de um boneco reabre a
+ * janela (ou devolve a vez) e ele refaz a mesma coisa 600 ms depois.
+ * `null` = sem pausa.
+ */
+let pausaDosBonecos: number | null = null
+
+function pararORelogioDosBonecos(): void {
+  if (relogioDosBonecos !== null) clearTimeout(relogioDosBonecos)
+  relogioDosBonecos = null
+}
+
+/** Chamado DEPOIS de cada Desfazer da arena: cancela o passo já agendado e segura os bonecos. */
+function pausarOsBonecos(): void {
+  pararORelogioDosBonecos()
+  pausaDosBonecos = cenaDaArena()?.turnosRev ?? null
+}
 
 /** O que um boneco faz agora: "Não reagir" na janela em que ainda não respondeu, ou passar a vez dele. `null` = nada. */
 function proximoComandoDosBonecos(): ComandoDBT | null {
   const sessao = useArenaDBTStore.getState().sessao
   const cena = cenaDaArena()
   if (sessao === null || sessao.fase !== 'lutando' || cena === undefined) return null
+  if (pausaDosBonecos !== null) {
+    if (cena.turnosRev === pausaDosBonecos) return null
+    pausaDosBonecos = null
+  }
   const ehBoneco = (id: string): boolean => Object.hasOwn(sessao.bonecoDe, id)
+  // Só bonecos na luta: ninguém para agir de verdade, e a vez giraria sozinha sem fim.
+  if (!Object.keys(cena.combatentes).some((id) => !ehBoneco(id))) return null
   const ativa = cena.pendencias[0]
   if (ativa !== undefined && ativa.tipo === 'reacao') {
     const quieto = ativa.janela.convidados.find((id) => ehBoneco(id) && !Object.hasOwn(ativa.janela.respostas, id))
@@ -372,8 +405,8 @@ function agendarOsBonecos(): void {
 }
 
 function encerrarALuta(): void {
-  if (relogioDosBonecos !== null) clearTimeout(relogioDosBonecos)
-  relogioDosBonecos = null
+  pararORelogioDosBonecos()
+  pausaDosBonecos = null
   batalhaDaArenaDBT.getState().desligar(CENA_DA_ARENA)
 }
 
@@ -492,7 +525,10 @@ export const useArenaDBTStore = create<ArenaDBTState>()((set, get) => {
     const depois = cenaDaArena()
     if (depois !== undefined) {
       // Os caminhos ficam fora do núcleo da batalha, e o andar sem linha só mexeu no `turno.andou`: voltam daqui.
-      const turno = passo.linhaId === null ? { turno: passo.antes.turno } : {}
+      // O turno só volta se a vez ainda é de quem andava: um Desfazer de linha pelo registro pode ter devolvido
+      // a vez a outro, e a foto velha deixaria `turno` e `ordem.vez` apontando para combatentes diferentes.
+      const mesmaVez = depois.turno?.combatenteId === passo.antes.turno?.combatenteId
+      const turno = passo.linhaId === null && mesmaVez ? { turno: passo.antes.turno } : {}
       batalhaDaArenaDBT.setState({
         cenas: { ...batalhaDaArenaDBT.getState().cenas, [CENA_DA_ARENA]: { ...depois, ...turno, caminhos: passo.antes.caminhos, trilhas: passo.antes.trilhas, rev: depois.rev + 1, turnosRev: depois.turnosRev + 1 } },
       })
@@ -604,12 +640,17 @@ export const useArenaDBTStore = create<ArenaDBTState>()((set, get) => {
       if (sessao === null || sessao.fase !== 'lutando' || cena === undefined) return false
       const linha = ultimaDePe(cena.registro)
       const passo = sessao.passos.at(-1)
-      if (passo !== undefined && (linha === null || linha.seq < passo.apos)) return desfazerPasso(sessao, passo)
+      if (passo !== undefined && (linha === null || linha.seq < passo.apos)) {
+        const ok = desfazerPasso(sessao, passo)
+        if (ok) pausarOsBonecos()
+        return ok
+      }
       return linha === null ? false : get().desfazerLinha(linha.id)
     },
 
     desfazerLinha: (linhaId) => {
       const ok = batalhaDaArenaDBT.getState().desfazer(CENA_DA_ARENA, linhaId, MESTRE)
+      if (ok) pausarOsBonecos()
       const sessao = get().sessao
       if (ok && sessao !== null) set({ sessao: { ...sessao, gesto: sessao.gesto + 1 } })
       return ok

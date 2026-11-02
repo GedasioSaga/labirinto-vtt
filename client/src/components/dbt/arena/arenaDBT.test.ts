@@ -67,7 +67,10 @@ describe('montagem', () => {
     expect(montagemProntaDBT(montagem({ escolhas: [{ personagemId: 'ana', lado: 'a', vezes: 1 }] }), [ana])).toBe(false)
     expect(montagemProntaDBT(montagem({ escolhas: [{ personagemId: 'ana', lado: 'a', vezes: 1 }], bonecos: [BONECO] }), [ana])).toBe(true)
     expect(montagemProntaDBT(montagem({ escolhas: [{ personagemId: 'sumiu', lado: 'a', vezes: 1 }], bonecos: [BONECO] }), [ana])).toBe(false)
-    expect(montagemProntaDBT(montagem({ bonecos: [BONECO, { ...BONECO, id: 'b2', lado: 'a' }] }), [])).toBe(true)
+  })
+
+  it('só bonecos não fica pronta: a vez giraria sozinha sem fim', () => {
+    expect(montagemProntaDBT(montagem({ bonecos: [BONECO, { ...BONECO, id: 'b2', lado: 'a' }] }), [])).toBe(false)
   })
 })
 

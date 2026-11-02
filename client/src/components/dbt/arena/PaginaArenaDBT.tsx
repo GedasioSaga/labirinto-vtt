@@ -4,7 +4,7 @@ import type { ModoDaBatalha } from '../../../lib/dbt/batalha/tipos'
 import { entraNaBatalha } from '../../../lib/livros/combate'
 import type { Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
-import { BONECOS_MAX, fichasNoLadoDBT, montagemProntaDBT, temNoLadoDBT, useArenaDBTStore, type MontagemDaArenaDBT } from '../../../stores/arenaDBTStore'
+import { BONECOS_MAX, fichasNoLadoDBT, montagemProntaDBT, temFichaNaMontagemDBT, temNoLadoDBT, useArenaDBTStore, type MontagemDaArenaDBT } from '../../../stores/arenaDBTStore'
 import { useMundoDoLivroStore } from '../../../stores/mundoDoLivroStore'
 import { Retrato } from '../../livros/comum'
 import { IconeDoMundo } from '../../livros/icones'
@@ -58,6 +58,7 @@ function oQueFalta(montagem: MontagemDaArenaDBT, fichas: readonly Personagem[]):
   if (!a && !b) return 'Ponha alguém em cada lado: uma ficha ou um boneco de treino.'
   if (!a) return 'Falta alguém no Lado A.'
   if (!b) return 'Falta alguém no Lado B.'
+  if (!temFichaNaMontagemDBT(montagem, fichas)) return 'Ponha ao menos uma ficha: só bonecos de treino não lutam.'
   return null
 }
 
