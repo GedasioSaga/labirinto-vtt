@@ -1,4 +1,5 @@
 import { FORMATO_DO_SISTEMA, type AtributoDoSistema, type RecursoDoSistema, type SistemaDeRpg } from '../sistemaDeRpg'
+import { LIVRO_DRAGON_BALL } from './livro/livroDragonBall'
 import { ID_SISTEMA_DBT, IDS_DOS_ATRIBUTOS, IDS_DOS_RECURSOS, type IdAtributoDBT, type IdRecursoDBT } from './modelo'
 
 /**
@@ -44,6 +45,9 @@ export const SISTEMA_DRAGON_BALL: SistemaDeRpg = {
   recursos: IDS_DOS_RECURSOS.map((id) => ({ id, ...RECURSOS[id] })),
   atributos: IDS_DOS_ATRIBUTOS.map((id) => ({ id, ...ATRIBUTOS[id] })),
   abas: [],
-  // TODO-INTEGRAR: livro (lib/dbt/livro/) e catálogos entram quando o gerador
-  // dos dados terminar; até lá o sistema não traz livro (sem botão "Livro").
+  // 85 capítulos, ~648 mil caracteres, o maior com ~33 mil: dentro dos tetos
+  // do formato (200 / 1,2 milhão / 100 mil) e ~15 partes de 48 KiB no fio (teto 64).
+  livro: LIVRO_DRAGON_BALL,
+  // Sem `catalogos`: raça, perícia e técnica vêm de lib/dbt/dados pela ficha
+  // própria, não pelo "Escolher do livro" das abas do motor padrão.
 }
