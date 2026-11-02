@@ -22,6 +22,7 @@ import {
   type AguaDoChafariz,
   type FormaDoChafariz,
 } from './mobilia/chafariz'
+import { ehMovelDeVento, gravarVento, normalizarFormaDoVento, type VentoDoMovel } from './mobilia/cataVento'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -281,7 +282,9 @@ function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): 
     normalizarFogoDoMovel(tipo, valor) ??
     normalizarFormaDaPilha(tipo, valor) ??
     // O chafariz (02/11/2026): a forma e a água num campo só (`'quadrado'`, `'desligada'`, `'quadrado-desligada'`).
-    normalizarFormaDoChafariz(tipo, valor)
+    normalizarFormaDoChafariz(tipo, valor) ??
+    // Os objetos de vento (02/11/2026): só o Parado é gravado.
+    normalizarFormaDoVento(tipo, valor)
   )
 }
 
@@ -919,11 +922,12 @@ export function temChama(tipo: TipoMobilia | undefined): boolean {
 
 /**
  * Móvel com PARTE ANIMADA no relógio da chama (`pixi/chamasDasFogueiras.ts`):
- * os de chama e o chafariz (02/11/2026), a água que corre. O renderer dos
- * objetos lê esta lista para saber de quem cuidar no fim da passada.
+ * os de chama, o chafariz (02/11/2026), a água que corre, e os de vento, as
+ * pás. O renderer dos objetos lê esta lista para saber de quem cuidar no fim
+ * da passada.
  */
 export function temParteAnimada(tipo: TipoMobilia | undefined): boolean {
-  return temChama(tipo) || ehChafariz(tipo)
+  return temChama(tipo) || ehChafariz(tipo) || ehMovelDeVento(tipo)
 }
 
 /**
@@ -1571,6 +1575,16 @@ export function movelComOutraFormaDoChafariz(prop: Prop, forma: FormaDoChafariz)
 export function movelComOutraAguaDoChafariz(prop: Prop, agua: AguaDoChafariz): Prop {
   if (!ehChafariz(prop.mobilia)) return prop
   return comFormaGravada(prop, gravarFormaDoChafariz(formaDoChafariz(prop.mobiliaForma), agua))
+}
+
+/**
+ * O "Vento" dos objetos de vento (Girando | Parado): o mesmo objeto com as pás
+ * no outro estado, no mesmo tamanho. Só o Parado é gravado. Outro tipo devolve
+ * o mesmo objeto.
+ */
+export function movelComOutroVento(prop: Prop, vento: VentoDoMovel): Prop {
+  if (!ehMovelDeVento(prop.mobilia)) return prop
+  return comFormaGravada(prop, gravarVento(vento))
 }
 
 export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {

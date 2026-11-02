@@ -129,6 +129,11 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // contém o meio dela, e o meio da água da bacia é o meio do prato; derivado, a bacia inteira subia com
   // a coluna. Em pé, o jato animado também fica no lugar (sem deslocamento, como a chama da lareira).
   chafariz: EM_PE,
+  // Os objetos de vento (02/11/2026) ficam como de cima: a imagem é só a base (os pés, a torre redonda, o
+  // palito), e o que é alto (a roda, as velas, o papel) já fica em pé na camada animada.
+  cataVento: EM_PE,
+  moinho: EM_PE,
+  cataVentoBrinquedo: EM_PE,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

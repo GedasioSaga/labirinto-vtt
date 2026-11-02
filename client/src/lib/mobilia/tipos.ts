@@ -23,6 +23,8 @@ export const TIPOS_MOBILIA = [
   'lareira', 'fornalha', 'bigorna', 'balde',
   'troncos', 'feno',
   'chafariz',
+  // Os objetos de vento (02/11/2026): o cata-vento de fazenda, o moinho e o cata-vento de brinquedo.
+  'cataVento', 'moinho', 'cataVentoBrinquedo',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

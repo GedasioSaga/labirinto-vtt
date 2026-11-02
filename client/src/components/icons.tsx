@@ -687,6 +687,33 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M12 9.5V3.5M12 3.5c-2.2 0-3.6 1.6-4 4M12 3.5c2.2 0 3.6 1.6 4 4" />
         </>
       )
+    // Os objetos de vento (02/11/2026), de frente, como ficam no mapa (as pás em pé).
+    case 'cataVento':
+      // A torre de pés abertos, a roda de muitas pás no alto e o leme saindo para o lado.
+      return (
+        <>
+          <path d="M9 21.5 11.2 12h1.6l2.2 9.5M10 17.5h4" />
+          <circle cx="12" cy="8.5" r="5.5" />
+          <path d="M12 3v11M6.5 8.5h11M8.1 4.6l7.8 7.8M15.9 4.6l-7.8 7.8M12 8.5l8.5 1.5 1 2.5-6.5-1.2" />
+        </>
+      )
+    case 'moinho':
+      // A torre de pedra com o telhado em cone, e as quatro velas em X saindo do alto.
+      return (
+        <>
+          <path d="M8 21.5 9 13.5h6l1 8zM9 13.5 12 10l3 3.5" />
+          <path d="M12 10 5 3.5M12 10l7-6.5M12 10l-6.5 6M12 10l6.5 6" />
+          <path d="M5 3.5 3.6 5l5.6 5M19 3.5 20.4 5l-5.6 5" />
+        </>
+      )
+    case 'cataVentoBrinquedo':
+      // As quatro folhas dobradas em redemoinho, no alto do palito.
+      return (
+        <>
+          <path d="M12 9v12.5" />
+          <path d="M12 9V2.5l4 4.3zM12 9h6.5l-4.3 4zM12 9v6.5l-4-4.3zM12 9H5.5l4.3-4z" />
+        </>
+      )
   }
 }
 

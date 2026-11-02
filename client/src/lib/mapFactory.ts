@@ -36,10 +36,11 @@ import { clampStairLength, withStairLength } from './stairCurve'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
-  movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel, movelComOutraFormaDoChafariz, movelComOutraAguaDoChafariz,
+  movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel, movelComOutraFormaDoChafariz, movelComOutraAguaDoChafariz, movelComOutroVento,
   type AparenciaDoMovelPatch,
 } from './mobilia'
 import { aguaDoChafariz, formaDoChafariz, type AguaDoChafariz, type FormaDoChafariz } from './mobilia/chafariz'
+import { ehMovelDeVento, ventoDoMovel, type VentoDoMovel } from './mobilia/cataVento'
 import { CASAS_DO_TAMANHO_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from './mobilia/fogo'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
@@ -961,6 +962,17 @@ export function trocarAguaDoChafariz(map: MapData, propId: string, agua: AguaDoC
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo?.mobilia !== 'chafariz' || aguaDoChafariz(alvo.mobiliaForma) === agua) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraAguaDoChafariz(p, agua) : p)) }
+}
+
+/**
+ * "Vento" do painel dos objetos de VENTO (Girando | Parado): a pegada fica
+ * (`movelComOutroVento`). O mesmo estado, outro tipo ou id que não existe
+ * devolvem o MESMO mapa.
+ */
+export function trocarVentoDoMovel(map: MapData, propId: string, vento: VentoDoMovel): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo === undefined || !ehMovelDeVento(alvo.mobilia) || ventoDoMovel(alvo.mobiliaForma) === vento) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutroVento(p, vento) : p)) }
 }
 
 /**

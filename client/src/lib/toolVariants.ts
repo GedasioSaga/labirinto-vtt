@@ -562,11 +562,13 @@ export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; reado
   },
   // O chafariz (02/11/2026) ao lado do poço: a água da praça no mesmo par.
   { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'chafariz', 'lampiao', 'fogueira', 'fogo', 'lapide'] },
-  { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos'] },
+  // O cata-vento de brinquedo (02/11/2026) é de feira: fecha o par com o quadro de avisos.
+  { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos', 'cataVentoBrinquedo'] },
   // A oficina do ferreiro (29/10/2026): a fornalha e a bigorna lado a lado, o balde de água da têmpera embaixo.
   { titulo: 'Oficina', tipos: ['fornalha', 'bigorna', 'balde'] },
   // A fazenda (29/10/2026): os troncos e o feno lado a lado, para o estábulo, o celeiro e o quintal.
-  { titulo: 'Fazenda', tipos: ['troncos', 'feno'] },
+  // O cata-vento que puxa água e o moinho (02/11/2026), o vento da fazenda, no par de baixo.
+  { titulo: 'Fazenda', tipos: ['troncos', 'feno', 'cataVento', 'moinho'] },
 ]
 
 /** A parte do menu que termina com o atalho da árvore. */

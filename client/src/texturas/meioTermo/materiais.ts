@@ -195,6 +195,11 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   // O chafariz (02/11/2026): a pedra da bacia, da coluna e do prato, no arenito claro da praça (a água
   // azul-petróleo lê melhor sobre a pedra clara). A água é fixa, a mesma do poço e do balde.
   chafariz: [lugar('pedra', 'Pedra', PEDRAS, 'arenito')],
+  // Os objetos de vento (02/11/2026): a madeira da torre (fazenda), a pedra e o telhado (moinho). As pás
+  // em pé (a roda, as velas, o papel) têm cor própria, contida, como a água do chafariz.
+  cataVento: [lugar('madeira', 'Torre', MADEIRAS, 'velha')],
+  moinho: [lugar('pedra', 'Paredes', PEDRAS, 'arenito'), lugar('madeira', 'Telhado', MADEIRAS, 'nogueira')],
+  cataVentoBrinquedo: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

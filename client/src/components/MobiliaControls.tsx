@@ -40,6 +40,7 @@ import {
   type AguaDoChafariz,
   type FormaDoChafariz,
 } from '../lib/mobilia/chafariz'
+import { ROTULO_DO_VENTO, VENTOS_DO_MOVEL, ehMovelDeVento, ventoDoMovel, type VentoDoMovel } from '../lib/mobilia/cataVento'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
@@ -98,6 +99,11 @@ export interface MobiliaControlsProps {
    * e a forma ficam. Ausente = o painel não oferece a água.
    */
   onAguaDoChafarizChange?: (id: string, agua: AguaDoChafariz) => void
+  /**
+   * Objetos de vento (cata-vento de fazenda, moinho, cata-vento de brinquedo):
+   * as pás Girando ou Paradas, no lugar. Ausente = o painel não oferece o vento.
+   */
+  onVentoChange?: (id: string, vento: VentoDoMovel) => void
   /** Um eixo da aparência por vez: "Preencher", "Cor" ou "Cor da linha" (`null` = volta ao padrão). */
   onAparenciaChange: (id: string, patch: AparenciaDoMovelPatch) => void
 }
@@ -300,6 +306,7 @@ export function MobiliaControls({
   onFormaDaPilhaChange,
   onFormaDoChafarizChange,
   onAguaDoChafarizChange,
+  onVentoChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
   const baseId = useId()
@@ -474,6 +481,26 @@ export function MobiliaControls({
                   onClick={() => onAguaDoChafarizChange(prop.id, opcao)}
                 >
                   {ROTULO_DA_AGUA_DO_CHAFARIZ[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Os objetos de vento: as pás girando devagar ou paradas, no mesmo segmentado da água. */}
+        {ehMovelDeVento(tipo) && onVentoChange !== undefined && (
+          <div className="lb-field">
+            <span className="lb-label">Vento</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Vento">
+              {VENTOS_DO_MOVEL.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={ventoDoMovel(prop.mobiliaForma) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onVentoChange(prop.id, opcao)}
+                >
+                  {ROTULO_DO_VENTO[opcao]}
                 </button>
               ))}
             </div>

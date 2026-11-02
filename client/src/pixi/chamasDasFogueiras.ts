@@ -18,6 +18,16 @@ import {
   type AguaNoPalco,
   type FormasDaAgua,
 } from './aguaDosChafarizes'
+import { ehMovelDeVento } from '../lib/mobilia/cataVento'
+import {
+  aplicarAnguloDasPas,
+  criarFormasDoVento,
+  criarVentoNoPalco,
+  destruirFormasDoVento,
+  posicionarVento,
+  type FormasDoVento,
+  type VentoNoPalco,
+} from './pasDoVento'
 
 /**
  * A CHAMA DAS FOGUEIRAS (protótipo aprovado em 14/10/2026,
@@ -50,6 +60,11 @@ import {
  * mesmo `colocar` e podado pelo mesmo `podar`, então a névoa, a camada, a tela
  * do jogador e o "menos movimento" valem para a água como valem para a chama.
  * Desligada, o nó sai.
+ *
+ * Os objetos de VENTO (02/11/2026: cata-vento de fazenda, moinho, cata-vento
+ * de brinquedo) também: as pás em pé (`pasDoVento.ts`) são um nó por objeto,
+ * posto e podado pelos mesmos `colocar` e `podar`. Parado, o nó FICA (as pás
+ * são o objeto) num ângulo fixo, e só os que giram seguram o relógio.
  *
  * O relógio só fica inscrito com ao menos uma fogueira e movimento normal; com
  * "menos movimento" do sistema a chama fica na pose fixa (`POSE_FIXA`). Sem
@@ -270,6 +285,8 @@ export interface EstadoDasChamas {
   chamas: number
   /** Chafarizes com a água correndo (02/11/2026). */
   aguas: number
+  /** Objetos de vento na tela, girando ou parados (02/11/2026). */
+  ventos: number
   animando: boolean
 }
 
@@ -326,6 +343,9 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
   const chamas = new Map<string, ChamaNoPalco>()
   // A água dos chafarizes: um nó por chafariz com a água ligada, no mesmo relógio.
   const aguas = new Map<string, AguaNoPalco>()
+  // As pás dos objetos de vento: um nó por objeto, girando ou parado.
+  const ventos = new Map<string, VentoNoPalco>()
+  let contextosDoVento: FormasDoVento | null = null
   // Uma pose só para o quadro inteiro: `aplicar` lê na hora, antes da próxima fogueira reescrever.
   const poseDoQuadro = novaPose()
   const poseDaAguaDoQuadro = novaPoseDaAgua()
@@ -350,9 +370,22 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     return contextosDaAgua
   }
 
+  /** As formas das pás nascem com o primeiro objeto de vento e ficam até o fim. */
+  function formasDoVento(): FormasDoVento {
+    if (contextosDoVento !== null) return contextosDoVento
+    contextosDoVento = criarFormasDoVento()
+    return contextosDoVento
+  }
+
+  /** Algum objeto de vento girando (só eles seguram o relógio; o parado fica no ângulo fixo). */
+  function algumVentoGirando(): boolean {
+    for (const vento of ventos.values()) if (vento.girando) return true
+    return false
+  }
+
   function avisar(): void {
-    const estado = { chamas: chamas.size, aguas: aguas.size, animando: noRelogio }
-    const chave = `${estado.chamas}:${estado.aguas}:${estado.animando}`
+    const estado = { chamas: chamas.size, aguas: aguas.size, ventos: ventos.size, animando: noRelogio }
+    const chave = `${estado.chamas}:${estado.aguas}:${estado.ventos}:${estado.animando}`
     if (chave === avisado) return
     avisado = chave
     aoMudar?.(estado)
@@ -423,6 +456,33 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     if (!agua.no.destroyed) agua.no.destroy({ children: true })
   }
 
+  function removerVento(id: string): void {
+    const vento = ventos.get(id)
+    if (vento === undefined) return
+    ventos.delete(id)
+    if (!vento.no.destroyed) vento.no.destroy({ children: true })
+  }
+
+  /** O nó das pás de um objeto de vento (`null` = sem tamanho nem posição: o nó que havia sai). */
+  function colocarVento(prop: PropDaChama, tipo: VentoNoPalco['tipo']): Container | null {
+    let vento = ventos.get(prop.id)
+    // Trocou de tipo (o moinho virou cata-vento): outras pás, outro nó.
+    if (vento !== undefined && (vento.tipo !== tipo || vento.no.destroyed)) {
+      removerVento(prop.id)
+      vento = undefined
+    }
+    if (vento === undefined) {
+      vento = criarVentoNoPalco(prop.id, tipo, formasDoVento(), faseDaFogueira(prop.id))
+      ventos.set(prop.id, vento)
+    }
+    if (!posicionarVento(vento, prop)) {
+      removerVento(prop.id)
+      return null
+    }
+    aplicarAnguloDasPas(vento, agora(), parada)
+    return vento.no
+  }
+
   /** O nó da água de um chafariz (`null` = desligada ou sem tamanho: o nó que havia sai). */
   function colocarAgua(prop: PropDaChama, tela: TelaDasChamas): Container | null {
     const medidas = aguaCorrendo(prop)
@@ -460,6 +520,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       aplicarExtras(chama, 0, true)
     }
     for (const agua of aguas.values()) if (!agua.no.destroyed) aplicarPoseDaAgua(agua, POSE_FIXA_DA_AGUA)
+    for (const vento of ventos.values()) if (!vento.no.destroyed) aplicarAnguloDasPas(vento, 0, true)
     sairDoRelogio()
     avisar()
   }
@@ -490,7 +551,17 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       }
       aplicarPoseDaAgua(agua, escreverPoseDaAgua(t, agua.fase, poseDaAguaDoQuadro))
     }
-    if (chamas.size === 0 && aguas.size === 0) {
+    let girando = false
+    for (const [id, vento] of ventos) {
+      if (vento.no.destroyed) {
+        ventos.delete(id)
+        continue
+      }
+      if (!vento.girando) continue
+      girando = true
+      aplicarAnguloDasPas(vento, t, false)
+    }
+    if (chamas.size === 0 && aguas.size === 0 && !girando) {
       sairDoRelogio()
       avisar()
     }
@@ -501,9 +572,16 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       // O chafariz tem água, não chama (e o que era fogueira e virou chafariz leva a chama embora).
       if (ehChafariz(prop.mobilia)) {
         remover(prop.id)
+        removerVento(prop.id)
         return colocarAgua(prop, tela)
       }
       removerAgua(prop.id)
+      // Os objetos de vento têm pás, não chama nem água.
+      if (ehMovelDeVento(prop.mobilia)) {
+        remover(prop.id)
+        return colocarVento(prop, prop.mobilia)
+      }
+      removerVento(prop.id)
       const forma = chamaDoMovel(prop)
       if (forma === null || !Number.isFinite(prop.x) || !Number.isFinite(prop.y)) {
         remover(prop.id)
@@ -543,13 +621,14 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
     podar(presentes) {
       for (const id of [...chamas.keys()]) if (!presentes.has(id)) remover(id)
       for (const id of [...aguas.keys()]) if (!presentes.has(id)) removerAgua(id)
+      for (const id of [...ventos.keys()]) if (!presentes.has(id)) removerVento(id)
       const reduzido = movimento === undefined || movimento.reducedMotion()
       if (reduzido) {
-        // Passou a pedir menos movimento: a chama (e a água) para na pose fixa, uma vez.
+        // Passou a pedir menos movimento: a chama (e a água, e as pás) para na pose fixa, uma vez.
         if (!parada) parar()
       } else {
         parada = false
-        if (chamas.size > 0 || aguas.size > 0) entrarNoRelogio()
+        if (chamas.size > 0 || aguas.size > 0 || algumVentoGirando()) entrarNoRelogio()
         else sairDoRelogio()
       }
       avisar()
@@ -558,6 +637,11 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       sairDoRelogio()
       for (const id of [...chamas.keys()]) remover(id)
       for (const id of [...aguas.keys()]) removerAgua(id)
+      for (const id of [...ventos.keys()]) removerVento(id)
+      if (contextosDoVento !== null) {
+        destruirFormasDoVento(contextosDoVento)
+        contextosDoVento = null
+      }
       if (contextosDaAgua !== null) {
         destruirFormasDaAgua(contextosDaAgua)
         contextosDaAgua = null

@@ -1726,8 +1726,10 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  (29/10/2026) guardam a forma: só `'lenha'` (troncos) e `'monte'` (feno);
    *  ausente = a pilha de toras e os fardos. O CHAFARIZ (02/11/2026) guarda a
    *  forma e a água juntas: `'quadrado'`, `'desligada'` ou
-   *  `'quadrado-desligada'`; ausente = redondo com a água ligada. */
-  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz
+   *  `'quadrado-desligada'`; ausente = redondo com a água ligada. Os objetos de
+   *  VENTO (02/11/2026: cata-vento de fazenda, moinho, cata-vento de brinquedo)
+   *  guardam só `'parado'`; ausente = as pás girando. */
+  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz | Exclude<VentoDoMovel, 'girando'>
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
    *  o desenho de sempre — sem linha de migração. Vale só na cama (`catre`):
@@ -1787,6 +1789,8 @@ export type FormaGravadaDaPilha = import('../lib/mobilia/pilhas').FormaGravadaDa
 export type FormaDoChafariz = import('../lib/mobilia/chafariz').FormaDoChafariz
 export type AguaDoChafariz = import('../lib/mobilia/chafariz').AguaDoChafariz
 export type FormaGravadaDoChafariz = import('../lib/mobilia/chafariz').FormaGravadaDoChafariz
+/** Os objetos de vento (`lib/mobilia/cataVento.ts`): as pás Girando ou Paradas. */
+export type VentoDoMovel = import('../lib/mobilia/cataVento').VentoDoMovel
 
 export interface DrawingPoint {
   x: number

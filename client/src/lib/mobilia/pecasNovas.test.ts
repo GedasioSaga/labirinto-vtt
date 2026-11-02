@@ -47,6 +47,10 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   feno: [1.5, 1],
   // Chafariz (02/11/2026): as duas formas nascem em 2 x 2.
   chafariz: [2, 2],
+  // Objetos de vento (02/11/2026): a pegada é a base; as pás em pé passam dela.
+  cataVento: [1, 1],
+  moinho: [2, 2],
+  cataVentoBrinquedo: [0.5, 0.5],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -80,6 +84,9 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   troncos: ['Troncos', 'uns troncos'],
   feno: ['Feno', 'feno'],
   chafariz: ['Chafariz', 'um chafariz'],
+  cataVento: ['Cata-vento de fazenda', 'um cata-vento de fazenda'],
+  moinho: ['Moinho de vento', 'um moinho de vento'],
+  cataVentoBrinquedo: ['Cata-vento de brinquedo', 'um cata-vento de brinquedo'],
 }
 
 describe('peças novas: registro', () => {
@@ -120,9 +127,9 @@ describe('peças novas: registro', () => {
     expect([carroca.width / GRADE, carroca.height / GRADE]).toEqual([2, 1.25])
   })
 
-  it('silhueta redonda: a mesa redonda, o poço, o vaso e o balde de água; o resto é retângulo', () => {
+  it('silhueta redonda: a mesa redonda, o poço, o vaso, o balde de água e o moinho; o resto é retângulo', () => {
     const redondos = PECAS_NOVAS.filter((tipo) => ehMovelRedondo(tipo))
-    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde'])
+    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde', 'moinho'])
   })
 
   it('cada peça tem desenho de linhas (o provisório antes da imagem), nas duas vistas quando tem vista', () => {
@@ -157,11 +164,12 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     const fogueira = TIPOS_NO_CATALOGO.indexOf('fogueira')
     expect(TIPOS_NO_CATALOGO.slice(fogueira, fogueira + 2)).toEqual(['fogueira', 'fogo'])
     // Os troncos e o feno (29/10/2026), sem parente antigo, fecham o catálogo logo depois do arco e da placa.
-    expect(TIPOS_NO_CATALOGO.slice(-4)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno'])
+    // Os objetos de vento (02/11/2026) depois deles.
+    expect(TIPOS_NO_CATALOGO.slice(-7)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
     // 26 de antes, os 8 móveis de casa de 28/10/2026 (fogão, geladeira, pia, balcão, pratos, privada, sofá, poltrona)
     // e os 6 de 29/10/2026 (lareira, fornalha, bigorna, balde, troncos, feno).
-    // E o chafariz de 02/11/2026, logo depois do poço.
-    expect(TIPOS_NO_CATALOGO).toHaveLength(41)
+    // E o chafariz de 02/11/2026, logo depois do poço, e os 3 objetos de vento no fim.
+    expect(TIPOS_NO_CATALOGO).toHaveLength(44)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings, FeitioDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
   PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo,
 } from '../types/map'
@@ -1044,6 +1044,9 @@ interface MapStoreState {
    *  valor ou outro tipo não entram. */
   trocarFormaDoChafariz: (id: string, forma: FormaDoChafariz) => void
   trocarAguaDoChafariz: (id: string, agua: AguaDoChafariz) => void
+  /** "Vento" dos objetos de VENTO (Girando | Parado): no lugar, o tamanho fica.
+   *  Um passo no desfazer; o mesmo valor ou outro tipo não entram. */
+  trocarVentoDoMovel: (id: string, vento: VentoDoMovel) => void
   /** PROPRIEDADES DO FOGO — "Tamanho" (Chama | Fogaréu | Incêndio): a pegada do
    *  tamanho, centro no lugar. Um passo no desfazer; o mesmo tamanho ou outro
    *  tipo não entram. */
@@ -2684,6 +2687,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     trocarAguaDoChafariz: (id, agua) => {
       if (mapFactory.trocarAguaDoChafariz(get().map, id, agua) === get().map) return
       withHistory((map) => mapFactory.trocarAguaDoChafariz(map, id, agua))
+    },
+    trocarVentoDoMovel: (id, vento) => {
+      if (mapFactory.trocarVentoDoMovel(get().map, id, vento) === get().map) return
+      withHistory((map) => mapFactory.trocarVentoDoMovel(map, id, vento))
     },
     trocarTamanhoDoFogo: (id, tamanho) => {
       if (mapFactory.trocarTamanhoDoFogo(get().map, id, tamanho) === get().map) return

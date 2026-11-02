@@ -165,10 +165,11 @@ describe('createChamasDasFogueiras — o relógio', () => {
     chamas.podar(new Set())
     expect(ticker.count).toBe(0)
     expect(no?.destroyed).toBe(true)
+    // A água dos chafarizes e as pás dos objetos de vento (02/11/2026) vão no mesmo aviso: aqui, nenhuma.
     expect(estados).toEqual([
-      { chamas: 0, animando: false },
-      { chamas: 1, animando: true },
-      { chamas: 0, animando: false },
+      { chamas: 0, aguas: 0, ventos: 0, animando: false },
+      { chamas: 1, aguas: 0, ventos: 0, animando: true },
+      { chamas: 0, aguas: 0, ventos: 0, animando: false },
     ])
   })
 

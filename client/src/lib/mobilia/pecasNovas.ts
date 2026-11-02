@@ -26,6 +26,7 @@ export const PECAS_NOVAS = [
   'lareira', 'fornalha', 'bigorna', 'balde',
   'troncos', 'feno',
   'chafariz',
+  'cataVento', 'moinho', 'cataVentoBrinquedo',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -101,6 +102,11 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // O chafariz (02/11/2026): as duas formas (Redondo, Quadrado) têm a mesma pegada de partida. A silhueta
   // redonda depende da forma (`lib/mobilia/chafariz.ts`), não da ficha: `redonda` fica falso aqui.
   chafariz: { rotulo: 'Chafariz', artigo: 'um chafariz', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  // Os objetos de vento (02/11/2026): a pegada é a BASE (a torre, a construção, o palito); as pás em pé
+  // passam dela para os lados, na camada animada (`lib/mobilia/cataVento.ts`).
+  cataVento: { rotulo: 'Cata-vento de fazenda', artigo: 'um cata-vento de fazenda', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  moinho: { rotulo: 'Moinho de vento', artigo: 'um moinho de vento', tamanho: { largura: 2, altura: 2 }, redonda: true },
+  cataVentoBrinquedo: { rotulo: 'Cata-vento de brinquedo', artigo: 'um cata-vento de brinquedo', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -137,6 +143,9 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     troncos: valor(f.troncos),
     feno: valor(f.feno),
     chafariz: valor(f.chafariz),
+    cataVento: valor(f.cataVento),
+    moinho: valor(f.moinho),
+    cataVentoBrinquedo: valor(f.cataVentoBrinquedo),
   }
 }
 
@@ -163,6 +172,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
   'troncos', 'feno',
+  // Os objetos de vento (02/11/2026), sem parente antigo: fecham o catálogo.
+  'cataVento', 'moinho', 'cataVentoBrinquedo',
 ]
 
 /**
@@ -396,6 +407,21 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       }
       return [...aro(largura * 0.97 - menor * 0.3, altura * 0.97 - menor * 0.3), ...prato, ...bico]
     }
+    // Os objetos de vento (02/11/2026): a base vista de cima. As pás em pé são da camada animada.
+    case 'cataVento':
+      // Os quatro pés da torre, as travessas em X e a plataforma no meio.
+      return [
+        ...quadro(-hw * 0.8, -hh * 0.8, hw * 0.8, hh * 0.8),
+        { x1: -hw * 0.8, y1: -hh * 0.8, x2: hw * 0.8, y2: hh * 0.8 },
+        { x1: hw * 0.8, y1: -hh * 0.8, x2: -hw * 0.8, y2: hh * 0.8 },
+        ...aro(largura * 0.3, altura * 0.3),
+      ]
+    case 'moinho':
+      // A torre redonda e o telhado em cone: a beira e o pino do alto.
+      return [...aro(largura * 0.86, altura * 0.86), ...aro(largura * 0.12, altura * 0.12)]
+    case 'cataVentoBrinquedo':
+      // O furinho do palito no chão.
+      return aro(largura * 0.3, altura * 0.3)
   }
 }
 
