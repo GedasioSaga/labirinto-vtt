@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
-import { FichaDePersonagem } from '../FichaDePersonagem'
+import { FichaDoSistema } from '../dbt/registroDeFichas'
 import { JanelaDaBatalha } from './JanelaDaBatalha'
 import './batalha.css'
 
@@ -41,7 +41,7 @@ export function PerfilDaCarta({ personagem, sistema, descricao, imagemDaForma, p
       {sistema === null ? (
         <p className="bt-regras__vazio">Esta mesa não tem sistema de RPG: o perfil não tem o que mostrar.</p>
       ) : (
-        <FichaDePersonagem personagem={mostrado} sistema={sistema} editando={false} onChange={NADA_MUDA} escolherImagem={SEM_IMAGEM} />
+        <FichaDoSistema personagem={mostrado} sistema={sistema} editando={false} onChange={NADA_MUDA} escolherImagem={SEM_IMAGEM} />
       )}
     </JanelaDaBatalha>
   )

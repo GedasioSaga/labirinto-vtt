@@ -2,8 +2,9 @@
  * MARCAÇÃO LEVE do livro de regras: o pedaço de Markdown que as regras do
  * Discord usam — títulos `#`, `##`, `###`; `**negrito**`, `*itálico*`,
  * `__sublinhado__`, `~~riscado~~`, `` `código` ``; listas `-`/`*`/`•` e
- * `1.`; citação `>`; régua `---`. Nada mais: link, imagem e HTML ficam como o
- * texto que são.
+ * `1.`; citação `>`; régua `---`; e a tabela do GitHub (linhas começando por
+ * `|`, a segunda só de `---` com `:` de alinhamento), que o livro do Dragon
+ * Ball usa. Nada mais: link, imagem e HTML ficam como o texto que são.
  *
  * O texto vem de arquivo de sistema (de qualquer um) ou da rede: é NÃO
  * CONFIÁVEL. Por isso aqui só se monta uma árvore de blocos e trechos de
@@ -18,12 +19,28 @@ export type Trecho = { tipo: 'texto'; texto: string } | { tipo: 'codigo'; texto:
 /** Uma linha do texto, já em trechos. Parágrafo e citação guardam as quebras de linha do Discord. */
 export type Linha = Trecho[]
 
+/** Alinhamento da coluna, pelos `:` da linha separadora; `null` = o padrão de quem desenha. */
+export type AlinhamentoDaColuna = 'esquerda' | 'centro' | 'direita' | null
+
+/**
+ * Tabela: cada célula é uma `Linha` de trechos. Toda linha do corpo tem o
+ * número de colunas do cabeçalho (a que tem menos ganha células vazias; a
+ * que tem mais perde as do fim), como no GitHub.
+ */
+export interface Tabela {
+  tipo: 'tabela'
+  alinhamentos: AlinhamentoDaColuna[]
+  cabecalho: Linha[]
+  linhas: Linha[][]
+}
+
 export type Bloco =
   | { tipo: 'titulo'; nivel: 1 | 2 | 3; trechos: Linha }
   | { tipo: 'paragrafo'; linhas: Linha[] }
   | { tipo: 'citacao'; linhas: Linha[] }
   | { tipo: 'lista'; ordenada: boolean; itens: Linha[] }
   | { tipo: 'regua' }
+  | Tabela
 
 /** Marcas de trecho, na ordem em que são tentadas: `**` antes de `*`. */
 const MARCAS: readonly { marca: string; tipo: EstiloDoTrecho | 'codigo' }[] = [
@@ -90,6 +107,72 @@ const CITACAO = /^\s*>\s?(.*)$/
 /** Linha "vazia" do Discord: espaço, o preenchedor invisível (U+3164) ou espaço de largura zero. */
 const VAZIA = /^[\sㅤ​]*$/u
 
+/** Linha de tabela: começa por `|` (até 3 espaços antes). Exigir a barra na ponta deixa de fora todo texto de antes das tabelas. */
+const LINHA_DE_TABELA = /^\s{0,3}\|/
+/** Célula da linha separadora: traços, com `:` opcional de cada lado. */
+const CELULA_SEPARADORA = /^:?-+:?$/
+/** Colunas de uma tabela: passou, não é tabela (fica como parágrafo, e a tela não desenha milhares de colunas). */
+const COLUNAS_MAX = 64
+const BARRA_INVERTIDA = '\\'
+
+/** As células da linha, sem as `|` das pontas; `\|` é a barra escrita na célula, não a divisa. */
+function celulasDaLinha(linha: string): string[] {
+  let corpo = linha.trim()
+  if (corpo.startsWith('|')) corpo = corpo.slice(1)
+  if (corpo.endsWith('|') && !corpo.endsWith(`${BARRA_INVERTIDA}|`)) corpo = corpo.slice(0, -1)
+  const celulas: string[] = []
+  let atual = ''
+  for (let i = 0; i < corpo.length; i += 1) {
+    const letra = corpo[i]
+    if (letra === BARRA_INVERTIDA && corpo[i + 1] === '|') {
+      atual += '|'
+      i += 1
+    } else if (letra === '|') {
+      celulas.push(atual.trim())
+      atual = ''
+    } else {
+      atual += letra
+    }
+  }
+  celulas.push(atual.trim())
+  return celulas
+}
+
+/** Os alinhamentos da linha separadora, que precisa ter as mesmas colunas do cabeçalho; `null` = não é separadora. */
+function alinhamentosDaSeparadora(linha: string, colunas: number): AlinhamentoDaColuna[] | null {
+  if (!LINHA_DE_TABELA.test(linha)) return null
+  const celulas = celulasDaLinha(linha)
+  if (celulas.length !== colunas || !celulas.every((celula) => CELULA_SEPARADORA.test(celula))) return null
+  return celulas.map((celula) => {
+    const esquerda = celula.startsWith(':')
+    const direita = celula.endsWith(':')
+    if (esquerda && direita) return 'centro'
+    if (direita) return 'direita'
+    return esquerda ? 'esquerda' : null
+  })
+}
+
+/**
+ * A tabela que começa na linha `inicio` (cabeçalho, separadora e as linhas
+ * de corpo seguidas que começam por `|`), com o índice da primeira linha
+ * depois dela; `null` = não começa tabela ali.
+ */
+function tabelaQueComeca(linhas: readonly string[], inicio: number): { tabela: Tabela; fim: number } | null {
+  if (inicio + 1 >= linhas.length || !LINHA_DE_TABELA.test(linhas[inicio])) return null
+  const cabecalho = celulasDaLinha(linhas[inicio])
+  if (cabecalho.length > COLUNAS_MAX) return null
+  const alinhamentos = alinhamentosDaSeparadora(linhas[inicio + 1], cabecalho.length)
+  if (alinhamentos === null) return null
+  const corpo: Linha[][] = []
+  let fim = inicio + 2
+  while (fim < linhas.length && LINHA_DE_TABELA.test(linhas[fim])) {
+    const celulas = celulasDaLinha(linhas[fim])
+    corpo.push(cabecalho.map((_, coluna) => trechosDaLinha(coluna < celulas.length ? celulas[coluna] : '')))
+    fim += 1
+  }
+  return { tabela: { tipo: 'tabela', alinhamentos, cabecalho: cabecalho.map((celula) => trechosDaLinha(celula)), linhas: corpo }, fim }
+}
+
 /** Blocos que juntam linhas seguidas do mesmo tipo. */
 type Agrupado = 'paragrafo' | 'citacao' | 'lista' | 'numerada'
 
@@ -111,9 +194,20 @@ export function lerMarcacao(texto: string): Bloco[] {
     fechar()
     grupo = { tipo, linhas: [linha] }
   }
-  for (const linha of texto.replace(/\r\n?/g, '\n').split('\n')) {
+  const linhas = texto.replace(/\r\n?/g, '\n').split('\n')
+  for (let i = 0; i < linhas.length; i += 1) {
+    const linha = linhas[i]
     if (VAZIA.test(linha)) {
       fechar()
+      continue
+    }
+    // A tabela vem antes dos outros blocos: ela interrompe o parágrafo, como no GitHub.
+    const tabela = tabelaQueComeca(linhas, i)
+    if (tabela !== null) {
+      fechar()
+      blocos.push(tabela.tabela)
+      // Pula as linhas que a tabela consumiu (o `i += 1` do laço leva à primeira depois dela).
+      i = tabela.fim - 1
       continue
     }
     const titulo = TITULO.exec(linha)
@@ -160,6 +254,14 @@ export function textoSemMarcacao(texto: string): string {
           return bloco.itens.map(textoDosTrechos)
         case 'regua':
           return []
+        case 'tabela':
+          // Uma linha por linha da tabela, células com texto separadas por " · ": a busca acha e mostra a linha inteira.
+          return [bloco.cabecalho, ...bloco.linhas].map((celulas) =>
+            celulas
+              .map(textoDosTrechos)
+              .filter((celula) => celula.length > 0)
+              .join(' · '),
+          )
       }
     })
     .join('\n')

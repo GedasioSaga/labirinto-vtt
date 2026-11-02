@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { salvarSobreOAtual, type Ajuste } from '../lib/ajusteDaFicha'
 import { comNotaDoMestre, NOTA_DO_MESTRE_MAX, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
-import { FichaDePersonagem } from './FichaDePersonagem'
+import { FichaDoSistema } from './dbt/registroDeFichas'
 import { CloseIcon } from './icons'
 import './livros/anotacoes.css'
 
@@ -237,7 +237,7 @@ export function FichaDePersonagemDialog({
               </p>
             </div>
           ) : (
-            <FichaDePersonagem
+            <FichaDoSistema
               personagem={mostrado}
               sistema={sistema}
               editando={editando}

@@ -1,6 +1,6 @@
 import { Fragment, useMemo, type ReactNode } from 'react'
 import { partesComDestaque } from '../lib/buscaNoLivro'
-import { lerMarcacao, type Linha, type Trecho } from '../lib/marcacaoLeve'
+import { lerMarcacao, type AlinhamentoDaColuna, type Linha, type Tabela, type Trecho } from '../lib/marcacaoLeve'
 
 /**
  * Desenha a marcação leve do livro de regras (`lib/marcacaoLeve.ts`) só com
@@ -73,8 +73,53 @@ export function MarcacaoLeve({ texto, destaque = '', className }: MarcacaoLevePr
           }
           case 'regua':
             return <hr key={i} />
+          case 'tabela':
+            return <TabelaDaMarcacao key={i} tabela={bloco} destaque={destaque} />
         }
       })}
+    </div>
+  )
+}
+
+const CLASSE_DO_ALINHAMENTO: Record<Exclude<AlinhamentoDaColuna, null>, string> = {
+  esquerda: 'lb-marcacao__celula--esquerda',
+  centro: 'lb-marcacao__celula--centro',
+  direita: 'lb-marcacao__celula--direita',
+}
+
+function classeDaColuna(alinhamento: AlinhamentoDaColuna): string | undefined {
+  return alinhamento === null ? undefined : CLASSE_DO_ALINHAMENTO[alinhamento]
+}
+
+/**
+ * Tabela larga rola de lado dentro da própria caixa, sem empurrar o leitor;
+ * a caixa entra no Tab para a rolagem funcionar no teclado também.
+ */
+function TabelaDaMarcacao({ tabela, destaque }: { tabela: Tabela; destaque: string }) {
+  return (
+    <div className="lb-marcacao__tabela" role="region" aria-label="Tabela" tabIndex={0}>
+      <table>
+        <thead>
+          <tr>
+            {tabela.cabecalho.map((celula, j) => (
+              <th key={j} scope="col" className={classeDaColuna(tabela.alinhamentos[j])}>
+                {desenharTrechos(celula, destaque)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {tabela.linhas.map((linha, k) => (
+            <tr key={k}>
+              {linha.map((celula, j) => (
+                <td key={j} className={classeDaColuna(tabela.alinhamentos[j])}>
+                  {desenharTrechos(celula, destaque)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

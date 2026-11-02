@@ -1,5 +1,7 @@
 import { cleanPlayerName } from './chat'
+import { ATRIBUTO_INICIAL, fichaDBTVazia, lerFichaDBT, type FichaDBT } from './dbt/modelo'
 import { ehImagemDaMesa } from './midia'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from './motores'
 import type { AbaDoSistema, SistemaDeRpg } from './sistemaDeRpg'
 
 /**
@@ -139,6 +141,13 @@ export interface Personagem {
   /** Cartões de cada aba, pela chave da aba. */
   abas: Record<string, CartaoDaFicha[]>
   /**
+   * DRAGON BALL TALES: a parte estruturada da ficha (raça, PDL, perícias,
+   * técnicas, transformações...), lida só por `lerFichaDBT`. Ausente = ficha
+   * de outro motor (o One Piece nunca tem). Vai ao jogador como o resto da
+   * ficha, e volta na edição dele como uma parte inteira.
+   */
+  dbt?: FichaDBT
+  /**
    * CONTAS DOS JOGADORES: o id da conta a quem o mestre deu este personagem
    * (`lib/contasDosJogadores.ts`). Quem entra com a conta recebe as fichas
    * (tokens) ligadas a ele. Ausente = de ninguém. Só o mestre muda: a edição
@@ -265,7 +274,8 @@ export function comNotaDoMestre(personagem: Personagem, texto: string): Personag
 /**
  * O personagem como ele vai pela rede, a QUALQUER jogador: sem a conta dona
  * e sem nada do mundo do livro (força, modelo, cenário, nome de entrada,
- * anotação). É o funil único de `Personagem` para o fio (`net/hostSession.ts`:
+ * anotação). A ficha Dragon Ball (`dbt`) vai junto, como as abas: é a ficha
+ * que o jogador lê e edita. É o funil único de `Personagem` para o fio (`net/hostSession.ts`:
  * lista do jogador e batalha). Sem nenhum desses campos devolve a MESMA
  * referência: o host compara por referência para não reenviar.
  */
@@ -293,9 +303,17 @@ export function novoCartao(nome: string): CartaoDaFicha {
 
 /**
  * Personagem novo do sistema: todo recurso e atributo em 0 (a ficha mostra o
- * número, nunca um buraco), toda aba vazia.
+ * número, nunca um buraco), toda aba vazia. No motor Dragon Ball, a ficha
+ * estruturada vazia e os atributos no valor de criação do livro.
  */
 export function novoPersonagem(sistema: SistemaDeRpg, tipo: TipoDePersonagem, nome: string): Personagem {
+  const novo = personagemPadrao(sistema, tipo, nome)
+  if (motorDoSistema(sistema) !== MOTOR_DRAGON_BALL) return novo
+  // Todo atributo começa em 8 na criação (3.0.2, p. 12): a ficha nova já abre com os números do livro.
+  return { ...novo, atributos: Object.fromEntries(sistema.atributos.map((atributo) => [atributo.id, ATRIBUTO_INICIAL])), dbt: fichaDBTVazia() }
+}
+
+function personagemPadrao(sistema: SistemaDeRpg, tipo: TipoDePersonagem, nome: string): Personagem {
   return {
     id: novoIdDePersonagem(),
     tipo,
@@ -479,9 +497,17 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     cartoesAtivos: [...new Set(listaDeTextos(value.cartoesAtivos))],
     historico: historicoDoArquivo(value.historico),
     abas: abasDoArquivo(value.abas),
+    ...dbtDoArquivo(value.dbt),
     ...(typeof value.dono === 'string' && DONO_PADRAO.test(value.dono) ? { dono: value.dono } : {}),
     ...camposDoMundoDoArquivo(value),
   }
+}
+
+/** A ficha Dragon Ball do disco ou da rede; torta ou de versão futura, a chave nem aparece (nada de `dbt: undefined`). */
+function dbtDoArquivo(value: unknown): Pick<Personagem, 'dbt'> {
+  if (value === undefined) return {}
+  const dbt = lerFichaDBT(value)
+  return dbt === null ? {} : { dbt }
 }
 
 /** A marca de combate do disco: força torta vale a padrão; modelo que não é texto curto sai. */

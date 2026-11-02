@@ -10,7 +10,8 @@ import {
   type SecaoDoEditor,
   type SistemaDoRascunho,
 } from '../lib/editorDeSistema'
-import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { editavelNoEditor, motorDoSistema, nomeDoMotor } from '../lib/motores'
+import type { MotorDoSistema, SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { SecaoCatalogos, SecaoLivro } from './EditorDeSistemaLivro'
 import { SecaoAbas, SecaoAtributos, SecaoEscolhas, SecaoGeral, SecaoRecursos, type MudarRascunho } from './EditorDeSistemaPartes'
 import { FichaDePersonagem } from './FichaDePersonagem'
@@ -39,8 +40,17 @@ const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([di
  * pergunta antes. O "Salvar" passa pela mesma leitura do "Importar"
  * (`sistemaDoRascunho`) e, recusado, diz cada problema na seção dele; salvo, a
  * janela continua aberta (dá para ver a prévia e seguir mexendo).
+ *
+ * Sistema de outro motor (Dragon Ball Tales, e as cópias dele) não abre o
+ * editor: as regras dele leem atributos e recursos por id fixo. A janela diz
+ * isso e manda duplicar (`EditorRecusado`).
  */
-export function EditorDeSistemaDialog({ inicial, idsDaBiblioteca, onSalvar, onClose }: EditorDeSistemaDialogProps) {
+export function EditorDeSistemaDialog(props: EditorDeSistemaDialogProps) {
+  if (!editavelNoEditor(props.inicial)) return <EditorRecusado nome={props.inicial.nome} motor={motorDoSistema(props.inicial)} onClose={props.onClose} />
+  return <JanelaDoEditor {...props} />
+}
+
+function JanelaDoEditor({ inicial, idsDaBiblioteca, onSalvar, onClose }: EditorDeSistemaDialogProps) {
   const tituloId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const pressStartedOnBackdrop = useRef(false)
@@ -247,6 +257,76 @@ function ConteudoDaSecao({ secao, rascunho, mudar, resultado }: ConteudoDaSecaoP
     case 'previa':
       return <PreviaDaFicha resultado={resultado} />
   }
+}
+
+interface EditorRecusadoProps {
+  nome: string
+  motor: MotorDoSistema
+  onClose: () => void
+}
+
+/** A janela no lugar do editor para sistema de outro motor: o porquê e o caminho (Duplicar), com Esc e foco como as outras. */
+function EditorRecusado({ nome, motor, onClose }: EditorRecusadoProps) {
+  const tituloId = useId()
+  const textoId = useId()
+  const fecharRef = useRef<HTMLButtonElement>(null)
+  const pressStartedOnBackdrop = useRef(false)
+
+  useEffect(() => {
+    const opener = document.activeElement
+    fecharRef.current?.focus()
+    return () => {
+      if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) opener.focus()
+    }
+  }, [])
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    // Janela modal: nenhuma tecla daqui vale como atalho do editor de mapa atrás dela.
+    event.stopPropagation()
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onClose()
+      return
+    }
+    // Um botão só: o Tab fica nele.
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      fecharRef.current?.focus()
+    }
+  }
+
+  function onBackdropClick(event: MouseEvent<HTMLDivElement>) {
+    if (pressStartedOnBackdrop.current && event.target === event.currentTarget) onClose()
+    pressStartedOnBackdrop.current = false
+  }
+
+  const quem = nome.trim() || 'Este sistema'
+  return createPortal(
+    <div className="lb-dialog-backdrop" onMouseDown={(event) => (pressStartedOnBackdrop.current = event.target === event.currentTarget)} onClick={onBackdropClick}>
+      <div className="lb-panel lb-dialog" role="alertdialog" aria-modal="true" aria-labelledby={tituloId} aria-describedby={textoId} onKeyDown={onKeyDown}>
+        <header className="lb-dialog__head">
+          <h2 id={tituloId} className="lb-dialog__title">
+            {quem} não se edita aqui
+          </h2>
+        </header>
+        <div className="lb-dialog__body">
+          <p id={textoId}>
+            {quem} roda com as regras próprias do {nomeDoMotor(motor)}: a ficha, a batalha e o livro dele leem os atributos e os recursos pelo id de cada um, e uma
+            edição que apagasse ou trocasse um deles quebraria as regras sem aviso. Para ter uma versão sua, use Duplicar na grade de sistemas: a cópia sai com as mesmas
+            regras.
+          </p>
+        </div>
+        <footer className="lb-sistema-editor__rodape">
+          <div className="lb-sistema-editor__rodape-acoes">
+            <button ref={fecharRef} type="button" className="lb-btn lb-btn--primary" onClick={onClose}>
+              Entendi
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>,
+    document.body,
+  )
 }
 
 const nada = (): void => {}

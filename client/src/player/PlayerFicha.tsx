@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { LivroDaFicha } from '../components/EscolherDoLivro'
-import { FichaDePersonagem } from '../components/FichaDePersonagem'
+import { FichaDoSistema } from '../components/dbt/registroDeFichas'
 import { InventarioDaFicha } from '../components/InventarioDaFicha'
 import { LivroDeRegras } from '../components/LivroDeRegras'
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
@@ -418,7 +418,7 @@ export function PlayerFicha({
                   ))}
                 </div>
               )}
-              <FichaDePersonagem
+              <FichaDoSistema
                 personagem={edicao === null ? mostradoComAjustes : edicao.rascunho}
                 sistema={sistemaComLivro ?? sistemaPronto}
                 editando={edicao !== null}

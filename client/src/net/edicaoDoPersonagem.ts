@@ -63,6 +63,8 @@ export function partesMudadas(base: Personagem, rascunho: Personagem): PartesDoP
     return mesmoTexto((base.abas[abaId] ?? []).map(cartaoSemImagem), semImagem) ? [] : [[abaId, semImagem]]
   })
   if (abas.length > 0) partes.abas = Object.fromEntries(abas)
+  // A ficha Dragon Ball vai inteira quando mudou; sumir do rascunho não apaga a do host (não há parte para isso).
+  if (rascunho.dbt !== undefined && !mesmoTexto(base.dbt, rascunho.dbt)) partes.dbt = rascunho.dbt
   return partes
 }
 
@@ -90,6 +92,7 @@ export function imagensMudadas(base: Personagem, rascunho: Personagem): ImagemMu
 export const ERRO_ABA_GRANDE = 'Uma aba da ficha ficou grande demais para a mesa. Divida o texto em mais cartões e salve de novo.'
 export const ERRO_CAMPO_FORA_DO_TETO = 'Algum texto da ficha passou do tamanho que a mesa aceita (nome até 80 letras, cada texto até 8000). Encurte e salve de novo.'
 export const ERRO_IMAGEM_GRANDE = 'Uma das imagens da ficha é pesada demais para a mesa. Escolha outra.'
+export const ERRO_FICHA_DBT_GRANDE = 'A ficha Dragon Ball ficou grande demais para a mesa (técnicas, história e notas juntas). Encurte os textos mais longos e salve de novo.'
 
 export type MensagemDoSalvar = PersonagemEditarMessage | PersonagemImagemMessage
 
@@ -113,7 +116,7 @@ const REQ_ID_DE_SONDA = 'x'.repeat(64)
  * teto, texto fora do limite, imagem pesada. Nada mudou = lista vazia.
  */
 export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes: OpcoesDoSalvar): ResultadoDoSalvar {
-  const { abas, ...escalares } = partesMudadas(base, rascunho)
+  const { abas, dbt, ...escalares } = partesMudadas(base, rascunho)
   const sonda = (partes: PartesDoPersonagem): PersonagemEditarMessage => ({ type: 'personagem.editar', reqId: REQ_ID_DE_SONDA, personagemId: base.id, partes })
   const pacotes: PartesDoPersonagem[] = []
   let atual: PartesDoPersonagem | null = Object.keys(escalares).length > 0 ? escalares : null
@@ -126,6 +129,20 @@ export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes
     if (atual !== null) pacotes.push(atual)
     atual = { abas: { [abaId]: cartoes } }
     if (!opcoes.cabe(sonda(atual))) return { ok: false, erro: ERRO_ABA_GRANDE }
+  }
+  // A ficha Dragon Ball é uma parte só: vai junto do último pacote se couber, senão sozinha.
+  if (dbt !== undefined) {
+    const junto: PartesDoPersonagem = { ...atual, dbt }
+    if (opcoes.cabe(sonda(junto))) {
+      atual = junto
+    } else {
+      if (atual !== null) {
+        if (!opcoes.cabe(sonda(atual))) return { ok: false, erro: ERRO_ABA_GRANDE }
+        pacotes.push(atual)
+      }
+      atual = { dbt }
+      if (!opcoes.cabe(sonda(atual))) return { ok: false, erro: ERRO_FICHA_DBT_GRANDE }
+    }
   }
   if (atual !== null) {
     if (!opcoes.cabe(sonda(atual))) return { ok: false, erro: ERRO_ABA_GRANDE }
@@ -158,6 +175,7 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem): Pe
     ...(partes.etiquetas === undefined ? {} : { etiquetas: partes.etiquetas }),
     escolhas: { ...atual.escolhas, ...partes.escolhas },
     abas: { ...atual.abas, ...abasNovas },
+    ...(partes.dbt === undefined ? {} : { dbt: partes.dbt }),
   }
   for (const campo of NUMEROS_DA_FICHA) aplicado[campo] = { ...atual[campo], ...partes[campo] }
   return aplicado

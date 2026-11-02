@@ -154,6 +154,17 @@ export interface CatalogosDoSistema {
   oficios: OpcaoDoCatalogo[]
 }
 
+/**
+ * O MOTOR de regras que roda o sistema: escolhe a ficha, a batalha e o mundo
+ * do livro (`lib/motores.ts`). `padrao` é o código de sempre (o One Piece e
+ * todo sistema importado ou criado no editor); `dragon-ball-tales` é o motor
+ * próprio do Dragon Ball Tales (`lib/dbt/`).
+ */
+export type MotorDoSistema = 'padrao' | 'dragon-ball-tales'
+
+/** Os motores que este app conhece. Motor fora da lista recusa o arquivo (como formato futuro). */
+export const MOTORES: readonly MotorDoSistema[] = ['padrao', 'dragon-ball-tales']
+
 export interface SistemaDeRpg {
   formato: number
   id: string
@@ -170,6 +181,11 @@ export interface SistemaDeRpg {
   livro?: CapituloDoLivro[]
   /** Os catálogos do livro. Ausente = sem catálogo (a ficha só tem texto livre). */
   catalogos?: CatalogosDoSistema
+  /**
+   * O motor de regras. Ausente = `padrao`: a leitura nunca grava `padrao`, para
+   * todo sistema de antes continuar com o mesmo arquivo e o mesmo objeto.
+   */
+  motor?: Exclude<MotorDoSistema, 'padrao'>
 }
 
 /** Capítulos de um livro: passou, os de depois saem. */
@@ -180,9 +196,11 @@ export const CAPITULO_TEXTO_MAX = 100_000
 /**
  * O texto do livro inteiro. Junto com `CATALOGOS_TEXTO_TOTAL_MAX`, é o que
  * garante que o livro vai ao jogador em poucas mensagens (`net/protocoloDoLivro.ts`):
- * o livro do One Piece tem ~74 mil caracteres.
+ * o livro do One Piece tem ~74 mil caracteres; o do Dragon Ball Tales (jogador,
+ * narrador e suplementos) passa de 600 mil, daí 1,2 milhão. Em português isso
+ * fica perto de 1,3 MB no fio, abaixo dos 3 MiB das partes do livro.
  */
-export const LIVRO_TEXTO_TOTAL_MAX = 600_000
+export const LIVRO_TEXTO_TOTAL_MAX = 1_200_000
 export const CATALOGO_ITENS_MAX = 500
 /**
  * Nome e textos de um item de catálogo: os MESMOS tetos do cartão da ficha
@@ -438,7 +456,8 @@ export type SistemaLido = { ok: true; sistema: SistemaDeRpg } | { ok: false; err
 
 /**
  * Lê um sistema vindo de arquivo. Recusa (com a razão) o que não dá para usar:
- * sem id, sem nome, de formato futuro ou sem atributo nenhum. O resto é
+ * sem id, sem nome, de formato futuro, sem atributo nenhum ou de motor
+ * desconhecido. O motor `padrao` não é gravado (ausente = padrão). O resto é
  * tolerante: atributo, recurso, aba ou campo torto sai sozinho; subcartão que
  * aponta para aba inexistente é desligado.
  */
@@ -451,6 +470,9 @@ export function lerSistemaDeRpg(value: unknown): SistemaLido {
   if (nome.length === 0) return { ok: false, erro: 'o sistema não tem nome' }
   const atributos = semRepetidos(lista(value.atributos).map(atributoDoArquivo))
   if (atributos.length === 0) return { ok: false, erro: `o sistema "${nome}" não tem nenhum atributo` }
+  // Motor desconhecido é de um app mais novo: rodar o padrão no lugar dele leria a ficha com as regras erradas.
+  const motor = value.motor === undefined ? 'padrao' : MOTORES.find((candidato) => candidato === value.motor)
+  if (motor === undefined) return { ok: false, erro: `o sistema "${nome}" usa um motor de regras que este Labirinto não conhece` }
 
   const abasLidas = semRepetidos(lista(value.abas).map(abaDoArquivo))
   const idsDasAbas = new Set(abasLidas.map((aba) => aba.id))
@@ -477,6 +499,7 @@ export function lerSistemaDeRpg(value: unknown): SistemaLido {
   if (livro !== undefined) sistema.livro = livro
   const catalogos = catalogosDoArquivo(value.catalogos, new Set(atributos.map((atributo) => atributo.id)))
   if (catalogos !== undefined) sistema.catalogos = catalogos
+  if (motor !== 'padrao') sistema.motor = motor
   return { ok: true, sistema }
 }
 

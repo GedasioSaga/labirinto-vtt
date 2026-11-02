@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { editavelNoEditor, motorDoSistema, nomeDoMotor } from '../lib/motores'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { AberturaDoEditor } from '../stores/rpgStore'
 import { iniciais } from './FichaPecas'
@@ -30,8 +31,8 @@ export interface SistemasDialogProps {
 
 const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-/** O que o cartão pergunta antes de agir: editar o embutido (vira cópia) ou apagar. */
-type Pergunta = { tipo: 'copiar' | 'apagar'; sistemaId: string }
+/** O que o cartão pergunta antes de agir: editar o embutido (vira cópia), editar o de outro motor (só duplica) ou apagar. */
+type Pergunta = { tipo: 'copiar' | 'motor' | 'apagar'; sistemaId: string }
 
 /**
  * "Sistema de RPG": a grade de cartões da biblioteca do app, como no esboço
@@ -190,7 +191,12 @@ export function SistemasDialog({ sistemas, escolhidoId, avisos, onEscolher, onIm
                       className="lb-btn lb-btn--ghost lb-btn--compact"
                       aria-label={`Editar ${sistema.nome}`}
                       disabled={ocupado}
-                      onClick={(event) => (embutido ? perguntar('copiar', sistema.id, event.currentTarget) : onEditar({ tipo: 'editar', sistema }))}
+                      onClick={(event) => {
+                        // Outro motor (Dragon Ball Tales e as cópias dele) não abre o editor: a pergunta oferece Duplicar.
+                        if (!editavelNoEditor(sistema)) perguntar('motor', sistema.id, event.currentTarget)
+                        else if (embutido) perguntar('copiar', sistema.id, event.currentTarget)
+                        else onEditar({ tipo: 'editar', sistema })
+                      }}
                     >
                       Editar
                     </button>
@@ -241,6 +247,34 @@ export function SistemasDialog({ sistemas, escolhidoId, avisos, onEscolher, onIm
                           }}
                         >
                           Editar uma cópia
+                        </button>
+                        <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={fecharPergunta}>
+                          Cancelar
+                        </button>
+                      </span>
+                    </div>
+                  )}
+                  {perguntaAqui === 'motor' && (
+                    <div className="lb-sistema__pergunta" role="group" aria-label={`${sistema.nome} não se edita`}>
+                      <p>
+                        O {sistema.nome} roda com as regras próprias do {nomeDoMotor(motorDoSistema(sistema))}, que leem os atributos e os recursos pelo id: o editor não mexe
+                        nele. Duplique para ter uma cópia sua, com as mesmas regras.
+                      </p>
+                      <span className="lb-sistema__pergunta-acoes">
+                        <button
+                          type="button"
+                          className="lb-btn lb-btn--primary lb-btn--compact"
+                          autoFocus
+                          disabled={ocupado}
+                          onClick={() =>
+                            void agir(async () => {
+                              const copia = await onDuplicar(sistema)
+                              setPergunta(null)
+                              return `Cópia criada: ${copia.nome}.`
+                            })
+                          }
+                        >
+                          Duplicar
                         </button>
                         <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={fecharPergunta}>
                           Cancelar

@@ -19,6 +19,7 @@ import {
   serializarSistema,
   type AbaDoSistema,
   type AtributoDoSistema,
+  type CampoDoCartao,
   type CapituloDoLivro,
   type CatalogosDoSistema,
   type EscolhaDoSistema,
@@ -99,6 +100,12 @@ export interface RascunhoDeCampo extends Linha {
   id: string
   rotulo: string
   forma: FormaDoCampo
+  /**
+   * A lista fechada do campo (`CampoDoCartao.opcoes`: Tipo da habilidade,
+   * Categoria da arma). A tela ainda não a edita, mas o rascunho a carrega:
+   * sem isso, salvar uma cópia do One Piece apagava as opções.
+   */
+  opcoes: string[]
 }
 
 export interface RascunhoDeAba extends Linha {
@@ -150,6 +157,8 @@ export interface RascunhoDoSistema {
   abas: RascunhoDeAba[]
   catalogos: RascunhoDosCatalogos
   livro: RascunhoDeCapitulo[]
+  /** O motor do sistema de origem (a cópia herda); ausente = padrão. A tela não o muda. */
+  motor?: SistemaDeRpg['motor']
 }
 
 export interface ErroDoEditor {
@@ -183,7 +192,7 @@ export function atributoNovo(): RascunhoDeAtributo {
 }
 
 export function campoNovo(): RascunhoDeCampo {
-  return { chave: novaChave(), novo: true, id: '', rotulo: '', forma: 'linha' }
+  return { chave: novaChave(), novo: true, id: '', rotulo: '', forma: 'linha', opcoes: [] }
 }
 
 export function abaNova(): RascunhoDeAba {
@@ -236,7 +245,7 @@ export function rascunhoDoSistema(sistema: SistemaDeRpg): RascunhoDoSistema {
       nome: aba.nome,
       item: aba.item,
       vazio: aba.vazio,
-      campos: aba.campos.map((campo) => ({ chave: novaChave(), novo: false, id: campo.id, rotulo: campo.rotulo, forma: campo.forma })),
+      campos: aba.campos.map((campo) => ({ chave: novaChave(), novo: false, id: campo.id, rotulo: campo.rotulo, forma: campo.forma, opcoes: campo.opcoes ?? [] })),
       extras: aba.extras === true,
       atributos: aba.atributos === true,
       imagem: aba.imagem === true,
@@ -278,6 +287,7 @@ export function rascunhoDoSistema(sistema: SistemaDeRpg): RascunhoDoSistema {
             oficios: catalogos.oficios.map((opcao) => item(opcao.nome, opcao.descricao)),
           },
     livro: (sistema.livro ?? []).map((capitulo) => ({ chave: novaChave(), novo: false, id: capitulo.id, titulo: capitulo.titulo, ordem: String(capitulo.ordem), texto: capitulo.texto })),
+    ...(sistema.motor === undefined ? {} : { motor: sistema.motor }),
   }
 }
 
@@ -490,7 +500,9 @@ function abasDoRascunho(rascunho: RascunhoDoSistema, acusar: AcusarErro): AbaDoS
     const campos = aba.campos.map((campo, j) => {
       const rotuloDoCampo = campo.rotulo.trim()
       if (rotuloDoCampo.length === 0) acusar('abas', `${rotulo}: o campo ${j + 1} está sem rótulo.`)
-      return { id: idsDosCampos[j], rotulo: rotuloDoCampo, forma: campo.forma }
+      const saida: CampoDoCartao = { id: idsDosCampos[j], rotulo: rotuloDoCampo, forma: campo.forma }
+      if (campo.opcoes.length > 0) saida.opcoes = campo.opcoes
+      return saida
     })
     const saida: AbaDoSistema = { id: ids[i], nome, item: aba.item.trim() || nome, vazio: aba.vazio.trim() || `Nada em ${nome}.`, campos }
     if (aba.extras) saida.extras = true
@@ -609,6 +621,7 @@ export function sistemaDoRascunho(rascunho: RascunhoDoSistema, idsDaBiblioteca: 
   }
   if (livro.length > 0) sistema.livro = livro
   if (catalogos !== undefined) sistema.catalogos = catalogos
+  if (rascunho.motor !== undefined) sistema.motor = rascunho.motor
   // Pelo mesmo caminho do arquivo importado: o que sai daqui é o que a leitura daria.
   const lido = lerSistemaDeRpg(JSON.parse(serializarSistema(sistema)))
   return lido.ok ? { ok: true, sistema: lido.sistema } : { ok: false, erros: [{ secao: 'geral', texto: `O sistema não passaria na leitura do arquivo: ${lido.erro}.` }] }

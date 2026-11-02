@@ -1,6 +1,7 @@
 import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from './batalha/formula'
 import { CATEGORIAS_DE_ARMA } from './batalha/leituraDaFicha'
 import { CAMPO_DO_TIPO, TIPOS_DE_HABILIDADE } from './batalha/tiposDaHabilidade'
+import { SISTEMA_DRAGON_BALL } from './dbt/sistemaDragonBall'
 import { CATALOGOS_ONE_PIECE, LIVRO_ONE_PIECE } from './livroOnePiece'
 import { FORMATO_DO_SISTEMA, type SistemaDeRpg } from './sistemaDeRpg'
 
@@ -196,4 +197,4 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
 }
 
 /** Os sistemas que o app traz de fábrica: sempre na grade, nunca gravados nem apagados. */
-export const SISTEMAS_EMBUTIDOS: readonly SistemaDeRpg[] = [SISTEMA_ONE_PIECE]
+export const SISTEMAS_EMBUTIDOS: readonly SistemaDeRpg[] = [SISTEMA_ONE_PIECE, SISTEMA_DRAGON_BALL]
