@@ -54,6 +54,14 @@ export interface PainelDaIaProps {
 /** Raça, notação e o que as regras mudaram no NPC do Dragon Ball gerado, presos ao id dele (a ficha em si mora em `gerado`). */
 type ExtrasDoNpcDBT = Omit<NpcDBTGerado, 'personagem'> & { id: string }
 
+/**
+ * Os extras do último NPC do Dragon Ball gerado, fora do componente: o mundo
+ * desmonta o painel quando a IA fecha, e `gerado` (na iaStore) sobrevive. Sem
+ * isto, ao reabrir, a lista "Conferido nas regras do livro" sumia. Gravado
+ * antes do `gerado` mudar, que é o que redesenha o painel; o id amarra os dois.
+ */
+let extrasDoUltimoNpcDBT: ExtrasDoNpcDBT | null = null
+
 /** Avisa a troca de chave por cota esgotada (o mesmo aviso da iaStore; o Rust já gravou a nova ativa). */
 function avisarTrocaDeChave(trocouPara: number | null): void {
   if (trocouPara === null) return
@@ -97,7 +105,7 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
 
   const [texto, setTexto] = useState('')
   const [focoDaConfig, setFocoDaConfig] = useState<FocoDaConfig>('chave')
-  const [extrasDoNpcDBT, setExtrasDoNpcDBT] = useState<ExtrasDoNpcDBT | null>(null)
+  const extrasDoNpcDBT = gerado !== null && extrasDoUltimoNpcDBT?.id === gerado.id ? extrasDoUltimoNpcDBT : null
   const caixaRef = useRef<HTMLTextAreaElement>(null)
   const conversaRef = useRef<HTMLDivElement>(null)
   const engrenagemRef = useRef<HTMLButtonElement>(null)
@@ -184,7 +192,7 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
       if (useIaStore.getState().rodada !== rodada) return
       avisarTrocaDeChave(trocouPara)
       if (npc.ok) {
-        setExtrasDoNpcDBT({ id: npc.personagem.id, raca: npc.raca, notacao: npc.notacao, observacoes: npc.observacoes })
+        extrasDoUltimoNpcDBT = { id: npc.personagem.id, raca: npc.raca, notacao: npc.notacao, observacoes: npc.observacoes }
         useIaStore.setState({ gerado: npc.personagem, pensando: false })
       } else {
         useIaStore.setState(({ conversa }) => ({ pensando: false, conversa: [...conversa, { id: crypto.randomUUID(), de: 'erro', texto: npc.erro, codigo: 'resposta_invalida' }] }))
@@ -460,9 +468,9 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
           <NpcGeradoDBT
             npc={gerado}
             personagens={personagens}
-            raca={extrasDoNpcDBT?.id === gerado.id ? extrasDoNpcDBT.raca : ''}
-            notacao={extrasDoNpcDBT?.id === gerado.id ? extrasDoNpcDBT.notacao : ''}
-            observacoes={extrasDoNpcDBT?.id === gerado.id ? extrasDoNpcDBT.observacoes : []}
+            raca={extrasDoNpcDBT?.raca ?? ''}
+            notacao={extrasDoNpcDBT?.notacao ?? ''}
+            observacoes={extrasDoNpcDBT?.observacoes ?? []}
             onGerarOutro={abrirGerar}
           />
         )}

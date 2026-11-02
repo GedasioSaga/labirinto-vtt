@@ -31,6 +31,7 @@ import {
   type TecnicaDBT,
   type TipoDeTecnicaDBT,
   type TransformacaoDaFichaDBT,
+  type TransformacaoDBT,
 } from '../dbt/modelo'
 import { SIGLA_DO_ATRIBUTO, valorDoAtributo } from '../dbt/regras/atributos'
 import { derivadosDaFicha, NOME_DA_CATEGORIA, pkMaximo, pvMaximo } from '../dbt/regras/ficha'
@@ -91,6 +92,7 @@ const PEDIDO_DO_NIVEL: Readonly<Record<NivelDoNpc, string>> = {
 }
 
 const EFEITOS_DA_FAIXA: readonly EfeitoDaFaixaDBT[] = ['dano', 'mitigacao', 'cura', 'ca']
+const NOME_DO_EFEITO: Readonly<Record<EfeitoDaFaixaDBT, string>> = { dano: 'dano', mitigacao: 'mitigação', cura: 'cura', ca: 'CA' }
 
 /** O rótulo decide o que a faixa mede: cura, mitigação (Técnica Defensiva) ou CA. */
 const EFEITO_PELO_ROTULO: ReadonlyMap<string, EfeitoDaFaixaDBT> = new Map([
@@ -458,10 +460,15 @@ function rotulosDaIa(valor: unknown, nomeDaTecnica: string, linha: RankDeTecnica
   return escolhidos
 }
 
+/** O efeito que o rótulo impõe à faixa (Adicionar Cura, Técnica Defensiva, Adicionar Classe de Armadura); `undefined` = nenhum. */
+function efeitoDoRotulo(escolha: RotuloEscolhidoDBT): EfeitoDaFaixaDBT | undefined {
+  const rotulo = ROTULOS_POR_ID.get(escolha.rotuloId)
+  return rotulo === undefined ? undefined : EFEITO_PELO_ROTULO.get(nomeNormalizado(rotulo.nome))
+}
+
 function efeitoDaTecnica(rotulos: readonly RotuloEscolhidoDBT[], pedido: unknown): EfeitoDaFaixaDBT {
   for (const escolha of rotulos) {
-    const rotulo = ROTULOS_POR_ID.get(escolha.rotuloId)
-    const efeito = rotulo === undefined ? undefined : EFEITO_PELO_ROTULO.get(nomeNormalizado(rotulo.nome))
+    const efeito = efeitoDoRotulo(escolha)
     if (efeito !== undefined) return efeito
   }
   return umaDasOpcoes(EFEITOS_DA_FAIXA, pedido) ?? 'dano'
@@ -528,22 +535,40 @@ function tecnicaNasRegras(tecnica: TecnicaDBT, ranks: TabelaDeRanksDBT, observac
         ? `«${atual.nome}»: ${nome} saiu; o rank ${atual.rank} aceita até ${montada.limiteDeNegativos} pontos de negativos.`
         : `«${atual.nome}»: ${nome} saiu para caber nos ${montada.orcamento} pontos de rótulo do rank ${atual.rank}.`,
     )
-    atual = { ...atual, rotulos: atual.rotulos.filter((_, i) => i !== indice) }
+    const rotulos = atual.rotulos.filter((_, i) => i !== indice)
+    // Saiu o rótulo que decidia a faixa (cura, mitigação ou CA): o efeito vem dos rótulos que ficaram, ou volta a dano.
+    const efeito = efeitoDoRotulo(tirado) === atual.efeitoDaFaixa ? efeitoDaTecnica(rotulos, 'dano') : atual.efeitoDaFaixa
+    if (efeito !== atual.efeitoDaFaixa) observacoes.push(`«${atual.nome}»: sem ${nome}, a faixa passou a medir ${NOME_DO_EFEITO[efeito]}.`)
+    atual = { ...atual, rotulos, efeitoDaFaixa: efeito }
   }
   observacoes.push(`«${tecnica.nome}» saiu: não coube nas regras de técnica do rank ${tecnica.rank} (p. 60).`)
   return null
 }
 
-function transformacoesDaIa(valor: unknown, raca: RacaDBT | null): TransformacaoDaFichaDBT[] {
-  const catalogo = [...(raca?.transformacoes ?? []), ...TRANSFORMACOES_DE_EXEMPLO]
+function formaDoCatalogo(catalogo: readonly TransformacaoDBT[], id: string, nome: string): TransformacaoDBT | undefined {
+  return catalogo.find((forma) => forma.id === id) ?? (nome.length > 0 ? catalogo.find((forma) => nomeNormalizado(forma.nome) === nomeNormalizado(nome)) : undefined)
+}
+
+/**
+ * Só as formas da raça valem com os números impressos. O exemplo do Super
+ * Saiyajin (p. 92) já está na lista do Saiyajin; em outra raça (ou sem raça)
+ * ele entra como forma nova, pela regra geral do estágio.
+ */
+function transformacoesDaIa(valor: unknown, raca: RacaDBT | null, observacoes: string[]): TransformacaoDaFichaDBT[] {
+  const catalogo = raca?.transformacoes ?? []
   const formas: TransformacaoDaFichaDBT[] = []
   for (const item of lista(valor).slice(0, TRANSFORMACOES_MAX)) {
     if (!isRecord(item)) continue
     const id = typeof item.id === 'string' ? item.id.trim() : ''
     const nome = cortar(item.nome, LIMITES_DBT.nome)
-    const doLivro = catalogo.find((forma) => forma.id === id) ?? (nome.length > 0 ? catalogo.find((forma) => nomeNormalizado(forma.nome) === nomeNormalizado(nome)) : undefined)
+    const doLivro = formaDoCatalogo(catalogo, id, nome)
+    const exemplo = doLivro === undefined ? formaDoCatalogo(TRANSFORMACOES_DE_EXEMPLO, id, nome) : undefined
     if (doLivro !== undefined) {
       formas.push(transformacaoDoCatalogo(doLivro, raca?.nome ?? ''))
+    } else if (exemplo !== undefined) {
+      const estagio = exemplo.estagio ?? 1
+      observacoes.push(`${exemplo.nome} não é forma ${raca === null ? 'deste NPC sem raça' : `de ${raca.nome}`}: entrou pela regra geral do estágio (p. 93).`)
+      formas.push({ ...novaTransformacao(exemplo.nome, estagio), efeitos: cortar(item.efeitos, LIMITES_DBT.texto) })
     } else if (nome.length > 0) {
       // Forma nova: EP e Ki pela regra geral do estágio (p. 93), nunca pelo número da IA.
       formas.push({ ...novaTransformacao(nome, inteiroDaIa(item.estagio, 1, ESTAGIO_MAX) ?? 1), efeitos: cortar(item.efeitos, LIMITES_DBT.texto) })
@@ -615,7 +640,7 @@ export function personagemDaIaDBT(textoDaIa: string, sistema: SistemaDeRpg): Npc
     epInicial: inteiroDaIa(bruto.ep, 0, EP_MAX) ?? EP_PADRAO,
     periciasTreinadas: lista(bruto.pericias),
     tecnicas,
-    transformacoes: transformacoesDaIa(bruto.transformacoes, raca),
+    transformacoes: transformacoesDaIa(bruto.transformacoes, raca, observacoes),
     personalidade: cortar(bruto.personalidade, LIMITES_DBT.textoCurto),
     npc: { nd: inteiroDaIa(bruto.nd, 1, ND_MAX) ?? ND_PADRAO, categoria, rank, passivas: passivasDaIa(bruto.passivas), prontoId: null },
   })
