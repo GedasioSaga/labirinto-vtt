@@ -106,12 +106,20 @@ export function ConstrutorDeTecnica({ tecnicaId, onFechar }: { tecnicaId: string
   const original = useMemo(() => (tecnicaId === null ? null : (ficha.tecnicas.find((t) => t.id === tecnicaId) ?? null)), [ficha.tecnicas, tecnicaId])
   const [inicial] = useState<TecnicaDBT>(() => original ?? tecnicaEmBranco())
   const [tecnica, setTecnica] = useState<TecnicaDBT>(inicial)
-  // Os rótulos ficam guardados ao passar para especial (que não usa rótulo) e voltam se desistir.
-  const [rotulosGuardados, setRotulosGuardados] = useState<RotuloEscolhidoDBT[]>([])
+  // Os rótulos e o Ki fixado (o impresso da técnica pronta) ficam guardados ao passar para especial e voltam se desistir.
+  const [guardadosDosRotulos, setGuardadosDosRotulos] = useState<{ rotulos: RotuloEscolhidoDBT[]; kiManual: number | null }>({ rotulos: [], kiManual: null })
   const [perguntaDeSaida, setPerguntaDeSaida] = useState(false)
   const [confirmarExclusao, setConfirmarExclusao] = useState(false)
 
-  const montada = montar(tecnica)
+  // Ki e dano impressos valem para a técnica como o livro a montou. O jogador
+  // que troca rank, tipo ou rótulos monta outra técnica: os números impressos
+  // saem e vale o orçamento do rank (p. 60). O mestre fixa o que quiser.
+  const construcaoMudou =
+    JSON.stringify([tecnica.rank, tecnica.tipo, tecnica.atributo, tecnica.rotulos]) !== JSON.stringify([inicial.rank, inicial.tipo, inicial.atributo, inicial.rotulos])
+  const numerosImpressosSaem = !ehMestre && tecnica.especial === null && construcaoMudou && (tecnica.kiManual !== null || tecnica.danoManual !== null)
+  const tecnicaDaConta: TecnicaDBT = numerosImpressosSaem ? { ...tecnica, kiManual: null, danoManual: null } : tecnica
+
+  const montada = montar(tecnicaDaConta)
   const rank = RANKS_DBT[tecnica.rank]
   const mudou = JSON.stringify(tecnica) !== JSON.stringify(inicial)
   const especial = tecnica.especial
@@ -150,16 +158,16 @@ export function ConstrutorDeTecnica({ tecnicaId, onFechar }: { tecnicaId: string
 
   const trocarModo = (modo: 'rotulos' | 'especial') => {
     if (modo === 'especial' && especial === null) {
-      setRotulosGuardados(tecnica.rotulos)
+      setGuardadosDosRotulos({ rotulos: tecnica.rotulos, kiManual: tecnica.kiManual })
       trocar({ rotulos: [], especial: { ofensiva: false, momento: 'acao', efeito: '', aprovada: false }, kiManual: rank.kiMinimoDaEspecial })
     } else if (modo === 'rotulos' && especial !== null) {
-      trocar({ rotulos: rotulosGuardados, especial: null, kiManual: null })
+      trocar({ rotulos: guardadosDosRotulos.rotulos, especial: null, kiManual: guardadosDosRotulos.kiManual })
     }
   }
 
   const salvar = () => {
     if (motivo !== null) return
-    let final: TecnicaDBT = { ...tecnica, nome: tecnica.nome.trim() }
+    let final: TecnicaDBT = { ...tecnicaDaConta, nome: tecnica.nome.trim() }
     // Especial aprovada que o jogador mexeu volta para o mestre aprovar.
     if (!ehMestre && final.especial !== null && final.especial.aprovada && mudou) final = { ...final, especial: { ...final.especial, aprovada: false } }
     mudarFicha((f) => ({ ...f, tecnicas: original === null ? [...f.tecnicas, final] : f.tecnicas.map((t) => (t.id === final.id ? final : t)) }))
@@ -332,6 +340,7 @@ export function ConstrutorDeTecnica({ tecnicaId, onFechar }: { tecnicaId: string
             </p>
           </div>
           <div id={avisosId} aria-live="polite">
+            {numerosImpressosSaem && <p className="dbf-aviso dbf-aviso--amber">Você mudou rank, tipo ou rótulos: o Ki e o dano impressos saem e vale a conta do livro.</p>}
             {montada.avisos.length === 0 ? (
               <p className="dbf-aviso dbf-aviso--calmo">Dentro da regra do livro.</p>
             ) : (

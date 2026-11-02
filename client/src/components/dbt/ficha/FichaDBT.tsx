@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { maximoComposto } from '../../../lib/ajusteDaFicha'
 import type { FichaDBT as FichaEstruturada } from '../../../lib/dbt/modelo'
 import type { Personagem } from '../../../lib/personagem'
@@ -13,7 +13,7 @@ import { CabecalhoDBT, RecursosDBT } from './Cabecalho'
 import { AtributosDBT, PericiasDBT } from './Colunas'
 import { ConstrutorDeTecnica } from './ConstrutorDeTecnica'
 import { ContextoDaFichaDBT, useFichaDBT, type FichaDBTNaTela, type IdDaAbaDBT } from './contexto'
-import { comMaximosDaRegra, derivadosDe, fichaDe, racaDaFicha, varianteDaFicha } from './edicaoDaFicha'
+import { comMaximosDaRegra, derivadosDe, fichaDe, racaDaFicha, referenciaDosRecursos, varianteDaFicha, type ReferenciaDosRecursos } from './edicaoDaFicha'
 import './fichaDBT.css'
 
 /**
@@ -34,13 +34,28 @@ export function FichaDBT({ personagem, editando, onChange, escolherImagem, titul
   const [aba, setAba] = useState<IdDaAbaDBT>('tecnicas')
   const [construtor, setConstrutor] = useState<{ tecnicaId: string | null } | null>(null)
   const quemAbriuOConstrutor = useRef<HTMLElement | null>(null)
+  // O PV/PK de quando o Editar abriu: a conta dos máximos parte dele (nasce na primeira mudança, morre no Salvar/Cancelar).
+  const referenciaDaEdicao = useRef<ReferenciaDosRecursos | null>(null)
   const painelId = `dbf-${personagem.id}`
+
+  useEffect(() => {
+    if (editando) return
+    // Salvar, Cancelar ou o X da janela encerram a edição: o construtor aberto fecha junto, e não reabre no próximo Editar.
+    setConstrutor(null)
+    referenciaDaEdicao.current = null
+  }, [editando])
 
   const ficha = useMemo(() => fichaDe(personagem), [personagem])
   const derivados = useMemo(() => derivadosDe(personagem), [personagem])
   const raca = racaDaFicha(ficha)
   const variante = varianteDaFicha(ficha, raca)
   const ehNpc = personagem.tipo === 'npc'
+
+  const gravar = (proximo: Personagem) => {
+    const conta = comMaximosDaRegra(referenciaDaEdicao.current ?? referenciaDosRecursos(personagem), personagem, proximo)
+    referenciaDaEdicao.current = conta.referencia
+    onChange(conta.personagem)
+  }
 
   const tela: FichaDBTNaTela = {
     personagem,
@@ -49,7 +64,8 @@ export function FichaDBT({ personagem, editando, onChange, escolherImagem, titul
     raca,
     variante,
     editando,
-    ehMestre: tipoEditavel,
+    // NPC sem o bloco `npc` fora da edição: é o perfil que o jogador abre (o bloco é só do mestre) ou NPC antigo sem ND; nos dois, vale a conta do jogador.
+    ehMestre: tipoEditavel && (editando || !ehNpc || ficha.npc !== undefined),
     ehNpc,
     pvAtual: personagem.recursos.pv ?? 0,
     pvMax: personagem.maximos.pv === undefined ? derivados.pvMax.valor : maximoComposto(personagem, 'pv').total,
@@ -57,11 +73,11 @@ export function FichaDBT({ personagem, editando, onChange, escolherImagem, titul
     pkMax: personagem.maximos.pk === undefined ? derivados.pkMax.valor : maximoComposto(personagem, 'pk').total,
     mudar: (mudanca: (atual: Personagem) => Personagem) => {
       if (!editando) return
-      onChange(comMaximosDaRegra(personagem, mudanca(personagem)))
+      gravar(mudanca(personagem))
     },
     mudarFicha: (mudanca: (atual: FichaEstruturada) => FichaEstruturada) => {
       if (!editando) return
-      onChange(comMaximosDaRegra(personagem, { ...personagem, dbt: mudanca(ficha) }))
+      gravar({ ...personagem, dbt: mudanca(ficha) })
     },
     // Na edição tudo é campo e espera o Salvar; o ajuste rápido é só da leitura (como na ficha padrão).
     ajustar: editando ? undefined : onAjustar,

@@ -19,6 +19,7 @@ import {
   type AumentoDeAtributoDBT,
   type FichaDBT,
   type IdAtributoDBT,
+  type IdRecursoDBT,
   type MovimentoMarcialDBT,
   type NpcDaFichaDBT,
   type RacaDBT,
@@ -153,26 +154,44 @@ export function derivadosDe(personagem: Personagem): DerivadosDaFichaDBT {
   return derivadosDaFicha(ficha, personagem.atributos, { raca: racaDaFicha(ficha), ranks: RANKS_DBT, vidaPorGolpe: VIDA_POR_GOLPE })
 }
 
+/** De onde o PV/PK atual parte na edição: o par (atual, máximo) de quando o Editar abriu, ou da última vez que o atual mudou de propósito. */
+export type ReferenciaDosRecursos = Readonly<Record<IdRecursoDBT, { atual: number; maximo: number }>>
+
+export function referenciaDosRecursos(personagem: Personagem): ReferenciaDosRecursos {
+  const par = (id: IdRecursoDBT) => {
+    const atual = personagem.recursos[id] ?? 0
+    return { atual, maximo: personagem.maximos[id] ?? atual }
+  }
+  return { pv: par('pv'), pk: par('pk') }
+}
+
 /**
  * Grava os máximos de PV e PK da regra (o ajuste à mão em `ajustes` já vence
- * dentro de `derivadosDaFicha`). Máximo que SOBE leva o atual junto (subiu a
- * CON: a vida nova chega cheia); o atual nunca passa do máximo. Se a mudança
- * foi no próprio atual (digitado), só limita. Sem mudança devolve a MESMA referência.
+ * dentro de `derivadosDaFicha`). Máximo acima do da `referencia` leva o atual
+ * junto (subiu a CON: a vida nova chega cheia); o atual nunca passa do máximo.
+ * A conta parte sempre da referência, nunca da tecla anterior: digitar "80" no
+ * PV máximo passa por "8" e não pode curar ninguém no caminho. Mudança no
+ * próprio atual (digitado, descanso) vira a nova referência e só é limitada.
+ * Sem mudança devolve o MESMO personagem.
  */
-export function comMaximosDaRegra(anterior: Personagem, proximo: Personagem): Personagem {
+export function comMaximosDaRegra(
+  referencia: ReferenciaDosRecursos,
+  anterior: Personagem,
+  proximo: Personagem,
+): { personagem: Personagem; referencia: ReferenciaDosRecursos } {
   const alvo = maximosDosRecursos(derivadosDe(proximo))
   let saida = proximo
+  const novaReferencia = { ...referencia }
   for (const id of IDS_DOS_RECURSOS) {
     const novo = alvo[id]
-    const antigo = anterior.maximos[id] ?? anterior.recursos[id] ?? 0
-    const digitado = (proximo.recursos[id] ?? 0) !== (anterior.recursos[id] ?? 0)
-    let atual = proximo.recursos[id] ?? 0
-    if (!digitado && novo > antigo) atual += novo - antigo
-    atual = Math.min(novo, Math.max(0, atual))
+    const pedido = proximo.recursos[id] ?? 0
+    if (pedido !== (anterior.recursos[id] ?? 0)) novaReferencia[id] = { atual: Math.min(novo, Math.max(0, pedido)), maximo: novo }
+    const base = novaReferencia[id]
+    const atual = Math.min(novo, Math.max(0, base.atual + Math.max(0, novo - base.maximo)))
     if (saida.maximos[id] === novo && saida.recursos[id] === atual) continue
     saida = { ...saida, maximos: { ...saida.maximos, [id]: novo }, recursos: { ...saida.recursos, [id]: atual } }
   }
-  return saida
+  return { personagem: saida, referencia: novaReferencia }
 }
 
 /** Troca a ficha estruturada do personagem. */
