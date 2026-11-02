@@ -28,6 +28,34 @@ function inteiroEntre(texto: string, min: number, max: number): number | null {
   return Math.min(max, Math.max(min, Math.trunc(valor)))
 }
 
+const USOS_DA_FORMA_MAX = 99
+
+/**
+ * Número inteiro de 0 a `max`. O texto digitado fica no campo enquanto o
+ * foco está nele (apagar para digitar outro não volta o valor antigo); a
+ * linha só muda com um número válido, e ao sair do campo ele mostra o valor guardado.
+ */
+function CampoInteiro({ valor, max, rotulo, onTrocar }: { valor: number; max: number; rotulo: string; onTrocar: (valor: number) => void }) {
+  const [texto, setTexto] = useState<string | null>(null)
+  return (
+    <input
+      className="dbf-inp"
+      type="number"
+      inputMode="numeric"
+      min={0}
+      max={max}
+      aria-label={rotulo}
+      value={texto ?? String(valor)}
+      onChange={(evento) => {
+        setTexto(evento.target.value)
+        const numero = inteiroEntre(evento.target.value, 0, max)
+        if (numero !== null) onTrocar(numero)
+      }}
+      onBlur={() => setTexto(null)}
+    />
+  )
+}
+
 export function FimDaBatalhaDBT({ aberto, linhas, exaustao, onEncerrar, onFechar }: FimDaBatalhaDBTProps) {
   const [editadas, setEditadas] = useState<readonly LinhaDoFimDBT[]>(linhas)
   const [etapa, setEtapa] = useState<Etapa>({ tipo: 'tabela' })
@@ -85,33 +113,20 @@ export function FimDaBatalhaDBT({ aberto, linhas, exaustao, onEncerrar, onFechar
                   <td>{linha.pctTecnicas}%</td>
                   <td>{linha.pctInferiores}%</td>
                   <td>
-                    <input
-                      className="dbf-inp"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
+                    <CampoInteiro
+                      valor={linha.pkBloqueados}
                       max={linha.pkMax}
-                      aria-label={`Ki bloqueado de ${linha.nome} (antes ${linha.pkBloqueadosAntes}, de ${linha.pkMax})`}
-                      value={linha.pkBloqueados}
-                      onChange={(evento) => {
-                        const valor = inteiroEntre(evento.target.value, 0, linha.pkMax)
-                        if (valor !== null) trocar(linha.personagemId, (atual) => ({ ...atual, pkBloqueados: valor }))
-                      }}
+                      rotulo={`Ki bloqueado de ${linha.nome} (antes ${linha.pkBloqueadosAntes}, de ${linha.pkMax})`}
+                      onTrocar={(valor) => trocar(linha.personagemId, (atual) => ({ ...atual, pkBloqueados: valor }))}
                     />{' '}
                     / {linha.pkMax}
                   </td>
                   <td>
-                    <input
-                      className="dbf-inp"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      aria-label={`Usos da forma máxima de ${linha.nome}`}
-                      value={linha.usosTransfMaxima}
-                      onChange={(evento) => {
-                        const valor = inteiroEntre(evento.target.value, 0, 99)
-                        if (valor !== null) trocar(linha.personagemId, (atual) => ({ ...atual, usosTransfMaxima: valor }))
-                      }}
+                    <CampoInteiro
+                      valor={linha.usosTransfMaxima}
+                      max={USOS_DA_FORMA_MAX}
+                      rotulo={`Usos da forma máxima de ${linha.nome}`}
+                      onTrocar={(valor) => trocar(linha.personagemId, (atual) => ({ ...atual, usosTransfMaxima: valor }))}
                     />
                   </td>
                   <td>

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ExtrasDaAcao, OpcaoDaPendencia, OpcaoDeAcao } from '../../../lib/dbt/batalha/tipos'
-import type { CartaDBT, DeclaracaoDBT, JanelaDBTParaJogador, MeuCombatenteDBT, PendenciaDBTParaJogador, VistaDBT } from '../../../lib/dbt/batalha/vista'
+import type { CartaDBT, DeclaracaoDBT, JanelaDBTParaJogador, PendenciaDBTParaJogador, VistaDBT } from '../../../lib/dbt/batalha/vista'
 import '../ficha/fichaDBT.css'
 import './batalhaDBT.css'
 import { CaixaDeReacaoDBT, type GolpeNaTela } from './CaixaDeReacaoDBT'
 import { NOME_DO_VOO } from './dadosDaBatalhaDBT'
-import { MenuDeAcoesDBT, type CandidatoAoAlvo, type MiraDoMenu } from './MenuDeAcoesDBT'
+import { MenuDeAcoesDBT, type CandidatoAoAlvo, type MiraDoMenu, type TecnicaNoMenu } from './MenuDeAcoesDBT'
 import { BarraDeRecurso, RespostasDaPendencia, Secao, type ExtraDaResposta } from './pecasDaBatalhaDBT'
 import { RegistroDBT, linhasDoJogadorDBT } from './RegistroDBT'
 
@@ -40,6 +40,11 @@ export interface BatalhaDoJogadorDBTProps {
   recusa?: string | null
   /** Tocar na ficha do mapa escolhe o alvo (o mapa liga `aoEscolherFicha` enquanto `ligada`). */
   mira?: MiraDoMenu
+  /**
+   * Básica e Acumulação de uma técnica da ficha dele (`lerFichaParaBatalha(personagem, sistema)?.tecnicas`),
+   * para anunciar básicos (9.2) e a Carga por Ki. Ausente = o menu não mostra esses extras.
+   */
+  tecnicaDoPersonagem?: (personagemId: string, tecnicaId: string) => TecnicaNoMenu | null
 }
 
 function golpeDaJanela(janela: JanelaDBTParaJogador): GolpeNaTela {
@@ -54,24 +59,44 @@ function candidatosDaVista(cartas: readonly CartaDBT[], atorId: string, alvo: Op
 
 type KiQueVoltou = ReadonlyMap<string, { de: number; para: number }>
 
-/** "Ki recarregou": o Ki subiu quando a vez chegou a um combatente dele (início do turno, 7.2). Some quando a vez passa. */
-function useKiQueVoltou(meus: readonly MeuCombatenteDBT[]): KiQueVoltou {
-  const anterior = useRef(new Map<string, { pk: number; naVez: boolean }>())
+interface FotoDoTurno {
+  rodada: number
+  n: number
+  vez: string | null
+  pk: ReadonlyMap<string, number>
+}
+
+/** Turno novo para a frente: a recarga (7.2) chega no mesmo estado que troca a vez. Voltar (desfazer) não conta. */
+function turnoAvancou(antes: FotoDoTurno, vista: VistaDBT): boolean {
+  if (vista.fase !== 'combate' || vista.vez === null) return false
+  if (vista.rodada !== antes.rodada) return vista.rodada > antes.rodada
+  return vista.vez !== antes.vez && vista.turno.n > antes.n
+}
+
+/**
+ * "Ki recarregou": o Ki de um combatente dele subiu no estado em que a vez
+ * chegou a ele (início do turno, 7.2), mesmo com uma pendência de início
+ * de turno na frente. Ki devolvido por desfazer no meio do turno não conta.
+ * Some quando a vez passa a outro.
+ */
+function useKiQueVoltou(vista: VistaDBT): KiQueVoltou {
+  const anterior = useRef<FotoDoTurno | null>(null)
   const [voltou, setVoltou] = useState<KiQueVoltou>(() => new Map())
   useEffect(() => {
+    const antes = anterior.current
     const chegou = new Map<string, { de: number; para: number }>()
-    for (const meu of meus) {
-      const antes = anterior.current.get(meu.tokenId)
-      const naVez = meu.vez !== null
-      if (naVez && antes !== undefined && !antes.naVez && meu.pk.atual > antes.pk) chegou.set(meu.tokenId, { de: antes.pk, para: meu.pk.atual })
-      anterior.current.set(meu.tokenId, { pk: meu.pk.atual, naVez })
+    if (antes !== null && turnoAvancou(antes, vista)) {
+      const meu = vista.meus.find((candidato) => candidato.tokenId === vista.vez)
+      const pkAntes = meu === undefined ? undefined : antes.pk.get(meu.tokenId)
+      if (meu !== undefined && pkAntes !== undefined && meu.pk.atual > pkAntes) chegou.set(meu.tokenId, { de: pkAntes, para: meu.pk.atual })
     }
+    anterior.current = { rodada: vista.rodada, n: vista.turno.n, vez: vista.vez, pk: new Map(vista.meus.map((meu) => [meu.tokenId, meu.pk.atual])) }
     setVoltou((atual) => {
-      const seguem = new Map([...atual].filter(([id]) => meus.some((meu) => meu.tokenId === id && meu.vez !== null)))
+      const seguem = new Map([...atual].filter(([id]) => id === vista.vez))
       for (const [id, valor] of chegou) seguem.set(id, valor)
       return seguem.size === atual.size && chegou.size === 0 ? atual : seguem
     })
-  }, [meus])
+  }, [vista])
   return voltou
 }
 
@@ -90,25 +115,31 @@ function useDesde(ids: readonly string[]): ReadonlyMap<string, number> {
   return desde
 }
 
-export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira }: BatalhaDoJogadorDBTProps) {
+export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira, tecnicaDoPersonagem }: BatalhaDoJogadorDBTProps) {
   const [ocupado, setOcupado] = useState(false)
   const [minhaRecusa, setMinhaRecusa] = useState<string | null>(null)
   const [verRegistro, setVerRegistro] = useState(false)
   const [desfazendo, setDesfazendo] = useState<string | null>(null)
-  const kiVoltou = useKiQueVoltou(vista.meus)
+  // O turno em que ele já usou um básico: anunciar mais de 3 só antes do 1º (9.2). Se o mestre agiu por ele, o host recusa e diz.
+  const [basicoNoTurno, setBasicoNoTurno] = useState<string | null>(null)
+  const kiVoltou = useKiQueVoltou(vista)
   const { janela } = vista
   // A reação da janela aberta vai para a caixa embaixo; o resto fica no menu.
   const reacoes = janela === null ? [] : vista.pendencias.filter((pendencia) => pendencia.tipo === 'reacao' && pendencia.id === janela.pendenciaId)
   const outras = vista.pendencias.filter((pendencia) => !reacoes.includes(pendencia))
   const desde = useDesde(reacoes.map((pendencia) => pendencia.id))
 
-  const executar = async (fazer: () => RespostaDoEnvioDBT | Promise<RespostaDoEnvioDBT>) => {
+  /** true = enviado sem recusa (sem resposta do host conta como enviado). */
+  const executar = async (fazer: () => RespostaDoEnvioDBT | Promise<RespostaDoEnvioDBT>): Promise<boolean> => {
     setOcupado(true)
     try {
       const resposta = await fazer()
-      setMinhaRecusa(resposta !== undefined && !resposta.ok ? (resposta.motivo ?? 'O mestre recusou o pedido.') : null)
+      const recusado = resposta !== undefined && !resposta.ok
+      setMinhaRecusa(recusado ? (resposta.motivo ?? 'O mestre recusou o pedido.') : null)
+      return !recusado
     } catch {
       setMinhaRecusa('Sem conexão com o mestre. Tente de novo.')
+      return false
     } finally {
       setOcupado(false)
     }
@@ -123,6 +154,8 @@ export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira }: Bata
   const nomeDaVez = vista.vez === null ? null : nomeDe(vista.vez)
   const textoDaRecusa = minhaRecusa ?? recusa
   const registro = linhasDoJogadorDBT(vista.registro)
+  const chaveDaVez = naVez === null || vezDele === null ? null : `${naVez.tokenId}-${vezDele.rodada}-${vezDele.turno}`
+  const tecnicaDaVez = naVez === null || tecnicaDoPersonagem === undefined ? undefined : (tecnicaId: string) => tecnicaDoPersonagem(naVez.personagemId, tecnicaId)
 
   return (
     <>
@@ -202,15 +235,22 @@ export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira }: Bata
           </p>
         )}
 
-        {naVez !== null && vezDele !== null && (
+        {naVez !== null && vezDele !== null && chaveDaVez !== null && (
           <Secao titulo={vista.meus.length > 1 ? `Ações de ${naVez.nome}` : 'Suas ações'} nota={`andou ${naVez.deslocamento.andou} de ${naVez.deslocamento.casas} casas`}>
             <MenuDeAcoesDBT
-              key={`${naVez.tokenId}-${vezDele.rodada}-${vezDele.turno}`}
+              key={chaveDaVez}
               opcoes={naVez.acoes}
               candidatos={(opcao) => candidatosDaVista(vista.cartas, naVez.tokenId, opcao.alvo)}
+              tecnica={tecnicaDaVez}
+              podeAnunciarBasicos={basicoNoTurno !== chaveDaVez}
               mira={mira}
               ocupado={ocupado}
-              onAgir={(opcao, alvos, extras) => void executar(() => enviar.agir({ combatenteId: naVez.tokenId, vez: vezDele, opcao: opcao.chave, alvos: [...alvos], extras }))}
+              onAgir={(opcao, alvos, extras) => {
+                const basica = opcao.tecnicaId !== null && tecnicaDaVez?.(opcao.tecnicaId)?.basica === true
+                void executar(() => enviar.agir({ combatenteId: naVez.tokenId, vez: vezDele, opcao: opcao.chave, alvos: [...alvos], extras })).then((enviado) => {
+                  if (enviado && basica) setBasicoNoTurno(chaveDaVez)
+                })
+              }}
             />
             <div className="dbb-cartao__acoes">
               <button
