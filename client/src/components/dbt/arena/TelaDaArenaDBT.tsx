@@ -190,6 +190,24 @@ export function TelaDaArenaDBT({ sistema }: TelaDaArenaDBTProps) {
     }
   }, [])
 
+  // O botão clicado some (Usar, Aplicar, Não reagir) e o foco cai no <body>: a tecla não passa
+  // pela seção, e o Ctrl+Z do editor (App) desfaria o mapa de verdade atrás da arena, em silêncio.
+  // Enquanto a luta está aberta, a tecla sem dono é da arena.
+  const lutando = sessao !== null && sessao.fase === 'lutando'
+  useEffect(() => {
+    if (!lutando) return
+    const semDono = (evento: WindowEventMap['keydown']) => {
+      if (evento.target !== document.body && evento.target !== document.documentElement) return
+      evento.stopPropagation()
+      const z = evento.key === 'z' || evento.key === 'Z'
+      if (!z || !(evento.ctrlKey || evento.metaKey) || evento.shiftKey || evento.altKey) return
+      evento.preventDefault()
+      desfazerNaArena()
+    }
+    window.addEventListener('keydown', semDono, true)
+    return () => window.removeEventListener('keydown', semDono, true)
+  }, [lutando])
+
   if (sessao === null || sessao.fase !== 'lutando') return null
 
   const teclas = (evento: KeyboardEvent<HTMLElement>) => {
