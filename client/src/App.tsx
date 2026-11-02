@@ -48,6 +48,7 @@ import { useFollowStore } from './stores/followStore'
 import { useTerritorioStore } from './stores/territorioStore'
 import { alertaDaCena, coresDasFaccoes, corCss, faccaoHerdada } from './lib/faccoes'
 import { deveAvisarJogadores, efeitosDaCena, esperandoOMestre, judgeDaCena, ponteDaBatalha, useBatalhaStore, vezTokenIdDaCena } from './stores/batalhaStore'
+import { deveAvisarJogadoresDBT, esperandoOMestreDBT, useBatalhaDBTStore, vezTokenIdDaCenaDBT } from './stores/batalhaDBTStore'
 import { gravarJudgeLembrado, judgeInicial, lerJudgeLembrado } from './lib/batalha/judge'
 import { ultimoGestoDoJudge } from './pixi/judgeDoMapa'
 import { carryRefsOf } from './lib/carry'
@@ -921,10 +922,15 @@ function App() {
         onTiroChange: setTiros,
         onTunnelChange: setTunnel,
         // MODO BATALHA: só a sessão do mestre sabe quais cenas estão em batalha; o jogador recebe `batalha: true`.
-        getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
-        onBatalhaAndou: (sceneKey, tokenId, blocos, casas) => useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas),
+        // BATALHA DBT: a cena em batalha Dragon Ball também conta (o caminho andado é infra das duas).
+        getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey) || useBatalhaDBTStore.getState().ligada(sceneKey),
+        // O passo vai à store que tem a cena (a mesma cena nunca está nas duas).
+        onBatalhaAndou: (sceneKey, tokenId, blocos, casas) =>
+          useBatalhaStore.getState().ligada(sceneKey)
+            ? useBatalhaStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas)
+            : useBatalhaDBTStore.getState().somarCaminho(sceneKey, tokenId, blocos, casas),
         // B6: o caminho andado vai a cada jogador recortado pelo host (o dele inteiro, o do colega só à vista).
-        getCaminhosDaBatalha: (sceneKey) => useBatalhaStore.getState().cenas[sceneKey] ?? null,
+        getCaminhosDaBatalha: (sceneKey) => useBatalhaStore.getState().cenas[sceneKey] ?? useBatalhaDBTStore.getState().cenas[sceneKey] ?? null,
         // BATALHA F1 (S1): a ordem dos turnos, o registro e as regras; o host recorta para cada jogador.
         ponteDaBatalha,
         // Regra de 27/10: esbarrar em parede invisível REVELA (só para ele) e AVISA o mestre (o nome vem do registro do host, não do jogador).
@@ -983,7 +989,7 @@ function App() {
     criarControladorDaVisao({
       getMap: () => useMapStore.getState().map,
       getWorld: () => hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map, useRpgStore.getState().biblioteca),
-      getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey),
+      getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey) || useBatalhaDBTStore.getState().ligada(sceneKey),
       getPeriodo: () => periodoDaSessao(useAdventureStore.getState()),
       avisos: PILHA_DO_EDITOR,
       abrirCanal: () => abrirCanalDoNavegador(),
@@ -1036,6 +1042,16 @@ function App() {
         // "Zerar caminhos" também (o `zerados` sobe), e a ordem, o registro ou as regras (BATALHA F1, `turnosRev`).
         // O caminho que só soma vai com o snapshot do próprio movimento.
         if (deveAvisarJogadores(state, previous)) notificarPontes((ponte) => ponte.notifyBatalhaChanged())
+      }),
+    [],
+  )
+  // BATALHA DBT: o mesmo aviso, assinando a store Dragon Ball (abertura e recorte novo aos jogadores).
+  useEffect(
+    () =>
+      useBatalhaDBTStore.subscribe((state, previous) => {
+        const anuncio = state.anuncio
+        if (anuncio !== null && anuncio !== previous.anuncio) notificarPontes((ponte) => ponte.anunciarBatalha(anuncio))
+        if (deveAvisarJogadoresDBT(state, previous)) notificarPontes((ponte) => ponte.notifyBatalhaChanged())
       }),
     [],
   )
@@ -1415,9 +1431,13 @@ function App() {
   // MODO BATALHA (B5): a chave da cena aberta, a mesma de `tableSceneKey(world.open)` (o id da cena, senão o do mapa).
   const chaveDaCenaAberta = activeSceneId ?? map.id
   const batalhaNaCenaAberta = useBatalhaStore((state) => Object.hasOwn(state.cenas, chaveDaCenaAberta))
-  // BATALHA F1 (S4): a ficha da vez ganha o anel com o pulso de chegada no mapa do mestre.
-  const vezTokenId = useBatalhaStore((state) => vezTokenIdDaCena(state, chaveDaCenaAberta))
-  const esperandoNaBatalha = useBatalhaStore((state) => esperandoOMestre(state, chaveDaCenaAberta))
+  // BATALHA DBT: flag própria. A de cima liga montagens do One Piece (faixa, efeitos, mira, Judge) e não muda.
+  const batalhaDBTNaCenaAberta = useBatalhaDBTStore((state) => Object.hasOwn(state.cenas, chaveDaCenaAberta))
+  const vezTokenIdDBT = useBatalhaDBTStore((state) => vezTokenIdDaCenaDBT(state, chaveDaCenaAberta))
+  const esperandoNaBatalhaDBT = useBatalhaDBTStore((state) => esperandoOMestreDBT(state, chaveDaCenaAberta))
+  // BATALHA F1 (S4): a ficha da vez ganha o anel com o pulso de chegada no mapa do mestre (One Piece ou DBT).
+  const vezTokenId = useBatalhaStore((state) => vezTokenIdDaCena(state, chaveDaCenaAberta)) ?? vezTokenIdDBT
+  const esperandoNaBatalha = useBatalhaStore((state) => esperandoOMestre(state, chaveDaCenaAberta)) + esperandoNaBatalhaDBT
   // BATALHA F3 (fatia J): o Judge da cena aberta e o último gesto dele na fila (o desfazer do mestre ergue a carta).
   const judgeNaCenaAberta = useBatalhaStore((state) => judgeDaCena(state, chaveDaCenaAberta))
   const gestoDoJudge = useBatalhaStore((state) => ultimoGestoDoJudge(efeitosDaCena(state, chaveDaCenaAberta)))
@@ -3247,7 +3267,7 @@ function App() {
       >
         <PixiCanvas
           gridAlignPreview={gridAlignPreview}
-          batalhaLigada={batalhaNaCenaAberta}
+          batalhaLigada={batalhaNaCenaAberta || batalhaDBTNaCenaAberta}
           vezTokenId={vezTokenId}
           judge={judgeNaCenaAberta}
           gestoDoJudge={gestoDoJudge}

@@ -64,6 +64,7 @@ import {
   type BatalhaHostMessage,
   type BatalhaPlayerMessage,
 } from './protocoloDaBatalha'
+import { parseBatalhaDBTPlayerMessage, type BatalhaDBTHostMessage, type BatalhaDBTPlayerMessage } from './protocoloDaBatalhaDBT'
 
 export type { OwnTokenElsewhere }
 
@@ -1197,6 +1198,8 @@ export type PlayerMessage =
   | BatalhaPlayerMessage
   // BATALHA F2: agir, reagir, dano livre e armas levadas (`protocoloDaBatalha.ts`).
   | BatalhaAcaoPlayerMessage
+  // BATALHA DRAGON BALL TALES: declarar, agir, responder, passar e desfazer (`protocoloDaBatalhaDBT.ts`).
+  | BatalhaDBTPlayerMessage
 
 /**
  * MINHAS NOTAS: a lista INTEIRA das anotações pessoais do jogador, de todos os
@@ -2047,6 +2050,8 @@ export type HostMessage =
   | TiroHostMessage
   // BATALHA F1: o recorte da ordem dos turnos, os aliados e a resposta aos pedidos (`protocoloDaBatalha.ts`).
   | BatalhaHostMessage
+  // BATALHA DRAGON BALL TALES: o recorte, a resposta aos pedidos e os efeitos (`protocoloDaBatalhaDBT.ts`).
+  | BatalhaDBTHostMessage
   // SONS AO VIVO: tocar, parar, parar tudo, volume e pré-carga (`parseSomHostMessage`).
   | SomHostMessage
   | { type: 'kicked' }
@@ -3461,6 +3466,12 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return parseBatalhaAjustar(value)
     case 'batalha.contador':
       return parseBatalhaContador(value)
+    case 'batalhaDBT.declarar':
+    case 'batalhaDBT.agir':
+    case 'batalhaDBT.responder':
+    case 'batalhaDBT.passar':
+    case 'batalhaDBT.desfazer':
+      return parseBatalhaDBTPlayerMessage(value)
     case 'danca.pronto':
     case 'danca.toques':
     case 'danca.fim':

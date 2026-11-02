@@ -15,6 +15,7 @@ import { temLivro } from '../lib/livroDeRegras'
 import { aplicarAjustes, NOME_DO_MESTRE } from '../lib/ajusteDaFicha'
 import type { Personagem } from '../lib/personagem'
 import { useBatalhaStore } from '../stores/batalhaStore'
+import { useBatalhaDBTStore } from '../stores/batalhaDBTStore'
 import { FichaDePersonagemDialog, type TokenParaLigar } from './FichaDePersonagemDialog'
 import { EditorDeSistemaDialog } from './EditorDeSistemaDialog'
 import { LivroDeRegrasDialog } from './LivroDeRegrasDialog'
@@ -126,6 +127,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
                   })
                   if (feito.antes !== undefined && feito.depois !== undefined && feito.antes !== feito.depois) {
                     useBatalhaStore.getState().registrarAjuste(personagem.id, feito.antes, feito.depois, { tipo: 'mestre' })
+                    // BATALHA DBT: PV e Ki mudados à mão viram linha "ficha" na batalha Dragon Ball com ele.
+                    useBatalhaDBTStore.getState().registrarAjuste(personagem.id, feito.antes, feito.depois, { tipo: 'mestre' })
                   }
                   return ok
                 }

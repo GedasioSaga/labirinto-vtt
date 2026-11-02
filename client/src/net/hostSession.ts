@@ -84,6 +84,11 @@ import { criarTiroNoHost, type TiroAoVivo, type TiroConviteResultado } from './t
 import { TIRO_PARTICIPANTES_MAX, type TiroMotivoDaRecusa, type TiroPlayerMessage } from './protocoloDoTiro'
 import { criarBatalhaNoHost, type ConexaoNaBatalha, type LugarNaBatalha, type RespostaDaBatalha } from './batalhaNoHost'
 import type { BatalhaAcaoPlayerMessage, BatalhaPlayerMessage } from './protocoloDaBatalha'
+import { criarBatalhaDBTNoHost, type ConexaoNaBatalhaDBT, type RespostaDaBatalhaDBT } from './batalhaDBTNoHost'
+import type { BatalhaDBTPlayerMessage } from './protocoloDaBatalhaDBT'
+import type { PonteDaBatalhaDBT } from '../lib/dbt/batalha/ponte'
+import { metrosPorCasa } from '../lib/dbt/batalha/contas'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../lib/motores'
 import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
@@ -1779,6 +1784,12 @@ export interface HostSessionOptions {
    * viram linha no registro). Ausente = nenhuma ordem dos turnos sai.
    */
   ponteDaBatalha?: PonteDaBatalha
+  /**
+   * BATALHA DRAGON BALL TALES: a store DBT do mestre (`stores/batalhaDBTStore.ts`,
+   * `ponteDaBatalhaDBT`). Mesmo papel da `ponteDaBatalha`, por mensagens
+   * próprias (`batalhaDBT.*`). Ausente = nenhuma batalha DBT sai.
+   */
+  ponteDaBatalhaDBT?: PonteDaBatalhaDBT
   /**
    * MODO BATALHA (regra de 27/10): a ficha de `nome` parou numa parede que o
    * recorte dele não tem (`invisivel`: alguma delas é parede invisível; senão
@@ -3575,6 +3586,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // BATALHA F1: o recorte da ordem dos turnos por conexão e os pedidos do jogador.
   // `paraOFio` (lib/personagem.ts): o mesmo funil da lista do jogador, sem conta nem nada do mundo do livro.
   const batalhaNoHost = criarBatalhaNoHost({ ponte: options.ponteDaBatalha, agora: () => now(), paraOFio })
+  // BATALHA DBT: o mesmo papel, com teto de pedidos, reqId e marca de efeito próprios.
+  const batalhaDBTNoHost = criarBatalhaDBTNoHost({ ponte: options.ponteDaBatalhaDBT, agora: () => now() })
   // Sobe a cada `broadcast`: o pedido de batalha sabe se a store já mandou o recorte DE DENTRO da ação (`handleBatalha`).
   let broadcastsFeitos = 0
   // BATALHA F1 — por playerId: as fichas do último recorte que saiu para ele
@@ -5511,6 +5524,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // BATALHA F1: a conexão nova não tem faixa. Numa cena em batalha, os aliados e
     // o recorte da ordem saem já, depois do mapa (as cartas são fichas dele).
     outbound.push(...batalhaNoHost.entrou(conexaoNaBatalha(clientId, playerId, world), world.rpg))
+    outbound.push(...batalhaDBTNoHost.entrou(conexaoNaBatalhaDBT(clientId, playerId, world), world.rpg))
     // DANÇA: no convite, o convite de novo; no meio da música, a aba nova perdeu a música e sai.
     outbound.push(...dancaNoHost.entrou(playerId))
     // PESCA: no convite, o convite de novo; no meio da pesca, a aba nova perdeu o jogo e sai.
@@ -7653,7 +7667,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * que não é o da cena. `null` também sem ponte, sem ficha ou fora de batalha.
    */
   const lugarNaBatalha = (playerId: string, world: HostWorld): LugarNaBatalha | null => {
-    if (options.ponteDaBatalha === undefined || statusOf(playerId) !== 'playing') return null
+    if ((options.ponteDaBatalha === undefined && options.ponteDaBatalhaDBT === undefined) || statusOf(playerId) !== 'playing') return null
     const scene = sceneFor(playerId, world)
     if (scene === null || !emBatalha(scene)) return null
     const tela = fichasDaTela.get(playerId)
@@ -7677,6 +7691,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   })
 
   const conexoesNaBatalha = (world: HostWorld): ConexaoNaBatalha[] => [...byClient].map(([clientId, playerId]) => conexaoNaBatalha(clientId, playerId, world))
+
+  /** BATALHA DBT: a mesma conexão, mais os metros por casa do mapa da cena (o deslocamento em casas da vista). */
+  const conexaoNaBatalhaDBT = (clientId: string, playerId: string, world: HostWorld): ConexaoNaBatalhaDBT => {
+    const conexao = conexaoNaBatalha(clientId, playerId, world)
+    const scene = conexao.lugar === null ? null : sceneFor(playerId, world)
+    return conexao.lugar === null || scene === null ? conexao : { ...conexao, lugar: { ...conexao.lugar, metrosPorCasa: metrosPorCasa(scene.map.scale) } }
+  }
+
+  const conexoesNaBatalhaDBT = (world: HostWorld): ConexaoNaBatalhaDBT[] => [...byClient].map(([clientId, playerId]) => conexaoNaBatalhaDBT(clientId, playerId, world))
 
   /**
    * O sistema e os personagens que a conexão ainda não tem. Sem `world.rpg`
@@ -7852,6 +7875,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   function handlePersonagemEditar(clientId: string, msg: PersonagemEditarMessage, world: HostWorld): HostResult {
     const alvo = personagemDoPedido(clientId, msg.reqId, msg.personagemId, world)
     if ('refuse' in alvo) return alvo.refuse
+    // DRAGON BALL TALES: a ficha estruturada só pela rede numa aventura do motor Dragon Ball (reforço do `aplicarPartes`).
+    if (msg.partes.dbt !== undefined && motorDoSistema(alvo.rpg.sistema) !== MOTOR_DRAGON_BALL) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
     return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem: aplicarPartes(alvo.atual, msg.partes) })
   }
 
@@ -7876,6 +7901,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // com o mundo de antes; depois de `personagemAceito` marcar a ficha nova como enviada, esse
     // broadcast mandaria a VELHA de novo, e a tela dele piscaria o valor de antes.
     options.ponteDaBatalha?.registrarAjuste(alvo.atual.id, alvo.atual, personagem, { tipo: 'jogador', playerId: alvo.playerId, nome: quem })
+    // BATALHA DBT: o mesmo, no registro da batalha Dragon Ball (só PV e Ki viram linha).
+    options.ponteDaBatalhaDBT?.registrarAjuste(alvo.atual.id, alvo.atual, personagem, { tipo: 'jogador', playerId: alvo.playerId, nome: quem })
     return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, ajustadoPor: quem })
   }
 
@@ -7906,6 +7933,40 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const jaSaiu = broadcastsFeitos !== broadcastsAntes
     const recortes = resposta.mudou && !jaSaiu ? batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg) : []
     return { outbound: [...recortes, ...resposta.saidas] }
+  }
+
+  /**
+   * BATALHA DRAGON BALL TALES — os pedidos `batalhaDBT.*`, com o mesmo cuidado
+   * do `handleBatalha`: a store DBT pede um broadcast na hora (dentro da ação,
+   * com o mundo de agora); se ele já saiu, sincronizar de novo com o `world`
+   * de antes mandaria a ficha velha por cima. Só sem esse broadcast o recorte
+   * sai daqui. Posse, vez, opção e alvos a `batalhaDBTNoHost` confere; a
+   * regra e o d20, a store.
+   */
+  function handleBatalhaDBT(clientId: string, msg: BatalhaDBTPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const conexao = conexaoNaBatalhaDBT(clientId, playerId, world)
+    const broadcastsAntes = broadcastsFeitos
+    const resposta = respostaDaBatalhaDBT(conexao, msg)
+    const jaSaiu = broadcastsFeitos !== broadcastsAntes
+    const recortes = resposta.mudou && !jaSaiu ? batalhaDBTNoHost.sync(conexoesNaBatalhaDBT(world), world.rpg) : []
+    return { outbound: [...recortes, ...resposta.saidas] }
+  }
+
+  function respostaDaBatalhaDBT(conexao: ConexaoNaBatalhaDBT, msg: BatalhaDBTPlayerMessage): RespostaDaBatalhaDBT {
+    switch (msg.type) {
+      case 'batalhaDBT.declarar':
+        return batalhaDBTNoHost.declarar(conexao, msg)
+      case 'batalhaDBT.agir':
+        return batalhaDBTNoHost.agir(conexao, msg)
+      case 'batalhaDBT.responder':
+        return batalhaDBTNoHost.responder(conexao, msg)
+      case 'batalhaDBT.passar':
+        return batalhaDBTNoHost.passar(conexao, msg)
+      case 'batalhaDBT.desfazer':
+        return batalhaDBTNoHost.desfazer(conexao, msg)
+    }
   }
 
   function respostaDaBatalha(conexao: ConexaoNaBatalha, msg: BatalhaPlayerMessage | BatalhaAcaoPlayerMessage): RespostaDaBatalha {
@@ -9760,6 +9821,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'batalha.ajustar':
       case 'batalha.contador':
         return handleBatalha(clientId, msg, world)
+      case 'batalhaDBT.declarar':
+      case 'batalhaDBT.agir':
+      case 'batalhaDBT.responder':
+      case 'batalhaDBT.passar':
+      case 'batalhaDBT.desfazer':
+        return handleBatalhaDBT(clientId, msg, world)
       case 'clue.read':
         return handleClueRead(clientId, msg, world)
       case 'clue.peers':
@@ -10743,6 +10810,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       patchClients.delete(clientId)
       // BATALHA F1: a faixa morreu com a tela; a volta recebe o recorte inteiro de novo (`entrou`).
       batalhaNoHost.caiu(clientId)
+      batalhaDBTNoHost.caiu(clientId)
       const record = players.get(playerId)
       if (record !== undefined) {
         record.clientId = null // mantém o registro para permitir resume
@@ -10810,6 +10878,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // BATALHA F1: o expulso não recebe mais recorte, e o teto de pedidos e a tela dele saem.
       batalhaNoHost.caiu(clientId)
       batalhaNoHost.esquecer(playerId)
+      batalhaDBTNoHost.caiu(clientId)
+      batalhaDBTNoHost.esquecer(playerId)
       fichasDaTela.delete(playerId)
       // As listas de "Quem vê" mudaram: todos refazem no próximo broadcast.
       viewEpoch += 1
@@ -11265,6 +11335,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // BATALHA F1: depois dos mapas e das fichas — o recorte da ordem só mostra fichas que a
       // tela de cada um já tem; a vez que andou, a ordem que o mestre arrastou e o fim da batalha.
       outbound.push(...batalhaNoHost.sync(conexoesNaBatalha(world), world.rpg))
+      // BATALHA DBT: o recorte Dragon Ball pelas mensagens dele (cena One Piece nunca recebe `batalhaDBT.*`).
+      outbound.push(...batalhaDBTNoHost.sync(conexoesNaBatalhaDBT(world), world.rpg))
       // Depois dos mapas: a visão nova decide que marca cada um já conhece, e
       // quem mudou de cena perde as da cena de antes.
       outbound.push(...destinationUpdates(world))

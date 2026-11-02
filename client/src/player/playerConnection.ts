@@ -221,6 +221,15 @@ import {
 } from '../net/protocoloDaBatalha'
 import type { EfeitoParaJogador, EstadoParaJogador } from '../lib/batalha/vistaDoJogador'
 import {
+  parseBatalhaDBTEfeitos,
+  parseBatalhaDBTEstado,
+  parseBatalhaDBTPlayerMessage,
+  parseBatalhaDBTResultado,
+  type BatalhaDBTPlayerMessage,
+} from '../net/protocoloDaBatalhaDBT'
+import type { VistaDBT } from '../lib/dbt/batalha/vista'
+import { EFEITOS_DBT_GUARDADOS, type EfeitoDBT, type ExtrasDaAcao } from '../lib/dbt/batalha/tipos'
+import {
   EFEITOS_POR_MENSAGEM,
   type PedidoDeAcao,
   type PedidoDeAjusteNaBatalha,
@@ -314,6 +323,8 @@ export const LIVRO_PRAZO_MS = 20_000
  * pedido morreu no caminho e o clique seguinte tem de sair.
  */
 export const PEDIDO_DE_BATALHA_PRAZO_MS = 8_000
+/** BATALHA DBT: a chave dos pedidos DBT no mapa de pedidos no ar (o recorte DBT que some leva só os dele). */
+const PREFIXO_DO_PEDIDO_DBT = 'dbt|'
 
 export interface PlayerState {
   status: PlayerStatus
@@ -385,6 +396,17 @@ export interface PlayerState {
    * queda): numa batalha nova o `seq` pode recomeçar. Ausente = nenhum.
    */
   batalhaEfeitos?: EfeitoParaJogador[]
+  /**
+   * BATALHA DRAGON BALL TALES: o recorte da batalha DBT da cena dele
+   * (`batalhaDBT.estado`, `vistaParaJogadorDBT`): ordem, os combatentes dele
+   * com as ações da vez, as pendências que ele responde, a janela de reação e
+   * o registro público. Ausente = a cena dele não está numa batalha DBT.
+   */
+  batalhaDBTEstado?: VistaDBT
+  /** BATALHA DBT: as animações novas (`batalhaDBT.efeitos`), `seq` crescente, as mais novas. Zera com o recorte. */
+  batalhaDBTEfeitos?: EfeitoDBT[]
+  /** BATALHA DBT: o último pedido recusado pelo host (`id` sobe a cada recusa, para a tela avisar uma vez). */
+  batalhaDBTRecusa?: { id: number; motivo: string | null }
   /** Cone pelo vão de prédio com teto: a tela abre o telhado só nestes retângulos. */
   glimpses?: RegionPoint[][]
   /**
@@ -1366,6 +1388,28 @@ export interface PlayerConnection {
   ajustarNaBatalha(pedido: PedidoDeAjusteNaBatalha): boolean
   /** R5 (lote de 01/11): ganhar 1 nível do contador (a polaridade) gastando a reação. `false` = não saiu. */
   ganharContadorNaBatalha(tokenId: string, cartaoId: string): boolean
+  /**
+   * BATALHA DBT — "transformar antes do 1º turno?" de um combatente dele
+   * (`batalhaDBTEstado.declaracoes`); `null` = não se transforma. `false` = não saiu.
+   */
+  declararNaBatalhaDBT(combatenteId: string, transformacaoId: string | null): boolean
+  /**
+   * BATALHA DBT — uma ação do turno: a `chave` de uma opção de
+   * `batalhaDBTEstado.meus[].acoes` e os alvos (tokens da tela dele). A vez
+   * (rodada e turno) sai da própria vista. Nenhum dado vai no pedido: o host
+   * rola. `false` = não saiu (fora da vez, opção que a vista não tem, pedido torto).
+   */
+  agirNaBatalhaDBT(combatenteId: string, opcao: string, alvos: readonly string[], extras?: ExtrasDaAcao): boolean
+  /**
+   * BATALHA DBT — responder a uma pendência de `batalhaDBTEstado.pendencias`
+   * (a ativa) pelo combatente dele: a `chave` da opção e, se a opção pede, a
+   * aposta do Choque ou o atributo (DES ou FOR). `false` = não saiu.
+   */
+  responderNaBatalhaDBT(pendenciaId: string, combatenteId: string, opcao: string, extra?: { aposta?: number; atributo?: 'des' | 'for' }): boolean
+  /** BATALHA DBT — "Passar a vez" do combatente dele que tem a vez (`meus[].vez`). `false` = não saiu. */
+  passarVezNaBatalhaDBT(combatenteId: string): boolean
+  /** BATALHA DBT — Desfazer a linha `linhaId` (só com `podeDesfazer` no registro da vista). `false` = não saiu. */
+  desfazerNaBatalhaDBT(linhaId: string): boolean
   /**
    * Pede ao mestre para passar pelo pino de viagem `pinId` — ou, no pino
    * livre, passa (o pedido sai depois de `FREE_PASSAGE_BEAT_MS`; no pino de
@@ -2761,6 +2805,40 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (state.batalhaEstado !== undefined || state.aliados !== undefined || state.batalhaEfeitos !== undefined) {
       setState({ batalhaEstado: undefined, aliados: undefined, batalhaEfeitos: undefined })
     }
+    // BATALHA DBT: a faixa Dragon Ball também mentiria na cena nova.
+    esquecerBatalhaDBT()
+  }
+
+  /** BATALHA DBT: os pedidos DBT no ar (chave `dbt|...`) e o recorte saem; os do One Piece ficam. */
+  function esquecerBatalhaDBT(): void {
+    for (const [reqId, noAr] of pedidosDeBatalha) {
+      if (!noAr.chave.startsWith(PREFIXO_DO_PEDIDO_DBT)) continue
+      clearTimeout(noAr.prazo)
+      pedidosDeBatalha.delete(reqId)
+    }
+    if (state.batalhaDBTEstado !== undefined || state.batalhaDBTEfeitos !== undefined || state.batalhaDBTRecusa !== undefined) {
+      setState({ batalhaDBTEstado: undefined, batalhaDBTEfeitos: undefined, batalhaDBTRecusa: undefined })
+    }
+  }
+
+  /** BATALHA DBT: o pedido passa pelo MESMO parser do host antes de sair (torto não sai) e pelo mesmo mapa de pedidos no ar. */
+  function pedirNaBatalhaDBT(chave: string, valor: unknown): boolean {
+    const mensagem: BatalhaDBTPlayerMessage | null = parseBatalhaDBTPlayerMessage(valor)
+    if (mensagem === null) return false
+    const comPrefixo = `${PREFIXO_DO_PEDIDO_DBT}${chave}`
+    for (const noAr of pedidosDeBatalha.values()) if (noAr.chave === comPrefixo) return true
+    if (!send(mensagem)) return false
+    const prazo = setTimeout(() => pedidosDeBatalha.delete(mensagem.reqId), PEDIDO_DE_BATALHA_PRAZO_MS)
+    pedidosDeBatalha.set(mensagem.reqId, { chave: comPrefixo, prazo })
+    return true
+  }
+
+  /** BATALHA DBT: os efeitos novos no fim da fila (o que tinha `seq` igual ou maior que o primeiro novo sai). */
+  function receberEfeitosDBT(novos: readonly EfeitoDBT[]): void {
+    const primeiro = novos[0]
+    if (primeiro === undefined) return
+    const antes = (state.batalhaDBTEfeitos ?? []).filter((efeito) => efeito.seq < primeiro.seq)
+    setState({ batalhaDBTEfeitos: [...antes, ...novos].slice(-EFEITOS_DBT_GUARDADOS) })
   }
 
   /**
@@ -4923,6 +5001,28 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (msg !== null && state.status === 'playing' && state.batalhaEstado !== undefined) receberEfeitos(msg.efeitos)
         return
       }
+      case 'batalhaDBT.estado': {
+        // BATALHA DBT: a tela da mesa fica sem faixa, como no One Piece. Campo torto derruba o recorte inteiro.
+        if (isTable) return
+        const msg = parseBatalhaDBTEstado(data)
+        if (msg === null) return
+        if (msg.estado === null) esquecerBatalhaDBT()
+        else if (state.status === 'playing') setState({ batalhaDBTEstado: msg.estado })
+        return
+      }
+      case 'batalhaDBT.resultado': {
+        const msg = parseBatalhaDBTResultado(data)
+        if (msg === null) return
+        responderPedidoDeBatalha(msg.reqId)
+        if (!msg.ok && state.status === 'playing') setState({ batalhaDBTRecusa: { id: (state.batalhaDBTRecusa?.id ?? 0) + 1, motivo: msg.motivo ?? null } })
+        return
+      }
+      case 'batalhaDBT.efeitos': {
+        if (isTable) return
+        const msg = parseBatalhaDBTEfeitos(data)
+        if (msg !== null && state.status === 'playing' && state.batalhaDBTEstado !== undefined) receberEfeitosDBT(msg.efeitos)
+        return
+      }
       case 'vehicle.rejected':
         // VEÍCULO: o "Subir"/"Descer" não valeu. Pausa já tem a faixa dela; motivo desconhecido não vira frase.
         if (state.status !== 'playing') return
@@ -6131,6 +6231,49 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const mensagem = parseBatalhaContador({ type: 'batalha.contador', reqId: `b${nextReqId++}`, pedido: { tipo: 'ganhar', tokenId, cartaoId } })
       if (mensagem === null) return false
       return pedirNaBatalha(chaveDoPedido('contador', mensagem.pedido), mensagem)
+    },
+    // BATALHA DBT: a mesma conferência que a vista deixa fazer aqui; posse, vez e regra o host confere de novo.
+    declararNaBatalhaDBT(combatenteId, transformacaoId) {
+      const estado = state.batalhaDBTEstado
+      const declaracao = estado?.declaracoes.find((candidata) => candidata.combatenteId === combatenteId)
+      if (state.status !== 'playing' || declaracao === undefined) return false
+      if (transformacaoId !== null && !declaracao.formas.some((forma) => forma.id === transformacaoId)) return false
+      return pedirNaBatalhaDBT(`declarar|${combatenteId}`, { type: 'batalhaDBT.declarar', reqId: `d${nextReqId++}`, combatenteId, transformacaoId })
+    },
+    agirNaBatalhaDBT(combatenteId, opcao, alvos, extras) {
+      const meu = state.batalhaDBTEstado?.meus.find((candidato) => candidato.tokenId === combatenteId)
+      const vez = meu?.vez ?? null
+      if (state.status !== 'playing' || meu === undefined || vez === null) return false
+      const escolhida = meu.acoes.find((candidata) => candidata.chave === opcao)
+      if (escolhida === undefined || escolhida.bloqueio !== null) return false
+      const pedido = { type: 'batalhaDBT.agir', reqId: `d${nextReqId++}`, combatenteId, vez, opcao, alvos: [...alvos], ...(extras === undefined ? {} : { extras }) }
+      return pedirNaBatalhaDBT(chaveDoPedido('agir', [combatenteId, vez, opcao, alvos, extras ?? null]), pedido)
+    },
+    responderNaBatalhaDBT(pendenciaId, combatenteId, opcao, extra) {
+      const pendencia = state.batalhaDBTEstado?.pendencias.find((candidata) => candidata.id === pendenciaId && candidata.combatenteId === combatenteId)
+      if (state.status !== 'playing' || pendencia === undefined || !pendencia.ativa) return false
+      const escolhida = pendencia.opcoes.find((candidata) => candidata.chave === opcao)
+      if (escolhida === undefined || escolhida.bloqueio !== null) return false
+      const pedido = {
+        type: 'batalhaDBT.responder',
+        reqId: `d${nextReqId++}`,
+        pendenciaId,
+        combatenteId,
+        opcao,
+        ...(extra?.aposta === undefined || escolhida.pede !== 'aposta' ? {} : { aposta: extra.aposta }),
+        ...(extra?.atributo === undefined || escolhida.pede !== 'atributo' ? {} : { atributo: extra.atributo }),
+      }
+      return pedirNaBatalhaDBT(chaveDoPedido('responder', [pendenciaId, combatenteId]), pedido)
+    },
+    passarVezNaBatalhaDBT(combatenteId) {
+      const vez = state.batalhaDBTEstado?.meus.find((candidato) => candidato.tokenId === combatenteId)?.vez ?? null
+      if (state.status !== 'playing' || vez === null) return false
+      return pedirNaBatalhaDBT(`passar|${combatenteId}|${vez.rodada}|${vez.turno}`, { type: 'batalhaDBT.passar', reqId: `d${nextReqId++}`, vez: { combatenteId, ...vez } })
+    },
+    desfazerNaBatalhaDBT(linhaId) {
+      const linha = state.batalhaDBTEstado?.registro.find((candidata) => candidata.id === linhaId)
+      if (state.status !== 'playing' || linha === undefined || !linha.podeDesfazer || linha.desfeita) return false
+      return pedirNaBatalhaDBT(`desfazer|${linhaId}`, { type: 'batalhaDBT.desfazer', reqId: `d${nextReqId++}`, linhaId })
     },
     reconnect: restart,
     wake() {
