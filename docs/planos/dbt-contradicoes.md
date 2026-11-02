@@ -1,7 +1,7 @@
 # Dragon Ball Tales: onde o livro se contradiz e o que o app escolheu
 
 **Resumo.** Quando o livro diz uma coisa no texto e outra no exemplo, o app segue o EXEMPLO (pedido do mestre). Quando não há exemplo, o app escolheu a leitura mais simples e marcou o item com **Verificar**: são esses que valem uma olhada sua.
-São **85 itens** em 7 áreas: Ficha 7 · Técnicas 11 · Transformações 3 · Combate 28 · NPC 13 · Suplementos 15 · Erros mantidos 8. Destes, **44 estão marcados Verificar**.
+São **85 itens** em 7 áreas: Ficha 7 · Técnicas 11 · Transformações 3 · Combate 28 · NPC 13 · Suplementos 15 · Erros mantidos 8. Destes, **42 estão marcados Verificar**.
 Conferido no código em 02/11/2026 (o que está escrito aqui é o que o app faz hoje, não só o que o plano dizia). Fontes: dossiês em `docs/fontes/dragon-ball-tales/dossie/`, decisões em `docs/planos/dbt-batalha.md` (seção 21) e os comentários do código em `client/src/lib/dbt/`.
 
 Como ler cada item: **o que o livro diz (página)**, o conflito, o que o app faz agora e onde mudar se você preferir a outra leitura. "Livro" = Livro do Jogador V0.5, salvo quando diz "Narrador". Os arquivos de `client/src/lib/dbt/dados/` são gerados: para mudar um número deles, muda-se `scripts/dbt/gerar-dados.cjs` (ou o texto em `docs/fontes/`), nunca o arquivo direto. Em quase tudo o mestre já pode corrigir à mão na ficha ou no cartão da batalha sem mexer em código.
@@ -15,7 +15,7 @@ Como ler cada item: **o que o livro diz (página)**, o conflito, o que o app faz
 2. **Vida no PDL 0 (3.0.2 x 3.0.3, p. 12-13).** 3.0.2 diz que abaixo de 10.000 PDL a vida é só a da Constituição; 3.0.3 e o exemplo já somam a vida da raça.
    App: segue o exemplo (CON 12 + raça 12 = 72). Mudar: `client/src/lib/dbt/regras/ficha.ts` (`pvMaximo`).
 3. **Slots de Técnica, fórmula x exemplo (2.2.5 e 8.6 x p. 109).** A fórmula, impressa duas vezes (2.2.5 e 8.6), é 20 + (1 + mod SAB) × 5. O único exemplo (p. 109) usa outra conta, 12 + mod × 5 = 22, e a lista de técnicas dele soma "4 + 2 + 2 + 8 + 6 = 20" (a soma real é 22; as três técnicas citadas dão 12).
-   App: segue a FÓRMULA (SAB 14 = 35 ST). Ela aparece em dois capítulos, e o exemplo não fecha nem consigo mesmo. É uma exceção à regra "seguir os exemplos". **Verificar com o usuário.** Seguir o exemplo seria trocar `ST_BASE`/conta para 12 + mod × 5. Mudar: `client/src/lib/dbt/regras/ficha.ts` (`slotsDeTecnica`).
+   App: segue o EXEMPLO, ST = 12 + mod SAB × 5 (SAB 10 = 12, SAB 14 = 22; Humano Marcial × 10; nunca abaixo de 0). Voltar para a fórmula (SAB 14 = 35) é trocar `ST_BASE` para 20 e a conta para (1 + mod) × 5 em `client/src/lib/dbt/regras/ficha.ts` (`slotsDeTecnica`).
 4. **Slots de Técnica, ganho por PDL (3.0.11 x p. 109).** 3.0.11 dá +2 a cada 10.000 PDL; a p. 109 diz +1 a cada 5.000 (mesma taxa, degrau diferente).
    App: +2 a cada 10.000. **Verificar.** Mudar: `client/src/lib/dbt/regras/ficha.ts` (`ST_POR_MARCO_DE_VIDA`).
 5. **Raça Freeza: "gastam metade dos Slots de Técnica" (cap. 4).** O livro não diz se arredonda para cima ou para baixo.
@@ -34,7 +34,7 @@ Como ler cada item: **o que o livro diz (página)**, o conflito, o que o app faz
 3. **Engolfante +3 ou +4 de Ki (p. 62 x exemplo 6.7, p. 86).** O rótulo diz +3; o passo 4 do exemplo usa +4 (Ki 12), mas a ficha final do mesmo exemplo imprime Ki 11.
    App: +3, o que dá Ki 11, igual à ficha final do exemplo; a nota "o exemplo 6.7 usa +4" aparece no rótulo. Mudar: `scripts/dbt/gerar-dados.cjs` (Engolfante); numa técnica só, o Ki pode ser digitado à mão.
 4. **Dano mínimo do Kamehameha (exemplo 6.7, p. 85-86).** O passo 5 diz mínimo 11; a ficha final imprime 12.
-   App: 11 / 22 / 44 (o completo dividido por 4, como no passo 5). Mudar: o dano pode ser digitado à mão na técnica; a conta fica em `client/src/lib/dbt/regras/tecnicas.ts`.
+   App: 11 / 22 / 44 (o completo dividido por 4, como no passo 5). O exemplo discorda de si mesmo; o app fica com o lado que bate com a regra (¼ do base), como fez com o Ki 11 da ficha final (item 3). Mudar: o dano pode ser digitado à mão na técnica; a conta fica em `client/src/lib/dbt/regras/tecnicas.ts`.
 5. **Dano máximo do Rank E (p. 59 x tabela p. 58).** O texto diz "no máximo 20 de dano"; a tabela dá 24.
    App: segue a tabela (24). **Verificar.** Mudar: `scripts/dbt/gerar-dados.cjs` (tabela de ranks).
 6. **Dano Espiritual (p. 68).** O texto é cópia do da Drenagem ("tipo Drenagem"); o efeito próprio parece ser Ki extra.
@@ -86,7 +86,7 @@ Como ler cada item: **o que o livro diz (página)**, o conflito, o que o app faz
 12. **Salvaguarda contra a morte (9.5.10, p. 119-120).** O parágrafo fala em 3 sucessos ou 3 falhas; os marcadores parecem uma rolagem só.
     App: d20 ≥ 10 é sucesso; 3 sucessos = inconsciente, 3 falhas = morto; a 1ª rolagem na hora e depois uma por turno dele. **Verificar.** Mudar: `client/src/lib/dbt/batalha/morte.ts`.
 13. **Voo (9.5.7, p. 117).** O texto cobra 2 Ki por nível; o exemplo diz que do solo direto ao voo alto custa 2 Ki. O nível 3 não tem nome e sobra um vão entre 20 e 21 m.
-    App: segue o exemplo para a troca (2 Ki por mudança, qualquer número de níveis), mas cobra também os 4 de decolar: do chão ao nível 2 = 6 Ki. Nível 3 = "voo altíssimo". **Verificar** (se o exemplo for o total, do chão ao nível 2 seriam 2). Mudar: `client/src/lib/dbt/batalha/contas.ts` (`kiDeVoo`).
+    App: segue o exemplo para a troca de nível (2 Ki por mudança, qualquer número de níveis). Os 4 Ki de iniciar o voo vêm de outra frase do mesmo parágrafo, que o exemplo não contradiz, então também entram: do chão ao nível 2 = 4 + 2 = 6 Ki. Nível 3 = "voo altíssimo". Se o exemplo valer como total, do chão ao nível 2 seriam 2. Mudar: `client/src/lib/dbt/batalha/contas.ts` (`kiDeVoo`).
 14. **Queda do voo (9.5.7).** Não diz o que acontece com quem estabiliza.
     App: quem estabiliza fica no nível sem dano; senão vai ao chão com 1d20 por nível. Desequilibrado não pode estabilizar. **Verificar.** Mudar: `client/src/lib/dbt/batalha/pendencias.ts`.
 15. **Empates (agarrão, soltar-se, CD, Choque).** O livro não diz.

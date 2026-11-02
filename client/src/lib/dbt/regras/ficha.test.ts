@@ -126,21 +126,31 @@ describe('EP e CA (2.3, 3.0.5)', () => {
   })
 })
 
-describe('ST (3.0.6, 3.0.11; Humano Marcial 4.7.1)', () => {
-  it('SAB 8 (−1) dá 20 ST; +2 a cada 10.000 PDL', () => {
-    expect(slotsDeTecnica(fichaDeTeste(), atributosDeTeste({ sab: 8 }), false).valor).toBe(20)
-    expect(slotsDeTecnica(fichaDeTeste({ pdl: 20_000 }), atributosDeTeste({ sab: 8 }), false).valor).toBe(24)
+describe('ST (exemplo da p. 109, 3.0.11; Humano Marcial 4.7.1)', () => {
+  it('SAB 8 (−1) dá 7 ST; +2 a cada 10.000 PDL', () => {
+    expect(slotsDeTecnica(fichaDeTeste(), atributosDeTeste({ sab: 8 }), false).valor).toBe(7)
+    expect(slotsDeTecnica(fichaDeTeste({ pdl: 20_000 }), atributosDeTeste({ sab: 8 }), false).valor).toBe(11)
   })
 
-  it('SAB 14 (+2) dá 35 pela fórmula (o exemplo da p. 109 diz 22, com a conta errada)', () => {
-    expect(slotsDeTecnica(fichaDeTeste(), atributosDeTeste({ sab: 14 }), false).valor).toBe(35)
+  it('SAB 14 (+2) dá 22, como o exemplo da p. 109 (12 + 2 × 5), e não os 35 da fórmula', () => {
+    const st = slotsDeTecnica(fichaDeTeste(), atributosDeTeste({ sab: 14 }), false)
+    expect(st.valor).toBe(22)
+    expect(st.formula).toContain('12 + 2 × 5')
   })
 
-  it('Humano Marcial multiplica por 10: SAB 14 dá 50', () => {
+  it('SAB 10 (0) dá 12', () => {
+    expect(slotsDeTecnica(fichaDeTeste(), atributosDeTeste({ sab: 10 }), false).valor).toBe(12)
+  })
+
+  it('SAB muito baixa não deixa o ST negativo', () => {
+    expect(slotsDeTecnica(fichaDeTeste(), atributosDeTeste({ sab: 1 }), false).valor).toBe(0)
+  })
+
+  it('Humano Marcial multiplica por 10: SAB 14 dá 32', () => {
     const ficha = fichaDeTeste({ raca: 'terraqueo', variante: 'humano-marcial' })
     expect(ehHumanoMarcial(ficha, TERRAQUEO)).toBe(true)
     expect(ehHumanoMarcial(fichaDeTeste({ raca: 'terraqueo', variante: 'humano-cientista' }), TERRAQUEO)).toBe(false)
-    expect(slotsDeTecnica(ficha, atributosDeTeste({ sab: 14 }), true).valor).toBe(50)
+    expect(slotsDeTecnica(ficha, atributosDeTeste({ sab: 14 }), true).valor).toBe(32)
   })
 })
 

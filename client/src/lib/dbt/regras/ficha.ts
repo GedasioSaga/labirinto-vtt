@@ -36,7 +36,8 @@ export const PDL_DO_MARCO_DE_EP = 40_000
 const PV_POR_CON = 5
 const PK_POR_POD = 2
 const CA_BASE = 10
-const ST_BASE = 20
+/** O 12 do exemplo da p. 109 (ver `slotsDeTecnica`). */
+const ST_BASE = 12
 const ST_POR_SAB = 5
 /** Humano Marcial: "Aprendizado Marcial" troca o ×5 por ×10 (4.7.1, p. 33). */
 const ST_POR_SAB_HUMANO_MARCIAL = 10
@@ -245,18 +246,20 @@ export function caDaFicha(ficha: FichaDBT, atributos: AtributosDBT, base: Deriva
 }
 
 /**
- * ST = 20 + (1 + mod SAB) × 5 + 2 a cada 10.000 PDL (3.0.6 e 3.0.11, p. 13-14);
- * Humano Marcial × 10. A p. 109 diz "+1 a cada 5.000 PDL" (mesma taxa, degrau
- * diferente): vale o de 3.0.11.
+ * ST = 12 + mod SAB × 5 + 2 a cada 10.000 PDL, como no exemplo da p. 109
+ * (SAB 14 = 22 ST). A fórmula de 2.2.5 e 8.6, 20 + (1 + mod SAB) × 5, daria 35:
+ * o usuário mandou seguir os exemplos (docs/planos/dbt-contradicoes.md, 1.3).
+ * Humano Marcial troca o × 5 por × 10. A p. 109 diz "+1 a cada 5.000 PDL"
+ * (mesma taxa, degrau diferente): vale o de 3.0.11.
  */
 export function slotsDeTecnica(ficha: FichaDBT, atributos: AtributosDBT, humanoMarcial: boolean): DerivadoDBT {
   const sab = modificador(valorDoAtributo(atributos, 'sab'))
   const porSab = humanoMarcial ? ST_POR_SAB_HUMANO_MARCIAL : ST_POR_SAB
   const marcos = marcosPassados(ficha.pdl, PDL_DO_MARCO_DE_VIDA)
-  const valor = ST_BASE + (1 + sab) * porSab + ST_POR_MARCO_DE_VIDA * marcos
+  const valor = Math.max(0, ST_BASE + sab * porSab + ST_POR_MARCO_DE_VIDA * marcos)
   const nota = humanoMarcial ? ' (Humano Marcial)' : ''
   const parteDaSab = sab < 0 ? `- ${-sab}` : `+ ${sab}`
-  return derivado(ficha, 'st', valor, `${ST_BASE} + (1 ${parteDaSab}) × ${porSab} + ${ST_POR_MARCO_DE_VIDA} × ${marcos} = ${valor}${nota}`)
+  return derivado(ficha, 'st', valor, `${ST_BASE} ${parteDaSab} × ${porSab} + ${ST_POR_MARCO_DE_VIDA} × ${marcos} = ${valor}${nota}`)
 }
 
 export function deslocamento(ficha: FichaDBT): DerivadoDBT {
