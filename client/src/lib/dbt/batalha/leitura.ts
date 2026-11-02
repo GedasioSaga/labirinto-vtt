@@ -120,6 +120,8 @@ const CONTADORES_DO_DESGASTE: readonly string[] = [CONTADOR_USOS_TRANSF_MAXIMA, 
 
 function comContador(contadores: readonly ContadorDBT[], id: string, atual: number): ContadorDBT[] {
   if (contadores.some((contador) => contador.id === id)) return contadores.map((contador) => (contador.id === id ? { ...contador, atual } : contador))
+  // Nada a anotar: quem não usou a forma máxima nem o Choque (um NPC, por exemplo) sai da batalha com a ficha como entrou.
+  if (atual === 0) return [...contadores]
   // Ficha no teto de contadores: o número não entra (`semEspacoParaDesgaste` avisa o mestre na tabela do fim).
   if (contadores.length >= LIMITES_DBT.contadores) return [...contadores]
   return [...contadores, { id, nome: NOME_DO_CONTADOR[id] ?? id, atual, maximo: null }]
