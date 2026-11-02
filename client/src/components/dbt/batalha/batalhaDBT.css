@@ -1,0 +1,755 @@
+/*
+ * BATALHA DRAGON BALL TALES (fatia 3, docs/planos/dbt-batalha.md seção 19).
+ * Mesma língua da ficha Scouter: a raiz leva `.dbf` (tokens --db-*, fundo
+ * de pedra e os controles dbf-btn, dbf-seg, dbf-sw, dbf-inp) e `.dbb` monta
+ * a batalha. Âmbar = leitura de poder e a vez; vermelho = vida; azul = Ki.
+ * O destaque é um só: a faixa do golpe (Erro, Mínimo, Médio, Completo)
+ * acesa onde o ataque caiu, no cartão do mestre e na caixa de reação.
+ */
+.dbb {
+  display: grid;
+  gap: 14px;
+  padding: 12px 12px 14px;
+  min-width: 0;
+}
+.dbb > * {
+  min-width: 0;
+}
+
+/* ---------- Leitura do topo: rodada, vez, modo, desfazer ---------- */
+.dbb-leitura {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--lb-color-line);
+}
+.dbb-leitura__rodada {
+  grid-row: span 2;
+  display: grid;
+  justify-items: center;
+  min-width: 52px;
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.dbb-leitura__rodada b {
+  font-stretch: 75%;
+  font-weight: 300;
+  font-size: 40px;
+  color: var(--db-amber-hi);
+  text-shadow: 0 0 16px var(--db-amber-glow);
+}
+.dbb-leitura__rodada span {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-leitura__vez {
+  min-width: 0;
+  font-family: var(--lb-font-display);
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.dbb-leitura__vez small {
+  display: block;
+  font-family: var(--lb-font-sans);
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-leitura__ctl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+/* ---------- Seção ---------- */
+.dbb-sec {
+  display: grid;
+  gap: 8px;
+}
+.dbb-sec__t {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lb-color-parchment-dim);
+}
+.dbb-sec__t span {
+  font-weight: 400;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* ---------- Status (recusa do motor, espera) ---------- */
+.dbb-status {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--lb-radius-sm);
+  font-size: 12px;
+  line-height: 1.4;
+  background: rgba(255, 123, 107, 0.1);
+  color: #ffb3a8;
+  box-shadow: inset 0 0 0 1px rgba(255, 123, 107, 0.3);
+}
+.dbb-espera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--lb-color-parchment-dim);
+}
+.dbb-espera::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--db-amber);
+  box-shadow: 0 0 8px var(--db-amber-glow);
+}
+
+/* ---------- Cartão (pendência, confirmação, vez) ---------- */
+.dbb-cartao {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  box-shadow:
+    inset 3px 0 0 var(--db-amber),
+    inset 0 0 0 1px var(--lb-color-line);
+  /* Um evento novo pede a vez do mestre: entra de leve (ocasional, não a cada clique). */
+  transition:
+    opacity 180ms var(--lb-gr-ease-out),
+    transform 180ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .dbb-cartao {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.dbb-cartao--calmo {
+  box-shadow: inset 0 0 0 1px var(--lb-color-line);
+}
+.dbb-cartao--ki {
+  box-shadow:
+    inset 3px 0 0 var(--db-ki),
+    inset 0 0 0 1px var(--lb-color-line);
+}
+.dbb-cartao__t {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.dbb-cartao__d {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--lb-color-parchment-dim);
+}
+.dbb-cartao__fila {
+  font-size: 11.5px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-cartao__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ---------- A conta do golpe e a faixa ---------- */
+.dbb-golpe {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: end;
+  gap: 4px 12px;
+}
+.dbb-golpe__num {
+  display: grid;
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.dbb-golpe__num b {
+  font-stretch: 75%;
+  font-weight: 300;
+  font-size: 34px;
+  color: var(--db-amber-hi);
+  text-shadow: 0 0 14px var(--db-amber-glow);
+}
+.dbb-golpe__num--ca b {
+  color: var(--lb-color-parchment);
+  text-shadow: none;
+}
+.dbb-golpe__num--dano b {
+  color: var(--db-pv-hi);
+  text-shadow: 0 0 14px var(--db-pv-glow);
+}
+.dbb-golpe__num span {
+  margin-top: 4px;
+  font-family: var(--lb-font-sans);
+  font-size: 11px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-conta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim);
+}
+.dbb-conta li {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.dbb-faixas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--lb-radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+.dbb-faixas > * {
+  display: grid;
+  place-items: center;
+  min-height: 26px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+  font-size: 11.5px;
+  white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+.dbb-faixas > [data-on='sim'] {
+  background: var(--db-amber);
+  color: var(--db-amber-ink);
+  font-weight: 600;
+  box-shadow: 0 0 12px var(--db-amber-glow);
+}
+.dbb-faixas > [data-on='sim'][data-faixa='erro'] {
+  background: rgba(255, 123, 107, 0.85);
+  box-shadow: none;
+}
+.dbb-faixas button {
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .dbb-faixas button:hover:not([data-on='sim']) {
+    background: var(--lb-color-stone-hover);
+    color: var(--lb-color-parchment);
+  }
+}
+
+/* ---------- Campos do cartão manual ---------- */
+.dbb-campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: end;
+}
+.dbb-campo {
+  display: grid;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-campo .dbf-inp {
+  width: 64px;
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.dbb-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+/* ---------- Opções (ações e respostas) ---------- */
+.dbb-grupo {
+  display: grid;
+  gap: 4px;
+}
+.dbb-grupo + .dbb-grupo {
+  margin-top: 6px;
+}
+.dbb-grupo__t {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-ops {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dbb-op {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  text-align: left;
+  font-size: 13px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform var(--db-press);
+}
+.dbb-op:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.dbb-op[aria-pressed='true'] {
+  border-color: var(--db-amber-line);
+  background: var(--db-amber-soft);
+}
+.dbb-op:disabled {
+  color: var(--lb-color-parchment-faint);
+  background: transparent;
+}
+.dbb-op__n {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dbb-op__m {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-op__ki {
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--db-ki-hi);
+  white-space: nowrap;
+}
+.dbb-op__ki--gratis {
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-op:disabled .dbb-op__ki {
+  color: inherit;
+}
+@media (hover: hover) and (pointer: fine) {
+  .dbb-op:hover:not(:disabled) {
+    background: var(--lb-color-stone-hover);
+    border-color: var(--lb-color-line-strong);
+  }
+}
+
+/* ---------- Escolha de alvo ---------- */
+.dbb-alvos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dbb-alvo {
+  display: inline-grid;
+  justify-items: start;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-size: 12.5px;
+  text-align: left;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform var(--db-press);
+}
+.dbb-alvo small {
+  font-size: 11px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-alvo:active {
+  transform: scale(0.97);
+}
+.dbb-alvo[aria-pressed='true'] {
+  border-color: var(--db-amber);
+  background: var(--db-amber-soft);
+  color: var(--db-amber-hi);
+}
+
+/* ---------- Ordem ---------- */
+.dbb-ordem {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dbb-carta {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: start;
+  padding: 8px 6px 8px 8px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line);
+}
+.dbb-carta[data-vez='sim'] {
+  box-shadow:
+    inset 3px 0 0 var(--db-amber),
+    inset 0 0 0 1px var(--db-amber-line);
+  background: linear-gradient(90deg, var(--db-amber-soft), transparent 70%), var(--lb-color-stone-raised);
+}
+.dbb-carta[data-fora='sim'] {
+  opacity: 0.6;
+}
+.dbb-carta__ini {
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--lb-color-parchment-dim);
+}
+.dbb-carta[data-vez='sim'] .dbb-carta__ini {
+  color: var(--db-amber-hi);
+}
+.dbb-carta__corpo {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.dbb-carta__nome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.dbb-carta__nome small {
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-carta__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.dbb-carta__ctl {
+  display: flex;
+  gap: 2px;
+}
+.dbb-tag-mal {
+  border-color: rgba(255, 123, 107, 0.45);
+  color: #ffb3a8;
+}
+
+/* PV e Ki: a barra fina e o número ao lado. */
+.dbb-recursos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px 10px;
+}
+.dbb-recurso {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 6px;
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--lb-color-parchment-dim);
+}
+.dbb-recurso b {
+  font-weight: 400;
+  color: var(--lb-color-parchment);
+}
+.dbb-recurso__barra {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.dbb-recurso__barra i {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  border-radius: 2px;
+  background: var(--db-pv);
+  transition: transform 200ms var(--lb-gr-ease-out);
+}
+.dbb-recurso--pk .dbb-recurso__barra i {
+  background: var(--db-ki);
+}
+
+/* ---------- Iniciativa ---------- */
+.dbb-ini {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dbb-ini li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 6px 4px 10px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line);
+  font-size: 13px;
+}
+.dbb-ini__total {
+  min-width: 34px;
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  text-align: right;
+  color: var(--db-amber-hi);
+}
+.dbb-ini .dbf-inp {
+  width: 64px;
+  font-family: var(--db-num);
+  text-align: center;
+}
+
+/* ---------- Choque de Poder ---------- */
+.dbb-choque {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.dbb-choque__lado {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.dbb-choque__pips {
+  display: flex;
+  gap: 4px;
+}
+.dbb-choque__pips i {
+  width: 18px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background-color 160ms ease;
+}
+.dbb-choque__pips i[data-on='sim'] {
+  background: var(--db-amber);
+  box-shadow: 0 0 8px var(--db-amber-glow);
+}
+
+/* ---------- Registro ---------- */
+.dbb-registro {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.dbb-linha {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 0 8px;
+  align-items: start;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--lb-color-line);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.dbb-linha__r {
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--lb-color-parchment-faint);
+  padding-top: 1px;
+}
+.dbb-linha__texto {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dbb-linha__autor {
+  color: var(--lb-color-parchment-faint);
+  font-size: 11px;
+}
+.dbb-linha__det {
+  display: grid;
+  gap: 1px;
+  margin: 3px 0 0;
+  padding: 0 0 0 8px;
+  list-style: none;
+  border-left: 1px solid var(--lb-color-line-strong);
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--lb-color-parchment-dim);
+}
+.dbb-linha[data-desfeita='sim'] .dbb-linha__texto {
+  text-decoration: line-through;
+  text-decoration-color: var(--lb-color-parchment-faint);
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-linha[data-tipo='dano'] .dbb-linha__texto,
+.dbb-linha[data-tipo='morte'] .dbb-linha__texto {
+  color: var(--db-pv-hi);
+}
+.dbb-linha[data-tipo='tecnica'] .dbb-linha__r,
+.dbb-linha[data-tipo='reacao'] .dbb-linha__r {
+  color: var(--db-amber);
+}
+.dbb-vazio {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  font-size: 12.5px;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* ---------- Fim da batalha ---------- */
+.dbb-fim {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.dbb-fim th,
+.dbb-fim td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--lb-color-line);
+  text-align: right;
+  vertical-align: top;
+}
+.dbb-fim th:first-child,
+.dbb-fim td:first-child {
+  text-align: left;
+}
+.dbb-fim th {
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--lb-color-parchment-faint);
+}
+.dbb-fim td {
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+}
+.dbb-fim td:first-child {
+  font-family: var(--lb-font-sans);
+}
+.dbb-fim .dbf-inp {
+  width: 58px;
+  text-align: center;
+}
+.dbb-fim__aviso {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--lb-font-sans);
+  font-size: 11.5px;
+  color: var(--db-amber-hi);
+  text-align: left;
+}
+
+/* ---------- Jogador: o menu da vez à esquerda, a reação embaixo no meio ---------- */
+.dbb-jogador-menu {
+  position: fixed;
+  top: calc(var(--pp-abaixo-da-barra, 72px) + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px));
+  left: calc(var(--pp-edge, 12px) + 12px + var(--pp-painel-ocupa, 0px));
+  z-index: 9;
+  width: min(360px, calc(100vw - 2 * var(--pp-edge, 12px) - 24px));
+  max-height: calc(100vh - var(--pp-abaixo-da-barra, 72px) - var(--pp-faixa-alto, 0px) - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  box-shadow: var(--lb-shadow-md);
+}
+.dbb-jogador-reacao {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--pp-chao, 12px) + 12px);
+  z-index: 10;
+  width: min(420px, calc(100vw - 2 * var(--pp-edge, 12px)));
+  translate: -50% 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  /* O cartão da reação já é a moldura: sem o painel em volta dele. */
+  padding: 0;
+  box-shadow: var(--lb-shadow-md);
+}
+.dbb-jogador-menu .dbb-sec > .dbf-btn {
+  justify-self: start;
+}
+.dbb-ki-volta {
+  justify-self: start;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--db-ki-soft);
+  box-shadow: inset 0 0 0 1px var(--db-ki-glow);
+  color: var(--db-ki-hi);
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  transition:
+    opacity 200ms var(--lb-gr-ease-out),
+    transform 200ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .dbb-ki-volta {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dbb-cartao,
+  .dbb-ki-volta {
+    transition: opacity 160ms ease;
+  }
+  @starting-style {
+    .dbb-cartao,
+    .dbb-ki-volta {
+      transform: none;
+    }
+  }
+  .dbb-recurso__barra i,
+  .dbb-faixas > * {
+    transition: none;
+  }
+}
