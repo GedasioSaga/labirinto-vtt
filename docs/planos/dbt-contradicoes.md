@@ -14,8 +14,8 @@ Como ler cada item: **o que o livro diz (página)**, o conflito, o que o app faz
    App: segue o exemplo (8 = −1, 10 = 0, 12 = +1, 14 = +2). Mudar: `client/src/lib/dbt/regras/atributos.ts` (`modificador`).
 2. **Vida no PDL 0 (3.0.2 x 3.0.3, p. 12-13).** 3.0.2 diz que abaixo de 10.000 PDL a vida é só a da Constituição; 3.0.3 e o exemplo já somam a vida da raça.
    App: segue o exemplo (CON 12 + raça 12 = 72). Mudar: `client/src/lib/dbt/regras/ficha.ts` (`pvMaximo`).
-3. **Slots de Técnica, fórmula x exemplo (3.0.6 x p. 109).** A fórmula é 20 + (1 + mod SAB) × 5; o exemplo da p. 109 usa 12 + mod × 5 e ainda erra a soma (dá 22).
-   App: segue a FÓRMULA (SAB 14 = 35 ST), porque a conta do exemplo está errada. **Verificar.** Mudar: `client/src/lib/dbt/regras/ficha.ts` (`slotsDeTecnica`).
+3. **Slots de Técnica, fórmula x exemplo (2.2.5 e 8.6 x p. 109).** A fórmula, impressa duas vezes (2.2.5 e 8.6), é 20 + (1 + mod SAB) × 5. O único exemplo (p. 109) usa outra conta, 12 + mod × 5 = 22, e a lista de técnicas dele soma "4 + 2 + 2 + 8 + 6 = 20" (a soma real é 22; as três técnicas citadas dão 12).
+   App: segue a FÓRMULA (SAB 14 = 35 ST). Ela aparece em dois capítulos, e o exemplo não fecha nem consigo mesmo. É uma exceção à regra "seguir os exemplos". **Verificar com o usuário.** Seguir o exemplo seria trocar `ST_BASE`/conta para 12 + mod × 5. Mudar: `client/src/lib/dbt/regras/ficha.ts` (`slotsDeTecnica`).
 4. **Slots de Técnica, ganho por PDL (3.0.11 x p. 109).** 3.0.11 dá +2 a cada 10.000 PDL; a p. 109 diz +1 a cada 5.000 (mesma taxa, degrau diferente).
    App: +2 a cada 10.000. **Verificar.** Mudar: `client/src/lib/dbt/regras/ficha.ts` (`ST_POR_MARCO_DE_VIDA`).
 5. **Raça Freeza: "gastam metade dos Slots de Técnica" (cap. 4).** O livro não diz se arredonda para cima ou para baixo.
