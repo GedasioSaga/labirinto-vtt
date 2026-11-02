@@ -1515,7 +1515,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             caminhos={state.caminhos}
             // BATALHA F1 (S4): a ficha da vez que ele vê ganha o anel com o pulso de chegada.
             // BATALHA DBT: sem batalha One Piece na cena, a vez do recorte DBT (só ficha que a tela dele tem).
-            vezTokenId={vezTokenIdDoJogador(state.batalhaEstado) ?? state.batalhaDBTEstado?.vez ?? null}
+            vezTokenId={vezTokenIdDoJogador(state.batalhaEstado) ?? vistaDBT?.vez ?? null}
             // BATALHA F3 (fatia J): o Judge do `batalha.estado` e o gesto da fila (o desfazer do mestre ergue a carta).
             judge={state.batalhaEstado?.judge ?? vistaDBT?.judge ?? null}
             gestoDoJudge={ultimoGestoDoJudge(state.batalhaEfeitos)}
@@ -1599,7 +1599,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onFichaNaTela={(consulta) => {
               consultaDaFicha.current = consulta
             }}
-            aoEscolherFicha={mirandoNaBatalha && (state.batalhaEstado !== undefined || state.batalhaDBTEstado !== undefined) ? escolherNoMapa : undefined}
+            aoEscolherFicha={mirandoNaBatalha && (state.batalhaEstado !== undefined || vistaDBT !== undefined) ? escolherNoMapa : undefined}
           />
         )}
         </div>
