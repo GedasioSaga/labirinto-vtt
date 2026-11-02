@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { maximoComposto, temMaximo } from '../../lib/ajusteDaFicha'
 import { CAMPO_DO_DANO, lerDano, type ContextoDaFormula } from '../../lib/batalha/formula'
 import { armasDe, tecnicasDe } from '../../lib/batalha/leituraDaFicha'
 import { ATALHOS_DA_FORCA, ehVariacao, entraNaBatalha, semForca, soltarDoModelo, trocarForca, variacoesDe } from '../../lib/livros/combate'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import { FORCA_MAX, FORCA_MIN, FORCA_PADRAO, FORCA_PASSO, forcaDe, forcaNoPasso, RECURSO_QUE_A_FORCA_MULTIPLICA, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
@@ -314,7 +315,26 @@ export interface PaginaNpcsProps {
   sistema: SistemaDeRpg
 }
 
-export function PaginaNpcs({ personagens, sistema }: PaginaNpcsProps) {
+/** O bestiário do Dragon Ball (components/dbt/mundo/) só baixa quando um mundo dele abre: o do One Piece nunca carrega. */
+const PaginaNpcsDBT = lazy(() => import('../dbt/mundo/PaginaNpcsDBT').then((modulo) => ({ default: modulo.PaginaNpcsDBT })))
+
+/** O bestiário do motor do sistema: o Dragon Ball tem o próprio (PV pelo ND, NPCs prontos); o motor padrão é o de sempre. */
+export function PaginaNpcs(props: PaginaNpcsProps) {
+  if (motorDoSistema(props.sistema) !== MOTOR_DRAGON_BALL) return <PaginaNpcsPadrao {...props} />
+  return (
+    <Suspense
+      fallback={
+        <div className="mu-pg" aria-busy="true">
+          <p className="mu-pg-nota">Abrindo o bestiário…</p>
+        </div>
+      }
+    >
+      <PaginaNpcsDBT {...props} />
+    </Suspense>
+  )
+}
+
+function PaginaNpcsPadrao({ personagens, sistema }: PaginaNpcsProps) {
   const escolhidoId = useMundoDoLivroStore((state) => state.npcEscolhido)
   const [aoVivo, setAoVivo] = useState<ForcaAoVivo | null>(null)
   const [dialogo, setDialogo] = useState<ModoDoNovoNpc | null>(null)

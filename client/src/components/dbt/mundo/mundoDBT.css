@@ -1,0 +1,163 @@
+/* =========================================================================
+ * MUNDO DO LIVRO DRAGON BALL — o mesmo livro escuro do mundo (mundo.css,
+ * classes mu-*), com o âmbar do Scouter nos números (protótipo em
+ * docs/design/ficha-dragon-ball/). Só acento: o resto é o grimório de sempre.
+ * Prefixo dbm- para não colidir com o resto do app.
+ * ========================================================================= */
+
+.dbm,
+.mu-modal-fundo .dbm-modal {
+  --dbm-ambar: #f2a33a;
+  --dbm-ambar-forte: #ffc266;
+  --dbm-ambar-suave: rgba(242, 163, 58, 0.12);
+  --dbm-ambar-linha: rgba(242, 163, 58, 0.34);
+  --dbm-vermelho: #f0897f;
+}
+
+/* A notação do livro ("ND 3 – Rank E (Comum)"): leitura de visor. */
+.dbm-notacao {
+  font: 600 var(--lb-font-size-sm) / 1.3 var(--lb-font-utility);
+  letter-spacing: 0.02em;
+  color: var(--dbm-ambar);
+}
+
+/* PV, PK, CA, EP...: blocos de visor. */
+.dbm-numeros {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.dbm-num {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--dbm-ambar-linha);
+  border-radius: var(--lb-radius-sm);
+  background: var(--dbm-ambar-suave);
+}
+.dbm-num dt {
+  font: 500 var(--lb-font-size-xs) / 1.2 var(--lb-font-utility);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.dbm-num dd {
+  margin: 0;
+  font: 600 var(--lb-font-size-xl) / 1.1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--dbm-ambar-forte);
+  overflow-wrap: anywhere;
+}
+
+/* Os 7 atributos: valor e modificador. */
+.dbm-atrs {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+.dbm-atr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 2px;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-sm);
+}
+.dbm-atr dt { font: 500 var(--lb-font-size-xs) / 1.2 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.dbm-atr dd { margin: 0; font: 600 var(--lb-font-size-lg) / 1.2 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.dbm-atr small { font: 500 var(--lb-font-size-xs) / 1.2 var(--lb-font-utility); color: var(--dbm-ambar); }
+
+/* Técnicas: nome e, embaixo, rank · Ki · faixa · alcance. */
+.dbm-tecs { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.dbm-tec { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dbm-tec__nome { font-weight: 600; overflow-wrap: anywhere; }
+.dbm-tec__meta { font: 500 var(--lb-font-size-xs) / 1.35 var(--lb-font-utility); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.dbm-tec__faixa { color: var(--dbm-ambar); }
+
+.dbm-avisos { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.dbm-avisos li { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+
+/* ---- Novo NPC: a escolha dos NPCs prontos ------------------------------ */
+.mu-modal.dbm-modal { width: min(820px, 100%); }
+.dbm-modo { display: flex; flex-wrap: wrap; gap: 6px; }
+.dbm-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.dbm-pronto { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px; align-items: start; }
+.dbm-pronto__filtros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+.dbm-pronto__lista {
+  max-height: 300px;
+  margin: 8px 0 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+  overscroll-behavior: contain;
+}
+.dbm-pronto__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 7px 9px;
+  text-align: left;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .dbm-pronto__item:hover { background: var(--lb-color-stone-hover); }
+}
+.dbm-pronto__item[aria-pressed='true'] { border-color: var(--dbm-ambar-linha); background: var(--dbm-ambar-suave); }
+.dbm-pronto__nome { font-weight: 600; overflow-wrap: anywhere; }
+.dbm-pronto__sub { grid-column: 1 / -1; font: 500 var(--lb-font-size-xs) / 1.3 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.dbm-pronto__ep { font: 600 var(--lb-font-size-sm) / 1.3 var(--lb-font-utility); color: var(--dbm-ambar); }
+.dbm-previa {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--dbm-ambar-linha);
+  border-radius: var(--lb-radius-md);
+}
+.dbm-previa__nome { margin: 0; font-family: var(--lb-font-display); font-size: 20px; font-weight: 400; line-height: 1.15; overflow-wrap: anywhere; }
+.dbm-previa__tecs { max-height: 180px; overflow: auto; }
+
+/* ---- Comparar ---------------------------------------------------------- */
+.dbm-cmp td { vertical-align: top; }
+.dbm-cmp__num { font: 600 var(--lb-font-size-lg) / 1.2 var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.dbm-cmp__num--lider { color: var(--dbm-ambar-forte); }
+.dbm-cmp__num small { margin-left: 4px; font-size: var(--lb-font-size-xs); font-weight: 500; color: var(--lb-color-parchment-faint); }
+.dbm-contra { display: flex; flex-direction: column; gap: 1px; margin: 3px 0 0; padding: 0; list-style: none; }
+.dbm-contra li { font: 500 var(--lb-font-size-xs) / 1.35 var(--lb-font-utility); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.dbm-contra b { color: var(--lb-color-parchment); font-weight: 600; }
+.dbm-pares { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.dbm-par { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.dbm-par--vence { color: var(--lb-color-parchment); }
+.dbm-selo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--dbm-ambar-linha);
+  border-radius: 999px;
+  font: 600 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  letter-spacing: 0.04em;
+  color: var(--dbm-ambar-forte);
+  background: var(--dbm-ambar-suave);
+}
+.dbm-selo .mu-ic { width: 13px; height: 13px; }
+.dbm-ameaca[data-nivel='mortal'] { border-color: rgba(240, 137, 127, 0.45); color: var(--dbm-vermelho); background: rgba(240, 137, 127, 0.1); }
+
+@media (max-width: 720px) {
+  .dbm-pronto { grid-template-columns: minmax(0, 1fr); }
+  .dbm-atrs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

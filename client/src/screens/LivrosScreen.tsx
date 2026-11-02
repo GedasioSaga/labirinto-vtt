@@ -3,6 +3,7 @@ import { IconeDoMundo } from '../components/livros/icones'
 import { MundoDoLivro } from '../components/livros/MundoDoLivro'
 import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
 import { entraNaBatalha } from '../lib/livros/combate'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../lib/motores'
 import { lerIndiceDasPastas, lerRpgDaPasta } from '../lib/pastasDeMapas'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { ID_ONE_PIECE } from '../lib/sistemaOnePiece'
@@ -38,8 +39,20 @@ interface PastaComSistema {
 
 type Passo = { tipo: 'sistemas' } | { tipo: 'campanha'; sistema: SistemaDeRpg } | { tipo: 'mundo' }
 
-/** Só o One Piece tem mundo do livro nesta fase: a batalha automática e os NPCs de combate são dele. */
-const SISTEMAS_COM_MUNDO: ReadonlySet<string> = new Set([ID_ONE_PIECE])
+/**
+ * Quem tem mundo do livro: no motor padrão, só o One Piece (a batalha
+ * automática e os NPCs de combate são dele); no motor Dragon Ball, o sistema
+ * e as cópias dele (o mundo próprio mora em components/dbt/mundo/).
+ */
+function temMundoDoLivro(sistema: SistemaDeRpg): boolean {
+  return motorDoSistema(sistema) === MOTOR_DRAGON_BALL || sistema.id === ID_ONE_PIECE
+}
+
+/** A linha sob o nome do sistema embutido: o que o mundo dele tem de próprio. */
+function quemFezOSistema(sistema: SistemaDeRpg): string {
+  if (!ehEmbutido(sistema.id)) return 'Importado ou criado por você'
+  return motorDoSistema(sistema) === MOTOR_DRAGON_BALL ? 'Vem com o app · NPCs prontos das sagas' : 'Vem com o app · batalha automática'
+}
 
 const CHAVE_DA_ULTIMA = 'lb-livros:ultima-pasta:'
 
@@ -112,9 +125,9 @@ function DadosDaPasta({ jogadores, npcs, mapas }: { jogadores: number; npcs: num
 
 function CartaoDoSistema({ sistema, pastas, onEscolher }: { sistema: SistemaDeRpg; pastas: readonly PastaComSistema[]; onEscolher: () => void }) {
   const motivoId = `mu-sis-motivo-${sistema.id}`
-  const temMundo = SISTEMAS_COM_MUNDO.has(sistema.id)
+  const temMundo = temMundoDoLivro(sistema)
   let motivo: string | null = null
-  if (!temMundo) motivo = 'Ainda sem mundo do livro: por enquanto só o One Piece tem batalha automática e NPCs de combate.'
+  if (!temMundo) motivo = 'Ainda sem mundo do livro: por enquanto só o One Piece e o Dragon Ball Tales têm NPCs de combate e Comparar.'
   else if (pastas.length === 0) motivo = `Nenhuma pasta de mapas usa o ${sistema.nome}. Em Carregar Mapa, abra a configuração de uma pasta e escolha ${sistema.nome} em Sistema universal.`
   const unica = pastas.length === 1 ? pastas[0] : undefined
   const soma = (campo: 'jogadores' | 'npcs') => pastas.reduce((total, pasta) => total + pasta[campo], 0)
@@ -127,7 +140,7 @@ function CartaoDoSistema({ sistema, pastas, onEscolher }: { sistema: SistemaDeRp
         </span>
         <span>
           <span className="mu-sis__nome">{sistema.nome}</span>
-          <span className="mu-sis__quem">{ehEmbutido(sistema.id) ? 'Vem com o app · batalha automática' : 'Importado ou criado por você'}</span>
+          <span className="mu-sis__quem">{quemFezOSistema(sistema)}</span>
         </span>
         {motivo !== null ? (
           <span className="mu-sis__motivo" id={motivoId}>

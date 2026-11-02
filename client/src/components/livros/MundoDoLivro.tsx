@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent } from 'react'
 import { entraNaBatalha } from '../../lib/livros/combate'
 import { lerSaude } from '../../lib/livros/saude'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useIaStore } from '../../stores/iaStore'
 import { useMundoDoLivroStore, usePersonagensDoMundo, type AbaDoMundo } from '../../stores/mundoDoLivroStore'
@@ -51,6 +52,9 @@ const MARCADORES: readonly { aba: AbaDoMundo; rotulo: string; icone: NomeDoIcone
  */
 const PaginaArena = lazy(() => import('../arena/PaginaArena').then((modulo) => ({ default: modulo.PaginaArena })))
 
+/** O Comparar do Dragon Ball (components/dbt/mundo/) só baixa quando um mundo dele abre: o do One Piece nunca carrega. */
+const CompararDBT = lazy(() => import('../dbt/mundo/CompararDBT').then((modulo) => ({ default: modulo.CompararDBT })))
+
 /** A camada cheia da luta da arena: com ela aberta, o Esc não fecha o mundo atrás (ver `TelaDaArena`). */
 const SELETOR_DA_ARENA = '.ar-tela'
 
@@ -67,6 +71,9 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   const bibliotecaLida = useRpgStore((state) => state.bibliotecaLida)
   const pasta = usePastaDoMundo(aberto?.pastaId)
   const sistema = aberto === null ? undefined : sistemaPorId(biblioteca, aberto.sistemaId)
+  const dragonBall = motorDoSistema(sistema) === MOTOR_DRAGON_BALL
+  /** A Arena de testes do Dragon Ball ainda não existe: o marcador some para ele (a do motor padrão lê regras do One Piece). */
+  const marcadores = dragonBall ? MARCADORES.filter((marcador) => marcador.aba !== 'arena') : MARCADORES
   /** As entradas do catálogo deste livro (as do mestre e as do livro), para o número do marcador Itens e habilidades. */
   const noCatalogo = useCatalogoStore((state) => (aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.length + state.doLivro.length : null))
   /** Quantos campos a batalha não lê (o número do marcador Saúde da ficha, em latão quando há). */
@@ -154,13 +161,13 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   }
 
   const aoTeclarNosMarcadores = (event: KeyboardEvent<HTMLDivElement>) => {
-    const i = MARCADORES.findIndex((marcador) => marcador.aba === aba)
+    const i = marcadores.findIndex((marcador) => marcador.aba === aba)
     let j: number | null = null
-    if (event.key === 'ArrowDown') j = (i + 1) % MARCADORES.length
-    else if (event.key === 'ArrowUp') j = (i - 1 + MARCADORES.length) % MARCADORES.length
+    if (event.key === 'ArrowDown') j = (i + 1) % marcadores.length
+    else if (event.key === 'ArrowUp') j = (i - 1 + marcadores.length) % marcadores.length
     else if (event.key === 'Home') j = 0
-    else if (event.key === 'End') j = MARCADORES.length - 1
-    const destino = j === null ? undefined : MARCADORES[j]
+    else if (event.key === 'End') j = marcadores.length - 1
+    const destino = j === null ? undefined : marcadores[j]
     if (destino === undefined) return
     event.preventDefault()
     trocarAba(destino.aba, true)
@@ -203,6 +210,18 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     )
   } else if (aba === 'jogadores') {
     pagina = <PaginaJogadores personagens={personagens} sistema={sistema} mapas={pasta?.mapas ?? null} />
+  } else if (aba === 'comparar' && dragonBall) {
+    pagina = (
+      <Suspense
+        fallback={
+          <div className="mu-pg" aria-busy="true">
+            <p className="mu-pg-nota">Abrindo o Comparar…</p>
+          </div>
+        }
+      >
+        <CompararDBT personagens={personagens} />
+      </Suspense>
+    )
   } else if (aba === 'comparar') {
     pagina = <PaginaComparar personagens={personagens} sistema={sistema} onVerSaude={() => trocarAba('saude', false)} />
   } else if (aba === 'saude') {
@@ -211,7 +230,7 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     pagina = <PaginaItens personagens={personagens} sistema={sistema} />
   } else if (aba === 'anotacoes') {
     pagina = <PaginaAnotacoes personagens={personagens} />
-  } else if (aba === 'arena') {
+  } else if (aba === 'arena' && !dragonBall) {
     pagina = (
       <Suspense
         fallback={
@@ -260,7 +279,7 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
         <div className="mu-marcadores" ref={marcadoresRef}>
           <span className="mu-fita mu-fita--parada" ref={fitaRef} aria-hidden="true" />
           <div role="tablist" aria-orientation="vertical" aria-label="Partes do livro" onKeyDown={aoTeclarNosMarcadores}>
-            {MARCADORES.map((marcador) => {
+            {marcadores.map((marcador) => {
               const ativo = marcador.aba === aba
               const n = contagem[marcador.aba]
               const alerta = marcador.aba === 'saude' && n !== null && n > 0

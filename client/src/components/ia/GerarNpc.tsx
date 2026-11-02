@@ -2,11 +2,13 @@ import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'rea
 import { DESCRICAO_DO_NPC_MAX, NIVEIS_DO_NPC, nomeJaUsado, type NivelDoNpc } from '../../lib/ia/gerarNpc'
 import { colunaDaComparacao } from '../../lib/livros/encontro'
 import { CAMPOS_DA_SAUDE, lerSaude } from '../../lib/livros/saude'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import { camposVisiveis, cartoesDaAba, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { PERSONAGEM_NOME_MAX } from '../../net/protocoloDoPersonagem'
 import { useIaStore } from '../../stores/iaStore'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
+import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { escolhasDaFicha, formatarNumero, gravarNoMundo, Retrato } from '../livros/comum'
 import { IconeDaIa } from './icones'
 
@@ -23,7 +25,29 @@ export interface GerarNpcFormProps {
   onCancelar: () => void
 }
 
-export function GerarNpcForm({ onGerar, onCancelar }: GerarNpcFormProps) {
+/**
+ * O esquema da IA é o das abas e recursos do motor padrão: no Dragon Ball
+ * (ficha em `Personagem.dbt`) ela geraria uma ficha vazia. Nesta fase o
+ * formulário dá lugar ao caminho que funciona (Novo NPC, com os prontos do livro).
+ */
+export function GerarNpcForm(props: GerarNpcFormProps) {
+  const sistemaId = useMundoDoLivroStore((state) => state.aberto?.sistemaId)
+  const sistema = useRpgStore((state) => (sistemaId === undefined ? undefined : sistemaPorId(state.biblioteca, sistemaId)))
+  if (motorDoSistema(sistema) !== MOTOR_DRAGON_BALL) return <GerarNpcFormPadrao {...props} />
+  return (
+    <div className="ia-gerar" role="status">
+      <h3 className="ia-gerar__tit">Gerar NPC</h3>
+      <p className="mu-pg-nota">O assistente ainda não gera NPC do Dragon Ball Tales. Use Novo NPC em NPCs de combate: dá para começar de um NPC pronto das sagas.</p>
+      <div className="mu-pg-acoes">
+        <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={props.onCancelar}>
+          Fechar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GerarNpcFormPadrao({ onGerar, onCancelar }: GerarNpcFormProps) {
   const [descricao, setDescricao] = useState('')
   const [nivel, setNivel] = useState<NivelDoNpc>('nivel')
   const [erro, setErro] = useState<string | null>(null)
