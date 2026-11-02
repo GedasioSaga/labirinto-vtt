@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
-import { IMAGENS_MAX, ERROS_DA_CHAVE, ERROS_DO_MODELO } from '../../lib/ia/portaDaIa'
+import { IMAGENS_MAX, ERROS_DA_CHAVE, ERROS_DO_MODELO, erroDaIa } from '../../lib/ia/portaDaIa'
 import {
   DADOS_DO_MODO,
   fichasDaConversa,
@@ -13,17 +13,19 @@ import {
   type ModoDaIa,
 } from '../../lib/ia/prompts'
 import type { NivelDoNpc } from '../../lib/ia/gerarNpc'
+import type { NpcDBTGerado } from '../../lib/ia/gerarNpcDBT'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../../stores/catalogoStore'
 import { CONSULTA_DA_GAVETA_DA_IA, useIaStore, type DadosDoMundoParaIa, type MensagemDaConversa } from '../../stores/iaStore'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
+import { useToastStore } from '../../stores/toastStore'
 import { MarcacaoLeve } from '../MarcacaoLeve'
 import { Retrato } from '../livros/comum'
 import { IconeDoMundo } from '../livros/icones'
 import { ChaveDaIaDialog, type FocoDaConfig } from './ChaveDaIaDialog'
-import { GerarNpcForm, NpcGerado } from './GerarNpc'
+import { GerarNpcForm, NpcGerado, NpcGeradoDBT } from './GerarNpc'
 import { IconeDaIa } from './icones'
 import './ia.css'
 
@@ -47,6 +49,15 @@ export interface PainelDaIaProps {
   pastaId: string
   sistema: SistemaDeRpg
   personagens: readonly Personagem[]
+}
+
+/** Raça, notação e o que as regras mudaram no NPC do Dragon Ball gerado, presos ao id dele (a ficha em si mora em `gerado`). */
+type ExtrasDoNpcDBT = Omit<NpcDBTGerado, 'personagem'> & { id: string }
+
+/** Avisa a troca de chave por cota esgotada (o mesmo aviso da iaStore; o Rust já gravou a nova ativa). */
+function avisarTrocaDeChave(trocouPara: number | null): void {
+  if (trocouPara === null) return
+  useToastStore.getState().push('info', `A cota de uma chave acabou: o assistente passou para a chave ${trocouPara + 1}.`)
 }
 
 function ajustarAltura(caixa: HTMLTextAreaElement | null): void {
@@ -86,14 +97,15 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
 
   const [texto, setTexto] = useState('')
   const [focoDaConfig, setFocoDaConfig] = useState<FocoDaConfig>('chave')
+  const [extrasDoNpcDBT, setExtrasDoNpcDBT] = useState<ExtrasDoNpcDBT | null>(null)
   const caixaRef = useRef<HTMLTextAreaElement>(null)
   const conversaRef = useRef<HTMLDivElement>(null)
   const engrenagemRef = useRef<HTMLButtonElement>(null)
   const porFichaRef = useRef<HTMLSelectElement>(null)
   const modosRef = useRef<Partial<Record<ModoDaIa, HTMLButtonElement | null>>>({})
   const foraDoApp = !isTauri()
-  // O gerador monta ficha do motor padrão (abas e campos do One Piece): no Dragon Ball ele sairia torto.
-  const geraNpc = motorDoSistema(sistema) !== MOTOR_DRAGON_BALL
+  // O Gerar NPC do motor padrão monta abas e campos do One Piece; o Dragon Ball tem o seu (ficha em `Personagem.dbt`).
+  const ehDragonBall = motorDoSistema(sistema) === MOTOR_DRAGON_BALL
 
   // A conversa é da pasta aberta; o cofre e o modelo, do computador. O catálogo do sistema quem abre é o mundo (MundoDoLivro).
   useEffect(() => {
@@ -155,9 +167,47 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
     if (!respondeu) setTexto((atual) => (atual.trim().length === 0 ? pedido : atual))
   }
 
+  /**
+   * Gerar NPC do Dragon Ball: o mesmo caminho do `gerarNpc` da iaStore
+   * (pensando, rodada, erro na conversa, aviso de troca de chave), com o
+   * pedido e a validação de lib/ia/gerarNpcDBT.ts, que só baixa aqui.
+   */
+  const gerarNpcDoDragonBall = async (descricao: string, nivel: NivelDoNpc) => {
+    const inicio = useIaStore.getState()
+    if (inicio.pensando) return
+    const rodada = inicio.rodada
+    useIaStore.setState({ gerando: false, gerado: null, pensando: true })
+    try {
+      const { gerarNpcDBTNaIa } = await import('../../lib/ia/gerarNpcDBT')
+      const { npc, trocouPara } = await gerarNpcDBTNaIa({ descricao, nivel, sistema, personagens, grupoDoComparar: grupo, modelo: useIaStore.getState().modelo })
+      // "Nova conversa" ou outra pasta enquanto a IA pensava: a resposta é descartada.
+      if (useIaStore.getState().rodada !== rodada) return
+      avisarTrocaDeChave(trocouPara)
+      if (npc.ok) {
+        setExtrasDoNpcDBT({ id: npc.personagem.id, raca: npc.raca, notacao: npc.notacao, observacoes: npc.observacoes })
+        useIaStore.setState({ gerado: npc.personagem, pensando: false })
+      } else {
+        useIaStore.setState(({ conversa }) => ({ pensando: false, conversa: [...conversa, { id: crypto.randomUUID(), de: 'erro', texto: npc.erro, codigo: 'resposta_invalida' }] }))
+      }
+    } catch (erro) {
+      if (useIaStore.getState().rodada !== rodada) return
+      // Sem chave, a contagem cai para 0 e o aviso "Sem chave" aparece (como no `registrarErro` da store).
+      const falha = erroDaIa(erro)
+      useIaStore.setState(({ conversa, chaves: atuais }) => ({
+        pensando: false,
+        conversa: [...conversa, { id: crypto.randomUUID(), de: 'erro', texto: falha.message, codigo: falha.codigo }],
+        chaves: falha.codigo === 'sem_chave' ? 0 : atuais,
+      }))
+    }
+  }
+
   const gerarNpc = (descricao: string, nivel: NivelDoNpc) => {
     if (chaves === 0) {
       abrirConfig('chave')
+      return
+    }
+    if (ehDragonBall) {
+      void gerarNpcDoDragonBall(descricao, nivel)
       return
     }
     void useIaStore.getState().gerarNpc(descricao, nivel, dadosDoMundo())
@@ -404,8 +454,18 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
             </div>
           ),
         )}
-        {geraNpc && gerando && <GerarNpcForm onGerar={gerarNpc} onCancelar={() => useIaStore.getState().abrirGerar(false)} />}
-        {geraNpc && gerado !== null && <NpcGerado npc={gerado} sistema={sistema} personagens={personagens} onGerarOutro={abrirGerar} />}
+        {gerando && <GerarNpcForm onGerar={gerarNpc} onCancelar={() => useIaStore.getState().abrirGerar(false)} />}
+        {gerado !== null && !ehDragonBall && <NpcGerado npc={gerado} sistema={sistema} personagens={personagens} onGerarOutro={abrirGerar} />}
+        {gerado !== null && ehDragonBall && (
+          <NpcGeradoDBT
+            npc={gerado}
+            personagens={personagens}
+            raca={extrasDoNpcDBT?.id === gerado.id ? extrasDoNpcDBT.raca : ''}
+            notacao={extrasDoNpcDBT?.id === gerado.id ? extrasDoNpcDBT.notacao : ''}
+            observacoes={extrasDoNpcDBT?.id === gerado.id ? extrasDoNpcDBT.observacoes : []}
+            onGerarOutro={abrirGerar}
+          />
+        )}
         {pensando && (
           <div className="ia-msg ia-msg--pensando" role="status">
             <i />
@@ -459,12 +519,10 @@ export function PainelDaIa({ pastaId, sistema, personagens }: PainelDaIaProps) {
           </button>
         </div>
         <div className="ia-compor__pe">
-          {geraNpc && (
-            <button type="button" className="mu-bt mu-bt--p mu-bt--latao" onClick={abrirGerar} aria-expanded={gerando} disabled={pensando || foraDoApp}>
-              <IconeDaIa nome="ia" />
-              Gerar NPC
-            </button>
-          )}
+          <button type="button" className="mu-bt mu-bt--p mu-bt--latao" onClick={abrirGerar} aria-expanded={gerando} disabled={pensando || foraDoApp}>
+            <IconeDaIa nome="ia" />
+            Gerar NPC
+          </button>
           <span>
             <kbd className="ia-kbd">Enter</kbd> envia · <kbd className="ia-kbd">Shift</kbd>+<kbd className="ia-kbd">Enter</kbd> quebra a linha
           </span>

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { DESCRICAO_DO_NPC_MAX, NIVEIS_DO_NPC, nomeJaUsado, type NivelDoNpc } from '../../lib/ia/gerarNpc'
 import { colunaDaComparacao } from '../../lib/livros/encontro'
 import { CAMPOS_DA_SAUDE, lerSaude } from '../../lib/livros/saude'
@@ -18,6 +18,10 @@ import { IconeDaIa } from './icones'
  * para revisar — nome editável, atributos, HP/SP/Escudo e as técnicas com o
  * dano que o app lê — e "Salvar no bestiário" pelo funil único do mundo
  * (`gravarNoMundo`), com Desfazer.
+ *
+ * No Dragon Ball Tales o formulário é o mesmo; a ficha vem de
+ * lib/ia/gerarNpcDBT.ts (`Personagem.dbt`, pelo ramo do PainelDaIa) e a
+ * revisão é `NpcGeradoDBT`, com o resumo do bestiário do Dragon Ball.
  */
 
 export interface GerarNpcFormProps {
@@ -25,29 +29,17 @@ export interface GerarNpcFormProps {
   onCancelar: () => void
 }
 
-/**
- * O esquema da IA é o das abas e recursos do motor padrão: no Dragon Ball
- * (ficha em `Personagem.dbt`) ela geraria uma ficha vazia. Nesta fase o
- * formulário dá lugar ao caminho que funciona (Novo NPC, com os prontos do livro).
- */
+const EXEMPLO_PADRAO = 'Ex.: tenente da Marinha que luta com correntes'
+const EXEMPLO_DRAGON_BALL = 'Ex.: soldado do Freeza que dispara rajadas de Ki'
+
+/** O formulário é o mesmo nos dois motores; o exemplo da caixa acompanha o sistema aberto. */
 export function GerarNpcForm(props: GerarNpcFormProps) {
   const sistemaId = useMundoDoLivroStore((state) => state.aberto?.sistemaId)
   const sistema = useRpgStore((state) => (sistemaId === undefined ? undefined : sistemaPorId(state.biblioteca, sistemaId)))
-  if (motorDoSistema(sistema) !== MOTOR_DRAGON_BALL) return <GerarNpcFormPadrao {...props} />
-  return (
-    <div className="ia-gerar" role="status">
-      <h3 className="ia-gerar__tit">Gerar NPC</h3>
-      <p className="mu-pg-nota">O assistente ainda não gera NPC do Dragon Ball Tales. Use Novo NPC em NPCs de combate: dá para começar de um NPC pronto das sagas.</p>
-      <div className="mu-pg-acoes">
-        <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={props.onCancelar}>
-          Fechar
-        </button>
-      </div>
-    </div>
-  )
+  return <GerarNpcFormPadrao {...props} exemplo={motorDoSistema(sistema) === MOTOR_DRAGON_BALL ? EXEMPLO_DRAGON_BALL : EXEMPLO_PADRAO} />
 }
 
-function GerarNpcFormPadrao({ onGerar, onCancelar }: GerarNpcFormProps) {
+function GerarNpcFormPadrao({ onGerar, onCancelar, exemplo }: GerarNpcFormProps & { exemplo: string }) {
   const [descricao, setDescricao] = useState('')
   const [nivel, setNivel] = useState<NivelDoNpc>('nivel')
   const [erro, setErro] = useState<string | null>(null)
@@ -98,7 +90,7 @@ function GerarNpcFormPadrao({ onGerar, onCancelar }: GerarNpcFormProps) {
             setDescricao(event.target.value)
             setErro(null)
           }}
-          placeholder="Ex.: tenente da Marinha que luta com correntes"
+          placeholder={exemplo}
           aria-invalid={erro === null ? undefined : true}
           aria-describedby={erro === null ? undefined : `${id}-erro`}
         />
@@ -279,6 +271,146 @@ export function NpcGerado({ npc, sistema, personagens, onGerarOutro }: NpcGerado
         <p className={leitura.lidos === leitura.total ? 'mu-pg-nota' : 'mu-pg-nota mu-pg-nota--aviso'}>
           O app lê {leitura.lidos} de {leitura.total} campos de batalha desta ficha{leitura.lidos === leitura.total ? '.' : ': o resto aparece na Saúde da ficha depois de salvar.'}
         </p>
+      )}
+      <div className="ia-npc__acoes">
+        <button type="button" className="mu-bt mu-bt--p mu-bt--primario" onClick={() => void salvar()} disabled={salvando} aria-busy={salvando || undefined}>
+          Salvar no bestiário
+        </button>
+        <button type="button" className="mu-bt mu-bt--p" onClick={onGerarOutro} disabled={salvando}>
+          Gerar outro
+        </button>
+        <button type="button" className="mu-bt mu-bt--p mu-bt--fantasma" onClick={() => useIaStore.getState().descartarGerado()} disabled={salvando}>
+          Descartar
+        </button>
+      </div>
+    </section>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Dragon Ball Tales
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * O resumo da ficha do bestiário do Dragon Ball (PV, PK, CA, EP, atributos,
+ * técnicas com Ki e faixa) em pedaço próprio: ele, as contas do mundo e o
+ * estilo `dbm-` só baixam quando um NPC do Dragon Ball é gerado.
+ */
+const ResumoDoNpcGerado = lazy(() =>
+  Promise.all([import('../dbt/mundo/ResumoDoNpcDBT'), import('../dbt/mundo/contasDoMundo'), import('../dbt/mundo/mundoDBT.css')]).then(([resumo, contas]) => {
+    const { ResumoDoNpcDBT } = resumo
+    const { RANKS_DO_LIVRO } = contas
+    function ResumoDoNpcGerado({ personagem }: { personagem: Personagem }) {
+      if (RANKS_DO_LIVRO === null) return <p className="mu-pg-nota mu-pg-nota--aviso">A tabela de ranks do livro não abriu: confira a ficha em NPCs de combate depois de salvar.</p>
+      return <ResumoDoNpcDBT personagem={personagem} ranks={RANKS_DO_LIVRO} />
+    }
+    return { default: ResumoDoNpcGerado }
+  }),
+)
+
+export interface NpcGeradoDBTProps {
+  npc: Personagem
+  personagens: readonly Personagem[]
+  /** Nome da raça que o gerador escolheu; vazio = sem raça (ou a revisão reabriu sem os extras). */
+  raca: string
+  /** "ND 3 – Rank D (Elite)"; vazio = não mostra. */
+  notacao: string
+  /** O que o app ajustou na resposta da IA (rótulo fora do orçamento, raça desconhecida...) e os avisos de boa prática. */
+  observacoes: readonly string[]
+  /** "Gerar outro": abre o formulário de novo. */
+  onGerarOutro: () => void
+}
+
+/**
+ * A ficha Dragon Ball que a IA gerou, para revisar: nome editável, o resumo
+ * do bestiário, o que as regras mudaram, e "Salvar no bestiário" pelo funil
+ * único do mundo (`gravarNoMundo`), com Desfazer — como o `NpcGerado`.
+ */
+export function NpcGeradoDBT({ npc, personagens, raca, notacao, observacoes, onGerarOutro }: NpcGeradoDBTProps) {
+  const [nome, setNome] = useState(npc.nome)
+  const [erro, setErro] = useState<string | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const nomeRef = useRef<HTMLInputElement>(null)
+  const id = useId()
+
+  // A ficha chegou: o foco vai para o nome, o primeiro campo da revisão.
+  useEffect(() => {
+    nomeRef.current?.focus()
+  }, [npc.id])
+
+  const salvar = async () => {
+    const escolhido = nome.trim() || npc.nome
+    if (nomeJaUsado(escolhido, personagens)) {
+      setErro(`Já existe “${escolhido}” na campanha. Troque o nome antes de salvar.`)
+      nomeRef.current?.focus()
+      return
+    }
+    const ficha: Personagem = { ...npc, nome: escolhido }
+    setSalvando(true)
+    const gravou = await gravarNoMundo((lista) => [...lista, ficha], {
+      texto: `${escolhido} foi salvo no bestiário.`,
+      desfazer: (lista) => lista.filter((personagem) => personagem.id !== ficha.id),
+    })
+    setSalvando(false)
+    if (!gravou) return
+    // A página NPCs de combate abre já nele.
+    useMundoDoLivroStore.getState().escolherNpc(ficha.id)
+    useIaStore.getState().descartarGerado()
+  }
+
+  const titulo = nome.trim() || npc.nome
+  return (
+    <section className="ia-npc dbm" aria-labelledby={`${id}-nome`}>
+      <div className="ia-npc__cab">
+        <Retrato imagem={null} nome={titulo} />
+        <div>
+          <h3 className="ia-npc__nome" id={`${id}-nome`}>
+            {titulo}
+          </h3>
+          <p className="ia-npc__sub">{[raca, notacao, 'NPC único'].filter((parte) => parte.length > 0).join(' · ')}</p>
+        </div>
+      </div>
+      {npc.descricao.length > 0 && <p className="ia-npc__desc">{npc.descricao}</p>}
+      <div className="mu-campo">
+        <label htmlFor={`${id}-nomear`}>Nome</label>
+        <input
+          ref={nomeRef}
+          className="mu-entrada"
+          id={`${id}-nomear`}
+          value={nome}
+          maxLength={PERSONAGEM_NOME_MAX}
+          autoComplete="off"
+          onChange={(event) => {
+            setNome(event.target.value)
+            setErro(null)
+          }}
+          aria-invalid={erro === null ? undefined : true}
+          aria-describedby={erro === null ? undefined : `${id}-erro`}
+        />
+        {erro !== null && (
+          <span className="mu-campo__erro" id={`${id}-erro`} role="alert">
+            {erro}
+          </span>
+        )}
+      </div>
+      <Suspense
+        fallback={
+          <p className="mu-pg-nota" role="status">
+            Abrindo a ficha…
+          </p>
+        }
+      >
+        <ResumoDoNpcGerado personagem={npc} />
+      </Suspense>
+      {observacoes.length > 0 && (
+        <div className="ia-npc__aba">
+          <h4 className="ia-npc__aba-tit">Conferido nas regras do livro</h4>
+          <ul className="dbm-avisos">
+            {observacoes.map((observacao, i) => (
+              <li key={i}>{observacao}</li>
+            ))}
+          </ul>
+        </div>
       )}
       <div className="ia-npc__acoes">
         <button type="button" className="mu-bt mu-bt--p mu-bt--primario" onClick={() => void salvar()} disabled={salvando} aria-busy={salvando || undefined}>
