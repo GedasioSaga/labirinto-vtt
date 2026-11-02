@@ -51,6 +51,9 @@ import { deveAvisarJogadores, efeitosDaCena, esperandoOMestre, judgeDaCena, pont
 import { deveAvisarJogadoresDBT, esperandoOMestreDBT, ponteDaBatalhaDBT, useBatalhaDBTStore, vezTokenIdDaCenaDBT } from './stores/batalhaDBTStore'
 import { PaginaDaBatalhaDBT } from './components/dbt/batalha/PaginaDaBatalhaDBT'
 import { escolherFichaDoMestreDBT, useMiraDBT } from './components/dbt/batalha/miraDBT'
+import { FaixaDoMestreDBT } from './components/dbt/batalha/FaixaDoMestreDBT'
+import { EfeitosDoMestreDBT } from './components/dbt/batalha/EfeitosDBT'
+import { useJudgeDBT } from './components/dbt/batalha/judgeDBT'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from './lib/motores'
 import { gravarJudgeLembrado, judgeInicial, lerJudgeLembrado } from './lib/batalha/judge'
 import { ultimoGestoDoJudge } from './pixi/judgeDoMapa'
@@ -169,7 +172,7 @@ import { ChipDaCena } from './components/livro/ChipDaCena'
 import { FaixaDoMestre } from './components/batalha/FaixaDoMestre'
 import { EfeitosDoMestre } from './components/batalha/BatalhaDoMestre'
 import { tremer } from './components/batalha/EfeitosDaBatalha'
-import { escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
+import { consultaDoMestre, escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
 import { escolherCasaDoMestre, useColocacaoDoMestre } from './components/batalha/colocacaoDoMestre'
 import { AvisoDaColocacao } from './components/batalha/InvocacoesDoMestre'
 import { fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelosEstaveis } from './components/batalha/marcasNoMapa'
@@ -1495,6 +1498,15 @@ function App() {
    */
   const idDoSistemaDaMesa = useAdventureStore(sistemaAtivo)
   const mesaDragonBall = useRpgStore((state) => motorDoSistema(sistemaPorId(state.biblioteca, idDoSistemaDaMesa)) === MOTOR_DRAGON_BALL)
+  /**
+   * BATALHA DBT: as peças Dragon Ball do mapa (faixa, efeitos, Judge) só com a
+   * mesa no motor Dragon Ball e a cena aberta na batalha DBT. A cena nunca fica
+   * nas duas batalhas; a última condição garante que as peças do One Piece e
+   * as DBT nunca aparecem juntas mesmo assim.
+   */
+  const batalhaDBTNaTela = mesaDragonBall && batalhaDBTNaCenaAberta && !batalhaNaCenaAberta
+  /** BATALHA DBT: o Judge da cena e o soltar dele (nasce sozinho na batalha que ligou sem ele). */
+  const judgeDBT = useJudgeDBT(chaveDaCenaAberta, aventuraDoJudge)
   /** INVOCAÇÃO F3: o "Escolher no mapa" do Colocar (a cena da colocação armada). */
   const cenaDaColocacao = useColocacaoDoMestre((state) => state.armada?.sceneKey ?? null)
   const colocandoInvocado = batalhaNaCenaAberta && cenaDaColocacao === chaveDaCenaAberta
@@ -3284,9 +3296,10 @@ function App() {
           gridAlignPreview={gridAlignPreview}
           batalhaLigada={batalhaNaCenaAberta || batalhaDBTNaCenaAberta}
           vezTokenId={vezTokenId}
-          judge={judgeNaCenaAberta}
+          // BATALHA DBT: o Judge Dragon Ball no lugar do One Piece (a DBT não tem fila de gestos do Judge).
+          judge={judgeNaCenaAberta ?? (batalhaDBTNaTela ? judgeDBT.judge : null)}
           gestoDoJudge={gestoDoJudge}
-          onJudgeSolto={soltarJudge}
+          onJudgeSolto={batalhaDBTNaTela ? judgeDBT.soltar : soltarJudge}
           fotoDaForma={fotoDaForma}
           selosNasFichas={selosNasFichas}
           onBackgroundImageSizeChange={setBackgroundImageSize}
@@ -3316,12 +3329,14 @@ function App() {
           onFichaNaTela={guardarConsultaDoMestre}
           // BATALHA DBT: a mira do painel Dragon Ball, só com a cena aberta numa batalha DBT (a cena nunca está nas duas).
           aoEscolherFicha={
-            miraDoMestreLigada && batalhaNaCenaAberta ? escolherFichaDoMestre : miraDBTLigada && batalhaDBTNaCenaAberta ? escolherFichaDoMestreDBT : undefined
+            miraDoMestreLigada && batalhaNaCenaAberta ? escolherFichaDoMestre : miraDBTLigada && batalhaDBTNaTela ? escolherFichaDoMestreDBT : undefined
           }
           aoEscolherCasa={colocandoInvocado ? escolherCasaDoMestre : undefined}
         />
         {/* BATALHA F2 (S5, S8): corte do golpe, d20, número do dano; o tremor mexe no invólucro do canvas. */}
         {batalhaNaCenaAberta && <EfeitosDoMestre sceneKey={chaveDaCenaAberta} onTremor={() => tremer(canvasHostRef.current)} />}
+        {/* BATALHA DBT: golpe, dano, Ki, forma e condição sobre o mapa, só na batalha Dragon Ball da cena aberta. */}
+        {batalhaDBTNaTela && <EfeitosDoMestreDBT sceneKey={chaveDaCenaAberta} consulta={consultaDoMestre} />}
         {/* INVOCAÇÃO F3: "Clique na casa onde o Lobo nasce", com o Cancelar (Esc). */}
         {colocandoInvocado && <AvisoDaColocacao />}
         {/* Fechado, o menu ainda sai em 120 ms com os rótulos de quando fechou (`ComSaida`). */}
@@ -3355,6 +3370,8 @@ function App() {
         />
         {/* BATALHA F1: a faixa da ordem dos turnos, abaixo do chip, só com a batalha ligada na cena aberta. */}
         {batalhaNaCenaAberta && <FaixaDoMestre sceneKey={chaveDaCenaAberta} />}
+        {/* BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, só na batalha DBT da cena aberta. */}
+        {batalhaDBTNaTela && <FaixaDoMestreDBT sceneKey={chaveDaCenaAberta} />}
         {/* PAUSA GERAL DOS NPCS: congela rotina e patrulha andando para o
             mestre narrar; fora do fluxo da barra, para ela não pular de lugar
             quando o botão aparece. */}

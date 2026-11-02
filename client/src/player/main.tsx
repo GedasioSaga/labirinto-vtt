@@ -72,6 +72,9 @@ import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
 import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
 import { BatalhaDoJogadorDBT, type EnvioDaBatalhaDBT, type RespostaDoEnvioDBT } from '../components/dbt/batalha/BatalhaDoJogadorDBT'
 import type { TecnicaNoMenu } from '../components/dbt/batalha/MenuDeAcoesDBT'
+import { FaixaDoJogadorDBT } from '../components/dbt/batalha/FaixaDoJogadorDBT'
+import { EfeitosDoJogadorDBT } from '../components/dbt/batalha/EfeitosDBT'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../lib/motores'
 import { lerFichaParaBatalha, type FichaLida } from '../lib/dbt/batalha/leitura'
 import { tremer } from '../components/batalha/EfeitosDaBatalha'
 import type { ConsultaDaFichaNaTela } from './PlayerView'
@@ -847,6 +850,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     }
   }, [connection])
   const recusaDaBatalhaDBT = useRecusaDaBatalhaDBT(state.batalhaDBTRecusa, state.batalhaDBTEstado)
+  /**
+   * BATALHA DBT: o recorte DBT só vale numa mesa do motor Dragon Ball e sem
+   * batalha One Piece na tela. As peças DBT (menu, faixa, efeitos, Judge) leem
+   * só este: as do One Piece e as DBT nunca montam juntas.
+   */
+  const vistaDBT = state.batalhaEstado === undefined && motorDoSistema(state.sistemaDeRpg) === MOTOR_DRAGON_BALL ? state.batalhaDBTEstado : undefined
   const personagensDoJogador = state.personagens?.personagens
   const sistemaDoJogador = state.sistemaDeRpg ?? null
   /**
@@ -1508,7 +1517,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // BATALHA DBT: sem batalha One Piece na cena, a vez do recorte DBT (só ficha que a tela dele tem).
             vezTokenId={vezTokenIdDoJogador(state.batalhaEstado) ?? state.batalhaDBTEstado?.vez ?? null}
             // BATALHA F3 (fatia J): o Judge do `batalha.estado` e o gesto da fila (o desfazer do mestre ergue a carta).
-            judge={state.batalhaEstado?.judge ?? state.batalhaDBTEstado?.judge ?? null}
+            judge={state.batalhaEstado?.judge ?? vistaDBT?.judge ?? null}
             gestoDoJudge={ultimoGestoDoJudge(state.batalhaEfeitos)}
             // BATALHA F3 (fatia T): a forma no lugar da foto e os selos acima do disco.
             fotoDaForma={fotoDaForma}
@@ -1628,15 +1637,19 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           BATALHA DBT: o menu da vez, as respostas que esperam por ele e a
           caixa de reação da batalha Dragon Ball, só com o recorte DBT da cena
           dele (a cena nunca está nas duas batalhas). A mira é a mesma do mapa.
+          Os efeitos (golpe, dano, Ki, forma) cobrem a janela, por baixo do menu.
         */}
-        {state.batalhaDBTEstado !== undefined && otherFloor === null && (
-          <BatalhaDoJogadorDBT
-            vista={state.batalhaDBTEstado}
-            enviar={enviarNaBatalhaDBT}
-            recusa={recusaDaBatalhaDBT}
-            mira={{ ligada: mirandoNaBatalha, onLigar: setMirandoNaBatalha, alvo: alvoDoMapa }}
-            tecnicaDoPersonagem={tecnicaDoPersonagemDBT}
-          />
+        {vistaDBT !== undefined && otherFloor === null && (
+          <>
+            <EfeitosDoJogadorDBT vista={vistaDBT} efeitos={state.batalhaDBTEfeitos} consulta={consultaEstavel} />
+            <BatalhaDoJogadorDBT
+              vista={vistaDBT}
+              enviar={enviarNaBatalhaDBT}
+              recusa={recusaDaBatalhaDBT}
+              mira={{ ligada: mirandoNaBatalha, onLigar: setMirandoNaBatalha, alvo: alvoDoMapa }}
+              tecnicaDoPersonagem={tecnicaDoPersonagemDBT}
+            />
+          </>
         )}
         <PlayerPanel
           panelRef={panelRef}
@@ -1783,6 +1796,18 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onPassiva={(pedido) => connection.passivaNaBatalha(pedido)}
             onAjustar={(pedido) => connection.ajustarNaBatalha(pedido)}
             onCarregar={(tokenId, cartaoId) => connection.ganharContadorNaBatalha(tokenId, cartaoId)}
+          />
+        )}
+        {/* BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, com PV e Ki só dele e dos aliados. */}
+        {vistaDBT !== undefined && (
+          <FaixaDoJogadorDBT
+            className="pp-batalha-faixa"
+            vista={vistaDBT}
+            enviar={enviarNaBatalhaDBT}
+            meus={state.personagens?.personagens}
+            fichas={state.map.tokens}
+            sistema={state.sistemaDeRpg ?? null}
+            recusa={recusaDaBatalhaDBT}
           />
         )}
         {/*
