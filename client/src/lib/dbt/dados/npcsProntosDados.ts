@@ -102,7 +102,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -505,7 +505,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -697,7 +697,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -869,7 +869,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -1057,7 +1057,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -1295,7 +1295,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -1779,7 +1779,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -1863,7 +1863,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -2055,7 +2055,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -2233,7 +2233,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -2573,7 +2573,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -2998,7 +2998,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -3543,7 +3543,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -3970,7 +3970,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -4081,7 +4081,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -4192,7 +4192,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -4306,7 +4306,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -4397,7 +4397,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -4531,7 +4531,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -5123,7 +5123,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -5551,7 +5551,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -5875,7 +5875,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -6162,7 +6162,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -6427,7 +6427,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -7243,7 +7243,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -7670,7 +7670,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -8620,7 +8620,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -9253,9 +9253,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
       },
     ],
     historia: '',
-    notas: [
-      'Vegetto, a Fusão de Goku e Vegeta: texto solto em TÉCNICAS OFENSIVAS: Todas as Presentes nos dois Personagens (Goku e Vegeta), com Adição de:',
-    ],
+    notas: [],
     pagina: 31,
   },
   {
@@ -9325,7 +9323,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -9671,9 +9669,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
       },
     ],
     historia: '',
-    notas: [
-      'Vegetto, a Fusão de Goku e Vegeta: texto solto em TÉCNICAS OFENSIVAS: Todas as Presentes nos dois Personagens (Goku e Vegeta), com Adição de:',
-    ],
+    notas: [],
     pagina: 42,
   },
   {
@@ -10076,7 +10072,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -10471,7 +10467,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha.',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -10726,7 +10722,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha.',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -10953,7 +10949,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha.',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -11169,7 +11165,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha.',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -11325,7 +11321,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha.',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -11612,7 +11608,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha.',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,
@@ -11958,7 +11954,7 @@ export const NPCS_PRONTOS: NpcProntoDBT[] = [
         alcance: 'Toque, com Avanço de 6,0m em Linha.',
         rotulosPositivos: {
           pontos: 4,
-          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada e Aumentar Dano por Ki'],
+          nomes: ['Técnica Básica', 'Técnica Física', 'Estocada', 'Aumentar Dano por Ki'],
         },
         rotulosNegativos: {
           pontos: 2,

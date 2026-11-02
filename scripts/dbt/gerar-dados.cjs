@@ -139,7 +139,49 @@ function separarNomes(lista) {
     atual += ch
   }
   nomes.push(atual)
-  return nomes.map((n) => n.trim().replace(/\.+$/, '').trim()).filter((n) => n.length > 0 && !/^(nenhum|nenhuma|-+)$/i.test(n))
+  return nomes
+    .map((n) => n.trim().replace(/\.+$/, '').trim())
+    .flatMap(separarPeloE)
+    .filter((n) => n.length > 0 && !/^(nenhum|nenhuma|-+)$/i.test(n))
+}
+
+let nomesDeRotulo = null
+
+/**
+ * Slug de cada rótulo do livro, sem o parêntese que a ficha imprime depois do
+ * nome. Vale também a forma curta que as fichas usam ("Estocada" por
+ * "Alcance – Estocada").
+ */
+function eNomeDeRotulo(nome) {
+  if (nomesDeRotulo === null) {
+    nomesDeRotulo = new Set(lerJson('j2-rotulos.json').rotulos.flatMap((r) => [slug(r.nome), slug(r.nome.replace(/^.*\s[–-]\s/, ''))]))
+  }
+  return nomesDeRotulo.has(slug(nome.replace(/\s*[([].*$/, '')))
+}
+
+/**
+ * A ficha às vezes fecha a lista com "e": "Estocada e Aumentar Dano por Ki".
+ * Só divide (fora de parênteses) quando o todo não é rótulo e cada pedaço é.
+ */
+function separarPeloE(nome) {
+  if (!/ e /.test(nome) || eNomeDeRotulo(nome)) return [nome]
+  const partes = []
+  let atual = ''
+  let profundidade = 0
+  for (let i = 0; i < nome.length; i++) {
+    const ch = nome[i]
+    if (ch === '(' || ch === '[') profundidade += 1
+    else if (ch === ')' || ch === ']') profundidade = Math.max(0, profundidade - 1)
+    if (profundidade === 0 && nome.startsWith(' e ', i)) {
+      partes.push(atual.trim())
+      atual = ''
+      i += 2
+      continue
+    }
+    atual += ch
+  }
+  partes.push(atual.trim())
+  return partes.length > 1 && partes.every(eNomeDeRotulo) ? partes : [nome]
 }
 
 /** "Rótulos Positivos (2): A, B" (ou { pontos, lista }) → { pontos, nomes }. */
@@ -435,7 +477,7 @@ function transformacaoDoBasico(t, pagina) {
     ep: typeof t.ep_bonus === 'number' ? t.ep_bonus : null,
     custoKi: typeof t.custo_ki === 'number' ? t.custo_ki : numeroDoCusto(t.custo),
     custoTexto: t.custo ?? '',
-    requisito: t.requisito ?? '',
+    requisito: requisitoSemNota(t.requisito),
     duracao: '',
     efeitos: Array.isArray(t.efeitos) ? t.efeitos.slice() : paragrafos(t.efeitos),
     pagina,
@@ -504,6 +546,27 @@ function tracoDoJson(t) {
   return { nome: t.nome ?? 'Herança da Característica Especial', efeito: t.efeito ?? '', requisito: t.requisito ?? null }
 }
 
+/**
+ * Variante dona de uma característica especial, pela numeração do livro
+ * (4.6.2.1 é da variante 4.6.2). Fica sem dona (null) quando a raça tem uma
+ * variante só, quando a numeração não aponta uma única variante (os dois clãs
+ * Namek são 4.4.1) ou quando outra variante herda a característica (o Saiyajin
+ * Híbrido leva a do Puro pela maior herança).
+ */
+function varianteDonaDaCaracteristica(r, c) {
+  if (r.variantes.length < 2 || typeof c.secao !== 'string') return null
+  const donas = r.variantes.filter((v) => typeof v.secao === 'string' && c.secao.startsWith(`${v.secao}.`))
+  if (donas.length !== 1) return null
+  const outraHerda = r.variantes.some((v) => v !== donas[0] && v.tracos.some((t) => t.nome == null))
+  return outraHerda ? null : nomeLegivel(donas[0].nome)
+}
+
+/** Requisito de transformação sem a nota do transcritor " (texto: '...')", que não é regra do livro. */
+function requisitoSemNota(texto) {
+  if (typeof texto !== 'string') return ''
+  return texto.replace(/\s*\(texto:[^)]*\)\s*(\.?)\s*$/i, '$1').trim()
+}
+
 function racasDoBasico() {
   const fonte = lerJson('j1-racas.json').itens
   return fonte.map((r) => {
@@ -527,7 +590,7 @@ function racasDoBasico() {
       descricao: r.descricao,
       variantes,
       tracos: [],
-      caracteristicasEspeciais: r.caracteristicas_especiais.map((c) => ({ nome: nomeLegivel(c.nome), efeito: c.texto, requisito: null })),
+      caracteristicasEspeciais: r.caracteristicas_especiais.map((c) => ({ nome: nomeLegivel(c.nome), efeito: c.texto, requisito: varianteDonaDaCaracteristica(r, c) })),
       transformacoes: idsUnicos(r.transformacoes.map((t) => transformacaoDoBasico(t, r.pagina))),
       tecnicas: [],
       talentos: [],
@@ -730,8 +793,9 @@ function racasDasSagas() {
       arquivo: 'Broly.pdf',
       tipo: 'variante',
       racaBase: 'saiyajin',
-      // A variante não repete a vida extra: vale a do Saiyajin.
-      vidaPor10k: null,
+      // O suplemento não repete a vida extra: vale a do Saiyajin, gravada aqui
+      // porque a ficha não herda o número da racaBase.
+      vidaPor10k: lerJson('j1-racas.json').itens.find((r) => r.id === 'saiyajin').vida_extra_por_10000_pdl,
       descricao: textoCorrido(lendario.corpo),
       variantes: [],
       tracos: itensNomeados(lendario.corpo).map((t) => ({ ...t, requisito: null })),
@@ -1038,14 +1102,16 @@ function momentoDaAcao(tipo) {
   if (s.startsWith('automatica')) return 'automatica'
   if (s.startsWith('situacao')) return 'situacao'
   if (s.startsWith('reacao') || s.startsWith('turno-de-reacao')) return 'reacao'
-  if (s.includes('livre') || s.includes('gratuita')) return 'livre'
+  // Correr ("Movimento extra") estende o deslocamento pagando Ki e não gasta a ação do turno.
+  if (s.includes('livre') || s.includes('gratuita') || s.startsWith('movimento')) return 'livre'
   return 'acao'
 }
 
 function gerarAcoes() {
   return idsUnicos(
     lerJson('j3-acoes_de_combate.json').acoes.map((a) => {
-      const fixo = /^\s*(\d+)(?:\s*Ki)?\s*$/i.exec(a.custo)
+      // Aceita a ressalva depois do ";" ("0 Ki; uma única vez por turno" ainda custa 0).
+      const fixo = /^\s*(\d+)(?:\s*Ki)?\s*(?:;.*)?$/i.exec(a.custo)
       return {
         id: slug(a.nome),
         nome: a.nome,
@@ -1204,7 +1270,9 @@ function npcsDasSagas() {
         .join('\n\n')
       const notas = [
         ...outros.filter((o) => !/cabecalho|introducao/i.test(slug(o.secao))).map((o) => `${o.secao}: ${o.texto}`),
-        ...(fonte.avisos_extracao ?? []).filter((a) => a.includes(n.nome.split(',')[0])),
+        // O aviso começa com "Nome completo:"; casar só o prefixo evita que o do
+        // Vegetto ("Fusão de Goku e Vegeta") caia também no Goku e no Vegeta.
+        ...(fonte.avisos_extracao ?? []).filter((a) => a.startsWith(`${n.nome}:`)),
       ]
       npcs.push(
         npcBase(n, colecao, {
