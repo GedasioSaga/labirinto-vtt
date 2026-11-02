@@ -30,9 +30,11 @@ import {
   type CombatenteDBT,
   type EfeitoDBT,
   type EntranteDBT,
+  type IdDoCombatente,
   type LinhaDBT,
   type NucleoDBT,
   type OpcoesDaBatalhaDBT,
+  type Pendencia,
 } from './tipos'
 
 export type { ContextoDBT } from './trabalho'
@@ -176,6 +178,47 @@ function passar(t: Trabalho, comando: Extract<ComandoDBT, { tipo: 'passar' }>): 
   return null
 }
 
+/**
+ * A pendência depois que `id` sai da batalha: null = perdeu o sentido (era
+ * dele, contra ele ou com ele). Na janela de reação, o convidado só sai da
+ * lista; a janela segue enquanto atacante e alvo existirem.
+ */
+function pendenciaSem(pendencia: Pendencia, id: IdDoCombatente): Pendencia | null {
+  if (pendencia.responde.tipo === 'combatente' && pendencia.responde.id === id) return null
+  switch (pendencia.tipo) {
+    case 'declaracao':
+      return { ...pendencia, faltam: pendencia.faltam.filter((outro) => outro !== id) }
+    case 'confirmar': {
+      const { ataque, teste } = pendencia
+      if (ataque !== undefined && (ataque.atacanteId === id || ataque.alvoId === id)) return null
+      if (teste !== undefined && (teste.combatenteId === id || teste.outroId === id)) return null
+      return pendencia
+    }
+    case 'reacao': {
+      const { janela } = pendencia
+      if (janela.ataque.atacanteId === id || janela.ataque.alvoId === id) return null
+      if (!janela.convidados.includes(id)) return pendencia
+      const respostas = Object.fromEntries(Object.entries(janela.respostas).filter(([quem]) => quem !== id))
+      return { ...pendencia, janela: { ...janela, convidados: janela.convidados.filter((outro) => outro !== id), respostas } }
+    }
+    case 'teste':
+      return pendencia.teste.combatenteId === id || pendencia.teste.outroId === id ? null : pendencia
+    case 'choque':
+      return pendencia.choque.atacanteId === id || pendencia.choque.defensorId === id ? null : pendencia
+    case 'apoioAoChoque':
+      return pendencia.defensorId === id ? null : { ...pendencia, apoios: pendencia.apoios.filter((apoio) => apoio.combatenteId !== id) }
+    case 'acaoGratuita':
+      return pendencia.combatenteId === id || pendencia.contra === id ? null : pendencia
+    case 'ataqueForcado':
+      if (pendencia.combatenteId === id) return null
+      return pendencia.alvoSugerido === id ? { ...pendencia, alvoSugerido: null } : pendencia
+    case 'salvaguarda':
+    case 'inicioDoTurno':
+    case 'queda':
+      return pendencia.combatenteId === id ? null : pendencia
+  }
+}
+
 function acaoDoMestre(t: Trabalho, acao: AcaoDoMestreDBT): string | null {
   tipoDaLinha(t, 'mestre')
   const rodada = t.nucleo.ordem.rodada
@@ -273,12 +316,17 @@ function acaoDoMestre(t: Trabalho, acao: AcaoDoMestreDBT): string | null {
       const c = combatente(t, acao.combatenteId)
       if (c === undefined) return 'Fora da batalha'
       if (t.nucleo.ordem.vez === c.id) passarAVez(t)
-      const resto = Object.fromEntries(Object.entries(t.nucleo.combatentes).filter(([id]) => id !== c.id))
+      // Quem ele segurava fica livre.
+      const resto = Object.fromEntries(
+        Object.entries(t.nucleo.combatentes)
+          .filter(([id]) => id !== c.id)
+          .map(([id, outro]) => [id, outro.agarrado?.porId === c.id ? { ...outro, agarrado: null } : outro]),
+      )
       t.nucleo = {
         ...t.nucleo,
         combatentes: resto,
         ordem: { ...t.nucleo.ordem, cartas: t.nucleo.ordem.cartas.filter((id) => id !== c.id), vez: t.nucleo.ordem.vez === c.id ? null : t.nucleo.ordem.vez },
-        pendencias: t.nucleo.pendencias.filter((pendencia) => !(pendencia.responde.tipo === 'combatente' && pendencia.responde.id === c.id)),
+        pendencias: t.nucleo.pendencias.flatMap((pendencia) => pendenciaSem(pendencia, c.id) ?? []),
       }
       escrever(t, `${c.nome} sai da batalha`)
       return null

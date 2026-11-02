@@ -109,12 +109,14 @@ function confirmar(t: Trabalho, pendencia: Extract<Pendencia, { tipo: 'confirmar
   }
   if (pendencia.etapa === 'teste') return null
   let editado = editarAtaque(t, ataque, edicoes)
+  // Sem edição do mestre, vale o do pedido (ação gratuita: o atacante não reage).
+  const semJanela = edicoes.abrirReacoes === undefined ? editado.semJanela : !edicoes.abrirReacoes
   if (!editado.kiPago) {
-    if (edicoes.gastarKi !== false) pagarAtaque(t, [editado, ...doGrupo.flatMap((outra) => (outra.ataque === undefined ? [] : [outra.ataque]))], false)
+    if (edicoes.gastarKi !== false) pagarAtaque(t, [editado, ...doGrupo.flatMap((outra) => (outra.ataque === undefined ? [] : [outra.ataque]))], semJanela)
     editado = { ...editado, kiPago: true }
     for (const outra of doGrupo) if (outra.ataque !== undefined) trocarPendencia(t, { ...outra, ataque: { ...outra.ataque, kiPago: true } })
   }
-  seguirAtaque(t, editado, edicoes.abrirReacoes === false)
+  seguirAtaque(t, editado, semJanela)
   return null
 }
 

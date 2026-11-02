@@ -23,11 +23,11 @@ import { flanqueado, sobAmeaca } from './posicao'
 import {
   aliadosDe,
   combatente,
+  dePe,
   efeito,
   envolver,
   escrever,
   fichaDe,
-  foraDeCombate,
   inimigosDe,
   mudarCombatente,
   nomeDe,
@@ -43,6 +43,7 @@ import {
 import {
   PROFUNDIDADE_DE_REACAO_MAX,
   type AtaqueResolvido,
+  type CombatenteDBT,
   type CondicaoAtiva,
   type EdicoesDoMestre,
   type EfeitoPrevisto,
@@ -55,6 +56,7 @@ import {
   type RolagemDoAtaque,
   type TesteAgendado,
 } from './tipos'
+import { contarTecnicaPaga } from './uso'
 
 /**
  * ATAQUE E JANELA DE REAÇÃO (docs/planos/dbt-batalha.md, seções 7 e 8).
@@ -164,12 +166,11 @@ function previstoDe(t: Trabalho, ataque: AtaqueResolvido, faixa: Faixa, critico:
   return calcularDanoPrevisto(tecnica.dano, faixa, critico, estagios, somaDosTemporarios(atacante, 'dano'), ataque.basicos, ataque.modo)
 }
 
-function efeitosPrevistos(t: Trabalho, pedido: PedidoDeAtaque, critico: boolean, margem: number): EfeitoPrevisto[] {
-  const atacante = combatente(t, pedido.atacanteId)
+function efeitosPrevistos(t: Trabalho, atacanteId: IdDoCombatente, tecnica: TecnicaLida, critico: boolean, margem: number): EfeitoPrevisto[] {
+  const atacante = combatente(t, atacanteId)
   const efeitos: EfeitoPrevisto[] = []
-  const { tecnica } = pedido
   if (tecnica.efeitoNegativo !== null) {
-    const cd = cdDaTecnica(t, pedido.atacanteId, tecnica)
+    const cd = cdDaTecnica(t, atacanteId, tecnica)
     efeitos.push({ tipo: 'condicao', texto: `Efeito Negativo (CD ${cd})`, condicao: tecnica.efeitoNegativo.condicao, cd, aplicar: true })
   }
   if (tecnica.gatilhos.length > 0 && (critico || margem >= MARGEM_DO_GATILHO)) efeitos.push({ tipo: 'gatilho', texto: tecnica.gatilhos.join(', '), condicao: null, cd: null, aplicar: true })
@@ -210,6 +211,7 @@ function montarUm(t: Trabalho, pedido: PedidoDeAtaque, alvoId: IdDoCombatente, r
     danoPrevisto: 0,
     efeitos: [],
     kiPago: false,
+    semJanela: pedido.semJanela,
     profundidade: pedido.profundidade,
     cargas,
     mitigacao: 0,
@@ -221,7 +223,7 @@ function montarUm(t: Trabalho, pedido: PedidoDeAtaque, alvoId: IdDoCombatente, r
     const falhaPor = cd - teste.total
     const faixa = falhaPor <= 0 ? 'erro' : faixaDaMargem(falhaPor, difEP)
     const pronto = { ...base, salvaguarda: { cd, d20: teste.d20, total: teste.total }, margem: falhaPor, faixa }
-    return { ...pronto, danoPrevisto: previstoDe(t, pronto, faixa, false), efeitos: efeitosPrevistos(t, pedido, false, falhaPor) }
+    return { ...pronto, danoPrevisto: previstoDe(t, pronto, faixa, false), efeitos: efeitosPrevistos(t, pedido.atacanteId, tecnica, false, falhaPor) }
   }
   const d20 = rolagem?.d20 ?? 0
   const temBasico = tecnica.basica && t.nucleo.turno?.combatenteId === pedido.atacanteId
@@ -253,7 +255,7 @@ function montarUm(t: Trabalho, pedido: PedidoDeAtaque, alvoId: IdDoCombatente, r
     critico,
     erroCritico,
   }
-  return { ...pronto, danoPrevisto: previstoDe(t, pronto, faixa, critico), efeitos: efeitosPrevistos(t, pedido, critico, margem) }
+  return { ...pronto, danoPrevisto: previstoDe(t, pronto, faixa, critico), efeitos: efeitosPrevistos(t, pedido.atacanteId, tecnica, critico, margem) }
 }
 
 function contaLegivel(t: Trabalho, ataque: AtaqueResolvido): string {
@@ -324,7 +326,6 @@ export function pagarAtaque(t: Trabalho, grupo: readonly AtaqueResolvido[], semJ
     const antes = pkDe(t, fa)
     porRecurso(t, fa, 'pk', antes - custo)
     escrever(t, `${atacante.nome}: Ki ${antes} -> ${pkDe(t, fa)}`, '')
-    if (tecnica?.tipo === 'ki') consumirCondicao(t, atacante.id, 'sobrecarregado')
   }
   const turno = t.nucleo.turno
   if (turno !== null && turno.combatenteId === atacante.id && !semJanela && primeiro.profundidade === 0) {
@@ -334,12 +335,13 @@ export function pagarAtaque(t: Trabalho, grupo: readonly AtaqueResolvido[], semJ
     }
   }
   if (tecnica === undefined) return
-  const rankAlto = ['C', 'B', 'A', 'Z'].includes(tecnica.rank) && tecnica.rank === fa?.rankMaximo
+  contarTecnicaPaga(t, atacante.id, tecnica, fa !== null && custo > 0 && tecnica.tipo === 'ki')
+  // Rajada mantida não rola (totalFixo): o total original segue o mesmo.
+  const totalDaRajada = (atual: CombatenteDBT): number => primeiro.rolagem?.total ?? (atual.mantendo?.tecnicaId === tecnica.id ? atual.mantendo.total : 0)
   mudarCombatente(t, atacante.id, (atual) => ({
     ...atual,
-    usos: rankAlto ? { ...atual.usos, tecnicaDeRankMaximo: atual.usos.tecnicaDeRankMaximo + 1 } : atual.usos,
     carga: atual.carga?.tecnicaId === tecnica.id ? null : atual.carga,
-    mantendo: tecnica.rajadaContinua ? { tecnicaId: tecnica.id, alvos: grupo.map((ataque) => ataque.alvoId), total: primeiro.rolagem?.total ?? 0 } : atual.mantendo,
+    mantendo: tecnica.rajadaContinua ? { tecnicaId: tecnica.id, alvos: grupo.map((ataque) => ataque.alvoId), total: totalDaRajada(atual) } : atual.mantendo,
     perdeProximoTurno: tecnica.esforcoSupremo ? { motivo: 'Esforço Supremo' } : atual.perdeProximoTurno,
   }))
   if (tecnica.esforcoSupremo || tecnica.rajadaContinua) {
@@ -365,7 +367,7 @@ export function seguirAtaque(t: Trabalho, ataque: AtaqueResolvido, semJanela: bo
   const publicoDaRolagem = ataque.rolagem === null ? '' : `d20 ${ataque.rolagem.d20}, total ${ataque.rolagem.total}: `
   if (ataque.faixa === 'erro') {
     escrever(t, `${conta}: ${ataque.erroCritico ? 'erro crítico' : 'erra'}`, `${publicoDaRolagem}${ataque.erroCritico ? 'erro crítico' : 'erra'} ${alvo.nome}`)
-    if (ataque.erroCritico && !foraDeCombate(alvo)) {
+    if (ataque.erroCritico && dePe(alvo)) {
       porPendencia(t, { id: t.ctx.gerarId(), responde: alvo.npc ? { tipo: 'mestre' } : { tipo: 'combatente', id: alvo.id }, tipo: 'acaoGratuita', combatenteId: alvo.id, contra: atacante.id, motivo: 'erroCritico' }, true)
     }
     if (tecnicaDe(t, atacante.id, ataque.tecnica.id)?.previsivel === true) escrever(t, `${ataque.tecnica.nome} é Previsível: o mestre pode abrir a ação gratuita de ${alvo.nome}`, '')
@@ -398,7 +400,8 @@ export function opcoesDeReacao(t: Trabalho, janela: JanelaDeReacao, reatorId: Id
   const opcoes: OpcaoDaPendencia[] = [{ chave: 'nao', rotulo: 'Não reagir', ki: 0, gratis: true, bloqueio: null, pede: null }]
   const reator = combatente(t, reatorId)
   const f = fichaDe(t, reator)
-  if (reator === undefined || f === null || foraDeCombate(reator) || reatorId === janela.ataque.atacanteId) return opcoes
+  // Só quem está de pé reage: a 0 PV (salvaguarda) ele só rola contra a morte.
+  if (reator === undefined || f === null || !dePe(reator) || reatorId === janela.ataque.atacanteId) return opcoes
   const dobro = reacaoDobrada(reator)
   const pk = pkDe(t, f)
   const custoDe = (tecnica: TecnicaLida, ki: number): number => custoEfetivo(ki, { sobrecarregado: tecnica.tipo === 'ki' && temCondicao(reator, 'sobrecarregado'), reacaoDobrada: dobro, choque: false })
@@ -414,7 +417,7 @@ export function opcoesDeReacao(t: Trabalho, janela: JanelaDeReacao, reatorId: Id
       opcoes.push(opcao(`reativa:${tecnica.id}`, `Reativa: ${tecnica.nome}`, custoDe(tecnica, tecnica.ki), false, funda))
     }
     if (reatorId === janela.ataque.alvoId && tecnicaOfensiva(tecnica) && tecnica.uso !== 'reacao') {
-      const custo = custoDoChoque(tecnica) * (dobro ? 2 : 1)
+      const custo = custoDoChoque(reator, tecnica)
       const bloqueio = bloqueioDoChoque(t, janela.ataque, reatorId, tecnica)
       // Sem Ki o Choque vira débito (9.5.6); só a Reativa precisa ter o Ki.
       opcoes.push({ chave: `choque:${tecnica.id}`, rotulo: `Choque de Poder: ${tecnica.nome}`, ki: custo, gratis: false, bloqueio, pede: null })
@@ -514,6 +517,7 @@ export function resolverJanela(t: Trabalho, janela: JanelaDeReacao): void {
         continue
       }
       if (escolha.ki > 0) porRecurso(t, f, 'pk', antes - escolha.ki)
+      if ((escolha.tipo === 'barreira' || escolha.tipo === 'defensiva') && tecnica !== undefined) contarTecnicaPaga(t, reatorId, tecnica, escolha.ki > 0 && tecnica.tipo === 'ki')
       if (escolha.tipo === 'barreira' && tecnica !== undefined) {
         const temporario = { id: t.ctx.gerarId(), rotulo: `Barreira (${tecnica.nome})`, acerto: 0, ca: tecnica.barreira, dano: 0, ateRodada: null, ateInicioDoTurno: reator.turnosJogados + 1 }
         mudarCombatente(t, reatorId, (atual) => ({ ...atual, temporarios: [...atual.temporarios, temporario] }))
@@ -583,8 +587,9 @@ export function aplicarResultado(t: Trabalho, ataque: AtaqueResolvido, edicoes: 
       porPendencia(t, { id: t.ctx.gerarId(), responde: preso.npc ? { tipo: 'mestre' } : { tipo: 'combatente', id: preso.id }, tipo: 'teste', teste }, true)
     }
   } else escrever(t, `${alvo.nome} não sofre dano`)
-  ataque.efeitos.forEach((previsto, indice) => {
-    if (edicoes?.aplicarEfeitos?.[indice] === false || !previsto.aplicar) return
+  // As marcas do mestre já estão em `aplicar` (editarAtaque): o índice do cartão pode não bater com a lista refeita.
+  ataque.efeitos.forEach((previsto) => {
+    if (!previsto.aplicar) return
     if (previsto.tipo === 'instavel' && danoFinal > 0) sofrerDano(t, atacante.id, Math.floor(danoFinal / 2), 'Instável', 'Instável')
     if (previsto.tipo === 'condicao' && previsto.condicao !== null && (danoFinal > 0 || ataque.danoCompleto === 0)) {
       // Quebrado: técnica física quebra a FOR; as outras, a CON (seção 10).
@@ -648,13 +653,18 @@ export function editarAtaque(t: Trabalho, ataque: AtaqueResolvido, edicoes: Edic
     novo = { ...novo, rolagem: { ...ataque.rolagem, d20, dados: [d20], total, digitada: true }, erroCritico, critico, margem: total - (novo.ca ?? 0) }
   }
   if (edicoes.ca !== undefined && Number.isFinite(edicoes.ca) && novo.rolagem !== null) novo = { ...novo, ca: Math.trunc(edicoes.ca), margem: novo.rolagem.total - Math.trunc(edicoes.ca) }
+  // O crítico marcado à mão vem antes da faixa: marcar = Completo x2; desmarcar volta à faixa da margem.
+  if (edicoes.critico !== undefined) novo = { ...novo, critico: edicoes.critico, erroCritico: edicoes.critico ? false : novo.erroCritico }
   let faixa: Faixa = novo.erroCritico ? 'erro' : novo.critico ? 'completo' : novo.rolagem === null ? novo.faixa : faixaDaMargem(novo.margem, novo.difEP)
-  if (edicoes.critico !== undefined) novo = { ...novo, critico: edicoes.critico }
   if (edicoes.faixa !== undefined) faixa = edicoes.faixa
   novo = { ...novo, faixa }
   novo = { ...novo, danoPrevisto: previstoDe(t, novo, faixa, novo.critico) }
   if (edicoes.dano !== undefined && Number.isFinite(edicoes.dano)) novo = { ...novo, danoPrevisto: Math.max(0, Math.trunc(edicoes.dano)) }
   if (edicoes.mitigacao !== undefined && Number.isFinite(edicoes.mitigacao)) novo = { ...novo, mitigacao: Math.max(0, Math.trunc(edicoes.mitigacao)) }
-  if (edicoes.aplicarEfeitos !== undefined) novo = { ...novo, efeitos: novo.efeitos.map((previsto, indice) => ({ ...previsto, aplicar: edicoes.aplicarEfeitos?.[indice] ?? previsto.aplicar })) }
-  return novo
+  // As marcas do mestre são pelos índices do cartão (a lista antiga).
+  const marcados = ataque.efeitos.map((previsto, indice) => ({ ...previsto, aplicar: edicoes.aplicarEfeitos?.[indice] ?? previsto.aplicar }))
+  if (tecnica === undefined || (novo.critico === ataque.critico && novo.margem === ataque.margem)) return { ...novo, efeitos: marcados }
+  // Gatilho e quebra de armadura dependem do crítico e da margem: refaz, levando a marca do mestre pelo tipo.
+  const refeitos = efeitosPrevistos(t, ataque.atacanteId, tecnica, novo.critico, novo.margem)
+  return { ...novo, efeitos: refeitos.map((previsto) => ({ ...previsto, aplicar: marcados.find((antigo) => antigo.tipo === previsto.tipo)?.aplicar ?? previsto.aplicar })) }
 }

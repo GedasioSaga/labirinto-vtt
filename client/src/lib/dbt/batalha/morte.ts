@@ -70,6 +70,12 @@ export function curar(t: Trabalho, id: IdDoCombatente, valor: number, motivo: st
   const depois = pvDe(t, f)
   escrever(t, `${c.nome} recupera ${depois - antes} PV (${motivo}): ${antes} -> ${depois}`, `${c.nome} recupera PV (${motivo})`)
   efeito(t, { tipo: 'cura', tokenIds: [id], d20: null, faixa: null, numero: depois - antes })
+  // Sangrando "só a cura tira" (seção 10). Feito aqui, sem `tirarCondicao`, porque condicoes.ts já importa este arquivo.
+  const sangrando = c.condicoes.find((ativa) => ativa.condicao === 'sangrando')
+  if (sangrando !== undefined) {
+    mudarCombatente(t, id, (atual) => ({ ...atual, condicoes: atual.condicoes.filter((ativa) => ativa.condicao !== 'sangrando') }))
+    escrever(t, `${c.nome} deixa de estar ${sangrando.nome} (cura)`)
+  }
   if (depois > 0 && c.morte.situacao !== 'de-pe' && c.morte.situacao !== 'morto') {
     mudarCombatente(t, id, (atual) => ({ ...atual, morte: { ...SEM_CONTADORES, situacao: 'de-pe' } }))
     escrever(t, `${c.nome} volta à luta`)

@@ -24,6 +24,7 @@ function fichaLida(personagemId: string, parcial: Partial<FichaLida> = {}): Fich
     rankMaximo: 'C',
     usosTransfMaximaDesdeDescanso: 0,
     choqueDisponivel: true,
+    semEspacoParaDesgaste: false,
     deslocamentoM: 9,
     tecnicas: [],
     transformacoes: [],

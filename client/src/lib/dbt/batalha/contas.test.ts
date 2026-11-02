@@ -40,6 +40,7 @@ function fichaLida(parcial: Partial<FichaLida> = {}): FichaLida {
     rankMaximo: 'C',
     usosTransfMaximaDesdeDescanso: 0,
     choqueDisponivel: true,
+    semEspacoParaDesgaste: false,
     deslocamentoM: 9,
     tecnicas: [],
     transformacoes: [],

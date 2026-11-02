@@ -25,7 +25,11 @@ export interface LinhaDoFimDBT {
   /** Somar ao contador da ficha. */
   usosTransfMaxima: number
   choqueUsado: boolean
+  /** Para o mestre antes de aplicar (ex.: a ficha não tem espaço para os contadores). */
+  aviso: string | null
 }
+
+const AVISO_SEM_ESPACO = 'A ficha está no limite de contadores: os usos da forma máxima e o Choque não serão gravados. Anote à mão ou apague um contador antes.'
 
 /** O que gravar na ficha ao "Aplicar e encerrar". */
 export interface MudancaDoFimDBT {
@@ -61,6 +65,8 @@ export function resumoDoFim(nucleo: NucleoDBT, fichas: ReadonlyMap<string, Ficha
     const pctInferiores = (anterior?.pctInferiores ?? 0) + pct.inferiores
     const kiBloqueadoNaBatalha = (anterior?.kiBloqueadoNaBatalha ?? 0) + c.kiBloqueado
     const novos = Math.floor((f.pk.max * (pctTecnicas + pctInferiores)) / 100) + kiBloqueadoNaBatalha
+    const usosTransfMaxima = (anterior?.usosTransfMaxima ?? 0) + c.usos.transfMaxima
+    const choqueUsado = (anterior?.choqueUsado ?? false) || c.usos.choque
     porPersonagem.set(c.personagemId, {
       personagemId: c.personagemId,
       nome: f.nome,
@@ -71,8 +77,9 @@ export function resumoDoFim(nucleo: NucleoDBT, fichas: ReadonlyMap<string, Ficha
       kiBloqueadoNaBatalha,
       novos,
       pkBloqueados: Math.min(f.pk.max, f.pkBloqueadosDaFicha + novos),
-      usosTransfMaxima: (anterior?.usosTransfMaxima ?? 0) + c.usos.transfMaxima,
-      choqueUsado: (anterior?.choqueUsado ?? false) || c.usos.choque,
+      usosTransfMaxima,
+      choqueUsado,
+      aviso: f.semEspacoParaDesgaste && (usosTransfMaxima > 0 || choqueUsado) ? AVISO_SEM_ESPACO : null,
     })
   }
   return [...porPersonagem.values()]

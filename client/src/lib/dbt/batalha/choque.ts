@@ -1,4 +1,5 @@
-import { epTotal, modEfetivo, rolarComVantagem, temCondicao } from './contas'
+import { reacaoDobrada } from './condicoes'
+import { custoEfetivo, epTotal, modEfetivo, rolarComVantagem, temCondicao } from './contas'
 import type { TecnicaLida } from './leitura'
 import { conferirKiZerado, sofrerDano } from './morte'
 import {
@@ -17,7 +18,8 @@ import {
   trocarPendencia,
   type Trabalho,
 } from './trabalho'
-import { KI_POR_PONTO_DE_CHOQUE, PONTOS_DO_CHOQUE, type AtaqueResolvido, type ChoqueEmCurso, type IdDoCombatente, type Pendencia } from './tipos'
+import { KI_POR_PONTO_DE_CHOQUE, PONTOS_DO_CHOQUE, type AtaqueResolvido, type ChoqueEmCurso, type CombatenteDBT, type IdDoCombatente, type Pendencia } from './tipos'
+import { contarTecnicaPaga } from './uso'
 
 /**
  * CHOQUE DE PODER (docs/planos/dbt-batalha.md, seção 9; 9.5.6, p. 116-117).
@@ -30,9 +32,18 @@ export function tecnicaOfensiva(tecnica: TecnicaLida): boolean {
   return tecnica.dano.completo > 0 && !tecnica.defensiva && tecnica.barreira === 0 && !tecnica.cura
 }
 
-/** 2 x Ki da técnica de ação usada; Reativa paga 1x e não gera débito (ambiguidade 25). */
-export function custoDoChoque(tecnica: TecnicaLida): number {
-  return tecnica.reativa ? tecnica.ki : 2 * tecnica.ki
+/** O x2 do Sobrecarregado entra no Choque (técnica de tipo Ki). */
+function sobrecargaNoChoque(defensor: CombatenteDBT, tecnica: TecnicaLida): boolean {
+  return tecnica.tipo === 'ki' && temCondicao(defensor, 'sobrecarregado')
+}
+
+/**
+ * 2 x Ki da técnica de ação usada; Reativa paga 1x e não gera débito
+ * (ambiguidade 25). Os outros multiplicadores se multiplicam (6.2):
+ * Sobrecarregado e "reações x2" (Atordoado ou Paralisado).
+ */
+export function custoDoChoque(defensor: CombatenteDBT, tecnica: TecnicaLida): number {
+  return custoEfetivo(tecnica.ki, { sobrecarregado: sobrecargaNoChoque(defensor, tecnica), reacaoDobrada: reacaoDobrada(defensor), choque: !tecnica.reativa })
 }
 
 /** Por que o defensor não pode chocar com esta técnica; null = pode (seção 9.1). */
@@ -49,7 +60,7 @@ export function bloqueioDoChoque(t: Trabalho, ataque: AtaqueResolvido, reatorId:
   const diferenca = epTotal(atacante, fichaDe(t, atacante)) - epTotal(defensor, fd)
   if (diferenca > 0) return `Falta +${diferenca} EP (apoio com o mestre)`
   if (diferenca < 0) return 'EP diferente do atacante'
-  if (tecnica.reativa && pkDe(t, fd) < custoDoChoque(tecnica)) return 'Ki insuficiente'
+  if (tecnica.reativa && pkDe(t, fd) < custoDoChoque(defensor, tecnica)) return 'Ki insuficiente'
   return null
 }
 
@@ -60,11 +71,13 @@ export function abrirChoque(t: Trabalho, ataque: AtaqueResolvido, defensorId: Id
   if (defensor === undefined || fd === null) return
   tipoDaLinha(t, 'choque')
   envolver(t, defensorId, ataque.atacanteId)
-  const custo = custoDoChoque(tecnica)
+  const custo = custoDoChoque(defensor, tecnica)
+  const sobrecarga = sobrecargaNoChoque(defensor, tecnica)
   const antes = pkDe(t, fd)
   const falta = Math.max(0, custo - antes)
   porRecurso(t, fd, 'pk', antes - custo)
   mudarCombatente(t, defensorId, (atual) => ({ ...atual, kiDebito: atual.kiDebito + (tecnica.reativa ? 0 : falta), usos: { ...atual.usos, choque: true } }))
+  contarTecnicaPaga(t, defensorId, tecnica, custo > 0 && sobrecarga)
   escrever(t, `${defensor.nome} responde com Choque de Poder (${tecnica.nome}): Ki ${antes} -> ${pkDe(t, fd)}${falta > 0 && !tecnica.reativa ? `, ${falta} de débito` : ''}`, `${defensor.nome} responde com Choque de Poder (${tecnica.nome})`)
   conferirKiZerado(t, defensorId, pkDe(t, fd))
   const choque: ChoqueEmCurso = {

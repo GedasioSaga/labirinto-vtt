@@ -68,15 +68,44 @@ function d20Valido(valor: number | undefined): number | undefined {
   return valor === undefined || !Number.isFinite(valor) ? undefined : Math.min(20, Math.max(1, Math.trunc(valor)))
 }
 
+function semUmaOcorrencia(lista: readonly number[], valor: number): number[] {
+  const indice = lista.lastIndexOf(valor)
+  return indice < 0 ? [...lista] : [...lista.slice(0, indice), ...lista.slice(indice + 1)]
+}
+
+/**
+ * O mestre rolou de novo (ainda na fase de iniciativa): a forma declarada já
+ * foi paga e contada na rolagem anterior. Devolve o uso e o Ki bloqueado e
+ * põe a forma de volta como declarada (o Ki zerado pode tê-la desligado).
+ */
+function desfazerFormaDaRolagem(t: Trabalho, id: IdDoCombatente): void {
+  const c = combatente(t, id)
+  const anterior = c?.iniciativa ?? null
+  const f = fichaDe(t, c)
+  if (c === undefined || anterior === null || anterior.transformou === null) return
+  const forma = f?.transformacoes.find((candidata) => candidata.id === anterior.transformou)
+  if (forma === undefined) return
+  mudarCombatente(t, id, (atual) => ({
+    ...atual,
+    transformacao: { id: forma.id, nome: forma.nome, estagio: forma.estagio, epBonus: forma.epBonus, maxima: forma.maxima, desdeRodada: 0 },
+    kiBloqueado: Math.max(0, atual.kiBloqueado - (anterior.bloqueouNaForma ?? 0)),
+    usos: forma.maxima
+      ? { ...atual.usos, transfMaxima: Math.max(0, atual.usos.transfMaxima - 1) }
+      : { ...atual.usos, transfInferiores: semUmaOcorrencia(atual.usos.transfInferiores, forma.estagio) },
+  }))
+}
+
 /**
  * Rola (ou recebe digitada) a iniciativa de cada um: `d20 + mod DES + EP
  * base + EP da forma declarada` (5.2). Ki inicial = recarga menos a forma
  * declarada (0 com 20 natural, 5.5). Sem ficha: o número digitado é o total.
+ * Rolar de novo não conta a forma duas vezes.
  */
 export function rolarIniciativas(t: Trabalho, digitados: Readonly<Record<string, number>> = {}): void {
   tipoDaLinha(t, 'iniciativa')
   const entradas: EntradaDaOrdem[] = []
   const rolagens = new Map<string, RolagemDeIniciativa>()
+  for (const id of t.nucleo.ordem.cartas) desfazerFormaDaRolagem(t, id)
   for (const id of t.nucleo.ordem.cartas) {
     const c = combatente(t, id)
     if (c === undefined) continue
@@ -112,7 +141,10 @@ export function rolarIniciativas(t: Trabalho, digitados: Readonly<Record<string,
     const declarada = c.transformacao === null ? undefined : f.transformacoes.find((forma) => forma.id === c.transformacao?.id)
     if (declarada !== undefined) {
       mudarCombatente(t, id, (atual) => ({ ...atual, transformacao: null }))
+      const bloqueadoAntes = c.kiBloqueado
       transformar(t, id, declarada, rolagem.d20 === 20 ? 0 : Math.min(declarada.ki, pkDe(t, f)))
+      const bloqueouNaForma = (combatente(t, id)?.kiBloqueado ?? bloqueadoAntes) - bloqueadoAntes
+      mudarCombatente(t, id, (atual) => (atual.iniciativa === null ? atual : { ...atual, iniciativa: { ...atual.iniciativa, bloqueouNaForma } }))
     }
   }
   t.nucleo = { ...t.nucleo, ordem: { ...t.nucleo.ordem, cartas: ordem }, pendencias: t.nucleo.pendencias.filter((pendencia) => pendencia.tipo !== 'declaracao') }

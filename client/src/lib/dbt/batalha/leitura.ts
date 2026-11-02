@@ -93,6 +93,8 @@ export interface FichaLida {
   rankMaximo: Rank | null
   usosTransfMaximaDesdeDescanso: number
   choqueDisponivel: boolean
+  /** Ficha no teto de contadores: o desgaste do fim não terá onde ficar (o mestre anota à mão). */
+  semEspacoParaDesgaste: boolean
   deslocamentoM: number
   /** Só as ativas. */
   tecnicas: readonly TecnicaLida[]
@@ -114,11 +116,19 @@ export const NOME_DO_CONTADOR: Readonly<Record<string, string>> = {
   [CONTADOR_CHOQUE_USADO]: 'Choque de Poder usado',
 }
 
+const CONTADORES_DO_DESGASTE: readonly string[] = [CONTADOR_USOS_TRANSF_MAXIMA, CONTADOR_CHOQUE_USADO]
+
 function comContador(contadores: readonly ContadorDBT[], id: string, atual: number): ContadorDBT[] {
   if (contadores.some((contador) => contador.id === id)) return contadores.map((contador) => (contador.id === id ? { ...contador, atual } : contador))
-  // Ficha no teto de contadores: o número não entra (o mestre anota à mão).
+  // Ficha no teto de contadores: o número não entra (`semEspacoParaDesgaste` avisa o mestre na tabela do fim).
   if (contadores.length >= LIMITES_DBT.contadores) return [...contadores]
   return [...contadores, { id, nome: NOME_DO_CONTADOR[id] ?? id, atual, maximo: null }]
+}
+
+/** Algum contador de desgaste falta e não cabe mais na ficha (teto de contadores). */
+function semEspacoParaDesgaste(ficha: FichaDBT): boolean {
+  const faltam = CONTADORES_DO_DESGASTE.filter((id) => !ficha.contadores.some((candidato) => candidato.id === id)).length
+  return ficha.contadores.length + faltam > LIMITES_DBT.contadores
 }
 
 /** "Aplicar e encerrar" (seção 13): o desgaste da batalha entra na ficha até o Descanso Longo. */
@@ -128,6 +138,18 @@ export function fichaDepoisDoFim(ficha: FichaDBT, fim: { pkBloqueados: number; u
   let contadores = comContador(ficha.contadores, CONTADOR_USOS_TRANSF_MAXIMA, usos)
   contadores = comContador(contadores, CONTADOR_CHOQUE_USADO, choque)
   return { ...ficha, kiBloqueado: fim.pkBloqueados, contadores }
+}
+
+/**
+ * Descanso Longo (8.5): zera TODO o desgaste entre batalhas, o Ki bloqueado
+ * e os dois contadores (exaustão da forma máxima e Choque recarregado). O
+ * botão "Descanso Longo" da ficha Scouter precisa passar por aqui.
+ */
+export function fichaDepoisDoDescanso(ficha: FichaDBT): FichaDBT {
+  const sujo = ficha.kiBloqueado !== 0 || ficha.contadores.some((candidato) => CONTADORES_DO_DESGASTE.includes(candidato.id) && candidato.atual !== 0)
+  if (!sujo) return ficha
+  const contadores = ficha.contadores.map((candidato) => (CONTADORES_DO_DESGASTE.includes(candidato.id) ? { ...candidato, atual: 0 } : candidato))
+  return { ...ficha, kiBloqueado: 0, contadores }
 }
 
 const CATALOGO = catalogoDeRotulos(ROTULOS)
@@ -372,6 +394,7 @@ export function lerFichaParaBatalha(personagem: Personagem, sistema: SistemaDeRp
     rankMaximo: rankMaximoPorPdl(ficha.pdl),
     usosTransfMaximaDesdeDescanso: contador(ficha, CONTADOR_USOS_TRANSF_MAXIMA),
     choqueDisponivel: contador(ficha, CONTADOR_CHOQUE_USADO) === 0,
+    semEspacoParaDesgaste: semEspacoParaDesgaste(ficha),
     deslocamentoM: deslocamento(ficha).valor,
     tecnicas: ficha.tecnicas.filter((tecnica) => tecnica.ativa).map(lerTecnica),
     transformacoes: transformacoesDaFicha(ficha),

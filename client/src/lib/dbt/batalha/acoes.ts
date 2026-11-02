@@ -6,6 +6,7 @@ import { destransformar, transformar } from './formas'
 import { conferirKiZerado } from './morte'
 import { passarAVez } from './ordem'
 import { combatente, envolver, escrever, fichaDe, foraDeCombate, mudarCombatente, nomeDe, pkDe, porRecurso, tipoDaLinha, type Trabalho } from './trabalho'
+import { contarTecnicaPaga } from './uso'
 import {
   ALVOS_MAX,
   BASICOS_ANUNCIADOS_MAX,
@@ -131,15 +132,19 @@ export function agir(t: Trabalho, comando: Extract<ComandoDBT, { tipo: 'agir' }>
     case 'tecnica': {
       const tecnica = f?.tecnicas.find((candidata) => candidata.id === resto)
       if (tecnica === undefined) return 'Técnica não existe'
+      // Cura, barreira e de efeito: o Sobrecarregado (x2 já no custo) e a exaustão contam como na ofensiva.
+      const sobrecarga = escolhida.ki > 0 && tecnica.tipo === 'ki'
       if (tecnica.cura) {
         if (alvos[0] === id) return 'A cura não é em si'
         if (!pagar(t, id, escolhida.ki)) return 'Ki insuficiente'
+        contarTecnicaPaga(t, id, tecnica, sobrecarga)
         marcarTecnica(t, id, tecnica.id)
         curarComTecnica(t, id, alvos[0], tecnica)
         return null
       }
       if (!tecnicaOfensiva(tecnica)) {
         if (!pagar(t, id, escolhida.ki)) return 'Ki insuficiente'
+        contarTecnicaPaga(t, id, tecnica, sobrecarga)
         marcarTecnica(t, id, tecnica.id)
         if (tecnica.barreira > 0) barreiraNaAcao(t, id, tecnica)
         else escrever(t, `${c.nome} usa ${tecnica.nome}: o mestre aplica o efeito`)

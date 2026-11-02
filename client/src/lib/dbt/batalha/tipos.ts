@@ -129,6 +129,8 @@ export interface RolagemDeIniciativa {
   desempate: number | null
   transformou: string | null
   digitada: boolean
+  /** Ki que a forma declarada bloqueou nesta rolagem (2º uso da máxima): rolar de novo devolve. Ausente = 0 (estado salvo antes do campo). */
+  bloqueouNaForma?: number
 }
 
 export interface TransformacaoAtiva {
@@ -257,6 +259,8 @@ export interface AtaqueResolvido {
   danoPrevisto: number
   efeitos: readonly EfeitoPrevisto[]
   kiPago: boolean
+  /** Ação gratuita: o alvo não reage. O cartão do manual parte daqui. */
+  semJanela: boolean
   /** Reativa sobre reativa: teto em PROFUNDIDADE_DE_REACAO_MAX. */
   profundidade: number
   /** Cargas da Acumulação que entraram no dano. */
