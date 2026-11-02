@@ -55,10 +55,13 @@ const PaginaArena = lazy(() => import('../arena/PaginaArena').then((modulo) => (
 /** O Comparar do Dragon Ball (components/dbt/mundo/) só baixa quando um mundo dele abre: o do One Piece nunca carrega. */
 const CompararDBT = lazy(() => import('../dbt/mundo/CompararDBT').then((modulo) => ({ default: modulo.CompararDBT })))
 
-/** A camada cheia da luta da arena: com ela aberta, o Esc não fecha o mundo atrás (ver `TelaDaArena`). */
-const SELETOR_DA_ARENA = '.ar-tela'
+/** A Arena de testes do Dragon Ball (components/dbt/arena/, motor próprio), no mesmo marcador: só baixa no mundo dele. */
+const PaginaArenaDBT = lazy(() => import('../dbt/arena/PaginaArenaDBT').then((modulo) => ({ default: modulo.PaginaArenaDBT })))
 
-const ABAS_SO_DO_MOTOR_PADRAO: readonly AbaDoMundo[] = ['saude', 'itens', 'arena']
+/** A camada cheia da luta da arena (One Piece ou Dragon Ball): com ela aberta, o Esc não fecha o mundo atrás (ver `TelaDaArena`). */
+const SELETOR_DA_ARENA = '.ar-tela, .dba-tela'
+
+const ABAS_SO_DO_MOTOR_PADRAO: readonly AbaDoMundo[] = ['saude', 'itens']
 
 const idDaAba = (aba: AbaDoMundo): string => `mu-aba-${aba}`
 const ID_DA_PAGINA = 'mu-pagina'
@@ -75,9 +78,9 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   const sistema = aberto === null ? undefined : sistemaPorId(biblioteca, aberto.sistemaId)
   const dragonBall = motorDoSistema(sistema) === MOTOR_DRAGON_BALL
   /**
-   * Saúde da ficha, Itens e habilidades e a Arena de testes leem os campos do
-   * motor padrão (One Piece): no Dragon Ball os marcadores somem (NPCs e
-   * Comparar têm versão própria).
+   * Saúde da ficha e Itens e habilidades leem os campos do motor padrão (One
+   * Piece): no Dragon Ball os marcadores somem (NPCs, Comparar e a Arena de
+   * testes têm versão própria).
    */
   const marcadores = dragonBall ? MARCADORES.filter((marcador) => !ABAS_SO_DO_MOTOR_PADRAO.includes(marcador.aba)) : MARCADORES
   /** As entradas do catálogo deste livro (as do mestre e as do livro), para o número do marcador Itens e habilidades. */
@@ -236,7 +239,19 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     pagina = <PaginaItens personagens={personagens} sistema={sistema} />
   } else if (aba === 'anotacoes') {
     pagina = <PaginaAnotacoes personagens={personagens} />
-  } else if (aba === 'arena' && !dragonBall) {
+  } else if (aba === 'arena' && dragonBall) {
+    pagina = (
+      <Suspense
+        fallback={
+          <div className="mu-pg" aria-busy="true">
+            <p className="mu-pg-nota">Abrindo a arena…</p>
+          </div>
+        }
+      >
+        <PaginaArenaDBT personagens={personagens} sistema={sistema} sistemaId={aberto.sistemaId} />
+      </Suspense>
+    )
+  } else if (aba === 'arena') {
     pagina = (
       <Suspense
         fallback={

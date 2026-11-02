@@ -1,0 +1,444 @@
+/*
+ * ARENA DE TESTES DO DRAGON BALL (components/dbt/arena/). A página da
+ * montagem fica no livro escuro do mundo (mu-*); os cartões dos lados, os
+ * bonecos e a luta usam a língua da ficha Scouter (`.dbf`, tokens --db-*):
+ * âmbar = leitura de poder, vermelho = vida, azul = Ki. A cor do lado vem da
+ * equipe virtual (`--dba-cor`). Prefixo dba- para não colidir com a arena do
+ * One Piece (ar-*), que pode estar carregada na mesma sessão.
+ */
+
+/* ---------- Montagem ---------- */
+.dba-pg {
+  display: grid;
+  gap: 16px;
+}
+.dba-comecar {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  max-width: 300px;
+  text-align: right;
+}
+.dba-aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.dba-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 24px;
+  padding: 12px 14px;
+}
+.dba-opcao {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dba-opcao__rot {
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+}
+.dba-opcao__nota {
+  flex: 1 1 320px;
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+}
+
+.dba-montagem {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.15fr) repeat(2, minmax(250px, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+@media (max-width: 1100px) {
+  .dba-montagem {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dba-fichas {
+    grid-column: 1 / -1;
+  }
+}
+
+.dba-fichas {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+.dba-fichas__tit,
+.dba-lado__tit {
+  font-family: var(--lb-font-display);
+  font-size: 17px;
+  font-weight: 400;
+}
+.dba-fichas__grupo {
+  display: grid;
+  gap: 6px;
+}
+.dba-fichas__grupo-tit {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.dba-fichas__grupo-tit small {
+  margin-left: 4px;
+  font-family: var(--db-num);
+  color: var(--db-amber-dim);
+}
+.dba-fichas__lista,
+.dba-lado__lista,
+.dba-bonecos {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dba-ficha,
+.dba-escolha {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px 6px;
+  border-radius: var(--lb-radius-sm);
+}
+.dba-ficha {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.dba-ficha__txt {
+  display: grid;
+  min-width: 0;
+}
+.dba-ficha__nome,
+.dba-escolha__nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dba-ficha__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+}
+.dba-ficha__botoes {
+  display: flex;
+  gap: 4px;
+}
+.dba-mais {
+  min-width: 44px;
+  border-color: color-mix(in srgb, var(--dba-cor) 55%, transparent);
+  color: var(--lb-color-parchment);
+}
+.dba-mais[data-esta='sim'] {
+  background: color-mix(in srgb, var(--dba-cor) 22%, transparent);
+}
+.dba-escolha--sumiu {
+  opacity: 0.62;
+}
+
+/* ---------- Um lado ---------- */
+.dba-lado {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-top: 3px solid var(--dba-cor);
+}
+.dba-lado__cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dba-lado__marca {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--dba-cor);
+}
+.dba-lado__n {
+  margin-left: auto;
+  font-family: var(--db-num);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-faint);
+}
+.dba-lado__n--cheio {
+  color: var(--db-amber);
+}
+.dba-lado__vazio {
+  font-size: 13px;
+  color: var(--lb-color-parchment-faint);
+}
+.dba-lado__boneco {
+  justify-self: start;
+}
+.dba-lado__boneco .mu-ic {
+  width: 14px;
+  height: 14px;
+}
+.dba-vezes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dba-vezes__n {
+  min-width: 26px;
+  text-align: center;
+  font-family: var(--db-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--db-amber-hi);
+}
+
+/* ---------- Boneco de treino ---------- */
+.dba-boneco {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border: 1px dashed var(--db-amber-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--db-amber-soft);
+}
+.dba-boneco__cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.dba-boneco__med {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  color: var(--db-amber-ink);
+  background: var(--db-amber);
+}
+.dba-boneco__med .mu-ic {
+  width: 15px;
+  height: 15px;
+}
+.dba-boneco__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dba-boneco__nome-inp {
+  flex: 1;
+}
+.dba-boneco__pv {
+  font-family: var(--db-num);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--db-pv-hi);
+}
+.dba-boneco__campos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.dba-campo {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.dba-campo__rot {
+  font-family: var(--db-num);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--db-amber);
+}
+.dba-campo__inp {
+  text-align: right;
+}
+.dba-campo__erro {
+  font-size: 11px;
+  color: var(--db-bad);
+}
+
+/* ---------- A luta em tela cheia ---------- */
+.dba-tela {
+  --dba-barra: 60px;
+  --dba-lateral: 420px;
+  /* Por cima do mundo (z 28) e abaixo dos avisos (z 30); o menu da carta e as janelas vão num portal acima disso. */
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--dba-lateral);
+  grid-template-rows: var(--dba-barra) minmax(0, 1fr);
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  animation: dba-aparece 200ms var(--lb-gr-ease-out) both;
+}
+.dba-tela :focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.dba-barra {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 0 14px 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--db-amber-line);
+  border-radius: 0;
+  background: linear-gradient(180deg, var(--lb-color-stone-raised), var(--lb-color-stone-solid));
+  container-type: normal;
+}
+.dba-barra__med {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 50%;
+  color: var(--db-amber-ink);
+  background: radial-gradient(circle at 35% 30%, var(--db-amber-hi), var(--db-amber) 60%, var(--db-amber-dim));
+  box-shadow: 0 0 14px var(--db-amber-glow);
+}
+.dba-barra__med .mu-ic {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.7;
+}
+.dba-barra__txt {
+  min-width: 0;
+}
+.dba-barra__tit {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.dba-barra__tit:focus-visible {
+  box-shadow: none;
+}
+.dba-barra__sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  white-space: nowrap;
+}
+.dba-barra__sub .mu-ic {
+  width: 14px;
+  height: 14px;
+}
+.dba-barra__acoes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.dba-barra__rodada {
+  margin-right: 4px;
+  font-family: var(--db-num);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--db-amber-hi);
+  white-space: nowrap;
+}
+.dba-barra__grade {
+  margin-right: 8px;
+  font-family: var(--db-num);
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+  white-space: nowrap;
+}
+
+.dba-ligando {
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  color: var(--lb-color-parchment-faint);
+}
+
+.dba-palco {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.dba-palco[data-mirando='sim'] {
+  cursor: crosshair;
+}
+.dba-palco__dica {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: var(--lb-radius-sm);
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+  pointer-events: none;
+}
+
+.dba-lateral {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-solid);
+}
+.dba-painel {
+  border: 0;
+  border-radius: 0;
+}
+.dba-nota {
+  font-size: 13px;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* Janela estreita: o palco em cima, o painel embaixo, a barra rola de lado. */
+@media (max-width: 900px) {
+  .dba-tela {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--dba-barra) minmax(240px, 45vh) minmax(0, 1fr);
+  }
+  .dba-barra {
+    overflow-x: auto;
+  }
+  .dba-lateral {
+    border-left: 0;
+    border-top: 1px solid var(--lb-color-line);
+  }
+}
+
+@keyframes dba-aparece {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dba-tela {
+    animation-duration: 120ms;
+  }
+}
