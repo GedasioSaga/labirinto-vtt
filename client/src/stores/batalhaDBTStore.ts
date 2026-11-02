@@ -350,7 +350,7 @@ export const useBatalhaDBTStore: LojaDaBatalhaDBT = criarBatalhaDBTStore(mesaDaA
 
 export const ponteDaBatalhaDBT: PonteDaBatalhaDBT = {
   cena: (sceneKey) => useBatalhaDBTStore.getState().cenas[sceneKey] ?? null,
-  comando: (sceneKey, autor, comando) => useBatalhaDBTStore.getState().comando(sceneKey, autor, comando).ok,
+  comando: (sceneKey, autor, comando) => useBatalhaDBTStore.getState().comando(sceneKey, autor, comando),
   desfazer: (sceneKey, linhaId, autor) => useBatalhaDBTStore.getState().desfazer(sceneKey, linhaId, autor),
   registrarAjuste: (personagemId, antes, depois, autor) => useBatalhaDBTStore.getState().registrarAjuste(personagemId, antes, depois, autor),
   fichasLidas: (sceneKey) => useBatalhaDBTStore.getState().fichasLidas(sceneKey),

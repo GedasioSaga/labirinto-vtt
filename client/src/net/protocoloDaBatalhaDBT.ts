@@ -409,7 +409,19 @@ function lerCarta(value: unknown): CartaDBT | null {
   if (pv === undefined || pk === undefined || condicoes === null) return null
   // Vida de quem não é "eu" nem "aliado" no fio é forjada.
   if (lado === 'outro' && (pv !== null || pk !== null)) return null
-  return { tokenId, nome, lado, iniciativa, pv, pk, condicoes, transformacao, voo, situacao, agarrado, agarradoPor }
+  const carta: CartaDBT = { tokenId, nome, lado, iniciativa, pv, pk, condicoes, transformacao, voo, situacao, agarrado, agarradoPor }
+  // Opcionais: ausente fica de fora; presente e torto derruba a carta.
+  const { mesmoLado, personagemId } = value
+  if (mesmoLado !== undefined) {
+    if (typeof mesmoLado !== 'boolean') return null
+    carta.mesmoLado = mesmoLado
+  }
+  if (personagemId !== undefined) {
+    // O personagem do "outro" (inimigo, NPC) nunca sai do host: no fio é forjado.
+    if (!idDoFio(personagemId) || lado === 'outro') return null
+    carta.personagemId = personagemId
+  }
+  return carta
 }
 
 function lerOpcaoDeAcao(value: unknown): OpcaoDeAcao | null {
@@ -492,12 +504,29 @@ function lerLinha(value: unknown): LinhaDBTParaJogador | null {
   return detalhes === null ? null : { id, rodada, tipo, autor, texto, detalhes, desfeita, podeDesfazer }
 }
 
+/** "Turno N de M", mais os opcionais: ausente fica de fora; presente e torto derruba o recorte. */
+function lerTurno(value: Record<string, unknown>): VistaDBT['turno'] | null {
+  const { n, m, basicosUsados, ateMinhaVez } = value
+  if (!inteiroAte(n, 0, RODADA_DBT_MAX) || !inteiroAte(m, 0, RODADA_DBT_MAX)) return null
+  const turno: VistaDBT['turno'] = { n, m }
+  if (basicosUsados !== undefined) {
+    if (!inteiroAte(basicosUsados, 0, RODADA_DBT_MAX)) return null
+    turno.basicosUsados = basicosUsados
+  }
+  if (ateMinhaVez !== undefined) {
+    // 1 = o próximo; nunca passa do tamanho da ordem.
+    if (!(ateMinhaVez === null || inteiroAte(ateMinhaVez, 1, m))) return null
+    turno.ateMinhaVez = ateMinhaVez
+  }
+  return turno
+}
+
 /** O recorte inteiro; um campo torto derruba tudo (a faixa de antes fica até o próximo). */
 export function lerVistaDBT(value: unknown): VistaDBT | null {
   if (!isRecord(value)) return null
   const { fase, rodada, modo, vez, minhaVez, turno, aguardando } = value
   if (!umDe(FASES, fase) || !inteiroAte(rodada, 0, RODADA_DBT_MAX) || !umDe(MODOS, modo) || !(vez === null || idDoFio(vez)) || typeof minhaVez !== 'boolean') return null
-  if (!isRecord(turno) || !inteiroAte(turno.n, 0, RODADA_DBT_MAX) || !inteiroAte(turno.m, 0, RODADA_DBT_MAX)) return null
+  if (!isRecord(turno)) return null
   if (!(aguardando === null || textoAte(aguardando, 0, TEXTO_DBT_MAX))) return null
   const cartas = lerLista(value.cartas, CARTAS_DBT_MAX, lerCarta)
   const meus = lerLista(value.meus, MEUS_DBT_MAX, lerMeu)
@@ -506,7 +535,9 @@ export function lerVistaDBT(value: unknown): VistaDBT | null {
   const janela = lerJanela(value.janela)
   const registro = lerLista(value.registro, REGISTRO_DBT_JOGADOR_MAX, lerLinha)
   if (cartas === null || meus === null || declaracoes === null || pendencias === null || janela === undefined || registro === null) return null
-  const vista: VistaDBT = { fase, rodada, modo, vez, minhaVez, turno: { n: turno.n, m: turno.m }, cartas, meus, declaracoes, pendencias, janela, aguardando, registro }
+  const turnoLido = lerTurno(turno)
+  if (turnoLido === null) return null
+  const vista: VistaDBT = { fase, rodada, modo, vez, minhaVez, turno: turnoLido, cartas, meus, declaracoes, pendencias, janela, aguardando, registro }
   if (value.judge !== undefined) {
     const judge = lerJudgeNaCena(value.judge)
     if (judge === null) return null
@@ -536,7 +567,24 @@ function lerEfeito(value: unknown): EfeitoDBT | null {
   if (!inteiroAte(seq, 1, Number.MAX_SAFE_INTEGER) || !umDe(TIPOS_DE_EFEITO, tipo)) return null
   if (!(d20 === null || inteiroAte(d20, 1, 20)) || !(faixa === null || umDe(FAIXAS, faixa)) || !(numero === null || numeroDaFicha(numero))) return null
   const tokenIds = lerLista(value.tokenIds, ALVOS_MAX + 1, (id) => (idDoFio(id) ? id : null))
-  return tokenIds === null || tokenIds.length === 0 ? null : { seq, tipo, tokenIds, d20, faixa, numero }
+  if (tokenIds === null || tokenIds.length === 0) return null
+  const efeito: EfeitoDBT = { seq, tipo, tokenIds, d20, faixa, numero }
+  // Opcionais do golpe: ausente fica de fora; presente e torto derruba o efeito.
+  const { critico, erroCritico, alvoId } = value
+  if (critico !== undefined) {
+    if (typeof critico !== 'boolean') return null
+    efeito.critico = critico
+  }
+  if (erroCritico !== undefined) {
+    if (typeof erroCritico !== 'boolean') return null
+    efeito.erroCritico = erroCritico
+  }
+  if (alvoId !== undefined) {
+    // O alvo é uma das fichas do efeito; fora delas é forjado.
+    if (!idDoFio(alvoId) || !tokenIds.includes(alvoId)) return null
+    efeito.alvoId = alvoId
+  }
+  return efeito
 }
 
 /** Os efeitos novos; o `seq` sobe estritamente (fora de ordem = forjado). */

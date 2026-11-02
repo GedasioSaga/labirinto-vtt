@@ -32,7 +32,7 @@ import {
   type TipoDaLinhaDBT,
   type TipoDaPendencia,
 } from './tipos'
-import type { Trabalho } from './trabalho'
+import { foraDeCombate, type Trabalho } from './trabalho'
 
 /**
  * RECORTES DA BATALHA DBT (docs/planos/dbt-batalha.md, seções 16 e 17):
@@ -88,6 +88,11 @@ export interface CartaDBT {
    * de fora, e quem lê cai no `lado`.
    */
   mesmoLado?: boolean
+  /**
+   * O personagem da carta, só nas cartas "eu" e "aliado" (abre o perfil só
+   * leitura dele); nunca na "outro". Opcional pelo mesmo motivo do `mesmoLado`.
+   */
+  personagemId?: string
   /** Total da iniciativa (público); null = ainda não rolou. */
   iniciativa: number | null
   /** Só "eu" e "aliado". */
@@ -178,8 +183,11 @@ export interface VistaDBT {
    * `basicosUsados`: os básicos já usados no turno do combatente dele que tem a
    * vez (o próximo rola com -n; anunciar mais de 3 só antes do 1º, 9.2); 0 fora
    * da vez dele. Opcional pelo mesmo motivo do `mesmoLado`.
+   * `ateMinhaVez`: quantas vezes passam até um combatente dele jogar (1 = o
+   * próximo), contando também quem está fora da vista; `null` = é a vez dele,
+   * ninguém tem a vez, ou nenhum dele está de pé. Opcional pelo mesmo motivo.
    */
-  turno: { n: number; m: number; basicosUsados?: number }
+  turno: { n: number; m: number; basicosUsados?: number; ateMinhaVez?: number | null }
   cartas: readonly CartaDBT[]
   meus: readonly MeuCombatenteDBT[]
   declaracoes: readonly DeclaracaoDBT[]
@@ -349,11 +357,14 @@ function cartasDaVista(cena: NucleoDBT, fichas: Fichas, ctx: ContextoDoJogadorDB
     const lado = ladoDe(c, ctx)
     const f = lado === 'outro' ? null : fichaDoCombatente(c, fichas)
     const agarrador = c.agarrado?.porId
+    // O personagem só de "eu" e "aliado": o do inimigo (e o do NPC do lado dele) não sai do host.
+    const personagemId = lado !== 'outro' && c.personagemId !== null && c.personagemId.length <= ID_DBT_MAX ? c.personagemId : null
     cartas.push({
       tokenId: id,
       nome: cortar(nome, NOME_DBT_MAX),
       lado,
       mesmoLado: meusLados.has(c.lado),
+      ...(personagemId === null ? {} : { personagemId }),
       iniciativa: c.iniciativa?.total ?? null,
       pv: f === null ? null : recursoDe(f.pv),
       pk: f === null ? null : recursoDe(f.pk),
@@ -370,6 +381,28 @@ function cartasDaVista(cena: NucleoDBT, fichas: Fichas, ctx: ContextoDoJogadorDB
     if (cartas.length >= CARTAS_DBT_MAX) break
   }
   return cartas
+}
+
+/**
+ * Quantas vezes passam até um combatente dele jogar, pela ordem INTEIRA (quem
+ * está fora da vista também joga antes): o mesmo passo de `proximaVez`, que
+ * pula inconsciente e morto. `null` = é a vez dele, ninguém tem a vez, ou
+ * nenhum dele joga.
+ */
+function ateMinhaVezDe(cena: NucleoDBT, meus: ReadonlySet<string>): number | null {
+  const { cartas, vez } = cena.ordem
+  if (cena.fase !== 'combate' || vez === null || meus.has(vez)) return null
+  const indice = cartas.indexOf(vez)
+  if (indice < 0) return null
+  let passos = 0
+  for (let passo = 1; passo < cartas.length; passo += 1) {
+    const id = cartas[(indice + passo) % cartas.length]
+    const c = Object.hasOwn(cena.combatentes, id) ? cena.combatentes[id] : undefined
+    if (c === undefined || foraDeCombate(c)) continue
+    passos += 1
+    if (meus.has(id)) return passos
+  }
+  return null
 }
 
 function vezDoCombatente(cena: NucleoDBT, c: CombatenteDBT): { rodada: number; turno: number } | null {
@@ -507,7 +540,7 @@ export function vistaParaJogadorDBT(cena: CenaParaVistaDBT, fichas: Fichas, ctx:
     modo: cena.opcoes.modo,
     vez: vez !== null && ctx.tokensNoRecorte.has(vez) && vez.length <= ID_DBT_MAX ? vez : null,
     minhaVez: vez !== null && meusIds.has(vez),
-    turno: { ...turnoNoM(cena), basicosUsados },
+    turno: { ...turnoNoM(cena), basicosUsados, ateMinhaVez: ateMinhaVezDe(cena, meusIds) },
     cartas: cartasDaVista(cena, fichas, ctx, new Set(meus.map((c) => c.lado))),
     meus: meusDaVista(t, cena, fichas, ctx, meus),
     declaracoes,
@@ -542,7 +575,10 @@ export function efeitosParaJogadorDBT(efeitos: readonly EfeitoDBT[], depoisDe: n
     const tokenIds = efeito.tokenIds.filter((id) => noRecorte.has(id) && id.length <= ID_DBT_MAX)
     if (tokenIds.length === 0) continue
     const numeroVisivel = efeito.tokenIds.every((id) => numerosVisiveis.has(id))
-    saida.push({ ...efeito, tokenIds, numero: numeroVisivel ? efeito.numero : null })
+    const { alvoId, ...resto } = efeito
+    // O alvo fora da vista não vai (seria o id de uma ficha que a tela dele não tem): o aviso não cai em ninguém.
+    const alvoNaVista = alvoId !== undefined && tokenIds.includes(alvoId)
+    saida.push({ ...resto, tokenIds, numero: numeroVisivel ? efeito.numero : null, ...(alvoNaVista ? { alvoId } : {}) })
   }
   return saida.slice(-EFEITOS_DBT_GUARDADOS)
 }

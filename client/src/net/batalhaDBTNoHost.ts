@@ -14,6 +14,7 @@ import {
 import type { Personagem } from '../lib/personagem'
 import {
   JANELA_DOS_PEDIDOS_DBT_MS,
+  MOTIVO_DBT_MAX,
   PEDIDOS_DBT_POR_JANELA,
   type BatalhaDBTAgirMessage,
   type BatalhaDBTDeclararMessage,
@@ -98,7 +99,19 @@ export interface BatalhaDBTNoHost {
   desfazer(conexao: ConexaoNaBatalhaDBT, msg: BatalhaDBTDesfazerMessage): RespostaDaBatalhaDBT
 }
 
+/** A decisão sobre um pedido: `motivo` só na recusa do motor. */
+interface Decisao {
+  ok: boolean
+  motivo?: string
+}
+
 const NADA: RespostaDaBatalhaDBT = { saidas: [], mudou: false }
+const RECUSA_CALADA: Decisao = { ok: false }
+
+/** O motivo do motor cabe no fio (`MOTIVO_DBT_MAX`): o leitor do jogador derruba o resultado acima do teto. */
+function motivoNoFio(motivo: string): string {
+  return motivo.length <= MOTIVO_DBT_MAX ? motivo : `${motivo.slice(0, MOTIVO_DBT_MAX - 1)}…`
+}
 /** As respostas guardadas por conexão para o `reqId` repetido (o mesmo número do One Piece). */
 const RESPOSTAS_GUARDADAS = 32
 const METROS_POR_CASA_PADRAO = 1.5
@@ -111,8 +124,8 @@ export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTN
   const pedidos = new Map<string, number[]>()
   // Por clientId: a cena e o último `seq` de efeito já passado. Ausente = marca no próximo sync, sem reprise.
   const efeitoVisto = new Map<string, { sceneKey: string; seq: number }>()
-  // Por clientId: reqId → ok, as últimas RESPOSTAS_GUARDADAS.
-  const respostas = new Map<string, Map<string, boolean>>()
+  // Por clientId: reqId → a decisão, as últimas RESPOSTAS_GUARDADAS.
+  const respostas = new Map<string, Map<string, Decisao>>()
 
   const cabePedido = (playerId: string): boolean => {
     const agora = deps.agora()
@@ -186,41 +199,50 @@ export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTN
     }
   }
 
-  const resultado = (clientId: string, reqId: string, ok: boolean): SaidaDaBatalhaDBT => ({ clientId, msg: { type: 'batalhaDBT.resultado', reqId, ok } })
+  const resultado = (clientId: string, reqId: string, decisao: Decisao): SaidaDaBatalhaDBT => ({
+    clientId,
+    msg: decisao.motivo === undefined ? { type: 'batalhaDBT.resultado', reqId, ok: decisao.ok } : { type: 'batalhaDBT.resultado', reqId, ok: decisao.ok, motivo: decisao.motivo },
+  })
 
   /** O autor no registro. O nome não decide nada: quem pode é conferido pelo `playerId`. */
   const autorDe = (conexao: ConexaoNaBatalhaDBT): AutorDBT => ({ tipo: 'jogador', playerId: conexao.playerId, nome: conexao.nome })
 
   /**
    * O pedido passa pelo teto e, se o `reqId` já veio desta conexão, a
-   * resposta de antes sai de novo sem agir de novo. `decidir` devolve o `ok`.
-   * Recusa sem motivo: motivo ensinaria quais ids e vezes existem.
+   * resposta de antes sai de novo sem agir de novo. `decidir` devolve o `ok`
+   * e, quando o motor recusou, o motivo dele.
    */
-  const pedidoUnico = (conexao: ConexaoNaBatalhaDBT, reqId: string, decidir: () => boolean): RespostaDaBatalhaDBT => {
+  const pedidoUnico = (conexao: ConexaoNaBatalhaDBT, reqId: string, decidir: () => Decisao): RespostaDaBatalhaDBT => {
     if (!cabePedido(conexao.playerId)) return NADA
-    const guardadas = respostas.get(conexao.clientId) ?? new Map<string, boolean>()
+    const guardadas = respostas.get(conexao.clientId) ?? new Map<string, Decisao>()
     const antes = guardadas.get(reqId)
     if (antes !== undefined) return { saidas: [resultado(conexao.clientId, reqId, antes)], mudou: false }
-    const ok = decidir()
-    guardadas.set(reqId, ok)
+    const decisao = decidir()
+    guardadas.set(reqId, decisao)
     if (guardadas.size > RESPOSTAS_GUARDADAS) {
       const maisVelha = guardadas.keys().next()
       if (maisVelha.done !== true) guardadas.delete(maisVelha.value)
     }
     respostas.set(conexao.clientId, guardadas)
-    return { saidas: [resultado(conexao.clientId, reqId, ok)], mudou: ok }
+    return { saidas: [resultado(conexao.clientId, reqId, decisao)], mudou: decisao.ok }
   }
 
-  /** Confere com a vista e manda à store; fora de batalha ou sem ponte, recusa. */
-  const comandar = (conexao: ConexaoNaBatalhaDBT, comando: ComandoDBT): boolean => {
+  /**
+   * Confere com a vista e manda à store; fora de batalha ou sem ponte, recusa.
+   * A recusa da conferência sai SEM motivo (ensinaria quais ids e vezes
+   * existem); a do motor, com o dele (o pedido já era dele, na vez dele).
+   */
+  const comandar = (conexao: ConexaoNaBatalhaDBT, comando: ComandoDBT): Decisao => {
     const { ponte } = deps
     const { lugar } = conexao
-    if (ponte === undefined || lugar === null) return false
+    if (ponte === undefined || lugar === null) return RECUSA_CALADA
     const cena = ponte.cena(lugar.sceneKey)
-    if (cena === null) return false
+    if (cena === null) return RECUSA_CALADA
     const posse = { playerId: conexao.playerId, meusTokens: lugar.meusTokens, tokensNoRecorte: new Map(lugar.fichasNaTela.map((ficha) => [ficha.id, ficha.name])), meusPersonagens: lugar.meusPersonagens }
-    if (!podeComandar(cena, ponte.fichasLidas(lugar.sceneKey), posse, comando)) return false
-    return ponte.comando(lugar.sceneKey, autorDe(conexao), comando)
+    if (!podeComandar(cena, ponte.fichasLidas(lugar.sceneKey), posse, comando)) return RECUSA_CALADA
+    const resposta = ponte.comando(lugar.sceneKey, autorDe(conexao), comando)
+    if (resposta.ok || resposta.motivo === undefined) return { ok: resposta.ok }
+    return { ok: false, motivo: motivoNoFio(resposta.motivo) }
   }
 
   return {
@@ -289,13 +311,13 @@ export function criarBatalhaDBTNoHost(deps: DepsDaBatalhaDBTNoHost): BatalhaDBTN
       return pedidoUnico(conexao, msg.reqId, () => {
         const { ponte } = deps
         const { lugar } = conexao
-        if (ponte === undefined || lugar === null) return false
+        if (ponte === undefined || lugar === null) return RECUSA_CALADA
         const cena = ponte.cena(lugar.sceneKey)
         const linha = cena === null ? undefined : cena.registro.find((candidata) => candidata.id === msg.linhaId)
         const autor = autorDe(conexao)
         // A mesma regra da store (`podeDesfazerDBT`): a última de pé, dele, sem d20.
-        if (cena === null || linha === undefined || !podeDesfazerDBT(linha, autor, cena.registro)) return false
-        return ponte.desfazer(lugar.sceneKey, msg.linhaId, autor)
+        if (cena === null || linha === undefined || !podeDesfazerDBT(linha, autor, cena.registro)) return RECUSA_CALADA
+        return { ok: ponte.desfazer(lugar.sceneKey, msg.linhaId, autor) }
       })
     },
   }

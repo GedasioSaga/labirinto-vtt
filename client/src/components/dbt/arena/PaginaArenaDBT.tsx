@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react'
 import { EQUIPE_DO_LADO, FICHAS_POR_LADO_MAX, GRADES_DA_ARENA, VEZES_MAX, type LadoDaArena, type TamanhoDaGrade } from '../../../lib/arena/tipos'
 import type { ModoDaBatalha } from '../../../lib/dbt/batalha/tipos'
+import { INDICE_DOS_NPCS_PRONTOS, type ResumoDeNpcProntoDBT } from '../../../lib/dbt/dados/npcsProntos'
+import { NOME_DA_CATEGORIA } from '../../../lib/dbt/regras/ficha'
 import { entraNaBatalha } from '../../../lib/livros/combate'
 import type { Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
@@ -9,7 +11,9 @@ import { useMundoDoLivroStore } from '../../../stores/mundoDoLivroStore'
 import { Retrato } from '../../livros/comum'
 import { IconeDoMundo } from '../../livros/icones'
 import { Segmentos } from '../ficha/pecas'
+import { ND_SUGERIDO } from '../mundo/contasDoMundo'
 import { BonecoDaArenaDBT } from './BonecoDaArenaDBT'
+import { fichasProntasDoLivro, idDoProntoNaArena, useProntosDaArenaDBT } from './npcsProntosDaArena'
 import { TelaDaArenaDBT } from './TelaDaArenaDBT'
 import '../ficha/fichaDBT.css'
 import './arenaDBT.css'
@@ -17,7 +21,8 @@ import './arenaDBT.css'
 /**
  * A ARENA DE TESTES DO DRAGON BALL no mundo do livro (marcador "Arena de
  * testes"): a MONTAGEM. O mestre põe fichas da pasta em cada lado (jogadores
- * do grupo e NPCs de combate; o NPC pode repetir), bonecos de treino com CA,
+ * do grupo e NPCs de combate; o NPC pode repetir), NPCs prontos do livro
+ * (fichas montadas só na memória, `npcsProntosDaArena.ts`), bonecos de treino com CA,
  * PV e EP à mão, escolhe a grade e o modo (Automático ou Manual) e "Começar
  * o teste". A luta abre em tela cheia por cima do mundo (`TelaDaArenaDBT`).
  *
@@ -113,6 +118,107 @@ function LinhaDaFicha({ personagem, montagem }: LinhaDaFichaProps) {
         })}
       </span>
     </li>
+  )
+}
+
+const SEM_IDS: readonly string[] = []
+
+/** Sem acento e sem caixa: "goku" acha "Son Gokū". */
+function normalizarBusca(texto: string): string {
+  return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+}
+
+/** "Saga Saiyajin · Chefão · Rank D · EP 2". */
+function subDoPronto(resumo: ResumoDeNpcProntoDBT): string {
+  return [resumo.saga, NOME_DA_CATEGORIA[resumo.categoria], `Rank ${resumo.rank}`, `EP ${resumo.ep}`].filter((parte) => parte !== null).join(' · ')
+}
+
+interface NpcsProntosNaMontagemProps {
+  montagem: MontagemDaArenaDBT
+  sistema: SistemaDeRpg
+  sistemaId: string
+}
+
+/**
+ * Os NPCs prontos do livro, direto como cópia na arena: "+ A" monta a ficha
+ * (só na memória, nunca na pasta) e põe no lado; o NPC repete como os da
+ * pasta. Fechado por padrão: a lista é longa e a pasta vem primeiro.
+ */
+function NpcsProntosNaMontagem({ montagem, sistema, sistemaId }: NpcsProntosNaMontagemProps) {
+  const [busca, setBusca] = useState('')
+  const buscaId = useId()
+  const carregando = useProntosDaArenaDBT((state) => (state.sistemaId === sistemaId ? state.carregando : SEM_IDS))
+  const erro = useProntosDaArenaDBT((state) => (state.sistemaId === sistemaId ? state.erro : null))
+  const termo = normalizarBusca(busca)
+  const lista = termo === '' ? INDICE_DOS_NPCS_PRONTOS : INDICE_DOS_NPCS_PRONTOS.filter((resumo) => normalizarBusca(resumo.nome).includes(termo))
+
+  const por = async (resumo: ResumoDeNpcProntoDBT, lado: LadoDaArena, vezes: number) => {
+    if (await useProntosDaArenaDBT.getState().preparar(sistemaId, sistema, resumo.id)) useArenaDBTStore.getState().escolher(idDoProntoNaArena(resumo.id), lado, vezes)
+  }
+
+  return (
+    <details className="dba-fichas__grupo dba-prontos">
+      <summary className="dba-fichas__grupo-tit">
+        NPCs prontos do livro <small>{INDICE_DOS_NPCS_PRONTOS.length}</small>
+      </summary>
+      <label className="dba-prontos__busca" htmlFor={buscaId}>
+        <span className="dba-ficha__sub">Entram como cópia, com ND {ND_SUGERIDO}; a pasta não muda.</span>
+        <input id={buscaId} className="dbf-inp" type="search" placeholder="Procurar pelo nome" value={busca} onChange={(evento) => setBusca(evento.target.value)} />
+      </label>
+      {erro !== null && (
+        <p className="mu-campo__erro" role="alert">
+          {erro}
+        </p>
+      )}
+      {lista.length === 0 ? (
+        <p className="dba-lado__vazio">Nenhum NPC pronto com esse nome.</p>
+      ) : (
+        <ul className="dba-fichas__lista dba-prontos__lista">
+          {lista.map((resumo) => {
+            const id = idDoProntoNaArena(resumo.id)
+            const montando = carregando.includes(resumo.id)
+            return (
+              <li key={resumo.id} className="dba-ficha">
+                <Retrato imagem={null} nome={resumo.nome} tamanho="p" />
+                <span className="dba-ficha__txt">
+                  <span className="dba-ficha__nome">{resumo.nome}</span>
+                  <span className="dba-ficha__sub">{montando ? 'Montando a ficha…' : subDoPronto(resumo)}</span>
+                </span>
+                <span className="dba-ficha__botoes">
+                  {LADOS.map((lado) => {
+                    const atual = montagem.escolhas.find((escolha) => escolha.personagemId === id && escolha.lado === lado)
+                    const cheio = fichasNoLadoDBT(montagem, lado) >= FICHAS_POR_LADO_MAX
+                    const jaEsta = atual !== undefined && atual.vezes >= VEZES_MAX
+                    const rotulo = jaEsta
+                      ? `${resumo.nome} já está no Lado ${NOME_DO_LADO[lado]}`
+                      : cheio
+                        ? `O Lado ${NOME_DO_LADO[lado]} já tem ${FICHAS_POR_LADO_MAX} fichas`
+                        : atual !== undefined
+                          ? `Mais um ${resumo.nome} no Lado ${NOME_DO_LADO[lado]} (fica com ${atual.vezes + 1})`
+                          : `Pôr ${resumo.nome}, NPC pronto do livro, no Lado ${NOME_DO_LADO[lado]}`
+                    return (
+                      <button
+                        key={lado}
+                        type="button"
+                        className="dbf-btn dbf-btn--xs dba-mais"
+                        style={corDoLado(lado)}
+                        data-esta={atual !== undefined ? 'sim' : undefined}
+                        disabled={jaEsta || cheio || montando}
+                        aria-label={rotulo}
+                        title={rotulo}
+                        onClick={() => void por(resumo, lado, (atual?.vezes ?? 0) + 1)}
+                      >
+                        {jaEsta ? `No ${NOME_DO_LADO[lado]}` : `+ ${NOME_DO_LADO[lado]}`}
+                      </button>
+                    )
+                  })}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </details>
   )
 }
 
@@ -215,8 +321,11 @@ export function PaginaArenaDBT({ personagens, sistema, sistemaId }: PaginaArenaD
 
   const jogadores = useMemo(() => personagens.filter((personagem) => personagem.tipo === 'jogador'), [personagens])
   const npcs = useMemo(() => personagens.filter((personagem) => personagem.tipo === 'npc' && entraNaBatalha(personagem)), [personagens])
-  const disponiveis = useMemo(() => [...jogadores, ...npcs], [jogadores, npcs])
-  const porId = useMemo(() => new Map(personagens.map((personagem) => [personagem.id, personagem] as const)), [personagens])
+  // Os NPCs prontos do livro que já entraram: fichas só da memória, copiadas como as da pasta.
+  const prontos = useProntosDaArenaDBT((state) => fichasProntasDoLivro(state, sistemaId))
+  const disponiveis = useMemo(() => [...jogadores, ...npcs, ...prontos], [jogadores, npcs, prontos])
+  const porId = useMemo(() => new Map([...personagens, ...prontos].map((personagem) => [personagem.id, personagem] as const)), [personagens, prontos])
+  const pastaVazia = jogadores.length === 0 && npcs.length === 0
 
   if (sessao === null || sessao.sistemaId !== sistemaId) {
     return (
@@ -283,9 +392,9 @@ export function PaginaArenaDBT({ personagens, sistema, sistemaId }: PaginaArenaD
           <h3 className="dba-fichas__tit" id="dba-fichas-tit">
             Fichas da pasta
           </h3>
-          {disponiveis.length === 0 ? (
+          {pastaVazia ? (
             <div className="mu-vazio">
-              <p>Esta pasta ainda não tem jogadores nem NPCs de combate. Crie fichas num desses marcadores, ou teste só com bonecos de treino.</p>
+              <p>Esta pasta ainda não tem jogadores nem NPCs de combate. Crie fichas num desses marcadores, ponha um NPC pronto do livro, ou teste só com bonecos de treino.</p>
               <div className="mu-pg-acoes">
                 <button type="button" className="mu-bt mu-bt--p" onClick={() => useMundoDoLivroStore.getState().trocarAba('jogadores')}>
                   Ir a Jogadores
@@ -314,6 +423,7 @@ export function PaginaArenaDBT({ personagens, sistema, sistemaId }: PaginaArenaD
                 </div>
               ))
           )}
+          <NpcsProntosNaMontagem montagem={montagem} sistema={sistema} sistemaId={sistemaId} />
         </section>
         {LADOS.map((lado) => (
           <LadoNaMontagem key={lado} lado={lado} montagem={montagem} porId={porId} />

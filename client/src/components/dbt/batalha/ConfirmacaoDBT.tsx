@@ -1,5 +1,5 @@
 import { useId, useMemo, useState, type FormEvent } from 'react'
-import type { EdicoesDoMestre, EfeitoPrevisto, Faixa, NucleoDBT, OpcaoDaPendencia, Pendencia } from '../../../lib/dbt/batalha/tipos'
+import type { EdicoesDoMestre, EfeitoPrevisto, Faixa, MarcasDosEfeitosPorTipo, NucleoDBT, OpcaoDaPendencia, Pendencia } from '../../../lib/dbt/batalha/tipos'
 import { Interruptor } from '../ficha/pecas'
 import { nomeDoCombatente, previaDoAtaque, tituloDaPendencia, type Fichas } from './dadosDaBatalhaDBT'
 import { FaixaDoGolpe, NumeroDoGolpe, PartesDaConta } from './pecasDaBatalhaDBT'
@@ -51,7 +51,8 @@ export function ConfirmacaoDBT({ pendencia, nucleo, fichas, opcoes, onConfirmar,
   const [gastarKi, setGastarKi] = useState(true)
   const [abrirReacoes, setAbrirReacoes] = useState(ataque === undefined ? true : !ataque.semJanela)
   const [aplicarDano, setAplicarDano] = useState(true)
-  const [efeitos, setEfeitos] = useState<readonly boolean[]>(() => ataque?.efeitos.map((efeito) => efeito.aplicar) ?? [])
+  // Por tipo: alcança também o efeito que entra com o crítico ou a margem trocados (sem índice na lista que o cartão abriu).
+  const [marcas, setMarcas] = useState<MarcasDosEfeitosPorTipo>({})
 
   const idDoAviso = useId()
   const danoDigitado = useMemo(() => {
@@ -75,9 +76,9 @@ export function ConfirmacaoDBT({ pendencia, nucleo, fichas, opcoes, onConfirmar,
     if (!resolucao && !ataque.kiPago && !gastarKi) saida.gastarKi = false
     if (!resolucao && abrirReacoes === ataque.semJanela) saida.abrirReacoes = abrirReacoes
     if (resolucao && !aplicarDano) saida.aplicarDano = false
-    if (efeitos.some((aplicar, indice) => aplicar !== ataque.efeitos[indice]?.aplicar)) saida.aplicarEfeitos = efeitos
+    if (Object.keys(marcas).length > 0) saida.aplicarEfeitosPorTipo = marcas
     return saida
-  }, [ataque, d20, ca, critico, faixa, mitigacao, resolucao, gastarKi, abrirReacoes, aplicarDano, efeitos])
+  }, [ataque, d20, ca, critico, faixa, mitigacao, resolucao, gastarKi, abrirReacoes, aplicarDano, marcas])
 
   const edicoes = useMemo<EdicoesDoMestre>(() => (danoDigitado === null ? edicoesSemDano : { ...edicoesSemDano, dano: danoDigitado }), [edicoesSemDano, danoDigitado])
   const previa = useMemo(() => (ataque === undefined ? null : previaDoAtaque(nucleo, fichas, ataque, edicoesSemDano)), [nucleo, fichas, ataque, edicoesSemDano])
@@ -100,12 +101,9 @@ export function ConfirmacaoDBT({ pendencia, nucleo, fichas, opcoes, onConfirmar,
     // Outro d20 refaz o crítico: a marca antiga não vale mais.
     setCritico(null)
   }
-  const trocarEfeito = (tipo: EfeitoPrevisto['tipo']) => {
-    const indice = ataque?.efeitos.findIndex((efeito) => efeito.tipo === tipo) ?? -1
-    if (indice < 0) return
-    setEfeitos(efeitos.map((aplicar, outro) => (outro === indice ? !aplicar : aplicar)))
-  }
-  const efeitosNovos = previa?.efeitos.some((previsto) => ataque?.efeitos.every((efeito) => efeito.tipo !== previsto.tipo)) ?? false
+  // A marca nova parte do que a prévia mostra (a prévia já leva as marcas de antes).
+  const trocarEfeito = (efeito: EfeitoPrevisto) => setMarcas({ ...marcas, [efeito.tipo]: !efeito.aplicar })
+  const efeitosNovos = previa !== null && ataque !== undefined && previa.efeitos.some((previsto) => ataque.efeitos.every((efeito) => efeito.tipo !== previsto.tipo))
 
   return (
     <form className="dbb-cartao" onSubmit={enviar} aria-label="Confirmação do mestre">
@@ -161,7 +159,7 @@ export function ConfirmacaoDBT({ pendencia, nucleo, fichas, opcoes, onConfirmar,
             {previa.efeitos.map((efeito) => {
               const novo = ataque.efeitos.every((antigo) => antigo.tipo !== efeito.tipo)
               return (
-                <Interruptor key={efeito.tipo} ligado={efeito.aplicar} disabled={novo} descritoPor={novo ? idDoAviso : undefined} onTrocar={() => trocarEfeito(efeito.tipo)}>
+                <Interruptor key={efeito.tipo} ligado={efeito.aplicar} descritoPor={novo ? idDoAviso : undefined} onTrocar={() => trocarEfeito(efeito)}>
                   {efeito.texto}
                   {efeito.cd !== null ? ` (CD ${efeito.cd})` : ''}
                 </Interruptor>
@@ -170,7 +168,7 @@ export function ConfirmacaoDBT({ pendencia, nucleo, fichas, opcoes, onConfirmar,
           </div>
           {efeitosNovos && (
             <p id={idDoAviso} className="dbb-cartao__d">
-              Efeito que entrou com a mudança do golpe sempre se aplica: para tirar, volte o crítico ou o d20.
+              Efeito que entrou com a mudança do golpe: desligue aqui se ele não vale.
             </p>
           )}
         </>

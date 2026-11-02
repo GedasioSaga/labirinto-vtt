@@ -1505,6 +1505,13 @@ function App() {
    * as DBT nunca aparecem juntas mesmo assim.
    */
   const batalhaDBTNaTela = mesaDragonBall && batalhaDBTNaCenaAberta && !batalhaNaCenaAberta
+  /**
+   * BATALHA DBT: a página Batalha do livro. Dragon Ball quando a cena está numa
+   * batalha DBT, ou quando a mesa é Dragon Ball e a cena não está numa One
+   * Piece; senão, a do One Piece. A batalha ligada vence o sistema da mesa:
+   * nenhuma fica sem a página que a encerra.
+   */
+  const paginaDaBatalhaDBT = batalhaDBTNaCenaAberta || (mesaDragonBall && !batalhaNaCenaAberta)
   /** BATALHA DBT: o Judge da cena e o soltar dele (nasce sozinho na batalha que ligou sem ele). */
   const judgeDBT = useJudgeDBT(chaveDaCenaAberta, aventuraDoJudge)
   /** INVOCAÇÃO F3: o "Escolher no mapa" do Colocar (a cena da colocação armada). */
@@ -4400,8 +4407,9 @@ function App() {
         chat={sala === undefined ? undefined : chatDaMesa()}
         mesa={sala === undefined ? undefined : <PaginaMesa {...sala} livroDeRegras={<BotaoDoLivroDeRegras />} />}
         // BATALHA DBT: a página pelo motor do sistema da mesa; uma página só = um Shift+B só.
+        // A batalha que a cena JÁ tem manda: nenhuma fica sem página para encerrar (a mesa trocou de sistema no meio).
         batalha={
-          mesaDragonBall ? (
+          paginaDaBatalhaDBT ? (
             <PaginaDaBatalhaDBT sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />
           ) : (
             <PaginaDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />

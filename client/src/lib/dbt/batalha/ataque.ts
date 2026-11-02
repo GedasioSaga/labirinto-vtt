@@ -363,7 +363,18 @@ export function seguirAtaque(t: Trabalho, ataque: AtaqueResolvido, semJanela: bo
     consumirCondicao(t, alvo.id, 'quebra-de-guarda')
   }
   const conta = contaLegivel(t, ataque)
-  if (ataque.rolagem !== null) efeito(t, { tipo: 'rolagem', tokenIds: [atacante.id, alvo.id], d20: ataque.rolagem.d20, faixa: ataque.faixa, numero: null })
+  if (ataque.rolagem !== null) {
+    efeito(t, {
+      tipo: 'rolagem',
+      tokenIds: [atacante.id, alvo.id],
+      d20: ataque.rolagem.d20,
+      faixa: ataque.faixa,
+      numero: null,
+      critico: ataque.critico,
+      erroCritico: ataque.erroCritico,
+      alvoId: alvo.id,
+    })
+  }
   const publicoDaRolagem = ataque.rolagem === null ? '' : `d20 ${ataque.rolagem.d20}, total ${ataque.rolagem.total}: `
   if (ataque.faixa === 'erro') {
     escrever(t, `${conta}: ${ataque.erroCritico ? 'erro crítico' : 'erra'}`, `${publicoDaRolagem}${ataque.erroCritico ? 'erro crítico' : 'erra'} ${alvo.nome}`)
@@ -637,27 +648,13 @@ export function barreiraNaAcao(t: Trabalho, id: IdDoCombatente, tecnica: Tecnica
   escrever(t, `${c.nome} ergue ${tecnica.nome}: CA +${tecnica.barreira} até o próximo turno`)
 }
 
-/** A marca do mestre pelo TIPO do efeito (`true` aplica, `false` desliga); tipo ausente = a marca de sempre. */
-export type MarcasDosEfeitosPorTipo = Partial<Record<EfeitoPrevisto['tipo'], boolean>>
-
-/**
- * As edições do cartão do modo manual mais a marca por tipo. Por tipo porque
- * o efeito que ENTRA com o crítico ou a margem trocados (a quebra de armadura,
- * o gatilho) não tem índice na lista que o cartão abriu, e o mestre precisa
- * poder desligá-lo também. O comando leva `EdicoesDoMestre`; um objeto deste
- * tipo cabe ali como está e chega inteiro aqui.
- */
-export interface EdicoesDoAtaqueDBT extends EdicoesDoMestre {
-  aplicarEfeitosPorTipo?: MarcasDosEfeitosPorTipo
-}
-
 /**
  * Cartão do modo manual, etapa ataque (seção 15): o mestre troca d20, CA,
  * faixa, crítico ou dano; o resto se recalcula a partir do que mudou.
  * Marcas dos efeitos: na lista antiga, o índice manda e o tipo vem depois;
  * na lista refeita, o tipo manda (é a única marca que alcança o efeito novo).
  */
-export function editarAtaque(t: Trabalho, ataque: AtaqueResolvido, edicoes: EdicoesDoAtaqueDBT): AtaqueResolvido {
+export function editarAtaque(t: Trabalho, ataque: AtaqueResolvido, edicoes: EdicoesDoMestre): AtaqueResolvido {
   const alvo = combatente(t, ataque.alvoId)
   const tecnica = tecnicaDe(t, ataque.atacanteId, ataque.tecnica.id)
   let novo = ataque

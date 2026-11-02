@@ -1798,7 +1798,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onCarregar={(tokenId, cartaoId) => connection.ganharContadorNaBatalha(tokenId, cartaoId)}
           />
         )}
-        {/* BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, com PV e Ki só dele e dos aliados. */}
+        {/*
+          BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, com PV e Ki só dele e dos aliados.
+          A recusa do host aparece num lugar só: no menu da batalha quando ele está na tela; olhando
+          outro andar (sem o menu), aqui na faixa.
+        */}
         {vistaDBT !== undefined && (
           <FaixaDoJogadorDBT
             className="pp-batalha-faixa"
@@ -1807,7 +1811,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             meus={state.personagens?.personagens}
             fichas={state.map.tokens}
             sistema={state.sistemaDeRpg ?? null}
-            recusa={recusaDaBatalhaDBT}
+            recusa={otherFloor === null ? null : recusaDaBatalhaDBT}
           />
         )}
         {/*

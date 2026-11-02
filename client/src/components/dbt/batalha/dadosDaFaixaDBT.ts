@@ -144,17 +144,16 @@ export function faixaDoMestreDBT({ nucleo, cartas, fichas, personagens, equipes,
   }
 }
 
-/**
- * O personagem da carta, se o recorte trouxer (`personagemId` ainda não viaja
- * na `CartaDBT` da vista; quando viajar, o perfil do aliado abre sem mudar aqui).
- */
+/** O personagem da carta: o host só o manda em "eu" e "aliado" (nunca no inimigo). */
 function personagemDaCartaDaVista(carta: CartaDaVistaDBT): string | null {
-  if (!('personagemId' in carta)) return null
-  const id: unknown = carta.personagemId
-  return typeof id === 'string' && id !== '' ? id : null
+  return carta.personagemId === undefined || carta.personagemId === '' ? null : carta.personagemId
 }
 
-/** "Você joga a seguir" ou "Você joga em N turnos": a distância da vez até a próxima carta dele. */
+function fraseDoDepois(passos: number): string {
+  return passos === 1 ? 'Você joga a seguir' : `Você joga em ${passos} turnos`
+}
+
+/** "Você joga a seguir" ou "Você joga em N turnos": a distância da vez até a próxima carta dele (só com a ordem inteira na vista). */
 function depoisDoJogador(cartas: readonly CartaNaFaixaDBT[], vez: string | null): string | null {
   if (vez === null) return null
   const indice = cartas.findIndex((carta) => carta.id === vez)
@@ -163,9 +162,21 @@ function depoisDoJogador(cartas: readonly CartaNaFaixaDBT[], vez: string | null)
     const carta = cartas[(indice + passo) % cartas.length]
     if (carta === undefined || !carta.minha) continue
     if (carta.situacao === 'morto') continue
-    return passo === 1 ? 'Você joga a seguir' : `Você joga em ${passo} turnos`
+    return fraseDoDepois(passo)
   }
   return null
+}
+
+/**
+ * O "Depois" do jogador. O host conta pela ordem inteira (`turno.ateMinhaVez`,
+ * com quem está fora da vista); sem o campo, só dá para contar com a ordem
+ * inteira na vista (senão a conta mentiria).
+ */
+function depoisDaVista(vista: VistaDBT, cartas: readonly CartaNaFaixaDBT[], vez: string | null, ordemInteira: boolean): string | null {
+  if (vista.minhaVez) return null
+  const { ateMinhaVez } = vista.turno
+  if (ateMinhaVez !== undefined) return vista.fase !== 'combate' || ateMinhaVez === null ? null : fraseDoDepois(ateMinhaVez)
+  return ordemInteira ? depoisDoJogador(cartas, vez) : null
 }
 
 interface EntradaDoJogadorDBT {
@@ -205,8 +216,8 @@ export function faixaDoJogadorDBT({ vista, fichas, meus }: EntradaDoJogadorDBT):
     }
   })
   const vez = vista.fase === 'combate' ? vista.vez : null
-  // Com gente fora da vista na ordem (`turno.m` conta todos), não dá para contar
-  // quem joga antes: sem "A SEGUIR" e sem "Você joga em N turnos", que mentiriam.
+  // Com gente fora da vista na ordem (`turno.m` conta todos), a carta "A SEGUIR"
+  // mentiria; o "Você joga em N turnos" vem contado pelo host (`ateMinhaVez`).
   const ordemInteira = naFaixa.length >= vista.turno.m
   return {
     fase: vista.fase,
@@ -218,6 +229,6 @@ export function faixaDoJogadorDBT({ vista, fichas, meus }: EntradaDoJogadorDBT):
     minhaVez: vista.minhaVez,
     // `turno.n` é 0 quando ninguém tem a vez (o mestre tirou quem estava nela): aí não é "fora da vista".
     vezForaDaVista: vista.fase === 'combate' && vista.vez === null && vista.turno.n > 0,
-    depois: vista.minhaVez || !ordemInteira ? null : depoisDoJogador(naFaixa, vez),
+    depois: depoisDaVista(vista, naFaixa, vez, ordemInteira),
   }
 }

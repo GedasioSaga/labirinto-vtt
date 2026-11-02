@@ -14,6 +14,7 @@ import type { Token } from '../../../types/map'
 import { PalcoDaArena } from '../../arena/PalcoDaArena'
 import { useImagemDaMesa } from '../../ImagemDaMesa'
 import { IconeDoMundo } from '../../livros/icones'
+import { fichasProntasDoLivro, useProntosDaArenaDBT } from './npcsProntosDaArena'
 import { PainelDaArenaDBT } from './PainelDaArenaDBT'
 import '../ficha/fichaDBT.css'
 import '../batalha/batalhaDBT.css'
@@ -38,6 +39,7 @@ export interface TelaDaArenaDBTProps {
   sistema: SistemaDeRpg
 }
 
+const SEM_FICHAS: readonly Personagem[] = []
 const SEM_SELOS: SelosNasFichas = new Map()
 const SEM_FOTOS: FotosDaForma = new Map()
 /** A cor do disco do Judge no palco (neutra: ele não é de lado nenhum). */
@@ -173,6 +175,9 @@ export function TelaDaArenaDBT({ sistema }: TelaDaArenaDBTProps) {
   const sessao = useArenaDBTStore((state) => state.sessao)
   const cena = batalhaDaArenaDBT((state) => (Object.hasOwn(state.cenas, CENA_DA_ARENA) ? state.cenas[CENA_DA_ARENA] : undefined))
   const fichasReais = usePersonagensDoMundo()
+  // O Recomeçar copia de novo também os NPCs prontos do livro que estão na montagem.
+  const prontos = useProntosDaArenaDBT((state) => (sessao === null ? SEM_FICHAS : fichasProntasDoLivro(state, sessao.sistemaId)))
+  const fichas = useMemo(() => [...(fichasReais ?? SEM_FICHAS), ...prontos], [fichasReais, prontos])
   const raiz = useRef<HTMLElement>(null)
   const tituloId = useId()
 
@@ -211,7 +216,7 @@ export function TelaDaArenaDBT({ sistema }: TelaDaArenaDBTProps) {
             <span>Dragon Ball · cópias: nada mexe nas fichas de verdade</span>
           </p>
         </div>
-        {cena !== undefined && <AcoesDaBarra sessao={sessao} cena={cena} fichas={fichasReais ?? []} />}
+        {cena !== undefined && <AcoesDaBarra sessao={sessao} cena={cena} fichas={fichas} />}
       </header>
       {cena === undefined ? (
         <p className="dba-ligando" aria-busy="true">

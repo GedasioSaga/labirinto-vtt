@@ -96,7 +96,7 @@ async function recusaDe(fazer: () => RespostaDoEnvioDBT | Promise<RespostaDoEnvi
 }
 
 export function FaixaDoJogadorDBT({ vista, enviar, meus = NINGUEM, fichas, sistema, recusa = null, className }: FaixaDoJogadorDBTProps) {
-  // Só abre o que ele tem: a carta dele (e a de aliado quando o personagem chegar); o resto vira texto.
+  // Só abre o que ele tem: o host manda o personagem só nas cartas "eu" e "aliado"; a do aliado abre quando a ficha dele está em `meus`.
   const dados = useMemo(() => {
     const base = faixaDoJogadorDBT({ vista, fichas, meus })
     const temPerfil = (personagemId: string | null) => personagemId !== null && meus.some((personagem) => personagem.id === personagemId)
@@ -179,7 +179,7 @@ export function FaixaDoJogadorDBT({ vista, enviar, meus = NINGUEM, fichas, siste
         <PerfilDaCarta
           personagem={perfil}
           sistema={sistema}
-          descricao={[cartaDoPerfil?.transformacao ?? undefined, 'você', 'só leitura'].filter(Boolean).join(' · ')}
+          descricao={[cartaDoPerfil?.transformacao ?? undefined, cartaDoPerfil?.minha === false ? 'aliado' : 'você', 'só leitura'].filter(Boolean).join(' · ')}
           quemOlha="jogador"
           onFechar={() => setPerfilId(null)}
         />

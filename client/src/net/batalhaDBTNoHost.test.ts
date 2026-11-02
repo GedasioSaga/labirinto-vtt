@@ -48,7 +48,7 @@ function montar() {
   expect(loja.getState().comando(CENA, MESTRE, { tipo: 'comecar' }).ok).toBe(true)
   const ponte: PonteDaBatalhaDBT = {
     cena: (sceneKey) => loja.getState().cenas[sceneKey] ?? null,
-    comando: (sceneKey, autor, comando) => loja.getState().comando(sceneKey, autor, comando).ok,
+    comando: (sceneKey, autor, comando) => loja.getState().comando(sceneKey, autor, comando),
     desfazer: (sceneKey, linhaId, autor) => loja.getState().desfazer(sceneKey, linhaId, autor),
     registrarAjuste: (personagemId, antes, depois, autor) => loja.getState().registrarAjuste(personagemId, antes, depois, autor),
     fichasLidas: (sceneKey) => loja.getState().fichasLidas(sceneKey),

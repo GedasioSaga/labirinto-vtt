@@ -10,8 +10,8 @@ import type { AutorDBT, ComandoDBT, EstadoDBT } from './tipos'
  */
 export interface PonteDaBatalhaDBT {
   cena(sceneKey: string): (EstadoDBT & { judge?: JudgeNaCena }) | null
-  /** `true` = aceito; a recusa vai para o registro do mestre, não para o jogador. */
-  comando(sceneKey: string, autor: AutorDBT, comando: ComandoDBT): boolean
+  /** `ok` = aceito; recusado, `motivo` diz por quê (o host o passa ao jogador, cortado no teto do fio). */
+  comando(sceneKey: string, autor: AutorDBT, comando: ComandoDBT): { ok: boolean; motivo?: string }
   desfazer(sceneKey: string, linhaId: string, autor: AutorDBT): boolean
   registrarAjuste(personagemId: string, antes: Personagem, depois: Personagem, autor: AutorDBT): void
   /** As fichas lidas pela batalha (para o recorte do jogador). */

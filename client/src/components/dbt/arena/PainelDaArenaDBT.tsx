@@ -10,7 +10,8 @@ import type { CenaDBT } from '../../../stores/batalhaDBTStore'
 import { batalhaDaArenaDBT, useArenaDBTStore, type SessaoDaArenaDBT } from '../../../stores/arenaDBTStore'
 import { avisosDoMestre, candidatosDoAlvo, cartasDaBatalha, fichaDoCombatente, opcoesDaVez, tituloDaPendencia, type Fichas } from '../batalha/dadosDaBatalhaDBT'
 import { MenuDeAcoesDBT, type CandidatoAoAlvo, type MiraDoMenu } from '../batalha/MenuDeAcoesDBT'
-import { OrdemDoMestreDBT } from '../batalha/OrdemDoMestreDBT'
+import { OrdemDoMestreDBT, type FichaNoMenuDBT } from '../batalha/OrdemDoMestreDBT'
+import { PerfilDaCarta } from '../../batalha/PerfilDaCarta'
 import { PainelIniciativaDBT } from '../batalha/PainelIniciativaDBT'
 import { PendenciaDoMestreDBT, type RespostaDoMestre } from '../batalha/PendenciaDBT'
 import { Secao } from '../batalha/pecasDaBatalhaDBT'
@@ -27,7 +28,8 @@ import { BonecoDaArenaDBT } from './BonecoDaArenaDBT'
  * ações de quem tem a vez (o mestre joga todos os lados), os bonecos de
  * treino, a ordem e o registro com o Desfazer de cada linha.
  *
- * "Abrir a ficha" fica fora do menu da carta: a cópia não é ficha da pasta.
+ * O "Abrir a ficha" do menu da carta abre a CÓPIA no perfil só leitura
+ * (`PerfilDaCarta`): a cópia não é ficha da pasta, e nada ali grava.
  */
 
 export interface PainelDaArenaDBTProps {
@@ -49,6 +51,9 @@ const MODOS = [
 export function PainelDaArenaDBT({ sessao, cena, sistema, mira }: PainelDaArenaDBTProps) {
   const [recusa, setRecusa] = useState<string | null>(null)
   const [desde, setDesde] = useState<{ id: string; quando: number } | null>(null)
+  // A cópia aberta no perfil só leitura (o menu da carta).
+  const [perfilId, setPerfilId] = useState<string | null>(null)
+  const fichaNoMenu = useMemo<FichaNoMenuDBT>(() => ({ rotulo: 'Abrir a ficha da cópia', detalhe: 'Só leitura: a ficha de verdade não muda', abrir: setPerfilId }), [])
   const { combatentes, registro } = cena
   const fichas = useMemo<Fichas>(() => fichasDaCena(sessao.copias, sistema, Object.values(combatentes)), [sessao.copias, sistema, combatentes])
 
@@ -92,6 +97,14 @@ export function PainelDaArenaDBT({ sessao, cena, sistema, mira }: PainelDaArenaD
           const carta = cartas.find((candidata) => candidata.id === c.id)
           return { id: c.id, nome: c.nome, detalhe: carta === undefined || carta.manual ? 'sem ficha' : `CA ${carta.ca ?? 0}, EP ${carta.ep ?? 0}${carta.pv === null ? '' : `, PV ${carta.pv.atual}`}` }
         })
+
+  /** A cópia por trás da carta (o boneco não: CA, PV e EP dele se ajustam na seção dos bonecos). */
+  const copiaDaCarta = useCallback(
+    (id: string): string | null => (Object.hasOwn(sessao.bonecoDe, id) || !Object.hasOwn(cena.combatentes, id) ? null : cena.combatentes[id].personagemId),
+    [sessao.bonecoDe, cena.combatentes],
+  )
+  // A cópia que saiu da luta (Recomeçar, Voltar à montagem) fecha o perfil sozinha: o `find` some.
+  const perfil = perfilId === null ? undefined : sessao.copias.find((copia) => copia.id === perfilId)
 
   /** O PV de agora de cada boneco, pela cópia dele. */
   const pvDoBoneco = (bonecoId: string): number | undefined => {
@@ -201,13 +214,15 @@ export function PainelDaArenaDBT({ sessao, cena, sistema, mira }: PainelDaArenaD
 
       {cena.fase === 'combate' && (
         <Secao titulo="Ordem" nota="⋯ abre o menu de cada um">
-          <OrdemDoMestreDBT cartas={cartas} combate vez={cena.ordem.vez} personagemDe={() => null} deFora={SEM_ENTRANTES} mestre={mestre} />
+          <OrdemDoMestreDBT cartas={cartas} combate vez={cena.ordem.vez} personagemDe={copiaDaCarta} deFora={SEM_ENTRANTES} mestre={mestre} fichaNoMenu={fichaNoMenu} />
         </Secao>
       )}
 
       <Secao titulo="Registro" nota="Ctrl+Z desfaz a última coisa feita na arena">
         <RegistroDBT linhas={linhas} onDesfazer={desfazerLinha} />
       </Secao>
+
+      {perfil !== undefined && <PerfilDaCarta personagem={perfil} sistema={sistema} descricao="Cópia da arena · só leitura" onFechar={() => setPerfilId(null)} />}
     </div>
   )
 }

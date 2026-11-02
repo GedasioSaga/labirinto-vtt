@@ -27,6 +27,21 @@ export interface OrdemDoMestreDBTProps {
   mestre: (acao: AcaoDoMestreDBT) => boolean
   /** Os lados para "Lado" no menu (`ladosDaBatalhaDBT`); ausente = sem a seção. */
   lados?: readonly LadoNoMenuDBT[]
+  /** O "Abrir a ficha" do menu; ausente = a ficha de verdade (`abrirFicha` da mesa). */
+  fichaNoMenu?: FichaNoMenuDBT
+}
+
+/** Um "Abrir a ficha" que não é o da mesa (a arena abre a cópia só leitura). */
+export interface FichaNoMenuDBT {
+  rotulo: string
+  detalhe: string
+  abrir: (personagemId: string) => void
+}
+
+const FICHA_DA_MESA: FichaNoMenuDBT = {
+  rotulo: 'Abrir a ficha',
+  detalhe: 'PV e Ki também se ajustam por lá',
+  abrir: (personagemId) => useRpgStore.getState().abrirFicha(personagemId),
 }
 
 const CONDICOES: readonly IdDaCondicao[] = Object.keys(COMPORTAMENTO) as IdDaCondicao[]
@@ -55,6 +70,7 @@ export interface ContextoDoMenuDBT {
   mestre: (acao: AcaoDoMestreDBT) => boolean
   abrirCaixa: (caixa: CaixaDoMenuDBT) => void
   lados?: readonly LadoNoMenuDBT[]
+  fichaNoMenu?: FichaNoMenuDBT
 }
 
 /**
@@ -62,12 +78,12 @@ export interface ContextoDoMenuDBT {
  * do mapa: dar a vez, mover, condição, modificador, Reação em Desvantagem,
  * derrubar, ação gratuita, Ação Oculta, lado, situação e tirar.
  */
-export function itensDoMestreDBT(carta: CartaDBT, { cartas, combate, vez, personagemDe, mestre, abrirCaixa, lados }: ContextoDoMenuDBT): ItemDoMenuDaCarta[] {
+export function itensDoMestreDBT(carta: CartaDBT, { cartas, combate, vez, personagemDe, mestre, abrirCaixa, lados, fichaNoMenu = FICHA_DA_MESA }: ContextoDoMenuDBT): ItemDoMenuDaCarta[] {
   const indice = cartas.findIndex((candidata) => candidata.id === carta.id)
   const nomeDaVez = cartas.find((candidata) => candidata.id === vez)?.nome ?? null
   const itens: ItemDoMenuDaCarta[] = []
   const personagemId = personagemDe(carta.id)
-  if (personagemId !== null) itens.push({ id: 'ficha', rotulo: 'Abrir a ficha', detalhe: 'PV e Ki também se ajustam por lá', onEscolher: () => useRpgStore.getState().abrirFicha(personagemId) })
+  if (personagemId !== null) itens.push({ id: 'ficha', rotulo: fichaNoMenu.rotulo, detalhe: fichaNoMenu.detalhe, onEscolher: () => fichaNoMenu.abrir(personagemId) })
   if (combate) {
     itens.push({ id: 'vez', secao: 'Vez', rotulo: 'Dar a vez', desabilitado: carta.vez, detalhe: carta.vez ? 'Já é a vez dele' : 'Fecha o turno de quem está e começa o dele', onEscolher: () => mestre({ tipo: 'darAVez', combatenteId: carta.id }) })
   }
@@ -122,12 +138,12 @@ export function CaixaDaOrdemDBT({ caixa, onFechar, mestre }: { caixa: CaixaDoMen
   return caixa.tipo === 'condicao' ? <CaixaDeCondicao carta={caixa.carta} onFechar={onFechar} mestre={mestre} /> : <CaixaDeTemporario carta={caixa.carta} onFechar={onFechar} mestre={mestre} />
 }
 
-export function OrdemDoMestreDBT({ cartas, combate, vez, personagemDe, deFora, mestre, lados }: OrdemDoMestreDBTProps) {
+export function OrdemDoMestreDBT({ cartas, combate, vez, personagemDe, deFora, mestre, lados, fichaNoMenu }: OrdemDoMestreDBTProps) {
   const [menu, setMenu] = useState<{ carta: CartaDBT; ancora: HTMLElement } | null>(null)
   const [caixa, setCaixa] = useState<CaixaDoMenuDBT | null>(null)
   const [incluir, setIncluir] = useState('')
 
-  const itensDe = (carta: CartaDBT): ItemDoMenuDaCarta[] => itensDoMestreDBT(carta, { cartas, combate, vez, personagemDe, mestre, abrirCaixa: setCaixa, lados })
+  const itensDe = (carta: CartaDBT): ItemDoMenuDaCarta[] => itensDoMestreDBT(carta, { cartas, combate, vez, personagemDe, mestre, abrirCaixa: setCaixa, lados, fichaNoMenu })
 
   const entranteEscolhido = deFora.find((entrante) => entrante.tokenId === incluir)
 

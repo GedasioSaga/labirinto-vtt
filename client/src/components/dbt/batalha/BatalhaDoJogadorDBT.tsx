@@ -52,13 +52,12 @@ function golpeDaJanela(janela: JanelaDBTParaJogador): GolpeNaTela {
 }
 
 /**
- * A carta é do lado de quem age? O recorte do host diz em `mesmoLado` quando
- * o traz (o lado escolhido em "Quem entra na batalha?"); sem o campo, vale o
- * `lado` da vista ("outro" = do outro lado).
+ * A carta é do lado de quem age? O recorte do host diz em `mesmoLado` (o lado
+ * escolhido em "Quem entra na batalha?": o NPC que luta com ele não é
+ * inimigo); sem o campo (host de antes), vale o `lado` da vista.
  */
 function doMesmoLado(carta: CartaDBT): boolean {
-  if ('mesmoLado' in carta && typeof carta.mesmoLado === 'boolean') return carta.mesmoLado
-  return carta.lado !== 'outro'
+  return carta.mesmoLado ?? carta.lado !== 'outro'
 }
 
 function candidatosDaVista(cartas: readonly CartaDBT[], atorId: string, alvo: OpcaoDeAcao['alvo']): CandidatoAoAlvo[] {
@@ -130,8 +129,6 @@ export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira, tecnic
   const [minhaRecusa, setMinhaRecusa] = useState<string | null>(null)
   const [verRegistro, setVerRegistro] = useState(false)
   const [desfazendo, setDesfazendo] = useState<string | null>(null)
-  // O turno em que ele já usou um básico: anunciar mais de 3 só antes do 1º (9.2). Se o mestre agiu por ele, o host recusa e diz.
-  const [basicoNoTurno, setBasicoNoTurno] = useState<string | null>(null)
   const kiVoltou = useKiQueVoltou(vista)
   const { janela } = vista
   // A reação da janela aberta vai para a caixa embaixo; o resto fica no menu.
@@ -252,15 +249,11 @@ export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira, tecnic
               opcoes={naVez.acoes}
               candidatos={(opcao) => candidatosDaVista(vista.cartas, naVez.tokenId, opcao.alvo)}
               tecnica={tecnicaDaVez}
-              podeAnunciarBasicos={basicoNoTurno !== chaveDaVez}
+              // Anunciar mais de 3 básicos só antes do 1º (9.2): o host conta, mesmo quando o mestre agiu por ele. Sem o campo, o host recusa e diz.
+              podeAnunciarBasicos={(vista.turno.basicosUsados ?? 0) === 0}
               mira={mira}
               ocupado={ocupado}
-              onAgir={(opcao, alvos, extras) => {
-                const basica = opcao.tecnicaId !== null && tecnicaDaVez?.(opcao.tecnicaId)?.basica === true
-                void executar(() => enviar.agir({ combatenteId: naVez.tokenId, vez: vezDele, opcao: opcao.chave, alvos: [...alvos], extras })).then((enviado) => {
-                  if (enviado && basica) setBasicoNoTurno(chaveDaVez)
-                })
-              }}
+              onAgir={(opcao, alvos, extras) => void executar(() => enviar.agir({ combatenteId: naVez.tokenId, vez: vezDele, opcao: opcao.chave, alvos: [...alvos], extras }))}
             />
             <div className="dbb-cartao__acoes">
               <button

@@ -393,6 +393,11 @@ export interface EfeitoDBT {
   d20: number | null
   faixa: Faixa | null
   numero: number | null
+  /** Só o golpe (rolagem com faixa): o crítico e o erro crítico do ataque. Ausente = efeito sem golpe (ou salvo antes do campo). */
+  critico?: boolean
+  erroCritico?: boolean
+  /** Só o golpe: em quem o aviso cai (nunca no atacante). Ausente = efeito sem golpe, ou o alvo fora da vista do jogador. */
+  alvoId?: string
 }
 
 export interface EstadoDBT extends NucleoDBT {
@@ -438,8 +443,18 @@ export interface EdicoesDoMestre {
   aplicarDano?: boolean
   /** Um por `EfeitoPrevisto`, na mesma ordem. */
   aplicarEfeitos?: readonly boolean[]
+  /**
+   * A marca pelo TIPO do efeito (`true` aplica, `false` desliga); tipo
+   * ausente = a marca de sempre. O efeito que ENTRA com o crítico ou a margem
+   * trocados (a quebra de armadura, o gatilho) não tem índice na lista que o
+   * cartão abriu: só esta marca o alcança.
+   */
+  aplicarEfeitosPorTipo?: MarcasDosEfeitosPorTipo
   passou?: boolean
 }
+
+/** A marca do mestre pelo tipo do efeito (`EdicoesDoMestre.aplicarEfeitosPorTipo`). */
+export type MarcasDosEfeitosPorTipo = Partial<Record<EfeitoPrevisto['tipo'], boolean>>
 
 export type AcaoDoMestreDBT =
   | { tipo: 'modo'; modo: ModoDaBatalha }

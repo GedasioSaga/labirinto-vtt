@@ -87,6 +87,19 @@
   text-transform: uppercase;
   color: var(--lb-color-parchment-faint);
 }
+/* NPCs prontos do livro: fechado por padrão; a lista rola sozinha (são dezenas). */
+.dba-prontos > summary {
+  cursor: pointer;
+}
+.dba-prontos__busca {
+  display: grid;
+  gap: 4px;
+}
+.dba-prontos__lista {
+  max-height: 360px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .dba-fichas__grupo-tit small {
   margin-left: 4px;
   font-family: var(--db-num);
