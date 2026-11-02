@@ -5,7 +5,7 @@ import { ehVariacao, entraNaBatalha, soltarDoModelo, variacoesDe } from '../../.
 import { FORCA_PADRAO, type Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import { useMundoDoLivroStore } from '../../../stores/mundoDoLivroStore'
-import { gravarNoMundo, primeiroNome, Retrato, semCenario, trocarFicha } from '../../livros/comum'
+import { gravarNoMundo, Retrato, semCenario, trocarFicha } from '../../livros/comum'
 import { IconeDoMundo } from '../../livros/icones'
 import { EditorDaNota, SoVoceVe } from '../../livros/PaginaAnotacoes'
 import { fichaDe, notacaoDoNpc, RANKS_DO_LIVRO } from './contasDoMundo'
@@ -117,7 +117,7 @@ function DetalheDoNpc({ personagem, personagens, deCombate, ranks, onNovoNpc }: 
   let de: string
   if (modeloId !== undefined) de = `Variação de ${modelo?.nome ?? 'um modelo'}: nasceu com a ficha dele.`
   else if (variacoes.length > 0) de = `Modelo com ${variacoes.length} ${variacoes.length === 1 ? 'variação' : 'variações'}.`
-  else de = 'NPC único. Crie uma variação para usá-lo como modelo.'
+  else de = 'NPC único. Copie a ficha para ter outros iguais.'
 
   return (
     <section className="mu-cartao mu-bes-det" aria-labelledby="mu-bes-nome">
@@ -174,9 +174,10 @@ function DetalheDoNpc({ personagem, personagens, deCombate, ranks, onNovoNpc }: 
         )}
       </div>
 
+      {/* Cópia solta, não variação: a sincronização das variações não leva a ficha Dragon Ball (bloco dbt), veja NovoNpcDBTDialog. */}
       {modeloId === undefined && (
         <div className="mu-bes-bloco">
-          <h4 className="mu-bes-bloco__tit">Variações</h4>
+          <h4 className="mu-bes-bloco__tit">{variacoes.length > 0 ? 'Cópias e variações' : 'Cópias'}</h4>
           <p className="mu-bes-bloco__sub">Mesma ficha com outro nome. Bom para “3 Saibamans”, cada um ajustado na própria ficha.</p>
           <div className="mu-pg-acoes">
             {variacoes.map((variacao) => (
@@ -188,10 +189,10 @@ function DetalheDoNpc({ personagem, personagens, deCombate, ranks, onNovoNpc }: 
             <button
               type="button"
               className="mu-bt mu-bt--p"
-              onClick={() => onNovoNpc({ tipo: 'novo', modeloId: personagem.id, nome: `${primeiroNome(nome)} ${variacoes.length + 1}` })}
+              onClick={() => onNovoNpc({ tipo: 'novo', modeloId: personagem.id })}
             >
               <IconeDoMundo nome="copia" />
-              Nova variação
+              Copiar ficha
             </button>
           </div>
         </div>

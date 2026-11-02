@@ -303,7 +303,12 @@ export function CompararDBT({ personagens }: CompararDBTProps) {
 
   const jogadores = useMemo(() => personagens.filter((personagem) => personagem.tipo === 'jogador'), [personagens])
   const npcs = useMemo(() => personagens.filter((personagem) => personagem.tipo === 'npc' && entraNaBatalha(personagem)), [personagens])
-  const escolhidas = useMemo(() => comparar.flatMap((id) => personagens.find((personagem) => personagem.id === id) ?? []), [comparar, personagens])
+  // Só conta quem tem chip na tela: o NPC que foi para "Só no cenário" depois de escolhido continua no estado, mas não entra nas contas.
+  const idsDeCombate = useMemo(() => new Set([...jogadores, ...npcs].map((personagem) => personagem.id)), [jogadores, npcs])
+  const colunas = useMemo(() => comparar.filter((id) => idsDeCombate.has(id)), [comparar, idsDeCombate])
+  const grupoNaTela = useMemo(() => grupo.filter((id) => jogadores.some((personagem) => personagem.id === id)), [grupo, jogadores])
+  const inimigosNaTela = useMemo(() => Object.fromEntries(Object.entries(inimigos).filter(([id]) => idsDeCombate.has(id))), [inimigos, idsDeCombate])
+  const escolhidas = useMemo(() => colunas.flatMap((id) => personagens.find((personagem) => personagem.id === id) ?? []), [colunas, personagens])
   const comparacao = useMemo(() => {
     if (ranks === null || escolhidas.length < COMPARAR_MIN) return null
     const lista = escolhidas.map((personagem) => {
@@ -312,7 +317,7 @@ export function CompararDBT({ personagens }: CompararDBTProps) {
     })
     return compararPersonagens(lista, { ranks, rotulos: ROTULOS_DO_LIVRO, vidaPorGolpe: VIDA_POR_GOLPE })
   }, [escolhidas, ranks])
-  const encontro = useMemo(() => (ranks === null ? null : pesoDoEncontroDBT(grupo, inimigos, personagens, ranks)), [grupo, inimigos, personagens, ranks])
+  const encontro = useMemo(() => (ranks === null ? null : pesoDoEncontroDBT(grupoNaTela, inimigosNaTela, personagens, ranks)), [grupoNaTela, inimigosNaTela, personagens, ranks])
 
   if (ranks === null || encontro === null) {
     return (
@@ -324,14 +329,20 @@ export function CompararDBT({ personagens }: CompararDBTProps) {
     )
   }
 
-  const cheio = comparar.length >= COMPARAR_MAX
-  const noGrupo = grupo.filter((id) => jogadores.some((personagem) => personagem.id === id)).length
-  const quantosInimigos = npcs.reduce((soma, personagem) => soma + (inimigos[personagem.id] ?? 0), 0)
-  const temEncontro = grupo.length > 0 || Object.keys(inimigos).length > 0
+  const cheio = colunas.length >= COMPARAR_MAX
+  const noGrupo = grupoNaTela.length
+  const quantosInimigos = npcs.reduce((soma, personagem) => soma + (inimigosNaTela[personagem.id] ?? 0), 0)
+  const temEncontro = grupoNaTela.length > 0 || Object.keys(inimigosNaTela).length > 0
+
+  const alternarColuna = (personagemId: string) => {
+    // A ficha que saiu da batalha ainda ocupa vaga no estado e não tem chip para sair: some antes de contar a vaga.
+    if (colunas.length !== comparar.length) useMundoDoLivroStore.setState({ comparar: colunas })
+    useMundoDoLivroStore.getState().alternarComparar(personagemId)
+  }
 
   const chips = (lista: readonly Personagem[]) =>
     lista.map((personagem) => {
-      const dentro = comparar.includes(personagem.id)
+      const dentro = colunas.includes(personagem.id)
       return (
         <button
           key={personagem.id}
@@ -339,7 +350,7 @@ export function CompararDBT({ personagens }: CompararDBTProps) {
           className="mu-chip"
           aria-pressed={dentro}
           disabled={!dentro && cheio}
-          onClick={() => useMundoDoLivroStore.getState().alternarComparar(personagem.id)}
+          onClick={() => alternarColuna(personagem.id)}
         >
           <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
           {personagem.nome}
@@ -384,7 +395,7 @@ export function CompararDBT({ personagens }: CompararDBTProps) {
               </div>
             )}
             <p className="mu-pg-nota" aria-live="polite">
-              {comparar.length} de {COMPARAR_MAX} escolhidas{cheio ? '. Tire uma para pôr outra.' : '.'} {jogadores.length + npcs.length} fichas de combate nesta pasta.
+              {colunas.length} de {COMPARAR_MAX} escolhidas{cheio ? '. Tire uma para pôr outra.' : '.'} {jogadores.length + npcs.length} fichas de combate nesta pasta.
             </p>
           </div>
 
@@ -458,7 +469,7 @@ export function CompararDBT({ personagens }: CompararDBTProps) {
                 ) : (
                   <div className="mu-peso__lista">
                     {npcs.map((personagem) => (
-                      <PassoDoInimigo key={personagem.id} personagem={personagem} ranks={ranks} quantos={inimigos[personagem.id] ?? 0} />
+                      <PassoDoInimigo key={personagem.id} personagem={personagem} ranks={ranks} quantos={inimigosNaTela[personagem.id] ?? 0} />
                     ))}
                   </div>
                 )}
