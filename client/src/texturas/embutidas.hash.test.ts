@@ -26,6 +26,11 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   lajotas: '387a27a0022e95cb343291734290ea8f40cf26b40ac82cfc486d451f4c3f35cb',
   'lajotas-escuras': 'cfe207ea892115ceb1c63741c9fe961f56f836780a8d3c816919d16ccc11c793',
   calcamento: 'b28fda318cb0960ac96a043de13fd8ef1add9641802299f8638b9e82cfe930fe',
+  // O Chão de metal nasceu depois da F5 (02/11/2026): o hash é o do código que o criou.
+  'chao-de-metal': '02d4e739773a526748dbc81054c16bcbf634c8dc11ad731a1b8251602177ac21',
+  'chao-de-metal-xadrez': 'f4c4ebf80bf82a70f35d5119bf943a05a5ebeb3aafba6f39ef34dd6967dc5c68',
+  'chao-de-metal-grade': 'c77f93fbf7a78aaa964f87cddb17f60607602409b3a42db76fe202516abda320',
+  'chao-de-metal-paineis': 'c650081056857bd40519e4433f363e34d20697aee68cfaf7b9ad105aa601f7fe',
 }
 
 async function sha256(bytes: Uint8ClampedArray): Promise<string> {

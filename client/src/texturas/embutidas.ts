@@ -1,3 +1,4 @@
+import { METAL_CASAS, metalEmChapaXadrez, metalEmGrade, metalEmPaineis, metalEmPlacas } from './chaoDeMetal'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import {
   cristas,
@@ -1100,6 +1101,11 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'lajotas', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Clara' }, cor: lajotasNoTom(LAJOTAS_CLARAS) },
   { id: 'lajotas-escuras', nome: 'Lajotas de pedra', escala: 64, casas: LAJOTA_CASAS, lado: LADO_GRANDE, forma: { grupo: 'lajotas', nome: 'Escura' }, cor: lajotasNoTom(LAJOTAS_ESCURAS) },
   { id: 'calcamento', nome: 'Calçamento', escala: 64, casas: CALCAMENTO_CASAS, lado: LADO_MAIOR, cor: calcamento },
+  // Chão de metal (pedido de 02/11/2026, `chaoDeMetal.ts`): quatro formas, Placas é a padrão.
+  { id: 'chao-de-metal', nome: 'Chão de metal', escala: 64, casas: METAL_CASAS, lado: LADO_MAIOR, forma: { grupo: 'chao-de-metal', nome: 'Placas' }, cor: metalEmPlacas },
+  { id: 'chao-de-metal-xadrez', nome: 'Chão de metal', escala: 64, casas: METAL_CASAS, lado: LADO_MAIOR, forma: { grupo: 'chao-de-metal', nome: 'Chapa xadrez' }, cor: metalEmChapaXadrez },
+  { id: 'chao-de-metal-grade', nome: 'Chão de metal', escala: 64, casas: METAL_CASAS, lado: LADO_MAIOR, forma: { grupo: 'chao-de-metal', nome: 'Grade' }, cor: metalEmGrade },
+  { id: 'chao-de-metal-paineis', nome: 'Chão de metal', escala: 64, casas: METAL_CASAS, lado: LADO_MAIOR, forma: { grupo: 'chao-de-metal', nome: 'Painéis de nave' }, cor: metalEmPaineis },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */

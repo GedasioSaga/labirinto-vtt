@@ -128,6 +128,8 @@ interface PainelDeFormasProps {
 function PainelDeFormas({ grupo, escolhida, movimento, cartao, onEscolher, onFechar }: PainelDeFormasProps) {
   const ref = useRef<HTMLDivElement>(null)
   const indiceEscolhido = grupo.formas.findIndex((f) => f.id === escolhida)
+  /** Formas por fileira: todas numa só quando cabem na biblioteca. */
+  const colunas = useRef(grupo.formas.length)
 
   useLayoutEffect(() => {
     const raiz = ref.current
@@ -136,11 +138,20 @@ function PainelDeFormas({ grupo, escolhida, movimento, cartao, onEscolher, onFec
     const estilo = getComputedStyle(raiz)
     const folga = Number.parseFloat(estilo.getPropertyValue('--lb-space-1')) || 0
     const bordaDaJanela = Number.parseFloat(estilo.getPropertyValue('--lb-layout-edge-gap')) || 0
-    // Cada forma do tamanho do cartão: a miniatura se lê igual nas duas.
-    raiz.style.setProperty('--lb-formas-lado', `${ancora.offsetWidth}px`)
+    // Cada forma do tamanho do cartão: a miniatura se lê igual em todas.
+    const lado = ancora.offsetWidth
+    raiz.style.setProperty('--lb-formas-lado', `${lado}px`)
+    // Formas demais para uma fileira (o Chão de metal tem quatro): fileiras
+    // iguais (2 × 2), sem vazar da biblioteca. A conta: a borda do painel e o
+    // vão entre as formas são a mesma folga.
+    const caixaDaBiblioteca = raiz.offsetParent instanceof HTMLElement ? raiz.offsetParent.clientWidth : 0
+    const quantas = grupo.formas.length
+    const cabem = lado > 0 && caixaDaBiblioteca > 0 ? Math.max(1, Math.floor((caixaDaBiblioteca - folga) / (lado + folga))) : quantas
+    colunas.current = Math.ceil(quantas / Math.ceil(quantas / cabem))
+    raiz.style.setProperty('--lb-formas-colunas', String(colunas.current))
     const largura = raiz.offsetWidth
     const altura = raiz.offsetHeight
-    const caixa = raiz.offsetParent instanceof HTMLElement ? raiz.offsetParent.clientWidth : largura
+    const caixa = caixaDaBiblioteca > 0 ? caixaDaBiblioteca : largura
     const centro = ancora.offsetLeft + ancora.offsetWidth / 2
     const esquerda = Math.min(Math.max(0, centro - largura / 2), Math.max(0, caixa - largura))
     const tela = ancora.getBoundingClientRect()
@@ -166,7 +177,9 @@ function PainelDeFormas({ grupo, escolhida, movimento, cartao, onEscolher, onFec
       return
     }
     const atual = indiceEscolhido < 0 ? 0 : indiceEscolhido
-    const passo: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }
+    // Numa fileira só, as quatro setas andam uma forma; em fileiras, para cima e para baixo trocam de fileira (como a grade).
+    const fileira = colunas.current < grupo.formas.length ? colunas.current : 1
+    const passo: Record<string, number> = { ArrowRight: 1, ArrowDown: fileira, ArrowLeft: -1, ArrowUp: -fileira }
     let proximo: number | null = null
     if (evento.key in passo) proximo = Math.min(grupo.formas.length - 1, Math.max(0, atual + passo[evento.key]))
     else if (evento.key === 'Home') proximo = 0

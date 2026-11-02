@@ -84,7 +84,7 @@ function rotulo(t: (typeof TEXTURAS_EMBUTIDAS)[number]): string {
 describe('biblioteca inicial de texturas', () => {
   it('tem as texturas pedidas (os chãos de masmorra no fim), com id e nome únicos', () => {
     const ids = TEXTURAS_EMBUTIDAS.map((t) => t.id)
-    expect(ids).toEqual(['areia', 'duna', 'grama', 'grama-amarela', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'calcamento'])
+    expect(ids).toEqual(['areia', 'duna', 'grama', 'grama-amarela', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'calcamento', 'chao-de-metal', 'chao-de-metal-xadrez', 'chao-de-metal-grade', 'chao-de-metal-paineis'])
     // As formas de um grupo dividem o nome do cartão; o nome da forma as separa.
     expect(new Set(TEXTURAS_EMBUTIDAS.map(rotulo)).size).toBe(ids.length)
   })

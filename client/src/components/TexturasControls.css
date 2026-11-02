@@ -134,10 +134,20 @@
   -webkit-backdrop-filter: none;
 }
 
+/* No painel, o nome da forma é o único rótulo entre miniaturas parecidas:
+   quebra em duas linhas ("Chapa xadrez", "Painéis de nave") em vez de cortar.
+   A grade da biblioteca continua cortando, com o nome inteiro no `title`. */
+.lb-texturas__formas .lb-texturas__nome {
+  white-space: normal;
+  line-height: var(--lb-font-leading-tight);
+  text-wrap: balance;
+}
+
+/* As formas em fileiras de `--lb-formas-colunas` (todas numa só quando cabem;
+   o Chão de metal, de quatro, vira 2 × 2): a conta é do componente. */
 .lb-texturas__formas-grade {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: var(--lb-formas-lado, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--lb-formas-colunas, 2), var(--lb-formas-lado, minmax(0, 1fr)));
   gap: var(--lb-space-1);
 }
 
