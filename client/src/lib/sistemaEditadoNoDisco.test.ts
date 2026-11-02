@@ -52,6 +52,7 @@ const { salvarTextoJson } = await import('./arquivosDaFicha')
 const { nomeDaCopia, rascunhoDaCopia, rascunhoDoSistema, sistemaDoRascunho } = await import('./editorDeSistema')
 const { serializarSistema } = await import('./sistemaDeRpg')
 const { SISTEMA_ONE_PIECE } = await import('./sistemaOnePiece')
+const { SISTEMA_DRAGON_BALL } = await import('./dbt/sistemaDragonBall')
 const { useRpgStore } = await import('../stores/rpgStore')
 
 const PASTA = 'C:/appdata/sistemas'
@@ -76,7 +77,7 @@ describe('salvar e reler', () => {
     const salvo = await salvarCopiaEditada()
     expect(salvo.id).toBe('one-piece-da-mesa')
     expect([...arquivos.keys()].filter((caminho) => caminho.startsWith(`${PASTA}/`))).toEqual([`${PASTA}/one-piece-da-mesa.json`])
-    expect((await listarSistemas()).sistemas).toEqual([SISTEMA_ONE_PIECE, salvo])
+    expect((await listarSistemas()).sistemas).toEqual([SISTEMA_ONE_PIECE, SISTEMA_DRAGON_BALL, salvo])
 
     // Segunda edição do mesmo sistema (o rascunho já travado): mesmo id, mesmo arquivo.
     const rascunho = rascunhoDoSistema(salvo)
@@ -87,6 +88,7 @@ describe('salvar e reler', () => {
     const relida = await listarSistemas()
     expect(relida.sistemas.map((sistema) => [sistema.id, sistema.descricao])).toEqual([
       [SISTEMA_ONE_PIECE.id, SISTEMA_ONE_PIECE.descricao],
+      [SISTEMA_DRAGON_BALL.id, SISTEMA_DRAGON_BALL.descricao],
       [salvo.id, 'Regras da casa.'],
     ])
     expect(useRpgStore.getState().biblioteca.map((sistema) => sistema.id)).toEqual([SISTEMA_ONE_PIECE.id, salvo.id])

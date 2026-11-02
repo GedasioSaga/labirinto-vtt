@@ -68,10 +68,12 @@ describe('livro no formato: capítulos', () => {
   it(`no máximo ${LIVRO_CAPITULOS_MAX} capítulos e ${LIVRO_TEXTO_TOTAL_MAX} caracteres no livro todo`, () => {
     const muitos = Array.from({ length: LIVRO_CAPITULOS_MAX + 20 }, (_, i) => ({ id: `c${i}`, titulo: `C${i}`, texto: 'x' }))
     expect(livroDoArquivo(muitos)).toHaveLength(LIVRO_CAPITULOS_MAX)
-    const pesados = Array.from({ length: 10 }, (_, i) => ({ id: `p${i}`, texto: 'y'.repeat(CAPITULO_TEXTO_MAX) }))
+    // Capítulos cheios que cabem no livro todo (12 com o teto do Dragon Ball Tales); quatro a mais passam do teto.
+    const cabem = Math.floor(LIVRO_TEXTO_TOTAL_MAX / CAPITULO_TEXTO_MAX)
+    const pesados = Array.from({ length: cabem + 4 }, (_, i) => ({ id: `p${i}`, texto: 'y'.repeat(CAPITULO_TEXTO_MAX) }))
     const lidos = livroDoArquivo(pesados) ?? []
     expect(lidos.reduce((n, c) => n + c.texto.length, 0)).toBeLessThanOrEqual(LIVRO_TEXTO_TOTAL_MAX)
-    expect(lidos.map((c) => c.id)).toEqual(['p0', 'p1', 'p2', 'p3', 'p4', 'p5'])
+    expect(lidos.map((c) => c.id)).toEqual(Array.from({ length: cabem }, (_, i) => `p${i}`))
   })
 })
 

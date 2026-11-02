@@ -17,10 +17,12 @@ const ANA: AutorDBT = { tipo: 'jogador', playerId: 'ana', nome: 'Ana' }
 const CENA = 'cena-1'
 /** Abaixo do PV máximo de qualquer ficha nova (o desfazer não esbarra no teto). */
 const PV_INICIAL = 10
+/** Ki para pagar o voo ("Iniciar voo": 4 Ki, ações de combate p. 118): a ficha nova começa com 0. */
+const KI_INICIAL = 20
 
 function personagemDBT(id: string, tipo: 'jogador' | 'npc', nome: string): Personagem {
   const novo = novoPersonagem(SISTEMA_DRAGON_BALL, tipo, nome)
-  return { ...novo, id, recursos: { ...novo.recursos, pv: PV_INICIAL }, dbt: novo.dbt ?? fichaDBTVazia() }
+  return { ...novo, id, recursos: { ...novo.recursos, pv: PV_INICIAL, pk: KI_INICIAL }, dbt: novo.dbt ?? fichaDBTVazia() }
 }
 
 function mesaDeTeste(iniciais: readonly Personagem[]) {

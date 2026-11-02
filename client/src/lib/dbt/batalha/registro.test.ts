@@ -69,7 +69,10 @@ describe('podeDesfazerDBT', () => {
 })
 
 describe('desfazer na ficha', () => {
-  const goku = novoPersonagem(SISTEMA_DRAGON_BALL, 'jogador', 'Goku')
+  // Com o máximo gravado, como a ficha da batalha fica (o ajuste grava o máximo antes de mexer no atual).
+  // Sem ele a ficha é de um número só, e o máximo mostrado anda junto com o atual (`valorDaParte`).
+  const novo = novoPersonagem(SISTEMA_DRAGON_BALL, 'jogador', 'Goku')
+  const goku: Personagem = { ...novo, maximos: { ...novo.maximos, pv: 60 } }
 
   it('PV 50 -> 30: desfazer volta a 50', () => {
     const partes = partesDaFichaDBT(comPv(goku, 50), comPv(goku, 30))

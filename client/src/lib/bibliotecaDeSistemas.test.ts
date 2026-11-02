@@ -44,6 +44,7 @@ vi.mock('@tauri-apps/api/path', () => ({
 
 const { importarSistema, listarSistemas, sistemaParaGravar } = await import('./bibliotecaDeSistemas')
 const { SISTEMA_ONE_PIECE } = await import('./sistemaOnePiece')
+const { SISTEMA_DRAGON_BALL } = await import('./dbt/sistemaDragonBall')
 const { serializarSistema } = await import('./sistemaDeRpg')
 
 const PASTA = 'C:/appdata/sistemas'
@@ -54,8 +55,8 @@ beforeEach(() => {
 })
 
 describe('listarSistemas', () => {
-  it('primeira execução (sem pasta): só o One Piece, sem aviso', async () => {
-    expect(await listarSistemas()).toEqual({ sistemas: [SISTEMA_ONE_PIECE], avisos: [] })
+  it('primeira execução (sem pasta): só os embutidos (One Piece e Dragon Ball Tales), sem aviso', async () => {
+    expect(await listarSistemas()).toEqual({ sistemas: [SISTEMA_ONE_PIECE, SISTEMA_DRAGON_BALL], avisos: [] })
   })
 
   it('lê os .json da pasta depois dos embutidos; o ilegível vira aviso com o nome do arquivo', async () => {
@@ -66,7 +67,7 @@ describe('listarSistemas', () => {
     // Arquivo com o id do embutido não toma o lugar dele.
     arquivos.set(`${PASTA}/falso.json`, JSON.stringify({ ...CASA, id: 'one-piece', nome: 'Falso' }))
     const { sistemas, avisos } = await listarSistemas()
-    expect(sistemas.map((sistema) => sistema.nome)).toEqual(['One Piece', 'Sistema da Casa'])
+    expect(sistemas.map((sistema) => sistema.nome)).toEqual(['One Piece', 'Dragon Ball Tales', 'Sistema da Casa'])
     expect(avisos).toHaveLength(1)
     expect(avisos[0]).toContain('quebrado.json')
   })
