@@ -248,7 +248,8 @@ export function ControleDaBatalhaDBT({ sceneKey, gridShape, aventuraId }: Contro
       </Dialogo>
       {fim !== null && (
         <FimDaBatalhaDBT
-          key={fim.chave}
+          // Prefixo próprio: `fim.chave` e `caixa.chave` são contadores irmãos que começam ambos em 1.
+          key={`fim-${fim.chave}`}
           aberto={fim.aberto}
           linhas={fim.linhas}
           exaustao={exaustao}
@@ -261,7 +262,7 @@ export function ControleDaBatalhaDBT({ sceneKey, gridShape, aventuraId }: Contro
       )}
       {caixa !== null && (
         <QuemEntraNaBatalhaDBT
-          key={caixa.chave}
+          key={`entra-${caixa.chave}`}
           aberto={caixa.aberta}
           candidatos={caixa.candidatos}
           lados={caixa.lados}
