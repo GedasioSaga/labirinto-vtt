@@ -1,6 +1,7 @@
 import { useId, useRef, type CSSProperties } from 'react'
 import type { AparenciaDoMovelPatch } from '../lib/mobilia'
 import { normalizarCorDeTecido, normalizarCorDoMovel } from '../lib/mobilia'
+import { formaDaPonte, lugarDaPonteNaForma } from '../lib/mobilia/ponte'
 import {
   LUGARES_DE_MATERIAL,
   MATERIAIS,
@@ -165,10 +166,23 @@ export interface MaterialNoLugar {
  */
 export function materiaisDaPeca(prop: Prop, tipo: TipoMobilia): MaterialNoLugar[] {
   const campos = camposDosLugares(tipo)
-  return LUGARES_DE_MATERIAL[tipo].map((lugar, i) => {
-    const campo = campos[i] ?? 'cor'
-    return { lugar, campo, material: materialMaisPerto(corGravada(prop, campo), lugar) }
-  })
+  return LUGARES_DE_MATERIAL[tipo]
+    .map((lugar, i) => {
+      const campo = campos[i] ?? 'cor'
+      return { lugar, campo, material: materialMaisPerto(corGravada(prop, campo), lugar) }
+    })
+    .filter(({ lugar }) => lugarApareceNaForma(prop, tipo, lugar.id))
+}
+
+/**
+ * O lugar vale na forma atual do móvel? A ponte de pedra não tem madeira, e a
+ * de madeira e a de corda não têm pedra (`lugarDaPonteNaForma`): o painel e a
+ * ficha só mostram o material que muda o desenho. O campo do arquivo fica como
+ * está (voltar à outra forma traz o material de antes).
+ */
+function lugarApareceNaForma(prop: Prop, tipo: TipoMobilia, lugar: string): boolean {
+  if (tipo === 'ponte') return lugarDaPonteNaForma(formaDaPonte(prop.mobiliaForma), lugar)
+  return true
 }
 
 export interface MaterialDaPecaProps {

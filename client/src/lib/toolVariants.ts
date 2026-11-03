@@ -561,7 +561,8 @@ export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; reado
     ],
   },
   // O chafariz (02/11/2026) ao lado do poço: a água da praça no mesmo par.
-  { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'chafariz', 'lampiao', 'fogueira', 'fogo', 'lapide'] },
+  // A ponte (03/11/2026) fecha a parte: na última linha, ao lado do atalho da árvore (os dois da paisagem).
+  { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'chafariz', 'lampiao', 'fogueira', 'fogo', 'lapide', 'ponte'] },
   // O cata-vento de brinquedo (02/11/2026) é de feira: fecha o par com o quadro de avisos.
   { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos', 'cataVentoBrinquedo'] },
   // A oficina do ferreiro (29/10/2026): a fornalha e a bigorna lado a lado, o balde de água da têmpera embaixo.

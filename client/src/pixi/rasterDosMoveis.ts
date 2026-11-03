@@ -4,6 +4,7 @@ import { cordaDaCerca, ehMovelDeCimaDaMesa, ehMovelDoChao, formaDoTapete, geomet
 import { varianteDaLapide } from '../lib/mobilia/pecasNovas'
 import { ehMovelDePilha, varianteDaPilha } from '../lib/mobilia/pilhas'
 import { varianteDoChafariz } from '../lib/mobilia/chafariz'
+import { varianteDaPonte } from '../lib/mobilia/ponte'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LUGARES_DE_MATERIAL, materialMaisPerto, type OpcaoDeMaterial } from '../texturas/meioTermo/materiais'
@@ -241,6 +242,8 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     ...(ehMovelDePilha(prop.mobilia) ? { variante: varianteDaPilha(prop.mobilia, prop.mobiliaForma) } : {}),
     // O chafariz: a forma e a água (o prato cheio ou seco, a espuma) são a variante do desenho.
     ...(prop.mobilia === 'chafariz' ? { variante: varianteDoChafariz(prop.mobiliaForma) } : {}),
+    // A ponte: a forma (madeira, pedra, corda) é a variante do desenho.
+    ...(prop.mobilia === 'ponte' ? { variante: varianteDaPonte(prop.mobiliaForma) } : {}),
     ...(giroDaImagem(prop) !== 0 ? { giro: giroDaImagem(prop) } : {}),
   }
   const parcial = { vistaDoMapa: 'de-cima' as VistaDoMapa, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }

@@ -41,6 +41,7 @@ import {
   type FormaDoChafariz,
 } from '../lib/mobilia/chafariz'
 import { ROTULO_DO_VENTO, VENTOS_DO_MOVEL, ehMovelDeVento, ventoDoMovel, type VentoDoMovel } from '../lib/mobilia/cataVento'
+import { FORMAS_DA_PONTE, ROTULO_DA_FORMA_DA_PONTE, formaDaPonte, type FormaDaPonte } from '../lib/mobilia/ponte'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
@@ -104,6 +105,11 @@ export interface MobiliaControlsProps {
    * as pás Girando ou Paradas, no lugar. Ausente = o painel não oferece o vento.
    */
   onVentoChange?: (id: string, vento: VentoDoMovel) => void
+  /**
+   * Ponte: troca a forma (Madeira | Pedra | Corda) no lugar; o tamanho e o giro
+   * ficam. Ausente = o painel não oferece a forma.
+   */
+  onFormaDaPonteChange?: (id: string, forma: FormaDaPonte) => void
   /** Um eixo da aparência por vez: "Preencher", "Cor" ou "Cor da linha" (`null` = volta ao padrão). */
   onAparenciaChange: (id: string, patch: AparenciaDoMovelPatch) => void
 }
@@ -307,6 +313,7 @@ export function MobiliaControls({
   onFormaDoChafarizChange,
   onAguaDoChafarizChange,
   onVentoChange,
+  onFormaDaPonteChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
   const baseId = useId()
@@ -501,6 +508,27 @@ export function MobiliaControls({
                   onClick={() => onVentoChange(prop.id, opcao)}
                 >
                   {ROTULO_DO_VENTO[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* A ponte: tábuas com corrimão, o arco de pedra ou a pênsil de corda, no mesmo segmentado do chafariz.
+            O tamanho e o giro ficam (o mestre pode ter esticado a ponte por cima do rio). */}
+        {tipo === 'ponte' && onFormaDaPonteChange !== undefined && (
+          <div className="lb-field">
+            <span className="lb-label">Forma</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Forma">
+              {FORMAS_DA_PONTE.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={formaDaPonte(prop.mobiliaForma) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onFormaDaPonteChange(prop.id, opcao)}
+                >
+                  {ROTULO_DA_FORMA_DA_PONTE[opcao]}
                 </button>
               ))}
             </div>

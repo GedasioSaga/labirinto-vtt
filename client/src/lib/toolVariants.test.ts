@@ -211,14 +211,14 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
-      'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta', 'troncos', 'feno',
+      'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta', 'troncos', 'feno',
       'cataVento', 'moinho', 'cataVentoBrinquedo',
     ])
-    expect(grupo.options).toHaveLength(44)
+    expect(grupo.options).toHaveLength(45)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
-      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Chafariz', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
+      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Chafariz', 'Ponte', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
       'Cata-vento de fazenda', 'Moinho de vento', 'Cata-vento de brinquedo',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')

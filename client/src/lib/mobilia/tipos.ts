@@ -25,6 +25,8 @@ export const TIPOS_MOBILIA = [
   'chafariz',
   // Os objetos de vento (02/11/2026): o cata-vento de fazenda, o moinho e o cata-vento de brinquedo.
   'cataVento', 'moinho', 'cataVentoBrinquedo',
+  // A ponte (03/11/2026): madeira, pedra ou corda.
+  'ponte',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

@@ -37,8 +37,10 @@ import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel, movelComOutraFormaDoChafariz, movelComOutraAguaDoChafariz, movelComOutroVento,
+  movelComOutraFormaDaPonte,
   type AparenciaDoMovelPatch,
 } from './mobilia'
+import { ehPonte, formaDaPonte, type FormaDaPonte } from './mobilia/ponte'
 import { aguaDoChafariz, formaDoChafariz, type AguaDoChafariz, type FormaDoChafariz } from './mobilia/chafariz'
 import { ehMovelDeVento, ventoDoMovel, type VentoDoMovel } from './mobilia/cataVento'
 import { CASAS_DO_TAMANHO_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from './mobilia/fogo'
@@ -973,6 +975,17 @@ export function trocarVentoDoMovel(map: MapData, propId: string, vento: VentoDoM
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo === undefined || !ehMovelDeVento(alvo.mobilia) || ventoDoMovel(alvo.mobiliaForma) === vento) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutroVento(p, vento) : p)) }
+}
+
+/**
+ * "Forma" do painel da PONTE (Madeira | Pedra | Corda): a pegada fica
+ * (`movelComOutraFormaDaPonte`). A mesma forma, outro tipo ou id que não
+ * existe devolvem o MESMO mapa (a store não empilha passo vazio).
+ */
+export function trocarFormaDaPonte(map: MapData, propId: string, forma: FormaDaPonte): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo === undefined || !ehPonte(alvo.mobilia) || formaDaPonte(alvo.mobiliaForma) === forma) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraFormaDaPonte(p, forma) : p)) }
 }
 
 /**

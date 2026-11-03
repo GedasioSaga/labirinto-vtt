@@ -27,6 +27,7 @@ export const PECAS_NOVAS = [
   'troncos', 'feno',
   'chafariz',
   'cataVento', 'moinho', 'cataVentoBrinquedo',
+  'ponte',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -107,6 +108,9 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   cataVento: { rotulo: 'Cata-vento de fazenda', artigo: 'um cata-vento de fazenda', tamanho: { largura: 1, altura: 1 }, redonda: false },
   moinho: { rotulo: 'Moinho de vento', artigo: 'um moinho de vento', tamanho: { largura: 2, altura: 2 }, redonda: true },
   cataVentoBrinquedo: { rotulo: 'Cata-vento de brinquedo', artigo: 'um cata-vento de brinquedo', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  // A ponte (03/11/2026): corre ao longo da largura (x), 4 casas de comprimento por 1 de largura nas três formas
+  // (`lib/mobilia/ponte.ts`); estica nos dois sentidos e gira.
+  ponte: { rotulo: 'Ponte', artigo: 'uma ponte', tamanho: { largura: 4, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -146,6 +150,7 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     cataVento: valor(f.cataVento),
     moinho: valor(f.moinho),
     cataVentoBrinquedo: valor(f.cataVentoBrinquedo),
+    ponte: valor(f.ponte),
   }
 }
 
@@ -167,7 +172,8 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
  */
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   // O chafariz (02/11/2026) entra logo depois do poço: no seletor de tipo, a água da praça fica junta.
-  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'barraca', 'carroca',
+  // A ponte (03/11/2026) logo depois do chafariz: o caminho por cima da água.
+  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca',
   'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
@@ -422,6 +428,26 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
     case 'cataVentoBrinquedo':
       // O furinho do palito no chão.
       return aro(largura * 0.3, altura * 0.3)
+    // A ponte (03/11/2026), ao longo do lado maior (como a imagem): o corrimão (madeira), a mureta (pedra) ou
+    // as cordas (corda) dos dois lados, e as tábuas de través (a madeira a cada meia casa, a corda com vão) ou o
+    // fecho do arco (pedra).
+    case 'ponte': {
+      const deitada = largura >= altura
+      const meioC = deitada ? hw : hh
+      const meiaL = deitada ? hh : hw
+      const traco = (u1: number, v1: number, u2: number, v2: number): Traco => (deitada ? { x1: u1, y1: v1, x2: u2, y2: v2 } : { x1: -v1, y1: u1, x2: -v2, y2: u2 })
+      const lado = meiaL * (variante === 2 ? 0.78 : 0.82)
+      const bordas = [traco(-meioC, -lado, meioC, -lado), traco(-meioC, lado, meioC, lado)]
+      if (variante === 1) return [...bordas, traco(0, -lado, 0, lado)]
+      const passo = Math.min(largura, altura) * (variante === 2 ? 0.4 : 0.5)
+      const n = Math.max(1, Math.floor((2 * meioC) / passo))
+      const tabuas: Traco[] = []
+      for (let i = 1; i < n; i += 1) {
+        const u = -meioC + (2 * meioC * i) / n
+        tabuas.push(traco(u, -lado * 0.8, u, lado * 0.8))
+      }
+      return [...bordas, ...tabuas]
+    }
   }
 }
 

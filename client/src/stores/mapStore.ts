@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings, FeitioDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, FormaDaPonte, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
   PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo,
 } from '../types/map'
@@ -1047,6 +1047,9 @@ interface MapStoreState {
   /** "Vento" dos objetos de VENTO (Girando | Parado): no lugar, o tamanho fica.
    *  Um passo no desfazer; o mesmo valor ou outro tipo não entram. */
   trocarVentoDoMovel: (id: string, vento: VentoDoMovel) => void
+  /** "Forma" da PONTE (Madeira | Pedra | Corda): no lugar, o tamanho fica.
+   *  Um passo no desfazer; a mesma forma ou outro tipo não entram. */
+  trocarFormaDaPonte: (id: string, forma: FormaDaPonte) => void
   /** PROPRIEDADES DO FOGO — "Tamanho" (Chama | Fogaréu | Incêndio): a pegada do
    *  tamanho, centro no lugar. Um passo no desfazer; o mesmo tamanho ou outro
    *  tipo não entram. */
@@ -2691,6 +2694,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     trocarVentoDoMovel: (id, vento) => {
       if (mapFactory.trocarVentoDoMovel(get().map, id, vento) === get().map) return
       withHistory((map) => mapFactory.trocarVentoDoMovel(map, id, vento))
+    },
+    trocarFormaDaPonte: (id, forma) => {
+      if (mapFactory.trocarFormaDaPonte(get().map, id, forma) === get().map) return
+      withHistory((map) => mapFactory.trocarFormaDaPonte(map, id, forma))
     },
     trocarTamanhoDoFogo: (id, tamanho) => {
       if (mapFactory.trocarTamanhoDoFogo(get().map, id, tamanho) === get().map) return

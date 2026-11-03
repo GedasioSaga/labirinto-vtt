@@ -23,6 +23,7 @@ import {
   type FormaDoChafariz,
 } from './mobilia/chafariz'
 import { ehMovelDeVento, gravarVento, normalizarFormaDoVento, type VentoDoMovel } from './mobilia/cataVento'
+import { ehPonte, gravarFormaDaPonte, normalizarFormaDaPonte, type FormaDaPonte } from './mobilia/ponte'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -284,7 +285,9 @@ function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): 
     // O chafariz (02/11/2026): a forma e a água num campo só (`'quadrado'`, `'desligada'`, `'quadrado-desligada'`).
     normalizarFormaDoChafariz(tipo, valor) ??
     // Os objetos de vento (02/11/2026): só o Parado é gravado.
-    normalizarFormaDoVento(tipo, valor)
+    normalizarFormaDoVento(tipo, valor) ??
+    // A ponte (03/11/2026): a pedra ou a corda (ausente = madeira).
+    normalizarFormaDaPonte(tipo, valor)
   )
 }
 
@@ -389,11 +392,12 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
 
 /**
  * Móveis que moram no CHÃO, por baixo de todo objeto: o tapete e o tapete
- * longo (MT5). A ordem de desenho, o contêiner do chão do editor e o clique
- * (que pega o tapete por último) leem esta lista.
+ * longo (MT5) e a ponte (03/11/2026: o caminho em que se anda, com o barril
+ * e a carroça por cima dela). A ordem de desenho, o contêiner do chão do
+ * editor e o clique (que pega o tapete e a ponte por último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte'
 }
 
 /**
@@ -1585,6 +1589,16 @@ export function movelComOutraAguaDoChafariz(prop: Prop, agua: AguaDoChafariz): P
 export function movelComOutroVento(prop: Prop, vento: VentoDoMovel): Prop {
   if (!ehMovelDeVento(prop.mobilia)) return prop
   return comFormaGravada(prop, gravarVento(vento))
+}
+
+/**
+ * A "Forma" da PONTE (Madeira | Pedra | Corda): a mesma ponte na outra forma,
+ * no MESMO tamanho (as três têm a mesma pegada de partida, e o mestre pode ter
+ * esticado). Outro tipo devolve o mesmo objeto.
+ */
+export function movelComOutraFormaDaPonte(prop: Prop, forma: FormaDaPonte): Prop {
+  if (!ehPonte(prop.mobilia)) return prop
+  return comFormaGravada(prop, gravarFormaDaPonte(forma))
 }
 
 export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {

@@ -714,6 +714,16 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M12 9V2.5l4 4.3zM12 9h6.5l-4.3 4zM12 9v6.5l-4-4.3zM12 9H5.5l4.3-4z" />
         </>
       )
+    // A ponte (03/11/2026), de lado: o tabuleiro em arco, o corrimão com três postes e o vão do arco embaixo,
+    // com a água. As três formas dividem o ícone (o painel troca a forma).
+    case 'ponte':
+      return (
+        <>
+          <path d="M2 14c3.2-3.2 6.4-4.8 10-4.8s6.8 1.6 10 4.8M2.5 10.2c3-3 6-4.5 9.5-4.5s6.5 1.5 9.5 4.5" />
+          <path d="M6.2 8v4M12 5.7v3.5M17.8 8v4" />
+          <path d="M6 19.5c.9-3.1 3.1-4.9 6-4.9s5.1 1.8 6 4.9M2.5 21.5h3M18.5 21.5h3" />
+        </>
+      )
   }
 }
 

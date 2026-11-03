@@ -200,6 +200,9 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   cataVento: [lugar('madeira', 'Torre', MADEIRAS, 'velha')],
   moinho: [lugar('pedra', 'Paredes', PEDRAS, 'arenito'), lugar('madeira', 'Telhado', MADEIRAS, 'nogueira')],
   cataVentoBrinquedo: [],
+  // A ponte (03/11/2026): a madeira das tábuas, do corrimão e dos postes (Madeira e Corda) e a pedra do arco e
+  // da mureta (Pedra). O painel mostra só o lugar da forma escolhida (`lib/mobilia/ponte.ts`); a corda é fixa.
+  ponte: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pedra', 'Pedra', PEDRAS, 'granito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

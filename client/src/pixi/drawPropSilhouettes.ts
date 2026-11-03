@@ -23,6 +23,7 @@ import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { saiComTextura } from '../lib/mobilia/desenhoDoMovel'
 import { varianteDaPilha } from '../lib/mobilia/pilhas'
 import { formaDoChafariz, varianteDaFormaDoChafariz } from '../lib/mobilia/chafariz'
+import { varianteDaPonte } from '../lib/mobilia/ponte'
 import { emOrdemDoTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
@@ -338,10 +339,19 @@ function roundSilhouettePoints(prop: PropSilhouette): number[] {
  * não tem glifo. A cerca curva (`mobiliaCurva`) sai pelo arco: mourões e fio
  * repartidos nele, iguais no editor e na tela do jogador.
  */
+/**
+ * A variante do glifo: a forma dos troncos e do feno, a do chafariz (0 redondo,
+ * 1 quadrado) ou a da ponte (0 madeira, 1 pedra, 2 corda).
+ */
+function varianteDoGlifo(mobilia: NonNullable<PropSilhouette['mobilia']>, forma: PropSilhouette['mobiliaForma']): number {
+  if (mobilia === 'chafariz') return varianteDaFormaDoChafariz(forma)
+  if (mobilia === 'ponte') return varianteDaPonte(forma)
+  return varianteDaPilha(mobilia, forma)
+}
+
 function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number, edge: SilhouettePaint): void {
   if (prop.mobilia === undefined) return
-  // A variante do glifo: a forma dos troncos e do feno, ou a do chafariz (0 redondo, 1 quadrado).
-  const variante = prop.mobilia === 'chafariz' ? varianteDaFormaDoChafariz(prop.mobiliaForma) : varianteDaPilha(prop.mobilia, prop.mobiliaForma)
+  const variante = varianteDoGlifo(prop.mobilia, prop.mobiliaForma)
   const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop), formaDoTapete(prop), variante)
   if (segments.length === 0) return
   const trig = rotationTrig(prop.rotation ?? 0)
