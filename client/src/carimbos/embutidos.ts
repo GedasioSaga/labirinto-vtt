@@ -960,12 +960,14 @@ const GRAVETO = 0.009
  * Um galho (ou uma raiz) de `a` a `b`, curvado para o lado de `c` (o ponto de
  * controle da curva), afinando de `grosso` a `fino` (meias larguras).
  */
-function pintarGalho(g: CanvasRenderingContext2D, a: Ponto, c: Ponto, b: Ponto, grosso: number, fino: number, tons: TonsDaMadeira): void {
-  const passos = 8
+const PASSOS_DO_GALHO = 8
+
+/** A linha do meio do galho (a curva de `a` a `b` puxada para `c`) e a normal em cada passo. */
+function curvaDoGalho(a: Ponto, c: Ponto, b: Ponto): { centro: Ponto[]; normal: Ponto[] } {
   const centro: Ponto[] = []
   const normal: Ponto[] = []
-  for (let i = 0; i <= passos; i++) {
-    const t = i / passos
+  for (let i = 0; i <= PASSOS_DO_GALHO; i++) {
+    const t = i / PASSOS_DO_GALHO
     const s = 1 - t
     centro.push([s * s * a[0] + 2 * s * t * c[0] + t * t * b[0], s * s * a[1] + 2 * s * t * c[1] + t * t * b[1]])
     const dx = 2 * s * (c[0] - a[0]) + 2 * t * (b[0] - c[0])
@@ -973,6 +975,29 @@ function pintarGalho(g: CanvasRenderingContext2D, a: Ponto, c: Ponto, b: Ponto, 
     const n = Math.hypot(dx, dy) || 1
     normal.push([-dy / n, dx / n])
   }
+  return { centro, normal }
+}
+
+/**
+ * O mesmo galho, mais largo dos dois lados, num tom só: a borda escura por
+ * baixo. A folga afina com o galho (no máximo 40% da meia largura), para o
+ * graveto da ponta não virar uma clava.
+ */
+function contornarGalho(g: CanvasRenderingContext2D, a: Ponto, c: Ponto, b: Ponto, grosso: number, fino: number, folga: number, cor: Rgb): void {
+  const { centro, normal } = curvaDoGalho(a, c, b)
+  const largura = (i: number) => {
+    const w = grosso + ((fino - grosso) * i) / PASSOS_DO_GALHO
+    return w + Math.min(folga, w * 0.4)
+  }
+  const borda = (lado: 1 | -1) => centro.map(([x, y], i): Ponto => [x + normal[i][0] * lado * largura(i), y + normal[i][1] * lado * largura(i)])
+  g.fillStyle = css(cor)
+  caminho(g, [...borda(1), ...borda(-1).reverse()])
+  g.fill()
+}
+
+function pintarGalho(g: CanvasRenderingContext2D, a: Ponto, c: Ponto, b: Ponto, grosso: number, fino: number, tons: TonsDaMadeira): void {
+  const passos = PASSOS_DO_GALHO
+  const { centro, normal } = curvaDoGalho(a, c, b)
   const largura = (i: number) => grosso + ((fino - grosso) * i) / passos
   // De que lado bate a luz (o da normal ou o outro) e o quanto: nada quando o galho aponta para ela.
   const [nx, ny] = normal[passos >> 1]
@@ -997,129 +1022,114 @@ function pintarGalho(g: CanvasRenderingContext2D, a: Ponto, c: Ponto, b: Ponto, 
   g.fill()
 }
 
-// Árvore morta, vista de cima: o tronco sobe do pé até o MEIO DA COPA (como
-// na Árvore, a copa é alta e a sombra `em-pe` cai longe), e de lá cinco ou
-// seis galhos grossos se abrem em raios, no plano do chão visto de cima e
-// um pouco de frente (achatado na vertical), subindo um tanto para fora.
-// Cada galho grosso solta um ramo do lado e se abre em forquilha na ponta;
-// cada ramo se abre de novo em gravetos. Um dos galhos às vezes está
-// quebrado: curto, rombudo, com a madeira clara à mostra na ponta. O giro
-// gira os raios; a luz fica parada, porque o tom de cada galho vem da
-// direção dele na tela.
-
-interface PontoNoAr {
-  x: number
-  y: number
-  z: number
-}
+// Árvore morta, vista DE CIMA (pedido de 03/11/2026: "uma arvore morta vista
+// de cima só com galhos"): a copa de uma árvore redonda sem as folhas, no
+// mesmo alto e do mesmo tamanho da copa da Árvore redonda. No meio, o alto do
+// tronco, um disco escuro; dele saem cinco a sete galhos grossos em raio, para
+// todos os lados, e cada um afina e se divide em ramos e gravetos até a borda
+// da copa. Um ou dois galhos às vezes estão quebrados: curtos, rombudos, com
+// a madeira clara à mostra na ponta. Por baixo de tudo, uma borda escura (como
+// o contorno da Árvore redonda) segura a leitura de longe, em cima do capim
+// morto. O giro gira os raios; a luz fica parada, porque o tom de cada galho
+// vem da direção dele na tela. A sombra é `em-pe`: a da copa no alto.
 
 interface GalhoDaCopa {
-  a: PontoNoAr
-  c: PontoNoAr
-  b: PontoNoAr
+  a: Ponto
+  c: Ponto
+  b: Ponto
   grosso: number
   fino: number
   nivel: number
 }
 
 const COPA_SECA = {
-  /** Onde o tronco chega e os galhos se abrem, no quadro. */
-  y: -0.52,
-  /** O plano da copa visto de cima e um pouco de frente. */
-  achata: 0.82,
-  /** Quanto o galho sobe por unidade de comprimento. */
-  sobe: 0.14,
-  /** O galho grosso: comprimento até a forquilha e meia largura no tronco. */
-  comprimento: 0.28,
-  grosso: 0.054,
+  /** O meio da copa no quadro: o alto da copa da Árvore redonda. */
+  y: COPA_REDONDA.cy,
+  /** O galho grosso: comprimento até a primeira forquilha e meia largura no tronco. */
+  comprimento: 0.24,
+  grosso: 0.064,
+  /** Quanto cada nível encolhe o comprimento do seguinte (a forquilha). */
+  encolhe: [0.62, 0.58, 0.55],
+  /** O último nível: os gravetos da borda. */
+  ultimo: 3,
+  /** Meia largura do disco do tronco e da borda escura em volta de tudo. */
+  tronco: 0.078,
+  borda: 0.011,
 } as const
 
-function crescerGalho(lista: GalhoDaCopa[], de: PontoNoAr, angulo: number, comprimento: number, grosso: number, nivel: number, semente: number, k: number): void {
-  const fino = nivel < 2 ? grosso * 0.45 : Math.min(grosso * 0.55, 0.0055)
+/** A borda escura por baixo dos galhos: mais funda que a sombra da madeira. */
+const BORDA_SECA: Rgb = [46, 42, 36]
+
+function crescerGalho(lista: GalhoDaCopa[], de: Ponto, angulo: number, comprimento: number, grosso: number, nivel: number, semente: number, k: number): void {
+  const ultimo = nivel === COPA_SECA.ultimo
+  const fino = ultimo ? Math.min(grosso * 0.45, 0.004) : grosso * 0.5
   const dx = Math.cos(angulo)
   const dy = Math.sin(angulo)
-  const b: PontoNoAr = { x: de.x + dx * comprimento, y: de.y + dy * comprimento, z: de.z + COPA_SECA.sobe * comprimento }
+  const b: Ponto = [de[0] + dx * comprimento, de[1] + dy * comprimento]
   // A curva: o meio puxado para um lado, um pouco.
-  const dobra = (sorteio(semente, k) - 0.5) * 0.3 * comprimento
-  const c: PontoNoAr = { x: (de.x + b.x) / 2 - dy * dobra, y: (de.y + b.y) / 2 + dx * dobra, z: (de.z + b.z) / 2 }
+  const dobra = (sorteio(semente, k) - 0.5) * 0.35 * comprimento
+  const c: Ponto = [(de[0] + b[0]) / 2 - dy * dobra, (de[1] + b[1]) / 2 + dx * dobra]
   lista.push({ a: de, c, b, grosso, fino, nivel })
-  if (nivel === 2) return
-  // O ramo do lado, de perto do meio (o galho grosso sempre tem; o ramo, às vezes).
-  if (nivel === 0 || sorteio(semente, k + 1) < 0.6) {
-    const t = 0.42 + 0.16 * sorteio(semente, k + 2)
+  if (ultimo) return
+  // O ramo do lado, de perto do meio (os dois primeiros níveis sempre têm; o resto, às vezes).
+  if (nivel < 2 || sorteio(semente, k + 1) < 0.6) {
+    const t = 0.4 + 0.2 * sorteio(semente, k + 2)
     const s = 1 - t
-    const ponto: PontoNoAr = {
-      x: s * s * de.x + 2 * s * t * c.x + t * t * b.x,
-      y: s * s * de.y + 2 * s * t * c.y + t * t * b.y,
-      z: s * s * de.z + 2 * s * t * c.z + t * t * b.z,
-    }
+    const ponto: Ponto = [s * s * de[0] + 2 * s * t * c[0] + t * t * b[0], s * s * de[1] + 2 * s * t * c[1] + t * t * b[1]]
     const lado = sorteio(semente, k + 3) < 0.5 ? 1 : -1
     const larguraAli = grosso + (fino - grosso) * t
-    crescerGalho(lista, ponto, angulo + lado * (0.62 + 0.3 * sorteio(semente, k + 4)), comprimento * 0.6 * (0.85 + 0.3 * sorteio(semente, k + 5)), larguraAli * 0.68, nivel + 1, semente, k * 7 + 11)
+    crescerGalho(lista, ponto, angulo + lado * (0.55 + 0.35 * sorteio(semente, k + 4)), comprimento * 0.58 * (0.9 + 0.2 * sorteio(semente, k + 5)), larguraAli * 0.66, nivel + 1, semente, k * 7 + 11)
   }
   // A forquilha na ponta: dois, abrindo para os dois lados.
-  const abre = 0.3 + 0.18 * sorteio(semente, k + 6)
-  const proximo = nivel === 0 ? 0.64 : 0.56
-  crescerGalho(lista, b, angulo - abre, comprimento * proximo * (0.85 + 0.3 * sorteio(semente, k + 7)), fino, nivel + 1, semente, k * 7 + 23)
-  crescerGalho(lista, b, angulo + abre, comprimento * proximo * (0.85 + 0.3 * sorteio(semente, k + 8)), fino, nivel + 1, semente, k * 7 + 37)
+  const abre = 0.28 + 0.2 * sorteio(semente, k + 6)
+  const proximo = comprimento * COPA_SECA.encolhe[nivel]
+  crescerGalho(lista, b, angulo - abre, proximo * (0.9 + 0.2 * sorteio(semente, k + 7)), fino, nivel + 1, semente, k * 7 + 23)
+  crescerGalho(lista, b, angulo + abre, proximo * (0.9 + 0.2 * sorteio(semente, k + 8)), fino, nivel + 1, semente, k * 7 + 37)
 }
 
 function desenharArvoreMorta(g: CanvasRenderingContext2D, giro: number, semente: number): void {
-  const inclina = Math.sin(giro) * 0.03
-  const meio = { x: inclina, y: COPA_SECA.y }
-  const naTela = (p: PontoNoAr): Ponto => [meio.x + p.x, meio.y + p.y * COPA_SECA.achata - p.z]
-  const { clara, meia, escura } = MADEIRA_MORTA
+  const meio: Ponto = [0, COPA_SECA.y]
+  const { meia, escura } = MADEIRA_MORTA
 
-  // O tronco: a metade da luz e a da sombra, as raízes abrindo no chão (a da direita mais comprida).
-  g.fillStyle = css(meia)
-  g.beginPath()
-  g.moveTo(0, 0.02)
-  g.lineTo(-0.12, 0.028)
-  g.quadraticCurveTo(-0.058, 0.005, -0.056, -0.1)
-  g.lineTo(-0.044 + inclina, meio.y)
-  g.lineTo(inclina, meio.y)
-  g.closePath()
-  g.fill()
-  const raiz = 0.12 + 0.035 * sorteio(semente, 160)
-  g.fillStyle = css(escura)
-  g.beginPath()
-  g.moveTo(0, 0.02)
-  g.lineTo(inclina, meio.y)
-  g.lineTo(0.044 + inclina, meio.y)
-  g.lineTo(0.056, -0.1)
-  g.quadraticCurveTo(0.062, 0.004, raiz, 0.032)
-  g.closePath()
-  g.fill()
-
-  // Os galhos: cinco ou seis raios, um deles às vezes quebrado.
-  const n = sorteio(semente, 161) < 0.5 ? 5 : 6
-  const quebrado = sorteio(semente, 162) < 0.55 ? Math.floor(sorteio(semente, 163) * n) : -1
+  // Os galhos grossos: cinco a sete raios em volta, um ou dois às vezes quebrados.
+  const n = 5 + Math.floor(sorteio(semente, 161) * 3)
+  const primeiro = Math.floor(sorteio(semente, 163) * n)
+  const quebrados = new Set<number>()
+  if (sorteio(semente, 162) < 0.7) quebrados.add(primeiro)
+  // O segundo quebrado só com seis ou sete raios: com cinco a copa ficaria rala de um lado.
+  if (n > 5 && sorteio(semente, 164) < 0.35) quebrados.add((primeiro + 2 + Math.floor(sorteio(semente, 165) * (n - 3))) % n)
   const lista: GalhoDaCopa[] = []
-  const pontas: Ponto[] = []
+  const pontas: Array<{ ponto: Ponto; raio: number }> = []
   for (let i = 0; i < n; i++) {
-    const angulo = giro + (i * Math.PI * 2) / n + (sorteio(semente, 170 + i) - 0.5) * 0.6
-    const de: PontoNoAr = { x: 0, y: 0, z: 0 }
-    if (i === quebrado) {
-      const curto = COPA_SECA.comprimento * 0.7
-      const b: PontoNoAr = { x: Math.cos(angulo) * curto, y: Math.sin(angulo) * curto, z: COPA_SECA.sobe * curto }
-      lista.push({ a: de, c: { x: b.x / 2, y: b.y / 2, z: b.z / 2 }, b, grosso: COPA_SECA.grosso, fino: COPA_SECA.grosso * 0.72, nivel: 0 })
-      pontas.push(naTela(b))
+    const angulo = giro + (i * Math.PI * 2) / n + (sorteio(semente, 170 + i) - 0.5) * 0.4
+    const comprimento = COPA_SECA.comprimento * (0.9 + 0.2 * sorteio(semente, 180 + i))
+    if (quebrados.has(i)) {
+      // Curto e rombudo, com um graveto só saindo do lado.
+      const curto = comprimento * (0.62 + 0.14 * sorteio(semente, 200 + i))
+      const b: Ponto = [meio[0] + Math.cos(angulo) * curto, meio[1] + Math.sin(angulo) * curto]
+      const fino = COPA_SECA.grosso * 0.74
+      lista.push({ a: meio, c: [(meio[0] + b[0]) / 2, (meio[1] + b[1]) / 2], b, grosso: COPA_SECA.grosso, fino, nivel: 0 })
+      const lado = sorteio(semente, 210 + i) < 0.5 ? 1 : -1
+      const ramo: Ponto = [meio[0] + Math.cos(angulo) * curto * 0.55, meio[1] + Math.sin(angulo) * curto * 0.55]
+      crescerGalho(lista, ramo, angulo + lado * 0.7, comprimento * 0.55, COPA_SECA.grosso * 0.5, 2, semente, 220 + i * 13)
+      pontas.push({ ponto: b, raio: fino })
       continue
     }
-    const comprimento = COPA_SECA.comprimento * (0.85 + 0.3 * sorteio(semente, 180 + i))
-    crescerGalho(lista, de, angulo, comprimento, COPA_SECA.grosso, 0, semente, 190 + i * 13)
+    crescerGalho(lista, meio, angulo, comprimento, COPA_SECA.grosso, 0, semente, 190 + i * 13)
   }
-  // Os finos primeiro: o galho grosso cobre a base dos ramos que saem dele.
+
+  // A borda escura de tudo primeiro (o tronco junto), depois os galhos, os finos por baixo dos grossos.
+  for (const galho of lista) contornarGalho(g, galho.a, galho.c, galho.b, galho.grosso, galho.fino, COPA_SECA.borda, BORDA_SECA)
+  elipse(g, meio[0], meio[1], COPA_SECA.tronco + COPA_SECA.borda, COPA_SECA.tronco + COPA_SECA.borda, BORDA_SECA)
   lista.sort((p, q) => q.nivel - p.nivel)
-  for (const galho of lista) pintarGalho(g, naTela(galho.a), naTela(galho.c), naTela(galho.b), galho.grosso, galho.fino, MADEIRA_MORTA)
+  for (const galho of lista) pintarGalho(g, galho.a, galho.c, galho.b, galho.grosso, galho.fino, MADEIRA_MORTA)
 
-  // A ponta quebrada: a madeira à mostra, um pouco mais clara que a casca.
-  for (const [x, y] of pontas) elipse(g, x, y, COPA_SECA.grosso * 0.55, COPA_SECA.grosso * 0.45, misturar(MADEIRA_MORTA.clara, CERNE_SECO, 0.5))
+  // A ponta quebrada: a madeira à mostra, mais clara que a casca.
+  for (const { ponto, raio } of pontas) elipse(g, ponto[0], ponto[1], raio * 0.95, raio * 0.95, misturar(MADEIRA_MORTA.clara, CERNE_SECO, 0.5))
 
-  // O alto do tronco, de onde os galhos saem: um nó baixo, aceso em cima à esquerda.
-  elipse(g, meio.x, meio.y, 0.064, 0.054, escura)
-  elipse(g, meio.x - 0.01, meio.y - 0.009, 0.05, 0.041, meia)
-  elipse(g, meio.x - 0.02, meio.y - 0.017, 0.024, 0.019, clara)
+  // O alto do tronco, de onde os galhos saem: um disco escuro, um pouco aceso em cima à esquerda.
+  elipse(g, meio[0], meio[1], COPA_SECA.tronco, COPA_SECA.tronco, escura)
+  elipse(g, meio[0] - 0.016, meio[1] - 0.02, COPA_SECA.tronco * 0.55, COPA_SECA.tronco * 0.5, misturar(escura, meia, 0.55))
 }
 
 // Toco seco, visto de cima e um pouco de frente (como as pedras): um cilindro
@@ -1255,7 +1265,7 @@ export const CARIMBOS_EMBUTIDOS: readonly DefinicaoDeCarimbo[] = [
   { id: 'pinheiro-nevado', nome: 'Pinheiro com neve', tamanho: 14, sombra: 'em-pe', desenhar: (g, giro, semente) => desenharPinheiro(g, giro, semente, true) },
   { id: 'arvore', nome: 'Árvore', tamanho: 15, sombra: 'em-pe', desenhar: desenharArvore },
   { id: 'arvore-redonda', nome: 'Árvore redonda', tamanho: 14, sombra: 'em-pe', desenhar: desenharArvoreRedonda },
-  // Com as árvores, do tamanho da Árvore: a copa de galhos tem ~1,2 unidade de ponta a ponta.
+  // Com as árvores, do tamanho da Árvore: a copa de galhos, vista de cima, tem ~1,1 unidade de ponta a ponta.
   { id: 'arvore-morta', nome: 'Árvore morta', tamanho: 15, sombra: 'em-pe', desenhar: desenharArvoreMorta },
   { id: 'arbusto', nome: 'Arbusto', tamanho: 6, sombra: 'baixa', desenhar: (g, giro, semente) => desenharCopa(g, giro, semente, TONS_DO_ARBUSTO, -0.3, 0.4) },
   // Ao lado do arbusto, com a mata. Tamanho 10 (o das pedras): ~1,3 unidade de
@@ -1295,6 +1305,7 @@ export const PALETA_DOS_EMBUTIDOS: readonly Rgb[] = [
   CERNE_CLARO,
   CERNE_ESCURO,
   ...Object.values(MADEIRA_MORTA),
+  BORDA_SECA,
   CERNE_SECO,
   ANEL_SECO,
   RACHA_SECA,
