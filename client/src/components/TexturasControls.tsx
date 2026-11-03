@@ -94,6 +94,9 @@ function MiniaturaDoCatalogo({ textura }: { textura: TexturaDoCatalogo }) {
 /** Só o gesto do ponteiro anima o painel; aberto ou fechado pelo teclado, ele troca de uma vez. */
 type Movimento = 'abrindo' | 'fechando'
 
+/** Quanto a forma pode encolher (fração do cartão) para todas caberem numa fileira só. */
+const ENCOLHE_NUMA_FILEIRA = 0.9
+
 /** Fechando, o painel fica na árvore o tempo da saída (o `fast` da casa) e mais um respiro. */
 const FECHA_MS = Number.parseFloat(theme.motion.fast)
 const FOLGA_MS = 20
@@ -138,15 +141,22 @@ function PainelDeFormas({ grupo, escolhida, movimento, cartao, onEscolher, onFec
     const estilo = getComputedStyle(raiz)
     const folga = Number.parseFloat(estilo.getPropertyValue('--lb-space-1')) || 0
     const bordaDaJanela = Number.parseFloat(estilo.getPropertyValue('--lb-layout-edge-gap')) || 0
-    // Cada forma do tamanho do cartão: a miniatura se lê igual em todas.
-    const lado = ancora.offsetWidth
-    raiz.style.setProperty('--lb-formas-lado', `${lado}px`)
+    // Cada forma do tamanho do cartão: a miniatura se lê igual em todas. Três
+    // formas (o Campo) cabem numa fileira só se encolherem uns pixels: encolhem
+    // (até `ENCOLHE_NUMA_FILEIRA`) em vez de deixar a última sozinha embaixo.
     // Formas demais para uma fileira (o Chão de metal tem quatro): fileiras
-    // iguais (2 × 2), sem vazar da biblioteca. A conta: a borda do painel e o
-    // vão entre as formas são a mesma folga.
+    // iguais (2 × 2), sem vazar da biblioteca. A conta usa a moldura de verdade
+    // do painel (respiro e borda) e o vão da grade.
     const caixaDaBiblioteca = raiz.offsetParent instanceof HTMLElement ? raiz.offsetParent.clientWidth : 0
     const quantas = grupo.formas.length
-    const cabem = lado > 0 && caixaDaBiblioteca > 0 ? Math.max(1, Math.floor((caixaDaBiblioteca - folga) / (lado + folga))) : quantas
+    const vao = Number.parseFloat(getComputedStyle(raiz.querySelector('.lb-texturas__formas-grade') ?? raiz).columnGap) || folga
+    const moldura = [estilo.paddingLeft, estilo.paddingRight, estilo.borderLeftWidth, estilo.borderRightWidth].reduce((soma, v) => soma + (Number.parseFloat(v) || 0), 0)
+    const doCartao = ancora.offsetWidth
+    const numaFileira = caixaDaBiblioteca > 0 ? Math.floor((caixaDaBiblioteca - moldura - (quantas - 1) * vao) / quantas) : doCartao
+    const umaFileira = numaFileira >= doCartao * ENCOLHE_NUMA_FILEIRA
+    const lado = umaFileira ? Math.min(doCartao, numaFileira) : doCartao
+    raiz.style.setProperty('--lb-formas-lado', `${lado}px`)
+    const cabem = umaFileira || lado <= 0 ? quantas : Math.max(1, Math.floor((caixaDaBiblioteca - moldura + vao) / (lado + vao)))
     colunas.current = Math.ceil(quantas / Math.ceil(quantas / cabem))
     raiz.style.setProperty('--lb-formas-colunas', String(colunas.current))
     const largura = raiz.offsetWidth

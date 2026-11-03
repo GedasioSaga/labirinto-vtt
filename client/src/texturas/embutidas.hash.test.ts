@@ -14,6 +14,8 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   duna: 'd633a6305ccff8b087115735118bfd62a283548410323a09fa31cbef43937e2b',
   grama: 'b8ba828cc8735d5935665ec2121d875b055ae692e34f560035276c8435600145',
   'grama-amarela': '2c5c66aad9452247d7e0e5c201d77432eaa7a09c1169e89e8aef5df90738b7da',
+  // O Campo morto nasceu depois da F5 (03/11/2026): o hash é o do código que o criou.
+  'grama-morta': '89d65339098d4a091ee3b79160c87fc3f6a6db14be322ed30085437826c664f6',
   floresta: 'd3e6a04ed6ab39fb5d086bd9973bc369503cdbbc4fd011e3e8d594abbf35a9da',
   bosque: '5fc2a6a3de25c32017ab735a103db42cea789881da445e2b6324c5ec8564c95b',
   pinheiros: '279160d3a7f4eea0e5afdb2615b2094cd5752af3439255ac0c138e76c0158c04',

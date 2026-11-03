@@ -124,7 +124,7 @@ function duna(u: number, v: number): number {
 // Grama / campo: os dois verdes de campo do mapa (#76c577 e #8ac459) em
 // manchas largas, moitas um pouco mais escuras e tufos miúdos com luz.
 // Duas formas, o mesmo campo em duas estações (pedido de 13/10/2026: "uma
-// textura de grama amarela"): a VERDE, a de sempre; a AMARELA, palha dourada
+// textura de grama amarela"; a terceira, o MORTO, vem logo abaixo): a VERDE, a de sempre; a AMARELA, palha dourada
 // nos ouros da areia e da duna do mapa. O desenho é o mesmo (as manchas, as
 // moitas e os tufos caem nos mesmos lugares) e cada cor da Amarela tem a luz
 // da sua par na Verde, então a luz do campo também é a mesma.
@@ -163,6 +163,77 @@ function gramaNoTom({ base, mancha, moita }: TomDoCampo): (u: number, v: number)
     c = luz(c, tufo * 0.1 + (valor(u * 160, v * 160, 160, 35) - 0.5) * 0.04)
     return empacotar(c)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Campo morto (pedido de 03/11/2026: "textura de grama cinza e morta", "cinza
+// com falhas de terra"): a terceira forma do Campo. O capim é o desenho da
+// Verde e da Amarela (manchas, moitas e tufos nos mesmos lugares), num cinza
+// de palha queimada, apagado, só um pouco quente; por cima, FALHAS de terra
+// nua marrom-acinzentada onde o capim morreu de vez, com a borda roída: em
+// volta da falha o capim rareia e a terra aparece entre os tufos.
+//
+// O ladrilho é QUATRO vezes o da Verde em cada lado (120, com o capim dela
+// quatro vezes em cada lado, na mesma resolução): a falha contrasta mais que
+// a moita, e em ladrilho pequeno ela se repetia em grade no mapa. As falhas
+// se juntam onde o campo secou mais (manchas grandes) e somem noutras partes,
+// e o ruído é torcido antes de medir: nenhuma sai em fileira com a vizinha.
+
+const CAMPO_MORTO_ESCALA = 120
+/** Quantas vezes o capim da Verde (ladrilho de 30) cabe em cada lado do ladrilho. */
+const CAPIM_POR_LADO = 4
+const CAMPO_MORTO: TomDoCampo = { base: rgb('#a3a08f'), mancha: rgb('#ada792'), moita: rgb('#8d8a7b') }
+const TERRA_NUA_CLARA = rgb('#918775')
+const TERRA_NUA_FUNDA = rgb('#837968')
+
+/**
+ * O quanto o chão secou: as falhas (ruído torcido de cinco oitavas, o
+ * contorno mais recortado de perto) puxadas para cima onde o campo secou mais.
+ * Acima de `FALHA.ralo` o capim rareia; acima de `FALHA.nua`, a terra fica nua.
+ */
+function securaDoCampo(u: number, v: number): number {
+  // As sementes saíram de uma folha de doze: a 71 espalha as falhas sem nenhuma
+  // virar marco (a falha comprida que se repete de ladrilho em ladrilho).
+  const tu = u + fbm(u, v, 6, 2, 72) * 0.025
+  const tv = v + fbm(u, v, 6, 2, 73) * 0.025
+  const regiao = fbm(u, v, 3, 2, 81)
+  return fbm(tu, tv, 8, 5, 71) * 0.5 + 0.5 + regiao * 0.13 + (valor(u * 192, v * 192, 192, 39) - 0.5) * 0.06
+}
+
+const FALHA = { ralo: [0.57, 0.64], nua: [0.64, 0.69] } as const
+
+function campoMorto(u: number, v: number): number {
+  // O capim da Verde, ponto por ponto, no cinza.
+  const cu = u * CAPIM_POR_LADO
+  const cv = v * CAPIM_POR_LADO
+  const { base, mancha, moita } = CAMPO_MORTO
+  let c = misturar(base, mancha, passoSuave(0.2, 0.8, fbm(cu, cv, 2, 4, 31) * 0.5 + 0.5))
+  c = misturar(c, moita, passoSuave(0.55, 0.9, fbm(cu, cv, 5, 3, 32) * 0.5 + 0.5) * 0.7)
+  let tufo = 0
+  let debaixoDoTufo = 0
+  vizinhos(cu, cv, 26, 33, 0.38, (p) => {
+    const r = 0.3 + hash(p.ix, p.iy, 34) * 0.14
+    const d = Math.hypot(p.dx, p.dy)
+    if (d >= r) return
+    const h = Math.sqrt(1 - (d / r) ** 2)
+    const brilho = luzNaInclinacao((p.dx / r) * 1.4, (p.dy / r) * 1.4) - LUZ_NO_PLANO
+    const cobre = passoSuave(r, r * 0.6, d)
+    tufo += brilho * cobre * (0.6 + 0.4 * h)
+    debaixoDoTufo = Math.max(debaixoDoTufo, cobre)
+  })
+  // Em volta da falha o capim rareia: os tufos ficam (mais apagados, sem o
+  // capim em volta para clarear) e a terra aparece entre eles. Claro demais,
+  // o tufo no chão escuro virava pontilhado.
+  const secura = securaDoCampo(u, v)
+  const rareia = passoSuave(FALHA.ralo[0], FALHA.ralo[1], secura)
+  const capim = luz(c, tufo * 0.1 * (1 - 0.6 * rareia) - 0.04 * rareia + (valor(cu * 160, cv * 160, 160, 35) - 0.5) * 0.04)
+  const falha = Math.max(rareia * (1 - debaixoDoTufo) * 0.45, passoSuave(FALHA.nua[0], FALHA.nua[1], secura))
+  // Quase todo o campo é capim: a terra só é medida onde aparece (o ladrilho é grande).
+  if (falha <= 0) return empacotar(capim)
+  // A terra nua: manchas largas de seco e úmido e o grão miúdo.
+  let chao = misturar(TERRA_NUA_CLARA, TERRA_NUA_FUNDA, passoSuave(0.3, 0.8, fbm(u, v, 28, 3, 41) * 0.5 + 0.5))
+  chao = luz(chao, (valor(u * 880, v * 880, 880, 42) - 0.5) * 0.07)
+  return empacotar(misturar(capim, chao, falha))
 }
 
 // ---------------------------------------------------------------------------
@@ -1088,6 +1159,8 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   // As formas de um grupo ficam juntas, a primeira é a que o cartão escolhe na primeira vez.
   { id: 'grama', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Verde' }, cor: gramaNoTom(CAMPO_VERDE) },
   { id: 'grama-amarela', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Amarelo' }, cor: gramaNoTom(CAMPO_AMARELO) },
+  // O Morto tem o ladrilho maior (a falha não se repete em grade) e o capim na mesma resolução das outras duas.
+  { id: 'grama-morta', nome: 'Campo', escala: CAMPO_MORTO_ESCALA, lado: LADO_MAIOR, forma: { grupo: 'grama', nome: 'Morto' }, cor: campoMorto },
   { id: 'floresta', nome: 'Floresta', escala: 40, cor: (u, v) => copas(u, v, FLORESTA) },
   { id: 'bosque', nome: 'Bosque', escala: BOSQUE_ESCALA, lado: LADO_GRANDE, cor: bosque },
   { id: 'pinheiros', nome: 'Pinheiros', escala: 36, cor: (u, v) => copas(u, v, PINHEIROS) },

@@ -143,8 +143,9 @@
   text-wrap: balance;
 }
 
-/* As formas em fileiras de `--lb-formas-colunas` (todas numa só quando cabem;
-   o Chão de metal, de quatro, vira 2 × 2): a conta é do componente. */
+/* As formas em fileiras de `--lb-formas-colunas` (todas numa só quando cabem,
+   como o Campo, de três, um tantinho menores que o cartão; o Chão de metal, de
+   quatro, vira 2 × 2): a conta é do componente. */
 .lb-texturas__formas-grade {
   display: grid;
   grid-template-columns: repeat(var(--lb-formas-colunas, 2), var(--lb-formas-lado, minmax(0, 1fr)));

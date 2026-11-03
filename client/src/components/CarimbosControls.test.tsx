@@ -62,14 +62,14 @@ function mudarFaixa(rotulo: string, valor: number): void {
 }
 
 describe('CarimbosControls', () => {
-  it('mostra os dez objetos da biblioteca (com a árvore redonda da MT5 e o tronco caído), com o escolhido marcado, e escolher outro muda a ferramenta', () => {
+  it('mostra os doze objetos da biblioteca (com a árvore redonda da MT5, a árvore morta, o tronco caído e o toco seco), com o escolhido marcado, e escolher outro muda a ferramenta', () => {
     montar()
     const objetos = radios('Objeto')
-    expect(objetos.map((b) => b.textContent)).toEqual(['Pinheiro', 'Pinheiro com neve', 'Árvore', 'Árvore redonda', 'Arbusto', 'Tronco caído', 'Palmeira', 'Pedras', 'Poça', 'Juncos'])
+    expect(objetos.map((b) => b.textContent)).toEqual(['Pinheiro', 'Pinheiro com neve', 'Árvore', 'Árvore redonda', 'Árvore morta', 'Arbusto', 'Tronco caído', 'Toco seco', 'Palmeira', 'Pedras', 'Poça', 'Juncos'])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
     expect(objetos.filter((b) => b.tabIndex === 0)).toHaveLength(1)
-    act(() => objetos[6].click())
+    act(() => objetos[8].click())
     expect(useMapStore.getState().carimboEscolhido).toBe('palmeira')
   })
 
@@ -80,7 +80,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowDown')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-redonda')
     tecla('ArrowRight')
-    expect(useMapStore.getState().carimboEscolhido).toBe('arbusto')
+    expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
     expect(useMapStore.getState().carimboEscolhido).toBe('juncos')
     tecla('Home')

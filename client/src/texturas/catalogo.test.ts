@@ -11,14 +11,14 @@ function textura(id: string, forma?: { grupo: string; nome: string }): TexturaDo
 }
 
 describe('agruparPorForma', () => {
-  it('a biblioteca embutida: o Campo e as Lajotas viram cartões de duas formas, o Chão de metal de quatro, o resto fica de uma', () => {
+  it('a biblioteca embutida: as Lajotas viram cartão de duas formas, o Campo de três, o Chão de metal de quatro, o resto fica de uma', () => {
     const grupos = agruparPorForma(listarTexturas())
     const lajotas = grupos.find((g) => g.grupo === 'lajotas')
     expect(lajotas?.nome).toBe('Lajotas de pedra')
     expect(lajotas?.formas.map((t) => t.id)).toEqual(['lajotas', 'lajotas-escuras'])
     const campo = grupos.find((g) => g.grupo === 'grama')
     expect(campo?.nome).toBe('Campo')
-    expect(campo?.formas.map((t) => t.id)).toEqual(['grama', 'grama-amarela'])
+    expect(campo?.formas.map((t) => t.id)).toEqual(['grama', 'grama-amarela', 'grama-morta'])
     const metal = grupos.find((g) => g.grupo === 'chao-de-metal')
     expect(metal?.nome).toBe('Chão de metal')
     expect(metal?.formas.map((t) => t.forma?.nome)).toEqual(['Placas', 'Chapa xadrez', 'Grade', 'Painéis de nave'])
