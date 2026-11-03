@@ -24,6 +24,7 @@ import { saiComTextura } from '../lib/mobilia/desenhoDoMovel'
 import { varianteDaPilha } from '../lib/mobilia/pilhas'
 import { formaDoChafariz, varianteDaFormaDoChafariz } from '../lib/mobilia/chafariz'
 import { varianteDaPonte } from '../lib/mobilia/ponte'
+import { formaDoMoinho } from '../lib/mobilia/cataVento'
 import { emOrdemDoTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
@@ -341,11 +342,13 @@ function roundSilhouettePoints(prop: PropSilhouette): number[] {
  */
 /**
  * A variante do glifo: a forma dos troncos e do feno, a do chafariz (0 redondo,
- * 1 quadrado) ou a da ponte (0 madeira, 1 pedra, 2 corda).
+ * 1 quadrado), a da ponte (0 madeira, 1 pedra, 2 corda) ou a do moinho (0
+ * clássico, 1 torre).
  */
 function varianteDoGlifo(mobilia: NonNullable<PropSilhouette['mobilia']>, forma: PropSilhouette['mobiliaForma']): number {
   if (mobilia === 'chafariz') return varianteDaFormaDoChafariz(forma)
   if (mobilia === 'ponte') return varianteDaPonte(forma)
+  if (mobilia === 'moinho') return formaDoMoinho(forma) === 'torre' ? 1 : 0
   return varianteDaPilha(mobilia, forma)
 }
 

@@ -2,6 +2,7 @@ import { useId, useRef, type CSSProperties } from 'react'
 import type { AparenciaDoMovelPatch } from '../lib/mobilia'
 import { normalizarCorDeTecido, normalizarCorDoMovel } from '../lib/mobilia'
 import { formaDaPonte, lugarDaPonteNaForma } from '../lib/mobilia/ponte'
+import { formaDoMoinho } from '../lib/mobilia/cataVento'
 import {
   LUGARES_DE_MATERIAL,
   MATERIAIS,
@@ -176,12 +177,16 @@ export function materiaisDaPeca(prop: Prop, tipo: TipoMobilia): MaterialNoLugar[
 
 /**
  * O lugar vale na forma atual do móvel? A ponte de pedra não tem madeira, e a
- * de madeira e a de corda não têm pedra (`lugarDaPonteNaForma`): o painel e a
- * ficha só mostram o material que muda o desenho. O campo do arquivo fica como
+ * de madeira e a de corda não têm pedra (`lugarDaPonteNaForma`); o moinho de
+ * torre não usa nenhum dos dois do Clássico: o painel e a ficha só mostram o
+ * material que muda o desenho. O campo do arquivo fica como
  * está (voltar à outra forma traz o material de antes).
  */
 function lugarApareceNaForma(prop: Prop, tipo: TipoMobilia, lugar: string): boolean {
   if (tipo === 'ponte') return lugarDaPonteNaForma(formaDaPonte(prop.mobiliaForma), lugar)
+  // O moinho de torre (03/11/2026) tem as cores dele (o branco da cal, o azul, a madeira escura da varanda):
+  // as Paredes de pedra e o Telhado de madeira são só do Clássico.
+  if (tipo === 'moinho') return formaDoMoinho(prop.mobiliaForma) === 'classico'
   return true
 }
 

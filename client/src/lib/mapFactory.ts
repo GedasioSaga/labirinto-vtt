@@ -37,12 +37,12 @@ import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel, movelComOutraFormaDoChafariz, movelComOutraAguaDoChafariz, movelComOutroVento,
-  movelComOutraFormaDaPonte,
+  movelComOutraFormaDaPonte, movelComOutraFormaDoMoinho,
   type AparenciaDoMovelPatch,
 } from './mobilia'
 import { ehPonte, formaDaPonte, type FormaDaPonte } from './mobilia/ponte'
 import { aguaDoChafariz, formaDoChafariz, type AguaDoChafariz, type FormaDoChafariz } from './mobilia/chafariz'
-import { ehMovelDeVento, ventoDoMovel, type VentoDoMovel } from './mobilia/cataVento'
+import { ehMovelDeVento, formaDoMoinho, ventoDoMovel, type FormaDoMoinho, type VentoDoMovel } from './mobilia/cataVento'
 import { CASAS_DO_TAMANHO_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from './mobilia/fogo'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
@@ -975,6 +975,17 @@ export function trocarVentoDoMovel(map: MapData, propId: string, vento: VentoDoM
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo === undefined || !ehMovelDeVento(alvo.mobilia) || ventoDoMovel(alvo.mobiliaForma) === vento) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutroVento(p, vento) : p)) }
+}
+
+/**
+ * "Forma" do painel do MOINHO (Clássico | Torre): a pegada e o vento ficam
+ * (`movelComOutraFormaDoMoinho`). A mesma forma, outro tipo ou id que não
+ * existe devolvem o MESMO mapa.
+ */
+export function trocarFormaDoMoinho(map: MapData, propId: string, forma: FormaDoMoinho): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo?.mobilia !== 'moinho' || formaDoMoinho(alvo.mobiliaForma) === forma) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraFormaDoMoinho(p, forma) : p)) }
 }
 
 /**

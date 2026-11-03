@@ -1728,9 +1728,11 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  forma e a água juntas: `'quadrado'`, `'desligada'` ou
    *  `'quadrado-desligada'`; ausente = redondo com a água ligada. Os objetos de
    *  VENTO (02/11/2026: cata-vento de fazenda, moinho, cata-vento de brinquedo)
-   *  guardam só `'parado'`; ausente = as pás girando. A PONTE (03/11/2026)
-   *  guarda `'pedra'` ou `'corda'`; ausente = a ponte de madeira. */
-  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz | Exclude<VentoDoMovel, 'girando'> | FormaGravadaDaPonte
+   *  guardam `'parado'`; ausente = as pás girando. O moinho guarda também a
+   *  forma Torre (03/11/2026): `'torre'` ou `'torre-parado'`; ausente = o
+   *  Clássico. A PONTE (03/11/2026) guarda `'pedra'` ou `'corda'`; ausente =
+   *  a ponte de madeira. */
+  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz | FormaGravadaDoVento | FormaGravadaDaPonte
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
    *  o desenho de sempre — sem linha de migração. Vale só na cama (`catre`):
@@ -1792,6 +1794,9 @@ export type AguaDoChafariz = import('../lib/mobilia/chafariz').AguaDoChafariz
 export type FormaGravadaDoChafariz = import('../lib/mobilia/chafariz').FormaGravadaDoChafariz
 /** Os objetos de vento (`lib/mobilia/cataVento.ts`): as pás Girando ou Paradas. */
 export type VentoDoMovel = import('../lib/mobilia/cataVento').VentoDoMovel
+/** O moinho (`lib/mobilia/cataVento.ts`): Clássico ou Torre; com o vento, no mesmo campo. */
+export type FormaDoMoinho = import('../lib/mobilia/cataVento').FormaDoMoinho
+export type FormaGravadaDoVento = import('../lib/mobilia/cataVento').FormaGravadaDoVento
 /** A ponte (`lib/mobilia/ponte.ts`): Madeira, Pedra ou Corda; o mapa grava só a pedra e a corda. */
 export type FormaDaPonte = import('../lib/mobilia/ponte').FormaDaPonte
 export type FormaGravadaDaPonte = import('../lib/mobilia/ponte').FormaGravadaDaPonte

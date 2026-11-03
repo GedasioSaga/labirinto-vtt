@@ -22,7 +22,7 @@ import {
   type AguaDoChafariz,
   type FormaDoChafariz,
 } from './mobilia/chafariz'
-import { ehMovelDeVento, gravarVento, normalizarFormaDoVento, type VentoDoMovel } from './mobilia/cataVento'
+import { ehMovelDeVento, formaDoMoinho, gravarFormaDoVento, normalizarFormaDoVento, ventoDoMovel, type FormaDoMoinho, type VentoDoMovel } from './mobilia/cataVento'
 import { ehPonte, gravarFormaDaPonte, normalizarFormaDaPonte, type FormaDaPonte } from './mobilia/ponte'
 
 /**
@@ -284,7 +284,7 @@ function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): 
     normalizarFormaDaPilha(tipo, valor) ??
     // O chafariz (02/11/2026): a forma e a água num campo só (`'quadrado'`, `'desligada'`, `'quadrado-desligada'`).
     normalizarFormaDoChafariz(tipo, valor) ??
-    // Os objetos de vento (02/11/2026): só o Parado é gravado.
+    // Os objetos de vento (02/11/2026): o Parado; no moinho, também a Torre (03/11/2026).
     normalizarFormaDoVento(tipo, valor) ??
     // A ponte (03/11/2026): a pedra ou a corda (ausente = madeira).
     normalizarFormaDaPonte(tipo, valor)
@@ -1588,7 +1588,20 @@ export function movelComOutraAguaDoChafariz(prop: Prop, agua: AguaDoChafariz): P
  */
 export function movelComOutroVento(prop: Prop, vento: VentoDoMovel): Prop {
   if (!ehMovelDeVento(prop.mobilia)) return prop
-  return comFormaGravada(prop, gravarVento(vento))
+  // O moinho de torre continua de torre (a forma e o vento moram no mesmo campo).
+  const forma = prop.mobilia === 'moinho' ? formaDoMoinho(prop.mobiliaForma) : 'classico'
+  return comFormaGravada(prop, gravarFormaDoVento(forma, vento))
+}
+
+/**
+ * A "Forma" do MOINHO (Clássico | Torre): o mesmo moinho na outra forma, no
+ * MESMO tamanho (as duas têm a pegada de 2 x 2, e o mestre pode ter esticado).
+ * O vento (girando ou parado) fica como estava. Outro tipo devolve o mesmo
+ * objeto.
+ */
+export function movelComOutraFormaDoMoinho(prop: Prop, forma: FormaDoMoinho): Prop {
+  if (prop.mobilia !== 'moinho') return prop
+  return comFormaGravada(prop, gravarFormaDoVento(forma, ventoDoMovel(prop.mobiliaForma)))
 }
 
 /**

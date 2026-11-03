@@ -15,9 +15,10 @@
  * Materiais: a madeira da torre (fazenda); a pedra das paredes e a madeira do
  * telhado (moinho). O brinquedo não tem escolha (o papel tem cor própria).
  */
-import { barra, caixa, elipse, poligono, type Ponto } from './formas'
-import { contato, type MaterialDaPeca } from './motor'
+import { anel, barra, caixa, elipse, poligono, type Ponto } from './formas'
+import { contato, ruido, type MaterialDaPeca, type Textura } from './motor'
 import { materialDaPeca, type MontarMovel } from './contexto'
+import { rgb } from '../../ruido'
 
 /** Alturas em casas (a sombra no chão): a torre da fazenda, o moinho e o palito. */
 const ALTURA_DA_TORRE = 1.6
@@ -25,6 +26,17 @@ const ALTURA_DO_MOINHO = 2.2
 const ALTURA_DO_PALITO = 0.9
 const FERRO: MaterialDaPeca = materialDaPeca('ferro')
 const PALITO: MaterialDaPeca = materialDaPeca('pinho')
+
+/** O moinho de torre: a torre branca é a mais alta do mapa; a varanda fica a ~0,9 casa do chão. */
+const ALTURA_DA_TORRE_BRANCA = 2.6
+const ALTURA_DA_VARANDA = 0.9
+/** A cal da torre (branco quente, não branco puro), o azul da cúpula e das velas, o creme e o dourado. */
+const CAL: MaterialDaPeca = { classe: 'liso', rgb: rgb('#e4ddcd') }
+const AZUL_DA_TORRE: MaterialDaPeca = { classe: 'liso', rgb: rgb('#3f6e9f') }
+const CREME: MaterialDaPeca = { classe: 'liso', rgb: rgb('#d9c48f') }
+const DOURADO: MaterialDaPeca = { classe: 'metal', rgb: rgb('#c09a4e') }
+/** A madeira escura da varanda: a nogueira do Meio-Termo, fixa. */
+const MADEIRA_DA_VARANDA: MaterialDaPeca = materialDaPeca('nogueira')
 
 /** 0..1 fixo por peça: o tom de cada gomo do telhado. */
 function tomFixo(i: number): number {
@@ -69,7 +81,92 @@ export const montarCataVento: MontarMovel = (c, cena) => {
   L.push(P(elipse(0, 0, 2.2 * k, 2.2 * k), FERRO, { tabua: 0, bisel: 0.9 * k, tom: 0.9, contorno: 0.3, semente: 841, projeta: { dist: 1.2 * k, forca: 0.3 } }))
 }
 
+/**
+ * O MOINHO DE TORRE (03/11/2026, a forma "Torre"; `variante` 1): o moinho do
+ * Mediterrâneo de cima, com um pouco de volume. De fora para dentro: a
+ * varanda de tábuas escuras em anel, com o guarda-corpo e os pilares; a torre
+ * branca de cal que afina para cima (o flanco do cone, mais claro do lado da
+ * luz), com a faixa creme e a faixa azul na altura da varanda e as janelinhas
+ * azuis; a cornija creme e a cúpula azul em gomos, com o pináculo dourado. As
+ * 6 velas azuis giram na camada animada (`pixi/pasDoVento.ts`). Cores fixas,
+ * contidas para o Meio-Termo: o mestre não escolhe material na Torre.
+ */
+function montarMoinhoTorre(c: Parameters<MontarMovel>[0], cena: Parameters<MontarMovel>[1]): void {
+  const { hw, hh, g, peca: P } = c
+  const k = Math.min(hw, hh) / 56
+  const em = (f: number): [number, number] => [hw * f, hh * f]
+  // A varanda é um anel estreito: a torre branca é o que lê de longe, como no moinho de verdade.
+  const [vx, vy] = em(0.93)
+  const [bx, by] = em(0.7)
+  const [tx, ty] = em(0.38)
+  const torre = elipse(0, 0, bx, by)
+  cena.sombras.push({ forma: torre, z: g * ALTURA_DA_TORRE_BRANCA }, { forma: elipse(0, 0, vx, vy), z: g * ALTURA_DA_VARANDA, forca: 0.24, solta: true }, contato(elipse(0, 0, vx, vy), 0.22))
+  const L = cena.partes
+  // A VARANDA: as tábuas em raio, escuras, com fresta entre elas; o pé da torre por baixo, na sombra.
+  L.push(P(anel(0, 0, vx, vy, bx * 0.96, by * 0.96), MADEIRA_DA_VARANDA, { tabua: 0, bisel: 0.6 * k, tom: 0.5, contorno: 0.22, semente: 960 }))
+  const tabuas = 36
+  for (let i = 0; i < tabuas; i += 1) {
+    const a0 = (i / tabuas) * 2 * Math.PI + 0.012
+    const a1 = ((i + 1) / tabuas) * 2 * Math.PI - 0.012
+    const am = (a0 + a1) / 2
+    const pontos: Ponto[] = [
+      [Math.cos(a0) * bx * 0.97, Math.sin(a0) * by * 0.97],
+      [Math.cos(a0) * vx * 0.99, Math.sin(a0) * vy * 0.99],
+      [Math.cos(a1) * vx * 0.99, Math.sin(a1) * vy * 0.99],
+      [Math.cos(a1) * bx * 0.97, Math.sin(a1) * by * 0.97],
+    ]
+    L.push(P(poligono(pontos), MADEIRA_DA_VARANDA, { tabua: 0, bisel: 0.8 * k, tom: 0.78 + 0.16 * tomFixo(i + 40), contorno: 0.22, eixo: am, semente: 961 + i }))
+  }
+  // O guarda-corpo em volta da varanda, mais alto que as tábuas, e os pilares por cima dele.
+  L.push(P(anel(0, 0, vx, vy, vx - 3.2 * k, vy - 3.2 * k), MADEIRA_DA_VARANDA, { tabua: 0, bisel: 1 * k, tom: 0.92, contorno: 0.26, semente: 1000, projeta: { dist: 2.2 * k, forca: 0.3 } }))
+  const pilares = 16
+  for (let i = 0; i < pilares; i += 1) {
+    const a = (i / pilares) * 2 * Math.PI + Math.PI / pilares
+    const x = Math.cos(a) * (vx - 1.6 * k)
+    const y = Math.sin(a) * (vy - 1.6 * k)
+    L.push(P(caixa(x - 2.2 * k, y - 2.2 * k, x + 2.2 * k, y + 2.2 * k, 0.6 * k), MADEIRA_DA_VARANDA, { tabua: 0, bisel: 0.8 * k, tom: 1.04, contorno: 0.28, semente: 1010 + i, projeta: { dist: 1.8 * k, forca: 0.3 } }))
+  }
+  // A TORRE de cal, o flanco do cone de cima: mais clara do lado da luz (cima à esquerda), com um grão leve.
+  const luzDoFlanco: Textura = (_u, _v, x, y, _p, s) => {
+    const a = Math.atan2(y / by, x / bx)
+    s[3] += 0.12 * Math.cos(a + (3 * Math.PI) / 4) + ruido(x * 0.4, y * 0.4) * 0.025
+  }
+  L.push(P(torre, CAL, { bisel: 1.2 * k, contorno: 0.24, textura: luzDoFlanco, semente: 1030, projeta: { dist: 3.2 * k, forca: 0.32 } }))
+  // A faixa creme e a faixa azul na altura da varanda, no pé do flanco.
+  L.push(P(anel(0, 0, bx * 0.97, by * 0.97, bx * 0.9, by * 0.9), CREME, { bisel: 0.5 * k, contorno: 0.16, semente: 1031 }))
+  L.push(P(anel(0, 0, bx * 0.9, by * 0.9, bx * 0.84, by * 0.84), AZUL_DA_TORRE, { bisel: 0.5 * k, contorno: 0.16, semente: 1032 }))
+  // As janelinhas azuis no flanco: de cima, a janela em pé na parede do cone fica deitada no raio.
+  const janelas = [0.3, 1.25, 2.2, 3.4, 4.6, 5.5]
+  janelas.forEach((a, i) => {
+    // Entre a cornija (0,59 do pé da torre) e a faixa azul (0,84), um pouco mais larga embaixo.
+    const canto = (r: number, meia: number): Ponto => [Math.cos(a + meia) * bx * r, Math.sin(a + meia) * by * r]
+    L.push(P(poligono([canto(0.66, -0.06), canto(0.78, -0.075), canto(0.78, 0.075), canto(0.66, 0.06)]), AZUL_DA_TORRE, { bisel: 0.5 * k, tom: 0.8, contorno: 0.32, semente: 1040 + i }))
+  })
+  // A CORNIJA creme no alto da torre e a CÚPULA azul em gomos, com o pináculo dourado no meio.
+  L.push(P(elipse(0, 0, tx * 1.08, ty * 1.08), CREME, { bisel: 1 * k, tom: 1, contorno: 0.26, semente: 1050, projeta: { dist: 2.6 * k, forca: 0.3 } }))
+  const gomos = 12
+  for (let i = 0; i < gomos; i += 1) {
+    const a0 = (i / gomos) * 2 * Math.PI + 0.2
+    const a1 = ((i + 1) / gomos) * 2 * Math.PI + 0.2
+    const am = (a0 + a1) / 2
+    const pontos: Ponto[] = [
+      [0, 0],
+      [Math.cos(a0) * tx, Math.sin(a0) * ty],
+      [Math.cos(am) * tx * 1.01, Math.sin(am) * ty * 1.01],
+      [Math.cos(a1) * tx, Math.sin(a1) * ty],
+    ]
+    const luz = 0.12 * Math.cos(am + (3 * Math.PI) / 4)
+    L.push(P(poligono(pontos), AZUL_DA_TORRE, { bisel: 1.6 * k, tom: 1 + luz, contorno: 0.2, eixo: am, semente: 1060 + i, projeta: i === 0 ? { dist: 2.4 * k, forca: 0.26 } : undefined }))
+  }
+  L.push(P(elipse(0, 0, 4.2 * k, 4.2 * k), DOURADO, { bisel: 1.4 * k, contorno: 0.3, semente: 1080, projeta: { dist: 1.6 * k, forca: 0.3 } }))
+}
+
 export const montarMoinho: MontarMovel = (c, cena) => {
+  // A forma Torre (03/11/2026) é a variante 1; o Clássico, o desenho de sempre (sem variante na chave).
+  if (c.variante === 1) {
+    montarMoinhoTorre(c, cena)
+    return
+  }
   const { hw, hh, g, peca: P } = c
   const pedra = c.m.pedra
   const telhado = c.m.madeira

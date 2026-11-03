@@ -1,6 +1,6 @@
 import { Container, Graphics, GraphicsContext } from 'pixi.js'
 import type { Prop } from '../types/map'
-import { ehMovelDeVento, RODAS_DO_VENTO, rodaNaPegada, ventoDoMovel, type TipoDeVento } from '../lib/mobilia/cataVento'
+import { ehMovelDeVento, RODAS_DO_VENTO, rodaNaPegada, ventoDoMovel, type DesenhoDoVento } from '../lib/mobilia/cataVento'
 
 /**
  * AS PÁS DOS OBJETOS DE VENTO (pedido do mestre de 02/11/2026): a parte
@@ -25,10 +25,12 @@ import { ehMovelDeVento, RODAS_DO_VENTO, rodaNaPegada, ventoDoMovel, type TipoDe
 const R = 128
 
 /** O ângulo das pás paradas, escolhido por objeto: o moinho em X, a roda e o papel um pouco tortos. */
-const ANGULO_PARADO: Readonly<Record<TipoDeVento, number>> = {
+const ANGULO_PARADO: Readonly<Record<DesenhoDoVento, number>> = {
   cataVento: Math.PI / 36,
   moinho: Math.PI / 4,
   cataVentoBrinquedo: Math.PI / 9,
+  // As 6 velas da torre: nenhuma em pé sobre a torre nem deitada reta.
+  moinhoTorre: Math.PI / 12,
 }
 
 /**
@@ -45,6 +47,15 @@ const LONA = 0xd9cdb1
 const PAPEL = [0xb0594d, 0xcfa752, 0x4f8682, 0x6a7ea4] as const
 const PALITO = 0xb8925e
 const PINO = 0xe8e0cf
+/**
+ * O moinho de torre (03/11/2026): o azul das velas e da cúpula, o mesmo da
+ * imagem da base (`texturas/meioTermo/moveis/cataVento.ts`), um pouco
+ * apagado para caber no Meio-Termo; a borda de lona crua e a vara escura.
+ */
+const AZUL_DA_VELA = 0x3f6e9f
+const AZUL_ESCURO = 0x274563
+const BORDA_DA_VELA = 0xe9dfc4
+const VARA_DA_TORRE = 0x5a4634
 
 type Ponto = readonly [number, number]
 
@@ -64,7 +75,7 @@ function plano(pontos: readonly Ponto[]): number[] {
 }
 
 /** Quanto o meio da roda sobe, em R (a haste até a base tem este comprimento). */
-function subidaEmR(tipo: TipoDeVento): number {
+function subidaEmR(tipo: DesenhoDoVento): number {
   const roda = RODAS_DO_VENTO[tipo]
   return roda.altura / roda.raio
 }
@@ -115,6 +126,34 @@ function contextoDasVelas(): GraphicsContext {
   return g.circle(0, 0, 0.035 * R).fill({ color: 0x8a7356 })
 }
 
+/**
+ * As 6 velas do moinho de torre (03/11/2026): a vara de madeira escura e, de
+ * um lado, a vela azul comprida, um pouco mais larga na ponta, com a borda
+ * clara de lona crua em volta e duas costuras; o cubo azul com o aro claro.
+ */
+function contextoDasVelasDaTorre(): GraphicsContext {
+  const g = new GraphicsContext()
+  for (let i = 0; i < 6; i += 1) {
+    const a = (i / 6) * 2 * Math.PI
+    g.poly(plano([naPa(0.04, -0.022, a), naPa(1, -0.016, a), naPa(1, 0.016, a), naPa(0.04, 0.022, a)])).fill({ color: VARA_DA_TORRE })
+    g.stroke({ width: 0.012 * R, color: MADEIRA_ESCURA })
+    // Estreita no pé (0,1) e mais larga na ponta (0,15): entre as velas a torre branca aparece.
+    const vela = plano([naPa(0.2, 0.03, a), naPa(0.97, 0.03, a), naPa(0.97, 0.18, a), naPa(0.2, 0.13, a)])
+    g.poly(vela).fill({ color: AZUL_DA_VELA })
+    // As costuras da vela, de través, mais escuras que o azul.
+    for (const u of [0.46, 0.72]) {
+      const t = (u - 0.2) / 0.77
+      const [x1, y1] = naPa(u, 0.03, a)
+      const [x2, y2] = naPa(u, 0.13 + 0.05 * t, a)
+      g.moveTo(x1, y1).lineTo(x2, y2)
+    }
+    g.stroke({ width: 0.01 * R, color: AZUL_ESCURO, alpha: 0.7 })
+    g.poly(vela).stroke({ width: 0.026 * R, color: BORDA_DA_VELA, join: 'round' })
+  }
+  g.circle(0, 0, 0.11 * R).fill({ color: AZUL_DA_VELA }).stroke({ width: 0.026 * R, color: BORDA_DA_VELA })
+  return g.circle(0, 0, 0.04 * R).fill({ color: AZUL_ESCURO })
+}
+
 /** O papel do brinquedo: 4 folhas dobradas em redemoinho, cada uma com a dobra mais escura, e o pino. */
 function contextoDoPapel(): GraphicsContext {
   const g = new GraphicsContext()
@@ -131,7 +170,7 @@ function contextoDoPapel(): GraphicsContext {
 }
 
 /** A parte que não gira: a haste do meio da roda até a base, e o leme da fazenda (atrás da roda). */
-function contextoFixo(tipo: TipoDeVento): GraphicsContext {
+function contextoFixo(tipo: DesenhoDoVento): GraphicsContext {
   const g = new GraphicsContext()
   const desce = subidaEmR(tipo) * R
   if (tipo === 'cataVento') {
@@ -143,6 +182,12 @@ function contextoFixo(tipo: TipoDeVento): GraphicsContext {
     g.poly(plano([[-0.05 * R, 0], [0.05 * R, 0], [0.16 * R, desce], [-0.16 * R, desce]])).fill({ color: MADEIRA })
     g.stroke({ width: 0.02 * R, color: MADEIRA_ESCURA, join: 'round' })
     return g.moveTo(-0.11 * R, desce * 0.55).lineTo(0.11 * R, desce * 0.55).stroke({ width: 0.02 * R, color: MADEIRA_ESCURA })
+  }
+  if (tipo === 'moinhoTorre') {
+    // O pescoço azul do eixo, saindo do alto da cúpula até o cubo das velas.
+    g.poly(plano([[-0.06 * R, 0], [0.06 * R, 0], [0.09 * R, desce], [-0.09 * R, desce]])).fill({ color: AZUL_DA_VELA })
+    g.stroke({ width: 0.02 * R, color: AZUL_ESCURO, join: 'round' })
+    return g.circle(0, 0, 0.15 * R).fill({ color: AZUL_DA_VELA }).stroke({ width: 0.02 * R, color: AZUL_ESCURO })
   }
   if (tipo === 'moinho') {
     // O boné do moinho, de onde sai o eixo das velas, assentado no alto do telhado.
@@ -156,18 +201,19 @@ function contextoFixo(tipo: TipoDeVento): GraphicsContext {
 }
 
 /** As formas das pás de uma tela, por tipo: a parte fixa e a que gira. Todos os objetos da tela dividem as mesmas. */
-export type FormasDoVento = Readonly<Record<TipoDeVento, { readonly fixo: GraphicsContext; readonly pas: GraphicsContext }>>
+export type FormasDoVento = Readonly<Record<DesenhoDoVento, { readonly fixo: GraphicsContext; readonly pas: GraphicsContext }>>
 
 export function criarFormasDoVento(): FormasDoVento {
   return {
     cataVento: { fixo: contextoFixo('cataVento'), pas: contextoDaRoda() },
     moinho: { fixo: contextoFixo('moinho'), pas: contextoDasVelas() },
     cataVentoBrinquedo: { fixo: contextoFixo('cataVentoBrinquedo'), pas: contextoDoPapel() },
+    moinhoTorre: { fixo: contextoFixo('moinhoTorre'), pas: contextoDasVelasDaTorre() },
   }
 }
 
 export function destruirFormasDoVento(formas: FormasDoVento): void {
-  for (const tipo of Object.keys(formas) as TipoDeVento[]) {
+  for (const tipo of Object.keys(formas) as DesenhoDoVento[]) {
     formas[tipo].fixo.destroy()
     formas[tipo].pas.destroy()
   }
@@ -181,7 +227,8 @@ export interface VentoNoPalco {
   no: Container
   fixo: Graphics
   pas: Graphics
-  tipo: TipoDeVento
+  /** O desenho das pás (o tipo, ou as 6 velas do moinho de torre): trocar a forma troca o nó. */
+  tipo: DesenhoDoVento
   /** Girando (o mapa não diz Parado). */
   girando: boolean
   /** Fase do giro, em fração de volta: objetos vizinhos não giram juntos. */
@@ -189,7 +236,7 @@ export interface VentoNoPalco {
 }
 
 /** Monta o nó das pás (as formas são as da tela; `children: true` no destroy não as leva). */
-export function criarVentoNoPalco(id: string, tipo: TipoDeVento, formas: FormasDoVento, fase: number): VentoNoPalco {
+export function criarVentoNoPalco(id: string, tipo: DesenhoDoVento, formas: FormasDoVento, fase: number): VentoNoPalco {
   const no = new Container()
   no.label = `vento:${id}`
   no.eventMode = 'none'
@@ -208,7 +255,7 @@ export function criarVentoNoPalco(id: string, tipo: TipoDeVento, formas: FormasD
  */
 export function posicionarVento(vento: VentoNoPalco, prop: PropDoVento): boolean {
   if (!ehMovelDeVento(prop.mobilia) || !Number.isFinite(prop.x) || !Number.isFinite(prop.y)) return false
-  const roda = rodaNaPegada(prop.mobilia, prop.width, prop.height)
+  const roda = rodaNaPegada(vento.tipo, prop.width, prop.height)
   if (roda === null) return false
   vento.no.position.set(prop.x, prop.y - roda.sobe)
   const k = roda.raio / R
@@ -219,7 +266,7 @@ export function posicionarVento(vento: VentoNoPalco, prop: PropDoVento): boolean
 }
 
 /** O ângulo das pás no instante `tempoMs` (`parado` = o ângulo fixo do tipo). Função pura. */
-export function anguloDasPas(tipo: TipoDeVento, tempoMs: number, fase: number, parado: boolean): number {
+export function anguloDasPas(tipo: DesenhoDoVento, tempoMs: number, fase: number, parado: boolean): number {
   if (parado) return ANGULO_PARADO[tipo]
   const roda = RODAS_DO_VENTO[tipo]
   const volta = tempoMs / roda.voltaMs + fase

@@ -18,7 +18,7 @@ import {
   type AguaNoPalco,
   type FormasDaAgua,
 } from './aguaDosChafarizes'
-import { ehMovelDeVento } from '../lib/mobilia/cataVento'
+import { desenhoDoVento, ehMovelDeVento } from '../lib/mobilia/cataVento'
 import {
   aplicarAnguloDasPas,
   criarFormasDoVento,
@@ -466,7 +466,7 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
   /** O nó das pás de um objeto de vento (`null` = sem tamanho nem posição: o nó que havia sai). */
   function colocarVento(prop: PropDaChama, tipo: VentoNoPalco['tipo']): Container | null {
     let vento = ventos.get(prop.id)
-    // Trocou de tipo (o moinho virou cata-vento): outras pás, outro nó.
+    // Trocou de tipo (o moinho virou cata-vento) ou de forma (o Clássico virou Torre): outras pás, outro nó.
     if (vento !== undefined && (vento.tipo !== tipo || vento.no.destroyed)) {
       removerVento(prop.id)
       vento = undefined
@@ -579,7 +579,8 @@ export function createChamasDasFogueiras(opcoes: OpcoesDasChamas = {}): ChamasDa
       // Os objetos de vento têm pás, não chama nem água.
       if (ehMovelDeVento(prop.mobilia)) {
         remover(prop.id)
-        return colocarVento(prop, prop.mobilia)
+        // O desenho das pás: o do tipo, ou as 6 velas do moinho de torre (03/11/2026).
+        return colocarVento(prop, desenhoDoVento(prop.mobilia, prop.mobiliaForma))
       }
       removerVento(prop.id)
       const forma = chamaDoMovel(prop)

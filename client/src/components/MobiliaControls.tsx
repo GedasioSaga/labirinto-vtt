@@ -40,7 +40,17 @@ import {
   type AguaDoChafariz,
   type FormaDoChafariz,
 } from '../lib/mobilia/chafariz'
-import { ROTULO_DO_VENTO, VENTOS_DO_MOVEL, ehMovelDeVento, ventoDoMovel, type VentoDoMovel } from '../lib/mobilia/cataVento'
+import {
+  FORMAS_DO_MOINHO,
+  ROTULO_DA_FORMA_DO_MOINHO,
+  ROTULO_DO_VENTO,
+  VENTOS_DO_MOVEL,
+  ehMovelDeVento,
+  formaDoMoinho,
+  ventoDoMovel,
+  type FormaDoMoinho,
+  type VentoDoMovel,
+} from '../lib/mobilia/cataVento'
 import { FORMAS_DA_PONTE, ROTULO_DA_FORMA_DA_PONTE, formaDaPonte, type FormaDaPonte } from '../lib/mobilia/ponte'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
@@ -110,6 +120,11 @@ export interface MobiliaControlsProps {
    * ficam. Ausente = o painel não oferece a forma.
    */
   onFormaDaPonteChange?: (id: string, forma: FormaDaPonte) => void
+  /**
+   * Moinho: troca a forma (Clássico | Torre) no lugar; o tamanho e o vento
+   * ficam. Ausente = o painel não oferece a forma.
+   */
+  onFormaDoMoinhoChange?: (id: string, forma: FormaDoMoinho) => void
   /** Um eixo da aparência por vez: "Preencher", "Cor" ou "Cor da linha" (`null` = volta ao padrão). */
   onAparenciaChange: (id: string, patch: AparenciaDoMovelPatch) => void
 }
@@ -314,6 +329,7 @@ export function MobiliaControls({
   onAguaDoChafarizChange,
   onVentoChange,
   onFormaDaPonteChange,
+  onFormaDoMoinhoChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
   const baseId = useId()
@@ -488,6 +504,27 @@ export function MobiliaControls({
                   onClick={() => onAguaDoChafarizChange(prop.id, opcao)}
                 >
                   {ROTULO_DA_AGUA_DO_CHAFARIZ[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* O moinho: o Clássico (pedra, telhado em cone, 4 velas de lona) ou a Torre (branca, cúpula azul,
+            varanda de madeira, 6 velas azuis). O tamanho e o vento ficam. */}
+        {tipo === 'moinho' && onFormaDoMoinhoChange !== undefined && (
+          <div className="lb-field">
+            <span className="lb-label">Forma</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Forma">
+              {FORMAS_DO_MOINHO.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={formaDoMoinho(prop.mobiliaForma) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onFormaDoMoinhoChange(prop.id, opcao)}
+                >
+                  {ROTULO_DA_FORMA_DO_MOINHO[opcao]}
                 </button>
               ))}
             </div>

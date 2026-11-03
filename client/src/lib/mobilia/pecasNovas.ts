@@ -423,7 +423,9 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(largura * 0.3, altura * 0.3),
       ]
     case 'moinho':
-      // A torre redonda e o telhado em cone: a beira e o pino do alto.
+      // O moinho de torre (variante 1): a varanda em anel, a torre e a cúpula do alto.
+      if (variante === 1) return [...aro(largura * 0.9, altura * 0.9), ...aro(largura * 0.62, altura * 0.62), ...aro(largura * 0.3, altura * 0.3)]
+      // O Clássico: a torre redonda e o telhado em cone, a beira e o pino do alto.
       return [...aro(largura * 0.86, altura * 0.86), ...aro(largura * 0.12, altura * 0.12)]
     case 'cataVentoBrinquedo':
       // O furinho do palito no chão.
