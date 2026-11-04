@@ -35,6 +35,8 @@ const CAL: MaterialDaPeca = { classe: 'liso', rgb: rgb('#e4ddcd') }
 const AZUL_DA_TORRE: MaterialDaPeca = { classe: 'liso', rgb: rgb('#3f6e9f') }
 const CREME: MaterialDaPeca = { classe: 'liso', rgb: rgb('#d9c48f') }
 const DOURADO: MaterialDaPeca = { classe: 'metal', rgb: rgb('#c09a4e') }
+/** Quantos pedaços de reta fazem o arco do alto de cada janelinha da torre. */
+const JANELA_PASSOS_DO_ARCO = 8
 /** A madeira escura da varanda: a nogueira do Meio-Termo, fixa. */
 const MADEIRA_DA_VARANDA: MaterialDaPeca = materialDaPeca('nogueira')
 
@@ -86,8 +88,9 @@ export const montarCataVento: MontarMovel = (c, cena) => {
  * Mediterrâneo de cima, com um pouco de volume. De fora para dentro: a
  * varanda de tábuas escuras em anel, com o guarda-corpo e os pilares; a torre
  * branca de cal que afina para cima (o flanco do cone, mais claro do lado da
- * luz), com a faixa creme e a faixa azul na altura da varanda e as janelinhas
- * azuis; a cornija creme e a cúpula azul em gomos, com o pináculo dourado. As
+ * luz), com a faixa creme e a faixa azul na altura da varanda, as janelinhas
+ * azuis em arco e a faixa dourada no alto (04/11/2026); a cornija creme e a
+ * cúpula azul em gomos, com o pináculo dourado. As
  * 6 velas azuis giram na camada animada (`pixi/pasDoVento.ts`). Cores fixas,
  * contidas para o Meio-Termo: o mestre não escolhe material na Torre.
  */
@@ -135,13 +138,25 @@ function montarMoinhoTorre(c: Parameters<MontarMovel>[0], cena: Parameters<Monta
   // A faixa creme e a faixa azul na altura da varanda, no pé do flanco.
   L.push(P(anel(0, 0, bx * 0.97, by * 0.97, bx * 0.9, by * 0.9), CREME, { bisel: 0.5 * k, contorno: 0.16, semente: 1031 }))
   L.push(P(anel(0, 0, bx * 0.9, by * 0.9, bx * 0.84, by * 0.84), AZUL_DA_TORRE, { bisel: 0.5 * k, contorno: 0.16, semente: 1032 }))
-  // As janelinhas azuis no flanco: de cima, a janela em pé na parede do cone fica deitada no raio.
+  // As janelinhas azuis em arco no flanco: de cima, a janela em pé na parede do cone fica deitada no
+  // raio, com o pé reto embaixo (para fora) e o arco no alto (para o meio, onde o cone sobe).
   const janelas = [0.3, 1.25, 2.2, 3.4, 4.6, 5.5]
   janelas.forEach((a, i) => {
-    // Entre a cornija (0,59 do pé da torre) e a faixa azul (0,84), um pouco mais larga embaixo.
-    const canto = (r: number, meia: number): Ponto => [Math.cos(a + meia) * bx * r, Math.sin(a + meia) * by * r]
-    L.push(P(poligono([canto(0.66, -0.06), canto(0.78, -0.075), canto(0.78, 0.075), canto(0.66, 0.06)]), AZUL_DA_TORRE, { bisel: 0.5 * k, tom: 0.8, contorno: 0.32, semente: 1040 + i }))
+    // `r` no raio e `t` de lado, em frações do pé da torre: entre a faixa dourada (0,64) e a faixa azul (0,84).
+    const ponto = (r: number, t: number): Ponto => [(Math.cos(a) * r - Math.sin(a) * t) * bx, (Math.sin(a) * r + Math.cos(a) * t) * by]
+    const PE = 0.79
+    const MEIA_NO_PE = 0.05
+    const MEIA_NO_ARCO = 0.043
+    const centroDoArco = 0.675 + MEIA_NO_ARCO
+    const arco: Ponto[] = []
+    for (let j = 0; j <= JANELA_PASSOS_DO_ARCO; j += 1) {
+      const th = (j / JANELA_PASSOS_DO_ARCO) * Math.PI
+      arco.push(ponto(centroDoArco - Math.sin(th) * MEIA_NO_ARCO, -Math.cos(th) * MEIA_NO_ARCO))
+    }
+    L.push(P(poligono([ponto(PE, -MEIA_NO_PE), ...arco, ponto(PE, MEIA_NO_PE)]), AZUL_DA_TORRE, { bisel: 0.5 * k, tom: 0.8, contorno: 0.32, semente: 1040 + i }))
   })
+  // A FAIXA DOURADA logo abaixo da cúpula, no alto do flanco: fina, metal contido, a cornija por cima.
+  L.push(P(anel(0, 0, tx * 1.165, ty * 1.165, tx * 1.06, ty * 1.06), DOURADO, { bisel: 0.5 * k, tom: 0.94, contorno: 0.18, semente: 1045 }))
   // A CORNIJA creme no alto da torre e a CÚPULA azul em gomos, com o pináculo dourado no meio.
   L.push(P(elipse(0, 0, tx * 1.08, ty * 1.08), CREME, { bisel: 1 * k, tom: 1, contorno: 0.26, semente: 1050, projeta: { dist: 2.6 * k, forca: 0.3 } }))
   const gomos = 12
