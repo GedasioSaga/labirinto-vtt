@@ -79,7 +79,7 @@ export async function pastaDaMidiaDoMapaSolto(caminhoDoMapa: string): Promise<st
 
 /** Onde a aventura (ou o mapa solto) guarda referência de mídia. */
 export interface UsoDaMidia {
-  /** As fichas da aventura: retrato e imagem de cartão. */
+  /** As fichas da aventura: retrato, imagem de cartão e a imagem de cada item da mochila da ficha. */
   personagens?: readonly Personagem[]
   /** As cenas: a mochila de cada token e os itens soltos no mapa (pino de item, item no chão). */
   mapas?: readonly MapData[]
@@ -118,6 +118,8 @@ export function idsDaMidiaUsada(uso: UsoDaMidia): string[] {
   for (const personagem of uso.personagens ?? []) {
     guardarId(personagem.retrato, ids)
     for (const cartoes of Object.values(personagem.abas)) for (const cartao of cartoes) idsDoCartao(cartao, ids)
+    // MOCHILA NA FICHA (plano do Lobby §4.1): a mochila sai do boneco e vem para cá; sem isto a imagem do item não viajaria com a pasta.
+    for (const item of personagem.mochila ?? []) guardarId(item.imagem, ids)
   }
   for (const mapa of uso.mapas ?? []) {
     for (const token of mapa.tokens) idsDaMochila(token, ids)

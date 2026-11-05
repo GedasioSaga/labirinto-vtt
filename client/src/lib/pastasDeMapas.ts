@@ -252,12 +252,31 @@ export function rpgDoArquivo(valor: unknown): RpgDaPasta {
   const sistemaDeRpg = sistemaDaAventuraDoArquivo(valor.sistemaDeRpg)
   const personagens = personagensDoArquivo(valor.personagens) ?? []
   const equipes = equipesDoArquivo(valor.equipes)
-  return comEquipes(sistemaDeRpg === undefined ? { personagens } : { sistemaDeRpg, personagens }, equipes)
+  const base: RpgDaPasta = sistemaDeRpg === undefined ? { personagens } : { sistemaDeRpg, personagens }
+  return comMochilaMigrada(comEquipes(base, equipes), mochilaMigradaDoArquivo(valor.mochilaMigrada))
 }
 
 /** Sem equipes (ausente ou lista vazia), sem a chave: o `rpg.json` de antes continua igual. */
 function comEquipes(rpg: RpgDaPasta, equipes: Equipe[] | undefined): RpgDaPasta {
   return equipes === undefined || equipes.length === 0 ? rpg : { ...rpg, equipes }
+}
+
+/**
+ * O marcador da migração da mochila como veio do disco: só versão inteira e
+ * positiva. Torto conta como ausente (pasta ainda não migrada), como todo
+ * campo que a leitura tolerante não entende.
+ */
+function mochilaMigradaDoArquivo(valor: unknown): number | undefined {
+  return typeof valor === 'number' && Number.isSafeInteger(valor) && valor > 0 ? valor : undefined
+}
+
+/**
+ * O marcador SEGUE o RPG na leitura, na gravação e na cópia: perdido no
+ * caminho, a migração rodaria de novo ao reabrir e copiaria do boneco para a
+ * ficha uma mochila já gasta. Ausente, sem a chave: o `rpg.json` de antes continua igual.
+ */
+function comMochilaMigrada(rpg: RpgDaPasta, mochilaMigrada: number | undefined): RpgDaPasta {
+  return mochilaMigrada === undefined ? rpg : { ...rpg, mochilaMigrada }
 }
 
 function rpgDoTexto(texto: string): RpgDaPasta | null {
@@ -270,13 +289,14 @@ function rpgDoTexto(texto: string): RpgDaPasta | null {
 
 export function serializarRpg(rpg: RpgDaPasta): string {
   const equipes = rpg.equipes === undefined || rpg.equipes.length === 0 ? {} : { equipes: rpg.equipes }
-  return JSON.stringify({ versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens, ...equipes }, null, 2)
+  const marcador = rpg.mochilaMigrada === undefined ? {} : { mochilaMigrada: rpg.mochilaMigrada }
+  return JSON.stringify({ versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens, ...equipes, ...marcador }, null, 2)
 }
 
 /** Só o RPG de uma `PastaAberta` (sem chave, nome e modo): é o que vai para o `rpg.json`. */
 export function rpgDe(pasta: RpgDaPasta): RpgDaPasta {
   const base: RpgDaPasta = pasta.sistemaDeRpg === undefined ? { personagens: pasta.personagens } : { sistemaDeRpg: pasta.sistemaDeRpg, personagens: pasta.personagens }
-  return comEquipes(base, pasta.equipes)
+  return comMochilaMigrada(comEquipes(base, pasta.equipes), pasta.mochilaMigrada)
 }
 
 // ───────────────────────────────────────────────────────────────────────────
