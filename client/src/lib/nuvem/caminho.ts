@@ -1,6 +1,6 @@
 import type { CarriedItem } from '../../types/map'
 import { ITEM_QUANTIDADE_MAX, readCarriedItems } from '../items'
-import { ehImagemDaMesa } from '../midia'
+import { ehRefDeMidia } from '../midia'
 import { personagemDoArquivo } from '../personagem'
 import type { CampoDaFichaDBT, CampoExtra, CartaoDaFicha, MarcaDeCombate, Modificador, Personagem } from '../personagem'
 import { MOEDAS_MAX } from '../troca'
@@ -171,7 +171,7 @@ export interface RegraDoEsquema {
  * teto cortou), e `definir` sem valor tira a chave (a volta de um campo que
  * não existia; em `quantidade` e `moedas` é o ausente, 1 e 0). Imagem (retrato
  * e cartão) é só do mestre na v1 (pergunta 12.4), inclusive a que vem dentro
- * de um cartão novo (`quemEscreveAMudanca`).
+ * de um cartão novo (`quemEscreveAMudanca`), e só `midia:` (Si7, `imagemDaOp`).
  */
 export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> = {
   ficha: { caminho: '[]', acoes: ['criar', 'apagar'], quem: 'mestre', visivelAoJogador: true },
@@ -411,6 +411,21 @@ function aceita(lida: MudancaLida): Leitura {
 }
 
 const FORA_DO_FORMATO = 'Valor fora do formato deste campo'
+const IMAGEM_FORA_DA_MIDIA = 'Imagem que não é da mídia da mesa'
+
+/**
+ * A imagem que a op aceita (decisão Si7, §11): só a referência `midia:` ou
+ * nenhuma. A foto embutida de antes (data URL, que a ficha do disco ainda lê)
+ * não viaja na op: a publicação (A6/W3) a converte em `midia:` antes.
+ */
+function imagemDaOp(valor: unknown): valor is string | null {
+  return valor === null || ehRefDeMidia(valor)
+}
+
+/** O cartão ou algum subcartão dele traz imagem que a op não aceita. */
+function cartaoComImagemForaDaMidia(cartao: CartaoDaFicha): boolean {
+  return !imagemDaOp(cartao.imagem) || cartao.subcartoes.some(cartaoComImagemForaDaMidia)
+}
 
 /** O último id da trilha: o cartão alvo. */
 function ultimo(trilha: readonly string[]): string | undefined {
@@ -490,7 +505,7 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): Leitura {
     case 'texto':
       return lerTexto(alvo.campo, valor)
     case 'retrato':
-      return valor === null || ehImagemDaMesa(valor) ? aceita({ regra: 'retrato', valor }) : recusa('fora-do-esquema', 'Imagem que não é da mesa')
+      return imagemDaOp(valor) ? aceita({ regra: 'retrato', valor }) : recusa('fora-do-esquema', IMAGEM_FORA_DA_MIDIA)
     case 'etiqueta':
       return lerEtiqueta(m.acao, alvo.chave, valor)
     case 'escolha':
@@ -510,9 +525,9 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): Leitura {
     case 'campoDoCartao':
       return lerCampoDoCartao(alvo.aba, alvo.trilha, alvo.campo, valor)
     case 'imagemDoCartao':
-      return valor === null || ehImagemDaMesa(valor)
+      return imagemDaOp(valor)
         ? aceita({ regra: 'imagemDoCartao', aba: alvo.aba, trilha: alvo.trilha, valor })
-        : recusa('fora-do-esquema', 'Imagem que não é da mesa')
+        : recusa('fora-do-esquema', IMAGEM_FORA_DA_MIDIA)
     case 'textoDoCartao':
       if (valor !== undefined && typeof valor !== 'string') return recusa('fora-do-esquema', FORA_DO_FORMATO)
       if (valor !== undefined && bytesDoTexto(valor) > TETOS_DO_CAMINHO.campoDoCartaoBytes) return recusa('acima-do-teto', 'Texto grande demais: máximo 8 KiB')
@@ -616,6 +631,7 @@ function lerCartaoNovo(aba: string, trilha: string[], valor: Json | undefined): 
   if (cartao.id !== ultimo(trilha)) return recusa('fora-do-esquema', 'O cartão não bate com o caminho')
   const problema = problemaDeEndereco(cartao)
   if (problema !== null) return recusa('fora-do-esquema', problema)
+  if (cartaoComImagemForaDaMidia(cartao)) return recusa('fora-do-esquema', IMAGEM_FORA_DA_MIDIA)
   if (bytesDoJson(valor) > TETOS_DO_CAMINHO.cartaoBytes) return recusa('acima-do-teto', 'Cartão grande demais: máximo 32 KiB')
   return aceita({ regra: 'cartao', acao: 'criar', aba, trilha, cartao })
 }

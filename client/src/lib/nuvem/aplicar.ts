@@ -407,16 +407,21 @@ function mudarMochila(mochila: CarriedItem[], lida: MudancaNaMochila, fichaId: s
  * Item novo na mochila. Empilhável com o mesmo `itemId` já presente vira
  * soma na vaga que existe (a regra do "Dar a…", `darDoAcervoChange`), e a
  * resposta diz isso em `efetiva` — é ela que entra no histórico e no desfazer.
+ * O `delta` de `efetiva` é o que entrou de fato, depois do teto da pilha
+ * (9990 + 20 grava +9), para o histórico mostrar o que mudou e a volta
+ * (`somar -delta`) deixar a pilha no valor de antes.
  */
 function criarItem(mochila: CarriedItem[], item: CarriedItem, fichaId: string): Passo<CarriedItem[]> {
   const existente = mochila.find((vaga) => vaga.id === item.id)
   if (existente !== undefined) return semEfeito(mochila, existente)
   const pilha = item.empilhavel === true && item.itemId !== undefined ? mochila.find((vaga) => vaga.itemId === item.itemId) : undefined
   if (pilha === undefined) return { ok: true, novo: [...mochila, item], depois: item }
-  const delta = quantidadeDe(item)
-  const passo = somarNaVaga(mochila, pilha, delta)
+  const antes = quantidadeDe(pilha)
+  const pedido = quantidadeDe(item)
+  const passo = somarNaVaga(mochila, pilha, pedido)
   if (!passo.ok) return passo
-  return { ...passo, efetiva: { fichaId, caminho: ['mochila', pilha.id, 'quantidade'], acao: 'somar', delta } }
+  const entrou = Math.min(antes + pedido, ITEM_QUANTIDADE_MAX) - antes
+  return { ...passo, efetiva: { fichaId, caminho: ['mochila', pilha.id, 'quantidade'], acao: 'somar', delta: entrou } }
 }
 
 function mudarCampoDoItem(mochila: CarriedItem[], vaga: CarriedItem, campo: string, valor: Json | undefined): Passo<CarriedItem[]> {

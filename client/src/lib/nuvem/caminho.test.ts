@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ehImagemDaMesa } from '../midia'
 import { alvoDoCaminho, chaveDaEtiqueta, lerMudanca, quemEscreve, quemEscreveAMudanca, segmentoValido } from './caminho'
 import { lerJsonSeguro } from './json'
 import type { Acao, Mudanca } from './tipos'
@@ -12,6 +13,8 @@ import type { Acao, Mudanca } from './tipos'
 const FICHA = 'pers_teste'
 const CHAVES_DE_PROTOTIPO = ['__proto__', 'prototype', 'constructor']
 const IMAGEM = `midia:${'a'.repeat(64)}.png`
+/** Foto embutida de antes: a ficha do disco ainda a lê, a op não (Si7). */
+const FOTO_EMBUTIDA = 'data:image/png;base64,iVBORw0KGgo='
 
 function mudanca(caminho: string[], acao: Acao, extra: Partial<Mudanca> = {}): Mudanca {
   return { fichaId: FICHA, caminho, acao, ...extra }
@@ -220,6 +223,42 @@ describe('quem escreve', () => {
     ]
     for (const caminho of caminhos) expect(quemEscreve(caminho)).toBe('donoOuMestre')
     expect(quemEscreve(['historico'])).toBeNull()
+  })
+})
+
+describe('imagem na op só como midia: (Si7)', () => {
+  const semImagem = { id: 'cart_1', nome: 'Gomu Gomu', campos: {}, extras: [], atributos: [], imagem: null, modificadores: [], subcartoes: [] }
+  const noTopo = ['abas', 'tecnicas', 'cart_1']
+
+  it('a foto embutida é das que a ficha do disco lê: a recusa vem da op, não do leitor', () => {
+    expect(ehImagemDaMesa(FOTO_EMBUTIDA)).toBe(true)
+  })
+
+  it('retrato e imagem de cartão (também no subcartão): midia: ou null entram; data URL e endereço da internet não', () => {
+    const caminhos = [['retrato'], [...noTopo, 'imagem'], [...noTopo, 'subcartoes', 'cart_2', 'imagem']]
+    for (const caminho of caminhos) {
+      expect(veredito(mudanca(caminho, 'definir', { valor: IMAGEM })), caminho.join('.')).toBe('ok')
+      expect(veredito(mudanca(caminho, 'definir', { valor: null })), caminho.join('.')).toBe('ok')
+      expect(lerMudanca(mudanca(caminho, 'definir', { valor: FOTO_EMBUTIDA })), caminho.join('.')).toMatchObject({
+        ok: false,
+        motivo: 'fora-do-esquema',
+        detalhe: 'Imagem que não é da mídia da mesa',
+      })
+      expect(veredito(mudanca(caminho, 'definir', { valor: 'https://example.com/luffy.png' })), caminho.join('.')).toBe('fora-do-esquema')
+    }
+  })
+
+  it('criar cartão com data URL no cartão ou num subcartão (em qualquer nível) é fora-do-esquema; com midia: entra', () => {
+    const comFoto = { ...semImagem, imagem: FOTO_EMBUTIDA }
+    const subComFoto = { ...semImagem, subcartoes: [{ ...semImagem, id: 'cart_2', imagem: FOTO_EMBUTIDA }] }
+    const netoComFoto = { ...semImagem, subcartoes: [{ ...semImagem, id: 'cart_2', subcartoes: [{ ...semImagem, id: 'cart_3', imagem: FOTO_EMBUTIDA }] }] }
+    for (const valor of [comFoto, subComFoto, netoComFoto]) {
+      expect(lerMudanca(mudanca(noTopo, 'criar', { valor }))).toMatchObject({ ok: false, motivo: 'fora-do-esquema', detalhe: 'Imagem que não é da mídia da mesa' })
+    }
+    expect(veredito(mudanca(['abas', 'tecnicas', 'cart_0', 'subcartoes', 'cart_1'], 'criar', { valor: comFoto }))).toBe('fora-do-esquema')
+    const comMidia = { ...semImagem, imagem: IMAGEM, subcartoes: [{ ...semImagem, id: 'cart_2', imagem: IMAGEM }] }
+    expect(veredito(mudanca(noTopo, 'criar', { valor: comMidia }))).toBe('ok')
+    expect(veredito(mudanca(noTopo, 'criar', { valor: semImagem }))).toBe('ok')
   })
 })
 

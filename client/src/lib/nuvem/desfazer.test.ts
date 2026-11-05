@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import type { CarriedItem } from '../../types/map'
+import { ITEM_QUANTIDADE_MAX } from '../items'
 import { MOEDAS_MAX } from '../troca'
 import {
   AGORA,
@@ -178,6 +180,56 @@ describe('a volta de cada ação', () => {
     expect(mudancaInversa(campanha.todasAsOps()[0])).toEqual({ fichaId: F_NAMI, caminho: ['moedas'], acao: 'definir', valor: MOEDAS_MAX - 10 })
     pedirDesfazer(campanha, NAMI_NO_PC, { opId: mais.opId, novoOpId: novoId() })
     expect(docDe(campanha, F_NAMI).moedas).toBe(MOEDAS_MAX - 10)
+  })
+
+  describe('criar empilhável que somou numa pilha perto do teto', () => {
+    const PERTO_DO_TETO = ITEM_QUANTIDADE_MAX - 9
+    const vinte = { id: 'vaga_tangerina_nova', nome: 'Tangerina', itemId: 'item_tangerina', empilhavel: true, quantidade: 20 }
+
+    function pilhaPertoDoTeto() {
+      return campanhaDeTeste([guardada(ficha(F_NAMI, { dono: NAMI.contaId, mochila: [{ ...TANGERINA, quantidade: PERTO_DO_TETO }] }))])
+    }
+
+    it('grava o que entrou de fato (+9, não +20) e o desfazer volta a pilha ao valor de antes', () => {
+      const campanha = pilhaPertoDoTeto()
+      const ganhar = op(NAMI_NO_PC, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
+      enviar(campanha, NAMI_NO_PC, [ganhar])
+      expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: ITEM_QUANTIDADE_MAX }])
+      expect(campanha.todasAsOps()[0]).toMatchObject({ opId: ganhar.opId, caminho: QTD_TANGERINA, acao: 'somar', delta: 9, antes: PERTO_DO_TETO })
+      expect(mudancaInversa(campanha.todasAsOps()[0])).toEqual({ fichaId: F_NAMI, caminho: QTD_TANGERINA, acao: 'somar', delta: -9 })
+      expect(pedirDesfazer(campanha, NAMI_NO_PC, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
+      expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: PERTO_DO_TETO }])
+    })
+
+    it('com uma soma depois, a volta tira só o que entrou e a soma do meio continua', () => {
+      const campanha = pilhaPertoDoTeto()
+      const ganhar = op(NAMI_NO_PC, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
+      enviar(campanha, NAMI_NO_PC, [ganhar])
+      enviar(campanha, NAMI_NO_PC, [op(NAMI_NO_PC, F_NAMI, QTD_TANGERINA, 'somar', { delta: -5, baseRev: 1 })])
+      pedirDesfazer(campanha, NAMI_NO_PC, { opId: ganhar.opId, novoOpId: novoId() })
+      expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: PERTO_DO_TETO - 5 }])
+    })
+
+    it('pilha e item sem quantidade (ausente = 1): grava +1 e a volta tira a chave de novo', () => {
+      const semQuantidade: CarriedItem = { id: 'vaga_carne', nome: 'Carne', itemId: 'item_carne', empilhavel: true }
+      const campanha = campanhaDeTeste([guardada(ficha(F_NAMI, { dono: NAMI.contaId, mochila: [semQuantidade] }))])
+      const ganhar = op(NAMI_NO_PC, F_NAMI, ['mochila', 'vaga_carne_nova'], 'criar', { valor: { ...semQuantidade, id: 'vaga_carne_nova' } })
+      enviar(campanha, NAMI_NO_PC, [ganhar])
+      expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...semQuantidade, quantidade: 2 }])
+      expect(campanha.todasAsOps()[0]).toMatchObject({ caminho: ['mochila', 'vaga_carne', 'quantidade'], acao: 'somar', delta: 1 })
+      expect(campanha.todasAsOps()[0]).not.toHaveProperty('antes')
+      expect(pedirDesfazer(campanha, NAMI_NO_PC, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
+      expect(docDe(campanha, F_NAMI).mochila).toEqual([semQuantidade])
+    })
+
+    it('pilha já no teto: nada entrou, o desfazer não tem o que fazer', () => {
+      const campanha = campanhaDeTeste([guardada(ficha(F_NAMI, { dono: NAMI.contaId, mochila: [{ ...TANGERINA, quantidade: ITEM_QUANTIDADE_MAX }] }))])
+      const ganhar = op(NAMI_NO_PC, F_NAMI, ['mochila', vinte.id], 'criar', { valor: vinte })
+      enviar(campanha, NAMI_NO_PC, [ganhar])
+      expect(campanha.todasAsOps()[0]).toMatchObject({ acao: 'somar', delta: 0, antes: ITEM_QUANTIDADE_MAX })
+      expect(pedirDesfazer(campanha, NAMI_NO_PC, { opId: ganhar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'negado', motivo: 'nada-a-desfazer' })
+      expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, quantidade: ITEM_QUANTIDADE_MAX }])
+    })
   })
 
   it('apagar o cartão volta recriando-o igual; criar o item volta tirando', () => {
