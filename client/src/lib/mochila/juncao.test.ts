@@ -16,6 +16,7 @@ const POCAO_X3: CarriedItem = { id: 'vaga_pocao', nome: 'Poção', itemId: 'acer
 const POCAO_X1: CarriedItem = { id: 'vaga_pocao', nome: 'Poção', itemId: 'acervo_pocao', empilhavel: true }
 const ESPADA: CarriedItem = { id: 'pino_espada', nome: 'Espada Velha' }
 const MAPA_DO_TESOURO: CarriedItem = { id: 'pino_mapa', nome: 'Mapa do Tesouro' }
+const CORDA: CarriedItem = { id: 'pino_corda', nome: 'Corda' }
 
 function cena(mapa: string, gravadaEm: number, bonecos: CenaDaJuncao['bonecos']): CenaDaJuncao {
   return { origem: { mapa, cena: 'Praia', gravadaEm }, bonecos }
@@ -91,6 +92,43 @@ describe('junção da mochila: vale a cena gravada por último', () => {
     const juncao = juntarMochilas([luffy, nami], [cena('Vila Nova', RECENTE, [{ characterId: 'p_luffy', mochila: [POCAO_X1] }])])
     expect(juncao.personagens[1]).toBe(nami)
     expect(juncao.semBoneco).toEqual([{ personagemId: 'p_nami', personagem: 'Nami' }])
+  })
+
+  it('ficha ligada a vários bonecos na mesma cena: a mochila fica nos bonecos, a ficha não muda e vai ao relatório com cada boneco', () => {
+    const bandido = ficha('p_bandido', 'Bandido')
+    const luffy = ficha('p_luffy', 'Luffy')
+    const bandidos = [
+      { characterId: 'p_bandido', name: 'Bandido 1', mochila: [ESPADA], moedas: 10 },
+      { characterId: 'p_bandido', name: 'Bandido 2', mochila: [MAPA_DO_TESOURO], moedas: 30 },
+      { characterId: 'p_bandido', name: 'Bandido 3', mochila: [CORDA], moedas: 5 },
+    ]
+    const juncao = juntarMochilas([bandido, luffy], [cena('Vila Nova', RECENTE, [...bandidos, { characterId: 'p_luffy', mochila: [POCAO_X1] }])])
+    // Nada de Espada+Mapa+Corda somados na ficha, nem a bolsa do primeiro boneco.
+    expect(juncao.personagens[0]).toBe(bandido)
+    expect(juncao.personagens[1].mochila).toEqual([POCAO_X1])
+    expect(juncao.bases.map((base) => base.personagemId)).toEqual(['p_luffy'])
+    expect(juncao.diferencas).toEqual([])
+    expect(juncao.semBoneco).toEqual([])
+    expect(juncao.variosBonecos).toEqual([{ personagemId: 'p_bandido', personagem: 'Bandido', cenas: [{ origem: { mapa: 'Vila Nova', cena: 'Praia', gravadaEm: RECENTE }, bonecos: bandidos }] }])
+  })
+
+  it('basta UMA cena com vários bonecos: a cena mais recente com um boneco só não decide pela ficha', () => {
+    const bandido = ficha('p_bandido', 'Bandido', { mochila: [CORDA] })
+    const juncao = juntarMochilas(
+      [bandido],
+      [
+        cena('Ilha Antiga', ANTIGA, [{ characterId: 'p_bandido', mochila: [ESPADA] }, { characterId: 'p_bandido', moedas: 30 }]),
+        cena('Vila Nova', RECENTE, [{ characterId: 'p_bandido', mochila: [POCAO_X1] }]),
+      ],
+    )
+    expect(juncao.personagens[0]).toBe(bandido)
+    expect(juncao.bases).toEqual([])
+    expect(juncao.diferencas).toEqual([])
+    // Para o mestre decidir, o relatório mostra TODA cena com boneco dela, da mais recente para a mais antiga.
+    expect(juncao.variosBonecos[0].cenas.map((linha) => [linha.origem.mapa, linha.bonecos.length])).toEqual([
+      ['Vila Nova', 1],
+      ['Ilha Antiga', 2],
+    ])
   })
 
   it('ficha que já tinha mochila entra como a fonte mais velha: o item dela fica e é listado', () => {

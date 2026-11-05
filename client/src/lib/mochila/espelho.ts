@@ -1,7 +1,7 @@
 import type { CarriedItem, Token } from '../../types/map'
 import type { ItemChange } from '../items'
 import type { Personagem } from '../personagem'
-import { fichaComMochila } from './juncao'
+import { fichaComMochila, fichasDeVariosBonecos } from './juncao'
 
 /**
  * MOCHILA NA FICHA — depois da migração (docs/planos/lobby-jogadores-2026-11-05.md
@@ -17,13 +17,16 @@ export type BonecoLigado = Pick<Token, 'id' | 'characterId'>
  * FICHAS dos bonecos ligados a elas. Cada mochila e cada bolsa da mudança já é
  * a nova inteira, então uma troca entre dois bonecos com ficha muda as DUAS
  * fichas de uma vez. Boneco sem ficha (NPC sem ficha, ou ficha que não está na
- * lista) não muda ficha nenhuma — a mochila dele continua no boneco.
+ * lista) não muda ficha nenhuma — a mochila dele continua no boneco. Ficha
+ * ligada a mais de um boneco entre `bonecos` (os da cena) também não: como na
+ * migração (`fichasDeVariosBonecos`), cada boneco fica com a própria mochila.
  * Nada mudando, devolve a MESMA lista.
  */
 export function mudancaNasFichas(personagens: readonly Personagem[], bonecos: readonly BonecoLigado[], mudanca: Pick<ItemChange, 'mochilas' | 'bolsas'>): readonly Personagem[] {
+  const deVariosBonecos = fichasDeVariosBonecos(bonecos)
   const fichaDoBoneco = new Map<string, string>()
   for (const boneco of bonecos) {
-    if (boneco.characterId !== null) fichaDoBoneco.set(boneco.id, boneco.characterId)
+    if (boneco.characterId !== null && !deVariosBonecos.has(boneco.characterId)) fichaDoBoneco.set(boneco.id, boneco.characterId)
   }
   const mochilas = new Map<string, CarriedItem[]>()
   for (const { tokenId, mochila } of mudanca.mochilas) {

@@ -4,12 +4,13 @@ import { exists, readTextFile, stat } from '@tauri-apps/plugin-fs'
 import { ADVENTURE_FILE, fileSegments, isSafeRelativeFile, parseAdventure, samePath, type Adventure } from '../../lib/adventure'
 import { readCarriedItems } from '../../lib/items'
 import { writeTextFileSafely } from '../../lib/mapFileIO'
-import { juntarMochilas, type BonecoDaJuncao, type CenaDaJuncao, type DiferencaDaMochila, type JuncaoDaMochila, type OrigemDaMochila } from '../../lib/mochila/juncao'
+import { horaDoSalvarDoArquivo } from '../../lib/mochila/horaDoSalvar'
+import { juntarMochilas, type BonecoDaJuncao, type CenaDaJuncao, type DiferencaDaMochila, type FichaComVariosBonecos, type JuncaoDaMochila, type OrigemDaMochila } from '../../lib/mochila/juncao'
 import { marcadorDaMochilaDoArquivo, VERSAO_DA_MIGRACAO_DA_MOCHILA } from '../../lib/mochila/marcador'
 import { chaveDoMapa, idDePastaValido, INDICE_VAZIO, indiceDoArquivo, lugarDoMapa, rpgDoArquivo, type IndiceDasPastas } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import type { RecoveryCopy } from '../../lib/recoveryCopy'
-import { readMoedas } from '../../lib/troca'
+import { moedasDe, readMoedas } from '../../lib/troca'
 import { useToastStore } from '../../stores/toastStore'
 import type { MapData } from '../../types/map'
 
@@ -27,8 +28,10 @@ import type { MapData } from '../../types/map'
  * - aventura sem pasta, mapa em "Configurar só neste mapa" ou pasta sem
  *   sistema universal: as fichas do `adventure.json`, com as cenas dela.
  *
- * A regra da junção é `lib/mochila/juncao.ts` (vale a cena gravada por último;
- * o resto vai para o relatório). Antes de gravar: a cópia do arquivo como era
+ * A regra da junção é `lib/mochila/juncao.ts` (vale a cena salva por último,
+ * pela hora de `lib/mochila/horaDoSalvar.ts`; o resto vai para o relatório;
+ * ficha ligada a vários bonecos numa mesma cena fica como estava, também no
+ * relatório). Antes de gravar: a cópia do arquivo como era
  * (`<arquivo>.antes-da-mochila`, nunca regravada) e o relatório
  * `migracao-da-mochila.json` ao lado. O marcador `mochilaMigrada` vai NO MESMO
  * arquivo das fichas, na mesma gravação: não há meio-termo em que a ficha tem
@@ -71,6 +74,8 @@ export type MigracaoDaMochila =
       copiaDeAntes: string
       fichas: number
       diferencas: number
+      /** Fichas ligadas a mais de um boneco numa mesma cena: ficaram como estavam, e o relatório lista os bonecos. */
+      variosBonecos: number
     }
 
 export const ARQUIVO_DO_RELATORIO = 'migracao-da-mochila.json'
@@ -113,12 +118,13 @@ function bonecosDoArquivo(mapa: Bruto): BonecoDaJuncao[] {
     const characterId = typeof token.characterId === 'string' ? token.characterId : null
     const mochila = readCarriedItems(token.mochila)
     const moedas = readMoedas(token.moedas)
-    return [{ characterId, ...(mochila === undefined ? {} : { mochila }), ...(moedas === undefined ? {} : { moedas }) }]
+    const nome = typeof token.name === 'string' ? { name: token.name } : {}
+    return [{ characterId, ...nome, ...(mochila === undefined ? {} : { mochila }), ...(moedas === undefined ? {} : { moedas }) }]
   })
 }
 
 function bonecosDoMapa(mapa: MapData): BonecoDaJuncao[] {
-  return mapa.tokens.map(({ characterId, mochila, moedas }) => ({ characterId, mochila, moedas }))
+  return mapa.tokens.map(({ characterId, name, mochila, moedas }) => ({ characterId, name, mochila, moedas }))
 }
 
 /** As cenas lidas e as que não abriram (vão ao relatório). */
@@ -136,7 +142,9 @@ async function lerCena(disco: DiscoDaMigracao, caminho: string, mapa: string, ce
     lidas.naoAbriram.push(`${nome} (${texto === null ? 'arquivo não encontrado' : 'arquivo danificado'})`)
     return
   }
-  lidas.cenas.push({ origem: { mapa, cena, gravadaEm: await disco.gravadoEm(caminho) }, bonecos: bonecosDoArquivo(bruto) })
+  // A hora do último SALVAR: renomear/duplicar regravam o arquivo sem jogo e deixam a de antes nele; o `mtime` só na falta.
+  const gravadaEm = horaDoSalvarDoArquivo(bruto) ?? (await disco.gravadoEm(caminho))
+  lidas.cenas.push({ origem: { mapa, cena, gravadaEm }, bonecos: bonecosDoArquivo(bruto) })
 }
 
 /** O caminho absoluto da cena; `null` = caminho perigoso no `adventure.json` (a cena fica de fora, como no app). */
@@ -288,6 +296,18 @@ function diferencaDoRelatorio(diferenca: DiferencaDaMochila): Bruto {
   }
 }
 
+/** Uma ficha com vários bonecos numa cena: cada cena com o que cada boneco carrega, para o mestre decidir. */
+function variosBonecosDoRelatorio(ficha: FichaComVariosBonecos): Bruto {
+  return {
+    ficha: ficha.personagem,
+    fichaId: ficha.personagemId,
+    cenas: ficha.cenas.map(({ origem, bonecos }) => ({
+      ...origemDoRelatorio(origem),
+      bonecos: bonecos.map((boneco) => ({ boneco: boneco.name ?? '', mochila: boneco.mochila ?? [], moedas: moedasDe(boneco) })),
+    })),
+  }
+}
+
 /** O relatório para o mestre ler (§9, passo 11): de onde veio cada mochila e cada diferença, com o mapa e a cena. */
 function textoDoRelatorio(onde: string, copiaDeAntes: string, juncao: JuncaoDaMochila, naoAbriram: readonly string[], agoraMs: number): string {
   const porId = new Map(juncao.personagens.map((personagem) => [personagem.id, personagem]))
@@ -296,13 +316,14 @@ function textoDoRelatorio(onde: string, copiaDeAntes: string, juncao: JuncaoDaMo
       versao: VERSAO_DO_RELATORIO,
       feitaEm: new Date(agoraMs).toISOString(),
       onde,
-      regra: 'Vale a mochila e a bolsa da cena gravada por último. O mesmo item diferente noutra cena não muda nada; item que só existia noutra cena também ficou na ficha. Confira as diferenças abaixo.',
+      regra: 'Vale a mochila e a bolsa da cena salva por último. O mesmo item diferente noutra cena não muda nada; item que só existia noutra cena também ficou na ficha. Ficha ligada a mais de um boneco numa mesma cena ficou como estava, com a mochila em cada boneco: decida qual vale. Confira as diferenças abaixo.',
       copiaDeAntes,
       fichas: juncao.bases.map((base) => {
         const ficha = porId.get(base.personagemId)
         return { ficha: base.personagem, fichaId: base.personagemId, veioDe: origemDoRelatorio(base.origem), mochila: ficha?.mochila ?? [], moedas: ficha?.moedas ?? 0 }
       }),
       fichasSemBoneco: juncao.semBoneco.map((ficha) => ficha.personagem),
+      fichasComVariosBonecos: juncao.variosBonecos.map(variosBonecosDoRelatorio),
       diferencas: juncao.diferencas.map(diferencaDoRelatorio),
       cenasQueNaoAbriram: naoAbriram,
     },
@@ -332,7 +353,7 @@ async function migrar(disco: DiscoDaMigracao, alvo: Alvo, lidas: CenasLidas, ago
   const relatorio = await disco.juntar(alvo.dir, ARQUIVO_DO_RELATORIO)
   await disco.gravar(relatorio, textoDoRelatorio(alvo.onde, copiaDeAntes, juncao, lidas.naoAbriram, agoraMs))
   await disco.gravar(alvo.arquivo, JSON.stringify(brutoMigrado(alvo.bruto, juncao.personagens), null, 2))
-  return { feita: true, arquivo: alvo.arquivo, relatorio, copiaDeAntes, fichas: juncao.bases.length, diferencas: juncao.diferencas.length }
+  return { feita: true, arquivo: alvo.arquivo, relatorio, copiaDeAntes, fichas: juncao.bases.length, diferencas: juncao.diferencas.length, variosBonecos: juncao.variosBonecos.length }
 }
 
 /** O índice das pastas como o app o lê (`lerIndice`): o arquivo, senão a cópia `.anterior`; `null` = nenhum dos dois abre. */
@@ -447,7 +468,8 @@ export async function migrarMochilaAoAbrir(caminhoDoMapa: string, recuperado: Re
     const feita = await migrarMochilaDoMapa(caminhoDoMapa, discoDoApp, { recuperado })
     if (!feita.feita) return
     const diferencas = feita.diferencas === 0 ? 'Nenhuma diferença entre os mapas.' : `${feita.diferencas} diferença(s) entre os mapas: confira em ${feita.relatorio}.`
-    useToastStore.getState().push('info', `A mochila e a bolsa de ${feita.fichas} personagem(ns) passaram a morar na ficha. ${diferencas}`)
+    const variosBonecos = feita.variosBonecos === 0 ? '' : ` ${feita.variosBonecos} ficha(s) ligada(s) a mais de um boneco no mesmo mapa ficaram como estavam, com a mochila em cada boneco: decida em ${feita.relatorio}.`
+    useToastStore.getState().push('info', `A mochila e a bolsa de ${feita.fichas} personagem(ns) passaram a morar na ficha. ${diferencas}${variosBonecos}`)
   } catch (erro) {
     useToastStore.getState().push('error', `Não deu para passar a mochila para as fichas (${motivo(erro)}): o mapa abre como antes.`)
   }

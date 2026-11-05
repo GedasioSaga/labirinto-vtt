@@ -58,6 +58,17 @@ describe('troca entre duas fichas', () => {
     expect(depois).toBe(lista)
     expect(depois[0]).toBe(luffy)
   })
+
+  it('ficha ligada a vários bonecos na cena: a mudança fica nos bonecos, como na migração; a outra ficha muda', () => {
+    const bandido = ficha('p_bandido', 'Bandido')
+    const luffy = ficha('p_luffy', 'Luffy')
+    const bonecos = [boneco('t_bandido_1', 'p_bandido'), boneco('t_bandido_2', 'p_bandido'), boneco('t_luffy', 'p_luffy')]
+    // O Luffy toma a Poção do Bandido 1.
+    const roubo: ItemChange = { mochilas: [{ tokenId: 't_bandido_1', mochila: [] }, { tokenId: 't_luffy', mochila: [POCAO] }], bolsas: [{ tokenId: 't_bandido_1', moedas: 0 }] }
+    const depois = mudancaNasFichas([bandido, luffy], bonecos, roubo)
+    expect(depois[0]).toBe(bandido)
+    expect(depois[1].mochila).toEqual([POCAO])
+  })
 })
 
 describe('ficha nova depois da migração', () => {

@@ -20,7 +20,11 @@ import { moedasDe } from '../troca'
  * - bolsa diferente numa cena mais antiga: relatório, nunca soma.
  *
  * Boneco sem ficha (NPC sem ficha, `characterId` nulo ou de ninguém da lista)
- * nem entra: a mochila dele continua no boneco. Pura: nada de disco nem store.
+ * nem entra: a mochila dele continua no boneco. Ficha ligada a MAIS DE UM
+ * boneco numa mesma cena (a ficha "Bandido" em três bonecos, cada um com o
+ * próprio loot — o app deixa ligar qualquer boneco a qualquer ficha) também
+ * não: a junção não escolhe entre eles, a mochila fica nos bonecos e a ficha
+ * vai ao relatório para o mestre decidir. Pura: nada de disco nem store.
  */
 
 /** De onde veio uma mochila: o mapa, a cena e quando a cena foi gravada. */
@@ -30,15 +34,16 @@ export interface OrigemDaMochila {
   /** Nome da cena; vazio no mapa solto. */
   cena: string
   /**
-   * Quando a cena foi gravada, em ms desde a época (o `mtime` do `map.json`,
-   * ou a hora da cópia de recuperação para o mapa recuperado). 0 = o disco não
-   * disse: perde de qualquer cena com hora.
+   * Quando a cena foi salva pela última vez, em ms desde a época: a hora que
+   * renomear/duplicar preservaram no `map.json` (`horaDoSalvar.ts`), senão o
+   * `mtime` dele; para o mapa recuperado, a hora da cópia de recuperação.
+   * 0 = o disco não disse: perde de qualquer cena com hora.
    */
   gravadaEm: number
 }
 
-/** O mínimo do boneco que a junção lê. */
-export type BonecoDaJuncao = Pick<Token, 'characterId' | 'mochila' | 'moedas'>
+/** O mínimo do boneco que a junção lê; o nome só vai ao relatório. */
+export type BonecoDaJuncao = Pick<Token, 'characterId' | 'mochila' | 'moedas'> & Partial<Pick<Token, 'name'>>
 
 /** Uma cena lida para a junção: a origem e os bonecos dela. */
 export interface CenaDaJuncao {
@@ -85,14 +90,40 @@ export interface BaseDaFicha {
   origem: OrigemDaMochila
 }
 
+/** Ficha ligada a mais de um boneco numa mesma cena: ficou como estava, e a mochila, nos bonecos. */
+export interface FichaComVariosBonecos {
+  personagemId: string
+  personagem: string
+  /** TODA cena com boneco dela (não só a de vários), da mais recente para a mais antiga: é o que o mestre compara para decidir. */
+  cenas: { origem: OrigemDaMochila; bonecos: BonecoDaJuncao[] }[]
+}
+
 export interface JuncaoDaMochila {
-  /** As fichas, na mesma ordem; a que não tem boneco em cena nenhuma volta igual (a mesma referência). */
+  /** As fichas, na mesma ordem; a que não tem boneco em cena nenhuma, ou tem vários na mesma cena, volta igual (a mesma referência). */
   personagens: Personagem[]
-  /** Uma por ficha que tem boneco em alguma cena. */
+  /** Uma por ficha que levou a mochila de um boneco. */
   bases: BaseDaFicha[]
   /** Fichas sem boneco em cena nenhuma: ficaram como estavam. */
   semBoneco: { personagemId: string; personagem: string }[]
+  /** Fichas com vários bonecos numa mesma cena: ficaram como estavam, para o mestre decidir. */
+  variosBonecos: FichaComVariosBonecos[]
   diferencas: DiferencaDaMochila[]
+}
+
+/**
+ * As fichas que têm mais de um boneco entre `bonecos` (os de UMA cena). Para
+ * elas a mochila fica nos bonecos: a migração não junta, e a mudança em jogo
+ * (`mudancaNasFichas`) não leva à ficha.
+ */
+export function fichasDeVariosBonecos(bonecos: readonly Pick<Token, 'characterId'>[]): Set<string> {
+  const vistas = new Set<string>()
+  const repetidas = new Set<string>()
+  for (const { characterId } of bonecos) {
+    if (characterId === null) continue
+    if (vistas.has(characterId)) repetidas.add(characterId)
+    else vistas.add(characterId)
+  }
+  return repetidas
 }
 
 /** Uma mochila e uma bolsa de um lugar: um boneco numa cena, ou a própria ficha. */
@@ -178,14 +209,28 @@ function juntarFontes(personagem: Personagem, fontes: readonly Fonte[]): { mochi
   return { mochila, moedas: base.moedas, diferencas }
 }
 
+/** As cenas com boneco da ficha `id`, com os bonecos dela, na ordem recebida. */
+function cenasComBonecoDa(id: string, cenasDaMaisNova: readonly CenaDaJuncao[]): FichaComVariosBonecos['cenas'] {
+  return cenasDaMaisNova.flatMap((cena) => {
+    const bonecos = cena.bonecos.filter((boneco) => boneco.characterId === id)
+    return bonecos.length === 0 ? [] : [{ origem: cena.origem, bonecos }]
+  })
+}
+
 /** A junção da migração: ver o comentário do arquivo. Não muda as listas recebidas. */
 export function juntarMochilas(personagens: readonly Personagem[], cenas: readonly CenaDaJuncao[]): JuncaoDaMochila {
   // `sort` estável: no empate de hora, vale a ordem em que as cenas chegaram.
   const cenasDaMaisNova = [...cenas].sort((a, b) => b.origem.gravadaEm - a.origem.gravadaEm)
+  const comVariosBonecos = new Set(cenasDaMaisNova.flatMap((cena) => [...fichasDeVariosBonecos(cena.bonecos)]))
   const bases: BaseDaFicha[] = []
   const semBoneco: JuncaoDaMochila['semBoneco'] = []
+  const variosBonecos: FichaComVariosBonecos[] = []
   const diferencas: DiferencaDaMochila[] = []
   const migrados = personagens.map((personagem) => {
+    if (comVariosBonecos.has(personagem.id)) {
+      variosBonecos.push({ personagemId: personagem.id, personagem: personagem.nome, cenas: cenasComBonecoDa(personagem.id, cenasDaMaisNova) })
+      return personagem
+    }
     const fontes = fontesDa(personagem, cenasDaMaisNova)
     if (fontes.length === 0) {
       semBoneco.push({ personagemId: personagem.id, personagem: personagem.nome })
@@ -196,5 +241,5 @@ export function juntarMochilas(personagens: readonly Personagem[], cenas: readon
     diferencas.push(...juntado.diferencas)
     return fichaComMochila(personagem, juntado.mochila, juntado.moedas)
   })
-  return { personagens: migrados, bases, semBoneco, diferencas }
+  return { personagens: migrados, bases, semBoneco, variosBonecos, diferencas }
 }

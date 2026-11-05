@@ -21,6 +21,7 @@ import {
   type SceneEntry,
 } from './adventure'
 import { trazerMidiaAoAbrir } from './midiaDaPasta'
+import { comHoraDoSalvar, horaDoSalvarDoTexto } from './mochila/horaDoSalvar'
 
 /** Sufixo do arquivo de rascunho da gravação atômica (ver `writeTextFileSafely`). */
 const TEMP_WRITE_SUFFIX = '.tmp'
@@ -490,8 +491,20 @@ export async function renameMap(id: string, newName: string): Promise<string> {
 
   const finalName = uniqueMapName(sanitizeMapName(newName), await otherNames())
 
-  await writeTextFileSafely(mapJsonPath, serializeMap({ ...map, name: finalName }))
+  // Renomear não é jogar: o mapa guarda a hora do último salvar (`lib/mochila/horaDoSalvar.ts`).
+  const savedAtMs = await lastSaveMsOf(mapJsonPath, content)
+  await writeTextFileSafely(mapJsonPath, comHoraDoSalvar(serializeMap({ ...map, name: finalName }), savedAtMs))
   return finalName
+}
+
+/**
+ * MOCHILA NA FICHA: a hora em que o mapa foi salvo pela última vez — a que
+ * renomear/duplicar já deixaram no arquivo, senão o `mtime`. A migração da
+ * mochila (`net/nuvem/migracaoDaMochila.ts`) usa essa hora para achar o mapa
+ * salvo por último, e renomear ou duplicar não pode passá-lo à frente.
+ */
+async function lastSaveMsOf(mapJsonPath: string, content: string): Promise<number> {
+  return horaDoSalvarDoTexto(content) ?? (await mtimeMsOf(mapJsonPath))
 }
 
 /**
@@ -564,7 +577,9 @@ export async function duplicateMap(id: string): Promise<SavedMapEntry> {
   // ORIGEM — apagar o original deixaria a cópia sem fundo e sem token.
   const duplicated = rebaseMapImagePaths({ ...sourceMap, id: newId, name: finalName }, sourceDir, destDir)
   const destMapJsonPath = await join(destDir, 'map.json')
-  await writeTextFileSafely(destMapJsonPath, serializeMap(duplicated))
+  // A cópia leva a hora do último salvar do original: duplicar não é jogar.
+  const savedAtMs = await lastSaveMsOf(sourceMapJsonPath, sourceContent)
+  await writeTextFileSafely(destMapJsonPath, comHoraDoSalvar(serializeMap(duplicated), savedAtMs))
 
   const info = await stat(destMapJsonPath)
   return {
@@ -599,9 +614,14 @@ async function duplicateAdventure(sourceDir: string, adventurePath: string): Pro
   for (const scene of adventure.scenes) {
     try {
       const path = await scenePath(destDir, scene.file)
-      const map = deserializeMap(await readTextFile(path))
+      const content = await readTextFile(path)
+      const map = deserializeMap(content)
       const rebased = rebaseMapImagePaths(map, sourceDir, destDir)
-      if (rebased !== map) await writeTextFileSafely(path, serializeMap(rebased))
+      if (rebased !== map) {
+        // Cena regravada leva a hora do último salvar da cena de origem (a cópia crua já a levou no `mtime`).
+        const savedAtMs = await lastSaveMsOf(await scenePath(sourceDir, scene.file), content)
+        await writeTextFileSafely(path, comHoraDoSalvar(serializeMap(rebased), savedAtMs))
+      }
     } catch {
       // Cena que não abre: a cópia leva o arquivo como estava, igual à origem.
     }

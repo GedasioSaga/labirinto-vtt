@@ -165,7 +165,7 @@ describe('migração ao abrir: pasta (o que o usuário pediu: os itens atravessa
 
     const resultado = await migrarMochilaDoMapa(SKY_PRAIA, disco, { agora: () => AGORA })
 
-    expect(resultado).toEqual({ feita: true, arquivo: RPG, relatorio: RELATORIO_DA_PASTA, copiaDeAntes: `${RPG}.antes-da-mochila`, fichas: 2, diferencas: 2 })
+    expect(resultado).toEqual({ feita: true, arquivo: RPG, relatorio: RELATORIO_DA_PASTA, copiaDeAntes: `${RPG}.antes-da-mochila`, fichas: 2, diferencas: 2, variosBonecos: 0 })
     expect(contaMarcador(disco.texto(RPG))).toBeGreaterThan(0)
     expect(rpgDoArquivo(JSON.parse(disco.texto(RPG))).mochilaMigrada).toBe(1)
     // Vale a cena gravada por último (Reino de Goa): Poção x1 e 50 moedas, não x3 nem 80.
@@ -224,6 +224,45 @@ describe('migração ao abrir: pasta (o que o usuário pediu: os itens atravessa
       // O Zoro largou a Espada na memória (cópia mais nova que o disco): fica sem.
       ['Zoro', undefined, undefined],
     ])
+  })
+
+  it('ficha NPC ligada a três bonecos no mesmo mapa: o loot fica em cada boneco e o relatório lista os três', async () => {
+    const disco = appDataDeTeste()
+    const rpg = rpgDoArquivo(JSON.parse(disco.texto(RPG)))
+    disco.arquivos.set(RPG, { texto: serializarRpg({ ...rpg, personagens: [...rpg.personagens, ficha('p_bandido', 'Bandido')] }), ms: 1 })
+    const bandidos = [
+      boneco('t_bandido_1', 'p_bandido', { name: 'Bandido 1', mochila: [ESPADA], moedas: 10 }),
+      boneco('t_bandido_2', 'p_bandido', { name: 'Bandido 2', mochila: [MAPA_DO_TESOURO], moedas: 30 }),
+      boneco('t_bandido_3', 'p_bandido', { name: 'Bandido 3', mochila: [CORDA], moedas: 5 }),
+    ]
+    disco.arquivos.set(GOA, { texto: serializeMap(mapa('goa', 'Reino de Goa', [boneco('t_luffy_goa', 'p_luffy', { mochila: [POCAO_X1], moedas: 50 }), ...bandidos])), ms: 2_000 })
+
+    const resultado = await migrarMochilaDoMapa(GOA, disco, { agora: () => AGORA })
+
+    expect(resultado).toMatchObject({ feita: true, fichas: 2, diferencas: 2, variosBonecos: 1 })
+    const bandido = fichasDoRpg(disco).find((personagem) => personagem.id === 'p_bandido')
+    expect([bandido?.mochila, bandido?.moedas]).toEqual([undefined, undefined])
+    expect(rpgDoArquivo(JSON.parse(disco.texto(RPG))).mochilaMigrada).toBe(1)
+    const relatorio = JSON.parse(disco.texto(RELATORIO_DA_PASTA))
+    expect(relatorio.fichasComVariosBonecos).toEqual([
+      {
+        ficha: 'Bandido',
+        fichaId: 'p_bandido',
+        cenas: [
+          {
+            mapa: 'Reino de Goa',
+            cena: '',
+            gravadaEm: new Date(2_000).toISOString(),
+            bonecos: [
+              { boneco: 'Bandido 1', mochila: [ESPADA], moedas: 10 },
+              { boneco: 'Bandido 2', mochila: [MAPA_DO_TESOURO], moedas: 30 },
+              { boneco: 'Bandido 3', mochila: [CORDA], moedas: 5 },
+            ],
+          },
+        ],
+      },
+    ])
+    expect(relatorio.diferencas.map((linha: { ficha: string }) => linha.ficha)).toEqual(['Luffy', 'Luffy'])
   })
 
   it('rpg.json danificado não é regravado: o app abre pela cópia anterior e a migração espera', async () => {
