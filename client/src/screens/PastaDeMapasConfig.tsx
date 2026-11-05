@@ -12,7 +12,7 @@ import {
 } from '../lib/pastasDeMapas'
 import type { Personagem } from '../lib/personagem'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
-import { trocarSistemaDaPasta } from '../net/nuvem/mochilaPendenteNoApp'
+import { fichasEntramNaPasta, trocarSistemaDaPasta } from '../net/nuvem/mochilaPendenteNoApp'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 
 export interface PastaDeMapasConfigProps {
@@ -39,6 +39,10 @@ const linhaStyle: CSSProperties = { display: 'flex', gap: 'var(--lb-space-2)', f
 
 function nomes(personagens: readonly Personagem[]): string {
   return personagens.map((personagem) => personagem.nome).join(', ')
+}
+
+function idsDe(personagens: readonly Personagem[]): string[] {
+  return personagens.map((personagem) => personagem.id)
 }
 
 /**
@@ -105,7 +109,11 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
       const texto = await escolherTextoJson('Importar personagens do projeto-rpg-v2', 'Fichas do projeto-rpg-v2')
       if (texto === null) return null
       const resultado = await importarFichasDoProjetoRpg(texto, sistema, rpg.personagens, { reduzirImagem: buildTokenPhotoData })
-      await onMudar((atual) => ({ ...atual, personagens: [...atual.personagens, ...personagensQueAPastaNaoTem(atual.personagens, resultado.personagens)] }))
+      const novos = personagensQueAPastaNaoTem(rpg.personagens, resultado.personagens)
+      // Pasta convertida: o que os bonecos dessas fichas carregam vira aviso antes de a ficha (sem mochila) valer.
+      await fichasEntramNaPasta(pasta.id, idsDe(novos), () =>
+        onMudar((atual) => ({ ...atual, personagens: [...atual.personagens, ...personagensQueAPastaNaoTem(atual.personagens, resultado.personagens)] })),
+      )
       return resultado.personagens.length === 0 ? 'Nenhum personagem entrou.' : `Entraram na pasta: ${nomes(resultado.personagens)}.`
     })
 
@@ -115,7 +123,8 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
       if (doMapa === null) return 'Esse mapa não tem sistema nem personagens para copiar.'
       const novos = personagensQueAPastaNaoTem(rpg.personagens, doMapa.personagens)
       // Pasta ainda sem sistema adota o do mapa; as equipes e o marcador da mochila da pasta seguem.
-      await mudarComOSistema((atual) => rpgComOsPersonagensDoMapa(atual, doMapa))
+      // Pasta convertida: o que os bonecos das fichas copiadas carregam vira aviso antes de a ficha (sem mochila) valer.
+      await fichasEntramNaPasta(pasta.id, idsDe(novos), () => mudarComOSistema((atual) => rpgComOsPersonagensDoMapa(atual, doMapa)))
       return novos.length === 0 ? 'Os personagens desse mapa já estão na pasta.' : `Copiados para a pasta: ${nomes(novos)}.`
     })
 

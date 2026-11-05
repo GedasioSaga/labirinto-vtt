@@ -10,7 +10,18 @@ import { serializeAdventure, type Adventure } from '../adventure'
 import type { Equipe } from '../batalha/equipes'
 import { createEmptyMap } from '../mapFactory'
 import { serializeMap } from '../mapFile'
-import { indiceDoArquivo, moverMapa, rpgComOsPersonagensDoMapa, rpgComSistema, rpgDoArquivo, serializarIndice, serializarRpg, type IndiceDasPastas, type RpgDaPasta } from '../pastasDeMapas'
+import {
+  indiceDoArquivo,
+  moverMapa,
+  personagensQueAPastaNaoTem,
+  rpgComOsPersonagensDoMapa,
+  rpgComSistema,
+  rpgDoArquivo,
+  serializarIndice,
+  serializarRpg,
+  type IndiceDasPastas,
+  type RpgDaPasta,
+} from '../pastasDeMapas'
 import { novoPersonagem, type Personagem } from '../personagem'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import type { CarriedItem, MapData, Token } from '../../types/map'
@@ -20,6 +31,7 @@ import {
   conferirMapaQueEntrou,
   ignorarPendente,
   mapaSaiuDaPasta,
+  marcarFichasQueEntram,
   marcarMapaQueEntrou,
   pendentesDaPasta,
   sistemaDaPastaMudou,
@@ -474,6 +486,31 @@ describe('a pasta convertida que fica sem Sistema universal e volta', () => {
     const noEditor: RecoveryCopy = { savedAtMs: VOLTA, mapPath: SKY, map: mapa('sky', 'Sky Lagoon', [boneco('Luffy', 'p_luffy', { mochila: [POCAO_X1, bussola], moedas: 30 })]), scenes: {} }
     expect((await conferir(disco, 'sky-lagoon', noEditor)).map(rotulo)).toEqual(['Bússola'])
   })
+
+  it('o trabalho que só existia na cópia de recuperação (o app caiu sem salvar) marca o mapa, e o "Recuperar" confere com ela', async () => {
+    const disco = pastaComDoisMapas()
+    await trocarSistema(disco, null, false, SEM_SISTEMA)
+    // Sem sistema, o mestre dá 2 Poções ao Luffy da Sky Lagoon e o app cai antes de salvar: só a cópia de recuperação as tem.
+    const copia: RecoveryCopy = { savedAtMs: JOGADO, mapPath: SKY, map: mapa('sky', 'Sky Lagoon', [boneco('Luffy', 'p_luffy', { mochila: [POCAO_X3_VELHA], moedas: 30 })]), scenes: {} }
+    await mudarRpgNoDisco(disco, (rpg) => rpgComSistema(rpg, SISTEMA_ONE_PIECE.id))
+    expect(await sistemaDaPastaMudou(PASTA_ID, true, disco, { agora: () => VOLTA, recuperacao: copia })).toEqual(['sky-lagoon'])
+    expect(relatorio(disco).mapasPorConferir).toEqual(['sky-lagoon'])
+    // A abertura pelo "Recuperar" confere com a cópia: o pendente "Poção ×2", e "Trazer" deixa ×3.
+    const novos = await conferir(disco, 'sky-lagoon', copia)
+    expect(novos.map(textoDoPendente)).toEqual(['Poção ×2 do boneco Luffy (Sky Lagoon) não estão na mochila de Luffy.'])
+    await trazerTodos(disco, novos)
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+  })
+
+  it('a cópia de recuperação feita antes do "Nenhum" não marca o mapa (nem sem cópia nenhuma)', async () => {
+    const velha: RecoveryCopy = { savedAtMs: SEM_SISTEMA - 1_000, mapPath: SKY, map: mapa('sky', 'Sky Lagoon', [boneco('Luffy', 'p_luffy', { mochila: [POCAO_X3_VELHA] })]), scenes: {} }
+    for (const recuperacao of [velha, null]) {
+      const disco = pastaComDoisMapas()
+      await trocarSistema(disco, null, false, SEM_SISTEMA)
+      await mudarRpgNoDisco(disco, (rpg) => rpgComSistema(rpg, SISTEMA_ONE_PIECE.id))
+      expect(await sistemaDaPastaMudou(PASTA_ID, true, disco, { agora: () => VOLTA, recuperacao })).toEqual([])
+    }
+  })
 })
 
 describe('o mapa que sai da pasta', () => {
@@ -527,5 +564,199 @@ describe('o mapa que sai da pasta', () => {
     // ...e, salvo o mapa como o editor o tinha, ela volta: só o pendente a guarda.
     disco.arquivos.set(ARQUIPELAGO, serializeMap(espelhado))
     expect((await pendentesDaPasta(PASTA_ID, disco)).map(rotulo)).toEqual(['Poção', 'Corda', '45 moedas'])
+  })
+})
+
+describe('a ficha nova que entra numa pasta convertida ("Importar personagens…", "Copiar de um mapa")', () => {
+  const MERRY = `${MAPS}/going-merry/map.json`
+  const POCAO_DO_USOPP: CarriedItem = { id: 'vaga_pocao_usopp', nome: 'Poção', itemId: 'acervo_pocao', empilhavel: true, quantidade: 2 }
+  const AVISO_DO_USOPP = 'Poção ×2 do boneco Usopp (Going Merry) não estão na mochila de Usopp.'
+  /** As fichas do próprio Going Merry (o mapa nunca foi convertido: o Usopp de lá não tem mochila na ficha). */
+  const DO_MERRY: RpgDaPasta = { sistemaDeRpg: SISTEMA_ONE_PIECE.id, personagens: [ficha('p_usopp', 'Usopp')] }
+
+  /** O Going Merry fora das pastas: o boneco do Usopp ligado à ficha do PRÓPRIO mapa, com Poção ×2, e um vendedor sem ficha. */
+  function comOGoingMerry(): DiscoFalso {
+    const disco = appDataConvertido()
+    disco.arquivos.set(MERRY, serializeMap(mapa('merry', 'Going Merry', [boneco('Usopp', 'p_usopp', { mochila: [POCAO_DO_USOPP] }), boneco('Vendedor', null, { mochila: [CORDA] })])))
+    return disco
+  }
+
+  /** "Copiar de um mapa" como o app faz: marca ANTES de gravar o `rpg.json` e grava. Devolve os mapas marcados. */
+  async function copiarDoMerry(disco: DiscoFalso): Promise<string[]> {
+    const novas = personagensQueAPastaNaoTem(rpgNoDisco(disco).personagens, DO_MERRY.personagens).map((personagem) => personagem.id)
+    const marcados = await marcarFichasQueEntram(PASTA_ID, novas, disco, { agora: () => AGORA })
+    await mudarRpgNoDisco(disco, (rpg) => rpgComOsPersonagensDoMapa(rpg, DO_MERRY))
+    return marcados
+  }
+
+  /** Abrir o mapa: confere o que estiver marcado e tira a marca. */
+  async function abrirOMapa(disco: DiscoFalso, chave: string): Promise<ItemPendente[]> {
+    return (await conferirMapaQueEntrou(chave, disco, { baixarMarca: true, agora: () => AGORA }))?.novos ?? []
+  }
+
+  it('Mover, Copiar de um mapa e abrir: o pendente "Poção ×2" do Usopp', async () => {
+    const disco = comOGoingMerry()
+    expect(await moverParaAPasta(disco, 'going-merry')).toEqual([])
+    expect(await copiarDoMerry(disco)).toEqual(['going-merry'])
+    expect((await abrirOMapa(disco, 'going-merry')).map(textoDoPendente)).toEqual([AVISO_DO_USOPP])
+  })
+
+  it('aberto depois do Mover (a marca saiu), Copiar de um mapa e abrir de novo: o pendente "Poção ×2", nada apagado antes da escolha', async () => {
+    const disco = comOGoingMerry()
+    await moverParaAPasta(disco, 'going-merry')
+    // A primeira abertura na pasta: o Usopp ainda não é da pasta, o espelho não o toca, e a marca do "Mover…" sai.
+    expect(await abrirOMapa(disco, 'going-merry')).toEqual([])
+    expect(relatorio(disco).mapasPorConferir).toEqual([])
+    // "Copiar de um mapa": a marca entra ANTES do rpg.json, só para a ficha nova.
+    expect(await copiarDoMerry(disco)).toEqual(['going-merry'])
+    expect(relatorio(disco).fichasNovasPorConferir).toEqual({ 'going-merry': ['p_usopp'] })
+    expect(mochilaDe(disco, 'p_usopp').mochila).toBeUndefined()
+    // Abrir: o que o boneco carrega vira pendente antes do espelho; o mapa no disco segue com a Poção.
+    const [pocao] = await abrirOMapa(disco, 'going-merry')
+    expect(textoDoPendente(pocao)).toBe(AVISO_DO_USOPP)
+    expect(disco.texto(MERRY)).toContain('vaga_pocao_usopp')
+    expect(relatorio(disco)).not.toHaveProperty('fichasNovasPorConferir')
+    // Sobrevive a fechar o app, e "Trazer" leva à ficha nova.
+    expect((await pendentesDaPasta(PASTA_ID, discoFalso(new Map(disco.arquivos)))).map(textoDoPendente)).toEqual([AVISO_DO_USOPP])
+    expect(await trazerPendente(PASTA_ID, pocao.id, disco, gravarFichasNoDisco(disco), { novoId: () => 'vaga_nova' })).toMatchObject({ ok: true, decisao: 'trazido' })
+    expect(mochilaDe(disco, 'p_usopp').mochila).toEqual([{ ...POCAO_DO_USOPP, id: 'vaga_nova' }])
+  })
+
+  it('o app confere já depois de gravar (o aviso aparece sem abrir), e a abertura não repete', async () => {
+    const disco = comOGoingMerry()
+    await moverParaAPasta(disco, 'going-merry')
+    await abrirOMapa(disco, 'going-merry')
+    const [chave] = await copiarDoMerry(disco)
+    const conferido = await conferirMapaQueEntrou(chave, disco, { baixarMarca: false, agora: () => AGORA })
+    expect(conferido?.novos.map(textoDoPendente)).toEqual([AVISO_DO_USOPP])
+    expect(await abrirOMapa(disco, 'going-merry')).toEqual([])
+    expect(await pendentesDaPasta(PASTA_ID, disco)).toHaveLength(1)
+  })
+
+  it('confere SÓ as fichas novas: o boneco velho do Luffy na Sky Lagoon (salvo antes da conversão) não vira pendente', async () => {
+    const disco = comOGoingMerry()
+    // A Sky Lagoon já é da pasta: o Luffy de lá ainda com a Poção ×3 de antes da conversão, e agora um Usopp com a Corda.
+    disco.arquivos.set(SKY, serializeMap(mapa('sky', 'Sky Lagoon', [boneco('Luffy', 'p_luffy', { mochila: [POCAO_X3_VELHA] }), boneco('Usopp', 'p_usopp', { mochila: [CORDA] })])))
+    expect(await copiarDoMerry(disco)).toEqual(['sky-lagoon'])
+    expect((await abrirOMapa(disco, 'sky-lagoon')).map(textoDoPendente)).toEqual(['Corda do boneco Usopp (Sky Lagoon) não está na mochila de Usopp.'])
+  })
+
+  it('nada a marcar: ficha que a pasta já tem, ficha sem boneco nos mapas dela (a importação, de id novo) e pasta ainda não convertida', async () => {
+    const disco = comOGoingMerry()
+    await moverParaAPasta(disco, 'going-merry')
+    const antes = disco.texto(RELATORIO)
+    expect(await marcarFichasQueEntram(PASTA_ID, ['p_luffy'], disco)).toEqual([])
+    expect(await marcarFichasQueEntram(PASTA_ID, ['p_nami_importada'], disco)).toEqual([])
+    expect(disco.texto(RELATORIO)).toBe(antes)
+    const { mochilaMigrada: _marcador, ...naoConvertida } = rpgNoDisco(disco)
+    disco.arquivos.set(RPG, serializarRpg(naoConvertida))
+    expect(await marcarFichasQueEntram(PASTA_ID, ['p_usopp'], disco)).toEqual([])
+    expect(disco.texto(RELATORIO)).toBe(antes)
+  })
+
+  it('índice ilegível: lança (quem chama não grava o rpg.json)', async () => {
+    const disco = comOGoingMerry()
+    await moverParaAPasta(disco, 'going-merry')
+    disco.arquivos.set(INDICE, '{ quebrado')
+    await expect(marcarFichasQueEntram(PASTA_ID, ['p_usopp'], disco)).rejects.toThrow('o índice das pastas não abriu')
+  })
+
+  it('o mapa marcado que sai da pasta leva a marca junto', async () => {
+    const disco = comOGoingMerry()
+    await moverParaAPasta(disco, 'going-merry')
+    await abrirOMapa(disco, 'going-merry')
+    await copiarDoMerry(disco)
+    await tirarDaPasta(disco, 'going-merry')
+    expect(relatorio(disco)).not.toHaveProperty('fichasNovasPorConferir')
+  })
+})
+
+describe('"Trazer para a ficha" interrompido no meio não soma duas vezes', () => {
+  const SEM_ESPACO = 'No space left on device'
+
+  /** A ficha gravada e, logo depois, o relatório falhando UMA vez (o disco cheio). */
+  function relatorioFalhaDepoisDasFichas(disco: DiscoFalso): GravarFichasDaPasta {
+    const passo = { fichasGravadas: false, falhou: false }
+    const gravar = disco.gravar
+    disco.gravar = async (caminho, texto) => {
+      if (caminho === RELATORIO && passo.fichasGravadas && !passo.falhou) {
+        passo.falhou = true
+        throw new Error(SEM_ESPACO)
+      }
+      await gravar(caminho, texto)
+    }
+    return async (mudar) => {
+      await mudarRpgNoDisco(disco, mudar)
+      passo.fichasGravadas = true
+    }
+  }
+
+  async function pocaoDoArquipelago(disco: DiscoFalso): Promise<ItemPendente> {
+    const [pocao] = await moverParaAPasta(disco, 'arquipelago')
+    expect(textoDoPendente(pocao)).toBe('Poção ×2 do boneco Luffy (Arquipélago dos Ventos) não estão na mochila de Luffy.')
+    return pocao
+  }
+
+  it('o relatório cai depois da ficha: o aviso diz que a ficha recebeu, e o segundo "Trazer" deixa ×3, não ×5', async () => {
+    const disco = appDataConvertido()
+    const pocao = await pocaoDoArquipelago(disco)
+    const primeiro = await trazerPendente(PASTA_ID, pocao.id, disco, relatorioFalhaDepoisDasFichas(disco), { agora: () => AGORA })
+    expect(primeiro).toMatchObject({ ok: true, decisao: 'trazido', naoAnotado: SEM_ESPACO })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+    // Sem a decisão gravada, o aviso continua.
+    expect((await pendentesDaPasta(PASTA_ID, disco)).map((pendente) => pendente.id)).toContain(pocao.id)
+    const segundo = await trazerPendente(PASTA_ID, pocao.id, disco, gravarFichasNoDisco(disco), { agora: () => AGORA })
+    expect(segundo).toEqual({ ok: true, decisao: 'trazido', pendente: pocao, moedasDeFora: 0 })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+    expect(linhasDoRelatorio(disco).find((linha) => linha.id === pocao.id)).toMatchObject({ decisao: 'trazido' })
+    expect(relatorio(disco)).not.toHaveProperty('trazendo')
+    expect(await trazerPendente(PASTA_ID, pocao.id, disco, gravarFichasNoDisco(disco))).toEqual({ ok: false, porque: 'ja-decidido' })
+  })
+
+  it('o app fecha entre a falha e o segundo "Trazer": continua ×3', async () => {
+    const disco = appDataConvertido()
+    const pocao = await pocaoDoArquipelago(disco)
+    await trazerPendente(PASTA_ID, pocao.id, disco, relatorioFalhaDepoisDasFichas(disco), { agora: () => AGORA })
+    vi.resetModules()
+    const reaberto = await import('../../net/nuvem/mochilaPendente')
+    const outroDisco = discoFalso(new Map(disco.arquivos))
+    expect(await reaberto.trazerPendente(PASTA_ID, pocao.id, outroDisco, gravarFichasNoDisco(outroDisco))).toMatchObject({ ok: true, decisao: 'trazido' })
+    expect(mochilaDe(outroDisco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+  })
+
+  it('a gravação da ficha cai: nada somado, e o segundo "Trazer" soma uma vez (×3)', async () => {
+    const disco = appDataConvertido()
+    const pocao = await pocaoDoArquipelago(disco)
+    const quebrado: GravarFichasDaPasta = async () => {
+      throw new Error(SEM_ESPACO)
+    }
+    await expect(trazerPendente(PASTA_ID, pocao.id, disco, quebrado)).rejects.toThrow(SEM_ESPACO)
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([POCAO_X1])
+    expect(relatorio(disco)).toHaveProperty('trazendo')
+    expect(await trazerPendente(PASTA_ID, pocao.id, disco, gravarFichasNoDisco(disco))).toMatchObject({ ok: true, decisao: 'trazido' })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+  })
+
+  it('a ficha mudou depois da falha: não soma ("incerto"), e "Ignorar" o tira sem mexer na ficha', async () => {
+    const disco = appDataConvertido()
+    const pocao = await pocaoDoArquipelago(disco)
+    await trazerPendente(PASTA_ID, pocao.id, disco, relatorioFalhaDepoisDasFichas(disco))
+    // O mestre gasta uma Poção da ficha antes do segundo clique.
+    const gastou = (personagem: Personagem): Personagem => (personagem.id === 'p_luffy' ? { ...personagem, mochila: [{ ...POCAO_X1, quantidade: 2 }] } : personagem)
+    await mudarRpgNoDisco(disco, (rpg) => ({ ...rpg, personagens: rpg.personagens.map(gastou) }))
+    expect(await trazerPendente(PASTA_ID, pocao.id, disco, gravarFichasNoDisco(disco))).toEqual({ ok: false, porque: 'incerto', pendente: pocao })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 2 }])
+    expect(await ignorarPendente(PASTA_ID, pocao.id, disco)).toMatchObject({ ok: true, decisao: 'ignorado' })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 2 }])
+    expect(relatorio(disco)).not.toHaveProperty('trazendo')
+  })
+
+  it('"Ignorar" depois da falha, com a soma já na ficha: anota "trazido" (é o que a ficha tem)', async () => {
+    const disco = appDataConvertido()
+    const pocao = await pocaoDoArquipelago(disco)
+    await trazerPendente(PASTA_ID, pocao.id, disco, relatorioFalhaDepoisDasFichas(disco))
+    expect(await ignorarPendente(PASTA_ID, pocao.id, disco)).toMatchObject({ ok: true, decisao: 'trazido' })
+    expect(linhasDoRelatorio(disco).find((linha) => linha.id === pocao.id)).toMatchObject({ decisao: 'trazido' })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
   })
 })

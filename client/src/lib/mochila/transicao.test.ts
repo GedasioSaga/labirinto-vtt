@@ -11,7 +11,7 @@ import { ITEM_QUANTIDADE_MAX } from '../items'
 import { novoPersonagem, type Personagem } from '../personagem'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import { MOEDAS_MAX } from '../troca'
-import { acertarBonecosDasFichas, avisosDoAcerto, type AcertoDosBonecos } from './transicao'
+import { acertarBonecosDasFichas, avisosDoAcerto, textoDaFichaSeparada, type AcertoDosBonecos } from './transicao'
 
 function ficha(id: string, nome: string, extra: Partial<Personagem> = {}): Personagem {
   return { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', nome), id, ...extra }
@@ -233,7 +233,7 @@ describe('ficha com vários bonecos no mesmo mapa (os Marinheiros)', () => {
       [undefined, undefined],
       [undefined, undefined],
     ])
-    expect(avisosDoAcerto(dois)).toEqual(['Luffy tem 2 bonecos neste mapa: cada um tem a sua mochila. A mochila e a bolsa da ficha continuam nela e voltam quando ficar um boneco só.'])
+    expect(avisosDoAcerto(dois)).toEqual(['Luffy tem 2 bonecos nesta cena: cada um tem a sua mochila. A mochila e a bolsa da ficha continuam nela e voltam quando ficar um boneco só.'])
     // A cópia sai (apagada, ou o Ctrl+Z): o original volta a mostrar a ficha, com 1 Poção e 10 moedas — não 2 e 20.
     const um = acertar(fichas, dois.tokens, [original])
     expect(um.personagens).toBe(fichas)
@@ -250,5 +250,28 @@ describe('ficha com vários bonecos no mesmo mapa (os Marinheiros)', () => {
       [[], undefined],
       [['Corda x1'], 3],
     ])
+    // Só o que mostrava a ficha ficou vazio: é o dono DELE que a sala avisa (o que chegou com as coisas dele não muda).
+    expect(acerto.separadas).toEqual([{ personagemId: 'p_marinheiro', personagem: 'Marinheiro', bonecos: 2, tokenIds: ['t_m1'] }])
+  })
+
+  it('de 1 para 2 duplicando: os dois bonecos que deixaram de mostrar a ficha vão no acerto, e o aviso diz "nesta cena"', () => {
+    const fichas = [ficha('p_luffy', 'Luffy', { mochila: [POCAO_DA_FICHA], moedas: 10 })]
+    const original = boneco('t_luffy', 'p_luffy', { name: 'Luffy', mochila: [POCAO_DA_FICHA], moedas: 10 })
+    const dois = acertar(fichas, [original], [original, { ...original, id: 't_luffy_2' }])
+    expect(dois.separadas).toEqual([{ personagemId: 'p_luffy', personagem: 'Luffy', bonecos: 2, tokenIds: ['t_luffy', 't_luffy_2'] }])
+    expect(textoDaFichaSeparada(dois.separadas[0])).toBe(
+      'Luffy tem 2 bonecos nesta cena: cada um tem a sua mochila. A mochila e a bolsa da ficha continuam nela e voltam quando ficar um boneco só.',
+    )
+    expect(avisosDoAcerto(dois).some((aviso) => aviso.includes('neste mapa'))).toBe(false)
+  })
+
+  it('o terceiro boneco que chega com coisas dele não esvazia ninguém: nada a separar', () => {
+    const fichas = [ficha('p_marinheiro', 'Marinheiro', { mochila: [FACA] })]
+    const m1 = boneco('t_m1', 'p_marinheiro', { mochila: [CORDA] })
+    const m2 = boneco('t_m2', 'p_marinheiro', { moedas: 5 })
+    const m3 = boneco('t_m3', null, { mochila: [ESPADA] })
+    const acerto = acertar(fichas, [m1, m2, m3], [m1, m2, { ...m3, characterId: 'p_marinheiro' }])
+    expect(acerto.separadas).toEqual([])
+    expect(acerto.tokens.map((t) => itens(t.mochila))).toEqual([['Corda x1'], [], ['Espada x1']])
   })
 })

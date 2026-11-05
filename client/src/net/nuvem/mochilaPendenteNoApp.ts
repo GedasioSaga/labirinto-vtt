@@ -1,7 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { textoDoIgnorado, textoDoPendente, textoDoQueSaiu, textoDoTrazido, type ItemPendente } from '../../lib/mochila/pendentes'
+import { textoDoIgnorado, textoDoIncerto, textoDoPendente, textoDoQueSaiu, textoDoTrazido, textoDoTrazidoSemAnotar, type ItemPendente } from '../../lib/mochila/pendentes'
 import type { PastaAberta } from '../../lib/pastasDeMapas'
-import type { RecoveryCopy } from '../../lib/recoveryCopy'
+import { readRecoveryCopy, type RecoveryCopy } from '../../lib/recoveryCopy'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { captureEditorWork } from '../../stores/recoveryAutosave'
 import { editarRpgDaPasta } from '../../stores/rpgDaPasta'
@@ -12,6 +12,7 @@ import {
   conferirMapaQueEntrou,
   ignorarPendente,
   mapaSaiuDaPasta,
+  marcarFichasQueEntram,
   marcarMapaQueEntrou,
   pendentesDaPasta,
   sistemaDaPastaMudou,
@@ -21,7 +22,7 @@ import {
 /**
  * MOCHILA NA FICHA (correção C2) — o mapa que entra numa pasta convertida, no
  * app: o "Mover…" do Carregar Mapa (entrar e sair), o "Configurar pasta" (o
- * Sistema universal), a importação e a abertura chamam daqui
+ * Sistema universal e as fichas novas), a importação e a abertura chamam daqui
  * (o núcleo, com disco injetado, é `mochilaPendente.ts`). Cada pendente vira
  * um aviso na caixa "Mochila" com "Trazer para a ficha" e "Ignorar". O ×
  * só tira o aviso da tela: o pendente continua no relatório da pasta e volta
@@ -56,17 +57,25 @@ async function trazerNoApp(pastaId: string, pendente: ItemPendente): Promise<voi
   try {
     const feito = await trazerPendente(pastaId, pendente.id, discoDoApp, (mudar) => editarRpgDaPasta(pastaId, mudar))
     if (feito.ok) {
-      push('info', textoDoTrazido(feito.pendente, feito.moedasDeFora))
-      return
-    }
-    if (feito.porque === 'saiu') {
+      if (feito.naoAnotado === undefined) {
+        push('info', textoDoTrazido(feito.pendente, feito.moedasDeFora))
+        return
+      }
+      push('error', textoDoTrazidoSemAnotar(feito.pendente, feito.moedasDeFora, feito.naoAnotado))
+    } else if (feito.porque === 'saiu') {
       push('info', textoDoQueSaiu(feito.pendente))
       return
+    } else if (feito.porque === 'incerto') {
+      push('error', textoDoIncerto(feito.pendente))
+    } else if (feito.porque === 'sem-ficha') {
+      push('error', `A ficha de ${pendente.personagem} não está mais na pasta: o aviso continua, e "Ignorar" o tira da lista.`)
+    } else {
+      // `nao-achado`/`ja-decidido`: outro clique já resolveu.
+      return
     }
-    if (feito.porque !== 'sem-ficha') return
-    push('error', `A ficha de ${pendente.personagem} não está mais na pasta: o aviso continua, e "Ignorar" o tira da lista.`)
   } catch (erro) {
-    push('error', `Não deu para levar à ficha (${motivo(erro)}): o aviso continua.`)
+    // A soma pode ter chegado à ficha antes da falha: o próximo "Trazer" confere pela marca do relatório e não soma duas vezes.
+    push('error', `Não deu para terminar de levar à ficha (${motivo(erro)}): o aviso continua, e "Trazer para a ficha" de novo confere a ficha antes de somar.`)
   }
   // O clique tirou o aviso da tela; sem decisão gravada, ele volta.
   avisarPendentes(pastaId, [pendente])
@@ -76,7 +85,7 @@ async function ignorarNoApp(pastaId: string, pendente: ItemPendente): Promise<vo
   const { push } = useToastStore.getState()
   try {
     const feito = await ignorarPendente(pastaId, pendente.id, discoDoApp)
-    if (feito.ok) push('info', textoDoIgnorado(feito.pendente))
+    if (feito.ok) push('info', feito.decisao === 'trazido' ? textoDoTrazido(feito.pendente, feito.moedasDeFora) : textoDoIgnorado(feito.pendente))
     else if (feito.porque === 'saiu') push('info', textoDoQueSaiu(feito.pendente))
   } catch (erro) {
     push('error', `Não deu para anotar o "Ignorar" (${motivo(erro)}): o aviso continua.`)
@@ -103,17 +112,63 @@ export async function trocarSistemaDaPasta(pastaId: string, vinhaSemSistema: boo
   await trocar()
   if (!isTauri()) return
   try {
-    const marcados = await sistemaDaPastaMudou(pastaId, vinhaSemSistema, discoDoApp, { aberto: aberto?.chave ?? null })
-    let conferiu = false
-    for (const chave of marcados) {
-      const conferido = await conferirMapaQueEntrou(chave, discoDoApp, { baixarMarca: false, recuperado: aberto?.chave === chave ? aberto.copia : null })
-      if (conferido !== null) conferiu = true
-    }
-    if (conferiu) await avisarPendentesDaPasta(pastaId)
+    const marcados = await sistemaDaPastaMudou(pastaId, vinhaSemSistema, discoDoApp, { aberto: aberto?.chave ?? null, recuperacao: await copiaDeRecuperacao() })
+    await conferirEAvisar(pastaId, marcados, aberto)
   } catch (erro) {
     useToastStore
       .getState()
       .push('error', `Não deu para conferir a mochila dos bonecos desta pasta (${motivo(erro)}). Antes de abrir um mapa dela, confira o que os bonecos ganharam sem o sistema.`)
+  }
+}
+
+/** A cópia de recuperação no disco (o app caiu com trabalho sem salvar); `null` = nenhuma, ou não deu para ler. */
+async function copiaDeRecuperacao(): Promise<RecoveryCopy | null> {
+  try {
+    return await readRecoveryCopy()
+  } catch {
+    return null
+  }
+}
+
+/** Confere já os mapas `marcados` da pasta (o aberto, com o trabalho do editor) e mostra os pendentes dela. A marca fica: a abertura confere de novo. */
+async function conferirEAvisar(pastaId: string, marcados: readonly string[], aberto: TrabalhoAberto | null): Promise<void> {
+  let conferiu = false
+  for (const chave of marcados) {
+    const conferido = await conferirMapaQueEntrou(chave, discoDoApp, { baixarMarca: false, recuperado: aberto?.chave === chave ? aberto.copia : null })
+    if (conferido !== null) conferiu = true
+  }
+  if (conferiu) await avisarPendentesDaPasta(pastaId)
+}
+
+/**
+ * "Importar personagens…" e "Copiar de um mapa" do "Configurar pasta", que
+ * põem as fichas `ids` na pasta: `gravar` grava o `rpg.json` (e lança com a
+ * razão). Pasta convertida: os mapas dela com boneco dessas fichas ficam
+ * marcados ANTES de gravar — sem a marca, o espelho da abertura faria a ficha
+ * nova (sem mochila) vencer o boneco, e o que ele carrega sumiria calado. Não
+ * deu para marcar: lança, e nada é gravado. Gravado, confere já e mostra os
+ * pendentes; daí em diante nunca lança (a abertura confere de novo).
+ */
+export async function fichasEntramNaPasta(pastaId: string, ids: readonly string[], gravar: () => Promise<void>): Promise<void> {
+  if (!isTauri() || ids.length === 0) {
+    await gravar()
+    return
+  }
+  // ANTES de gravar: a ficha nova espelha na hora as cenas abertas desta pasta.
+  const aberto = await trabalhoAberto((pasta) => pasta.pastaId === pastaId)
+  let marcados: string[]
+  try {
+    marcados = await marcarFichasQueEntram(pastaId, ids, discoDoApp, { recuperado: aberto?.copia ?? null })
+  } catch (erro) {
+    throw new Error(`Não deu para anotar o que os bonecos dessas fichas carregam (${motivo(erro)}): nada foi gravado.`)
+  }
+  await gravar()
+  try {
+    await conferirEAvisar(pastaId, marcados, aberto)
+  } catch (erro) {
+    useToastStore
+      .getState()
+      .push('error', `Não deu para conferir a mochila dos bonecos das fichas novas (${motivo(erro)}). A abertura de cada mapa confere de novo antes de a ficha valer.`)
   }
 }
 

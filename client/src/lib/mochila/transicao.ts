@@ -10,13 +10,13 @@ import { fichaComMochila, pilhaDe } from './juncao'
  * docs/planos/lobby-jogadores-2026-11-05.md; decisões do usuário de 05/11/2026).
  * Ligar um boneco a uma ficha (pelo painel, pela ficha, pela batalha, pelo
  * jogador da sala), desligar, apagar, duplicar, colar, Ctrl+Z e Ctrl+Y: a
- * regra vale POR MAPA.
+ * regra vale POR CENA (decisão do usuário de 05/11/2026: o aviso diz "nesta cena").
  *
- * - Ficha com UM boneco no mapa: ele mostra a mochila e a bolsa da ficha.
+ * - Ficha com UM boneco na cena: ele mostra a mochila e a bolsa da ficha.
  *   O que era DELE (o boneco que chegou carregando coisas, ou o último de
  *   vários) entra na ficha, SOMANDO: a pilha do mesmo item do acervo soma, o
  *   resto abre vaga, as moedas somam. O mestre fica sabendo (`entradas`).
- * - Ficha com VÁRIOS bonecos no mapa: cada um tem a sua mochila, como NPC sem
+ * - Ficha com VÁRIOS bonecos na cena: cada um tem a sua mochila, como NPC sem
  *   ficha; a da ficha fica guardada nela e volta quando ficar um só. O boneco
  *   que até agora mostrava a ficha deixa de mostrá-la — fica com o que é dele,
  *   nada (`separadas`): senão, quando voltasse a ser um só, a mochila da ficha
@@ -60,11 +60,13 @@ export interface EntradaNaFicha {
   moedasDeFora: number
 }
 
-/** Ficha que passou a ter vários bonecos no mapa, e algum deixou de mostrar a mochila dela. */
+/** Ficha que passou a ter vários bonecos na cena, e algum deixou de mostrar a mochila dela. */
 export interface FichaSeparada {
   personagemId: string
   personagem: string
   bonecos: number
+  /** Os bonecos que deixaram de mostrar a ficha (ficaram só com o que é deles): o jogador dono de um deles também recebe o aviso. */
+  tokenIds: string[]
 }
 
 /** Boneco que mostrava a ficha e deixou de ser dela. */
@@ -205,14 +207,14 @@ export function acertarBonecosDasFichas(
       if (espelhado !== boneco) trocados.set(boneco.id, espelhado)
       continue
     }
-    let algumDeixouDeMostrar = false
+    const deixaramDeMostrar: string[] = []
     for (const boneco of bonecos) {
       const soOSeu = bonecoComAFicha(boneco, proprioDe(boneco, ficha))
       if (soOSeu === boneco) continue
       trocados.set(boneco.id, soOSeu)
-      algumDeixouDeMostrar = true
+      deixaramDeMostrar.push(boneco.id)
     }
-    if (algumDeixouDeMostrar) separadas.push({ personagemId: id, personagem: ficha.nome, bonecos: bonecos.length })
+    if (deixaramDeMostrar.length > 0) separadas.push({ personagemId: id, personagem: ficha.nome, bonecos: bonecos.length, tokenIds: deixaramDeMostrar })
   }
 
   // Quem mostrava uma ficha e saiu dela para nenhuma (desligado, ou ligado a ficha fora da lista). Ligado a outra da lista, já foi acertado acima.
@@ -252,6 +254,11 @@ function emLista(partes: readonly string[]): string {
 /** Até quantos itens o aviso nomeia; o resto vira "mais N itens". */
 const ITENS_NO_AVISO = 4
 
+/** A ficha com vários bonecos na cena: o mesmo texto ao mestre e ao jogador dono do boneco que ficou vazio. A regra é por CENA. */
+export function textoDaFichaSeparada(separada: Pick<FichaSeparada, 'personagem' | 'bonecos'>): string {
+  return `${separada.personagem} tem ${separada.bonecos} bonecos nesta cena: cada um tem a sua mochila. A mochila e a bolsa da ficha continuam nela e voltam quando ficar um boneco só.`
+}
+
 /** Os avisos ao mestre, um por acontecimento, para o toast: nada some calado. */
 export function avisosDoAcerto(acerto: Pick<AcertoDosBonecos, 'entradas' | 'separadas' | 'saidas'>): string[] {
   const avisos: string[] = []
@@ -263,9 +270,7 @@ export function avisosDoAcerto(acerto: Pick<AcertoDosBonecos, 'entradas' | 'sepa
     const teto = entrada.moedasDeFora > 0 ? ` A bolsa chegou ao teto de ${MOEDAS_MAX} moedas: ${entrada.moedasDeFora} não couberam.` : ''
     avisos.push(`${emLista(partes)} do boneco ${entrada.boneco} ${umSo ? 'foi' : 'foram'} para a mochila de ${entrada.personagem}.${teto}`)
   }
-  for (const separada of acerto.separadas) {
-    avisos.push(`${separada.personagem} tem ${separada.bonecos} bonecos neste mapa: cada um tem a sua mochila. A mochila e a bolsa da ficha continuam nela e voltam quando ficar um boneco só.`)
-  }
+  for (const separada of acerto.separadas) avisos.push(textoDaFichaSeparada(separada))
   for (const saida of acerto.saidas) {
     avisos.push(`O boneco ${saida.boneco} não mostra mais a ficha de ${saida.personagem}: a mochila e a bolsa continuam na ficha.`)
   }

@@ -17,7 +17,7 @@ import { passageOf } from '../lib/pins'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
 import { fichasComOsBonecos, mapaComAsFichas, mapaSemOEspelho, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
-import { acertarBonecosDasFichas, avisosDoAcerto } from '../lib/mochila/transicao'
+import { acertarBonecosDasFichas, avisosDoAcerto, type FichaSeparada } from '../lib/mochila/transicao'
 import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Bounds, Camera, Point } from '../pixi/world'
@@ -2666,7 +2666,25 @@ function acertarBonecosNoMapa(antes: MapData, depois: MapData, porOsBonecos: (to
   if (gravadas === null) return
   if (acerto.tokens !== depois.tokens) porOsBonecos([...acerto.tokens])
   for (const aviso of avisosDoAcerto(acerto)) useToastStore.getState().push('info', aviso)
+  if (acerto.separadas.length > 0) for (const ouvinte of ouvintesDosBonecosSeparados) ouvinte(acerto.separadas)
   espelharEmTodaCena(gravadas)
+}
+
+/** Quem mais precisa saber que uma ficha passou a ter vários bonecos na cena (a sala LAN avisa o jogador dono do boneco que ficou vazio). */
+export type OuvinteDosBonecosSeparados = (separadas: readonly FichaSeparada[]) => void
+
+const ouvintesDosBonecosSeparados = new Set<OuvinteDosBonecosSeparados>()
+
+/**
+ * MOCHILA NA FICHA (decisão do usuário de 05/11/2026): o aviso "X tem 2
+ * bonecos nesta cena" vai ao mestre (toast) e a quem `ouvinte` levar — no
+ * app, o jogador da sala dono do boneco que ficou vazio. Devolve o desligar.
+ */
+export function ouvirBonecosSeparados(ouvinte: OuvinteDosBonecosSeparados): () => void {
+  ouvintesDosBonecosSeparados.add(ouvinte)
+  return () => {
+    ouvintesDosBonecosSeparados.delete(ouvinte)
+  }
 }
 
 /** Os mapas que entram agora são trabalho recuperado, não edição: `semAcertoDosBonecos`. */

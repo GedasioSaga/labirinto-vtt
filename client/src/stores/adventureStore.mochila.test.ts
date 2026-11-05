@@ -36,7 +36,8 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   copyFile: vi.fn(async () => undefined),
 }))
 
-const { useAdventureStore, applyItemsInScene, personagensAtivos, bonecoVaiSerGuardado, bonecoQueVoltaDaGuarda } = await import('./adventureStore')
+const { useAdventureStore, applyItemsInScene, personagensAtivos, bonecoVaiSerGuardado, bonecoQueVoltaDaGuarda, ouvirBonecosSeparados } = await import('./adventureStore')
+const { avisarJogadoresDosBonecosSeparados } = await import('../net/mochilaNaSala')
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
 const { createEmptyMap, removeToken } = await import('../lib/mapFactory')
@@ -685,7 +686,7 @@ describe('ficha com vários bonecos no mesmo mapa (C1)', () => {
       [undefined, undefined],
     ])
     expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
-    expect(ultimoAviso()).toContain('Luffy tem 2 bonecos neste mapa')
+    expect(ultimoAviso()).toContain('Luffy tem 2 bonecos nesta cena')
     // No Reino de Goa o Luffy é um só: continua mostrando a ficha.
     expect(itens(bonecoDa('t_luffy_goa', GOA).mochila)).toEqual(['Poção x1'])
 
@@ -709,7 +710,7 @@ describe('ficha com vários bonecos no mesmo mapa (C1)', () => {
     // No Reino de Goa são dois Luffys: cada um com a sua, e a da ficha fica nela.
     expect([bonecoDa('t_luffy_sky', GOA).mochila, bonecoDa('t_luffy_goa', GOA).mochila]).toEqual([undefined, undefined])
     expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
-    expect(ultimoAviso()).toContain('Luffy tem 2 bonecos neste mapa')
+    expect(ultimoAviso()).toContain('Luffy tem 2 bonecos nesta cena')
     expect(useAdventureStore.getState().transferToken('t_luffy_sky', GOA, SKY, 96, 96)).toBe(true)
     expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
     expect([itens(bonecoDa('t_luffy_sky').mochila), bonecoDa('t_luffy_sky').moedas]).toEqual([['Poção x1'], 10])
@@ -823,5 +824,70 @@ describe('o boneco que sai do mapa e volta depois não traz a cópia velha da fi
     const guardado = bonecoDa('t_luffy_2')
     bonecoVaiSerGuardado(guardado.id)
     expect(bonecoQueVoltaDaGuarda(guardado)).toBe(guardado)
+  })
+})
+
+describe('o jogador da sala dono do boneco que ficou vazio também é avisado (decisão de 05/11/2026)', () => {
+  const DUAS_POCOES: CarriedItem = { id: 'vaga_do_marujo', itemId: 'acervo_pocao', nome: 'Poção', empilhavel: true, quantidade: 2 }
+  const AVISO_DO_LUFFY = 'Luffy tem 2 bonecos nesta cena: cada um tem a sua mochila. A mochila e a bolsa da ficha continuam nela e voltam quando ficar um boneco só.'
+
+  /** A ponte da sala de mentira: quem joga com qual boneco, e os recados que saíram. */
+  function salaDeTeste(donos: Record<string, string[]>): { recados: { playerId: string; texto: string }[]; desligar: () => void } {
+    const recados: { playerId: string; texto: string }[] = []
+    const ponte = {
+      players: () => Object.entries(donos).map(([playerId, tokenIds]) => ({ playerId, tokenIds })),
+      playerNote: (playerId: string, texto: string) => {
+        recados.push({ playerId, texto })
+      },
+    }
+    const desligar = ouvirBonecosSeparados((separadas) => avisarJogadoresDosBonecosSeparados(ponte, separadas))
+    return { recados, desligar }
+  }
+
+  it('Bia liga o Marujo (com as coisas dele) ao Luffy pela sala: o Luffy da Ana fica vazio, e a Ana recebe o mesmo aviso do mestre', async () => {
+    await abrir('pasta', {
+      personagens: [ficha('p_luffy', 'Luffy', { mochila: [VAGA_DA_POCAO], moedas: 10 }), ficha('p_zoro', 'Zoro')],
+      sky: cena('map_sky', 'Sky Lagoon', [boneco('t_luffy_sky', 'p_luffy'), boneco('t_marujo', null, { name: 'Marujo', x: 160, mochila: [DUAS_POCOES], moedas: 30 })]),
+    })
+    const luffy = fichaAtiva('p_luffy')
+    if (luffy === undefined) throw new Error('o Luffy está na pasta')
+    const sala = salaDeTeste({ ana: ['t_luffy_sky'], bia: ['t_marujo'] })
+    try {
+      hostPlayerChanges.applyPersonagem({ personagem: luffy, ligarTokenId: 't_marujo', criadoPor: 'Bia' })
+    } finally {
+      sala.desligar()
+    }
+    expect([bonecoDa('t_luffy_sky').mochila, bonecoDa('t_luffy_sky').moedas]).toEqual([undefined, undefined])
+    expect([itens(bonecoDa('t_marujo').mochila), bonecoDa('t_marujo').moedas]).toEqual([['Poção x2'], 30])
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
+    expect(ultimoAviso()).toBe(AVISO_DO_LUFFY)
+    // Só a Ana: o Marujo da Bia ficou com as coisas dele.
+    expect(sala.recados).toEqual([{ playerId: 'ana', texto: AVISO_DO_LUFFY }])
+  })
+
+  it('o Luffy da Ana atravessa para o Reino de Goa, onde está o Luffy do Caio: os dois ficam vazios e os dois jogadores são avisados', async () => {
+    await abrir('pasta', { personagens: [ficha('p_luffy', 'Luffy', { mochila: [VAGA_DA_POCAO], moedas: 10 }), ficha('p_zoro', 'Zoro')] })
+    const sala = salaDeTeste({ ana: ['t_luffy_sky'], caio: ['t_luffy_goa'], bia: ['t_zoro_sky'] })
+    try {
+      expect(useAdventureStore.getState().transferToken('t_luffy_sky', SKY, GOA, 320, 96)).toBe(true)
+    } finally {
+      sala.desligar()
+    }
+    expect([bonecoDa('t_luffy_sky', GOA).mochila, bonecoDa('t_luffy_goa', GOA).mochila]).toEqual([undefined, undefined])
+    expect(sala.recados.map((recado) => recado.playerId).sort()).toEqual(['ana', 'caio'])
+    expect(sala.recados.every((recado) => recado.texto === AVISO_DO_LUFFY)).toBe(true)
+  })
+
+  it('sem ninguém ouvindo (sala fechada), o mestre continua com o aviso e nada mais sai', async () => {
+    await abrir('pasta', { personagens: [ficha('p_luffy', 'Luffy', { mochila: [VAGA_DA_POCAO], moedas: 10 }), ficha('p_zoro', 'Zoro')] })
+    const sala = salaDeTeste({})
+    try {
+      useMapStore.getState().setSelection([{ kind: 'token', id: 't_luffy_sky' }])
+      useMapStore.getState().duplicateSelected()
+    } finally {
+      sala.desligar()
+    }
+    expect(ultimoAviso()).toBe(AVISO_DO_LUFFY)
+    expect(sala.recados).toEqual([])
   })
 })

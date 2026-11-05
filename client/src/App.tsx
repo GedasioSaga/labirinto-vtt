@@ -138,6 +138,7 @@ import {
   bonecoVaiSerGuardado,
   hasUnsavedWork,
   hostWorldOf,
+  ouvirBonecosSeparados,
   personagensAtivos,
   temRpgNoMapa,
   pinExitsTravelOf,
@@ -221,6 +222,7 @@ import { levarMidiaDoMapaSolto } from './lib/midiaDaPasta'
 import { pastaAbertaDoArquivo, type PastaAberta } from './lib/pastasDeMapas'
 import { migrarMochilaAoAbrir } from './net/nuvem/migracaoDaMochila'
 import { conferirMochilaAoAbrir, marcarMapaImportado } from './net/nuvem/mochilaPendenteNoApp'
+import { avisarJogadoresDosBonecosSeparados } from './net/mochilaNaSala'
 import { gravarPastaDoMapa } from './stores/rpgDaPasta'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -1134,6 +1136,15 @@ function App() {
     () =>
       useLaserStore.subscribe((state, previous) => {
         if (laserStrokeEnded(previous, state)) hostBridgeRef.current?.laserOff()
+      }),
+    [],
+  )
+  // MOCHILA NA FICHA: a ficha com vários bonecos na cena deixa vazio o boneco que a mostrava — o jogador dono dele recebe o aviso também.
+  useEffect(
+    () =>
+      ouvirBonecosSeparados((separadas) => {
+        const ponte = hostBridgeRef.current
+        if (ponte !== null) avisarJogadoresDosBonecosSeparados(ponte, separadas)
       }),
     [],
   )

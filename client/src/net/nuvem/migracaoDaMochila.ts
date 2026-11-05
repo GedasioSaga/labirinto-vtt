@@ -468,7 +468,7 @@ export async function migrarMochilaAoAbrir(caminhoDoMapa: string, recuperado: Re
     const feita = await migrarMochilaDoMapa(caminhoDoMapa, discoDoApp, { recuperado })
     if (!feita.feita) return
     const diferencas = feita.diferencas === 0 ? 'Nenhuma diferença entre os mapas.' : `${feita.diferencas} diferença(s) entre os mapas: confira em ${feita.relatorio}.`
-    const variosBonecos = feita.variosBonecos === 0 ? '' : ` ${feita.variosBonecos} ficha(s) ligada(s) a mais de um boneco no mesmo mapa ficaram como estavam, com a mochila em cada boneco: decida em ${feita.relatorio}.`
+    const variosBonecos = feita.variosBonecos === 0 ? '' : ` ${feita.variosBonecos} ficha(s) ligada(s) a mais de um boneco na mesma cena ficaram como estavam, com a mochila em cada boneco: decida em ${feita.relatorio}.`
     useToastStore.getState().push('info', `A mochila e a bolsa de ${feita.fichas} personagem(ns) passaram a morar na ficha. ${diferencas}${variosBonecos}`)
   } catch (erro) {
     useToastStore.getState().push('error', `Não deu para passar a mochila para as fichas (${motivo(erro)}): o mapa abre como antes.`)

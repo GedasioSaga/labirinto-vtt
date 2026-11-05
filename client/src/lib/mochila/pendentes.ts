@@ -28,7 +28,7 @@ import { fichaSomada, itemNoAviso } from './transicao'
  * se a bolsa é cópia, e ela conta inteira (melhor o mestre ignorar do que
  * sumir calado).
  *
- * A regra é POR MAPA (por cena), como o espelho: ficha com vários bonecos na
+ * A regra é POR CENA, como o espelho: ficha com vários bonecos na
  * mesma cena (três Marinheiros da mesma ficha) não gera pendente — cada boneco
  * fica com a sua mochila. Boneco sem ficha (NPC) ou de ficha que a pasta não
  * tem também não: o espelho não toca nele. Pura: nada de disco nem store.
@@ -206,6 +206,17 @@ export function textoDoTrazido(pendente: ItemPendente, moedasDeFora: number): st
   const lugar = pendente.tipo === 'item' ? `a mochila de ${pendente.personagem}` : `a bolsa de ${pendente.personagem}`
   const teto = moedasDeFora > 0 ? ` A bolsa chegou ao teto de ${MOEDAS_MAX} moedas: ${moedasDeFora} não couberam.` : ''
   return `${oQueCarregava(pendente)} do boneco ${pendente.boneco} ${umSo(pendente) ? 'foi' : 'foram'} para ${lugar}.${teto}`
+}
+
+/** O "Trazer" que somou na ficha, mas o relatório da pasta não gravou: a soma ficou, e o próximo "Trazer" só anota. */
+export function textoDoTrazidoSemAnotar(pendente: ItemPendente, moedasDeFora: number, motivo: string): string {
+  return `${textoDoTrazido(pendente, moedasDeFora)} Mas não deu para anotar isso no relatório da pasta (${motivo}): o aviso continua, e "Trazer para a ficha" de novo só anota, sem somar outra vez.`
+}
+
+/** O "Trazer" recusado: um "Trazer" de antes caiu no meio e a ficha mudou depois. Nada foi somado. */
+export function textoDoIncerto(pendente: ItemPendente): string {
+  const lugar = pendente.tipo === 'item' ? `na mochila de ${pendente.personagem}` : `na bolsa de ${pendente.personagem}`
+  return `Não dá para saber se ${oQueCarregava(pendente)} do boneco ${pendente.boneco} já ${umSo(pendente) ? 'está' : 'estão'} ${lugar}: um "Trazer" de antes caiu no meio e a ficha mudou depois. Nada foi somado agora. Confira a ficha de ${pendente.personagem}; o aviso continua, e "Ignorar" o tira sem mexer nela.`
 }
 
 /** O aviso depois do "Ignorar": nada some calado. */
