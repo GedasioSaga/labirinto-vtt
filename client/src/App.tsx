@@ -220,6 +220,7 @@ import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } 
 import { levarMidiaDoMapaSolto } from './lib/midiaDaPasta'
 import { pastaAbertaDoArquivo, type PastaAberta } from './lib/pastasDeMapas'
 import { migrarMochilaAoAbrir } from './net/nuvem/migracaoDaMochila'
+import { conferirMochilaAoAbrir, marcarMapaImportado } from './net/nuvem/mochilaPendenteNoApp'
 import { gravarPastaDoMapa } from './stores/rpgDaPasta'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -2877,6 +2878,8 @@ function App() {
   const openMapFileWithFolder = async (path: string) => {
     // MOCHILA NA FICHA: a migração grava nas fichas ANTES de o editor lê-las (nunca lança).
     await migrarMochilaAoAbrir(path)
+    // O mapa que entrou numa pasta convertida: o que só os bonecos dele têm vira pendente antes do espelho (nunca lança).
+    await conferirMochilaAoAbrir(path)
     const opened = await openMapFileFirst(path, true)
     openInEditor(opened, await pastaAbertaDoArquivo(opened.path))
   }
@@ -3047,7 +3050,10 @@ function App() {
    */
   const handleRecover = async (copy: RecoveryCopy) => {
     // MOCHILA NA FICHA: o trabalho recuperado entra na migração com a hora da cópia.
-    if (copy.mapPath !== null) await migrarMochilaAoAbrir(copy.mapPath, copy)
+    if (copy.mapPath !== null) {
+      await migrarMochilaAoAbrir(copy.mapPath, copy)
+      await conferirMochilaAoAbrir(copy.mapPath, copy)
+    }
     // Com a pasta do mapa, como na abertura normal: o mapa que herda volta com as fichas (e a mochila) da pasta.
     setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile, pastaAbertaDoArquivo))
     recoveryAutosaveRef.current?.adoptExistingCopy()
@@ -3111,6 +3117,8 @@ function App() {
       if (!sourceDir) return
       const mapsDir = await defaultMapsDir()
       const importedMapId = await importMapFolder(sourceDir, mapsDir)
+      // Importar por cima de um mapa que já está numa pasta convertida: anota para a abertura conferir os bonecos.
+      await marcarMapaImportado(importedMapId)
       const importedPath = await join(await mapDirFor(importedMapId), 'map.json')
       // O mapa importado já ganha pasta própria em mapsDir/importedMapId — mesma
       // lógica de "sincronizar currentMapPath com a origem" de handleOpen, senão

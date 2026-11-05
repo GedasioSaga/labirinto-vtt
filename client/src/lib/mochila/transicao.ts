@@ -143,8 +143,8 @@ function somarItens(mochila: readonly CarriedItem[], chegando: readonly CarriedI
   return soma
 }
 
-/** A ficha com `chegando` somado; as moedas acima do teto da bolsa ficam de fora (e o aviso diz quantas). */
-function fichaSomada(ficha: Personagem, chegando: Conteudo, novoId: () => string): { ficha: Personagem; moedasDeFora: number } {
+/** A ficha com `chegando` somado; as moedas acima do teto da bolsa ficam de fora (e o aviso diz quantas). Também o "Trazer para a ficha" do mapa que entrou (`pendentes.ts`). */
+export function fichaSomada(ficha: Personagem, chegando: Conteudo, novoId: () => string): { ficha: Personagem; moedasDeFora: number } {
   const total = moedasDe(ficha) + moedasDe(chegando)
   const moedas = Math.min(total, MOEDAS_MAX)
   return { ficha: fichaComMochila(ficha, somarItens(ficha.mochila ?? [], chegando.mochila ?? [], novoId), moedas), moedasDeFora: total - moedas }
@@ -239,7 +239,7 @@ export function acertarBonecosDasFichas(
 }
 
 /** "Poção ×2": o item como a mochila mostra. */
-function itemNoAviso(item: CarriedItem): string {
+export function itemNoAviso(item: CarriedItem): string {
   const quantos = quantidadeDe(item)
   return quantos > 1 ? `${item.nome} ×${quantos}` : item.nome
 }

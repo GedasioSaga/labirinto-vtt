@@ -82,22 +82,22 @@ export const ARQUIVO_DO_RELATORIO = 'migracao-da-mochila.json'
 export const SUFIXO_DA_COPIA_DE_ANTES = '.antes-da-mochila'
 const VERSAO_DO_RELATORIO = 1
 
-// Os mesmos nomes de `lib/pastasDeMapas.ts` e `lib/mapFileIO.ts` (lá são privados).
-const PASTA_DOS_MAPAS = 'maps'
-const PASTA_DAS_PASTAS = 'pastas'
+// Os mesmos nomes de `lib/pastasDeMapas.ts` e `lib/mapFileIO.ts` (lá são privados). O mapa que entra numa pasta convertida (`mochilaPendente.ts`) usa os daqui.
+export const PASTA_DOS_MAPAS = 'maps'
+export const PASTA_DAS_PASTAS = 'pastas'
 const ARQUIVO_DO_INDICE = 'indice.json'
-const ARQUIVO_DO_RPG = 'rpg.json'
+export const ARQUIVO_DO_RPG = 'rpg.json'
 const ARQUIVO_DO_MAPA = 'map.json'
 const SUFIXO_ANTERIOR = '.anterior'
 
-type Bruto = Record<string, unknown>
+export type Bruto = Record<string, unknown>
 
 function isRecord(value: unknown): value is Bruto {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** O JSON do texto se for um objeto; `null` = texto torto. */
-function objetoDoTexto(texto: string): Bruto | null {
+export function objetoDoTexto(texto: string): Bruto | null {
   try {
     const valor: unknown = JSON.parse(texto)
     return isRecord(valor) ? valor : null
@@ -128,7 +128,7 @@ function bonecosDoMapa(mapa: MapData): BonecoDaJuncao[] {
 }
 
 /** As cenas lidas e as que não abriram (vão ao relatório). */
-interface CenasLidas {
+export interface CenasLidas {
   cenas: CenaDaJuncao[]
   naoAbriram: string[]
 }
@@ -213,7 +213,7 @@ async function aventuraDaPasta(disco: DiscoDaMigracao, dir: string): Promise<{ a
 }
 
 /** As cenas de um mapa da pasta: as da aventura, ou o `map.json` solto. */
-async function lerCenasDoMapa(disco: DiscoDaMigracao, dir: string, recuperado: RecoveryCopy | null, lidas: CenasLidas): Promise<void> {
+export async function lerCenasDoMapa(disco: DiscoDaMigracao, dir: string, recuperado: RecoveryCopy | null, lidas: CenasLidas): Promise<void> {
   const achada = await aventuraDaPasta(disco, dir)
   if (achada !== null) {
     await lerCenasDaAventura(disco, dir, achada.aventura, recuperado, lidas)
@@ -357,7 +357,7 @@ async function migrar(disco: DiscoDaMigracao, alvo: Alvo, lidas: CenasLidas, ago
 }
 
 /** O índice das pastas como o app o lê (`lerIndice`): o arquivo, senão a cópia `.anterior`; `null` = nenhum dos dois abre. */
-async function lerIndice(disco: DiscoDaMigracao, pastaDasPastas: string): Promise<IndiceDasPastas | null> {
+export async function lerIndice(disco: DiscoDaMigracao, pastaDasPastas: string): Promise<IndiceDasPastas | null> {
   const caminho = await disco.juntar(pastaDasPastas, ARQUIVO_DO_INDICE)
   const texto = await disco.ler(caminho)
   if (texto === null) return INDICE_VAZIO

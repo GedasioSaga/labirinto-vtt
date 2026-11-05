@@ -23,6 +23,7 @@ import {
   type PastaDeMapas,
   type RpgDaPasta,
 } from '../lib/pastasDeMapas'
+import { mapaEntrouNaPasta } from '../net/nuvem/mochilaPendenteNoApp'
 import { acompanharIndice, editarRpgDaPasta } from '../stores/rpgDaPasta'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { useToastStore } from '../stores/toastStore'
@@ -340,7 +341,9 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
   const moverPara = async (chave: string, pastaId: string | null) => {
     if ((lugarDoMapa(indice, chave)?.pasta.id ?? null) === pastaId) return
     setBusyId(chave)
-    await mudarPastas((atual) => moverMapa(atual, chave, pastaId), 'mover o mapa')
+    const movido = await mudarPastas((atual) => moverMapa(atual, chave, pastaId), 'mover o mapa')
+    // Pasta convertida: o que só os bonecos deste mapa têm vira pendente, antes de a ficha vencer o boneco (nunca lança).
+    if (movido !== null && pastaId !== null) await mapaEntrouNaPasta(chave)
     setBusyId(null)
   }
 

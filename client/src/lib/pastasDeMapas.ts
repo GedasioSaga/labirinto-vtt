@@ -293,6 +293,35 @@ export function serializarRpg(rpg: RpgDaPasta): string {
   return JSON.stringify({ versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens, ...equipes, ...marcador }, null, 2)
 }
 
+/** Os de `novos` cujo id a pasta ainda não tem: copiar duas vezes do mesmo mapa não duplica ninguém. */
+export function personagensQueAPastaNaoTem(atuais: readonly Personagem[], novos: readonly Personagem[]): Personagem[] {
+  const ids = new Set(atuais.map((personagem) => personagem.id))
+  return novos.filter((personagem) => !ids.has(personagem.id))
+}
+
+/**
+ * O "Sistema universal" da configuração da pasta: troca SÓ o sistema (`null`
+ * = "Nenhum", a pasta só organiza). Os personagens, as equipes e o marcador da
+ * mochila ficam: sem o marcador, voltar a um sistema converteria a pasta de
+ * novo e copiaria do boneco para a ficha uma mochila já gasta.
+ */
+export function rpgComSistema(rpg: RpgDaPasta, sistemaId: string | null): RpgDaPasta {
+  const { sistemaDeRpg: _antes, ...semSistema } = rpg
+  return sistemaId === null ? semSistema : { ...semSistema, sistemaDeRpg: sistemaId }
+}
+
+/**
+ * "Copiar de um mapa": os personagens do mapa que a pasta ainda não tem
+ * entram no fim, e a pasta ainda sem sistema adota o do mapa (as fichas
+ * copiadas foram feitas nele). O resto do RPG da pasta fica como estava —
+ * as equipes e o marcador da mochila também (ver `rpgComSistema`).
+ */
+export function rpgComOsPersonagensDoMapa(rpg: RpgDaPasta, doMapa: RpgDaPasta): RpgDaPasta {
+  const personagens = [...rpg.personagens, ...personagensQueAPastaNaoTem(rpg.personagens, doMapa.personagens)]
+  const sistemaDeRpg = rpg.sistemaDeRpg ?? doMapa.sistemaDeRpg
+  return sistemaDeRpg === undefined ? { ...rpg, personagens } : { ...rpg, sistemaDeRpg, personagens }
+}
+
 /** Só o RPG de uma `PastaAberta` (sem chave, nome e modo): é o que vai para o `rpg.json`. */
 export function rpgDe(pasta: RpgDaPasta): RpgDaPasta {
   const base: RpgDaPasta = pasta.sistemaDeRpg === undefined ? { personagens: pasta.personagens } : { sistemaDeRpg: pasta.sistemaDeRpg, personagens: pasta.personagens }

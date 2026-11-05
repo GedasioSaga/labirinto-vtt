@@ -2,7 +2,14 @@ import { useEffect, useId, useState, type CSSProperties } from 'react'
 import { escolherTextoJson } from '../lib/arquivosDaFicha'
 import { importarFichasDoProjetoRpg } from '../lib/importarDoProjetoRpg'
 import type { SavedMapEntry } from '../lib/mapFileIO'
-import { rpgDoMapaSalvo, type PastaDeMapas, type RpgDaPasta } from '../lib/pastasDeMapas'
+import {
+  personagensQueAPastaNaoTem,
+  rpgComOsPersonagensDoMapa,
+  rpgComSistema,
+  rpgDoMapaSalvo,
+  type PastaDeMapas,
+  type RpgDaPasta,
+} from '../lib/pastasDeMapas'
 import type { Personagem } from '../lib/personagem'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
@@ -28,12 +35,6 @@ const painelStyle: CSSProperties = {
 }
 
 const linhaStyle: CSSProperties = { display: 'flex', gap: 'var(--lb-space-2)', flexWrap: 'wrap', alignItems: 'center' }
-
-/** Os de `novos` cujo id a pasta ainda não tem: copiar duas vezes do mesmo mapa não duplica ninguém. */
-function semRepetir(atuais: readonly Personagem[], novos: readonly Personagem[]): Personagem[] {
-  const ids = new Set(atuais.map((personagem) => personagem.id))
-  return novos.filter((personagem) => !ids.has(personagem.id))
-}
 
 function nomes(personagens: readonly Personagem[]): string {
   return personagens.map((personagem) => personagem.nome).join(', ')
@@ -89,7 +90,8 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
 
   const trocarSistema = (sistemaId: string) =>
     executar(async () => {
-      await onMudar((atual) => (sistemaId === '' ? { personagens: atual.personagens } : { ...atual, sistemaDeRpg: sistemaId }))
+      // Troca só o sistema: as equipes e o marcador da mochila seguem (voltar a um sistema não converte de novo).
+      await onMudar((atual) => rpgComSistema(atual, sistemaId === '' ? null : sistemaId))
       return sistemaId === '' ? 'A pasta só organiza: cada mapa usa o próprio sistema e personagens.' : null
     })
 
@@ -99,7 +101,7 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
       const texto = await escolherTextoJson('Importar personagens do projeto-rpg-v2', 'Fichas do projeto-rpg-v2')
       if (texto === null) return null
       const resultado = await importarFichasDoProjetoRpg(texto, sistema, rpg.personagens, { reduzirImagem: buildTokenPhotoData })
-      await onMudar((atual) => ({ ...atual, personagens: [...atual.personagens, ...semRepetir(atual.personagens, resultado.personagens)] }))
+      await onMudar((atual) => ({ ...atual, personagens: [...atual.personagens, ...personagensQueAPastaNaoTem(atual.personagens, resultado.personagens)] }))
       return resultado.personagens.length === 0 ? 'Nenhum personagem entrou.' : `Entraram na pasta: ${nomes(resultado.personagens)}.`
     })
 
@@ -107,13 +109,9 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
     executar(async () => {
       const doMapa = await rpgDoMapaSalvo(origem)
       if (doMapa === null) return 'Esse mapa não tem sistema nem personagens para copiar.'
-      const novos = semRepetir(rpg.personagens, doMapa.personagens)
-      await onMudar((atual) => {
-        const personagens = [...atual.personagens, ...semRepetir(atual.personagens, doMapa.personagens)]
-        // Pasta ainda sem sistema adota o do mapa: as fichas copiadas foram feitas nele.
-        const sistemaDeRpg = atual.sistemaDeRpg ?? doMapa.sistemaDeRpg
-        return sistemaDeRpg === undefined ? { personagens } : { sistemaDeRpg, personagens }
-      })
+      const novos = personagensQueAPastaNaoTem(rpg.personagens, doMapa.personagens)
+      // Pasta ainda sem sistema adota o do mapa; as equipes e o marcador da mochila da pasta seguem.
+      await onMudar((atual) => rpgComOsPersonagensDoMapa(atual, doMapa))
       return novos.length === 0 ? 'Os personagens desse mapa já estão na pasta.' : `Copiados para a pasta: ${nomes(novos)}.`
     })
 
