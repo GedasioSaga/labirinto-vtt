@@ -20,6 +20,8 @@ export interface CampanhaDeTeste extends LeitorDaCampanha {
   gravar(gravacoes: Gravacoes): void
   todasAsOps(): readonly OpGravada[]
   todasAsRecusadas(): readonly Recusada[]
+  /** O mestre muda alguém na lista de membros (removido, outro papel): vale já na mensagem seguinte. */
+  mudarMembro(membro: Membro): void
 }
 
 export function campanhaDeTeste(fichas: readonly FichaGuardada[], membros: readonly Membro[] = MEMBROS): CampanhaDeTeste {
@@ -54,6 +56,9 @@ export function campanhaDeTeste(fichas: readonly FichaGuardada[], membros: reado
     },
     todasAsOps: () => ops,
     todasAsRecusadas: () => [...recusadas.values()],
+    mudarMembro(membro) {
+      porConta.set(membro.contaId, membro)
+    },
   }
 }
 
@@ -152,6 +157,8 @@ export interface OpcoesDaOp {
   delta?: number
   baseRev?: number
   opId?: string
+  /** As ops geradas juntas (o tudo-ou-nada é só dentro do mesmo lote); sem ele, cada op tem o seu. */
+  loteId?: string
   atomico?: true
   autorDeclarado?: string
   resolve?: string

@@ -3,14 +3,17 @@ import {
   AGORA,
   docDe,
   enviar,
+  F_DO_MESTRE,
   F_NAMI,
   F_ZORO,
   mesa,
   MESTRE_NO_APP,
   MESTRE_NO_SITE,
+  NAMI,
   NAMI_NO_PC,
   op,
   TANGERINA,
+  ZORO,
   ZORO_NO_SITE,
 } from './campanha.fixture'
 import { LIMITES } from './limites'
@@ -26,9 +29,9 @@ import type { Op } from './tipos'
 const HP = ['recursos', 'hp']
 const QTD_TANGERINA = ['mochila', 'vaga_tangerina', 'quantidade']
 
-/** A troca da mesa: Nami dá 1 Tangerina ao Zoro e ele paga 10 moedas. Gerada junto, tudo ou nada. */
-function troca(): Op[] {
-  const tudoOuNada = { atomico: true } as const
+/** A troca da mesa: Nami dá 1 Tangerina ao Zoro e ele paga 10 moedas. Gerada junto (um lote só), tudo ou nada. */
+function troca(loteId = 'lote_troca'): Op[] {
+  const tudoOuNada = { atomico: true, loteId } as const
   return [
     op(MESTRE_NO_APP, F_NAMI, QTD_TANGERINA, 'somar', { delta: -1, ...tudoOuNada }),
     op(MESTRE_NO_APP, F_ZORO, ['mochila', 'vaga_tangerina_zoro'], 'criar', { valor: { id: 'vaga_tangerina_zoro', nome: 'Tangerina' }, ...tudoOuNada }),
@@ -102,6 +105,63 @@ describe('tudo ou nada', () => {
     expect(docDe(campanha, F_NAMI).mochila).toEqual([TANGERINA])
     expect(campanha.todasAsOps()).toEqual([])
   })
+
+  it('a irmã que bate depois de outra já ensaiada: rev e valor de ANTES do grupo, e o "Usar a minha" entra', () => {
+    const campanha = mesaComMoedasDoZoro()
+    // O app paga 10 moedas do Zoro à Nami sem ter visto a rev 1: a Nami entra no ensaio, o Zoro bate, o ensaio é descartado.
+    const pagamento = { atomico: true, loteId: 'lote_pagamento' } as const
+    const lote = [op(MESTRE_NO_APP, F_NAMI, ['moedas'], 'somar', { delta: 10, ...pagamento }), op(MESTRE_NO_APP, F_ZORO, ['moedas'], 'somar', { delta: -10, ...pagamento })]
+    expect(enviar(campanha, MESTRE_NO_APP, lote).respostas).toEqual([
+      { t: 'conflito', opId: lote[0].opId, quem: 'Mestre', quando: AGORA, revAtual: 1, valorAtual: 100, porCausaDe: lote[1].opId },
+      { t: 'conflito', opId: lote[1].opId, quem: 'Mestre', quando: AGORA, revAtual: 1, valorAtual: 50 },
+    ])
+    expect(campanha.revAtual()).toBe(1)
+    expect(campanha.todasAsRecusadas().map((recusada) => recusada.resposta.revAtual)).toEqual([1, 1])
+    // "Usar a minha" das duas (§5.2): op nova com baseRev = revAtual e resolve = o opId recusado.
+    const usarAMinha = { atomico: true, loteId: 'lote_usar_a_minha', baseRev: 1 } as const
+    const resolvido = enviar(campanha, MESTRE_NO_APP, [
+      op(MESTRE_NO_APP, F_NAMI, ['moedas'], 'somar', { delta: 10, resolve: lote[0].opId, ...usarAMinha }),
+      op(MESTRE_NO_APP, F_ZORO, ['moedas'], 'somar', { delta: -10, resolve: lote[1].opId, ...usarAMinha }),
+    ])
+    expect(resolvido.respostas.map((resposta) => resposta.t)).toEqual(['ack', 'ack'])
+    expect(resolvido.violacoes).toBe(0)
+    expect([docDe(campanha, F_NAMI).moedas, docDe(campanha, F_ZORO).moedas]).toEqual([110, 40])
+  })
+
+  it('o valor do conflito é o de antes do grupo, mesmo com uma irmã que mexeu no mesmo caminho', () => {
+    const campanha = mesa()
+    enviar(campanha, MESTRE_NO_SITE, [op(MESTRE_NO_SITE, F_NAMI, ['mochila', 'vaga_tangerina', 'nome'], 'definir', { valor: 'Tangerina doce' })])
+    // Sem ter visto a rev 1: tirar 1 da pilha não sobrepõe o nome (entra no ensaio); tirar a vaga inteira bate com ele.
+    const pagamento = { atomico: true, loteId: 'lote_pagamento' } as const
+    const lote = [op(MESTRE_NO_APP, F_NAMI, QTD_TANGERINA, 'somar', { delta: -1, ...pagamento }), op(MESTRE_NO_APP, F_NAMI, ['mochila', 'vaga_tangerina'], 'apagar', pagamento)]
+    const respostas = enviar(campanha, MESTRE_NO_APP, lote).respostas
+    expect(respostas[0]).toMatchObject({ t: 'conflito', revAtual: 1, valorAtual: 3, porCausaDe: lote[1].opId })
+    expect(respostas[1]).toMatchObject({ t: 'conflito', revAtual: 1, valorAtual: { ...TANGERINA, nome: 'Tangerina doce' } })
+    expect(docDe(campanha, F_NAMI).mochila).toEqual([{ ...TANGERINA, nome: 'Tangerina doce' }])
+  })
+
+  it('duas trocas no mesmo frame, cada uma com o seu lote: o conflito de uma não derruba a outra', () => {
+    const campanha = mesaComMoedasDoZoro()
+    const lote = [
+      op(MESTRE_NO_APP, F_NAMI, HP, 'definir', { valor: 250, baseRev: 1, atomico: true, loteId: 'lote_L1' }),
+      op(MESTRE_NO_APP, F_NAMI, ['moedas'], 'somar', { delta: 5, baseRev: 1, atomico: true, loteId: 'lote_L1' }),
+      op(MESTRE_NO_APP, F_ZORO, ['moedas'], 'somar', { delta: -10, atomico: true, loteId: 'lote_L2' }),
+    ]
+    const { respostas } = enviar(campanha, MESTRE_NO_APP, lote)
+    expect(respostas.map((resposta) => resposta.t)).toEqual(['ack', 'ack', 'conflito'])
+    expect(respostas[2]).not.toHaveProperty('porCausaDe')
+    expect(docDe(campanha, F_NAMI)).toMatchObject({ recursos: { hp: 250 }, moedas: 105 })
+    expect(campanha.todasAsRecusadas().map((recusada) => recusada.opId)).toEqual([lote[2].opId])
+  })
+
+  it('a irmã atômica de lote ilegível fica no grupo em que está: nenhuma entra pela metade', () => {
+    const campanha = mesaComMoedasDoZoro()
+    const [primeira, segunda, ...resto] = troca().map((pendente) => ({ ...pendente, baseRev: 1 }))
+    const { loteId: _semLote, ...semLote } = segunda
+    const { respostas } = enviar(campanha, MESTRE_NO_APP, [primeira, semLote, ...resto])
+    expect(respostas.map((resposta) => resposta.t)).toEqual(['negado', 'negado', 'negado', 'negado'])
+    expect(campanha.todasAsOps()).toHaveLength(1)
+  })
 })
 
 describe('reenvio com o mesmo opId', () => {
@@ -132,6 +192,37 @@ describe('reenvio com o mesmo opId', () => {
     enviar(campanha, NAMI_NO_PC, [daNami])
     const copiada = op(ZORO_NO_SITE, F_ZORO, HP, 'definir', { valor: 1, opId: daNami.opId })
     expect(enviar(campanha, ZORO_NO_SITE, [copiada]).respostas).toEqual([{ t: 'negado', opId: daNami.opId, motivo: 'sem-permissao', detalhe: expect.any(String) }])
+  })
+
+  it('aceita e reenviada depois que o jogador declarado saiu (o ack se perdeu): a mesma resposta, não negado', () => {
+    const campanha = mesa()
+    const daSala = op(MESTRE_NO_APP, F_ZORO, HP, 'definir', { valor: 1, autorDeclarado: ZORO.contaId })
+    const primeira = enviar(campanha, MESTRE_NO_APP, [daSala]).respostas
+    expect(primeira).toEqual([{ t: 'ack', opId: daSala.opId, rev: 1 }])
+    campanha.mudarMembro({ ...ZORO, estado: 'removido' })
+    expect(enviar(campanha, MESTRE_NO_APP, [daSala]).respostas).toEqual(primeira)
+    // Op nova declarando quem saiu continua negada.
+    const nova = op(MESTRE_NO_APP, F_ZORO, HP, 'definir', { valor: 2, baseRev: 1, autorDeclarado: ZORO.contaId })
+    expect(enviar(campanha, MESTRE_NO_APP, [nova]).respostas[0]).toMatchObject({ t: 'negado', motivo: 'sem-permissao' })
+    expect(campanha.todasAsOps()).toHaveLength(1)
+  })
+
+  it('aceita e reenviada por quem saiu da campanha: a mesma resposta; op nova dele continua negada', () => {
+    const campanha = mesa()
+    const mudar = op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 250 })
+    const primeira = enviar(campanha, NAMI_NO_PC, [mudar]).respostas
+    campanha.mudarMembro({ ...NAMI, estado: 'removido' })
+    expect(enviar(campanha, NAMI_NO_PC, [mudar]).respostas).toEqual(primeira)
+    expect(enviar(campanha, NAMI_NO_PC, [op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 1, baseRev: 1 })]).respostas[0]).toMatchObject({ t: 'negado', motivo: 'sem-permissao' })
+  })
+
+  it('declarar como autor quem fez a op alheia não devolve a resposta dela (só o app do mestre declara)', () => {
+    const campanha = mesa()
+    enviar(campanha, MESTRE_NO_SITE, [op(MESTRE_NO_SITE, F_DO_MESTRE, ['notaDoMestre'], 'definir', { valor: 'Segredo da ilha' })])
+    const doApp = op(MESTRE_NO_APP, F_DO_MESTRE, ['notaDoMestre'], 'definir', { valor: 'Outro' })
+    expect(enviar(campanha, MESTRE_NO_APP, [doApp]).respostas[0]).toMatchObject({ t: 'conflito', valorAtual: 'Segredo da ilha' })
+    const forjada = op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 1, opId: doApp.opId, autorDeclarado: 'mestre' })
+    expect(enviar(campanha, NAMI_NO_PC, [forjada]).respostas).toEqual([{ t: 'negado', opId: doApp.opId, motivo: 'sem-permissao', detalhe: expect.any(String) }])
   })
 
   it('resolve só cita a recusada do mesmo autor', () => {

@@ -100,10 +100,11 @@ function nadaADesfazer(novoOpId: string, detalhe: string): SemOp {
 /** O pedido de desfazer, antes de virar op: quem pede, o alvo, se já foi desfeita, se ainda há o que fazer. */
 function inversaOuRecusa(leitor: LeitorDaCampanha, quem: Identidade, pedido: PedidoDeDesfazer, agora: number): Op | SemOp {
   const { novoOpId } = pedido
+  // O mesmo pedido de novo (o ack se perdeu) recebe a mesma resposta, mesmo de quem saiu da campanha depois.
+  const repetido = reenvio(leitor.opGravada(novoOpId), leitor.recusada(novoOpId), quem.contaId)
+  if (repetido.t === 'dada') return repetido
   const membro = leitor.membro(quem.contaId)
   if (!membroAtivo(membro)) return { t: 'negar', opId: novoOpId, motivo: 'sem-permissao', detalhe: 'Você não está nesta campanha' }
-  const repetido = reenvio(leitor.opGravada(novoOpId), leitor.recusada(novoOpId), membro.contaId)
-  if (repetido.t === 'dada') return repetido
   if (repetido.t === 'alheia') return { t: 'negar', opId: novoOpId, motivo: 'sem-permissao', detalhe: 'Este id de mudança é de outra pessoa' }
   const alvo = leitor.opGravada(pedido.opId)
   // Op que não existe e op que ele não pode desfazer têm a mesma resposta: não revela nada da alheia.

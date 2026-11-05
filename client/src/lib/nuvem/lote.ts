@@ -4,7 +4,7 @@ import { lerMudanca, segmentoValido, type NomeDaRegra } from './caminho'
 import { conflitoDeFichaApagada, montarConflito, opConcorrente, valorNoCaminho } from './conflito'
 import { bytesDoJson, ehRegistro, proprio, type Json } from './json'
 import { cabeNaCota, chaveDaCotaDaCampanha, chaveDaCotaDaConta, comNegadaContada, comOpContada, LIMITES, tetoDaOpEmBytes, type Cota } from './limites'
-import { autorDaOp, membroAtivo, permissaoDaMudanca, type AutorEfetivo } from './permissao'
+import { autorDaOp, membroAtivo, permissaoDaMudanca, podeDeclararAutor, type AutorEfetivo } from './permissao'
 import type {
   Conflito,
   FichaGuardada,
@@ -36,9 +36,9 @@ import type {
  * - `adiado`: cota ou ritmo; o cliente reenvia sozinho com o mesmo `opId`.
  *
  * Op por op: campo diferente nunca é derrubado pelo conflito de outro. Só as
- * `atomico` seguidas (troca e pagamento de itens, ficha trocada inteira) são
- * tudo ou nada. O mesmo `opId` de novo, aceito ou recusado, recebe a mesma
- * resposta e nunca grava duas vezes.
+ * `atomico` seguidas do mesmo `loteId` (troca e pagamento de itens, ficha
+ * trocada inteira) são tudo ou nada. O mesmo `opId` de novo, aceito ou
+ * recusado, recebe a mesma resposta e nunca grava duas vezes.
  */
 
 /** A campanha como o DO a lê. Tudo síncrono e só do que já foi gravado. */
@@ -102,17 +102,17 @@ export function resultadoSemOp(leitor: LeitorDaCampanha, quem: Identidade, saida
   return resultadoDe(estado, respostas, processo.violacoes)
 }
 
-/** O `opId` da entrada, se ela tem um legível (sem ele não há a quem responder). */
-function opIdLegivel(entrada: unknown): string | null {
+/** O `opId` (sem ele não há a quem responder) ou o `loteId` da entrada, se legível. */
+function segmentoLegivel(entrada: unknown, campo: 'opId' | 'loteId'): string | null {
   if (!ehRegistro(entrada)) return null
-  const opId = proprio(entrada, 'opId')
-  return segmentoValido(opId) ? opId : null
+  const segmento = proprio(entrada, campo)
+  return segmentoValido(segmento) ? segmento : null
 }
 
 /** Frame de ops recusado pelo ritmo (§6.5): cada op vira `adiado`, nunca `negado`. */
 export function respostasAdiadas(lote: readonly unknown[], motivo: MotivoAdiado, tentarDepoisDe: number): RespostaDaOp[] {
   return lote.flatMap((entrada): RespostaDaOp[] => {
-    const opId = opIdLegivel(entrada)
+    const opId = segmentoLegivel(entrada, 'opId')
     return opId === null ? [] : [{ t: 'adiado', opId, motivo, tentarDepoisDe }]
   })
 }
@@ -220,7 +220,7 @@ function processar(leitor: LeitorDaCampanha, quem: Identidade, lote: readonly un
   if (lote.length > LIMITES.opsPorLote) {
     // Lote grande demais é frame torto: nada entra (cortar no meio poderia partir um tudo-ou-nada). Uma violação só.
     processo.violacoes += 1
-    for (const opId of lote.map(opIdLegivel)) {
+    for (const opId of lote.map((entrada) => segmentoLegivel(entrada, 'opId'))) {
       if (opId !== null) respostas.push(negar(processo, opId, 'acima-do-teto', `Lote grande demais: máximo ${LIMITES.opsPorLote} mudanças`, true))
     }
   } else {
@@ -237,18 +237,36 @@ function ehAtomica(entrada: unknown): boolean {
   return ehRegistro(entrada) && proprio(entrada, 'atomico') === true
 }
 
-/** Cada op solta é um grupo; as `atomico` seguidas formam um grupo só (como em `aplicar`). */
+interface Grupo {
+  entradas: unknown[]
+  /** O primeiro `loteId` legível do grupo; `null` = nenhum ainda. */
+  loteId: string | null
+}
+
+/**
+ * Cada op solta é um grupo; as `atomico` seguidas DO MESMO `loteId` formam um
+ * grupo só (§5.2: tudo ou nada só entre as ops geradas juntas). Duas trocas no
+ * mesmo frame, cada uma com o seu lote, nunca se derrubam. A atômica de lote
+ * ilegível fica no grupo em que está: ela vai ser negada, e o grupo não pode
+ * entrar pela metade.
+ */
 function emGrupos(lote: readonly unknown[]): unknown[][] {
-  const grupos: unknown[][] = []
+  const grupos: Grupo[] = []
   let anteriorAtomica = false
   for (const entrada of lote) {
     const atomica = ehAtomica(entrada)
+    const loteId = segmentoLegivel(entrada, 'loteId')
     const ultimo = grupos.at(-1)
-    if (atomica && anteriorAtomica && ultimo !== undefined) ultimo.push(entrada)
-    else grupos.push([entrada])
+    const mesmoLote = ultimo !== undefined && (loteId === null || ultimo.loteId === null || ultimo.loteId === loteId)
+    if (atomica && anteriorAtomica && ultimo !== undefined && mesmoLote) {
+      ultimo.entradas.push(entrada)
+      if (ultimo.loteId === null) ultimo.loteId = loteId
+    } else {
+      grupos.push({ entradas: [entrada], loteId })
+    }
     anteriorAtomica = atomica
   }
-  return grupos
+  return grupos.map((grupo) => grupo.entradas)
 }
 
 /**
@@ -318,14 +336,17 @@ function validar(processo: Processo, entrada: unknown): Validacao {
   const { opId } = envelope
   if (processo.vistos.has(opId)) return resposta(negar(processo, opId, 'fora-do-esquema', 'Id de mudança repetido no mesmo lote'))
   processo.vistos.add(opId)
+  const jaDada = respostaJaDada(processo, envelope)
+  if (jaDada !== null) return resposta(jaDada)
   if (!membroAtivo(remetente)) return resposta(negar(processo, opId, 'sem-permissao', 'Você não está nesta campanha'))
   const declarado = envelope.autorDeclarado
   const autoria = autorDaOp(quem, remetente, declarado, declarado === undefined ? undefined : estado.leitor.membro(declarado))
   if (!autoria.ok) return resposta(negar(processo, opId, autoria.motivo, autoria.detalhe))
   const autor = autoria.autor
-  const repetida = reenvio(opGravadaDe(estado, opId), recusadaDe(estado, opId), autor.membro.contaId)
-  if (repetida.t === 'dada') return resposta(repetida.resposta)
-  if (repetida.t === 'alheia') return resposta(negar(processo, opId, 'sem-permissao', 'Este id de mudança é de outra pessoa'))
+  // A resposta já dada a este autor saiu em `respostaJaDada`; aqui sobra o id que é de outra pessoa.
+  if (reenvio(opGravadaDe(estado, opId), recusadaDe(estado, opId), autor.membro.contaId).t === 'alheia') {
+    return resposta(negar(processo, opId, 'sem-permissao', 'Este id de mudança é de outra pessoa'))
+  }
   if (envelope.desfaz !== undefined && !processo.doServidor) return resposta(negar(processo, opId, 'fora-do-esquema', 'Desfazer vai pelo pedido de desfazer'))
   if (envelope.resolve !== undefined && recusadaDe(estado, envelope.resolve)?.autorContaId !== autor.membro.contaId) {
     return resposta(negar(processo, opId, 'sem-permissao', 'Só dá para resolver a própria mudança recusada'))
@@ -343,6 +364,23 @@ function validar(processo: Processo, entrada: unknown): Validacao {
 
 function resposta(dada: RespostaDaOp): Validacao {
   return { t: 'resposta', resposta: dada }
+}
+
+/**
+ * O reenvio de uma op já respondida (o ack se perdeu) recebe a mesma resposta
+ * ANTES de conferir membro e autor de hoje: quem saiu da campanha depois, ou
+ * o jogador da sala que saiu, não transforma em "negado" uma op que está no
+ * log. O autor declarado só conta vindo do app do mestre, como em
+ * `autorDaOp`: declarar o autor de uma op alheia não devolve a resposta dela.
+ * `null` = segue a validação de sempre.
+ */
+function respostaJaDada(processo: Processo, envelope: Envelope): RespostaDaOp | null {
+  const { estado, quem, remetente } = processo
+  const declarado = envelope.autorDeclarado
+  if (declarado !== undefined && !podeDeclararAutor(quem, remetente)) return null
+  const autorContaId = declarado === undefined ? quem.contaId : declarado
+  const repetida = reenvio(opGravadaDe(estado, envelope.opId), recusadaDe(estado, envelope.opId), autorContaId)
+  return repetida.t === 'dada' ? repetida.resposta : null
 }
 
 // ── Fase 2: executar (cota, conflito, aplicar, gravar), tudo ou nada no grupo ──
@@ -443,9 +481,12 @@ function executar(estado: Estado, processo: Processo, validada: Validada): Desfe
   const { agora } = processo
   const cota = cabeNaCota(cotaDe(estado, chaveDaCotaDaConta(remetente.contaId, agora)), cotaDe(estado, chaveDaCotaDaCampanha(agora)), remetente.contaId, bytes, agora)
   if (!cota.ok) return { t: 'adiado', motivo: cota.motivo, tentarDepoisDe: cota.tentarDepoisDe }
-  const ficha = fichaDe(estado, op.fichaId)
-  const conflito = acharConflito(estado, validada, ficha)
+  // O conflito é com quem mexeu ANTES do grupo (`processo.estado`), nunca com o ensaio: as irmãs do
+  // tudo-ou-nada são a mesma intenção, e a rev e o valor que o autor recebe têm de existir depois que o
+  // ensaio é descartado (senão o "Usar a minha" com `baseRev = revAtual` cai em base inválida).
+  const conflito = acharConflito(processo.estado, validada)
   if (conflito !== null) return { t: 'conflito', conflito }
+  const ficha = fichaDe(estado, op.fichaId)
   const aplicada = aplicarOp(docDe(ficha), op)
   if (!aplicada.ok) return { t: 'negado', motivo: aplicada.motivo, detalhe: aplicada.detalhe }
   estado.rev += 1
@@ -458,8 +499,9 @@ function executar(estado: Estado, processo: Processo, validada: Validada): Desfe
   return { t: 'ack', resposta: { t: 'ack', opId: op.opId, rev: estado.rev } }
 }
 
-function acharConflito(estado: Estado, validada: Validada, ficha: FichaGuardada | undefined): Conflito | null {
+function acharConflito(estado: Estado, validada: Validada): Conflito | null {
   const { op } = validada
+  const ficha = fichaDe(estado, op.fichaId)
   const recriando = validada.regra === 'ficha' && op.acao === 'criar'
   if (ficha !== undefined && ficha.apagada && !recriando) {
     // A rev da ficha apagada é a da op que a apagou.

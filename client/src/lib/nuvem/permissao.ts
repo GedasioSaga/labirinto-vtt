@@ -64,10 +64,15 @@ export interface AutorEfetivo {
   atestadoPeloApp: boolean
 }
 
+/** Só a identidade do app (o Service Token, que é o mestre com origem `app`) declara quem mexeu na sala. Do site, nem o mestre. */
+export function podeDeclararAutor(quem: Pick<Identidade, 'origem'>, remetente: Membro | undefined): boolean {
+  return quem.origem === 'app' && remetente !== undefined && remetente.papel === 'mestre'
+}
+
 /**
- * O autor da op. `autorDeclarado` só vale com a identidade do app (o Service
- * Token, que é o mestre com origem `app`) e com um membro ativo; fica marcado
- * "atestado pelo app" (§6.4). Do site, nem o mestre declara autor.
+ * O autor da op. `autorDeclarado` só vale com a identidade do app
+ * (`podeDeclararAutor`) e com um membro ativo; fica marcado "atestado pelo
+ * app" (§6.4).
  */
 export function autorDaOp(
   quem: Pick<Identidade, 'origem'>,
@@ -76,7 +81,7 @@ export function autorDaOp(
   membroDeclarado: Membro | undefined,
 ): { ok: true; autor: AutorEfetivo } | { ok: false; motivo: MotivoNegado; detalhe: string } {
   if (declarado === undefined) return { ok: true, autor: { membro: remetente, atestadoPeloApp: false } }
-  if (quem.origem !== 'app' || remetente.papel !== 'mestre') return { ok: false, motivo: 'sem-permissao', detalhe: 'Só o app do mestre declara quem mexeu na sala' }
+  if (!podeDeclararAutor(quem, remetente)) return { ok: false, motivo: 'sem-permissao', detalhe: 'Só o app do mestre declara quem mexeu na sala' }
   if (!membroAtivo(membroDeclarado) || membroDeclarado.contaId !== declarado) return { ok: false, motivo: 'sem-permissao', detalhe: 'Quem mexeu na sala não está nesta campanha' }
   return { ok: true, autor: { membro: membroDeclarado, atestadoPeloApp: true } }
 }

@@ -98,6 +98,20 @@ describe('desfazer', () => {
     expect(campanha.todasAsOps()).toHaveLength(2)
     expect(docDe(campanha, F_NAMI).mochila).toEqual([TANGERINA])
   })
+
+  it('desfazer aceito e pedido de novo por quem saiu da campanha (o ack se perdeu): a mesma resposta', () => {
+    const campanha = mesa()
+    const mudar = op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 250 })
+    enviar(campanha, NAMI_NO_PC, [mudar])
+    const pedido = { opId: mudar.opId, novoOpId: novoId() }
+    const primeira = pedirDesfazer(campanha, NAMI_NO_PC, pedido).respostas
+    expect(primeira).toEqual([{ t: 'ack', opId: pedido.novoOpId, rev: 2 }])
+    campanha.mudarMembro({ ...NAMI, estado: 'removido' })
+    expect(pedirDesfazer(campanha, NAMI_NO_PC, pedido).respostas).toEqual(primeira)
+    // Pedido novo de quem saiu continua negado.
+    expect(pedirDesfazer(campanha, NAMI_NO_PC, { opId: mudar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'negado', motivo: 'sem-permissao' })
+    expect(campanha.todasAsOps()).toHaveLength(2)
+  })
 })
 
 describe('desfazer o desfazer e nada a desfazer', () => {
