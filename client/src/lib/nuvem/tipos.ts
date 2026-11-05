@@ -32,6 +32,9 @@ export type Origem = 'app' | 'site' | 'mesa'
 /** Quem pode ver a ficha publicada (§3.2, §6.4). */
 export type Visibilidade = 'mesa' | 'treino' | 'mestre'
 
+/** O `contaId` do mestre em `membros` (§4.5). O Service Token do app também vira ele (§6.2). */
+export const CONTA_DO_MESTRE = 'mestre'
+
 /**
  * A mudança em si: que ficha, que campo, o quê. É o que `diferencas`
  * devolve e o que `aplicar` recebe; a `Op` acrescenta o envelope.
@@ -94,9 +97,13 @@ export type MotivoNegado =
   | 'doc-grande'
   | 'base-invalida'
   | 'versao'
+  /** O cartão, a vaga ou a ficha que a op muda não existe mais, e ninguém de outra autoria mexeu nela depois da base. */
+  | 'alvo-inexistente'
+  /** Desfazer que não tem o que fazer: já desfeita, a op não mudou nada, ou o campo já está como ela deixaria ("já foi tirado"). */
+  | 'nada-a-desfazer'
 
-/** Recusa local de `aplicar`: o esquema, ou o alvo que não existe mais (cartão, vaga ou ficha apagados). */
-export type MotivoDaRecusa = MotivoNegado | 'alvo-inexistente'
+/** Recusa local de `aplicar`: o esquema, ou o alvo que não existe mais (cartão, vaga ou ficha apagados). Vai ao autor como `negado`. */
+export type MotivoDaRecusa = MotivoNegado
 
 /** Recusa temporária: a op fica na fila e vai de novo sozinha, com o mesmo `opId`. Não é violação. */
 export type MotivoAdiado = 'cota' | 'ritmo'
@@ -116,6 +123,38 @@ export interface MembroProjetado {
   contaId: string
   nome: string
   papel: Papel
+}
+
+/** Linha de `membros` no DO (§4.5). Removido = negado já na mensagem seguinte (§6.4). */
+export interface Membro extends MembroProjetado {
+  email: string
+  estado: 'ativo' | 'removido'
+}
+
+/**
+ * Linha de `fichas` no DO (§4.5): o doc COMPLETO, com os campos do mestre (a
+ * projeção tira na saída, §6.4). Apagada guarda o último doc: o dono continua
+ * conhecido para a permissão e o "recriar" do conflito.
+ */
+export interface FichaGuardada {
+  doc: Personagem
+  apagada: boolean
+  visivel: Visibilidade
+  /** A rev da última op gravada nesta ficha. */
+  rev: number
+}
+
+/**
+ * Linha de `recusadas` (§4.5): só conflito. Guarda a resposta dada, para o
+ * reenvio com o mesmo `opId` receber a mesma, e o autor efetivo, para o
+ * `resolve` só citar recusada do mesmo autor (§5.3).
+ */
+export interface Recusada {
+  opId: string
+  op: Op
+  autorContaId: string
+  resposta: Conflito
+  quando: number
 }
 
 /** Uma ficha no `estado`: para o jogador, já projetada (sem os campos do mestre, §6.4). */
@@ -151,6 +190,8 @@ export interface Conflito {
   revAtual: number
   /** A ficha foi apagada: a escolha é "recriar". */
   fichaApagada?: true
+  /** Tudo ou nada (`atomico`): esta op não bateu, mas vai junto com a `opId` que bateu. */
+  porCausaDe?: string
 }
 
 export type MensagemDoCliente =
@@ -164,7 +205,7 @@ export type MensagemDoServidor =
   | { t: 'ops'; desde: number; ate: number; lista: OpGravada[] }
   | { t: 'ack'; opId: string; rev: number }
   | ({ t: 'conflito' } & Conflito)
-  | { t: 'negado'; opId: string; motivo: MotivoNegado }
+  | { t: 'negado'; opId: string; motivo: MotivoNegado; detalhe?: string }
   | { t: 'adiado'; opId: string; motivo: MotivoAdiado; tentarDepoisDe: number }
   | { t: 'aplicada'; op: OpGravada }
   | { t: 'historico'; fichaId: string; lista: OpGravada[]; temMaisAntigas: boolean }
