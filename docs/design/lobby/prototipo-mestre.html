@@ -1,0 +1,2402 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Jogadores do Lobby</title>
+<!-- Opcional: só serve fora do Windows (celular, Mac). No Windows valem Sitka e Bahnschrift, as mesmas do app. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&family=Spectral:wght@400;500&display=swap">
+<style>
+/* =====================================================================
+   JOGADORES DO LOBBY — protótipo da tela do MESTRE (pedido de 05/11/2026,
+   docs/planos/lobby-jogadores-2026-11-05.md, última linha da seção 12).
+   Continuação de docs/design/lobby/prototipo.html (commit 0265f5f3):
+   mesmos tokens --lb-*, mesma pedra e tinta, mesmo papel do grimório.
+
+   Duas vistas da MESMA tela, com os MESMOS dados (mudar numa aparece na
+   outra): "No app" (Carregar Mapa > Configurar da pasta > aba nova) e
+   "No site" (labirintolobby.pages.dev, só para o mestre).
+
+   Materiais: o jogador é pedra (a linha da lista); a ficha é papel do
+   grimório (o cartãozinho com filete de latão). Passar a ficha de um
+   jogador a outro = levar o papel de uma pedra à outra; o destino acende
+   com a luz do lampião. As fichas sem dono ficam numa bandeja funda, à
+   parte: a mesa do mestre. Só dados inventados (o repo é público).
+   ===================================================================== */
+:root {
+  color-scheme: dark;
+  --lb-color-ink: #121214;
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-color-tide-soft: rgba(121, 169, 204, 0.14);
+  --lb-color-arcane: #ab93d6;
+  --lb-color-arcane-soft: rgba(171, 147, 214, 0.15);
+
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, 'Spectral', Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Barlow Semi Condensed', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xl: 20px;
+  --lb-font-size-xxl: 34px;
+  --lb-font-weight-regular: 400;
+  --lb-font-weight-medium: 500;
+  --lb-font-weight-semibold: 600;
+  --lb-font-tracking-wide: 0.06em;
+  --lb-font-tracking-wider: 0.14em;
+  --lb-font-leading-tight: 1.2;
+  --lb-font-leading-normal: 1.45;
+
+  --lb-space-1: 4px;
+  --lb-space-2: 8px;
+  --lb-space-3: 12px;
+  --lb-space-4: 16px;
+  --lb-space-5: 20px;
+  --lb-space-6: 24px;
+  --lb-space-8: 32px;
+  --lb-space-10: 40px;
+  --lb-control-gap: 8px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-xl: 20px;
+  --lb-radius-full: 999px;
+  --lb-shadow-md: 0 6px 16px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --lb-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.34);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Grimório: o papel da ficha. */
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --lb-gr-cartao: #211c15;
+  --lb-gr-cartao-alto: #29231a;
+  --lb-gr-campo: #15120e;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-hover: rgba(255, 236, 200, 0.06);
+
+  /* Só do site: medidas da página e do alvo de clique (as do protótipo aprovado). */
+  --lo-largura: 1180px;
+  --lo-margem: clamp(16px, 3.2vw, 32px);
+  --lo-alvo: 36px;
+
+  /* Só do protótipo: a barra de cima, que não faz parte de nenhuma das duas telas. */
+  --pt-h: 48px;
+}
+
+@media (pointer: coarse) {
+  :root { --lo-alvo: 44px; }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, input, select { font: inherit; color: inherit; }
+img, svg { display: block; }
+h1, h2, h3, h4, p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+
+:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lo-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.lo-ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lo-giro {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid var(--lb-color-brass-soft);
+  border-top-color: var(--lb-color-brass);
+  border-radius: 50%;
+  animation: lo-girar 700ms linear infinite;
+}
+
+@keyframes lo-girar { to { transform: rotate(360deg); } }
+
+/* ===================================================================
+   PROTÓTIPO — a barra de cima e a doca. NÃO fazem parte das telas:
+   borda tracejada em azul de maré, fonte menor (como no prototipo.html).
+   =================================================================== */
+.pt-barra {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  height: var(--pt-h);
+  padding: 0 16px;
+  border-bottom: 1px dashed rgba(121, 169, 204, 0.55);
+  background: rgba(13, 17, 21, 0.96);
+  font-size: 12px;
+}
+
+.pt-barra__selo { flex: none; color: var(--lb-color-tide); font-weight: var(--lb-font-weight-semibold); }
+.pt-barra__nome { min-width: 0; overflow: hidden; color: var(--lb-color-parchment-dim); text-overflow: ellipsis; white-space: nowrap; }
+.pt-barra__dica { flex: none; margin-left: auto; color: var(--lb-color-parchment-faint); white-space: nowrap; }
+
+/* Duas abas de largura igual; a pílula desliza entre elas. */
+.pt-abas {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: none;
+  padding: 3px;
+  border: 1px solid rgba(121, 169, 204, 0.3);
+  border-radius: 8px;
+  background: rgba(121, 169, 204, 0.05);
+}
+
+.pt-abas__pilula {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 2);
+  border: 1px solid rgba(121, 169, 204, 0.55);
+  border-radius: 6px;
+  background: rgba(121, 169, 204, 0.16);
+  transition: transform 200ms var(--lb-gr-ease-in-out);
+}
+
+.pt-abas[data-vista='site'] .pt-abas__pilula { transform: translateX(100%); }
+
+.pt-aba {
+  position: relative;
+  min-height: 30px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-size: 12.5px;
+  font-weight: var(--lb-font-weight-medium);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.pt-aba[aria-selected='true'] { color: var(--lb-color-parchment); }
+
+@media (hover: hover) and (pointer: fine) {
+  .pt-aba:hover { color: var(--lb-color-parchment); }
+}
+
+.pt-doca {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  width: 268px;
+  max-height: calc(100dvh - var(--pt-h) - 32px);
+  overflow: auto;
+  border: 1px dashed rgba(121, 169, 204, 0.55);
+  border-radius: var(--lb-radius-lg);
+  background: rgba(13, 17, 21, 0.95);
+  box-shadow: var(--lb-shadow-lg);
+  font-size: 12px;
+}
+
+.pt-doca__cab { display: flex; align-items: center; gap: var(--lb-space-2); padding: 6px 6px 6px 12px; }
+.pt-doca__selo { color: var(--lb-color-tide); font-weight: var(--lb-font-weight-semibold); }
+.pt-doca__dica { color: var(--lb-color-parchment-faint); }
+
+.pt-doca__fechar {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(121, 169, 204, 0.3);
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-tide);
+  cursor: pointer;
+}
+
+.pt-doca__corpo { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px; }
+.pt-doca[data-aberta='0'] .pt-doca__corpo { display: none; }
+.pt-doca[data-aberta='0'] { width: auto; }
+.pt-doca h2 { margin-top: 2px; color: var(--lb-color-parchment-faint); font-size: 11px; font-weight: var(--lb-font-weight-semibold); }
+.pt-par { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.pt-sims { display: grid; gap: 4px; }
+
+.pt-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--lb-radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--lb-color-parchment-dim);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, transform 120ms var(--lb-gr-ease-out);
+}
+
+.pt-btn:active:not(:disabled) { transform: scale(0.97); }
+.pt-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.pt-btn[aria-pressed='true'] { border-color: rgba(121, 169, 204, 0.6); background: rgba(121, 169, 204, 0.12); color: var(--lb-color-parchment); }
+
+@media (hover: hover) and (pointer: fine) {
+  .pt-btn:hover:not(:disabled) { border-color: rgba(121, 169, 204, 0.45); color: var(--lb-color-parchment); }
+}
+
+.pt-nota {
+  padding: 8px 10px;
+  border: 1px dashed rgba(121, 169, 204, 0.4);
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-tide);
+  font-size: 12px;
+}
+
+/* ===================================================================
+   NO APP — o cromo de Carregar Mapa, copiado de client/src/main.css
+   (.lb-start, .lb-appbar, .lb-maplist__item, .lb-btn, .lb-input).
+   Em volta do painel, tudo é contexto parado (inert): só Configurar,
+   as abas e a aba nova respondem.
+   =================================================================== */
+.ap {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100dvh - var(--pt-h));
+  overflow-x: clip;
+  background: var(--lb-color-ink);
+}
+
+.ap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(var(--lb-color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lb-color-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.35;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, #000 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 20%, #000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.ap::after {
+  content: '';
+  position: absolute;
+  top: -220px;
+  left: 50%;
+  z-index: -1;
+  width: 720px;
+  height: 520px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, var(--lb-color-brass-soft) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.ap-barra {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  height: 44px;
+  padding: 0 var(--lb-space-5);
+  border-bottom: 1px solid var(--lb-color-line);
+  background: var(--lb-color-stone-solid);
+}
+
+.ap-barra__marca { display: grid; place-items: center; flex: none; color: var(--lb-color-brass); }
+
+.ap-barra__trilha {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ap-barra__trilha span + span::before { content: '›'; margin-right: var(--lb-space-2); color: var(--lb-color-parchment-faint); }
+.ap-barra__trilha [aria-current] { color: var(--lb-color-parchment); }
+
+.ap-palco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-6);
+  width: min(920px, 100% - 48px);
+  margin-inline: auto;
+  padding: var(--lb-space-6) 0 180px;
+}
+
+.ap-contexto { display: flex; flex-direction: column; align-items: flex-start; gap: var(--lb-space-6); }
+
+.ap-titulo {
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xxl);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: var(--lb-font-leading-tight);
+  letter-spacing: -0.01em;
+}
+
+.ap-pasta { display: flex; flex-direction: column; gap: var(--lb-space-2); }
+
+.ap-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+}
+
+.ap-item__abrir { display: flex; align-items: center; gap: var(--lb-space-3); min-width: 0; }
+.ap-item__nome { min-width: 0; overflow: hidden; color: var(--lb-color-parchment); text-overflow: ellipsis; white-space: nowrap; }
+
+.ap-item__meta {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.ap-item__acoes { display: flex; flex: none; gap: var(--lb-space-2); }
+.ap-mapas { display: flex; flex-direction: column; gap: var(--lb-space-2); padding-left: var(--lb-space-4); }
+.ap-mapas .ap-item { opacity: 0.75; }
+
+/* O painel de Configurar, como PastaDeMapasConfig.tsx (painelStyle). */
+.ap-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-3) var(--lb-space-4) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+}
+
+/* As abas do painel: a pastilha do app (.lb-seg) com o marcado deslizando. */
+.ap-abas {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.ap-abas__pilula {
+  position: absolute;
+  top: var(--lb-space-1);
+  bottom: var(--lb-space-1);
+  left: var(--lb-space-1);
+  width: calc((100% - 12px) / 2);
+  border: 1px solid rgba(224, 164, 74, 0.28);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass-soft);
+  transition: transform 200ms var(--lb-gr-ease-in-out);
+}
+
+.ap-abas[data-aba='jogadores'] .ap-abas__pilula { transform: translateX(calc(100% + 4px)); }
+
+.ap-aba {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  min-height: 32px;
+  padding: 0 var(--lb-space-2);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  cursor: pointer;
+  transition: color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.ap-aba[aria-selected='true'] { color: var(--lb-color-brass); }
+
+@media (hover: hover) and (pointer: fine) {
+  .ap-aba:hover:not([aria-selected='true']) { color: var(--lb-color-parchment); }
+}
+
+.ap-aba__selo {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.ap-painel { outline: none; }
+.ap-hoje { display: flex; flex-direction: column; gap: var(--lb-space-3); }
+.ap-hoje__valor { color: var(--lb-color-parchment); }
+
+/* Botões e campos do app (main.css). */
+.lb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  min-height: 34px;
+  padding: 0 var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-btn .lo-ic { width: 14px; height: 14px; }
+.lb-btn:active:not(:disabled) { background: var(--lb-color-stone-sunken); transform: scale(0.97); }
+.lb-btn:disabled { border-color: var(--lb-color-line); background: transparent; color: var(--lb-color-parchment-faint); cursor: not-allowed; }
+.lb-btn--primary { border-color: var(--lb-color-brass); background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: var(--lb-font-weight-semibold); }
+.lb-btn--primary:active:not(:disabled) { background: var(--lb-color-brass); }
+.lb-btn--ghost { border-color: transparent; background: transparent; color: var(--lb-color-parchment-dim); }
+.lb-btn--ghost:disabled { border-color: transparent; }
+.lb-btn--danger:not(:disabled) { border-color: transparent; background: var(--lb-color-ember-soft); color: var(--lb-color-ember); }
+.lb-btn--compact { min-height: 30px; padding: 0 var(--lb-space-3); font-size: var(--lb-font-size-sm); }
+/* Botão de linha de lista (como em ContasDosJogadores): 24 px, o mínimo da WCAG 2.5.8. */
+.lb-btn--linha { min-height: 24px; padding: 0 var(--lb-space-2); }
+span.lb-btn { cursor: default; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-btn:hover:not(:disabled) { border-color: var(--lb-color-line-strong); background: var(--lb-color-stone-hover); }
+  .lb-btn--primary:hover:not(:disabled) { border-color: var(--lb-color-brass-bright); background: var(--lb-color-brass-bright); }
+  .lb-btn--ghost:hover:not(:disabled) { border-color: var(--lb-color-line); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); }
+  .lb-btn--danger:hover:not(:disabled) { border-color: var(--lb-color-ember); background: var(--lb-color-ember); color: var(--lb-color-brass-contrast); }
+  span.lb-btn:hover { border-color: transparent; background: transparent; }
+}
+
+.lb-label { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-medium); }
+.lb-field { display: flex; flex-direction: column; gap: var(--lb-space-1); }
+.lb-field__hint { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); }
+
+/* ===================================================================
+   NO SITE — o cromo do prototipo.html (cabeça fixa, faixa de estado,
+   página de 1180 px), com a sessão do mestre.
+   =================================================================== */
+.si {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100dvh - var(--pt-h));
+  overflow-x: clip;
+}
+
+.si::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(var(--lb-color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lb-color-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.22;
+  mask-image: radial-gradient(ellipse 80% 60% at 70% 0%, #000 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 70% 0%, #000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.si::after {
+  content: '';
+  position: absolute;
+  top: -450px;
+  left: 78%;
+  z-index: -1;
+  width: 900px;
+  height: 900px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(224, 164, 74, 0.1) 0%, rgba(224, 164, 74, 0.03) 40%, transparent 68%);
+  pointer-events: none;
+}
+
+.lo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  min-height: var(--lo-alvo);
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease,
+    transform 120ms var(--lb-gr-ease-out);
+}
+
+.lo-btn .lo-ic { width: 15px; height: 15px; }
+.lo-btn:active:not(:disabled) { transform: scale(0.97); }
+.lo-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.lo-btn--primario { border-color: var(--lb-color-brass); background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); font-weight: var(--lb-font-weight-semibold); }
+.lo-btn--fantasma { border-color: transparent; background: transparent; color: var(--lb-color-parchment-dim); }
+.lo-btn--perigo { border-color: transparent; background: var(--lb-color-ember-soft); color: var(--lb-color-ember); }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-btn:hover:not(:disabled) { border-color: var(--lb-color-parchment-faint); background: var(--lb-color-stone-hover); }
+  .lo-btn--primario:hover:not(:disabled) { border-color: var(--lb-color-brass-bright); background: var(--lb-color-brass-bright); }
+  .lo-btn--fantasma:hover:not(:disabled) { border-color: transparent; background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
+  .lo-btn--perigo:hover:not(:disabled) { border-color: var(--lb-color-ember); background: var(--lb-color-ember); color: var(--lb-color-brass-contrast); }
+}
+
+.lo-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.lo-tag--latao { border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+
+/* Sem foto, como no app: as iniciais na serifa sobre um tom estável. */
+.lo-retrato {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  aspect-ratio: 1;
+  border-radius: var(--lb-radius-sm);
+  font-family: var(--lb-font-display);
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+
+[data-tom='1'] { --tom: var(--lb-color-ember); --tom-fundo: var(--lb-color-ember-soft); }
+[data-tom='2'] { --tom: var(--lb-color-tide); --tom-fundo: var(--lb-color-tide-soft); }
+[data-tom='3'] { --tom: var(--lb-color-arcane); --tom-fundo: var(--lb-color-arcane-soft); }
+[data-tom='4'] { --tom: var(--lb-color-online); --tom-fundo: var(--lb-color-online-soft); }
+[data-tom='0'] { --tom: var(--lb-color-brass-bright); --tom-fundo: var(--lb-color-brass-soft); }
+.lo-retrato[data-tom], .lo-av[data-tom] { background: var(--tom-fundo); color: var(--tom); }
+
+.lo-av {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 1;
+  user-select: none;
+}
+
+.lo-ponto {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lb-color-online);
+  box-shadow: 0 0 0 3px var(--lb-color-online-soft);
+}
+
+.lo-av > .lo-ponto { position: absolute; right: -2px; bottom: -2px; box-shadow: 0 0 0 2px var(--lb-color-stone-solid); }
+
+.lo-cabeca {
+  position: sticky;
+  top: var(--pt-h);
+  z-index: 30;
+  border-bottom: 1px solid var(--lb-color-line);
+  background: rgba(18, 18, 20, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.lo-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-4);
+  width: min(var(--lo-largura), calc(100% - 2 * var(--lo-margem)));
+  min-height: 56px;
+  margin-inline: auto;
+}
+
+.lo-marca { display: inline-flex; align-items: baseline; gap: 7px; flex: none; padding: 4px 2px; }
+.lo-marca__nome { color: var(--lb-color-parchment); font-family: var(--lb-font-display); font-size: 21px; line-height: 1; }
+.lo-marca__lobby { color: var(--lb-color-brass); font-family: var(--lb-font-utility); font-size: var(--lb-font-size-sm); letter-spacing: var(--lb-font-tracking-wider); text-transform: uppercase; }
+
+.lo-trilha { flex: 1; min-width: 0; }
+.lo-trilha ol { display: flex; align-items: center; min-width: 0; color: var(--lb-color-parchment-faint); }
+.lo-trilha li { display: flex; align-items: center; min-width: 0; }
+.lo-trilha li + li::before { content: '/'; margin: 0 10px; color: var(--lb-color-line-strong); }
+.lo-trilha span { overflow: hidden; padding: 4px 2px; text-overflow: ellipsis; white-space: nowrap; }
+.lo-trilha [aria-current='page'] { color: var(--lb-color-parchment); }
+
+.lo-topo__direita { display: flex; flex: none; align-items: center; gap: var(--lb-space-3); margin-left: auto; }
+
+.lo-quem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: var(--lo-alvo);
+  padding: 0 6px 0 4px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-solid);
+}
+
+.lo-faixa { border-top: 1px solid var(--lb-color-line); }
+
+.lo-faixa__dentro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--lb-space-3);
+  width: min(var(--lo-largura), calc(100% - 2 * var(--lo-margem)));
+  min-height: 36px;
+  margin-inline: auto;
+  padding: 4px 0;
+}
+
+.lo-faixa__principal { display: inline-flex; align-items: center; gap: var(--lb-space-2); font-weight: var(--lb-font-weight-medium); }
+.lo-faixa__principal .lo-ic { width: 15px; height: 15px; }
+.lo-faixa[data-estado='salvo'] .lo-faixa__principal { color: var(--lb-color-parchment-dim); }
+.lo-faixa[data-estado='salvo'] .lo-ic { color: var(--lb-color-online); }
+.lo-faixa__extra { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+.lo-pagina {
+  width: min(var(--lo-largura), calc(100% - 2 * var(--lo-margem)));
+  margin-inline: auto;
+  padding: var(--lb-space-8) 0 200px;
+}
+
+.lo-cab-pag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--lb-space-4) var(--lb-space-8);
+  margin-bottom: var(--lb-space-6);
+}
+
+.lo-cab-pag__texto { display: flex; flex-direction: column; gap: var(--lb-space-2); min-width: 0; max-width: 64ch; }
+
+.lo-titulo {
+  font-family: var(--lb-font-display);
+  font-size: clamp(30px, 4.4vw, 44px);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  outline: none;
+}
+
+.lo-sub { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-lg); }
+
+.lo-so-mestre {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  max-width: 40ch;
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lo-so-mestre .lo-ic { margin-top: 2px; color: var(--lb-color-brass-bright); }
+.lo-so-mestre b { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-medium); }
+
+/* ===================================================================
+   A TELA: JOGADORES DO LOBBY (.jl-*). Uma estrutura só; a densidade
+   muda pela vista: no app, a régua compacta do painel (botão de 30 px,
+   texto de 13); no site, a do protótipo aprovado (alvo de 36/44 px).
+   =================================================================== */
+.jl {
+  --jl-gap: 12px;
+  --jl-pad: 12px 14px;
+  --jl-nome: 16px;
+  --jl-av: 32px;
+  --jl-ret: 34px;
+  --jl-ficha-w: 196px;
+  --jl-ficha-h: 62px;
+  --jl-sel-h: 26px;
+  --jl-col: 240px;
+  --jl-texto: var(--lb-font-size-md);
+  --jl-input-h: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jl-gap);
+}
+
+.jl[data-modo='site'] {
+  --jl-gap: 20px;
+  --jl-pad: 16px 20px;
+  --jl-nome: 21px;
+  --jl-av: 40px;
+  --jl-ret: 40px;
+  --jl-ficha-w: 236px;
+  --jl-ficha-h: 70px;
+  --jl-sel-h: 32px;
+  --jl-col: 300px;
+  --jl-texto: 14px;
+  --jl-input-h: var(--lo-alvo);
+}
+
+@media (pointer: coarse) {
+  .jl[data-modo='site'] { --jl-sel-h: 40px; --jl-ficha-h: 78px; }
+}
+
+.jl-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px var(--lb-space-4);
+}
+
+.jl-intro { max-width: 62ch; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+.jl-sinc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+.jl-sinc .lo-ic { width: 14px; height: 14px; color: var(--lb-color-online); }
+
+/* Avisos: o que impede alguém de entrar, com a ação que conserta. */
+.jl-avisos { display: flex; flex-direction: column; gap: 6px; }
+
+.jl-aviso {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lb-space-2) var(--lb-space-3);
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  font-size: var(--jl-texto);
+}
+
+.jl[data-modo='site'] .jl-aviso { padding: 8px 8px 8px 16px; border-radius: var(--lb-radius-lg); }
+.jl-aviso p { min-width: 0; color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; }
+.jl-aviso b { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-medium); }
+.jl-aviso[data-tom='brasa'] { border-color: rgba(226, 100, 90, 0.35); background: var(--lb-color-ember-soft); }
+.jl-aviso[data-tom='brasa'] > .lo-ic { color: var(--lb-color-ember); }
+.jl-aviso[data-tom='latao'] { border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); }
+.jl-aviso[data-tom='latao'] > .lo-ic { color: var(--lb-color-brass-bright); }
+
+.jl-quadro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--jl-col);
+  align-items: start;
+  gap: var(--jl-gap);
+}
+
+.jl-cab { display: flex; align-items: baseline; gap: var(--lb-space-2); margin-bottom: var(--lb-space-2); }
+.jl-cab__t { font-family: var(--lb-font-display); font-size: 17px; font-weight: var(--lb-font-weight-regular); line-height: 1.2; }
+.jl[data-modo='site'] .jl-cab__t { font-size: var(--lb-font-size-xl); }
+.jl-cab__n { color: var(--lb-color-parchment-faint); font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+
+/* ---- a lista de jogadores: uma pedra, linhas separadas por filete */
+.jl-jogadores {
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-bevel);
+  outline: none;
+}
+
+.jl-jog {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px var(--lb-space-3);
+  padding: var(--jl-pad);
+  outline: none;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.jl-jog + .jl-jog { border-top: 1px solid var(--lb-color-line); }
+.jl-jog:first-child { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.jl-jog:last-child { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
+
+/* O destino do arrasto acende com a luz do lampião. */
+.jl-jog[data-sobre='1'] {
+  background: linear-gradient(90deg, rgba(224, 164, 74, 0.13), rgba(224, 164, 74, 0.04));
+  box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.6);
+}
+
+/* Linha nova (convite) entra uma vez. */
+.jl-jog[data-entrando='1'] { animation: jl-entrar 220ms var(--lb-gr-ease-out); }
+
+@keyframes jl-entrar {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+.jl-jog__av { width: var(--jl-av); height: var(--jl-av); margin-top: 2px; font-size: calc(var(--jl-av) * 0.4); }
+.jl-jog__corpo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.jl-jog__cab { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+
+.jl-jog__nome {
+  font-family: var(--lb-font-display);
+  font-size: var(--jl-nome);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.jl-jog__email { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--lb-space-2); min-width: 0; }
+.jl-email { min-width: 0; color: var(--lb-color-parchment-dim); font-size: var(--jl-texto); overflow-wrap: anywhere; }
+.jl-jog__conta { display: flex; align-items: center; gap: 6px; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.jl-jog__conta .lo-ic { width: 13px; height: 13px; }
+.jl-alerta { display: flex; align-items: center; gap: 6px; color: var(--lb-color-ember); font-size: var(--lb-font-size-sm); }
+.jl-alerta .lo-ic { width: 13px; height: 13px; }
+
+.jl-jog__acoes { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: 4px; }
+
+/* ---- situação: a pastilha diz o estado, o texto ao lado diz o porquê */
+.jl-sit { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px var(--lb-space-2); font-size: var(--lb-font-size-sm); }
+
+.jl-sit__marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-full);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.jl-sit__marca .lo-ic { width: 12px; height: 12px; stroke-width: 2.2; }
+.jl-sit__mais { color: var(--lb-color-parchment-faint); }
+.jl-sit[data-sit='entrou'] .jl-sit__marca,
+.jl-sit[data-sit='online'] .jl-sit__marca { background: var(--lb-color-online-soft); color: var(--lb-color-online); }
+.jl-sit[data-sit='online'] .lo-ponto { width: 7px; height: 7px; box-shadow: none; }
+.jl-sit[data-sit='convidado'] .jl-sit__marca { background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
+.jl-sit[data-sit='sem-email'] .jl-sit__marca { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.jl-sit[data-sit='repetido'] .jl-sit__marca,
+.jl-sit[data-sit='falhou'] .jl-sit__marca { background: var(--lb-color-ember-soft); color: var(--lb-color-ember); }
+.jl-sit[data-sit='enviando'] .jl-sit__marca { border-color: var(--lb-color-line-strong); color: var(--lb-color-parchment-dim); }
+
+/* A troca de estado aparece em vez de trocar seco (140 ms, só opacidade). */
+.jl-sit[data-mudou='1'] { animation: jl-aparecer 160ms ease-out; }
+
+@keyframes jl-aparecer { from { opacity: 0; } }
+
+/* ---- os papéis: as fichas */
+.jl-fichas-area { grid-column: 2 / -1; min-width: 0; }
+
+.jl-fichas { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
+
+.jl-fichas__vazio {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  min-height: var(--jl-ficha-h);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+[data-sobre='1'] .jl-fichas__vazio { display: none; }
+
+.jl-ficha {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 4px var(--lb-space-2);
+  width: var(--jl-ficha-w);
+  max-width: 100%;
+  min-height: var(--jl-ficha-h);
+  padding: 6px 2px 6px 6px;
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-md);
+  background: linear-gradient(180deg, var(--lb-gr-cartao-alto), var(--lb-gr-cartao));
+  box-shadow: var(--lb-shadow-bevel);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color 120ms ease, opacity 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .jl-ficha { cursor: grab; }
+  .jl-ficha:hover { border-color: rgba(224, 164, 74, 0.55); }
+  .jl-ficha:hover .jl-alca { color: var(--lb-color-brass); }
+}
+
+.jl-ficha__ret { grid-row: 1 / span 2; width: var(--jl-ret); font-size: calc(var(--jl-ret) * 0.38); }
+
+.jl-ficha__nome {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--lb-color-parchment);
+  font-size: var(--jl-texto);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jl-alca {
+  display: grid;
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  place-items: center;
+  align-self: stretch;
+  width: 22px;
+  color: var(--lb-color-parchment-faint);
+  touch-action: none;
+  cursor: grab;
+  transition: color 120ms ease;
+}
+
+.jl-alca .lo-ic { width: 14px; height: 14px; stroke-width: 2.6; }
+
+@media (pointer: coarse) {
+  .jl-alca { width: 40px; }
+}
+
+.jl-ficha__dono { display: flex; grid-column: 2; align-items: center; gap: 6px; min-width: 0; }
+.jl-ficha__rot { flex: none; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+.jl-dono {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--jl-sel-h);
+  padding: 0 22px 0 8px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a2a09a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 5px center / 14px 14px;
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  text-overflow: ellipsis;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color var(--lb-motion-fast) ease;
+}
+
+.jl-dono option { background: var(--lb-color-stone-solid); color: var(--lb-color-parchment); }
+.jl-dono:focus-visible { outline: none; border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px var(--lb-color-brass); }
+
+@media (hover: hover) and (pointer: fine) {
+  .jl-dono:hover { border-color: var(--lb-color-parchment-faint); }
+}
+
+.jl-ficha__nota { grid-column: 1 / -1; padding-left: 2px; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); }
+
+/* Enquanto voa: o papel deixa a marca tracejada no lugar de onde saiu. */
+.jl-ficha.is-origem { border-style: dashed; opacity: 0.38; }
+
+/* A cópia que segue o ponteiro: levanta (escala e giro curtos), segue
+   quadro a quadro pelo translate, que não tem transição. */
+.jl-fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 80;
+  margin: 0;
+  box-shadow: var(--lb-shadow-float);
+  pointer-events: none;
+  scale: 1;
+  rotate: 0deg;
+  transition: scale 160ms var(--lb-gr-ease-out), rotate 160ms var(--lb-gr-ease-out);
+  will-change: translate;
+}
+
+.jl-fantasma.is-no-ar { scale: 1.04; rotate: -1.5deg; }
+.jl-fantasma.is-voltando { transition: translate 200ms var(--lb-gr-ease-out), scale 200ms var(--lb-gr-ease-out), rotate 200ms var(--lb-gr-ease-out); }
+
+/* A vaga: a pausa antes de soltar já mostra onde o papel vai cair e o que acontece. */
+.jl-vaga {
+  display: flex;
+  align-items: center;
+  width: var(--jl-ficha-w);
+  max-width: 100%;
+  min-height: var(--jl-ficha-h);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px dashed var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.35;
+  animation: jl-aparecer 140ms ease-out;
+}
+
+body.is-arrastando, body.is-arrastando * { cursor: grabbing !important; user-select: none !important; }
+
+/* ---- a bandeja: fichas sem dono */
+.jl-sem-dono {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--jl-pad);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-sunken);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.jl-sem-dono .jl-cab { margin-bottom: 0; }
+.jl-sem-dono .jl-dica { margin-bottom: var(--lb-space-1); }
+.jl-sem-dono .jl-fichas { flex-direction: column; flex-wrap: nowrap; }
+.jl-sem-dono .jl-ficha, .jl-sem-dono .jl-vaga { width: 100%; }
+.jl-sem-dono[data-sobre='1'] { border-color: var(--lb-color-brass); background: linear-gradient(180deg, rgba(224, 164, 74, 0.11), rgba(224, 164, 74, 0.03)); }
+
+/* ---- campos: e-mail do jogador e convite */
+.jl-input {
+  flex: 1 1 200px;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--jl-input-h);
+  padding: 0 10px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  transition: border-color var(--lb-motion-fast) ease, box-shadow var(--lb-motion-fast) ease;
+}
+
+.jl[data-modo='site'] .jl-input { padding: 0 12px; border-color: var(--lb-color-line-strong); background: var(--lb-gr-campo); font-size: var(--lb-font-size-lg); }
+.jl-input::placeholder { color: var(--lb-color-parchment-faint); }
+.jl-input:focus-visible { outline: none; border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px var(--lb-color-brass); }
+.jl-input[aria-invalid='true'] { border-color: var(--lb-color-ember); }
+
+@media (hover: hover) and (pointer: fine) {
+  .jl-input:hover:not(:focus-visible):not([aria-invalid='true']) { border-color: var(--lb-color-line-strong); }
+}
+
+.jl-linha { display: flex; flex-wrap: wrap; gap: 6px; }
+.jl-email-form { display: flex; flex-direction: column; gap: 4px; width: 100%; max-width: 480px; }
+.jl-rot { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.jl-erro { display: flex; align-items: flex-start; gap: 6px; color: var(--lb-color-ember); font-size: var(--lb-font-size-sm); }
+.jl-erro .lo-ic { width: 13px; height: 13px; margin-top: 2px; }
+.jl-dica { max-width: 64ch; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+.jl-convite {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--jl-gap);
+  padding: var(--jl-pad);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: rgba(26, 26, 30, 0.7);
+}
+
+.jl-convite__rot { color: var(--lb-color-parchment); font-size: var(--jl-texto); font-weight: var(--lb-font-weight-medium); }
+.jl-convite .jl-linha { max-width: 540px; }
+
+/* ---- confirmação de remover: no lugar, como o "Apagar a pasta?" do app */
+.jl-confirma {
+  display: flex;
+  grid-column: 2 / -1;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid rgba(226, 100, 90, 0.35);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-ember-soft);
+  outline: none;
+}
+
+.jl-confirma[data-entrando='1'] { animation: jl-entrar 180ms var(--lb-gr-ease-out); }
+.jl-confirma__titulo { color: var(--lb-color-parchment); font-size: var(--jl-texto); font-weight: var(--lb-font-weight-semibold); }
+.jl-confirma p:not(.jl-confirma__titulo) { max-width: 66ch; color: var(--lb-color-parchment-dim); }
+.jl-confirma__acoes { display: flex; flex-wrap: wrap; gap: var(--lb-control-gap); }
+
+/* ---- vazio: ninguém no Lobby ainda */
+.jl-vazio {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--lb-space-6);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+}
+
+.jl-vazio__t { font-family: var(--lb-font-display); font-size: var(--lb-font-size-xl); font-weight: var(--lb-font-weight-regular); }
+.jl-vazio p { max-width: 56ch; color: var(--lb-color-parchment-dim); }
+
+/* ---------------------------------------------------- notificações */
+.lo-torradas {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--lb-space-2);
+  width: min(460px, calc(100% - 32px));
+  transform: translateX(-50%);
+  outline: none;
+  pointer-events: none;
+}
+
+.lo-torrada {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  padding: 10px 8px 10px 16px;
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-float);
+  pointer-events: auto;
+  transition: opacity 220ms var(--lb-gr-ease-out), transform 220ms var(--lb-gr-ease-out);
+}
+
+@starting-style {
+  .lo-torrada { opacity: 0; transform: translateY(100%); }
+}
+
+.lo-torrada[data-saindo='1'] { opacity: 0; transform: translateY(40%); transition-duration: 160ms; }
+.lo-torrada > .lo-ic { color: var(--lb-color-online); }
+.lo-torrada[data-tom='erro'] { border-color: rgba(226, 100, 90, 0.45); }
+.lo-torrada[data-tom='erro'] > .lo-ic { color: var(--lb-color-ember); }
+.lo-torrada p { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lo-torrada .lo-btn { min-height: 30px; padding: 0 10px; }
+.lo-torrada .lo-btn--fantasma { width: 30px; padding: 0; }
+
+/* -------------------------------------------------------- larguras */
+@media (max-width: 900px) {
+  .jl[data-modo='site'] { --jl-col: 256px; }
+}
+
+@media (max-width: 720px) {
+  .pt-barra__nome, .pt-barra__dica { display: none; }
+  .pt-abas { margin-left: auto; }
+  .ap-palco { width: calc(100% - 32px); }
+  .ap-item { flex-wrap: wrap; }
+  .lo-trilha { display: none; }
+  .lo-quem__nome { display: none; }
+  .lo-cab-pag { margin-bottom: var(--lb-space-5); }
+  .lo-so-mestre { max-width: none; }
+  .jl-quadro { grid-template-columns: minmax(0, 1fr); }
+  .jl[data-modo='site'] { --jl-pad: 14px; --jl-nome: 19px; }
+  .jl-jog { grid-template-columns: auto minmax(0, 1fr); }
+  .jl-jog__acoes { grid-column: 2 / -1; justify-content: flex-start; }
+  .jl-fichas-area, .jl-confirma { grid-column: 1 / -1; }
+  .jl-ficha, .jl-vaga { width: 100%; }
+  .jl-aviso { grid-template-columns: auto minmax(0, 1fr); }
+  .jl-aviso > .lo-btn, .jl-aviso > .lb-btn { grid-column: 2; justify-self: start; }
+  .jl-email-form { max-width: none; }
+  .pt-doca { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 55dvh; }
+  .pt-doca[data-aberta='0'] { left: auto; }
+}
+
+/* iPhone aumenta a página ao focar campo com letra menor que 16 px. */
+@media (pointer: coarse) {
+  .jl[data-modo='site'] .jl-input, .jl[data-modo='site'] .jl-dono { font-size: 16px; }
+}
+
+/* Movimento reduzido: como o main.css do app, tudo encurta para 1 ms;
+   o papel não levanta nem gira, e o JS não faz voar (FLIP) nem voltar. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .lo-giro { animation: none !important; border-color: var(--lb-color-brass); }
+  .jl-fantasma.is-no-ar { scale: 1; rotate: 0deg; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-visto" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-alerta" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4v.2"/></symbol>
+    <symbol id="i-voltar" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+    <symbol id="i-lapis" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></symbol>
+    <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+    <symbol id="i-convite" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6l8.5 7 8.5-7"/></symbol>
+    <symbol id="i-fechar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-chave" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l2 2M14 9l2 2"/></symbol>
+    <symbol id="i-alca" viewBox="0 0 24 24"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></symbol>
+    <symbol id="i-olho" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+    <symbol id="i-labirinto" viewBox="0 0 16 16"><path d="M2 2h12v12H2zM5 5h6v6H8M8 2v3M5 8v3"/></symbol>
+  </defs>
+</svg>
+
+<div class="pt-barra">
+  <span class="pt-barra__selo">Protótipo</span>
+  <span class="pt-barra__nome">Jogadores do Lobby, a tela do mestre</span>
+  <div class="pt-abas" id="pt-abas" role="tablist" aria-label="Onde a tela aparece" data-vista="app">
+    <span class="pt-abas__pilula" aria-hidden="true"></span>
+    <button type="button" class="pt-aba" role="tab" id="pt-aba-app" aria-controls="vista" aria-selected="true" tabindex="0" data-vista="app">No app</button>
+    <button type="button" class="pt-aba" role="tab" id="pt-aba-site" aria-controls="vista" aria-selected="false" tabindex="-1" data-vista="site">No site</button>
+  </div>
+  <span class="pt-barra__dica">dados inventados</span>
+</div>
+
+<div id="vista" role="tabpanel" aria-labelledby="pt-aba-app"></div>
+<div class="lo-torradas" id="torradas" role="status" aria-live="polite" tabindex="-1" aria-label="Avisos (F8)"></div>
+<div id="camada" aria-hidden="true"></div>
+
+<aside class="pt-doca" id="doca" data-aberta="1" aria-label="Protótipo: simulações (não faz parte da tela)">
+  <div class="pt-doca__cab">
+    <span class="pt-doca__selo">Simular</span>
+    <span class="pt-doca__dica">fora da tela</span>
+    <button type="button" class="pt-doca__fechar" data-acao="doca" aria-expanded="true" aria-controls="doca-corpo">Esconder</button>
+  </div>
+  <div class="pt-doca__corpo" id="doca-corpo">
+    <h2 id="pt-conv-t">O próximo envio à Cloudflare</h2>
+    <div class="pt-par" role="group" aria-labelledby="pt-conv-t">
+      <button type="button" class="pt-btn" data-acao="sim-ok" aria-pressed="true">Dá certo</button>
+      <button type="button" class="pt-btn" data-acao="sim-falha" aria-pressed="false">Falha</button>
+    </div>
+    <h2 id="pt-sims-t">Acontecer agora</h2>
+    <div class="pt-sims" role="group" aria-labelledby="pt-sims-t">
+      <button type="button" class="pt-btn" data-acao="sim-duda" id="pt-duda">Duda entra no site pela primeira vez</button>
+      <button type="button" class="pt-btn" data-acao="sim-vazio">Campanha sem jogadores</button>
+      <button type="button" class="pt-btn" data-acao="sim-exemplo">Voltar aos dados de exemplo</button>
+    </div>
+  </div>
+</aside>
+
+<noscript><p style="padding:24px">Este protótipo precisa de JavaScript ligado.</p></noscript>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ===================================================================
+     DADOS — todos inventados (o repo é público). A mesma campanha e as
+     mesmas fichas do prototipo.html; aqui quem está logado é o mestre.
+     =================================================================== */
+  const MIN = 60 * 1000;
+  const HORA = 60 * MIN;
+  const DIA = 24 * HORA;
+  const agoraMenos = (minutos) => Date.now() - minutos * MIN;
+
+  const MESTRE = { nome: 'Rafa', email: 'rafa.mestre@example.com', tom: 0 };
+  const CAMPANHA = { nome: 'Rota das Ilhas Partidas', sistema: 'One Piece', mapas: 6 };
+  const ENDERECO = 'labirintolobby.pages.dev';
+  const ESPERA_DO_CONVITE = 1500;
+  const ESPERA_DO_ENVIO = 800;
+
+  /* g: 'a' ou 'o', para "Convidada" e "Convidado". */
+  function dadosDeExemplo() {
+    return {
+      jogadores: [
+        { id: 'bia', nome: 'Bia', g: 'a', tom: 2, email: 'bia.souza@example.com', sit: 'entrou', ultimo: agoraMenos(130), pin: true, aparelhos: 2 },
+        { id: 'caio', nome: 'Caio', g: 'o', tom: 1, email: 'caio.rocha@example.com', sit: 'entrou', ultimo: agoraMenos(0), online: true, pin: true, aparelhos: 1 },
+        { id: 'duda', nome: 'Duda', g: 'a', tom: 3, email: 'duda.lins@example.com', sit: 'convidado', convidadoEm: agoraMenos(3 * 24 * 60), pin: true, aparelhos: 1 },
+        { id: 'leo', nome: 'Léo', g: 'o', tom: 4, email: '', sit: 'convidado', pin: true, aparelhos: 1 },
+        { id: 'mel', nome: 'Mel', g: 'a', tom: 0, email: 'duda.lins@example.com', sit: 'convidado', pin: true, aparelhos: 0 },
+      ],
+      fichas: [
+        { id: 'sora', nome: 'Sora Maretta', tom: 2, dono: 'bia' },
+        { id: 'tanuki', nome: 'Tanuki Bento', tom: 4, dono: 'bia' },
+        { id: 'gael', nome: 'Gael Ferrolho', tom: 1, dono: 'caio' },
+        { id: 'iara', nome: 'Iara Tormenta', tom: 3, dono: 'duda' },
+        { id: 'barto', nome: 'Bartô Cinzas', tom: 0, dono: 'leo' },
+        { id: 'ondino', nome: 'Ondino Velho', tom: 2, dono: null, nota: 'Na ficha: Vô Nico, sem conta' },
+        { id: 'pena', nome: 'Pena Rasa', tom: 3, dono: null },
+      ],
+    };
+  }
+
+  /* ===================================================================
+     ESTADO DO PROTÓTIPO
+     =================================================================== */
+  const inicial = dadosDeExemplo();
+  const estado = {
+    vista: location.hash === '#site' ? 'site' : 'app',
+    configAberto: true,
+    abaApp: 'jogadores',
+    jogadores: inicial.jogadores,
+    fichas: inicial.fichas,
+    proximo: 'ok',          // o próximo convite: 'ok' ou 'falha' (doca)
+    enviando: 0,            // mudanças de dono/remoção a caminho
+    editando: null,         // id do jogador com o e-mail aberto para trocar
+    removendo: null,        // id do jogador na confirmação de remover
+    removendoDesde: 0,
+    rasc: {},               // rascunhos dos campos, pela chave data-k
+    erros: {},              // erro de cada campo, pela chave data-k
+    desfazer: [],
+    focar: null,            // data-k a focar depois do próximo render
+    selecionar: false,
+    mudouSit: new Set(),    // linhas cuja situação acabou de mudar
+    renderPendente: false,
+  };
+  let seq = 0;
+
+  /* ---------------------------------------------------------- utilidades */
+  const $ = (sel, raiz = document) => raiz.querySelector(sel);
+  const $$ = (sel, raiz = document) => [...raiz.querySelectorAll(sel)];
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ESC[c]);
+  const ic = (nome, cls = '') => `<svg class="lo-ic ${cls}" aria-hidden="true"><use href="#i-${nome}"/></svg>`;
+  const iniciais = (nome) => nome.split(/ +/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+  const reduzido = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const jog = (id) => estado.jogadores.find((j) => j.id === id) || null;
+  const ficha = (id) => estado.fichas.find((f) => f.id === id) || null;
+  const fichasDe = (id) => estado.fichas.filter((f) => f.dono === id);
+  const semDono = () => estado.fichas.filter((f) => !f.dono || !jog(f.dono));
+  const emVoo = () => estado.enviando + estado.jogadores.filter((j) => j.envio === 'enviando').length;
+
+  function listaDeNomes(nomes) {
+    if (nomes.length <= 1) return nomes.join('');
+    return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+  }
+
+  function haQuanto(t) {
+    const m = Math.round((Date.now() - t) / MIN);
+    if (m < 1) return 'agora';
+    if (m < 60) return `há ${m} min`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `há ${h} h`;
+    const d = Math.round(h / 24);
+    return `há ${plural(d, 'dia', 'dias')}`;
+  }
+
+  function nomeDoEmail(email) {
+    const local = email.split('@')[0];
+    const partes = local.split(/[._-]+/).filter(Boolean).slice(0, 2);
+    const nome = partes.map((p) => p[0].toUpperCase() + p.slice(1)).join(' ');
+    return nome || local;
+  }
+
+  const FORMATO_DE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  function validarEmail(valor, idProprio) {
+    if (valor === '') return 'Escreva o e-mail Google do jogador.';
+    if (!FORMATO_DE_EMAIL.test(valor)) return 'Falta um pedaço do e-mail. Exemplo: nome@example.com';
+    if (valor === MESTRE.email) return 'Esse é o seu e-mail de mestre: você já entra em tudo.';
+    const dono = estado.jogadores.find((j) => j.id !== idProprio && j.email === valor);
+    if (dono) return `Esse e-mail já é de ${dono.nome}.`;
+    return null;
+  }
+
+  /* Dois jogadores com o mesmo e-mail: vale o primeiro da lista; o outro fica parado. */
+  function repetidoCom(j) {
+    if (!j.email) return null;
+    return estado.jogadores.find((o) => o !== j && o.email === j.email) || null;
+  }
+
+  function ehRepetidoParado(j) {
+    const outro = repetidoCom(j);
+    return outro !== null && estado.jogadores.indexOf(outro) < estado.jogadores.indexOf(j);
+  }
+
+  function situacao(j) {
+    if (j.envio === 'enviando') return 'enviando';
+    if (j.envio === 'falhou') return 'falhou';
+    if (!j.email) return 'sem-email';
+    if (ehRepetidoParado(j)) return 'repetido';
+    if (j.sit === 'entrou') return j.online ? 'online' : 'entrou';
+    return 'convidado';
+  }
+
+  /* Botões nas duas réguas: a do app (.lb-btn) e a do site (.lo-btn). */
+  function btn(modo, variante, attrs, conteudo) {
+    const app = { primario: 'lb-btn lb-btn--primary lb-btn--compact', fantasma: 'lb-btn lb-btn--ghost lb-btn--compact', perigo: 'lb-btn lb-btn--danger lb-btn--compact', normal: 'lb-btn lb-btn--compact', linha: 'lb-btn lb-btn--ghost lb-btn--compact lb-btn--linha' };
+    const site = { primario: 'lo-btn lo-btn--primario', fantasma: 'lo-btn lo-btn--fantasma', perigo: 'lo-btn lo-btn--perigo', normal: 'lo-btn', linha: 'lo-btn lo-btn--fantasma' };
+    const cls = (modo === 'app' ? app : site)[variante];
+    return `<button type="${attrs.type || 'button'}" class="${cls}" ${attrs.extra || ''}>${conteudo}</button>`;
+  }
+
+  /* ===================================================================
+     A TELA (as duas vistas montam o mesmo quadro)
+     =================================================================== */
+  function htmlSituacao(j) {
+    const s = situacao(j);
+    const mudou = estado.mudouSit.has(j.id) ? ' data-mudou="1"' : '';
+    let marca;
+    let mais = '';
+    if (s === 'online') { marca = '<span class="lo-ponto" aria-hidden="true"></span>Entrou'; mais = 'no site agora'; }
+    else if (s === 'entrou') { marca = `${ic('visto')}Entrou`; mais = `último acesso ${haQuanto(j.ultimo)}`; }
+    else if (s === 'convidado') { marca = `${ic('convite')}${j.g === 'a' ? 'Convidada' : 'Convidado'}`; mais = 'aguardando o primeiro acesso'; }
+    else if (s === 'sem-email') { marca = `${ic('alerta')}Sem e-mail`; mais = 'não entra no site'; }
+    else if (s === 'repetido') { marca = `${ic('alerta')}E-mail repetido`; mais = 'convite parado'; }
+    else if (s === 'enviando') { marca = '<span class="lo-giro" aria-hidden="true"></span>Enviando à Cloudflare…'; }
+    else { marca = `${ic('alerta')}Não deu: tente de novo`; mais = 'a Cloudflare não respondeu'; }
+    return `<span class="jl-sit" data-sit="${s}"${mudou}><span class="jl-sit__marca">${marca}</span>${mais ? `<span class="jl-sit__mais">${mais}</span>` : ''}</span>`;
+  }
+
+  function textoDaConta(j) {
+    if (j.novo) return `Conta do app: ${esc(j.nome)}, criada no convite, ainda sem PIN`;
+    if (!j.aparelhos) return `Conta do app: ${esc(j.nome)}, com PIN`;
+    return `Conta do app: ${esc(j.nome)}, com PIN e ${plural(j.aparelhos, 'aparelho lembrado', 'aparelhos lembrados')}`;
+  }
+
+  function htmlEmail(j, modo) {
+    const s = situacao(j);
+    const k = `email|${j.id}`;
+    const aberto = estado.editando === j.id || (!j.email && s === 'sem-email');
+    if (aberto) {
+      const id = `em-${modo}-${j.id}`;
+      const valor = estado.rasc[k] ?? j.email;
+      const erro = estado.erros[k];
+      const temAntes = Boolean(j.email);
+      const dica = temAntes && j.sit === 'entrou' ? `<p class="jl-dica" id="${id}-dica">O e-mail antigo deixa de entrar; o novo é liberado na hora.</p>` : '';
+      return `<form class="jl-email-form" data-form="email" data-id="${j.id}" novalidate>
+          <label class="jl-rot" for="${id}">E-mail Google de ${esc(j.nome)}</label>
+          <div class="jl-linha">
+            <input class="jl-input" id="${id}" type="text" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="nome@example.com" data-k="${k}" value="${esc(valor)}"${erro ? ` aria-invalid="true" aria-describedby="${id}-erro"` : dica ? ` aria-describedby="${id}-dica"` : ''}>
+            ${btn(modo, 'primario', { type: 'submit', extra: `data-k="salvar|${j.id}"` }, temAntes ? 'Salvar' : 'Convidar')}
+            ${temAntes ? btn(modo, 'fantasma', { extra: `data-acao="cancelar-email" data-id="${j.id}" data-k="cancelar-email|${j.id}"` }, 'Cancelar') : ''}
+          </div>
+          ${erro ? `<p class="jl-erro" id="${id}-erro" role="alert">${ic('alerta')}<span>${esc(erro)}</span></p>` : ''}
+          ${dica}
+        </form>`;
+    }
+    const outro = repetidoCom(j);
+    const podeTrocar = s !== 'enviando';
+    return `<p class="jl-jog__email"><span class="jl-email">${esc(j.email)}</span>${podeTrocar ? btn(modo, 'linha', { extra: `data-acao="trocar-email" data-id="${j.id}" data-k="trocar|${j.id}" aria-label="Trocar o e-mail de ${esc(j.nome)}"` }, `${ic('lapis')}Trocar`) : ''}</p>
+      ${outro ? `<p class="jl-alerta">${ic('alerta')}<span>Mesmo e-mail de ${esc(outro.nome)}.</span></p>` : ''}`;
+  }
+
+  function opcoesDeDono(f) {
+    const atual = f.dono && jog(f.dono) ? f.dono : '';
+    const op = [`<option value=""${atual === '' ? ' selected' : ''}>Sem dono</option>`];
+    estado.jogadores.forEach((j) => op.push(`<option value="${j.id}"${atual === j.id ? ' selected' : ''}>${esc(j.nome)}</option>`));
+    return op.join('');
+  }
+
+  function htmlFicha(f, modo) {
+    const id = `dono-${modo}-${f.id}`;
+    return `<li class="jl-ficha" data-ficha="${f.id}">
+        <span class="lo-retrato jl-ficha__ret" data-tom="${f.tom}" aria-hidden="true">${esc(iniciais(f.nome))}</span>
+        <span class="jl-ficha__nome" title="${esc(f.nome)}">${esc(f.nome)}</span>
+        <span class="jl-alca" aria-hidden="true" title="Arraste até um jogador">${ic('alca')}</span>
+        <span class="jl-ficha__dono"><label class="jl-ficha__rot" for="${id}">Dono<span class="lo-sr"> de ${esc(f.nome)}</span></label><select class="jl-dono" id="${id}" data-dono="${f.id}" data-k="dono|${f.id}">${opcoesDeDono(f)}</select></span>
+        ${f.nota ? `<span class="jl-ficha__nota">${esc(f.nota)}</span>` : ''}
+      </li>`;
+  }
+
+  function htmlConfirma(j, modo) {
+    const fs = fichasDe(j.id).map((f) => f.nome);
+    let fichasTexto;
+    if (fs.length === 0) fichasTexto = `Nenhuma ficha é de ${esc(j.nome)}.`;
+    else if (fs.length === 1) fichasTexto = `${esc(fs[0])} fica sem dono: só você edita, e os colegas continuam vendo.`;
+    else fichasTexto = `${esc(listaDeNomes(fs))} ficam sem dono: só você edita, e os colegas continuam vendo.`;
+    const entrando = Date.now() - estado.removendoDesde < 300 ? ' data-entrando="1"' : '';
+    return `<div class="jl-confirma" role="alertdialog" aria-modal="false" aria-labelledby="rm-t-${modo}-${j.id}" aria-describedby="rm-d-${modo}-${j.id}" data-confirma="${j.id}"${entrando}>
+        <p class="jl-confirma__titulo" id="rm-t-${modo}-${j.id}">Remover ${esc(j.nome)} desta campanha?</p>
+        <p id="rm-d-${modo}-${j.id}">${esc(j.nome)} deixa de entrar no site. ${fichasTexto} Nada é apagado, e a conta do app de ${esc(j.nome)} continua valendo na mesa.</p>
+        <div class="jl-confirma__acoes">
+          ${btn(modo, 'perigo', { extra: `data-acao="confirmar-remover" data-id="${j.id}" data-k="confirmar|${j.id}"` }, `Remover ${esc(j.nome)}`)}
+          ${btn(modo, 'fantasma', { extra: `data-acao="cancelar-remover" data-id="${j.id}" data-k="cancelar-rem|${j.id}"` }, 'Cancelar')}
+        </div>
+      </div>`;
+  }
+
+  function htmlJogador(j, modo, hn) {
+    const s = situacao(j);
+    const fs = fichasDe(j.id);
+    const entrando = j.criadoEm && Date.now() - j.criadoEm < 400 ? ' data-entrando="1"' : '';
+    const acoes = [];
+    if (s === 'falhou') acoes.push(btn(modo, 'normal', { extra: `data-acao="reenviar" data-id="${j.id}" data-k="reenviar|${j.id}"` }, 'Convidar de novo'));
+    if (s === 'convidado') acoes.push(btn(modo, 'linha', { extra: `data-acao="copiar" data-id="${j.id}" data-k="copiar|${j.id}" aria-label="Copiar o recado de convite para ${esc(j.nome)}"` }, `${ic('copiar')}Copiar recado`));
+    if (estado.removendo !== j.id) acoes.push(btn(modo, 'linha', { extra: `data-acao="remover" data-id="${j.id}" data-k="remover|${j.id}" aria-label="Remover ${esc(j.nome)} desta campanha"` }, 'Remover'));
+    return `<li class="jl-jog" data-alvo="${j.id}" data-k="jog|${j.id}" tabindex="-1" aria-labelledby="jn-${modo}-${j.id}"${entrando}>
+        <span class="lo-av jl-jog__av" data-tom="${j.tom}" aria-hidden="true">${esc(j.nome[0])}${s === 'online' ? '<span class="lo-ponto"></span>' : ''}</span>
+        <div class="jl-jog__corpo">
+          <div class="jl-jog__cab"><${hn} class="jl-jog__nome" id="jn-${modo}-${j.id}">${esc(j.nome)}</${hn}>${htmlSituacao(j)}</div>
+          ${htmlEmail(j, modo)}
+          <p class="jl-jog__conta">${ic('chave')}<span>${textoDaConta(j)}</span></p>
+        </div>
+        <div class="jl-jog__acoes">${acoes.join('')}</div>
+        ${estado.removendo === j.id ? htmlConfirma(j, modo) : ''}
+        <div class="jl-fichas-area">
+          <ul class="jl-fichas" data-fichas-de="${j.id}" aria-label="Fichas de ${esc(j.nome)}">
+            ${fs.map((f) => htmlFicha(f, modo)).join('') || `<li class="jl-fichas__vazio">Nenhuma ficha. Arraste uma até aqui, ou escolha ${esc(j.nome)} no Dono do cartão.</li>`}
+          </ul>
+        </div>
+      </li>`;
+  }
+
+  function avisos() {
+    const lista = [];
+    estado.jogadores.forEach((j) => {
+      if (situacao(j) !== 'repetido') return;
+      const primeiro = repetidoCom(j);
+      lista.push({ tom: 'brasa', id: j.id, texto: `<b>${esc(primeiro.nome)} e ${esc(j.nome)} estão com o mesmo e-mail</b>, ${esc(j.email)}. Cada e-mail vale para um jogador só: troque o de ${esc(j.nome)}.`, botao: `Trocar o de ${esc(j.nome)}` });
+    });
+    estado.jogadores.forEach((j) => {
+      if (situacao(j) !== 'sem-email') return;
+      const fs = fichasDe(j.id).map((f) => f.nome);
+      const resto = fs.length ? ` ${esc(listaDeNomes(fs))} ${fs.length === 1 ? 'continua' : 'continuam'} de ${esc(j.nome)} na mesa.` : '';
+      lista.push({ tom: 'latao', id: j.id, texto: `<b>${esc(j.nome)} não tem e-mail:</b> não entra no site.${resto}`, botao: 'Adicionar e-mail' });
+    });
+    return lista;
+  }
+
+  function htmlAvisos(modo) {
+    const lista = avisos();
+    if (!lista.length) return '';
+    return `<ul class="jl-avisos" aria-label="Avisos">${lista.map((a) => `<li class="jl-aviso" data-tom="${a.tom}">${ic('alerta')}<p>${a.texto}</p>${btn(modo, 'normal', { extra: `data-acao="ir-email" data-id="${a.id}" data-k="aviso|${a.id}"` }, a.botao)}</li>`).join('')}</ul>`;
+  }
+
+  function htmlConvite(modo) {
+    const id = `cv-${modo}`;
+    const erro = estado.erros.convite;
+    const quem = modo === 'app' ? 'O app avisa a Cloudflare sozinho.' : 'O site avisa a Cloudflare sozinho.';
+    return `<form class="jl-convite" data-form="convite" novalidate>
+        <label class="jl-convite__rot" for="${id}">Convidar pelo e-mail Google</label>
+        <div class="jl-linha">
+          <input class="jl-input" id="${id}" type="text" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="nome@example.com" data-k="convite" value="${esc(estado.rasc.convite || '')}" aria-describedby="${erro ? `${id}-erro ` : ''}${id}-dica"${erro ? ' aria-invalid="true"' : ''}>
+          ${btn(modo, 'primario', { type: 'submit', extra: 'data-k="convidar"' }, `${ic('convite')}Convidar`)}
+        </div>
+        ${erro ? `<p class="jl-erro" id="${id}-erro" role="alert">${ic('alerta')}<span>${esc(erro)}</span></p>` : ''}
+        <p class="jl-dica" id="${id}-dica">${quem} Quem ainda não tem conta do app ganha uma, com o nome tirado do e-mail e sem PIN; o PIN da mesa você dá em Contas dos jogadores.</p>
+      </form>`;
+  }
+
+  function htmlQuadro(modo) {
+    const h = modo === 'app' ? 'h3' : 'h2';
+    const hn = modo === 'app' ? 'h4' : 'h3';
+    const js = estado.jogadores;
+    const sd = semDono();
+    const lista = js.length
+      ? `<ul class="jl-jogadores" data-k="lista" tabindex="-1" aria-labelledby="jl-t-${modo}">${js.map((j) => htmlJogador(j, modo, hn)).join('')}</ul>`
+      : `<div class="jl-vazio"><p class="jl-vazio__t">Ninguém no Lobby ainda</p><p>Convide cada jogador pelo e-mail Google. As fichas ficam sem dono até você dizer de quem são.</p></div>`;
+    return `<div class="jl" data-modo="${modo}">
+        ${modo === 'app' ? `<div class="jl-topo"><p class="jl-intro">Quem entra no site desta campanha e de quem é cada ficha. Arraste a ficha até o jogador, ou escolha o dono no cartão.</p>${htmlSinc()}</div>` : ''}
+        ${htmlAvisos(modo)}
+        <div class="jl-quadro">
+          <section aria-labelledby="jl-t-${modo}">
+            <div class="jl-cab"><${h} class="jl-cab__t" id="jl-t-${modo}">Jogadores</${h}><span class="jl-cab__n">${js.length}</span></div>
+            ${lista}
+            ${htmlConvite(modo)}
+          </section>
+          <section class="jl-sem-dono" data-alvo="sem-dono" aria-labelledby="jl-sd-${modo}">
+            <div class="jl-cab"><${h} class="jl-cab__t" id="jl-sd-${modo}">Sem dono</${h}><span class="jl-cab__n">${sd.length}</span></div>
+            <p class="jl-dica">Só você edita. Os colegas veem.</p>
+            <ul class="jl-fichas" data-fichas-de="sem-dono" aria-label="Fichas sem dono">
+              ${sd.map((f) => htmlFicha(f, modo)).join('') || '<li class="jl-fichas__vazio">Toda ficha tem dono. Solte uma aqui para só você editar.</li>'}
+            </ul>
+          </section>
+        </div>
+      </div>`;
+  }
+
+  function conteudoSinc() {
+    const n = emVoo();
+    return n ? `<span class="lo-giro" aria-hidden="true"></span>Lobby: enviando ${n}…` : `${ic('visto')}Lobby: tudo salvo`;
+  }
+
+  function htmlSinc() {
+    return `<p class="jl-sinc" id="jl-sinc" role="status">${conteudoSinc()}</p>`;
+  }
+
+  function htmlFaixa() {
+    const n = emVoo();
+    if (n) return { e: 'enviando', h: `<div class="lo-faixa__dentro"><p class="lo-faixa__principal"><span class="lo-giro" aria-hidden="true"></span><span>Enviando ${n}</span></p></div>` };
+    return { e: 'salvo', h: `<div class="lo-faixa__dentro"><p class="lo-faixa__principal">${ic('visto')}<span>Salvo</span></p><span class="lo-faixa__extra">Tudo o que você mudou está no servidor.</span></div>` };
+  }
+
+  /* ---- vista: No app */
+  function htmlApp() {
+    const nAvisos = avisos().length;
+    const aba = estado.abaApp;
+    const config = estado.configAberto ? `<div class="ap-config" role="group" aria-label="Configurar a pasta ${esc(CAMPANHA.nome)}">
+        <div class="ap-abas" role="tablist" aria-label="Configurar a pasta" data-aba="${aba}">
+          <span class="ap-abas__pilula" aria-hidden="true"></span>
+          <button type="button" class="ap-aba" role="tab" id="ap-aba-sistema" aria-controls="ap-painel" aria-selected="${aba === 'sistema'}" tabindex="${aba === 'sistema' ? 0 : -1}" data-aba-app="sistema" data-k="aba|sistema">Sistema e personagens</button>
+          <button type="button" class="ap-aba" role="tab" id="ap-aba-jogadores" aria-controls="ap-painel" aria-selected="${aba === 'jogadores'}" tabindex="${aba === 'jogadores' ? 0 : -1}" data-aba-app="jogadores" data-k="aba|jogadores">Jogadores do Lobby${nAvisos ? `<span class="ap-aba__selo"><span aria-hidden="true">${nAvisos}</span><span class="lo-sr">, ${plural(nAvisos, 'aviso', 'avisos')}</span></span>` : ''}</button>
+        </div>
+        <div class="ap-painel" role="tabpanel" id="ap-painel" aria-labelledby="ap-aba-${aba}">
+          ${aba === 'sistema' ? htmlSistemaDeHoje() : htmlQuadro('app')}
+        </div>
+        <button type="button" class="lb-btn lb-btn--ghost" data-acao="configurar" data-k="fechar-config">Fechar</button>
+      </div>` : '';
+    return `<div class="ap">
+        <div class="ap-barra">
+          <span class="ap-barra__marca" aria-hidden="true"><svg class="lo-ic" viewBox="0 0 16 16"><use href="#i-labirinto"/></svg></span>
+          <nav class="ap-barra__trilha" aria-label="Posição na navegação"><span>Labirinto</span><span aria-current="page">Carregar Mapa</span></nav>
+        </div>
+        <div class="ap-palco">
+          <div class="ap-contexto" inert>
+            <span class="lb-btn lb-btn--ghost">${ic('voltar')}Voltar</span>
+            <h1 class="ap-titulo">Carregar Mapa</h1>
+            <span class="lb-btn lb-btn--ghost lb-btn--compact">+ Nova pasta</span>
+          </div>
+          <section class="ap-pasta" aria-label="Pasta ${esc(CAMPANHA.nome)}">
+            <div class="ap-item">
+              <span class="ap-item__abrir" inert><span aria-hidden="true">▾</span><span class="ap-item__nome">${esc(CAMPANHA.nome)}</span><span class="ap-item__meta">${CAMPANHA.mapas} mapas</span></span>
+              <div class="ap-item__acoes">
+                <button type="button" class="lb-btn lb-btn--ghost lb-btn--compact" aria-expanded="${estado.configAberto}" data-acao="configurar" data-k="configurar">Configurar</button>
+                <span class="lb-btn lb-btn--ghost lb-btn--compact" inert>Renomear</span>
+                <span class="lb-btn lb-btn--ghost lb-btn--compact" inert>Excluir</span>
+              </div>
+            </div>
+            ${config}
+            <div class="ap-mapas" inert>
+              <div class="ap-item"><span class="ap-item__nome">Porto de Vela-Seca</span><span class="ap-item__meta">salvo ontem</span></div>
+              <div class="ap-item"><span class="ap-item__nome">Ilha da Forja Afogada</span><span class="ap-item__meta">salvo há 4 dias</span></div>
+            </div>
+          </section>
+        </div>
+      </div>`;
+  }
+
+  function htmlSistemaDeHoje() {
+    return `<div class="ap-hoje">
+        <div class="lb-field"><span class="lb-label">Sistema universal</span><p class="ap-hoje__valor">${esc(CAMPANHA.sistema)}</p></div>
+        <div class="lb-field"><span class="lb-label">Jogadores principais</span><p class="lb-field__hint">${esc(estado.fichas.map((f) => f.nome).join(', '))}</p></div>
+        <p class="pt-nota">Protótipo: esta aba é a de hoje (PastaDeMapasConfig.tsx), sem mudança. Ela só ganhou a vizinha.</p>
+      </div>`;
+  }
+
+  /* ---- vista: No site */
+  function htmlSite() {
+    const f = htmlFaixa();
+    return `<div class="si">
+        <header class="lo-cabeca">
+          <div class="lo-topo">
+            <span class="lo-marca"><span class="lo-marca__nome">Labirinto</span><span class="lo-marca__lobby">Lobby</span></span>
+            <nav class="lo-trilha" aria-label="Onde você está"><ol><li><span>Suas mesas</span></li><li><span>${esc(CAMPANHA.nome)}</span></li><li><span aria-current="page">Jogadores</span></li></ol></nav>
+            <div class="lo-topo__direita">
+              <span class="lo-quem" title="${esc(MESTRE.nome)}, ${esc(MESTRE.email)}"><span class="lo-av" data-tom="${MESTRE.tom}" aria-hidden="true">${esc(MESTRE.nome[0])}</span><span class="lo-quem__nome">${esc(MESTRE.nome)}</span><span class="lo-tag lo-tag--latao">Mestre</span></span>
+            </div>
+          </div>
+          <div class="lo-faixa" id="faixa" data-estado="${f.e}" role="status" aria-live="polite">${f.h}</div>
+        </header>
+        <main class="lo-pagina">
+          <div class="lo-cab-pag">
+            <div class="lo-cab-pag__texto">
+              <h1 class="lo-titulo" tabindex="-1">Jogadores</h1>
+              <p class="lo-sub">Quem entra no site desta campanha e de quem é cada ficha. Arraste a ficha até o jogador, ou escolha o dono no cartão.</p>
+            </div>
+            <p class="lo-so-mestre">${ic('olho')}<span><b>Só você vê esta página.</b> Os jogadores veem os nomes uns dos outros, nunca os e-mails.</span></p>
+          </div>
+          ${htmlQuadro('site')}
+        </main>
+      </div>`;
+  }
+
+  /* ===================================================================
+     RENDER, com o foco e o voo das fichas (FLIP)
+     =================================================================== */
+  function chaveDoFoco() {
+    const a = document.activeElement;
+    if (!a || !$('#vista').contains(a) || !a.dataset.k) return null;
+    let s = null;
+    let e = null;
+    try { s = a.selectionStart; e = a.selectionEnd; } catch (_) { /* select e botão não têm seleção */ }
+    return { k: a.dataset.k, s, e };
+  }
+
+  function focarChave(k, sel) {
+    const el = $(`#vista [data-k="${CSS.escape(k)}"]`);
+    if (!el) return false;
+    el.focus();
+    if (sel && sel.s !== null && typeof el.setSelectionRange === 'function') {
+      try { el.setSelectionRange(sel.s, sel.e); } catch (_) { /* campo sem seleção */ }
+    }
+    return true;
+  }
+
+  function medirFichas() {
+    const m = new Map();
+    $$('#vista [data-ficha]').forEach((el) => m.set(el.dataset.ficha, el.getBoundingClientRect()));
+    return m;
+  }
+
+  /* Só as fichas que mudaram de dono voam do lugar antigo ao novo. */
+  function voarFichas(antes, ids) {
+    if (!antes || !ids || reduzido()) return;
+    ids.forEach((id) => {
+      const el = $(`#vista [data-ficha="${CSS.escape(id)}"]`);
+      const a = antes.get(id);
+      if (!el || !a) return;
+      const b = el.getBoundingClientRect();
+      const dx = a.left - b.left;
+      const dy = a.top - b.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      el.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)`, zIndex: 5 }, { transform: 'none', zIndex: 5 }],
+        { duration: 260, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+      );
+    });
+  }
+
+  function render(opcoes = {}) {
+    if (arrasto && arrasto.ativo) { estado.renderPendente = true; return; }
+    estado.renderPendente = false;
+    const foco = chaveDoFoco();
+    const vista = $('#vista');
+    vista.innerHTML = estado.vista === 'app' ? htmlApp() : htmlSite();
+    vista.setAttribute('aria-labelledby', `pt-aba-${estado.vista}`);
+    if (estado.focar) {
+      // O mesmo campo continua com o cursor onde estava; um campo novo recebe o cursor no fim.
+      const mesmo = foco && foco.k === estado.focar;
+      const ok = focarChave(estado.focar, mesmo ? foco : null);
+      const el = document.activeElement;
+      if (ok && el && el.tagName === 'INPUT') {
+        if (estado.selecionar) el.select();
+        else if (!mesmo) el.setSelectionRange(el.value.length, el.value.length);
+      }
+      estado.focar = null;
+      estado.selecionar = false;
+    } else if (foco) {
+      focarChave(foco.k, foco);
+    }
+    voarFichas(opcoes.antes, opcoes.ids);
+    estado.mudouSit.clear();
+    renderDoca();
+  }
+
+  /* A linha de estado muda sem refazer a tela (não fecha um seletor aberto). */
+  function atualizarSinc() {
+    const s = $('#jl-sinc');
+    if (s) s.innerHTML = conteudoSinc();
+    const faixa = $('#faixa');
+    if (faixa) { const f = htmlFaixa(); faixa.dataset.estado = f.e; faixa.innerHTML = f.h; }
+  }
+
+  function renderDoca() {
+    $$('[data-acao="sim-ok"], [data-acao="sim-falha"]').forEach((b) => {
+      b.setAttribute('aria-pressed', String((b.dataset.acao === 'sim-ok') === (estado.proximo === 'ok')));
+    });
+    const duda = jog('duda');
+    const b = $('#pt-duda');
+    if (!duda) { b.disabled = true; b.textContent = 'Duda não está na campanha'; }
+    else if (duda.sit === 'entrou') { b.disabled = true; b.textContent = 'Duda já entrou no site'; }
+    else if (situacao(duda) !== 'convidado') { b.disabled = true; b.textContent = 'Duda entra quando o convite valer'; }
+    else { b.disabled = false; b.textContent = 'Duda entra no site pela primeira vez'; }
+    const abas = $('#pt-abas');
+    abas.dataset.vista = estado.vista;
+    $$('.pt-aba').forEach((t) => {
+      const sel = t.dataset.vista === estado.vista;
+      t.setAttribute('aria-selected', String(sel));
+      t.tabIndex = sel ? 0 : -1;
+    });
+  }
+
+  /* ===================================================================
+     AÇÕES
+     =================================================================== */
+  function sincronizar() {
+    estado.enviando += 1;
+    atualizarSinc();
+    setTimeout(() => { estado.enviando -= 1; atualizarSinc(); }, ESPERA_DO_ENVIO);
+  }
+
+  function registrar(fn) {
+    const entrada = { fn };
+    estado.desfazer.push(entrada);
+    return () => {
+      const i = estado.desfazer.indexOf(entrada);
+      if (i < 0) return;
+      estado.desfazer.splice(i, 1);
+      entrada.fn();
+    };
+  }
+
+  function mudarDono(fichaId, novo, opcoes = {}) {
+    const f = ficha(fichaId);
+    if (!f) return;
+    const antesDono = f.dono && jog(f.dono) ? f.dono : null;
+    const destino = novo && jog(novo) ? novo : null;
+    if (antesDono === destino) return;
+    const antes = medirFichas();
+    if (opcoes.deRect) antes.set(fichaId, opcoes.deRect);
+    f.dono = destino;
+    sincronizar();
+    render({ antes, ids: [fichaId] });
+    if (opcoes.semRegistro) return;
+    const desfazer = registrar(() => { mudarDono(fichaId, antesDono, { semRegistro: true }); torrada(`Desfeito: ${f.nome} voltou ${antesDono ? `para ${jog(antesDono).nome}` : 'para Sem dono'}.`); });
+    torrada(destino ? `${f.nome} agora é de ${jog(destino).nome}.` : `${f.nome} ficou sem dono: só você edita.`, { acao: { rotulo: 'Desfazer', acao: desfazer } });
+  }
+
+  function enviarConvite(j) {
+    j.envio = 'enviando';
+    j.envioId = ++seq;
+    const meu = j.envioId;
+    const resultado = estado.proximo;
+    estado.mudouSit.add(j.id);
+    render();
+    atualizarSinc();
+    setTimeout(() => {
+      if (!estado.jogadores.includes(j) || j.envioId !== meu) return;
+      estado.mudouSit.add(j.id);
+      if (resultado === 'ok') {
+        j.envio = null;
+        j.convidadoEm = Date.now();
+        render();
+        torrada(`${j.email} liberado no Lobby. Avise ${j.nome}: é só entrar em ${ENDERECO} com esse Google.`, { acao: { rotulo: 'Copiar recado', acao: () => copiarRecado(j) } });
+      } else {
+        j.envio = 'falhou';
+        render();
+        torrada(`Não deu para liberar ${j.email}: a Cloudflare não respondeu. Nada se perdeu.`, { erro: true, acao: { rotulo: 'Convidar de novo', acao: () => { if (estado.jogadores.includes(j)) enviarConvite(j); } } });
+      }
+    }, ESPERA_DO_CONVITE);
+  }
+
+  function convidar() {
+    const valor = (estado.rasc.convite || '').trim().toLowerCase();
+    const erro = validarEmail(valor, null);
+    estado.focar = 'convite';
+    if (erro) { estado.erros.convite = erro; render(); return; }
+    delete estado.erros.convite;
+    estado.rasc.convite = '';
+    const n = estado.jogadores.length;
+    const j = { id: `j${++seq}`, nome: nomeDoEmail(valor), g: 'o', tom: n % 5, email: valor, sit: 'convidado', novo: true, pin: false, aparelhos: 0, criadoEm: Date.now() };
+    estado.jogadores.push(j);
+    enviarConvite(j);
+  }
+
+  function salvarEmail(id) {
+    const j = jog(id);
+    if (!j) return;
+    const k = `email|${id}`;
+    const valor = (estado.rasc[k] ?? j.email).trim().toLowerCase();
+    if (j.email && valor === j.email && !ehRepetidoParado(j)) { fecharEdicao(id); return; }
+    const erro = validarEmail(valor, id);
+    if (erro) { estado.erros[k] = erro; estado.focar = k; render(); return; }
+    delete estado.erros[k];
+    delete estado.rasc[k];
+    j.email = valor;
+    j.sit = 'convidado';
+    j.online = false;
+    estado.editando = null;
+    estado.focar = `jog|${id}`;
+    enviarConvite(j);
+  }
+
+  function abrirEdicao(id, selecionar) {
+    const j = jog(id);
+    if (!j) return;
+    if (j.email) {
+      estado.editando = id;
+      estado.rasc[`email|${id}`] = j.email;
+    }
+    estado.focar = `email|${id}`;
+    estado.selecionar = Boolean(selecionar);
+    render();
+  }
+
+  function fecharEdicao(id) {
+    estado.editando = null;
+    delete estado.rasc[`email|${id}`];
+    delete estado.erros[`email|${id}`];
+    estado.focar = `trocar|${id}`;
+    render();
+  }
+
+  function pedirRemocao(id) {
+    estado.removendo = id;
+    estado.removendoDesde = Date.now();
+    estado.focar = `cancelar-rem|${id}`;
+    render();
+  }
+
+  function cancelarRemocao(id) {
+    estado.removendo = null;
+    estado.focar = `remover|${id}`;
+    render();
+  }
+
+  function removerJogador(id) {
+    const i = estado.jogadores.findIndex((j) => j.id === id);
+    if (i < 0) return;
+    const j = estado.jogadores[i];
+    const ids = fichasDe(id).map((f) => f.id);
+    const antes = medirFichas();
+    estado.jogadores.splice(i, 1);
+    ids.forEach((fid) => { ficha(fid).dono = null; });
+    estado.removendo = null;
+    if (estado.editando === id) estado.editando = null;
+    estado.focar = estado.jogadores.length ? 'lista' : 'convite';
+    sincronizar();
+    render({ antes, ids });
+    const desfazer = registrar(() => {
+      const antes2 = medirFichas();
+      estado.jogadores.splice(Math.min(i, estado.jogadores.length), 0, j);
+      ids.forEach((fid) => { const f = ficha(fid); if (f && !f.dono) f.dono = id; });
+      sincronizar();
+      render({ antes: antes2, ids });
+      torrada(`Desfeito: ${j.nome} voltou para a campanha.`);
+    });
+    const resto = ids.length ? ` ${ids.length === 1 ? '1 ficha ficou' : `${ids.length} fichas ficaram`} sem dono.` : '';
+    torrada(`${j.nome} saiu da campanha.${resto}`, { acao: { rotulo: 'Desfazer', acao: desfazer } });
+  }
+
+  async function copiarTexto(texto) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    } catch (_) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = texto;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      } catch (__) {
+        return false;
+      }
+    }
+  }
+
+  function copiarRecado(j) {
+    const texto = `Oi, ${j.nome}! Você já pode entrar no Lobby da ${CAMPANHA.nome}: ${ENDERECO}. Entre com o Google ${j.email}.`;
+    copiarTexto(texto).then((ok) => torrada(ok ? 'Recado copiado: cole na conversa da mesa.' : `Não deu para copiar. O endereço é ${ENDERECO}.`, ok ? {} : { erro: true }));
+  }
+
+  /* ---- notificações (as do prototipo.html, mais: erro fica até fechar, F8 chega nelas) */
+  function torrada(texto, opcoes = {}) {
+    const caixa = $('#torradas');
+    const el = document.createElement('div');
+    el.className = 'lo-torrada';
+    if (opcoes.erro) el.dataset.tom = 'erro';
+    const acao = opcoes.acao;
+    el.innerHTML = `${ic(opcoes.erro ? 'alerta' : 'visto')}<p>${esc(texto)}</p>${acao ? `<button type="button" class="lo-btn">${esc(acao.rotulo)}</button>` : ''}<button type="button" class="lo-btn lo-btn--fantasma" aria-label="Fechar aviso">${ic('fechar')}</button>`;
+    const botoes = el.querySelectorAll('button');
+    let timer;
+    const sair = () => {
+      clearTimeout(timer);
+      el.dataset.saindo = '1';
+      setTimeout(() => el.remove(), 170);
+    };
+    const armar = () => {
+      clearTimeout(timer);
+      if (!opcoes.erro) timer = setTimeout(sair, 5500);
+    };
+    if (acao) botoes[0].addEventListener('click', () => { sair(); acao.acao(); });
+    botoes[botoes.length - 1].addEventListener('click', sair);
+    el.addEventListener('pointerenter', () => clearTimeout(timer));
+    el.addEventListener('pointerleave', armar);
+    el.addEventListener('focusin', () => clearTimeout(timer));
+    el.addEventListener('focusout', armar);
+    caixa.appendChild(el);
+    while (caixa.children.length > 3) caixa.firstElementChild.remove();
+    armar();
+  }
+
+  /* ===================================================================
+     ARRASTAR A FICHA ATÉ O JOGADOR (ponteiro; no toque, só pela alça)
+     =================================================================== */
+  const LIMIAR = 5;
+  const BORDA = 64;
+  let arrasto = null;
+
+  function donoNoQuadro(fichaId) {
+    const f = ficha(fichaId);
+    return f && f.dono && jog(f.dono) ? f.dono : 'sem-dono';
+  }
+
+  function comecarArrasto() {
+    const a = arrasto;
+    const r = a.el.getBoundingClientRect();
+    a.dx = a.x0 - r.left;
+    a.dy = a.y0 - r.top;
+    a.origemRect = r;
+    a.origem = donoNoQuadro(a.id);
+    const fantasma = a.el.cloneNode(true);
+    fantasma.removeAttribute('data-ficha');
+    $$('[id]', fantasma).forEach((n) => n.removeAttribute('id'));
+    $$('[data-k]', fantasma).forEach((n) => n.removeAttribute('data-k'));
+    $$('label[for]', fantasma).forEach((n) => n.removeAttribute('for'));
+    const sel = $('select', fantasma);
+    if (sel) sel.value = a.el.querySelector('select').value;
+    fantasma.classList.add('jl-fantasma');
+    fantasma.style.width = `${r.width}px`;
+    fantasma.style.translate = `${r.left}px ${r.top}px`;
+    const camada = $('#camada');
+    camada.innerHTML = `<div class="jl" data-modo="${estado.vista}"></div>`;
+    camada.firstElementChild.appendChild(fantasma);
+    a.fantasma = fantasma;
+    a.ativo = true;
+    a.el.classList.add('is-origem');
+    document.body.classList.add('is-arrastando');
+    requestAnimationFrame(() => fantasma.classList.add('is-no-ar'));
+    a.raf = requestAnimationFrame(rolarNaBorda);
+  }
+
+  function moverFantasma() {
+    const a = arrasto;
+    a.fantasma.style.translate = `${a.x - a.dx}px ${a.y - a.dy}px`;
+  }
+
+  function limparAlvo() {
+    $$('#vista [data-sobre]').forEach((n) => n.removeAttribute('data-sobre'));
+    if (arrasto && arrasto.vaga) { arrasto.vaga.remove(); arrasto.vaga = null; }
+  }
+
+  function acharAlvo() {
+    const a = arrasto;
+    const sob = document.elementFromPoint(a.x, a.y);
+    const alvoEl = sob ? sob.closest('#vista [data-alvo]') : null;
+    const alvo = alvoEl ? alvoEl.dataset.alvo : null;
+    if (alvo === a.alvo) return;
+    limparAlvo();
+    a.alvo = alvo;
+    if (!alvoEl || alvo === a.origem) return;
+    alvoEl.dataset.sobre = '1';
+    const f = ficha(a.id);
+    const vaga = document.createElement('li');
+    vaga.className = 'jl-vaga';
+    vaga.setAttribute('aria-hidden', 'true');
+    vaga.textContent = alvo === 'sem-dono' ? `Soltar: ${f.nome} fica sem dono` : `Soltar: ${f.nome} passa a ser de ${jog(alvo).nome}`;
+    const lista = alvoEl.querySelector('[data-fichas-de]');
+    lista.appendChild(vaga);
+    a.vaga = vaga;
+  }
+
+  /* Perto da borda de cima ou de baixo, a página rola sozinha enquanto o papel voa. */
+  function rolarNaBorda() {
+    const a = arrasto;
+    if (!a || !a.ativo) return;
+    const topo = $('.lo-cabeca') ? $('.lo-cabeca').getBoundingClientRect().bottom : $('.pt-barra').getBoundingClientRect().bottom;
+    let v = 0;
+    if (a.y < topo + BORDA) v = -Math.ceil((topo + BORDA - a.y) / 5);
+    else if (a.y > window.innerHeight - BORDA) v = Math.ceil((a.y - (window.innerHeight - BORDA)) / 5);
+    if (v) { window.scrollBy(0, v); acharAlvo(); }
+    a.raf = requestAnimationFrame(rolarNaBorda);
+  }
+
+  function terminarArrasto() {
+    const a = arrasto;
+    cancelAnimationFrame(a.raf);
+    limparAlvo();
+    document.body.classList.remove('is-arrastando');
+    arrasto = null;
+  }
+
+  function soltar() {
+    const a = arrasto;
+    const alvo = a.alvo;
+    if (!alvo || alvo === a.origem) { cancelarArrasto(); return; }
+    const deRect = a.fantasma.getBoundingClientRect();
+    a.fantasma.remove();
+    terminarArrasto();
+    mudarDono(a.id, alvo === 'sem-dono' ? null : alvo, { deRect });
+  }
+
+  /* Soltar fora (ou Esc): o papel volta voando ao lugar de onde saiu. */
+  function cancelarArrasto() {
+    const a = arrasto;
+    const f = a.fantasma;
+    const el = a.el;
+    const r = a.origemRect;
+    terminarArrasto();
+    const fim = () => { f.remove(); el.classList.remove('is-origem'); if (estado.renderPendente) render(); };
+    if (reduzido()) { fim(); return; }
+    f.classList.add('is-voltando');
+    f.classList.remove('is-no-ar');
+    f.style.translate = `${r.left}px ${r.top}px`;
+    setTimeout(fim, 210);
+  }
+
+  document.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || arrasto) return;
+    const cartao = e.target.closest('#vista .jl-ficha');
+    if (!cartao) return;
+    if (e.target.closest('select, button, input, label')) return;
+    if (e.pointerType !== 'mouse' && !e.target.closest('.jl-alca')) return;
+    arrasto = { id: cartao.dataset.ficha, el: cartao, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, pid: e.pointerId, ativo: false, alvo: null, vaga: null };
+    if (e.pointerType !== 'mouse') e.preventDefault();
+  });
+
+  document.addEventListener('pointermove', (e) => {
+    if (!arrasto || e.pointerId !== arrasto.pid) return;
+    arrasto.x = e.clientX;
+    arrasto.y = e.clientY;
+    if (!arrasto.ativo) {
+      if (Math.hypot(arrasto.x - arrasto.x0, arrasto.y - arrasto.y0) < LIMIAR) return;
+      comecarArrasto();
+    }
+    e.preventDefault();
+    moverFantasma();
+    acharAlvo();
+  });
+
+  document.addEventListener('pointerup', (e) => {
+    if (!arrasto || e.pointerId !== arrasto.pid) return;
+    if (arrasto.ativo) soltar(); else arrasto = null;
+  });
+
+  document.addEventListener('pointercancel', (e) => {
+    if (!arrasto || e.pointerId !== arrasto.pid) return;
+    if (arrasto.ativo) cancelarArrasto(); else arrasto = null;
+  });
+
+  /* ===================================================================
+     EVENTOS
+     =================================================================== */
+  function trocarVista(vista, focarAba) {
+    if (vista === estado.vista) return;
+    estado.vista = vista;
+    estado.editando = null;
+    estado.removendo = null;
+    history.replaceState(null, '', vista === 'site' ? '#site' : '#app');
+    render();
+    window.scrollTo(0, 0);
+    if (focarAba) $(`#pt-aba-${vista}`).focus();
+  }
+
+  document.addEventListener('click', (e) => {
+    const aba = e.target.closest('.pt-aba');
+    if (aba) { trocarVista(aba.dataset.vista); return; }
+    const abaApp = e.target.closest('[data-aba-app]');
+    if (abaApp) {
+      if (estado.abaApp !== abaApp.dataset.abaApp) { estado.abaApp = abaApp.dataset.abaApp; estado.focar = `aba|${estado.abaApp}`; render(); }
+      return;
+    }
+    const b = e.target.closest('[data-acao]');
+    if (!b) return;
+    const id = b.dataset.id;
+    switch (b.dataset.acao) {
+      case 'configurar':
+        estado.configAberto = !estado.configAberto;
+        estado.focar = 'configurar';
+        render();
+        break;
+      case 'trocar-email': abrirEdicao(id, true); break;
+      case 'cancelar-email': fecharEdicao(id); break;
+      case 'ir-email': abrirEdicao(id, true); break;
+      case 'remover': pedirRemocao(id); break;
+      case 'cancelar-remover': cancelarRemocao(id); break;
+      case 'confirmar-remover': removerJogador(id); break;
+      case 'reenviar': { const j = jog(id); if (j) { estado.focar = `jog|${id}`; enviarConvite(j); } break; }
+      case 'copiar': { const j = jog(id); if (j) copiarRecado(j); break; }
+      case 'doca': {
+        const doca = $('#doca');
+        const aberta = doca.dataset.aberta === '1';
+        doca.dataset.aberta = aberta ? '0' : '1';
+        b.setAttribute('aria-expanded', String(!aberta));
+        b.textContent = aberta ? 'Mostrar' : 'Esconder';
+        break;
+      }
+      case 'sim-ok': estado.proximo = 'ok'; renderDoca(); break;
+      case 'sim-falha': estado.proximo = 'falha'; renderDoca(); break;
+      case 'sim-duda': {
+        const duda = jog('duda');
+        if (!duda || situacao(duda) !== 'convidado') break;
+        duda.sit = 'entrou';
+        duda.online = true;
+        duda.ultimo = Date.now();
+        estado.mudouSit.add('duda');
+        render();
+        torrada('Duda entrou no site pela primeira vez.');
+        break;
+      }
+      case 'sim-vazio':
+        estado.jogadores = [];
+        estado.fichas.forEach((f) => { f.dono = null; });
+        estado.editando = null;
+        estado.removendo = null;
+        estado.desfazer = [];
+        render();
+        break;
+      case 'sim-exemplo': {
+        const d = dadosDeExemplo();
+        estado.jogadores = d.jogadores;
+        estado.fichas = d.fichas;
+        estado.editando = null;
+        estado.removendo = null;
+        estado.desfazer = [];
+        estado.rasc = {};
+        estado.erros = {};
+        render();
+        break;
+      }
+      default: break;
+    }
+  });
+
+  document.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-dono]');
+    if (!sel) return;
+    mudarDono(sel.dataset.dono, sel.value || null);
+  });
+
+  document.addEventListener('input', (e) => {
+    const campo = e.target.closest('#vista input[data-k]');
+    if (!campo) return;
+    const k = campo.dataset.k;
+    estado.rasc[k] = campo.value;
+    // O erro some assim que o valor fica válido (não a cada tecla da primeira digitação).
+    if (estado.erros[k]) {
+      const idProprio = k.startsWith('email|') ? k.slice(6) : null;
+      if (!validarEmail(campo.value.trim().toLowerCase(), idProprio)) { delete estado.erros[k]; render(); }
+    }
+  });
+
+  document.addEventListener('submit', (e) => {
+    const form = e.target.closest('[data-form]');
+    if (!form) return;
+    e.preventDefault();
+    if (form.dataset.form === 'convite') convidar();
+    else salvarEmail(form.dataset.id);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (arrasto && arrasto.ativo) { e.preventDefault(); cancelarArrasto(); return; }
+      const form = e.target.closest && e.target.closest('[data-form="email"]');
+      if (form && jog(form.dataset.id) && jog(form.dataset.id).email) { e.preventDefault(); fecharEdicao(form.dataset.id); return; }
+      const conf = e.target.closest && e.target.closest('[data-confirma]');
+      if (conf) { e.preventDefault(); cancelarRemocao(conf.dataset.confirma); return; }
+    }
+
+    if (e.key === 'F8') {
+      const t = $('#torradas');
+      if (t.children.length) { e.preventDefault(); const b = t.querySelector('.lo-torrada:last-child button'); (b || t).focus(); }
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+      if (e.target.closest && e.target.closest('input, textarea')) return;
+      const ultimo = estado.desfazer[estado.desfazer.length - 1];
+      if (!ultimo) return;
+      e.preventDefault();
+      estado.desfazer.pop();
+      ultimo.fn();
+      return;
+    }
+
+    // Abas: setas, Home e End trocam na hora; Tab entra no painel.
+    const tab = e.target.closest && e.target.closest('[role="tab"]');
+    if (!tab) return;
+    const lista = $$('[role="tab"]', tab.closest('[role="tablist"]'));
+    let i = lista.indexOf(tab);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') i = (i + 1) % lista.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') i = (i - 1 + lista.length) % lista.length;
+    else if (e.key === 'Home') i = 0;
+    else if (e.key === 'End') i = lista.length - 1;
+    else return;
+    e.preventDefault();
+    const nova = lista[i];
+    if (nova.classList.contains('pt-aba')) { trocarVista(nova.dataset.vista, true); return; }
+    estado.abaApp = nova.dataset.abaApp;
+    estado.focar = `aba|${estado.abaApp}`;
+    render();
+  });
+
+  window.addEventListener('hashchange', () => trocarVista(location.hash === '#site' ? 'site' : 'app'));
+
+  render();
+})();
+</script>
+</body>
+</html>
