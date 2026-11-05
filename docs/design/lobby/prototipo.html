@@ -1,0 +1,3299 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Lobby do Labirinto</title>
+<!-- Opcional: só serve fora do Windows (celular, Mac). No Windows valem Sitka e Bahnschrift, as mesmas do app. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&family=Spectral:wght@400;500&display=swap">
+<style>
+/* =====================================================================
+   LOBBY DO LABIRINTO — protótipo da v1 (fatia S0 do plano
+   docs/planos/lobby-jogadores-2026-11-05.md). Só dados inventados.
+
+   Tokens: copiados de client/src/theme.ts com os mesmos nomes --lb-*.
+   O app tem um tema só, escuro; o site segue. A única diferença: depois
+   das fontes do Windows entra uma fonte web de reserva (Spectral no lugar
+   da Sitka, Barlow Semi Condensed no lugar da Bahnschrift), porque o
+   jogador abre o site no celular, onde as fontes do Windows não existem.
+
+   Materiais: o lobby é pedra e tinta (as telas de pasta e a tela inicial);
+   a ficha é o papel do grimório (o mesmo da ficha do jogador no app,
+   client/src/player/PlayerFicha.css). Abrir a ficha = abrir o livro.
+   ===================================================================== */
+:root {
+  color-scheme: dark;
+  --lb-color-ink: #121214;
+  --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328;
+  --lb-color-stone-hover: #2c2c33;
+  --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08);
+  --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13);
+  --lb-color-parchment: #eceae4;
+  --lb-color-parchment-dim: #a2a09a;
+  --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a;
+  --lb-color-brass-bright: #f3ba66;
+  --lb-color-brass-soft: rgba(224, 164, 74, 0.14);
+  --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a;
+  --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a;
+  --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-color-tide: #79a9cc;
+  --lb-color-tide-soft: rgba(121, 169, 204, 0.14);
+  --lb-color-arcane: #ab93d6;
+  --lb-color-arcane-soft: rgba(171, 147, 214, 0.15);
+
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, 'Spectral', Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Barlow Semi Condensed', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px;
+  --lb-font-size-sm: 11.5px;
+  --lb-font-size-md: 13px;
+  --lb-font-size-lg: 15px;
+  --lb-font-size-xl: 20px;
+  --lb-font-size-xxl: 34px;
+  --lb-font-weight-regular: 400;
+  --lb-font-weight-medium: 500;
+  --lb-font-weight-semibold: 600;
+  --lb-font-tracking-wide: 0.06em;
+  --lb-font-tracking-wider: 0.14em;
+  --lb-font-leading-tight: 1.2;
+  --lb-font-leading-normal: 1.45;
+
+  --lb-space-1: 4px;
+  --lb-space-2: 8px;
+  --lb-space-3: 12px;
+  --lb-space-4: 16px;
+  --lb-space-5: 20px;
+  --lb-space-6: 24px;
+  --lb-space-8: 32px;
+  --lb-space-10: 40px;
+  --lb-space-12: 48px;
+  --lb-control-gap: 8px;
+  --lb-control-touch: 44px;
+  --lb-radius-sm: 6px;
+  --lb-radius-md: 9px;
+  --lb-radius-lg: 14px;
+  --lb-radius-xl: 20px;
+  --lb-radius-full: 999px;
+  --lb-shadow-md: 0 6px 16px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --lb-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.34);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-shadow-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --lb-motion-fast: 110ms;
+  --lb-motion-base: 170ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Grimório: o papel da ficha. */
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lb-gr-papel-alto: #1b1711;
+  --lb-gr-papel-baixo: #13100c;
+  --lb-gr-cartao: #211c15;
+  --lb-gr-cartao-alto: #29231a;
+  --lb-gr-campo: #15120e;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09);
+  --lb-gr-filete-forte: rgba(236, 234, 228, 0.16);
+  --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-gravado: #c8b089;
+  --lb-gr-hover: rgba(255, 236, 200, 0.06);
+
+  /* Só do lobby: medidas da página e do alvo de clique. */
+  --lo-largura: 1180px;
+  --lo-margem: clamp(16px, 3.2vw, 32px);
+  --lo-alvo: 36px;
+  /* A cor do sistema One Piece (client/src/lib/sistemaOnePiece.ts: cor) tinge o cartão da campanha. */
+  --lo-cor-sistema: #b4493c;
+}
+
+/* Dedo: todo alvo sobe para 44 px. */
+@media (pointer: coarse) {
+  :root { --lo-alvo: 44px; }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans);
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* O ambiente da tela inicial do app (MainMenu.css): grade de mapa e o halo do lampião.
+   Fixos, atrás de tudo, sem alargar a rolagem. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(var(--lb-color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lb-color-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.22;
+  mask-image: radial-gradient(ellipse 80% 60% at 70% 0%, #000 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 70% 0%, #000 0%, transparent 100%);
+  pointer-events: none;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  left: 78%;
+  top: -10%;
+  z-index: -1;
+  width: 900px;
+  height: 900px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(224, 164, 74, 0.1) 0%, rgba(224, 164, 74, 0.03) 40%, transparent 68%);
+  pointer-events: none;
+}
+
+body[data-tela='acesso']::before { opacity: 0.4; mask-image: radial-gradient(ellipse 75% 70% at 65% 45%, #000 0%, transparent 100%); -webkit-mask-image: radial-gradient(ellipse 75% 70% at 65% 45%, #000 0%, transparent 100%); }
+body[data-tela='acesso']::after { left: 70%; top: 44%; background: radial-gradient(circle at center, rgba(224, 164, 74, 0.16) 0%, rgba(224, 164, 74, 0.05) 38%, transparent 68%); }
+
+button, input, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+img, svg { display: block; }
+h1, h2, h3, p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+
+:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lo-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.lo-ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ------------------------------------------------------------- botões */
+
+.lo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  min-height: var(--lo-alvo);
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease,
+    transform 120ms var(--lb-gr-ease-out);
+}
+
+.lo-btn:active:not(:disabled) { transform: scale(0.97); }
+
+.lo-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lo-btn--primario {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lo-btn--fantasma {
+  border-color: transparent;
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lo-btn--grande {
+  min-height: 46px;
+  padding: 0 20px;
+  font-size: var(--lb-font-size-lg);
+}
+
+.lo-btn--icone {
+  width: var(--lo-alvo);
+  padding: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-btn:hover:not(:disabled) { background: var(--lb-color-stone-hover); border-color: var(--lb-color-parchment-faint); }
+  .lo-btn--primario:hover:not(:disabled) { background: var(--lb-color-brass-bright); border-color: var(--lb-color-brass-bright); }
+  .lo-btn--fantasma:hover:not(:disabled) { background: var(--lb-gr-hover); border-color: transparent; color: var(--lb-color-parchment); }
+}
+
+.lo-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  min-height: 32px;
+  margin-left: -6px;
+  padding: 0 8px 0 4px;
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-md);
+  text-decoration: none;
+  transition: color var(--lb-motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-voltar:hover { color: var(--lb-color-parchment); }
+}
+
+/* --------------------------------------------- retrato, avatar, marcas */
+
+/* Sem foto, como no app: as iniciais na serifa sobre um tom estável. */
+.lo-retrato {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  aspect-ratio: 1;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font-family: var(--lb-font-display);
+  font-size: 22px;
+  line-height: 1;
+  user-select: none;
+}
+
+.lo-retrato--p { width: 32px; border-radius: var(--lb-radius-sm); font-size: 13px; }
+.lo-retrato--g { width: 112px; border-radius: var(--lb-radius-lg); font-size: 44px; }
+.lo-retrato--xg { width: 100%; max-width: 220px; border-radius: var(--lb-radius-lg); font-size: 64px; }
+
+[data-tom='1'] { --tom: var(--lb-color-ember); --tom-fundo: var(--lb-color-ember-soft); }
+[data-tom='2'] { --tom: var(--lb-color-tide); --tom-fundo: var(--lb-color-tide-soft); }
+[data-tom='3'] { --tom: var(--lb-color-arcane); --tom-fundo: var(--lb-color-arcane-soft); }
+[data-tom='4'] { --tom: var(--lb-color-online); --tom-fundo: var(--lb-color-online-soft); }
+[data-tom='0'] { --tom: var(--lb-color-brass-bright); --tom-fundo: var(--lb-color-brass-soft); }
+.lo-retrato[data-tom], .lo-av[data-tom], .lo-vaga[data-tom] { color: var(--tom); background: var(--tom-fundo); }
+
+.lo-av {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 1;
+  user-select: none;
+}
+
+/* Ponto de presença: verde-musgo do app ("online"), sempre com texto ao lado ou no rótulo. */
+.lo-ponto {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lb-color-online);
+  box-shadow: 0 0 0 3px var(--lb-color-online-soft);
+}
+
+.lo-av > .lo-ponto,
+.lo-retrato > .lo-ponto {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  box-shadow: 0 0 0 2px var(--lb-color-ink);
+}
+
+.lo-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.lo-tag .lo-ic { width: 13px; height: 13px; }
+.lo-tag--sua { border-color: var(--lb-color-brass); background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); }
+.lo-tag--latao { border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.lo-tag--brasa { border-color: transparent; background: var(--lb-color-ember-soft); color: var(--lb-color-ember); }
+.lo-tag--mare { border-color: transparent; background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
+.lo-tag--online { border-color: transparent; padding: 0 6px; background: var(--lb-color-online-soft); color: var(--lb-color-online); }
+
+/* ----------------------------------------------- cabeça fixa e faixa */
+
+.lo-cabeca {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(18, 18, 20, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--lb-color-line);
+}
+
+.lo-cabeca[hidden] { display: none; }
+
+.lo-topo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-4);
+  width: min(var(--lo-largura), calc(100% - 2 * var(--lo-margem)));
+  min-height: 56px;
+  margin-inline: auto;
+}
+
+.lo-marca {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  flex: none;
+  padding: 4px 2px;
+  border-radius: var(--lb-radius-sm);
+  text-decoration: none;
+}
+
+.lo-marca__nome {
+  font-family: var(--lb-font-display);
+  font-size: 21px;
+  line-height: 1;
+  color: var(--lb-color-parchment);
+}
+
+.lo-marca__lobby {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  letter-spacing: var(--lb-font-tracking-wider);
+  text-transform: uppercase;
+  color: var(--lb-color-brass);
+}
+
+.lo-trilha {
+  min-width: 0;
+  flex: 1;
+}
+
+.lo-trilha ol {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--lb-color-parchment-faint);
+}
+
+.lo-trilha li {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.lo-trilha li + li::before {
+  content: '/';
+  margin: 0 10px;
+  color: var(--lb-color-line-strong);
+}
+
+.lo-trilha a,
+.lo-trilha span {
+  overflow: hidden;
+  padding: 4px 2px;
+  border-radius: var(--lb-radius-sm);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lo-trilha a { color: var(--lb-color-parchment-dim); }
+.lo-trilha [aria-current='page'] { color: var(--lb-color-parchment); }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-trilha a:hover { color: var(--lb-color-parchment); }
+}
+
+.lo-topo__direita {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  margin-left: auto;
+  flex: none;
+}
+
+.lo-agora-mini {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-agora-mini__rostos { display: flex; }
+.lo-agora-mini__rostos .lo-av { width: 24px; height: 24px; font-size: var(--lb-font-size-xs); box-shadow: 0 0 0 2px var(--lb-color-ink); }
+.lo-agora-mini__rostos .lo-av + .lo-av { margin-left: -6px; }
+
+.lo-conta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: var(--lo-alvo);
+  padding: 0 10px 0 4px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-solid);
+  cursor: pointer;
+  transition: border-color var(--lb-motion-fast) ease, transform 120ms var(--lb-gr-ease-out);
+}
+
+.lo-conta:active { transform: scale(0.97); }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-conta:hover { border-color: var(--lb-color-line-strong); }
+}
+
+/* O menu da conta: popover nativo (Esc e clique fora fecham sozinhos), cresce do canto do botão. */
+.lo-menu {
+  position: fixed;
+  inset: 60px var(--lo-margem) auto auto;
+  width: 260px;
+  margin: 0;
+  padding: var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  box-shadow: var(--lb-shadow-float);
+  transform-origin: top right;
+  transition:
+    opacity 150ms var(--lb-gr-ease-out),
+    transform 150ms var(--lb-gr-ease-out),
+    overlay 150ms allow-discrete,
+    display 150ms allow-discrete;
+}
+
+.lo-menu:not(:popover-open) { opacity: 0; transform: scale(0.96) translateY(-4px); }
+
+@starting-style {
+  .lo-menu:popover-open { opacity: 0; transform: scale(0.96) translateY(-4px); }
+}
+
+.lo-menu__quem {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-2) var(--lb-space-2) var(--lb-space-3);
+  border-bottom: 1px solid var(--lb-color-line);
+  margin-bottom: var(--lb-space-1);
+}
+
+.lo-menu__quem p { overflow-wrap: anywhere; }
+.lo-menu__email { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.lo-menu .lo-btn { width: 100%; justify-content: flex-start; }
+
+/* A FAIXA DE ESTADO: em toda tela com sessão, colada sob o topo.
+   Quatro estados, do mais importante ao mais calmo: decisão, sem internet,
+   enviando, salvo. "Salvo" só aparece depois que o servidor confirma. */
+.lo-faixa {
+  border-top: 1px solid var(--lb-color-line);
+  transition: background-color 180ms ease;
+}
+
+.lo-faixa[data-estado='decisao'] { background: rgba(226, 100, 90, 0.12); }
+.lo-faixa[data-estado='offline'] { background: rgba(121, 169, 204, 0.1); }
+
+.lo-faixa__dentro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--lb-space-3);
+  width: min(var(--lo-largura), calc(100% - 2 * var(--lo-margem)));
+  min-height: 36px;
+  margin-inline: auto;
+  padding: 4px 0;
+}
+
+.lo-faixa__principal {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  font-weight: var(--lb-font-weight-medium);
+}
+
+.lo-faixa__principal .lo-ic { width: 15px; height: 15px; }
+.lo-faixa[data-estado='salvo'] .lo-faixa__principal { color: var(--lb-color-parchment-dim); }
+.lo-faixa[data-estado='salvo'] .lo-ic { color: var(--lb-color-online); }
+.lo-faixa[data-estado='offline'] .lo-ic { color: var(--lb-color-tide); }
+.lo-faixa[data-estado='decisao'] .lo-ic { color: var(--lb-color-ember); }
+
+/* O texto novo aparece em vez de trocar seco: 140 ms, só opacidade. */
+.lo-faixa__principal > span {
+  transition: opacity 140ms ease;
+}
+
+@starting-style {
+  .lo-faixa__principal > span { opacity: 0; }
+}
+
+/* A confirmação do servidor: o visto assenta uma vez (raro o bastante para merecer). */
+.lo-faixa[data-recem='1'] .lo-faixa__principal .lo-ic {
+  animation: lo-assentar 260ms var(--lb-gr-ease-out);
+}
+
+@keyframes lo-assentar {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.lo-faixa__extra {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-faixa__acao { min-height: 28px; padding: 0 10px; font-size: var(--lb-font-size-sm); }
+
+.lo-giro {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  border: 2px solid var(--lb-color-brass-soft);
+  border-top-color: var(--lb-color-brass);
+  border-radius: 50%;
+  animation: lo-girar 700ms linear infinite;
+}
+
+@keyframes lo-girar { to { transform: rotate(360deg); } }
+
+/* --------------------------------------------------------- páginas */
+
+.lo-vista {
+  outline: none;
+}
+
+.lo-vista[data-entrou='1'] > * {
+  animation: lo-entrar 220ms var(--lb-gr-ease-out) backwards;
+}
+
+@keyframes lo-entrar {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.lo-pagina {
+  width: min(var(--lo-largura), calc(100% - 2 * var(--lo-margem)));
+  margin-inline: auto;
+  padding: var(--lb-space-8) 0 160px;
+}
+
+.lo-cab-pag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--lb-space-5) var(--lb-space-8);
+  margin-bottom: var(--lb-space-8);
+}
+
+.lo-cab-pag__texto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  max-width: 64ch;
+}
+
+.lo-titulo {
+  font-family: var(--lb-font-display);
+  font-size: clamp(30px, 4.4vw, 44px);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.lo-sub {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-lg);
+}
+
+.lo-secao + .lo-secao { margin-top: var(--lb-space-10); }
+
+.lo-secao__cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--lb-space-1) var(--lb-space-3);
+  margin-bottom: var(--lb-space-4);
+}
+
+.lo-secao__titulo {
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+.lo-secao__nota { color: var(--lb-color-parchment-dim); }
+
+/* ============================================ 1. SEM ACESSO */
+
+.lo-entrada {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 420px);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+  width: min(var(--lo-largura), calc(100% - 2 * var(--lo-margem)));
+  min-height: calc(100dvh - 40px);
+  margin-inline: auto;
+  padding: clamp(32px, 8vh, 96px) 0 140px;
+}
+
+.lo-entrada__marca {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-5);
+}
+
+.lo-entrada__lobby {
+  font-family: var(--lb-font-utility);
+  font-size: 13px;
+  letter-spacing: var(--lb-font-tracking-wider);
+  text-transform: uppercase;
+  color: var(--lb-color-brass);
+}
+
+.lo-entrada__titulo {
+  font-family: var(--lb-font-display);
+  font-size: clamp(52px, 7.5vw, 104px);
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.lo-entrada__texto {
+  max-width: 46ch;
+  color: var(--lb-color-parchment-dim);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* A única entrada orquestrada do site: a primeira tela sobe em cascata, como a tela inicial do app. */
+body[data-tela='acesso'] .lo-entrada__marca > *,
+body[data-tela='acesso'] .lo-porta {
+  animation: lo-subir 560ms var(--lb-gr-ease-out) backwards;
+}
+
+body[data-tela='acesso'] .lo-entrada__marca > :nth-child(2) { animation-delay: 60ms; }
+body[data-tela='acesso'] .lo-entrada__marca > :nth-child(3) { animation-delay: 120ms; }
+body[data-tela='acesso'] .lo-porta { animation-delay: 200ms; }
+
+@keyframes lo-subir {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+.lo-porta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-6);
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-xl);
+  background: rgba(26, 26, 30, 0.86);
+  box-shadow: var(--lb-shadow-lg), var(--lb-shadow-bevel);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.lo-porta h2 {
+  font-family: var(--lb-font-display);
+  font-size: 26px;
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.15;
+}
+
+.lo-porta p { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-lg); line-height: 1.55; }
+.lo-porta strong { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-medium); overflow-wrap: anywhere; }
+.lo-porta .lo-btn--grande { width: 100%; }
+.lo-porta__miuda { font-size: var(--lb-font-size-md) !important; color: var(--lb-color-parchment-faint) !important; }
+
+.lo-porta__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+}
+
+.lo-porta__sinal {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lo-porta__sinal .lo-ic { width: 22px; height: 22px; }
+
+/* ============================================ 2. MINHAS CAMPANHAS */
+
+.lo-mesas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: var(--lb-space-4);
+}
+
+/* O cartão da mesa: o grupo de rostos no alto (quem joga), o nome na serifa, três fatos.
+   A cor do sistema tinge só o canto, como luz vinda de fora. */
+.lo-mesa {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-4);
+  min-width: 0;
+  padding: var(--lb-space-5);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-xl);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--lo-cor-sistema) 16%, transparent) 0%, transparent 55%),
+    var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-bevel);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--lb-motion-base) ease, transform 140ms var(--lb-gr-ease-out);
+}
+
+.lo-mesa:active { transform: scale(0.99); }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-mesa:hover { border-color: var(--lb-color-line-strong); }
+  .lo-mesa:hover .lo-mesa__ir { color: var(--lb-color-brass-bright); }
+}
+
+.lo-mesa__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+}
+
+.lo-grupo { display: flex; }
+.lo-grupo .lo-retrato { width: 40px; border-radius: 50%; font-size: 15px; box-shadow: 0 0 0 3px var(--lb-color-stone-solid); }
+.lo-grupo .lo-retrato + .lo-retrato { margin-left: -9px; }
+.lo-grupo .lo-retrato[data-seu='1'] { box-shadow: 0 0 0 2px var(--lb-color-stone-solid), 0 0 0 4px var(--lb-color-brass); z-index: 1; }
+
+.lo-mesa__nome {
+  font-family: var(--lb-font-display);
+  font-size: 26px;
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.lo-mesa__fatos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  justify-content: start;
+  gap: var(--lb-space-1) var(--lb-space-6);
+  margin: 0;
+}
+
+.lo-mesa__fatos dt { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.lo-mesa__fatos dd { margin: 0; font-size: var(--lb-font-size-lg); }
+
+.lo-mesa__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2) var(--lb-space-4);
+  padding-top: var(--lb-space-4);
+  border-top: 1px solid var(--lb-color-line);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lo-mesa__ultima { min-width: 0; }
+.lo-mesa__ultima b { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-medium); }
+
+.lo-mesa__ir {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+  color: var(--lb-color-brass);
+  font-weight: var(--lb-font-weight-medium);
+  transition: color var(--lb-motion-fast) ease;
+}
+
+.lo-na-mesa {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+/* ============================================ 3. CAMPANHA */
+
+/* "Na mesa agora": quem está com o site aberto. */
+.lo-agora {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 220px;
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: rgba(26, 26, 30, 0.7);
+}
+
+.lo-agora__titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-agora ul { display: flex; flex-direction: column; gap: 6px; }
+.lo-agora li { display: flex; align-items: center; gap: var(--lb-space-2); }
+.lo-agora li .lo-av { width: 24px; height: 24px; font-size: var(--lb-font-size-xs); }
+.lo-agora__papel { color: var(--lb-color-parchment-faint); }
+
+/* O LOBBY: os seus personagens grandes, no papel da ficha e com filete de latão;
+   a tripulação ao lado, em pedra, menor e só para ver. */
+.lo-herois {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: var(--lb-space-4);
+}
+
+.lo-heroi {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--lb-space-5);
+  padding: var(--lb-space-5);
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-xl);
+  background: linear-gradient(180deg, var(--lb-gr-cartao-alto), var(--lb-gr-cartao));
+  box-shadow: var(--lb-shadow-md), var(--lb-shadow-bevel);
+}
+
+.lo-heroi__corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  min-width: 0;
+}
+
+.lo-heroi__nome {
+  font-family: var(--lb-font-display);
+  font-size: 28px;
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.lo-heroi__de { color: var(--lb-color-parchment-dim); }
+
+.lo-heroi__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+  margin-top: auto;
+  padding-top: var(--lb-space-1);
+}
+
+.lo-medidores { display: grid; gap: var(--lb-space-2); }
+
+.lo-medidor {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lb-space-3);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-medidor__nome { color: var(--lb-color-parchment-dim); }
+
+.lo-medidor__valor {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  font-variant-numeric: tabular-nums;
+  color: var(--tom-medidor);
+}
+
+.lo-medidor__valor small { color: var(--lb-color-parchment-faint); font-size: inherit; }
+
+.lo-medidor[data-tom='vida'], .lo-recurso[data-tom='vida'] { --tom-medidor: var(--lb-color-ember); }
+.lo-medidor[data-tom='energia'], .lo-recurso[data-tom='energia'] { --tom-medidor: var(--lb-color-tide); }
+.lo-recurso[data-tom='escudo'] { --tom-medidor: var(--lb-color-parchment); }
+
+/* A barrinha não anima: muda a cada clique (regra do app). */
+.lo-barra {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--tom-medidor) 20%, transparent);
+  overflow: hidden;
+}
+
+.lo-barra > span {
+  display: block;
+  height: 100%;
+  background: var(--tom-medidor);
+  transform-origin: left center;
+}
+
+.lo-tripulacao {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: var(--lb-space-3);
+}
+
+.lo-colega {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--lb-space-3) var(--lb-space-4);
+  padding: var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--lb-motion-base) ease, transform 140ms var(--lb-gr-ease-out);
+}
+
+.lo-colega:active { transform: scale(0.985); }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-colega:hover { border-color: var(--lb-color-line-strong); }
+}
+
+.lo-colega__corpo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.lo-colega__nome {
+  font-family: var(--lb-font-display);
+  font-size: 19px;
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.lo-colega__de {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--lb-space-2);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-colega .lo-medidor { grid-template-columns: 48px minmax(0, 1fr) auto; font-size: var(--lb-font-size-xs); }
+.lo-colega .lo-medidor__valor { font-size: var(--lb-font-size-sm); }
+
+.lo-colega__pe {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* ============================================ 4. FICHA */
+
+.lo-cab-ficha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-bottom: var(--lb-space-5);
+}
+
+.lo-cab-ficha__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-3) var(--lb-space-4);
+}
+
+.lo-cab-ficha__linha .lo-titulo { margin-right: var(--lb-space-1); }
+
+.lo-cab-ficha__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+  margin-left: auto;
+}
+
+.lo-cab-ficha__regra { color: var(--lb-color-parchment-dim); max-width: 70ch; }
+
+/* Aviso de linha: sem internet, só ver, ficha sem conta. */
+.lo-linha-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-3);
+  margin-bottom: var(--lb-space-4);
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lo-linha-aviso .lo-ic { margin-top: 2px; }
+.lo-linha-aviso b { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-medium); }
+.lo-linha-aviso[data-tom='mare'] { border-color: transparent; background: var(--lb-color-tide-soft); }
+.lo-linha-aviso[data-tom='mare'] .lo-ic { color: var(--lb-color-tide); }
+
+/* 5. O AVISO DE CONFLITO: acima da ficha, a frase diz quem, o quê e os dois valores,
+   e os botões dizem o número que fica. Nada é escolhido sozinho. */
+.lo-conflito {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--lb-space-3) var(--lb-space-4);
+  margin-bottom: var(--lb-space-4);
+  padding: var(--lb-space-4) var(--lb-space-5);
+  border: 1px solid rgba(226, 100, 90, 0.4);
+  border-left-width: 3px;
+  border-radius: var(--lb-radius-lg);
+  background: linear-gradient(90deg, rgba(226, 100, 90, 0.12), rgba(226, 100, 90, 0.04));
+  box-shadow: var(--lb-shadow-md);
+  outline-offset: 3px;
+}
+
+/* Entra uma vez, quando chega; os re-renders seguintes não repetem. */
+.lo-conflito[data-novo='1'] {
+  animation: lo-aviso-entra 220ms var(--lb-gr-ease-out);
+}
+
+@keyframes lo-aviso-entra {
+  from { opacity: 0; transform: translateY(-6px); }
+}
+
+.lo-conflito__sinal {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-ember);
+}
+
+.lo-conflito__sinal .lo-ic { width: 20px; height: 20px; }
+.lo-conflito__texto { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.lo-conflito__frase {
+  font-size: 17px;
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 1.35;
+}
+
+.lo-conflito__frase em { font-style: normal; color: var(--lb-color-parchment-dim); font-weight: var(--lb-font-weight-regular); }
+.lo-conflito__quando { color: var(--lb-color-parchment-dim); }
+
+.lo-conflito__acoes {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-control-gap);
+}
+
+.lo-conflito__acoes .lo-btn { font-variant-numeric: tabular-nums; }
+
+/* A ficha em si: duas colunas no computador, uma só no celular (como a ficha do app). */
+.lo-ficha {
+  display: grid;
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+  gap: var(--lb-space-5);
+  align-items: start;
+}
+
+.lo-lado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-5);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-xl);
+  background: linear-gradient(180deg, var(--lb-gr-cartao-alto), var(--lb-gr-cartao));
+  box-shadow: var(--lb-shadow-bevel);
+}
+
+.lo-lado .lo-retrato--xg { margin: 0 auto; }
+
+/* A coluna do retrato acompanha a rolagem só onde cabe inteira na janela. */
+@media (min-width: 901px) and (min-height: 820px) {
+  .lo-lado { position: sticky; top: 112px; }
+}
+
+.lo-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--lb-space-1); }
+
+.lo-chip {
+  display: inline-flex;
+  padding: 3px var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+}
+
+.lo-recursos { display: flex; flex-direction: column; gap: var(--lb-space-3); }
+
+.lo-recurso {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-campo);
+}
+
+.lo-recurso__topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+.lo-recurso__nome {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--tom-medidor);
+}
+
+.lo-recurso__max { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; }
+
+.lo-recurso__ler {
+  font-family: var(--lb-font-utility);
+  font-size: 30px;
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--tom-medidor);
+}
+
+/* O passo: [−] número [+]. O número é um campo: dá para digitar 22 direto. */
+.lo-passo {
+  display: grid;
+  grid-template-columns: var(--lo-alvo) minmax(0, 1fr) var(--lo-alvo);
+  align-items: center;
+  gap: 6px;
+}
+
+.lo-passo .lo-btn--icone { width: auto; min-height: var(--lo-alvo); }
+
+.lo-numero {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--lo-alvo);
+  padding: 0 6px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  color: var(--tom-medidor, var(--lb-color-parchment));
+  font-family: var(--lb-font-utility);
+  font-size: 24px;
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition: border-color var(--lb-motion-fast) ease;
+}
+
+.lo-numero:focus-visible { outline: none; border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px var(--lb-color-brass); }
+.lo-numero:disabled { opacity: 0.6; }
+.lo-numero[aria-invalid='true'] { border-color: var(--lb-color-ember); }
+
+.lo-erro-campo { color: var(--lb-color-ember); font-size: var(--lb-font-size-sm); }
+.lo-motivo { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+/* Valor que acabou de chegar de outra pessoa: um brilho de latão que apaga em 1,6 s.
+   É a explicação de "isto mudou sem você mexer". A sombra fica pronta numa camada
+   por cima e só a opacidade anima (nada de repintar sombra a cada quadro). */
+.is-destaque { position: relative; }
+
+.is-destaque::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass), inset 0 0 20px rgba(224, 164, 74, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  animation: lo-destaque 1600ms var(--lb-gr-ease-out) both;
+  animation-delay: inherit;
+}
+
+@keyframes lo-destaque {
+  0%, 25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Campo com decisão aberta: contorno tracejado em brasa e o motivo embaixo. */
+.lo-recurso[data-decidir='1'] { border: 1px dashed var(--lb-color-ember); }
+
+/* Abas da ficha */
+.lo-folha {
+  min-width: 0;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-xl);
+  background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  box-shadow: var(--lb-shadow-bevel);
+}
+
+.lo-abas {
+  display: flex;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-2) var(--lb-space-3) 0;
+  border-bottom: 1px solid var(--lb-gr-filete);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lo-aba {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--lb-radius-md) var(--lb-radius-md) 0 0;
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-lg);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease;
+}
+
+.lo-aba::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--lb-color-brass);
+  transform: scaleX(0);
+}
+
+.lo-aba[aria-selected='true'] { color: var(--lb-color-parchment); }
+.lo-aba[aria-selected='true']::after { transform: scaleX(1); }
+.lo-aba__conta { font-family: var(--lb-font-utility); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-aba:hover { color: var(--lb-color-parchment); background: var(--lb-gr-hover); }
+}
+
+.lo-painel { padding: var(--lb-space-5); outline: none; }
+.lo-painel > * + * { margin-top: var(--lb-space-8); }
+
+.lo-painel__cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2) var(--lb-space-4);
+  margin-bottom: var(--lb-space-4);
+}
+
+.lo-painel__titulo {
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-regular);
+  color: var(--lb-gr-gravado);
+}
+
+/* Atributos: oito placas, a sigla em legenda de mapa, o rank ao lado. */
+.lo-atributos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--lb-space-2);
+}
+
+.lo-atr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-campo);
+}
+
+.lo-atr__topo { display: flex; align-items: baseline; justify-content: space-between; gap: var(--lb-space-2); }
+
+.lo-atr__sigla {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment);
+  text-decoration: none;
+}
+
+.lo-atr__rank {
+  padding: 1px 6px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment-dim);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lo-atr__rank[data-alto='1'] { background: var(--lb-color-arcane-soft); color: var(--lb-color-arcane); }
+.lo-atr__nome { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.lo-atr .lo-numero { font-size: 20px; }
+.lo-atr__ler { font-family: var(--lb-font-utility); font-size: 26px; font-weight: var(--lb-font-weight-semibold); font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+/* Habilidades */
+.lo-habs { display: flex; flex-direction: column; gap: var(--lb-space-3); }
+
+.lo-hab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-4);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-gr-cartao);
+}
+
+.lo-hab__nome { font-size: var(--lb-font-size-lg); font-weight: var(--lb-font-weight-semibold); overflow-wrap: anywhere; }
+.lo-hab__linhas { display: flex; flex-wrap: wrap; gap: var(--lb-space-1); }
+.lo-hab__desc { max-width: 68ch; color: var(--lb-color-parchment-dim); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.lo-campo { display: flex; flex-direction: column; gap: 6px; }
+.lo-campo label { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+.lo-texto {
+  width: 100%;
+  min-height: var(--lo-alvo);
+  padding: 8px 10px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-campo);
+  color: var(--lb-color-parchment);
+  line-height: 1.45;
+  transition: border-color var(--lb-motion-fast) ease;
+}
+
+.lo-texto:focus-visible { outline: none; border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px var(--lb-color-brass); }
+textarea.lo-texto { min-height: 84px; resize: vertical; }
+
+.lo-barra-edicao {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-3);
+  margin-top: var(--lb-space-5);
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-gr-cartao-alto);
+  box-shadow: var(--lb-shadow-lg);
+}
+
+.lo-barra-edicao p { color: var(--lb-color-parchment-dim); }
+.lo-barra-edicao div { display: flex; gap: var(--lb-control-gap); }
+
+/* ============================================ 7. MOCHILA */
+
+.lo-nota-mapas {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 6px 12px;
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font-size: var(--lb-font-size-md);
+}
+
+.lo-moedas {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 220px);
+  align-items: center;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-4);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-gr-cartao);
+  --tom-medidor: var(--lb-color-brass-bright);
+}
+
+.lo-moedas__sinal {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lo-moedas__sinal .lo-ic { width: 22px; height: 22px; }
+.lo-moedas__nome { color: var(--lb-color-parchment-dim); }
+.lo-moedas__ler { font-family: var(--lb-font-utility); font-size: 28px; font-weight: var(--lb-font-weight-semibold); font-variant-numeric: tabular-nums; color: var(--lb-color-brass-bright); }
+
+.lo-itens {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--lb-space-3);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-gr-cartao);
+  overflow: hidden;
+}
+
+.lo-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-3) var(--lb-space-4);
+}
+
+.lo-item + .lo-item { border-top: 1px solid var(--lb-gr-filete); }
+
+/* A vaga do inventário do app (InventarioDaFicha.css): quadrado com a quantidade em latão no canto. */
+.lo-vaga {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  font-family: var(--lb-font-display);
+  font-size: 18px;
+}
+
+.lo-vaga__qtd {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  min-width: 20px;
+  padding: 0 5px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  text-align: center;
+}
+
+.lo-item__texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lo-item__nome { font-size: var(--lb-font-size-lg); font-weight: var(--lb-font-weight-medium); overflow-wrap: anywhere; }
+.lo-item__desc { color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; }
+
+.lo-qtd {
+  display: grid;
+  grid-template-columns: var(--lo-alvo) 44px var(--lo-alvo);
+  align-items: center;
+  gap: 4px;
+}
+
+.lo-qtd output {
+  font-family: var(--lb-font-utility);
+  font-size: 20px;
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.lo-qtd .lo-btn--tirar { color: var(--lb-color-ember); }
+
+.lo-por {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px auto;
+  align-items: end;
+  gap: var(--lb-space-3);
+  margin-top: var(--lb-space-3);
+  padding: var(--lb-space-4);
+  border: 1px dashed var(--lb-gr-filete-forte);
+  border-radius: var(--lb-radius-lg);
+}
+
+.lo-por__acoes { display: flex; gap: var(--lb-control-gap); }
+.lo-mochila__pe { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-3); margin-top: var(--lb-space-3); }
+
+/* ============================================ 6. HISTÓRICO */
+
+.lo-hist__dia {
+  margin: var(--lb-space-5) 0 var(--lb-space-2);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lo-hist__dia:first-child { margin-top: 0; }
+
+.lo-eventos {
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-gr-cartao);
+  overflow: hidden;
+}
+
+.lo-ev {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-3) var(--lb-space-4);
+}
+
+.lo-ev + .lo-ev { border-top: 1px solid var(--lb-gr-filete); }
+
+/* Aumento na mochila: a borda de latão marca a linha para quem revisa. */
+.lo-ev[data-aumento='1'] { background: linear-gradient(90deg, rgba(224, 164, 74, 0.09), transparent 60%); }
+.lo-ev[data-aumento='1']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--lb-color-brass);
+}
+
+.lo-ev[data-pendente='1'] { background: rgba(255, 255, 255, 0.02); }
+.lo-ev__corpo { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-top: 3px; }
+.lo-ev__frase { font-size: var(--lb-font-size-lg); line-height: 1.4; overflow-wrap: anywhere; }
+.lo-ev__frase b { font-weight: var(--lb-font-weight-semibold); }
+.lo-ev__valor { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.lo-ev[data-desfeita='1'] .lo-ev__frase { color: var(--lb-color-parchment-faint); text-decoration: line-through; text-decoration-color: rgba(236, 234, 228, 0.35); }
+
+.lo-ev__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--lb-space-2);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lo-ev__acao { align-self: center; }
+
+.lo-confirma {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid rgba(226, 100, 90, 0.35);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-ember-soft);
+}
+
+.lo-confirma p { color: var(--lb-color-parchment); }
+.lo-confirma div { display: flex; flex-wrap: wrap; gap: var(--lb-control-gap); }
+
+.lo-vazio { padding: var(--lb-space-6); color: var(--lb-color-parchment-dim); text-align: center; }
+
+/* ------------------------------------------------- notificações */
+
+.lo-torradas {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--lb-space-2);
+  width: min(440px, calc(100% - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.lo-torrada {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  padding: 10px 10px 10px 16px;
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-float);
+  pointer-events: auto;
+  transition: opacity 220ms var(--lb-gr-ease-out), transform 220ms var(--lb-gr-ease-out);
+}
+
+@starting-style {
+  .lo-torrada { opacity: 0; transform: translateY(100%); }
+}
+
+.lo-torrada[data-saindo='1'] { opacity: 0; transform: translateY(40%); transition-duration: 160ms; }
+.lo-torrada p { flex: 1; min-width: 0; }
+.lo-torrada .lo-btn { min-height: 30px; padding: 0 10px; }
+
+/* =====================================================================
+   PROTÓTIPO — a doca de telas e simulações. NÃO faz parte do site:
+   borda tracejada em azul de maré, fonte menor, fecha num botão.
+   ===================================================================== */
+.pt-doca {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  width: 316px;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  border: 1px dashed rgba(121, 169, 204, 0.55);
+  border-radius: var(--lb-radius-lg);
+  background: rgba(13, 17, 21, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--lb-shadow-lg);
+  font-size: 12px;
+}
+
+.pt-doca__cab {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 6px 6px 6px 12px;
+}
+
+.pt-doca__selo { color: var(--lb-color-tide); font-weight: var(--lb-font-weight-semibold); }
+.pt-doca__dica { color: var(--lb-color-parchment-faint); }
+
+.pt-doca__fechar {
+  margin-left: auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(121, 169, 204, 0.3);
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-tide);
+  cursor: pointer;
+}
+
+.pt-doca__corpo { display: flex; flex-direction: column; gap: 10px; padding: 0 12px 12px; }
+.pt-doca[data-aberta='0'] .pt-doca__corpo { display: none; }
+.pt-doca[data-aberta='0'] { width: auto; }
+.pt-doca h2 { color: var(--lb-color-parchment-faint); font-size: 11px; font-weight: var(--lb-font-weight-semibold); }
+
+.pt-telas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  counter-reset: pt;
+}
+
+.pt-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--lb-radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--lb-color-parchment-dim);
+  font-size: 12px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, transform 120ms var(--lb-gr-ease-out);
+}
+
+.pt-btn:active { transform: scale(0.97); }
+.pt-btn b { color: var(--lb-color-tide); font-family: var(--lb-font-utility); font-weight: var(--lb-font-weight-medium); }
+.pt-btn[aria-current='true'] { border-color: rgba(121, 169, 204, 0.6); color: var(--lb-color-parchment); background: rgba(121, 169, 204, 0.1); }
+
+@media (hover: hover) and (pointer: fine) {
+  .pt-btn:hover { border-color: rgba(121, 169, 204, 0.45); color: var(--lb-color-parchment); }
+}
+
+.pt-sims { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.pt-sims[hidden] { display: none; }
+
+/* -------------------------------------------------------- celular */
+
+@media (max-width: 900px) {
+  .lo-ficha { grid-template-columns: minmax(0, 1fr); }
+  .lo-lado { position: static; display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: start; }
+  .lo-lado .lo-retrato--xg { width: 96px; font-size: 36px; margin: 0; }
+  .lo-lado .lo-chips { justify-content: flex-start; align-self: center; }
+  .lo-lado .lo-recursos { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .lo-atributos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .lo-trilha, .lo-agora-mini { display: none; }
+  .lo-conta__nome { display: none; }
+  .lo-conta { padding: 0 4px; }
+  .lo-entrada { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .lo-heroi { grid-template-columns: minmax(0, 1fr); }
+  .lo-heroi .lo-retrato--g { width: 72px; font-size: 28px; }
+  .lo-mesa__fatos { grid-template-columns: repeat(2, minmax(0, auto)); }
+  .lo-moedas { grid-template-columns: auto minmax(0, 1fr); }
+  .lo-moedas .lo-passo { grid-column: 1 / -1; }
+  .lo-item { grid-template-columns: auto minmax(0, 1fr); }
+  .lo-item .lo-qtd { grid-column: 1 / -1; justify-self: end; }
+  .lo-por { grid-template-columns: minmax(0, 1fr) 80px; }
+  .lo-por__acoes { grid-column: 1 / -1; }
+  .lo-ev { grid-template-columns: auto minmax(0, 1fr); }
+  .lo-ev__acao { grid-column: 2; justify-self: start; }
+  .lo-conflito { padding: var(--lb-space-4); }
+  .lo-conflito__acoes { grid-column: 1 / -1; }
+  .lo-conflito__acoes .lo-btn { flex: 1 1 auto; }
+  .lo-painel { padding: var(--lb-space-4); }
+  .pt-doca { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 60dvh; }
+  .pt-doca[data-aberta='0'] { left: auto; }
+}
+
+/* Movimento reduzido: como o main.css do app, tudo encurta para 1 ms.
+   O destaque de valor remoto vira um contorno parado enquanto dura. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .is-destaque::after { animation: none !important; opacity: 1; }
+  .lo-giro { animation: none !important; border-color: var(--lb-color-brass); }
+}
+</style>
+</head>
+<body data-tela="acesso">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-visto" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-alerta" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4v.2"/></symbol>
+    <symbol id="i-sem-rede" viewBox="0 0 24 24"><path d="M3 3l18 18M8.6 16.4a5 5 0 0 1 6.8 0M5.2 12.7a10 10 0 0 1 3.9-2.4M18.8 12.7a10 10 0 0 0-2.7-1.9M2 8.9a15 15 0 0 1 4.3-2.8M22 8.9A15 15 0 0 0 11 5.1M12 20h.01"/></symbol>
+    <symbol id="i-voltar" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+    <symbol id="i-menos" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+    <symbol id="i-mais" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></symbol>
+    <symbol id="i-tirar" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></symbol>
+    <symbol id="i-mapas" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5"/></symbol>
+    <symbol id="i-moeda" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></symbol>
+    <symbol id="i-olho" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+    <symbol id="i-lapis" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></symbol>
+    <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+    <symbol id="i-sair" viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></symbol>
+    <symbol id="i-entrar" viewBox="0 0 24 24"><path d="M10 4h9v16h-9M4 12h10M10 8l4 4-4 4"/></symbol>
+    <symbol id="i-ir" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="i-desfazer" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+    <symbol id="i-convite" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6l8.5 7 8.5-7"/></symbol>
+    <symbol id="i-fechar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  </defs>
+</svg>
+
+<header class="lo-cabeca" id="cabeca" hidden></header>
+<main class="lo-vista" id="vista" tabindex="-1"></main>
+<div class="lo-torradas" id="torradas" role="status" aria-live="polite"></div>
+
+<aside class="pt-doca" id="doca" data-aberta="1" aria-label="Protótipo: telas e simulações (não faz parte do site)">
+  <div class="pt-doca__cab">
+    <span class="pt-doca__selo">Protótipo</span>
+    <span class="pt-doca__dica">fora do site</span>
+    <button type="button" class="pt-doca__fechar" data-acao="doca" aria-expanded="true" aria-controls="doca-corpo">Esconder</button>
+  </div>
+  <div class="pt-doca__corpo" id="doca-corpo">
+    <h2 id="pt-telas-t">Telas</h2>
+    <ol class="pt-telas" aria-labelledby="pt-telas-t">
+      <li><a class="pt-btn" data-tela-pt="1" href="#/entrar"><b>1</b> Sem acesso</a></li>
+      <li><a class="pt-btn" data-tela-pt="2" href="#/campanhas"><b>2</b> Campanhas</a></li>
+      <li><a class="pt-btn" data-tela-pt="3" href="#/c/rota"><b>3</b> Campanha</a></li>
+      <li><a class="pt-btn" data-tela-pt="4" href="#/c/rota/f/sora"><b>4</b> Ficha</a></li>
+      <li><button type="button" class="pt-btn" data-tela-pt="5" data-acao="sim-mestre"><b>5</b> Conflito</button></li>
+      <li><a class="pt-btn" data-tela-pt="6" href="#/c/rota/f/sora/historico"><b>6</b> Histórico</a></li>
+      <li><a class="pt-btn" data-tela-pt="7" href="#/c/rota/f/sora/mochila"><b>7</b> Mochila</a></li>
+    </ol>
+    <h2 id="pt-sims-t">Simular</h2>
+    <div class="pt-sims" id="pt-sims-sessao" role="group" aria-labelledby="pt-sims-t">
+      <button type="button" class="pt-btn" data-acao="sim-vida">Mudar a Vida da Sora</button>
+      <button type="button" class="pt-btn" data-acao="sim-rede" id="pt-rede">Cair a internet no meio do envio</button>
+      <button type="button" class="pt-btn" data-acao="sim-mestre">O mestre muda a mesma Vida</button>
+      <button type="button" class="pt-btn" data-acao="sim-desfazer">Desfazer a minha última mudança</button>
+    </div>
+    <div class="pt-sims" id="pt-sims-acesso" role="group" aria-labelledby="pt-sims-t" hidden>
+      <button type="button" class="pt-btn" data-acao="entrar-convidada">Entrar como bia.souza@example.com (convidada)</button>
+      <button type="button" class="pt-btn" data-acao="entrar-sem-convite">Entrar como visitante@example.com (não convidado)</button>
+    </div>
+  </div>
+</aside>
+
+<noscript><p style="padding:24px">Este protótipo precisa de JavaScript ligado.</p></noscript>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ===================================================================
+     DADOS — todos inventados. Nenhuma ficha real (o repo é público).
+     Sistema no molde do One Piece do app (client/src/lib/sistemaOnePiece.ts):
+     oito atributos com rank pelos mesmos limiares.
+     =================================================================== */
+
+  const ATRIBUTOS = [
+    { id: 'forca', nome: 'Força', sigla: 'FOR', inicial: 1, limiares: [40, 90, 150, 320, 510, 765, 1725, 2200, 2700] },
+    { id: 'agilidade', nome: 'Agilidade', sigla: 'AGI', inicial: 1, limiares: [33, 60, 90, 140, 210, 315, 400, 600, 950] },
+    { id: 'percepcao', nome: 'Percepção', sigla: 'PER', inicial: 1, limiares: [30, 80, 130, 220, 330, 500, 750, 1125, 1500] },
+    { id: 'resistencia', nome: 'Resistência', sigla: 'RES', inicial: 0, limiares: [1, 40, 140, 240, 480, 720, 1620, 2430, 5500, 8250] },
+    { id: 'intuicao', nome: 'Intuição', sigla: 'INT', inicial: 1, limiares: [30, 80, 150, 240, 275, 360, 540, 810, 1215] },
+    { id: 'espirito', nome: 'Espírito', sigla: 'ESP', inicial: 0, limiares: [1, 35, 75, 115, 140, 210, 315, 472, 700, 1060, 1590, 2385, 2500] },
+    { id: 'carisma', nome: 'Carisma', sigla: 'CAR', inicial: 1, limiares: [20, 55, 100, 150, 200, 240, 315, 472, 700] },
+    { id: 'determinacao', nome: 'Determinação', sigla: 'DET', inicial: 1, limiares: [16, 40, 80, 130, 175, 195, 295, 440, 660, 1590, 2385, 2500] },
+  ];
+
+  const EU = 'bia';
+  const PESSOAS = {
+    bia: { nome: 'Bia', email: 'bia.souza@example.com', tom: 2 },
+    rafa: { nome: 'Rafa', email: 'rafa.mestre@example.com', tom: 0 },
+    caio: { nome: 'Caio', email: 'caio.rocha@example.com', tom: 1 },
+    duda: { nome: 'Duda', email: 'duda.lins@example.com', tom: 3 },
+    leo: { nome: 'Léo', email: 'leo.prado@example.com', tom: 4 },
+    tati: { nome: 'Tati', email: 'tati.mestra@example.com', tom: 3 },
+    gui: { nome: 'Gui', email: 'gui.alves@example.com', tom: 1 },
+    mel: { nome: 'Mel', email: 'mel.costa@example.com', tom: 4 },
+  };
+  const VISITANTE = 'visitante@example.com';
+
+  const HABS = {
+    sora: [
+      { id: 'h1', nome: 'Leitura do Vento', acao: 'Bônus', custo: '3 de Energia', dano: '', desc: 'Prevê a próxima rajada: o barco ganha 2 de deslocamento e você tem vantagem no próximo teste de Percepção.' },
+      { id: 'h2', nome: 'Corte de Maré', acao: 'Padrão', custo: '5 de Energia', dano: '2d8 + AGI', desc: 'Um golpe em arco que acompanha a onda. Se o alvo estiver molhado, é empurrado 3 metros.' },
+      { id: 'h3', nome: 'Âncora Firme', acao: 'Reação', custo: '2 de Energia', dano: '', desc: 'Finca os pés no convés: não cai nem é empurrada até o fim da rodada.' },
+    ],
+    tanuki: [
+      { id: 'h1', nome: 'Panela de Ferro', acao: 'Padrão', custo: '2 de Energia', dano: '1d10 + FOR', desc: 'A panela também serve de escudo. Ninguém reclama da comida depois.' },
+      { id: 'h2', nome: 'Caldo Quente', acao: 'Completa', custo: '6 de Energia', dano: '', desc: 'Todos os aliados ao alcance recuperam 1d6 de Vida.' },
+    ],
+    gael: [
+      { id: 'h1', nome: 'Martelo de Brasa', acao: 'Padrão', custo: '4 de Energia', dano: '2d6 + FOR', desc: 'O martelo sai da forja ainda vermelho. Queima o que tocar.' },
+      { id: 'h2', nome: 'Remendo Rápido', acao: 'Bônus', custo: '3 de Energia', dano: '', desc: 'Conserta uma arma ou armadura quebrada até o fim da cena.' },
+    ],
+    iara: [
+      { id: 'h1', nome: 'Pulso de Coral', acao: 'Padrão', custo: '4 de Energia', dano: '', desc: 'Toca o peito do aliado: ele recupera 2d6 de Vida.' },
+      { id: 'h2', nome: 'Nado de Corrente', acao: 'Movimento', custo: '2 de Energia', dano: '', desc: 'Dentro da água, anda o dobro e não provoca ataque.' },
+    ],
+    barto: [
+      { id: 'h1', nome: 'Mão Leve', acao: 'Bônus', custo: '2 de Energia', dano: '', desc: 'Tira um objeto pequeno de quem estiver ao lado sem ser visto.' },
+      { id: 'h2', nome: 'Cinza nos Olhos', acao: 'Padrão', custo: '3 de Energia', dano: '1d6', desc: 'O alvo fica cego até o começo do próximo turno dele.' },
+    ],
+    ondino: [
+      { id: 'h1', nome: 'Remendo de Casco', acao: 'Completa', custo: '5 de Energia', dano: '', desc: 'Fecha um rombo no barco com o que tiver à mão.' },
+    ],
+  };
+
+  function itens(lista) { return lista.map(([id, nome, qtd, desc, tom]) => ({ id, nome, qtd, desc, tom })); }
+
+  function criarFicha(id, nome, dono, raca, oficio, tom, o) {
+    return {
+      id, nome, dono, raca, oficio, tom,
+      jogadorSemConta: o.jogadorSemConta || null,
+      vida: { atual: o.vida[0], max: o.vida[1] },
+      energia: { atual: o.energia[0], max: o.energia[1] },
+      escudo: o.escudo,
+      moedas: o.moedas,
+      atr: Object.fromEntries(ATRIBUTOS.map((a, i) => [a.id, o.atr[i]])),
+      habilidades: (HABS[id] || HABS.ondino).map((h) => ({ ...h })),
+      mochila: itens(o.mochila),
+    };
+  }
+
+  const FICHAS = {
+    sora: criarFicha('sora', 'Sora Maretta', 'bia', 'Humano', 'Navegador', 2, {
+      vida: [30, 40], energia: [18, 25], escudo: 3, moedas: 1250,
+      atr: [34, 72, 90, 40, 88, 12, 60, 45],
+      mochila: [
+        ['i1', 'Poção de maré', 3, 'Cura 2d6 de Vida. Gosto de alga.', 2],
+        ['i2', 'Bomba de fumaça', 2, 'Cobre 3 metros de fumaça cinza por uma rodada.', 0],
+        ['i3', 'Pão de bordo', 5, 'Duro como a âncora, mas alimenta.', 4],
+        ['i4', 'Bússola de vidro', 1, 'Aponta para o que você mais quer, nem sempre para o norte.', 3],
+        ['i5', 'Corda de cânhamo', 1, 'Quinze metros, com o nó de marinheiro já feito.', 1],
+        ['i6', 'Mapa rasgado', 1, 'Metade de uma ilha que ninguém achou.', 0],
+      ],
+    }),
+    tanuki: criarFicha('tanuki', 'Tanuki Bento', 'bia', 'Mink', 'Cozinheiro', 4, {
+      vida: [36, 36], energia: [12, 20], escudo: 5, moedas: 310,
+      atr: [55, 40, 33, 90, 41, 0, 70, 38],
+      mochila: [['i1', 'Panela de ferro', 1, 'Pesa mais do que parece.', 0], ['i2', 'Tempero do sul', 4, 'Uma pitada e o caldo cura mais 1.', 1]],
+    }),
+    gael: criarFicha('gael', 'Gael Ferrolho', 'caio', 'Humano', 'Ferreiro', 1, {
+      vida: [18, 44], energia: [9, 22], escudo: 6, moedas: 820,
+      atr: [96, 30, 41, 150, 22, 5, 18, 60],
+      mochila: [['i1', 'Martelo de forja', 1, 'Cabo de carvalho, cabeça de ferro negro.', 1], ['i2', 'Lingote de ferro', 3, 'Vira lâmina com uma noite de forja.', 0]],
+    }),
+    iara: criarFicha('iara', 'Iara Tormenta', 'duda', 'Tritão', 'Médico', 3, {
+      vida: [27, 30], energia: [21, 28], escudo: 2, moedas: 540,
+      atr: [25, 61, 80, 38, 130, 40, 52, 70],
+      mochila: [['i1', 'Bandagem de alga', 6, 'Estanca sangue e cheira a mar.', 4], ['i2', 'Frasco de calmante', 2, 'Faz dormir em dois goles.', 3]],
+    }),
+    barto: criarFicha('barto', 'Bartô Cinzas', 'leo', 'Humano', 'Gatuno', 0, {
+      vida: [22, 32], energia: [15, 24], escudo: 1, moedas: 2040,
+      atr: [30, 95, 66, 20, 50, 8, 81, 33],
+      mochila: [['i1', 'Gazua', 3, 'Abre quase tudo. Quase.', 0], ['i2', 'Saquinho de cinza', 2, 'Joga nos olhos e corre.', 1]],
+    }),
+    ondino: criarFicha('ondino', 'Ondino Velho', null, 'Ogro', 'Carpinteiro', 2, {
+      jogadorSemConta: 'Vô Nico',
+      vida: [52, 60], energia: [10, 14], escudo: 8, moedas: 75,
+      atr: [140, 12, 30, 240, 35, 2, 25, 90],
+      mochila: [['i1', 'Serrote', 1, 'Dentes gastos de tanto casco.', 0]],
+    }),
+    lua: criarFicha('lua', 'Lua Pimenta', 'bia', 'Skypean', 'Artista', 3, {
+      vida: [24, 28], energia: [20, 26], escudo: 2, moedas: 600,
+      atr: [20, 70, 55, 30, 60, 35, 95, 40],
+      mochila: [['i1', 'Rabeca', 1, 'Toca sozinha quando venta.', 3]],
+    }),
+    casco: criarFicha('casco', 'Casco Duro', 'gui', 'Ogro', 'Carpinteiro', 1, {
+      vida: [48, 50], energia: [8, 12], escudo: 7, moedas: 90,
+      atr: [120, 10, 22, 200, 18, 0, 15, 70],
+      mochila: [['i1', 'Machado', 1, 'Cabo curto, lâmina larga.', 1]],
+    }),
+    nevoa: criarFicha('nevoa', 'Névoa Sal', 'mel', 'Lunariano', 'Cientista', 4, {
+      vida: [20, 26], energia: [24, 30], escudo: 1, moedas: 410,
+      atr: [18, 50, 70, 25, 140, 60, 40, 55],
+      mochila: [['i1', 'Lente de bolso', 1, 'Aumenta dez vezes.', 4]],
+    }),
+    vela: criarFicha('vela', 'Vela Rubra', 'bia', 'Humano', 'Navegador', 1, {
+      vida: [26, 30], energia: [16, 20], escudo: 2, moedas: 150,
+      atr: [30, 45, 60, 35, 50, 10, 40, 30],
+      mochila: [['i1', 'Luneta', 1, 'Vê o farol de longe.', 2]],
+    }),
+    ruivo: criarFicha('ruivo', 'Ruivo Anzol', 'caio', 'Tritão', 'Gatuno', 0, {
+      vida: [22, 24], energia: [14, 18], escudo: 1, moedas: 300,
+      atr: [28, 66, 40, 22, 30, 5, 35, 25],
+      mochila: [['i1', 'Anzol de prata', 2, 'Pesca até bota.', 0]],
+    }),
+  };
+
+  const CAMPANHAS = [
+    { id: 'rota', nome: 'Rota das Ilhas Partidas', mestre: 'rafa', fichas: ['sora', 'tanuki', 'gael', 'iara', 'barto', 'ondino'], online: ['rafa', 'caio', 'duda'] },
+    { id: 'mar', nome: 'Mar de Cobre', mestre: 'tati', fichas: ['lua', 'casco', 'nevoa'], online: ['tati'] },
+    { id: 'farol', nome: 'O Farol Sem Fundo', mestre: 'rafa', fichas: ['vela', 'ruivo'], online: [] },
+  ];
+
+  const MIN = 60 * 1000;
+  const DIA = 24 * 60 * MIN;
+  const agoraMenos = (minutos) => Date.now() - minutos * MIN;
+  function diasAtrasAs(dias, h, m) {
+    const d = new Date(Date.now() - dias * DIA);
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  }
+
+  /* O histórico que já existia quando a página abriu. Mantém a ficha coerente:
+     PER 92 → 95 (Bia, ontem) e 95 → 90 (Rafa, depois) = PER 90 hoje. */
+  let seq = 0;
+  const novoId = (p) => p + (++seq).toString(36);
+  const HISTORICO = [
+    { fichaId: 'sora', autor: 'bia', tipo: 'definir', campo: 'atr:percepcao', rotulo: 'Percepção', de: 92, para: 95, quando: diasAtrasAs(1, 22, 5) },
+    { fichaId: 'sora', autor: 'rafa', tipo: 'definir', campo: 'atr:percepcao', rotulo: 'Percepção', de: 95, para: 90, quando: diasAtrasAs(1, 22, 31) },
+    { fichaId: 'sora', autor: 'bia', tipo: 'criar', campo: 'item:i2', rotulo: 'Bomba de fumaça', item: { ...FICHAS.sora.mochila[1] }, quando: agoraMenos(52), aumento: true },
+    { fichaId: 'sora', autor: 'bia', mesa: true, tipo: 'definir', campo: 'energia', rotulo: 'Energia', de: 20, para: 18, quando: agoraMenos(37) },
+    { fichaId: 'sora', autor: 'rafa', tipo: 'somar', campo: 'moedas', rotulo: 'moedas', delta: 500, de: 750, para: 1250, quando: agoraMenos(21), aumento: true },
+    { fichaId: 'sora', autor: 'rafa', tipo: 'definir', campo: 'vida', rotulo: 'Vida', de: 34, para: 30, quando: agoraMenos(6) },
+    { fichaId: 'sora', autor: 'bia', tipo: 'somar', campo: 'item:i1:qtd', rotulo: 'Poção de maré', delta: -1, de: 4, para: 3, quando: agoraMenos(2) },
+    { fichaId: 'tanuki', autor: 'bia', tipo: 'somar', campo: 'item:i2:qtd', rotulo: 'Tempero do sul', delta: 2, de: 2, para: 4, quando: agoraMenos(80), aumento: true },
+    { fichaId: 'gael', autor: 'caio', tipo: 'definir', campo: 'escudo', rotulo: 'Escudo', de: 4, para: 6, quando: agoraMenos(30) },
+    { fichaId: 'gael', autor: 'rafa', tipo: 'definir', campo: 'vida', rotulo: 'Vida', de: 22, para: 18, quando: agoraMenos(3) },
+    { fichaId: 'iara', autor: 'duda', tipo: 'somar', campo: 'item:i1:qtd', rotulo: 'Bandagem de alga', delta: 2, de: 4, para: 6, quando: agoraMenos(15), aumento: true },
+    { fichaId: 'barto', autor: 'leo', tipo: 'somar', campo: 'moedas', rotulo: 'moedas', delta: -60, de: 2100, para: 2040, quando: diasAtrasAs(1, 21, 40) },
+    { fichaId: 'ondino', autor: 'rafa', tipo: 'definir', campo: 'escudo', rotulo: 'Escudo', de: 7, para: 8, quando: diasAtrasAs(2, 20, 15) },
+    { fichaId: 'lua', autor: 'bia', tipo: 'definir', campo: 'energia', rotulo: 'Energia', de: 22, para: 20, quando: diasAtrasAs(1, 21, 2) },
+    { fichaId: 'casco', autor: 'gui', tipo: 'definir', campo: 'vida', rotulo: 'Vida', de: 50, para: 48, quando: diasAtrasAs(1, 20, 47) },
+    { fichaId: 'vela', autor: 'rafa', tipo: 'somar', campo: 'moedas', rotulo: 'moedas', delta: 50, de: 100, para: 150, quando: diasAtrasAs(12, 21, 0), aumento: true },
+  ].map((e) => ({ id: novoId('h'), ...e }));
+
+  /* ===================================================================
+     ESTADO DO PROTÓTIPO
+     =================================================================== */
+  const estado = {
+    sessao: null,            // 'bia' depois de entrar
+    online: true,
+    pendentes: [],           // ops a caminho (sem ack); offline = esperando
+    decisoes: [],            // conflitos que esperam a escolha do jogador
+    confirmando: null,       // id do evento cujo Desfazer pede confirmação
+    editando: null,          // { fichaId, rascunho }
+    porItem: false,          // formulário "Pôr item" aberto
+    erros: {},               // campo -> mensagem
+    digitado: {},            // campo -> texto inválido que fica no campo até corrigir
+    destaques: {},           // fichaId|campo -> instante do destaque
+    faixaAntes: '',
+    rotaAntes: '',
+    rotaAntesObj: null,
+    focarDepois: null,       // data-k que recebe o foco no próximo render
+  };
+
+  /* ---------------------------------------------------------- utilidades */
+  const $ = (sel, raiz = document) => raiz.querySelector(sel);
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ESC[c]);
+  const ic = (nome, cls = '') => `<svg class="lo-ic ${cls}" aria-hidden="true"><use href="#i-${nome}"/></svg>`;
+  const iniciais = (nome) => nome.split(/ +/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+  const fmtNum = (n) => Number(n).toLocaleString('pt-BR');
+  const hhmm = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const inicioDoDia = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+
+  function quandoRelativo(t) {
+    const s = Math.round((Date.now() - t) / 1000);
+    if (s < 45) return 'agora';
+    const m = Math.round(s / 60);
+    if (m < 60) return `há ${m} min`;
+    const hoje = inicioDoDia(Date.now());
+    if (t >= hoje) return `hoje às ${hhmm(t)}`;
+    if (t >= hoje - DIA) return `ontem às ${hhmm(t)}`;
+    const d = new Date(t);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} às ${hhmm(t)}`;
+  }
+
+  function nomeDoDia(t) {
+    const hoje = inicioDoDia(Date.now());
+    if (t >= hoje) return 'Hoje';
+    if (t >= hoje - DIA) return 'Ontem';
+    return new Date(t).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+
+  const tempo = (t) => `<time datetime="${new Date(t).toISOString()}" title="${esc(new Date(t).toLocaleString('pt-BR'))}">${esc(quandoRelativo(t))}</time>`;
+
+  function rank(atr, v) { return atr.inicial + atr.limiares.filter((l) => v >= l).length; }
+  const campanha = (id) => CAMPANHAS.find((c) => c.id === id);
+  const campanhaDaFicha = (fichaId) => CAMPANHAS.find((c) => c.fichas.includes(fichaId));
+  const ehMinha = (f) => f.dono === EU;
+  const online = (c, pessoa) => pessoa === EU ? estado.online : c.online.includes(pessoa);
+
+  /* ---- campos da ficha (o caminho da op, em versão curta) */
+  function ler(f, campo) {
+    const [a, b, c] = campo.split(':');
+    if (a === 'vida' || a === 'energia') return f[a].atual;
+    if (a === 'escudo' || a === 'moedas') return f[a];
+    if (a === 'atr') return f.atr[b];
+    if (a === 'hab') { const h = f.habilidades.find((x) => x.id === b); return h ? h[c] : undefined; }
+    if (a === 'item') { const it = f.mochila.find((x) => x.id === b); return c ? (it ? it.qtd : 0) : it; }
+    return undefined;
+  }
+
+  function escrever(f, campo, valor) {
+    const [a, b, c] = campo.split(':');
+    if (a === 'vida' || a === 'energia') f[a].atual = valor;
+    else if (a === 'escudo' || a === 'moedas') f[a] = valor;
+    else if (a === 'atr') f.atr[b] = valor;
+    else if (a === 'hab') { const h = f.habilidades.find((x) => x.id === b); if (h) h[c] = valor; }
+    else if (a === 'item' && c === 'qtd') { const it = f.mochila.find((x) => x.id === b); if (it) it.qtd = valor; }
+  }
+
+  function aplicar(f, op) {
+    if (op.tipo === 'definir') escrever(f, op.campo, op.para);
+    else if (op.tipo === 'somar') escrever(f, op.campo, ler(f, op.campo) + op.delta);
+    else if (op.tipo === 'criar') { if (!f.mochila.some((i) => i.id === op.item.id)) f.mochila.push({ ...op.item }); }
+    else if (op.tipo === 'apagar') f.mochila = f.mochila.filter((i) => i.id !== op.item.id);
+  }
+
+  /* ===================================================================
+     O FUNIL DO PROTÓTIPO: toda mudança vira uma op pequena, aparece já
+     na tela (otimista), conta em "Enviando N" e só vira "Salvo" no ack.
+     =================================================================== */
+  function enviar(op, { semAck = false } = {}) {
+    if (!estado.online) {
+      torrada('Sem internet: mudanças novas ficam pausadas até a conexão voltar.');
+      return false;
+    }
+    const f = FICHAS[op.fichaId];
+    const completa = { opId: novoId('op'), autor: EU, quando: Date.now(), ...op };
+    aplicar(f, completa);
+    estado.pendentes.push(completa);
+    if (!semAck) agendarAck(completa);
+    atualizar();
+    return completa;
+  }
+
+  function agendarAck(op, atraso = 650 + Math.random() * 450) {
+    clearTimeout(op.timer);
+    op.timer = setTimeout(() => confirmar(op), atraso);
+  }
+
+  function confirmar(op) {
+    if (!estado.online) return;
+    const i = estado.pendentes.indexOf(op);
+    if (i < 0) return;
+    estado.pendentes.splice(i, 1);
+    const evento = { ...op, id: op.opId, quando: Date.now() };
+    delete evento.timer;
+    HISTORICO.push(evento);
+    if (op.desfaz) {
+      const alvo = evento_(op.desfaz);
+      if (alvo) alvo.desfeitaPor = evento.id;
+      const verbo = alvo && alvo.desfaz ? 'Refeito' : 'Desfeito';
+      torrada(`${verbo}: ${textoDaVolta(op)}.`, { rotulo: alvo && alvo.desfaz ? 'Desfazer' : 'Refazer', acao: () => pedirDesfazer(evento.id) });
+    }
+    atualizar();
+  }
+
+  function textoDaVolta(op) {
+    const nome = op.rotulo.charAt(0).toUpperCase() + op.rotulo.slice(1);
+    if (op.tipo === 'apagar') return `${op.rotulo} saiu da mochila`;
+    if (op.tipo === 'criar') return `${op.rotulo} voltou para a mochila`;
+    if (op.campo === 'moedas') return `as moedas voltaram para ${fmtNum(op.para)}`;
+    return `${nome} voltou para ${typeof op.para === 'number' ? fmtNum(op.para) : '“' + op.para + '”'}`;
+  }
+
+  const evento_ = (id) => HISTORICO.find((e) => e.id === id);
+
+  function mudarNumero(fichaId, campo, rotulo, para) {
+    const f = FICHAS[fichaId];
+    const de = ler(f, campo);
+    if (de === para) return;
+    enviar({ fichaId, tipo: 'definir', campo, rotulo, de, para });
+  }
+
+  function somarItem(fichaId, itemId, delta) {
+    const f = FICHAS[fichaId];
+    const it = f.mochila.find((i) => i.id === itemId);
+    if (!it) return;
+    if (it.qtd + delta <= 0) {
+      enviar({ fichaId, tipo: 'apagar', campo: `item:${itemId}`, rotulo: it.nome, item: { ...it } });
+      torrada(`${it.nome} saiu da mochila.`);
+      return;
+    }
+    enviar({ fichaId, tipo: 'somar', campo: `item:${itemId}:qtd`, rotulo: it.nome, delta, de: it.qtd, para: it.qtd + delta, aumento: delta > 0 });
+  }
+
+  function somarMoedas(fichaId, delta) {
+    const f = FICHAS[fichaId];
+    if (f.moedas + delta < 0) { estado.erros[`${fichaId}|moedas`] = 'Não dá para ficar com moedas negativas.'; atualizar(); return; }
+    enviar({ fichaId, tipo: 'somar', campo: 'moedas', rotulo: 'moedas', delta, de: f.moedas, para: f.moedas + delta, aumento: delta > 0 });
+  }
+
+  /* ---- desfazer: a inversa sai SÓ do evento alvo (plano 5.3) */
+  function desfeita(e) {
+    if (!e || !e.desfeitaPor) return false;
+    const u = evento_(e.desfeitaPor);
+    return !!u && !desfeita(u);
+  }
+
+  function inversa(e) {
+    const f = FICHAS[e.fichaId];
+    if (e.tipo === 'definir') return { tipo: 'definir', campo: e.campo, rotulo: e.rotulo, de: ler(f, e.campo), para: e.de };
+    if (e.tipo === 'somar') {
+      if (e.campo.startsWith('item:')) {
+        const id = e.campo.split(':')[1];
+        const it = f.mochila.find((i) => i.id === id);
+        if (!it) return { impossivel: `${e.rotulo} já foi tirado da mochila. Nada a desfazer.` };
+        const para = it.qtd - e.delta;
+        if (para <= 0) return { tipo: 'apagar', campo: `item:${id}`, rotulo: it.nome, item: { ...it } };
+        return { tipo: 'somar', campo: e.campo, rotulo: e.rotulo, delta: -e.delta, de: it.qtd, para, aumento: -e.delta > 0 };
+      }
+      if (f.moedas - e.delta < 0) return { impossivel: 'Essas moedas já foram gastas. Nada a desfazer.' };
+      return { tipo: 'somar', campo: e.campo, rotulo: e.rotulo, delta: -e.delta, de: f.moedas, para: f.moedas - e.delta, aumento: -e.delta > 0 };
+    }
+    const id = e.campo.split(':')[1];
+    const existe = f.mochila.find((i) => i.id === id);
+    if (e.tipo === 'criar') {
+      if (!existe) return { impossivel: `${e.rotulo} já foi tirado da mochila. Nada a desfazer.` };
+      return { tipo: 'apagar', campo: e.campo, rotulo: e.rotulo, item: { ...existe } };
+    }
+    if (existe) return { impossivel: `${e.rotulo} já voltou para a mochila. Nada a desfazer.` };
+    return { tipo: 'criar', campo: e.campo, rotulo: e.rotulo, item: { ...e.item }, aumento: true };
+  }
+
+  /* Quem mudou o mesmo campo depois deste evento (só "definir" pede confirmação: somas não brigam). */
+  function mudancaDepois(e) {
+    if (e.tipo !== 'definir') return null;
+    const f = FICHAS[e.fichaId];
+    if (ler(f, e.campo) === e.para) return null;
+    const depois = HISTORICO.filter((x) => x.fichaId === e.fichaId && x.campo === e.campo && x.quando > e.quando && x.id !== e.id);
+    return { evento: depois[depois.length - 1], atual: ler(f, e.campo) };
+  }
+
+  function pedirDesfazer(id, confirmado = false) {
+    const e = evento_(id);
+    if (!e) return;
+    if (!estado.online) { torrada('Sem internet: o desfazer espera a conexão voltar.'); return; }
+    const inv = inversa(e);
+    if (inv.impossivel) { torrada(inv.impossivel); return; }
+    if (!confirmado && mudancaDepois(e)) {
+      estado.confirmando = id;
+      atualizar();
+      const b = document.querySelector(`[data-acao="confirmar-desfazer"][data-id="${id}"]`);
+      if (b) b.focus();
+      return;
+    }
+    estado.confirmando = null;
+    enviar({ fichaId: e.fichaId, desfaz: e.id, ...inv });
+  }
+
+  /* ===================================================================
+     ROTAS
+     =================================================================== */
+  function lerRota() {
+    const partes = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+    if (partes[0] === 'campanhas') return { tela: 'campanhas' };
+    if (partes[0] === 'c' && campanha(partes[1])) {
+      const c = campanha(partes[1]);
+      if (partes[2] === 'f' && c.fichas.includes(partes[3])) {
+        const aba = ['mochila', 'historico'].includes(partes[4]) ? partes[4] : 'ficha';
+        return { tela: 'ficha', campanha: c.id, ficha: partes[3], aba };
+      }
+      return { tela: 'campanha', campanha: c.id };
+    }
+    if (partes[0] === 'entrar' && partes[1] === 'sem-convite') return { tela: 'acesso', semConvite: true };
+    return { tela: 'acesso' };
+  }
+
+  // Troca o endereço e já desenha (o hashchange que vem depois vê a mesma rota e não refaz).
+  const ir = (hash) => { if (location.hash !== hash) location.hash = hash; render(); };
+  const hashDaFicha = (fichaId, aba) => `#/c/${campanhaDaFicha(fichaId).id}/f/${fichaId}${aba && aba !== 'ficha' ? '/' + aba : ''}`;
+
+  /* ===================================================================
+     TELAS
+     =================================================================== */
+
+  /* 1 — SEM ACESSO */
+  function telaAcesso(r) {
+    const porta = r.semConvite
+      ? `<section class="lo-porta" aria-labelledby="porta-t">
+          <span class="lo-porta__sinal">${ic('convite')}</span>
+          <h2 id="porta-t">Este e-mail ainda não está em nenhuma mesa</h2>
+          <p>Você entrou como <strong>${esc(VISITANTE)}</strong>. Peça ao mestre para te convidar com este e-mail. Depois é só entrar de novo.</p>
+          <div class="lo-porta__acoes">
+            <button type="button" class="lo-btn lo-btn--primario" data-acao="copiar-email">${ic('copiar')} Copiar meu e-mail</button>
+            <button type="button" class="lo-btn" data-acao="outra-conta">Entrar com outra conta</button>
+          </div>
+        </section>`
+      : `<section class="lo-porta" aria-labelledby="porta-t">
+          <h2 id="porta-t">Entrar</h2>
+          <p>Só entra quem o mestre convidou. Use o e-mail que você passou para ele.</p>
+          <button type="button" class="lo-btn lo-btn--primario lo-btn--grande" data-acao="entrar-convidada">${ic('entrar')} Entrar com Google</button>
+          <p class="lo-porta__miuda">O Lobby guarda só o seu e-mail, para saber quais fichas são suas.</p>
+        </section>`;
+    return `<div class="lo-entrada">
+      <div class="lo-entrada__marca">
+        <p class="lo-entrada__lobby">Labirinto</p>
+        <h1 class="lo-entrada__titulo">Lobby da mesa</h1>
+        <p class="lo-entrada__texto">As fichas da sua campanha, abertas entre uma sessão e outra. Veja a sua e a dos colegas, ajuste a Vida, arrume a mochila. O mestre vê na hora.</p>
+      </div>
+      ${porta}
+    </div>`;
+  }
+
+  /* 2 — MINHAS CAMPANHAS */
+  function ultimaDa(c) {
+    const evs = HISTORICO.filter((e) => c.fichas.includes(e.fichaId));
+    return evs.reduce((a, b) => (b.quando > a.quando ? b : a), evs[0]);
+  }
+
+  /* A última mudança da mesa numa linha, com o nome do personagem. */
+  function resumo(e) {
+    const quem = nomeDoAutor(e);
+    const de = FICHAS[e.fichaId].nome.split(' ')[0];
+    if (e.desfaz) return `${quem} desfez uma mudança na ficha de ${de}`;
+    if (e.tipo === 'definir') return `${quem} mudou ${e.rotulo} de ${de} para ${typeof e.para === 'number' ? fmtNum(e.para) : '“' + e.para + '”'}`;
+    if (e.tipo === 'somar' && e.campo === 'moedas') return `${quem} ${e.delta > 0 ? 'somou' : 'tirou'} ${fmtNum(Math.abs(e.delta))} moedas na ficha de ${de}`;
+    if (e.tipo === 'somar') return e.delta > 0 ? `${quem} pôs ${e.delta} ${e.rotulo} na mochila de ${de}` : `${quem} tirou ${-e.delta} ${e.rotulo} da mochila de ${de}`;
+    if (e.tipo === 'criar') return `${quem} pôs ${e.rotulo} na mochila de ${de}`;
+    return `${quem} tirou ${e.rotulo} da mochila de ${de}`;
+  }
+
+  function telaCampanhas() {
+    const cartoes = CAMPANHAS.map((c) => {
+      const mestre = PESSOAS[c.mestre];
+      const jogadores = new Set(c.fichas.map((id) => FICHAS[id].dono || FICHAS[id].jogadorSemConta)).size;
+      const minhas = c.fichas.filter((id) => ehMinha(FICHAS[id]));
+      const u = ultimaDa(c);
+      const naMesa = c.online.length;
+      const rostos = c.fichas.map((id) => {
+        const f = FICHAS[id];
+        return `<span class="lo-retrato" data-tom="${f.tom}" ${ehMinha(f) ? 'data-seu="1"' : ''} aria-hidden="true">${esc(iniciais(f.nome))}</span>`;
+      }).join('');
+      return `<li><a class="lo-mesa" href="#/c/${c.id}">
+        <div class="lo-mesa__topo">
+          <div class="lo-grupo">${rostos}</div>
+          ${naMesa ? `<span class="lo-na-mesa"><span class="lo-ponto" aria-hidden="true"></span>${plural(naMesa, 'na mesa agora', 'na mesa agora')}</span>` : ''}
+        </div>
+        <h2 class="lo-mesa__nome">${esc(c.nome)}</h2>
+        <dl class="lo-mesa__fatos">
+          <div><dt>Mestre</dt><dd>${esc(mestre.nome)}</dd></div>
+          <div><dt>Jogadores</dt><dd>${jogadores}</dd></div>
+          <div><dt>Seus personagens</dt><dd>${esc(minhas.map((id) => FICHAS[id].nome.split(' ')[0]).join(' e '))}</dd></div>
+        </dl>
+        <div class="lo-mesa__rodape">
+          <p class="lo-mesa__ultima">Última mudança ${tempo(u.quando)}: <b>${esc(resumo(u))}</b></p>
+          <span class="lo-mesa__ir">Entrar ${ic('ir')}</span>
+        </div>
+      </a></li>`;
+    }).join('');
+    return `<div class="lo-pagina">
+      <header class="lo-cab-pag">
+        <div class="lo-cab-pag__texto">
+          <h1 class="lo-titulo">Suas mesas</h1>
+          <p class="lo-sub">Olá, ${esc(PESSOAS[EU].nome)}. Escolha uma campanha para ver as fichas.</p>
+        </div>
+      </header>
+      <ul class="lo-mesas">${cartoes}</ul>
+    </div>`;
+  }
+
+  /* 3 — CAMPANHA */
+  function medidor(nome, tom, atual, max) {
+    const p = Math.max(0, Math.min(1, atual / max));
+    return `<div class="lo-medidor" data-tom="${tom}">
+      <span class="lo-medidor__nome">${nome}</span>
+      <span class="lo-barra" aria-hidden="true"><span style="transform:scaleX(${p.toFixed(3)})"></span></span>
+      <span class="lo-medidor__valor">${atual} <small>/ ${max}</small></span>
+    </div>`;
+  }
+
+  function telaCampanha(r) {
+    const c = campanha(r.campanha);
+    const mestre = PESSOAS[c.mestre];
+    const minhas = c.fichas.filter((id) => ehMinha(FICHAS[id]));
+    const outras = c.fichas.filter((id) => !ehMinha(FICHAS[id]));
+    const agora = [c.mestre, ...(estado.online ? [EU] : []), ...c.online.filter((p) => p !== c.mestre)];
+
+    const herois = minhas.map((id) => {
+      const f = FICHAS[id];
+      return `<li><article class="lo-heroi" aria-labelledby="h-${id}">
+        <span class="lo-retrato lo-retrato--g" data-tom="${f.tom}" aria-hidden="true">${esc(iniciais(f.nome))}</span>
+        <div class="lo-heroi__corpo">
+          <div>
+            <h3 class="lo-heroi__nome" id="h-${id}">${esc(f.nome)}</h3>
+            <p class="lo-heroi__de">${esc(f.raca)}, ${esc(f.oficio)}</p>
+          </div>
+          <div class="lo-medidores">
+            ${medidor('Vida', 'vida', f.vida.atual, f.vida.max)}
+            ${medidor('Energia', 'energia', f.energia.atual, f.energia.max)}
+          </div>
+          <div class="lo-heroi__acoes">
+            <a class="lo-btn lo-btn--primario" href="${hashDaFicha(id)}">Abrir ficha</a>
+            <a class="lo-btn" href="${hashDaFicha(id, 'mochila')}">Mochila</a>
+          </div>
+        </div>
+      </article></li>`;
+    }).join('');
+
+    const colegas = outras.map((id) => {
+      const f = FICHAS[id];
+      const dono = f.dono ? PESSOAS[f.dono] : null;
+      const naMesa = f.dono && online(c, f.dono);
+      return `<li><a class="lo-colega" href="${hashDaFicha(id)}" aria-label="${esc(f.nome)}, de ${esc(dono ? dono.nome : f.jogadorSemConta)}. Só ver.">
+        <span class="lo-retrato" data-tom="${f.tom}" aria-hidden="true">${esc(iniciais(f.nome))}${naMesa ? '<span class="lo-ponto"></span>' : ''}</span>
+        <div class="lo-colega__corpo">
+          <h3 class="lo-colega__nome">${esc(f.nome)}</h3>
+          <p class="lo-colega__de">${dono ? `de ${esc(dono.nome)}` : `de ${esc(f.jogadorSemConta)}, sem conta no Lobby`}${naMesa ? ' <span class="lo-tag lo-tag--online">na mesa agora</span>' : ''}</p>
+          ${medidor('Vida', 'vida', f.vida.atual, f.vida.max)}
+          ${medidor('Energia', 'energia', f.energia.atual, f.energia.max)}
+        </div>
+        <div class="lo-colega__pe"><span>${esc(f.raca)}, ${esc(f.oficio)}</span><span class="lo-tag">${ic('olho')} Só ver</span></div>
+      </a></li>`;
+    }).join('');
+
+    const listaAgora = agora.length
+      ? agora.map((p) => `<li><span class="lo-av" data-tom="${PESSOAS[p].tom}" aria-hidden="true">${esc(PESSOAS[p].nome[0])}<span class="lo-ponto"></span></span>${p === EU ? 'Você' : esc(PESSOAS[p].nome)}${p === c.mestre ? ' <span class="lo-agora__papel">(mestre)</span>' : ''}</li>`).join('')
+      : '<li class="lo-agora__papel">Ninguém agora.</li>';
+
+    return `<div class="lo-pagina">
+      <header class="lo-cab-pag">
+        <div class="lo-cab-pag__texto">
+          <a class="lo-voltar" href="#/campanhas">${ic('voltar')} Suas mesas</a>
+          <h1 class="lo-titulo">${esc(c.nome)}</h1>
+          <p class="lo-sub">Mestre ${esc(mestre.nome)}. Sistema One Piece. ${plural(c.fichas.length, 'personagem', 'personagens')}.</p>
+        </div>
+        <aside class="lo-agora" aria-labelledby="agora-t">
+          <p class="lo-agora__titulo" id="agora-t"><span class="lo-ponto" aria-hidden="true"></span> Na mesa agora</p>
+          <ul>${listaAgora}</ul>
+        </aside>
+      </header>
+      <section class="lo-secao" aria-labelledby="seus-t">
+        <div class="lo-secao__cab"><h2 class="lo-secao__titulo" id="seus-t">Seus personagens</h2></div>
+        <ul class="lo-herois">${herois || '<li class="lo-secao__nota">Você não tem personagem nesta mesa. Peça ao mestre para ligar uma ficha à sua conta.</li>'}</ul>
+      </section>
+      <section class="lo-secao" aria-labelledby="trip-t">
+        <div class="lo-secao__cab">
+          <h2 class="lo-secao__titulo" id="trip-t">A tripulação</h2>
+          <p class="lo-secao__nota">Você vê tudo dos colegas. Só eles e o mestre mudam as fichas deles.</p>
+        </div>
+        <ul class="lo-tripulacao">${colegas}</ul>
+      </section>
+    </div>`;
+  }
+
+  /* 4 — FICHA (com 5, 6 e 7 dentro) */
+  function classeDestaque(fichaId, campo) {
+    const t = estado.destaques[`${fichaId}|${campo}`];
+    if (!t) return { cls: '', estilo: '' };
+    const passou = Date.now() - t;
+    if (passou > 1600) return { cls: '', estilo: '' };
+    return { cls: 'is-destaque', estilo: `animation-delay:-${passou}ms` };
+  }
+
+  function passo(f, campo, rotulo, valor, { min = 0, max = 999, travado = '', tom = '' } = {}) {
+    const k = `${f.id}|${campo}`;
+    const erro = estado.erros[k];
+    const desl = travado ? 'disabled' : '';
+    const idErro = `erro-${f.id}-${campo.replace(/:/g, '-')}`;
+    return `<div class="lo-passo">
+      <button type="button" class="lo-btn lo-btn--icone" data-k="${k}|-" data-acao="passo" data-ficha="${f.id}" data-campo="${campo}" data-rotulo="${esc(rotulo)}" data-delta="-1" aria-label="Tirar 1 de ${esc(rotulo)}" ${desl || (valor <= min ? 'disabled' : '')}>${ic('menos')}</button>
+      <input class="lo-numero" type="text" inputmode="numeric" autocomplete="off" value="${esc(estado.digitado[k] ?? valor)}" aria-label="${esc(rotulo)}" data-k="${k}" data-ficha="${f.id}" data-campo="${campo}" data-rotulo="${esc(rotulo)}" data-min="${min}" data-max="${max}" ${erro ? `aria-invalid="true" aria-describedby="${idErro}"` : ''} ${desl}>
+      <button type="button" class="lo-btn lo-btn--icone" data-k="${k}|+" data-acao="passo" data-ficha="${f.id}" data-campo="${campo}" data-rotulo="${esc(rotulo)}" data-delta="1" aria-label="Pôr 1 de ${esc(rotulo)}" ${desl || (valor >= max ? 'disabled' : '')}>${ic('mais')}</button>
+    </div>${erro ? `<p class="lo-erro-campo" id="${idErro}">${esc(erro)}</p>` : ''}`;
+  }
+
+  function recurso(f, campo, nome, tom, pode) {
+    const d = classeDestaque(f.id, campo);
+    const decidir = estado.decisoes.find((x) => x.fichaId === f.id && x.campo === campo);
+    const valor = ler(f, campo);
+    const max = campo === 'escudo' ? null : f[campo].max;
+    let corpo;
+    if (!pode) {
+      corpo = `<span class="lo-recurso__ler">${valor}</span>`;
+    } else if (decidir) {
+      corpo = `${passo(f, campo, nome, valor, { travado: 'decidir' })}<p class="lo-motivo">Escolha no aviso acima qual valor fica.</p>`;
+    } else {
+      corpo = passo(f, campo, nome, valor, { travado: estado.online ? '' : 'offline' });
+    }
+    const barra = max ? `<span class="lo-barra" aria-hidden="true"><span style="transform:scaleX(${Math.max(0, Math.min(1, valor / max)).toFixed(3)})"></span></span>` : '';
+    return `<div class="lo-recurso ${d.cls}" style="${d.estilo}" data-tom="${tom}" ${decidir ? 'data-decidir="1"' : ''}>
+      <div class="lo-recurso__topo"><span class="lo-recurso__nome">${nome}</span>${max ? `<span class="lo-recurso__max">máximo ${max}</span>` : ''}</div>
+      ${corpo}
+      ${barra}
+    </div>`;
+  }
+
+  function painelFicha(f, pode) {
+    const ed = estado.editando && estado.editando.fichaId === f.id ? estado.editando : null;
+    const atrs = ATRIBUTOS.map((a) => {
+      const v = f.atr[a.id];
+      const rk = rank(a, v);
+      const d = classeDestaque(f.id, `atr:${a.id}`);
+      const corpo = pode
+        ? passo(f, `atr:${a.id}`, a.nome, v, { travado: estado.online ? '' : 'offline', max: 9999 })
+        : `<span class="lo-atr__ler">${v}</span>`;
+      return `<div class="lo-atr ${d.cls}" style="${d.estilo}">
+        <div class="lo-atr__topo"><abbr class="lo-atr__sigla" title="${esc(a.nome)}">${a.sigla}</abbr><span class="lo-atr__rank" ${rk >= 4 ? 'data-alto="1"' : ''}>Rank ${rk}</span></div>
+        ${corpo}
+        <span class="lo-atr__nome">${esc(a.nome)}</span>
+      </div>`;
+    }).join('');
+
+    const habs = f.habilidades.map((h) => {
+      if (ed) {
+        const r = ed.rascunho[h.id];
+        return `<article class="lo-hab">
+          <div class="lo-campo"><label for="hab-${h.id}-nome">Nome</label><input class="lo-texto" id="hab-${h.id}-nome" data-k="ed|${h.id}|nome" data-ed="${h.id}:nome" value="${esc(r.nome)}" maxlength="80"></div>
+          <div class="lo-campo"><label for="hab-${h.id}-desc">Descrição</label><textarea class="lo-texto" id="hab-${h.id}-desc" data-k="ed|${h.id}|desc" data-ed="${h.id}:desc" maxlength="2000">${esc(r.desc)}</textarea></div>
+        </article>`;
+      }
+      const linhas = [['Ação', h.acao], ['Custo', h.custo], ['Dano', h.dano]].filter(([, v]) => v)
+        .map(([k, v]) => `<span class="lo-chip">${k}: ${esc(v)}</span>`).join('');
+      const d = classeDestaque(f.id, `hab:${h.id}:nome`);
+      return `<article class="lo-hab ${d.cls}" style="${d.estilo}">
+        <h3 class="lo-hab__nome">${esc(h.nome)}</h3>
+        <div class="lo-hab__linhas">${linhas}</div>
+        <p class="lo-hab__desc">${esc(h.desc)}</p>
+      </article>`;
+    }).join('');
+
+    const barra = ed ? `<div class="lo-barra-edicao" role="region" aria-label="Edição da ficha">
+        <p>${estado.online ? 'Cada campo que você mudar vai como uma mudança separada.' : 'Sem internet: dá para continuar escrevendo, mas Salvar espera a conexão voltar.'}</p>
+        <div>
+          <button type="button" class="lo-btn" data-acao="cancelar-edicao">Cancelar</button>
+          <button type="button" class="lo-btn lo-btn--primario" data-acao="salvar-edicao" ${estado.online ? '' : 'disabled'}>Salvar mudanças</button>
+        </div>
+      </div>` : '';
+
+    return `<section aria-labelledby="atr-t">
+        <div class="lo-painel__cab"><h2 class="lo-painel__titulo" id="atr-t">Atributos</h2></div>
+        <div class="lo-atributos">${atrs}</div>
+      </section>
+      <section aria-labelledby="hab-t">
+        <div class="lo-painel__cab"><h2 class="lo-painel__titulo" id="hab-t">Habilidades</h2>${pode && !ed ? '<span class="lo-motivo">Para mudar nome e descrição, use Editar ficha.</span>' : ''}</div>
+        <div class="lo-habs">${habs}</div>
+        ${barra}
+      </section>`;
+  }
+
+  function painelMochila(f, pode) {
+    const travado = !estado.online;
+    const kM = `${f.id}|moedas`;
+    const dM = classeDestaque(f.id, 'moedas');
+    const moedas = pode
+      ? `<div class="lo-passo">
+          <button type="button" class="lo-btn lo-btn--icone" data-k="${kM}|-" data-acao="moedas" data-ficha="${f.id}" data-delta="-1" aria-label="Tirar 1 moeda" ${travado || f.moedas <= 0 ? 'disabled' : ''}>${ic('menos')}</button>
+          <input class="lo-numero" type="text" inputmode="numeric" autocomplete="off" value="${esc(estado.digitado[kM] ?? f.moedas)}" aria-label="Moedas" data-k="${kM}" data-ficha="${f.id}" data-campo="moedas" data-rotulo="moedas" data-min="0" data-max="9999999" ${estado.erros[kM] ? `aria-invalid="true" aria-describedby="erro-${f.id}-moedas"` : ''} ${travado ? 'disabled' : ''}>
+          <button type="button" class="lo-btn lo-btn--icone" data-k="${kM}|+" data-acao="moedas" data-ficha="${f.id}" data-delta="1" aria-label="Pôr 1 moeda" ${travado ? 'disabled' : ''}>${ic('mais')}</button>
+        </div>`
+      : '';
+    const itensHtml = f.mochila.length ? f.mochila.map((it) => {
+      const d = classeDestaque(f.id, `item:${it.id}:qtd`);
+      const qtd = pode
+        ? `<div class="lo-qtd">
+            ${it.qtd <= 1
+              ? `<button type="button" class="lo-btn lo-btn--icone lo-btn--tirar" data-k="${f.id}|item|${it.id}|-" data-acao="item" data-ficha="${f.id}" data-item="${it.id}" data-delta="-1" aria-label="Tirar ${esc(it.nome)} da mochila" title="Tirar da mochila" ${travado ? 'disabled' : ''}>${ic('tirar')}</button>`
+              : `<button type="button" class="lo-btn lo-btn--icone" data-k="${f.id}|item|${it.id}|-" data-acao="item" data-ficha="${f.id}" data-item="${it.id}" data-delta="-1" aria-label="Tirar 1 ${esc(it.nome)}" ${travado ? 'disabled' : ''}>${ic('menos')}</button>`}
+            <output aria-label="Quantidade de ${esc(it.nome)}">${it.qtd}</output>
+            <button type="button" class="lo-btn lo-btn--icone" data-k="${f.id}|item|${it.id}|+" data-acao="item" data-ficha="${f.id}" data-item="${it.id}" data-delta="1" aria-label="Pôr 1 ${esc(it.nome)}" ${travado ? 'disabled' : ''}>${ic('mais')}</button>
+          </div>`
+        : `<span class="lo-moedas__nome">x${it.qtd}</span>`;
+      return `<li class="lo-item ${d.cls}" style="${d.estilo}">
+        <span class="lo-vaga" data-tom="${it.tom}" aria-hidden="true">${esc(iniciais(it.nome))}<span class="lo-vaga__qtd">${it.qtd}</span></span>
+        <div class="lo-item__texto"><p class="lo-item__nome">${esc(it.nome)}</p><p class="lo-item__desc">${esc(it.desc)}</p></div>
+        ${qtd}
+      </li>`;
+    }).join('') : '<li class="lo-vazio">A mochila está vazia. Use Pôr item para guardar a primeira coisa.</li>';
+
+    const por = !pode ? '' : estado.porItem
+      ? `<form class="lo-por" data-acao-form="por-item" data-ficha="${f.id}" aria-label="Pôr item na mochila">
+          <div class="lo-campo"><label for="por-nome">Nome do item</label><input class="lo-texto" id="por-nome" name="nome" data-k="por|nome" maxlength="80" required autocomplete="off"></div>
+          <div class="lo-campo"><label for="por-qtd">Quantidade</label><input class="lo-texto" id="por-qtd" name="qtd" data-k="por|qtd" inputmode="numeric" value="1" autocomplete="off"></div>
+          <div class="lo-por__acoes"><button type="submit" class="lo-btn lo-btn--primario">Pôr na mochila</button><button type="button" class="lo-btn" data-acao="fechar-por">Cancelar</button></div>
+          ${estado.erros.por ? `<p class="lo-erro-campo" style="grid-column:1/-1">${esc(estado.erros.por)}</p>` : ''}
+        </form>`
+      : `<div class="lo-mochila__pe"><button type="button" class="lo-btn" data-k="abrir-por" data-acao="abrir-por" ${travado ? 'disabled' : ''}>${ic('mais')} Pôr item</button>${travado ? '<span class="lo-motivo">Sem internet: volta quando a conexão voltar.</span>' : ''}</div>`;
+
+    return `<section aria-labelledby="moch-t">
+      <div class="lo-painel__cab">
+        <h2 class="lo-painel__titulo" id="moch-t">Mochila</h2>
+        <p class="lo-nota-mapas">${ic('mapas')} A mesma mochila em todos os mapas da campanha</p>
+      </div>
+      <div class="lo-moedas ${dM.cls}" style="${dM.estilo}">
+        <span class="lo-moedas__sinal">${ic('moeda')}</span>
+        <div><p class="lo-moedas__nome">Moedas</p>${pode ? '<p class="lo-motivo">Digite o total ou use − e +.</p>' : `<p class="lo-moedas__ler">${fmtNum(f.moedas)}</p>`}</div>
+        ${moedas}
+        ${estado.erros[kM] ? `<p class="lo-erro-campo" id="erro-${f.id}-moedas" style="grid-column:1/-1">${esc(estado.erros[kM])}</p>` : ''}
+      </div>
+      <ul class="lo-itens" aria-label="Itens">${itensHtml}</ul>
+      ${por}
+    </section>`;
+  }
+
+  function nomeDoAutor(e) {
+    if (e.autor === EU) return e.mesa ? 'Você, na mesa' : 'Você';
+    const c = campanhaDaFicha(e.fichaId);
+    return PESSOAS[e.autor].nome + (c && c.mestre === e.autor ? ' (mestre)' : '');
+  }
+
+  // Número em algarismo de legenda; texto entre aspas e cortado em 40 letras.
+  const v = (x) => `<span class="lo-ev__valor">${esc(typeof x === 'string' ? '“' + (x.length > 40 ? x.slice(0, 40) + '…' : x) + '”' : fmtNum(x))}</span>`;
+
+  /* A frase do histórico: quem, o quê, de quanto para quanto. */
+  function frase(e) {
+    const quem = `<b>${esc(nomeDoAutor(e))}</b>`;
+    const alvo = e.desfaz ? evento_(e.desfaz) : null;
+    if (alvo) {
+      const verbo = alvo.desfaz ? 'refez' : 'desfez';
+      return `${quem} ${verbo} a mudança em <b>${esc(e.rotulo)}</b>`;
+    }
+    switch (e.tipo) {
+      case 'definir': return `${quem} mudou <b>${esc(e.rotulo)}</b> de ${v(e.de)} para ${v(e.para)}`;
+      case 'somar':
+        if (e.campo === 'moedas') return e.delta > 0 ? `${quem} somou ${v(e.delta)} moedas` : `${quem} tirou ${v(-e.delta)} moedas`;
+        return e.delta > 0 ? `${quem} pôs ${v(e.delta)} <b>${esc(e.rotulo)}</b>` : `${quem} tirou ${v(-e.delta)} <b>${esc(e.rotulo)}</b>`;
+      case 'criar': return `${quem} pôs <b>${esc(e.rotulo)}</b> na mochila (${v(e.item.qtd)})`;
+      case 'apagar': return `${quem} tirou <b>${esc(e.rotulo)}</b> da mochila`;
+      default: return quem;
+    }
+  }
+
+  // A mesma frase, sem marcação (rótulo de botão para leitor de tela).
+  function frasePlana(e) {
+    if (!e) return '';
+    const t = document.createElement('div');
+    t.innerHTML = frase(e);
+    return t.textContent;
+  }
+
+  function detalhe(e) {
+    if (e.tipo === 'definir' || e.tipo === 'somar') return `${v(e.de)} → ${v(e.para)}`;
+    return '';
+  }
+
+  function linhaEvento(e, pode) {
+    const morto = desfeita(e);
+    const meu = e.autor === EU;
+    const pendente = !!e.pendente;
+    const tags = [
+      e.aumento ? '<span class="lo-tag lo-tag--latao">Aumento na mochila</span>' : '',
+      e.mesa ? '<span class="lo-tag">atestado pelo app</span>' : '',
+      morto ? '<span class="lo-tag">desfeita</span>' : '',
+      pendente ? (estado.online ? '<span class="lo-tag lo-tag--latao"><span class="lo-giro" aria-hidden="true"></span> enviando</span>' : '<span class="lo-tag lo-tag--mare">esperando a internet</span>') : '',
+    ].join('');
+    const det = e.desfaz ? detalhe(e) : (e.tipo === 'somar' ? detalhe(e) : '');
+    let acao = '';
+    if (pode && meu && !morto && !pendente) {
+      acao = `<button type="button" class="lo-btn lo-btn--fantasma lo-ev__acao" data-k="desf|${e.id}" data-acao="desfazer" data-id="${e.id}" aria-label="${e.desfaz ? 'Refazer' : 'Desfazer'}: ${esc(frasePlana(e))}" ${estado.online ? '' : 'disabled'}>${ic('desfazer')} ${e.desfaz ? 'Refazer' : 'Desfazer'}</button>`;
+    }
+    let confirma = '';
+    if (estado.confirmando === e.id) {
+      const m = mudancaDepois(e);
+      if (m) {
+        confirma = `<div class="lo-confirma" role="group" aria-label="Confirmar desfazer">
+          <p>Depois disso, ${esc(m.evento ? nomeDoAutor(m.evento) : 'alguém')} mudou ${esc(e.rotulo)} para ${m.atual}. Desfazer volta para ${esc(e.de)}. Confirmar?</p>
+          <div>
+            <button type="button" class="lo-btn lo-btn--primario" data-acao="confirmar-desfazer" data-id="${e.id}">Voltar para ${esc(e.de)}</button>
+            <button type="button" class="lo-btn" data-acao="cancelar-desfazer">Deixar como está</button>
+          </div>
+        </div>`;
+      }
+    }
+    const autor = PESSOAS[e.autor];
+    return `<li class="lo-ev" ${e.aumento ? 'data-aumento="1"' : ''} ${morto ? 'data-desfeita="1"' : ''} ${pendente ? 'data-pendente="1"' : ''}>
+      <span class="lo-av" data-tom="${autor.tom}" aria-hidden="true">${esc(autor.nome[0])}</span>
+      <div class="lo-ev__corpo">
+        <p class="lo-ev__frase">${frase(e)}</p>
+        <p class="lo-ev__meta">${pendente ? '<span>agora</span>' : tempo(e.quando)}${det ? `<span>${det}</span>` : ''}${tags}</p>
+        ${confirma}
+      </div>
+      ${acao}
+    </li>`;
+  }
+
+  function painelHistorico(f, pode) {
+    const pendentes = estado.pendentes.filter((p) => p.fichaId === f.id).map((p) => ({ ...p, id: p.opId, pendente: true }));
+    const evs = HISTORICO.filter((e) => e.fichaId === f.id).sort((a, b) => b.quando - a.quando);
+    const grupos = [];
+    for (const e of evs) {
+      const dia = nomeDoDia(e.quando);
+      const g = grupos[grupos.length - 1];
+      if (g && g.dia === dia) g.lista.push(e); else grupos.push({ dia, lista: [e] });
+    }
+    const regra = pode
+      ? 'Quem mudou o quê nesta ficha. Você desfaz as suas mudanças; o mestre desfaz qualquer uma.'
+      : `Quem mudou o quê nesta ficha. Só ${f.dono ? esc(PESSOAS[f.dono].nome) + ' e o mestre desfazem' : 'o mestre desfaz'}.`;
+    const blocoPend = pendentes.length ? `<h3 class="lo-hist__dia">A caminho</h3><ol class="lo-eventos">${pendentes.map((e) => linhaEvento(e, pode)).join('')}</ol>` : '';
+    const corpo = grupos.length
+      ? grupos.map((g) => `<h3 class="lo-hist__dia">${esc(g.dia[0].toUpperCase() + g.dia.slice(1))}</h3><ol class="lo-eventos">${g.lista.map((e) => linhaEvento(e, pode)).join('')}</ol>`).join('')
+      : '<p class="lo-vazio">Ninguém mudou esta ficha ainda. Cada mudança aparece aqui, com quem fez e quando.</p>';
+    return `<section aria-labelledby="hist-t">
+      <div class="lo-painel__cab"><h2 class="lo-painel__titulo" id="hist-t">Histórico</h2><p class="lo-secao__nota">${regra}</p></div>
+      ${blocoPend}${corpo}
+    </section>`;
+  }
+
+  function avisoConflito(d) {
+    const quem = PESSOAS[d.quem];
+    const papel = campanhaDaFicha(d.fichaId).mestre === d.quem ? 'O mestre' : quem.nome;
+    const novo = Date.now() - d.quando < 300 ? 'data-novo="1"' : '';
+    return `<section class="lo-conflito" role="alert" tabindex="-1" id="conflito-${d.id}" aria-labelledby="cf-${d.id}" ${novo}>
+      <span class="lo-conflito__sinal" aria-hidden="true">${ic('alerta')}</span>
+      <div class="lo-conflito__texto">
+        <p class="lo-conflito__frase" id="cf-${d.id}">${esc(papel)} acabou de mudar ${esc(d.rotulo)} para ${d.doMestre} <em>(você tinha posto ${d.meu})</em></p>
+        <p class="lo-conflito__quando">${esc(quem.nome)} mudou primeiro, às ${esc(hhmm(d.quando))}. Escolha qual valor fica; nada muda até você escolher.</p>
+      </div>
+      <div class="lo-conflito__acoes">
+        <button type="button" class="lo-btn" data-k="cf|${d.id}|mestre" data-acao="ficar-mestre" data-id="${d.id}">Ficar com a do mestre (${d.doMestre})</button>
+        <button type="button" class="lo-btn" data-k="cf|${d.id}|minha" data-acao="usar-minha" data-id="${d.id}">Usar a minha (${d.meu})</button>
+      </div>
+    </section>`;
+  }
+
+  function telaFicha(r) {
+    const c = campanha(r.campanha);
+    const f = FICHAS[r.ficha];
+    const pode = ehMinha(f);
+    const dono = f.dono ? PESSOAS[f.dono] : null;
+    const ed = estado.editando && estado.editando.fichaId === f.id;
+
+    let regra = '';
+    if (!pode) {
+      regra = f.dono
+        ? `<div class="lo-linha-aviso">${ic('olho')}<p>Ficha de <b>${esc(dono.nome)}</b>. Você vê tudo, mas só ${esc(dono.nome)} e o mestre mudam.</p></div>`
+        : `<div class="lo-linha-aviso">${ic('olho')}<p><b>${esc(f.jogadorSemConta)}</b> ainda não tem conta no Lobby. Só o mestre muda esta ficha.</p></div>`;
+    }
+    const semRede = pode && !estado.online
+      ? `<div class="lo-linha-aviso" data-tom="mare">${ic('sem-rede')}<p><b>Sem internet.</b> Dá para ver tudo, mas mudanças novas ficam pausadas até a conexão voltar. As que já estavam a caminho estão guardadas neste navegador.</p></div>`
+      : '';
+    const avisos = estado.decisoes.filter((d) => d.fichaId === f.id).map(avisoConflito).join('');
+
+    const abas = [['ficha', 'Ficha', ''], ['mochila', 'Mochila', f.mochila.length], ['historico', 'Histórico', '']];
+    const abasHtml = abas.map(([id, nome, conta]) => `<a role="tab" class="lo-aba" id="aba-${id}" href="${hashDaFicha(f.id, id)}" aria-selected="${r.aba === id}" aria-controls="painel" tabindex="${r.aba === id ? 0 : -1}" data-k="aba|${id}">${nome}${conta !== '' ? ` <span class="lo-aba__conta">${conta}</span>` : ''}</a>`).join('');
+
+    let painel = '';
+    if (r.aba === 'mochila') painel = painelMochila(f, pode);
+    else if (r.aba === 'historico') painel = painelHistorico(f, pode);
+    else painel = painelFicha(f, pode);
+
+    return `<div class="lo-pagina">
+      <header class="lo-cab-ficha">
+        <a class="lo-voltar" href="#/c/${c.id}">${ic('voltar')} ${esc(c.nome)}</a>
+        <div class="lo-cab-ficha__linha">
+          <h1 class="lo-titulo">${esc(f.nome)}</h1>
+          ${pode ? '<span class="lo-tag lo-tag--sua">Sua ficha</span>' : `<span class="lo-tag">${ic('olho')} Só ver</span>`}
+          ${pode && r.aba === 'ficha' ? `<div class="lo-cab-ficha__acoes">${ed ? '' : `<button type="button" class="lo-btn" data-k="editar" data-acao="editar">${ic('lapis')} Editar ficha</button>`}</div>` : ''}
+        </div>
+      </header>
+      ${regra}${semRede}${avisos}
+      <div class="lo-ficha">
+        <aside class="lo-lado" aria-label="Retrato e recursos">
+          <span class="lo-retrato lo-retrato--xg" data-tom="${f.tom}" aria-hidden="true">${esc(iniciais(f.nome))}</span>
+          <ul class="lo-chips" aria-label="Raça e ofício"><li class="lo-chip">${esc(f.raca)}</li><li class="lo-chip">${esc(f.oficio)}</li></ul>
+          <div class="lo-recursos">
+            ${recurso(f, 'vida', 'Vida', 'vida', pode)}
+            ${recurso(f, 'energia', 'Energia', 'energia', pode)}
+            ${recurso(f, 'escudo', 'Escudo', 'escudo', pode)}
+          </div>
+        </aside>
+        <div class="lo-folha">
+          <div class="lo-abas" role="tablist" aria-label="Partes da ficha">${abasHtml}</div>
+          <div class="lo-painel" role="tabpanel" id="painel" aria-labelledby="aba-${r.aba}" tabindex="-1">${painel}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* ---- cabeça e faixa */
+  function htmlCabeca(r) {
+    const c = r.campanha ? campanha(r.campanha) : null;
+    const f = r.ficha ? FICHAS[r.ficha] : null;
+    const trilha = [`<li>${r.tela === 'campanhas' ? '<span aria-current="page">Suas mesas</span>' : '<a href="#/campanhas">Suas mesas</a>'}</li>`];
+    if (c) trilha.push(`<li>${f ? `<a href="#/c/${c.id}">${esc(c.nome)}</a>` : `<span aria-current="page">${esc(c.nome)}</span>`}</li>`);
+    if (f) trilha.push(`<li><span aria-current="page">${esc(f.nome)}</span></li>`);
+    const agora = c ? [c.mestre, ...c.online.filter((p) => p !== c.mestre)].filter((p) => c.online.includes(p)) : [];
+    const nomes = agora.map((p) => PESSOAS[p].nome + (p === c.mestre ? ' (mestre)' : '')).join(', ');
+    const mini = c && agora.length
+      ? `<div class="lo-agora-mini" title="Na mesa agora: ${esc(nomes)}"><div class="lo-agora-mini__rostos" aria-hidden="true">${agora.map((p) => `<span class="lo-av" data-tom="${PESSOAS[p].tom}">${esc(PESSOAS[p].nome[0])}</span>`).join('')}</div><span><span class="lo-sr">Na mesa agora: ${esc(nomes)}. </span><span aria-hidden="true">${agora.length} na mesa</span></span></div>`
+      : '';
+    const eu = PESSOAS[EU];
+    return `<div class="lo-topo">
+        <a class="lo-marca" href="#/campanhas" aria-label="Labirinto Lobby, suas mesas"><span class="lo-marca__nome">Labirinto</span><span class="lo-marca__lobby">Lobby</span></a>
+        <nav class="lo-trilha" aria-label="Onde você está"><ol>${trilha.join('')}</ol></nav>
+        <div class="lo-topo__direita">
+          ${mini}
+          <button type="button" class="lo-conta" popovertarget="menu-conta" aria-label="Conta de ${esc(eu.nome)} (${esc(eu.email)})">
+            <span class="lo-av" data-tom="${eu.tom}" aria-hidden="true">${esc(eu.nome[0])}</span><span class="lo-conta__nome">${esc(eu.nome)}</span>
+          </button>
+          <div class="lo-menu" id="menu-conta" popover>
+            <div class="lo-menu__quem"><span class="lo-av" data-tom="${eu.tom}" aria-hidden="true">${esc(eu.nome[0])}</span><div><p>${esc(eu.nome)}</p><p class="lo-menu__email">${esc(eu.email)}</p></div></div>
+            <button type="button" class="lo-btn lo-btn--fantasma" data-acao="sair">${ic('sair')} Sair</button>
+          </div>
+        </div>
+      </div>
+      <div class="lo-faixa" id="faixa" role="status" aria-live="polite"></div>`;
+  }
+
+  function htmlFaixa() {
+    const n = estado.pendentes.length;
+    const nd = estado.decisoes.length;
+    let estadoNome;
+    let principal;
+    let extra = '';
+    if (nd) {
+      estadoNome = 'decisao';
+      const d = estado.decisoes[0];
+      principal = `${ic('alerta')}<span>${nd} ${nd === 1 ? 'precisa' : 'precisam'} da sua decisão</span>`;
+      extra = `<button type="button" class="lo-btn lo-faixa__acao" data-acao="ver-decisao" data-id="${d.id}">Ver</button>`;
+      if (n) extra += `<span class="lo-faixa__extra">${estado.online ? `Enviando ${n}` : `Sem internet: ${n} esperando`}</span>`;
+    } else if (!estado.online) {
+      estadoNome = 'offline';
+      principal = `${ic('sem-rede')}<span>${n ? `Sem internet: ${n} esperando` : 'Sem internet'}</span>`;
+      extra = `<span class="lo-faixa__extra">${n ? (n === 1 ? 'Ela vai sozinha' : 'Elas vão sozinhas') + ' quando a conexão voltar. Mudanças novas ficam pausadas até lá.' : 'Mudanças novas ficam pausadas até a conexão voltar.'}</span>`;
+    } else if (n) {
+      estadoNome = 'enviando';
+      principal = `<span class="lo-giro" aria-hidden="true"></span><span>Enviando ${n}</span>`;
+    } else {
+      estadoNome = 'salvo';
+      principal = `${ic('visto')}<span>Salvo</span>`;
+      extra = '<span class="lo-faixa__extra">Tudo o que você mudou está no servidor.</span>';
+    }
+    return { estadoNome, html: `<div class="lo-faixa__dentro"><p class="lo-faixa__principal">${principal}</p>${extra}</div>` };
+  }
+
+  /* ===================================================================
+     RENDER — refaz a vista e devolve o foco (e o que estava sendo digitado)
+     ao mesmo controle, pela chave data-k.
+     =================================================================== */
+  let ultimoGesto = 'ponteiro';
+  document.addEventListener('pointerdown', () => { ultimoGesto = 'ponteiro'; }, true);
+  document.addEventListener('keydown', () => { ultimoGesto = 'teclado'; }, true);
+  function render() {
+    const r = lerRota();
+    const assinatura = JSON.stringify(r);
+    const mudouRota = assinatura !== estado.rotaAntes;
+    if (r.tela !== 'acesso' && !estado.sessao) estado.sessao = EU;
+    document.body.dataset.tela = r.tela;
+
+    const antes = estado.rotaAntesObj;
+    // Trocar só de aba na mesma ficha: sem rolar ao topo e sem entrada animada (gesto frequente).
+    const soAba = mudouRota && antes && antes.tela === 'ficha' && r.tela === 'ficha' && antes.ficha === r.ficha;
+
+    const cabeca = $('#cabeca');
+    if (mudouRota) {
+      if (r.tela === 'acesso') { cabeca.hidden = true; cabeca.innerHTML = ''; }
+      else if (!soAba) { cabeca.hidden = false; cabeca.innerHTML = htmlCabeca(r); estado.faixaAntes = ''; }
+      if (estado.editando && !(r.tela === 'ficha' && r.ficha === estado.editando.fichaId)) estado.editando = null;
+      estado.porItem = false;
+      estado.confirmando = null;
+      estado.erros = {};
+      estado.digitado = {};
+    }
+
+    const vista = $('#vista');
+    const ativo = document.activeElement;
+    const naDoca = !!(ativo && ativo.closest && ativo.closest('#doca'));
+    let chave = ativo && ativo.dataset && vista.contains(ativo) ? ativo.dataset.k : null;
+    if (soAba && chave && chave.startsWith('aba|')) chave = `aba|${r.aba}`;
+    if (estado.focarDepois) { chave = estado.focarDepois; estado.focarDepois = null; }
+    const guardado = chave && ativo && 'value' in ativo && ativo.dataset.k === chave
+      ? { valor: ativo.value, ini: ativo.selectionStart, fim: ativo.selectionEnd, sujo: ativo.dataset.sujo === '1' }
+      : null;
+    const tinhaFocoNaVista = !!(ativo && vista.contains(ativo) && ativo !== vista);
+
+    let html = '';
+    if (r.tela === 'acesso') html = telaAcesso(r);
+    else if (r.tela === 'campanhas') html = telaCampanhas();
+    else if (r.tela === 'campanha') html = telaCampanha(r);
+    else html = telaFicha(r);
+    vista.innerHTML = html;
+    // A tela nova sobe 6 px só quando veio de clique ou toque; pelo teclado troca seco.
+    vista.dataset.entrou = mudouRota && !soAba && ultimoGesto !== 'teclado' ? '1' : '0';
+
+    let focou = false;
+    if (chave && (!mudouRota || soAba)) {
+      const novo = vista.querySelector(`[data-k="${CSS.escape(chave)}"]`);
+      if (novo && !novo.disabled) {
+        novo.focus({ preventScroll: true });
+        focou = true;
+        if (guardado && guardado.sujo && 'value' in novo) {
+          novo.value = guardado.valor;
+          novo.dataset.sujo = '1';
+          try { novo.setSelectionRange(guardado.ini, guardado.fim); } catch (_) { /* campo sem seleção */ }
+        }
+      }
+    }
+    // O controle sumiu (item tirado, desfazer feito) ou ficou desligado: o foco vai para o painel, não para o topo.
+    if (!focou && tinhaFocoNaVista && !mudouRota) {
+      const reserva = vista.querySelector('#painel') || vista;
+      reserva.focus({ preventScroll: true });
+    }
+
+    if (mudouRota) {
+      estado.rotaAntes = assinatura;
+      estado.rotaAntesObj = r;
+      if (!soAba) {
+        window.scrollTo({ top: 0 });
+        if (!naDoca) vista.focus({ preventScroll: true });
+      }
+    }
+    renderFaixa();
+    renderDoca(r);
+  }
+
+  function renderFaixa() {
+    const el = $('#faixa');
+    if (!el) return;
+    const { estadoNome, html } = htmlFaixa();
+    const sig = estadoNome + html;
+    if (sig === estado.faixaAntes) return;
+    const vinhaEnviando = el.dataset.estado === 'enviando';
+    el.dataset.estado = estadoNome;
+    el.dataset.recem = vinhaEnviando && estadoNome === 'salvo' ? '1' : '0';
+    el.innerHTML = html;
+    estado.faixaAntes = sig;
+  }
+
+  function renderDoca(r) {
+    let n = 1;
+    if (r.tela === 'campanhas') n = 2;
+    else if (r.tela === 'campanha') n = 3;
+    else if (r.tela === 'ficha') n = r.aba === 'mochila' ? 7 : r.aba === 'historico' ? 6 : (estado.decisoes.length ? 5 : 4);
+    document.querySelectorAll('[data-tela-pt]').forEach((b) => {
+      if (Number(b.dataset.telaPt) === n) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+    });
+    $('#pt-sims-sessao').hidden = r.tela === 'acesso';
+    $('#pt-sims-acesso').hidden = r.tela !== 'acesso';
+    $('#pt-rede').textContent = estado.online ? 'Cair a internet no meio do envio' : 'Voltar a internet';
+  }
+
+  function atualizar() {
+    render();
+    agendarFimDosDestaques();
+  }
+
+  let fimDestaque = 0;
+  function agendarFimDosDestaques() {
+    const vivos = Object.values(estado.destaques).filter((t) => Date.now() - t < 1600);
+    if (!vivos.length) return;
+    clearTimeout(fimDestaque);
+    fimDestaque = setTimeout(() => render(), 1650);
+  }
+
+  /* ---- notificações */
+  function torrada(texto, acao) {
+    const caixa = $('#torradas');
+    const el = document.createElement('div');
+    el.className = 'lo-torrada';
+    el.innerHTML = `<p>${esc(texto)}</p>${acao ? `<button type="button" class="lo-btn">${esc(acao.rotulo)}</button>` : ''}<button type="button" class="lo-btn lo-btn--fantasma lo-btn--icone" aria-label="Fechar aviso">${ic('fechar')}</button>`;
+    const botoes = el.querySelectorAll('button');
+    let timer;
+    const sair = () => {
+      clearTimeout(timer);
+      el.dataset.saindo = '1';
+      setTimeout(() => el.remove(), 170);
+    };
+    const armar = () => { clearTimeout(timer); timer = setTimeout(sair, 5000); };
+    if (acao) botoes[0].addEventListener('click', () => { sair(); acao.acao(); });
+    botoes[botoes.length - 1].addEventListener('click', sair);
+    el.addEventListener('pointerenter', () => clearTimeout(timer));
+    el.addEventListener('pointerleave', armar);
+    el.addEventListener('focusin', () => clearTimeout(timer));
+    el.addEventListener('focusout', armar);
+    caixa.appendChild(el);
+    while (caixa.children.length > 3) caixa.firstElementChild.remove();
+    armar();
+  }
+
+  /* ===================================================================
+     SIMULAÇÕES DO PROTÓTIPO
+     =================================================================== */
+  function irParaSora(aba) {
+    const r = lerRota();
+    const manter = r.tela === 'ficha' && r.ficha === 'sora' ? r.aba : 'ficha';
+    estado.sessao = EU;
+    ir(hashDaFicha('sora', aba || manter));
+  }
+
+  function simVida() {
+    irParaSora();
+    if (!estado.online) { torrada('Sem internet: mudanças novas ficam pausadas. Use Voltar a internet.'); return; }
+    if (estado.decisoes.some((d) => d.campo === 'vida')) { torrada('Primeiro escolha no aviso qual Vida fica.'); return; }
+    const f = FICHAS.sora;
+    mudarNumero('sora', 'vida', 'Vida', f.vida.atual > 0 ? f.vida.atual - 1 : 1);
+  }
+
+  function simRede() {
+    if (estado.online) {
+      irParaSora();
+      // Cai no meio do envio: as duas mudanças feitas logo antes ficam sem resposta.
+      if (estado.pendentes.length === 0) {
+        const f = FICHAS.sora;
+        enviar({ fichaId: 'sora', tipo: 'definir', campo: 'vida', rotulo: 'Vida', de: f.vida.atual, para: Math.max(0, f.vida.atual - 2) }, { semAck: true });
+        const pao = f.mochila.find((i) => i.id === 'i3');
+        if (pao) enviar({ fichaId: 'sora', tipo: 'somar', campo: 'item:i3:qtd', rotulo: pao.nome, delta: -1, de: pao.qtd, para: pao.qtd - 1 }, { semAck: true });
+        else enviar({ fichaId: 'sora', tipo: 'definir', campo: 'energia', rotulo: 'Energia', de: f.energia.atual, para: Math.max(0, f.energia.atual - 1) }, { semAck: true });
+      }
+      estado.pendentes.forEach((p) => clearTimeout(p.timer));
+      estado.online = false;
+    } else {
+      estado.online = true;
+      estado.pendentes.forEach((p, i) => agendarAck(p, 700 + i * 380));
+    }
+    atualizar();
+  }
+
+  function simMestre() {
+    estado.sessao = EU;
+    irParaSora('ficha');
+    if (!estado.online) { torrada('Simulação: volte a internet primeiro (o conflito chega pelo servidor).'); return; }
+    if (estado.decisoes.length) { focarDecisao(estado.decisoes[0].id); return; }
+    const f = FICHAS.sora;
+    const antes = f.vida.atual;
+    const meu = antes === 22 ? 21 : 22;
+    const doMestre = antes === 25 ? 26 : 25;
+    // O jogador põe 22; o mestre já tinha gravado 25 no servidor um instante antes.
+    const op = enviar({ fichaId: 'sora', tipo: 'definir', campo: 'vida', rotulo: 'Vida', de: antes, para: meu }, { semAck: true });
+    if (!op) return;
+    setTimeout(() => {
+      const i = estado.pendentes.indexOf(op);
+      if (i >= 0) estado.pendentes.splice(i, 1);
+      f.vida.atual = doMestre;
+      HISTORICO.push({ id: novoId('h'), fichaId: 'sora', autor: 'rafa', tipo: 'definir', campo: 'vida', rotulo: 'Vida', de: antes, para: doMestre, quando: Date.now() });
+      estado.destaques['sora|vida'] = Date.now();
+      estado.decisoes.push({ id: novoId('d'), fichaId: 'sora', campo: 'vida', rotulo: 'Vida', meu, doMestre, quem: 'rafa', quando: Date.now() });
+      atualizar();
+    }, 900);
+  }
+
+  function simDesfazer() {
+    const meus = HISTORICO.filter((e) => e.autor === EU && e.fichaId === 'sora' && !desfeita(e)).sort((a, b) => b.quando - a.quando);
+    irParaSora('historico');
+    if (!meus.length) { torrada('Você ainda não mudou nada nesta ficha.'); return; }
+    pedirDesfazer(meus[0].id);
+  }
+
+  function focarDecisao(id) {
+    const d = estado.decisoes.find((x) => x.id === id);
+    if (!d) return;
+    const r = lerRota();
+    if (!(r.tela === 'ficha' && r.ficha === d.fichaId)) ir(hashDaFicha(d.fichaId));
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`conflito-${id}`);
+      if (el) { el.scrollIntoView({ block: 'center' }); el.focus({ preventScroll: true }); }
+    });
+  }
+
+  /* ===================================================================
+     EVENTOS (delegados)
+     =================================================================== */
+  function confirmarNumero(input) {
+    const { ficha, campo, rotulo } = input.dataset;
+    const k = `${ficha}|${campo}`;
+    const min = Number(input.dataset.min);
+    const max = Number(input.dataset.max);
+    const texto = input.value.trim();
+    const n = /^[0-9]+$/.test(texto) ? Number(texto) : NaN;
+    if (Number.isNaN(n) || n < min || n > max) {
+      // O que foi digitado fica no campo (continua "sujo"), com o motivo embaixo.
+      estado.erros[k] = `Use só números, de ${fmtNum(min)} a ${fmtNum(max)}.`;
+      estado.digitado[k] = input.value;
+      atualizar();
+      return;
+    }
+    input.dataset.sujo = '0';
+    delete estado.erros[k];
+    delete estado.digitado[k];
+    const f = FICHAS[ficha];
+    if (campo === 'moedas') { const delta = n - f.moedas; if (delta) somarMoedas(ficha, delta); else atualizar(); return; }
+    if (n === ler(f, campo)) { atualizar(); return; }
+    mudarNumero(ficha, campo, rotulo, n);
+  }
+
+  document.addEventListener('click', (ev) => {
+    const alvo = ev.target.closest('[data-acao]');
+    if (!alvo) return;
+    const a = alvo.dataset.acao;
+    const d = alvo.dataset;
+    switch (a) {
+      case 'doca': {
+        const doca = $('#doca');
+        const aberta = doca.dataset.aberta !== '1';
+        doca.dataset.aberta = aberta ? '1' : '0';
+        alvo.textContent = aberta ? 'Esconder' : 'Abrir';
+        alvo.setAttribute('aria-expanded', String(aberta));
+        break;
+      }
+      case 'entrar-convidada': estado.sessao = EU; ir('#/campanhas'); break;
+      case 'entrar-sem-convite': estado.sessao = null; ir('#/entrar/sem-convite'); break;
+      case 'outra-conta': ir('#/entrar'); break;
+      case 'copiar-email': {
+        const ok = () => torrada('E-mail copiado. Mande para o mestre.');
+        if (navigator.clipboard) navigator.clipboard.writeText(VISITANTE).then(ok, () => torrada(`Não deu para copiar. O e-mail é ${VISITANTE}.`));
+        else torrada(`O e-mail é ${VISITANTE}.`);
+        break;
+      }
+      case 'sair': {
+        const menu = $('#menu-conta');
+        if (menu && menu.hidePopover) { try { menu.hidePopover(); } catch (_) { /* já fechado */ } }
+        estado.sessao = null;
+        ir('#/entrar');
+        break;
+      }
+      case 'passo': {
+        const f = FICHAS[d.ficha];
+        const atual = ler(f, d.campo);
+        delete estado.erros[`${d.ficha}|${d.campo}`];
+        delete estado.digitado[`${d.ficha}|${d.campo}`];
+        mudarNumero(d.ficha, d.campo, d.rotulo, Math.max(0, atual + Number(d.delta)));
+        break;
+      }
+      case 'moedas': delete estado.erros[`${d.ficha}|moedas`]; delete estado.digitado[`${d.ficha}|moedas`]; somarMoedas(d.ficha, Number(d.delta)); break;
+      case 'item': somarItem(d.ficha, d.item, Number(d.delta)); break;
+      case 'abrir-por':
+        estado.porItem = true; delete estado.erros.por; atualizar();
+        requestAnimationFrame(() => { const i = $('#por-nome'); if (i) i.focus(); });
+        break;
+      case 'fechar-por': estado.porItem = false; delete estado.erros.por; atualizar(); break;
+      case 'editar': {
+        const f = FICHAS[lerRota().ficha];
+        estado.editando = { fichaId: f.id, rascunho: Object.fromEntries(f.habilidades.map((h) => [h.id, { nome: h.nome, desc: h.desc }])) };
+        atualizar();
+        requestAnimationFrame(() => { const i = $('[data-ed]'); if (i) i.focus(); });
+        break;
+      }
+      case 'cancelar-edicao': estado.editando = null; atualizar(); break;
+      case 'salvar-edicao': {
+        const ed = estado.editando;
+        const f = FICHAS[ed.fichaId];
+        const mudancas = [];
+        for (const h of f.habilidades) {
+          const r = ed.rascunho[h.id];
+          if (r.nome.trim() && r.nome !== h.nome) mudancas.push({ campo: `hab:${h.id}:nome`, rotulo: 'o nome da habilidade', de: h.nome, para: r.nome.trim() });
+          if (r.desc !== h.desc) mudancas.push({ campo: `hab:${h.id}:desc`, rotulo: `a descrição de ${h.nome}`, de: h.desc, para: r.desc });
+        }
+        estado.editando = null;
+        if (!mudancas.length) { torrada('Nada mudou na ficha.'); atualizar(); break; }
+        mudancas.forEach((m) => enviar({ fichaId: f.id, tipo: 'definir', ...m }));
+        break;
+      }
+      case 'desfazer': pedirDesfazer(d.id); break;
+      case 'confirmar-desfazer': pedirDesfazer(d.id, true); break;
+      case 'cancelar-desfazer': estado.confirmando = null; atualizar(); break;
+      case 'ficar-mestre': {
+        const dd = estado.decisoes.find((x) => x.id === d.id);
+        estado.decisoes = estado.decisoes.filter((x) => x.id !== d.id);
+        torrada(`Ficou ${dd.doMestre}, como o mestre pôs.`);
+        atualizar();
+        break;
+      }
+      case 'usar-minha': {
+        const dd = estado.decisoes.find((x) => x.id === d.id);
+        estado.decisoes = estado.decisoes.filter((x) => x.id !== d.id);
+        mudarNumero(dd.fichaId, dd.campo, dd.rotulo, dd.meu);
+        break;
+      }
+      case 'ver-decisao': focarDecisao(d.id); break;
+      case 'sim-vida': simVida(); break;
+      case 'sim-rede': simRede(); break;
+      case 'sim-mestre': simMestre(); break;
+      case 'sim-desfazer': simDesfazer(); break;
+      default: break;
+    }
+  });
+
+  document.addEventListener('input', (ev) => {
+    const el = ev.target;
+    if (el.matches('.lo-numero')) el.dataset.sujo = '1';
+    if (el.dataset.ed && estado.editando) {
+      const [hid, campo] = el.dataset.ed.split(':');
+      estado.editando.rascunho[hid][campo] = el.value;
+    }
+  });
+
+  document.addEventListener('change', (ev) => {
+    if (ev.target.matches('.lo-numero') && ev.target.dataset.sujo === '1') confirmarNumero(ev.target);
+  });
+
+  document.addEventListener('keydown', (ev) => {
+    const el = ev.target;
+    if (el.matches && el.matches('.lo-numero')) {
+      if (ev.key === 'Enter') { ev.preventDefault(); if (el.dataset.sujo === '1') confirmarNumero(el); }
+      if (ev.key === 'Escape') {
+        el.dataset.sujo = '0';
+        delete estado.erros[`${el.dataset.ficha}|${el.dataset.campo}`];
+        delete estado.digitado[`${el.dataset.ficha}|${el.dataset.campo}`];
+        el.value = ler(FICHAS[el.dataset.ficha], el.dataset.campo);
+        el.select();
+        atualizar();
+      }
+      if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        const f = FICHAS[el.dataset.ficha];
+        const delta = ev.key === 'ArrowUp' ? 1 : -1;
+        el.dataset.sujo = '0';
+        delete estado.erros[`${el.dataset.ficha}|${el.dataset.campo}`];
+        delete estado.digitado[`${el.dataset.ficha}|${el.dataset.campo}`];
+        if (el.dataset.campo === 'moedas') somarMoedas(f.id, delta);
+        else mudarNumero(f.id, el.dataset.campo, el.dataset.rotulo, Math.max(0, ler(f, el.dataset.campo) + delta));
+      }
+      return;
+    }
+    if (ev.key === 'Escape') {
+      if (estado.porItem && el.closest && el.closest('.lo-por')) { estado.porItem = false; atualizar(); $('[data-acao="abrir-por"]')?.focus(); return; }
+      if (estado.editando && el.closest && el.closest('.lo-painel')) { estado.editando = null; atualizar(); $('[data-acao="editar"]')?.focus(); return; }
+      if (estado.confirmando) { const id = estado.confirmando; estado.confirmando = null; atualizar(); $(`[data-acao="desfazer"][data-id="${id}"]`)?.focus(); return; }
+    }
+    // Abas: setas, Home e End trocam de aba (a troca pelo teclado não anima nada).
+    if (el.matches && el.matches('[role="tab"]')) {
+      const abas = [...document.querySelectorAll('[role="tab"]')];
+      const i = abas.indexOf(el);
+      let j = -1;
+      if (ev.key === 'ArrowRight') j = (i + 1) % abas.length;
+      if (ev.key === 'ArrowLeft') j = (i - 1 + abas.length) % abas.length;
+      if (ev.key === 'Home') j = 0;
+      if (ev.key === 'End') j = abas.length - 1;
+      if (j >= 0) {
+        ev.preventDefault();
+        estado.focarDepois = abas[j].dataset.k;
+        ir(abas[j].getAttribute('href'));
+      }
+      if (ev.key === ' ') { ev.preventDefault(); el.click(); }
+    }
+  });
+
+  document.addEventListener('submit', (ev) => {
+    const form = ev.target.closest('[data-acao-form="por-item"]');
+    if (!form) return;
+    ev.preventDefault();
+    const nome = form.nome.value.trim();
+    const qtd = Number(form.qtd.value.trim());
+    if (!nome) { estado.erros.por = 'Dê um nome ao item.'; atualizar(); $('#por-nome')?.focus(); return; }
+    if (!Number.isInteger(qtd) || qtd < 1 || qtd > 999) { estado.erros.por = 'Quantidade de 1 a 999.'; atualizar(); $('#por-qtd')?.focus(); return; }
+    const f = FICHAS[form.dataset.ficha];
+    const item = { id: novoId('i'), nome, qtd, desc: 'Posto pelo site.', tom: f.mochila.length % 5 };
+    estado.porItem = false;
+    delete estado.erros.por;
+    enviar({ fichaId: f.id, tipo: 'criar', campo: `item:${item.id}`, rotulo: nome, item, aumento: true });
+  });
+
+  // Com mudança a caminho, fechar a aba pergunta antes (plano 5.6).
+  window.addEventListener('beforeunload', (ev) => {
+    if (estado.pendentes.length) { ev.preventDefault(); ev.returnValue = ''; }
+  });
+
+  window.addEventListener('hashchange', () => { if (JSON.stringify(lerRota()) !== estado.rotaAntes) render(); });
+  setInterval(() => { if (!document.activeElement || !document.activeElement.matches('input, textarea')) render(); }, 30000);
+
+  // No celular a doca começa fechada, para não cobrir a tela.
+  if (window.matchMedia('(max-width: 720px)').matches) {
+    $('#doca').dataset.aberta = '0';
+    const b = $('[data-acao="doca"]');
+    b.textContent = 'Abrir';
+    b.setAttribute('aria-expanded', 'false');
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
