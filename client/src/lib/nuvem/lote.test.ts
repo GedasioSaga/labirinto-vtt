@@ -16,7 +16,7 @@ import {
   ZORO,
   ZORO_NO_SITE,
 } from './campanha.fixture'
-import { LIMITES } from './limites'
+import { chaveDaCotaDaConta, inicioDoDiaSeguinte, LIMITES } from './limites'
 import { processarLote } from './lote'
 import type { Op } from './tipos'
 
@@ -295,6 +295,25 @@ describe('nada some em silêncio', () => {
     expect(new Set(resultado.respostas.map((resposta) => resposta.t === 'negado' && resposta.motivo))).toEqual(new Set(['acima-do-teto']))
     expect(resultado.gravacoes.ops).toEqual([])
     expect(resultado.violacoes).toBe(1)
+  })
+
+  it('cota estourada no meio do lote: a adiada segura todas as seguintes, mesmo a pequena que caberia', () => {
+    const campanha = mesa()
+    // A Nami já gastou quase todos os bytes do dia.
+    const cota = { ops: 0, bytes: LIMITES.bytesPorDiaDaConta - 1000, negadas: 0 }
+    campanha.gravar({ ops: [], fichas: [], recusadas: [], cotas: [{ chave: chaveDaCotaDaConta(NAMI.contaId, AGORA), cota }] })
+    const rascunho = op(NAMI_NO_PC, F_NAMI, ['descricao'], 'definir', { valor: 'Rascunho do mapa. '.repeat(300) })
+    const final = op(NAMI_NO_PC, F_NAMI, ['descricao'], 'definir', { valor: 'Mapa do mundo' })
+    const outroCampo = op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 250 })
+    const resultado = enviar(campanha, NAMI_NO_PC, [rascunho, final, outroCampo])
+    const amanha = inicioDoDiaSeguinte(AGORA)
+    expect(resultado.respostas).toEqual([rascunho, final, outroCampo].map((cada) => ({ t: 'adiado', opId: cada.opId, motivo: 'cota', tentarDepoisDe: amanha })))
+    expect(resultado.gravacoes.ops).toEqual([])
+    expect(resultado.violacoes).toBe(0)
+
+    // No dia seguinte, reenviadas na mesma ordem: fica a mais nova.
+    expect(enviar(campanha, NAMI_NO_PC, [rascunho, final, outroCampo], amanha).respostas.map((resposta) => resposta.t)).toEqual(['ack', 'ack', 'ack'])
+    expect(docDe(campanha, F_NAMI)).toMatchObject({ descricao: 'Mapa do mundo', recursos: { hp: 250 } })
   })
 
   it('mudança grande demais para o fio é negada antes de gravar', () => {

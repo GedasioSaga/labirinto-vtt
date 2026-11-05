@@ -13,6 +13,7 @@ import {
   mesa,
   MESTRE_NO_APP,
   MESTRE_NO_SITE,
+  NAMI,
   NAMI_NO_PC,
   op,
   type CampanhaDeTeste,
@@ -30,7 +31,7 @@ import {
   type ResultadoDasRemotas,
 } from './fila'
 import { bytesDoJson, paraJson } from './json'
-import { LIMITES } from './limites'
+import { chaveDaCotaDaConta, inicioDoDiaSeguinte, LIMITES } from './limites'
 import { respostasAdiadas, type RespostaDaOp } from './lote'
 import { projetarOpParaJogador, projetarParaJogador } from './projecao'
 import { VERSAO_DO_FORMATO, type Identidade, type Op, type Visibilidade } from './tipos'
@@ -52,6 +53,8 @@ interface ArquivoDeTeste extends ArquivoDeTexto {
   conteudo(): string
   /** A queda no meio do append: um pedaço de linha, sem a quebra. */
   cortarNoMeio(pedaco: string): void
+  /** O app cai durante a PRÓXIMA gravação: só os primeiros `quantos(texto)` caracteres chegam ao disco, e a promessa falha. */
+  cairNaProximaGravacao(quantos: (texto: string) => number): void
   encherODisco(cheio: boolean): void
 }
 
@@ -59,10 +62,16 @@ interface ArquivoDeTeste extends ArquivoDeTexto {
 function arquivoNaMemoria(): ArquivoDeTeste {
   let texto: string | null = null
   let cheio = false
+  let queda: ((texto: string) => number) | null = null
   return {
     ler: async () => texto,
     async acrescentar(novo) {
       if (cheio) throw new Error('ENOSPC: disco cheio')
+      if (queda !== null) {
+        texto = (texto ?? '') + novo.slice(0, queda(novo))
+        queda = null
+        throw new Error('queda no meio do append')
+      }
       texto = (texto ?? '') + novo
     },
     async reescrever(novo) {
@@ -72,6 +81,9 @@ function arquivoNaMemoria(): ArquivoDeTeste {
     conteudo: () => texto ?? '',
     cortarNoMeio(pedaco) {
       texto = (texto ?? '') + pedaco
+    },
+    cairNaProximaGravacao(quantos) {
+      queda = quantos
     },
     encherODisco(sim) {
       cheio = sim
@@ -327,6 +339,46 @@ describe('o arquivo da fila', () => {
     expect(deNovo.vistaLocal()).toEqual(reaberta.vistaLocal())
   })
 
+  it('queda no meio da gravação de um tudo-ou-nada: a troca volta inteira ou não volta, nunca pela metade', async () => {
+    const campanha = mesa()
+    const base = baseDoMestre(campanha)
+    // O Zoro ganha 20 moedas antes: a troca cabe na vista, e metade dela apareceria.
+    const moedasDoZoro = op(MESTRE_NO_APP, F_ZORO, ['moedas'], 'somar', { delta: 20 })
+    const cortes: ((texto: string) => number)[] = [() => 30, (texto) => Math.floor(texto.length / 2), (texto) => texto.length - 2]
+    for (const [indice, quantos] of cortes.entries()) {
+      const arquivo = arquivoNaMemoria()
+      const fila = await criarFila(armazenamentoEmTexto(arquivo), base)
+      await fila.acrescentar([moedasDoZoro])
+      arquivo.cairNaProximaGravacao(quantos)
+      await expect(fila.acrescentar(troca(`lote_da_queda_${indice}`))).rejects.toThrow('queda')
+      expect(fila.esperando()).toBe(1)
+
+      const reaberta = await criarFila(armazenamentoEmTexto(arquivo), base)
+      expect(reaberta.ignoradosAoAbrir, `corte ${indice}`).toBe(1)
+      expect(ids(reaberta.paraEnviar(AGORA)), `corte ${indice}`).toEqual([moedasDoZoro.opId])
+      // A Tangerina nem sai da Nami nem chega ao Zoro.
+      expect(fichaNaVista(reaberta, F_NAMI)).toMatchObject({ moedas: 100, mochila: [{ quantidade: 3 }] })
+      expect(fichaNaVista(reaberta, F_ZORO)).toMatchObject({ moedas: 20 })
+      expect(fichaNaVista(reaberta, F_ZORO).mochila).toBeUndefined()
+    }
+
+    // Tudo chegou ao disco e o app caiu antes da confirmação: a troca volta inteira, e vai inteira.
+    const arquivo = arquivoNaMemoria()
+    const fila = await criarFila(armazenamentoEmTexto(arquivo), base)
+    await fila.acrescentar([moedasDoZoro])
+    const inteira = troca('lote_inteiro')
+    arquivo.cairNaProximaGravacao((texto) => texto.length)
+    await expect(fila.acrescentar(inteira)).rejects.toThrow('queda')
+    const reaberta = await criarFila(armazenamentoEmTexto(arquivo), base)
+    expect(reaberta.ignoradosAoAbrir).toBe(0)
+    expect(fichaNaVista(reaberta, F_NAMI)).toMatchObject({ moedas: 110, mochila: [{ quantidade: 2 }] })
+    expect(fichaNaVista(reaberta, F_ZORO)).toMatchObject({ moedas: 10, mochila: [{ id: 'vaga_tangerina_zoro' }] })
+    const lote = reaberta.paraEnviar(AGORA)
+    expect(ids(lote)).toEqual(ids([moedasDoZoro, ...inteira]))
+    expect(enviar(campanha, MESTRE_NO_APP, lote).respostas.map((resposta) => resposta.t)).toEqual(['ack', 'ack', 'ack', 'ack', 'ack'])
+    expect(docDe(campanha, F_ZORO)).toMatchObject({ moedas: 10, mochila: [{ id: 'vaga_tangerina_zoro' }] })
+  })
+
   it('sem os opcionais: fila sem base, ficha só na vista, conflito sem valorAtual e negado sem detalhe voltam iguais ao reabrir', async () => {
     const vazia = await criarFila(armazenamentoEmTexto(arquivoNaMemoria()))
     expect(vazia.revConfirmada()).toBe(0)
@@ -397,7 +449,7 @@ describe('o arquivo da fila', () => {
     expect(mestre.fila.paraDecidir().map((entrada) => entrada.op.opId)).toEqual([vidaNoApp.opId])
     expect(await mestre.fila.compactarSePreciso()).toBe(true)
     const sobrou = lerLinhasDaFila(arquivo.conteudo()).registros.map((bruto) => lerRegistro(bruto))
-    expect(sobrou.map((registro) => (registro === null ? null : [registro.t, registro.opId]))).toEqual([
+    expect(sobrou.map((registro) => (registro === null || registro.t === 'grupo' ? null : [registro.t, registro.opId]))).toEqual([
       ['op', vidaNoApp.opId],
       ['conflito', vidaNoApp.opId],
     ])
@@ -462,6 +514,41 @@ describe('o que espera decisão', () => {
     expect(reaberta.entradas()).toEqual([])
   })
 
+  it('"Usar a minha" com queda no meio da gravação: o conflito continua aberto, nunca some sem a op nova', async () => {
+    const cortes: ((texto: string) => number)[] = [() => 20, (texto) => Math.floor(texto.length / 2), (texto) => texto.length - 2]
+    for (const [indice, quantos] of cortes.entries()) {
+      const campanha = mesa()
+      const arquivo = arquivoNaMemoria()
+      const { nami, daNami } = await namiComConflitoNaVida(arquivo, campanha)
+      const usarAMinha = op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 280, baseRev: 1, resolve: daNami.opId })
+      arquivo.cairNaProximaGravacao(quantos)
+      await expect(nami.fila.resolver(daNami.opId, usarAMinha)).rejects.toThrow('queda')
+      expect(nami.fila.paraDecidir().map((entrada) => entrada.op.opId)).toEqual([daNami.opId])
+
+      const reaberta = await criarFila(armazenamentoEmTexto(arquivo), baseDaNami(campanha))
+      expect(reaberta.ignoradosAoAbrir, `corte ${indice}`).toBe(1)
+      expect(reaberta.paraDecidir().map((entrada) => entrada.op.opId), `corte ${indice}`).toEqual([daNami.opId])
+      expect(reaberta.entradas()).toHaveLength(1)
+      // A pessoa escolhe de novo, e agora vai.
+      expect(await reaberta.resolver(daNami.opId, usarAMinha)).toEqual({ ok: true })
+      expect(ids(reaberta.paraEnviar(AGORA))).toEqual([usarAMinha.opId])
+    }
+
+    // Tudo chegou ao disco e o app caiu antes da confirmação: a escolha e a op nova voltam juntas.
+    const campanha = mesa()
+    const arquivo = arquivoNaMemoria()
+    const { nami, daNami } = await namiComConflitoNaVida(arquivo, campanha)
+    const usarAMinha = op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 280, baseRev: 1, resolve: daNami.opId })
+    arquivo.cairNaProximaGravacao((texto) => texto.length)
+    await expect(nami.fila.resolver(daNami.opId, usarAMinha)).rejects.toThrow('queda')
+    const reaberta = comoNami(await criarFila(armazenamentoEmTexto(arquivo), baseDaNami(campanha)))
+    expect(reaberta.fila.ignoradosAoAbrir).toBe(0)
+    expect(reaberta.fila.paraDecidir()).toEqual([])
+    expect(reaberta.fila.entradas().map((entrada) => [entrada.op.opId, entrada.situacao.t])).toEqual([[usarAMinha.opId, 'pendente']])
+    expect(await sincronizar(reaberta, campanha)).toEqual([{ t: 'ack', opId: usarAMinha.opId, rev: 2 }])
+    expect(docDe(campanha, F_NAMI).recursos.hp).toBe(280)
+  })
+
   it('op negada fica como "precisa de decisão": não some, não é reenviada, sobrevive a recriar e só sai com resolvido', async () => {
     const campanha = mesa()
     const arquivo = arquivoNaMemoria()
@@ -515,6 +602,34 @@ describe('o que espera decisão', () => {
     await fila.receberRespostas(resultado.respostas)
     expect(fila.esperando()).toBe(0)
   })
+
+  it('cota do dia estourada no meio do lote: a adiada e as seguintes voltam juntas, e o campo fica com a mais nova', async () => {
+    const campanha = mesa()
+    // A Nami já gastou quase todos os bytes do dia: caberia a mudança pequena, não a grande.
+    const cota = { ops: 0, bytes: LIMITES.bytesPorDiaDaConta - 1000, negadas: 0 }
+    campanha.gravar({ ops: [], fichas: [], recusadas: [], cotas: [{ chave: chaveDaCotaDaConta(NAMI.contaId, AGORA), cota }] })
+    const nami = comoNami(await criarFila(armazenamentoEmTexto(arquivoNaMemoria()), baseDaNami(campanha)))
+    const rascunho = op(NAMI_NO_PC, F_NAMI, ['descricao'], 'definir', { valor: 'Rascunho do mapa. '.repeat(300) })
+    const final = op(NAMI_NO_PC, F_NAMI, ['descricao'], 'definir', { valor: 'Mapa do mundo' })
+    await nami.fila.acrescentar([rascunho, final])
+    const amanha = inicioDoDiaSeguinte(AGORA)
+    expect(await sincronizar(nami, campanha)).toEqual([
+      { t: 'adiado', opId: rascunho.opId, motivo: 'cota', tentarDepoisDe: amanha },
+      { t: 'adiado', opId: final.opId, motivo: 'cota', tentarDepoisDe: amanha },
+    ])
+    expect(campanha.todasAsOps()).toEqual([])
+    expect(nami.fila.esperando()).toBe(2)
+    expect(fichaNaVista(nami.fila, F_NAMI).descricao).toBe('Mapa do mundo')
+
+    // No dia seguinte vão as duas, com os mesmos opIds e na ordem: a mais velha não apaga a mais nova.
+    expect(await sincronizar(nami, campanha, amanha)).toEqual([
+      { t: 'ack', opId: rascunho.opId, rev: 1 },
+      { t: 'ack', opId: final.opId, rev: 2 },
+    ])
+    expect(docDe(campanha, F_NAMI).descricao).toBe('Mapa do mundo')
+    expect(nami.fila.entradas()).toEqual([])
+    expect(fichaNaVista(nami.fila, F_NAMI).descricao).toBe('Mapa do mundo')
+  })
 })
 
 describe('o que nem entra na fila (o mesmo esquema e os mesmos tetos do servidor)', () => {
@@ -542,6 +657,28 @@ describe('o que nem entra na fila (o mesmo esquema e os mesmos tetos do servidor
     expect(await fila.acrescentar([valida])).toEqual({ ok: true })
     expect(await fila.acrescentar([valida])).toMatchObject({ ok: false, problemas: [{ motivo: 'repetida' }] })
     expect(fila.entradas()).toHaveLength(1)
+  })
+
+  it('chave a mais no objeto (t, v, rev, autor): a fila guarda e manda a op refeita pelo esquema, nunca o objeto cru', async () => {
+    const campanha = mesa()
+    const arquivo = arquivoNaMemoria()
+    const base = baseDaNami(campanha)
+    const fila = await criarFila(armazenamentoEmTexto(arquivo), base)
+    const vida = op(NAMI_NO_PC, F_NAMI, HP, 'definir', { valor: 5 })
+    const mana = op(NAMI_NO_PC, F_NAMI, ['recursos', 'mp'], 'definir', { valor: 30 })
+    // Em variáveis (não literais): é o objeto que chega de outro código, com o que mais tiver dentro.
+    const comTipoForjado = { ...vida, t: 'ack', v: 99, rev: 7 }
+    const comAutorForjado = { ...mana, autorContaId: 'mestre', origem: 'mesa' }
+    expect(await fila.acrescentar([comTipoForjado, comAutorForjado])).toEqual({ ok: true })
+    expect(fila.entradas().map((entrada) => entrada.op)).toEqual([vida, mana])
+    expect(fila.paraEnviar(AGORA)).toEqual([vida, mana])
+    expect(lerLinhasDaFila(arquivo.conteudo()).registros).toEqual([
+      { ...vida, t: 'op', v: VERSAO_DO_FORMATO },
+      { ...mana, t: 'op', v: VERSAO_DO_FORMATO },
+    ])
+    const reaberta = await criarFila(armazenamentoEmTexto(arquivo), base)
+    expect(reaberta.ignoradosAoAbrir).toBe(0)
+    expect(reaberta.entradas().map((entrada) => entrada.op)).toEqual([vida, mana])
   })
 
   it('tudo ou nada na vista: a troca que não cabe fica toda de fora; a que cabe entra inteira', async () => {

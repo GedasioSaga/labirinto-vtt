@@ -34,6 +34,8 @@ import type {
  * - `negado`: definitivo (fora do esquema, sem permissão, base inválida…);
  *   o cliente guarda a op até alguém decidir;
  * - `adiado`: cota ou ritmo; o cliente reenvia sozinho com o mesmo `opId`.
+ *   Depois da primeira adiada, as seguintes do lote também esperam (a fila
+ *   manda em ordem, e a mais nova no mesmo campo nunca pode entrar antes).
  *
  * Op por op: campo diferente nunca é derrubado pelo conflito de outro. Só as
  * `atomico` seguidas do mesmo `loteId` (troca e pagamento de itens, ficha
@@ -224,13 +226,33 @@ function processar(leitor: LeitorDaCampanha, quem: Identidade, lote: readonly un
       if (opId !== null) respostas.push(negar(processo, opId, 'acima-do-teto', `Lote grande demais: máximo ${LIMITES.opsPorLote} mudanças`, true))
     }
   } else {
+    let adiamento: Adiamento | null = null
     for (const grupo of emGrupos(lote)) {
       const validacoes = grupo.map((entrada) => validar(processo, entrada))
       processo.violacoes += validacoes.filter((validacao) => validacao.t === 'malformada').length
-      respostas.push(...responderGrupo(processo, validacoes))
+      const doGrupo = responderGrupo(processo, validacoes, adiamento)
+      respostas.push(...doGrupo)
+      if (adiamento === null) adiamento = adiamentoDe(doGrupo)
     }
   }
   return resultadoDe(estado, respostas, processo.violacoes)
+}
+
+/**
+ * A primeira adiada do lote segura as seguintes: a cota é conferida op a op, e
+ * a op menor caberia depois da maior adiada. Do mesmo aparelho no mesmo campo
+ * não há conflito, então a mais velha, reenviada amanhã, apagaria a mais nova.
+ */
+interface Adiamento {
+  motivo: MotivoAdiado
+  tentarDepoisDe: number
+}
+
+function adiamentoDe(respostas: readonly RespostaDaOp[]): Adiamento | null {
+  for (const dada of respostas) {
+    if (dada.t === 'adiado') return { motivo: dada.motivo, tentarDepoisDe: dada.tentarDepoisDe }
+  }
+  return null
 }
 
 function ehAtomica(entrada: unknown): boolean {
@@ -395,9 +417,10 @@ type Desfecho =
  * As respostas do grupo, na ordem. Grupo atômico com uma op negada já na
  * validação: nenhuma das outras entra. As válidas rodam num ensaio do
  * estado; a primeira que não entra derruba o grupo inteiro (a solta é um
- * grupo de uma).
+ * grupo de uma). Com `adiamento` (uma anterior do lote foi adiada), as
+ * válidas nem rodam: esperam junto, na mesma hora.
  */
-function responderGrupo(processo: Processo, validacoes: readonly Validacao[]): RespostaDaOp[] {
+function responderGrupo(processo: Processo, validacoes: readonly Validacao[], adiamento: Adiamento | null): RespostaDaOp[] {
   const validas = validacoes.flatMap((validacao) => (validacao.t === 'valida' ? [validacao.validada] : []))
   const negadas = validacoes.flatMap((validacao) => (validacao.t === 'resposta' && validacao.resposta.t === 'negado' ? [validacao.resposta] : []))
   const executadas = new Map<Validada, RespostaDaOp>()
@@ -408,6 +431,8 @@ function responderGrupo(processo: Processo, validacoes: readonly Validacao[]): R
     const motivo = primeiraNegada === undefined ? 'fora-do-esquema' : primeiraNegada.motivo
     const causa = primeiraNegada === undefined ? 'uma mudança ilegível' : `a mudança ${primeiraNegada.opId}`
     for (const validada of validas) executadas.set(validada, negar(processo, validada.op.opId, motivo, `Vai junto com ${causa}, recusada`, true))
+  } else if (adiamento !== null) {
+    for (const validada of validas) executadas.set(validada, { t: 'adiado', opId: validada.op.opId, ...adiamento })
   } else {
     executarGrupo(processo, validas).forEach((dada, indice) => executadas.set(validas[indice], dada))
   }
