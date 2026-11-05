@@ -47,6 +47,10 @@ const ROTULO_PADRAO = 'Aparelho'
 const ID_PADRAO = /^[A-Za-z0-9_-]{1,80}$/
 /** O maior instante que `Date` representa. */
 const DATA_MAX_MS = 8.64e15
+/** Teto do e-mail: o do caminho inteiro de um endereço (RFC 5321). */
+export const EMAIL_DA_CONTA_MAX = 254
+/** Um `@` com algo dos dois lados e nenhum espaço: só a forma; quem prova que o e-mail é dele é o login do Lobby. */
+const EMAIL_PADRAO = /^[^\s@]+@[^\s@]+$/
 
 export interface PinGuardado {
   algoritmo: 'PBKDF2-SHA256'
@@ -73,6 +77,13 @@ export interface ContaDeJogador {
   pin: PinGuardado
   aparelhos: AparelhoDaConta[]
   criada: number
+  /**
+   * LOBBY (docs/planos/lobby-jogadores-2026-11-05.md §4.3): o e-mail com que o
+   * jogador entra no site, já em minúsculas e sem espaços (`emailDaContaLimpo`).
+   * Fica no computador do mestre, como o resto da conta: a sala nunca o recebe
+   * (`ContaNaSala`). Ausente = sem e-mail.
+   */
+  email?: string
 }
 
 export interface ArquivoDeContas {
@@ -105,6 +116,12 @@ export function pinValido(pin: string): boolean {
 /** O nome como a conta o guarda: a mesma limpeza do nome do `join` (`cleanPlayerName`). */
 export function nomeDaContaLimpo(nome: string): string {
   return cleanPlayerName(nome)
+}
+
+/** O e-mail como a conta o guarda: aparado e em minúsculas. Fora da forma (sem `@`, com espaço no meio, longo demais) = `null`. */
+export function emailDaContaLimpo(bruto: string): string | null {
+  const limpo = bruto.trim().toLowerCase()
+  return limpo.length <= EMAIL_DA_CONTA_MAX && EMAIL_PADRAO.test(limpo) ? limpo : null
 }
 
 /** A chave que diz se dois nomes são o mesmo: o esqueleto do nome (`nameSkeleton`), como na sala. */
@@ -340,7 +357,9 @@ function contaDoArquivo(value: unknown): ContaDeJogador | null {
     vistos.add(aparelho.id)
     aparelhos.push(aparelho)
   }
-  return { id: value.id, nome, pin, aparelhos, criada: instante(value.criada) }
+  // E-mail torto sai e a conta fica: sem ele, o jogador só não entra pelo site.
+  const email = typeof value.email === 'string' ? emailDaContaLimpo(value.email) : null
+  return { id: value.id, nome, pin, aparelhos, criada: instante(value.criada), ...(email === null ? {} : { email }) }
 }
 
 /** `'futuro'` = de uma versão mais nova do app: não é lido NEM regravado por cima. */

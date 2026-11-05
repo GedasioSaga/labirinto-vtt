@@ -1,8 +1,11 @@
+import type { CarriedItem } from '../types/map'
 import { cleanPlayerName } from './chat'
 import { ATRIBUTO_INICIAL, fichaDBTVazia, lerFichaDBT, LIMITES_DBT, type FichaDBT } from './dbt/modelo'
+import { readCarriedItems } from './items'
 import { ehImagemDaMesa } from './midia'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from './motores'
 import type { AbaDoSistema, SistemaDeRpg } from './sistemaDeRpg'
+import { readMoedas } from './troca'
 
 /**
  * PERSONAGEM e a FICHA DE PERSONAGEM dele — não confundir com "ficha", que
@@ -148,6 +151,16 @@ export interface Personagem {
    */
   dbt?: FichaDBT
   /**
+   * MOCHILA NA FICHA (docs/planos/lobby-jogadores-2026-11-05.md §4): os itens
+   * que o personagem carrega, no MESMO formato de `Token.mochila`. Na ficha,
+   * e não no boneco, ela atravessa os mapas e as aventuras da pasta; NPC sem
+   * ficha continua com a mochila no boneco. Ausente = vazia: a ficha de antes
+   * abre igual. Não vai pela sala LAN (`paraOFio`): lá o jogador a vê pelo boneco.
+   */
+  mochila?: CarriedItem[]
+  /** A bolsa, como `Token.moedas`: inteiro positivo até `MOEDAS_MAX` (`lib/troca.ts`). Ausente = zero. Mesmo caminho da mochila. */
+  moedas?: number
+  /**
    * CONTAS DOS JOGADORES: o id da conta a quem o mestre deu este personagem
    * (`lib/contasDosJogadores.ts`). Quem entra com a conta recebe as fichas
    * (tokens) ligadas a ele. Ausente = de ninguém. Só o mestre muda: a edição
@@ -272,18 +285,21 @@ export function comNotaDoMestre(personagem: Personagem, texto: string): Personag
 }
 
 /**
- * O personagem como ele vai pela rede, a QUALQUER jogador: sem a conta dona
- * e sem nada do mundo do livro (força, modelo, cenário, nome de entrada,
+ * O personagem como ele vai pela SALA LAN, a QUALQUER jogador: sem a conta
+ * dona e sem nada do mundo do livro (força, modelo, cenário, nome de entrada,
  * anotação). A ficha Dragon Ball (`dbt`) vai junto, como as abas: é a ficha
  * que o jogador lê e edita, menos o bloco de NPC (ND, categoria, rank), que é
- * do mestre. É o funil único de `Personagem` para o fio (`net/hostSession.ts`:
- * lista do jogador e batalha). Sem nenhum desses campos devolve a MESMA
- * referência: o host compara por referência para não reenviar.
+ * do mestre. A mochila e a bolsa também ficam: na sala o jogador as vê pelo
+ * boneco (`lib/fogFilter.ts`); o Lobby usa outra projeção, que as mantém. É o
+ * funil único de `Personagem` para o fio (`net/hostSession.ts`: lista do
+ * jogador e batalha). Sem nenhum desses campos devolve a MESMA referência: o
+ * host compara por referência para não reenviar.
  */
 export function paraOFio(personagem: Personagem): Personagem {
-  const { dono, combate, soCenario, nomeDoJogador, notaDoMestre, ...publico } = personagem
+  const { dono, combate, soCenario, nomeDoJogador, notaDoMestre, mochila, moedas, ...publico } = personagem
   const npcDaFicha = personagem.dbt?.npc
-  if (dono === undefined && combate === undefined && soCenario === undefined && nomeDoJogador === undefined && notaDoMestre === undefined && npcDaFicha === undefined) return personagem
+  const nadaATirar = dono === undefined && combate === undefined && soCenario === undefined && nomeDoJogador === undefined && notaDoMestre === undefined
+  if (nadaATirar && mochila === undefined && moedas === undefined && npcDaFicha === undefined) return personagem
   if (publico.dbt === undefined || npcDaFicha === undefined) return publico
   // Sem a chave, como a ficha de jogador (nada de `npc: undefined`).
   const { npc: _doMestre, ...fichaPublica } = publico.dbt
@@ -503,9 +519,24 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     historico: historicoDoArquivo(value.historico),
     abas: abasDoArquivo(value.abas),
     ...dbtDoArquivo(value.dbt),
+    ...mochilaDoArquivo(value),
     ...(typeof value.dono === 'string' && DONO_PADRAO.test(value.dono) ? { dono: value.dono } : {}),
     ...camposDoMundoDoArquivo(value),
   }
+}
+
+/**
+ * A mochila e a bolsa do disco, pelos MESMOS leitores do boneco
+ * (`readCarriedItems`, `readMoedas`): item torto sai; mochila vazia e bolsa
+ * zerada ou torta nem aparecem (nada de `mochila: undefined` gravado de volta).
+ */
+function mochilaDoArquivo(value: Record<string, unknown>): Pick<Personagem, 'mochila' | 'moedas'> {
+  const campos: Pick<Personagem, 'mochila' | 'moedas'> = {}
+  const mochila = readCarriedItems(value.mochila)
+  if (mochila !== undefined) campos.mochila = mochila
+  const moedas = readMoedas(value.moedas)
+  if (moedas !== undefined) campos.moedas = moedas
+  return campos
 }
 
 /** A ficha Dragon Ball do disco ou da rede; torta ou de versão futura, a chave nem aparece (nada de `dbt: undefined`). */

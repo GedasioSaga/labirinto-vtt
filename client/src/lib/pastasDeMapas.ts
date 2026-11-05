@@ -70,6 +70,14 @@ export interface RpgDaPasta {
   personagens: Personagem[]
   /** BATALHA F1: as equipes seguem os personagens (decisão Q5). Ausente = sem equipes. */
   equipes?: Equipe[]
+  /**
+   * MOCHILA NA FICHA (docs/planos/lobby-jogadores-2026-11-05.md §4.2): a
+   * versão da migração que já trouxe a mochila e a bolsa dos bonecos para as
+   * fichas desta pasta (hoje, 1). Mora na PASTA, e não em cada ficha, porque a
+   * mochila vazia nem é gravada (`readCarriedItems`): toda ficha da pasta conta
+   * como migrada, inclusive a criada depois. Ausente = ainda não migrada.
+   */
+  mochilaMigrada?: number
 }
 
 /** A pasta do mapa aberto, como o editor a usa (`stores/adventureStore.ts`). */

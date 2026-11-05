@@ -434,14 +434,19 @@ function chavesMudadas(base: Record<string, number>, rascunho: Record<string, nu
 /**
  * O "Salvar" do MESTRE sobre a ficha de AGORA: número que ele não tocou na
  * edição fica como está agora (o jogador tomou dano enquanto o mestre
- * escrevia a descrição), e o histórico e os cartões ligados não voltam no
- * tempo — a edição não mexe neles. O resto é o rascunho.
+ * escrevia a descrição), e o histórico, os cartões ligados, a mochila e a
+ * bolsa não voltam no tempo — a edição não mexe neles. O resto é o rascunho.
  */
 export function salvarSobreOAtual(base: Personagem, rascunho: Personagem, atual: Personagem): Personagem {
   const salvo: Personagem = { ...rascunho, cartoesAtivos: atual.cartoesAtivos, historico: atual.historico }
   // CONTAS DOS JOGADORES: o dono muda na tela das contas, não na ficha — vale o de agora.
   if (atual.dono === undefined) delete salvo.dono
   else salvo.dono = atual.dono
+  // MOCHILA NA FICHA: muda no jogo (pegar, dar, trocar), não na edição — vale a de agora (a Poção pega com a janela aberta fica).
+  if (atual.mochila === undefined) delete salvo.mochila
+  else salvo.mochila = atual.mochila
+  if (atual.moedas === undefined) delete salvo.moedas
+  else salvo.moedas = atual.moedas
   // MUNDO DO LIVRO: força, cenário, nome de entrada e nota mudam no mundo, não na ficha — vale o de agora.
   for (const campo of CAMPOS_DO_MUNDO) {
     if (atual[campo] === undefined) delete salvo[campo]
