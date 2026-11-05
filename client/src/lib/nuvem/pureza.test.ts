@@ -11,7 +11,15 @@ import { describe, expect, it } from 'vitest'
  * parser do TypeScript, então comentário e texto entre aspas não contam.
  */
 
-const PACOTE_PROIBIDO = /^(@tauri-apps\/|react(-dom)?($|\/)|pixi\.js($|\/)|@pixi\/)/
+/**
+ * Pacotes externos que o fecho pode importar, pelo especificador exato (o
+ * subcaminho entra à parte: liberar `x` não libera `x/y`). Hoje NENHUM. É lista
+ * do que entra, não do que fica de fora: a guarda não lê o código de dentro de
+ * um pacote, e um nome inofensivo pode puxar o proibido (o `zustand` reexporta
+ * o `zustand/react`). Pacote novo aqui só depois de conferir que ele, e tudo o
+ * que ele importa, roda no Worker sem navegador.
+ */
+const PACOTES_PERMITIDOS: ReadonlySet<string> = new Set<string>()
 const GLOBAL_PROIBIDO: ReadonlySet<string> = new Set(['document', 'window', 'localStorage', 'sessionStorage', 'indexedDB'])
 /** `import(algo)` com nome calculado: a guarda não tem como seguir, então reprova. */
 const IMPORT_CALCULADO = '(import dinâmico com nome calculado)'
@@ -60,16 +68,26 @@ function lerFonte(arquivo: string): ts.SourceFile {
   return ts.createSourceFile(arquivo, texto, ts.ScriptTarget.ES2022, true, arquivo.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
 }
 
+interface ImportLido {
+  especificador: string
+  /** `import type x from`, `export type {} from` ou `import('x').Tipo`: some na compilação e não carrega nada. */
+  soTipo: boolean
+}
+
 /** O módulo de um import/export estático, de um `import()` ou de um `import('x').Tipo`; `null` = o nó não importa nada. */
-function especificadorDe(no: ts.Node): string | null {
+function importDe(no: ts.Node): ImportLido | null {
   if ((ts.isImportDeclaration(no) || ts.isExportDeclaration(no)) && no.moduleSpecifier !== undefined) {
-    return ts.isStringLiteral(no.moduleSpecifier) ? no.moduleSpecifier.text : IMPORT_CALCULADO
+    // `import 'x'` (só efeito colateral) não tem cláusula, e carrega o módulo: não é só de tipo.
+    const soTipo = ts.isImportDeclaration(no) ? no.importClause?.isTypeOnly === true : no.isTypeOnly
+    return { especificador: ts.isStringLiteral(no.moduleSpecifier) ? no.moduleSpecifier.text : IMPORT_CALCULADO, soTipo }
   }
   if (ts.isCallExpression(no) && no.expression.kind === ts.SyntaxKind.ImportKeyword) {
     const [primeiro] = no.arguments
-    return primeiro !== undefined && ts.isStringLiteralLike(primeiro) ? primeiro.text : IMPORT_CALCULADO
+    return { especificador: primeiro !== undefined && ts.isStringLiteralLike(primeiro) ? primeiro.text : IMPORT_CALCULADO, soTipo: false }
   }
-  if (ts.isImportTypeNode(no) && ts.isLiteralTypeNode(no.argument) && ts.isStringLiteral(no.argument.literal)) return no.argument.literal.text
+  if (ts.isImportTypeNode(no) && ts.isLiteralTypeNode(no.argument) && ts.isStringLiteral(no.argument.literal)) {
+    return { especificador: no.argument.literal.text, soTipo: true }
+  }
   return null
 }
 
@@ -89,15 +107,21 @@ function funcaoDeTopo(no: ts.Node): string | null {
 }
 
 /**
- * Uso de global do navegador que a guarda aceita: `arquivo#funçãoDeTopo:global`.
- * Exceção que deixa de ser usada reprova (último teste), para não virar buraco
- * esquecido.
+ * O que a guarda aceita, arquivo por arquivo: uso de global do navegador
+ * (`arquivo#funçãoDeTopo:global`) e import SÓ DE TIPO de pacote fora de
+ * `PACOTES_PERMITIDOS` (`arquivo#import type:pacote`; se a linha virar import
+ * de valor, volta a reprovar). Exceção que deixa de ser usada reprova (último
+ * teste), para não virar buraco esquecido.
  */
 const EXCECOES: ReadonlySet<string> = new Set([
   // Reduz a foto no canvas (tela do jogador e webview do mestre). A nuvem chega ao arquivo
   // só por `midia.ts` (`isTokenPhotoData`, puro) e nunca chama esta função; o esbuild da W1
   // a tira do bundle. Separar a parte de canvas do arquivo é trabalho fora de `lib/nuvem`.
   'src/lib/tokenPhoto.ts#buildTokenPhotoData:document',
+  // O fecho chega aqui por `transicoes/catalogo.ts`, que só importa tipos deste arquivo; e
+  // este só pega o tipo do módulo `three`. As duas linhas somem na compilação: nada do three
+  // chega ao Worker. Tirar o tipo daqui é trabalho fora de `lib/nuvem`.
+  'src/transicoes/tipos.ts#import type:three',
 ])
 
 interface GlobalUsado {
@@ -107,15 +131,15 @@ interface GlobalUsado {
 }
 
 interface LidoDoArquivo {
-  especificadores: string[]
+  imports: ImportLido[]
   globais: GlobalUsado[]
 }
 
 function lerArquivo(fonte: ts.SourceFile): LidoDoArquivo {
-  const lido: LidoDoArquivo = { especificadores: [], globais: [] }
+  const lido: LidoDoArquivo = { imports: [], globais: [] }
   const visitar = (no: ts.Node): void => {
-    const especificador = especificadorDe(no)
-    if (especificador !== null) lido.especificadores.push(especificador)
+    const importado = importDe(no)
+    if (importado !== null) lido.imports.push(importado)
     if (ts.isIdentifier(no) && GLOBAL_PROIBIDO.has(no.text) && !ehNomeDePropriedade(no)) {
       const linha = fonte.getLineAndCharacterOfPosition(no.getStart(fonte)).line + 1
       lido.globais.push({ nome: no.text, linha, funcao: funcaoDeTopo(no) })
@@ -132,7 +156,7 @@ interface Fecho {
   excecoesUsadas: Set<string>
 }
 
-/** Segue os imports relativos a partir das entradas, até o fim; o import de pacote só é conferido pelo nome. */
+/** Segue os imports relativos a partir das entradas, até o fim; o import de pacote reprova se não está em `PACOTES_PERMITIDOS`. */
 function fechoDosImports(entradas: readonly string[]): Fecho {
   const vistos = new Set<string>()
   const problemas: string[] = []
@@ -149,11 +173,13 @@ function fechoDosImports(entradas: readonly string[]): Fecho {
       if (EXCECOES.has(excecao)) excecoesUsadas.add(excecao)
       else problemas.push(`${nome}: usa ${global.nome} (linha ${global.linha})`)
     }
-    for (const especificador of lido.especificadores) {
+    for (const { especificador, soTipo } of lido.imports) {
       if (especificador === IMPORT_CALCULADO) {
         problemas.push(`${nome}: ${IMPORT_CALCULADO}`)
       } else if (!especificador.startsWith('.')) {
-        if (PACOTE_PROIBIDO.test(especificador)) problemas.push(`${nome}: importa ${especificador}`)
+        const excecao = `${nome}#import type:${especificador}`
+        if (soTipo && EXCECOES.has(excecao)) excecoesUsadas.add(excecao)
+        else if (!PACOTES_PERMITIDOS.has(especificador)) problemas.push(`${nome}: importa o pacote ${especificador}, fora de PACOTES_PERMITIDOS`)
       } else {
         const resolvido = ts.resolveModuleName(especificador, arquivo, OPCOES, ts.sys).resolvedModule
         if (resolvido === undefined) problemas.push(`${nome}: import "${especificador}" não resolve`)
@@ -180,7 +206,7 @@ describe('pureza do núcleo da nuvem', () => {
     expect(arquivos.some((arquivo) => arquivo.endsWith('.test.ts'))).toBe(false)
   })
 
-  it('nada de @tauri-apps, react ou pixi, nem document, window ou localStorage no fecho', () => {
+  it('nenhum pacote fora da lista de permitidos (hoje vazia), nem document, window ou localStorage no fecho', () => {
     expect(fecho().problemas).toEqual([])
   })
 
