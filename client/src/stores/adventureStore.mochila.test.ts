@@ -39,7 +39,8 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 const { useAdventureStore, applyItemsInScene, personagensAtivos } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
-const { createEmptyMap } = await import('../lib/mapFactory')
+const { createEmptyMap, removeToken } = await import('../lib/mapFactory')
+const { hostPlayerChanges } = await import('../net/playerChanges')
 const { serializeMap } = await import('../lib/mapFile')
 const { darDoAcervoChange } = await import('../lib/items')
 const { payCoinsChange } = await import('../lib/troca')
@@ -186,6 +187,8 @@ beforeEach(() => {
   useAdventureStore.getState().reset()
   useMapStore.getState().loadMap(createEmptyMap('map_vazio', 'Vazio', 20, 16, 64))
   useSessionStore.getState().markSaved()
+  // O aviso repetido troca no lugar (`toastStore`): sem limpar, o "último aviso" seria o do teste anterior.
+  useToastStore.setState({ toasts: [] })
 })
 
 describe.each<Onde>(['pasta', 'aventura sem pasta', 'Configurar só neste mapa'])('a Poção acompanha o Luffy de cena (%s)', (onde) => {
@@ -533,5 +536,183 @@ describe('ficha de vários bonecos que volta a ter um só', () => {
     expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
     expect(useAdventureStore.getState().switchScene(SKY)).toBe(true)
     expect(itens(bonecoDa('t_bandido_1').mochila)).toEqual(['Espada x1'])
+  })
+})
+
+/** O texto do último aviso ao mestre. */
+function ultimoAviso(): string | undefined {
+  return useToastStore.getState().toasts.at(-1)?.text
+}
+
+describe('ligar um boneco que carrega coisas a uma ficha (C1)', () => {
+  /** As 2 Poções do marujo: a mesma Poção do acervo, noutra vaga — somam na vaga da ficha. */
+  const DUAS_POCOES: CarriedItem = { id: 'vaga_do_marujo', itemId: 'acervo_pocao', nome: 'Poção', empilhavel: true, quantidade: 2 }
+  const comMarujos = (): Abertura => ({
+    personagens: [ficha('p_luffy', 'Luffy', { mochila: [VAGA_DA_POCAO], moedas: 10 }), ficha('p_zoro', 'Zoro', { mochila: [VAGA_DA_POCAO], moedas: 10 })],
+    sky: cena('map_sky', 'Sky Lagoon', [
+      boneco('t_luffy_sky', 'p_luffy'),
+      boneco('t_marujo', null, { name: 'Marujo', x: 160, mochila: [DUAS_POCOES], moedas: 30 }),
+      boneco('t_vendedor', null, { x: 224, mochila: [CORDA] }),
+    ]),
+    goa: cena('map_goa', 'Reino de Goa', [
+      boneco('t_zoro_goa', 'p_zoro'),
+      boneco('t_marujo_goa', null, { name: 'Marujo de Goa', x: 160, mochila: [DUAS_POCOES], moedas: 30 }),
+      boneco('t_guarda', null, { x: 224, mochila: [CORDA] }),
+    ]),
+  })
+
+  it.each<Onde>(['pasta', 'aventura sem pasta', 'Configurar só neste mapa'])(
+    'pelo painel ou pela ficha (%s): 2 Poções + a ficha do Zoro com 1 = 3, aviso, e a troca de cena não apaga nada',
+    async (onde) => {
+      await abrir(onde, comMarujos())
+      useMapStore.getState().updateToken('t_marujo', { characterId: 'p_zoro' })
+      expect([itens(fichaAtiva('p_zoro')?.mochila), fichaAtiva('p_zoro')?.moedas]).toEqual([['Poção x3'], 40])
+      expect(ultimoAviso()).toBe('Poção ×2 e 30 moedas do boneco Marujo foram para a mochila de Zoro.')
+      expect([itens(bonecoDa('t_marujo').mochila), bonecoDa('t_marujo').moedas]).toEqual([['Poção x3'], 40])
+      // O Zoro do Reino de Goa (de fundo) já mostra a ficha nova; o Luffy não muda.
+      expect(itens(bonecoDa('t_zoro_goa', GOA).mochila)).toEqual(['Poção x3'])
+      expect(itens(fichaAtiva('p_luffy')?.mochila)).toEqual(['Poção x1'])
+      // NPC sem ficha intocado, nas duas cenas.
+      expect(bonecoDa('t_vendedor').mochila).toEqual([CORDA])
+      expect(bonecoDa('t_guarda', GOA).mochila).toEqual([CORDA])
+      // O achado da auditoria: a próxima troca de cena apagava a mochila do boneco ligado.
+      expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+      expect(useAdventureStore.getState().switchScene(SKY)).toBe(true)
+      expect(itens(bonecoDa('t_marujo').mochila)).toEqual(['Poção x3'])
+      expect(itens(fichaAtiva('p_zoro')?.mochila)).toEqual(['Poção x3'])
+    },
+  )
+
+  it('Ctrl+Z do "ligar": a ficha fica com 3 e o boneco sem cópia; o Ctrl+Y não soma de novo', async () => {
+    await abrir('pasta', comMarujos())
+    useMapStore.getState().updateToken('t_marujo', { characterId: 'p_zoro' })
+    useMapStore.getState().undo()
+    expect(bonecoDa('t_marujo').characterId).toBeNull()
+    expect([bonecoDa('t_marujo').mochila, bonecoDa('t_marujo').moedas]).toEqual([undefined, undefined])
+    expect([itens(fichaAtiva('p_zoro')?.mochila), fichaAtiva('p_zoro')?.moedas]).toEqual([['Poção x3'], 40])
+    expect(ultimoAviso()).toBe('O boneco Marujo não mostra mais a ficha de Zoro: a mochila e a bolsa continuam na ficha.')
+    useMapStore.getState().redo()
+    expect([itens(fichaAtiva('p_zoro')?.mochila), fichaAtiva('p_zoro')?.moedas]).toEqual([['Poção x3'], 40])
+    expect(itens(bonecoDa('t_marujo').mochila)).toEqual(['Poção x3'])
+  })
+
+  it('pela sala LAN, na cena aberta ("Criar minha ficha"): a ficha nova nasce com as 2 Poções e as 30 moedas do boneco, com aviso', async () => {
+    await abrir('pasta', comMarujos())
+    hostPlayerChanges.applyPersonagem({ personagem: ficha('p_nami', 'Nami'), ligarTokenId: 't_marujo', criadoPor: 'Bia' })
+    expect([itens(fichaAtiva('p_nami')?.mochila), fichaAtiva('p_nami')?.moedas]).toEqual([['Poção x2'], 30])
+    expect(ultimoAviso()).toBe('Poção ×2 e 30 moedas do boneco Marujo foram para a mochila de Nami.')
+    expect([itens(bonecoDa('t_marujo').mochila), bonecoDa('t_marujo').moedas]).toEqual([['Poção x2'], 30])
+    expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+    expect(useAdventureStore.getState().switchScene(SKY)).toBe(true)
+    expect(itens(bonecoDa('t_marujo').mochila)).toEqual(['Poção x2'])
+  })
+
+  it('pela sala LAN, numa cena de fundo, à ficha do Luffy que já tem 1 Poção: 3, aviso, e o Luffy da cena aberta mostra 3', async () => {
+    await abrir('pasta', comMarujos())
+    const luffy = fichaAtiva('p_luffy')
+    if (luffy === undefined) throw new Error('o Luffy está na pasta')
+    hostPlayerChanges.applyPersonagem({ personagem: luffy, ligarTokenId: 't_marujo_goa', sceneId: GOA })
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x3'], 40])
+    expect(ultimoAviso()).toBe('Poção ×2 e 30 moedas do boneco Marujo de Goa foram para a mochila de Luffy.')
+    expect([itens(bonecoDa('t_marujo_goa', GOA).mochila), bonecoDa('t_marujo_goa', GOA).moedas]).toEqual([['Poção x3'], 40])
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Poção x3'])
+    expect(useAdventureStore.getState().dirty[GOA]).toBe(true)
+    expect(bonecoDa('t_guarda', GOA).mochila).toEqual([CORDA])
+  })
+})
+
+describe('ficha com vários bonecos no mesmo mapa (C1)', () => {
+  const FACA: CarriedItem = { id: 'vaga_faca', nome: 'Faca' }
+  const tresMarinheiros = (cenaId: string): Token[] => [
+    boneco(`${cenaId}_m1`, 'p_marinheiro', { name: 'Marinheiro 1', x: 288, mochila: [{ ...VAGA_DA_POCAO, id: `${cenaId}_vaga_m1` }] }),
+    boneco(`${cenaId}_m2`, 'p_marinheiro', { name: 'Marinheiro 2', x: 352, mochila: [CORDA] }),
+    boneco(`${cenaId}_m3`, 'p_marinheiro', { name: 'Marinheiro 3', x: 416, moedas: 5 }),
+  ]
+  const comMarinheiros = (): Abertura => ({
+    personagens: [ficha('p_luffy', 'Luffy'), ficha('p_zoro', 'Zoro'), ficha('p_marinheiro', 'Marinheiro', { mochila: [FACA] })],
+    sky: cena('map_sky', 'Sky Lagoon', [boneco('t_luffy_sky', 'p_luffy'), ...tresMarinheiros('sky'), boneco('t_vendedor', null, { x: 224, mochila: [CORDA] })]),
+    goa: cena('map_goa', 'Reino de Goa', [boneco('t_luffy_goa', 'p_luffy'), ...tresMarinheiros('goa')]),
+  })
+
+  it('3 Marinheiros na mesma ficha mantêm cada um a sua: dar ao Marinheiro 2 não mexe na ficha nem nos outros', async () => {
+    await abrir('pasta', comMarinheiros())
+    const antes = fichaAtiva('p_marinheiro')
+    expect(itens(bonecoDa('sky_m1').mochila)).toEqual(['Poção x1'])
+    expect(itens(bonecoDa('sky_m2').mochila)).toEqual(['Corda x1'])
+    expect(darPocao('sky_m2')).toBe(true)
+    expect(fichaAtiva('p_marinheiro')).toBe(antes)
+    expect(itens(bonecoDa('sky_m2').mochila)).toEqual(['Corda x1', 'Poção x1'])
+    expect(itens(bonecoDa('sky_m1').mochila)).toEqual(['Poção x1'])
+    expect(bonecoDa('sky_m3').moedas).toBe(5)
+    expect(itens(bonecoDa('goa_m2', GOA).mochila)).toEqual(['Corda x1'])
+  })
+
+  it('tirar 2 deles na cena aberta: o último herda a mochila da ficha somada com a dele, e a troca de cena não perde nada', async () => {
+    await abrir('pasta', comMarinheiros())
+    useMapStore.getState().removeToken('sky_m2')
+    // De 3 para 2: continuam vários, a ficha não muda.
+    expect(fichaAtiva('p_marinheiro')?.mochila).toEqual([FACA])
+    useMapStore.getState().removeToken('sky_m3')
+    expect(itens(fichaAtiva('p_marinheiro')?.mochila)).toEqual(['Faca x1', 'Poção x1'])
+    expect(itens(bonecoDa('sky_m1').mochila)).toEqual(['Faca x1', 'Poção x1'])
+    expect(ultimoAviso()).toBe('Poção do boneco Marinheiro 1 foi para a mochila de Marinheiro.')
+    // No Reino de Goa continuam três, cada um com a sua; o NPC sem ficha não muda.
+    expect(itens(bonecoDa('goa_m1', GOA).mochila)).toEqual(['Poção x1'])
+    expect(bonecoDa('t_vendedor').mochila).toEqual([CORDA])
+    expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+    expect(useAdventureStore.getState().switchScene(SKY)).toBe(true)
+    expect(itens(bonecoDa('sky_m1').mochila)).toEqual(['Faca x1', 'Poção x1'])
+  })
+
+  it('tirar 2 deles numa cena de fundo: o último herda a ficha somada com a dele, e os três da cena aberta ficam como estavam', async () => {
+    await abrir('pasta', comMarinheiros())
+    useAdventureStore.getState().updateBackgroundScene(GOA, (map) => removeToken(removeToken(map, 'goa_m1'), 'goa_m2'))
+    expect([itens(fichaAtiva('p_marinheiro')?.mochila), fichaAtiva('p_marinheiro')?.moedas]).toEqual([['Faca x1'], 5])
+    expect([itens(bonecoDa('goa_m3', GOA).mochila), bonecoDa('goa_m3', GOA).moedas]).toEqual([['Faca x1'], 5])
+    expect(ultimoAviso()).toBe('5 moedas do boneco Marinheiro 3 foram para a mochila de Marinheiro.')
+    expect(itens(bonecoDa('sky_m1').mochila)).toEqual(['Poção x1'])
+    expect(itens(bonecoDa('sky_m2').mochila)).toEqual(['Corda x1'])
+  })
+
+  it('de 1 para 2 (duplicar o Luffy) e de volta a 1: a ficha guarda tudo, a Poção dada no meio entra, nada some nem dobra', async () => {
+    await abrir('pasta', { personagens: [ficha('p_luffy', 'Luffy', { mochila: [VAGA_DA_POCAO], moedas: 10 }), ficha('p_zoro', 'Zoro')] })
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Poção x1'])
+    useMapStore.getState().setSelection([{ kind: 'token', id: 't_luffy_sky' }])
+    useMapStore.getState().duplicateSelected()
+    const doLuffy = (): Token[] => useMapStore.getState().map.tokens.filter((token) => token.characterId === 'p_luffy')
+    expect(doLuffy().map((token) => [token.mochila, token.moedas])).toEqual([
+      [undefined, undefined],
+      [undefined, undefined],
+    ])
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
+    expect(ultimoAviso()).toContain('Luffy tem 2 bonecos neste mapa')
+    // No Reino de Goa o Luffy é um só: continua mostrando a ficha.
+    expect(itens(bonecoDa('t_luffy_goa', GOA).mochila)).toEqual(['Poção x1'])
+
+    // Enquanto são dois, a Poção dada ao original é dele; o Ctrl+Z da duplicação a leva para a ficha.
+    expect(darPocao('t_luffy_sky')).toBe(true)
+    expect(itens(fichaAtiva('p_luffy')?.mochila)).toEqual(['Poção x1'])
+    useMapStore.getState().undo()
+    expect(doLuffy()).toHaveLength(1)
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x2'], 10])
+    expect([itens(bonecoDa('t_luffy_sky').mochila), bonecoDa('t_luffy_sky').moedas]).toEqual([['Poção x2'], 10])
+    useMapStore.getState().redo()
+    useMapStore.getState().undo()
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x2'], 10])
+    expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+    expect(itens(bonecoDa('t_luffy_goa').mochila)).toEqual(['Poção x2'])
+  })
+
+  it('o Luffy atravessa para o Reino de Goa, onde já há outro boneco dele, e volta: a ficha guarda tudo, as moedas não dobram', async () => {
+    await abrir('pasta', { personagens: [ficha('p_luffy', 'Luffy', { mochila: [VAGA_DA_POCAO], moedas: 10 }), ficha('p_zoro', 'Zoro')] })
+    expect(useAdventureStore.getState().transferToken('t_luffy_sky', SKY, GOA, 320, 96)).toBe(true)
+    // No Reino de Goa são dois Luffys: cada um com a sua, e a da ficha fica nela.
+    expect([bonecoDa('t_luffy_sky', GOA).mochila, bonecoDa('t_luffy_goa', GOA).mochila]).toEqual([undefined, undefined])
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
+    expect(ultimoAviso()).toContain('Luffy tem 2 bonecos neste mapa')
+    expect(useAdventureStore.getState().transferToken('t_luffy_sky', GOA, SKY, 96, 96)).toBe(true)
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
+    expect([itens(bonecoDa('t_luffy_sky').mochila), bonecoDa('t_luffy_sky').moedas]).toEqual([['Poção x1'], 10])
+    expect([itens(bonecoDa('t_luffy_goa', GOA).mochila), bonecoDa('t_luffy_goa', GOA).moedas]).toEqual([['Poção x1'], 10])
   })
 })

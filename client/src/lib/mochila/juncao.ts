@@ -134,7 +134,7 @@ interface Fonte {
 }
 
 /** A pilha do item: o item do acervo, só quando ele empilha (dar de novo soma na mesma vaga, `darDoAcervoChange`). */
-function pilhaDe(item: CarriedItem): string | undefined {
+export function pilhaDe(item: CarriedItem): string | undefined {
   return item.empilhavel === true ? item.itemId : undefined
 }
 

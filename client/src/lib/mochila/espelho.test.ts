@@ -1,6 +1,7 @@
 /**
  * MOCHILA NA FICHA — depois da migração (`lib/mochila/espelho.ts`, fatia A2):
- * a troca entre duas fichas e a ficha que nasce depois. Dados inventados.
+ * a troca entre duas fichas, o espelho e a recuperação. A ficha que nasce
+ * de um boneco e a de vários bonecos estão em `transicao.test.ts`. Dados inventados.
  */
 import { describe, expect, it } from 'vitest'
 import type { CarriedItem, MapData, Token } from '../../types/map'
@@ -9,8 +10,7 @@ import { createEmptyMap } from '../mapFactory'
 import { novoPersonagem, type Personagem } from '../personagem'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import { payCoinsChange } from '../troca'
-import { fichaQueNasceDoBoneco, fichasComOBonecoQueFicou, fichasComOsBonecos, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from './espelho'
-import { juntarMochilas } from './juncao'
+import { fichasComOsBonecos, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from './espelho'
 
 function ficha(id: string, nome: string, extra: Partial<Personagem> = {}): Personagem {
   return { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', nome), id, ...extra }
@@ -110,28 +110,7 @@ describe('o espelho: a ficha vence o boneco (fatia A3)', () => {
   })
 })
 
-describe('ficha nova depois da migração', () => {
-  it('nasce com a mochila e a bolsa do boneco ligado', () => {
-    // A pasta migrou com o Luffy; a Nami é criada depois e ligada a um boneco que já carregava coisas.
-    const migrada = juntarMochilas([ficha('p_luffy', 'Luffy')], [{ origem: { mapa: 'Vila Nova', cena: '', gravadaEm: 1 }, bonecos: [{ characterId: 'p_luffy', mochila: [POCAO] }] }])
-    expect(migrada.personagens[0].mochila).toEqual([POCAO])
-    const nami = ficha('p_nami', 'Nami')
-    const nasceu = fichaQueNasceDoBoneco(nami, boneco('t_nami', 'p_nami', { mochila: [CORDA], moedas: 12 }))
-    expect([nasceu.mochila, nasceu.moedas]).toEqual([[CORDA], 12])
-  })
-
-  it('ficha que já tem mochila não é nova: o boneco não a sobrescreve', () => {
-    const nami = ficha('p_nami', 'Nami', { mochila: [POCAO] })
-    expect(fichaQueNasceDoBoneco(nami, boneco('t_nami', 'p_nami', { mochila: [CORDA] }))).toBe(nami)
-  })
-
-  it('boneco de mãos vazias: nasce vazia (a mesma ficha, sem chave nova)', () => {
-    const nami = ficha('p_nami', 'Nami')
-    expect(fichaQueNasceDoBoneco(nami, boneco('t_nami', 'p_nami'))).toBe(nami)
-  })
-})
-
-describe('o boneco vence a ficha: recuperação e ficha que volta a ter um boneco só', () => {
+describe('o boneco vence a ficha: recuperação', () => {
   const ESPADA: CarriedItem = { id: 'vaga_espada', nome: 'Espada' }
   const cenaCom = (id: string, bonecos: Token[]): MapData => ({ ...createEmptyMap(id, id, 10, 10, 64), tokens: bonecos })
 
@@ -155,23 +134,5 @@ describe('o boneco vence a ficha: recuperação e ficha que volta a ter um bonec
       boneco('t_bandido_2', 'p_bandido'),
     ])
     expect(fichasComOsBonecos(fichas, [recuperado])).toBe(fichas)
-  })
-
-  it('o outro Bandido some (apagado, ou o Ctrl+Z desfez a duplicação): a Espada do que ficou vai para a ficha', () => {
-    const fichas = [ficha('p_bandido', 'Bandido'), ficha('p_luffy', 'Luffy', { mochila: [POCAO] })]
-    const antes = [boneco('t_bandido_1', 'p_bandido', { mochila: [ESPADA], moedas: 3 }), boneco('t_bandido_2', 'p_bandido'), boneco('t_luffy', 'p_luffy', { mochila: [CORDA] })]
-    const depois = [antes[0], antes[2]]
-    const novas = fichasComOBonecoQueFicou(fichas, antes, depois)
-    expect([novas[0].mochila, novas[0].moedas]).toEqual([[ESPADA], 3])
-    // O Luffy já tinha um boneco só: não é volta, e o boneco dele não manda na ficha.
-    expect(novas[1]).toBe(fichas[1])
-  })
-
-  it('continua com vários, passa de um para vários, ou some de vez: a MESMA lista', () => {
-    const fichas = [ficha('p_bandido', 'Bandido')]
-    const tres = [boneco('t_b1', 'p_bandido', { mochila: [ESPADA] }), boneco('t_b2', 'p_bandido'), boneco('t_b3', 'p_bandido')]
-    expect(fichasComOBonecoQueFicou(fichas, tres, tres.slice(0, 2))).toBe(fichas)
-    expect(fichasComOBonecoQueFicou(fichas, tres.slice(0, 1), tres.slice(0, 2))).toBe(fichas)
-    expect(fichasComOBonecoQueFicou(fichas, tres, [])).toBe(fichas)
   })
 })

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ExitPassage, MapData, ModeloDeCamadas, Periodo, Pin, PinDestination, PinPassage, Stair } from '../types/map'
+import type { ExitPassage, MapData, ModeloDeCamadas, Periodo, Pin, PinDestination, PinPassage, Stair, Token } from '../types/map'
 import { modeloParaOPasso } from '../lib/camadas/modelo'
 import { PERIODO_PADRAO } from '../lib/periodo'
 import {
@@ -16,7 +16,8 @@ import {
 import { passageOf } from '../lib/pins'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
-import { fichasComOBonecoQueFicou, fichasComOsBonecos, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
+import { fichasComOsBonecos, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
+import { acertarBonecosDasFichas, avisosDoAcerto } from '../lib/mochila/transicao'
 import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Bounds, Camera, Point } from '../pixi/world'
@@ -1905,6 +1906,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const map = updater(slot.map)
     if (map === slot.map) return
     set({ cache: { ...cache, [sceneId]: { ...slot, map } }, dirty: { ...dirty, [sceneId]: true } })
+    // MOCHILA NA FICHA (C1): boneco ligado, desligado ou apagado nesta cena de fundo.
+    syncBonecosNaCenaDeFundo(sceneId, slot.map)
   },
 
   applyPlayerChangeToBackgroundScene: (sceneId, transform) => {
@@ -1916,6 +1919,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const past = slot.past.map(transform)
     const future = slot.future.map(transform)
     set({ cache: { ...cache, [sceneId]: { ...slot, map, past, future } }, dirty: { ...dirty, [sceneId]: true } })
+    // MOCHILA NA FICHA (C1): o jogador da sala ligou a ficha dele ("Criar minha ficha") nesta cena de fundo.
+    syncBonecosNaCenaDeFundo(sceneId, slot.map)
   },
 
   criarEstadoDoMundo: (nome, valores) => {
@@ -2286,6 +2291,12 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // A cena aberta troca mapa E histórico juntos, sem `withHistory`: a
     // travessia não é um passo do mestre para o Ctrl+Z desfazer.
     if (openScene !== null) useMapStore.setState({ map: openScene.map, past: openScene.past, future: openScene.future })
+    // MOCHILA NA FICHA (C1): a ficha que chega a uma cena de fundo onde já há outro boneco dela (ou que deixa um só lá).
+    // A cena aberta, o `syncBonecosDasFichas` já viu pelo `setState` acima.
+    for (const sceneId of [fromSceneId, toSceneId]) {
+      const antes = cache[sceneId]
+      if (sceneId !== activeSceneId && antes !== undefined && antes.status === 'ok') syncBonecosNaCenaDeFundo(sceneId, antes.map)
+    }
     for (const [travelerId, residentId] of renamedResidents) renameResidentOutsideMap(travelerId, residentId, toSceneId === activeSceneId)
     return true
   },
@@ -2627,32 +2638,87 @@ function espelharSeAsDonasMudaram(antes: readonly Personagem[] | null): void {
 }
 
 /**
- * MOCHILA NA FICHA: a ficha que volta a ter UM boneco só no mapa aberto (o
- * mestre apagou o outro Bandido, um Ctrl+Z desfez a duplicação). Enquanto eram
- * vários, a mochila morava em cada boneco e a ficha não mudava
- * (`mudancaNasFichas`); daqui em diante a ficha manda, e o espelho da próxima
- * troca de cena poria a mochila dela por cima da Espada do boneco que ficou.
- * Por isso a mochila e a bolsa dele vão para a ficha agora, com um aviso, e
- * as outras cenas e o desfazer passam a mostrá-las.
+ * MOCHILA NA FICHA (correção C1): os bonecos de uma ficha mudaram num mapa —
+ * ligar (painel, ficha, batalha, jogador da sala), desligar, apagar,
+ * duplicar, Ctrl+Z. A regra por mapa (`acertarBonecosDasFichas`): o boneco
+ * que chega carregando coisas a uma ficha com um boneco só no mapa SOMA o que
+ * é dele na ficha; com vários, cada um fica com a sua mochila; quem deixa de
+ * mostrar a ficha fica sem nada, e a ficha guarda tudo. Sem isso, o espelho da
+ * próxima troca de cena apagaria a mochila do boneco ligado, e o Ctrl+Z de um
+ * "ligar" deixaria a Poção em dois lugares.
  *
- * Só olha EDIÇÃO, como `syncTravelLinks`: troca de cena (`sceneLoading`) e mapa
- * de outro id (abrir, criar) não são boneco apagado, são outro mapa entrando.
+ * `porOsBonecos` grava em `depois` os bonecos acertados (o boneco que mostrava
+ * a ficha e agora divide o mapa com outro, o que saiu dela). O mestre recebe
+ * um aviso por acontecimento — nada some calado — e, mudando alguma ficha,
+ * toda cena aberta e o desfazer dela passam a mostrá-la.
  */
-function syncFichaQueVoltouAUmBoneco(after: MapData, before: MapData): void {
-  if (sceneLoading || after.tokens === before.tokens || after.id !== before.id) return
+function acertarBonecosNoMapa(antes: MapData, depois: MapData, porOsBonecos: (tokens: Token[]) => void): void {
   const fichas = fichasDonasDaMochila(useAdventureStore.getState())
   if (fichas === null) return
-  const novas = fichasComOBonecoQueFicou(fichas, before.tokens, after.tokens)
-  if (novas === fichas) return
-  const gravadas = gravarFichasDonas(novas)
+  const acerto = acertarBonecosDasFichas(fichas, antes.tokens, depois.tokens)
+  if (acerto.personagens === fichas && acerto.tokens === depois.tokens) return
+  const gravadas = acerto.personagens === fichas ? fichas : gravarFichasDonas(acerto.personagens)
   if (gravadas === null) return
-  const nomes = novas.filter((ficha, i) => ficha !== fichas[i]).map((ficha) => ficha.nome)
-  useToastStore.getState().push('info', `Ficou um boneco só de ${nomes.join(', ')} neste mapa: a mochila e a bolsa dele passaram para a ficha.`)
-  espelharEmTodaCena(gravadas)
+  if (acerto.tokens !== depois.tokens) porOsBonecos([...acerto.tokens])
+  for (const aviso of avisosDoAcerto(acerto)) useToastStore.getState().push('info', aviso)
+  if (gravadas !== fichas) espelharEmTodaCena(gravadas)
 }
 
-// Liga uma vez, ao carregar o módulo, como o `syncModeloDeCamadas`: sem ele o item do boneco que ficou some na próxima troca de cena.
-useMapStore.subscribe((state) => state.map, syncFichaQueVoltouAUmBoneco)
+/** Os mapas que entram agora são trabalho recuperado, não edição: `semAcertoDosBonecos`. */
+let bonecosChegando = false
+
+/**
+ * O mapa aberto. Só olha EDIÇÃO, como `syncTravelLinks`: troca de cena
+ * (`sceneLoading`) e mapa de outro id (abrir, criar) não são boneco ligado
+ * nem apagado, são outro mapa entrando.
+ */
+function syncBonecosDasFichas(after: MapData, before: MapData): void {
+  if (sceneLoading || bonecosChegando || after.tokens === before.tokens || after.id !== before.id) return
+  acertarBonecosNoMapa(before, after, (tokens) => {
+    const { map } = useMapStore.getState()
+    if (map === after) useMapStore.setState({ map: { ...after, tokens } })
+  })
+}
+
+// Liga uma vez, ao carregar o módulo, como o `syncModeloDeCamadas`: sem ele a mochila do boneco ligado some na próxima troca de cena.
+useMapStore.subscribe((state) => state.map, syncBonecosDasFichas)
+
+/**
+ * MOCHILA NA FICHA (C1): `fazer` põe no editor e no cache mapas que CHEGAM
+ * (o "Recuperar" troca o mapa do disco pela cópia), não uma edição: o mapa
+ * de antes é o do disco, mais velho, e comparar com ele inventaria boneco
+ * ligado ou desligado — e esvaziaria o boneco que ganhou coisas depois do
+ * último Salvar. Quem acerta a mochila nesse caso é `acertarMochilasRecuperadas`.
+ */
+export function semAcertoDosBonecos(fazer: () => void): void {
+  bonecosChegando = true
+  try {
+    fazer()
+  } finally {
+    bonecosChegando = false
+  }
+}
+
+/**
+ * Uma cena de fundo mudou (`updateBackgroundScene`, a mudança do jogador da
+ * sala, a travessia de `transferToken`): o mesmo acerto do mapa aberto, entre
+ * `before` e o mapa dela AGORA no cache — o espelho de outra cena pode já ter
+ * passado por ela, e o que conta para ligar e desligar são os bonecos, não a
+ * mochila que eles mostram.
+ */
+function syncBonecosNaCenaDeFundo(sceneId: string, before: MapData): void {
+  if (bonecosChegando) return
+  const slot = useAdventureStore.getState().cache[sceneId]
+  if (slot === undefined || slot.status !== 'ok') return
+  const after = slot.map
+  if (after.tokens === before.tokens || after.id !== before.id) return
+  acertarBonecosNoMapa(before, after, (tokens) => {
+    const { cache } = useAdventureStore.getState()
+    const agora = cache[sceneId]
+    if (agora === undefined || agora.status !== 'ok' || agora.map !== after) return
+    useAdventureStore.setState({ cache: { ...cache, [sceneId]: { ...agora, map: { ...after, tokens } } } })
+  })
+}
 
 /**
  * MOCHILA NA FICHA: o fim do "Recuperar" (`stores/recoveryAutosave.ts`). A

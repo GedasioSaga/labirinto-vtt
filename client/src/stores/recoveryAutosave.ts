@@ -1,6 +1,6 @@
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
-import { acertarMochilasRecuperadas, hasUnsavedWork, mochilaMoraNaFicha, useAdventureStore } from './adventureStore'
+import { acertarMochilasRecuperadas, hasUnsavedWork, mochilaMoraNaFicha, semAcertoDosBonecos, useAdventureStore } from './adventureStore'
 import { scenePath, type OpenedMapFile } from '../lib/mapFileIO'
 import type { PastaAberta } from '../lib/pastasDeMapas'
 import type { RecoveryCopy } from '../lib/recoveryCopy'
@@ -111,11 +111,14 @@ export async function restoreRecoveryCopy(
     useAdventureStore.getState().reset()
   } else {
     useAdventureStore.getState().open(opened, await pastaDoArquivo(opened.path))
-    for (const [sceneId, sceneMap] of Object.entries(copy.scenes)) {
-      useAdventureStore.getState().updateBackgroundScene(sceneId, () => sceneMap)
-    }
+    // O trabalho recuperado CHEGA (não é edição sobre o mapa do disco): a mochila dele é acertada no fim (`acertarMochilasRecuperadas`).
+    semAcertoDosBonecos(() => {
+      for (const [sceneId, sceneMap] of Object.entries(copy.scenes)) {
+        useAdventureStore.getState().updateBackgroundScene(sceneId, () => sceneMap)
+      }
+    })
   }
-  useMapStore.getState().loadMap(copy.map)
+  semAcertoDosBonecos(() => useMapStore.getState().loadMap(copy.map))
   acertarMochilasRecuperadas([copy.map, ...Object.values(copy.scenes)], copy.mochilaNaFicha === true)
   return opened === null ? null : opened.path
 }

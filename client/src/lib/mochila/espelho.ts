@@ -17,12 +17,12 @@ function mesmaMochila(a: readonly CarriedItem[], b: readonly CarriedItem[]): boo
 }
 
 /** O boneco já mostra a mochila e a bolsa da ficha (ausente === vazia, nos dois). */
-function mostraAFicha(boneco: Pick<Token, 'mochila' | 'moedas'>, ficha: Pick<Personagem, 'mochila' | 'moedas'>): boolean {
+export function mostraAFicha(boneco: Pick<Token, 'mochila' | 'moedas'>, ficha: Pick<Personagem, 'mochila' | 'moedas'>): boolean {
   return mesmaMochila(boneco.mochila ?? [], ficha.mochila ?? []) && moedasDe(boneco) === moedasDe(ficha)
 }
 
 /** O boneco mostrando a mochila e a bolsa da ficha; já igual, o MESMO boneco. Vazia e zero tiram a chave (ausente === vazia). */
-function bonecoComAFicha(boneco: Token, ficha: Pick<Personagem, 'mochila' | 'moedas'>): Token {
+export function bonecoComAFicha(boneco: Token, ficha: Pick<Personagem, 'mochila' | 'moedas'>): Token {
   if (mostraAFicha(boneco, ficha)) return boneco
   const mochila = ficha.mochila ?? []
   const moedas = moedasDe(ficha)
@@ -145,36 +145,4 @@ export function fichasComOsBonecos(personagens: readonly Personagem[], mapas: re
     }
   }
   return fichasComAMochilaDe(personagens, bonecoDaFicha)
-}
-
-/**
- * A ficha que VOLTA a ter um boneco só no mapa: tinha dois ou mais em `antes`
- * (a mochila morava em cada boneco, `mudancaNasFichas` não a levava à ficha) e
- * tem um só em `depois` — o mestre apagou o outro Bandido, ou um Ctrl+Z desfez
- * a duplicação. A partir daqui a ficha manda de novo, e o espelho seguinte
- * poria a mochila dela por cima do boneco que ficou: antes disso, a mochila e
- * a bolsa DELE vão para a ficha. Nada mudando, a MESMA lista.
- */
-export function fichasComOBonecoQueFicou(personagens: readonly Personagem[], antes: readonly Pick<Token, 'characterId'>[], depois: readonly Token[]): readonly Personagem[] {
-  if (antes === depois) return personagens
-  const eramDeVarios = fichasDeVariosBonecos(antes)
-  if (eramDeVarios.size === 0) return personagens
-  const continuamDeVarios = fichasDeVariosBonecos(depois)
-  const bonecoQueFicou = new Map<string, Token>()
-  for (const boneco of depois) {
-    if (boneco.characterId !== null && eramDeVarios.has(boneco.characterId) && !continuamDeVarios.has(boneco.characterId)) bonecoQueFicou.set(boneco.characterId, boneco)
-  }
-  return fichasComAMochilaDe(personagens, bonecoQueFicou)
-}
-
-/**
- * A ficha que NASCE depois da migração (personagem novo ligado a um boneco que
- * já carregava coisas): nasce com a mochila e a bolsa do boneco (§4.2, Ap3).
- * Ficha que já tem mochila ou bolsa não é nova: volta igual. Só para o
- * momento em que a ficha nasce — depois, quem manda é a ficha.
- */
-export function fichaQueNasceDoBoneco(personagem: Personagem, boneco: Pick<Token, 'mochila' | 'moedas'>): Personagem {
-  if (personagem.mochila !== undefined || personagem.moedas !== undefined) return personagem
-  if (boneco.mochila === undefined && boneco.moedas === undefined) return personagem
-  return fichaComMochila(personagem, boneco.mochila ?? [], boneco.moedas ?? 0)
 }
