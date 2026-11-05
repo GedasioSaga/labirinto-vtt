@@ -78,26 +78,62 @@ function semEfeito<T>(novo: T, atual: unknown): Passo<T> {
   return { ok: true, novo, antes: atual, depois: atual, semEfeito: true }
 }
 
-/** Aplica as mudanças em ordem; a recusada não para as outras (campo diferente nunca é derrubado por outro, §5.2). */
+/**
+ * Aplica as mudanças em ordem; a recusada não para as outras (campo diferente
+ * nunca é derrubado por outro, §5.2). A exceção são as `atomico` seguidas:
+ * tudo ou nada — a ficha trocada inteira (apagar + criar) nunca fica só
+ * apagada porque o criar não entrou.
+ */
 export function aplicar(doc: Personagem | null, mudancas: readonly Mudanca[]): ResultadoDoLote {
   let atual = doc
   const recusadas: RecusaNoLote[] = []
-  for (const mudanca of mudancas) {
-    const resultado = aplicarOp(atual, mudanca)
-    if (resultado.ok) atual = resultado.doc
-    else recusadas.push({ mudanca, motivo: resultado.motivo, detalhe: resultado.detalhe })
+  for (const grupo of emGrupos(mudancas)) {
+    const resultado = aplicarGrupo(atual, grupo)
+    atual = resultado.doc
+    recusadas.push(...resultado.recusadas)
   }
   return { doc: atual, recusadas }
 }
 
+/** Cada mudança solta é um grupo; as `atomico` seguidas formam um grupo só. */
+function emGrupos(mudancas: readonly Mudanca[]): Mudanca[][] {
+  const grupos: Mudanca[][] = []
+  let anteriorAtomica = false
+  for (const mudanca of mudancas) {
+    const atomica = mudanca.atomico === true
+    const ultimo = grupos.at(-1)
+    if (atomica && anteriorAtomica && ultimo !== undefined) ultimo.push(mudanca)
+    else grupos.push([mudanca])
+    anteriorAtomica = atomica
+  }
+  return grupos
+}
+
+/** O grupo inteiro ou nada dele: na primeira recusa, a ficha volta à de antes do grupo e todas as mudanças dele voltam recusadas. */
+function aplicarGrupo(doc: Personagem | null, grupo: readonly Mudanca[]): ResultadoDoLote {
+  let atual = doc
+  for (const mudanca of grupo) {
+    const resultado = aplicarOp(atual, mudanca)
+    if (!resultado.ok) {
+      const { motivo, detalhe } = resultado
+      const junto = `Vai junto com outra mudança recusada: ${detalhe}`
+      return { doc, recusadas: grupo.map((outra) => ({ mudanca: outra, motivo, detalhe: outra === mudanca ? detalhe : junto })) }
+    }
+    atual = resultado.doc
+  }
+  return { doc: atual, recusadas: [] }
+}
+
 export function aplicarOp(doc: Personagem | null, mudanca: Mudanca): ResultadoDaAplicacao {
+  // `lerMudanca` confere a forma também: o que veio do fio sem respeitar o tipo vira recusa, não erro.
   const leitura = lerMudanca(mudanca)
   if (!leitura.ok) return leitura
-  const lida = leitura.lida
-  if (lida.regra === 'ficha') return finalizado(naFichaInteira(doc, mudanca.fichaId, lida))
+  const { lida } = leitura
+  const fichaId = leitura.mudanca.fichaId
+  if (lida.regra === 'ficha') return finalizado(naFichaInteira(doc, fichaId, lida))
   if (doc === null) return inexistente('A ficha não existe (foi apagada?)')
-  if (doc.id !== mudanca.fichaId) return inexistente('A op é de outra ficha')
-  const passo = naFicha(doc, lida, mudanca.fichaId)
+  if (doc.id !== fichaId) return inexistente('A op é de outra ficha')
+  const passo = naFicha(doc, lida, fichaId)
   if (passo.ok && passo.semEfeito !== true && bytesDoJson(passo.novo) > TETOS_DO_CAMINHO.docBytes) {
     return recusar('doc-grande', 'Ficha grande demais: máximo 256 KiB')
   }

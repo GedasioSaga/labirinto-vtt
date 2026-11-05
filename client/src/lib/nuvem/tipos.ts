@@ -17,7 +17,8 @@ export const VERSAO_DO_FORMATO = 1
 
 /**
  * `definir` põe o valor no campo; sem `valor`, TIRA a chave (é o que o
- * desfazer de um campo que não existia precisa). `somar` soma `delta`
+ * desfazer de um campo que não existia precisa; em `quantidade` e `moedas`,
+ * volta ao ausente, que vale 1 e 0). `somar` soma `delta`
  * (quantidade de item e moedas). `criar`/`apagar` põem e tiram cartão, item,
  * etiqueta e a ficha inteira. `ordenar` troca a ordem dos cartões.
  */
@@ -41,6 +42,12 @@ export interface Mudanca {
   acao: Acao
   valor?: Json
   delta?: number
+  /**
+   * Tudo ou nada com as outras `atomico` seguidas do mesmo lote: se uma não
+   * entra, nenhuma entra. Só em troca e pagamento de itens e na ficha trocada
+   * inteira (apagar + criar de `[]`), que nunca pode ficar só apagada.
+   */
+  atomico?: true
 }
 
 export interface Op extends Mudanca {
@@ -48,8 +55,6 @@ export interface Op extends Mudanca {
   opId: string
   /** As ops geradas no mesmo instante. */
   loteId: string
-  /** Só troca e pagamento de itens: o lote inteiro passa ou nenhuma op passa. */
-  atomico?: true
   /** A rev de onde saiu a BASE que o autor viu (não a rev de agora). */
   baseRev: number
   /** Uma por instalação do app, ou por navegador + conta. */

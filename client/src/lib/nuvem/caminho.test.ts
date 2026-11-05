@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { alvoDoCaminho, chaveDaEtiqueta, lerMudanca, quemEscreve, segmentoValido } from './caminho'
+import { alvoDoCaminho, chaveDaEtiqueta, lerMudanca, quemEscreve, quemEscreveAMudanca, segmentoValido } from './caminho'
 import { lerJsonSeguro } from './json'
 import type { Acao, Mudanca } from './tipos'
 
@@ -11,6 +11,7 @@ import type { Acao, Mudanca } from './tipos'
 
 const FICHA = 'pers_teste'
 const CHAVES_DE_PROTOTIPO = ['__proto__', 'prototype', 'constructor']
+const IMAGEM = `midia:${'a'.repeat(64)}.png`
 
 function mudanca(caminho: string[], acao: Acao, extra: Partial<Mudanca> = {}): Mudanca {
   return { fichaId: FICHA, caminho, acao, ...extra }
@@ -52,6 +53,38 @@ describe('segmento do caminho', () => {
     expect(veredito(mudanca(['nome'], 'somar', { delta: 1 }))).toBe('fora-do-esquema')
     expect(veredito(mudanca(['moedas'], 'criar', { valor: 1 }))).toBe('fora-do-esquema')
     expect(veredito(mudanca(['mochila', 'vaga_1'], 'apagar', { valor: 'x' }))).toBe('fora-do-esquema')
+  })
+
+  it('op torta do fio (caminho que não é lista, ação que não existe, nem objeto) vira recusa, nunca erro', () => {
+    const tortas = [
+      '{"fichaId":"pers_teste","caminho":"nome","acao":"definir","valor":"x"}',
+      '{"fichaId":"pers_teste","caminho":{"length":0},"acao":"definir","valor":"x"}',
+      '{"fichaId":"pers_teste","caminho":null,"acao":"definir","valor":"x"}',
+      '{"fichaId":"pers_teste","caminho":5,"acao":"definir","valor":"x"}',
+      '{"fichaId":"pers_teste","acao":"definir","valor":"x"}',
+      '{"fichaId":"pers_teste","caminho":["nome"],"acao":"explodir","valor":"x"}',
+      '{"fichaId":"pers_teste","caminho":["nome"],"acao":5,"valor":"x"}',
+      '{"fichaId":"pers_teste","caminho":["nome"],"valor":"x"}',
+      '{"fichaId":5,"caminho":["nome"],"acao":"definir","valor":"x"}',
+      '{"fichaId":"pers_teste","caminho":["moedas"],"acao":"somar","delta":"5"}',
+      '{"fichaId":"pers_teste","caminho":["nome"],"acao":"definir","valor":"x","atomico":"sim"}',
+      'null',
+      '5',
+      '"texto"',
+      '[]',
+    ]
+    for (const texto of tortas) expect(lerMudanca(lerJsonSeguro(texto)), texto).toMatchObject({ ok: false, motivo: 'fora-do-esquema' })
+    for (const caminho of ['nome', null, 5, { length: 0 }]) {
+      expect(alvoDoCaminho(caminho)).toBeNull()
+      expect(quemEscreve(caminho)).toBeNull()
+    }
+  })
+
+  it('a mudança conferida volta tipada e sem o envelope da op', () => {
+    const doFio = lerJsonSeguro('{"opId":"op_1","baseRev":3,"fichaId":"pers_teste","caminho":["recursos","hp"],"acao":"definir","valor":25}')
+    const leitura = lerMudanca(doFio)
+    expect(leitura).toMatchObject({ ok: true, mudanca: { fichaId: FICHA, caminho: ['recursos', 'hp'], acao: 'definir', valor: 25 } })
+    expect(leitura.ok && Object.keys(leitura.mudanca)).toEqual(['fichaId', 'caminho', 'acao', 'valor'])
   })
 
   it('acha o alvo dentro de subcartões', () => {
@@ -127,6 +160,14 @@ describe('valor hostil', () => {
     expect(veredito(mudanca(['abas', 'tecnicas', 'cart_1', 'campos', 'dano'], 'definir', { valor: 'ã'.repeat(4097) }))).toBe('acima-do-teto')
   })
 
+  it('definir sem valor em quantidade e moedas é a volta ao ausente (1 e 0), para o desfazer', () => {
+    expect(lerMudanca(mudanca(['moedas'], 'definir'))).toMatchObject({ ok: true, lida: { regra: 'moedas', acao: 'definir', valor: 0 } })
+    expect(lerMudanca(mudanca(['mochila', 'vaga_1', 'quantidade'], 'definir'))).toMatchObject({ ok: true, lida: { regra: 'quantidade', acao: 'definir', valor: 1 } })
+    expect(veredito(mudanca(['moedas'], 'definir', { valor: null }))).toBe('fora-do-esquema')
+    expect(veredito(mudanca(['mochila', 'vaga_1', 'quantidade'], 'definir', { valor: null }))).toBe('fora-do-esquema')
+    expect(veredito(mudanca(['mochila', 'vaga_1', 'quantidade'], 'definir', { valor: 0 }))).toBe('fora-do-esquema')
+  })
+
   it('nome vazio e dono torto são recusados', () => {
     expect(veredito(mudanca(['nome'], 'definir', { valor: '   ' }))).toBe('fora-do-esquema')
     expect(veredito(mudanca(['dono'], 'definir', { valor: 'conta com espaço' }))).toBe('fora-do-esquema')
@@ -146,6 +187,23 @@ describe('quem escreve', () => {
     expect(quemEscreve(['retrato'])).toBe('mestre')
     expect(quemEscreve(['abas', 'tecnicas', 'cart_1', 'imagem'])).toBe('mestre')
     expect(quemEscreve(['abas', 'tecnicas', 'cart_1', 'subcartoes', 'cart_2', 'imagem'])).toBe('mestre')
+  })
+
+  it('cartão novo que traz imagem, nele ou num subcartão, é só do mestre (12.4); sem imagem é do dono', () => {
+    const semImagem = { id: 'cart_1', nome: 'Gomu Gomu', campos: {}, extras: [], atributos: [], imagem: null, modificadores: [], subcartoes: [] }
+    const comImagem = { ...semImagem, imagem: IMAGEM }
+    const subComImagem = { ...semImagem, subcartoes: [{ ...semImagem, id: 'cart_2', imagem: IMAGEM }] }
+    const noTopo = ['abas', 'tecnicas', 'cart_1']
+    expect(quemEscreveAMudanca(mudanca(noTopo, 'criar', { valor: semImagem }))).toBe('donoOuMestre')
+    expect(quemEscreveAMudanca(mudanca(noTopo, 'criar', { valor: comImagem }))).toBe('mestre')
+    expect(quemEscreveAMudanca(mudanca(noTopo, 'criar', { valor: subComImagem }))).toBe('mestre')
+    expect(quemEscreveAMudanca(mudanca(['abas', 'tecnicas', 'cart_0', 'subcartoes', 'cart_1'], 'criar', { valor: comImagem }))).toBe('mestre')
+    expect(quemEscreveAMudanca(mudanca(noTopo, 'apagar'))).toBe('donoOuMestre')
+    expect(quemEscreveAMudanca(mudanca([...noTopo, 'imagem'], 'definir', { valor: IMAGEM }))).toBe('mestre')
+    expect(quemEscreveAMudanca(mudanca(['dono'], 'definir', { valor: 'conta_luffy' }))).toBe('mestre')
+    expect(quemEscreveAMudanca(mudanca(['historico'], 'definir', { valor: 'x' }))).toBeNull()
+    // O esquema aceita o cartão com imagem (o mestre pode criá-lo); quem barra o jogador é a permissão.
+    expect(veredito(mudanca(noTopo, 'criar', { valor: subComImagem }))).toBe('ok')
   })
 
   it('ficha, cartões, mochila, moedas e etiquetas são do dono ou do mestre', () => {

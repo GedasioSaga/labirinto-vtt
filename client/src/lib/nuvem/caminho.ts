@@ -4,7 +4,7 @@ import { ehImagemDaMesa } from '../midia'
 import { personagemDoArquivo } from '../personagem'
 import type { CampoDaFichaDBT, CampoExtra, CartaoDaFicha, MarcaDeCombate, Modificador, Personagem } from '../personagem'
 import { MOEDAS_MAX } from '../troca'
-import { bytesDoJson, bytesDoTexto, CHAVES_PROIBIDAS, ehRegistro, jsonIgual, problemaNoValor, proprio, type Json } from './json'
+import { bytesDoJson, bytesDoTexto, CHAVES_PROIBIDAS, ehJson, ehRegistro, jsonIgual, PROFUNDIDADE_MAX, problemaNoValor, proprio, type Json } from './json'
 import type { Acao, MotivoNegado, Mudanca } from './tipos'
 
 /**
@@ -46,8 +46,11 @@ export function segmentoValido(segmento: unknown): segmento is string {
   return typeof segmento === 'string' && FORMA_DO_SEGMENTO.test(segmento) && !CHAVES_PROIBIDAS.has(segmento)
 }
 
-function segmentosValidos(caminho: readonly unknown[]): caminho is readonly string[] {
-  return caminho.every(segmentoValido)
+/** Lista de até 24 segmentos válidos. O que vem do fio pode nem ser lista: aí é `false`, nunca erro. */
+function ehCaminho(valor: unknown): valor is readonly string[] {
+  if (!Array.isArray(valor) || valor.length > TETOS_DO_CAMINHO.segmentos) return false
+  // `Array.from` visita os buracos da lista como `undefined` (o `every` sozinho os pularia).
+  return Array.from(valor).every(segmentoValido)
 }
 
 /** Guarda de tipo a partir de uma tabela completa (`Record`): campo novo no tipo do app não compila sem entrar aqui. */
@@ -58,6 +61,9 @@ function guardaDe<T extends string>(tabela: Readonly<Record<T, unknown>>): (valo
 function chavesDe<T extends string>(tabela: Readonly<Record<T, unknown>>, guarda: (valor: string) => valor is T): readonly T[] {
   return Object.keys(tabela).filter(guarda)
 }
+
+const ACAO: Record<Acao, true> = { definir: true, somar: true, criar: true, apagar: true, ordenar: true }
+const ehAcao = guardaDe(ACAO)
 
 export type MapaNumerico = 'recursos' | 'maximos' | 'modificadoresDosRecursos' | 'atributos' | 'modificadoresDosAtributos'
 const MAPA_NUMERICO: Record<MapaNumerico, true> = {
@@ -163,7 +169,9 @@ export interface RegraDoEsquema {
  * A tabela 4.7. Desvios dela, todos para o desfazer (§5.3) funcionar:
  * `quantidade` e `moedas` também aceitam `definir` (a volta de uma soma que o
  * teto cortou), e `definir` sem valor tira a chave (a volta de um campo que
- * não existia). Imagem (retrato e cartão) é só do mestre na v1 (pergunta 12.4).
+ * não existia; em `quantidade` e `moedas` é o ausente, 1 e 0). Imagem (retrato
+ * e cartão) é só do mestre na v1 (pergunta 12.4), inclusive a que vem dentro
+ * de um cartão novo (`quemEscreveAMudanca`).
  */
 export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> = {
   ficha: { caminho: '[]', acoes: ['criar', 'apagar'], quem: 'mestre', visivelAoJogador: true },
@@ -243,9 +251,9 @@ function alvoNoDbt(resto: readonly string[]): Alvo | null {
   return ehCampoDbt(campo) ? { regra: 'dbt', campo } : null
 }
 
-/** Para onde o caminho aponta na tabela 4.7; `null` = fora dela (segmento torto, chave proibida, campo que não existe). */
-export function alvoDoCaminho(caminho: readonly unknown[]): Alvo | null {
-  if (caminho.length > TETOS_DO_CAMINHO.segmentos || !segmentosValidos(caminho)) return null
+/** Para onde o caminho aponta na tabela 4.7; `null` = fora dela (não é lista, segmento torto, chave proibida, campo que não existe). */
+export function alvoDoCaminho(caminho: unknown): Alvo | null {
+  if (!ehCaminho(caminho)) return null
   if (caminho.length === 0) return { regra: 'ficha' }
   const [topo, ...resto] = caminho
   const umaChave = resto.length === 1 ? resto[0] : undefined
@@ -276,10 +284,38 @@ export function alvoDoCaminho(caminho: readonly unknown[]): Alvo | null {
   }
 }
 
-/** Quem pode escrever no caminho; `null` = caminho fora da tabela. */
-export function quemEscreve(caminho: readonly unknown[]): QuemEscreve | null {
+/**
+ * Quem pode escrever no caminho, olhando só o caminho; `null` = fora da
+ * tabela. Serve para a tela (mostrar ou não o controle). A permissão de uma
+ * mudança é `quemEscreveAMudanca`, que olha também o valor.
+ */
+export function quemEscreve(caminho: unknown): QuemEscreve | null {
   const alvo = alvoDoCaminho(caminho)
   return alvo === null ? null : ESQUEMA_DO_CAMINHO[alvo.regra].quem
+}
+
+/**
+ * Quem pode fazer a mudança: o caminho e, no criar de cartão, o que vai
+ * dentro. Imagem é só do mestre na v1 (12.4), então o cartão novo que já
+ * traz imagem, nele ou num subcartão, também é só do mestre — senão bastaria
+ * apagar o próprio cartão e criar de novo com outra imagem. É esta que a
+ * permissão (servidor e emissor) usa; `null` = fora da tabela.
+ */
+export function quemEscreveAMudanca(m: Pick<Mudanca, 'caminho' | 'acao' | 'valor'>): QuemEscreve | null {
+  const alvo = alvoDoCaminho(m.caminho)
+  if (alvo === null) return null
+  if (alvo.regra === 'cartao' && m.acao === 'criar' && cartaoTrazImagem(m.valor)) return 'mestre'
+  return ESQUEMA_DO_CAMINHO[alvo.regra].quem
+}
+
+/** O cartão como veio (antes do leitor) ou algum subcartão dele tem imagem. Fundo demais conta como sim: na dúvida, só o mestre. */
+function cartaoTrazImagem(valor: unknown, profundidade = 0): boolean {
+  if (profundidade > PROFUNDIDADE_MAX) return true
+  if (!ehRegistro(valor)) return false
+  const imagem = proprio(valor, 'imagem')
+  if (imagem !== undefined && imagem !== null) return true
+  const subcartoes = proprio(valor, 'subcartoes')
+  return Array.isArray(subcartoes) && Array.from(subcartoes).some((sub: unknown) => cartaoTrazImagem(sub, profundidade + 1))
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -361,13 +397,16 @@ export interface RecusaDoEsquema {
   detalhe: string
 }
 
-export type LeituraDaMudanca = { ok: true; lida: MudancaLida } | RecusaDoEsquema
+/** `mudanca`: a mudança conferida e tipada, já sem o envelope da op — o que vem do fio passa a ter tipo sem cast. */
+export type LeituraDaMudanca = { ok: true; lida: MudancaLida; mudanca: Mudanca } | RecusaDoEsquema
+
+type Leitura = { ok: true; lida: MudancaLida } | RecusaDoEsquema
 
 function recusa(motivo: MotivoNegado, detalhe: string): RecusaDoEsquema {
   return { ok: false, motivo, detalhe }
 }
 
-function aceita(lida: MudancaLida): LeituraDaMudanca {
+function aceita(lida: MudancaLida): Leitura {
   return { ok: true, lida }
 }
 
@@ -379,20 +418,49 @@ function ultimo(trilha: readonly string[]): string | undefined {
 }
 
 /**
- * Confere uma mudança contra a tabela 4.7, sem olhar a ficha: segmento,
- * campo, ação, tipo e teto. O que depende da ficha (o cartão existe? a soma
- * passa do teto?) é conferido em `aplicar`.
+ * Confere uma mudança contra a tabela 4.7, sem olhar a ficha: forma,
+ * segmento, campo, ação, tipo e teto. O que depende da ficha (o cartão
+ * existe? a soma passa do teto?) é conferido em `aplicar`. Recebe `unknown`
+ * porque o servidor passa por aqui o que veio do fio: op torta (caminho que
+ * não é lista, ação que não existe, nem objeto) vira recusa, nunca erro que
+ * derrube o lote.
  */
-export function lerMudanca(m: Mudanca): LeituraDaMudanca {
-  if (!segmentoValido(m.fichaId)) return recusa('fora-do-esquema', 'Ficha sem id válido')
+export function lerMudanca(entrada: unknown): LeituraDaMudanca {
+  const forma = formaDaMudanca(entrada)
+  if (!forma.ok) return forma
+  const leitura = lerConferida(forma.mudanca)
+  return leitura.ok ? { ok: true, lida: leitura.lida, mudanca: forma.mudanca } : leitura
+}
+
+/** A forma da mudança, campo a campo, com a cópia tipada (só os campos da mudança, sem o envelope da op). */
+function formaDaMudanca(entrada: unknown): { ok: true; mudanca: Mudanca } | RecusaDoEsquema {
+  if (!ehRegistro(entrada)) return recusa('fora-do-esquema', 'Mudança fora do formato')
+  const fichaId = proprio(entrada, 'fichaId')
+  const caminho = proprio(entrada, 'caminho')
+  const acao = proprio(entrada, 'acao')
+  const valor = proprio(entrada, 'valor')
+  const delta = proprio(entrada, 'delta')
+  const atomico = proprio(entrada, 'atomico')
+  if (!segmentoValido(fichaId)) return recusa('fora-do-esquema', 'Ficha sem id válido')
+  if (!ehCaminho(caminho)) return recusa('fora-do-esquema', 'Campo fora da tabela do Lobby')
+  if (typeof acao !== 'string' || !ehAcao(acao)) return recusa('fora-do-esquema', 'Ação que não existe')
+  if (delta !== undefined && typeof delta !== 'number') return recusa('fora-do-esquema', 'A soma leva só um número inteiro')
+  if (atomico !== undefined && atomico !== true) return recusa('fora-do-esquema', 'Tudo ou nada fora do formato')
+  const mudanca: Mudanca = { fichaId, caminho: [...caminho], acao }
+  if (valor !== undefined) {
+    if (!ehJson(valor)) return recusa('fora-do-esquema', problemaNoValor(valor) ?? 'Valor que não é JSON')
+    mudanca.valor = valor
+  }
+  if (delta !== undefined) mudanca.delta = delta
+  if (atomico === true) mudanca.atomico = true
+  return { ok: true, mudanca }
+}
+
+function lerConferida(m: Mudanca): Leitura {
   const alvo = alvoDoCaminho(m.caminho)
   if (alvo === null) return recusa('fora-do-esquema', 'Campo fora da tabela do Lobby')
   const regra = ESQUEMA_DO_CAMINHO[alvo.regra]
   if (!regra.acoes.includes(m.acao)) return recusa('fora-do-esquema', `A ação "${m.acao}" não vale em ${regra.caminho}`)
-  if (m.valor !== undefined) {
-    const problema = problemaNoValor(m.valor)
-    if (problema !== null) return recusa('fora-do-esquema', problema)
-  }
   if (m.acao === 'somar') {
     if (m.valor !== undefined || typeof m.delta !== 'number' || !Number.isSafeInteger(m.delta)) return recusa('fora-do-esquema', 'A soma leva só um número inteiro')
     return lerSoma(alvo, m.delta)
@@ -402,7 +470,7 @@ export function lerMudanca(m: Mudanca): LeituraDaMudanca {
   return lerNoAlvo(m, alvo)
 }
 
-function lerSoma(alvo: Alvo, delta: number): LeituraDaMudanca {
+function lerSoma(alvo: Alvo, delta: number): Leitura {
   if (alvo.regra === 'quantidade') {
     if (Math.abs(delta) > ITEM_QUANTIDADE_MAX) return recusa('acima-do-teto', `Quantidade grande demais: máximo ${ITEM_QUANTIDADE_MAX}`)
     return aceita({ regra: 'quantidade', vagaId: alvo.vagaId, acao: 'somar', delta })
@@ -414,7 +482,7 @@ function lerSoma(alvo: Alvo, delta: number): LeituraDaMudanca {
   return recusa('fora-do-esquema', 'Este campo não soma')
 }
 
-function lerNoAlvo(m: Mudanca, alvo: Alvo): LeituraDaMudanca {
+function lerNoAlvo(m: Mudanca, alvo: Alvo): Leitura {
   const valor = m.valor
   switch (alvo.regra) {
     case 'ficha':
@@ -452,15 +520,13 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): LeituraDaMudanca {
     case 'vaga':
       return m.acao === 'criar' ? lerItemNovo(alvo.vagaId, valor) : aceita({ regra: 'vaga', acao: 'apagar', vagaId: alvo.vagaId })
     case 'quantidade':
-      if (typeof valor !== 'number' || !Number.isSafeInteger(valor) || valor < 1) return recusa('fora-do-esquema', 'Quantidade inteira de 1 para cima')
-      if (valor > ITEM_QUANTIDADE_MAX) return recusa('acima-do-teto', `Quantidade grande demais: máximo ${ITEM_QUANTIDADE_MAX}`)
-      return aceita({ regra: 'quantidade', vagaId: alvo.vagaId, acao: 'definir', valor })
+      // Sem valor = 1, o ausente (`quantidadeDe`): é a volta da primeira soma numa vaga que não tinha quantidade (§5.3).
+      return lerQuantidade(alvo.vagaId, valor === undefined ? 1 : valor)
     case 'campoDoItem':
       return lerCampoDoItem(alvo.vagaId, alvo.campo, valor)
     case 'moedas':
-      if (typeof valor !== 'number' || !Number.isSafeInteger(valor) || valor < 0) return recusa('fora-do-esquema', 'Moedas: inteiro de 0 para cima')
-      if (valor > MOEDAS_MAX) return recusa('acima-do-teto', `Moedas demais: máximo ${MOEDAS_MAX}`)
-      return aceita({ regra: 'moedas', acao: 'definir', valor })
+      // Sem valor = 0, o ausente (`Personagem.moedas`): é a volta do primeiro ganho de moedas (§5.3).
+      return lerMoedas(valor === undefined ? 0 : valor)
     case 'dbt':
       return lerCampoDbt(alvo.campo, valor)
     case 'npcDoDbt':
@@ -470,7 +536,19 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): LeituraDaMudanca {
   }
 }
 
-function lerFicha(m: Mudanca): LeituraDaMudanca {
+function lerQuantidade(vagaId: string, valor: Json): Leitura {
+  if (typeof valor !== 'number' || !Number.isSafeInteger(valor) || valor < 1) return recusa('fora-do-esquema', 'Quantidade inteira de 1 para cima')
+  if (valor > ITEM_QUANTIDADE_MAX) return recusa('acima-do-teto', `Quantidade grande demais: máximo ${ITEM_QUANTIDADE_MAX}`)
+  return aceita({ regra: 'quantidade', vagaId, acao: 'definir', valor })
+}
+
+function lerMoedas(valor: Json): Leitura {
+  if (typeof valor !== 'number' || !Number.isSafeInteger(valor) || valor < 0) return recusa('fora-do-esquema', 'Moedas: inteiro de 0 para cima')
+  if (valor > MOEDAS_MAX) return recusa('acima-do-teto', `Moedas demais: máximo ${MOEDAS_MAX}`)
+  return aceita({ regra: 'moedas', acao: 'definir', valor })
+}
+
+function lerFicha(m: Mudanca): Leitura {
   if (m.acao === 'apagar') return aceita({ regra: 'ficha', acao: 'apagar' })
   if (!ehRegistro(m.valor)) return recusa('fora-do-esquema', 'Ficha que não é ficha')
   if (bytesDoJson(m.valor) > TETOS_DO_CAMINHO.docBytes) return recusa('doc-grande', 'Ficha grande demais: máximo 256 KiB')
@@ -480,7 +558,7 @@ function lerFicha(m: Mudanca): LeituraDaMudanca {
   return aceita({ regra: 'ficha', acao: 'criar', doc })
 }
 
-function lerTexto(campo: 'nome' | 'descricao', valor: Json | undefined): LeituraDaMudanca {
+function lerTexto(campo: 'nome' | 'descricao', valor: Json | undefined): Leitura {
   if (typeof valor !== 'string') return recusa('fora-do-esquema', 'Esperava texto')
   if (campo === 'nome') {
     if (valor.trim() === '') return recusa('fora-do-esquema', 'O nome não pode ficar vazio')
@@ -491,7 +569,7 @@ function lerTexto(campo: 'nome' | 'descricao', valor: Json | undefined): Leitura
   return aceita({ regra: 'texto', campo, valor })
 }
 
-function lerEtiqueta(acao: Acao, chave: string, valor: Json | undefined): LeituraDaMudanca {
+function lerEtiqueta(acao: Acao, chave: string, valor: Json | undefined): Leitura {
   if (acao === 'apagar') return aceita({ regra: 'etiqueta', acao: 'apagar', chave })
   if (typeof valor !== 'string' || valor.trim() === '') return recusa('fora-do-esquema', 'Etiqueta sem texto')
   if (valor.length > TETOS_DO_CAMINHO.etiqueta) return recusa('acima-do-teto', `Etiqueta grande demais: máximo ${TETOS_DO_CAMINHO.etiqueta} letras`)
@@ -499,7 +577,7 @@ function lerEtiqueta(acao: Acao, chave: string, valor: Json | undefined): Leitur
   return aceita({ regra: 'etiqueta', acao: 'criar', chave, texto: valor })
 }
 
-function lerOrdem(aba: string, trilha: string[], valor: Json | undefined): LeituraDaMudanca {
+function lerOrdem(aba: string, trilha: string[], valor: Json | undefined): Leitura {
   if (!Array.isArray(valor)) return recusa('fora-do-esquema', 'A ordem é uma lista de ids')
   if (valor.length > TETOS_DO_CAMINHO.idsNaOrdem) return recusa('acima-do-teto', `Cartões demais: máximo ${TETOS_DO_CAMINHO.idsNaOrdem}`)
   const ids = valor.filter(segmentoValido)
@@ -532,7 +610,7 @@ function problemaDeEndereco(cartao: CartaoDaFicha): string | null {
   return null
 }
 
-function lerCartaoNovo(aba: string, trilha: string[], valor: Json | undefined): LeituraDaMudanca {
+function lerCartaoNovo(aba: string, trilha: string[], valor: Json | undefined): Leitura {
   const cartao = cartaoPeloLeitor(valor)
   if (cartao === null || !jsonIgual(cartao, valor)) return recusa('fora-do-esquema', 'Cartão fora do formato da ficha')
   if (cartao.id !== ultimo(trilha)) return recusa('fora-do-esquema', 'O cartão não bate com o caminho')
@@ -559,7 +637,7 @@ function mudancaNoCartao(campo: CampoSimplesDoCartao, valor: Json | undefined): 
   }
 }
 
-function lerCampoDoCartao(aba: string, trilha: string[], campo: CampoSimplesDoCartao, valor: Json | undefined): LeituraDaMudanca {
+function lerCampoDoCartao(aba: string, trilha: string[], campo: CampoSimplesDoCartao, valor: Json | undefined): Leitura {
   const mudar = mudancaNoCartao(campo, valor)
   if (mudar === null) return recusa('fora-do-esquema', FORA_DO_FORMATO)
   if (mudar.campo === 'nome' && mudar.valor.length > TETOS_DO_CAMINHO.nome) return recusa('acima-do-teto', `Nome grande demais: máximo ${TETOS_DO_CAMINHO.nome} letras`)
@@ -574,7 +652,7 @@ export function itemPeloLeitor(valor: unknown): CarriedItem | null {
   return readCarriedItems([valor])?.[0] ?? null
 }
 
-function lerItemNovo(vagaId: string, valor: Json | undefined): LeituraDaMudanca {
+function lerItemNovo(vagaId: string, valor: Json | undefined): Leitura {
   const item = itemPeloLeitor(valor)
   if (item === null || !jsonIgual(item, valor)) return recusa('fora-do-esquema', 'Item fora do formato da mochila')
   if (item.id !== vagaId) return recusa('fora-do-esquema', 'O item não bate com o caminho')
@@ -582,7 +660,7 @@ function lerItemNovo(vagaId: string, valor: Json | undefined): LeituraDaMudanca 
   return aceita({ regra: 'vaga', acao: 'criar', item })
 }
 
-function lerCampoDoItem(vagaId: string, campo: CampoDoItem, valor: Json | undefined): LeituraDaMudanca {
+function lerCampoDoItem(vagaId: string, campo: CampoDoItem, valor: Json | undefined): Leitura {
   const lido = itemPeloLeitor({ id: 'leitura', nome: 'leitura', [campo]: valor })
   if (lido === null || !jsonIgual(lido[campo], valor)) return recusa('fora-do-esquema', FORA_DO_FORMATO)
   if (bytesDoJson(valor) > TETOS_DO_CAMINHO.itemBytes) return recusa('acima-do-teto', 'Item grande demais: máximo 4 KiB')
@@ -609,7 +687,7 @@ function valorDoTipo(tipo: TipoDoCampoDbt, valor: Json): boolean {
 }
 
 /** Só o tipo de topo; o leitor da ficha Dragon Ball confere o resto ao aplicar, contra a ficha de agora. */
-function lerCampoDbt(campo: CampoDaFichaDBT, valor: Json | undefined): LeituraDaMudanca {
+function lerCampoDbt(campo: CampoDaFichaDBT, valor: Json | undefined): Leitura {
   // Só o bloco do NPC pode sumir (a ficha de jogador não o tem); os outros campos existem sempre.
   const podeFaltar = campo === 'npc'
   if (valor === undefined ? !podeFaltar : !valorDoTipo(TIPO_DO_CAMPO_DBT[campo], valor)) return recusa('fora-do-esquema', FORA_DO_FORMATO)
@@ -635,7 +713,7 @@ function mudancaDoMestre(fichaId: string, campo: CampoDoMestre, valor: Json | un
   }
 }
 
-function lerDoMestre(fichaId: string, campo: CampoDoMestre, valor: Json | undefined): LeituraDaMudanca {
+function lerDoMestre(fichaId: string, campo: CampoDoMestre, valor: Json | undefined): Leitura {
   const mudar = mudancaDoMestre(fichaId, campo, valor)
   return mudar === null ? recusa('fora-do-esquema', FORA_DO_FORMATO) : aceita({ regra: 'doMestre', mudar })
 }

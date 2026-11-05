@@ -56,6 +56,11 @@ export function problemaNoValor(valor: unknown, profundidade = 0): string | null
   return null
 }
 
+/** Guarda de tipo do valor que veio do fio; o motivo da recusa é `problemaNoValor`. */
+export function ehJson(valor: unknown): valor is Json {
+  return problemaNoValor(valor) === null
+}
+
 function descartarChavesProibidas(chave: string, valor: unknown): unknown {
   // Devolver `undefined` no reviver apaga a chave do objeto que está sendo montado.
   return CHAVES_PROIBIDAS.has(chave) ? undefined : valor

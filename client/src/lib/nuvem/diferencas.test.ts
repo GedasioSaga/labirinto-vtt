@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { fichaDBTVazia, lerFichaDBT, type FichaDBT } from '../dbt/modelo'
 import type { CartaoDaFicha, Personagem, RegistroDaFicha } from '../personagem'
 import { aplicar } from './aplicar'
-import { lerJsonSeguro } from './json'
+import { quemEscreveAMudanca } from './caminho'
+import { lerJsonSeguro, paraJson } from './json'
 import { diferencas } from './diferencas'
 
 /**
@@ -267,6 +268,48 @@ describe('ida e volta', () => {
     ])
     expect(aplicar(antes, mudancas)).toEqual({ doc: depois, recusadas: [] })
     expect(aplicar(null, diferencas(null, antes))).toEqual({ doc: antes, recusadas: [] })
+  })
+
+  it('a ficha inteira vai tudo ou nada: se o criar não entra, a ficha não some', () => {
+    const antes = luffyAntes()
+    const grande: Personagem = { ...antes, tipo: 'npc', descricao: 'x'.repeat(300 * 1024) }
+    const mudancas = diferencas(antes, grande)
+    expect(mudancas.map((mudanca) => [mudanca.acao, mudanca.caminho, mudanca.atomico])).toEqual([
+      ['apagar', [], true],
+      ['criar', [], true],
+    ])
+    const { doc, recusadas } = aplicar(antes, mudancas)
+    expect(doc).toBe(antes)
+    expect(recusadas.map((recusada) => recusada.motivo)).toEqual(['doc-grande', 'doc-grande'])
+  })
+
+  it('Dragon Ball: a ficha que ganha o bloco vai inteira, tudo ou nada, e volta igual', () => {
+    const goku = gokuAntes()
+    const { dbt: _dbt, ...semBloco } = goku
+    const mudancas = diferencas(semBloco, goku)
+    expect(mudancas.map((mudanca) => [mudanca.acao, mudanca.atomico])).toEqual([
+      ['apagar', true],
+      ['criar', true],
+    ])
+    expect(aplicar(semBloco, mudancas)).toEqual({ doc: goku, recusadas: [] })
+  })
+})
+
+describe('imagem é só do mestre na v1 (12.4)', () => {
+  it('jogador: cartão novo entra sem imagem, nele e nos subcartões, como a troca de imagem de cartão que já existe não sai', () => {
+    const antes = luffyAntes()
+    const novo = cartao('cart_redhawk', 'Red Hawk', { imagem: IMAGEM_DO_CARTAO, subcartoes: [cartao('cart_redroc', 'Red Roc', { imagem: IMAGEM_DA_CARNE })] })
+    const [pistol, ...outras] = antes.abas.tecnicas
+    const depois: Personagem = { ...antes, abas: { ...antes.abas, tecnicas: [{ ...pistol, imagem: RETRATO_NOVO }, ...outras], habilidades: [novo] } }
+    const semImagem: CartaoDaFicha = { ...novo, imagem: null, subcartoes: [{ ...novo.subcartoes[0], imagem: null }] }
+    const doJogador = diferencas(antes, depois, { papel: 'jogador' })
+    expect(doJogador).toEqual([{ fichaId: 'pers_luffy', caminho: ['abas', 'habilidades', 'cart_redhawk'], acao: 'criar', valor: paraJson(semImagem) }])
+    expect(doJogador.map((mudanca) => quemEscreveAMudanca(mudanca))).toEqual(['donoOuMestre'])
+    expect(aplicar(antes, doJogador)).toEqual({ doc: { ...antes, abas: { ...antes.abas, habilidades: [semImagem] } }, recusadas: [] })
+    // O mestre troca a imagem do cartão que existe e cria o novo com as imagens.
+    const doMestre = diferencas(antes, depois)
+    expect(doMestre.map((mudanca) => quemEscreveAMudanca(mudanca))).toEqual(['mestre', 'mestre'])
+    expect(aplicar(antes, doMestre)).toEqual({ doc: depois, recusadas: [] })
   })
 })
 

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { CarriedItem } from '../../types/map'
+import { fichaDBTVazia, lerFichaDBT } from '../dbt/modelo'
 import type { CartaoDaFicha, Personagem } from '../personagem'
 import { aplicar, aplicarOp } from './aplicar'
 import { chaveDaEtiqueta } from './caminho'
-import { paraJson } from './json'
+import { paraJson, type Json } from './json'
 import type { Mudanca } from './tipos'
 
 /**
@@ -111,6 +112,114 @@ describe('moedas', () => {
   })
 })
 
+/**
+ * A volta de uma op gravada, como o servidor a monta só com ela (§5.3):
+ * criar → apagar; apagar → criar com `antes`; ordenar → a ordem de antes;
+ * definir e somar → definir `antes` (o caminho da soma que o teto cortou).
+ */
+function volta(ida: Mudanca, antes: Json | undefined): Mudanca {
+  const { fichaId, caminho } = ida
+  switch (ida.acao) {
+    case 'criar':
+      return { fichaId, caminho, acao: 'apagar' }
+    case 'apagar':
+      return { fichaId, caminho, acao: 'criar', valor: antes }
+    case 'ordenar':
+      return { fichaId, caminho, acao: 'ordenar', valor: antes }
+    case 'definir':
+    case 'somar':
+      return antes === undefined ? { fichaId, caminho, acao: 'definir' } : { fichaId, caminho, acao: 'definir', valor: antes }
+  }
+}
+
+/** Aplica a ida e a volta; devolve a ficha depois das duas. */
+function idaEVolta(antes: Personagem, ida: Mudanca, voltaDe: (ida: Mudanca, antes: Json | undefined) => Mudanca = volta): Personagem | null {
+  const feita = aplicarOp(antes, ida)
+  if (!feita.ok) throw new Error(`a ida não entrou: ${ida.caminho.join('/')} (${feita.detalhe})`)
+  expect(feita.semEfeito, ida.caminho.join('/')).toBeUndefined()
+  const desfeita = aplicarOp(feita.doc, voltaDe(ida, feita.antes))
+  if (!desfeita.ok) throw new Error(`a volta foi recusada: ${ida.caminho.join('/')} (${desfeita.motivo}: ${desfeita.detalhe})`)
+  return desfeita.doc
+}
+
+describe('desfazer (§5.3)', () => {
+  const tangerina: CarriedItem = { id: 'vaga_tangerina', nome: 'Tangerina', itemId: 'item_tangerina', empilhavel: true }
+  const mapa: CarriedItem = { id: 'vaga_mapa', nome: 'Mapa de Arlong Park' }
+
+  /** Sem moedas, vaga sem quantidade, cartão sem aMao: os campos ausentes são o caso que quebrava a volta. */
+  function semOpcionais(): Personagem {
+    return ficha({ etiquetas: ['Navegadora'], mochila: [tangerina, mapa], abas: { tecnicas: [cartao('cart_a', 'Clima-Tact'), cartao('cart_b', 'Thunderbolt Tempo')] } })
+  }
+
+  it('a volta de cada op entra e devolve a ficha de antes, inclusive em campo que não existia', () => {
+    const idas: Mudanca[] = [
+      op(['moedas'], 'somar', { delta: 5 }),
+      op(['mochila', 'vaga_tangerina', 'quantidade'], 'somar', { delta: 2 }),
+      op(['mochila', 'vaga_tangerina', 'quantidade'], 'definir', { valor: 4 }),
+      op(['mochila', 'vaga_mapa', 'preco'], 'definir', { valor: 30 }),
+      op(['mochila', 'vaga_mapa'], 'apagar'),
+      op(['mochila', 'vaga_bolinho'], 'criar', { valor: { id: 'vaga_bolinho', nome: 'Bolinho' } }),
+      op(['abas', 'tecnicas', 'cart_a', 'aMao'], 'definir', { valor: true }),
+      op(['abas', 'tecnicas', 'cart_a', 'campos', 'dano'], 'definir', { valor: '2d6' }),
+      op(['abas', 'tecnicas', 'cart_b'], 'apagar'),
+      op(['abas', 'tecnicas', 'cart_c'], 'criar', { valor: paraJson(cartao('cart_c', 'Mirage Tempo')) }),
+      op(['abas', 'tecnicas', '#ordem'], 'ordenar', { valor: ['cart_b', 'cart_a'] }),
+      op(['etiquetas', chaveDaEtiqueta('Navegadora')], 'apagar'),
+      op(['etiquetas', chaveDaEtiqueta('Ladra')], 'criar', { valor: 'Ladra' }),
+      op(['escolhas', 'origem'], 'definir', { valor: 'east-blue' }),
+      op(['recursos', 'sp'], 'definir', { valor: 40 }),
+      op(['recursos', 'hp'], 'definir', { valor: 250 }),
+      op(['cartoesAtivos', 'cart_a'], 'definir', { valor: true }),
+      op(['nome'], 'definir', { valor: 'Gata Ladra' }),
+      op(['dono'], 'definir', { valor: 'conta_nami' }),
+      op(['notaDoMestre'], 'definir', { valor: 'Sonha com o mapa do mundo.' }),
+    ]
+    for (const ida of idas) expect(idaEVolta(semOpcionais(), ida), ida.caminho.join('/')).toEqual(semOpcionais())
+  })
+
+  it('a soma também volta somando o contrário, até o ausente', () => {
+    const somaContraria = (ida: Mudanca): Mudanca => ({ ...ida, delta: -(ida.delta ?? 0) })
+    expect(idaEVolta(semOpcionais(), op(['moedas'], 'somar', { delta: 5 }), somaContraria)).toEqual(semOpcionais())
+    expect(idaEVolta(semOpcionais(), op(['mochila', 'vaga_tangerina', 'quantidade'], 'somar', { delta: 2 }), somaContraria)).toEqual(semOpcionais())
+  })
+
+  it('Dragon Ball: a volta do NPC que não existia tira o bloco', () => {
+    const dbt = lerFichaDBT(fichaDBTVazia())
+    if (dbt === null) throw new Error('ficha Dragon Ball vazia não passou no leitor')
+    const goku = ficha({ id: 'pers_goku', nome: 'Son Goku', dbt })
+    const npc = { nd: 2, categoria: 'elite', rank: 'C', passivas: [], prontoId: null }
+    expect(idaEVolta(goku, { fichaId: 'pers_goku', caminho: ['dbt', 'npc'], acao: 'definir', valor: npc })).toEqual(goku)
+    expect(idaEVolta(goku, { fichaId: 'pers_goku', caminho: ['dbt', 'pdl'], acao: 'definir', valor: 9000 })).toEqual(goku)
+  })
+})
+
+describe('tudo ou nada', () => {
+  it('as atomico seguidas entram juntas ou nenhuma entra; as soltas em volta entram sempre', () => {
+    const antes = ficha()
+    const grande: Personagem = { ...antes, tipo: 'npc', descricao: 'x'.repeat(300 * 1024) }
+    const lote: Mudanca[] = [
+      op(['recursos', 'hp'], 'definir', { valor: 250 }),
+      op([], 'apagar', { atomico: true }),
+      op([], 'criar', { valor: paraJson(grande), atomico: true }),
+      op(['nome'], 'definir', { valor: 'Gata Ladra' }),
+    ]
+    const { doc, recusadas } = aplicar(antes, lote)
+    // A ficha não sumiu: o apagar voltou junto com o criar grande demais.
+    expect(doc).toEqual({ ...antes, recursos: { hp: 250 }, nome: 'Gata Ladra' })
+    expect(recusadas.map((recusada) => [recusada.mudanca.acao, recusada.motivo])).toEqual([
+      ['apagar', 'doc-grande'],
+      ['criar', 'doc-grande'],
+    ])
+    expect(recusadas[0].detalhe).toMatch(/junto/)
+  })
+
+  it('o par que cabe troca a ficha inteira', () => {
+    const antes = ficha()
+    const npc: Personagem = { ...antes, tipo: 'npc' }
+    expect(aplicar(antes, [op([], 'apagar', { atomico: true }), op([], 'criar', { valor: paraJson(npc), atomico: true })])).toEqual({ doc: npc, recusadas: [] })
+  })
+})
+
 describe('eco e alvo que sumiu', () => {
   it('criar o que já existe e apagar o que já saiu não mudam nada', () => {
     const tec = cartao('cart_clima', 'Clima-Tact')
@@ -176,6 +285,16 @@ describe('proteção ao aplicar', () => {
   it('ficha acima de 256 KiB é recusada como doc-grande', () => {
     const cartoes = Array.from({ length: 40 }, (_, indice) => cartao(`cart_${indice}`, `C${indice}`, { campos: { texto: 'x'.repeat(7000) } }))
     expect(aplicarOp(ficha({ abas: { tecnicas: cartoes } }), op(['recursos', 'hp'], 'definir', { valor: 1 }))).toMatchObject({ ok: false, motivo: 'doc-grande' })
+  })
+
+  it('op torta do fio volta recusada sem derrubar o lote', () => {
+    // JSON.parse cru devolve `any`: é o fio mentindo para o tipo, de propósito.
+    const torta = JSON.parse('{"fichaId":"pers_nami","caminho":"nome","acao":"definir","valor":"x"}')
+    const semAcao = JSON.parse('{"fichaId":"pers_nami","caminho":["nome"],"acao":"explodir","valor":"x"}')
+    const { doc, recusadas } = aplicar(ficha(), [torta, semAcao, op(['recursos', 'hp'], 'definir', { valor: 25 })])
+    expect(recusadas.map((recusada) => recusada.motivo)).toEqual(['fora-do-esquema', 'fora-do-esquema'])
+    expect(doc).toMatchObject({ recursos: { hp: 25 }, nome: 'Nami' })
+    expect(aplicarOp(ficha(), JSON.parse('null'))).toMatchObject({ ok: false, motivo: 'fora-do-esquema' })
   })
 
   it('a recusada não some: volta em recusadas, com motivo, e as outras passam', () => {

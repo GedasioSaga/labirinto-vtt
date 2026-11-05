@@ -2,8 +2,18 @@ import type { CarriedItem } from '../../types/map'
 import type { FichaDBT } from '../dbt/modelo'
 import { quantidadeDe } from '../items'
 import type { CampoDaFichaDBT, CartaoDaFicha, Personagem } from '../personagem'
-import { CAMPOS_DBT, CAMPOS_DO_ITEM, CAMPOS_DO_MESTRE, CAMPOS_SIMPLES_DO_CARTAO, chaveDaEtiqueta, MAPAS_NUMERICOS, ORDEM, quemEscreve } from './caminho'
-import { jsonIgual, paraJson, proprio } from './json'
+import {
+  alvoDoCaminho,
+  CAMPOS_DBT,
+  CAMPOS_DO_ITEM,
+  CAMPOS_DO_MESTRE,
+  CAMPOS_SIMPLES_DO_CARTAO,
+  chaveDaEtiqueta,
+  MAPAS_NUMERICOS,
+  ORDEM,
+  quemEscreveAMudanca,
+} from './caminho'
+import { jsonIgual, paraJson, proprio, type Json } from './json'
 import type { Mudanca, Papel } from './tipos'
 
 /**
@@ -14,8 +24,9 @@ import type { Mudanca, Papel } from './tipos'
  *
  * Fica fora, de propósito: `historico` (o log do servidor o substitui, §4.1),
  * `id` (é a ficha), a versão da ficha Dragon Ball (é a do app). Sem caminho na
- * tabela 4.7, a ficha vai inteira (apagar + criar, só o mestre): troca de tipo
- * jogador↔NPC e ficha que ganhou ou perdeu o bloco Dragon Ball. A ordem da
+ * tabela 4.7, a ficha vai inteira (apagar + criar, só o mestre, `atomico`:
+ * tudo ou nada): troca de tipo jogador↔NPC e ficha que ganhou ou perdeu o
+ * bloco Dragon Ball. A ordem da
  * mochila, das etiquetas e dos cartões ligados também não tem caminho: item,
  * etiqueta e cartão ligado novos entram no fim (o app nunca reordena esses).
  * Aba que só existe vazia de um lado não gera op (aba vazia = aba ausente).
@@ -23,9 +34,11 @@ import type { Mudanca, Papel } from './tipos'
 
 export interface OpcoesDaDiferenca {
   /**
-   * `jogador`: só os caminhos que o jogador escreve. Campo do mestre (dono,
-   * nota, NPC, imagem na v1, a ficha inteira) nunca vira op de jogador — nem
-   * para apagar o que a projeção dele escondeu. Padrão: `mestre`.
+   * `jogador`: só o que o jogador escreve. Campo do mestre (dono, nota, NPC,
+   * imagem na v1, a ficha inteira) nunca vira op de jogador — nem para apagar
+   * o que a projeção dele escondeu. A imagem fica de fora igual no cartão que
+   * já existe (a troca não sai) e no cartão novo (entra sem imagem, nele e nos
+   * subcartões). Padrão: `mestre`.
    */
   papel?: Papel
 }
@@ -34,7 +47,20 @@ export function diferencas(antes: Personagem | null, depois: Personagem | null, 
   const todas = diferencasDaFicha(antes, depois)
   // Sem papel é o mestre: quem chama do lado do jogador (site, sala LAN) diz que é jogador.
   if ((opcoes.papel ?? 'mestre') === 'mestre') return todas
-  return todas.filter((mudanca) => quemEscreve(mudanca.caminho) !== 'mestre')
+  return todas.map(cartaoNovoSemImagem).filter((mudanca) => quemEscreveAMudanca(mudanca) !== 'mestre')
+}
+
+/** Imagem é só do mestre na v1 (12.4): o cartão que o jogador cria entra sem ela. */
+function cartaoNovoSemImagem(mudanca: Mudanca): Mudanca {
+  if (mudanca.acao !== 'criar' || mudanca.valor === undefined || alvoDoCaminho(mudanca.caminho)?.regra !== 'cartao') return mudanca
+  return { ...mudanca, valor: semImagem(mudanca.valor) }
+}
+
+/** O cartão (já em JSON) com `imagem: null` nele e em todos os subcartões. */
+function semImagem(cartao: Json): Json {
+  if (cartao === null || typeof cartao !== 'object' || Array.isArray(cartao)) return cartao
+  const subcartoes = proprio(cartao, 'subcartoes')
+  return { ...cartao, imagem: null, ...(Array.isArray(subcartoes) ? { subcartoes: subcartoes.map(semImagem) } : {}) }
 }
 
 function definir(fichaId: string, caminho: string[], valor: unknown): Mudanca {
@@ -53,7 +79,13 @@ function diferencasDaFicha(antes: Personagem | null, depois: Personagem | null):
   if (antes === null) return depois === null ? [] : [criarFicha(depois)]
   if (depois === null) return [apagarFicha(antes.id)]
   if (antes.id !== depois.id) throw new Error(`diferencas: fichas diferentes (${antes.id} e ${depois.id})`)
-  if (antes.tipo !== depois.tipo || (antes.dbt === undefined) !== (depois.dbt === undefined)) return [apagarFicha(antes.id), criarFicha(depois)]
+  if (antes.tipo !== depois.tipo || (antes.dbt === undefined) !== (depois.dbt === undefined)) {
+    // Tudo ou nada: se o criar não entrar (ficha grande demais, por exemplo), o apagar também não entra e a ficha não some.
+    return [
+      { ...apagarFicha(antes.id), atomico: true },
+      { ...criarFicha(depois), atomico: true },
+    ]
+  }
   const f = antes.id
   return [
     ...CAMPOS_DE_TEXTO.filter((campo) => antes[campo] !== depois[campo]).map((campo) => definir(f, [campo], depois[campo])),
