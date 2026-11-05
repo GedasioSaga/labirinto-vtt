@@ -1,14 +1,27 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { textoDoIgnorado, textoDoPendente, textoDoTrazido, type ItemPendente } from '../../lib/mochila/pendentes'
+import { textoDoIgnorado, textoDoPendente, textoDoQueSaiu, textoDoTrazido, type ItemPendente } from '../../lib/mochila/pendentes'
+import type { PastaAberta } from '../../lib/pastasDeMapas'
 import type { RecoveryCopy } from '../../lib/recoveryCopy'
+import { useAdventureStore } from '../../stores/adventureStore'
+import { captureEditorWork } from '../../stores/recoveryAutosave'
 import { editarRpgDaPasta } from '../../stores/rpgDaPasta'
 import { useToastStore } from '../../stores/toastStore'
-import { discoDoApp } from './migracaoDaMochila'
-import { chaveDoCaminho, conferirMapaQueEntrou, ignorarPendente, marcarMapaQueEntrou, pendentesDaPasta, trazerPendente } from './mochilaPendente'
+import { ARQUIVO_DO_MAPA, discoDoApp, PASTA_DOS_MAPAS } from './migracaoDaMochila'
+import {
+  chaveDoCaminho,
+  conferirMapaQueEntrou,
+  ignorarPendente,
+  mapaSaiuDaPasta,
+  marcarMapaQueEntrou,
+  pendentesDaPasta,
+  sistemaDaPastaMudou,
+  trazerPendente,
+} from './mochilaPendente'
 
 /**
  * MOCHILA NA FICHA (correção C2) — o mapa que entra numa pasta convertida, no
- * app: o "Mover…" do Carregar Mapa, a importação e a abertura chamam daqui
+ * app: o "Mover…" do Carregar Mapa (entrar e sair), o "Configurar pasta" (o
+ * Sistema universal), a importação e a abertura chamam daqui
  * (o núcleo, com disco injetado, é `mochilaPendente.ts`). Cada pendente vira
  * um aviso na caixa "Mochila" com "Trazer para a ficha" e "Ignorar". O ×
  * só tira o aviso da tela: o pendente continua no relatório da pasta e volta
@@ -46,6 +59,10 @@ async function trazerNoApp(pastaId: string, pendente: ItemPendente): Promise<voi
       push('info', textoDoTrazido(feito.pendente, feito.moedasDeFora))
       return
     }
+    if (feito.porque === 'saiu') {
+      push('info', textoDoQueSaiu(feito.pendente))
+      return
+    }
     if (feito.porque !== 'sem-ficha') return
     push('error', `A ficha de ${pendente.personagem} não está mais na pasta: o aviso continua, e "Ignorar" o tira da lista.`)
   } catch (erro) {
@@ -60,6 +77,7 @@ async function ignorarNoApp(pastaId: string, pendente: ItemPendente): Promise<vo
   try {
     const feito = await ignorarPendente(pastaId, pendente.id, discoDoApp)
     if (feito.ok) push('info', textoDoIgnorado(feito.pendente))
+    else if (feito.porque === 'saiu') push('info', textoDoQueSaiu(feito.pendente))
   } catch (erro) {
     push('error', `Não deu para anotar o "Ignorar" (${motivo(erro)}): o aviso continua.`)
     avisarPendentes(pastaId, [pendente])
@@ -72,12 +90,77 @@ async function avisarPendentesDaPasta(pastaId: string): Promise<void> {
 }
 
 /**
- * "Mover…" (ou arrastar) do Carregar Mapa, depois de gravado o índice: o
- * mapa que entrou numa pasta convertida é anotado e conferido já — o mestre
- * vê o que só os bonecos dele têm sem precisar abrir. A abertura confere de novo.
+ * "Configurar pasta" que pode mudar o Sistema universal ("Sistema universal",
+ * "Copiar de um mapa"): `trocar` grava (e lança com a razão, para quem chama
+ * mostrar). Pasta convertida que fica sem sistema: anota desde quando. Que
+ * volta a ter: os mapas dela salvos nesse meio-tempo (e o aberto) são
+ * conferidos já, e o que só os bonecos deles ganharam vira pendente — sem
+ * isso o espelho apagaria calado. Depois de `trocar`, nunca lança.
  */
-export async function mapaEntrouNaPasta(chave: string): Promise<void> {
+export async function trocarSistemaDaPasta(pastaId: string, vinhaSemSistema: boolean, trocar: () => Promise<void>): Promise<void> {
+  // ANTES de trocar: a volta do sistema espelha na hora as cenas abertas desta pasta.
+  const aberto = vinhaSemSistema ? await trabalhoAberto((pasta) => pasta.pastaId === pastaId) : null
+  await trocar()
   if (!isTauri()) return
+  try {
+    const marcados = await sistemaDaPastaMudou(pastaId, vinhaSemSistema, discoDoApp, { aberto: aberto?.chave ?? null })
+    let conferiu = false
+    for (const chave of marcados) {
+      const conferido = await conferirMapaQueEntrou(chave, discoDoApp, { baixarMarca: false, recuperado: aberto?.chave === chave ? aberto.copia : null })
+      if (conferido !== null) conferiu = true
+    }
+    if (conferiu) await avisarPendentesDaPasta(pastaId)
+  } catch (erro) {
+    useToastStore
+      .getState()
+      .push('error', `Não deu para conferir a mochila dos bonecos desta pasta (${motivo(erro)}). Antes de abrir um mapa dela, confira o que os bonecos ganharam sem o sistema.`)
+  }
+}
+
+/** O mapa aberto no editor e o trabalho dele agora (inclusive o não salvo). */
+export interface TrabalhoAberto {
+  chave: string
+  copia: RecoveryCopy
+}
+
+/**
+ * O trabalho do mapa aberto, quando ele está numa pasta e `eDele` diz que é o
+ * mapa em questão; `null` = não é, ou não deu para copiar (aí vale o disco).
+ * Nunca lança.
+ */
+async function trabalhoAberto(eDele: (pasta: PastaAberta) => boolean): Promise<TrabalhoAberto | null> {
+  if (!isTauri()) return null
+  const { pasta } = useAdventureStore.getState()
+  if (pasta === null || !eDele(pasta)) return null
+  try {
+    const soltoEm = await discoDoApp.juntar(await discoDoApp.pastaDoApp(), PASTA_DOS_MAPAS, pasta.chave, ARQUIVO_DO_MAPA)
+    return { chave: pasta.chave, copia: await captureEditorWork(() => soltoEm, Date.now()) }
+  } catch {
+    return null
+  }
+}
+
+/** Para o "Mover…" chamar ANTES de gravar o índice: o trabalho do mapa `chave`, se é ele o aberto. */
+export function trabalhoDoMapaAberto(chave: string): Promise<TrabalhoAberto | null> {
+  return trabalhoAberto((pasta) => pasta.chave === chave)
+}
+
+/**
+ * "Mover…" (ou arrastar) do Carregar Mapa, depois de gravado o índice. O mapa
+ * que saiu de uma pasta convertida: o pendente que o boneco ainda carrega sai
+ * do aviso (é do boneco de novo); `aberto` é o trabalho do mapa, se era ele o
+ * aberto (o espelho já tirou dele o que só o pendente guarda). O mapa que
+ * entrou numa pasta convertida é anotado e conferido já — o mestre vê o que
+ * só os bonecos dele têm sem precisar abrir. A abertura confere de novo.
+ */
+export async function mapaMudouDePasta(chave: string, origem: string | null, destino: string | null, aberto: TrabalhoAberto | null): Promise<void> {
+  if (!isTauri()) return
+  try {
+    if (origem !== null) await mapaSaiuDaPasta(chave, origem, discoDoApp, { recuperado: aberto?.chave === chave ? aberto.copia : null })
+  } catch (erro) {
+    useToastStore.getState().push('error', `Não deu para conferir os avisos da mochila da pasta de onde o mapa saiu (${motivo(erro)}). Antes de "Trazer para a ficha", confira se o boneco ainda tem o item.`)
+  }
+  if (destino === null) return
   try {
     if ((await marcarMapaQueEntrou(chave, discoDoApp)) === null) return
     const conferido = await conferirMapaQueEntrou(chave, discoDoApp, { baixarMarca: false })

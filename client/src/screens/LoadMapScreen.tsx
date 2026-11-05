@@ -23,7 +23,7 @@ import {
   type PastaDeMapas,
   type RpgDaPasta,
 } from '../lib/pastasDeMapas'
-import { mapaEntrouNaPasta } from '../net/nuvem/mochilaPendenteNoApp'
+import { mapaMudouDePasta, trabalhoDoMapaAberto } from '../net/nuvem/mochilaPendenteNoApp'
 import { acompanharIndice, editarRpgDaPasta } from '../stores/rpgDaPasta'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import { useToastStore } from '../stores/toastStore'
@@ -339,11 +339,14 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
 
   /** Põe o mapa na pasta (`null` = fora das pastas). O mapa já ali não grava nada. */
   const moverPara = async (chave: string, pastaId: string | null) => {
-    if ((lugarDoMapa(indice, chave)?.pasta.id ?? null) === pastaId) return
+    const origem = lugarDoMapa(indice, chave)?.pasta.id ?? null
+    if (origem === pastaId) return
     setBusyId(chave)
+    // Antes do índice: o mapa aberto que sai da pasta deixa de herdar dela, e o trabalho dele é o que conta.
+    const aberto = origem === null ? null : await trabalhoDoMapaAberto(chave)
     const movido = await mudarPastas((atual) => moverMapa(atual, chave, pastaId), 'mover o mapa')
-    // Pasta convertida: o que só os bonecos deste mapa têm vira pendente, antes de a ficha vencer o boneco (nunca lança).
-    if (movido !== null && pastaId !== null) await mapaEntrouNaPasta(chave)
+    // Pasta convertida: o que o boneco ainda tem sai do aviso da de origem; na de destino, o que só os bonecos têm vira pendente (nunca lança).
+    if (movido !== null) await mapaMudouDePasta(chave, origem, pastaId, aberto)
     setBusyId(null)
   }
 

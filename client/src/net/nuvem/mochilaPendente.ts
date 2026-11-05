@@ -1,6 +1,6 @@
 import { readCarriedItems } from '../../lib/items'
-import { fichasComOPendente, pendentesDoMapaQueEntrou, type DecisaoDoPendente, type ItemPendente } from '../../lib/mochila/pendentes'
-import { chaveDoMapa, idDePastaValido, lugarDoMapa, rpgDoArquivo, type RpgDaPasta } from '../../lib/pastasDeMapas'
+import { bonecoAindaTem, fichasComOPendente, pendentesDoMapaQueEntrou, type DecisaoDoPendente, type ItemPendente } from '../../lib/mochila/pendentes'
+import { chaveDoMapa, idDePastaValido, lugarDoMapa, rpgDoArquivo, type IndiceDasPastas, type RpgDaPasta } from '../../lib/pastasDeMapas'
 import type { RecoveryCopy } from '../../lib/recoveryCopy'
 import { readMoedas } from '../../lib/troca'
 import {
@@ -32,6 +32,16 @@ import {
  * 3. "Trazer para a ficha" (`trazerPendente`) soma na ficha e marca a linha
  *    `trazido`; "Ignorar" (`ignorarPendente`) só marca `ignorado`. Nenhuma
  *    linha sai do arquivo.
+ * 4. O mapa que SAI da pasta: fora do espelho o item é do boneco, e trazê-lo
+ *    o deixaria nos dois lugares. No "Mover…" (`mapaSaiuDaPasta`, com o
+ *    trabalho do mapa aberto) o pendente que o boneco ainda carrega vira
+ *    `saiu`; por qualquer caminho, listar e "Trazer" conferem o índice e
+ *    escondem/recusam esse pendente enquanto o boneco o tiver, sem gravar. O
+ *    que o espelho já tirou do boneco só existe no pendente, e ele continua.
+ * 5. A pasta convertida que fica sem Sistema universal e volta
+ *    (`sistemaDaPastaMudou`): sem sistema a mochila volta a morar no boneco.
+ *    O relatório guarda desde quando (`semSistemaDesde`) e, na volta, cada mapa
+ *    da pasta salvo depois disso é marcado para conferir, antes do espelho.
  *
  * Tudo mora no relatório da pasta (`<appData>/pastas/<id>/migracao-da-mochila.json`,
  * o mesmo da migração), ao lado do que ela escreveu: `mapasPorConferir` e
@@ -45,6 +55,7 @@ import {
 
 const MAPAS_POR_CONFERIR = 'mapasPorConferir'
 const ITENS_DOS_MAPAS_QUE_ENTRARAM = 'itensDeMapasQueEntraram'
+const SEM_SISTEMA_DESDE = 'semSistemaDesde'
 const SUFIXO_ANTERIOR = '.anterior'
 const SUFIXO_DANIFICADO = '.danificado'
 const VERSAO_DO_RELATORIO = 1
@@ -79,6 +90,8 @@ interface EstadoDosPendentes {
   itens: ItemPendente[]
   /** Linhas que este app não entende: voltam ao arquivo como vieram. */
   tortas: unknown[]
+  /** A pasta convertida está sem Sistema universal desde então (ms); `null` = tem sistema. */
+  semSistemaDesde: number | null
   /** O texto do relatório danificado, para a cópia ao lado antes da primeira gravação; `null` = leu limpo. */
   danificado: string | null
 }
@@ -94,7 +107,7 @@ function horaDoArquivo(valor: unknown): number | null {
 }
 
 function decisaoDoArquivo(valor: unknown): DecisaoDoPendente | undefined {
-  return valor === 'trazido' || valor === 'ignorado' ? valor : undefined
+  return valor === 'trazido' || valor === 'ignorado' || valor === 'saiu' ? valor : undefined
 }
 
 /** Uma linha do relatório; torta = `null` (fica no arquivo como veio, ver `tortas`). */
@@ -158,7 +171,7 @@ function relatorioNovo(): Bruto {
 async function lerEstado(disco: DiscoDaMigracao, relatorio: string): Promise<EstadoDosPendentes> {
   const texto = await disco.ler(relatorio)
   const bruto = texto === null ? relatorioNovo() : objetoDoTexto(texto)
-  if (bruto === null) return { bruto: relatorioNovo(), porConferir: [], itens: [], tortas: [], danificado: texto }
+  if (bruto === null) return { bruto: relatorioNovo(), porConferir: [], itens: [], tortas: [], danificado: texto, semSistemaDesde: null }
   const marcas = Array.isArray(bruto[MAPAS_POR_CONFERIR]) ? bruto[MAPAS_POR_CONFERIR] : []
   const porConferir = marcas.filter((chave): chave is string => typeof chave === 'string')
   const itens: ItemPendente[] = []
@@ -168,14 +181,16 @@ async function lerEstado(disco: DiscoDaMigracao, relatorio: string): Promise<Est
     if (lida === null) tortas.push(linha)
     else itens.push(lida)
   }
-  return { bruto, porConferir, itens, tortas, danificado: null }
+  return { bruto, porConferir, itens, tortas, danificado: null, semSistemaDesde: horaDoArquivo(bruto[SEM_SISTEMA_DESDE]) }
 }
 
 /** Grava o estado no relatório. O relatório danificado ganha antes uma cópia ao lado, nunca apagada. */
 async function gravarEstado(disco: DiscoDaMigracao, relatorio: string, estado: EstadoDosPendentes, agoraMs: number): Promise<void> {
   if (estado.danificado !== null) await disco.gravar(`${relatorio}${SUFIXO_DANIFICADO}-${agoraMs}`, estado.danificado)
+  const { [SEM_SISTEMA_DESDE]: _desdeAntes, ...semADataDoSistema } = estado.bruto
   const bruto = {
-    ...estado.bruto,
+    ...semADataDoSistema,
+    ...(estado.semSistemaDesde === null ? {} : { [SEM_SISTEMA_DESDE]: hora(estado.semSistemaDesde) }),
     [MAPAS_POR_CONFERIR]: estado.porConferir,
     [ITENS_DOS_MAPAS_QUE_ENTRARAM]: [...estado.itens.map(pendenteParaOArquivo), ...estado.tortas],
   }
@@ -229,6 +244,71 @@ async function pastaConvertidaDoMapa(disco: DiscoDaMigracao, chave: string): Pro
 async function relatorioDaPasta(disco: DiscoDaMigracao, pastaId: string): Promise<string> {
   if (!idDePastaValido(pastaId)) throw new Error(`O id "${pastaId}" não serve de nome de pasta.`)
   return disco.juntar(await disco.pastaDoApp(), PASTA_DAS_PASTAS, pastaId, ARQUIVO_DO_RELATORIO)
+}
+
+/** A pasta pelo id, com o que a saída e a troca de sistema leem. */
+interface PastaPeloId {
+  pastaId: string
+  relatorio: string
+  pastaDosMapas: string
+  /** `null` = o `rpg.json` não abre. */
+  rpg: RpgDaPasta | null
+  /** `null` = o índice não abre. */
+  indice: IndiceDasPastas | null
+}
+
+async function pastaPeloId(disco: DiscoDaMigracao, pastaId: string): Promise<PastaPeloId> {
+  const relatorio = await relatorioDaPasta(disco, pastaId)
+  const pastaDoApp = await disco.pastaDoApp()
+  const pastaDasPastas = await disco.juntar(pastaDoApp, PASTA_DAS_PASTAS)
+  return {
+    pastaId,
+    relatorio,
+    pastaDosMapas: await disco.juntar(pastaDoApp, PASTA_DOS_MAPAS),
+    rpg: await lerRpg(disco, await disco.juntar(pastaDasPastas, pastaId)),
+    indice: await lerIndice(disco, pastaDasPastas),
+  }
+}
+
+/** Os mapas com pendente esperando (ou marca de conferir) que o índice já não põe nesta pasta; índice ilegível = nenhum (não dá para saber). */
+function chavesQueSairam(pasta: PastaPeloId, estado: EstadoDosPendentes): Set<string> {
+  const { indice } = pasta
+  if (indice === null) return new Set()
+  const chaves = [...estado.itens.filter((pendente) => pendente.decisao === undefined).map((pendente) => pendente.chave), ...estado.porConferir]
+  return new Set(chaves.filter((chave) => lugarDoMapa(indice, chave)?.pasta.id !== pasta.pastaId))
+}
+
+/** As cenas do mapa `chave` (o trabalho recuperado, se for dele, no lugar das do disco). */
+async function cenasDoMapa(disco: DiscoDaMigracao, pastaDosMapas: string, chave: string, recuperado: RecoveryCopy | null): Promise<CenasLidas> {
+  const lidas: CenasLidas = { cenas: [], naoAbriram: [] }
+  await lerCenasDoMapa(disco, await disco.juntar(pastaDosMapas, chave), recuperado, lidas)
+  return lidas
+}
+
+/**
+ * Os pendentes esperando dos mapas `chaves` (que saíram da pasta) que o
+ * boneco AINDA carrega (`bonecoAindaTem`, contra as fichas de agora). O que só
+ * o pendente guarda — o espelho já tirou do boneco, ou o mapa sumiu — fica de
+ * fora. Fichas da pasta ilegíveis: nenhum (não dá para saber).
+ */
+async function osQueOBonecoAindaTem(
+  disco: DiscoDaMigracao,
+  pasta: PastaPeloId,
+  estado: EstadoDosPendentes,
+  chaves: ReadonlySet<string>,
+  agoraMs: number,
+  recuperado: RecoveryCopy | null,
+): Promise<Set<string>> {
+  const ainda = new Set<string>()
+  if (pasta.rpg === null) return ainda
+  for (const chave of chaves) {
+    const esperando = estado.itens.filter((pendente) => pendente.chave === chave && pendente.decisao === undefined)
+    if (esperando.length === 0) continue
+    const lidas = await cenasDoMapa(disco, pasta.pastaDosMapas, chave, recuperado)
+    const conferidos = pendentesDoMapaQueEntrou(pasta.rpg.personagens, chave, lidas.cenas, [], agoraMs, () => chave)
+    for (const pendente of esperando) if (bonecoAindaTem(pendente, conferidos)) ainda.add(pendente.id)
+  }
+  return ainda
 }
 
 /** A chave do mapa em `caminho` (`<appData>/maps/<chave>/...`); `null` = mapa de fora da pasta dos mapas. */
@@ -298,11 +378,95 @@ export function conferirMapaQueEntrou(chave: string, disco: DiscoDaMigracao, opc
   })
 }
 
-/** Os pendentes da pasta que esperam o mestre (sem decisão), na ordem em que entraram. */
-export function pendentesDaPasta(pastaId: string, disco: DiscoDaMigracao): Promise<ItemPendente[]> {
+/**
+ * Os pendentes da pasta que esperam o mestre (sem decisão), na ordem em que
+ * entraram — menos os de mapa que saiu da pasta (por qualquer caminho) com o
+ * item ainda no boneco: lá ele é do boneco, e trazê-lo o deixaria nos dois
+ * lugares. Só esconde, não grava: o mapa que volta, ou cujo boneco o espelho
+ * esvaziou antes de sair (salvo depois), mostra o pendente de novo.
+ */
+export function pendentesDaPasta(pastaId: string, disco: DiscoDaMigracao, opcoes: OpcoesDosPendentes = {}): Promise<ItemPendente[]> {
   return emFila(async () => {
-    const estado = await lerEstado(disco, await relatorioDaPasta(disco, pastaId))
-    return estado.itens.filter((pendente) => pendente.decisao === undefined)
+    const pasta = await pastaPeloId(disco, pastaId)
+    const estado = await lerEstado(disco, pasta.relatorio)
+    const comOBoneco = await osQueOBonecoAindaTem(disco, pasta, estado, chavesQueSairam(pasta, estado), (opcoes.agora ?? Date.now)(), null)
+    return estado.itens.filter((pendente) => pendente.decisao === undefined && !comOBoneco.has(pendente.id))
+  })
+}
+
+export interface OpcoesDaSaida extends OpcoesDosPendentes {
+  /** O trabalho do mapa aberto no editor, quando é ele que sai: o espelho já tirou dele o que só o pendente guarda, e o disco ainda não sabe. */
+  recuperado?: RecoveryCopy | null
+}
+
+/**
+ * O "Mover…" tirou o mapa `chave` da pasta `pastaId` (já gravado no índice),
+ * antes de ele entrar noutra pasta: o pendente que o boneco ainda carrega vira
+ * `saiu` (fica no relatório; se o mapa voltar, é conferido como novo), o que só
+ * o pendente guarda continua esperando, e a marca de conferir do mapa sai.
+ * Pasta não convertida, ou o mapa ainda nela: nada.
+ */
+export function mapaSaiuDaPasta(chave: string, pastaId: string, disco: DiscoDaMigracao, opcoes: OpcoesDaSaida = {}): Promise<void> {
+  return emFila(async () => {
+    const pasta = await pastaPeloId(disco, pastaId)
+    if (pasta.rpg === null || pasta.rpg.mochilaMigrada === undefined) return
+    const estado = await lerEstado(disco, pasta.relatorio)
+    if (!chavesQueSairam(pasta, estado).has(chave)) return
+    const agoraMs = (opcoes.agora ?? Date.now)()
+    const saem = await osQueOBonecoAindaTem(disco, pasta, estado, new Set([chave]), agoraMs, opcoes.recuperado ?? null)
+    const porConferir = estado.porConferir.filter((marcada) => marcada !== chave)
+    if (saem.size === 0 && porConferir.length === estado.porConferir.length) return
+    const itens = estado.itens.map((pendente): ItemPendente => (saem.has(pendente.id) ? { ...pendente, decisao: 'saiu', decididoEm: agoraMs } : pendente))
+    await gravarEstado(disco, pasta.relatorio, { ...estado, porConferir, itens }, agoraMs)
+  })
+}
+
+export interface OpcoesDaTrocaDeSistema extends OpcoesDosPendentes {
+  /** A chave do mapa aberto no editor, quando é desta pasta: o trabalho dele, ainda não salvo, conta como salvo agora. */
+  aberto?: string | null
+}
+
+/** Alguma cena do mapa foi salva desde `desde` (ms), ou não dá para saber (hora ausente, cena que não abriu). */
+async function salvoDesde(disco: DiscoDaMigracao, pastaDosMapas: string, chave: string, desde: number): Promise<boolean> {
+  const lidas = await cenasDoMapa(disco, pastaDosMapas, chave, null)
+  return lidas.naoAbriram.length > 0 || lidas.cenas.some(({ origem }) => origem.gravadaEm <= 0 || origem.gravadaEm >= desde)
+}
+
+/**
+ * O "Configurar pasta" mudou o Sistema universal da pasta `pastaId` (o
+ * `rpg.json` já gravado). Só vale para a pasta convertida (`mochilaMigrada`):
+ *
+ * - ficou sem sistema ("Nenhum"): a mochila volta a morar no boneco; o
+ *   relatório guarda desde quando (`semSistemaDesde`, a primeira vez);
+ * - voltou a ter sistema (`vinhaSemSistema`, ou o relatório diz desde quando):
+ *   cada mapa da pasta salvo depois disso — sem a hora anotada, todos — e o
+ *   mapa aberto dela (`aberto`) ficam marcados para conferir, e a hora sai.
+ *
+ * Devolve as chaves dos mapas da pasta marcados para conferir (as de agora e
+ * as que já esperavam): quem chama confere cada uma (`conferirMapaQueEntrou`)
+ * antes de o mestre abrir um mapa e o espelho fazer a ficha vencer o boneco.
+ */
+export function sistemaDaPastaMudou(pastaId: string, vinhaSemSistema: boolean, disco: DiscoDaMigracao, opcoes: OpcoesDaTrocaDeSistema = {}): Promise<string[]> {
+  return emFila(async () => {
+    const pasta = await pastaPeloId(disco, pastaId)
+    if (pasta.rpg === null || pasta.rpg.mochilaMigrada === undefined) return []
+    const estado = await lerEstado(disco, pasta.relatorio)
+    const agoraMs = (opcoes.agora ?? Date.now)()
+    if (pasta.rpg.sistemaDeRpg === undefined) {
+      if (estado.semSistemaDesde === null) await gravarEstado(disco, pasta.relatorio, { ...estado, semSistemaDesde: agoraMs }, agoraMs)
+      return []
+    }
+    if (!vinhaSemSistema && estado.semSistemaDesde === null) return []
+    const { indice } = pasta
+    if (indice === null) throw new Error('o índice das pastas não abriu')
+    const daPasta = indice.mapas.map(({ chave }) => chave).filter((chave) => lugarDoMapa(indice, chave)?.pasta.id === pastaId)
+    const marcar: string[] = []
+    for (const chave of daPasta) {
+      if (chave === opcoes.aberto || estado.semSistemaDesde === null || (await salvoDesde(disco, pasta.pastaDosMapas, chave, estado.semSistemaDesde))) marcar.push(chave)
+    }
+    const porConferir = [...estado.porConferir, ...marcar.filter((chave) => !estado.porConferir.includes(chave))]
+    await gravarEstado(disco, pasta.relatorio, { ...estado, porConferir, semSistemaDesde: null }, agoraMs)
+    return porConferir.filter((chave) => daPasta.includes(chave))
   })
 }
 
@@ -313,11 +477,14 @@ export type DecisaoTomada =
       /** `nao-achado`/`ja-decidido`: outro clique já resolveu; `sem-ficha`: a ficha saiu da pasta e o pendente continua esperando. */
       porque: 'nao-achado' | 'ja-decidido' | 'sem-ficha'
     }
+  /** O mapa saiu da pasta com o item ainda no boneco: a ficha não mudou, e o pendente sai do aviso enquanto o boneco o tiver. */
+  | { ok: false; porque: 'saiu'; pendente: ItemPendente }
 
 /** O pendente `id` ainda esperando, ou por que não. */
 function pendenteEsperando(estado: EstadoDosPendentes, id: string): ItemPendente | Extract<DecisaoTomada, { ok: false }> {
   const pendente = estado.itens.find((candidato) => candidato.id === id)
   if (pendente === undefined) return { ok: false, porque: 'nao-achado' }
+  if (pendente.decisao === 'saiu') return { ok: false, porque: 'saiu', pendente }
   return pendente.decisao === undefined ? pendente : { ok: false, porque: 'ja-decidido' }
 }
 
@@ -336,10 +503,16 @@ export type GravarFichasDaPasta = (mudar: (rpg: RpgDaPasta) => RpgDaPasta) => Pr
  */
 export function trazerPendente(pastaId: string, id: string, disco: DiscoDaMigracao, gravarFichas: GravarFichasDaPasta, opcoes: OpcoesDosPendentes = {}): Promise<DecisaoTomada> {
   return emFila(async () => {
-    const relatorio = await relatorioDaPasta(disco, pastaId)
+    const pasta = await pastaPeloId(disco, pastaId)
+    const { relatorio } = pasta
     const estado = await lerEstado(disco, relatorio)
     const pendente = pendenteEsperando(estado, id)
     if ('ok' in pendente) return pendente
+    // O mapa saiu da pasta com o item ainda no boneco: trazer o deixaria nos dois lugares.
+    const doMapa = new Set([pendente.chave])
+    if (chavesQueSairam(pasta, estado).has(pendente.chave) && (await osQueOBonecoAindaTem(disco, pasta, estado, doMapa, (opcoes.agora ?? Date.now)(), null)).has(id)) {
+      return { ok: false, porque: 'saiu', pendente }
+    }
     const novoId = opcoes.novoId ?? (() => crypto.randomUUID())
     const vagas: string[] = []
     const somou: { moedasDeFora: number | null } = { moedasDeFora: null }

@@ -1,4 +1,4 @@
-import type { CarriedItem } from '../../types/map'
+import type { CarriedItem, Token } from '../../types/map'
 import { quantidadeDe } from '../items'
 import type { Personagem } from '../personagem'
 import { MOEDAS_MAX, moedasDe } from '../troca'
@@ -17,10 +17,16 @@ import { fichaSomada, itemNoAviso } from './transicao'
  * "Trazer para a ficha" (soma, como o boneco ligado a uma ficha, `transicao.ts`)
  * ou "Ignorar" (sai do aviso e continua anotado no relatório da pasta).
  *
- * "Só o boneco tem": o item do boneco que a ficha não tem IGUAL (mesmos dados e
- * a mesma quantidade, `itensIguais`), cada item da ficha casando com um só do
- * boneco. Poção ×2 no boneco e ×1 na ficha = o pendente "Poção ×2" (trazer
- * deixa ×3). A bolsa: o que o boneco tem, quando é diferente da ficha.
+ * "Só o boneco tem" (`sobraDoItem`, `sobraDaBolsa`): a VAGA é a identidade do
+ * item. O item do boneco numa vaga que a ficha não tem é dele inteiro, mesmo
+ * com os mesmos dados de um item da ficha (a Poção do acervo nas duas, em
+ * vagas diferentes, são duas Poções). A vaga que a ficha tem é a cópia do
+ * espelho: conta só a pilha que cresceu por cima dela. Poção ×2 numa vaga do
+ * boneco e ×1 noutra vaga da ficha = o pendente "Poção ×2" (trazer deixa ×3).
+ * A bolsa não tem vaga: o boneco que tem alguma vaga da ficha veio do espelho e
+ * conta só o que passa da bolsa da ficha; sem vaga em comum não há como saber
+ * se a bolsa é cópia, e ela conta inteira (melhor o mestre ignorar do que
+ * sumir calado).
  *
  * A regra é POR MAPA (por cena), como o espelho: ficha com vários bonecos na
  * mesma cena (três Marinheiros da mesma ficha) não gera pendente — cada boneco
@@ -28,7 +34,12 @@ import { fichaSomada, itemNoAviso } from './transicao'
  * tem também não: o espelho não toca nele. Pura: nada de disco nem store.
  */
 
-export type DecisaoDoPendente = 'trazido' | 'ignorado'
+/**
+ * `trazido` e `ignorado`: o mestre escolheu. `saiu`: o mapa saiu da pasta com o
+ * item ainda no boneco (é do boneco de novo, fora do espelho dela); se o mapa
+ * voltar, ele é conferido como novo.
+ */
+export type DecisaoDoPendente = 'trazido' | 'ignorado' | 'saiu'
 
 interface PendenteComum {
   id: string
@@ -66,21 +77,49 @@ export function mesmoPendente(a: ConteudoDoPendente, b: ConteudoDoPendente): boo
   return b.tipo === 'moedas' && a.moedas === b.moedas
 }
 
-/** Os itens de `doBoneco` que `daFicha` não tem iguais; cada item da ficha casa com um só do boneco. */
+function comQuantidade(item: CarriedItem, quantidade: number): CarriedItem {
+  const { quantidade: _antiga, ...semQuantidade } = item
+  return quantidade > 1 ? { ...semQuantidade, quantidade } : semQuantidade
+}
+
+/**
+ * O que do item do boneco a ficha não tem (ver o comentário do arquivo): vaga
+ * que a ficha não tem, o item inteiro; a mesma vaga, só a pilha que passa da
+ * dela (menor ou igual = o boneco gastou ou é a cópia, e a ficha vence).
+ */
+function sobraDoItem(item: CarriedItem, naFicha: CarriedItem | undefined): CarriedItem | null {
+  if (naFicha === undefined) return item
+  const sobra = quantidadeDe(item) - quantidadeDe(naFicha)
+  return sobra > 0 ? comQuantidade(item, sobra) : null
+}
+
+/** O que dos itens de `doBoneco` a ficha não tem; cada vaga da ficha casa com um só item do boneco. */
 function itensQueAFichaNaoTem(daFicha: readonly CarriedItem[], doBoneco: readonly CarriedItem[]): CarriedItem[] {
-  const sobra = [...daFicha]
-  return doBoneco.filter((item) => {
-    const igual = sobra.findIndex((naFicha) => itensIguais(naFicha, item))
-    if (igual < 0) return true
-    sobra.splice(igual, 1)
-    return false
-  })
+  const vagasDaFicha = new Map(daFicha.map((item) => [item.id, item]))
+  const sobras: CarriedItem[] = []
+  for (const item of doBoneco) {
+    const sobra = sobraDoItem(item, vagasDaFicha.get(item.id))
+    vagasDaFicha.delete(item.id)
+    if (sobra !== null) sobras.push(sobra)
+  }
+  return sobras
+}
+
+/** As moedas do boneco que a ficha não tem (ver o comentário do arquivo). */
+function sobraDaBolsa(boneco: Pick<Token, 'mochila' | 'moedas'>, ficha: Pick<Personagem, 'mochila' | 'moedas'>): number {
+  const moedas = moedasDe(boneco)
+  if (moedas <= 0) return 0
+  const vagasDaFicha = new Set((ficha.mochila ?? []).map((item) => item.id))
+  const veioDoEspelho = (boneco.mochila ?? []).some((item) => vagasDaFicha.has(item.id))
+  return veioDoEspelho ? Math.max(0, moedas - moedasDe(ficha)) : moedas
 }
 
 /**
  * Os pendentes do mapa `chave` que entrou: ver o comentário do arquivo.
- * `registrados` são os que o relatório já tem (decididos ou não): o mesmo
- * item conferido de novo — o mapa reaberto, movido duas vezes — não volta.
+ * `registrados` são os que o relatório já tem (esperando, trazidos ou
+ * ignorados): o mesmo item conferido de novo — o mapa reaberto, movido duas
+ * vezes — não volta. O que saiu com o mapa (`saiu`) não conta: o mapa que
+ * volta é conferido como novo.
  */
 export function pendentesDoMapaQueEntrou(
   personagens: readonly Personagem[],
@@ -92,7 +131,8 @@ export function pendentesDoMapaQueEntrou(
 ): ItemPendente[] {
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
   const novos: ItemPendente[] = []
-  const jaAnotado = (conteudo: ConteudoDoPendente): boolean => registrados.some((outro) => mesmoPendente(outro, conteudo)) || novos.some((outro) => mesmoPendente(outro, conteudo))
+  const valendo = registrados.filter((registrado) => registrado.decisao !== 'saiu')
+  const jaAnotado = (conteudo: ConteudoDoPendente): boolean => valendo.some((outro) => mesmoPendente(outro, conteudo)) || novos.some((outro) => mesmoPendente(outro, conteudo))
   for (const { origem, bonecos } of cenas) {
     const deVarios = fichasDeVariosBonecos(bonecos)
     for (const boneco of bonecos) {
@@ -103,13 +143,28 @@ export function pendentesDoMapaQueEntrou(
       for (const item of itensQueAFichaNaoTem(ficha.mochila ?? [], boneco.mochila ?? [])) {
         if (!jaAnotado({ chave, personagemId: ficha.id, tipo: 'item', item })) novos.push({ ...comum, id: novoId(), tipo: 'item', item })
       }
-      const moedas = moedasDe(boneco)
-      if (moedas > 0 && moedas !== moedasDe(ficha) && !jaAnotado({ chave, personagemId: ficha.id, tipo: 'moedas', moedas })) {
+      const moedas = sobraDaBolsa(boneco, ficha)
+      if (moedas > 0 && !jaAnotado({ chave, personagemId: ficha.id, tipo: 'moedas', moedas })) {
         novos.push({ ...comum, id: novoId(), tipo: 'moedas', moedas })
       }
     }
   }
   return novos
+}
+
+/**
+ * O pendente que o boneco AINDA carrega: conferido o mapa de novo
+ * (`pendentesDoMapaQueEntrou` sem registrados, contra as fichas de agora), a
+ * mesma ficha ainda tem sobra na mesma vaga (ou na bolsa). Para o mapa que
+ * saiu da pasta: o que o boneco ainda tem fica com ele (`saiu`); o que o
+ * espelho já tirou dele só existe no pendente, e o pendente continua.
+ */
+export function bonecoAindaTem(pendente: ItemPendente, conferidos: readonly ItemPendente[]): boolean {
+  return conferidos.some(
+    (conferido) =>
+      conferido.personagemId === pendente.personagemId &&
+      (pendente.tipo === 'item' ? conferido.tipo === 'item' && conferido.item.id === pendente.item.id : conferido.tipo === 'moedas'),
+  )
 }
 
 /**
@@ -156,4 +211,9 @@ export function textoDoTrazido(pendente: ItemPendente, moedasDeFora: number): st
 /** O aviso depois do "Ignorar": nada some calado. */
 export function textoDoIgnorado(pendente: ItemPendente): string {
   return `${oQueCarregava(pendente)} do boneco ${pendente.boneco} ${umSo(pendente) ? 'ficou' : 'ficaram'} fora da ficha de ${pendente.personagem}: a linha continua no relatório da pasta.`
+}
+
+/** O "Trazer" recusado: o mapa saiu da pasta e o boneco ainda tem o item. */
+export function textoDoQueSaiu(pendente: ItemPendente): string {
+  return `${oQueCarregava(pendente)} ${umSo(pendente) ? 'continua' : 'continuam'} com o boneco ${pendente.boneco}: o mapa ${pendente.mapa} saiu da pasta. A linha continua no relatório da pasta.`
 }

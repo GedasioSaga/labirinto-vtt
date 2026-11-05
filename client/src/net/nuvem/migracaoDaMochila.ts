@@ -87,7 +87,7 @@ export const PASTA_DOS_MAPAS = 'maps'
 export const PASTA_DAS_PASTAS = 'pastas'
 const ARQUIVO_DO_INDICE = 'indice.json'
 export const ARQUIVO_DO_RPG = 'rpg.json'
-const ARQUIVO_DO_MAPA = 'map.json'
+export const ARQUIVO_DO_MAPA = 'map.json'
 const SUFIXO_ANTERIOR = '.anterior'
 
 export type Bruto = Record<string, unknown>

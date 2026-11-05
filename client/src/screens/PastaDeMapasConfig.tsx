@@ -12,6 +12,7 @@ import {
 } from '../lib/pastasDeMapas'
 import type { Personagem } from '../lib/personagem'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
+import { trocarSistemaDaPasta } from '../net/nuvem/mochilaPendenteNoApp'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 
 export interface PastaDeMapasConfigProps {
@@ -88,10 +89,13 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
     }
   }
 
+  /** A mudança que pode trocar o sistema da pasta: a pasta convertida que volta a ter sistema confere antes a mochila dos bonecos. */
+  const mudarComOSistema = (mudar: (rpg: RpgDaPasta) => RpgDaPasta) => trocarSistemaDaPasta(pasta.id, rpg.sistemaDeRpg === undefined, () => onMudar(mudar))
+
   const trocarSistema = (sistemaId: string) =>
     executar(async () => {
       // Troca só o sistema: as equipes e o marcador da mochila seguem (voltar a um sistema não converte de novo).
-      await onMudar((atual) => rpgComSistema(atual, sistemaId === '' ? null : sistemaId))
+      await mudarComOSistema((atual) => rpgComSistema(atual, sistemaId === '' ? null : sistemaId))
       return sistemaId === '' ? 'A pasta só organiza: cada mapa usa o próprio sistema e personagens.' : null
     })
 
@@ -111,7 +115,7 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
       if (doMapa === null) return 'Esse mapa não tem sistema nem personagens para copiar.'
       const novos = personagensQueAPastaNaoTem(rpg.personagens, doMapa.personagens)
       // Pasta ainda sem sistema adota o do mapa; as equipes e o marcador da mochila da pasta seguem.
-      await onMudar((atual) => rpgComOsPersonagensDoMapa(atual, doMapa))
+      await mudarComOSistema((atual) => rpgComOsPersonagensDoMapa(atual, doMapa))
       return novos.length === 0 ? 'Os personagens desse mapa já estão na pasta.' : `Copiados para a pasta: ${nomes(novos)}.`
     })
 

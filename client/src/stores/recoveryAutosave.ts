@@ -54,9 +54,10 @@ export interface RecoveryAutosave {
 
 /**
  * O trabalho do editor neste instante. Todo o estado é lido ANTES do primeiro
- * `await`: o caminho da cena sai do mesmo instante do mapa copiado.
+ * `await`: o caminho da cena sai do mesmo instante do mapa copiado. Também o
+ * mapa aberto antes de a pasta dele mudar (`net/nuvem/mochilaPendenteNoApp.ts`).
  */
-async function captureEditorWork(getLooseMapPath: () => string | null, savedAtMs: number): Promise<RecoveryCopy> {
+export async function captureEditorWork(getLooseMapPath: () => string | null, savedAtMs: number): Promise<RecoveryCopy> {
   const map = useMapStore.getState().map
   const adventureState = useAdventureStore.getState()
   const { adventure, dir, activeSceneId, cache, dirty } = adventureState
