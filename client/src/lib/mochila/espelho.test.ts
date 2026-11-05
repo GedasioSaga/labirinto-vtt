@@ -3,12 +3,13 @@
  * a troca entre duas fichas e a ficha que nasce depois. Dados inventados.
  */
 import { describe, expect, it } from 'vitest'
-import type { CarriedItem, Token } from '../../types/map'
+import type { CarriedItem, MapData, Token } from '../../types/map'
 import type { ItemChange } from '../items'
+import { createEmptyMap } from '../mapFactory'
 import { novoPersonagem, type Personagem } from '../personagem'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import { payCoinsChange } from '../troca'
-import { fichaQueNasceDoBoneco, mudancaNasFichas } from './espelho'
+import { fichaQueNasceDoBoneco, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from './espelho'
 import { juntarMochilas } from './juncao'
 
 function ficha(id: string, nome: string, extra: Partial<Personagem> = {}): Personagem {
@@ -68,6 +69,44 @@ describe('troca entre duas fichas', () => {
     const depois = mudancaNasFichas([bandido, luffy], bonecos, roubo)
     expect(depois[0]).toBe(bandido)
     expect(depois[1].mochila).toEqual([POCAO])
+  })
+})
+
+describe('o espelho: a ficha vence o boneco (fatia A3)', () => {
+  function mapa(bonecos: Token[]): MapData {
+    return { ...createEmptyMap('map_goa', 'Reino de Goa', 20, 16, 64), tokens: bonecos }
+  }
+
+  it('o boneco ligado mostra a mochila e a bolsa da ficha; a Poção velha do boneco não volta para a ficha', () => {
+    const luffy = ficha('p_luffy', 'Luffy', { mochila: [CORDA], moedas: 20 })
+    const antes = mapa([boneco('t_luffy', 'p_luffy', { mochila: [POCAO, CORDA], moedas: 50 })])
+    const depois = mapaComAsFichas(antes, [luffy])
+    expect([depois.tokens[0].mochila, depois.tokens[0].moedas]).toEqual([[CORDA], 20])
+    expect(luffy.mochila).toEqual([CORDA])
+  })
+
+  it('ficha vazia esvazia o boneco, sem deixar a chave (ausente === vazia)', () => {
+    const depois = mapaComAsFichas(mapa([boneco('t_luffy', 'p_luffy', { mochila: [POCAO], moedas: 50 })]), [ficha('p_luffy', 'Luffy')])
+    expect('mochila' in depois.tokens[0]).toBe(false)
+    expect('moedas' in depois.tokens[0]).toBe(false)
+  })
+
+  it('NPC sem ficha, ficha de fora da lista e ficha de vários bonecos ficam como estão: o MESMO mapa', () => {
+    const antes = mapa([
+      boneco('t_vendedor', null, { mochila: [POCAO] }),
+      boneco('t_estranho', 'p_de_outra_pasta', { mochila: [POCAO] }),
+      boneco('t_bandido_1', 'p_bandido', { mochila: [POCAO] }),
+      boneco('t_bandido_2', 'p_bandido'),
+    ])
+    expect(mapaComAsFichas(antes, [ficha('p_bandido', 'Bandido', { mochila: [CORDA] })])).toBe(antes)
+  })
+
+  it('já igual (mesmos itens em outra lista, quantidade 1 escrita ou não), e nos passos do desfazer: a MESMA referência', () => {
+    const luffy = ficha('p_luffy', 'Luffy', { mochila: [{ ...POCAO }], moedas: 7 })
+    const antes = mapa([boneco('t_luffy', 'p_luffy', { mochila: [{ ...POCAO, quantidade: 1 }], moedas: 7 })])
+    expect(mapaComAsFichas(antes, [luffy])).toBe(antes)
+    const passos = [antes, antes]
+    expect(passosComAsFichas(passos, [luffy])).toBe(passos)
   })
 })
 

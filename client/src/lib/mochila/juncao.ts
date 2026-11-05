@@ -146,7 +146,7 @@ function mesmoItem(a: CarriedItem, b: CarriedItem): boolean {
 }
 
 /** Os dados que o mestre vê do item; a vaga (`id`) fica de fora — a mesma pilha em vagas diferentes, com tudo igual, não é diferença. */
-function itensIguais(a: CarriedItem, b: CarriedItem): boolean {
+export function itensIguais(a: CarriedItem, b: CarriedItem): boolean {
   return (
     a.nome === b.nome &&
     a.itemId === b.itemId &&

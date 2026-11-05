@@ -16,6 +16,7 @@ import {
 import { passageOf } from '../lib/pins'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
+import { mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
 import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Bounds, Camera, Point } from '../pixi/world'
@@ -978,6 +979,29 @@ function donoDosPersonagens(
   return { lista: adventure.personagens, gravar: (personagens) => set({ adventure: { ...adventure, personagens: sincronizarVariacoes(personagens) }, structureDirty: true }) }
 }
 
+/**
+ * MOCHILA NA FICHA (docs/planos/lobby-jogadores-2026-11-05.md §4, fatia A3):
+ * as fichas que mandam na mochila e na bolsa dos bonecos — as mesmas de
+ * `personagensAtivos`: as da pasta quando o mapa herda; senão as da aventura
+ * (aventura sem pasta, mapa em "Configurar só neste mapa") — e só depois da
+ * migração, pelo marcador `mochilaMigrada` de quem as guarda (§4.2). `null` =
+ * ainda não migrou: a mochila mora no boneco, como antes.
+ */
+function fichasDonasDaMochila(state: RpgState): readonly Personagem[] | null {
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) return pasta.mochilaMigrada === undefined ? null : pasta.personagens
+  const { adventure } = state
+  if (adventure === null || adventure.mochilaMigrada === undefined) return null
+  return adventure.personagens ?? SEM_PERSONAGENS
+}
+
+/** O espelho das fichas para o mapa que ENTRA (abrir, cena que chega do disco, troca de cena): a ficha vence o boneco. Sem fichas donas, o mapa como veio. */
+function espelhoDasFichas(state: RpgState): (map: MapData) => MapData {
+  const fichas = fichasDonasDaMochila(state)
+  if (fichas === null || fichas.length === 0) return (map) => map
+  return (map) => mapaComAsFichas(map, fichas)
+}
+
 /** Referência estável para "sem equipes": o host compara por referência. */
 const SEM_EQUIPES: readonly Equipe[] = []
 
@@ -1218,13 +1242,16 @@ function syncModeloDeCamadas(after: MapData, before: MapData): void {
 
 /** Põe um mapa no editor com o desfazer que ele já tinha, e marca esse ponto como "igual ao cache". */
 function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
+  // MOCHILA NA FICHA (fatia A3): a cena entra com a mochila das fichas, também no desfazer dela. Não acende o
+  // Salvar (o `markSaved` abaixo): o mapa gravado com a mochila velha volta a ser espelhado na próxima abertura.
+  const espelhar = espelhoDasFichas(useAdventureStore.getState())
   sceneLoading = true
   try {
     // CAMADAS (fatia 7): a cena entra com o modelo da AVENTURA, também no desfazer dela — o Ctrl+Z de uma cena não traz de volta a lista velha que ela viu.
     // Mas o passo que USA uma livre que sumiu da lista (o de antes de "apagar") a traz de volta (`modeloParaOPasso`).
-    useMapStore.getState().loadMap(comModeloDaAventura(map))
+    useMapStore.getState().loadMap(comModeloDaAventura(espelhar(map)))
     const doPasso = comModeloDoPasso()
-    useMapStore.setState({ past: past.map(doPasso), future: future.map(doPasso) })
+    useMapStore.setState({ past: past.map((passo) => doPasso(espelhar(passo))), future: future.map((passo) => doPasso(espelhar(passo))) })
   } finally {
     sceneLoading = false
   }
@@ -1362,9 +1389,9 @@ function beginOpening(): number {
  */
 const SCENE_ARRIVAL_BATCH_MS = 100
 
-/** O slot de cache de uma cena de fundo recém-aberta. */
-function slotFor(load: SceneLoad): SceneSlot {
-  if (load.status === 'ok') return { status: 'ok', map: load.map, past: [], future: [], camera: null }
+/** O slot de cache de uma cena de fundo recém-aberta; `espelhar` põe a mochila das fichas nos bonecos (MOCHILA NA FICHA). */
+function slotFor(load: SceneLoad, espelhar: (map: MapData) => MapData): SceneSlot {
+  if (load.status === 'ok') return { status: 'ok', map: espelhar(load.map), past: [], future: [], camera: null }
   if (load.status === 'indisponivel') return { status: 'indisponivel', reason: load.reason }
   return { status: 'carregando', pending: [] }
 }
@@ -1383,17 +1410,19 @@ function failLoadingSlots(cache: Record<string, SceneSlot>, reason: string): Rec
  * ele, na ordem. Slot que já não está "carregando" não é tocado — a cena
  * aberta e as que já estavam no cache são as do editor, não as do disco.
  * `converted`: a conversão do portal antigo mudou o mapa, que já não é o do disco.
+ * MOCHILA NA FICHA: `espelhar` (as fichas de AGORA, não as da abertura) entra
+ * depois de decidir se a cena ficou suja — só espelhar não acende o Salvar.
  */
-function receiveScene(cache: Record<string, SceneSlot>, dirty: Record<string, true>, load: SceneLoad, converted: boolean): void {
+function receiveScene(cache: Record<string, SceneSlot>, dirty: Record<string, true>, load: SceneLoad, converted: boolean, espelhar: (map: MapData) => MapData): void {
   const id = load.entry.id
   const slot = cache[id]
   if (slot === undefined || slot.status !== 'carregando') return
   if (load.status !== 'ok') {
-    cache[id] = slotFor(load)
+    cache[id] = slotFor(load, espelhar)
     return
   }
   const map = slot.pending.reduce((current, updater) => updater(current), load.map)
-  cache[id] = { status: 'ok', map, past: [], future: [], camera: null }
+  cache[id] = { status: 'ok', map: espelhar(map), past: [], future: [], camera: null }
   if (map !== load.map || converted) dirty[id] = true
 }
 
@@ -1401,7 +1430,8 @@ function receiveScene(cache: Record<string, SceneSlot>, dirty: Record<string, tr
 function earlyScenes(state: AdventureState, loads: readonly ArrivedScene[]): Partial<AdventureState> {
   const cache: Record<string, SceneSlot> = { ...state.cache }
   const dirty: Record<string, true> = { ...state.dirty }
-  for (const load of loads) receiveScene(cache, dirty, load, false)
+  const espelhar = espelhoDasFichas(state)
+  for (const load of loads) receiveScene(cache, dirty, load, false, espelhar)
   return { cache, dirty }
 }
 
@@ -1416,17 +1446,18 @@ function arrivedScenes(state: AdventureState, full: OpenedMapFile): Partial<Adve
   const dirty: Record<string, true> = { ...state.dirty }
   const converted = new Set(full.changedSceneIds)
   const known = new Set(state.adventure.scenes.map((entry) => entry.id))
+  const espelhar = espelhoDasFichas(state)
   const added: SceneEntry[] = []
   for (const load of full.scenes) {
     const id = load.entry.id
     if (!known.has(id)) {
       if (load.status !== 'ok') continue
       added.push(load.entry)
-      cache[id] = slotFor(load)
+      cache[id] = slotFor(load, espelhar)
       dirty[id] = true
       continue
     }
-    receiveScene(cache, dirty, load, converted.has(id))
+    receiveScene(cache, dirty, load, converted.has(id), espelhar)
   }
   const settled = failLoadingSlots(cache, 'a cena não chegou do disco')
   if (added.length === 0) return { cache: settled, dirty }
@@ -1450,9 +1481,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       return Promise.resolve()
     }
     const cache: Record<string, SceneSlot> = {}
+    // MOCHILA NA FICHA: as cenas que já chegaram entram com a mochila das fichas desta abertura (a aberta, pelo `showInEditor`).
+    const espelhar = espelhoDasFichas({ adventure: opened.adventure, pasta })
     for (const load of opened.scenes) {
       if (load.entry.id === opened.activeSceneId) continue
-      cache[load.entry.id] = slotFor(load)
+      cache[load.entry.id] = slotFor(load, espelhar)
     }
     const dirty: Record<string, true> = {}
     for (const id of opened.changedSceneIds) dirty[id] = true
@@ -2458,21 +2491,85 @@ function syncTravelLinks(after: MapData, before: MapData): void {
  * chave no chão, e um Ctrl+Z do mestre depois a devolveria ao mapa ainda na
  * mochila de alguém (duplica) ou a tiraria da mochila (some). Também não é um
  * passo do desfazer: não foi uma edição do mapa. `false` quando a cena não
- * está disponível.
+ * está disponível — e aí nem a ficha muda.
+ *
+ * MOCHILA NA FICHA (docs/planos/lobby-jogadores-2026-11-05.md §4, fatia A3):
+ * depois da migração (`fichasDonasDaMochila`), o boneco ligado a uma ficha só
+ * MOSTRA a mochila e a bolsa dela. A mudança vai primeiro às fichas — todas
+ * numa gravação só, pelo mesmo dono do `ajustarPersonagem`: troca e pagamento
+ * entre dois personagens mudam as duas fichas juntas, ou nenhuma — e depois ao
+ * mapa da cena, como sempre, e ao boneco da mesma ficha nas outras cenas já
+ * abertas (`espelharNasOutrasCenas`). NPC sem ficha não mexe em ficha: a
+ * mochila dele continua só no boneco desta cena.
  */
 export function applyItemsInScene(change: AppliedItems): boolean {
   const aplicar = (map: MapData): MapData => applyItemChange(map, change)
-  const { activeSceneId, cache, dirty } = useAdventureStore.getState()
-  if (change.sceneId === undefined || change.sceneId === activeSceneId) {
+  const { activeSceneId, cache } = useAdventureStore.getState()
+  const deFundo = change.sceneId === undefined || change.sceneId === activeSceneId ? null : change.sceneId
+  const slot = deFundo === null ? null : cache[deFundo]
+  if (slot === undefined || (slot !== null && slot.status !== 'ok')) return false
+  const fichasMudaram = levarParaAsFichas(change, (slot === null ? useMapStore.getState().map : slot.map).tokens)
+  if (deFundo === null || slot === null) {
     const { map, past, future } = useMapStore.getState()
     useMapStore.setState({ map: aplicar(map), past: past.map(aplicar), future: future.map(aplicar) })
-    return true
+  } else {
+    // Lido de novo: gravar as fichas trocou o estado (a pasta ou a aventura, não o cache — mas sem contar com isso).
+    const atual = useAdventureStore.getState()
+    useAdventureStore.setState({
+      cache: { ...atual.cache, [deFundo]: { ...slot, map: aplicar(slot.map), past: slot.past.map(aplicar), future: slot.future.map(aplicar) } },
+      dirty: { ...atual.dirty, [deFundo]: true },
+    })
   }
-  const slot = cache[change.sceneId]
-  if (slot === undefined || slot.status !== 'ok') return false
-  useAdventureStore.setState({
-    cache: { ...cache, [change.sceneId]: { ...slot, map: aplicar(slot.map), past: slot.past.map(aplicar), future: slot.future.map(aplicar) } },
-    dirty: { ...dirty, [change.sceneId]: true },
-  })
+  if (fichasMudaram !== null) espelharNasOutrasCenas(fichasMudaram, deFundo)
   return true
+}
+
+/**
+ * MOCHILA NA FICHA: grava nas fichas donas a parte da mudança que é delas
+ * (`mudancaNasFichas`, com os `bonecos` da cena onde ela acontece). Devolve as
+ * fichas novas, ou `null` quando nenhuma mudou (mochila ainda no boneco, NPC
+ * sem ficha, só pino ou objeto do chão).
+ */
+function levarParaAsFichas(change: AppliedItems, bonecos: MapData['tokens']): readonly Personagem[] | null {
+  const { getState, setState } = useAdventureStore
+  const fichas = fichasDonasDaMochila(getState())
+  if (fichas === null) return null
+  const novas = mudancaNasFichas(fichas, bonecos, change)
+  const dono = donoDosPersonagens(getState, setState)
+  if (novas === fichas || dono === null) return null
+  dono.gravar([...novas])
+  return novas
+}
+
+/**
+ * MOCHILA NA FICHA: a ficha mudou na cena `cenaDaMudanca` (`null` = a aberta)
+ * — o boneco dela em TODA outra cena já aberta passa a mostrar a mochila e a
+ * bolsa novas, no mapa e em cada passo do desfazer e do refazer: um Ctrl+Z
+ * depois não traz de volta a mochila de antes, que a próxima mudança gravaria
+ * por cima da ficha (perde) ou devolveria a ela (duplica). A cena de fundo que
+ * mudou fica marcada para gravar, como a da mudança; a aberta, o editor marca
+ * sozinho. Cena ainda vindo do disco recebe o espelho quando chega
+ * (`receiveScene`).
+ */
+function espelharNasOutrasCenas(fichas: readonly Personagem[], cenaDaMudanca: string | null): void {
+  if (cenaDaMudanca !== null) {
+    const { map, past, future } = useMapStore.getState()
+    const espelhado = { map: mapaComAsFichas(map, fichas), past: passosComAsFichas(past, fichas), future: passosComAsFichas(future, fichas) }
+    if (espelhado.map !== map || espelhado.past !== past || espelhado.future !== future) useMapStore.setState(espelhado)
+  }
+  const { cache, dirty } = useAdventureStore.getState()
+  const novoCache: Record<string, SceneSlot> = { ...cache }
+  const novoDirty: Record<string, true> = { ...dirty }
+  let mudou = false
+  for (const [sceneId, slot] of Object.entries(cache)) {
+    if (sceneId === cenaDaMudanca || slot.status !== 'ok') continue
+    const map = mapaComAsFichas(slot.map, fichas)
+    const past = passosComAsFichas(slot.past, fichas)
+    const future = passosComAsFichas(slot.future, fichas)
+    if (map === slot.map && past === slot.past && future === slot.future) continue
+    novoCache[sceneId] = { ...slot, map, past, future }
+    if (map !== slot.map) novoDirty[sceneId] = true
+    mudou = true
+  }
+  if (mudou) useAdventureStore.setState({ cache: novoCache, dirty: novoDirty })
 }
