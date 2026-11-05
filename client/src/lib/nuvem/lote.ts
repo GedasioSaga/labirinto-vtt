@@ -283,7 +283,7 @@ function negar(processo: Processo, opId: string, motivo: MotivoNegado, detalhe: 
 
 // ── Fase 1: validar (envelope, membro, autor, reenvio, esquema, base, permissão) ──
 
-interface Envelope {
+export interface Envelope {
   opId: string
   loteId: string
   baseRev: number
@@ -294,10 +294,10 @@ interface Envelope {
   autorDeclarado?: string
 }
 
-type LeituraDoEnvelope = { ok: true; envelope: Envelope } | { ok: false; opId: string | null; detalhe: string }
+export type LeituraDoEnvelope = { ok: true; envelope: Envelope } | { ok: false; opId: string | null; detalhe: string }
 
-/** O envelope da op que veio do fio; o `opId` sai mesmo com o resto torto, para a recusa ter a quem responder. */
-function lerEnvelope(entrada: unknown): LeituraDoEnvelope {
+/** O envelope da op que veio do fio (ou do disco, na fila); o `opId` sai mesmo com o resto torto, para a recusa ter a quem responder. */
+export function lerEnvelope(entrada: unknown): LeituraDoEnvelope {
   if (!ehRegistro(entrada)) return { ok: false, opId: null, detalhe: 'Mudança fora do formato' }
   const opId = proprio(entrada, 'opId')
   if (!segmentoValido(opId)) return { ok: false, opId: null, detalhe: 'Mudança sem id' }

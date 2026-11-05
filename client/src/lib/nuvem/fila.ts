@@ -1,0 +1,620 @@
+import type { Personagem } from '../personagem'
+import { aplicarOp } from './aplicar'
+import { lerMudanca, segmentoValido } from './caminho'
+import { bytesDoJson, ehJson, ehRegistro, lerJsonSeguro, proprio } from './json'
+import { LIMITES, tetoDaOpEmBytes } from './limites'
+import { lerEnvelope, type RespostaDaOp } from './lote'
+import { VERSAO_DO_FORMATO, type Conflito, type MensagemDoServidor, type MotivoAdiado, type MotivoNegado, type Op } from './tipos'
+
+/**
+ * FILA OFFLINE (docs/planos/lobby-jogadores-2026-11-05.md §4.4, §5.5-5.7): a
+ * mesa nunca para. A MESMA fila serve ao app (o adaptador grava `fila.jsonl`
+ * no disco) e ao site (o adaptador grava no IndexedDB): o armazenamento é
+ * injetado, e daqui para dentro tudo é puro.
+ *
+ * Toda mudança fica salva:
+ * - a op só entra na fila (e na vista) DEPOIS de gravada no armazenamento;
+ *   disco cheio = a promessa falha e a mudança não aparece como feita;
+ * - reenvio sempre com o mesmo `opId` (o servidor responde igual, nunca grava
+ *   duas vezes); a própria op que volta no `desde` (o eco) vale como ack;
+ * - conflito e negado ficam guardados como "precisa de decisão" e só saem com
+ *   `resolvido`; adiado continua pendente e vai de novo sozinho;
+ * - a linha cortada no fim do arquivo (queda no meio do append) é ignorada,
+ *   e a próxima gravação começa numa linha nova.
+ *
+ * A vista local (`vistaLocal`) é a base confirmada pelo servidor com as ops
+ * locais por cima, na ordem: quando chegam ops remotas, a base anda e as
+ * locais são reaplicadas sobre ela (rebase). Cada op local mantém a `baseRev`
+ * de quando nasceu — é assim que o servidor vê o conflito de quem estava
+ * offline. Entra na vista a op pendente, a aceita que a base ainda não
+ * alcançou e a negada (o valor local com o selo "não aceito pelo servidor");
+ * a do conflito fica de fora (o campo mostra o valor do servidor e a escolha
+ * fica em `paraDecidir`).
+ */
+
+/** Acima disto, e com tudo respondido, o `fila.jsonl` é reescrito só com o que ainda espera decisão (§4.4). */
+export const TETO_DA_FILA_EM_BYTES = 256 * 1024
+
+/** Uma linha do `fila.jsonl` (ou uma entrada do IndexedDB). Todas citam o `opId` da op local. */
+export type RegistroDaFila =
+  | ({ t: 'op'; v: number } & Op)
+  | { t: 'ack'; opId: string; rev: number }
+  | ({ t: 'conflito' } & Conflito)
+  | { t: 'negado'; opId: string; motivo: MotivoNegado; detalhe?: string }
+  | { t: 'resolvido'; opId: string }
+
+export interface Carregado {
+  /** Os registros na ordem em que foram acrescentados, crus: a fila confere cada um. */
+  registros: readonly unknown[]
+  /** O que nem deu para ler (a linha cortada no fim). */
+  ilegiveis: number
+}
+
+/** O lugar onde a fila mora. Só acrescenta; `substituir` é a compactação. */
+export interface ArmazenamentoDaFila {
+  carregar(): Promise<Carregado>
+  /** Só resolve depois de gravado de verdade. */
+  acrescentar(registros: readonly RegistroDaFila[]): Promise<void>
+  substituir(registros: readonly RegistroDaFila[]): Promise<void>
+}
+
+/** O arquivo de texto do app (`fila.jsonl`): o adaptador de disco do Tauri implementa isto. */
+export interface ArquivoDeTexto {
+  /** O conteúdo inteiro; `null` = o arquivo ainda não existe. */
+  ler(): Promise<string | null>
+  /** Acrescenta no fim (append). */
+  acrescentar(texto: string): Promise<void>
+  /** Troca o conteúdo inteiro (no app, pela troca segura por rename). */
+  reescrever(texto: string): Promise<void>
+}
+
+export type SituacaoDaEntrada =
+  /** Sem resposta final; `tentarDepoisDe` = o servidor adiou (cota ou ritmo). */
+  | { t: 'pendente'; tentarDepoisDe?: number; motivoDoAdiamento?: MotivoAdiado }
+  /** Gravada no servidor com esta rev; sai da fila quando a base a alcança. */
+  | { t: 'aceita'; rev: number }
+  | { t: 'conflito'; conflito: Conflito }
+  | { t: 'negado'; motivo: MotivoNegado; detalhe?: string }
+
+export interface EntradaDaFila {
+  readonly op: Op
+  readonly situacao: SituacaoDaEntrada
+  /** `VERSAO_DO_FORMATO` de quando a op nasceu (o site esvazia a fila numa troca de versão, §5.6). */
+  readonly versao: number
+}
+
+/** A base que o servidor confirmou: o `estado` do site, ou a cópia do app ao abrir. */
+export interface BaseConfirmada {
+  rev: number
+  fichas: readonly Personagem[]
+}
+
+export type RemotasRecebidas = Pick<Extract<MensagemDoServidor, { t: 'ops' }>, 'desde' | 'ate' | 'lista'>
+
+export type ResultadoDasRemotas =
+  /** As ops começam depois da base: falta um pedaço. Peça de novo a partir de `revConfirmada()`. */
+  | { t: 'buraco' }
+  /** `naoAplicaveis` = op confirmada que não entrou na base local: a base divergiu (peça o `estado`). */
+  | { t: 'ok'; aplicadas: number; naoAplicaveis: string[] }
+
+/** `repetida`: o `opId` já está na fila. `sem-decisao`: resolver op que não espera decisão. */
+export type MotivoNaFila = MotivoNegado | 'repetida' | 'sem-decisao'
+
+export interface ProblemaNaFila {
+  opId: string
+  motivo: MotivoNaFila
+  /** Em português, para a tela. */
+  detalhe: string
+}
+
+export type ResultadoNaFila = { ok: true } | { ok: false; problemas: ProblemaNaFila[] }
+
+export interface Fila {
+  /** Até onde a base confirmada chegou: o `desdeRev` do `ola`, o `:rev` do `desde`, a `baseRev` de op nova. */
+  revConfirmada(): number
+  /** As fichas como a tela mostra: a base com as ops locais por cima. Ficha apagada não aparece. */
+  vistaLocal(): ReadonlyMap<string, Personagem>
+  entradas(): readonly EntradaDaFila[]
+  /** Conflitos e negadas: "Mudanças para decidir" / "precisam da sua decisão". */
+  paraDecidir(): readonly EntradaDaFila[]
+  /** Quantas esperam o servidor (o "3 esperando rede"). */
+  esperando(): number
+  /** O próximo lote a mandar, em ordem, sem partir um tudo-ou-nada. Vazio = nada a mandar agora. */
+  paraEnviar(agora: number): Op[]
+  /** Valida pelo mesmo esquema e tetos do servidor e grava; só depois a op entra na vista. Uma recusada = nenhuma entra. */
+  acrescentar(ops: readonly Op[]): Promise<ResultadoNaFila>
+  receberRespostas(respostas: readonly RespostaDaOp[]): Promise<void>
+  receberRemotas(remotas: RemotasRecebidas): Promise<ResultadoDasRemotas>
+  /** Troca a base inteira (o `estado` do site). Base mais velha que a atual é ignorada (`false`). */
+  receberEstado(base: BaseConfirmada): Promise<boolean>
+  /** Encerra a decisão: "Ficar com a do outro" / "Desfazer aqui" sem op; "Usar a minha" com a op nova (`resolve` = `opId`, só em conflito). */
+  resolver(opId: string, usarAMinha?: Op): Promise<ResultadoNaFila>
+  /** Reescreve o armazenamento só com o que espera decisão, se passou do teto e nada espera o servidor. */
+  compactarSePreciso(): Promise<boolean>
+  /** Registros que não deu para ler ao abrir (a linha cortada no fim). */
+  readonly ignoradosAoAbrir: number
+}
+
+const BASE_VAZIA: BaseConfirmada = { rev: 0, fichas: [] }
+
+/** `{"t":"ops","lote":[]}`: o que o frame tem além das ops. */
+const MOLDURA_DO_FRAME = bytesDoJson({ t: 'ops', lote: [] })
+
+// ── Leitura dos registros (do disco ou do fio) ──────────────────────────────
+
+const MOTIVO_NEGADO: Readonly<Record<MotivoNegado, true>> = {
+  'fora-do-esquema': true,
+  'sem-permissao': true,
+  'acima-do-teto': true,
+  midia: true,
+  'doc-grande': true,
+  'base-invalida': true,
+  versao: true,
+  'alvo-inexistente': true,
+  'nada-a-desfazer': true,
+}
+
+function ehMotivoNegado(valor: unknown): valor is MotivoNegado {
+  return typeof valor === 'string' && Object.hasOwn(MOTIVO_NEGADO, valor)
+}
+
+function ehRev(valor: unknown): valor is number {
+  return typeof valor === 'number' && Number.isSafeInteger(valor) && valor >= 0
+}
+
+/** A op guardada, conferida como o servidor confere (envelope e esquema). `desfaz` nunca vai pela fila. */
+function lerOp(registro: Record<string, unknown>): Op | null {
+  const envelope = lerEnvelope(registro)
+  const lida = lerMudanca(registro)
+  if (!envelope.ok || !lida.ok || envelope.envelope.desfaz !== undefined) return null
+  return { ...envelope.envelope, ...lida.mudanca }
+}
+
+function lerConflito(registro: Record<string, unknown>): Conflito | null {
+  const opId = proprio(registro, 'opId')
+  const quem = proprio(registro, 'quem')
+  const quando = proprio(registro, 'quando')
+  const revAtual = proprio(registro, 'revAtual')
+  if (!segmentoValido(opId) || typeof quem !== 'string' || typeof quando !== 'number' || !Number.isFinite(quando) || !ehRev(revAtual)) return null
+  const conflito: Conflito = { opId, quem, quando, revAtual }
+  const valorAtual = proprio(registro, 'valorAtual')
+  const fichaApagada = proprio(registro, 'fichaApagada')
+  const porCausaDe = proprio(registro, 'porCausaDe')
+  if (valorAtual !== undefined && !ehJson(valorAtual)) return null
+  if (fichaApagada !== undefined && fichaApagada !== true) return null
+  if (porCausaDe !== undefined && !segmentoValido(porCausaDe)) return null
+  if (valorAtual !== undefined) conflito.valorAtual = valorAtual
+  if (fichaApagada === true) conflito.fichaApagada = true
+  if (porCausaDe !== undefined) conflito.porCausaDe = porCausaDe
+  return conflito
+}
+
+function lerNegado(opId: string, registro: Record<string, unknown>): RegistroDaFila | null {
+  const motivo = proprio(registro, 'motivo')
+  const detalhe = proprio(registro, 'detalhe')
+  if (!ehMotivoNegado(motivo) || (detalhe !== undefined && typeof detalhe !== 'string')) return null
+  return detalhe === undefined ? { t: 'negado', opId, motivo } : { t: 'negado', opId, motivo, detalhe }
+}
+
+/** O registro conferido e tipado; `null` = torto (fica de fora, contado em `ignoradosAoAbrir`). */
+export function lerRegistro(bruto: unknown): RegistroDaFila | null {
+  if (!ehRegistro(bruto)) return null
+  const t = proprio(bruto, 't')
+  const opId = proprio(bruto, 'opId')
+  if (!segmentoValido(opId)) return null
+  switch (t) {
+    case 'op': {
+      const op = lerOp(bruto)
+      const v = proprio(bruto, 'v')
+      return op === null || !ehRev(v) ? null : { t: 'op', v, ...op }
+    }
+    case 'ack': {
+      const rev = proprio(bruto, 'rev')
+      return ehRev(rev) && rev > 0 ? { t: 'ack', opId, rev } : null
+    }
+    case 'conflito': {
+      const conflito = lerConflito(bruto)
+      return conflito === null ? null : { t: 'conflito', ...conflito }
+    }
+    case 'negado':
+      return lerNegado(opId, bruto)
+    case 'resolvido':
+      return { t: 'resolvido', opId }
+    default:
+      return null
+  }
+}
+
+/** Uma linha por registro; a que não é JSON (a cortada no fim) fica de fora. */
+export function lerLinhasDaFila(texto: string): Carregado {
+  const registros: unknown[] = []
+  let ilegiveis = 0
+  for (const linha of texto.split('\n')) {
+    const limpa = linha.trim()
+    if (limpa === '') continue
+    try {
+      registros.push(lerJsonSeguro(limpa))
+    } catch (erro) {
+      if (!(erro instanceof SyntaxError)) throw erro
+      ilegiveis += 1
+    }
+  }
+  return { registros, ilegiveis }
+}
+
+function linhasDe(registros: readonly RegistroDaFila[]): string {
+  return registros.map((registro) => `${JSON.stringify(registro)}\n`).join('')
+}
+
+function terminaCortado(texto: string | null): boolean {
+  return texto !== null && texto.length > 0 && !texto.endsWith('\n')
+}
+
+/** O `fila.jsonl`: só acrescenta linha. Se a última ficou cortada, a próxima gravação começa numa linha nova (senão grudaria nela e se perderia junto). */
+export function armazenamentoEmTexto(arquivo: ArquivoDeTexto): ArmazenamentoDaFila {
+  /** `null` = não se sabe (ainda não leu, ou a última gravação falhou no meio). */
+  let fimCortado: boolean | null = null
+  return {
+    async carregar() {
+      const texto = await arquivo.ler()
+      fimCortado = terminaCortado(texto)
+      return lerLinhasDaFila(texto ?? '')
+    },
+    async acrescentar(registros) {
+      if (registros.length === 0) return
+      if (fimCortado === null) fimCortado = terminaCortado(await arquivo.ler())
+      const linhas = linhasDe(registros)
+      try {
+        await arquivo.acrescentar(fimCortado ? `\n${linhas}` : linhas)
+        fimCortado = false
+      } catch (erro) {
+        fimCortado = null
+        throw erro
+      }
+    },
+    async substituir(registros) {
+      fimCortado = null
+      await arquivo.reescrever(linhasDe(registros))
+      fimCortado = false
+    },
+  }
+}
+
+// ── Estado em memória ───────────────────────────────────────────────────────
+
+type Entradas = Map<string, EntradaDaFila>
+
+interface Estado {
+  rev: number
+  base: Map<string, Personagem>
+  /** Na ordem da fila (a de criação): o `Map` mantém a ordem de inserção mesmo quando a entrada muda. */
+  entradas: Entradas
+  /** Tamanho aproximado do armazenamento, para a compactação. */
+  bytes: number
+}
+
+function bytesDaLista(registros: readonly unknown[]): number {
+  return registros.reduce<number>((soma, registro) => soma + bytesDoJson(registro) + 1, 0)
+}
+
+function registroDaOp(op: Op, versao: number): RegistroDaFila {
+  return { t: 'op', v: versao, ...op }
+}
+
+function opDoRegistro(registro: Extract<RegistroDaFila, { t: 'op' }>): Op {
+  const { t: _tipo, v: _versao, ...op } = registro
+  return op
+}
+
+function registroDaDecisao(entrada: EntradaDaFila): RegistroDaFila | null {
+  const { situacao, op } = entrada
+  if (situacao.t === 'conflito') return { t: 'conflito', ...situacao.conflito }
+  if (situacao.t !== 'negado') return null
+  return situacao.detalhe === undefined ? { t: 'negado', opId: op.opId, motivo: situacao.motivo } : { t: 'negado', opId: op.opId, motivo: situacao.motivo, detalhe: situacao.detalhe }
+}
+
+function situacaoDaResposta(registro: Exclude<RegistroDaFila, { t: 'op' } | { t: 'resolvido' }>): SituacaoDaEntrada {
+  switch (registro.t) {
+    case 'ack':
+      return { t: 'aceita', rev: registro.rev }
+    case 'conflito': {
+      const { t: _tipo, ...conflito } = registro
+      return { t: 'conflito', conflito }
+    }
+    case 'negado':
+      return registro.detalhe === undefined ? { t: 'negado', motivo: registro.motivo } : { t: 'negado', motivo: registro.motivo, detalhe: registro.detalhe }
+  }
+}
+
+function esperaDecisao(situacao: SituacaoDaEntrada): boolean {
+  return situacao.t === 'conflito' || situacao.t === 'negado'
+}
+
+/**
+ * Passa o registro para as entradas. `false` = não vale (op repetida, id
+ * desconhecido, resposta para quem já tem resposta final, resolvido de quem
+ * não espera decisão): nada muda. A primeira resposta final vence.
+ */
+function aplicarRegistro(entradas: Entradas, registro: RegistroDaFila): boolean {
+  if (registro.t === 'op') {
+    if (entradas.has(registro.opId)) return false
+    entradas.set(registro.opId, { op: opDoRegistro(registro), situacao: { t: 'pendente' }, versao: registro.v })
+    return true
+  }
+  const entrada = entradas.get(registro.opId)
+  if (entrada === undefined) return false
+  if (registro.t === 'resolvido') {
+    if (!esperaDecisao(entrada.situacao)) return false
+    entradas.delete(registro.opId)
+    return true
+  }
+  if (entrada.situacao.t !== 'pendente') return false
+  entradas.set(registro.opId, { ...entrada, situacao: situacaoDaResposta(registro) })
+  return true
+}
+
+/** A aceita que a base já alcançou está dentro dela: sai da fila (a gravação dela fica até a compactação). */
+function descartarCobertas(estado: Estado): void {
+  for (const [opId, entrada] of estado.entradas) {
+    if (entrada.situacao.t === 'aceita' && entrada.situacao.rev <= estado.rev) estado.entradas.delete(opId)
+  }
+}
+
+// ── Grupos tudo-ou-nada e a vista ───────────────────────────────────────────
+
+function mesmoTudoOuNada(a: Op, b: Op): boolean {
+  return a.atomico === true && b.atomico === true && a.loteId === b.loteId
+}
+
+/** Cada op solta é um grupo; as `atomico` seguidas do mesmo `loteId` formam um só (como o servidor agrupa). */
+function emGrupos(ops: readonly Op[]): Op[][] {
+  const grupos: Op[][] = []
+  for (const op of ops) {
+    const ultimo = grupos.at(-1)
+    const anterior = ultimo?.at(-1)
+    if (ultimo !== undefined && anterior !== undefined && mesmoTudoOuNada(anterior, op)) ultimo.push(op)
+    else grupos.push([op])
+  }
+  return grupos
+}
+
+function poeNaVista(vista: Map<string, Personagem>, fichaId: string, doc: Personagem | null): void {
+  if (doc === null) vista.delete(fichaId)
+  else vista.set(fichaId, doc)
+}
+
+/** O grupo inteiro ou nada dele; a op que não cabe na vista de agora (o alvo sumiu) fica de fora: o servidor vai responder por ela. */
+function aplicarGrupoNaVista(vista: Map<string, Personagem>, grupo: readonly Op[]): Map<string, Personagem> {
+  const ensaio = grupo.length === 1 ? vista : new Map(vista)
+  for (const op of grupo) {
+    const aplicada = aplicarOp(ensaio.get(op.fichaId) ?? null, op)
+    if (!aplicada.ok) return vista
+    poeNaVista(ensaio, op.fichaId, aplicada.doc)
+  }
+  return ensaio
+}
+
+function vistaDe(estado: Estado): Map<string, Personagem> {
+  const naVista = [...estado.entradas.values()].filter((entrada) => entrada.situacao.t !== 'conflito').map((entrada) => entrada.op)
+  let vista = new Map(estado.base)
+  for (const grupo of emGrupos(naVista)) vista = aplicarGrupoNaVista(vista, grupo)
+  return vista
+}
+
+/** As ops que podem ir agora, em ordem: para na primeira adiada que ainda espera (a ordem do mesmo campo não pode trocar). */
+function gruposParaEnviar(estado: Estado, agora: number): Op[][] {
+  const prontas: Op[] = []
+  for (const entrada of estado.entradas.values()) {
+    if (entrada.situacao.t !== 'pendente') continue
+    const { tentarDepoisDe } = entrada.situacao
+    if (tentarDepoisDe !== undefined && tentarDepoisDe > agora) break
+    prontas.push(entrada.op)
+  }
+  return emGrupos(prontas)
+}
+
+/** Grupos inteiros até o teto do lote e do frame; um grupo que sozinho passa do teto vai sozinho (o servidor responde por ele). */
+function loteDosGrupos(grupos: readonly Op[][]): Op[] {
+  const lote: Op[] = []
+  let bytes = MOLDURA_DO_FRAME
+  for (const grupo of grupos) {
+    const doGrupo = bytesDaLista(grupo)
+    const cabe = lote.length + grupo.length <= LIMITES.opsPorLote && bytes + doGrupo <= LIMITES.frameBytes
+    if (!cabe) {
+      if (lote.length === 0) lote.push(...grupo)
+      break
+    }
+    lote.push(...grupo)
+    bytes += doGrupo
+  }
+  return lote
+}
+
+// ── Validação da op nova (o mesmo esquema e os mesmos tetos do servidor) ───
+
+function problema(opId: string, motivo: MotivoNaFila, detalhe: string): ProblemaNaFila {
+  return { opId, motivo, detalhe }
+}
+
+/** `resolve` só vale na op de "Usar a minha", e tem de citar a decisão que ela encerra. */
+function problemaDaNova(estado: Estado, op: Op, vistos: ReadonlySet<string>, resolve: string | undefined): ProblemaNaFila | null {
+  const envelope = lerEnvelope(op)
+  if (!envelope.ok) return problema(op.opId, 'fora-do-esquema', envelope.detalhe)
+  if (vistos.has(op.opId) || estado.entradas.has(op.opId)) return problema(op.opId, 'repetida', 'Esta mudança já está na fila')
+  if (op.desfaz !== undefined) return problema(op.opId, 'fora-do-esquema', 'Desfazer vai pelo pedido de desfazer, não pela fila')
+  if (op.resolve !== resolve) return problema(op.opId, 'fora-do-esquema', '"Usar a minha" vai pela decisão do conflito')
+  const lida = lerMudanca(op)
+  if (!lida.ok) return problema(op.opId, lida.motivo, lida.detalhe)
+  if (bytesDoJson(op) > tetoDaOpEmBytes(lida.lida.regra)) return problema(op.opId, 'acima-do-teto', 'Mudança grande demais para o Lobby')
+  if (op.baseRev < 0 || op.baseRev > estado.rev) return problema(op.opId, 'base-invalida', 'A base da mudança ainda não chegou aqui')
+  return null
+}
+
+function problemasDasNovas(estado: Estado, ops: readonly Op[], resolve?: string): ProblemaNaFila[] {
+  const vistos = new Set<string>()
+  const problemas: ProblemaNaFila[] = []
+  for (const op of ops) {
+    const achado = problemaDaNova(estado, op, vistos, resolve)
+    if (achado !== null) problemas.push(achado)
+    vistos.add(op.opId)
+  }
+  for (const grupo of emGrupos(ops)) {
+    if (grupo.length <= LIMITES.opsPorLote) continue
+    // Tudo ou nada maior que o lote nunca caberia num frame: o servidor o recusaria inteiro.
+    problemas.push(...grupo.map((op) => problema(op.opId, 'acima-do-teto', `Tudo ou nada grande demais: máximo ${LIMITES.opsPorLote} mudanças`)))
+  }
+  return problemas
+}
+
+// ── A fila ──────────────────────────────────────────────────────────────────
+
+export async function criarFila(armazenamento: ArmazenamentoDaFila, base: BaseConfirmada = BASE_VAZIA): Promise<Fila> {
+  if (!ehRev(base.rev)) throw new TypeError(`criarFila: rev da base inválida (${String(base.rev)})`)
+  const carregado = await armazenamento.carregar()
+  const estado: Estado = { rev: base.rev, base: baseDe(base), entradas: new Map(), bytes: bytesDaLista(carregado.registros) }
+  let ignorados = carregado.ilegiveis
+  for (const bruto of carregado.registros) {
+    const registro = lerRegistro(bruto)
+    if (registro === null || !aplicarRegistro(estado.entradas, registro)) ignorados += 1
+  }
+  descartarCobertas(estado)
+  return montarFila(estado, armazenamento, ignorados)
+}
+
+function baseDe(base: BaseConfirmada): Map<string, Personagem> {
+  return new Map(base.fichas.map((doc): [string, Personagem] => [doc.id, doc]))
+}
+
+function montarFila(estado: Estado, armazenamento: ArmazenamentoDaFila, ignoradosAoAbrir: number): Fila {
+  let cadeia: Promise<unknown> = Promise.resolve()
+  /** Uma gravação por vez, na ordem em que foram pedidas; quem pediu recebe a falha, e a próxima segue. */
+  function emOrdem<T>(passo: () => Promise<T>): Promise<T> {
+    const resultado = cadeia.then(passo)
+    cadeia = resultado.catch(() => undefined)
+    return resultado
+  }
+  /** Disco primeiro, memória depois: se a gravação falha, nada muda na fila. */
+  async function gravarEAdotar(registros: readonly RegistroDaFila[], ensaio: Entradas): Promise<void> {
+    if (registros.length > 0) await armazenamento.acrescentar(registros)
+    estado.bytes += bytesDaLista(registros)
+    estado.entradas = ensaio
+    descartarCobertas(estado)
+  }
+  async function acrescentarComDecisao(ops: readonly Op[], resolvido: RegistroDaFila[], resolve?: string): Promise<ResultadoNaFila> {
+    const problemas = problemasDasNovas(estado, ops, resolve)
+    if (problemas.length > 0) return { ok: false, problemas }
+    // Cópia: a op guardada não muda se quem a montou mexer no objeto depois.
+    const registros = [...resolvido, ...ops.map((op) => registroDaOp(structuredClone(op), VERSAO_DO_FORMATO))]
+    const ensaio = new Map(estado.entradas)
+    for (const registro of registros) aplicarRegistro(ensaio, registro)
+    await gravarEAdotar(registros, ensaio)
+    return { ok: true }
+  }
+  async function resolverDecisao(opId: string, usarAMinha: Op | undefined): Promise<ResultadoNaFila> {
+    const entrada = estado.entradas.get(opId)
+    if (entrada === undefined || !esperaDecisao(entrada.situacao)) return { ok: false, problemas: [problema(opId, 'sem-decisao', 'Esta mudança não espera decisão')] }
+    const resolvido: RegistroDaFila = { t: 'resolvido', opId }
+    if (usarAMinha === undefined) return acrescentarComDecisao([], [resolvido])
+    // A negada é definitiva (§5.4): mandar de novo seria negada de novo. "Usar a minha" é só do conflito.
+    if (entrada.situacao.t !== 'conflito') return { ok: false, problemas: [problema(opId, 'sem-decisao', '"Usar a minha" só vale no conflito')] }
+    return acrescentarComDecisao([usarAMinha], [resolvido], opId)
+  }
+  return {
+    ignoradosAoAbrir,
+    revConfirmada: () => estado.rev,
+    vistaLocal: () => vistaDe(estado),
+    entradas: () => [...estado.entradas.values()],
+    paraDecidir: () => [...estado.entradas.values()].filter((entrada) => esperaDecisao(entrada.situacao)),
+    esperando: () => [...estado.entradas.values()].filter((entrada) => entrada.situacao.t === 'pendente').length,
+    paraEnviar: (agora) => loteDosGrupos(gruposParaEnviar(estado, agora)),
+    acrescentar: (ops) => emOrdem(() => acrescentarComDecisao(ops, [])),
+    receberRespostas: (respostas) => emOrdem(() => receberRespostas(estado, respostas, gravarEAdotar)),
+    receberRemotas: (remotas) => emOrdem(() => receberRemotas(estado, remotas, gravarEAdotar)),
+    receberEstado: (nova) => emOrdem(async () => receberEstado(estado, nova)),
+    resolver: (opId, usarAMinha) => emOrdem(() => resolverDecisao(opId, usarAMinha)),
+    compactarSePreciso: () => emOrdem(() => compactar(estado, armazenamento)),
+  }
+}
+
+type GravarEAdotar = (registros: readonly RegistroDaFila[], ensaio: Entradas) => Promise<void>
+
+/** A resposta vem do fio: passa pelo mesmo leitor do disco. Adiado só muda a memória (depois de reabrir, vai de novo e o servidor adia de novo). */
+async function receberRespostas(estado: Estado, respostas: readonly RespostaDaOp[], gravarEAdotar: GravarEAdotar): Promise<void> {
+  const ensaio = new Map(estado.entradas)
+  const registros: RegistroDaFila[] = []
+  for (const resposta of respostas) {
+    if (resposta.t === 'adiado') {
+      const entrada = ensaio.get(resposta.opId)
+      if (entrada === undefined || entrada.situacao.t !== 'pendente' || !Number.isFinite(resposta.tentarDepoisDe)) continue
+      ensaio.set(resposta.opId, { ...entrada, situacao: { t: 'pendente', tentarDepoisDe: resposta.tentarDepoisDe, motivoDoAdiamento: resposta.motivo } })
+      continue
+    }
+    const registro = lerRegistro(resposta)
+    if (registro !== null && aplicarRegistro(ensaio, registro)) registros.push(registro)
+  }
+  await gravarEAdotar(registros, ensaio)
+}
+
+/**
+ * As ops confirmadas andam a base, na ordem da rev; a vista é refeita por
+ * cima (rebase). A própria op que volta (o eco, mesmo `opId`) vale como ack:
+ * o ack pode ter se perdido na queda, e a soma não pode entrar duas vezes. A
+ * numeração pode ter buraco de propósito (op que o jogador não vê): o que diz
+ * até onde a lista cobre é `ate`.
+ */
+async function receberRemotas(estado: Estado, remotas: RemotasRecebidas, gravarEAdotar: GravarEAdotar): Promise<ResultadoDasRemotas> {
+  if (!ehRev(remotas.desde) || remotas.desde > estado.rev) return { t: 'buraco' }
+  const ate = ehRev(remotas.ate) ? remotas.ate : estado.rev
+  const base = new Map(estado.base)
+  const ensaio = new Map(estado.entradas)
+  const registros: RegistroDaFila[] = []
+  const naoAplicaveis: string[] = []
+  let ultima = estado.rev
+  let aplicadas = 0
+  for (const op of [...remotas.lista].sort((a, b) => a.rev - b.rev)) {
+    if (!ehRev(op.rev) || op.rev <= ultima || op.rev > ate) continue
+    ultima = op.rev
+    const aplicada = aplicarOp(base.get(op.fichaId) ?? null, op)
+    if (aplicada.ok) {
+      poeNaVista(base, op.fichaId, aplicada.doc)
+      aplicadas += 1
+    } else {
+      naoAplicaveis.push(op.opId)
+    }
+    const eco: RegistroDaFila = { t: 'ack', opId: op.opId, rev: op.rev }
+    if (aplicarRegistro(ensaio, eco)) registros.push(eco)
+  }
+  await gravarEAdotar(registros, ensaio)
+  estado.base = base
+  estado.rev = Math.max(estado.rev, ate)
+  descartarCobertas(estado)
+  return { t: 'ok', aplicadas, naoAplicaveis }
+}
+
+/**
+ * O `estado` do site (snapshot, sem os `opId`): a op mandada cuja resposta se
+ * perdeu pode já estar dentro dele, e então a soma aparece dobrada na vista
+ * até o reenvio receber o ack com a rev antiga e a entrada sair. O app nunca
+ * recebe snapshot (`desde` sempre em ops), então lá isso não acontece.
+ */
+function receberEstado(estado: Estado, nova: BaseConfirmada): boolean {
+  if (!ehRev(nova.rev) || nova.rev < estado.rev) return false
+  estado.base = baseDe(nova)
+  estado.rev = nova.rev
+  descartarCobertas(estado)
+  return true
+}
+
+/** "Só quando tudo foi confirmado e passa de 256 KB" (§4.4): ficam só as que esperam decisão, com a op e a resposta. */
+async function compactar(estado: Estado, armazenamento: ArmazenamentoDaFila): Promise<boolean> {
+  if (estado.bytes <= TETO_DA_FILA_EM_BYTES) return false
+  const entradas = [...estado.entradas.values()]
+  if (entradas.some((entrada) => !esperaDecisao(entrada.situacao))) return false
+  const registros = entradas.flatMap((entrada) => {
+    const decisao = registroDaDecisao(entrada)
+    return decisao === null ? [] : [registroDaOp(entrada.op, entrada.versao), decisao]
+  })
+  await armazenamento.substituir(registros)
+  estado.bytes = bytesDaLista(registros)
+  return true
+}
