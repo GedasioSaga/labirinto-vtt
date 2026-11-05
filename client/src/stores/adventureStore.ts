@@ -16,7 +16,7 @@ import {
 import { passageOf } from '../lib/pins'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
-import { mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
+import { fichasComOBonecoQueFicou, fichasComOsBonecos, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
 import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Bounds, Camera, Point } from '../pixi/world'
@@ -99,6 +99,7 @@ import { dirname } from '@tauri-apps/api/path'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
+import { useToastStore } from './toastStore'
 
 /**
  * AVENTURA COM VÁRIAS CENAS, do lado do editor do mestre.
@@ -1795,7 +1796,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   definirProprio: (proprio) => {
     const { pasta } = get()
     if (pasta === null) return false
-    if (pasta.proprio !== proprio) set({ pasta: { ...pasta, proprio } })
+    if (pasta.proprio !== proprio) {
+      const donasDeAntes = fichasDonasDaMochila(get())
+      set({ pasta: { ...pasta, proprio } })
+      espelharSeAsDonasMudaram(donasDeAntes)
+    }
     return true
   },
 
@@ -1803,19 +1808,26 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const { pasta } = get()
     if (pasta === null || pasta.pastaId !== pastaId) return false
     const { sistemaDeRpg: _anterior, ...semSistema } = pasta
+    const donasDeAntes = fichasDonasDaMochila(get())
     // `pastaSuja` fica como estava: a mudança já está no disco, a da mesa (se houver) continua por gravar.
     set({ pasta: { ...semSistema, ...mudar(rpgDe(pasta)) } })
+    espelharSeAsDonasMudaram(donasDeAntes)
     return true
   },
 
   acertarPasta: (lugar) => {
     const { pasta } = get()
     if (pasta === null) return
+    const donasDeAntes = fichasDonasDaMochila(get())
     if (lugar === null || lugar.pastaId !== pasta.pastaId) {
       set({ pasta: null, pastaSuja: false })
+      espelharSeAsDonasMudaram(donasDeAntes)
       return
     }
-    if (lugar.nome !== pasta.nome || lugar.proprio !== pasta.proprio) set({ pasta: { ...pasta, nome: lugar.nome, proprio: lugar.proprio } })
+    if (lugar.nome !== pasta.nome || lugar.proprio !== pasta.proprio) {
+      set({ pasta: { ...pasta, nome: lugar.nome, proprio: lugar.proprio } })
+      espelharSeAsDonasMudaram(donasDeAntes)
+    }
   },
 
   gravarPasta: async () => {
@@ -2520,49 +2532,66 @@ export function applyItemsInScene(change: AppliedItems): boolean {
       dirty: { ...atual.dirty, [deFundo]: true },
     })
   }
-  if (fichasMudaram !== null) espelharNasOutrasCenas(fichasMudaram, deFundo)
+  if (fichasMudaram !== null) {
+    // O boneco da mesma ficha em TODA outra cena já aberta (ver `espelharNaAberta`).
+    if (deFundo !== null) espelharNaAberta(fichasMudaram)
+    espelharNasDeFundo(fichasMudaram, deFundo)
+  }
   return true
 }
 
 /**
  * MOCHILA NA FICHA: grava nas fichas donas a parte da mudança que é delas
  * (`mudancaNasFichas`, com os `bonecos` da cena onde ela acontece). Devolve as
- * fichas novas, ou `null` quando nenhuma mudou (mochila ainda no boneco, NPC
- * sem ficha, só pino ou objeto do chão).
+ * fichas como ficaram gravadas, ou `null` quando nenhuma mudou (mochila ainda
+ * no boneco, NPC sem ficha, só pino ou objeto do chão).
  */
 function levarParaAsFichas(change: AppliedItems, bonecos: MapData['tokens']): readonly Personagem[] | null {
-  const { getState, setState } = useAdventureStore
-  const fichas = fichasDonasDaMochila(getState())
+  const fichas = fichasDonasDaMochila(useAdventureStore.getState())
   if (fichas === null) return null
   const novas = mudancaNasFichas(fichas, bonecos, change)
-  const dono = donoDosPersonagens(getState, setState)
-  if (novas === fichas || dono === null) return null
-  dono.gravar([...novas])
-  return novas
+  return novas === fichas ? null : gravarFichasDonas(novas)
 }
 
 /**
- * MOCHILA NA FICHA: a ficha mudou na cena `cenaDaMudanca` (`null` = a aberta)
- * — o boneco dela em TODA outra cena já aberta passa a mostrar a mochila e a
- * bolsa novas, no mapa e em cada passo do desfazer e do refazer: um Ctrl+Z
- * depois não traz de volta a mochila de antes, que a próxima mudança gravaria
- * por cima da ficha (perde) ou devolveria a ela (duplica). A cena de fundo que
- * mudou fica marcada para gravar, como a da mudança; a aberta, o editor marca
- * sozinho. Cena ainda vindo do disco recebe o espelho quando chega
+ * MOCHILA NA FICHA: grava `novas` pelo dono das fichas (o mesmo do
+ * `ajustarPersonagem`, numa gravação só) e devolve as fichas donas como
+ * ficaram — já com as variações sincronizadas. `null` = não há onde gravar.
+ */
+function gravarFichasDonas(novas: readonly Personagem[]): readonly Personagem[] | null {
+  const { getState, setState } = useAdventureStore
+  const dono = donoDosPersonagens(getState, setState)
+  if (dono === null) return null
+  dono.gravar([...novas])
+  return fichasDonasDaMochila(getState())
+}
+
+/**
+ * MOCHILA NA FICHA: o mapa aberto mostra `fichas` — no mapa e em cada passo do
+ * desfazer e do refazer: um Ctrl+Z depois não traz de volta a mochila de
+ * antes, que a próxima mudança gravaria por cima da ficha (perde) ou
+ * devolveria a ela (duplica). O editor marca o Salvar sozinho.
+ */
+function espelharNaAberta(fichas: readonly Personagem[]): void {
+  const { map, past, future } = useMapStore.getState()
+  const espelhado = { map: mapaComAsFichas(map, fichas), past: passosComAsFichas(past, fichas), future: passosComAsFichas(future, fichas) }
+  if (espelhado.map !== map || espelhado.past !== past || espelhado.future !== future) useMapStore.setState(espelhado)
+}
+
+/**
+ * MOCHILA NA FICHA: cada cena de fundo já aberta, menos `exceto` (a da
+ * mudança, que já a recebeu; `null` = nenhuma), mostra `fichas` — no mapa e no
+ * desfazer dela, como `espelharNaAberta`. A que mudou fica marcada para
+ * gravar. Cena ainda vindo do disco recebe o espelho quando chega
  * (`receiveScene`).
  */
-function espelharNasOutrasCenas(fichas: readonly Personagem[], cenaDaMudanca: string | null): void {
-  if (cenaDaMudanca !== null) {
-    const { map, past, future } = useMapStore.getState()
-    const espelhado = { map: mapaComAsFichas(map, fichas), past: passosComAsFichas(past, fichas), future: passosComAsFichas(future, fichas) }
-    if (espelhado.map !== map || espelhado.past !== past || espelhado.future !== future) useMapStore.setState(espelhado)
-  }
+function espelharNasDeFundo(fichas: readonly Personagem[], exceto: string | null): void {
   const { cache, dirty } = useAdventureStore.getState()
   const novoCache: Record<string, SceneSlot> = { ...cache }
   const novoDirty: Record<string, true> = { ...dirty }
   let mudou = false
   for (const [sceneId, slot] of Object.entries(cache)) {
-    if (sceneId === cenaDaMudanca || slot.status !== 'ok') continue
+    if (sceneId === exceto || slot.status !== 'ok') continue
     const map = mapaComAsFichas(slot.map, fichas)
     const past = passosComAsFichas(slot.past, fichas)
     const future = passosComAsFichas(slot.future, fichas)
@@ -2572,4 +2601,85 @@ function espelharNasOutrasCenas(fichas: readonly Personagem[], cenaDaMudanca: st
     mudou = true
   }
   if (mudou) useAdventureStore.setState({ cache: novoCache, dirty: novoDirty })
+}
+
+/** MOCHILA NA FICHA: as fichas mudaram fora de uma mudança de itens — o boneco delas em TODA cena aberta passa a mostrá-las. */
+function espelharEmTodaCena(fichas: readonly Personagem[]): void {
+  espelharNaAberta(fichas)
+  espelharNasDeFundo(fichas, null)
+}
+
+/**
+ * MOCHILA NA FICHA: trocou QUEM guarda as fichas donas — "Configurar só neste
+ * mapa" e "Usar o da pasta" (`definirProprio`, `acertarPasta`), ou o RPG da
+ * pasta mudou (`mudarRpgDaPasta`: a lista, o marcador, o sistema). `antes` é
+ * `fichasDonasDaMochila` de antes da troca. O boneco de toda cena aberta passa
+ * a mostrar as fichas NOVAS já: as mudanças de itens são calculadas do boneco
+ * (`darDoAcervoChange` e as outras leem a mochila dele), e um boneco que ainda
+ * mostrasse a ficha de antes gravaria essa mochila inteira por cima da nova —
+ * o Luffy do Mapa de Teste apagaria o que o Luffy da campanha ganhou. Sem
+ * fichas donas agora (a dona nova ainda não migrou), a mochila volta a morar
+ * no boneco, como ele está.
+ */
+function espelharSeAsDonasMudaram(antes: readonly Personagem[] | null): void {
+  const depois = fichasDonasDaMochila(useAdventureStore.getState())
+  if (depois !== null && depois !== antes) espelharEmTodaCena(depois)
+}
+
+/**
+ * MOCHILA NA FICHA: a ficha que volta a ter UM boneco só no mapa aberto (o
+ * mestre apagou o outro Bandido, um Ctrl+Z desfez a duplicação). Enquanto eram
+ * vários, a mochila morava em cada boneco e a ficha não mudava
+ * (`mudancaNasFichas`); daqui em diante a ficha manda, e o espelho da próxima
+ * troca de cena poria a mochila dela por cima da Espada do boneco que ficou.
+ * Por isso a mochila e a bolsa dele vão para a ficha agora, com um aviso, e
+ * as outras cenas e o desfazer passam a mostrá-las.
+ *
+ * Só olha EDIÇÃO, como `syncTravelLinks`: troca de cena (`sceneLoading`) e mapa
+ * de outro id (abrir, criar) não são boneco apagado, são outro mapa entrando.
+ */
+function syncFichaQueVoltouAUmBoneco(after: MapData, before: MapData): void {
+  if (sceneLoading || after.tokens === before.tokens || after.id !== before.id) return
+  const fichas = fichasDonasDaMochila(useAdventureStore.getState())
+  if (fichas === null) return
+  const novas = fichasComOBonecoQueFicou(fichas, before.tokens, after.tokens)
+  if (novas === fichas) return
+  const gravadas = gravarFichasDonas(novas)
+  if (gravadas === null) return
+  const nomes = novas.filter((ficha, i) => ficha !== fichas[i]).map((ficha) => ficha.nome)
+  useToastStore.getState().push('info', `Ficou um boneco só de ${nomes.join(', ')} neste mapa: a mochila e a bolsa dele passaram para a ficha.`)
+  espelharEmTodaCena(gravadas)
+}
+
+// Liga uma vez, ao carregar o módulo, como o `syncModeloDeCamadas`: sem ele o item do boneco que ficou some na próxima troca de cena.
+useMapStore.subscribe((state) => state.map, syncFichaQueVoltouAUmBoneco)
+
+/**
+ * MOCHILA NA FICHA: o fim do "Recuperar" (`stores/recoveryAutosave.ts`). A
+ * cópia guarda só os mapas — as fichas voltam do disco, do último Salvar — e
+ * os `mapas` recuperados (o aberto primeiro) entraram sem o espelho.
+ *
+ * - Cópia feita com a mochila já na ficha (`bonecosVencem`): o boneco
+ *   recuperado mostrava a ficha de então, mais nova que a do disco. Ele vence
+ *   (`fichasComOsBonecos`): a Poção pega depois do último Salvar volta para a
+ *   ficha, em vez de sumir no espelho da próxima troca de cena.
+ * - Cópia de antes da migração: a migração da abertura já juntou os bonecos
+ *   dela nas fichas (com o que só uma cena mais antiga tinha); a ficha vence.
+ *
+ * Nos dois casos toda cena aberta passa a mostrar as fichas: um boneco
+ * recuperado mostrando outra coisa gravaria a mochila dele por cima da ficha
+ * na próxima mudança de itens. Tudo fica por salvar, como o resto do
+ * trabalho recuperado.
+ */
+export function acertarMochilasRecuperadas(mapas: readonly MapData[], bonecosVencem: boolean): void {
+  const fichas = fichasDonasDaMochila(useAdventureStore.getState())
+  if (fichas === null) return
+  const novas = bonecosVencem ? fichasComOsBonecos(fichas, mapas) : fichas
+  const gravadas = novas === fichas ? fichas : gravarFichasDonas(novas)
+  if (gravadas !== null) espelharEmTodaCena(gravadas)
+}
+
+/** A mochila mora na ficha no mapa aberto (já migrou): a cópia de recuperação guarda isso para o "Recuperar" saber se leva a mochila dos bonecos para as fichas. */
+export function mochilaMoraNaFicha(state: RpgState): boolean {
+  return fichasDonasDaMochila(state) !== null
 }

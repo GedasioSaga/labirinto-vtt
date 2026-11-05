@@ -3043,7 +3043,8 @@ function App() {
   const handleRecover = async (copy: RecoveryCopy) => {
     // MOCHILA NA FICHA: o trabalho recuperado entra na migração com a hora da cópia.
     if (copy.mapPath !== null) await migrarMochilaAoAbrir(copy.mapPath, copy)
-    setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile))
+    // Com a pasta do mapa, como na abertura normal: o mapa que herda volta com as fichas (e a mochila) da pasta.
+    setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile, pastaAbertaDoArquivo))
     recoveryAutosaveRef.current?.adoptExistingCopy()
     setScreen('editor')
   }

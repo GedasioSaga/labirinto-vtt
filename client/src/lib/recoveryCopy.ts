@@ -32,6 +32,14 @@ export interface RecoveryCopy {
   map: MapData
   /** Aventura: as cenas de FUNDO com mudança não salva, por id de cena. */
   scenes: Record<string, MapData>
+  /**
+   * MOCHILA NA FICHA: a cópia foi feita com a mochila já morando na ficha
+   * (depois da migração). A cópia não guarda as fichas — o "Recuperar" leva a
+   * mochila dos bonecos recuperados para elas (`acertarMochilasRecuperadas`).
+   * Ausente = antes da migração: a mochila estava nos bonecos, e a migração
+   * da abertura já os junta com a hora da cópia.
+   */
+  mochilaNaFicha?: true
 }
 
 const RECOVERY_FORMAT_VERSION = 1
@@ -47,7 +55,13 @@ const RECOVERY_FILE_NAME = 'copia-de-recuperacao.json'
  */
 export function serializeRecoveryCopy(copy: RecoveryCopy): string {
   const camadas = copy.map.modeloCamadas ?? Object.values(copy.scenes).find((scene) => scene.modeloCamadas !== undefined)?.modeloCamadas
-  const cabecalho = JSON.stringify({ versao: RECOVERY_FORMAT_VERSION, savedAtMs: copy.savedAtMs, mapPath: copy.mapPath, ...(camadas === undefined ? {} : { camadas }) })
+  const cabecalho = JSON.stringify({
+    versao: RECOVERY_FORMAT_VERSION,
+    savedAtMs: copy.savedAtMs,
+    mapPath: copy.mapPath,
+    ...(camadas === undefined ? {} : { camadas }),
+    ...(copy.mochilaNaFicha === true ? { mochilaNaFicha: true } : {}),
+  })
   const cenas = Object.entries(copy.scenes).map(([sceneId, scene]) => `${JSON.stringify(sceneId)}:${serializeMap(scene)}`)
   // `cabecalho` é um objeto JSON não vazio: tira o `}` do fim e emenda mapa e cenas.
   return `${cabecalho.slice(0, -1)},"map":${serializeMap(copy.map)},"scenes":{${cenas.join(',')}}}`
@@ -98,7 +112,7 @@ export function parseRecoveryCopy(text: string): RecoveryCopy | null {
       if (scene !== null) scenes[sceneId] = scene
     }
   }
-  return { savedAtMs, mapPath, map, scenes }
+  return { savedAtMs, mapPath, map, scenes, ...(parsed.mochilaNaFicha === true ? { mochilaNaFicha: true } : {}) }
 }
 
 async function recoveryPaths(): Promise<{ dir: string; file: string }> {

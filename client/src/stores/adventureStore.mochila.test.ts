@@ -38,13 +38,17 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 
 const { useAdventureStore, applyItemsInScene, personagensAtivos } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
-const { useSessionStore } = await import('./sessionStore')
+const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
 const { serializeMap } = await import('../lib/mapFile')
 const { darDoAcervoChange } = await import('../lib/items')
 const { payCoinsChange } = await import('../lib/troca')
 const { novoPersonagem } = await import('../lib/personagem')
 const { SISTEMA_ONE_PIECE } = await import('../lib/sistemaOnePiece')
+const { restoreRecoveryCopy, startRecoveryAutosave } = await import('./recoveryAutosave')
+const { useToastStore } = await import('./toastStore')
+const { parseRecoveryCopy, serializeRecoveryCopy } = await import('../lib/recoveryCopy')
+type RecoveryCopy = import('../lib/recoveryCopy').RecoveryCopy
 type PastaAberta = import('../lib/pastasDeMapas').PastaAberta
 type OpenedMapFile = import('../lib/mapFileIO').OpenedMapFile
 type SceneLoad = import('../lib/mapFileIO').SceneLoad
@@ -75,8 +79,12 @@ type Onde = 'pasta' | 'aventura sem pasta' | 'Configurar só neste mapa'
 
 interface Abertura {
   personagens?: Personagem[]
+  /** "Configurar só neste mapa": as fichas da pasta, que este mapa não usa (padrão: um Luffy com o mesmo id). */
+  fichasDaPasta?: Personagem[]
   /** `false` = antes da migração (sem o marcador `mochilaMigrada`). */
   migrada?: boolean
+  /** A Sky Lagoon como está no disco. */
+  sky?: MapData
   /** O Reino de Goa como está no disco. */
   goa?: MapData
   /** Como o Reino de Goa chega: junto com a abertura (padrão), depois, do disco, ou nunca. */
@@ -85,6 +93,12 @@ interface Abertura {
 
 /** Abre a aventura One Piece (Sky Lagoon aberta, Reino de Goa ao fundo) com as fichas em `onde`. */
 async function abrir(onde: Onde, opcoes: Abertura = {}): Promise<void> {
+  const { aberto, pasta } = doDisco(onde, opcoes)
+  await useAdventureStore.getState().open(aberto, pasta)
+}
+
+/** O que o disco devolve ao abrir a aventura One Piece: o arquivo lido e a pasta dele. Objetos novos a cada chamada. */
+function doDisco(onde: Onde, opcoes: Abertura = {}): { aberto: OpenedMapFile; pasta: PastaAberta | null } {
   const fichas = opcoes.personagens ?? [ficha('p_luffy', 'Luffy'), ficha('p_zoro', 'Zoro')]
   const marcador = opcoes.migrada === false ? {} : { mochilaMigrada: 1 }
   const entradas = [
@@ -107,12 +121,10 @@ async function abrir(onde: Onde, opcoes: Abertura = {}): Promise<void> {
       : onde === 'pasta'
         ? { ...daPasta, proprio: false, personagens: fichas, ...marcador }
         : // As fichas da pasta, que este mapa NÃO usa: um Luffy com o mesmo id, para saber de quem é a Poção.
-          { ...daPasta, proprio: true, personagens: [ficha('p_luffy', 'Luffy da pasta')], mochilaMigrada: 1 }
-  const sky = cena('map_sky', 'Sky Lagoon', [
-    boneco('t_luffy_sky', 'p_luffy'),
-    boneco('t_zoro_sky', 'p_zoro', { x: 160 }),
-    boneco('t_vendedor', null, { x: 224, mochila: [CORDA] }),
-  ])
+          { ...daPasta, proprio: true, personagens: opcoes.fichasDaPasta ?? [ficha('p_luffy', 'Luffy da pasta')], mochilaMigrada: 1 }
+  const sky =
+    opcoes.sky ??
+    cena('map_sky', 'Sky Lagoon', [boneco('t_luffy_sky', 'p_luffy'), boneco('t_zoro_sky', 'p_zoro', { x: 160 }), boneco('t_vendedor', null, { x: 224, mochila: [CORDA] })])
   const goa = opcoes.goa ?? cena('map_goa', 'Reino de Goa', [boneco('t_luffy_goa', 'p_luffy'), boneco('t_guarda', null, { x: 224, mochila: [CORDA] })])
   const chega = opcoes.goaChega ?? 'junto'
   if (chega === 'do disco') textos.set(`${DIR}/scenes/s_goa/map.json`, serializeMap(goa))
@@ -129,7 +141,7 @@ async function abrir(onde: Onde, opcoes: Abertura = {}): Promise<void> {
     adventureChanged: false,
     legacySources: [],
   }
-  await useAdventureStore.getState().open(aberto, pasta)
+  return { aberto, pasta }
 }
 
 function fichaAtiva(id: string): Personagem | undefined {
@@ -350,5 +362,176 @@ describe('Ctrl+Z do mapa não duplica nem perde item', () => {
     useMapStore.getState().redo()
     expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Poção x1'])
     expect(useAdventureStore.getState().dirty[GOA]).toBe(true)
+  })
+})
+
+/** A cópia de recuperação que o salvamento automático grava agora (como no app: um intervalo curto, e espera o disco). */
+async function copiaDoSalvamentoAutomatico(): Promise<RecoveryCopy> {
+  const gravadas: RecoveryCopy[] = []
+  // O "Salvar" aceso pelo mapa mexido, como no app (`App.tsx` liga isto na raiz).
+  const pararSujeira = subscribeToDirtyFlag()
+  const autosave = startRecoveryAutosave({
+    storage: { write: async (copia) => void gravadas.push(copia), clear: async () => undefined },
+    getLooseMapPath: () => null,
+    intervalMs: 1,
+  })
+  try {
+    // Uma mudança qualquer depois de ligar: é ela que agenda a cópia.
+    useMapStore.getState().moveToken('t_zoro_sky', 288, 96)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await autosave.idle()
+  } finally {
+    autosave.stop()
+    pararSujeira()
+  }
+  const copia = gravadas.at(-1)
+  if (copia === undefined) throw new Error('havia trabalho não salvo: o salvamento automático tinha de gravar a cópia')
+  // Pelo disco, como no app: a cópia é lida do arquivo que ficou.
+  const lida = parseRecoveryCopy(serializeRecoveryCopy(copia))
+  if (lida === null) throw new Error('a cópia gravada tinha de ser legível')
+  return lida
+}
+
+/** O app caiu: nada do que estava na memória sobra. */
+function queda(): void {
+  useAdventureStore.getState().reset()
+  useMapStore.getState().loadMap(createEmptyMap('map_vazio', 'Vazio', 20, 16, 64))
+  useSessionStore.getState().markSaved()
+}
+
+describe.each<Onde>(['pasta', 'aventura sem pasta', 'Configurar só neste mapa'])('Recuperar depois de uma queda (%s)', (onde) => {
+  it('o Luffy pega uma Poção, o app cai, o mestre recupera e troca de cena: a Poção está na ficha e nos dois bonecos', async () => {
+    await abrir(onde)
+    expect(darPocao('t_luffy_sky')).toBe(true)
+    const copia = await copiaDoSalvamentoAutomatico()
+    expect(copia.mochilaNaFicha).toBe(true)
+
+    queda()
+    // O disco continua do último Salvar: a ficha sem a Poção.
+    const disco = doDisco(onde)
+    await restoreRecoveryCopy(copia, async () => disco.aberto, async () => disco.pasta)
+    expect(itens(fichaAtiva('p_luffy')?.mochila)).toEqual(['Poção x1'])
+    expect(useAdventureStore.getState().hasPendingScenes()).toBe(true)
+
+    expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+    expect(itens(bonecoDa('t_luffy_goa').mochila)).toEqual(['Poção x1'])
+    expect(useAdventureStore.getState().switchScene(SKY)).toBe(true)
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Poção x1'])
+  })
+})
+
+describe('Recuperar: só a cópia feita com a mochila na ficha leva os bonecos às fichas', () => {
+  it('cópia de antes da migração (sem a marca): a migração da abertura já juntou os bonecos, e a recuperação não mexe nas fichas', async () => {
+    await abrir('pasta', { migrada: false })
+    darPocao('t_luffy_sky')
+    const copia = await copiaDoSalvamentoAutomatico()
+    expect(copia.mochilaNaFicha).toBeUndefined()
+
+    queda()
+    // A migração da abertura já rodou com a cópia: a ficha tem a Poção e uma Corda de uma cena mais antiga.
+    const migradas = [ficha('p_luffy', 'Luffy', { mochila: [{ ...VAGA_DA_POCAO, id: 'vaga_migrada' }, CORDA] }), ficha('p_zoro', 'Zoro')]
+    const disco = doDisco('pasta', { personagens: migradas })
+    await restoreRecoveryCopy(copia, async () => disco.aberto, async () => disco.pasta)
+    expect(itens(fichaAtiva('p_luffy')?.mochila)).toEqual(['Poção x1', 'Corda x1'])
+    // E o boneco recuperado já mostra a ficha: a próxima mudança não grava a mochila velha dele por cima.
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Poção x1', 'Corda x1'])
+    expect(itens(bonecoDa('t_luffy_goa', GOA).mochila)).toEqual(['Poção x1', 'Corda x1'])
+  })
+})
+
+describe('trocar "Configurar só neste mapa" e "Usar o da pasta" com o mapa aberto', () => {
+  const MAPA_DE_GOA: CarriedItem = { id: 'vaga_mapa', nome: 'Mapa de Goa' }
+  /** O Luffy de teste (as fichas do próprio mapa) e o Luffy da campanha (as da pasta). */
+  const doisLuffys = (): Abertura => ({
+    personagens: [ficha('p_luffy', 'Luffy de teste', { mochila: [CORDA] }), ficha('p_zoro', 'Zoro')],
+    fichasDaPasta: [ficha('p_luffy', 'Luffy da campanha', { mochila: [MAPA_DE_GOA] })],
+  })
+  const luffyDeTeste = (): Personagem | undefined => useAdventureStore.getState().adventure?.personagens?.find((p) => p.id === 'p_luffy')
+  const luffyDaCampanha = (): Personagem | undefined => useAdventureStore.getState().pasta?.personagens.find((p) => p.id === 'p_luffy')
+
+  it('"Usar o da pasta": os bonecos e o desfazer mostram o Luffy da campanha na hora, e a Poção soma à mochila dele', async () => {
+    await abrir('Configurar só neste mapa', doisLuffys())
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Corda x1'])
+    moverNoEditor('t_luffy_sky', 352)
+
+    expect(useAdventureStore.getState().definirProprio(false)).toBe(true)
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Mapa de Goa x1'])
+    expect(itens(bonecoDa('t_luffy_goa', GOA).mochila)).toEqual(['Mapa de Goa x1'])
+
+    darPocao('t_luffy_sky')
+    expect(itens(luffyDaCampanha()?.mochila)).toEqual(['Mapa de Goa x1', 'Poção x1'])
+    expect(itens(luffyDeTeste()?.mochila)).toEqual(['Corda x1'])
+    useMapStore.getState().undo()
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Mapa de Goa x1', 'Poção x1'])
+  })
+
+  it('a volta, "Configurar só neste mapa": os bonecos mostram o Luffy de teste, e a Poção dada depois não chega à campanha', async () => {
+    await abrir('Configurar só neste mapa', doisLuffys())
+    useAdventureStore.getState().definirProprio(false)
+    darPocao('t_luffy_sky')
+    expect(itens(luffyDaCampanha()?.mochila)).toEqual(['Mapa de Goa x1', 'Poção x1'])
+
+    expect(useAdventureStore.getState().definirProprio(true)).toBe(true)
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Corda x1'])
+    expect(itens(bonecoDa('t_luffy_goa', GOA).mochila)).toEqual(['Corda x1'])
+    darPocao('t_luffy_sky')
+    expect(itens(luffyDeTeste()?.mochila)).toEqual(['Corda x1', 'Poção x1'])
+    expect(itens(luffyDaCampanha()?.mochila)).toEqual(['Mapa de Goa x1', 'Poção x1'])
+  })
+
+  it('o RPG da pasta muda com o mapa aberto (a lista nova): os bonecos mostram a ficha nova', async () => {
+    await abrir('pasta')
+    const comMapa = (p: Personagem): Personagem => (p.id === 'p_luffy' ? { ...p, mochila: [MAPA_DE_GOA] } : p)
+    expect(useAdventureStore.getState().mudarRpgDaPasta('pasta_op', (rpg) => ({ ...rpg, personagens: rpg.personagens.map(comMapa) }))).toBe(true)
+    expect(itens(bonecoDa('t_luffy_sky').mochila)).toEqual(['Mapa de Goa x1'])
+    expect(itens(bonecoDa('t_luffy_goa', GOA).mochila)).toEqual(['Mapa de Goa x1'])
+    darPocao('t_luffy_sky')
+    expect(itens(fichaAtiva('p_luffy')?.mochila)).toEqual(['Mapa de Goa x1', 'Poção x1'])
+  })
+})
+
+describe('ficha de vários bonecos que volta a ter um só', () => {
+  const ESPADA: ItemParaDar = { itemId: 'acervo_espada', nome: 'Espada' }
+  const comBandidos = (bandidos: Token[]): Abertura => ({
+    personagens: [ficha('p_luffy', 'Luffy'), ficha('p_zoro', 'Zoro'), ficha('p_bandido', 'Bandido')],
+    sky: cena('map_sky', 'Sky Lagoon', [boneco('t_luffy_sky', 'p_luffy'), ...bandidos]),
+  })
+  function darEspada(tokenId: string): void {
+    const change = darDoAcervoChange(bonecoDa(tokenId), ESPADA, 1, `vaga_${crypto.randomUUID()}`)
+    if (change === null) throw new Error('a Espada tem nome: dar tinha de valer')
+    expect(applyItemsInScene(change)).toBe(true)
+  }
+
+  it('o mestre dá uma Espada ao Bandido 1 e apaga o Bandido 2: a Espada vai para a ficha e continua lá depois de trocar de cena', async () => {
+    await abrir('pasta', comBandidos([boneco('t_bandido_1', 'p_bandido', { x: 288 }), boneco('t_bandido_2', 'p_bandido', { x: 352 })]))
+    const antes = fichaAtiva('p_bandido')
+    darEspada('t_bandido_1')
+    // Ainda são dois: a Espada mora no boneco.
+    expect(fichaAtiva('p_bandido')).toBe(antes)
+
+    useMapStore.getState().removeToken('t_bandido_2')
+    expect(itens(fichaAtiva('p_bandido')?.mochila)).toEqual(['Espada x1'])
+    // O mestre fica sabendo que a mochila do boneco passou para a ficha.
+    expect(useToastStore.getState().toasts.at(-1)?.text).toContain('Bandido')
+    expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+    expect(useAdventureStore.getState().switchScene(SKY)).toBe(true)
+    expect(itens(bonecoDa('t_bandido_1').mochila)).toEqual(['Espada x1'])
+  })
+
+  it('Ctrl+Z que desfaz a duplicação: a Espada dada depois fica, sem duplicar no Ctrl+Y nem no Ctrl+Z seguinte', async () => {
+    await abrir('aventura sem pasta', comBandidos([boneco('t_bandido_1', 'p_bandido', { x: 288 })]))
+    useMapStore.getState().addToken(boneco('t_bandido_2', 'p_bandido', { x: 352 }))
+    darEspada('t_bandido_1')
+    expect(fichaAtiva('p_bandido')?.mochila).toBeUndefined()
+
+    useMapStore.getState().undo()
+    expect(bonecoDa('t_bandido_1').mochila?.length).toBe(1)
+    expect(itens(fichaAtiva('p_bandido')?.mochila)).toEqual(['Espada x1'])
+    useMapStore.getState().redo()
+    useMapStore.getState().undo()
+    expect(itens(fichaAtiva('p_bandido')?.mochila)).toEqual(['Espada x1'])
+    expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+    expect(useAdventureStore.getState().switchScene(SKY)).toBe(true)
+    expect(itens(bonecoDa('t_bandido_1').mochila)).toEqual(['Espada x1'])
   })
 })

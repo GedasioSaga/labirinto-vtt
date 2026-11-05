@@ -9,7 +9,7 @@ import { createEmptyMap } from '../mapFactory'
 import { novoPersonagem, type Personagem } from '../personagem'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import { payCoinsChange } from '../troca'
-import { fichaQueNasceDoBoneco, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from './espelho'
+import { fichaQueNasceDoBoneco, fichasComOBonecoQueFicou, fichasComOsBonecos, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from './espelho'
 import { juntarMochilas } from './juncao'
 
 function ficha(id: string, nome: string, extra: Partial<Personagem> = {}): Personagem {
@@ -128,5 +128,50 @@ describe('ficha nova depois da migração', () => {
   it('boneco de mãos vazias: nasce vazia (a mesma ficha, sem chave nova)', () => {
     const nami = ficha('p_nami', 'Nami')
     expect(fichaQueNasceDoBoneco(nami, boneco('t_nami', 'p_nami'))).toBe(nami)
+  })
+})
+
+describe('o boneco vence a ficha: recuperação e ficha que volta a ter um boneco só', () => {
+  const ESPADA: CarriedItem = { id: 'vaga_espada', nome: 'Espada' }
+  const cenaCom = (id: string, bonecos: Token[]): MapData => ({ ...createEmptyMap(id, id, 10, 10, 64), tokens: bonecos })
+
+  it('recuperação: o boneco do mapa recuperado devolve a Poção e a bolsa à ficha do disco; o mapa aberto (o primeiro) vale', () => {
+    const fichas = [ficha('p_luffy', 'Luffy', { mochila: [CORDA] }), ficha('p_zoro', 'Zoro')]
+    const aberto = cenaCom('sky', [boneco('t_luffy', 'p_luffy', { mochila: [CORDA, POCAO], moedas: 9 })])
+    const deFundo = cenaCom('goa', [boneco('t_luffy_goa', 'p_luffy', { mochila: [CORDA] }), boneco('t_zoro', 'p_zoro', { mochila: [ESPADA] })])
+    const novas = fichasComOsBonecos(fichas, [aberto, deFundo])
+    expect(novas.map((p) => [p.mochila, p.moedas])).toEqual([
+      [[CORDA, POCAO], 9],
+      [[ESPADA], undefined],
+    ])
+  })
+
+  it('recuperação: NPC sem ficha, ficha de vários bonecos e boneco já igual à ficha não mudam nada: a MESMA lista', () => {
+    const fichas = [ficha('p_luffy', 'Luffy', { mochila: [CORDA] }), ficha('p_bandido', 'Bandido')]
+    const recuperado = cenaCom('sky', [
+      boneco('t_luffy', 'p_luffy', { mochila: [{ ...CORDA }] }),
+      boneco('t_vendedor', null, { mochila: [POCAO] }),
+      boneco('t_bandido_1', 'p_bandido', { mochila: [ESPADA] }),
+      boneco('t_bandido_2', 'p_bandido'),
+    ])
+    expect(fichasComOsBonecos(fichas, [recuperado])).toBe(fichas)
+  })
+
+  it('o outro Bandido some (apagado, ou o Ctrl+Z desfez a duplicação): a Espada do que ficou vai para a ficha', () => {
+    const fichas = [ficha('p_bandido', 'Bandido'), ficha('p_luffy', 'Luffy', { mochila: [POCAO] })]
+    const antes = [boneco('t_bandido_1', 'p_bandido', { mochila: [ESPADA], moedas: 3 }), boneco('t_bandido_2', 'p_bandido'), boneco('t_luffy', 'p_luffy', { mochila: [CORDA] })]
+    const depois = [antes[0], antes[2]]
+    const novas = fichasComOBonecoQueFicou(fichas, antes, depois)
+    expect([novas[0].mochila, novas[0].moedas]).toEqual([[ESPADA], 3])
+    // O Luffy já tinha um boneco só: não é volta, e o boneco dele não manda na ficha.
+    expect(novas[1]).toBe(fichas[1])
+  })
+
+  it('continua com vários, passa de um para vários, ou some de vez: a MESMA lista', () => {
+    const fichas = [ficha('p_bandido', 'Bandido')]
+    const tres = [boneco('t_b1', 'p_bandido', { mochila: [ESPADA] }), boneco('t_b2', 'p_bandido'), boneco('t_b3', 'p_bandido')]
+    expect(fichasComOBonecoQueFicou(fichas, tres, tres.slice(0, 2))).toBe(fichas)
+    expect(fichasComOBonecoQueFicou(fichas, tres.slice(0, 1), tres.slice(0, 2))).toBe(fichas)
+    expect(fichasComOBonecoQueFicou(fichas, tres, [])).toBe(fichas)
   })
 })

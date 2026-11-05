@@ -16,11 +16,16 @@ function mesmaMochila(a: readonly CarriedItem[], b: readonly CarriedItem[]): boo
   return a === b || (a.length === b.length && a.every((item, i) => item.id === b[i].id && itensIguais(item, b[i])))
 }
 
+/** O boneco já mostra a mochila e a bolsa da ficha (ausente === vazia, nos dois). */
+function mostraAFicha(boneco: Pick<Token, 'mochila' | 'moedas'>, ficha: Pick<Personagem, 'mochila' | 'moedas'>): boolean {
+  return mesmaMochila(boneco.mochila ?? [], ficha.mochila ?? []) && moedasDe(boneco) === moedasDe(ficha)
+}
+
 /** O boneco mostrando a mochila e a bolsa da ficha; já igual, o MESMO boneco. Vazia e zero tiram a chave (ausente === vazia). */
 function bonecoComAFicha(boneco: Token, ficha: Pick<Personagem, 'mochila' | 'moedas'>): Token {
+  if (mostraAFicha(boneco, ficha)) return boneco
   const mochila = ficha.mochila ?? []
   const moedas = moedasDe(ficha)
-  if (mesmaMochila(boneco.mochila ?? [], mochila) && moedasDe(boneco) === moedas) return boneco
   const { mochila: _antes, moedas: _bolsaDeAntes, ...semMochila } = boneco
   return { ...semMochila, ...(mochila.length > 0 ? { mochila: [...mochila] } : {}), ...(moedas > 0 ? { moedas } : {}) }
 }
@@ -103,6 +108,63 @@ export function mudancaNasFichas(personagens: readonly Personagem[], bonecos: re
     return fichaComMochila(personagem, mochila ?? personagem.mochila ?? [], moedas ?? personagem.moedas ?? 0)
   })
   return mudou ? novas : personagens
+}
+
+/** Cada ficha com um boneco em `bonecoDaFicha` passa a ter a mochila e a bolsa dele. Nada mudando, a MESMA lista. */
+function fichasComAMochilaDe(personagens: readonly Personagem[], bonecoDaFicha: ReadonlyMap<string, Pick<Token, 'mochila' | 'moedas'>>): readonly Personagem[] {
+  if (bonecoDaFicha.size === 0) return personagens
+  let mudou = false
+  const novas = personagens.map((personagem) => {
+    const boneco = bonecoDaFicha.get(personagem.id)
+    if (boneco === undefined || mostraAFicha(boneco, personagem)) return personagem
+    mudou = true
+    return fichaComMochila(personagem, boneco.mochila ?? [], moedasDe(boneco))
+  })
+  return mudou ? novas : personagens
+}
+
+/**
+ * A RECUPERAÇÃO — o contrário do espelho, só nela: o trabalho não salvo volta
+ * pelos bonecos dos `mapas` recuperados, mas as fichas vêm do disco, do último
+ * Salvar (a cópia de recuperação guarda só mapas). Com a mochila já na ficha
+ * quando a cópia foi feita, o boneco recuperado mostrava a ficha de então:
+ * aqui ele VENCE a ficha do disco — a Poção pega depois do último Salvar volta
+ * para a ficha, e o espelho seguinte não a apaga.
+ *
+ * O primeiro mapa com boneco da ficha vale (quem chama põe o mapa aberto na
+ * frente). Ficha com vários bonecos num mapa: aquele mapa não conta, a mochila
+ * está nos bonecos (a regra de `mapaComAsFichas`). Nada mudando, a MESMA lista.
+ */
+export function fichasComOsBonecos(personagens: readonly Personagem[], mapas: readonly MapData[]): readonly Personagem[] {
+  const bonecoDaFicha = new Map<string, Token>()
+  for (const mapa of mapas) {
+    const deVariosBonecos = fichasDeVariosBonecos(mapa.tokens)
+    for (const boneco of mapa.tokens) {
+      if (boneco.characterId === null || deVariosBonecos.has(boneco.characterId) || bonecoDaFicha.has(boneco.characterId)) continue
+      bonecoDaFicha.set(boneco.characterId, boneco)
+    }
+  }
+  return fichasComAMochilaDe(personagens, bonecoDaFicha)
+}
+
+/**
+ * A ficha que VOLTA a ter um boneco só no mapa: tinha dois ou mais em `antes`
+ * (a mochila morava em cada boneco, `mudancaNasFichas` não a levava à ficha) e
+ * tem um só em `depois` — o mestre apagou o outro Bandido, ou um Ctrl+Z desfez
+ * a duplicação. A partir daqui a ficha manda de novo, e o espelho seguinte
+ * poria a mochila dela por cima do boneco que ficou: antes disso, a mochila e
+ * a bolsa DELE vão para a ficha. Nada mudando, a MESMA lista.
+ */
+export function fichasComOBonecoQueFicou(personagens: readonly Personagem[], antes: readonly Pick<Token, 'characterId'>[], depois: readonly Token[]): readonly Personagem[] {
+  if (antes === depois) return personagens
+  const eramDeVarios = fichasDeVariosBonecos(antes)
+  if (eramDeVarios.size === 0) return personagens
+  const continuamDeVarios = fichasDeVariosBonecos(depois)
+  const bonecoQueFicou = new Map<string, Token>()
+  for (const boneco of depois) {
+    if (boneco.characterId !== null && eramDeVarios.has(boneco.characterId) && !continuamDeVarios.has(boneco.characterId)) bonecoQueFicou.set(boneco.characterId, boneco)
+  }
+  return fichasComAMochilaDe(personagens, bonecoQueFicou)
 }
 
 /**

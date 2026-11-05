@@ -1,7 +1,8 @@
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
-import { hasUnsavedWork, useAdventureStore } from './adventureStore'
+import { acertarMochilasRecuperadas, hasUnsavedWork, mochilaMoraNaFicha, useAdventureStore } from './adventureStore'
 import { scenePath, type OpenedMapFile } from '../lib/mapFileIO'
+import type { PastaAberta } from '../lib/pastasDeMapas'
 import type { RecoveryCopy } from '../lib/recoveryCopy'
 import type { MapData } from '../types/map'
 
@@ -57,8 +58,11 @@ export interface RecoveryAutosave {
  */
 async function captureEditorWork(getLooseMapPath: () => string | null, savedAtMs: number): Promise<RecoveryCopy> {
   const map = useMapStore.getState().map
-  const { adventure, dir, activeSceneId, cache, dirty } = useAdventureStore.getState()
-  if (adventure === null) return { savedAtMs, mapPath: getLooseMapPath(), map, scenes: {} }
+  const adventureState = useAdventureStore.getState()
+  const { adventure, dir, activeSceneId, cache, dirty } = adventureState
+  // MOCHILA NA FICHA: a cópia não leva as fichas; o "Recuperar" leva a mochila dos bonecos para elas (`restoreRecoveryCopy`).
+  const daFicha: Pick<RecoveryCopy, 'mochilaNaFicha'> = mochilaMoraNaFicha(adventureState) ? { mochilaNaFicha: true } : {}
+  if (adventure === null) return { savedAtMs, mapPath: getLooseMapPath(), map, scenes: {}, ...daFicha }
 
   const scenes: Record<string, MapData> = {}
   for (const sceneId of Object.keys(dirty)) {
@@ -69,7 +73,7 @@ async function captureEditorWork(getLooseMapPath: () => string | null, savedAtMs
   // Aventura nunca gravada (`dir === null`): não há arquivo onde reabrir, a
   // cena aberta volta como mapa novo.
   const mapPath = dir !== null && entry !== undefined ? await scenePath(dir, entry.file) : null
-  return { savedAtMs, mapPath, map, scenes }
+  return { savedAtMs, mapPath, map, scenes, ...daFicha }
 }
 
 /**
@@ -80,9 +84,21 @@ async function captureEditorWork(getLooseMapPath: () => string | null, savedAtMs
  * de origem sumido, ou mapa nunca salvo: volta como mapa novo.
  *
  * Devolve o caminho de origem que o editor passa a usar (`null` = mapa novo).
- * `openFile` é `openMapFile` em produção.
+ * `openFile` é `openMapFile` em produção; `pastaDoArquivo`, `pastaAbertaDoArquivo`
+ * (a pasta do mapa, como na abertura normal: o mapa que herda volta com as
+ * fichas da pasta). Ausente, o mapa volta sem pasta.
+ *
+ * MOCHILA NA FICHA: as fichas vêm do disco, do último Salvar. Cópia feita
+ * com a mochila já na ficha (`mochilaNaFicha`): a mochila dos bonecos
+ * recuperados volta para elas, o mapa aberto primeiro — a Poção pega depois
+ * do último Salvar não some na troca de cena. Nos dois casos, os bonecos
+ * recuperados passam a mostrar as fichas (`acertarMochilasRecuperadas`).
  */
-export async function restoreRecoveryCopy(copy: RecoveryCopy, openFile: (path: string) => Promise<OpenedMapFile>): Promise<string | null> {
+export async function restoreRecoveryCopy(
+  copy: RecoveryCopy,
+  openFile: (path: string) => Promise<OpenedMapFile>,
+  pastaDoArquivo: (path: string) => Promise<PastaAberta | null> = async () => null,
+): Promise<string | null> {
   let opened: OpenedMapFile | null = null
   if (copy.mapPath !== null) {
     try {
@@ -94,12 +110,13 @@ export async function restoreRecoveryCopy(copy: RecoveryCopy, openFile: (path: s
   if (opened === null) {
     useAdventureStore.getState().reset()
   } else {
-    useAdventureStore.getState().open(opened)
+    useAdventureStore.getState().open(opened, await pastaDoArquivo(opened.path))
     for (const [sceneId, sceneMap] of Object.entries(copy.scenes)) {
       useAdventureStore.getState().updateBackgroundScene(sceneId, () => sceneMap)
     }
   }
   useMapStore.getState().loadMap(copy.map)
+  acertarMochilasRecuperadas([copy.map, ...Object.values(copy.scenes)], copy.mochilaNaFicha === true)
   return opened === null ? null : opened.path
 }
 
