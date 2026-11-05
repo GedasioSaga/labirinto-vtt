@@ -427,6 +427,11 @@ function cartaoComImagemForaDaMidia(cartao: CartaoDaFicha): boolean {
   return !imagemDaOp(cartao.imagem) || cartao.subcartoes.some(cartaoComImagemForaDaMidia)
 }
 
+/** O retrato ou a imagem de algum cartão (em qualquer aba e nível) é das que a op não aceita. */
+function fichaComImagemForaDaMidia(doc: Personagem): boolean {
+  return !imagemDaOp(doc.retrato) || Object.values(doc.abas).some((cartoes) => cartoes.some(cartaoComImagemForaDaMidia))
+}
+
 /** O último id da trilha: o cartão alvo. */
 function ultimo(trilha: readonly string[]): string | undefined {
   return trilha[trilha.length - 1]
@@ -570,6 +575,9 @@ function lerFicha(m: Mudanca): Leitura {
   // Só o mestre cria ficha: o leitor do disco normaliza (nome aparado, campo torto fora), como ao abrir a pasta.
   const doc = personagemDoArquivo(m.valor)
   if (doc === null || doc.id !== m.fichaId) return recusa('fora-do-esquema', 'A ficha não bate com o id da op')
+  // Si7 também na ficha inteira: o leitor do disco ainda aceita a foto embutida, e ela no doc do servidor
+  // deixaria sem volta o desfazer de qualquer mudança sobre ela (a volta passa de novo por `lerMudanca`).
+  if (fichaComImagemForaDaMidia(doc)) return recusa('fora-do-esquema', IMAGEM_FORA_DA_MIDIA)
   return aceita({ regra: 'ficha', acao: 'criar', doc })
 }
 

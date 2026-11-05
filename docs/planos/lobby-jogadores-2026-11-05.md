@@ -181,7 +181,7 @@ O desenho App (`de`/`para`, troca condicional) e o desenho Site (`antes`/`depois
 
 | Caminho | Ações | Tipo e teto | Quem escreve |
 |---|---|---|---|
-| `[]` (ficha inteira) | criar, apagar | doc ≤ 256 KiB | só mestre |
+| `[]` (ficha inteira) | criar, apagar | doc ≤ 256 KiB; retrato e imagem de cada cartão e subcartão só `midia:` ou vazio (Si7) | só mestre |
 | `['nome']` | definir | string ≤ 120 | dono, mestre |
 | `['descricao']` | definir | string ≤ 16 KiB | dono, mestre |
 | `['retrato']` | definir | `ehRefDeMidia` (só `midia:`, Si7) ou vazio | mestre (v1); dono só se a pergunta 12.4 liberar |
@@ -545,7 +545,7 @@ Legenda: **Nu** = crítica da Nuvem; **Ap** = App; **Si** = Site; **Tr** = Trein
 | Si4 Conflito/recusa do reenvio some | Aceito: lista "precisam da sua decisão" persistida e mostrada na faixa |
 | Si5 localStorage em duas abas | Aceito: IndexedDB, uma entrada por opId, base por e-mail+campanha |
 | Si6 Remoção × quantidade, listas sem id, empilhável | Aceito: sobreposição por prefixo; etiquetas e cartoesAtivos por elemento; empilhável soma |
-| Si7 Imagem como data URL na op | Aceito: troca de imagem desligada no site na v1 (12.4); op só aceita `midia:`. Feito na rodada 2 da N1 (`imagemDaOp`, `caminho.ts`): retrato, imagem de cartão e cartão novo com seus subcartões aceitam só `midia:` ou vazio, e a foto embutida antiga (data URL) é `fora-do-esquema`. A publicação (A6/W3) converte a foto antiga em `midia:` antes de subir. Em aberto: o `criar` da ficha inteira (`[]`) passa só pelo leitor do disco, que ainda aceita a embutida |
+| Si7 Imagem como data URL na op | Aceito: troca de imagem desligada no site na v1 (12.4); op só aceita `midia:`. Feito na rodada 2 da N1 (`imagemDaOp`, `caminho.ts`): retrato, imagem de cartão e cartão novo com seus subcartões aceitam só `midia:` ou vazio, e a foto embutida antiga (data URL) é `fora-do-esquema`. A publicação (A6/W3) converte a foto antiga em `midia:` antes de subir. Fechado na rodada 3: o `criar` da ficha inteira (`[]`) também recusa a embutida no retrato e em qualquer cartão ou subcartão (`fichaComImagemForaDaMidia`), porque a embutida no doc do servidor deixava sem volta o desfazer de qualquer mudança sobre ela (a volta passa de novo por `lerMudanca`). Com isso, a ficha que a rota `publicar` da W1 cria tem de passar pelo mesmo `lerMudanca` do `criar` de `[]`, nunca gravada direto no doc |
 | Si8 Desfazer sobrescreve sem aviso | Aceito: inversa com `baseRev` do alvo passa pelo detector |
 | Si9 Dois históricos | Aceito: `historico` fora das diferenças; só o app escreve o local |
 | Si10 Fila velha na troca de versão | Aceito: esvaziar a fila antes do "recarregue"; versão em cada entrada |

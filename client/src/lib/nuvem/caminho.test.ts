@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ehImagemDaMesa } from '../midia'
 import { alvoDoCaminho, chaveDaEtiqueta, lerMudanca, quemEscreve, quemEscreveAMudanca, segmentoValido } from './caminho'
-import { lerJsonSeguro } from './json'
+import { lerJsonSeguro, type Json } from './json'
 import type { Acao, Mudanca } from './tipos'
 
 /**
@@ -259,6 +259,21 @@ describe('imagem na op só como midia: (Si7)', () => {
     const comMidia = { ...semImagem, imagem: IMAGEM, subcartoes: [{ ...semImagem, id: 'cart_2', imagem: IMAGEM }] }
     expect(veredito(mudanca(noTopo, 'criar', { valor: comMidia }))).toBe('ok')
     expect(veredito(mudanca(noTopo, 'criar', { valor: semImagem }))).toBe('ok')
+  })
+
+  it('criar a ficha inteira com data URL no retrato ou num cartão (em qualquer aba e nível) é fora-do-esquema; com midia: entra', () => {
+    const subComFoto = { ...semImagem, subcartoes: [{ ...semImagem, id: 'cart_2', imagem: FOTO_EMBUTIDA }] }
+    const fichas: Json[] = [
+      { id: FICHA, nome: 'Luffy', retrato: FOTO_EMBUTIDA },
+      { id: FICHA, nome: 'Luffy', abas: { tecnicas: [{ ...semImagem, imagem: FOTO_EMBUTIDA }] } },
+      { id: FICHA, nome: 'Luffy', abas: { tecnicas: [semImagem], frutas: [subComFoto] } },
+    ]
+    for (const valor of fichas) {
+      expect(lerMudanca(mudanca([], 'criar', { valor }))).toMatchObject({ ok: false, motivo: 'fora-do-esquema', detalhe: 'Imagem que não é da mídia da mesa' })
+    }
+    const comMidia = { id: FICHA, nome: 'Luffy', retrato: IMAGEM, abas: { tecnicas: [{ ...semImagem, imagem: IMAGEM, subcartoes: [{ ...semImagem, id: 'cart_2', imagem: IMAGEM }] }] } }
+    expect(veredito(mudanca([], 'criar', { valor: comMidia }))).toBe('ok')
+    expect(veredito(mudanca([], 'criar', { valor: { id: FICHA, nome: 'Luffy' } }))).toBe('ok')
   })
 })
 

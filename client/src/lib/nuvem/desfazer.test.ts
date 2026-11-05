@@ -5,6 +5,7 @@ import { MOEDAS_MAX } from '../troca'
 import {
   AGORA,
   campanhaDeTeste,
+  cartao,
   docDe,
   enviar,
   F_NAMI,
@@ -20,6 +21,7 @@ import {
   ZORO_NO_SITE,
 } from './campanha.fixture'
 import { estaDesfeita, mudancaInversa } from './desfazer'
+import { paraJson } from './json'
 
 /**
  * DESFAZER (plano do Lobby §5.3, aceite da N2; testes liberados: desfazer).
@@ -249,5 +251,51 @@ describe('a volta de cada ação', () => {
     enviar(campanha, NAMI_NO_PC, [escolha])
     pedirDesfazer(campanha, NAMI_NO_PC, { opId: escolha.opId, novoOpId: novoId() })
     expect(docDe(campanha, F_NAMI).escolhas).toEqual({})
+  })
+})
+
+describe('desfazer sobre imagem (Si7: no doc do servidor só entra midia:)', () => {
+  const F_LUFFY = 'pers_luffy'
+  /** Foto embutida de antes: a ficha do disco ainda a lê, a op não. */
+  const FOTO_EMBUTIDA = 'data:image/png;base64,AAAA'
+  const RETRATO = `midia:${'a'.repeat(64)}.png`
+  const OUTRO_RETRATO = `midia:${'b'.repeat(64)}.png`
+
+  it('a ficha inteira com foto embutida no retrato ou num cartão não entra: nada fica sem volta', () => {
+    const campanha = campanhaDeTeste([])
+    const casos = [
+      ficha(F_LUFFY, { retrato: FOTO_EMBUTIDA }),
+      ficha(F_LUFFY, { abas: { tecnicas: [cartao('cart_a', 'Gomu Gomu', { imagem: FOTO_EMBUTIDA })] } }),
+      ficha(F_LUFFY, { abas: { tecnicas: [cartao('cart_a', 'Gomu Gomu', { subcartoes: [cartao('cart_b', 'Pistol', { imagem: FOTO_EMBUTIDA })] })] } }),
+    ]
+    for (const doc of casos) {
+      const criar = op(MESTRE_NO_SITE, F_LUFFY, [], 'criar', { valor: paraJson(doc) })
+      expect(enviar(campanha, MESTRE_NO_SITE, [criar]).respostas).toEqual([
+        { t: 'negado', opId: criar.opId, motivo: 'fora-do-esquema', detalhe: 'Imagem que não é da mídia da mesa' },
+      ])
+    }
+    expect(campanha.ficha(F_LUFFY)).toBeUndefined()
+    expect(campanha.todasAsOps()).toEqual([])
+  })
+
+  it('com midia:, apagar o cartão, trocar o retrato e apagar a ficha voltam com a imagem de antes', () => {
+    const campanha = campanhaDeTeste([])
+    const gomu = cartao('cart_a', 'Gomu Gomu', { imagem: RETRATO, subcartoes: [cartao('cart_b', 'Pistol', { imagem: OUTRO_RETRATO })] })
+    enviar(campanha, MESTRE_NO_SITE, [op(MESTRE_NO_SITE, F_LUFFY, [], 'criar', { valor: paraJson(ficha(F_LUFFY, { retrato: RETRATO, abas: { tecnicas: [gomu] } })) })])
+
+    const apagarCartao = op(MESTRE_NO_SITE, F_LUFFY, ['abas', 'tecnicas', 'cart_a'], 'apagar', { baseRev: campanha.revAtual() })
+    enviar(campanha, MESTRE_NO_SITE, [apagarCartao])
+    expect(pedirDesfazer(campanha, MESTRE_NO_SITE, { opId: apagarCartao.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
+    expect(docDe(campanha, F_LUFFY).abas.tecnicas).toEqual([gomu])
+
+    const trocar = op(MESTRE_NO_SITE, F_LUFFY, ['retrato'], 'definir', { valor: OUTRO_RETRATO, baseRev: campanha.revAtual() })
+    enviar(campanha, MESTRE_NO_SITE, [trocar])
+    expect(pedirDesfazer(campanha, MESTRE_NO_SITE, { opId: trocar.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
+    expect(docDe(campanha, F_LUFFY).retrato).toBe(RETRATO)
+
+    const apagarFicha = op(MESTRE_NO_SITE, F_LUFFY, [], 'apagar', { baseRev: campanha.revAtual() })
+    enviar(campanha, MESTRE_NO_SITE, [apagarFicha])
+    expect(pedirDesfazer(campanha, MESTRE_NO_SITE, { opId: apagarFicha.opId, novoOpId: novoId() }).respostas[0]).toMatchObject({ t: 'ack' })
+    expect(campanha.ficha(F_LUFFY)).toMatchObject({ apagada: false, doc: { retrato: RETRATO, abas: { tecnicas: [gomu] } } })
   })
 })
