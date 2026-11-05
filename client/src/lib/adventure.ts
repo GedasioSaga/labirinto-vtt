@@ -6,6 +6,7 @@ import { estadosDoArquivo, type EstadoDoMundo } from './estadoDoMundo'
 import { cabinesDoArquivo, type CabineDeTransporte } from './cabine'
 import { equipesDoArquivo, type Equipe } from './batalha/equipes'
 import { personagensDoArquivo, sistemaDaAventuraDoArquivo, type Personagem } from './personagem'
+import { marcadorDaMochilaDoArquivo } from './mochila/marcador'
 
 /**
  * AVENTURA: várias cenas (mapas) numa pasta só. Cada cena continua sendo um
@@ -109,6 +110,14 @@ export interface Adventure {
    * abre como 'dia'; valor torto sai. Aditivo: `ADVENTURE_VERSION` não muda.
    */
   periodo?: Periodo
+  /**
+   * MOCHILA NA FICHA (`lib/mochila/marcador.ts`): a versão da migração que já
+   * trouxe a mochila e a bolsa dos bonecos para as fichas DESTA aventura
+   * (aventura sem pasta, ou mapa em "Configurar só neste mapa"). Precisa
+   * sobreviver a abrir e salvar: perdido, a migração rodaria de novo e copiaria
+   * para a ficha uma mochila já gasta. Ausente = ainda não migrada.
+   */
+  mochilaMigrada?: number
 }
 
 /** Nome de cena vazio vira este, em vez de uma entrada sem nome na lista. */
@@ -274,6 +283,8 @@ export function parseAdventure(json: string): Adventure {
   const camadas = lerModeloDeCamadas(parsed.camadas)
   // PERÍODO DA SESSÃO: idem; 'manha' antigo abre como 'dia' e nunca volta ao arquivo.
   const periodo = lerPeriodo(parsed.periodo)
+  // MOCHILA NA FICHA: o marcador torto conta como ausente (aventura ainda não migrada).
+  const mochilaMigrada = marcadorDaMochilaDoArquivo(parsed.mochilaMigrada)
   const adventure: Adventure = {
     version: typeof parsed.version === 'number' ? parsed.version : ADVENTURE_VERSION,
     id: typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : `adv_${crypto.randomUUID()}`,
@@ -287,6 +298,7 @@ export function parseAdventure(json: string): Adventure {
     ...(equipes === undefined || equipes.length === 0 ? {} : { equipes }),
     ...(camadas === undefined ? {} : { camadas }),
     ...(periodo === undefined ? {} : { periodo }),
+    ...(mochilaMigrada === undefined ? {} : { mochilaMigrada }),
   }
   // Agenda ausente ou ilegível: a aventura abre sem o campo, igual a uma antiga.
   const agenda = lerAgenda(parsed.agenda)

@@ -217,6 +217,7 @@ import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { levarMidiaDoMapaSolto } from './lib/midiaDaPasta'
 import { pastaAbertaDoArquivo, type PastaAberta } from './lib/pastasDeMapas'
+import { migrarMochilaAoAbrir } from './net/nuvem/migracaoDaMochila'
 import { gravarPastaDoMapa } from './stores/rpgDaPasta'
 import { join } from '@tauri-apps/api/path'
 import { Toolbar } from './components/Toolbar'
@@ -2869,6 +2870,8 @@ function App() {
    * — o card da lista aponta para o arquivo da cena salva por último.
    */
   const openMapFileWithFolder = async (path: string) => {
+    // MOCHILA NA FICHA: a migração grava nas fichas ANTES de o editor lê-las (nunca lança).
+    await migrarMochilaAoAbrir(path)
     const opened = await openMapFileFirst(path, true)
     openInEditor(opened, await pastaAbertaDoArquivo(opened.path))
   }
@@ -3038,6 +3041,8 @@ function App() {
    * passa a ser desta abertura — Salvar a apaga.
    */
   const handleRecover = async (copy: RecoveryCopy) => {
+    // MOCHILA NA FICHA: o trabalho recuperado entra na migração com a hora da cópia.
+    if (copy.mapPath !== null) await migrarMochilaAoAbrir(copy.mapPath, copy)
     setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile))
     recoveryAutosaveRef.current?.adoptExistingCopy()
     setScreen('editor')
