@@ -30,6 +30,9 @@ export function bonecoComAFicha(boneco: Token, ficha: Pick<Personagem, 'mochila'
   return { ...semMochila, ...(mochila.length > 0 ? { mochila: [...mochila] } : {}), ...(moedas > 0 ? { moedas } : {}) }
 }
 
+/** Mochila vazia e bolsa zerada: o que fica no boneco que mostrava a ficha e não é mais o único dela no mapa. */
+const SEM_NADA: Pick<Personagem, 'mochila' | 'moedas'> = {}
+
 /**
  * O ESPELHO — "a ficha vence o boneco": cada boneco do mapa ligado a uma ficha
  * da lista passa a mostrar a mochila e a bolsa DELA. Vale para a cena que
@@ -39,8 +42,13 @@ export function bonecoComAFicha(boneco: Token, ficha: Pick<Personagem, 'mochila'
  *
  * Fica de fora, com a mochila que já tem: o boneco sem ficha (NPC sem ficha,
  * ou ficha que não está na lista) e a ficha ligada a mais de um boneco NESTE
- * mapa (a mesma regra de `mudancaNasFichas` e da migração). Nada mudando, o
- * MESMO mapa.
+ * mapa (a mesma regra de `mudancaNasFichas` e da migração) — menos o boneco
+ * dela que mostra a ficha INTEIRA: é cópia, não é dele, e fica sem nada (a
+ * mochila continua na ficha). Sem isso, a ficha que atravessa para uma cena
+ * onde já há outro boneco dela entra em todo passo do desfazer de lá
+ * (`lib/travessiaDaFicha.ts`) com a cópia, ao lado do outro, também com a
+ * cópia; um Ctrl+Z ali daria a cada um uma mochila da ficha para gastar.
+ * Nada mudando, o MESMO mapa.
  */
 export function mapaComAsFichas(map: MapData, personagens: readonly Personagem[]): MapData {
   if (personagens.length === 0) return map
@@ -48,12 +56,36 @@ export function mapaComAsFichas(map: MapData, personagens: readonly Personagem[]
   const deVariosBonecos = fichasDeVariosBonecos(map.tokens)
   let mudou = false
   const tokens = map.tokens.map((boneco) => {
-    if (boneco.characterId === null || deVariosBonecos.has(boneco.characterId)) return boneco
+    if (boneco.characterId === null) return boneco
     const ficha = porId.get(boneco.characterId)
     if (ficha === undefined) return boneco
-    const espelhado = bonecoComAFicha(boneco, ficha)
+    const deVarios = deVariosBonecos.has(boneco.characterId)
+    if (deVarios && !mostraAFicha(boneco, ficha)) return boneco
+    const espelhado = bonecoComAFicha(boneco, deVarios ? SEM_NADA : ficha)
     if (espelhado !== boneco) mudou = true
     return espelhado
+  })
+  return mudou ? { ...map, tokens } : map
+}
+
+/**
+ * O mapa sem as cópias da ficha: o boneco que a mostra (o único dela no
+ * mapa, ficha da lista) fica sem mochila e sem bolsa — são da ficha, não
+ * dele. Para o boneco que SAI do mapa e pode voltar depois, quando a ficha
+ * já mudou: o Ctrl+C e o Ctrl+X (colar a cópia velha somaria de novo a Poção
+ * já bebida e as moedas já pagas) e o "Guardar ficha" de quem foi embora. Na
+ * volta ele mostra a ficha como ela estiver. Nada mudando, o MESMO mapa.
+ */
+export function mapaSemOEspelho(map: MapData, personagens: readonly Personagem[]): MapData {
+  if (personagens.length === 0) return map
+  const listadas = new Set(personagens.map((personagem) => personagem.id))
+  const deVariosBonecos = fichasDeVariosBonecos(map.tokens)
+  let mudou = false
+  const tokens = map.tokens.map((boneco) => {
+    if (boneco.characterId === null || !listadas.has(boneco.characterId) || deVariosBonecos.has(boneco.characterId)) return boneco
+    const vazio = bonecoComAFicha(boneco, SEM_NADA)
+    if (vazio !== boneco) mudou = true
+    return vazio
   })
   return mudou ? { ...map, tokens } : map
 }

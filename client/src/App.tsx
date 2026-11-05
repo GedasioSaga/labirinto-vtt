@@ -134,6 +134,8 @@ import { avancarMovimentoImposto, ownerFromPlayers } from './stores/avancarMovim
 import { NO_OWNER_RADII, type OwnerVisionRadii } from './lib/imposedOccupancy'
 import {
   applyItemsInScene,
+  bonecoQueVoltaDaGuarda,
+  bonecoVaiSerGuardado,
   hasUnsavedWork,
   hostWorldOf,
   personagensAtivos,
@@ -976,11 +978,14 @@ function App() {
         },
         // "Guardar ficha" de quem foi embora: a ficha sai do mapa (na cena aberta, pelo desfazer de sempre).
         removeToken: (tokenId, sceneId) => {
+          // MOCHILA NA FICHA: o boneco que mostrava a ficha volta sem a cópia de agora (`bonecoQueVoltaDaGuarda`).
+          bonecoVaiSerGuardado(tokenId, sceneId)
           if (sceneId === undefined) useMapStore.getState().removeToken(tokenId)
           else useAdventureStore.getState().updateBackgroundScene(sceneId, (m) => mapFactory.removeToken(m, tokenId))
         },
         // A ficha guardada volta. Já no mapa (o mestre desfez a retirada): não entra de novo, com o mesmo id.
-        restoreToken: (token, sceneId) => {
+        restoreToken: (guardado, sceneId) => {
+          const token = bonecoQueVoltaDaGuarda(guardado)
           if (sceneId === undefined) {
             const store = useMapStore.getState()
             if (!store.map.tokens.some((t) => t.id === token.id)) store.addToken(token)

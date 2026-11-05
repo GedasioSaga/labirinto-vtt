@@ -36,13 +36,13 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   copyFile: vi.fn(async () => undefined),
 }))
 
-const { useAdventureStore, applyItemsInScene, personagensAtivos } = await import('./adventureStore')
+const { useAdventureStore, applyItemsInScene, personagensAtivos, bonecoVaiSerGuardado, bonecoQueVoltaDaGuarda } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
 const { createEmptyMap, removeToken } = await import('../lib/mapFactory')
 const { hostPlayerChanges } = await import('../net/playerChanges')
 const { serializeMap } = await import('../lib/mapFile')
-const { darDoAcervoChange } = await import('../lib/items')
+const { darDoAcervoChange, removeItemChange } = await import('../lib/items')
 const { payCoinsChange } = await import('../lib/troca')
 const { novoPersonagem } = await import('../lib/personagem')
 const { SISTEMA_ONE_PIECE } = await import('../lib/sistemaOnePiece')
@@ -714,5 +714,114 @@ describe('ficha com vários bonecos no mesmo mapa (C1)', () => {
     expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
     expect([itens(bonecoDa('t_luffy_sky').mochila), bonecoDa('t_luffy_sky').moedas]).toEqual([['Poção x1'], 10])
     expect([itens(bonecoDa('t_luffy_goa', GOA).mochila), bonecoDa('t_luffy_goa', GOA).moedas]).toEqual([['Poção x1'], 10])
+  })
+
+  it('o Luffy atravessa para o Reino de Goa e o mestre dá um Ctrl+Z lá: nenhum dos dois ganha a mochila da ficha, e a volta não dobra as moedas', async () => {
+    await abrir('pasta', { personagens: [ficha('p_luffy', 'Luffy', { mochila: [VAGA_DA_POCAO], moedas: 10 }), ficha('p_zoro', 'Zoro')] })
+    expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+    // Um passo no desfazer do Reino de Goa, com o Luffy de lá mostrando a ficha.
+    moverNoEditor('t_guarda', 288)
+    expect(useAdventureStore.getState().transferToken('t_luffy_sky', SKY, GOA, 320, 96)).toBe(true)
+    // A travessia pôs o Luffy que chegou nesse passo também: lá, como no mapa, ninguém fica com a cópia.
+    const doLuffy = (map: MapData): unknown[] => map.tokens.filter((token) => token.characterId === 'p_luffy').map((token) => [token.id, token.mochila, token.moedas])
+    const passo = useMapStore.getState().past.at(-1)
+    if (passo === undefined) throw new Error('o passo do mover está no desfazer')
+    expect(doLuffy(passo)).toEqual([
+      ['t_luffy_goa', undefined, undefined],
+      ['t_luffy_sky', undefined, undefined],
+    ])
+    useMapStore.getState().undo()
+    expect(doLuffy(useMapStore.getState().map)).toEqual([
+      ['t_luffy_goa', undefined, undefined],
+      ['t_luffy_sky', undefined, undefined],
+    ])
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
+    expect(useAdventureStore.getState().transferToken('t_luffy_sky', GOA, SKY, 96, 96)).toBe(true)
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 10])
+    expect([itens(bonecoDa('t_luffy_goa').mochila), bonecoDa('t_luffy_goa').moedas]).toEqual([['Poção x1'], 10])
+    expect([itens(bonecoDa('t_luffy_sky', SKY).mochila), bonecoDa('t_luffy_sky', SKY).moedas]).toEqual([['Poção x1'], 10])
+    // E o desfazer do Reino de Goa, com o Luffy de lá sozinho de novo, também mostra a ficha.
+    for (const step of [...useMapStore.getState().past, ...useMapStore.getState().future]) {
+      expect(doLuffy(step)).toEqual([['t_luffy_goa', [VAGA_DA_POCAO], 10]])
+    }
+  })
+
+  it('dois Marujos duplicados (a mesma vaga da Poção), cada um ligado à ficha numa cena: a ficha fica com as 4 Poções', async () => {
+    const pocaoP1: CarriedItem = { id: 'p1', nome: 'Poção', quantidade: 2 }
+    await abrir('pasta', {
+      personagens: [ficha('p_luffy', 'Luffy'), ficha('p_zoro', 'Zoro'), ficha('p_marinheiro', 'Marinheiro')],
+      sky: cena('map_sky', 'Sky Lagoon', [boneco('t_luffy_sky', 'p_luffy'), boneco('t_marujo_1', null, { name: 'Marujo', x: 160, mochila: [pocaoP1] })]),
+      goa: cena('map_goa', 'Reino de Goa', [boneco('t_luffy_goa', 'p_luffy'), boneco('t_marujo_2', null, { name: 'Marujo 2', x: 160, mochila: [pocaoP1] })]),
+    })
+    useMapStore.getState().updateToken('t_marujo_1', { characterId: 'p_marinheiro' })
+    expect(itens(fichaAtiva('p_marinheiro')?.mochila)).toEqual(['Poção x2'])
+    useAdventureStore.getState().updateBackgroundScene(GOA, (map) => ({ ...map, tokens: map.tokens.map((token) => (token.id === 't_marujo_2' ? { ...token, characterId: 'p_marinheiro' } : token)) }))
+    expect(itens(fichaAtiva('p_marinheiro')?.mochila)).toEqual(['Poção x2', 'Poção x2'])
+    expect(ultimoAviso()).toBe('Poção ×2 do boneco Marujo 2 foram para a mochila de Marinheiro.')
+    expect(itens(bonecoDa('t_marujo_2', GOA).mochila)).toEqual(['Poção x2', 'Poção x2'])
+    expect(itens(bonecoDa('t_marujo_1').mochila)).toEqual(['Poção x2', 'Poção x2'])
+  })
+})
+
+describe('o boneco que sai do mapa e volta depois não traz a cópia velha da ficha (C1)', () => {
+  /** O Luffy só na Sky Lagoon; no Reino de Goa, só o guarda. */
+  const soNaSky = (): Abertura => ({
+    personagens: [ficha('p_luffy', 'Luffy', { mochila: [VAGA_DA_POCAO], moedas: 10 }), ficha('p_zoro', 'Zoro')],
+    goa: cena('map_goa', 'Reino de Goa', [boneco('t_guarda', null, { x: 224, mochila: [CORDA] })]),
+  })
+
+  /** O Luffy bebe a Poção e paga 3 moedas ao Zoro: a ficha fica sem Poção e com 7. */
+  function beberEPagar(): void {
+    const beber = removeItemChange(bonecoDa('t_luffy_sky'), VAGA_DA_POCAO.id)
+    const pagar = payCoinsChange(bonecoDa('t_luffy_sky'), bonecoDa('t_zoro_sky'), 3)
+    if (beber === null || pagar === null) throw new Error('o Luffy tem a Poção e 10 moedas')
+    expect(applyItemsInScene(beber)).toBe(true)
+    expect(applyItemsInScene(pagar)).toBe(true)
+    expect([fichaAtiva('p_luffy')?.mochila, fichaAtiva('p_luffy')?.moedas]).toEqual([undefined, 7])
+  }
+
+  it('Ctrl+C no Luffy, ele bebe a Poção e paga 3, Ctrl+V no Reino de Goa: a ficha fica sem Poção e com 7, e o colado mostra isso', async () => {
+    await abrir('pasta', soNaSky())
+    useMapStore.getState().setSelection([{ kind: 'token', id: 't_luffy_sky' }])
+    expect(useMapStore.getState().copySelected()).toBe(true)
+    beberEPagar()
+    expect(useAdventureStore.getState().switchScene(GOA)).toBe(true)
+    expect(useMapStore.getState().pasteClipboardAt({ x: 320, y: 320 })).toBe(true)
+    expect([fichaAtiva('p_luffy')?.mochila, fichaAtiva('p_luffy')?.moedas]).toEqual([undefined, 7])
+    const colado = useMapStore.getState().map.tokens.filter((token) => token.characterId === 'p_luffy')
+    expect(colado.map((token) => [token.mochila, token.moedas])).toEqual([[undefined, 7]])
+    // O guarda (NPC sem ficha) não muda.
+    expect(bonecoDa('t_guarda').mochila).toEqual([CORDA])
+  })
+
+  it('Ctrl+X e Ctrl+V do Luffy depois de a ficha mudar: também não volta nada', async () => {
+    await abrir('pasta', soNaSky())
+    useMapStore.getState().setSelection([{ kind: 'token', id: 't_luffy_sky' }])
+    expect(useMapStore.getState().cutSelected()).toBe(true)
+    // A ficha muda enquanto ele está recortado (o "Dar a…" da ficha, fora do mapa, faz o mesmo).
+    useAdventureStore.getState().ajustarPersonagem('p_luffy', (luffy) => ({ ...luffy, moedas: 4 }))
+    expect(useMapStore.getState().pasteClipboardAt({ x: 320, y: 320 })).toBe(true)
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 4])
+  })
+
+  it('"Guardar ficha" de quem foi embora: a ficha muda enquanto ele está fora, e na volta o boneco mostra a ficha de agora', async () => {
+    await abrir('pasta', soNaSky())
+    const guardado = bonecoDa('t_luffy_sky')
+    bonecoVaiSerGuardado(guardado.id)
+    useMapStore.getState().removeToken(guardado.id)
+    useAdventureStore.getState().ajustarPersonagem('p_luffy', (luffy) => ({ ...luffy, moedas: 7 }))
+    useMapStore.getState().addToken(bonecoQueVoltaDaGuarda(guardado))
+    expect([itens(fichaAtiva('p_luffy')?.mochila), fichaAtiva('p_luffy')?.moedas]).toEqual([['Poção x1'], 7])
+    expect([itens(bonecoDa('t_luffy_sky').mochila), bonecoDa('t_luffy_sky').moedas]).toEqual([['Poção x1'], 7])
+  })
+
+  it('"Guardar ficha" de um boneco de ficha com vários no mapa: ele volta com o que é dele', async () => {
+    await abrir('pasta', {
+      ...soNaSky(),
+      sky: cena('map_sky', 'Sky Lagoon', [boneco('t_luffy_sky', 'p_luffy'), boneco('t_luffy_2', 'p_luffy', { x: 160, mochila: [CORDA] }), boneco('t_zoro_sky', 'p_zoro', { x: 224 })]),
+    })
+    const guardado = bonecoDa('t_luffy_2')
+    bonecoVaiSerGuardado(guardado.id)
+    expect(bonecoQueVoltaDaGuarda(guardado)).toBe(guardado)
   })
 })

@@ -27,10 +27,19 @@ import { fichaComMochila, pilhaDe } from './juncao'
  *
  * O que é DO BONECO sai de `antes`: o Ctrl+Z não desfaz item (`applyItemsInScene`
  * reaplica a mudança no desfazer), então um passo que volta não traz de volta
- * a mochila velha. Boneco que não estava em `antes` (duplicado, colado, que
- * chegou de outra cena) e mostra a ficha é cópia do espelho: não traz nada.
- * NPC sem ficha (ou de ficha que não está na lista) que nada disso tocou fica
- * como está. Pura: nada de store nem disco.
+ * a mochila velha. Boneco que não estava em `antes` (duplicado, que chegou de
+ * outra cena, que voltou num Ctrl+Z) e mostra a ficha INTEIRA — a mesma
+ * mochila, vaga por vaga, e a mesma bolsa — é cópia do espelho: não traz
+ * nada. A cópia velha que volta por colar ou por "Guardar ficha" sai do mapa
+ * já sem nada (`mapaSemOEspelho`). NPC sem ficha (ou de ficha que não está
+ * na lista) que nada disso tocou fica como está. Pura: nada de store nem
+ * disco (a vaga nova vem de `novoId`).
+ *
+ * A vaga (`id`) do item NÃO diz se ele já está na ficha: o Ctrl+D e o Ctrl+V
+ * copiam a mochila sem trocar as vagas, então dois Marujos duplicados têm a
+ * mesma vaga e cada um a sua Poção. Tudo o que é do boneco SOMA; o que entra
+ * numa vaga nova da ficha ganha vaga nova — senão a cópia de um Marujo
+ * passaria a "mostrar a ficha" e a Poção dele sumiria.
  */
 
 /** A mochila e a bolsa de um lugar. */
@@ -113,42 +122,45 @@ function comQuantidade(item: CarriedItem, quantidade: number): CarriedItem {
 }
 
 /**
- * `chegando` somado em `mochila`. A mesma vaga nas duas (o boneco mostrava a
- * ficha, ou é cópia de quem mostrava) não soma: fica a maior quantidade —
- * nem some nem dobra. A pilha do mesmo item do acervo soma na vaga da ficha;
- * o que passa do teto da pilha abre outra vaga. O resto entra no fim.
+ * `chegando` somado em `mochila`, nada descontado. A pilha do mesmo item do
+ * acervo soma na vaga da ficha; o que passa do teto da pilha, e todo o resto,
+ * entra no fim numa vaga NOVA (`novoId`): ver o comentário do arquivo.
  */
-function somarItens(mochila: readonly CarriedItem[], chegando: readonly CarriedItem[]): CarriedItem[] {
+function somarItens(mochila: readonly CarriedItem[], chegando: readonly CarriedItem[], novoId: () => string): CarriedItem[] {
   const soma = [...mochila]
   for (const item of chegando) {
-    const mesmaVaga = soma.findIndex((naFicha) => naFicha.id === item.id)
-    if (mesmaVaga >= 0) {
-      if (quantidadeDe(item) > quantidadeDe(soma[mesmaVaga])) soma[mesmaVaga] = item
-      continue
-    }
     const pilha = pilhaDe(item)
     const naPilha = pilha === undefined ? -1 : soma.findIndex((naFicha) => pilhaDe(naFicha) === pilha)
     if (naPilha < 0) {
-      soma.push(item)
+      soma.push({ ...item, id: novoId() })
       continue
     }
     const total = quantidadeDe(soma[naPilha]) + quantidadeDe(item)
     const cabe = Math.min(total, ITEM_QUANTIDADE_MAX)
     soma[naPilha] = comQuantidade(soma[naPilha], cabe)
-    if (total > cabe) soma.push(comQuantidade(item, total - cabe))
+    if (total > cabe) soma.push(comQuantidade({ ...item, id: novoId() }, total - cabe))
   }
   return soma
 }
 
 /** A ficha com `chegando` somado; as moedas acima do teto da bolsa ficam de fora (e o aviso diz quantas). */
-function fichaSomada(ficha: Personagem, chegando: Conteudo): { ficha: Personagem; moedasDeFora: number } {
+function fichaSomada(ficha: Personagem, chegando: Conteudo, novoId: () => string): { ficha: Personagem; moedasDeFora: number } {
   const total = moedasDe(ficha) + moedasDe(chegando)
   const moedas = Math.min(total, MOEDAS_MAX)
-  return { ficha: fichaComMochila(ficha, somarItens(ficha.mochila ?? [], chegando.mochila ?? []), moedas), moedasDeFora: total - moedas }
+  return { ficha: fichaComMochila(ficha, somarItens(ficha.mochila ?? [], chegando.mochila ?? [], novoId), moedas), moedasDeFora: total - moedas }
 }
 
-/** As transições: ver o comentário do arquivo. `personagens` são as fichas donas da mochila (depois da migração). */
-export function acertarBonecosDasFichas(personagens: readonly Personagem[], antes: readonly Token[], depois: readonly Token[]): AcertoDosBonecos {
+/**
+ * As transições: ver o comentário do arquivo. `personagens` são as fichas
+ * donas da mochila (depois da migração); `novoId` dá a vaga do item que entra
+ * na ficha numa vaga nova.
+ */
+export function acertarBonecosDasFichas(
+  personagens: readonly Personagem[],
+  antes: readonly Token[],
+  depois: readonly Token[],
+  novoId: () => string,
+): AcertoDosBonecos {
   const nada: AcertoDosBonecos = { personagens, tokens: depois, entradas: [], separadas: [], saidas: [] }
   if (antes === depois || personagens.length === 0 || mesmasLigacoes(antes, depois)) return nada
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
@@ -184,7 +196,7 @@ export function acertarBonecosDasFichas(personagens: readonly Personagem[], ante
       const proprio = proprioDe(boneco, ficha)
       let atual = ficha
       if (!vazio(proprio)) {
-        const somada = fichaSomada(ficha, proprio)
+        const somada = fichaSomada(ficha, proprio, novoId)
         atual = somada.ficha
         fichas.set(id, atual)
         entradas.push({ personagemId: id, personagem: ficha.nome, boneco: boneco.name, itens: [...(proprio.mochila ?? [])], moedas: moedasDe(proprio), moedasDeFora: somada.moedasDeFora })

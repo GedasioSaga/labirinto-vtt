@@ -10,7 +10,7 @@ import { createEmptyMap } from '../mapFactory'
 import { novoPersonagem, type Personagem } from '../personagem'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
 import { payCoinsChange } from '../troca'
-import { fichasComOsBonecos, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from './espelho'
+import { fichasComOsBonecos, mapaComAsFichas, mapaSemOEspelho, mudancaNasFichas, passosComAsFichas } from './espelho'
 
 function ficha(id: string, nome: string, extra: Partial<Personagem> = {}): Personagem {
   return { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', nome), id, ...extra }
@@ -101,12 +101,48 @@ describe('o espelho: a ficha vence o boneco (fatia A3)', () => {
     expect(mapaComAsFichas(antes, [ficha('p_bandido', 'Bandido', { mochila: [CORDA] })])).toBe(antes)
   })
 
+  it('ficha de vários bonecos: o boneco que mostra a ficha INTEIRA é cópia e fica sem nada; o que tem a sua fica com ela', () => {
+    const luffy = ficha('p_luffy', 'Luffy', { mochila: [POCAO], moedas: 10 })
+    const proprio = boneco('t_luffy_goa', 'p_luffy', { mochila: [CORDA] })
+    // O passo do desfazer em que a travessia pôs o Luffy que chegou, com a cópia, ao lado do Luffy de lá.
+    const passo = mapa([boneco('t_luffy_sky', 'p_luffy', { mochila: [POCAO], moedas: 10 }), proprio, boneco('t_vendedor', null, { mochila: [POCAO], moedas: 10 })])
+    const [espelhado] = passosComAsFichas([passo], [luffy])
+    expect(espelhado.tokens.map((t) => [t.mochila, t.moedas])).toEqual([
+      [undefined, undefined],
+      [[CORDA], undefined],
+      [[POCAO], 10],
+    ])
+    expect(espelhado.tokens[1]).toBe(proprio)
+  })
+
   it('já igual (mesmos itens em outra lista, quantidade 1 escrita ou não), e nos passos do desfazer: a MESMA referência', () => {
     const luffy = ficha('p_luffy', 'Luffy', { mochila: [{ ...POCAO }], moedas: 7 })
     const antes = mapa([boneco('t_luffy', 'p_luffy', { mochila: [{ ...POCAO, quantidade: 1 }], moedas: 7 })])
     expect(mapaComAsFichas(antes, [luffy])).toBe(antes)
     const passos = [antes, antes]
     expect(passosComAsFichas(passos, [luffy])).toBe(passos)
+  })
+})
+
+describe('o que sai do mapa e pode voltar (Ctrl+C, Ctrl+X, "Guardar ficha"): sem a cópia da ficha', () => {
+  const mapa = (bonecos: Token[]): MapData => ({ ...createEmptyMap('map_sky', 'Sky Lagoon', 20, 16, 64), tokens: bonecos })
+
+  it('o boneco que mostra a ficha sai sem nada; NPC sem ficha, ficha de fora da lista e ficha de vários bonecos levam o que é deles', () => {
+    const fichas = [ficha('p_luffy', 'Luffy', { mochila: [POCAO], moedas: 10 }), ficha('p_bandido', 'Bandido')]
+    const vendedor = boneco('t_vendedor', null, { mochila: [CORDA] })
+    const estranho = boneco('t_estranho', 'p_de_outra_pasta', { mochila: [CORDA] })
+    const bandidos = [boneco('t_bandido_1', 'p_bandido', { mochila: [POCAO] }), boneco('t_bandido_2', 'p_bandido', { moedas: 4 })]
+    const copiado = mapaSemOEspelho(mapa([boneco('t_luffy', 'p_luffy', { mochila: [POCAO], moedas: 10 }), vendedor, estranho, ...bandidos]), fichas)
+    expect('mochila' in copiado.tokens[0] || 'moedas' in copiado.tokens[0]).toBe(false)
+    expect(copiado.tokens.slice(1)).toEqual([vendedor, estranho, ...bandidos])
+    expect(copiado.tokens[1]).toBe(vendedor)
+  })
+
+  it('nada a tirar (o boneco já vazio, ou nenhuma ficha na lista): o MESMO mapa', () => {
+    const vazio = mapa([boneco('t_luffy', 'p_luffy')])
+    expect(mapaSemOEspelho(vazio, [ficha('p_luffy', 'Luffy')])).toBe(vazio)
+    const comPocao = mapa([boneco('t_luffy', 'p_luffy', { mochila: [POCAO] })])
+    expect(mapaSemOEspelho(comPocao, [])).toBe(comPocao)
   })
 })
 

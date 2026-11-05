@@ -16,7 +16,7 @@ import {
 import { passageOf } from '../lib/pins'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
-import { fichasComOsBonecos, mapaComAsFichas, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
+import { fichasComOsBonecos, mapaComAsFichas, mapaSemOEspelho, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
 import { acertarBonecosDasFichas, avisosDoAcerto } from '../lib/mochila/transicao'
 import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
@@ -98,7 +98,7 @@ import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/
 import type { PinDirectoryScene } from '../lib/pinDirectory'
 import { dirname } from '@tauri-apps/api/path'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
-import { useMapStore } from './mapStore'
+import { useMapStore, type MapClipboard } from './mapStore'
 import { useSessionStore } from './sessionStore'
 import { useToastStore } from './toastStore'
 
@@ -2649,19 +2649,24 @@ function espelharSeAsDonasMudaram(antes: readonly Personagem[] | null): void {
  *
  * `porOsBonecos` grava em `depois` os bonecos acertados (o boneco que mostrava
  * a ficha e agora divide o mapa com outro, o que saiu dela). O mestre recebe
- * um aviso por acontecimento — nada some calado — e, mudando alguma ficha,
- * toda cena aberta e o desfazer dela passam a mostrá-la.
+ * um aviso por acontecimento — nada some calado. Mudando boneco ou ficha, toda
+ * cena aberta e o desfazer dela passam a mostrar as fichas: o passo do
+ * desfazer não é acertado aqui, e um Ctrl+Z que voltasse a ele (os mesmos
+ * bonecos, as mesmas ligações) não passaria de novo por este acerto. É o
+ * espelho que tira dele a cópia da ficha (a travessia põe quem chega em todo
+ * passo do destino, `mapaComAsFichas`) e põe a ficha no boneco que voltou a
+ * ser o único dela.
  */
 function acertarBonecosNoMapa(antes: MapData, depois: MapData, porOsBonecos: (tokens: Token[]) => void): void {
   const fichas = fichasDonasDaMochila(useAdventureStore.getState())
   if (fichas === null) return
-  const acerto = acertarBonecosDasFichas(fichas, antes.tokens, depois.tokens)
+  const acerto = acertarBonecosDasFichas(fichas, antes.tokens, depois.tokens, () => crypto.randomUUID())
   if (acerto.personagens === fichas && acerto.tokens === depois.tokens) return
   const gravadas = acerto.personagens === fichas ? fichas : gravarFichasDonas(acerto.personagens)
   if (gravadas === null) return
   if (acerto.tokens !== depois.tokens) porOsBonecos([...acerto.tokens])
   for (const aviso of avisosDoAcerto(acerto)) useToastStore.getState().push('info', aviso)
-  if (gravadas !== fichas) espelharEmTodaCena(gravadas)
+  espelharEmTodaCena(gravadas)
 }
 
 /** Os mapas que entram agora são trabalho recuperado, não edição: `semAcertoDosBonecos`. */
@@ -2718,6 +2723,65 @@ function syncBonecosNaCenaDeFundo(sceneId: string, before: MapData): void {
     if (agora === undefined || agora.status !== 'ok' || agora.map !== after) return
     useAdventureStore.setState({ cache: { ...cache, [sceneId]: { ...agora, map: { ...after, tokens } } } })
   })
+}
+
+/**
+ * MOCHILA NA FICHA (C1): o mapa que o Ctrl+C e o Ctrl+X guardam
+ * (`clipboard.source`) fica sem a cópia da ficha no boneco que a mostra
+ * (`mapaSemOEspelho`), com as fichas de quando se copiou. Colado depois — a
+ * Poção já bebida, 3 moedas já pagas — ele chega sem nada e passa a mostrar a
+ * ficha como ela estiver; com a cópia, o acerto a somaria como se fosse dele.
+ * O boneco de uma ficha com vários no mapa leva o que é dele, como o Ctrl+D.
+ * Sem fichas donas, o mapa guardado como está.
+ */
+function semOEspelhoNoCopiado(clipboard: MapClipboard | null): void {
+  if (clipboard === null) return
+  const fichas = fichasDonasDaMochila(useAdventureStore.getState())
+  if (fichas === null) return
+  const source = mapaSemOEspelho(clipboard.source, fichas)
+  if (source !== clipboard.source) useMapStore.setState({ clipboard: { ...clipboard, source } })
+}
+
+// Liga uma vez, ao carregar o módulo: o `cutSelected` lê a área de transferência depois do `copySelected`, já sem a cópia.
+useMapStore.subscribe((state) => state.clipboard, semOEspelhoNoCopiado)
+
+/** "Guardar ficha" (App.tsx): os bonecos guardados que mostravam a ficha, por id. */
+const guardadosQueMostravamAFicha = new Set<string>()
+
+/** O mapa de agora da cena `sceneId` (ausente = a aberta); cena de fundo que não está aberta = `null`. */
+function mapaAgoraDa(sceneId: string | undefined): MapData | null {
+  if (sceneId === undefined) return useMapStore.getState().map
+  const slot = useAdventureStore.getState().cache[sceneId]
+  return slot !== undefined && slot.status === 'ok' ? slot.map : null
+}
+
+/**
+ * MOCHILA NA FICHA (C1): o boneco `tokenId` vai ser guardado ("Guardar ficha"
+ * de quem foi embora, App.tsx), da cena `sceneId` (ausente = a aberta). A
+ * sala guarda o boneco como ele está; se ele mostrava a ficha, o que ele leva
+ * é cópia, e a ficha pode mudar enquanto ele está fora. Fica anotado para
+ * `bonecoQueVoltaDaGuarda`.
+ */
+export function bonecoVaiSerGuardado(tokenId: string, sceneId?: string): void {
+  const fichas = fichasDonasDaMochila(useAdventureStore.getState())
+  if (fichas === null) return
+  const map = mapaAgoraDa(sceneId)
+  if (map === null) return
+  const boneco = map.tokens.find((token) => token.id === tokenId)
+  const semCopia = mapaSemOEspelho(map, fichas).tokens.find((token) => token.id === tokenId)
+  if (boneco !== undefined && semCopia !== boneco) guardadosQueMostravamAFicha.add(tokenId)
+}
+
+/**
+ * MOCHILA NA FICHA (C1): o boneco guardado que volta ao mapa. Se ele mostrava
+ * a ficha quando foi guardado, volta sem a cópia velha (senão a Poção bebida
+ * enquanto ele estava fora voltaria somada na ficha) e passa a mostrá-la como
+ * ela estiver. O boneco de ficha com vários no mapa volta com o que é dele.
+ */
+export function bonecoQueVoltaDaGuarda(token: Token): Token {
+  if (!guardadosQueMostravamAFicha.delete(token.id)) return token
+  const { mochila: _copia, moedas: _bolsaCopiada, ...semMochila } = token
+  return semMochila
 }
 
 /**
