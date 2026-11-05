@@ -35,11 +35,13 @@ import { fichaSomada, itemNoAviso } from './transicao'
  */
 
 /**
- * `trazido` e `ignorado`: o mestre escolheu. `saiu`: o mapa saiu da pasta com o
- * item ainda no boneco (é do boneco de novo, fora do espelho dela); se o mapa
- * voltar, ele é conferido como novo.
+ * `trazido` e `ignorado`: o mestre escolheu. `incerto`: o mestre tirou o aviso
+ * de um "Trazer" que caiu no meio, com a ficha mudada depois — não dá para
+ * saber se a soma entrou, e a ficha ficou como estava. `saiu`: o mapa saiu da
+ * pasta com o item ainda no boneco (é do boneco de novo, fora do espelho
+ * dela); se o mapa voltar, ele é conferido como novo.
  */
-export type DecisaoDoPendente = 'trazido' | 'ignorado' | 'saiu'
+export type DecisaoDoPendente = 'trazido' | 'ignorado' | 'incerto' | 'saiu'
 
 interface PendenteComum {
   id: string
@@ -222,6 +224,12 @@ export function textoDoIncerto(pendente: ItemPendente): string {
 /** O aviso depois do "Ignorar": nada some calado. */
 export function textoDoIgnorado(pendente: ItemPendente): string {
   return `${oQueCarregava(pendente)} do boneco ${pendente.boneco} ${umSo(pendente) ? 'ficou' : 'ficaram'} fora da ficha de ${pendente.personagem}: a linha continua no relatório da pasta.`
+}
+
+/** O "Ignorar" de um "Trazer" que caiu no meio, com a ficha mudada depois: não diz que ficou fora, porque pode ter entrado. */
+export function textoDoIgnoradoSemSaber(pendente: ItemPendente): string {
+  const lugar = pendente.tipo === 'item' ? `a mochila de ${pendente.personagem}` : `a bolsa de ${pendente.personagem}`
+  return `O aviso de ${oQueCarregava(pendente)} do boneco ${pendente.boneco} saiu da lista, e a ficha de ${pendente.personagem} ficou como estava. Um "Trazer" de antes caiu no meio, e não dá para saber se a soma entrou: confira ${lugar}. A linha continua no relatório da pasta.`
 }
 
 /** O "Trazer" recusado: o mapa saiu da pasta e o boneco ainda tem o item. */

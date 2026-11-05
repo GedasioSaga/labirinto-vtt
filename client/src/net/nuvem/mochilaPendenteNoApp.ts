@@ -1,6 +1,16 @@
 import { isTauri } from '@tauri-apps/api/core'
-import { textoDoIgnorado, textoDoIncerto, textoDoPendente, textoDoQueSaiu, textoDoTrazido, textoDoTrazidoSemAnotar, type ItemPendente } from '../../lib/mochila/pendentes'
+import {
+  textoDoIgnorado,
+  textoDoIgnoradoSemSaber,
+  textoDoIncerto,
+  textoDoPendente,
+  textoDoQueSaiu,
+  textoDoTrazido,
+  textoDoTrazidoSemAnotar,
+  type ItemPendente,
+} from '../../lib/mochila/pendentes'
 import type { PastaAberta } from '../../lib/pastasDeMapas'
+import type { Personagem } from '../../lib/personagem'
 import { readRecoveryCopy, type RecoveryCopy } from '../../lib/recoveryCopy'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { captureEditorWork } from '../../stores/recoveryAutosave'
@@ -15,8 +25,11 @@ import {
   marcarFichasQueEntram,
   marcarMapaQueEntrou,
   pendentesDaPasta,
+  retirarPendentesSemFicha,
   sistemaDaPastaMudou,
   trazerPendente,
+  type DecisaoTomada,
+  type FichasQueEntram,
 } from './mochilaPendente'
 
 /**
@@ -81,11 +94,17 @@ async function trazerNoApp(pastaId: string, pendente: ItemPendente): Promise<voi
   avisarPendentes(pastaId, [pendente])
 }
 
+/** O aviso do "Ignorar" pelo que ficou anotado: o de um "Trazer" que caiu no meio nunca diz "ficou fora" sem saber. */
+function textoDoIgnorar(feito: Extract<DecisaoTomada, { ok: true }>): string {
+  if (feito.decisao === 'trazido') return textoDoTrazido(feito.pendente, feito.moedasDeFora)
+  return feito.decisao === 'incerto' ? textoDoIgnoradoSemSaber(feito.pendente) : textoDoIgnorado(feito.pendente)
+}
+
 async function ignorarNoApp(pastaId: string, pendente: ItemPendente): Promise<void> {
   const { push } = useToastStore.getState()
   try {
     const feito = await ignorarPendente(pastaId, pendente.id, discoDoApp)
-    if (feito.ok) push('info', feito.decisao === 'trazido' ? textoDoTrazido(feito.pendente, feito.moedasDeFora) : textoDoIgnorado(feito.pendente))
+    if (feito.ok) push('info', textoDoIgnorar(feito))
     else if (feito.porque === 'saiu') push('info', textoDoQueSaiu(feito.pendente))
   } catch (erro) {
     push('error', `Não deu para anotar o "Ignorar" (${motivo(erro)}): o aviso continua.`)
@@ -142,34 +161,56 @@ async function conferirEAvisar(pastaId: string, marcados: readonly string[], abe
 
 /**
  * "Importar personagens…" e "Copiar de um mapa" do "Configurar pasta", que
- * põem as fichas `ids` na pasta: `gravar` grava o `rpg.json` (e lança com a
- * razão). Pasta convertida: os mapas dela com boneco dessas fichas ficam
- * marcados ANTES de gravar — sem a marca, o espelho da abertura faria a ficha
- * nova (sem mochila) vencer o boneco, e o que ele carrega sumiria calado. Não
- * deu para marcar: lança, e nada é gravado. Gravado, confere já e mostra os
- * pendentes; daí em diante nunca lança (a abertura confere de novo).
+ * põem `fichas` na pasta: `gravar` grava o `rpg.json` (e lança com a razão).
+ * Pasta convertida: os mapas dela com boneco dessas fichas ficam marcados
+ * ANTES de gravar — sem a marca, o espelho da abertura faria a ficha nova
+ * (sem mochila) vencer o boneco, e o que ele carrega sumiria calado — e o
+ * mapa aberto, que o espelho esvazia assim que o `rpg.json` grava, ganha os
+ * pendentes já. Não deu para marcar: lança, e nada é gravado. Não gravou:
+ * os pendentes da ficha que não entrou saem, e lança. Gravado, confere já e
+ * mostra os pendentes; daí em diante nunca lança (cada mapa confere ao abrir).
  */
-export async function fichasEntramNaPasta(pastaId: string, ids: readonly string[], gravar: () => Promise<void>): Promise<void> {
-  if (!isTauri() || ids.length === 0) {
+export async function fichasEntramNaPasta(pastaId: string, fichas: readonly Personagem[], gravar: () => Promise<void>): Promise<void> {
+  if (!isTauri() || fichas.length === 0) {
     await gravar()
     return
   }
   // ANTES de gravar: a ficha nova espelha na hora as cenas abertas desta pasta.
   const aberto = await trabalhoAberto((pasta) => pasta.pastaId === pastaId)
-  let marcados: string[]
+  // O mapa da pasta aberto cujo trabalho não deu para copiar: o disco não sabe o que os bonecos dele ganharam sem salvar.
+  const abertoSemCopia = aberto === null && useAdventureStore.getState().pasta?.pastaId === pastaId
+  let anotado: FichasQueEntram
   try {
-    marcados = await marcarFichasQueEntram(pastaId, ids, discoDoApp, { recuperado: aberto?.copia ?? null })
+    anotado = await marcarFichasQueEntram(pastaId, fichas, discoDoApp, { recuperado: aberto?.copia ?? null, aberto: aberto?.chave ?? null })
   } catch (erro) {
     throw new Error(`Não deu para anotar o que os bonecos dessas fichas carregam (${motivo(erro)}): nada foi gravado.`)
   }
-  await gravar()
   try {
-    await conferirEAvisar(pastaId, marcados, aberto)
+    await gravar()
   } catch (erro) {
-    useToastStore
-      .getState()
-      .push('error', `Não deu para conferir a mochila dos bonecos das fichas novas (${motivo(erro)}). A abertura de cada mapa confere de novo antes de a ficha valer.`)
+    // A ficha que não entrou não espelhou nada: o aviso do mapa aberto seria falso. Se nem isso gravar, o "Trazer" dele diz que a ficha não está na pasta.
+    await retirarPendentesSemFicha(
+      pastaId,
+      anotado.novos.map((pendente) => pendente.id),
+      discoDoApp,
+    ).catch(() => undefined)
+    throw erro
   }
+  try {
+    await conferirEAvisar(pastaId, anotado.marcados, aberto)
+  } catch (erro) {
+    // Os pendentes do mapa aberto já estão no relatório: aparecem mesmo assim.
+    avisarPendentes(pastaId, anotado.novos)
+    useToastStore.getState().push('error', `Não deu para conferir a mochila dos bonecos das fichas novas (${motivo(erro)}). ${textoDosMapasPorConferir(aberto, abertoSemCopia)}`)
+  }
+}
+
+/** O que acontece com cada mapa da pasta quando a conferência logo depois de gravar as fichas novas caiu. */
+function textoDosMapasPorConferir(aberto: TrabalhoAberto | null, abertoSemCopia: boolean): string {
+  const outros = 'os outros mapas da pasta conferem ao abrir, antes de a ficha valer neles.'
+  if (abertoSemCopia) return `Não salve o mapa aberto: feche sem salvar e abra de novo, para a abertura conferir os bonecos dele; ${outros}`
+  if (aberto !== null) return `O que os bonecos do mapa aberto carregavam ficou anotado antes de a ficha valer nele; ${outros}`
+  return 'Cada mapa da pasta confere ao abrir, antes de a ficha valer nele.'
 }
 
 /** O mapa aberto no editor e o trabalho dele agora (inclusive o não salvo). */

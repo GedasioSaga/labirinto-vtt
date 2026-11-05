@@ -41,10 +41,6 @@ function nomes(personagens: readonly Personagem[]): string {
   return personagens.map((personagem) => personagem.nome).join(', ')
 }
 
-function idsDe(personagens: readonly Personagem[]): string[] {
-  return personagens.map((personagem) => personagem.id)
-}
-
 /**
  * "Configurar pasta": o SISTEMA UNIVERSAL e os JOGADORES PRINCIPAIS da pasta
  * — importados UMA vez, para todos os mapas dela (a mesma ficha em todos).
@@ -111,7 +107,7 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
       const resultado = await importarFichasDoProjetoRpg(texto, sistema, rpg.personagens, { reduzirImagem: buildTokenPhotoData })
       const novos = personagensQueAPastaNaoTem(rpg.personagens, resultado.personagens)
       // Pasta convertida: o que os bonecos dessas fichas carregam vira aviso antes de a ficha (sem mochila) valer.
-      await fichasEntramNaPasta(pasta.id, idsDe(novos), () =>
+      await fichasEntramNaPasta(pasta.id, novos, () =>
         onMudar((atual) => ({ ...atual, personagens: [...atual.personagens, ...personagensQueAPastaNaoTem(atual.personagens, resultado.personagens)] })),
       )
       return resultado.personagens.length === 0 ? 'Nenhum personagem entrou.' : `Entraram na pasta: ${nomes(resultado.personagens)}.`
@@ -124,7 +120,7 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
       const novos = personagensQueAPastaNaoTem(rpg.personagens, doMapa.personagens)
       // Pasta ainda sem sistema adota o do mapa; as equipes e o marcador da mochila da pasta seguem.
       // Pasta convertida: o que os bonecos das fichas copiadas carregam vira aviso antes de a ficha (sem mochila) valer.
-      await fichasEntramNaPasta(pasta.id, idsDe(novos), () => mudarComOSistema((atual) => rpgComOsPersonagensDoMapa(atual, doMapa)))
+      await fichasEntramNaPasta(pasta.id, novos, () => mudarComOSistema((atual) => rpgComOsPersonagensDoMapa(atual, doMapa)))
       return novos.length === 0 ? 'Os personagens desse mapa já estão na pasta.' : `Copiados para a pasta: ${nomes(novos)}.`
     })
 
