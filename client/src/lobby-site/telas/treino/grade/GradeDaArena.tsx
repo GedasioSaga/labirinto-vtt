@@ -270,11 +270,17 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
   }
 
   function aoTeclar(evento: KeyboardEvent<HTMLButtonElement>, boneco: BonecoNaGrade) {
-    if (evento.ctrlKey || evento.metaKey || evento.shiftKey || !boneco.podeAndar || gesto.current !== null) return
+    if (evento.ctrlKey || evento.metaKey || evento.shiftKey) return
     const destino = casaPelaSeta(boneco.casa, evento.key)
     if (destino === null) return
+    // Toda seta numa ficha fica com a grade, mesmo a que não anda: Alt + seta para a
+    // esquerda voltaria uma página no navegador e a luta, que só vive nesta tela, se perderia.
     evento.preventDefault()
-    if (pendente === boneco.tokenId) return
+    if (gesto.current !== null || pendente === boneco.tokenId) return
+    if (!boneco.podeAndar) {
+      if (!evento.repeat) anunciar(`${boneco.nome} não anda agora.`)
+      return
+    }
     if (!dentroDaGrade(destino, grade)) {
       anunciar(`${boneco.nome} está na borda da grade.`)
       return
