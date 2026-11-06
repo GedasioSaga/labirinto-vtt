@@ -1,0 +1,8 @@
+# Cabeçalhos do site do Lobby no Cloudflare Pages (um _headers só no projeto).
+# Fonte: docs/planos/lobby-jogadores-2026-11-05.md, seção 6.7.
+# connect-src 'self' cobre o WebSocket da mesma origem (/api/c/:id/ws).
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Robots-Tag: noindex

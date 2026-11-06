@@ -12,6 +12,14 @@ client/playwright-report/
 client/dist-animacoes/
 # Saída de scripts/conferir-som.cjs (wav, espectrograma e medidas de cada transição)
 client/dist-som/
+# Build do site do Lobby (npm run build:lobby --workspace=client)
+client/dist-lobby/
+
+# Lobby (Cloudflare): segredos locais do `wrangler dev` (AUD, MAPA_DO_APP) e o
+# estado local dos Durable Objects (SQLite com fichas). Nenhum dos dois pode ir
+# para o repo público (docs/planos/lobby-jogadores-2026-11-05.md, 6.7).
+.dev.vars*
+**/.wrangler/
 
 # Grafo gerado pelo graphify (2.5 MB, reconstruível com `graphify extract`)
 graphify-out/

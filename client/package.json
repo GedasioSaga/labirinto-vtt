@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:lobby": "tsc --noEmit && vite build --config vite.lobby.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
     "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json",
