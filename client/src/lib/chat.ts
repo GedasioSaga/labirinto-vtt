@@ -69,10 +69,20 @@ const CARRIAGE_RETURNS = /\r\n?/g
  * Controles C0 (menos a quebra de linha), DEL e C1; as marcas bidi que viram
  * o texto do avesso na tela dos outros (U+061C, U+200E-200F, U+202A-202E e
  * U+2066-2069); e os invisíveis que escondem ou colam letras: largura zero
- * (U+200B-200D), U+2060-2064, BOM (U+FEFF) e os separadores de linha e de
+ * (U+200B-200C), U+2060-2064, BOM (U+FEFF) e os separadores de linha e de
  * parágrafo (U+2028, U+2029), que quebram a linha por fora do `\n`.
  */
-const UNSAFE_CHARS = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u061C\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
+const UNSAFE_CHARS = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u061C\u200B\u200C\u200E\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
+
+/**
+ * A junção de largura zero (ZWJ, U+200D) tem regra própria: só fica entre dois
+ * emojis (Extended_Pictographic, com o seletor de variação U+FE0F e o
+ * modificador de tom opcionais antes dela), onde compõe um emoji só: a
+ * bandeira pirata, a família, a profissão. Em qualquer outro lugar (solta, nas
+ * pontas, ao lado de letra ou do `@`) só serve para disfarçar palavra e
+ * menção, e sai. Roda depois do `UNSAFE_CHARS`, para olhar os vizinhos finais.
+ */
+const ZWJ_OUTSIDE_EMOJI = /(?<!\p{Extended_Pictographic}\u{FE0F}?\p{Emoji_Modifier}?)\u{200D}|\u{200D}(?!\p{Extended_Pictographic})/gu
 
 /**
  * Tabulação, quebra de linha e o branco do Braille (U+2800, cela sem pontos:
@@ -158,11 +168,12 @@ export function isChatChannel(value: unknown): value is ChatChannel {
 
 /**
  * O texto como os outros vão ler: quebras de linha viram `\n`, tabulação vira
- * espaço, controles e bidi somem, e as pontas perdem o espaço. Vazio aqui é
- * mensagem que não vai.
+ * espaço, controles e bidi somem, a junção de largura zero só fica dentro de
+ * emoji composto (`ZWJ_OUTSIDE_EMOJI`), e as pontas perdem o espaço. Vazio
+ * aqui é mensagem que não vai.
  */
 export function cleanChatText(raw: string): string {
-  return raw.replace(CARRIAGE_RETURNS, '\n').replace(/\t/g, ' ').replace(UNSAFE_CHARS, '').trim()
+  return raw.replace(CARRIAGE_RETURNS, '\n').replace(/\t/g, ' ').replace(UNSAFE_CHARS, '').replace(ZWJ_OUTSIDE_EMOJI, '').trim()
 }
 
 /**

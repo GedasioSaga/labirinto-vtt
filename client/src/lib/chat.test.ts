@@ -4,7 +4,7 @@
  * Caractere especial vai por escape: colado cru, não se vê na revisão.
  */
 import { describe, expect, it } from 'vitest'
-import { chatFacesByName, chatSpeakerLabel, cleanPlayerName, nameSkeleton } from './chat'
+import { chatFacesByName, chatSpeakerLabel, cleanChatText, cleanPlayerName, findMentions, nameSkeleton } from './chat'
 
 /** "Mestre" com um invisível colado: um de cada família que a limpeza antiga deixava passar. */
 const MESTRE_COM_INVISIVEL = [
@@ -124,5 +124,36 @@ describe('chatFacesByName: a foto de quem falou, só do que a tela já tem', () 
       ],
     )
     expect(faces.get('Ana')).toBe(FOTO_ANA)
+  })
+})
+
+describe('chat: a junção de largura zero (ZWJ) só fica dentro de emoji composto', () => {
+  /** Emoji composto por ZWJ, com o seletor de variação ou o tom de pele no meio. */
+  const EMOJI_COMPOSTO = [
+    '\u{1F3F4}\u{200D}\u{2620}\u{FE0F}', // bandeira pirata
+    '\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}', // família: homem, mulher e menina
+    '\u{1F9D1}\u{1F3FD}\u{200D}\u{1F680}', // astronauta, tom de pele médio
+  ]
+
+  it('o emoji composto chega inteiro, sozinho ou no meio da frase', () => {
+    for (const emoji of EMOJI_COMPOSTO) {
+      expect(cleanChatText(emoji)).toBe(emoji)
+      expect(cleanChatText(`  oi ${emoji} @Ana  `)).toBe(`oi ${emoji} @Ana`)
+    }
+  })
+
+  it('fora de emoji o ZWJ sai: entre letras, no começo, no fim e colado numa menção', () => {
+    const CASOS: readonly (readonly [string, string])[] = [
+      ['ad\u{200D}min', 'admin'], // entre letras
+      ['\u{200D}oi', 'oi'], // no começo
+      ['\u{200D}\u{1F680} oi', '\u{1F680} oi'], // no começo, com emoji só depois
+      ['oi \u{1F680}\u{200D}', 'oi \u{1F680}'], // no fim, com emoji só antes
+      ['@\u{200D}Ana oi', '@Ana oi'], // colado no @
+      ['oi @Ana\u{200D}', 'oi @Ana'], // colado no fim da menção
+      ['\u{1F3F4}\u{200D}@Ana', '\u{1F3F4}@Ana'], // entre emoji e @
+    ]
+    for (const [bruto, limpo] of CASOS) expect(cleanChatText(bruto)).toBe(limpo)
+    // A menção disfarçada volta a ser menção.
+    expect(findMentions(cleanChatText('@\u{200D}Ana oi'), ['Ana'])).toEqual(['Ana'])
   })
 })
