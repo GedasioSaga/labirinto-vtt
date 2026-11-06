@@ -370,7 +370,7 @@ function EmailDaConta({ conta, contas, podeGravar, onTrocar }: EmailDaContaProps
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          placeholder="nome@gmail.com"
+          placeholder="nome@example.com"
           value={valor}
           aria-invalid={erro !== null}
           aria-describedby={erro !== null ? `${id}-erro` : `${id}-dica`}

@@ -34,6 +34,20 @@ export function ContaNaNuvem({ onEstado }: ContaNaNuvemProps) {
   const [erro, setErro] = useState<string | null>(null)
   const avisar = useRef(onEstado)
   avisar.current = onEstado
+  const botaoApagar = useRef<HTMLButtonElement>(null)
+  const devolverFoco = useRef(false)
+
+  // O "Apagar" volta no lugar da confirmação: sem levar o foco até ele, o foco cairia no body ao desistir.
+  useEffect(() => {
+    if (apagando || !devolverFoco.current) return
+    devolverFoco.current = false
+    botaoApagar.current?.focus()
+  }, [apagando])
+
+  const desistirDeApagar = () => {
+    devolverFoco.current = true
+    setApagando(false)
+  }
 
   const definir = (novo: EstadoDaConta) => {
     setEstadoLocal(novo)
@@ -130,16 +144,27 @@ export function ContaNaNuvem({ onEstado }: ContaNaNuvemProps) {
               Trocar token
             </button>
             {apagando ? (
-              <span className="lby-linha" role="group" aria-label="Confirmar apagar o token">
+              <span
+                className="lby-linha"
+                role="group"
+                aria-label="Confirmar apagar o token"
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape') return
+                  // O Esc é desta pergunta: sem isto ele subiria até o `MenuShell`, que ouve Escape no `window` e tiraria o mestre da tela.
+                  event.preventDefault()
+                  event.stopPropagation()
+                  desistirDeApagar()
+                }}
+              >
                 <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => void apagar()}>
                   Apagar o token
                 </button>
-                <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" autoFocus onClick={() => setApagando(false)}>
+                <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" autoFocus onClick={desistirDeApagar}>
                   Manter
                 </button>
               </span>
             ) : (
-              <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => setApagando(true)}>
+              <button ref={botaoApagar} type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={() => setApagando(true)}>
                 Apagar
               </button>
             )}

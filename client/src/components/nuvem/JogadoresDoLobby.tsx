@@ -82,7 +82,7 @@ function soDigitos(texto: string): string {
   return texto.replace(/\D/g, '').slice(0, PIN_MAX_DIGITOS)
 }
 
-/** "Bia Souza" a partir de "bia.souza@gmail.com": só sugestão, o mestre troca. */
+/** "Bia Souza" a partir de "bia.souza@example.com": só sugestão, o mestre troca. */
 function nomeDoEmail(email: string): string {
   const local = email.split('@')[0] ?? ''
   return local
@@ -809,7 +809,7 @@ function FormDoEmail({ conta, contas, podeGravar, publicada, focar, onSalvar, on
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          placeholder="nome@gmail.com"
+          placeholder="nome@example.com"
           value={valor}
           aria-invalid={erro !== null}
           aria-describedby={erro !== null ? `${id}-erro` : publicada ? `${id}-dica` : undefined}
@@ -976,7 +976,7 @@ function ConviteDeJogador({ contas, podeGravar, onConvidar }: ConviteDeJogadorPr
             autoComplete="off"
             autoCapitalize="none"
             spellCheck={false}
-            placeholder="nome@gmail.com"
+            placeholder="nome@example.com"
             value={email}
             aria-invalid={erros.email !== undefined}
             aria-describedby={erros.email !== undefined ? `${id}-email-erro` : undefined}

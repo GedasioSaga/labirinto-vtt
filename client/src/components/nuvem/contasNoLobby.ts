@@ -28,7 +28,7 @@ function comEmail(arquivo: ArquivoDeContas, contaId: string, email: string | nul
 export function problemaDoEmail(contas: readonly ContaDeJogador[], contaId: string | null, bruto: string): string | null {
   if (bruto.trim() === '') return 'Escreva o e-mail Google do jogador.'
   const email = emailDaContaLimpo(bruto)
-  if (email === null) return 'Falta um pedaço do e-mail. Exemplo: nome@gmail.com'
+  if (email === null) return 'Falta um pedaço do e-mail. Exemplo: nome@example.com'
   const dono = contas.find((conta) => conta.id !== contaId && conta.email === email)
   return dono === undefined ? null : `Esse e-mail já é de ${dono.nome}. Cada e-mail vale para um jogador só.`
 }

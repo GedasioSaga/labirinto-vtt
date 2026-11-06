@@ -39,8 +39,6 @@ const DOMINIOS_DE_EXEMPLO = new Set(['example.com', 'example.org', 'example.net'
 
 /** Endereços inventados que já estão no repo, cada um com o motivo. Comparação sem maiúsculas. */
 const EMAILS_LIBERADOS = new Set([
-  'nome@gmail.com', // placeholder do campo de e-mail (ContasDosJogadores, contasNoLobby, JogadoresDoLobby)
-  'bia.souza@gmail.com', // exemplo no comentário de nomeDoEmail (components/nuvem/JogadoresDoLobby.tsx)
   'noreply@anthropic.com', // linha Co-Authored-By citada em documentação
   'ana@bruno.com', // exemplo de texto que não menciona ninguém (lib/chat.ts e o teste do chat)
   'youtube.com@golpe.net', // link de golpe no teste do link do YouTube
