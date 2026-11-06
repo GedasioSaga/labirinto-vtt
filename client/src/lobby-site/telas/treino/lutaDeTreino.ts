@@ -105,9 +105,9 @@ export function comecarLutaLocal(montagem: MontagemDaLuta, sistema: SistemaDeRpg
 
 export type ResultadoNaLuta = { ok: true; luta: LutaLocal } | { ok: false; motivo: MotivoDaRecusa }
 
-/** A minha jogada (lado A). */
+/** A minha jogada (lado A). Andar é livre, como na Arena do app: qualquer ficha minha, a qualquer hora (a casa dentro da grade e livre). */
 export function jogarNaLuta(luta: LutaLocal, jogada: JogadaDoDuelo): ResultadoNaLuta {
-  const feito = aplicarJogada(luta.duelo, luta.motor, CONTA_DO_TREINO, jogada)
+  const feito = aplicarJogada(luta.duelo, luta.motor, CONTA_DO_TREINO, jogada, 'livre')
   if (!feito.ok) return feito
   return { ok: true, luta: { ...luta, duelo: feito.duelo } }
 }

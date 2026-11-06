@@ -1,10 +1,14 @@
 import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeReacao, RODADA_MAX } from '../../net/protocoloDaBatalha'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
+import { centroDaCasaNaArena } from '../arena/montagem'
+import { CASA_DA_ARENA } from '../arena/tipos'
 import { tecnicasNoMenu } from '../batalha/acoes'
+import type { ParedeDoPasso } from '../batalha/blocos'
 import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao } from '../batalha/combate'
 import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEvolucao'
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId } from '../batalha/leituraDaFicha'
+import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
 import { registroParaJogador, type LinhaParaJogador } from '../batalha/registro'
@@ -19,7 +23,18 @@ import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { fimDaLuta, type FimDaLuta } from './fimDaLuta'
 import { TETOS_DO_TREINO } from './lutaAutomatica'
-import { criarMesaEmMemoria, LADOS_DO_TREINO, montarLutadores, type EscolhaDaVaga, type LadoDoTreino, type LutadoresDoTreino, type MesaEmMemoria, type VagaDoTreino } from './mesaEmMemoria'
+import {
+  criarMesaEmMemoria,
+  GRADE_DO_TREINO,
+  LADOS_DO_TREINO,
+  montarLutadores,
+  type CasaDoTreino,
+  type EscolhaDaVaga,
+  type LadoDoTreino,
+  type LutadoresDoTreino,
+  type MesaEmMemoria,
+  type VagaDoTreino,
+} from './mesaEmMemoria'
 import { danoNoTeto, seloDaMira } from './robo'
 
 /**
@@ -43,7 +58,15 @@ import { danoNoTeto, seloDaMira } from './robo'
  *    vontade: o Perfurante só se a ficha diz, o selo só o sugerido, o bônus
  *    da reação só o dos selos, a saída da técnica de reação só a da ficha;
  *    e recusa o que na mesa é decisão do mestre (rerolar com Ponto Saga,
- *    passar sem dano) ou não tem mapa (mover pelo contra-ataque);
+ *    passar sem dano). O contra-ataque gasto em se mover não é `agir`: é a
+ *    jogada `andar` com o `contraDe`, que gasta e anda de uma vez só;
+ *  - ANDAR (fatia M1, a grade 12 x 8 da Arena): só a ficha do lado de quem
+ *    pede, na vez dela (ou pelo contra-ataque que ela ganhou), para uma casa
+ *    dentro da grade e livre, pelo mesmo passo da batalha do app
+ *    (`passoEmBatalha`, sem paredes, como a Arena). Os blocos somam no MOV
+ *    da vez (`somarCaminho`), que fica vermelho acima do limite e não trava.
+ *    A regra não usa distância (nem dano, nem alcance): andar não muda o
+ *    robô, as 100 lutas nem a semente;
  *  - exige o `seq` do último estado em agir, reagir e passar: a jogada
  *    reenviada (ou feita sobre um estado velho) é recusada, nunca aplicada 2×;
  *  - o dono das fichas é lido do DOC COMPLETO (o `paraOFio` e a projeção do
@@ -61,8 +84,11 @@ import { danoNoTeto, seloDaMira } from './robo'
  * Sem Tauri, sem DOM.
  */
 
-/** A versão do motor (coluna `versaoDoMotor` da tabela `duelos`): estado de outra versão não continua. */
-export const VERSAO_DO_MOTOR_DO_DUELO = 1
+/**
+ * A versão do motor (coluna `versaoDoMotor` da tabela `duelos`): estado de
+ * outra versão não continua. 2 = as posições na grade e a jogada `andar` (M1).
+ */
+export const VERSAO_DO_MOTOR_DO_DUELO = 2
 
 /** A chave da cena da batalha do duelo (a store do duelo só tem esta). */
 export const CENA_DO_DUELO = 'duelo'
@@ -115,10 +141,12 @@ export interface DueloGravado {
   id: string
   jogadores: Readonly<Record<LadoDoTreino, JogadorDoDuelo>>
   lutadores: LutadoresDoTreino
+  /** Onde cada ficha está na grade (`GRADE_DO_TREINO`), pelo id do token; nasce nas casas de `TokenDaVaga`. */
+  posicoes: Readonly<Record<string, CasaDoTreino>>
   cena: BatalhaDaCena
   /** Quantas jogadas foram aceitas. A jogada leva o `seq` do estado que viu. */
   seq: number
-  /** Os passos do relógio da luta (`fimDaLuta`): uma jogada aceita, um passo. */
+  /** Os passos do relógio da luta (`fimDaLuta`): uma jogada aceita, um passo; andar não conta (não é golpe nem vez). */
   passos: number
   fim: FimDoDuelo | null
 }
@@ -128,6 +156,19 @@ export type JogadaDoDuelo =
   | { tipo: 'agir'; seq: number; vez: VezEsperada | null; pedido: PedidoDeAcao }
   | { tipo: 'reagir'; seq: number; pedido: PedidoDeReacao }
   | { tipo: 'passar'; seq: number; vez: VezEsperada }
+  /**
+   * A ficha `tokenId` anda para a casa `col`/`row` da grade. Como o `agir`:
+   * `vez` null só com o contra-ataque (`contraDe`, gasto em se mover).
+   */
+  | { tipo: 'andar'; seq: number; vez: VezEsperada | null; tokenId: string; col: number; row: number; contraDe?: string }
+
+/**
+ * Quem anda e quando. `naVez` (o duelo: o servidor decide): só a ficha da vez,
+ * ou a do contra-ataque que ela ganhou. `livre` (o treino local, como a Arena
+ * do app): qualquer ficha do lado de quem joga, a qualquer hora. Nas duas, a
+ * casa tem de estar dentro da grade e livre.
+ */
+export type RegraDoAndar = 'naVez' | 'livre'
 
 export type MotivoDaRecusa =
   /** O estado é de outra versão do motor. */
@@ -142,9 +183,9 @@ export type MotivoDaRecusa =
   | 'surpresa'
   /** Dano que a ficha não calcula (À mão, "1d6", "% da vida do alvo", "Dano da arma" sem arma): no duelo ninguém digita dano. */
   | 'danoAMao'
-  /** Fora do duelo: mover pelo contra-ataque (sem mapa), reação livre, rerolar e passar sem dano (decisões do mestre na mesa). */
+  /** Fora do duelo: o `agir` de mover pelo contra-ataque (vai pelo `andar`), reação livre, rerolar e passar sem dano (decisões do mestre na mesa). */
   | 'foraDoDuelo'
-  /** A batalha recusou: não é a vez, ação gasta, técnica em recarga, alvo que não reage... */
+  /** A batalha recusou: não é a vez, ação gasta, técnica em recarga, alvo que não reage, casa ocupada ou fora da grade... */
   | 'regra'
 
 export type ResultadoDaJogada = { ok: true; duelo: DueloGravado } | { ok: false; motivo: MotivoDaRecusa }
@@ -165,6 +206,8 @@ export interface DueloNoFio {
   fim: FimDoDuelo | null
   jogadores: Readonly<Record<LadoDoTreino, JogadorDoDuelo>>
   lutadores: LutadoresDoTreino
+  /** Onde cada ficha está na grade, pelo id do token (`DueloGravado.posicoes`). */
+  posicoes: Readonly<Record<string, CasaDoTreino>>
   turnos: TurnosDaCena
   regras: RegrasDaBatalha | null
   efeitos: readonly EfeitoDaBatalha[]
@@ -220,6 +263,7 @@ export function criarDuelo(pedido: PedidoDeDuelo, motor: MotorDoDuelo): CriacaoD
       id: pedido.id,
       jogadores: { a: jogador('a'), b: jogador('b') },
       lutadores: mesa.lutadores(),
+      posicoes: Object.fromEntries(tokens.map((token) => [token.id, { col: token.col, row: token.row }])),
       cena,
       seq: 0,
       passos: 0,
@@ -395,7 +439,15 @@ function cartaQueAge(turnos: TurnosDaCena, pedido: PedidoDeAcao): CartaDaOrdem |
 }
 
 /** A jogada na store, com o pedido já refeito: `null` = aceita; senão, o motivo da recusa (antes da store, ou dela). */
-function jogarNaLoja(loja: LojaDaBatalha, mesa: MesaEmMemoria, cena: BatalhaDaCena, lado: LadoDoTreino, autor: AutorDaAcao, jogada: JogadaDoDuelo, sistema: SistemaDeRpg): MotivoDaRecusa | null {
+function jogarNaLoja(
+  loja: LojaDaBatalha,
+  mesa: MesaEmMemoria,
+  cena: BatalhaDaCena,
+  lado: LadoDoTreino,
+  autor: AutorDaAcao,
+  jogada: Exclude<JogadaDoDuelo, { tipo: 'andar' }>,
+  sistema: SistemaDeRpg,
+): MotivoDaRecusa | null {
   const { turnos } = cena
   const lutadores = mesa.lutadores()
   const ehDoLado = (tokenId: string | undefined): boolean => vagaDoToken(lutadores, tokenId)?.lado === lado
@@ -424,14 +476,71 @@ function jogarNaLoja(loja: LojaDaBatalha, mesa: MesaEmMemoria, cena: BatalhaDaCe
   }
 }
 
+/** A grade não tem paredes (como a Arena do app). */
+const SEM_PAREDES: readonly ParedeDoPasso[] = []
+
+function casaNaGrade(col: number, row: number): boolean {
+  return Number.isSafeInteger(col) && Number.isSafeInteger(row) && col >= 0 && row >= 0 && col < GRADE_DO_TREINO.colunas && row < GRADE_DO_TREINO.linhas
+}
+
+/** A coluna (ou linha) do ponto em px da grade. */
+function casaDoValor(valor: number): number {
+  return Math.floor(valor / CASA_DA_ARENA)
+}
+
+type Andanca = { ok: true; posicoes: Record<string, CasaDoTreino> } | { ok: false; motivo: MotivoDaRecusa }
+
+/**
+ * O `andar` na loja: o lado da ficha; a vez dela (`naVez`) ou o contra-ataque
+ * dela; a casa dentro da grade; o passo da batalha do app sem paredes, com a
+ * casa de outra ficha recusando (como `moverFicha` da Arena). Aceito: gasta o
+ * contra-ataque (a linha "usou o contra-ataque para se mover"), soma os
+ * blocos no caminho e no MOV da vez (`somarCaminho`) e devolve as posições novas.
+ */
+function andarNaLoja(loja: LojaDaBatalha, duelo: DueloGravado, lado: LadoDoTreino, autor: AutorDaAcao, jogada: Extract<JogadaDoDuelo, { tipo: 'andar' }>, regra: RegraDoAndar): Andanca {
+  const { turnos } = duelo.cena
+  const { tokenId } = jogada
+  const vaga = vagaDoToken(duelo.lutadores, tokenId)
+  if (vaga === null) return recusa('regra')
+  if (vaga.lado !== lado) return recusa('naoEDaConta')
+  const contra = jogada.contraDe === undefined ? null : ((turnos.contras ?? []).find((candidato) => candidato.golpeId === jogada.contraDe && candidato.tokenId === tokenId) ?? null)
+  if (jogada.contraDe !== undefined && contra === null) return recusa('regra')
+  if (regra === 'naVez' && contra === null) {
+    const { vez } = jogada
+    if (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada || cartaDaVez(turnos)?.tokenId !== tokenId) return recusa('regra')
+  }
+  const de = duelo.posicoes[tokenId]
+  if (de === undefined || !casaNaGrade(jogada.col, jogada.row)) return recusa('regra')
+  const passo = passoEmBatalha({
+    grid: CASA_DA_ARENA,
+    colunas: GRADE_DO_TREINO.colunas,
+    linhas: GRADE_DO_TREINO.linhas,
+    de: centroDaCasaNaArena(de),
+    para: centroDaCasaNaArena({ col: jogada.col, row: jogada.row }),
+    tamanho: 1,
+    passoMaximo: null,
+    paredesDoHost: SEM_PAREDES,
+    paredesDoJogador: SEM_PAREDES,
+    noChao: () => true,
+    ocupada: (ponto) => Object.entries(duelo.posicoes).some(([outro, casa]) => outro !== tokenId && casa.col === casaDoValor(ponto.x) && casa.row === casaDoValor(ponto.y)),
+  })
+  // Casa ocupada, ou a mesma casa (não é passo).
+  if (!passo.ok || passo.blocos === 0) return recusa('regra')
+  if (contra !== null && !loja.getState().agir(CENA_DO_DUELO, autor, null, { tipo: 'mover', contraDe: contra.golpeId })) return recusa('regra')
+  loja.getState().somarCaminho(CENA_DO_DUELO, tokenId, passo.blocos, passo.caminho)
+  return { ok: true, posicoes: { ...duelo.posicoes, [tokenId]: { col: casaDoValor(passo.x), row: casaDoValor(passo.y) } } }
+}
+
 /**
  * Uma jogada da conta `contaId`. Confere, nesta ordem: a versão do motor, o
- * fim, a conta, o `seq`, o lado da ficha que age ou reage; refaz o pedido
+ * fim, a conta, o `seq`, o lado da ficha que age, reage ou anda; refaz o pedido
  * (dano, custo, ação, selo, Perfurante, bônus da reação) e passa pela mesma regra
- * da batalha da mesa. Aceita: o estado novo, com `seq` e `passos` + 1 e o fim
- * conferido. Recusada: o motivo, e o duelo recebido fica como estava.
+ * da batalha da mesa. Aceita: o estado novo, com `seq` e `passos` + 1 (andar
+ * não conta passo) e o fim conferido. Recusada: o motivo, e o duelo recebido
+ * fica como estava. `regraDoAndar`: o duelo usa `naVez` (o padrão); o treino
+ * local, `livre`.
  */
-export function aplicarJogada(duelo: DueloGravado, motor: MotorDoDuelo, contaId: string, jogada: JogadaDoDuelo): ResultadoDaJogada {
+export function aplicarJogada(duelo: DueloGravado, motor: MotorDoDuelo, contaId: string, jogada: JogadaDoDuelo, regraDoAndar: RegraDoAndar = 'naVez'): ResultadoDaJogada {
   if (duelo.versao !== VERSAO_DO_MOTOR_DO_DUELO) return recusa('versao')
   if (duelo.fim !== null) return recusa('acabou')
   const lado = ladoDaConta(duelo, contaId)
@@ -445,6 +554,12 @@ export function aplicarJogada(duelo: DueloGravado, motor: MotorDoDuelo, contaId:
   loja.setState({ cenas: { [CENA_DO_DUELO]: copia.cena } })
   const jogador = copia.jogadores[lado]
   const autor: AutorDaAcao = { tipo: 'jogador', playerId: jogador.contaId, nome: jogador.nome }
+  if (jogada.tipo === 'andar') {
+    const andou = andarNaLoja(loja, copia, lado, autor, jogada, regraDoAndar)
+    if (!andou.ok) return andou
+    const cena = cenaDaLoja(loja)
+    return { ok: true, duelo: { ...copia, lutadores: mesa.lutadores(), posicoes: andou.posicoes, cena, seq: copia.seq + 1, fim: fimNaMesa(mesa, cena, copia.passos) } }
+  }
   const motivo = jogarNaLoja(loja, mesa, copia.cena, lado, autor, jogada, motor.sistema)
   if (motivo !== null) return recusa(motivo)
   const cena = cenaDaLoja(loja)
@@ -512,6 +627,16 @@ function seqValido(valor: unknown): valor is number {
   return typeof valor === 'number' && Number.isSafeInteger(valor) && valor >= 0
 }
 
+/** Um id da batalha no fio (token, golpe): texto não vazio até `ID_DA_BATALHA_MAX`. */
+function idDoFio(valor: unknown): valor is string {
+  return typeof valor === 'string' && valor.length > 0 && valor.length <= ID_DA_BATALHA_MAX
+}
+
+/** A coluna ou a linha pedida: inteiro de 0 em diante (a grade confere o teto na jogada). */
+function indiceDaCasa(valor: unknown): valor is number {
+  return typeof valor === 'number' && Number.isSafeInteger(valor) && valor >= 0
+}
+
 function lerVez(valor: unknown): VezEsperada | null {
   if (!ehRegistro(valor)) return null
   const { cartaId, rodada } = valor
@@ -559,6 +684,15 @@ export function jogadaDoValor(valor: unknown): JogadaDoDuelo | null {
       const vez = lerVez(valor.vez)
       return vez === null ? null : { tipo: 'passar', seq, vez }
     }
+    case 'andar': {
+      const vez = valor.vez === null ? null : lerVez(valor.vez)
+      const { tokenId, col, row, contraDe } = valor
+      if ((valor.vez !== null && vez === null) || !idDoFio(tokenId) || !indiceDaCasa(col) || !indiceDaCasa(row)) return null
+      if (contraDe !== undefined && !idDoFio(contraDe)) return null
+      // Como no `agir`: sem vez SÓ o contra-ataque, e o contra-ataque nunca vem com vez.
+      if ((vez === null) !== (contraDe !== undefined)) return null
+      return contraDe === undefined ? { tipo: 'andar', seq, vez, tokenId, col, row } : { tipo: 'andar', seq, vez, tokenId, col, row, contraDe }
+    }
     default:
       return null
   }
@@ -605,6 +739,7 @@ export function dueloParaOFio(duelo: DueloGravado): DueloNoFio {
     fim: duelo.fim,
     jogadores: duelo.jogadores,
     lutadores: { vagas, personagens: personagens.map(projetarParaJogador) },
+    posicoes: duelo.posicoes,
     turnos: duelo.cena.turnos,
     regras: duelo.cena.regras,
     efeitos: duelo.cena.efeitos ?? [],

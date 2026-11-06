@@ -13,7 +13,7 @@ import type { VezEsperada } from '../batalha/ponte'
 import { cartaDaVez } from '../batalha/turnos'
 import { novoCartao, type Personagem } from '../personagem'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
-import { aplicarJogada, criarDuelo, type DueloGravado, type JogadaDoDuelo, type MotorDoDuelo, type ResultadoDaJogada } from './duelo'
+import { aplicarJogada, criarDuelo, jogadaDoValor, type DueloGravado, type JogadaDoDuelo, type MotorDoDuelo, type ResultadoDaJogada } from './duelo'
 import { LIA, lutadoresDe, MARINHEIRO, SISTEMA_DO_TESTE, ze } from './fichasDeTreino.testkit'
 import { lutaAutomatica, type ResumoDaLuta } from './lutaAutomatica'
 import { jogadaDoRobo } from './robo'
@@ -211,5 +211,32 @@ describe('duelo', () => {
     const primeira = aceita(aplicarJogada(duelo, motor, CONTA_A, jogada), 'o primeiro Atacar')
     expect(primeira.seq).toBe(duelo.seq + 1)
     expect(aplicarJogada(primeira, motor, CONTA_A, jogada)).toEqual({ ok: false, motivo: 'seqVelho' })
+  })
+
+  // Fatia M1: a grade 12 x 8 da Arena. No 1×1, o Zé nasce na casa (1, 3) e o Marinheiro na (10, 3).
+  it('andar fora da vez = recusado no duelo (no treino local é livre); na vez, a ficha anda e o MOV conta', () => {
+    const { motor } = motorDaSemente(7)
+    const duelo = umContraUmNaVezDoZe(motor)
+    const vez = vezDe(duelo)
+    expect(duelo.posicoes).toEqual({ [TOKEN_DO_ZE]: { col: 1, row: 3 }, [TOKEN_DO_MARINHEIRO]: { col: 10, row: 3 } })
+    const marinheiroAnda: JogadaDoDuelo = { tipo: 'andar', seq: duelo.seq, vez, tokenId: TOKEN_DO_MARINHEIRO, col: 9, row: 3 }
+    expect(jogadaDoValor(JSON.parse(JSON.stringify(marinheiroAnda)))).toEqual(marinheiroAnda)
+    expect(aplicarJogada(duelo, motor, CONTA_B, marinheiroAnda)).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(duelo, motor, CONTA_B, marinheiroAnda, 'livre')).toMatchObject({ ok: true, duelo: { posicoes: { [TOKEN_DO_MARINHEIRO]: { col: 9, row: 3 } } } })
+    const zeAnda = aceita(aplicarJogada(duelo, motor, CONTA_A, { tipo: 'andar', seq: duelo.seq, vez, tokenId: TOKEN_DO_ZE, col: 4, row: 5 }), 'o Zé andar na vez dele')
+    expect(zeAnda.posicoes[TOKEN_DO_ZE]).toEqual({ col: 4, row: 5 })
+    expect(zeAnda.cena.turnos.gastos[vez.cartaId]).toMatchObject({ blocos: 3 })
+    expect({ seq: zeAnda.seq, passos: zeAnda.passos }).toEqual({ seq: duelo.seq + 1, passos: duelo.passos })
+  })
+
+  it('andar para a casa ocupada (ou fora da grade) = recusado, e o duelo fica como estava', () => {
+    const { motor } = motorDaSemente(7)
+    const duelo = umContraUmNaVezDoZe(motor)
+    const antes = structuredClone(duelo)
+    const zeAndaPara = (col: number, row: number): JogadaDoDuelo => ({ tipo: 'andar', seq: duelo.seq, vez: vezDe(duelo), tokenId: TOKEN_DO_ZE, col, row })
+    expect(aplicarJogada(duelo, motor, CONTA_A, zeAndaPara(10, 3))).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(duelo, motor, CONTA_A, zeAndaPara(10, 3), 'livre')).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(duelo, motor, CONTA_A, zeAndaPara(12, 3))).toEqual({ ok: false, motivo: 'regra' })
+    expect(duelo).toEqual(antes)
   })
 })

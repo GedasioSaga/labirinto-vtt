@@ -3,7 +3,7 @@ import { ehRegistro, proprio } from '../../lib/nuvem/json'
 import { personagemDoArquivo, type Personagem } from '../../lib/personagem'
 import type { DueloNoFio, FimDoDuelo, JogadorDoDuelo } from '../../lib/treino/duelo'
 import type { ContaNoDuelo, ConviteDoDuelo, FimDoConvite, MensagemDoDueloDoServidor, MotivoDoDueloRecusado, TipoDoPedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
-import type { LadoDoTreino, VagaDoTreino } from '../../lib/treino/mesaEmMemoria'
+import { GRADE_DO_TREINO, type CasaDoTreino, type LadoDoTreino, type VagaDoTreino } from '../../lib/treino/mesaEmMemoria'
 
 /**
  * LEITURA DOS FRAMES DO DUELO (`duelo.*`, fatia T7): o que o DO Campanha manda
@@ -137,6 +137,27 @@ function lerLutadores(bruto: unknown): DueloNoFio['lutadores'] | null {
   return { vagas, personagens }
 }
 
+/** Uma casa da grade: coluna e linha inteiras dentro de `GRADE_DO_TREINO`. */
+function lerCasa(bruto: unknown): CasaDoTreino | null {
+  if (!ehRegistro(bruto)) return null
+  const col = proprio(bruto, 'col')
+  const row = proprio(bruto, 'row')
+  if (!ehInteiro(col) || !ehInteiro(row) || col >= GRADE_DO_TREINO.colunas || row >= GRADE_DO_TREINO.linhas) return null
+  return { col, row }
+}
+
+/** A casa de cada vaga, pelo id do token: toda vaga tem a sua (fora disso, o duelo está fora do formato). */
+function lerPosicoes(bruto: unknown, vagas: readonly VagaDoTreino[]): DueloNoFio['posicoes'] | null {
+  if (!ehRegistro(bruto)) return null
+  const posicoes = new Map<string, CasaDoTreino>()
+  for (const { tokenId } of vagas) {
+    const casa = lerCasa(proprio(bruto, tokenId))
+    if (casa === null) return null
+    posicoes.set(tokenId, casa)
+  }
+  return Object.fromEntries(posicoes)
+}
+
 function lerRegistro(bruto: unknown): DueloNoFio['registro'] | null {
   if (!Array.isArray(bruto)) return null
   const linhas: DueloNoFio['registro'][number][] = []
@@ -163,16 +184,17 @@ export function lerDueloNoFio(bruto: unknown): DueloNoFio | null {
   const a = ehRegistro(jogadores) ? lerJogador(proprio(jogadores, 'a')) : null
   const b = ehRegistro(jogadores) ? lerJogador(proprio(jogadores, 'b')) : null
   const lutadores = lerLutadores(proprio(bruto, 'lutadores'))
+  const posicoes = lutadores === null ? null : lerPosicoes(proprio(bruto, 'posicoes'), lutadores.vagas)
   const turnos = proprio(bruto, 'turnos')
   const regras = proprio(bruto, 'regras')
   const efeitos = proprio(bruto, 'efeitos')
   const registro = lerRegistro(proprio(bruto, 'registro'))
-  if (!ehInteiro(versao) || !segmentoValido(id) || !ehInteiro(seq) || fim === undefined || a === null || b === null || lutadores === null || registro === null) return null
+  if (!ehInteiro(versao) || !segmentoValido(id) || !ehInteiro(seq) || fim === undefined || a === null || b === null || lutadores === null || posicoes === null || registro === null) return null
   if (!ehRegistro(turnos) || !Array.isArray(proprio(turnos, 'cartas')) || !ehInteiro(proprio(turnos, 'rodada'))) return null
   if (regras !== null && !ehRegistro(regras)) return null
   if (!Array.isArray(efeitos)) return null
   // O miolo (cartas, golpes, selos, combate) é do motor do servidor: a tela só lê, nunca manda de volta.
-  return { versao, id, seq, fim, jogadores: { a, b }, lutadores, turnos: turnos as unknown as DueloNoFio['turnos'], regras: regras as DueloNoFio['regras'], efeitos: efeitos as DueloNoFio['efeitos'], registro }
+  return { versao, id, seq, fim, jogadores: { a, b }, lutadores, posicoes, turnos: turnos as unknown as DueloNoFio['turnos'], regras: regras as DueloNoFio['regras'], efeitos: efeitos as DueloNoFio['efeitos'], registro }
 }
 
 function lerLista<T>(bruto: unknown, ler: (item: unknown) => T | null): T[] | null {

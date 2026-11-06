@@ -1,3 +1,6 @@
+import { casasDoLado } from '../arena/montagem'
+import { GRADE_PEQUENA, type GradeDaArena } from '../arena/tipos'
+import type { Casa } from '../batalha/blocos'
 import type { Equipe } from '../batalha/equipes'
 import type { MesaDaBatalha } from '../batalha/mesa'
 import type { Personagem } from '../personagem'
@@ -19,7 +22,13 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
  * `lib/arena/copias.ts`: lá ninguém precisa repetir a luta.)
  *
  * As equipes são as duas virtuais, "Lado A" e "Lado B"; trocar de equipe não
- * existe no treino, nem invocação (sem mapa, como a arena).
+ * existe no treino, nem invocação (como a arena).
+ *
+ * A GRADE (fatia M1, pedido de 06/11: o treino e o duelo com a cara da Arena
+ * de testes do app): a pequena da Arena, 12 x 8. Cada vaga nasce numa casa
+ * determinística, como a Arena monta (`casasDoLado` de `lib/arena/montagem.ts`):
+ * o Lado A nas 2 colunas da esquerda, o B nas 2 da direita, em zigue-zague e
+ * centrados na altura. A mesma escolha dá as mesmas casas.
  *
  * Puro: sem store, sem DOM, sem Tauri.
  */
@@ -58,11 +67,22 @@ export interface VagaDoTreino {
   origem: string
 }
 
-/** O token da vaga, no formato que `combatentesIniciais` e `incluirCombatente` (`lib/batalha/turnos.ts`) leem. */
+/** A grade do treino e do duelo: a pequena da Arena (12 colunas x 8 linhas). */
+export const GRADE_DO_TREINO: GradeDaArena = GRADE_PEQUENA
+
+/** Uma casa da grade do treino (coluna e linha, de 0). */
+export type CasaDoTreino = Casa
+
+/**
+ * O token da vaga, no formato que `combatentesIniciais` e `incluirCombatente`
+ * (`lib/batalha/turnos.ts`) leem, com a casa onde a vaga nasce na grade.
+ */
 export interface TokenDaVaga {
   id: string
   characterId: string
   name: string
+  col: number
+  row: number
 }
 
 /** Quem luta: as vagas e as cópias. Só dados: vai a JSON (a luta pausada) e volta por `criarMesaEmMemoria`. */
@@ -125,6 +145,24 @@ export function montarLutadores(escolhas: readonly EscolhaDaVaga[]): MontagemDoT
   return { ok: true, lutadores: { vagas, personagens } }
 }
 
+/**
+ * A casa onde cada vaga nasce, pelo id do token: cada lado em `casasDoLado`
+ * da Arena, na ordem das vagas dele. Lado acima do que a grade comporta não
+ * acontece (`VAGAS_POR_LADO_MAX` = 6 cabe em 2 colunas x 3 linhas).
+ */
+export function casasIniciais(vagas: readonly VagaDoTreino[]): ReadonlyMap<string, CasaDoTreino> {
+  const casas = new Map<string, CasaDoTreino>()
+  for (const lado of LADOS_DO_TREINO) {
+    const doLado = vagas.filter((vaga) => vaga.lado === lado)
+    const naGrade = casasDoLado(doLado.length, lado, GRADE_DO_TREINO)
+    doLado.forEach((vaga, i) => {
+      const casa = naGrade[i]
+      if (casa !== undefined) casas.set(vaga.tokenId, casa)
+    })
+  }
+  return casas
+}
+
 /** As duas equipes virtuais com as cópias de cada lado. */
 function equipesDasVagas(vagas: readonly VagaDoTreino[]): Equipe[] {
   return LADOS_DO_TREINO.map((lado) => ({
@@ -143,10 +181,13 @@ function equipesDasVagas(vagas: readonly VagaDoTreino[]): Equipe[] {
 export function criarMesaEmMemoria(sistema: SistemaDeRpg | null, lutadores: LutadoresDoTreino): MesaEmMemoria {
   const vagas = lutadores.vagas
   const porId = new Map(lutadores.personagens.map((personagem) => [personagem.id, personagem]))
+  const casas = casasIniciais(vagas)
   const tokens: readonly TokenDaVaga[] = vagas.map((vaga) => {
     const copia = porId.get(vaga.personagemId)
     if (copia === undefined) throw new RangeError(`vaga ${vaga.id} do treino sem a cópia ${vaga.personagemId}`)
-    return { id: vaga.tokenId, characterId: vaga.personagemId, name: copia.nome }
+    const casa = casas.get(vaga.tokenId)
+    if (casa === undefined) throw new RangeError(`vaga ${vaga.id} do treino sem casa na grade`)
+    return { id: vaga.tokenId, characterId: vaga.personagemId, name: copia.nome, col: casa.col, row: casa.row }
   })
   const equipes = equipesDasVagas(vagas)
   let personagens = lutadores.personagens
