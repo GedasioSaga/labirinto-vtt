@@ -27,6 +27,12 @@ export interface SistemasDialogProps {
   /** O sistema vem com o app: não muda no lugar e não sai da grade. */
   ehEmbutido: (sistemaId: string) => boolean
   onClose: () => void
+  /**
+   * Por que escolher outro sistema não vale agora (a pasta do mapa está
+   * publicada no Lobby, e o sistema dela ficou fixo): os cartões não escolhem
+   * e o motivo fica à vista. Ausente = escolhe normalmente.
+   */
+  escolhaTravada?: string
 }
 
 const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -45,8 +51,9 @@ type Pergunta = { tipo: 'copiar' | 'motor' | 'apagar'; sistemaId: string }
  * Apagar pede confirmação e recusa o sistema da aventura aberta — ela ficaria
  * com as fichas sem sistema.
  */
-export function SistemasDialog({ sistemas, escolhidoId, avisos, onEscolher, onImportar, onEditar, onDuplicar, onExportar, onApagar, ehEmbutido, onClose }: SistemasDialogProps) {
+export function SistemasDialog({ sistemas, escolhidoId, avisos, onEscolher, onImportar, onEditar, onDuplicar, onExportar, onApagar, ehEmbutido, onClose, escolhaTravada }: SistemasDialogProps) {
   const tituloId = useId()
+  const travaId = useId()
   const novoId = useId()
   const copiarId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -63,8 +70,9 @@ export function SistemasDialog({ sistemas, escolhidoId, avisos, onEscolher, onIm
 
   useEffect(() => {
     const opener = document.activeElement
-    // O foco entra no sistema em uso (ou no primeiro): Enter confirma o que já está escolhido.
-    const alvo = dialogRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]') ?? dialogRef.current?.querySelector<HTMLElement>('.lb-sistema')
+    // O foco entra no sistema em uso (ou no primeiro): Enter confirma o que já está escolhido. Com a escolha travada, na própria janela.
+    const alvo =
+      dialogRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]:not([disabled])') ?? dialogRef.current?.querySelector<HTMLElement>('.lb-sistema:not([disabled])') ?? dialogRef.current
     alvo?.focus()
     return () => {
       if (opener instanceof HTMLElement && opener !== document.body && opener.isConnected) opener.focus()
@@ -159,6 +167,11 @@ export function SistemasDialog({ sistemas, escolhidoId, avisos, onEscolher, onIm
         </header>
         <div className="lb-dialog__body lb-scroll lb-sistemas__corpo">
           <p className="lb-field__hint">Um sistema vale para a aventura inteira: as fichas de todos os personagens seguem ele.</p>
+          {escolhaTravada !== undefined && (
+            <p className="lb-field__hint" id={travaId} role="note">
+              {escolhaTravada}
+            </p>
+          )}
           <ul className="lb-sistemas__grade" aria-label="Sistemas da biblioteca">
             {sistemas.map((sistema) => {
               const emUso = sistema.id === escolhidoId
@@ -170,6 +183,9 @@ export function SistemasDialog({ sistemas, escolhidoId, avisos, onEscolher, onIm
                     type="button"
                     className="lb-sistema"
                     aria-pressed={emUso}
+                    disabled={escolhaTravada !== undefined}
+                    aria-describedby={escolhaTravada !== undefined ? travaId : undefined}
+                    style={escolhaTravada !== undefined ? { cursor: 'not-allowed' } : undefined}
                     onClick={() => {
                       onEscolher(sistema.id)
                       onClose()

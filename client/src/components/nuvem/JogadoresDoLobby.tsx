@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { NOME_DA_CONTA_MAX, PIN_MAX_DIGITOS, PIN_MIN_DIGITOS, pinValido, type ContaDeJogador } from '../../lib/contasDosJogadores'
 import type { PastaDeMapas, RpgDaPasta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
@@ -6,12 +6,14 @@ import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import type { CampanhaPublicada } from '../../net/nuvem/estadoNoDisco'
 import { useContasStore } from '../../stores/contasStore'
 import { useNuvemStore, type CampanhaNoApp } from '../../stores/nuvemStore'
+import { useToastStore } from '../../stores/toastStore'
 import { ContaNaNuvem, type EstadoDaConta } from './ContaNaNuvem'
 import { problemaDoEmail, reenviarContasAtuais, trocarEmailDaConta } from './contasNoLobby'
 import { IndicadorDoLobby } from './IndicadorDoLobby'
 import { MudancasParaDecidir } from './MudancasParaDecidir'
 import { bloqueioDoDragonBall, dragonBallNaPasta, fichasComOBloco, fichasQueSobem, publicarPasta, type EnvioDosMembros, type Publicacao } from './ponteDoLobby'
 import { contaComOMesmoEmail, emailRepetidoParado, iniciais, listaDeNomes, recadoDeConvite } from './textosDoLobby'
+import { SEM_DONO, useArrastoDaFicha } from './useArrastoDaFicha'
 import { usePastaPublicada } from './usePastaPublicada'
 import './lobby.css'
 
@@ -21,7 +23,30 @@ import './lobby.css'
  * docs/design/lobby/prototipo-mestre.html, vista "No app"): publicar a pasta,
  * quem entra no site (a conta do app com o e-mail Google) e de quem é cada
  * ficha. "Sem dono": só o mestre edita, os colegas veem (12.6).
+ *
+ * Como no protótipo: a ficha vai ao jogador pelo "Dono" do cartão ou
+ * arrastada até a linha dele (`useArrastoDaFicha`); trocar o dono e tirar do
+ * Lobby avisam com Desfazer, e o Ctrl+Z da aba volta a última dessas duas.
+ * Desvio até a W4: a linha diz "Convite feito, aguardando o primeiro acesso"
+ * (sem o "Convidado/Convidada" do protótipo, porque a conta do app não guarda
+ * o gênero), e o app ainda não sabe quem já entrou; o e-mail só deixa entrar
+ * depois que o mestre o põe também no grupo do Access.
  */
+
+/** Quantas mudanças o Ctrl+Z da aba ainda volta. */
+const PILHA_DO_DESFAZER_MAX = 20
+/** Quanto a ficha que acabou de trocar de dono fica marcada para entrar com movimento na lista nova. */
+const CHEGADA_MS = 400
+
+interface EntradaDoDesfazer {
+  desfazer: () => void
+  /** O aviso com o botão Desfazer: sai da tela quando o Ctrl+Z desfaz por ele. */
+  avisoId: string | null
+}
+
+function mensagemDe(erro: unknown): string {
+  return erro instanceof Error ? erro.message : String(erro)
+}
 
 export interface JogadoresDoLobbyProps {
   pasta: PastaDeMapas
@@ -34,15 +59,16 @@ export interface JogadoresDoLobbyProps {
 type Envio = { t: 'enviando' } | { t: 'falhou'; mensagem: string }
 
 /** O que a linha do jogador diz: a pastilha mostra o estado, o texto ao lado diz o porquê. */
-type Situacao = 'sem-email' | 'repetido' | 'enviando' | 'falhou' | 'liberado' | 'guardado'
+type Situacao = 'sem-email' | 'repetido' | 'enviando' | 'falhou' | 'convidado' | 'guardado'
 
+// Nenhum texto promete a entrada: até a W4, quem libera o e-mail no Access é o mestre, à mão.
 const TEXTO_DA_SITUACAO: Readonly<Record<Situacao, { marca: string; mais: string | null }>> = {
   'sem-email': { marca: 'Sem e-mail', mais: 'não entra no site' },
   repetido: { marca: 'E-mail repetido', mais: 'não entra até trocar' },
   enviando: { marca: 'Enviando ao Lobby…', mais: null },
   falhou: { marca: 'Não deu: tente de novo', mais: null },
-  liberado: { marca: 'Liberado', mais: 'entra no site com este e-mail' },
-  guardado: { marca: 'E-mail guardado', mais: 'entra quando a pasta for publicada' },
+  convidado: { marca: 'Convite feito', mais: 'aguardando o primeiro acesso' },
+  guardado: { marca: 'E-mail guardado', mais: 'vai junto quando a pasta for publicada' },
 }
 
 function comDono(ficha: Personagem, contaId: string | null): Personagem {
@@ -79,14 +105,113 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
   const [envios, setEnvios] = useState<Readonly<Record<string, Envio>>>({})
   const [emailAberto, setEmailAberto] = useState<string | null>(null)
   const [erroDoDono, setErroDoDono] = useState<string | null>(null)
+  const [chegou, setChegou] = useState<string | null>(null)
+  const raiz = useRef<HTMLDivElement>(null)
+  const pilha = useRef<EntradaDoDesfazer[]>([])
 
   useEffect(() => {
     void useContasStore.getState().carregar()
   }, [])
 
+  useEffect(() => {
+    if (chegou === null) return
+    const espera = setTimeout(() => setChegou(null), CHEGADA_MS)
+    return () => clearTimeout(espera)
+  }, [chegou])
+
   const fichas = fichasQueSobem(rpg.personagens)
   const idsDasContas = new Set(contas.map((candidata) => candidata.id))
-  const semDono = fichas.filter((ficha) => ficha.dono === undefined || !idsDasContas.has(ficha.dono))
+  const donoDe = (ficha: Personagem): string | null => (ficha.dono !== undefined && idsDasContas.has(ficha.dono) ? ficha.dono : null)
+  const semDono = fichas.filter((ficha) => donoDe(ficha) === null)
+  const nomeDaConta = (contaId: string): string => contas.find((candidata) => candidata.id === contaId)?.nome ?? 'outro jogador'
+
+  // ── Desfazer: o botão do aviso e o Ctrl+Z da aba voltam a mesma entrada, uma vez só ──
+
+  const rodarDesfazer = (entrada: EntradaDoDesfazer) => {
+    const indice = pilha.current.indexOf(entrada)
+    if (indice < 0) return
+    pilha.current = pilha.current.filter((outra) => outra !== entrada)
+    if (entrada.avisoId !== null) useToastStore.getState().dismiss(entrada.avisoId)
+    entrada.desfazer()
+  }
+
+  const avisarComDesfazer = (texto: string, desfazer: () => void) => {
+    const entrada: EntradaDoDesfazer = { desfazer, avisoId: null }
+    pilha.current = [...pilha.current, entrada].slice(-PILHA_DO_DESFAZER_MAX)
+    entrada.avisoId = useToastStore.getState().push('info', texto, undefined, { actions: [{ label: 'Desfazer', run: () => rodarDesfazer(entrada) }] })
+  }
+
+  const desfazerPeloTeclado = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== 'z') return
+    // No campo de texto, o Ctrl+Z é da digitação.
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+    const ultima = pilha.current[pilha.current.length - 1]
+    if (ultima === undefined) return
+    event.preventDefault()
+    rodarDesfazer(ultima)
+  }
+
+  /**
+   * Muda o dono só se a ficha ainda estiver com `esperado` (a ficha pode ter
+   * mudado por outro caminho entre o clique e a gravação, ou entre a troca e
+   * o Desfazer); `false` = não estava, e nada mudou.
+   */
+  const mudarDono = async (fichaId: string, contaId: string | null, esperado: string | null): Promise<boolean> => {
+    const visto: { confere: boolean | null } = { confere: null }
+    await onMudar((atual) => {
+      const ids = new Set(useContasStore.getState().arquivo.contas.map((candidata) => candidata.id))
+      const ficha = atual.personagens.find((candidata) => candidata.id === fichaId)
+      const agora = ficha?.dono !== undefined && ids.has(ficha.dono) ? ficha.dono : null
+      const confere = ficha !== undefined && agora === esperado
+      // O funil chama a mudança mais de uma vez (o disco, a prévia, a cópia aberta): vale o que a primeira, a do disco, viu.
+      if (visto.confere === null) visto.confere = confere
+      return confere ? { ...atual, personagens: atual.personagens.map((candidata) => (candidata.id === fichaId ? comDono(candidata, contaId) : candidata)) } : atual
+    })
+    return visto.confere === true
+  }
+
+  const desfazerDono = async (nome: string, fichaId: string, depois: string | null, antes: string | null, nomeAntes: string | null) => {
+    const toasts = useToastStore.getState()
+    try {
+      if (!(await mudarDono(fichaId, antes, depois))) {
+        toasts.push('error', `Não deu para desfazer: o dono de ${nome} mudou depois.`)
+        return
+      }
+    } catch (erro) {
+      toasts.push('error', `Não deu para desfazer: ${mensagemDe(erro)}`)
+      return
+    }
+    setChegou(fichaId)
+    toasts.push('info', `Desfeito: ${nome} voltou ${nomeAntes === null ? 'para Sem dono' : `para ${nomeAntes}`}.`)
+  }
+
+  const desfazerTirar = async (contaId: string, nome: string, email: string) => {
+    const toasts = useToastStore.getState()
+    const agora = useContasStore.getState().arquivo.contas
+    const alvo = agora.find((candidata) => candidata.id === contaId)
+    if (alvo === undefined || alvo.email !== undefined) {
+      toasts.push('error', `Não deu para desfazer: a conta de ${nome} mudou depois.`)
+      return
+    }
+    const problema = problemaDoEmail(agora, contaId, email)
+    if (problema !== null) {
+      toasts.push('error', `Não deu para desfazer: ${problema}`)
+      return
+    }
+    try {
+      await comEnvio([contaId], () => trocarEmailDaConta(contaId, email))
+    } catch (erro) {
+      toasts.push('error', `Não deu para desfazer: ${mensagemDe(erro)}`)
+      return
+    }
+    toasts.push('info', `Desfeito: ${nome} voltou ao Lobby.`)
+  }
+
+  const aoTirar = (alvo: ContaDeJogador, email: string) => {
+    const dele = fichas.filter((ficha) => ficha.dono === alvo.id).map((ficha) => ficha.nome)
+    const resto = dele.length === 0 ? '' : ` ${listaDeNomes(dele)} ${dele.length === 1 ? 'fica' : 'ficam'} sem quem edite pelo site.`
+    avisarComDesfazer(`${alvo.nome} saiu do Lobby.${resto}`, () => void desfazerTirar(alvo.id, alvo.nome, email))
+  }
 
   /** Roda o envio da lista de jogadores e marca as linhas tocadas enquanto ele vai. */
   const comEnvio = async (contaIds: readonly string[], enviar: () => Promise<EnvioDosMembros>) => {
@@ -118,17 +243,48 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
     if (envio !== undefined) return envio.t
     if (alvo.email === undefined) return 'sem-email'
     if (emailRepetidoParado(contas, alvo)) return 'repetido'
-    return publicada ? 'liberado' : 'guardado'
+    return publicada ? 'convidado' : 'guardado'
   }
 
+  /** O "Dono" do cartão e o arrasto chegam aqui: troca, marca a chegada e avisa com Desfazer. */
   const trocarDono = async (fichaId: string, contaId: string | null) => {
     setErroDoDono(null)
+    const ficha = rpg.personagens.find((candidata) => candidata.id === fichaId)
+    if (ficha === undefined) return
+    const antes = donoDe(ficha)
+    if (antes === contaId) return
     try {
-      await onMudar((atual) => ({ ...atual, personagens: atual.personagens.map((ficha) => (ficha.id === fichaId ? comDono(ficha, contaId) : ficha)) }))
+      if (!(await mudarDono(fichaId, contaId, antes))) {
+        setErroDoDono(`O dono de ${ficha.nome} mudou enquanto você escolhia. Confira o quadro e escolha de novo.`)
+        return
+      }
     } catch (erro) {
-      setErroDoDono(erro instanceof Error ? erro.message : String(erro))
+      setErroDoDono(mensagemDe(erro))
+      return
     }
+    setChegou(fichaId)
+    const nomeAntes = antes === null ? null : nomeDaConta(antes)
+    avisarComDesfazer(contaId === null ? `${ficha.nome} ficou sem dono: só você edita.` : `${ficha.nome} agora é de ${nomeDaConta(contaId)}.`, () => void desfazerDono(ficha.nome, fichaId, contaId, antes, nomeAntes))
   }
+
+  const arrasto = useArrastoDaFicha(
+    raiz,
+    (fichaId) => {
+      const ficha = fichas.find((candidata) => candidata.id === fichaId)
+      return (ficha === undefined ? null : donoDe(ficha)) ?? SEM_DONO
+    },
+    (fichaId, alvo) => trocarDono(fichaId, alvo === SEM_DONO ? null : alvo),
+  )
+
+  /** O que a vaga diz, na pausa antes de soltar, onde o papel vai cair. */
+  const vagaEm = (alvo: string): string | null => {
+    const { sobre } = arrasto
+    if (sobre === null || sobre.alvo !== alvo) return null
+    const ficha = fichas.find((candidata) => candidata.id === sobre.fichaId)
+    if (ficha === undefined) return null
+    return alvo === SEM_DONO ? `Soltar: ${ficha.nome} fica sem dono` : `Soltar: ${ficha.nome} passa a ser de ${nomeDaConta(alvo)}`
+  }
+  const vagaSemDono = vagaEm(SEM_DONO)
 
   const avisos = contas.flatMap((alvo) => {
     const situacao = situacaoDe(alvo)
@@ -145,9 +301,9 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
   })
 
   return (
-    <div className="jl">
+    <div className="jl" ref={raiz} onPointerDown={arrasto.onPointerDown} onKeyDown={desfazerPeloTeclado}>
       <div className="jl-topo">
-        <p className="jl-intro">Quem entra no site desta campanha e de quem é cada ficha. Escolha o dono no cartão da ficha.</p>
+        <p className="jl-intro">Quem entra no site desta campanha e de quem é cada ficha. Escolha o dono no cartão da ficha, ou arraste a ficha até o jogador.</p>
         {campanhaLigada !== undefined && <IndicadorDoLobby campanha={campanhaLigada} />}
       </div>
 
@@ -204,8 +360,11 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
                   publicada={publicada}
                   fichas={fichas.filter((ficha) => ficha.dono === alvo.id)}
                   emailAberto={emailAberto === alvo.id}
+                  vaga={vagaEm(alvo.id)}
+                  chegou={chegou}
                   onAbrirEmail={(aberto) => setEmailAberto(aberto ? alvo.id : null)}
                   onTrocarEmail={(email) => comEnvio([alvo.id], () => trocarEmailDaConta(alvo.id, email))}
+                  onTirado={(email) => aoTirar(alvo, email)}
                   onReenviar={() => void comEnvio([alvo.id], reenviarContasAtuais).catch(() => undefined)}
                   onTrocarDono={trocarDono}
                 />
@@ -214,7 +373,7 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
           )}
           <ConviteDeJogador contas={contas} podeGravar={podeGravarContas} onConvidar={(contaId, email) => comEnvio([contaId], () => trocarEmailDaConta(contaId, email))} />
         </section>
-        <section className="jl-sem-dono" aria-labelledby={`jl-sd-${pasta.id}`}>
+        <section className="jl-sem-dono" data-alvo={SEM_DONO} data-sobre={vagaSemDono !== null || undefined} aria-labelledby={`jl-sd-${pasta.id}`}>
           <div className="jl-cab">
             <h4 className="jl-cab__t" id={`jl-sd-${pasta.id}`}>
               Sem dono
@@ -224,9 +383,14 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
           <p className="lby-dica">Só você edita. Os colegas veem.</p>
           <ul className="jl-fichas" aria-label="Fichas sem dono">
             {semDono.length === 0 ? (
-              <li className="jl-fichas__vazio">{fichas.length === 0 ? 'Nenhuma ficha de jogador nesta pasta. Crie em Sistema e personagens.' : 'Toda ficha tem dono.'}</li>
+              <li className="jl-fichas__vazio">{fichas.length === 0 ? 'Nenhuma ficha de jogador nesta pasta. Crie em Sistema e personagens.' : 'Toda ficha tem dono. Solte uma aqui para ela ficar sem dono.'}</li>
             ) : (
-              semDono.map((ficha) => <FichaNoQuadro key={ficha.id} ficha={ficha} contas={contas} onTrocarDono={trocarDono} />)
+              semDono.map((ficha) => <FichaNoQuadro key={ficha.id} ficha={ficha} contas={contas} chegou={chegou === ficha.id} onTrocarDono={trocarDono} />)
+            )}
+            {vagaSemDono !== null && (
+              <li className="jl-vaga" aria-hidden="true">
+                {vagaSemDono}
+              </li>
             )}
           </ul>
         </section>
@@ -273,9 +437,10 @@ function bloqueioDaPublicacao(sistema: SistemaDeRpg | undefined, personagens: re
 
 /**
  * A pasta já está no Lobby e ganhou Dragon Ball por um caminho que não passa
- * pelo Publicar (o sistema trocado pela grade de sistemas de um mapa, ou um
- * `rpg.json` mexido à mão). As mudanças continuam subindo: o aviso diz o que é
- * e o que evitar até o bloco ser detalhado campo a campo.
+ * pelo app (um `rpg.json` mexido à mão: o Configurar pasta e a grade de
+ * sistemas do mapa recusam trocar o sistema da pasta publicada). As mudanças
+ * continuam subindo: o aviso diz o que é e o que evitar até o bloco ser
+ * detalhado campo a campo.
  */
 function avisoDoDragonBallPublicado(sistema: SistemaDeRpg | undefined, personagens: readonly Personagem[]): string | null {
   const achado = dragonBallNaPasta(sistema, personagens)
@@ -416,8 +581,14 @@ interface LinhaDoJogadorProps {
   publicada: boolean
   fichas: readonly Personagem[]
   emailAberto: boolean
+  /** O arrasto parou sobre esta linha: o texto da vaga (o que acontece ao soltar); `null` = não está. */
+  vaga: string | null
+  /** A ficha que acabou de trocar de dono (entra com movimento). */
+  chegou: string | null
   onAbrirEmail: (aberto: boolean) => void
   onTrocarEmail: (email: string | null) => Promise<void>
+  /** Saiu do Lobby: o quadro avisa com Desfazer, que devolve `email` à conta. */
+  onTirado: (email: string) => void
   onReenviar: () => void
   onTrocarDono: (fichaId: string, contaId: string | null) => Promise<void>
 }
@@ -425,7 +596,7 @@ interface LinhaDoJogadorProps {
 const COPIADO_MS = 2000
 
 function LinhaDoJogador(props: LinhaDoJogadorProps) {
-  const { conta, contas, situacao, envio, podeGravar, publicada, fichas, emailAberto, onAbrirEmail, onTrocarEmail, onReenviar, onTrocarDono } = props
+  const { conta, contas, situacao, envio, podeGravar, publicada, fichas, emailAberto, vaga, chegou, onAbrirEmail, onTrocarEmail, onTirado, onReenviar, onTrocarDono } = props
   const id = useId()
   const [tirando, setTirando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -452,9 +623,11 @@ function LinhaDoJogador(props: LinhaDoJogadorProps) {
 
   const tirar = async () => {
     setErro(null)
+    const email = conta.email
     try {
       await onTrocarEmail(null)
       setTirando(false)
+      if (email !== undefined) onTirado(email)
     } catch (causa) {
       setErro(causa instanceof Error ? causa.message : String(causa))
     }
@@ -462,7 +635,7 @@ function LinhaDoJogador(props: LinhaDoJogadorProps) {
 
   const aparelhos = conta.aparelhos.length
   return (
-    <li className="jl-jog" aria-labelledby={`${id}-nome`}>
+    <li className="jl-jog" data-alvo={conta.id} data-sobre={vaga !== null || undefined} aria-labelledby={`${id}-nome`}>
       <span className="jl-av" aria-hidden="true">
         {iniciais(conta.nome).slice(0, 1)}
       </span>
@@ -522,9 +695,14 @@ function LinhaDoJogador(props: LinhaDoJogadorProps) {
       <div className="jl-fichas-area">
         <ul className="jl-fichas" aria-label={`Fichas de ${conta.nome}`}>
           {fichas.length === 0 ? (
-            <li className="jl-fichas__vazio">Nenhuma ficha. Escolha {conta.nome} no Dono de uma ficha sem dono.</li>
+            <li className="jl-fichas__vazio">Nenhuma ficha. Arraste uma até aqui, ou escolha {conta.nome} no Dono dela.</li>
           ) : (
-            fichas.map((ficha) => <FichaNoQuadro key={ficha.id} ficha={ficha} contas={contas} onTrocarDono={onTrocarDono} />)
+            fichas.map((ficha) => <FichaNoQuadro key={ficha.id} ficha={ficha} contas={contas} chegou={chegou === ficha.id} onTrocarDono={onTrocarDono} />)
+          )}
+          {vaga !== null && (
+            <li className="jl-vaga" aria-hidden="true">
+              {vaga}
+            </li>
           )}
         </ul>
       </div>
@@ -634,7 +812,7 @@ function FormDoEmail({ conta, contas, podeGravar, publicada, focar, onSalvar, on
           placeholder="nome@gmail.com"
           value={valor}
           aria-invalid={erro !== null}
-          aria-describedby={erro !== null ? `${id}-erro` : temAntes && publicada ? `${id}-dica` : undefined}
+          aria-describedby={erro !== null ? `${id}-erro` : publicada ? `${id}-dica` : undefined}
           onChange={(event) => {
             setValor(event.target.value)
             if (erro !== null && problemaDoEmail(contas, conta.id, event.target.value) === null) setErro(null)
@@ -654,9 +832,11 @@ function FormDoEmail({ conta, contas, podeGravar, publicada, focar, onSalvar, on
           {erro}
         </p>
       )}
-      {temAntes && publicada && erro === null && (
+      {publicada && erro === null && (
         <p className="lby-dica" id={`${id}-dica`}>
-          O e-mail antigo deixa de entrar; o novo entra assim que estiver no grupo do Access.
+          {temAntes
+            ? 'O e-mail antigo deixa de entrar; o novo entra assim que estiver no grupo do Access.'
+            : 'Ponha este e-mail também no grupo do Access, no painel Zero Trust da Cloudflare: sem isso o site não deixa entrar.'}
         </p>
       )}
     </form>
@@ -665,18 +845,32 @@ function FormDoEmail({ conta, contas, podeGravar, publicada, focar, onSalvar, on
 
 // ── A ficha no quadro ───────────────────────────────────────────────────────
 
-function FichaNoQuadro({ ficha, contas, onTrocarDono }: { ficha: Personagem; contas: readonly ContaDeJogador[]; onTrocarDono: (fichaId: string, contaId: string | null) => Promise<void> }) {
+interface FichaNoQuadroProps {
+  ficha: Personagem
+  contas: readonly ContaDeJogador[]
+  /** Acabou de trocar de dono: entra na lista nova com movimento. */
+  chegou: boolean
+  onTrocarDono: (fichaId: string, contaId: string | null) => Promise<void>
+}
+
+/** O cartão: `data-ficha` é por onde o arrasto o acha; a alça é o único ponto que levanta o papel no toque. */
+function FichaNoQuadro({ ficha, contas, chegou, onTrocarDono }: FichaNoQuadroProps) {
   const id = useId()
   const [trocando, setTrocando] = useState(false)
   const atual = ficha.dono !== undefined && contas.some((conta) => conta.id === ficha.dono) ? ficha.dono : ''
   const nota = atual === '' && ficha.nomeDoJogador !== undefined && ficha.nomeDoJogador !== '' ? `Na ficha: ${ficha.nomeDoJogador}, sem conta` : null
   return (
-    <li className="jl-ficha" data-trocando={trocando || undefined}>
+    <li className="jl-ficha" data-ficha={ficha.id} data-trocando={trocando || undefined} data-chegou={chegou || undefined}>
       <span className="jl-ficha__ret" aria-hidden="true">
         {iniciais(ficha.nome)}
       </span>
       <span className="jl-ficha__nome" title={ficha.nome}>
         {ficha.nome}
+      </span>
+      <span className="jl-alca" aria-hidden="true" title="Arraste até um jogador">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+          <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" />
+        </svg>
       </span>
       <span className="jl-ficha__dono">
         <label className="jl-ficha__rot" htmlFor={`${id}-dono`}>

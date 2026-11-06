@@ -3,7 +3,10 @@ import { escolherImagemDaFicha, escolherTextoJson, salvarTextoJson } from '../li
 import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
 import { nomeDaCopia, rascunhoDaCopia, rascunhoDoSistema, rascunhoEmBranco, type RascunhoDoSistema } from '../lib/editorDeSistema'
 import { serializarSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
-import { hostWorldOf, personagensAtivos, sistemaAtivo, temRpgNoMapa, useAdventureStore } from '../stores/adventureStore'
+import { herdaDaPasta, hostWorldOf, personagensAtivos, sistemaAtivo, temRpgNoMapa, useAdventureStore } from '../stores/adventureStore'
+import { useToastStore } from '../stores/toastStore'
+import { campanhaDaPasta } from './nuvem/ponteDoLobby'
+import { SISTEMA_FIXO_NO_LOBBY, usePastaPublicada } from './nuvem/usePastaPublicada'
 import { carriedItemsOf } from '../lib/items'
 import { partyItemChange, tokenDoPersonagem } from '../lib/party'
 import type { AppliedItems, HostWorld } from '../net/hostSession'
@@ -55,6 +58,27 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   const avisos = useRpgStore((state) => state.avisosDaBiblioteca)
   const livroAberto = useRpgStore((state) => state.livroAberto)
   const editorDeSistema = useRpgStore((state) => state.editorDeSistema)
+  // LOBBY: o mapa que herda troca o sistema UNIVERSAL da pasta; publicada, ele ficou fixo (o site lê as fichas pelo que foi junto, 12.21).
+  const pastaQueManda = useAdventureStore((state) => (herdaDaPasta(state) ? (state.pasta?.pastaId ?? null) : null))
+  const { publicada: pastaNoLobby } = usePastaPublicada(pastaQueManda)
+
+  /** Confere de novo na hora: a grade pode abrir antes de a leitura do disco dizer que a pasta está no Lobby. */
+  const escolherSistema = async (id: string) => {
+    if (pastaQueManda !== null) {
+      let noLobby = pastaNoLobby
+      try {
+        noLobby = noLobby || (await campanhaDaPasta(pastaQueManda)) !== null
+      } catch (erro) {
+        useToastStore.getState().push('error', `Não deu para conferir se a pasta está no Lobby, e o sistema ficou como estava: ${erro instanceof Error ? erro.message : String(erro)}`)
+        return
+      }
+      if (noLobby) {
+        useToastStore.getState().push('error', SISTEMA_FIXO_NO_LOBBY)
+        return
+      }
+    }
+    comAventura(garantirAventura, () => useAdventureStore.getState().setSistemaDeRpg(id))
+  }
 
   // A grade abre também no mapa solto (Configurações do mapa): escolher ali pergunta antes se ele vira aventura.
   const grade = sistemasAbertos && (
@@ -62,7 +86,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
       sistemas={biblioteca}
       escolhidoId={sistemaId}
       avisos={avisos}
-      onEscolher={(id) => comAventura(garantirAventura, () => useAdventureStore.getState().setSistemaDeRpg(id))}
+      escolhaTravada={pastaNoLobby ? SISTEMA_FIXO_NO_LOBBY : undefined}
+      onEscolher={(id) => void escolherSistema(id)}
       onImportar={async () => {
         const texto = await escolherTextoJson('Importar sistema de RPG', 'Sistema de RPG')
         return texto === null ? null : useRpgStore.getState().importarSistema(texto)

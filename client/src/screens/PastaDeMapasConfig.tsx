@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEv
 import { JogadoresDoLobby } from '../components/nuvem/JogadoresDoLobby'
 import { campanhaDaPasta, dragonBallNaPasta, fichasComOBloco } from '../components/nuvem/ponteDoLobby'
 import { emailRepetidoParado } from '../components/nuvem/textosDoLobby'
-import { usePastaPublicada } from '../components/nuvem/usePastaPublicada'
+import { SISTEMA_FIXO_NO_LOBBY, usePastaPublicada } from '../components/nuvem/usePastaPublicada'
 import { escolherTextoJson } from '../lib/arquivosDaFicha'
 import { importarFichasDoProjetoRpg } from '../lib/importarDoProjetoRpg'
 import type { SavedMapEntry } from '../lib/mapFileIO'
@@ -42,9 +42,6 @@ const painelStyle: CSSProperties = {
 }
 
 const linhaStyle: CSSProperties = { display: 'flex', gap: 'var(--lb-space-2)', flexWrap: 'wrap', alignItems: 'center' }
-
-/** O sistema foi junto na publicação (a `meta` da campanha guarda o sistema publicado) e o site lê as fichas por ele. */
-const SISTEMA_FIXO_NO_LOBBY = 'Esta pasta está publicada no Lobby: o site dos jogadores usa o sistema que foi junto na publicação, então ele não muda mais por aqui.'
 
 function nomes(personagens: readonly Personagem[]): string {
   return personagens.map((personagem) => personagem.nome).join(', ')
