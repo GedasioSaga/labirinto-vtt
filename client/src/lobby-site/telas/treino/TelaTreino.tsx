@@ -8,7 +8,7 @@ import { Icone } from '../Icone'
 import { CemLutas } from './CemLutas'
 import { ImagemDoSite } from './grade/ImagemDoSite'
 import { AjustesDoJuiz } from './juiz/AjustesDoJuiz'
-import { apagarAjustesDoJuiz, ajustesPadraoDoJuiz, fichaDoJuiz, guardarAjustesDoJuiz, ID_DO_JUIZ, juizMudou, lerAjustesDoJuiz, NOME_DO_JUIZ, RETRATO_DO_JUIZ, type AjustesDoJuiz as Ajustes } from './juiz/juizDoTreino'
+import { apagarAjustesDoJuiz, ajustesPadraoDoJuiz, fichaDoJuiz, guardarAjustesDoJuiz, ID_DO_JUIZ, juizMudou, juizNaoReage, lerAjustesDoJuiz, NOME_DO_JUIZ, RETRATO_DO_JUIZ, type AjustesDoJuiz as Ajustes } from './juiz/juizDoTreino'
 import { comVidaCheia, type MontagemDaLuta } from './lutaDeTreino'
 import { LutaTurnoATurno } from './LutaTurnoATurno'
 import { MontagemNaGrade } from './montagem/MontagemNaGrade'
@@ -91,14 +91,20 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
     if (minha !== undefined) return comORascunho ? comRascunho(minha.doc, rascunhos.get(pecaId) ?? null) : minha.doc
     return [...colegas, ...inimigos].find((ficha) => ficha.doc.id === pecaId)?.doc ?? null
   }
-  const montagem: MontagemDaLuta = lutaDaMontagem(lista, (pecaId) => {
-    const doc = docDaPeca(pecaId)
-    return doc === null ? null : preparar(doc)
-  })
+  // O Judge com "Fica parado" não reage em nenhum modo: na luta turno a turno, nas 100 lutas e no Testar build.
+  const naoReagem = juizNaoReage(juiz)
+  const montagem: MontagemDaLuta = {
+    ...lutaDaMontagem(lista, (pecaId) => {
+      const doc = docDaPeca(pecaId)
+      return doc === null ? null : preparar(doc)
+    }),
+    naoReagem,
+  }
   /** O Testar build: a ficha do editor no lugar dela no Lado A (com ou sem o rascunho), o resto da grade como está. */
   const montagemDoBuild = (minha: Personagem): MontagemDaLuta => ({
     minhas: [preparar(minha), ...montagem.minhas.filter((doc) => doc.id !== minha.id)],
     inimigos: montagem.inimigos,
+    naoReagem,
   })
   const nomeDoInimigo = nomeDoLadoB(montagem.inimigos)
 

@@ -22,9 +22,11 @@ export type Relogio = () => number
 
 function vagaDoFio(valor: unknown): VagaDoTreino | null {
   if (!ehRegistro(valor) || !ehLado(valor.lado)) return null
-  const { id, personagemId, tokenId, origem } = valor
+  const { id, personagemId, tokenId, origem, reage } = valor
   if (typeof id !== 'string' || typeof personagemId !== 'string' || typeof tokenId !== 'string' || typeof origem !== 'string') return null
-  return { id, lado: valor.lado, personagemId, tokenId, origem }
+  // O "Fica parado" do Judge (fatia J) é o único jeito de reagir que a vaga guarda; outro valor é vaga torta.
+  if (reage !== undefined && reage !== 'parado') return null
+  return { id, lado: valor.lado, personagemId, tokenId, origem, ...(reage === 'parado' ? { reage: 'parado' as const } : {}) }
 }
 
 /** Cada item pela leitura dele; um torto recusa a lista inteira (a luta não começa pela metade). */

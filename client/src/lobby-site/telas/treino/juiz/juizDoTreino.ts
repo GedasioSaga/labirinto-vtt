@@ -1,5 +1,5 @@
 import { fichaDoBoneco, NOME_DO_BONECO } from '../../../../lib/arena/boneco'
-import { BONECO_PADRAO } from '../../../../lib/arena/tipos'
+import { BONECO_PADRAO, type ReacaoDoBoneco } from '../../../../lib/arena/tipos'
 import { temMaximo } from '../../../../lib/ajusteDaFicha'
 import type { Personagem } from '../../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../../lib/sistemaDeRpg'
@@ -12,15 +12,20 @@ import { comTecnicasDeTreino, lerTecnicasDeTreino, type TecnicaDeTreino } from '
  * O adversário padrão do treino é o boneco da Arena de testes do app
  * (`lib/arena/boneco.ts`: a ficha NPC "Judge", sem técnica, Agilidade 0, o HP e
  * o Escudo do `BONECO_PADRAO`), com o desenho do Judge da Arena como retrato.
- * Aqui a pessoa muda o HP, o SP, o Escudo e cada atributo dele e lhe dá
- * técnicas (`tecnicaDeTreino.ts`). A vida infinita da Arena fica de fora: no
- * treino a luta precisa acabar para ter vencedor.
+ * Aqui a pessoa muda o HP, o SP, o Escudo e cada atributo dele, lhe dá
+ * técnicas (`tecnicaDeTreino.ts`) e escolhe, como na Arena, o que ele faz
+ * quando leva um golpe: rola o d20 ou fica parado (todo golpe entra cheio). A
+ * vida infinita da Arena fica de fora: no treino a luta precisa acabar para ter
+ * vencedor. O modificador da reação da Arena também: o treino e o duelo usam o
+ * bônus dos selos e ignoram o do pedido (`lib/treino/duelo.ts`).
  *
  * Os ajustes moram SÓ neste navegador, por mesa: nunca vão ao servidor, e o
  * "Voltar ao padrão" apaga. O robô que joga pelo Judge é o mesmo do treino.
  */
 
-const VERSAO = 1
+const VERSAO = 2
+/** A versão de antes do "Quando leva um golpe" (sem `reage`): ainda abre, rolando o d20. */
+const VERSAO_SEM_REACAO = 1
 const PREFIXO = 'labirinto.lobby.juizDoTreino'
 /** O id da ficha do Judge no treino (a cópia que luta ganha o id da vaga, como toda ficha). */
 export const ID_DO_JUIZ = 'treino_juiz'
@@ -38,6 +43,8 @@ export interface AjustesDoJuiz {
   hp: number
   sp: number
   escudo: number
+  /** "Quando leva um golpe", como o boneco da Arena: rola o d20 ou fica parado. */
+  reage: ReacaoDoBoneco
   /** Só os que mudaram do padrão (0): atributo → valor. */
   atributos: Record<string, number>
   tecnicas: TecnicaDeTreino[]
@@ -45,13 +52,29 @@ export interface AjustesDoJuiz {
 }
 
 export function ajustesPadraoDoJuiz(): AjustesDoJuiz {
-  return { versao: VERSAO, hp: BONECO_PADRAO.hp, sp: SP_PADRAO, escudo: BONECO_PADRAO.escudo, atributos: {}, tecnicas: [], salvoEm: 0 }
+  return { versao: VERSAO, hp: BONECO_PADRAO.hp, sp: SP_PADRAO, escudo: BONECO_PADRAO.escudo, reage: BONECO_PADRAO.reage, atributos: {}, tecnicas: [], salvoEm: 0 }
 }
 
 /** O Judge saiu do padrão? */
 export function juizMudou(ajustes: AjustesDoJuiz): boolean {
   const padrao = ajustesPadraoDoJuiz()
-  return ajustes.hp !== padrao.hp || ajustes.sp !== padrao.sp || ajustes.escudo !== padrao.escudo || Object.keys(ajustes.atributos).length > 0 || ajustes.tecnicas.length > 0
+  return (
+    ajustes.hp !== padrao.hp ||
+    ajustes.sp !== padrao.sp ||
+    ajustes.escudo !== padrao.escudo ||
+    ajustes.reage !== padrao.reage ||
+    Object.keys(ajustes.atributos).length > 0 ||
+    ajustes.tecnicas.length > 0
+  )
+}
+
+/** Os ids das fichas que a luta não deixa reagir: o Judge, quando fica parado (`MontagemDaLuta.naoReagem`). */
+export function juizNaoReage(ajustes: AjustesDoJuiz): readonly string[] {
+  return ajustes.reage === 'parado' ? [ID_DO_JUIZ] : []
+}
+
+function reacaoLida(valor: unknown): ReacaoDoBoneco | null {
+  return valor === 'd20' || valor === 'parado' ? valor : null
 }
 
 function chave(campanhaId: string, demo: boolean): string {
@@ -89,8 +112,10 @@ function lerDoTexto(texto: string, sistema: SistemaDeRpg): AjustesDoJuiz | null 
   const escudo = numero(registro.escudo, 0)
   const atributos = lerAtributos(registro.atributos, sistema)
   const tecnicas = lerTecnicasDeTreino(registro.tecnicas)
-  if (registro.versao !== VERSAO || hp === null || sp === null || escudo === null || atributos === null || tecnicas === null || typeof registro.salvoEm !== 'number') return null
-  return { versao: VERSAO, hp, sp, escudo, atributos, tecnicas, salvoEm: registro.salvoEm }
+  if (registro.versao !== VERSAO && registro.versao !== VERSAO_SEM_REACAO) return null
+  const reage = registro.versao === VERSAO_SEM_REACAO ? BONECO_PADRAO.reage : reacaoLida(registro.reage)
+  if (hp === null || sp === null || escudo === null || reage === null || atributos === null || tecnicas === null || typeof registro.salvoEm !== 'number') return null
+  return { versao: VERSAO, hp, sp, escudo, reage, atributos, tecnicas, salvoEm: registro.salvoEm }
 }
 
 /** Os ajustes guardados; nenhum, tortos ou sem armazenamento = o padrão. */

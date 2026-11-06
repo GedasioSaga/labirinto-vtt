@@ -192,6 +192,12 @@
 .lo-tr-juiz__retrato { flex: none; width: 64px; height: 64px; border-radius: 50%; background: var(--lb-color-stone-hover); box-shadow: inset 0 0 0 2px var(--lb-color-line-strong); object-fit: cover; }
 .lo-tr-juiz__texto { display: grid; gap: 2px; flex: 1 1 280px; min-width: 0; }
 
+/* "Quando leva um golpe": o mesmo par do boneco da Arena, no segmentado do treino. */
+.lo-tr-juiz__reage { display: grid; justify-items: start; gap: var(--lb-space-2); margin: 0; padding: 0; border: 0; min-width: 0; }
+.lo-tr-juiz__reage > legend { margin-bottom: var(--lb-space-2); padding: 0; font-family: var(--lb-font-display); font-size: var(--lb-font-size-lg); color: var(--lb-color-parchment); }
+.lo-tr-juiz__nota { max-width: 62ch; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+.lo-tr-juiz__reage[data-mudou='1'] .lo-tr-juiz__nota { color: var(--lb-color-tide); }
+
 .lo-tr-campo__ficha[data-erro='1'] { color: var(--lb-color-ember); }
 
 .lo-tr-tecnicas { display: grid; gap: var(--lb-space-3); min-width: 0; }

@@ -1,3 +1,5 @@
+import { useId } from 'react'
+import type { ReacaoDoBoneco } from '../../../../lib/arena/tipos'
 import { recursoDoEscudo } from '../../../../lib/batalha/leituraDaFicha'
 import type { SistemaDeRpg } from '../../../../lib/sistemaDeRpg'
 import { recursoDeVida } from '../../../../lib/vidaDaFicha'
@@ -6,7 +8,8 @@ import { ajustesPadraoDoJuiz, fichaDoJuiz, juizMudou, NOME_DO_JUIZ, NUMERO_DO_JU
 
 /**
  * O PAINEL DO JUDGE NO TREINO (fatia J): os status (HP, SP, Escudo e cada
- * atributo) e as técnicas de treino do boneco da Arena. Cada número válido vai
+ * atributo), o que ele faz quando leva um golpe (o mesmo par do boneco da
+ * Arena: rola o d20 ou fica parado) e as técnicas de treino. Cada número válido vai
  * na hora para `onMudar` (quem chama guarda no navegador, por mesa); "Voltar ao
  * padrão" apaga tudo e o Judge volta a ser o da Arena (HP 100, sem técnica).
  * Nada daqui vai ao servidor nem muda ficha de ninguém.
@@ -21,11 +24,17 @@ export interface AjustesDoJuizProps {
   guardado: boolean | null
 }
 
+const REACOES_DO_JUIZ: readonly { id: ReacaoDoBoneco; nome: string; explica: string }[] = [
+  { id: 'd20', nome: 'Rola o d20', explica: 'Rola o d20 e fica com a melhor defesa que o dado liberar: esquiva, metade ou cheio. Nunca contra-ataca.' },
+  { id: 'parado', nome: 'Fica parado', explica: 'Não reage: todo golpe entra cheio. Serve para medir o dano inteiro da sua build.' },
+]
+
 function horaCurta(ms: number): string {
   return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 export function AjustesDoJuiz({ ajustes, sistema, onMudar, onVoltarAoPadrao, guardado }: AjustesDoJuizProps) {
+  const reacaoId = useId()
   const padrao = ajustesPadraoDoJuiz()
   const vida = recursoDeVida(sistema)
   const energia = recursoDaEnergia(sistema)
@@ -63,6 +72,21 @@ export function AjustesDoJuiz({ ajustes, sistema, onMudar, onVoltarAoPadrao, gua
         {escudo !== null && <CampoInteiro rotulo={escudo.nome} valor={ajustes.escudo} min={0} max={NUMERO_DO_JUIZ_MAX} onMudar={(valor) => mudar({ escudo: valor })} nota={nota(ajustes.escudo, padrao.escudo)} mudou={ajustes.escudo !== padrao.escudo} />}
       </fieldset>
 
+      <fieldset className="lo-tr-juiz__reage" aria-describedby={`${reacaoId}-nota`} data-mudou={ajustes.reage !== padrao.reage ? '1' : undefined}>
+        <legend>Quando leva um golpe</legend>
+        <div className="lo-tr-seg">
+          {REACOES_DO_JUIZ.map((reacao) => (
+            <label key={reacao.id} className="lo-tr-seg__op">
+              <input type="radio" name={`${reacaoId}-reage`} value={reacao.id} checked={ajustes.reage === reacao.id} onChange={() => mudar({ reage: reacao.id })} />
+              <span>{reacao.nome}</span>
+            </label>
+          ))}
+        </div>
+        <p className="lo-tr-juiz__nota" id={`${reacaoId}-nota`}>
+          {REACOES_DO_JUIZ.find((reacao) => reacao.id === ajustes.reage)?.explica}
+        </p>
+      </fieldset>
+
       <fieldset className="lo-tr-build__grade">
         <legend>Atributos</legend>
         {sistema.atributos.map((atributo) => {
@@ -78,7 +102,7 @@ export function AjustesDoJuiz({ ajustes, sistema, onMudar, onVoltarAoPadrao, gua
           ? 'O navegador não deixou guardar: estes ajustes somem quando a página fechar.'
           : mudou && ajustes.salvoEm > 0
             ? `Ajustes do ${NOME_DO_JUIZ} guardados neste navegador às ${horaCurta(ajustes.salvoEm)}.`
-            : `O ${NOME_DO_JUIZ} está no padrão da Arena: ${padrao.hp.toLocaleString('pt-BR')} de vida, nenhuma técnica, Agilidade 0.`}
+            : `O ${NOME_DO_JUIZ} está no padrão da Arena: ${padrao.hp.toLocaleString('pt-BR')} de vida, nenhuma técnica, Agilidade 0, rola o d20 quando leva um golpe.`}
       </p>
     </div>
   )

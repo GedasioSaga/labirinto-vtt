@@ -65,6 +65,12 @@ export interface VagaDoTreino {
   tokenId: string
   /** O id da ficha de onde a cópia veio. */
   origem: string
+  /**
+   * Como o robô reage por esta vaga (fatia J): `'parado'` = nunca reage, todo
+   * golpe entra cheio (o Judge com "Fica parado", como o boneco da Arena);
+   * ausente = rola o d20 e fica com a melhor defesa que o dado liberar.
+   */
+  reage?: 'parado'
 }
 
 /** A grade do treino e do duelo: a pequena da Arena (12 colunas x 8 linhas). */
@@ -105,8 +111,8 @@ export interface MesaEmMemoria extends MesaDaBatalha {
   lutadores(): LutadoresDoTreino
 }
 
-/** O nome que ainda não está em `usados`: o da ficha, ou com número ("Marinheiro 2", "Marinheiro 3"). */
-function nomeLivre(nome: string, usados: ReadonlySet<string>): string {
+/** O nome que ainda não está em `usados`: o da ficha, ou com número ("Marinheiro 2", "Marinheiro 3"). A montagem na grade do site numera com o mesmo. */
+export function nomeLivre(nome: string, usados: ReadonlySet<string>): string {
   if (!usados.has(nome)) return nome
   let n = 2
   while (usados.has(`${nome} ${n}`)) n += 1

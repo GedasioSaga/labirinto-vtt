@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from 'react-dom'
 import { useImagemDaMesa } from '../../../../components/ImagemDaMesa'
 import { CASA_DA_ARENA, EQUIPE_DO_LADO, type CasaDaArena } from '../../../../lib/arena/grade'
-import { GRADE_DO_TREINO } from '../../../../lib/treino/mesaEmMemoria'
+import { GRADE_DO_TREINO, LADOS_DO_TREINO, nomeLivre } from '../../../../lib/treino/mesaEmMemoria'
 import { iniciaisDoNome, rotuloDaCasa, type BonecoNaGrade } from '../grade/bonecos'
 import { GradeDaArena, type MontagemDaGrade } from '../grade/GradeDaArena'
 import { retratoDoBoneco } from '../grade/retratos'
@@ -57,16 +57,24 @@ function nomeDoLado(casa: CasaDaArena): string {
   return EQUIPE_DO_LADO[ladoDaCasa(casa)].nome
 }
 
-/** Os nomes na grade: a segunda cópia do mesmo item ganha número ("Judge 2"), como a luta vai chamá-la. */
+/**
+ * Os nomes na grade, como a luta vai chamar cada cópia: a mesma conta de
+ * `montarLutadores` (o Lado A inteiro primeiro, depois o B, cada lado na ordem
+ * da lista, e o nome repetido ganha número, "Judge 2"). Assim o "Judge 2" da
+ * montagem é o mesmo "Judge 2" do registro, de qualquer lado que ele esteja.
+ */
 function nomesDasCopias(lista: readonly PecaNaGrade[], pecas: readonly PecaDaMontagem[]): Map<string, string> {
-  const vezes = new Map<string, number>()
+  const usados = new Set<string>()
   const nomes = new Map<string, string>()
-  for (const peca of lista) {
-    const item = pecas.find((candidato) => candidato.id === peca.pecaId)
-    if (item === undefined) continue
-    const n = (vezes.get(peca.pecaId) ?? 0) + 1
-    vezes.set(peca.pecaId, n)
-    nomes.set(peca.chave, n > 1 ? `${item.nome} ${n}` : item.nome)
+  for (const lado of LADOS_DO_TREINO) {
+    for (const peca of lista) {
+      if (ladoDaCasa(peca.casa) !== lado) continue
+      const item = pecas.find((candidato) => candidato.id === peca.pecaId)
+      if (item === undefined) continue
+      const nome = nomeLivre(item.nome, usados)
+      usados.add(nome)
+      nomes.set(peca.chave, nome)
+    }
   }
   return nomes
 }

@@ -37,6 +37,12 @@ export interface MontagemDaLuta {
   inimigos: readonly Personagem[]
   /** Onde cada ficha começa na grade; ausente = as casas de largada da Arena (`casasIniciais`). Não muda dano nem alcance. */
   largada?: LargadaDaLuta
+  /**
+   * Os ids das fichas (antes da cópia) que nunca reagem quando o robô joga por
+   * elas: o Judge com "Fica parado" (fatia J), como o boneco da Arena. Ausente
+   * ou vazio = todo mundo rola o d20.
+   */
+  naoReagem?: readonly string[]
 }
 
 export interface LutaLocal {
@@ -56,9 +62,17 @@ export function comVidaCheia(doc: Personagem, sistema: SistemaDeRpg): Personagem
   return { ...doc, recursos }
 }
 
+/** As vagas com o "Fica parado": a cópia de uma ficha de `naoReagem` leva `reage: 'parado'`, e o robô não rola o d20 por ela. */
+function comParados(lutadores: LutadoresDoTreino, naoReagem: readonly string[] | undefined): LutadoresDoTreino {
+  if (naoReagem === undefined || naoReagem.length === 0) return lutadores
+  const parados = new Set(naoReagem)
+  return { ...lutadores, vagas: lutadores.vagas.map((vaga) => (parados.has(vaga.origem) ? { ...vaga, reage: 'parado' as const } : vaga)) }
+}
+
 /** As vagas e as cópias da montagem (para as 100 lutas e o comparar build, no worker). */
 export function lutadoresDaMontagem(montagem: MontagemDaLuta): MontagemDoTreino {
-  return montarLutadores([...montagem.minhas.map((ficha) => ({ ficha, lado: 'a' as const })), ...montagem.inimigos.map((ficha) => ({ ficha, lado: 'b' as const }))])
+  const montada = montarLutadores([...montagem.minhas.map((ficha) => ({ ficha, lado: 'a' as const })), ...montagem.inimigos.map((ficha) => ({ ficha, lado: 'b' as const }))])
+  return montada.ok ? { ok: true, lutadores: comParados(montada.lutadores, montagem.naoReagem) } : montada
 }
 
 /** A montagem cabe na luta? Texto do motivo, ou `null`. */
@@ -74,10 +88,12 @@ export function problemaDaMontagem(montagem: MontagemDaLuta): string | null {
  * números. Mudou o inimigo, o "Quantos", uma ficha, a Vida cheia ou o
  * rascunho, ela muda, e o resultado que a tela guardou deixa de ser o da
  * montagem de agora (revisão da T7). As cópias são JSON puro e poucas (no
- * máximo 3 por lado): o texto sai barato.
+ * máximo 3 por lado): o texto sai barato. O "Fica parado" do Judge muda o
+ * resultado e entra também (sem ele, a assinatura é a de antes).
  */
 export function assinaturaDaMontagem(montagem: MontagemDaLuta): string {
-  return JSON.stringify([montagem.minhas, montagem.inimigos])
+  const naoReagem = montagem.naoReagem ?? []
+  return JSON.stringify(naoReagem.length === 0 ? [montagem.minhas, montagem.inimigos] : [montagem.minhas, montagem.inimigos, naoReagem])
 }
 
 function ladoEmTexto(fichas: readonly Personagem[]): string {
@@ -110,7 +126,8 @@ export function comecarLutaLocal(montagem: MontagemDaLuta, sistema: SistemaDeRpg
     motor,
   )
   if (!criado.ok) return { ok: false, motivo: 'Não deu para montar a luta com essas fichas.' }
-  const duelo = montagem.largada === undefined ? criado.duelo : comLargada(criado.duelo, montagem.largada)
+  const comReacao: DueloGravado = { ...criado.duelo, lutadores: comParados(criado.duelo.lutadores, montagem.naoReagem) }
+  const duelo = montagem.largada === undefined ? comReacao : comLargada(comReacao, montagem.largada)
   return { ok: true, luta: { semente, duelo, golpesDaVez: null, sorteio, motor } }
 }
 

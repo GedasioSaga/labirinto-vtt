@@ -22,7 +22,8 @@ import type { VagaDoTreino } from './mesaEmMemoria'
  *  - REAÇÃO primeiro: golpe esperando uma vaga = a defesa do boneco da arena
  *    (`reacaoDoBoneco` no modo "d20"): rola com o bônus de reação dos selos e
  *    escolhe a melhor saída que o dado liberou (esquiva > metade > cheio,
- *    nunca o contra-ataque);
+ *    nunca o contra-ataque). A vaga marcada `reage: 'parado'` (o Judge com
+ *    "Fica parado", fatia J) não reage: o golpe entra cheio, sem d20;
  *  - depois a VEZ: o alvo é o inimigo de pé com a menor proporção de vida
  *    (empate: o primeiro na ordem das vagas); os golpes são todos os que ele
  *    pode pagar agora, do mais forte ao mais fraco, para quem executa tentar
@@ -98,7 +99,7 @@ function dePe(personagem: Personagem, sistema: SistemaDeRpg | null): boolean {
 function reacaoPendente(vista: VistaDoRobo): PedidoDeReacao | null {
   for (const vaga of vista.vagas) {
     const modificador = bonusDaReacao(bonusDaBatalha(vista.turnos.selos, vaga.tokenId))
-    const pedido = reacaoDoBoneco(vista.turnos.golpes, vaga.tokenId, 'd20', modificador)
+    const pedido = reacaoDoBoneco(vista.turnos.golpes, vaga.tokenId, vaga.reage ?? 'd20', modificador)
     if (pedido !== null) return pedido
   }
   return null
