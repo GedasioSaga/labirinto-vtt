@@ -1,9 +1,9 @@
-import { invoke } from '@tauri-apps/api/core'
 import { lerMudanca, segmentoValido } from '../../lib/nuvem/caminho'
 import { ehJson, ehRegistro, lerJsonSeguro, proprio, type Json } from '../../lib/nuvem/json'
 import { lerRegistro } from '../../lib/nuvem/fila'
 import { lerEnvelope, type RespostaDaOp } from '../../lib/nuvem/lote'
 import { VERSAO_DO_FORMATO, type MotivoAdiado, type Op, type OpGravada, type Origem } from '../../lib/nuvem/tipos'
+import { comandosDaR1, invocarDoTauri, type Invocar, type PedidoDaR1 } from './comandosDaR1'
 
 /**
  * A PONTE DA NUVEM NO TYPESCRIPT (docs/planos/lobby-jogadores-2026-11-05.md
@@ -35,7 +35,8 @@ import { VERSAO_DO_FORMATO, type MotivoAdiado, type Op, type OpGravada, type Ori
  * pelo Access) para o laço até a pessoa colar o token.
  *
  * Mídia (PUT/GET) e as credenciais são outros comandos da R1, fora do laço do
- * sincronizador (fatias W3/A6).
+ * sincronizador (fatias W3/A6). Os seis comandos, com nome e argumentos, moram
+ * num lugar só: `comandosDaR1.ts` (fatia J0).
  */
 
 export type RotaDaNuvem =
@@ -278,18 +279,35 @@ export function lerErroDaR1(bruto: unknown): RespostaHttp | ErroDaPonte {
   return new ErroDaPonte('interno', texto)
 }
 
-/** `invoke` injetável: os testes não têm Tauri. */
-export type Invocar = (comando: string, argumentos?: Record<string, unknown>) => Promise<unknown>
+export type { Invocar } from './comandosDaR1'
 
-/** O transporte de verdade: o comando `nuvem_pedir` da R1. */
-export function transporteDoTauri(invocar: Invocar = (comando, argumentos) => invoke<unknown>(comando, argumentos)): TransporteDaNuvem {
+/**
+ * A rota do laço com o corpo, como o `PedidoNuvem` da R1 a lê. `null` = corpo
+ * numa rota GET, ou falta dele numa POST: a R1 recusaria (campo a mais, ou
+ * `corpo` ausente), então o erro de montagem fica aqui, com o nome da rota.
+ */
+function pedidoDaRota(rota: RotaDaNuvem, corpo: Json | undefined): PedidoDaR1 | null {
+  switch (rota.rota) {
+    case 'publicar':
+    case 'membros':
+    case 'ops':
+      return corpo === undefined ? null : { rota: rota.rota, campanhaId: rota.campanhaId, corpo }
+    case 'eu':
+    case 'desde':
+    case 'exportar':
+      return corpo === undefined ? rota : null
+  }
+}
+
+/** O transporte de verdade: o comando `nuvem_pedir` da R1, pelo adaptador `comandosDaR1`. */
+export function transporteDoTauri(invocar: Invocar = invocarDoTauri): TransporteDaNuvem {
+  const r1 = comandosDaR1(invocar)
   return {
     async pedir(rota, corpo) {
-      // Só os campos que a variante tem: a R1 recusa campo a mais (`deny_unknown_fields`).
-      const pedido: Record<string, unknown> = { ...rota }
-      if (corpo !== undefined) pedido.corpo = corpo
+      const pedido = pedidoDaRota(rota, corpo)
+      if (pedido === null) throw new ErroDaPonte('interno', `Pedido ao Lobby montado errado: a rota ${rota.rota} ${corpo === undefined ? 'precisa de corpo' : 'não leva corpo'}`)
       try {
-        return { status: 200, corpo: await invocar('nuvem_pedir', { pedido }) }
+        return { status: 200, corpo: await r1.pedir(pedido) }
       } catch (erro) {
         const lido = lerErroDaR1(erro)
         if (lido instanceof ErroDaPonte) throw lido

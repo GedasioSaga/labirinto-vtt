@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { apagarCredencial, conferirConta, credencialGuardada, guardarCredencial, type FalhaDoLobby } from './ponteDoLobby'
+import { apagarCredencial, conferirConta, credencialGuardada, guardarCredencial, type FalhaDoLobby, type Resultado } from './ponteDoLobby'
 
 /**
  * "CONTA NA NUVEM" (docs/planos/lobby-jogadores-2026-11-05.md §3.2 e §6.1,
@@ -8,7 +8,16 @@ import { apagarCredencial, conferirConta, credencialGuardada, guardarCredencial,
  * o app fala com o Lobby. O segredo nunca volta para a tela.
  */
 
-export type EstadoDaConta = { t: 'carregando' } | { t: 'pronta'; guardada: boolean } | { t: 'indisponivel'; falha: FalhaDoLobby }
+/** `aviso` = o Cofre não deu a credencial guardada (danificada): o formulário abre para colar de novo, que a substitui. */
+export type EstadoDaConta = { t: 'carregando' } | { t: 'pronta'; guardada: boolean; aviso?: string } | { t: 'indisponivel'; falha: FalhaDoLobby }
+
+/** O que `nuvem_credencial_estado` respondeu, como estado da tela. */
+function estadoDoCofre(resultado: Resultado<boolean>): EstadoDaConta {
+  if (resultado.ok) return { t: 'pronta', guardada: resultado.valor }
+  // A R1 manda "apague e cole de novo" e o Guardar já substitui: sem esta saída, a tela ficava só com o aviso, sem formulário.
+  if (resultado.falha.t === 'cofre') return { t: 'pronta', guardada: false, aviso: `${resultado.falha.mensagem} Colar o token de novo aqui substitui o que está guardado.` }
+  return { t: 'indisponivel', falha: resultado.falha }
+}
 
 export interface ContaNaNuvemProps {
   onEstado?: (estado: EstadoDaConta) => void
@@ -35,7 +44,7 @@ export function ContaNaNuvem({ onEstado }: ContaNaNuvemProps) {
     let vivo = true
     void credencialGuardada().then((resultado) => {
       if (!vivo) return
-      const novo: EstadoDaConta = resultado.ok ? { t: 'pronta', guardada: resultado.valor } : { t: 'indisponivel', falha: resultado.falha }
+      const novo = estadoDoCofre(resultado)
       setEstadoLocal(novo)
       avisar.current?.(novo)
     })
@@ -95,6 +104,11 @@ export function ContaNaNuvem({ onEstado }: ContaNaNuvemProps) {
         </h4>
         {estado.guardada && !trocando && <span className="lby-marca" data-tom="ok">Token guardado</span>}
       </div>
+      {estado.aviso !== undefined && (
+        <p className="lby-aviso" data-tom="latao" role="status">
+          {estado.aviso}
+        </p>
+      )}
       {formAberto ? (
         <FormDoToken
           podeCancelar={estado.guardada}

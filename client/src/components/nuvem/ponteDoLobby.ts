@@ -1,4 +1,4 @@
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { isTauri } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import type { ContaDeJogador } from '../../lib/contasDosJogadores'
 import { ehRefDeMidia, idDaRef } from '../../lib/midia'
@@ -7,6 +7,7 @@ import { ehRegistro, paraJson, proprio, type Json } from '../../lib/nuvem/json'
 import { VERSAO_DO_FORMATO } from '../../lib/nuvem/tipos'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { comandosDaR1, type ComandosDaR1 } from '../../net/nuvem/comandosDaR1'
 import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from '../../net/nuvem/discoDaNuvem'
 import { vaiAoLobby } from '../../net/nuvem/emissor'
 import { estadoNovo, gravarEstado, lerCampanhas, lerEstado, type CampanhaPublicada } from '../../net/nuvem/estadoNoDisco'
@@ -17,7 +18,8 @@ import { listaDeNomes, membrosDasContas, NOME_DO_MESTRE, textoDoMotivo } from '.
  * AS TELAS DO LOBBY FALANDO COM A PONTE (docs/planos/lobby-jogadores-2026-11-05.md
  * §5.4, fatias R1 e A6): guardar o Service Token ("Conta na nuvem"), conferir
  * quem é o app (`eu`), publicar a pasta e reenviar a lista de jogadores. O
- * HTTPS é do Rust (`nuvem.rs`); daqui sai só o comando.
+ * HTTPS é do Rust (`nuvem.rs`); daqui sai só o comando, pelo adaptador
+ * `net/nuvem/comandosDaR1.ts` (nome e argumentos de cada um num lugar só).
  *
  * Toda falha volta como `FalhaDoLobby`, com a frase pronta. Duas não são do
  * servidor: fora do app (navegador, jornadas e2e) e "ponte ainda não
@@ -25,7 +27,8 @@ import { listaDeNomes, membrosDasContas, NOME_DO_MESTRE, textoDoMotivo } from '.
  * os botões dizem o motivo e não quebram nada.
  */
 
-export type MotivoDaFalha = 'fora-do-app' | 'sem-ponte' | 'sem-credencial' | 'sem-rede' | 'erro'
+/** `cofre` = o Cofre do Windows não deu a credencial (a guardada está danificada): colar de novo a substitui. */
+export type MotivoDaFalha = 'fora-do-app' | 'sem-ponte' | 'sem-credencial' | 'cofre' | 'sem-rede' | 'erro'
 
 export interface FalhaDoLobby {
   t: MotivoDaFalha
@@ -54,16 +57,19 @@ export function falhaDoErro(erro: unknown): FalhaDoLobby {
     const mensagem = proprio(erro, 'mensagem')
     const texto = typeof mensagem === 'string' && mensagem !== '' ? mensagem : 'A ponte da nuvem falhou.'
     if (typeof codigo === 'string' && CODIGOS_DE_CREDENCIAL.has(codigo)) return { t: 'sem-credencial', mensagem: texto }
+    if (codigo === 'cofre') return { t: 'cofre', mensagem: texto }
     if (codigo === 'rede') return { t: 'sem-rede', mensagem: texto }
     return { t: 'erro', mensagem: texto }
   }
   return { t: 'erro', mensagem: erro instanceof Error ? erro.message : String(erro) }
 }
 
-async function chamar<T>(comando: string, argumentos: Record<string, unknown> | undefined, ler: (bruto: unknown) => T): Promise<Resultado<T>> {
+const r1: ComandosDaR1 = comandosDaR1()
+
+async function chamar<T>(fazer: (comandos: ComandosDaR1) => Promise<T>): Promise<Resultado<T>> {
   if (!isTauri()) return { ok: false, falha: FORA_DO_APP }
   try {
-    return { ok: true, valor: ler(await invoke<unknown>(comando, argumentos)) }
+    return { ok: true, valor: await fazer(r1) }
   } catch (erro) {
     return { ok: false, falha: falhaDoErro(erro) }
   }
@@ -73,18 +79,24 @@ async function chamar<T>(comando: string, argumentos: Record<string, unknown> | 
 
 /** Se há Service Token guardado no Cofre do Windows (nunca o devolve). */
 export function credencialGuardada(): Promise<Resultado<boolean>> {
-  return chamar('nuvem_credencial_estado', undefined, (bruto) => bruto === true)
+  return chamar((comandos) => comandos.credencialGuardada())
 }
 
 /** Guarda o token colado (substitui o de antes) e acorda os laços parados por falta dele. */
 export async function guardarCredencial(clientId: string, clientSecret: string): Promise<Resultado<null>> {
-  const resultado = await chamar('nuvem_credencial_guardar', { clientId: clientId.trim(), clientSecret: clientSecret.trim() }, () => null)
+  const resultado = await chamar(async (comandos) => {
+    await comandos.guardarCredencial(clientId.trim(), clientSecret.trim())
+    return null
+  })
   if (resultado.ok) retomarLobby()
   return resultado
 }
 
 export function apagarCredencial(): Promise<Resultado<null>> {
-  return chamar('nuvem_credencial_apagar', undefined, () => null)
+  return chamar(async (comandos) => {
+    await comandos.apagarCredencial()
+    return null
+  })
 }
 
 export interface ContaConferida {
@@ -94,7 +106,8 @@ export interface ContaConferida {
 
 /** `GET /api/eu`: o e-mail que o Access deu ao token (o do mestre) e quantas campanhas ele tem. */
 export function conferirConta(): Promise<Resultado<ContaConferida>> {
-  return chamar('nuvem_pedir', { pedido: { rota: 'eu' } }, (bruto) => {
+  return chamar(async (comandos) => {
+    const bruto = await comandos.pedir({ rota: 'eu' })
     const email = ehRegistro(bruto) ? proprio(bruto, 'email') : undefined
     const campanhas = ehRegistro(bruto) ? proprio(bruto, 'campanhas') : undefined
     return { email: typeof email === 'string' ? email : '?', campanhas: Array.isArray(campanhas) ? campanhas.length : 0 }
@@ -135,7 +148,7 @@ export async function reenviarMembros(contas: readonly ContaDeJogador[]): Promis
   if (!isTauri()) return { campanhas: 0, falha: null }
   const campanhas = await lerCampanhas(await raizDaNuvem())
   for (const campanha of campanhas) {
-    const resultado = await chamar('nuvem_pedir', { pedido: { rota: 'membros', campanhaId: campanha.campanhaId, corpo: corpoDosMembros(contas) } }, () => null)
+    const resultado = await chamar((comandos) => comandos.pedir({ rota: 'membros', campanhaId: campanha.campanhaId, corpo: corpoDosMembros(contas) }))
     if (!resultado.ok) return { campanhas: campanhas.length, falha: resultado.falha }
   }
   return { campanhas: campanhas.length, falha: null }
@@ -296,7 +309,7 @@ export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resulta
     membros: paraJson(membrosDasContas(pedido.contas)),
     fichas: fichas.map((ficha) => paraJson(ficha)),
   }
-  const resposta = await chamar('nuvem_pedir', { pedido: { rota: 'publicar', campanhaId: campanha.campanhaId, corpo } }, (bruto) => bruto)
+  const resposta = await chamar((comandos) => comandos.pedir({ rota: 'publicar', campanhaId: campanha.campanhaId, corpo }))
   if (!resposta.ok) return resposta
 
   const brutas = ehRegistro(resposta.valor) ? proprio(resposta.valor, 'fichas') : undefined
@@ -317,7 +330,7 @@ export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resulta
   let enviadas = 0
   let ultimaFalha: FalhaDoLobby | null = null
   for (const midiaId of ids) {
-    const envio = await chamar('nuvem_enviar_midia', { campanhaId: campanha.campanhaId, pastaId: campanha.pastaId, midiaId }, () => null)
+    const envio = await chamar((comandos) => comandos.enviarMidia(campanha.campanhaId, campanha.pastaId, midiaId))
     if (envio.ok) enviadas += 1
     else ultimaFalha = envio.falha
   }
