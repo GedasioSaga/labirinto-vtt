@@ -6,8 +6,9 @@ import { fichaNoEstado, projetarMembros, projetarOpParaJogador } from '../../lib
 import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidade, type Membro, type MensagemDoServidor, type Op, type OpGravada, type Origem, type PresencaNaMesa, type Recusada } from '../../lib/nuvem/tipos'
 import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
+import { criarDueloDaDemo, type DueloDaDemo } from './dueloDaDemo'
 import { criarMuralDaDemo, type MuralDaDemo } from './muralDaDemo'
-import { ehPedidoDoChat, ehPedidoDoMural, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type OuvinteDoCanal, type PedidoDoSite, type Relogio } from './fonte'
+import { ehPedidoDoChat, ehPedidoDoDuelo, ehPedidoDoMural, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type OuvinteDoCanal, type PedidoDoSite, type Relogio } from './fonte'
 import { lerMensagemDoServidor } from './mensagens'
 
 /**
@@ -166,6 +167,8 @@ interface ServidorDaDemo {
   comoMestre: Set<string>
   /** Os canais abertos, para mandar o `mural.estado` de novo quando a vista do mural muda. */
   muraisAbertos: Set<(campanhaId: string) => void>
+  /** O duelo de cada mesa (T7), com o colega inventado que aceita, joga e cai da conexão uma vez. */
+  duelos: Map<string, DueloDaDemo>
 }
 
 /** Quem fala com o mural: quem vê a demo, ou o mestre quando o atalho "ver como o mestre" está ligado. */
@@ -183,12 +186,23 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
   /** O colega inventado que chega com a página aberta já chegou (ou já está marcado para chegar) neste canal. */
   let chegadaMarcada = false
   let chegou = false
+  /** O canal ouvindo o duelo da mesa (o que o colega inventado faz sozinho); `null` antes do primeiro `ola`. */
+  let pararDeOuvirODuelo: (() => void) | null = null
 
   function encerrar(): void {
     encerrado = true
     aberto = false
     servidor.abertos.delete(difundir)
     servidor.muraisAbertos.delete(reenviarMural)
+    pararDeOuvirODuelo?.()
+    pararDeOuvirODuelo = null
+  }
+  /** A lista dos duelos como o DO manda depois de cada `ola` (`duelosNoOla`), e daí em diante o que o colega fizer. */
+  function mandarDuelos(): void {
+    const duelo = servidor.duelos.get(campanhaId)
+    if (membro === undefined || duelo === undefined) return
+    entregar(duelo.listaPara(membro.contaId))
+    pararDeOuvirODuelo ??= duelo.ouvir(entregar)
   }
   /** O `mural.estado` como o DO manda depois de cada `ola` (e de novo quando a vista da demo muda). */
   function mandarMural(): void {
@@ -230,6 +244,10 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
       servidor.murais.get(campanhaId)?.atender(mensagem, quemNoMural(servidor, alvo, eu), entregar)
       return
     }
+    if (ehPedidoDoDuelo(mensagem)) {
+      servidor.duelos.get(campanhaId)?.atender(mensagem, eu, entregar)
+      return
+    }
     const agora = relogio.agora()
     switch (mensagem.t) {
       case 'ola': {
@@ -240,6 +258,7 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
         else entregar({ t: 'ops', desde, ate: rev, lista: projetarOps(alvo, eu, alvo.todasAsOps().filter((op) => op.rev > desde)) })
         entregar(presencaPara(alvo, eu, chegou))
         mandarMural()
+        mandarDuelos()
         const chega = PRESENCA_DA_DEMO[campanhaId]?.chega
         if (chega !== undefined && !chegadaMarcada) {
           chegadaMarcada = true
@@ -313,7 +332,16 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
       criarMuralDaDemo(campanha.campanhaId, { agora: relogio.agora, membros: campanha.todosOsMembros, todasAsOps: campanha.todasAsOps, ficha: campanha.ficha }),
     )
   }
-  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set(), murais, comoMestre: new Set(), muraisAbertos: new Set() }
+  const duelos = new Map<string, DueloDaDemo>()
+  for (const campanha of campanhas.values()) {
+    const quemVe = membroPorEmail(campanha, EMAIL_DA_DEMO)
+    if (quemVe === undefined) continue
+    duelos.set(
+      campanha.campanhaId,
+      criarDueloDaDemo({ campanhaId: campanha.campanhaId, agora: relogio.agora, depois: relogio.depois, membros: campanha.todosOsMembros, fichas: campanha.todasAsFichas, euContaId: quemVe.contaId }),
+    )
+  }
+  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set(), murais, comoMestre: new Set(), muraisAbertos: new Set(), duelos }
   let simuladas = 0
 
   return {

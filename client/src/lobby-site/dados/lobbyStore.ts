@@ -2,6 +2,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { armazenamentoEmTexto, type ArmazenamentoDaFila, type ArquivoDeTexto } from '../../lib/nuvem/fila'
 import { criarChatDaCampanha, pendentesACaminho, type ChatDaCampanha, type EstadoDoChat, type PendentesGuardadas } from './chatDaCampanha'
 import { clienteIdDaAba, type AmbienteDaAba } from './clienteDaAba'
+import { criarDueloDaCampanha, type DueloDaCampanha, type EstadoDoDuelo } from './dueloDaCampanha'
 import { abrirBancoDaFila, armazenamentoNoIndexedDB } from './filaNoIndexedDB'
 import { ErroDoEu, type Eu, type FonteDoLobby } from './fonte'
 import { criarFonteDemo } from './fonteDemo'
@@ -36,6 +37,8 @@ export interface EstadoDoSite {
   chatGuardado: number
   /** O mural da campanha aberta (M2); `null` junto com ela. */
   mural: EstadoDoMural | null
+  /** Os convites e duelos da campanha aberta (T7); `null` junto com ela. */
+  duelo: EstadoDoDuelo | null
   /** O servidor já serve uma versão do Labirinto maior que a desta página (M2, cartão do mural). */
   versaoNova: VersaoNova | null
   /** Não deu para abrir a campanha (IndexedDB bloqueado, navegador sem espaço). */
@@ -52,6 +55,8 @@ export interface Site {
   chat(): ChatDaCampanha | null
   /** O mural da campanha aberta, para postar, reagir, marcar lido e ver as modificações. */
   mural(): MuralDaCampanha | null
+  /** O duelo da campanha aberta, para convidar, aceitar, jogar e desistir (T7). */
+  duelo(): DueloDaCampanha | null
   encerrar(): void
 }
 
@@ -72,6 +77,7 @@ interface Aberta {
   sessao: SessaoDaCampanha
   chat: ChatDaCampanha
   mural: MuralDaCampanha
+  duelo: DueloDaCampanha
   fecharBanco(): void
 }
 
@@ -128,6 +134,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     chat: null,
     chatGuardado: 0,
     mural: null,
+    duelo: null,
     // A demo não tem carimbo: o cartão aparece com versões inventadas, para a tela ter o que mostrar.
     versaoNova: demo ? VERSAO_NOVA_DA_DEMO : null,
     erroDaCampanha: null,
@@ -163,6 +170,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     else chatGuardado.delete(aberta.campanhaId)
     aberta.chat.fechar()
     aberta.mural.fechar()
+    aberta.duelo.fechar()
     aberta.sessao.fechar()
     aberta.fecharBanco()
     aberta = null
@@ -187,6 +195,12 @@ export function iniciarSite(janela: JanelaDoSite): Site {
         if (minha === aberturas) store.setState({ mural: estadoDoMural })
       },
     })
+    const duelo = criarDueloDaCampanha({
+      enviar: (pedido) => sessao?.enviarDoDuelo(pedido) ?? false,
+      aoMudar: (estadoDoDuelo) => {
+        if (minha === aberturas) store.setState({ duelo: estadoDoDuelo })
+      },
+    })
     try {
       sessao = await abrirSessaoDaCampanha({
         fonte,
@@ -198,24 +212,27 @@ export function iniciarSite(janela: JanelaDoSite): Site {
         },
         chat,
         mural,
+        duelo,
       })
     } catch (erro) {
       chat.fechar()
       mural.fechar()
+      duelo.fechar()
       fila.fecharBanco()
       throw erro
     }
     if (minha !== aberturas) {
       chat.fechar()
       mural.fechar()
+      duelo.fechar()
       sessao.fechar()
       fila.fecharBanco()
       return
     }
-    aberta = { campanhaId, sessao, chat, mural, fecharBanco: fila.fecharBanco }
+    aberta = { campanhaId, sessao, chat, mural, duelo, fecharBanco: fila.fecharBanco }
     // As guardadas agora moram no chat aberto (e voltam para cá se a pessoa sair de novo antes de saírem).
     chatGuardado.delete(campanhaId)
-    store.setState({ campanha: sessao.estado(), chat: chat.estado(), mural: mural.estado(), chatGuardado: contarChatGuardado(), erroDaCampanha: null })
+    store.setState({ campanha: sessao.estado(), chat: chat.estado(), mural: mural.estado(), duelo: duelo.estado(), chatGuardado: contarChatGuardado(), erroDaCampanha: null })
   }
 
   /** Abre a campanha da rota (e fecha a anterior), quando o `/api/eu` já respondeu. */
@@ -227,15 +244,15 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     aberturas += 1
     fecharAberta()
     if (campanhaId === null) {
-      store.setState({ campanha: null, chat: null, mural: null, erroDaCampanha: null })
+      store.setState({ campanha: null, chat: null, mural: null, duelo: null, erroDaCampanha: null })
       return
     }
     // Mesa que não está na lista desta pessoa: não abre base nem canal com id que veio só da URL.
     if (!eu.eu.campanhas.some((campanha) => campanha.campanhaId === campanhaId)) {
-      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, mural: null, erroDaCampanha: null })
+      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, mural: null, duelo: null, erroDaCampanha: null })
       return
     }
-    store.setState({ campanha: null, chat: null, mural: null, erroDaCampanha: null })
+    store.setState({ campanha: null, chat: null, mural: null, duelo: null, erroDaCampanha: null })
     const minha = aberturas
     abrir(eu.eu, campanhaId, minha).catch((erro: unknown) => {
       if (minha === aberturas) store.setState({ erroDaCampanha: textoDoErro(erro) })
@@ -284,6 +301,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     sessao: () => aberta?.sessao ?? null,
     chat: () => aberta?.chat ?? null,
     mural: () => aberta?.mural ?? null,
+    duelo: () => aberta?.duelo ?? null,
     encerrar() {
       aberturas += 1
       fecharAberta()

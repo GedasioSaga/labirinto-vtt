@@ -1,0 +1,354 @@
+/* O TREINO E O DUELO (fatia T7): só tokens do tema (--lb-*) e as peças da S3 (lo-folha, lo-abas, lo-btn,
+   lo-medidor, lo-tag). Movimento só onde ajuda: a linha nova do registro, o aviso de quem caiu e o fim da luta
+   entram com um deslize curto; com movimento reduzido, só a opacidade. */
+
+.lo-tr-corpo {
+  display: grid;
+  gap: var(--lb-space-5);
+  align-items: start;
+}
+
+@media (min-width: 920px) {
+  .lo-tr-corpo { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
+}
+
+.lo-tr-montagem { padding: var(--lb-space-5); display: grid; gap: var(--lb-space-6); }
+.lo-tr-montagem__parte { display: grid; gap: var(--lb-space-3); min-width: 0; }
+.lo-tr-montagem__chaves { gap: var(--lb-space-2); }
+
+.lo-tr-bloco__titulo {
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-regular);
+  color: var(--lb-color-parchment);
+}
+
+.lo-tr-explica { max-width: 62ch; color: var(--lb-color-parchment-dim); }
+.lo-tr-rotulo { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+/* ------------------------------------------------- escolha de fichas */
+
+.lo-tr-fichas, .lo-tr-quantos { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
+
+.lo-tr-ficha {
+  min-height: var(--lo-alvo);
+  padding: 0 14px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-sunken);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-md);
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform 120ms var(--lb-gr-ease-out);
+}
+.lo-tr-ficha:active:not(:disabled) { transform: scale(0.97); }
+.lo-tr-ficha:disabled { opacity: 0.45; cursor: not-allowed; }
+.lo-tr-ficha[aria-pressed='true'], .lo-tr-ficha[aria-checked='true'] {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lo-tr-ficha:hover:not(:disabled) { border-color: var(--lb-color-brass); color: var(--lb-color-parchment); }
+}
+
+/* ------------------------------------------------- grupos de opção (rádio) */
+
+.lo-tr-grupo { display: grid; gap: var(--lb-space-1); min-width: 0; margin: 0; padding: 0; border: 0; }
+.lo-tr-grupo > legend { margin-bottom: var(--lb-space-1); padding: 0; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+.lo-tr-opcao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1) var(--lb-space-3);
+  min-height: var(--lo-alvo);
+  padding: var(--lb-space-1) var(--lb-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md);
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease;
+}
+.lo-tr-opcao:has(input:checked) { border-color: var(--lb-color-line-strong); background: var(--lb-color-stone-raised); }
+.lo-tr-opcao:has(input:focus-visible) { outline: 2px solid var(--lb-color-brass); outline-offset: 2px; }
+.lo-tr-opcao input { margin: 0; accent-color: var(--lb-color-brass); }
+.lo-tr-opcao__nome { color: var(--lb-color-parchment); }
+.lo-tr-opcao__valor { margin-left: auto; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; }
+@media (hover: hover) and (pointer: fine) {
+  .lo-tr-opcao:hover { background: var(--lb-gr-hover); }
+}
+
+.lo-tr-chave { display: flex; align-items: center; gap: var(--lb-space-2); min-height: var(--lo-alvo); color: var(--lb-color-parchment-dim); cursor: pointer; }
+.lo-tr-chave input { width: 18px; height: 18px; margin: 0; accent-color: var(--lb-color-brass); }
+.lo-tr-chave:has(input:disabled) { opacity: 0.55; cursor: not-allowed; }
+
+.lo-tr-select {
+  min-height: var(--lo-alvo);
+  padding: 0 var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  color: var(--lb-color-parchment);
+  font: inherit;
+}
+
+/* ------------------------------------------------- modos e semente */
+
+.lo-tr-modos { min-width: 0; }
+.lo-tr-luta, .lo-tr-cem, .lo-tr-build { display: grid; gap: var(--lb-space-5); min-width: 0; }
+
+.lo-tr-semente {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-3) var(--lb-space-5);
+  padding-bottom: var(--lb-space-4);
+  border-bottom: 1px solid var(--lb-gr-filete);
+}
+.lo-tr-semente__texto { color: var(--lb-color-parchment-dim); }
+.lo-tr-semente__numero {
+  margin-left: var(--lb-space-1);
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass-bright);
+  user-select: all;
+}
+.lo-tr-semente__botoes { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
+
+.lo-tr-estado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2) var(--lb-space-4);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* O fim da luta: a cor diz o tom, o texto diz o resultado (nunca só a cor). */
+.lo-tr-fim {
+  padding: var(--lb-space-4) var(--lb-space-5);
+  border: 1px solid var(--lb-color-line-strong);
+  border-left: 3px solid var(--tom-do-fim, var(--lb-color-parchment-dim));
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  animation: lo-tr-entra 220ms var(--lb-gr-ease-out);
+}
+.lo-tr-fim[data-tom='vitoria'] { --tom-do-fim: var(--lb-color-online); }
+.lo-tr-fim[data-tom='derrota'] { --tom-do-fim: var(--lb-color-ember); }
+.lo-tr-fim__texto { font-family: var(--lb-font-display); font-size: var(--lb-font-size-xl); color: var(--lb-color-parchment); }
+.lo-tr-fim__nota { margin-top: var(--lb-space-1); color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+/* ------------------------------------------------- a minha vez */
+
+.lo-tr-vez {
+  display: grid;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-4) var(--lb-space-5);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-lg);
+  background: color-mix(in srgb, var(--lb-color-brass) 7%, var(--lb-color-stone-solid));
+}
+.lo-tr-vez__titulo { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-semibold); }
+.lo-tr-vez__dado { color: var(--lb-color-parchment-dim); }
+.lo-tr-vez__dado b { color: var(--lb-color-parchment); font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+.lo-tr-vez__botoes { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
+
+.lo-tr-escolhas { display: grid; gap: var(--lb-space-4); }
+@media (min-width: 720px) {
+  .lo-tr-escolhas { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+
+/* ------------------------------------------------- arena */
+
+.lo-tr-arena { display: grid; gap: var(--lb-space-5); }
+.lo-tr-lados { display: grid; gap: var(--lb-space-4); }
+@media (min-width: 640px) {
+  .lo-tr-lados { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.lo-tr-lado { display: grid; gap: var(--lb-space-3); align-content: start; min-width: 0; }
+.lo-tr-lado__titulo { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-medium); }
+.lo-tr-lutadores { display: grid; gap: var(--lb-space-2); }
+
+.lo-tr-lutador {
+  display: grid;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  transition: border-color var(--lb-motion-fast) ease, opacity var(--lb-motion-fast) ease;
+}
+.lo-tr-lutador[data-vez='1'] { border-color: var(--lb-color-brass); box-shadow: inset 3px 0 0 var(--lb-color-brass); }
+.lo-tr-lutador[data-caiu='1'] { opacity: 0.6; }
+.lo-tr-lutador__cab { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2); }
+.lo-tr-lutador__nome { min-width: 0; color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-semibold); overflow-wrap: anywhere; }
+.lo-tr-lutador__escudo { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; }
+
+.lo-tr-registro { display: grid; gap: var(--lb-space-2); min-width: 0; }
+.lo-tr-registro__linhas {
+  display: grid;
+  gap: var(--lb-space-1);
+  max-height: 280px;
+  padding: var(--lb-space-3);
+  overflow-y: auto;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  overscroll-behavior: contain;
+}
+.lo-tr-linha {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: var(--lb-space-2);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  overflow-wrap: anywhere;
+  animation: lo-tr-entra 180ms var(--lb-gr-ease-out);
+}
+.lo-tr-linha:last-child { color: var(--lb-color-parchment); }
+.lo-tr-linha__rodada { font-family: var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------- 100 lutas e build */
+
+.lo-tr-progresso { display: flex; align-items: center; gap: var(--lb-space-3); }
+.lo-tr-progresso__barra {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--lb-color-brass) 18%, transparent);
+  overflow: hidden;
+}
+.lo-tr-progresso__barra > span {
+  display: block;
+  height: 100%;
+  background: var(--lb-color-brass);
+  transform-origin: left center;
+  transition: transform 120ms linear;
+}
+.lo-tr-progresso__conta { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); white-space: nowrap; }
+
+.lo-tr-resultado { display: grid; gap: var(--lb-space-3); animation: lo-tr-entra 220ms var(--lb-gr-ease-out); }
+.lo-tr-numeros-bloco { display: grid; gap: var(--lb-space-2); min-width: 0; }
+.lo-tr-numeros__titulo { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-medium); }
+/* Quatro números: 2 x 2, ou uma linha só quando a série ocupa a largura toda (nunca 3 + 1 sobrando). */
+.lo-tr-numeros { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lb-space-2); margin: 0; }
+@media (min-width: 560px) {
+  .lo-tr-cem .lo-tr-numeros { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.lo-tr-numero {
+  display: grid;
+  gap: 2px;
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+.lo-tr-numero dt { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.lo-tr-numero dd { margin: 0; color: var(--lb-color-parchment); font-family: var(--lb-font-utility); font-size: 28px; font-weight: var(--lb-font-weight-semibold); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.lo-tr-numero dd small { color: var(--lb-color-parchment-faint); font-family: var(--lb-font-sans); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-regular); }
+.lo-tr-numero[data-tom='vitoria'] { box-shadow: inset 0 2px 0 var(--lb-color-online); }
+.lo-tr-numero[data-tom='derrota'] { box-shadow: inset 0 2px 0 var(--lb-color-ember); }
+
+.lo-tr-build__cab { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-3); }
+.lo-tr-build__ficha { max-width: 320px; }
+.lo-tr-build__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 132px), 1fr));
+  gap: var(--lb-space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lo-tr-build__grade > legend { margin-bottom: var(--lb-space-2); padding: 0; font-family: var(--lb-font-display); font-size: var(--lb-font-size-lg); color: var(--lb-color-parchment); }
+.lo-tr-campo { display: grid; gap: 4px; min-width: 0; }
+.lo-tr-campo label { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.lo-tr-campo .lo-numero { font-size: 20px; }
+.lo-tr-campo[data-mudou='1'] .lo-numero { border-color: var(--lb-color-tide); }
+.lo-tr-campo__ficha { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); }
+.lo-tr-campo[data-mudou='1'] .lo-tr-campo__ficha { color: var(--lb-color-tide); }
+
+.lo-tr-diferenca { font-family: var(--lb-font-display); font-size: var(--lb-font-size-xl); color: var(--lb-color-parchment); }
+.lo-tr-diferenca[data-tom='vitoria'] { color: var(--lb-color-online); }
+.lo-tr-diferenca[data-tom='derrota'] { color: var(--lb-color-ember); }
+.lo-tr-comparacao { display: grid; gap: var(--lb-space-4); }
+@media (min-width: 720px) {
+  .lo-tr-comparacao { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ------------------------------------------------- duelo */
+
+.lo-tr-pagina-duelo { display: grid; gap: var(--lb-space-8); }
+.lo-tr-aviso { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--lb-space-2); }
+.lo-tr-bloco { display: grid; gap: var(--lb-space-3); }
+.lo-tr-convites { display: grid; gap: var(--lb-space-3); }
+.lo-tr-convite {
+  display: grid;
+  gap: var(--lb-space-3);
+  padding: var(--lb-space-4) var(--lb-space-5);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-raised);
+}
+.lo-tr-convite__texto { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2); color: var(--lb-color-parchment-dim); }
+.lo-tr-convite__texto b { color: var(--lb-color-parchment); }
+.lo-tr-desafio { display: grid; gap: var(--lb-space-5); max-width: 560px; }
+
+.lo-tr-duelo { display: grid; gap: var(--lb-space-5); }
+.lo-tr-ausente {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-ember);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-parchment);
+  animation: lo-tr-entra 200ms var(--lb-gr-ease-out);
+}
+.lo-tr-ausente__ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--lb-color-ember); }
+.lo-tr-ausente__relogio { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; font-weight: var(--lb-font-weight-semibold); }
+.lo-tr-desistir { display: flex; justify-content: flex-end; }
+
+.lo-tr-acabados { display: grid; gap: var(--lb-space-2); }
+.lo-tr-acabado { border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); }
+.lo-tr-acabado > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  min-height: 44px;
+  padding: var(--lb-space-2) var(--lb-space-4);
+  cursor: pointer;
+}
+.lo-tr-acabado[open] > summary { border-bottom: 1px solid var(--lb-color-line); }
+.lo-tr-acabado > .lo-tr-arena { padding: var(--lb-space-4); }
+.lo-tr-acabado__texto { color: var(--lb-color-parchment); }
+.lo-tr-acabado__texto[data-tom='vitoria']::before, .lo-tr-acabado__texto[data-tom='derrota']::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--lb-space-2);
+  border-radius: 50%;
+  background: var(--lb-color-online);
+  vertical-align: middle;
+}
+.lo-tr-acabado__texto[data-tom='derrota']::before { background: var(--lb-color-ember); }
+
+@keyframes lo-tr-entra {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-tr-linha, .lo-tr-fim, .lo-tr-resultado, .lo-tr-ausente { animation-name: lo-tr-aparece; }
+  .lo-tr-progresso__barra > span { transition: none; }
+  .lo-tr-ficha { transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+  .lo-tr-ficha:active:not(:disabled) { transform: none; }
+}
+
+@keyframes lo-tr-aparece {
+  from { opacity: 0; }
+}

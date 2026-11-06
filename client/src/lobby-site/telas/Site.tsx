@@ -15,7 +15,7 @@ import { TelaCampanha } from './TelaCampanha'
 import { TelaCampanhas } from './TelaCampanhas'
 import { TelaFicha } from './TelaFicha'
 import { TelaLobby } from './lobby/TelaLobby'
-import { MOTIVO_DO_TREINO } from './lobby/treinoNoSite'
+import { TelaTreino } from './treino/TelaTreino'
 
 /**
  * O SITE DO LOBBY, tela por tela: a cabeça fixa com a faixa de estado em
@@ -69,22 +69,8 @@ export function Site() {
   else if (rota.tela === 'campanhas') pagina = <TelaCampanhas eu={eu.eu} />
   else if (rota.tela === 'campanha') pagina = <TelaLobby campanhaId={rota.campanhaId} />
   else if (rota.tela === 'fichas') pagina = <TelaCampanha campanhaId={rota.campanhaId} />
-  else if (rota.tela === 'treino') {
-    // As telas do treino e do duelo são da T7: até lá, o endereço diz o que há (e volta ao lobby), em vez de "não existe".
-    const lobby: Rota = { tela: 'campanha', campanhaId: rota.campanhaId }
-    pagina = (
-      <AvisoDaPagina
-        titulo={rota.parte === 'duelo' ? 'O duelo ainda não está no site' : 'O treino ainda não está no site'}
-        acoes={
-          <a className="lo-btn lo-btn--primario" href={enderecoDaRota(lobby, demo)} onClick={aoClicarNoLink(site, lobby)}>
-            Voltar ao início da mesa
-          </a>
-        }
-      >
-        <p>{MOTIVO_DO_TREINO}</p>
-      </AvisoDaPagina>
-    )
-  } else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
+  else if (rota.tela === 'treino') pagina = <TelaTreino rota={rota} />
+  else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
   else if (rota.tela === 'chat') pagina = <TelaChat rota={rota} />
   else if (rota.tela === 'mural') pagina = <TelaMural rota={rota} />
   else {

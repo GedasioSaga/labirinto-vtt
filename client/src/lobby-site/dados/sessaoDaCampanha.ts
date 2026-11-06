@@ -17,7 +17,8 @@ import {
 import type { Personagem } from '../../lib/personagem'
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
 import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
-import { ehDoChat, ehDoMural, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type MotivoDoFechamento, type Relogio } from './fonte'
+import type { MensagemDoDueloDoServidor, PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
+import { ehDoChat, ehDoDuelo, ehDoMural, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type MotivoDoFechamento, type Relogio } from './fonte'
 
 /**
  * A SESSÃO DE UMA CAMPANHA no site (§5.4-5.6): o protocolo inteiro do lado do
@@ -132,6 +133,8 @@ export interface SessaoDaCampanha {
   enviarDoChat(pedido: PedidoDoChat): boolean
   /** Um pedido do mural (M2) pelo mesmo canal; `false` como no `enviarDoChat` (o mural espera o `aoFicarEmDia`). */
   enviarDoMural(pedido: PedidoDoMural): boolean
+  /** Um pedido do duelo (T7) pelo mesmo canal; `false` como no `enviarDoChat`. */
+  enviarDoDuelo(pedido: PedidoDoDuelo): boolean
   fechar(): void
 }
 
@@ -154,6 +157,13 @@ export interface ParteDoMural {
   aoCair(): void
 }
 
+/** O duelo (T7) pelo mesmo canal, como o mural: recebe os `duelo.*`, sabe quando o canal fica em dia e quando cai. */
+export interface ParteDoDuelo {
+  aoFicarEmDia(): void
+  aoReceber(mensagem: MensagemDoDueloDoServidor): void
+  aoCair(): void
+}
+
 export interface OpcoesDaSessao {
   fonte: FonteDoLobby
   campanhaId: string
@@ -164,6 +174,8 @@ export interface OpcoesDaSessao {
   chat?: ParteDoCanal
   /** O mural da campanha (M2); sem ele, frame `mural.*` é ignorado. */
   mural?: ParteDoMural
+  /** O duelo da campanha (T7); sem ele, frame `duelo.*` é ignorado. */
+  duelo?: ParteDoDuelo
   relogio?: Relogio
   novoId?: () => string
 }
@@ -314,6 +326,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     if (encerrada) return
     opcoes.chat?.aoCair()
     opcoes.mural?.aoCair()
+    opcoes.duelo?.aoCair()
     if (motivo === 'sem-acesso') {
       conexao = 'sem-acesso'
       publicar()
@@ -371,6 +384,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     for (const [fichaId, antesDeRev] of historicosPedidos) mandarHistorico(fichaId, antesDeRev)
     opcoes.chat?.aoFicarEmDia()
     opcoes.mural?.aoFicarEmDia()
+    opcoes.duelo?.aoFicarEmDia()
   }
 
   // ── O que chega ──────────────────────────────────────────────────────────
@@ -384,6 +398,11 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     // O mural (M2) também: estado próprio, fora da base.
     if (ehDoMural(mensagem)) {
       opcoes.mural?.aoReceber(mensagem)
+      return
+    }
+    // O duelo (T7) também.
+    if (ehDoDuelo(mensagem)) {
+      opcoes.duelo?.aoReceber(mensagem)
       return
     }
     switch (mensagem.t) {
@@ -419,6 +438,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
         pararAdiados()
         opcoes.chat?.aoCair()
         opcoes.mural?.aoCair()
+        opcoes.duelo?.aoCair()
         break
       case 'presenca':
         naMesa = mensagem.naMesa
@@ -646,6 +666,10 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       return canal.enviar(pedido)
     },
     enviarDoMural(pedido) {
+      if (!sincronizada || canal === null) return false
+      return canal.enviar(pedido)
+    },
+    enviarDoDuelo(pedido) {
       if (!sincronizada || canal === null) return false
       return canal.enviar(pedido)
     },

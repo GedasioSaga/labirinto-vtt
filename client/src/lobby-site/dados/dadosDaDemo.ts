@@ -187,6 +187,44 @@ const CAPITAO = ficha(
   { tipo: 'npc', notaDoMestre: 'Aparece no fim do arco das ilhas.' },
 )
 
+function arma(fichaId: string, nome: string, dano: string, descricao: string): CartaoDaFicha {
+  return { id: `arma_${fichaId}_${slug(nome)}`, nome, campos: { descricao, dano }, extras: [], atributos: [], imagem: null, modificadores: [], subcartoes: [] }
+}
+
+/**
+ * Os inimigos que o mestre liberou para o treino (T8, T7): a cópia que o app publica com `visivel: 'treino'`
+ * e o id `treino_<id do NPC>`, sem nota do mestre, dono nem mochila. Um fraco e um forte, para dar escolha.
+ */
+function inimigoDoTreino(curto: string, nome: string, molde: MoldeDaFicha, armas: readonly CartaoDaFicha[]): FichaGuardada {
+  const npc = ficha(curto, nome, null, molde, { tipo: 'npc' })
+  const doc: Personagem = { ...npc, id: `treino_${npc.id}`, mochila: [], abas: { ...npc.abas, armas: [...armas] } }
+  return { doc, apagada: false, visivel: 'treino', rev: 0 }
+}
+
+const RECRUTA = inimigoDoTreino(
+  'recruta_da_marinha',
+  'Recruta da Marinha',
+  { raca: 'Humano', oficio: 'Marinheiro', hp: [30, 30], sp: [10, 10], escudo: 2, moedas: 0, atr: [25, 30, 25, 30, 20, 5, 10, 20], mochila: [], habilidades: [] },
+  [arma('recruta_da_marinha', 'Cassetete', '6', 'Madeira dura, pintada de azul.')],
+)
+
+const TENENTE = inimigoDoTreino(
+  'tenente_garra',
+  'Tenente Garra',
+  {
+    raca: 'Humano',
+    oficio: 'Oficial',
+    hp: [70, 70],
+    sp: [20, 20],
+    escudo: 6,
+    moedas: 0,
+    atr: [60, 45, 40, 80, 35, 20, 30, 60],
+    mochila: [],
+    habilidades: [['Bote da Garra', 'Simples', '6 SP', 'Força + 10', 'Avança e crava a garra no mais fraco.']],
+  },
+  [arma('tenente_garra', 'Garra de aço', '12', 'Três lâminas curtas presas ao pulso.')],
+)
+
 const LUA = ficha('lua', 'Lua Pimenta', BIA, {
   raca: 'Skypean',
   oficio: 'Artista',
@@ -293,7 +331,7 @@ export function campanhasDaDemo(): CampanhaDaDemo[] {
       campanhaId: 'rota-das-ilhas',
       nome: 'Rota das Ilhas Partidas',
       membros: [mestre('Rafa', 'rafa.mestre@example.com'), membro(BIA), membro(CAIO), membro(DUDA), membro(LEO)],
-      fichas: [naMesa(SORA), naMesa(TANUKI), naMesa(GAEL), naMesa(IARA), naMesa(BARTO), naMesa(ONDINO), { ...naMesa(CAPITAO), visivel: 'mestre' }],
+      fichas: [naMesa(SORA), naMesa(TANUKI), naMesa(GAEL), naMesa(IARA), naMesa(BARTO), naMesa(ONDINO), { ...naMesa(CAPITAO), visivel: 'mestre' }, RECRUTA, TENENTE],
       antigas: [
         { quem: CONTA_DO_MESTRE, fichaId: SORA.id, caminho: ['moedas'], acao: 'somar', delta: 500, minutosAtras: 21 },
         { quem: CONTA_DO_MESTRE, fichaId: SORA.id, caminho: ['recursos', 'hp'], acao: 'definir', valor: 30, minutosAtras: 6 },

@@ -1,6 +1,7 @@
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
 import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
 import type { MensagemDoCliente, MensagemDoServidor, Papel } from '../../lib/nuvem/tipos'
+import type { MensagemDoDueloDoServidor, PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
 
 /**
  * A FONTE DOS DADOS do site do Lobby (docs/planos/lobby-jogadores-2026-11-05.md
@@ -40,10 +41,20 @@ export type MotivoDoFechamento = 'rede' | 'sem-acesso'
  * do chat (`chat.*`, fatia C2) e o do mural (`mural.*`, fatia M2), que andam
  * pela MESMA conexão.
  */
-export type MensagemDoSite = MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor
+export type MensagemDoSite = MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor
 
-/** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat e do mural. */
-export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural
+/** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat, do mural e do duelo (T7). */
+export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural | PedidoDoDuelo
+
+/** O frame é do duelo (`duelo.*`, fatia T7)? */
+export function ehDoDuelo(mensagem: MensagemDoSite): mensagem is MensagemDoDueloDoServidor {
+  return mensagem.t.startsWith('duelo.')
+}
+
+/** O pedido é do duelo (`duelo.*`)? */
+export function ehPedidoDoDuelo(pedido: PedidoDoSite): pedido is PedidoDoDuelo {
+  return pedido.t.startsWith('duelo.')
+}
 
 /** O frame é do chat (`chat.*`)? */
 export function ehDoChat(mensagem: MensagemDoSite): mensagem is MensagemDoChatDoServidor {

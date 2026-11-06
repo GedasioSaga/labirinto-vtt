@@ -6,6 +6,7 @@ import type { FichaNoEstado, MembroProjetado, MensagemDoServidor, OpGravada, Ori
 import { personagemDoArquivo } from '../../lib/personagem'
 import type { MensagemDoSite } from './fonte'
 import { lerFrameDoChat } from './fioDoChat'
+import { lerFrameDoDuelo } from './fioDoDuelo'
 import { lerFrameDoMural } from './fioDoMural'
 
 /**
@@ -142,6 +143,8 @@ function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoSite | null {
   if (typeof t === 'string' && t.startsWith('chat.')) return lerFrameDoChat(bruto)
   // O mural (M2) também: o DO manda o `mural.estado` logo depois de cada `ola`.
   if (typeof t === 'string' && t.startsWith('mural.')) return lerFrameDoMural(bruto)
+  // E o duelo (T7): o DO manda o `duelo.lista` depois de cada `ola`.
+  if (typeof t === 'string' && t.startsWith('duelo.')) return lerFrameDoDuelo(bruto)
   switch (t) {
     case 'estado':
       return lerEstado(bruto)
