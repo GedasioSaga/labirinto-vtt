@@ -1,0 +1,27 @@
+{
+  // Tipos do portão (functions/ e src/). Os do runtime da Cloudflare e o `Env`
+  // com os bindings CAMPANHA e DIRETORIO vêm do `worker-configuration.d.ts` do
+  // Worker (../nuvem): mesmo runtime, mesma compatibility_date, e o portão chama
+  // o `encaminhar` de lá com esse `Env`. Rodar `npx wrangler types` em lobby/nuvem
+  // de novo quando o wrangler.toml de lá mudar.
+  //
+  // "DOM" na lib pelo mesmo motivo do tsconfig de lobby/nuvem: o fecho de tipos
+  // do núcleo (client/src/lib/nuvem) alcança dois arquivos do app com canvas e áudio.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": [],
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["functions/**/*.ts", "src/**/*.ts", "../nuvem/worker-configuration.d.ts"]
+}

@@ -1,0 +1,34 @@
+# Projeto Pages do Lobby (labirintolobby.pages.dev): os arquivos do site
+# (client/dist-lobby, gerado por `npm run build:lobby --workspace=client`) e o
+# portão em functions/api/[[rota]].ts. Plano: docs/planos/lobby-jogadores-2026-11-05.md, 6.2 e 8.1 (W2).
+#
+# Sem segredo aqui: este arquivo vai para o repo público. ACCESS_AUD, ACCESS_TIME
+# e MAPA_DO_APP entram com `npx wrangler pages secret put <NOME>` (nunca neste
+# arquivo) e, no teste local, pela linha de comando do `wrangler pages dev`
+# (topo do fumaca.mjs).
+#
+# Rodar com o cwd nesta pasta (é aqui que o Pages acha o `functions/`).
+name = "labirintolobby"
+pages_build_output_dir = "../../client/dist-lobby"
+compatibility_date = "2026-10-01"
+send_metrics = false
+
+# Produção: o portão fala com os DOs do Worker `labirinto-nuvem` (lobby/nuvem),
+# que não tem rota pública (6.3). No local, o `wrangler pages dev` 4.151.3 NÃO
+# lê estes bindings do arquivo (conferido em 06/11/2026): passe `--do` na linha
+# de comando (topo do fumaca.mjs), com o `wrangler dev` do Worker rodando em
+# outro terminal (registro de dev do wrangler).
+[[durable_objects.bindings]]
+name = "CAMPANHA"
+class_name = "Campanha"
+script_name = "labirinto-nuvem"
+
+[[durable_objects.bindings]]
+name = "DIRETORIO"
+class_name = "Diretorio"
+script_name = "labirinto-nuvem"
+
+# Prévias (*.labirintolobby.pages.dev) SEM binding de DO (6.2): uma prévia nunca
+# lê nem grava a campanha de verdade. O portão responde 503 "sem-servidor" nelas.
+[env.preview.durable_objects]
+bindings = []
