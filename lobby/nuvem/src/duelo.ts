@@ -55,6 +55,9 @@ import { enviar } from './sala'
  *   continua: sai da tabela na primeira vez que esta instância do DO mexe nos
  *   duelos (`semDuelosDeOutraVersao`), e nem conta como `ocupado` nem como prazo.
  * - O d20 é do `crypto` do servidor (`secureRollDie`), nunca do cliente.
+ * - O `montar` (a casa de largada que a montagem por arrasto escolheu) é uma
+ *   jogada como as outras: `aplicarJogada` confere a montagem, o lado, a
+ *   metade e a casa; a cota conta; as duas contas recebem as posições novas.
  * - Só as duas contas do duelo recebem o estado, cada uma o do lado DELA
  *   (`dueloParaOLado`, fatia M2): o fio (fichas projetadas, cauda do
  *   registro) e a vista dela (`vistaParaJogador`, o HUD da Arena), montada
@@ -219,8 +222,8 @@ function tokensDosLutadores(valor: unknown): string[] | null {
 
 /**
  * As casas das fichas: uma por token das vagas e nenhuma a mais, cada uma
- * dentro da grade (`GRADE_DO_TREINO`). O `andar` lê `posicoes[tokenId]` e
- * conta as outras como ocupadas: casa faltando, sobrando ou fora da grade é linha torta.
+ * dentro da grade (`GRADE_DO_TREINO`). O `andar` e o `montar` leem `posicoes[tokenId]`
+ * e contam as outras como ocupadas: casa faltando, sobrando ou fora da grade é linha torta.
  */
 function posicoesGravadas(valor: unknown, tokens: readonly string[]): Record<string, CasaDoTreino> | null {
   if (!ehRegistro(valor) || Object.keys(valor).length !== tokens.length) return null
@@ -245,8 +248,8 @@ function cenaNaForma(valor: unknown): boolean {
 
 /**
  * O `DueloGravado` do `estadoJson`, relido campo a campo onde o DO lê direto
- * (versão, id, jogadores, posições, `seq`, `passos`, fim); `null` = linha torta.
- * Nunca lança: a linha torta não derruba o `ola`, a jogada nem o alarme.
+ * (versão, id, jogadores, posições, montagem, `seq`, `passos`, fim); `null` =
+ * linha torta. Nunca lança: a linha torta não derruba o `ola`, a jogada nem o alarme.
  */
 function dueloGravadoDoJson(estadoJson: string, id: string): DueloGravado | null {
   let valor: unknown
@@ -261,18 +264,20 @@ function dueloGravadoDoJson(estadoJson: string, id: string): DueloGravado | null
   const jogadores = proprio(valor, 'jogadores')
   const seq = proprio(valor, 'seq')
   const passos = proprio(valor, 'passos')
+  const montagem = proprio(valor, 'montagem')
   const tokens = tokensDosLutadores(lutadores)
   const posicoes = tokens === null ? null : posicoesGravadas(proprio(valor, 'posicoes'), tokens)
   const a = ehRegistro(jogadores) ? jogadorGravado(proprio(jogadores, 'a')) : null
   const b = ehRegistro(jogadores) ? jogadorGravado(proprio(jogadores, 'b')) : null
   const fim = fimGravado(proprio(valor, 'fim'))
-  if (posicoes === null || a === null || b === null || !contagem(seq) || !contagem(passos) || fim === undefined || !cenaNaForma(cena)) return null
+  if (posicoes === null || a === null || b === null || typeof montagem !== 'boolean' || !contagem(seq) || !contagem(passos) || fim === undefined || !cenaNaForma(cena)) return null
   return {
     versao: VERSAO_DO_MOTOR_DO_DUELO,
     id,
     jogadores: { a, b },
     lutadores: lutadores as LutadoresDoTreino, // as: forma conferida por fora (tokensDosLutadores); as cópias não têm leitor sem normalizar (personagemDoArquivo mudaria a cópia), e só gravarDuelo escreve aqui
     posicoes,
+    montagem,
     cena: cena as BatalhaDaCena, // as: forma conferida por fora (cenaNaForma); a cena da batalha não tem leitor, e só gravarDuelo a escreve (JSON.stringify do estado da store, que volta igual)
     seq,
     passos,

@@ -21,6 +21,12 @@ import { passoDoRobo, type GolpesDaVez } from './roboDoDuelo'
 /** Quanto o colega inventado demora para aceitar o convite e para jogar a vez dele. */
 const ACEITA_EM_MS = 1_800
 const JOGA_EM_MS = 900
+/**
+ * Na montagem (ninguém agiu ainda), o colega espera mais antes da 1ª jogada
+ * dele: quem vê a demo manda as casas escolhidas (`montar`, uma por vez, com a
+ * latência da demo nos dois sentidos), e cada `montar` aceito recomeça a espera.
+ */
+const ESPERA_A_MONTAGEM_MS = 2_000
 /** Depois de quantas jogadas dele o colega cai da conexão, e por quanto tempo fica fora. */
 const CAI_DEPOIS_DE = 3
 const FICA_FORA_MS = 12_000
@@ -49,6 +55,8 @@ interface DueloDaMesa {
   jogadasDoColega: number
   jaCaiu: boolean
   agendado: boolean
+  /** Desliga a jogada agendada do colega (o `montar` aceito recomeça a espera); `null` = nada para desligar. */
+  desligarColega: (() => void) | null
 }
 
 interface ConviteDaMesa {
@@ -115,8 +123,9 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
     const colega = daMesa.gravado.jogadores[ladoDoColega]
     if (colega.ausenteDesde !== null) return
     daMesa.agendado = true
-    opcoes.depois(JOGA_EM_MS, () => {
+    daMesa.desligarColega = opcoes.depois(daMesa.gravado.montagem ? ESPERA_A_MONTAGEM_MS : JOGA_EM_MS, () => {
       daMesa.agendado = false
+      daMesa.desligarColega = null
       if (daMesa.gravado.fim !== null) return
       const passo = passoDoRobo(daMesa.gravado, motor, daMesa.golpesDaVez, (lado) => lado === ladoDoColega)
       if (passo === null) return
@@ -141,7 +150,7 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
   function comecar(id: string, a: { contaId: string; nome: string; fichas: Personagem[] }, b: { contaId: string; nome: string; fichas: Personagem[] }): DueloDaMesa | null {
     const criado = criarDuelo({ id, a, b }, motor)
     if (!criado.ok) return null
-    const daMesa: DueloDaMesa = { gravado: criado.duelo, golpesDaVez: null, jogadasDoColega: 0, jaCaiu: false, agendado: false }
+    const daMesa: DueloDaMesa = { gravado: criado.duelo, golpesDaVez: null, jogadasDoColega: 0, jaCaiu: false, agendado: false, desligarColega: null }
     duelos.set(id, daMesa)
     return daMesa
   }
@@ -238,6 +247,12 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
             return
           }
           daMesa.gravado = feito.duelo
+          // A casa escolhida chegou: a espera do colega recomeça (`publicar` agenda de novo).
+          if (pedido.jogada.tipo === 'montar' && daMesa.desligarColega !== null) {
+            daMesa.desligarColega()
+            daMesa.desligarColega = null
+            daMesa.agendado = false
+          }
           return publicar(daMesa)
         }
         case 'duelo.desistir': {

@@ -13,16 +13,18 @@ import type { VezEsperada } from '../batalha/ponte'
 import { cartaDaVez } from '../batalha/turnos'
 import { novoCartao, type Personagem } from '../personagem'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
-import { aplicarJogada, criarDuelo, jogadaDoValor, type DueloGravado, type JogadaDoDuelo, type MotorDoDuelo, type ResultadoDaJogada } from './duelo'
+import { aplicarJogada, criarDuelo, jogadaDoValor, type DueloGravado, type JogadaDoDuelo, type MotivoDaRecusa, type MotorDoDuelo, type ResultadoDaJogada } from './duelo'
 import { LIA, lutadoresDe, MARINHEIRO, SISTEMA_DO_TESTE, ze } from './fichasDeTreino.testkit'
 import { lutaAutomatica, type ResumoDaLuta } from './lutaAutomatica'
 import { jogadaDoRobo } from './robo'
 import { criarSorteio, type Sorteio } from './sorteio'
+import { dueloParaOsLados } from './vistaDoDuelo'
 
 const CONTA_A = 'conta_a'
 const CONTA_B = 'conta_b'
 /** As vagas são a1, a2... e b1: o token de cada uma é `treino_tok_<vaga>`. */
 const TOKEN_DO_ZE = 'treino_tok_a1'
+const TOKEN_DA_LIA = 'treino_tok_a2'
 const TOKEN_DO_MARINHEIRO = 'treino_tok_b1'
 
 /** A ficha como o servidor a guarda: o doc completo, com o dono. */
@@ -237,6 +239,42 @@ describe('duelo', () => {
     expect(aplicarJogada(duelo, motor, CONTA_A, zeAndaPara(10, 3))).toEqual({ ok: false, motivo: 'regra' })
     expect(aplicarJogada(duelo, motor, CONTA_A, zeAndaPara(10, 3), 'livre')).toEqual({ ok: false, motivo: 'regra' })
     expect(aplicarJogada(duelo, motor, CONTA_A, zeAndaPara(12, 3))).toEqual({ ok: false, motivo: 'regra' })
+    expect(duelo).toEqual(antes)
+  })
+
+  // A montagem por arrasto do site: a metade do Lado A são as colunas 0 a 5; a do B, 6 a 11.
+  it('montar na própria metade antes da 1ª vez: a casa nova vai às duas vistas, sem gastar MOV, passo nem a vez', () => {
+    const { motor } = motorDaSemente(7)
+    const duelo = dueloDe([ZE], [MARINHEIRO_DA_CONTA], motor)
+    const zeMonta: JogadaDoDuelo = { tipo: 'montar', seq: duelo.seq, tokenId: TOKEN_DO_ZE, col: 5, row: 7 }
+    expect(jogadaDoValor(JSON.parse(JSON.stringify(zeMonta)))).toEqual(zeMonta)
+    const montado = aceita(aplicarJogada(duelo, motor, CONTA_A, zeMonta), 'o Zé montar na metade dele')
+    const osDois = aceita(aplicarJogada(montado, motor, CONTA_B, { tipo: 'montar', seq: montado.seq, tokenId: TOKEN_DO_MARINHEIRO, col: 6, row: 0 }), 'o Marinheiro montar na metade dele')
+    const casas = { [TOKEN_DO_ZE]: { col: 5, row: 7 }, [TOKEN_DO_MARINHEIRO]: { col: 6, row: 0 } }
+    const lados = dueloParaOsLados(osDois, SISTEMA_DO_TESTE)
+    expect([lados.a.posicoes, lados.b.posicoes]).toEqual([casas, casas])
+    expect({ seq: osDois.seq, passos: osDois.passos, montagem: osDois.montagem, noFio: lados.b.montagem }).toEqual({ seq: duelo.seq + 2, passos: duelo.passos, montagem: true, noFio: true })
+    expect(osDois.cena).toEqual(duelo.cena)
+  })
+
+  it('montar na metade do outro, a ficha do outro, fora da grade, em casa ocupada ou depois da 1ª vez = recusado, e o duelo fica como estava', () => {
+    const { motor } = motorDaSemente(7)
+    const duelo = dueloDe([ZE, LIA_DA_CONTA], [MARINHEIRO_DA_CONTA], motor)
+    const tokenDaVez = cartaDaVez(duelo.cena.turnos)?.tokenId
+    if (tokenDaVez === undefined) throw new Error('duelo sem vez')
+    const depoisDaVez = aceita(aplicarJogada(duelo, motor, contaDoToken(duelo, tokenDaVez), { tipo: 'passar', seq: duelo.seq, vez: vezDe(duelo) }), 'passar a 1ª vez')
+    const antes = structuredClone(duelo)
+    const casaDaLia = duelo.posicoes[TOKEN_DA_LIA]
+    const montar = (de: DueloGravado, tokenId: string, col: number, row: number): JogadaDoDuelo => ({ tipo: 'montar', seq: de.seq, tokenId, col, row })
+    const tabela: readonly { caso: string; de: DueloGravado; jogada: JogadaDoDuelo; motivo: MotivoDaRecusa }[] = [
+      { caso: 'o Zé na metade do outro', de: duelo, jogada: montar(duelo, TOKEN_DO_ZE, 6, 3), motivo: 'regra' },
+      { caso: 'a ficha do outro lado', de: duelo, jogada: montar(duelo, TOKEN_DO_MARINHEIRO, 8, 1), motivo: 'naoEDaConta' },
+      { caso: 'o Zé fora da grade', de: duelo, jogada: montar(duelo, TOKEN_DO_ZE, 2, 8), motivo: 'regra' },
+      { caso: 'o Zé na casa da Lia', de: duelo, jogada: montar(duelo, TOKEN_DO_ZE, casaDaLia.col, casaDaLia.row), motivo: 'regra' },
+      { caso: 'o Zé depois da 1ª vez', de: depoisDaVez, jogada: montar(depoisDaVez, TOKEN_DO_ZE, 3, 6), motivo: 'regra' },
+    ]
+    for (const { caso, de, jogada, motivo } of tabela) expect(aplicarJogada(de, motor, CONTA_A, jogada), caso).toEqual({ ok: false, motivo })
+    expect(depoisDaVez.montagem).toBe(false)
     expect(duelo).toEqual(antes)
   })
 })

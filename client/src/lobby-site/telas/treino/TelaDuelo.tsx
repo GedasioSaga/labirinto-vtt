@@ -13,7 +13,7 @@ import { useAgora, useSistemaDoLobby, useSite } from '../contexto'
 import { Icone } from '../Icone'
 import { ArenaDaLuta, type JogadasDaLuta } from './ArenaDaLuta'
 import type { RespostaDoAndar } from './grade/GradeDaArena'
-import { fichasDoPedido, MontagemDoDuelo, montagemInicialDoDuelo } from './montagem/MontagemDoDuelo'
+import { fichasDoPedido, lembrarMontagemDoDuelo, MontagemDoDuelo, montagemInicialDoDuelo, useMontagemNoServidor } from './montagem/MontagemDoDuelo'
 import type { PecaNaGrade } from './montagem/regrasDaMontagem'
 import { nomeDaVez, oQueEsperaDeMim } from './quemJoga'
 import { contar, relogioDaVolta, textoDaRecusa, textoDoConviteFechado, textoDoFim, tomDoFim } from './textosDoTreino'
@@ -50,6 +50,12 @@ function ConviteRecebido({ convite, campanha, minhas, ocupado }: { convite: Conv
   // Quem aceita é o Lado B: monta na metade da direita.
   const [bruta, setLista] = useState<PecaNaGrade[]>(() => montagemInicialDoDuelo(minhas, 'b'))
   const { lista, fichas: escolhidas } = fichasDoPedido(bruta, minhas, 'b')
+
+  function aceitar() {
+    lembrarMontagemDoDuelo('b', lista)
+    site.duelo()?.aceitar(convite.id, escolhidas)
+  }
+
   return (
     <li className="lo-tr-convite">
       <p className="lo-tr-convite__texto">
@@ -61,7 +67,7 @@ function ConviteRecebido({ convite, campanha, minhas, ocupado }: { convite: Conv
         <MontagemDoDuelo minhas={minhas} lado="b" nomeDoOutro={convite.de.nome} lista={lista} onMudar={setLista} />
       )}
       <div className="lo-tr-vez__botoes">
-        <button type="button" className="lo-btn lo-btn--primario" disabled={ocupado || escolhidas.length === 0} onClick={() => site.duelo()?.aceitar(convite.id, escolhidas)}>
+        <button type="button" className="lo-btn lo-btn--primario" disabled={ocupado || escolhidas.length === 0} onClick={aceitar}>
           Aceitar o desafio
         </button>
         <button type="button" className="lo-btn" disabled={ocupado} onClick={() => site.duelo()?.recusar(convite.id)}>
@@ -84,6 +90,7 @@ function NovoDesafio({ campanha, colegas, minhas, ocupado }: { campanha: EstadoD
   function desafiar(evento: FormEvent) {
     evento.preventDefault()
     if (para === null || escolhidas.length === 0 || ocupado) return
+    lembrarMontagemDoDuelo('a', lista)
     site.duelo()?.convidar(para, escolhidas)
   }
 
@@ -320,6 +327,8 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
   const [revendo, setRevendo] = useState<string | null>(null)
   const ultimoAtivo = useRef<string | null>(null)
   const idDoAtivo = ativo?.id ?? null
+  // As casas que a montagem escolheu vão ao servidor (`montar`) enquanto ninguém agiu.
+  useMontagemNoServidor(ativo, ativo === undefined || eu === null ? null : ativo.jogadores.a.contaId === eu.contaId ? 'a' : 'b', duelo.esperando !== null)
 
   // O duelo que estava na Arena acabou: ela fica com o resumo até a pessoa fechar.
   useEffect(() => {

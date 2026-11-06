@@ -200,8 +200,10 @@ export function lerDueloNoFio(bruto: unknown): DueloNoFio | null {
   if (!ehRegistro(turnos) || !Array.isArray(proprio(turnos, 'cartas')) || !ehInteiro(proprio(turnos, 'rodada'))) return null
   if (regras !== null && !ehRegistro(regras)) return null
   if (!Array.isArray(efeitos)) return null
+  // O Worker de antes do `montar` não manda a montagem: sem ela, a tela não monta (false).
+  const montagem = proprio(bruto, 'montagem') === true
   // O miolo (cartas, golpes, selos, combate) é do motor do servidor: a tela só lê, nunca manda de volta.
-  return { versao, id, seq, fim, jogadores: { a, b }, lutadores, posicoes, turnos: turnos as unknown as DueloNoFio['turnos'], regras: regras as DueloNoFio['regras'], efeitos: efeitos as DueloNoFio['efeitos'], registro }
+  return { versao, id, seq, fim, jogadores: { a, b }, lutadores, posicoes, montagem, turnos: turnos as unknown as DueloNoFio['turnos'], regras: regras as DueloNoFio['regras'], efeitos: efeitos as DueloNoFio['efeitos'], registro }
 }
 
 /**

@@ -38,7 +38,7 @@ export interface PecaNaGrade {
   casa: CasaDaArena
 }
 
-export type RecusaDaMontagem = 'ocupada' | 'cheio' | 'fora' | 'outroLado' | 'repetida' | 'largada'
+export type RecusaDaMontagem = 'ocupada' | 'cheio' | 'fora' | 'outroLado' | 'repetida'
 
 export type MudancaDaMontagem = { ok: true; lista: PecaNaGrade[] } | { ok: false; motivo: RecusaDaMontagem }
 
@@ -162,7 +162,6 @@ export const TEXTO_DA_RECUSA: Readonly<Record<RecusaDaMontagem, string>> = {
   fora: 'a casa fica fora da grade',
   outroLado: 'a outra metade é do outro jogador',
   repetida: 'já está na grade',
-  largada: 'no duelo cada um começa numa casa de largada da Arena, na ordem em que entrou',
 }
 
 /** A casa sob o item que vem da lista, como a grade desenha: onde ele cai e se pode. */
@@ -175,8 +174,8 @@ export interface RealceDaLista {
 
 /**
  * As regras de uma montagem: a do treino (qualquer casa livre, a metade decide
- * o lado) ou a do duelo (`regrasDoDuelo.ts`: só a sua metade, nas casas de
- * largada). A tela (`MontagemNaGrade.tsx`) só arrasta e pergunta.
+ * o lado) ou a do duelo (`regrasDoDuelo.ts`: só a sua metade, cada um uma
+ * vez). A tela (`MontagemNaGrade.tsx`) só arrasta e pergunta.
  */
 export interface RegrasDaMontagem {
   realce(lista: readonly PecaNaGrade[], peca: PecaDaMontagem, casa: CasaDaArena): RealceDaLista
@@ -195,8 +194,6 @@ export interface RegrasDaMontagem {
   dicaDaGrade: string
   /** O nome de cada metade; ausente = o do treino. */
   nomesDasMetades?: Readonly<Record<LadoDoTreino, string>>
-  /** O limite que a tela mostra embaixo da lista; ausente = nenhum. */
-  aviso?: string
 }
 
 /** O treino solo: qualquer casa livre, a metade decide o lado, a mesma peça pode entrar mais de uma vez. */

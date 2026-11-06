@@ -323,7 +323,6 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz, re
             })}
           </ul>
         )}
-        {regras.aviso !== undefined && <p className="lo-tr-mg__aviso">{regras.aviso}</p>}
         <p id={idDoComo} className="lo-sr">
           Arraste até uma casa da grade, ou aperte Enter para pôr na primeira casa livre do lado dele.
         </p>

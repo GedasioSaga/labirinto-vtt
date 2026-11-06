@@ -18,7 +18,9 @@
 //                                             fixado aparece no mural.estado de quem entra e some para quem leu;
 //                                             modificações da jogadora sem notaDoMestre, NPC nem e-mail
 //      node fumaca.mjs duelo               -> a T6 (Nami e Zoro, contas falsas): convite, aceite (cada conta recebe a
-//                                             vista do lado dela, M2); o andar na grade (M1): fora da vez,
+//                                             vista do lado dela, M2); o montar (a casa de largada): na metade do
+//                                             outro e a ficha do outro = recusa, na própria metade as duas contas
+//                                             veem a casa nova, e depois da 1ª jogada = recusa; o andar na grade (M1): fora da vez,
 //                                             casa ocupada e ficha do outro lado = recusa, a ficha da vez anda
 //                                             e as duas contas veem a casa nova, sem o que só o outro lado vê;
 //                                             duelo curto até o fim
@@ -1195,6 +1197,53 @@ async function andarNaGrade(salas, duelo) {
   return naVez.duelo
 }
 
+// ── A montagem por arrasto (a casa de largada escolhida) pelo DO de verdade ──
+
+/** Manda um montar sobre o `seq` de `duelo` e devolve o motivo da recusa, ou "aceito" se o estado andou. */
+async function motivoDoMontar(sala, duelo, montar) {
+  await sala.mandar({ t: 'duelo.jogar', id: duelo.id, jogada: { tipo: 'montar', seq: duelo.seq, ...montar } })
+  const resposta = await doDuelo(sala, (m) => (m.t === 'duelo.recusado' && m.id === duelo.id) || (m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.seq > duelo.seq), `a resposta do montar de ${sala.email}`)
+  return resposta.t === 'duelo.recusado' ? resposta.motivo : `aceito (seq ${resposta.duelo.seq})`
+}
+
+/**
+ * Antes de qualquer vez, a Nami (Lado A, colunas 0 a 5) põe a ficha dela numa casa livre da metade
+ * dela. Sobre o mesmo `seq`: na metade do Zoro = regra; a ficha do Zoro = naoEDaConta. Depois o
+ * montar certo: as duas contas recebem a casa nova, ainda na montagem e sem MOV gasto. O `fechada`
+ * devolvido roda depois da 1ª jogada da luta (o andar da vez): aí o montar é recusado (regra).
+ */
+async function montarNaLargada(salas, duelo) {
+  const { conta_nami: nami, conta_zoro: zoro } = salas
+  const daNami = duelo.lutadores.vagas.find((vaga) => vaga.lado === 'a').tokenId
+  const doZoro = duelo.lutadores.vagas.find((vaga) => vaga.lado === 'b').tokenId
+  const casa = { col: 5, row: 7 }
+  console.log(`        montar: ${daNami} em ${JSON.stringify(duelo.posicoes[daNami])}, ${doZoro} em ${JSON.stringify(duelo.posicoes[doZoro])}, montagem ${duelo.montagem}`)
+  const naMetadeDoOutro = await motivoDoMontar(nami, duelo, { tokenId: daNami, col: 6, row: 7 })
+  const fichaDoOutro = await motivoDoMontar(nami, duelo, { tokenId: doZoro, col: 8, row: 1 })
+  console.log(`        a Nami monta na metade do Zoro (6, 7): ${naMetadeDoOutro}; monta a ficha do Zoro: ${fichaDoOutro}`)
+  conferir('montar na metade do outro = recusado (regra); montar a ficha do outro lado = recusado (naoEDaConta)', naMetadeDoOutro === 'regra' && fichaDoOutro === 'naoEDaConta', JSON.stringify({ naMetadeDoOutro, fichaDoOutro }))
+
+  const depois = (sala) => doDuelo(sala, (m) => (m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.seq === duelo.seq + 1) || (m.t === 'duelo.recusado' && m.id === duelo.id), `o estado depois do montar em ${sala.email}`)
+  const chegaram = Promise.all([depois(nami), depois(zoro)])
+  await nami.mandar({ t: 'duelo.jogar', id: duelo.id, jogada: { tipo: 'montar', seq: duelo.seq, tokenId: daNami, ...casa } })
+  const [naNami, noZoro] = await chegaram
+  if (naNami.t !== 'duelo.estado' || noZoro.t !== 'duelo.estado') throw new Error(`montar recusado: ${naNami.motivo ?? noZoro.motivo}`)
+  const naCasa = (frame, tokenId, alvo) => frame?.posicoes?.[tokenId]?.col === alvo.col && frame.posicoes[tokenId].row === alvo.row
+  const certo = [naNami, noZoro].every(
+    (resposta) => naCasa(resposta.duelo, daNami, casa) && naCasa(resposta.duelo, doZoro, duelo.posicoes[doZoro]) && resposta.duelo.montagem === true && JSON.stringify(resposta.duelo.turnos.gastos ?? {}) === JSON.stringify(duelo.turnos.gastos ?? {}),
+  )
+  console.log(`        a Nami monta a ficha dela em ${JSON.stringify(casa)}: seq ${naNami.duelo.seq} nas duas contas, montagem ${naNami.duelo.montagem}`)
+  conferir('montar na própria metade antes da 1ª vez: as duas contas recebem a casa nova, ainda na montagem e sem MOV gasto', certo, JSON.stringify({ nami: naNami.duelo.posicoes, zoro: noZoro.duelo.posicoes }))
+
+  const fechada = async (agora) => {
+    const motivo = await motivoDoMontar(nami, agora, { tokenId: daNami, col: 4, row: 0 })
+    console.log(`        depois da 1ª jogada da luta, a Nami monta de novo em (4, 0): ${motivo} (montagem ${agora.montagem})`)
+    conferir('montar depois da 1ª jogada da luta = recusado (regra)', motivo === 'regra' && agora.montagem === false, JSON.stringify({ motivo, montagem: agora.montagem }))
+  }
+  // O andar segue do frame do Zoro, como sem a montagem (o `comecarDuelo` devolve o de quem aceitou).
+  return { duelo: noZoro.duelo, fechada }
+}
+
 /**
  * Sem tempo por turno (12.15), quem cansou de esperar desiste. Zoro convida (o duelo acabado não o
  * deixou "ocupado"), a Nami aceita e o Zoro desiste no meio: os dois recebem o fim, a Nami vence.
@@ -1246,7 +1295,9 @@ async function aceiteDoDuelo() {
     const golpes = []
     let duelo = await comecarDuelo(salas.conta_nami, salas.conta_zoro, 'conta_zoro', 'pers_nami', 'pers_zoro')
     await vistasDoComeco(salas, duelo)
-    duelo = await andarNaGrade(salas, duelo)
+    const montagem = await montarNaLargada(salas, duelo)
+    duelo = await andarNaGrade(salas, montagem.duelo)
+    await montagem.fechada(duelo)
     let caiuEVoltou = false
     for (let jogadas = 0; duelo.fim === null; jogadas += 1) {
       if (jogadas >= 40) throw new Error('o duelo não acabou em 40 jogadas')
