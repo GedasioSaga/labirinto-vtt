@@ -71,6 +71,18 @@ const MOTIVO_DA_REACAO_LIVRE = 'A reação livre é só na mesa, com o mestre. A
 const SEM_DESFAZER = () => {}
 
 /**
+ * "Armas por batalha" é escolha da mesa (o mestre confirma). No site a luta
+ * usa todas as armas da ficha (`armasNaBatalha` com `armas` null): sem o
+ * limite na vista, o HUD não abre sozinho a janela que aqui nunca confirmaria
+ * nem marca o ATACAR como pendente.
+ */
+function semEscolhaDeArmas(vista: EstadoParaJogador): EstadoParaJogador {
+  const { meus } = vista
+  if (meus === undefined || meus.every((meu) => meu.limiteDeArmas === null)) return vista
+  return { ...vista, meus: meus.map((meu) => (meu.limiteDeArmas === null ? meu : { ...meu, limiteDeArmas: null })) }
+}
+
+/**
  * A entrada animada acontece uma vez: as abas do treino ficam montadas e só
  * escondidas, e o navegador repete a animação de tudo ao mostrar a aba de
  * novo. Depois da primeira, a animação sai do elemento.
@@ -153,6 +165,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
     return onAndar(tokenId, casa, contraDe)
   }
 
+  const vistaDoHud = useMemo(() => (vista === null ? null : semEscolhaDeArmas(vista)), [vista])
   const dados = useMemo(() => (vista === null ? null : faixaComFichaPublica(faixaDoJogador({ estado: vista, fichas, personagens: meus, sistema: SISTEMA_DO_LOBBY }), fio)), [vista, fichas, meus, fio])
   const registro = useMemo(() => linhasDoJogador(vista?.registro ?? fio.registro), [vista, fio.registro])
   const consulta = useCallback<ConsultaDaFicha>((tokenId) => consultaAtual.current?.(tokenId) ?? null, [])
@@ -170,6 +183,38 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
     observador.observe(faixa)
     return () => observador.disconnect()
   }, [dados !== null])
+
+  // O menu da vez fica fixo à esquerda, por cima do palco (arena.css .pp-batalha-menu): a grade começa
+  // depois da borda direita dele, medida como a faixa. Só a tela de entrada do menu conta (a lista das
+  // técnicas é mais larga e passa por cima um instante); a medida fica quando o menu sai, então a grade
+  // não pula a cada vez. Antes da primeira vez vale a mesma régua no CSS (arenaDaLuta.css).
+  useLayoutEffect(() => {
+    const tela = raiz.current
+    const lugar = palco.current
+    if (tela === null || lugar === null) return
+    let medido: HTMLElement | null = null
+    const medir = () => {
+      if (medido === null || !medido.isConnected || medido.classList.contains('bt-vez--lista')) return
+      // offsetLeft/offsetWidth ignoram o transform da entrada do menu: a borda é a de onde ele assenta.
+      const direita = (medido.parentElement?.offsetLeft ?? 0) + medido.offsetLeft + medido.offsetWidth
+      if (direita > 0) lugar.style.setProperty('--lo-ar-menu', `${direita}px`)
+    }
+    const tamanho = new ResizeObserver(medir)
+    const procurar = () => {
+      const menu = tela.querySelector<HTMLElement>(':scope > .pp-batalha-menu > .bt-vez')
+      if (menu === null || menu === medido) return
+      if (medido !== null) tamanho.unobserve(medido)
+      medido = menu
+      tamanho.observe(menu)
+    }
+    const filhos = new MutationObserver(procurar)
+    filhos.observe(tela, { childList: true, subtree: true })
+    procurar()
+    return () => {
+      filhos.disconnect()
+      tamanho.disconnect()
+    }
+  }, [])
 
   // A recusa nova tira o recado velho do caminho (a mais nova é a que vale).
   useEffect(() => {
@@ -225,9 +270,9 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
         <FaixaDaOrdem papel="jogador" className="pp-batalha-faixa" dados={dados} regras={fio.regras} registro={registro} onDesfazer={SEM_DESFAZER} onPassarVez={passarVez} />
       )}
 
-      {vista !== null && conexao !== null && !acabou && (
+      {vistaDoHud !== null && conexao !== null && !acabou && (
         <BatalhaDoJogador
-          estado={vista}
+          estado={vistaDoHud}
           efeitos={fio.efeitos}
           meus={meus}
           fichas={fichas}

@@ -58,9 +58,18 @@
 .lo-ar-aviso__ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--lb-color-ember); }
 .lo-ar-aviso__relogio { font-family: var(--lb-font-utility); font-weight: var(--lb-font-weight-semibold); font-variant-numeric: tabular-nums; }
 
-/* ── o palco: a grade abaixo da faixa da ordem (medida em --lo-ar-faixa), longe do menu e do REAÇÃO ── */
+/*
+ * ── o palco: a grade abaixo da faixa da ordem (--lo-ar-faixa), à direita do menu da vez e acima do REAÇÃO ──
+ * O menu fica fixo à esquerda por cima do palco; suas fichas (lado A) nascem nas colunas 0 e 1. A grade
+ * começa depois da borda direita dele (--lo-ar-menu, medida no ArenaDaLuta); antes da primeira vez, a
+ * mesma régua: left 20px (arena.css .pp-batalha-menu) + a largura do .bt-vez (combate.css).
+ */
 .lo-ar-palco > .lo-ga[data-caber='tudo'] {
-  padding: calc(10px + var(--lo-ar-faixa, 120px) + 14px) clamp(16px, 21vw, 340px) 84px;
+  padding:
+    calc(10px + var(--lo-ar-faixa, 120px) + 14px)
+    clamp(16px, 3vw, 48px)
+    84px
+    calc(var(--lo-ar-menu, calc(20px + clamp(280px, 34vw, 470px))) + 16px);
 }
 /* a ficha em foco já tem o anel de latão no disco (grade.css): sem o anel quadrado da tela */
 .lo-ar .lo-ga-boneco:focus-visible { box-shadow: none; }

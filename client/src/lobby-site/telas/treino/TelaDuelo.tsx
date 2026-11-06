@@ -153,7 +153,7 @@ function estadoDoDuelo(duelo: DueloNoFio, meuLado: LadoDoTreino, outro: string, 
  * pelo protocolo `duelo.*` e o andar pelo servidor (só a ficha da vez, ou a do
  * "Mover" do contra-ataque). Acabado, a mesma tela mostra o resumo e só se olha.
  */
-function DueloNaArena({ duelo, meuLado, ocupado, recusa, onFechar }: { duelo: DueloRecebido; meuLado: LadoDoTreino; ocupado: boolean; recusa: RecusaDoDuelo | null; onFechar(): void }) {
+function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: { duelo: DueloRecebido; meuLado: LadoDoTreino; conectado: boolean; ocupado: boolean; recusa: RecusaDoDuelo | null; onFechar(): void }) {
   const site = useSite()
   const agora = useAgora(1_000)
   const [confirmarDesistencia, setConfirmarDesistencia] = useState(false)
@@ -161,6 +161,13 @@ function DueloNaArena({ duelo, meuLado, ocupado, recusa, onFechar }: { duelo: Du
   const outroLado: LadoDoTreino = meuLado === 'a' ? 'b' : 'a'
   const outro = duelo.jogadores[outroLado]
   const fim = duelo.fim
+  // Quando a MINHA conexão caiu (a Arena fica por cima da página, que mostra o "Sem conexão"). O servidor
+  // conta os 3 min desde que vê o fio fechar, que é depois daqui: o relógio local nunca promete mais tempo.
+  const [caiuEm, setCaiuEm] = useState<number | null>(() => (conectado ? null : Date.now()))
+  useEffect(() => {
+    setCaiuEm((antes) => (conectado ? null : (antes ?? Date.now())))
+  }, [conectado])
+  const caiu = fim === null && caiuEm !== null
 
   function jogar(jogada: JogadaDoDuelo): boolean {
     return site.duelo()?.jogar(duelo.id, jogada) ?? false
@@ -217,11 +224,17 @@ function DueloNaArena({ duelo, meuLado, ocupado, recusa, onFechar }: { duelo: Du
       vista={duelo.vista}
       meuLado={meuLado}
       jogadas={jogadas}
-      podeAndar={(vaga, emPe) => vaga.lado === meuLado && emPe && !ocupado && vaga.tokenId === vezDoToken}
+      podeAndar={(vaga, emPe) => vaga.lado === meuLado && emPe && conectado && !ocupado && vaga.tokenId === vezDoToken}
       onAndar={andar}
       detalhes={<span>{fim === null ? 'Sem relógio' : 'Acabou'}</span>}
       aviso={
-        fim === null && outro.ausenteDesde !== null ? (
+        caiu ? (
+          <p className="lo-ar-aviso" role="status">
+            <span className="lo-ar-aviso__ponto" aria-hidden="true" />
+            {/* O `agora` anda de segundo em segundo e pode ser de antes da queda: sem o max, o primeiro quadro diria 3:01. */}
+            Você caiu da conexão: <span className="lo-ar-aviso__relogio">{relogioDaVolta(caiuEm + VOLTA_DO_AUSENTE_MS - Math.max(agora, caiuEm))}</span> para voltar.
+          </p>
+        ) : fim === null && outro.ausenteDesde !== null ? (
           <p className="lo-ar-aviso" role="status">
             <span className="lo-ar-aviso__ponto" aria-hidden="true" />
             {outro.nome} caiu da conexão: <span className="lo-ar-aviso__relogio">{relogioDaVolta(outro.ausenteDesde + VOLTA_DO_AUSENTE_MS - agora)}</span> para voltar.
@@ -231,7 +244,7 @@ function DueloNaArena({ duelo, meuLado, ocupado, recusa, onFechar }: { duelo: Du
       acoes={
         <>
           {fim === null && espera !== null && (
-            <button type="button" className="lo-btn lo-btn--fantasma" disabled={ocupado} onClick={roboEscolhe}>
+            <button type="button" className="lo-btn lo-btn--fantasma" disabled={ocupado || !conectado} onClick={roboEscolhe}>
               O robô escolhe
             </button>
           )}
@@ -245,7 +258,7 @@ function DueloNaArena({ duelo, meuLado, ocupado, recusa, onFechar }: { duelo: Du
           </button>
         </>
       }
-      estado={estadoDoDuelo(duelo, meuLado, outro.nome, ocupado)}
+      estado={caiu ? 'Sem conexão: tentando voltar. Até lá, nenhuma jogada sai daqui.' : estadoDoDuelo(duelo, meuLado, outro.nome, ocupado)}
       recusa={recusa === null ? null : { texto: textoDaRecusa(recusa.motivo), n: recusa.n }}
       onEsquecerRecusa={() => site.duelo()?.esquecerAvisos()}
       fim={
@@ -277,9 +290,9 @@ function DueloNaArena({ duelo, meuLado, ocupado, recusa, onFechar }: { duelo: Du
               setConfirmarDesistencia(false)
             }}
           >
-            <p>Desistir agora? {outro.nome} vence o duelo.</p>
+            <p>{conectado ? `Desistir agora? ${outro.nome} vence o duelo.` : 'Sem conexão: a desistência só sai quando a internet voltar.'}</p>
             <div>
-              <button type="button" className="lo-btn" disabled={ocupado} onClick={() => site.duelo()?.desistir(duelo.id)}>
+              <button type="button" className="lo-btn" disabled={ocupado || !conectado} onClick={() => site.duelo()?.desistir(duelo.id)}>
                 Desistir de vez
               </button>
               {/* O foco vai para o lado seguro: Enter sem querer não entrega o duelo. */}
@@ -432,6 +445,7 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
           key={naArena.id}
           duelo={naArena}
           meuLado={ladoDe(naArena)}
+          conectado={duelo.emDia}
           ocupado={ocupado}
           recusa={duelo.recusa}
           onFechar={() => {
