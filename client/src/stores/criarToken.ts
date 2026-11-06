@@ -18,6 +18,10 @@ export interface OpcoesDaFichaNova {
   image?: string | null
   imageData?: string | null
   npc?: boolean
+  /** A ficha de personagem ligada (`Token.characterId`); ausente = sem personagem. */
+  characterId?: string
+  /** O piso em edição; ausente ou 0 = o térreo (o campo não é gravado). */
+  piso?: number
 }
 
 /** Área do canvas em px de tela; `null` = o canvas ainda não está montado. */
@@ -68,7 +72,7 @@ export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: Tamanho
   const id = opts.id ?? crypto.randomUUID()
   addToken({
     id,
-    characterId: null,
+    characterId: opts.characterId ?? null,
     name,
     x: spot.x,
     y: spot.y,
@@ -78,6 +82,7 @@ export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: Tamanho
     // Só grava a marca quando ela vale: ficha comum continua sem o campo,
     // igual ao mapa salvo antes dele existir.
     ...(opts.npc === true ? { npc: true } : {}),
+    ...(opts.piso !== undefined && opts.piso !== 0 ? { piso: opts.piso } : {}),
   })
   setSelection(selectionOfItem({ kind: 'token', id }))
   return id

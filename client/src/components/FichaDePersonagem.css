@@ -1608,6 +1608,84 @@
   background: var(--lb-color-stone-raised);
 }
 
+/* Arrastar a linha até o mapa: o nome não vira seleção de texto no meio do gesto. */
+.lb-rpg__abrir {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Arrastando, o ponteiro passa por cima das outras linhas: nenhuma acende. */
+.lb-rpg__lista--arrastando .lb-rpg__abrir:hover {
+  background: none;
+}
+
+/* Fantasma do arrasto para o mapa: o retrato como o disco do token, com o
+   nome embaixo, seguindo o ponteiro (no `body`). `pointer-events: none` é
+   funcional: o soltar pergunta ao navegador o que está SOB o ponteiro. */
+.lb-rpg__fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.lb-rpg__fantasma-retrato {
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 2px solid var(--lb-color-brass);
+  border-radius: 50%;
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-md);
+  opacity: 0.92;
+  font-size: 9px;
+}
+
+.lb-rpg__fantasma-retrato img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* O nome fica abaixo do disco: o disco fica centrado no ponteiro, sobre a casa realçada. */
+.lb-rpg__fantasma-nome {
+  position: absolute;
+  top: 100%;
+  margin-top: 2px;
+  padding: 1px var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+/* A casa onde o token vai nascer, no tamanho da casa com o zoom de agora. */
+.lb-rpg__casa-alvo {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  box-sizing: border-box;
+  border: 2px solid var(--lb-color-brass);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--lb-color-brass) 22%, transparent);
+  pointer-events: none;
+}
+
+.lb-rpg__casa-alvo[data-redonda='sim'] {
+  border-radius: 50%;
+}
+
+.lb-rpg__casa-alvo[hidden] {
+  display: none;
+}
+
 .lb-rpg__retrato {
   flex: none;
   width: 26px;

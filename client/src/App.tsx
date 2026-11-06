@@ -1432,7 +1432,7 @@ function App() {
         rpg: (
           <div className="lb-grupo-fichas">
             <Fichas>
-              <PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} comLivro={room === null} />
+              <PersonagensDaAventura garantirAventura={garantirAventuraDoMapa} comLivro={room === null} mapa={{ host: () => canvasHostRef.current, vista: vistaDoCanvas }} />
               <ContasDosJogadoresDoApp />
             </Fichas>
           </div>
