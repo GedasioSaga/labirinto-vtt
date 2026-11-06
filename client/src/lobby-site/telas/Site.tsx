@@ -14,6 +14,8 @@ import { TelaAcesso } from './TelaAcesso'
 import { TelaCampanha } from './TelaCampanha'
 import { TelaCampanhas } from './TelaCampanhas'
 import { TelaFicha } from './TelaFicha'
+import { TelaLobby } from './lobby/TelaLobby'
+import { MOTIVO_DO_TREINO } from './lobby/treinoNoSite'
 
 /**
  * O SITE DO LOBBY, tela por tela: a cabeça fixa com a faixa de estado em
@@ -65,8 +67,24 @@ export function Site() {
   let pagina
   if (eu.t !== 'pronto' || eu.eu.campanhas.length === 0) pagina = <TelaAcesso carga={eu} />
   else if (rota.tela === 'campanhas') pagina = <TelaCampanhas eu={eu.eu} />
-  else if (rota.tela === 'campanha') pagina = <TelaCampanha campanhaId={rota.campanhaId} />
-  else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
+  else if (rota.tela === 'campanha') pagina = <TelaLobby campanhaId={rota.campanhaId} />
+  else if (rota.tela === 'fichas') pagina = <TelaCampanha campanhaId={rota.campanhaId} />
+  else if (rota.tela === 'treino') {
+    // As telas do treino e do duelo são da T7: até lá, o endereço diz o que há (e volta ao lobby), em vez de "não existe".
+    const lobby: Rota = { tela: 'campanha', campanhaId: rota.campanhaId }
+    pagina = (
+      <AvisoDaPagina
+        titulo={rota.parte === 'duelo' ? 'O duelo ainda não está no site' : 'O treino ainda não está no site'}
+        acoes={
+          <a className="lo-btn lo-btn--primario" href={enderecoDaRota(lobby, demo)} onClick={aoClicarNoLink(site, lobby)}>
+            Voltar ao início da mesa
+          </a>
+        }
+      >
+        <p>{MOTIVO_DO_TREINO}</p>
+      </AvisoDaPagina>
+    )
+  } else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
   else if (rota.tela === 'chat') pagina = <TelaChat rota={rota} />
   else if (rota.tela === 'mural') pagina = <TelaMural rota={rota} />
   else {
@@ -92,8 +110,9 @@ export function Site() {
       </a>
       <Cabeca />
       <main id="conteudo" className="lo-principal" tabIndex={-1}>
-        {/* O aviso fixado do mestre, ao entrar em qualquer tela da mesa, até a pessoa marcar como lido (M2). */}
-        {eu.t === 'pronto' && <FaixaDeAvisos />}
+        {/* O aviso fixado do mestre, ao entrar em qualquer tela da mesa, até a pessoa marcar como lido (M2). No lobby
+            os avisos têm lugar próprio, no alto da página (H1): a faixa ali repetiria o mesmo aviso duas vezes. */}
+        {eu.t === 'pronto' && rota.tela !== 'campanha' && <FaixaDeAvisos />}
         {pagina}
       </main>
     </ImagemDaMesa.Provider>
@@ -106,6 +125,10 @@ function tituloDe(rota: Rota, nomeDaFicha: string | undefined, nomeDaMesa: strin
       return 'Suas mesas'
     case 'campanha':
       return nomeDaMesa ?? null
+    case 'fichas':
+      return nomeDaMesa === undefined ? 'Fichas' : `Fichas de ${nomeDaMesa}`
+    case 'treino':
+      return rota.parte === 'duelo' ? 'Duelo' : 'Treino'
     case 'ficha':
       return nomeDaFicha ?? nomeDaMesa ?? null
     case 'chat':

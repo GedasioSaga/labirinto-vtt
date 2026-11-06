@@ -1,0 +1,359 @@
+/* O LOBBY DA MESA (fatia H1). Usa as peças das telas da S3 (cartões em pedra, a ficha no papel com filete de
+   latão, a lista de eventos do histórico) e do mural e do chat da M2 e da C2; aqui só o arranjo da página e as
+   variações compactas. Ordem do olho: a mesa e quem está nela, os avisos, os atalhos, e o que está acontecendo. */
+
+/* ------------------------------------------------------ quem está na mesa */
+
+/* O título e, embaixo dele, quem está na mesa numa faixa só (a lista em pé das fichas cresce com a mesa e
+   empurraria o título para baixo). Os seletores dobrados vencem os do lobby.css, que entra depois no pacote. */
+.lo-cab-pag.lo-saguao__cab { flex-direction: column; align-items: stretch; gap: var(--lb-space-5); }
+
+.lo-agora.lo-saguao__agora {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--lb-space-2) var(--lb-space-4);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--lb-space-2) var(--lb-space-4);
+}
+
+.lo-agora.lo-saguao__agora ul { flex-direction: row; flex-wrap: wrap; gap: 2px var(--lb-space-3); }
+.lo-saguao__agora li { display: flex; }
+
+.lo-saguao__pessoa {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 30px;
+  padding: 0 6px 0 2px;
+  margin-left: -2px;
+  border-radius: var(--lb-radius-sm);
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease;
+}
+
+.lo-saguao__pessoa .lo-av { width: 24px; height: 24px; font-size: var(--lb-font-size-xs); }
+a.lo-saguao__pessoa { color: var(--lb-color-parchment); }
+
+@media (hover: hover) and (pointer: fine) {
+  a.lo-saguao__pessoa:hover { background: var(--lb-gr-hover); }
+}
+
+@media (pointer: coarse) {
+  .lo-saguao__pessoa { min-height: var(--lo-alvo); }
+}
+
+/* Quem chega com a página aberta: entra uma vez, curto (quem já estava aparece parado). */
+.lo-saguao__agora li[data-entra='1'] { animation: lo-saguao-chega 200ms var(--lb-gr-ease-out); }
+
+@keyframes lo-saguao-chega {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+.lo-saguao__fora {
+  padding-left: var(--lb-space-4);
+  border-left: 1px solid var(--lb-color-line);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* ------------------------------------------------------------- blocos */
+
+.lo-saguao__bloco-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2) var(--lb-space-3);
+  margin-bottom: var(--lb-space-3);
+}
+
+.lo-saguao__mais {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  margin-left: auto;
+  padding: 0 4px 0 8px;
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  text-decoration: none;
+  transition: color var(--lb-motion-fast) ease;
+}
+
+.lo-saguao__mais .lo-ic { width: 14px; height: 14px; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-saguao__mais:hover { color: var(--lb-color-brass-bright); }
+}
+
+.lo-saguao__vazio {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-4);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* -------------------------------------------------------------- avisos */
+
+.lo-saguao__avisos { margin-bottom: var(--lb-space-8); }
+.lo-saguao__avisos-lista { display: flex; flex-direction: column; gap: var(--lb-space-3); }
+.lo-saguao__avisos .lo-aviso-fixo:focus-visible { outline-offset: 3px; }
+
+/* O lido continua à vista, mais quieto: pedra no lugar do papel, a régua apagada, duas linhas. */
+.lo-aviso-fixo[data-lido='1'] {
+  padding-block: var(--lb-space-3);
+  border-color: var(--lb-color-line);
+  background: var(--lb-color-stone-solid);
+  box-shadow: none;
+}
+
+.lo-aviso-fixo[data-lido='1']::before { background: var(--lb-color-line-strong); }
+.lo-aviso-fixo[data-lido='1'] .lo-aviso-fixo__pino { background: transparent; color: var(--lb-color-parchment-faint); }
+.lo-aviso-fixo[data-lido='1'] .lo-aviso-fixo__de b { color: var(--lb-color-parchment-dim); }
+.lo-aviso-fixo[data-lido='1'] .lo-aviso-fixo__texto { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-md); -webkit-line-clamp: 2; }
+
+.lo-saguao__lido {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* ------------------------------------------------------------- atalhos */
+
+.lo-saguao__atalhos { margin-bottom: var(--lb-space-8); }
+.lo-saguao__atalhos-cab { display: flex; justify-content: flex-end; }
+.lo-saguao__atalhos-cab:has(.lo-saguao__escolha) { margin-bottom: var(--lb-space-3); }
+
+.lo-saguao__escolha {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lo-saguao__escolha .lo-escolha { width: auto; min-width: 180px; }
+
+.lo-atalhos {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  gap: var(--lb-space-4);
+}
+
+.lo-atalhos > li { display: flex; min-width: 0; }
+
+.lo-atalho {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  padding: var(--lb-space-5);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-xl);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--lo-cor-sistema) 10%, transparent) 0%, transparent 55%),
+    var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-bevel);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--lb-motion-base) ease, transform 140ms var(--lb-gr-ease-out);
+}
+
+a.lo-atalho:active { transform: scale(0.98); }
+
+.lo-atalho__sinal {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--lb-space-1);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lo-atalho__sinal .lo-ic { width: 21px; height: 21px; }
+
+.lo-atalho__nome {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  font-family: var(--lb-font-display);
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.lo-atalho__nome .lo-tag { font-family: var(--lb-font-sans); }
+.lo-atalho__detalhe { color: var(--lb-color-parchment-dim); line-height: 1.45; }
+
+.lo-atalho__ir {
+  position: absolute;
+  top: var(--lb-space-5);
+  right: var(--lb-space-5);
+  color: var(--lb-color-parchment-faint);
+  transition: color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  a.lo-atalho:hover { border-color: var(--lb-color-line-strong); }
+  a.lo-atalho:hover .lo-atalho__ir { color: var(--lb-color-brass-bright); transform: translateX(2px); }
+}
+
+/* Parado (o treino antes da T7, a ficha de quem não tem personagem): o contorno tracejado diz "ainda não". */
+.lo-atalho[aria-disabled='true'] {
+  border-style: dashed;
+  border-color: var(--lb-color-line-strong);
+  background: rgba(26, 26, 30, 0.55);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.lo-atalho[aria-disabled='true'] .lo-atalho__sinal { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment-faint); }
+.lo-atalho[aria-disabled='true'] .lo-atalho__nome { color: var(--lb-color-parchment-dim); }
+.lo-atalho__motivo { margin-top: auto; padding-top: var(--lb-space-2); color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+/* A ficha: o atalho maior, no papel da ficha com o filete de latão, como o cartão "Seus personagens". */
+.lo-atalho--ficha {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--lb-space-5);
+  border-color: var(--lb-gr-filete-latao);
+  background: linear-gradient(180deg, var(--lb-gr-cartao-alto), var(--lb-gr-cartao));
+  box-shadow: var(--lb-shadow-md), var(--lb-shadow-bevel);
+}
+
+.lo-atalho--ficha:not(:has(> .lo-retrato)) { grid-template-columns: minmax(0, 1fr); }
+.lo-atalho--ficha[aria-disabled='true'] { display: flex; }
+
+.lo-atalho__corpo { display: flex; flex-direction: column; gap: var(--lb-space-3); min-width: 0; }
+
+.lo-atalho__rotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lb-color-brass);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lo-atalho__titulo {
+  font-family: var(--lb-font-display);
+  font-size: 30px;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  a.lo-atalho--ficha:hover { border-color: var(--lb-color-brass); }
+}
+
+/* ------------------------------------------- a sala e o que está acontecendo */
+
+.lo-saguao__vida {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--lb-space-6);
+}
+
+/* A sala do chat mais baixa que a da tela do chat: aqui ela divide a página com o resto. */
+.lo-saguao .lo-chat__folha { height: clamp(440px, 64dvh, 620px); }
+
+.lo-saguao__pe { margin-top: var(--lb-space-2); }
+
+.lo-saguao__pe a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment-dim);
+  text-decoration: none;
+  transition: color var(--lb-motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-saguao__pe a:hover { color: var(--lb-color-parchment); }
+}
+
+.lo-saguao__coluna { display: flex; flex-direction: column; gap: var(--lb-space-6); min-width: 0; }
+
+/* Notícias e modificações em versão curta: menos folga, três linhas de texto no máximo. */
+.lo-saguao__noticias .lo-noticia { grid-template-columns: 28px minmax(0, 1fr); padding: var(--lb-space-3) var(--lb-space-4); }
+.lo-saguao__noticias .lo-noticia > .lo-av { width: 28px; height: 28px; }
+.lo-saguao__noticias .lo-noticia__corpo { gap: var(--lb-space-2); }
+.lo-saguao__noticias .lo-noticia__cab { min-height: 0; }
+
+.lo-saguao__noticias .lo-noticia__texto {
+  display: -webkit-box;
+  font-size: var(--lb-font-size-md);
+  line-height: 1.5;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lo-saguao__miniatura {
+  display: block;
+  width: 144px;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  overflow: hidden;
+}
+
+.lo-saguao__miniatura img { width: 100%; height: 100%; object-fit: cover; }
+
+.lo-saguao__reacoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-3);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.lo-saguao__eventos .lo-ev { grid-template-columns: auto minmax(0, 1fr); padding: var(--lb-space-2) var(--lb-space-4); }
+.lo-saguao__eventos .lo-av { width: 24px; height: 24px; font-size: var(--lb-font-size-xs); }
+.lo-saguao__eventos .lo-ev__frase { font-size: var(--lb-font-size-md); }
+.lo-saguao__eventos .lo-ev__meta { font-size: var(--lb-font-size-sm); }
+
+/* -------------------------------------------------------- telas menores */
+
+@media (max-width: 1080px) {
+  .lo-atalhos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lo-atalhos__maior { grid-column: 1 / -1; }
+  .lo-saguao__vida { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .lo-atalhos { grid-template-columns: minmax(0, 1fr); }
+  .lo-atalho--ficha { gap: var(--lb-space-4); }
+  .lo-atalho--ficha .lo-retrato--g { width: 72px; font-size: 28px; }
+  .lo-atalho__titulo { font-size: 24px; }
+  .lo-agora.lo-saguao__agora { align-self: stretch; }
+  .lo-saguao__fora { padding-left: 0; border-left: 0; }
+  .lo-saguao__escolha { width: 100%; }
+  .lo-saguao__escolha .lo-escolha { flex: 1; min-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-saguao__agora li[data-entra='1'] { animation: none; }
+  a.lo-atalho:active { transform: none; }
+}

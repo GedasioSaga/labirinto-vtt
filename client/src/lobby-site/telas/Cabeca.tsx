@@ -4,15 +4,17 @@ import type { Rota } from '../dados/rotas'
 import { aoClicarNoLink, useDoSite, useSite } from './contexto'
 import { mudancasACaminho } from './enviar'
 import { pedirFocoNoAviso } from './foco'
-import { Icone } from './Icone'
+import { Icone, type NomeDoIcone } from './Icone'
 import { tomDe } from './textos'
-import { enderecoDaRota } from '../dados/rotas'
+import { campanhaDaRota, enderecoDaRota } from '../dados/rotas'
 import { contagemDeNaoLidas } from './chat/textosDoChat'
+import { MOTIVO_DO_TREINO, TREINO_NO_SITE } from './lobby/treinoNoSite'
 
 /**
  * A CABEÇA FIXA (protótipo, "cabeça fixa e faixa"): a marca, onde a pessoa
- * está, quem está na mesa agora e a conta; embaixo, a FAIXA DE ESTADO, em toda
- * tela de campanha. "Salvo" só aparece quando o servidor confirmou tudo.
+ * está (dentro de uma mesa, as partes dela: H1), quem está na mesa agora e a
+ * conta; embaixo, a FAIXA DE ESTADO, em toda tela de campanha. "Salvo" só
+ * aparece quando o servidor confirmou tudo.
  */
 
 /** Sair do Access (Cloudflare Zero Trust): apaga a sessão do login e volta à porta do Google. */
@@ -26,7 +28,6 @@ export function Cabeca() {
   const campanha = useDoSite((estado) => estado.campanha)
   const email = eu.t === 'pronto' ? eu.eu.email : null
   const nomeDaMesa = eu.t === 'pronto' && campanha !== null ? (eu.eu.campanhas.find((linha) => linha.campanhaId === campanha.campanhaId)?.nomeDaCampanha ?? null) : null
-  const ficha = rota.tela === 'ficha' && campanha !== null ? campanha.fichas.find((candidata) => candidata.doc.id === rota.fichaId) : undefined
   const euNaMesa = campanha?.eu ?? null
   const nomeDaConta = euNaMesa?.nome ?? email ?? 'Você'
   const naMesa = campanha?.naMesa ?? []
@@ -45,38 +46,17 @@ export function Cabeca() {
           <span className="lo-marca__nome">Labirinto</span>
           <span className="lo-marca__lobby">Lobby</span>
         </a>
-        <nav className="lo-trilha" aria-label="Onde você está">
-          <ol>
-            <li>{rota.tela === 'campanhas' ? <span aria-current="page">Suas mesas</span> : link({ tela: 'campanhas' }, 'Suas mesas')}</li>
-            {campanha !== null && nomeDaMesa !== null && (
-              <li>
-                {ficha === undefined && rota.tela !== 'chat' && rota.tela !== 'mural' ? (
-                  <span aria-current="page">{nomeDaMesa}</span>
-                ) : (
-                  link({ tela: 'campanha', campanhaId: campanha.campanhaId }, nomeDaMesa)
-                )}
-              </li>
-            )}
-            {ficha !== undefined && (
-              <li>
-                <span aria-current="page">{ficha.doc.nome}</span>
-              </li>
-            )}
-            {campanha !== null && rota.tela === 'chat' && (
-              <li>
-                <span aria-current="page">Chat</span>
-              </li>
-            )}
-            {campanha !== null && rota.tela === 'mural' && (
-              <li>
-                <span aria-current="page">Mural</span>
-              </li>
-            )}
-          </ol>
-        </nav>
+        {campanhaDaRota(rota) !== null && eu.t === 'pronto' ? (
+          // Dentro de uma mesa: as partes dela, sempre no mesmo lugar (H1). A mesa e a ficha estão no título de cada página.
+          <NavDaMesa rota={rota} nomeDaMesa={nomeDaMesa} />
+        ) : (
+          <nav className="lo-trilha" aria-label="Onde você está">
+            <ol>
+              <li>{rota.tela === 'campanhas' ? <span aria-current="page">Suas mesas</span> : link({ tela: 'campanhas' }, 'Suas mesas')}</li>
+            </ol>
+          </nav>
+        )}
         <div className="lo-topo__direita">
-          {campanha !== null && rota.tela !== 'mural' && <AtalhoDoMural campanhaId={campanha.campanhaId} />}
-          {campanha !== null && rota.tela !== 'chat' && <AtalhoDoChat campanhaId={campanha.campanhaId} />}
           {naMesa.length > 0 && (
             <div className="lo-agora-mini" title={`Na mesa agora: ${nomesNaMesa}`}>
               <div className="lo-agora-mini__rostos" aria-hidden="true">
@@ -127,44 +107,101 @@ export function Cabeca() {
   )
 }
 
-/** O caminho para o chat da mesa (C2) em toda tela da campanha, com as não lidas. */
-function AtalhoDoChat({ campanhaId }: { campanhaId: string }) {
-  const site = useSite()
-  const demo = useDoSite((estado) => estado.demo)
-  const naoLidas = useDoSite((estado) => estado.chat?.naoLidas ?? 0)
-  const alvo: Rota = { tela: 'chat', campanhaId, com: null }
-  return (
-    <a
-      className="lo-btn lo-btn--fantasma lo-chat-atalho"
-      href={enderecoDaRota(alvo, demo)}
-      onClick={aoClicarNoLink(site, alvo)}
-      aria-label={naoLidas > 0 ? `Chat da mesa, ${contagemDeNaoLidas(naoLidas)} não ${naoLidas === 1 ? 'lida' : 'lidas'}` : 'Chat da mesa'}
-    >
-      <Icone nome="conversa" />
-      <span className="lo-chat-atalho__nome">Chat</span>
-      {naoLidas > 0 && <span className="lo-chat__conta">{contagemDeNaoLidas(naoLidas)}</span>}
-    </a>
-  )
+type ParteDaMesa = 'inicio' | 'fichas' | 'chat' | 'mural' | 'treino' | 'duelo'
+
+/** Em que parte da mesa a rota está (a ficha, a mochila e o histórico moram em "Fichas"). */
+function parteDaRota(rota: Rota): ParteDaMesa | null {
+  switch (rota.tela) {
+    case 'campanha':
+      return 'inicio'
+    case 'fichas':
+    case 'ficha':
+      return 'fichas'
+    case 'chat':
+      return 'chat'
+    case 'mural':
+      return 'mural'
+    case 'treino':
+      return rota.parte === 'duelo' ? 'duelo' : 'treino'
+    default:
+      return null
+  }
 }
 
-/** O caminho para o mural da mesa (M2) em toda tela da campanha, com os avisos ainda não lidos. */
-function AtalhoDoMural({ campanhaId }: { campanhaId: string }) {
+/**
+ * AS PARTES DA MESA (H1), na cabeça de toda tela de dentro dela: início (o
+ * lobby), fichas, chat com as não lidas, mural com os avisos não lidos,
+ * treino e duelo. Treino e duelo ficam à vista mas parados, com o motivo,
+ * enquanto as telas deles (T7) não chegam.
+ */
+function NavDaMesa({ rota, nomeDaMesa }: { rota: Rota; nomeDaMesa: string | null }) {
   const site = useSite()
   const demo = useDoSite((estado) => estado.demo)
+  const naoLidasDoChat = useDoSite((estado) => estado.chat?.naoLidas ?? 0)
   const meuId = useDoSite((estado) => estado.campanha?.eu?.contaId ?? null)
-  const naoLidos = useDoSite((estado) => estado.mural?.fixadas.filter((noticia) => !noticia.lida && noticia.autorContaId !== meuId).length ?? 0)
-  const alvo: Rota = { tela: 'mural', campanhaId, aba: 'noticias' }
+  const avisosNaoLidos = useDoSite((estado) => estado.mural?.fixadas.filter((noticia) => !noticia.lida && noticia.autorContaId !== meuId).length ?? 0)
+  const campanhaId = campanhaDaRota(rota)
+  if (campanhaId === null) return null
+  const atual = parteDaRota(rota)
+
+  const item = (parte: ParteDaMesa, alvo: Rota, icone: NomeDoIcone, nome: string, conta: string | null, rotuloDaConta: string) => (
+    <li>
+      <a
+        className="lo-secoes__item"
+        href={enderecoDaRota(alvo, demo)}
+        onClick={aoClicarNoLink(site, alvo)}
+        // A página exata é "page"; dentro de uma ficha, "Fichas" é a parte onde se está.
+        aria-current={atual === parte ? (parte === 'fichas' && rota.tela === 'ficha' ? 'true' : 'page') : undefined}
+        aria-label={conta === null ? undefined : `${nome}, ${rotuloDaConta}`}
+      >
+        <Icone nome={icone} />
+        <span>{nome}</span>
+        {conta !== null && (
+          <span className="lo-chat__conta" aria-hidden="true">
+            {conta}
+          </span>
+        )}
+      </a>
+    </li>
+  )
+
+  const parado = (icone: NomeDoIcone, nome: string) => (
+    <li>
+      <span className="lo-secoes__item" aria-disabled="true" title={MOTIVO_DO_TREINO}>
+        <Icone nome={icone} />
+        <span>{nome}</span>
+        <span className="lo-secoes__breve">
+          em breve<span className="lo-sr">: {MOTIVO_DO_TREINO}</span>
+        </span>
+      </span>
+    </li>
+  )
+
   return (
-    <a
-      className="lo-btn lo-btn--fantasma lo-chat-atalho"
-      href={enderecoDaRota(alvo, demo)}
-      onClick={aoClicarNoLink(site, alvo)}
-      aria-label={naoLidos > 0 ? `Mural da mesa, ${naoLidos} ${naoLidos === 1 ? 'aviso não lido' : 'avisos não lidos'}` : 'Mural da mesa'}
-    >
-      <Icone nome="mural" />
-      <span className="lo-chat-atalho__nome">Mural</span>
-      {naoLidos > 0 && <span className="lo-chat__conta">{naoLidos}</span>}
-    </a>
+    <nav className="lo-secoes" aria-label={nomeDaMesa === null ? 'Partes da mesa' : `Partes da mesa ${nomeDaMesa}`}>
+      <ul>
+        {item('inicio', { tela: 'campanha', campanhaId }, 'lobby', 'Início', null, '')}
+        {item('fichas', { tela: 'fichas', campanhaId }, 'ficha', 'Fichas', null, '')}
+        {item(
+          'chat',
+          { tela: 'chat', campanhaId, com: null },
+          'conversa',
+          'Chat',
+          naoLidasDoChat > 0 ? contagemDeNaoLidas(naoLidasDoChat) : null,
+          `${contagemDeNaoLidas(naoLidasDoChat)} não ${naoLidasDoChat === 1 ? 'lida' : 'lidas'}`,
+        )}
+        {item(
+          'mural',
+          { tela: 'mural', campanhaId, aba: 'noticias' },
+          'mural',
+          'Mural',
+          avisosNaoLidos > 0 ? String(avisosNaoLidos) : null,
+          `${avisosNaoLidos} ${avisosNaoLidos === 1 ? 'aviso não lido' : 'avisos não lidos'}`,
+        )}
+        {TREINO_NO_SITE ? item('treino', { tela: 'treino', campanhaId, parte: 'lutas' }, 'treino', 'Treino', null, '') : parado('treino', 'Treino')}
+        {TREINO_NO_SITE ? item('duelo', { tela: 'treino', campanhaId, parte: 'duelo' }, 'duelo', 'Duelo', null, '') : parado('duelo', 'Duelo')}
+      </ul>
+    </nav>
   )
 }
 

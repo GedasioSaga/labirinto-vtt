@@ -5,8 +5,9 @@ import { segmentoValido } from '../../lib/nuvem/caminho'
  * `#`: o Pages devolve o `index.html` para qualquer caminho sem arquivo, e o
  * `/c/x` da S1 já abre assim.
  *
- *   /                                  suas mesas
- *   /c/:campanhaId                     a mesa (minhas fichas primeiro, colegas só ver)
+ *   /                                  suas mesas (com uma mesa só, a entrada abre direto no lobby dela)
+ *   /c/:campanhaId                     o lobby da mesa (H1): quem está, avisos, notícias, chat e atalhos
+ *   /c/:campanhaId/fichas              as fichas da mesa (minhas primeiro, colegas só ver)
  *   /c/:campanhaId/f/:fichaId          a ficha
  *   /c/:campanhaId/f/:fichaId/mochila  a mochila dela
  *   /c/:campanhaId/f/:fichaId/historico
@@ -14,6 +15,8 @@ import { segmentoValido } from '../../lib/nuvem/caminho'
  *   /c/:campanhaId/chat/:contaId       o privado com essa conta
  *   /c/:campanhaId/mural               o mural: notícias e avisos (M2)
  *   /c/:campanhaId/mural/modificacoes  o feed do que mudou nas fichas
+ *   /c/:campanhaId/treino              o treino (T7)
+ *   /c/:campanhaId/treino/duelo        o duelo com um colega (T7)
  *
  * `?demo=1` liga a demo e viaja junto em toda navegação.
  */
@@ -22,9 +25,14 @@ export type AbaDaFicha = 'ficha' | 'mochila' | 'historico'
 
 export type AbaDoMural = 'noticias' | 'modificacoes'
 
+export type ParteDoTreino = 'lutas' | 'duelo'
+
 export type Rota =
   | { tela: 'campanhas' }
+  /** O lobby da mesa: a primeira tela de dentro dela. */
   | { tela: 'campanha'; campanhaId: string }
+  | { tela: 'fichas'; campanhaId: string }
+  | { tela: 'treino'; campanhaId: string; parte: ParteDoTreino }
   | { tela: 'ficha'; campanhaId: string; fichaId: string; aba: AbaDaFicha }
   /** `com` = o contaId do outro lado do privado; `null` = a sala. */
   | { tela: 'chat'; campanhaId: string; com: string | null }
@@ -56,6 +64,12 @@ export function lerRota(caminho: string): Rota {
   const [c, campanhaId, f, fichaId, parteDaAba, ...sobra] = partes
   if (c !== 'c' || !segmentoValido(campanhaId) || sobra.length > 0) return NAO_ACHADA
   if (f === undefined) return { tela: 'campanha', campanhaId }
+  if (f === 'fichas') return fichaId === undefined ? { tela: 'fichas', campanhaId } : NAO_ACHADA
+  if (f === 'treino') {
+    if (parteDaAba !== undefined) return NAO_ACHADA
+    if (fichaId === undefined) return { tela: 'treino', campanhaId, parte: 'lutas' }
+    return fichaId === 'duelo' ? { tela: 'treino', campanhaId, parte: 'duelo' } : NAO_ACHADA
+  }
   if (f === 'chat') {
     if (parteDaAba !== undefined) return NAO_ACHADA
     if (fichaId === undefined) return { tela: 'chat', campanhaId, com: null }
@@ -78,6 +92,12 @@ export function caminhoDaRota(rota: Rota): string {
       return '/'
     case 'campanha':
       return `/c/${encodeURIComponent(rota.campanhaId)}`
+    case 'fichas':
+      return `/c/${encodeURIComponent(rota.campanhaId)}/fichas`
+    case 'treino': {
+      const doTreino = `/c/${encodeURIComponent(rota.campanhaId)}/treino`
+      return rota.parte === 'lutas' ? doTreino : `${doTreino}/duelo`
+    }
     case 'ficha': {
       const daFicha = `/c/${encodeURIComponent(rota.campanhaId)}/f/${encodeURIComponent(rota.fichaId)}`
       return rota.aba === 'ficha' ? daFicha : `${daFicha}/${rota.aba}`
@@ -95,7 +115,7 @@ export function caminhoDaRota(rota: Rota): string {
 
 /** A campanha que a rota abre; `null` = rota fora de campanha. */
 export function campanhaDaRota(rota: Rota): string | null {
-  return rota.tela === 'campanha' || rota.tela === 'ficha' || rota.tela === 'chat' || rota.tela === 'mural' ? rota.campanhaId : null
+  return rota.tela === 'campanhas' || rota.tela === 'nao-achada' ? null : rota.campanhaId
 }
 
 export function ehDemo(busca: string): boolean {

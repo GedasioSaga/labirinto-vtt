@@ -11,7 +11,8 @@ import { Icone } from './Icone'
 import { iniciais, plural, tomDe } from './textos'
 
 /**
- * A CAMPANHA (protótipo, tela 3): os seus personagens primeiro, com HP e SP
+ * AS FICHAS DA MESA (protótipo, tela 3; em `/c/:id/fichas` desde a H1, que
+ * pôs o lobby na entrada da mesa): os seus personagens primeiro, com HP e SP
  * e o caminho direto para a ficha e a mochila; depois a tripulação, só para
  * ver; e quem está na mesa agora. O mestre vê todas as fichas como suas.
  */
@@ -60,16 +61,16 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
   const minhas = campanha.fichas.filter((ficha) => ficha.ehMinha)
   const outras = campanha.fichas.filter((ficha) => !ficha.ehMinha)
   const mestre = campanha.membros.find((membro) => membro.papel === 'mestre')
-  const mesas: Rota = { tela: 'campanhas' }
+  const lobby: Rota = { tela: 'campanha', campanhaId: campanha.campanhaId }
 
   return (
     <div className="lo-pagina">
       <header className="lo-cab-pag">
         <div className="lo-cab-pag__texto">
-          <a className="lo-voltar" href={enderecoDaRota(mesas, demo)} onClick={aoClicarNoLink(site, mesas)}>
-            <Icone nome="voltar" /> Suas mesas
+          <a className="lo-voltar" href={enderecoDaRota(lobby, demo)} onClick={aoClicarNoLink(site, lobby)}>
+            <Icone nome="voltar" /> {nome}
           </a>
-          <h1 className="lo-titulo">{nome}</h1>
+          <h1 className="lo-titulo">Fichas da mesa</h1>
           <p className="lo-sub">
             {mestre !== undefined ? `Mestre ${mestre.nome}. ` : ''}Sistema {SISTEMA_DO_LOBBY.nome}. {plural(campanha.fichas.length, 'personagem', 'personagens')}.
           </p>
@@ -132,7 +133,7 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
   )
 }
 
-function Retrato({ doc, grande = false }: { doc: Personagem; grande?: boolean }) {
+export function Retrato({ doc, grande = false }: { doc: Personagem; grande?: boolean }) {
   const resolver = useImagemDaMesa()
   const src = doc.retrato === null ? null : resolver(doc.retrato)
   return (
@@ -142,7 +143,7 @@ function Retrato({ doc, grande = false }: { doc: Personagem; grande?: boolean })
   )
 }
 
-function Medidores({ doc }: { doc: Personagem }) {
+export function Medidores({ doc }: { doc: Personagem }) {
   return (
     <div className="lo-medidores">
       {RECURSOS_COM_BARRA.map((recurso) => {

@@ -58,7 +58,7 @@ export interface Site {
 /** O pedaço da janela que o site usa (injetado para a página e para quem testa). */
 export interface JanelaDoSite {
   location: Pick<Location, 'pathname' | 'search' | 'origin'>
-  history: Pick<History, 'pushState'>
+  history: Pick<History, 'pushState' | 'replaceState'>
   addEventListener(tipo: 'popstate' | 'online', ouvinte: () => void): void
   removeEventListener(tipo: 'popstate' | 'online', ouvinte: () => void): void
   /** Ler pode lançar (armazenamento bloqueado pelo navegador): quem lê protege. */
@@ -257,6 +257,14 @@ export function iniciarSite(janela: JanelaDoSite): Site {
   fonte
     .buscarEu()
     .then((eu) => {
+      // Logo depois do login, quem joga numa mesa só entra direto no lobby dela (H1); com mais de uma, escolhe
+      // primeiro em "Suas mesas". Troca o endereço sem empilhar: o Voltar do navegador não cai de novo aqui.
+      const [unica, ...outras] = eu.campanhas
+      if (store.getState().rota.tela === 'campanhas' && unica !== undefined && outras.length === 0) {
+        const lobby: Rota = { tela: 'campanha', campanhaId: unica.campanhaId }
+        janela.history.replaceState(null, '', enderecoDaRota(lobby, demo))
+        store.setState({ rota: lobby })
+      }
       store.setState({ eu: { t: 'pronto', eu } })
       seguirARota()
     })

@@ -123,11 +123,34 @@ function estadoPara(campanha: CampanhaEmMemoria, membro: Membro): MensagemDoServ
   return { t: 'estado', rev: campanha.revAtual(), fichas, membros: projetarMembros(campanha.todosOsMembros()), eu: { contaId, nome, papel } }
 }
 
-/** "Na mesa agora": o mestre no app e quem está vendo, no site (inventado, só para a tela ter o que mostrar). */
-function presencaPara(campanha: CampanhaEmMemoria, membro: Membro): MensagemDoServidor {
-  const mestre = campanha.membro(CONTA_DO_MESTRE)
-  const naMesa: PresencaNaMesa[] = [{ contaId: membro.contaId, nome: membro.nome, papel: membro.papel, onde: 'site' }]
-  if (mestre !== undefined && mestre.contaId !== membro.contaId) naMesa.unshift({ contaId: mestre.contaId, nome: mestre.nome, papel: mestre.papel, onde: 'site' })
+/**
+ * Quem mais está "na mesa agora" em cada mesa da demo (inventado; o lobby da H1 tem gente para mostrar): onde o
+ * mestre está, os colegas que já estão no site e um que chega com a página aberta (a presença nova entra na tela).
+ */
+interface PresencaDaDemo {
+  mestreNo: PresencaNaMesa['onde']
+  colegas: readonly string[]
+  chega?: { contaId: string; depoisDeMs: number }
+}
+
+const PRESENCA_DA_DEMO: Readonly<Record<string, PresencaDaDemo>> = {
+  'rota-das-ilhas': { mestreNo: 'app', colegas: ['conta_caio'], chega: { contaId: 'conta_duda', depoisDeMs: 8_000 } },
+  'mar-de-cobre': { mestreNo: 'site', colegas: ['conta_mel'] },
+}
+
+/** "Na mesa agora": o mestre, os colegas inventados da mesa e quem está vendo, no site. `comQuemChegou` = depois da chegada. */
+function presencaPara(campanha: CampanhaEmMemoria, membro: Membro, comQuemChegou: boolean): MensagemDoServidor {
+  const inventada = PRESENCA_DA_DEMO[campanha.campanhaId] ?? { mestreNo: 'site', colegas: [] }
+  const presente = (contaId: string, onde: PresencaNaMesa['onde']): PresencaNaMesa[] => {
+    const quem = campanha.membro(contaId)
+    return quem === undefined || quem.contaId === membro.contaId ? [] : [{ contaId: quem.contaId, nome: quem.nome, papel: quem.papel, onde }]
+  }
+  const naMesa: PresencaNaMesa[] = [
+    ...presente(CONTA_DO_MESTRE, inventada.mestreNo),
+    ...inventada.colegas.flatMap((contaId) => presente(contaId, 'site')),
+    { contaId: membro.contaId, nome: membro.nome, papel: membro.papel, onde: 'site' },
+    ...(comQuemChegou && inventada.chega !== undefined ? presente(inventada.chega.contaId, 'site') : []),
+  ]
   return { t: 'presenca', naMesa }
 }
 
@@ -157,6 +180,9 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
   let aberto = false
   let encerrado = false
   let clienteId = 'cli_demo_sem_ola'
+  /** O colega inventado que chega com a página aberta já chegou (ou já está marcado para chegar) neste canal. */
+  let chegadaMarcada = false
+  let chegou = false
 
   function encerrar(): void {
     encerrado = true
@@ -212,8 +238,17 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
         const desde = mensagem.desdeRev
         if (desde === null || desde > rev || rev - desde > LIMITE_SEM_SNAPSHOT) entregar(estadoPara(alvo, eu))
         else entregar({ t: 'ops', desde, ate: rev, lista: projetarOps(alvo, eu, alvo.todasAsOps().filter((op) => op.rev > desde)) })
-        entregar(presencaPara(alvo, eu))
+        entregar(presencaPara(alvo, eu, chegou))
         mandarMural()
+        const chega = PRESENCA_DA_DEMO[campanhaId]?.chega
+        if (chega !== undefined && !chegadaMarcada) {
+          chegadaMarcada = true
+          relogio.depois(chega.depoisDeMs, () => {
+            if (encerrado) return
+            chegou = true
+            entregar(presencaPara(alvo, eu, true))
+          })
+        }
         return
       }
       case 'ops':

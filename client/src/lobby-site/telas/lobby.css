@@ -354,6 +354,65 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   .lo-trilha a:hover { color: var(--lb-color-parchment); }
 }
 
+/* As partes da mesa (H1), no lugar da trilha dentro de uma mesa: a altura inteira da cabeça, a régua de latão
+   embaixo da parte atual (como as abas da ficha). Navegar é frequente: sem movimento, só a cor e a régua. */
+.lo-secoes {
+  display: flex;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lo-secoes::-webkit-scrollbar { display: none; }
+.lo-secoes ul { display: flex; align-items: stretch; gap: 2px; }
+.lo-secoes li { display: flex; }
+
+.lo-secoes__item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  color: var(--lb-color-parchment-dim);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--lb-motion-fast) ease;
+}
+
+.lo-secoes__item .lo-ic { width: 17px; height: 17px; }
+/* A nav rola sozinha em tela estreita: o contorno do foco fica por dentro, senão a rolagem o corta. */
+.lo-secoes__item:focus-visible { outline-offset: -3px; border-radius: var(--lb-radius-sm); }
+
+.lo-secoes__item::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--lb-color-brass);
+  transform: scaleX(0);
+}
+
+.lo-secoes__item[aria-current] { color: var(--lb-color-parchment); }
+.lo-secoes__item[aria-current]::after { transform: scaleX(1); }
+.lo-secoes__item[aria-disabled='true'] { color: var(--lb-color-parchment-faint); cursor: not-allowed; }
+
+.lo-secoes__breve {
+  padding: 0 6px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-full);
+  font-size: var(--lb-font-size-xs);
+  line-height: 1.5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  a.lo-secoes__item:hover { color: var(--lb-color-parchment); }
+}
+
 .lo-topo__direita {
   display: flex;
   align-items: center;

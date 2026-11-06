@@ -15,10 +15,6 @@
   gap: var(--lb-space-5);
 }
 
-/* O atalho na cabeça fixa, em toda tela da mesa: o balão e as não lidas. */
-.lo-chat-atalho { gap: 6px; padding: 0 10px; color: var(--lb-color-parchment-dim); }
-.lo-chat-atalho .lo-chat__conta { margin-left: 2px; }
-
 /* ------------------------------------------------- a lista de conversas */
 
 .lo-chat__lado { min-width: 0; }
