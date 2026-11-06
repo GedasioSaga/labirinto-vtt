@@ -11,6 +11,8 @@ import {
   type MensagemDoMuralDoServidor,
   type MensagemDoServidor,
 } from './nucleo'
+// O duelo fica fora do `nucleo.ts`: a regra dele puxa a store da batalha (zustand), e o fecho do núcleo é puro.
+import { lerPedidoDoDuelo, type LeituraDoPedidoDoDuelo, type MensagemDoDueloDoServidor } from '../../../client/src/lib/treino/dueloDoLobby'
 
 /**
  * O WebSocket do site (plano §5.4), com Hibernation: o DO dorme entre as
@@ -66,6 +68,8 @@ export type Frame =
   | { t: 'chat'; leitura: LeituraDoPedidoDoChat }
   /** Todo `mural.*` (fatia M1): idem. */
   | { t: 'mural'; leitura: LeituraDoPedidoDoMural }
+  /** Todo `duelo.*` (fatia T6): idem. */
+  | { t: 'duelo'; leitura: LeituraDoPedidoDoDuelo }
 
 /** O histórico vem em páginas de 50 (§5.3). */
 export const LIMITE_DO_HISTORICO = 50
@@ -79,6 +83,7 @@ function frameDoRegistro(registro: Record<string, unknown>): Frame | null {
   const tipo = proprio(registro, 't')
   if (typeof tipo === 'string' && tipo.startsWith('chat.')) return { t: 'chat', leitura: lerPedidoDoChat(registro) }
   if (typeof tipo === 'string' && tipo.startsWith('mural.')) return { t: 'mural', leitura: lerPedidoDoMural(registro) }
+  if (typeof tipo === 'string' && tipo.startsWith('duelo.')) return { t: 'duelo', leitura: lerPedidoDoDuelo(registro) }
   switch (tipo) {
     case 'ola': {
       const desdeRev = revOuNulo(proprio(registro, 'desdeRev'))
@@ -115,7 +120,7 @@ export function lerFrame(texto: string): Frame | null {
   }
 }
 
-export function enviar(ws: WebSocket, mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor): void {
+export function enviar(ws: WebSocket, mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor): void {
   try {
     ws.send(JSON.stringify(mensagem))
   } catch {

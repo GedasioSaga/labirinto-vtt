@@ -17,6 +17,10 @@
 //                                             jogador que tenta postar ou fixar = recusado (sem-permissao); aviso
 //                                             fixado aparece no mural.estado de quem entra e some para quem leu;
 //                                             modificações da jogadora sem notaDoMestre, NPC nem e-mail
+//      node fumaca.mjs duelo               -> a T6 (Nami e Zoro, contas falsas): convite, aceite, duelo curto até o fim
+//                                             com todo Atacar pedindo dano 99999 (o servidor aplica o da ficha);
+//                                             no meio, a 2ª aba fecha sem deixar ausente e a única aba fecha e volta
+//                                             antes dos 3 min; imprime o vencedor
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -815,6 +819,164 @@ async function aceiteDoMural() {
   console.log(falhas === 0 ? `MURAL OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
 }
 
+// ── Duelo (T6, plano 8.2) ────────────────────────────────────────────────────
+
+/** Um One Piece mínimo: Vida e SP como a batalha lê (tom e atual/máximo), Força e Agilidade, a aba Armas. */
+const SISTEMA_DO_DUELO = {
+  id: 'one-piece',
+  nome: 'One Piece',
+  recursos: [
+    { id: 'hp', nome: 'HP', tom: 'vida', atualEMaximo: true },
+    { id: 'sp', nome: 'SP', tom: 'energia', atualEMaximo: true },
+  ],
+  atributos: [
+    { id: 'forca', nome: 'Força', abreviacao: 'FOR' },
+    { id: 'agilidade', nome: 'Agilidade', abreviacao: 'AGI' },
+  ],
+  abas: [{ id: 'armas', nome: 'Armas', campos: [{ id: 'dano', rotulo: 'Dano', forma: 'linha' }] }],
+}
+
+/** O dano que o cliente "pede" em todo Atacar: o servidor tem de ignorar e usar o da ficha. */
+const DANO_FORJADO = 99999
+
+function lutadoraDoDuelo(id, dono, vida, forca, agilidade, arma) {
+  return ficha(id, dono, {
+    recursos: { hp: vida, sp: 50 },
+    maximos: { hp: vida, sp: 50 },
+    atributos: { forca, agilidade },
+    abas: { armas: [{ id: arma.id, nome: arma.nome, campos: { dano: String(arma.dano) }, extras: [], atributos: [], imagem: null, modificadores: [], subcartoes: [] }] },
+  })
+}
+
+const doDuelo = (sala, criterio, descricao) => sala.esperar((m) => typeof m.t === 'string' && m.t.startsWith('duelo.') && criterio(m), descricao)
+
+function vagaDoToken(duelo, tokenId) {
+  const vaga = duelo.lutadores.vagas.find((candidata) => candidata.tokenId === tokenId)
+  if (vaga === undefined) throw new Error(`token ${tokenId} sem vaga`)
+  return vaga
+}
+
+function vidaDoToken(duelo, tokenId) {
+  const { personagemId } = vagaDoToken(duelo, tokenId)
+  return duelo.lutadores.personagens.find((p) => p.id === personagemId).recursos.hp
+}
+
+/**
+ * A próxima jogada, como dois jogadores bem simples: golpe esperando reação = "não reagir" (toma
+ * inteiro); na vez, Atacar com a primeira arma no outro lado pedindo DANO_FORJADO; depois do
+ * Atacar (Simples gasta), passar a vez.
+ */
+function proximaJogada(duelo) {
+  const { turnos, seq } = duelo
+  const contaDoToken = (tokenId) => duelo.jogadores[vagaDoToken(duelo, tokenId).lado].contaId
+  for (const golpe of turnos.golpes ?? []) {
+    for (const alvo of golpe.alvos) {
+      if (alvo.danoFinal !== undefined || !alvo.podeReagir) continue
+      return { contaId: contaDoToken(alvo.tokenId), golpe: { dano: alvo.dano, tokenId: alvo.tokenId }, jogada: { tipo: 'reagir', seq, pedido: { tipo: 'naoReagir', golpeId: golpe.id, tokenId: alvo.tokenId } } }
+    }
+  }
+  const carta = turnos.cartas.find((candidata) => candidata.id === turnos.vez)
+  if (carta === undefined) throw new Error('duelo sem vez')
+  const vez = { cartaId: carta.id, rodada: turnos.rodada }
+  const contaId = contaDoToken(carta.tokenId)
+  if ((turnos.gastos?.[carta.id]?.simples ?? 0) > 0) return { contaId, jogada: { tipo: 'passar', seq, vez } }
+  const minha = vagaDoToken(duelo, carta.tokenId)
+  const alvo = duelo.lutadores.vagas.find((vaga) => vaga.lado !== minha.lado)
+  const copia = duelo.lutadores.personagens.find((p) => p.id === minha.personagemId)
+  const pedido = { tipo: 'atacar', armaId: copia.abas.armas[0].id, alvos: [{ tokenId: alvo.tokenId, dano: DANO_FORJADO }], surpresa: false, perfurante: false }
+  return { contaId, jogada: { tipo: 'agir', seq, vez, pedido } }
+}
+
+async function jogarUmaVez(salas, duelo, golpesConferidos) {
+  const { contaId, jogada, golpe } = proximaJogada(duelo)
+  const sala = salas[contaId]
+  await sala.mandar({ t: 'duelo.jogar', id: duelo.id, jogada })
+  const resposta = await doDuelo(sala, (m) => (m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.seq === duelo.seq + 1) || (m.t === 'duelo.recusado' && m.id === duelo.id), `o estado depois de ${jogada.tipo}`)
+  if (resposta.t === 'duelo.recusado') throw new Error(`${jogada.tipo} recusado: ${resposta.motivo}`)
+  if (golpe !== undefined) {
+    const antes = vidaDoToken(duelo, golpe.tokenId)
+    const depois = vidaDoToken(resposta.duelo, golpe.tokenId)
+    golpesConferidos.push({ pedido: DANO_FORJADO, servidor: golpe.dano, antes, depois })
+  }
+  return resposta.duelo
+}
+
+/**
+ * No meio do duelo (achado Tr9 e resposta 12.15): a 2ª aba da Nami fecha e a conta NÃO fica
+ * ausente; depois a única aba fecha (Zoro vê a Nami ausente), ela reabre antes dos 3 minutos e
+ * recebe o duelo de volta, presente, no mesmo `seq`.
+ */
+async function caiEVolta(campanhaId, salas, duelo) {
+  const zoro = salas.conta_zoro
+  const segunda = await Sala.abrir(campanhaId, NAMI)
+  await segunda.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_nami_aba2' })
+  await doDuelo(segunda, (m) => m.t === 'duelo.lista', 'a lista da 2ª aba')
+  zoro.recebidas.length = 0
+  segunda.fechar()
+  await esperarMs(1500)
+  const ausenteCedo = zoro.recebidas.some((m) => m.t === 'duelo.estado' && m.duelo.jogadores.a.ausenteDesde !== null)
+  conferir('fechar a 2ª aba da Nami (a 1ª segue aberta) não a deixa ausente', !ausenteCedo)
+  salas.conta_nami.fechar()
+  const caiu = await doDuelo(zoro, (m) => m.t === 'duelo.estado' && m.duelo.jogadores.a.ausenteDesde !== null, 'a Nami ausente')
+  zoro.recebidas.length = 0
+  const volta = await Sala.abrir(campanhaId, NAMI)
+  await volta.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_nami_volta' })
+  const lista = await doDuelo(volta, (m) => m.t === 'duelo.lista', 'a lista da volta')
+  const voltou = await doDuelo(zoro, (m) => m.t === 'duelo.estado' && m.duelo.jogadores.a.ausenteDesde === null, 'a Nami de volta')
+  const naLista = lista.duelos.find((d) => d.id === duelo.id)
+  conferir(
+    'Nami fecha a única aba: Zoro vê ausente; ela reabre antes dos 3 min e o duelo volta (mesmo seq, presente, sem fim)',
+    caiu.duelo.seq === duelo.seq && naLista?.seq === duelo.seq && naLista.jogadores.a.ausenteDesde === null && naLista.fim === null && voltou.duelo.fim === null,
+    JSON.stringify({ caiu: caiu.duelo.jogadores, lista: naLista?.jogadores, seq: naLista?.seq }),
+  )
+  salas.conta_nami = volta
+  return naLista
+}
+
+async function aceiteDoDuelo() {
+  const campanhaId = `fumaca-duelo-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const nami = lutadoraDoDuelo('pers_nami', 'conta_nami', 300, 60, 80, { id: 'arma_bastao', nome: 'Bastão', dano: 20 })
+  const zoro = lutadoraDoDuelo('pers_zoro', 'conta_zoro', 150, 30, 10, { id: 'arma_faca', nome: 'Faca', dano: 10 })
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, { ...pedidoDePublicar([nami, zoro]), sistema: SISTEMA_DO_DUELO })
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  const salas = { conta_nami: await Sala.abrir(campanhaId, NAMI), conta_zoro: await Sala.abrir(campanhaId, ZORO) }
+  try {
+    await salas.conta_nami.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_nami' })
+    await salas.conta_zoro.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_zoro' })
+    await Promise.all([salas.conta_nami, salas.conta_zoro].map((sala) => doDuelo(sala, (m) => m.t === 'duelo.lista', 'a lista vazia')))
+    await salas.conta_nami.mandar({ t: 'duelo.convidar', para: 'conta_zoro', fichas: ['pers_nami'] })
+    const convite = await doDuelo(salas.conta_zoro, (m) => m.t === 'duelo.convite' || m.t === 'duelo.recusado', 'o convite')
+    if (convite.t !== 'duelo.convite') throw new Error(`convite recusado: ${convite.motivo}`)
+    await salas.conta_zoro.mandar({ t: 'duelo.aceitar', id: convite.convite.id, fichas: ['pers_zoro'] })
+    const inicio = await doDuelo(salas.conta_zoro, (m) => (m.t === 'duelo.estado' && m.duelo.id === convite.convite.id) || m.t === 'duelo.recusado', 'o duelo começar')
+    if (inicio.t !== 'duelo.estado') throw new Error(`aceitar recusado: ${inicio.motivo}`)
+    const golpes = []
+    let duelo = inicio.duelo
+    let caiuEVoltou = false
+    for (let jogadas = 0; duelo.fim === null; jogadas += 1) {
+      if (jogadas >= 40) throw new Error('o duelo não acabou em 40 jogadas')
+      duelo = await jogarUmaVez(salas, duelo, golpes)
+      // Depois do primeiro golpe resolvido: cai e volta no meio do duelo.
+      if (!caiuEVoltou && golpes.length === 1 && duelo.fim === null) {
+        duelo = await caiEVolta(campanhaId, salas, duelo)
+        caiuEVoltou = true
+      }
+    }
+    const forjadoIgnorado = golpes.length > 0 && golpes.every((g) => g.servidor !== DANO_FORJADO && g.servidor > 0 && g.antes - g.depois === Math.min(g.antes, g.servidor))
+    conferir(`dano forjado ignorado em ${golpes.length} golpes (pedido ${DANO_FORJADO}; aplicado o da ficha)`, forjadoIgnorado, JSON.stringify(golpes))
+    const [primeiro] = golpes
+    if (primeiro !== undefined) console.log(`        1º golpe: pedido ${primeiro.pedido}, o servidor aplicou ${primeiro.servidor} (vida ${primeiro.antes} -> ${primeiro.depois})`)
+    const vencedor = duelo.fim.tipo === 'vitoria' ? `Lado ${duelo.fim.vencedor.toUpperCase()} (${duelo.jogadores[duelo.fim.vencedor].nome})` : JSON.stringify(duelo.fim)
+    console.log(`        vencedor: ${vencedor}, na rodada ${duelo.turnos.rodada}, seq ${duelo.seq}`)
+    conferir('o duelo acaba com vencedor (não por tempo): a Nami', duelo.fim.tipo === 'vitoria' && duelo.fim.vencedor === 'a', JSON.stringify(duelo.fim))
+  } finally {
+    salas.conta_nami.fechar()
+    salas.conta_zoro.fechar()
+  }
+  console.log(falhas === 0 ? `DUELO OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
 async function listarOps(campanhaId) {
   const { primeira, ops } = await exportarTudo(campanhaId, MESTRE, 'app', 500)
   if (primeira.ops === undefined) {
@@ -843,6 +1005,8 @@ try {
     await aceiteDoChat()
   } else if (modo === 'mural') {
     await aceiteDoMural()
+  } else if (modo === 'duelo') {
+    await aceiteDoDuelo()
   } else {
     await aceite()
   }

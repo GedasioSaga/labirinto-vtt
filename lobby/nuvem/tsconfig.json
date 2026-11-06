@@ -11,6 +11,10 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "DOM"],
+    // Por que "jsx": o duelo (T6) usa a regra do treino, cujo fecho de TIPOS chega a
+    // client/src/lib/arena/tipos.ts, que pega um tipo (`import type`) de um componente .tsx
+    // (MiraDoGolpe). Some na compilação: nenhum JSX nem React de componente entra no bundle.
+    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": [],

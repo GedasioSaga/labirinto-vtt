@@ -24,6 +24,17 @@ import {
   type MetaDaCampanha,
 } from './banco'
 import { atenderPedidoDoChat, cursorDoChat, LIMITE_DA_ROTA_DA_SALA, recusarPedidoDoChat, recusarPorRitmo, salaDesde, salaInteira, type SalaDoChat } from './chat'
+import {
+  atenderPedidoDoDuelo,
+  contaSaiuDosDuelos,
+  duelosNoOla,
+  esquecerSistemaDoDuelo,
+  proximoPrazoDosDuelos,
+  recusarDueloPorRitmo,
+  recusarPedidoDoDuelo,
+  vencerPrazosDosDuelos,
+  type SalaDoDuelo,
+} from './duelo'
 import { criarEsquemaDaCampanha } from './esquema'
 import { ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro } from './http'
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
@@ -210,6 +221,8 @@ export class Campanha extends DurableObject<Env> {
     })
     // O sistema pode ter mudado: o feed de modificações relê os nomes (Vida para `hp`).
     esquecerRotulosDoMural(this.sql)
+    // E o duelo relê o sistema (só roda no motor do One Piece).
+    esquecerSistemaDoDuelo(this.sql)
     await this.depoisDeMudarMembros(campanhaId, pedido.nome, feito.mudaram)
     this.depoisDeGravar(feito.ops)
     return json({ campanhaId, rev: revAtual(this.sql), fichas: feito.fichas })
@@ -331,6 +344,8 @@ export class Campanha extends DurableObject<Env> {
   private async depoisDeMudarMembros(campanhaId: string, nome: string, mudaram: readonly string[]): Promise<void> {
     for (const contaId of mudaram) {
       for (const ws of this.ctx.getWebSockets(tagDaConta(contaId))) fechar(ws, FECHAR_SEM_ACESSO, 'Seu acesso a esta campanha mudou')
+      // Socket fechado pelo servidor não chama o `webSocketClose`: o duelo dela começa a contar aqui.
+      await this.contaSaiu(contaId, null)
     }
     this.enviarEstadoATodos()
     // Quem saiu some da presença já (os sockets dele não contam mais como prontos); nome novo aparece.
@@ -425,6 +440,48 @@ export class Campanha extends DurableObject<Env> {
     }
   }
 
+  /** O que o duelo usa do DO (lobby/nuvem/src/duelo.ts): o do chat e se a conta ainda tem socket. */
+  private salaDoDuelo(): SalaDoDuelo {
+    return { ...this.salaDoChatNoSocket(), contaConectada: (contaId, exceto) => this.contaConectada(contaId, exceto) }
+  }
+
+  /** Algum socket da conta ainda aberto além de `exceto` (o que está fechando, ou fechado pelo servidor, já não conta). */
+  private contaConectada(contaId: string, exceto: WebSocket | null): boolean {
+    return this.ctx.getWebSockets(tagDaConta(contaId)).some((ws) => ws !== exceto && ws.readyState === WebSocket.OPEN)
+  }
+
+  /** A conta perdeu um socket: sem nenhum aberto, os duelos dela começam a contar os 3 minutos (achado Tr9). */
+  private async contaSaiu(contaId: string, exceto: WebSocket | null): Promise<void> {
+    if (this.contaConectada(contaId, exceto)) return
+    if (contaSaiuDosDuelos(this.salaDoDuelo(), contaId, Date.now())) await this.agendarAlarme()
+  }
+
+  /**
+   * O alarme do DO é UM só (achado Tr4): fica no menor prazo de tudo o que
+   * vence. Hoje só os duelos vencem; outro prazo do DO entra no mesmo cálculo.
+   * Alarme já marcado para antes fica (ao tocar, ele mesmo reagenda).
+   */
+  private async agendarAlarme(): Promise<void> {
+    const proximo = proximoPrazoDosDuelos(this.sql)
+    if (proximo === null) return
+    const marcado = await this.ctx.storage.getAlarm()
+    if (marcado === null || proximo < marcado) await this.ctx.storage.setAlarm(proximo)
+  }
+
+  async alarm(): Promise<void> {
+    vencerPrazosDosDuelos(this.salaDoDuelo(), Date.now())
+    await this.agendarAlarme()
+  }
+
+  private async duelo(ws: WebSocket, quem: Identidade, leitura: Extract<Frame, { t: 'duelo' }>['leitura'], agora: number): Promise<void> {
+    // O torto já foi respondido em `webSocketMessage`; aqui só chega pedido lido, de membro ativo relido agora.
+    const membro = membroPorConta(this.sql, quem.contaId)
+    if (!leitura.ok || !membroAtivo(membro)) return
+    atenderPedidoDoDuelo(this.salaDoDuelo(), ws, membro, leitura.pedido, agora)
+    // Convite novo, duelo que começou com alguém fora ou que acabou: um prazo pode ter nascido.
+    await this.agendarAlarme()
+  }
+
   // ── WebSocket do site ─────────────────────────────────────────────────────
 
   private abrirSocket(request: Request, campanhaId: string, identidade: IdentidadeDoPortao): Response {
@@ -442,7 +499,7 @@ export class Campanha extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: par[0] })
   }
 
-  webSocketMessage(ws: WebSocket, mensagem: string | ArrayBuffer): void {
+  webSocketMessage(ws: WebSocket, mensagem: string | ArrayBuffer): void | Promise<void> {
     const anexo = lerAnexo(ws.deserializeAttachment())
     const membro = anexo === null ? undefined : membroPorConta(this.sql, anexo.contaId)
     // A cada mensagem, não só no upgrade: removido ou com outro e-mail sai já (§6.4).
@@ -470,24 +527,37 @@ export class Campanha extends DurableObject<Env> {
       this.contarViolacoes(ws, anexo, 1, agora)
       return
     }
+    if (frame.t === 'duelo' && !frame.leitura.ok) {
+      recusarPedidoDoDuelo(ws, frame.leitura.pedido, 'formato', frame.leitura.id)
+      this.contarViolacoes(ws, anexo, 1, agora)
+      return
+    }
     // O primeiro `ola` do socket não passa pelo ritmo: sem ele o socket não serve para nada, e sockets por conta já têm teto.
     if (!(frame.t === 'ola' && anexo.clienteId === null)) {
       const ritmo = this.conferirRitmo(membro.contaId, agora)
       if (!ritmo.ok) return this.responderAoRitmo(ws, frame, ritmo.tentarDepoisDe)
     }
-    this.atenderFrame(ws, anexo, frame, identidadeDoNucleo(membro, anexo.origem, clienteId), agora)
+    return this.atenderFrame(ws, anexo, frame, identidadeDoNucleo(membro, anexo.origem, clienteId), agora)
   }
 
-  webSocketClose(ws: WebSocket): void {
+  async webSocketClose(ws: WebSocket): Promise<void> {
     fecharDeVolta(ws)
     this.saiuDaMesa(ws)
+    await this.saiuDosDuelos(ws)
   }
 
-  webSocketError(ws: WebSocket): void {
+  async webSocketError(ws: WebSocket): Promise<void> {
     this.saiuDaMesa(ws)
+    await this.saiuDosDuelos(ws)
   }
 
-  private atenderFrame(ws: WebSocket, anexo: Anexo, frame: Frame, quem: Identidade, agora: number): void {
+  /** Qualquer socket conta para o duelo (até o que não mandou `ola`): ausente é a conta sem nenhum. */
+  private async saiuDosDuelos(ws: WebSocket): Promise<void> {
+    const anexo = lerAnexo(ws.deserializeAttachment())
+    if (anexo !== null) await this.contaSaiu(anexo.contaId, ws)
+  }
+
+  private atenderFrame(ws: WebSocket, anexo: Anexo, frame: Frame, quem: Identidade, agora: number): void | Promise<void> {
     switch (frame.t) {
       case 'ola':
         return this.ola(ws, anexo, quem, frame)
@@ -510,6 +580,8 @@ export class Campanha extends DurableObject<Env> {
         // O mural usa do DO o mesmo que o chat (SQLite, transação, sockets prontos).
         return atenderPedidoDoMural(this.salaDoChatNoSocket(), ws, membro, frame.leitura.pedido, agora)
       }
+      case 'duelo':
+        return this.duelo(ws, quem, frame.leitura, agora)
     }
   }
 
@@ -539,6 +611,8 @@ export class Campanha extends DurableObject<Env> {
     this.entrouNaMesa(ws, membro.contaId, jaEstavaPronto)
     // Quem entra (ou volta) recebe os avisos fixados com o `lida` dele e a primeira página do mural (M1).
     enviarEstadoDoMural(this.sql, ws, membro.contaId)
+    // E os duelos dele: quem tinha caído volta (o relógio dos 3 minutos para) e recebe a lista (T6).
+    duelosNoOla(this.salaDoDuelo(), ws, membro, Date.now())
   }
 
   /** As ops que faltam, em páginas; já em dia = uma página vazia (o site sabe que alcançou). */
@@ -586,6 +660,10 @@ export class Campanha extends DurableObject<Env> {
     }
     if (frame.t === 'mural') {
       if (frame.leitura.ok) recusarMuralPorRitmo(ws, frame.leitura.pedido, tentarDepoisDe)
+      return
+    }
+    if (frame.t === 'duelo') {
+      if (frame.leitura.ok) recusarDueloPorRitmo(ws, frame.leitura.pedido, tentarDepoisDe)
       return
     }
     if (frame.t === 'ops') {

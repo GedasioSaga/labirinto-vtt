@@ -155,6 +155,22 @@ const TABELAS_DA_CAMPANHA = [
     quando INTEGER NOT NULL,
     PRIMARY KEY (contaId, noticiaId)
   )`,
+  // Duelo (v2, fatia T6; lobby/nuvem/src/duelo.ts). O convite é a mesma linha antes de começar
+  // (`status 'convite'`). `prazo` = o que vence (o convite; os 3 minutos de quem caiu); `apagarEm`
+  // = quando o duelo acabado sai. Um alarme só no DO, no menor dos dois (achado Tr4). Sem índice:
+  // são poucas linhas (no máximo um duelo e um convite enviado por conta, mais os acabados do dia).
+  `CREATE TABLE IF NOT EXISTS duelos (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('convite', 'andamento', 'fim')),
+    jogadorA TEXT NOT NULL,
+    jogadorB TEXT NOT NULL,
+    estadoJson TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    versaoDoMotor INTEGER NOT NULL,
+    prazo INTEGER,
+    apagarEm INTEGER,
+    atualizadoEm INTEGER NOT NULL
+  )`,
 ]
 
 export function criarEsquemaDaCampanha(sql: SqlStorage): void {
