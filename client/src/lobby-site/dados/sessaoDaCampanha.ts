@@ -189,8 +189,14 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
   /** `novoOpId` do pedido de desfazer -> o `opId` que ele desfaz. */
   const alvoDoDesfazer = new Map<string, string>()
   let cancelarReconexao: (() => void) | null = null
+  /** O prazo do lote em voo. */
   let cancelarPrazo: (() => void) | null = null
-  let cancelarAdiado: (() => void) | null = null
+  /** O prazo do `ola` que pede o `estado` de novo (`pedirEstado`). */
+  let cancelarPrazoDoEstado: (() => void) | null = null
+  /** O lote parado pelo adiado da cabeça da fila: quando ela pode sair, e quem cancela a espera. */
+  let adiadoDasOps: { vez: number; cancelar: () => void } | null = null
+  /** Um reenvio por desfazer adiado (alvo -> quem cancela): o adiado de um nunca apaga o de outro, nem o do lote. */
+  const adiadosDoDesfazer = new Map<string, () => void>()
   let processando: Promise<void> = Promise.resolve()
 
   function montarEstado(): EstadoDaCampanha {
@@ -232,6 +238,19 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     cancelarPrazo = null
   }
 
+  function pararPrazoDoEstado(): void {
+    cancelarPrazoDoEstado?.()
+    cancelarPrazoDoEstado = null
+  }
+
+  /** Sem canal, os reenvios marcados não servem: a volta (`marcarSincronizada` e `enviarPendentes`) manda tudo de novo. */
+  function pararAdiados(): void {
+    adiadoDasOps?.cancelar()
+    adiadoDasOps = null
+    for (const cancelar of adiadosDoDesfazer.values()) cancelar()
+    adiadosDoDesfazer.clear()
+  }
+
   function conectar(): void {
     if (encerrada) return
     cancelarReconexao = null
@@ -261,6 +280,8 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     sincronizada = false
     emVoo.clear()
     pararPrazo()
+    pararPrazoDoEstado()
+    pararAdiados()
     if (encerrada) return
     if (motivo === 'sem-acesso') {
       conexao = 'sem-acesso'
@@ -290,15 +311,27 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     derrubar()
   }
 
-  /** A base divergiu (op confirmada que não entra na base local) ou tem buraco: pede o `estado` inteiro. */
+  /**
+   * A base divergiu (op confirmada que não entra na base local) ou tem buraco:
+   * pede o `estado` inteiro. Este é o segundo `ola` do canal, e o servidor o
+   * deixa sem resposta quando a conta passou do ritmo (`responderAoRitmo` em
+   * `lobby/nuvem/src/campanha.ts`). Sem `estado` nem `ops` no prazo, o canal
+   * cai e volta: o primeiro `ola` do canal novo o ritmo não segura.
+   */
   function pedirEstado(): void {
     sincronizada = false
     canal?.enviar({ t: 'ola', desdeRev: null, v: VERSAO_DO_FORMATO, clienteId })
+    pararPrazoDoEstado()
+    cancelarPrazoDoEstado = relogio.depois(PRAZO_DA_RESPOSTA_MS, () => {
+      cancelarPrazoDoEstado = null
+      if (!sincronizada) derrubar()
+    })
   }
 
   function marcarSincronizada(): void {
     if (sincronizada) return
     sincronizada = true
+    pararPrazoDoEstado()
     conexao = 'em-dia'
     tentativas = 0
     for (const [alvo, situacao] of desfazeres) {
@@ -339,6 +372,8 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
         canal?.fechar()
         canal = null
         pararPrazo()
+        pararPrazoDoEstado()
+        pararAdiados()
         break
       case 'presenca':
         naMesa = mensagem.naMesa
@@ -364,7 +399,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     await fila.receberRespostas([resposta])
     emVoo.delete(resposta.opId)
     if (emVoo.size === 0) pararPrazo()
-    if (resposta.t === 'adiado') agendarAdiado(resposta.tentarDepoisDe, enviarPendentes)
+    // O adiado fica na fila; quando o lote esvazia, `enviarPendentes` marca a volta pela cabeça da fila.
   }
 
   /** A op confirmada de qualquer um (a própria inclusive: o eco vale como ack). O buraco na numeração é op que este membro não vê. */
@@ -383,10 +418,11 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     const alvo = alvoDoDesfazer.get(resposta.opId)
     if (alvo === undefined) return false
     if (resposta.t === 'adiado') {
-      const situacao = desfazeres.get(alvo)
-      if (situacao?.t === 'enviando') agendarAdiado(resposta.tentarDepoisDe, () => mandarDesfazer(alvo, situacao.novoOpId, situacao.confirmar))
+      if (desfazeres.get(alvo)?.t === 'enviando') agendarDesfazer(alvo, resposta.tentarDepoisDe)
       return true
     }
+    adiadosDoDesfazer.get(alvo)?.()
+    adiadosDoDesfazer.delete(alvo)
     alvoDoDesfazer.delete(resposta.opId)
     if (resposta.t === 'ack') desfazeres.set(alvo, { t: 'feito', rev: resposta.rev })
     else if (resposta.t === 'conflito') desfazeres.set(alvo, { t: 'confirmar', conflito: resposta })
@@ -408,20 +444,60 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     historicos.set(op.fichaId, { ...historico, lista: [op, ...historico.lista] })
   }
 
-  function agendarAdiado(tentarDepoisDe: number, fazer: () => void): void {
-    cancelarAdiado?.()
-    cancelarAdiado = relogio.depois(Math.max(0, tentarDepoisDe - relogio.agora()) + FOLGA_DO_ADIADO_MS, () => {
-      cancelarAdiado = null
-      fazer()
+  function esperaAte(vez: number): number {
+    return Math.max(0, vez - relogio.agora()) + FOLGA_DO_ADIADO_MS
+  }
+
+  /**
+   * Quando a cabeça da fila adiada pode sair; `null` = não há cabeça adiada.
+   * O lote para no primeiro pendente adiado (a ordem nunca troca, `paraEnviar`
+   * do núcleo), então é ele, e não o último adiado que chegou, quem diz quando
+   * tentar de novo.
+   */
+  function vezDaCabeca(agora: number): number | null {
+    for (const entrada of fila.entradas()) {
+      if (entrada.situacao.t !== 'pendente') continue
+      const { tentarDepoisDe } = entrada.situacao
+      return tentarDepoisDe !== undefined && tentarDepoisDe > agora ? tentarDepoisDe : null
+    }
+    return null
+  }
+
+  function agendarAsOps(vez: number): void {
+    if (adiadoDasOps !== null && adiadoDasOps.vez === vez) return
+    adiadoDasOps?.cancelar()
+    const cancelar = relogio.depois(esperaAte(vez), () => {
+      adiadoDasOps = null
+      enviarPendentes()
     })
+    adiadoDasOps = { vez, cancelar }
+  }
+
+  function agendarDesfazer(alvo: string, tentarDepoisDe: number): void {
+    adiadosDoDesfazer.get(alvo)?.()
+    adiadosDoDesfazer.set(
+      alvo,
+      relogio.depois(esperaAte(tentarDepoisDe), () => {
+        adiadosDoDesfazer.delete(alvo)
+        const situacao = desfazeres.get(alvo)
+        // Fora de sincronia, `marcarSincronizada` manda os desfazeres a caminho quando a base chegar.
+        if (sincronizada && situacao?.t === 'enviando') mandarDesfazer(alvo, situacao.novoOpId, situacao.confirmar)
+      }),
+    )
   }
 
   // ── O que sai ────────────────────────────────────────────────────────────
 
   function enviarPendentes(): void {
     if (!sincronizada || canal === null || emVoo.size > 0) return
-    const lote = fila.paraEnviar(relogio.agora())
-    if (lote.length === 0 || !canal.enviar({ t: 'ops', lote })) return
+    const agora = relogio.agora()
+    const lote = fila.paraEnviar(agora)
+    if (lote.length === 0) {
+      const vez = vezDaCabeca(agora)
+      if (vez !== null) agendarAsOps(vez)
+      return
+    }
+    if (!canal.enviar({ t: 'ops', lote })) return
     for (const op of lote) emVoo.add(op.opId)
     pararPrazo()
     cancelarPrazo = relogio.depois(PRAZO_DA_RESPOSTA_MS, () => {
@@ -525,8 +601,9 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       conexao = 'fechada'
       geracao += 1
       cancelarReconexao?.()
-      cancelarAdiado?.()
+      pararAdiados()
       pararPrazo()
+      pararPrazoDoEstado()
       canal?.fechar()
       canal = null
     },

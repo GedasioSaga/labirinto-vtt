@@ -1,6 +1,7 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { armazenamentoEmTexto, type ArmazenamentoDaFila, type ArquivoDeTexto } from '../../lib/nuvem/fila'
-import { abrirBancoDaFila, armazenamentoNoIndexedDB, clienteIdDoBanco } from './filaNoIndexedDB'
+import { clienteIdDaAba, type AmbienteDaAba } from './clienteDaAba'
+import { abrirBancoDaFila, armazenamentoNoIndexedDB } from './filaNoIndexedDB'
 import { ErroDoEu, type Eu, type FonteDoLobby } from './fonte'
 import { criarFonteDemo } from './fonteDemo'
 import { criarFonteReal } from './fonteReal'
@@ -44,6 +45,10 @@ export interface JanelaDoSite {
   history: Pick<History, 'pushState'>
   addEventListener(tipo: 'popstate' | 'online', ouvinte: () => void): void
   removeEventListener(tipo: 'popstate' | 'online', ouvinte: () => void): void
+  /** Ler pode lançar (armazenamento bloqueado pelo navegador): quem lê protege. */
+  readonly sessionStorage: Pick<Storage, 'getItem' | 'setItem'>
+  /** `locks` falta fora de contexto seguro e em navegador antigo. */
+  readonly navigator: { readonly locks?: Pick<LockManager, 'request'> }
 }
 
 interface Aberta {
@@ -75,16 +80,23 @@ interface FilaDaCampanha {
   fecharBanco(): void
 }
 
-async function abrirFilaDaCampanha(demo: boolean, email: string, campanhaId: string): Promise<FilaDaCampanha> {
+/** O id da aba antes da base: depois de abrir a base nada mais pode falhar, e ela não fica aberta à toa. */
+async function abrirFilaDaCampanha(demo: boolean, email: string, campanhaId: string, idDaAba: () => Promise<string>): Promise<FilaDaCampanha> {
   if (demo) return { armazenamento: armazenamentoEmTexto(arquivoEmMemoria()), clienteId: `cli_demo_${crypto.randomUUID()}`, fecharBanco: () => undefined }
+  const clienteId = await idDaAba()
   const banco = await abrirBancoDaFila(email, campanhaId)
+  return { armazenamento: armazenamentoNoIndexedDB(banco), clienteId, fecharBanco: () => banco.close() }
+}
+
+function ambienteDaAba(janela: JanelaDoSite): AmbienteDaAba {
+  let guarda: AmbienteDaAba['guarda'] = null
   try {
-    const clienteId = await clienteIdDoBanco(banco, () => crypto.randomUUID())
-    return { armazenamento: armazenamentoNoIndexedDB(banco), clienteId, fecharBanco: () => banco.close() }
-  } catch (erro) {
-    banco.close()
-    throw erro
+    guarda = janela.sessionStorage
+  } catch {
+    // Armazenamento bloqueado: id novo a cada página (aviso de conflito a mais, nunca perda).
   }
+  // Sem Web Locks não dá para notar a aba duplicada; o resto funciona igual.
+  return { guarda, travas: janela.navigator.locks ?? null, novoId: () => crypto.randomUUID() }
 }
 
 export function iniciarSite(janela: JanelaDoSite): Site {
@@ -94,6 +106,13 @@ export function iniciarSite(janela: JanelaDoSite): Site {
   let aberta: Aberta | null = null
   /** Cada abertura ganha um número: a que terminar depois de outra navegação é fechada em vez de ocupar a tela. */
   let aberturas = 0
+  /** Um por página: pedir de novo a trava que esta mesma página já segura daria um id novo a cada troca de mesa. */
+  let clienteIdDestaAba: Promise<string> | null = null
+
+  function idDaAba(): Promise<string> {
+    clienteIdDestaAba ??= clienteIdDaAba(ambienteDaAba(janela))
+    return clienteIdDestaAba
+  }
 
   function fecharAberta(): void {
     if (aberta === null) return
@@ -103,7 +122,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
   }
 
   async function abrir(eu: Eu, campanhaId: string, minha: number): Promise<void> {
-    const fila = await abrirFilaDaCampanha(demo, eu.email, campanhaId)
+    const fila = await abrirFilaDaCampanha(demo, eu.email, campanhaId, idDaAba)
     let sessao: SessaoDaCampanha | null = null
     try {
       sessao = await abrirSessaoDaCampanha({

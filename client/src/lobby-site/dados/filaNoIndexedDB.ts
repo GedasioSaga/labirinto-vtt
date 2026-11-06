@@ -7,6 +7,11 @@ import type { ArmazenamentoDaFila } from '../../lib/nuvem/fila'
  * contas no mesmo navegador não misturam fila), com um registro da fila por
  * entrada, na ordem em que foram acrescentados (chave crescente).
  *
+ * As abas da mesma pessoa dividem a base: a aba que abre manda também o que
+ * uma aba fechada deixou a caminho. Cada op leva o `clienteId` da aba que a
+ * fez (`clienteDaAba.ts`), e é com ele que o servidor confere a autoria; por
+ * isso o id do aparelho não mora aqui.
+ *
  * Cada `acrescentar` e cada `substituir` é UMA transação: o registro `grupo`
  * (o tudo-ou-nada) leva vários `opId` numa entrada só, e a escolha "Usar a
  * minha" vai junto com a op nova — nada disso pode ficar gravado pela metade.
@@ -17,8 +22,6 @@ import type { ArmazenamentoDaFila } from '../../lib/nuvem/fila'
 
 const VERSAO_DO_BANCO = 1
 const REGISTROS = 'registros'
-const META = 'meta'
-const CHAVE_DO_CLIENTE = 'clienteId'
 const PREFIXO_DO_BANCO = 'labirinto-lobby-fila'
 
 /** E-mail em minúsculas e sem espaços, como na conta (§4.3): o mesmo login cai sempre na mesma base. */
@@ -53,7 +56,6 @@ export function abrirBancoDaFila(email: string, campanhaId: string, fabrica: IDB
     pedido.onupgradeneeded = () => {
       const banco = pedido.result
       if (!banco.objectStoreNames.contains(REGISTROS)) banco.createObjectStore(REGISTROS, { autoIncrement: true })
-      if (!banco.objectStoreNames.contains(META)) banco.createObjectStore(META)
     }
     pedido.onsuccess = () => {
       const banco = pedido.result
@@ -102,29 +104,4 @@ export function armazenamentoNoIndexedDB(banco: IDBDatabase): ArmazenamentoDaFil
       await gravarNumaTransacao(banco, registros, true, 'compactar a fila')
     },
   }
-}
-
-/**
- * O `clienteId` deste navegador nesta campanha, guardado na mesma base da
- * fila: as ops pendentes de antes de recarregar e as novas saem do mesmo
- * aparelho (a fila do mesmo aparelho passa em sequência, sem conflito, §5.2).
- */
-export async function clienteIdDoBanco(banco: IDBDatabase, novoId: () => string): Promise<string> {
-  const transacao = banco.transaction(META, 'readwrite', { durability: 'strict' })
-  const fim = concluida(transacao, 'guardar o aparelho')
-  const loja = transacao.objectStore(META)
-  let clienteId = ''
-  // Callback, e não `await`: o pedido seguinte tem de sair com a transação ainda ativa.
-  const pedido = loja.get(CHAVE_DO_CLIENTE)
-  pedido.onsuccess = () => {
-    const guardado: unknown = pedido.result
-    if (segmentoValido(guardado)) {
-      clienteId = guardado
-      return
-    }
-    clienteId = novoId()
-    loja.put(clienteId, CHAVE_DO_CLIENTE)
-  }
-  await fim
-  return clienteId
 }
