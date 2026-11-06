@@ -1,0 +1,374 @@
+/* ============================================ MURAL (fatia M2)
+   Notícias do mestre, avisos fixados e o feed do que mudou nas fichas.
+   Mesma folha, abas e eventos das telas da S3; o que é só do mural é o
+   AVISO FIXADO: um bilhete pregado, com o pino e a régua de latão. */
+
+.lo-pagina--mural .lo-folha { overflow: hidden; }
+
+/* -------------------------------------------- o aviso fixado (faixa e mural) */
+
+.lo-avisos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  width: min(var(--lo-largura), calc(100% - 2 * var(--lo-margem)));
+  margin: var(--lb-space-5) auto 0;
+}
+
+.lo-aviso-fixo {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--lb-space-2) var(--lb-space-4);
+  padding: var(--lb-space-4) var(--lb-space-5);
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-lg);
+  background: linear-gradient(90deg, rgba(224, 164, 74, 0.1), transparent 70%), linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo));
+  box-shadow: var(--lb-shadow-md), var(--lb-shadow-bevel);
+  transition: opacity 150ms var(--lb-gr-ease-out), transform 150ms var(--lb-gr-ease-out);
+}
+
+/* A régua de latão na beira, como o aumento no histórico e a menção no chat. */
+.lo-aviso-fixo::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--lb-color-brass);
+}
+
+/* Entra uma vez, quando aparece (o aviso é raro: merece). */
+.lo-aviso-fixo[data-entra='1'] { animation: lo-aviso-entra 220ms var(--lb-gr-ease-out); }
+
+/* Marcado como lido: sai mais rápido do que entrou. */
+.lo-aviso-fixo[data-saindo='1'] { opacity: 0; transform: translateY(-4px); }
+
+.lo-aviso-fixo__pino {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lo-aviso-fixo__pino .lo-ic { width: 17px; height: 17px; }
+.lo-aviso-fixo__corpo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.lo-aviso-fixo__de {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-aviso-fixo__de b { color: var(--lb-color-brass-bright); font-weight: var(--lb-font-weight-semibold); }
+
+.lo-aviso-fixo__texto {
+  max-width: 72ch;
+  font-size: var(--lb-font-size-lg);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lo-aviso-fixo__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--lb-control-gap);
+}
+
+.lo-avisos__mais { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+/* --------------------------------------------------------- a página */
+
+.lo-mural__demo .lo-btn[aria-pressed='true'] { border-color: var(--lb-color-brass); color: var(--lb-color-parchment); }
+
+/* Versão nova do Labirinto: aviso calmo de maré, não alarme. */
+.lo-versao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2) var(--lb-space-4);
+  margin-bottom: var(--lb-space-5);
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-tide-soft);
+}
+
+.lo-versao > .lo-ic { color: var(--lb-color-tide); }
+.lo-versao__texto { flex: 1 1 32ch; min-width: 0; }
+.lo-versao__texto b { font-weight: var(--lb-font-weight-semibold); }
+.lo-versao__nota { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+.lo-mural__secao + .lo-mural__secao { margin-top: var(--lb-space-8); }
+
+.lo-mural__secao-titulo {
+  margin-bottom: var(--lb-space-3);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+/* --------------------------------------------------------- escrever */
+
+.lo-mural-escrever {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-4);
+  padding: var(--lb-space-4);
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-gr-cartao);
+}
+
+.lo-mural-escrever--editar { padding: var(--lb-space-3); background: transparent; }
+.lo-mural-escrever textarea.lo-texto { min-height: 112px; font-size: var(--lb-font-size-lg); }
+
+.lo-mural-escrever__dicas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px var(--lb-space-3);
+}
+
+.lo-mural-escrever__contador { font-variant-numeric: tabular-nums; }
+.lo-mural-escrever__contador[data-perto='1'] { color: var(--lb-color-brass-bright); }
+
+.lo-mural-escrever__acoes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-control-gap); }
+
+.lo-mural-imagens { margin: 0; padding: 0; border: 0; min-width: 0; }
+.lo-mural-imagens legend { margin-bottom: 6px; padding: 0; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+.lo-mural-imagens__lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+  margin-bottom: 6px;
+}
+
+/* Cada escolha é um rádio de verdade, escondido atrás da miniatura (o rótulo leva o clique e o teclado anda pelas setas). */
+.lo-mural-imagem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 56px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--lb-motion-fast) ease, transform 120ms var(--lb-gr-ease-out);
+}
+
+.lo-mural-imagem:active { transform: scale(0.97); }
+.lo-mural-imagem input { position: absolute; opacity: 0; pointer-events: none; }
+.lo-mural-imagem img { width: 100%; height: 100%; object-fit: cover; }
+.lo-mural-imagem:has(input:checked) { border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px var(--lb-color-brass); }
+.lo-mural-imagem:has(input:focus-visible) { outline: 2px solid var(--lb-color-brass); outline-offset: 2px; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-mural-imagem:hover { border-color: var(--lb-color-parchment-faint); }
+}
+
+/* --------------------------------------------------------- a notícia */
+
+.lo-noticias {
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-gr-cartao);
+  overflow: hidden;
+}
+
+.lo-noticia {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: var(--lb-space-3);
+  padding: var(--lb-space-4) var(--lb-space-5);
+}
+
+.lo-noticia + .lo-noticia { border-top: 1px solid var(--lb-gr-filete); }
+.lo-noticia > .lo-av { width: 36px; height: 36px; }
+.lo-noticia__corpo { display: flex; flex-direction: column; gap: var(--lb-space-3); min-width: 0; }
+
+.lo-noticia__cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--lb-space-2);
+  min-height: 28px;
+}
+
+.lo-noticia__quem { font-weight: var(--lb-font-weight-semibold); }
+.lo-noticia__papel { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+.lo-noticia__hora {
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.lo-noticia__acoes { display: flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
+.lo-noticia__acoes .lo-btn { min-height: 30px; padding: 0 10px; font-size: var(--lb-font-size-sm); }
+
+.lo-noticia__texto {
+  max-width: 68ch;
+  font-size: var(--lb-font-size-lg);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lo-noticia__lapide { color: var(--lb-color-parchment-faint); font-style: italic; }
+
+/* A imagem tem caixa fixa: chegar não empurra o que já está sendo lido. */
+.lo-noticia__imagem {
+  max-width: 560px;
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  overflow: hidden;
+}
+
+.lo-noticia__imagem img { width: 100%; height: 100%; object-fit: contain; }
+
+.lo-noticia__imagem-falhou {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--lb-space-3);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  text-align: center;
+}
+
+/* Fixada: a régua de latão na beira, como o bilhete da faixa. */
+.lo-noticia[data-fixada='1'] { background: linear-gradient(90deg, rgba(224, 164, 74, 0.08), transparent 60%); }
+.lo-noticia[data-fixada='1']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--lb-color-brass);
+}
+
+.lo-noticia[data-pendente='1'] .lo-noticia__texto { color: var(--lb-color-parchment-dim); }
+.lo-noticia[data-recusada='1'] .lo-noticia__estado { color: var(--lb-color-ember); }
+
+.lo-noticia__estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-noticia__estado .lo-giro { width: 10px; height: 10px; border-width: 1.5px; }
+
+/* Só o que chega ao vivo entra com movimento (o que já estava aparece parado). */
+.lo-noticia[data-nova='1'] { animation: lo-mural-chega 220ms var(--lb-gr-ease-out); }
+
+@keyframes lo-mural-chega {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.lo-noticia__pe { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-4); }
+
+/* As reações: a lista fixa inteira, sempre no mesmo lugar; a que tem gente fica acesa. */
+.lo-reacoes { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.lo-reacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 40px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-full);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform 120ms var(--lb-gr-ease-out);
+}
+
+.lo-reacao__emoji { font-size: 15px; line-height: 1; filter: grayscale(0.6); opacity: 0.7; transition: filter var(--lb-motion-fast) ease, opacity var(--lb-motion-fast) ease; }
+.lo-reacao[data-tem='1'] { border-color: var(--lb-color-line-strong); background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); }
+.lo-reacao[data-tem='1'] .lo-reacao__emoji,
+.lo-reacao[aria-pressed='true'] .lo-reacao__emoji { filter: none; opacity: 1; }
+.lo-reacao[aria-pressed='true'] { border-color: var(--lb-color-brass); background: var(--lb-color-brass-soft); color: var(--lb-color-parchment); }
+.lo-reacao:active:not(:disabled) { transform: scale(0.97); }
+.lo-reacao:disabled { cursor: not-allowed; opacity: 0.5; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-reacao:hover:not(:disabled) { background: var(--lb-gr-hover); }
+  .lo-reacao:hover:not(:disabled) .lo-reacao__emoji { filter: none; opacity: 1; }
+}
+
+/* --------------------------------------------------------- modificações */
+
+.lo-mural-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lb-space-3) var(--lb-space-4);
+  margin-bottom: var(--lb-space-5);
+}
+
+.lo-mural-filtros .lo-campo { flex: 0 1 240px; min-width: 0; }
+
+.lo-escolha {
+  width: 100%;
+  min-height: var(--lo-alvo);
+  padding: 0 10px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-campo);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--lb-motion-fast) ease;
+}
+
+.lo-escolha:focus-visible { outline: none; border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px var(--lb-color-brass); }
+.lo-escolha option { background: var(--lb-color-stone-solid); color: var(--lb-color-parchment); }
+
+.lo-ev__ficha { color: var(--lb-color-parchment-dim); text-decoration: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-ev__ficha:hover { color: var(--lb-color-parchment); text-decoration: underline; }
+}
+
+@media (max-width: 640px) {
+  .lo-aviso-fixo { grid-template-columns: auto minmax(0, 1fr); padding: var(--lb-space-3) var(--lb-space-4); }
+  .lo-aviso-fixo__acoes { grid-column: 1 / -1; justify-content: flex-start; }
+  .lo-noticia { padding-inline: var(--lb-space-4); grid-template-columns: 28px minmax(0, 1fr); }
+  .lo-noticia > .lo-av { width: 28px; height: 28px; }
+  .lo-noticia__acoes { margin-left: 0; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-aviso-fixo[data-entra='1'], .lo-noticia[data-nova='1'] { animation: none; }
+  .lo-aviso-fixo[data-saindo='1'] { transform: none; }
+}

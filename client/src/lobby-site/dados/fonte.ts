@@ -1,4 +1,5 @@
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
+import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
 import type { MensagemDoCliente, MensagemDoServidor, Papel } from '../../lib/nuvem/tipos'
 
 /**
@@ -35,13 +36,14 @@ export interface Eu {
 export type MotivoDoFechamento = 'rede' | 'sem-acesso'
 
 /**
- * Tudo o que chega pelo canal da campanha: o protocolo das fichas (§5.4) e o
- * do chat (`chat.*`, fatia C2), que anda pela MESMA conexão.
+ * Tudo o que chega pelo canal da campanha: o protocolo das fichas (§5.4), o
+ * do chat (`chat.*`, fatia C2) e o do mural (`mural.*`, fatia M2), que andam
+ * pela MESMA conexão.
  */
-export type MensagemDoSite = MensagemDoServidor | MensagemDoChatDoServidor
+export type MensagemDoSite = MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor
 
-/** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat. */
-export type PedidoDoSite = MensagemDoCliente | PedidoDoChat
+/** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat e do mural. */
+export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural
 
 /** O frame é do chat (`chat.*`)? */
 export function ehDoChat(mensagem: MensagemDoSite): mensagem is MensagemDoChatDoServidor {
@@ -51,6 +53,16 @@ export function ehDoChat(mensagem: MensagemDoSite): mensagem is MensagemDoChatDo
 /** O pedido é do chat (`chat.*`)? */
 export function ehPedidoDoChat(pedido: PedidoDoSite): pedido is PedidoDoChat {
   return pedido.t.startsWith('chat.')
+}
+
+/** O frame é do mural (`mural.*`)? */
+export function ehDoMural(mensagem: MensagemDoSite): mensagem is MensagemDoMuralDoServidor {
+  return mensagem.t.startsWith('mural.')
+}
+
+/** O pedido é do mural (`mural.*`)? */
+export function ehPedidoDoMural(pedido: PedidoDoSite): pedido is PedidoDoMural {
+  return pedido.t.startsWith('mural.')
 }
 
 export interface OuvinteDoCanal {

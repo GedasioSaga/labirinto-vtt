@@ -50,7 +50,11 @@ export function Cabeca() {
             <li>{rota.tela === 'campanhas' ? <span aria-current="page">Suas mesas</span> : link({ tela: 'campanhas' }, 'Suas mesas')}</li>
             {campanha !== null && nomeDaMesa !== null && (
               <li>
-                {ficha === undefined && rota.tela !== 'chat' ? <span aria-current="page">{nomeDaMesa}</span> : link({ tela: 'campanha', campanhaId: campanha.campanhaId }, nomeDaMesa)}
+                {ficha === undefined && rota.tela !== 'chat' && rota.tela !== 'mural' ? (
+                  <span aria-current="page">{nomeDaMesa}</span>
+                ) : (
+                  link({ tela: 'campanha', campanhaId: campanha.campanhaId }, nomeDaMesa)
+                )}
               </li>
             )}
             {ficha !== undefined && (
@@ -63,9 +67,15 @@ export function Cabeca() {
                 <span aria-current="page">Chat</span>
               </li>
             )}
+            {campanha !== null && rota.tela === 'mural' && (
+              <li>
+                <span aria-current="page">Mural</span>
+              </li>
+            )}
           </ol>
         </nav>
         <div className="lo-topo__direita">
+          {campanha !== null && rota.tela !== 'mural' && <AtalhoDoMural campanhaId={campanha.campanhaId} />}
           {campanha !== null && rota.tela !== 'chat' && <AtalhoDoChat campanhaId={campanha.campanhaId} />}
           {naMesa.length > 0 && (
             <div className="lo-agora-mini" title={`Na mesa agora: ${nomesNaMesa}`}>
@@ -133,6 +143,27 @@ function AtalhoDoChat({ campanhaId }: { campanhaId: string }) {
       <Icone nome="conversa" />
       <span className="lo-chat-atalho__nome">Chat</span>
       {naoLidas > 0 && <span className="lo-chat__conta">{contagemDeNaoLidas(naoLidas)}</span>}
+    </a>
+  )
+}
+
+/** O caminho para o mural da mesa (M2) em toda tela da campanha, com os avisos ainda não lidos. */
+function AtalhoDoMural({ campanhaId }: { campanhaId: string }) {
+  const site = useSite()
+  const demo = useDoSite((estado) => estado.demo)
+  const meuId = useDoSite((estado) => estado.campanha?.eu?.contaId ?? null)
+  const naoLidos = useDoSite((estado) => estado.mural?.fixadas.filter((noticia) => !noticia.lida && noticia.autorContaId !== meuId).length ?? 0)
+  const alvo: Rota = { tela: 'mural', campanhaId, aba: 'noticias' }
+  return (
+    <a
+      className="lo-btn lo-btn--fantasma lo-chat-atalho"
+      href={enderecoDaRota(alvo, demo)}
+      onClick={aoClicarNoLink(site, alvo)}
+      aria-label={naoLidos > 0 ? `Mural da mesa, ${naoLidos} ${naoLidos === 1 ? 'aviso não lido' : 'avisos não lidos'}` : 'Mural da mesa'}
+    >
+      <Icone nome="mural" />
+      <span className="lo-chat-atalho__nome">Mural</span>
+      {naoLidos > 0 && <span className="lo-chat__conta">{naoLidos}</span>}
     </a>
   )
 }

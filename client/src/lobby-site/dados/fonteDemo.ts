@@ -6,7 +6,8 @@ import { fichaNoEstado, projetarMembros, projetarOpParaJogador } from '../../lib
 import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidade, type Membro, type MensagemDoServidor, type Op, type OpGravada, type Origem, type PresencaNaMesa, type Recusada } from '../../lib/nuvem/tipos'
 import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
-import { ehPedidoDoChat, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type OuvinteDoCanal, type PedidoDoSite, type Relogio } from './fonte'
+import { criarMuralDaDemo, type MuralDaDemo } from './muralDaDemo'
+import { ehPedidoDoChat, ehPedidoDoMural, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type OuvinteDoCanal, type PedidoDoSite, type Relogio } from './fonte'
 import { lerMensagemDoServidor } from './mensagens'
 
 /**
@@ -28,6 +29,8 @@ const MINUTO_MS = 60_000
 export interface FonteDaDemo extends FonteDoLobby {
   /** O botão de dev "simular mestre mudou": o mestre (no app) põe `valor` no campo agora. `false` = o servidor não aceitou. */
   simularMudancaDoMestre(campanhaId: string, fichaId: string, caminho: string[], valor: Json): boolean
+  /** O atalho "ver o mural como o mestre" (M2): o mural desta mesa passa a responder como se o mestre estivesse na página. */
+  verMuralComoMestre(campanhaId: string, comoMestre: boolean): void
 }
 
 interface CampanhaEmMemoria extends LeitorDaCampanha {
@@ -134,6 +137,18 @@ interface ServidorDaDemo {
   chats: Map<string, ChatDaDemo>
   /** Os canais abertos, para a difusão do `aplicada` (inclusive a mudança simulada do mestre). */
   abertos: Set<(campanhaId: string, ops: readonly OpGravada[]) => void>
+  /** O mural de cada mesa (M2), com as notícias inventadas. */
+  murais: Map<string, MuralDaDemo>
+  /** As mesas cujo mural responde como o mestre (o atalho da demo). */
+  comoMestre: Set<string>
+  /** Os canais abertos, para mandar o `mural.estado` de novo quando a vista do mural muda. */
+  muraisAbertos: Set<(campanhaId: string) => void>
+}
+
+/** Quem fala com o mural: quem vê a demo, ou o mestre quando o atalho "ver como o mestre" está ligado. */
+function quemNoMural(servidor: ServidorDaDemo, campanha: CampanhaEmMemoria, membro: Membro): Membro {
+  if (!servidor.comoMestre.has(campanha.campanhaId)) return membro
+  return campanha.membro(CONTA_DO_MESTRE) ?? membro
 }
 
 function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte: OuvinteDoCanal, relogio: Relogio): Canal {
@@ -147,6 +162,16 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
     encerrado = true
     aberto = false
     servidor.abertos.delete(difundir)
+    servidor.muraisAbertos.delete(reenviarMural)
+  }
+  /** O `mural.estado` como o DO manda depois de cada `ola` (e de novo quando a vista da demo muda). */
+  function mandarMural(): void {
+    const mural = servidor.murais.get(campanhaId)
+    if (campanha === undefined || membro === undefined || mural === undefined) return
+    entregar(mural.estadoPara(quemNoMural(servidor, campanha, membro)))
+  }
+  function reenviarMural(deQual: string): void {
+    if (aberto && deQual === campanhaId) mandarMural()
   }
   /** Ida e volta pelo JSON e pelo leitor da fonte real, como no fio. */
   function entregar(mensagem: MensagemDoSite): void {
@@ -175,6 +200,10 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
       servidor.chats.get(campanhaId)?.atender(mensagem, eu, entregar)
       return
     }
+    if (ehPedidoDoMural(mensagem)) {
+      servidor.murais.get(campanhaId)?.atender(mensagem, quemNoMural(servidor, alvo, eu), entregar)
+      return
+    }
     const agora = relogio.agora()
     switch (mensagem.t) {
       case 'ola': {
@@ -184,6 +213,7 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
         if (desde === null || desde > rev || rev - desde > LIMITE_SEM_SNAPSHOT) entregar(estadoPara(alvo, eu))
         else entregar({ t: 'ops', desde, ate: rev, lista: projetarOps(alvo, eu, alvo.todasAsOps().filter((op) => op.rev > desde)) })
         entregar(presencaPara(alvo, eu))
+        mandarMural()
         return
       }
       case 'ops':
@@ -209,6 +239,7 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
     }
     aberto = true
     servidor.abertos.add(difundir)
+    servidor.muraisAbertos.add(reenviarMural)
     ouvinte.aoAbrir()
   })
 
@@ -240,7 +271,14 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
     if (quemVe === undefined) continue
     chats.set(campanha.campanhaId, criarChatDaDemo(campanha.campanhaId, quemVe.contaId, campanha.todosOsMembros, relogio.agora, relogio.depois))
   }
-  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set() }
+  const murais = new Map<string, MuralDaDemo>()
+  for (const campanha of campanhas.values()) {
+    murais.set(
+      campanha.campanhaId,
+      criarMuralDaDemo(campanha.campanhaId, { agora: relogio.agora, membros: campanha.todosOsMembros, todasAsOps: campanha.todasAsOps, ficha: campanha.ficha }),
+    )
+  }
+  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set(), murais, comoMestre: new Set(), muraisAbertos: new Set() }
   let simuladas = 0
 
   return {
@@ -276,6 +314,12 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
       campanha.gravar(resultado.gravacoes)
       for (const aberto of servidor.abertos) aberto(campanhaId, resultado.gravacoes.ops)
       return resultado.respostas.some((resposta) => resposta.t === 'ack')
+    },
+    verMuralComoMestre(campanhaId, comoMestre) {
+      if (servidor.comoMestre.has(campanhaId) === comoMestre) return
+      if (comoMestre) servidor.comoMestre.add(campanhaId)
+      else servidor.comoMestre.delete(campanhaId)
+      for (const reenviar of servidor.muraisAbertos) reenviar(campanhaId)
     },
   }
 }

@@ -8,6 +8,8 @@ import { aoClicarNoLink, useDoSite, useSite } from './contexto'
 import { mudancasACaminho } from './enviar'
 import { TelaChat } from './chat/TelaChat'
 import { AvisoDaPagina } from './Estados'
+import { FaixaDeAvisos } from './mural/FaixaDeAvisos'
+import { TelaMural } from './mural/TelaMural'
 import { TelaAcesso } from './TelaAcesso'
 import { TelaCampanha } from './TelaCampanha'
 import { TelaCampanhas } from './TelaCampanhas'
@@ -66,6 +68,7 @@ export function Site() {
   else if (rota.tela === 'campanha') pagina = <TelaCampanha campanhaId={rota.campanhaId} />
   else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
   else if (rota.tela === 'chat') pagina = <TelaChat rota={rota} />
+  else if (rota.tela === 'mural') pagina = <TelaMural rota={rota} />
   else {
     const mesas: Rota = { tela: 'campanhas' }
     pagina = (
@@ -89,6 +92,8 @@ export function Site() {
       </a>
       <Cabeca />
       <main id="conteudo" className="lo-principal" tabIndex={-1}>
+        {/* O aviso fixado do mestre, ao entrar em qualquer tela da mesa, até a pessoa marcar como lido (M2). */}
+        {eu.t === 'pronto' && <FaixaDeAvisos />}
         {pagina}
       </main>
     </ImagemDaMesa.Provider>
@@ -105,6 +110,8 @@ function tituloDe(rota: Rota, nomeDaFicha: string | undefined, nomeDaMesa: strin
       return nomeDaFicha ?? nomeDaMesa ?? null
     case 'chat':
       return nomeDaMesa === undefined ? 'Chat' : `Chat de ${nomeDaMesa}`
+    case 'mural':
+      return nomeDaMesa === undefined ? 'Mural' : `Mural de ${nomeDaMesa}`
     case 'nao-achada':
       return 'Página não encontrada'
   }

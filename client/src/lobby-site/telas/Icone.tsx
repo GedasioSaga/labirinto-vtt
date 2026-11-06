@@ -51,6 +51,17 @@ const TRACOS = {
   conversa: <path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z" />,
   /** Baixar a conversa (C2). */
   baixar: <path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" />,
+  /** Mural (M2): o quadro de avisos. */
+  mural: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M8 9h8M8 13h5" />
+    </>
+  ),
+  /** Aviso fixado (M2): o pino. */
+  fixar: <path d="M12 16.5V21M8.5 3.5h7M10 3.5v5.2l-3 3.3v1.5h10V12l-3-3.3V3.5" />,
+  /** Editar a notícia (M2): o lápis. */
+  editar: <path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19zM14.5 6.5l3 3" />,
 } as const
 
 export type NomeDoIcone = keyof typeof TRACOS

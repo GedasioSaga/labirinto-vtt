@@ -12,11 +12,15 @@ import { segmentoValido } from '../../lib/nuvem/caminho'
  *   /c/:campanhaId/f/:fichaId/historico
  *   /c/:campanhaId/chat                a sala do chat (C2)
  *   /c/:campanhaId/chat/:contaId       o privado com essa conta
+ *   /c/:campanhaId/mural               o mural: notícias e avisos (M2)
+ *   /c/:campanhaId/mural/modificacoes  o feed do que mudou nas fichas
  *
  * `?demo=1` liga a demo e viaja junto em toda navegação.
  */
 
 export type AbaDaFicha = 'ficha' | 'mochila' | 'historico'
+
+export type AbaDoMural = 'noticias' | 'modificacoes'
 
 export type Rota =
   | { tela: 'campanhas' }
@@ -24,6 +28,7 @@ export type Rota =
   | { tela: 'ficha'; campanhaId: string; fichaId: string; aba: AbaDaFicha }
   /** `com` = o contaId do outro lado do privado; `null` = a sala. */
   | { tela: 'chat'; campanhaId: string; com: string | null }
+  | { tela: 'mural'; campanhaId: string; aba: AbaDoMural }
   | { tela: 'nao-achada' }
 
 const NAO_ACHADA: Rota = { tela: 'nao-achada' }
@@ -56,6 +61,11 @@ export function lerRota(caminho: string): Rota {
     if (fichaId === undefined) return { tela: 'chat', campanhaId, com: null }
     return segmentoValido(fichaId) ? { tela: 'chat', campanhaId, com: fichaId } : NAO_ACHADA
   }
+  if (f === 'mural') {
+    if (parteDaAba !== undefined) return NAO_ACHADA
+    if (fichaId === undefined) return { tela: 'mural', campanhaId, aba: 'noticias' }
+    return fichaId === 'modificacoes' ? { tela: 'mural', campanhaId, aba: 'modificacoes' } : NAO_ACHADA
+  }
   const aba = abaDe(parteDaAba)
   if (f !== 'f' || !segmentoValido(fichaId) || aba === null) return NAO_ACHADA
   return { tela: 'ficha', campanhaId, fichaId, aba }
@@ -76,12 +86,16 @@ export function caminhoDaRota(rota: Rota): string {
       const doChat = `/c/${encodeURIComponent(rota.campanhaId)}/chat`
       return rota.com === null ? doChat : `${doChat}/${encodeURIComponent(rota.com)}`
     }
+    case 'mural': {
+      const doMural = `/c/${encodeURIComponent(rota.campanhaId)}/mural`
+      return rota.aba === 'noticias' ? doMural : `${doMural}/modificacoes`
+    }
   }
 }
 
 /** A campanha que a rota abre; `null` = rota fora de campanha. */
 export function campanhaDaRota(rota: Rota): string | null {
-  return rota.tela === 'campanha' || rota.tela === 'ficha' || rota.tela === 'chat' ? rota.campanhaId : null
+  return rota.tela === 'campanha' || rota.tela === 'ficha' || rota.tela === 'chat' || rota.tela === 'mural' ? rota.campanhaId : null
 }
 
 export function ehDemo(busca: string): boolean {

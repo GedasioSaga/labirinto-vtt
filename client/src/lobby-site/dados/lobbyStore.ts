@@ -7,7 +7,10 @@ import { ErroDoEu, type Eu, type FonteDoLobby } from './fonte'
 import { criarFonteDemo } from './fonteDemo'
 import { criarFonteReal } from './fonteReal'
 import { campanhaDaRota, ehDemo, enderecoDaRota, lerRota, type Rota } from './rotas'
+import { criarMuralDaCampanha, type EstadoDoMural, type MuralDaCampanha } from './muralDaCampanha'
+import { VERSAO_NOVA_DA_DEMO } from './muralDaDemo'
 import { abrirSessaoDaCampanha, type EstadoDaCampanha, type SessaoDaCampanha } from './sessaoDaCampanha'
+import { vigiarVersaoDoSite, type VersaoNova } from './versaoDoSite'
 
 /**
  * O STORE DO SITE (fatia S2): quem é a pessoa (`/api/eu`), a rota e a
@@ -31,6 +34,10 @@ export interface EstadoDoSite {
   chat: EstadoDoChat | null
   /** Mensagens do chat de mesas que a pessoa deixou nesta aba e que ainda vão sair (quando a mesa abrir de novo). */
   chatGuardado: number
+  /** O mural da campanha aberta (M2); `null` junto com ela. */
+  mural: EstadoDoMural | null
+  /** O servidor já serve uma versão do Labirinto maior que a desta página (M2, cartão do mural). */
+  versaoNova: VersaoNova | null
   /** Não deu para abrir a campanha (IndexedDB bloqueado, navegador sem espaço). */
   erroDaCampanha: string | null
 }
@@ -43,6 +50,8 @@ export interface Site {
   sessao(): SessaoDaCampanha | null
   /** O chat da campanha aberta, para mandar, apagar, ler e baixar. */
   chat(): ChatDaCampanha | null
+  /** O mural da campanha aberta, para postar, reagir, marcar lido e ver as modificações. */
+  mural(): MuralDaCampanha | null
   encerrar(): void
 }
 
@@ -62,6 +71,7 @@ interface Aberta {
   campanhaId: string
   sessao: SessaoDaCampanha
   chat: ChatDaCampanha
+  mural: MuralDaCampanha
   fecharBanco(): void
 }
 
@@ -110,7 +120,19 @@ function ambienteDaAba(janela: JanelaDoSite): AmbienteDaAba {
 export function iniciarSite(janela: JanelaDoSite): Site {
   const demo = ehDemo(janela.location.search)
   const fonte = demo ? criarFonteDemo() : criarFonteReal({ origem: janela.location.origin })
-  const store = createStore<EstadoDoSite>(() => ({ demo, eu: { t: 'carregando' }, rota: lerRota(janela.location.pathname), campanha: null, chat: null, chatGuardado: 0, erroDaCampanha: null }))
+  const store = createStore<EstadoDoSite>(() => ({
+    demo,
+    eu: { t: 'carregando' },
+    rota: lerRota(janela.location.pathname),
+    campanha: null,
+    chat: null,
+    chatGuardado: 0,
+    mural: null,
+    // A demo não tem carimbo: o cartão aparece com versões inventadas, para a tela ter o que mostrar.
+    versaoNova: demo ? VERSAO_NOVA_DA_DEMO : null,
+    erroDaCampanha: null,
+  }))
+  const pararAVigia = demo ? () => undefined : vigiarVersaoDoSite({ origem: janela.location.origin, aoAchar: (versaoNova) => store.setState({ versaoNova }) })
   let aberta: Aberta | null = null
   /**
    * O chat que ficou sem sair, por mesa. As pendentes vivem só na memória da aba: sair da mesa ("Suas mesas", outra
@@ -140,6 +162,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     if (guardar.length > 0) chatGuardado.set(aberta.campanhaId, guardar)
     else chatGuardado.delete(aberta.campanhaId)
     aberta.chat.fechar()
+    aberta.mural.fechar()
     aberta.sessao.fechar()
     aberta.fecharBanco()
     aberta = null
@@ -158,6 +181,12 @@ export function iniciarSite(janela: JanelaDoSite): Site {
       },
       pendentesGuardadas: chatGuardado.get(campanhaId),
     })
+    const mural = criarMuralDaCampanha({
+      enviar: (pedido) => sessao?.enviarDoMural(pedido) ?? false,
+      aoMudar: (estadoDoMural) => {
+        if (minha === aberturas) store.setState({ mural: estadoDoMural })
+      },
+    })
     try {
       sessao = await abrirSessaoDaCampanha({
         fonte,
@@ -168,22 +197,25 @@ export function iniciarSite(janela: JanelaDoSite): Site {
           if (minha === aberturas) store.setState({ campanha })
         },
         chat,
+        mural,
       })
     } catch (erro) {
       chat.fechar()
+      mural.fechar()
       fila.fecharBanco()
       throw erro
     }
     if (minha !== aberturas) {
       chat.fechar()
+      mural.fechar()
       sessao.fechar()
       fila.fecharBanco()
       return
     }
-    aberta = { campanhaId, sessao, chat, fecharBanco: fila.fecharBanco }
+    aberta = { campanhaId, sessao, chat, mural, fecharBanco: fila.fecharBanco }
     // As guardadas agora moram no chat aberto (e voltam para cá se a pessoa sair de novo antes de saírem).
     chatGuardado.delete(campanhaId)
-    store.setState({ campanha: sessao.estado(), chat: chat.estado(), chatGuardado: contarChatGuardado(), erroDaCampanha: null })
+    store.setState({ campanha: sessao.estado(), chat: chat.estado(), mural: mural.estado(), chatGuardado: contarChatGuardado(), erroDaCampanha: null })
   }
 
   /** Abre a campanha da rota (e fecha a anterior), quando o `/api/eu` já respondeu. */
@@ -195,15 +227,15 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     aberturas += 1
     fecharAberta()
     if (campanhaId === null) {
-      store.setState({ campanha: null, chat: null, erroDaCampanha: null })
+      store.setState({ campanha: null, chat: null, mural: null, erroDaCampanha: null })
       return
     }
     // Mesa que não está na lista desta pessoa: não abre base nem canal com id que veio só da URL.
     if (!eu.eu.campanhas.some((campanha) => campanha.campanhaId === campanhaId)) {
-      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, erroDaCampanha: null })
+      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, mural: null, erroDaCampanha: null })
       return
     }
-    store.setState({ campanha: null, chat: null, erroDaCampanha: null })
+    store.setState({ campanha: null, chat: null, mural: null, erroDaCampanha: null })
     const minha = aberturas
     abrir(eu.eu, campanhaId, minha).catch((erro: unknown) => {
       if (minha === aberturas) store.setState({ erroDaCampanha: textoDoErro(erro) })
@@ -243,9 +275,11 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     },
     sessao: () => aberta?.sessao ?? null,
     chat: () => aberta?.chat ?? null,
+    mural: () => aberta?.mural ?? null,
     encerrar() {
       aberturas += 1
       fecharAberta()
+      pararAVigia()
       janela.removeEventListener('popstate', aoVoltarNaHistoria)
       janela.removeEventListener('online', aoVoltarARede)
     },

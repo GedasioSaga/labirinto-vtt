@@ -16,7 +16,8 @@ import {
 } from '../../lib/nuvem/tipos'
 import type { Personagem } from '../../lib/personagem'
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
-import { ehDoChat, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type MotivoDoFechamento, type Relogio } from './fonte'
+import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
+import { ehDoChat, ehDoMural, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type MotivoDoFechamento, type Relogio } from './fonte'
 
 /**
  * A SESSÃO DE UMA CAMPANHA no site (§5.4-5.6): o protocolo inteiro do lado do
@@ -129,6 +130,8 @@ export interface SessaoDaCampanha {
   reconectarAgora(): void
   /** Um pedido do chat pelo mesmo canal. `false` = canal fora do ar ou ainda sem a base (o chat espera o `aoFicarEmDia`). */
   enviarDoChat(pedido: PedidoDoChat): boolean
+  /** Um pedido do mural (M2) pelo mesmo canal; `false` como no `enviarDoChat` (o mural espera o `aoFicarEmDia`). */
+  enviarDoMural(pedido: PedidoDoMural): boolean
   fechar(): void
 }
 
@@ -144,6 +147,13 @@ export interface ParteDoCanal {
   aoCair(): void
 }
 
+/** O mural (M2) pelo mesmo canal, como o chat: recebe os `mural.*`, sabe quando o canal fica em dia e quando cai. */
+export interface ParteDoMural {
+  aoFicarEmDia(): void
+  aoReceber(mensagem: MensagemDoMuralDoServidor): void
+  aoCair(): void
+}
+
 export interface OpcoesDaSessao {
   fonte: FonteDoLobby
   campanhaId: string
@@ -152,6 +162,8 @@ export interface OpcoesDaSessao {
   aoMudar(estado: EstadoDaCampanha): void
   /** O chat da campanha (C2); sem ele, frame `chat.*` é ignorado. */
   chat?: ParteDoCanal
+  /** O mural da campanha (M2); sem ele, frame `mural.*` é ignorado. */
+  mural?: ParteDoMural
   relogio?: Relogio
   novoId?: () => string
 }
@@ -301,6 +313,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     pararAdiados()
     if (encerrada) return
     opcoes.chat?.aoCair()
+    opcoes.mural?.aoCair()
     if (motivo === 'sem-acesso') {
       conexao = 'sem-acesso'
       publicar()
@@ -357,6 +370,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     }
     for (const [fichaId, antesDeRev] of historicosPedidos) mandarHistorico(fichaId, antesDeRev)
     opcoes.chat?.aoFicarEmDia()
+    opcoes.mural?.aoFicarEmDia()
   }
 
   // ── O que chega ──────────────────────────────────────────────────────────
@@ -365,6 +379,11 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     // O chat tem estado próprio e não mexe na base: vai direto a ele, sem publicar a campanha.
     if (ehDoChat(mensagem)) {
       opcoes.chat?.aoReceber(mensagem)
+      return
+    }
+    // O mural (M2) também: estado próprio, fora da base.
+    if (ehDoMural(mensagem)) {
+      opcoes.mural?.aoReceber(mensagem)
       return
     }
     switch (mensagem.t) {
@@ -399,6 +418,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
         pararPrazoDoEstado()
         pararAdiados()
         opcoes.chat?.aoCair()
+        opcoes.mural?.aoCair()
         break
       case 'presenca':
         naMesa = mensagem.naMesa
@@ -622,6 +642,10 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       conectar()
     },
     enviarDoChat(pedido) {
+      if (!sincronizada || canal === null) return false
+      return canal.enviar(pedido)
+    },
+    enviarDoMural(pedido) {
       if (!sincronizada || canal === null) return false
       return canal.enviar(pedido)
     },

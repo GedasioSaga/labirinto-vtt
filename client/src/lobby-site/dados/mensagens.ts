@@ -6,6 +6,7 @@ import type { FichaNoEstado, MembroProjetado, MensagemDoServidor, OpGravada, Ori
 import { personagemDoArquivo } from '../../lib/personagem'
 import type { MensagemDoSite } from './fonte'
 import { lerFrameDoChat } from './fioDoChat'
+import { lerFrameDoMural } from './fioDoMural'
 
 /**
  * LEITURA DO FIO (§5.4): o que chega do servidor é conferido aqui antes de
@@ -139,6 +140,8 @@ function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoSite | null {
   const t = proprio(bruto, 't')
   // O chat (C2) anda pelo mesmo canal: os frames dele têm leitor próprio.
   if (typeof t === 'string' && t.startsWith('chat.')) return lerFrameDoChat(bruto)
+  // O mural (M2) também: o DO manda o `mural.estado` logo depois de cada `ola`.
+  if (typeof t === 'string' && t.startsWith('mural.')) return lerFrameDoMural(bruto)
   switch (t) {
     case 'estado':
       return lerEstado(bruto)
