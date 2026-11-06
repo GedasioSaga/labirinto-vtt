@@ -103,6 +103,7 @@ import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealB
 import { PenhascoControls } from './PenhascoControls'
 import { BarrancoControls } from './BarrancoControls'
 import { TexturasControls } from './TexturasControls'
+import { NeblinaControls } from './NeblinaControls'
 import { CarimbosControls } from './CarimbosControls'
 import { PinControls, type PinControlsProps } from './PinControls'
 import type { PinIconControlsProps } from './PinIconControls'
@@ -833,6 +834,9 @@ export function PropertiesPanel({
         </ToolPropertiesSection>
         <ToolPropertiesSection group="texturas" groups={groups}>
           <TexturasControls />
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="neblina" groups={groups}>
+          <NeblinaControls />
         </ToolPropertiesSection>
         <ToolPropertiesSection group="carimbos" groups={groups}>
           <CarimbosControls />

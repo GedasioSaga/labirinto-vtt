@@ -6,7 +6,7 @@ import type {
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, FormaDaPonte, FormaDoMoinho, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
-  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo,
+  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo, NeblinaDoMapa,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
@@ -30,7 +30,7 @@ import { estiloDoMapa, type EstiloVisual } from '../lib/estiloDoMapa'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
-import { comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
+import { comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { trocarFormaDoItem as trocarForma } from '../lib/itemNoMapa'
 import type { TamanhoDoFogo } from '../lib/mobilia/fogo'
@@ -122,6 +122,7 @@ import {
   type ModoDaTextura,
   type ResultadoDaTextura,
 } from '../lib/texturas'
+import { comNeblina, comNeblinaPintada, somarPinceladaDeNeblina, type ResultadoDaNeblina } from '../lib/neblina'
 import { alvoDoBalde, caixaDoAlvo } from '../lib/baldeDeTextura'
 import { texturaDoCatalogo } from '../texturas/catalogo'
 import {
@@ -1354,6 +1355,12 @@ interface MapStoreState {
   removerTexturaImportada: (id: string) => void
   /** Tira tudo o que a ferramenta Texturas pintou na cena aberta (as importadas ficam na biblioteca). Com desfazer. */
   apagarTodasAsTexturas: () => void
+  /** NEBLINA (`lib/neblina.ts`): UMA pincelada do pincel de Neblina no piso em edição, um passo no desfazer. */
+  pintarNeblina: (pincelada: { tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: PontoDoMundo[] }) => ResultadoDaNeblina
+  /** Tira a neblina pintada do piso em edição (a chave do mapa inteiro fica). Com desfazer. */
+  apagarTodaANeblinaPintada: () => void
+  /** A chave e a intensidade da neblina do mapa inteiro. `juntar`: o arrasto da intensidade vira um passo só no desfazer. */
+  setNeblinaDoMapa: (neblina: NeblinaDoMapa, juntar?: boolean) => void
   /**
    * CARIMBOS (`lib/carimbos.ts`): grava os objetos que UM gesto soltou (um
    * clique ou um spray inteiro) — um passo no desfazer. Acima do teto da cena
@@ -3106,6 +3113,27 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if ((mapaDoPiso(map, pisoAtivo).texturas ?? []).length === 0) return
       if (terrenoBarrado()) return
       withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], [], pisoAtivo)))
+    },
+    pintarNeblina: (pincelada) => {
+      const { map, pisoAtivo } = get()
+      const antes = mapaDoPiso(map, pisoAtivo).neblinaPintada ?? []
+      const { lista, resultado } = somarPinceladaDeNeblina(antes, { ...pincelada, id: crypto.randomUUID() })
+      // O passo novo ganha o piso em edição no `withHistory` (`nascemNoPiso` não conhece a neblina: vai aqui).
+      if (lista !== antes) {
+        const comOPiso = lista.map((p) => (p.id === lista[lista.length - 1].id ? comPiso(p, pisoAtivo) : p))
+        withHistory((m) => comNeblinaPintada(m, comListaDoPiso(m.neblinaPintada ?? [], comOPiso, pisoAtivo)))
+      }
+      return resultado
+    },
+    apagarTodaANeblinaPintada: () => {
+      const { map, pisoAtivo } = get()
+      if ((mapaDoPiso(map, pisoAtivo).neblinaPintada ?? []).length === 0) return
+      withHistory((m) => comNeblinaPintada(m, comListaDoPiso(m.neblinaPintada ?? [], [], pisoAtivo)))
+    },
+    setNeblinaDoMapa: (neblina, juntar = false) => {
+      // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
+      if (comNeblina(get().map, neblina) === get().map) return
+      withHistory((map) => comNeblina(map, neblina), juntar ? 'neblina-do-mapa' : undefined)
     },
     carimbar: (novos) => {
       const { map } = get()

@@ -2366,6 +2366,22 @@ export interface MapData {
    */
   nuvens?: boolean
   /**
+   * NEBLINA DO MAPA INTEIRO (`lib/neblina.ts`): a bruma por cima do mapa todo,
+   * acima da noite e da névoa do jogador (cobre, nunca revela). Ausente = sem
+   * neblina, sem linha de migração. Desligada guarda a intensidade escolhida.
+   * Atravessa inteira no recorte do jogador: não tem forma, então não entrega
+   * nada do que ele não conhece.
+   */
+  neblina?: NeblinaDoMapa
+  /**
+   * NEBLINA PINTADA (`lib/neblina.ts`): as pinceladas do pincel de Neblina,
+   * na ordem em que o mestre as fez (a de depois cobre a de antes). Ausente =
+   * nenhuma. Sai no recorte do jogador só o que encosta no que ele conhece
+   * (`neblinaParaJogador`), como as texturas: o desenho da neblina sobre o
+   * que ele não explorou entregaria a forma do lugar.
+   */
+  neblinaPintada?: PinceladaDeNeblina[]
+  /**
    * CLICAR PARA ANDAR (`lib/cliqueParaAndar.ts`): a chave do mestre nesta cena.
    * Ausente = LIGADA (mapa de antes abre e salva igual, sem linha de migração);
    * só `false` desliga, e aí o host recusa todo trecho de caminhada
@@ -2609,6 +2625,20 @@ export type PinceladaDeTextura = NoPiso & (
   | { id: string; tipo: 'balde'; textura: string; forca: number; alvo: AlvoDoBalde }
   | { id: string; tipo: 'sala'; regiao: string }
 )
+
+/** A neblina do mapa inteiro (`lib/neblina.ts`): a chave e a intensidade (0 a 100). */
+export interface NeblinaDoMapa {
+  ligada: boolean
+  intensidade: number
+}
+
+/**
+ * Um passo do pincel de Neblina (`lib/neblina.ts`): o `pincel` deixa a
+ * neblina na `forca` (0 a 1) debaixo do caminho, por cima do que havia ali; a
+ * `borracha` tira `forca` dela. `piso` (`NoPiso`): o piso em que o passo foi
+ * feito; ausente = térreo.
+ */
+export type PinceladaDeNeblina = NoPiso & { id: string; tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: RegionPoint[] }
 
 /** A forma que o balde enche: uma região (pelo id) ou um desenho pintado (pelo id). */
 export interface AlvoDoBalde {

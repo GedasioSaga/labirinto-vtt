@@ -32,6 +32,7 @@ import { expect, test, type Browser, type BrowserContext, type CDPSession, type 
 import { serializeMap } from '../src/lib/mapFile'
 import type { MapData, Token } from '../src/types/map'
 import { mapaSintetico, zonasOcultasPara } from './mapaSintetico'
+import { provasDaNeblina } from './provasDaNeblina'
 import { conferirMetasF3, ligarProvaF3, lerProvaF3, metasF3Ligadas, provaF3Ligada } from './metas-f3'
 import { conferirMetasF5 } from './metas-f5'
 import { conferirMetasF9, metasF9Ligadas } from './metas-f9'
@@ -65,6 +66,9 @@ const MAPA_REAL = process.env.LAB_DES_MAPA_REAL ?? ''
 const FOTOS = process.env.LAB_DES_FOTOS ?? ''
 /** MODO BATALHA (B5): `LAB_DES_BATALHA=1` liga a batalha na cena antes dos cenários (grade de batalha no mestre e no jogador). */
 const BATALHA = process.env.LAB_DES_BATALHA === '1'
+/** NEBLINA (06/11/2026): `LAB_DES_NEBLINA=60` liga a neblina do mapa inteiro nessa intensidade antes dos cenários; `LAB_DES_NEBLINA_PROVAS` = pasta (fora do repo) das provas visuais, no fim da mesa. */
+const NEBLINA = Number(process.env.LAB_DES_NEBLINA ?? '0')
+const PROVAS_DA_NEBLINA = process.env.LAB_DES_NEBLINA_PROVAS ?? ''
 
 const AVENTURA = 'Mesa de medida'
 const PASTA = 'C:/appdata/maps/map_medida'
@@ -807,6 +811,13 @@ for (const caso of CASOS) {
         s.batalhaStore.getState().ligar(s.adventureStore.getState().activeSceneId ?? s.mapStore.getState().map.id)
       })
     }
+    registro.neblina = NEBLINA
+    if (NEBLINA > 0) {
+      await mestre.evaluate((intensidade) => {
+        const s = (window as unknown as Janela).__labSonda as { mapStore: { getState: () => { setNeblinaDoMapa: (n: { ligada: boolean; intensidade: number }) => void } } } // as: a sonda do app
+        s.mapStore.getState().setNeblinaDoMapa({ ligada: true, intensidade })
+      }, NEBLINA)
+    }
     await mestre.waitForTimeout(1500)
 
     const centro = await centroDoCanvas(mestre)
@@ -1029,6 +1040,7 @@ for (const caso of CASOS) {
         esconderZonas,
       )
       registro.gpu_jogador_fim = await memoriaDaGpu(jogador, 'appJogador')
+      if (PROVAS_DA_NEBLINA !== '') registro.provas_da_neblina = await provasDaNeblina(mestre, jogador, PROVAS_DA_NEBLINA)
     }
 
     // Abrir o mapa com o perfil ligado (outra aba do mesmo contexto, mesma mesa de mentira).

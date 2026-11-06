@@ -80,6 +80,8 @@ import {
 } from '../lib/nomesDosLugares'
 import { createNuvensRenderer, definirOpacidadeDasNuvens, lerOpacidadeDasNuvens, type NuvensRenderer } from '../pixi/drawNuvens'
 import { nuvensLigadas } from '../lib/nuvens'
+import { createNeblinaRenderer, type NeblinaRenderer } from '../pixi/drawNeblina'
+import { intensidadeDoMapaInteiro, temNeblina } from '../lib/neblina'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
@@ -1367,6 +1369,12 @@ interface Scene {
    * que o jogador já conhece. Abaixo dos nomes, pinos e fichas.
    */
   nuvens: NuvensRenderer
+  /**
+   * NEBLINA (`pixi/drawNeblina.ts`): ACIMA da névoa e do mapa de luz (entre a
+   * tinta e o contorno das fichas), para a bruma seguir à vista de noite e no
+   * escuro. Só cobre; a pintada já chega cortada ao conhecido (`neblinaParaJogador`).
+   */
+  neblina: NeblinaRenderer
   /** As pílulas do último recorte, antes do filtro do conhecido: o pacote novo com a mesma assinatura reusa a lista. */
   lugaresKey: ContentKey
   lugares: LugarComNome[]
@@ -3275,6 +3283,20 @@ function PlayerViewDoCanvas({
     scene.nuvens.atualizar(
       nuvensLigadas(currentMap) && efeitosDoMapaLigados(currentSettings) && !modoLeve ? { cena: currentMap.id, mapa: currentMap } : null,
     )
+    // NEBLINA: é o mestre quem a põe, então fica à vista mesmo sem "Efeitos do
+    // mapa" (aí parada); só o modo leve (o WebGL já caiu uma vez) a tira.
+    scene.neblina.atualizar(
+      modoLeve || !temNeblina(currentMap)
+        ? null
+        : {
+            largura: currentMap.width * currentMap.grid,
+            altura: currentMap.height * currentMap.grid,
+            grid: currentMap.grid,
+            inteira: intensidadeDoMapaInteiro(currentMap),
+            pintada: currentMap.neblinaPintada,
+            animar: efeitosDoMapaLigados(currentSettings),
+          },
+    )
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
     // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
     const perigosChanged = contentChanged(scene.perigosKey, [currentMap.perigos, currentMap.regions, hidden], () =>
@@ -3794,6 +3816,16 @@ function PlayerViewDoCanvas({
           },
         },
       )
+      const neblina = createNeblinaRenderer(
+        app.renderer,
+        { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        {
+          aoMudar: (estado) => {
+            el.dataset.neblina = estado.ligada ? (estado.movendo ? 'andando' : 'parada') : 'desligada'
+            el.dataset.neblinaMascara = estado.mascara
+          },
+        },
+      )
       const fogDim = new Graphics()
       const visionMask = new Graphics()
       const concealed = new Graphics()
@@ -4120,6 +4152,7 @@ function PlayerViewDoCanvas({
         nomesDosLugares,
         fogos,
         nuvens,
+        neblina,
         lugaresKey: emptyContentKey(),
         lugares: [],
         revisaoDasLuzes: criarRevisao(),
@@ -4490,16 +4523,20 @@ function PlayerViewDoCanvas({
       const tickMapaDeLuz = () => {
         const { map: m, luz, ownTokens: own } = latestRef.current
         const tinta = tintaDoJogador(luz)
+        // NEBLINA: a cor da bruma segue o período; de dia ela é o último filho do mundo.
+        scene.neblina.setPeriodo(tinta?.periodo ?? null)
         // A troca de período ligou ou desligou a tinta: o halo de sempre volta ou some junto.
         if ((tinta !== null) !== scene.lightsSemHalo) redrawLights(scene)
         if (tinta === null) {
           scene.mapaDeLuz.atualizar(null)
+          if (world.children[world.children.length - 1] !== scene.neblina.camada) world.addChild(scene.neblina.camada)
           return
         }
-        // Sempre os dois últimos filhos do mundo: a pilha pode ter criado um nó de camada depois deles.
+        // Sempre os três últimos filhos do mundo (tinta, neblina, contorno): a pilha pode ter criado um nó de camada depois deles.
         const filhos = world.children
-        if (filhos[filhos.length - 2] !== scene.mapaDeLuz.sprite || filhos[filhos.length - 1] !== scene.mapaDeLuz.contorno) {
-          world.addChild(scene.mapaDeLuz.sprite, scene.mapaDeLuz.contorno)
+        const n = filhos.length
+        if (filhos[n - 3] !== scene.mapaDeLuz.sprite || filhos[n - 2] !== scene.neblina.camada || filhos[n - 1] !== scene.mapaDeLuz.contorno) {
+          world.addChild(scene.mapaDeLuz.sprite, scene.neblina.camada, scene.mapaDeLuz.contorno)
         }
         const fichas: FichaComContorno[] = []
         for (const id of own) {
@@ -4957,6 +4994,7 @@ function PlayerViewDoCanvas({
         // Sai do relógio antes de o app (e o ticker) morrer.
         scene.nomesDosLugares.destruir()
         scene.nuvens.destruir()
+        scene.neblina.destruir()
         // Os nós criados da pilha (e as chamas deles) antes da de hoje.
         scene.pilha.destruir()
         scene.chamas.destruir()

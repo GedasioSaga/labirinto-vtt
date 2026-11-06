@@ -79,6 +79,8 @@ import { consultaDaTerra, regioesDaTerra, relevoLigado, unidadeDoRelevo } from '
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
+import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
+import { usePincelDaNeblina } from '../stores/pincelDaNeblina'
 import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
 import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
 import { createNuvensRenderer } from './drawNuvens'
@@ -1526,6 +1528,14 @@ function PixiCanvasDoContexto({
           if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
         },
       })
+      // NEBLINA: o gesto do pincel (`neblinaNoEditor.ts`); o rascunho da pincelada usa o draft.
+      const gestoDaNeblina = criarGestoDaNeblina({
+        rascunho: draftGraphics,
+        avisar: (texto) => {
+          const toasts = useToastStore.getState()
+          if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
+        },
+      })
       // TEXTURAS: o anel do pincel (o tamanho dele) segue o ponteiro, acima do rascunho.
       const anelDoPincelGraphics = new Graphics()
       const angleIndicatorContainer = new Container()
@@ -2939,6 +2949,17 @@ function PixiCanvasDoContexto({
       // Só entra no mundo com tinta (abaixo): de dia o mundo tem os mesmos filhos de antes da Luz.
       const mapaDeLuz = criarMapaDeLuz(app.renderer)
       const revisaoDoMapaDeLuz = criarRevisao()
+      // NEBLINA (`neblinaNoEditor.ts`): logo ACIMA da tinta, para a bruma seguir à vista de noite.
+      const neblinaDoEditor = criarNeblinaDoEditor({
+        renderer: app.renderer,
+        ticker: app.ticker,
+        reducedMotion: prefersReducedMotion,
+        mundo: world,
+        aoMudar: (estado) => {
+          el.dataset.neblina = estado.ligada ? (estado.movendo ? 'andando' : 'parada') : 'desligada'
+          el.dataset.neblinaMascara = estado.mascara
+        },
+      })
       let ultimaTintaEscrita = ''
       const tickMapaDeLuz = () => {
         const map = useMapStore.getState().map
@@ -2947,6 +2968,9 @@ function PixiCanvasDoContexto({
         // PRÉVIA (Luz L4c, painel "Ambiente da cena"): a cena aberta vista noutro período, só aqui no editor.
         const cena = previa === null ? map : { externa: map.externa, periodoFixo: previa, ambientePorPeriodo: map.ambientePorPeriodo }
         const tinta = tintaDaCena(cena, sessao, comoJogador ? 1 : TINTA_NO_EDITOR)
+        // A neblina fica logo abaixo do fantasma de teste, e a tinta logo abaixo dela.
+        const tetoDaTinta = neblinaDoEditor.quadro(map, useMapStore.getState().pisoAtivo, fantasmaDeTesteContainer)
+        neblinaDoEditor.renderer.setPeriodo(tinta?.periodo ?? null)
         // Para o e2e ler a tinta aplicada no quadro em que ela mudou (o gesto da força no painel).
         const textoDaTinta = tinta === null ? 'nenhuma' : `${tinta.periodo} ${tinta.rgb.toString(16).padStart(6, '0')} ${tinta.alfa}`
         if (textoDaTinta !== ultimaTintaEscrita) {
@@ -2962,11 +2986,11 @@ function PixiCanvasDoContexto({
           mapaDeLuz.atualizar(null)
           return
         }
-        // Logo abaixo do fantasma de teste: a pilha pode ter mexido nos nós desde o último quadro.
-        const fantasma = world.getChildIndex(fantasmaDeTesteContainer)
+        // Logo abaixo da neblina (que está logo abaixo do fantasma de teste): a pilha pode ter mexido nos nós desde o último quadro.
+        const fantasma = world.getChildIndex(tetoDaTinta)
         if (world.children[fantasma - 1] !== mapaDeLuz.sprite) {
           if (mapaDeLuz.sprite.parent !== null) mapaDeLuz.sprite.removeFromParent()
-          world.addChildAt(mapaDeLuz.sprite, world.getChildIndex(fantasmaDeTesteContainer))
+          world.addChildAt(mapaDeLuz.sprite, world.getChildIndex(tetoDaTinta))
         }
         const refeitosAntes = mapaDeLuz.medidas.refeitos
         mapaDeLuz.atualizar({
@@ -3215,6 +3239,8 @@ function PixiCanvasDoContexto({
           nuvensContainer,
           // A tinta do período também: é a hora da sessão, não o mapa (e está posta para a câmera do editor).
           mapaDeLuz.sprite,
+          // A NEBLINA também: é clima andando, como as nuvens.
+          neblinaDoEditor.renderer.camada,
         ]
         const wasVisible = overlays.map((overlay) => overlay.visible)
         let pending: Promise<string>
@@ -3590,6 +3616,8 @@ function PixiCanvasDoContexto({
         | 'painting-barranco'
         // Texturas: arrasto do pincel (ou da borracha) de textura.
         | 'painting-textura'
+        // Neblina: arrasto do pincel (ou da borracha) de neblina (`neblinaNoEditor.ts`).
+        | 'painting-neblina'
         // Carimbos: o clique (ou o spray, ou a borracha) de objetos.
         | 'painting-carimbo'
         // Mover um pino de ponto de interesse já cravado.
@@ -5216,7 +5244,9 @@ function PixiCanvasDoContexto({
             ? raioDoSpray(unidadeDoRelevo(map), carimboLargura)
             : activeTool === 'texturas' && texturaModo !== 'balde'
               ? raioDoPincelDeTextura(unidadeDoRelevo(map), texturaTamanho)
-              : null
+              : activeTool === 'neblina'
+                ? raioDoPincelDeNeblina(map, usePincelDaNeblina.getState().tamanho)
+                : null
         if (raio === null) return
         const px = 1 / camera.scale
         anelDoPincelGraphics.circle(centro.x, centro.y, raio).stroke({ width: 3 * px, color: 0x000000, alpha: 0.4 })
@@ -5418,6 +5448,9 @@ function PixiCanvasDoContexto({
         // Texturas: idem — a pincelada cancelada não vira passo no mapa.
         texturaStroke = []
         if (mode === 'painting-textura') mode = 'idle'
+        // Neblina: idem.
+        gestoDaNeblina.cancelar()
+        if (mode === 'painting-neblina') mode = 'idle'
         // Carimbos: idem — o spray (ou a borracha) cancelado não vira passo no mapa.
         carimboSpray = null
         carimboBorracha = []
@@ -6367,6 +6400,13 @@ function PixiCanvasDoContexto({
           texturaStrokeForca = texturaForca
           texturaStroke = [worldPoint]
           drawTexturaStroke()
+          return
+        }
+
+        // NEBLINA: sem snap, como as Texturas; Alt troca pincel e borracha só nesta pincelada.
+        if (activeTool === 'neblina') {
+          gestoDaNeblina.comecar(worldPoint, event.altKey)
+          mode = 'painting-neblina'
           return
         }
 
@@ -7428,6 +7468,7 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-textura') finishTexturaStroke(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-neblina') gestoDaNeblina.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-carimbo') finishCarimbo({ world: toWorldPoint(event.global.x, event.global.y), screen: { x: event.global.x, y: event.global.y } })
 
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
@@ -7820,6 +7861,7 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-penhasco') finishPenhascoStroke(null)
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(null)
         if (mode === 'painting-textura') finishTexturaStroke(null)
+        if (mode === 'painting-neblina') gestoDaNeblina.soltar(null)
         // Carimbos soltos fora do canvas: o que o spray já espalhou vale.
         if (mode === 'painting-carimbo') finishCarimbo(null)
         // Onda 1, item 3 (Frente F) — mesmo padrão de commit acima, ver
@@ -8455,6 +8497,11 @@ function PixiCanvasDoContexto({
 
         if (mode === 'painting-textura') {
           extendTexturaStroke(toWorldPoint(event.global.x, event.global.y))
+          return
+        }
+
+        if (mode === 'painting-neblina') {
+          gestoDaNeblina.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
@@ -9277,6 +9324,9 @@ function PixiCanvasDoContexto({
         nomesDosLugares.destruir()
         // As nuvens também (e soltam as texturas delas, que são deste palco só).
         nuvens.destruir()
+        // E a neblina (o ruído e a máscara dela).
+        gestoDaNeblina.cancelar()
+        neblinaDoEditor.destruir()
         // E as chamas das fogueiras (com as formas compartilhadas delas).
         propsRenderer.destruir()
         // E os fogos (saem do relógio antes do app).

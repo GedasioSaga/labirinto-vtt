@@ -94,6 +94,8 @@ export type GestureMode =
   | 'painting-barranco'
   // Texturas: arrasto do pincel (ou da borracha) de textura.
   | 'painting-textura'
+  // Neblina: arrasto do pincel (ou da borracha) de neblina.
+  | 'painting-neblina'
   // Carimbos: o spray (ou a borracha) de objetos.
   | 'painting-carimbo'
   // Girar sala pela alça (bolinha acima da sala selecionada).
@@ -345,6 +347,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'painting-penhasco':
     case 'painting-barranco':
     case 'painting-textura':
+    case 'painting-neblina':
     case 'painting-carimbo':
     case 'area-marquee-drag':
       return CURSOR_CROSSHAIR

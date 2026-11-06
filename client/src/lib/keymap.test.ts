@@ -60,8 +60,10 @@ describe('resolveShortcut — letras de ferramenta', () => {
     // "enquadrar tudo", Z fica com o Ctrl+Z). E o SEXTO, o SÉTIMO e o OITAVO,
     // Penhasco, Texturas e Carimbos, da família de Shift+letra (testes próprios abaixo).
     // E o NONO, Barranco (28/10/2026), também sem letra: os dígitos são os sons.
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 9)
+    // E o DÉCIMO, Neblina (06/11/2026), sem letra por enquanto: a barra a alcança no grupo Terreno.
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 10)
     expect(TOOL_SHORTCUTS.barranco).toBe('')
+    expect(TOOL_SHORTCUTS.neblina).toBe('')
     expect(TOOL_SHORTCUTS.penhasco).toBe('Shift+C')
     expect(TOOL_SHORTCUTS.texturas).toBe('Shift+T')
     expect(TOOL_SHORTCUTS.carimbos).toBe('Shift+A')

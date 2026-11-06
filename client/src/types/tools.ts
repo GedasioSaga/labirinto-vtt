@@ -56,6 +56,12 @@ export type DrawingTool =
    */
   | 'texturas'
   /**
+   * Neblina: o mestre pinta uma bruma lenta por cima do mapa, acima da noite
+   * e da névoa dos jogadores, com pincel e borracha; o painel também liga a
+   * neblina no mapa inteiro (`lib/neblina.ts`). Não é a névoa de guerra.
+   */
+  | 'neblina'
+  /**
    * Carimbos: o mestre solta objetos da biblioteca (pinheiro, palmeira,
    * pedras, poça...) — o clique solta um, arrastar espalha vários, a
    * borracha tira (`lib/carimbos.ts`). Cada objeto fica parado onde foi posto.

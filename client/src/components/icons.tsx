@@ -168,6 +168,17 @@ export function TexturasIcon(props: IconProps) {
   )
 }
 
+/** Neblina: três faixas de bruma onduladas, desencontradas como névoa passando. */
+export function NeblinaIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 7.5c1.8-1.3 3.7-1.3 5.5 0s3.7 1.3 5.5 0c1.4-1 2.8-1.2 4-.6" />
+      <path d="M3 12c1.8-1.3 3.7-1.3 5.5 0s3.7 1.3 5.5 0 3.7-1.3 5.5 0" />
+      <path d="M6 16.5c1.8-1.3 3.7-1.3 5.5 0s3.7 1.3 5.5 0" />
+    </Icon>
+  )
+}
+
 /**
  * Carimbos: um pinheiro de dois andares em pé no chão, com as pintinhas do
  * spray em volta — o objeto que se solta (ou se espalha) no mapa.

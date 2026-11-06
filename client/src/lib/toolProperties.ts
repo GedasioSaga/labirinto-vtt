@@ -70,6 +70,8 @@ export type PropertyGroupId =
   | 'barranco'
   /** Texturas: o modo (Pincel | Balde | Borracha), a biblioteca, tamanho e força do PRÓXIMO gesto (`TexturasControls`). */
   | 'texturas'
+  /** Neblina: a chave do mapa inteiro e o pincel (Pincel | Borracha, tamanho e força do PRÓXIMO gesto) (`NeblinaControls`). */
+  | 'neblina'
   /** Carimbos: o modo (Carimbo | Borracha), a biblioteca, tamanho, largura e densidade do PRÓXIMO gesto (`CarimbosControls`). */
   | 'carimbos'
   /** PAREDES AO REDOR do desenho selecionado (`ParedesAoRedorControls`). */
@@ -85,7 +87,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'lightControls', 'lightPreset', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
-  'revealBrush', 'penhasco', 'barranco', 'texturas', 'carimbos', 'paredesAoRedor', 'paredePresa',
+  'revealBrush', 'penhasco', 'barranco', 'texturas', 'neblina', 'carimbos', 'paredesAoRedor', 'paredePresa',
 ]
 
 /**
@@ -374,6 +376,8 @@ export function relevantPropertyGroups(
   if (activeTool === 'barranco') groups.add('barranco')
   // Texturas: o mesmo molde — a biblioteca e o que o PRÓXIMO gesto faz.
   if (activeTool === 'texturas') groups.add('texturas')
+  // Neblina: idem — a chave do mapa inteiro e o que o PRÓXIMO gesto do pincel faz.
+  if (activeTool === 'neblina') groups.add('neblina')
   // Carimbos: idem — a biblioteca de objetos e o que o PRÓXIMO gesto faz.
   if (activeTool === 'carimbos') groups.add('carimbos')
 

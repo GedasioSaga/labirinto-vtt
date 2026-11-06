@@ -43,6 +43,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   penhasco: 'Penhasco',
   barranco: 'Barranco',
   texturas: 'Texturas',
+  neblina: 'Neblina',
   carimbos: 'Carimbos',
   pin: 'Pino',
   mobilia: 'Objetos',
@@ -118,6 +119,8 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
     'Arraste sobre uma zona oculta para mostrar aos jogadores só o pedaço pintado. Segure Alt (ou escolha Esconder no painel) para esconder de volta.',
   texturas:
     'Escolha uma textura no painel e pinte por cima do mapa: o pincel arrasta, o balde enche uma região ou um desenho, a borracha tira. Segure Alt com o pincel para apagar.',
+  neblina:
+    'Pinte uma bruma lenta por cima do mapa: ela fica à vista de noite e no escuro, por cima da névoa dos jogadores, e nunca mostra o que está embaixo. Segure Alt para apagar. No painel, ligue a neblina no mapa inteiro.',
   carimbos:
     'Escolha um objeto no painel: o clique solta um; segure e arraste para espalhar vários (começando na terra, o spray fica na terra). Segure Alt (ou escolha Borracha no painel) para tirar.',
   barranco:
@@ -173,6 +176,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   penhasco: 'Risque a costa onde quer o rochedo.',
   barranco: 'Risque a beira ou pinte a parte alta.',
   texturas: 'Pinte a textura por cima do mapa.',
+  neblina: 'Pinte a neblina por cima do mapa.',
   carimbos: 'Clique para soltar; arraste para espalhar.',
   pin: 'Clique no mapa para fincar o pino.',
   mobilia: 'Clique no mapa para colocar.',
@@ -239,7 +243,7 @@ export const TOOLBAR_GROUPS: ToolbarGroup[] = [
   // — e, ao contrário das formas do Desenho, cada caminho carrega a própria cor.
   { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'path', 'cluster:objeto', 'light'] },
   // Decisão 6 do plano: o terreno aparece em todo mapa (Texturas serve em qualquer um).
-  { nome: 'Terreno', slots: ['penhasco', 'barranco', 'texturas', 'carimbos'] },
+  { nome: 'Terreno', slots: ['penhasco', 'barranco', 'texturas', 'carimbos', 'neblina'] },
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é
   // ali que o mestre procura "como mostro só um pedaço".
   { nome: 'Esconder e revelar', slots: ['concealZone', 'revealBrush'] },
