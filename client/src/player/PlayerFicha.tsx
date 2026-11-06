@@ -47,6 +47,17 @@ export interface PlayerFichaProps {
   inventarioDe?: (personagemId: string) => InventarioDoJogador | undefined
   /** "Dar a…" um colega encostado: o mesmo pedido do "Comigo" (`item.give`). */
   onDarItem?: (itemId: string, toTokenId: string) => void
+  /**
+   * SÓ LER (o site do Lobby, na ficha de um colega): sem "Editar", sem o ajuste
+   * rápido (−/+), sem "Criar" e sem "Dar a…". Ausente = como sempre (edita).
+   */
+  somenteLeitura?: boolean
+  /**
+   * A edição abriu ("Editar", ou a ficha que acabou de nascer): quem chama
+   * guarda o que precisa daquele instante (o site do Lobby guarda a `rev` que
+   * vira a `baseRev` das mudanças do "Salvar").
+   */
+  aoAbrirEdicao?: (personagem: Personagem) => void
 }
 
 /** O inventário da ficha do jogador: o que o token carrega e a quem dá para passar. */
@@ -114,6 +125,8 @@ export function PlayerFicha({
   onPedirLivro,
   inventarioDe,
   onDarItem,
+  somenteLeitura = false,
+  aoAbrirEdicao,
 }: PlayerFichaProps) {
   const tituloId = useId()
   const livroTituloId = useId()
@@ -128,7 +141,8 @@ export function PlayerFicha({
 
   const idMostrado = edicao === null ? escolhidoId : edicao.base.id
   const mostrado = personagens.find((personagem) => personagem.id === idMostrado) ?? personagens.at(0)
-  const semPersonagem = tokens.filter((token) => token.personagemId === null)
+  // Só lendo, não há "Criar": a ficha sem personagem fica como "sem ficha por enquanto".
+  const semPersonagem = somenteLeitura ? [] : tokens.filter((token) => token.personagemId === null)
   const mudou = edicao !== null && edicao.rascunho !== edicao.base
   const salvando = espera !== null
 
@@ -158,7 +172,8 @@ export function PlayerFicha({
     if (nascida === undefined) return
     setEscolhidoId(nascida.id)
     setEdicao({ base: nascida, rascunho: nascida })
-  }, [envio, espera, personagens])
+    aoAbrirEdicao?.(nascida)
+  }, [envio, espera, personagens, aoAbrirEdicao])
 
   // O mestre tirou a ficha dele (ou apagou o personagem) no meio da edição: não há mais o que salvar.
   const editandoSumiu = edicao !== null && !personagens.some((personagem) => personagem.id === edicao.base.id)
@@ -208,7 +223,7 @@ export function PlayerFicha({
   }, [mostrado, sistemaPronto, ajustesPendentes])
   const inventario = mostrado === undefined ? undefined : inventarioDe?.(mostrado.id)
   const ajustar =
-    onAjustar === undefined || mostrado === undefined
+    somenteLeitura || onAjustar === undefined || mostrado === undefined
       ? undefined
       : (ajuste: Ajuste) => {
           if (!onAjustar(mostrado.id, ajuste)) setErro(ERRO_SEM_CONEXAO)
@@ -312,8 +327,15 @@ export function PlayerFicha({
               </button>
             )
           )}
-          {!vendoLivro && sistemaPronto !== null && mostradoComAjustes !== undefined && edicao === null && (
-            <button type="button" className="lb-btn" onClick={() => setEdicao({ base: mostradoComAjustes, rascunho: mostradoComAjustes })}>
+          {!vendoLivro && !somenteLeitura && sistemaPronto !== null && mostradoComAjustes !== undefined && edicao === null && (
+            <button
+              type="button"
+              className="lb-btn"
+              onClick={() => {
+                setEdicao({ base: mostradoComAjustes, rascunho: mostradoComAjustes })
+                aoAbrirEdicao?.(mostradoComAjustes)
+              }}
+            >
               Editar
             </button>
           )}
@@ -428,7 +450,14 @@ export function PlayerFicha({
                 tipoEditavel={false}
                 livro={livroDaFicha}
                 onAjustar={ajustar}
-                inventario={inventario === undefined ? undefined : <InventarioDaFicha itens={inventario.itens} acoes={onDarItem === undefined ? undefined : (item) => <DarAColega item={item} colegas={inventario.colegas} onDar={onDarItem} />} />}
+                inventario={
+                  inventario === undefined ? undefined : (
+                    <InventarioDaFicha
+                      itens={inventario.itens}
+                      acoes={onDarItem === undefined || somenteLeitura ? undefined : (item) => <DarAColega item={item} colegas={inventario.colegas} onDar={onDarItem} />}
+                    />
+                  )
+                }
               />
             </>
           )}

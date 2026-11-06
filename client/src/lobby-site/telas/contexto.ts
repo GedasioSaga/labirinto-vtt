@@ -1,0 +1,57 @@
+import { createContext, useContext, useEffect, useState } from 'react'
+import { useStore } from 'zustand'
+import type { EstadoDoSite, Site } from '../dados/lobbyStore'
+import type { FonteDaDemo } from '../dados/fonteDemo'
+import type { Rota } from '../dados/rotas'
+import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
+
+/**
+ * O site (a camada de dados da S2) para as telas: cada tela lê o pedaço do
+ * store que usa (`useDoSite`) e age pela sessão da campanha aberta.
+ */
+export const SiteContexto = createContext<Site | null>(null)
+
+export function useSite(): Site {
+  const site = useContext(SiteContexto)
+  if (site === null) throw new Error('tela do Lobby fora do <SiteContexto>')
+  return site
+}
+
+export function useDoSite<T>(seletor: (estado: EstadoDoSite) => T): T {
+  return useStore(useSite().store, seletor)
+}
+
+function ehFonteDaDemo(fonte: Site['fonte']): fonte is FonteDaDemo {
+  return fonte.demo && 'simularMudancaDoMestre' in fonte && typeof fonte.simularMudancaDoMestre === 'function'
+}
+
+/** A fonte demo, quando é ela (o botão de dev "simular mestre mudou" só existe nela). */
+export function fonteDaDemo(site: Site): FonteDaDemo | null {
+  return ehFonteDaDemo(site.fonte) ? site.fonte : null
+}
+
+/** Navegar sem recarregar; Ctrl/Cmd/Shift/meio abrem em outra aba, como qualquer link. */
+export function aoClicarNoLink(site: Site, rota: Rota) {
+  return (evento: { button: number; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean; preventDefault(): void }) => {
+    if (evento.button !== 0 || evento.ctrlKey || evento.metaKey || evento.shiftKey || evento.altKey) return
+    evento.preventDefault()
+    site.irPara(rota)
+  }
+}
+
+/** A hora de agora, andando de minuto em minuto: o "há 6 min" do histórico não fica parado. */
+export function useAgora(passoMs = 30_000): number {
+  const [agora, setAgora] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setAgora(Date.now()), passoMs)
+    return () => clearInterval(id)
+  }, [passoMs])
+  return agora
+}
+
+/**
+ * O sistema das fichas no site. O protocolo (o `estado` do servidor) ainda não
+ * diz o sistema da campanha; a v1 do Lobby é da mesa de One Piece, então é ele.
+ */
+export const SISTEMA_DO_LOBBY: SistemaDeRpg = SISTEMA_ONE_PIECE
