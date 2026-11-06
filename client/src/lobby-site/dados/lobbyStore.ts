@@ -1,6 +1,6 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { armazenamentoEmTexto, type ArmazenamentoDaFila, type ArquivoDeTexto } from '../../lib/nuvem/fila'
-import { criarChatDaCampanha, type ChatDaCampanha, type EstadoDoChat } from './chatDaCampanha'
+import { criarChatDaCampanha, pendentesACaminho, type ChatDaCampanha, type EstadoDoChat, type PendentesGuardadas } from './chatDaCampanha'
 import { clienteIdDaAba, type AmbienteDaAba } from './clienteDaAba'
 import { abrirBancoDaFila, armazenamentoNoIndexedDB } from './filaNoIndexedDB'
 import { ErroDoEu, type Eu, type FonteDoLobby } from './fonte'
@@ -29,6 +29,8 @@ export interface EstadoDoSite {
   campanha: EstadoDaCampanha | null
   /** O chat da campanha aberta (C2); `null` junto com ela. */
   chat: EstadoDoChat | null
+  /** Mensagens do chat de mesas que a pessoa deixou nesta aba e que ainda vão sair (quando a mesa abrir de novo). */
+  chatGuardado: number
   /** Não deu para abrir a campanha (IndexedDB bloqueado, navegador sem espaço). */
   erroDaCampanha: string | null
 }
@@ -108,8 +110,20 @@ function ambienteDaAba(janela: JanelaDoSite): AmbienteDaAba {
 export function iniciarSite(janela: JanelaDoSite): Site {
   const demo = ehDemo(janela.location.search)
   const fonte = demo ? criarFonteDemo() : criarFonteReal({ origem: janela.location.origin })
-  const store = createStore<EstadoDoSite>(() => ({ demo, eu: { t: 'carregando' }, rota: lerRota(janela.location.pathname), campanha: null, chat: null, erroDaCampanha: null }))
+  const store = createStore<EstadoDoSite>(() => ({ demo, eu: { t: 'carregando' }, rota: lerRota(janela.location.pathname), campanha: null, chat: null, chatGuardado: 0, erroDaCampanha: null }))
   let aberta: Aberta | null = null
+  /**
+   * O chat que ficou sem sair, por mesa. As pendentes vivem só na memória da aba: sair da mesa ("Suas mesas", outra
+   * mesa) não as perde, elas voltam com a mesa (o mesmo `idDoCliente`, nada duplica). Fechar a aba com alguma aqui
+   * faz o navegador perguntar (`Site.tsx`).
+   */
+  const chatGuardado = new Map<string, readonly PendentesGuardadas[]>()
+
+  function contarChatGuardado(): number {
+    let total = 0
+    for (const conversas of chatGuardado.values()) total += pendentesACaminho(conversas)
+    return total
+  }
   /** Cada abertura ganha um número: a que terminar depois de outra navegação é fechada em vez de ocupar a tela. */
   let aberturas = 0
   /** Um por página: pedir de novo a trava que esta mesma página já segura daria um id novo a cada troca de mesa. */
@@ -122,10 +136,14 @@ export function iniciarSite(janela: JanelaDoSite): Site {
 
   function fecharAberta(): void {
     if (aberta === null) return
+    const guardar = aberta.chat.guardarPendentes()
+    if (guardar.length > 0) chatGuardado.set(aberta.campanhaId, guardar)
+    else chatGuardado.delete(aberta.campanhaId)
     aberta.chat.fechar()
     aberta.sessao.fechar()
     aberta.fecharBanco()
     aberta = null
+    store.setState({ chatGuardado: contarChatGuardado() })
   }
 
   async function abrir(eu: Eu, campanhaId: string, minha: number): Promise<void> {
@@ -138,6 +156,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
       aoMudar: (estadoDoChat) => {
         if (minha === aberturas) store.setState({ chat: estadoDoChat })
       },
+      pendentesGuardadas: chatGuardado.get(campanhaId),
     })
     try {
       sessao = await abrirSessaoDaCampanha({
@@ -162,7 +181,9 @@ export function iniciarSite(janela: JanelaDoSite): Site {
       return
     }
     aberta = { campanhaId, sessao, chat, fecharBanco: fila.fecharBanco }
-    store.setState({ campanha: sessao.estado(), chat: chat.estado(), erroDaCampanha: null })
+    // As guardadas agora moram no chat aberto (e voltam para cá se a pessoa sair de novo antes de saírem).
+    chatGuardado.delete(campanhaId)
+    store.setState({ campanha: sessao.estado(), chat: chat.estado(), chatGuardado: contarChatGuardado(), erroDaCampanha: null })
   }
 
   /** Abre a campanha da rota (e fecha a anterior), quando o `/api/eu` já respondeu. */

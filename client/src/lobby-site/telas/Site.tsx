@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { ImagemDaMesa } from '../../components/ImagemDaMesa'
 import { resolverSoEmbutida } from '../../lib/midia'
+import { pendentesACaminho } from '../dados/chatDaCampanha'
 import { enderecoDaRota, type Rota } from '../dados/rotas'
 import { Cabeca } from './Cabeca'
 import { aoClicarNoLink, useDoSite, useSite } from './contexto'
@@ -25,7 +26,12 @@ export function Site() {
   const demo = useDoSite((estado) => estado.demo)
   const eu = useDoSite((estado) => estado.eu)
   const rota = useDoSite((estado) => estado.rota)
-  const esperando = useDoSite((estado) => (estado.campanha === null ? 0 : mudancasACaminho(estado.campanha)))
+  const esperando = useDoSite(
+    (estado) =>
+      (estado.campanha === null ? 0 : mudancasACaminho(estado.campanha)) +
+      (estado.chat === null ? 0 : pendentesACaminho(estado.chat.conversas.values())) +
+      estado.chatGuardado,
+  )
   const tituloDaPagina = useDoSite((estado) =>
     tituloDe(
       estado.rota,
@@ -35,7 +41,8 @@ export function Site() {
   )
 
   // Fechar a aba com mudança a caminho: o navegador pergunta. A fila fica guardada, mas a pessoa fica sabendo;
-  // um desfazer a caminho vive só nesta aba (sai pelo canal, fora da fila) e se perde.
+  // um desfazer a caminho vive só nesta aba (sai pelo canal, fora da fila) e se perde. A mensagem do chat que ainda
+  // não saiu (enviando, ou segurada por ritmo ou cota), desta mesa ou de outra deixada nesta aba, também só vive aqui.
   useEffect(() => {
     if (esperando === 0) return
     const avisar = (evento: BeforeUnloadEvent) => {

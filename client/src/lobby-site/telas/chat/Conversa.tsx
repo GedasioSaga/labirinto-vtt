@@ -260,7 +260,7 @@ export function Conversa(props: PropsDaConversa) {
       {!pronto && conversa?.carregada === true && (
         <p className="lo-linha-aviso lo-chat__fora" data-tom="mare">
           <Icone nome="sem-rede" />
-          <span>Sem conexão com a mesa. O que você enviar fica esperando e vai sozinho quando ela voltar.</span>
+          <span>Sem conexão com a mesa. O que você enviar fica guardado nesta aba e vai sozinho quando a conexão voltar.</span>
         </p>
       )}
       <div className="lo-chat__registro-casca">

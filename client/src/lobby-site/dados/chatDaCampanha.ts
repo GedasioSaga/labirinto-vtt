@@ -1,4 +1,4 @@
-import { chatChannelKey } from '../../lib/chat'
+import { CHAT_SEND_MIN_INTERVAL_MS, chatChannelKey } from '../../lib/chat'
 import {
   CHAT_NAO_LIDAS_MAX,
   CHAT_PAGINA_MAX,
@@ -29,6 +29,9 @@ import type { ParteDoCanal } from './sessaoDaCampanha'
  *   servidor manda recomeçar, e a conversa aberta é pedida de novo.
  * - O cursor só anda pelo ao vivo depois de alcançar o resumo: assim uma
  *   queda no meio da volta não pula o que ainda não chegou.
+ * - O DO passa TODO frame da conta pelo ritmo (fichas inclusive): o
+ *   `chat.lida` sai uma vez por leitura, um por vez, e nunca repete o que já
+ *   saiu (achado da revisão da C2).
  */
 
 /** Mensagens por página na tela; para baixar a conversa inteira, a página maior do servidor. */
@@ -81,6 +84,19 @@ export interface ConversaDoChat {
   apagando: ReadonlySet<number>
 }
 
+/** As mensagens de uma conversa que ainda não saíram, guardadas ao sair da mesa: voltam quando ela abrir de novo. */
+export interface PendentesGuardadas {
+  canal: CanalDoChat
+  pendentes: readonly MensagemPendente[]
+}
+
+/** Quantas mensagens ainda vão sair (enviando ou seguradas); a recusada não conta, o servidor já disse não. */
+export function pendentesACaminho(conversas: Iterable<{ pendentes: readonly MensagemPendente[] }>): number {
+  let total = 0
+  for (const conversa of conversas) for (const pendente of conversa.pendentes) if (pendente.situacao.t !== 'recusada') total += 1
+  return total
+}
+
 export interface EstadoDoChat {
   /** O canal está em dia e o resumo chegou: dá para pedir e mandar. */
   pronto: boolean
@@ -107,6 +123,8 @@ export interface ChatDaCampanha extends ParteDoCanal {
   apagar(canal: CanalDoChat, id: number): boolean
   /** Todas as páginas da conversa, da mais velha para a mais nova (para baixar). Falha se o canal cair no meio. */
   juntarTudo(canal: CanalDoChat): Promise<readonly MensagemDoChat[]>
+  /** As pendentes de cada conversa, para a mesa guardar antes de `fechar` (só vivem na memória da aba). */
+  guardarPendentes(): readonly PendentesGuardadas[]
   fechar(): void
 }
 
@@ -116,8 +134,15 @@ export interface OpcoesDoChat {
   /** O contaId de quem está vendo (da base da sessão); `null` antes dela chegar. */
   quemSouEu(): string | null
   aoMudar(estado: EstadoDoChat): void
+  /** O que ficou sem sair da última vez que esta mesa abriu nesta aba: volta com o mesmo `idDoCliente` (o servidor não grava duas vezes). */
+  pendentesGuardadas?: readonly PendentesGuardadas[]
   relogio?: Relogio
   novoId?: () => string
+}
+
+interface LidaAMandar {
+  canal: CanalDoChat
+  ateId: number
 }
 
 interface Juntador {
@@ -170,7 +195,15 @@ export function criarChatDaCampanha(opcoes: OpcoesDoChat): ChatDaCampanha {
   const paginasPedidas = new Map<string, number | null>()
   /** As esperas armadas (reenvio segurado, pedido repetido): canceladas na queda e no fim. */
   const esperas = new Set<() => void>()
-  const lidasAMandar = new Map<string, { canal: CanalDoChat; ateId: number }>()
+  /** As lidas que ainda não saíram, por conversa (a mais nova vence). Saiu, sai daqui. */
+  const lidasAMandar = new Map<string, LidaAMandar>()
+  /**
+   * A última lida que saiu, até o servidor confirmar com o resumo (ele só responde quando a lida avança). A recusa
+   * por ritmo não diz a conversa: com uma lida no ar por vez, é esta; ela volta para a fila, e a queda também a devolve.
+   */
+  let lidaNoAr: { chave: string; lida: LidaAMandar } | null = null
+  /** Recusada por ritmo: nenhuma lida sai antes disto. */
+  let lidaSeguraAte = 0
   let esperaDaLida: (() => void) | null = null
   const juntadores = new Map<string, Juntador>()
 
@@ -284,22 +317,61 @@ export function criarChatDaCampanha(opcoes: OpcoesDoChat): ChatDaCampanha {
     }))
   }
 
+  function armarLida(ms: number): void {
+    esperaDaLida?.()
+    esperaDaLida = relogio.depois(Math.max(ms, lidaSeguraAte - relogio.agora(), 0), mandarLidas)
+  }
+
+  /**
+   * Uma lida por vez, no passo do ritmo: o DO conta todo frame da conta, e a rajada fica para o que a pessoa faz
+   * (mensagem, ficha). Quase sempre há uma só na fila: a da conversa que a pessoa acabou de ler.
+   */
   function mandarLidas(): void {
     esperaDaLida = null
-    if (!emDia) return
-    for (const { canal, ateId } of lidasAMandar.values()) opcoes.enviar({ t: 'chat.lida', canal, ateId })
+    if (!emDia || encerrado) return
+    const proxima = lidasAMandar.entries().next()
+    if (proxima.done === true) return
+    const [chave, lida] = proxima.value
+    if (!opcoes.enviar({ t: 'chat.lida', canal: lida.canal, ateId: lida.ateId })) return
+    lidasAMandar.delete(chave)
+    lidaNoAr = { chave, lida }
+    if (lidasAMandar.size > 0) armarLida(CHAT_SEND_MIN_INTERVAL_MS)
+  }
+
+  /** A maior lida desta conversa que o servidor ainda não mostrou (na fila ou no ar); 0 = nenhuma. */
+  function lidaACaminho(chave: string): number {
+    const naFila = lidasAMandar.get(chave)?.ateId ?? 0
+    const noAr = lidaNoAr !== null && lidaNoAr.chave === chave ? lidaNoAr.lida.ateId : 0
+    return Math.max(naFila, noAr)
+  }
+
+  /** A lida no ar volta para a fila, sem passar por cima de uma mais nova da mesma conversa. */
+  function devolverLidaNoAr(): void {
+    if (lidaNoAr === null) return
+    const { chave, lida } = lidaNoAr
+    lidaNoAr = null
+    const naFila = lidasAMandar.get(chave)
+    if (naFila === undefined || naFila.ateId < lida.ateId) lidasAMandar.set(chave, lida)
   }
 
   // ── O que chega ──────────────────────────────────────────────────────────
 
   function aplicarResumo(canais: readonly ResumoDoCanal[], cursorDoServidor: number): void {
     for (const resumo of canais) {
-      mudar(resumo.canal, (conversa) => ({
-        ultimaId: Math.max(conversa.ultimaId, resumo.ultimaId),
-        lidaAte: resumo.lidaAte,
-        naoLidas: resumo.naoLidas,
-        mencaoNaoLida: resumo.naoLidas === 0 ? false : conversa.mencaoNaoLida,
-      }))
+      const chave = chatChannelKey(resumo.canal)
+      // O resumo que já mostra a lida no ar: ela entrou, a queda não precisa devolvê-la.
+      if (lidaNoAr !== null && lidaNoAr.chave === chave && resumo.lidaAte >= lidaNoAr.lida.ateId) lidaNoAr = null
+      // Uma lida desta aba ainda a caminho (na fila, ou segurada pelo ritmo): o resumo de outra lida não desfaz a leitura na tela.
+      const aCaminho = lidaACaminho(chave)
+      mudar(resumo.canal, (conversa) => {
+        const naoLidas = aCaminho >= resumo.ultimaId ? 0 : resumo.naoLidas
+        return {
+          ultimaId: Math.max(conversa.ultimaId, resumo.ultimaId),
+          lidaAte: Math.max(resumo.lidaAte, aCaminho),
+          naoLidas,
+          mencaoNaoLida: naoLidas === 0 ? false : conversa.mencaoNaoLida,
+        }
+      })
     }
     if (!alcancou) alvoDaVolta = cursorDoServidor
     pronto = true
@@ -429,7 +501,10 @@ export function criarChatDaCampanha(opcoes: OpcoesDoChat): ChatDaCampanha {
         if (seguradoPeloRitmo) esperar(ate - agora + FOLGA_DA_ESPERA_MS, pedirDesde)
         return
       case 'chat.lida':
-        if (seguradoPeloRitmo && esperaDaLida === null) esperar(ate - agora + FOLGA_DA_ESPERA_MS, mandarLidas)
+        if (!seguradoPeloRitmo) return
+        devolverLidaNoAr()
+        lidaSeguraAte = ate + FOLGA_DA_ESPERA_MS
+        armarLida(0)
         return
       case 'chat.apagar':
         for (const conversa of conversas.values()) if (conversa.apagando.size > 0) conversas.set(conversa.chave, { ...conversa, apagando: new Set() })
@@ -484,6 +559,9 @@ export function criarChatDaCampanha(opcoes: OpcoesDoChat): ChatDaCampanha {
     publicar()
   }
 
+  // O que ficou sem sair da última vez que a mesa abriu: sai na primeira vez que o canal ficar em dia.
+  for (const { canal, pendentes } of opcoes.pendentesGuardadas ?? []) mudar(canal, () => ({ pendentes }))
+
   return {
     estado: montarEstado,
 
@@ -492,8 +570,8 @@ export function criarChatDaCampanha(opcoes: OpcoesDoChat): ChatDaCampanha {
       emDia = true
       pedirDesde()
       mandarPendentes()
-      // As lidas que não chegaram a sair vão agora (o servidor ignora a que não avança).
-      if (lidasAMandar.size > 0) mandarLidas()
+      // As lidas que não chegaram a sair (e a que estava no ar na queda) vão agora; o servidor ignora a que não avança.
+      if (lidasAMandar.size > 0) armarLida(0)
     },
 
     aoReceber(mensagem) {
@@ -505,6 +583,8 @@ export function criarChatDaCampanha(opcoes: OpcoesDoChat): ChatDaCampanha {
       pronto = false
       alcancou = false
       pararEsperas()
+      // Sem confirmação, a lida que estava no ar pode não ter chegado.
+      devolverLidaNoAr()
       paginasPedidas.clear()
       for (const conversa of conversas.values()) {
         conversas.set(conversa.chave, { ...conversa, carregando: false, apagando: new Set() })
@@ -530,8 +610,7 @@ export function criarChatDaCampanha(opcoes: OpcoesDoChat): ChatDaCampanha {
       const ateId = conversa.ultimaId
       mudar(canal, () => ({ lidaAte: ateId, naoLidas: 0, mencaoNaoLida: false }))
       lidasAMandar.set(conversa.chave, { canal, ateId })
-      esperaDaLida?.()
-      esperaDaLida = relogio.depois(ESPERA_DA_LIDA_MS, mandarLidas)
+      armarLida(ESPERA_DA_LIDA_MS)
       publicar()
     },
 
@@ -589,6 +668,10 @@ export function criarChatDaCampanha(opcoes: OpcoesDoChat): ChatDaCampanha {
         if (!pediu) terminarJuntar(conversa.chave, new Error('Sem conexão com a mesa agora'))
         publicar()
       })
+    },
+
+    guardarPendentes() {
+      return [...conversas.values()].filter((conversa) => conversa.pendentes.length > 0).map(({ canal, pendentes }) => ({ canal, pendentes }))
     },
 
     fechar() {

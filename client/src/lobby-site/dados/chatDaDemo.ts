@@ -1,4 +1,3 @@
-import { CHAT_SEND_BURST, CHAT_SEND_MIN_INTERVAL_MS, takeChatTurn } from '../../lib/chat'
 import {
   CHAT_NAO_LIDAS_MAX,
   mencoesDaSala,
@@ -11,13 +10,15 @@ import {
   type PedidoDoChat,
   type ResumoDoCanal,
 } from '../../lib/nuvem/chatDoLobby'
+import { conferirRitmo } from '../../lib/nuvem/limites'
 import { CONTA_DO_MESTRE, type Membro } from '../../lib/nuvem/tipos'
 
 /**
  * O CHAT DA DEMO (`?demo=1`, fatia C2): o servidor de mentira do chat, no
  * navegador, com as MESMAS regras do DO (`lobby/nuvem/src/chat.ts`): texto
  * pelo `textoDoChat`, menções pelo `mencoesDaSala`, ritmo pelo
- * `takeChatTurn` (a sexta mensagem em rajada é segurada), reenvio pelo
+ * `conferirRitmo` em TODO pedido do chat, como o DO faz com todo frame (o
+ * sexto pedido em rajada é segurado, lida e página inclusive), reenvio pelo
  * `idDoCliente` sem gravar duas vezes, lápide ao apagar, não lidas por conta.
  * As conversas são inventadas; uma pessoa da mesa responde uma vez em cada
  * conversa, alguns segundos depois da primeira mensagem, para a tela mostrar a
@@ -214,15 +215,7 @@ export function criarChatDaDemo(
     if (repetida !== undefined) return entregar({ t: 'chat.ok', idDoCliente, canal: pedido.canal, msg: publica(repetida) })
     const texto = textoDoChat(pedido.texto)
     if (texto === null) return entregar({ t: 'chat.recusado', pedido: pedido.t, idDoCliente, motivo: 'texto' })
-    const hora = agora()
-    const passo = takeChatTurn(ritmo.get(eu.contaId), hora)
-    if (passo === null) {
-      // O GCRA deixa passar quando o relógio da conta está no máximo `BURST - 1` intervalos à frente.
-      const tentarDepoisDe = (ritmo.get(eu.contaId) ?? hora) - (CHAT_SEND_BURST - 1) * CHAT_SEND_MIN_INTERVAL_MS
-      return entregar({ t: 'chat.recusado', pedido: pedido.t, idDoCliente, motivo: 'ritmo', tentarDepoisDe: Math.max(hora, tentarDepoisDe) })
-    }
-    ritmo.set(eu.contaId, passo)
-    const gravada = gravar(conversa, eu, texto, hora, idDoCliente)
+    const gravada = gravar(conversa, eu, texto, agora(), idDoCliente)
     entregar({ t: 'chat.ok', idDoCliente, canal: pedido.canal, msg: publica(gravada) })
     responderDepois(conversa, eu.contaId, entregar)
   }
@@ -291,6 +284,13 @@ export function criarChatDaDemo(
 
   return {
     atender(pedido, eu, entregar) {
+      // Como o DO (`campanha.ts`): o ritmo da conta vem antes de qualquer regra, em todo pedido, e a recusa leva a hora de tentar de novo.
+      const ritmoDaConta = conferirRitmo(ritmo.get(eu.contaId), agora())
+      if (!ritmoDaConta.ok) {
+        const idDoCliente = pedido.t === 'chat.enviar' ? { idDoCliente: pedido.idDoCliente } : {}
+        return entregar({ t: 'chat.recusado', pedido: pedido.t, ...idDoCliente, motivo: 'ritmo', tentarDepoisDe: ritmoDaConta.tentarDepoisDe })
+      }
+      ritmo.set(eu.contaId, ritmoDaConta.paceAt)
       switch (pedido.t) {
         case 'chat.enviar':
           return enviar(pedido, eu, entregar)
