@@ -3,7 +3,7 @@ import { enderecoDaRota, type Rota } from '../../dados/rotas'
 import type { EstadoDaCampanha, FichaDoSite } from '../../dados/sessaoDaCampanha'
 import { aoClicarNoLink, useDoSite, useSite } from '../contexto'
 import { Icone, type NomeDoIcone } from '../Icone'
-import { Medidores, Retrato } from '../TelaCampanha'
+import { fichasDaMesa, Medidores, Retrato } from '../TelaCampanha'
 import { plural } from '../textos'
 import { MOTIVO_DO_TREINO, TREINO_NO_SITE } from './treinoNoSite'
 
@@ -25,7 +25,7 @@ export function AtalhosDaMesa({ campanha }: { campanha: EstadoDaCampanha }) {
   const escolhaId = useId()
   const [escolhida, setEscolhida] = useState<string | null>(null)
   const ehMestre = campanha.eu?.papel === 'mestre'
-  const minhas = campanha.fichas.filter((ficha) => ficha.ehMinha)
+  const minhas = fichasDaMesa(campanha).filter((ficha) => ficha.ehMinha)
   const ficha = minhas.find((candidata) => candidata.doc.id === escolhida) ?? minhas.at(0)
   const campanhaId = campanha.campanhaId
 
@@ -164,16 +164,18 @@ function CartaoDaFicha({ campanhaId, ficha }: { campanhaId: string; ficha: Ficha
 }
 
 function CartaoDasFichas({ campanha }: { campanha: EstadoDaCampanha }) {
-  const jogadores = campanha.fichas.filter((ficha) => ficha.doc.tipo === 'jogador').length
-  const rostos = campanha.fichas.slice(0, ROSTOS_NO_CARTAO)
-  const resto = campanha.fichas.length - rostos.length
+  // Sem as cópias dos inimigos do treino: elas não são ficha da mesa (moram só no treino).
+  const fichas = fichasDaMesa(campanha)
+  const jogadores = fichas.filter((ficha) => ficha.doc.tipo === 'jogador').length
+  const rostos = fichas.slice(0, ROSTOS_NO_CARTAO)
+  const resto = fichas.length - rostos.length
   return (
     <Link alvo={{ tela: 'fichas', campanhaId: campanha.campanhaId }} className="lo-atalho lo-atalho--ficha">
       <span className="lo-atalho__corpo">
         <span className="lo-atalho__rotulo">
           <Icone nome="ficha" /> Fichas da mesa
         </span>
-        <span className="lo-atalho__titulo">{plural(campanha.fichas.length, 'ficha', 'fichas')}</span>
+        <span className="lo-atalho__titulo">{plural(fichas.length, 'ficha', 'fichas')}</span>
         <span className="lo-atalho__detalhe">
           {plural(jogadores, 'personagem de jogador', 'personagens de jogadores')}. Você é o mestre: vê e muda todas daqui.
         </span>

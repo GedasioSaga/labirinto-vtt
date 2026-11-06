@@ -20,6 +20,16 @@ import { iniciais, plural, tomDe } from './textos'
 /** Os recursos com atual e máximo (HP, SP): as barras do cartão. */
 const RECURSOS_COM_BARRA = SISTEMA_DO_LOBBY.recursos.filter((recurso) => recurso.atualEMaximo === true)
 
+/**
+ * As fichas que são da mesa: todas menos as cópias dos inimigos do treino
+ * (`visivel: 'treino'`, que o mestre libera no app, T8). Elas só existem para
+ * o treino; não são personagem de ninguém, nem do mestre (o NPC de verdade
+ * mora no app), então ficam fora das listas, dos atalhos e das contagens.
+ */
+export function fichasDaMesa(campanha: EstadoDaCampanha): FichaDoSite[] {
+  return campanha.fichas.filter((ficha) => ficha.visivel !== 'treino')
+}
+
 export function TelaCampanha({ campanhaId }: { campanhaId: string }) {
   const site = useSite()
   const demo = useDoSite((estado) => estado.demo)
@@ -58,8 +68,9 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
   const tripId = useId()
   const agoraId = useId()
   const ehMestre = campanha.eu?.papel === 'mestre'
-  const minhas = campanha.fichas.filter((ficha) => ficha.ehMinha)
-  const outras = campanha.fichas.filter((ficha) => !ficha.ehMinha)
+  const daMesa = fichasDaMesa(campanha)
+  const minhas = daMesa.filter((ficha) => ficha.ehMinha)
+  const outras = daMesa.filter((ficha) => !ficha.ehMinha)
   const mestre = campanha.membros.find((membro) => membro.papel === 'mestre')
   const lobby: Rota = { tela: 'campanha', campanhaId: campanha.campanhaId }
 
@@ -72,7 +83,7 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
           </a>
           <h1 className="lo-titulo">Fichas da mesa</h1>
           <p className="lo-sub">
-            {mestre !== undefined ? `Mestre ${mestre.nome}. ` : ''}Sistema {SISTEMA_DO_LOBBY.nome}. {plural(campanha.fichas.length, 'personagem', 'personagens')}.
+            {mestre !== undefined ? `Mestre ${mestre.nome}. ` : ''}Sistema {SISTEMA_DO_LOBBY.nome}. {plural(daMesa.length, 'personagem', 'personagens')}.
           </p>
         </div>
         <aside className="lo-agora" aria-labelledby={agoraId}>

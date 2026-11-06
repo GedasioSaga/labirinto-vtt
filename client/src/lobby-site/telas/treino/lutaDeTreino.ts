@@ -59,6 +59,30 @@ export function problemaDaMontagem(montagem: MontagemDaLuta): string | null {
   return null
 }
 
+/**
+ * A assinatura do que vai para a luta: as cópias dos dois lados, com todos os
+ * números. Mudou o inimigo, o "Quantos", uma ficha, a Vida cheia ou o
+ * rascunho, ela muda, e o resultado que a tela guardou deixa de ser o da
+ * montagem de agora (revisão da T7). As cópias são JSON puro e poucas (no
+ * máximo 3 por lado): o texto sai barato.
+ */
+export function assinaturaDaMontagem(montagem: MontagemDaLuta): string {
+  return JSON.stringify([montagem.minhas, montagem.inimigos])
+}
+
+function ladoEmTexto(fichas: readonly Personagem[]): string {
+  const vezes = new Map<string, number>()
+  for (const ficha of fichas) vezes.set(ficha.nome, (vezes.get(ficha.nome) ?? 0) + 1)
+  const nomes = [...vezes].map(([nome, n]) => (n > 1 ? `${n} × ${nome}` : nome))
+  if (nomes.length <= 1) return nomes[0] ?? 'ninguém'
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`
+}
+
+/** "Sora e Gael contra 2 × Recruta da Marinha": quem lutou, para o resultado dizer contra quem foi. */
+export function quemLutou(montagem: MontagemDaLuta): string {
+  return `${ladoEmTexto(montagem.minhas)} contra ${ladoEmTexto(montagem.inimigos)}`
+}
+
 export type ComecoDaLuta = { ok: true; luta: LutaLocal } | { ok: false; motivo: string }
 
 /** A luta nova com a semente: as cópias com o dono de cada lado, a ordem pela Agilidade e o desempate no d20 da semente. */

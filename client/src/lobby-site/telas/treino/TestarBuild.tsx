@@ -1,12 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Personagem } from '../../../lib/personagem'
 import { LUTAS_DA_SERIE, type ComparacaoDeBuild } from '../../../lib/treino/cemLutas'
 import { compararBuildNoWorker, type LutasNoWorker } from '../../../lib/treino/lutasNoWorker'
 import { sementeNova } from '../../../lib/treino/sorteio'
 import { SISTEMA_DO_LOBBY } from '../contexto'
 import { assentarAnimacao } from './ArenaDaLuta'
-import { BarraDasLutas, NumerosDaSerie, type Progresso } from './CemLutas'
-import { lutadoresDaMontagem, problemaDaMontagem, type MontagemDaLuta } from './lutaDeTreino'
+import { AvisoDeMontagemVelha, BarraDasLutas, NumerosDaSerie, type Progresso } from './CemLutas'
+import { assinaturaDaMontagem, lutadoresDaMontagem, problemaDaMontagem, quemLutou, type MontagemDaLuta } from './lutaDeTreino'
 import { apagarRascunho, comRascunho, guardarRascunho, lerRascunho, NUMERO_DO_RASCUNHO_MAX, rascunhoMuda, rascunhoVazio, type RascunhoDeTreino } from './rascunhoDeTreino'
 
 /**
@@ -66,16 +66,47 @@ function CampoDoRascunho({ nome, naFicha, valor, aoMudar }: { nome: string; naFi
   )
 }
 
+interface ComparacaoGuardada {
+  valor: ComparacaoDeBuild
+  /** Antes e depois com que a comparação rodou, e quem lutou, em texto (para o aviso quando a montagem muda). */
+  assinatura: string
+  quem: string
+}
+
+function ResultadoDaComparacao({ comparacao, quem, velha }: { comparacao: ComparacaoDeBuild; quem: string; velha: boolean }) {
+  const { diferenca } = comparacao
+  return (
+    <div className="lo-tr-resultado" role="status" data-velho={velha ? '1' : undefined} onAnimationEnd={assentarAnimacao}>
+      {velha && <AvisoDeMontagemVelha quem={quem} oQue="Esta comparação foi" refazer="Compare de novo para ver a de agora." />}
+      <p className="lo-tr-diferenca" data-tom={diferenca > 0 ? 'vitoria' : diferenca < 0 ? 'derrota' : undefined}>
+        {diferenca === 0
+          ? `Mesmo número de vitórias nas mesmas ${LUTAS_DA_SERIE} lutas.`
+          : `${diferenca > 0 ? '+' : '−'}${Math.abs(diferenca)} ${Math.abs(diferenca) === 1 ? 'vitória' : 'vitórias'} com o rascunho, nas mesmas ${LUTAS_DA_SERIE} lutas.`}
+      </p>
+      <div className="lo-tr-comparacao">
+        <NumerosDaSerie resultado={comparacao.atual} titulo="Ficha de agora" />
+        <NumerosDaSerie resultado={comparacao.rascunho} titulo="Com o rascunho" />
+      </div>
+      <p className="lo-motivo">Lutas de {quem}.</p>
+    </div>
+  )
+}
+
 export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, aoMudarRascunho }: PropsDoBuild) {
   const [fichaId, setFichaId] = useState<string | null>(fichaInicial ?? fichas[0]?.id ?? null)
   const doc = fichas.find((ficha) => ficha.id === fichaId) ?? fichas[0]
   const [rascunho, setRascunho] = useState<RascunhoDeTreino | null>(() => (doc === undefined ? null : lerRascunho(campanhaId, doc.id, demo)))
   const [guardado, setGuardado] = useState<boolean | null>(null)
   const [progresso, setProgresso] = useState<Progresso | null>(null)
-  const [comparacao, setComparacao] = useState<ComparacaoDeBuild | null>(null)
+  const [comparacao, setComparacao] = useState<ComparacaoGuardada | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const emCurso = useRef<LutasNoWorker<ComparacaoDeBuild> | null>(null)
   const idDaFicha = useId()
+  // Antes e depois, como vão para o worker: muda com o rascunho e com a montagem do lado (inimigo, Quantos, Vida cheia).
+  const assinatura = useMemo(
+    () => (doc === undefined ? '' : `${assinaturaDaMontagem(montagem(doc))}\n${assinaturaDaMontagem(montagem(comRascunho(doc, rascunho)))}`),
+    [montagem, doc, rascunho],
+  )
 
   useEffect(() => () => emCurso.current?.cancelar(), [])
 
@@ -84,7 +115,16 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
   }
   const atual = rascunho ?? rascunhoVazio(doc.id)
 
+  /** Para a comparação no meio: o worker fecha e o resultado dele, se ainda chegar, é ignorado (o `.then` confere `emCurso`). */
+  function pararComparacao() {
+    emCurso.current?.cancelar()
+    emCurso.current = null
+    setProgresso(null)
+  }
+
+  // Mudar o rascunho ou a ficha no meio da comparação para a comparação: ela era de outros números.
   function trocarFicha(id: string) {
+    pararComparacao()
     setFichaId(id)
     setRascunho(lerRascunho(campanhaId, id, demo))
     setGuardado(null)
@@ -97,6 +137,7 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
     if (valor === naFicha) delete numeros[id]
     else numeros[id] = valor
     const novo: RascunhoDeTreino = { ...atual, [campo]: numeros, salvoEm: Date.now() }
+    pararComparacao()
     setRascunho(novo)
     setComparacao(null)
     setGuardado(guardarRascunho(campanhaId, novo, demo))
@@ -105,6 +146,7 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
 
   function descartar() {
     if (doc === undefined) return
+    pararComparacao()
     apagarRascunho(campanhaId, doc.id, demo)
     setRascunho(null)
     setGuardado(null)
@@ -124,6 +166,7 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
     setErro(null)
     setComparacao(null)
     setProgresso({ feitas: 0, total: 2 * LUTAS_DA_SERIE })
+    const daCorrida = { assinatura, quem: quemLutou(montagem(doc)) }
     const corrida = compararBuildNoWorker({ sistema: SISTEMA_DO_LOBBY, atual: antes.lutadores, rascunho: depois.lutadores, lado: 'a', semente: sementeNova() }, (feitas, total) =>
       setProgresso({ feitas, total }),
     )
@@ -133,10 +176,11 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
         if (emCurso.current !== corrida) return
         emCurso.current = null
         setProgresso(null)
-        if (saida.ok) setComparacao(saida.valor)
+        if (saida.ok) setComparacao({ valor: saida.valor, ...daCorrida })
         else if (saida.motivo === 'falhou') setErro(`A comparação parou com erro: ${saida.detalhe}`)
       })
       .catch((falha: unknown) => {
+        if (emCurso.current !== corrida) return
         emCurso.current = null
         setProgresso(null)
         setErro(`A comparação parou com erro: ${falha instanceof Error ? falha.message : String(falha)}`)
@@ -194,15 +238,7 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
           Comparar antes e depois
         </button>
         {progresso !== null && (
-          <button
-            type="button"
-            className="lo-btn"
-            onClick={() => {
-              emCurso.current?.cancelar()
-              emCurso.current = null
-              setProgresso(null)
-            }}
-          >
+          <button type="button" className="lo-btn" onClick={pararComparacao}>
             Cancelar
           </button>
         )}
@@ -218,17 +254,7 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
         </p>
       )}
       {comparacao !== null && (
-        <div className="lo-tr-resultado" role="status" onAnimationEnd={assentarAnimacao}>
-          <p className="lo-tr-diferenca" data-tom={comparacao.diferenca > 0 ? 'vitoria' : comparacao.diferenca < 0 ? 'derrota' : undefined}>
-            {comparacao.diferenca === 0
-              ? `Mesmo número de vitórias nas mesmas ${LUTAS_DA_SERIE} lutas.`
-              : `${comparacao.diferenca > 0 ? '+' : '−'}${Math.abs(comparacao.diferenca)} ${Math.abs(comparacao.diferenca) === 1 ? 'vitória' : 'vitórias'} com o rascunho, nas mesmas ${LUTAS_DA_SERIE} lutas.`}
-          </p>
-          <div className="lo-tr-comparacao">
-            <NumerosDaSerie resultado={comparacao.atual} titulo="Ficha de agora" />
-            <NumerosDaSerie resultado={comparacao.rascunho} titulo="Com o rascunho" />
-          </div>
-        </div>
+        <ResultadoDaComparacao comparacao={comparacao.valor} quem={comparacao.quem} velha={comparacao.assinatura !== assinatura} />
       )}
     </div>
   )

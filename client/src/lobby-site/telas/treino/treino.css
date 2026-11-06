@@ -249,6 +249,12 @@
 .lo-tr-numero dd small { color: var(--lb-color-parchment-faint); font-family: var(--lb-font-sans); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-regular); }
 .lo-tr-numero[data-tom='vitoria'] { box-shadow: inset 0 2px 0 var(--lb-color-online); }
 .lo-tr-numero[data-tom='derrota'] { box-shadow: inset 0 2px 0 var(--lb-color-ember); }
+/* Resultado de uma montagem que já mudou: o aviso fica no alto e os números apagam, sem sumir (só opacidade: vale com movimento reduzido). */
+.lo-tr-resultado .lo-linha-aviso { margin-bottom: 0; }
+.lo-tr-resultado .lo-tr-numeros,
+.lo-tr-resultado .lo-tr-diferenca { transition: opacity var(--lb-motion-fast) ease; }
+.lo-tr-resultado[data-velho='1'] .lo-tr-numeros,
+.lo-tr-resultado[data-velho='1'] .lo-tr-diferenca { opacity: 0.5; }
 
 .lo-tr-build__cab { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-3); }
 .lo-tr-build__ficha { max-width: 320px; }
