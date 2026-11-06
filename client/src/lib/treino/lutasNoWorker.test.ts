@@ -42,8 +42,11 @@ function pedidoDoDoisContraUm(semente: number): PedidoDaSerie {
   return { sistema: SISTEMA_DO_TESTE, lutadores: doisContraUm(), semente }
 }
 
+/** 200 lutas (o worker e o rodarSerie de conferência): ~1,2 s sozinho; o teto evita reprovar pela máquina no grupo 'rapido'. */
+const TETO_DO_TESTE_MS = 30_000
+
 describe('100 lutas pelo worker', () => {
-  it('dá o mesmo resultado do rodarSerie direto, avisa de 1 a 100 e fecha o worker', async () => {
+  it('dá o mesmo resultado do rodarSerie direto, avisa de 1 a 100 e fecha o worker', { timeout: TETO_DO_TESTE_MS }, async () => {
     const pedido = pedidoDoDoisContraUm(1)
     const canal = canalNaMesmaThread()
     const avisos: string[] = []

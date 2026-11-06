@@ -11,8 +11,16 @@ import { doisContraUm, SISTEMA_DO_TESTE } from './fichasDeTreino.testkit'
 import { lutaAutomatica } from './lutaAutomatica'
 import type { LadoDoTreino } from './mesaEmMemoria'
 
+/**
+ * Teto de cada teste: o comparar build roda 500 lutas (~3 s sozinho) e passou
+ * de 5,4 s no grupo 'rapido', em paralelo com outros arquivos, estourando os
+ * 5 s padrão do vitest. O tempo das lutas é medido no grupo 'desempenho'
+ * (cemLutas.desempenho.test.ts); aqui o teto só evita reprovar pela máquina.
+ */
+const TETO_DO_TESTE_MS = 30_000
+
 describe('100 lutas do treino', () => {
-  it('a semente 1 dá o mesmo resultado 2×, vitórias + empates = 100, cada luta com a sua semente', () => {
+  it('a semente 1 dá o mesmo resultado 2×, vitórias + empates = 100, cada luta com a sua semente', { timeout: TETO_DO_TESTE_MS }, () => {
     const pedido: PedidoDaSerie = { sistema: SISTEMA_DO_TESTE, lutadores: doisContraUm(), semente: 1 }
     const primeira = rodarSerie(pedido)
     expect(rodarSerie(pedido)).toEqual(primeira)
@@ -27,7 +35,7 @@ describe('100 lutas do treino', () => {
     expect(lutaAutomatica({ sistema: SISTEMA_DO_TESTE, lutadores: pedido.lutadores, semente: luta.semente }).fim).toEqual(luta.fim)
   })
 
-  it('comparar build: as mesmas sementes nas duas séries; rascunho igual = diferença 0; mais Força = mais vitórias', () => {
+  it('comparar build: as mesmas sementes nas duas séries; rascunho igual = diferença 0; mais Força = mais vitórias', { timeout: TETO_DO_TESTE_MS }, () => {
     const lado: LadoDoTreino = 'a'
     const igual = compararBuild({ sistema: SISTEMA_DO_TESTE, atual: doisContraUm(60), rascunho: doisContraUm(60), lado, semente: 1 })
     expect(igual.rascunho).toEqual(igual.atual)
