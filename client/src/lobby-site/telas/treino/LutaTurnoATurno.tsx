@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { dueloParaOFio, type JogadaDoDuelo } from '../../../lib/treino/duelo'
 import { sementeNova } from '../../../lib/treino/sorteio'
-import { SISTEMA_DO_LOBBY } from '../contexto'
+import type { CasaDaArena } from '../../../lib/arena/grade'
+import { SISTEMA_DO_LOBBY, useDoSite } from '../contexto'
 import { ArenaDaLuta, assentarAnimacao, nomeDaVez } from './ArenaDaLuta'
+import { bonecosDoDuelo } from './grade/bonecosDoDuelo'
+import { GradeDaArena } from './grade/GradeDaArena'
 import { comecarLutaLocal, jogarNaLuta, lutaAteOFim, passoDoInimigo, problemaDaMontagem, type LutaLocal, type MontagemDaLuta } from './lutaDeTreino'
 import { oQueEsperaDeMim, PainelDaVez } from './PainelDaVez'
 import { contar, textoDaRecusa, textoDoFim, tomDoFim } from './textosDoTreino'
@@ -37,7 +40,8 @@ export function LutaTurnoATurno({ montagem, nomeDoInimigo }: { montagem: Montage
   const [montagemDaLuta, setMontagemDaLuta] = useState<MontagemDaLuta | null>(null)
   const [roboPorMim, setRoboPorMim] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
-  const fio = useMemo(() => (luta === null ? null : dueloParaOFio(luta.duelo)), [luta])
+  const demo = useDoSite((estado) => estado.demo)
+  const fio =useMemo(() => (luta === null ? null : dueloParaOFio(luta.duelo)), [luta])
   const problema = problemaDaMontagem(montagem)
 
   // O robô joga quando a vez não é sua (ou quando ele joga por você), com uma pausa para dar tempo de ler.
@@ -72,6 +76,19 @@ export function LutaTurnoATurno({ montagem, nomeDoInimigo }: { montagem: Montage
     }
     setAviso(null)
     setLuta(feito.luta)
+  }
+
+  /** Andar na grade: livre no seu lado, como na Arena do app; a regra recusa a casa ocupada ou fora da grade. */
+  function andar(tokenId: string, casa: CasaDaArena): boolean {
+    if (luta === null) return false
+    const feito = jogarNaLuta(luta, { tipo: 'andar', seq: luta.duelo.seq, vez: null, tokenId, col: casa.col, row: casa.row })
+    if (!feito.ok) {
+      setAviso(textoDaRecusa(feito.motivo))
+      return false
+    }
+    setAviso(null)
+    setLuta(feito.luta)
+    return true
   }
 
   function roboEscolhe() {
@@ -149,6 +166,7 @@ export function LutaTurnoATurno({ montagem, nomeDoInimigo }: { montagem: Montage
               </button>
             </div>
           )}
+          <GradeDaArena bonecos={bonecosDoDuelo(fio, demo, (vaga, emPe) => vaga.lado === 'a' && emPe)} trilhas={luta.duelo.cena.trilhas} onAndar={andar} rotulo="Grade da luta" />
           {fio.fim === null && !roboPorMim && esperaDeMim !== null && <PainelDaVez duelo={fio} meuLado="a" ocupado={false} onJogar={jogar} onRoboEscolhe={roboEscolhe} />}
           <ArenaDaLuta duelo={fio} meuLado="a" nomeDoMeuLado="Seu lado" nomeDoOutroLado="Inimigos" />
         </>

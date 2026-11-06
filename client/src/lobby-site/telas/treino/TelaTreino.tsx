@@ -6,6 +6,7 @@ import { aoClicarNoLink, SISTEMA_DO_LOBBY, useDoSite, useSite } from '../context
 import { AvisoDaPagina } from '../Estados'
 import { Icone } from '../Icone'
 import { CemLutas } from './CemLutas'
+import { ImagemDoSite } from './grade/ImagemDoSite'
 import { comVidaCheia, type MontagemDaLuta } from './lutaDeTreino'
 import { LutaTurnoATurno } from './LutaTurnoATurno'
 import { comRascunho, lerRascunho, rascunhoMuda } from './rascunhoDeTreino'
@@ -200,7 +201,7 @@ export function TelaTreino({ rota }: { rota: RotaDoTreino }) {
   }
 
   const outra: Rota = { tela: 'treino', campanhaId: rota.campanhaId, parte: ehDuelo ? 'lutas' : 'duelo' }
-  return (
+  const pagina = (
     <div className="lo-pagina lo-pagina--treino">
       <header className="lo-cab-pag">
         <div className="lo-cab-pag__texto">
@@ -236,5 +237,11 @@ export function TelaTreino({ rota }: { rota: RotaDoTreino }) {
         />
       )}
     </div>
+  )
+  // O retrato das fichas vem da rota de mídia da mesa (na demo, os rostos inventados): a grade e a mira pedem por aqui.
+  return (
+    <ImagemDoSite campanhaId={rota.campanhaId} demo={demo}>
+      {pagina}
+    </ImagemDoSite>
   )
 }

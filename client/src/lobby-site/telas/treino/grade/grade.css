@@ -1,0 +1,303 @@
+/*
+ * A GRADE DA ARENA NO SITE (fatia G2, GradeDaArena.tsx): o palco da Arena de
+ * testes do app em DOM. As cores do chão, da borda e da barra de vida não são
+ * tokens do tema: são as constantes do desenho do app (pixi/palcoDaArena.ts:
+ * COR_DO_CHAO e COR_DA_BORDA; pixi/drawTokenHealth.ts: HEALTH_BAR_COLORS),
+ * repetidas aqui para a grade do site ter a mesma cara. O fundo do palco é o
+ * `--lb-color-stone-sunken`, o mesmo #141417 do COR_DO_FUNDO de lá.
+ * A cor de cada lado chega do TS (EQUIPE_DO_LADO, lib/arena/grade.ts) em
+ * `--lo-ga-lado`.
+ */
+
+.lo-ga {
+  --lo-ga-chao: #3b3934;
+  --lo-ga-borda: #5a564d;
+  --lo-ga-linha: rgba(236, 234, 228, 0.26);
+  --lo-ga-linha-sombra: rgba(0, 0, 0, 0.32);
+  --lo-ga-vida-bem: #7ee0a0;
+  --lo-ga-vida-cuidado: #e0a030;
+  --lo-ga-vida-perigo: var(--lb-color-ember);
+  --lo-ga-mov: 180ms;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  padding: var(--lb-space-4);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+}
+
+/* Na caixa de quem a põe (a tela da Arena): ocupa tudo e centra a grade. */
+.lo-ga[data-caber='tudo'] {
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+}
+
+.lo-ga-moldura {
+  position: relative;
+  flex: none;
+}
+
+.lo-ga-tabuleiro {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* O chão com a grade: a linha clara de 1 px com um fio escuro ao lado, que a separa do chão (o halo da grade do app). */
+.lo-ga-chao {
+  position: absolute;
+  inset: 0;
+  background-color: var(--lo-ga-chao);
+  background-image:
+    linear-gradient(to right, var(--lo-ga-linha) 1px, var(--lo-ga-linha-sombra) 1px 2px, transparent 2px),
+    linear-gradient(to bottom, var(--lo-ga-linha) 1px, var(--lo-ga-linha-sombra) 1px 2px, transparent 2px);
+  background-size: 64px 64px;
+  box-shadow: inset 0 0 0 2px var(--lo-ga-borda), 0 10px 30px rgba(0, 0, 0, 0.45);
+  border-radius: 3px;
+}
+
+/* ── A trilha andada ── */
+.lo-ga-trilhas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.lo-ga-trilha {
+  fill: none;
+  stroke: var(--lo-ga-lado);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-opacity: 0.5;
+}
+.lo-ga-trilha__passo {
+  fill: var(--lo-ga-lado);
+  fill-opacity: 0.85;
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 1;
+}
+
+/* ── O arrasto: de onde a ficha saiu e a casa sob ela ── */
+.lo-ga-origem,
+.lo-ga-alvo,
+.lo-ga-alvo-rotulo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+}
+.lo-ga-origem::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 4px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px dashed var(--lb-color-parchment-faint);
+  opacity: 0.8;
+}
+.lo-ga-alvo {
+  z-index: 1;
+  border-radius: 4px;
+}
+.lo-ga-alvo[data-situacao='livre'] {
+  background: var(--lb-color-brass-soft);
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+.lo-ga-alvo[data-situacao='ocupada'] {
+  background: var(--lb-color-ember-soft);
+  box-shadow: inset 0 0 0 2px var(--lb-color-ember);
+}
+.lo-ga-alvo-rotulo { z-index: 6; }
+.lo-ga-alvo__texto {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  translate: -50% 0;
+  padding: 1px 6px;
+  border-radius: var(--lb-radius-full);
+  font-family: var(--lb-font-utility);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 14px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.lo-ga-alvo-rotulo[data-situacao='livre'] .lo-ga-alvo__texto {
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+}
+.lo-ga-alvo-rotulo[data-situacao='ocupada'] .lo-ga-alvo__texto {
+  background: var(--lb-color-ember);
+  color: var(--lb-color-brass-contrast);
+}
+
+/* ── A ficha ── */
+.lo-ga-boneco {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  width: 64px;
+  height: 64px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--lo-ga-mov) var(--lb-gr-ease-out);
+}
+.lo-ga-boneco[data-pode] { cursor: grab; }
+.lo-ga-tabuleiro[data-mirando] .lo-ga-boneco { cursor: crosshair; }
+.lo-ga-boneco[data-na-mao] {
+  cursor: grabbing;
+  transition: none;
+}
+.lo-ga-boneco[data-sem-transicao] { transition: none; }
+/* Sobre a casa de outra ficha, a da mão fica translúcida: dá para ver quem já está lá. */
+.lo-ga-tabuleiro[data-alvo='ocupada'] .lo-ga-boneco[data-na-mao] { opacity: 0.72; }
+.lo-ga-boneco:focus-visible { outline: none; }
+
+.lo-ga-boneco__disco {
+  position: absolute;
+  left: 10px;
+  top: 4px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--lo-ga-lado) 34%, var(--lb-color-stone-solid));
+  box-shadow: 0 0 0 3px var(--lo-ga-lado), 0 3px 8px rgba(0, 0, 0, 0.5);
+  /* Só o transform anima (apertar e levantar); a sombra troca na hora (pintura, não GPU). */
+  transition: transform 110ms var(--lb-gr-ease-out);
+}
+.lo-ga-boneco__foto {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.lo-ga-boneco__iniciais {
+  font-family: var(--lb-font-utility);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.lo-ga-boneco:focus-visible .lo-ga-boneco__disco {
+  box-shadow: 0 0 0 3px var(--lo-ga-lado), 0 0 0 5px var(--lb-color-stone-solid), 0 0 0 7px var(--lb-color-brass);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lo-ga-boneco[data-pode]:hover .lo-ga-boneco__disco {
+    box-shadow: 0 0 0 3px var(--lo-ga-lado), 0 0 0 4px rgba(236, 234, 228, 0.35), 0 3px 8px rgba(0, 0, 0, 0.5);
+  }
+}
+/* Apertar responde na hora; pegar levanta a ficha (sai da mesa sem cobrir a vizinha, como o TOKEN_LIFT_SCALE do app). */
+.lo-ga-boneco:active:not([data-na-mao]) .lo-ga-boneco__disco { transform: scale(0.97); }
+.lo-ga-boneco[data-na-mao] .lo-ga-boneco__disco {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px var(--lo-ga-lado), 0 12px 20px rgba(0, 0, 0, 0.55);
+}
+.lo-ga-boneco[data-pendente] { opacity: 0.7; }
+
+.lo-ga-boneco[data-caiu] .lo-ga-boneco__disco {
+  filter: grayscale(1) brightness(0.62);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lo-ga-lado) 45%, var(--lb-color-stone-solid));
+}
+
+/* O anel da vez: chega de fora, maior e transparente, e fecha sobre a ficha (o anel da vez do app). */
+.lo-ga-boneco__vez {
+  position: absolute;
+  left: 4px;
+  top: -2px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--lb-color-brass-bright);
+  box-shadow: 0 0 12px rgba(243, 186, 102, 0.45);
+  pointer-events: none;
+  animation: lo-ga-vez-chega 260ms var(--lb-gr-ease-out) both;
+}
+@keyframes lo-ga-vez-chega {
+  from { opacity: 0; transform: scale(1.3); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* A barra de vida: fina, sob o disco, sem animar (muda a cada golpe). */
+.lo-ga-boneco__vida {
+  position: absolute;
+  left: 14px;
+  top: 51px;
+  width: 36px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(18, 18, 20, 0.72);
+  box-shadow: 0 0 0 1px rgba(236, 234, 228, 0.3);
+}
+.lo-ga-boneco__vida > span {
+  display: block;
+  height: 100%;
+  transform-origin: 0 50%;
+  background: var(--lo-ga-vida-bem);
+}
+.lo-ga-boneco__vida[data-estado='caution'] > span { background: var(--lo-ga-vida-cuidado); }
+.lo-ga-boneco__vida[data-estado='danger'] > span { background: var(--lo-ga-vida-perigo); }
+
+.lo-ga-boneco__nome {
+  position: absolute;
+  left: 50%;
+  top: 57px;
+  translate: -50% 0;
+  /* Cabe na casa (o nome da vizinha não encosta); pairar, focar ou pegar mostra o nome inteiro, por cima. */
+  max-width: 62px;
+  overflow: hidden;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: rgba(20, 20, 23, 0.8);
+  font-family: var(--lb-font-utility);
+  font-size: 10.5px;
+  line-height: 13px;
+  color: var(--lb-color-parchment);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.lo-ga-boneco:focus-visible,
+.lo-ga-boneco[data-na-mao] { z-index: 5; }
+.lo-ga-boneco:focus-visible .lo-ga-boneco__nome,
+.lo-ga-boneco[data-na-mao] .lo-ga-boneco__nome { max-width: 180px; }
+@media (hover: hover) and (pointer: fine) {
+  .lo-ga-boneco:hover { z-index: 3; }
+  .lo-ga-boneco:hover .lo-ga-boneco__nome { max-width: 180px; }
+}
+.lo-ga-boneco[data-vez] .lo-ga-boneco__nome { color: var(--lb-color-brass-bright); }
+.lo-ga-boneco[data-caiu] .lo-ga-boneco__nome { color: var(--lb-color-parchment-faint); text-decoration: line-through; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-ga-boneco,
+  .lo-ga-boneco__disco { transition: none; }
+  .lo-ga-boneco__vez { animation: none; }
+}
