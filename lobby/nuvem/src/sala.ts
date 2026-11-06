@@ -1,4 +1,16 @@
-import { ehRegistro, lerJsonSeguro, lerPedidoDoChat, proprio, segmentoValido, type LeituraDoPedidoDoChat, type MensagemDoChatDoServidor, type MensagemDoServidor } from './nucleo'
+import {
+  ehRegistro,
+  lerJsonSeguro,
+  lerPedidoDoChat,
+  lerPedidoDoMural,
+  proprio,
+  segmentoValido,
+  type LeituraDoPedidoDoChat,
+  type LeituraDoPedidoDoMural,
+  type MensagemDoChatDoServidor,
+  type MensagemDoMuralDoServidor,
+  type MensagemDoServidor,
+} from './nucleo'
 
 /**
  * O WebSocket do site (plano §5.4), com Hibernation: o DO dorme entre as
@@ -52,6 +64,8 @@ export type Frame =
   | { t: 'historico'; fichaId: string; antesDeRev: number | null; limite: number }
   /** Todo `chat.*` (fatia C1): lido inteiro pelo núcleo; o torto vem marcado para a resposta `chat.recusado`. */
   | { t: 'chat'; leitura: LeituraDoPedidoDoChat }
+  /** Todo `mural.*` (fatia M1): idem. */
+  | { t: 'mural'; leitura: LeituraDoPedidoDoMural }
 
 /** O histórico vem em páginas de 50 (§5.3). */
 export const LIMITE_DO_HISTORICO = 50
@@ -64,6 +78,7 @@ function revOuNulo(valor: unknown): number | null | undefined {
 function frameDoRegistro(registro: Record<string, unknown>): Frame | null {
   const tipo = proprio(registro, 't')
   if (typeof tipo === 'string' && tipo.startsWith('chat.')) return { t: 'chat', leitura: lerPedidoDoChat(registro) }
+  if (typeof tipo === 'string' && tipo.startsWith('mural.')) return { t: 'mural', leitura: lerPedidoDoMural(registro) }
   switch (tipo) {
     case 'ola': {
       const desdeRev = revOuNulo(proprio(registro, 'desdeRev'))
@@ -100,7 +115,7 @@ export function lerFrame(texto: string): Frame | null {
   }
 }
 
-export function enviar(ws: WebSocket, mensagem: MensagemDoServidor | MensagemDoChatDoServidor): void {
+export function enviar(ws: WebSocket, mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor): void {
   try {
     ws.send(JSON.stringify(mensagem))
   } catch {

@@ -13,6 +13,10 @@
 //                                             canal 'dm:a:b' em texto = recusa; 6º envio em rajada = ritmo;
 //                                             exportar sem nenhum privado; presença por conta, sem e-mail;
 //                                             trocar o e-mail da Nami não abre o privado dela ao e-mail novo
+//      node fumaca.mjs mural               -> o aceite da M1 (mestre, Nami e Zoro): notícia do mestre chega aos 3;
+//                                             jogador que tenta postar ou fixar = recusado (sem-permissao); aviso
+//                                             fixado aparece no mural.estado de quem entra e some para quem leu;
+//                                             modificações da jogadora sem notaDoMestre, NPC nem e-mail
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -688,6 +692,129 @@ async function aceiteDoChat() {
   console.log(falhas === 0 ? `CHAT OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
 }
 
+// ── Mural (M1, plano 8.2; permissão e projeção liberadas pela 12.18 b e c) ───
+
+/** Sistema com o nome do recurso: a frase do feed diz "Vida", não "hp". */
+const SISTEMA_DO_MURAL = { id: 'one-piece', nome: 'One Piece', recursos: [{ id: 'hp', nome: 'Vida' }], abas: [{ id: 'tecnicas', nome: 'Técnicas' }] }
+
+const doMural = (sala, criterio, descricao) => sala.esperar((m) => typeof m.t === 'string' && m.t.startsWith('mural.') && criterio(m), descricao)
+
+async function noticiaChegaAos3(s, marcador) {
+  await s.mestre.mandar({ t: 'mural.postar', texto: `  Sessão no sábado! @Nami ${marcador}  `, imagem: null, idDoCliente: 'n_1' })
+  const ok = await doMural(s.mestre, (m) => (m.t === 'mural.ok' || m.t === 'mural.recusado') && m.idDoCliente === 'n_1', 'o mural.ok do mestre')
+  const [naNami, noZoro] = await Promise.all([s.nami, s.zoro].map((sala) => doMural(sala, (m) => m.t === 'mural.noticia' && m.noticia.id === ok.noticia?.id, 'a notícia do mestre')))
+  conferir(
+    'notícia do mestre chega aos 3 (mural.ok ao mestre; Nami e Zoro recebem a mesma; texto limpo; @Nami = conta_nami)',
+    ok.t === 'mural.ok' && ok.noticia.texto === `Sessão no sábado! @Nami ${marcador}` && ok.noticia.mencoes.join() === 'conta_nami' && naNami.noticia.texto === ok.noticia.texto && noZoro.noticia.autorNome === 'Mestre',
+    JSON.stringify(ok),
+  )
+  return ok.noticia
+}
+
+async function jogadorNaoPostaNemFixa(s, noticia) {
+  await s.nami.mandar({ t: 'mural.postar', texto: 'post da Nami', imagem: null, idDoCliente: 'n_nami' })
+  const postar = await doMural(s.nami, (m) => m.t === 'mural.recusado' || m.t === 'mural.ok', 'a resposta do postar da Nami')
+  conferir(
+    'jogadora tenta postar = mural.recusado (sem-permissao), nada chega ao mestre',
+    postar.t === 'mural.recusado' && postar.motivo === 'sem-permissao' && postar.idDoCliente === 'n_nami' && !s.mestre.todas.some((texto) => texto.includes('post da Nami')),
+    JSON.stringify(postar),
+  )
+  await s.zoro.mandar({ t: 'mural.fixar', id: noticia.id, fixada: true })
+  const fixar = await doMural(s.zoro, (m) => m.t === 'mural.recusado' || (m.t === 'mural.noticia' && m.noticia.fixada), 'a resposta do fixar do Zoro')
+  conferir('jogador tenta fixar = mural.recusado (sem-permissao)', fixar.t === 'mural.recusado' && fixar.pedido === 'mural.fixar' && fixar.motivo === 'sem-permissao', JSON.stringify(fixar))
+}
+
+/** Abre outro socket da conta, manda `ola` e devolve o `mural.estado` que chega (fecha o socket no fim). */
+async function estadoDoMuralAoEntrar(campanhaId, email, clienteId) {
+  const sala = await Sala.abrir(campanhaId, email)
+  try {
+    await sala.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId })
+    return await sala.esperar((m) => m.t === 'mural.estado', `o mural.estado de ${email}`)
+  } finally {
+    sala.fechar()
+  }
+}
+
+async function avisoAteLer(campanhaId, s, noticia) {
+  await s.mestre.mandar({ t: 'mural.fixar', id: noticia.id, fixada: true })
+  const fixada = await doMural(s.zoro, (m) => m.t === 'mural.noticia' && m.noticia.id === noticia.id && m.noticia.fixada, 'o aviso fixado no Zoro')
+  await s.zoro.mandar({ t: 'mural.lido', id: noticia.id, versao: fixada.noticia.versao })
+  await doMural(s.zoro, (m) => m.t === 'mural.noticia' && m.noticia.id === noticia.id && m.noticia.lida, 'o lido do Zoro')
+  const daNami = await estadoDoMuralAoEntrar(campanhaId, NAMI, 'cli_nami_2')
+  const doZoro = await estadoDoMuralAoEntrar(campanhaId, ZORO, 'cli_zoro_2')
+  const aviso = (estado) => estado.fixadas.find((n) => n.id === noticia.id)
+  conferir(
+    'aviso fixado aparece no mural.estado de quem entra (Nami não leu: lida=false, mesma versão)',
+    aviso(daNami)?.lida === false && aviso(daNami)?.versao === fixada.noticia.versao,
+    JSON.stringify(daNami.fixadas),
+  )
+  conferir('o aviso some para quem marcou lido (Zoro entra de novo: lida=true, a faixa de aviso não aparece)', aviso(doZoro)?.lida === true, JSON.stringify(doZoro.fixadas))
+}
+
+async function confirmar(sala, lote) {
+  await sala.mandar({ t: 'ops', lote })
+  const respostas = await Promise.all(lote.map((uma) => sala.respostaDe(uma.opId)))
+  if (!respostas.every((r) => r.t === 'ack')) throw new Error(`ops do teste não entraram: ${JSON.stringify(respostas)}`)
+}
+
+const pedirModificacoes = async (sala, filtros = {}) => {
+  await sala.mandar({ t: 'mural.modificacoes', fichaId: null, autorContaId: null, antesDeRev: null, limite: 50, ...filtros })
+  return doMural(sala, (m) => m.t === 'mural.modificacoes', `as modificações de ${sala.email}`)
+}
+
+async function modificacoesPelaProjecao(s, base, marcadorNota) {
+  await confirmar(s.mestre, [
+    op('pers_nami', ['notaDoMestre'], 'definir', base, 'cli_mestre', { valor: `nota ${marcadorNota}` }),
+    op('pers_npc', ['recursos', 'hp'], 'definir', base, 'cli_mestre', { valor: 1 }),
+  ])
+  await confirmar(s.nami, [op('pers_nami', ['recursos', 'hp'], 'definir', base, 'cli_nami', { valor: 250 })])
+  const daNami = await pedirModificacoes(s.nami)
+  const texto = JSON.stringify(daNami)
+  conferir(
+    'modificações vistas pela jogadora: "Nami mudou Vida de 300 para 250", sem notaDoMestre, NPC nem e-mail',
+    daNami.lista.some((linha) => linha.frase === 'Nami mudou Vida de 300 para 250') &&
+      !texto.includes(marcadorNota) &&
+      !texto.includes('nota do mestre') &&
+      !texto.includes('nunca vê') &&
+      !texto.includes('pers_npc') &&
+      !texto.includes('@'),
+    texto,
+  )
+  const doMestre = await pedirModificacoes(s.mestre)
+  conferir(
+    'o mestre vê no feed dele a nota do mestre e o NPC (o filtro é a projeção de quem lê)',
+    doMestre.lista.some((linha) => linha.frase === 'Mestre mudou a nota do mestre') && doMestre.lista.some((linha) => linha.fichaId === 'pers_npc'),
+    JSON.stringify(doMestre.lista.map((linha) => linha.frase)),
+  )
+  const filtrada = await pedirModificacoes(s.zoro, { fichaId: 'pers_nami', autorContaId: 'conta_nami' })
+  conferir(
+    'filtro por ficha e por pessoa: o Zoro pede pers_nami + conta_nami e só vem a mudança da Nami na ficha dela',
+    filtrada.lista.length === 1 && filtrada.lista[0].fichaId === 'pers_nami' && filtrada.lista[0].autorNome === 'Nami' && filtrada.proximaAntesDeRev === null,
+    JSON.stringify(filtrada),
+  )
+}
+
+async function aceiteDoMural() {
+  const campanhaId = `fumaca-mural-${Date.now().toString(36)}`
+  const marcador = `aviso-${randomBytes(4).toString('hex')}`
+  const marcadorNota = `nota-${randomBytes(4).toString('hex')}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const npc = ficha('pers_npc', undefined, { tipo: 'npc', nome: 'Capitão da Marinha' })
+  const pedido = { ...pedidoDePublicar([ficha('pers_nami', 'conta_nami'), ficha('pers_zoro', 'conta_zoro'), npc]), sistema: SISTEMA_DO_MURAL }
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, pedido)
+  if (publicada.status !== 200 || publicada.corpo.rev !== 3) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  const s = await abrirOs3(campanhaId)
+  try {
+    const noticia = await noticiaChegaAos3(s, marcador)
+    await jogadorNaoPostaNemFixa(s, noticia)
+    await avisoAteLer(campanhaId, s, noticia)
+    await modificacoesPelaProjecao(s, publicada.corpo.rev, marcadorNota)
+  } finally {
+    for (const sala of Object.values(s)) sala.fechar()
+  }
+  console.log(falhas === 0 ? `MURAL OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
 async function listarOps(campanhaId) {
   const { primeira, ops } = await exportarTudo(campanhaId, MESTRE, 'app', 500)
   if (primeira.ops === undefined) {
@@ -714,6 +841,8 @@ try {
     await aceiteDaMidia()
   } else if (modo === 'chat') {
     await aceiteDoChat()
+  } else if (modo === 'mural') {
+    await aceiteDoMural()
   } else {
     await aceite()
   }

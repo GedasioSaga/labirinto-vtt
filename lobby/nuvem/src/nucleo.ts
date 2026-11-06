@@ -36,6 +36,28 @@ export {
   type ResumoDoCanal,
   type TipoDoPedidoDoChat,
 } from '../../../client/src/lib/nuvem/chatDoLobby'
+export {
+  ehReacaoDoMural,
+  fichaDaFrase,
+  lerPedidoDoMural,
+  mencoesDoMural,
+  modificacaoDoMural,
+  MURAL_PAGINA_DO_ESTADO,
+  MURAL_REACOES,
+  PEDIDOS_DO_MESTRE,
+  rotulosDoSistema,
+  textoDoMural,
+  type ContagemDaReacao,
+  type LeituraDoPedidoDoMural,
+  type MensagemDoMuralDoServidor,
+  type ModificacaoDoMural,
+  type MotivoDoMuralRecusado,
+  type NoticiaDoMural,
+  type PedidoDoMural,
+  type ReacaoDoMural,
+  type RotulosDoSistema,
+  type TipoDoPedidoDoMural,
+} from '../../../client/src/lib/nuvem/muralDoLobby'
 export { lerEnvelope, processarLote, respostasAdiadas, type Gravacoes, type LeitorDaCampanha, type RespostaDaOp, type ResultadoDoProcessamento } from '../../../client/src/lib/nuvem/lote'
 export { membroAtivo, podeVer } from '../../../client/src/lib/nuvem/permissao'
 export { fichaNoEstado, projetarMembros, projetarOpParaJogador } from '../../../client/src/lib/nuvem/projecao'

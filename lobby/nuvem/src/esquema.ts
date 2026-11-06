@@ -123,6 +123,38 @@ const TABELAS_DA_CAMPANHA = [
   `CREATE INDEX IF NOT EXISTS chat_dm_por_conversa ON chat_dm (par, emailA, emailB, id)`,
   `CREATE INDEX IF NOT EXISTS chat_dm_por_mudanca ON chat_dm (mudou)`,
   `CREATE TABLE IF NOT EXISTS lidas (contaId TEXT NOT NULL, canal TEXT NOT NULL, ateId INTEGER NOT NULL, PRIMARY KEY (contaId, canal))`,
+  // Mural (v2, fatia M1; lobby/nuvem/src/mural.ts). Notícia fixada = aviso. `versao` sobe ao editar
+  // e ao fixar; o lido de cada conta (`mural_lidos`) vale para a versão lida, então o aviso editado
+  // volta a aparecer. Lápide = a linha fica sem texto nem imagem. Reações e lidos nunca são apagados.
+  `CREATE TABLE IF NOT EXISTS mural_noticias (
+    id INTEGER PRIMARY KEY,
+    autorContaId TEXT NOT NULL,
+    autorNome TEXT NOT NULL,
+    texto TEXT NOT NULL,
+    imagem TEXT,
+    mencoes TEXT NOT NULL,
+    fixada INTEGER NOT NULL,
+    versao INTEGER NOT NULL,
+    criadaEm INTEGER NOT NULL,
+    editadaEm INTEGER,
+    apagadaEm INTEGER,
+    idDoCliente TEXT NOT NULL,
+    UNIQUE (autorContaId, idDoCliente)
+  )`,
+  `CREATE TABLE IF NOT EXISTS mural_reacoes (
+    noticiaId INTEGER NOT NULL,
+    contaId TEXT NOT NULL,
+    reacao TEXT NOT NULL,
+    quando INTEGER NOT NULL,
+    PRIMARY KEY (noticiaId, contaId)
+  )`,
+  `CREATE TABLE IF NOT EXISTS mural_lidos (
+    contaId TEXT NOT NULL,
+    noticiaId INTEGER NOT NULL,
+    versao INTEGER NOT NULL,
+    quando INTEGER NOT NULL,
+    PRIMARY KEY (contaId, noticiaId)
+  )`,
 ]
 
 export function criarEsquemaDaCampanha(sql: SqlStorage): void {

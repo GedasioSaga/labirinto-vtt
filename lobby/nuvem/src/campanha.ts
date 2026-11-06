@@ -28,6 +28,7 @@ import { criarEsquemaDaCampanha } from './esquema'
 import { ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro } from './http'
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
 import { receberMidia, servirMidia } from './midia'
+import { atenderPedidoDoMural, enviarEstadoDoMural, esquecerRotulosDoMural, muralParaExportar, recusarMuralPorRitmo, recusarPedidoDoMural } from './mural'
 import {
   bytesDoTexto,
   chaveDaCotaDaConta,
@@ -207,6 +208,8 @@ export class Campanha extends DurableObject<Env> {
       const mudaram = sincronizarMembros(this.sql, identidade.email, pedido)
       return { mudaram, ...publicarFichas(this.sql, quem, pedido.fichas, agora) }
     })
+    // O sistema pode ter mudado: o feed de modificações relê os nomes (Vida para `hp`).
+    esquecerRotulosDoMural(this.sql)
     await this.depoisDeMudarMembros(campanhaId, pedido.nome, feito.mudaram)
     this.depoisDeGravar(feito.ops)
     return json({ campanhaId, rev: revAtual(this.sql), fichas: feito.fichas })
@@ -282,12 +285,15 @@ export class Campanha extends DurableObject<Env> {
     const recusadas = todasAsRecusadas(this.sql)
     // A sala é vista por todo membro: entra igual nas duas paredes.
     const chatSala = salaInteira(this.sql)
-    if (membro.papel === 'mestre') return { membros, fichas, recusadas, sistema: lerSistema(this.sql) ?? null, chatSala }
+    // O mural (M1): o mestre leva tudo; a segunda parede, só as reações e os lidos da própria conta.
+    const mural = muralParaExportar(this.sql, membro)
+    if (membro.papel === 'mestre') return { membros, fichas, recusadas, sistema: lerSistema(this.sql) ?? null, chatSala, mural }
     return {
       membros: projetarMembros(membros),
       fichas: fichasDoEstado(membro, fichas, membros),
       recusadas: recusadas.filter((recusada) => recusada.autorContaId === membro.contaId),
       chatSala,
+      mural,
     }
   }
 
@@ -458,6 +464,12 @@ export class Campanha extends DurableObject<Env> {
       this.contarViolacoes(ws, anexo, 1, agora)
       return
     }
+    if (frame.t === 'mural' && !frame.leitura.ok) {
+      const { pedido, idDoCliente } = frame.leitura
+      recusarPedidoDoMural(ws, pedido, 'formato', idDoCliente === undefined ? {} : { idDoCliente })
+      this.contarViolacoes(ws, anexo, 1, agora)
+      return
+    }
     // O primeiro `ola` do socket não passa pelo ritmo: sem ele o socket não serve para nada, e sockets por conta já têm teto.
     if (!(frame.t === 'ola' && anexo.clienteId === null)) {
       const ritmo = this.conferirRitmo(membro.contaId, agora)
@@ -491,6 +503,13 @@ export class Campanha extends DurableObject<Env> {
         if (!frame.leitura.ok || !membroAtivo(membro)) return
         return atenderPedidoDoChat(this.salaDoChatNoSocket(), ws, membro, frame.leitura.pedido, agora)
       }
+      case 'mural': {
+        // O papel é relido de `membros` aqui: só o mestre posta, edita, apaga e fixa (§6.4).
+        const membro = membroPorConta(this.sql, quem.contaId)
+        if (!frame.leitura.ok || !membroAtivo(membro)) return
+        // O mural usa do DO o mesmo que o chat (SQLite, transação, sockets prontos).
+        return atenderPedidoDoMural(this.salaDoChatNoSocket(), ws, membro, frame.leitura.pedido, agora)
+      }
     }
   }
 
@@ -518,6 +537,8 @@ export class Campanha extends DurableObject<Env> {
       this.enviarOpsDesde(ws, membro, desde, atual)
     }
     this.entrouNaMesa(ws, membro.contaId, jaEstavaPronto)
+    // Quem entra (ou volta) recebe os avisos fixados com o `lida` dele e a primeira página do mural (M1).
+    enviarEstadoDoMural(this.sql, ws, membro.contaId)
   }
 
   /** As ops que faltam, em páginas; já em dia = uma página vazia (o site sabe que alcançou). */
@@ -561,6 +582,10 @@ export class Campanha extends DurableObject<Env> {
   private responderAoRitmo(ws: WebSocket, frame: Frame, tentarDepoisDe: number): void {
     if (frame.t === 'chat') {
       if (frame.leitura.ok) recusarPorRitmo(ws, frame.leitura.pedido, tentarDepoisDe)
+      return
+    }
+    if (frame.t === 'mural') {
+      if (frame.leitura.ok) recusarMuralPorRitmo(ws, frame.leitura.pedido, tentarDepoisDe)
       return
     }
     if (frame.t === 'ops') {
