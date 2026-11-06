@@ -41,6 +41,7 @@ import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
 import { receberMidia, servirMidia } from './midia'
 import { atenderPedidoDoMural, enviarEstadoDoMural, esquecerRotulosDoMural, muralParaExportar, recusarMuralPorRitmo, recusarPedidoDoMural } from './mural'
 import {
+  assinarBilhete,
   bytesDoTexto,
   chaveDaCotaDaConta,
   conferirRitmo,
@@ -48,6 +49,7 @@ import {
   fichaNoEstado,
   LIMITES,
   membroAtivo,
+  novaChaveDaSala,
   podeVer,
   processarDesfazer,
   processarLote,
@@ -56,6 +58,7 @@ import {
   proprio,
   respostasAdiadas,
   segmentoValido,
+  VALIDADE_DO_BILHETE_MS,
   VERSAO_DO_FORMATO,
   type ConferenciaDoRitmo,
   type FichaGuardada,
@@ -85,6 +88,22 @@ import {
   type Anexo,
   type Frame,
 } from './sala'
+import {
+  CHAVE_DO_REGISTRO_DA_SALA,
+  chaveDoRitmoDoBilhete,
+  conferirRitmoDoBilhete,
+  CORPO_MAX_SALA,
+  lerPedidoDaSala,
+  lerRegistroDaSala,
+  menorPrazo,
+  registroDepoisDaBatida,
+  salaParaJogador,
+  type EstadoComSala,
+  type MensagemDaSala,
+  type RegistroDaSala,
+  type RitmoDoBilhete,
+  type SalaParaJogador,
+} from './salaAberta'
 
 /**
  * DO CAMPANHA (plano §3.1, §4.5, §5, §6.4): um por pasta publicada, o único
@@ -180,6 +199,15 @@ export class Campanha extends DurableObject<Env> {
         return this.salaDoChat(url, rota.campanhaId, identidade)
       case 'midia':
         return this.midia(request, rota, identidade)
+      case 'sala':
+        exigirMetodo(request, 'POST')
+        return this.abrirSala(request, rota.campanhaId, identidade)
+      case 'salaFechar':
+        exigirMetodo(request, 'POST')
+        return this.fecharSala(rota.campanhaId, identidade)
+      case 'bilhete':
+        exigirMetodo(request, 'POST')
+        return this.bilhete(rota.campanhaId, identidade)
     }
   }
 
@@ -195,7 +223,8 @@ export class Campanha extends DurableObject<Env> {
 
   /**
    * Rotas que só o app do mestre (Service Token) usa: publicar, membros, ops,
-   * desde e exportar (§5.4). O site só tem eu, ws, mídia e versão; pelo
+   * desde, exportar, sala e sala/fechar (§5.4, B2). O site só tem eu, ws,
+   * mídia, versão e bilhete (que tem ritmo próprio); pelo
    * socket, todo frame passa pelo ritmo e pelo bloqueio (§6.5), e uma rota
    * HTTP de leitura aberta ao site seria o caminho sem esse freio.
    */
@@ -313,6 +342,92 @@ export class Campanha extends DurableObject<Env> {
     }
   }
 
+  // ── Sala aberta no app e bilhete do jogador (B2, salaAberta.ts) ─────────────
+
+  private registroDaSala(): RegistroDaSala | null {
+    return lerRegistroDaSala(this.ctx.storage.kv.get(CHAVE_DO_REGISTRO_DA_SALA))
+  }
+
+  /** A sala que o jogador vê agora: a vencida, com o alarme ainda por tocar, já é `null`. */
+  private salaVisivel(agora: number): SalaParaJogador | null {
+    return salaParaJogador(this.registroDaSala(), agora)
+  }
+
+  /**
+   * Abertura e batida (a cada 4 min) são o mesmo pedido do app: renova o prazo
+   * e troca os endereços; a chave só muda numa abertura nova. Sem `await`
+   * entre ler e gravar o registro: nenhum outro pedido entra no meio.
+   */
+  private async abrirSala(request: Request, campanhaId: string, identidade: IdentidadeDoPortao): Promise<Response> {
+    this.acessoDoApp(campanhaId, identidade)
+    const pedido = lerPedidoDaSala(await lerCorpo(request, CORPO_MAX_SALA))
+    const agora = Date.now()
+    const batida = registroDepoisDaBatida(this.registroDaSala(), pedido, agora, novaChaveDaSala)
+    this.ctx.storage.kv.put(CHAVE_DO_REGISTRO_DA_SALA, batida.registro)
+    if (batida.mudouParaJogador) this.difundirSala(salaParaJogador(batida.registro, agora))
+    await this.agendarAlarme()
+    const { chave, expiraEm } = batida.registro
+    return json({ chave, agora, expiraEm })
+  }
+
+  /** `net_stop_room` no app: o registro e a chave somem; sem sala aberta, nada a avisar (repetir não muda nada). */
+  private fecharSala(campanhaId: string, identidade: IdentidadeDoPortao): Response {
+    this.acessoDoApp(campanhaId, identidade)
+    const estavaVisivel = this.salaVisivel(Date.now()) !== null
+    this.ctx.storage.kv.delete(CHAVE_DO_REGISTRO_DA_SALA)
+    if (estavaVisivel) this.difundirSala(null)
+    return json({ fechada: true })
+  }
+
+  /** O alarme passou do prazo sem batida (app fechado sem `net_stop_room`, internet caiu): a sala some para todos. */
+  private vencerSala(agora: number): void {
+    const registro = this.registroDaSala()
+    if (registro === null || registro.expiraEm > agora) return
+    this.ctx.storage.kv.delete(CHAVE_DO_REGISTRO_DA_SALA)
+    this.difundirSala(null)
+  }
+
+  private difundirSala(sala: SalaParaJogador | null): void {
+    const mensagem: MensagemDaSala = { t: 'sala', sala }
+    for (const { ws } of this.socketsProntos()) enviar(ws, mensagem)
+  }
+
+  /**
+   * O convite de um clique (só o site; o `Origin` já foi conferido no portão):
+   * o membro sai do e-mail do Access, nunca do pedido. Não membro e Service
+   * Token = "não existe" (§6.4); o mestre entra pelo app e não leva convite.
+   * O ritmo conta toda tentativa do membro, até a que acha a sala fechada.
+   */
+  private async bilhete(campanhaId: string, identidade: IdentidadeDoPortao): Promise<Response> {
+    if (identidade.origem !== 'site') throw NAO_EXISTE
+    const { membro } = this.acesso(campanhaId, identidade)
+    if (membro.papel === 'mestre') throw new ErroDoPedido(403, 'mestre', 'O mestre entra pelo app; o convite é para os jogadores')
+    const agora = Date.now()
+    const ritmo = this.ritmoDoBilhete(membro.contaId, agora)
+    if (!ritmo.ok) return json({ erro: 'ritmo', detalhe: 'Convites demais em pouco tempo; espere alguns segundos', tentarDepoisDe: ritmo.tentarDepoisDe }, 429)
+    const registro = this.registroDaSala()
+    const sala = salaParaJogador(registro, agora)
+    if (registro === null || sala === null) throw new ErroDoPedido(409, 'sem-sala', 'A mesa não está aberta agora')
+    let bilhete: string
+    try {
+      bilhete = await assinarBilhete(registro.chave, { sala: registro.codigo, contaId: membro.contaId, nome: membro.nome }, agora)
+    } catch (erro) {
+      // `assinarBilhete` só lança `TypeError` com conta ou nome fora da forma do bilhete (o `contaId` do membro aceita `:`, `.` e `#`).
+      if (erro instanceof TypeError) throw new ErroDoPedido(409, 'conta-sem-convite', 'Esta conta não recebe convite; entre pelo código da sala')
+      throw erro
+    }
+    return json({ bilhete, validoAte: agora + VALIDADE_DO_BILHETE_MS, sala })
+  }
+
+  /** GCRA por conta no KV do DO: sobrevive à hibernação e vale para as várias abas da conta. */
+  private ritmoDoBilhete(contaId: string, agora: number): RitmoDoBilhete {
+    const chave = chaveDoRitmoDoBilhete(contaId)
+    const guardado = this.ctx.storage.kv.get(chave)
+    const ritmo = conferirRitmoDoBilhete(typeof guardado === 'number' ? guardado : undefined, agora)
+    if (ritmo.ok) this.ctx.storage.kv.put(chave, ritmo.paceAt)
+    return ritmo
+  }
+
   // ── Mídia (W3) ────────────────────────────────────────────────────────────
 
   /** §6.6: na v1 só o app do mestre sobe imagem (PUT); todo membro ativo baixa (GET), no app e no site. */
@@ -392,9 +507,10 @@ export class Campanha extends DurableObject<Env> {
     }
   }
 
-  private estadoPara(membro: Membro, fichas: readonly FichaGuardada[], membros: readonly Membro[], rev: number): MensagemDoServidor {
+  /** O `estado` leva também a sala aberta no app (B2): o site de antes dela ignora o campo a mais. */
+  private estadoPara(membro: Membro, fichas: readonly FichaGuardada[], membros: readonly Membro[], rev: number, sala: SalaParaJogador | null): EstadoComSala {
     const { contaId, nome, papel } = membro
-    return { t: 'estado', rev, fichas: fichasDoEstado(membro, fichas, membros), membros: projetarMembros(membros), eu: { contaId, nome, papel } }
+    return { t: 'estado', rev, fichas: fichasDoEstado(membro, fichas, membros), membros: projetarMembros(membros), eu: { contaId, nome, papel }, sala }
   }
 
   private enviarEstadoATodos(): void {
@@ -403,7 +519,8 @@ export class Campanha extends DurableObject<Env> {
     const fichas = todasAsFichas(this.sql)
     const membros = todosOsMembros(this.sql)
     const rev = revAtual(this.sql)
-    for (const { ws, membro } of prontos) enviar(ws, this.estadoPara(membro, fichas, membros, rev))
+    const sala = this.salaVisivel(Date.now())
+    for (const { ws, membro } of prontos) enviar(ws, this.estadoPara(membro, fichas, membros, rev, sala))
   }
 
   /** "Na mesa agora" para todos os `prontos` (uma linha por conta, sem e-mail, §6.4). */
@@ -461,18 +578,23 @@ export class Campanha extends DurableObject<Env> {
 
   /**
    * O alarme do DO é UM só (achado Tr4): fica no menor prazo de tudo o que
-   * vence. Hoje só os duelos vencem; outro prazo do DO entra no mesmo cálculo.
-   * Alarme já marcado para antes fica (ao tocar, ele mesmo reagenda).
+   * vence. Hoje vencem os duelos e a sala aberta no app (B2); outro prazo do
+   * DO entra no mesmo cálculo. Alarme já marcado para antes fica (ao tocar,
+   * ele mesmo reagenda): a batida que empurra o prazo da sala só faz o alarme
+   * tocar uma vez à toa.
    */
   private async agendarAlarme(): Promise<void> {
-    const proximo = proximoPrazoDosDuelos(this.sql)
+    const sala = this.registroDaSala()
+    const proximo = menorPrazo([proximoPrazoDosDuelos(this.sql), sala === null ? null : sala.expiraEm])
     if (proximo === null) return
     const marcado = await this.ctx.storage.getAlarm()
     if (marcado === null || proximo < marcado) await this.ctx.storage.setAlarm(proximo)
   }
 
   async alarm(): Promise<void> {
-    vencerPrazosDosDuelos(this.salaDoDuelo(), Date.now())
+    const agora = Date.now()
+    vencerPrazosDosDuelos(this.salaDoDuelo(), agora)
+    this.vencerSala(agora)
     await this.agendarAlarme()
   }
 
@@ -602,10 +724,13 @@ export class Campanha extends DurableObject<Env> {
     if (!membroAtivo(membro)) return
     const atual = revAtual(this.sql)
     const desde = frame.desdeRev
+    const sala = this.salaVisivel(Date.now())
     if (desde === null || desde > atual || atual - desde > LIMITE_SEM_SNAPSHOT) {
-      enviar(ws, this.estadoPara(membro, todasAsFichas(this.sql), todosOsMembros(this.sql), atual))
+      enviar(ws, this.estadoPara(membro, todasAsFichas(this.sql), todosOsMembros(this.sql), atual, sala))
     } else {
       this.enviarOpsDesde(ws, membro, desde, atual)
+      // Sem `estado`, a sala vai no frame próprio, e só aberta: o site de antes da B4 derruba o socket com frame que não conhece (salaAberta.ts).
+      if (sala !== null) enviar(ws, { t: 'sala', sala })
     }
     this.entrouNaMesa(ws, membro.contaId, jaEstavaPronto)
     // Quem entra (ou volta) recebe os avisos fixados com o `lida` dele e a primeira página do mural (M1).

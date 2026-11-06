@@ -24,6 +24,12 @@
 //                                             antes dos 3 min; imprime o vencedor. Depois: Zoro convida de novo,
 //                                             desiste no meio e a Nami vence; por último, 20 duelo.* tortos fazem o
 //                                             servidor fechar a aba da Nami e o Zoro a vê ausente na hora
+//      node fumaca.mjs sala                -> a B2 (sala aberta no app e bilhete): IP público = 400; o app abre a sala e
+//                                             recebe a chave; a Nami vê a sala (frame, ola com ops e estado) SEM a chave;
+//                                             o bilhete dela confere com a chave; não membro e Service Token = 404,
+//                                             mestre pelo site = 403; a batida mantém a chave e troca os endereços;
+//                                             o 7º bilhete seguido = 429; fechar manda sala null, bilhete = 409 e
+//                                             reabrir sorteia outra chave
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -33,7 +39,7 @@
 // Só fala com a porta de dev local (identidade pela URL, ?eu=&origem=); nunca com a conta real.
 // Nomes e e-mails inventados (@example.com).
 
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, createHmac, randomBytes } from 'node:crypto'
 import { crc32, deflateSync } from 'node:zlib'
 
 const BASE = process.env.NUVEM_URL ?? 'http://127.0.0.1:8787'
@@ -1073,6 +1079,141 @@ async function aceiteDoDuelo() {
   console.log(falhas === 0 ? `DUELO OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
 }
 
+// ── Sala aberta no app e bilhete do jogador (B2) ─────────────────────────────
+
+const CODIGO_DA_SALA = 'ABC234'
+const LAN = { tipo: 'lan', url: 'http://192.168.0.10:7878/player' }
+const TUNEL = { tipo: 'tunel', url: 'https://alfa-beta-gama-delta.trycloudflare.com/player' }
+/** Bilhete pedido em seguida: 6 por minuto por conta (salaAberta.ts), o 7º = 429. */
+const RAJADA_DO_BILHETE = 6
+const VALIDADE_DO_BILHETE_MS = 120_000
+const PRAZO_DA_SALA_MS = 10 * 60_000
+
+/** Lê o bilhete como o host faria: confere o HMAC-SHA256 de "v1.<payload>" com a chave e decodifica o payload. */
+function lerBilhete(bilhete, chave) {
+  const [versao, payloadB64, assinatura] = String(bilhete).split('.')
+  const esperada = createHmac('sha256', Buffer.from(chave, 'base64url')).update(`${versao}.${payloadB64}`).digest('base64url')
+  let payload = null
+  try {
+    payload = JSON.parse(Buffer.from(payloadB64 ?? '', 'base64url').toString('utf8'))
+  } catch {
+    payload = null
+  }
+  return { confere: versao === 'v1' && assinatura === esperada, payload }
+}
+
+const doSite = (metodo, caminho, eu, corpo) => pedir(metodo, caminho, eu, 'site', corpo)
+const mesmos = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+
+async function salaAbreSemAChave(campanhaId, nami, rev) {
+  const rota = `/api/c/${campanhaId}/sala`
+  const publica = await doApp('POST', rota, { codigo: CODIGO_DA_SALA, enderecos: [{ tipo: 'lan', url: 'http://8.8.8.8:7878/player' }] })
+  conferir('abrir a sala com IP público = 400 (só rede local ou trycloudflare)', publica.status === 400 && publica.corpo.erro === 'fora-do-formato', `${publica.status} ${JSON.stringify(publica.corpo)}`)
+  const pelaJogadora = await doSite('POST', rota, NAMI, { codigo: CODIGO_DA_SALA, enderecos: [LAN] })
+  conferir('abrir a sala pelo site = 404 (rota só do app)', pelaJogadora.status === 404, String(pelaJogadora.status))
+  const aberta = await doApp('POST', rota, { codigo: CODIGO_DA_SALA, enderecos: [LAN, TUNEL] })
+  const { chave, agora, expiraEm } = aberta.corpo
+  conferir(
+    'o app abre a sala: chave de 32 bytes, agora e expiraEm = agora + 10 min',
+    aberta.status === 200 && typeof chave === 'string' && Buffer.from(chave, 'base64url').length === 32 && expiraEm - agora === PRAZO_DA_SALA_MS,
+    `${aberta.status} ${JSON.stringify({ agora, expiraEm, tamanho: typeof chave === 'string' ? chave.length : null })}`,
+  )
+  const frame = await nami.esperar((m) => m.t === 'sala', 'o frame sala')
+  conferir('a Nami recebe o frame sala com o código e os 2 endereços, sem chave nem prazo', mesmos(frame.sala, { codigo: CODIGO_DA_SALA, enderecos: [LAN, TUNEL] }), JSON.stringify(frame))
+  // A volta com ops (desdeRev em dia) não traz `estado`: a sala vem no frame próprio.
+  const volta = await Sala.abrir(campanhaId, NAMI)
+  await volta.mandar({ t: 'ola', desdeRev: rev, v: VERSAO, clienteId: 'cli_nami_volta' })
+  const naVolta = await volta.esperar((m) => m.t === 'sala', 'a sala no ola com ops')
+  conferir('o ola com ops (sem estado) também traz a sala', mesmos(naVolta.sala, frame.sala) && !volta.recebidas.some((m) => m.t === 'estado'), JSON.stringify(naVolta))
+  volta.fechar()
+  const zoro = await Sala.abrir(campanhaId, ZORO)
+  await zoro.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_zoro' })
+  const estadoDoZoro = await zoro.esperar((m) => m.t === 'estado', 'o estado do Zoro')
+  conferir('o estado de quem chega traz a sala', mesmos(estadoDoZoro.sala, frame.sala), JSON.stringify(estadoDoZoro.sala))
+  return { chave, expiraEm, zoro, sockets: [nami, volta, zoro] }
+}
+
+async function bilheteDaJogadora(campanhaId, chave) {
+  const rota = `/api/c/${campanhaId}/bilhete`
+  const antes = Date.now()
+  const pedido = await doSite('POST', rota, NAMI)
+  const { confere, payload } = lerBilhete(pedido.corpo.bilhete, chave)
+  conferir(
+    'o bilhete da Nami confere com a chave da sala: s = código, c = conta_nami, n = Nami, j de 16 bytes, vale 120 s',
+    pedido.status === 200 &&
+      confere &&
+      payload?.s === CODIGO_DA_SALA &&
+      payload.c === 'conta_nami' &&
+      payload.n === 'Nami' &&
+      /^[A-Za-z0-9_-]{22}$/.test(payload.j) &&
+      payload.e === pedido.corpo.validoAte &&
+      payload.e - antes >= VALIDADE_DO_BILHETE_MS - 5000 &&
+      payload.e - Date.now() <= VALIDADE_DO_BILHETE_MS + 5000,
+    `${pedido.status} ${JSON.stringify({ confere, payload, validoAte: pedido.corpo.validoAte })}`,
+  )
+  conferir('a resposta do bilhete traz a sala, sem a chave', mesmos(pedido.corpo.sala, { codigo: CODIGO_DA_SALA, enderecos: [LAN, TUNEL] }) && !JSON.stringify(pedido.corpo).includes(chave), JSON.stringify(pedido.corpo.sala))
+  const estranho = await doSite('POST', rota, 'ninguem@example.com')
+  conferir('bilhete de quem não é membro = 404', estranho.status === 404, `${estranho.status} ${JSON.stringify(estranho.corpo)}`)
+  const peloApp = await doApp('POST', rota)
+  conferir('bilhete pelo Service Token = 404 (rota só do site)', peloApp.status === 404, String(peloApp.status))
+  const mestre = await doSite('POST', rota, MESTRE)
+  conferir('bilhete do mestre pelo site = 403 (ele entra pelo app)', mestre.status === 403 && mestre.corpo.erro === 'mestre', `${mestre.status} ${JSON.stringify(mestre.corpo)}`)
+}
+
+async function batidaERitmo(campanhaId, nami, chave, expiraEm) {
+  const batida = await doApp('POST', `/api/c/${campanhaId}/sala`, { codigo: CODIGO_DA_SALA, enderecos: [LAN] })
+  conferir('a batida mantém a chave e renova o prazo', batida.status === 200 && batida.corpo.chave === chave && batida.corpo.expiraEm >= expiraEm, `${batida.status} ${batida.corpo.expiraEm - expiraEm}`)
+  const frame = await nami.esperar((m) => m.t === 'sala', 'a sala da batida')
+  conferir('a batida que troca os endereços manda a sala nova (só a LAN)', mesmos(frame.sala, { codigo: CODIGO_DA_SALA, enderecos: [LAN] }), JSON.stringify(frame))
+  // A Nami já pediu 1 bilhete: mais 5 passam e o 7º seguido leva 429.
+  const status = []
+  for (let vez = 0; vez < RAJADA_DO_BILHETE; vez += 1) status.push((await doSite('POST', `/api/c/${campanhaId}/bilhete`, NAMI)).status)
+  conferir('ritmo do bilhete: 6 seguidos passam, o 7º = 429', mesmos(status, [200, 200, 200, 200, 200, 429]), JSON.stringify(status))
+}
+
+async function fecharESumir(campanhaId, nami, zoro, chave) {
+  const fechada = await doApp('POST', `/api/c/${campanhaId}/sala/fechar`)
+  conferir('o app fecha a sala', fechada.status === 200, `${fechada.status} ${JSON.stringify(fechada.corpo)}`)
+  const frame = await nami.esperar((m) => m.t === 'sala', 'a sala fechada')
+  conferir('fechar: a Nami recebe sala null', frame.sala === null, JSON.stringify(frame))
+  const semSala = await doSite('POST', `/api/c/${campanhaId}/bilhete`, ZORO)
+  conferir('bilhete com a sala fechada = 409 sem-sala', semSala.status === 409 && semSala.corpo.erro === 'sem-sala', `${semSala.status} ${JSON.stringify(semSala.corpo)}`)
+  const depois = await Sala.abrir(campanhaId, ZORO)
+  await depois.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_zoro_depois' })
+  const estado = await depois.esperar((m) => m.t === 'estado', 'o estado depois de fechar')
+  depois.fechar()
+  conferir('o estado depois de fechar traz sala null', estado.sala === null, JSON.stringify(estado.sala))
+  const vazou = [...nami.todas, ...zoro.todas, ...depois.todas].some((texto) => texto.includes(chave))
+  conferir('a chave nunca passou por nenhum socket de jogador', !vazou)
+  const reaberta = await doApp('POST', `/api/c/${campanhaId}/sala`, { codigo: CODIGO_DA_SALA, enderecos: [LAN] })
+  conferir('reabrir depois de fechar sorteia outra chave', reaberta.status === 200 && typeof reaberta.corpo.chave === 'string' && reaberta.corpo.chave !== chave, String(reaberta.status))
+  await doApp('POST', `/api/c/${campanhaId}/sala/fechar`)
+}
+
+async function aceiteDaSala() {
+  const campanhaId = `fumaca-sala-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, pedidoDePublicar([ficha('pers_nami', 'conta_nami'), ficha('pers_zoro', 'conta_zoro')]))
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  const nami = await Sala.abrir(campanhaId, NAMI)
+  const abertas = [nami]
+  try {
+    await nami.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_nami' })
+    const estado = await nami.esperar((m) => m.t === 'estado', 'o estado')
+    conferir('sem sala aberta, o estado traz sala null', estado.sala === null, JSON.stringify(estado.sala))
+    const cedo = await doSite('POST', `/api/c/${campanhaId}/bilhete`, ZORO)
+    conferir('bilhete antes de abrir = 409 sem-sala', cedo.status === 409 && cedo.corpo.erro === 'sem-sala', `${cedo.status} ${JSON.stringify(cedo.corpo)}`)
+    const { chave, expiraEm, zoro, sockets } = await salaAbreSemAChave(campanhaId, nami, estado.rev)
+    abertas.push(...sockets)
+    await bilheteDaJogadora(campanhaId, chave)
+    await batidaERitmo(campanhaId, nami, chave, expiraEm)
+    await fecharESumir(campanhaId, nami, zoro, chave)
+  } finally {
+    for (const sala of abertas) sala.fechar()
+  }
+  console.log(falhas === 0 ? `SALA OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
 async function listarOps(campanhaId) {
   const { primeira, ops } = await exportarTudo(campanhaId, MESTRE, 'app', 500)
   if (primeira.ops === undefined) {
@@ -1103,6 +1244,8 @@ try {
     await aceiteDoMural()
   } else if (modo === 'duelo') {
     await aceiteDoDuelo()
+  } else if (modo === 'sala') {
+    await aceiteDaSala()
   } else {
     await aceite()
   }

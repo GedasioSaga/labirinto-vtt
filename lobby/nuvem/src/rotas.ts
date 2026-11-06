@@ -2,7 +2,9 @@
  * As rotas que chegam aos DOs (plano §5.4). O portão (W2) repassa o pedido
  * com a URL de sempre; o DO Campanha relê a rota daqui, e `encaminhar` usa a
  * mesma leitura para escolher o DO. A mídia (`/midia/:id`, fatia W3) chega
- * com o id já na forma exata `<sha256>.<ext>`.
+ * com o id já na forma exata `<sha256>.<ext>`. A sala aberta no app e o
+ * bilhete do jogador (`/sala`, `/sala/fechar`, `/bilhete`, fatia B2) estão em
+ * `salaAberta.ts`.
  */
 
 export const ROTA_DO_EU = '/api/eu'
@@ -13,6 +15,8 @@ export const NOME_DO_DIRETORIO = 'diretorio'
 export type RotaDaCampanha =
   /** `chatSala` = `GET /chat/sala?desde=<cursor>`, a cópia da sala do app (v2, C1 no servidor; C3 no app). */
   | { campanhaId: string; nome: 'publicar' | 'membros' | 'ops' | 'exportar' | 'ws' | 'chatSala' }
+  /** `sala` = abrir ou bater (app), `salaFechar` = `/sala/fechar` (app), `bilhete` = o convite do jogador (site). */
+  | { campanhaId: string; nome: 'sala' | 'salaFechar' | 'bilhete' }
   | RotaDoDesde
   | RotaDaMidia
 
@@ -30,7 +34,7 @@ export interface RotaDaMidia {
 }
 
 const FORMA_DA_ROTA =
-  /^\/api\/c\/([A-Za-z0-9_-]{1,80})\/(publicar|membros|ops|exportar|ws|chat\/sala|desde\/(\d{1,15})|midia\/([0-9a-f]{64}\.(?:webp|png|jpg|gif)))$/
+  /^\/api\/c\/([A-Za-z0-9_-]{1,80})\/(publicar|membros|ops|exportar|ws|chat\/sala|sala|sala\/fechar|bilhete|desde\/(\d{1,15})|midia\/([0-9a-f]{64}\.(?:webp|png|jpg|gif)))$/
 
 /** A rota de campanha do caminho; `null` = não é rota de campanha (a resposta é "não existe"). */
 export function rotaDaCampanha(caminho: string): RotaDaCampanha | null {
@@ -48,6 +52,11 @@ export function rotaDaCampanha(caminho: string): RotaDaCampanha | null {
       return { campanhaId, nome: trecho }
     case 'chat/sala':
       return { campanhaId, nome: 'chatSala' }
+    case 'sala':
+    case 'bilhete':
+      return { campanhaId, nome: trecho }
+    case 'sala/fechar':
+      return { campanhaId, nome: 'salaFechar' }
     default:
       return null
   }

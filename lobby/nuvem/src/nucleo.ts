@@ -81,5 +81,6 @@ export {
   type Recusada,
   type Visibilidade,
 } from '../../../client/src/lib/nuvem/tipos'
+export { assinarBilhete, chaveDaSalaValida, novaChaveDaSala, VALIDADE_DO_BILHETE_MS } from '../../../client/src/lib/nuvem/bilhete'
 export { personagemDoArquivo } from '../../../client/src/lib/personagem'
 export { hashHex, MIDIA_MAX_BYTES, tipoDosBytes, type TipoDeMidia } from '../../../client/src/lib/midia'

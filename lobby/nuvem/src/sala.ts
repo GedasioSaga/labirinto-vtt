@@ -13,6 +13,7 @@ import {
 } from './nucleo'
 // O duelo fica fora do `nucleo.ts`: a regra dele puxa a store da batalha (zustand), e o fecho do núcleo é puro.
 import { lerPedidoDoDuelo, type LeituraDoPedidoDoDuelo, type MensagemDoDueloDoServidor } from '../../../client/src/lib/treino/dueloDoLobby'
+import type { MensagemDaSala } from './salaAberta'
 
 /**
  * O WebSocket do site (plano §5.4), com Hibernation: o DO dorme entre as
@@ -120,7 +121,10 @@ export function lerFrame(texto: string): Frame | null {
   }
 }
 
-export function enviar(ws: WebSocket, mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor): void {
+export function enviar(
+  ws: WebSocket,
+  mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor | MensagemDaSala,
+): void {
   try {
     ws.send(JSON.stringify(mensagem))
   } catch {
