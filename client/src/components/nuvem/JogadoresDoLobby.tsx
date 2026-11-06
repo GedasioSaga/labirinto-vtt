@@ -72,6 +72,7 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
   const contas = useContasStore((state) => state.arquivo.contas)
   const podeGravarContas = useContasStore((state) => state.podeGravar)
   const avisoDasContas = useContasStore((state) => state.aviso)
+  const contasLidas = useContasStore((state) => state.lidas)
   const campanhaLigada = useNuvemStore((state) => Object.values(state.campanhas).find((campanha) => campanha.pastaId === pasta.id))
   const falhaAoLigar = useNuvemStore((state) => state.falhaAoLigar)
   const [noDisco, setNoDisco] = useState<CampanhaPublicada | null>(null)
@@ -148,12 +149,12 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
     const situacao = situacaoDe(alvo)
     if (situacao === 'repetido') {
       const primeira = contaComOMesmoEmail(contas, alvo)
-      return [{ tom: 'brasa', contaId: alvo.id, texto: `${primeira?.nome ?? 'Outra conta'} e ${alvo.nome} estão com o mesmo e-mail. Cada e-mail vale para um jogador só: troque o de ${alvo.nome}.`, botao: `Trocar o de ${alvo.nome}` }]
+      return [{ tom: 'brasa', contaId: alvo.id, texto: `${primeira?.nome ?? 'Outra conta'} e ${alvo.nome} estão com o mesmo e-mail. Cada e-mail vale para um jogador só: troque o de ${alvo.nome}.`, botao: 'Trocar o e-mail', rotulo: `Trocar o e-mail de ${alvo.nome}` }]
     }
     if (situacao === 'sem-email') {
       const dele = fichas.filter((ficha) => ficha.dono === alvo.id).map((ficha) => ficha.nome)
       const resto = dele.length > 0 ? ` ${listaDeNomes(dele)} ${dele.length === 1 ? 'continua' : 'continuam'} de ${alvo.nome} na mesa.` : ''
-      return [{ tom: 'latao', contaId: alvo.id, texto: `${alvo.nome} não tem e-mail: não entra no site.${resto}`, botao: 'Adicionar e-mail' }]
+      return [{ tom: 'latao', contaId: alvo.id, texto: `${alvo.nome} não tem e-mail: não entra no site.${resto}`, botao: 'Adicionar e-mail', rotulo: `Adicionar o e-mail de ${alvo.nome}` }]
     }
     return []
   })
@@ -179,7 +180,7 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
           {avisos.map((aviso) => (
             <li key={aviso.contaId} className="jl-aviso" data-tom={aviso.tom}>
               <p>{aviso.texto}</p>
-              <button type="button" className="lb-btn lb-btn--compact" onClick={() => setEmailAberto(aviso.contaId)}>
+              <button type="button" className="lb-btn lb-btn--compact" aria-label={aviso.rotulo} onClick={() => setEmailAberto(aviso.contaId)}>
                 {aviso.botao}
               </button>
             </li>
@@ -195,6 +196,10 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
             </h4>
             <span className="jl-cab__n">{contas.length}</span>
           </div>
+          {/* Sem disco (fora do app) os botões das contas ficam desligados: o porquê fica à vista. */}
+          {contasLidas && !podeGravarContas && avisoDasContas === null && (
+            <p className="lby-dica">Convidar, trocar e-mail e tirar do Lobby só funcionam no app instalado do Labirinto, que guarda as contas no computador.</p>
+          )}
           {contas.length === 0 ? (
             <div className="jl-vazio">
               <p className="jl-vazio__t">Ninguém no Lobby ainda</p>
@@ -234,7 +239,7 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
           <p className="lby-dica">Só você edita. Os colegas veem.</p>
           <ul className="jl-fichas" aria-label="Fichas sem dono">
             {semDono.length === 0 ? (
-              <li className="jl-fichas__vazio">Toda ficha tem dono.</li>
+              <li className="jl-fichas__vazio">{fichas.length === 0 ? 'Nenhuma ficha de jogador nesta pasta. Crie em Sistema e personagens.' : 'Toda ficha tem dono.'}</li>
             ) : (
               semDono.map((ficha) => <FichaNoQuadro key={ficha.id} ficha={ficha} contas={contas} onTrocarDono={trocarDono} />)
             )}
@@ -330,7 +335,7 @@ function PublicarNoLobby({ pasta, rpg, sistema, contas, conta, publicada, campan
         Publicar no Lobby
       </h4>
       <p className="lby-dica" id={`${id}-dica`}>
-        {fichas.length === 1 ? 'Sobe 1 ficha de jogador' : `Sobem ${fichas.length} fichas de jogador`}
+        {fichas.length === 0 ? 'Sobem as fichas de jogador' : fichas.length === 1 ? 'Sobe 1 ficha de jogador' : `Sobem ${fichas.length} fichas de jogador`}
         {npcs > 0 ? ` (${npcs === 1 ? 'o NPC fica' : `os ${npcs} NPCs ficam`} só no app)` : ''} e a lista de jogadores com e-mail. Depois disso, cada mudança sobe sozinha.
       </p>
       {bloqueio !== null && (

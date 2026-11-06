@@ -119,7 +119,7 @@ export function PastaDeMapasConfig(props: PastaDeMapasConfigProps) {
             {candidata.id === 'lobby' && avisos > 0 && (
               <span className="pasta-aba__selo">
                 <span aria-hidden="true">{avisos}</span>
-                <span className="lby-sr">, {avisos === 1 ? '1 aviso' : `${avisos} avisos`}</span>
+                <span className="lby-sr">({avisos === 1 ? '1 aviso' : `${avisos} avisos`})</span>
               </span>
             )}
           </button>

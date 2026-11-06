@@ -105,6 +105,10 @@
 .lby-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .lby-rot { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
 .lby-campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* Na coluna, a base de 200px do campo viraria ALTURA: aqui ele fica no tamanho da linha. */
+.lby-campo > .lby-input { flex: none; }
+/* O porquê dos botões desligados, entre o título e a lista. */
+.jl-cab + .lby-dica { margin: 0 0 var(--lb-space-2); }
 
 .lby-aviso {
   margin: 0;
