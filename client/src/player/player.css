@@ -302,6 +302,179 @@
   gap: 10px;
 }
 
+/*
+ * TELA DE ENTRAR. A marca "Labirinto" fica no alto de toda tela de texto (é o
+ * que diz ao amigo que o QR o trouxe ao lugar certo); abaixo dela, o que se
+ * faz AQUI. Sans semibold, e não o serif da marca: a marca é nome, o título é
+ * tarefa, e duas linhas no mesmo serif disputariam quem é o nome.
+ */
+.pe-intro {
+  display: grid;
+  gap: 4px;
+}
+
+.pe-heading {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+/* Link colado sem código: é um tropeço que ele precisa ver, não uma dica. */
+.pe-hint--alerta {
+  color: var(--lb-color-ember, #e2645a);
+}
+
+/* O botão que a tela inteira serve: o mais alto da tela, com 4 px a mais de ar
+   acima do que os campos têm entre si. */
+.pe-btn--entrar {
+  min-height: 56px;
+  margin-top: 4px;
+  font-size: 19px;
+}
+
+/* Ação de canto ("Não é você?"): mesmo alvo de toque, sem caixa disputando com o Entrar. */
+.pe-btn--quieto {
+  justify-self: start;
+  min-height: 44px;
+  padding: 10px 12px;
+  margin-left: -12px;
+  font-size: 15px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: transparent;
+  border-color: transparent;
+}
+
+.pe-btn--quieto:hover:not(:disabled) {
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+/*
+ * "Tenho conta (PIN)": a gaveta do PIN. Fechada, quem não tem conta lê três
+ * coisas (código, nome, Entrar) e não um quarto campo com "(se tiver)". A
+ * linha passa 12 px de cada lado para o texto alinhar com os rótulos e o
+ * fundo do pairar ainda ter folga.
+ */
+.pe-conta {
+  display: grid;
+  margin-top: -6px;
+}
+
+.pe-disclosure {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: calc(100% + 24px);
+  min-height: 44px;
+  margin: 0 -12px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  background: transparent;
+  border: 0;
+  border-radius: var(--lb-radius-md, 9px);
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
+}
+
+.pe-disclosure[aria-expanded='true'] {
+  color: var(--lb-color-parchment, #eceae4);
+}
+
+@media (hover: hover) {
+  .pe-disclosure:hover {
+    color: var(--lb-color-parchment, #eceae4);
+    background: var(--lb-color-stone-raised, #232328);
+  }
+}
+
+.pe-disclosure:active {
+  transform: scale(0.98);
+}
+
+.pe-disclosure:focus-visible,
+.pe-lobby a:focus-visible {
+  outline: 2px solid var(--lb-color-brass, #e0a44a);
+  outline-offset: 2px;
+}
+
+.pe-disclosure__chevron {
+  flex: none;
+  display: grid;
+  place-items: center;
+  transition: transform 160ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.pe-disclosure[aria-expanded='true'] .pe-disclosure__chevron {
+  transform: rotate(180deg);
+}
+
+/*
+ * A gaveta abre empurrando o Entrar para baixo junto (0fr → 1fr), em vez de o
+ * botão saltar 90 px de uma vez debaixo do dedo. É a única altura animada
+ * destas telas: um campo só, 200 ms, e só quando a pessoa pede. O recheio é
+ * cortado (`overflow: hidden`) e ganha 4 px de cada lado para o anel de foco
+ * do campo não ser comido pelo corte.
+ */
+.pe-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 200ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    opacity 150ms ease;
+}
+
+.pe-collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.pe-collapse__inner {
+  min-height: 0;
+  overflow: hidden;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+/* O respiro entre a linha "Tenho conta" e o rótulo do PIN mora DENTRO do corte:
+   fechado, não sobra nenhum vão fantasma acima do Entrar. */
+.pe-collapse__inner > .pe-field {
+  padding: 6px 0 4px;
+}
+
+/* Quem tem conta no Lobby entra por lá. Separada por um filete: é outro caminho, não mais um campo. */
+.pe-lobby {
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  font-size: 14px;
+  color: var(--lb-color-parchment-dim, #a2a09a);
+}
+
+.pe-lobby a {
+  color: var(--lb-color-brass-bright, #f3ba66);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  border-radius: 2px;
+}
+
+@media (hover: hover) {
+  .pe-lobby a:hover {
+    color: var(--lb-color-parchment, #eceae4);
+  }
+}
+
 .pe-id {
   margin: 0;
   display: grid;
@@ -443,7 +616,10 @@
   }
 
   .pe-btn,
-  .pe-input {
+  .pe-input,
+  .pe-disclosure,
+  .pe-disclosure__chevron,
+  .pe-collapse {
     transition: none;
   }
 }

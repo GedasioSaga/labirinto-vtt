@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } from '../net/protocol'
 import { latestActionNotice } from './moveNotice'
 import { textoDaRecusaDaPesca } from './estadoDaPesca'
@@ -64,7 +65,8 @@ import type { FerramentaDeMedida, MedidaCompartilhada } from '../lib/batalha/fer
 import { blocosQueEleAndou } from '../lib/batalha/caminhoAndado'
 import type { PlayerCharacter, PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
-import { LabyrinthMark } from '../components/icons'
+import { ChevronDownIcon, LabyrinthMark } from '../components/icons'
+import { ENDERECO_DO_LOBBY } from '../components/nuvem/textosDoLobby'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
@@ -180,6 +182,12 @@ const REASON_TEXT: Record<string, string> = {
 interface Notice {
   text: string
   tone: 'info' | 'error'
+  /**
+   * O código que o mestre mandou na recusa (`account_required`...). O texto é
+   * para gente; o código é para o formulário decidir sozinho o que abrir: sem
+   * ele, "Esta sala só aceita jogadores com conta" voltava com o PIN escondido.
+   */
+  reason?: string
 }
 
 const JOIN_NOTICE: Notice = { text: 'O código da sala vem do mestre.', tone: 'info' }
@@ -328,10 +336,31 @@ function observeSocket(real: WebSocket, observe: (data: unknown) => void): Socke
 interface LastJoin {
   code: string
   name: string
+  /** O último jogo foi com conta (PIN ou aparelho lembrado): o formulário já abre o PIN. */
+  conta: boolean
 }
 
 const LAST_JOIN_KEY = 'labirinto.ultima-entrada'
-const EMPTY_JOIN: LastJoin = { code: '', name: '' }
+const EMPTY_JOIN: LastJoin = { code: '', name: '', conta: false }
+
+/** `#c=ABC123`, `?c=abc123`, `&c=…`: o código dentro de um link, ou o pedaço `#c=` sozinho. */
+const CODIGO_NO_LINK = /(?:^|[#?&])c=([a-z0-9]+)/i
+/** Tem cara de endereço: esquema (`http://`), `www.` ou o caminho da página do jogador. */
+const PARECE_LINK = /:\/\/|^www\.|\/player/i
+
+/**
+ * O que vai para o campo de código, venha digitado, colado do chat ou colado
+ * como o link inteiro. Link com `c=` entrega só o código; link SEM código
+ * devolve `null` e o campo fica como estava — normalizar
+ * "http://192.168.0.5:7777/player" dava "HTTP19", um código que não existe e
+ * que o mestre recusaria sem o jogador entender por quê.
+ */
+function codigoDoTexto(texto: string): string | null {
+  const noLink = CODIGO_NO_LINK.exec(texto)?.[1]
+  if (noLink !== undefined) return normalizeJoinCode(noLink)
+  if (PARECE_LINK.test(texto)) return null
+  return normalizeJoinCode(texto)
+}
 
 /** Recarregar a página no meio da mesa não pode apagar código e nome já digitados. */
 function readLastJoin(): LastJoin {
@@ -342,10 +371,12 @@ function readLastJoin(): LastJoin {
     if (!raw) return EMPTY_JOIN
     const parsed: unknown = JSON.parse(raw)
     if (!isRecord(parsed)) return EMPTY_JOIN
-    const { code, name } = parsed
+    const { code, name, conta } = parsed
     return {
       code: typeof code === 'string' ? normalizeJoinCode(code) : '',
       name: typeof name === 'string' ? name.slice(0, NAME_MAX_LENGTH) : '',
+      // Gravado antes de existir o campo = entrou só com o nome.
+      conta: conta === true,
     }
   } catch {
     // Storage bloqueado ou conteúdo corrompido: o formulário só começa vazio.
@@ -440,7 +471,7 @@ function Screen({ children }: { children: ReactNode }) {
  * tagarelice.
  */
 function codeHint(typed: number): string {
-  if (typed === 0) return `${JOIN_CODE_LENGTH} letras e números. Pode colar do chat: espaço e minúscula são ajustados.`
+  if (typed === 0) return `${JOIN_CODE_LENGTH} letras e números. Pode colar o código ou o link que o mestre mandou.`
   if (typed < JOIN_CODE_LENGTH) return `Faltam ${JOIN_CODE_LENGTH - typed} de ${JOIN_CODE_LENGTH} caracteres.`
   return `Código completo, ${JOIN_CODE_LENGTH} de ${JOIN_CODE_LENGTH} caracteres.`
 }
@@ -462,37 +493,84 @@ function pinDigits(text: string): string {
   return text.replace(/\D/g, '').slice(0, PIN_MAX_DIGITOS)
 }
 
+/** Recusas do mestre em que o PIN é o próximo passo: o formulário volta com ele aberto e o cursor nele. */
+const RECUSAS_QUE_PEDEM_PIN: ReadonlySet<string> = new Set(['account_required', 'account_invalid', 'account_device', 'account_locked'])
+/** A sala recusa conta: o PIN volta recolhido, e o Entrar entra só pelo nome. */
+const SALA_SEM_CONTA = 'account_unavailable'
+const LINK_SEM_CODIGO = 'Esse link abre esta página, mas não traz o código da sala. Peça o código ao mestre.'
+
 function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onForgetAccount }: JoinFormProps) {
   const [code, setCode] = useState(initial.code)
   const [name, setName] = useState(initial.name)
   const [pin, setPin] = useState('')
+  /** Colou um link sem código: a dica do campo diz o que fazer, em vez de virar um código inventado. */
+  const [linkSemCodigo, setLinkSemCodigo] = useState(false)
+  const recusa = notice.tone === 'error' ? (notice.reason ?? '') : ''
+  const pedePin = RECUSAS_QUE_PEDEM_PIN.has(recusa)
+  // O PIN mora recolhido: quem não tem conta nem o vê. Abre sozinho quando ele
+  // é o próximo passo — o último jogo foi com conta, o mestre pediu conta, o
+  // PIN não bateu — e nunca quando a sala recusa conta.
+  const [pinAberto, setPinAberto] = useState(() => remembered === null && recusa !== SALA_SEM_CONTA && (initial.conta || pedePin))
   const codeRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+  const pinRef = useRef<HTMLInputElement>(null)
+  const entrarRef = useRef<HTMLButtonElement>(null)
 
-  // Só na montagem (deps vazias de propósito): quem voltou de um erro cai com o
-  // cursor no código, já selecionado, e troca a letra errada sem apagar nada;
-  // quem chega com a sala lembrada do último jogo pula direto para o nome.
+  // Só na montagem (deps vazias de propósito): o cursor cai no próximo passo,
+  // e o que já foi lembrado do último jogo não pede nada — um Enter entra.
   useEffect(() => {
-    const target = notice.tone === 'error' || initial.code.length !== JOIN_CODE_LENGTH || remembered !== null ? codeRef.current : nameRef.current
-    target?.focus()
-    target?.select()
+    const alvo = alvoInicial()
+    alvo?.focus()
+    if (alvo instanceof HTMLInputElement) alvo.select()
   }, [])
+
+  function alvoInicial(): HTMLInputElement | HTMLButtonElement | null {
+    if (pinAberto && pedePin) return pinRef.current
+    // Erro que não é de conta = código errado: o campo vem selecionado, e a letra trocada não apaga o resto.
+    if ((notice.tone === 'error' && !recusa.startsWith('account_')) || code.length !== JOIN_CODE_LENGTH) return codeRef.current
+    if (remembered !== null) return entrarRef.current
+    // Sem nome, ou o mestre pediu outro ("Escolha outro nome"): o nome, já selecionado.
+    if (name.trim().length === 0 || (notice !== JOIN_NOTICE && recusa === '')) return nameRef.current
+    if (pinAberto && pin.length === 0) return pinRef.current
+    return entrarRef.current
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (remembered !== null) onJoinRemembered(normalizeJoinCode(code))
-    else onJoin(normalizeJoinCode(code), name.trim(), pin)
+    // PIN recolhido não vai: fechar é dizer "hoje entro só com o nome".
+    else onJoin(normalizeJoinCode(code), name.trim(), pinAberto ? pin : '')
+  }
+
+  function alternarPin() {
+    if (pinAberto) {
+      setPinAberto(false)
+      return
+    }
+    // Quem abriu quer digitar: o cursor vai direto ao PIN. `flushSync` porque o
+    // campo só deixa de ser `inert` quando a abertura chega ao DOM.
+    flushSync(() => setPinAberto(true))
+    pinRef.current?.focus()
+  }
+
+  function mudarCodigo(texto: string) {
+    const novo = codigoDoTexto(texto)
+    setLinkSemCodigo(novo === null)
+    if (novo !== null) setCode(novo)
   }
 
   const nameAtLimit = name.length >= NAME_MAX_LENGTH
-  const pinIncomplete = pin.length > 0 && pin.length < PIN_MIN_DIGITOS
+  const pinIncomplete = pinAberto && pin.length > 0 && pin.length < PIN_MIN_DIGITOS
   const canJoin = code.length === JOIN_CODE_LENGTH && (remembered !== null || (name.trim().length > 0 && !pinIncomplete))
 
   return (
     <Screen>
-      <p className={notice.tone === 'error' ? 'pe-notice pe-notice--error' : 'pe-lead'} role="status" aria-live="polite">
-        {notice.text}
-      </p>
+      <div className="pe-intro">
+        <h2 className="pe-heading">Entrar na mesa</h2>
+        <p className={notice.tone === 'error' ? 'pe-notice pe-notice--error' : 'pe-lead'} role="status" aria-live="polite">
+          {notice.text}
+        </p>
+      </div>
       <form onSubmit={submit} className="pe-form">
         <div className="pe-field">
           <label className="pe-label" htmlFor="lb-join-code">
@@ -503,8 +581,9 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
             className="pe-input pe-input--code"
             ref={codeRef}
             value={code}
-            // Sem `maxLength`: o corte é da normalização, que tira o espaço ANTES de contar.
-            onChange={(e) => setCode(normalizeJoinCode(e.target.value))}
+            // Sem `maxLength`: o corte é da normalização, que tira o espaço ANTES de
+            // contar, e o link colado inteiro precisa chegar todo para achar o `c=`.
+            onChange={(e) => mudarCodigo(e.target.value)}
             aria-describedby="lb-join-code-hint"
             autoCapitalize="characters"
             autoComplete="off"
@@ -513,8 +592,8 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
             enterKeyHint="next"
             required
           />
-          <p id="lb-join-code-hint" className="pe-hint">
-            {codeHint(code.length)}
+          <p id="lb-join-code-hint" className={linkSemCodigo ? 'pe-hint pe-hint--alerta' : 'pe-hint'}>
+            {linkSemCodigo ? LINK_SEM_CODIGO : codeHint(code.length)}
           </p>
         </div>
         {remembered !== null ? (
@@ -522,7 +601,7 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
             <p className="pe-lead">
               Você entra como <strong>{remembered}</strong>: este aparelho está lembrado.
             </p>
-            <button type="button" className="pe-btn" onClick={onForgetAccount}>
+            <button type="button" className="pe-btn pe-btn--quieto" onClick={onForgetAccount}>
               Não é você? Sair desta conta
             </button>
           </div>
@@ -548,33 +627,55 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
                 {nameAtLimit ? `Limite de ${NAME_MAX_LENGTH} caracteres: o resto não entra.` : 'É assim que o mestre e os outros jogadores vão te ver.'}
               </p>
             </div>
-            <div className="pe-field">
-              <label className="pe-label" htmlFor="lb-join-pin">
-                PIN (se tiver conta)
-              </label>
-              <input
-                id="lb-join-pin"
-                className="pe-input"
-                type="password"
-                value={pin}
-                onChange={(e) => setPin(pinDigits(e.target.value))}
-                inputMode="numeric"
-                aria-describedby="lb-join-pin-hint"
-                autoComplete="off"
-                enterKeyHint="go"
-              />
-              <p id="lb-join-pin-hint" className="pe-hint">
-                {pinIncomplete
-                  ? `O PIN tem pelo menos ${PIN_MIN_DIGITOS} números.`
-                  : 'Só se o mestre criou uma conta para você: com o PIN, este aparelho fica lembrado. Sem PIN, você entra só com o nome.'}
-              </p>
+            <div className="pe-conta">
+              <button type="button" className="pe-disclosure" aria-expanded={pinAberto} aria-controls="lb-join-pin-area" onClick={alternarPin}>
+                Tenho conta (PIN)
+                <span className="pe-disclosure__chevron">
+                  <ChevronDownIcon size={18} />
+                </span>
+              </button>
+              {/* Recolhido fica `inert`: fora do Tab e do leitor de tela, mas no DOM para a gaveta abrir deslizando. */}
+              <div id="lb-join-pin-area" className="pe-collapse" data-open={pinAberto} inert={!pinAberto}>
+                <div className="pe-collapse__inner">
+                  <div className="pe-field">
+                    <label className="pe-label" htmlFor="lb-join-pin">
+                      Seu PIN
+                    </label>
+                    <input
+                      id="lb-join-pin"
+                      className="pe-input"
+                      ref={pinRef}
+                      type="password"
+                      value={pin}
+                      onChange={(e) => setPin(pinDigits(e.target.value))}
+                      inputMode="numeric"
+                      aria-describedby="lb-join-pin-hint"
+                      autoComplete="off"
+                      enterKeyHint="go"
+                    />
+                    <p id="lb-join-pin-hint" className="pe-hint">
+                      {pinIncomplete ? `O PIN tem pelo menos ${PIN_MIN_DIGITOS} números.` : 'O PIN que o mestre te passou. Com ele, este aparelho fica lembrado.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </>
         )}
-        <button type="submit" className="pe-btn pe-btn--primary" disabled={!canJoin}>
+        <button ref={entrarRef} type="submit" className="pe-btn pe-btn--primary pe-btn--entrar" disabled={!canJoin}>
           Entrar
         </button>
       </form>
+      {/* O aparelho lembrado já entra com um toque: a dica do Lobby só serve a quem digita. */}
+      {remembered === null && (
+        <p className="pe-lobby">
+          Tem conta no Lobby?{' '}
+          <a href={`https://${ENDERECO_DO_LOBBY}`} target="_blank" rel="noopener noreferrer">
+            Entre por lá
+          </a>{' '}
+          com um clique.
+        </p>
+      )}
     </Screen>
   )
 }
@@ -2527,7 +2628,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         actions.push({
           label: 'Corrigir e entrar de novo',
           primary: true,
-          run: () => onLeave({ text: message, tone: 'error' }),
+          run: () => onLeave({ text: message, tone: 'error', reason }),
         })
       }
       break
@@ -2645,8 +2746,10 @@ export function PlayerApp() {
 
   function join(code: string, name: string, conta?: PlayerConnectionOptions['conta']) {
     setHostName(null)
-    setLastJoin({ code, name })
-    rememberLastJoin({ code, name })
+    // Com conta (PIN ou aparelho lembrado): a próxima abertura do formulário já mostra o PIN.
+    const ultima: LastJoin = { code, name, conta: conta !== undefined }
+    setLastJoin(ultima)
+    rememberLastJoin(ultima)
     const connection = createPlayerConnection({
       url: socketUrl(),
       code,
