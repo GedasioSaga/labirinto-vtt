@@ -89,6 +89,43 @@
 
 .lo-avisos__mais { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
 
+/* No chat: o aviso numa linha só, de altura fixa (o botão mais 8px em cima e
+   embaixo). A folha do chat foi medida para a página não rolar (os 276px e
+   210px de chat/chat.css); com a linha na tela ela desconta a linha e a margem. */
+.lo-principal:has(> .lo-avisos--linha) {
+  --lo-aviso-linha: calc(var(--lo-alvo) + 2 * var(--lb-space-2) + 2px);
+  --lo-aviso-linha-total: calc(var(--lo-aviso-linha) + var(--lb-space-4));
+}
+
+.lo-principal:has(> .lo-avisos--linha) .lo-chat__folha {
+  height: clamp(400px, calc(100dvh - 276px - var(--lo-aviso-linha-total)), 860px);
+}
+
+.lo-avisos--linha { margin-top: var(--lb-space-4); }
+
+.lo-avisos--linha .lo-aviso-fixo {
+  box-sizing: border-box;
+  align-items: center;
+  height: var(--lo-aviso-linha);
+  padding: var(--lb-space-2) var(--lb-space-2) var(--lb-space-2) var(--lb-space-4);
+  gap: var(--lb-space-3);
+}
+
+.lo-avisos--linha .lo-aviso-fixo::before { top: 8px; bottom: 8px; }
+.lo-avisos--linha .lo-aviso-fixo__pino { width: 26px; height: 26px; }
+.lo-avisos--linha .lo-aviso-fixo__pino .lo-ic { width: 14px; height: 14px; }
+.lo-avisos--linha .lo-aviso-fixo__acoes { flex-wrap: nowrap; }
+.lo-avisos--linha .lo-aviso-fixo__acoes a { white-space: nowrap; }
+
+.lo-aviso-fixo__linha {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lo-aviso-fixo__linha b { color: var(--lb-color-brass-bright); font-weight: var(--lb-font-weight-semibold); }
+
 /* --------------------------------------------------------- a página */
 
 .lo-mural__demo .lo-btn[aria-pressed='true'] { border-color: var(--lb-color-brass); color: var(--lb-color-parchment); }
@@ -366,6 +403,18 @@
   .lo-noticia { padding-inline: var(--lb-space-4); grid-template-columns: 28px minmax(0, 1fr); }
   .lo-noticia > .lo-av { width: 28px; height: 28px; }
   .lo-noticia__acoes { margin-left: 0; width: 100%; }
+
+  /* A linha do chat continua uma linha: o link sai (o atalho Mural da cabeça leva lá) e o botão fica só com o ícone. */
+  .lo-avisos--linha .lo-aviso-fixo { grid-template-columns: auto minmax(0, 1fr) auto; padding-block: var(--lb-space-2); }
+  .lo-avisos--linha .lo-aviso-fixo__acoes { grid-column: auto; }
+  .lo-avisos--linha .lo-aviso-fixo__acoes a,
+  .lo-avisos--linha .lo-aviso-fixo__rotulo { display: none; }
+}
+
+@media (max-width: 720px) {
+  .lo-principal:has(> .lo-avisos--linha) .lo-chat__folha {
+    height: clamp(380px, calc(100dvh - 210px - var(--lo-aviso-linha-total)), 760px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

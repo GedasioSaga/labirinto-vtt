@@ -71,6 +71,41 @@ describe('mural do site (M2)', () => {
     expect(mural.estado().fixadas[0].lida).toBe(false)
   })
 
+  it('o lido recusado por ritmo sai de novo depois da espera, uma volta só para várias recusas', () => {
+    const enviados: PedidoDoMural[] = []
+    const timers: { ms: number; fazer: () => void }[] = []
+    const mural = criarMuralDaCampanha({
+      enviar: (pedido) => {
+        enviados.push(pedido)
+        return true
+      },
+      aoMudar: () => undefined,
+      relogio: {
+        agora: () => 0,
+        depois: (ms, fazer) => {
+          timers.push({ ms, fazer })
+          return () => undefined
+        },
+      },
+      novoId: () => 'id_1',
+    })
+    mural.aoFicarEmDia()
+    mural.aoReceber(estado([noticia(1, { fixada: true }), noticia(2, { fixada: true })]))
+
+    mural.marcarLido(1, 1)
+    mural.marcarLido(2, 1)
+    mural.aoReceber({ t: 'mural.recusado', pedido: 'mural.lido', motivo: 'ritmo', tentarDepoisDe: 700 })
+    mural.aoReceber({ t: 'mural.recusado', pedido: 'mural.lido', motivo: 'ritmo', tentarDepoisDe: 1_400 })
+    expect(timers).toHaveLength(1)
+    expect(timers[0].ms).toBeGreaterThanOrEqual(700)
+    expect(mural.estado().fixadas.every((n) => n.lida)).toBe(true)
+
+    // O servidor confirmou o 1 antes da volta: só o 2 sai de novo.
+    mural.aoReceber({ t: 'mural.noticia', noticia: noticia(1, { fixada: true, lida: true }) })
+    timers[0].fazer()
+    expect(enviados.filter((pedido) => pedido.t === 'mural.lido').slice(2)).toEqual([{ t: 'mural.lido', id: 2, versao: 1 }])
+  })
+
   it('a recusa do DO, que não diz a notícia, cai na notícia do pedido certo', () => {
     const { mural } = muralDeTeste()
     mural.aoFicarEmDia()

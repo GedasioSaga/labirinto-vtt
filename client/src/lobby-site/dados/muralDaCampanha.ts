@@ -216,6 +216,8 @@ export function criarMuralDaCampanha(opcoes: OpcoesDoMural): MuralDaCampanha {
   const reacoesLocais = new Map<number, ReacaoDoMural | null>()
   let feed: FeedDeModificacoes | null = null
   const esperas = new Set<() => void>()
+  /** Já há uma volta dos lidos marcada para depois de uma recusa por ritmo. */
+  let lidosAgendados = false
 
   function esperar(ms: number, fazer: () => void): void {
     const cancelar = relogio.depois(ms, () => {
@@ -228,6 +230,7 @@ export function criarMuralDaCampanha(opcoes: OpcoesDoMural): MuralDaCampanha {
   function pararEsperas(): void {
     for (const cancelar of esperas) cancelar()
     esperas.clear()
+    lidosAgendados = false
   }
 
   function comOQueFiz(noticia: NoticiaDoMural): NoticiaDoMural {
@@ -383,9 +386,29 @@ export function criarMuralDaCampanha(opcoes: OpcoesDoMural): MuralDaCampanha {
     }
   }
 
+  /**
+   * Lido segurado pelo ritmo da conta: a recusa não diz qual aviso, então
+   * todos os lidos ainda não confirmados saem de novo depois da espera (uma
+   * volta marcada por vez; o que o servidor já gravou ele só repete).
+   */
+  function reenviarLidosDepois(tentarDepoisDe: number | undefined): void {
+    if (lidosAgendados || lidasLocais.size === 0) return
+    lidosAgendados = true
+    const ate = tentarDepoisDe ?? relogio.agora() + ESPERA_SEM_HORA_MS
+    esperar(Math.max(0, ate - relogio.agora()) + FOLGA_DA_ESPERA_MS, () => {
+      lidosAgendados = false
+      for (const [id, versao] of lidasLocais) mandarLido(id, versao)
+    })
+  }
+
   function receberRecusa(mensagem: Extract<MensagemDoMuralDoServidor, { t: 'mural.recusado' }>): void {
     if (mensagem.idDoCliente !== undefined && mensagem.pedido === 'mural.postar') {
       recusarPostagem(mensagem.idDoCliente, mensagem.motivo, mensagem.tentarDepoisDe)
+      return
+    }
+    // O lido não entra na fila dos em voo (ver `mandarLido`): a recusa dele é tratada aqui.
+    if (mensagem.pedido === 'mural.lido') {
+      if (mensagem.motivo === 'ritmo') reenviarLidosDepois(mensagem.tentarDepoisDe)
       return
     }
     const indice = emVoo.findIndex((voo) => voo.pedido.t === mensagem.pedido)

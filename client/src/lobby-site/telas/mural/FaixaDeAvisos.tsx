@@ -11,7 +11,8 @@ import './mural.css'
  * o aviso que o mestre fixou e que a pessoa ainda não marcou como lido. Some
  * ao marcar (na hora; o servidor guarda o lido por conta) e volta se o mestre
  * editar ou fixar de novo. No mural ele não aparece aqui: lá os avisos estão
- * no topo da lista.
+ * no topo da lista. No chat a folha ocupa a janela, então o aviso vira uma
+ * linha só, de altura fixa, que a folha desconta (`mural.css`).
  */
 
 /** Mais do que isto de uma vez vira "mais N avisos no mural". */
@@ -31,6 +32,22 @@ export function FaixaDeAvisos() {
   if (avisos.length === 0) return null
   const noMural: Rota = { tela: 'mural', campanhaId: campanha.campanhaId, aba: 'noticias' }
   const resto = avisos.length - AVISOS_NA_FAIXA
+
+  if (rota.tela === 'chat') {
+    const [primeiro] = avisos
+    return (
+      <section className="lo-avisos lo-avisos--linha" aria-label="Avisos do mestre">
+        <AvisoFixado
+          key={`${primeiro.id}:${primeiro.versao}`}
+          noticia={primeiro}
+          noMural={noMural}
+          demo={demo}
+          agora={agora}
+          linha={avisos.length > 1 ? `Ver os ${avisos.length} no mural` : 'Ver no mural'}
+        />
+      </section>
+    )
+  }
 
   return (
     <section className="lo-avisos" aria-label="Avisos do mestre">
@@ -59,7 +76,16 @@ function MuralLink({ alvo, demo, children }: { alvo: Rota; demo: boolean; childr
   )
 }
 
-function AvisoFixado({ noticia, noMural, demo, agora }: { noticia: NoticiaDoMural; noMural: Rota; demo: boolean; agora: number }) {
+interface PropsDoAviso {
+  noticia: NoticiaDoMural
+  noMural: Rota
+  demo: boolean
+  agora: number
+  /** Na forma de uma linha só (no chat): o rótulo do link para o mural. */
+  linha?: string
+}
+
+function AvisoFixado({ noticia, noMural, demo, agora, linha }: PropsDoAviso) {
   const site = useSite()
   const [saindo, setSaindo] = useState(false)
 
@@ -83,22 +109,29 @@ function AvisoFixado({ noticia, noMural, demo, agora }: { noticia: NoticiaDoMura
       <span className="lo-aviso-fixo__pino" aria-hidden="true">
         <Icone nome="fixar" />
       </span>
-      <div className="lo-aviso-fixo__corpo">
-        <p className="lo-aviso-fixo__de">
-          Aviso de <b>{noticia.autorNome}</b>,{' '}
-          <time dateTime={new Date(noticia.criadaEm).toISOString()} title={horaExata(noticia.criadaEm)}>
-            {quandoRelativo(noticia.criadaEm, agora)}
-          </time>
-          {noticia.editadaEm !== null && ', editado'}
+      {linha === undefined ? (
+        <div className="lo-aviso-fixo__corpo">
+          <p className="lo-aviso-fixo__de">
+            Aviso de <b>{noticia.autorNome}</b>,{' '}
+            <time dateTime={new Date(noticia.criadaEm).toISOString()} title={horaExata(noticia.criadaEm)}>
+              {quandoRelativo(noticia.criadaEm, agora)}
+            </time>
+            {noticia.editadaEm !== null && ', editado'}
+          </p>
+          <p className="lo-aviso-fixo__texto">{noticia.texto}</p>
+        </div>
+      ) : (
+        // Uma linha: o texto inteiro fica no title e no mural; aqui ele corta com reticências.
+        <p className="lo-aviso-fixo__linha" title={noticia.texto}>
+          <b>Aviso de {noticia.autorNome}:</b> {noticia.texto}
         </p>
-        <p className="lo-aviso-fixo__texto">{noticia.texto}</p>
-      </div>
+      )}
       <div className="lo-aviso-fixo__acoes">
         <MuralLink alvo={noMural} demo={demo}>
-          Ver no mural
+          {linha ?? 'Ver no mural'}
         </MuralLink>
-        <button type="button" className="lo-btn lo-btn--primario" onClick={marcarLido} disabled={saindo}>
-          <Icone nome="visto" /> Marcar como lido
+        <button type="button" className="lo-btn lo-btn--primario" onClick={marcarLido} disabled={saindo} aria-label="Marcar como lido">
+          <Icone nome="visto" /> <span className="lo-aviso-fixo__rotulo">Marcar como lido</span>
         </button>
       </div>
     </article>
