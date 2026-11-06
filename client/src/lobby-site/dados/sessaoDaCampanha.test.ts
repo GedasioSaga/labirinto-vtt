@@ -6,6 +6,7 @@ import { fichaNoEstado, partesDoLivroPublicado, projetarMembros, projetarOpParaJ
 import type { EstadoDaBase, Identidade, Membro, MensagemDoServidor, OpGravada } from '../../lib/nuvem/tipos'
 import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
 import { SISTEMA_DE_RECUO, sistemaDaCampanha } from '../telas/contexto'
+import { mudancasACaminho } from '../telas/enviar'
 import type { Relogio } from './fonte'
 import { criarFonteReal, type Fio, type OuvinteDoFio } from './fonteReal'
 import { abrirSessaoDaCampanha, ESPERAS_DA_RECONEXAO_MS, PRAZO_DA_RESPOSTA_MS, type SessaoDaCampanha } from './sessaoDaCampanha'
@@ -494,5 +495,34 @@ describe('o sistema publicado e a cópia do treino no estado (F1)', () => {
     expect(copia?.visivel).toBe('treino')
     expect(copia?.ehMinha).toBe(false)
     expect(sessao.estado().fichas.filter((candidata) => candidata.visivel === 'mesa').map((candidata) => candidata.doc.id)).not.toContain(copiaId)
+  })
+
+  it('"Salvo" só no ack: a mudança aceita pela fila ainda conta como a caminho até o servidor confirmar', async () => {
+    // Arrange
+    const campanha = mesa()
+    const { sessao, doc } = await abrirComoNami(campanha)
+    expect(mudancasACaminho(sessao.estado())).toBe(0)
+
+    // Act: a fila aceita na hora; a resposta do servidor ainda não chegou.
+    const resultado = await sessao.enviarMudancas([{ fichaId: F_NAMI, caminho: ['moedas'], acao: 'somar', delta: 5 }], sessao.estado().rev)
+
+    // Assert: aceita localmente não é salvo; depois do ack, é.
+    expect(resultado).toEqual({ ok: true, ops: 1 })
+    expect(mudancasACaminho(sessao.estado())).toBe(1)
+    await calmo()
+    expect(mudancasACaminho(sessao.estado())).toBe(0)
+    expect(doc(F_NAMI).moedas).toBe(105)
+  })
+
+  it('"Salvo" nunca sem ack: o socket que não entrega (rede caiu sem a aba notar) deixa a mudança a caminho', async () => {
+    const campanha = mesa()
+    const { servidor, sessao } = await abrirComoNami(campanha)
+    for (const conexao of servidor.conexoes) conexao.surda = true
+
+    await sessao.enviarMudancas([{ fichaId: F_NAMI, caminho: ['moedas'], acao: 'somar', delta: 5 }], sessao.estado().rev)
+    await calmo()
+
+    expect(campanha.todasAsOps().some((gravada) => gravada.fichaId === F_NAMI && gravada.caminho[0] === 'moedas')).toBe(false)
+    expect(mudancasACaminho(sessao.estado())).toBe(1)
   })
 })
