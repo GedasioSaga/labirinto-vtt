@@ -1,7 +1,8 @@
-import { definirProprio, gravarRpgDaPasta, lerRpgDaPasta, lugarDoMapa, mudarIndiceDasPastas, type IndiceDasPastas, type RpgDaPasta } from '../lib/pastasDeMapas'
+import type { Personagem } from '../lib/personagem'
+import { definirProprio, gravarRpgDaPasta, lerRpgDaPasta, lugarDoMapa, mudarIndiceDasPastas, rpgDe, type IndiceDasPastas, type RpgDaPasta } from '../lib/pastasDeMapas'
 // Ciclo de import com mochilaPendenteNoApp (que usa `editarRpgDaPasta`): os dois lados só chamam dentro de função, nunca ao carregar o módulo.
 import { usarOdaPastaNoMapaAberto } from '../net/nuvem/mochilaPendenteNoApp'
-import { origemAgora, prepararEmissao } from '../net/nuvem/emissor'
+import { origemAgora, prepararEmissao, type Emissao, type OrigemDaMudanca } from '../net/nuvem/emissor'
 import { useAdventureStore } from './adventureStore'
 import { useToastStore } from './toastStore'
 
@@ -40,10 +41,14 @@ export async function trocarModoDoMapa(proprio: boolean): Promise<void> {
  * não vai junto — continua pendente na cópia aberta, com a mudança nova.
  * Devolve o RPG gravado. Lança com a razão.
  *
- * LOBBY (funil 2 do emissor, §5.1): numa pasta publicada, o lido e o novo
- * viram ops — o Mundo do Livro, a página Itens e o Carregar Mapa passam por
- * aqui mesmo com a pasta fechada. A que o Lobby recusaria lança antes de
- * gravar. A cópia aberta acompanha por `mudarRpgDaPasta`, que não emite.
+ * LOBBY (funil 2 do emissor, §5.1): numa pasta publicada, a mudança vira ops
+ * — o Mundo do Livro, a página Itens e o Carregar Mapa passam por aqui mesmo
+ * com a pasta fechada. Com a pasta FECHADA, as ops saem do lido e do novo.
+ * Com ela ABERTA, saem da cópia aberta antes e depois de `mudarRpgDaPasta`
+ * (que não emite): é ela que o Salvar do mapa grava depois, e a mudança da
+ * mesa ainda não salva já saiu como op — o `mudar` que troca a ficha inteira
+ * a desfaz na cópia, e a nuvem tem de ver isso. A que o Lobby recusaria lança
+ * antes de gravar.
  */
 export async function editarRpgDaPasta(pastaId: string, mudar: (rpg: RpgDaPasta) => RpgDaPasta): Promise<RpgDaPasta> {
   // Antes do primeiro `await`: quem chamou dentro de `comAutor`/`comBase` perde o contexto depois dele.
@@ -51,12 +56,34 @@ export async function editarRpgDaPasta(pastaId: string, mudar: (rpg: RpgDaPasta)
   const lido = await lerRpgDaPasta(pastaId)
   if (!lido.ok) throw new Error(lido.motivo)
   const novo = mudar(lido.rpg)
-  const emissao = prepararEmissao(pastaId, lido.rpg.personagens, novo.personagens, origem)
-  if (!emissao.ok) throw new Error(emissao.motivo)
+  const previa = previaDaEmissao(pastaId, lido.rpg, novo, mudar, origem)
+  if (!previa.ok) throw new Error(previa.motivo)
   await gravarRpgDaPasta(pastaId, novo)
+  const antesNaCopia = personagensAbertos(pastaId)
   useAdventureStore.getState().mudarRpgDaPasta(pastaId, mudar)
-  emissao.entregar()
+  const depoisNaCopia = personagensAbertos(pastaId)
+  // De novo, sobre a cópia como ficou depois do `await` (a mesa pode ter mudado nele): são estas as ops que saem.
+  const emissao =
+    antesNaCopia === null || depoisNaCopia === null
+      ? prepararEmissao(pastaId, lido.rpg.personagens, novo.personagens, origem)
+      : prepararEmissao(pastaId, antesNaCopia, depoisNaCopia, origem)
+  if (emissao.ok) emissao.entregar()
+  // A prévia passou, mas a mesa mudou a ficha durante a gravação: já está no disco e na cópia, então o aviso diz isso.
+  else useToastStore.getState().push('error', `O Lobby não aceita esta mudança (${emissao.problema}). Ela ficou só neste computador.`)
   return novo
+}
+
+/** Os personagens da cópia desta pasta aberta no editor; `null` = a pasta não está aberta. */
+function personagensAbertos(pastaId: string): readonly Personagem[] | null {
+  const { pasta } = useAdventureStore.getState()
+  return pasta !== null && pasta.pastaId === pastaId ? pasta.personagens : null
+}
+
+/** As ops que `editarRpgDaPasta` vai emitir, conferidas antes de gravar: as da cópia aberta, ou as do disco com a pasta fechada. */
+function previaDaEmissao(pastaId: string, lido: RpgDaPasta, novo: RpgDaPasta, mudar: (rpg: RpgDaPasta) => RpgDaPasta, origem: OrigemDaMudanca): Emissao {
+  const { pasta } = useAdventureStore.getState()
+  if (pasta === null || pasta.pastaId !== pastaId) return prepararEmissao(pastaId, lido.personagens, novo.personagens, origem)
+  return prepararEmissao(pastaId, pasta.personagens, mudar(rpgDe(pasta)).personagens, origem)
 }
 
 /**

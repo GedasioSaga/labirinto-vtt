@@ -354,7 +354,8 @@ interface AdventureState {
   setSistemaDeRpg: (sistemaId: string | null) => boolean
   /**
    * Grava o PERSONAGEM (a ficha inteira): troca o de mesmo id, ou entra no fim
-   * da lista. Pede Salvar, fora do desfazer. `false` no mapa solto.
+   * da lista. Pede Salvar, fora do desfazer. `false` no mapa solto, ou quando
+   * a pasta publicada no Lobby recusa a mudança (o aviso com o motivo já saiu).
    */
   salvarPersonagem: (personagem: Personagem) => boolean
   /**
@@ -972,27 +973,35 @@ export function temRpgNoMapa(state: RpgState): boolean {
 function donoDosPersonagens(
   get: () => AdventureState,
   set: (patch: Partial<AdventureState>) => void,
-): { lista: readonly Personagem[] | undefined; gravar: (personagens: Personagem[]) => void } | null {
+): { lista: readonly Personagem[] | undefined; gravar: (personagens: Personagem[]) => boolean } | null {
   const state = get()
   const pasta = pastaQueManda(state)
   // MUNDO DO LIVRO: toda gravação passa pelas variações — editar o modelo pela ficha do mapa atualiza as variações junto.
   if (pasta !== null) {
-    const gravar = (personagens: Personagem[]): void => {
+    // `false` = não entrou (o Lobby recusaria): quem tem rascunho (a janela da ficha) o mantém.
+    const gravar = (personagens: Personagem[]): boolean => {
       const novos = sincronizarVariacoes(personagens)
       // LOBBY (funil 1 do emissor, §5.1): numa pasta publicada a mudança vira ops ANTES de entrar; a que o Lobby recusaria não entra.
       const emissao = prepararEmissao(pasta.pastaId, pasta.personagens, novos)
       if (!emissao.ok) {
         useToastStore.getState().push('error', emissao.motivo)
-        return
+        return false
       }
       set({ pasta: { ...pasta, personagens: novos }, pastaSuja: true })
       emissao.entregar()
+      return true
     }
     return { lista: pasta.personagens, gravar }
   }
   const { adventure } = state
   if (adventure === null) return null
-  return { lista: adventure.personagens, gravar: (personagens) => set({ adventure: { ...adventure, personagens: sincronizarVariacoes(personagens) }, structureDirty: true }) }
+  return {
+    lista: adventure.personagens,
+    gravar: (personagens) => {
+      set({ adventure: { ...adventure, personagens: sincronizarVariacoes(personagens) }, structureDirty: true })
+      return true
+    },
+  }
 }
 
 /**
@@ -1736,8 +1745,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (dono === null) return false
     const lista = dono.lista ?? []
     const existe = lista.some((atual) => atual.id === personagem.id)
-    dono.gravar(existe ? lista.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...lista, personagem])
-    return true
+    // LOBBY: a pasta publicada pode recusar (o aviso já saiu); a janela da ficha fica com o rascunho.
+    return dono.gravar(existe ? lista.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...lista, personagem])
   },
 
   ajustarPersonagem: (personagemId, ajustar) => {

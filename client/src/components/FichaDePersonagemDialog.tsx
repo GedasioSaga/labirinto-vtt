@@ -23,7 +23,12 @@ export interface FichaDePersonagemDialogProps {
   /** Nome que a janela dá ao sistema que falta (o id gravado na aventura). */
   sistemaId: string | undefined
   editandoNoInicio: boolean
-  onSalvar: (personagem: Personagem) => void
+  /**
+   * `false` = a ficha não entrou (o Lobby recusou a mudança, ou não há onde
+   * guardar; o aviso com o motivo já saiu): a janela continua na edição, com
+   * o rascunho. Qualquer outro retorno = gravou.
+   */
+  onSalvar: (personagem: Personagem) => boolean | void
   onClose: () => void
   escolherImagem: () => Promise<string | null>
   /** Abre o livro de regras do sistema; ausente = o sistema não tem livro (sem botão). */
@@ -97,9 +102,10 @@ export function FichaDePersonagemDialog({
     // Sobre a ficha de AGORA: o dano que o jogador tomou e o texto que ele mudou durante a edição não voltam atrás.
     const salvo = salvarPelaBase(base, { ...rascunho, nome: rascunho.nome.trim() || PERSONAGEM_SEM_NOME }, personagem)
     // Nota não mexida: vale a de agora (pode ter mudado na página Anotações enquanto esta janela editava).
-    comBase(marca, () => onSalvar(notaMudou ? comNotaDoMestre(salvo, nota) : salvo))
-    setEditando(false)
+    const entrou = comBase(marca, () => onSalvar(notaMudou ? comNotaDoMestre(salvo, nota) : salvo))
     setPerguntaDeSaida(false)
+    // Recusada: o rascunho fica na edição — o próximo "Editar" partiria da ficha de agora e apagaria o que o mestre digitou.
+    if (entrou !== false) setEditando(false)
   }
   const descartar = () => {
     setRascunho(personagem)

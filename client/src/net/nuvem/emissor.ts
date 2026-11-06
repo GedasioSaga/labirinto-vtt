@@ -1,12 +1,12 @@
 import { salvarSobreOAtual } from '../../lib/ajusteDaFicha'
 import { ehRefDeMidia } from '../../lib/midia'
 import { aplicar } from '../../lib/nuvem/aplicar'
-import { lerMudanca } from '../../lib/nuvem/caminho'
+import { lerMudanca, quemEscreveAMudanca } from '../../lib/nuvem/caminho'
 import { caminhosSeSobrepoem } from '../../lib/nuvem/conflito'
 import { diferencas } from '../../lib/nuvem/diferencas'
 import { bytesDoJson } from '../../lib/nuvem/json'
 import { tetoDaOpEmBytes } from '../../lib/nuvem/limites'
-import type { Mudanca, Op, Papel } from '../../lib/nuvem/tipos'
+import type { Mudanca, Op } from '../../lib/nuvem/tipos'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 
 /**
@@ -23,10 +23,12 @@ import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
  *
  * A BASE CERTA (o erro mais grave dos desenhos): a op diz de que rev saiu a
  * ficha que o autor VIU (`baseRev`), para o servidor ver o conflito de quem
- * mexeu no mesmo campo depois. Ação na hora (ajuste, dano, Mundo do Livro) vê a
- * ficha de agora. A janela do mestre (`comBase`) e a edição do jogador pela
- * sala LAN (`comAutor`) viram a ficha antes: a marca (`marcaDaBase`) é tirada
- * quando a janela abre e quando a ficha é enviada ao jogador.
+ * mexeu no mesmo campo depois. Ação na hora (ajuste, imagem, dano, Mundo do
+ * Livro) vê a ficha de agora. A janela do mestre (`comBase`) e a edição do
+ * jogador pela sala LAN (`comAutor` com a vista) viram a ficha antes: a marca
+ * (`marcaDaBase`) é tirada quando a janela abre e quando a ficha é enviada ao
+ * jogador. Na sala, só o caminho que mudou desde a ficha enviada sai com a
+ * marca; o resto, com a base de agora (`baseRevPorCaminho`).
  *
  * Sem store e sem Tauri: o contexto do autor e o registro dos destinos são
  * estado do módulo; o resto é puro.
@@ -43,6 +45,13 @@ export interface DestinoDoEmissor {
   readonly clienteId: string
   /** A rev confirmada pelo servidor que a ficha de agora já inclui: a `baseRev` da op que nasce agora. */
   revConfirmada(): number
+  /**
+   * A conta da sala é membro ATIVO da campanha (`membros`, §4.5)? Só ela vira
+   * `autorDeclarado`: o servidor nega a op que declara quem não é membro
+   * (§6.4), e só entra em `membros` quem tem e-mail. Fora dela (conta sem
+   * e-mail, conta removida), a mudança da sala sai como do mestre.
+   */
+  ehMembro(contaId: string): boolean
   /** As ops que nasceram agora, já conferidas pelo esquema e pelos tetos, na ordem. Chamado depois de a mudança entrar no app. */
   receber(ops: readonly Op[]): void
 }
@@ -66,11 +75,22 @@ export function marcaDaBase(): MarcaDaBase {
 
 // ── Quem mexeu e a base que viu ─────────────────────────────────────────────
 
-/** Quem mexeu pela sala LAN e a base que ele viu: a marca de quando a ficha foi enviada a ele (`hostSession.ts`). */
+/** O que o jogador da sala viu: a ficha que o host lhe enviou por último e a marca da nuvem de quando ela saiu (`hostSession.ts`). */
+export interface VistaDaConexao {
+  ficha: Personagem
+  marca: MarcaDaBase
+}
+
+/** Quem mexeu pela sala LAN e, na edição, o que ele viu. */
 export interface AutoriaDaMesa {
   /** A conta do jogador na sala. Ausente = jogador sem conta: só o mestre edita a ficha dele no Lobby (12.6), e a mudança sai como do mestre. */
   contaId?: string
-  marca: MarcaDaBase
+  /**
+   * A base da EDIÇÃO (a aba inteira que o jogador mandou). Ausente = a base é
+   * a ficha de agora: o ajuste e a imagem calculam o valor novo sobre ela, e
+   * uma marca velha faria o servidor contar como concorrente o que o jogador já viu.
+   */
+  vista?: VistaDaConexao
 }
 
 /** O que vale para as mudanças que nascem agora. Vazio = o mestre, sobre a ficha de agora. */
@@ -78,6 +98,12 @@ export interface OrigemDaMudanca {
   /** O jogador da sala LAN; o servidor só aceita do app e marca "atestado pelo app" (§6.4). */
   autorDeclarado?: string
   marca?: MarcaDaBase
+  /**
+   * A ficha que o autor viu (a da sala). O caminho que ninguém mudou desde ela
+   * sai com a base de agora; só o que mudou depois sai com a `marca`. Ausente
+   * = tudo com a `marca`.
+   */
+  vista?: Personagem
 }
 
 let origemDeAgora: OrigemDaMudanca = {}
@@ -92,14 +118,24 @@ function comOrigem<T>(origem: OrigemDaMudanca, fazer: () => T): T {
   }
 }
 
+function origemDaAutoria(autoria: AutoriaDaMesa): OrigemDaMudanca {
+  const origem: OrigemDaMudanca = {}
+  if (autoria.contaId !== undefined) origem.autorDeclarado = autoria.contaId
+  if (autoria.vista !== undefined) {
+    origem.marca = autoria.vista.marca
+    origem.vista = autoria.vista.ficha
+  }
+  return origem
+}
+
 /**
- * Grava a edição do jogador da sala LAN em nome dele: o que os funis
- * capturarem dentro de `fazer` (síncrono) sai com `autorDeclarado` e com a
- * base que ele viu. Sem autoria, só roda.
+ * Grava a mudança do jogador da sala LAN em nome dele: o que os funis
+ * capturarem dentro de `fazer` (síncrono) sai com `autorDeclarado` (se a conta
+ * é membro do Lobby) e, na edição, com a base que ele viu. Sem autoria, só roda.
  */
 export function comAutor<T>(autoria: AutoriaDaMesa | undefined, fazer: () => T): T {
   if (autoria === undefined) return fazer()
-  return comOrigem(autoria.contaId === undefined ? { marca: autoria.marca } : { autorDeclarado: autoria.contaId, marca: autoria.marca }, fazer)
+  return comOrigem(origemDaAutoria(autoria), fazer)
 }
 
 /** O Salvar da janela do mestre: o que os funis capturarem dentro de `fazer` (síncrono) sai com a base de quando a janela abriu. */
@@ -170,11 +206,11 @@ function imagensComoAntes(ficha: Personagem, antes: Personagem | null): Personag
 
 /**
  * O que mudou entre as duas listas de personagens da pasta, em mudanças por
- * campo. Ficha que não vai ao Lobby conta como ausente: a troca de jogador
- * para NPC vira `apagar` de `[]`, e a de NPC para jogador, `criar`. `jogador`
- * = só o que o jogador escreve (`diferencas`).
+ * campo, TODAS (o app é o mestre: quem assina cada uma é `opsDoLote`). Ficha
+ * que não vai ao Lobby conta como ausente: a troca de jogador para NPC vira
+ * `apagar` de `[]`, e a de NPC para jogador, `criar`.
  */
-export function mudancasDaPasta(antes: readonly Personagem[], depois: readonly Personagem[], papel: Papel): Mudanca[] {
+export function mudancasDaPasta(antes: readonly Personagem[], depois: readonly Personagem[]): Mudanca[] {
   const porIdAntes = new Map(antes.map((ficha): [string, Personagem] => [ficha.id, ficha]))
   const porIdDepois = new Map(depois.map((ficha): [string, Personagem] => [ficha.id, ficha]))
   const ids = [...new Set([...porIdDepois.keys(), ...porIdAntes.keys()])]
@@ -184,23 +220,87 @@ export function mudancasDaPasta(antes: readonly Personagem[], depois: readonly P
     if (deAntes === deDepois) return []
     const naNuvemAntes = deAntes !== undefined && vaiAoLobby(deAntes) ? semImagemEmbutida(deAntes) : null
     const naNuvemDepois = deDepois !== undefined && vaiAoLobby(deDepois) ? imagensComoAntes(deDepois, naNuvemAntes) : null
-    return diferencas(naNuvemAntes, naNuvemDepois, { papel })
+    return diferencas(naNuvemAntes, naNuvemDepois)
   })
 }
 
 // ── A emissão ───────────────────────────────────────────────────────────────
 
 interface EnvelopeDoLote {
-  baseRev: number
   clienteId: string
   quandoCliente: number
+  /** O jogador da sala, já conferido como membro: assina só o que o jogador escreve. */
   autorDeclarado?: string
 }
 
-/** As ops de um instante: um `loteId` para todas, um `opId` para cada. */
-export function opsDoLote(mudancas: readonly Mudanca[], envelope: EnvelopeDoLote, novoId: () => string): Op[] {
-  const loteId = novoId()
-  return mudancas.map((mudanca) => ({ ...mudanca, ...envelope, opId: novoId(), loteId }))
+/**
+ * Quem assina a mudança: o jogador declarado só no que o jogador escreve
+ * (4.7). O caminho do mestre (retrato, imagem, cartão novo com imagem, a
+ * ficha inteira) sai como do mestre — o app mudou de fato, e descartá-lo
+ * deixaria a nuvem com o valor antigo para sempre.
+ */
+function autorDaMudanca(mudanca: Mudanca, autorDeclarado: string | undefined): string | undefined {
+  return autorDeclarado !== undefined && quemEscreveAMudanca(mudanca) !== 'mestre' ? autorDeclarado : undefined
+}
+
+/**
+ * As ops de um instante, na ordem das mudanças: um `loteId` por quem assina
+ * (o jogador declarado e o mestre; o tudo-ou-nada é sempre do mestre e fica
+ * inteiro), um `opId` para cada, a base de cada uma por `baseRevDe`.
+ */
+export function opsDoLote(mudancas: readonly Mudanca[], envelope: EnvelopeDoLote, baseRevDe: (mudanca: Mudanca) => number, novoId: () => string): Op[] {
+  const loteDoMestre = novoId()
+  const loteDoJogador = novoId()
+  return mudancas.map((mudanca) => {
+    const autor = autorDaMudanca(mudanca, envelope.autorDeclarado)
+    const op: Op = {
+      ...mudanca,
+      baseRev: baseRevDe(mudanca),
+      clienteId: envelope.clienteId,
+      quandoCliente: envelope.quandoCliente,
+      opId: novoId(),
+      loteId: autor === undefined ? loteDoMestre : loteDoJogador,
+    }
+    if (autor !== undefined) op.autorDeclarado = autor
+    return op
+  })
+}
+
+/**
+ * A base de cada mudança. Nunca à frente da de agora: a fila recusa base que
+ * ainda não chegou. Com a ficha que o autor viu (`vista`), o caminho que
+ * mudou desde ela sai com a marca — o servidor vê quem mexeu nele depois —, e
+ * o resto com a de agora: a marca é a rev confirmada de quando a ficha saiu,
+ * e a op do mestre que ainda esperava o servidor naquela hora (o jogador a
+ * viu) contaria como concorrente. Outra ficha mudada no mesmo instante (as
+ * variações) é consequência de agora. Sem vista, tudo com a marca.
+ */
+function baseRevPorCaminho(pastaId: string, origem: OrigemDaMudanca, antes: readonly Personagem[], revAgora: number): (mudanca: Mudanca) => number {
+  const daMarca = Math.min(origem.marca?.get(pastaId) ?? revAgora, revAgora)
+  const { vista } = origem
+  if (vista === undefined) return () => daMarca
+  const deAgora = antes.find((ficha) => ficha.id === vista.id)
+  // A ficha vista já não está na lista: tudo mudou desde ela.
+  const mudados = deAgora === undefined ? null : diferencas(vista, deAgora).map((mudanca) => mudanca.caminho)
+  return (mudanca) => {
+    if (mudanca.fichaId !== vista.id) return revAgora
+    if (mudados === null || mudados.some((caminho) => caminhosSeSobrepoem(caminho, mudanca.caminho))) return daMarca
+    return revAgora
+  }
+}
+
+function novoIdDeOp(): string {
+  return crypto.randomUUID()
+}
+
+/** As ops da mudança `antes` → `depois` da pasta, com a origem de agora. Vazio = nada a emitir. */
+function opsDaOrigem(pastaId: string, destino: DestinoDoEmissor, antes: readonly Personagem[], depois: readonly Personagem[], origem: OrigemDaMudanca, agora: number): Op[] {
+  const mudancas = mudancasDaPasta(antes, depois)
+  if (mudancas.length === 0) return []
+  const envelope: EnvelopeDoLote = { clienteId: destino.clienteId, quandoCliente: agora }
+  const { autorDeclarado } = origem
+  if (autorDeclarado !== undefined && destino.ehMembro(autorDeclarado)) envelope.autorDeclarado = autorDeclarado
+  return opsDoLote(mudancas, envelope, baseRevPorCaminho(pastaId, origem, antes, destino.revConfirmada()), novoIdDeOp)
 }
 
 /** O primeiro motivo de recusa pelo mesmo esquema e pelos mesmos tetos do servidor (§5.6); `null` = todas passam. */
@@ -213,13 +313,10 @@ export function problemaNasOps(ops: readonly Op[]): string | null {
   return null
 }
 
-export type Emissao = { ok: true; entregar: () => void } | { ok: false; motivo: string }
+/** `problema` = o motivo cru (o esquema, o teto), para quem precisa de outra frase que não "ficou como estava". */
+export type Emissao = { ok: true; entregar: () => void } | { ok: false; motivo: string; problema: string }
 
 const NADA_A_EMITIR: Emissao = { ok: true, entregar: () => undefined }
-
-function novoIdDeOp(): string {
-  return crypto.randomUUID()
-}
 
 /**
  * Prepara as ops de uma mudança da pasta, ANTES de ela entrar no app: a que o
@@ -230,17 +327,10 @@ function novoIdDeOp(): string {
 export function prepararEmissao(pastaId: string, antes: readonly Personagem[], depois: readonly Personagem[], origem: OrigemDaMudanca = origemAgora(), agora = Date.now()): Emissao {
   const destino = destinos.get(pastaId)
   if (destino === undefined || antes === depois) return NADA_A_EMITIR
-  const { autorDeclarado, marca } = origem
-  const mudancas = mudancasDaPasta(antes, depois, autorDeclarado === undefined ? 'mestre' : 'jogador')
-  if (mudancas.length === 0) return NADA_A_EMITIR
-  const revAgora = destino.revConfirmada()
-  // A base nunca à frente da de agora: a fila recusa base que ainda não chegou.
-  const baseRev = Math.min(marca?.get(pastaId) ?? revAgora, revAgora)
-  const envelope: EnvelopeDoLote = { baseRev, clienteId: destino.clienteId, quandoCliente: agora }
-  if (autorDeclarado !== undefined) envelope.autorDeclarado = autorDeclarado
-  const ops = opsDoLote(mudancas, envelope, novoIdDeOp)
+  const ops = opsDaOrigem(pastaId, destino, antes, depois, origem, agora)
+  if (ops.length === 0) return NADA_A_EMITIR
   const problema = problemaNasOps(ops)
-  if (problema !== null) return { ok: false, motivo: `O Lobby não aceita esta mudança (${problema}). A ficha ficou como estava.` }
+  if (problema !== null) return { ok: false, motivo: `O Lobby não aceita esta mudança (${problema}). A ficha ficou como estava.`, problema }
   return {
     ok: true,
     entregar: () => {
@@ -248,6 +338,22 @@ export function prepararEmissao(pastaId: string, antes: readonly Personagem[], d
       if (destinos.get(pastaId) === destino) destino.receber(ops)
     },
   }
+}
+
+/**
+ * A mudança de uma ficha pedida pela sala LAN, conferida pelo host ANTES de
+ * responder ao jogador (§5.6): a que o Lobby recusaria volta com o motivo, e o
+ * jogador recebe a recusa em vez de "salvo" — depois, o funil a recusaria
+ * calado para ele. `null` = passa, ou nenhuma pasta está publicada. O host não
+ * sabe de que pasta é a mesa: confere com o primeiro destino ligado (o esquema
+ * e os tetos são os mesmos em todas). `antes` = `null` na ficha nova.
+ */
+export function problemaNaMesa(antes: Personagem | null, depois: Personagem, autoria: AutoriaDaMesa | undefined, agora = Date.now()): string | null {
+  const primeiro = destinos.entries().next()
+  if (primeiro.done === true) return null
+  const [pastaId, destino] = primeiro.value
+  const origem = autoria === undefined ? {} : origemDaAutoria(autoria)
+  return problemaNasOps(opsDaOrigem(pastaId, destino, antes === null ? [] : [antes], [depois], origem, agora))
 }
 
 // ── Salvar sobre a ficha de agora pela base de quem editou ──────────────────

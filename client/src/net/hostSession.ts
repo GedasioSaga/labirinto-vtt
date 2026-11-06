@@ -228,7 +228,7 @@ import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
 import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { aplicarImagem, aplicarPartesPelaBase } from './edicaoDoPersonagem'
-import { marcaDaBase, type AutoriaDaMesa, type MarcaDaBase } from './nuvem/emissor'
+import { marcaDaBase, problemaNaMesa, type AutoriaDaMesa, type MarcaDaBase, type VistaDaConexao } from './nuvem/emissor'
 import { aplicarAjustes, nomeDoJogadorNoHistorico } from '../lib/ajusteDaFicha'
 import { partesDoLivro, type LivroPedirMessage } from './protocoloDoLivro'
 import type { PersonagemAjustarMessage, PersonagemCriarMessage, PersonagemEditarMessage, PersonagemImagemMessage, TokenDoPersonagem } from './protocoloDoPersonagem'
@@ -567,9 +567,11 @@ export interface AppliedPersonagem {
   ajustadoPor?: string
   /**
    * LOBBY (§5.1): na edição, no ajuste e na imagem do jogador, a conta dele
-   * na sala e a base que ele viu (a marca de quando a ficha lhe foi
-   * enviada). O integrador grava dentro de `comAutor`: a op sai em nome dele,
-   * "atestado pelo app". Ausente (a criação, que é só do mestre no Lobby) = o mestre.
+   * na sala e, só na edição, a ficha que ele viu (a enviada por último) com a
+   * marca de quando ela saiu; o ajuste e a imagem saem sobre a ficha de agora.
+   * O integrador grava dentro de `comAutor`: a op sai em nome dele, "atestado
+   * pelo app" (se a conta é membro do Lobby). Ausente (a criação, que é só do
+   * mestre no Lobby) = o mestre.
    */
   autoria?: AutoriaDaMesa
 }
@@ -7861,6 +7863,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (token.characterId !== null && rpg.personagens.some((personagem) => personagem.id === token.characterId)) return recusa
     // O id vem da sessão (e não de `crypto`): o teste escolhe, e o host é quem dá nome às coisas.
     const personagem: Personagem = { ...novoPersonagem(rpg.sistema, 'jogador', token.name), id: `pers_${randomId()}` }
+    // LOBBY (§5.6): a que o Lobby recusaria não é aceita — senão a ficha ligaria o token a um personagem que o funil não deixou entrar.
+    if (problemaNaMesa(null, personagem, undefined, now()) !== null) return recusa
     return personagemAceito(clientId, playerId, msg.reqId, world, rpg, { personagem, ligarTokenId: token.id, ...backgroundSceneId(scene, world), criadoPor: record.name })
   }
 
@@ -7885,17 +7889,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return atual === undefined ? { refuse } : { playerId, rpg, atual }
   }
 
-  /**
-   * LOBBY (§5.1): a BASE do pedido do jogador — a ficha que esta conexão
-   * recebeu por último e a marca da nuvem de quando ela saiu — e a conta dele
-   * na sala, para a op sair em nome dele. Sem nada enviado ainda, a de agora.
-   */
-  function baseDaConexao(clientId: string, playerId: string, atual: Personagem): { base: Personagem; autoria: AutoriaDaMesa } {
-    const enviado = personagensEnviados.get(clientId)
-    const base = enviado?.personagens.find((personagem) => personagem.id === atual.id) ?? atual
-    const marca = enviado?.marca ?? marcaDaBase()
+  /** LOBBY (§5.1): a conta do jogador na sala, para a op sair em nome dele (o emissor só a declara se ela é membro do Lobby). */
+  function contaNaMesa(playerId: string): AutoriaDaMesa {
     const contaId = players.get(playerId)?.conta?.id
-    return { base, autoria: contaId === undefined ? { marca } : { contaId, marca } }
+    return contaId === undefined ? {} : { contaId }
+  }
+
+  /**
+   * LOBBY (§5.1): a BASE da edição do jogador — a ficha que esta conexão
+   * recebeu por último e a marca da nuvem de quando ela saiu. Sem a ficha
+   * enviada ainda, a de agora com a marca de agora.
+   */
+  function vistaDaConexao(clientId: string, atual: Personagem): VistaDaConexao {
+    const enviado = personagensEnviados.get(clientId)
+    const ficha = enviado?.personagens.find((personagem) => personagem.id === atual.id)
+    return enviado === undefined || ficha === undefined ? { ficha: atual, marca: marcaDaBase() } : { ficha, marca: enviado.marca }
   }
 
   /** FICHA DE PERSONAGEM — as partes que o jogador mudou entram no personagem de AGORA, sem desfazer o que o mestre mudou depois da base dele (`aplicarPartesPelaBase`). */
@@ -7904,8 +7912,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if ('refuse' in alvo) return alvo.refuse
     // DRAGON BALL TALES: a ficha estruturada só pela rede numa aventura do motor Dragon Ball (reforço do `aplicarPartes`).
     if (msg.partes.dbt !== undefined && motorDoSistema(alvo.rpg.sistema) !== MOTOR_DRAGON_BALL) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
-    const { base, autoria } = baseDaConexao(clientId, alvo.playerId, alvo.atual)
-    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem: aplicarPartesPelaBase(base, alvo.atual, msg.partes), autoria })
+    const vista = vistaDaConexao(clientId, alvo.atual)
+    const autoria: AutoriaDaMesa = { ...contaNaMesa(alvo.playerId), vista }
+    const personagem = aplicarPartesPelaBase(vista.ficha, alvo.atual, msg.partes)
+    // LOBBY (§5.6): a que o Lobby recusaria (texto acima do teto dele) volta como recusa ao jogador, não como "salvo".
+    if (problemaNaMesa(alvo.atual, personagem, autoria, now()) !== null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
+    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, autoria })
   }
 
   /**
@@ -7924,6 +7936,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const quem = nomeDoJogadorNoHistorico(nome)
     const personagem = aplicarAjustes(alvo.atual, sistema, msg.ajustes, quem, now())
     if (personagem === alvo.atual) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, true)] }
+    // LOBBY (§5.1, §5.6): o valor novo sai da ficha de AGORA, então a base também (sem a marca da conexão). Antes do registro da batalha: a recusa não deixa linha.
+    const autoria = contaNaMesa(alvo.playerId)
+    if (problemaNaMesa(alvo.atual, personagem, autoria, now()) !== null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
     // BATALHA F1 (S6): o ajuste vira linha no registro de toda batalha com o personagem na ordem.
     // ANTES de `personagemAceito`: a store do mestre pede um broadcast na hora (`notifyBatalhaChanged`),
     // com o mundo de antes; depois de `personagemAceito` marcar a ficha nova como enviada, esse
@@ -7931,7 +7946,6 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     options.ponteDaBatalha?.registrarAjuste(alvo.atual.id, alvo.atual, personagem, { tipo: 'jogador', playerId: alvo.playerId, nome: quem })
     // BATALHA DBT: o mesmo, no registro da batalha Dragon Ball (só PV e Ki viram linha).
     options.ponteDaBatalhaDBT?.registrarAjuste(alvo.atual.id, alvo.atual, personagem, { tipo: 'jogador', playerId: alvo.playerId, nome: quem })
-    const { autoria } = baseDaConexao(clientId, alvo.playerId, alvo.atual)
     return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, ajustadoPor: quem, autoria })
   }
 
@@ -8034,8 +8048,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const alvo = personagemDoPedido(clientId, msg.reqId, msg.personagemId, world)
     if ('refuse' in alvo) return alvo.refuse
     const personagem = aplicarImagem(alvo.atual, msg.cartaoId, msg.imagem)
-    if (personagem === null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
-    const { autoria } = baseDaConexao(clientId, alvo.playerId, alvo.atual)
+    // LOBBY (§5.1, §5.6): a imagem troca o que está na ficha de AGORA (base de agora); a que o Lobby recusaria volta como recusa.
+    const autoria = contaNaMesa(alvo.playerId)
+    if (personagem === null || problemaNaMesa(alvo.atual, personagem, autoria, now()) !== null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
     return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, autoria })
   }
 

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { comBase, ligarEmissor, marcaDaBase, prepararEmissao, salvarPelaBase } from '../../net/nuvem/emissor'
 import type { CartaoDaFicha, Personagem } from '../personagem'
 import { campanhaDeTeste, cartao, docDe, enviar, F_NAMI, ficha, guardada, MESTRE_NO_APP, NAMI, NAMI_NO_PC, op } from './campanha.fixture'
+import { membroAtivo } from './permissao'
 import type { Op } from './tipos'
 
 /**
@@ -35,7 +36,12 @@ function namiComDuasTecnicas(): Personagem {
 function publicar(): { campanha: ReturnType<typeof campanhaDeTeste>; recebidas: Op[] } {
   const campanha = campanhaDeTeste([guardada(namiComDuasTecnicas())])
   const recebidas: Op[] = []
-  desligar = ligarEmissor(PASTA, { clienteId: MESTRE_NO_APP.clienteId, revConfirmada: () => campanha.revAtual(), receber: (ops) => recebidas.push(...ops) })
+  desligar = ligarEmissor(PASTA, {
+    clienteId: MESTRE_NO_APP.clienteId,
+    revConfirmada: () => campanha.revAtual(),
+    ehMembro: (contaId) => membroAtivo(campanha.membro(contaId)),
+    receber: (ops) => recebidas.push(...ops),
+  })
   return { campanha, recebidas }
 }
 
