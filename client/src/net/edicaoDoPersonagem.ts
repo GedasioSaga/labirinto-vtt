@@ -1,5 +1,6 @@
 import { aplicarCamposDBT, camposDBTMudados, PERSONAGEM_SEM_NOME, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
+import { mesclarSemDesfazer } from './nuvem/emissor'
 import {
   cartaoSemImagem,
   parsePartesDoPersonagem,
@@ -187,6 +188,17 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem): Pe
     aplicado.maximos = Object.hasOwn(atual.maximos, 'pv') ? { ...semPv, pv: atual.maximos.pv } : semPv
   }
   return aplicado
+}
+
+/**
+ * HOST, com a BASE da conexão (LOBBY, §5.1): `base` é a ficha que o host
+ * enviou por último a este jogador. A aba que o jogador mandou inteira não
+ * desfaz o que o mestre mudou depois noutro cartão dela, nem a lista de
+ * etiquetas a etiqueta que o mestre pôs: o que o mestre mudou desde a base,
+ * fora do que o jogador tocou, volta por cima (`mesclarSemDesfazer`).
+ */
+export function aplicarPartesPelaBase(base: Personagem, atual: Personagem, partes: PartesDoPersonagem): Personagem {
+  return mesclarSemDesfazer(base, aplicarPartes(base, partes), atual, aplicarPartes(atual, partes))
 }
 
 /** HOST: a imagem aceita entra no retrato (`cartaoId` ausente) ou no cartão; `null` = o cartão não existe mais. */

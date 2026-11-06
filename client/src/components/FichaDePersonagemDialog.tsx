@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { salvarSobreOAtual, type Ajuste } from '../lib/ajusteDaFicha'
+import type { Ajuste } from '../lib/ajusteDaFicha'
 import { comNotaDoMestre, NOTA_DO_MESTRE_MAX, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { comBase, marcaDaBase, salvarPelaBase } from '../net/nuvem/emissor'
 import { FichaDoSistema } from './dbt/registroDeFichas'
 import { CloseIcon } from './icons'
 import './livros/anotacoes.css'
@@ -65,8 +66,10 @@ export function FichaDePersonagemDialog({
   const dialogRef = useRef<HTMLDivElement>(null)
   const pressStartedOnBackdrop = useRef(false)
   const [editando, setEditando] = useState(editandoNoInicio && sistema !== undefined)
-  /** A ficha quando a edição abriu: o Salvar troca só o que mudou desde ela (`salvarSobreOAtual`). */
+  /** A ficha quando a edição abriu: o Salvar troca só o que mudou desde ela, sem desfazer o que outro mudou depois (`salvarPelaBase`). */
   const [base, setBase] = useState(personagem)
+  /** LOBBY: a rev da nuvem quando a edição abriu — as ops do Salvar saem com ela, e o servidor vê quem mudou o mesmo campo depois. */
+  const [marca, setMarca] = useState(marcaDaBase)
   const [rascunho, setRascunho] = useState(personagem)
   const [perguntaDeSaida, setPerguntaDeSaida] = useState(false)
   const [ligado, setLigado] = useState<string | null>(null)
@@ -91,10 +94,10 @@ export function FichaDePersonagemDialog({
   }, [])
 
   const salvar = () => {
-    // Sobre a ficha de AGORA: o dano que o jogador tomou durante a edição não volta atrás.
-    const salvo = salvarSobreOAtual(base, { ...rascunho, nome: rascunho.nome.trim() || PERSONAGEM_SEM_NOME }, personagem)
+    // Sobre a ficha de AGORA: o dano que o jogador tomou e o texto que ele mudou durante a edição não voltam atrás.
+    const salvo = salvarPelaBase(base, { ...rascunho, nome: rascunho.nome.trim() || PERSONAGEM_SEM_NOME }, personagem)
     // Nota não mexida: vale a de agora (pode ter mudado na página Anotações enquanto esta janela editava).
-    onSalvar(notaMudou ? comNotaDoMestre(salvo, nota) : salvo)
+    comBase(marca, () => onSalvar(notaMudou ? comNotaDoMestre(salvo, nota) : salvo))
     setEditando(false)
     setPerguntaDeSaida(false)
   }
@@ -191,6 +194,7 @@ export function FichaDePersonagemDialog({
                     onClick={() => {
                       // A edição começa da ficha de agora: os ajustes rápidos feitos depois de abrir a janela entram.
                       setBase(personagem)
+                      setMarca(marcaDaBase())
                       setRascunho(personagem)
                       setNota(personagem.notaDoMestre ?? '')
                       setEditando(true)

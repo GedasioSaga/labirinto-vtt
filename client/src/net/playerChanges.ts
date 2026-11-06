@@ -11,6 +11,7 @@ import { hopVehicleSeated } from '../lib/vehicleHop'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Personagem } from '../lib/personagem'
 import type { AppliedLock, AppliedMark, AppliedPersonagem, AppliedPiso, AppliedTokenEdit, AppliedVehicle } from './hostSession'
+import { comAutor } from './nuvem/emissor'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -182,8 +183,9 @@ export function createPlayerChanges(destino: DestinoDasMudancas) {
     applyPiso: ({ tokenId, piso, sceneId }: AppliedPiso): void => destino.aplicar(sceneId, setTokenPiso(tokenId, piso)),
     applyVehicle: (change: AppliedVehicle): void => destino.aplicar(change.sceneId, applyVehicleChange(change)),
     // O personagem ANTES da ligação: a ficha nunca aponta para um personagem que ainda não existe.
-    applyPersonagem: ({ personagem, ligarTokenId, sceneId }: AppliedPersonagem): void => {
-      destino.salvarPersonagem(personagem)
+    // LOBBY: em nome do jogador da sala e com a base que ele viu (`comAutor`); sem autoria, do mestre.
+    applyPersonagem: ({ personagem, ligarTokenId, sceneId, autoria }: AppliedPersonagem): void => {
+      comAutor(autoria, () => destino.salvarPersonagem(personagem))
       if (ligarTokenId !== undefined) destino.aplicar(sceneId, ligarAoPersonagem(ligarTokenId, personagem.id))
     },
   }

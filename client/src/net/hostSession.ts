@@ -227,7 +227,8 @@ import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
 import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
 import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
-import { aplicarImagem, aplicarPartes } from './edicaoDoPersonagem'
+import { aplicarImagem, aplicarPartesPelaBase } from './edicaoDoPersonagem'
+import { marcaDaBase, type AutoriaDaMesa, type MarcaDaBase } from './nuvem/emissor'
 import { aplicarAjustes, nomeDoJogadorNoHistorico } from '../lib/ajusteDaFicha'
 import { partesDoLivro, type LivroPedirMessage } from './protocoloDoLivro'
 import type { PersonagemAjustarMessage, PersonagemCriarMessage, PersonagemEditarMessage, PersonagemImagemMessage, TokenDoPersonagem } from './protocoloDoPersonagem'
@@ -564,6 +565,13 @@ export interface AppliedPersonagem {
    * mestre lê do histórico o que ele mudou na última janela, já juntado.
    */
   ajustadoPor?: string
+  /**
+   * LOBBY (§5.1): na edição, no ajuste e na imagem do jogador, a conta dele
+   * na sala e a base que ele viu (a marca de quando a ficha lhe foi
+   * enviada). O integrador grava dentro de `comAutor`: a op sai em nome dele,
+   * "atestado pelo app". Ausente (a criação, que é só do mestre no Lobby) = o mestre.
+   */
+  autoria?: AutoriaDaMesa
 }
 
 /**
@@ -3393,7 +3401,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // e os personagens pela REFERÊNCIA (a aventura troca o objeto quando grava),
   // as fichas dela pelo texto. Só sai de novo o que mudou: o retrato (até 48
   // mil caracteres) não viaja a cada recorte. Ausente = nada enviado.
-  const personagensEnviados = new Map<string, { sistema: SistemaDeRpg | null; personagens: readonly Personagem[]; tokens: string }>()
+  // LOBBY: `personagens` é também a BASE da edição do jogador, e `marca` a rev da nuvem de quando eles saíram.
+  const personagensEnviados = new Map<string, { sistema: SistemaDeRpg | null; personagens: readonly Personagem[]; tokens: string; marca: MarcaDaBase }>()
   // CABINE DE TRANSPORTE — por playerId: o último "Chamar a cabine". Só o kick apaga.
   const lastCabineCallAt = new Map<string, number>()
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
@@ -7727,10 +7736,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const chave = JSON.stringify(tokens)
     const outbound: Outbound[] = []
     if (enviado === undefined || enviado.sistema !== rpg.sistema) outbound.push({ clientId, msg: mensagemDoSistema(rpg.sistema) })
-    if (enviado === undefined || enviado.tokens !== chave || !mesmasReferencias(enviado.personagens, personagens)) {
-      outbound.push({ clientId, msg: { type: 'personagens', personagens: personagens.map(paraOFio), tokens } })
-    }
-    personagensEnviados.set(clientId, { sistema: rpg.sistema, personagens, tokens: chave })
+    const mandaFichas = enviado === undefined || enviado.tokens !== chave || !mesmasReferencias(enviado.personagens, personagens)
+    if (mandaFichas) outbound.push({ clientId, msg: { type: 'personagens', personagens: personagens.map(paraOFio), tokens } })
+    personagensEnviados.set(clientId, { sistema: rpg.sistema, personagens, tokens: chave, marca: mandaFichas || enviado === undefined ? marcaDaBase() : enviado.marca })
     return outbound
   }
 
@@ -7877,13 +7885,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return atual === undefined ? { refuse } : { playerId, rpg, atual }
   }
 
-  /** FICHA DE PERSONAGEM — as partes que o jogador mudou entram no personagem de AGORA (`aplicarPartes`). */
+  /**
+   * LOBBY (§5.1): a BASE do pedido do jogador — a ficha que esta conexão
+   * recebeu por último e a marca da nuvem de quando ela saiu — e a conta dele
+   * na sala, para a op sair em nome dele. Sem nada enviado ainda, a de agora.
+   */
+  function baseDaConexao(clientId: string, playerId: string, atual: Personagem): { base: Personagem; autoria: AutoriaDaMesa } {
+    const enviado = personagensEnviados.get(clientId)
+    const base = enviado?.personagens.find((personagem) => personagem.id === atual.id) ?? atual
+    const marca = enviado?.marca ?? marcaDaBase()
+    const contaId = players.get(playerId)?.conta?.id
+    return { base, autoria: contaId === undefined ? { marca } : { contaId, marca } }
+  }
+
+  /** FICHA DE PERSONAGEM — as partes que o jogador mudou entram no personagem de AGORA, sem desfazer o que o mestre mudou depois da base dele (`aplicarPartesPelaBase`). */
   function handlePersonagemEditar(clientId: string, msg: PersonagemEditarMessage, world: HostWorld): HostResult {
     const alvo = personagemDoPedido(clientId, msg.reqId, msg.personagemId, world)
     if ('refuse' in alvo) return alvo.refuse
     // DRAGON BALL TALES: a ficha estruturada só pela rede numa aventura do motor Dragon Ball (reforço do `aplicarPartes`).
     if (msg.partes.dbt !== undefined && motorDoSistema(alvo.rpg.sistema) !== MOTOR_DRAGON_BALL) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
-    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem: aplicarPartes(alvo.atual, msg.partes) })
+    const { base, autoria } = baseDaConexao(clientId, alvo.playerId, alvo.atual)
+    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem: aplicarPartesPelaBase(base, alvo.atual, msg.partes), autoria })
   }
 
   /**
@@ -7909,7 +7931,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     options.ponteDaBatalha?.registrarAjuste(alvo.atual.id, alvo.atual, personagem, { tipo: 'jogador', playerId: alvo.playerId, nome: quem })
     // BATALHA DBT: o mesmo, no registro da batalha Dragon Ball (só PV e Ki viram linha).
     options.ponteDaBatalhaDBT?.registrarAjuste(alvo.atual.id, alvo.atual, personagem, { tipo: 'jogador', playerId: alvo.playerId, nome: quem })
-    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, ajustadoPor: quem })
+    const { autoria } = baseDaConexao(clientId, alvo.playerId, alvo.atual)
+    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, ajustadoPor: quem, autoria })
   }
 
   /**
@@ -8012,7 +8035,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if ('refuse' in alvo) return alvo.refuse
     const personagem = aplicarImagem(alvo.atual, msg.cartaoId, msg.imagem)
     if (personagem === null) return { outbound: [resultadoDePersonagem(clientId, msg.reqId, false)] }
-    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem })
+    const { autoria } = baseDaConexao(clientId, alvo.playerId, alvo.atual)
+    return personagemAceito(clientId, alvo.playerId, msg.reqId, world, alvo.rpg, { personagem, autoria })
   }
 
   /**

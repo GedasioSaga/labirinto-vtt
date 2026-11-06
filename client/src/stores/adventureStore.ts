@@ -48,6 +48,7 @@ import type { Personagem } from '../lib/personagem'
 import { gravarRpgDaPasta, rpgDe, type PastaAberta, type RpgDaPasta } from '../lib/pastasDeMapas'
 import type { Equipe } from '../lib/batalha/equipes'
 import { personagemComMidia } from '../lib/imagensDaFicha'
+import { prepararEmissao } from '../net/nuvem/emissor'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import {
   aplicarEstadoNoMapa,
@@ -975,7 +976,20 @@ function donoDosPersonagens(
   const state = get()
   const pasta = pastaQueManda(state)
   // MUNDO DO LIVRO: toda gravação passa pelas variações — editar o modelo pela ficha do mapa atualiza as variações junto.
-  if (pasta !== null) return { lista: pasta.personagens, gravar: (personagens) => set({ pasta: { ...pasta, personagens: sincronizarVariacoes(personagens) }, pastaSuja: true }) }
+  if (pasta !== null) {
+    const gravar = (personagens: Personagem[]): void => {
+      const novos = sincronizarVariacoes(personagens)
+      // LOBBY (funil 1 do emissor, §5.1): numa pasta publicada a mudança vira ops ANTES de entrar; a que o Lobby recusaria não entra.
+      const emissao = prepararEmissao(pasta.pastaId, pasta.personagens, novos)
+      if (!emissao.ok) {
+        useToastStore.getState().push('error', emissao.motivo)
+        return
+      }
+      set({ pasta: { ...pasta, personagens: novos }, pastaSuja: true })
+      emissao.entregar()
+    }
+    return { lista: pasta.personagens, gravar }
+  }
   const { adventure } = state
   if (adventure === null) return null
   return { lista: adventure.personagens, gravar: (personagens) => set({ adventure: { ...adventure, personagens: sincronizarVariacoes(personagens) }, structureDirty: true }) }

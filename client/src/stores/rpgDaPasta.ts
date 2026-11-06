@@ -1,6 +1,7 @@
 import { definirProprio, gravarRpgDaPasta, lerRpgDaPasta, lugarDoMapa, mudarIndiceDasPastas, type IndiceDasPastas, type RpgDaPasta } from '../lib/pastasDeMapas'
 // Ciclo de import com mochilaPendenteNoApp (que usa `editarRpgDaPasta`): os dois lados só chamam dentro de função, nunca ao carregar o módulo.
 import { usarOdaPastaNoMapaAberto } from '../net/nuvem/mochilaPendenteNoApp'
+import { origemAgora, prepararEmissao } from '../net/nuvem/emissor'
 import { useAdventureStore } from './adventureStore'
 import { useToastStore } from './toastStore'
 
@@ -38,13 +39,23 @@ export async function trocarModoDoMapa(proprio: boolean): Promise<void> {
  * `mudar` recebe o que está no disco: o HP mexido na mesa e ainda não salvo
  * não vai junto — continua pendente na cópia aberta, com a mudança nova.
  * Devolve o RPG gravado. Lança com a razão.
+ *
+ * LOBBY (funil 2 do emissor, §5.1): numa pasta publicada, o lido e o novo
+ * viram ops — o Mundo do Livro, a página Itens e o Carregar Mapa passam por
+ * aqui mesmo com a pasta fechada. A que o Lobby recusaria lança antes de
+ * gravar. A cópia aberta acompanha por `mudarRpgDaPasta`, que não emite.
  */
 export async function editarRpgDaPasta(pastaId: string, mudar: (rpg: RpgDaPasta) => RpgDaPasta): Promise<RpgDaPasta> {
+  // Antes do primeiro `await`: quem chamou dentro de `comAutor`/`comBase` perde o contexto depois dele.
+  const origem = origemAgora()
   const lido = await lerRpgDaPasta(pastaId)
   if (!lido.ok) throw new Error(lido.motivo)
   const novo = mudar(lido.rpg)
+  const emissao = prepararEmissao(pastaId, lido.rpg.personagens, novo.personagens, origem)
+  if (!emissao.ok) throw new Error(emissao.motivo)
   await gravarRpgDaPasta(pastaId, novo)
   useAdventureStore.getState().mudarRpgDaPasta(pastaId, mudar)
+  emissao.entregar()
   return novo
 }
 
