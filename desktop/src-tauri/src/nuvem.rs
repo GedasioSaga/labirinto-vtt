@@ -40,6 +40,21 @@
 //!   (v2, fatia C3R: a cópia da sala do chat no disco do mestre; padrão e teto
 //!   500, o `LIMITE_DA_ROTA_DA_SALA` do Worker; devolve
 //!   `{desde, ate, lista, temMais, cursorAtual}`, só a sala, nunca o privado)
+//! - `{rota:'abrirSala', campanhaId, corpo}` → `POST /api/c/:id/sala`
+//!   (fatia B3, "Entrar na mesa agora": a sala aberta no app aparece no Lobby).
+//!   `corpo` = `{codigo, enderecos:[{tipo:'lan'|'tunel', url}]}`; quem confere
+//!   o código e as URLs é o Worker (só `http://<IP privado>:<porta>/player` ou
+//!   `https://<rótulo>.trycloudflare.com/player`). A mesma rota é a batida a
+//!   cada 4 min: renova o prazo e troca os endereços, mantendo a chave. Devolve
+//!   `{chave, agora, expiraEm}` (`agora` é o relógio do Lobby, para o app medir
+//!   a diferença do seu). A `chave` é o segredo que assina os bilhetes de
+//!   entrada: este módulo só a repassa ao `nuvem_pedir` da janela `main`, sem
+//!   guardar, sem imprimir e sem pôr em `ErroNuvem` (o `detalhe` só sai de
+//!   resposta que não é 2xx, e a chave só vem em 2xx)
+//! - `{rota:'fecharSala', campanhaId}` → `POST /api/c/:id/sala/fechar` (no
+//!   `net_stop_room`: o Lobby apaga o registro e a chave). Sem `corpo` vindo da
+//!   webview; vai o JSON fixo `{}`, para o POST sair com Content-Length como os
+//!   outros. Devolve o que o Worker responder (`null` se vazio)
 //!
 //! `corpo` é qualquer JSON (até 16 MiB); o formato é do Worker (W1), não daqui.
 //! A resposta 2xx volta inteira como JSON (até 32 MiB). Campo a mais no
@@ -445,6 +460,11 @@ enum Rota {
         desde: u64,
         limite: u32,
     },
+    /// A sala aberta no app, publicada no Lobby (B3); também a batida que
+    /// renova o prazo. A resposta traz a chave dos bilhetes.
+    AbrirSala(CampanhaId),
+    /// A sala fechou no app (B3): o Lobby apaga o registro e a chave.
+    FecharSala(CampanhaId),
     EnviarMidia {
         campanha: CampanhaId,
         midia: IdDeImagem,
@@ -463,7 +483,11 @@ impl Rota {
             | Self::Exportar { .. }
             | Self::SalaDoChat { .. }
             | Self::BaixarMidia { .. } => Metodo::Get,
-            Self::Publicar(_) | Self::Membros(_) | Self::Ops(_) => Metodo::Post,
+            Self::Publicar(_)
+            | Self::Membros(_)
+            | Self::Ops(_)
+            | Self::AbrirSala(_)
+            | Self::FecharSala(_) => Metodo::Post,
             Self::EnviarMidia { .. } => Metodo::Put,
         }
     }
@@ -506,6 +530,8 @@ impl Rota {
                 "/api/c/{}/chat/sala?desde={desde}&limite={limite}",
                 campanha.0
             ),
+            Self::AbrirSala(campanha) => format!("/api/c/{}/sala", campanha.0),
+            Self::FecharSala(campanha) => format!("/api/c/{}/sala/fechar", campanha.0),
             Self::EnviarMidia { campanha, midia } | Self::BaixarMidia { campanha, midia } => {
                 format!("/api/c/{}/midia/{}", campanha.0, midia.id)
             }
@@ -557,6 +583,15 @@ pub enum PedidoNuvem {
         desde: u64,
         #[serde(default)]
         limite: Option<u32>,
+    },
+    /// B3: `corpo` = `{codigo, enderecos}`, conferido pelo Worker.
+    AbrirSala {
+        campanha_id: String,
+        corpo: Value,
+    },
+    /// B3: sem corpo da webview (vai o `{}` fixo).
+    FecharSala {
+        campanha_id: String,
     },
 }
 
@@ -640,6 +675,14 @@ impl PedidoNuvem {
                     None,
                 )
             }
+            Self::AbrirSala { campanha_id, corpo } => (
+                Rota::AbrirSala(CampanhaId::validar(&campanha_id)?),
+                Some(corpo),
+            ),
+            Self::FecharSala { campanha_id } => (
+                Rota::FecharSala(CampanhaId::validar(&campanha_id)?),
+                Some(Value::Object(serde_json::Map::new())),
+            ),
         })
     }
 }
@@ -1267,6 +1310,25 @@ mod testes {
         assert_eq!((ops.metodo(), ops.caminho().as_str()), (Metodo::Post, "/api/c/pasta_a-1/ops"));
         assert_eq!(corpo, Some(json!({ "lote": [] })));
 
+        // B3: abrir leva o corpo da webview como veio; fechar leva o `{}` fixo.
+        let sala = json!({
+            "codigo": "ABC123",
+            "enderecos": [{ "tipo": "lan", "url": "http://192.168.0.10:7777/player" }],
+        });
+        let (abrir, corpo) =
+            pedido(json!({ "rota": "abrirSala", "campanhaId": "camp_1", "corpo": &sala }))?;
+        assert_eq!(
+            (abrir.metodo(), abrir.caminho().as_str()),
+            (Metodo::Post, "/api/c/camp_1/sala")
+        );
+        assert_eq!(corpo, Some(sala));
+        let (fechar, corpo) = pedido(json!({ "rota": "fecharSala", "campanhaId": "camp_1" }))?;
+        assert_eq!(
+            (fechar.metodo(), fechar.caminho().as_str()),
+            (Metodo::Post, "/api/c/camp_1/sala/fechar")
+        );
+        assert_eq!(corpo, Some(json!({})));
+
         let midia = Rota::EnviarMidia {
             campanha: CampanhaId::validar("camp_1").map_err(|e| e.mensagem)?,
             midia: IdDeImagem::validar(&id_de(PNG_MINIMO, "png")).map_err(|e| e.mensagem)?,
@@ -1311,6 +1373,17 @@ mod testes {
         assert_eq!(codigo, "pedido_invalido");
         assert!(serde_json::from_value::<PedidoNuvem>(json!({ "rota": "salaDoChat", "campanhaId": "c", "desde": 0, "privado": true })).is_err());
         assert!(serde_json::from_value::<PedidoNuvem>(json!({ "rota": "salaDoChat", "campanhaId": "c", "desde": -1 })).is_err());
+        // B3: id perigoso na sala nem chega à URL; fechar não aceita corpo da
+        // webview, e abrir sem corpo nem desserializa.
+        for rota in ["abrirSala", "fecharSala"] {
+            let mut valor = json!({ "rota": rota, "campanhaId": "../x" });
+            if rota == "abrirSala" {
+                valor["corpo"] = json!({});
+            }
+            assert_eq!(codigo_do_pedido(valor)?, "pedido_invalido", "{rota}");
+        }
+        assert!(serde_json::from_value::<PedidoNuvem>(json!({ "rota": "fecharSala", "campanhaId": "c", "corpo": {} })).is_err());
+        assert!(serde_json::from_value::<PedidoNuvem>(json!({ "rota": "abrirSala", "campanhaId": "c" })).is_err());
         // A webview não escolhe URL: campo a mais e rota fora da lista nem
         // desserializam.
         assert!(serde_json::from_value::<PedidoNuvem>(json!({ "rota": "eu", "url": "https://x" })).is_err());
@@ -1369,6 +1442,51 @@ mod testes {
         assert_eq!(recebido.linha, "POST /api/c/c1/ops HTTP/1.1");
         assert_eq!(recebido.cabecalho("content-type"), Some(TIPO_JSON));
         assert_eq!(recebido.corpo, br#"{"lote":[1]}"#);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn abrir_e_fechar_a_sala_vao_nas_rotas_certas_e_a_chave_volta_inteira() -> Resultado {
+        // Chave inventada: 32 bytes em base64url (43 caracteres).
+        let chave = "q8Kx0Zr2bN5vW1sT7yUe3iO9pA4dF6gH8jL0zXcVbMn";
+        let resposta =
+            format!(r#"{{"chave":"{chave}","agora":1762430000000,"expiraEm":1762430600000}}"#);
+        let (base, servidor) =
+            servidor_falso(resposta_http("200 OK", "Content-Type: application/json\r\n", &resposta))
+                .await?;
+        let ponte = ponte_local(base, Duration::from_secs(5)).map_err(|e| e.mensagem)?;
+        let sala = json!({
+            "codigo": "ABC123",
+            "enderecos": [{ "tipo": "tunel", "url": "https://a-b.trycloudflare.com/player" }],
+        });
+        let (rota, corpo) =
+            pedido(json!({ "rota": "abrirSala", "campanhaId": "c1", "corpo": &sala }))?;
+        let corpo = corpo.as_ref().map(corpo_json).transpose().map_err(|e| e.mensagem)?;
+        let aberta = pedir_json(&ponte, &credencial(), &rota, corpo)
+            .await
+            .map_err(|e| e.mensagem)?;
+        assert_eq!(
+            aberta,
+            json!({ "chave": chave, "agora": 1_762_430_000_000_u64, "expiraEm": 1_762_430_600_000_u64 })
+        );
+        let recebido = servidor.await??;
+        assert_eq!(recebido.linha, "POST /api/c/c1/sala HTTP/1.1");
+        assert_eq!(recebido.cabecalho("content-type"), Some(TIPO_JSON));
+        assert_eq!(serde_json::from_slice::<Value>(&recebido.corpo)?, sala);
+
+        // Fechar: o `{}` fixo, e a resposta vazia vira `null`.
+        let (base, servidor) = servidor_falso(resposta_http("200 OK", "", "")).await?;
+        let ponte = ponte_local(base, Duration::from_secs(5)).map_err(|e| e.mensagem)?;
+        let (rota, corpo) = pedido(json!({ "rota": "fecharSala", "campanhaId": "c1" }))?;
+        let corpo = corpo.as_ref().map(corpo_json).transpose().map_err(|e| e.mensagem)?;
+        let fechada = pedir_json(&ponte, &credencial(), &rota, corpo)
+            .await
+            .map_err(|e| e.mensagem)?;
+        assert_eq!(fechada, Value::Null);
+        let recebido = servidor.await??;
+        assert_eq!(recebido.linha, "POST /api/c/c1/sala/fechar HTTP/1.1");
+        assert_eq!(recebido.cabecalho("content-length"), Some("2"));
+        assert_eq!(recebido.corpo, b"{}");
         Ok(())
     }
 
