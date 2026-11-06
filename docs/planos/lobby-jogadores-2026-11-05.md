@@ -700,10 +700,11 @@ Legenda: **Nu** = crítica da Nuvem; **Ap** = App; **Si** = Site; **Tr** = Trein
 | J0 (fora da tabela) | `51b2ac4a`: um adaptador só para os seis comandos da R1 | — |
 | S0 a S4 | protótipo aprovado; `42274ddf`, `b5879b7b`, `ad42254a`, `d53caada` (+ revisões) | `--so-lobby --publicar` só com o ok do usuário |
 | E1 | — | o roteiro 8.3 inteiro, com o usuário |
-| C1, C3 | `d7aee58e` (+`7c75b63a`); C3 só o lado TypeScript, `e9770082` | C3: variante `SalaDoChat` no `nuvem.rs` (Rust) e a conferência dos 5 s |
+| C1, C3 | `d7aee58e` (+`7c75b63a`); C3: lado TypeScript `e9770082` (+`14952c62`), lado Rust (variante `SalaDoChat` no `nuvem.rs`) `06ff5356` | C3: a conferência dos 5 s (remover o jogador B fecha a aba dele) com o Worker no ar |
+| **C2** | `1d44a76a` (telas de chat do site: sala, privados, aviso do privado, não lidas, carregar anteriores, baixar, "enviando…", @menções) | **código pronto, aceite pendente:** o passeio do chat com o Worker no ar (o `?demo=1` usa um servidor de chat falso) |
 | T1 a T5 | `d60bc37d`, `ef179551`, `a07b1446`, `007c5889`, `110ed18d` (+ revisões) | T1: o usuário liga uma batalha One Piece no app |
 | T6, T8, M1 | `916fa343` (+`cbdd10a9`), `b3921d97` (+`53013267`), `36dc395d` | T6: duelo em duas abas no ar |
-| C2, T7, M2, entrada do lobby | não estão na main (C2 em andamento) | as telas |
+| T7, M2, entrada do lobby | não estão na main | as telas |
 
 **Desvios de caminho declarados pelas fatias** (levantados dos commits; caminhos fora da coluna "Caminhos principais"):
 
@@ -714,7 +715,8 @@ Legenda: **Nu** = crítica da Nuvem; **Ap** = App; **Si** = Site; **Tr** = Trein
 - W1: `package.json` e `package-lock.json` da raiz (wrangler, 12.9). Guarda de pureza (`fe6ec026`): `client/src/lib/nuvem/node-minimo.d.ts`.
 - S2, S3 e S4: `client/src/lobby-site/main.tsx` (da S1); S4 também `client/src/lobby-site/dados/versaoDoServidor.ts`.
 - C1: `lobby/nuvem/src/` `campanha.ts`, `esquema.ts`, `nucleo.ts`, `rotas.ts`, `sala.ts`, `fumaca.mjs` e `client/src/lib/nuvem/chatDoLobby.ts`. C3: `client/src/net/nuvem/` `membrosPendentes.ts`, `nuvemNoApp.ts`, `ponte.ts`, `comandosDaR1.ts` e `client/src/components/nuvem/` `ponteDoLobby.ts`, `textosDoLobby.ts`.
+- C2: `client/src/lobby-site/dados/` (`chatDaCampanha.ts`, `chatDaDemo.ts`, `fioDoChat.ts`, `fonte.ts`, `fonteDemo.ts`, `lobbyStore.ts`, `mensagens.ts`, `rotas.ts`, `sessaoDaCampanha.ts`) e `client/src/lobby-site/telas/` `Cabeca.tsx`, `Icone.tsx`, `Site.tsx`, `contexto.ts`.
 - T4: `client/vitest.projetos.json`. T5: `client/src/lib/treino/robo.ts`. T6: `client/src/lib/treino/dueloDoLobby.ts`, `lobby/nuvem/src/` `campanha.ts`, `esquema.ts`, `sala.ts` e `lobby/nuvem/tsconfig.json`.
 - T8: `client/src/components/FichaDePersonagemDialog.tsx`, `client/src/lib/nuvem/permissao.ts`, `projecao.ts`, `client/src/lib/pastasDeMapas.ts`, `client/src/net/nuvem/acertoDasFichas.ts` e `lobby/nuvem/src/` `campanha.ts`, `nucleo.ts`, `pedidos.ts`, `publicar.ts`.
 
-**O que falta, em ordem:** (1) deploy do Worker e do Pages (o usuário autorizou fazer sozinho depois da auditoria, com o `npx wrangler login` feito por ele) e os segredos do Worker (passo 9.8, do usuário); (2) Service Token colado na "Conta na nuvem" (passo 9.7, do usuário); (3) e-mails no grupo da política A do Access, à mão (8.3; a W4 não existe); (4) telas C2, T7, M2 e a entrada do lobby, e o lado Rust da C3; (5) passeio E1 (8.3); (6) passeio do treino (T7: 3 lutas por dificuldade, 100 lutas, testar build, 1 duelo e as 3 perguntas da regra de teste de jogos) e do duelo (T6: duas abas, fechar uma e voltar antes de 3 min); (7) versão nova do app pelo `publicar-versao.cjs`, se o disco ficar acima de 8 GB depois do build.
+**O que falta, em ordem:** (1) deploy do Worker e do Pages (o usuário autorizou fazer sozinho depois da auditoria, com o `npx wrangler login` feito por ele) e os segredos do Worker (passo 9.8, do usuário); (2) Service Token colado na "Conta na nuvem" (passo 9.7, do usuário); (3) e-mails no grupo da política A do Access, à mão (8.3; a W4 não existe); (4) telas T7, M2 e a entrada do lobby; (5) passeio E1 (8.3), com o do chat (C2) e a conferência dos 5 s da C3; (6) passeio do treino (T7: 3 lutas por dificuldade, 100 lutas, testar build, 1 duelo e as 3 perguntas da regra de teste de jogos) e do duelo (T6: duas abas, fechar uma e voltar antes de 3 min); (7) versão nova do app pelo `publicar-versao.cjs`, se o disco ficar acima de 8 GB depois do build.
