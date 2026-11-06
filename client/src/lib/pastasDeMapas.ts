@@ -440,11 +440,62 @@ export async function lerRpgDaPasta(pastaId: string): Promise<RpgLido> {
 }
 
 /**
+ * A vez de quem está mexendo no `rpg.json` de uma pasta (LOBBY, plano §5.6):
+ * quem já está na fila passa a vez adiante e grava sem entrar de novo.
+ */
+export interface VezNaPasta {
+  readonly pastaId: string
+}
+
+/** Uma cadeia por pasta: a próxima gravação só começa quando a anterior terminou (deu certo ou não). */
+const filasDasPastas = new Map<string, Promise<unknown>>()
+const vezesAtivas = new Set<VezNaPasta>()
+
+/**
+ * FILA ÚNICA POR PASTA (docs/planos/lobby-jogadores-2026-11-05.md §5.6): todo
+ * ler-mudar-gravar do `rpg.json` de uma pasta passa por aqui, um por vez — o
+ * Salvar, o `editarRpgDaPasta` e o gravador leve do Lobby
+ * (`net/nuvem/gravadorLeve.ts`). Sem ela, o gravador leve podia ler o disco
+ * entre a leitura e a gravação de outro e um dos dois gravava por cima do
+ * outro. `passo` recebe a vez: quem chama `gravarRpgDaPasta` de dentro dele a
+ * passa adiante (senão esperaria a si mesmo).
+ */
+export function naFilaDaPasta<T>(pastaId: string, passo: (vez: VezNaPasta) => Promise<T>): Promise<T> {
+  const anterior = filasDasPastas.get(pastaId) ?? Promise.resolve()
+  const vez: VezNaPasta = { pastaId }
+  const resultado = anterior.then(async () => {
+    vezesAtivas.add(vez)
+    try {
+      return await passo(vez)
+    } finally {
+      vezesAtivas.delete(vez)
+    }
+  })
+  const fim = resultado.catch(() => undefined)
+  filasDasPastas.set(pastaId, fim)
+  // A cadeia que terminou e ninguém seguiu sai do mapa (não acumula uma por pasta aberta na vida do app).
+  void fim.then(() => {
+    if (filasDasPastas.get(pastaId) === fim) filasDasPastas.delete(pastaId)
+  })
+  return resultado
+}
+
+function jaNaVez(pastaId: string, vez: VezNaPasta | undefined): boolean {
+  return vez !== undefined && vez.pastaId === pastaId && vezesAtivas.has(vez)
+}
+
+/**
  * Grava o RPG da pasta e leva a mídia das fichas para `<id>/midia` (como a
  * aventura leva a dela, `lib/midiaDaPasta.ts`). Lança com a razão em
- * português; a mídia que não foi só vira aviso.
+ * português; a mídia que não foi só vira aviso. Entra na fila única da pasta
+ * (`naFilaDaPasta`); quem já está nela passa a `vez`.
  */
-export async function gravarRpgDaPasta(pastaId: string, rpg: RpgDaPasta): Promise<void> {
+export function gravarRpgDaPasta(pastaId: string, rpg: RpgDaPasta, vez?: VezNaPasta): Promise<void> {
+  if (jaNaVez(pastaId, vez)) return gravarRpgDaPastaAgora(pastaId, rpg)
+  return naFilaDaPasta(pastaId, () => gravarRpgDaPastaAgora(pastaId, rpg))
+}
+
+async function gravarRpgDaPastaAgora(pastaId: string, rpg: RpgDaPasta): Promise<void> {
   let pasta: string
   try {
     pasta = await pastaDe(pastaId)
