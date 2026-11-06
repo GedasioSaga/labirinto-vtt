@@ -60,6 +60,61 @@ function montarAviso(entrada: EntradaDaFila, ficha: Personagem | undefined, sist
   return null
 }
 
+/**
+ * As entradas que decidem juntas, na ordem da fila, como o sincronizador as
+ * decide (`grupoDaDecisao`): o tudo-ou-nada (`atomico`, o mesmo `loteId`)
+ * numa linha só, a op solta numa linha dela.
+ */
+function agruparDecisoes(paraDecidir: readonly EntradaDaFila[]): EntradaDaFila[][] {
+  const grupos: EntradaDaFila[][] = []
+  const porLote = new Map<string, EntradaDaFila[]>()
+  for (const entrada of paraDecidir) {
+    if (entrada.op.atomico !== true) {
+      grupos.push([entrada])
+      continue
+    }
+    const doLote = porLote.get(entrada.op.loteId)
+    if (doLote !== undefined) {
+      doLote.push(entrada)
+      continue
+    }
+    const novo = [entrada]
+    porLote.set(entrada.op.loteId, novo)
+    grupos.push(novo)
+  }
+  return grupos
+}
+
+const ESCOLHAS_DO_GRUPO: Readonly<Record<EscolhaDaDecisao, string>> = {
+  'ficar-com-a-do-outro': 'Ficar com a do outro em tudo',
+  'usar-a-minha': 'Usar a sua em tudo',
+  'desfazer-aqui': 'Desfazer tudo aqui',
+  'guardar-como-nota': 'Guardar tudo como nota',
+}
+
+/** A troca ou o pagamento numa linha: o aviso da op que bateu, dizendo que a escolha vale para todas as mudanças dela. */
+function montarAvisoDoGrupo(grupo: readonly EntradaDaFila[], porId: ReadonlyMap<string, Personagem>, sistema: SistemaDeRpg | undefined, agora: number): AvisoMontado | null {
+  // A que bateu de fato (sem `porCausaDe`) explica o aviso; as outras foram recusadas junto com ela.
+  const principal = grupo.find((entrada) => entrada.situacao.t !== 'conflito' || entrada.situacao.conflito.porCausaDe === undefined) ?? grupo.at(0)
+  if (principal === undefined) return null
+  const aviso = montarAviso(principal, porId.get(principal.op.fichaId), sistema, agora)
+  if (aviso === null) return null
+  const nomes = [...new Set(grupo.map((entrada) => porId.get(entrada.op.fichaId)?.nome ?? 'ficha fora desta pasta'))]
+  const partes = grupo.map(({ op }) => {
+    const ficha = porId.get(op.fichaId)
+    return `${rotuloDoCaminho(op.caminho, ficha, sistema)} de ${ficha?.nome ?? 'ficha fora desta pasta'}: ${oQueAOpQueria(op)}`
+  })
+  return {
+    props: {
+      ...aviso.props,
+      onde: nomes.join(', '),
+      titulo: `Troca ou pagamento recusado inteiro. ${aviso.props.titulo}`,
+      detalhe: `Estas ${grupo.length} mudanças iam juntas (${partes.join('; ')}): a escolha vale para todas, nunca para uma só. ${aviso.props.detalhe ?? ''}`.trim(),
+    },
+    escolhas: aviso.escolhas.map((escolha) => ({ ...escolha, rotulo: ESCOLHAS_DO_GRUPO[escolha.escolha] })),
+  }
+}
+
 export interface MudancasParaDecidirProps {
   campanha: CampanhaNoApp
   /** As fichas da pasta, para dar nome à ficha e ao campo. */
@@ -73,6 +128,8 @@ export function MudancasParaDecidir({ campanha, fichas, sistema }: MudancasParaD
   if (campanha.paraDecidir.length === 0) return null
   const agora = Date.now()
   const porId = new Map(fichas.map((ficha): [string, Personagem] => [ficha.id, ficha]))
+  // Uma linha por decisão: a troca inteira conta uma vez, como é decidida.
+  const grupos = agruparDecisoes(campanha.paraDecidir)
 
   const decidir = async (opId: string, escolha: EscolhaDaDecisao) => {
     setOcupada(opId)
@@ -93,14 +150,17 @@ export function MudancasParaDecidir({ campanha, fichas, sistema }: MudancasParaD
         <h4 className="lby-cab__t" id={`decidir-${campanha.campanhaId}`}>
           Mudanças para decidir
         </h4>
-        <span className="lby-cab__n">{campanha.paraDecidir.length}</span>
+        <span className="lby-cab__n">{grupos.length}</span>
       </div>
       <p className="lby-dica">Mudanças suas que o servidor não aceitou. A mesa não para: enquanto você não escolhe, a ficha no app fica com o seu valor.</p>
       <ul className="lby-decidir__lista">
-        {campanha.paraDecidir.map((entrada) => {
-          const aviso = montarAviso(entrada, porId.get(entrada.op.fichaId), sistema, agora)
+        {grupos.map((grupo) => {
+          const [primeira, ...resto] = grupo
+          if (primeira === undefined) return null
+          const aviso = resto.length === 0 ? montarAviso(primeira, porId.get(primeira.op.fichaId), sistema, agora) : montarAvisoDoGrupo(grupo, porId, sistema, agora)
           if (aviso === null) return null
-          const { opId } = entrada.op
+          // Qualquer op do grupo serve: o sincronizador decide o tudo-ou-nada inteiro a partir dela.
+          const { opId } = primeira.op
           return (
             <li key={opId}>
               <AvisoDeConflito
