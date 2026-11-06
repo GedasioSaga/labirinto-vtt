@@ -225,7 +225,14 @@ export function abrirCopiaDaSala(campanhaId: string, pasta: PastaNoDisco, fonte:
       estado.reescreverNaProxima = false
       return
     }
-    await pasta.acrescentar(ARQUIVO_DA_SALA, linhasDe(mudanca.mudadas))
+    try {
+      await pasta.acrescentar(ARQUIVO_DA_SALA, linhasDe(mudanca.mudadas))
+    } catch (erro) {
+      // O append pode ter gravado só parte (disco cheio): acrescentar de novo colaria a
+      // linha nova na metade cortada. A próxima gravação reescreve o arquivo inteiro.
+      estado.reescreverNaProxima = true
+      throw erro
+    }
     for (const msg of mudanca.mudadas) estado.copia.set(msg.id, msg)
   }
 
