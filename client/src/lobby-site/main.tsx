@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { themeCss } from '../theme'
 import { iniciarSite } from './dados/lobbyStore'
+import { conferirVersaoNaAbertura } from './dados/versaoDoServidor'
 import { SiteContexto } from './telas/contexto'
 import { Site } from './telas/Site'
 import './telas/lobby.css'
@@ -19,6 +20,8 @@ estiloDoTema.textContent = themeCss()
 document.head.prepend(estiloDoTema)
 
 const site = iniciarSite(window)
+// Antes do render: a tela já nasce lendo o estado conferido (S4, `dados/versaoDoServidor.ts`).
+conferirVersaoNaAbertura(site, window.location.origin)
 
 const root = document.getElementById('root')
 if (!root) throw new Error('lobby-site/index.html sem #root')
