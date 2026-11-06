@@ -3,12 +3,14 @@ import { lerContas } from '../../lib/contasNoDisco'
 import { subscribeToOpenings, useAdventureStore } from '../../stores/adventureStore'
 import { useNuvemStore } from '../../stores/nuvemStore'
 import { useToastStore } from '../../stores/toastStore'
+import { abrirCopiaDaSala, fonteDaSalaSobre, type CopiaDaSalaNoDisco } from './chatSala'
 import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from './discoDaNuvem'
 import { ligarEmissor } from './emissor'
 import { lerCampanhas, registrarCampanha, type CampanhaPublicada } from './estadoNoDisco'
 import { gravarRpgLeve } from './gravadorLeve'
 import { criarLaco, ESPERA_DEPOIS_DA_MUDANCA_MS, type Laco } from './laco'
-import { ponteSobre, transporteDoTauri } from './ponte'
+import { corpoDosMembros, criarMembrosPendentes, type EnvioDaLista, type MembrosPendentes } from './membrosPendentes'
+import { ehFalha, falhaDoStatus, pedirComFalha, ponteSobre, transporteDoTauri, type TransporteDaNuvem } from './ponte'
 import { abrirSincronizador, type AplicadorNoApp, type EscolhaDaDecisao, type Sincronizador } from './sincronizador'
 import type { ResultadoNaFila } from '../../lib/nuvem/fila'
 
@@ -78,6 +80,78 @@ function avisar(mensagem: string): void {
   useToastStore.getState().push('error', mensagem)
 }
 
+// ── C3: a cópia da sala do chat e a lista de jogadores que não chegou ──────
+
+/** A cópia da sala não precisa do ritmo de 5 s das fichas: cada pedido acorda o DO, o recurso mais apertado (§7). */
+const COPIA_DA_SALA_A_CADA_MS = 60_000
+
+let membrosPendentes: Promise<MembrosPendentes> | null = null
+
+/** Um só no app: a tela (`reenviarMembros`) e os laços mandam a lista pela mesma vez. */
+export function membrosPendentesDoApp(): Promise<MembrosPendentes> {
+  membrosPendentes ??= pastaDaNuvemNoApp().then((raiz) => criarMembrosPendentes(pastaNoDisco(primitivasDoTauri, raiz)))
+  return membrosPendentes
+}
+
+/**
+ * A lista de jogadores que ficou marcada (a tela não conseguiu mandar, ou o
+ * app fechou no meio) vai de novo, relida do disco. Devolve o motivo da recusa
+ * do servidor, que repetir não resolve; `null` = nada a dizer.
+ */
+async function reenviarMembrosPendentes(campanhaId: string, transporte: TransporteDaNuvem): Promise<string | null> {
+  const pendentes = await membrosPendentesDoApp()
+  if (!(await pendentes.pendentes()).has(campanhaId)) return null
+  const recusas: string[] = []
+  await pendentes.enviar([campanhaId], async (id): Promise<EnvioDaLista> => {
+    const lidas = await lerContas()
+    // Sem ler as contas não manda: a lista vazia tiraria todo mundo da campanha.
+    if (!lidas.lido) return 'pendente'
+    const resposta = await pedirComFalha(transporte, { rota: 'membros', campanhaId: id }, corpoDosMembros(lidas.arquivo.contas))
+    if (!ehFalha(resposta) && resposta.status === 200) return 'confirmado'
+    const falha = ehFalha(resposta) ? resposta : falhaDoStatus(resposta)
+    if (falha.t !== 'erro') return 'pendente'
+    recusas.push(falha.detalhe)
+    return 'recusado'
+  })
+  return recusas[0] ?? null
+}
+
+interface ExtrasDaCampanha {
+  campanhaId: string
+  transporte: TransporteDaNuvem
+  sala: CopiaDaSalaNoDisco
+  /** Quando a cópia da sala foi pedida pela última vez; `null` = ainda não neste app aberto. */
+  salaPedidaEm: number | null
+  /** Cada aviso uma vez por campanha: o laço roda a cada 5 s. */
+  avisados: Set<string>
+}
+
+function avisarUmaVez(extras: ExtrasDaCampanha, mensagem: string): void {
+  if (extras.avisados.has(mensagem)) return
+  extras.avisados.add(mensagem)
+  avisar(mensagem)
+}
+
+/** Depois de um ciclo bom das fichas (rede e token valendo): a lista de jogadores pendente e a cópia da sala. Nunca lança. */
+async function cuidarDosExtras(extras: ExtrasDaCampanha): Promise<void> {
+  try {
+    const recusa = await reenviarMembrosPendentes(extras.campanhaId, extras.transporte)
+    if (recusa !== null) avisarUmaVez(extras, `O Lobby não aceitou a lista de jogadores: ${recusa}`)
+  } catch (erro) {
+    avisarUmaVez(extras, `A lista de jogadores do Lobby não foi guardada no disco: ${erro instanceof Error ? erro.message : String(erro)}`)
+  }
+  const agora = Date.now()
+  if (extras.salaPedidaEm !== null && agora - extras.salaPedidaEm < COPIA_DA_SALA_A_CADA_MS) return
+  extras.salaPedidaEm = agora
+  try {
+    const copia = await extras.sala.atualizar()
+    // Sem rede passa sozinho no próximo; o resto (até a ponte de antes da C3R, que não conhece a rota) aparece uma vez.
+    if (copia.t !== 'ok' && copia.t !== 'sem-rede') avisarUmaVez(extras, `A cópia do chat da sala não foi gravada: ${copia.detalhe}`)
+  } catch (erro) {
+    avisarUmaVez(extras, `A cópia do chat da sala não foi gravada: ${erro instanceof Error ? erro.message : String(erro)}`)
+  }
+}
+
 function ouvirAJanela(): void {
   if (ouvindoAJanela) return
   ouvindoAJanela = true
@@ -95,7 +169,15 @@ export async function ligarCampanha(campanha: CampanhaPublicada): Promise<boolea
   if (ligadas.has(campanha.campanhaId)) return true
   await relerContasSePreciso()
   const pasta = pastaNoDisco(primitivasDoTauri, await join(await pastaDaNuvemNoApp(), campanha.campanhaId))
-  const ponte = ponteSobre(transporteDoTauri())
+  const transporte = transporteDoTauri()
+  const ponte = ponteSobre(transporte)
+  const extras: ExtrasDaCampanha = {
+    campanhaId: campanha.campanhaId,
+    transporte,
+    sala: abrirCopiaDaSala(campanha.campanhaId, pasta, fonteDaSalaSobre(transporte)),
+    salaPedidaEm: null,
+    avisados: new Set(),
+  }
   let laco: Laco | null = null
   const aberto = await abrirSincronizador(campanha, {
     ponte,
@@ -119,7 +201,9 @@ export async function ligarCampanha(campanha: CampanhaPublicada): Promise<boolea
   laco = criarLaco(
     async () => {
       await relerContasSePreciso().catch(() => undefined)
-      return sincronizador.ciclo()
+      const resultado = await sincronizador.ciclo()
+      if (resultado.t === 'ok') await cuidarDosExtras(extras)
+      return resultado
     },
     {
       janelaVisivel: () => document.visibilityState === 'visible',

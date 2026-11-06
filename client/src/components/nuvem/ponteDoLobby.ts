@@ -11,7 +11,8 @@ import { comandosDaR1, type ComandosDaR1 } from '../../net/nuvem/comandosDaR1'
 import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from '../../net/nuvem/discoDaNuvem'
 import { vaiAoLobby } from '../../net/nuvem/emissor'
 import { estadoNovo, gravarEstado, lerCampanhas, lerEstado, type CampanhaPublicada } from '../../net/nuvem/estadoNoDisco'
-import { registrarELigar, retomarLobby } from '../../net/nuvem/nuvemNoApp'
+import { corpoDosMembros, type EnvioDaLista } from '../../net/nuvem/membrosPendentes'
+import { membrosPendentesDoApp, registrarELigar, retomarLobby } from '../../net/nuvem/nuvemNoApp'
 import { copiasDeTreino, inimigosLiberadosDe, midiasDaFicha, semImagemEmbutida } from '../../net/nuvem/publicar'
 import { listaDeNomes, membrosDasContas, NOME_DO_MESTRE, textoDoMotivo } from './textosDoLobby'
 
@@ -130,10 +131,6 @@ export async function campanhaDaPasta(pastaId: string): Promise<CampanhaPublicad
 
 // ── Jogadores (rota `membros`) ──────────────────────────────────────────────
 
-function corpoDosMembros(contas: readonly ContaDeJogador[]): Json {
-  return { v: VERSAO_DO_FORMATO, nomeDoMestre: NOME_DO_MESTRE, membros: paraJson(membrosDasContas(contas)) }
-}
-
 export interface EnvioDosMembros {
   campanhas: number
   falha: FalhaDoLobby | null
@@ -144,15 +141,30 @@ export interface EnvioDosMembros {
  * publicadas: o e-mail é da conta, e toda pasta publicada usa as mesmas contas
  * (§5.4, "reenviado sozinho quando mudam contas, e-mail ou dono"). Sem
  * campanha publicada não há o que mandar.
+ *
+ * C3: é este pedido que faz o servidor fechar os sockets de quem saiu. Cada
+ * campanha fica marcada no disco antes (`membrosPendentes.ts`); a que não
+ * recebeu a lista (sem rede, sem token) o laço do Lobby manda de novo sozinho.
  */
 export async function reenviarMembros(contas: readonly ContaDeJogador[]): Promise<EnvioDosMembros> {
   if (!isTauri()) return { campanhas: 0, falha: null }
   const campanhas = await lerCampanhas(await raizDaNuvem())
-  for (const campanha of campanhas) {
-    const resultado = await chamar((comandos) => comandos.pedir({ rota: 'membros', campanhaId: campanha.campanhaId, corpo: corpoDosMembros(contas) }))
-    if (!resultado.ok) return { campanhas: campanhas.length, falha: resultado.falha }
-  }
-  return { campanhas: campanhas.length, falha: null }
+  const corpo = corpoDosMembros(contas)
+  const falhas: FalhaDoLobby[] = []
+  const pendentes = await membrosPendentesDoApp()
+  await pendentes.enviar(
+    campanhas.map((campanha) => campanha.campanhaId),
+    async (campanhaId): Promise<EnvioDaLista> => {
+      // Depois da primeira falha, as outras ficam para o laço (a mesma rede, o mesmo token).
+      if (falhas.length > 0) return 'pendente'
+      const resultado = await chamar((comandos) => comandos.pedir({ rota: 'membros', campanhaId, corpo }))
+      if (resultado.ok) return 'confirmado'
+      falhas.push(resultado.falha)
+      // `erro` = o servidor recusou esta lista (e-mail que já é de outra conta): repetir não adianta.
+      return resultado.falha.t === 'erro' ? 'recusado' : 'pendente'
+    },
+  )
+  return { campanhas: campanhas.length, falha: falhas[0] ?? null }
 }
 
 // ── Publicar a pasta ────────────────────────────────────────────────────────

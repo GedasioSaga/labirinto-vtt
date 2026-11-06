@@ -20,6 +20,7 @@ import { comandosDaR1, invocarDoTauri, type Invocar, type PedidoDaR1 } from './c
  *      `{ rota: 'publicar' | 'membros' | 'ops', campanhaId, corpo }`  POST /api/c/:id/<rota>
  *      `{ rota: 'desde', campanhaId, rev, limite? }`       GET  /api/c/:id/desde/:rev?limite= (1..500)
  *      `{ rota: 'exportar', campanhaId, deRev?, ateRev? }` GET  /api/c/:id/exportar
+ *      `{ rota: 'salaDoChat', campanhaId, desde, limite? }` GET /api/c/:id/chat/sala?desde=&limite= (1..500; v2, variante `SalaDoChat` da fatia C3R)
  *  - Ok = o JSON da resposta 2xx, inteiro (`null` com corpo vazio);
  *  - Err = `{ codigo, mensagem, status, detalhe }`, mensagem pronta em
  *    português; `status` e `detalhe` (até 300 caracteres do corpo) só nos
@@ -46,6 +47,8 @@ export type RotaDaNuvem =
   | { rota: 'ops'; campanhaId: string }
   | { rota: 'desde'; campanhaId: string; rev: number; limite: number }
   | { rota: 'exportar'; campanhaId: string; deRev?: number; ateRev?: number }
+  /** v2 (C3): a cópia da sala do chat, `GET /chat/sala?desde=&limite=` (leitura em `chatSala.ts`). */
+  | { rota: 'salaDoChat'; campanhaId: string; desde: number; limite: number }
 
 export interface RespostaHttp {
   status: number
@@ -170,8 +173,8 @@ function detalheDoCorpo(corpo: unknown, padrao: string): string {
   return typeof detalhe === 'string' && detalhe.length > 0 ? detalhe : padrao
 }
 
-/** O status que não é 200, separado pelo que o laço faz com ele. */
-function falhaDoStatus(resposta: RespostaHttp): FalhaDaNuvem {
+/** O status que não é 200, separado pelo que o laço faz com ele (também a cópia da sala e o reenvio dos membros). */
+export function falhaDoStatus(resposta: RespostaHttp): FalhaDaNuvem {
   const { status, corpo } = resposta
   const erro = ehRegistro(corpo) ? proprio(corpo, 'erro') : undefined
   if (status === 409 && erro === 'versao') return { t: 'versao', detalhe: detalheDoCorpo(corpo, 'O servidor do Lobby usa outro formato: atualize o app') }
@@ -180,7 +183,7 @@ function falhaDoStatus(resposta: RespostaHttp): FalhaDaNuvem {
   return { t: 'erro', detalhe: detalheDoCorpo(corpo, `O servidor do Lobby recusou o pedido (${status})`) }
 }
 
-async function pedirComFalha(transporte: TransporteDaNuvem, rota: RotaDaNuvem, corpo?: Json): Promise<RespostaHttp | FalhaDaNuvem> {
+export async function pedirComFalha(transporte: TransporteDaNuvem, rota: RotaDaNuvem, corpo?: Json): Promise<RespostaHttp | FalhaDaNuvem> {
   try {
     return await transporte.pedir(rota, corpo)
   } catch (erro) {
@@ -191,7 +194,7 @@ async function pedirComFalha(transporte: TransporteDaNuvem, rota: RotaDaNuvem, c
   }
 }
 
-function ehFalha(resposta: RespostaHttp | FalhaDaNuvem): resposta is FalhaDaNuvem {
+export function ehFalha(resposta: RespostaHttp | FalhaDaNuvem): resposta is FalhaDaNuvem {
   return !('status' in resposta)
 }
 
@@ -295,6 +298,7 @@ function pedidoDaRota(rota: RotaDaNuvem, corpo: Json | undefined): PedidoDaR1 | 
     case 'eu':
     case 'desde':
     case 'exportar':
+    case 'salaDoChat':
       return corpo === undefined ? rota : null
   }
 }

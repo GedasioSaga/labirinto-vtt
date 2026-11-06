@@ -10,8 +10,8 @@ import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
  * motivo de uma recusa e quem entra no site. Puro: sem store, sem Tauri.
  */
 
-/** Quem publica é o mestre: o nome que o histórico do site mostra nas mudanças do app. */
-export const NOME_DO_MESTRE = 'Mestre'
+// O nome do mestre e quem entra no site moram em `net/nuvem/membrosPendentes.ts` (C3): o laço do Lobby, na camada `net`, monta a lista de jogadores com a mesma função da tela.
+export { membrosDasContas, NOME_DO_MESTRE, type MembroDoPedido } from '../../net/nuvem/membrosPendentes'
 
 /** O endereço que o jogador abre (decisão do usuário, §2). */
 export const ENDERECO_DO_LOBBY = 'labirintolobby.pages.dev'
@@ -133,28 +133,6 @@ export function tituloDoConflito(conflito: Conflito, op: Op, campo: string): str
 }
 
 // ── Quem entra no site ──────────────────────────────────────────────────────
-
-export interface MembroDoPedido {
-  contaId: string
-  email: string
-  nome: string
-}
-
-/**
- * Os jogadores que vão ao servidor (rota `membros`, §5.4): só conta com
- * e-mail; um e-mail vale para uma conta só, a primeira da lista (o servidor
- * recusa o pedido com e-mail repetido).
- */
-export function membrosDasContas(contas: readonly ContaDeJogador[]): MembroDoPedido[] {
-  const vistos = new Set<string>()
-  const membros: MembroDoPedido[] = []
-  for (const conta of contas) {
-    if (conta.email === undefined || vistos.has(conta.email)) continue
-    vistos.add(conta.email)
-    membros.push({ contaId: conta.id, email: conta.email, nome: conta.nome })
-  }
-  return membros
-}
 
 /** A conta que já usa este e-mail antes desta na lista (o convite desta fica parado). */
 export function contaComOMesmoEmail(contas: readonly ContaDeJogador[], conta: ContaDeJogador): ContaDeJogador | null {

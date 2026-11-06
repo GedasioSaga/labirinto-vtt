@@ -33,12 +33,18 @@ export const invocarDoTauri: Invocar = (comando, argumentos) => invoke<unknown>(
  * O `pedido` do `nuvem_pedir`, uma variante para cada uma do enum `PedidoNuvem`
  * da R1 (marcado por `rota`). As três rotas POST levam `corpo`; as GET, não.
  * `limite` vai de 1 a 500 (a R1 recusa fora disso, com `pedido_invalido`).
+ *
+ * `salaDoChat` (v2, fatia C3) = `GET /api/c/:id/chat/sala?desde=&limite=`, a
+ * cópia da sala do chat. A variante `SalaDoChat` do enum da R1 chega na fatia
+ * C3R; até lá o Tauri recusa o pedido (variante desconhecida) e a cópia da sala
+ * fica parada com o motivo (`chatSala.ts`), sem mexer no resto do Lobby.
  */
 export type PedidoDaR1 =
   | { rota: 'eu' }
   | { rota: 'publicar' | 'membros' | 'ops'; campanhaId: string; corpo: Json }
   | { rota: 'desde'; campanhaId: string; rev: number; limite?: number }
   | { rota: 'exportar'; campanhaId: string; deRev?: number; ateRev?: number }
+  | { rota: 'salaDoChat'; campanhaId: string; desde: number; limite?: number }
 
 /**
  * O pedido como vai ao fio: só os campos da variante, e o opcional ausente
@@ -63,6 +69,11 @@ export function pedidoNoFio(pedido: PedidoDaR1): { [campo: string]: Json } {
       const fio: { [campo: string]: Json } = { rota: 'exportar', campanhaId: pedido.campanhaId }
       if (pedido.deRev !== undefined) fio.deRev = pedido.deRev
       if (pedido.ateRev !== undefined) fio.ateRev = pedido.ateRev
+      return fio
+    }
+    case 'salaDoChat': {
+      const fio: { [campo: string]: Json } = { rota: 'salaDoChat', campanhaId: pedido.campanhaId, desde: pedido.desde }
+      if (pedido.limite !== undefined) fio.limite = pedido.limite
       return fio
     }
   }
