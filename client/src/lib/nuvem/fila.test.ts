@@ -449,7 +449,7 @@ describe('o arquivo da fila', () => {
     expect(mestre.fila.paraDecidir().map((entrada) => entrada.op.opId)).toEqual([vidaNoApp.opId])
     expect(await mestre.fila.compactarSePreciso()).toBe(true)
     const sobrou = lerLinhasDaFila(arquivo.conteudo()).registros.map((bruto) => lerRegistro(bruto))
-    expect(sobrou.map((registro) => (registro === null || registro.t === 'grupo' ? null : [registro.t, registro.opId]))).toEqual([
+    expect(sobrou.map((registro) => (registro === null || registro.t === 'grupo' || registro.t === 'resolvidos' ? null : [registro.t, registro.opId]))).toEqual([
       ['op', vidaNoApp.opId],
       ['conflito', vidaNoApp.opId],
     ])
@@ -547,6 +547,66 @@ describe('o que espera decisão', () => {
     expect(reaberta.fila.entradas().map((entrada) => [entrada.op.opId, entrada.situacao.t])).toEqual([[usarAMinha.opId, 'pendente']])
     expect(await sincronizar(reaberta, campanha)).toEqual([{ t: 'ack', opId: usarAMinha.opId, rev: 2 }])
     expect(docDe(campanha, F_NAMI).recursos.hp).toBe(280)
+  })
+
+  /** O mestre muda a Vida da Nami e a do Zoro tudo ou nada no app; no site, a da Nami mudou antes: a troca inteira volta para decidir. */
+  async function vidasRecusadasJuntas(arquivo: ArquivoDeTeste, campanha: CampanhaDeTeste): Promise<{ mestre: Cliente; vidas: Op[] }> {
+    const tudoOuNada: { atomico: true; loteId: string } = { atomico: true, loteId: 'lote_das_vidas' }
+    const mestre = comoMestreNoApp(await criarFila(armazenamentoEmTexto(arquivo), baseDoMestre(campanha)))
+    const vidas = [op(MESTRE_NO_APP, F_NAMI, HP, 'definir', { valor: 210, ...tudoOuNada }), op(MESTRE_NO_APP, F_ZORO, HP, 'definir', { valor: 190, ...tudoOuNada })]
+    await mestre.fila.acrescentar(vidas)
+    enviar(campanha, MESTRE_NO_SITE, [op(MESTRE_NO_SITE, F_NAMI, HP, 'definir', { valor: 200 })])
+    await sincronizar(mestre, campanha)
+    expect(mestre.fila.paraDecidir().map((entrada) => entrada.op.opId)).toEqual(ids(vidas))
+    return { mestre, vidas }
+  }
+
+  it('"Usar a minha" na troca inteira (resolverGrupo): as ops novas vão num registro só, e a queda no meio deixa as duas decisões abertas, nunca uma', async () => {
+    const campanha = mesa()
+    const arquivo = arquivoNaMemoria()
+    const { mestre, vidas } = await vidasRecusadasJuntas(arquivo, campanha)
+    const [daNami, doZoro] = vidas
+    const rev = mestre.fila.revConfirmada()
+    const decisoes = (loteId: string) => [
+      { opId: daNami.opId, usarAMinha: op(MESTRE_NO_APP, F_NAMI, HP, 'definir', { valor: 210, atomico: true, loteId, baseRev: rev, resolve: daNami.opId }) },
+      { opId: doZoro.opId, usarAMinha: op(MESTRE_NO_APP, F_ZORO, HP, 'definir', { valor: 190, atomico: true, loteId, baseRev: rev, resolve: doZoro.opId }) },
+    ]
+    // Metade do grupo pedindo "Usar a minha" e a outra não: recusado, nada gravado.
+    const [soUma] = decisoes('lote_pela_metade')
+    expect(await mestre.fila.resolverGrupo([soUma, { opId: doZoro.opId }])).toMatchObject({ ok: false })
+
+    arquivo.cairNaProximaGravacao((texto) => Math.floor(texto.length / 2))
+    await expect(mestre.fila.resolverGrupo(decisoes('lote_da_queda'))).rejects.toThrow('queda')
+    const reaberta = comoMestreNoApp(await criarFila(armazenamentoEmTexto(arquivo), baseDoMestre(campanha)))
+    await puxar(reaberta, campanha)
+    expect(reaberta.fila.ignoradosAoAbrir).toBe(1)
+    expect(reaberta.fila.paraDecidir().map((entrada) => entrada.op.opId)).toEqual(ids(vidas))
+    expect(reaberta.fila.esperando()).toBe(0)
+
+    expect(await reaberta.fila.resolverGrupo(decisoes('lote_de_novo'))).toEqual({ ok: true })
+    expect(reaberta.fila.paraDecidir()).toEqual([])
+    const ultimo = lerRegistro(lerLinhasDaFila(arquivo.conteudo()).registros.at(-1))
+    expect(ultimo?.t === 'grupo' ? ultimo.ops.map((cada) => cada.resolve) : ultimo).toEqual(ids(vidas))
+    expect((await sincronizar(reaberta, campanha)).map((resposta) => resposta.t)).toEqual(['ack', 'ack'])
+    expect(docDe(campanha, F_NAMI).recursos.hp).toBe(210)
+    expect(docDe(campanha, F_ZORO).recursos.hp).toBe(190)
+  })
+
+  it('"Ficar com a do outro" na troca inteira: um registro resolvidos fecha as duas; cortado no meio, as duas continuam abertas', async () => {
+    const campanha = mesa()
+    const arquivo = arquivoNaMemoria()
+    const { mestre, vidas } = await vidasRecusadasJuntas(arquivo, campanha)
+    const decisoes = vidas.map((recusada) => ({ opId: recusada.opId }))
+    arquivo.cairNaProximaGravacao((texto) => texto.length - 3)
+    await expect(mestre.fila.resolverGrupo(decisoes)).rejects.toThrow('queda')
+    const reaberta = await criarFila(armazenamentoEmTexto(arquivo), baseDoMestre(campanha))
+    expect(reaberta.paraDecidir().map((entrada) => entrada.op.opId)).toEqual(ids(vidas))
+
+    expect(await reaberta.resolverGrupo(decisoes)).toEqual({ ok: true })
+    expect(reaberta.paraDecidir()).toEqual([])
+    expect(lerRegistro(lerLinhasDaFila(arquivo.conteudo()).registros.at(-1))).toEqual({ t: 'resolvidos', opIds: ids(vidas) })
+    const depois = await criarFila(armazenamentoEmTexto(arquivo), baseDoMestre(campanha))
+    expect(depois.entradas()).toEqual([])
   })
 
   it('op negada fica como "precisa de decisão": não some, não é reenviada, sobrevive a recriar e só sai com resolvido', async () => {

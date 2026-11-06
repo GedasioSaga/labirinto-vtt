@@ -506,13 +506,9 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
     }
   }
 
-  /** Cada entrada do grupo encerrada na fila, na ordem; `usarAMinha` dá a op nova de cada uma. */
-  async function resolverOGrupo(grupo: readonly EntradaDaFila[], usarAMinha?: (op: Op) => Op): Promise<ResultadoNaFila> {
-    for (const { op } of grupo) {
-      const resultado = await fila.resolver(op.opId, usarAMinha?.(op))
-      if (!resultado.ok) return resultado
-    }
-    return { ok: true }
+  /** O grupo inteiro encerrado na fila num registro só (a queda no meio não grava metade da troca); `usarAMinha` dá a op nova de cada uma. */
+  function resolverOGrupo(grupo: readonly EntradaDaFila[], usarAMinha?: (op: Op) => Op): Promise<ResultadoNaFila> {
+    return fila.resolverGrupo(grupo.map(({ op }) => (usarAMinha === undefined ? { opId: op.opId } : { opId: op.opId, usarAMinha: usarAMinha(op) })))
   }
 
   /** A escolha vale para o grupo inteiro da op (`grupoDaDecisao`): a troca e o pagamento não se decidem pela metade. */
