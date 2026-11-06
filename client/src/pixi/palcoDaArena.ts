@@ -1,6 +1,7 @@
 import { Application, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js'
 import type { ConsultaDaFicha } from '../components/batalha/MiraDoGolpe'
-import { CASA_DA_ARENA, type PalcoDaArenaProps } from '../lib/arena/tipos'
+import { CASA_DA_ARENA, centroDaCasaSob } from '../lib/arena/grade'
+import type { PalcoDaArenaProps } from '../lib/arena/tipos'
 import { tokenRadiusOf } from '../lib/doorReach'
 import type { Token } from '../types/map'
 import { criarGradeDaBatalha } from './gradeDaBatalha'
@@ -87,17 +88,6 @@ function temFotoCarregando(no: Container): boolean {
     if (filho.children.length > 0 && temFotoCarregando(filho)) return true
   }
   return false
-}
-
-function limitar(valor: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, valor))
-}
-
-/** O centro da casa sob (x, y), dentro da grade. */
-function centroDaCasa(x: number, y: number, colunas: number, linhas: number): { x: number; y: number } {
-  const coluna = limitar(Math.floor(x / CASA_DA_ARENA), 0, Math.max(0, colunas - 1))
-  const linha = limitar(Math.floor(y / CASA_DA_ARENA), 0, Math.max(0, linhas - 1))
-  return { x: coluna * CASA_DA_ARENA + CASA_DA_ARENA / 2, y: linha * CASA_DA_ARENA + CASA_DA_ARENA / 2 }
 }
 
 type Gesto =
@@ -374,7 +364,7 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
       judge.arrastar(null)
       // A store responde antes do próximo quadro: este desenho (do lugar antigo) nunca chega à tela se ela aceitar.
       if (soltou && solta !== null) {
-        const casa = centroDaCasa(solta.x, solta.y, colunas, linhas)
+        const casa = centroDaCasaSob(solta, { colunas, linhas })
         opcoes.onMover(fim.tokenId, casa.x, casa.y)
       }
       desenharFichas()

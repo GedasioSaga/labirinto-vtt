@@ -3,7 +3,8 @@ import type { BatalhaEmTurnos } from '../batalha/ponte'
 import type { AutorDaAcao } from '../batalha/turnos'
 import { vistaParaJogador, type ContextoDoJogador, type EstadoParaJogador } from '../batalha/vistaDoJogador'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { EQUIPE_DO_LADO, type LadoDaArena, type SessaoDaArena } from './tipos'
+import { EQUIPE_DO_LADO, type LadoDaArena } from './grade'
+import type { SessaoDaArena } from './tipos'
 
 /**
  * A ARENA VISTA PELO MENU DO JOGADOR (seção 4.4 do plano, "Projeção para o

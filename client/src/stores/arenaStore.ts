@@ -3,14 +3,13 @@ import { create } from 'zustand'
 import { ajustesValidos, comAjustesDoBoneco, fichaDoBoneco } from '../lib/arena/boneco'
 import { copiasDaMontagem, novoIdDeCopia } from '../lib/arena/copias'
 import { AUTOR_DA_ARENA, equipesDaArena } from '../lib/arena/estadoDaArena'
-import { comEscolha, judgeDoArbitro, montagemPronta, montagemVazia, semEscolha, tokensDaArena, type FichaNaGrade } from '../lib/arena/montagem'
+import { CASA_DA_ARENA, casaOcupadaNaArena, GRADES_DA_ARENA, tokensDaArena, type FichaNaGrade } from '../lib/arena/grade'
+import { comEscolha, judgeDoArbitro, montagemPronta, montagemVazia, semEscolha } from '../lib/arena/montagem'
 import { golpeNoPlacar, placarDoBoneco, type ContextoDoPlacar, type NomeDoGolpe } from '../lib/arena/placar'
 import { passoDoBoneco, type PassoDoBoneco } from '../lib/arena/reacaoDoBoneco'
 import {
   BONECO_PADRAO,
-  CASA_DA_ARENA,
   CENA_DA_ARENA,
-  GRADES_DA_ARENA,
   type AjustesDoBoneco,
   type ArenaState,
   type BonecoDaArena,
@@ -285,7 +284,6 @@ export const useArenaStore = create<ArenaState>()((set, get) => {
       const token = sessao?.tokens.find((candidato) => candidato.id === tokenId)
       if (sessao === null || sessao.fase !== 'lutando' || token === undefined || !Number.isFinite(x) || !Number.isFinite(y)) return false
       const grade = GRADES_DA_ARENA[sessao.montagem.grade]
-      const casaDe = (valor: number): number => Math.floor(valor / CASA_DA_ARENA)
       // Sem paredes nem terreno na arena (fora da 1ª entrega); outra ficha ocupa a casa.
       const passo = passoEmBatalha({
         grid: CASA_DA_ARENA,
@@ -298,7 +296,7 @@ export const useArenaStore = create<ArenaState>()((set, get) => {
         paredesDoHost: SEM_PAREDES,
         paredesDoJogador: SEM_PAREDES,
         noChao: () => true,
-        ocupada: (ponto) => sessao.tokens.some((outro) => outro.id !== tokenId && casaDe(outro.x) === casaDe(ponto.x) && casaDe(outro.y) === casaDe(ponto.y)),
+        ocupada: (ponto) => casaOcupadaNaArena(sessao.tokens, tokenId, ponto),
       })
       if (!passo.ok || (passo.x === token.x && passo.y === token.y)) return false
       set({ sessao: { ...sessao, tokens: sessao.tokens.map((candidato) => (candidato.id === tokenId ? { ...candidato, x: passo.x, y: passo.y } : candidato)) } })

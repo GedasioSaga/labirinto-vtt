@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { CENA_DA_ARENA, GRADES_DA_ARENA } from '../../../lib/arena/tipos'
+import { GRADES_DA_ARENA } from '../../../lib/arena/grade'
+import { CENA_DA_ARENA } from '../../../lib/arena/tipos'
 import type { ResolverDeImagem } from '../../../lib/midia'
 import type { Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'

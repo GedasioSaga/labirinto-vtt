@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react'
-import { EQUIPE_DO_LADO, FICHAS_POR_LADO_MAX, GRADES_DA_ARENA, VEZES_MAX, type LadoDaArena, type TamanhoDaGrade } from '../../../lib/arena/tipos'
+import { EQUIPE_DO_LADO, GRADES_DA_ARENA, type LadoDaArena, type TamanhoDaGrade } from '../../../lib/arena/grade'
+import { FICHAS_POR_LADO_MAX, VEZES_MAX } from '../../../lib/arena/tipos'
 import type { ModoDaBatalha } from '../../../lib/dbt/batalha/tipos'
 import { INDICE_DOS_NPCS_PRONTOS, type ResumoDeNpcProntoDBT } from '../../../lib/dbt/dados/npcsProntos'
 import { NOME_DA_CATEGORIA } from '../../../lib/dbt/regras/ficha'

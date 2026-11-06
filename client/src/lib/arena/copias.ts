@@ -1,5 +1,6 @@
 import type { Personagem } from '../personagem'
-import { FICHAS_POR_LADO_MAX, PREFIXO_DA_COPIA, VEZES_MAX, type LadoDaArena, type MontagemDaArena } from './tipos'
+import type { LadoDaArena } from './grade'
+import { FICHAS_POR_LADO_MAX, PREFIXO_DA_COPIA, VEZES_MAX, type MontagemDaArena } from './tipos'
 
 /**
  * AS CÓPIAS DA ARENA (fase 1 de docs/planos/batalha-arena-de-testes-plano.md,

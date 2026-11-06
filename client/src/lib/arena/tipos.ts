@@ -4,6 +4,12 @@ import type { Token } from '../../types/map'
 import type { JudgeNaCena } from '../batalha/judge'
 import type { Personagem } from '../personagem'
 import type { VidasDaCena } from '../vidaDaFicha'
+import type { GradeDaArena, LadoDaArena, TamanhoDaGrade } from './grade'
+
+// Passagem do endereço antigo: a grade mudou para `grade.ts`, e código ainda em obra
+// (o treino do site) importa daqui. Código novo importa de `grade.ts`, que é puro.
+export { CASA_DA_ARENA, EQUIPE_DO_LADO, GRADE_MEDIA, GRADE_PEQUENA, GRADES_DA_ARENA, PREFIXO_DO_TOKEN } from './grade'
+export type { GradeDaArena, LadoDaArena, TamanhoDaGrade } from './grade'
 
 /**
  * ARENA DE TESTES DE BATALHA — o contrato (fase 0 de
@@ -19,6 +25,9 @@ import type { VidasDaCena } from '../vidaDaFicha'
  *   arena, sempre na cena `CENA_DA_ARENA`. Puros em `lib/arena/`: `copias.ts`,
  *   `boneco.ts` (`fichaDoBoneco`), `placar.ts` (`placarDoBoneco` → `ContaDoPlacar`),
  *   `montagem.ts`, `reacaoDoBoneco.ts`, `estadoDaArena.ts` (`vistaParaJogador`).
+ * - A grade (`grade.ts`): a casa, as grades, os lados e onde cada ficha nasce
+ *   (`tokensDaArena`). Fica fora deste arquivo porque este pega tipo de `.tsx`
+ *   e do Pixi, e o site e o Worker do Lobby importam a grade.
  * - Palco (`components/arena/PalcoDaArena.tsx`): `PalcoDaArena`, só por
  *   `PalcoDaArenaProps`, sem store.
  * - Telas (`components/arena/`): `PaginaArena` (a montagem, marcador "arena"
@@ -31,22 +40,6 @@ import type { VidasDaCena } from '../vidaDaFicha'
 /** A chave da única cena da `batalhaDaArena`. */
 export const CENA_DA_ARENA = 'arena'
 
-/** Px do mundo por casa da grade da arena (o `gridSize` do desenho das fichas). */
-export const CASA_DA_ARENA = 64
-
-/** Colunas x linhas da grade da arena. */
-export interface GradeDaArena {
-  readonly colunas: number
-  readonly linhas: number
-}
-
-export const GRADE_PEQUENA: GradeDaArena = { colunas: 12, linhas: 8 }
-export const GRADE_MEDIA: GradeDaArena = { colunas: 16, linhas: 10 }
-
-export type TamanhoDaGrade = 'pequena' | 'media'
-
-export const GRADES_DA_ARENA: Readonly<Record<TamanhoDaGrade, GradeDaArena>> = { pequena: GRADE_PEQUENA, media: GRADE_MEDIA }
-
 /** A vida do boneco com "HP ∞": um número que nenhum golpe zera; a tela mostra "∞". */
 export const VIDA_INFINITA = 1_000_000
 
@@ -57,19 +50,9 @@ export const VEZES_MAX = 6
 
 /** Prefixo do id da cópia (`arena_<uuid>`): a cópia nunca colide com a ficha real nem com outra cópia (Bruno contra Bruno). */
 export const PREFIXO_DA_COPIA = 'arena_'
-/** Prefixo do id do token gerado (`arena_tok_<n>`). */
-export const PREFIXO_DO_TOKEN = 'arena_tok_'
-
-export type LadoDaArena = 'a' | 'b'
 
 /** "lados": Lado A contra Lado B, o Judge de árbitro. "boneco": só o Lado A, contra o Judge-boneco. */
 export type ModoDaArena = 'lados' | 'boneco'
-
-/** As duas equipes virtuais da mesa da arena (o boneco entra na do Lado B). Cor no formato de `Equipe.cor`. */
-export const EQUIPE_DO_LADO: Readonly<Record<LadoDaArena, { readonly id: string; readonly nome: string; readonly cor: string }>> = {
-  a: { id: 'arena-a', nome: 'Lado A', cor: '#4a78c2' },
-  b: { id: 'arena-b', nome: 'Lado B', cor: '#c2524a' },
-}
 
 /** Uma ficha real escolhida na montagem. */
 export interface EscolhaNaMontagem {

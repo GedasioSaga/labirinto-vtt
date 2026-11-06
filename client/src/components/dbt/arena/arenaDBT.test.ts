@@ -6,7 +6,7 @@
  * não nasce em cima de ficha. Fica aqui para morar com as telas da arena.
  */
 import { describe, expect, it } from 'vitest'
-import { CASA_DA_ARENA, GRADE_PEQUENA } from '../../../lib/arena/tipos'
+import { CASA_DA_ARENA, GRADE_PEQUENA } from '../../../lib/arena/grade'
 import { lerFichaParaBatalha } from '../../../lib/dbt/batalha/leitura'
 import { SISTEMA_DRAGON_BALL } from '../../../lib/dbt/sistemaDragonBall'
 import { novoPersonagem } from '../../../lib/personagem'

@@ -1,19 +1,19 @@
 import { create } from 'zustand'
 import { copiasDaMontagem, novoIdDeCopia } from '../lib/arena/copias'
-import { centroDaCasaNaArena, comEscolha, fichasNoLado, judgeDoArbitro, semEscolha, tokensDaArena, type FichaNaGrade } from '../lib/arena/montagem'
 import {
-  BONECO_PADRAO,
   CASA_DA_ARENA,
-  CENA_DA_ARENA,
+  centroDaCasaNaArena,
   EQUIPE_DO_LADO,
   GRADES_DA_ARENA,
   PREFIXO_DO_TOKEN,
-  type EscolhaNaMontagem,
+  tokensDaArena,
+  type FichaNaGrade,
   type GradeDaArena,
   type LadoDaArena,
-  type MontagemDaArena,
   type TamanhoDaGrade,
-} from '../lib/arena/tipos'
+} from '../lib/arena/grade'
+import { comEscolha, fichasNoLado, judgeDoArbitro, semEscolha } from '../lib/arena/montagem'
+import { BONECO_PADRAO, CENA_DA_ARENA, type EscolhaNaMontagem, type MontagemDaArena } from '../lib/arena/tipos'
 import type { ParedeDoPasso } from '../lib/batalha/blocos'
 import type { Equipe } from '../lib/batalha/equipes'
 import type { JudgeNaCena } from '../lib/batalha/judge'

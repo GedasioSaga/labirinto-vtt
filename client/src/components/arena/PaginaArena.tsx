@@ -1,16 +1,7 @@
 import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react'
+import { EQUIPE_DO_LADO, GRADES_DA_ARENA, type LadoDaArena, type TamanhoDaGrade } from '../../lib/arena/grade'
 import { fichasNoLado, montagemPronta } from '../../lib/arena/montagem'
-import {
-  EQUIPE_DO_LADO,
-  FICHAS_POR_LADO_MAX,
-  GRADES_DA_ARENA,
-  VEZES_MAX,
-  type EscolhaNaMontagem,
-  type LadoDaArena,
-  type ModoDaArena,
-  type MontagemDaArena,
-  type TamanhoDaGrade,
-} from '../../lib/arena/tipos'
+import { FICHAS_POR_LADO_MAX, VEZES_MAX, type EscolhaNaMontagem, type ModoDaArena, type MontagemDaArena } from '../../lib/arena/tipos'
 import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import { entraNaBatalha } from '../../lib/livros/combate'
 import type { Personagem } from '../../lib/personagem'
