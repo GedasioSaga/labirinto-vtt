@@ -96,10 +96,22 @@ describe('tela de entrar do jogador', () => {
     const codigo = campo('lb-join-code')
     escrever(codigo, 'Entra aí: http://192.168.0.5:7777/player#c=abc123')
     expect(codigo.value).toBe('ABC123')
-    // Link SEM código não vira código inventado ("HTTP19"): o campo fica como estava e a dica diz o que fazer.
+    // Link SEM código não vira código inventado ("HTTP19"): o campo fica como estava,
+    // marcado inválido, e o aviso é região viva — quem usa leitor de tela ouve com o cursor no campo.
     escrever(codigo, 'http://192.168.0.5:7777/player')
     expect(codigo.value).toBe('ABC123')
-    expect(document.getElementById('lb-join-code-hint')?.textContent).toContain('não traz o código')
+    expect(codigo.getAttribute('aria-invalid')).toBe('true')
+    const aviso = document.querySelector('[role="alert"]')
+    expect(aviso?.textContent).toContain('não traz o código')
+    expect(codigo.getAttribute('aria-describedby')).toBe(aviso?.id)
+    // Colar o mesmo link de novo monta outro aviso, para o leitor falar outra vez.
+    escrever(codigo, 'http://192.168.0.5:7777/player')
+    expect(document.querySelector('[role="alert"]')).not.toBe(aviso)
+    // Digitar o código apaga o tropeço e a dica comum volta, sem região viva.
+    escrever(codigo, 'abc123')
+    expect(codigo.hasAttribute('aria-invalid')).toBe(false)
+    expect(document.querySelector('[role="alert"]')).toBeNull()
+    expect(codigo.getAttribute('aria-describedby')).toBe('lb-join-code-hint')
 
     escrever(campo('lb-join-name'), 'Gina')
     act(() => botao('Entrar').click())

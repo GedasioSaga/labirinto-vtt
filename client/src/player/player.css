@@ -204,6 +204,14 @@
   background: var(--lb-color-stone-hover, #2c2c33);
 }
 
+/* Depois do `:focus`, de propósito: o link sem código é colado com o cursor no
+   campo, e a borda tem que dizer o mesmo que o aviso embaixo. O foco segue no
+   contorno de latão. O `:hover` repete porque `:hover:not(:focus)` pesa mais. */
+.pe-input[aria-invalid='true'],
+.pe-input[aria-invalid='true']:hover {
+  border-color: var(--lb-color-ember, #e2645a);
+}
+
 .pe-input:focus-visible,
 .pe-btn:focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);

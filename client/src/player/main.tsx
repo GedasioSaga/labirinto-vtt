@@ -503,8 +503,14 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
   const [code, setCode] = useState(initial.code)
   const [name, setName] = useState(initial.name)
   const [pin, setPin] = useState('')
-  /** Colou um link sem código: a dica do campo diz o que fazer, em vez de virar um código inventado. */
+  /** Colou um link sem código: um aviso diz o que fazer, em vez de virar um código inventado. */
   const [linkSemCodigo, setLinkSemCodigo] = useState(false)
+  /**
+   * Conta os links sem código colados. Vira a `key` do aviso: colar o MESMO link
+   * de novo monta um aviso novo, e o leitor de tela fala outra vez — com o texto
+   * igual, a região viva não teria o que anunciar.
+   */
+  const [linksSemCodigo, setLinksSemCodigo] = useState(0)
   const recusa = notice.tone === 'error' ? (notice.reason ?? '') : ''
   const pedePin = RECUSAS_QUE_PEDEM_PIN.has(recusa)
   // O PIN mora recolhido: quem não tem conta nem o vê. Abre sozinho quando ele
@@ -556,7 +562,8 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
   function mudarCodigo(texto: string) {
     const novo = codigoDoTexto(texto)
     setLinkSemCodigo(novo === null)
-    if (novo !== null) setCode(novo)
+    if (novo === null) setLinksSemCodigo((n) => n + 1)
+    else setCode(novo)
   }
 
   const nameAtLimit = name.length >= NAME_MAX_LENGTH
@@ -584,7 +591,8 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
             // Sem `maxLength`: o corte é da normalização, que tira o espaço ANTES de
             // contar, e o link colado inteiro precisa chegar todo para achar o `c=`.
             onChange={(e) => mudarCodigo(e.target.value)}
-            aria-describedby="lb-join-code-hint"
+            aria-describedby={linkSemCodigo ? 'lb-join-code-erro' : 'lb-join-code-hint'}
+            aria-invalid={linkSemCodigo || undefined}
             autoCapitalize="characters"
             autoComplete="off"
             autoCorrect="off"
@@ -592,9 +600,18 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
             enterKeyHint="next"
             required
           />
-          <p id="lb-join-code-hint" className={linkSemCodigo ? 'pe-hint pe-hint--alerta' : 'pe-hint'}>
-            {linkSemCodigo ? LINK_SEM_CODIGO : codeHint(code.length)}
-          </p>
+          {/* O tropeço ocupa a linha da dica, mas é outro parágrafo: `role="alert"`
+              é anunciado ao entrar, com o cursor ainda no campo; a dica comum
+              continua sem região viva. */}
+          {linkSemCodigo ? (
+            <p key={linksSemCodigo} id="lb-join-code-erro" className="pe-hint pe-hint--alerta" role="alert">
+              {LINK_SEM_CODIGO}
+            </p>
+          ) : (
+            <p id="lb-join-code-hint" className="pe-hint">
+              {codeHint(code.length)}
+            </p>
+          )}
         </div>
         {remembered !== null ? (
           <div className="pe-field">
