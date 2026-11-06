@@ -11,6 +11,7 @@ import type { CartaParaJogador, EstadoParaJogador } from '../batalha/vistaDoJoga
 import { cartaDaVez } from '../batalha/turnos'
 import type { Personagem, RegistroDaFicha } from '../personagem'
 import { lerEstadoParaJogador } from '../../net/protocoloDaBatalha'
+import { projetarParaJogador } from '../nuvem/projecao'
 import { aplicarJogada, criarDuelo, type DueloGravado, type MotorDoDuelo, type ResultadoDaJogada } from './duelo'
 import { MARINHEIRO, SISTEMA_DO_TESTE, ze } from './fichasDeTreino.testkit'
 import { criarSorteio } from './sorteio'
@@ -33,6 +34,12 @@ const NUMERO_DA_FORMA = 'FOR so do Marinheiro'
 function aceita(resultado: ResultadoDaJogada, oQue: string): DueloGravado {
   if (!resultado.ok) throw new Error(`${oQue} recusada: ${resultado.motivo}`)
   return resultado.duelo
+}
+
+function fichaDe(personagens: readonly Personagem[], id: string): Personagem {
+  const ficha = personagens.find((candidata) => candidata.id === id)
+  if (ficha === undefined) throw new Error(`o duelo não tem a ficha ${id}`)
+  return ficha
 }
 
 function cartaDoToken(vista: EstadoParaJogador, tokenId: string): CartaParaJogador {
@@ -62,8 +69,9 @@ function corteEsperandoAReacao(): DueloGravado {
 
 /**
  * O mesmo duelo com o que só B guarda e a jogada acima não criou: o combate
- * da cópia dele, um contra-ataque, um lembrete da marca, o Escudo no máximo e
- * no histórico da ficha, e a forma dele com os números.
+ * da cópia dele, um contra-ataque, um lembrete da marca e a forma dele com os
+ * números. E o Escudo no máximo e no histórico da ficha, que NÃO é só de B: a
+ * ficha é pública no duelo e vai inteira aos dois.
  */
 function comOQueSoBGuarda(duelo: DueloGravado): DueloGravado {
   const { turnos } = duelo.cena
@@ -104,7 +112,9 @@ describe('vista de cada lado no fio do duelo', () => {
     const marinheiroParaA = cartaDoToken(deA, TOKEN_DO_MARINHEIRO)
     expect(marinheiroParaA.lado).toBe('outro')
     expect(marinheiroParaA.personagemId).toBeUndefined()
+    // O Escudo de B chega a A pela ficha do fio, como a Vida dele; a carta "outro" não o leva (o leitor do app a recusaria).
     expect(marinheiroParaA.escudo).toBeUndefined()
+    expect(lados.a.lutadores.personagens.find((ficha) => ficha.id === COPIA_DO_MARINHEIRO)?.recursos.escudo).toBe(ESCUDO_DO_MARINHEIRO)
 
     // Só A: a vez e as ações dela, o combate da cópia dela; o Zé é "outro" para B.
     expect(deA.minhaVez).toBe(true)
@@ -125,16 +135,17 @@ describe('vista de cada lado no fio do duelo', () => {
     expect(lerEstadoParaJogador(JSON.parse(JSON.stringify(deB)))).toEqual(deB)
   })
 
-  it('o frame inteiro de A (o fio recortado e a vista) não leva o que só B guarda; o de B leva, e os golpes esperando ficam nos dois', () => {
+  it('o frame inteiro de A (o fio recortado e a vista) não leva o que só B guarda; o de B leva, e as fichas e os golpes esperando ficam inteiros nos dois', () => {
     const gravado = comOQueSoBGuarda(corteEsperandoAReacao())
     const lados = dueloParaOsLados(gravado, SISTEMA_DO_TESTE)
     // O JSON inteiro do frame, como o DO o manda a cada conta.
     const frameDeA = JSON.stringify({ t: 'duelo.estado', duelo: lados.a })
     const frameDeB = JSON.stringify({ t: 'duelo.estado', duelo: lados.b })
-    for (const soDeB of [RECARGA_DO_MARINHEIRO, MARCA_DO_MARINHEIRO, GOLPE_DO_CONTRA, NUMERO_DA_FORMA, `"escudo":${ESCUDO_DO_MARINHEIRO}`]) {
+    for (const soDeB of [RECARGA_DO_MARINHEIRO, MARCA_DO_MARINHEIRO, GOLPE_DO_CONTRA, NUMERO_DA_FORMA]) {
       expect(frameDeA, soDeB).not.toContain(soDeB)
       expect(frameDeB, soDeB).toContain(soDeB)
     }
+    expect(frameDeA).toContain(`"escudo":${ESCUDO_DO_MARINHEIRO}`)
 
     // Campo a campo: o combate, os contra-ataques e os lembretes só das fichas do lado; o de A segue inteiro para A.
     expect(lados.a.turnos.combate?.[COPIA_DO_MARINHEIRO]).toBeUndefined()
@@ -143,14 +154,14 @@ describe('vista de cada lado no fio do duelo', () => {
     expect(lados.a.turnos.contras).toEqual([])
     expect(lados.b.turnos.contras?.map((contra) => contra.golpeId)).toEqual([GOLPE_DO_CONTRA])
     expect(lados.a.turnos.lembretesDaMarca).toEqual([])
-    // A ficha de B chega a A sem o Escudo (atual, máximo e histórico) e com o resto (a vida que a grade mostra).
-    const marinheiroParaA = lados.a.lutadores.personagens.find((ficha) => ficha.id === COPIA_DO_MARINHEIRO)
-    const marinheiroGuardado = gravado.lutadores.personagens.find((ficha) => ficha.id === COPIA_DO_MARINHEIRO)
-    expect(marinheiroParaA?.recursos.escudo).toBeUndefined()
-    expect(marinheiroParaA?.maximos.escudo).toBeUndefined()
-    expect(marinheiroParaA?.historico).toEqual([])
-    expect(marinheiroParaA?.recursos.hp).toBe(marinheiroGuardado?.recursos.hp)
-    expect(lados.b.lutadores.personagens.find((ficha) => ficha.id === COPIA_DO_MARINHEIRO)?.recursos.escudo).toBe(ESCUDO_DO_MARINHEIRO)
+    // A ficha é pública no duelo: a de B chega a A inteira (Vida, Escudo atual e máximo, histórico), igual à que B recebe.
+    // Cortar só o Escudo não escondia nada: o dano do golpe e a queda da Vida contam quanto ele absorveu.
+    // A comparação é com a ficha guardada como o fio de sempre a projeta (sem o dono nem o que é do mestre).
+    const marinheiroParaA = fichaDe(lados.a.lutadores.personagens, COPIA_DO_MARINHEIRO)
+    expect(marinheiroParaA).toEqual(projetarParaJogador(fichaDe(gravado.lutadores.personagens, COPIA_DO_MARINHEIRO)))
+    expect(marinheiroParaA.maximos.escudo).toBe(ESCUDO_DO_MARINHEIRO)
+    expect(marinheiroParaA.historico.map((ajuste) => ajuste.chave)).toEqual(['escudo'])
+    expect(lados.a.lutadores.personagens).toEqual(lados.b.lutadores.personagens)
     // A forma de B chega a A só com o nome.
     expect(lados.a.efeitos.find((efeito) => efeito.tipo === 'transformacao')).toEqual({ seq: 999, tipo: 'transformacao', tokenId: TOKEN_DO_MARINHEIRO, forma: 'Forma do Mar', imagem: null })
 

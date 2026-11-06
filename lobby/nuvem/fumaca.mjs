@@ -976,8 +976,10 @@ async function vistasDoComeco(salas, duelo) {
     certo,
     JSON.stringify({ ladoDaVez, a: vistas.a && { minhaVez: vistas.a.minhaVez, cartas: vistas.a.cartas }, b: vistas.b && { minhaVez: vistas.b.minhaVez, cartas: vistas.b.cartas } }),
   )
-  // O resto do frame também é do lado (o fio recortado): combate, contra-ataques e lembretes só das fichas dele, e nenhum Escudo do outro.
+  // O resto do frame também é do lado (o fio recortado): combate, contra-ataques e lembretes só das fichas dele.
+  // As fichas não: a ficha é pública no duelo (Vida e Escudo de todas), inteira e igual nos dois frames.
   const frames = { a: daNami.duelo, b: duelo }
+  const fichasIguais = JSON.stringify(frames.a.lutadores.personagens) === JSON.stringify(frames.b.lutadores.personagens)
   const recorte = (lado) => {
     const { turnos, lutadores } = frames[lado]
     const doLado = lutadores.vagas.filter((vaga) => vaga.lado === lado)
@@ -987,11 +989,11 @@ async function vistasDoComeco(salas, duelo) {
       combate: Object.keys(turnos.combate ?? {}).every((id) => minhas.has(id)),
       contras: (turnos.contras ?? []).every((contra) => meusTokens.has(contra.tokenId)),
       lembretes: (turnos.lembretesDaMarca ?? []).every((lembrete) => meusTokens.has(lembrete.tokenId)),
-      escudo: lutadores.personagens.every((ficha) => minhas.has(ficha.id) || ficha.recursos.escudo === undefined),
+      fichasInteiras: fichasIguais && lutadores.vagas.every((vaga) => lutadores.personagens.some((ficha) => ficha.id === vaga.personagemId)),
     }
   }
   const recortes = { a: recorte('a'), b: recorte('b') }
-  conferir('o fio de cada conta vem recortado para o lado dela: combate, contra-ataques e lembretes só das fichas dela, sem o Escudo do outro (M2)', Object.values(recortes).every((r) => Object.values(r).every(Boolean)), JSON.stringify(recortes))
+  conferir('o fio de cada conta vem recortado para o lado dela: combate, contra-ataques e lembretes só das fichas dela; as fichas (Vida e Escudo) inteiras e iguais nos dois (M2)', Object.values(recortes).every((r) => Object.values(r).every(Boolean)), JSON.stringify(recortes))
 }
 
 /**

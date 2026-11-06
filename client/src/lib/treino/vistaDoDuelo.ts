@@ -1,8 +1,6 @@
 import type { EfeitoDaBatalha } from '../batalha/combate'
-import { recursoDoEscudo } from '../batalha/leituraDaFicha'
 import type { TurnosDaCena } from '../batalha/turnos'
 import { vistaParaJogador, type EstadoParaJogador } from '../batalha/vistaDoJogador'
-import type { ParteDoAjuste, Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { dueloParaOFio, type DueloGravado, type DueloNoFio } from './duelo'
 import { criarMesaEmMemoria, LADOS_DO_TREINO, type LadoDoTreino } from './mesaEmMemoria'
@@ -16,19 +14,29 @@ import { criarMesaEmMemoria, LADOS_DO_TREINO, type LadoDoTreino } from './mesaEm
  * e o fio só leva a cauda (`dueloParaOFio`).
  *
  * Cada lado é um jogador da mesa: as fichas dele são "eu", as do outro lado
- * "outro" (sem `personagemId`, sem Escudo, sem "caiu"); só ele recebe as ações
- * da vez dele, os golpes que esperam a reação de ficha dele, os contra-ataques
- * e o combate (`meus`) das fichas dele. As cartas levam a equipe virtual do
- * lado (Lado A azul, Lado B vermelho), como a Arena.
+ * "outro" (sem `personagemId`, sem "caiu"); só ele recebe as ações da vez
+ * dele, os golpes que esperam a reação de ficha dele, os contra-ataques e o
+ * combate (`meus`) das fichas dele. As cartas levam a equipe virtual do lado
+ * (Lado A azul, Lado B vermelho), como a Arena.
  *
- * O FIO que vai junto também é recortado para o lado (`fioDoLado`), senão o
- * resto do frame levaria o que a vista esconde: sem o combate, os
- * contra-ataques e os lembretes da marca das fichas do outro lado, sem o
- * Escudo das fichas dele e sem os números das formas dele. Ficam inteiros os
- * golpes esperando reação: a vista também os dá aos dois (`golpes`:
- * atacante, alvos, d20 e total), o dano é o do golpe de quem ataca, e a tela
- * do duelo os lê para dizer "esperando o outro reagir". Ficam também a ordem,
- * os selos e os gastos da vez, que o registro e a grade já contam aos dois.
+ * A FICHA É PÚBLICA NO DUELO: a Vida, a Energia e o Escudo de todas as cópias
+ * vão inteiros aos dois lados, nas fichas do fio (`lutadores.personagens`),
+ * com o histórico. Esconder só o Escudo do outro não escondia nada: o dano do
+ * golpe (`efeitos`, "recebeu N" no registro) e a queda da Vida da ficha
+ * mostram quanto o Escudo absorveu (`danoNoAlvo` gasta o Escudo antes da
+ * Vida), e a Vida dos dois é o que a grade e a Arena do site já mostram. A
+ * vista não muda isso: a carta da vista nunca leva a Vida de ninguém (o HUD a
+ * lê da ficha que tem) e só leva o Escudo nas cartas "eu"/"aliado" (no leitor
+ * do app, `lerEstadoParaJogador`, Escudo em carta "outro" é mensagem forjada);
+ * o Escudo do outro, como a Vida dele, o site lê da ficha do fio.
+ *
+ * O FIO que vai junto é recortado para o lado (`fioDoLado`) no que a ficha não
+ * conta: sem o combate, os contra-ataques e os lembretes da marca das fichas
+ * do outro lado e sem os números das formas dele. Ficam inteiros os golpes
+ * esperando reação: a vista também os dá aos dois (`golpes`: atacante, alvos,
+ * d20 e total), o dano é o do golpe de quem ataca, e a tela do duelo os lê
+ * para dizer "esperando o outro reagir". Ficam também a ordem, os selos e os
+ * gastos da vez, que o registro e a grade já contam aos dois.
  *
  * O registro da vista é o MESMO do fio (a cauda, `REGISTRO_PARA_JOGADOR_MAX`
  * linhas, sem a reversão): no duelo os dois veem todas as fichas e ninguém
@@ -53,30 +61,9 @@ export interface DueloRecebido extends DueloNoFio {
   vista: EstadoParaJogador | null
 }
 
-/** Sem o sistema, o Escudo é achado pelo id do livro (`recursoDoEscudo` acha por id ou por nome). */
-const ID_DO_ESCUDO_SEM_SISTEMA = 'escudo'
-
-/** As partes do histórico da ficha que guardam um número de recurso: o atual, o máximo e o modificador. */
-const PARTES_DE_RECURSO: ReadonlySet<ParteDoAjuste> = new Set<ParteDoAjuste>(['recurso', 'maximo', 'modRecurso'])
-
 /** O lado da conta no duelo; `null` = a conta não joga este duelo. */
 export function ladoDaContaNoDuelo(duelo: Pick<DueloGravado, 'jogadores'>, contaId: string): LadoDoTreino | null {
   return LADOS_DO_TREINO.find((lado) => duelo.jogadores[lado].contaId === contaId) ?? null
-}
-
-function semAChave<T>(mapa: Readonly<Record<string, T>>, chave: string): Record<string, T> {
-  return Object.fromEntries(Object.entries(mapa).filter(([id]) => id !== chave))
-}
-
-/** A ficha do OUTRO lado: sem o Escudo (o atual, o máximo, o modificador e as linhas dele no histórico), como a carta "outro" da vista. */
-function fichaDoOutroLado(ficha: Personagem, idDoEscudo: string): Personagem {
-  return {
-    ...ficha,
-    recursos: semAChave(ficha.recursos, idDoEscudo),
-    maximos: semAChave(ficha.maximos, idDoEscudo),
-    modificadoresDosRecursos: semAChave(ficha.modificadoresDosRecursos, idDoEscudo),
-    historico: ficha.historico.filter((ajuste) => !PARTES_DE_RECURSO.has(ajuste.parte) || ajuste.chave !== idDoEscudo),
-  }
 }
 
 /** A ordem do duelo para um lado: o combate, os contra-ataques e os lembretes da marca só das fichas dele (a vista os dá só ao dono, em `meus` e `contras`). */
@@ -98,17 +85,13 @@ function efeitosDoLado(efeitos: readonly EfeitoDaBatalha[], meusTokens: Readonly
   })
 }
 
-/** O fio de sempre recortado para um lado: nada do que, na vista, só o outro lado vê. */
-function fioDoLado(fio: DueloNoFio, lado: LadoDoTreino, sistema: SistemaDeRpg | null): DueloNoFio {
+/** O fio de sempre recortado para um lado: nada do que, na vista, só o outro lado vê. As fichas vão inteiras (a ficha é pública no duelo). */
+function fioDoLado(fio: DueloNoFio, lado: LadoDoTreino): DueloNoFio {
   const doLado = fio.lutadores.vagas.filter((vaga) => vaga.lado === lado)
   const meusTokens = new Set(doLado.map((vaga) => vaga.tokenId))
   const minhasFichas = new Set(doLado.map((vaga) => vaga.personagemId))
-  // Sistema sem Escudo (`recursoDoEscudo` null): não há o que tirar.
-  const idDoEscudo = sistema === null ? ID_DO_ESCUDO_SEM_SISTEMA : (recursoDoEscudo(sistema)?.id ?? null)
-  const personagens = fio.lutadores.personagens.map((ficha) => (idDoEscudo === null || minhasFichas.has(ficha.id) ? ficha : fichaDoOutroLado(ficha, idDoEscudo)))
   return {
     ...fio,
-    lutadores: { ...fio.lutadores, personagens },
     turnos: turnosDoLado(fio.turnos, meusTokens, minhasFichas),
     efeitos: efeitosDoLado(fio.efeitos, meusTokens),
   }
@@ -135,7 +118,7 @@ function vistaDoLado(duelo: DueloGravado, lado: LadoDoTreino, sistema: SistemaDe
 
 /** O lado a partir do fio já montado: o fio recortado e a vista dele. */
 function ladoDoFio(duelo: DueloGravado, fio: DueloNoFio, lado: LadoDoTreino, sistema: SistemaDeRpg | null): DueloDoLado {
-  return { ...fioDoLado(fio, lado, sistema), vista: vistaDoLado(duelo, lado, sistema, fio) }
+  return { ...fioDoLado(fio, lado), vista: vistaDoLado(duelo, lado, sistema, fio) }
 }
 
 /** O duelo para um lado: o fio recortado e a vista dele. */
