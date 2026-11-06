@@ -313,13 +313,16 @@ function apagarLinha(sql: SqlStorage, id: string): void {
   sql.exec('DELETE FROM duelos WHERE id = ?', id)
 }
 
-/** Só o duelo desta versão do motor prende a conta: o de outra não anda (`dueloDaLinha` = null). */
+/**
+ * Só o duelo que este motor lê prende a conta: o de outra versão e a linha
+ * torta (`dueloDaLinha` = null) não andam nem deixam desistir, então não contam
+ * como `ocupado`. A linha torta fica na tabela (nada de dado é apagado aqui).
+ */
 function emAndamento(sql: SqlStorage, contaId: string): boolean {
-  return (
-    sql
-      .exec(`SELECT 1 AS achou FROM duelos WHERE status = 'andamento' AND versaoDoMotor = ? AND (jogadorA = ? OR jogadorB = ?) LIMIT 1`, VERSAO_DO_MOTOR_DO_DUELO, contaId, contaId)
-      .toArray().length > 0
-  )
+  return sql
+    .exec(`SELECT * FROM duelos WHERE status = 'andamento' AND versaoDoMotor = ? AND (jogadorA = ? OR jogadorB = ?)`, VERSAO_DO_MOTOR_DO_DUELO, contaId, contaId)
+    .toArray()
+    .some((linha) => dueloDaLinha(linhaDoDuelo(linha)) !== null)
 }
 
 /** As instâncias do DO (por SQLite) que já tiraram os duelos de outra versão: a versão só muda num deploy, que traz instância nova. */
