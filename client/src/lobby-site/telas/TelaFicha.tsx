@@ -10,7 +10,7 @@ import { PlayerFicha, type InventarioDoJogador } from '../../player/PlayerFicha'
 import type { AjustePendente, EnvioDePersonagem, SalvarPersonagem } from '../../player/playerConnection'
 import type { FichaDoSite, EstadoDaCampanha } from '../dados/sessaoDaCampanha'
 import { enderecoDaRota, type AbaDaFicha, type Rota } from '../dados/rotas'
-import { aoClicarNoLink, fonteDaDemo, SISTEMA_DO_LOBBY, useDoSite, useSite } from './contexto'
+import { aoClicarNoLink, fonteDaDemo, useDoSite, useSistemaDoLobby, useSite } from './contexto'
 import { Decisoes, DecisoesSemFicha } from './Decisoes'
 import { enviarMudancas, revDeAgora, textoDaFalha } from './enviar'
 import { AvisoDaPagina, Carregando } from './Estados'
@@ -71,6 +71,7 @@ function semImagens(mudancas: readonly Mudanca[]): { mudancas: Mudanca[]; tirou:
 export function TelaFicha({ rota }: { rota: RotaDaFicha }) {
   const site = useSite()
   const demo = useDoSite((estado) => estado.demo)
+  const sistema = useSistemaDoLobby()
   const campanha = useDoSite((estado) => estado.campanha)
   const erroDaCampanha = useDoSite((estado) => estado.erroDaCampanha)
   const voltar = { tela: 'campanha', campanhaId: rota.campanhaId } as const
@@ -101,7 +102,7 @@ export function TelaFicha({ rota }: { rota: RotaDaFicha }) {
             Voltar à mesa
           </a>
         }
-        depois={<DecisoesSemFicha campanha={campanha} sistema={SISTEMA_DO_LOBBY} fichaId={rota.fichaId} />}
+        depois={<DecisoesSemFicha campanha={campanha} sistema={sistema} fichaId={rota.fichaId} />}
       >
         <p>O mestre pode ter apagado a ficha, ou ela é só dele. As outras fichas da mesa continuam lá.</p>
       </AvisoDaPagina>
@@ -113,6 +114,7 @@ export function TelaFicha({ rota }: { rota: RotaDaFicha }) {
 function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: EstadoDaCampanha; ficha: FichaDoSite }) {
   const site = useSite()
   const demo = useDoSite((estado) => estado.demo)
+  const sistema = useSistemaDoLobby()
   const nomeDaMesa = useDoSite((estado) => (estado.eu.t === 'pronto' ? (estado.eu.eu.campanhas.find((linha) => linha.campanhaId === campanha.campanhaId)?.nomeDaCampanha ?? 'A mesa') : 'A mesa'))
   const voltar: Rota = { tela: 'campanha', campanhaId: campanha.campanhaId }
   const pode = ficha.ehMinha
@@ -177,7 +179,7 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
             </p>
           </div>
         )}
-        <Decisoes campanha={campanha} fichaId={ficha.doc.id} nome={ficha.doc.nome} doc={ficha.doc} sistema={SISTEMA_DO_LOBBY} />
+        <Decisoes campanha={campanha} fichaId={ficha.doc.id} nome={ficha.doc.nome} doc={ficha.doc} sistema={sistema} />
         {demo && pode && <DemoDoMestre campanha={campanha} ficha={ficha.doc} />}
         <div className="lo-abas" role="tablist" aria-label="Partes da ficha" ref={listaDeAbas} onKeyDown={teclaNasAbas}>
           {ABAS.map((aba) => (
@@ -238,6 +240,7 @@ function useAlturaAcima(bandaRef: RefObject<HTMLDivElement | null>, ligado: bool
 /** A ficha do app dentro do site: o "Salvar" e o −/+ viram mudanças na fila da S2. */
 function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampanha; ficha: FichaDoSite; aoFechar: () => void }) {
   const site = useSite()
+  const sistema = useSistemaDoLobby()
   const [envio, setEnvio] = useState<EnvioDePersonagem | undefined>(undefined)
   const [pendentes, setPendentes] = useState<readonly AjustePendente[]>([])
   const [erro, setErro] = useState<string | null>(null)
@@ -278,8 +281,8 @@ function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampan
     const baseRev = revDeAgora(site)
     if (baseRev === null) return false
     // O valor do ajuste é absoluto: parte da ficha como ela aparece (com os cliques que ainda vão).
-    const atual = comAjustes(ficha.doc, SISTEMA_DO_LOBBY, pendentes.filter((pendente) => pendente.personagemId === personagemId))
-    const mudancas = diferencas(atual, aplicarAjuste(atual, SISTEMA_DO_LOBBY, ajuste), { papel })
+    const atual = comAjustes(ficha.doc, sistema, pendentes.filter((pendente) => pendente.personagemId === personagemId))
+    const mudancas = diferencas(atual, aplicarAjuste(atual, sistema, ajuste), { papel })
     if (mudancas.length === 0) return true
     const pendente: AjustePendente = { ...ajuste, personagemId }
     setErro(null)
@@ -302,7 +305,7 @@ function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampan
         </p>
       )}
       <PlayerFicha
-        sistema={SISTEMA_DO_LOBBY}
+        sistema={sistema}
         personagens={personagens}
         tokens={SEM_TOKENS}
         envio={envio}

@@ -4,7 +4,7 @@ import { maximoComposto } from '../../lib/ajusteDaFicha'
 import type { Personagem } from '../../lib/personagem'
 import type { EstadoDaCampanha, FichaDoSite } from '../dados/sessaoDaCampanha'
 import { enderecoDaRota, type Rota } from '../dados/rotas'
-import { aoClicarNoLink, SISTEMA_DO_LOBBY, useDoSite, useSite } from './contexto'
+import { aoClicarNoLink, useDoSite, useSistemaDoLobby, useSite } from './contexto'
 import { DecisoesSemFicha } from './Decisoes'
 import { AvisoDaPagina, Carregando } from './Estados'
 import { Icone } from './Icone'
@@ -17,17 +17,15 @@ import { iniciais, plural, tomDe } from './textos'
  * ver; e quem está na mesa agora. O mestre vê todas as fichas como suas.
  */
 
-/** Os recursos com atual e máximo (HP, SP): as barras do cartão. */
-const RECURSOS_COM_BARRA = SISTEMA_DO_LOBBY.recursos.filter((recurso) => recurso.atualEMaximo === true)
-
 /**
- * As fichas que são da mesa: todas menos as cópias dos inimigos do treino
- * (`visivel: 'treino'`, que o mestre libera no app, T8). Elas só existem para
- * o treino; não são personagem de ninguém, nem do mestre (o NPC de verdade
- * mora no app), então ficam fora das listas, dos atalhos e das contagens.
+ * As fichas que são da mesa (`visivel: 'mesa'`): nunca as cópias dos inimigos
+ * do treino (`visivel: 'treino'`, que o mestre libera no app, T8). Elas só
+ * existem para o treino; não são personagem de ninguém, nem do mestre (o NPC
+ * de verdade mora no app), então ficam fora das listas, dos atalhos e das
+ * contagens. A lista do treino lê as dela à parte (`TelaTreino`).
  */
 export function fichasDaMesa(campanha: EstadoDaCampanha): FichaDoSite[] {
-  return campanha.fichas.filter((ficha) => ficha.visivel !== 'treino')
+  return campanha.fichas.filter((ficha) => ficha.visivel === 'mesa')
 }
 
 export function TelaCampanha({ campanhaId }: { campanhaId: string }) {
@@ -64,6 +62,7 @@ export function TelaCampanha({ campanhaId }: { campanhaId: string }) {
 function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) {
   const site = useSite()
   const demo = useDoSite((estado) => estado.demo)
+  const sistema = useSistemaDoLobby()
   const seusId = useId()
   const tripId = useId()
   const agoraId = useId()
@@ -83,7 +82,7 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
           </a>
           <h1 className="lo-titulo">Fichas da mesa</h1>
           <p className="lo-sub">
-            {mestre !== undefined ? `Mestre ${mestre.nome}. ` : ''}Sistema {SISTEMA_DO_LOBBY.nome}. {plural(daMesa.length, 'personagem', 'personagens')}.
+            {mestre !== undefined ? `Mestre ${mestre.nome}. ` : ''}Sistema {sistema.nome}. {plural(daMesa.length, 'personagem', 'personagens')}.
           </p>
         </div>
         <aside className="lo-agora" aria-labelledby={agoraId}>
@@ -109,7 +108,7 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
           </ul>
         </aside>
       </header>
-      <DecisoesSemFicha campanha={campanha} sistema={SISTEMA_DO_LOBBY} />
+      <DecisoesSemFicha campanha={campanha} sistema={sistema} />
       <section className="lo-secao" aria-labelledby={seusId}>
         <div className="lo-secao__cab">
           <h2 className="lo-secao__titulo" id={seusId}>
@@ -154,10 +153,12 @@ export function Retrato({ doc, grande = false }: { doc: Personagem; grande?: boo
   )
 }
 
+/** As barras do cartão: os recursos com atual e máximo (HP, SP) do sistema da campanha. */
 export function Medidores({ doc }: { doc: Personagem }) {
+  const sistema = useSistemaDoLobby()
   return (
     <div className="lo-medidores">
-      {RECURSOS_COM_BARRA.map((recurso) => {
+      {sistema.recursos.filter((recurso) => recurso.atualEMaximo === true).map((recurso) => {
         const atual = doc.recursos[recurso.id] ?? 0
         const maximo = maximoComposto(doc, recurso.id).total
         const parte = maximo > 0 ? Math.max(0, Math.min(1, atual / maximo)) : 0

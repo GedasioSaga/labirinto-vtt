@@ -202,13 +202,27 @@ function op(fichaId, caminho, acao, baseRev, clienteId, extra = {}) {
   return { opId: `op_${contador}`, loteId: `lote_${contador}`, fichaId, caminho, acao, baseRev, clienteId, quandoCliente: Date.now(), ...extra }
 }
 
+/**
+ * O sistema do aceite (F1): um que a leitura do app aceita (tem atributo), com
+ * o livro e um catálogo, que o `estado` do jogador NÃO leva.
+ */
+const SISTEMA_DO_ACEITE = {
+  id: 'one-piece',
+  nome: 'One Piece',
+  atributos: [{ id: 'forca', nome: 'Força', abreviacao: 'FOR' }],
+  recursos: [{ id: 'hp', nome: 'Vida', tom: 'vida', atualEMaximo: true }],
+  abas: [{ id: 'tecnicas', nome: 'Técnicas' }],
+  livro: [{ id: 'cap_regras', titulo: 'Regras', ordem: 1, texto: 'O livro fica no app.' }],
+  catalogos: { pericias: [], vantagens: [{ nome: 'Sorte', descricao: 'Do livro.' }], desvantagens: [], racas: [], oficios: [] },
+}
+
 function pedidoDePublicar(fichas) {
   return {
     v: VERSAO,
     clienteId: 'cli_app',
     nome: 'Fumaça One Piece',
     nomeDoMestre: 'Mestre',
-    sistema: { id: 'one-piece', nome: 'One Piece', abas: [{ id: 'tecnicas', nome: 'Técnicas' }] },
+    sistema: SISTEMA_DO_ACEITE,
     membros: [
       { contaId: 'conta_nami', email: NAMI, nome: 'Nami' },
       { contaId: 'conta_zoro', email: ZORO, nome: 'Zoro' },
@@ -270,6 +284,12 @@ async function entrarNaSala(campanhaId) {
     'estado da Nami: a ficha dela é dela, a do Zoro não, e nada do mestre (dono, nota)',
     minha?.ehMinha === true && doZoro?.ehMinha === false && !('dono' in minha.doc) && !('notaDoMestre' in minha.doc) && doZoro.nomeDoDono === 'Zoro',
     JSON.stringify(estado.fichas.map((f) => [f.doc.id, f.ehMinha, Object.keys(f.doc).includes('dono')])),
+  )
+  const sistema = estado.sistema
+  conferir(
+    'estado da Nami leva o sistema publicado (F1), sem o livro e sem os catálogos',
+    sistema?.id === SISTEMA_DO_ACEITE.id && sistema.recursos?.[0]?.nome === 'Vida' && sistema.atributos?.[0]?.id === 'forca' && !('livro' in sistema) && !('catalogos' in sistema),
+    JSON.stringify(sistema),
   )
   await nami.mandar('ping')
   const pong = await nami.esperar((m) => m.cru === 'pong', 'o pong')

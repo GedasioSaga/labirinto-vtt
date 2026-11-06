@@ -1,6 +1,7 @@
 import type { Personagem } from '../personagem'
+import { lerSistemaDeRpg, type SistemaDeRpg } from '../sistemaDeRpg'
 import { alvoDoCaminho, CAMPOS_DO_MESTRE, ESQUEMA_DO_CAMINHO, type NomeDaRegra } from './caminho'
-import type { Json } from './json'
+import { ehRegistro, type Json } from './json'
 import { podeEscreverNaFicha, podeVer } from './permissao'
 import type { FichaGuardada, FichaNoEstado, Membro, MembroProjetado, OpGravada, Visibilidade } from './tipos'
 
@@ -121,6 +122,24 @@ export function fichaNoEstado(eu: Membro, ficha: FichaGuardada, nomeDaConta: (co
     ehMinha: podeEscreverNaFicha(eu, ficha),
     nomeDoDono: dono === undefined ? null : nomeDaConta(dono),
   }
+}
+
+/** O que fica fora do sistema no `estado`: o livro de regras e os catálogos dele. */
+const PARTES_DO_LIVRO: ReadonlySet<string> = new Set(['livro', 'catalogos'])
+
+/**
+ * O sistema publicado como o `estado` o leva (F1): só o que a ficha usa
+ * (escolhas, recursos, atributos e abas), pela mesma leitura tolerante do app.
+ * O livro e os catálogos ficam de fora, como no `rpg.sistema` da sala LAN
+ * (`sistemaSemLivro`): passam de 1 MB no Dragon Ball, iriam em todo `estado`,
+ * e o site não os mostra. Saem ANTES de ler: ler confere campo a campo, e o
+ * livro é o grosso do sistema. `null` = o guardado não é um sistema que este
+ * código lê (formato futuro, motor desconhecido): o `estado` vai sem ele.
+ */
+export function sistemaParaOJogador(publicado: unknown): SistemaDeRpg | null {
+  const semLivro = ehRegistro(publicado) ? Object.fromEntries(Object.entries(publicado).filter(([chave]) => !PARTES_DO_LIVRO.has(chave))) : publicado
+  const lido = lerSistemaDeRpg(semLivro)
+  return lido.ok ? lido.sistema : null
 }
 
 /** Os membros como o jogador os vê: só os ativos, sem e-mail (só `/api/eu` devolve o próprio). */

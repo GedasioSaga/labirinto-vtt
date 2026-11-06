@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { Personagem } from '../../../lib/personagem'
 import { enderecoDaRota, type Rota } from '../../dados/rotas'
 import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
-import { aoClicarNoLink, SISTEMA_DO_LOBBY, useDoSite, useSite } from '../contexto'
+import { aoClicarNoLink, sistemaDaCampanha, useDoSite, useSite } from '../contexto'
 import { AvisoDaPagina } from '../Estados'
 import { Icone } from '../Icone'
 import { CemLutas } from './CemLutas'
@@ -51,9 +51,10 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
   // Os personagens dos colegas entram como cópia só para o treino (a ficha deles nunca muda).
   const colegas = campanha.fichas.filter((ficha) => !ficha.ehMinha && ficha.visivel === 'mesa' && ficha.nomeDoDono !== null)
   const inimigos = campanha.fichas.filter((ficha) => ficha.visivel === 'treino')
+  const sistema = sistemaDaCampanha(campanha)
   const [vidaCheia, setVidaCheia] = useState(true)
   const [usarRascunho, setUsarRascunho] = useState(false)
-  const [juiz, setJuiz] = useState<Ajustes>(() => lerAjustesDoJuiz(campanhaId, demo, SISTEMA_DO_LOBBY))
+  const [juiz, setJuiz] = useState<Ajustes>(() => lerAjustesDoJuiz(campanhaId, demo, sistema))
   const [juizGuardado, setJuizGuardado] = useState<boolean | null>(null)
   const listaDeModos = useRef<HTMLDivElement>(null)
 
@@ -84,9 +85,9 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
   // O mestre tirou um inimigo do treino (ou a ficha saiu da mesa): a peça dele some da grade.
   const lista = soAsQueExistem(guardada, pecas)
 
-  const preparar = (doc: Personagem): Personagem => (vidaCheia ? comVidaCheia(doc, SISTEMA_DO_LOBBY) : doc)
+  const preparar = (doc: Personagem): Personagem => (vidaCheia ? comVidaCheia(doc, sistema) : doc)
   const docDaPeca = (pecaId: string): Personagem | null => {
-    if (pecaId === ID_DO_JUIZ) return fichaDoJuiz(SISTEMA_DO_LOBBY, juiz)
+    if (pecaId === ID_DO_JUIZ) return fichaDoJuiz(sistema, juiz)
     const minha = minhas.find((ficha) => ficha.doc.id === pecaId)
     if (minha !== undefined) return comORascunho ? comRascunho(minha.doc, rascunhos.get(pecaId) ?? null) : minha.doc
     return [...colegas, ...inimigos].find((ficha) => ficha.doc.id === pecaId)?.doc ?? null
@@ -186,7 +187,7 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
           />
         </div>
         <div className="lo-painel" role="tabpanel" id="painel-treino-juiz" aria-labelledby="modo-treino-juiz" hidden={modo !== 'juiz'}>
-          <AjustesDoJuiz ajustes={juiz} sistema={SISTEMA_DO_LOBBY} onMudar={mudarJuiz} onVoltarAoPadrao={juizPadrao} guardado={juizGuardado} />
+          <AjustesDoJuiz ajustes={juiz} sistema={sistema} onMudar={mudarJuiz} onVoltarAoPadrao={juizPadrao} guardado={juizGuardado} />
         </div>
       </div>
     </div>

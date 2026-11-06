@@ -3,7 +3,7 @@ import type { DueloNoFio } from '../../../../lib/treino/duelo'
 import type { VagaDoTreino } from '../../../../lib/treino/mesaEmMemoria'
 import { recursoDeVida, vidaDoPersonagem } from '../../../../lib/vidaDaFicha'
 import type { CasaDaArena } from '../../../../lib/arena/grade'
-import { SISTEMA_DO_LOBBY } from '../../contexto'
+import type { SistemaDeRpg } from '../../../../lib/sistemaDeRpg'
 import { ID_DO_JUIZ } from '../juiz/juizDoTreino'
 import type { BonecoNaGrade } from './bonecos'
 import { quemOJuizOlha } from './olharDoJuiz'
@@ -14,9 +14,8 @@ import { retratoDoBoneco } from './retratos'
  * duelo): a casa de cada vaga (`posicoes`), quem está na vez, a Vida que resta
  * e quem caiu. `podeAndar` é de quem liga: no treino, o lado de quem joga; no
  * duelo, o servidor decide e a tela só deixa pegar a ficha que ele aceitaria.
+ * A Vida é a do sistema da campanha (`sistema`).
  */
-
-const RECURSO_DA_VIDA = recursoDeVida(SISTEMA_DO_LOBBY)
 
 /** O Judge na luta: para quem ele olha (o golpe que o envolve, senão a ficha da vez), como casa da grade. */
 function olharDoJuiz(duelo: DueloNoFio, tokenId: string): { olhaPara: CasaDaArena | null } {
@@ -24,7 +23,8 @@ function olharDoJuiz(duelo: DueloNoFio, tokenId: string): { olhaPara: CasaDaAren
   return { olhaPara: outro === null ? null : (duelo.posicoes[outro] ?? null) }
 }
 
-export function bonecosDoDuelo(duelo: DueloNoFio, demo: boolean, podeAndar: (vaga: VagaDoTreino, dePe: boolean) => boolean): BonecoNaGrade[] {
+export function bonecosDoDuelo(duelo: DueloNoFio, demo: boolean, podeAndar: (vaga: VagaDoTreino, dePe: boolean) => boolean, sistema: SistemaDeRpg): BonecoNaGrade[] {
+  const recursoDaVida = recursoDeVida(sistema)
   const vezDe = duelo.fim === null ? (cartaDaVez(duelo.turnos)?.tokenId ?? null) : null
   const porId = new Map(duelo.lutadores.personagens.map((personagem) => [personagem.id, personagem]))
   const bonecos: BonecoNaGrade[] = []
@@ -32,7 +32,7 @@ export function bonecosDoDuelo(duelo: DueloNoFio, demo: boolean, podeAndar: (vag
     const doc = porId.get(vaga.personagemId)
     const casa = duelo.posicoes[vaga.tokenId]
     if (doc === undefined || casa === undefined) continue
-    const vida = RECURSO_DA_VIDA === null ? null : vidaDoPersonagem(doc, RECURSO_DA_VIDA)
+    const vida = recursoDaVida === null ? null : vidaDoPersonagem(doc, recursoDaVida)
     const dePe = vida === null || vida.atual > 0
     bonecos.push({
       ...(vaga.origem === ID_DO_JUIZ ? { juiz: olharDoJuiz(duelo, vaga.tokenId) } : {}),

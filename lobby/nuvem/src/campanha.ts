@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
+import type { SistemaDeRpg } from '../../../client/src/lib/sistemaDeRpg'
 import {
   bloqueadaAte,
   bloquear,
@@ -58,6 +59,7 @@ import {
   proprio,
   respostasAdiadas,
   segmentoValido,
+  sistemaParaOJogador,
   VALIDADE_DO_BILHETE_MS,
   VERSAO_DO_FORMATO,
   type ConferenciaDoRitmo,
@@ -153,6 +155,12 @@ function limiteDaUrl(url: URL, maximo: number): number {
 
 export class Campanha extends DurableObject<Env> {
   private readonly sql: SqlStorage
+  /**
+   * O sistema do `estado` (F1), lido de `meta` uma vez por DO acordado (o
+   * publicado pode passar de 1 MB com o livro). `undefined` = ainda não lido;
+   * `null` = o guardado não se lê. O publicar esquece.
+   */
+  private sistemaDoEstado: SistemaDeRpg | null | undefined = undefined
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -255,6 +263,8 @@ export class Campanha extends DurableObject<Env> {
     esquecerRotulosDoMural(this.sql)
     // E o duelo relê o sistema (só roda no motor do One Piece).
     esquecerSistemaDoDuelo(this.sql)
+    // E o `estado`: o que `depoisDeMudarMembros` manda a todos já leva o sistema novo.
+    this.sistemaDoEstado = undefined
     await this.depoisDeMudarMembros(campanhaId, pedido.nome, feito.mudaram)
     this.depoisDeGravar(feito.ops)
     return json({ campanhaId, rev: revAtual(this.sql), fichas: feito.fichas, treino: feito.treino })
@@ -507,10 +517,21 @@ export class Campanha extends DurableObject<Env> {
     }
   }
 
-  /** O `estado` leva também a sala aberta no app (B2): o site de antes dela ignora o campo a mais. */
+  private sistemaParaOEstado(): SistemaDeRpg | null {
+    if (this.sistemaDoEstado === undefined) this.sistemaDoEstado = sistemaParaOJogador(lerSistema(this.sql))
+    return this.sistemaDoEstado
+  }
+
+  /**
+   * O `estado` leva também a sala aberta no app (B2) e o sistema publicado
+   * (F1, sem o livro): o site de antes deles ignora os campos a mais.
+   */
   private estadoPara(membro: Membro, fichas: readonly FichaGuardada[], membros: readonly Membro[], rev: number, sala: SalaParaJogador | null): EstadoComSala {
     const { contaId, nome, papel } = membro
-    return { t: 'estado', rev, fichas: fichasDoEstado(membro, fichas, membros), membros: projetarMembros(membros), eu: { contaId, nome, papel }, sala }
+    const estado: EstadoComSala = { t: 'estado', rev, fichas: fichasDoEstado(membro, fichas, membros), membros: projetarMembros(membros), eu: { contaId, nome, papel }, sala }
+    const sistema = this.sistemaParaOEstado()
+    if (sistema !== null) estado.sistema = sistema
+    return estado
   }
 
   private enviarEstadoATodos(): void {

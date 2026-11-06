@@ -3,8 +3,8 @@ import { recursosDaCarta, type DadosDaFaixa } from '../../../components/batalha/
 import { CASA_DA_ARENA } from '../../../lib/arena/grade'
 import type { Personagem } from '../../../lib/personagem'
 import type { DueloNoFio } from '../../../lib/treino/duelo'
+import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import type { LadoDoTreino } from '../../../lib/treino/mesaEmMemoria'
-import { SISTEMA_DO_LOBBY } from '../contexto'
 import { retratoDoBoneco } from './grade/retratos'
 import { dePe } from './quemJoga'
 
@@ -45,9 +45,9 @@ export function copiasDoLado(fio: DueloNoFio, lado: LadoDoTreino): Personagem[] 
  * A ficha é pública no treino e no duelo (revisão da M2): a carta do outro
  * lado, que a vista manda sem a Vida ("oculta", como na mesa), ganha os
  * números, o Escudo e o "caiu" da cópia que o fio já traz inteira, como as
- * cartas da Arena do app mostram os dois lados.
+ * cartas da Arena do app mostram os dois lados. Os números são os do sistema da campanha.
  */
-export function faixaComFichaPublica(dados: DadosDaFaixa, fio: DueloNoFio): DadosDaFaixa {
+export function faixaComFichaPublica(dados: DadosDaFaixa, fio: DueloNoFio, sistema: SistemaDeRpg): DadosDaFaixa {
   const vagaDoToken = new Map(fio.lutadores.vagas.map((vaga) => [vaga.tokenId, vaga]))
   const porId = new Map(fio.lutadores.personagens.map((personagem) => [personagem.id, personagem]))
   const cartas = dados.cartas.map((carta) => {
@@ -55,9 +55,9 @@ export function faixaComFichaPublica(dados: DadosDaFaixa, fio: DueloNoFio): Dado
     const vaga = vagaDoToken.get(carta.tokenId)
     const doc = vaga === undefined ? undefined : porId.get(vaga.personagemId)
     if (doc === undefined) return carta
-    const recursos = recursosDaCarta(doc, SISTEMA_DO_LOBBY)
+    const recursos = recursosDaCarta(doc, sistema)
     const escudo = doc.recursos.escudo ?? 0
-    return { ...carta, vida: recursos.length > 0 ? ('numeros' as const) : ('sem' as const), recursos, caiu: !dePe(doc), ...(escudo > 0 ? { escudo } : {}) }
+    return { ...carta, vida: recursos.length > 0 ? ('numeros' as const) : ('sem' as const), recursos, caiu: !dePe(doc, sistema), ...(escudo > 0 ? { escudo } : {}) }
   })
   return { ...dados, cartas }
 }

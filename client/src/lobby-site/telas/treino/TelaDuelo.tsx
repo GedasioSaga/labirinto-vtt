@@ -9,7 +9,7 @@ import type { DueloRecebido } from '../../../lib/treino/vistaDoDuelo'
 import type { EstadoDoDuelo, RecusaDoDuelo } from '../../dados/dueloDaCampanha'
 import { candidatasDoRobo, proximaDoRobo } from '../../dados/roboDoDuelo'
 import type { EstadoDaCampanha, FichaDoSite } from '../../dados/sessaoDaCampanha'
-import { SISTEMA_DO_LOBBY, useAgora, useSite } from '../contexto'
+import { useAgora, useSistemaDoLobby, useSite } from '../contexto'
 import { Icone } from '../Icone'
 import { ArenaDaLuta, type JogadasDaLuta } from './ArenaDaLuta'
 import type { RespostaDoAndar } from './grade/GradeDaArena'
@@ -139,6 +139,7 @@ function estadoDoDuelo(duelo: DueloNoFio, meuLado: LadoDoTreino, outro: string, 
  */
 function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: { duelo: DueloRecebido; meuLado: LadoDoTreino; conectado: boolean; ocupado: boolean; recusa: RecusaDoDuelo | null; onFechar(): void }) {
   const site = useSite()
+  const sistema = useSistemaDoLobby()
   const agora = useAgora(1_000)
   const [confirmarDesistencia, setConfirmarDesistencia] = useState(false)
   const andando = useRef<AndarNoServidor | null>(null)
@@ -192,7 +193,7 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
   }
 
   function roboEscolhe() {
-    const proxima = proximaDoRobo({ turnos: duelo.turnos, regras: duelo.regras, lutadores: duelo.lutadores, jogadores: duelo.jogadores }, SISTEMA_DO_LOBBY, null)
+    const proxima = proximaDoRobo({ turnos: duelo.turnos, regras: duelo.regras, lutadores: duelo.lutadores, jogadores: duelo.jogadores }, sistema, null)
     const primeira = proxima === null || proxima.lado !== meuLado ? undefined : candidatasDoRobo(proxima.jogada, duelo.seq)[0]
     if (primeira !== undefined) jogar(primeira)
   }

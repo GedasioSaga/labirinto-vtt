@@ -10,7 +10,7 @@ import type { PedidoDeAcao } from '../../../lib/batalha/combate'
 import type { EstadoParaJogador } from '../../../lib/batalha/vistaDoJogador'
 import type { DueloNoFio } from '../../../lib/treino/duelo'
 import type { LadoDoTreino, VagaDoTreino } from '../../../lib/treino/mesaEmMemoria'
-import { SISTEMA_DO_LOBBY, useDoSite } from '../contexto'
+import { useDoSite, useSistemaDoLobby } from '../contexto'
 import { Icone, type NomeDoIcone } from '../Icone'
 import { bonecosDoDuelo } from './grade/bonecosDoDuelo'
 import { GradeDaArena, type RespostaDoAndar } from './grade/GradeDaArena'
@@ -110,6 +110,7 @@ function useTelaCheia(titulo: { current: HTMLElement | null }) {
 
 export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeAndar, onAndar, trilhas, detalhes, aviso, acoes, estado, recusa, onEsquecerRecusa, fim, sobre }: ArenaDaLutaProps) {
   const demo = useDoSite((site) => site.demo)
+  const sistema = useSistemaDoLobby()
   const idDoTitulo = useId()
   const raiz = useRef<HTMLElement>(null)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -157,7 +158,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
   }, [jogadas, fio.turnos.contras, fichas, avisar])
 
   const podeAndarAqui = (vaga: VagaDoTreino, emPe: boolean) => podeAndar(vaga, emPe) || (emPe && contraValido?.tokenId === vaga.tokenId)
-  const bonecos = bonecosDoDuelo(fio, demo, podeAndarAqui)
+  const bonecos = bonecosDoDuelo(fio, demo, podeAndarAqui, sistema)
 
   function andar(tokenId: string, casa: CasaDaArena): RespostaDoAndar {
     const contraDe = contraValido?.tokenId === tokenId ? contraValido.golpeId : undefined
@@ -166,7 +167,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
   }
 
   const vistaDoHud = useMemo(() => (vista === null ? null : semEscolhaDeArmas(vista)), [vista])
-  const dados = useMemo(() => (vista === null ? null : faixaComFichaPublica(faixaDoJogador({ estado: vista, fichas, personagens: meus, sistema: SISTEMA_DO_LOBBY }), fio)), [vista, fichas, meus, fio])
+  const dados = useMemo(() => (vista === null ? null : faixaComFichaPublica(faixaDoJogador({ estado: vista, fichas, personagens: meus, sistema }), fio, sistema)), [vista, fichas, meus, fio, sistema])
   const registro = useMemo(() => linhasDoJogador(vista?.registro ?? fio.registro), [vista, fio.registro])
   const consulta = useCallback<ConsultaDaFicha>((tokenId) => consultaAtual.current?.(tokenId) ?? null, [])
   const vezDaVista = vista?.vez ?? null
@@ -283,7 +284,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
           efeitos={fio.efeitos}
           meus={meus}
           fichas={fichas}
-          sistema={SISTEMA_DO_LOBBY}
+          sistema={sistema}
           conexao={conexao}
           consulta={consulta}
           alvoDoMapa={alvoDoMapa}

@@ -2,6 +2,7 @@ import { lerMudanca, segmentoValido } from '../../lib/nuvem/caminho'
 import { lerRegistro } from '../../lib/nuvem/fila'
 import { ehJson, ehRegistro, lerJsonSeguro, proprio } from '../../lib/nuvem/json'
 import { lerEnvelope } from '../../lib/nuvem/lote'
+import { sistemaParaOJogador } from '../../lib/nuvem/projecao'
 import type { FichaNoEstado, MembroProjetado, MensagemDoServidor, OpGravada, Origem, Papel, PresencaNaMesa, Visibilidade } from '../../lib/nuvem/tipos'
 import { personagemDoArquivo } from '../../lib/personagem'
 import type { EnderecoDaMesa, EstadoComSala, MensagemDoSite, SalaDaMesa } from './fonte'
@@ -135,6 +136,9 @@ function lerEstado(bruto: Record<string, unknown>): EstadoComSala | null {
   // O DO de antes da B2 não manda o campo: sem ele, a sessão entende "nenhuma sala".
   const sala = proprio(bruto, 'sala')
   if (sala !== undefined) estado.sala = lerSalaDaMesa(sala)
+  // O sistema (F1) pela mesma leitura do app. Torto vale como ausente, como a sala: não há base a divergir, e o site cai no One Piece.
+  const sistema = sistemaParaOJogador(proprio(bruto, 'sistema'))
+  if (sistema !== null) estado.sistema = sistema
   return estado
 }
 

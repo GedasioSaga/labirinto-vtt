@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { AGORA, enviar, F_DO_MESTRE, F_NAMI, F_NAMI_2, F_SEM_DONO, F_ZORO, mesa, MESTRE_NO_APP, MEMBROS, NAMI, op, pedirDesfazer, type CampanhaDeTeste } from '../../lib/nuvem/campanha.fixture'
+import { AGORA, enviar, F_DO_MESTRE, F_NAMI, F_NAMI_2, F_SEM_DONO, F_ZORO, ficha, mesa, MESTRE_NO_APP, MEMBROS, NAMI, op, pedirDesfazer, type CampanhaDeTeste } from '../../lib/nuvem/campanha.fixture'
 import { armazenamentoEmTexto, type ArquivoDeTexto } from '../../lib/nuvem/fila'
-import { lerJsonSeguro } from '../../lib/nuvem/json'
-import { fichaNoEstado, projetarMembros, projetarOpParaJogador } from '../../lib/nuvem/projecao'
-import type { Identidade, Membro, MensagemDoServidor, OpGravada } from '../../lib/nuvem/tipos'
+import { lerJsonSeguro, paraJson } from '../../lib/nuvem/json'
+import { fichaNoEstado, projetarMembros, projetarOpParaJogador, sistemaParaOJogador } from '../../lib/nuvem/projecao'
+import type { EstadoDaBase, Identidade, Membro, MensagemDoServidor, OpGravada } from '../../lib/nuvem/tipos'
+import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
+import { SISTEMA_DE_RECUO, sistemaDaCampanha } from '../telas/contexto'
 import type { Relogio } from './fonte'
 import { criarFonteReal, type Fio, type OuvinteDoFio } from './fonteReal'
 import { abrirSessaoDaCampanha, ESPERAS_DA_RECONEXAO_MS, PRAZO_DA_RESPOSTA_MS, type SessaoDaCampanha } from './sessaoDaCampanha'
@@ -63,6 +65,8 @@ function servidorFalso(campanha: CampanhaDeTeste, relogio: Relogio) {
   const engolidos: string[] = []
   /** Até quando a conta está acima do ritmo (§6.5): op e desfazer viram `adiado`; o `ola` repetido fica sem resposta. */
   const ritmo = { ate: 0 }
+  /** O sistema que o publicar gravou em `meta` (F1); `undefined` = o DO de antes da F1, que não manda o campo. */
+  const publicado: { sistema: unknown } = { sistema: undefined }
   const nomeDaConta = (contaId: string): string | null => campanha.membro(contaId)?.nome ?? null
 
   function mandar(conexao: Conexao, mensagem: MensagemDoServidor): void {
@@ -109,7 +113,11 @@ function servidorFalso(campanha: CampanhaDeTeste, relogio: Relogio) {
           return naTela === null ? [] : [naTela]
         })
         const { contaId, nome, papel } = conexao.membro
-        mandar(conexao, { t: 'estado', rev: atual, fichas, membros: projetarMembros(MEMBROS), eu: { contaId, nome, papel } })
+        const estado: EstadoDaBase = { t: 'estado', rev: atual, fichas, membros: projetarMembros(MEMBROS), eu: { contaId, nome, papel } }
+        // Como o DO (estadoPara em campanha.ts): o sistema guardado, pela projeção do jogador, quando se lê.
+        const sistema = sistemaParaOJogador(publicado.sistema)
+        if (sistema !== null) estado.sistema = sistema
+        mandar(conexao, estado)
       } else {
         mandar(conexao, { t: 'ops', desde, ate: atual, lista: projetar(conexao.membro, campanha.todasAsOps().filter((gravada) => gravada.rev > desde)) })
       }
@@ -144,6 +152,7 @@ function servidorFalso(campanha: CampanhaDeTeste, relogio: Relogio) {
     olas,
     engolidos,
     ritmo,
+    publicado,
     conexoes,
     abrirFioDe(membro: Membro) {
       return (_url: string, ouvinte: OuvinteDoFio): Fio => {
@@ -386,5 +395,47 @@ describe('sessão da campanha pela fonte real, contra o protocolo (servidor fals
     await calmo()
     expect(sessao.estado().esperando).toBe(0)
     expect(doc(F_NAMI).descricao).toBe('Ladra de mapas')
+  })
+})
+
+describe('o sistema publicado e a cópia do treino no estado (F1)', () => {
+  it('o estado leva o sistema que o mestre publicou, sem o livro; o DO de antes, sem o campo, deixa a sessão sem sistema e o site cai no One Piece', async () => {
+    // Um sistema que NÃO é o One Piece (outro id, outro nome, a Vida com outro nome), publicado com o livro e os catálogos.
+    const [primeiro, ...resto] = SISTEMA_ONE_PIECE.recursos
+    if (primeiro === undefined) throw new Error('o One Piece sem recurso')
+    const publicado = { ...SISTEMA_ONE_PIECE, id: 'mar_de_teste', nome: 'Mar de Teste', recursos: [{ ...primeiro, nome: 'Fôlego' }, ...resto] }
+    expect(publicado.livro).toBeDefined()
+    expect(publicado.catalogos).toBeDefined()
+
+    const relogio = relogioDeTeste()
+    const campanha = mesa()
+    const servidor = servidorFalso(campanha, relogio)
+    servidor.publicado.sistema = paraJson(publicado)
+    const { sessao } = await abrirComoNami(campanha, { mundo: { servidor, relogio } })
+    const sistema = sessao.estado().sistema
+    expect(sistema).not.toBeNull()
+    expect(sistema).toMatchObject({ id: 'mar_de_teste', nome: 'Mar de Teste' })
+    expect(sistema?.recursos[0]?.nome).toBe('Fôlego')
+    expect(sistema?.livro).toBeUndefined()
+    expect(sistema?.catalogos).toBeUndefined()
+    // As telas leem o da campanha, não o One Piece.
+    expect(sistemaDaCampanha(sessao.estado()).nome).toBe('Mar de Teste')
+
+    const antiga = await abrirComoNami(mesa())
+    expect(antiga.sessao.estado().carregada).toBe(true)
+    expect(antiga.sessao.estado().sistema).toBeNull()
+    expect(sistemaDaCampanha(antiga.sessao.estado())).toBe(SISTEMA_DE_RECUO)
+  })
+
+  it('a cópia do inimigo do treino que chega por op, antes do próximo estado, já vem do treino: nunca aparece como ficha da mesa', async () => {
+    const campanha = mesa()
+    const { servidor, sessao } = await abrirComoNami(campanha)
+    const copiaId = 'treino_pers_crocodile'
+    servidor.mudarPeloApp([MESTRE_NO_APP, copiaId, [], 'criar', { valor: paraJson(ficha(copiaId, { nome: 'Crocodile', tipo: 'npc' })), baseRev: campanha.revAtual() }])
+    await calmo()
+    const copia = sessao.estado().fichas.find((candidata) => candidata.doc.id === copiaId)
+    expect(copia?.visivel).toBe('treino')
+    expect(copia?.ehMinha).toBe(false)
+    expect(sessao.estado().fichas.filter((candidata) => candidata.visivel === 'mesa').map((candidata) => candidata.doc.id)).not.toContain(copiaId)
   })
 })

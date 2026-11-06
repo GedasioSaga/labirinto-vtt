@@ -4,7 +4,7 @@ import { enderecoDaRota, type Rota } from '../../dados/rotas'
 import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { Conversa } from '../chat/Conversa'
 import { contagemDeNaoLidas } from '../chat/textosDoChat'
-import { aoClicarNoLink, SISTEMA_DO_LOBBY, useDoSite, useSite } from '../contexto'
+import { aoClicarNoLink, useDoSite, useSistemaDoLobby, useSite } from '../contexto'
 import { DecisoesSemFicha } from '../Decisoes'
 import { AvisoDaPagina, Carregando } from '../Estados'
 import { Icone } from '../Icone'
@@ -63,6 +63,7 @@ function Saguao({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }
   const chat = useDoSite((estado) => estado.chat)
   const mural = useDoSite((estado) => estado.mural)
   const variasMesas = useDoSite((estado) => estado.eu.t === 'pronto' && estado.eu.eu.campanhas.length > 1)
+  const sistema = useSistemaDoLobby()
   const mestre = campanha.membros.find((membro) => membro.papel === 'mestre')
   const mesas: Rota = { tela: 'campanhas' }
 
@@ -84,7 +85,7 @@ function Saguao({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }
         <QuemEstaNaMesa campanha={campanha} />
       </header>
       <EntrarNaMesa campanha={campanha} />
-      <DecisoesSemFicha campanha={campanha} sistema={SISTEMA_DO_LOBBY} />
+      <DecisoesSemFicha campanha={campanha} sistema={sistema} />
       <AvisosDaMesa campanha={campanha} mural={mural} />
       <AtalhosDaMesa campanha={campanha} />
       <div className="lo-saguao__vida">

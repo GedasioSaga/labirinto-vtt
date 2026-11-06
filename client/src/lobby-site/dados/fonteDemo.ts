@@ -2,7 +2,8 @@ import { processarDesfazer } from '../../lib/nuvem/desfazer'
 import type { Json } from '../../lib/nuvem/json'
 import type { Cota } from '../../lib/nuvem/limites'
 import { processarLote, type Gravacoes, type LeitorDaCampanha, type ResultadoDoProcessamento } from '../../lib/nuvem/lote'
-import { fichaNoEstado, projetarMembros, projetarOpParaJogador } from '../../lib/nuvem/projecao'
+import { fichaNoEstado, projetarMembros, projetarOpParaJogador, sistemaParaOJogador } from '../../lib/nuvem/projecao'
+import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
 import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidade, type Membro, type MensagemDoServidor, type Op, type OpGravada, type Origem, type PresencaNaMesa, type Recusada } from '../../lib/nuvem/tipos'
 import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
@@ -144,6 +145,9 @@ const SALA_DA_DEMO: Readonly<Record<string, SalaDaMesa>> = {
   },
 }
 
+/** As mesas da demo são de One Piece: o `estado` leva o sistema como o DO o leva (F1), pela mesma projeção. */
+const SISTEMA_DA_DEMO = sistemaParaOJogador(SISTEMA_ONE_PIECE)
+
 /** O convite da demo: a forma do de verdade (`v1.<payload>.<assinatura>`), sem assinatura de verdade. */
 const BILHETE_DA_DEMO = 'v1.ZGVtbw.ZGVtbw'
 
@@ -155,7 +159,9 @@ function estadoPara(campanha: CampanhaEmMemoria, membro: Membro): EstadoComSala 
   })
   const { contaId, nome, papel } = membro
   const sala = SALA_DA_DEMO[campanha.campanhaId] ?? null
-  return { t: 'estado', rev: campanha.revAtual(), fichas, membros: projetarMembros(campanha.todosOsMembros()), eu: { contaId, nome, papel }, sala }
+  const estado: EstadoComSala = { t: 'estado', rev: campanha.revAtual(), fichas, membros: projetarMembros(campanha.todosOsMembros()), eu: { contaId, nome, papel }, sala }
+  if (SISTEMA_DA_DEMO !== null) estado.sistema = SISTEMA_DA_DEMO
+  return estado
 }
 
 /**

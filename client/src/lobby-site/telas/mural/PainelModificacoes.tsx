@@ -55,7 +55,8 @@ export function PainelModificacoes({ campanha, mural, demo }: Props) {
   }
 
   // O jogador não recebe linha de NPC nem de ficha fora da mesa: o filtro só oferece o que pode trazer alguma.
-  const fichas = campanha.fichas.filter((ficha) => ehMestre || (ficha.visivel === 'mesa' && ficha.doc.tipo === 'jogador'))
+  // Só as da mesa: a cópia do inimigo do treino não é ficha de ninguém, nem no filtro do mestre.
+  const fichas = campanha.fichas.filter((ficha) => ficha.visivel === 'mesa' && (ehMestre || ficha.doc.tipo === 'jogador'))
   const visiveis = new Set(campanha.fichas.map((ficha) => ficha.doc.id))
   const lista = feed?.lista ?? []
   const carregando = feed === null || (feed.carregando && !feed.carregada)

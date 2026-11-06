@@ -1,4 +1,5 @@
 import type { Personagem } from '../personagem'
+import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Json } from './json'
 
 /**
@@ -200,8 +201,24 @@ export type MensagemDoCliente =
   | { t: 'desfazer'; opId: string; novoOpId: string; confirmar?: true }
   | { t: 'historico'; fichaId: string; antesDeRev?: number; limite: number }
 
+/**
+ * A base inteira (§5.4). `sistema` (F1) é o sistema que o publicar gravou,
+ * como o jogador o vê (`sistemaParaOJogador`: sem o livro e os catálogos): o
+ * site lê dele os nomes, as abas, os recursos e os atributos. Ausente = DO de
+ * antes da F1, ou sistema guardado que este código não lê; o site cai no One
+ * Piece. O campo é opcional: o site de antes o ignora, e o formato não muda.
+ */
+export interface EstadoDaBase {
+  t: 'estado'
+  rev: number
+  fichas: FichaNoEstado[]
+  membros: MembroProjetado[]
+  eu: MembroProjetado
+  sistema?: SistemaDeRpg
+}
+
 export type MensagemDoServidor =
-  | { t: 'estado'; rev: number; fichas: FichaNoEstado[]; membros: MembroProjetado[]; eu: MembroProjetado }
+  | EstadoDaBase
   | { t: 'ops'; desde: number; ate: number; lista: OpGravada[] }
   | { t: 'ack'; opId: string; rev: number }
   | ({ t: 'conflito' } & Conflito)

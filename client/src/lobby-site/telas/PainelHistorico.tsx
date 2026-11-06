@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import type { MembroProjetado, OpGravada } from '../../lib/nuvem/tipos'
 import type { EstadoDaCampanha, FichaDoSite, SituacaoDoDesfazer } from '../dados/sessaoDaCampanha'
-import { SISTEMA_DO_LOBBY, useAgora, useSite } from './contexto'
+import { useAgora, useSistemaDoLobby, useSite } from './contexto'
 import { Icone } from './Icone'
 import { deParaDaOp, fraseDaOp, horaExata, motivoEmTexto, nomeDoDia, quandoRelativo, rotuloDoCaminho, tomDe, valorEmTexto } from './textos'
 
@@ -128,9 +128,10 @@ interface LinhaProps {
 
 function LinhaDoEvento({ op, ficha, eu, agora, desfeita, refaz, podeDesfazer, emDia, situacao }: LinhaProps) {
   const site = useSite()
+  const sistema = useSistemaDoLobby()
   // "Deixar como está" na confirmação: some daqui (a op continua como está, nada vai ao servidor).
   const [dispensada, setDispensada] = useState<SituacaoDoDesfazer | null>(null)
-  const rotulo = rotuloDoCaminho(SISTEMA_DO_LOBBY, ficha.doc, op.caminho, op.valor, op.antes)
+  const rotulo = rotuloDoCaminho(sistema, ficha.doc, op.caminho, op.valor, op.antes)
   const frase = fraseDaOp(op, rotulo, eu, refaz)
   const dePara = op.desfaz === undefined ? deParaDaOp(op) : null
   const nomeDoBotao = op.desfaz === undefined ? 'Desfazer' : 'Refazer'

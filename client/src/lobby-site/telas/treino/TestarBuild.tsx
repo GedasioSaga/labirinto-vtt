@@ -3,7 +3,7 @@ import type { Personagem } from '../../../lib/personagem'
 import { LUTAS_DA_SERIE, type ComparacaoDeBuild } from '../../../lib/treino/cemLutas'
 import { compararBuildNoWorker, type LutasNoWorker } from '../../../lib/treino/lutasNoWorker'
 import { sementeNova } from '../../../lib/treino/sorteio'
-import { SISTEMA_DO_LOBBY } from '../contexto'
+import { useSistemaDoLobby } from '../contexto'
 import { assentarAnimacao } from './ArenaDaLuta'
 import { AvisoDeMontagemVelha, BarraDasLutas, NumerosDaSerie, type Progresso } from './CemLutas'
 import { EditorDeTecnicas } from './juiz/CamposDoTreino'
@@ -17,11 +17,6 @@ import { apagarRascunho, comRascunho, guardarRascunho, lerRascunho, NUMERO_DO_RA
  * sementes com a ficha de agora e com o rascunho, no worker da T4. O rascunho
  * nunca vai ao servidor e nunca muda a ficha de verdade.
  */
-
-const ATRIBUTOS = SISTEMA_DO_LOBBY.atributos
-const RECURSOS_COM_MAXIMO = SISTEMA_DO_LOBBY.recursos.filter((recurso) => recurso.atualEMaximo === true)
-/** Os de um número só (o Escudo): o rascunho muda o valor, não um máximo. */
-const RECURSOS_DE_UM_NUMERO = SISTEMA_DO_LOBBY.recursos.filter((recurso) => recurso.atualEMaximo !== true)
 
 interface PropsDoBuild {
   campanhaId: string
@@ -96,6 +91,10 @@ function ResultadoDaComparacao({ comparacao, quem, velha }: { comparacao: Compar
 }
 
 export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, aoMudarRascunho }: PropsDoBuild) {
+  // Os campos do rascunho são os do sistema da campanha: atributos, máximos e os de um número só (o Escudo, que muda o valor).
+  const sistema = useSistemaDoLobby()
+  const recursosComMaximo = sistema.recursos.filter((recurso) => recurso.atualEMaximo === true)
+  const recursosDeUmNumero = sistema.recursos.filter((recurso) => recurso.atualEMaximo !== true)
   const [fichaId, setFichaId] = useState<string | null>(fichaInicial ?? fichas[0]?.id ?? null)
   const doc = fichas.find((ficha) => ficha.id === fichaId) ?? fichas[0]
   const [rascunho, setRascunho] = useState<RascunhoDeTreino | null>(() => (doc === undefined ? null : lerRascunho(campanhaId, doc.id, demo)))
@@ -173,7 +172,7 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
     setComparacao(null)
     setProgresso({ feitas: 0, total: 2 * LUTAS_DA_SERIE })
     const daCorrida = { assinatura, quem: quemLutou(montagem(doc)) }
-    const corrida = compararBuildNoWorker({ sistema: SISTEMA_DO_LOBBY, atual: antes.lutadores, rascunho: depois.lutadores, lado: 'a', semente: sementeNova() }, (feitas, total) =>
+    const corrida = compararBuildNoWorker({ sistema, atual: antes.lutadores, rascunho: depois.lutadores, lado: 'a', semente: sementeNova() }, (feitas, total) =>
       setProgresso({ feitas, total }),
     )
     emCurso.current = corrida
@@ -218,18 +217,18 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
 
       <fieldset className="lo-tr-build__grade">
         <legend>Atributos de {doc.nome}</legend>
-        {ATRIBUTOS.map((atributo) => {
+        {sistema.atributos.map((atributo) => {
           const naFicha = doc.atributos[atributo.id] ?? 0
           return <CampoDoRascunho key={`${doc.id}-${atributo.id}`} nome={atributo.nome} naFicha={naFicha} valor={atual.atributos[atributo.id] ?? naFicha} aoMudar={(valor) => mudar('atributos', atributo.id, valor, naFicha)} />
         })}
       </fieldset>
       <fieldset className="lo-tr-build__grade">
         <legend>Status</legend>
-        {RECURSOS_COM_MAXIMO.map((recurso) => {
+        {recursosComMaximo.map((recurso) => {
           const naFicha = doc.maximos[recurso.id] ?? 0
           return <CampoDoRascunho key={`${doc.id}-${recurso.id}`} nome={`${recurso.nome} máxima`} naFicha={naFicha} valor={atual.maximos[recurso.id] ?? naFicha} aoMudar={(valor) => mudar('maximos', recurso.id, valor, naFicha)} />
         })}
-        {RECURSOS_DE_UM_NUMERO.map((recurso) => {
+        {recursosDeUmNumero.map((recurso) => {
           const naFicha = doc.recursos[recurso.id] ?? 0
           return <CampoDoRascunho key={`${doc.id}-${recurso.id}`} nome={recurso.nome} naFicha={naFicha} valor={atual.recursos[recurso.id] ?? naFicha} aoMudar={(valor) => mudar('recursos', recurso.id, valor, naFicha)} />
         })}
@@ -240,7 +239,7 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
         titulo={`Técnicas de treino de ${doc.nome}`}
         tecnicas={atual.tecnicas}
         personagem={comRascunho(doc, rascunho)}
-        sistema={SISTEMA_DO_LOBBY}
+        sistema={sistema}
         onMudar={(tecnicas) => gravar({ ...atual, tecnicas, salvoEm: Date.now() })}
       />
 

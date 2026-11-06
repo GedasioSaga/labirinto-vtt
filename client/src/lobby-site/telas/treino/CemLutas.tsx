@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { LUTAS_DA_SERIE, type ResultadoDaSerie } from '../../../lib/treino/cemLutas'
 import { rodarSerieNoWorker, type LutasNoWorker } from '../../../lib/treino/lutasNoWorker'
 import { sementeNova } from '../../../lib/treino/sorteio'
-import { SISTEMA_DO_LOBBY } from '../contexto'
+import { useSistemaDoLobby } from '../contexto'
 import { Icone } from '../Icone'
 import { assentarAnimacao } from './ArenaDaLuta'
 import { assinaturaDaMontagem, lutadoresDaMontagem, problemaDaMontagem, quemLutou, type MontagemDaLuta } from './lutaDeTreino'
@@ -92,6 +92,7 @@ interface ResultadoDasLutas {
 }
 
 export function CemLutas({ montagem }: { montagem: MontagemDaLuta }) {
+  const sistema = useSistemaDoLobby()
   const [semente, setSemente] = useState(() => sementeNova())
   const [progresso, setProgresso] = useState<Progresso | null>(null)
   const [resultado, setResultado] = useState<ResultadoDasLutas | null>(null)
@@ -117,7 +118,7 @@ export function CemLutas({ montagem }: { montagem: MontagemDaLuta }) {
     setProgresso({ feitas: 0, total: LUTAS_DA_SERIE })
     // Tirada agora: se a montagem mudar com as lutas rodando, o resultado chega dizendo com qual foi.
     const daCorrida = { assinatura, quem: quemLutou(montagem) }
-    const corrida = rodarSerieNoWorker({ sistema: SISTEMA_DO_LOBBY, lutadores: montada.lutadores, semente: comSemente }, (feitas, total) => setProgresso({ feitas, total }))
+    const corrida = rodarSerieNoWorker({ sistema, lutadores: montada.lutadores, semente: comSemente }, (feitas, total) => setProgresso({ feitas, total }))
     emCurso.current = corrida
     corrida.saida
       .then((saida) => {

@@ -3,6 +3,7 @@ import { useStore } from 'zustand'
 import type { EstadoDoSite, Site } from '../dados/lobbyStore'
 import type { FonteDaDemo } from '../dados/fonteDemo'
 import type { Rota } from '../dados/rotas'
+import type { EstadoDaCampanha } from '../dados/sessaoDaCampanha'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
 
@@ -54,7 +55,18 @@ export function useAgora(passoMs = 30_000): number {
 }
 
 /**
- * O sistema das fichas no site. O protocolo (o `estado` do servidor) ainda não
- * diz o sistema da campanha; a v1 do Lobby é da mesa de One Piece, então é ele.
+ * O sistema quando o `estado` não traz o da campanha (DO de antes da F1, ou um
+ * sistema que este site não lê): a v1 do Lobby é da mesa de One Piece.
  */
-export const SISTEMA_DO_LOBBY: SistemaDeRpg = SISTEMA_ONE_PIECE
+export const SISTEMA_DE_RECUO: SistemaDeRpg = SISTEMA_ONE_PIECE
+
+/** O sistema das fichas de uma campanha: o que o mestre publicou (o `estado` traz); sem ele, o de recuo. */
+export function sistemaDaCampanha(campanha: Pick<EstadoDaCampanha, 'sistema'> | null): SistemaDeRpg {
+  if (campanha === null || campanha.sistema === null) return SISTEMA_DE_RECUO
+  return campanha.sistema
+}
+
+/** O sistema da campanha aberta no site, para as telas: rótulos, abas, recursos e atributos. */
+export function useSistemaDoLobby(): SistemaDeRpg {
+  return useDoSite((estado) => sistemaDaCampanha(estado.campanha))
+}

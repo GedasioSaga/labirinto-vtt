@@ -1,4 +1,5 @@
 import { diferencas } from '../../lib/nuvem/diferencas'
+import { ehCopiaDeTreino } from '../../lib/nuvem/projecao'
 import { criarFila, type ArmazenamentoDaFila, type EntradaDaFila, type Fila, type ProblemaNaFila, type ResultadoNaFila } from '../../lib/nuvem/fila'
 import type { Json } from '../../lib/nuvem/json'
 import type { RespostaDaOp } from '../../lib/nuvem/lote'
@@ -14,6 +15,7 @@ import {
   type Visibilidade,
 } from '../../lib/nuvem/tipos'
 import type { Personagem } from '../../lib/personagem'
+import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
 import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
 import type { MensagemDoDueloDoServidor, PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
@@ -118,6 +120,13 @@ export interface EstadoDaCampanha {
    * ela muda, então a sessão a esquece quando o canal cai e a recebe de novo na volta.
    */
   sala: SalaDaMesa | null
+  /**
+   * O sistema que o mestre publicou (F1), do último `estado` aceito, sem o
+   * livro; `null` = o servidor não mandou (DO de antes da F1, ou um sistema
+   * que este site não lê): as telas caem no One Piece (`sistemaDaCampanha`).
+   * Fica quando o canal cai: a volta com ops não traz `estado`.
+   */
+  sistema: SistemaDeRpg | null
 }
 
 export type ResultadoDaEdicao =
@@ -240,6 +249,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
   let eu: MembroProjetado | null = null
   let naMesa: PresencaNaMesa[] = []
   let sala: SalaDaMesa | null = null
+  let sistema: SistemaDeRpg | null = null
   const emVoo = new Set<string>()
   const historicos = new Map<string, HistoricoDaFicha>()
   /** `fichaId` -> a página pedida (`antesDeRev`; `null` = a primeira). */
@@ -261,8 +271,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
   function montarEstado(): EstadoDaCampanha {
     const negadas = new Set(fila.paraDecidir().filter((entrada) => entrada.situacao.t === 'negado').map((entrada) => entrada.op.fichaId))
     const fichas = [...fila.vistaLocal().values()].map((doc): FichaDoSite => {
-      // Ficha que chegou por op (criada depois do `estado`) e ainda sem meta: só ver, até o próximo `estado`.
-      const daFicha = meta.get(doc.id) ?? { visivel: 'mesa', ehMinha: eu?.papel === 'mestre', nomeDoDono: null }
+      const daFicha = meta.get(doc.id) ?? metaAteOEstado(doc.id)
       return { doc, ...daFicha, naoAceita: negadas.has(doc.id) }
     })
     return {
@@ -280,7 +289,19 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       desfazeres: new Map(desfazeres),
       erroLocal,
       sala,
+      sistema,
     }
+  }
+
+  /**
+   * Ficha que chegou por op (criada depois do `estado`) e ainda sem meta: só
+   * ver, até o próximo `estado`, que o DO manda logo depois de toda ficha
+   * criada. A visibilidade sai do id, como o app reconhece a cópia que volta
+   * pelo `desde` (`ehCopiaDeTreino`): a cópia do inimigo do treino nunca
+   * aparece, nem por um instante, como ficha de colega.
+   */
+  function metaAteOEstado(fichaId: string): MetaDaFicha {
+    return { visivel: ehCopiaDeTreino(fichaId) ? 'treino' : 'mesa', ehMinha: eu?.papel === 'mestre', nomeDoDono: null }
   }
 
   function publicar(): void {
@@ -480,6 +501,8 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       meta = new Map(mensagem.fichas.map((ficha): [string, MetaDaFicha] => [ficha.doc.id, { visivel: ficha.visivel, ehMinha: ficha.ehMinha, nomeDoDono: ficha.nomeDoDono }]))
       membros = mensagem.membros
       eu = mensagem.eu
+      // Sem o campo (DO de antes da F1), nenhum: um sistema de antes não vale para a base nova.
+      sistema = mensagem.sistema ?? null
       carregada = true
     }
     marcarSincronizada()

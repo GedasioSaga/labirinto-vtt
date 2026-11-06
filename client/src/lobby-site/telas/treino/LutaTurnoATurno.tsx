@@ -3,7 +3,7 @@ import type { CasaDaArena } from '../../../lib/arena/grade'
 import type { JogadaDoDuelo } from '../../../lib/treino/duelo'
 import { sementeNova } from '../../../lib/treino/sorteio'
 import { dueloParaOLado } from '../../../lib/treino/vistaDoDuelo'
-import { SISTEMA_DO_LOBBY } from '../contexto'
+import { useSistemaDoLobby } from '../contexto'
 import { Icone } from '../Icone'
 import { ArenaDaLuta, type JogadasDaLuta } from './ArenaDaLuta'
 import { comecarLutaLocal, jogarNaLuta, lutaAteOFim, passoDoInimigo, problemaDaMontagem, type LutaLocal, type MontagemDaLuta } from './lutaDeTreino'
@@ -47,7 +47,8 @@ export function LutaTurnoATurno({ montagem, nomeDoInimigo }: { montagem: Montage
   const [aberta, setAberta] = useState(false)
   const [recusa, setRecusa] = useState<{ texto: string; n: number } | null>(null)
   // O fio e a vista do seu lado (o lado A), como o servidor monta para o duelo.
-  const lado = useMemo(() => (luta === null ? null : dueloParaOLado(luta.duelo, 'a', SISTEMA_DO_LOBBY)), [luta])
+  const sistema = useSistemaDoLobby()
+  const lado = useMemo(() => (luta === null ? null : dueloParaOLado(luta.duelo, 'a', sistema)), [luta, sistema])
   const problema = problemaDaMontagem(montagem)
 
   // O robô joga quando a vez não é sua (ou quando ele joga por você), com uma pausa para dar tempo de ler.
@@ -69,7 +70,7 @@ export function LutaTurnoATurno({ montagem, nomeDoInimigo }: { montagem: Montage
   }
 
   function comecar(qual: MontagemDaLuta, comSemente: number) {
-    const comeco = comecarLutaLocal(qual, SISTEMA_DO_LOBBY, comSemente)
+    const comeco = comecarLutaLocal(qual, sistema, comSemente)
     if (!comeco.ok) {
       recusar(comeco.motivo)
       return

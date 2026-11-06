@@ -2,8 +2,8 @@ import { cartaDaVez } from '../../../lib/batalha/turnos'
 import type { Personagem } from '../../../lib/personagem'
 import type { DueloNoFio } from '../../../lib/treino/duelo'
 import type { LadoDoTreino } from '../../../lib/treino/mesaEmMemoria'
+import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../../../lib/vidaDaFicha'
-import { SISTEMA_DO_LOBBY } from '../contexto'
 
 /**
  * QUEM JOGA AGORA numa luta do treino ou do duelo (o formato do fio,
@@ -12,11 +12,10 @@ import { SISTEMA_DO_LOBBY } from '../contexto'
  * da Arena (`ArenaDaLuta`) diz "o robô está jogando" ou "esperando o colega".
  */
 
-const RECURSO_DA_VIDA = recursoDeVida(SISTEMA_DO_LOBBY)
-
-/** A cópia de pé? Sem vida legível, de pé (a mesma leitura do fim da luta). */
-export function dePe(doc: Personagem): boolean {
-  const vida = RECURSO_DA_VIDA === null ? null : vidaDoPersonagem(doc, RECURSO_DA_VIDA)
+/** A cópia de pé, pela Vida do sistema da campanha? Sem vida legível, de pé (a mesma leitura do fim da luta). */
+export function dePe(doc: Personagem, sistema: SistemaDeRpg): boolean {
+  const recurso = recursoDeVida(sistema)
+  const vida = recurso === null ? null : vidaDoPersonagem(doc, recurso)
   return vida === null || vida.atual > 0
 }
 
