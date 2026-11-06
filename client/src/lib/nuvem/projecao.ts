@@ -1,3 +1,5 @@
+import { partesDoLivro } from '../../net/protocoloDoLivro'
+import { resumoDoLivro, type ResumoDoLivro } from '../livroDeRegras'
 import type { Personagem } from '../personagem'
 import { lerSistemaDeRpg, type SistemaDeRpg } from '../sistemaDeRpg'
 import { alvoDoCaminho, CAMPOS_DO_MESTRE, ESQUEMA_DO_CAMINHO, type NomeDaRegra } from './caminho'
@@ -140,6 +142,63 @@ export function sistemaParaOJogador(publicado: unknown): SistemaDeRpg | null {
   const semLivro = ehRegistro(publicado) ? Object.fromEntries(Object.entries(publicado).filter(([chave]) => !PARTES_DO_LIVRO.has(chave))) : publicado
   const lido = lerSistemaDeRpg(semLivro)
   return lido.ok ? lido.sistema : null
+}
+
+/**
+ * O sistema publicado como o jogador o recebe no `estado` (F1): o sistema sem
+ * o livro, o resumo do livro (o que acende o "Livro" e o "Escolher do livro"
+ * antes de baixar; o livro vem à parte, sob pedido, pelo `livro.pedir`) e a
+ * marca dos dois. O site devolve a marca no `ola`: na volta com ops, marca
+ * diferente da de agora = o mestre republicou com o canal caído, e o DO manda
+ * o `estado` em vez das ops (um republicar que só muda o sistema não gera op
+ * nem sobe a rev, então só a rev não acusaria).
+ */
+export interface SistemaDoJogador {
+  sistema: SistemaDeRpg
+  livro: ResumoDoLivro | null
+  marca: string
+}
+
+/** FNV-1a de 32 bits: a marca só precisa mudar quando o texto muda, não guardar segredo. */
+function fnv1a(texto: string): string {
+  let hash = 0x811c9dc5
+  for (let indice = 0; indice < texto.length; indice += 1) {
+    hash ^= texto.charCodeAt(indice)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+/** A marca do que o jogador vê do sistema: mesmo sistema e mesmo resumo = mesma marca. */
+export function marcaDoSistema(sistema: SistemaDeRpg, livro: ResumoDoLivro | null): string {
+  return fnv1a(JSON.stringify([sistema, livro]))
+}
+
+/**
+ * O publicado lido inteiro, com o livro; `null` = não se lê, ou é de outro
+ * sistema que o lido sem livro (a leitura do livro deu outro resultado).
+ */
+function publicadoComLivro(publicado: unknown, sistemaId: string | null): SistemaDeRpg | null {
+  const lido = lerSistemaDeRpg(publicado)
+  return lido.ok && (sistemaId === null || lido.sistema.id === sistemaId) ? lido.sistema : null
+}
+
+/** O `sistema` do `estado` com o resumo do livro e a marca; `null` = o guardado não se lê (o `estado` vai sem nada disso). */
+export function sistemaDoJogador(publicado: unknown): SistemaDoJogador | null {
+  const sistema = sistemaParaOJogador(publicado)
+  if (sistema === null) return null
+  // O livro torto não derruba o sistema: a ficha funciona, só sem o "Livro".
+  const completo = publicadoComLivro(publicado, sistema.id)
+  const livro = completo === null ? null : resumoDoLivro(completo)
+  return { sistema, livro, marca: marcaDoSistema(sistema, livro) }
+}
+
+/** O livro do publicado em partes, para o `livro.pedir`; `null` = sem livro, não se lê ou passa do teto de partes (o DO recusa). */
+export function partesDoLivroPublicado(publicado: unknown): { sistemaId: string; partes: string[] } | null {
+  const completo = publicadoComLivro(publicado, null)
+  if (completo === null || resumoDoLivro(completo) === null) return null
+  const partes = partesDoLivro(completo)
+  return partes === null ? null : { sistemaId: completo.id, partes }
 }
 
 /** Os membros como o jogador os vê: só os ativos, sem e-mail (só `/api/eu` devolve o próprio). */

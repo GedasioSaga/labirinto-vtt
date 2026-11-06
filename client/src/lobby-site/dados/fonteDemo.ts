@@ -2,7 +2,7 @@ import { processarDesfazer } from '../../lib/nuvem/desfazer'
 import type { Json } from '../../lib/nuvem/json'
 import type { Cota } from '../../lib/nuvem/limites'
 import { processarLote, type Gravacoes, type LeitorDaCampanha, type ResultadoDoProcessamento } from '../../lib/nuvem/lote'
-import { fichaNoEstado, projetarMembros, projetarOpParaJogador, sistemaParaOJogador } from '../../lib/nuvem/projecao'
+import { fichaNoEstado, partesDoLivroPublicado, projetarMembros, projetarOpParaJogador, sistemaDoJogador } from '../../lib/nuvem/projecao'
 import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
 import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidade, type Membro, type MensagemDoServidor, type Op, type OpGravada, type Origem, type PresencaNaMesa, type Recusada } from '../../lib/nuvem/tipos'
 import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
@@ -145,8 +145,9 @@ const SALA_DA_DEMO: Readonly<Record<string, SalaDaMesa>> = {
   },
 }
 
-/** As mesas da demo são de One Piece: o `estado` leva o sistema como o DO o leva (F1), pela mesma projeção. */
-const SISTEMA_DA_DEMO = sistemaParaOJogador(SISTEMA_ONE_PIECE)
+/** As mesas da demo são de One Piece: o `estado` leva o sistema como o DO o leva (F1), pela mesma projeção, e o livro vem sob pedido. */
+const SISTEMA_DA_DEMO = sistemaDoJogador(SISTEMA_ONE_PIECE)
+const LIVRO_DA_DEMO = partesDoLivroPublicado(SISTEMA_ONE_PIECE)
 
 /** O convite da demo: a forma do de verdade (`v1.<payload>.<assinatura>`), sem assinatura de verdade. */
 const BILHETE_DA_DEMO = 'v1.ZGVtbw.ZGVtbw'
@@ -160,7 +161,11 @@ function estadoPara(campanha: CampanhaEmMemoria, membro: Membro): EstadoComSala 
   const { contaId, nome, papel } = membro
   const sala = SALA_DA_DEMO[campanha.campanhaId] ?? null
   const estado: EstadoComSala = { t: 'estado', rev: campanha.revAtual(), fichas, membros: projetarMembros(campanha.todosOsMembros()), eu: { contaId, nome, papel }, sala }
-  if (SISTEMA_DA_DEMO !== null) estado.sistema = SISTEMA_DA_DEMO
+  if (SISTEMA_DA_DEMO !== null) {
+    estado.sistema = SISTEMA_DA_DEMO.sistema
+    estado.marcaDoSistema = SISTEMA_DA_DEMO.marca
+    if (SISTEMA_DA_DEMO.livro !== null) estado.livro = SISTEMA_DA_DEMO.livro
+  }
   return estado
 }
 
@@ -294,7 +299,10 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
         clienteId = mensagem.clienteId
         const rev = alvo.revAtual()
         const desde = mensagem.desdeRev
-        if (desde === null || desde > rev || rev - desde > LIMITE_SEM_SNAPSHOT) entregar(estadoPara(alvo, eu))
+        // A marca como no DO: a da demo nunca muda, mas o site que voltou sem ela (ou com outra) recebe o `estado`.
+        const marcaDeAgora = SISTEMA_DA_DEMO === null ? null : SISTEMA_DA_DEMO.marca
+        const sistemaVelho = mensagem.marcaDoSistema !== undefined && mensagem.marcaDoSistema !== marcaDeAgora
+        if (desde === null || desde > rev || rev - desde > LIMITE_SEM_SNAPSHOT || sistemaVelho) entregar(estadoPara(alvo, eu))
         else entregar({ t: 'ops', desde, ate: rev, lista: projetarOps(alvo, eu, alvo.todasAsOps().filter((op) => op.rev > desde)) })
         entregar(presencaPara(alvo, eu, chegou))
         mandarMural()
@@ -319,6 +327,16 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
         const daFicha = alvo.todasAsOps().filter((op) => op.fichaId === mensagem.fichaId && op.rev < antesDe).reverse()
         const pagina = daFicha.slice(0, mensagem.limite)
         entregar({ t: 'historico', fichaId: mensagem.fichaId, lista: projetarOps(alvo, eu, pagina), temMaisAntigas: daFicha.length > mensagem.limite })
+        return
+      }
+      case 'livro.pedir': {
+        // Como o `livro` do DO: as partes, ou a recusa para o sistema que não é o de agora.
+        if (LIVRO_DA_DEMO === null || LIVRO_DA_DEMO.sistemaId !== mensagem.sistemaId) {
+          entregar({ t: 'livro.recusa', reqId: mensagem.reqId })
+          return
+        }
+        const total = LIVRO_DA_DEMO.partes.length
+        LIVRO_DA_DEMO.partes.forEach((texto, indice) => entregar({ t: 'livro.parte', reqId: mensagem.reqId, indice, total, texto }))
         return
       }
     }

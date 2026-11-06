@@ -14,8 +14,11 @@ import {
   type PresencaNaMesa,
   type Visibilidade,
 } from '../../lib/nuvem/tipos'
+import type { ResumoDoLivro } from '../../lib/livroDeRegras'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { lerPacoteDoLivro, receberParte, type ChegadaDoLivro } from '../../net/protocoloDoLivro'
+import type { LivroDoJogador } from '../../player/playerConnection'
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
 import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
 import type { MensagemDoDueloDoServidor, PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
@@ -124,9 +127,15 @@ export interface EstadoDaCampanha {
    * O sistema que o mestre publicou (F1), do último `estado` aceito, sem o
    * livro; `null` = o servidor não mandou (DO de antes da F1, ou um sistema
    * que este site não lê): as telas caem no One Piece (`sistemaDaCampanha`).
-   * Fica quando o canal cai: a volta com ops não traz `estado`.
+   * Fica quando o canal cai: a volta com ops não traz `estado`, e o `ola` da
+   * volta leva a marca dele, para o DO mandar o `estado` se o mestre
+   * republicou nesse meio-tempo.
    */
   sistema: SistemaDeRpg | null
+  /** O resumo do livro desse sistema (F1): acende o "Livro" e o "Escolher do livro". `null` = sem livro. */
+  livro: ResumoDoLivro | null
+  /** O livro pedido pelo `pedirLivro`, como está agora; `undefined` = não pedido (ou o sistema mudou depois). */
+  livroDeRegras: LivroDoJogador | undefined
 }
 
 export type ResultadoDaEdicao =
@@ -161,6 +170,8 @@ export interface SessaoDaCampanha {
   enviarDoMural(pedido: PedidoDoMural): boolean
   /** Um pedido do duelo (T7) pelo mesmo canal; `false` como no `enviarDoChat`. */
   enviarDoDuelo(pedido: PedidoDoDuelo): boolean
+  /** Pede o livro do sistema (F1), como o "Livro" da ficha na sala LAN. `false` = sem canal, ou o sistema não tem livro. */
+  pedirLivro(): boolean
   fechar(): void
 }
 
@@ -250,6 +261,13 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
   let naMesa: PresencaNaMesa[] = []
   let sala: SalaDaMesa | null = null
   let sistema: SistemaDeRpg | null = null
+  /** A marca do sistema do último `estado` aceito (F1): vai no `ola`. */
+  let marcaDoSistema: string | null = null
+  let resumoDoLivro: ResumoDoLivro | null = null
+  let livroDeRegras: LivroDoJogador | undefined = undefined
+  /** As partes do livro pedido que já chegaram; `null` = nenhum pedido esperando. */
+  let chegadaDoLivro: ChegadaDoLivro | null = null
+  let cancelarPrazoDoLivro: (() => void) | null = null
   const emVoo = new Set<string>()
   const historicos = new Map<string, HistoricoDaFicha>()
   /** `fichaId` -> a página pedida (`antesDeRev`; `null` = a primeira). */
@@ -290,6 +308,8 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       erroLocal,
       sala,
       sistema,
+      livro: resumoDoLivro,
+      livroDeRegras,
     }
   }
 
@@ -353,7 +373,64 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
   }
 
   function mandarOla(): void {
-    canal?.enviar({ t: 'ola', desdeRev: carregada ? fila.revConfirmada() : null, v: VERSAO_DO_FORMATO, clienteId })
+    canal?.enviar({ t: 'ola', desdeRev: carregada ? fila.revConfirmada() : null, v: VERSAO_DO_FORMATO, clienteId, marcaDoSistema })
+  }
+
+  // ── O livro (F1) ─────────────────────────────────────────────────────────
+
+  function pararPrazoDoLivro(): void {
+    cancelarPrazoDoLivro?.()
+    cancelarPrazoDoLivro = null
+  }
+
+  /** O pedido do livro acabou sem livro (recusa, parte torta, prazo, canal caído): o "Livro" pede de novo. */
+  function livroFalhou(): void {
+    pararPrazoDoLivro()
+    chegadaDoLivro = null
+    livroDeRegras = { estado: 'falhou' }
+  }
+
+  /** O sistema mudou (marca nova): o livro de antes não vale para ele. */
+  function esquecerLivro(): void {
+    pararPrazoDoLivro()
+    chegadaDoLivro = null
+    livroDeRegras = undefined
+  }
+
+  function pedirLivro(): boolean {
+    if (!sincronizada || canal === null || sistema === null || resumoDoLivro === null) return false
+    // Já chegou ou está chegando: o mesmo livro, sem pedir de novo.
+    if (livroDeRegras !== undefined && livroDeRegras.estado !== 'falhou') return true
+    const reqId = novoId()
+    if (!canal.enviar({ t: 'livro.pedir', reqId, sistemaId: sistema.id })) return false
+    chegadaDoLivro = { reqId, total: null, partes: [] }
+    livroDeRegras = { estado: 'chegando' }
+    pararPrazoDoLivro()
+    cancelarPrazoDoLivro = relogio.depois(PRAZO_DA_RESPOSTA_MS, () => {
+      cancelarPrazoDoLivro = null
+      if (chegadaDoLivro !== null && chegadaDoLivro.reqId === reqId) {
+        livroFalhou()
+        publicar()
+      }
+    })
+    publicar()
+    return true
+  }
+
+  function receberParteDoLivro(mensagem: Extract<MensagemDoSite, { t: 'livro.parte' }>): void {
+    if (chegadaDoLivro === null || sistema === null) return
+    const passo = receberParte(chegadaDoLivro, { type: 'livro.parte', reqId: mensagem.reqId, indice: mensagem.indice, total: mensagem.total, texto: mensagem.texto })
+    if (passo.tipo === 'alheia') return
+    if (passo.tipo === 'torto') return livroFalhou()
+    if (passo.tipo === 'faltando') {
+      chegadaDoLivro = passo.chegada
+      return
+    }
+    const pacote = lerPacoteDoLivro(passo.texto, sistema)
+    if (pacote === null) return livroFalhou()
+    pararPrazoDoLivro()
+    chegadaDoLivro = null
+    livroDeRegras = { estado: 'pronto', sistemaId: sistema.id, livro: pacote.livro, catalogos: pacote.catalogos }
   }
 
   function caiu(motivo: MotivoDoFechamento): void {
@@ -364,6 +441,8 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     pararPrazo()
     pararPrazoDoEstado()
     pararAdiados()
+    // As partes que faltavam não vêm por outro canal: o pedido falhou, e o "Livro" pede de novo.
+    if (chegadaDoLivro !== null) livroFalhou()
     if (encerrada) return
     opcoes.chat?.aoCair()
     opcoes.mural?.aoCair()
@@ -405,7 +484,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
    */
   function pedirEstado(): void {
     sincronizada = false
-    canal?.enviar({ t: 'ola', desdeRev: null, v: VERSAO_DO_FORMATO, clienteId })
+    canal?.enviar({ t: 'ola', desdeRev: null, v: VERSAO_DO_FORMATO, clienteId, marcaDoSistema })
     pararPrazoDoEstado()
     cancelarPrazoDoEstado = relogio.depois(PRAZO_DA_RESPOSTA_MS, () => {
       cancelarPrazoDoEstado = null
@@ -478,6 +557,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
         pararPrazo()
         pararPrazoDoEstado()
         pararAdiados()
+        if (chegadaDoLivro !== null) livroFalhou()
         opcoes.chat?.aoCair()
         opcoes.mural?.aoCair()
         opcoes.duelo?.aoCair()
@@ -487,6 +567,12 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
         break
       case 'sala':
         sala = mensagem.sala
+        break
+      case 'livro.parte':
+        receberParteDoLivro(mensagem)
+        break
+      case 'livro.recusa':
+        if (chegadaDoLivro !== null && chegadaDoLivro.reqId === mensagem.reqId) livroFalhou()
         break
     }
     publicar()
@@ -503,6 +589,11 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       eu = mensagem.eu
       // Sem o campo (DO de antes da F1), nenhum: um sistema de antes não vale para a base nova.
       sistema = mensagem.sistema ?? null
+      const marca = mensagem.marcaDoSistema ?? null
+      // Marca nova = o mestre republicou: o livro pedido antes é do sistema velho.
+      if (marca !== marcaDoSistema) esquecerLivro()
+      marcaDoSistema = marca
+      resumoDoLivro = mensagem.livro ?? null
       carregada = true
     }
     marcarSincronizada()
@@ -722,6 +813,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       if (!sincronizada || canal === null) return false
       return canal.enviar(pedido)
     },
+    pedirLivro,
     fechar() {
       encerrada = true
       conexao = 'fechada'
@@ -730,6 +822,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       pararAdiados()
       pararPrazo()
       pararPrazoDoEstado()
+      pararPrazoDoLivro()
       canal?.fechar()
       canal = null
     },

@@ -3,6 +3,7 @@ import {
   lerJsonSeguro,
   lerPedidoDoChat,
   lerPedidoDoMural,
+  parseLivroPedir,
   proprio,
   segmentoValido,
   type LeituraDoPedidoDoChat,
@@ -60,7 +61,10 @@ export function lerAnexo(valor: unknown): Anexo | null {
 }
 
 export type Frame =
-  | { t: 'ola'; desdeRev: number | null; v: unknown; clienteId: string }
+  /** `marcaDoSistema` (F1): `undefined` = site de antes dela (o DO segue só a rev); `null` = o site não tem sistema do servidor. */
+  | { t: 'ola'; desdeRev: number | null; v: unknown; clienteId: string; marcaDoSistema: string | null | undefined }
+  /** O `livro.pedir` (F1), lido pelo mesmo leitor da sala LAN. */
+  | { t: 'livro'; pedido: { reqId: string; sistemaId: string } }
   | { t: 'ops'; lote: unknown[] }
   /** O pedido inteiro vai para `processarDesfazer`, que lê `opId`, `novoOpId` e `confirmar`. */
   | { t: 'desfazer'; pedido: Record<string, unknown> }
@@ -74,6 +78,8 @@ export type Frame =
 
 /** O histórico vem em páginas de 50 (§5.3). */
 export const LIMITE_DO_HISTORICO = 50
+/** A marca do sistema que o DO dá tem 8 caracteres (`marcaDoSistema`); a folga aceita uma marca mais longa no futuro. */
+const MARCA_MAX = 64
 
 function revOuNulo(valor: unknown): number | null | undefined {
   if (valor === undefined || valor === null) return null
@@ -89,8 +95,14 @@ function frameDoRegistro(registro: Record<string, unknown>): Frame | null {
     case 'ola': {
       const desdeRev = revOuNulo(proprio(registro, 'desdeRev'))
       const clienteId = proprio(registro, 'clienteId')
+      const marcaDoSistema = proprio(registro, 'marcaDoSistema')
       if (desdeRev === undefined || !segmentoValido(clienteId)) return null
-      return { t: 'ola', desdeRev, v: proprio(registro, 'v'), clienteId }
+      if (marcaDoSistema !== undefined && marcaDoSistema !== null && !(typeof marcaDoSistema === 'string' && marcaDoSistema.length <= MARCA_MAX)) return null
+      return { t: 'ola', desdeRev, v: proprio(registro, 'v'), clienteId, marcaDoSistema }
+    }
+    case 'livro.pedir': {
+      const pedido = parseLivroPedir(registro)
+      return pedido === null ? null : { t: 'livro', pedido: { reqId: pedido.reqId, sistemaId: pedido.sistemaId } }
     }
     case 'ops': {
       const lote = proprio(registro, 'lote')

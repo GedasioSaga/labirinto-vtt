@@ -258,6 +258,12 @@ function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampan
     revDaEdicao.current = revDeAgora(site)
   }, [site])
 
+  /** "Livro" e "Escolher do livro": pede o livro pelo canal da campanha. Sem sessão aberta, não saiu. */
+  function pedirLivro(): boolean {
+    const sessao = site.sessao()
+    return sessao !== null && sessao.pedirLivro()
+  }
+
   function salvar(base: Personagem, rascunho: Personagem): SalvarPersonagem {
     if (!emDia) return { ok: false, erro: 'Sem internet: a edição fica pausada até a conexão voltar. O que você escreveu continua aqui.' }
     // Como o mestre, a diferença inclui a imagem: é por ela que a tela sabe se a imagem ficou de fora.
@@ -319,6 +325,11 @@ function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampan
         inventarioDe={() => inventario}
         somenteLeitura={!ficha.ehMinha}
         aoAbrirEdicao={aoAbrirEdicao}
+        // O livro do sistema publicado (F1): o resumo veio no `estado` e o livro vem sob pedido, como na sala LAN.
+        // Sem resumo (`null`), sem "Livro"; o sistema de recuo (One Piece embutido) já traz o livro dentro.
+        resumoDoLivro={campanha.livro === null ? undefined : campanha.livro}
+        livroDeRegras={campanha.livroDeRegras}
+        onPedirLivro={pedirLivro}
       />
     </>
   )

@@ -60,7 +60,16 @@ export {
 } from '../../../client/src/lib/nuvem/muralDoLobby'
 export { lerEnvelope, processarLote, respostasAdiadas, type Gravacoes, type LeitorDaCampanha, type RespostaDaOp, type ResultadoDoProcessamento } from '../../../client/src/lib/nuvem/lote'
 export { membroAtivo, podeVer } from '../../../client/src/lib/nuvem/permissao'
-export { ehCopiaDeTreino, fichaNoEstado, projetarMembros, projetarOpParaJogador, sistemaParaOJogador } from '../../../client/src/lib/nuvem/projecao'
+export {
+  ehCopiaDeTreino,
+  fichaNoEstado,
+  partesDoLivroPublicado,
+  projetarMembros,
+  projetarOpParaJogador,
+  sistemaDoJogador,
+  type SistemaDoJogador,
+} from '../../../client/src/lib/nuvem/projecao'
+export { parseLivroPedir } from '../../../client/src/net/protocoloDoLivro'
 export { diferencas } from '../../../client/src/lib/nuvem/diferencas'
 export {
   CONTA_DO_MESTRE,

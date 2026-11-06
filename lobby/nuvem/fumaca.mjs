@@ -389,6 +389,58 @@ async function exportarEDesde(campanhaId, conflitoId) {
   conferir('desde paginado sem snapshot (de 2 em 2 até a rev atual, só ops)', soOps && revsSeguidas(lidas, total), `lidas=${lidas.length} de ${total}`)
 }
 
+/**
+ * O sistema e o livro do site (revisão da F1), num socket da Nami só deste passo (os de antes não ganham frame a mais):
+ * o `estado` leva o resumo do livro e a marca; o `livro.pedir` devolve o livro em partes (e recusa outro sistema);
+ * o mestre republica trocando Vida por Fôlego com o canal dela fechado (fichas iguais) e a volta com a marca velha
+ * recebe o `estado` com o sistema novo, não uma página de ops; com a marca nova, ops.
+ */
+async function livroEMarcaDoSistema(campanhaId) {
+  const antes = await Sala.abrir(campanhaId, NAMI)
+  await antes.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_nami_livro', marcaDoSistema: null })
+  const estado = await antes.esperar((m) => m.t === 'estado', 'o estado com o livro')
+  const marcaVelha = estado.marcaDoSistema
+  conferir(
+    'estado leva o resumo do livro (1 capítulo, o catálogo de vantagens) e a marca do sistema',
+    estado.livro?.capitulos === 1 && estado.livro?.catalogos?.includes('vantagens') && typeof marcaVelha === 'string' && marcaVelha.length > 0,
+    JSON.stringify({ livro: estado.livro, marca: marcaVelha }),
+  )
+  await antes.mandar({ t: 'livro.pedir', reqId: 'req_livro', sistemaId: SISTEMA_DO_ACEITE.id })
+  const primeira = await antes.esperar((m) => m.t === 'livro.parte' && m.reqId === 'req_livro', 'a 1ª parte do livro')
+  const partes = [primeira]
+  while (partes.length < primeira.total) partes.push(await antes.esperar((m) => m.t === 'livro.parte' && m.reqId === 'req_livro', 'mais uma parte do livro'))
+  const pacote = JSON.parse(partes.sort((a, b) => a.indice - b.indice).map((p) => p.texto).join(''))
+  conferir(
+    'livro.pedir devolve o livro e os catálogos em partes, do sistema pedido',
+    pacote.sistemaId === SISTEMA_DO_ACEITE.id && pacote.livro?.[0]?.id === 'cap_regras' && pacote.catalogos?.vantagens?.[0]?.nome === 'Sorte',
+    JSON.stringify(pacote),
+  )
+  await antes.mandar({ t: 'livro.pedir', reqId: 'req_outro', sistemaId: 'dragon-ball' })
+  const recusa = await antes.esperar((m) => m.t?.startsWith('livro.') && m.reqId === 'req_outro', 'a resposta do livro de outro sistema')
+  conferir('livro.pedir de outro sistema = livro.recusa', recusa.t === 'livro.recusa', JSON.stringify(recusa))
+  antes.fechar()
+  const recursoNovo = { ...SISTEMA_DO_ACEITE.recursos[0], nome: 'Fôlego' }
+  const republicar = { ...pedidoDePublicar([ficha('pers_nami', 'conta_nami'), ficha('pers_zoro', 'conta_zoro')]), sistema: { ...SISTEMA_DO_ACEITE, recursos: [recursoNovo] } }
+  const publicado = await doApp('POST', `/api/c/${campanhaId}/publicar`, republicar)
+  conferir('republicar só trocando o nome do recurso = ok', publicado.status === 200, JSON.stringify(publicado.corpo))
+  const revDeAgora = publicado.corpo.rev
+  const volta = await Sala.abrir(campanhaId, NAMI)
+  try {
+    await volta.mandar({ t: 'ola', desdeRev: revDeAgora, v: VERSAO, clienteId: 'cli_nami_livro', marcaDoSistema: marcaVelha })
+    const naVolta = await volta.esperar((m) => m.t === 'estado' || m.t === 'ops', 'a resposta do ola da volta')
+    conferir(
+      'volta em dia com a marca velha = estado com o sistema novo (Fôlego) e outra marca, não ops',
+      naVolta.t === 'estado' && naVolta.sistema?.recursos?.[0]?.nome === 'Fôlego' && typeof naVolta.marcaDoSistema === 'string' && naVolta.marcaDoSistema !== marcaVelha,
+      JSON.stringify({ t: naVolta.t, recursos: naVolta.sistema?.recursos, marca: naVolta.marcaDoSistema }),
+    )
+    await volta.mandar({ t: 'ola', desdeRev: naVolta.rev, v: VERSAO, clienteId: 'cli_nami_livro', marcaDoSistema: naVolta.marcaDoSistema })
+    const emDia = await volta.esperar((m) => m.t === 'estado' || m.t === 'ops', 'a resposta do ola com a marca nova')
+    conferir('volta em dia com a marca de agora = ops (página vazia), sem estado', emDia.t === 'ops' && emDia.lista.length === 0, JSON.stringify({ t: emDia.t }))
+  } finally {
+    volta.fechar()
+  }
+}
+
 async function aceite() {
   const campanhaId = `fumaca-${Date.now().toString(36)}`
   console.log(`campanha ${campanhaId} em ${BASE}`)
@@ -401,6 +453,7 @@ async function aceite() {
     await cartaoComImagem(nami, feitas.ackDaNami.rev)
     await fichaTrocadaInteira(campanhaId)
     await exportarEDesde(campanhaId, feitas.vidaDaNami.opId)
+    await livroEMarcaDoSistema(campanhaId)
   } finally {
     nami.fechar()
     zoro.fechar()

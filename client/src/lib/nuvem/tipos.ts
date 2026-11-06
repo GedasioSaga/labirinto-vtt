@@ -1,4 +1,5 @@
 import type { Personagem } from '../personagem'
+import type { ResumoDoLivro } from '../livroDeRegras'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Json } from './json'
 
@@ -196,17 +197,26 @@ export interface Conflito {
 }
 
 export type MensagemDoCliente =
-  | { t: 'ola'; desdeRev: number | null; v: number; clienteId: string }
+  /**
+   * `marcaDoSistema` (F1): a marca do sistema do último `estado` aceito
+   * (`null` = veio sem sistema). Marca diferente da de agora faz o DO mandar o
+   * `estado` em vez das ops. Ausente = site de antes da F1: o DO segue a rev.
+   */
+  | { t: 'ola'; desdeRev: number | null; v: number; clienteId: string; marcaDoSistema?: string | null }
   | { t: 'ops'; lote: Op[] }
   | { t: 'desfazer'; opId: string; novoOpId: string; confirmar?: true }
   | { t: 'historico'; fichaId: string; antesDeRev?: number; limite: number }
+  /** O livro do sistema que o site tem (F1), como o `livro.pedir` da sala LAN (`protocoloDoLivro.ts`). */
+  | { t: 'livro.pedir'; reqId: string; sistemaId: string }
 
 /**
  * A base inteira (§5.4). `sistema` (F1) é o sistema que o publicar gravou,
- * como o jogador o vê (`sistemaParaOJogador`: sem o livro e os catálogos): o
- * site lê dele os nomes, as abas, os recursos e os atributos. Ausente = DO de
- * antes da F1, ou sistema guardado que este código não lê; o site cai no One
- * Piece. O campo é opcional: o site de antes o ignora, e o formato não muda.
+ * como o jogador o vê (`sistemaDoJogador`: sem o livro e os catálogos): o
+ * site lê dele os nomes, as abas, os recursos e os atributos. `livro` é o
+ * resumo do livro (ausente = sem livro; o livro vem pelo `livro.pedir`), e
+ * `marcaDoSistema`, a marca dos dois, que o site devolve no `ola`. Ausente =
+ * DO de antes da F1, ou sistema guardado que este código não lê; o site cai no
+ * One Piece. Os campos são opcionais: o site de antes os ignora, e o formato não muda.
  */
 export interface EstadoDaBase {
   t: 'estado'
@@ -215,6 +225,8 @@ export interface EstadoDaBase {
   membros: MembroProjetado[]
   eu: MembroProjetado
   sistema?: SistemaDeRpg
+  livro?: ResumoDoLivro
+  marcaDoSistema?: string
 }
 
 export type MensagemDoServidor =
@@ -228,3 +240,6 @@ export type MensagemDoServidor =
   | { t: 'historico'; fichaId: string; lista: OpGravada[]; temMaisAntigas: boolean }
   | { t: 'versao'; versaoDoFormato: number }
   | { t: 'presenca'; naMesa: PresencaNaMesa[] }
+  /** O livro em partes, só a quem pediu (F1): os mesmos pedaços de `partesDoLivro` da sala LAN. */
+  | { t: 'livro.parte'; reqId: string; indice: number; total: number; texto: string }
+  | { t: 'livro.recusa'; reqId: string }

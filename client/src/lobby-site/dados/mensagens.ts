@@ -1,8 +1,10 @@
 import { lerMudanca, segmentoValido } from '../../lib/nuvem/caminho'
 import { lerRegistro } from '../../lib/nuvem/fila'
 import { ehJson, ehRegistro, lerJsonSeguro, proprio } from '../../lib/nuvem/json'
+import { CATALOGOS_DO_LIVRO, type ChaveDoCatalogo, type ResumoDoLivro } from '../../lib/livroDeRegras'
 import { lerEnvelope } from '../../lib/nuvem/lote'
 import { sistemaParaOJogador } from '../../lib/nuvem/projecao'
+import { parseLivroParte, parseLivroRecusa } from '../../net/protocoloDoLivro'
 import type { FichaNoEstado, MembroProjetado, MensagemDoServidor, OpGravada, Origem, Papel, PresencaNaMesa, Visibilidade } from '../../lib/nuvem/tipos'
 import { personagemDoArquivo } from '../../lib/personagem'
 import type { EnderecoDaMesa, EstadoComSala, MensagemDoSite, SalaDaMesa } from './fonte'
@@ -138,8 +140,42 @@ function lerEstado(bruto: Record<string, unknown>): EstadoComSala | null {
   if (sala !== undefined) estado.sala = lerSalaDaMesa(sala)
   // O sistema (F1) pela mesma leitura do app. Torto vale como ausente, como a sala: não há base a divergir, e o site cai no One Piece.
   const sistema = sistemaParaOJogador(proprio(bruto, 'sistema'))
-  if (sistema !== null) estado.sistema = sistema
+  if (sistema === null) return estado
+  estado.sistema = sistema
+  // A marca e o resumo do livro só valem com o sistema lido: são dele. Torto = ausente (sem marca, a volta pede o `estado`; sem resumo, sem "Livro").
+  const marca = proprio(bruto, 'marcaDoSistema')
+  if (typeof marca === 'string' && marca.length > 0 && marca.length <= MARCA_MAX) estado.marcaDoSistema = marca
+  const livro = lerResumoDoLivro(proprio(bruto, 'livro'))
+  if (livro !== null) estado.livro = livro
   return estado
+}
+
+/** A marca que o DO dá tem 8 caracteres; o teto é o do `ola` no DO. */
+const MARCA_MAX = 64
+const CHAVES_DO_CATALOGO: ReadonlySet<string> = new Set(CATALOGOS_DO_LIVRO.map(({ chave }) => chave))
+
+function ehChaveDoCatalogo(valor: unknown): valor is ChaveDoCatalogo {
+  return typeof valor === 'string' && CHAVES_DO_CATALOGO.has(valor)
+}
+
+/** O resumo do livro no `estado` (F1): o que acende o "Livro" e o "Escolher do livro". `null` = sem livro, ou torto. */
+function lerResumoDoLivro(bruto: unknown): ResumoDoLivro | null {
+  if (!ehRegistro(bruto)) return null
+  const capitulos = proprio(bruto, 'capitulos')
+  const catalogos = lerLista(proprio(bruto, 'catalogos'), (item) => (ehChaveDoCatalogo(item) ? item : null))
+  if (!ehRev(capitulos) || catalogos === null || (capitulos === 0 && catalogos.length === 0)) return null
+  return { capitulos, catalogos }
+}
+
+/** Uma parte do livro (F1), pelo leitor da sala LAN: os mesmos tetos de parte e de total. */
+function lerParteDoLivro(bruto: Record<string, unknown>): MensagemDoSite | null {
+  const parte = parseLivroParte({ type: 'livro.parte', reqId: proprio(bruto, 'reqId'), indice: proprio(bruto, 'indice'), total: proprio(bruto, 'total'), texto: proprio(bruto, 'texto') })
+  return parte === null ? null : { t: 'livro.parte', reqId: parte.reqId, indice: parte.indice, total: parte.total, texto: parte.texto }
+}
+
+function lerRecusaDoLivro(bruto: Record<string, unknown>): MensagemDoSite | null {
+  const recusa = parseLivroRecusa({ type: 'livro.recusa', reqId: proprio(bruto, 'reqId') })
+  return recusa === null ? null : { t: 'livro.recusa', reqId: recusa.reqId }
 }
 
 function lerOps(bruto: Record<string, unknown>): MensagemDoServidor | null {
@@ -213,6 +249,10 @@ function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoSite | null {
     }
     case 'sala':
       return { t: 'sala', sala: lerSalaDaMesa(proprio(bruto, 'sala')) }
+    case 'livro.parte':
+      return lerParteDoLivro(bruto)
+    case 'livro.recusa':
+      return lerRecusaDoLivro(bruto)
     default:
       return null
   }

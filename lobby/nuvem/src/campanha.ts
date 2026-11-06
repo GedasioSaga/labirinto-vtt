@@ -1,5 +1,4 @@
 import { DurableObject } from 'cloudflare:workers'
-import type { SistemaDeRpg } from '../../../client/src/lib/sistemaDeRpg'
 import {
   bloqueadaAte,
   bloquear,
@@ -51,6 +50,7 @@ import {
   LIMITES,
   membroAtivo,
   novaChaveDaSala,
+  partesDoLivroPublicado,
   podeVer,
   processarDesfazer,
   processarLote,
@@ -59,7 +59,7 @@ import {
   proprio,
   respostasAdiadas,
   segmentoValido,
-  sistemaParaOJogador,
+  sistemaDoJogador,
   VALIDADE_DO_BILHETE_MS,
   VERSAO_DO_FORMATO,
   type ConferenciaDoRitmo,
@@ -72,6 +72,7 @@ import {
   type OpGravada,
   type PresencaNaMesa,
   type ResultadoDoProcessamento,
+  type SistemaDoJogador,
 } from './nucleo'
 import { CORPO_MAX_MEMBROS, CORPO_MAX_OPS, CORPO_MAX_PUBLICAR, lerPedidoDeMembros, lerPedidoDeOps, lerPedidoDePublicar, versaoAceita } from './pedidos'
 import { entradasDoDiretorio, publicarFichas, publicarTreino, sincronizarMembros } from './publicar'
@@ -156,11 +157,14 @@ function limiteDaUrl(url: URL, maximo: number): number {
 export class Campanha extends DurableObject<Env> {
   private readonly sql: SqlStorage
   /**
-   * O sistema do `estado` (F1), lido de `meta` uma vez por DO acordado (o
-   * publicado pode passar de 1 MB com o livro). `undefined` = ainda não lido;
-   * `null` = o guardado não se lê. O publicar esquece.
+   * O sistema do `estado` (F1), com o resumo do livro e a marca, lido de
+   * `meta` uma vez por DO acordado (o publicado pode passar de 1 MB com o
+   * livro). `undefined` = ainda não lido; `null` = o guardado não se lê. O
+   * publicar esquece.
    */
-  private sistemaDoEstado: SistemaDeRpg | null | undefined = undefined
+  private sistemaDoEstado: SistemaDoJogador | null | undefined = undefined
+  /** O livro em partes para o `livro.pedir` (F1), lido só no primeiro pedido do DO acordado; `null` = recusa. O publicar esquece. */
+  private livroEmPartes: { sistemaId: string; partes: string[] } | null | undefined = undefined
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
@@ -263,8 +267,9 @@ export class Campanha extends DurableObject<Env> {
     esquecerRotulosDoMural(this.sql)
     // E o duelo relê o sistema (só roda no motor do One Piece).
     esquecerSistemaDoDuelo(this.sql)
-    // E o `estado`: o que `depoisDeMudarMembros` manda a todos já leva o sistema novo.
+    // E o `estado`: o que `depoisDeMudarMembros` manda a todos já leva o sistema novo (e a marca nova, para quem volta depois).
     this.sistemaDoEstado = undefined
+    this.livroEmPartes = undefined
     await this.depoisDeMudarMembros(campanhaId, pedido.nome, feito.mudaram)
     this.depoisDeGravar(feito.ops)
     return json({ campanhaId, rev: revAtual(this.sql), fichas: feito.fichas, treino: feito.treino })
@@ -517,21 +522,48 @@ export class Campanha extends DurableObject<Env> {
     }
   }
 
-  private sistemaParaOEstado(): SistemaDeRpg | null {
-    if (this.sistemaDoEstado === undefined) this.sistemaDoEstado = sistemaParaOJogador(lerSistema(this.sql))
+  private sistemaParaOEstado(): SistemaDoJogador | null {
+    if (this.sistemaDoEstado === undefined) this.sistemaDoEstado = sistemaDoJogador(lerSistema(this.sql))
     return this.sistemaDoEstado
+  }
+
+  /** A marca do sistema de agora, como o `ola` a compara; `null` = o `estado` vai sem sistema. */
+  private marcaDeAgora(): string | null {
+    const sistema = this.sistemaParaOEstado()
+    return sistema === null ? null : sistema.marca
   }
 
   /**
    * O `estado` leva também a sala aberta no app (B2) e o sistema publicado
-   * (F1, sem o livro): o site de antes deles ignora os campos a mais.
+   * (F1, sem o livro, com o resumo dele e a marca): o site de antes deles
+   * ignora os campos a mais.
    */
   private estadoPara(membro: Membro, fichas: readonly FichaGuardada[], membros: readonly Membro[], rev: number, sala: SalaParaJogador | null): EstadoComSala {
     const { contaId, nome, papel } = membro
     const estado: EstadoComSala = { t: 'estado', rev, fichas: fichasDoEstado(membro, fichas, membros), membros: projetarMembros(membros), eu: { contaId, nome, papel }, sala }
-    const sistema = this.sistemaParaOEstado()
-    if (sistema !== null) estado.sistema = sistema
+    const doJogador = this.sistemaParaOEstado()
+    if (doJogador !== null) {
+      estado.sistema = doJogador.sistema
+      estado.marcaDoSistema = doJogador.marca
+      if (doJogador.livro !== null) estado.livro = doJogador.livro
+    }
     return estado
+  }
+
+  /**
+   * O livro do sistema publicado, só a quem pediu (F1), nas partes da sala LAN.
+   * Pedido de um sistema que já mudou, ou sem livro: a mesma recusa. Mandar é
+   * de graça no DO (§7); o pedido é uma mensagem recebida, que passa pelo ritmo.
+   */
+  private livro(ws: WebSocket, pedido: { reqId: string; sistemaId: string }): void {
+    if (this.livroEmPartes === undefined) this.livroEmPartes = partesDoLivroPublicado(lerSistema(this.sql))
+    const livro = this.livroEmPartes
+    if (livro === null || livro.sistemaId !== pedido.sistemaId) {
+      enviar(ws, { t: 'livro.recusa', reqId: pedido.reqId })
+      return
+    }
+    const total = livro.partes.length
+    livro.partes.forEach((texto, indice) => enviar(ws, { t: 'livro.parte', reqId: pedido.reqId, indice, total, texto }))
   }
 
   private enviarEstadoATodos(): void {
@@ -724,6 +756,8 @@ export class Campanha extends DurableObject<Env> {
       }
       case 'duelo':
         return this.duelo(ws, quem, frame.leitura, agora)
+      case 'livro':
+        return this.livro(ws, frame.pedido)
     }
   }
 
@@ -746,7 +780,9 @@ export class Campanha extends DurableObject<Env> {
     const atual = revAtual(this.sql)
     const desde = frame.desdeRev
     const sala = this.salaVisivel(Date.now())
-    if (desde === null || desde > atual || atual - desde > LIMITE_SEM_SNAPSHOT) {
+    // O site da F1 diz a marca do sistema que tem: o mestre republicou com o canal dele caído = `estado`, não ops (achado da revisão da F1).
+    const sistemaVelho = frame.marcaDoSistema !== undefined && frame.marcaDoSistema !== this.marcaDeAgora()
+    if (desde === null || desde > atual || atual - desde > LIMITE_SEM_SNAPSHOT || sistemaVelho) {
       enviar(ws, this.estadoPara(membro, todasAsFichas(this.sql), todosOsMembros(this.sql), atual, sala))
     } else {
       this.enviarOpsDesde(ws, membro, desde, atual)
@@ -813,6 +849,11 @@ export class Campanha extends DurableObject<Env> {
     }
     if (frame.t === 'ops') {
       for (const resposta of respostasAdiadas(frame.lote, 'ritmo', tentarDepoisDe)) enviar(ws, resposta)
+      return
+    }
+    // O livro recusado já: o site mostra "não veio" e o "Livro" pede de novo, sem esperar o prazo.
+    if (frame.t === 'livro') {
+      enviar(ws, { t: 'livro.recusa', reqId: frame.pedido.reqId })
       return
     }
     const novoOpId = frame.t === 'desfazer' ? proprio(frame.pedido, 'novoOpId') : undefined

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { AGORA, enviar, F_DO_MESTRE, F_NAMI, F_NAMI_2, F_SEM_DONO, F_ZORO, ficha, mesa, MESTRE_NO_APP, MEMBROS, NAMI, op, pedirDesfazer, type CampanhaDeTeste } from '../../lib/nuvem/campanha.fixture'
 import { armazenamentoEmTexto, type ArquivoDeTexto } from '../../lib/nuvem/fila'
 import { lerJsonSeguro, paraJson } from '../../lib/nuvem/json'
-import { fichaNoEstado, projetarMembros, projetarOpParaJogador, sistemaParaOJogador } from '../../lib/nuvem/projecao'
+import { fichaNoEstado, partesDoLivroPublicado, projetarMembros, projetarOpParaJogador, sistemaDoJogador } from '../../lib/nuvem/projecao'
 import type { EstadoDaBase, Identidade, Membro, MensagemDoServidor, OpGravada } from '../../lib/nuvem/tipos'
 import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
 import { SISTEMA_DE_RECUO, sistemaDaCampanha } from '../telas/contexto'
@@ -106,7 +106,10 @@ function servidorFalso(campanha: CampanhaDeTeste, relogio: Relogio) {
       olas.push(desde)
       conexao.clienteId = frame.clienteId
       const atual = campanha.revAtual()
-      if (desde === null || desde > atual) {
+      const doJogador = sistemaDoJogador(publicado.sistema)
+      // Como o DO (`ola` em campanha.ts): a marca que o site diz ter, diferente da de agora, pede o `estado`.
+      const sistemaVelho = 'marcaDoSistema' in frame && frame.marcaDoSistema !== (doJogador === null ? null : doJogador.marca)
+      if (desde === null || desde > atual || sistemaVelho) {
         const fichas = FICHAS.flatMap((id) => {
           const guardada = campanha.ficha(id)
           const naTela = guardada === undefined ? null : fichaNoEstado(conexao.membro, guardada, nomeDaConta)
@@ -115,8 +118,11 @@ function servidorFalso(campanha: CampanhaDeTeste, relogio: Relogio) {
         const { contaId, nome, papel } = conexao.membro
         const estado: EstadoDaBase = { t: 'estado', rev: atual, fichas, membros: projetarMembros(MEMBROS), eu: { contaId, nome, papel } }
         // Como o DO (estadoPara em campanha.ts): o sistema guardado, pela projeção do jogador, quando se lê.
-        const sistema = sistemaParaOJogador(publicado.sistema)
-        if (sistema !== null) estado.sistema = sistema
+        if (doJogador !== null) {
+          estado.sistema = doJogador.sistema
+          estado.marcaDoSistema = doJogador.marca
+          if (doJogador.livro !== null) estado.livro = doJogador.livro
+        }
         mandar(conexao, estado)
       } else {
         mandar(conexao, { t: 'ops', desde, ate: atual, lista: projetar(conexao.membro, campanha.todasAsOps().filter((gravada) => gravada.rev > desde)) })
@@ -145,6 +151,17 @@ function servidorFalso(campanha: CampanhaDeTeste, relogio: Relogio) {
       const resultado = pedirDesfazer(campanha, quemE(conexao, conexao.clienteId), frame, AGORA)
       for (const resposta of resultado.respostas) mandar(conexao, resposta)
       difundir(resultado.gravacoes.ops)
+      return
+    }
+    // Como o `livro` do DO: as partes do publicado, ou a recusa.
+    if (frame.t === 'livro.pedir' && 'reqId' in frame && typeof frame.reqId === 'string' && 'sistemaId' in frame) {
+      const reqId = frame.reqId
+      const livro = partesDoLivroPublicado(publicado.sistema)
+      if (livro === null || livro.sistemaId !== frame.sistemaId) {
+        mandar(conexao, { t: 'livro.recusa', reqId })
+        return
+      }
+      livro.partes.forEach((texto, indice) => mandar(conexao, { t: 'livro.parte', reqId, indice, total: livro.partes.length, texto }))
     }
   }
 
@@ -168,6 +185,10 @@ function servidorFalso(campanha: CampanhaDeTeste, relogio: Relogio) {
     /** Uma mensagem do servidor a todos os sockets, fora de qualquer pedido. */
     mandarATodos(mensagem: MensagemDoServidor): void {
       for (const conexao of conexoes) mandar(conexao, mensagem)
+    },
+    /** A rede cai para todo mundo (1006): o que mudar daqui até a volta não chega por nenhum socket. */
+    derrubarTodas(): void {
+      for (const conexao of [...conexoes]) derrubar(conexao)
     },
     /** O mestre muda pelo app (HTTPS pelo Rust): grava e difunde aos sockets do site. */
     mudarPeloApp(...ops: Parameters<typeof op>[]): void {
@@ -425,6 +446,42 @@ describe('o sistema publicado e a cópia do treino no estado (F1)', () => {
     expect(antiga.sessao.estado().carregada).toBe(true)
     expect(antiga.sessao.estado().sistema).toBeNull()
     expect(sistemaDaCampanha(antiga.sessao.estado())).toBe(SISTEMA_DE_RECUO)
+  })
+
+  it('o livro vem sob pedido em partes (o resumo do estado acende o "Livro"); quem volta com a marca velha depois de um republicar recebe o estado com o sistema novo', async () => {
+    const [primeiro, ...resto] = SISTEMA_ONE_PIECE.recursos
+    if (primeiro === undefined) throw new Error('o One Piece sem recurso')
+    const publicado = { ...SISTEMA_ONE_PIECE, id: 'mar_de_teste', nome: 'Mar de Teste' }
+    const relogio = relogioDeTeste()
+    const campanha = mesa()
+    const servidor = servidorFalso(campanha, relogio)
+    servidor.publicado.sistema = paraJson(publicado)
+    const { sessao } = await abrirComoNami(campanha, { mundo: { servidor, relogio } })
+    expect(sessao.estado().livro?.capitulos).toBe(SISTEMA_ONE_PIECE.livro?.length)
+    expect(sessao.estado().livroDeRegras).toBeUndefined()
+
+    expect(sessao.pedirLivro()).toBe(true)
+    expect(sessao.estado().livroDeRegras).toEqual({ estado: 'chegando' })
+    await calmo()
+    const livro = sessao.estado().livroDeRegras
+    expect(livro?.estado).toBe('pronto')
+    if (livro?.estado !== 'pronto') throw new Error('o livro não chegou')
+    expect(livro.sistemaId).toBe('mar_de_teste')
+    expect(livro.livro).toHaveLength(SISTEMA_ONE_PIECE.livro?.length ?? -1)
+    expect(livro.catalogos?.pericias.length).toBe(SISTEMA_ONE_PIECE.catalogos?.pericias.length)
+
+    // A rede cai; o mestre republica só trocando o nome da Vida (nenhuma op, a rev não sobe); a volta pede ops desde a rev dela.
+    const revAntes = sessao.estado().rev
+    servidor.derrubarTodas()
+    await calmo()
+    servidor.publicado.sistema = paraJson({ ...publicado, recursos: [{ ...primeiro, nome: 'Maré' }, ...resto] })
+    relogio.andar(ESPERAS_DA_RECONEXAO_MS[0])
+    await calmo()
+    expect(servidor.olas.at(-1)).toBe(revAntes)
+    expect(sessao.estado().conexao).toBe('em-dia')
+    expect(sessao.estado().sistema?.recursos[0]?.nome).toBe('Maré')
+    // O livro pedido era do sistema de antes: some, e o "Livro" pede de novo.
+    expect(sessao.estado().livroDeRegras).toBeUndefined()
   })
 
   it('a cópia do inimigo do treino que chega por op, antes do próximo estado, já vem do treino: nunca aparece como ficha da mesa', async () => {
