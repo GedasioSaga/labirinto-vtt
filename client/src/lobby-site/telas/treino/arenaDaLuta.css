@@ -142,6 +142,16 @@
   animation: lo-ar-fim-entra 220ms var(--lb-gr-ease-out) both;
 }
 @keyframes lo-ar-fim-entra { from { opacity: 0; transform: scale(0.96); } }
+/*
+ * Acabada a luta, a faixa da ordem fica por cima do véu e do resumo: o
+ * Registro (e a lista que ele abre embaixo da faixa) recebe o clique e se lê
+ * com o resumo aberto. As cartas mostram como cada um terminou.
+ */
+.ar-tela.lo-ar[data-acabou] .bt-faixa.pp-batalha-faixa {
+  z-index: 15;
+  /* Opaca: com o Registro aberto por cima do resumo, o texto do resumo não vaza entre as linhas. */
+  background: var(--lb-color-stone-solid);
+}
 .lo-ar-fim__titulo {
   margin: 0;
   font-family: var(--lb-font-display);

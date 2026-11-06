@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import { ImagemDaMesa } from '../../components/ImagemDaMesa'
 import { resolverSoEmbutida } from '../../lib/midia'
 import { pendentesACaminho } from '../dados/chatDaCampanha'
@@ -7,7 +7,7 @@ import { Cabeca } from './Cabeca'
 import { aoClicarNoLink, useDoSite, useSite } from './contexto'
 import { mudancasACaminho } from './enviar'
 import { TelaChat } from './chat/TelaChat'
-import { AvisoDaPagina } from './Estados'
+import { AvisoDaPagina, Carregando } from './Estados'
 import { FaixaDeAvisos } from './mural/FaixaDeAvisos'
 import { TelaMural } from './mural/TelaMural'
 import { TelaAcesso } from './TelaAcesso'
@@ -15,7 +15,7 @@ import { TelaCampanha } from './TelaCampanha'
 import { TelaCampanhas } from './TelaCampanhas'
 import { TelaFicha } from './TelaFicha'
 import { TelaLobby } from './lobby/TelaLobby'
-import { TelaTreino } from './treino/TelaTreino'
+import type { TelaTreino as TelaDoTreino } from './treino/TelaTreino'
 
 /**
  * O SITE DO LOBBY, tela por tela: a cabeça fixa com a faixa de estado em
@@ -24,6 +24,35 @@ import { TelaTreino } from './treino/TelaTreino'
  */
 
 const NOME_DO_SITE = 'Lobby do Labirinto'
+
+type PropsDoTreino = Parameters<typeof TelaDoTreino>[0]
+
+/** O pedaço do treino não chegou (a conexão caiu no meio, ou o site foi publicado de novo e o arquivo antigo saiu). */
+function TreinoNaoAbriu() {
+  return (
+    <AvisoDaPagina
+      titulo="O treino não abriu"
+      acoes={
+        <button type="button" className="lo-btn lo-btn--primario" onClick={() => window.location.reload()}>
+          Recarregar a página
+        </button>
+      }
+    >
+      <p>A parte do site com a Arena não chegou. Confira a conexão e recarregue.</p>
+    </AvisoDaPagina>
+  )
+}
+
+/**
+ * O treino e o duelo (a Arena, o HUD da batalha, o motor da luta) só baixam
+ * quando alguém abre o treino: a entrada do lobby não paga por eles.
+ */
+const TelaTreino = lazy<ComponentType<PropsDoTreino>>(() =>
+  import('./treino/TelaTreino').then(
+    (modulo) => ({ default: modulo.TelaTreino }),
+    () => ({ default: TreinoNaoAbriu }),
+  ),
+)
 
 export function Site() {
   const site = useSite()
@@ -69,7 +98,12 @@ export function Site() {
   else if (rota.tela === 'campanhas') pagina = <TelaCampanhas eu={eu.eu} />
   else if (rota.tela === 'campanha') pagina = <TelaLobby campanhaId={rota.campanhaId} />
   else if (rota.tela === 'fichas') pagina = <TelaCampanha campanhaId={rota.campanhaId} />
-  else if (rota.tela === 'treino') pagina = <TelaTreino rota={rota} />
+  else if (rota.tela === 'treino')
+    pagina = (
+      <Suspense fallback={<Carregando texto="Abrindo o treino…" />}>
+        <TelaTreino rota={rota} />
+      </Suspense>
+    )
   else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
   else if (rota.tela === 'chat') pagina = <TelaChat rota={rota} />
   else if (rota.tela === 'mural') pagina = <TelaMural rota={rota} />

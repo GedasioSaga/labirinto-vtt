@@ -172,12 +172,18 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
   const vezDaVista = vista?.vez ?? null
   const passarVez = vista !== null && vista.minhaVez && vezDaVista !== null && conexao !== null && !acabou ? () => conexao.passarVez(vezDaVista, vista.rodada) : undefined
 
-  // A grade fica abaixo da faixa da ordem: a altura dela muda com as cartas, então é medida.
+  // A grade fica abaixo da faixa da ordem: a altura dela muda com as cartas, então é medida. Acabada a
+  // luta, a medida fica: a faixa perde o "Passar a vez" e encolhe, e a grade não pode pular sob o resumo.
+  const acabouAgora = useRef(acabou)
+  acabouAgora.current = acabou
   useLayoutEffect(() => {
     const faixa = raiz.current?.querySelector<HTMLElement>('.pp-batalha-faixa')
     const lugar = palco.current
     if (faixa === null || faixa === undefined || lugar === null) return
-    const medir = () => lugar.style.setProperty('--lo-ar-faixa', `${faixa.offsetHeight}px`)
+    const medir = () => {
+      if (acabouAgora.current && lugar.style.getPropertyValue('--lo-ar-faixa') !== '') return
+      lugar.style.setProperty('--lo-ar-faixa', `${faixa.offsetHeight}px`)
+    }
     medir()
     const observador = new ResizeObserver(medir)
     observador.observe(faixa)
@@ -228,6 +234,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
     <section
       ref={raiz}
       className="ar-tela lo-ar"
+      data-acabou={acabou ? '' : undefined}
       role="dialog"
       aria-modal="true"
       aria-labelledby={idDoTitulo}
