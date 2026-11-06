@@ -1,5 +1,5 @@
 import type { Personagem } from '../personagem'
-import { alvoDoCaminho, CAMPOS_DO_MESTRE, ESQUEMA_DO_CAMINHO } from './caminho'
+import { alvoDoCaminho, CAMPOS_DO_MESTRE, ESQUEMA_DO_CAMINHO, type NomeDaRegra } from './caminho'
 import type { Json } from './json'
 import { podeEscreverNaFicha, podeVer } from './permissao'
 import type { FichaGuardada, FichaNoEstado, Membro, MembroProjetado, OpGravada, Visibilidade } from './tipos'
@@ -10,11 +10,36 @@ import type { FichaGuardada, FichaNoEstado, Membro, MembroProjetado, OpGravada, 
  * soCenario, nomeDoJogador, notaDoMestre) e o bloco de NPC da ficha Dragon
  * Ball. Mochila e moedas ficam (≠ `paraOFio`, que é só da sala LAN).
  *
+ * O INIMIGO LIBERADO para o treino (§8.2, T8) tem projeção própria, mais
+ * estreita: além dos campos do mestre, também sem mochila e moedas (o que o
+ * NPC carrega é segredo do mestre; o treino luta com a ficha).
+ *
  * A remoção é pelo VALOR, não só pelo caminho: a op que cria ou apaga a
  * ficha inteira leva o doc no `valor` ou no `antes`, e os dois saem
  * projetados. Lista própria (`CAMPOS_DO_MESTRE`), sem importar código de
  * `personagem.ts`, que roda também no Worker.
  */
+
+/** O que o inimigo liberado deixa para trás, além dos campos do mestre. */
+const CAMPOS_FORA_DO_TREINO = ['mochila', 'moedas'] as const
+
+/** As regras da tabela 4.7 que mexem na mochila e na bolsa: nunca saem de uma ficha do treino. */
+const REGRAS_FORA_DO_TREINO: ReadonlySet<NomeDaRegra> = new Set<NomeDaRegra>(['vaga', 'quantidade', 'campoDoItem', 'moedas'])
+
+/**
+ * A cópia de treino tem id próprio (`treino_<id do NPC>`): nunca encontra a
+ * ficha da mesa com o mesmo id (o NPC que vira jogador sobe com o id dele), e
+ * o app reconhece a cópia que volta pelo `desde` sem precisar da visibilidade.
+ */
+export const PREFIXO_DA_COPIA_DE_TREINO = 'treino_'
+
+export function idDaCopiaDeTreino(npcId: string): string {
+  return `${PREFIXO_DA_COPIA_DE_TREINO}${npcId}`
+}
+
+export function ehCopiaDeTreino(fichaId: string): boolean {
+  return fichaId.startsWith(PREFIXO_DA_COPIA_DE_TREINO)
+}
 
 /** A ficha sem os campos do mestre e sem o NPC da Dragon Ball; mantém mochila e moedas. Nunca muda a recebida. */
 export function projetarParaJogador(doc: Personagem): Personagem {
@@ -28,6 +53,13 @@ export function projetarParaJogador(doc: Personagem): Personagem {
   return copia
 }
 
+/** O inimigo liberado como o jogador o recebe: a projeção do jogador, também sem mochila e moedas. Nunca muda a recebida. */
+export function projetarParaTreino(doc: Personagem): Personagem {
+  const copia = projetarParaJogador(doc)
+  for (const campo of CAMPOS_FORA_DO_TREINO) delete copia[campo]
+  return copia
+}
+
 type ObjetoJson = { [chave: string]: Json }
 
 function ehObjetoJson(valor: Json | undefined): valor is ObjetoJson {
@@ -35,11 +67,12 @@ function ehObjetoJson(valor: Json | undefined): valor is ObjetoJson {
 }
 
 const CHAVES_DO_MESTRE: ReadonlySet<string> = new Set(CAMPOS_DO_MESTRE)
+const CHAVES_FORA_DO_TREINO: ReadonlySet<string> = new Set([...CAMPOS_DO_MESTRE, ...CAMPOS_FORA_DO_TREINO])
 
-/** O mesmo que `projetarParaJogador`, sobre o doc em JSON do `valor`/`antes` de uma op. */
-function projetarDocEmJson(valor: Json | undefined): Json | undefined {
+/** O mesmo que `projetarParaJogador` (ou `projetarParaTreino`), sobre o doc em JSON do `valor`/`antes` de uma op. */
+function projetarDocEmJson(valor: Json | undefined, tiradas: ReadonlySet<string>): Json | undefined {
   if (!ehObjetoJson(valor)) return valor
-  const publico: ObjetoJson = Object.fromEntries(Object.entries(valor).filter(([chave]) => !CHAVES_DO_MESTRE.has(chave)))
+  const publico: ObjetoJson = Object.fromEntries(Object.entries(valor).filter(([chave]) => !tiradas.has(chave)))
   const dbt = publico.dbt
   if (ehObjetoJson(dbt) && Object.hasOwn(dbt, 'npc')) {
     publico.dbt = Object.fromEntries(Object.entries(dbt).filter(([chave]) => chave !== 'npc'))
@@ -49,19 +82,21 @@ function projetarDocEmJson(valor: Json | undefined): Json | undefined {
 
 /**
  * A op como o jogador a recebe, nos quatro pontos (`estado`, `aplicada`,
- * `historico`, `exportar`). `null` = não vai: ficha fora da mesa, ou campo
- * do mestre (o jogador vê um buraco na numeração das revs, de propósito).
- * Na ficha inteira (`[]`), `valor` e `antes` saem projetados.
+ * `historico`, `exportar`). `null` = não vai: ficha escondida, campo do
+ * mestre (o jogador vê um buraco na numeração das revs, de propósito) ou, na
+ * ficha do treino, a mochila e a bolsa. Na ficha inteira (`[]`), `valor` e
+ * `antes` saem projetados pela projeção da visibilidade dela.
  */
 export function projetarOpParaJogador(op: OpGravada, visivel: Visibilidade): OpGravada | null {
-  // v1: só a mesa. A projeção do treino (inimigo liberado) entra na T8.
-  if (visivel !== 'mesa') return null
+  if (visivel === 'mestre') return null
   const alvo = alvoDoCaminho(op.caminho)
   if (alvo === null || !ESQUEMA_DO_CAMINHO[alvo.regra].visivelAoJogador) return null
+  if (visivel === 'treino' && REGRAS_FORA_DO_TREINO.has(alvo.regra)) return null
   if (alvo.regra !== 'ficha') return op
+  const tiradas = visivel === 'treino' ? CHAVES_FORA_DO_TREINO : CHAVES_DO_MESTRE
   const projetada: OpGravada = { ...op }
-  const valor = projetarDocEmJson(op.valor)
-  const antes = projetarDocEmJson(op.antes)
+  const valor = projetarDocEmJson(op.valor, tiradas)
+  const antes = projetarDocEmJson(op.antes, tiradas)
   if (valor !== undefined) projetada.valor = valor
   if (antes !== undefined) projetada.antes = antes
   return projetada
@@ -69,14 +104,18 @@ export function projetarOpParaJogador(op: OpGravada, visivel: Visibilidade): OpG
 
 /**
  * A ficha no `estado` para quem a recebe; `null` = não vê. Para o jogador,
- * o doc vai projetado. `ehMinha` = quem recebe pode editá-la (dono, ou o
- * mestre); `nomeDoDono` = `null` na ficha sem dono.
+ * o doc vai projetado (a do treino, pela projeção do treino). `ehMinha` =
+ * quem recebe pode editá-la (dono, ou o mestre); `nomeDoDono` = `null` na
+ * ficha sem dono e no inimigo do treino (o dono é campo do mestre e não
+ * chega ao jogador nem pelo nome).
  */
 export function fichaNoEstado(eu: Membro, ficha: FichaGuardada, nomeDaConta: (contaId: string) => string | null): FichaNoEstado | null {
   if (!podeVer(eu.papel, ficha) || ficha.apagada) return null
-  const dono = ficha.doc.dono
+  const doTreino = ficha.visivel === 'treino'
+  const dono = doTreino ? undefined : ficha.doc.dono
+  const projetar = doTreino ? projetarParaTreino : projetarParaJogador
   return {
-    doc: eu.papel === 'mestre' ? ficha.doc : projetarParaJogador(ficha.doc),
+    doc: eu.papel === 'mestre' ? ficha.doc : projetar(ficha.doc),
     visivel: ficha.visivel,
     rev: ficha.rev,
     ehMinha: podeEscreverNaFicha(eu, ficha),

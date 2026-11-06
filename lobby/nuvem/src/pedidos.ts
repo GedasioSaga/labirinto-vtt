@@ -6,7 +6,7 @@ import { CONTA_DO_MESTRE, ehJson, ehRegistro, proprio, segmentoValido, VERSAO_DO
  * Os corpos das rotas do app (plano §5.4), lidos campo a campo. O app (fatias
  * R1/A5) manda exatamente isto:
  *
- * - `POST publicar`: `{ v, clienteId, nome, nomeDoMestre, sistema, membros, fichas }`
+ * - `POST publicar`: `{ v, clienteId, nome, nomeDoMestre, sistema, membros, fichas, treino? }`
  * - `POST membros`:  `{ v, nomeDoMestre, membros }`
  * - `POST ops`:      `{ v, clienteId, lote }`
  *
@@ -42,6 +42,12 @@ export interface PedidoDePublicar extends PedidoDeMembros {
   nome: string
   sistema: Json
   fichas: unknown[]
+  /**
+   * As cópias dos inimigos liberados para o treino (T8), a lista INTEIRA: a
+   * cópia que não vem sai do treino. `null` = o pedido não trouxe a lista
+   * (app de antes da T8, ou o `rpg.json` ilegível): as do servidor ficam.
+   */
+  treino: unknown[] | null
 }
 
 export interface PedidoDeOps {
@@ -113,6 +119,7 @@ export function lerPedidoDePublicar(corpo: unknown): PedidoDePublicar {
     nome: nomeDe(proprio(registro, 'nome'), 'nome da campanha'),
     sistema,
     fichas: listaDe(registro, 'fichas', FICHAS_POR_PUBLICAR_MAX),
+    treino: proprio(registro, 'treino') === undefined ? null : listaDe(registro, 'treino', FICHAS_POR_PUBLICAR_MAX),
   }
 }
 

@@ -1,18 +1,23 @@
-import { gravar, gravarMembro, leitorDoBanco, lerFicha, membroPorEmail, revAtual, todosOsMembros } from './banco'
+import { gravar, gravarMembro, leitorDoBanco, lerFicha, membroPorEmail, revAtual, todasAsFichas, todosOsMembros } from './banco'
 import { ErroDoPedido } from './http'
 import type { PedidoDeMembros } from './pedidos'
 import {
   CONTA_DO_MESTRE,
+  diferencas,
+  ehCopiaDeTreino,
   ehRegistro,
   LIMITES,
+  personagemDoArquivo,
   processarLote,
   proprio,
   segmentoValido,
+  type Gravacoes,
   type Identidade,
   type Membro,
   type OpGravada,
   type Papel,
   type RespostaDaOp,
+  type Visibilidade,
 } from './nucleo'
 
 /**
@@ -115,5 +120,125 @@ export function publicarFichas(sql: SqlStorage, quem: Identidade, fichas: readon
       return { fichaId, resposta: resposta === undefined ? { t: 'id-invalido' } : resposta }
     }),
     ops,
+  }
+}
+
+// ── Inimigos liberados para o treino (plano §8.2, T8) ───────────────────────
+
+/** `opId` das ops do treino: sempre novo. A cópia tirada e liberada de novo precisa de um `criar` que o log ainda não tem (o `pub:<id>` responderia o de antes). */
+const PREFIXO_DO_TREINO = 'treino:'
+const VISIBILIDADE_DO_TREINO: Visibilidade = 'treino'
+
+/** A op como o cliente mandaria: o núcleo lê e confere tudo (esquema, teto, permissão). */
+interface OpDoTreino {
+  opId: string
+  loteId: string
+  fichaId: string
+  caminho: string[]
+  acao: 'criar' | 'apagar'
+  valor?: unknown
+  atomico?: true
+  baseRev: number
+  clienteId: string
+  quandoCliente: number
+}
+
+function novoIdDoTreino(): string {
+  return `${PREFIXO_DO_TREINO}${crypto.randomUUID()}`
+}
+
+/** `troca` = o `loteId` comum do `apagar` + `criar` da cópia que mudou. */
+function opDoTreino(fichaId: string, acao: 'criar' | 'apagar', quem: Identidade, baseRev: number, agora: number, extra: { valor?: unknown; troca?: string } = {}): OpDoTreino {
+  const opId = novoIdDoTreino()
+  const op: OpDoTreino = { opId, loteId: extra.troca ?? opId, fichaId, caminho: [], acao, baseRev, clienteId: quem.clienteId, quandoCliente: agora }
+  if (extra.valor !== undefined) op.valor = extra.valor
+  // Trocar a cópia é tudo ou nada: o `apagar` sem o `criar` deixaria o inimigo sumido do treino.
+  if (extra.troca !== undefined) op.atomico = true
+  return op
+}
+
+/** A ficha nova do treino nasce aqui com `visivel:'treino'` (o núcleo cria toda ficha na mesa); a que já era do treino continua. */
+function naVisibilidadeDoTreino(gravacoes: Gravacoes): Gravacoes {
+  return { ...gravacoes, fichas: gravacoes.fichas.map((ficha) => ({ ...ficha, visivel: VISIBILIDADE_DO_TREINO })) }
+}
+
+/** Os grupos (cada um com as ops de uma cópia) em lotes que nunca partem um grupo, pelo mesmo `processarLote` das outras ops. */
+function processarGrupos(sql: SqlStorage, quem: Identidade, grupos: readonly OpDoTreino[][], agora: number): { respostas: RespostaDaOp[]; ops: OpGravada[] } {
+  const respostas: RespostaDaOp[] = []
+  const ops: OpGravada[] = []
+  let lote: OpDoTreino[] = []
+  const rodar = (): void => {
+    if (lote.length === 0) return
+    const resultado = processarLote(leitorDoBanco(sql), quem, lote, agora)
+    gravar(sql, naVisibilidadeDoTreino(resultado.gravacoes))
+    ops.push(...resultado.gravacoes.ops)
+    respostas.push(...resultado.respostas)
+    lote = []
+  }
+  for (const grupo of grupos) {
+    if (lote.length + grupo.length > LIMITES.opsPorLote) rodar()
+    lote.push(...grupo)
+  }
+  rodar()
+  return { respostas, ops }
+}
+
+/**
+ * PUBLICAR O TREINO: `copias` é a lista INTEIRA dos inimigos liberados, já
+ * pela projeção do treino (o app tira nota, dono, combate e mochila; a saída
+ * para o jogador projeta de novo). Cada cópia tem id `treino_<id do NPC>`.
+ * - cópia nova (ou tirada antes): `criar`, com `visivel:'treino'`;
+ * - cópia que mudou: `apagar` + `criar`, tudo ou nada;
+ * - cópia igual: nada muda (`ja-publicada`), e repetir o pedido é seguro;
+ * - cópia do servidor que não veio: `apagar` (sai do treino; o log fica).
+ * Id fora do formato, ou de uma ficha que não é do treino: `id-invalido`.
+ */
+export function publicarTreino(sql: SqlStorage, quem: Identidade, copias: readonly unknown[], agora: number): Publicacao {
+  const respostas = new Map<string, RespostaDaFicha>()
+  /** `opId` do `criar` de cada cópia -> a cópia: a resposta dele é a da cópia. */
+  const criacoes = new Map<string, string>()
+  const grupos: OpDoTreino[][] = []
+  const baseRev = revAtual(sql)
+  const vieram = new Set<string>()
+  const idDaCopia = (bruta: unknown): string | null => {
+    const fichaId = idDaFicha(bruta)
+    return fichaId !== null && ehCopiaDeTreino(fichaId) ? fichaId : null
+  }
+  for (const bruta of copias) {
+    const fichaId = idDaCopia(bruta)
+    if (fichaId === null || vieram.has(fichaId)) continue
+    vieram.add(fichaId)
+    const guardada = lerFicha(sql, fichaId)
+    if (guardada !== undefined && guardada.visivel !== VISIBILIDADE_DO_TREINO) {
+      respostas.set(fichaId, { t: 'id-invalido' })
+      continue
+    }
+    if (guardada !== undefined && !guardada.apagada) {
+      const lida = personagemDoArquivo(bruta)
+      if (lida !== null && diferencas(guardada.doc, lida).length === 0) {
+        respostas.set(fichaId, { t: 'ja-publicada' })
+        continue
+      }
+    }
+    const troca = guardada !== undefined && !guardada.apagada ? novoIdDoTreino() : undefined
+    const criar = opDoTreino(fichaId, 'criar', quem, baseRev, agora, { valor: bruta, troca })
+    criacoes.set(criar.opId, fichaId)
+    grupos.push(troca === undefined ? [criar] : [opDoTreino(fichaId, 'apagar', quem, baseRev, agora, { troca }), criar])
+  }
+  for (const ficha of todasAsFichas(sql)) {
+    if (ficha.visivel === VISIBILIDADE_DO_TREINO && !ficha.apagada && !vieram.has(ficha.doc.id)) grupos.push([opDoTreino(ficha.doc.id, 'apagar', quem, baseRev, agora)])
+  }
+  const feito = processarGrupos(sql, quem, grupos, agora)
+  for (const resposta of feito.respostas) {
+    const fichaId = criacoes.get(resposta.opId)
+    if (fichaId !== undefined) respostas.set(fichaId, resposta)
+  }
+  return {
+    fichas: copias.map((bruta): FichaPublicada => {
+      const fichaId = idDaCopia(bruta)
+      const resposta = fichaId === null ? undefined : respostas.get(fichaId)
+      return { fichaId, resposta: resposta === undefined ? { t: 'id-invalido' } : resposta }
+    }),
+    ops: feito.ops,
   }
 }

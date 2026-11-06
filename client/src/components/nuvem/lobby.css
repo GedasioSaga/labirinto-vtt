@@ -631,3 +631,8 @@ body.jl-arrastando * { cursor: grabbing !important; user-select: none !important
 
 .jl-vazio__t { font-family: var(--lb-font-display); font-size: var(--lb-font-size-xl); font-weight: var(--lb-font-weight-regular); }
 .jl-vazio p:not(.jl-vazio__t) { max-width: 56ch; color: var(--lb-color-parchment-dim); }
+
+/* ---- treino no Lobby (T8), na ficha do NPC: logo abaixo da anotação do mestre, com o mesmo corte */
+.lby-treino { display: flex; flex-direction: column; gap: var(--lb-space-2); }
+.lby-treino .lb-ficha-nota__cab { margin: 0; }
+.lby-treino__erro { margin-top: var(--lb-space-3); }

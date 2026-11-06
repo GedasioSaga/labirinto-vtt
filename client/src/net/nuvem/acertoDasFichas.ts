@@ -1,6 +1,7 @@
 import { aplicar, aplicarOp } from '../../lib/nuvem/aplicar'
 import { diferencas } from '../../lib/nuvem/diferencas'
 import type { RemotasRecebidas } from '../../lib/nuvem/fila'
+import { ehCopiaDeTreino } from '../../lib/nuvem/projecao'
 import type { Mudanca, OpGravada } from '../../lib/nuvem/tipos'
 import type { Personagem } from '../../lib/personagem'
 import { mudancasDaPasta, vaiAoLobby } from './emissor'
@@ -22,6 +23,9 @@ import type { BaseGuardada } from './estadoNoDisco'
  *   novo (a soma pendente nunca dobra). O que a nuvem não conhece fica como
  *   está: a foto embutida (Si7), o `historico`, as fichas de NPC e a ficha que
  *   nunca subiu.
+ * - A CÓPIA DE TREINO (`treino_<id>`, T8) volta pelo `desde` como qualquer
+ *   op e fica na base e no diário, mas nunca entra nas fichas do app: o NPC
+ *   de verdade já está na pasta, e a cópia viraria um personagem a mais.
  */
 
 // ── A base confirmada ───────────────────────────────────────────────────────
@@ -118,6 +122,7 @@ export function aplicarNasFichasDoApp(locais: readonly Personagem[], mudancas: r
   let lista = [...locais]
   let mudou = false
   for (const [fichaId, daFicha] of porFicha(mudancas)) {
+    if (ehCopiaDeTreino(fichaId)) continue
     const indice = lista.findIndex((ficha) => ficha.id === fichaId)
     const local = indice === -1 ? null : lista[indice]
     if (local !== null && !vaiAoLobby(local)) continue
@@ -161,7 +166,7 @@ export function acertarComAVista(locais: readonly Personagem[], vista: ReadonlyM
     lista.push(acertada)
   }
   for (const [fichaId, doc] of vista) {
-    if (idsLocais.has(fichaId)) continue
+    if (idsLocais.has(fichaId) || ehCopiaDeTreino(fichaId)) continue
     lista.push(doc)
     mudou = true
   }

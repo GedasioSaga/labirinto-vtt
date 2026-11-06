@@ -1,17 +1,18 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import type { ContaDeJogador } from '../../lib/contasDosJogadores'
-import { ehRefDeMidia, idDaRef } from '../../lib/midia'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import { ehRegistro, paraJson, proprio, type Json } from '../../lib/nuvem/json'
 import { VERSAO_DO_FORMATO } from '../../lib/nuvem/tipos'
-import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
+import { lerRpgDaPasta, type RpgDaPasta } from '../../lib/pastasDeMapas'
+import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { comandosDaR1, type ComandosDaR1 } from '../../net/nuvem/comandosDaR1'
 import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from '../../net/nuvem/discoDaNuvem'
 import { vaiAoLobby } from '../../net/nuvem/emissor'
 import { estadoNovo, gravarEstado, lerCampanhas, lerEstado, type CampanhaPublicada } from '../../net/nuvem/estadoNoDisco'
 import { registrarELigar, retomarLobby } from '../../net/nuvem/nuvemNoApp'
+import { copiasDeTreino, inimigosLiberadosDe, midiasDaFicha, semImagemEmbutida } from '../../net/nuvem/publicar'
 import { listaDeNomes, membrosDasContas, NOME_DO_MESTRE, textoDoMotivo } from './textosDoLobby'
 
 /**
@@ -156,36 +157,6 @@ export async function reenviarMembros(contas: readonly ContaDeJogador[]): Promis
 
 // ── Publicar a pasta ────────────────────────────────────────────────────────
 
-/** A ficha como a nuvem a conhece: a foto embutida (data URL) não sobe (Si7); a ficha no app continua com ela. */
-function semImagemEmbutida(ficha: Personagem): { ficha: Personagem; tiradas: number } {
-  let tiradas = 0
-  const limpar = (imagem: string | null): string | null => {
-    if (imagem === null || ehRefDeMidia(imagem)) return imagem
-    tiradas += 1
-    return null
-  }
-  const noCartao = (cartao: CartaoDaFicha): CartaoDaFicha => ({ ...cartao, imagem: limpar(cartao.imagem), subcartoes: cartao.subcartoes.map(noCartao) })
-  const abas = Object.fromEntries(Object.entries(ficha.abas).map(([aba, cartoes]): [string, CartaoDaFicha[]] => [aba, cartoes.map(noCartao)]))
-  return { ficha: { ...ficha, retrato: limpar(ficha.retrato), abas }, tiradas }
-}
-
-/** As imagens (`midia:`) da ficha: retrato, cartões em qualquer nível e itens da mochila. */
-function midiasDaFicha(ficha: Personagem): string[] {
-  const ids: string[] = []
-  const guardar = (ref: string | null | undefined): void => {
-    const id = idDaRef(ref)
-    if (id !== null) ids.push(id)
-  }
-  const noCartao = (cartao: CartaoDaFicha): void => {
-    guardar(cartao.imagem)
-    cartao.subcartoes.forEach(noCartao)
-  }
-  guardar(ficha.retrato)
-  Object.values(ficha.abas).forEach((cartoes) => cartoes.forEach(noCartao))
-  for (const item of ficha.mochila ?? []) guardar(item.imagem)
-  return ids
-}
-
 export type SituacaoDaFichaPublicada = 'publicada' | 'ja-publicada' | 'recusada' | 'adiada'
 
 export interface FichaNaPublicacao {
@@ -198,6 +169,8 @@ export interface FichaNaPublicacao {
 export interface Publicacao {
   campanha: CampanhaPublicada
   fichas: FichaNaPublicacao[]
+  /** As cópias dos inimigos liberados para o treino (T8); `fichaId` é o da cópia. */
+  inimigos: FichaNaPublicacao[]
   /** Imagens que subiram e que não subiram (a ficha sobe mesmo assim; a imagem falta no site). */
   imagens: { enviadas: number; falharam: number; falha: FalhaDoLobby | null }
   /** Fotos embutidas antigas que ficaram de fora (ainda não viraram mídia). */
@@ -233,6 +206,8 @@ export interface PedidoDePublicacao {
   sistema: SistemaDeRpg
   personagens: readonly Personagem[]
   contas: readonly ContaDeJogador[]
+  /** Os NPCs liberados para o treino (T8). Ausente = os do `rpg.json` da pasta. */
+  inimigosLiberados?: readonly string[]
 }
 
 /** Quantas fichas desta pasta sobem: só de jogador, sem invocação (NPC fica no app, §5.1). */
@@ -293,38 +268,101 @@ export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resulta
   const raiz = await raizDaNuvem()
   const existente = (await lerCampanhas(raiz)).find((campanha) => campanha.pastaId === pedido.pastaId)
   const campanha: CampanhaPublicada = { campanhaId: existente?.campanhaId ?? `camp_${crypto.randomUUID()}`, pastaId: pedido.pastaId, nome: pedido.nome.trim().slice(0, 120) }
-  const pastaDaCampanha = pastaNoDisco(primitivasDoTauri, await join(await pastaDaNuvemNoApp(), campanha.campanhaId))
-  const estado = await lerEstado(pastaDaCampanha)
-  const clienteId = estado?.clienteId ?? crypto.randomUUID()
-  if (estado === null) await gravarEstado(pastaDaCampanha, estadoNovo(campanha.campanhaId, campanha.pastaId, clienteId))
+  const clienteId = await clienteIdDaCampanha(campanha)
 
   const limpas = fichasQueSobem(pedido.personagens).map(semImagemEmbutida)
   const fichas = limpas.map((limpa) => limpa.ficha)
-  const corpo: Json = {
-    v: VERSAO_DO_FORMATO,
-    clienteId,
-    nome: campanha.nome,
-    nomeDoMestre: NOME_DO_MESTRE,
-    sistema: paraJson(pedido.sistema),
-    membros: paraJson(membrosDasContas(pedido.contas)),
-    fichas: fichas.map((ficha) => paraJson(ficha)),
-  }
+  const liberados = await liberadosDoPedido(pedido)
+  const copias = liberados === null ? null : copiasDeTreino(pedido.personagens, liberados)
+  const corpo = corpoDoPublicar({ clienteId, nome: campanha.nome, sistema: pedido.sistema, contas: pedido.contas, fichas, copias })
   const resposta = await chamar((comandos) => comandos.pedir({ rota: 'publicar', campanhaId: campanha.campanhaId, corpo }))
   if (!resposta.ok) return resposta
 
-  const brutas = ehRegistro(resposta.valor) ? proprio(resposta.valor, 'fichas') : undefined
-  const porId = new Map<string, unknown>()
-  if (Array.isArray(brutas)) {
-    for (const bruta of brutas as unknown[]) {
-      const fichaId = ehRegistro(bruta) ? proprio(bruta, 'fichaId') : undefined
-      if (typeof fichaId === 'string') porId.set(fichaId, ehRegistro(bruta) ? proprio(bruta, 'resposta') : undefined)
-    }
-  }
-  const relatorio = fichas.map((ficha): FichaNaPublicacao => ({ fichaId: ficha.id, nome: ficha.nome, ...situacaoDaResposta(porId.get(ficha.id)) }))
+  const relatorio = relatorioDe(fichas, respostasPorFicha(resposta.valor, 'fichas'))
+  const inimigos = copias === null ? [] : relatorioDoTreino(copias, respostasPorFicha(resposta.valor, 'treino'))
 
   // A campanha entra na lista do disco e o sincronizador liga: daqui em diante, cada mudança sobe sozinha.
   const ligou = await registrarELigar(campanha)
+  const imagens = await enviarMidias(campanha, [...fichas, ...(copias ?? [])], [...relatorio, ...inimigos])
 
+  return {
+    ok: true,
+    valor: {
+      campanha,
+      fichas: relatorio,
+      inimigos,
+      imagens,
+      embutidasDeFora: limpas.reduce((soma, limpa) => soma + limpa.tiradas, 0),
+      ligou,
+    },
+  }
+}
+
+/** O `clienteId` da campanha (o do sincronizador, gravado no `estado.json`); a campanha nova ganha um antes do pedido. */
+async function clienteIdDaCampanha(campanha: CampanhaPublicada): Promise<string> {
+  const pastaDaCampanha = pastaNoDisco(primitivasDoTauri, await join(await pastaDaNuvemNoApp(), campanha.campanhaId))
+  const estado = await lerEstado(pastaDaCampanha)
+  if (estado !== null) return estado.clienteId
+  const clienteId = crypto.randomUUID()
+  await gravarEstado(pastaDaCampanha, estadoNovo(campanha.campanhaId, campanha.pastaId, clienteId))
+  return clienteId
+}
+
+/** Os liberados do pedido ou do `rpg.json`; `null` = não deu para ler, e o servidor deixa as cópias de treino como estão. */
+async function liberadosDoPedido(pedido: PedidoDePublicacao): Promise<readonly string[] | null> {
+  if (pedido.inimigosLiberados !== undefined) return pedido.inimigosLiberados
+  const lido = await lerRpgDaPasta(pedido.pastaId)
+  return lido.ok ? inimigosLiberadosDe(lido.rpg) : null
+}
+
+interface PartesDoPublicar {
+  clienteId: string
+  nome: string
+  sistema: SistemaDeRpg
+  contas: readonly ContaDeJogador[]
+  fichas: readonly Personagem[]
+  /** `null` = sem a lista: as cópias de treino do servidor ficam como estão. */
+  copias: readonly Personagem[] | null
+}
+
+/** O corpo do `POST publicar` (§5.4). `treino` é a lista INTEIRA de cópias: a que não vem sai do treino no servidor. */
+function corpoDoPublicar({ clienteId, nome, sistema, contas, fichas, copias }: PartesDoPublicar): Json {
+  const corpo: Json = {
+    v: VERSAO_DO_FORMATO,
+    clienteId,
+    nome,
+    nomeDoMestre: NOME_DO_MESTRE,
+    sistema: paraJson(sistema),
+    membros: paraJson(membrosDasContas(contas)),
+    fichas: fichas.map((ficha) => paraJson(ficha)),
+  }
+  return copias === null ? corpo : { ...corpo, treino: copias.map((copia) => paraJson(copia)) }
+}
+
+/** A resposta do servidor de cada ficha, pela lista `campo` da resposta do publicar. */
+function respostasPorFicha(valor: unknown, campo: 'fichas' | 'treino'): Map<string, unknown> {
+  const porId = new Map<string, unknown>()
+  const brutas = ehRegistro(valor) ? proprio(valor, campo) : undefined
+  if (!Array.isArray(brutas)) return porId
+  const lista: readonly unknown[] = brutas
+  for (const bruta of lista) {
+    const fichaId = ehRegistro(bruta) ? proprio(bruta, 'fichaId') : undefined
+    if (typeof fichaId === 'string') porId.set(fichaId, ehRegistro(bruta) ? proprio(bruta, 'resposta') : undefined)
+  }
+  return porId
+}
+
+function relatorioDe(fichas: readonly Personagem[], porId: ReadonlyMap<string, unknown>): FichaNaPublicacao[] {
+  return fichas.map((ficha): FichaNaPublicacao => ({ fichaId: ficha.id, nome: ficha.nome, ...situacaoDaResposta(porId.get(ficha.id)) }))
+}
+
+/** A cópia de treino não passa pela fila: adiada, ela não sobe sozinha depois, o mestre manda de novo. */
+function relatorioDoTreino(copias: readonly Personagem[], porId: ReadonlyMap<string, unknown>): FichaNaPublicacao[] {
+  return relatorioDe(copias, porId).map((inimigo) => (inimigo.situacao === 'adiada' ? { ...inimigo, motivo: 'o servidor está no limite do dia; mande de novo mais tarde' } : inimigo))
+}
+
+/** Sobe as imagens das fichas que estão no servidor (publicadas agora ou de antes). */
+async function enviarMidias(campanha: CampanhaPublicada, fichas: readonly Personagem[], relatorio: readonly FichaNaPublicacao[]): Promise<Publicacao['imagens']> {
   const noServidor = new Set(relatorio.filter((ficha) => ficha.situacao === 'publicada' || ficha.situacao === 'ja-publicada').map((ficha) => ficha.fichaId))
   const ids = [...new Set(fichas.filter((ficha) => noServidor.has(ficha.id)).flatMap(midiasDaFicha))]
   let enviadas = 0
@@ -334,15 +372,42 @@ export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resulta
     if (envio.ok) enviadas += 1
     else ultimaFalha = envio.falha
   }
+  return { enviadas, falharam: ids.length - enviadas, falha: ultimaFalha }
+}
 
-  return {
-    ok: true,
-    valor: {
-      campanha,
-      fichas: relatorio,
-      imagens: { enviadas, falharam: ids.length - enviadas, falha: ultimaFalha },
-      embutidasDeFora: limpas.reduce((soma, limpa) => soma + limpa.tiradas, 0),
-      ligou,
-    },
-  }
+// ── Inimigos liberados para o treino (T8) ───────────────────────────────────
+
+export interface PedidoDoTreino {
+  pastaId: string
+  /** O RPG da pasta como ficou: os personagens e a lista `treino.inimigosLiberados`. */
+  rpg: RpgDaPasta
+  sistema: SistemaDeRpg | undefined
+  /** As contas JÁ LIDAS do disco: o publicar troca a lista de jogadores do servidor por esta. */
+  contas: readonly ContaDeJogador[]
+}
+
+/** `so-no-app` = a pasta não está no Lobby: a lista ficou guardada e sobe com o Publicar. */
+export type EnvioDoTreino = { t: 'so-no-app' } | { t: 'enviado'; inimigos: FichaNaPublicacao[]; imagens: Publicacao['imagens'] }
+
+/**
+ * Manda ao Lobby as cópias de TODOS os inimigos liberados da pasta, pela
+ * rota `publicar` (a única que cria ficha com `visivel:'treino'`), sem ficha
+ * da mesa: o servidor cria a cópia nova, troca a que mudou e tira do treino a
+ * que não veio. Repetir é seguro (o que não mudou não vira op).
+ */
+export async function enviarInimigosDoTreino(pedido: PedidoDoTreino): Promise<Resultado<EnvioDoTreino>> {
+  if (!isTauri()) return { ok: false, falha: FORA_DO_APP }
+  const campanha = await campanhaDaPasta(pedido.pastaId)
+  if (campanha === null) return { ok: true, valor: { t: 'so-no-app' } }
+  if (pedido.sistema === undefined) return { ok: false, falha: { t: 'erro', mensagem: 'O sistema universal desta pasta não está na biblioteca deste computador: sem ele, o Lobby não recebe nada.' } }
+  const dragonBall = bloqueioDoDragonBall(pedido.sistema, pedido.rpg.personagens)
+  if (dragonBall !== null) return { ok: false, falha: { t: 'erro', mensagem: dragonBall } }
+  const clienteId = await clienteIdDaCampanha(campanha)
+  const copias = copiasDeTreino(pedido.rpg.personagens, inimigosLiberadosDe(pedido.rpg))
+  const corpo = corpoDoPublicar({ clienteId, nome: campanha.nome, sistema: pedido.sistema, contas: pedido.contas, fichas: [], copias })
+  const resposta = await chamar((comandos) => comandos.pedir({ rota: 'publicar', campanhaId: campanha.campanhaId, corpo }))
+  if (!resposta.ok) return resposta
+  const inimigos = relatorioDoTreino(copias, respostasPorFicha(resposta.valor, 'treino'))
+  const imagens = await enviarMidias(campanha, copias, inimigos)
+  return { ok: true, valor: { t: 'enviado', inimigos, imagens } }
 }

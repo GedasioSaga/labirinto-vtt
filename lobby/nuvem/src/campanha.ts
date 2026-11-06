@@ -69,7 +69,7 @@ import {
   type ResultadoDoProcessamento,
 } from './nucleo'
 import { CORPO_MAX_MEMBROS, CORPO_MAX_OPS, CORPO_MAX_PUBLICAR, lerPedidoDeMembros, lerPedidoDeOps, lerPedidoDePublicar, versaoAceita } from './pedidos'
-import { entradasDoDiretorio, publicarFichas, sincronizarMembros } from './publicar'
+import { entradasDoDiretorio, publicarFichas, publicarTreino, sincronizarMembros } from './publicar'
 import { NOME_DO_DIRETORIO, rotaDaCampanha, type RotaDaCampanha, type RotaDaMidia, type RotaDoDesde } from './rotas'
 import {
   enviar,
@@ -217,7 +217,10 @@ export class Campanha extends DurableObject<Env> {
     const feito = this.ctx.storage.transactionSync(() => {
       gravarMeta(this.sql, { campanhaId, nome: pedido.nome }, pedido.sistema)
       const mudaram = sincronizarMembros(this.sql, identidade.email, pedido)
-      return { mudaram, ...publicarFichas(this.sql, quem, pedido.fichas, agora) }
+      const daMesa = publicarFichas(this.sql, quem, pedido.fichas, agora)
+      // T8: sem a lista (app de antes dela), as cópias de treino ficam como estão.
+      const doTreino = pedido.treino === null ? null : publicarTreino(this.sql, quem, pedido.treino, agora)
+      return { mudaram, fichas: daMesa.fichas, treino: doTreino?.fichas ?? [], ops: [...daMesa.ops, ...(doTreino?.ops ?? [])] }
     })
     // O sistema pode ter mudado: o feed de modificações relê os nomes (Vida para `hp`).
     esquecerRotulosDoMural(this.sql)
@@ -225,7 +228,7 @@ export class Campanha extends DurableObject<Env> {
     esquecerSistemaDoDuelo(this.sql)
     await this.depoisDeMudarMembros(campanhaId, pedido.nome, feito.mudaram)
     this.depoisDeGravar(feito.ops)
-    return json({ campanhaId, rev: revAtual(this.sql), fichas: feito.fichas })
+    return json({ campanhaId, rev: revAtual(this.sql), fichas: feito.fichas, treino: feito.treino })
   }
 
   private async membros(request: Request, campanhaId: string, identidade: IdentidadeDoPortao): Promise<Response> {

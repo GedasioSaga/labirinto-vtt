@@ -78,7 +78,22 @@ export interface RpgDaPasta {
    * como migrada, inclusive a criada depois. Ausente = ainda não migrada.
    */
   mochilaMigrada?: number
+  /** TREINO DO LOBBY (plano do Lobby §8.2, T8): os NPCs que o mestre liberou. Ausente = nenhum. */
+  treino?: TreinoDaPasta
 }
+
+/**
+ * Os inimigos do treino moram na PASTA, como lista de ids, e não num campo do
+ * personagem: liberar não muda a ficha (nem vira op do Lobby), e o NPC que
+ * sai da pasta simplesmente deixa de achar o id dele aqui.
+ */
+export interface TreinoDaPasta {
+  inimigosLiberados: string[]
+}
+
+/** Teto da lista no disco: mais que isso é arquivo mexido à mão. */
+const INIMIGOS_LIBERADOS_MAX = 500
+const ID_DO_PERSONAGEM_MAX = 200
 
 /** A pasta do mapa aberto, como o editor a usa (`stores/adventureStore.ts`). */
 export interface PastaAberta extends RpgDaPasta {
@@ -253,7 +268,23 @@ export function rpgDoArquivo(valor: unknown): RpgDaPasta {
   const personagens = personagensDoArquivo(valor.personagens) ?? []
   const equipes = equipesDoArquivo(valor.equipes)
   const base: RpgDaPasta = sistemaDeRpg === undefined ? { personagens } : { sistemaDeRpg, personagens }
-  return comMochilaMigrada(comEquipes(base, equipes), mochilaMigradaDoArquivo(valor.mochilaMigrada))
+  return comTreino(comMochilaMigrada(comEquipes(base, equipes), mochilaMigradaDoArquivo(valor.mochilaMigrada)), treinoDoArquivo(valor.treino))
+}
+
+/** A lista do treino como veio do disco: só ids em texto, sem repetir, no teto. Torta conta como ausente. */
+function treinoDoArquivo(valor: unknown): TreinoDaPasta | undefined {
+  if (!isRecord(valor) || !Array.isArray(valor.inimigosLiberados)) return undefined
+  const ids = valor.inimigosLiberados.filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= ID_DO_PERSONAGEM_MAX)
+  return { inimigosLiberados: [...new Set(ids)].slice(0, INIMIGOS_LIBERADOS_MAX) }
+}
+
+/**
+ * A lista do treino SEGUE o RPG na leitura, na gravação e na cópia, como o
+ * marcador da mochila. Vazia continua na cópia em memória (tirar o último
+ * inimigo precisa sobrescrever a lista de antes); no disco, vazia não é gravada.
+ */
+function comTreino(rpg: RpgDaPasta, treino: TreinoDaPasta | undefined): RpgDaPasta {
+  return treino === undefined ? rpg : { ...rpg, treino }
 }
 
 /** Sem equipes (ausente ou lista vazia), sem a chave: o `rpg.json` de antes continua igual. */
@@ -290,7 +321,12 @@ function rpgDoTexto(texto: string): RpgDaPasta | null {
 export function serializarRpg(rpg: RpgDaPasta): string {
   const equipes = rpg.equipes === undefined || rpg.equipes.length === 0 ? {} : { equipes: rpg.equipes }
   const marcador = rpg.mochilaMigrada === undefined ? {} : { mochilaMigrada: rpg.mochilaMigrada }
-  return JSON.stringify({ versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens, ...equipes, ...marcador }, null, 2)
+  const treino = rpg.treino === undefined || rpg.treino.inimigosLiberados.length === 0 ? {} : { treino: rpg.treino }
+  return JSON.stringify(
+    { versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens, ...equipes, ...marcador, ...treino },
+    null,
+    2,
+  )
 }
 
 /** Os de `novos` cujo id a pasta ainda não tem: copiar duas vezes do mesmo mapa não duplica ninguém. */
@@ -325,7 +361,7 @@ export function rpgComOsPersonagensDoMapa(rpg: RpgDaPasta, doMapa: RpgDaPasta): 
 /** Só o RPG de uma `PastaAberta` (sem chave, nome e modo): é o que vai para o `rpg.json`. */
 export function rpgDe(pasta: RpgDaPasta): RpgDaPasta {
   const base: RpgDaPasta = pasta.sistemaDeRpg === undefined ? { personagens: pasta.personagens } : { sistemaDeRpg: pasta.sistemaDeRpg, personagens: pasta.personagens }
-  return comMochilaMigrada(comEquipes(base, pasta.equipes), pasta.mochilaMigrada)
+  return comTreino(comMochilaMigrada(comEquipes(base, pasta.equipes), pasta.mochilaMigrada), pasta.treino)
 }
 
 // ───────────────────────────────────────────────────────────────────────────

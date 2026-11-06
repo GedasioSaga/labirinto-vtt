@@ -31,9 +31,13 @@ export function donoDaFicha(ficha: FichaGuardada): string | null {
   return ficha.doc.dono ?? null
 }
 
-/** O jogador vê só ficha da mesa que não foi apagada; o mestre vê tudo. */
+/**
+ * O jogador vê ficha da mesa e inimigo liberado para o treino (T8, pela
+ * projeção do treino), se não foi apagada; o mestre vê tudo. Escrever, só na
+ * da mesa (`podeEscreverNaFicha`).
+ */
 export function podeVer(papel: Papel, ficha: FichaGuardada): boolean {
-  return papel === 'mestre' || (ficha.visivel === 'mesa' && !ficha.apagada)
+  return papel === 'mestre' || ((ficha.visivel === 'mesa' || ficha.visivel === 'treino') && !ficha.apagada)
 }
 
 /**

@@ -6,6 +6,7 @@ import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { comBase, marcaDaBase, salvarPelaBase } from '../net/nuvem/emissor'
 import { FichaDoSistema } from './dbt/registroDeFichas'
 import { CloseIcon } from './icons'
+import { InimigoDoTreino } from './nuvem/InimigoDoTreino'
 import './livros/anotacoes.css'
 
 /** Um token da cena aberta, como o "Ligar a um token" o oferece. */
@@ -286,6 +287,8 @@ export function FichaDePersonagemDialog({
               <p className="lb-ficha-nota__vazio">Sem anotação.{sistema !== undefined ? ' Escreva em Editar ou na página Anotações do livro de regras.' : ''}</p>
             )}
           </section>
+          {/* LOBBY (T8): o NPC liberado para o treino dos jogadores no site; fora da edição, como o Ligar. */}
+          {!editando && personagem.tipo === 'npc' && <InimigoDoTreino npc={personagem} />}
         </div>
       </div>
     </div>,

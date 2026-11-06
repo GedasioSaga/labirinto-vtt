@@ -82,11 +82,23 @@ describe('a op projetada', () => {
     expect(projetada?.antes).toMatchObject({ nome: 'crocodile' })
   })
 
-  it('op em ficha do mestre (ou do treino, na v1) = null para o jogador', () => {
+  it('op em ficha do mestre = null para o jogador', () => {
     const comum = gravada({ caminho: ['recursos', 'hp'], acao: 'definir', valor: 10, antes: 20 })
     expect(projetarOpParaJogador(comum, 'mestre')).toBeNull()
-    expect(projetarOpParaJogador(comum, 'treino')).toBeNull()
     expect(projetarOpParaJogador(comum, 'mesa')).toBe(comum)
+  })
+
+  it('op de ficha do treino (T8): a ficha inteira sai sem notaDoMestre, dono, combate nem mochila; op de mochila e bolsa não vai', () => {
+    const criar = gravada({ fichaId: 'treino_pers_crocodile', caminho: [], acao: 'criar', valor: paraJson(fichaCheia()) })
+    const projetada = projetarOpParaJogador(criar, 'treino')
+    const texto = JSON.stringify(projetada)
+    for (const proibido of ['notaDoMestre', 'Trai a tripulação', '"dono"', 'combate', 'soCenario', 'nomeDoJogador', '"npc"', 'mochila', 'vaga_areia', 'moedas']) expect(texto, proibido).not.toContain(proibido)
+    expect(projetada?.valor).toMatchObject({ id: 'pers_crocodile', nome: 'crocodile' })
+    const naMochila = gravada({ caminho: ['mochila', 'vaga_areia', 'quantidade'], acao: 'somar', delta: 1 })
+    expect(projetarOpParaJogador(naMochila, 'treino')).toBeNull()
+    expect(projetarOpParaJogador(gravada({ caminho: ['moedas'], acao: 'somar', delta: 5 }), 'treino')).toBeNull()
+    // Na mesa, a mesma mochila continua chegando ao jogador.
+    expect(projetarOpParaJogador(naMochila, 'mesa')).toBe(naMochila)
   })
 
   it('op em campo do mestre ou no NPC da Dragon Ball = null, mesmo em ficha da mesa', () => {
@@ -117,6 +129,15 @@ describe('o estado e os membros', () => {
     expect(fichaNoEstado(NAMI, apagada, nomeDaConta)).toBeNull()
     expect(fichaNoEstado(MESTRE, apagada, nomeDaConta)).toBeNull()
     expect(fichaNoEstado(MESTRE, escondida, nomeDaConta)).toMatchObject({ ehMinha: true, doc: { notaDoMestre: 'Chefe' } })
+  })
+
+  it('inimigo liberado (T8): o jogador recebe só ver, sem os campos do mestre, a mochila e a bolsa; o mestre recebe o doc completo', () => {
+    const doTreino = guardada(fichaCheia(), { visivel: 'treino' })
+    const paraNami = fichaNoEstado(NAMI, doTreino, nomeDaConta)
+    expect(paraNami).toMatchObject({ ehMinha: false, nomeDoDono: null, visivel: 'treino' })
+    for (const campo of [...CAMPOS_DO_MESTRE, 'mochila', 'moedas']) expect(paraNami?.doc, campo).not.toHaveProperty(campo)
+    expect(paraNami?.doc.dbt).not.toHaveProperty('npc')
+    expect(fichaNoEstado(MESTRE, doTreino, nomeDaConta)?.doc).toMatchObject({ notaDoMestre: 'Trai a tripulação no arco 3', moedas: 40 })
   })
 
   it('membros para o jogador: sem e-mail e sem os removidos', () => {
