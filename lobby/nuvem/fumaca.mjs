@@ -33,6 +33,12 @@
 //                                             mestre pelo site = 403; a batida mantém a chave e troca os endereços;
 //                                             o 7º bilhete seguido = 429; fechar manda sala null, bilhete = 409 e
 //                                             reabrir sorteia outra chave
+//      node fumaca.mjs bordas              -> o fechamento (06/11): o dono do duelo lido do doc (ficha do outro, NPC sem
+//                                             dono e a troca de dono depois do convite = fichas); o frame de 64 KiB + 1
+//                                             não é lido e o de 64 KiB exatos passa; duelo.estado sem "dono" nem nota do
+//                                             mestre; HTML literal no chat e no mural; o privado preso ao e-mail do Zoro
+//      node fumaca.mjs ausencia            -> 12.15 de verdade (~3,5 min): a Nami cai e não volta; aos 2,5 min nada,
+//                                             depois dos 3 min o Zoro vence por ausência
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -1267,6 +1273,212 @@ async function aceiteDoDuelo() {
   console.log(falhas === 0 ? `DUELO OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
 }
 
+// ── Bordas do fechamento (rodada final do Lobby, 06/11/2026) ─────────────────
+
+/** Nami e Zoro com outro e-mail cada, para a troca de e-mail de um dos lados do privado. */
+function membrosCom(emailDaNami, emailDoZoro) {
+  return {
+    v: VERSAO,
+    nomeDoMestre: 'Mestre',
+    membros: [
+      { contaId: 'conta_nami', email: emailDaNami, nome: 'Nami' },
+      { contaId: 'conta_zoro', email: emailDoZoro, nome: 'Zoro' },
+    ],
+  }
+}
+
+/** O pedido de duelo de `sala` e a primeira resposta dele (convite ou recusa). */
+async function convidarCom(sala, para, fichas) {
+  await sala.mandar({ t: 'duelo.convidar', para, fichas })
+  return doDuelo(sala, (m) => m.t === 'duelo.convite' || (m.t === 'duelo.recusado' && m.pedido === 'duelo.convidar'), `a resposta do convite de ${sala.email}`)
+}
+
+/**
+ * O dono vem do DOC guardado (achado Tr5), nunca do pedido: a Nami não convida com a ficha do Zoro nem
+ * com o NPC sem dono; e se o mestre passa a ficha dela ao Zoro depois do convite, o aceite fecha o
+ * convite (`fichas`) em vez de começar o duelo com a ficha de outro dono.
+ */
+async function donoLidoDoDoc(s, base) {
+  const comADoZoro = await convidarCom(s.nami, 'conta_zoro', ['pers_zoro'])
+  conferir('a Nami convida com a ficha do Zoro = duelo.recusado (fichas)', comADoZoro.t === 'duelo.recusado' && comADoZoro.motivo === 'fichas', JSON.stringify(comADoZoro))
+  const comONpc = await convidarCom(s.nami, 'conta_zoro', ['pers_npc'])
+  conferir('a Nami convida com o NPC do mestre (sem dono) = duelo.recusado (fichas)', comONpc.t === 'duelo.recusado' && comONpc.motivo === 'fichas', JSON.stringify(comONpc))
+  const inexistente = await convidarCom(s.nami, 'conta_zoro', ['pers_que_nao_existe'])
+  conferir('ficha que não existe = duelo.recusado (fichas)', inexistente.t === 'duelo.recusado' && inexistente.motivo === 'fichas', JSON.stringify(inexistente))
+
+  const convite = await convidarCom(s.nami, 'conta_zoro', ['pers_nami'])
+  if (convite.t !== 'duelo.convite') throw new Error(`o convite certo foi recusado: ${convite.motivo}`)
+  await doDuelo(s.zoro, (m) => m.t === 'duelo.convite' && m.convite.id === convite.convite.id, 'o convite no Zoro')
+  await confirmar(s.mestre, [op('pers_nami', ['dono'], 'definir', base, 'cli_mestre', { valor: 'conta_zoro' })])
+  await s.zoro.mandar({ t: 'duelo.aceitar', id: convite.convite.id, fichas: ['pers_zoro'] })
+  const depois = await doDuelo(s.zoro, (m) => (m.t === 'duelo.fechado' || m.t === 'duelo.estado' || m.t === 'duelo.recusado') && (m.id === convite.convite.id || m.duelo?.id === convite.convite.id), 'o aceite depois da troca de dono')
+  conferir(
+    'o mestre passa a ficha da Nami ao Zoro depois do convite: o aceite fecha o convite (fichas), nenhum duelo começa',
+    depois.t === 'duelo.fechado' && depois.motivo === 'fichas',
+    JSON.stringify(depois),
+  )
+  // A ficha volta para a Nami (o resto do teste duela com ela).
+  await confirmar(s.mestre, [op('pers_nami', ['dono'], 'definir', base + 1, 'cli_mestre', { valor: 'conta_nami' })])
+}
+
+/** A jogada `passar` de quem tem a vez, com o frame acolchoado por espaços (JSON válido) até `bytes`. */
+function passarComTamanho(duelo, bytes) {
+  const { tokenId, vez } = cartaDaVezNoDuelo(duelo)
+  const lado = vagaDoToken(duelo, tokenId).lado
+  const frame = JSON.stringify({ t: 'duelo.jogar', id: duelo.id, jogada: { tipo: 'passar', seq: duelo.seq, vez } })
+  return { contaId: duelo.jogadores[lado].contaId, texto: frame + ' '.repeat(bytes - Buffer.byteLength(frame)) }
+}
+
+/**
+ * O teto de 64 KiB do cliente para o DO (`LIMITES.frameBytes`): o frame de 64 KiB + 1 byte não é lido
+ * (nem resposta nem estado novo, e o `seq` não anda); o de 64 KiB exatos, com a MESMA jogada, passa.
+ */
+async function tetoDoFrame(salas, duelo) {
+  const acima = passarComTamanho(duelo, 64 * 1024 + 1)
+  const sala = salas[acima.contaId]
+  sala.recebidas.length = 0
+  await esperarVez(sala.email)
+  sala.ws.send(acima.texto)
+  await esperarMs(2000)
+  const andou = sala.recebidas.some((m) => typeof m.t === 'string' && m.t.startsWith('duelo.') && (m.duelo?.seq ?? -1) > duelo.seq)
+  const respondeu = sala.recebidas.filter((m) => m.t === 'duelo.recusado')
+  conferir(`frame de ${Buffer.byteLength(acima.texto)} bytes (64 KiB + 1): não é lido, o duelo não anda`, !andou && respondeu.length === 0, JSON.stringify(sala.recebidas.map((m) => m.t)))
+  const noTeto = passarComTamanho(duelo, 64 * 1024)
+  await esperarVez(sala.email)
+  sala.ws.send(noTeto.texto)
+  const resposta = await doDuelo(sala, (m) => (m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.seq === duelo.seq + 1) || (m.t === 'duelo.recusado' && m.id === duelo.id), 'o estado depois do frame de 64 KiB')
+  conferir(`frame de ${Buffer.byteLength(noTeto.texto)} bytes (64 KiB exatos) com a mesma jogada: aceito (seq ${duelo.seq} -> ${duelo.seq + 1})`, resposta.t === 'duelo.estado', JSON.stringify(resposta.t === 'duelo.estado' ? resposta.duelo.seq : resposta))
+  return resposta.t === 'duelo.estado' ? resposta.duelo : duelo
+}
+
+/** Todo `duelo.*` que chegou às duas contas: sem o dono, sem a nota do mestre (as fichas vão projetadas). */
+function estadoNoFioSemDono(salas) {
+  const frames = Object.values(salas).flatMap((sala) => sala.todas.filter((texto) => texto.startsWith('{"t":"duelo.estado"') || texto.startsWith('{"t":"duelo.lista"')))
+  const comDono = frames.filter((texto) => texto.includes('"dono"'))
+  const comNota = frames.filter((texto) => texto.includes('notaDoMestre') || texto.includes('nunca vê'))
+  conferir(`${frames.length} frames duelo.estado/duelo.lista: nenhum com "dono" nem a nota do mestre`, frames.length > 0 && comDono.length === 0 && comNota.length === 0, `comDono=${comDono.length} comNota=${comNota.length}`)
+}
+
+const XSS_DO_CHAT = '<img src=x onerror="alert(1)"> & <script>alert(2)</script>'
+const XSS_DO_MURAL = '<svg onload=alert(3)></svg> "aspas" \'simples\''
+
+/** O texto com HTML chega igual a quem lê: o servidor não escapa, não apaga, não muda (quem mostra nunca interpreta). */
+async function htmlLiteral(s) {
+  await s.nami.mandar({ t: 'chat.enviar', canal: 'sala', texto: XSS_DO_CHAT, idDoCliente: 'c_xss' })
+  const ok = await okDe(s.nami, 'c_xss')
+  const noZoro = await msgNoCanal(s.zoro, ok.msg?.id, (canal) => canal === 'sala')
+  conferir('chat: o texto com <img onerror> e <script> chega ao Zoro literal, byte a byte', ok.t === 'chat.ok' && noZoro.msg.texto === XSS_DO_CHAT, JSON.stringify(noZoro.msg?.texto))
+  await s.mestre.mandar({ t: 'mural.postar', texto: XSS_DO_MURAL, imagem: null, idDoCliente: 'n_xss' })
+  const postada = await doMural(s.mestre, (m) => (m.t === 'mural.ok' || m.t === 'mural.recusado') && m.idDoCliente === 'n_xss', 'o mural.ok do HTML')
+  const naNami = await doMural(s.nami, (m) => m.t === 'mural.noticia' && m.noticia.id === postada.noticia?.id, 'a notícia com HTML na Nami')
+  conferir('mural: a notícia com <svg onload> e aspas chega à Nami literal', postada.t === 'mural.ok' && naNami.noticia.texto === XSS_DO_MURAL, JSON.stringify(naNami.noticia?.texto))
+}
+
+/**
+ * O privado é do par COM os dois e-mails de agora (chat.ts, `DA_CONVERSA`): o chat.ts já tem o lado da
+ * Nami (`trocaDeEmailNaoAbrePrivado`); aqui o do Zoro. O mestre põe o e-mail do Zoro numa conta dele:
+ * quem entra com ela é a conta_zoro, mas não lê o privado Nami<->Zoro; o e-mail volta e o Zoro lê.
+ */
+async function privadoPresoAoEmailDoZoro(campanhaId, s) {
+  const marcador = `dm-zoro-${randomBytes(4).toString('hex')}`
+  await s.nami.mandar({ t: 'chat.enviar', canal: { dm: 'conta_zoro' }, texto: marcador, idDoCliente: 'c_dm_zoro' })
+  await okDe(s.nami, 'c_dm_zoro')
+  const trocou = await doApp('POST', `/api/c/${campanhaId}/membros`, membrosCom(NAMI, MESTRE_ALT))
+  const alt = await Sala.abrir(campanhaId, MESTRE_ALT)
+  let lista
+  try {
+    await alt.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_alt_zoro' })
+    await alt.esperar((m) => m.t === 'estado', 'o estado da conta trocada')
+    await alt.mandar({ t: 'chat.antes', canal: { dm: 'conta_nami' }, antesDeId: null, limite: 50 })
+    lista = await alt.esperar((m) => m.t === 'chat.lista', 'o privado com a Nami pela conta trocada')
+  } finally {
+    alt.fechar()
+  }
+  const vazou = alt.todas.some((texto) => texto.includes(marcador))
+  conferir('o mestre troca o e-mail do ZORO por outra conta dele: o privado Nami<->Zoro não aparece para ela', trocou.status === 200 && !vazou && lista.lista.length === 0, `membros=${trocou.status} vazou=${vazou} lista=${lista.lista.length}`)
+  const voltou = await doApp('POST', `/api/c/${campanhaId}/membros`, membrosCom(NAMI, ZORO))
+  const zoro = await Sala.abrir(campanhaId, ZORO)
+  try {
+    await zoro.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_zoro_volta' })
+    await zoro.esperar((m) => m.t === 'estado', 'o estado do Zoro de volta')
+    await zoro.mandar({ t: 'chat.antes', canal: { dm: 'conta_nami' }, antesDeId: null, limite: 50 })
+    const deVolta = await zoro.esperar((m) => m.t === 'chat.lista', 'o privado do Zoro de volta')
+    conferir('o e-mail volta para o Zoro: ele lê o privado com a Nami de novo', voltou.status === 200 && deVolta.lista.some((m) => m.texto === marcador), JSON.stringify(deVolta.lista.map((m) => m.texto)))
+  } finally {
+    zoro.fechar()
+  }
+}
+
+async function publicarAsBordas(campanhaId) {
+  const nami = lutadoraDoDuelo('pers_nami', 'conta_nami', 300, 60, 80, { id: 'arma_bastao', nome: 'Bastão', dano: 20 })
+  const zoro = lutadoraDoDuelo('pers_zoro', 'conta_zoro', 150, 30, 10, { id: 'arma_faca', nome: 'Faca', dano: 10 })
+  const npc = lutadoraDoDuelo('pers_npc', undefined, 200, 40, 40, { id: 'arma_sabre', nome: 'Sabre', dano: 15 })
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, { ...pedidoDePublicar([nami, zoro, { ...npc, tipo: 'npc' }]), sistema: SISTEMA_DO_DUELO })
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  return publicada.corpo.rev
+}
+
+async function aceiteDasBordas() {
+  const campanhaId = `fumaca-bordas-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const rev = await publicarAsBordas(campanhaId)
+  const s = await abrirOs3(campanhaId)
+  try {
+    await Promise.all([s.nami, s.zoro].map((sala) => doDuelo(sala, (m) => m.t === 'duelo.lista', 'a lista vazia')))
+    await donoLidoDoDoc(s, rev)
+    const salas = { conta_nami: s.nami, conta_zoro: s.zoro }
+    const duelo = await comecarDuelo(s.nami, s.zoro, 'conta_zoro', 'pers_nami', 'pers_zoro')
+    await tetoDoFrame(salas, duelo)
+    estadoNoFioSemDono(salas)
+    await htmlLiteral(s)
+    await privadoPresoAoEmailDoZoro(campanhaId, s)
+  } finally {
+    for (const sala of Object.values(s)) sala.fechar()
+  }
+  console.log(falhas === 0 ? `BORDAS OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
+/**
+ * 12.15 pelo DO de verdade (demora ~3 min e meio): a Nami fecha a única aba no meio do duelo e não
+ * volta; o alarme do DO dá a vitória ao Zoro por ausência depois dos 3 minutos, não antes.
+ */
+async function aceiteDaAusencia() {
+  const campanhaId = `fumaca-ausencia-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE} (espera ~3,5 min)`)
+  await publicarAsBordas(campanhaId)
+  const nami = await Sala.abrir(campanhaId, NAMI)
+  const zoro = await Sala.abrir(campanhaId, ZORO)
+  try {
+    await nami.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_nami' })
+    await zoro.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_zoro' })
+    await Promise.all([nami, zoro].map((sala) => doDuelo(sala, (m) => m.t === 'duelo.lista', 'a lista vazia')))
+    const duelo = await comecarDuelo(nami, zoro, 'conta_zoro', 'pers_nami', 'pers_zoro')
+    nami.fechar()
+    const caiu = await doDuelo(zoro, (m) => m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.jogadores.a.ausenteDesde !== null, 'a Nami ausente')
+    const desde = caiu.duelo.jogadores.a.ausenteDesde
+    await esperarMs(150_000)
+    const cedo = zoro.recebidas.find((m) => m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.fim !== null)
+    conferir('aos 2 min e meio de ausência o duelo ainda não acabou', cedo === undefined, JSON.stringify(cedo?.duelo.fim))
+    const limite = Date.now() + 75_000
+    let fim
+    while (fim === undefined && Date.now() < limite) {
+      fim = zoro.recebidas.find((m) => m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.fim !== null)
+      if (fim === undefined) await esperarMs(1000)
+    }
+    const quando = Date.now()
+    conferir(
+      'passados os 3 min sem a Nami voltar: o Zoro vence por ausência (fim ausencia, vencedor b)',
+      fim !== undefined && fim.duelo.fim.tipo === 'ausencia' && fim.duelo.fim.vencedor === 'b',
+      JSON.stringify(fim?.duelo.fim ?? 'não acabou'),
+    )
+    console.log(`        ausente desde ${desde}; fim visto ${Math.round((quando - desde) / 1000)} s depois (prazo 180 s)`)
+  } finally {
+    nami.fechar()
+    zoro.fechar()
+  }
+  console.log(falhas === 0 ? `AUSENCIA OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
 // ── Sala aberta no app e bilhete do jogador (B2) ─────────────────────────────
 
 const CODIGO_DA_SALA = 'ABC234'
@@ -1434,6 +1646,10 @@ try {
     await aceiteDoDuelo()
   } else if (modo === 'sala') {
     await aceiteDaSala()
+  } else if (modo === 'bordas') {
+    await aceiteDasBordas()
+  } else if (modo === 'ausencia') {
+    await aceiteDaAusencia()
   } else {
     await aceite()
   }

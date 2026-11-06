@@ -329,7 +329,7 @@ describe('a forma que não está na ficha', () => {
   it('transformar numa forma que a cópia não tem é recusado', () => {
     const m = motor()
     const d = naVezDoZe(daConta(ze(60), CONTA_A), daConta(MARINHEIRO, CONTA_B), m)
-    const jogada: JogadaDoDuelo = { tipo: 'agir', seq: d.seq, vez: vezDe(d), pedido: { tipo: 'transformar', cartaoId: 'forma_gear_5', acao: 'livre', trocarImagem: false } }
+    const jogada: JogadaDoDuelo = { tipo: 'agir', seq: d.seq, vez: vezDe(d), pedido: { tipo: 'transformar', cartaoId: 'forma_gear_5', acao: 'simples', trocarImagem: false } }
     expect(aplicarJogada(d, m, CONTA_A, jogada)).toEqual({ ok: false, motivo: 'regra' })
   })
 
