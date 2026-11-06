@@ -8,10 +8,10 @@
  * node: o duelo roda no DO, sem DOM.
  */
 import { describe, expect, it } from 'vitest'
-import { DANO_MAX, chaveDaVez, type PedidoDeAcao } from '../batalha/combate'
+import { DANO_MAX, chaveDaVez, type AcaoDaForma, type PedidoDeAcao } from '../batalha/combate'
 import type { VezEsperada } from '../batalha/ponte'
 import { cartaDaVez } from '../batalha/turnos'
-import type { Personagem } from '../personagem'
+import { novoCartao, type Personagem } from '../personagem'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { aplicarJogada, criarDuelo, type DueloGravado, type JogadaDoDuelo, type MotorDoDuelo, type ResultadoDaJogada } from './duelo'
 import { LIA, lutadoresDe, MARINHEIRO, SISTEMA_DO_TESTE, ze } from './fichasDeTreino.testkit'
@@ -120,6 +120,11 @@ function zeComCorteSemAcao(): Personagem {
   return { ...ZE, abas: { ...ZE.abas, habilidades } }
 }
 
+/** O Zé com a forma Ira, que a ficha manda ativar com a Ação Completa. */
+function zeComFormaCompleta(): Personagem {
+  return { ...ZE, abas: { ...ZE.abas, transformacoes: [{ ...novoCartao('Ira'), id: 'forma_ira', campos: { acao: 'Completa' } }] } }
+}
+
 /** O 1×1 Zé contra Marinheiro na vez do Zé (se a ordem deu a vez ao Marinheiro, ele passa). */
 function umContraUmNaVezDoZe(motor: MotorDoDuelo, zeDoDuelo: Personagem = ZE): DueloGravado {
   const duelo = dueloDe([zeDoDuelo], [MARINHEIRO_DA_CONTA], motor)
@@ -182,6 +187,20 @@ describe('duelo', () => {
     // Sobram 70 SP (o 2º Corte caberia no custo): quem recusa é a Simples já gasta.
     expect(primeiro.lutadores.personagens.find((personagem) => personagem.id === 'treino_a1')?.recursos).toMatchObject({ sp: 70 })
     expect(aplicarJogada(primeiro, motor, CONTA_A, corteLivre(primeiro))).toEqual({ ok: false, motivo: 'regra' })
+  })
+
+  it('forma de Ação Completa pedida como Simples ou Bônus liga gastando a Completa', () => {
+    const { motor } = motorDaSemente(7)
+    const duelo = umContraUmNaVezDoZe(motor, zeComFormaCompleta())
+    const vez = vezDe(duelo)
+    const forjadas: readonly AcaoDaForma[] = ['simples', 'bonus']
+    for (const acao of forjadas) {
+      const ativar: JogadaDoDuelo = { tipo: 'agir', seq: duelo.seq, vez, pedido: { tipo: 'transformar', cartaoId: 'forma_ira', acao, trocarImagem: false } }
+      const ligada = aceita(aplicarJogada(duelo, motor, CONTA_A, ativar), `a Ira pedida como ${acao}`)
+      expect(ligada.lutadores.personagens.find((personagem) => personagem.id === 'treino_a1')?.cartoesAtivos).toContain('forma_ira')
+      // A Completa gasta a Simples e o movimento; o Bônus fica livre.
+      expect(ligada.cena.turnos.gastos[vez.cartaId]).toMatchObject({ simples: 1, movimento: 1, bonus: 0 })
+    }
   })
 
   it('agir repetido com seq velho = recusado', () => {

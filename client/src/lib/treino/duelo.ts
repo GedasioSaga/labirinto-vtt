@@ -10,6 +10,7 @@ import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
 import { registroParaJogador, type LinhaParaJogador } from '../batalha/registro'
 import { bonusDaBatalha, bonusDaReacao, seloPedidoValido } from '../batalha/selos'
 import { modoDaReacao, saidaSugerida, seloDaReacao } from '../batalha/tiposDaHabilidade'
+import { acaoDaForma, formaDaFicha } from '../batalha/transformacao'
 import { cartaDaVez, combatentesIniciais, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../batalha/turnos'
 import { bytesDoTexto, ehRegistro, lerJsonSeguro } from '../nuvem/json'
 import { LIMITES } from '../nuvem/limites'
@@ -33,8 +34,9 @@ import { danoNoTeto, seloDaMira } from './robo'
  * O servidor não confia no cliente (achados Tr2, Tr3, Tr5 e Tr7, §11):
  *  - RECALCULA dano, custo e ação pela cópia: o dano de cada alvo é o que a
  *    mira sugere (o mesmo cálculo do robô, `robo.ts`), o custo e a ação são
- *    os da ficha (a ação que a ficha não diz = Simples, `ACAO_SEM_A_FICHA`);
- *    os do pedido são ignorados. Golpe de dano que a ficha não calcula ("dano à
+ *    os da ficha (a ação que a ficha não diz = Simples, `ACAO_SEM_A_FICHA`;
+ *    a de Ativar a forma = a do campo Ação, `acaoDaForma`); os do pedido
+ *    são ignorados. Golpe de dano que a ficha não calcula ("dano à
  *    mão") é recusado: no duelo ninguém digita dano;
  *  - recusa a Surpresa e o "dano livre" (não existe jogada de dano livre:
  *    só agir, reagir e passar). Também refaz o que a tela deixaria trocar à
@@ -307,13 +309,26 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
   return { ok: true, pedido: novo }
 }
 
+/**
+ * Ativar a forma refeito: a ação é a do campo Ação da cópia (`acaoDaForma`:
+ * vazio ou ilegível = Completa; a forma Livre não gasta, a store confere); a
+ * do pedido é ignorada. Senão a forma de Ação Completa ligaria pedida como
+ * Simples ou Bônus e sobraria ação na vez. Forma que não é da cópia = recusada.
+ */
+function formaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'transformar' }>, personagem: Personagem, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
+  const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
+  if (cartao === null) return recusa('regra')
+  return { ok: true, pedido: { tipo: 'transformar', cartaoId: pedido.cartaoId, acao: acaoDaForma(cartao), trocarImagem: pedido.trocarImagem } }
+}
+
 function acaoRecalculada(pedido: PedidoDeAcao, quem: QuemAge, cena: BatalhaDaCena, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
   switch (pedido.tipo) {
-    // Sem dano nem custo vindos do cliente: a regra da batalha confere o resto.
+    // Sem dano, custo nem ação vindos do cliente: a regra da batalha confere o resto.
     case 'concentrar':
-    case 'transformar':
     case 'destransformar':
       return { ok: true, pedido }
+    case 'transformar':
+      return formaRecalculada(pedido, quem.personagem, sistema)
     case 'mover':
       return recusa('foraDoDuelo')
     case 'atacar':
@@ -408,7 +423,7 @@ function jogarNaLoja(loja: LojaDaBatalha, mesa: MesaEmMemoria, cena: BatalhaDaCe
 /**
  * Uma jogada da conta `contaId`. Confere, nesta ordem: a versão do motor, o
  * fim, a conta, o `seq`, o lado da ficha que age ou reage; refaz o pedido
- * (dano, custo, selo, Perfurante, bônus da reação) e passa pela mesma regra
+ * (dano, custo, ação, selo, Perfurante, bônus da reação) e passa pela mesma regra
  * da batalha da mesa. Aceita: o estado novo, com `seq` e `passos` + 1 e o fim
  * conferido. Recusada: o motivo, e o duelo recebido fica como estava.
  */
