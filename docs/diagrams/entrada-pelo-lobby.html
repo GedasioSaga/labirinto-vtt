@@ -227,15 +227,15 @@
       </div>
       <div class="card">
         <h3><span class="dot muted"></span>Sala aberta</h3>
-        <p>O frame <code>sala</code> só vale com o socket de pé: caiu, o site esquece e recebe de novo na volta. Sala ou endereço fora da forma exata não derruba o canal: só não há botão.</p>
+        <p>O app publica ao abrir a sala, se a pasta aberta está no Lobby (<code>App.tsx</code> + <code>salaNoLobby.ts</code>); segue a pasta se ela muda, e tira do Lobby ao fechar a sala ou o app. O frame <code>sala</code> só vale com o socket de pé: caiu, o site esquece e recebe de novo na volta. Sala ou endereço fora da forma exata não derruba o canal: só não há botão.</p>
       </div>
       <div class="card">
         <h3><span class="dot"></span>Sem internet</h3>
-        <p>Nada publicado, sem botão. Código, nome e PIN continuam como hoje.</p>
+        <p>Nada publicado, sem botão. Código, nome e PIN continuam como hoje. Mestre que não responde em 8 s: "Entrando como…" vira "A sala … não respondeu", com o caminho de volta ao Lobby.</p>
       </div>
     </div>
 
-    <p class="colophon">Fontes: client/src/lobby-site/telas/lobby/EntrarNaMesa.tsx, client/src/lobby-site/dados/ (rotas.ts, mensagens.ts, fonteReal.ts, fonteDemo.ts, sessaoDaCampanha.ts), client/src/lib/nuvem/bilhete.ts, lobby/nuvem/src/salaAberta.ts, lobby/nuvem/src/campanha.ts, desktop/src-tauri/src/nuvem.rs, client/src/net/hostBridge.ts, client/src/player/main.tsx</p>
+    <p class="colophon">Fontes: client/src/lobby-site/telas/lobby/EntrarNaMesa.tsx, client/src/lobby-site/dados/ (rotas.ts, mensagens.ts, fonteReal.ts, fonteDemo.ts, sessaoDaCampanha.ts), client/src/lib/nuvem/bilhete.ts, lobby/nuvem/src/salaAberta.ts, lobby/nuvem/src/campanha.ts, desktop/src-tauri/src/nuvem.rs, client/src/App.tsx, client/src/net/nuvem/salaNoLobby.ts, client/src/net/hostBridge.ts, client/src/net/hostSession.ts, client/src/player/main.tsx</p>
   </div>
 </body>
 </html>

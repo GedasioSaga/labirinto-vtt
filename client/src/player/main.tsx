@@ -457,6 +457,16 @@ type ConviteNaUrl = { tipo: 'nenhum' } | { tipo: 'torto' } | { tipo: 'convite'; 
 const CONVITE_VENCEU: Notice = { text: 'O convite venceu: volte ao Lobby e clique de novo.', tone: 'error' }
 /** Antes do `welcome` a queda não é recusa: o convite pode valer ainda, mas só o Lobby dá outro. */
 const CONVITE_SEM_CONEXAO: Notice = { text: 'A conexão com o mestre caiu: volte ao Lobby e clique de novo.', tone: 'error' }
+/** O motivo que `EntradaPeloConvite` dá quando o mestre não responde no prazo do "Conectando…" da sessão. */
+const CONVITE_SEM_RESPOSTA = 'sem_resposta'
+
+/** O mesmo aviso da sessão ("A sala … não respondeu."), com o caminho de volta do convite. */
+function conviteSemResposta(code: string): Notice {
+  return {
+    text: `A sala ${code} não respondeu. O Labirinto precisa estar aberto no computador do mestre, com a sala no ar: volte ao Lobby e clique de novo.`,
+    tone: 'error',
+  }
+}
 
 /** O nome do bilhete conta letras (até 32); o `join` conta unidades UTF-16. Corta sem partir emoji ao meio. */
 function nomeQueCabeNoJoin(nome: string): string {
@@ -503,9 +513,21 @@ function EntradaPeloConvite({ connection, nome, onRecusa, onCancel, children }: 
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const entrou = state.playerId !== undefined
   const recusa = !entrou && state.status === 'error' ? (state.error ?? 'unknown') : null
+  const esperando = !entrou && state.status === 'connecting'
   useEffect(() => {
     if (recusa !== null) onRecusa(recusa)
   }, [recusa, onRecusa])
+  // O `onRecusa` de agora, sem reiniciar o prazo a cada render de quem o passa.
+  const recusarAgora = useRef(onRecusa)
+  useEffect(() => {
+    recusarAgora.current = onRecusa
+  })
+  // O mesmo prazo do "Conectando…" da sessão: sem resposta do mestre, "Entrando como…" não fica parado na tela.
+  useEffect(() => {
+    if (!esperando) return
+    const relogio = setTimeout(() => recusarAgora.current(CONVITE_SEM_RESPOSTA), HANDSHAKE_DEADLINE_MS)
+    return () => clearTimeout(relogio)
+  }, [esperando])
   if (entrou || (state.status !== 'connecting' && recusa === null)) return <>{children}</>
   return <EntrandoComo nome={nome} onCancel={onCancel} />
 }
@@ -2894,7 +2916,8 @@ export function PlayerApp() {
 
   /** Recusado antes do `welcome`: o formulário, com o código e o nome do convite, diz para voltar ao Lobby. */
   function recusarConvite(reason: string) {
-    leave(reason === 'connection_lost' ? CONVITE_SEM_CONEXAO : CONVITE_VENCEU)
+    if (reason === CONVITE_SEM_RESPOSTA) leave(conviteSemResposta(lastJoin.code))
+    else leave(reason === 'connection_lost' ? CONVITE_SEM_CONEXAO : CONVITE_VENCEU)
   }
 
   /** CONTAS: com PIN, entra com a conta (e o aparelho fica lembrado); sem PIN, só pelo nome, como sempre. */
