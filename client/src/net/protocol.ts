@@ -537,6 +537,17 @@ export interface JoinMessage {
   device?: string
   /** CONTAS: como o mestre lê este aparelho na lista ("Chrome no Android"). Só junto de `pin`. */
   deviceLabel?: string
+  /**
+   * ENTRAR PELO LOBBY ("Entrar na mesa agora", 06/11/2026): o bilhete que o
+   * site do Lobby assinou para a conta (`lib/nuvem/bilhete.ts`), lido do
+   * `#entrar=` da página. Vai com `code` e `name` tirados dele; quem decide é
+   * o host (`entrarComBilhete`), e o nome que vale é o da conta no app. Nunca
+   * junto de `pin`, `device`, `deviceLabel`, `resume`, `role` nem `tableKey`.
+   * Não gera segredo de aparelho (`account.device`). Toda recusa do bilhete
+   * vem como `account.refused` `invalid` (`unavailable` = a sala não está no
+   * Lobby): a tela diz que o convite venceu.
+   */
+  ticket?: string
 }
 
 /** Compressões que o jogador pode declarar no `join`. */
@@ -2108,6 +2119,23 @@ function parseAccountJoin(code: string, name: string, obj: Record<string, unknow
   return { type: 'join', code, name, pin, deviceLabel: rotuloDoAparelho(deviceLabel), ...accept }
 }
 
+/** O teto de `lib/nuvem/bilhete.ts` (o bilhete tem ~200 caracteres): só barra lixo; a forma quem confere é o host. */
+const TICKET_MAX_LENGTH = 1024
+/** `v1.<payload>.<assinatura>`, os dois em base64url. */
+const TICKET_PATTERN = /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+
+/**
+ * ENTRAR PELO LOBBY: o `join` com `ticket`. Qualquer outra credencial junto
+ * (PIN, aparelho, resume, tela da mesa) derruba a mensagem inteira.
+ */
+function parseTicketJoin(code: string, name: string, obj: Record<string, unknown>, accept: { accept?: JoinAccept[] }): JoinMessage | null {
+  const { ticket } = obj
+  if (obj.pin !== undefined || obj.device !== undefined || obj.deviceLabel !== undefined) return null
+  if (obj.resume !== undefined || obj.role !== undefined || obj.tableKey !== undefined) return null
+  if (!isBoundedString(ticket, 1, TICKET_MAX_LENGTH) || !TICKET_PATTERN.test(ticket)) return null
+  return { type: 'join', code, name, ticket, ...accept }
+}
+
 function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   const { code, name, resume, role, tableKey } = obj
   if (typeof code !== 'string' || !JOIN_CODE_PATTERN.test(code)) return null
@@ -2117,6 +2145,7 @@ function parseJoin(obj: Record<string, unknown>): JoinMessage | null {
   // `length` conta unidades UTF-16 (emoji = 2): é o limite que o jogador vê no input.
   if (cleanName.length < NAME_MIN_LENGTH || cleanName.length > NAME_MAX_LENGTH) return null
   const accept = parseJoinAccept(obj.accept)
+  if (obj.ticket !== undefined) return parseTicketJoin(code, cleanName, obj, accept)
   if (obj.pin !== undefined || obj.device !== undefined || obj.deviceLabel !== undefined) {
     // A conta é a identidade: não se mistura com retomar sessão nem com a tela da mesa.
     if (role !== undefined || resume !== undefined || tableKey !== undefined) return null

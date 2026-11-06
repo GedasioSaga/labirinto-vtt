@@ -38,13 +38,19 @@ export const invocarDoTauri: Invocar = (comando, argumentos) => invoke<unknown>(
  * cópia da sala do chat. A variante `SalaDoChat` do enum da R1 chega na fatia
  * C3R; até lá o Tauri recusa o pedido (variante desconhecida) e a cópia da sala
  * fica parada com o motivo (`chatSala.ts`), sem mexer no resto do Lobby.
+ *
+ * `abrirSala` (fatia B3, commit d0b3508e) = `POST /api/c/:id/sala` com
+ * `{ codigo, enderecos }`, que também é a batida; devolve `{ chave, agora,
+ * expiraEm }`. `fecharSala` = `POST /api/c/:id/sala/fechar`, sem corpo daqui
+ * (a R1 manda o `{}` fixo). Quem usa: `salaNoLobby.ts`.
  */
 export type PedidoDaR1 =
   | { rota: 'eu' }
-  | { rota: 'publicar' | 'membros' | 'ops'; campanhaId: string; corpo: Json }
+  | { rota: 'publicar' | 'membros' | 'ops' | 'abrirSala'; campanhaId: string; corpo: Json }
   | { rota: 'desde'; campanhaId: string; rev: number; limite?: number }
   | { rota: 'exportar'; campanhaId: string; deRev?: number; ateRev?: number }
   | { rota: 'salaDoChat'; campanhaId: string; desde: number; limite?: number }
+  | { rota: 'fecharSala'; campanhaId: string }
 
 /**
  * O pedido como vai ao fio: só os campos da variante, e o opcional ausente
@@ -59,7 +65,10 @@ export function pedidoNoFio(pedido: PedidoDaR1): { [campo: string]: Json } {
     case 'publicar':
     case 'membros':
     case 'ops':
+    case 'abrirSala':
       return { rota: pedido.rota, campanhaId: pedido.campanhaId, corpo: pedido.corpo }
+    case 'fecharSala':
+      return { rota: 'fecharSala', campanhaId: pedido.campanhaId }
     case 'desde': {
       const fio: { [campo: string]: Json } = { rota: 'desde', campanhaId: pedido.campanhaId, rev: pedido.rev }
       if (pedido.limite !== undefined) fio.limite = pedido.limite

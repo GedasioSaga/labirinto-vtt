@@ -119,7 +119,8 @@ import { destinatarios, type TelasDaMesa } from './audienciaDosSons'
 import { avisarFalhaDeSom, registrarRedeDosSons, type PedidoDeSomAoVivo, type RedeDosSons, type ResultadoDoSomNaRede } from './ponteDosSons'
 import type { AlvoDosSons } from '../lib/sons/biblioteca'
 import { MAX_LOOPS } from '../lib/sons/aoVivo/motor'
-import type { PortaDasContas } from './entradaComConta'
+import type { PortaDasContas, VeredictoDaConta } from './entradaComConta'
+import type { RegrasDoBilhete } from '../lib/nuvem/bilhete'
 import type { AbaloContagem, AbaloOrigem, AbaloTextos } from '../lib/abalo'
 import { letterViaPhrase } from '../lib/correio'
 import { createPlayerScreens, type PlayerScreen } from './playerScreens'
@@ -399,6 +400,13 @@ export interface HostBridgeDeps {
    * Visão de jogador nunca cria nem lê as contas de verdade).
    */
   contas?: PortaDasContas
+  /**
+   * ENTRAR PELO LOBBY: a chave, o código e o relógio da sala publicada no
+   * Lobby agora (`net/nuvem/salaNoLobby.ts`, `regrasDoBilhete`), com que o
+   * `join` com bilhete é conferido. Ausente, ou `null`, = a sala não está no
+   * Lobby: o bilhete é recusado (`unavailable`), e código, nome e PIN seguem.
+   */
+  regrasDoBilhete?: () => RegrasDoBilhete | null
   /** DADO ROLADO NA SALA: toda rolagem da mesa (a de um jogador e a do mestre, a escondida marcada). */
   onDiceRoll?: (roll: HostDiceRoll) => void
   /** CHAT, leitura do mestre: o Global e as cenas com conversa, a cada linha nova ou apagada. */
@@ -804,11 +812,15 @@ export const BROADCAST_THROTTLE_MS = 50
  */
 const KICK_ON_JOIN_ERROR: ReadonlySet<HostErrorReason> = new Set<HostErrorReason>(['invalid_message', 'bad_code', 'table_full', 'bad_table_key', 'account_required'])
 
-/** CONTAS: com o que o `join` pede para entrar — o aparelho lembrado ou o PIN (e o rótulo do aparelho novo). */
-type AccountCredential = { kind: 'device'; device: string } | { kind: 'pin'; pin: string; deviceLabel: string }
+/**
+ * CONTAS: com o que o `join` pede para entrar — o aparelho lembrado, o PIN (e
+ * o rótulo do aparelho novo) ou o bilhete do Lobby ("Entrar na mesa agora").
+ */
+type AccountCredential = { kind: 'device'; device: string } | { kind: 'pin'; pin: string; deviceLabel: string } | { kind: 'ticket'; ticket: string }
 
 /** `null` = `join` só pelo nome (ou resume), sem conta. */
 function accountCredentialOf(msg: JoinMessage): AccountCredential | null {
+  if (msg.ticket !== undefined) return { kind: 'ticket', ticket: msg.ticket }
   if (msg.device !== undefined) return { kind: 'device', device: msg.device }
   if (msg.pin === undefined) return null
   // Sem rótulo é caso de verdade (jogador antigo): a lista do mestre mostra "Aparelho".
@@ -3487,6 +3499,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       void entrarComConta(deps.contas, clientId, parsed.code, parsed.name, credential)
       return
     }
+    // O bilhete só vale conferido aqui: na sessão, ele viraria uma entrada só pelo nome.
+    if (credential?.kind === 'ticket') {
+      void sendThenKick({ outbound: [{ clientId, msg: { type: 'account.refused', reason: 'unavailable' } }] }, clientId)
+      return
+    }
     concludeMessage(clientId, session.handleMessage(clientId, event.payload.msg, world()), before, wasJoined)
   }
 
@@ -3496,7 +3513,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * derruba a conexão, como o código errado: cada nova tentativa paga um
    * socket novo. Na entrada com PIN, o aparelho ganha o segredo que o deixa
    * entrar sozinho da próxima vez — mandado UMA vez, depois do `welcome`.
+   * O bilhete do Lobby confere com as regras da sala publicada agora
+   * (`deps.regrasDoBilhete`) e não dá segredo de aparelho.
    */
+  const conferirCredencial = (contas: PortaDasContas, name: string, credential: AccountCredential): Promise<VeredictoDaConta> => {
+    switch (credential.kind) {
+      case 'device':
+        return contas.entrarComAparelho(credential.device)
+      case 'pin':
+        return contas.entrarComPin(name, credential.pin)
+      case 'ticket':
+        // Sem a sala no Lobby (sem internet, pasta sem campanha, Visão de jogador): `null`, e o bilhete é recusado.
+        return contas.entrarComBilhete(credential.ticket, deps.regrasDoBilhete === undefined ? null : deps.regrasDoBilhete())
+    }
+  }
+
   const entrarComConta = async (contas: PortaDasContas, clientId: string, code: string, name: string, credential: AccountCredential) => {
     const room = session
     if (room === null || accountJoinsInFlight.has(clientId)) return
@@ -3507,7 +3538,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     accountJoinsInFlight.add(clientId)
     try {
-      const verdict = credential.kind === 'device' ? await contas.entrarComAparelho(credential.device) : await contas.entrarComPin(name, credential.pin)
+      const verdict = await conferirCredencial(contas, name, credential)
       // A conexão caiu (ou a sala fechou) enquanto conferia: não há a quem responder.
       if (session !== room || !accountJoinsInFlight.has(clientId)) return
       if (!verdict.ok) {

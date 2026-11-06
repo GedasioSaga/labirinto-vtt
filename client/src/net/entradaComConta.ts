@@ -16,6 +16,7 @@ import {
   type ContaNaSala,
   type ContasNaSala,
 } from '../lib/contasDosJogadores'
+import { conferirBilhete, FOLGA_DO_RELOGIO_MS, type RegrasDoBilhete } from '../lib/nuvem/bilhete'
 import type { AccountRefusedReason } from './protocol'
 
 /**
@@ -38,6 +39,11 @@ import type { AccountRefusedReason } from './protocol'
  *    mestre. O aparelho lembrado (um SHA-256) não entra nele.
  * Nome errado e PIN errado dão a MESMA recusa (`invalid`) e o mesmo tempo
  * (`gastarComoConferir`). PIN e segredo nunca vão a log nem a aviso.
+ *
+ * A TERCEIRA credencial é o bilhete do Lobby ("Entrar na mesa agora",
+ * `entrarComBilhete`): assinado pelo site com a chave da sala aberta, vale
+ * uma vez e por 2 minutos. Não passa pelos freios do PIN (conferir um HMAC
+ * custa nada, e só o Lobby sabe assinar), e toda recusa é a mesma `invalid`.
  */
 
 export const FALHAS_ANTES_DO_BLOQUEIO = 5
@@ -59,6 +65,13 @@ export interface PortaDasContas {
   naSala(): ContasNaSala
   entrarComPin(nome: string, pin: string): Promise<VeredictoDaConta>
   entrarComAparelho(token: string): Promise<VeredictoDaConta>
+  /**
+   * O bilhete do Lobby, conferido nesta ordem: HMAC (tempo constante), a sala,
+   * o prazo (`regras.agoraMs` já no relógio do Lobby), a conta existir em
+   * `contas.json` e o bilhete não ter sido usado. `regras` = `null`: a sala
+   * não está no Lobby agora (`unavailable`). Não lembra aparelho nenhum.
+   */
+  entrarComBilhete(bilhete: string, regras: RegrasDoBilhete | null): Promise<VeredictoDaConta>
   /** Lembra um aparelho novo da conta e devolve o segredo dele (vai UMA vez ao jogador); `null` = não gravou. */
   lembrarAparelho(contaId: string, rotulo: string): Promise<string | null>
 }
@@ -83,12 +96,19 @@ const bloqueado = (ms: number): VeredictoDaConta => ({ ok: false, motivo: 'locke
 
 const INVALIDA: VeredictoDaConta = { ok: false, motivo: 'invalid' }
 const APARELHO_ESQUECIDO: VeredictoDaConta = { ok: false, motivo: 'device' }
+const SALA_FORA_DO_LOBBY: VeredictoDaConta = { ok: false, motivo: 'unavailable' }
 
 export function criarPortaDasContas(deps: DepsDaPorta): PortaDasContas {
   const now = deps.now ?? Date.now
   const falhasPorNome = new Map<string, FalhasDoNome>()
   const nomesNoAr = new Set<string>()
   let conferenciasRecentes: number[] = []
+  /** O `jti` de cada bilhete que já entrou, até ele vencer (ms no relógio do Lobby). */
+  const bilhetesUsados = new Map<string, number>()
+
+  const esquecerBilhetesVencidos = (agoraNoLobby: number) => {
+    for (const [jti, validoAte] of bilhetesUsados) if (agoraNoLobby > validoAte + FOLGA_DO_RELOGIO_MS) bilhetesUsados.delete(jti)
+  }
 
   const esquecerFalhasVelhas = (agora: number) => {
     if (falhasPorNome.size <= NOMES_GUARDADOS_MAX) return
@@ -171,6 +191,23 @@ export function criarPortaDasContas(deps: DepsDaPorta): PortaDasContas {
       } catch {
         // O "visto em" é só para o mestre ler na lista: sem ele, a entrada vale igual.
       }
+      return { ok: true, conta: { id: conta.id, nome: conta.nome } }
+    },
+
+    entrarComBilhete: async (bilhete, regras) => {
+      await deps.prontas()
+      if (regras === null) return SALA_FORA_DO_LOBBY
+      const conferido = await conferirBilhete(bilhete, regras)
+      if (!conferido.ok) return INVALIDA
+      const { jti, validoAte, contaId } = conferido.dados
+      esquecerBilhetesVencidos(regras.agoraMs)
+      // Marcado ANTES de olhar a conta: o bilhete vale uma vez, entrando ou não.
+      // Sem `await` entre ler e marcar, duas abas com o mesmo bilhete não passam as duas.
+      if (bilhetesUsados.has(jti)) return INVALIDA
+      bilhetesUsados.set(jti, validoAte)
+      const conta = deps.ler().contas.find((candidata) => candidata.id === contaId)
+      if (conta === undefined) return INVALIDA
+      // O nome do bilhete é só para a tela do jogador: o que vale é o da conta no app.
       return { ok: true, conta: { id: conta.id, nome: conta.nome } }
     },
 
