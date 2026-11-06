@@ -8,6 +8,10 @@
 //      node fumaca.mjs limites             -> o limitador: ritmo vira adiado; frames tortos fecham e bloqueiam
 //      node fumaca.mjs midia               -> o aceite da W3: PNG de 2 MiB sobe e volta com o mesmo sha256;
 //                                             hash errado = 400; .png com HTML dentro = 400
+//      node fumaca.mjs chat                -> o aceite da C1 (mestre, Nami e Zoro em três sockets): sala chega
+//                                             aos 3; privado Nami<->Zoro não chega ao mestre; chat.antes com
+//                                             canal 'dm:a:b' em texto = recusa; 6º envio em rajada = ritmo;
+//                                             exportar sem nenhum privado; presença por conta, sem e-mail
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -93,10 +97,13 @@ class Sala {
     this.email = email
     this.recebidas = []
     this.esperando = []
+    /** Todo texto que chegou, na ordem (o chat confere que o privado alheio nunca passou por aqui). */
+    this.todas = []
     ws.addEventListener('message', (evento) => this.chegou(String(evento.data)))
   }
 
   chegou(texto) {
+    this.todas.push(texto)
     let mensagem
     try {
       mensagem = JSON.parse(texto)
@@ -490,6 +497,136 @@ async function aceiteDaMidia() {
   console.log(falhas === 0 ? `MIDIA OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
 }
 
+// ── Chat (C1, plano 8.2; liberado pela 12.18 f) ─────────────────────────────
+
+const esperarMs = (ms) => new Promise((pronto) => setTimeout(pronto, ms))
+
+async function abrirOs3(campanhaId) {
+  const salas = { mestre: await Sala.abrir(campanhaId, MESTRE), nami: await Sala.abrir(campanhaId, NAMI), zoro: await Sala.abrir(campanhaId, ZORO) }
+  for (const [nome, sala] of Object.entries(salas)) await sala.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: `cli_${nome}` })
+  for (const sala of Object.values(salas)) await sala.esperar((m) => m.t === 'estado', 'o estado')
+  const presenca = await salas.mestre.esperar((m) => m.t === 'presenca' && m.naMesa.length === 3, 'a presença com os 3')
+  const contas = presenca.naMesa.map((p) => p.contaId).join(',')
+  const textoDaPresenca = JSON.stringify(presenca)
+  conferir('presença: os 3 na mesa, uma linha por conta, mestre primeiro, sem e-mail', contas === 'mestre,conta_nami,conta_zoro' && !textoDaPresenca.includes('@') && !textoDaPresenca.includes('email'), textoDaPresenca)
+  return salas
+}
+
+const okDe = (sala, idDoCliente) => sala.esperar((m) => (m.t === 'chat.ok' || m.t === 'chat.recusado') && m.idDoCliente === idDoCliente, `a resposta de ${idDoCliente}`)
+const msgNoCanal = (sala, id, eDm) => sala.esperar((m) => m.t === 'chat.msg' && m.msg.id === id && (eDm(m.canal)), `a chat.msg ${id}`)
+
+async function salaEPrivados(s, marcadorDm) {
+  const pedido = { t: 'chat.enviar', canal: 'sala', texto: '  oi, sala! @Zoro  ', idDoCliente: 'c_sala_1' }
+  await s.nami.mandar(pedido)
+  const ok = await okDe(s.nami, 'c_sala_1')
+  const [doMestre, doZoro] = await Promise.all([s.mestre, s.zoro].map((sala) => msgNoCanal(sala, ok.msg?.id, (canal) => canal === 'sala')))
+  conferir(
+    'sala chega aos 3 (chat.ok da Nami; mestre e Zoro recebem a mesma; texto limpo; @Zoro = conta_zoro)',
+    ok.t === 'chat.ok' && ok.msg.texto === 'oi, sala! @Zoro' && ok.msg.mencoes.join() === 'conta_zoro' && doMestre.msg.id === ok.msg.id && doZoro.msg.autorNome === 'Nami',
+    JSON.stringify(ok),
+  )
+  await s.nami.mandar(pedido)
+  const deNovo = await okDe(s.nami, 'c_sala_1')
+  conferir('reenvio do mesmo idDoCliente = a mesma mensagem (nada gravado de novo)', deNovo.t === 'chat.ok' && deNovo.msg.id === ok.msg.id, JSON.stringify(deNovo))
+
+  await s.nami.mandar({ t: 'chat.enviar', canal: { dm: 'conta_zoro' }, texto: `segredo ${marcadorDm}`, idDoCliente: 'c_dm_1' })
+  const okDm = await okDe(s.nami, 'c_dm_1')
+  const noZoro = await msgNoCanal(s.zoro, okDm.msg?.id, (canal) => canal?.dm === 'conta_nami')
+  conferir('privado Nami -> Zoro chega ao Zoro como {dm: conta_nami}', okDm.t === 'chat.ok' && noZoro.msg.texto === `segredo ${marcadorDm}`, JSON.stringify(okDm))
+
+  await s.mestre.mandar({ t: 'chat.enviar', canal: { dm: 'conta_nami' }, texto: 'oi Nami, aqui é o mestre', idDoCliente: 'c_dm_mestre' })
+  const okMestre = await okDe(s.mestre, 'c_dm_mestre')
+  const naNami = await msgNoCanal(s.nami, okMestre.msg?.id, (canal) => canal?.dm === 'mestre')
+  conferir('privado mestre -> Nami existe (12.16) e chega a ela como {dm: mestre}', okMestre.t === 'chat.ok' && naNami.msg.autorContaId === 'mestre', JSON.stringify(okMestre))
+  return ok.msg
+}
+
+/** O mestre tenta ler o privado Nami<->Zoro por todos os caminhos que tem: ao vivo, pela volta (`chat.desde`) e pelo privado dele com a Nami. */
+async function mestreNaoVePrivadoAlheio(s, marcadorDm) {
+  await s.mestre.mandar({ t: 'chat.desde', cursor: 0 })
+  const resumo = await s.mestre.esperar((m) => m.t === 'chat.resumo', 'o resumo do mestre')
+  const mudancas = await s.mestre.esperar((m) => m.t === 'chat.mudancas', 'as mudanças do mestre')
+  await s.mestre.mandar({ t: 'chat.antes', canal: { dm: 'conta_nami' }, antesDeId: null, limite: 50 })
+  const comANami = await s.mestre.esperar((m) => m.t === 'chat.lista', 'o privado do mestre com a Nami')
+  const vazou = s.mestre.todas.some((texto) => texto.includes(marcadorDm))
+  conferir(
+    'privado Nami<->Zoro não chega ao mestre (ao vivo, chat.desde 0, chat.antes do privado dele com a Nami)',
+    !vazou && mudancas.lista.some((m) => m.canal === 'sala') && comANami.lista.length === 1 && resumo.canais.every((c) => c.canal === 'sala' || c.canal.dm === 'conta_nami'),
+    `vazou=${vazou} mudancas=${JSON.stringify(mudancas.lista.map((m) => m.canal))} privado=${comANami.lista.length} canais=${JSON.stringify(resumo.canais.map((c) => c.canal))}`,
+  )
+  await s.mestre.mandar({ t: 'chat.antes', canal: 'dm:conta_nami:conta_zoro', antesDeId: null, limite: 50 })
+  const recusa = await s.mestre.esperar((m) => m.t === 'chat.recusado' || m.t === 'chat.lista', 'a resposta do chat.antes torto')
+  conferir("chat.antes com canal 'dm:conta_nami:conta_zoro' em texto = chat.recusado (formato), sem lista", recusa.t === 'chat.recusado' && recusa.pedido === 'chat.antes' && recusa.motivo === 'formato', JSON.stringify(recusa))
+}
+
+async function lidasELapide(s, daSala) {
+  await s.zoro.mandar({ t: 'chat.desde', cursor: null })
+  const antes = await s.zoro.esperar((m) => m.t === 'chat.resumo', 'o resumo do Zoro')
+  await s.zoro.mandar({ t: 'chat.lida', canal: { dm: 'conta_nami' }, ateId: 999 })
+  const depois = await s.zoro.esperar((m) => m.t === 'chat.resumo', 'o resumo do Zoro depois de ler')
+  const naoLidas = (resumo, eSala) => resumo.canais.find((c) => (eSala ? c.canal === 'sala' : c.canal.dm === 'conta_nami'))?.naoLidas
+  conferir(
+    'não lidas do Zoro: sala 1 e privado com a Nami 1; chat.lida (ateId além do fim) zera o privado e deixa a sala',
+    naoLidas(antes, true) === 1 && naoLidas(antes, false) === 1 && naoLidas(depois, false) === 0 && naoLidas(depois, true) === 1,
+    JSON.stringify([antes.canais, depois.canais]),
+  )
+  await s.nami.mandar({ t: 'chat.apagar', canal: 'sala', id: daSala.id })
+  const [paraZoro, paraNami] = await Promise.all([s.zoro, s.nami].map((sala) => sala.esperar((m) => m.t === 'chat.apagada' && m.id === daSala.id, 'a lápide')))
+  conferir('apagar = lápide para todos (chat.apagada com mudou novo)', paraZoro.canal === 'sala' && paraNami.mudou > daSala.mudou, JSON.stringify(paraZoro))
+}
+
+async function rajada(s) {
+  await esperarVez(ZORO)
+  await esperarMs(INTERVALO_ENTRE_FRAMES_MS)
+  const ids = Array.from({ length: 6 }, (_, indice) => `c_rajada_${indice}`)
+  ids.forEach((idDoCliente, indice) => s.zoro.ws.send(JSON.stringify({ t: 'chat.enviar', canal: 'sala', texto: `rajada ${indice}`, idDoCliente })))
+  const respostas = await Promise.all(ids.map((idDoCliente) => okDe(s.zoro, idDoCliente)))
+  ultimoFrame.set(ZORO, Date.now())
+  const tipos = respostas.map((r) => (r.t === 'chat.recusado' ? `recusado:${r.motivo}` : r.t))
+  conferir('rajada de 6 na sala: 5 entram, o 6º = chat.recusado (ritmo) com tentarDepoisDe', tipos.slice(0, 5).every((t) => t === 'chat.ok') && tipos[5] === 'recusado:ritmo' && respostas[5].tentarDepoisDe > 0, tipos.join(' '))
+}
+
+async function semPrivadoNoApp(campanhaId, marcadorDm) {
+  const exportada = await doApp('GET', `/api/c/${campanhaId}/exportar`)
+  const texto = JSON.stringify(exportada.corpo)
+  const sala = exportada.corpo.tabelas?.chatSala ?? []
+  conferir(
+    'exportar: a sala inteira (5 da rajada + 1 lápide sem texto), nenhum privado',
+    exportada.status === 200 && sala.length === 6 && sala.filter((m) => m.apagadaEm !== null && m.texto === '').length === 1 && !texto.includes(marcadorDm) && !texto.includes('aqui é o mestre'),
+    `status=${exportada.status} sala=${sala.length}`,
+  )
+  const copia = await doApp('GET', `/api/c/${campanhaId}/chat/sala?desde=0`)
+  const lista = copia.corpo.lista ?? []
+  conferir(
+    'cópia da sala do app (GET chat/sala?desde=0): as 6 com a lápide, nenhum privado, ate = cursor de agora',
+    copia.status === 200 && lista.length === 6 && lista.some((m) => m.apagadaEm !== null) && !JSON.stringify(copia.corpo).includes(marcadorDm) && copia.corpo.ate === copia.corpo.cursorAtual,
+    JSON.stringify({ status: copia.status, n: lista.length, ate: copia.corpo.ate, cursorAtual: copia.corpo.cursorAtual }),
+  )
+}
+
+async function aceiteDoChat() {
+  const campanhaId = `fumaca-chat-${Date.now().toString(36)}`
+  const marcadorDm = `dm-${randomBytes(4).toString('hex')}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, pedidoDePublicar([ficha('pers_nami', 'conta_nami'), ficha('pers_zoro', 'conta_zoro')]))
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  const s = await abrirOs3(campanhaId)
+  try {
+    const daSala = await salaEPrivados(s, marcadorDm)
+    await mestreNaoVePrivadoAlheio(s, marcadorDm)
+    await lidasELapide(s, daSala)
+    await rajada(s)
+    await semPrivadoNoApp(campanhaId, marcadorDm)
+    s.mestre.recebidas = s.mestre.recebidas.filter((m) => m.t !== 'presenca')
+    s.zoro.fechar()
+    const semZoro = await s.mestre.esperar((m) => m.t === 'presenca', 'a presença depois que o Zoro saiu')
+    conferir('Zoro fecha a aba: a presença do mestre fica só com mestre e Nami', semZoro.naMesa.map((p) => p.contaId).join(',') === 'mestre,conta_nami', JSON.stringify(semZoro))
+  } finally {
+    for (const sala of Object.values(s)) sala.fechar()
+  }
+  console.log(falhas === 0 ? `CHAT OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
 async function listarOps(campanhaId) {
   const { primeira, ops } = await exportarTudo(campanhaId, MESTRE, 'app', 500)
   if (primeira.ops === undefined) {
@@ -514,6 +651,8 @@ try {
     await limites()
   } else if (modo === 'midia') {
     await aceiteDaMidia()
+  } else if (modo === 'chat') {
+    await aceiteDoChat()
   } else {
     await aceite()
   }

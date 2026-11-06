@@ -23,6 +23,7 @@ import {
   visivelDaFicha,
   type MetaDaCampanha,
 } from './banco'
+import { atenderPedidoDoChat, cursorDoChat, LIMITE_DA_ROTA_DA_SALA, recusarPedidoDoChat, recusarPorRitmo, salaDesde, salaInteira, type SalaDoChat } from './chat'
 import { criarEsquemaDaCampanha } from './esquema'
 import { ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro } from './http'
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
@@ -162,6 +163,9 @@ export class Campanha extends DurableObject<Env> {
       case 'ws':
         exigirMetodo(request, 'GET')
         return this.abrirSocket(request, rota.campanhaId, identidade)
+      case 'chatSala':
+        exigirMetodo(request, 'GET')
+        return this.salaDoChat(url, rota.campanhaId, identidade)
       case 'midia':
         return this.midia(request, rota, identidade)
     }
@@ -235,9 +239,28 @@ export class Campanha extends DurableObject<Env> {
   }
 
   /**
+   * A cópia da sala do chat no app (§5.4, achado Ch6): mensagens e lápides
+   * com `mudou > desde`, na ordem do cursor; o app repete com `ate` enquanto
+   * `temMais`. Só a sala: o privado nunca vai para o disco do mestre (§5.7).
+   */
+  private salaDoChat(url: URL, campanhaId: string, identidade: IdentidadeDoPortao): Response {
+    this.acessoDoApp(campanhaId, identidade)
+    const desde = inteiroDaUrl(url, 'desde', 0)
+    const limite = limiteDaUrl(url, LIMITE_DA_ROTA_DA_SALA)
+    const lista = salaDesde(this.sql, desde, limite)
+    const ultima = lista.at(-1)
+    const temMais = lista.length === limite
+    const cursorAtual = cursorDoChat(this.sql)
+    // Página incompleta = alcançou: o cursor salta para o de agora (o que falta no meio é privado, que não vem).
+    const ate = temMais && ultima !== undefined ? ultima.mudou : Math.max(desde, cursorAtual)
+    return json({ desde, ate, lista, temMais, cursorAtual })
+  }
+
+  /**
    * Exportação paginada (§5.4), lista fechada de tabelas: `ops` em toda
-   * página; `membros`, `fichas`, `recusadas` e o sistema só na primeira
-   * (`deRev` = 1). Nunca chat privado. Só o app do mestre chega aqui; a
+   * página; `membros`, `fichas`, `recusadas`, o sistema e a sala do chat
+   * (com as lápides) só na primeira (`deRev` = 1). Nunca o chat privado
+   * (`chat_dm`, XS5) nem as `lidas`. Só o app do mestre chega aqui; a
    * projeção para não mestre (§6.4) fica como segunda parede, para a rota
    * não vazar nota do mestre se um dia abrir para o site.
    */
@@ -257,11 +280,14 @@ export class Campanha extends DurableObject<Env> {
     const membros = todosOsMembros(this.sql)
     const fichas = todasAsFichas(this.sql)
     const recusadas = todasAsRecusadas(this.sql)
-    if (membro.papel === 'mestre') return { membros, fichas, recusadas, sistema: lerSistema(this.sql) ?? null }
+    // A sala é vista por todo membro: entra igual nas duas paredes.
+    const chatSala = salaInteira(this.sql)
+    if (membro.papel === 'mestre') return { membros, fichas, recusadas, sistema: lerSistema(this.sql) ?? null, chatSala }
     return {
       membros: projetarMembros(membros),
       fichas: fichasDoEstado(membro, fichas, membros),
       recusadas: recusadas.filter((recusada) => recusada.autorContaId === membro.contaId),
+      chatSala,
     }
   }
 
@@ -301,6 +327,8 @@ export class Campanha extends DurableObject<Env> {
       for (const ws of this.ctx.getWebSockets(tagDaConta(contaId))) fechar(ws, FECHAR_SEM_ACESSO, 'Seu acesso a esta campanha mudou')
     }
     this.enviarEstadoATodos()
+    // Quem saiu some da presença já (os sockets dele não contam mais como prontos); nome novo aparece.
+    this.difundirPresenca(this.socketsProntos())
     const diretorio = this.env.DIRETORIO.get(this.env.DIRETORIO.idFromName(NOME_DO_DIRETORIO))
     try {
       await diretorio.atualizarCampanha(campanhaId, nome, entradasDoDiretorio(this.sql))
@@ -354,13 +382,41 @@ export class Campanha extends DurableObject<Env> {
     for (const { ws, membro } of prontos) enviar(ws, this.estadoPara(membro, fichas, membros, rev))
   }
 
-  private difundirPresenca(excluir?: WebSocket): void {
-    const prontos = this.socketsProntos(excluir)
-    const naMesa = new Map<string, PresencaNaMesa>()
-    for (const { anexo, membro } of prontos) {
-      naMesa.set(`${membro.contaId}:${anexo.origem}`, { contaId: membro.contaId, nome: membro.nome, papel: membro.papel, onde: anexo.origem })
+  /** "Na mesa agora" para todos os `prontos` (uma linha por conta, sem e-mail, §6.4). */
+  private difundirPresenca(prontos: readonly SocketPronto[]): void {
+    const mensagem: MensagemDoServidor = { t: 'presenca', naMesa: presencaPorConta(prontos) }
+    for (const { ws } of prontos) enviar(ws, mensagem)
+  }
+
+  /**
+   * Presença no `ola`: quem acabou de chegar recebe a lista; os outros só
+   * recebem se a CONTA entrou agora (a segunda aba, ou o `ola` repetido da
+   * reconexão, não muda quem está na mesa).
+   */
+  private entrouNaMesa(ws: WebSocket, contaId: string, jaEstavaPronto: boolean): void {
+    const prontos = this.socketsProntos()
+    const contaJaEstava = jaEstavaPronto || prontos.some((pronto) => pronto.ws !== ws && pronto.membro.contaId === contaId)
+    if (contaJaEstava) enviar(ws, { t: 'presenca', naMesa: presencaPorConta(prontos) })
+    else this.difundirPresenca(prontos)
+  }
+
+  /** Socket fechou: os outros recebem a presença só se a conta saiu de vez (nenhuma outra aba dela pronta). */
+  private saiuDaMesa(ws: WebSocket): void {
+    const anexo = lerAnexo(ws.deserializeAttachment())
+    // Socket que nunca mandou `ola` nunca apareceu na mesa.
+    if (anexo === null || anexo.clienteId === null) return
+    const restantes = this.socketsProntos(ws)
+    if (restantes.some((pronto) => pronto.membro.contaId === anexo.contaId)) return
+    this.difundirPresenca(restantes)
+  }
+
+  /** O que o chat usa do DO (lobby/nuvem/src/chat.ts). */
+  private salaDoChatNoSocket(): SalaDoChat {
+    return {
+      sql: this.sql,
+      transacao: (passo) => this.ctx.storage.transactionSync(passo),
+      ouvintes: () => this.socketsProntos().map(({ ws, membro }) => ({ ws, contaId: membro.contaId })),
     }
-    for (const { ws } of prontos) enviar(ws, { t: 'presenca', naMesa: [...naMesa.values()] })
   }
 
   // ── WebSocket do site ─────────────────────────────────────────────────────
@@ -395,6 +451,13 @@ export class Campanha extends DurableObject<Env> {
       this.contarViolacoes(ws, anexo, 1, agora)
       return
     }
+    // `chat.*` torto também é violação, mas ganha resposta: o site tira o "enviando…" e mostra o motivo.
+    if (frame.t === 'chat' && !frame.leitura.ok) {
+      const { pedido, idDoCliente } = frame.leitura
+      recusarPedidoDoChat(ws, pedido, 'formato', idDoCliente === undefined ? {} : { idDoCliente })
+      this.contarViolacoes(ws, anexo, 1, agora)
+      return
+    }
     // O primeiro `ola` do socket não passa pelo ritmo: sem ele o socket não serve para nada, e sockets por conta já têm teto.
     if (!(frame.t === 'ola' && anexo.clienteId === null)) {
       const ritmo = this.conferirRitmo(membro.contaId, agora)
@@ -405,11 +468,11 @@ export class Campanha extends DurableObject<Env> {
 
   webSocketClose(ws: WebSocket): void {
     fecharDeVolta(ws)
-    this.difundirPresenca(ws)
+    this.saiuDaMesa(ws)
   }
 
   webSocketError(ws: WebSocket): void {
-    this.difundirPresenca(ws)
+    this.saiuDaMesa(ws)
   }
 
   private atenderFrame(ws: WebSocket, anexo: Anexo, frame: Frame, quem: Identidade, agora: number): void {
@@ -422,6 +485,12 @@ export class Campanha extends DurableObject<Env> {
         return this.responder(ws, anexo, agora, (leitor, hora) => processarDesfazer(leitor, quem, frame.pedido, hora))
       case 'historico':
         return this.historico(ws, quem, frame)
+      case 'chat': {
+        const membro = membroPorConta(this.sql, quem.contaId)
+        // O torto já foi respondido em `webSocketMessage`; aqui só chega pedido lido.
+        if (!frame.leitura.ok || !membroAtivo(membro)) return
+        return atenderPedidoDoChat(this.salaDoChatNoSocket(), ws, membro, frame.leitura.pedido, agora)
+      }
     }
   }
 
@@ -437,6 +506,7 @@ export class Campanha extends DurableObject<Env> {
       enviar(ws, { t: 'versao', versaoDoFormato: VERSAO_DO_FORMATO })
       return
     }
+    const jaEstavaPronto = anexo.clienteId !== null
     ws.serializeAttachment({ ...anexo, clienteId: frame.clienteId })
     const membro = membroPorConta(this.sql, quem.contaId)
     if (!membroAtivo(membro)) return
@@ -447,7 +517,7 @@ export class Campanha extends DurableObject<Env> {
     } else {
       this.enviarOpsDesde(ws, membro, desde, atual)
     }
-    this.difundirPresenca()
+    this.entrouNaMesa(ws, membro.contaId, jaEstavaPronto)
   }
 
   /** As ops que faltam, em páginas; já em dia = uma página vazia (o site sabe que alcançou). */
@@ -487,8 +557,12 @@ export class Campanha extends DurableObject<Env> {
     })
   }
 
-  /** Frame acima do ritmo: op e desfazer viram `adiado` (a fila reenvia sozinha); `ola` repetido e `historico` ficam sem resposta. */
+  /** Frame acima do ritmo: op e desfazer viram `adiado` (a fila reenvia sozinha); `chat.*` vira `chat.recusado` com motivo `ritmo`; `ola` repetido e `historico` ficam sem resposta. */
   private responderAoRitmo(ws: WebSocket, frame: Frame, tentarDepoisDe: number): void {
+    if (frame.t === 'chat') {
+      if (frame.leitura.ok) recusarPorRitmo(ws, frame.leitura.pedido, tentarDepoisDe)
+      return
+    }
     if (frame.t === 'ops') {
       for (const resposta of respostasAdiadas(frame.lote, 'ritmo', tentarDepoisDe)) enviar(ws, resposta)
       return
@@ -506,6 +580,21 @@ export class Campanha extends DurableObject<Env> {
     this.ctx.storage.transactionSync(() => bloquear(this.sql, anexo.contaId, agora + LIMITES.bloqueioDepoisDasViolacoesMs))
     fechar(ws, FECHAR_POR_VIOLACAO, 'Mensagens fora do formato demais')
   }
+}
+
+/**
+ * Quem está conectado agora, UMA linha por conta (a conta com várias abas
+ * aparece uma vez), só com contaId, nome e papel: nunca o e-mail do colega
+ * (§6.4, XS12). `onde` = `app` se algum socket da conta é do app. Mestre
+ * primeiro, depois por nome.
+ */
+function presencaPorConta(prontos: readonly SocketPronto[]): PresencaNaMesa[] {
+  const porConta = new Map<string, PresencaNaMesa>()
+  for (const { anexo, membro } of prontos) {
+    const onde = porConta.get(membro.contaId)?.onde === 'app' ? 'app' : anexo.origem
+    porConta.set(membro.contaId, { contaId: membro.contaId, nome: membro.nome, papel: membro.papel, onde })
+  }
+  return [...porConta.values()].sort((a, b) => Number(b.papel === 'mestre') - Number(a.papel === 'mestre') || a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
 function fichasDoEstado(eu: Membro, fichas: readonly FichaGuardada[], membros: readonly Membro[]): FichaNoEstado[] {

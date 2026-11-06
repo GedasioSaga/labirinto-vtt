@@ -8,7 +8,34 @@ export { segmentoValido } from '../../../client/src/lib/nuvem/caminho'
 export { lerMudanca } from '../../../client/src/lib/nuvem/caminho'
 export { processarDesfazer } from '../../../client/src/lib/nuvem/desfazer'
 export { ehJson, ehRegistro, lerJsonSeguro, proprio, bytesDoTexto, type Json } from '../../../client/src/lib/nuvem/json'
-export { chaveDaCotaDaConta, conferirRitmo, LIMITES, type ConferenciaDoRitmo, type Cota } from '../../../client/src/lib/nuvem/limites'
+export {
+  cabeNaCota,
+  chaveDaCotaDaCampanha,
+  chaveDaCotaDaConta,
+  comOpContada,
+  conferirRitmo,
+  LIMITES,
+  type ConferenciaDoRitmo,
+  type Cota,
+} from '../../../client/src/lib/nuvem/limites'
+export {
+  canalDoPar,
+  CHAT_NAO_LIDAS_MAX,
+  lerPedidoDoChat,
+  mencoesDaSala,
+  parDoPrivado,
+  textoDoChat,
+  type CanalDoChat,
+  type LeituraDoPedidoDoChat,
+  type MensagemDoChat,
+  type MensagemDoChatDoServidor,
+  type MensagemNoCanal,
+  type MotivoDoChatRecusado,
+  type ParDoPrivado,
+  type PedidoDoChat,
+  type ResumoDoCanal,
+  type TipoDoPedidoDoChat,
+} from '../../../client/src/lib/nuvem/chatDoLobby'
 export { lerEnvelope, processarLote, respostasAdiadas, type Gravacoes, type LeitorDaCampanha, type RespostaDaOp, type ResultadoDoProcessamento } from '../../../client/src/lib/nuvem/lote'
 export { membroAtivo, podeVer } from '../../../client/src/lib/nuvem/permissao'
 export { fichaNoEstado, projetarMembros, projetarOpParaJogador } from '../../../client/src/lib/nuvem/projecao'
