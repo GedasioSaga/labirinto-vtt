@@ -36,6 +36,10 @@
 //! - `{rota:'ops', campanhaId, corpo}` → `POST /api/c/:id/ops`
 //! - `{rota:'desde', campanhaId, rev, limite?}` → `GET /api/c/:id/desde/:rev?limite=` (padrão e teto 500)
 //! - `{rota:'exportar', campanhaId, deRev?, ateRev?}` → `GET /api/c/:id/exportar?deRev=&ateRev=`
+//! - `{rota:'salaDoChat', campanhaId, desde, limite?}` → `GET /api/c/:id/chat/sala?desde=&limite=`
+//!   (v2, fatia C3R: a cópia da sala do chat no disco do mestre; padrão e teto
+//!   500, o `LIMITE_DA_ROTA_DA_SALA` do Worker; devolve
+//!   `{desde, ate, lista, temMais, cursorAtual}`, só a sala, nunca o privado)
 //!
 //! `corpo` é qualquer JSON (até 16 MiB); o formato é do Worker (W1), não daqui.
 //! A resposta 2xx volta inteira como JSON (até 32 MiB). Campo a mais no
@@ -108,6 +112,8 @@ const DETALHE_MAX_CARACTERES: usize = 300;
 const MASCARA: &str = "(credencial)";
 
 const DESDE_LIMITE_PADRAO: u32 = 500;
+/// Página da cópia da sala (`LIMITE_DA_ROTA_DA_SALA` em `lobby/nuvem/src/chat.ts`).
+const SALA_DO_CHAT_LIMITE_PADRAO: u32 = 500;
 const ID_DE_CAMPANHA_MAX: usize = 80;
 
 /// `<appData>/pastas/<id>/midia/` (client/src/lib/pastasDeMapas.ts).
@@ -433,6 +439,12 @@ enum Rota {
         de_rev: Option<u64>,
         ate_rev: Option<u64>,
     },
+    /// A cópia da sala do chat (v2, C3R): as mensagens com `mudou > desde`.
+    SalaDoChat {
+        campanha: CampanhaId,
+        desde: u64,
+        limite: u32,
+    },
     EnviarMidia {
         campanha: CampanhaId,
         midia: IdDeImagem,
@@ -446,9 +458,11 @@ enum Rota {
 impl Rota {
     fn metodo(&self) -> Metodo {
         match self {
-            Self::Eu | Self::Desde { .. } | Self::Exportar { .. } | Self::BaixarMidia { .. } => {
-                Metodo::Get
-            }
+            Self::Eu
+            | Self::Desde { .. }
+            | Self::Exportar { .. }
+            | Self::SalaDoChat { .. }
+            | Self::BaixarMidia { .. } => Metodo::Get,
             Self::Publicar(_) | Self::Membros(_) | Self::Ops(_) => Metodo::Post,
             Self::EnviarMidia { .. } => Metodo::Put,
         }
@@ -484,6 +498,14 @@ impl Rota {
                     format!("{base}?{}", consulta.join("&"))
                 }
             }
+            Self::SalaDoChat {
+                campanha,
+                desde,
+                limite,
+            } => format!(
+                "/api/c/{}/chat/sala?desde={desde}&limite={limite}",
+                campanha.0
+            ),
             Self::EnviarMidia { campanha, midia } | Self::BaixarMidia { campanha, midia } => {
                 format!("/api/c/{}/midia/{}", campanha.0, midia.id)
             }
@@ -528,6 +550,13 @@ pub enum PedidoNuvem {
         de_rev: Option<u64>,
         #[serde(default)]
         ate_rev: Option<u64>,
+    },
+    /// v2 (C3R): a cópia da sala do chat. `desde` é o cursor `mudou` do Worker.
+    SalaDoChat {
+        campanha_id: String,
+        desde: u64,
+        #[serde(default)]
+        limite: Option<u32>,
     },
 }
 
@@ -586,6 +615,27 @@ impl PedidoNuvem {
                         campanha,
                         de_rev,
                         ate_rev,
+                    },
+                    None,
+                )
+            }
+            Self::SalaDoChat {
+                campanha_id,
+                desde,
+                limite,
+            } => {
+                let limite = limite.unwrap_or(SALA_DO_CHAT_LIMITE_PADRAO);
+                if !(1..=SALA_DO_CHAT_LIMITE_PADRAO).contains(&limite) {
+                    return Err(pedido_invalido(format!(
+                        "O limite da sala do chat vai de 1 a {SALA_DO_CHAT_LIMITE_PADRAO}."
+                    )));
+                }
+                let campanha = CampanhaId::validar(&campanha_id)?;
+                (
+                    Rota::SalaDoChat {
+                        campanha,
+                        desde,
+                        limite,
                     },
                     None,
                 )
@@ -1199,6 +1249,18 @@ mod testes {
             pedido(json!({ "rota": "exportar", "campanhaId": "camp_1", "deRev": 3 }))?;
         assert_eq!(exportar.caminho(), "/api/c/camp_1/exportar?deRev=3");
 
+        // O que o TS manda (limite sempre 500) e o padrão sem limite.
+        let (sala, corpo) = pedido(
+            json!({ "rota": "salaDoChat", "campanhaId": "camp_1", "desde": 77, "limite": 500 }),
+        )?;
+        assert_eq!(
+            (sala.metodo(), sala.caminho().as_str()),
+            (Metodo::Get, "/api/c/camp_1/chat/sala?desde=77&limite=500")
+        );
+        assert!(corpo.is_none());
+        let (sala, _) = pedido(json!({ "rota": "salaDoChat", "campanhaId": "camp_1", "desde": 0 }))?;
+        assert_eq!(sala.caminho(), "/api/c/camp_1/chat/sala?desde=0&limite=500");
+
         let (ops, corpo) = pedido(
             json!({ "rota": "ops", "campanhaId": "pasta_a-1", "corpo": { "lote": [] } }),
         )?;
@@ -1235,6 +1297,20 @@ mod testes {
             json!({ "rota": "exportar", "campanhaId": "c", "deRev": 9, "ateRev": 3 }),
         )?;
         assert_eq!(codigo, "pedido_invalido");
+        for limite in [0, 501] {
+            let codigo = codigo_do_pedido(
+                json!({ "rota": "salaDoChat", "campanhaId": "c", "desde": 0, "limite": limite }),
+            )?;
+            assert_eq!(codigo, "pedido_invalido", "salaDoChat limite {limite}");
+        }
+        // Na sala também: id que escaparia do caminho, campo a mais e cursor
+        // negativo nem chegam à URL.
+        let codigo = codigo_do_pedido(
+            json!({ "rota": "salaDoChat", "campanhaId": "../x", "desde": 0 }),
+        )?;
+        assert_eq!(codigo, "pedido_invalido");
+        assert!(serde_json::from_value::<PedidoNuvem>(json!({ "rota": "salaDoChat", "campanhaId": "c", "desde": 0, "privado": true })).is_err());
+        assert!(serde_json::from_value::<PedidoNuvem>(json!({ "rota": "salaDoChat", "campanhaId": "c", "desde": -1 })).is_err());
         // A webview não escolhe URL: campo a mais e rota fora da lista nem
         // desserializam.
         assert!(serde_json::from_value::<PedidoNuvem>(json!({ "rota": "eu", "url": "https://x" })).is_err());
