@@ -67,6 +67,7 @@ import type { PlayerCharacter, PlayerViewSettings } from './PlayerPanel'
 import { PlayerErrorBoundary } from './ErrorBoundary'
 import { ChevronDownIcon, LabyrinthMark } from '../components/icons'
 import { ENDERECO_DO_LOBBY } from '../components/nuvem/textosDoLobby'
+import { lerBilheteSemConferir } from '../lib/nuvem/bilhete'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
@@ -437,6 +438,94 @@ function forgetResume(): void {
   } catch {
     // Storage indisponível: não havia resume guardado para esquecer.
   }
+}
+
+/**
+ * ENTRAR PELO LOBBY ("Entrar na mesa agora", 06/11/2026): o bilhete que o site
+ * assinou chega no fragmento `#entrar=`, e dele saem o código da sala e o nome
+ * para a tela. Quem decide se entra é o mestre; aqui é só leitura.
+ */
+interface Convite {
+  bilhete: string
+  code: string
+  nome: string
+}
+
+/** `nenhum` = página aberta sem `#entrar=`; `torto` = veio, mas não tem a forma de um bilhete v1. */
+type ConviteNaUrl = { tipo: 'nenhum' } | { tipo: 'torto' } | { tipo: 'convite'; convite: Convite }
+
+const CONVITE_VENCEU: Notice = { text: 'O convite venceu: volte ao Lobby e clique de novo.', tone: 'error' }
+/** Antes do `welcome` a queda não é recusa: o convite pode valer ainda, mas só o Lobby dá outro. */
+const CONVITE_SEM_CONEXAO: Notice = { text: 'A conexão com o mestre caiu: volte ao Lobby e clique de novo.', tone: 'error' }
+
+/** O nome do bilhete conta letras (até 32); o `join` conta unidades UTF-16. Corta sem partir emoji ao meio. */
+function nomeQueCabeNoJoin(nome: string): string {
+  let cabe = ''
+  for (const letra of Array.from(nome.trim())) {
+    if (cabe.length + letra.length > NAME_MAX_LENGTH) break
+    cabe += letra
+  }
+  return cabe
+}
+
+/** Puro: lê o `#entrar=<bilhete>` do fragmento, sem conferir assinatura (o jogador não tem a chave). */
+function conviteDoFragmento(fragmento: string): ConviteNaUrl {
+  const bilhete = new URLSearchParams(fragmento.replace(/^#/, '')).get('entrar')
+  if (bilhete === null) return { tipo: 'nenhum' }
+  const dados = lerBilheteSemConferir(bilhete)
+  if (dados === null) return { tipo: 'torto' }
+  const code = normalizeJoinCode(dados.sala)
+  const nome = nomeQueCabeNoJoin(dados.nome)
+  if (code.length !== JOIN_CODE_LENGTH || nome.length === 0) return { tipo: 'torto' }
+  return { tipo: 'convite', convite: { bilhete, code, nome } }
+}
+
+/**
+ * O bilhete sai do endereço assim que é lido: não fica no histórico, no
+ * "copiar link" nem no Voltar. `replaceState` não recarrega a página. Nunca vai
+ * para storage — vale uma vez e por 2 minutos, e quem o guarda é a conexão.
+ */
+function apagarConviteDaUrl(): void {
+  try {
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`)
+  } catch {
+    // Navegador que recusa `replaceState` (página em sandbox): o bilhete, de uso único, vence em 2 min.
+  }
+}
+
+/**
+ * ENTRAR PELO LOBBY: enquanto o mestre não aceita o bilhete, a tela só diz
+ * quem está entrando. Recusado antes do `welcome`, avisa `onRecusa` — o
+ * formulário volta sem passar pela tela de erro da sessão. Depois do `welcome`
+ * é a sessão de sempre (quedas e erros incluídos).
+ */
+function EntradaPeloConvite({ connection, nome, onRecusa, onCancel, children }: { connection: PlayerConnection; nome: string; onRecusa: (reason: string) => void; onCancel: () => void; children: ReactNode }) {
+  const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
+  const entrou = state.playerId !== undefined
+  const recusa = !entrou && state.status === 'error' ? (state.error ?? 'unknown') : null
+  useEffect(() => {
+    if (recusa !== null) onRecusa(recusa)
+  }, [recusa, onRecusa])
+  if (entrou || (state.status !== 'connecting' && recusa === null)) return <>{children}</>
+  return <EntrandoComo nome={nome} onCancel={onCancel} />
+}
+
+/** "Entrando como Fulano…". Sem `onCancel` (o primeiro quadro, antes de a conexão existir), sem botão. */
+function EntrandoComo({ nome, onCancel }: { nome: string; onCancel?: () => void }) {
+  return (
+    <Screen>
+      <p role="status" aria-live="polite" className="pe-notice">
+        Entrando como {nome}…
+      </p>
+      {onCancel !== undefined && (
+        <div className="pe-actions">
+          <button type="button" className="pe-btn pe-btn--quieto" onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      )}
+    </Screen>
+  )
 }
 
 /**
@@ -2700,16 +2789,22 @@ interface ActiveSession {
   connection: PlayerConnection
   code: string
   typedName: string
+  /** ENTRAR PELO LOBBY: entrou com o bilhete; até o `welcome`, a tela é "Entrando como…". */
+  peloConvite: boolean
 }
 
 export function PlayerApp() {
+  // Só leitura aqui (o StrictMode chama o inicializador duas vezes); quem apaga a URL é o efeito de abertura.
+  const [conviteNaUrl] = useState<ConviteNaUrl>(() => conviteDoFragmento(window.location.hash))
+  /** O convite ainda não virou conexão: o primeiro quadro já diz "Entrando como…", sem piscar o formulário. */
+  const [conviteAguardando, setConviteAguardando] = useState<Convite | null>(() => (conviteNaUrl.tipo === 'convite' ? conviteNaUrl.convite : null))
   const [lastJoin, setLastJoin] = useState<LastJoin>(readLastJoin)
   /** CONTAS: a conta lembrada neste aparelho (só o nome; o segredo fica com a conexão). */
   const [remembered, setRemembered] = useState<string | null>(() => contaLembrada(resumeStorageOrNull()))
   const [session, setSession] = useState<ActiveSession | null>(null)
   /** Nome com que o mestre registrou o jogador; `null` até o `welcome` chegar. */
   const [hostName, setHostName] = useState<string | null>(null)
-  const [notice, setNotice] = useState<Notice>(JOIN_NOTICE)
+  const [notice, setNotice] = useState<Notice>(() => (conviteNaUrl.tipo === 'torto' ? CONVITE_VENCEU : JOIN_NOTICE))
   /**
    * A retomada é UMA por abertura de página. O ref (e não um estado) porque o
    * StrictMode monta o efeito duas vezes no desenvolvimento: sem ele seriam
@@ -2754,6 +2849,16 @@ export function PlayerApp() {
   useEffect(() => {
     if (rejoined.current) return
     rejoined.current = true
+    // ENTRAR PELO LOBBY: o convite (bom ou torto) sai da URL antes de tudo, e
+    // vence a retomada — quem clicou no Lobby agora quer entrar por ele.
+    if (conviteNaUrl.tipo !== 'nenhum') apagarConviteDaUrl()
+    if (conviteNaUrl.tipo === 'torto') return
+    if (conviteNaUrl.tipo === 'convite') {
+      const { code, nome, bilhete } = conviteNaUrl.convite
+      setConviteAguardando(null)
+      join(code, nome, { bilhete })
+      return
+    }
     const { code, name } = lastJoin
     if (!hasResumeFor(code)) return
     // CONTAS: o aparelho lembrado volta como a conta, não pelo nome digitado da última vez.
@@ -2763,8 +2868,10 @@ export function PlayerApp() {
 
   function join(code: string, name: string, conta?: PlayerConnectionOptions['conta']) {
     setHostName(null)
+    const peloConvite = typeof conta === 'object' && 'bilhete' in conta
     // Com conta (PIN ou aparelho lembrado): a próxima abertura do formulário já mostra o PIN.
-    const ultima: LastJoin = { code, name, conta: conta !== undefined }
+    // Pelo convite, não: quem entra pelo Lobby pode nem ter PIN, e o caminho de volta é o Lobby.
+    const ultima: LastJoin = { code, name, conta: conta !== undefined && !peloConvite }
     setLastJoin(ultima)
     rememberLastJoin(ultima)
     const connection = createPlayerConnection({
@@ -2782,7 +2889,12 @@ export function PlayerApp() {
       aceitaGzip: pedeGzip(window.location.hostname),
       ...(conta === undefined ? {} : { conta }),
     })
-    setSession({ connection, code, typedName: name })
+    setSession({ connection, code, typedName: name, peloConvite })
+  }
+
+  /** Recusado antes do `welcome`: o formulário, com o código e o nome do convite, diz para voltar ao Lobby. */
+  function recusarConvite(reason: string) {
+    leave(reason === 'connection_lost' ? CONVITE_SEM_CONEXAO : CONVITE_VENCEU)
   }
 
   /** CONTAS: com PIN, entra com a conta (e o aparelho fica lembrado); sem PIN, só pelo nome, como sempre. */
@@ -2811,6 +2923,7 @@ export function PlayerApp() {
   }
 
   if (!session) {
+    if (conviteAguardando !== null) return <EntrandoComo nome={conviteAguardando.nome} />
     return (
       <JoinForm
         initial={lastJoin}
@@ -2827,17 +2940,26 @@ export function PlayerApp() {
       />
     )
   }
+  const sessao = (
+    <Session
+      connection={session.connection}
+      code={session.code}
+      typedName={session.typedName}
+      hostName={hostName}
+      onLeave={leave}
+      onQuit={quit}
+      onSignOut={signOut}
+    />
+  )
   return (
     <>
-      <Session
-        connection={session.connection}
-        code={session.code}
-        typedName={session.typedName}
-        hostName={hostName}
-        onLeave={leave}
-        onQuit={quit}
-        onSignOut={signOut}
-      />
+      {session.peloConvite ? (
+        <EntradaPeloConvite connection={session.connection} nome={session.typedName} onRecusa={recusarConvite} onCancel={() => leave()}>
+          {sessao}
+        </EntradaPeloConvite>
+      ) : (
+        sessao
+      )}
       <FaixaTocarParaOuvir sons={sonsAoVivo} />
     </>
   )

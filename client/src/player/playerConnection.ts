@@ -1118,8 +1118,12 @@ export interface PlayerConnectionOptions {
    * neste aparelho (o nome da conta vai em `name`; `rotulo` é como o mestre lê
    * o aparelho); `'aparelho'` = o aparelho já lembrado (`CONTA_STORAGE_KEY`).
    * Ausente = só pelo nome, como sempre — e o aparelho lembrado não é usado.
+   * `{ bilhete }` = ENTRAR PELO LOBBY: o bilhete do `#entrar=` vai no `join`
+   * no lugar de PIN e aparelho, só até o primeiro `welcome` (é de uso único);
+   * a volta de queda usa o resume. O aparelho lembrado não entra: ele pode ser
+   * de outra conta, e o bilhete não gera segredo de aparelho.
    */
-  conta?: { pin: string; rotulo: string } | 'aparelho'
+  conta?: { pin: string; rotulo: string } | 'aparelho' | { bilhete: string }
 }
 
 /**
@@ -2183,7 +2187,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   // nunca lê o resume de quem jogava nesta aba nem grava um por cima dele.
   const storage = isTable ? null : options.storage
   /** CONTAS: o PIN da primeira entrada, só até o mestre aceitar — volta de queda não o manda de novo. */
-  let pendingPin = options.conta === undefined || options.conta === 'aparelho' ? null : options.conta
+  let pendingPin = options.conta === undefined || options.conta === 'aparelho' || 'bilhete' in options.conta ? null : options.conta
+  /** ENTRAR PELO LOBBY: o bilhete, só até o mestre aceitar — usado uma vez, não vale na volta de queda. */
+  let pendingBilhete = typeof options.conta === 'object' && 'bilhete' in options.conta ? options.conta.bilhete : null
+  const peloBilhete = pendingBilhete !== null
   const listeners = new Set<() => void>()
   /** SONS AO VIVO: quem ouve os `som.*` do mestre (a F5 toca). */
   const ouvintesDosSons = new Set<(msg: SomHostMessage) => void>()
@@ -4153,6 +4160,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         writeResume(storage, { code, token: data.resumeToken })
         // CONTAS: entrou — o PIN não vai mais; a volta de queda usa o aparelho (ou o resume).
         pendingPin = null
+        pendingBilhete = null
         // O mestre aceitou (de novo): fim da volta automática, se havia uma.
         clearReconnectTimers()
         // Outro playerId: o mestre disse "É ela" e a "Ana (2)" virou a Ana. O
@@ -5162,11 +5170,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    * com conta não tem com o que entrar. Sem conta: o resume ou o nome, como sempre.
    */
   function playerJoin(): JoinMessage | null {
+    // ENTRAR PELO LOBBY: o bilhete vai sozinho — o host derruba o `join` que o traga com PIN, aparelho ou resume.
+    if (pendingBilhete !== null) return { type: 'join', code, name, ticket: pendingBilhete }
     if (pendingPin !== null) {
       const label = pendingPin.rotulo.length > 0 ? { deviceLabel: pendingPin.rotulo } : {}
       return { type: 'join', code, name, pin: pendingPin.pin, ...label }
     }
-    const device = options.conta === undefined ? null : readAparelho(storage)
+    const device = options.conta === undefined || peloBilhete ? null : readAparelho(storage)
     if (device !== null) return { type: 'join', code, name: device.nome, device: device.token }
     const resume = readResume(storage, code)
     if (resume) return { type: 'join', code, name, resume }
