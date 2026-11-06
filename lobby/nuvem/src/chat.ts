@@ -34,6 +34,12 @@ import { enviar } from './sala'
  *   fica fora do `exportar` e da cópia da sala no app (XS5).
  * - O privado é sempre lido e escrito pelo par montado com o contaId do
  *   socket: não há pedido que alcance o privado de outras duas contas.
+ * - O privado também fica preso ao E-MAIL de cada lado de quando foi escrito
+ *   (`emailA`, `emailB`): só aparece enquanto as duas contas têm esses mesmos
+ *   e-mails. Quem liga conta a e-mail é o mestre; sem isto, trocar o e-mail
+ *   da Nami pelo de uma segunda conta dele (ou reativar a conta removida com
+ *   outro e-mail) abriria o privado Nami-Zoro. Com isto o privado recomeça
+ *   vazio para os dois lados, e o antigo volta se o e-mail voltar (12.19).
  * - Apagar deixa lápide (a linha fica sem texto), com um `mudou` novo: quem
  *   volta pelo `chat.desde` e a cópia do app recebem a lápide.
  * - Ritmo (GCRA do `takeChatTurn`) em todo frame, antes de chegar aqui
@@ -68,12 +74,24 @@ export interface SalaDoChat {
   ouvintes(): Ouvinte[]
 }
 
-type Destino = { tipo: 'sala'; chave: 'sala' } | ({ tipo: 'dm'; chave: string } & ParDoPrivado)
+/** Um privado: o par de contas e o e-mail de cada lado AGORA. A conversa é do par com esses dois e-mails. */
+type Privado = { tipo: 'dm'; chave: string; emailA: string; emailB: string } & ParDoPrivado
+
+type Destino = { tipo: 'sala'; chave: 'sala' } | Privado
 
 const SALA: Destino = { tipo: 'sala', chave: 'sala' }
 
-function destinoDoPar(par: ParDoPrivado): Destino {
-  return { tipo: 'dm', chave: `dm:${par.par}`, ...par }
+function destinoDoPrivado(eu: Membro, outro: Membro): Privado {
+  const par = parDoPrivado(eu.contaId, outro.contaId)
+  const [emailA, emailB] = par.a === eu.contaId ? [eu.email, outro.email] : [outro.email, eu.email]
+  return { tipo: 'dm', chave: `dm:${par.par}`, ...par, emailA, emailB }
+}
+
+/** Filtro de toda leitura do privado: linha escrita quando um dos lados tinha outro e-mail não aparece. */
+const DA_CONVERSA = 'par = ? AND emailA = ? AND emailB = ?'
+
+function daConversa(privado: Privado): [string, string, string] {
+  return [privado.par, privado.emailA, privado.emailB]
 }
 
 /**
@@ -86,7 +104,7 @@ function destinoDoCanal(sql: SqlStorage, eu: Membro, canal: CanalDoChat, paraEsc
   if (canal.dm === eu.contaId) return null
   const outro = membroPorConta(sql, canal.dm)
   if (outro === undefined || (paraEscrever && !membroAtivo(outro))) return null
-  return destinoDoPar(parDoPrivado(eu.contaId, canal.dm))
+  return destinoDoPrivado(eu, outro)
 }
 
 function canalPara(destino: Destino, contaId: string): CanalDoChat {
@@ -136,18 +154,20 @@ function mensagemDoCliente(sql: SqlStorage, destino: Destino, autorContaId: stri
   if (destino.tipo === 'sala') {
     return primeiraMensagem(sql.exec(`SELECT ${COLUNAS_DA_SALA} FROM chat_sala WHERE autorContaId = ? AND idDoCliente = ?`, autorContaId, idDoCliente))
   }
-  // O mesmo idDoCliente num privado com OUTRA pessoa não é reenvio: o par entra na busca.
-  return primeiraMensagem(sql.exec(`SELECT ${COLUNAS_DO_PRIVADO} FROM chat_dm WHERE autorContaId = ? AND idDoCliente = ? AND par = ?`, autorContaId, idDoCliente, destino.par))
+  // O mesmo idDoCliente num privado com OUTRA pessoa não é reenvio: a conversa entra na busca.
+  return primeiraMensagem(
+    sql.exec(`SELECT ${COLUNAS_DO_PRIVADO} FROM chat_dm WHERE autorContaId = ? AND idDoCliente = ? AND ${DA_CONVERSA}`, autorContaId, idDoCliente, ...daConversa(destino)),
+  )
 }
 
 function mensagemPorId(sql: SqlStorage, destino: Destino, id: number): MensagemDoChat | undefined {
   if (destino.tipo === 'sala') return primeiraMensagem(sql.exec(`SELECT ${COLUNAS_DA_SALA} FROM chat_sala WHERE id = ?`, id))
-  return primeiraMensagem(sql.exec(`SELECT ${COLUNAS_DO_PRIVADO} FROM chat_dm WHERE id = ? AND par = ?`, id, destino.par))
+  return primeiraMensagem(sql.exec(`SELECT ${COLUNAS_DO_PRIVADO} FROM chat_dm WHERE id = ? AND ${DA_CONVERSA}`, id, ...daConversa(destino)))
 }
 
 function ultimaIdDo(sql: SqlStorage, destino: Destino): number {
   if (destino.tipo === 'sala') return numeroDaConsulta(sql, 'SELECT MAX(id) AS n FROM chat_sala')
-  return numeroDaConsulta(sql, 'SELECT MAX(id) AS n FROM chat_dm WHERE par = ?', destino.par)
+  return numeroDaConsulta(sql, `SELECT MAX(id) AS n FROM chat_dm WHERE ${DA_CONVERSA}`, ...daConversa(destino))
 }
 
 function lidaAteDo(sql: SqlStorage, contaId: string, destino: Destino): number {
@@ -167,8 +187,8 @@ function naoLidasDo(sql: SqlStorage, contaId: string, destino: Destino, lidaAte:
   }
   return numeroDaConsulta(
     sql,
-    'SELECT COUNT(*) AS n FROM (SELECT 1 FROM chat_dm WHERE par = ? AND id > ? AND autorContaId <> ? AND apagadaEm IS NULL LIMIT ?)',
-    destino.par,
+    `SELECT COUNT(*) AS n FROM (SELECT 1 FROM chat_dm WHERE ${DA_CONVERSA} AND id > ? AND autorContaId <> ? AND apagadaEm IS NULL LIMIT ?)`,
+    ...daConversa(destino),
     lidaAte,
     contaId,
     CHAT_NAO_LIDAS_MAX,
@@ -263,10 +283,12 @@ function gravarMensagem(sala: SalaDoChat, destino: Destino, eu: Membro, texto: s
       )
     } else {
       sql.exec(
-        'INSERT INTO chat_dm (par, contaA, contaB, autorContaId, autorNome, texto, criadaEm, apagadaEm, idDoCliente, mudou) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)',
+        'INSERT INTO chat_dm (par, contaA, contaB, emailA, emailB, autorContaId, autorNome, texto, criadaEm, apagadaEm, idDoCliente, mudou) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)',
         destino.par,
         destino.a,
         destino.b,
+        destino.emailA,
+        destino.emailB,
         eu.contaId,
         eu.nome,
         texto,
@@ -324,7 +346,7 @@ function listarAntes(sql: SqlStorage, ws: WebSocket, eu: Membro, pedido: Extract
   const lidas =
     destino.tipo === 'sala'
       ? sql.exec(`SELECT ${COLUNAS_DA_SALA} FROM chat_sala WHERE id < ? ORDER BY id DESC LIMIT ?`, antesDe, pedido.limite + 1)
-      : sql.exec(`SELECT ${COLUNAS_DO_PRIVADO} FROM chat_dm WHERE par = ? AND id < ? ORDER BY id DESC LIMIT ?`, destino.par, antesDe, pedido.limite + 1)
+      : sql.exec(`SELECT ${COLUNAS_DO_PRIVADO} FROM chat_dm WHERE ${DA_CONVERSA} AND id < ? ORDER BY id DESC LIMIT ?`, ...daConversa(destino), antesDe, pedido.limite + 1)
   const lista = lidas.toArray().map(mensagemDaLinha)
   const temMaisAntigas = lista.length > pedido.limite
   enviar(ws, { t: 'chat.lista', canal: pedido.canal, lista: lista.slice(0, pedido.limite).reverse(), temMaisAntigas })
@@ -335,25 +357,36 @@ function resumoDoDestino(sql: SqlStorage, eu: Membro, destino: Destino): ResumoD
   return { canal: canalPara(destino, eu.contaId), ultimaId: ultimaIdDo(sql, destino), lidaAte, naoLidas: naoLidasDo(sql, eu.contaId, destino, lidaAte) }
 }
 
-/** A sala sempre; cada privado de quem pediu que já tem mensagem (o par é montado com cada membro, um índice por par). */
+/** A sala sempre; cada privado de quem pediu que já tem mensagem (a conversa é montada com cada membro, um índice por par). */
 function resumoDoChat(sql: SqlStorage, eu: Membro): Extract<MensagemDoChatDoServidor, { t: 'chat.resumo' }> {
   const canais = [resumoDoDestino(sql, eu, SALA)]
   for (const membro of todosOsMembros(sql)) {
     if (membro.contaId === eu.contaId) continue
-    const destino = destinoDoPar(parDoPrivado(eu.contaId, membro.contaId))
+    const destino = destinoDoPrivado(eu, membro)
     if (ultimaIdDo(sql, destino) > 0) canais.push(resumoDoDestino(sql, eu, destino))
   }
   return { t: 'chat.resumo', cursor: cursorDoChat(sql), canais }
 }
 
-/** Mudanças visíveis a `eu` com `mudou > cursor`: a sala e só os privados do par dele. */
+/**
+ * Mudanças visíveis a `eu` com `mudou > cursor`: a sala e só os privados do
+ * par dele, cada um com os dois e-mails de agora (o `eu` vem de `membros`,
+ * então o lado dele confere pela mesma tabela).
+ */
 function mudancasDesde(sql: SqlStorage, eu: Membro, cursor: number): MensagemNoCanal[] {
   const daSala = sql
     .exec(`SELECT ${COLUNAS_DA_SALA} FROM chat_sala WHERE mudou > ?`, cursor)
     .toArray()
     .map((linha): MensagemNoCanal => ({ canal: 'sala', msg: mensagemDaLinha(linha) }))
   const dosPrivados = sql
-    .exec(`SELECT ${COLUNAS_DO_PRIVADO} FROM chat_dm WHERE mudou > ? AND (contaA = ? OR contaB = ?)`, cursor, eu.contaId, eu.contaId)
+    .exec(
+      `SELECT ${COLUNAS_DO_PRIVADO} FROM chat_dm WHERE mudou > ? AND (contaA = ? OR contaB = ?)
+        AND emailA = (SELECT email FROM membros WHERE contaId = chat_dm.contaA)
+        AND emailB = (SELECT email FROM membros WHERE contaId = chat_dm.contaB)`,
+      cursor,
+      eu.contaId,
+      eu.contaId,
+    )
     .toArray()
     .map((linha): MensagemNoCanal => {
       const par = parDoPrivado(texto(linha, 'contaA'), texto(linha, 'contaB'))

@@ -11,7 +11,8 @@
 //      node fumaca.mjs chat                -> o aceite da C1 (mestre, Nami e Zoro em três sockets): sala chega
 //                                             aos 3; privado Nami<->Zoro não chega ao mestre; chat.antes com
 //                                             canal 'dm:a:b' em texto = recusa; 6º envio em rajada = ritmo;
-//                                             exportar sem nenhum privado; presença por conta, sem e-mail
+//                                             exportar sem nenhum privado; presença por conta, sem e-mail;
+//                                             trocar o e-mail da Nami não abre o privado dela ao e-mail novo
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -604,6 +605,65 @@ async function semPrivadoNoApp(campanhaId, marcadorDm) {
   )
 }
 
+const MESTRE_ALT = 'mestre.alt@example.com'
+
+function membrosComANami(emailDaNami) {
+  return {
+    v: VERSAO,
+    nomeDoMestre: 'Mestre',
+    membros: [
+      { contaId: 'conta_nami', email: emailDaNami, nome: 'Nami' },
+      { contaId: 'conta_zoro', email: ZORO, nome: 'Zoro' },
+    ],
+  }
+}
+
+/** Abre o socket, manda `ola`, pede o privado com o Zoro e devolve a `chat.lista` (fecha o socket no fim). */
+async function privadoComOZoro(campanhaId, email, clienteId, depois = async () => {}) {
+  const sala = await Sala.abrir(campanhaId, email)
+  try {
+    await sala.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId })
+    await sala.esperar((m) => m.t === 'estado', `o estado de ${email}`)
+    await sala.mandar({ t: 'chat.antes', canal: { dm: 'conta_zoro' }, antesDeId: null, limite: 50 })
+    const lista = await sala.esperar((m) => m.t === 'chat.lista', 'o privado com o Zoro')
+    return { lista, ...(await depois(sala)) }
+  } finally {
+    sala.fechar()
+  }
+}
+
+/**
+ * Achado da revisão da C1: quem liga conta a e-mail é o mestre. Ele troca o e-mail da Nami pelo de
+ * uma segunda conta dele e entra no site com ela; o privado Nami<->Zoro não pode aparecer por nenhum
+ * caminho. Depois o e-mail volta e a Nami lê tudo de novo (o privado ficou fechado, não apagado).
+ */
+async function trocaDeEmailNaoAbrePrivado(campanhaId, marcadorDm) {
+  const trocou = await doApp('POST', `/api/c/${campanhaId}/membros`, membrosComANami(MESTRE_ALT))
+  const comOAlt = await privadoComOZoro(campanhaId, MESTRE_ALT, 'cli_mestre_alt', async (alt) => {
+    await alt.mandar({ t: 'chat.desde', cursor: 0 })
+    const resumo = await alt.esperar((m) => m.t === 'chat.resumo', 'o resumo da conta trocada')
+    const mudancas = await alt.esperar((m) => m.t === 'chat.mudancas', 'as mudanças da conta trocada')
+    return { resumo, mudancas, vazou: alt.todas.some((texto) => texto.includes(marcadorDm)) }
+  })
+  const soSala = (canais) => canais.every((canal) => canal === 'sala')
+  conferir(
+    'mestre troca o e-mail da Nami pelo de outra conta dele: o privado Nami<->Zoro não aparece (chat.antes, chat.desde 0, resumo)',
+    trocou.status === 200 &&
+      !comOAlt.vazou &&
+      comOAlt.lista.lista.length === 0 &&
+      soSala(comOAlt.resumo.canais.map((c) => c.canal)) &&
+      soSala(comOAlt.mudancas.lista.map((m) => m.canal)),
+    `membros=${trocou.status} vazou=${comOAlt.vazou} lista=${comOAlt.lista.lista.length} canais=${JSON.stringify(comOAlt.resumo.canais.map((c) => c.canal))}`,
+  )
+  const voltou = await doApp('POST', `/api/c/${campanhaId}/membros`, membrosComANami(NAMI))
+  const daNami = await privadoComOZoro(campanhaId, NAMI, 'cli_nami_de_volta')
+  conferir(
+    'o e-mail volta para a Nami: ela lê o privado com o Zoro de novo (fechado, não apagado)',
+    voltou.status === 200 && daNami.lista.lista.some((m) => m.texto === `segredo ${marcadorDm}`),
+    `membros=${voltou.status} lista=${JSON.stringify(daNami.lista.lista.map((m) => m.texto))}`,
+  )
+}
+
 async function aceiteDoChat() {
   const campanhaId = `fumaca-chat-${Date.now().toString(36)}`
   const marcadorDm = `dm-${randomBytes(4).toString('hex')}`
@@ -621,6 +681,7 @@ async function aceiteDoChat() {
     s.zoro.fechar()
     const semZoro = await s.mestre.esperar((m) => m.t === 'presenca', 'a presença depois que o Zoro saiu')
     conferir('Zoro fecha a aba: a presença do mestre fica só com mestre e Nami', semZoro.naMesa.map((p) => p.contaId).join(',') === 'mestre,conta_nami', JSON.stringify(semZoro))
+    await trocaDeEmailNaoAbrePrivado(campanhaId, marcadorDm)
   } finally {
     for (const sala of Object.values(s)) sala.fechar()
   }

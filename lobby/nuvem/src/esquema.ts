@@ -88,7 +88,9 @@ const TABELAS_DA_CAMPANHA = [
   )`,
   // Chat (v2, fatia C1; lobby/nuvem/src/chat.ts). Sala e privado em tabelas separadas: o privado
   // fica fora do exportar e da cópia do app. `mudou` = cursor de mudança (criar ou apagar), um só
-  // para as duas tabelas; `autorNome` = o nome de quando foi dita, como em `ops`.
+  // para as duas tabelas; `autorNome` = o nome de quando foi dita, como em `ops`. `emailA` e
+  // `emailB` = o e-mail de cada lado quando foi escrita: a conversa é do par COM esses e-mails, e
+  // trocar o e-mail de uma conta não abre o privado antigo para o dono do e-mail novo (12.19).
   `CREATE TABLE IF NOT EXISTS chat_sala (
     id INTEGER PRIMARY KEY,
     autorContaId TEXT NOT NULL,
@@ -107,6 +109,8 @@ const TABELAS_DA_CAMPANHA = [
     par TEXT NOT NULL,
     contaA TEXT NOT NULL,
     contaB TEXT NOT NULL,
+    emailA TEXT NOT NULL,
+    emailB TEXT NOT NULL,
     autorContaId TEXT NOT NULL,
     autorNome TEXT NOT NULL,
     texto TEXT NOT NULL,
@@ -114,9 +118,9 @@ const TABELAS_DA_CAMPANHA = [
     apagadaEm INTEGER,
     idDoCliente TEXT NOT NULL,
     mudou INTEGER NOT NULL,
-    UNIQUE (autorContaId, par, idDoCliente)
+    UNIQUE (autorContaId, par, emailA, emailB, idDoCliente)
   )`,
-  `CREATE INDEX IF NOT EXISTS chat_dm_por_par ON chat_dm (par, id)`,
+  `CREATE INDEX IF NOT EXISTS chat_dm_por_conversa ON chat_dm (par, emailA, emailB, id)`,
   `CREATE INDEX IF NOT EXISTS chat_dm_por_mudanca ON chat_dm (mudou)`,
   `CREATE TABLE IF NOT EXISTS lidas (contaId TEXT NOT NULL, canal TEXT NOT NULL, ateId INTEGER NOT NULL, PRIMARY KEY (contaId, canal))`,
 ]
