@@ -1,4 +1,4 @@
-import { useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { EstadoDoChat } from '../../dados/chatDaCampanha'
 import { enderecoDaRota, type Rota } from '../../dados/rotas'
 import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
@@ -162,15 +162,62 @@ function QuemEstaNaMesa({ campanha }: { campanha: EstadoDaCampanha }) {
   )
 }
 
+/** Quanto da caixa das mensagens precisa estar na tela (ou da tela, se ela for mais alta) para a sala contar como vista. */
+const PARTE_DA_SALA_A_VISTA = 0.5
+
+/** Folga, em px, para o fim da caixa contar como à vista: o arredondamento de meio pixel não deixa a conta fechar em zero. */
+const FOLGA_DO_FIM_PX = 4
+
+/** De 5 em 5% e mais 99%: o observador avisa quando o fim da caixa entra na tela, até numa janela baixa. */
+const LIMIARES_DA_SALA = [...Array.from({ length: 20 }, (_, indice) => indice / 20), 0.99, 1]
+
+/**
+ * A caixa das mensagens da sala está de fato à vista: o fim dela (onde chega a
+ * mensagem nova) dentro da tela e pelo menos metade dela visível. No lobby a
+ * sala fica abaixo dos avisos e dos atalhos; sem isso ela contaria como lida
+ * assim que a página abre, sem a pessoa ter descido até ela.
+ */
+function useSalaAVista(casca: HTMLElement | null): boolean {
+  const [aVista, setAVista] = useState(false)
+  useEffect(() => {
+    if (casca === null) return
+    // Sem o observador (navegador antigo) vale o que valia antes: a sala aberta conta como vista.
+    if (typeof IntersectionObserver === 'undefined') {
+      setAVista(true)
+      return
+    }
+    const caixa = casca.querySelector('[role="log"]') ?? casca
+    const observador = new IntersectionObserver(
+      (entradas) => {
+        const ultima = entradas.at(-1)
+        if (ultima === undefined) return
+        const { boundingClientRect: inteira, intersectionRect: visivel } = ultima
+        const alturaDaTela = ultima.rootBounds?.height ?? window.innerHeight
+        const fimAVista = inteira.bottom - visivel.bottom <= FOLGA_DO_FIM_PX
+        const bastanteAVista = visivel.height >= Math.min(inteira.height, alturaDaTela) * PARTE_DA_SALA_A_VISTA
+        setAVista(ultima.isIntersecting && fimAVista && bastanteAVista)
+      },
+      { threshold: LIMIARES_DA_SALA },
+    )
+    observador.observe(caixa)
+    return () => observador.disconnect()
+  }, [casca])
+  return aVista
+}
+
 /**
  * A sala do chat (C2), inteira, dentro do lobby: a mesma conversa da tela do
  * chat (mandar, menções, "enviando…", carregar anteriores), numa folha mais
- * baixa. Ler o fim dela aqui conta como lido, como lá. Os privados ficam na
- * tela do chat, com as não lidas no link.
+ * baixa. Ler o fim dela aqui conta como lido, como lá, mas só com a caixa das
+ * mensagens à vista na página (`useSalaAVista`): enquanto ela está abaixo da
+ * tela, a contagem do "Chat" e o "(N)" do título da aba ficam. Os privados
+ * ficam na tela do chat, com as não lidas no link.
  */
 function SalaNoLobby({ campanha, chat, nomeDaMesa }: { campanha: EstadoDaCampanha; chat: EstadoDoChat | null; nomeDaMesa: string }) {
   const site = useSite()
   const demo = useDoSite((estado) => estado.demo)
+  const [casca, setCasca] = useState<HTMLDivElement | null>(null)
+  const aVista = useSalaAVista(casca)
   const doChat: Rota = { tela: 'chat', campanhaId: campanha.campanhaId, com: null }
   if (chat === null) {
     return (
@@ -185,7 +232,7 @@ function SalaNoLobby({ campanha, chat, nomeDaMesa }: { campanha: EstadoDaCampanh
   let noPrivado = 0
   for (const conversa of chat.conversas.values()) if (conversa.chave !== 'sala') noPrivado += conversa.naoLidas
   return (
-    <div className="lo-saguao__sala">
+    <div className="lo-saguao__sala" ref={setCasca}>
       <Conversa
         chave="sala"
         canal="sala"
@@ -198,7 +245,7 @@ function SalaNoLobby({ campanha, chat, nomeDaMesa }: { campanha: EstadoDaCampanh
         nomeDaMesa={nomeDaMesa}
         comAviso={false}
         bloqueado={null}
-        coberta={false}
+        coberta={!aVista}
       />
       <p className="lo-saguao__pe">
         <a href={enderecoDaRota(doChat, demo)} onClick={aoClicarNoLink(site, doChat)}>
