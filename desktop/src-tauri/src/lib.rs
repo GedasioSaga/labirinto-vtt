@@ -3,6 +3,7 @@ use tauri_plugin_fs::FsExt;
 
 pub mod ia;
 pub mod net;
+pub mod nuvem;
 pub mod visao_jogador;
 
 // Este comando concede acesso de FS para um path arbitrário. Não dá pra validar
@@ -35,6 +36,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(net::commands::NetState::default())
         .manage(ia::IaEstado::default())
+        .manage(nuvem::NuvemEstado::default())
         .invoke_handler(tauri::generate_handler![
             grant_fs_access,
             net::commands::net_start_room,
@@ -55,7 +57,14 @@ pub fn run() {
             ia::ia_chaves_estado,
             ia::ia_chaves_guardar,
             ia::ia_chaves_apagar,
-            ia::ia_gerar
+            ia::ia_gerar,
+            // Lobby (R1): só a janela main; a credencial nunca volta.
+            nuvem::nuvem_credencial_estado,
+            nuvem::nuvem_credencial_guardar,
+            nuvem::nuvem_credencial_apagar,
+            nuvem::nuvem_pedir,
+            nuvem::nuvem_enviar_midia,
+            nuvem::nuvem_baixar_midia
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
