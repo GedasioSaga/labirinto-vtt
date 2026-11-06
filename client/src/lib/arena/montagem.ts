@@ -4,11 +4,6 @@ import { vezesValidas } from './copias'
 import { CASA_DA_ARENA, centroDaCasaNaArena, limitesDaArena, type GradeDaArena, type LadoDaArena } from './grade'
 import { FICHAS_POR_LADO_MAX, type ModoDaArena, type MontagemDaArena } from './tipos'
 
-// Passagem do endereço antigo: a grade mudou para `grade.ts`, e código ainda em obra
-// (o treino do site) importa daqui. Código novo importa de `grade.ts`, que é puro.
-export { casaDoBoneco, casasDoLado, centroDaCasaNaArena, limitesDaArena, tokensDaArena } from './grade'
-export type { FichaNaGrade, TokensDaArena } from './grade'
-
 /**
  * A MONTAGEM DA ARENA (seção 4.3 do plano): as escolhas da página (quem entra
  * em cada lado, quantas vezes) e quando dá para começar. Onde cada ficha nasce

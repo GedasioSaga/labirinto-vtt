@@ -1,5 +1,4 @@
-import { casasDoLado } from '../arena/montagem'
-import { GRADE_PEQUENA, type GradeDaArena } from '../arena/tipos'
+import { casasDoLado, GRADE_PEQUENA, type GradeDaArena } from '../arena/grade'
 import type { Casa } from '../batalha/blocos'
 import type { Equipe } from '../batalha/equipes'
 import type { MesaDaBatalha } from '../batalha/mesa'
@@ -26,7 +25,7 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
  *
  * A GRADE (fatia M1, pedido de 06/11: o treino e o duelo com a cara da Arena
  * de testes do app): a pequena da Arena, 12 x 8. Cada vaga nasce numa casa
- * determinística, como a Arena monta (`casasDoLado` de `lib/arena/montagem.ts`):
+ * determinística, como a Arena monta (`casasDoLado` de `lib/arena/grade.ts`):
  * o Lado A nas 2 colunas da esquerda, o B nas 2 da direita, em zigue-zague e
  * centrados na altura. A mesma escolha dá as mesmas casas.
  *

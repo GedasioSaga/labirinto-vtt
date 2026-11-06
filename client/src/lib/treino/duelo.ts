@@ -1,7 +1,6 @@
 import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeReacao, RODADA_MAX } from '../../net/protocoloDaBatalha'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
-import { centroDaCasaNaArena } from '../arena/montagem'
-import { CASA_DA_ARENA } from '../arena/tipos'
+import { CASA_DA_ARENA, centroDaCasaNaArena } from '../arena/grade'
 import { tecnicasNoMenu } from '../batalha/acoes'
 import type { ParedeDoPasso } from '../batalha/blocos'
 import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao } from '../batalha/combate'

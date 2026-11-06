@@ -51,14 +51,21 @@ function pastaDaNuvem(): string {
   return comBarra(ts.sys.resolvePath(decodeURIComponent(new URL('.', desteArquivo).pathname).replace(/^\/(?=[A-Za-z]:)/, '')))
 }
 
-/** As entradas: todo `.ts` da pasta que não é teste. */
+/**
+ * As entradas: todo `.ts` da pasta que não é teste, e a grade da Arena
+ * (`lib/arena/grade.ts`), que o treino e o duelo do Worker importam direto:
+ * ela tem de continuar pura mesmo se nada da nuvem chegar a ela.
+ */
 function entradasDaNuvem(): string[] {
   const pasta = pastaDaNuvem()
   if (!ts.sys.directoryExists(pasta)) throw new Error(`A pasta da nuvem não está em ${pasta}`)
-  return ts.sys
+  const grade = comBarra(ts.sys.resolvePath(`${pasta}/../arena/grade.ts`))
+  if (!ts.sys.fileExists(grade)) throw new Error(`A grade da Arena não está em ${grade}`)
+  const daNuvem = ts.sys
     .readDirectory(pasta, ['.ts'], undefined, undefined, 1)
     .map(comBarra)
     .filter((arquivo) => !arquivo.endsWith('.test.ts') && !arquivo.endsWith('.d.ts'))
+  return [...daNuvem, grade]
 }
 
 function relativo(arquivo: string): string {
@@ -206,6 +213,7 @@ describe('pureza do núcleo da nuvem', () => {
     expect(arquivos).toContain('src/lib/nuvem/fila.ts')
     expect(arquivos).toContain('src/lib/personagem.ts')
     expect(arquivos).toContain('src/lib/items.ts')
+    expect(arquivos).toContain('src/lib/arena/grade.ts')
     expect(arquivos.some((arquivo) => arquivo.endsWith('.test.ts'))).toBe(false)
   })
 

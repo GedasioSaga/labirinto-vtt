@@ -6,11 +6,6 @@ import type { Personagem } from '../personagem'
 import type { VidasDaCena } from '../vidaDaFicha'
 import type { GradeDaArena, LadoDaArena, TamanhoDaGrade } from './grade'
 
-// Passagem do endereço antigo: a grade mudou para `grade.ts`, e código ainda em obra
-// (o treino do site) importa daqui. Código novo importa de `grade.ts`, que é puro.
-export { CASA_DA_ARENA, EQUIPE_DO_LADO, GRADE_MEDIA, GRADE_PEQUENA, GRADES_DA_ARENA, PREFIXO_DO_TOKEN } from './grade'
-export type { GradeDaArena, LadoDaArena, TamanhoDaGrade } from './grade'
-
 /**
  * ARENA DE TESTES DE BATALHA — o contrato (fase 0 de
  * docs/planos/batalha-arena-de-testes-plano.md, seção 4.3, com as decisões
