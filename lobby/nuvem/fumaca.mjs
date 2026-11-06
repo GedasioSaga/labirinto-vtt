@@ -6,6 +6,8 @@
 //   2. node fumaca.mjs                    -> o aceite inteiro da W1; sai 0 se tudo bateu
 //      node fumaca.mjs exportar <campanha> -> lista as ops da campanha, com autor
 //      node fumaca.mjs limites             -> o limitador: ritmo vira adiado; frames tortos fecham e bloqueiam
+//      node fumaca.mjs midia               -> o aceite da W3: PNG de 2 MiB sobe e volta com o mesmo sha256;
+//                                             hash errado = 400; .png com HTML dentro = 400
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -14,6 +16,9 @@
 //
 // Só fala com a porta de dev local (identidade pela URL, ?eu=&origem=); nunca com a conta real.
 // Nomes e e-mails inventados (@example.com).
+
+import { createHash, randomBytes } from 'node:crypto'
+import { crc32, deflateSync } from 'node:zlib'
 
 const BASE = process.env.NUVEM_URL ?? 'http://127.0.0.1:8787'
 const MESTRE = 'mestre@example.com'
@@ -382,6 +387,109 @@ async function limites() {
   console.log(falhas === 0 ? 'LIMITES OK' : `${falhas} FALHA(S)`)
 }
 
+// ── Mídia (W3, plano §6.6) ───────────────────────────────────────────────────
+
+const MIB = 1024 * 1024
+const ASSINATURA_DO_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
+
+function pedacoDoPng(tipo, dados) {
+  const tamanho = Buffer.alloc(4)
+  tamanho.writeUInt32BE(dados.length)
+  const corpo = Buffer.concat([Buffer.from(tipo, 'latin1'), dados])
+  const crc = Buffer.alloc(4)
+  crc.writeUInt32BE(crc32(corpo))
+  return Buffer.concat([tamanho, corpo, crc])
+}
+
+/**
+ * Um PNG de verdade (ruído RGB `lado`×`lado`, guardado sem compressão) com um pedaço
+ * privado de enchimento (`laBi`, que o leitor de PNG ignora) até `tamanho` bytes exatos.
+ */
+function pngDe(tamanho, lado) {
+  const cabecalho = Buffer.alloc(13)
+  cabecalho.writeUInt32BE(lado, 0)
+  cabecalho.writeUInt32BE(lado, 4)
+  cabecalho[8] = 8 // 8 bits por canal
+  cabecalho[9] = 2 // RGB
+  const linha = lado * 3 + 1
+  const pixels = randomBytes(linha * lado)
+  for (let y = 0; y < lado; y += 1) pixels[y * linha] = 0 // filtro "nenhum" em cada linha
+  const partes = [pedacoDoPng('IHDR', cabecalho), pedacoDoPng('IDAT', deflateSync(pixels, { level: 0 })), pedacoDoPng('IEND', Buffer.alloc(0))]
+  const semEnchimento = ASSINATURA_DO_PNG.length + partes.reduce((soma, parte) => soma + parte.length, 0)
+  const enchimento = tamanho - semEnchimento - 12
+  if (enchimento < 0) throw new Error(`o PNG de ${lado}px já passa de ${tamanho} bytes`)
+  return Buffer.concat([ASSINATURA_DO_PNG, partes[0], pedacoDoPng('laBi', Buffer.alloc(enchimento)), partes[1], partes[2]])
+}
+
+async function pedirMidia(metodo, campanhaId, midiaId, eu, origem, bytes) {
+  const resposta = await fetch(enderecoDe(`/api/c/${campanhaId}/midia/${midiaId}`, eu, origem), {
+    method: metodo,
+    headers: bytes === undefined ? {} : { 'content-type': 'image/png' },
+    body: bytes,
+  })
+  const corpo = Buffer.from(await resposta.arrayBuffer())
+  let json = null
+  try {
+    json = JSON.parse(corpo.toString('utf8'))
+  } catch {
+    json = null
+  }
+  return { status: resposta.status, cabecalhos: resposta.headers, bytes: corpo, json }
+}
+
+const subirMidia = (campanhaId, midiaId, bytes) => pedirMidia('PUT', campanhaId, midiaId, MESTRE, 'app', bytes)
+
+async function aceiteDaMidia() {
+  const campanhaId = `fumaca-midia-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, pedidoDePublicar([ficha('pers_nami', 'conta_nami')]))
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+
+  // 1. Imagem de 2 MiB exatos (o teto, §6.6): o mestre sobe pelo app; a jogadora baixa pelo site.
+  const imagem = pngDe(2 * MIB, 835)
+  const hash = sha256(imagem)
+  const id = `${hash}.png`
+  const subida = await subirMidia(campanhaId, id, imagem)
+  const baixada = await pedirMidia('GET', campanhaId, id, NAMI, 'site')
+  const hashBaixado = sha256(baixada.bytes)
+  console.log(`        PUT ${imagem.length} bytes -> ${subida.status} ${JSON.stringify(subida.json)}`)
+  console.log(`        sha256 enviado ${hash}`)
+  console.log(`        sha256 baixado ${hashBaixado} (${baixada.bytes.length} bytes, GET ${baixada.status})`)
+  conferir(
+    '2 MiB: PUT 200 e o GET da jogadora no site devolve os mesmos bytes (sha256 igual)',
+    subida.status === 200 && subida.json?.novo === true && baixada.status === 200 && baixada.bytes.length === 2 * MIB && hashBaixado === hash,
+  )
+  const cabecalho = (nome) => baixada.cabecalhos.get(nome)
+  conferir(
+    'GET: image/png, cache privado e imutável, nosniff, CSP sem nada e em sandbox',
+    cabecalho('content-type') === 'image/png' &&
+      cabecalho('cache-control') === 'private, max-age=31536000, immutable' &&
+      cabecalho('x-content-type-options') === 'nosniff' &&
+      cabecalho('content-security-policy') === "default-src 'none'; sandbox",
+    JSON.stringify(Object.fromEntries(baixada.cabecalhos)),
+  )
+
+  // 2. Hash errado: bytes de PNG válido num endereço cujo hash é de outro conteúdo.
+  const outra = pngDe(64 * 1024, 64)
+  const idErrado = `${sha256(Buffer.from('outro conteúdo'))}.png`
+  const errada = await subirMidia(campanhaId, idErrado, outra)
+  const depoisDaErrada = await pedirMidia('GET', campanhaId, idErrado, NAMI, 'site')
+  console.log(`        hash errado: PUT -> ${errada.status} ${JSON.stringify(errada.json)}; GET depois -> ${depoisDaErrada.status}`)
+  conferir('hash errado = 400 (hash-errado) e nada gravado (GET 404)', errada.status === 400 && errada.json?.erro === 'hash-errado' && depoisDaErrada.status === 404)
+
+  // 3. Um .png que é HTML por dentro, com o hash CERTO: só o tipo pelos bytes barra.
+  const html = Buffer.from('<!doctype html><html><body><script>alert(1)</script></body></html>', 'utf8')
+  const idHtml = `${sha256(html)}.png`
+  const comHtml = await subirMidia(campanhaId, idHtml, html)
+  const depoisDoHtml = await pedirMidia('GET', campanhaId, idHtml, NAMI, 'site')
+  console.log(`        .png com HTML: PUT -> ${comHtml.status} ${JSON.stringify(comHtml.json)}; GET depois -> ${depoisDoHtml.status}`)
+  conferir('.png com HTML dentro (hash certo) = 400 (tipo-errado) e nada gravado (GET 404)', comHtml.status === 400 && comHtml.json?.erro === 'tipo-errado' && depoisDoHtml.status === 404)
+
+  console.log(falhas === 0 ? `MIDIA OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
 async function listarOps(campanhaId) {
   const { primeira, ops } = await exportarTudo(campanhaId, MESTRE, 'app', 500)
   if (primeira.ops === undefined) {
@@ -404,6 +512,8 @@ try {
     await listarOps(campanha)
   } else if (modo === 'limites') {
     await limites()
+  } else if (modo === 'midia') {
+    await aceiteDaMidia()
   } else {
     await aceite()
   }

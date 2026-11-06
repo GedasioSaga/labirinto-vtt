@@ -32,3 +32,4 @@ export {
   type Visibilidade,
 } from '../../../client/src/lib/nuvem/tipos'
 export { personagemDoArquivo } from '../../../client/src/lib/personagem'
+export { hashHex, MIDIA_MAX_BYTES, tipoDosBytes, type TipoDeMidia } from '../../../client/src/lib/midia'

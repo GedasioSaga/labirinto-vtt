@@ -26,6 +26,7 @@ import {
 import { criarEsquemaDaCampanha } from './esquema'
 import { ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro } from './http'
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
+import { receberMidia, servirMidia } from './midia'
 import {
   bytesDoTexto,
   chaveDaCotaDaConta,
@@ -56,7 +57,7 @@ import {
 } from './nucleo'
 import { CORPO_MAX_MEMBROS, CORPO_MAX_OPS, CORPO_MAX_PUBLICAR, lerPedidoDeMembros, lerPedidoDeOps, lerPedidoDePublicar, versaoAceita } from './pedidos'
 import { entradasDoDiretorio, publicarFichas, sincronizarMembros } from './publicar'
-import { NOME_DO_DIRETORIO, rotaDaCampanha, type RotaDaCampanha } from './rotas'
+import { NOME_DO_DIRETORIO, rotaDaCampanha, type RotaDaCampanha, type RotaDaMidia, type RotaDoDesde } from './rotas'
 import {
   enviar,
   fechar,
@@ -161,6 +162,8 @@ export class Campanha extends DurableObject<Env> {
       case 'ws':
         exigirMetodo(request, 'GET')
         return this.abrirSocket(request, rota.campanhaId, identidade)
+      case 'midia':
+        return this.midia(request, rota, identidade)
     }
   }
 
@@ -223,7 +226,7 @@ export class Campanha extends DurableObject<Env> {
   }
 
   /** Sempre ops, nunca snapshot, paginado: quem chama repete com `ate` até alcançar `revAtual` (§5.4, §5.5). */
-  private desde(url: URL, rota: RotaDaCampanha, identidade: IdentidadeDoPortao): Response {
+  private desde(url: URL, rota: RotaDoDesde, identidade: IdentidadeDoPortao): Response {
     const { membro } = this.acessoDoApp(rota.campanhaId, identidade)
     const lidas = opsDesde(this.sql, rota.rev, limiteDaUrl(url, LIMITE_DO_DESDE))
     const ultima = lidas.at(-1)
@@ -260,6 +263,19 @@ export class Campanha extends DurableObject<Env> {
       fichas: fichasDoEstado(membro, fichas, membros),
       recusadas: recusadas.filter((recusada) => recusada.autorContaId === membro.contaId),
     }
+  }
+
+  // ── Mídia (W3) ────────────────────────────────────────────────────────────
+
+  /** §6.6: na v1 só o app do mestre sobe imagem (PUT); todo membro ativo baixa (GET), no app e no site. */
+  private async midia(request: Request, rota: RotaDaMidia, identidade: IdentidadeDoPortao): Promise<Response> {
+    if (request.method === 'PUT') {
+      const { membro } = this.acessoDoApp(rota.campanhaId, identidade)
+      return receberMidia(request, this.ctx.storage, rota.midiaId, membro.contaId)
+    }
+    if (request.method !== 'GET') throw new ErroDoPedido(405, 'metodo', 'Use GET ou PUT')
+    this.acesso(rota.campanhaId, identidade)
+    return servirMidia(this.sql, rota.midiaId)
   }
 
   // ── Depois de gravar ──────────────────────────────────────────────────────
