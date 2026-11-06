@@ -5,7 +5,6 @@ import {
   aplicarJogada,
   criarDuelo,
   desistirDoDuelo,
-  dueloParaOFio,
   marcarAusente,
   marcarPresente,
   prazoDoDuelo,
@@ -24,6 +23,7 @@ import {
   type PedidoDoDuelo,
   type TipoDoPedidoDoDuelo,
 } from '../../../client/src/lib/treino/dueloDoLobby'
+import { dueloParaOLado, dueloParaOsLados, ladoDaContaNoDuelo, type DueloDoLado } from '../../../client/src/lib/treino/vistaDoDuelo'
 import { gravarCota, lerCota, lerFicha, lerSistema, membroPorConta } from './banco'
 import type { Ouvinte } from './chat'
 import { ErroDoBanco, jsonDoTexto, numero, texto, type Linha } from './linhas'
@@ -51,8 +51,11 @@ import { enviar } from './sala'
  *   continua: sai da tabela na primeira vez que esta instância do DO mexe nos
  *   duelos (`semDuelosDeOutraVersao`), e nem conta como `ocupado` nem como prazo.
  * - O d20 é do `crypto` do servidor (`secureRollDie`), nunca do cliente.
- * - Só as duas contas do duelo recebem o estado, sempre pelo
- *   `dueloParaOFio` (fichas projetadas, cauda do registro).
+ * - Só as duas contas do duelo recebem o estado, cada uma o do lado DELA
+ *   (`dueloParaOLado`, fatia M2): o fio (fichas projetadas, cauda do
+ *   registro) e a vista dela (`vistaParaJogador`, o HUD da Arena), montada
+ *   aqui porque o Escudo cheio lê o registro completo, que só o DO tem.
+ *   Sem teto na saída: o de 64 KiB é só do cliente para o DO.
  * - Ritmo em todo frame (campanha.ts); convidar, aceitar e cada jogada aceita
  *   contam na cota do dia (§6.5), como a mensagem do chat.
  */
@@ -262,9 +265,25 @@ function difundirAsDuas(sala: SalaDoDuelo, contas: readonly string[], mensagem: 
   for (const { ws, contaId } of sala.ouvintes()) if (contas.includes(contaId)) enviar(ws, mensagem)
 }
 
+/** Cada conta do duelo recebe o do lado dela (o fio e a vista dela); a vista do outro nunca vai junto. */
 function difundirEstado(sala: SalaDoDuelo, duelo: DueloGravado): void {
-  const contas = [duelo.jogadores.a.contaId, duelo.jogadores.b.contaId]
-  difundirAsDuas(sala, contas, { t: 'duelo.estado', duelo: dueloParaOFio(duelo) })
+  const lados = dueloParaOsLados(duelo, sistemaDoDuelo(sala.sql))
+  for (const { ws, contaId } of sala.ouvintes()) {
+    const lado = ladoDaContaNoDuelo(duelo, contaId)
+    if (lado !== null) enviar(ws, { t: 'duelo.estado', duelo: lados[lado] })
+  }
+}
+
+/** O duelo do lado da conta (o fio e a vista dela); `null` = a conta não joga este duelo. */
+function dueloDaConta(sql: SqlStorage, duelo: DueloGravado, contaId: string): DueloDoLado | null {
+  const lado = ladoDaContaNoDuelo(duelo, contaId)
+  return lado === null ? null : dueloParaOLado(duelo, lado, sistemaDoDuelo(sql))
+}
+
+/** Só para este socket: o estado de agora, do lado da conta (quem jogou sobre um estado velho, ou depois do fim). */
+function enviarEstadoA(sql: SqlStorage, ws: WebSocket, duelo: DueloGravado, contaId: string): void {
+  const doLado = dueloDaConta(sql, duelo, contaId)
+  if (doLado !== null) enviar(ws, { t: 'duelo.estado', duelo: doLado })
 }
 
 function fecharConvite(sala: SalaDoDuelo, linha: LinhaDoDuelo, motivo: FimDoConvite): void {
@@ -386,7 +405,7 @@ function jogar(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, pedido: Extract<Ped
   if (!feito.ok) {
     recusar(ws, pedido.t, feito.motivo, { id: pedido.id })
     // Jogada sobre estado velho (ou duelo já acabado): quem mandou recebe o de agora para jogar de novo.
-    if (feito.motivo === 'seqVelho' || feito.motivo === 'acabou') enviar(ws, { t: 'duelo.estado', duelo: dueloParaOFio(duelo) })
+    if (feito.motivo === 'seqVelho' || feito.motivo === 'acabou') enviarEstadoA(sql, ws, duelo, eu.contaId)
     return
   }
   const gravado = gravarComCota(sala, eu.contaId, bytesDoTexto(JSON.stringify(pedido)), agora, () => gravarDuelo(sql, feito.duelo, linha, agora))
@@ -409,7 +428,7 @@ function desistir(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, pedido: Extract<
   if (!feito.ok) {
     recusar(ws, pedido.t, feito.motivo, { id: pedido.id })
     // Já acabou (o outro desistiu antes, ou o alarme): quem mandou recebe o fim.
-    if (feito.motivo === 'acabou') enviar(ws, { t: 'duelo.estado', duelo: dueloParaOFio(duelo) })
+    if (feito.motivo === 'acabou') enviarEstadoA(sql, ws, duelo, eu.contaId)
     return
   }
   sala.transacao(() => gravarDuelo(sql, feito.duelo, linha, agora))
@@ -428,7 +447,7 @@ export function duelosNoOla(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, agora:
   const { sql } = sala
   semDuelosDeOutraVersao(sql)
   const convites: ConviteDoDuelo[] = []
-  const duelos: DueloGravado[] = []
+  const duelos: DueloDoLado[] = []
   for (const linha of linhasDaConta(sql, eu.contaId)) {
     if (linha.status === 'convite') {
       if (linha.prazo === null || linha.prazo > agora) convites.push(conviteDaLinha(sql, linha))
@@ -442,9 +461,11 @@ export function duelosNoOla(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, agora:
       sala.transacao(() => gravarDuelo(sql, depois, linha, agora))
       difundirEstado(sala, depois)
     }
-    duelos.push(depois)
+    // A linha é da conta (jogadorA ou jogadorB), então ela tem lado: o duelo vai do lado dela.
+    const doLado = dueloDaConta(sql, depois, eu.contaId)
+    if (doLado !== null) duelos.push(doLado)
   }
-  enviar(ws, { t: 'duelo.lista', convites, duelos: duelos.map(dueloParaOFio) })
+  enviar(ws, { t: 'duelo.lista', convites, duelos })
 }
 
 /**

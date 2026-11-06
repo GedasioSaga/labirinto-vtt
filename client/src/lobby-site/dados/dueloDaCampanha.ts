@@ -1,5 +1,6 @@
-import type { DueloNoFio, JogadaDoDuelo } from '../../lib/treino/duelo'
+import type { JogadaDoDuelo } from '../../lib/treino/duelo'
 import type { ConviteDoDuelo, FimDoConvite, MensagemDoDueloDoServidor, MotivoDoDueloRecusado, PedidoDoDuelo, TipoDoPedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
+import type { DueloDoLado } from '../../lib/treino/vistaDoDuelo'
 import type { ParteDoDuelo } from './sessaoDaCampanha'
 
 /**
@@ -8,6 +9,8 @@ import type { ParteDoDuelo } from './sessaoDaCampanha'
  * servidor (DO Campanha, `lobby/nuvem/src/duelo.ts`) é o dono de tudo: aqui só
  * se guarda o último convite e o último estado de cada duelo, e o pedido que
  * saiu e ainda não teve resposta (o botão fica em "Enviando…" e não sai duas vezes).
+ * Cada duelo guardado é o do lado desta conta, com a vista dela (fatia M2,
+ * `DueloDoLado.vista`, o recorte que o HUD da Arena lê).
  */
 
 /** O servidor recusou o último pedido. `n` muda a cada recusa (a tela anuncia a nova). */
@@ -31,8 +34,8 @@ export interface EstadoDoDuelo {
   /** A lista do servidor chegou depois do último `ola`: antes disso, a tela diz "abrindo". */
   emDia: boolean
   convites: readonly ConviteDoDuelo[]
-  /** Os duelos desta conta: o em andamento e os acabados que o servidor ainda guarda (24 h). */
-  duelos: readonly DueloNoFio[]
+  /** Os duelos desta conta: o em andamento e os acabados que o servidor ainda guarda (24 h), cada um com a vista do lado dela. */
+  duelos: readonly DueloDoLado[]
   /** O pedido que saiu e espera a resposta do servidor. */
   esperando: { tipo: TipoDoPedidoDoDuelo; id: string | null } | null
   recusa: RecusaDoDuelo | null
@@ -90,7 +93,7 @@ export function criarDueloDaCampanha(opcoes: OpcoesDoDuelo): DueloDaCampanha {
     return { esperando }
   }
 
-  function receberEstado(duelo: DueloNoFio): void {
+  function receberEstado(duelo: DueloDoLado): void {
     const duelos = [duelo, ...semOId(estado.duelos, duelo.id)]
     // O duelo novo tem o id do convite que virou duelo: o convite sai da lista.
     const esperando = estado.esperando !== null && (estado.esperando.id === duelo.id || estado.esperando.id === null) ? null : estado.esperando

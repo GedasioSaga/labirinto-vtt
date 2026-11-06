@@ -1,10 +1,11 @@
 import { CONTA_DO_MESTRE, type FichaGuardada, type Membro } from '../../lib/nuvem/tipos'
 import type { Personagem } from '../../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
-import { aplicarJogada, criarDuelo, desistirDoDuelo, dueloParaOFio, marcarAusente, marcarPresente, type DueloGravado, type MotorDoDuelo } from '../../lib/treino/duelo'
+import { aplicarJogada, criarDuelo, desistirDoDuelo, marcarAusente, marcarPresente, type DueloGravado, type MotorDoDuelo } from '../../lib/treino/duelo'
 import { CONVITE_VALE_MS, type ConviteDoDuelo, type MensagemDoDueloDoServidor, type PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
 import { VAGAS_POR_LADO_MAX } from '../../lib/treino/mesaEmMemoria'
 import { criarSorteio, sementeNova } from '../../lib/treino/sorteio'
+import { dueloParaOLado, ladoDaContaNoDuelo, type DueloDoLado } from '../../lib/treino/vistaDoDuelo'
 import { passoDoRobo, type GolpesDaVez } from './roboDoDuelo'
 
 /**
@@ -72,6 +73,19 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
   }
   const membro = (contaId: string): Membro | undefined => opcoes.membros().find((candidato) => candidato.contaId === contaId && candidato.estado === 'ativo')
 
+  /** O duelo do lado da conta, como o DO manda (`dueloParaOLado`: o fio e a vista dela); `null` = a conta não joga este duelo. */
+  function dueloDaConta(gravado: DueloGravado, contaId: string): DueloDoLado | null {
+    const lado = ladoDaContaNoDuelo(gravado, contaId)
+    return lado === null ? null : dueloParaOLado(gravado, lado, motor.sistema)
+  }
+  /** O `duelo.estado` para a conta; fora do duelo, nada (o DO só manda às duas contas dele). */
+  function estadoPara(gravado: DueloGravado, contaId: string, entregar: (mensagem: MensagemDoDueloDoServidor) => void): void {
+    const doLado = dueloDaConta(gravado, contaId)
+    if (doLado !== null) entregar({ t: 'duelo.estado', duelo: doLado })
+  }
+  /** Os canais abertos são todos de quem vê a demo: o estado vai do lado dela. */
+  const difundirEstado = (gravado: DueloGravado): void => estadoPara(gravado, opcoes.euContaId, difundir)
+
   /** As fichas na mesa de uma conta, pelo doc completo (com o dono), como o `fichasDaConta` do DO; `null` = alguma não serve. */
   function fichasDaConta(contaId: string, pedidas: readonly string[]): Personagem[] | null {
     if (pedidas.length < 1 || pedidas.length > VAGAS_POR_LADO_MAX) return null
@@ -90,7 +104,7 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
     [...duelos.values()].some(({ gravado }) => gravado.fim === null && (gravado.jogadores.a.contaId === contaId || gravado.jogadores.b.contaId === contaId))
 
   function publicar(daMesa: DueloDaMesa): void {
-    difundir({ t: 'duelo.estado', duelo: dueloParaOFio(daMesa.gravado) })
+    difundirEstado(daMesa.gravado)
     agendarColega(daMesa)
   }
 
@@ -112,7 +126,7 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
       if (!daMesa.jaCaiu && daMesa.jogadasDoColega >= CAI_DEPOIS_DE && daMesa.gravado.fim === null) {
         daMesa.jaCaiu = true
         daMesa.gravado = marcarAusente(daMesa.gravado, colega.contaId, opcoes.agora())
-        difundir({ t: 'duelo.estado', duelo: dueloParaOFio(daMesa.gravado) })
+        difundirEstado(daMesa.gravado)
         opcoes.depois(FICA_FORA_MS, () => {
           if (daMesa.gravado.fim !== null) return
           daMesa.gravado = marcarPresente(daMesa.gravado, colega.contaId)
@@ -190,7 +204,11 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
       const agora = opcoes.agora()
       const meus = [...convites.values()].filter(({ convite }) => convite.venceEm > agora && (convite.de.contaId === contaId || convite.para.contaId === contaId))
       const comigo = [...duelos.values()].filter(({ gravado }) => gravado.jogadores.a.contaId === contaId || gravado.jogadores.b.contaId === contaId)
-      return { t: 'duelo.lista', convites: meus.map(({ convite }) => convite), duelos: comigo.map(({ gravado }) => dueloParaOFio(gravado)) }
+      const duelosDaConta = comigo.flatMap(({ gravado }) => {
+        const doLado = dueloDaConta(gravado, contaId)
+        return doLado === null ? [] : [doLado]
+      })
+      return { t: 'duelo.lista', convites: meus.map(({ convite }) => convite), duelos: duelosDaConta }
     },
     ouvir(entregar) {
       ouvintes.add(entregar)
@@ -216,7 +234,7 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
           const feito = aplicarJogada(daMesa.gravado, motor, eu.contaId, pedido.jogada)
           if (!feito.ok) {
             entregar({ t: 'duelo.recusado', pedido: pedido.t, motivo: feito.motivo, id: pedido.id })
-            if (feito.motivo === 'seqVelho' || feito.motivo === 'acabou') entregar({ t: 'duelo.estado', duelo: dueloParaOFio(daMesa.gravado) })
+            if (feito.motivo === 'seqVelho' || feito.motivo === 'acabou') estadoPara(daMesa.gravado, eu.contaId, entregar)
             return
           }
           daMesa.gravado = feito.duelo

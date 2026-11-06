@@ -17,7 +17,8 @@
 //                                             jogador que tenta postar ou fixar = recusado (sem-permissao); aviso
 //                                             fixado aparece no mural.estado de quem entra e some para quem leu;
 //                                             modificações da jogadora sem notaDoMestre, NPC nem e-mail
-//      node fumaca.mjs duelo               -> a T6 (Nami e Zoro, contas falsas): convite, aceite, duelo curto até o fim
+//      node fumaca.mjs duelo               -> a T6 (Nami e Zoro, contas falsas): convite, aceite (cada conta recebe a
+//                                             vista do lado dela, M2), duelo curto até o fim
 //                                             com todo Atacar pedindo dano 99999 (o servidor aplica o da ficha);
 //                                             no meio, a 2ª aba fecha sem deixar ausente e a única aba fecha e volta
 //                                             antes dos 3 min; imprime o vencedor. Depois: Zoro convida de novo,
@@ -954,6 +955,30 @@ async function comecarDuelo(de, para, contaPara, fichaDe, fichaPara) {
 }
 
 /**
+ * Fatia M2: cada conta recebe a vista do lado DELA (o recorte do HUD da Arena). No começo, só a
+ * conta da vez tem `minhaVez` e as ações; a ficha dela é "eu" na vista dela e "outro" na do outro lado.
+ */
+async function vistasDoComeco(salas, duelo) {
+  const daNami = await doDuelo(salas.conta_nami, (m) => m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.seq === duelo.seq, 'o começo do duelo na Nami')
+  const vistas = { a: daNami.duelo.vista, b: duelo.vista }
+  const carta = duelo.turnos.cartas.find((candidata) => candidata.id === duelo.turnos.vez)
+  const ladoDaVez = carta === undefined ? null : vagaDoToken(duelo, carta.tokenId).lado
+  const tokenDo = (lado) => duelo.lutadores.vagas.find((vaga) => vaga.lado === lado).tokenId
+  const ladoNaVista = (vista, tokenId) => vista?.cartas.find((candidata) => candidata.tokenId === tokenId)?.lado
+  const certo = ['a', 'b'].every((lado) => {
+    const outro = lado === 'a' ? 'b' : 'a'
+    const vista = vistas[lado]
+    return vista !== undefined && vista.minhaVez === (lado === ladoDaVez) && (vista.acoes !== undefined) === (lado === ladoDaVez) && ladoNaVista(vista, tokenDo(lado)) === 'eu' && ladoNaVista(vista, tokenDo(outro)) === 'outro'
+  })
+  console.log(`        duelo.estado do começo: ${Buffer.byteLength(JSON.stringify(daNami))} bytes para a Nami, vez do Lado ${String(ladoDaVez).toUpperCase()}`)
+  conferir(
+    'cada conta recebe a vista do lado dela: a vez e as ações só na conta da vez; a ficha dela é "eu" nela e "outro" na outra (M2)',
+    certo,
+    JSON.stringify({ ladoDaVez, a: vistas.a && { minhaVez: vistas.a.minhaVez, cartas: vistas.a.cartas }, b: vistas.b && { minhaVez: vistas.b.minhaVez, cartas: vistas.b.cartas } }),
+  )
+}
+
+/**
  * Sem tempo por turno (12.15), quem cansou de esperar desiste. Zoro convida (o duelo acabado não o
  * deixou "ocupado"), a Nami aceita e o Zoro desiste no meio: os dois recebem o fim, a Nami vence.
  */
@@ -1003,6 +1028,7 @@ async function aceiteDoDuelo() {
     await Promise.all([salas.conta_nami, salas.conta_zoro].map((sala) => doDuelo(sala, (m) => m.t === 'duelo.lista', 'a lista vazia')))
     const golpes = []
     let duelo = await comecarDuelo(salas.conta_nami, salas.conta_zoro, 'conta_zoro', 'pers_nami', 'pers_zoro')
+    await vistasDoComeco(salas, duelo)
     let caiuEVoltou = false
     for (let jogadas = 0; duelo.fim === null; jogadas += 1) {
       if (jogadas >= 40) throw new Error('o duelo não acabou em 40 jogadas')

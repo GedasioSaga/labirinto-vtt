@@ -1,7 +1,8 @@
 import { segmentoValido } from '../nuvem/caminho'
 import { proprio } from '../nuvem/json'
-import { jogadaDoValor, type DueloNoFio, type JogadaDoDuelo, type MotivoDaRecusa } from './duelo'
+import { jogadaDoValor, type JogadaDoDuelo, type MotivoDaRecusa } from './duelo'
 import { VAGAS_POR_LADO_MAX } from './mesaEmMemoria'
+import type { DueloDoLado } from './vistaDoDuelo'
 
 /**
  * DUELO DO LOBBY (plano do Lobby §4.5 e §8.2, fatia T6): o protocolo que o DO
@@ -74,10 +75,14 @@ export type MensagemDoDueloDoServidor =
   | { t: 'duelo.convite'; convite: ConviteDoDuelo }
   /** Às duas contas: o convite acabou sem duelo. */
   | { t: 'duelo.fechado'; id: string; motivo: FimDoConvite }
-  /** Às duas contas: o duelo começou, alguém jogou, caiu, voltou ou o duelo acabou. */
-  | { t: 'duelo.estado'; duelo: DueloNoFio }
-  /** Só a quem acabou de mandar `ola`: os convites e os duelos dele (em andamento e os acabados que ainda ficam). */
-  | { t: 'duelo.lista'; convites: ConviteDoDuelo[]; duelos: DueloNoFio[] }
+  /**
+   * Às duas contas: o duelo começou, alguém jogou, caiu, voltou ou o duelo
+   * acabou. Cada conta recebe o do lado DELA (`DueloDoLado`: o fio e a vista
+   * dela, fatia M2), nunca a vista do outro.
+   */
+  | { t: 'duelo.estado'; duelo: DueloDoLado }
+  /** Só a quem acabou de mandar `ola`: os convites e os duelos dele (em andamento e os acabados que ainda ficam), cada um com a vista do lado dele. */
+  | { t: 'duelo.lista'; convites: ConviteDoDuelo[]; duelos: DueloDoLado[] }
   | { t: 'duelo.recusado'; pedido: TipoDoPedidoDoDuelo | 'duelo'; motivo: MotivoDoDueloRecusado; id?: string; tentarDepoisDe?: number }
 
 /** O pedido lido; fora do formato, o tipo (se conhecido) e o `id` (se legível) para a resposta. */

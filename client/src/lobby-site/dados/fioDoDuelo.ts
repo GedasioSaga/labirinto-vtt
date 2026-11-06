@@ -4,6 +4,8 @@ import { personagemDoArquivo, type Personagem } from '../../lib/personagem'
 import type { DueloNoFio, FimDoDuelo, JogadorDoDuelo } from '../../lib/treino/duelo'
 import type { ContaNoDuelo, ConviteDoDuelo, FimDoConvite, MensagemDoDueloDoServidor, MotivoDoDueloRecusado, TipoDoPedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
 import { GRADE_DO_TREINO, type CasaDoTreino, type LadoDoTreino, type VagaDoTreino } from '../../lib/treino/mesaEmMemoria'
+import type { DueloDoLado } from '../../lib/treino/vistaDoDuelo'
+import { lerEstadoParaJogador } from '../../net/protocoloDaBatalha'
 
 /**
  * LEITURA DOS FRAMES DO DUELO (`duelo.*`, fatia T7): o que o DO Campanha manda
@@ -11,6 +13,10 @@ import { GRADE_DO_TREINO, type CasaDoTreino, type LadoDoTreino, type VagaDoTrein
  * tela, como os frames do chat e do mural. A forma de fora (ids, contas,
  * vagas, fichas, a vez e o registro) é conferida; o miolo da batalha vem do
  * motor do próprio servidor (`duelo.ts`) e a tela só o lê. `null` = fora do formato.
+ *
+ * Fatia M2: cada duelo chega com a VISTA do lado desta conta (o recorte do HUD
+ * da Arena), lida inteira pelo mesmo leitor do `batalha.estado` do app
+ * (`lerEstadoParaJogador`, tetos e forma campo a campo).
  */
 
 const MOTIVOS: readonly MotivoDoDueloRecusado[] = [
@@ -197,6 +203,13 @@ export function lerDueloNoFio(bruto: unknown): DueloNoFio | null {
   return { versao, id, seq, fim, jogadores: { a, b }, lutadores, posicoes, turnos: turnos as unknown as DueloNoFio['turnos'], regras: regras as DueloNoFio['regras'], efeitos: efeitos as DueloNoFio['efeitos'], registro }
 }
 
+/** O duelo do lado desta conta (`dueloParaOLado`): o fio e a vista dela; sem a vista, ou vista torta, fora do formato. */
+export function lerDueloDoLado(bruto: unknown): DueloDoLado | null {
+  const duelo = lerDueloNoFio(bruto)
+  const vista = ehRegistro(bruto) ? lerEstadoParaJogador(proprio(bruto, 'vista')) : null
+  return duelo === null || vista === null ? null : { ...duelo, vista }
+}
+
 function lerLista<T>(bruto: unknown, ler: (item: unknown) => T | null): T[] | null {
   if (!Array.isArray(bruto)) return null
   const lista: T[] = []
@@ -222,12 +235,12 @@ export function lerFrameDoDuelo(bruto: Record<string, unknown>): MensagemDoDuelo
       return segmentoValido(id) && motivo !== null ? { t, id, motivo } : null
     }
     case 'duelo.estado': {
-      const duelo = lerDueloNoFio(proprio(bruto, 'duelo'))
+      const duelo = lerDueloDoLado(proprio(bruto, 'duelo'))
       return duelo === null ? null : { t, duelo }
     }
     case 'duelo.lista': {
       const convites = lerLista(proprio(bruto, 'convites'), lerConvite)
-      const duelos = lerLista(proprio(bruto, 'duelos'), lerDueloNoFio)
+      const duelos = lerLista(proprio(bruto, 'duelos'), lerDueloDoLado)
       return convites === null || duelos === null ? null : { t, convites, duelos }
     }
     case 'duelo.recusado': {
