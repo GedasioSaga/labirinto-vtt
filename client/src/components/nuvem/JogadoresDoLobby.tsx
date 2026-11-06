@@ -724,7 +724,11 @@ function ConfirmarTirar({ conta, fichas, onConfirmar, onCancelar }: { conta: Con
       aria-labelledby={`${id}-t`}
       aria-describedby={`${id}-d`}
       onKeyDown={(event) => {
-        if (event.key === 'Escape') onCancelar()
+        if (event.key !== 'Escape') return
+        // O Esc é desta pergunta: sem isto ele subiria até o `MenuShell`, que ouve Escape no `window` e tiraria o mestre da tela.
+        event.preventDefault()
+        event.stopPropagation()
+        onCancelar()
       }}
     >
       <p className="jl-confirma__titulo" id={`${id}-t`}>
@@ -793,7 +797,11 @@ function FormDoEmail({ conta, contas, podeGravar, publicada, focar, onSalvar, on
       noValidate
       onSubmit={(event) => void salvar(event)}
       onKeyDown={(event) => {
-        if (event.key === 'Escape' && temAntes) onFechar()
+        if (event.key !== 'Escape' || !temAntes) return
+        // Mesmo motivo da confirmação de tirar: o Esc não pode subir até o `MenuShell`.
+        event.preventDefault()
+        event.stopPropagation()
+        onFechar()
       }}
     >
       <label className="lby-rot" htmlFor={`${id}-email`}>

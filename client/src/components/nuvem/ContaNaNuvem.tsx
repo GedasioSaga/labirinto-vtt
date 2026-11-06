@@ -237,7 +237,11 @@ function FormDoToken({ podeCancelar, onCancelar, onGuardado }: FormDoTokenProps)
       noValidate
       onSubmit={(event) => void guardar(event)}
       onKeyDown={(event) => {
-        if (event.key === 'Escape' && podeCancelar) onCancelar()
+        if (event.key !== 'Escape' || !podeCancelar) return
+        // Mesmo motivo da confirmação de apagar: o Esc não pode subir até o `MenuShell`.
+        event.preventDefault()
+        event.stopPropagation()
+        onCancelar()
       }}
       aria-label="Colar o token do app"
     >

@@ -36,3 +36,6 @@ playwright-report/
 
 # Material temporario de sessao (bars, prints, diagnosticos)
 scratchpad/
+
+# Cache incremental do tsc (tsconfig.node.json com composite)
+*.tsbuildinfo
