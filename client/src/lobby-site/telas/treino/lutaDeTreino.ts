@@ -1,8 +1,10 @@
 import { maximoComposto } from '../../../lib/ajusteDaFicha'
+import type { CasaDaArena } from '../../../lib/arena/grade'
 import type { Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import { aplicarJogada, criarDuelo, type DueloGravado, type JogadaDoDuelo, type MotivoDaRecusa, type MotorDoDuelo } from '../../../lib/treino/duelo'
-import { montarLutadores, VAGAS_POR_LADO_MAX, type LutadoresDoTreino, type MontagemDoTreino } from '../../../lib/treino/mesaEmMemoria'
+import { GRADE_DO_TREINO, montarLutadores, VAGAS_POR_LADO_MAX, type LutadoresDoTreino, type MontagemDoTreino } from '../../../lib/treino/mesaEmMemoria'
+import { dentroDaGrade } from './grade/bonecos'
 import { criarSorteio, type Sorteio } from '../../../lib/treino/sorteio'
 import { passoDoRobo, type GolpesDaVez } from '../../dados/roboDoDuelo'
 
@@ -23,10 +25,18 @@ export const CONTA_DO_INIMIGO = 'treino_inimigo'
 /** Quantos passos do robô "ir até o fim" dá no máximo (o teto de passos da luta acaba antes). */
 const PASSOS_ATE_O_FIM_MAX = 10_000
 
+/** A casa de largada de cada ficha, por lado, na ordem das fichas do lado (a montagem na grade, fatia J). */
+export interface LargadaDaLuta {
+  a: readonly CasaDaArena[]
+  b: readonly CasaDaArena[]
+}
+
 /** Quem luta: as minhas fichas (lado A) e os inimigos (lado B), já como vão para a luta. */
 export interface MontagemDaLuta {
   minhas: readonly Personagem[]
   inimigos: readonly Personagem[]
+  /** Onde cada ficha começa na grade; ausente = as casas de largada da Arena (`casasIniciais`). Não muda dano nem alcance. */
+  largada?: LargadaDaLuta
 }
 
 export interface LutaLocal {
@@ -100,7 +110,39 @@ export function comecarLutaLocal(montagem: MontagemDaLuta, sistema: SistemaDeRpg
     motor,
   )
   if (!criado.ok) return { ok: false, motivo: 'Não deu para montar a luta com essas fichas.' }
-  return { ok: true, luta: { semente, duelo: criado.duelo, golpesDaVez: null, sorteio, motor } }
+  const duelo = montagem.largada === undefined ? criado.duelo : comLargada(criado.duelo, montagem.largada)
+  return { ok: true, luta: { semente, duelo, golpesDaVez: null, sorteio, motor } }
+}
+
+/**
+ * O duelo com cada ficha na casa onde a montagem a pôs: a n-ésima vaga de cada
+ * lado na n-ésima casa da largada dele. Casa fora da grade, repetida ou que
+ * falta = aquela ficha fica na casa de largada da Arena (a luta nunca nasce
+ * com duas fichas na mesma casa). A posição não entra na regra do golpe: a
+ * semente vale igual.
+ */
+function comLargada(duelo: DueloGravado, largada: LargadaDaLuta): DueloGravado {
+  const posicoes: Record<string, CasaDaArena> = { ...duelo.posicoes }
+  const usadas = new Set<string>()
+  const pedidas = new Map<string, CasaDaArena>()
+  for (const lado of ['a', 'b'] as const) {
+    duelo.lutadores.vagas
+      .filter((vaga) => vaga.lado === lado)
+      .forEach((vaga, i) => {
+        const casa = largada[lado][i]
+        if (casa === undefined || !dentroDaGrade(casa, GRADE_DO_TREINO) || usadas.has(`${casa.col},${casa.row}`)) return
+        usadas.add(`${casa.col},${casa.row}`)
+        pedidas.set(vaga.tokenId, { col: casa.col, row: casa.row })
+      })
+  }
+  // Quem ficou sem casa pedida guarda a da Arena, se ela não colidir com uma pedida.
+  for (const [tokenId, casa] of Object.entries(duelo.posicoes)) {
+    if (pedidas.has(tokenId)) continue
+    if (usadas.has(`${casa.col},${casa.row}`)) return duelo
+    usadas.add(`${casa.col},${casa.row}`)
+  }
+  for (const [tokenId, casa] of pedidas) posicoes[tokenId] = casa
+  return { ...duelo, posicoes }
 }
 
 export type ResultadoNaLuta = { ok: true; luta: LutaLocal } | { ok: false; motivo: MotivoDaRecusa }

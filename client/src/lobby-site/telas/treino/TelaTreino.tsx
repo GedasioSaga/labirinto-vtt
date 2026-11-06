@@ -7,63 +7,114 @@ import { AvisoDaPagina } from '../Estados'
 import { Icone } from '../Icone'
 import { CemLutas } from './CemLutas'
 import { ImagemDoSite } from './grade/ImagemDoSite'
+import { AjustesDoJuiz } from './juiz/AjustesDoJuiz'
+import { apagarAjustesDoJuiz, ajustesPadraoDoJuiz, fichaDoJuiz, guardarAjustesDoJuiz, ID_DO_JUIZ, juizMudou, lerAjustesDoJuiz, NOME_DO_JUIZ, RETRATO_DO_JUIZ, type AjustesDoJuiz as Ajustes } from './juiz/juizDoTreino'
 import { comVidaCheia, type MontagemDaLuta } from './lutaDeTreino'
 import { LutaTurnoATurno } from './LutaTurnoATurno'
+import { MontagemNaGrade } from './montagem/MontagemNaGrade'
+import { lutaDaMontagem, montagemInicial, soAsQueExistem, type PecaDaMontagem, type PecaNaGrade } from './montagem/regrasDaMontagem'
 import { comRascunho, lerRascunho, rascunhoMuda } from './rascunhoDeTreino'
-import { EscolhaDeFichas, TelaDuelo } from './TelaDuelo'
+import { TelaDuelo } from './TelaDuelo'
 import { TestarBuild } from './TestarBuild'
 import './treino.css'
 
 /**
  * O TREINO E O DUELO no site (fatia T7, plano do Lobby §8.2). Treino: a
- * pessoa monta a luta (as fichas dela contra um inimigo que o mestre liberou,
- * 1 a 3 cópias dele) e escolhe o modo: a luta turno a turno, as 100 lutas ou
- * testar build. Duelo: contra um colega, turno a turno. Nada daqui muda ficha
- * nenhuma: o treino luta com cópias e o rascunho mora só no navegador.
+ * pessoa monta a luta na grade (fatia J: puxa da lista "Personagens" para a
+ * grade da Arena, e a metade onde solta decide o lado; o adversário padrão é o
+ * Judge, o boneco de teste da Arena, ao lado dos inimigos que o mestre
+ * liberou) e escolhe o modo: a luta turno a turno, as 100 lutas, testar build
+ * ou ajustar o Judge. Duelo: contra um colega, turno a turno. Nada daqui muda
+ * ficha nenhuma: o treino luta com cópias, e o rascunho e o Judge moram só no
+ * navegador.
  */
 
 type RotaDoTreino = Extract<Rota, { tela: 'treino' }>
-type Modo = 'luta' | 'cem' | 'build'
+type Modo = 'luta' | 'cem' | 'build' | 'juiz'
 
 const MODOS: readonly { id: Modo; nome: string }[] = [
   { id: 'luta', nome: 'Luta turno a turno' },
   { id: 'cem', nome: '100 lutas' },
   { id: 'build', nome: 'Testar build' },
+  { id: 'juiz', nome: `Ajustar o ${NOME_DO_JUIZ}` },
 ]
-/** Quantas cópias do inimigo dá para pôr (a "dificuldade" do treino). */
-const QUANTOS: readonly number[] = [1, 2, 3]
+
+/** "Judge", "Judge e companhia": contra quem, para a barra e o fim da luta. */
+function nomeDoLadoB(inimigos: readonly Personagem[]): string {
+  const primeiro = inimigos[0]
+  if (primeiro === undefined) return 'O inimigo'
+  return inimigos.length > 1 ? `${primeiro.nome} e companhia` : primeiro.nome
+}
 
 function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunhos, mudouRascunho }: { campanha: EstadoDaCampanha; campanhaId: string; demo: boolean; modo: Modo; setModo(modo: Modo): void; versaoDosRascunhos: number; mudouRascunho(): void }) {
   const minhas = campanha.fichas.filter((ficha) => ficha.ehMinha && ficha.visivel === 'mesa')
+  // Os personagens dos colegas entram como cópia só para o treino (a ficha deles nunca muda).
+  const colegas = campanha.fichas.filter((ficha) => !ficha.ehMinha && ficha.visivel === 'mesa' && ficha.nomeDoDono !== null)
   const inimigos = campanha.fichas.filter((ficha) => ficha.visivel === 'treino')
-  const [escolhidas, setEscolhidas] = useState<string[]>(minhas[0] === undefined ? [] : [minhas[0].doc.id])
-  const [inimigoId, setInimigoId] = useState<string | null>(inimigos[0]?.doc.id ?? null)
-  const [quantos, setQuantos] = useState(1)
   const [vidaCheia, setVidaCheia] = useState(true)
   const [usarRascunho, setUsarRascunho] = useState(false)
+  const [juiz, setJuiz] = useState<Ajustes>(() => lerAjustesDoJuiz(campanhaId, demo, SISTEMA_DO_LOBBY))
+  const [juizGuardado, setJuizGuardado] = useState<boolean | null>(null)
   const listaDeModos = useRef<HTMLDivElement>(null)
 
-  const docsEscolhidos = minhas.filter((ficha) => escolhidas.includes(ficha.doc.id)).map((ficha) => ficha.doc)
-  const inimigo = inimigos.find((ficha) => ficha.doc.id === inimigoId)?.doc ?? null
   // `versaoDosRascunhos` muda quando o Testar build guarda: o "usar o rascunho" relê o que está no navegador.
+  const idsDasMinhas = minhas.map((ficha) => ficha.doc.id).join(',')
   const rascunhos = useMemo(
-    () => new Map(docsEscolhidos.map((doc) => [doc.id, lerRascunho(campanhaId, doc.id, demo)])),
-    // Relê só quando a escolha ou um rascunho muda (a lista de docs é nova a cada render).
-    [campanhaId, demo, escolhidas.join(','), versaoDosRascunhos],
+    () => new Map(minhas.map((ficha) => [ficha.doc.id, lerRascunho(campanhaId, ficha.doc.id, demo)])),
+    // Relê só quando as fichas ou um rascunho mudam (a lista é nova a cada render).
+    [campanhaId, demo, idsDasMinhas, versaoDosRascunhos],
   )
   const temRascunho = [...rascunhos.values()].some((rascunho) => rascunhoMuda(rascunho))
+  const comORascunho = usarRascunho && temRascunho
+
+  const pecas: PecaDaMontagem[] = [
+    ...minhas.map((ficha): PecaDaMontagem => ({
+      id: ficha.doc.id,
+      nome: ficha.doc.nome,
+      retrato: ficha.doc.retrato,
+      selo: ficha.doc.tipo === 'npc' ? 'npc' : 'jogador',
+      origem: 'minha',
+      detalhe: comORascunho && rascunhoMuda(rascunhos.get(ficha.doc.id) ?? null) ? 'seu, com o rascunho de treino' : 'seu personagem',
+    })),
+    ...colegas.map((ficha): PecaDaMontagem => ({ id: ficha.doc.id, nome: ficha.doc.nome, retrato: ficha.doc.retrato, selo: ficha.doc.tipo === 'npc' ? 'npc' : 'jogador', origem: 'colega', detalhe: `de ${ficha.nomeDoDono ?? 'um colega'}, cópia de treino` })),
+    { id: ID_DO_JUIZ, nome: NOME_DO_JUIZ, retrato: RETRATO_DO_JUIZ, selo: 'npc', origem: 'juiz', detalhe: juizMudou(juiz) ? 'boneco de teste, ajustado por você' : 'boneco de teste da Arena' },
+    ...inimigos.map((ficha): PecaDaMontagem => ({ id: ficha.doc.id, nome: ficha.doc.nome, retrato: ficha.doc.retrato, selo: 'npc', origem: 'inimigo', detalhe: 'liberado pelo mestre' })),
+  ]
+  const [guardada, setGuardada] = useState<PecaNaGrade[]>(() => montagemInicial(pecas))
+  // O mestre tirou um inimigo do treino (ou a ficha saiu da mesa): a peça dele some da grade.
+  const lista = soAsQueExistem(guardada, pecas)
+
   const preparar = (doc: Personagem): Personagem => (vidaCheia ? comVidaCheia(doc, SISTEMA_DO_LOBBY) : doc)
-  const inimigosDaLuta = inimigo === null ? [] : Array.from({ length: quantos }, () => preparar(inimigo))
-  const montagem: MontagemDaLuta = {
-    minhas: docsEscolhidos.map((doc) => preparar(usarRascunho ? comRascunho(doc, rascunhos.get(doc.id) ?? null) : doc)),
-    inimigos: inimigosDaLuta,
+  const docDaPeca = (pecaId: string): Personagem | null => {
+    if (pecaId === ID_DO_JUIZ) return fichaDoJuiz(SISTEMA_DO_LOBBY, juiz)
+    const minha = minhas.find((ficha) => ficha.doc.id === pecaId)
+    if (minha !== undefined) return comORascunho ? comRascunho(minha.doc, rascunhos.get(pecaId) ?? null) : minha.doc
+    return [...colegas, ...inimigos].find((ficha) => ficha.doc.id === pecaId)?.doc ?? null
   }
-  /** O Testar build: a ficha do editor no lugar dela (com ou sem o rascunho), as outras escolhidas como estão. */
-  const montagemDoBuild = (minha: Personagem): MontagemDaLuta => ({
-    minhas: [minha, ...docsEscolhidos.filter((doc) => doc.id !== minha.id)].map(preparar),
-    inimigos: inimigosDaLuta,
+  const montagem: MontagemDaLuta = lutaDaMontagem(lista, (pecaId) => {
+    const doc = docDaPeca(pecaId)
+    return doc === null ? null : preparar(doc)
   })
-  const nomeDoInimigo = inimigo === null ? 'O inimigo' : quantos > 1 ? `${inimigo.nome} e companhia` : inimigo.nome
+  /** O Testar build: a ficha do editor no lugar dela no Lado A (com ou sem o rascunho), o resto da grade como está. */
+  const montagemDoBuild = (minha: Personagem): MontagemDaLuta => ({
+    minhas: [preparar(minha), ...montagem.minhas.filter((doc) => doc.id !== minha.id)],
+    inimigos: montagem.inimigos,
+  })
+  const nomeDoInimigo = nomeDoLadoB(montagem.inimigos)
+
+  function mudarJuiz(novo: Ajustes) {
+    setJuiz(novo)
+    setJuizGuardado(guardarAjustesDoJuiz(campanhaId, demo, novo))
+  }
+  function juizPadrao() {
+    apagarAjustesDoJuiz(campanhaId, demo)
+    setJuiz(ajustesPadraoDoJuiz())
+    setJuizGuardado(null)
+  }
+  function irParaOJuiz() {
+    setModo('juiz')
+    requestAnimationFrame(() => listaDeModos.current?.querySelector<HTMLElement>('#modo-treino-juiz')?.focus())
+  }
 
   function teclaNosModos(evento: KeyboardEvent<HTMLDivElement>) {
     const atual = MODOS.findIndex((candidato) => candidato.id === modo)
@@ -76,56 +127,22 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
   }
 
   return (
-    <div className="lo-tr-corpo">
-      <aside className="lo-tr-montagem lo-folha" aria-label="Quem luta">
-        <div className="lo-tr-montagem__parte">
-          <h2 className="lo-tr-bloco__titulo">Seu lado</h2>
-          {minhas.length === 0 ? (
-            <p className="lo-motivo">Você ainda não tem personagem nesta mesa. Quando o mestre ligar um a você, ele aparece aqui.</p>
-          ) : (
-            <EscolhaDeFichas fichas={minhas.map((ficha) => ({ id: ficha.doc.id, nome: ficha.doc.nome }))} escolhidas={escolhidas} aoMudar={setEscolhidas} rotulo="Seus personagens na luta" />
-          )}
-        </div>
-        <div className="lo-tr-montagem__parte">
-          <h2 className="lo-tr-bloco__titulo">Inimigo</h2>
-          {inimigos.length === 0 ? (
-            <p className="lo-motivo">O mestre ainda não liberou nenhum inimigo para o treino. Quando ele liberar um NPC no app, ele aparece aqui.</p>
-          ) : (
-            <fieldset className="lo-tr-grupo">
-              <legend className="lo-sr">Contra quem</legend>
-              {inimigos.map((ficha) => (
-                <label key={ficha.doc.id} className="lo-tr-opcao">
-                  <input type="radio" name="inimigo-do-treino" checked={inimigoId === ficha.doc.id} onChange={() => setInimigoId(ficha.doc.id)} />
-                  <span className="lo-tr-opcao__nome">{ficha.doc.nome}</span>
-                  {ficha.doc.descricao !== undefined && ficha.doc.descricao !== '' && <span className="lo-tr-opcao__valor">{ficha.doc.descricao}</span>}
-                </label>
-              ))}
-            </fieldset>
-          )}
-        </div>
-        <div className="lo-tr-montagem__parte">
-          <h2 className="lo-tr-bloco__titulo" id="quantos-inimigos">
-            Quantos
-          </h2>
-          <div className="lo-tr-quantos" role="radiogroup" aria-labelledby="quantos-inimigos">
-            {QUANTOS.map((n) => (
-              <button key={n} type="button" role="radio" aria-checked={quantos === n} className="lo-tr-ficha" onClick={() => setQuantos(n)}>
-                {n === 1 ? '1 inimigo' : `${n} inimigos`}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="lo-tr-montagem__parte lo-tr-montagem__chaves">
+    <div className="lo-tr-pilha">
+      <section className="lo-folha lo-tr-montagem-grade" aria-label="Quem luta">
+        <MontagemNaGrade pecas={pecas} lista={lista} onMudar={setGuardada} demo={demo} onAjustarJuiz={irParaOJuiz} />
+        <div className="lo-tr-montagem-grade__pe">
           <label className="lo-tr-chave">
             <input type="checkbox" checked={vidaCheia} onChange={(evento) => setVidaCheia(evento.target.checked)} />
             <span>Começar com Vida e Energia cheias</span>
           </label>
           <label className="lo-tr-chave">
-            <input type="checkbox" checked={usarRascunho && temRascunho} disabled={!temRascunho} onChange={(evento) => setUsarRascunho(evento.target.checked)} />
+            <input type="checkbox" checked={comORascunho} disabled={!temRascunho} onChange={(evento) => setUsarRascunho(evento.target.checked)} />
             <span>Lutar com o rascunho de treino{temRascunho ? '' : ' (nenhum ainda)'}</span>
           </label>
+          {minhas.length === 0 && <p className="lo-motivo">Você ainda não tem personagem nesta mesa: dá para treinar com o {NOME_DO_JUIZ} e as cópias dos colegas.</p>}
+          {inimigos.length === 0 && <p className="lo-motivo">O mestre ainda não liberou inimigo para o treino: o {NOME_DO_JUIZ} fica de adversário.</p>}
         </div>
-      </aside>
+      </section>
 
       <div className="lo-folha lo-tr-modos">
         <div className="lo-abas" role="tablist" aria-label="Modos do treino" ref={listaDeModos} onKeyDown={teclaNosModos}>
@@ -145,7 +162,7 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
             </button>
           ))}
         </div>
-        {/* Os três ficam montados (só escondidos): trocar de aba não perde a luta do meio, a série rodando nem a comparação. */}
+        {/* Os quatro ficam montados (só escondidos): trocar de aba não perde a luta do meio, a série rodando nem a comparação. */}
         <div className="lo-painel" role="tabpanel" id="painel-treino-luta" aria-labelledby="modo-treino-luta" hidden={modo !== 'luta'}>
           <LutaTurnoATurno montagem={montagem} nomeDoInimigo={nomeDoInimigo} />
         </div>
@@ -157,10 +174,13 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
             campanhaId={campanhaId}
             demo={demo}
             fichas={minhas.map((ficha) => ficha.doc)}
-            fichaInicial={escolhidas[0] ?? null}
+            fichaInicial={lista.map((peca) => peca.pecaId).find((pecaId) => minhas.some((ficha) => ficha.doc.id === pecaId)) ?? null}
             montagem={montagemDoBuild}
             aoMudarRascunho={mudouRascunho}
           />
+        </div>
+        <div className="lo-painel" role="tabpanel" id="painel-treino-juiz" aria-labelledby="modo-treino-juiz" hidden={modo !== 'juiz'}>
+          <AjustesDoJuiz ajustes={juiz} sistema={SISTEMA_DO_LOBBY} onMudar={mudarJuiz} onVoltarAoPadrao={juizPadrao} guardado={juizGuardado} />
         </div>
       </div>
     </div>
@@ -212,7 +232,7 @@ export function TelaTreino({ rota }: { rota: RotaDoTreino }) {
           <p className="lo-sub">
             {ehDuelo
               ? 'Desafie um colega da mesa. Turno a turno e sem relógio: cada um joga quando puder.'
-              : 'Lute contra os inimigos que o mestre liberou. Nada aqui muda a sua ficha.'}
+              : 'Monte a luta na grade: contra o Judge, os inimigos que o mestre liberou ou cópias da mesa. Nada aqui muda a sua ficha.'}
           </p>
         </div>
         <a className="lo-btn" href={enderecoDaRota(outra, demo)} onClick={aoClicarNoLink(site, outra)}>

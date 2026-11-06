@@ -311,3 +311,30 @@
   .lo-ga-boneco__disco { transition: none; }
   .lo-ga-boneco__vez { animation: none; }
 }
+
+/* ── A montagem (fatia J): as duas metades da grade, cada uma com a cor e o nome do lado ── */
+.lo-ga-metades {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  pointer-events: none;
+}
+.lo-ga-metade {
+  position: relative;
+  background: color-mix(in srgb, var(--lo-ga-lado) 9%, transparent);
+}
+.lo-ga-metade[data-lado='a'] { box-shadow: inset -1px 0 0 color-mix(in srgb, var(--lb-color-parchment) 38%, transparent); }
+.lo-ga-metade__nome {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  padding: 1px 8px;
+  border-radius: var(--lb-radius-full);
+  background: rgba(20, 20, 23, 0.72);
+  color: var(--lb-color-parchment-dim);
+  font-size: 12px;
+  line-height: 18px;
+  box-shadow: inset 2px 0 0 var(--lo-ga-lado);
+}
+.lo-ga-metade[data-lado='b'] .lo-ga-metade__nome { left: auto; right: 8px; box-shadow: inset -2px 0 0 var(--lo-ga-lado); }

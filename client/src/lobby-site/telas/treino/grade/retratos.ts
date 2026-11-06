@@ -1,5 +1,6 @@
 import { idDaRef, refDoId, resolverComBase, type ResolverDeImagem } from '../../../../lib/midia'
 import { isTokenPhotoData } from '../../../../lib/tokenPhoto'
+import { RETRATO_DO_JUIZ } from '../juiz/juizDoTreino'
 
 /**
  * O RETRATO DAS FICHAS NA GRADE (fatia G2). No site de verdade a imagem
@@ -107,7 +108,12 @@ export const resolverDaDemo: ResolverDeImagem = (valor) => {
   return id === null ? null : retratoInventado(id)
 }
 
-/** O resolvedor da tela do treino e do duelo: a rota de mídia da campanha, ou o da demo. */
+/**
+ * O resolvedor da tela do treino e do duelo: a rota de mídia da campanha, ou o
+ * da demo. O desenho do Judge (fatia J) é um arquivo do próprio site e passa
+ * como está; nenhum outro endereço passa.
+ */
 export function resolverDoSite(campanhaId: string, demo: boolean): ResolverDeImagem {
-  return demo ? resolverDaDemo : resolverComBase(baseDaMidiaDaMesa(campanhaId))
+  const daMesa = demo ? resolverDaDemo : resolverComBase(baseDaMidiaDaMesa(campanhaId))
+  return (valor) => (valor === RETRATO_DO_JUIZ ? RETRATO_DO_JUIZ : daMesa(valor))
 }

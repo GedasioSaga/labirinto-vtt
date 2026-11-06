@@ -48,6 +48,24 @@ export interface GradeDaArenaProps {
   caber?: 'largura' | 'tudo'
   escalaMaxima?: number
   rotulo?: string
+  /** A MONTAGEM (fatia J): as duas metades com o nome do lado, o realce de quem chega da lista e o jeito de tirar. */
+  montagem?: MontagemDaGrade
+}
+
+/** O que a grade faz a mais na montagem do treino (`MontagemNaGrade.tsx`). */
+export interface MontagemDaGrade {
+  /** A casa sob o item que vem arrastado da lista (a grade só desenha; quem arrasta é a lista). */
+  realce: { casa: CasaDaArena; situacao: 'livre' | 'ocupada' | 'cheio' } | null
+  /** O rótulo da casa sob a ficha na mão ("Lado B"), no lugar das casas andadas. */
+  rotuloDoAlvo(alvo: CasaDaArena): string
+  /** O ponteiro com uma ficha na mão (px da janela); `null` = soltou ou desistiu. A lista usa para se acender. */
+  aoArrastar(tokenId: string, ponto: { x: number; y: number } | null): void
+  /** Soltou com o ponteiro fora da grade: `true` = tirou a ficha (ela não volta). */
+  aoSoltarFora(tokenId: string, ponto: { x: number; y: number }): boolean
+  /** Delete ou Backspace na ficha em foco. */
+  aoTirar(tokenId: string): void
+  /** A dica de leitor de tela das fichas. */
+  dica: string
 }
 
 interface FichaNaMao {
@@ -55,6 +73,8 @@ interface FichaNaMao {
   origem: CasaDaArena
   alvo: CasaDaArena
   situacao: SituacaoDaCasa
+  /** O ponteiro saiu da grade (só na montagem): soltar ali pode tirar a ficha. */
+  fora: boolean
 }
 
 interface Gesto {
@@ -67,6 +87,9 @@ interface Gesto {
   difX: number
   difY: number
   movido: boolean
+  /** O último ponto do ponteiro, px da janela (para soltar fora da grade, na montagem). */
+  x: number
+  y: number
 }
 
 function posicaoDaCasa(casa: CasaDaArena): string {
@@ -77,7 +100,7 @@ function textoDeCasas(blocos: number): string {
   return blocos === 1 ? '1 casa' : `${blocos} casas`
 }
 
-export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar, onConsulta, trilhas, mirando = false, caber = 'largura', escalaMaxima = ESCALA_MAXIMA_PADRAO, rotulo = 'Grade da arena' }: GradeDaArenaProps) {
+export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar, onConsulta, trilhas, mirando = false, caber = 'largura', escalaMaxima = ESCALA_MAXIMA_PADRAO, rotulo = 'Grade da arena', montagem }: GradeDaArenaProps) {
   const idBase = useId()
   const resolver = useImagemDaMesa()
   const { largura, altura } = limitesDaArena(grade)
@@ -95,8 +118,8 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
   const alvoAtual = useRef<FichaNaMao | null>(null)
   const cliqueEngolido = useRef<string | null>(null)
   // As props de agora, para os gestos (que vivem entre renders) lerem sem recriar os ouvintes.
-  const atual = useRef({ bonecos, grade, onAndar, onTocar, onConsulta })
-  atual.current = { bonecos, grade, onAndar, onTocar, onConsulta }
+  const atual = useRef({ bonecos, grade, onAndar, onTocar, onConsulta, montagem })
+  atual.current = { bonecos, grade, onAndar, onTocar, onConsulta, montagem }
 
   // A escala que faz a grade caber: só a largura, ou a caixa toda. Antes do primeiro quadro, para não piscar grande.
   useLayoutEffect(() => {
@@ -197,6 +220,10 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
       const alvo = alvoAtual.current
       alvoAtual.current = null
       setNaMao(null)
+      const naMontagem = atual.current.montagem
+      naMontagem?.aoArrastar(fim.tokenId, null)
+      // Na montagem, soltar fora da grade (sobre a lista) tira a ficha: ela não volta para a casa.
+      if (soltou && alvo?.fora === true && naMontagem !== undefined && naMontagem.aoSoltarFora(fim.tokenId, { x: fim.x, y: fim.y })) return
       if (!soltou || alvo === null || alvo.situacao !== 'livre') {
         devolver(fim.tokenId, fim.origem)
         if (soltou && alvo?.situacao === 'ocupada') anunciar(`A casa ${rotuloDaCasa(alvo.alvo)} está ocupada: ${nomeDe(fim.tokenId)} voltou.`)
@@ -242,6 +269,8 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
       difX: boneco.casa.col * CASA_DA_ARENA - ponto.x,
       difY: boneco.casa.row * CASA_DA_ARENA - ponto.y,
       movido: false,
+      x: evento.clientX,
+      y: evento.clientY,
     }
     evento.currentTarget.setPointerCapture(evento.pointerId)
   }
@@ -256,21 +285,31 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
       evento.currentTarget.dataset.naMao = ''
     }
     const ponto = naGrade(evento.clientX, evento.clientY)
+    vivo.x = evento.clientX
+    vivo.y = evento.clientY
+    const naMontagem = atual.current.montagem
+    naMontagem?.aoArrastar(vivo.tokenId, { x: evento.clientX, y: evento.clientY })
     // A ficha segue o ponteiro, sem sair mais que meia casa da grade.
     const x = Math.min(largura - MEIA_CASA, Math.max(-MEIA_CASA, ponto.x + vivo.difX))
     const y = Math.min(altura - MEIA_CASA, Math.max(-MEIA_CASA, ponto.y + vivo.difY))
     evento.currentTarget.style.transform = `translate(${x}px, ${y}px)`
     const alvo = casaPresaSob(x + MEIA_CASA, y + MEIA_CASA, atual.current.grade)
+    const fora = naMontagem !== undefined && (ponto.x < 0 || ponto.y < 0 || ponto.x > largura || ponto.y > altura)
     const antes = alvoAtual.current
-    if (antes !== null && mesmaCasa(antes.alvo, alvo)) return
+    if (antes !== null && mesmaCasa(antes.alvo, alvo) && antes.fora === fora) return
     // O destaque da casa muda só quando a casa muda (não a cada quadro do ponteiro).
-    const novo: FichaNaMao = { tokenId: vivo.tokenId, origem: vivo.origem, alvo, situacao: situacaoDaCasa(atual.current.bonecos, vivo.tokenId, alvo) }
+    const novo: FichaNaMao = { tokenId: vivo.tokenId, origem: vivo.origem, alvo, situacao: situacaoDaCasa(atual.current.bonecos, vivo.tokenId, alvo), fora }
     alvoAtual.current = novo
     setNaMao(novo)
   }
 
   function aoTeclar(evento: KeyboardEvent<HTMLButtonElement>, boneco: BonecoNaGrade) {
     if (evento.ctrlKey || evento.metaKey || evento.shiftKey) return
+    if (montagem !== undefined && (evento.key === 'Delete' || evento.key === 'Backspace')) {
+      evento.preventDefault()
+      if (gesto.current === null) montagem.aoTirar(boneco.tokenId)
+      return
+    }
     const destino = casaPelaSeta(boneco.casa, evento.key)
     if (destino === null) return
     // Toda seta numa ficha fica com a grade, mesmo a que não anda: Alt + seta para a
@@ -322,6 +361,23 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
           style={{ width: largura, height: altura, transform: `scale(${escala})` }}
         >
           <div className="lo-ga-chao" aria-hidden="true" />
+          {montagem !== undefined && (
+            <div className="lo-ga-metades" aria-hidden="true">
+              {(['a', 'b'] as const).map((lado) => (
+                <div key={lado} className="lo-ga-metade" data-lado={lado} style={{ '--lo-ga-lado': EQUIPE_DO_LADO[lado].cor } as CSSProperties}>
+                  <span className="lo-ga-metade__nome">{lado === 'a' ? `${EQUIPE_DO_LADO.a.nome}: você joga` : `${EQUIPE_DO_LADO.b.nome}: o robô joga`}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {montagem?.realce != null && (
+            <>
+              <div className="lo-ga-alvo" data-situacao={montagem.realce.situacao === 'livre' ? 'livre' : 'ocupada'} style={{ transform: posicaoDaCasa(montagem.realce.casa) }} aria-hidden="true" />
+              <div className="lo-ga-alvo-rotulo" data-situacao={montagem.realce.situacao === 'livre' ? 'livre' : 'ocupada'} style={{ transform: posicaoDaCasa(montagem.realce.casa) }} aria-hidden="true">
+                <span className="lo-ga-alvo__texto">{montagem.realce.situacao === 'ocupada' ? 'Ocupada' : montagem.realce.situacao === 'cheio' ? 'Lado cheio' : montagem.rotuloDoAlvo(montagem.realce.casa)}</span>
+              </div>
+            </>
+          )}
 
           {caminhos.length > 0 && (
             <svg className="lo-ga-trilhas" viewBox={`0 0 ${largura} ${altura}`} aria-hidden="true">
@@ -343,12 +399,14 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
           {naMao !== null && (
             <>
               <div className="lo-ga-origem" style={{ transform: posicaoDaCasa(naMao.origem) }} aria-hidden="true" />
-              {naMao.situacao !== 'mesma' && (
+              {naMao.situacao !== 'mesma' && !naMao.fora && (
                 <>
                   <div className="lo-ga-alvo" data-situacao={naMao.situacao} style={{ transform: posicaoDaCasa(naMao.alvo) }} aria-hidden="true" />
                   {/* O rótulo vai por cima da ficha na mão (a casa fica por baixo dela). */}
                   <div className="lo-ga-alvo-rotulo" data-situacao={naMao.situacao} style={{ transform: posicaoDaCasa(naMao.alvo) }} aria-hidden="true">
-                    <span className="lo-ga-alvo__texto">{naMao.situacao === 'ocupada' ? 'Ocupada' : textoDeCasas(blocosEntre(naMao.origem, naMao.alvo))}</span>
+                    <span className="lo-ga-alvo__texto">
+                      {naMao.situacao === 'ocupada' ? 'Ocupada' : montagem !== undefined ? montagem.rotuloDoAlvo(naMao.alvo) : textoDeCasas(blocosEntre(naMao.origem, naMao.alvo))}
+                    </span>
                   </div>
                 </>
               )}
@@ -422,7 +480,7 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
         </div>
       </div>
       <p id={idDaDica} className="lo-sr">
-        Arraste para andar, ou use as setas para andar uma casa. Enter escolhe a ficha.
+        {montagem?.dica ?? 'Arraste para andar, ou use as setas para andar uma casa. Enter escolhe a ficha.'}
       </p>
       <p id={idDaDicaParada} className="lo-sr">
         Enter escolhe a ficha.

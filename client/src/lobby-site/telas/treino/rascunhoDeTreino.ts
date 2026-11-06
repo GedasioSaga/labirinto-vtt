@@ -1,16 +1,20 @@
 import type { Personagem } from '../../../lib/personagem'
+import { comTecnicasDeTreino, lerTecnicasDeTreino, type TecnicaDeTreino } from './juiz/tecnicaDeTreino'
 
 /**
  * O RASCUNHO DE TREINO (fatia T7; achado Tr6 do plano: "rascunho de build
  * dito salvo sem fatia"): os números que a pessoa experimenta numa cópia da
- * ficha (atributos e máximos), guardados SÓ neste navegador, por mesa e por
- * ficha. Nunca vira op, nunca vai ao servidor e nunca muda a ficha de
- * verdade: o treino usa a cópia com o rascunho por cima. Recarregar a página
- * não perde; outro navegador não vê. Armazenamento bloqueado = o rascunho
- * vive só enquanto a página está aberta, e a tela diz isso.
+ * ficha (atributos, máximos e, desde a fatia J, o Escudo e as técnicas de
+ * treino), guardados SÓ neste navegador, por mesa e por ficha. Nunca vira op,
+ * nunca vai ao servidor e nunca muda a ficha de verdade: o treino usa a cópia
+ * com o rascunho por cima. Recarregar a página não perde; outro navegador não
+ * vê. Armazenamento bloqueado = o rascunho vive só enquanto a página está
+ * aberta, e a tela diz isso. O rascunho da versão 1 (sem Escudo nem técnicas)
+ * ainda abre.
  */
 
-const VERSAO = 1
+const VERSAO = 2
+const VERSAO_SEM_TECNICAS = 1
 const PREFIXO = 'labirinto.lobby.rascunhoDeTreino'
 /** O maior número que o rascunho aceita num campo (o mesmo teto largo de qualquer número da ficha no site). */
 export const NUMERO_DO_RASCUNHO_MAX = 99_999
@@ -22,6 +26,10 @@ export interface RascunhoDeTreino {
   atributos: Record<string, number>
   /** Só os que mudaram: recurso → máximo. */
   maximos: Record<string, number>
+  /** Só os que mudaram, dos recursos de um número só (o Escudo): recurso → valor. */
+  recursos: Record<string, number>
+  /** As técnicas que só existem no treino, no fim das Habilidades da cópia. */
+  tecnicas: TecnicaDeTreino[]
   salvoEm: number
 }
 
@@ -55,8 +63,11 @@ function lerRascunhoDoTexto(texto: string, fichaId: string): RascunhoDeTreino | 
   const atributos = lerNumeros(registro.atributos)
   const maximos = lerNumeros(registro.maximos)
   const salvoEm = registro.salvoEm
-  if (registro.versao !== VERSAO || registro.fichaId !== fichaId || atributos === null || maximos === null || typeof salvoEm !== 'number') return null
-  return { versao: VERSAO, fichaId, atributos, maximos, salvoEm }
+  const daVersao1 = registro.versao === VERSAO_SEM_TECNICAS
+  const recursos = daVersao1 ? {} : lerNumeros(registro.recursos)
+  const tecnicas = daVersao1 ? [] : lerTecnicasDeTreino(registro.tecnicas)
+  if ((registro.versao !== VERSAO && !daVersao1) || registro.fichaId !== fichaId || atributos === null || maximos === null || recursos === null || tecnicas === null || typeof salvoEm !== 'number') return null
+  return { versao: VERSAO, fichaId, atributos, maximos, recursos, tecnicas, salvoEm }
 }
 
 /** O rascunho guardado; `null` = nenhum, torto, ou o navegador não deixa ler. */
@@ -88,16 +99,25 @@ export function apagarRascunho(campanhaId: string, fichaId: string, demo: boolea
 }
 
 export function rascunhoVazio(fichaId: string): RascunhoDeTreino {
-  return { versao: VERSAO, fichaId, atributos: {}, maximos: {}, salvoEm: 0 }
+  return { versao: VERSAO, fichaId, atributos: {}, maximos: {}, recursos: {}, tecnicas: [], salvoEm: 0 }
 }
 
 /** O rascunho mexe em algo? */
 export function rascunhoMuda(rascunho: RascunhoDeTreino | null): boolean {
-  return rascunho !== null && (Object.keys(rascunho.atributos).length > 0 || Object.keys(rascunho.maximos).length > 0)
+  return (
+    rascunho !== null &&
+    (Object.keys(rascunho.atributos).length > 0 || Object.keys(rascunho.maximos).length > 0 || Object.keys(rascunho.recursos).length > 0 || rascunho.tecnicas.length > 0)
+  )
 }
 
 /** A cópia da ficha com o rascunho por cima; a ficha recebida não muda. */
 export function comRascunho(doc: Personagem, rascunho: RascunhoDeTreino | null): Personagem {
   if (rascunho === null || !rascunhoMuda(rascunho)) return doc
-  return { ...doc, atributos: { ...doc.atributos, ...rascunho.atributos }, maximos: { ...doc.maximos, ...rascunho.maximos } }
+  const numeros: Personagem = {
+    ...doc,
+    atributos: { ...doc.atributos, ...rascunho.atributos },
+    maximos: { ...doc.maximos, ...rascunho.maximos },
+    recursos: { ...doc.recursos, ...rascunho.recursos },
+  }
+  return comTecnicasDeTreino(numeros, rascunho.tecnicas)
 }

@@ -1,0 +1,253 @@
+/* A MONTAGEM POR ARRASTO (fatia J, MontagemNaGrade.tsx): a lista "Personagens" no formato do painel do app
+   (FichaDePersonagem.css: .lb-rpg__abrir, .lb-ficha__selo, .lb-rpg__fantasma) ao lado da grade da Arena. Só tokens
+   do tema (--lb-*). Movimento: o fantasma segue o ponteiro sem transição (é o ponteiro), a lista acende o "soltar
+   para tirar" com um fade curto; com movimento reduzido, nada desliza. */
+
+.lo-tr-mg {
+  display: grid;
+  gap: var(--lb-space-4);
+  align-items: start;
+  min-width: 0;
+}
+
+@media (min-width: 920px) {
+  .lo-tr-mg { grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); }
+}
+
+.lo-tr-mg__lista {
+  position: relative;
+  display: grid;
+  gap: var(--lb-space-3);
+  min-width: 0;
+  padding: var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-sunken);
+  transition: border-color var(--lb-motion-fast) ease;
+}
+
+.lo-tr-mg__cab { display: grid; gap: 2px; }
+
+.lo-tr-mg__titulo {
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-regular);
+  color: var(--lb-color-parchment);
+}
+
+.lo-tr-mg__dica { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+.lo-tr-mg__itens { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+
+.lo-tr-mg__linha { display: flex; align-items: center; gap: var(--lb-space-1); min-width: 0; }
+
+.lo-tr-mg__item {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+  min-height: var(--lo-alvo);
+  padding: 4px var(--lb-space-2) 4px 4px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: background-color var(--lb-motion-fast) ease, transform 140ms var(--lb-gr-ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-tr-mg__lista:not([data-arrastando]) .lo-tr-mg__item:hover { background: var(--lb-color-stone-raised); }
+}
+
+.lo-tr-mg__item:active { transform: scale(0.98); }
+.lo-tr-mg__item:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: 1px; }
+/* O item que vai na mão fica marcado na lista: o fantasma é ele. */
+.lo-tr-mg__item[data-na-mao] { background: var(--lb-color-stone-raised); opacity: 0.6; cursor: grabbing; }
+
+.lo-tr-mg__retrato {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-hover);
+}
+
+.lo-tr-mg__retrato img,
+.lo-tr-mg__fantasma-retrato img { width: 100%; height: 100%; object-fit: cover; }
+
+.lo-tr-mg__iniciais { color: var(--lb-color-parchment-dim); font-family: var(--lb-font-utility); font-size: 12px; font-weight: var(--lb-font-weight-semibold); }
+
+.lo-tr-mg__texto { display: grid; flex: 1; min-width: 0; }
+.lo-tr-mg__nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--lb-font-size-md); }
+.lo-tr-mg__detalhe { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-xs); }
+
+.lo-tr-mg__foto { position: relative; flex: none; display: grid; }
+.lo-tr-mg__vezes {
+  position: absolute;
+  right: -5px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-tide);
+  color: var(--lb-color-stone-sunken);
+  box-shadow: 0 0 0 2px var(--lb-color-stone-sunken);
+  font-family: var(--lb-font-utility);
+  font-size: 11px;
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* O selo do painel do app (.lb-ficha__selo): Jogador em latão, NPC na pedra. */
+.lo-tr-mg__selo {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-hover);
+  color: var(--lb-color-parchment-dim);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lo-tr-mg__selo[data-tipo='jogador'] { background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); }
+
+.lo-tr-mg__ajustar { flex: none; min-height: var(--lo-alvo); padding: 0 8px; font-size: var(--lb-font-size-sm); }
+
+/* Puxando um token da grade por cima da lista: ela vira o lugar de tirar. */
+.lo-tr-mg__tirar {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--lb-color-stone-sunken) 82%, transparent);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-md);
+  opacity: 0;
+  pointer-events: none;
+  /* Sai mais rápido do que entra: sumir é resposta, não convite. */
+  transition: opacity 90ms ease;
+}
+.lo-tr-mg__lista[data-tirando] { border-color: var(--lb-color-ember); }
+.lo-tr-mg__lista[data-tirando] .lo-tr-mg__tirar { opacity: 1; transition-duration: 140ms; }
+
+.lo-tr-mg__grade { min-width: 0; }
+
+/* O fantasma do arrasto (no body): o disco do token com o nome embaixo, centrado no ponteiro. */
+.lo-tr-mg__fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  will-change: transform;
+}
+.lo-tr-mg__fantasma-retrato {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 2px solid var(--lb-color-brass);
+  border-radius: 50%;
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-md);
+  opacity: 0.92;
+}
+.lo-tr-mg__fantasma-nome {
+  position: absolute;
+  top: 100%;
+  margin-top: 2px;
+  padding: 1px var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------- o Judge e as técnicas de treino */
+
+.lo-tr-juiz__cab { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-3) var(--lb-space-4); }
+.lo-tr-juiz__cab > .lo-btn { margin-left: auto; }
+.lo-tr-juiz__retrato { flex: none; width: 64px; height: 64px; border-radius: 50%; background: var(--lb-color-stone-hover); box-shadow: inset 0 0 0 2px var(--lb-color-line-strong); object-fit: cover; }
+.lo-tr-juiz__texto { display: grid; gap: 2px; flex: 1 1 280px; min-width: 0; }
+
+.lo-tr-campo__ficha[data-erro='1'] { color: var(--lb-color-ember); }
+
+.lo-tr-tecnicas { display: grid; gap: var(--lb-space-3); min-width: 0; }
+.lo-tr-tecnicas__cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--lb-space-2); }
+.lo-tr-tecnicas__titulo { font-family: var(--lb-font-display); font-size: var(--lb-font-size-lg); font-weight: var(--lb-font-weight-regular); color: var(--lb-color-parchment); }
+.lo-tr-tecnicas__vazio { color: var(--lb-color-parchment-faint); }
+
+.lo-tr-tecnica {
+  display: grid;
+  gap: var(--lb-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-left: 2px solid var(--lb-color-tide);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lo-tr-tecnica__linha { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--lb-space-3); min-width: 0; }
+.lo-tr-tecnica__nome { flex: 1 1 220px; }
+.lo-tr-tecnica__dano { flex: 2 1 260px; }
+.lo-tr-tecnica__linha > .lo-tr-campo:not(.lo-tr-tecnica__nome):not(.lo-tr-tecnica__dano) { flex: 0 1 110px; }
+.lo-tr-tecnica__linha .lo-tr-campo .lo-numero { font-size: 18px; }
+.lo-tr-tecnica__tirar { align-self: center; margin-left: auto; }
+.lo-tr-tecnica__leitura { color: var(--lb-color-tide); font-size: var(--lb-font-size-xs); font-variant-numeric: tabular-nums; }
+.lo-tr-tecnica__leitura[data-erro='1'] { color: var(--lb-color-ember); }
+
+.lo-tr-tecnica__acao { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.lo-tr-tecnica__acao > legend { margin-bottom: 4px; padding: 0; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+
+/* O segmentado da ação: três rádios lado a lado. */
+.lo-tr-seg { display: inline-flex; padding: 2px; border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); }
+.lo-tr-seg__op { position: relative; display: grid; cursor: pointer; }
+.lo-tr-seg__op input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.lo-tr-seg__op span {
+  display: grid;
+  place-items: center;
+  min-height: calc(var(--lo-alvo) - 6px);
+  padding: 0 12px;
+  border-radius: calc(var(--lb-radius-md) - 2px);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+.lo-tr-seg__op input:checked + span { background: var(--lb-color-stone-raised); color: var(--lb-color-parchment); box-shadow: inset 0 -2px 0 var(--lb-color-brass); }
+.lo-tr-seg__op input:focus-visible + span { outline: 2px solid var(--lb-color-brass); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-tr-mg__item { transition: background-color var(--lb-motion-fast) ease; }
+  .lo-tr-mg__item:active { transform: none; }
+}
+
+/* ------------------------------------------------- a página do treino com a montagem na grade em cima */
+
+.lo-tr-pilha { display: grid; gap: var(--lb-space-5); min-width: 0; }
+.lo-tr-montagem-grade { display: grid; gap: var(--lb-space-4); padding: var(--lb-space-5); min-width: 0; }
+.lo-tr-montagem-grade__pe { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-6); }
+.lo-tr-montagem-grade__pe .lo-motivo { flex-basis: 100%; margin: 0; }

@@ -6,6 +6,7 @@ import { sementeNova } from '../../../lib/treino/sorteio'
 import { SISTEMA_DO_LOBBY } from '../contexto'
 import { assentarAnimacao } from './ArenaDaLuta'
 import { AvisoDeMontagemVelha, BarraDasLutas, NumerosDaSerie, type Progresso } from './CemLutas'
+import { EditorDeTecnicas } from './juiz/CamposDoTreino'
 import { assinaturaDaMontagem, lutadoresDaMontagem, problemaDaMontagem, quemLutou, type MontagemDaLuta } from './lutaDeTreino'
 import { apagarRascunho, comRascunho, guardarRascunho, lerRascunho, NUMERO_DO_RASCUNHO_MAX, rascunhoMuda, rascunhoVazio, type RascunhoDeTreino } from './rascunhoDeTreino'
 
@@ -19,6 +20,8 @@ import { apagarRascunho, comRascunho, guardarRascunho, lerRascunho, NUMERO_DO_RA
 
 const ATRIBUTOS = SISTEMA_DO_LOBBY.atributos
 const RECURSOS_COM_MAXIMO = SISTEMA_DO_LOBBY.recursos.filter((recurso) => recurso.atualEMaximo === true)
+/** Os de um número só (o Escudo): o rascunho muda o valor, não um máximo. */
+const RECURSOS_DE_UM_NUMERO = SISTEMA_DO_LOBBY.recursos.filter((recurso) => recurso.atualEMaximo !== true)
 
 interface PropsDoBuild {
   campanhaId: string
@@ -131,12 +134,15 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
     setComparacao(null)
   }
 
-  function mudar(campo: 'atributos' | 'maximos', id: string, valor: number, naFicha: number) {
-    if (doc === undefined) return
+  function mudar(campo: 'atributos' | 'maximos' | 'recursos', id: string, valor: number, naFicha: number) {
     const numeros = { ...atual[campo] }
     if (valor === naFicha) delete numeros[id]
     else numeros[id] = valor
-    const novo: RascunhoDeTreino = { ...atual, [campo]: numeros, salvoEm: Date.now() }
+    gravar({ ...atual, [campo]: numeros, salvoEm: Date.now() })
+  }
+
+  function gravar(novo: RascunhoDeTreino) {
+    if (doc === undefined) return
     pararComparacao()
     setRascunho(novo)
     setComparacao(null)
@@ -218,19 +224,32 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
         })}
       </fieldset>
       <fieldset className="lo-tr-build__grade">
-        <legend>Máximos</legend>
+        <legend>Status</legend>
         {RECURSOS_COM_MAXIMO.map((recurso) => {
           const naFicha = doc.maximos[recurso.id] ?? 0
           return <CampoDoRascunho key={`${doc.id}-${recurso.id}`} nome={`${recurso.nome} máxima`} naFicha={naFicha} valor={atual.maximos[recurso.id] ?? naFicha} aoMudar={(valor) => mudar('maximos', recurso.id, valor, naFicha)} />
         })}
+        {RECURSOS_DE_UM_NUMERO.map((recurso) => {
+          const naFicha = doc.recursos[recurso.id] ?? 0
+          return <CampoDoRascunho key={`${doc.id}-${recurso.id}`} nome={recurso.nome} naFicha={naFicha} valor={atual.recursos[recurso.id] ?? naFicha} aoMudar={(valor) => mudar('recursos', recurso.id, valor, naFicha)} />
+        })}
       </fieldset>
+
+      <EditorDeTecnicas
+        key={doc.id}
+        titulo={`Técnicas de treino de ${doc.nome}`}
+        tecnicas={atual.tecnicas}
+        personagem={comRascunho(doc, rascunho)}
+        sistema={SISTEMA_DO_LOBBY}
+        onMudar={(tecnicas) => gravar({ ...atual, tecnicas, salvoEm: Date.now() })}
+      />
 
       <p className="lo-motivo" role="status">
         {guardado === false
           ? 'O navegador não deixou guardar: este rascunho some quando a página fechar.'
           : muda && rascunho !== null && rascunho.salvoEm > 0
             ? `Rascunho guardado neste navegador às ${horaCurta(rascunho.salvoEm)}.`
-            : 'Mude um número para começar o rascunho.'}
+            : 'Mude um número ou dê uma técnica de treino para começar o rascunho.'}
       </p>
 
       <div className="lo-tr-semente__botoes">
