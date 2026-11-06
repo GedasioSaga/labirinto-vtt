@@ -4,7 +4,8 @@
  * acaba com vencedor (não por tempo); a mesma semente duas vezes dá o mesmo
  * resumo; a luta pausada na rodada 3, gravada em JSON e retomada termina
  * igual; o robô sem SP ataca com a arma (e com SP usa a técnica que paga,
- * nunca a de dano à mão).
+ * nunca a de dano à mão). Da revisão da T3: a arma de dano ilegível não
+ * trava o robô (Atacar sem arma) e a técnica vai com o selo que a mira sugere.
  */
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao } from '../batalha/combate'
@@ -75,6 +76,19 @@ function vera(sp: number): Personagem {
   })
 }
 
+/** O Rui: Força 60, com as armas e as técnicas pedidas. */
+function rui(sp: number, armas: readonly Record<string, unknown>[], habilidades: readonly Record<string, unknown>[] = []): Personagem {
+  return ficha({
+    id: 'pers_rui',
+    tipo: 'jogador',
+    nome: 'Rui',
+    recursos: { hp: 300, sp },
+    maximos: { hp: 300, sp: 100 },
+    atributos: { forca: 60, agilidade: 40 },
+    abas: { armas, habilidades },
+  })
+}
+
 function pedidoDe(escolhas: readonly EscolhaDaVaga[], semente: number): PedidoDeLuta {
   const montagem = montarLutadores(escolhas)
   if (!montagem.ok) throw new Error(`montagem recusada: lado ${montagem.lado} ${montagem.motivo}`)
@@ -131,5 +145,21 @@ describe('robô do treino', () => {
     expect(semSp).toEqual({ tipo: 'atacar', armaId: 'arma_espada', alvos: [{ tokenId: 'treino_tok_b1', dano: 60 }], surpresa: false, perfurante: false })
     const comSp = primeiroGolpeDe(comecarLuta(pedidoDe([{ ficha: vera(100), lado: 'a' }, contra], 7)), 'treino_tok_a1')
     expect(comSp).toMatchObject({ tipo: 'habilidade', cartaoId: 'tec_nevoa', alvos: [{ tokenId: 'treino_tok_b1', dano: 140 }] })
+  })
+
+  it('com a arma de dano que a conta não lê (1d6, Escudo sem dano), ataca sem arma, pela Força', () => {
+    const contra: EscolhaDaVaga = { ficha: MARINHEIRO, lado: 'b' }
+    const semArma: PedidoDeAcao = { tipo: 'atacar', armaId: null, alvos: [{ tokenId: 'treino_tok_b1', dano: 60 }], surpresa: false, perfurante: false }
+    for (const arma of [cartao('arma_adaga', 'Adaga', { dano: '1d6' }), cartao('arma_escudo', 'Escudo', {})]) {
+      const golpe = primeiroGolpeDe(comecarLuta(pedidoDe([{ ficha: rui(0, [arma]), lado: 'a' }, contra], 3)), 'treino_tok_a1')
+      expect(golpe, `com ${String(arma.nome)}`).toEqual(semArma)
+    }
+  })
+
+  it('a técnica de atordoar vai com o selo que a mira sugere (sem natureza nem cartaoId, que o host tira)', () => {
+    const pancada = cartao('tec_pancada', 'Pancada', { acao: 'Simples', custo: '10 SP', dano: 'Força + 50', efeito: 'Atordoado por 1 turno' })
+    const golpe = primeiroGolpeDe(comecarLuta(pedidoDe([{ ficha: rui(100, [], [pancada]), lado: 'a' }, { ficha: MARINHEIRO, lado: 'b' }], 3)), 'treino_tok_a1')
+    expect(golpe).toMatchObject({ tipo: 'habilidade', cartaoId: 'tec_pancada', alvos: [{ tokenId: 'treino_tok_b1', dano: 110 }] })
+    expect(golpe?.tipo === 'habilidade' ? golpe.selo : undefined).toEqual({ nome: 'Atordoado', turnos: 1 })
   })
 })

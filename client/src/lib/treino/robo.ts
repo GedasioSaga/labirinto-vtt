@@ -1,10 +1,12 @@
 import { danoSugeridoDoAtaque, acoesDaCarta } from '../batalha/golpe'
 import { motivoDoAtacar, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../batalha/acoes'
-import { DANO_MAX, type CombateDoPersonagem, type PedidoDeAcao, type PedidoDeReacao } from '../batalha/combate'
+import { DANO_MAX, type CombateDoPersonagem, type PedidoDeAcao, type PedidoDeReacao, type SeloPedido } from '../batalha/combate'
 import { armasDe, type ArmaDaFicha } from '../batalha/leituraDaFicha'
+import { lerMarca } from '../batalha/marca'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
-import { bonusDaBatalha, bonusDaReacao } from '../batalha/selos'
+import { bonusDaBatalha, bonusDaReacao, seloPedidoValido } from '../batalha/selos'
+import { seloSugeridoDaTecnica } from '../batalha/tiposDaHabilidade'
 import { cartaDaVez, type CartaDaOrdem, type TurnosDaCena } from '../batalha/turnos'
 import { reacaoDoBoneco } from '../arena/reacaoDoBoneco'
 import type { Personagem } from '../personagem'
@@ -34,13 +36,19 @@ import type { VagaDoTreino } from './mesaEmMemoria'
  * ficam de fora: a de Tipo Buff (não é golpe no inimigo), a de custo que a
  * ficha não diz ao certo (a tela perguntaria) e a de custo em HP que derruba
  * quem usa. Sem nenhuma técnica, o Atacar com a arma; sem arma utilizável,
- * o Atacar sem arma (a Força).
+ * ou sem nenhuma de dano que a conta lê ("1d6", o Escudo sem dano), o Atacar
+ * sem arma (a Força): o robô não digita o dano, e a arma ilegível não pode
+ * deixá-lo mais fraco do que sem arma.
+ *
+ * A técnica vai com o selo que a mira sugere (`seloSugeridoDaTecnica`): na
+ * mira ele já abre marcado (MiraDoGolpe, `comSelo`), então é o padrão da
+ * regra. Sem ele, a técnica de atordoar ou o Debuff com dano virava só dano.
  *
  * Empate de dano entre golpes: o Atacar vem antes (não gasta SP), depois as
  * técnicas na ordem da ficha. Teto de golpes por vez (`GOLPES_POR_VEZ_MAX`):
  * a técnica de Ação Livre sem custo nem recarga não segura a vez para sempre.
- * O robô nunca concentra, nunca se transforma, nunca põe selo e nunca usa
- * passiva: é o simples primeiro.
+ * O robô nunca concentra, nunca se transforma, nunca põe selo por conta
+ * própria ("Pôr selo...") e nunca usa passiva: é o simples primeiro.
  *
  * Nada aqui olha id aleatório para decidir (carta, golpe e linha têm
  * `crypto.randomUUID`): só a ordem das vagas, das cartas e dos golpes. Assim
@@ -151,18 +159,41 @@ interface GolpeCandidato {
   cartaoId: string | null
 }
 
-/** Os Atacar possíveis: um por arma utilizável; sem nenhuma, o Atacar sem arma. Simples já gasta = nenhum. */
+/** O Atacar com a arma (`null` = sem arma, a Força); `null` = a conta não lê o dano dela. */
+function ataqueCom(personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha | null, alvo: string): GolpeCandidato | null {
+  const valor = danoSugeridoDoAtaque(personagem, sistema, arma)
+  if (valor === null) return null
+  const dano = danoNoTeto(valor)
+  return { dano, cartaoId: null, pedido: { tipo: 'atacar', armaId: arma?.id ?? null, alvos: [{ tokenId: alvo, dano }], surpresa: false, perfurante: false } }
+}
+
+/**
+ * Os Atacar possíveis: um por arma utilizável de dano legível; nenhuma (sem
+ * arma, ou todas de dano que a conta não lê) = o Atacar sem arma, que o
+ * `podeAgir` aceita sempre. Simples já gasta = nenhum.
+ */
 function ataques(personagem: Personagem, sistema: SistemaDeRpg, armas: readonly ArmaDaFicha[], acoes: AcoesDaVez, alvo: string): GolpeCandidato[] {
   if (motivoDoAtacar(acoes) !== null) return []
-  const opcoes: readonly (ArmaDaFicha | null)[] = armas.length > 0 ? armas : [null]
   const lista: GolpeCandidato[] = []
-  for (const arma of opcoes) {
-    const valor = danoSugeridoDoAtaque(personagem, sistema, arma)
-    if (valor === null) continue
-    const dano = danoNoTeto(valor)
-    lista.push({ dano, cartaoId: null, pedido: { tipo: 'atacar', armaId: arma?.id ?? null, alvos: [{ tokenId: alvo, dano }], surpresa: false, perfurante: false } })
+  for (const arma of armas) {
+    const golpe = ataqueCom(personagem, sistema, arma, alvo)
+    if (golpe !== null) lista.push(golpe)
   }
-  return lista
+  if (lista.length > 0) return lista
+  const semArma = ataqueCom(personagem, sistema, null, alvo)
+  return semArma === null ? [] : [semArma]
+}
+
+/**
+ * O selo que a mira manda por padrão com a técnica: o sugerido, no formato
+ * do fio (nome, turnos e mods; a natureza e o cartaoId o host tira da
+ * técnica). A que marca ao acertar não leva, como no menu (`dadosDoMenu`):
+ * a marca já é o efeito dela.
+ */
+function seloDaMira(cartao: TecnicaNoMenu['cartao'], sistema: SistemaDeRpg): SeloPedido | null {
+  if (lerMarca(cartao, sistema)?.tipo === 'aoAcertar') return null
+  const sugerido = seloSugeridoDaTecnica(cartao, sistema)
+  return sugerido === null ? null : seloPedidoValido(sugerido, sistema)
 }
 
 /** As técnicas possíveis, com o dano lido com cada arma utilizável (a que fala de "Dano da arma" muda com ela). */
@@ -174,6 +205,7 @@ function tecnicas(personagem: Personagem, sistema: SistemaDeRpg, combate: Combat
     for (const tecnica of tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus)) {
       if (!tecnicaDoRobo(tecnica, personagem, sistema)) continue
       const dano = danoNoTeto(tecnica.dano.valor)
+      const selo = seloDaMira(tecnica.cartao, sistema)
       const pedido: PedidoDeAcao = {
         tipo: 'habilidade',
         cartaoId: tecnica.cartao.id,
@@ -185,6 +217,7 @@ function tecnicas(personagem: Personagem, sistema: SistemaDeRpg, combate: Combat
         ...(tecnica.perfurante && tecnica.perfuracao !== undefined ? { perfuracao: tecnica.perfuracao } : {}),
         custo: null,
         acao: null,
+        ...(selo === null ? {} : { selo }),
       }
       lista.push({ dano, cartaoId: tecnica.cartao.id, pedido })
     }
