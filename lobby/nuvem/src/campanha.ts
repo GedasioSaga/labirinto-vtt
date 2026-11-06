@@ -174,7 +174,12 @@ export class Campanha extends DurableObject<Env> {
     return { membro, meta }
   }
 
-  /** Rotas que só o app do mestre (Service Token) usa. */
+  /**
+   * Rotas que só o app do mestre (Service Token) usa: publicar, membros, ops,
+   * desde e exportar (§5.4). O site só tem eu, ws, mídia e versão; pelo
+   * socket, todo frame passa pelo ritmo e pelo bloqueio (§6.5), e uma rota
+   * HTTP de leitura aberta ao site seria o caminho sem esse freio.
+   */
   private acessoDoApp(campanhaId: string, identidade: IdentidadeDoPortao): Acesso {
     if (identidade.origem !== 'app') throw NAO_EXISTE
     return this.acesso(campanhaId, identidade)
@@ -219,7 +224,7 @@ export class Campanha extends DurableObject<Env> {
 
   /** Sempre ops, nunca snapshot, paginado: quem chama repete com `ate` até alcançar `revAtual` (§5.4, §5.5). */
   private desde(url: URL, rota: RotaDaCampanha, identidade: IdentidadeDoPortao): Response {
-    const { membro } = this.acesso(rota.campanhaId, identidade)
+    const { membro } = this.acessoDoApp(rota.campanhaId, identidade)
     const lidas = opsDesde(this.sql, rota.rev, limiteDaUrl(url, LIMITE_DO_DESDE))
     const ultima = lidas.at(-1)
     const ate = ultima === undefined ? rota.rev : ultima.rev
@@ -229,10 +234,12 @@ export class Campanha extends DurableObject<Env> {
   /**
    * Exportação paginada (§5.4), lista fechada de tabelas: `ops` em toda
    * página; `membros`, `fichas`, `recusadas` e o sistema só na primeira
-   * (`deRev` = 1). Nunca chat privado. Para o jogador, tudo projetado.
+   * (`deRev` = 1). Nunca chat privado. Só o app do mestre chega aqui; a
+   * projeção para não mestre (§6.4) fica como segunda parede, para a rota
+   * não vazar nota do mestre se um dia abrir para o site.
    */
   private exportar(url: URL, campanhaId: string, identidade: IdentidadeDoPortao): Response {
-    const { membro, meta } = this.acesso(campanhaId, identidade)
+    const { membro, meta } = this.acessoDoApp(campanhaId, identidade)
     const atual = revAtual(this.sql)
     const deRev = Math.max(1, inteiroDaUrl(url, 'deRev', 1))
     const ateRev = Math.min(atual, inteiroDaUrl(url, 'ateRev', atual))

@@ -217,6 +217,11 @@ async function publicar(campanhaId) {
   conferir('Diretório: /api/eu da Nami lista a campanha como jogadora', eu.corpo.campanhas?.some((c) => c.campanhaId === campanhaId && c.papel === 'jogador'), JSON.stringify(eu.corpo))
   const estranho = await pedir('GET', `/api/c/${campanhaId}/exportar`, 'ninguem@example.com', 'site')
   conferir('quem não é membro = 404 (mesma resposta de "não existe")', estranho.status === 404, String(estranho.status))
+  // exportar e desde são rotas do app (§5.4): pelo site não há ritmo nem bloqueio, então nem membro passa.
+  const jogadoraNoSite = await pedir('GET', `/api/c/${campanhaId}/exportar`, NAMI, 'site')
+  conferir('exportar pela jogadora no site = 404 (rota só do app)', jogadoraNoSite.status === 404, String(jogadoraNoSite.status))
+  const mestreNoSite = await pedir('GET', `/api/c/${campanhaId}/desde/0`, MESTRE, 'site')
+  conferir('desde pelo mestre no site = 404 (a regra olha a origem, não o papel)', mestreNoSite.status === 404, String(mestreNoSite.status))
 }
 
 async function entrarNaSala(campanhaId) {
