@@ -11,8 +11,12 @@ import {
   vencerAusencia,
   VERSAO_DO_MOTOR_DO_DUELO,
   type DueloGravado,
+  type FimDoDuelo,
+  type JogadorDoDuelo,
   type MotorDoDuelo,
 } from '../../../client/src/lib/treino/duelo'
+import { GRADE_DO_TREINO, type CasaDoTreino, type LadoDoTreino, type LutadoresDoTreino } from '../../../client/src/lib/treino/mesaEmMemoria'
+import type { BatalhaDaCena } from '../../../client/src/stores/batalhaFabrica'
 import {
   CONVITE_VALE_MS,
   DUELO_ACABADO_FICA_MS,
@@ -140,14 +144,149 @@ function conviteGuardado(linha: LinhaDoDuelo): ConviteGuardado {
   }
 }
 
-/** O duelo da linha; `null` = convite, ou estado de outra versão do motor (não continua, não aparece). */
+// ── O duelo gravado, relido ─────────────────────────────────────────────────
+
+/** Inteiro de 0 em diante: `seq`, `passos`, a coluna e a linha da casa. */
+function contagem(valor: unknown): valor is number {
+  return typeof valor === 'number' && Number.isSafeInteger(valor) && valor >= 0
+}
+
+function ehLado(valor: unknown): valor is LadoDoTreino {
+  return valor === 'a' || valor === 'b'
+}
+
+function jogadorGravado(valor: unknown): JogadorDoDuelo | null {
+  if (!ehRegistro(valor)) return null
+  const contaId = proprio(valor, 'contaId')
+  const nome = proprio(valor, 'nome')
+  const ausenteDesde = proprio(valor, 'ausenteDesde')
+  if (typeof contaId !== 'string' || typeof nome !== 'string') return null
+  if (ausenteDesde !== null && typeof ausenteDesde !== 'number') return null
+  return { contaId, nome, ausenteDesde }
+}
+
+/** Um leitor por tipo de fim: um tipo novo em `FimDoDuelo` não compila sem o leitor dele aqui. */
+const LEITORES_DO_FIM: { [Tipo in FimDoDuelo['tipo']]: (fim: Record<string, unknown>) => Extract<FimDoDuelo, { tipo: Tipo }> | null } = {
+  vitoria: (fim) => {
+    const vencedor = proprio(fim, 'vencedor')
+    return ehLado(vencedor) ? { tipo: 'vitoria', vencedor } : null
+  },
+  todosCaidos: () => ({ tipo: 'todosCaidos' }),
+  tempo: (fim) => {
+    const teto = proprio(fim, 'teto')
+    return teto === 'rodadas' || teto === 'passos' ? { tipo: 'tempo', teto } : null
+  },
+  ausencia: (fim) => {
+    const vencedor = proprio(fim, 'vencedor')
+    return vencedor === null || ehLado(vencedor) ? { tipo: 'ausencia', vencedor } : null
+  },
+  desistencia: (fim) => {
+    const vencedor = proprio(fim, 'vencedor')
+    return ehLado(vencedor) ? { tipo: 'desistencia', vencedor } : null
+  },
+}
+
+function ehTipoDoFim(tipo: unknown): tipo is FimDoDuelo['tipo'] {
+  return typeof tipo === 'string' && Object.hasOwn(LEITORES_DO_FIM, tipo)
+}
+
+/** O fim gravado; `null` = o duelo não acabou; `undefined` = fim torto. */
+function fimGravado(valor: unknown): FimDoDuelo | null | undefined {
+  if (valor === null) return null
+  if (!ehRegistro(valor)) return undefined
+  const tipo = proprio(valor, 'tipo')
+  if (!ehTipoDoFim(tipo)) return undefined
+  return LEITORES_DO_FIM[tipo](valor) ?? undefined
+}
+
+/** Os tokens das vagas, se os lutadores têm por fora a forma de `LutadoresDoTreino` (vagas com lado e ids, cópias com id); senão `null`. */
+function tokensDosLutadores(valor: unknown): string[] | null {
+  if (!ehRegistro(valor)) return null
+  const vagas = proprio(valor, 'vagas')
+  const personagens = proprio(valor, 'personagens')
+  if (!Array.isArray(vagas) || !Array.isArray(personagens)) return null
+  const listaDeVagas: readonly unknown[] = vagas
+  const copias: readonly unknown[] = personagens
+  const tokens: string[] = []
+  for (const vaga of listaDeVagas) {
+    if (!ehRegistro(vaga)) return null
+    const tokenId = proprio(vaga, 'tokenId')
+    if (typeof tokenId !== 'string' || typeof proprio(vaga, 'personagemId') !== 'string' || !ehLado(proprio(vaga, 'lado'))) return null
+    tokens.push(tokenId)
+  }
+  return copias.every((copia) => ehRegistro(copia) && typeof proprio(copia, 'id') === 'string') ? tokens : null
+}
+
+/**
+ * As casas das fichas: uma por token das vagas e nenhuma a mais, cada uma
+ * dentro da grade (`GRADE_DO_TREINO`). O `andar` lê `posicoes[tokenId]` e
+ * conta as outras como ocupadas: casa faltando, sobrando ou fora da grade é linha torta.
+ */
+function posicoesGravadas(valor: unknown, tokens: readonly string[]): Record<string, CasaDoTreino> | null {
+  if (!ehRegistro(valor) || Object.keys(valor).length !== tokens.length) return null
+  const posicoes: Record<string, CasaDoTreino> = {}
+  for (const tokenId of tokens) {
+    const casa = proprio(valor, tokenId)
+    if (!ehRegistro(casa)) return null
+    const col = proprio(casa, 'col')
+    const row = proprio(casa, 'row')
+    if (!contagem(col) || !contagem(row) || col >= GRADE_DO_TREINO.colunas || row >= GRADE_DO_TREINO.linhas) return null
+    posicoes[tokenId] = { col, row }
+  }
+  return posicoes
+}
+
+/** A cena por fora: a ordem (`turnos`, com as cartas) e o registro, que o fio e a vista leem antes da store. */
+function cenaNaForma(valor: unknown): boolean {
+  if (!ehRegistro(valor)) return false
+  const turnos = proprio(valor, 'turnos')
+  return ehRegistro(turnos) && Array.isArray(proprio(turnos, 'cartas')) && Array.isArray(proprio(valor, 'registro'))
+}
+
+/**
+ * O `DueloGravado` do `estadoJson`, relido campo a campo onde o DO lê direto
+ * (versão, id, jogadores, posições, `seq`, `passos`, fim); `null` = linha torta.
+ * Nunca lança: a linha torta não derruba o `ola`, a jogada nem o alarme.
+ */
+function dueloGravadoDoJson(estadoJson: string, id: string): DueloGravado | null {
+  let valor: unknown
+  try {
+    valor = lerJsonSeguro(estadoJson)
+  } catch {
+    return null
+  }
+  if (!ehRegistro(valor) || proprio(valor, 'versao') !== VERSAO_DO_MOTOR_DO_DUELO || proprio(valor, 'id') !== id) return null
+  const lutadores = proprio(valor, 'lutadores')
+  const cena = proprio(valor, 'cena')
+  const jogadores = proprio(valor, 'jogadores')
+  const seq = proprio(valor, 'seq')
+  const passos = proprio(valor, 'passos')
+  const tokens = tokensDosLutadores(lutadores)
+  const posicoes = tokens === null ? null : posicoesGravadas(proprio(valor, 'posicoes'), tokens)
+  const a = ehRegistro(jogadores) ? jogadorGravado(proprio(jogadores, 'a')) : null
+  const b = ehRegistro(jogadores) ? jogadorGravado(proprio(jogadores, 'b')) : null
+  const fim = fimGravado(proprio(valor, 'fim'))
+  if (posicoes === null || a === null || b === null || !contagem(seq) || !contagem(passos) || fim === undefined || !cenaNaForma(cena)) return null
+  return {
+    versao: VERSAO_DO_MOTOR_DO_DUELO,
+    id,
+    jogadores: { a, b },
+    lutadores: lutadores as LutadoresDoTreino, // as: forma conferida por fora (tokensDosLutadores); as cópias não têm leitor sem normalizar (personagemDoArquivo mudaria a cópia), e só gravarDuelo escreve aqui
+    posicoes,
+    cena: cena as BatalhaDaCena, // as: forma conferida por fora (cenaNaForma); a cena da batalha não tem leitor, e só gravarDuelo a escreve (JSON.stringify do estado da store, que volta igual)
+    seq,
+    passos,
+    fim,
+  }
+}
+
+/**
+ * O duelo da linha; `null` = convite, estado de outra versão do motor, ou
+ * linha torta (`dueloGravadoDoJson`): não continua e não aparece, sem lançar.
+ */
 function dueloDaLinha(linha: LinhaDoDuelo): DueloGravado | null {
   if (linha.status === 'convite' || linha.versaoDoMotor !== VERSAO_DO_MOTOR_DO_DUELO) return null
-  const valor = lerJsonSeguro(linha.estadoJson)
-  if (!ehRegistro(valor) || proprio(valor, 'versao') !== VERSAO_DO_MOTOR_DO_DUELO || proprio(valor, 'id') !== linha.id) throw new ErroDoBanco('duelo gravado fora do formato')
-  // Cast conferido só por fora: `estadoJson` de duelo só é escrito por `gravarDuelo` (JSON.stringify de um
-  // DueloGravado, que vai a JSON e volta igual, `duelo.ts`), nunca por cliente; versão e id batem acima.
-  return valor as unknown as DueloGravado
+  return dueloGravadoDoJson(linha.estadoJson, linha.id)
 }
 
 /** O duelo vai à linha: o prazo de quem caiu; acabado, sem prazo e com a hora de ser apagado (a primeira que valeu). */
