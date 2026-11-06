@@ -1,6 +1,6 @@
 import type { Mudanca } from '../../lib/nuvem/tipos'
 import type { Site } from '../dados/lobbyStore'
-import type { ResultadoDaEdicao } from '../dados/sessaoDaCampanha'
+import type { EstadoDaCampanha, ResultadoDaEdicao } from '../dados/sessaoDaCampanha'
 import { marcarEnvio } from './foco'
 
 /**
@@ -35,6 +35,17 @@ export async function enviarMudancas(site: Site, mudancas: readonly Mudanca[], b
   } catch (erro) {
     return { ok: false, motivo: 'erro-local', detalhe: erro instanceof Error ? erro.message : String(erro) }
   }
+}
+
+/**
+ * Quanto espera o servidor: as mudanças da fila e os desfazeres (e refazeres)
+ * a caminho. Estes saem direto pelo canal, fora da fila, então o `esperando`
+ * não os conta; sem eles a faixa diria "Salvo" com um "Desfazendo…" na tela.
+ */
+export function mudancasACaminho(campanha: EstadoDaCampanha): number {
+  let desfazendo = 0
+  for (const situacao of campanha.desfazeres.values()) if (situacao.t === 'enviando') desfazendo += 1
+  return campanha.esperando + desfazendo
 }
 
 /** A rev confirmada de agora: a base de uma mudança feita na hora (−/+, mochila). */

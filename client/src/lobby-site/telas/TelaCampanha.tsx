@@ -5,6 +5,7 @@ import type { Personagem } from '../../lib/personagem'
 import type { EstadoDaCampanha, FichaDoSite } from '../dados/sessaoDaCampanha'
 import { enderecoDaRota, type Rota } from '../dados/rotas'
 import { aoClicarNoLink, SISTEMA_DO_LOBBY, useDoSite, useSite } from './contexto'
+import { DecisoesSemFicha } from './Decisoes'
 import { AvisoDaPagina, Carregando } from './Estados'
 import { Icone } from './Icone'
 import { iniciais, plural, tomDe } from './textos'
@@ -96,6 +97,7 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
           </ul>
         </aside>
       </header>
+      <DecisoesSemFicha campanha={campanha} sistema={SISTEMA_DO_LOBBY} />
       <section className="lo-secao" aria-labelledby={seusId}>
         <div className="lo-secao__cab">
           <h2 className="lo-secao__titulo" id={seusId}>

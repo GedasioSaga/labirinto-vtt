@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { AvisoDeConflito, type EscolhaDoAviso } from '../../components/nuvem/AvisoDeConflito'
 import type { EntradaDaFila } from '../../lib/nuvem/fila'
 import type { MembroProjetado } from '../../lib/nuvem/tipos'
@@ -20,10 +20,22 @@ import { motivoEmTexto, quandoRelativo, rotuloDoCaminho, valorDaMinha, valorEmTe
 /** Os botões do aviso no site: os dois iguais, como no protótipo (tela 5). */
 const BOTAO_DO_AVISO = (): string => 'lo-btn'
 
+/** O "onde" de um aviso cuja ficha saiu da vista: apagada, ou que a pessoa deixou de ver. O nome dela se foi junto. */
+const FICHA_FORA_DA_VISTA = 'Ficha que não está mais aqui'
+
 interface DecisoesProps {
   campanha: EstadoDaCampanha
-  ficha: Personagem
+  fichaId: string
+  /** O nome da ficha, para o "onde" do aviso. */
+  nome: string
+  /** A ficha como a tela tem agora; `undefined` = ela saiu da vista (apagada, ou deixou de ser visível). */
+  doc: Personagem | undefined
   sistema: SistemaDeRpg
+}
+
+/** Só conflito e negada esperam uma escolha da pessoa; o resto da fila anda sozinho. */
+function esperaEscolha(entrada: EntradaDaFila): boolean {
+  return entrada.situacao.t === 'conflito' || entrada.situacao.t === 'negado'
 }
 
 /** Quem mudou primeiro, como a frase diz: "O mestre", "Você, em outro aparelho", "Caio". */
@@ -41,15 +53,16 @@ interface TextoDaDecisao {
   opcoes: { rotulo: string; escolha: EscolhaDaDecisao; precisaDeRede: boolean }[]
 }
 
-function textoDaDecisao(entrada: EntradaDaFila, rotulo: string, campanha: EstadoDaCampanha, agora: number): TextoDaDecisao {
+function textoDaDecisao(entrada: EntradaDaFila, rotulo: string, campanha: EstadoDaCampanha, agora: number, naVista: boolean): TextoDaDecisao {
   const { op, situacao } = entrada
   const ficar: EscolhaDaDecisao = { t: 'ficar-com-a-atual' }
   const reenviar: EscolhaDaDecisao = { t: 'reenviar' }
   if (situacao.t === 'negado') {
+    const guardada = situacao.detalhe ?? 'Ela ficou guardada aqui.'
     return {
       tom: 'negado',
       frase: `O servidor não aceitou a sua mudança em ${rotulo}: ${motivoEmTexto(situacao.motivo)}.`,
-      detalhe: `${situacao.detalhe ?? 'Ela ficou guardada aqui.'} Enquanto você não decidir, a ficha mostra o seu valor com o aviso "não aceito pelo servidor".`,
+      detalhe: naVista ? `${guardada} Enquanto você não decidir, a ficha mostra o seu valor com o aviso "não aceito pelo servidor".` : guardada,
       opcoes: [{ rotulo: 'Desfazer aqui', escolha: ficar, precisaDeRede: false }],
     }
   }
@@ -152,11 +165,11 @@ function AvisoNaFicha({ opId, onde, texto, online, ocupado, erro, novo, aoEscolh
   )
 }
 
-export function Decisoes({ campanha, ficha, sistema }: DecisoesProps) {
+export function Decisoes({ campanha, fichaId, nome, doc, sistema }: DecisoesProps) {
   const site = useSite()
   const [erro, setErro] = useState<{ opId: string; texto: string } | null>(null)
   const [enviando, setEnviando] = useState<string | null>(null)
-  const daFicha = campanha.paraDecidir.filter((entrada) => entrada.op.fichaId === ficha.id && (entrada.situacao.t === 'conflito' || entrada.situacao.t === 'negado'))
+  const daFicha = campanha.paraDecidir.filter((entrada) => entrada.op.fichaId === fichaId && esperaEscolha(entrada))
   // O que já estava aqui quando a tela abriu não "chega" de novo: só o novo entra com movimento.
   const vistos = useRef<Set<string> | null>(null)
   if (vistos.current === null) vistos.current = new Set(daFicha.map((entrada) => entrada.op.opId))
@@ -203,13 +216,13 @@ export function Decisoes({ campanha, ficha, sistema }: DecisoesProps) {
     <div className="lo-decisoes" aria-live="polite">
       {daFicha.map((entrada) => {
         const { opId } = entrada.op
-        const rotulo = rotuloDoCaminho(sistema, ficha, entrada.op.caminho, entrada.op.valor)
+        const rotulo = rotuloDoCaminho(sistema, doc, entrada.op.caminho, entrada.op.valor)
         return (
           <AvisoNaFicha
             key={opId}
             opId={opId}
-            onde={ficha.nome}
-            texto={textoDaDecisao(entrada, rotulo, campanha, agora)}
+            onde={nome}
+            texto={textoDaDecisao(entrada, rotulo, campanha, agora, doc !== undefined)}
             online={online}
             ocupado={enviando === opId}
             erro={erro?.opId === opId ? erro.texto : null}
@@ -219,5 +232,40 @@ export function Decisoes({ campanha, ficha, sistema }: DecisoesProps) {
         )
       })}
     </div>
+  )
+}
+
+interface DecisoesSemFichaProps {
+  campanha: EstadoDaCampanha
+  sistema: SistemaDeRpg
+  /** Só as desta ficha (a página do endereço dela); sem ele, todas as que não têm ficha na vista (a tela da mesa). */
+  fichaId?: string
+}
+
+/**
+ * As decisões de fichas que SAÍRAM DA VISTA: o mestre apagou a ficha antes de
+ * a mudança chegar (conflito `fichaApagada`), ou a pessoa deixou de vê-la com
+ * uma negada pendente. Sem ficha para abrir, o aviso não teria onde aparecer e
+ * a faixa ficaria presa em "precisa da sua decisão"; aqui, na mesa e no
+ * endereço da ficha, a escolha que não precisa de rede fica à mão.
+ */
+export function DecisoesSemFicha({ campanha, sistema, fichaId }: DecisoesSemFichaProps) {
+  const tituloId = useId()
+  const naVista = new Set(campanha.fichas.map((ficha) => ficha.doc.id))
+  const soltas = campanha.paraDecidir.filter((entrada) => esperaEscolha(entrada) && !naVista.has(entrada.op.fichaId) && (fichaId === undefined || entrada.op.fichaId === fichaId))
+  if (soltas.length === 0) return null
+  const fichas = [...new Set(soltas.map((entrada) => entrada.op.fichaId))]
+  return (
+    <section className={fichaId === undefined ? 'lo-secao' : 'lo-secao lo-secao--estreita'} aria-labelledby={tituloId}>
+      <div className="lo-secao__cab">
+        <h2 className="lo-secao__titulo" id={tituloId}>
+          {soltas.length === 1 ? 'Precisa da sua decisão' : 'Precisam da sua decisão'}
+        </h2>
+        {fichaId === undefined && <p className="lo-secao__nota">Mudanças suas em fichas que saíram da sua vista: o mestre apagou a ficha, ou deixou de mostrá-la a você.</p>}
+      </div>
+      {fichas.map((id) => (
+        <Decisoes key={id} campanha={campanha} fichaId={id} nome={FICHA_FORA_DA_VISTA} doc={undefined} sistema={sistema} />
+      ))}
+    </section>
   )
 }

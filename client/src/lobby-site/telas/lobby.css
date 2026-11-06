@@ -1445,6 +1445,9 @@ textarea.lo-texto { min-height: 84px; resize: vertical; }
   line-height: 1.15;
 }
 
+/* A decisão de uma ficha que saiu da vista, logo abaixo da porta, na mesma coluna. */
+.lo-secao--estreita { max-width: 560px; margin: var(--lb-space-8) auto 0; }
+
 .lo-retrato img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 
 .lo-menu__nota { max-width: 32ch; }

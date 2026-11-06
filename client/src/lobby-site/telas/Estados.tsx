@@ -13,8 +13,11 @@ export function Carregando({ texto }: { texto: string }) {
   )
 }
 
-/** Uma página que só diz o que houve e o que fazer (sem mesa, sem acesso, erro). */
-export function AvisoDaPagina({ titulo, children, acoes }: { titulo: string; children: ReactNode; acoes?: ReactNode }) {
+/**
+ * Uma página que só diz o que houve e o que fazer (sem mesa, sem acesso, erro).
+ * `depois` vem abaixo do aviso, fora dele (a decisão de uma ficha que saiu da vista).
+ */
+export function AvisoDaPagina({ titulo, children, acoes, depois }: { titulo: string; children: ReactNode; acoes?: ReactNode; depois?: ReactNode }) {
   const id = useId()
   return (
     <div className="lo-pagina">
@@ -23,6 +26,7 @@ export function AvisoDaPagina({ titulo, children, acoes }: { titulo: string; chi
         {children}
         {acoes !== undefined && <div className="lo-porta__acoes">{acoes}</div>}
       </section>
+      {depois}
     </div>
   )
 }

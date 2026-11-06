@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { EstadoDaCampanha } from '../dados/sessaoDaCampanha'
 import type { Rota } from '../dados/rotas'
 import { aoClicarNoLink, useDoSite, useSite } from './contexto'
+import { mudancasACaminho } from './enviar'
 import { pedirFocoNoAviso } from './foco'
 import { Icone } from './Icone'
 import { tomDe } from './textos'
@@ -114,7 +115,7 @@ function estadoDaFaixa(campanha: EstadoDaCampanha): NomeDoEstado {
   if (campanha.paraDecidir.length > 0) return 'decisao'
   if (campanha.conexao === 'sem-rede') return 'offline'
   if (campanha.conexao === 'conectando' || !campanha.carregada) return 'conectando'
-  return campanha.esperando > 0 ? 'enviando' : 'salvo'
+  return mudancasACaminho(campanha) > 0 ? 'enviando' : 'salvo'
 }
 
 function Faixa({ campanha }: { campanha: EstadoDaCampanha }) {
@@ -128,7 +129,7 @@ function Faixa({ campanha }: { campanha: EstadoDaCampanha }) {
     anterior.current = estado
   }, [estado])
 
-  const n = campanha.esperando
+  const n = mudancasACaminho(campanha)
   const nd = campanha.paraDecidir.length
   const primeira = campanha.paraDecidir.at(0)
 

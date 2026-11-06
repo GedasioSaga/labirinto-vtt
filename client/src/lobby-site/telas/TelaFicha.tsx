@@ -11,7 +11,7 @@ import type { AjustePendente, EnvioDePersonagem, SalvarPersonagem } from '../../
 import type { FichaDoSite, EstadoDaCampanha } from '../dados/sessaoDaCampanha'
 import { enderecoDaRota, type AbaDaFicha, type Rota } from '../dados/rotas'
 import { aoClicarNoLink, fonteDaDemo, SISTEMA_DO_LOBBY, useDoSite, useSite } from './contexto'
-import { Decisoes } from './Decisoes'
+import { Decisoes, DecisoesSemFicha } from './Decisoes'
 import { enviarMudancas, revDeAgora, textoDaFalha } from './enviar'
 import { AvisoDaPagina, Carregando } from './Estados'
 import { Icone } from './Icone'
@@ -101,6 +101,7 @@ export function TelaFicha({ rota }: { rota: RotaDaFicha }) {
             Voltar à mesa
           </a>
         }
+        depois={<DecisoesSemFicha campanha={campanha} sistema={SISTEMA_DO_LOBBY} fichaId={rota.fichaId} />}
       >
         <p>O mestre pode ter apagado a ficha, ou ela é só dele. As outras fichas da mesa continuam lá.</p>
       </AvisoDaPagina>
@@ -176,7 +177,7 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
             </p>
           </div>
         )}
-        <Decisoes campanha={campanha} ficha={ficha.doc} sistema={SISTEMA_DO_LOBBY} />
+        <Decisoes campanha={campanha} fichaId={ficha.doc.id} nome={ficha.doc.nome} doc={ficha.doc} sistema={SISTEMA_DO_LOBBY} />
         {demo && pode && <DemoDoMestre campanha={campanha} ficha={ficha.doc} />}
         <div className="lo-abas" role="tablist" aria-label="Partes da ficha" ref={listaDeAbas} onKeyDown={teclaNasAbas}>
           {ABAS.map((aba) => (

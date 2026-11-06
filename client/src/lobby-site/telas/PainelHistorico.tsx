@@ -185,7 +185,7 @@ function LinhaDoEvento({ op, ficha, eu, agora, desfeita, refaz, podeDesfazer, em
           title={emDia ? undefined : 'Sem internet: volta quando a conexão voltar.'}
           onClick={() => site.sessao()?.desfazer(op.opId)}
         >
-          {enviando ? <span className="lo-giro" aria-hidden="true" /> : <Icone nome="desfazer" />} {enviando ? 'Desfazendo…' : nomeDoBotao}
+          {enviando ? <span className="lo-giro" aria-hidden="true" /> : <Icone nome="desfazer" />} {enviando ? (op.desfaz === undefined ? 'Desfazendo…' : 'Refazendo…') : nomeDoBotao}
         </button>
       )}
     </li>

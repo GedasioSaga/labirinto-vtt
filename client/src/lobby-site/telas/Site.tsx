@@ -4,6 +4,7 @@ import { resolverSoEmbutida } from '../../lib/midia'
 import { enderecoDaRota, type Rota } from '../dados/rotas'
 import { Cabeca } from './Cabeca'
 import { aoClicarNoLink, useDoSite, useSite } from './contexto'
+import { mudancasACaminho } from './enviar'
 import { AvisoDaPagina } from './Estados'
 import { TelaAcesso } from './TelaAcesso'
 import { TelaCampanha } from './TelaCampanha'
@@ -23,7 +24,7 @@ export function Site() {
   const demo = useDoSite((estado) => estado.demo)
   const eu = useDoSite((estado) => estado.eu)
   const rota = useDoSite((estado) => estado.rota)
-  const esperando = useDoSite((estado) => estado.campanha?.esperando ?? 0)
+  const esperando = useDoSite((estado) => (estado.campanha === null ? 0 : mudancasACaminho(estado.campanha)))
   const tituloDaPagina = useDoSite((estado) =>
     tituloDe(
       estado.rota,
@@ -32,7 +33,8 @@ export function Site() {
     ),
   )
 
-  // Fechar a aba com mudança a caminho: o navegador pergunta (a fila fica guardada, mas a pessoa fica sabendo).
+  // Fechar a aba com mudança a caminho: o navegador pergunta. A fila fica guardada, mas a pessoa fica sabendo;
+  // um desfazer a caminho vive só nesta aba (sai pelo canal, fora da fila) e se perde.
   useEffect(() => {
     if (esperando === 0) return
     const avisar = (evento: BeforeUnloadEvent) => {
