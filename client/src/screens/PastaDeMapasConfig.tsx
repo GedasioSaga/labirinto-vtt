@@ -90,7 +90,7 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
   }
 
   /** A mudança que pode trocar o sistema da pasta: a pasta convertida que volta a ter sistema confere antes a mochila dos bonecos. */
-  const mudarComOSistema = (mudar: (rpg: RpgDaPasta) => RpgDaPasta) => trocarSistemaDaPasta(pasta.id, rpg.sistemaDeRpg === undefined, () => onMudar(mudar))
+  const mudarComOSistema = (mudar: (rpg: RpgDaPasta) => RpgDaPasta) => trocarSistemaDaPasta(pasta.id, rpg.sistemaDeRpg === undefined, mudar, onMudar)
 
   const trocarSistema = (sistemaId: string) =>
     executar(async () => {

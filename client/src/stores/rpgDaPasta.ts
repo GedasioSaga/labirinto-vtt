@@ -1,4 +1,6 @@
 import { definirProprio, gravarRpgDaPasta, lerRpgDaPasta, lugarDoMapa, mudarIndiceDasPastas, type IndiceDasPastas, type RpgDaPasta } from '../lib/pastasDeMapas'
+// Ciclo de import com mochilaPendenteNoApp (que usa `editarRpgDaPasta`): os dois lados só chamam dentro de função, nunca ao carregar o módulo.
+import { usarOdaPastaNoMapaAberto } from '../net/nuvem/mochilaPendenteNoApp'
 import { useAdventureStore } from './adventureStore'
 import { useToastStore } from './toastStore'
 
@@ -13,14 +15,21 @@ import { useToastStore } from './toastStore'
  * "Configurar só neste mapa" (`true`) e "Usar o da pasta" (`false`) do mapa
  * aberto: grava o modo no índice e só então troca o que o editor usa. Nenhuma
  * lista é apagada nem copiada — os personagens do mapa continuam no
- * `adventure.json` dele, os da pasta no `rpg.json` da pasta. Lança com a razão.
+ * `adventure.json` dele, os da pasta no `rpg.json` da pasta. "Usar o da
+ * pasta" faz a ficha da pasta vencer os bonecos na hora: antes, o que só eles
+ * carregam vira pendente (`usarOdaPastaNoMapaAberto`). Lança com a razão.
  */
 export async function trocarModoDoMapa(proprio: boolean): Promise<void> {
   const pasta = useAdventureStore.getState().pasta
   if (pasta === null) return
-  await mudarIndiceDasPastas((indice) => definirProprio(indice, pasta.chave, proprio))
-  // Outro mapa pode ter aberto enquanto o disco gravava: o modo era deste.
-  if (useAdventureStore.getState().pasta?.chave === pasta.chave) useAdventureStore.getState().definirProprio(proprio)
+  const gravar = async (): Promise<void> => {
+    await mudarIndiceDasPastas((indice) => definirProprio(indice, pasta.chave, proprio))
+    // Outro mapa pode ter aberto enquanto o disco gravava: o modo era deste.
+    if (useAdventureStore.getState().pasta?.chave === pasta.chave) useAdventureStore.getState().definirProprio(proprio)
+  }
+  // Só a pasta convertida (o marcador) é dona da mochila: fora dela o espelho não toca os bonecos.
+  if (proprio || !pasta.proprio || pasta.mochilaMigrada === undefined) await gravar()
+  else await usarOdaPastaNoMapaAberto(pasta.chave, gravar)
 }
 
 /**

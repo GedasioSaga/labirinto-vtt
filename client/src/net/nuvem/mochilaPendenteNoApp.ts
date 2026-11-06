@@ -9,7 +9,7 @@ import {
   textoDoTrazidoSemAnotar,
   type ItemPendente,
 } from '../../lib/mochila/pendentes'
-import type { PastaAberta } from '../../lib/pastasDeMapas'
+import type { PastaAberta, RpgDaPasta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import { readRecoveryCopy, type RecoveryCopy } from '../../lib/recoveryCopy'
 import { useAdventureStore } from '../../stores/adventureStore'
@@ -22,14 +22,19 @@ import {
   conferirMapaQueEntrou,
   ignorarPendente,
   mapaSaiuDaPasta,
+  marcarAntesDaVoltaDoSistema,
   marcarFichasQueEntram,
   marcarMapaQueEntrou,
+  marcarMapaQueVaiUsarAPasta,
   pendentesDaPasta,
+  retirarPendentesSemEspelho,
   retirarPendentesSemFicha,
   sistemaDaPastaMudou,
   trazerPendente,
+  type AntesDaVoltaDoSistema,
   type DecisaoTomada,
   type FichasQueEntram,
+  type PendentesAntesDoEspelho,
 } from './mochilaPendente'
 
 /**
@@ -117,27 +122,110 @@ async function avisarPendentesDaPasta(pastaId: string): Promise<void> {
   avisarPendentes(pastaId, await pendentesDaPasta(pastaId, discoDoApp))
 }
 
+/** A mudança do RPG da pasta que o "Configurar pasta" grava. */
+export type MudarRpgDaPasta = (rpg: RpgDaPasta) => RpgDaPasta
+
+/** O que ficou anotado antes de gravar o `rpg.json` da volta do sistema, e o trabalho do mapa aberto conferido. */
+interface AnotadoAntesDaVolta {
+  aberto: TrabalhoAberto | null
+  antes: AntesDaVoltaDoSistema
+}
+
+const NADA_ANTES_DA_VOLTA: AntesDaVoltaDoSistema = { marcados: [], novos: [], abertoConferido: false }
+
+/**
+ * ANTES de gravar a volta do sistema: os mapas da pasta ficam marcados, e o
+ * aberto ganha os pendentes do trabalho dele (`marcarAntesDaVoltaDoSistema`).
+ * Não deu: lança com a razão, e nada foi gravado.
+ */
+async function anotarAntesDaVolta(pastaId: string, mudar: MudarRpgDaPasta, recuperacao: RecoveryCopy | null): Promise<AnotadoAntesDaVolta> {
+  const daPasta = useAdventureStore.getState().pasta
+  const chaveAberta = daPasta !== null && daPasta.pastaId === pastaId ? daPasta.chave : null
+  const aberto = await trabalhoAberto((pasta) => pasta.pastaId === pastaId)
+  try {
+    const antes = await marcarAntesDaVoltaDoSistema(pastaId, mudar, discoDoApp, { aberto: chaveAberta, recuperado: aberto?.copia ?? null, recuperacao })
+    return { aberto, antes }
+  } catch (erro) {
+    throw new Error(`O que os bonecos desta pasta carregam não pôde ser anotado (${motivo(erro)}): nada foi gravado, e o sistema não mudou.`)
+  }
+}
+
+/** O que vale para cada mapa da pasta quando a conferência logo depois da volta do sistema caiu. */
+function textoDaVoltaPorConferir(antes: AntesDaVoltaDoSistema): string {
+  if (antes.marcados.length === 0) return 'Antes de abrir um mapa dela, confira o que os bonecos ganharam sem o sistema.'
+  if (!antes.abertoConferido) return 'Cada mapa da pasta salvo sem o sistema ficou marcado e confere ao abrir, antes de a ficha valer nele.'
+  return 'O que os bonecos do mapa aberto carregavam ficou anotado antes de a ficha valer nele; cada mapa da pasta salvo sem o sistema ficou marcado e confere ao abrir.'
+}
+
 /**
  * "Configurar pasta" que pode mudar o Sistema universal ("Sistema universal",
- * "Copiar de um mapa"): `trocar` grava (e lança com a razão, para quem chama
- * mostrar). Pasta convertida que fica sem sistema: anota desde quando. Que
- * volta a ter: os mapas dela salvos nesse meio-tempo (e o aberto) são
- * conferidos já, e o que só os bonecos deles ganharam vira pendente — sem
- * isso o espelho apagaria calado. Depois de `trocar`, nunca lança.
+ * "Copiar de um mapa"): `gravar` grava `mudar` (e lança com a razão, para
+ * quem chama mostrar). Pasta convertida que fica sem sistema: anota desde
+ * quando. Que volta a ter: ANTES de gravar, os mapas dela salvos nesse
+ * meio-tempo (e o aberto) ficam marcados, e o que só os bonecos do mapa aberto
+ * ganharam vira pendente — gravado o `rpg.json`, o espelho os esvazia na hora.
+ * Não deu para anotar: lança, e o sistema não muda. Não gravou: os pendentes
+ * desse espelho que não valeu saem, e lança. Gravado, os mapas marcados são
+ * conferidos já; daí em diante nunca lança.
  */
-export async function trocarSistemaDaPasta(pastaId: string, vinhaSemSistema: boolean, trocar: () => Promise<void>): Promise<void> {
-  // ANTES de trocar: a volta do sistema espelha na hora as cenas abertas desta pasta.
-  const aberto = vinhaSemSistema ? await trabalhoAberto((pasta) => pasta.pastaId === pastaId) : null
-  await trocar()
-  if (!isTauri()) return
+export async function trocarSistemaDaPasta(pastaId: string, vinhaSemSistema: boolean, mudar: MudarRpgDaPasta, gravar: (mudar: MudarRpgDaPasta) => Promise<void>): Promise<void> {
+  if (!isTauri()) {
+    await gravar(mudar)
+    return
+  }
+  const recuperacao = await copiaDeRecuperacao()
+  const { aberto, antes } = vinhaSemSistema ? await anotarAntesDaVolta(pastaId, mudar, recuperacao) : { aberto: null, antes: NADA_ANTES_DA_VOLTA }
   try {
-    const marcados = await sistemaDaPastaMudou(pastaId, vinhaSemSistema, discoDoApp, { aberto: aberto?.chave ?? null, recuperacao: await copiaDeRecuperacao() })
+    await gravar(mudar)
+  } catch (erro) {
+    // O sistema não voltou: o espelho não tocou os bonecos, e o aviso seria falso.
+    await retirarPendentesSemEspelho(pastaId, idsDe(antes.novos), discoDoApp).catch(() => undefined)
+    throw erro
+  }
+  try {
+    const marcados = await sistemaDaPastaMudou(pastaId, vinhaSemSistema, discoDoApp, { aberto: aberto?.chave ?? null, recuperacao })
     await conferirEAvisar(pastaId, marcados, aberto)
   } catch (erro) {
-    useToastStore
-      .getState()
-      .push('error', `Não deu para conferir a mochila dos bonecos desta pasta (${motivo(erro)}). Antes de abrir um mapa dela, confira o que os bonecos ganharam sem o sistema.`)
+    // Os pendentes do mapa aberto já estão no relatório: aparecem mesmo assim.
+    avisarPendentes(pastaId, antes.novos)
+    useToastStore.getState().push('error', `Não deu para conferir a mochila dos bonecos desta pasta (${motivo(erro)}). ${textoDaVoltaPorConferir(antes)}`)
   }
+}
+
+function idsDe(pendentes: readonly ItemPendente[]): string[] {
+  return pendentes.map((pendente) => pendente.id)
+}
+
+/**
+ * "Usar o da pasta" do mapa aberto `chave` (`trocarModoDoMapa(false)`):
+ * `gravar` grava o modo no índice e o passa ao editor (e lança com a razão).
+ * Gravado, o espelho põe as fichas da pasta nos bonecos na hora — a de mesmo
+ * id vence o boneco. ANTES, o que só os bonecos carregam, contra as fichas da
+ * pasta, vira pendente no relatório, a partir do trabalho aberto (o não salvo
+ * também). Não deu para anotar: lança, e o modo não muda. Não gravou: os
+ * pendentes desse espelho que não valeu saem, e lança. Gravado: mostra os
+ * pendentes. Fora do app, só `gravar`.
+ */
+export async function usarOdaPastaNoMapaAberto(chave: string, gravar: () => Promise<void>): Promise<void> {
+  if (!isTauri()) {
+    await gravar()
+    return
+  }
+  const aberto = await trabalhoAberto((pasta) => pasta.chave === chave)
+  let anotado: PendentesAntesDoEspelho | null
+  try {
+    anotado = await marcarMapaQueVaiUsarAPasta(chave, discoDoApp, { recuperado: aberto?.copia ?? null })
+  } catch (erro) {
+    throw new Error(`o que os bonecos deste mapa carregam não pôde ser anotado (${motivo(erro)}), e o mapa continua com o próprio sistema e personagens.`)
+  }
+  try {
+    await gravar()
+  } catch (erro) {
+    // O mapa continua no próprio: o espelho da pasta não tocou os bonecos, e o aviso seria falso.
+    if (anotado !== null) await retirarPendentesSemEspelho(anotado.pastaId, idsDe(anotado.novos), discoDoApp).catch(() => undefined)
+    throw erro
+  }
+  if (anotado !== null) avisarPendentes(anotado.pastaId, anotado.novos)
 }
 
 /** A cópia de recuperação no disco (o app caiu com trabalho sem salvar); `null` = nenhuma, ou não deu para ler. */
