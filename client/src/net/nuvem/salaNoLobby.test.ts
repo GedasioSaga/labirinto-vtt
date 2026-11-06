@@ -101,6 +101,8 @@ describe('enderecosDaSala: o que vai ao Lobby', () => {
     expect(enderecosDaSala([], 'http://alfa-beta.trycloudflare.com/player')).toEqual([])
     expect(enderecosDaSala([], 'https://Alfa-Beta.trycloudflare.com/player')).toEqual([])
     expect(enderecosDaSala([], 'https://alfa-beta.trycloudflare.com.evil.io/player')).toEqual([])
+    // Nome acima de 63 caracteres: o Lobby recusa (ROTULO_MAX), e com ele o pedido inteiro.
+    expect(enderecosDaSala([LAN], `https://${'a'.repeat(60)}-bbbb.trycloudflare.com/player`)).toEqual([{ tipo: 'lan', url: LAN }])
   })
 
   it('172.15 e 172.32 não são rede local; 172.16 e 172.31 são', () => {

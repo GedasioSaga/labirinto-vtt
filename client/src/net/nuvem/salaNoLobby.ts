@@ -44,24 +44,45 @@ export interface EnderecoDaSala {
 
 /**
  * O que o Rust dá (`player_urls` e o túnel, `/player` no fim). O Lobby só
- * aceita IP de rede local (RFC 1918) e o túnel rápido: o `127.0.0.1` de "sem
- * rede" fica de fora AQUI, senão o pedido inteiro seria recusado.
+ * aceita a forma exata de `urlDaSalaValida` (lobby/nuvem/src/salaAberta.ts):
+ * IP de rede local (RFC 1918) com porta de 1 a 65535 e o túnel rápido. O
+ * `127.0.0.1` de "sem rede", a porta 0, o octeto acima de 255 e o zero à
+ * esquerda ficam de fora AQUI, senão o pedido inteiro seria recusado (400) e
+ * o túnel cairia junto.
  */
-const FORMA_DA_LAN = /^http:\/\/(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}:\d{1,5}\/player$/
-const FORMA_DO_TUNEL = /^https:\/\/[a-z0-9]+(?:-[a-z0-9]+)+\.trycloudflare\.com\/player$/
+const FORMA_DA_LAN = /^http:\/\/(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3}):(\d{1,5})\/player$/
+const FORMA_DO_TUNEL = /^https:\/\/([a-z0-9]+(?:-[a-z0-9]+)+)\.trycloudflare\.com\/player$/
+/** Sem zero à esquerda: `010` não é `10` para todo leitor de URL, e o Lobby recusa. */
+const FORMA_DO_NUMERO = /^(?:0|[1-9]\d*)$/
+const OCTETO_MAX = 255
+const PORTA_MAX = 65_535
+/** Um rótulo de DNS tem até 63 caracteres: o nome do túnel acima disso o Lobby recusa. */
+const ROTULO_MAX = 63
+
+function numeroAte(texto: string, maximo: number): number | null {
+  if (!FORMA_DO_NUMERO.test(texto)) return null
+  const numero = Number(texto)
+  return numero <= maximo ? numero : null
+}
 
 function daRedeLocal(url: string): boolean {
   const achado = FORMA_DA_LAN.exec(url)
   if (achado === null) return false
-  const primeiro = Number(achado[1])
-  const segundo = Number(achado[2])
+  const [primeiro, segundo, ...resto] = achado.slice(1, 5).map((octeto) => numeroAte(octeto, OCTETO_MAX))
+  const porta = numeroAte(achado[5], PORTA_MAX)
+  if (primeiro === null || segundo === null || resto.some((octeto) => octeto === null) || porta === null || porta === 0) return false
   return primeiro === 10 || (primeiro === 172 && segundo >= 16 && segundo <= 31) || (primeiro === 192 && segundo === 168)
+}
+
+function doTunel(url: string): boolean {
+  const achado = FORMA_DO_TUNEL.exec(url)
+  return achado !== null && achado[1].length <= ROTULO_MAX
 }
 
 /** Os endereços que vão ao Lobby: o túnel primeiro (o corte do teto nunca o leva), depois a rede local, sem repetir. */
 export function enderecosDaSala(urlsDaLan: readonly string[], tunel: string | null): EnderecoDaSala[] {
   const enderecos: EnderecoDaSala[] = []
-  if (tunel !== null && FORMA_DO_TUNEL.test(tunel)) enderecos.push({ tipo: 'tunel', url: tunel })
+  if (tunel !== null && doTunel(tunel)) enderecos.push({ tipo: 'tunel', url: tunel })
   for (const url of new Set(urlsDaLan)) if (daRedeLocal(url)) enderecos.push({ tipo: 'lan', url })
   return enderecos.slice(0, ENDERECOS_DA_SALA_MAX)
 }
