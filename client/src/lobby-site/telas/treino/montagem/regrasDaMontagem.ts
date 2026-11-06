@@ -1,4 +1,4 @@
-import { casasDoLado, type CasaDaArena } from '../../../../lib/arena/grade'
+import { casasDoLado, EQUIPE_DO_LADO, type CasaDaArena } from '../../../../lib/arena/grade'
 import type { Personagem } from '../../../../lib/personagem'
 import { GRADE_DO_TREINO, VAGAS_POR_LADO_MAX, type LadoDoTreino } from '../../../../lib/treino/mesaEmMemoria'
 import type { MontagemDaLuta } from '../lutaDeTreino'
@@ -38,7 +38,7 @@ export interface PecaNaGrade {
   casa: CasaDaArena
 }
 
-export type RecusaDaMontagem = 'ocupada' | 'cheio' | 'fora'
+export type RecusaDaMontagem = 'ocupada' | 'cheio' | 'fora' | 'outroLado' | 'repetida' | 'largada'
 
 export type MudancaDaMontagem = { ok: true; lista: PecaNaGrade[] } | { ok: false; motivo: RecusaDaMontagem }
 
@@ -160,4 +160,59 @@ export const TEXTO_DA_RECUSA: Readonly<Record<RecusaDaMontagem, string>> = {
   ocupada: 'a casa está ocupada',
   cheio: `cada lado leva no máximo ${VAGAS_POR_LADO_MAX}`,
   fora: 'a casa fica fora da grade',
+  outroLado: 'a outra metade é do outro jogador',
+  repetida: 'já está na grade',
+  largada: 'no duelo cada um começa numa casa de largada da Arena, na ordem em que entrou',
+}
+
+/** A casa sob o item que vem da lista, como a grade desenha: onde ele cai e se pode. */
+export interface RealceDaLista {
+  casa: CasaDaArena
+  situacao: 'livre' | 'ocupada' | 'cheio'
+  /** Troca o rótulo padrão da grade ("Ocupada", "Lado cheio", o nome do lado). */
+  texto?: string
+}
+
+/**
+ * As regras de uma montagem: a do treino (qualquer casa livre, a metade decide
+ * o lado) ou a do duelo (`regrasDoDuelo.ts`: só a sua metade, nas casas de
+ * largada). A tela (`MontagemNaGrade.tsx`) só arrasta e pergunta.
+ */
+export interface RegrasDaMontagem {
+  realce(lista: readonly PecaNaGrade[], peca: PecaDaMontagem, casa: CasaDaArena): RealceDaLista
+  por(lista: readonly PecaNaGrade[], peca: PecaDaMontagem, casa: CasaDaArena): MudancaDaMontagem
+  /** Enter ou clique no item, sem arrasto. */
+  porSemArrasto(lista: readonly PecaNaGrade[], peca: PecaDaMontagem): MudancaDaMontagem
+  /** A ficha arrastada (ou andada pelas setas) na grade. */
+  mover(lista: readonly PecaNaGrade[], chave: string, casa: CasaDaArena): MudancaDaMontagem
+  /** Delete na ficha, ou ela arrastada de volta para a lista. */
+  tirar(lista: readonly PecaNaGrade[], chave: string): PecaNaGrade[]
+  /** O rótulo da casa sob a ficha na mão, na grade. */
+  rotuloDoAlvo(casa: CasaDaArena): string
+  /** A linha sob o título da lista. */
+  dicaDaLista: string
+  /** A dica de leitor de tela das fichas na grade. */
+  dicaDaGrade: string
+  /** O nome de cada metade; ausente = o do treino. */
+  nomesDasMetades?: Readonly<Record<LadoDoTreino, string>>
+  /** O limite que a tela mostra embaixo da lista; ausente = nenhum. */
+  aviso?: string
+}
+
+/** O treino solo: qualquer casa livre, a metade decide o lado, a mesma peça pode entrar mais de uma vez. */
+export const REGRAS_DO_TREINO: RegrasDaMontagem = {
+  realce(lista, _peca, casa) {
+    const recusa = recusaDaCasa(lista, casa)
+    return { casa, situacao: recusa === null ? 'livre' : recusa === 'cheio' ? 'cheio' : 'ocupada' }
+  },
+  por: (lista, peca, casa) => porNaGrade(lista, peca.id, casa),
+  porSemArrasto(lista, peca) {
+    const casa = casaLivreNoLado(lista, ladoDaPeca(peca))
+    return casa === null ? { ok: false, motivo: 'cheio' } : porNaGrade(lista, peca.id, casa)
+  },
+  mover: moverNaGrade,
+  tirar: tirarDaGrade,
+  rotuloDoAlvo: (casa) => EQUIPE_DO_LADO[ladoDaCasa(casa)].nome,
+  dicaDaLista: 'Puxe para a grade. A metade onde soltar decide o lado.',
+  dicaDaGrade: 'Arraste para mudar de casa ou de lado (a metade da grade decide), ou use as setas. Delete tira da grade; arrastar de volta para a lista também.',
 }

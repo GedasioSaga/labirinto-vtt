@@ -37,6 +37,16 @@
 
 .lo-tr-mg__dica { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
 
+/* O limite da montagem (no duelo: a casa é a de largada da Arena), dito na tela, não só no leitor. */
+.lo-tr-mg__aviso {
+  margin: 0;
+  padding-left: var(--lb-space-3);
+  border-left: 2px solid var(--lb-color-line-strong);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+}
+
 .lo-tr-mg__itens { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 
 .lo-tr-mg__linha { display: flex; align-items: center; gap: var(--lb-space-1); min-width: 0; }

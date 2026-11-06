@@ -207,7 +207,9 @@
 }
 .lo-tr-convite__texto { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2); color: var(--lb-color-parchment-dim); }
 .lo-tr-convite__texto b { color: var(--lb-color-parchment); }
-.lo-tr-desafio { display: grid; gap: var(--lb-space-5); max-width: 560px; }
+.lo-tr-desafio { display: grid; gap: var(--lb-space-5); }
+/* A escolha do colega fica estreita; a montagem (lista + grade) usa a largura da página. */
+.lo-tr-desafio > .lo-tr-grupo { max-width: 560px; }
 
 .lo-tr-acabados { display: grid; gap: var(--lb-space-2); }
 /* Um duelo acabado: o resultado, a rodada e o "Rever a luta" (abre a Arena só para olhar). */

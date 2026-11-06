@@ -306,10 +306,60 @@
 .lo-ga-boneco[data-vez] .lo-ga-boneco__nome { color: var(--lb-color-brass-bright); }
 .lo-ga-boneco[data-caiu] .lo-ga-boneco__nome { color: var(--lb-color-parchment-faint); text-decoration: line-through; }
 
+/* Na primeira e na última coluna o nome inteiro cresce para dentro da grade, não para fora da borda. */
+.lo-ga-boneco[data-borda='esquerda'] .lo-ga-boneco__nome { left: 1px; translate: none; }
+.lo-ga-boneco[data-borda='direita'] .lo-ga-boneco__nome { left: auto; right: 1px; translate: none; }
+
+/*
+ * ── O Judge (JuizAnimado.tsx): o modelo 3D da Arena, de pé na casa ──
+ * A folha é a do app (192 x 240 por quadro, 64 px por casa, os pés no centro
+ * da casa); a linha é a direção (inline) e a coluna anda aqui, 12 quadros por
+ * segundo em laço. Fica por cima das fichas, como a camada do Judge no app, e
+ * não pega o toque: o clique passa para a casa (o botão) ou para a vizinha.
+ */
+.lo-ga-boneco[data-juiz] { z-index: 3; }
+.lo-ga-juiz {
+  position: absolute;
+  background-repeat: no-repeat;
+  background-position-x: 0;
+  pointer-events: none;
+  animation: lo-ga-juiz-respira 1s steps(12) infinite;
+}
+/* 12 colunas de 192 px: -2304 px é a borda da última, e o steps(12) para em cada coluna antes dela. */
+@keyframes lo-ga-juiz-respira {
+  to { background-position-x: -2304px; }
+}
+.lo-ga-juiz[data-parado] {
+  animation: none;
+  filter: grayscale(1) brightness(0.62);
+}
+/* A base do Judge: o disco vira uma sombra no chão com a cor do lado, nos pés dele (o centro da casa). */
+.lo-ga-boneco[data-juiz] .lo-ga-boneco__disco {
+  top: 21px;
+  height: 22px;
+  background: color-mix(in srgb, var(--lo-ga-lado) 22%, rgba(0, 0, 0, 0.35));
+  box-shadow: 0 0 0 2px var(--lo-ga-lado);
+}
+.lo-ga-boneco[data-juiz] .lo-ga-boneco__vez {
+  top: 15px;
+  height: 34px;
+}
+.lo-ga-tabuleiro .lo-ga-boneco[data-juiz]:focus-visible:not([data-na-mao]) .lo-ga-boneco__disco {
+  box-shadow: 0 0 0 2px var(--lo-ga-lado), 0 0 0 4px var(--lb-color-stone-solid), 0 0 0 6px var(--lb-color-brass);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lo-ga-boneco[data-juiz][data-pode]:hover .lo-ga-boneco__disco {
+    box-shadow: 0 0 0 2px var(--lo-ga-lado), 0 0 0 3px rgba(236, 234, 228, 0.35);
+  }
+}
+.lo-ga-boneco[data-juiz][data-na-mao] .lo-ga-boneco__disco { box-shadow: 0 0 0 2px var(--lo-ga-lado), 0 10px 16px rgba(0, 0, 0, 0.5); }
+
 @media (prefers-reduced-motion: reduce) {
   .lo-ga-boneco,
   .lo-ga-boneco__disco { transition: none; }
   .lo-ga-boneco__vez { animation: none; }
+  /* Menos movimento: o Judge fica parado no 1º quadro (a virada também é de uma vez, no JuizAnimado). */
+  .lo-ga-juiz { animation: none; }
 }
 
 /* ── A montagem (fatia J): as duas metades da grade, cada uma com a cor e o nome do lado ── */

@@ -20,6 +20,12 @@ export interface BonecoNaGrade {
   caiu: boolean
   /** Quem olha pode pegar esta ficha. A grade não decide a regra: só não deixa pegar a que não pode. */
   podeAndar: boolean
+  /**
+   * O Judge (o boneco de treino da Arena): a grade o desenha com a folha
+   * animada do modelo 3D, de pé na casa, no lugar do retrato. `olhaPara` é a
+   * casa para onde ele vira; `null` = fica olhando para onde estava.
+   */
+  juiz?: { olhaPara: CasaDaArena | null }
 }
 
 /** O que a casa de destino é para a ficha que anda: livre, de outra ficha, ou a mesma de onde ela saiu. */

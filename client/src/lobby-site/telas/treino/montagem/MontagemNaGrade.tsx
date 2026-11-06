@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as EventoDoPonteiro } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as EventoDoPonteiro } from 'react'
 import { createPortal } from 'react-dom'
 import { useImagemDaMesa } from '../../../../components/ImagemDaMesa'
 import { CASA_DA_ARENA, EQUIPE_DO_LADO, type CasaDaArena } from '../../../../lib/arena/grade'
@@ -6,18 +6,7 @@ import { GRADE_DO_TREINO, LADOS_DO_TREINO, nomeLivre } from '../../../../lib/tre
 import { iniciaisDoNome, rotuloDaCasa, type BonecoNaGrade } from '../grade/bonecos'
 import { GradeDaArena, type MontagemDaGrade } from '../grade/GradeDaArena'
 import { retratoDoBoneco } from '../grade/retratos'
-import {
-  casaLivreNoLado,
-  ladoDaCasa,
-  ladoDaPeca,
-  moverNaGrade,
-  porNaGrade,
-  recusaDaCasa,
-  TEXTO_DA_RECUSA,
-  tirarDaGrade,
-  type PecaDaMontagem,
-  type PecaNaGrade,
-} from './regrasDaMontagem'
+import { ladoDaCasa, REGRAS_DO_TREINO, TEXTO_DA_RECUSA, type MudancaDaMontagem, type PecaDaMontagem, type PecaNaGrade, type RegrasDaMontagem } from './regrasDaMontagem'
 import './montagem.css'
 
 /**
@@ -42,6 +31,8 @@ interface Props {
   demo: boolean
   /** O botão "Ajustar" na linha do Judge (abre o painel dele). */
   onAjustarJuiz?: () => void
+  /** As regras da montagem: o padrão é a do treino; o duelo passa a dele (`regrasDoDuelo.ts`). */
+  regras?: RegrasDaMontagem
 }
 
 interface ArrastoDaLista {
@@ -88,8 +79,12 @@ function Retrato({ src, nome, classe }: { src: string | null; nome: string; clas
   )
 }
 
-export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: Props) {
+export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz, regras = REGRAS_DO_TREINO }: Props) {
   const resolver = useImagemDaMesa()
+  // Duas montagens na mesma página (o desafio e o convite recebido): cada uma com os seus ids.
+  const idBase = useId()
+  const idDoTitulo = `${idBase}-titulo`
+  const idDoComo = `${idBase}-como`
   const caixaDaGrade = useRef<HTMLDivElement>(null)
   const listaRef = useRef<HTMLElement>(null)
   const fantasmaRef = useRef<HTMLDivElement>(null)
@@ -101,8 +96,8 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: 
   const [tirando, setTirando] = useState(false)
   const [anuncio, setAnuncio] = useState({ texto: '', vez: 0 })
   // As props de agora para os ouvintes que vivem entre renders.
-  const atual = useRef({ lista, pecas, onMudar })
-  atual.current = { lista, pecas, onMudar }
+  const atual = useRef({ lista, pecas, onMudar, regras })
+  atual.current = { lista, pecas, onMudar, regras }
 
   const anunciar = useCallback((texto: string) => setAnuncio((antes) => ({ texto, vez: antes.vez + 1 })), [])
   const srcDe = useCallback((peca: PecaDaMontagem) => resolver(retratoDoBoneco(peca.retrato, peca.id, demo)), [resolver, demo])
@@ -154,15 +149,21 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: 
     return () => window.removeEventListener('keydown', aoTeclar, true)
   }, [naMao, encerrar, anunciar])
 
-  function por(peca: PecaDaMontagem, casa: CasaDaArena): boolean {
-    const feito = porNaGrade(atual.current.lista, peca.id, casa)
+  /** Aplica a entrada que as regras deram: a casa dita é a da peça nova (no duelo, a de largada, não a do ponteiro). */
+  function entrou(peca: PecaDaMontagem, feito: MudancaDaMontagem): boolean {
     if (!feito.ok) {
       anunciar(`${peca.nome} não entrou: ${TEXTO_DA_RECUSA[feito.motivo]}.`)
       return false
     }
+    const antes = atual.current.lista
+    const nova = feito.lista.find((candidata) => candidata.pecaId === peca.id && !antes.some((velha) => velha.chave === candidata.chave))
     onMudar(feito.lista)
-    anunciar(`${peca.nome} entrou no ${nomeDoLado(casa)}, casa ${rotuloDaCasa(casa)}.`)
+    if (nova !== undefined) anunciar(`${peca.nome} entrou no ${nomeDoLado(nova.casa)}, casa ${rotuloDaCasa(nova.casa)}.`)
     return true
+  }
+
+  function por(peca: PecaDaMontagem, casa: CasaDaArena): boolean {
+    return entrou(peca, atual.current.regras.por(atual.current.lista, peca, casa))
   }
 
   function aoApertar(evento: EventoDoPonteiro<HTMLButtonElement>, peca: PecaDaMontagem) {
@@ -190,8 +191,7 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: 
       setRealce(null)
       return
     }
-    const recusa = recusaDaCasa(atual.current.lista, casa)
-    setRealce({ casa, situacao: recusa === null ? 'livre' : recusa === 'cheio' ? 'cheio' : 'ocupada' })
+    setRealce(atual.current.regras.realce(atual.current.lista, peca, casa))
   }
 
   function aoSoltar(evento: EventoDoPonteiro<HTMLButtonElement>, peca: PecaDaMontagem) {
@@ -215,23 +215,23 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: 
       cliqueEngolido.current = false
       return
     }
-    const lado = ladoDaPeca(peca)
-    const casa = casaLivreNoLado(atual.current.lista, lado)
-    if (casa === null) anunciar(`${peca.nome} não entrou: o ${EQUIPE_DO_LADO[lado].nome} está cheio.`)
-    else por(peca, casa)
+    entrou(peca, atual.current.regras.porSemArrasto(atual.current.lista, peca))
   }
 
   const bonecos: BonecoNaGrade[] = lista.flatMap((peca) => {
     const item = pecas.find((candidato) => candidato.id === peca.pecaId)
     if (item === undefined) return []
-    return [{ tokenId: peca.chave, nome: nomes.get(peca.chave) ?? item.nome, lado: ladoDaCasa(peca.casa), casa: peca.casa, retrato: retratoDoBoneco(item.retrato, item.id, demo), vida: null, naVez: false, caiu: false, podeAndar: true }]
+    const boneco: BonecoNaGrade = { tokenId: peca.chave, nome: nomes.get(peca.chave) ?? item.nome, lado: ladoDaCasa(peca.casa), casa: peca.casa, retrato: retratoDoBoneco(item.retrato, item.id, demo), vida: null, naVez: false, caiu: false, podeAndar: true }
+    // Na montagem ninguém luta ainda: o Judge fica de frente, como na Arena do app antes da primeira vez.
+    return [item.origem === 'juiz' ? { ...boneco, juiz: { olhaPara: null } } : boneco]
   })
 
   const focarNaLista = (pecaId: string) => requestAnimationFrame(() => listaRef.current?.querySelector<HTMLElement>(`[data-peca="${CSS.escape(pecaId)}"]`)?.focus())
 
   const montagemDaGrade: MontagemDaGrade = {
     realce,
-    rotuloDoAlvo: (alvo) => nomeDoLado(alvo),
+    rotuloDoAlvo: (alvo) => regras.rotuloDoAlvo(alvo),
+    ...(regras.nomesDasMetades === undefined ? {} : { nomesDasMetades: regras.nomesDasMetades }),
     aoArrastar: (_tokenId, ponto) => {
       const agora = ponto !== null && sobreALista(ponto)
       setTirando((antes) => (antes === agora ? antes : agora))
@@ -239,22 +239,22 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: 
     aoSoltarFora: (tokenId, ponto) => {
       if (!sobreALista(ponto)) return false
       const peca = atual.current.lista.find((candidata) => candidata.chave === tokenId)
-      atual.current.onMudar(tirarDaGrade(atual.current.lista, tokenId))
+      atual.current.onMudar(atual.current.regras.tirar(atual.current.lista, tokenId))
       anunciar(`${nomes.get(tokenId) ?? 'A ficha'} saiu da grade.`)
       if (peca !== undefined) focarNaLista(peca.pecaId)
       return true
     },
     aoTirar: (tokenId) => {
       const peca = atual.current.lista.find((candidata) => candidata.chave === tokenId)
-      atual.current.onMudar(tirarDaGrade(atual.current.lista, tokenId))
+      atual.current.onMudar(atual.current.regras.tirar(atual.current.lista, tokenId))
       anunciar(`${nomes.get(tokenId) ?? 'A ficha'} saiu da grade.`)
       if (peca !== undefined) focarNaLista(peca.pecaId)
     },
-    dica: 'Arraste para mudar de casa ou de lado (a metade da grade decide), ou use as setas. Delete tira da grade; arrastar de volta para a lista também.',
+    dica: regras.dicaDaGrade,
   }
 
   function andar(chave: string, casa: CasaDaArena): boolean {
-    const feito = moverNaGrade(atual.current.lista, chave, casa)
+    const feito = atual.current.regras.mover(atual.current.lista, chave, casa)
     if (!feito.ok) {
       anunciar(`${nomes.get(chave) ?? 'A ficha'} não mudou de casa: ${TEXTO_DA_RECUSA[feito.motivo]}.`)
       return false
@@ -267,12 +267,12 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: 
 
   return (
     <div className="lo-tr-mg">
-      <section ref={listaRef} className="lo-tr-mg__lista" aria-labelledby="lo-tr-mg-titulo" data-tirando={tirando ? '' : undefined} data-arrastando={naMao !== null ? '' : undefined}>
+      <section ref={listaRef} className="lo-tr-mg__lista" aria-labelledby={idDoTitulo} data-tirando={tirando ? '' : undefined} data-arrastando={naMao !== null ? '' : undefined}>
         <div className="lo-tr-mg__cab">
-          <h2 className="lo-tr-mg__titulo" id="lo-tr-mg-titulo">
+          <h2 className="lo-tr-mg__titulo" id={idDoTitulo}>
             Personagens
           </h2>
-          <p className="lo-tr-mg__dica">Puxe para a grade. A metade onde soltar decide o lado.</p>
+          <p className="lo-tr-mg__dica">{regras.dicaDaLista}</p>
         </div>
         {pecas.length === 0 ? (
           <p className="lo-motivo">Ninguém para pôr na grade ainda.</p>
@@ -287,7 +287,7 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: 
                     className="lo-tr-mg__item"
                     data-peca={peca.id}
                     data-na-mao={naMao?.id === peca.id ? '' : undefined}
-                    aria-describedby="lo-tr-mg-como"
+                    aria-describedby={idDoComo}
                     onPointerDown={(evento) => aoApertar(evento, peca)}
                     onPointerMove={(evento) => aoMover(evento, peca)}
                     onPointerUp={(evento) => aoSoltar(evento, peca)}
@@ -323,7 +323,8 @@ export function MontagemNaGrade({ pecas, lista, onMudar, demo, onAjustarJuiz }: 
             })}
           </ul>
         )}
-        <p id="lo-tr-mg-como" className="lo-sr">
+        {regras.aviso !== undefined && <p className="lo-tr-mg__aviso">{regras.aviso}</p>}
+        <p id={idDoComo} className="lo-sr">
           Arraste até uma casa da grade, ou aperte Enter para pôr na primeira casa livre do lado dele.
         </p>
         <p className="lo-tr-mg__tirar" aria-hidden="true">

@@ -13,6 +13,8 @@ import { SISTEMA_DO_LOBBY, useAgora, useSite } from '../contexto'
 import { Icone } from '../Icone'
 import { ArenaDaLuta, type JogadasDaLuta } from './ArenaDaLuta'
 import type { RespostaDoAndar } from './grade/GradeDaArena'
+import { fichasDoPedido, MontagemDoDuelo, montagemInicialDoDuelo } from './montagem/MontagemDoDuelo'
+import type { PecaNaGrade } from './montagem/regrasDaMontagem'
 import { nomeDaVez, oQueEsperaDeMim } from './quemJoga'
 import { contar, relogioDaVolta, textoDaRecusa, textoDoConviteFechado, textoDoFim, tomDoFim } from './textosDoTreino'
 
@@ -25,29 +27,6 @@ import { contar, relogioDaVolta, textoDaRecusa, textoDoConviteFechado, textoDoFi
  * O servidor decide tudo (o dano, a vez, quem venceu); a tela só pede. A luta
  * abre na Arena (fatia H, `ArenaDaLuta`) com a vista do lado desta conta.
  */
-
-/** Os botões de ligar e desligar fichas (cada uma uma vez, até o teto do lado). */
-export function EscolhaDeFichas({ fichas, escolhidas, aoMudar, rotulo }: { fichas: readonly { id: string; nome: string }[]; escolhidas: readonly string[]; aoMudar(ids: string[]): void; rotulo: string }) {
-  return (
-    <div className="lo-tr-fichas" role="group" aria-label={rotulo}>
-      {fichas.map((ficha) => {
-        const marcada = escolhidas.includes(ficha.id)
-        return (
-          <button
-            key={ficha.id}
-            type="button"
-            className="lo-tr-ficha"
-            aria-pressed={marcada}
-            disabled={!marcada && escolhidas.length >= VAGAS_POR_LADO_MAX}
-            onClick={() => aoMudar(marcada ? escolhidas.filter((id) => id !== ficha.id) : [...escolhidas, ficha.id])}
-          >
-            {ficha.nome}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 
 /** As minhas fichas que podem duelar: minhas e na mesa (o servidor confere o dono de novo). */
 function fichasDoDuelo(campanha: EstadoDaCampanha): FichaDoSite[] {
@@ -68,7 +47,9 @@ function minutosAte(ms: number): string {
 function ConviteRecebido({ convite, campanha, minhas, ocupado }: { convite: ConviteDoDuelo; campanha: EstadoDaCampanha; minhas: readonly FichaDoSite[]; ocupado: boolean }) {
   const site = useSite()
   const agora = useAgora(30_000)
-  const [escolhidas, setEscolhidas] = useState<string[]>(minhas[0] === undefined ? [] : [minhas[0].doc.id])
+  // Quem aceita é o Lado B: monta na metade da direita.
+  const [bruta, setLista] = useState<PecaNaGrade[]>(() => montagemInicialDoDuelo(minhas, 'b'))
+  const { lista, fichas: escolhidas } = fichasDoPedido(bruta, minhas, 'b')
   return (
     <li className="lo-tr-convite">
       <p className="lo-tr-convite__texto">
@@ -77,7 +58,7 @@ function ConviteRecebido({ convite, campanha, minhas, ocupado }: { convite: Conv
       {minhas.length === 0 ? (
         <p className="lo-motivo">Você não tem personagem na mesa para aceitar.</p>
       ) : (
-        <EscolhaDeFichas fichas={minhas.map((ficha) => ({ id: ficha.doc.id, nome: ficha.doc.nome }))} escolhidas={escolhidas} aoMudar={setEscolhidas} rotulo="Com quem você luta" />
+        <MontagemDoDuelo minhas={minhas} lado="b" nomeDoOutro={convite.de.nome} lista={lista} onMudar={setLista} />
       )}
       <div className="lo-tr-vez__botoes">
         <button type="button" className="lo-btn lo-btn--primario" disabled={ocupado || escolhidas.length === 0} onClick={() => site.duelo()?.aceitar(convite.id, escolhidas)}>
@@ -94,7 +75,10 @@ function ConviteRecebido({ convite, campanha, minhas, ocupado }: { convite: Conv
 function NovoDesafio({ campanha, colegas, minhas, ocupado }: { campanha: EstadoDaCampanha; colegas: readonly MembroProjetado[]; minhas: readonly FichaDoSite[]; ocupado: boolean }) {
   const site = useSite()
   const [para, setPara] = useState<string | null>(colegas[0]?.contaId ?? null)
-  const [escolhidas, setEscolhidas] = useState<string[]>(minhas[0] === undefined ? [] : [minhas[0].doc.id])
+  // Quem desafia é o Lado A: monta na metade da esquerda.
+  const [bruta, setLista] = useState<PecaNaGrade[]>(() => montagemInicialDoDuelo(minhas, 'a'))
+  const { lista, fichas: escolhidas } = fichasDoPedido(bruta, minhas, 'a')
+  const nomeDoOutro = colegas.find((colega) => colega.contaId === para)?.nome ?? 'o colega'
   const naMesa = new Set(campanha.naMesa.map((presenca) => presenca.contaId))
 
   function desafiar(evento: FormEvent) {
@@ -119,7 +103,7 @@ function NovoDesafio({ campanha, colegas, minhas, ocupado }: { campanha: EstadoD
       </fieldset>
       <div className="lo-campo">
         <span className="lo-tr-rotulo">Com quem você luta (até {VAGAS_POR_LADO_MAX})</span>
-        <EscolhaDeFichas fichas={minhas.map((ficha) => ({ id: ficha.doc.id, nome: ficha.doc.nome }))} escolhidas={escolhidas} aoMudar={setEscolhidas} rotulo="Com quem você luta" />
+        <MontagemDoDuelo minhas={minhas} lado="a" nomeDoOutro={nomeDoOutro} lista={lista} onMudar={setLista} />
       </div>
       <div className="lo-tr-vez__botoes">
         <button type="submit" className="lo-btn lo-btn--primario" disabled={ocupado || para === null || escolhidas.length === 0}>

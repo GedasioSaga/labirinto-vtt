@@ -5,6 +5,7 @@ import { CASA_DA_ARENA, EQUIPE_DO_LADO, GRADE_PEQUENA, limitesDaArena, type Casa
 import { blocosEntre } from '../../../../lib/batalha/blocos'
 import { healthState } from '../../../../lib/tokenHealth'
 import { casaPelaSeta, casaPresaSob, dentroDaGrade, iniciaisDoNome, mesmaCasa, rotuloDaCasa, situacaoDaCasa, type BonecoNaGrade, type SituacaoDaCasa } from './bonecos'
+import { JuizAnimado } from './JuizAnimado'
 import './grade.css'
 
 /**
@@ -54,8 +55,10 @@ export interface GradeDaArenaProps {
 
 /** O que a grade faz a mais na montagem do treino (`MontagemNaGrade.tsx`). */
 export interface MontagemDaGrade {
-  /** A casa sob o item que vem arrastado da lista (a grade só desenha; quem arrasta é a lista). */
-  realce: { casa: CasaDaArena; situacao: 'livre' | 'ocupada' | 'cheio' } | null
+  /** A casa sob o item que vem arrastado da lista (a grade só desenha; quem arrasta é a lista). `texto` troca o rótulo padrão. */
+  realce: { casa: CasaDaArena; situacao: 'livre' | 'ocupada' | 'cheio'; texto?: string } | null
+  /** O nome de cada metade; ausente = o do treino ("Lado A: você joga", "Lado B: o robô joga"). */
+  nomesDasMetades?: Readonly<Record<'a' | 'b', string>>
   /** O rótulo da casa sob a ficha na mão ("Lado B"), no lugar das casas andadas. */
   rotuloDoAlvo(alvo: CasaDaArena): string
   /** O ponteiro com uma ficha na mão (px da janela); `null` = soltou ou desistiu. A lista usa para se acender. */
@@ -365,7 +368,7 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
             <div className="lo-ga-metades" aria-hidden="true">
               {(['a', 'b'] as const).map((lado) => (
                 <div key={lado} className="lo-ga-metade" data-lado={lado} style={{ '--lo-ga-lado': EQUIPE_DO_LADO[lado].cor } as CSSProperties}>
-                  <span className="lo-ga-metade__nome">{lado === 'a' ? `${EQUIPE_DO_LADO.a.nome}: você joga` : `${EQUIPE_DO_LADO.b.nome}: o robô joga`}</span>
+                  <span className="lo-ga-metade__nome">{montagem.nomesDasMetades?.[lado] ?? (lado === 'a' ? `${EQUIPE_DO_LADO.a.nome}: você joga` : `${EQUIPE_DO_LADO.b.nome}: o robô joga`)}</span>
                 </div>
               ))}
             </div>
@@ -374,7 +377,9 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
             <>
               <div className="lo-ga-alvo" data-situacao={montagem.realce.situacao === 'livre' ? 'livre' : 'ocupada'} style={{ transform: posicaoDaCasa(montagem.realce.casa) }} aria-hidden="true" />
               <div className="lo-ga-alvo-rotulo" data-situacao={montagem.realce.situacao === 'livre' ? 'livre' : 'ocupada'} style={{ transform: posicaoDaCasa(montagem.realce.casa) }} aria-hidden="true">
-                <span className="lo-ga-alvo__texto">{montagem.realce.situacao === 'ocupada' ? 'Ocupada' : montagem.realce.situacao === 'cheio' ? 'Lado cheio' : montagem.rotuloDoAlvo(montagem.realce.casa)}</span>
+                <span className="lo-ga-alvo__texto">
+                  {montagem.realce.texto ?? (montagem.realce.situacao === 'ocupada' ? 'Ocupada' : montagem.realce.situacao === 'cheio' ? 'Lado cheio' : montagem.rotuloDoAlvo(montagem.realce.casa))}
+                </span>
               </div>
             </>
           )}
@@ -414,9 +419,12 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
           )}
 
           {bonecos.map((boneco) => {
-            const src = resolver(boneco.retrato)
+            // O Judge fica de pé com a folha animada: o disco vira só a base dele, sem retrato.
+            const src = boneco.juiz === undefined ? resolver(boneco.retrato) : null
             const foto = src !== null && !semFoto.has(src) ? src : null
             const estado = [boneco.lado === 'a' ? EQUIPE_DO_LADO.a.nome : EQUIPE_DO_LADO.b.nome, `casa ${rotuloDaCasa(boneco.casa)}`, boneco.naVez ? 'na vez' : null, boneco.caiu ? 'caiu' : null]
+            // Na primeira e na última coluna o nome inteiro (ao pairar ou focar) cresce para dentro da grade, não para fora.
+            const borda = boneco.casa.col === 0 ? 'esquerda' : boneco.casa.col === grade.colunas - 1 ? 'direita' : undefined
             return (
               <button
                 key={boneco.tokenId}
@@ -432,6 +440,8 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
                 data-vez={boneco.naVez ? '' : undefined}
                 data-caiu={boneco.caiu ? '' : undefined}
                 data-pendente={pendente === boneco.tokenId ? '' : undefined}
+                data-juiz={boneco.juiz === undefined ? undefined : ''}
+                data-borda={borda}
                 aria-label={`${boneco.nome}, ${estado.filter((parte) => parte !== null).join(', ')}`}
                 aria-describedby={boneco.podeAndar ? idDaDica : idDaDicaParada}
                 onPointerDown={(evento) => aoApertar(evento, boneco)}
@@ -460,12 +470,13 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
                     else discos.current.set(boneco.tokenId, disco)
                   }}
                 >
-                  {foto !== null ? (
+                  {boneco.juiz !== undefined ? null : foto !== null ? (
                     <img className="lo-ga-boneco__foto" src={foto} alt="" draggable={false} decoding="async" onError={() => setSemFoto((antes) => new Set(antes).add(foto))} />
                   ) : (
                     <span className="lo-ga-boneco__iniciais">{iniciaisDoNome(boneco.nome)}</span>
                   )}
                 </span>
+                {boneco.juiz !== undefined && <JuizAnimado casa={boneco.casa} olhaPara={boneco.juiz.olhaPara} parado={boneco.caiu} />}
                 {boneco.vida !== null && (
                   <span className="lo-ga-boneco__vida" data-estado={healthState(boneco.vida)} aria-hidden="true">
                     <span style={{ transform: `scaleX(${Math.max(0, Math.min(1, boneco.vida)).toFixed(3)})` }} />

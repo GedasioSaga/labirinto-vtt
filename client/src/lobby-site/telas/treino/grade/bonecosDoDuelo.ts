@@ -2,8 +2,11 @@ import { cartaDaVez } from '../../../../lib/batalha/turnos'
 import type { DueloNoFio } from '../../../../lib/treino/duelo'
 import type { VagaDoTreino } from '../../../../lib/treino/mesaEmMemoria'
 import { recursoDeVida, vidaDoPersonagem } from '../../../../lib/vidaDaFicha'
+import type { CasaDaArena } from '../../../../lib/arena/grade'
 import { SISTEMA_DO_LOBBY } from '../../contexto'
+import { ID_DO_JUIZ } from '../juiz/juizDoTreino'
 import type { BonecoNaGrade } from './bonecos'
+import { quemOJuizOlha } from './olharDoJuiz'
 import { retratoDoBoneco } from './retratos'
 
 /**
@@ -14,6 +17,12 @@ import { retratoDoBoneco } from './retratos'
  */
 
 const RECURSO_DA_VIDA = recursoDeVida(SISTEMA_DO_LOBBY)
+
+/** O Judge na luta: para quem ele olha (o golpe que o envolve, senão a ficha da vez), como casa da grade. */
+function olharDoJuiz(duelo: DueloNoFio, tokenId: string): { olhaPara: CasaDaArena | null } {
+  const outro = quemOJuizOlha(duelo.turnos, tokenId)
+  return { olhaPara: outro === null ? null : (duelo.posicoes[outro] ?? null) }
+}
 
 export function bonecosDoDuelo(duelo: DueloNoFio, demo: boolean, podeAndar: (vaga: VagaDoTreino, dePe: boolean) => boolean): BonecoNaGrade[] {
   const vezDe = duelo.fim === null ? (cartaDaVez(duelo.turnos)?.tokenId ?? null) : null
@@ -26,6 +35,7 @@ export function bonecosDoDuelo(duelo: DueloNoFio, demo: boolean, podeAndar: (vag
     const vida = RECURSO_DA_VIDA === null ? null : vidaDoPersonagem(doc, RECURSO_DA_VIDA)
     const dePe = vida === null || vida.atual > 0
     bonecos.push({
+      ...(vaga.origem === ID_DO_JUIZ ? { juiz: olharDoJuiz(duelo, vaga.tokenId) } : {}),
       tokenId: vaga.tokenId,
       nome: doc.nome,
       lado: vaga.lado,
