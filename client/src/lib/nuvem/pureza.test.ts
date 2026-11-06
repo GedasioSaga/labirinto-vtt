@@ -1,3 +1,6 @@
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
@@ -213,4 +216,109 @@ describe('pureza do núcleo da nuvem', () => {
   it('toda exceção ainda vale: a que não é mais usada sai da lista', () => {
     expect([...EXCECOES].filter((excecao) => !fecho().excecoesUsadas.has(excecao))).toEqual([])
   })
+})
+
+// ── O bundle do Worker ───────────────────────────────────────────────────────
+
+/**
+ * A guarda de cima só segue os imports de `lib/nuvem`. O Worker
+ * (`lobby/nuvem`) importa mais do app: o duelo da T6 chega à regra do treino e
+ * à fábrica da batalha One Piece, e foi por ali que React e zustand entraram no
+ * bundle sem nenhum teste ver (auditoria da fase 1 do Lobby). Esta parte olha o
+ * que o wrangler empacota DE VERDADE: roda o `wrangler deploy --dry-run` (nada
+ * sobe, nenhuma conta é usada) numa pasta temporária e reprova módulo proibido
+ * no metafile e `document.` no código.
+ */
+const PASTA_DO_WORKER = 'lobby/nuvem'
+const WRANGLER = 'node_modules/wrangler/bin/wrangler.js'
+/** O dry-run leva ~3 s sozinho; com a suíte em paralelo, bem mais. */
+const TEMPO_DO_DRY_RUN_MS = 90_000
+const TEMPO_DO_TESTE_MS = TEMPO_DO_DRY_RUN_MS + 30_000
+/** Módulo de pacote que não pode entrar no Worker, pelo caminho no metafile. Do zustand, só a parte sem React (`zustand/vanilla`). */
+const MODULOS_PROIBIDOS: readonly { nome: string; padrao: RegExp }[] = [
+  { nome: 'react', padrao: /node_modules\/(react|react-dom)\// },
+  { nome: 'zustand com react', padrao: /node_modules\/zustand\/(?!esm\/vanilla\.mjs$)/ },
+  { nome: '@tauri-apps', padrao: /node_modules\/@tauri-apps\// },
+  { nome: 'pixi', padrao: /node_modules\/(pixi\.js|@pixi)\// },
+]
+const TEXTO_PROIBIDO = 'document.'
+/** Quanto do código em volta de cada `document.` achado vai na mensagem. */
+const CONTEXTO_DO_ACHADO = 60
+
+interface BundleDoWorker {
+  /** Os módulos que entraram, como o metafile os escreve (relativos a `lobby/nuvem`). */
+  entradas: string[]
+  codigo: string
+}
+
+/** A raiz do repo: `client/src/lib/nuvem` sobe quatro pastas. */
+function raizDoRepo(): string {
+  return comBarra(ts.sys.resolvePath(`${pastaDaNuvem()}/../../../..`))
+}
+
+function entradasDoMetafile(texto: string): string[] {
+  const lido: unknown = JSON.parse(texto)
+  if (typeof lido !== 'object' || lido === null || !('inputs' in lido) || typeof lido.inputs !== 'object' || lido.inputs === null) {
+    throw new Error('o metafile do dry-run não tem "inputs"')
+  }
+  return Object.keys(lido.inputs).map(comBarra)
+}
+
+/** Roda o `wrangler deploy --dry-run` do Worker e lê o metafile e o `index.js`; a pasta temporária sai no fim. */
+function empacotarOWorker(): BundleDoWorker {
+  const raiz = raizDoRepo()
+  const saida = comBarra(mkdtempSync(`${comBarra(tmpdir())}/pureza-do-worker-`))
+  try {
+    const rodada = spawnSync('node', [`${raiz}/${WRANGLER}`, 'deploy', '--dry-run', '--outdir', saida, '--metafile', `${saida}/meta.json`], {
+      cwd: `${raiz}/${PASTA_DO_WORKER}`,
+      encoding: 'utf8',
+      timeout: TEMPO_DO_DRY_RUN_MS,
+      windowsHide: true,
+    })
+    if (rodada.error !== undefined) throw new Error(`o wrangler não rodou: ${rodada.error.message}`)
+    if (rodada.status !== 0) throw new Error(`wrangler deploy --dry-run saiu com ${String(rodada.status)}: ${rodada.stderr}`)
+    const meta = ts.sys.readFile(`${saida}/meta.json`)
+    const codigo = ts.sys.readFile(`${saida}/index.js`)
+    if (meta === undefined || codigo === undefined) throw new Error(`o dry-run não deixou meta.json e index.js em ${saida}`)
+    return { entradas: entradasDoMetafile(meta), codigo }
+  } finally {
+    rmSync(saida, { recursive: true, force: true })
+  }
+}
+
+/** Cada `document.` do código, com um pedaço em volta para achar de onde veio. */
+function usosDoDocument(codigo: string): string[] {
+  const achados: string[] = []
+  for (let indice = codigo.indexOf(TEXTO_PROIBIDO); indice !== -1; indice = codigo.indexOf(TEXTO_PROIBIDO, indice + 1)) {
+    achados.push(codigo.slice(Math.max(0, indice - CONTEXTO_DO_ACHADO), indice + CONTEXTO_DO_ACHADO))
+  }
+  return achados
+}
+
+describe('pureza do bundle do Worker (o que o wrangler empacota em lobby/nuvem)', () => {
+  let guardado: BundleDoWorker | null = null
+  const bundle = (): BundleDoWorker => {
+    guardado ??= empacotarOWorker()
+    return guardado
+  }
+
+  it(
+    'nenhum módulo de react, zustand com react, @tauri-apps ou pixi entra no bundle',
+    () => {
+      const { entradas } = bundle()
+      // O bundle tem o Worker de verdade: lista vazia não passa por engano.
+      expect(entradas).toContain('src/index.ts')
+      const achados = entradas.flatMap((entrada) => MODULOS_PROIBIDOS.filter(({ padrao }) => padrao.test(entrada)).map(({ nome }) => `${nome}: ${entrada}`))
+      expect(achados).toEqual([])
+    },
+    TEMPO_DO_TESTE_MS,
+  )
+
+  it(
+    'nenhum document. no código empacotado',
+    () => {
+      expect(usosDoDocument(bundle().codigo)).toEqual([])
+    },
+    TEMPO_DO_TESTE_MS,
+  )
 })
