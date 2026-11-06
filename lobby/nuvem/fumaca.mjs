@@ -18,7 +18,10 @@
 //                                             fixado aparece no mural.estado de quem entra e some para quem leu;
 //                                             modificações da jogadora sem notaDoMestre, NPC nem e-mail
 //      node fumaca.mjs duelo               -> a T6 (Nami e Zoro, contas falsas): convite, aceite (cada conta recebe a
-//                                             vista do lado dela, M2), duelo curto até o fim
+//                                             vista do lado dela, M2); o andar na grade (M1): fora da vez,
+//                                             casa ocupada e ficha do outro lado = recusa, a ficha da vez anda
+//                                             e as duas contas veem a casa nova, sem o que só o outro lado vê;
+//                                             duelo curto até o fim
 //                                             com todo Atacar pedindo dano 99999 (o servidor aplica o da ficha);
 //                                             no meio, a 2ª aba fecha sem deixar ausente e a única aba fecha e volta
 //                                             antes dos 3 min; imprime o vencedor. Depois: Zoro convida de novo,
@@ -1002,6 +1005,117 @@ async function vistasDoComeco(salas, duelo) {
   conferir('o fio de cada conta vem recortado para o lado dela: combate, contra-ataques e lembretes só das fichas dela; as fichas (Vida e Escudo) inteiras e iguais nos dois (M2)', Object.values(recortes).every((r) => Object.values(r).every(Boolean)), JSON.stringify(recortes))
 }
 
+// ── O andar na grade (M1) pelo DO de verdade ────────────────────────────────
+
+/** A grade do duelo (`GRADE_DO_TREINO` em mesaEmMemoria.ts): a pequena da Arena. */
+const GRADE_DO_DUELO = { colunas: 12, linhas: 8 }
+
+/** A carta da vez: o lado, o token e a `vez` que o andar leva (como o agir). */
+function cartaDaVezNoDuelo(duelo) {
+  const carta = duelo.turnos.cartas.find((candidata) => candidata.id === duelo.turnos.vez)
+  if (carta === undefined) throw new Error('duelo sem vez')
+  return { lado: vagaDoToken(duelo, carta.tokenId).lado, cartaId: carta.id, tokenId: carta.tokenId, vez: { cartaId: carta.id, rodada: duelo.turnos.rodada } }
+}
+
+/** Uma casa vizinha de `tokenId`, dentro da grade e sem ficha (o passo de 1 bloco). */
+function casaLivreAoLado(duelo, tokenId) {
+  const { col, row } = duelo.posicoes[tokenId]
+  const ocupadas = new Set(Object.values(duelo.posicoes).map((casa) => `${casa.col},${casa.row}`))
+  for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const casa = { col: col + dc, row: row + dr }
+    const naGrade = casa.col >= 0 && casa.row >= 0 && casa.col < GRADE_DO_DUELO.colunas && casa.row < GRADE_DO_DUELO.linhas
+    if (naGrade && !ocupadas.has(`${casa.col},${casa.row}`)) return casa
+  }
+  throw new Error(`nenhuma casa livre ao lado de ${tokenId}`)
+}
+
+/** Manda um andar sobre o `seq` de `duelo` e devolve o motivo da recusa, ou "aceito" se o estado andou. */
+async function motivoDoAndar(sala, duelo, andar) {
+  await sala.mandar({ t: 'duelo.jogar', id: duelo.id, jogada: { tipo: 'andar', seq: duelo.seq, ...andar } })
+  const resposta = await doDuelo(sala, (m) => (m.t === 'duelo.recusado' && m.id === duelo.id) || (m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.seq > duelo.seq), `a resposta do andar de ${sala.email}`)
+  return resposta.t === 'duelo.recusado' ? resposta.motivo : `aceito (seq ${resposta.duelo.seq})`
+}
+
+/**
+ * O que, no frame de um lado, só o OUTRO lado pode ver: a vez e as ações dele; o combate (`meus`), os
+ * contra-ataques, as reações e os lembretes das fichas dele; e a carta dele aberta (perfil, Escudo, caiu).
+ * Vazio = nada vazou.
+ */
+function vazamentosDoOutroLado(frame, lado, ladoDaVez) {
+  const doLado = frame.lutadores.vagas.filter((vaga) => vaga.lado === lado)
+  const meusTokens = new Set(doLado.map((vaga) => vaga.tokenId))
+  const minhasFichas = new Set(doLado.map((vaga) => vaga.personagemId))
+  const { vista, turnos } = frame
+  const achados = []
+  if (vista.minhaVez !== (lado === ladoDaVez)) achados.push(`vista.minhaVez ${vista.minhaVez}`)
+  if (lado !== ladoDaVez && vista.acoes !== undefined) achados.push('vista.acoes da vez do outro')
+  for (const id of Object.keys(turnos.combate ?? {})) if (!minhasFichas.has(id)) achados.push(`turnos.combate ${id}`)
+  for (const contra of turnos.contras ?? []) if (!meusTokens.has(contra.tokenId)) achados.push(`turnos.contras ${contra.tokenId}`)
+  for (const lembrete of turnos.lembretesDaMarca ?? []) if (!meusTokens.has(lembrete.tokenId)) achados.push(`turnos.lembretesDaMarca ${lembrete.tokenId}`)
+  for (const meu of vista.meus ?? []) if (!minhasFichas.has(meu.personagemId)) achados.push(`vista.meus ${meu.personagemId}`)
+  for (const reacao of vista.reacoes ?? []) if (!meusTokens.has(reacao.tokenId)) achados.push(`vista.reacoes ${reacao.tokenId}`)
+  for (const contra of vista.contras ?? []) if (!meusTokens.has(contra.tokenId)) achados.push(`vista.contras ${contra.tokenId}`)
+  for (const carta of vista.cartas) {
+    const aberta = carta.lado !== 'outro' || 'personagemId' in carta || 'escudo' in carta || 'caiu' in carta
+    if (!meusTokens.has(carta.tokenId) && aberta) achados.push(`vista.cartas ${carta.tokenId} (${carta.lado})`)
+  }
+  return achados
+}
+
+/**
+ * Fatia M1 contra o DO: antes de qualquer golpe, as três recusas (fora da vez, casa ocupada, ficha do
+ * outro lado) sobre o mesmo `seq`, depois o andar da ficha da vez para a casa vizinha livre. Se uma
+ * recusa tivesse sido aplicada, o andar certo chegaria com `seq` velho e seria recusado.
+ */
+async function andarNaGrade(salas, duelo) {
+  const daVez = cartaDaVezNoDuelo(duelo)
+  const outroLado = daVez.lado === 'a' ? 'b' : 'a'
+  const salaDaVez = salas[duelo.jogadores[daVez.lado].contaId]
+  const salaDoOutro = salas[duelo.jogadores[outroLado].contaId]
+  const vagaDoOutro = duelo.lutadores.vagas.find((vaga) => vaga.lado === outroLado)
+  const casaDoOutro = duelo.posicoes[vagaDoOutro.tokenId]
+  const livreDoOutro = casaLivreAoLado(duelo, vagaDoOutro.tokenId)
+  console.log(`        andar: vez do Lado ${daVez.lado.toUpperCase()} (${daVez.tokenId} em ${JSON.stringify(duelo.posicoes[daVez.tokenId])}); ${vagaDoOutro.tokenId} em ${JSON.stringify(casaDoOutro)}`)
+
+  const foraDaVez = await motivoDoAndar(salaDoOutro, duelo, { vez: daVez.vez, tokenId: vagaDoOutro.tokenId, ...livreDoOutro })
+  console.log(`        (b) Lado ${outroLado.toUpperCase()} anda a própria ficha fora da vez para ${JSON.stringify(livreDoOutro)}: ${foraDaVez}`)
+  conferir('andar fora da vez = recusado (regra)', foraDaVez === 'regra', foraDaVez)
+
+  const ocupada = await motivoDoAndar(salaDaVez, duelo, { vez: daVez.vez, tokenId: daVez.tokenId, ...casaDoOutro })
+  console.log(`        (c) a ficha da vez anda para a casa ocupada ${JSON.stringify(casaDoOutro)}: ${ocupada}`)
+  conferir('andar para casa ocupada = recusado (regra)', ocupada === 'regra', ocupada)
+
+  const fichaDoOutro = await motivoDoAndar(salaDaVez, duelo, { vez: daVez.vez, tokenId: vagaDoOutro.tokenId, ...livreDoOutro })
+  console.log(`        (d) o Lado ${daVez.lado.toUpperCase()} anda a ficha do outro lado para ${JSON.stringify(livreDoOutro)}: ${fichaDoOutro}`)
+  conferir('andar com a ficha do outro lado = recusado (naoEDaConta)', fichaDoOutro === 'naoEDaConta', fichaDoOutro)
+
+  const destino = casaLivreAoLado(duelo, daVez.tokenId)
+  const depois = (sala) => doDuelo(sala, (m) => (m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.seq === duelo.seq + 1) || (m.t === 'duelo.recusado' && m.id === duelo.id), `o estado depois do andar em ${sala.email}`)
+  const chegaram = Promise.all([depois(salaDaVez), depois(salaDoOutro)])
+  await salaDaVez.mandar({ t: 'duelo.jogar', id: duelo.id, jogada: { tipo: 'andar', seq: duelo.seq, vez: daVez.vez, tokenId: daVez.tokenId, ...destino } })
+  const [naVez, noOutro] = await chegaram
+  if (naVez.t !== 'duelo.estado') throw new Error(`andar recusado: ${naVez.motivo}`)
+  const frames = { [daVez.lado]: naVez.duelo, [outroLado]: noOutro.duelo }
+  const naCasa = (frame, tokenId, casa) => frame?.posicoes?.[tokenId]?.col === casa.col && frame.posicoes[tokenId].row === casa.row
+  const andouNasDuas = [naVez, noOutro].every((resposta) => resposta.t === 'duelo.estado' && naCasa(resposta.duelo, daVez.tokenId, destino) && naCasa(resposta.duelo, vagaDoOutro.tokenId, casaDoOutro))
+  const mov = naVez.duelo.turnos.gastos?.[daVez.cartaId]?.blocos
+  console.log(`        (a) a ficha da vez anda para ${JSON.stringify(destino)}: seq ${naVez.duelo.seq} nas duas contas, MOV da vez ${mov} bloco(s)`)
+  conferir(
+    'a ficha da vez anda para a casa livre: as duas contas recebem o estado com a posição nova (e a do outro igual)',
+    andouNasDuas,
+    JSON.stringify({ naVez: naVez.t === 'duelo.estado' ? naVez.duelo.posicoes : naVez, noOutro: noOutro.t === 'duelo.estado' ? noOutro.duelo.posicoes : noOutro }),
+  )
+
+  const vazouEmA = vazamentosDoOutroLado(frames.a, 'a', daVez.lado)
+  const vazouEmB = vazamentosDoOutroLado(frames.b, 'b', daVez.lado)
+  // Controle: o que falta no frame de A existe no de B (o combate da ficha de B), então é recorte, não ausência.
+  const fichaDeB = frames.b.lutadores.vagas.find((vaga) => vaga.lado === 'b').personagemId
+  const bTemOProprio = (frames.b.vista.meus ?? []).some((meu) => meu.personagemId === fichaDeB)
+  console.log(`        (e) depois do andar, só-do-outro no frame de A: ${JSON.stringify(vazouEmA)}; no de B: ${JSON.stringify(vazouEmB)}; B traz o combate da ficha dele: ${bTemOProprio}`)
+  conferir('a vista de A não traz o que só B vê (combate, contra-ataques, reações, ações e carta aberta de B), e B traz o dele', vazouEmA.length === 0 && vazouEmB.length === 0 && bTemOProprio, JSON.stringify({ vazouEmA, vazouEmB, bTemOProprio }))
+  return naVez.duelo
+}
+
 /**
  * Sem tempo por turno (12.15), quem cansou de esperar desiste. Zoro convida (o duelo acabado não o
  * deixou "ocupado"), a Nami aceita e o Zoro desiste no meio: os dois recebem o fim, a Nami vence.
@@ -1053,6 +1167,7 @@ async function aceiteDoDuelo() {
     const golpes = []
     let duelo = await comecarDuelo(salas.conta_nami, salas.conta_zoro, 'conta_zoro', 'pers_nami', 'pers_zoro')
     await vistasDoComeco(salas, duelo)
+    duelo = await andarNaGrade(salas, duelo)
     let caiuEVoltou = false
     for (let jogadas = 0; duelo.fim === null; jogadas += 1) {
       if (jogadas >= 40) throw new Error('o duelo não acabou em 40 jogadas')
