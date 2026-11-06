@@ -52,12 +52,16 @@ function Icone({ tom }: { tom: TomDoIndicador }) {
   )
 }
 
+/** A dica fica à vista, não num `title`: no teclado e no toque o `title` não aparece. */
 export function IndicadorDoLobby({ campanha }: { campanha: CampanhaNoApp }) {
   const leitura = lerIndicador(campanha)
   return (
-    <p className="lby-sinc" data-tom={leitura.tom} role="status" title={leitura.dica ?? undefined}>
-      <Icone tom={leitura.tom} />
-      <span>{leitura.texto}</span>
-    </p>
+    <div className="lby-sinc-bloco" role="status">
+      <p className="lby-sinc" data-tom={leitura.tom}>
+        <Icone tom={leitura.tom} />
+        <span>{leitura.texto}</span>
+      </p>
+      {leitura.dica !== null && <p className="lby-sinc__dica">{leitura.dica}</p>}
+    </div>
   )
 }

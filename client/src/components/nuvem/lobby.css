@@ -186,6 +186,9 @@
 .lby-sinc[data-tom='ok'] .lby-ic { color: var(--lb-color-online); }
 .lby-sinc[data-tom='atencao'] { color: var(--lb-color-brass-bright); }
 .lby-sinc[data-tom='erro'] { color: var(--lb-color-ember); }
+/* A frase curta numa linha; a dica (o que fazer) logo abaixo, quebrando. */
+.lby-sinc-bloco { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 44ch; }
+.lby-sinc__dica { margin: 0; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); line-height: 1.4; }
 
 /* ---- publicar, conta, decidir: blocos de pedra rasa */
 .lby-publicar,
