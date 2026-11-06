@@ -115,99 +115,8 @@
 }
 .lo-tr-semente__botoes { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
 
-.lo-tr-estado {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--lb-space-2) var(--lb-space-4);
-  color: var(--lb-color-parchment-dim);
-}
-
-/* O fim da luta: a cor diz o tom, o texto diz o resultado (nunca só a cor). */
-.lo-tr-fim {
-  padding: var(--lb-space-4) var(--lb-space-5);
-  border: 1px solid var(--lb-color-line-strong);
-  border-left: 3px solid var(--tom-do-fim, var(--lb-color-parchment-dim));
-  border-radius: var(--lb-radius-md);
-  background: var(--lb-color-stone-raised);
-  animation: lo-tr-entra 220ms var(--lb-gr-ease-out);
-}
-.lo-tr-fim[data-tom='vitoria'] { --tom-do-fim: var(--lb-color-online); }
-.lo-tr-fim[data-tom='derrota'] { --tom-do-fim: var(--lb-color-ember); }
-.lo-tr-fim__texto { font-family: var(--lb-font-display); font-size: var(--lb-font-size-xl); color: var(--lb-color-parchment); }
-.lo-tr-fim__nota { margin-top: var(--lb-space-1); color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
-
-/* ------------------------------------------------- a minha vez */
-
-.lo-tr-vez {
-  display: grid;
-  gap: var(--lb-space-4);
-  padding: var(--lb-space-4) var(--lb-space-5);
-  border: 1px solid var(--lb-color-brass);
-  border-radius: var(--lb-radius-lg);
-  background: color-mix(in srgb, var(--lb-color-brass) 7%, var(--lb-color-stone-solid));
-}
-.lo-tr-vez__titulo { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-semibold); }
-.lo-tr-vez__dado { color: var(--lb-color-parchment-dim); }
-.lo-tr-vez__dado b { color: var(--lb-color-parchment); font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+/* A fileira de botões de um bloco (o convite, o desafio, a luta em andamento). A luta em si mora na Arena (arenaDaLuta.css). */
 .lo-tr-vez__botoes { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
-
-.lo-tr-escolhas { display: grid; gap: var(--lb-space-4); }
-@media (min-width: 720px) {
-  .lo-tr-escolhas { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
-}
-
-/* ------------------------------------------------- arena */
-
-.lo-tr-arena { display: grid; gap: var(--lb-space-5); }
-.lo-tr-lados { display: grid; gap: var(--lb-space-4); }
-@media (min-width: 640px) {
-  .lo-tr-lados { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-.lo-tr-lado { display: grid; gap: var(--lb-space-3); align-content: start; min-width: 0; }
-.lo-tr-lado__titulo { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-medium); }
-.lo-tr-lutadores { display: grid; gap: var(--lb-space-2); }
-
-.lo-tr-lutador {
-  display: grid;
-  gap: var(--lb-space-2);
-  padding: var(--lb-space-3) var(--lb-space-4);
-  border: 1px solid var(--lb-color-line);
-  border-radius: var(--lb-radius-md);
-  background: var(--lb-color-stone-sunken);
-  transition: border-color var(--lb-motion-fast) ease, opacity var(--lb-motion-fast) ease;
-}
-.lo-tr-lutador[data-vez='1'] { border-color: var(--lb-color-brass); box-shadow: inset 3px 0 0 var(--lb-color-brass); }
-.lo-tr-lutador[data-caiu='1'] { opacity: 0.6; }
-.lo-tr-lutador__cab { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2); }
-.lo-tr-lutador__nome { min-width: 0; color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-semibold); overflow-wrap: anywhere; }
-.lo-tr-lutador__escudo { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; }
-
-.lo-tr-registro { display: grid; gap: var(--lb-space-2); min-width: 0; }
-.lo-tr-registro__linhas {
-  display: grid;
-  gap: var(--lb-space-1);
-  max-height: 280px;
-  padding: var(--lb-space-3);
-  overflow-y: auto;
-  border: 1px solid var(--lb-color-line);
-  border-radius: var(--lb-radius-md);
-  background: var(--lb-color-stone-sunken);
-  overscroll-behavior: contain;
-}
-.lo-tr-linha {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: var(--lb-space-2);
-  color: var(--lb-color-parchment-dim);
-  font-size: var(--lb-font-size-sm);
-  overflow-wrap: anywhere;
-  animation: lo-tr-entra 180ms var(--lb-gr-ease-out);
-}
-.lo-tr-linha:last-child { color: var(--lb-color-parchment); }
-.lo-tr-linha__rodada { font-family: var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------- 100 lutas e build */
 
@@ -300,37 +209,20 @@
 .lo-tr-convite__texto b { color: var(--lb-color-parchment); }
 .lo-tr-desafio { display: grid; gap: var(--lb-space-5); max-width: 560px; }
 
-.lo-tr-duelo { display: grid; gap: var(--lb-space-5); }
-.lo-tr-ausente {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--lb-space-2);
-  padding: var(--lb-space-3) var(--lb-space-4);
-  border: 1px solid var(--lb-color-ember);
-  border-radius: var(--lb-radius-md);
-  background: var(--lb-color-ember-soft);
-  color: var(--lb-color-parchment);
-  animation: lo-tr-entra 200ms var(--lb-gr-ease-out);
-}
-.lo-tr-ausente__ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--lb-color-ember); }
-.lo-tr-ausente__relogio { font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; font-weight: var(--lb-font-weight-semibold); }
-.lo-tr-desistir { display: flex; justify-content: flex-end; }
-
 .lo-tr-acabados { display: grid; gap: var(--lb-space-2); }
-.lo-tr-acabado { border: 1px solid var(--lb-color-line); border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); }
-.lo-tr-acabado > summary {
+/* Um duelo acabado: o resultado, a rodada e o "Rever a luta" (abre a Arena só para olhar). */
+.lo-tr-acabado {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--lb-space-2);
+  gap: var(--lb-space-2) var(--lb-space-4);
   min-height: 44px;
-  padding: var(--lb-space-2) var(--lb-space-4);
-  cursor: pointer;
+  padding: var(--lb-space-1) var(--lb-space-2) var(--lb-space-1) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
 }
-.lo-tr-acabado[open] > summary { border-bottom: 1px solid var(--lb-color-line); }
-.lo-tr-acabado > .lo-tr-arena { padding: var(--lb-space-4); }
+.lo-tr-acabado > .lo-btn { margin-left: auto; }
 .lo-tr-acabado__texto { color: var(--lb-color-parchment); }
 .lo-tr-acabado__texto[data-tom='vitoria']::before, .lo-tr-acabado__texto[data-tom='derrota']::before {
   content: '';
@@ -349,7 +241,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lo-tr-linha, .lo-tr-fim, .lo-tr-resultado, .lo-tr-ausente { animation-name: lo-tr-aparece; }
+  .lo-tr-resultado { animation-name: lo-tr-aparece; }
   .lo-tr-progresso__barra > span { transition: none; }
   .lo-tr-ficha { transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
   .lo-tr-ficha:active:not(:disabled) { transform: none; }

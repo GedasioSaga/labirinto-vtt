@@ -206,9 +206,6 @@
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
 
-.lo-ga-boneco:focus-visible .lo-ga-boneco__disco {
-  box-shadow: 0 0 0 3px var(--lo-ga-lado), 0 0 0 5px var(--lb-color-stone-solid), 0 0 0 7px var(--lb-color-brass);
-}
 @media (hover: hover) and (pointer: fine) {
   .lo-ga-boneco[data-pode]:hover .lo-ga-boneco__disco {
     box-shadow: 0 0 0 3px var(--lo-ga-lado), 0 0 0 4px rgba(236, 234, 228, 0.35), 0 3px 8px rgba(0, 0, 0, 0.5);
@@ -225,6 +222,19 @@
 .lo-ga-boneco[data-caiu] .lo-ga-boneco__disco {
   filter: grayscale(1) brightness(0.62);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--lo-ga-lado) 45%, var(--lb-color-stone-solid));
+}
+
+/*
+ * O anel de foco do teclado (revisão da G2): vem depois da ficha caída e pesa
+ * mais que o pairar (0,5,0 contra 0,4,0), então a ficha focada com o ponteiro
+ * em cima, ou caída, ainda mostra o latão. A caída guarda o anel apagado do
+ * lado por dentro. Na mão, o arrasto manda (a sombra de levantar).
+ */
+.lo-ga-tabuleiro .lo-ga-boneco:focus-visible:not([data-na-mao]) .lo-ga-boneco__disco {
+  box-shadow: 0 0 0 3px var(--lo-ga-lado), 0 0 0 5px var(--lb-color-stone-solid), 0 0 0 7px var(--lb-color-brass);
+}
+.lo-ga-tabuleiro .lo-ga-boneco[data-caiu]:focus-visible:not([data-na-mao]) .lo-ga-boneco__disco {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lo-ga-lado) 45%, var(--lb-color-stone-solid)), 0 0 0 5px var(--lb-color-stone-solid), 0 0 0 7px var(--lb-color-brass);
 }
 
 /* O anel da vez: chega de fora, maior e transparente, e fecha sobre a ficha (o anel da vez do app). */

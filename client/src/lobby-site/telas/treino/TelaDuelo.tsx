@@ -1,15 +1,20 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import type { CasaDaArena } from '../../../lib/arena/grade'
+import { cartaDaVez } from '../../../lib/batalha/turnos'
 import type { MembroProjetado } from '../../../lib/nuvem/tipos'
 import { VOLTA_DO_AUSENTE_MS, type DueloNoFio, type JogadaDoDuelo } from '../../../lib/treino/duelo'
 import type { ConviteDoDuelo } from '../../../lib/treino/dueloDoLobby'
 import { VAGAS_POR_LADO_MAX, type LadoDoTreino } from '../../../lib/treino/mesaEmMemoria'
-import type { EstadoDoDuelo } from '../../dados/dueloDaCampanha'
+import type { DueloRecebido } from '../../../lib/treino/vistaDoDuelo'
+import type { EstadoDoDuelo, RecusaDoDuelo } from '../../dados/dueloDaCampanha'
 import { candidatasDoRobo, proximaDoRobo } from '../../dados/roboDoDuelo'
 import type { EstadoDaCampanha, FichaDoSite } from '../../dados/sessaoDaCampanha'
 import { SISTEMA_DO_LOBBY, useAgora, useSite } from '../contexto'
-import { ArenaDaLuta, nomeDaVez } from './ArenaDaLuta'
-import { oQueEsperaDeMim, PainelDaVez } from './PainelDaVez'
-import { relogioDaVolta, textoDaRecusa, textoDoConviteFechado, textoDoFim, tomDoFim } from './textosDoTreino'
+import { Icone } from '../Icone'
+import { ArenaDaLuta, type JogadasDaLuta } from './ArenaDaLuta'
+import type { RespostaDoAndar } from './grade/GradeDaArena'
+import { nomeDaVez, oQueEsperaDeMim } from './quemJoga'
+import { contar, relogioDaVolta, textoDaRecusa, textoDoConviteFechado, textoDoFim, tomDoFim } from './textosDoTreino'
 
 /**
  * O DUELO entre jogadores (fatia T7, sobre o protocolo `duelo.*` da T6):
@@ -17,7 +22,8 @@ import { relogioDaVolta, textoDaRecusa, textoDoConviteFechado, textoDoFim, tomDo
  * recebido, lutar turno a turno sem relógio (resposta 12.15: cada um joga
  * quando puder; quem cansar desiste e o outro vence) e ver o resumo no fim.
  * Quem cai da conexão tem 3 minutos para voltar: a tela mostra a contagem.
- * O servidor decide tudo (o dano, a vez, quem venceu); a tela só pede.
+ * O servidor decide tudo (o dano, a vez, quem venceu); a tela só pede. A luta
+ * abre na Arena (fatia H, `ArenaDaLuta`) com a vista do lado desta conta.
  */
 
 /** Os botões de ligar e desligar fichas (cada uma uma vez, até o teto do lado). */
@@ -124,44 +130,145 @@ function NovoDesafio({ campanha, colegas, minhas, ocupado }: { campanha: EstadoD
   )
 }
 
-function DueloEmAndamento({ duelo, meuLado, ocupado }: { duelo: DueloNoFio; meuLado: LadoDoTreino; ocupado: boolean }) {
+/** O andar que saiu ao servidor e espera a resposta: a grade segura a ficha na casa nova até ela chegar. */
+interface AndarNoServidor {
+  tokenId: string
+  casa: CasaDaArena
+  responder: (aceito: boolean) => void
+}
+
+/** A linha do que acontece agora no duelo, quando não é o menu da minha vez que diz. */
+function estadoDoDuelo(duelo: DueloNoFio, meuLado: LadoDoTreino, outro: string, ocupado: boolean): string | null {
+  if (ocupado) return 'Enviando a jogada…'
+  const espera = oQueEsperaDeMim(duelo, meuLado)
+  const vez = nomeDaVez(duelo)
+  if (espera === 'agir') return null
+  if (espera === 'reagir') return `${vez?.nome ?? 'O outro lado'} golpeou: a defesa é sua (REAÇÃO).`
+  if (vez === null || vez.lado === meuLado) return `Esperando ${outro} reagir. Sem relógio: cada um joga quando puder.`
+  return `Vez de ${vez.nome}: esperando ${outro} jogar. Sem relógio: cada um joga quando puder.`
+}
+
+/**
+ * O duelo na Arena (fatia H): o HUD com a vista do meu lado (M2), as jogadas
+ * pelo protocolo `duelo.*` e o andar pelo servidor (só a ficha da vez, ou a do
+ * "Mover" do contra-ataque). Acabado, a mesma tela mostra o resumo e só se olha.
+ */
+function DueloNaArena({ duelo, meuLado, ocupado, recusa, onFechar }: { duelo: DueloRecebido; meuLado: LadoDoTreino; ocupado: boolean; recusa: RecusaDoDuelo | null; onFechar(): void }) {
   const site = useSite()
   const agora = useAgora(1_000)
   const [confirmarDesistencia, setConfirmarDesistencia] = useState(false)
+  const andando = useRef<AndarNoServidor | null>(null)
   const outroLado: LadoDoTreino = meuLado === 'a' ? 'b' : 'a'
   const outro = duelo.jogadores[outroLado]
-  const espera = oQueEsperaDeMim(duelo, meuLado)
-  const vez = nomeDaVez(duelo)
+  const fim = duelo.fim
 
-  function jogar(jogada: JogadaDoDuelo) {
-    site.duelo()?.jogar(duelo.id, jogada)
+  function jogar(jogada: JogadaDoDuelo): boolean {
+    return site.duelo()?.jogar(duelo.id, jogada) ?? false
   }
+  const jogadas = useMemo<JogadasDaLuta | null>(
+    () =>
+      duelo.fim !== null
+        ? null
+        : {
+            agir: (vez, pedido) => jogar({ tipo: 'agir', seq: duelo.seq, vez, pedido }),
+            reagir: (pedido) => jogar({ tipo: 'reagir', seq: duelo.seq, pedido }),
+            passarVez: (cartaId, rodada) => jogar({ tipo: 'passar', seq: duelo.seq, vez: { cartaId, rodada } }),
+          },
+    // A jogada leva o `seq` do estado que a tela mostra: a conexão muda com o duelo.
+    [duelo],
+  )
+
+  // A resposta do andar: quando o pedido termina, a ficha ficou na casa pedida (aceito) ou não (recusado: ela volta).
+  useEffect(() => {
+    const pendente = andando.current
+    if (pendente === null || ocupado) return
+    andando.current = null
+    const casa = duelo.posicoes[pendente.tokenId]
+    pendente.responder(casa !== undefined && casa.col === pendente.casa.col && casa.row === pendente.casa.row)
+  }, [ocupado, duelo])
+  useEffect(() => () => andando.current?.responder(false), [])
+
+  /** Andar vai ao servidor, que decide: na vez da ficha (ou com o "Mover" do contra-ataque), casa dentro da grade e livre. */
+  function andar(tokenId: string, casa: CasaDaArena, contraDe: string | undefined): RespostaDoAndar {
+    const { turnos } = duelo
+    const vez = contraDe === undefined && turnos.vez !== null ? { cartaId: turnos.vez, rodada: turnos.rodada } : null
+    const passo: JogadaDoDuelo = { tipo: 'andar', seq: duelo.seq, vez, tokenId, col: casa.col, row: casa.row }
+    if (!jogar(contraDe === undefined ? passo : { ...passo, contraDe })) return false
+    andando.current?.responder(false)
+    return new Promise<boolean>((responder) => {
+      andando.current = { tokenId, casa, responder }
+    })
+  }
+
   function roboEscolhe() {
     const proxima = proximaDoRobo({ turnos: duelo.turnos, regras: duelo.regras, lutadores: duelo.lutadores, jogadores: duelo.jogadores }, SISTEMA_DO_LOBBY, null)
     const primeira = proxima === null || proxima.lado !== meuLado ? undefined : candidatasDoRobo(proxima.jogada, duelo.seq)[0]
     if (primeira !== undefined) jogar(primeira)
   }
 
+  const vezDoToken = cartaDaVez(duelo.turnos)?.tokenId
+  const espera = oQueEsperaDeMim(duelo, meuLado)
+
   return (
-    <section className="lo-tr-duelo" aria-label={`Duelo com ${outro.nome}`}>
-      {outro.ausenteDesde !== null && (
-        <p className="lo-tr-ausente" role="status">
-          <span className="lo-tr-ausente__ponto" aria-hidden="true" />
-          {outro.nome} caiu da conexão: <span className="lo-tr-ausente__relogio">{relogioDaVolta(outro.ausenteDesde + VOLTA_DO_AUSENTE_MS - agora)}</span> para voltar.
-        </p>
-      )}
-      {espera !== null ? (
-        <PainelDaVez duelo={duelo} meuLado={meuLado} ocupado={ocupado} onJogar={jogar} onRoboEscolhe={roboEscolhe} />
-      ) : (
-        <p className="lo-tr-estado" role="status">
-          Rodada {duelo.turnos.rodada}. {vez === null ? `Esperando ${outro.nome}.` : `Vez de ${vez.nome}.`} Sem relógio: {outro.nome} joga quando puder.
-        </p>
-      )}
-      <ArenaDaLuta duelo={duelo} meuLado={meuLado} nomeDoMeuLado="Seu lado" nomeDoOutroLado={`Lado de ${outro.nome}`} />
-      <div className="lo-tr-desistir">
-        {confirmarDesistencia ? (
+    <ArenaDaLuta
+      titulo={`Duelo com ${outro.nome}`}
+      icone="duelo"
+      fio={duelo}
+      vista={duelo.vista}
+      meuLado={meuLado}
+      jogadas={jogadas}
+      podeAndar={(vaga, emPe) => vaga.lado === meuLado && emPe && !ocupado && vaga.tokenId === vezDoToken}
+      onAndar={andar}
+      detalhes={<span>{fim === null ? 'Sem relógio' : 'Acabou'}</span>}
+      aviso={
+        fim === null && outro.ausenteDesde !== null ? (
+          <p className="lo-ar-aviso" role="status">
+            <span className="lo-ar-aviso__ponto" aria-hidden="true" />
+            {outro.nome} caiu da conexão: <span className="lo-ar-aviso__relogio">{relogioDaVolta(outro.ausenteDesde + VOLTA_DO_AUSENTE_MS - agora)}</span> para voltar.
+          </p>
+        ) : undefined
+      }
+      acoes={
+        <>
+          {fim === null && espera !== null && (
+            <button type="button" className="lo-btn lo-btn--fantasma" disabled={ocupado} onClick={roboEscolhe}>
+              O robô escolhe
+            </button>
+          )}
+          {fim === null && (
+            <button type="button" className="lo-btn" aria-expanded={confirmarDesistencia} onClick={() => setConfirmarDesistencia((antes) => !antes)}>
+              Desistir do duelo
+            </button>
+          )}
+          <button type="button" className="lo-btn lo-btn--fantasma" onClick={onFechar}>
+            <Icone nome="voltar" /> {fim === null ? 'Sair da tela' : 'Fechar'}
+          </button>
+        </>
+      }
+      estado={estadoDoDuelo(duelo, meuLado, outro.nome, ocupado)}
+      recusa={recusa === null ? null : { texto: textoDaRecusa(recusa.motivo), n: recusa.n }}
+      onEsquecerRecusa={() => site.duelo()?.esquecerAvisos()}
+      fim={
+        fim === null ? null : (
+          <>
+            <p className="lo-ar-fim__titulo" data-tom={tomDoFim(fim, meuLado)}>
+              {textoDoFim(fim, meuLado, outro.nome)}
+            </p>
+            <p className="lo-ar-fim__nota">
+              Contra {outro.nome}: rodada {duelo.turnos.rodada}, {contar(duelo.seq, 'jogada', 'jogadas')}.
+            </p>
+            <div className="lo-ar-fim__botoes">
+              <button type="button" className="lo-btn lo-btn--primario" autoFocus onClick={onFechar}>
+                Fechar
+              </button>
+            </div>
+          </>
+        )
+      }
+      sobre={
+        fim === null && confirmarDesistencia ? (
           <div
-            className="lo-confirma"
+            className="lo-confirma lo-ar-confirma"
             role="group"
             aria-label="Confirmar desistência"
             onKeyDown={(evento) => {
@@ -181,32 +288,25 @@ function DueloEmAndamento({ duelo, meuLado, ocupado }: { duelo: DueloNoFio; meuL
               </button>
             </div>
           </div>
-        ) : (
-          <button type="button" className="lo-btn lo-btn--fantasma" onClick={() => setConfirmarDesistencia(true)}>
-            Desistir do duelo
-          </button>
-        )}
-      </div>
-    </section>
+        ) : undefined
+      }
+    />
   )
 }
 
-function DueloAcabado({ duelo, contaId, aberto }: { duelo: DueloNoFio; contaId: string; aberto: boolean }) {
+function DueloAcabado({ duelo, contaId, onRever }: { duelo: DueloNoFio; contaId: string; onRever(): void }) {
   const meuLado: LadoDoTreino = duelo.jogadores.a.contaId === contaId ? 'a' : 'b'
   const outro = duelo.jogadores[meuLado === 'a' ? 'b' : 'a']
   if (duelo.fim === null) return null
   return (
-    <li>
-      {/* O mais novo já abre: é o resumo do duelo que acabou de terminar. */}
-      <details className="lo-tr-acabado" open={aberto}>
-        <summary>
-          <span className="lo-tr-acabado__texto" data-tom={tomDoFim(duelo.fim, meuLado)}>
-            Contra {outro.nome}: {textoDoFim(duelo.fim, meuLado, outro.nome)}
-          </span>
-          <span className="lo-motivo">Rodada {duelo.turnos.rodada}</span>
-        </summary>
-        <ArenaDaLuta duelo={duelo} meuLado={meuLado} nomeDoMeuLado="Seu lado" nomeDoOutroLado={`Lado de ${outro.nome}`} />
-      </details>
+    <li className="lo-tr-acabado">
+      <span className="lo-tr-acabado__texto" data-tom={tomDoFim(duelo.fim, meuLado)}>
+        Contra {outro.nome}: {textoDoFim(duelo.fim, meuLado, outro.nome)}
+      </span>
+      <span className="lo-motivo">Rodada {duelo.turnos.rodada}</span>
+      <button type="button" className="lo-btn lo-btn--fantasma" onClick={onRever}>
+        Rever a luta
+      </button>
     </li>
   )
 }
@@ -215,11 +315,27 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
   const site = useSite()
   const eu = campanha.eu
   const minhas = useMemo(() => fichasDoDuelo(campanha), [campanha])
+  const ativo = duelo.duelos.find((candidato) => candidato.fim === null)
+  /** O duelo em andamento que a pessoa tirou da tela (ela volta pelo "Voltar à luta"). */
+  const [foraDaTela, setForaDaTela] = useState<string | null>(null)
+  /** O duelo acabado aberto na Arena: o que acabou com ela na tela, ou o "Rever a luta". */
+  const [revendo, setRevendo] = useState<string | null>(null)
+  const ultimoAtivo = useRef<string | null>(null)
+  const idDoAtivo = ativo?.id ?? null
+
+  // O duelo que estava na Arena acabou: ela fica com o resumo até a pessoa fechar.
+  useEffect(() => {
+    const antes = ultimoAtivo.current
+    ultimoAtivo.current = idDoAtivo
+    if (idDoAtivo === null && antes !== null && antes !== foraDaTela) setRevendo(antes)
+  }, [idDoAtivo, foraDaTela])
+
   if (eu === null) return <p className="lo-vazio">Esta conta não está na mesa.</p>
   const colegas = campanha.membros.filter((membro) => membro.papel === 'jogador' && membro.contaId !== eu.contaId)
   const ocupado = duelo.esperando !== null
-  const ativo = duelo.duelos.find((candidato) => candidato.fim === null)
   const acabados = duelo.duelos.filter((candidato) => candidato.fim !== null)
+  const ladoDe = (candidato: DueloNoFio): LadoDoTreino => (candidato.jogadores.a.contaId === eu.contaId ? 'a' : 'b')
+  const naArena = ativo !== undefined && ativo.id !== foraDaTela ? ativo : acabados.find((candidato) => candidato.id === revendo)
   const recebidos = duelo.convites.filter((convite) => convite.para.contaId === eu.contaId)
   const enviado = duelo.convites.find((convite) => convite.de.contaId === eu.contaId)
   const fechado = duelo.fechado
@@ -248,7 +364,19 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
           {campanha.conexao === 'sem-rede' ? 'Sem conexão. O duelo volta quando a internet voltar.' : 'Abrindo os duelos da mesa…'}
         </p>
       ) : ativo !== undefined ? (
-        <DueloEmAndamento duelo={ativo} meuLado={ativo.jogadores.a.contaId === eu.contaId ? 'a' : 'b'} ocupado={ocupado} />
+        <section className="lo-tr-bloco" aria-labelledby="duelo-ativo">
+          <h2 id="duelo-ativo" className="lo-tr-bloco__titulo">
+            Duelo com {ativo.jogadores[ladoDe(ativo) === 'a' ? 'b' : 'a'].nome}
+          </h2>
+          <div className="lo-tr-convite">
+            <p className="lo-tr-convite__texto">Em andamento, rodada {ativo.turnos.rodada}. Sem relógio: a luta espera você na Arena.</p>
+            <div className="lo-tr-vez__botoes">
+              <button type="button" className="lo-btn lo-btn--primario" onClick={() => setForaDaTela(null)}>
+                Voltar à luta
+              </button>
+            </div>
+          </div>
+        </section>
       ) : (
         <>
           {recebidos.length > 0 && (
@@ -291,11 +419,26 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
             Últimos duelos
           </h2>
           <ul className="lo-tr-acabados">
-            {acabados.map((acabado, i) => (
-              <DueloAcabado key={acabado.id} duelo={acabado} contaId={eu.contaId} aberto={i === 0} />
+            {acabados.map((acabado) => (
+              <DueloAcabado key={acabado.id} duelo={acabado} contaId={eu.contaId} onRever={() => setRevendo(acabado.id)} />
             ))}
           </ul>
         </section>
+      )}
+
+      {naArena !== undefined && (
+        <DueloNaArena
+          // Um duelo, uma Arena: trocar de duelo não herda a mira, o recado nem a confirmação do outro.
+          key={naArena.id}
+          duelo={naArena}
+          meuLado={ladoDe(naArena)}
+          ocupado={ocupado}
+          recusa={duelo.recusa}
+          onFechar={() => {
+            if (naArena.fim === null) setForaDaTela(naArena.id)
+            else setRevendo(null)
+          }}
+        />
       )}
     </div>
   )

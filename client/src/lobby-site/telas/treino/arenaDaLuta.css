@@ -1,0 +1,165 @@
+/*
+ * A LUTA NA CARA DA ARENA (fatia H, ArenaDaLuta.tsx). A tela cheia, a barra
+ * de couro, o palco e o lugar do HUD (faixa no alto ao centro, menu à
+ * esquerda, REAÇÃO embaixo) são os do app: components/arena/arena.css, com o
+ * batalha.css e o combate.css que o BatalhaDoJogador traz. Aqui fica só o que
+ * a luta do site acrescenta: os botões do site na barra, a grade fora do
+ * caminho do HUD, os recados, o resumo do fim e a confirmação de desistir.
+ */
+
+/*
+ * No app a Arena fica no z 29, abaixo dos avisos (z 30). No site, o z 30 é a
+ * cabeça fixa do Lobby (lobby.css .lo-cabeca) e o z 40 é o erro da ficha: com
+ * o 29 os dois cobriam a barra e o alto da faixa. A luta é modal (o #root fica
+ * inert), então ela sobe acima de tudo do site e continua abaixo dos portais
+ * do HUD (bt-menu 900, bt-janela 1000), que precisam abrir por cima dela.
+ */
+.ar-tela.lo-ar { z-index: 50; }
+
+/* ── a barra: o título à esquerda, o aviso e as ações juntos à direita ── */
+.lo-ar .ar-barra__txt { margin-right: auto; }
+.lo-ar .ar-barra__med {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  color: var(--lb-gr-gravado-forte);
+}
+.lo-ar .ar-barra__med .lo-ic { width: 22px; height: 22px; }
+.lo-ar .ar-barra__acoes .lo-btn { font-size: var(--lb-font-size-sm); }
+.lo-ar .ar-barra__acoes .lo-btn--fantasma { color: var(--lb-gr-gravado); }
+.lo-ar .ar-barra__acoes .lo-tr-chave {
+  min-height: var(--lo-alvo);
+  padding: 0 6px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-gr-gravado);
+  white-space: nowrap;
+}
+.lo-ar-semente {
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-gr-gravado-forte);
+}
+
+/* o colega que caiu da conexão: forte, com o relógio da volta */
+.lo-ar-aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--lb-color-ember);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-ember-soft);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+}
+.lo-ar-aviso__ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--lb-color-ember); }
+.lo-ar-aviso__relogio { font-family: var(--lb-font-utility); font-weight: var(--lb-font-weight-semibold); font-variant-numeric: tabular-nums; }
+
+/* ── o palco: a grade abaixo da faixa da ordem (medida em --lo-ar-faixa), longe do menu e do REAÇÃO ── */
+.lo-ar-palco > .lo-ga[data-caber='tudo'] {
+  padding: calc(10px + var(--lo-ar-faixa, 120px) + 14px) clamp(16px, 21vw, 340px) 84px;
+}
+/* a ficha em foco já tem o anel de latão no disco (grade.css): sem o anel quadrado da tela */
+.lo-ar .lo-ga-boneco:focus-visible { box-shadow: none; }
+
+/* ── os recados: embaixo à esquerda, fora do REAÇÃO (no meio de baixo) ── */
+.lo-ar-recados {
+  position: fixed;
+  left: 20px;
+  bottom: 16px;
+  z-index: 10;
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  max-width: min(460px, calc(50% - 120px));
+  pointer-events: none;
+}
+.lo-ar-recado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: color-mix(in srgb, var(--lb-color-stone-solid) 92%, transparent);
+  box-shadow: var(--lb-shadow-float);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.35;
+  pointer-events: auto;
+  animation: lo-ar-recado-entra 180ms var(--lb-gr-ease-out) both;
+}
+.lo-ar-recado--estado { color: var(--lb-color-parchment); }
+.lo-ar-recado[data-tom='brasa'] { border-color: var(--lb-color-ember); color: var(--lb-color-parchment); }
+.lo-ar-recado__ok {
+  flex: none;
+  min-height: 28px;
+  margin: -4px -6px -4px 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-brass-bright);
+  font: inherit;
+  font-weight: var(--lb-font-weight-semibold);
+  cursor: pointer;
+}
+@keyframes lo-ar-recado-entra { from { opacity: 0; transform: translateY(4px); } }
+
+/* ── o fim: um véu sobre o palco e o resumo no meio ── */
+.lo-ar-veu {
+  position: fixed;
+  inset: var(--ar-barra) 0 0 0;
+  z-index: 13;
+  background: rgba(0, 0, 0, 0.55);
+  animation: ar-aparece 200ms var(--lb-gr-ease-out) both;
+}
+.lo-ar-fim {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + var(--ar-barra) / 2);
+  z-index: 14;
+  width: min(440px, calc(100% - 32px));
+  padding: 20px 24px 22px;
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-lg);
+  background: linear-gradient(180deg, var(--lb-gr-couro-3), var(--lb-gr-couro-1));
+  box-shadow: var(--lb-shadow-lg);
+  translate: -50% -50%;
+  animation: lo-ar-fim-entra 220ms var(--lb-gr-ease-out) both;
+}
+@keyframes lo-ar-fim-entra { from { opacity: 0; transform: scale(0.96); } }
+.lo-ar-fim__titulo {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xl);
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--lb-gr-gravado-forte);
+}
+.lo-ar-fim__titulo[data-tom='vitoria'] { color: var(--lb-color-online); }
+.lo-ar-fim__titulo[data-tom='derrota'] { color: var(--lb-color-ember); }
+.lo-ar-fim__nota { margin: 6px 0 0; color: var(--lb-gr-gravado); font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; }
+.lo-ar-fim__botoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+
+/* ── desistir do duelo: a confirmação logo abaixo da barra, à direita ── */
+.lo-ar-confirma {
+  position: fixed;
+  top: calc(var(--ar-barra) + 10px);
+  right: 14px;
+  z-index: 15;
+  width: min(340px, calc(100% - 28px));
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-lg);
+  animation: lo-ar-recado-entra 160ms var(--lb-gr-ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-ar-recado,
+  .lo-ar-confirma,
+  .lo-ar-fim { animation-name: ar-aparece; }
+}

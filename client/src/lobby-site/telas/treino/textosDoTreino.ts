@@ -1,42 +1,15 @@
-import type { PedidoDeAcao, SaidaDaReacao } from '../../../lib/batalha/combate'
-import { armasDe } from '../../../lib/batalha/leituraDaFicha'
-import type { Personagem } from '../../../lib/personagem'
 import type { FimDoDuelo } from '../../../lib/treino/duelo'
 import type { FimDoConvite, MotivoDoDueloRecusado } from '../../../lib/treino/dueloDoLobby'
 import type { LadoDoTreino } from '../../../lib/treino/mesaEmMemoria'
 
-/** Os textos do treino e do duelo (fatia T7), num lugar só: a mesma palavra para a mesma coisa em todas as telas. */
+/**
+ * Os textos do treino e do duelo (fatia T7), num lugar só: a mesma palavra
+ * para a mesma coisa em todas as telas. Os nomes dos golpes e das saídas da
+ * defesa são os do HUD da Arena (fatia H), que a luta usa desde então.
+ */
 
 export function contar(n: number, um: string, varios: string): string {
   return `${n.toLocaleString('pt-BR')} ${n === 1 ? um : varios}`
-}
-
-/** O nome do golpe no botão: a técnica, ou o Atacar com a arma. */
-export function nomeDoGolpe(pedido: PedidoDeAcao, personagem: Personagem | undefined): string {
-  if (pedido.tipo === 'atacar') {
-    const arma = pedido.armaId === null || personagem === undefined ? undefined : armasDe(personagem).find((candidata) => candidata.id === pedido.armaId)
-    return arma === undefined ? 'Atacar sem arma' : `Atacar com ${arma.nome}`
-  }
-  if (pedido.tipo === 'habilidade') {
-    const cartao = personagem === undefined ? undefined : Object.values(personagem.abas).flat().find((candidato) => candidato.id === pedido.cartaoId)
-    return cartao?.nome ?? 'Técnica'
-  }
-  return 'Golpe'
-}
-
-const NOME_DA_SAIDA: Readonly<Record<SaidaDaReacao, string>> = {
-  esquiva: 'Esquivar',
-  metade: 'Bloquear metade',
-  cheio: 'Tomar o golpe',
-  critico: 'Tomar o crítico',
-  contra: 'Contra-atacar',
-  naoReagiu: 'Não reagir',
-  passou: 'Passar',
-  semReacao: 'Sem reação',
-}
-
-export function nomeDaSaida(saida: SaidaDaReacao): string {
-  return NOME_DA_SAIDA[saida]
 }
 
 /**

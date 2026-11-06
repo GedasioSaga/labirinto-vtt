@@ -1,30 +1,74 @@
-import { useEffect, useRef, type AnimationEvent } from 'react'
-import { maximoComposto } from '../../../lib/ajusteDaFicha'
-import { cartaDaVez } from '../../../lib/batalha/turnos'
-import type { Personagem } from '../../../lib/personagem'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type AnimationEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { BatalhaDoJogador, type ConexaoDaBatalha } from '../../../components/batalha/BatalhaDoJogador'
+import { faixaDoJogador, linhasDoJogador } from '../../../components/batalha/dadosDaFaixa'
+import { tremer } from '../../../components/batalha/EfeitosDaBatalha'
+import { FaixaDaOrdem } from '../../../components/batalha/FaixaDaOrdem'
+import type { ConsultaDaFicha } from '../../../components/batalha/MiraDoGolpe'
+import type { CasaDaArena } from '../../../lib/arena/grade'
+import type { PedidoDeAcao } from '../../../lib/batalha/combate'
+import type { EstadoParaJogador } from '../../../lib/batalha/vistaDoJogador'
 import type { DueloNoFio } from '../../../lib/treino/duelo'
 import type { LadoDoTreino, VagaDoTreino } from '../../../lib/treino/mesaEmMemoria'
-import { recursoDeVida, vidaDoPersonagem } from '../../../lib/vidaDaFicha'
-import { SISTEMA_DO_LOBBY } from '../contexto'
+import { SISTEMA_DO_LOBBY, useDoSite } from '../contexto'
+import { Icone, type NomeDoIcone } from '../Icone'
+import { bonecosDoDuelo } from './grade/bonecosDoDuelo'
+import { GradeDaArena, type RespostaDoAndar } from './grade/GradeDaArena'
+import { copiasDoLado, faixaComFichaPublica, fichasDaLuta } from './hudDaLuta'
+import '../../../components/arena/arena.css'
+import './arenaDaLuta.css'
 
 /**
- * A ARENA de uma luta (fatia T7): os dois lados com a Vida e a Energia de
- * cada cópia, quem está na vez, quem caiu, e o registro do que aconteceu, o
- * mais novo embaixo. Serve à luta de treino e ao duelo: os dois chegam no
- * formato do fio (`DueloNoFio`). As barras não animam (regra do app: mudam a
- * cada golpe); só a linha nova do registro entra com um deslize curto.
+ * A LUTA NA CARA DA ARENA (fatia H): o treino e o duelo do site em tela
+ * cheia, com o HUD da Arena de testes do app. A barra escura no alto (o nome,
+ * a Rodada e as ações de quem chama), a faixa da ordem no alto ao centro
+ * (`FaixaDaOrdem`: cartas com HP, SP e Escudo, Rodada / Turno / Passar a vez,
+ * Regras do campo e Registro), a grade 12 x 8 no meio (`GradeDaArena`, G2), o
+ * menu da vez à esquerda e o REAÇÃO embaixo (`BatalhaDoJogador`).
+ *
+ * A tela só desenha e pede: as jogadas vão por `jogadas` (no treino, o motor
+ * no navegador; no duelo, o servidor) e andar vai por `onAndar`. O que o HUD
+ * do app pede e a luta do site não tem fica de fora com o motivo dito: a
+ * troca de armas e a reação livre recusam com um recado; invocar, as
+ * passivas, a marca e o Evoluir nem aparecem (sem a prop, o HUD os apaga).
+ * O "Mover" do contra-ataque vira o próximo passo da ficha na grade.
  */
 
-const RECURSOS_COM_BARRA = SISTEMA_DO_LOBBY.recursos.filter((recurso) => recurso.atualEMaximo === true)
-const RECURSO_DA_VIDA = recursoDeVida(SISTEMA_DO_LOBBY)
-/** Quantas linhas do registro ficam à vista (o servidor manda as 50 mais novas). */
-const LINHAS_A_VISTA = 14
+/** As jogadas que a luta aceita (o resto da `ConexaoDaBatalha` a Arena do site responde sozinha). */
+export type JogadasDaLuta = Pick<ConexaoDaBatalha, 'agir' | 'reagir' | 'passarVez'>
 
-/** A cópia de pé? Sem vida legível, de pé (a mesma leitura do fim da luta). */
-export function dePe(doc: Personagem): boolean {
-  const vida = RECURSO_DA_VIDA === null ? null : vidaDoPersonagem(doc, RECURSO_DA_VIDA)
-  return vida === null || vida.atual > 0
+export interface ArenaDaLutaProps {
+  titulo: string
+  icone: NomeDoIcone
+  fio: DueloNoFio
+  /** O recorte do lado de quem joga (`vistaParaJogador`); `null` = sem o HUD (o duelo de um servidor antigo). */
+  vista: EstadoParaJogador | null
+  meuLado: LadoDoTreino
+  /** `null` = só olhar (a luta acabou). */
+  jogadas: JogadasDaLuta | null
+  /** Quem a grade deixa pegar; a ficha com o "Mover" do contra-ataque entra sozinha. */
+  podeAndar: (vaga: VagaDoTreino, emPe: boolean) => boolean
+  onAndar: (tokenId: string, casa: CasaDaArena, contraDe: string | undefined) => RespostaDoAndar
+  trilhas?: Readonly<Record<string, readonly CasaDaArena[]>>
+  /** O que vem depois da Rodada na barra (a semente, contra quem). */
+  detalhes?: ReactNode
+  /** O aviso forte da barra (o colega que caiu da conexão). */
+  aviso?: ReactNode
+  acoes: ReactNode
+  /** O que acontece agora, numa linha ("o robô está jogando…"); `null` = nada. */
+  estado: string | null
+  /** A última recusa; `n` muda a cada uma (a mesma é lida de novo). */
+  recusa: { texto: string; n: number } | null
+  onEsquecerRecusa: () => void
+  /** O resumo do fim, sobre a grade; `null` = a luta segue. */
+  fim: ReactNode | null
+  /** O que mais fica por cima da Arena (a confirmação de desistir). */
+  sobre?: ReactNode
 }
+
+const MOTIVO_DAS_ARMAS = 'No treino e no duelo a luta usa as armas da ficha: a troca é só na mesa, com o mestre.'
+const MOTIVO_DA_REACAO_LIVRE = 'A reação livre é só na mesa, com o mestre. Aqui a defesa é a do golpe que chega.'
+const SEM_DESFAZER = () => {}
 
 /**
  * A entrada animada acontece uma vez: as abas do treino ficam montadas e só
@@ -35,99 +79,195 @@ export function assentarAnimacao(evento: AnimationEvent<HTMLElement>): void {
   evento.currentTarget.style.animation = 'none'
 }
 
-/** O nome de quem está na vez agora; `null` = ninguém (acabou ou não começou). */
-export function nomeDaVez(duelo: DueloNoFio): { nome: string; lado: LadoDoTreino } | null {
-  const carta = cartaDaVez(duelo.turnos)
-  if (carta === null) return null
-  const vaga = duelo.lutadores.vagas.find((candidata) => candidata.tokenId === carta.tokenId)
-  if (vaga === undefined) return null
-  const doc = duelo.lutadores.personagens.find((personagem) => personagem.id === vaga.personagemId)
-  return { nome: doc?.nome ?? 'Alguém', lado: vaga.lado }
-}
-
-function Lutador({ vaga, doc, naVez }: { vaga: VagaDoTreino; doc: Personagem | undefined; naVez: boolean }) {
-  if (doc === undefined) return null
-  const caiu = !dePe(doc)
-  const escudo = doc.recursos.escudo ?? 0
-  return (
-    <li className="lo-tr-lutador" data-vez={naVez ? '1' : undefined} data-caiu={caiu ? '1' : undefined}>
-      <div className="lo-tr-lutador__cab">
-        <span className="lo-tr-lutador__nome">{doc.nome}</span>
-        {naVez && <span className="lo-tag lo-tag--sua">Na vez</span>}
-        {caiu && <span className="lo-tag lo-tag--brasa">Caiu</span>}
-      </div>
-      <div className="lo-medidores">
-        {RECURSOS_COM_BARRA.map((recurso) => {
-          const atual = doc.recursos[recurso.id] ?? 0
-          const maximo = maximoComposto(doc, recurso.id).total
-          const parte = maximo > 0 ? Math.max(0, Math.min(1, atual / maximo)) : 0
-          return (
-            <div key={recurso.id} className="lo-medidor" data-tom={recurso.tom}>
-              <span className="lo-medidor__nome">{recurso.nome}</span>
-              <span className="lo-barra" aria-hidden="true">
-                <span style={{ transform: `scaleX(${parte.toFixed(3)})` }} />
-              </span>
-              <span className="lo-medidor__valor">
-                {atual.toLocaleString('pt-BR')} <small>/ {maximo.toLocaleString('pt-BR')}</small>
-              </span>
-            </div>
-          )
-        })}
-      </div>
-      {escudo > 0 && <p className="lo-tr-lutador__escudo">Escudo {escudo.toLocaleString('pt-BR')}</p>}
-      <span className="lo-sr">{vaga.lado === 'a' ? 'Lado A' : 'Lado B'}</span>
-    </li>
-  )
-}
-
-function Lado({ duelo, lado, titulo, vezDe }: { duelo: DueloNoFio; lado: LadoDoTreino; titulo: string; vezDe: string | null }) {
-  const vagas = duelo.lutadores.vagas.filter((vaga) => vaga.lado === lado)
-  const porId = new Map(duelo.lutadores.personagens.map((personagem) => [personagem.id, personagem]))
-  return (
-    <section className="lo-tr-lado" data-lado={lado} aria-label={titulo}>
-      <h3 className="lo-tr-lado__titulo">{titulo}</h3>
-      <ul className="lo-tr-lutadores">
-        {vagas.map((vaga) => (
-          <Lutador key={vaga.id} vaga={vaga} doc={porId.get(vaga.personagemId)} naVez={vezDe === vaga.tokenId} />
-        ))}
-      </ul>
-    </section>
-  )
-}
-
-export function ArenaDaLuta({ duelo, meuLado, nomeDoMeuLado, nomeDoOutroLado }: { duelo: DueloNoFio; meuLado: LadoDoTreino; nomeDoMeuLado: string; nomeDoOutroLado: string }) {
-  const outroLado: LadoDoTreino = meuLado === 'a' ? 'b' : 'a'
-  const carta = duelo.fim === null ? cartaDaVez(duelo.turnos) : null
-  const linhas = duelo.registro.slice(-LINHAS_A_VISTA)
-  const fimDoRegistro = useRef<HTMLOListElement>(null)
-
-  // O registro rola sozinho para a linha nova, dentro da caixa dele (a página não pula).
+/** Abriu: o foco vai ao título, a página atrás fica inerte e não rola; fechou, tudo volta e o foco também. */
+function useTelaCheia(titulo: { current: HTMLElement | null }) {
   useEffect(() => {
-    const lista = fimDoRegistro.current
-    if (lista !== null) lista.scrollTop = lista.scrollHeight
-  }, [linhas.length, linhas.at(-1)?.id])
+    const antes = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const pagina = document.getElementById('root')
+    const rolagem = document.documentElement.style.overflow
+    pagina?.setAttribute('inert', '')
+    document.documentElement.style.overflow = 'hidden'
+    titulo.current?.focus()
+    return () => {
+      pagina?.removeAttribute('inert')
+      document.documentElement.style.overflow = rolagem
+      if (antes !== null && antes.isConnected && !antes.matches(':disabled')) antes.focus()
+    }
+  }, [titulo])
+}
 
-  return (
-    <div className="lo-tr-arena">
-      <div className="lo-tr-lados">
-        <Lado duelo={duelo} lado={meuLado} titulo={nomeDoMeuLado} vezDe={carta?.tokenId ?? null} />
-        <Lado duelo={duelo} lado={outroLado} titulo={nomeDoOutroLado} vezDe={carta?.tokenId ?? null} />
+export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeAndar, onAndar, trilhas, detalhes, aviso, acoes, estado, recusa, onEsquecerRecusa, fim, sobre }: ArenaDaLutaProps) {
+  const demo = useDoSite((site) => site.demo)
+  const idDoTitulo = useId()
+  const raiz = useRef<HTMLElement>(null)
+  const tituloRef = useRef<HTMLHeadingElement>(null)
+  const palco = useRef<HTMLDivElement>(null)
+  const consultaAtual = useRef<ConsultaDaFicha | null>(null)
+  const [mirando, setMirando] = useState(false)
+  const [alvoDoMapa, setAlvoDoMapa] = useState<{ tokenId: string; seq: number } | null>(null)
+  const [contraDoPasso, setContraDoPasso] = useState<{ golpeId: string; tokenId: string } | null>(null)
+  const [recado, setRecado] = useState<{ texto: string; n: number } | null>(null)
+  useTelaCheia(tituloRef)
+
+  const acabou = fio.fim !== null
+  const fichas = useMemo(() => fichasDaLuta(fio, demo), [fio, demo])
+  const meus = useMemo(() => copiasDoLado(fio, meuLado), [fio, meuLado])
+  const nomeDe = (tokenId: string) => fichas.find((ficha) => ficha.id === tokenId)?.name ?? 'A ficha'
+  // O "Mover" do contra-ataque vale enquanto o contra existir (gasto ao andar, ou a vez virou): depois some sozinho.
+  const contraValido = contraDoPasso !== null && !acabou && (fio.turnos.contras ?? []).some((contra) => contra.golpeId === contraDoPasso.golpeId) ? contraDoPasso : null
+
+  const avisar = useCallback((texto: string) => setRecado((antes) => ({ texto, n: (antes?.n ?? 0) + 1 })), [])
+
+  const conexao = useMemo<ConexaoDaBatalha | null>(() => {
+    if (jogadas === null) return null
+    const moverPeloContra = (pedido: Extract<PedidoDeAcao, { tipo: 'mover' }>): boolean => {
+      const contra = (fio.turnos.contras ?? []).find((candidato) => candidato.golpeId === pedido.contraDe)
+      if (contra === undefined) return false
+      setContraDoPasso({ golpeId: contra.golpeId, tokenId: contra.tokenId })
+      avisar(`Arraste ${fichas.find((ficha) => ficha.id === contra.tokenId)?.name ?? 'a ficha'} (ou use as setas): o contra-ataque vira o passo.`)
+      return true
+    }
+    return {
+      agir: (vez, pedido) => (pedido.tipo === 'mover' ? moverPeloContra(pedido) : jogadas.agir(vez, pedido)),
+      reagir: (pedido) => {
+        if (pedido.tipo === 'rolar' && pedido.golpeId === null) {
+          avisar(MOTIVO_DA_REACAO_LIVRE)
+          return false
+        }
+        return jogadas.reagir(pedido)
+      },
+      passarVez: jogadas.passarVez,
+      escolherArmas: () => {
+        avisar(MOTIVO_DAS_ARMAS)
+        return false
+      },
+    }
+  }, [jogadas, fio.turnos.contras, fichas, avisar])
+
+  const podeAndarAqui = (vaga: VagaDoTreino, emPe: boolean) => podeAndar(vaga, emPe) || (emPe && contraValido?.tokenId === vaga.tokenId)
+  const bonecos = bonecosDoDuelo(fio, demo, podeAndarAqui)
+
+  function andar(tokenId: string, casa: CasaDaArena): RespostaDoAndar {
+    const contraDe = contraValido?.tokenId === tokenId ? contraValido.golpeId : undefined
+    if (contraDe !== undefined) setRecado(null)
+    return onAndar(tokenId, casa, contraDe)
+  }
+
+  const dados = useMemo(() => (vista === null ? null : faixaComFichaPublica(faixaDoJogador({ estado: vista, fichas, personagens: meus, sistema: SISTEMA_DO_LOBBY }), fio)), [vista, fichas, meus, fio])
+  const registro = useMemo(() => linhasDoJogador(vista?.registro ?? fio.registro), [vista, fio.registro])
+  const consulta = useCallback<ConsultaDaFicha>((tokenId) => consultaAtual.current?.(tokenId) ?? null, [])
+  const vezDaVista = vista?.vez ?? null
+  const passarVez = vista !== null && vista.minhaVez && vezDaVista !== null && conexao !== null && !acabou ? () => conexao.passarVez(vezDaVista, vista.rodada) : undefined
+
+  // A grade fica abaixo da faixa da ordem: a altura dela muda com as cartas, então é medida.
+  useLayoutEffect(() => {
+    const faixa = raiz.current?.querySelector<HTMLElement>('.pp-batalha-faixa')
+    const lugar = palco.current
+    if (faixa === null || faixa === undefined || lugar === null) return
+    const medir = () => lugar.style.setProperty('--lo-ar-faixa', `${faixa.offsetHeight}px`)
+    medir()
+    const observador = new ResizeObserver(medir)
+    observador.observe(faixa)
+    return () => observador.disconnect()
+  }, [dados !== null])
+
+  // A recusa nova tira o recado velho do caminho (a mais nova é a que vale).
+  useEffect(() => {
+    if (recusa !== null) setRecado(null)
+  }, [recusa])
+
+  const recadoAgora = recusa ?? recado
+  const fecharRecado = () => (recusa !== null ? onEsquecerRecusa() : setRecado(null))
+
+  return createPortal(
+    <section
+      ref={raiz}
+      className="ar-tela lo-ar"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={idDoTitulo}
+      // As teclas da luta não chegam às telas do site atrás (o portal sobe pela árvore do React).
+      onKeyDown={(evento) => evento.stopPropagation()}
+    >
+      <header className="ar-barra">
+        <span className="ar-barra__med" aria-hidden="true">
+          <Icone nome={icone} />
+        </span>
+        <div className="ar-barra__txt">
+          <h2 ref={tituloRef} className="ar-barra__tit" id={idDoTitulo} tabIndex={-1}>
+            {titulo}
+          </h2>
+          <p className="ar-barra__sub">
+            <span className="ar-barra__rodada">Rodada {fio.turnos.rodada}</span>
+            {detalhes}
+          </p>
+        </div>
+        {aviso}
+        <div className="ar-barra__acoes">{acoes}</div>
+      </header>
+
+      <div ref={palco} className="ar-palco lo-ar-palco" data-mirando={mirando ? 'sim' : undefined}>
+        <GradeDaArena
+          bonecos={bonecos}
+          trilhas={trilhas}
+          caber="tudo"
+          mirando={mirando}
+          onAndar={andar}
+          onTocar={(tokenId) => setAlvoDoMapa((antes) => ({ tokenId, seq: (antes?.seq ?? 0) + 1 }))}
+          onConsulta={(nova) => {
+            consultaAtual.current = nova
+          }}
+          rotulo="Grade da luta"
+        />
       </div>
-      <section className="lo-tr-registro" aria-label="O que aconteceu">
-        <h3 className="lo-tr-lado__titulo">Registro</h3>
-        {linhas.length === 0 ? (
-          <p className="lo-motivo">Nada ainda. O primeiro golpe aparece aqui.</p>
-        ) : (
-          <ol className="lo-tr-registro__linhas" role="log" ref={fimDoRegistro}>
-            {linhas.map((linha) => (
-              <li key={linha.id} className="lo-tr-linha" onAnimationEnd={assentarAnimacao}>
-                <span className="lo-tr-linha__rodada">R{linha.rodada}</span>
-                <span>{linha.texto}</span>
-              </li>
-            ))}
-          </ol>
+
+      {dados !== null && (
+        <FaixaDaOrdem papel="jogador" className="pp-batalha-faixa" dados={dados} regras={fio.regras} registro={registro} onDesfazer={SEM_DESFAZER} onPassarVez={passarVez} />
+      )}
+
+      {vista !== null && conexao !== null && !acabou && (
+        <BatalhaDoJogador
+          estado={vista}
+          efeitos={fio.efeitos}
+          meus={meus}
+          fichas={fichas}
+          sistema={SISTEMA_DO_LOBBY}
+          conexao={conexao}
+          consulta={consulta}
+          alvoDoMapa={alvoDoMapa}
+          onMirando={setMirando}
+          onTremor={() => tremer(palco.current)}
+        />
+      )}
+
+      <div className="lo-ar-recados">
+        {vista === null && <p className="lo-ar-recado">Este duelo chegou sem a vista da Arena (servidor antigo): só a grade e o estado.</p>}
+        {estado !== null && !acabou && (
+          <p className="lo-ar-recado lo-ar-recado--estado" role="status">
+            {estado}
+          </p>
         )}
-      </section>
-    </div>
+        {recadoAgora !== null && (
+          <p key={`${recusa === null ? 'r' : 'x'}${recadoAgora.n}`} className="lo-ar-recado" data-tom={recusa === null ? undefined : 'brasa'} role="alert">
+            <span>{recadoAgora.texto}</span>
+            <button type="button" className="lo-ar-recado__ok" onClick={fecharRecado}>
+              Ok
+            </button>
+          </p>
+        )}
+        {contraValido !== null && recadoAgora === null && <p className="lo-ar-recado">O contra-ataque de {nomeDe(contraValido.tokenId)} espera o passo na grade.</p>}
+      </div>
+
+      {fim !== null && (
+        <>
+          <div className="lo-ar-veu" aria-hidden="true" />
+          <div className="lo-ar-fim" role="status">
+            {fim}
+          </div>
+        </>
+      )}
+      {sobre}
+    </section>,
+    document.body,
   )
 }
