@@ -2,13 +2,14 @@
 /**
  * A VISTA DE CADA LADO NO FIO DO DUELO (fatia M2): o servidor manda a cada
  * conta o recorte do lado DELA (`dueloParaOsLados`), e o de A não leva o que
- * só B vê. Ambiente node: a vista é montada no DO, sem DOM.
+ * só B vê, nem na vista nem no resto do frame (o fio recortado). Ambiente
+ * node: a vista é montada no DO, sem DOM.
  */
 import { describe, expect, it } from 'vitest'
-import type { PedidoDeAcao } from '../batalha/combate'
+import { combateVazio, type ContraAtaque, type EfeitoDaBatalha, type LembreteDaMarca, type PedidoDeAcao } from '../batalha/combate'
 import type { CartaParaJogador, EstadoParaJogador } from '../batalha/vistaDoJogador'
 import { cartaDaVez } from '../batalha/turnos'
-import type { Personagem } from '../personagem'
+import type { Personagem, RegistroDaFicha } from '../personagem'
 import { lerEstadoParaJogador } from '../../net/protocoloDaBatalha'
 import { aplicarJogada, criarDuelo, type DueloGravado, type MotorDoDuelo, type ResultadoDaJogada } from './duelo'
 import { MARINHEIRO, SISTEMA_DO_TESTE, ze } from './fichasDeTreino.testkit'
@@ -23,6 +24,11 @@ const TOKEN_DO_MARINHEIRO = 'treino_tok_b1'
 const COPIA_DO_ZE = 'treino_a1'
 const COPIA_DO_MARINHEIRO = 'treino_b1'
 const ESCUDO_DO_MARINHEIRO = 40
+/** Marcas do que só B guarda (`comOQueSoBGuarda`), procuradas no JSON inteiro de cada frame. */
+const RECARGA_DO_MARINHEIRO = 'tec_recarga_so_do_marinheiro'
+const MARCA_DO_MARINHEIRO = 'marca_so_do_marinheiro'
+const GOLPE_DO_CONTRA = 'golpe_contra_so_do_marinheiro'
+const NUMERO_DA_FORMA = 'FOR so do Marinheiro'
 
 function aceita(resultado: ResultadoDaJogada, oQue: string): DueloGravado {
   if (!resultado.ok) throw new Error(`${oQue} recusada: ${resultado.motivo}`)
@@ -52,6 +58,36 @@ function corteEsperandoAReacao(): DueloGravado {
   if (cartaDaVez(duelo.cena.turnos)?.tokenId !== TOKEN_DO_ZE) duelo = aceita(aplicarJogada(duelo, motor, CONTA_B, { tipo: 'passar', seq: duelo.seq, vez: vez() }), 'o Marinheiro passar a vez')
   const corte: PedidoDeAcao = { tipo: 'habilidade', cartaoId: 'tec_corte', armaId: null, alvos: [{ tokenId: TOKEN_DO_MARINHEIRO, dano: null }], surpresa: false, perfurante: false, custo: null, acao: null }
   return aceita(aplicarJogada(duelo, motor, CONTA_A, { tipo: 'agir', seq: duelo.seq, vez: vez(), pedido: corte }), 'o Corte do Zé')
+}
+
+/**
+ * O mesmo duelo com o que só B guarda e a jogada acima não criou: o combate
+ * da cópia dele, um contra-ataque, um lembrete da marca, o Escudo no máximo e
+ * no histórico da ficha, e a forma dele com os números.
+ */
+function comOQueSoBGuarda(duelo: DueloGravado): DueloGravado {
+  const { turnos } = duelo.cena
+  const ajusteDoEscudo: RegistroDaFicha = { quem: 'Mestre', parte: 'recurso', chave: 'escudo', rotulo: 'Escudo', de: 0, para: ESCUDO_DO_MARINHEIRO, quando: 0 }
+  const contra: ContraAtaque = { golpeId: GOLPE_DO_CONTRA, tokenId: TOKEN_DO_MARINHEIRO, personagemId: COPIA_DO_MARINHEIRO, atacanteTokenId: TOKEN_DO_ZE, rodada: turnos.rodada }
+  const lembrete: LembreteDaMarca = { id: MARCA_DO_MARINHEIRO, linhaId: 'linha_da_marca', golpeId: GOLPE_DO_CONTRA, cartaoId: 'pas_olhar', tokenId: TOKEN_DO_MARINHEIRO, personagemId: COPIA_DO_MARINHEIRO, alvoTokenId: TOKEN_DO_ZE, rodada: turnos.rodada }
+  const forma: EfeitoDaBatalha = { seq: 999, tipo: 'transformacao', tokenId: TOKEN_DO_MARINHEIRO, forma: 'Forma do Mar', imagem: null, numeros: [{ rotulo: NUMERO_DA_FORMA, de: 80, para: 120 }] }
+  const personagens = duelo.lutadores.personagens.map((ficha) =>
+    ficha.id === COPIA_DO_MARINHEIRO ? { ...ficha, maximos: { ...ficha.maximos, escudo: ESCUDO_DO_MARINHEIRO }, historico: [ajusteDoEscudo] } : ficha,
+  )
+  return {
+    ...duelo,
+    lutadores: { ...duelo.lutadores, personagens },
+    cena: {
+      ...duelo.cena,
+      turnos: {
+        ...turnos,
+        combate: { ...turnos.combate, [COPIA_DO_MARINHEIRO]: { ...combateVazio(), recargas: { [RECARGA_DO_MARINHEIRO]: 2 }, overload: true } },
+        contras: [...(turnos.contras ?? []), contra],
+        lembretesDaMarca: [...(turnos.lembretesDaMarca ?? []), lembrete],
+      },
+      efeitos: [...(duelo.cena.efeitos ?? []), forma],
+    },
+  }
 }
 
 describe('vista de cada lado no fio do duelo', () => {
@@ -87,5 +123,39 @@ describe('vista de cada lado no fio do duelo', () => {
     // A vista vai a JSON e o leitor do site (o mesmo do `batalha.estado` do app) a devolve igual.
     expect(lerEstadoParaJogador(JSON.parse(JSON.stringify(deA)))).toEqual(deA)
     expect(lerEstadoParaJogador(JSON.parse(JSON.stringify(deB)))).toEqual(deB)
+  })
+
+  it('o frame inteiro de A (o fio recortado e a vista) não leva o que só B guarda; o de B leva, e os golpes esperando ficam nos dois', () => {
+    const gravado = comOQueSoBGuarda(corteEsperandoAReacao())
+    const lados = dueloParaOsLados(gravado, SISTEMA_DO_TESTE)
+    // O JSON inteiro do frame, como o DO o manda a cada conta.
+    const frameDeA = JSON.stringify({ t: 'duelo.estado', duelo: lados.a })
+    const frameDeB = JSON.stringify({ t: 'duelo.estado', duelo: lados.b })
+    for (const soDeB of [RECARGA_DO_MARINHEIRO, MARCA_DO_MARINHEIRO, GOLPE_DO_CONTRA, NUMERO_DA_FORMA, `"escudo":${ESCUDO_DO_MARINHEIRO}`]) {
+      expect(frameDeA, soDeB).not.toContain(soDeB)
+      expect(frameDeB, soDeB).toContain(soDeB)
+    }
+
+    // Campo a campo: o combate, os contra-ataques e os lembretes só das fichas do lado; o de A segue inteiro para A.
+    expect(lados.a.turnos.combate?.[COPIA_DO_MARINHEIRO]).toBeUndefined()
+    expect(lados.a.turnos.combate?.[COPIA_DO_ZE]).toEqual(gravado.cena.turnos.combate?.[COPIA_DO_ZE])
+    expect(lados.b.turnos.combate?.[COPIA_DO_ZE]).toBeUndefined()
+    expect(lados.a.turnos.contras).toEqual([])
+    expect(lados.b.turnos.contras?.map((contra) => contra.golpeId)).toEqual([GOLPE_DO_CONTRA])
+    expect(lados.a.turnos.lembretesDaMarca).toEqual([])
+    // A ficha de B chega a A sem o Escudo (atual, máximo e histórico) e com o resto (a vida que a grade mostra).
+    const marinheiroParaA = lados.a.lutadores.personagens.find((ficha) => ficha.id === COPIA_DO_MARINHEIRO)
+    const marinheiroGuardado = gravado.lutadores.personagens.find((ficha) => ficha.id === COPIA_DO_MARINHEIRO)
+    expect(marinheiroParaA?.recursos.escudo).toBeUndefined()
+    expect(marinheiroParaA?.maximos.escudo).toBeUndefined()
+    expect(marinheiroParaA?.historico).toEqual([])
+    expect(marinheiroParaA?.recursos.hp).toBe(marinheiroGuardado?.recursos.hp)
+    expect(lados.b.lutadores.personagens.find((ficha) => ficha.id === COPIA_DO_MARINHEIRO)?.recursos.escudo).toBe(ESCUDO_DO_MARINHEIRO)
+    // A forma de B chega a A só com o nome.
+    expect(lados.a.efeitos.find((efeito) => efeito.tipo === 'transformacao')).toEqual({ seq: 999, tipo: 'transformacao', tokenId: TOKEN_DO_MARINHEIRO, forma: 'Forma do Mar', imagem: null })
+
+    // O golpe esperando a reação de B fica inteiro nos dois: a vista de A também o mostra (o alvo dele, sem saída ainda).
+    expect(lados.a.turnos.golpes).toEqual(lados.b.turnos.golpes)
+    expect(lados.a.vista.golpes?.some((golpe) => golpe.alvos.some((alvo) => alvo.tokenId === TOKEN_DO_MARINHEIRO && alvo.saida === undefined))).toBe(true)
   })
 })

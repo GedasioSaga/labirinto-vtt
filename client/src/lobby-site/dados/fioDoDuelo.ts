@@ -4,7 +4,7 @@ import { personagemDoArquivo, type Personagem } from '../../lib/personagem'
 import type { DueloNoFio, FimDoDuelo, JogadorDoDuelo } from '../../lib/treino/duelo'
 import type { ContaNoDuelo, ConviteDoDuelo, FimDoConvite, MensagemDoDueloDoServidor, MotivoDoDueloRecusado, TipoDoPedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
 import { GRADE_DO_TREINO, type CasaDoTreino, type LadoDoTreino, type VagaDoTreino } from '../../lib/treino/mesaEmMemoria'
-import type { DueloDoLado } from '../../lib/treino/vistaDoDuelo'
+import type { DueloRecebido } from '../../lib/treino/vistaDoDuelo'
 import { lerEstadoParaJogador } from '../../net/protocoloDaBatalha'
 
 /**
@@ -16,7 +16,8 @@ import { lerEstadoParaJogador } from '../../net/protocoloDaBatalha'
  *
  * Fatia M2: cada duelo chega com a VISTA do lado desta conta (o recorte do HUD
  * da Arena), lida inteira pelo mesmo leitor do `batalha.estado` do app
- * (`lerEstadoParaJogador`, tetos e forma campo a campo).
+ * (`lerEstadoParaJogador`, tetos e forma campo a campo). Ela é opcional na
+ * leitura (`lerDueloDoLado`): faltando ou torta, o duelo entra sem ela.
  */
 
 const MOTIVOS: readonly MotivoDoDueloRecusado[] = [
@@ -203,11 +204,17 @@ export function lerDueloNoFio(bruto: unknown): DueloNoFio | null {
   return { versao, id, seq, fim, jogadores: { a, b }, lutadores, posicoes, turnos: turnos as unknown as DueloNoFio['turnos'], regras: regras as DueloNoFio['regras'], efeitos: efeitos as DueloNoFio['efeitos'], registro }
 }
 
-/** O duelo do lado desta conta (`dueloParaOLado`): o fio e a vista dela; sem a vista, ou vista torta, fora do formato. */
-export function lerDueloDoLado(bruto: unknown): DueloDoLado | null {
+/**
+ * O duelo do lado desta conta (`dueloParaOLado`): o fio e a vista dela. A
+ * vista é opcional: sem ela (o Worker de antes da M2) ou torta, o duelo entra
+ * com `vista` null, sem o HUD da Arena. Recusar o duelo recusaria o
+ * `duelo.lista` inteiro, e o frame torto fecha a conexão da campanha
+ * (`fonteReal`), que voltaria a receber a mesma lista sem fim.
+ */
+export function lerDueloDoLado(bruto: unknown): DueloRecebido | null {
   const duelo = lerDueloNoFio(bruto)
-  const vista = ehRegistro(bruto) ? lerEstadoParaJogador(proprio(bruto, 'vista')) : null
-  return duelo === null || vista === null ? null : { ...duelo, vista }
+  if (duelo === null || !ehRegistro(bruto)) return null
+  return { ...duelo, vista: lerEstadoParaJogador(proprio(bruto, 'vista')) }
 }
 
 function lerLista<T>(bruto: unknown, ler: (item: unknown) => T | null): T[] | null {
