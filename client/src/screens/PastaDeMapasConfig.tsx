@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { JogadoresDoLobby } from '../components/nuvem/JogadoresDoLobby'
+import { campanhaDaPasta, dragonBallNaPasta, fichasComOBloco } from '../components/nuvem/ponteDoLobby'
 import { emailRepetidoParado } from '../components/nuvem/textosDoLobby'
+import { usePastaPublicada } from '../components/nuvem/usePastaPublicada'
 import { escolherTextoJson } from '../lib/arquivosDaFicha'
 import { importarFichasDoProjetoRpg } from '../lib/importarDoProjetoRpg'
 import type { SavedMapEntry } from '../lib/mapFileIO'
@@ -40,6 +42,9 @@ const painelStyle: CSSProperties = {
 }
 
 const linhaStyle: CSSProperties = { display: 'flex', gap: 'var(--lb-space-2)', flexWrap: 'wrap', alignItems: 'center' }
+
+/** O sistema foi junto na publicação (a `meta` da campanha guarda o sistema publicado) e o site lê as fichas por ele. */
+const SISTEMA_FIXO_NO_LOBBY = 'Esta pasta está publicada no Lobby: o site dos jogadores usa o sistema que foi junto na publicação, então ele não muda mais por aqui.'
 
 function nomes(personagens: readonly Personagem[]): string {
   return personagens.map((personagem) => personagem.nome).join(', ')
@@ -151,6 +156,7 @@ function SistemaDaPasta({ pasta, rpg, mapas, onMudar, onFechar, semMoldura = fal
   const [ocupado, setOcupado] = useState(false)
   const [estado, setEstado] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [origem, setOrigem] = useState(mapas[0]?.id ?? '')
+  const { publicada } = usePastaPublicada(pasta.id)
 
   // Sistema importado só se acha depois de ler a pasta da biblioteca.
   useEffect(() => {
@@ -189,8 +195,12 @@ function SistemaDaPasta({ pasta, rpg, mapas, onMudar, onFechar, semMoldura = fal
   /** A mudança que pode trocar o sistema da pasta: a pasta convertida que volta a ter sistema confere antes a mochila dos bonecos. */
   const mudarComOSistema = (mudar: (rpg: RpgDaPasta) => RpgDaPasta) => trocarSistemaDaPasta(pasta.id, rpg.sistemaDeRpg === undefined, mudar, onMudar)
 
+  /** Confere de novo na hora: a aba pode ter aberto antes de a leitura do disco dizer que a pasta está no Lobby. */
+  const estaNoLobby = async () => publicada || (await campanhaDaPasta(pasta.id)) !== null
+
   const trocarSistema = (sistemaId: string) =>
     executar(async () => {
+      if (await estaNoLobby()) throw new Error(SISTEMA_FIXO_NO_LOBBY)
       // Troca só o sistema: as equipes e o marcador da mochila seguem (voltar a um sistema não converte de novo).
       await mudarComOSistema((atual) => rpgComSistema(atual, sistemaId === '' ? null : sistemaId))
       return sistemaId === '' ? 'A pasta só organiza: cada mapa usa o próprio sistema e personagens.' : null
@@ -212,13 +222,23 @@ function SistemaDaPasta({ pasta, rpg, mapas, onMudar, onFechar, semMoldura = fal
 
   const copiarDoMapa = () =>
     executar(async () => {
-      const doMapa = await rpgDoMapaSalvo(origem)
-      if (doMapa === null) return 'Esse mapa não tem sistema nem personagens para copiar.'
+      const lido = await rpgDoMapaSalvo(origem)
+      if (lido === null) return 'Esse mapa não tem sistema nem personagens para copiar.'
+      // Pasta no Lobby: ficha de jogador com o bloco do Dragon Ball fica no mapa, senão subiria com ele (12.21).
+      const dragonBall = (await estaNoLobby()) ? dragonBallNaPasta(sistema, personagensQueAPastaNaoTem(rpg.personagens, lido.personagens)) : null
+      const deFora = dragonBall?.t === 'fichas' ? dragonBall.fichas : []
+      const idsDeFora = new Set(deFora.map((ficha) => ficha.id))
+      const doMapa: RpgDaPasta = { ...lido, personagens: lido.personagens.filter((ficha) => !idsDeFora.has(ficha.id)) }
       const novos = personagensQueAPastaNaoTem(rpg.personagens, doMapa.personagens)
       // Pasta ainda sem sistema adota o do mapa; as equipes e o marcador da mochila da pasta seguem.
       // Pasta convertida: o que os bonecos das fichas copiadas carregam vira aviso antes de a ficha (sem mochila) valer.
       await fichasEntramNaPasta(pasta.id, novos, () => mudarComOSistema((atual) => rpgComOsPersonagensDoMapa(atual, doMapa)))
-      return novos.length === 0 ? 'Os personagens desse mapa já estão na pasta.' : `Copiados para a pasta: ${nomes(novos)}.`
+      const ficou =
+        deFora.length === 0
+          ? ''
+          : ` ${fichasComOBloco(deFora, true)} o bloco do Dragon Ball e ${deFora.length === 1 ? 'ficou' : 'ficaram'} no mapa: com a pasta no Lobby, ficha Dragon Ball ainda não entra.`
+      if (novos.length === 0) return deFora.length === 0 ? 'Os personagens desse mapa já estão na pasta.' : `Nada copiado.${ficou}`
+      return `Copiados para a pasta: ${nomes(novos)}.${ficou}`
     })
 
   const conteudo = (
@@ -231,7 +251,8 @@ function SistemaDaPasta({ pasta, rpg, mapas, onMudar, onFechar, semMoldura = fal
           id={`${baseId}-sistema`}
           className="lb-input"
           value={rpg.sistemaDeRpg ?? ''}
-          disabled={ocupado}
+          disabled={ocupado || publicada}
+          aria-describedby={publicada ? `${baseId}-sistema-fixo` : undefined}
           onChange={(event) => void trocarSistema(event.target.value)}
         >
           <option value="">Nenhum: cada mapa usa o próprio</option>
@@ -242,6 +263,11 @@ function SistemaDaPasta({ pasta, rpg, mapas, onMudar, onFechar, semMoldura = fal
           ))}
           {rpg.sistemaDeRpg !== undefined && sistema === undefined && <option value={rpg.sistemaDeRpg}>{rpg.sistemaDeRpg} (não está neste computador)</option>}
         </select>
+        {publicada && (
+          <p className="lb-field__hint" id={`${baseId}-sistema-fixo`}>
+            {SISTEMA_FIXO_NO_LOBBY}
+          </p>
+        )}
         <p className="lb-field__hint">
           Com um sistema, todo mapa desta pasta usa ele e os jogadores abaixo — a mesma ficha em todos (o HP perdido num mapa continua perdido no outro). Um mapa
           pode preferir o próprio em Configurações do mapa, &quot;Configurar só neste mapa&quot;.

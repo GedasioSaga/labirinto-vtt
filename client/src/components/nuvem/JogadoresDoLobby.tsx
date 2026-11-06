@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { NOME_DA_CONTA_MAX, PIN_MAX_DIGITOS, PIN_MIN_DIGITOS, pinValido, type ContaDeJogador } from '../../lib/contasDosJogadores'
-import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import type { PastaDeMapas, RpgDaPasta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -11,8 +10,9 @@ import { ContaNaNuvem, type EstadoDaConta } from './ContaNaNuvem'
 import { problemaDoEmail, reenviarContasAtuais, trocarEmailDaConta } from './contasNoLobby'
 import { IndicadorDoLobby } from './IndicadorDoLobby'
 import { MudancasParaDecidir } from './MudancasParaDecidir'
-import { campanhaDaPasta, fichasQueSobem, publicarPasta, type EnvioDosMembros, type Publicacao } from './ponteDoLobby'
+import { bloqueioDoDragonBall, dragonBallNaPasta, fichasComOBloco, fichasQueSobem, publicarPasta, type EnvioDosMembros, type Publicacao } from './ponteDoLobby'
 import { contaComOMesmoEmail, emailRepetidoParado, iniciais, listaDeNomes, recadoDeConvite } from './textosDoLobby'
+import { usePastaPublicada } from './usePastaPublicada'
 import './lobby.css'
 
 /**
@@ -73,9 +73,8 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
   const podeGravarContas = useContasStore((state) => state.podeGravar)
   const avisoDasContas = useContasStore((state) => state.aviso)
   const contasLidas = useContasStore((state) => state.lidas)
-  const campanhaLigada = useNuvemStore((state) => Object.values(state.campanhas).find((campanha) => campanha.pastaId === pasta.id))
+  const { publicada, campanhaLigada, marcarPublicada } = usePastaPublicada(pasta.id)
   const falhaAoLigar = useNuvemStore((state) => state.falhaAoLigar)
-  const [noDisco, setNoDisco] = useState<CampanhaPublicada | null>(null)
   const [conta, setConta] = useState<EstadoDaConta>({ t: 'carregando' })
   const [envios, setEnvios] = useState<Readonly<Record<string, Envio>>>({})
   const [emailAberto, setEmailAberto] = useState<string | null>(null)
@@ -85,20 +84,6 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
     void useContasStore.getState().carregar()
   }, [])
 
-  useEffect(() => {
-    let vivo = true
-    campanhaDaPasta(pasta.id).then(
-      (achada) => {
-        if (vivo) setNoDisco(achada)
-      },
-      () => undefined,
-    )
-    return () => {
-      vivo = false
-    }
-  }, [pasta.id, campanhaLigada?.campanhaId])
-
-  const publicada = campanhaLigada !== undefined || noDisco !== null
   const fichas = fichasQueSobem(rpg.personagens)
   const idsDasContas = new Set(contas.map((candidata) => candidata.id))
   const semDono = fichas.filter((ficha) => ficha.dono === undefined || !idsDasContas.has(ficha.dono))
@@ -166,7 +151,7 @@ export function JogadoresDoLobby({ pasta, rpg, sistema, onMudar }: JogadoresDoLo
         {campanhaLigada !== undefined && <IndicadorDoLobby campanha={campanhaLigada} />}
       </div>
 
-      <PublicarNoLobby pasta={pasta} rpg={rpg} sistema={sistema} contas={contas} conta={conta} publicada={publicada} campanhaLigada={campanhaLigada} falhaAoLigar={falhaAoLigar} onPublicada={setNoDisco} />
+      <PublicarNoLobby pasta={pasta} rpg={rpg} sistema={sistema} contas={contas} conta={conta} publicada={publicada} campanhaLigada={campanhaLigada} falhaAoLigar={falhaAoLigar} onPublicada={marcarPublicada} />
 
       {campanhaLigada !== undefined && <MudancasParaDecidir campanha={campanhaLigada} fichas={rpg.personagens} sistema={sistema} />}
 
@@ -274,16 +259,29 @@ interface PublicarNoLobbyProps {
 type Publicando = { t: 'parado' } | { t: 'publicando' } | { t: 'feito'; relatorio: Publicacao } | { t: 'falhou'; mensagem: string }
 
 /** Por que o botão Publicar não pode agir agora; `null` = pode. */
-function bloqueioDaPublicacao(sistema: SistemaDeRpg | undefined, conta: EstadoDaConta, fichas: number): string | null {
+function bloqueioDaPublicacao(sistema: SistemaDeRpg | undefined, personagens: readonly Personagem[], conta: EstadoDaConta): string | null {
   if (sistema === undefined) return 'Escolha o sistema universal na aba Sistema e personagens: pasta sem sistema não vai ao Lobby.'
-  if (motorDoSistema(sistema) === MOTOR_DRAGON_BALL) {
-    return 'Pasta Dragon Ball ainda não vai ao Lobby. No Dragon Ball os campos de um bloco andam juntos, e duas pessoas mudando dois campos do mesmo bloco brigariam. A publicação abre quando o bloco for detalhado campo a campo.'
-  }
+  // O sistema e as fichas que sobem: ficha que guardou o bloco do Dragon Ball também fica fora (12.21).
+  const dragonBall = bloqueioDoDragonBall(sistema, personagens)
+  if (dragonBall !== null) return dragonBall
   if (conta.t === 'carregando') return 'Conferindo a Conta na nuvem…'
   if (conta.t === 'indisponivel') return conta.falha.mensagem
   if (!conta.guardada) return 'Cole o token do app em Conta na nuvem, no fim desta aba, para publicar.'
-  if (fichas === 0) return 'Nenhuma ficha de jogador nesta pasta ainda: importe ou copie os jogadores na aba Sistema e personagens.'
+  if (fichasQueSobem(personagens).length === 0) return 'Nenhuma ficha de jogador nesta pasta ainda: importe ou copie os jogadores na aba Sistema e personagens.'
   return null
+}
+
+/**
+ * A pasta já está no Lobby e ganhou Dragon Ball por um caminho que não passa
+ * pelo Publicar (o sistema trocado pela grade de sistemas de um mapa, ou um
+ * `rpg.json` mexido à mão). As mudanças continuam subindo: o aviso diz o que é
+ * e o que evitar até o bloco ser detalhado campo a campo.
+ */
+function avisoDoDragonBallPublicado(sistema: SistemaDeRpg | undefined, personagens: readonly Personagem[]): string | null {
+  const achado = dragonBallNaPasta(sistema, personagens)
+  if (achado === null) return null
+  const oQue = achado.t === 'sistema' ? 'o sistema dela agora é Dragon Ball' : `${fichasComOBloco(achado.fichas)} o bloco do Dragon Ball`
+  return `Esta pasta já está no Lobby, mas ${oQue}, que ainda não vai ao Lobby. As mudanças nos blocos do Dragon Ball sobem do mesmo jeito e podem brigar no site: não mexa neles até o bloco ser detalhado campo a campo.`
 }
 
 function PublicarNoLobby({ pasta, rpg, sistema, contas, conta, publicada, campanhaLigada, falhaAoLigar, onPublicada }: PublicarNoLobbyProps) {
@@ -311,12 +309,18 @@ function PublicarNoLobby({ pasta, rpg, sistema, contas, conta, publicada, campan
   const relatorio = publicando.t === 'feito' ? <RelatorioDaPublicacao relatorio={publicando.relatorio} /> : null
 
   if (publicada) {
+    const dragonBall = avisoDoDragonBallPublicado(sistema, rpg.personagens)
     return (
       <section className="lby-publicar" data-estado="publicada" aria-labelledby={`${id}-t`}>
         <h4 className="lby-cab__t" id={`${id}-t`}>
           Publicada no Lobby
         </h4>
         <p className="lby-dica">Os jogadores com e-mail veem as fichas no site. Cada mudança, daqui ou de lá, sobe sozinha; ficha nova de jogador entra no Lobby assim que nasce na pasta.</p>
+        {dragonBall !== null && (
+          <p className="lby-aviso" role="alert">
+            {dragonBall}
+          </p>
+        )}
         {campanhaLigada === undefined && falhaAoLigar !== null && (
           <p className="lb-field__error" role="alert">
             {falhaAoLigar}
@@ -327,7 +331,7 @@ function PublicarNoLobby({ pasta, rpg, sistema, contas, conta, publicada, campan
     )
   }
 
-  const bloqueio = bloqueioDaPublicacao(sistema, conta, fichas.length)
+  const bloqueio = bloqueioDaPublicacao(sistema, rpg.personagens, conta)
   const ocupado = publicando.t === 'publicando'
   return (
     <section className="lby-publicar" aria-labelledby={`${id}-t`}>

@@ -2,6 +2,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import type { ContaDeJogador } from '../../lib/contasDosJogadores'
 import { ehRefDeMidia, idDaRef } from '../../lib/midia'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
 import { ehRegistro, paraJson, proprio, type Json } from '../../lib/nuvem/json'
 import { VERSAO_DO_FORMATO } from '../../lib/nuvem/tipos'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
@@ -10,7 +11,7 @@ import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from '../../net/nu
 import { vaiAoLobby } from '../../net/nuvem/emissor'
 import { estadoNovo, gravarEstado, lerCampanhas, lerEstado, type CampanhaPublicada } from '../../net/nuvem/estadoNoDisco'
 import { registrarELigar, retomarLobby } from '../../net/nuvem/nuvemNoApp'
-import { membrosDasContas, NOME_DO_MESTRE, textoDoMotivo } from './textosDoLobby'
+import { listaDeNomes, membrosDasContas, NOME_DO_MESTRE, textoDoMotivo } from './textosDoLobby'
 
 /**
  * AS TELAS DO LOBBY FALANDO COM A PONTE (docs/planos/lobby-jogadores-2026-11-05.md
@@ -226,6 +227,41 @@ export function fichasQueSobem(personagens: readonly Personagem[]): Personagem[]
   return personagens.filter(vaiAoLobby)
 }
 
+// ── Dragon Ball fora da v1 (12.21) ──────────────────────────────────────────
+
+/** O Dragon Ball que esta pasta levaria ao Lobby: o sistema, ou as fichas que sobem com o bloco `dbt`. */
+export type DragonBallNaPasta = { t: 'sistema' } | { t: 'fichas'; fichas: Personagem[] }
+
+/**
+ * O sistema sozinho não basta: a ficha guarda o bloco `dbt` mesmo depois de a
+ * pasta trocar para um sistema de motor padrão (`rpgComSistema` troca só o
+ * sistema) ou de vir copiada de um mapa Dragon Ball, e cada mudança dela
+ * subiria como op em `['dbt', campo]`, a que a 12.21 deixa fora da v1.
+ */
+export function dragonBallNaPasta(sistema: SistemaDeRpg | undefined, personagens: readonly Personagem[]): DragonBallNaPasta | null {
+  if (motorDoSistema(sistema) === MOTOR_DRAGON_BALL) return { t: 'sistema' }
+  const fichas = fichasQueSobem(personagens).filter((ficha) => ficha.dbt !== undefined)
+  return fichas.length === 0 ? null : { t: 'fichas', fichas }
+}
+
+const POR_QUE_O_DRAGON_BALL_FICA_FORA =
+  'No Dragon Ball os campos de um bloco andam juntos, e duas pessoas mudando dois campos do mesmo bloco brigariam. A publicação abre quando o bloco for detalhado campo a campo.'
+
+/** "a ficha Goku tem" / "as fichas Goku e Vegeta têm" (no meio da frase; `noComeco` põe a maiúscula). */
+export function fichasComOBloco(fichas: readonly Personagem[], noComeco = false): string {
+  const nomes = listaDeNomes(fichas.map((ficha) => ficha.nome))
+  const artigo = fichas.length === 1 ? 'a ficha' : 'as fichas'
+  return `${noComeco ? artigo[0].toUpperCase() + artigo.slice(1) : artigo} ${nomes} ${fichas.length === 1 ? 'tem' : 'têm'}`
+}
+
+/** Por que esta pasta não pode ir ao Lobby por causa do Dragon Ball; `null` = pode. */
+export function bloqueioDoDragonBall(sistema: SistemaDeRpg | undefined, personagens: readonly Personagem[]): string | null {
+  const achado = dragonBallNaPasta(sistema, personagens)
+  if (achado === null) return null
+  if (achado.t === 'sistema') return `Pasta Dragon Ball ainda não vai ao Lobby. ${POR_QUE_O_DRAGON_BALL_FICA_FORA}`
+  return `${fichasComOBloco(achado.fichas, true)} o bloco do Dragon Ball, e ficha Dragon Ball ainda não vai ao Lobby, nem numa pasta de outro sistema. ${POR_QUE_O_DRAGON_BALL_FICA_FORA}`
+}
+
 /**
  * PUBLICAR (§5.4): cria a campanha no servidor com o sistema, os jogadores
  * com e-mail e as fichas de jogador que ainda não existem lá; depois liga o
@@ -237,6 +273,9 @@ export function fichasQueSobem(personagens: readonly Personagem[]): Personagem[]
  * conflito com ela (§5.2).
  */
 export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resultado<Publicacao>> {
+  // A mesma guarda do botão, aqui também: quem chamar sem passar pela tela não cria campanha nem liga o sincronizador.
+  const dragonBall = bloqueioDoDragonBall(pedido.sistema, pedido.personagens)
+  if (dragonBall !== null) return { ok: false, falha: { t: 'erro', mensagem: dragonBall } }
   if (!isTauri()) return { ok: false, falha: FORA_DO_APP }
   const raiz = await raizDaNuvem()
   const existente = (await lerCampanhas(raiz)).find((campanha) => campanha.pastaId === pedido.pastaId)
