@@ -16,7 +16,12 @@ import type { PedidoDaR1 } from './comandosDaR1'
  *    de 10 min do Lobby e troca os endereços (o túnel que ficou pronto ou caiu,
  *    `trocarTunel`), mantendo a chave;
  *  - `fechar`, no `net_stop_room`: `POST /api/c/:id/sala/fechar`; o Lobby
- *    apaga o registro e a chave.
+ *    apaga o registro e a chave;
+ *  - `reconferir`, quando a pasta aberta muda (ou é publicada) com a sala no
+ *    ar: a sala segue a campanha da pasta de agora, ou sai do Lobby.
+ *
+ * Quem liga tudo isso ao app é o `App.tsx` (`handleStartRoom`,
+ * `handleStopRoom`, o túnel da ponte e a pasta da aventura aberta).
  *
  * Sem internet, com a pasta sem campanha no Lobby ou sem endereço que o
  * Lobby aceite, nada é publicado: o site não mostra o botão, e código, nome e
@@ -80,29 +85,44 @@ function lerPublicada(corpo: unknown, enviadoEm: number, recebidoEm: number): Pu
 export interface DepsDaSalaNoLobby {
   /** O `pedir` da R1 (`comandosDaR1().pedir`): rejeita com o `Err` dela. */
   pedir: (pedido: PedidoDaR1) => Promise<unknown>
-  /** A campanha publicada da pasta aberta; `null` = a pasta não está no Lobby, e nada é publicado. */
-  campanhaId: () => string | null
+  /**
+   * A campanha publicada da pasta aberta AGORA (relida a cada `abrir` e
+   * `reconferir`); `null` = a pasta não está no Lobby, e nada é publicado.
+   * Rejeitar (disco ilegível) conta como `null`.
+   */
+  campanhaId: () => string | null | Promise<string | null>
   now?: () => number
   /** Chama `fazer` a cada `ms` e devolve como parar. Padrão: `setInterval`. */
   repetir?: (fazer: () => void, ms: number) => () => void
 }
 
 export interface SalaNoLobby {
-  /** Logo depois do `net_start_room`: publica o código e os endereços da rede local, e começa a batida. */
+  /** Logo depois do `net_start_room`: publica o código e os endereços da rede local, e começa a batida. A mesma sala de novo não muda nada. */
   abrir(codigo: string, urlsDaLan: readonly string[]): Promise<void>
   /** O link público ficou pronto (`url`, com `/player`) ou caiu (`null`): os endereços mudam já. */
   trocarTunel(url: string | null): Promise<void>
+  /**
+   * A pasta aberta mudou, ou foi publicada (ou saiu do Lobby) com a sala no ar:
+   * a campanha é relida. A mesma, nada muda; outra, a sala sai da de antes e
+   * entra nesta (com chave nova); nenhuma, a sala sai do Lobby.
+   */
+  reconferir(): Promise<void>
   /** No `net_stop_room`: para a batida e tira a sala do Lobby (a chave some junto). */
   fechar(): Promise<void>
   /** Com o que o host confere o bilhete agora; `null` = a sala não está no Lobby. */
   regrasDoBilhete(): RegrasDoBilhete | null
 }
 
-interface SalaAberta {
-  campanhaId: string
+/** A sala aberta no app, no Lobby ou não. */
+interface SalaDoApp {
   codigo: string
   urlsDaLan: readonly string[]
-  tunel: string | null
+}
+
+interface SalaAberta {
+  campanhaId: string
+  /** A sala do app que esta publicação mostra: outra (ou nenhuma) = a publicação já não vale. */
+  mesa: SalaDoApp
   publicada: Publicada | null
   /** Algum `abrirSala` saiu: no fim, o `fecharSala` vai (mesmo que a resposta não tenha voltado). */
   pediuAbrir: boolean
@@ -116,10 +136,21 @@ const repetirComIntervalo = (fazer: () => void, ms: number): (() => void) => {
   return () => clearInterval(id)
 }
 
+function mesmaSalaDoApp(sala: SalaDoApp, codigo: string, urlsDaLan: readonly string[]): boolean {
+  return sala.codigo === codigo && sala.urlsDaLan.length === urlsDaLan.length && sala.urlsDaLan.every((url, i) => url === urlsDaLan[i])
+}
+
 export function criarSalaNoLobby(deps: DepsDaSalaNoLobby): SalaNoLobby {
   const now = deps.now ?? Date.now
   const repetir = deps.repetir ?? repetirComIntervalo
+  /** A publicação no Lobby agora. */
   let aberta: SalaAberta | null = null
+  /** A sala aberta no app; `null` desde o `fechar`, na hora (o bilhete deixa de valer antes de o Lobby saber). */
+  let naMesa: SalaDoApp | null = null
+  /** O link público de agora: vale também para a sala que ainda vai ao Lobby. */
+  let tunel: string | null = null
+  /** `abrir`, `reconferir` e `fechar`, um de cada vez e na ordem; nunca rejeita. */
+  let passos: Promise<void> = Promise.resolve()
 
   const pedirSemFalha = async (pedido: PedidoDaR1): Promise<{ ok: true; corpo: unknown } | { ok: false }> => {
     try {
@@ -139,14 +170,14 @@ export function criarSalaNoLobby(deps: DepsDaSalaNoLobby): SalaNoLobby {
   const publicar = async (sala: SalaAberta) => {
     // Fechou (ou abriu outra) enquanto esperava a vez.
     if (aberta !== sala) return
-    const enderecos = enderecosDaSala(sala.urlsDaLan, sala.tunel)
+    const enderecos = enderecosDaSala(sala.mesa.urlsDaLan, tunel)
     if (enderecos.length === 0) {
       // Sem rede local e sem túnel, o jogador não teria para onde ir: o botão some.
       if (sala.pediuAbrir) await fecharNoLobby(sala)
       sala.pediuAbrir = false
       return
     }
-    const corpo: Json = { codigo: sala.codigo, enderecos: enderecos.map(({ tipo, url }) => ({ tipo, url })) }
+    const corpo: Json = { codigo: sala.mesa.codigo, enderecos: enderecos.map(({ tipo, url }) => ({ tipo, url })) }
     sala.pediuAbrir = true
     const enviadoEm = now()
     const resposta = await pedirSemFalha({ rota: 'abrirSala', campanhaId: sala.campanhaId, corpo })
@@ -161,7 +192,8 @@ export function criarSalaNoLobby(deps: DepsDaSalaNoLobby): SalaNoLobby {
     return sala.fila
   }
 
-  const fechar = async () => {
+  /** Para a batida e tira a publicação do Lobby, depois de qualquer pedido dela que ainda estava no ar. */
+  const tirarDoLobby = async () => {
     const sala = aberta
     if (sala === null) return
     aberta = null
@@ -170,41 +202,63 @@ export function criarSalaNoLobby(deps: DepsDaSalaNoLobby): SalaNoLobby {
     if (sala.pediuAbrir) await fecharNoLobby(sala)
   }
 
+  const campanhaAgora = async (): Promise<string | null> => {
+    try {
+      return await deps.campanhaId()
+    } catch {
+      // Lista de campanhas ilegível: a sala segue só pelo código e PIN, como numa pasta fora do Lobby.
+      return null
+    }
+  }
+
+  /** Deixa o Lobby de acordo com a sala do app e a pasta aberta agora. */
+  const acompanhar = async () => {
+    const mesa = naMesa
+    const campanhaId = mesa === null ? null : await campanhaAgora()
+    // A sala do app mudou enquanto a campanha era lida: o passo seguinte, já na fila, acerta.
+    if (mesa !== naMesa) return
+    if (aberta !== null && aberta.mesa === mesa && aberta.campanhaId === campanhaId) return
+    await tirarDoLobby()
+    if (mesa === null || campanhaId === null || mesa !== naMesa) return
+    const sala: SalaAberta = { campanhaId, mesa, publicada: null, pediuAbrir: false, fila: Promise.resolve(), pararBatida: () => undefined }
+    aberta = sala
+    sala.pararBatida = repetir(() => {
+      void enfileirar(sala)
+    }, BATIDA_DA_SALA_MS)
+    await enfileirar(sala)
+  }
+
+  const passo = (): Promise<void> => {
+    passos = passos.then(acompanhar)
+    return passos
+  }
+
   return {
-    async abrir(codigo, urlsDaLan) {
-      await fechar()
-      const campanhaId = deps.campanhaId()
-      if (campanhaId === null) return
-      const sala: SalaAberta = {
-        campanhaId,
-        codigo,
-        urlsDaLan: [...urlsDaLan],
-        tunel: null,
-        publicada: null,
-        pediuAbrir: false,
-        fila: Promise.resolve(),
-        pararBatida: () => undefined,
-      }
-      aberta = sala
-      sala.pararBatida = repetir(() => {
-        void enfileirar(sala)
-      }, BATIDA_DA_SALA_MS)
-      await enfileirar(sala)
+    abrir(codigo, urlsDaLan) {
+      if (naMesa === null || !mesmaSalaDoApp(naMesa, codigo, urlsDaLan)) naMesa = { codigo, urlsDaLan: [...urlsDaLan] }
+      return passo()
     },
 
     async trocarTunel(url) {
+      if (tunel === url) return
+      tunel = url
       const sala = aberta
-      if (sala === null || sala.tunel === url) return
-      sala.tunel = url
-      await enfileirar(sala)
+      if (sala !== null) await enfileirar(sala)
     },
 
-    fechar,
+    reconferir: passo,
+
+    fechar() {
+      naMesa = null
+      // O Rust derruba o link público junto com a sala.
+      tunel = null
+      return passo()
+    },
 
     regrasDoBilhete() {
       const sala = aberta
-      if (sala === null || sala.publicada === null) return null
-      return { chave: sala.publicada.chave, sala: sala.codigo, agoraMs: now() + sala.publicada.diferencaMs }
+      if (sala === null || sala.publicada === null || sala.mesa !== naMesa) return null
+      return { chave: sala.publicada.chave, sala: sala.mesa.codigo, agoraMs: now() + sala.publicada.diferencaMs }
     },
   }
 }

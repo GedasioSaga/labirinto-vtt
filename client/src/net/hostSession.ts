@@ -5554,9 +5554,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (byClient.has(clientId) || tableClients.has(clientId)) return reply(clientId, { type: 'error', reason: 'already_joined' })
     if (msg.role === 'table') return handleTableJoin(clientId, msg, world)
     if (msg.code !== options.code) return reply(clientId, { type: 'error', reason: 'bad_code' })
-    // CONTAS: PIN e aparelho só valem conferidos pela ponte (`joinWithAccount`).
+    // CONTAS: PIN, aparelho e o bilhete do Lobby só valem conferidos pela ponte (`joinWithAccount`).
     // Chegando aqui, ninguém conferiu: nunca viram entrada só pelo nome.
-    if (msg.pin !== undefined || msg.device !== undefined) return reply(clientId, { type: 'account.refused', reason: 'unavailable' })
+    if (msg.pin !== undefined || msg.device !== undefined || msg.ticket !== undefined) return reply(clientId, { type: 'account.refused', reason: 'unavailable' })
 
     const resumed = msg.resume === undefined ? undefined : [...players.values()].find((p) => p.resumeToken === msg.resume)
     const contas = options.contas?.()

@@ -220,6 +220,10 @@ import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
 import { levarMidiaDoMapaSolto } from './lib/midiaDaPasta'
 import { pastaAbertaDoArquivo, type PastaAberta } from './lib/pastasDeMapas'
+import { campanhaDaPasta } from './components/nuvem/ponteDoLobby'
+import { comandosDaR1 } from './net/nuvem/comandosDaR1'
+import { criarSalaNoLobby, type SalaNoLobby } from './net/nuvem/salaNoLobby'
+import { useNuvemStore, type CampanhaNoApp } from './stores/nuvemStore'
 import { migrarMochilaAoAbrir } from './net/nuvem/migracaoDaMochila'
 import { conferirMochilaAoAbrir, marcarMapaImportado } from './net/nuvem/mochilaPendenteNoApp'
 import { avisarJogadoresDosBonecosSeparados } from './net/mochilaNaSala'
@@ -377,6 +381,45 @@ function pararDeOuvir(unlisten: (() => void) | undefined): void {
  * fecha mesmo assim — travar a janela do usuário é pior que perguntar de novo.
  */
 const CLOSE_DIALOG_MAX_WAIT_MS = 10_000
+
+/** Ao fechar o app, quanto se espera o Lobby tirar a sala do ar: sem resposta, ele a esquece sozinho em até 10 min. */
+const FECHAR_NO_LOBBY_MAX_MS = 1_500
+
+/** ENTRAR PELO LOBBY: a campanha da pasta no sincronizador ligado; `null` = ele não ligou para esta pasta. */
+function campanhaLigadaDaPasta(campanhas: Record<string, CampanhaNoApp>, pastaId: string): string | null {
+  return Object.values(campanhas).find((campanha) => campanha.pastaId === pastaId)?.campanhaId ?? null
+}
+
+/**
+ * ENTRAR PELO LOBBY ("Entrar na mesa agora"): a campanha do Lobby da pasta da
+ * aventura aberta, a do sincronizador ligado ou, antes de ele ligar, a da
+ * lista no disco. `null` = mapa fora das pastas, pasta fora do Lobby ou fora
+ * do app: a sala segue só pelo código, nome e PIN.
+ */
+async function campanhaDaPastaAberta(): Promise<string | null> {
+  const pasta = useAdventureStore.getState().pasta
+  if (pasta === null) return null
+  const ligada = campanhaLigadaDaPasta(useNuvemStore.getState().campanhas, pasta.pastaId)
+  if (ligada !== null) return ligada
+  const noDisco = await campanhaDaPasta(pasta.pastaId)
+  return noDisco === null ? null : noDisco.campanhaId
+}
+
+/** Tira a sala do Lobby sem segurar o fechamento do app mais que `FECHAR_NO_LOBBY_MAX_MS`. */
+async function fecharNoLobbyComPrazo(sala: SalaNoLobby | null): Promise<void> {
+  if (sala === null) return
+  let relogio: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      sala.fechar(),
+      new Promise<void>((resolve) => {
+        relogio = setTimeout(resolve, FECHAR_NO_LOBBY_MAX_MS)
+      }),
+    ])
+  } finally {
+    clearTimeout(relogio)
+  }
+}
 
 /** Aviso de sucesso de Salvar (botão, Ctrl+S) e de sair por Início. */
 const MAP_SAVED_TEXT = 'Mapa salvo'
@@ -851,6 +894,18 @@ function App() {
   // DIA/TARDE/NOITE: o período da sessão (o da aventura; no mapa solto, o da sessão).
   const periodoAtual = useAdventureStore(periodoDaSessao)
   const hostBridgeRef = useRef<HostBridge | null>(null)
+  // ENTRAR PELO LOBBY ("Entrar na mesa agora"): a sala aberta vai ao Lobby
+  // quando a pasta aberta está publicada lá, e a chave que volta confere o
+  // bilhete do jogador (`net/nuvem/salaNoLobby.ts`). Sem pasta publicada, sem
+  // internet ou fora do app, nada muda e nada aparece na tela.
+  const salaNoLobbyRef = useRef<SalaNoLobby | null>(null)
+  const salaNoLobby = (): SalaNoLobby => {
+    if (salaNoLobbyRef.current === null) {
+      const r1 = comandosDaR1()
+      salaNoLobbyRef.current = criarSalaNoLobby({ pedir: (pedido) => r1.pedir(pedido), campanhaId: campanhaDaPastaAberta })
+    }
+    return salaNoLobbyRef.current
+  }
   // A mesa da sala aberta é da aventura em que ela abriu: trocar de aventura no
   // meio não pode gravar os donos desta sala na mesa da outra.
   const roomTableIdRef = useRef<string | null>(null)
@@ -875,6 +930,8 @@ function App() {
         saveMyNotes: (notes) => storeSavedMyNotes(tableStorage(), roomTableIdRef.current ?? currentTableId(), notes),
         // CONTAS DOS JOGADORES: nome + PIN e o aparelho lembrado (`net/entradaComConta.ts`). Só a sala de verdade as tem.
         contas: portaDasContasDoApp(),
+        // ENTRAR PELO LOBBY: o bilhete confere com a chave, o código e o relógio da sala publicada agora.
+        regrasDoBilhete: () => salaNoLobby().regrasDoBilhete(),
         loadChat: () => roomChatStore().load(),
         appendChat: (sceneKey, entry) => roomChatStore().append(sceneKey, entry),
         deleteChat: (sceneKey, id) => roomChatStore().remove(sceneKey, id),
@@ -938,7 +995,11 @@ function App() {
         onDancaChange: setDanca,
         onPescaChange: setPescas,
         onTiroChange: setTiros,
-        onTunnelChange: setTunnel,
+        // ENTRAR PELO LOBBY: o link público pronto (ou caído) muda os endereços que o site oferece.
+        onTunnelChange: (estado) => {
+          setTunnel(estado)
+          void salaNoLobby().trocarTunel(estado.kind === 'ready' ? estado.url : null)
+        },
         // MODO BATALHA: só a sessão do mestre sabe quais cenas estão em batalha; o jogador recebe `batalha: true`.
         // BATALHA DBT: a cena em batalha Dragon Ball também conta (o caminho andado é infra das duas).
         getBatalha: (sceneKey) => useBatalhaStore.getState().ligada(sceneKey) || useBatalhaDBTStore.getState().ligada(sceneKey),
@@ -1150,16 +1211,36 @@ function App() {
   )
   useEffect(
     () => () => {
+      void salaNoLobbyRef.current?.fechar()
       void hostBridgeRef.current?.stop()
     },
     [],
   )
+  // ENTRAR PELO LOBBY: outra pasta aberta, ou esta publicada (ou tirada) do
+  // Lobby com a sala no ar: a sala segue a campanha de agora, ou sai do Lobby.
+  useEffect(() => {
+    const pastaDe = (state: { pasta: PastaAberta | null }) => (state.pasta === null ? null : state.pasta.pastaId)
+    const pararDeOuvirAventura = useAdventureStore.subscribe((state, previous) => {
+      if (pastaDe(state) !== pastaDe(previous)) void salaNoLobbyRef.current?.reconferir()
+    })
+    const pararDeOuvirNuvem = useNuvemStore.subscribe((state, previous) => {
+      const pastaId = pastaDe(useAdventureStore.getState())
+      if (pastaId !== null && campanhaLigadaDaPasta(state.campanhas, pastaId) !== campanhaLigadaDaPasta(previous.campanhas, pastaId)) void salaNoLobbyRef.current?.reconferir()
+    })
+    return () => {
+      pararDeOuvirAventura()
+      pararDeOuvirNuvem()
+    }
+  }, [])
   const handleStartRoom = async (resume: boolean) => {
     roomTableIdRef.current = currentTableId()
     try {
       const bridge = hostBridge()
-      setRoom(await bridge.start({ resume }))
+      const aberta = await bridge.start({ resume })
+      setRoom(aberta)
       setTableKey(bridge.tableKey())
+      // ENTRAR PELO LOBBY: com a pasta aberta publicada, o site mostra "Entrar na mesa agora" (nunca rejeita).
+      void salaNoLobby().abrir(aberta.code, aberta.urls)
     } catch {
       // A ponte já mostrou o toast com o motivo; o painel continua com a sala fechada.
     }
@@ -1170,6 +1251,8 @@ function App() {
     void handleStartRoom(resume)
   }
   const handleStopRoom = async () => {
+    // Antes da ponte: o bilhete deixa de valer na hora, e o site tira o botão.
+    void salaNoLobby().fechar()
     await hostBridgeRef.current?.stop()
     setRoom(null)
     setRoomPlayers([])
@@ -1835,21 +1918,28 @@ function App() {
     if (!isTauri()) return
     let unlisten: (() => void) | undefined
     let cancelled = false
+    // Pergunta com edição não salva OU com jogador conectado: fechar o app
+    // derruba a sala, e com o mapa salvo o X levava os 7 sem perguntar.
+    // Sem ponte (sala nunca aberta), ninguém está na sala.
+    const perguntarAoFechar = criarPedidoDeFechar({
+      estado: () => ({
+        alteracoesNaoSalvas: hasUnsavedWork(),
+        jogadoresNaSala: hostBridgeRef.current?.connectedPlayerCount() ?? 0,
+      }),
+      perguntar: (texto) => ask(texto, { title: 'Labirinto', kind: 'warning' }),
+      // ENTRAR PELO LOBBY: a sala sai do Lobby antes de a janela sumir.
+      fechar: async () => {
+        await fecharNoLobbyComPrazo(salaNoLobbyRef.current)
+        await getCurrentWindow().destroy()
+      },
+      esperaMaximaMs: CLOSE_DIALOG_MAX_WAIT_MS,
+    })
     getCurrentWindow()
-      .onCloseRequested(
-        // Pergunta com edição não salva OU com jogador conectado: fechar o app
-        // derruba a sala, e com o mapa salvo o X levava os 7 sem perguntar.
-        // Sem ponte (sala nunca aberta), ninguém está na sala.
-        criarPedidoDeFechar({
-          estado: () => ({
-            alteracoesNaoSalvas: hasUnsavedWork(),
-            jogadoresNaSala: hostBridgeRef.current?.connectedPlayerCount() ?? 0,
-          }),
-          perguntar: (texto) => ask(texto, { title: 'Labirinto', kind: 'warning' }),
-          fechar: () => getCurrentWindow().destroy(),
-          esperaMaximaMs: CLOSE_DIALOG_MAX_WAIT_MS,
-        }),
-      )
+      .onCloseRequested(async (pedido) => {
+        await perguntarAoFechar(pedido)
+        // Sem pergunta, o Tauri fecha a janela logo depois deste handler: a sala sai do Lobby antes.
+        if (!pedido.isPreventDefault()) await fecharNoLobbyComPrazo(salaNoLobbyRef.current)
+      })
       .then((fn) => {
         if (cancelled) pararDeOuvir(fn)
         else unlisten = fn
