@@ -342,7 +342,7 @@ O servidor nunca apaga `ops` nem `recusadas`. "Nada é apagado sem ordem do usu�
 
 ### 6.5 Limites (em `client/src/lib/nuvem/limites.ts`, aplicados pelo DO)
 
-Por conta: ritmo GCRA reaproveitando `takeChatTurn` (`client/src/lib/chat.ts:187`), com `paceAt` gravado em `cotas` (sobrevive à hibernação e vale para os vários sockets da conta); ≤ 3 sockets; teto diário de ops, bytes gravados e MB de mídia. Por campanha: teto diário de ops e ≤ 20 sockets. Vale para **todo** frame (não só envio). Depois de N violações, o socket é fechado e novo upgrade é recusado por alguns minutos; **violação** = frame malformado ou op `negado`, nunca op `adiado` por cota/ritmo (cota estourada só adia, 5.4). **A conta do mestre (`contaId 'mestre'`) e o Service Token não têm teto diário por conta** (quase todas as ~3.000 ops/dia da seção 7 saem do app do mestre): para eles vale só o teto da campanha. Números iniciais (ajustáveis num arquivo só): conta de jogador 2.000 ops/dia e 5 MB/dia; campanha 8.000 ops/dia (~2,7× a estimativa da seção 7); frame 64 KiB; lote 50 ops; op ≤ 24 KiB (sempre abaixo do frame).
+Por conta: ritmo GCRA reaproveitando `takeChatTurn` (`client/src/lib/chat.ts:187`), com `paceAt` gravado em `cotas` (sobrevive à hibernação e vale para os vários sockets da conta); ≤ 3 sockets; teto diário de ops, bytes gravados e MB de mídia. Por campanha: teto diário de ops e ≤ 36 sockets (3 por conta × 12 contas, seção 7). Vale para **todo** frame (não só envio). Depois de N violações, o socket é fechado e novo upgrade é recusado por alguns minutos; **violação** = frame malformado ou op `negado`, nunca op `adiado` por cota/ritmo (cota estourada só adia, 5.4). **A conta do mestre (`contaId 'mestre'`) e o Service Token não têm teto diário por conta** (quase todas as ~5.500 ops/dia da seção 7 saem do app do mestre): para eles vale só o teto da campanha. Números iniciais (ajustáveis num arquivo só): conta de jogador 2.000 ops/dia e 5 MB/dia; campanha 10.000 ops/dia (~1,8× a estimativa da seção 7, que já é pessimista; o limite de cima é o de linhas gravadas: no teto, ~62.500 das 100.000 do dia, seção 7); frame 64 KiB; lote 50 ops; op ≤ 24 KiB (sempre abaixo do frame). Tetos da campanha revistos em 05/11/2026 com a seção 7 para 12 contas; o `limites.ts` ainda está com os da conta antiga (8.000 e 20).
 
 ### 6.6 Mídia
 
@@ -357,24 +357,40 @@ PUT confere sha256 **e** o tipo pelos bytes (`tipoDosBytes`, `midia.ts:57-60`) c
 
 ---
 
-## 7. Cotas do plano grátis (1 mestre + 6 jogadores, 1 sessão de 4 h por dia)
+## 7. Cotas do plano grátis (1 mestre + 11 jogadores = 12 contas, 1 sessão de 4 h por dia)
 
-Hipóteses: app do mestre aberto com a campanha durante a sessão; ~3.000 ops no dia (batalha incluída, já em lotes de ~1 s); cada pessoa abre o site ~6 vezes; 40 imagens por campanha.
+Refeita em 05/11/2026 para a pasta One Piece (11 jogadores e o mestre; a primeira conta usava 1 + 6). Os limites diários do plano grátis são os mesmos da primeira versão desta seção (não foram reconferidos nas docs nesta revisão): Workers/Functions 100.000 req; DO 100.000 req (mensagem WS recebida conta 1/20; enviada e ping não contam); SQLite 100.000 linhas gravadas e 5.000.000 lidas; duração do DO 13.000 GB-s; armazenamento 5 GB; Access 50 usuários.
+
+Hipóteses:
+
+- App do mestre aberto com a campanha durante a sessão (consulta a cada 5 s) e, para ficar do lado pessimista, aberto e minimizado no resto do dia (consulta a cada 10 min, 5.5): ~120 consultas a mais.
+- **~5.500 ops no dia** (batalha incluída, em ~730 lotes de ~1 s): as 3.000 da primeira conta × 11/6, crescendo junto com as fichas de jogador. É pessimista: a sessão continua com 4 h e, com mais gente, cada um age menos vezes; o real deve ficar entre 3.000 e 5.500.
+- Cada uma das 12 pessoas abre o site (ou reconecta) ~6 vezes no dia = 72 aberturas; ~100 mensagens WS recebidas por pessoa = 1.200.
+- ~75 imagens por campanha (as 40 da primeira conta × 11/6: retrato e cartões crescem com as fichas), contadas como se cada pessoa baixasse todas todo dia (na prática é uma vez por aparelho, `immutable`, 6.6).
+- Cada op grava ~6 linhas: a própria linha em `ops`, os 2 índices dela (`opId` e `(fichaId, rev)`), a ficha, a rev em `meta` e o contador da campanha em `cotas`; cada frame recebido grava mais 1 (`paceAt`, 6.5).
 
 | Recurso (limite diário Free) | Conta | Estimativa | % |
 |---|---|---|---|
-| Workers/Functions (100.000 req) | app: 2.880 `desde` + 400 lotes; site: 42 × (`/api/eu` + upgrade) + 7 × 40 imagens na primeira vez | ~3.650 | ~4% |
-| DO (100.000 req; mensagem WS recebida = 1/20, enviada e ping grátis) | 2.880 + 400 + 42 upgrades + 700 mensagens/20 | ~3.360 | ~3% |
-| Linhas gravadas SQLite (100.000) | 3.000 ops × ~6 linhas + 1.100 atualizações do limitador | ~19.000 | ~19% |
-| Linhas lidas (5.000.000) | snapshots + `desde` + histórico | < 100.000 | < 2% |
-| Duração DO (13.000 GB-s) | DO acordado ~4 h pela consulta de 5 s: 14.400 s × 0,128 GB | ~1.850 | ~14% |
-| Armazenamento (5 GB) | ~300 B/op → ~1 MB/dia (~330 MB/ano) + mídia ≤ 300 MB | — | ~13% no 1º ano |
-| Access (50 usuários) | 7 | — | 14% |
-| v2, a mais: chat 2.000 msgs + duelo 300 msgs | DO +115 req; linhas +6.600 | — | ~+7% nas linhas |
+| Workers/Functions (100.000 req) | app: 2.880 `desde` na sessão + 120 fora dela + 730 lotes; site: 72 aberturas × 3 (`/api/eu`, `/api/versao`, upgrade) + 12 × 75 imagens | ~4.850 | ~5% |
+| DO (100.000 req; mensagem WS recebida = 1/20, enviada e ping grátis) | 3.000 `desde` + 730 lotes + 72 `/api/eu` (DO Diretório) + 72 upgrades + 900 imagens (moram no DO, 6.6) + 1.200 mensagens/20 | ~4.850 | ~5% |
+| Linhas gravadas SQLite (100.000) | 5.500 ops × ~6 linhas + 1.930 `paceAt` (730 lotes + 1.200 mensagens) | ~35.000 | ~35% |
+| Linhas lidas (5.000.000) | snapshots + `desde` + histórico + pedaços de imagem | < 200.000 | < 4% |
+| Duração DO (13.000 GB-s) | sessão: DO acordado ~4 h pela consulta de 5 s, 14.400 s × 0,128 GB = ~1.850; fora dela: (72 aberturas do site + 72 `/api/eu` no Diretório + 120 consultas de 10 min) × ~30 s acordado × 0,128 GB = ~1.000 | ~2.850 | ~22% |
+| Armazenamento (5 GB) | ~300 B/op × 5.500 → ~1,65 MB/dia (~600 MB/ano) + mídia ≤ 300 MB (teto por campanha, 6.6) | — | ~18% no 1º ano |
+| Access (50 usuários) | 12 (o mestre e os 11 jogadores; o Service Token do app não é pessoa) | — | 24% |
+| v2, a mais: chat ~3.400 msgs (2.000 × 12/7) + duelo ~550 msgs (300 × 11/6) | DO +~200 req; linhas +~11.300 (chat 3 por mensagem, duelo 2); armazenamento +~1 MB/dia | — | ~+11% nas linhas; ~+7% no armazenamento do 1º ano |
 
-O ponto apertado é a **duração do DO**: se o app consultasse a cada 5 s o dia inteiro, iria a ~85%. Por isso a regra da seção 5.5 (5 s só com campanha aberta e janela visível; senão, ao focar ou a cada 10 min). O painel de uso fica em Cloudflare > Workers & Pages > Metrics; conferir na primeira semana.
+**Dia típico: nada passa de ~35%; com a v2, linhas gravadas ~46% e armazenamento ~25% no 1º ano.** O plano grátis continua cabendo com 12 contas.
 
-Não confirmado nas docs: Google como provedor do Access no Free; repasse de WebSocket de Pages Functions para DO por `script_name`; tamanho máximo de linha/BLOB no SQLite do DO (o desenho já usa pedaços de 512 KiB). Cada um tem uma fatia que testa antes de depender dele.
+**Dia no teto (6.5):** se a campanha bater as 10.000 ops do teto, são 10.000 × ~6 + ~2.530 `paceAt` = ~62.500 linhas gravadas (~63%; ~74% com o chat da v2). Linhas gravadas é o recurso que mais cresce com a mesa, e é ele que segura o teto da campanha: por isso 10.000 e não mais. Se a W1 gravar mais de ~6 linhas por op (um índice a mais, a ficha gravada duas vezes), esta conta e o teto mudam na mesma proporção.
+
+**O teto é por campanha; a cota grátis é da conta Cloudflare inteira.** Duas campanhas no teto passariam de 100.000 linhas gravadas. Na v1 a única pasta prevista é a One Piece (DBT bloqueado, 12.21; Mapa de Teste fora, 12.7); antes de publicar uma segunda, refazer esta conta.
+
+O que estoura primeiro se uma regra falhar é a **duração do DO**: se o app consultasse a cada 5 s o dia inteiro, iria a 86.400 s × 0,128 GB = ~11.060 GB-s, ~87% com o Diretório. Por isso a regra da seção 5.5 (5 s só com campanha aberta e janela visível; senão, ao focar ou a cada 10 min). O painel de uso fica em Cloudflare > Workers & Pages > Metrics; conferir na primeira semana, primeiro linhas gravadas e duração.
+
+**O que mudou em relação à conta de 1 + 6:** ops, lotes, aberturas, mensagens e imagens cresceram para 12 contas e 11 fichas; entraram custos que a primeira conta não somava (imagens e `/api/eu` também batem num DO, `/api/versao` em cada abertura, e o DO acordado fora da sessão); o maior uso do dia típico passou a ser linhas gravadas (~19% → ~35%), com a duração subindo de ~14% para ~22%; Access foi de 7 para 12 (14% → 24%); e, na 6.5, o teto da campanha foi de 8.000 para 10.000 ops/dia e o de sockets por campanha de 20 para 36.
+
+Não confirmado nas docs: repasse de WebSocket de Pages Functions para DO por `script_name`; tamanho máximo de linha/BLOB no SQLite do DO (o desenho já usa pedaços de 512 KiB). Cada um tem uma fatia que testa antes de depender dele. Google como provedor do Access no Free ficou confirmado na U0 (05/11/2026). Hipóteses desta revisão, também não confirmadas: quanto tempo o DO fica cobrado depois de cada despertar fora da sessão (aqui ~30 s, pessimista) e se cada índice conta como linha gravada (aqui conta).
 
 ---
 
