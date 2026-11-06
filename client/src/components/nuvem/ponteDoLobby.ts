@@ -1,0 +1,296 @@
+import { invoke, isTauri } from '@tauri-apps/api/core'
+import { join } from '@tauri-apps/api/path'
+import type { ContaDeJogador } from '../../lib/contasDosJogadores'
+import { ehRefDeMidia, idDaRef } from '../../lib/midia'
+import { ehRegistro, paraJson, proprio, type Json } from '../../lib/nuvem/json'
+import { VERSAO_DO_FORMATO } from '../../lib/nuvem/tipos'
+import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
+import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from '../../net/nuvem/discoDaNuvem'
+import { vaiAoLobby } from '../../net/nuvem/emissor'
+import { estadoNovo, gravarEstado, lerCampanhas, lerEstado, type CampanhaPublicada } from '../../net/nuvem/estadoNoDisco'
+import { registrarELigar, retomarLobby } from '../../net/nuvem/nuvemNoApp'
+import { membrosDasContas, NOME_DO_MESTRE, textoDoMotivo } from './textosDoLobby'
+
+/**
+ * AS TELAS DO LOBBY FALANDO COM A PONTE (docs/planos/lobby-jogadores-2026-11-05.md
+ * §5.4, fatias R1 e A6): guardar o Service Token ("Conta na nuvem"), conferir
+ * quem é o app (`eu`), publicar a pasta e reenviar a lista de jogadores. O
+ * HTTPS é do Rust (`nuvem.rs`); daqui sai só o comando.
+ *
+ * Toda falha volta como `FalhaDoLobby`, com a frase pronta. Duas não são do
+ * servidor: fora do app (navegador, jornadas e2e) e "ponte ainda não
+ * instalada" (o app aberto é de antes da R1: o comando não existe). Nas duas
+ * os botões dizem o motivo e não quebram nada.
+ */
+
+export type MotivoDaFalha = 'fora-do-app' | 'sem-ponte' | 'sem-credencial' | 'sem-rede' | 'erro'
+
+export interface FalhaDoLobby {
+  t: MotivoDaFalha
+  mensagem: string
+}
+
+export type Resultado<T> = { ok: true; valor: T } | { ok: false; falha: FalhaDoLobby }
+
+const FORA_DO_APP: FalhaDoLobby = { t: 'fora-do-app', mensagem: 'O Lobby só funciona no app instalado do Labirinto (aqui é o navegador).' }
+const SEM_PONTE: FalhaDoLobby = {
+  t: 'sem-ponte',
+  mensagem: 'A ponte com a nuvem ainda não está instalada neste app. Ela chega com a próxima versão do Labirinto; até lá, nada aqui fala com a Cloudflare.',
+}
+
+/** Os códigos da R1 que querem dizer "falta (ou não vale) o token". */
+const CODIGOS_DE_CREDENCIAL: ReadonlySet<string> = new Set(['sem_credencial', 'acesso_negado', 'credencial_invalida'])
+
+/** O erro do `invoke` lido: o da R1 (`{ codigo, mensagem }`) ou o do próprio Tauri (texto). */
+export function falhaDoErro(erro: unknown): FalhaDoLobby {
+  if (typeof erro === 'string') {
+    // O Tauri responde em texto quando o comando não existe neste binário (app de antes da R1).
+    return /not found|unknown command|not allowed/i.test(erro) ? SEM_PONTE : { t: 'erro', mensagem: erro }
+  }
+  if (ehRegistro(erro)) {
+    const codigo = proprio(erro, 'codigo')
+    const mensagem = proprio(erro, 'mensagem')
+    const texto = typeof mensagem === 'string' && mensagem !== '' ? mensagem : 'A ponte da nuvem falhou.'
+    if (typeof codigo === 'string' && CODIGOS_DE_CREDENCIAL.has(codigo)) return { t: 'sem-credencial', mensagem: texto }
+    if (codigo === 'rede') return { t: 'sem-rede', mensagem: texto }
+    return { t: 'erro', mensagem: texto }
+  }
+  return { t: 'erro', mensagem: erro instanceof Error ? erro.message : String(erro) }
+}
+
+async function chamar<T>(comando: string, argumentos: Record<string, unknown> | undefined, ler: (bruto: unknown) => T): Promise<Resultado<T>> {
+  if (!isTauri()) return { ok: false, falha: FORA_DO_APP }
+  try {
+    return { ok: true, valor: ler(await invoke<unknown>(comando, argumentos)) }
+  } catch (erro) {
+    return { ok: false, falha: falhaDoErro(erro) }
+  }
+}
+
+// ── Conta na nuvem ──────────────────────────────────────────────────────────
+
+/** Se há Service Token guardado no Cofre do Windows (nunca o devolve). */
+export function credencialGuardada(): Promise<Resultado<boolean>> {
+  return chamar('nuvem_credencial_estado', undefined, (bruto) => bruto === true)
+}
+
+/** Guarda o token colado (substitui o de antes) e acorda os laços parados por falta dele. */
+export async function guardarCredencial(clientId: string, clientSecret: string): Promise<Resultado<null>> {
+  const resultado = await chamar('nuvem_credencial_guardar', { clientId: clientId.trim(), clientSecret: clientSecret.trim() }, () => null)
+  if (resultado.ok) retomarLobby()
+  return resultado
+}
+
+export function apagarCredencial(): Promise<Resultado<null>> {
+  return chamar('nuvem_credencial_apagar', undefined, () => null)
+}
+
+export interface ContaConferida {
+  email: string
+  campanhas: number
+}
+
+/** `GET /api/eu`: o e-mail que o Access deu ao token (o do mestre) e quantas campanhas ele tem. */
+export function conferirConta(): Promise<Resultado<ContaConferida>> {
+  return chamar('nuvem_pedir', { pedido: { rota: 'eu' } }, (bruto) => {
+    const email = ehRegistro(bruto) ? proprio(bruto, 'email') : undefined
+    const campanhas = ehRegistro(bruto) ? proprio(bruto, 'campanhas') : undefined
+    return { email: typeof email === 'string' ? email : '?', campanhas: Array.isArray(campanhas) ? campanhas.length : 0 }
+  })
+}
+
+// ── As campanhas publicadas no disco ────────────────────────────────────────
+
+async function raizDaNuvem() {
+  return pastaNoDisco(primitivasDoTauri, await pastaDaNuvemNoApp())
+}
+
+/** A campanha desta pasta, se ela já foi publicada (`<appData>/nuvem/campanhas.json`). */
+export async function campanhaDaPasta(pastaId: string): Promise<CampanhaPublicada | null> {
+  if (!isTauri()) return null
+  const campanhas = await lerCampanhas(await raizDaNuvem())
+  return campanhas.find((campanha) => campanha.pastaId === pastaId) ?? null
+}
+
+// ── Jogadores (rota `membros`) ──────────────────────────────────────────────
+
+function corpoDosMembros(contas: readonly ContaDeJogador[]): Json {
+  return { v: VERSAO_DO_FORMATO, nomeDoMestre: NOME_DO_MESTRE, membros: paraJson(membrosDasContas(contas)) }
+}
+
+export interface EnvioDosMembros {
+  campanhas: number
+  falha: FalhaDoLobby | null
+}
+
+/**
+ * Reenvia a lista de jogadores (conta com e-mail) a TODAS as campanhas
+ * publicadas: o e-mail é da conta, e toda pasta publicada usa as mesmas contas
+ * (§5.4, "reenviado sozinho quando mudam contas, e-mail ou dono"). Sem
+ * campanha publicada não há o que mandar.
+ */
+export async function reenviarMembros(contas: readonly ContaDeJogador[]): Promise<EnvioDosMembros> {
+  if (!isTauri()) return { campanhas: 0, falha: null }
+  const campanhas = await lerCampanhas(await raizDaNuvem())
+  for (const campanha of campanhas) {
+    const resultado = await chamar('nuvem_pedir', { pedido: { rota: 'membros', campanhaId: campanha.campanhaId, corpo: corpoDosMembros(contas) } }, () => null)
+    if (!resultado.ok) return { campanhas: campanhas.length, falha: resultado.falha }
+  }
+  return { campanhas: campanhas.length, falha: null }
+}
+
+// ── Publicar a pasta ────────────────────────────────────────────────────────
+
+/** A ficha como a nuvem a conhece: a foto embutida (data URL) não sobe (Si7); a ficha no app continua com ela. */
+function semImagemEmbutida(ficha: Personagem): { ficha: Personagem; tiradas: number } {
+  let tiradas = 0
+  const limpar = (imagem: string | null): string | null => {
+    if (imagem === null || ehRefDeMidia(imagem)) return imagem
+    tiradas += 1
+    return null
+  }
+  const noCartao = (cartao: CartaoDaFicha): CartaoDaFicha => ({ ...cartao, imagem: limpar(cartao.imagem), subcartoes: cartao.subcartoes.map(noCartao) })
+  const abas = Object.fromEntries(Object.entries(ficha.abas).map(([aba, cartoes]): [string, CartaoDaFicha[]] => [aba, cartoes.map(noCartao)]))
+  return { ficha: { ...ficha, retrato: limpar(ficha.retrato), abas }, tiradas }
+}
+
+/** As imagens (`midia:`) da ficha: retrato, cartões em qualquer nível e itens da mochila. */
+function midiasDaFicha(ficha: Personagem): string[] {
+  const ids: string[] = []
+  const guardar = (ref: string | null | undefined): void => {
+    const id = idDaRef(ref)
+    if (id !== null) ids.push(id)
+  }
+  const noCartao = (cartao: CartaoDaFicha): void => {
+    guardar(cartao.imagem)
+    cartao.subcartoes.forEach(noCartao)
+  }
+  guardar(ficha.retrato)
+  Object.values(ficha.abas).forEach((cartoes) => cartoes.forEach(noCartao))
+  for (const item of ficha.mochila ?? []) guardar(item.imagem)
+  return ids
+}
+
+export type SituacaoDaFichaPublicada = 'publicada' | 'ja-publicada' | 'recusada' | 'adiada'
+
+export interface FichaNaPublicacao {
+  fichaId: string
+  nome: string
+  situacao: SituacaoDaFichaPublicada
+  motivo?: string
+}
+
+export interface Publicacao {
+  campanha: CampanhaPublicada
+  fichas: FichaNaPublicacao[]
+  /** Imagens que subiram e que não subiram (a ficha sobe mesmo assim; a imagem falta no site). */
+  imagens: { enviadas: number; falharam: number; falha: FalhaDoLobby | null }
+  /** Fotos embutidas antigas que ficaram de fora (ainda não viraram mídia). */
+  embutidasDeFora: number
+  /** O sincronizador ligou (`false` = a razão foi para o aviso do app). */
+  ligou: boolean
+}
+
+function situacaoDaResposta(resposta: unknown): { situacao: SituacaoDaFichaPublicada; motivo?: string } {
+  const t = ehRegistro(resposta) ? proprio(resposta, 't') : undefined
+  switch (t) {
+    case 'ack':
+      return { situacao: 'publicada' }
+    case 'ja-publicada':
+      return { situacao: 'ja-publicada' }
+    case 'adiado':
+      return { situacao: 'adiada', motivo: 'o servidor está no limite do dia; ela sobe sozinha depois' }
+    case 'negado': {
+      const motivo = ehRegistro(resposta) ? proprio(resposta, 'motivo') : undefined
+      const detalhe = ehRegistro(resposta) ? proprio(resposta, 'detalhe') : undefined
+      return { situacao: 'recusada', motivo: typeof motivo === 'string' ? textoDoMotivo(motivo, typeof detalhe === 'string' ? detalhe : undefined) : 'recusada pelo servidor' }
+    }
+    case 'conflito':
+      return { situacao: 'recusada', motivo: 'outra mudança chegou antes; publique de novo' }
+    default:
+      return { situacao: 'recusada', motivo: 'o servidor não reconheceu o id desta ficha' }
+  }
+}
+
+export interface PedidoDePublicacao {
+  pastaId: string
+  nome: string
+  sistema: SistemaDeRpg
+  personagens: readonly Personagem[]
+  contas: readonly ContaDeJogador[]
+}
+
+/** Quantas fichas desta pasta sobem: só de jogador, sem invocação (NPC fica no app, §5.1). */
+export function fichasQueSobem(personagens: readonly Personagem[]): Personagem[] {
+  return personagens.filter(vaiAoLobby)
+}
+
+/**
+ * PUBLICAR (§5.4): cria a campanha no servidor com o sistema, os jogadores
+ * com e-mail e as fichas de jogador que ainda não existem lá; depois liga o
+ * sincronizador desta pasta e sobe as imagens das fichas.
+ *
+ * O `clienteId` do publicar é o mesmo que o sincronizador vai usar (gravado no
+ * `estado.json` antes do pedido): a mudança que o mestre fizer logo depois,
+ * antes da primeira busca, tem a mesma chave de autoria da criação e não vira
+ * conflito com ela (§5.2).
+ */
+export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resultado<Publicacao>> {
+  if (!isTauri()) return { ok: false, falha: FORA_DO_APP }
+  const raiz = await raizDaNuvem()
+  const existente = (await lerCampanhas(raiz)).find((campanha) => campanha.pastaId === pedido.pastaId)
+  const campanha: CampanhaPublicada = { campanhaId: existente?.campanhaId ?? `camp_${crypto.randomUUID()}`, pastaId: pedido.pastaId, nome: pedido.nome.trim().slice(0, 120) }
+  const pastaDaCampanha = pastaNoDisco(primitivasDoTauri, await join(await pastaDaNuvemNoApp(), campanha.campanhaId))
+  const estado = await lerEstado(pastaDaCampanha)
+  const clienteId = estado?.clienteId ?? crypto.randomUUID()
+  if (estado === null) await gravarEstado(pastaDaCampanha, estadoNovo(campanha.campanhaId, campanha.pastaId, clienteId))
+
+  const limpas = fichasQueSobem(pedido.personagens).map(semImagemEmbutida)
+  const fichas = limpas.map((limpa) => limpa.ficha)
+  const corpo: Json = {
+    v: VERSAO_DO_FORMATO,
+    clienteId,
+    nome: campanha.nome,
+    nomeDoMestre: NOME_DO_MESTRE,
+    sistema: paraJson(pedido.sistema),
+    membros: paraJson(membrosDasContas(pedido.contas)),
+    fichas: fichas.map((ficha) => paraJson(ficha)),
+  }
+  const resposta = await chamar('nuvem_pedir', { pedido: { rota: 'publicar', campanhaId: campanha.campanhaId, corpo } }, (bruto) => bruto)
+  if (!resposta.ok) return resposta
+
+  const brutas = ehRegistro(resposta.valor) ? proprio(resposta.valor, 'fichas') : undefined
+  const porId = new Map<string, unknown>()
+  if (Array.isArray(brutas)) {
+    for (const bruta of brutas as unknown[]) {
+      const fichaId = ehRegistro(bruta) ? proprio(bruta, 'fichaId') : undefined
+      if (typeof fichaId === 'string') porId.set(fichaId, ehRegistro(bruta) ? proprio(bruta, 'resposta') : undefined)
+    }
+  }
+  const relatorio = fichas.map((ficha): FichaNaPublicacao => ({ fichaId: ficha.id, nome: ficha.nome, ...situacaoDaResposta(porId.get(ficha.id)) }))
+
+  // A campanha entra na lista do disco e o sincronizador liga: daqui em diante, cada mudança sobe sozinha.
+  const ligou = await registrarELigar(campanha)
+
+  const noServidor = new Set(relatorio.filter((ficha) => ficha.situacao === 'publicada' || ficha.situacao === 'ja-publicada').map((ficha) => ficha.fichaId))
+  const ids = [...new Set(fichas.filter((ficha) => noServidor.has(ficha.id)).flatMap(midiasDaFicha))]
+  let enviadas = 0
+  let ultimaFalha: FalhaDoLobby | null = null
+  for (const midiaId of ids) {
+    const envio = await chamar('nuvem_enviar_midia', { campanhaId: campanha.campanhaId, pastaId: campanha.pastaId, midiaId }, () => null)
+    if (envio.ok) enviadas += 1
+    else ultimaFalha = envio.falha
+  }
+
+  return {
+    ok: true,
+    valor: {
+      campanha,
+      fichas: relatorio,
+      imagens: { enviadas, falharam: ids.length - enviadas, falha: ultimaFalha },
+      embutidasDeFora: limpas.reduce((soma, limpa) => soma + limpa.tiradas, 0),
+      ligou,
+    },
+  }
+}

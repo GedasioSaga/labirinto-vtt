@@ -1,4 +1,6 @@
-import { useEffect, useId, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { JogadoresDoLobby } from '../components/nuvem/JogadoresDoLobby'
+import { emailRepetidoParado } from '../components/nuvem/textosDoLobby'
 import { escolherTextoJson } from '../lib/arquivosDaFicha'
 import { importarFichasDoProjetoRpg } from '../lib/importarDoProjetoRpg'
 import type { SavedMapEntry } from '../lib/mapFileIO'
@@ -13,6 +15,8 @@ import {
 import type { Personagem } from '../lib/personagem'
 import { buildTokenPhotoData } from '../lib/tokenPhoto'
 import { fichasEntramNaPasta, trocarSistemaDaPasta } from '../net/nuvem/mochilaPendenteNoApp'
+import { useContasStore } from '../stores/contasStore'
+import { useNuvemStore } from '../stores/nuvemStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 
 export interface PastaDeMapasConfigProps {
@@ -41,13 +45,106 @@ function nomes(personagens: readonly Personagem[]): string {
   return personagens.map((personagem) => personagem.nome).join(', ')
 }
 
+type AbaDaPasta = 'sistema' | 'lobby'
+
+const ABAS: readonly { id: AbaDaPasta; rotulo: string }[] = [
+  { id: 'sistema', rotulo: 'Sistema e personagens' },
+  { id: 'lobby', rotulo: 'Jogadores do Lobby' },
+]
+
+/** O selo da aba do Lobby: mudanças esperando decisão e jogadores que não conseguem entrar no site. */
+function useAvisosDoLobby(pastaId: string): number {
+  const paraDecidir = useNuvemStore((state) => Object.values(state.campanhas).find((campanha) => campanha.pastaId === pastaId)?.paraDecidir.length ?? 0)
+  const contas = useContasStore((state) => state.arquivo.contas)
+  const semEntrar = contas.filter((conta) => conta.email === undefined || emailRepetidoParado(contas, conta)).length
+  return paraDecidir + semEntrar
+}
+
 /**
- * "Configurar pasta": o SISTEMA UNIVERSAL e os JOGADORES PRINCIPAIS da pasta
- * — importados UMA vez, para todos os mapas dela (a mesma ficha em todos).
- * Os jogadores entram pelo arquivo do projeto-rpg-v2, como na aba Jogo, ou
- * copiados de um mapa da pasta (a aventura que já tinha a mesa montada).
+ * "Configurar pasta", em duas abas. SISTEMA E PERSONAGENS: o sistema universal
+ * e os jogadores principais da pasta — importados UMA vez, para todos os
+ * mapas dela (a mesma ficha em todos), pelo arquivo do projeto-rpg-v2 ou
+ * copiados de um mapa da pasta. JOGADORES DO LOBBY (fatia A6): publicar a
+ * pasta no site, quem entra e de quem é cada ficha (`components/nuvem/`).
  */
-export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: PastaDeMapasConfigProps) {
+export function PastaDeMapasConfig(props: PastaDeMapasConfigProps) {
+  const { pasta, rpg, onMudar, onFechar } = props
+  const baseId = useId()
+  const [aba, setAba] = useState<AbaDaPasta>('sistema')
+  const abasRef = useRef<Partial<Record<AbaDaPasta, HTMLButtonElement | null>>>({})
+  const biblioteca = useRpgStore((state) => state.biblioteca)
+  const avisos = useAvisosDoLobby(pasta.id)
+
+  useEffect(() => {
+    void useContasStore.getState().carregar()
+  }, [])
+
+  if (rpg === null) return <SistemaDaPasta {...props} />
+
+  /** Setas, Home e End trocam de aba na hora e levam o foco junto (a fileira é uma parada só do Tab). */
+  const andarNasAbas = (event: KeyboardEvent<HTMLDivElement>) => {
+    const atual = ABAS.findIndex((candidata) => candidata.id === aba)
+    let proxima = atual
+    if (event.key === 'ArrowRight') proxima = (atual + 1) % ABAS.length
+    else if (event.key === 'ArrowLeft') proxima = (atual - 1 + ABAS.length) % ABAS.length
+    else if (event.key === 'Home') proxima = 0
+    else if (event.key === 'End') proxima = ABAS.length - 1
+    else return
+    event.preventDefault()
+    const destino = ABAS[proxima].id
+    setAba(destino)
+    abasRef.current[destino]?.focus()
+  }
+
+  return (
+    <div style={painelStyle} aria-label={`Configurar a pasta ${pasta.nome}`} role="group">
+      <div className="pasta-abas" role="tablist" aria-label="Configurar a pasta" data-aba={aba} onKeyDown={andarNasAbas}>
+        <span className="pasta-abas__pilula" aria-hidden="true" />
+        {ABAS.map((candidata) => (
+          <button
+            key={candidata.id}
+            ref={(elemento) => {
+              abasRef.current[candidata.id] = elemento
+            }}
+            type="button"
+            role="tab"
+            className="pasta-aba"
+            id={`${baseId}-aba-${candidata.id}`}
+            aria-controls={`${baseId}-painel`}
+            aria-selected={aba === candidata.id}
+            tabIndex={aba === candidata.id ? 0 : -1}
+            onClick={() => setAba(candidata.id)}
+          >
+            {candidata.rotulo}
+            {candidata.id === 'lobby' && avisos > 0 && (
+              <span className="pasta-aba__selo">
+                <span aria-hidden="true">{avisos}</span>
+                <span className="lby-sr">, {avisos === 1 ? '1 aviso' : `${avisos} avisos`}</span>
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="pasta-painel" role="tabpanel" id={`${baseId}-painel`} aria-labelledby={`${baseId}-aba-${aba}`} tabIndex={0}>
+        {aba === 'sistema' ? (
+          <SistemaDaPasta {...props} semMoldura />
+        ) : (
+          <JogadoresDoLobby pasta={pasta} rpg={rpg} sistema={sistemaPorId(biblioteca, rpg.sistemaDeRpg)} onMudar={onMudar} />
+        )}
+      </div>
+      <button type="button" className="lb-btn lb-btn--ghost" onClick={onFechar}>
+        Fechar
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A aba de sempre: o SISTEMA UNIVERSAL e os JOGADORES PRINCIPAIS da pasta.
+ * Com `semMoldura`, vive dentro das abas (a moldura e o Fechar são delas);
+ * sem, é o painel inteiro (só no aviso de RPG ilegível).
+ */
+function SistemaDaPasta({ pasta, rpg, mapas, onMudar, onFechar, semMoldura = false }: PastaDeMapasConfigProps & { semMoldura?: boolean }) {
   const baseId = useId()
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const carregarBiblioteca = useRpgStore((state) => state.carregarBiblioteca)
@@ -124,8 +221,8 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
       return novos.length === 0 ? 'Os personagens desse mapa já estão na pasta.' : `Copiados para a pasta: ${nomes(novos)}.`
     })
 
-  return (
-    <div style={painelStyle} aria-label={`Configurar a pasta ${pasta.nome}`} role="group">
+  const conteudo = (
+    <>
       <div className="lb-field">
         <label className="lb-label" htmlFor={`${baseId}-sistema`}>
           Sistema universal
@@ -186,6 +283,13 @@ export function PastaDeMapasConfig({ pasta, rpg, mapas, onMudar, onFechar }: Pas
           {estado.texto}
         </p>
       )}
+    </>
+  )
+
+  if (semMoldura) return conteudo
+  return (
+    <div style={painelStyle} aria-label={`Configurar a pasta ${pasta.nome}`} role="group">
+      {conteudo}
       <button type="button" className="lb-btn lb-btn--ghost" onClick={onFechar} disabled={ocupado}>
         Fechar
       </button>

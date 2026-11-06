@@ -4,6 +4,7 @@ import type { Personagem } from '../lib/personagem'
 import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
 import { useContasStore } from '../stores/contasStore'
 import { useAbertaGuardada } from './CollapsibleSection'
+import { problemaDoEmail, reenviarContasAtuais, trocarEmailDaConta } from './nuvem/contasNoLobby'
 import { Ficha } from './grimorio/Ficha'
 import { IconeDoLivro } from './livro/icones'
 import './ContasDosJogadores.css'
@@ -23,6 +24,13 @@ export interface ContasDosJogadoresProps {
   onSoComConta: (ligado: boolean) => Promise<void>
   /** Dá o personagem à conta (`null` = a nenhuma). Um personagem tem uma conta só. */
   onDarPersonagem: (personagemId: string, contaId: string | null) => void
+  /**
+   * LOBBY (fatia A6): grava o e-mail Google da conta (`null` = tira). Lança com
+   * a frase pronta se não dá para gravar; devolve um aviso quando gravou mas a
+   * lista do Lobby não foi enviada (sem rede, sem token), `null` quando tudo foi.
+   * Ausente = o campo de e-mail não aparece.
+   */
+  onTrocarEmail?: (contaId: string, email: string | null) => Promise<string | null>
 }
 
 /** O texto do erro que a store lançou (a frase já vem pronta). */
@@ -175,7 +183,7 @@ interface ContaDaListaProps extends ContasDosJogadoresProps {
   conta: ContaDeJogador
 }
 
-function ContaDaLista({ conta, contas, podeGravar, personagens, onApagar, onEsquecerAparelho, onDarPersonagem, onTrocarPin }: ContaDaListaProps) {
+function ContaDaLista({ conta, contas, podeGravar, personagens, onApagar, onEsquecerAparelho, onDarPersonagem, onTrocarPin, onTrocarEmail }: ContaDaListaProps) {
   const [aberta, setAberta] = useState(false)
   const [apagando, setApagando] = useState(false)
   const [trocandoPin, setTrocandoPin] = useState(false)
@@ -199,6 +207,7 @@ function ContaDaLista({ conta, contas, podeGravar, personagens, onApagar, onEsqu
           <span className="lb-rpg__nome">{conta.nome}</span>
           <span className="lb-contas__resumo">
             {daConta} {daConta === 1 ? 'personagem' : 'personagens'} · {conta.aparelhos.length} {conta.aparelhos.length === 1 ? 'aparelho' : 'aparelhos'}
+            {conta.email === undefined ? '' : ' · no Lobby'}
           </span>
         </button>
         {apagando ? (
@@ -232,6 +241,7 @@ function ContaDaLista({ conta, contas, podeGravar, personagens, onApagar, onEsqu
         <div id={detalhesId} className="lb-contas__detalhes">
           <PersonagensDaConta conta={conta} contas={contas} personagens={personagens} onDarPersonagem={onDarPersonagem} />
           <AparelhosDaConta conta={conta} podeGravar={podeGravar} onEsquecer={(aparelhoId) => void tentar(() => onEsquecerAparelho(conta.id, aparelhoId))} />
+          {onTrocarEmail !== undefined && <EmailDaConta conta={conta} contas={contas} podeGravar={podeGravar} onTrocar={(email) => onTrocarEmail(conta.id, email)} />}
           {trocandoPin ? (
             <TrocarPin nome={conta.nome} onTrocar={(pin) => onTrocarPin(conta.id, pin)} onFechar={() => setTrocandoPin(false)} />
           ) : (
@@ -302,6 +312,99 @@ function AparelhosDaConta({ conta, podeGravar, onEsquecer }: { conta: ContaDeJog
         </ul>
       )}
     </div>
+  )
+}
+
+interface EmailDaContaProps {
+  conta: ContaDeJogador
+  contas: readonly ContaDeJogador[]
+  podeGravar: boolean
+  onTrocar: (email: string | null) => Promise<string | null>
+}
+
+/** O E-MAIL GOOGLE da conta (Lobby, fatia A6): com ele o jogador entra no site e edita as fichas dele. */
+function EmailDaConta({ conta, contas, podeGravar, onTrocar }: EmailDaContaProps) {
+  const [valor, setValor] = useState(conta.email ?? '')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const id = useId()
+  const mudou = valor.trim().toLowerCase() !== (conta.email ?? '')
+
+  const gravar = async (email: string | null) => {
+    setSalvando(true)
+    setErro(null)
+    setAviso(null)
+    try {
+      const depois = await onTrocar(email)
+      setAviso(depois ?? (email === null ? `${conta.nome} saiu do Lobby.` : 'E-mail guardado.'))
+      if (email === null) setValor('')
+    } catch (causa) {
+      setErro(textoDoErro(causa))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const salvar = (event: FormEvent) => {
+    event.preventDefault()
+    const problema = problemaDoEmail(contas, conta.id, valor)
+    if (problema !== null) {
+      setErro(problema)
+      return
+    }
+    void gravar(valor)
+  }
+
+  return (
+    <form className="lb-contas__grupo" onSubmit={salvar} aria-label={`E-mail Google de ${conta.nome}`} noValidate>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={`${id}-email`}>
+          E-mail Google (Lobby)
+        </label>
+        <input
+          id={`${id}-email`}
+          className="lb-input"
+          type="text"
+          inputMode="email"
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          placeholder="nome@gmail.com"
+          value={valor}
+          aria-invalid={erro !== null}
+          aria-describedby={erro !== null ? `${id}-erro` : `${id}-dica`}
+          onChange={(event) => {
+            setValor(event.target.value)
+            setAviso(null)
+            if (erro !== null && problemaDoEmail(contas, conta.id, event.target.value) === null) setErro(null)
+          }}
+        />
+      </div>
+      <p id={`${id}-dica`} className="lb-field__hint">
+        Com o e-mail, {conta.nome} entra no site do Lobby e edita as fichas dele. Sem e-mail, joga só pela sala.
+      </p>
+      {erro !== null && (
+        <p id={`${id}-erro`} className="lb-field__error" role="alert">
+          {erro}
+        </p>
+      )}
+      {aviso !== null && (
+        <p className="lb-field__hint" role="status">
+          {aviso}
+        </p>
+      )}
+      <div className="lb-cenas__acoes">
+        <button type="submit" className="lb-btn lb-btn--compact" disabled={!podeGravar || salvando || !mudou || valor.trim() === ''}>
+          {salvando ? 'Salvando…' : 'Salvar e-mail'}
+        </button>
+        {conta.email !== undefined && (
+          <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" disabled={!podeGravar || salvando} onClick={() => void gravar(null)}>
+            Tirar e-mail
+          </button>
+        )}
+      </div>
+    </form>
   )
 }
 
@@ -392,7 +495,16 @@ export function ContasDosJogadoresDoApp() {
       personagens={personagens}
       onCriar={(nome, pin) => contas().criarConta(nome, pin)}
       onTrocarPin={(contaId, pin) => contas().trocarPin(contaId, pin)}
-      onApagar={(contaId) => contas().apagarConta(contaId)}
+      onApagar={async (contaId) => {
+        const tinhaEmail = contas().arquivo.contas.some((conta) => conta.id === contaId && conta.email !== undefined)
+        await contas().apagarConta(contaId)
+        // A conta que estava no Lobby sai da lista do servidor; a falha (sem rede, sem token) volta na próxima mudança de e-mail.
+        if (tinhaEmail) void reenviarContasAtuais().catch(() => undefined)
+      }}
+      onTrocarEmail={async (contaId, email) => {
+        const envio = await trocarEmailDaConta(contaId, email)
+        return envio.falha === null ? null : `E-mail guardado no app, mas a lista do Lobby não foi enviada: ${envio.falha.mensagem}`
+      }}
       onEsquecerAparelho={(contaId, aparelhoId) => contas().esquecerAparelho(contaId, aparelhoId)}
       onSoComConta={(ligado) => contas().definirSoComConta(ligado)}
       onDarPersonagem={(personagemId, contaId) => {

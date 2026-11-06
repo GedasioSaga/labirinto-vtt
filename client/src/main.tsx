@@ -7,6 +7,7 @@ import { instalarDicasDoPainel } from './lib/dicaDoPainel'
 import { instalarEndireitarComAlt } from './lib/endireitarComAlt'
 import { carregarPacoteDaPagina } from './lib/pacoteDeAnimacoes'
 import { registrarNaSonda } from './lib/sondaDeDesempenho'
+import { iniciarNuvem } from './net/nuvem/nuvemNoApp'
 import { useAdventureStore } from './stores/adventureStore'
 import { useBatalhaStore } from './stores/batalhaStore'
 import { useMapStore } from './stores/mapStore'
@@ -24,6 +25,13 @@ registrarNaSonda('batalhaStore', useBatalhaStore)
 // dele (Vite no navegador, jornadas e2e) não há pacote. A procura por pacote
 // NOVO é da tela inicial (`screens/MainMenu.tsx`).
 if (isTauri()) void carregarPacoteDaPagina()
+
+// LOBBY (docs/planos/lobby-jogadores-2026-11-05.md §5.5-5.6): cada pasta já
+// publicada liga o sincronizador na abertura, antes de o mestre mexer em
+// qualquer ficha. Sem isso, a mudança feita antes de alguém abrir a aba do
+// Lobby não entrava na fila e o acerto da reabertura a desfazia. Sem pasta
+// publicada, só lê `<appData>/nuvem/campanhas.json` (que não existe) e para.
+if (isTauri()) void iniciarNuvem()
 
 // Os tokens de `theme.ts` viram custom properties aqui, antes do primeiro
 // render, para `main.css` ter os `var(--lb-*)` já resolvidos no primeiro paint.
