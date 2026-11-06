@@ -7,7 +7,7 @@ import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
 import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidade, type Membro, type MensagemDoServidor, type Op, type OpGravada, type Origem, type PresencaNaMesa, type Recusada } from '../../lib/nuvem/tipos'
 import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
-import { criarDueloDaDemo, type DueloDaDemo } from './dueloDaDemo'
+import type { DueloDaDemo, OpcoesDoDueloDaDemo } from './dueloDaDemo'
 import { criarMuralDaDemo, type MuralDaDemo } from './muralDaDemo'
 import {
   ehPedidoDoChat,
@@ -212,8 +212,21 @@ interface ServidorDaDemo {
   comoMestre: Set<string>
   /** Os canais abertos, para mandar o `mural.estado` de novo quando a vista do mural muda. */
   muraisAbertos: Set<(campanhaId: string) => void>
-  /** O duelo de cada mesa (T7), com o colega inventado que aceita, joga e cai da conexão uma vez. */
-  duelos: Map<string, DueloDaDemo>
+  /** O duelo de cada mesa (T7), com o colega inventado que aceita, joga e cai da conexão uma vez; carregado na primeira vez que a mesa o usa. */
+  duelos: Map<string, () => Promise<DueloDaDemo>>
+}
+
+/**
+ * O duelo da demo só baixa quando a mesa o usa (o `ola`, um `duelo.*`): a regra
+ * do duelo e o motor da batalha ficam fora do JS da entrada, como o treino
+ * (`Site.tsx`). Um só por mesa: a mesma promessa para todo mundo que pedir.
+ */
+function dueloSobDemanda(opcoes: OpcoesDoDueloDaDemo): () => Promise<DueloDaDemo> {
+  let carregando: Promise<DueloDaDemo> | null = null
+  return () => {
+    carregando ??= import('./dueloDaDemo').then(({ criarDueloDaDemo }) => criarDueloDaDemo(opcoes))
+    return carregando
+  }
 }
 
 /** Quem fala com o mural: quem vê a demo, ou o mestre quando o atalho "ver como o mestre" está ligado. */
@@ -244,10 +257,20 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
   }
   /** A lista dos duelos como o DO manda depois de cada `ola` (`duelosNoOla`), e daí em diante o que o colega fizer. */
   function mandarDuelos(): void {
-    const duelo = servidor.duelos.get(campanhaId)
-    if (membro === undefined || duelo === undefined) return
-    entregar(duelo.listaPara(membro.contaId))
-    pararDeOuvirODuelo ??= duelo.ouvir(entregar)
+    const carregar = servidor.duelos.get(campanhaId)
+    if (membro === undefined || carregar === undefined) return
+    const { contaId } = membro
+    carregar().then(
+      (duelo) => {
+        if (encerrado) return
+        entregar(duelo.listaPara(contaId))
+        pararDeOuvirODuelo ??= duelo.ouvir(entregar)
+      },
+      // O pedaço do duelo não baixou (rede caiu): a mesa abre sem duelos, em vez de esperar para sempre.
+      () => {
+        if (!encerrado) entregar({ t: 'duelo.lista', convites: [], duelos: [] })
+      },
+    )
   }
   /** O `mural.estado` como o DO manda depois de cada `ola` (e de novo quando a vista da demo muda). */
   function mandarMural(): void {
@@ -290,7 +313,17 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
       return
     }
     if (ehPedidoDoDuelo(mensagem)) {
-      servidor.duelos.get(campanhaId)?.atender(mensagem, eu, entregar)
+      const carregar = servidor.duelos.get(campanhaId)
+      if (carregar === undefined) return
+      // A mesma promessa do `ola`: os pedidos são atendidos na ordem em que chegaram.
+      carregar().then(
+        (duelo) => {
+          if (!encerrado) duelo.atender(mensagem, eu, entregar)
+        },
+        () => {
+          if (!encerrado) entregar({ t: 'duelo.recusado', pedido: mensagem.t, motivo: 'sistema' })
+        },
+      )
       return
     }
     const agora = relogio.agora()
@@ -390,13 +423,13 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
       criarMuralDaDemo(campanha.campanhaId, { agora: relogio.agora, membros: campanha.todosOsMembros, todasAsOps: campanha.todasAsOps, ficha: campanha.ficha }),
     )
   }
-  const duelos = new Map<string, DueloDaDemo>()
+  const duelos = new Map<string, () => Promise<DueloDaDemo>>()
   for (const campanha of campanhas.values()) {
     const quemVe = membroPorEmail(campanha, EMAIL_DA_DEMO)
     if (quemVe === undefined) continue
     duelos.set(
       campanha.campanhaId,
-      criarDueloDaDemo({ campanhaId: campanha.campanhaId, agora: relogio.agora, depois: relogio.depois, membros: campanha.todosOsMembros, fichas: campanha.todasAsFichas, euContaId: quemVe.contaId }),
+      dueloSobDemanda({ campanhaId: campanha.campanhaId, agora: relogio.agora, depois: relogio.depois, membros: campanha.todosOsMembros, fichas: campanha.todasAsFichas, euContaId: quemVe.contaId }),
     )
   }
   const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set(), murais, comoMestre: new Set(), muraisAbertos: new Set(), duelos }
