@@ -1,5 +1,5 @@
 import type { Personagem } from '../lib/personagem'
-import { definirProprio, gravarRpgDaPasta, lerRpgDaPasta, lugarDoMapa, mudarIndiceDasPastas, rpgDe, type IndiceDasPastas, type RpgDaPasta } from '../lib/pastasDeMapas'
+import { definirProprio, gravarRpgDaPasta, lerRpgDaPasta, lugarDoMapa, mudarIndiceDasPastas, naFilaDaPasta, rpgDe, type IndiceDasPastas, type RpgDaPasta } from '../lib/pastasDeMapas'
 // Ciclo de import com mochilaPendenteNoApp (que usa `editarRpgDaPasta`): os dois lados só chamam dentro de função, nunca ao carregar o módulo.
 import { usarOdaPastaNoMapaAberto } from '../net/nuvem/mochilaPendenteNoApp'
 import { origemAgora, prepararEmissao, type Emissao, type OrigemDaMudanca } from '../net/nuvem/emissor'
@@ -53,24 +53,27 @@ export async function trocarModoDoMapa(proprio: boolean): Promise<void> {
 export async function editarRpgDaPasta(pastaId: string, mudar: (rpg: RpgDaPasta) => RpgDaPasta): Promise<RpgDaPasta> {
   // Antes do primeiro `await`: quem chamou dentro de `comAutor`/`comBase` perde o contexto depois dele.
   const origem = origemAgora()
-  const lido = await lerRpgDaPasta(pastaId)
-  if (!lido.ok) throw new Error(lido.motivo)
-  const novo = mudar(lido.rpg)
-  const previa = previaDaEmissao(pastaId, lido.rpg, novo, mudar, origem)
-  if (!previa.ok) throw new Error(previa.motivo)
-  await gravarRpgDaPasta(pastaId, novo)
-  const antesNaCopia = personagensAbertos(pastaId)
-  useAdventureStore.getState().mudarRpgDaPasta(pastaId, mudar)
-  const depoisNaCopia = personagensAbertos(pastaId)
-  // De novo, sobre a cópia como ficou depois do `await` (a mesa pode ter mudado nele): são estas as ops que saem.
-  const emissao =
-    antesNaCopia === null || depoisNaCopia === null
-      ? prepararEmissao(pastaId, lido.rpg.personagens, novo.personagens, origem)
-      : prepararEmissao(pastaId, antesNaCopia, depoisNaCopia, origem)
-  if (emissao.ok) emissao.entregar()
-  // A prévia passou, mas a mesa mudou a ficha durante a gravação: já está no disco e na cópia, então o aviso diz isso.
-  else useToastStore.getState().push('error', `O Lobby não aceita esta mudança (${emissao.problema}). Ela ficou só neste computador.`)
-  return novo
+  // Ler, mudar, gravar e entregar as ops numa vez só da fila da pasta (§5.6): o gravador leve do Lobby não grava a mudança remota entre a leitura e a gravação para ela sumir por baixo desta.
+  return naFilaDaPasta(pastaId, async (vez) => {
+    const lido = await lerRpgDaPasta(pastaId)
+    if (!lido.ok) throw new Error(lido.motivo)
+    const novo = mudar(lido.rpg)
+    const previa = previaDaEmissao(pastaId, lido.rpg, novo, mudar, origem)
+    if (!previa.ok) throw new Error(previa.motivo)
+    await gravarRpgDaPasta(pastaId, novo, vez)
+    const antesNaCopia = personagensAbertos(pastaId)
+    useAdventureStore.getState().mudarRpgDaPasta(pastaId, mudar)
+    const depoisNaCopia = personagensAbertos(pastaId)
+    // De novo, sobre a cópia como ficou depois do `await` (a mesa pode ter mudado nele): são estas as ops que saem.
+    const emissao =
+      antesNaCopia === null || depoisNaCopia === null
+        ? prepararEmissao(pastaId, lido.rpg.personagens, novo.personagens, origem)
+        : prepararEmissao(pastaId, antesNaCopia, depoisNaCopia, origem)
+    if (emissao.ok) emissao.entregar()
+    // A prévia passou, mas a mesa mudou a ficha durante a gravação: já está no disco e na cópia, então o aviso diz isso.
+    else useToastStore.getState().push('error', `O Lobby não aceita esta mudança (${emissao.problema}). Ela ficou só neste computador.`)
+    return novo
+  })
 }
 
 /** Os personagens da cópia desta pasta aberta no editor; `null` = a pasta não está aberta. */

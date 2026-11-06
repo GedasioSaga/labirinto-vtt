@@ -81,27 +81,50 @@ function discoEmMemoria(): DiscoEmMemoria {
   }
 }
 
-/** O `rpg.json` da pasta e a cópia aberta no editor. */
+/** O `rpg.json` da pasta e a cópia aberta no editor (`fechada` = nenhum mapa da pasta aberto). */
 interface AppFalso {
   aplicador: AplicadorNoApp
   rpg: Personagem[]
   aberta: Personagem[]
+  fechada: boolean
+  aoAbrir: (() => void)[]
 }
 
 function appFalso(rpg: Personagem[]): AppFalso {
   const app: AppFalso = {
     rpg,
     aberta: rpg,
+    fechada: false,
+    aoAbrir: [],
     aplicador: {
       ajustarPastaAberta(_pastaId, ajustar) {
-        app.aberta = ajustar(app.aberta) ?? app.aberta
+        if (!app.fechada) app.aberta = ajustar(app.aberta) ?? app.aberta
       },
       async gravarRpg(_pastaId, ajustar) {
         app.rpg = ajustar(app.rpg) ?? app.rpg
       },
+      aoAbrirAPasta(_pastaId, aoAbrir) {
+        app.aoAbrir.push(aoAbrir)
+        return () => {
+          app.aoAbrir = app.aoAbrir.filter((outro) => outro !== aoAbrir)
+        }
+      },
     },
   }
   return app
+}
+
+/** Um mapa da pasta abre no editor: a cópia é lida do `rpg.json` e só então vem o aviso. */
+function abrirAPastaNoEditor(app: AppFalso): void {
+  app.fechada = false
+  app.aberta = app.rpg
+  for (const aoAbrir of app.aoAbrir) aoAbrir()
+}
+
+/** O gravador leve sem a espera de 1 s. */
+function agendarJa(fazer: () => void): () => void {
+  fazer()
+  return () => undefined
 }
 
 let proximoId = 0
@@ -111,27 +134,27 @@ afterEach(() => {
   for (const fazer of desligar.splice(0)) fazer()
 })
 
-async function abrir(servidor: ServidorFalso, disco: PastaNoDisco, app: AppFalso, avisos: string[] = []): Promise<Sincronizador> {
+async function abrir(servidor: ServidorFalso, disco: PastaNoDisco, app: AppFalso, avisos: string[] = [], agendar = agendarJa): Promise<Sincronizador> {
   const aberto = await abrirSincronizador(
     { campanhaId: CAMPANHA, pastaId: PASTA, nome: 'One Piece' },
     {
       ponte: ponteSobre(servidor.transporte),
       pasta: disco,
       app: app.aplicador,
+      ligarEmissor: (destino) => {
+        const desligarEste = ligarEmissor(PASTA, destino)
+        desligar.push(desligarEste)
+        return desligarEste
+      },
       ehMembro: () => false,
       agora: () => AGORA,
       novoId: () => `id_${(proximoId += 1)}`,
-      // O gravador leve sem a espera de 1 s.
-      agendar: (fazer) => {
-        fazer()
-        return () => undefined
-      },
+      agendar,
       aoMudar: () => undefined,
       avisar: (mensagem) => avisos.push(mensagem),
     },
   )
   if (!aberto.ok) throw new Error(aberto.motivo)
-  desligar.push(ligarEmissor(PASTA, aberto.sincronizador.destino))
   return aberto.sincronizador
 }
 
@@ -293,6 +316,59 @@ describe('sincronizador do app (A5)', () => {
     const ids = (fichas: readonly Personagem[]): string[] => fichas.map((doc) => doc.id)
     expect(ids(app.rpg)).toEqual([LUFFY.id, npc.id, nuncaSubiu.id])
     expect(ids(app.aberta)).toEqual([LUFFY.id, npc.id, nuncaSubiu.id])
+  })
+
+  it('rpg.json atrás da vista (gravador leve na calmaria): o mapa que abre mostra a Vida do site, e o dano do mestre sai sobre ela', async () => {
+    const campanha = campanhaDeTeste([], MEMBROS)
+    publicar(campanha, [LUFFY])
+    const servidor = servidorFalso(campanha)
+    const app = appFalso([LUFFY])
+    app.fechada = true
+    // A calmaria de 1 s não termina: o `rpg.json` fica para trás.
+    const sincronizador = await abrir(servidor, discoEmMemoria(), app, [], () => () => undefined)
+    await sincronizador.ciclo()
+    enviar(campanha, NAMI_NO_PC, [op(NAMI_NO_PC, LUFFY.id, ['recursos', 'hp'], 'definir', { valor: 150, baseRev: 1 })])
+    await sincronizador.ciclo()
+    expect(hpDe(app.rpg)).toBe(300)
+
+    abrirAPastaNoEditor(app)
+    expect(hpDe(app.aberta)).toBe(150)
+    // O mestre tira 3 do que vê.
+    mudarNoEditor(app, { ...LUFFY, recursos: { ...LUFFY.recursos, hp: (hpDe(app.aberta) ?? 0) - 3 } })
+    await sincronizador.esvaziar()
+    await sincronizador.ciclo()
+    expect(campanha.ficha(LUFFY.id)?.doc.recursos.hp).toBe(147)
+  })
+
+  it('mudança do mestre enquanto a fila abre: espera o emissor, entra na fila e o acerto da reabertura não a desfaz', async () => {
+    const campanha = campanhaDeTeste([], MEMBROS)
+    publicar(campanha, [LUFFY])
+    const servidor = servidorFalso(campanha)
+    const disco = discoEmMemoria()
+    const app = appFalso([LUFFY])
+    const primeiro = await abrir(servidor, disco, app)
+    await primeiro.ciclo()
+    await primeiro.fechar()
+    desligar.splice(0).forEach((fazer) => fazer())
+
+    const reaberto = appFalso(app.rpg)
+    const lerDeVerdade = disco.ler
+    let mexeu = false
+    disco.ler = async (nome) => {
+      if (nome === 'fila.jsonl' && !mexeu) {
+        // O dano entra no editor e o Salvar o leva ao `rpg.json` enquanto a fila é lida.
+        mexeu = true
+        mudarNoEditor(reaberto, { ...LUFFY, recursos: { ...LUFFY.recursos, hp: 290 } })
+        reaberto.rpg = reaberto.aberta
+      }
+      return lerDeVerdade(nome)
+    }
+    const segundo = await abrir(servidor, disco, reaberto)
+    await segundo.esvaziar()
+    expect(mexeu).toBe(true)
+    expect([hpDe(reaberto.aberta), hpDe(reaberto.rpg), segundo.situacao().esperando]).toEqual([290, 290, 1])
+    await segundo.ciclo()
+    expect(campanha.ficha(LUFFY.id)?.doc.recursos.hp).toBe(290)
   })
 
   it('negada pelo servidor fica para decidir (não some) e "guardar como nota" vai para negadas.jsonl', async () => {

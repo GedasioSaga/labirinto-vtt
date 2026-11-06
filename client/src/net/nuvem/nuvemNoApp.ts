@@ -1,6 +1,6 @@
 import { join } from '@tauri-apps/api/path'
 import { lerContas } from '../../lib/contasNoDisco'
-import { useAdventureStore } from '../../stores/adventureStore'
+import { subscribeToOpenings, useAdventureStore } from '../../stores/adventureStore'
 import { useNuvemStore } from '../../stores/nuvemStore'
 import { useToastStore } from '../../stores/toastStore'
 import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from './discoDaNuvem'
@@ -24,7 +24,6 @@ import type { ResultadoNaFila } from '../../lib/nuvem/fila'
 interface Ligada {
   sincronizador: Sincronizador
   laco: Laco
-  desligarEmissor: () => void
 }
 
 const ligadas = new Map<string, Ligada>()
@@ -34,13 +33,21 @@ let ouvindoAJanela = false
 const RELER_CONTAS_MS = 60_000
 let membros: ReadonlySet<string> = new Set()
 let contasLidasEm = 0
+/** A leitura em curso: as campanhas que ligam juntas esperam a mesma, em vez de seguir com `membros` vazio. */
+let leituraDasContas: Promise<void> | null = null
 
-async function relerContasSePreciso(): Promise<void> {
-  if (Date.now() - contasLidasEm < RELER_CONTAS_MS) return
+function relerContasSePreciso(): Promise<void> {
+  if (leituraDasContas !== null) return leituraDasContas
+  if (Date.now() - contasLidasEm < RELER_CONTAS_MS) return Promise.resolve()
   contasLidasEm = Date.now()
-  const lidas = await lerContas()
-  // Só a conta com e-mail entra em `membros` no servidor (§4.3): a sem e-mail edita pela sala como o mestre.
-  if (lidas.lido) membros = new Set(lidas.arquivo.contas.filter((conta) => conta.email !== undefined).map((conta) => conta.id))
+  leituraDasContas = (async () => {
+    const lidas = await lerContas()
+    // Só a conta com e-mail entra em `membros` no servidor (§4.3): a sem e-mail edita pela sala como o mestre.
+    if (lidas.lido) membros = new Set(lidas.arquivo.contas.filter((conta) => conta.email !== undefined).map((conta) => conta.id))
+  })().finally(() => {
+    leituraDasContas = null
+  })
+  return leituraDasContas
 }
 
 const aplicadorDoApp: AplicadorNoApp = {
@@ -52,6 +59,14 @@ const aplicadorDoApp: AplicadorNoApp = {
     if (personagens !== null) mudarRpgDaPasta(pastaId, (rpg) => ({ ...rpg, personagens }))
   },
   gravarRpg: gravarRpgLeve,
+  aoAbrirAPasta(pastaId, aoAbrir) {
+    return subscribeToOpenings(() => {
+      // O aviso sai antes de o mapa novo entrar; o `open` grava a pasta no mesmo passo, sem `await`, então o acerto vem logo depois dele.
+      queueMicrotask(() => {
+        if (useAdventureStore.getState().pasta?.pastaId === pastaId) aoAbrir()
+      })
+    })
+  },
 }
 
 function agendar(fazer: () => void, ms: number): () => void {
@@ -86,6 +101,7 @@ export async function ligarCampanha(campanha: CampanhaPublicada): Promise<boolea
     ponte,
     pasta,
     app: aplicadorDoApp,
+    ligarEmissor: (destino) => ligarEmissor(campanha.pastaId, destino),
     ehMembro: (contaId) => membros.has(contaId),
     agora: () => Date.now(),
     novoId: () => crypto.randomUUID(),
@@ -112,21 +128,27 @@ export async function ligarCampanha(campanha: CampanhaPublicada): Promise<boolea
     agendar,
     () => Date.now(),
   )
-  ligadas.set(campanha.campanhaId, { sincronizador, laco, desligarEmissor: ligarEmissor(campanha.pastaId, sincronizador.destino) })
+  ligadas.set(campanha.campanhaId, { sincronizador, laco })
   ouvirAJanela()
   laco.iniciar()
   return true
+}
+
+function falhaAoLigar(erro: unknown): void {
+  const motivo = `O Lobby não ligou: ${erro instanceof Error ? erro.message : String(erro)}`
+  useNuvemStore.getState().definirFalhaAoLigar(motivo)
+  avisar(motivo)
 }
 
 /** Abre o Lobby de todas as campanhas publicadas. Nunca lança: a falha vira aviso. */
 export async function iniciarNuvem(): Promise<void> {
   try {
     const raiz = pastaNoDisco(primitivasDoTauri, await pastaDaNuvemNoApp())
-    for (const campanha of await lerCampanhas(raiz)) await ligarCampanha(campanha)
+    // Todas juntas: uma na fila das outras ficaria sem emissor (a mudança do mestre nela sumiria no acerto) até a vez dela.
+    const ligacoes = await Promise.allSettled((await lerCampanhas(raiz)).map((campanha) => ligarCampanha(campanha)))
+    for (const ligacao of ligacoes) if (ligacao.status === 'rejected') falhaAoLigar(ligacao.reason)
   } catch (erro) {
-    const motivo = `O Lobby não ligou: ${erro instanceof Error ? erro.message : String(erro)}`
-    useNuvemStore.getState().definirFalhaAoLigar(motivo)
-    avisar(motivo)
+    falhaAoLigar(erro)
   }
 }
 
@@ -154,9 +176,9 @@ export async function desligarNuvem(): Promise<void> {
   const todas = [...ligadas.entries()]
   ligadas.clear()
   await Promise.all(
-    todas.map(async ([campanhaId, { sincronizador, laco, desligarEmissor }]) => {
+    todas.map(async ([campanhaId, { sincronizador, laco }]) => {
       laco.parar()
-      desligarEmissor()
+      // `fechar` desliga o emissor primeiro.
       await sincronizador.fechar()
       useNuvemStore.getState().remover(campanhaId)
     }),

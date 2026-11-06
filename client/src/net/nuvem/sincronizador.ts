@@ -42,6 +42,11 @@ import type { FalhaDaNuvem, PaginaDoDesde, PonteDaNuvem } from './ponte'
  *   4. o `estado.json` (`revRecebida`).
  * Depois a diferença da vista vai para as fichas abertas no editor (fora do
  * Ctrl+Z, sem reemitir) e, ~1 s depois, o gravador leve acerta o `rpg.json`.
+ * Com a pasta fechada nesse meio-tempo, o mapa que abrir lê um `rpg.json`
+ * atrasado: a cópia aberta é acertada com a vista na hora da abertura.
+ *
+ * O emissor é ligado antes de a fila abrir, e o que ele entrega enquanto isso
+ * espera e entra na fila antes do acerto da reabertura.
  *
  * Tudo que mexe na fila, na base e nos arquivos passa por UMA cadeia (uma
  * coisa por vez, na ordem pedida). A rede fica fora dela: a mudança do mestre
@@ -54,6 +59,12 @@ export interface AplicadorNoApp {
   ajustarPastaAberta(pastaId: string, ajustar: (personagens: readonly Personagem[]) => Personagem[] | null): void
   /** O gravador leve: lê o `rpg.json`, ajusta e grava na fila única da pasta. */
   gravarRpg(pastaId: string, ajustar: (personagens: readonly Personagem[]) => Personagem[] | null): Promise<void>
+  /**
+   * Avisa cada vez que um mapa desta pasta abre no editor, DEPOIS de a cópia
+   * lida do `rpg.json` entrar nele (o `rpg.json` pode estar atrás da vista: a
+   * calmaria do gravador leve, uma gravação que falhou). Devolve o cancelar.
+   */
+  aoAbrirAPasta(pastaId: string, aoAbrir: () => void): () => void
 }
 
 export type EstadoDaRede = 'conectando' | 'ok' | FalhaDaNuvem['t']
@@ -74,6 +85,12 @@ export interface DependenciasDoSincronizador {
   ponte: PonteDaNuvem
   pasta: PastaNoDisco
   app: AplicadorNoApp
+  /**
+   * Liga o emissor (A4) da pasta a este destino e devolve o desligar. O
+   * sincronizador liga ANTES de ler a fila e de acertar o editor (a mudança do
+   * mestre durante a abertura espera e entra na fila) e desliga ao fechar.
+   */
+  ligarEmissor(destino: DestinoDoEmissor): () => void
   /** A conta da sala é membro ativo do Lobby (só ela vira `autorDeclarado`). */
   ehMembro(contaId: string): boolean
   agora(): number
@@ -99,7 +116,7 @@ export type EscolhaDaDecisao = 'ficar-com-a-do-outro' | 'usar-a-minha' | 'desfaz
 
 export interface Sincronizador {
   readonly campanha: CampanhaPublicada
-  /** O que o emissor (A4) usa: ligar com `ligarEmissor(pastaId, destino)`. */
+  /** O que o emissor (A4) usa; já ligado por `ligarEmissor` das dependências. */
   readonly destino: DestinoDoEmissor
   ciclo(): Promise<ResultadoDoCiclo>
   decidir(opId: string, escolha: EscolhaDaDecisao): Promise<ResultadoNaFila>
@@ -130,6 +147,46 @@ function opDeUsarAMinha(op: Op, novoId: () => string, baseRev: number, agora: nu
   return nova
 }
 
+/** Para onde o destino do emissor manda as ops depois de a fila abrir. */
+interface Encaminhamento {
+  receber(ops: readonly Op[]): void
+  revConfirmada(): number
+}
+
+interface DestinoQueEspera {
+  destino: DestinoDoEmissor
+  /** A fila abriu: o que esperava vai para ela, na ordem, e o resto vai direto. */
+  encaminhar(para: Encaminhamento): void
+}
+
+/**
+ * O destino do emissor nasce ANTES da fila: ligado assim que o `clienteId` e a
+ * rev confirmada são conhecidos, guarda o que o mestre mudar enquanto a fila
+ * abre e o entrega a ela antes do acerto da reabertura. Sem isso, o acerto
+ * desfazia a mudança no editor e no `rpg.json` sem ela nunca ter chegado à
+ * nuvem. Até a fila abrir, a rev confirmada é a do `base.json` — a mesma com
+ * que a fila abre.
+ */
+function destinoQueEspera(clienteId: string, rev: number, ehMembro: (contaId: string) => boolean): DestinoQueEspera {
+  const guardadas: (readonly Op[])[] = []
+  let para: Encaminhamento | null = null
+  return {
+    destino: {
+      clienteId,
+      revConfirmada: () => (para === null ? rev : para.revConfirmada()),
+      ehMembro,
+      receber: (ops) => {
+        if (para === null) guardadas.push(ops)
+        else para.receber(ops)
+      },
+    },
+    encaminhar(novo) {
+      para = novo
+      for (const ops of guardadas.splice(0)) novo.receber(ops)
+    },
+  }
+}
+
 export async function abrirSincronizador(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador): Promise<AberturaDoSincronizador> {
   const { pasta } = deps
   const lido = await lerEstado(pasta)
@@ -139,11 +196,20 @@ export async function abrirSincronizador(campanha: CampanhaPublicada, deps: Depe
   const guardada = await lerBase(pasta)
   if (guardada === null) return { ok: false, motivo: `A cópia da nuvem de "${campanha.nome}" (base.json) está danificada: o Lobby não liga para não gravar por cima.` }
   const base = baseDaGuardada(guardada)
-  // A base da fila é SÓ o que o servidor confirmou (8.1.1, item 3): o `base.json`, nunca o `rpg.json` (que já tem as pendentes).
-  const fila = await criarFila(armazenamentoEmTexto(arquivoDaFila(pasta)), { rev: base.rev, fichas: [...base.fichas.values()] })
   const estado: EstadoDaCampanha = { ...(lido ?? estadoNovo(campanha.campanhaId, campanha.pastaId, deps.novoId())), revRecebida: base.rev }
-  await gravarEstado(pasta, estado)
-  const sincronizador = montar(campanha, deps, { fila, base, estado, diario: criarDiario(pasta, base.rev) })
+  const emEspera = destinoQueEspera(estado.clienteId, base.rev, (contaId) => deps.ehMembro(contaId))
+  // O emissor liga já: a mudança do mestre enquanto a fila abre e o editor é acertado espera no destino, em vez de sumir no acerto.
+  const desligarEmissor = deps.ligarEmissor(emEspera.destino)
+  let fila: Fila
+  try {
+    // A base da fila é SÓ o que o servidor confirmou (8.1.1, item 3): o `base.json`, nunca o `rpg.json` (que já tem as pendentes).
+    fila = await criarFila(armazenamentoEmTexto(arquivoDaFila(pasta)), { rev: base.rev, fichas: [...base.fichas.values()] })
+    await gravarEstado(pasta, estado)
+  } catch (erro) {
+    desligarEmissor()
+    throw erro
+  }
+  const sincronizador = montar(campanha, deps, { fila, base, estado, diario: criarDiario(pasta, base.rev), emEspera, desligarEmissor })
   await sincronizador.reabrir()
   return { ok: true, sincronizador }
 }
@@ -153,6 +219,8 @@ interface Partes {
   base: BaseDaNuvem
   estado: EstadoDaCampanha
   diario: Diario
+  emEspera: DestinoQueEspera
+  desligarEmissor: () => void
 }
 
 function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, partes: Partes): Sincronizador & { reabrir(): Promise<void> } {
@@ -179,13 +247,71 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
   }
   const notificar = (): void => deps.aoMudar(situacao())
 
+  // ── A vista que o app deve mostrar ────────────────────────────────────────
+  /**
+   * As ops que o emissor entregou e cuja vez na cadeia ainda não chegou: já
+   * estão no editor (o funil aplica e só então entrega), então o acerto com a
+   * vista as conta — senão as desfaria. Saem daqui quando a vez delas começa.
+   */
+  const aCaminho: (readonly Op[])[] = []
+  /** Um passo da cadeia está mudando a vista e a diferença ainda não chegou ao editor. */
+  let vistaMudando = false
+  /** A pasta abriu no meio desse passo: o acerto vem logo depois da diferença. */
+  let acertoAdiado = false
+  const conhece = (fichaId: string): boolean => nuvemConhece(base, fichaId)
+
+  function vistaEsperada(): ReadonlyMap<string, Personagem> {
+    const vista = fila.vistaLocal()
+    return aCaminho.length === 0 ? vista : vistaComOps(vista, aCaminho.flat())
+  }
+
+  /** A cópia aberta no editor passa a ser a vista (idempotente). `true` = estava atrás. */
+  function acertarAgora(): boolean {
+    const vista = vistaEsperada()
+    let estavaAtras = false
+    deps.app.ajustarPastaAberta(pastaId, (personagens) => {
+      const acertadas = acertarComAVista(personagens, vista, conhece)
+      estavaAtras = acertadas !== null
+      return acertadas
+    })
+    return estavaAtras
+  }
+
+  /**
+   * Um mapa desta pasta abriu com o que estava no `rpg.json`, que pode estar
+   * atrás da vista. Acertar AGORA, antes de o mestre mexer: a op dele sairia
+   * calculada sobre o valor velho com a rev de agora, e o servidor não veria
+   * conflito. Estando atrás, o gravador leve acerta o `rpg.json` também (a
+   * gravação que falhou volta aqui).
+   */
+  function acertarAoAbrir(): void {
+    if (fechado) return
+    // No meio de um passo a vista pode já ter mudado sem a diferença chegar ao editor: acertar e depois levar a diferença somaria duas vezes.
+    if (vistaMudando) acertoAdiado = true
+    else if (acertarAgora()) agendarRpg()
+  }
+
+  /** Um passo que muda a vista (nunca um dentro do outro): `aoTerminar` leva a diferença ao app, e o acerto adiado vem depois dela. */
+  async function mudandoAVista<T>(passo: () => Promise<T>, aoTerminar: () => void): Promise<T> {
+    vistaMudando = true
+    try {
+      return await passo()
+    } finally {
+      aoTerminar()
+      vistaMudando = false
+      if (acertoAdiado) {
+        acertoAdiado = false
+        if (acertarAgora()) agendarRpg()
+      }
+    }
+  }
+
   // ── O rpg.json (gravador leve) ────────────────────────────────────────────
   let cancelarGravador: (() => void) | null = null
   let gravacaoDoRpg: Promise<void> = Promise.resolve()
-  const conhece = (fichaId: string): boolean => nuvemConhece(base, fichaId)
 
   function gravarRpgAgora(): Promise<void> {
-    const vista = fila.vistaLocal()
+    const vista = vistaEsperada()
     const rev = fila.revConfirmada()
     const anterior = gravacaoDoRpg
     gravacaoDoRpg = anterior.then(async () => {
@@ -221,45 +347,42 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
     agendarRpg()
   }
 
-  async function comVista<T>(passo: () => Promise<T>): Promise<T> {
+  function comVista<T>(passo: () => Promise<T>): Promise<T> {
     const antes = fila.vistaLocal()
-    try {
-      return await passo()
-    } finally {
-      levarAoApp(antes, fila.vistaLocal())
-    }
+    return mudandoAVista(passo, () => levarAoApp(antes, fila.vistaLocal()))
   }
 
   // ── Mudança local (o emissor) ─────────────────────────────────────────────
   async function receberLocais(ops: readonly Op[]): Promise<void> {
+    // Daqui em diante é a fila que as conta (ou o desfazer abaixo, se ela recusar).
+    const posicao = aCaminho.indexOf(ops)
+    if (posicao !== -1) aCaminho.splice(posicao, 1)
     const antes = fila.vistaLocal()
     let problema: string | null = null
-    try {
-      const resultado = await fila.acrescentar(ops)
-      if (!resultado.ok) problema = resultado.problemas.map((p) => p.detalhe).join('; ')
-    } catch (erro) {
-      problema = `o disco recusou (${motivo(erro)})`
-    }
-    if (problema === null) {
-      agendarRpg()
-      deps.aoEnfileirar?.()
-    } else {
-      // A mudança não aparece como feita (§5.7, disco cheio): volta no editor e no `rpg.json`.
-      levarAoApp(vistaComOps(antes, ops), antes)
-      deps.avisar(`O Lobby não guardou esta mudança: ${problema}. A ficha voltou como estava.`)
-    }
+    await mudandoAVista(
+      async () => {
+        try {
+          const resultado = await fila.acrescentar(ops)
+          if (!resultado.ok) problema = resultado.problemas.map((p) => p.detalhe).join('; ')
+        } catch (erro) {
+          problema = `o disco recusou (${motivo(erro)})`
+        }
+      },
+      () => {
+        if (problema === null) {
+          agendarRpg()
+          deps.aoEnfileirar?.()
+        } else {
+          // A mudança não aparece como feita (§5.7, disco cheio): volta no editor e no `rpg.json`.
+          levarAoApp(vistaComOps(antes, ops), antes)
+          deps.avisar(`O Lobby não guardou esta mudança: ${problema}. A ficha voltou como estava.`)
+        }
+      },
+    )
     notificar()
   }
 
-  const destino: DestinoDoEmissor = {
-    clienteId: estado.clienteId,
-    revConfirmada: () => fila.revConfirmada(),
-    ehMembro: (contaId) => deps.ehMembro(contaId),
-    receber: (ops) => {
-      if (fechado) return
-      void emOrdem(() => receberLocais(ops))
-    },
-  }
+  const { destino } = partes.emEspera
 
   // ── Ops confirmadas (o desde) ─────────────────────────────────────────────
   async function receberPagina(pagina: PaginaDoDesde): Promise<boolean> {
@@ -355,14 +478,24 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
     return fila.resolver(opId)
   }
 
+  // A fila abriu: o que o mestre mudou durante a abertura entra nela antes do acerto da reabertura.
+  partes.emEspera.encaminhar({
+    revConfirmada: () => fila.revConfirmada(),
+    receber: (ops) => {
+      if (fechado) return
+      aCaminho.push(ops)
+      void emOrdem(() => receberLocais(ops))
+    },
+  })
+  const pararDeOuvirAberturas = deps.app.aoAbrirAPasta(pastaId, acertarAoAbrir)
+
   return {
     campanha,
     destino,
     situacao,
     async reabrir() {
-      // Ao abrir: o `rpg.json` e o editor acertados com a vista (base confirmada + pendentes); os conflitos voltam à lista.
-      const vista = fila.vistaLocal()
-      deps.app.ajustarPastaAberta(pastaId, (personagens) => acertarComAVista(personagens, vista, conhece))
+      // Ao abrir: o editor e o `rpg.json` acertados com a vista (base confirmada + pendentes + o que chegou do emissor na abertura); os conflitos voltam à lista.
+      acertarAgora()
       await gravarRpgAgora()
       notificar()
     },
@@ -386,6 +519,9 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
       await gravacaoDoRpg
     },
     async fechar() {
+      // Primeiro o emissor e a escuta: nenhuma mudança nova e nenhum acerto entram daqui em diante.
+      partes.desligarEmissor()
+      pararDeOuvirAberturas()
       if (cancelarGravador !== null) {
         cancelarGravador()
         cancelarGravador = null
