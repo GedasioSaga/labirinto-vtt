@@ -1,7 +1,18 @@
 import { segmentoValido } from '../../lib/nuvem/caminho'
 import { ehRegistro, lerJsonSeguro, proprio } from '../../lib/nuvem/json'
-import { ErroDoEu, RELOGIO_DO_NAVEGADOR, type CampanhaDoEu, type Canal, type Eu, type FonteDoLobby, type MotivoDoFechamento, type OuvinteDoCanal, type Relogio } from './fonte'
-import { lerMensagemDoServidor } from './mensagens'
+import {
+  ErroDoEu,
+  RELOGIO_DO_NAVEGADOR,
+  type CampanhaDoEu,
+  type Canal,
+  type Eu,
+  type FonteDoLobby,
+  type MotivoDoFechamento,
+  type OuvinteDoCanal,
+  type Relogio,
+  type RespostaDoBilhete,
+} from './fonte'
+import { lerMensagemDoServidor, lerSalaDaMesa } from './mensagens'
 
 /**
  * A FONTE REAL (§5.4): `GET /api/eu` e o WebSocket `/api/c/:id/ws`, os dois na
@@ -118,6 +129,68 @@ async function buscarEu(origem: string, buscar: Buscar): Promise<Eu> {
   return eu
 }
 
+/** Sem resposta do convite neste tempo, o botão volta e diz que não chegou (a aba em branco fecha). */
+export const PRAZO_DO_BILHETE_MS = 15_000
+
+/** O corpo da recusa (`{ erro, detalhe, tentarDepoisDe? }`, lobby/nuvem/src/http.ts) ou do convite. */
+function lerCorpoDoBilhete(status: number, corpo: unknown): RespostaDoBilhete {
+  const registro: Record<string, unknown> = ehRegistro(corpo) ? corpo : {}
+  const erro = proprio(registro, 'erro')
+  if (status >= 200 && status < 300) {
+    const bilhete = proprio(registro, 'bilhete')
+    const sala = lerSalaDaMesa(proprio(registro, 'sala'))
+    return typeof bilhete === 'string' && sala !== null ? { ok: true, bilhete, sala } : { ok: false, motivo: 'servidor' }
+  }
+  switch (status) {
+    case 401:
+      return { ok: false, motivo: 'sem-login' }
+    case 403:
+      // O mestre entra pelo app; outro 403 é o Access ou o portão pedindo login de novo, como no `/api/eu`.
+      return { ok: false, motivo: erro === 'mestre' ? 'fora-da-mesa' : 'sem-login' }
+    case 404:
+      return { ok: false, motivo: 'fora-da-mesa' }
+    case 409:
+      return { ok: false, motivo: erro === 'conta-sem-convite' ? 'sem-convite' : 'sem-sala' }
+    case 429: {
+      const tentarDepoisDe = proprio(registro, 'tentarDepoisDe')
+      return typeof tentarDepoisDe === 'number' && Number.isFinite(tentarDepoisDe) ? { ok: false, motivo: 'ritmo', tentarDepoisDe } : { ok: false, motivo: 'servidor' }
+    }
+    default:
+      return { ok: false, motivo: 'servidor' }
+  }
+}
+
+/**
+ * `POST /api/c/:id/bilhete`, sem corpo: o DO tira a conta do e-mail do Access,
+ * nunca do pedido, e o navegador manda o `Origin` que o portão confere.
+ * `manual` pelo mesmo motivo do `/api/eu`: sem login, o Access redireciona.
+ */
+async function pedirBilheteReal(origem: string, campanhaId: string, buscar: Buscar): Promise<RespostaDoBilhete> {
+  if (!segmentoValido(campanhaId)) return { ok: false, motivo: 'fora-da-mesa' }
+  let resposta: Response
+  try {
+    resposta = await buscar(new URL(`/api/c/${encodeURIComponent(campanhaId)}/bilhete`, origem).toString(), {
+      method: 'POST',
+      credentials: 'same-origin',
+      redirect: 'manual',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(PRAZO_DO_BILHETE_MS),
+    })
+  } catch {
+    return { ok: false, motivo: 'rede' }
+  }
+  if (resposta.type === 'opaqueredirect') return { ok: false, motivo: 'sem-login' }
+  let corpo: unknown = null
+  try {
+    corpo = lerJsonSeguro(await resposta.text())
+  } catch (erro) {
+    // Corpo que não é JSON: decide o status. O resto (a rede caiu no meio do corpo) é "não chegou".
+    if (!(erro instanceof SyntaxError)) return { ok: false, motivo: 'rede' }
+  }
+  return lerCorpoDoBilhete(resposta.status, corpo)
+}
+
 function abrirCanalReal(url: string, ouvinte: OuvinteDoCanal, abrirFio: AbrirFio, relogio: Relogio): Canal {
   let aberto = false
   let encerrado = false
@@ -210,5 +283,6 @@ export function criarFonteReal(opcoes: OpcoesDaFonteReal): FonteDoLobby {
       if (!segmentoValido(campanhaId)) throw new TypeError(`abrirCanal: campanha inválida (${campanhaId})`)
       return abrirCanalReal(enderecoDoCanal(opcoes.origem, campanhaId), ouvinte, abrirFio, relogio)
     },
+    pedirBilhete: (campanhaId) => pedirBilheteReal(opcoes.origem, campanhaId, buscar),
   }
 }

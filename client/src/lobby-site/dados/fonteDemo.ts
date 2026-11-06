@@ -8,7 +8,21 @@ import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
 import { criarDueloDaDemo, type DueloDaDemo } from './dueloDaDemo'
 import { criarMuralDaDemo, type MuralDaDemo } from './muralDaDemo'
-import { ehPedidoDoChat, ehPedidoDoDuelo, ehPedidoDoMural, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type OuvinteDoCanal, type PedidoDoSite, type Relogio } from './fonte'
+import {
+  ehPedidoDoChat,
+  ehPedidoDoDuelo,
+  ehPedidoDoMural,
+  RELOGIO_DO_NAVEGADOR,
+  type Canal,
+  type EstadoComSala,
+  type FonteDoLobby,
+  type MensagemDoSite,
+  type OuvinteDoCanal,
+  type PedidoDoSite,
+  type Relogio,
+  type RespostaDoBilhete,
+  type SalaDaMesa,
+} from './fonte'
 import { lerMensagemDoServidor } from './mensagens'
 
 /**
@@ -114,14 +128,34 @@ function projetarOps(campanha: CampanhaEmMemoria, membro: Membro, ops: readonly 
   })
 }
 
-function estadoPara(campanha: CampanhaEmMemoria, membro: Membro): MensagemDoServidor {
+/**
+ * A sala que o mestre "abriu no app" (B6), só na mesa em que ele está no app
+ * (`PRESENCA_DA_DEMO`): o código e os endereços inventados, na forma exata
+ * que o DO aceita. A demo nunca navega para eles: o "Entrar na mesa agora"
+ * daqui abre a aba e conta nela o que a de verdade faria.
+ */
+const SALA_DA_DEMO: Readonly<Record<string, SalaDaMesa>> = {
+  'rota-das-ilhas': {
+    codigo: 'K7Q2MX',
+    enderecos: [
+      { tipo: 'lan', url: 'http://192.168.0.12:7777/player' },
+      { tipo: 'tunel', url: 'https://mare-alta-sem-farol.trycloudflare.com/player' },
+    ],
+  },
+}
+
+/** O convite da demo: a forma do de verdade (`v1.<payload>.<assinatura>`), sem assinatura de verdade. */
+const BILHETE_DA_DEMO = 'v1.ZGVtbw.ZGVtbw'
+
+function estadoPara(campanha: CampanhaEmMemoria, membro: Membro): EstadoComSala {
   const nomeDaConta = (contaId: string): string | null => campanha.membro(contaId)?.nome ?? null
   const fichas = campanha.todasAsFichas().flatMap((guardada): FichaNoEstado[] => {
     const naTela = fichaNoEstado(membro, guardada, nomeDaConta)
     return naTela === null ? [] : [naTela]
   })
   const { contaId, nome, papel } = membro
-  return { t: 'estado', rev: campanha.revAtual(), fichas, membros: projetarMembros(campanha.todosOsMembros()), eu: { contaId, nome, papel } }
+  const sala = SALA_DA_DEMO[campanha.campanhaId] ?? null
+  return { t: 'estado', rev: campanha.revAtual(), fichas, membros: projetarMembros(campanha.todosOsMembros()), eu: { contaId, nome, papel }, sala }
 }
 
 /**
@@ -356,6 +390,17 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
       })
     },
     abrirCanal: (campanhaId, ouvinte) => abrirCanalDaDemo(servidor, campanhaId, ouvinte, relogio),
+    pedirBilhete(campanhaId) {
+      // As mesmas recusas do DO: quem não é membro, o mestre e a mesa sem sala aberta.
+      const campanha = campanhas.get(campanhaId)
+      const membro = campanha === undefined ? undefined : membroPorEmail(campanha, EMAIL_DA_DEMO)
+      const sala = SALA_DA_DEMO[campanhaId]
+      const resposta: RespostaDoBilhete =
+        membro === undefined || membro.papel === 'mestre' ? { ok: false, motivo: 'fora-da-mesa' } : sala === undefined ? { ok: false, motivo: 'sem-sala' } : { ok: true, bilhete: BILHETE_DA_DEMO, sala }
+      return new Promise((resolve) => {
+        relogio.depois(LATENCIA_DA_DEMO_MS, () => resolve(resposta))
+      })
+    },
     simularMudancaDoMestre(campanhaId, fichaId, caminho, valor) {
       const campanha = campanhas.get(campanhaId)
       const mestre = campanha?.membro(CONTA_DO_MESTRE)

@@ -36,12 +36,57 @@ export interface Eu {
  */
 export type MotivoDoFechamento = 'rede' | 'sem-acesso'
 
+/** Um endereço da tela do jogador no app do mestre: `lan` = `http://<IP da rede local>:<porta>/player`, `tunel` = `https://<nome>.trycloudflare.com/player`. */
+export interface EnderecoDaMesa {
+  tipo: 'lan' | 'tunel'
+  url: string
+}
+
+/**
+ * A sala que o mestre abriu no app ("Entrar na mesa agora", fatias B2 e B6):
+ * o código e os endereços da tela do jogador. A chave que assina o convite
+ * nunca vem para o site (lobby/nuvem/src/salaAberta.ts).
+ */
+export interface SalaDaMesa {
+  codigo: string
+  enderecos: EnderecoDaMesa[]
+}
+
+/** O frame `{ t: 'sala' }`: a sala abriu, trocou de endereço (`SalaDaMesa`), fechou ou venceu (`null`). */
+export type MensagemDaSala = { t: 'sala'; sala: SalaDaMesa | null }
+
+/** O `estado` do DO desde a B2 traz a sala aberta agora; `undefined` = DO de antes, que nunca tem sala. */
+export type EstadoComSala = Extract<MensagemDoServidor, { t: 'estado' }> & { sala?: SalaDaMesa | null }
+
 /**
  * Tudo o que chega pelo canal da campanha: o protocolo das fichas (§5.4), o
- * do chat (`chat.*`, fatia C2) e o do mural (`mural.*`, fatia M2), que andam
- * pela MESMA conexão.
+ * do chat (`chat.*`, fatia C2), o do mural (`mural.*`, fatia M2), o do duelo
+ * e a sala aberta no app (B6), que andam pela MESMA conexão.
  */
-export type MensagemDoSite = MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor
+export type MensagemDoSite =
+  | Exclude<MensagemDoServidor, { t: 'estado' }>
+  | EstadoComSala
+  | MensagemDaSala
+  | MensagemDoChatDoServidor
+  | MensagemDoMuralDoServidor
+  | MensagemDoDueloDoServidor
+
+/**
+ * O convite de um clique (`POST /api/c/:id/bilhete`, só jogador): o bilhete
+ * assinado vale 2 minutos e vai SÓ no fragmento da URL da tela do jogador.
+ * `sala` é a mesma do frame, lida de novo na resposta (a mais recente).
+ * Recusa:
+ * - `sem-login`: o Access pediu login de novo (redirecionou ou 401);
+ * - `sem-sala`: a sala fechou ou venceu antes do clique (409);
+ * - `sem-convite`: esta conta não recebe convite (409), entra pelo código;
+ * - `ritmo`: convites demais em pouco tempo (429), `tentarDepoisDe` em ms do relógio do Lobby;
+ * - `fora-da-mesa`: a pessoa não é jogador desta mesa (404, ou o mestre, 403);
+ * - `rede` e `servidor`: não chegou, ou voltou outra coisa.
+ */
+export type RespostaDoBilhete =
+  | { ok: true; bilhete: string; sala: SalaDaMesa }
+  | { ok: false; motivo: 'sem-login' | 'sem-sala' | 'sem-convite' | 'fora-da-mesa' | 'rede' | 'servidor' }
+  | { ok: false; motivo: 'ritmo'; tentarDepoisDe: number }
 
 /** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat, do mural e do duelo (T7). */
 export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural | PedidoDoDuelo
@@ -94,6 +139,8 @@ export interface FonteDoLobby {
   readonly demo: boolean
   buscarEu(): Promise<Eu>
   abrirCanal(campanhaId: string, ouvinte: OuvinteDoCanal): Canal
+  /** O convite para entrar na sala aberta no app ("Entrar na mesa agora"); nunca lança. */
+  pedirBilhete(campanhaId: string): Promise<RespostaDoBilhete>
 }
 
 /** O relógio da sessão, injetado: os testes andam o tempo sem esperar. */

@@ -6,7 +6,6 @@ import {
   VERSAO_DO_FORMATO,
   type Conflito,
   type MembroProjetado,
-  type MensagemDoServidor,
   type MotivoNegado,
   type Mudanca,
   type Op,
@@ -18,7 +17,19 @@ import type { Personagem } from '../../lib/personagem'
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
 import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
 import type { MensagemDoDueloDoServidor, PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
-import { ehDoChat, ehDoDuelo, ehDoMural, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type MotivoDoFechamento, type Relogio } from './fonte'
+import {
+  ehDoChat,
+  ehDoDuelo,
+  ehDoMural,
+  RELOGIO_DO_NAVEGADOR,
+  type Canal,
+  type EstadoComSala,
+  type FonteDoLobby,
+  type MensagemDoSite,
+  type MotivoDoFechamento,
+  type Relogio,
+  type SalaDaMesa,
+} from './fonte'
 
 /**
  * A SESSÃO DE UMA CAMPANHA no site (§5.4-5.6): o protocolo inteiro do lado do
@@ -101,6 +112,12 @@ export interface EstadoDaCampanha {
   desfazeres: ReadonlyMap<string, SituacaoDoDesfazer>
   /** Falha ao guardar no navegador (cota do IndexedDB, base bloqueada): a mudança NÃO foi feita. */
   erroLocal: string | null
+  /**
+   * A sala que o mestre abriu no app agora ("Entrar na mesa agora", B6); `null`
+   * = nenhuma. Só vale com o canal de pé: o DO só manda o frame `sala` quando
+   * ela muda, então a sessão a esquece quando o canal cai e a recebe de novo na volta.
+   */
+  sala: SalaDaMesa | null
 }
 
 export type ResultadoDaEdicao =
@@ -222,6 +239,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
   let membros: MembroProjetado[] = []
   let eu: MembroProjetado | null = null
   let naMesa: PresencaNaMesa[] = []
+  let sala: SalaDaMesa | null = null
   const emVoo = new Set<string>()
   const historicos = new Map<string, HistoricoDaFicha>()
   /** `fichaId` -> a página pedida (`antesDeRev`; `null` = a primeira). */
@@ -261,6 +279,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       historicos: new Map(historicos),
       desfazeres: new Map(desfazeres),
       erroLocal,
+      sala,
     }
   }
 
@@ -319,6 +338,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
   function caiu(motivo: MotivoDoFechamento): void {
     canal = null
     sincronizada = false
+    sala = null
     emVoo.clear()
     pararPrazo()
     pararPrazoDoEstado()
@@ -433,6 +453,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
         geracao += 1
         canal?.fechar()
         canal = null
+        sala = null
         pararPrazo()
         pararPrazoDoEstado()
         pararAdiados()
@@ -443,12 +464,17 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       case 'presenca':
         naMesa = mensagem.naMesa
         break
+      case 'sala':
+        sala = mensagem.sala
+        break
     }
     publicar()
     enviarPendentes()
   }
 
-  async function receberEstado(mensagem: Extract<MensagemDoServidor, { t: 'estado' }>): Promise<void> {
+  async function receberEstado(mensagem: EstadoComSala): Promise<void> {
+    // A sala vem em todo `estado` do DO desde a B2; o de antes não manda o campo e nunca tem sala.
+    sala = mensagem.sala ?? null
     const aceita = await fila.receberEstado({ rev: mensagem.rev, fichas: mensagem.fichas.map((ficha) => ficha.doc) })
     if (aceita) {
       meta = new Map(mensagem.fichas.map((ficha): [string, MetaDaFicha] => [ficha.doc.id, { visivel: ficha.visivel, ehMinha: ficha.ehMinha, nomeDoDono: ficha.nomeDoDono }]))

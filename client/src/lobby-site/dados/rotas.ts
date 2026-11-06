@@ -1,4 +1,5 @@
 import { segmentoValido } from '../../lib/nuvem/caminho'
+import type { EnderecoDaMesa, SalaDaMesa } from './fonte'
 
 /**
  * ROTAS do site (§3.2: a navegação mora na URL). Caminhos de verdade, não
@@ -125,4 +126,66 @@ export function ehDemo(busca: string): boolean {
 /** O endereço para o `href` e o `pushState`, com o `?demo=1` quando a demo está ligada. */
 export function enderecoDaRota(rota: Rota, demo: boolean): string {
   return demo ? `${caminhoDaRota(rota)}?demo=1` : caminhoDaRota(rota)
+}
+
+// ── A entrada na sala aberta no app ("Entrar na mesa agora", B6) ───────────
+
+/**
+ * A mesma forma exata que o DO aceita guardar (`urlDaSalaValida` em
+ * lobby/nuvem/src/salaAberta.ts): `http://<IPv4 privado>:<porta>/player` ou
+ * `https://<palavra-palavra>.trycloudflare.com/player`, sem barra no fim,
+ * query nem fragmento. O site confere de novo porque navega para ela com o
+ * convite: uma URL de outra forma levaria o convite a outro lugar.
+ */
+const FORMA_DA_LAN = /^http:\/\/(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3}):(\d{1,5})\/player$/
+const FORMA_DO_TUNEL = /^https:\/\/([a-z0-9]+(?:-[a-z0-9]+)+)\.trycloudflare\.com\/player$/
+/** Sem zero à esquerda: `010` não é `10` para todo leitor de URL. */
+const FORMA_DO_NUMERO = /^(?:0|[1-9]\d*)$/
+const ROTULO_MAX = 63
+const OCTETO_MAX = 255
+const PORTA_MAX = 65_535
+/** `v1.<base64url>.<base64url>` (client/src/lib/nuvem/bilhete.ts): nada de `#`, `?`, `&` nem espaço. */
+const FORMA_DO_BILHETE = /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+const BILHETE_MAX = 1024
+
+function numeroAte(texto: string, maximo: number): number | null {
+  if (!FORMA_DO_NUMERO.test(texto)) return null
+  const numero = Number(texto)
+  return numero <= maximo ? numero : null
+}
+
+/** 10/8, 172.16/12 e 192.168/16 (RFC 1918), como no DO. */
+function lanValida(url: string): boolean {
+  const achado = FORMA_DA_LAN.exec(url)
+  if (achado === null) return false
+  const [primeiro, segundo, ...resto] = achado.slice(1, 5).map((octeto) => numeroAte(octeto, OCTETO_MAX))
+  const porta = numeroAte(achado[5], PORTA_MAX)
+  if (primeiro === null || segundo === null || resto.some((octeto) => octeto === null) || porta === null || porta === 0) return false
+  return primeiro === 10 || (primeiro === 172 && segundo >= 16 && segundo <= 31) || (primeiro === 192 && segundo === 168)
+}
+
+export function enderecoDaMesaValido(endereco: EnderecoDaMesa): boolean {
+  if (endereco.tipo === 'lan') return lanValida(endereco.url)
+  const achado = FORMA_DO_TUNEL.exec(endereco.url)
+  return achado !== null && achado[1].length <= ROTULO_MAX
+}
+
+/**
+ * O endereço que o botão abre: o túnel quando o app tem um, porque o Local
+ * Network Access do Chrome e do Safari pode pedir permissão (ou barrar) para
+ * um site da internet abrir o IP da rede local; sem túnel, o da rede local.
+ */
+export function enderecoDoBotao(sala: SalaDaMesa): EnderecoDaMesa | null {
+  return sala.enderecos.find((endereco) => endereco.tipo === 'tunel') ?? sala.enderecos.find((endereco) => endereco.tipo === 'lan') ?? null
+}
+
+/**
+ * A URL que a aba do jogador abre: o convite SÓ no fragmento (`#entrar=`),
+ * que o navegador não manda ao servidor nem põe no Referer, e nunca na query
+ * (`?`), que vai no pedido, no log do servidor e no histórico de quem está no
+ * meio. `null` = endereço ou convite fora da forma: o site não abre nada.
+ */
+export function enderecoDeEntrada(endereco: EnderecoDaMesa, bilhete: string): string | null {
+  if (!enderecoDaMesaValido(endereco) || bilhete.length > BILHETE_MAX || !FORMA_DO_BILHETE.test(bilhete)) return null
+  return `${endereco.url}#entrar=${bilhete}`
 }

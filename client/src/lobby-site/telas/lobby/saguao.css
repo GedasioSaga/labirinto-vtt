@@ -60,6 +60,108 @@ a.lo-saguao__pessoa { color: var(--lb-color-parchment); }
   font-size: var(--lb-font-size-sm);
 }
 
+/* -------------------------------------------- a mesa aberta no app (B6) */
+
+/* "A mesa está aberta": o papel da ficha com o filete de latão e o halo do lampião vindo do canto do botão
+   (o do fundo da página, body::after), porque é a mesa acesa. A peça mais forte da página só enquanto a sala
+   está aberta; fechada, o cartão some. */
+.lo-entrar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lb-space-4) var(--lb-space-8);
+  margin-bottom: var(--lb-space-8);
+  padding: var(--lb-space-5) var(--lb-space-6);
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-xl);
+  background:
+    radial-gradient(90% 140% at 100% 50%, color-mix(in srgb, var(--lb-color-brass) 16%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, var(--lb-gr-cartao-alto), var(--lb-gr-cartao));
+  box-shadow: var(--lb-shadow-md), var(--lb-shadow-bevel);
+}
+
+/* Só quando a sala abre com a página aberta (quem chegou com ela aberta vê o cartão parado). */
+.lo-entrar[data-entra='1'] { animation: lo-entrar-chega 240ms var(--lb-gr-ease-out); }
+
+@keyframes lo-entrar-chega {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* Com movimento reduzido: só a opacidade, sem deslocar. */
+@keyframes lo-entrar-aparece {
+  from { opacity: 0; }
+}
+
+.lo-entrar__texto { display: flex; flex-direction: column; gap: var(--lb-space-2); min-width: 0; }
+
+.lo-entrar__agora {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  color: var(--lb-color-online);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+}
+
+.lo-entrar__titulo {
+  font-family: var(--lb-font-display);
+  font-size: 30px;
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.05;
+}
+
+.lo-entrar__sub { max-width: 72ch; color: var(--lb-color-parchment-dim); line-height: 1.5; }
+
+.lo-entrar__acao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+/* O botão não muda de largura quando vira "Abrindo a mesa…" (o giro toma o lugar do ícone). Seletores dobrados:
+   o lobby.css entra depois no pacote e venceria o .lo-btn--grande e o .lo-giro de mesmo peso. */
+.lo-entrar .lo-entrar__botao { min-width: 248px; min-height: 52px; }
+.lo-entrar__botao .lo-ic { width: 18px; height: 18px; }
+.lo-entrar .lo-entrar__giro { width: 16px; height: 16px; border-color: color-mix(in srgb, var(--lb-color-brass-contrast) 30%, transparent); border-top-color: var(--lb-color-brass-contrast); }
+.lo-entrar .lo-entrar__botao[aria-disabled='true'] { cursor: progress; }
+.lo-entrar .lo-entrar__botao[aria-disabled='true']:active { transform: none; }
+
+.lo-entrar__aviso,
+.lo-entrar__feito { max-width: 40ch; text-align: right; line-height: 1.45; }
+
+.lo-entrar__feito {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-entrar__feito .lo-ic { width: 14px; height: 14px; color: var(--lb-color-online); }
+
+/* O plano B do Local Network Access: o endereço da rede local como texto, para quem está ao lado do mestre. */
+.lo-entrar__rede {
+  grid-column: 1 / -1;
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-gr-filete);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.5;
+}
+
+.lo-entrar__url,
+.lo-entrar__codigo {
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.lo-entrar__url { color: var(--lb-color-parchment-dim); }
+.lo-entrar__codigo { color: var(--lb-color-brass-bright); font-weight: var(--lb-font-weight-semibold); letter-spacing: var(--lb-font-tracking-wide); }
+
 /* ------------------------------------------------------------- blocos */
 
 .lo-saguao__bloco-cab {
@@ -343,6 +445,11 @@ a.lo-atalho:active { transform: scale(0.98); }
 }
 
 @media (max-width: 720px) {
+  .lo-entrar { grid-template-columns: minmax(0, 1fr); padding: var(--lb-space-5); }
+  .lo-entrar__acao { align-items: stretch; }
+  .lo-entrar .lo-entrar__botao { min-width: 0; }
+  .lo-entrar__aviso,
+  .lo-entrar__feito { max-width: none; text-align: left; }
   .lo-atalhos { grid-template-columns: minmax(0, 1fr); }
   .lo-atalho--ficha { gap: var(--lb-space-4); }
   .lo-atalho--ficha .lo-retrato--g { width: 72px; font-size: 28px; }
@@ -355,5 +462,8 @@ a.lo-atalho:active { transform: scale(0.98); }
 
 @media (prefers-reduced-motion: reduce) {
   .lo-saguao__agora li[data-entra='1'] { animation: none; }
+  .lo-entrar[data-entra='1'] { animation: lo-entrar-aparece 200ms ease; }
+  /* O giro parado do lobby.css fica em latão, que some no botão de latão. */
+  .lo-entrar .lo-entrar__giro { border-color: var(--lb-color-brass-contrast); }
   a.lo-atalho:active { transform: none; }
 }

@@ -4,8 +4,9 @@ import { ehJson, ehRegistro, lerJsonSeguro, proprio } from '../../lib/nuvem/json
 import { lerEnvelope } from '../../lib/nuvem/lote'
 import type { FichaNoEstado, MembroProjetado, MensagemDoServidor, OpGravada, Origem, Papel, PresencaNaMesa, Visibilidade } from '../../lib/nuvem/tipos'
 import { personagemDoArquivo } from '../../lib/personagem'
-import type { MensagemDoSite } from './fonte'
+import type { EnderecoDaMesa, EstadoComSala, MensagemDoSite, SalaDaMesa } from './fonte'
 import { lerFrameDoChat } from './fioDoChat'
+import { enderecoDaMesaValido } from './rotas'
 import { lerFrameDoDuelo } from './fioDoDuelo'
 import { lerFrameDoMural } from './fioDoMural'
 
@@ -92,13 +93,49 @@ export function lerOpGravada(bruto: unknown): OpGravada | null {
   return op
 }
 
-function lerEstado(bruto: Record<string, unknown>): MensagemDoServidor | null {
+function lerEnderecoDaMesa(bruto: unknown): EnderecoDaMesa | null {
+  if (!ehRegistro(bruto)) return null
+  const tipo = proprio(bruto, 'tipo')
+  const url = proprio(bruto, 'url')
+  if ((tipo !== 'lan' && tipo !== 'tunel') || typeof url !== 'string') return null
+  const endereco: EnderecoDaMesa = { tipo, url }
+  return enderecoDaMesaValido(endereco) ? endereco : null
+}
+
+/** A mesma forma do código no DO e no bilhete (o app sorteia 6 de `A-Z2-9`; aceita até 16). */
+const FORMA_DO_CODIGO_DA_SALA = /^[A-Za-z0-9]{1,16}$/
+
+/**
+ * A sala aberta no app (B6), do `estado`, do frame `sala` e da resposta do
+ * convite. Ao contrário da base, sala torta NÃO derruba o canal (não há base
+ * a divergir, e derrubar repetiria em cada `estado`): vale como "nenhuma
+ * sala", e o botão não aparece. Endereço fora da forma exata fica de fora;
+ * sem endereço que sobre, também não há sala.
+ */
+export function lerSalaDaMesa(bruto: unknown): SalaDaMesa | null {
+  if (!ehRegistro(bruto)) return null
+  const codigo = proprio(bruto, 'codigo')
+  const lista = proprio(bruto, 'enderecos')
+  if (typeof codigo !== 'string' || !FORMA_DO_CODIGO_DA_SALA.test(codigo) || !Array.isArray(lista)) return null
+  const brutos: readonly unknown[] = lista
+  const enderecos = brutos.flatMap((item) => {
+    const endereco = lerEnderecoDaMesa(item)
+    return endereco === null ? [] : [endereco]
+  })
+  return enderecos.length > 0 ? { codigo, enderecos } : null
+}
+
+function lerEstado(bruto: Record<string, unknown>): EstadoComSala | null {
   const rev = proprio(bruto, 'rev')
   const fichas = lerLista(proprio(bruto, 'fichas'), lerFichaNoEstado)
   const membros = lerLista(proprio(bruto, 'membros'), lerMembro)
   const eu = lerMembro(proprio(bruto, 'eu'))
   if (!ehRev(rev) || fichas === null || membros === null || eu === null) return null
-  return { t: 'estado', rev, fichas, membros, eu }
+  const estado: EstadoComSala = { t: 'estado', rev, fichas, membros, eu }
+  // O DO de antes da B2 não manda o campo: sem ele, a sessão entende "nenhuma sala".
+  const sala = proprio(bruto, 'sala')
+  if (sala !== undefined) estado.sala = lerSalaDaMesa(sala)
+  return estado
 }
 
 function lerOps(bruto: Record<string, unknown>): MensagemDoServidor | null {
@@ -170,6 +207,8 @@ function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoSite | null {
       const naMesa = lerLista(proprio(bruto, 'naMesa'), lerPresenca)
       return naMesa === null ? null : { t: 'presenca', naMesa }
     }
+    case 'sala':
+      return { t: 'sala', sala: lerSalaDaMesa(proprio(bruto, 'sala')) }
     default:
       return null
   }

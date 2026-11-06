@@ -10,6 +10,7 @@ import { AvisoDaPagina, Carregando } from '../Estados'
 import { Icone } from '../Icone'
 import { plural, tomDe } from '../textos'
 import { AtalhosDaMesa } from './AtalhosDaMesa'
+import { EntrarNaMesa } from './EntrarNaMesa'
 import { AvisosDaMesa, UltimasModificacoes, UltimasNoticias } from './NovidadesDaMesa'
 import '../chat/chat.css'
 import '../mural/mural.css'
@@ -19,7 +20,8 @@ import './saguao.css'
  * O LOBBY DA MESA (fatia H1): a primeira tela de dentro de uma mesa, logo
  * depois do login (direto, com uma mesa só; depois de "Suas mesas", com
  * várias). Junta o que acontece na mesa numa página só: quem está aqui agora,
- * os avisos do mestre, os atalhos grandes (ficha, mochila, treino, duelo), a
+ * a mesa aberta no app com o "Entrar na mesa agora" (B6), os avisos do
+ * mestre, os atalhos grandes (ficha, mochila, treino, duelo), a
  * sala do chat e, ao lado, as últimas notícias e modificações. Cada parte
  * leva à tela inteira dela; nada aqui é só enfeite.
  */
@@ -81,6 +83,7 @@ function Saguao({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }
         </div>
         <QuemEstaNaMesa campanha={campanha} />
       </header>
+      <EntrarNaMesa campanha={campanha} />
       <DecisoesSemFicha campanha={campanha} sistema={SISTEMA_DO_LOBBY} />
       <AvisosDaMesa campanha={campanha} mural={mural} />
       <AtalhosDaMesa campanha={campanha} />
