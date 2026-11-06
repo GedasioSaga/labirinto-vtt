@@ -79,6 +79,15 @@ describe('fim da luta de treino', () => {
     expect(fimDaLuta(mesa, { rodada: 4, passos: TETOS.passos }, TETOS)).toEqual({ tipo: 'tempo', teto: 'passos' })
   })
 
+  it('tempo: relógio torto (passos ou rodada NaN) acaba a luta em vez de deixá-la sem fim', () => {
+    const mesa = mesaDe([
+      { ficha: ZE, lado: 'a' },
+      { ficha: MARINHEIRO, lado: 'b' },
+    ])
+    expect(fimDaLuta(mesa, { rodada: 3, passos: Number.NaN }, TETOS)).toEqual({ tipo: 'tempo', teto: 'passos' })
+    expect(fimDaLuta(mesa, { rodada: Number.NaN, passos: 12 }, TETOS)).toEqual({ tipo: 'tempo', teto: 'rodadas' })
+  })
+
   it('tempo: o golpe que derruba o último no passo do teto é vitória, não tempo', () => {
     const mesa = mesaDe([
       { ficha: ZE, lado: 'a' },

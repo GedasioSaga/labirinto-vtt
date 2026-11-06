@@ -12,7 +12,9 @@ import type { LadoDoTreino, MesaEmMemoria } from './mesaEmMemoria'
  *    empate por tempo; o teto é quem chama que dá, e é ele que garante que a
  *    luta automática sempre para).
  * Cair vale antes do tempo: o golpe que derruba o último no passo do teto é
- * vitória, não tempo.
+ * vitória, não tempo. Relógio torto (rodada ou passos que não são inteiro de
+ * 0 em diante, como NaN) também é tempo: com ele as comparações com o teto
+ * dariam sempre falso e a luta nunca pararia.
  *
  * Caído = a vida da cópia em 0, pela mesma leitura da barra e do "Passar a
  * vez" (`recursoDeVida` + `vidaDoPersonagem`, como `tokensCaidos` em
@@ -49,6 +51,11 @@ function tetoValido(valor: number): boolean {
   return Number.isSafeInteger(valor) && valor >= 1
 }
 
+/** A rodada ou os passos do relógio: inteiro de 0 em diante. */
+function contagemValida(valor: number): boolean {
+  return Number.isSafeInteger(valor) && valor >= 0
+}
+
 /** Quantas cópias de cada lado estão de pé agora. */
 export function dePePorLado(mesa: MesaParaOFim): Record<LadoDoTreino, number> {
   const recurso = recursoDeVida(mesa.sistema())
@@ -65,7 +72,10 @@ export function dePePorLado(mesa: MesaParaOFim): Record<LadoDoTreino, number> {
 
 /**
  * Como a luta acabou, ou `null` se ela continua. Teto que não é inteiro de 1
- * em diante = `RangeError`: com ele a luta automática nunca pararia.
+ * em diante = `RangeError`: com ele a luta automática nunca pararia. Relógio
+ * torto = tempo (no teto do campo torto), não erro: o teto vem de quem chama e
+ * é conferido antes da luta; o relógio é o estado da luta em curso (no duelo,
+ * gravado no servidor), e o erro travaria cada jogada sem nunca acabar a luta.
  */
 export function fimDaLuta(mesa: MesaParaOFim, relogio: RelogioDaLuta, tetos: TetosDaLuta): FimDaLuta | null {
   if (!tetoValido(tetos.rodadas) || !tetoValido(tetos.passos)) throw new RangeError(`tetos da luta inválidos: ${tetos.rodadas} rodadas, ${tetos.passos} passos`)
@@ -73,7 +83,7 @@ export function fimDaLuta(mesa: MesaParaOFim, relogio: RelogioDaLuta, tetos: Tet
   if (a === 0 && b === 0) return { tipo: 'todosCaidos' }
   if (b === 0) return { tipo: 'vitoria', vencedor: 'a' }
   if (a === 0) return { tipo: 'vitoria', vencedor: 'b' }
-  if (relogio.rodada > tetos.rodadas) return { tipo: 'tempo', teto: 'rodadas' }
-  if (relogio.passos >= tetos.passos) return { tipo: 'tempo', teto: 'passos' }
+  if (!contagemValida(relogio.rodada) || relogio.rodada > tetos.rodadas) return { tipo: 'tempo', teto: 'rodadas' }
+  if (!contagemValida(relogio.passos) || relogio.passos >= tetos.passos) return { tipo: 'tempo', teto: 'passos' }
   return null
 }
