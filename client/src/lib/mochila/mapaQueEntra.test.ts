@@ -41,7 +41,15 @@ import {
 } from '../../net/nuvem/mochilaPendente'
 import { quantidadeDe } from '../items'
 import type { CenaDaJuncao } from './juncao'
-import { cenasComAsFichasDoMapa, pendentesDaReconferencia, textoDoIgnoradoSemSaber, textoDoPendente, type ItemPendente } from './pendentes'
+import {
+  cenasComAsFichasDoMapa,
+  pendentesDaReconferencia,
+  pendentesDoMapaQueEntrou,
+  textoDoIgnoradoSemSaber,
+  textoDoPendente,
+  type DecisaoDoPendente,
+  type ItemPendente,
+} from './pendentes'
 
 const APPDATA = 'C:/appdata'
 const MAPS = `${APPDATA}/maps`
@@ -922,11 +930,57 @@ describe('a conferência de novo: a mesma vaga ainda sem decisão é o mesmo pen
     expect(conferido.trocados).toMatchObject([{ id: 'pend_1', tipo: 'moedas', moedas: 45 }])
   })
 
-  it('o pendente já decidido não muda: a outra pilha vira pendente novo, como antes', () => {
+  /** O id, a vaga e a pilha de cada pendente. */
+  function pilhas(pendentes: readonly ItemPendente[]): [string, string, number][] {
+    return pendentes.map((pendente) => [pendente.id, pendente.tipo === 'item' ? pendente.item.id : 'bolsa', pendente.tipo === 'item' ? quantidadeDe(pendente.item) : pendente.moedas])
+  }
+
+  it('o pendente já decidido não muda, e a vaga dele que volta com pilha maior avisa só a diferença (decisão do usuário de 05/11/2026)', () => {
+    // O "Usar o da pasta" anotou a Poção ×1 do trabalho aberto, o mestre a trouxe e fechou sem salvar: o disco tem ×2.
     const trazida: ItemPendente = { ...anotada(1), decisao: 'trazido', decididoEm: 8 }
     const conferido = pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(2))], [trazida], AGORA, ids(), SEM_FIXOS)
     expect(conferido.trocados).toEqual([])
-    expect(conferido.novos).toMatchObject([{ id: 'novo_1', tipo: 'item', item: { id: VAGA.id, quantidade: 2 } }])
+    expect(pilhas(conferido.novos)).toEqual([['novo_1', VAGA.id, 1]])
+    expect(textoDoPendente(conferido.novos[0])).toBe('Poção do boneco Usopp (Going Merry › Convés) não está na mochila de Usopp.')
+  })
+
+  it('a pilha igual ou menor que a decidida (trazida ou ignorada) não avisa nada', () => {
+    const decisoes: DecisaoDoPendente[] = ['trazido', 'ignorado']
+    for (const decisao of decisoes) {
+      const decidida: ItemPendente = { ...anotada(2), decisao, decididoEm: 8 }
+      for (const pilha of [1, 2]) {
+        expect(pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(pilha))], [decidida], AGORA, ids(), SEM_FIXOS)).toEqual({ novos: [], trocados: [] })
+      }
+    }
+  })
+
+  it('cada decisão da vaga conta: ×1 trazida e a diferença ×1 ignorada; o disco com ×3 avisa ×1, com ×2 nada', () => {
+    const primeira: ItemPendente = { ...anotada(1), decisao: 'trazido', decididoEm: 8 }
+    const diferenca: ItemPendente = { ...anotada(1), id: 'pend_2', decisao: 'ignorado', decididoEm: 9 }
+    const comTres = pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(3))], [primeira, diferenca], AGORA, ids(), SEM_FIXOS)
+    expect(pilhas(comTres.novos)).toEqual([['novo_1', VAGA.id, 1]])
+    expect(pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(2))], [primeira, diferenca], AGORA, ids(), SEM_FIXOS)).toEqual({ novos: [], trocados: [] })
+  })
+
+  it('a diferença que já espera o mestre confirma; a pilha que cresce de novo troca a diferença, sem um segundo pendente', () => {
+    const trazida: ItemPendente = { ...anotada(1), decisao: 'trazido', decididoEm: 8 }
+    const esperando: ItemPendente = { ...anotada(1), id: 'pend_2' }
+    expect(pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(2))], [trazida, esperando], AGORA, ids(), SEM_FIXOS)).toEqual({ novos: [], trocados: [] })
+    const cresceu = pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(4))], [trazida, esperando], AGORA, ids(), SEM_FIXOS)
+    expect(cresceu.novos).toEqual([])
+    expect(pilhas(cresceu.trocados)).toEqual([['pend_2', VAGA.id, 3]])
+  })
+
+  it('a bolsa também: 30 moedas trazidas, 45 no disco, o aviso novo é de 15', () => {
+    const trazidas: ItemPendente = { ...anotada(1), tipo: 'moedas', moedas: 30, decisao: 'trazido', decididoEm: 8 }
+    const conferido = pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', { characterId: 'p_usopp', name: 'Usopp', moedas: 45 })], [trazidas], AGORA, ids(), SEM_FIXOS)
+    expect(pilhas(conferido.novos)).toEqual([['novo_1', 'bolsa', 15]])
+  })
+
+  it('o mapa que entra de novo do trabalho aberto ("Usar o da pasta", a volta do sistema) também avisa só o que passa da vaga decidida', () => {
+    const trazida: ItemPendente = { ...anotada(1), decisao: 'trazido', decididoEm: 8 }
+    expect(pilhas(pendentesDoMapaQueEntrou([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(3))], [trazida], AGORA, ids()))).toEqual([['novo_1', VAGA.id, 2]])
+    expect(pendentesDoMapaQueEntrou([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(1))], [trazida], AGORA, ids())).toEqual([])
   })
 
   it('o "Trazer" começado segura a pilha dele, e a leitura da mesma vaga não vira outro pendente', () => {
@@ -954,5 +1008,117 @@ describe('a conferência de novo: a mesma vaga ainda sem decisão é o mesmo pen
       { ...cena, bonecos: [{ characterId: 'p_luffy', name: 'Luffy' }, { characterId: null, name: 'Vendedor', mochila: [CORDA] }] },
     ])
     expect(cenasComAsFichasDoMapa([cena], [], origem)).toEqual([cena])
+  })
+})
+
+describe('o mapa fechado com a aventura já migrada: na conferência do disco, a ficha própria conta no lugar dos bonecos dela', () => {
+  const MERRY = `${MAPS}/going-merry/map.json`
+  const AVENTURA_DO_MERRY = `${MAPS}/going-merry/adventure.json`
+  const AVISO = 'Poção ×2 do boneco Luffy (Going Merry › ficha própria do mapa) não estão na mochila de Luffy.'
+  const SEM_SISTEMA = AGORA
+  const JOGADO = AGORA + 60_000
+  const VOLTA = AGORA + 120_000
+
+  /** O `adventure.json` do Going Merry já migrado, com as fichas próprias `fichas`; uma cena só, o Convés. */
+  function gravarAventuraDoMerry(disco: DiscoFalso, fichas: Personagem[]): void {
+    const aventura: Adventure = {
+      version: 1,
+      id: 'adv_merry',
+      name: 'Going Merry',
+      startSceneId: 'conves',
+      scenes: [{ id: 'conves', name: 'Convés', file: 'map.json' }],
+      personagens: fichas,
+      mochilaMigrada: 1,
+    }
+    disco.arquivos.set(AVENTURA_DO_MERRY, serializeAdventure(aventura))
+  }
+
+  /** O Going Merry fora das pastas: a ficha própria do Luffy guarda a Poção ×2, e nenhum boneco a mostra (no Convés, só o vendedor sem ficha). */
+  function comOMerryMigrado(): DiscoFalso {
+    const disco = appDataConvertido()
+    gravarAventuraDoMerry(disco, [ficha('p_luffy', 'Luffy', { mochila: [POCAO_X2_DO_ARQUIPELAGO] })])
+    disco.arquivos.set(MERRY, serializeMap(mapa('conves', 'Convés', [boneco('Vendedor', null, { mochila: [CORDA] })])))
+    return disco
+  }
+
+  /** O índice com o Going Merry na pasta, sem conferir nada (a importação que cai num mapa da pasta). */
+  async function porNaPasta(disco: DiscoFalso): Promise<void> {
+    const indice = indiceDoArquivo(JSON.parse(disco.texto(INDICE)))
+    await disco.gravar(INDICE, serializarIndice(moverMapa(indice, 'going-merry', PASTA_ID)))
+  }
+
+  it('"Mover…": o que só a ficha própria tem vira o pendente "Poção ×2"; a abertura não repete, e Trazer soma uma vez', async () => {
+    const disco = comOMerryMigrado()
+    const novos = await moverParaAPasta(disco, 'going-merry')
+    expect(novos.map(textoDoPendente)).toEqual([AVISO])
+    // Nada apagado antes da escolha: a ficha própria continua com a Poção.
+    expect(disco.texto(AVENTURA_DO_MERRY)).toContain('vaga_pocao_arq')
+    expect(await conferirMapaQueEntrou('going-merry', disco, { baixarMarca: true, agora: () => AGORA })).toEqual({ pastaId: PASTA_ID, novos: [] })
+    expect(relatorio(disco).mapasPorConferir).toEqual([])
+    await trazerTodos(disco, novos)
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+    // Conferido de novo (outra importação marca o mapa): a pilha igual à trazida não volta.
+    await marcarMapaQueEntrou('going-merry', disco, { agora: () => AGORA })
+    expect(await conferirMapaQueEntrou('going-merry', disco, { baixarMarca: true, agora: () => AGORA })).toEqual({ pastaId: PASTA_ID, novos: [] })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+    expect(linhasDoRelatorio(disco)).toHaveLength(1)
+  })
+
+  it('a abertura (o mapa que já cai na pasta, sem o "Mover…" conferir): o mesmo pendente "Poção ×2", e Trazer soma uma vez', async () => {
+    const disco = comOMerryMigrado()
+    await porNaPasta(disco)
+    expect(await marcarMapaQueEntrou('going-merry', disco, { agora: () => AGORA })).toBe(PASTA_ID)
+    const aberto = await conferirMapaQueEntrou('going-merry', disco, { baixarMarca: true, agora: () => AGORA })
+    if (aberto === null) throw new Error('o Going Merry não foi conferido')
+    expect(aberto.novos.map(textoDoPendente)).toEqual([AVISO])
+    expect(relatorio(disco).mapasPorConferir).toEqual([])
+    await trazerTodos(disco, aberto.novos)
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+  })
+
+  it('a volta do Sistema universal: o mapa fechado salvo sem o sistema confere a ficha própria, e Trazer soma uma vez', async () => {
+    const disco = comOMerryMigrado()
+    // O Going Merry já é da pasta e foi aberto (sem marca), a ficha própria ainda sem nada.
+    gravarAventuraDoMerry(disco, [ficha('p_luffy', 'Luffy')])
+    await porNaPasta(disco)
+    disco.horas.set(MERRY, SEM_SISTEMA - 60_000)
+    await mudarRpgNoDisco(disco, (rpg) => rpgComSistema(rpg, null))
+    expect(await sistemaDaPastaMudou(PASTA_ID, false, disco, { agora: () => SEM_SISTEMA })).toEqual([])
+    // Sem sistema a mochila mora na ficha própria: o mestre dá a Poção ×2 ao Luffy e salva; nenhum boneco a mostra.
+    gravarAventuraDoMerry(disco, [ficha('p_luffy', 'Luffy', { mochila: [POCAO_X2_DO_ARQUIPELAGO] })])
+    disco.horas.set(MERRY, JOGADO)
+    await mudarRpgNoDisco(disco, (rpg) => rpgComSistema(rpg, SISTEMA_ONE_PIECE.id))
+    expect(await sistemaDaPastaMudou(PASTA_ID, true, disco, { agora: () => VOLTA })).toEqual(['going-merry'])
+    const conferido = await conferirMapaQueEntrou('going-merry', disco, { baixarMarca: false, agora: () => VOLTA })
+    if (conferido === null) throw new Error('o Going Merry não foi conferido')
+    expect(conferido.novos.map(textoDoPendente)).toEqual([AVISO])
+    await trazerTodos(disco, conferido.novos)
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+    // A abertura confere de novo: nada novo, e a ficha continua com ×3.
+    expect(await conferirMapaQueEntrou('going-merry', disco, { baixarMarca: true, agora: () => VOLTA })).toEqual({ pastaId: PASTA_ID, novos: [] })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+  })
+
+  it('tirado da pasta: a ficha própria ainda tem a Poção (é dela de novo), o aviso some e "Trazer" recusa', async () => {
+    const disco = comOMerryMigrado()
+    const [pocao] = await moverParaAPasta(disco, 'going-merry')
+    await tirarDaPasta(disco, 'going-merry')
+    expect(await pendentesDaPasta(PASTA_ID, disco)).toEqual([])
+    expect(await trazerPendente(PASTA_ID, pocao.id, disco, gravarFichasNoDisco(disco))).toMatchObject({ ok: false, porque: 'saiu' })
+    expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([POCAO_X1])
+  })
+
+  it('só as fichas novas ("Copiar de um mapa"): vale o boneco, não a ficha própria de antes de o mapa entrar na pasta', async () => {
+    const disco = comOMerryMigrado()
+    // A ficha própria do Usopp ficou com a Poção ×2 de quando o mapa era solto; na pasta (que não tinha o Usopp), o boneco dele bebeu uma e o mapa foi salvo.
+    gravarAventuraDoMerry(disco, [ficha('p_usopp', 'Usopp', { mochila: [POCAO_X2_DO_ARQUIPELAGO] })])
+    disco.arquivos.set(MERRY, serializeMap(mapa('conves', 'Convés', [boneco('Usopp', 'p_usopp', { mochila: [{ ...POCAO_X2_DO_ARQUIPELAGO, quantidade: 1 }] })])))
+    expect(await moverParaAPasta(disco, 'going-merry')).toEqual([])
+    expect((await conferirMapaQueEntrou('going-merry', disco, { baixarMarca: true, agora: () => AGORA }))?.novos).toEqual([])
+    const usopp = ficha('p_usopp', 'Usopp')
+    expect((await marcarFichasQueEntram(PASTA_ID, [usopp], disco, { agora: () => AGORA })).marcados).toEqual(['going-merry'])
+    await mudarRpgNoDisco(disco, (rpg) => ({ ...rpg, personagens: [...rpg.personagens, usopp] }))
+    const conferido = await conferirMapaQueEntrou('going-merry', disco, { baixarMarca: true, agora: () => AGORA })
+    expect(conferido?.novos.map(textoDoPendente)).toEqual(['Poção do boneco Usopp (Going Merry › Convés) não está na mochila de Usopp.'])
   })
 })

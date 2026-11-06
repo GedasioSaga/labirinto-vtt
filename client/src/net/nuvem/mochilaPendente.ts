@@ -1,3 +1,4 @@
+import { ADVENTURE_FILE, parseAdventure } from '../../lib/adventure'
 import { readCarriedItems } from '../../lib/items'
 import type { CenaDaJuncao } from '../../lib/mochila/juncao'
 import {
@@ -36,7 +37,9 @@ import {
  *    chave dele em `mapasPorConferir`.
  * 2. `conferirMapaQueEntrou` lê TODAS as cenas do mapa (a aberta e as de
  *    fundo; o trabalho recuperado no lugar da versão do disco) e anota o que
- *    só os bonecos têm. No "Mover…" confere na hora e a marca fica; ao abrir,
+ *    só os bonecos têm — com a aventura do mapa já migrada, as fichas
+ *    próprias do `adventure.json` no lugar dos bonecos delas (era nelas que a
+ *    mochila morava). No "Mover…" confere na hora e a marca fica; ao abrir,
  *    confere de novo (o mapa aberto durante o "Mover…" pode ter ganhado item
  *    depois) e só então a marca sai — antes de o editor ler as fichas, então
  *    o espelho nunca chega a um boneco não conferido.
@@ -437,6 +440,69 @@ async function cenasDoMapa(disco: DiscoDaMigracao, pastaDosMapas: string, chave:
   return lidas
 }
 
+/** As fichas do próprio mapa que mandam na mochila e a cena à parte em que entram no aviso. */
+interface FichasDonasDoMapa {
+  fichas: readonly Personagem[]
+  /** O nome do mapa (ou da aventura). */
+  mapa: string
+  /** A hora do `adventure.json`, ou a da cópia do trabalho aberto. */
+  gravadaEm: number
+}
+
+/**
+ * As fichas do `adventure.json` do mapa `chave` quando a aventura JÁ MIGROU
+ * (`mochilaMigrada`): ali a mochila mora nelas, e o boneco só as mostra.
+ * `null` = mapa solto (sem `adventure.json`), aventura ainda não migrada (a
+ * mochila mora nos bonecos), sem fichas, ou `adventure.json` que não abre — o
+ * app abre o mapa solto (`findAdventureFor`), e aqui também.
+ */
+async function fichasDaAventuraNoDisco(disco: DiscoDaMigracao, pastaDosMapas: string, chave: string): Promise<FichasDonasDoMapa | null> {
+  const caminho = await disco.juntar(pastaDosMapas, chave, ADVENTURE_FILE)
+  const texto = await disco.ler(caminho)
+  if (texto === null) return null
+  let fichas: readonly Personagem[]
+  let mapa: string
+  try {
+    const aventura = parseAdventure(texto)
+    if (aventura.mochilaMigrada === undefined || aventura.personagens === undefined) return null
+    fichas = aventura.personagens
+    mapa = aventura.name
+  } catch {
+    return null
+  }
+  return fichas.length === 0 ? null : { fichas, mapa, gravadaEm: await disco.gravadoEm(caminho) }
+}
+
+/** As fichas do trabalho aberto (`fichasDonasDoProprioMapa`, do mesmo instante de `recuperado`); vazio = a mochila mora nos bonecos. */
+function fichasDoTrabalho(fichas: readonly Personagem[], lidas: CenasLidas, recuperado: RecoveryCopy): FichasDonasDoMapa | null {
+  if (fichas.length === 0) return null
+  return { fichas, mapa: lidas.cenas.length > 0 ? lidas.cenas[0].origem.mapa : recuperado.map.name, gravadaEm: recuperado.savedAtMs }
+}
+
+/**
+ * As cenas do mapa `chave` (o trabalho recuperado, se for dele, no lugar das
+ * do disco) com as fichas do PRÓPRIO mapa que mandam na mochila no lugar dos
+ * bonecos delas (`cenasComAsFichasDoMapa`): com a aventura já migrada, o item
+ * que só a ficha própria tem (o boneco apagado, ou numa cena salva antes) não
+ * some calado quando a ficha da pasta passa a vencer, e o boneco velho de uma
+ * cena salva antes não vira outro pendente. O mapa aberto passa as fichas do
+ * editor (`fichasDoAberto`, lidas junto com `recuperado`): o disco pode estar
+ * sem a mudança ainda não salva. Sem elas — o mapa fechado da conferência do
+ * disco ("Mover…", a abertura, a volta do sistema) —, as do `adventure.json`.
+ */
+async function cenasComAsFichasDonas(
+  disco: DiscoDaMigracao,
+  pastaDosMapas: string,
+  chave: string,
+  recuperado: RecoveryCopy | null,
+  fichasDoAberto: readonly Personagem[] | undefined,
+): Promise<CenasLidas> {
+  const lidas = await cenasDoMapa(disco, pastaDosMapas, chave, recuperado)
+  const donas = recuperado !== null && fichasDoAberto !== undefined ? fichasDoTrabalho(fichasDoAberto, lidas, recuperado) : await fichasDaAventuraNoDisco(disco, pastaDosMapas, chave)
+  if (donas === null) return lidas
+  return { ...lidas, cenas: cenasComAsFichasDoMapa(lidas.cenas, donas.fichas, { mapa: donas.mapa, cena: CENA_DAS_FICHAS_DO_MAPA, gravadaEm: donas.gravadaEm }) }
+}
+
 /**
  * As cenas do mapa ABERTO `chave` com o trabalho dele (`recuperado`) e, no
  * lugar dos bonecos delas, as fichas do próprio mapa que mandam na mochila
@@ -449,16 +515,17 @@ async function cenasDoTrabalhoAberto(
   recuperado: RecoveryCopy,
   fichasDoMapa: readonly Personagem[],
 ): Promise<CenaDaJuncao[]> {
-  const { cenas } = await cenasDoMapa(disco, pastaDosMapas, chave, recuperado)
-  const mapa = cenas.length > 0 ? cenas[0].origem.mapa : recuperado.map.name
-  return cenasComAsFichasDoMapa(cenas, fichasDoMapa, { mapa, cena: CENA_DAS_FICHAS_DO_MAPA, gravadaEm: recuperado.savedAtMs })
+  return (await cenasComAsFichasDonas(disco, pastaDosMapas, chave, recuperado, fichasDoMapa)).cenas
 }
 
 /**
  * Os pendentes esperando dos mapas `chaves` (que saíram da pasta) que o
  * boneco AINDA carrega (`bonecoAindaTem`, contra as fichas de agora). O que só
  * o pendente guarda — o espelho já tirou do boneco, ou o mapa sumiu — fica de
- * fora. Fichas da pasta ilegíveis: nenhum (não dá para saber).
+ * fora. Com a aventura já migrada, a ficha própria do mapa conta no lugar dos
+ * bonecos dela (`cenasComAsFichasDonas`), como na conferência: fora da pasta
+ * ela volta a ser a dona, e o item que só ela tem é dela de novo — trazê-lo o
+ * deixaria nos dois lugares. Fichas da pasta ilegíveis: nenhum (não dá para saber).
  */
 async function osQueOBonecoAindaTem(
   disco: DiscoDaMigracao,
@@ -473,7 +540,7 @@ async function osQueOBonecoAindaTem(
   for (const chave of chaves) {
     const esperando = estado.itens.filter((pendente) => pendente.chave === chave && pendente.decisao === undefined)
     if (esperando.length === 0) continue
-    const lidas = await cenasDoMapa(disco, pasta.pastaDosMapas, chave, recuperado)
+    const lidas = await cenasComAsFichasDonas(disco, pasta.pastaDosMapas, chave, recuperado, undefined)
     const conferidos = pendentesDoMapaQueEntrou(pasta.rpg.personagens, chave, lidas.cenas, [], agoraMs, () => chave)
     for (const pendente of esperando) if (bonecoAindaTem(pendente, conferidos)) ainda.add(pendente.id)
   }
@@ -516,6 +583,12 @@ export interface MapaConferido {
 export interface OpcoesDaConferencia extends OpcoesDosPendentes {
   /** O trabalho recuperado (`handleRecover`): as cenas dele entram no lugar das do disco. */
   recuperado?: RecoveryCopy | null
+  /**
+   * O mapa ABERTO (com `recuperado` = a cópia do trabalho dele): as fichas do
+   * próprio mapa que mandam na mochila (`fichasDonasDoProprioMapa`), do mesmo
+   * instante da cópia. Ausente: as do `adventure.json` no disco.
+   */
+  fichasDoMapa?: readonly Personagem[]
   /** A abertura: tira o mapa de `mapasPorConferir` depois de conferir. O "Mover…" deixa a marca para a abertura conferir de novo. */
   baixarMarca: boolean
 }
@@ -523,14 +596,19 @@ export interface OpcoesDaConferencia extends OpcoesDosPendentes {
 /**
  * Confere o mapa `chave` anotado por `marcarMapaQueEntrou` (todas as fichas)
  * ou por `marcarFichasQueEntram` (só as fichas novas): o que só os bonecos
- * dele têm vira pendente no relatório. `null` = o mapa não usa uma pasta
- * convertida com sistema universal (o espelho da pasta não toca os bonecos
- * dele; a marca, se houver, espera). Mapa sem marca: nada novo, só o id da
+ * dele têm vira pendente no relatório. Com todas as fichas e a aventura do
+ * mapa já migrada, a ficha própria conta no lugar dos bonecos dela
+ * (`cenasComAsFichasDonas`): até aqui era ela a dona da mochila. Só as fichas
+ * novas: os bonecos delas, porque a pasta já mandava no mapa e a ficha própria
+ * não era a dona — a mochila de um boneco de ficha que a pasta não tinha morava
+ * nele. `null` = o mapa não usa uma pasta convertida com sistema universal (o
+ * espelho da pasta não toca os bonecos dele; a marca, se houver, espera). Mapa sem marca: nada novo, só o id da
  * pasta (quem chama mostra os pendentes dela). Cena que não abriu deixa a
  * marca: a abertura seguinte tenta de novo. O pendente ainda sem decisão da
  * mesma vaga com outra pilha — anotado do trabalho aberto, e o mestre fechou
  * sem salvar — fica com a pilha desta leitura, sem um segundo pendente
- * (`pendentesDaReconferencia`); ele não entra em `novos`.
+ * (`pendentesDaReconferencia`); ele não entra em `novos`. A vaga já decidida
+ * só avisa o que passa da pilha decidida.
  */
 export function conferirMapaQueEntrou(chave: string, disco: DiscoDaMigracao, opcoes: OpcoesDaConferencia): Promise<MapaConferido | null> {
   return emFila(async () => {
@@ -541,8 +619,11 @@ export function conferirMapaQueEntrou(chave: string, disco: DiscoDaMigracao, opc
     const soAsNovas = estado.porConferir.includes(chave) ? undefined : estado.fichasPorConferir.get(chave)
     const personagens = soAsNovas === undefined ? pasta.rpg.personagens : pasta.rpg.personagens.filter((personagem) => soAsNovas.includes(personagem.id))
     const agoraMs = (opcoes.agora ?? Date.now)()
-    const lidas: CenasLidas = { cenas: [], naoAbriram: [] }
-    await lerCenasDoMapa(disco, await disco.juntar(pasta.pastaDosMapas, chave), opcoes.recuperado ?? null, lidas)
+    const recuperado = opcoes.recuperado ?? null
+    const lidas =
+      soAsNovas === undefined
+        ? await cenasComAsFichasDonas(disco, pasta.pastaDosMapas, chave, recuperado, opcoes.fichasDoMapa)
+        : await cenasDoMapa(disco, pasta.pastaDosMapas, chave, recuperado)
     const novoId = opcoes.novoId ?? (() => crypto.randomUUID())
     const { novos, trocados } = pendentesDaReconferencia(personagens, chave, lidas.cenas, estado.itens, agoraMs, novoId, new Set(estado.trazendo.keys()))
     const baixar = opcoes.baixarMarca && lidas.naoAbriram.length === 0

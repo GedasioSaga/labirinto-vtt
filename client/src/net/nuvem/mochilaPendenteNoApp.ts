@@ -248,7 +248,9 @@ async function copiaDeRecuperacao(): Promise<RecoveryCopy | null> {
 async function conferirEAvisar(pastaId: string, marcados: readonly string[], aberto: TrabalhoAberto | null): Promise<void> {
   let conferiu = false
   for (const chave of marcados) {
-    const conferido = await conferirMapaQueEntrou(chave, discoDoApp, { baixarMarca: false, recuperado: aberto?.chave === chave ? aberto.copia : null })
+    // O mapa aberto: o trabalho e as fichas próprias do editor, do mesmo instante; os outros, o disco.
+    const doAberto = aberto !== null && aberto.chave === chave ? { recuperado: aberto.copia, fichasDoMapa: aberto.fichasDoMapa } : {}
+    const conferido = await conferirMapaQueEntrou(chave, discoDoApp, { baixarMarca: false, ...doAberto })
     if (conferido !== null) conferiu = true
   }
   if (conferiu) await avisarPendentesDaPasta(pastaId)
