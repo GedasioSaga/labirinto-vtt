@@ -1,7 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { useEffect, useId, useState } from 'react'
 import { idDaCopiaDeTreino } from '../../lib/nuvem/projecao'
-import { lerRpgDaPasta, type RpgDaPasta } from '../../lib/pastasDeMapas'
+import { lerRpgDaPasta, rpgDe, type RpgDaPasta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import { comInimigoLiberado, estaLiberado } from '../../net/nuvem/publicar'
 import { useAdventureStore } from '../../stores/adventureStore'
@@ -35,6 +35,27 @@ function usePastaDoNpc(npcId: string): string | null {
   return daMesa ?? doMundo
 }
 
+/** O RPG da cópia desta pasta aberta no mapa; `null` = a pasta não está aberta. */
+function rpgAberto(pastaId: string): RpgDaPasta | null {
+  const { pasta } = useAdventureStore.getState()
+  return pasta !== null && pasta.pastaId === pastaId ? rpgDe(pasta) : null
+}
+
+/**
+ * O RPG de onde saem as cópias de treino, lido NA HORA do envio. Com a pasta
+ * aberta no mapa, é a cópia aberta: a ficha do NPC mexida na mesa só chega ao
+ * disco no Salvar do mapa (e já subiu como op para as fichas da mesa), então
+ * o disco mandaria a versão de antes. Com ela fechada, é o disco (o Mundo do
+ * Livro grava nele), relido: a ficha pode ter mudado depois que a seção abriu.
+ */
+async function rpgDoEnvio(pastaId: string): Promise<RpgDaPasta> {
+  const aberto = rpgAberto(pastaId)
+  if (aberto !== null) return aberto
+  const lido = await lerRpgDaPasta(pastaId)
+  if (!lido.ok) throw new Error(lido.motivo)
+  return lido.rpg
+}
+
 /** A frase do envio: quantas cópias o Lobby tem agora e o que ficou de fora, com o motivo. */
 function textoDoEnvio(npc: Personagem, liberado: boolean, inimigos: readonly FichaNaPublicacao[], falharamImagens: number): string {
   const fora = inimigos.filter((inimigo) => inimigo.situacao === 'recusada' || inimigo.situacao === 'adiada')
@@ -61,7 +82,8 @@ export function InimigoDoTreino({ npc }: InimigoDoTreinoProps) {
 
 function InimigoDaPasta({ npc, pastaId }: { npc: Personagem; pastaId: string }) {
   const id = useId()
-  const [rpg, setRpg] = useState<RpgDaPasta | null>(null)
+  const aberta = useAdventureStore((state) => (state.pasta !== null && state.pasta.pastaId === pastaId ? state.pasta : null))
+  const [doDisco, setDoDisco] = useState<RpgDaPasta | null>(null)
   const [erroDeLeitura, setErroDeLeitura] = useState<string | null>(null)
   const [envio, setEnvio] = useState<Envio>({ t: 'parado' })
   const { publicada } = usePastaPublicada(pastaId)
@@ -71,7 +93,7 @@ function InimigoDaPasta({ npc, pastaId }: { npc: Personagem; pastaId: string }) 
     lerRpgDaPasta(pastaId).then(
       (lido) => {
         if (!vivo) return
-        if (lido.ok) setRpg(lido.rpg)
+        if (lido.ok) setDoDisco(lido.rpg)
         else setErroDeLeitura(lido.motivo)
       },
       (erro: unknown) => {
@@ -91,6 +113,8 @@ function InimigoDaPasta({ npc, pastaId }: { npc: Personagem; pastaId: string }) 
       </p>
     )
   }
+  // A pasta que o mestre vê: com ela aberta no mapa, a cópia aberta (o NPC criado na mesa e ainda não salvo já está nela) vence o disco.
+  const rpg: RpgDaPasta | null = aberta ?? doDisco
   if (rpg === null || !rpg.personagens.some((personagem) => personagem.id === npc.id)) return null
 
   const liberado = estaLiberado(rpg, npc.id)
@@ -111,17 +135,19 @@ function InimigoDaPasta({ npc, pastaId }: { npc: Personagem; pastaId: string }) 
 
   const trocar = async () => {
     setEnvio({ t: 'indo' })
-    let novo: RpgDaPasta
+    let gravado: RpgDaPasta
     try {
-      novo = await editarRpgDaPasta(pastaId, (atual) => comInimigoLiberado(atual, npc.id, !liberado))
+      gravado = await editarRpgDaPasta(pastaId, (atual) => comInimigoLiberado(atual, npc.id, !liberado))
     } catch (erro) {
       setEnvio({ t: 'falhou', texto: `Não deu para guardar a escolha: ${erro instanceof Error ? erro.message : String(erro)}` })
       return
     }
-    setRpg(novo)
-    const agora = estaLiberado(novo, npc.id)
+    setDoDisco(gravado)
+    // `gravado` é o disco: a ficha mexida na mesa e não salva ficou de fora. A lista nova também entrou na cópia aberta, então as cópias saem dela.
+    const atual = rpgAberto(pastaId) ?? gravado
+    const agora = estaLiberado(atual, npc.id)
     try {
-      const texto = await mandar(novo, agora)
+      const texto = await mandar(atual, agora)
       setEnvio({ t: 'feito', texto: texto ?? (agora ? `${npc.nome} vai para o treino quando a pasta for publicada no Lobby.` : `${npc.nome} saiu da lista do treino.`) })
     } catch (erro) {
       setEnvio({ t: 'falhou', texto: `${agora ? 'Ficou liberado aqui' : 'Saiu da lista aqui'}, mas o Lobby ainda não sabe: ${erro instanceof Error ? erro.message : String(erro)}` })
@@ -131,7 +157,9 @@ function InimigoDaPasta({ npc, pastaId }: { npc: Personagem; pastaId: string }) 
   const mandarDeNovo = async () => {
     setEnvio({ t: 'indo' })
     try {
-      const texto = await mandar(rpg, liberado)
+      // "A ficha de agora": a da mesa ou a do disco relido, nunca a lida quando a seção abriu.
+      const atual = await rpgDoEnvio(pastaId)
+      const texto = await mandar(atual, estaLiberado(atual, npc.id))
       setEnvio({ t: 'feito', texto: texto ?? 'A pasta não está no Lobby: a lista sobe com o Publicar.' })
     } catch (erro) {
       setEnvio({ t: 'falhou', texto: `Não chegou ao Lobby: ${erro instanceof Error ? erro.message : String(erro)}` })
