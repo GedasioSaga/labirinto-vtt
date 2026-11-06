@@ -1,3 +1,4 @@
+import { useStore, type StoreApi, type UseBoundStore } from 'zustand'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import type { PonteDaBatalha } from '../lib/batalha/ponte'
 import { secureRollDie } from '../lib/dice'
@@ -7,7 +8,7 @@ import {
   esperandoOMestre as esperandoOMestreNaMesa,
   type BatalhaState,
   type DependenciasDaBatalha,
-  type LojaDaBatalha,
+  type LojaDaBatalha as LojaSemReact,
 } from './batalhaFabrica'
 import { mesaDaAventura } from './mesaDaAventura'
 
@@ -17,6 +18,10 @@ import { mesaDaAventura } from './mesaDaAventura'
  * fábrica (`stores/batalhaFabrica.ts`, sem Tauri); aqui só se instancia com o
  * d20 seguro e a store DBT, e se reexporta o que o App, o host, a arena e as
  * telas já importavam daqui.
+ *
+ * A fábrica devolve a store vanilla do zustand (sem React, para caber no
+ * Worker do Lobby); o hook `useBatalhaStore(seletor)` que o App e a arena usam
+ * nasce AQUI, embrulhando-a com o `useStore` (`comHookDoReact`).
  */
 
 export {
@@ -33,11 +38,27 @@ export type {
   BatalhaState,
   DependenciasDaBatalha,
   InicioDaBatalha,
-  LojaDaBatalha,
   OndeNasceOInvocado,
 } from './batalhaFabrica'
 
+/** Uma store de batalha COM o hook do React: a da mesa de verdade e a da arena (a do treino é a `LojaDaBatalha` da fábrica, sem hook). */
+export type LojaDaBatalha = UseBoundStore<StoreApi<BatalhaState>>
+
 const LADOS_DO_D20 = 20
+
+/** O seletor do hook chamado sem seletor: o estado inteiro (o `identity` do `create` do zustand). */
+const estadoInteiro = (state: BatalhaState): BatalhaState => state
+
+/** Prende o hook do React à store vanilla da fábrica: o mesmo que o `create` do zustand faz por dentro. */
+function comHookDoReact(loja: LojaSemReact): LojaDaBatalha {
+  function useLoja(): BatalhaState
+  function useLoja<U>(seletor: (state: BatalhaState) => U): U
+  function useLoja<U>(seletor?: (state: BatalhaState) => U): BatalhaState | U {
+    // Os argumentos de tipo explícitos juntam as duas saídas: a inferência pegaria só a do primeiro seletor.
+    return useStore<LojaSemReact, BatalhaState | U>(loja, seletor ?? estadoInteiro)
+  }
+  return Object.assign(useLoja, loja)
+}
 
 /** O que a mesa de verdade (e a arena) dá à fábrica: o d20 seguro e a batalha DBT da mesa. */
 const DEPENDENCIAS_DA_MESA: DependenciasDaBatalha = {
@@ -52,7 +73,7 @@ const DEPENDENCIAS_DA_MESA: DependenciasDaBatalha = {
  * direto, com o d20 da semente.
  */
 export function criarBatalhaStore(mesa: MesaDaBatalha): LojaDaBatalha {
-  return criarBatalhaStoreComDependencias(mesa, DEPENDENCIAS_DA_MESA)
+  return comHookDoReact(criarBatalhaStoreComDependencias(mesa, DEPENDENCIAS_DA_MESA))
 }
 
 /** A batalha da mesa de verdade (aventura ou pasta): a que o App, o host e a ponte usam. */

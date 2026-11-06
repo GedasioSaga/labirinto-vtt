@@ -1,4 +1,4 @@
-import { create, type StoreApi, type UseBoundStore } from 'zustand'
+import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { Casa } from '../lib/batalha/blocos'
 import { somarNaTrilha } from '../lib/batalha/caminhoAndado'
 import {
@@ -204,6 +204,12 @@ import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
  * fora entra por `DependenciasDaBatalha`: o d20 (os 6 pontos que rolam) e a
  * pergunta "a cena já está na outra batalha?". `stores/batalhaStore.ts` só
  * instancia com o d20 seguro e a store DBT, e reexporta.
+ *
+ * A store é a VANILLA do zustand (`zustand/vanilla`, sem React): o duelo do
+ * Worker (`lobby/nuvem/src/duelo.ts`) chega aqui pela regra do treino, e o
+ * `zustand` inteiro puxava o `react` para o bundle. O hook do React
+ * (`useBatalhaStore(seletor)`) mora só em `stores/batalhaStore.ts`, que embrulha
+ * esta store com o `useStore`. A guarda é o `lib/nuvem/pureza.test.ts`.
  */
 
 /** O que a fábrica recebe de fora (molde de `DependenciasDaBatalhaDBT`). */
@@ -2346,11 +2352,15 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
  * chamada é uma store separada, com as cenas dela; só o contador
  * `ultimoSeqDeEfeito` é do módulo (sobe sempre, não atrapalha ninguém).
  */
-export function criarBatalhaStore(mesa: MesaDaBatalha, deps: DependenciasDaBatalha): UseBoundStore<StoreApi<BatalhaState>> {
-  return create<BatalhaState>()((set, get) => estadoDaBatalha(mesa, deps, set, get))
+export function criarBatalhaStore(mesa: MesaDaBatalha, deps: DependenciasDaBatalha): StoreApi<BatalhaState> {
+  return createStore<BatalhaState>()((set, get) => estadoDaBatalha(mesa, deps, set, get))
 }
 
-/** Uma store de batalha (a da mesa de verdade, a da arena ou a do treino). */
+/**
+ * Uma store de batalha SEM o hook do React (`getState`, `setState`,
+ * `subscribe`): a do treino e a do duelo do Worker. A da mesa de verdade e a
+ * da arena são esta mesma store com o hook, em `stores/batalhaStore.ts`.
+ */
 export type LojaDaBatalha = ReturnType<typeof criarBatalhaStore>
 
 /** A cena que nasce do Iniciar: a ordem pela Agilidade (com o desempate escolhido), a vez na primeira que joga, as regras. */
