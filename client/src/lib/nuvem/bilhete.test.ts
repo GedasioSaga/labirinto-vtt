@@ -72,5 +72,7 @@ describe('bilhete de entrada na mesa', () => {
 
     expect(obtidos).toEqual(casos.map(({ caso, esperado }) => ({ caso, esperado })))
     expect(lerBilheteSemConferir('')).toBeNull()
+    // Relógio sem número (o `agora` do Lobby não veio): com NaN nenhum bilhete venceria; é erro de programa, não "ok".
+    await expect(conferirBilhete(daNami, { ...regras, agoraMs: Number.NaN })).rejects.toThrow(TypeError)
   })
 })

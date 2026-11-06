@@ -213,8 +213,12 @@ export async function assinarBilhete(chave: string, pedido: PedidoDeBilhete, ago
  * em tempo constante), sala igual à aberta agora e prazo com a folga do
  * relógio. O payload só é lido DEPOIS do HMAC bater. Não confere a conta nem o
  * reuso do `jti`: isso é do host, que tem `contas.json` e a lista dos usados.
+ * `agoraMs` que não é número finito lança `TypeError`, como a chave fora da
+ * forma: com `NaN` as duas comparações do prazo dariam falso e nenhum bilhete
+ * venceria mais (relógio do Lobby que chegou sem o `agora`, por exemplo).
  */
 export async function conferirBilhete(bilhete: string, regras: RegrasDoBilhete): Promise<ResultadoDoBilhete> {
+  if (!Number.isFinite(regras.agoraMs)) throw new TypeError('bilhete: agoraMs não é um instante (número finito em ms)')
   const partes = partesDoBilhete(bilhete)
   if (partes === null) return recusa('formato')
   const chave = await importarChave(regras.chave)
