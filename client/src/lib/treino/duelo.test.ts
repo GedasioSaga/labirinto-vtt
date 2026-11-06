@@ -3,7 +3,7 @@
  * A REGRA PURA DO DUELO (LOBBY v2, fatia T5; aceite em
  * docs/planos/lobby-jogadores-2026-11-05.md §8.2): dois robôs pelo duelo.ts
  * com a semente 7 terminam igual à lutaAutomatica; e os dois anti-trapaça
- * liberados na resposta 12.13: pedido com dano (e custo) forjado = mesmo
+ * liberados na resposta 12.13: pedido com dano (custo, ação) forjado = mesmo
  * resultado que dano null; agir repetido com seq velho = recusado. Ambiente
  * node: o duelo roda no DO, sem DOM.
  */
@@ -114,9 +114,15 @@ function vezDe(duelo: DueloGravado): VezEsperada {
   return { cartaId: vez, rodada }
 }
 
+/** O Zé com o Corte Duplo sem Ação e sem recarga na ficha: só a ação gasta segura o 2º Corte na vez. */
+function zeComCorteSemAcao(): Personagem {
+  const habilidades = (ZE.abas.habilidades ?? []).map((cartao) => (cartao.id === 'tec_corte' ? { ...cartao, campos: { custo: '30 SP', dano: 'Força + 60' } } : cartao))
+  return { ...ZE, abas: { ...ZE.abas, habilidades } }
+}
+
 /** O 1×1 Zé contra Marinheiro na vez do Zé (se a ordem deu a vez ao Marinheiro, ele passa). */
-function umContraUmNaVezDoZe(motor: MotorDoDuelo): DueloGravado {
-  const duelo = dueloDe([ZE], [MARINHEIRO_DA_CONTA], motor)
+function umContraUmNaVezDoZe(motor: MotorDoDuelo, zeDoDuelo: Personagem = ZE): DueloGravado {
+  const duelo = dueloDe([zeDoDuelo], [MARINHEIRO_DA_CONTA], motor)
   if (cartaDaVez(duelo.cena.turnos)?.tokenId === TOKEN_DO_ZE) return duelo
   return aceita(aplicarJogada(duelo, motor, CONTA_B, { tipo: 'passar', seq: duelo.seq, vez: vezDe(duelo) }), 'o Marinheiro passar a vez')
 }
@@ -161,6 +167,21 @@ describe('duelo', () => {
       alvos: [{ tokenId: TOKEN_DO_MARINHEIRO, dano: 120 }],
       recursos: [{ id: 'treino_a1', recursos: { sp: 70 } }, { id: 'treino_b1' }],
     })
+  })
+
+  it('ação Livre forjada na técnica cuja ficha não diz a ação = a Simples: o 2º Corte na vez é recusado', () => {
+    const { motor } = motorDaSemente(7)
+    const duelo = umContraUmNaVezDoZe(motor, zeComCorteSemAcao())
+    const corteLivre = (agora: DueloGravado): JogadaDoDuelo => ({
+      tipo: 'agir',
+      seq: agora.seq,
+      vez: vezDe(agora),
+      pedido: { tipo: 'habilidade', cartaoId: 'tec_corte', armaId: null, alvos: [{ tokenId: TOKEN_DO_MARINHEIRO, dano: null }], surpresa: false, perfurante: false, custo: null, acao: 'livre' },
+    })
+    const primeiro = aceita(aplicarJogada(duelo, motor, CONTA_A, corteLivre(duelo)), 'o 1º Corte')
+    // Sobram 70 SP (o 2º Corte caberia no custo): quem recusa é a Simples já gasta.
+    expect(primeiro.lutadores.personagens.find((personagem) => personagem.id === 'treino_a1')?.recursos).toMatchObject({ sp: 70 })
+    expect(aplicarJogada(primeiro, motor, CONTA_A, corteLivre(primeiro))).toEqual({ ok: false, motivo: 'regra' })
   })
 
   it('agir repetido com seq velho = recusado', () => {

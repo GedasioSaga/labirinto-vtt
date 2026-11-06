@@ -1,7 +1,7 @@
 import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeReacao, RODADA_MAX } from '../../net/protocoloDaBatalha'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
 import { tecnicasNoMenu } from '../batalha/acoes'
-import type { EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao } from '../batalha/combate'
+import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao } from '../batalha/combate'
 import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEvolucao'
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId } from '../batalha/leituraDaFicha'
@@ -31,9 +31,10 @@ import { danoNoTeto, seloDaMira } from './robo'
  * nem sorteio: o d20 entra por `MotorDoDuelo.rolarD20` (no DO, o do crypto).
  *
  * O servidor não confia no cliente (achados Tr2, Tr3, Tr5 e Tr7, §11):
- *  - RECALCULA dano e custo pela cópia: o dano de cada alvo é o que a mira
- *    sugere (o mesmo cálculo do robô, `robo.ts`) e o custo é o da ficha; os
- *    do pedido são ignorados. Golpe de dano que a ficha não calcula ("dano à
+ *  - RECALCULA dano, custo e ação pela cópia: o dano de cada alvo é o que a
+ *    mira sugere (o mesmo cálculo do robô, `robo.ts`), o custo e a ação são
+ *    os da ficha (a ação que a ficha não diz = Simples, `ACAO_SEM_A_FICHA`);
+ *    os do pedido são ignorados. Golpe de dano que a ficha não calcula ("dano à
  *    mão") é recusado: no duelo ninguém digita dano;
  *  - recusa a Surpresa e o "dano livre" (não existe jogada de dano livre:
  *    só agir, reagir e passar). Também refaz o que a tela deixaria trocar à
@@ -65,6 +66,13 @@ export const CENA_DO_DUELO = 'duelo'
 
 /** Resposta 12.15: quanto tempo quem caiu tem para voltar antes de perder o duelo. */
 export const VOLTA_DO_AUSENTE_MS = 3 * 60_000
+
+/**
+ * A ação que a técnica gasta quando a ficha não diz. Na mesa a tela pergunta;
+ * no duelo o cliente não escolhe (a "Livre" não gasta nada e daria golpes sem
+ * fim na vez): vale a Simples, o padrão do Atacar (`dadosDoMenu`).
+ */
+const ACAO_SEM_A_FICHA: AcaoDaTecnica = 'simples'
 
 /** O que o motor recebe de fora: o sistema do livro (One Piece) e o d20 (no DO, o do crypto; no teste, o da semente). */
 export interface MotorDoDuelo {
@@ -257,7 +265,8 @@ function ataqueRecalculado(pedido: Extract<PedidoDeAcao, { tipo: 'atacar' }>, pe
 /**
  * A Habilidade refeita: o dano lido da técnica (ou da opção escolhida) pela
  * cópia, com o bônus dos selos de quem age, como a mira e o robô; o custo da
- * ficha (`custo: null`); Perfurante só se a técnica diz; o selo só o sugerido.
+ * ficha (`custo: null`); a ação da ficha (`ACAO_SEM_A_FICHA` quando ela não
+ * diz); Perfurante só se a técnica diz; o selo só o sugerido.
  */
 function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>, quem: QuemAge, cena: BatalhaDaCena, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
   if (pedido.surpresa) return recusa('surpresa')
@@ -285,7 +294,8 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
     surpresa: false,
     perfurante,
     custo: null,
-    acao: pedido.acao,
+    // A ação do pedido é ignorada: `null` = a da ficha (a store lê); a ficha que não diz gasta a Simples.
+    acao: tecnica.acao === null ? ACAO_SEM_A_FICHA : null,
   }
   if (perfurante && tecnica.perfuracao !== undefined) novo.perfuracao = tecnica.perfuracao
   if (pedido.contraDe !== undefined) novo.contraDe = pedido.contraDe
