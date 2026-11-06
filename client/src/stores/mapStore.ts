@@ -1355,12 +1355,15 @@ interface MapStoreState {
   removerTexturaImportada: (id: string) => void
   /** Tira tudo o que a ferramenta Texturas pintou na cena aberta (as importadas ficam na biblioteca). Com desfazer. */
   apagarTodasAsTexturas: () => void
-  /** NEBLINA (`lib/neblina.ts`): UMA pincelada do pincel de Neblina no piso em edição, um passo no desfazer. */
-  pintarNeblina: (pincelada: { tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: PontoDoMundo[] }) => ResultadoDaNeblina
+  /** NEBLINA (`lib/neblina.ts`): UMA pincelada do pincel de Neblina no piso em edição, um passo no desfazer (mesmo dividida em pedaços). */
+  pintarNeblina: (pincelada: { tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: PontoDoMundo[]; densidade?: number }) => ResultadoDaNeblina
   /** Tira a neblina pintada do piso em edição (a chave do mapa inteiro fica). Com desfazer. */
   apagarTodaANeblinaPintada: () => void
-  /** A chave e a intensidade da neblina do mapa inteiro. `juntar`: o arrasto da intensidade vira um passo só no desfazer. */
-  setNeblinaDoMapa: (neblina: NeblinaDoMapa, juntar?: boolean) => void
+  /**
+   * A chave, a intensidade e a densidade da neblina do mapa inteiro.
+   * `juntar`: o arrasto daquele controle vira um passo só no desfazer (cada controle o seu).
+   */
+  setNeblinaDoMapa: (neblina: NeblinaDoMapa, juntar?: 'intensidade' | 'densidade') => void
   /**
    * CARIMBOS (`lib/carimbos.ts`): grava os objetos que UM gesto soltou (um
    * clique ou um spray inteiro) — um passo no desfazer. Acima do teto da cena
@@ -3117,10 +3120,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     pintarNeblina: (pincelada) => {
       const { map, pisoAtivo } = get()
       const antes = mapaDoPiso(map, pisoAtivo).neblinaPintada ?? []
-      const { lista, resultado } = somarPinceladaDeNeblina(antes, { ...pincelada, id: crypto.randomUUID() })
-      // O passo novo ganha o piso em edição no `withHistory` (`nascemNoPiso` não conhece a neblina: vai aqui).
+      // A densidade só vale para o pincel (a borracha só tira).
+      const { densidade, ...resto } = pincelada
+      const passo = { ...resto, id: crypto.randomUUID(), ...(resto.tipo === 'pincel' && densidade !== undefined ? { densidade } : {}) }
+      // O teto conta o mapa todo (todos os pisos): é o que a leitura do arquivo aplica.
+      const { lista, resultado } = somarPinceladaDeNeblina(antes, passo, (map.neblinaPintada ?? []).length)
+      // Os passos novos (um, ou os pedaços de um traço longo) ganham o piso em edição; `nascemNoPiso` não conhece a neblina.
       if (lista !== antes) {
-        const comOPiso = lista.map((p) => (p.id === lista[lista.length - 1].id ? comPiso(p, pisoAtivo) : p))
+        const comOPiso = lista.map((p, i) => (i >= antes.length ? comPiso(p, pisoAtivo) : p))
         withHistory((m) => comNeblinaPintada(m, comListaDoPiso(m.neblinaPintada ?? [], comOPiso, pisoAtivo)))
       }
       return resultado
@@ -3130,10 +3137,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if ((mapaDoPiso(map, pisoAtivo).neblinaPintada ?? []).length === 0) return
       withHistory((m) => comNeblinaPintada(m, comListaDoPiso(m.neblinaPintada ?? [], [], pisoAtivo)))
     },
-    setNeblinaDoMapa: (neblina, juntar = false) => {
+    setNeblinaDoMapa: (neblina, juntar) => {
       // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
       if (comNeblina(get().map, neblina) === get().map) return
-      withHistory((map) => comNeblina(map, neblina), juntar ? 'neblina-do-mapa' : undefined)
+      withHistory((map) => comNeblina(map, neblina), juntar === undefined ? undefined : `neblina-${juntar}`)
     },
     carimbar: (novos) => {
       const { map } = get()

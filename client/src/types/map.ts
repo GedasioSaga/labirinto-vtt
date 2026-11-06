@@ -2626,19 +2626,26 @@ export type PinceladaDeTextura = NoPiso & (
   | { id: string; tipo: 'sala'; regiao: string }
 )
 
-/** A neblina do mapa inteiro (`lib/neblina.ts`): a chave e a intensidade (0 a 100). */
+/**
+ * A neblina do mapa inteiro (`lib/neblina.ts`): a chave, a intensidade (0 a
+ * 100, a opacidade) e a densidade (0 a 100, quanto da área a bruma cobre:
+ * tufos esparsos embaixo, quase sem buraco em cima). Densidade ausente = 50, o
+ * visual de antes dela existir.
+ */
 export interface NeblinaDoMapa {
   ligada: boolean
   intensidade: number
+  densidade?: number
 }
 
 /**
  * Um passo do pincel de Neblina (`lib/neblina.ts`): o `pincel` deixa a
- * neblina na `forca` (0 a 1) debaixo do caminho, por cima do que havia ali; a
- * `borracha` tira `forca` dela. `piso` (`NoPiso`): o piso em que o passo foi
- * feito; ausente = térreo.
+ * neblina na `forca` (0 a 1) e na `densidade` (0 a 1; ausente = 0,5, o visual
+ * de antes dela) debaixo do caminho, por cima do que havia ali; a `borracha`
+ * tira `forca` dela (e não tem densidade). `piso` (`NoPiso`): o piso em que o
+ * passo foi feito; ausente = térreo.
  */
-export type PinceladaDeNeblina = NoPiso & { id: string; tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: RegionPoint[] }
+export type PinceladaDeNeblina = NoPiso & { id: string; tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: RegionPoint[]; densidade?: number }
 
 /** A forma que o balde enche: uma região (pelo id) ou um desenho pintado (pelo id). */
 export interface AlvoDoBalde {

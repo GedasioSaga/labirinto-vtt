@@ -1,5 +1,7 @@
 import { useId } from 'react'
 import {
+  DENSIDADE_MAX,
+  DENSIDADE_MIN,
   FORCA_DA_NEBLINA_MAX,
   FORCA_DA_NEBLINA_MIN,
   INTENSIDADE_MAX,
@@ -20,23 +22,28 @@ const MODOS: Array<{ modo: ModoDaNeblina; rotulo: string; dica: string }> = [
 
 /**
  * O painel da ferramenta NEBLINA (`lib/neblina.ts`): primeiro a chave do mapa
- * inteiro com a intensidade dela (é o que vale para a cena toda), depois o
- * pincel por área. A intensidade da chave arrastada vira um passo só no
- * desfazer.
+ * inteiro com a intensidade (a opacidade) e a densidade (quanto da área a
+ * bruma cobre), que valem para a cena toda; depois o pincel por área, com as
+ * mesmas duas. Cada controle arrastado vira um passo só no desfazer.
  */
 export function NeblinaControls() {
-  // A chave crua do mapa (referência estável); o padrão é calculado fora do seletor.
+  // A chave crua do mapa (referência estável); os padrões são calculados fora do seletor.
   const neblina = neblinaDoMapa({ neblina: useMapStore((s) => s.map.neblina) })
   const setNeblinaDoMapa = useMapStore((s) => s.setNeblinaDoMapa)
   const temPintada = useMapStore((s) => (mapaDoPiso(s.map, s.pisoAtivo).neblinaPintada ?? []).some((p) => p.tipo === 'pincel'))
   const apagarPintada = useMapStore((s) => s.apagarTodaANeblinaPintada)
-  const { modo, tamanho, forca, setModo, setTamanho, setForca } = usePincelDaNeblina()
+  const { modo, tamanho, forca, densidade, setModo, setTamanho, setForca, setDensidade } = usePincelDaNeblina()
   const chaveId = useId()
   const intensidadeId = useId()
-  const intensidadeDicaId = useId()
+  const densidadeId = useId()
+  const densidadeDicaId = useId()
+  const desligadaDicaId = useId()
   const tamanhoId = useId()
   const forcaId = useId()
+  const densidadeDoPincelId = useId()
+  const densidadeDoPincelDicaId = useId()
   const dicaDoModo = MODOS.find((m) => m.modo === modo)?.dica ?? ''
+  const borracha = modo === 'borracha'
 
   return (
     <section className="lb-section">
@@ -46,7 +53,7 @@ export function NeblinaControls() {
           label="Neblina no mapa inteiro"
           checked={neblina.ligada}
           describedBy={chaveId}
-          onChange={(ligada) => setNeblinaDoMapa({ ligada, intensidade: neblina.intensidade })}
+          onChange={(ligada) => setNeblinaDoMapa({ ligada, intensidade: neblina.intensidade, densidade: neblina.densidade })}
         />
         <p id={chaveId} className="lb-field__hint">
           Uma bruma lenta por cima da cena toda, à vista também de noite e no escuro. Não é a névoa dos jogadores: ela só cobre, nunca
@@ -69,11 +76,34 @@ export function NeblinaControls() {
           step={5}
           value={neblina.intensidade}
           disabled={!neblina.ligada}
-          aria-describedby={neblina.ligada ? undefined : intensidadeDicaId}
-          onChange={(event) => setNeblinaDoMapa({ ligada: true, intensidade: Number(event.target.value) }, true)}
+          aria-describedby={neblina.ligada ? undefined : desligadaDicaId}
+          onChange={(event) => setNeblinaDoMapa({ ligada: true, intensidade: Number(event.target.value), densidade: neblina.densidade }, 'intensidade')}
         />
+      </div>
+      <div className="lb-field">
+        <div className="lb-section__row">
+          <label className="lb-label" htmlFor={densidadeId}>
+            Densidade
+          </label>
+          <span className="lb-num">{neblina.densidade}%</span>
+        </div>
+        <input
+          id={densidadeId}
+          className="lb-range"
+          type="range"
+          min={DENSIDADE_MIN}
+          max={DENSIDADE_MAX}
+          step={5}
+          value={neblina.densidade}
+          disabled={!neblina.ligada}
+          aria-describedby={neblina.ligada ? densidadeDicaId : `${densidadeDicaId} ${desligadaDicaId}`}
+          onChange={(event) => setNeblinaDoMapa({ ligada: true, intensidade: neblina.intensidade, densidade: Number(event.target.value) }, 'densidade')}
+        />
+        <p id={densidadeDicaId} className="lb-field__hint">
+          Pouca: tufos soltos, com buracos. Muita: cobre quase tudo.
+        </p>
         {!neblina.ligada && (
-          <p id={intensidadeDicaId} className="lb-field__hint">
+          <p id={desligadaDicaId} className="lb-field__hint">
             Ligue a chave acima para ajustar.
           </p>
         )}
@@ -109,7 +139,7 @@ export function NeblinaControls() {
       <div className="lb-field">
         <div className="lb-section__row">
           <label className="lb-label" htmlFor={forcaId}>
-            {modo === 'borracha' ? 'Quanto tira' : 'Intensidade'}
+            {borracha ? 'Quanto tira' : 'Intensidade'}
           </label>
           <span className="lb-num">{Math.round(forca * 100)}%</span>
         </div>
@@ -123,6 +153,31 @@ export function NeblinaControls() {
           value={forca}
           onChange={(event) => setForca(Number(event.target.value))}
         />
+      </div>
+      <div className="lb-field">
+        <div className="lb-section__row">
+          <label className="lb-label" htmlFor={densidadeDoPincelId}>
+            Densidade
+          </label>
+          <span className="lb-num">{Math.round(densidade * 100)}%</span>
+        </div>
+        <input
+          id={densidadeDoPincelId}
+          className="lb-range"
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={densidade}
+          disabled={borracha}
+          aria-describedby={borracha ? densidadeDoPincelDicaId : undefined}
+          onChange={(event) => setDensidade(Number(event.target.value))}
+        />
+        {borracha && (
+          <p id={densidadeDoPincelDicaId} className="lb-field__hint">
+            A borracha só tira neblina; a densidade vale para o pincel.
+          </p>
+        )}
       </div>
       {temPintada && (
         <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" onClick={apagarPintada}>

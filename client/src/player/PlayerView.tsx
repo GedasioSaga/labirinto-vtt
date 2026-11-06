@@ -81,7 +81,7 @@ import {
 import { createNuvensRenderer, definirOpacidadeDasNuvens, lerOpacidadeDasNuvens, type NuvensRenderer } from '../pixi/drawNuvens'
 import { nuvensLigadas } from '../lib/nuvens'
 import { createNeblinaRenderer, type NeblinaRenderer } from '../pixi/drawNeblina'
-import { intensidadeDoMapaInteiro, temNeblina } from '../lib/neblina'
+import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, temNeblina } from '../lib/neblina'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
@@ -3293,6 +3293,7 @@ function PlayerViewDoCanvas({
             altura: currentMap.height * currentMap.grid,
             grid: currentMap.grid,
             inteira: intensidadeDoMapaInteiro(currentMap),
+            densidade: densidadeDoMapaInteiro(currentMap),
             pintada: currentMap.neblinaPintada,
             animar: efeitosDoMapaLigados(currentSettings),
           },

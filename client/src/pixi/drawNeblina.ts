@@ -1,7 +1,7 @@
 import { BufferImageSource, CanvasSource, Container, Geometry, GlProgram, Mesh, Shader, UniformGroup, type Renderer, type Ticker, type TextureSource } from 'pixi.js'
 import type { PinceladaDeNeblina, Periodo } from '../types/map'
 import { CURVAS, mulberry32 } from '../cenario/revelacao/tempo'
-import { caixaDaNeblinaPintada } from '../lib/neblina'
+import { caixaDaNeblinaPintada, densidadeDaPincelada } from '../lib/neblina'
 import { erroNoContexto } from './malhaDoTraco'
 
 /**
@@ -33,10 +33,20 @@ import { erroNoContexto } from './malhaDoTraco'
 export const AJUSTE_DA_NEBLINA = {
   /** Lado do ladrilho de ruído, em células: o tamanho dos novelos da bruma. */
   ladrilhoEmCelulas: 14,
-  /** Opacidade da bruma mais densa na intensidade 100 (a rala fica em `piso` disso). */
+  /** Opacidade da bruma mais densa na intensidade 100. */
   alfaMaximo: 0.55,
-  /** Fração do alfa onde a bruma é mais rala: nunca some de todo dentro da área. */
-  piso: 0.3,
+  /**
+   * DENSIDADE (pedido de 06/11/2026, depois da folha de contato): onde a bruma
+   * começa e onde fica cheia, na soma do ruído (média 0,48, desvio 0,12), na
+   * densidade 0, 50 e 100; no meio, uma reta entre as vizinhas. A de 50 é o
+   * visual de antes do controle. Medido sobre o ruído parado: fica acima da
+   * metade da força em ~20% da área na 0, ~41% na 50 e ~90% na 100.
+   */
+  bordasRala: [0.52, 0.64],
+  bordasMedia: [0.3, 0.72],
+  bordasDensa: [0.2, 0.46],
+  /** Fração do alfa onde a bruma é mais rala, na densidade 100 (na 50, a metade disso; na 0, buraco de verdade). */
+  pisoNaDensidadeMaxima: 0.6,
   /** Deriva de cada camada, em ladrilhos por segundo (a larga, a média e o detalhe), cada uma para um lado. */
   derivaLarga: [0.0042, 0.0016],
   derivaMedia: [0.011, -0.004],
@@ -93,8 +103,14 @@ uniform vec4 uMapa;
 uniform vec4 uCaixaDaMascara;
 // deriva da camada larga (xy) e da média (zw), em frações do ladrilho.
 uniform vec4 uDeriva;
-// deriva do detalhe (xy); z = piso da bruma.
+// deriva do detalhe (xy); z = densidade do mapa inteiro (0 a 1); w = o quanto
+// a bruma já apareceu (0 a 1). O aparecer e o sumir vivem AQUI: o alpha da
+// camada (raiz do grupo de render) não chega a este shader.
 uniform vec4 uDetalhe;
+// bordas da bruma na densidade 0 (xy) e na 1 (zw).
+uniform vec4 uBordas;
+// bordas na densidade 0,5 (xy); z = piso da bruma na densidade 1.
+uniform vec4 uBordaMedia;
 uniform vec3 uCor;
 out vec4 finalColor;
 const mat2 GIRO = mat2(0.8, -0.6, 0.6, 0.8);
@@ -104,13 +120,21 @@ void main() {
   vec2 torcao = vec2(largo - 0.5, texture(uRuido, p * 0.29 - uDeriva.xy).r - 0.5) * 0.6;
   float medio = texture(uRuido, p + uDeriva.zw + torcao).r;
   float fino = texture(uRuido, GIRO * p * 2.17 + uDetalhe.xy + torcao * 1.7).g;
-  float bruma = smoothstep(0.3, 0.72, largo * 0.5 + medio * 0.35 + fino * 0.15);
   float area = uMapa.y;
+  float densidade = uDetalhe.z;
   if (uMapa.w > 0.5) {
-    vec2 m = (vPos - uCaixaDaMascara.xy) * uCaixaDaMascara.zw;
-    area = max(area, texture(uMascara, m).a);
+    // Máscara pré-multiplicada: a = força pintada, r = densidade * força.
+    vec4 m = texture(uMascara, (vPos - uCaixaDaMascara.xy) * uCaixaDaMascara.zw);
+    float soma = area + m.a;
+    // Onde a chave e o pincel se encontram, a densidade é a média pesada pela força de cada um.
+    if (soma > 0.0001) densidade = clamp((area * densidade + m.r) / soma, 0.0, 1.0);
+    area = max(area, m.a);
   }
-  float a = area * mix(uDetalhe.z, 1.0, bruma) * uMapa.z;
+  vec2 bordas = densidade < 0.5
+    ? mix(uBordas.xy, uBordaMedia.xy, densidade * 2.0)
+    : mix(uBordaMedia.xy, uBordas.zw, densidade * 2.0 - 1.0);
+  float bruma = smoothstep(bordas.x, bordas.y, largo * 0.5 + medio * 0.35 + fino * 0.15);
+  float a = area * mix(uBordaMedia.z * densidade, 1.0, bruma) * uMapa.z * uDetalhe.w;
   if (a <= 0.003) discard;
   finalColor = vec4(uCor * a, a) * uColor.a;
 }
@@ -252,10 +276,18 @@ function caminho(g: CanvasRenderingContext2D, pontos: PinceladaDeNeblina['pontos
   for (const p of resto) g.lineTo(p.x, p.y)
 }
 
+/** O cinza que guarda a densidade (0 a 1) na cor da máscara. */
+function corDaDensidade(densidade: number): string {
+  const nivel = Math.round(densidade * 255)
+  return `rgb(${nivel}, ${nivel}, ${nivel})`
+}
+
 /**
  * Pinta a máscara: o pincel DEIXA a neblina na força dele (tira o que havia
- * debaixo e põe a força), a borracha tira a força dela. A beirada macia vem
- * de um desfoque de uma célula no fim.
+ * debaixo e põe a força) e na densidade dele (o cinza da cor); a borracha tira
+ * a força e deixa a densidade de quem ficou. A beirada macia vem de um
+ * desfoque de uma célula no fim. Sobe pré-multiplicada: o shader lê a
+ * densidade como `r / a`.
  */
 function pintarMascara(lista: readonly PinceladaDeNeblina[], caixa: CaixaDaMascara, grid: number): HTMLCanvasElement | null {
   const nitida = document.createElement('canvas')
@@ -266,7 +298,6 @@ function pintarMascara(lista: readonly PinceladaDeNeblina[], caixa: CaixaDaMasca
   g.setTransform(caixa.escala, 0, 0, caixa.escala, BORDA_DA_MASCARA - caixa.x * caixa.escala, BORDA_DA_MASCARA - caixa.y * caixa.escala)
   g.lineCap = 'round'
   g.lineJoin = 'round'
-  g.strokeStyle = '#ffffff'
   for (const passo of lista) {
     if (passo.pontos.length === 0) continue
     g.lineWidth = passo.raio * 2
@@ -277,6 +308,7 @@ function pintarMascara(lista: readonly PinceladaDeNeblina[], caixa: CaixaDaMasca
     if (passo.tipo === 'pincel') {
       g.globalCompositeOperation = 'source-over'
       g.globalAlpha = passo.forca
+      g.strokeStyle = corDaDensidade(densidadeDaPincelada(passo))
       g.stroke()
     }
   }
@@ -320,6 +352,8 @@ export interface EntradaDaNeblina {
   grid: number
   /** A chave do mapa inteiro, 0 a 1 (`intensidadeDoMapaInteiro`). */
   inteira: number
+  /** A densidade da chave do mapa inteiro, 0 a 1 (`densidadeDoMapaInteiro`); a do pincel vai em cada pincelada. */
+  densidade: number
   /** As pinceladas do piso à vista (no jogador, já cortadas no recorte). */
   pintada: readonly PinceladaDeNeblina[] | undefined
   /** `false` = bruma parada ("Efeitos do mapa" desligado no jogador). */
@@ -365,8 +399,10 @@ export function createNeblinaRenderer(
   camada.eventMode = 'none'
   camada.interactiveChildren = false
   camada.visible = false
-  camada.alpha = 0
-  // Grupo de render próprio: os uniforms por quadro ficam nele.
+  // Grupo de render próprio: os uniforms por quadro ficam nele. O alpha da
+  // raiz de um grupo não chega ao shader próprio (vai só para o
+  // `uWorldColorAlpha`, que ele não lê): o aparecer e o sumir são o `fade`,
+  // no `uDetalhe.w`, e o alpha da camada fica em 1.
   camada.enableRenderGroup()
 
   let mesh: Mesh<Geometry, Shader> | null = null
@@ -383,6 +419,8 @@ export function createNeblinaRenderer(
   let instanteParado = 0
   let conferidoEm = 0
   let alvo = 0
+  /** O quanto a bruma já apareceu (0 a 1): vai para o shader em `uDetalhe.w`. */
+  let fade = 0
   let fadeDesde: { t: number; de: number } | null = null
   let periodo: Periodo = 'dia'
   let avisado = ''
@@ -396,7 +434,9 @@ export function createNeblinaRenderer(
       uMapa: { value: new Float32Array(4), type: 'vec4<f32>' },
       uCaixaDaMascara: { value: new Float32Array([0, 0, 1, 1]), type: 'vec4<f32>' },
       uDeriva: { value: new Float32Array(4), type: 'vec4<f32>' },
-      uDetalhe: { value: new Float32Array([0, 0, AJUSTE_DA_NEBLINA.piso, 0]), type: 'vec4<f32>' },
+      uDetalhe: { value: new Float32Array([0, 0, 0.5, fade]), type: 'vec4<f32>' },
+      uBordas: { value: new Float32Array([...AJUSTE_DA_NEBLINA.bordasRala, ...AJUSTE_DA_NEBLINA.bordasDensa]), type: 'vec4<f32>' },
+      uBordaMedia: { value: new Float32Array([...AJUSTE_DA_NEBLINA.bordasMedia, AJUSTE_DA_NEBLINA.pisoNaDensidadeMaxima, 0]), type: 'vec4<f32>' },
       uCor: { value: new Float32Array(AJUSTE_DA_NEBLINA.cor.dia), type: 'vec3<f32>' },
     })
     const shader = new Shader({ glProgram: programaDaNeblina(), resources: { uRuido: ruido, uMascara: mascara, neblina: ajustes } })
@@ -439,7 +479,8 @@ export function createNeblinaRenderer(
     }
     caixaAtual = caixa
     temMascara = true
-    trocarMascara(new CanvasSource({ resource: tela, scaleMode: 'linear', addressMode: 'clamp-to-edge' }))
+    // Pré-multiplicada de propósito: o shader lê a densidade como `r / a`.
+    trocarMascara(new CanvasSource({ resource: tela, scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'premultiply-alpha-on-upload' }))
     if (ajustes !== null) {
       const v = ajustes.uniforms.uCaixaDaMascara as Float32Array
       // A origem da máscara é a da caixa menos a borda transparente.
@@ -484,6 +525,11 @@ export function createNeblinaRenderer(
     movimento.ticker.remove(passo)
   }
 
+  function definirFade(valor: number): void {
+    fade = valor
+    if (ajustes !== null) (ajustes.uniforms.uDetalhe as Float32Array)[3] = valor
+  }
+
   function passo(): void {
     const t = agora()
     if (fadeDesde !== null) {
@@ -491,10 +537,10 @@ export function createNeblinaRenderer(
       const feito = (t - fadeDesde.t) / duracao
       if (feito >= 1 || feito < 0) {
         fadeDesde = null
-        camada.alpha = alvo
+        definirFade(alvo)
         if (alvo === 0) camada.visible = false
       } else {
-        camada.alpha = fadeDesde.de + (alvo - fadeDesde.de) * CURVAS.saida.f(feito)
+        definirFade(fadeDesde.de + (alvo - fadeDesde.de) * CURVAS.saida.f(feito))
       }
     }
     if (movendo) {
@@ -513,10 +559,10 @@ export function createNeblinaRenderer(
 
   /** Leva a camada à opacidade `novo` de leve (aparece devagar, some rápido). */
   function irPara(novo: number): void {
-    if (novo === alvo && (fadeDesde !== null || camada.alpha === novo)) return
+    if (novo === alvo && (fadeDesde !== null || fade === novo)) return
     alvo = novo
     if (novo > 0) camada.visible = true
-    fadeDesde = { t: agora(), de: camada.alpha }
+    fadeDesde = { t: agora(), de: fade }
     entrarNoRelogio()
   }
 
@@ -550,6 +596,8 @@ export function createNeblinaRenderer(
       mapa[1] = inteira
       mapa[2] = AJUSTE_DA_NEBLINA.alfaMaximo
       mapa[3] = temMascara ? 1 : 0
+      const detalhe = ajustes.uniforms.uDetalhe as Float32Array
+      detalhe[2] = Math.min(1, Math.max(0, entrada.densidade))
       pintarCor()
       const t = agora()
       const andar = entrada.animar && !movimento.reducedMotion()
