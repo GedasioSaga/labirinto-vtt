@@ -1,0 +1,28 @@
+{
+  // Tipos do Worker: os do runtime da Cloudflare vêm de `worker-configuration.d.ts`
+  // (gerado por `npx wrangler types`, rodar de novo ao mudar o wrangler.toml).
+  //
+  // Por que "DOM" está na lib: o fecho de TIPOS do núcleo (client/src/lib/nuvem) alcança
+  // client/src/lib/tokenPhoto.ts (canvas) e client/src/transicoes/tipos.ts (áudio), as duas
+  // exceções escritas no pureza.test.ts. Sem a lib DOM o tsc não fecha esses dois arquivos do
+  // app. Isso NÃO libera o navegador no Worker: a prova de que nada de DOM, Tauri, React ou
+  // Pixi entra no código que roda é o bundle do `npx wrangler deploy --dry-run` (README do
+  // fumaca.mjs, no topo do arquivo).
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": [],
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*.ts", "worker-configuration.d.ts"]
+}

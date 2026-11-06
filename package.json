@@ -15,6 +15,7 @@
     "tauri:build": "tauri build"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2"
+    "@tauri-apps/cli": "^2",
+    "wrangler": "4.151.3"
   }
 }

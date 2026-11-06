@@ -1,0 +1,25 @@
+# Worker do Lobby: só define as classes dos Durable Objects (docs/planos/lobby-jogadores-2026-11-05.md, 3.1 e 6.3).
+# Sem segredo aqui: este arquivo vai para o repo público. Nenhuma rota pública:
+# workers_dev = false e preview_urls = false; o `fetch` padrão devolve 404 e o Worker só é
+# alcançado pelo binding do portão (lobby/site, fatia W2).
+#
+# Teste local: `npx wrangler dev src/dev.ts --local` (porta de dev, fora do bundle de produção)
+# e `node fumaca.mjs` em outro terminal. Prova do bundle: `npx wrangler deploy --dry-run`.
+name = "labirinto-nuvem"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+preview_urls = false
+send_metrics = false
+
+[[durable_objects.bindings]]
+name = "CAMPANHA"
+class_name = "Campanha"
+
+[[durable_objects.bindings]]
+name = "DIRETORIO"
+class_name = "Diretorio"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Campanha", "Diretorio"]
