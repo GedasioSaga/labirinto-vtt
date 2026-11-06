@@ -2,7 +2,7 @@ import type { CarriedItem, Token } from '../../types/map'
 import { quantidadeDe } from '../items'
 import type { Personagem } from '../personagem'
 import { MOEDAS_MAX, moedasDe } from '../troca'
-import { fichasDeVariosBonecos, itensIguais, type CenaDaJuncao, type OrigemDaMochila } from './juncao'
+import { fichasDeVariosBonecos, itensIguais, pilhaDe as pilhaDoAcervo, type CenaDaJuncao, type OrigemDaMochila } from './juncao'
 import { fichaSomada, itemNoAviso } from './transicao'
 
 /**
@@ -95,25 +95,36 @@ function sobraDoItem(item: CarriedItem, naFicha: CarriedItem | undefined): Carri
   return sobra > 0 ? comQuantidade(item, sobra) : null
 }
 
+/** A sobra de um item do boneco e se ela já é a conta contra a MESMA vaga da ficha (`contraAFicha`). */
+interface SobraDoItem {
+  item: CarriedItem
+  contraAFicha: boolean
+}
+
 /** O que dos itens de `doBoneco` a ficha não tem; cada vaga da ficha casa com um só item do boneco. */
-function itensQueAFichaNaoTem(daFicha: readonly CarriedItem[], doBoneco: readonly CarriedItem[]): CarriedItem[] {
+function itensQueAFichaNaoTem(daFicha: readonly CarriedItem[], doBoneco: readonly CarriedItem[]): SobraDoItem[] {
   const vagasDaFicha = new Map(daFicha.map((item) => [item.id, item]))
-  const sobras: CarriedItem[] = []
+  const sobras: SobraDoItem[] = []
   for (const item of doBoneco) {
-    const sobra = sobraDoItem(item, vagasDaFicha.get(item.id))
+    const naFicha = vagasDaFicha.get(item.id)
+    const sobra = sobraDoItem(item, naFicha)
     vagasDaFicha.delete(item.id)
-    if (sobra !== null) sobras.push(sobra)
+    if (sobra !== null) sobras.push({ item: sobra, contraAFicha: naFicha !== undefined })
   }
   return sobras
+}
+
+/** O boneco que tem alguma vaga da ficha veio do espelho: a bolsa dele é a cópia da dela (ver o comentário do arquivo). */
+function bolsaVeioDoEspelho(boneco: Pick<Token, 'mochila'>, ficha: Pick<Personagem, 'mochila'>): boolean {
+  const vagasDaFicha = new Set((ficha.mochila ?? []).map((item) => item.id))
+  return (boneco.mochila ?? []).some((item) => vagasDaFicha.has(item.id))
 }
 
 /** As moedas do boneco que a ficha não tem (ver o comentário do arquivo). */
 function sobraDaBolsa(boneco: Pick<Token, 'mochila' | 'moedas'>, ficha: Pick<Personagem, 'mochila' | 'moedas'>): number {
   const moedas = moedasDe(boneco)
   if (moedas <= 0) return 0
-  const vagasDaFicha = new Set((ficha.mochila ?? []).map((item) => item.id))
-  const veioDoEspelho = (boneco.mochila ?? []).some((item) => vagasDaFicha.has(item.id))
-  return veioDoEspelho ? Math.max(0, moedas - moedasDe(ficha)) : moedas
+  return bolsaVeioDoEspelho(boneco, ficha) ? Math.max(0, moedas - moedasDe(ficha)) : moedas
 }
 
 /** A mesma vaga, com a pilha que for: o mesmo mapa, a mesma ficha e o mesmo `item.id` — ou a bolsa da mesma ficha. */
@@ -128,18 +139,75 @@ function pilhaDe(conteudo: ConteudoDoPendente): number {
 }
 
 /**
- * O que a leitura `lido` mostra ALÉM do que o mestre já decidiu na mesma vaga
+ * Uma leitura do mapa: o que um boneco tem e a `ficha` dele não tem (`lido`,
+ * ainda sem id). `contraAFicha`: a conta já tirou a pilha da MESMA vaga da
+ * ficha (`sobraDoItem`), ou a bolsa dela (`sobraDaBolsa`, o boneco do espelho).
+ */
+interface Leitura {
+  lido: ItemPendente
+  ficha: Personagem
+  contraAFicha: boolean
+}
+
+/** As leituras de cada boneco das `cenas` contra a ficha dele: ver o comentário do arquivo. */
+function leiturasDoMapa(personagens: readonly Personagem[], chave: string, cenas: readonly CenaDaJuncao[], agoraMs: number): Leitura[] {
+  const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
+  const leituras: Leitura[] = []
+  for (const { origem, bonecos } of cenas) {
+    const deVarios = fichasDeVariosBonecos(bonecos)
+    for (const boneco of bonecos) {
+      if (boneco.characterId === null || deVarios.has(boneco.characterId)) continue
+      const ficha = porId.get(boneco.characterId)
+      if (ficha === undefined) continue
+      // O id só nasce para o que entra de fato no relatório.
+      const comum = { id: '', chave, mapa: origem.mapa, cena: origem.cena, personagemId: ficha.id, personagem: ficha.nome, boneco: boneco.name ?? '', entrouEm: agoraMs }
+      for (const { item, contraAFicha } of itensQueAFichaNaoTem(ficha.mochila ?? [], boneco.mochila ?? [])) leituras.push({ lido: { ...comum, tipo: 'item', item }, ficha, contraAFicha })
+      const moedas = sobraDaBolsa(boneco, ficha)
+      if (moedas > 0) leituras.push({ lido: { ...comum, tipo: 'moedas', moedas }, ficha, contraAFicha: bolsaVeioDoEspelho(boneco, ficha) })
+    }
+  }
+  return leituras
+}
+
+/**
+ * O pendente decidido que a leitura JÁ descontou: ela foi medida contra a
+ * mesma vaga da ficha (`contraAFicha`), e o "Trazer" somou ali — na bolsa, ou
+ * na pilha do acervo cuja primeira vaga na ficha é a lida (`somarItens` empilha
+ * na primeira). Descontá-lo de novo faria sumir calado o que o disco mostra a
+ * mais: a ficha tinha a Poção ×1 do espelho, o trabalho aberto ×3, o "Trazer"
+ * deixou ×3 e o disco tem ×4 — a leitura já é ×1, e é o aviso. O `incerto`
+ * também conta como somado ali: a soma pode ter entrado, e melhor um aviso a
+ * mais (o mestre ignora) do que um item a menos. O `ignorado` nunca entrou na
+ * ficha, e o trazido que foi para outra vaga (vaga nova, ou outra pilha do
+ * acervo antes da lida) não está na leitura: esses descontam.
+ */
+function somouNaVagaLida(registrado: ItemPendente, { ficha, contraAFicha }: Leitura): boolean {
+  if (!contraAFicha || registrado.decisao === 'ignorado') return false
+  if (registrado.tipo === 'moedas') return true
+  const pilha = pilhaDoAcervo(registrado.item)
+  if (pilha === undefined) return false
+  const primeiraDaPilha = (ficha.mochila ?? []).find((item) => pilhaDoAcervo(item) === pilha)
+  return primeiraDaPilha !== undefined && primeiraDaPilha.id === registrado.item.id
+}
+
+/**
+ * O que a leitura mostra ALÉM do que o mestre já decidiu na mesma vaga
  * (decisão do usuário de 05/11/2026): a vaga já trazida, ignorada ou incerta
  * que reaparece com outra pilha avisa só a diferença. O "Usar o da pasta"
  * anotou a Poção ×1 do trabalho aberto, o mestre a trouxe e fechou sem salvar;
  * o disco ainda tem ×2: o aviso novo é a Poção ×1 que falta, e trazê-la deixa a
  * ficha com o total que existiu, não com ×1 a mais. Cada decisão da vaga conta
- * a pilha dela (a diferença trazida depois soma à de antes). `null` = a pilha
- * igual ou menor que a decidida: nenhum aviso novo. Sem decisão na vaga, a
- * leitura como veio. O que saiu com o mapa (`saiu`) não entra em `valendo`.
+ * a pilha dela (a diferença trazida depois soma à de antes), menos a que a
+ * leitura já descontou (`somouNaVagaLida`). `null` = a pilha igual ou menor
+ * que a decidida: nenhum aviso novo. Sem decisão na vaga, a leitura como veio.
+ * O que saiu com o mapa (`saiu`) não entra em `valendo`.
  */
-function alemDoDecidido(lido: ItemPendente, valendo: readonly ItemPendente[]): ItemPendente | null {
-  const decidido = valendo.reduce((soma, registrado) => (registrado.decisao !== undefined && mesmaVaga(registrado, lido) ? soma + pilhaDe(registrado) : soma), 0)
+function alemDoDecidido(leitura: Leitura, valendo: readonly ItemPendente[]): ItemPendente | null {
+  const { lido } = leitura
+  const decidido = valendo.reduce(
+    (soma, registrado) => (registrado.decisao !== undefined && mesmaVaga(registrado, lido) && !somouNaVagaLida(registrado, leitura) ? soma + pilhaDe(registrado) : soma),
+    0,
+  )
   if (decidido === 0) return lido
   const alem = pilhaDe(lido) - decidido
   if (alem <= 0) return null
@@ -162,28 +230,14 @@ export function pendentesDoMapaQueEntrou(
   agoraMs: number,
   novoId: () => string,
 ): ItemPendente[] {
-  const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
   const novos: ItemPendente[] = []
   const valendo = registrados.filter((registrado) => registrado.decisao !== 'saiu')
   // Depois de descontado o decidido da vaga, só o pendente ainda esperando pode ser o mesmo.
   const esperando = valendo.filter((registrado) => registrado.decisao === undefined)
-  const anotar = (lido: ItemPendente): void => {
-    const alem = alemDoDecidido(lido, valendo)
-    if (alem === null || esperando.some((outro) => mesmoPendente(outro, alem)) || novos.some((outro) => mesmoPendente(outro, alem))) return
+  for (const leitura of leiturasDoMapa(personagens, chave, cenas, agoraMs)) {
+    const alem = alemDoDecidido(leitura, valendo)
+    if (alem === null || esperando.some((outro) => mesmoPendente(outro, alem)) || novos.some((outro) => mesmoPendente(outro, alem))) continue
     novos.push({ ...alem, id: novoId() })
-  }
-  for (const { origem, bonecos } of cenas) {
-    const deVarios = fichasDeVariosBonecos(bonecos)
-    for (const boneco of bonecos) {
-      if (boneco.characterId === null || deVarios.has(boneco.characterId)) continue
-      const ficha = porId.get(boneco.characterId)
-      if (ficha === undefined) continue
-      // O id só nasce em `anotar`, para o que entra de fato.
-      const comum = { id: '', chave, mapa: origem.mapa, cena: origem.cena, personagemId: ficha.id, personagem: ficha.nome, boneco: boneco.name ?? '', entrouEm: agoraMs }
-      for (const item of itensQueAFichaNaoTem(ficha.mochila ?? [], boneco.mochila ?? [])) anotar({ ...comum, tipo: 'item', item })
-      const moedas = sobraDaBolsa(boneco, ficha)
-      if (moedas > 0) anotar({ ...comum, tipo: 'moedas', moedas })
-    }
   }
   return novos
 }
@@ -222,13 +276,13 @@ export function pendentesDaReconferencia(
   fixos: ReadonlySet<string>,
 ): Reconferencia {
   const valendo = registrados.filter((registrado) => registrado.decisao !== 'saiu')
-  // O id só nasce para o que entra de fato: o mesmo `novoId` da conferência nova, na mesma ordem.
-  const lidos = pendentesDoMapaQueEntrou(personagens, chave, cenas, [], agoraMs, () => '')
   const usados = new Set<string>()
   const diferentes: ItemPendente[] = []
-  for (const cru of lidos) {
-    const lido = alemDoDecidido(cru, valendo)
-    if (lido === null) continue
+  // O id só nasce para o que entra de fato: o mesmo `novoId` da conferência nova, na mesma ordem.
+  for (const leitura of leiturasDoMapa(personagens, chave, cenas, agoraMs)) {
+    const lido = alemDoDecidido(leitura, valendo)
+    // A mesma leitura em duas cenas é uma só (a aventura que mostra a mesma Poção em toda cena).
+    if (lido === null || diferentes.some((outro) => mesmoPendente(outro, lido))) continue
     // Descontado o decidido da vaga, só o pendente ainda esperando pode ser o mesmo.
     const igual = valendo.find((registrado) => registrado.decisao === undefined && mesmoPendente(registrado, lido))
     if (igual === undefined) diferentes.push(lido)

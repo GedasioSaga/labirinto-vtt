@@ -43,6 +43,7 @@ import { quantidadeDe } from '../items'
 import type { CenaDaJuncao } from './juncao'
 import {
   cenasComAsFichasDoMapa,
+  fichasComOPendente,
   pendentesDaReconferencia,
   pendentesDoMapaQueEntrou,
   textoDoIgnoradoSemSaber,
@@ -981,6 +982,88 @@ describe('a conferência de novo: a mesma vaga ainda sem decisão é o mesmo pen
     const trazida: ItemPendente = { ...anotada(1), decisao: 'trazido', decididoEm: 8 }
     expect(pilhas(pendentesDoMapaQueEntrou([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(3))], [trazida], AGORA, ids()))).toEqual([['novo_1', VAGA.id, 2]])
     expect(pendentesDoMapaQueEntrou([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(1))], [trazida], AGORA, ids())).toEqual([])
+  })
+
+  describe('a vaga do espelho que já recebeu o "Trazer": a leitura vem descontada da soma, e nada some calado', () => {
+    /** O Usopp com a Poção ×1 do espelho (a mesma vaga do boneco) e 10 moedas. */
+    const COM_A_VAGA = ficha('p_usopp', 'Usopp', { mochila: [{ ...VAGA }], moedas: 10 })
+
+    /** A ficha depois do "Trazer" de `pendente` (`fichasComOPendente`, como o app faz) e o pendente anotado como trazido. */
+    function trazer(antes: Personagem, pendente: ItemPendente): { ficha: Personagem; registrado: ItemPendente } {
+      const somadas = fichasComOPendente([antes], pendente, () => 'vaga_nova')
+      if (somadas === null) throw new Error('a ficha do pendente não está na lista')
+      return { ficha: somadas.personagens[0], registrado: { ...pendente, decisao: 'trazido', decididoEm: 8 } }
+    }
+
+    /** O boneco do espelho (a mesma vaga da ficha) com `moedas` na bolsa. */
+    function bolsaDoUsopp(moedas: number): CenaDaJuncao['bonecos'][number] {
+      return { characterId: 'p_usopp', name: 'Usopp', mochila: [{ ...VAGA }], moedas }
+    }
+
+    /** O pendente que o "Usar o da pasta" anota do trabalho aberto. */
+    function anotarDoTrabalho(antes: Personagem, boneco: CenaDaJuncao['bonecos'][number]): ItemPendente {
+      const anotado = pendentesDoMapaQueEntrou([antes], 'going-merry', [cenaCom('Convés', boneco)], [], AGORA, () => 'pend_1').at(0)
+      if (anotado === undefined) throw new Error('o trabalho aberto não anotou nada')
+      return anotado
+    }
+
+    it('a Poção: ×1 do espelho, ×3 no trabalho aberto, trazida (a ficha fica com ×3), ×4 no disco: o aviso é ×1, e trazê-lo deixa ×4', () => {
+      const anotado = anotarDoTrabalho(COM_A_VAGA, doUsopp(3))
+      expect(pilhas([anotado])).toEqual([['pend_1', VAGA.id, 2]])
+      const depois = trazer(COM_A_VAGA, anotado)
+      expect(depois.ficha.mochila).toEqual([{ ...VAGA, quantidade: 3 }])
+      const conferido = pendentesDaReconferencia([depois.ficha], 'going-merry', [cenaCom('Convés', doUsopp(4))], [depois.registrado], AGORA, ids(), SEM_FIXOS)
+      expect(conferido.trocados).toEqual([])
+      expect(pilhas(conferido.novos)).toEqual([['novo_1', VAGA.id, 1]])
+      expect(trazer(depois.ficha, conferido.novos[0]).ficha.mochila).toEqual([{ ...VAGA, quantidade: 4 }])
+      // O disco igual ao trabalho trazido, ou menor: nada novo.
+      for (const pilha of [3, 2]) {
+        expect(pendentesDaReconferencia([depois.ficha], 'going-merry', [cenaCom('Convés', doUsopp(pilha))], [depois.registrado], AGORA, ids(), SEM_FIXOS)).toEqual({ novos: [], trocados: [] })
+      }
+    })
+
+    it('a bolsa: 10 na ficha, 30 no boneco do espelho, trazidas (a ficha fica com 30), 50 no disco: o aviso é de 20, e trazê-lo deixa 50', () => {
+      const anotado = anotarDoTrabalho(COM_A_VAGA, bolsaDoUsopp(30))
+      expect(pilhas([anotado])).toEqual([['pend_1', 'bolsa', 20]])
+      const depois = trazer(COM_A_VAGA, anotado)
+      expect(depois.ficha.moedas).toBe(30)
+      const conferido = pendentesDaReconferencia([depois.ficha], 'going-merry', [cenaCom('Convés', bolsaDoUsopp(50))], [depois.registrado], AGORA, ids(), SEM_FIXOS)
+      expect(conferido.trocados).toEqual([])
+      expect(pilhas(conferido.novos)).toEqual([['novo_1', 'bolsa', 20]])
+      expect(trazer(depois.ficha, conferido.novos[0]).ficha.moedas).toBe(50)
+      expect(pendentesDaReconferencia([depois.ficha], 'going-merry', [cenaCom('Convés', bolsaDoUsopp(30))], [depois.registrado], AGORA, ids(), SEM_FIXOS)).toEqual({ novos: [], trocados: [] })
+    })
+
+    it('o trabalho aberto de novo ("Usar o da pasta", a volta do sistema) também: a Poção ×4 e as 50 moedas avisam ×1 e 20', () => {
+      const pocao = trazer(COM_A_VAGA, anotarDoTrabalho(COM_A_VAGA, doUsopp(3)))
+      expect(pilhas(pendentesDoMapaQueEntrou([pocao.ficha], 'going-merry', [cenaCom('Convés', doUsopp(4))], [pocao.registrado], AGORA, ids()))).toEqual([['novo_1', VAGA.id, 1]])
+      expect(pendentesDoMapaQueEntrou([pocao.ficha], 'going-merry', [cenaCom('Convés', doUsopp(3))], [pocao.registrado], AGORA, ids())).toEqual([])
+      const moedas = trazer(COM_A_VAGA, anotarDoTrabalho(COM_A_VAGA, bolsaDoUsopp(30)))
+      expect(pilhas(pendentesDoMapaQueEntrou([moedas.ficha], 'going-merry', [cenaCom('Convés', bolsaDoUsopp(50))], [moedas.registrado], AGORA, ids()))).toEqual([['novo_1', 'bolsa', 20]])
+      expect(pendentesDoMapaQueEntrou([moedas.ficha], 'going-merry', [cenaCom('Convés', bolsaDoUsopp(30))], [moedas.registrado], AGORA, ids())).toEqual([])
+    })
+
+    it('a ignorada nunca entrou na ficha: desconta da leitura; ×4 no disco depois da ×2 ignorada avisa ×1, ×3 nada', () => {
+      const ignorada: ItemPendente = { ...anotada(2), decisao: 'ignorado', decididoEm: 8 }
+      expect(pilhas(pendentesDaReconferencia([COM_A_VAGA], 'going-merry', [cenaCom('Convés', doUsopp(4))], [ignorada], AGORA, ids(), SEM_FIXOS).novos)).toEqual([['novo_1', VAGA.id, 1]])
+      expect(pendentesDaReconferencia([COM_A_VAGA], 'going-merry', [cenaCom('Convés', doUsopp(3))], [ignorada], AGORA, ids(), SEM_FIXOS)).toEqual({ novos: [], trocados: [] })
+    })
+
+    it('a trazida que empilhou noutra vaga da mesma pilha do acervo (a primeira da ficha) não está na leitura: desconta', () => {
+      const ANTIGA: CarriedItem = { ...VAGA, id: 'vaga_pocao_antiga' }
+      const comDuas = ficha('p_usopp', 'Usopp', { mochila: [ANTIGA, { ...VAGA }] })
+      const depois = trazer(comDuas, anotarDoTrabalho(comDuas, doUsopp(3)))
+      expect(depois.ficha.mochila).toEqual([{ ...ANTIGA, quantidade: 3 }, { ...VAGA }])
+      expect(pilhas(pendentesDaReconferencia([depois.ficha], 'going-merry', [cenaCom('Convés', doUsopp(4))], [depois.registrado], AGORA, ids(), SEM_FIXOS).novos)).toEqual([['novo_1', VAGA.id, 1]])
+      expect(pendentesDaReconferencia([depois.ficha], 'going-merry', [cenaCom('Convés', doUsopp(3))], [depois.registrado], AGORA, ids(), SEM_FIXOS)).toEqual({ novos: [], trocados: [] })
+    })
+
+    it('a incerta na vaga do espelho pode ter entrado ali: não desconta (um aviso a mais, nunca um item a menos)', () => {
+      // O "Trazer" da ×2 caiu no meio e a soma entrou (a ficha tem ×3); o disco tem ×4.
+      const incerta: ItemPendente = { ...anotada(2), decisao: 'incerto', decididoEm: 8 }
+      const somou = ficha('p_usopp', 'Usopp', { mochila: [{ ...VAGA, quantidade: 3 }] })
+      expect(pilhas(pendentesDaReconferencia([somou], 'going-merry', [cenaCom('Convés', doUsopp(4))], [incerta], AGORA, ids(), SEM_FIXOS).novos)).toEqual([['novo_1', VAGA.id, 1]])
+    })
   })
 
   it('o "Trazer" começado segura a pilha dele, e a leitura da mesma vaga não vira outro pendente', () => {
