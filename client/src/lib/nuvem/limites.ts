@@ -20,15 +20,16 @@ export const LIMITES = {
   /** Por conta de jogador, por dia. O mestre (e o Service Token, que é ele) não tem teto por conta. */
   opsPorDiaDaConta: 2000,
   bytesPorDiaDaConta: 5 * MIB,
-  /** Por campanha, por dia: ~2,7× a estimativa da §7. Vale também para o mestre. */
-  opsPorDiaDaCampanha: 8000,
+  /** Por campanha, por dia: ~1,8× a estimativa da §7 (12 contas); no teto, ~62.500 das 100.000 linhas gravadas do dia. Vale também para o mestre. */
+  opsPorDiaDaCampanha: 10_000,
   frameBytes: 64 * KIB,
   opsPorLote: 50,
   /** Teto da op no fio, sempre abaixo do frame; o caminho de teto maior (ficha, cartão) ganha o dele + o envelope. */
   opBytes: 24 * KIB,
   envelopeBytes: 2 * KIB,
   socketsPorConta: 3,
-  socketsPorCampanha: 20,
+  /** 3 por conta × 12 contas (1 mestre + 11 jogadores, §7). */
+  socketsPorCampanha: 36,
   /** Violação = frame malformado ou op negada por regra; nunca `adiado`. */
   violacoesAteFechar: 20,
   bloqueioDepoisDasViolacoesMs: 5 * 60_000,
