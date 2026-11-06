@@ -119,8 +119,8 @@ function alvoMaisFerido(vista: VistaDoRobo, minhaVaga: VagaDoTreino): string | n
   return melhor?.tokenId ?? null
 }
 
-/** O dano no teto do pedido (inteiro de 0 a `DANO_MAX`). */
-function danoNoTeto(valor: number): number {
+/** O dano no teto do pedido (inteiro de 0 a `DANO_MAX`). O duelo (`duelo.ts`) recalcula com o mesmo. */
+export function danoNoTeto(valor: number): number {
   return Math.min(DANO_MAX, Math.max(0, Math.floor(valor)))
 }
 
@@ -188,9 +188,9 @@ function ataques(personagem: Personagem, sistema: SistemaDeRpg, armas: readonly 
  * O selo que a mira manda por padrão com a técnica: o sugerido, no formato
  * do fio (nome, turnos e mods; a natureza e o cartaoId o host tira da
  * técnica). A que marca ao acertar não leva, como no menu (`dadosDoMenu`):
- * a marca já é o efeito dela.
+ * a marca já é o efeito dela. O duelo (`duelo.ts`) recalcula com o mesmo.
  */
-function seloDaMira(cartao: TecnicaNoMenu['cartao'], sistema: SistemaDeRpg): SeloPedido | null {
+export function seloDaMira(cartao: TecnicaNoMenu['cartao'], sistema: SistemaDeRpg): SeloPedido | null {
   if (lerMarca(cartao, sistema)?.tipo === 'aoAcertar') return null
   const sugerido = seloSugeridoDaTecnica(cartao, sistema)
   return sugerido === null ? null : seloPedidoValido(sugerido, sistema)
