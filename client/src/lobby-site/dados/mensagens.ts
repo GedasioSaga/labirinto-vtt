@@ -4,6 +4,8 @@ import { ehJson, ehRegistro, lerJsonSeguro, proprio } from '../../lib/nuvem/json
 import { lerEnvelope } from '../../lib/nuvem/lote'
 import type { FichaNoEstado, MembroProjetado, MensagemDoServidor, OpGravada, Origem, Papel, PresencaNaMesa, Visibilidade } from '../../lib/nuvem/tipos'
 import { personagemDoArquivo } from '../../lib/personagem'
+import type { MensagemDoSite } from './fonte'
+import { lerFrameDoChat } from './fioDoChat'
 
 /**
  * LEITURA DO FIO (§5.4): o que chega do servidor é conferido aqui antes de
@@ -133,8 +135,11 @@ function lerHistorico(bruto: Record<string, unknown>): MensagemDoServidor | null
   return segmentoValido(fichaId) && lista !== null && typeof temMaisAntigas === 'boolean' ? { t: 'historico', fichaId, lista, temMaisAntigas } : null
 }
 
-function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoServidor | null {
-  switch (proprio(bruto, 't')) {
+function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoSite | null {
+  const t = proprio(bruto, 't')
+  // O chat (C2) anda pelo mesmo canal: os frames dele têm leitor próprio.
+  if (typeof t === 'string' && t.startsWith('chat.')) return lerFrameDoChat(bruto)
+  switch (t) {
     case 'estado':
       return lerEstado(bruto)
     case 'ops':
@@ -164,8 +169,8 @@ function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoServidor | nul
   }
 }
 
-/** O texto de um frame do servidor; `null` = JSON torto ou fora do formato. */
-export function lerMensagemDoServidor(texto: string): MensagemDoServidor | null {
+/** O texto de um frame do servidor (fichas ou chat); `null` = JSON torto ou fora do formato. */
+export function lerMensagemDoServidor(texto: string): MensagemDoSite | null {
   let bruto: unknown
   try {
     bruto = lerJsonSeguro(texto)

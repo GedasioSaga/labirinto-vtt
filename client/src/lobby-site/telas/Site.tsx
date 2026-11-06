@@ -5,6 +5,7 @@ import { enderecoDaRota, type Rota } from '../dados/rotas'
 import { Cabeca } from './Cabeca'
 import { aoClicarNoLink, useDoSite, useSite } from './contexto'
 import { mudancasACaminho } from './enviar'
+import { TelaChat } from './chat/TelaChat'
 import { AvisoDaPagina } from './Estados'
 import { TelaAcesso } from './TelaAcesso'
 import { TelaCampanha } from './TelaCampanha'
@@ -44,15 +45,20 @@ export function Site() {
     return () => window.removeEventListener('beforeunload', avisar)
   }, [esperando])
 
+  // As não lidas do chat (C2) na frente do título, em toda tela da mesa: a aba avisa mesmo atrás de outras.
+  const naoLidasDoChat = useDoSite((estado) => estado.chat?.naoLidas ?? 0)
+
   useEffect(() => {
-    document.title = tituloDaPagina === null ? NOME_DO_SITE : `${tituloDaPagina} | ${NOME_DO_SITE}`
-  }, [tituloDaPagina])
+    const titulo = tituloDaPagina === null ? NOME_DO_SITE : `${tituloDaPagina} | ${NOME_DO_SITE}`
+    document.title = naoLidasDoChat > 0 ? `(${naoLidasDoChat}) ${titulo}` : titulo
+  }, [tituloDaPagina, naoLidasDoChat])
 
   let pagina
   if (eu.t !== 'pronto' || eu.eu.campanhas.length === 0) pagina = <TelaAcesso carga={eu} />
   else if (rota.tela === 'campanhas') pagina = <TelaCampanhas eu={eu.eu} />
   else if (rota.tela === 'campanha') pagina = <TelaCampanha campanhaId={rota.campanhaId} />
   else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
+  else if (rota.tela === 'chat') pagina = <TelaChat rota={rota} />
   else {
     const mesas: Rota = { tela: 'campanhas' }
     pagina = (
@@ -90,6 +96,8 @@ function tituloDe(rota: Rota, nomeDaFicha: string | undefined, nomeDaMesa: strin
       return nomeDaMesa ?? null
     case 'ficha':
       return nomeDaFicha ?? nomeDaMesa ?? null
+    case 'chat':
+      return nomeDaMesa === undefined ? 'Chat' : `Chat de ${nomeDaMesa}`
     case 'nao-achada':
       return 'Página não encontrada'
   }

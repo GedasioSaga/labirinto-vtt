@@ -11,6 +11,34 @@ export type ChatChannel = 'cena' | 'global'
 /** Na ordem em que a tela oferece. */
 export const CHAT_CHANNELS: readonly ChatChannel[] = ['cena', 'global']
 
+/**
+ * O CANAL DE QUALQUER CHAT do Labirinto: os dois da mesa LAN (`cena` e
+ * `global`) e os dois do Lobby (plano do Lobby §8.2, fatia C2): a sala da
+ * campanha e o privado com outra conta, `{dm: contaId}`, a forma que o site
+ * manda ao servidor (`CanalDoChat` em `lib/nuvem/chatDoLobby.ts`). O
+ * `ChatChannel` continua só `cena`/`global`: o protocolo da LAN não muda.
+ */
+export type AnyChatChannel = ChatChannel | 'sala' | { readonly dm: string }
+
+/** O privado com outra conta (só o Lobby tem). */
+export function isDirectChannel(channel: AnyChatChannel): channel is { readonly dm: string } {
+  return typeof channel !== 'string'
+}
+
+/**
+ * A chave estável do canal, para guardar conversa e não lidas num mapa:
+ * `'cena'`, `'global'`, `'sala'` ou `'dm:<contaId>'`. O contaId não tem `:`
+ * de sobra que confunda (ele passa no `segmentoValido`), e nenhum canal de
+ * nome fixo começa com `dm:`.
+ */
+export function chatChannelKey(channel: AnyChatChannel): string {
+  return isDirectChannel(channel) ? `dm:${channel.dm}` : channel
+}
+
+export function sameChatChannel(a: AnyChatChannel, b: AnyChatChannel): boolean {
+  return chatChannelKey(a) === chatChannelKey(b)
+}
+
 /** Maior mensagem, em unidades UTF-16 (o `maxLength` do campo conta igual). */
 export const CHAT_TEXT_MAX_LENGTH = 1000
 
@@ -202,16 +230,55 @@ export function takeChatTurn(paceAt: number | undefined, at: number): number | n
  * e, no empate, o mestre: um jogador chamado "Mestre" não tira o `@mestre`.
  */
 export function findMentions(text: string, candidates: readonly string[]): string[] {
+  const found: string[] = []
+  for (const span of mentionSpans(text, candidates)) if (!found.includes(span.name)) found.push(span.name)
+  return found
+}
+
+/** Onde uma menção está no texto: do `@` (`start`) até o fim do nome (`end`, exclusivo). */
+export interface MentionSpan {
+  start: number
+  end: number
+  name: string
+}
+
+/**
+ * Cada menção do texto, na ordem, pela MESMA regra do `findMentions` (que é
+ * esta lista sem repetir nomes): para a tela destacar o `@Nome` onde ele está.
+ * Pode repetir nome; um nome com `@` dentro pode cobrir o começo da menção
+ * seguinte, e quem desenha pula a que começa antes do fim da anterior.
+ */
+export function mentionSpans(text: string, candidates: readonly string[]): MentionSpan[] {
   const longestFirst = candidates
     .filter((name) => name !== '')
     .sort((a, b) => b.length - a.length || Number(b === CHAT_MASTER_MENTION) - Number(a === CHAT_MASTER_MENTION))
-  const found: string[] = []
+  const spans: MentionSpan[] = []
   for (const match of text.matchAll(MENTION_AT)) {
     const start = match.index + 1
     const name = longestFirst.find((candidate) => isMentionAt(text, start, candidate))
-    if (name !== undefined && !found.includes(name)) found.push(name)
+    if (name !== undefined) spans.push({ start: match.index, end: start + name.length, name })
   }
-  return found
+  return spans
+}
+
+/** "@" e o pedaço de nome digitado até o cursor. O "@" começa menção onde `findMentions` também aceita. */
+const MENTION_BEING_TYPED = /(?<![\p{L}\p{N}\p{M}])@([^\s@]*)$/u
+
+/** A menção sendo digitada no rascunho: onde está o "@" e o que veio depois dele, até o cursor. */
+export function mentionBeingTyped(draft: string, caret: number): { start: number; typed: string } | null {
+  const match = MENTION_BEING_TYPED.exec(draft.slice(0, caret))
+  return match === null ? null : { start: match.index, typed: match[1] }
+}
+
+/** Sem acento e sem maiúscula: "@jo" acha "João". */
+function looseName(name: string): string {
+  return name.normalize('NFD').replace(COMBINING_MARKS, '').toLowerCase()
+}
+
+/** Os nomes que começam com o que foi digitado depois do "@", na ordem dada e sem repetir. */
+export function mentionOptions(names: readonly string[], typed: string): string[] {
+  const wanted = looseName(typed)
+  return [...new Set(names)].filter((name) => name !== '' && looseName(name).startsWith(wanted))
 }
 
 function isMentionAt(text: string, start: number, name: string): boolean {

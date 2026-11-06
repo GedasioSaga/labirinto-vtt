@@ -1,0 +1,409 @@
+/* ============================================ CHAT DA MESA (fatia C2)
+   O mesmo papel e a mesma régua das telas da S3 (lobby.css): a folha de papel
+   escuro, o latão para o que é seu ou chama você, a maré para o aviso do
+   privado. A conversa lê como um diário de bordo: quem disse, a hora miúda,
+   o texto; a mesma pessoa em seguida não repete o nome. */
+
+/* Duas classes: o lobby.css entra depois deste arquivo e o `.lo-pagina` dele (160px embaixo) ganharia. */
+.lo-pagina.lo-pagina--chat { padding-bottom: var(--lb-space-5); }
+.lo-chat__cab-pag { margin-bottom: var(--lb-space-5); }
+
+.lo-chat {
+  display: grid;
+  grid-template-columns: minmax(0, 248px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--lb-space-5);
+}
+
+/* O atalho na cabeça fixa, em toda tela da mesa: o balão e as não lidas. */
+.lo-chat-atalho { gap: 6px; padding: 0 10px; color: var(--lb-color-parchment-dim); }
+.lo-chat-atalho .lo-chat__conta { margin-left: 2px; }
+
+/* ------------------------------------------------- a lista de conversas */
+
+.lo-chat__lado { min-width: 0; }
+
+.lo-chat__lista { display: flex; flex-direction: column; gap: 2px; }
+
+.lo-chat__grupo {
+  margin: var(--lb-space-5) 0 var(--lb-space-2) 10px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lo-chat__conv {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-3);
+  min-height: 46px;
+  padding: 6px 10px;
+  border-radius: var(--lb-radius-md);
+  color: var(--lb-color-parchment-dim);
+  text-decoration: none;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease;
+}
+
+.lo-chat__conv[aria-current='page'] {
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  box-shadow: inset 2px 0 0 var(--lb-color-brass), var(--lb-shadow-bevel);
+}
+
+.lo-chat__conv[data-saiu='1'] { opacity: 0.7; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-chat__conv:hover:not([aria-current='page']) { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
+}
+
+.lo-chat__sala {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lo-chat__sala .lo-ic { width: 15px; height: 15px; }
+
+.lo-chat__conv-nome {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--lb-font-size-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lo-chat__conv-papel { color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); }
+
+/* As não lidas: latão cheio, número em algarismo de tabela. "@" quando uma delas chama você. */
+.lo-chat__conta {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.lo-chat__arroba {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: 50%;
+  color: var(--lb-color-brass-bright);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 1;
+}
+
+/* ----------------------------------------------------- a conversa aberta */
+
+.lo-chat__folha {
+  display: flex;
+  flex-direction: column;
+  /* A folha cabe na janela sem a página rolar: 276px = cabeça, faixa, título da página e a margem de baixo. */
+  height: clamp(460px, calc(100dvh - 276px), 860px);
+  overflow: hidden;
+}
+
+.lo-chat__cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lb-space-2) var(--lb-space-4);
+  padding: var(--lb-space-4) var(--lb-space-5);
+  border-bottom: 1px solid var(--lb-gr-filete);
+}
+
+.lo-chat__cab-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lo-chat__cab-texto .lo-painel__titulo { overflow-wrap: anywhere; }
+.lo-chat__cab-acoes { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.lo-chat__baixada:empty { display: none; }
+
+.lo-chat__fora { margin: var(--lb-space-3) var(--lb-space-5) 0; }
+
+.lo-chat__registro-casca { position: relative; flex: 1 1 auto; min-height: 0; }
+
+.lo-chat__registro {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--lb-space-3) 0 var(--lb-space-4);
+  outline: none;
+}
+
+.lo-chat__registro:focus-visible { box-shadow: inset 0 0 0 2px var(--lb-color-brass); }
+
+.lo-chat__antes { display: flex; justify-content: center; padding: var(--lb-space-1) 0 var(--lb-space-3); }
+
+.lo-chat__inicio {
+  padding: var(--lb-space-2) var(--lb-space-5) var(--lb-space-3);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-chat__carregando {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  height: 100%;
+  color: var(--lb-color-parchment-dim);
+}
+
+.lo-chat__vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lb-space-2);
+  height: 100%;
+}
+
+.lo-chat__vazio > .lo-ic { width: 28px; height: 28px; color: var(--lb-color-brass); }
+
+.lo-chat__dia {
+  margin: var(--lb-space-4) var(--lb-space-5) var(--lb-space-1);
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lo-chat__linhas > .lo-chat__dia:first-child { margin-top: 0; }
+
+/* "Mensagens novas": aparece só quando a pessoa está lendo lá em cima. */
+.lo-chat__novas {
+  position: absolute;
+  left: 50%;
+  bottom: var(--lb-space-3);
+  transform: translateX(-50%);
+  box-shadow: var(--lb-shadow-float);
+  animation: lo-chat-novas 180ms var(--lb-gr-ease-out);
+}
+
+.lo-chat__novas:active:not(:disabled) { transform: translateX(-50%) scale(0.97); }
+
+@keyframes lo-chat-novas {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+}
+
+/* ------------------------------------------------------------ a mensagem */
+
+.lo-msg {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  column-gap: var(--lb-space-3);
+  padding: 6px var(--lb-space-5) 4px;
+}
+
+.lo-msg[data-continua='1'] { padding-top: 0; }
+.lo-msg__lado { margin-top: 2px; }
+.lo-msg__corpo { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.lo-msg__cab { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--lb-space-2); }
+.lo-msg__quem { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-semibold); }
+.lo-msg__quem[data-eu='1'] { color: var(--lb-color-brass-bright); }
+
+.lo-msg__hora {
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.lo-msg__texto {
+  max-width: 72ch;
+  color: var(--lb-color-parchment);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lo-chat__mencao { color: var(--lb-color-brass-bright); font-weight: var(--lb-font-weight-medium); }
+.lo-chat__mencao[data-a-mim='1'] { padding: 0 3px; border-radius: var(--lb-radius-sm); background: var(--lb-color-brass-soft); }
+
+/* Chama você: a régua de latão na beira, como o aumento no histórico. */
+.lo-msg[data-a-mim='1'] { background: linear-gradient(90deg, rgba(224, 164, 74, 0.08), transparent 55%); }
+.lo-msg[data-a-mim='1']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--lb-color-brass);
+}
+
+.lo-msg[data-apagada='1'] .lo-msg__texto { color: var(--lb-color-parchment-faint); font-style: italic; }
+.lo-msg[data-pendente='1'] .lo-msg__texto { color: var(--lb-color-parchment-dim); }
+
+.lo-msg__estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-msg__estado .lo-giro { width: 10px; height: 10px; border-width: 1.5px; }
+.lo-msg[data-recusada='1'] .lo-msg__estado { color: var(--lb-color-ember); }
+.lo-msg__pendente-acoes { display: flex; flex-wrap: wrap; gap: var(--lb-control-gap); margin-top: var(--lb-space-2); }
+.lo-msg__confirma { max-width: 52ch; }
+
+/* Apagar a própria: aparece ao passar o mouse ou ao chegar pelo Tab; no toque, fica sempre. */
+.lo-msg__acoes { align-self: start; opacity: 1; }
+
+@media (hover: hover) and (pointer: fine) {
+  .lo-msg__acoes { opacity: 0; transition: opacity var(--lb-motion-fast) ease; }
+  .lo-msg:hover .lo-msg__acoes,
+  .lo-msg:focus-within .lo-msg__acoes { opacity: 1; }
+  .lo-msg:hover { background-color: rgba(255, 255, 255, 0.015); }
+}
+
+/* Só o que chega ao vivo entra com movimento (o histórico aparece parado). */
+.lo-msg[data-nova='1'] { animation: lo-chat-chega 200ms var(--lb-gr-ease-out); }
+
+@keyframes lo-chat-chega {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* ------------------------------------------------------- escrever */
+
+.lo-chat__escrever {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-3) var(--lb-space-5) var(--lb-space-3);
+  border-top: 1px solid var(--lb-gr-filete);
+}
+
+.lo-chat__escrever--bloqueado { padding-block: var(--lb-space-4); }
+
+.lo-chat__campo { position: relative; display: flex; align-items: flex-end; gap: var(--lb-space-2); }
+
+.lo-chat__texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 168px;
+  resize: none;
+  field-sizing: content;
+}
+
+textarea.lo-chat__texto { min-height: 44px; }
+.lo-chat__texto::placeholder { color: var(--lb-color-parchment-faint); }
+.lo-chat__enviar { min-height: 44px; }
+
+.lo-chat__dicas { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px var(--lb-space-3); }
+.lo-chat__dicas [data-passou='1'] { color: var(--lb-color-ember); }
+
+@media (pointer: coarse) {
+  .lo-chat__dica { display: none; }
+}
+
+.lo-chat__sugestoes {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  width: min(280px, 100%);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-lg);
+  /* Sem animação: a lista abre ao digitar @, uma ação de teclado e frequente. Movimento aqui só atrasaria. */
+}
+
+.lo-chat__sugestao {
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-sm);
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+}
+
+.lo-chat__sugestao[aria-selected='true'] { background: var(--lb-color-brass-soft); color: var(--lb-color-parchment); }
+
+/* ------------------------------------------- o aviso do privado */
+
+.lo-chat__rodape {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3) var(--lb-space-5) var(--lb-space-4);
+  background: var(--lb-color-tide-soft);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.5;
+}
+
+.lo-chat__rodape .lo-ic { margin-top: 2px; color: var(--lb-color-tide); }
+.lo-chat__rodape span { max-width: 96ch; }
+
+.lo-chat__aviso {
+  width: min(520px, calc(100% - 32px));
+  padding: var(--lb-space-6);
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-xl);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  box-shadow: var(--lb-shadow-lg), var(--lb-shadow-bevel);
+}
+
+.lo-chat__aviso[open] { animation: lo-chat-janela 200ms var(--lb-gr-ease-out); }
+.lo-chat__aviso::backdrop { background: rgba(8, 8, 10, 0.62); }
+
+@keyframes lo-chat-janela {
+  from { opacity: 0; transform: scale(0.96); }
+}
+
+.lo-chat__aviso-titulo {
+  margin-bottom: var(--lb-space-3);
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+.lo-chat__aviso-texto { color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-lg); line-height: 1.6; }
+.lo-chat__aviso-acoes { display: flex; justify-content: flex-end; margin-top: var(--lb-space-5); }
+
+/* -------------------------------------------------------- tela estreita */
+
+@media (max-width: 720px) {
+  .lo-chat { grid-template-columns: minmax(0, 1fr); gap: var(--lb-space-3); }
+  .lo-chat__lado { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  .lo-chat__lista { flex-direction: row; }
+  .lo-chat__grupo { display: none; }
+  .lo-chat__conv { flex: none; min-height: 44px; }
+  .lo-chat__conv-nome { max-width: 12ch; }
+  .lo-chat__folha { height: clamp(420px, calc(100dvh - 210px), 760px); }
+  .lo-chat__cab, .lo-chat__escrever { padding-inline: var(--lb-space-4); }
+  .lo-msg { padding-inline: var(--lb-space-4); }
+  .lo-chat__cab-acoes { align-items: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-msg[data-nova='1'], .lo-chat__novas, .lo-chat__aviso[open] { animation: none; }
+}

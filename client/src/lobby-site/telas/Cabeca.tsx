@@ -7,6 +7,7 @@ import { pedirFocoNoAviso } from './foco'
 import { Icone } from './Icone'
 import { tomDe } from './textos'
 import { enderecoDaRota } from '../dados/rotas'
+import { contagemDeNaoLidas } from './chat/textosDoChat'
 
 /**
  * A CABEÇA FIXA (protótipo, "cabeça fixa e faixa"): a marca, onde a pessoa
@@ -48,16 +49,24 @@ export function Cabeca() {
           <ol>
             <li>{rota.tela === 'campanhas' ? <span aria-current="page">Suas mesas</span> : link({ tela: 'campanhas' }, 'Suas mesas')}</li>
             {campanha !== null && nomeDaMesa !== null && (
-              <li>{ficha === undefined ? <span aria-current="page">{nomeDaMesa}</span> : link({ tela: 'campanha', campanhaId: campanha.campanhaId }, nomeDaMesa)}</li>
+              <li>
+                {ficha === undefined && rota.tela !== 'chat' ? <span aria-current="page">{nomeDaMesa}</span> : link({ tela: 'campanha', campanhaId: campanha.campanhaId }, nomeDaMesa)}
+              </li>
             )}
             {ficha !== undefined && (
               <li>
                 <span aria-current="page">{ficha.doc.nome}</span>
               </li>
             )}
+            {campanha !== null && rota.tela === 'chat' && (
+              <li>
+                <span aria-current="page">Chat</span>
+              </li>
+            )}
           </ol>
         </nav>
         <div className="lo-topo__direita">
+          {campanha !== null && rota.tela !== 'chat' && <AtalhoDoChat campanhaId={campanha.campanhaId} />}
           {naMesa.length > 0 && (
             <div className="lo-agora-mini" title={`Na mesa agora: ${nomesNaMesa}`}>
               <div className="lo-agora-mini__rostos" aria-hidden="true">
@@ -105,6 +114,26 @@ export function Cabeca() {
       </div>
       {campanha !== null && <Faixa campanha={campanha} />}
     </header>
+  )
+}
+
+/** O caminho para o chat da mesa (C2) em toda tela da campanha, com as não lidas. */
+function AtalhoDoChat({ campanhaId }: { campanhaId: string }) {
+  const site = useSite()
+  const demo = useDoSite((estado) => estado.demo)
+  const naoLidas = useDoSite((estado) => estado.chat?.naoLidas ?? 0)
+  const alvo: Rota = { tela: 'chat', campanhaId, com: null }
+  return (
+    <a
+      className="lo-btn lo-btn--fantasma lo-chat-atalho"
+      href={enderecoDaRota(alvo, demo)}
+      onClick={aoClicarNoLink(site, alvo)}
+      aria-label={naoLidas > 0 ? `Chat da mesa, ${contagemDeNaoLidas(naoLidas)} não ${naoLidas === 1 ? 'lida' : 'lidas'}` : 'Chat da mesa'}
+    >
+      <Icone nome="conversa" />
+      <span className="lo-chat-atalho__nome">Chat</span>
+      {naoLidas > 0 && <span className="lo-chat__conta">{contagemDeNaoLidas(naoLidas)}</span>}
+    </a>
   )
 }
 

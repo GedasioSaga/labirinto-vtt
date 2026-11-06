@@ -1,3 +1,4 @@
+import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
 import type { MensagemDoCliente, MensagemDoServidor, Papel } from '../../lib/nuvem/tipos'
 
 /**
@@ -33,15 +34,34 @@ export interface Eu {
  */
 export type MotivoDoFechamento = 'rede' | 'sem-acesso'
 
+/**
+ * Tudo o que chega pelo canal da campanha: o protocolo das fichas (§5.4) e o
+ * do chat (`chat.*`, fatia C2), que anda pela MESMA conexão.
+ */
+export type MensagemDoSite = MensagemDoServidor | MensagemDoChatDoServidor
+
+/** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat. */
+export type PedidoDoSite = MensagemDoCliente | PedidoDoChat
+
+/** O frame é do chat (`chat.*`)? */
+export function ehDoChat(mensagem: MensagemDoSite): mensagem is MensagemDoChatDoServidor {
+  return mensagem.t.startsWith('chat.')
+}
+
+/** O pedido é do chat (`chat.*`)? */
+export function ehPedidoDoChat(pedido: PedidoDoSite): pedido is PedidoDoChat {
+  return pedido.t.startsWith('chat.')
+}
+
 export interface OuvinteDoCanal {
   aoAbrir(): void
-  aoReceber(mensagem: MensagemDoServidor): void
+  aoReceber(mensagem: MensagemDoSite): void
   aoFechar(motivo: MotivoDoFechamento): void
 }
 
 export interface Canal {
   /** `false` = o canal não está aberto (a mensagem não saiu). */
-  enviar(mensagem: MensagemDoCliente): boolean
+  enviar(mensagem: PedidoDoSite): boolean
   /** Fecha sem avisar o ouvinte (quem fecha já sabe). */
   fechar(): void
 }

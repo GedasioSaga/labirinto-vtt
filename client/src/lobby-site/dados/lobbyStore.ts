@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { armazenamentoEmTexto, type ArmazenamentoDaFila, type ArquivoDeTexto } from '../../lib/nuvem/fila'
+import { criarChatDaCampanha, type ChatDaCampanha, type EstadoDoChat } from './chatDaCampanha'
 import { clienteIdDaAba, type AmbienteDaAba } from './clienteDaAba'
 import { abrirBancoDaFila, armazenamentoNoIndexedDB } from './filaNoIndexedDB'
 import { ErroDoEu, type Eu, type FonteDoLobby } from './fonte'
@@ -26,6 +27,8 @@ export interface EstadoDoSite {
   rota: Rota
   /** A campanha da rota; `null` = a rota não é de campanha, ou ela ainda está abrindo. */
   campanha: EstadoDaCampanha | null
+  /** O chat da campanha aberta (C2); `null` junto com ela. */
+  chat: EstadoDoChat | null
   /** Não deu para abrir a campanha (IndexedDB bloqueado, navegador sem espaço). */
   erroDaCampanha: string | null
 }
@@ -36,6 +39,8 @@ export interface Site {
   irPara(rota: Rota): void
   /** A sessão da campanha aberta, para editar, decidir, desfazer e pedir histórico. */
   sessao(): SessaoDaCampanha | null
+  /** O chat da campanha aberta, para mandar, apagar, ler e baixar. */
+  chat(): ChatDaCampanha | null
   encerrar(): void
 }
 
@@ -54,6 +59,7 @@ export interface JanelaDoSite {
 interface Aberta {
   campanhaId: string
   sessao: SessaoDaCampanha
+  chat: ChatDaCampanha
   fecharBanco(): void
 }
 
@@ -102,7 +108,7 @@ function ambienteDaAba(janela: JanelaDoSite): AmbienteDaAba {
 export function iniciarSite(janela: JanelaDoSite): Site {
   const demo = ehDemo(janela.location.search)
   const fonte = demo ? criarFonteDemo() : criarFonteReal({ origem: janela.location.origin })
-  const store = createStore<EstadoDoSite>(() => ({ demo, eu: { t: 'carregando' }, rota: lerRota(janela.location.pathname), campanha: null, erroDaCampanha: null }))
+  const store = createStore<EstadoDoSite>(() => ({ demo, eu: { t: 'carregando' }, rota: lerRota(janela.location.pathname), campanha: null, chat: null, erroDaCampanha: null }))
   let aberta: Aberta | null = null
   /** Cada abertura ganha um número: a que terminar depois de outra navegação é fechada em vez de ocupar a tela. */
   let aberturas = 0
@@ -116,6 +122,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
 
   function fecharAberta(): void {
     if (aberta === null) return
+    aberta.chat.fechar()
     aberta.sessao.fechar()
     aberta.fecharBanco()
     aberta = null
@@ -124,6 +131,14 @@ export function iniciarSite(janela: JanelaDoSite): Site {
   async function abrir(eu: Eu, campanhaId: string, minha: number): Promise<void> {
     const fila = await abrirFilaDaCampanha(demo, eu.email, campanhaId, idDaAba)
     let sessao: SessaoDaCampanha | null = null
+    // O chat manda pela sessão, que só existe depois de aberta; o canal só abre depois disso (nunca de dentro da abertura).
+    const chat = criarChatDaCampanha({
+      enviar: (pedido) => sessao?.enviarDoChat(pedido) ?? false,
+      quemSouEu: () => sessao?.estado().eu?.contaId ?? null,
+      aoMudar: (estadoDoChat) => {
+        if (minha === aberturas) store.setState({ chat: estadoDoChat })
+      },
+    })
     try {
       sessao = await abrirSessaoDaCampanha({
         fonte,
@@ -133,18 +148,21 @@ export function iniciarSite(janela: JanelaDoSite): Site {
         aoMudar: (campanha) => {
           if (minha === aberturas) store.setState({ campanha })
         },
+        chat,
       })
     } catch (erro) {
+      chat.fechar()
       fila.fecharBanco()
       throw erro
     }
     if (minha !== aberturas) {
+      chat.fechar()
       sessao.fechar()
       fila.fecharBanco()
       return
     }
-    aberta = { campanhaId, sessao, fecharBanco: fila.fecharBanco }
-    store.setState({ campanha: sessao.estado(), erroDaCampanha: null })
+    aberta = { campanhaId, sessao, chat, fecharBanco: fila.fecharBanco }
+    store.setState({ campanha: sessao.estado(), chat: chat.estado(), erroDaCampanha: null })
   }
 
   /** Abre a campanha da rota (e fecha a anterior), quando o `/api/eu` já respondeu. */
@@ -156,15 +174,15 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     aberturas += 1
     fecharAberta()
     if (campanhaId === null) {
-      store.setState({ campanha: null, erroDaCampanha: null })
+      store.setState({ campanha: null, chat: null, erroDaCampanha: null })
       return
     }
     // Mesa que não está na lista desta pessoa: não abre base nem canal com id que veio só da URL.
     if (!eu.eu.campanhas.some((campanha) => campanha.campanhaId === campanhaId)) {
-      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, erroDaCampanha: null })
+      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, erroDaCampanha: null })
       return
     }
-    store.setState({ campanha: null, erroDaCampanha: null })
+    store.setState({ campanha: null, chat: null, erroDaCampanha: null })
     const minha = aberturas
     abrir(eu.eu, campanhaId, minha).catch((erro: unknown) => {
       if (minha === aberturas) store.setState({ erroDaCampanha: textoDoErro(erro) })
@@ -203,6 +221,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
       seguirARota()
     },
     sessao: () => aberta?.sessao ?? null,
+    chat: () => aberta?.chat ?? null,
     encerrar() {
       aberturas += 1
       fecharAberta()

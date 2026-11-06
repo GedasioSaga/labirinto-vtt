@@ -15,7 +15,8 @@ import {
   type Visibilidade,
 } from '../../lib/nuvem/tipos'
 import type { Personagem } from '../../lib/personagem'
-import { RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MotivoDoFechamento, type Relogio } from './fonte'
+import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
+import { ehDoChat, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type MotivoDoFechamento, type Relogio } from './fonte'
 
 /**
  * A SESSÃO DE UMA CAMPANHA no site (§5.4-5.6): o protocolo inteiro do lado do
@@ -126,7 +127,21 @@ export interface SessaoDaCampanha {
   pedirHistorico(fichaId: string, maisAntigas?: boolean): boolean
   /** A rede voltou (evento `online`): tenta já, sem esperar a vez. */
   reconectarAgora(): void
+  /** Um pedido do chat pelo mesmo canal. `false` = canal fora do ar ou ainda sem a base (o chat espera o `aoFicarEmDia`). */
+  enviarDoChat(pedido: PedidoDoChat): boolean
   fechar(): void
+}
+
+/**
+ * Uma parte do site que fala pelo MESMO canal da campanha, com estado
+ * próprio (o chat da C2): recebe os frames dela, sabe quando o canal fica em
+ * dia (para pedir o que perdeu) e quando cai. Manda pelo `enviarDoChat`.
+ */
+export interface ParteDoCanal {
+  /** O canal recebeu a base (na abertura e em cada volta depois de uma queda). */
+  aoFicarEmDia(): void
+  aoReceber(mensagem: MensagemDoChatDoServidor): void
+  aoCair(): void
 }
 
 export interface OpcoesDaSessao {
@@ -135,6 +150,8 @@ export interface OpcoesDaSessao {
   armazenamento: ArmazenamentoDaFila
   clienteId: string
   aoMudar(estado: EstadoDaCampanha): void
+  /** O chat da campanha (C2); sem ele, frame `chat.*` é ignorado. */
+  chat?: ParteDoCanal
   relogio?: Relogio
   novoId?: () => string
 }
@@ -283,6 +300,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     pararPrazoDoEstado()
     pararAdiados()
     if (encerrada) return
+    opcoes.chat?.aoCair()
     if (motivo === 'sem-acesso') {
       conexao = 'sem-acesso'
       publicar()
@@ -338,11 +356,17 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       if (situacao.t === 'enviando') mandarDesfazer(alvo, situacao.novoOpId, situacao.confirmar)
     }
     for (const [fichaId, antesDeRev] of historicosPedidos) mandarHistorico(fichaId, antesDeRev)
+    opcoes.chat?.aoFicarEmDia()
   }
 
   // ── O que chega ──────────────────────────────────────────────────────────
 
-  async function tratar(mensagem: MensagemDoServidor): Promise<void> {
+  async function tratar(mensagem: MensagemDoSite): Promise<void> {
+    // O chat tem estado próprio e não mexe na base: vai direto a ele, sem publicar a campanha.
+    if (ehDoChat(mensagem)) {
+      opcoes.chat?.aoReceber(mensagem)
+      return
+    }
     switch (mensagem.t) {
       case 'estado':
         await receberEstado(mensagem)
@@ -374,6 +398,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
         pararPrazo()
         pararPrazoDoEstado()
         pararAdiados()
+        opcoes.chat?.aoCair()
         break
       case 'presenca':
         naMesa = mensagem.naMesa
@@ -595,6 +620,10 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       cancelarReconexao()
       tentativas = 0
       conectar()
+    },
+    enviarDoChat(pedido) {
+      if (!sincronizada || canal === null) return false
+      return canal.enviar(pedido)
     },
     fechar() {
       encerrada = true

@@ -47,6 +47,10 @@ const TRACOS = {
       <path d="M3.5 6l8.5 7 8.5-7" />
     </>
   ),
+  /** Chat (C2): o balão de fala. */
+  conversa: <path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z" />,
+  /** Baixar a conversa (C2). */
+  baixar: <path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" />,
 } as const
 
 export type NomeDoIcone = keyof typeof TRACOS

@@ -10,6 +10,8 @@ import { segmentoValido } from '../../lib/nuvem/caminho'
  *   /c/:campanhaId/f/:fichaId          a ficha
  *   /c/:campanhaId/f/:fichaId/mochila  a mochila dela
  *   /c/:campanhaId/f/:fichaId/historico
+ *   /c/:campanhaId/chat                a sala do chat (C2)
+ *   /c/:campanhaId/chat/:contaId       o privado com essa conta
  *
  * `?demo=1` liga a demo e viaja junto em toda navegação.
  */
@@ -20,6 +22,8 @@ export type Rota =
   | { tela: 'campanhas' }
   | { tela: 'campanha'; campanhaId: string }
   | { tela: 'ficha'; campanhaId: string; fichaId: string; aba: AbaDaFicha }
+  /** `com` = o contaId do outro lado do privado; `null` = a sala. */
+  | { tela: 'chat'; campanhaId: string; com: string | null }
   | { tela: 'nao-achada' }
 
 const NAO_ACHADA: Rota = { tela: 'nao-achada' }
@@ -47,6 +51,11 @@ export function lerRota(caminho: string): Rota {
   const [c, campanhaId, f, fichaId, parteDaAba, ...sobra] = partes
   if (c !== 'c' || !segmentoValido(campanhaId) || sobra.length > 0) return NAO_ACHADA
   if (f === undefined) return { tela: 'campanha', campanhaId }
+  if (f === 'chat') {
+    if (parteDaAba !== undefined) return NAO_ACHADA
+    if (fichaId === undefined) return { tela: 'chat', campanhaId, com: null }
+    return segmentoValido(fichaId) ? { tela: 'chat', campanhaId, com: fichaId } : NAO_ACHADA
+  }
   const aba = abaDe(parteDaAba)
   if (f !== 'f' || !segmentoValido(fichaId) || aba === null) return NAO_ACHADA
   return { tela: 'ficha', campanhaId, fichaId, aba }
@@ -63,12 +72,16 @@ export function caminhoDaRota(rota: Rota): string {
       const daFicha = `/c/${encodeURIComponent(rota.campanhaId)}/f/${encodeURIComponent(rota.fichaId)}`
       return rota.aba === 'ficha' ? daFicha : `${daFicha}/${rota.aba}`
     }
+    case 'chat': {
+      const doChat = `/c/${encodeURIComponent(rota.campanhaId)}/chat`
+      return rota.com === null ? doChat : `${doChat}/${encodeURIComponent(rota.com)}`
+    }
   }
 }
 
 /** A campanha que a rota abre; `null` = rota fora de campanha. */
 export function campanhaDaRota(rota: Rota): string | null {
-  return rota.tela === 'campanha' || rota.tela === 'ficha' ? rota.campanhaId : null
+  return rota.tela === 'campanha' || rota.tela === 'ficha' || rota.tela === 'chat' ? rota.campanhaId : null
 }
 
 export function ehDemo(busca: string): boolean {

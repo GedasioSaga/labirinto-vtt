@@ -3,9 +3,10 @@ import type { Json } from '../../lib/nuvem/json'
 import type { Cota } from '../../lib/nuvem/limites'
 import { processarLote, type Gravacoes, type LeitorDaCampanha, type ResultadoDoProcessamento } from '../../lib/nuvem/lote'
 import { fichaNoEstado, projetarMembros, projetarOpParaJogador } from '../../lib/nuvem/projecao'
-import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidade, type Membro, type MensagemDoCliente, type MensagemDoServidor, type Op, type OpGravada, type Origem, type PresencaNaMesa, type Recusada } from '../../lib/nuvem/tipos'
+import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidade, type Membro, type MensagemDoServidor, type Op, type OpGravada, type Origem, type PresencaNaMesa, type Recusada } from '../../lib/nuvem/tipos'
+import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
-import { RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type OuvinteDoCanal, type Relogio } from './fonte'
+import { ehPedidoDoChat, RELOGIO_DO_NAVEGADOR, type Canal, type FonteDoLobby, type MensagemDoSite, type OuvinteDoCanal, type PedidoDoSite, type Relogio } from './fonte'
 import { lerMensagemDoServidor } from './mensagens'
 
 /**
@@ -129,6 +130,8 @@ function presencaPara(campanha: CampanhaEmMemoria, membro: Membro): MensagemDoSe
 
 interface ServidorDaDemo {
   campanhas: Map<string, CampanhaEmMemoria>
+  /** O chat de cada mesa (C2), com as conversas inventadas. */
+  chats: Map<string, ChatDaDemo>
   /** Os canais abertos, para a difusão do `aplicada` (inclusive a mudança simulada do mestre). */
   abertos: Set<(campanhaId: string, ops: readonly OpGravada[]) => void>
 }
@@ -146,7 +149,7 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
     servidor.abertos.delete(difundir)
   }
   /** Ida e volta pelo JSON e pelo leitor da fonte real, como no fio. */
-  function entregar(mensagem: MensagemDoServidor): void {
+  function entregar(mensagem: MensagemDoSite): void {
     relogio.depois(LATENCIA_DA_DEMO_MS, () => {
       if (encerrado) return
       const lida = lerMensagemDoServidor(JSON.stringify(mensagem))
@@ -167,7 +170,11 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
     for (const resposta of resultado.respostas) entregar(resposta)
     for (const outro of servidor.abertos) outro(campanhaId, resultado.gravacoes.ops)
   }
-  function atender(mensagem: MensagemDoCliente, alvo: CampanhaEmMemoria, eu: Membro): void {
+  function atender(mensagem: PedidoDoSite, alvo: CampanhaEmMemoria, eu: Membro): void {
+    if (ehPedidoDoChat(mensagem)) {
+      servidor.chats.get(campanhaId)?.atender(mensagem, eu, entregar)
+      return
+    }
     const agora = relogio.agora()
     switch (mensagem.t) {
       case 'ola': {
@@ -227,7 +234,13 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
     semear(campanha, dados.antigas, agora)
     campanhas.set(dados.campanhaId, campanha)
   }
-  const servidor: ServidorDaDemo = { campanhas, abertos: new Set() }
+  const chats = new Map<string, ChatDaDemo>()
+  for (const campanha of campanhas.values()) {
+    const quemVe = membroPorEmail(campanha, EMAIL_DA_DEMO)
+    if (quemVe === undefined) continue
+    chats.set(campanha.campanhaId, criarChatDaDemo(campanha.campanhaId, quemVe.contaId, campanha.todosOsMembros, relogio.agora, relogio.depois))
+  }
+  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set() }
   let simuladas = 0
 
   return {

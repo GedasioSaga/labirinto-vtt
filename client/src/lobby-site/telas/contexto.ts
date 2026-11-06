@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useLayoutEffect, useState } from 'react'
 import { useStore } from 'zustand'
 import type { EstadoDoSite, Site } from '../dados/lobbyStore'
 import type { FonteDaDemo } from '../dados/fonteDemo'
@@ -43,7 +43,10 @@ export function aoClicarNoLink(site: Site, rota: Rota) {
 /** A hora de agora, andando de minuto em minuto: o "há 6 min" do histórico não fica parado. */
 export function useAgora(passoMs = 30_000): number {
   const [agora, setAgora] = useState(() => Date.now())
-  useEffect(() => {
+  // Antes de pintar: quando o passo muda (o chat passa de minuto em minuto para segundo em segundo), a hora do
+  // passo antigo pode ter quase um minuto, e a tela mostraria "vai sozinha em 26 s" por um quadro.
+  useLayoutEffect(() => {
+    setAgora(Date.now())
     const id = setInterval(() => setAgora(Date.now()), passoMs)
     return () => clearInterval(id)
   }, [passoMs])
