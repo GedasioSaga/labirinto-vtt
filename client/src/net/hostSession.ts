@@ -512,6 +512,8 @@ export interface PurchaseRequest {
  */
 export interface AppliedItems extends ItemChange {
   sceneId?: string
+  /** LOBBY: o jogador da sala que deu, pagou ou trocou (`comAutor`): a op sai em nome dele, "atestado pelo app". Ausente = o mestre. */
+  autoria?: AutoriaDaMesa
 }
 
 /**
@@ -7313,6 +7315,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           { tokenId: giver.id, mochila: carriedItemsOf(giver).filter((i) => i.id !== item.id) },
           { tokenId: target.id, mochila: [...carriedItemsOf(target), item] },
         ],
+        ...autoriaDosItens(playerId),
       },
     }
   }
@@ -7345,7 +7348,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const seen of touching) {
       const giver = masterToken(seen.id)
       const change = giver === undefined ? null : payCoinsChange(giver, target, msg.moedas)
-      if (change !== null) return { outbound: [], applyItems: { ...backgroundSceneId(scene, world), ...change } }
+      if (change !== null) return { outbound: [], applyItems: { ...backgroundSceneId(scene, world), ...change, ...autoriaDosItens(playerId) } }
     }
     return reject('short')
   }
@@ -7403,7 +7406,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const change = found === null || hiddenFromPlayer(found.scene, trade.tokenId) ? null : tradeChange(found.token, trade.terms.dou, ask, randomId)
     const closed = (result: TradeClosedResult): Outbound[] => [{ clientId, msg: { type: 'trade.closed', offerId: trade.offerId, result } }]
     if (found === null || change === null) return { outbound: closed('unavailable'), failed: true }
-    return { outbound: closed('done'), applyItems: { ...backgroundSceneId(found.scene, world), ...change }, failed: false }
+    return { outbound: closed('done'), applyItems: { ...backgroundSceneId(found.scene, world), ...change, ...autoriaDosItens(trade.playerId) }, failed: false }
   }
 
   /** A oferta aberta `offerId`, só se é DESTE jogador. */
@@ -7893,6 +7896,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   function contaNaMesa(playerId: string): AutoriaDaMesa {
     const contaId = players.get(playerId)?.conta?.id
     return contaId === undefined ? {} : { contaId }
+  }
+
+  /** Dar, pagar e trocar pela sala saem em nome do jogador com conta (`comAutor` em `applyItemsInScene`); sem conta, como do mestre, e o campo nem vai. */
+  function autoriaDosItens(playerId: string): Pick<AppliedItems, 'autoria'> {
+    const autoria = contaNaMesa(playerId)
+    return autoria.contaId === undefined ? {} : { autoria }
   }
 
   /**

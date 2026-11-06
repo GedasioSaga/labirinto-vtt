@@ -48,7 +48,7 @@ import type { Personagem } from '../lib/personagem'
 import { gravarRpgDaPasta, rpgDe, type PastaAberta, type RpgDaPasta } from '../lib/pastasDeMapas'
 import type { Equipe } from '../lib/batalha/equipes'
 import { personagemComMidia } from '../lib/imagensDaFicha'
-import { comoTudoOuNada, prepararEmissao } from '../net/nuvem/emissor'
+import { comAutor, comoTudoOuNada, prepararEmissao } from '../net/nuvem/emissor'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import {
   aplicarEstadoNoMapa,
@@ -2557,7 +2557,8 @@ export function applyItemsInScene(change: AppliedItems): boolean {
   if (slot === undefined || (slot !== null && slot.status !== 'ok')) return false
   const bonecos = (slot === null ? useMapStore.getState().map : slot.map).tokens
   const levar = (): readonly Personagem[] | null => levarParaAsFichas(change, bonecos)
-  const fichasMudaram = ehTrocaOuPagamento(change) ? comoTudoOuNada(levar) : levar()
+  // Vinda da sala LAN, em nome do jogador (`comAutor`), como a edição da ficha dele; do mestre, sem autoria.
+  const fichasMudaram = comAutor(change.autoria, () => (ehTrocaOuPagamento(change) ? comoTudoOuNada(levar) : levar()))
   if (deFundo === null || slot === null) {
     const { map, past, future } = useMapStore.getState()
     useMapStore.setState({ map: aplicar(map), past: past.map(aplicar), future: future.map(aplicar) })
