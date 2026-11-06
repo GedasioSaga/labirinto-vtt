@@ -12,7 +12,7 @@ import {
 import type { PastaAberta, RpgDaPasta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import { readRecoveryCopy, type RecoveryCopy } from '../../lib/recoveryCopy'
-import { useAdventureStore } from '../../stores/adventureStore'
+import { fichasDonasDoProprioMapa, useAdventureStore } from '../../stores/adventureStore'
 import { captureEditorWork } from '../../stores/recoveryAutosave'
 import { editarRpgDaPasta } from '../../stores/rpgDaPasta'
 import { useToastStore } from '../../stores/toastStore'
@@ -143,7 +143,12 @@ async function anotarAntesDaVolta(pastaId: string, mudar: MudarRpgDaPasta, recup
   const chaveAberta = daPasta !== null && daPasta.pastaId === pastaId ? daPasta.chave : null
   const aberto = await trabalhoAberto((pasta) => pasta.pastaId === pastaId)
   try {
-    const antes = await marcarAntesDaVoltaDoSistema(pastaId, mudar, discoDoApp, { aberto: chaveAberta, recuperado: aberto?.copia ?? null, recuperacao })
+    const antes = await marcarAntesDaVoltaDoSistema(pastaId, mudar, discoDoApp, {
+      aberto: chaveAberta,
+      recuperado: aberto?.copia ?? null,
+      fichasDoMapa: aberto?.fichasDoMapa ?? [],
+      recuperacao,
+    })
     return { aberto, antes }
   } catch (erro) {
     throw new Error(`O que os bonecos desta pasta carregam não pôde ser anotado (${motivo(erro)}): nada foi gravado, e o sistema não mudou.`)
@@ -202,7 +207,9 @@ function idsDe(pendentes: readonly ItemPendente[]): string[] {
  * Gravado, o espelho põe as fichas da pasta nos bonecos na hora — a de mesmo
  * id vence o boneco. ANTES, o que só os bonecos carregam, contra as fichas da
  * pasta, vira pendente no relatório, a partir do trabalho aberto (o não salvo
- * também). Não deu para anotar: lança, e o modo não muda. Não gravou: os
+ * também); com a aventura já migrada, o que só as fichas do próprio mapa têm
+ * (a dona da mochila ali é a ficha, e o boneco dela pode nem estar numa cena
+ * lida). Não deu para anotar: lança, e o modo não muda. Não gravou: os
  * pendentes desse espelho que não valeu saem, e lança. Gravado: mostra os
  * pendentes. Fora do app, só `gravar`.
  */
@@ -214,7 +221,7 @@ export async function usarOdaPastaNoMapaAberto(chave: string, gravar: () => Prom
   const aberto = await trabalhoAberto((pasta) => pasta.chave === chave)
   let anotado: PendentesAntesDoEspelho | null
   try {
-    anotado = await marcarMapaQueVaiUsarAPasta(chave, discoDoApp, { recuperado: aberto?.copia ?? null })
+    anotado = await marcarMapaQueVaiUsarAPasta(chave, discoDoApp, { recuperado: aberto?.copia ?? null, fichasDoMapa: aberto?.fichasDoMapa ?? [] })
   } catch (erro) {
     throw new Error(`o que os bonecos deste mapa carregam não pôde ser anotado (${motivo(erro)}), e o mapa continua com o próprio sistema e personagens.`)
   }
@@ -305,6 +312,8 @@ function textoDosMapasPorConferir(aberto: TrabalhoAberto | null, abertoSemCopia:
 export interface TrabalhoAberto {
   chave: string
   copia: RecoveryCopy
+  /** As fichas do próprio mapa que mandam na mochila dos bonecos dele (`fichasDonasDoProprioMapa`), do mesmo instante da cópia. */
+  fichasDoMapa: readonly Personagem[]
 }
 
 /**
@@ -318,7 +327,9 @@ async function trabalhoAberto(eDele: (pasta: PastaAberta) => boolean): Promise<T
   if (pasta === null || !eDele(pasta)) return null
   try {
     const soltoEm = await discoDoApp.juntar(await discoDoApp.pastaDoApp(), PASTA_DOS_MAPAS, pasta.chave, ARQUIVO_DO_MAPA)
-    return { chave: pasta.chave, copia: await captureEditorWork(() => soltoEm, Date.now()) }
+    // Sem `await` entre as duas leituras: `captureEditorWork` lê o editor antes do primeiro `await` dela, e a ficha e o boneco que a mostra saem do mesmo instante.
+    const fichasDoMapa = fichasDonasDoProprioMapa(useAdventureStore.getState())
+    return { chave: pasta.chave, copia: await captureEditorWork(() => soltoEm, Date.now()), fichasDoMapa }
   } catch {
     return null
   }

@@ -9,6 +9,7 @@
  * appData. Nunca toca o disco de verdade. Dados inventados.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { serializeAdventure, type Adventure } from '../../lib/adventure'
 import { quantidadeDe } from '../../lib/items'
 import { createEmptyMap } from '../../lib/mapFactory'
 import { serializeMap } from '../../lib/mapFile'
@@ -43,6 +44,8 @@ const falso = vi.hoisted(() => {
     indiceTrava: boolean
     copia: RecoveryCopy | null
     pasta: PastaDoEditor
+    /** As fichas do próprio mapa que mandam na mochila (a aventura dele já migrada); vazio = a mochila mora nos bonecos. */
+    fichasDoMapa: Personagem[]
     /** O relatório no instante em que o editor trocou o modo (o espelho), ou `null` = não trocou. */
     relatorioNoEspelho: string | null
   } = {
@@ -51,6 +54,7 @@ const falso = vi.hoisted(() => {
     indiceTrava: false,
     copia: null,
     pasta: { chave: 'going-merry', pastaId: 'pasta_one-piece', nome: 'One Piece', proprio: false, personagens: [] },
+    fichasDoMapa: [],
     relatorioNoEspelho: null,
   }
   const disco: DiscoDaMigracao = {
@@ -90,6 +94,7 @@ vi.mock('../../stores/adventureStore', () => ({
       mudarRpgDaPasta: () => true,
     }),
   },
+  fichasDonasDoProprioMapa: () => falso.estado.fichasDoMapa,
 }))
 // O índice e o rpg.json que o app grava pelo plugin do Tauri: aqui, no disco falso.
 vi.mock('../../lib/pastasDeMapas', async (importOriginal) => {
@@ -169,6 +174,7 @@ beforeEach(() => {
   falso.estado.relatorioTrava = false
   falso.estado.indiceTrava = false
   falso.estado.relatorioNoEspelho = null
+  falso.estado.fichasDoMapa = []
   falso.estado.pasta = { chave: 'going-merry', pastaId: PASTA_ID, nome: 'One Piece', proprio: false, personagens: [], mochilaMigrada: 1 }
   arquivos.set(falso.INDICE, serializarIndice({ pastas: [{ id: PASTA_ID, nome: 'One Piece' }], mapas: [{ chave: 'going-merry', pastaId: PASTA_ID }] }))
   arquivos.set(RPG, serializarRpg({ sistemaDeRpg: SISTEMA_ONE_PIECE.id, personagens: [ficha('p_luffy', 'Luffy')], mochilaMigrada: 1 }))
@@ -237,6 +243,28 @@ function mochilaDoUsoppNaPasta(): [string, number][] {
   return (usopp?.mochila ?? []).map((item) => [item.nome, quantidadeDe(item)])
 }
 
+function moedasDoUsoppNaPasta(): number | undefined {
+  return rpgNoDisco().personagens.find((personagem) => personagem.id === 'p_usopp')?.moedas
+}
+
+/** A Poção do Usopp depois de beber uma, sem salvar: a mesma vaga da ×2 do disco. */
+const UMA_POCAO_DO_USOPP: CarriedItem = { id: 'vaga_pocao_usopp', nome: 'Poção', itemId: 'acervo_pocao', empilhavel: true }
+
+/** Os ids das linhas de pendente do relatório, na ordem. */
+function idsDoRelatorio(): unknown[] {
+  return linhasDoRelatorio().map((linha) => (typeof linha === 'object' && linha !== null && 'id' in linha ? linha.id : null))
+}
+
+/** O "Trazer para a ficha" de cada aviso `textos`, pego antes de clicar o primeiro (o clique troca a caixa). */
+function acoesDeTrazer(textos: readonly string[]): (() => void)[] {
+  return textos.map((texto) => {
+    const aviso = useToastStore.getState().toasts.find((toast) => toast.text === texto)
+    const trazer = aviso?.actions?.find((acao) => acao.label === 'Trazer para a ficha')
+    if (trazer === undefined) throw new Error(`sem o "Trazer para a ficha" de "${texto}"`)
+    return trazer.run
+  })
+}
+
 describe('"Usar o da pasta" com o mapa aberto em "Configurar só neste mapa" (trocarModoDoMapa(false))', () => {
   /** A Poção ×1 da pasta, noutra vaga: a ficha da pasta de mesmo id que vai vencer o boneco do Usopp. */
   const POCAO_DA_PASTA: CarriedItem = { id: 'vaga_pocao_pasta', nome: 'Poção', itemId: 'acervo_pocao', empilhavel: true }
@@ -298,6 +326,55 @@ describe('"Usar o da pasta" com o mapa aberto em "Configurar só neste mapa" (tr
     expect(falso.estado.relatorioNoEspelho).toBeNull()
     expect(linhasDoRelatorio()).toEqual([])
     expect(toasts()).toEqual([])
+  })
+
+  it('fechar sem salvar e reabrir: a mesma vaga e a mesma bolsa continuam UM pendente cada, com o que o disco tem, e Trazer soma uma vez', async () => {
+    // No disco, a Poção ×2 e 45 moedas; no editor, sem salvar, o Usopp bebeu uma e pagou 15.
+    falso.estado.arquivos.set(MERRY, serializeMap(goingMerry({ mochila: [POCAO_DO_USOPP], moedas: 45 })))
+    falso.estado.copia = { savedAtMs: 1, mapPath: MERRY, map: goingMerry({ mochila: [UMA_POCAO_DO_USOPP], moedas: 30 }), scenes: {} }
+    await trocarModoDoMapa(false)
+    expect(toasts().map((toast) => toast.text)).toEqual(['Poção do boneco Usopp (Going Merry) não está na mochila de Usopp.', '30 moedas do boneco Usopp (Going Merry) não estão na bolsa de Usopp.'])
+    const idsDoTrabalho = idsDoRelatorio()
+
+    // Fechar sem salvar: o disco segue com a Poção ×2 e as 45 moedas, e a abertura confere o mapa marcado.
+    useToastStore.setState({ toasts: [] })
+    await conferirMochilaAoAbrir(MERRY)
+    const avisos = ['Poção ×2 do boneco Usopp (Going Merry) não estão na mochila de Usopp.', '45 moedas do boneco Usopp (Going Merry) não estão na bolsa de Usopp.']
+    expect(toasts()).toEqual(avisos.map((text) => ({ kind: 'instrucao', text })))
+    expect(idsDoRelatorio()).toEqual(idsDoTrabalho)
+    expect(JSON.parse(falso.estado.arquivos.get(RELATORIO) ?? '{}').mapasPorConferir).toEqual([])
+
+    for (const trazer of acoesDeTrazer(avisos)) trazer()
+    // A ficha da pasta tinha a Poção ×1: ×3, não ×4; e 45 moedas, não 75.
+    await vi.waitFor(() => expect([mochilaDoUsoppNaPasta(), moedasDoUsoppNaPasta()]).toEqual([[['Poção', 3]], 45]))
+  })
+
+  it('aventura já migrada: o que só a ficha do próprio mapa tem vira pendente antes do espelho, e o boneco velho de uma cena salva antes não vira outro', async () => {
+    // A ficha própria do Usopp tem a Poção ×2; o boneco dele só está no Porão, salvo antes, ainda com a ×3 velha da mesma vaga.
+    falso.estado.fichasDoMapa = [ficha('p_usopp', 'Usopp', { mochila: [POCAO_DO_USOPP] })]
+    const aventura: Adventure = {
+      version: 1,
+      id: 'adv_merry',
+      name: 'Going Merry',
+      startSceneId: 'conves',
+      scenes: [
+        { id: 'conves', name: 'Convés', file: 'map.json' },
+        { id: 'porao', name: 'Porão', file: 'scenes/porao/map.json' },
+      ],
+    }
+    falso.estado.arquivos.set(`${MAPS}/going-merry/adventure.json`, serializeAdventure(aventura))
+    const conves: MapData = { ...createEmptyMap('conves', 'Convés', 10, 10, 64), tokens: [boneco('Vendedor', null, { mochila: [CORDA] })] }
+    const porao: MapData = { ...createEmptyMap('porao', 'Porão', 10, 10, 64), tokens: [boneco('Usopp', 'p_usopp', { mochila: [{ ...POCAO_DO_USOPP, quantidade: 3 }] })] }
+    falso.estado.arquivos.set(MERRY, serializeMap(conves))
+    falso.estado.arquivos.set(`${MAPS}/going-merry/scenes/porao/map.json`, serializeMap(porao))
+    falso.estado.copia = { savedAtMs: 1, mapPath: MERRY, map: conves, scenes: {} }
+
+    await trocarModoDoMapa(false)
+    const aviso = 'Poção ×2 do boneco Usopp (Going Merry › ficha própria do mapa) não estão na mochila de Usopp.'
+    expect(linhasDe(falso.estado.relatorioNoEspelho)).toHaveLength(1)
+    expect(toasts()).toEqual([{ kind: 'instrucao', text: aviso }])
+    for (const trazer of acoesDeTrazer([aviso])) trazer()
+    await vi.waitFor(() => expect(mochilaDoUsoppNaPasta()).toEqual([['Poção', 3]]))
   })
 })
 
@@ -371,5 +448,27 @@ describe('a volta do Sistema universal com o mapa da pasta aberto (trocarSistema
     await trocarSistemaDaPasta(PASTA_ID, true, (rpg) => rpg, gravarNoDisco)
     expect(linhasDoRelatorio()).toEqual([])
     expect(toasts()).toEqual([])
+  })
+
+  it('fechar sem salvar depois da volta e reabrir: a mesma vaga continua UM pendente, com a pilha do disco', async () => {
+    // No disco, a Poção ×2; no editor, sem salvar, o Usopp bebeu uma.
+    falso.estado.copia = { savedAtMs: 1, mapPath: MERRY, map: goingMerry({ mochila: [UMA_POCAO_DO_USOPP] }), scenes: {} }
+    await trocarSistemaDaPasta(PASTA_ID, true, comOnePiece, gravarNoDisco)
+    expect(toasts().map((toast) => toast.text)).toEqual(['Poção do boneco Usopp (Going Merry) não está na mochila de Usopp.'])
+    const idsDoTrabalho = idsDoRelatorio()
+
+    useToastStore.setState({ toasts: [] })
+    await conferirMochilaAoAbrir(MERRY)
+    expect(toasts().map((toast) => toast.text)).toEqual(['Poção ×2 do boneco Usopp (Going Merry) não estão na mochila de Usopp.'])
+    expect(idsDoRelatorio()).toEqual(idsDoTrabalho)
+  })
+
+  it('aventura já migrada: o que só a ficha do próprio mapa tem (o boneco foi apagado) vira pendente antes do rpg.json', async () => {
+    falso.estado.fichasDoMapa = [ficha('p_usopp', 'Usopp', { mochila: [POCAO_DO_USOPP] })]
+    const semOUsopp: MapData = { ...createEmptyMap('merry', 'Going Merry', 10, 10, 64), tokens: [boneco('Vendedor', null, { mochila: [CORDA] })] }
+    falso.estado.copia = { savedAtMs: 1, mapPath: MERRY, map: semOUsopp, scenes: {} }
+    await trocarSistemaDaPasta(PASTA_ID, true, comOnePiece, gravarNoDisco)
+    expect(linhasDe(relatorioAoGravar)).toHaveLength(1)
+    expect(toasts()).toEqual([{ kind: 'instrucao', text: 'Poção ×2 do boneco Usopp (Going Merry › ficha própria do mapa) não estão na mochila de Usopp.' }])
   })
 })

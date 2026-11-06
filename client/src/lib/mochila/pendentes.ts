@@ -2,7 +2,7 @@ import type { CarriedItem, Token } from '../../types/map'
 import { quantidadeDe } from '../items'
 import type { Personagem } from '../personagem'
 import { MOEDAS_MAX, moedasDe } from '../troca'
-import { fichasDeVariosBonecos, itensIguais, type CenaDaJuncao } from './juncao'
+import { fichasDeVariosBonecos, itensIguais, type CenaDaJuncao, type OrigemDaMochila } from './juncao'
 import { fichaSomada, itemNoAviso } from './transicao'
 
 /**
@@ -152,6 +152,90 @@ export function pendentesDoMapaQueEntrou(
     }
   }
   return novos
+}
+
+/** A mesma vaga, com a pilha que for: o mesmo mapa, a mesma ficha e o mesmo `item.id` — ou a bolsa da mesma ficha. */
+function mesmaVaga(a: ConteudoDoPendente, b: ConteudoDoPendente): boolean {
+  if (a.chave !== b.chave || a.personagemId !== b.personagemId) return false
+  return a.tipo === 'item' ? b.tipo === 'item' && a.item.id === b.item.id : b.tipo === 'moedas'
+}
+
+export interface Reconferencia {
+  /** Os pendentes que entram agora no relatório. */
+  novos: ItemPendente[]
+  /** Os pendentes ainda sem decisão que ficam com o que o mapa mostra agora (o mesmo id e a mesma hora de entrada). */
+  trocados: ItemPendente[]
+}
+
+/**
+ * A conferência de um mapa que JÁ pode ter pendentes anotados (`registrados`):
+ * a abertura e o "Mover…" releem o disco, a volta do sistema e as fichas
+ * novas releem o trabalho aberto. Como em `pendentesDoMapaQueEntrou`, o que
+ * já está anotado igual não volta. E o pendente ainda sem decisão da MESMA
+ * vaga com outra pilha é o MESMO item visto noutra hora: o "Usar o da pasta"
+ * anotou a Poção ×1 do trabalho aberto (o Usopp bebeu uma sem salvar), o
+ * mestre fechou sem salvar, e o disco ainda tem ×2. Ele fica com o que o mapa
+ * mostra agora (`trocados`) em vez de ganhar um segundo pendente — trazer os
+ * dois poria ×3 na ficha. Cada pendente fica com UMA leitura: confirmado igual
+ * por uma cena, a outra pilha da mesma vaga noutra cena vira pendente, como
+ * numa conferência nova. `fixos` (os de um "Trazer" começado): a pilha fica
+ * como está — a marca dele conta com ela —, e a leitura da mesma vaga não vira
+ * outro pendente. O pendente já decidido não muda.
+ */
+export function pendentesDaReconferencia(
+  personagens: readonly Personagem[],
+  chave: string,
+  cenas: readonly CenaDaJuncao[],
+  registrados: readonly ItemPendente[],
+  agoraMs: number,
+  novoId: () => string,
+  fixos: ReadonlySet<string>,
+): Reconferencia {
+  const valendo = registrados.filter((registrado) => registrado.decisao !== 'saiu')
+  // O id só nasce para o que entra de fato: o mesmo `novoId` da conferência nova, na mesma ordem.
+  const lidos = pendentesDoMapaQueEntrou(personagens, chave, cenas, [], agoraMs, () => '')
+  const usados = new Set<string>()
+  const diferentes: ItemPendente[] = []
+  for (const lido of lidos) {
+    const igual = valendo.find((registrado) => mesmoPendente(registrado, lido))
+    if (igual === undefined) diferentes.push(lido)
+    else usados.add(igual.id)
+  }
+  const novos: ItemPendente[] = []
+  const trocados: ItemPendente[] = []
+  for (const lido of diferentes) {
+    const daVaga = valendo.find((registrado) => registrado.decisao === undefined && !usados.has(registrado.id) && mesmaVaga(registrado, lido))
+    if (daVaga === undefined) {
+      novos.push({ ...lido, id: novoId() })
+      continue
+    }
+    usados.add(daVaga.id)
+    if (!fixos.has(daVaga.id)) trocados.push({ ...lido, id: daVaga.id, entrouEm: daVaga.entrouEm })
+  }
+  return { novos, trocados }
+}
+
+/** A cena das fichas do próprio mapa, no aviso: "Poção ×2 do boneco Usopp (Going Merry › ficha própria do mapa)". */
+export const CENA_DAS_FICHAS_DO_MAPA = 'ficha própria do mapa'
+
+/**
+ * As cenas do mapa com as fichas do PRÓPRIO mapa que mandam na mochila
+ * (`fichasDoMapa`: "Configurar só neste mapa", ou a pasta sem Sistema
+ * universal, com a aventura já migrada) no lugar dos bonecos delas. Ali a
+ * ficha é a dona e o boneco só a mostra: o item que nenhum boneco lido mostra
+ * (o boneco apagado, ou numa cena salva antes de o item chegar à ficha) mora
+ * só nela; e o boneco de uma cena salva antes (a Poção ×2 que a ficha já gastou
+ * para ×1, ou gastou toda) é cópia velha — contado, daria um segundo pendente
+ * da mesma vaga, ou um item que já acabou. Cada ficha entra como um boneco só,
+ * numa cena à parte (`origem`). Os bonecos de outras fichas (e os sem ficha)
+ * ficam. Sem fichas, as cenas como vieram.
+ */
+export function cenasComAsFichasDoMapa(cenas: readonly CenaDaJuncao[], fichasDoMapa: readonly Personagem[], origem: OrigemDaMochila): CenaDaJuncao[] {
+  if (fichasDoMapa.length === 0) return [...cenas]
+  const donas = new Set(fichasDoMapa.map((ficha) => ficha.id))
+  const semAsCopias = cenas.map((cena) => ({ ...cena, bonecos: cena.bonecos.filter((boneco) => boneco.characterId === null || !donas.has(boneco.characterId)) }))
+  const dasFichas: CenaDaJuncao = { origem, bonecos: fichasDoMapa.map((ficha) => ({ characterId: ficha.id, name: ficha.nome, mochila: ficha.mochila, moedas: ficha.moedas })) }
+  return [dasFichas, ...semAsCopias]
 }
 
 /**

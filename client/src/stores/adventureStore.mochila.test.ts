@@ -36,7 +36,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   copyFile: vi.fn(async () => undefined),
 }))
 
-const { useAdventureStore, applyItemsInScene, personagensAtivos, bonecoVaiSerGuardado, bonecoQueVoltaDaGuarda, ouvirBonecosSeparados } = await import('./adventureStore')
+const { useAdventureStore, applyItemsInScene, personagensAtivos, bonecoVaiSerGuardado, bonecoQueVoltaDaGuarda, ouvirBonecosSeparados, fichasDonasDoProprioMapa } = await import('./adventureStore')
 const { avisarJogadoresDosBonecosSeparados } = await import('../net/mochilaNaSala')
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
@@ -889,5 +889,24 @@ describe('o jogador da sala dono do boneco que ficou vazio também é avisado (d
     }
     expect(ultimoAviso()).toBe(AVISO_DO_LUFFY)
     expect(sala.recados).toEqual([])
+  })
+})
+
+describe('as fichas do próprio mapa que mandam na mochila (fichasDonasDoProprioMapa, para o "Usar o da pasta")', () => {
+  const idsDasDonas = (): string[] => fichasDonasDoProprioMapa(useAdventureStore.getState()).map((personagem) => personagem.id)
+
+  it('"Configurar só neste mapa" com a aventura migrada: as fichas da aventura', async () => {
+    await abrir('Configurar só neste mapa')
+    expect(idsDasDonas()).toEqual(['p_luffy', 'p_zoro'])
+  })
+
+  it('o mapa que herda da pasta: nenhuma (quem manda são as fichas da pasta)', async () => {
+    await abrir('pasta')
+    expect(idsDasDonas()).toEqual([])
+  })
+
+  it('antes da migração: nenhuma (a mochila ainda mora nos bonecos)', async () => {
+    await abrir('Configurar só neste mapa', { migrada: false })
+    expect(idsDasDonas()).toEqual([])
   })
 })

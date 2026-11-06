@@ -2831,3 +2831,15 @@ export function acertarMochilasRecuperadas(mapas: readonly MapData[], bonecosVen
 export function mochilaMoraNaFicha(state: RpgState): boolean {
   return fichasDonasDaMochila(state) !== null
 }
+
+/**
+ * MOCHILA NA FICHA: as fichas do PRÓPRIO mapa aberto que mandam na mochila
+ * dos bonecos dele — "Configurar só neste mapa", ou a pasta sem Sistema
+ * universal, com a aventura já migrada. Vazio = quem manda é a pasta, ou a
+ * mochila ainda mora nos bonecos. O "Usar o da pasta" e a volta do sistema
+ * fazem as fichas da PASTA vencerem estas: antes, o que só elas têm vira
+ * pendente (`net/nuvem/mochilaPendenteNoApp.ts`).
+ */
+export function fichasDonasDoProprioMapa(state: RpgState): readonly Personagem[] {
+  return pastaQueManda(state) === null ? (fichasDonasDaMochila(state) ?? SEM_PERSONAGENS) : SEM_PERSONAGENS
+}

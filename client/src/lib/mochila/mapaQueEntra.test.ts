@@ -39,7 +39,9 @@ import {
   trazerPendente,
   type GravarFichasDaPasta,
 } from '../../net/nuvem/mochilaPendente'
-import { textoDoIgnoradoSemSaber, textoDoPendente, type ItemPendente } from './pendentes'
+import { quantidadeDe } from '../items'
+import type { CenaDaJuncao } from './juncao'
+import { cenasComAsFichasDoMapa, pendentesDaReconferencia, textoDoIgnoradoSemSaber, textoDoPendente, type ItemPendente } from './pendentes'
 
 const APPDATA = 'C:/appdata'
 const MAPS = `${APPDATA}/maps`
@@ -885,5 +887,72 @@ describe('"Trazer para a ficha" interrompido no meio não soma duas vezes', () =
     expect(await ignorarPendente(PASTA_ID, pocao.id, disco)).toMatchObject({ ok: true, decisao: 'trazido' })
     expect(linhasDoRelatorio(disco).find((linha) => linha.id === pocao.id)).toMatchObject({ decisao: 'trazido' })
     expect(mochilaDe(disco, 'p_luffy').mochila).toEqual([{ ...POCAO_X1, quantidade: 3 }])
+  })
+})
+
+describe('a conferência de novo: a mesma vaga ainda sem decisão é o mesmo pendente', () => {
+  const USOPP = ficha('p_usopp', 'Usopp')
+  const VAGA: CarriedItem = { id: 'vaga_pocao_usopp', nome: 'Poção', itemId: 'acervo_pocao', empilhavel: true }
+  const SEM_FIXOS: ReadonlySet<string> = new Set()
+  const ids = (): (() => string) => {
+    let n = 0
+    return () => `novo_${++n}`
+  }
+  function cenaCom(cena: string, boneco: CenaDaJuncao['bonecos'][number]): CenaDaJuncao {
+    return { origem: { mapa: 'Going Merry', cena, gravadaEm: 1 }, bonecos: [boneco] }
+  }
+  function doUsopp(quantidade: number): CenaDaJuncao['bonecos'][number] {
+    return { characterId: 'p_usopp', name: 'Usopp', mochila: [{ ...VAGA, quantidade }] }
+  }
+  /** A Poção que o "Usar o da pasta" anotou do trabalho aberto. */
+  function anotada(quantidade: number): ItemPendente {
+    return { id: 'pend_1', chave: 'going-merry', mapa: 'Going Merry', cena: '', personagemId: 'p_usopp', personagem: 'Usopp', boneco: 'Usopp', entrouEm: 7, tipo: 'item', item: { ...VAGA, quantidade } }
+  }
+
+  it('a pilha do disco troca a do pendente ainda sem decisão: o mesmo id, a mesma hora, nenhum pendente novo', () => {
+    const conferido = pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(2))], [anotada(1)], AGORA, ids(), SEM_FIXOS)
+    expect(conferido.novos).toEqual([])
+    expect(conferido.trocados.map((pendente) => [pendente.id, pendente.entrouEm, pendente.tipo === 'item' ? quantidadeDe(pendente.item) : 0])).toEqual([['pend_1', 7, 2]])
+  })
+
+  it('a bolsa também: 30 moedas anotadas, 45 no disco, um pendente só', () => {
+    const moedas: ItemPendente = { ...anotada(1), tipo: 'moedas', moedas: 30 }
+    const conferido = pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', { characterId: 'p_usopp', name: 'Usopp', moedas: 45 })], [moedas], AGORA, ids(), SEM_FIXOS)
+    expect(conferido.novos).toEqual([])
+    expect(conferido.trocados).toMatchObject([{ id: 'pend_1', tipo: 'moedas', moedas: 45 }])
+  })
+
+  it('o pendente já decidido não muda: a outra pilha vira pendente novo, como antes', () => {
+    const trazida: ItemPendente = { ...anotada(1), decisao: 'trazido', decididoEm: 8 }
+    const conferido = pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(2))], [trazida], AGORA, ids(), SEM_FIXOS)
+    expect(conferido.trocados).toEqual([])
+    expect(conferido.novos).toMatchObject([{ id: 'novo_1', tipo: 'item', item: { id: VAGA.id, quantidade: 2 } }])
+  })
+
+  it('o "Trazer" começado segura a pilha dele, e a leitura da mesma vaga não vira outro pendente', () => {
+    const conferido = pendentesDaReconferencia([USOPP], 'going-merry', [cenaCom('Convés', doUsopp(2))], [anotada(1)], AGORA, ids(), new Set(['pend_1']))
+    expect(conferido).toEqual({ novos: [], trocados: [] })
+  })
+
+  it('cada pendente fica com uma leitura: a mesma pilha numa cena confirma, a outra pilha noutra cena é pendente novo, como numa conferência nova', () => {
+    const cenas = [cenaCom('Convés', doUsopp(1)), cenaCom('Porão', doUsopp(2))]
+    const conferido = pendentesDaReconferencia([USOPP], 'going-merry', cenas, [anotada(1)], AGORA, ids(), SEM_FIXOS)
+    expect(conferido.trocados).toEqual([])
+    expect(conferido.novos).toMatchObject([{ id: 'novo_1', cena: 'Porão', item: { quantidade: 2 } }])
+  })
+
+  it('as fichas do próprio mapa entram no lugar dos bonecos delas, numa cena à parte; o NPC e o boneco de outra ficha ficam', () => {
+    const fichaDoMapa = ficha('p_usopp', 'Usopp', { mochila: [{ ...VAGA, quantidade: 2 }], moedas: 12 })
+    const cena: CenaDaJuncao = {
+      origem: { mapa: 'Going Merry', cena: 'Porão', gravadaEm: 1 },
+      bonecos: [doUsopp(3), { characterId: 'p_luffy', name: 'Luffy' }, { characterId: null, name: 'Vendedor', mochila: [CORDA] }],
+    }
+    const origem = { mapa: 'Going Merry', cena: 'ficha própria do mapa', gravadaEm: 5 }
+    const cenas = cenasComAsFichasDoMapa([cena], [fichaDoMapa], origem)
+    expect(cenas).toEqual([
+      { origem, bonecos: [{ characterId: 'p_usopp', name: 'Usopp', mochila: [{ ...VAGA, quantidade: 2 }], moedas: 12 }] },
+      { ...cena, bonecos: [{ characterId: 'p_luffy', name: 'Luffy' }, { characterId: null, name: 'Vendedor', mochila: [CORDA] }] },
+    ])
+    expect(cenasComAsFichasDoMapa([cena], [], origem)).toEqual([cena])
   })
 })

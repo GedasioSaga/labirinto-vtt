@@ -1,5 +1,15 @@
 import { readCarriedItems } from '../../lib/items'
-import { bonecoAindaTem, fichasComOPendente, pendentesDoMapaQueEntrou, type DecisaoDoPendente, type ItemPendente } from '../../lib/mochila/pendentes'
+import type { CenaDaJuncao } from '../../lib/mochila/juncao'
+import {
+  bonecoAindaTem,
+  CENA_DAS_FICHAS_DO_MAPA,
+  cenasComAsFichasDoMapa,
+  fichasComOPendente,
+  pendentesDaReconferencia,
+  pendentesDoMapaQueEntrou,
+  type DecisaoDoPendente,
+  type ItemPendente,
+} from '../../lib/mochila/pendentes'
 import { chaveDoMapa, idDePastaValido, lugarDoMapa, rpgDoArquivo, serializarRpg, type IndiceDasPastas, type RpgDaPasta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import type { RecoveryCopy } from '../../lib/recoveryCopy'
@@ -428,6 +438,23 @@ async function cenasDoMapa(disco: DiscoDaMigracao, pastaDosMapas: string, chave:
 }
 
 /**
+ * As cenas do mapa ABERTO `chave` com o trabalho dele (`recuperado`) e, no
+ * lugar dos bonecos delas, as fichas do próprio mapa que mandam na mochila
+ * (`fichasDoMapa`, lidas junto com o trabalho; `cenasComAsFichasDoMapa`).
+ */
+async function cenasDoTrabalhoAberto(
+  disco: DiscoDaMigracao,
+  pastaDosMapas: string,
+  chave: string,
+  recuperado: RecoveryCopy,
+  fichasDoMapa: readonly Personagem[],
+): Promise<CenaDaJuncao[]> {
+  const { cenas } = await cenasDoMapa(disco, pastaDosMapas, chave, recuperado)
+  const mapa = cenas.length > 0 ? cenas[0].origem.mapa : recuperado.map.name
+  return cenasComAsFichasDoMapa(cenas, fichasDoMapa, { mapa, cena: CENA_DAS_FICHAS_DO_MAPA, gravadaEm: recuperado.savedAtMs })
+}
+
+/**
  * Os pendentes esperando dos mapas `chaves` (que saíram da pasta) que o
  * boneco AINDA carrega (`bonecoAindaTem`, contra as fichas de agora). O que só
  * o pendente guarda — o espelho já tirou do boneco, ou o mapa sumiu — fica de
@@ -500,7 +527,10 @@ export interface OpcoesDaConferencia extends OpcoesDosPendentes {
  * convertida com sistema universal (o espelho da pasta não toca os bonecos
  * dele; a marca, se houver, espera). Mapa sem marca: nada novo, só o id da
  * pasta (quem chama mostra os pendentes dela). Cena que não abriu deixa a
- * marca: a abertura seguinte tenta de novo.
+ * marca: a abertura seguinte tenta de novo. O pendente ainda sem decisão da
+ * mesma vaga com outra pilha — anotado do trabalho aberto, e o mestre fechou
+ * sem salvar — fica com a pilha desta leitura, sem um segundo pendente
+ * (`pendentesDaReconferencia`); ele não entra em `novos`.
  */
 export function conferirMapaQueEntrou(chave: string, disco: DiscoDaMigracao, opcoes: OpcoesDaConferencia): Promise<MapaConferido | null> {
   return emFila(async () => {
@@ -513,11 +543,13 @@ export function conferirMapaQueEntrou(chave: string, disco: DiscoDaMigracao, opc
     const agoraMs = (opcoes.agora ?? Date.now)()
     const lidas: CenasLidas = { cenas: [], naoAbriram: [] }
     await lerCenasDoMapa(disco, await disco.juntar(pasta.pastaDosMapas, chave), opcoes.recuperado ?? null, lidas)
-    const novos = pendentesDoMapaQueEntrou(personagens, chave, lidas.cenas, estado.itens, agoraMs, opcoes.novoId ?? (() => crypto.randomUUID()))
+    const novoId = opcoes.novoId ?? (() => crypto.randomUUID())
+    const { novos, trocados } = pendentesDaReconferencia(personagens, chave, lidas.cenas, estado.itens, agoraMs, novoId, new Set(estado.trazendo.keys()))
     const baixar = opcoes.baixarMarca && lidas.naoAbriram.length === 0
-    if (novos.length > 0 || baixar) {
+    if (novos.length > 0 || trocados.length > 0 || baixar) {
       const marcas = baixar ? semAMarca(estado, chave) : estado
-      await gravarEstado(disco, pasta.relatorio, { ...marcas, itens: [...estado.itens, ...novos] }, agoraMs)
+      const itens = estado.itens.map((pendente) => trocados.find((trocado) => trocado.id === pendente.id) ?? pendente)
+      await gravarEstado(disco, pasta.relatorio, { ...marcas, itens: [...itens, ...novos] }, agoraMs)
     }
     return { pastaId: pasta.pastaId, novos }
   })
@@ -639,7 +671,12 @@ export function retirarPendentesSemEspelho(pastaId: string, ids: readonly string
   })
 }
 
-export interface OpcoesDoMapaQueVaiUsarAPasta extends OpcoesDosPendentes {
+/** As fichas do PRÓPRIO mapa aberto que mandam na mochila dos bonecos dele (aventura já migrada), lidas junto com o trabalho dele; vazio = a mochila mora nos bonecos. */
+interface ComAsFichasDoMapa {
+  fichasDoMapa?: readonly Personagem[]
+}
+
+export interface OpcoesDoMapaQueVaiUsarAPasta extends OpcoesDosPendentes, ComAsFichasDoMapa {
   /** O trabalho do mapa aberto agora (inclusive o não salvo); `null` = não deu para copiar. */
   recuperado: RecoveryCopy | null
 }
@@ -658,21 +695,24 @@ export interface PendentesAntesDoEspelho {
  * mapa fica marcado para conferir com todas as fichas, como o mapa que entra
  * (a abertura confere o que ficou no disco; a pasta sem sistema confere quando
  * ele voltar) e, com Sistema universal, os pendentes do trabalho aberto
- * (`recuperado`) entram na mesma gravação. Sem a cópia do trabalho, com
- * sistema: lança (o disco não sabe o que os bonecos ganharam sem salvar), e
- * nada é gravado. `null` = fora das pastas, ou pasta ainda não convertida (a
- * mochila mora no boneco, e o espelho não o toca). Quem chama, se o índice não
- * gravar, tira os pendentes (`retirarPendentesSemEspelho`).
+ * (`recuperado`) entram na mesma gravação — com a aventura já migrada, a
+ * mochila mora nas fichas do próprio mapa (`fichasDoMapa`), e são elas que
+ * contam, não os bonecos delas (`cenasComAsFichasDoMapa`). Sem a cópia do
+ * trabalho, com sistema: lança (o disco não sabe o que os bonecos ganharam sem
+ * salvar), e nada é gravado. `null` = fora das pastas, ou pasta ainda não
+ * convertida (a mochila mora no boneco, e o espelho não o toca). Quem chama,
+ * se o índice não gravar, tira os pendentes (`retirarPendentesSemEspelho`).
  */
 export function marcarMapaQueVaiUsarAPasta(chave: string, disco: DiscoDaMigracao, opcoes: OpcoesDoMapaQueVaiUsarAPasta): Promise<PendentesAntesDoEspelho | null> {
   return emFila(async () => {
     const pasta = await pastaConvertidaDoMapa(disco, chave)
     if (pasta === null) return null
     const espelha = pasta.rpg.sistemaDeRpg !== undefined
-    if (espelha && opcoes.recuperado === null) throw new Error('não deu para copiar o trabalho do mapa aberto')
+    const { recuperado } = opcoes
+    if (espelha && recuperado === null) throw new Error('não deu para copiar o trabalho do mapa aberto')
     const estado = await lerEstado(disco, pasta.relatorio)
     const agoraMs = (opcoes.agora ?? Date.now)()
-    const cenas = espelha ? (await cenasDoMapa(disco, pasta.pastaDosMapas, chave, opcoes.recuperado)).cenas : []
+    const cenas = espelha && recuperado !== null ? await cenasDoTrabalhoAberto(disco, pasta.pastaDosMapas, chave, recuperado, opcoes.fichasDoMapa ?? []) : []
     const novos = pendentesDoMapaQueEntrou(pasta.rpg.personagens, chave, cenas, estado.itens, agoraMs, opcoes.novoId ?? (() => crypto.randomUUID()))
     await gravarEstado(disco, pasta.relatorio, { ...estado, porConferir: comAsMarcas(estado, [chave]), itens: [...estado.itens, ...novos] }, agoraMs)
     return { pastaId: pasta.pastaId, novos }
@@ -804,7 +844,7 @@ export function sistemaDaPastaMudou(pastaId: string, vinhaSemSistema: boolean, d
   })
 }
 
-export interface OpcoesDaVoltaDoSistema extends OpcoesDosPendentes {
+export interface OpcoesDaVoltaDoSistema extends OpcoesDosPendentes, ComAsFichasDoMapa {
   /** A chave do mapa aberto no editor, quando é desta pasta — mesmo sem a cópia do trabalho dele. */
   aberto: string | null
   /** O trabalho do mapa aberto agora (inclusive o não salvo); `null` = não deu para copiar. */
@@ -832,7 +872,9 @@ export interface AntesDaVoltaDoSistema {
  * `semSistemaDesde`) ficam marcados — cada um confere ao abrir, mesmo que a
  * conferência de depois caia — e o mapa aberto que o espelho vai tocar ganha
  * os pendentes do trabalho dele contra as fichas de DEPOIS (`mudar` pode trazer
- * fichas novas). `semSistemaDesde` fica: quem a tira é `sistemaDaPastaMudou`,
+ * fichas novas) — sem sistema, o mapa usa as próprias fichas, e com a aventura
+ * já migrada são elas que contam (`fichasDoMapa`, como no "Usar o da pasta").
+ * `semSistemaDesde` fica: quem a tira é `sistemaDaPastaMudou`,
  * gravado o `rpg.json`. Sem a cópia do trabalho do mapa que o espelho vai
  * tocar: lança, e nada é gravado. Pasta não convertida, com sistema, ou que
  * continua sem: nada. Quem chama, se o `rpg.json` não gravar, tira os
@@ -860,7 +902,7 @@ export function marcarAntesDaVoltaDoSistema(
     const agoraMs = (opcoes.agora ?? Date.now)()
     const daPasta = mapasDaPasta(indice, pastaId)
     const marcar = await mapasDaVoltaDoSistema(disco, pasta.pastaDosMapas, daPasta, estado, aberto, opcoes.recuperacao ?? null)
-    const cenasDoAberto = abertoEspelha ? (await cenasDoMapa(disco, pasta.pastaDosMapas, aberto, recuperado)).cenas : []
+    const cenasDoAberto = abertoEspelha && recuperado !== null ? await cenasDoTrabalhoAberto(disco, pasta.pastaDosMapas, aberto, recuperado, opcoes.fichasDoMapa ?? []) : []
     const novos = abertoEspelha ? pendentesDoMapaQueEntrou(depois.personagens, aberto, cenasDoAberto, estado.itens, agoraMs, opcoes.novoId ?? (() => crypto.randomUUID())) : []
     const marcado: EstadoDosPendentes = { ...estado, porConferir: comAsMarcas(estado, marcar), itens: [...estado.itens, ...novos] }
     if (marcado.porConferir.length !== estado.porConferir.length || novos.length > 0) await gravarEstado(disco, pasta.relatorio, marcado, agoraMs)
