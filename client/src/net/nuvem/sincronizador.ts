@@ -1,6 +1,6 @@
 import { armazenamentoEmTexto, criarFila, type EntradaDaFila, type Fila, type RemotasRecebidas, type ResultadoNaFila } from '../../lib/nuvem/fila'
 import type { Op } from '../../lib/nuvem/tipos'
-import type { Personagem } from '../../lib/personagem'
+import type { ParteDoAjuste, Personagem } from '../../lib/personagem'
 import {
   acertarComAVista,
   aplicarNasFichasDoApp,
@@ -26,6 +26,7 @@ import {
   type Diario,
   type EstadoDaCampanha,
 } from './estadoNoDisco'
+import { fichasComAsLinhas, linhasDasOpsDaNuvem, type LinhaDaNuvem } from './historicoDaNuvem'
 import type { FalhaDaNuvem, PaginaDoDesde, PonteDaNuvem } from './ponte'
 
 /**
@@ -65,6 +66,11 @@ export interface AplicadorNoApp {
    * calmaria do gravador leve, uma gravação que falhou). Devolve o cancelar.
    */
   aoAbrirAPasta(pastaId: string, aoAbrir: () => void): () => void
+  /**
+   * O nome do número na hora (HP, Força), pelo sistema da pasta, para a linha
+   * do histórico da op de outro lugar (§4.1). Ausente, ou sem nome conhecido: a chave.
+   */
+  rotuloNoHistorico?(pastaId: string, ficha: Personagem, parte: ParteDoAjuste, chave: string): string
 }
 
 export type EstadoDaRede = 'conectando' | 'ok' | FalhaDaNuvem['t']
@@ -309,14 +315,22 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
   // ── O rpg.json (gravador leve) ────────────────────────────────────────────
   let cancelarGravador: (() => void) | null = null
   let gravacaoDoRpg: Promise<void> = Promise.resolve()
+  /** As linhas do histórico das ops de outro lugar que o editor já tem e o `rpg.json` ainda não (`levarAoHistorico`). */
+  let linhasParaORpg: readonly LinhaDaNuvem[] = []
 
   function gravarRpgAgora(): Promise<void> {
     const vista = vistaEsperada()
     const rev = fila.revConfirmada()
     const anterior = gravacaoDoRpg
     gravacaoDoRpg = anterior.then(async () => {
+      // As linhas do histórico que esperam (as de uma gravação que falhou também), lidas na vez desta: saem da espera só depois de gravadas.
+      const linhas = linhasParaORpg
       try {
-        await deps.app.gravarRpg(pastaId, (personagens) => acertarComAVista(personagens, vista, conhece))
+        await deps.app.gravarRpg(pastaId, (personagens) => {
+          const acertadas = acertarComAVista(personagens, vista, conhece)
+          return fichasComAsLinhas(acertadas ?? personagens, linhas) ?? acertadas
+        })
+        linhasParaORpg = linhasParaORpg.filter((linha) => !linhas.includes(linha))
         // Dentro da cadeia: o `estado` também muda ao receber ops (a `revRecebida`), e uma cópia velha voltaria atrás.
         await emOrdem(async () => {
           if (rev <= estado.revNoRpg) return
@@ -350,6 +364,20 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
   function comVista<T>(passo: () => Promise<T>): Promise<T> {
     const antes = fila.vistaLocal()
     return mudandoAVista(passo, () => levarAoApp(antes, fila.vistaLocal()))
+  }
+
+  // ── O histórico das ops de outro lugar (§4.1) ─────────────────────────────
+  function rotuloNoHistorico(ficha: Personagem, parte: ParteDoAjuste, chave: string): string {
+    // Sem quem dê o nome (o teste, a pasta fechada no app), a chave: o mesmo que `rotuloDaParte` faz sem nome conhecido.
+    return deps.app.rotuloNoHistorico?.(pastaId, ficha, parte, chave) ?? chave
+  }
+
+  /** A linha de cada op numérica de outro lugar: no editor agora (fora do Ctrl+Z, sem reemitir) e no `rpg.json` pelo gravador leve. */
+  function levarAoHistorico(linhas: readonly LinhaDaNuvem[]): void {
+    if (linhas.length === 0) return
+    deps.app.ajustarPastaAberta(pastaId, (personagens) => fichasComAsLinhas(personagens, linhas))
+    linhasParaORpg = [...linhasParaORpg, ...linhas]
+    agendarRpg()
   }
 
   // ── Mudança local (o emissor) ─────────────────────────────────────────────
@@ -389,9 +417,12 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
     const remotas: RemotasRecebidas = { desde: pagina.desde, ate: pagina.ate, lista: pagina.lista }
     const avanco = avancarBase(base, remotas)
     if (avanco.t === 'buraco') return false
+    // Sobre a base de ANTES: o de → para de cada linha é o que o servidor gravou.
+    const doHistorico = linhasDasOpsDaNuvem(base, avanco.novas, estado.clienteId, rotuloNoHistorico)
     await diario.acrescentar(avanco.novas)
     const recebidas = await comVista(() => fila.receberRemotas(remotas))
     if (recebidas.t === 'buraco') return false
+    levarAoHistorico(doHistorico)
     if (recebidas.naoAplicaveis.length > 0) mensagem = 'Uma mudança do servidor não coube na cópia deste computador: confira a ficha no site.'
     const andou = avanco.base.rev !== base.rev || avanco.novas.length > 0
     base = avanco.base

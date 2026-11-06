@@ -1,7 +1,9 @@
 import { join } from '@tauri-apps/api/path'
+import { rotuloDaParte } from '../../lib/ajusteDaFicha'
 import { lerContas } from '../../lib/contasNoDisco'
 import { subscribeToOpenings, useAdventureStore } from '../../stores/adventureStore'
 import { useNuvemStore } from '../../stores/nuvemStore'
+import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { useToastStore } from '../../stores/toastStore'
 import { abrirCopiaDaSala, fonteDaSalaSobre, type CopiaDaSalaNoDisco } from './chatSala'
 import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from './discoDaNuvem'
@@ -68,6 +70,12 @@ const aplicadorDoApp: AplicadorNoApp = {
         if (useAdventureStore.getState().pasta?.pastaId === pastaId) aoAbrir()
       })
     })
+  },
+  rotuloNoHistorico(pastaId, ficha, parte, chave) {
+    const { pasta } = useAdventureStore.getState()
+    // O sistema da pasta só se sabe com ela aberta; fechada (ou sistema que não está neste computador), a linha leva a chave.
+    const sistema = pasta === null || pasta.pastaId !== pastaId ? undefined : sistemaPorId(useRpgStore.getState().biblioteca, pasta.sistemaDeRpg)
+    return sistema === undefined ? chave : rotuloDaParte(sistema, ficha, parte, chave)
   },
 }
 

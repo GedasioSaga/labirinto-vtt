@@ -104,6 +104,8 @@ export interface OrigemDaMudanca {
    * = tudo com a `marca`.
    */
   vista?: Personagem
+  /** Troca e pagamento de itens (`comoTudoOuNada`): as ops do instante vão `atomico`, num lote só. */
+  tudoOuNada?: true
 }
 
 let origemDeAgora: OrigemDaMudanca = {}
@@ -141,6 +143,17 @@ export function comAutor<T>(autoria: AutoriaDaMesa | undefined, fazer: () => T):
 /** O Salvar da janela do mestre: o que os funis capturarem dentro de `fazer` (síncrono) sai com a base de quando a janela abriu. */
 export function comBase<T>(marca: MarcaDaBase, fazer: () => T): T {
   return comOrigem({ marca }, fazer)
+}
+
+/**
+ * Troca e pagamento de itens (§4.6, §5.2; `applyItemsInScene`): o que os
+ * funis capturarem dentro de `fazer` (síncrono) vai ao servidor tudo ou nada
+ * — se um lado bate com a mudança de outro, nenhum entra, e o item ou a moeda
+ * nunca some de uma ficha sem chegar à outra. Quem mexeu e a base continuam os
+ * de agora (a sala, a janela).
+ */
+export function comoTudoOuNada<T>(fazer: () => T): T {
+  return comOrigem({ ...origemDeAgora, tudoOuNada: true }, fazer)
 }
 
 /** A origem de agora, para o funil que só emite depois de um `await` (`editarRpgDaPasta`) guardá-la antes dele. */
@@ -231,6 +244,8 @@ interface EnvelopeDoLote {
   quandoCliente: number
   /** O jogador da sala, já conferido como membro: assina só o que o jogador escreve. */
   autorDeclarado?: string
+  /** Troca e pagamento: todas as ops `atomico` e num lote só, também quando o jogador e o mestre assinam partes dela. */
+  tudoOuNada?: true
 }
 
 /**
@@ -245,12 +260,14 @@ function autorDaMudanca(mudanca: Mudanca, autorDeclarado: string | undefined): s
 
 /**
  * As ops de um instante, na ordem das mudanças: um `loteId` por quem assina
- * (o jogador declarado e o mestre; o tudo-ou-nada é sempre do mestre e fica
- * inteiro), um `opId` para cada, a base de cada uma por `baseRevDe`.
+ * (o jogador declarado e o mestre; a ficha trocada inteira é sempre do mestre
+ * e fica inteira), um `opId` para cada, a base de cada uma por `baseRevDe`.
+ * Na troca e no pagamento (`tudoOuNada`), um lote só e todas `atomico`: o
+ * servidor junta no mesmo tudo-ou-nada só as `atomico` seguidas do MESMO lote.
  */
 export function opsDoLote(mudancas: readonly Mudanca[], envelope: EnvelopeDoLote, baseRevDe: (mudanca: Mudanca) => number, novoId: () => string): Op[] {
   const loteDoMestre = novoId()
-  const loteDoJogador = novoId()
+  const loteDoJogador = envelope.tudoOuNada === true ? loteDoMestre : novoId()
   return mudancas.map((mudanca) => {
     const autor = autorDaMudanca(mudanca, envelope.autorDeclarado)
     const op: Op = {
@@ -261,6 +278,7 @@ export function opsDoLote(mudancas: readonly Mudanca[], envelope: EnvelopeDoLote
       opId: novoId(),
       loteId: autor === undefined ? loteDoMestre : loteDoJogador,
     }
+    if (envelope.tudoOuNada === true) op.atomico = true
     if (autor !== undefined) op.autorDeclarado = autor
     return op
   })
@@ -300,6 +318,7 @@ function opsDaOrigem(pastaId: string, destino: DestinoDoEmissor, antes: readonly
   const envelope: EnvelopeDoLote = { clienteId: destino.clienteId, quandoCliente: agora }
   const { autorDeclarado } = origem
   if (autorDeclarado !== undefined && destino.ehMembro(autorDeclarado)) envelope.autorDeclarado = autorDeclarado
+  if (origem.tudoOuNada === true) envelope.tudoOuNada = true
   return opsDoLote(mudancas, envelope, baseRevPorCaminho(pastaId, origem, antes, destino.revConfirmada()), novoIdDeOp)
 }
 

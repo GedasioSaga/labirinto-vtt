@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { quantidadeDe } from '../../lib/items'
-import { AGORA, campanhaDeTeste, enviar, ficha, MEMBROS, MESTRE_NO_APP, MESTRE_NO_SITE, NAMI, NAMI_NO_PC, op, TANGERINA, type CampanhaDeTeste } from '../../lib/nuvem/campanha.fixture'
+import { ehTrocaOuPagamento, mudancaNasFichas } from '../../lib/mochila/espelho'
+import { AGORA, campanhaDeTeste, enviar, ficha, MEMBROS, MESTRE_NO_APP, MESTRE_NO_SITE, NAMI, NAMI_NO_PC, op, TANGERINA, ZORO, ZORO_NO_SITE, type CampanhaDeTeste } from '../../lib/nuvem/campanha.fixture'
 import { ehRegistro, paraJson, proprio } from '../../lib/nuvem/json'
 import type { Personagem } from '../../lib/personagem'
 import type { PastaNoDisco } from './discoDaNuvem'
-import { ligarEmissor, prepararEmissao } from './emissor'
+import { comoTudoOuNada, ligarEmissor, mudancasDaPasta, prepararEmissao } from './emissor'
 import { ErroDaPonte, ponteSobre, type TransporteDaNuvem } from './ponte'
 import { abrirSincronizador, type AplicadorNoApp, type Sincronizador } from './sincronizador'
 
@@ -388,5 +389,77 @@ describe('sincronizador do app (A5)', () => {
     expect(sincronizador.situacao().paraDecidir).toEqual([])
     const [nota] = linhas(disco.arquivos.get('negadas.jsonl'))
     expect(ehRegistro(nota) ? [proprio(nota, 'opId'), proprio(nota, 'motivo')] : null).toEqual([negada?.op.opId, 'alvo-inexistente'])
+  })
+})
+
+describe('fechamento da fase 1 (F2): pagamento tudo ou nada e a linha do histórico da op de outro lugar', () => {
+  it('"Pagar a…" vai tudo ou nada: o lado do Zoro bate com a mudança dele no site, e o servidor também não tira do Luffy', async () => {
+    const zoro = ficha('pers_zoro', { dono: ZORO.contaId, moedas: 0 })
+    const campanha = campanhaDeTeste([], MEMBROS)
+    publicar(campanha, [LUFFY, zoro])
+    const servidor = servidorFalso(campanha)
+    const app = appFalso([LUFFY, zoro])
+    const sincronizador = await abrir(servidor, discoEmMemoria(), app)
+    await sincronizador.ciclo()
+    servidor.online = false
+    // Zoro mexe na bolsa dele no site enquanto o app está sem rede.
+    enviar(campanha, ZORO_NO_SITE, [op(ZORO_NO_SITE, zoro.id, ['moedas'], 'definir', { valor: 5, baseRev: 2 })])
+
+    // O que o `applyItemsInScene` faz com o "Pagar a…" de 30: as duas bolsas numa mudança só, nas fichas dos bonecos.
+    const pagamento = { mochilas: [], bolsas: [{ tokenId: 'boneco_luffy', moedas: 70 }, { tokenId: 'boneco_zoro', moedas: 30 }] }
+    const bonecos = [{ id: 'boneco_luffy', characterId: LUFFY.id }, { id: 'boneco_zoro', characterId: zoro.id }]
+    expect(ehTrocaOuPagamento(pagamento)).toBe(true)
+    comoTudoOuNada(() => {
+      const antes = app.aberta
+      const novas = [...mudancaNasFichas(antes, bonecos, pagamento)]
+      // Sem origem explícita: vale a de agora, a do `comoTudoOuNada`.
+      const emissao = prepararEmissao(PASTA, antes, novas, undefined, AGORA)
+      if (!emissao.ok) throw new Error(emissao.motivo)
+      app.aberta = novas
+      emissao.entregar()
+    })
+    await sincronizador.esvaziar()
+    servidor.online = true
+    await sincronizador.ciclo()
+
+    const paraDecidir = sincronizador.situacao().paraDecidir
+    expect(paraDecidir.map((entrada) => [entrada.op.fichaId, entrada.op.caminho.join('/'), entrada.op.atomico])).toEqual([
+      [LUFFY.id, 'moedas', true],
+      [zoro.id, 'moedas', true],
+    ])
+    expect(new Set(paraDecidir.map((entrada) => entrada.op.loteId)).size).toBe(1)
+    // A moeda não some: nem o Luffy pagou, nem o Zoro recebeu.
+    expect(campanha.ficha(LUFFY.id)?.doc.moedas).toBe(100)
+    expect(campanha.ficha(zoro.id)?.doc.moedas).toBe(5)
+  })
+
+  it('a Vida mudada pela Nami no site ganha linha no histórico do editor e do rpg.json, que não vira op; o eco da mudança do próprio app não ganha outra', async () => {
+    const campanha = campanhaDeTeste([], MEMBROS)
+    publicar(campanha, [LUFFY])
+    const servidor = servidorFalso(campanha)
+    const app = appFalso([LUFFY])
+    const sincronizador = await abrir(servidor, discoEmMemoria(), app)
+    await sincronizador.ciclo()
+    enviar(campanha, NAMI_NO_PC, [op(NAMI_NO_PC, LUFFY.id, ['recursos', 'hp'], 'definir', { valor: 280, baseRev: 1 })])
+    await sincronizador.ciclo()
+    await sincronizador.esvaziar()
+
+    const linha = { quem: 'Nami', parte: 'recurso', chave: 'hp', rotulo: 'hp', de: 300, para: 280, quando: AGORA }
+    const comALinha = app.aberta.find((doc) => doc.id === LUFFY.id)
+    expect(comALinha?.historico).toEqual([linha])
+    expect(app.rpg.find((doc) => doc.id === LUFFY.id)?.historico).toEqual([linha])
+    // Sem reemitir: a linha não é mudança do Lobby, nem se passasse pelo funil.
+    expect(comALinha === undefined ? null : mudancasDaPasta([{ ...comALinha, historico: [] }], [comALinha])).toEqual([])
+    expect(sincronizador.situacao().esperando).toBe(0)
+
+    const revAntes = campanha.revAtual()
+    mudarNoEditor(app, { ...(comALinha ?? LUFFY), recursos: { ...LUFFY.recursos, hp: 250 } })
+    await sincronizador.esvaziar()
+    await sincronizador.ciclo()
+    // O próximo ciclo traz o eco da op do app pelo `desde`.
+    await sincronizador.ciclo()
+    expect(campanha.revAtual()).toBe(revAntes + 1)
+    expect(hpDe(app.aberta)).toBe(250)
+    expect(app.aberta.find((doc) => doc.id === LUFFY.id)?.historico).toEqual([linha])
   })
 })

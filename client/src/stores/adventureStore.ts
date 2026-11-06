@@ -16,7 +16,7 @@ import {
 import { passageOf } from '../lib/pins'
 import { singleSceneWorld, type AppliedItems, type HostScene, type HostWorld } from '../net/hostSession'
 import { applyItemChange } from '../lib/items'
-import { fichasComOsBonecos, mapaComAsFichas, mapaSemOEspelho, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
+import { ehTrocaOuPagamento, fichasComOsBonecos, mapaComAsFichas, mapaSemOEspelho, mudancaNasFichas, passosComAsFichas } from '../lib/mochila/espelho'
 import { acertarBonecosDasFichas, avisosDoAcerto, type FichaSeparada } from '../lib/mochila/transicao'
 import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
@@ -48,7 +48,7 @@ import type { Personagem } from '../lib/personagem'
 import { gravarRpgDaPasta, rpgDe, type PastaAberta, type RpgDaPasta } from '../lib/pastasDeMapas'
 import type { Equipe } from '../lib/batalha/equipes'
 import { personagemComMidia } from '../lib/imagensDaFicha'
-import { prepararEmissao } from '../net/nuvem/emissor'
+import { comoTudoOuNada, prepararEmissao } from '../net/nuvem/emissor'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import {
   aplicarEstadoNoMapa,
@@ -2546,7 +2546,8 @@ function syncTravelLinks(after: MapData, before: MapData): void {
  * entre dois personagens mudam as duas fichas juntas, ou nenhuma — e depois ao
  * mapa da cena, como sempre, e ao boneco da mesma ficha nas outras cenas já
  * abertas (`espelharNasOutrasCenas`). NPC sem ficha não mexe em ficha: a
- * mochila dele continua só no boneco desta cena.
+ * mochila dele continua só no boneco desta cena. Numa pasta publicada, a troca
+ * e o pagamento também vão ao Lobby tudo ou nada (`comoTudoOuNada`, §4.6).
  */
 export function applyItemsInScene(change: AppliedItems): boolean {
   const aplicar = (map: MapData): MapData => applyItemChange(map, change)
@@ -2554,7 +2555,9 @@ export function applyItemsInScene(change: AppliedItems): boolean {
   const deFundo = change.sceneId === undefined || change.sceneId === activeSceneId ? null : change.sceneId
   const slot = deFundo === null ? null : cache[deFundo]
   if (slot === undefined || (slot !== null && slot.status !== 'ok')) return false
-  const fichasMudaram = levarParaAsFichas(change, (slot === null ? useMapStore.getState().map : slot.map).tokens)
+  const bonecos = (slot === null ? useMapStore.getState().map : slot.map).tokens
+  const levar = (): readonly Personagem[] | null => levarParaAsFichas(change, bonecos)
+  const fichasMudaram = ehTrocaOuPagamento(change) ? comoTudoOuNada(levar) : levar()
   if (deFundo === null || slot === null) {
     const { map, past, future } = useMapStore.getState()
     useMapStore.setState({ map: aplicar(map), past: past.map(aplicar), future: future.map(aplicar) })

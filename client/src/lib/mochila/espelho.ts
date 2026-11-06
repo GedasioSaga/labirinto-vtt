@@ -142,6 +142,17 @@ export function mudancaNasFichas(personagens: readonly Personagem[], bonecos: re
   return mudou ? novas : personagens
 }
 
+/**
+ * TROCA E PAGAMENTO (§4.6, fatia A3): a mudança mexe em mais de uma parte —
+ * duas mochilas ("Dar a…"), duas bolsas ("Pagar a…"), a mochila e a bolsa (a
+ * troca do mestre). Cada parte sozinha criaria ou sumiria item ou moeda, então
+ * no Lobby elas vão tudo ou nada (`atomico`). Pegar, tirar, devolver ao chão,
+ * a venda da loja e o "moedas" do mestre mexem numa parte só: vão op por op.
+ */
+export function ehTrocaOuPagamento(mudanca: Pick<ItemChange, 'mochilas' | 'bolsas'>): boolean {
+  return mudanca.mochilas.length + (mudanca.bolsas?.length ?? 0) > 1
+}
+
 /** Cada ficha com um boneco em `bonecoDaFicha` passa a ter a mochila e a bolsa dele. Nada mudando, a MESMA lista. */
 function fichasComAMochilaDe(personagens: readonly Personagem[], bonecoDaFicha: ReadonlyMap<string, Pick<Token, 'mochila' | 'moedas'>>): readonly Personagem[] {
   if (bonecoDaFicha.size === 0) return personagens
