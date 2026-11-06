@@ -91,7 +91,7 @@ function duelarComRobos(inicio: DueloGravado, motor: MotorDoDuelo): DueloGravado
 /** O duelo acabado no formato do resumo da luta automática (mesma leitura da vida). */
 function resumoDoDuelo(duelo: DueloGravado, sorteio: Sorteio): ResumoDaLuta {
   const { fim } = duelo
-  if (fim === null || fim.tipo === 'ausencia') throw new Error(`duelo sem fim de luta: ${JSON.stringify(fim)}`)
+  if (fim === null || fim.tipo === 'ausencia' || fim.tipo === 'desistencia') throw new Error(`duelo sem fim de luta: ${JSON.stringify(fim)}`)
   const recurso = recursoDeVida(SISTEMA_DO_TESTE)
   const porId = new Map(duelo.lutadores.personagens.map((personagem) => [personagem.id, personagem]))
   return {

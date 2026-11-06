@@ -4,6 +4,7 @@ import { lerSistemaDeRpg, type SistemaDeRpg } from '../../../client/src/lib/sist
 import {
   aplicarJogada,
   criarDuelo,
+  desistirDoDuelo,
   dueloParaOFio,
   marcarAusente,
   marcarPresente,
@@ -44,7 +45,11 @@ import { enviar } from './sala'
  *   `alarm()` da campanha chama `vencerPrazosDosDuelos` e reagenda para o
  *   menor dos dois (`proximoPrazoDosDuelos`).
  * - Ausente só quando a CONTA fica sem nenhum socket (achado Tr9): a segunda
- *   aba aberta segura o duelo. Sem tempo limite por turno (12.15).
+ *   aba aberta segura o duelo. Sem tempo limite por turno (12.15): quem não
+ *   quer esperar o outro jogar sai pelo `duelo.desistir` (o outro vence).
+ * - Duelo gravado por outra versão do motor (a versão subiu num deploy) não
+ *   continua: sai da tabela na primeira vez que esta instância do DO mexe nos
+ *   duelos (`semDuelosDeOutraVersao`), e nem conta como `ocupado` nem como prazo.
  * - O d20 é do `crypto` do servidor (`secureRollDie`), nunca do cliente.
  * - Só as duas contas do duelo recebem o estado, sempre pelo
  *   `dueloParaOFio` (fichas projetadas, cauda do registro).
@@ -166,8 +171,29 @@ function apagarLinha(sql: SqlStorage, id: string): void {
   sql.exec('DELETE FROM duelos WHERE id = ?', id)
 }
 
+/** Só o duelo desta versão do motor prende a conta: o de outra não anda (`dueloDaLinha` = null). */
 function emAndamento(sql: SqlStorage, contaId: string): boolean {
-  return sql.exec(`SELECT 1 AS achou FROM duelos WHERE status = 'andamento' AND (jogadorA = ? OR jogadorB = ?) LIMIT 1`, contaId, contaId).toArray().length > 0
+  return (
+    sql
+      .exec(`SELECT 1 AS achou FROM duelos WHERE status = 'andamento' AND versaoDoMotor = ? AND (jogadorA = ? OR jogadorB = ?) LIMIT 1`, VERSAO_DO_MOTOR_DO_DUELO, contaId, contaId)
+      .toArray().length > 0
+  )
+}
+
+/** As instâncias do DO (por SQLite) que já tiraram os duelos de outra versão: a versão só muda num deploy, que traz instância nova. */
+const SEM_OUTRA_VERSAO = new WeakSet<SqlStorage>()
+
+/**
+ * Duelo (em andamento ou acabado) de outra versão do motor sai da tabela: o
+ * estado dele não é lido por este motor, então não anda, não aparece e não
+ * vence nunca; parado ali, deixaria as duas contas `ocupado` para sempre. O
+ * convite fica: guarda só fichas e hora, e o aceite monta o duelo no motor de
+ * agora. Uma vez por instância, antes de qualquer coisa que mexe nos duelos.
+ */
+function semDuelosDeOutraVersao(sql: SqlStorage): void {
+  if (SEM_OUTRA_VERSAO.has(sql)) return
+  sql.exec(`DELETE FROM duelos WHERE status <> 'convite' AND versaoDoMotor <> ?`, VERSAO_DO_MOTOR_DO_DUELO)
+  SEM_OUTRA_VERSAO.add(sql)
 }
 
 function conviteEsperando(sql: SqlStorage, contaId: string, agora: number): boolean {
@@ -276,6 +302,7 @@ function gravarComCota(sala: SalaDoDuelo, contaId: string, bytes: number, agora:
 // ── Pedidos ─────────────────────────────────────────────────────────────────
 
 export function atenderPedidoDoDuelo(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, pedido: PedidoDoDuelo, agora: number): void {
+  semDuelosDeOutraVersao(sala.sql)
   switch (pedido.t) {
     case 'duelo.convidar':
       return convidar(sala, ws, eu, pedido, agora)
@@ -285,6 +312,8 @@ export function atenderPedidoDoDuelo(sala: SalaDoDuelo, ws: WebSocket, eu: Membr
       return recusarConvite(sala, ws, eu, pedido, agora)
     case 'duelo.jogar':
       return jogar(sala, ws, eu, pedido, agora)
+    case 'duelo.desistir':
+      return desistir(sala, ws, eu, pedido, agora)
   }
 }
 
@@ -365,6 +394,28 @@ function jogar(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, pedido: Extract<Ped
   difundirEstado(sala, feito.duelo)
 }
 
+/**
+ * Quem está no duelo desiste e o outro vence: a saída de quem não quer esperar
+ * o outro jogar (sem tempo por turno, 12.15), e o fim das duas contas
+ * `ocupado`. Fora da cota do dia de propósito: acontece uma vez por duelo e a
+ * cota cheia não pode prender ninguém num duelo (o ritmo de todo frame vale).
+ */
+function desistir(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, pedido: Extract<PedidoDoDuelo, { t: 'duelo.desistir' }>, agora: number): void {
+  const { sql } = sala
+  const linha = linhaPorId(sql, pedido.id)
+  const duelo = linha === undefined ? null : dueloDaLinha(linha)
+  if (linha === undefined || duelo === null || (linha.jogadorA !== eu.contaId && linha.jogadorB !== eu.contaId)) return recusar(ws, pedido.t, 'nao-existe', { id: pedido.id })
+  const feito = desistirDoDuelo(duelo, eu.contaId)
+  if (!feito.ok) {
+    recusar(ws, pedido.t, feito.motivo, { id: pedido.id })
+    // Já acabou (o outro desistiu antes, ou o alarme): quem mandou recebe o fim.
+    if (feito.motivo === 'acabou') enviar(ws, { t: 'duelo.estado', duelo: dueloParaOFio(duelo) })
+    return
+  }
+  sala.transacao(() => gravarDuelo(sql, feito.duelo, linha, agora))
+  difundirEstado(sala, feito.duelo)
+}
+
 // ── Entrar, sair e o relógio ───────────────────────────────────────────────
 
 /**
@@ -375,6 +426,7 @@ function jogar(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, pedido: Extract<Ped
  */
 export function duelosNoOla(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, agora: number): void {
   const { sql } = sala
+  semDuelosDeOutraVersao(sql)
   const convites: ConviteDoDuelo[] = []
   const duelos: DueloGravado[] = []
   for (const linha of linhasDaConta(sql, eu.contaId)) {
@@ -402,6 +454,7 @@ export function duelosNoOla(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, agora:
  */
 export function contaSaiuDosDuelos(sala: SalaDoDuelo, contaId: string, agora: number): boolean {
   const { sql } = sala
+  semDuelosDeOutraVersao(sql)
   let nasceuPrazo = false
   for (const linha of linhasDaConta(sql, contaId)) {
     const duelo = linha.status === 'andamento' ? dueloDaLinha(linha) : null
@@ -418,10 +471,12 @@ export function contaSaiuDosDuelos(sala: SalaDoDuelo, contaId: string, agora: nu
 /**
  * O que venceu até `agora` (o `alarm()` do DO): convite sem resposta some
  * (`expirou`); quem passou dos 3 minutos perde (`vencerAusencia`); o duelo
- * acabado que já ficou o bastante é apagado.
+ * acabado que já ficou o bastante é apagado. Linha vencida que este motor não
+ * lê é apagada: nunca fica um prazo vencido para trás (o alarme tocaria em laço).
  */
 export function vencerPrazosDosDuelos(sala: SalaDoDuelo, agora: number): void {
   const { sql } = sala
+  semDuelosDeOutraVersao(sql)
   const vencidas = sql.exec('SELECT * FROM duelos WHERE prazo IS NOT NULL AND prazo <= ? ORDER BY id', agora).toArray().map(linhaDoDuelo)
   for (const linha of vencidas) {
     if (linha.status === 'convite') {
@@ -429,7 +484,10 @@ export function vencerPrazosDosDuelos(sala: SalaDoDuelo, agora: number): void {
       continue
     }
     const duelo = dueloDaLinha(linha)
-    if (duelo === null) continue
+    if (duelo === null) {
+      sala.transacao(() => apagarLinha(sql, linha.id))
+      continue
+    }
     const depois = vencerAusencia(duelo, agora)
     // Gravado mesmo sem mudar: o `prazo` da linha volta a ser o do estado (nunca fica um vencido para trás).
     sala.transacao(() => gravarDuelo(sql, depois, linha, agora))
@@ -438,9 +496,16 @@ export function vencerPrazosDosDuelos(sala: SalaDoDuelo, agora: number): void {
   sala.transacao(() => sql.exec('DELETE FROM duelos WHERE apagarEm IS NOT NULL AND apagarEm <= ?', agora))
 }
 
-/** O menor `prazo` ou `apagarEm` da tabela: a próxima vez que o alarme precisa acordar por causa dos duelos. `null` = nenhuma. */
+/**
+ * O menor `prazo` ou `apagarEm` da tabela: a próxima vez que o alarme precisa
+ * acordar por causa dos duelos. `null` = nenhuma. O `prazo` de duelo de outra
+ * versão do motor não conta (o convite conta sempre: ele não depende do motor).
+ */
 export function proximoPrazoDosDuelos(sql: SqlStorage): number | null {
-  for (const linha of sql.exec('SELECT MIN(quando) AS n FROM (SELECT MIN(prazo) AS quando FROM duelos UNION ALL SELECT MIN(apagarEm) AS quando FROM duelos)')) {
+  const consulta = `SELECT MIN(quando) AS n FROM (
+    SELECT MIN(prazo) AS quando FROM duelos WHERE status = 'convite' OR versaoDoMotor = ?
+    UNION ALL SELECT MIN(apagarEm) AS quando FROM duelos)`
+  for (const linha of sql.exec(consulta, VERSAO_DO_MOTOR_DO_DUELO)) {
     return linha.n === null ? null : numero(linha, 'n')
   }
   return null

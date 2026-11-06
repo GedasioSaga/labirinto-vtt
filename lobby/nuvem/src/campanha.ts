@@ -508,32 +508,28 @@ export class Campanha extends DurableObject<Env> {
     // A cada mensagem, não só no upgrade: removido ou com outro e-mail sai já (§6.4).
     if (anexo === null || !membroAtivo(membro) || membro.email !== anexo.email) {
       fechar(ws, FECHAR_SEM_ACESSO, 'Você não está nesta campanha')
+      // Removido sem passar por `depoisDeMudarMembros`: o duelo dele começa a contar aqui também.
+      if (anexo !== null) return this.contaSaiu(anexo.contaId, ws)
       return
     }
     const agora = Date.now()
     const frame = typeof mensagem === 'string' && bytesDoTexto(mensagem) <= LIMITES.frameBytes ? lerFrame(mensagem) : null
     const clienteId = frame !== null && frame.t === 'ola' ? frame.clienteId : anexo.clienteId
-    if (frame === null || clienteId === null) {
-      this.contarViolacoes(ws, anexo, 1, agora)
-      return
-    }
+    if (frame === null || clienteId === null) return this.contarViolacoes(ws, anexo, 1, agora)
     // `chat.*` torto também é violação, mas ganha resposta: o site tira o "enviando…" e mostra o motivo.
     if (frame.t === 'chat' && !frame.leitura.ok) {
       const { pedido, idDoCliente } = frame.leitura
       recusarPedidoDoChat(ws, pedido, 'formato', idDoCliente === undefined ? {} : { idDoCliente })
-      this.contarViolacoes(ws, anexo, 1, agora)
-      return
+      return this.contarViolacoes(ws, anexo, 1, agora)
     }
     if (frame.t === 'mural' && !frame.leitura.ok) {
       const { pedido, idDoCliente } = frame.leitura
       recusarPedidoDoMural(ws, pedido, 'formato', idDoCliente === undefined ? {} : { idDoCliente })
-      this.contarViolacoes(ws, anexo, 1, agora)
-      return
+      return this.contarViolacoes(ws, anexo, 1, agora)
     }
     if (frame.t === 'duelo' && !frame.leitura.ok) {
       recusarPedidoDoDuelo(ws, frame.leitura.pedido, 'formato', frame.leitura.id)
-      this.contarViolacoes(ws, anexo, 1, agora)
-      return
+      return this.contarViolacoes(ws, anexo, 1, agora)
     }
     // O primeiro `ola` do socket não passa pelo ritmo: sem ele o socket não serve para nada, e sockets por conta já têm teto.
     if (!(frame.t === 'ola' && anexo.clienteId === null)) {
@@ -588,11 +584,11 @@ export class Campanha extends DurableObject<Env> {
     }
   }
 
-  private responder(ws: WebSocket, anexo: Anexo, agora: number, passo: (leitor: LeitorDaCampanha, agora: number) => ResultadoDoProcessamento): void {
+  private async responder(ws: WebSocket, anexo: Anexo, agora: number, passo: (leitor: LeitorDaCampanha, agora: number) => ResultadoDoProcessamento): Promise<void> {
     const resultado = this.processar(passo)
     for (const resposta of resultado.respostas) enviar(ws, resposta)
     this.depoisDeGravar(resultado.gravacoes.ops)
-    if (resultado.violacoes > 0) this.contarViolacoes(ws, anexo, resultado.violacoes, agora)
+    if (resultado.violacoes > 0) await this.contarViolacoes(ws, anexo, resultado.violacoes, agora)
   }
 
   private ola(ws: WebSocket, anexo: Anexo, quem: Identidade, frame: Extract<Frame, { t: 'ola' }>): void {
@@ -678,13 +674,16 @@ export class Campanha extends DurableObject<Env> {
   }
 
   /** Violação = frame fora do formato ou op negada por regra, nunca `adiado` (§6.5). Passou do teto: fecha e bloqueia a conta por alguns minutos. */
-  private contarViolacoes(ws: WebSocket, anexo: Anexo, quantas: number, agora: number): void {
+  private async contarViolacoes(ws: WebSocket, anexo: Anexo, quantas: number, agora: number): Promise<void> {
     const atual = lerAnexo(ws.deserializeAttachment())
     const violacoes = (atual === null ? anexo.violacoes : atual.violacoes) + quantas
     ws.serializeAttachment({ ...(atual === null ? anexo : atual), violacoes })
     if (violacoes < LIMITES.violacoesAteFechar) return
     this.ctx.storage.transactionSync(() => bloquear(this.sql, anexo.contaId, agora + LIMITES.bloqueioDepoisDasViolacoesMs))
     fechar(ws, FECHAR_POR_VIOLACAO, 'Mensagens fora do formato demais')
+    // Como em `depoisDeMudarMembros`: o socket que o servidor fecha não espera o `webSocketClose` para o duelo
+    // contar (sem outra aba, os 3 minutos começam já). Repetir não muda nada: `marcarAusente` guarda o 1º instante.
+    await this.contaSaiu(anexo.contaId, ws)
   }
 }
 

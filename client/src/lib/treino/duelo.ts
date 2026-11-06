@@ -55,7 +55,8 @@ import { danoNoTeto, seloDaMira } from './robo'
  * Resposta 12.15 do usuário: sem tempo limite por turno; quem caiu tem 3
  * minutos para voltar. A contagem é do servidor (T6, coluna `prazo` e o
  * `alarm()`); aqui só o estado (`marcarAusente`, `marcarPresente`,
- * `prazoDoDuelo`, `vencerAusencia`).
+ * `prazoDoDuelo`, `vencerAusencia`). Sem tempo por turno, quem não quer
+ * esperar o outro jogar sai desistindo (`desistirDoDuelo`): o outro vence.
  *
  * Sem Tauri, sem DOM.
  */
@@ -102,8 +103,11 @@ export interface JogadorDoDuelo {
   ausenteDesde: number | null
 }
 
-/** Como o duelo acabou: o fim da luta, ou a ausência (`vencedor` null = os dois passaram do prazo). */
-export type FimDoDuelo = FimDaLuta | { tipo: 'ausencia'; vencedor: LadoDoTreino | null }
+/**
+ * Como o duelo acabou: o fim da luta; a ausência (`vencedor` null = os dois
+ * passaram do prazo); ou a desistência (o `vencedor` é o lado de quem NÃO desistiu).
+ */
+export type FimDoDuelo = FimDaLuta | { tipo: 'ausencia'; vencedor: LadoDoTreino | null } | { tipo: 'desistencia'; vencedor: LadoDoTreino }
 
 /** O duelo guardado no servidor (coluna `estadoJson`), só dados: vai a JSON e volta igual. */
 export interface DueloGravado {
@@ -446,6 +450,20 @@ export function aplicarJogada(duelo: DueloGravado, motor: MotorDoDuelo, contaId:
   const cena = cenaDaLoja(loja)
   const passos = copia.passos + 1
   return { ok: true, duelo: { ...copia, lutadores: mesa.lutadores(), cena, seq: copia.seq + 1, passos, fim: fimNaMesa(mesa, cena, passos) } }
+}
+
+/**
+ * A conta `contaId` desiste: o outro lado vence na hora, em qualquer vez (não
+ * é jogada: não pede `seq`, não passa pela batalha). Como a ausência, não
+ * muda `seq` nem `passos`. Recusada (versão, acabado, conta de fora): o
+ * duelo recebido fica como estava.
+ */
+export function desistirDoDuelo(duelo: DueloGravado, contaId: string): ResultadoDaJogada {
+  if (duelo.versao !== VERSAO_DO_MOTOR_DO_DUELO) return recusa('versao')
+  if (duelo.fim !== null) return recusa('acabou')
+  const lado = ladoDaConta(duelo, contaId)
+  if (lado === null) return recusa('naoJoga')
+  return { ok: true, duelo: { ...duelo, fim: { tipo: 'desistencia', vencedor: lado === 'a' ? 'b' : 'a' } } }
 }
 
 // ───────────────────────────────────────────────────────────────────────────

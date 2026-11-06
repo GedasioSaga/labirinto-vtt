@@ -17,7 +17,8 @@ import { VAGAS_POR_LADO_MAX } from './mesaEmMemoria'
  * O fluxo: A convida B com as fichas dele; B aceita com as dele (ou recusa;
  * A pode desistir do convite pelo mesmo `duelo.recusar`); o servidor monta o
  * duelo (Lado A = quem convidou) e manda `duelo.estado` aos dois a cada
- * jogada aceita. Ninguém escolhe o dano: o servidor recalcula (T5).
+ * jogada aceita. Ninguém escolhe o dano: o servidor recalcula (T5). Sem tempo
+ * por turno (12.15), quem cansou de esperar sai pelo `duelo.desistir`: o outro vence.
  */
 
 /** O convite que ninguém respondeu some depois disto. */
@@ -50,6 +51,8 @@ export type PedidoDoDuelo =
   | { t: 'duelo.recusar'; id: string }
   /** A jogada da T5, com o `seq` do último estado; dano e custo do pedido já chegam `null` (`jogadaDoValor`). */
   | { t: 'duelo.jogar'; id: string; jogada: JogadaDoDuelo }
+  /** Quem está no duelo em andamento desiste, em qualquer vez: o outro lado vence (`fim.tipo` 'desistencia'). */
+  | { t: 'duelo.desistir'; id: string }
 
 export type TipoDoPedidoDoDuelo = PedidoDoDuelo['t']
 
@@ -80,7 +83,7 @@ export type MensagemDoDueloDoServidor =
 /** O pedido lido; fora do formato, o tipo (se conhecido) e o `id` (se legível) para a resposta. */
 export type LeituraDoPedidoDoDuelo = { ok: true; pedido: PedidoDoDuelo } | { ok: false; pedido: TipoDoPedidoDoDuelo | 'duelo'; id?: string }
 
-const TIPOS_DO_PEDIDO: readonly TipoDoPedidoDoDuelo[] = ['duelo.convidar', 'duelo.aceitar', 'duelo.recusar', 'duelo.jogar']
+const TIPOS_DO_PEDIDO: readonly TipoDoPedidoDoDuelo[] = ['duelo.convidar', 'duelo.aceitar', 'duelo.recusar', 'duelo.jogar', 'duelo.desistir']
 
 function tipoDoPedido(valor: unknown): TipoDoPedidoDoDuelo | null {
   return TIPOS_DO_PEDIDO.find((tipo) => tipo === valor) ?? null
@@ -111,6 +114,8 @@ function pedidoDoRegistro(tipo: TipoDoPedidoDoDuelo, registro: Record<string, un
       return fichas === null ? null : { t: tipo, id, fichas }
     }
     case 'duelo.recusar':
+      return { t: tipo, id }
+    case 'duelo.desistir':
       return { t: tipo, id }
     case 'duelo.jogar': {
       const jogada = jogadaDoValor(proprio(registro, 'jogada'))

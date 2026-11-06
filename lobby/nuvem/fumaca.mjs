@@ -20,7 +20,9 @@
 //      node fumaca.mjs duelo               -> a T6 (Nami e Zoro, contas falsas): convite, aceite, duelo curto até o fim
 //                                             com todo Atacar pedindo dano 99999 (o servidor aplica o da ficha);
 //                                             no meio, a 2ª aba fecha sem deixar ausente e a única aba fecha e volta
-//                                             antes dos 3 min; imprime o vencedor
+//                                             antes dos 3 min; imprime o vencedor. Depois: Zoro convida de novo,
+//                                             desiste no meio e a Nami vence; por último, 20 duelo.* tortos fazem o
+//                                             servidor fechar a aba da Nami e o Zoro a vê ausente na hora
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -933,6 +935,60 @@ async function caiEVolta(campanhaId, salas, duelo) {
   return naLista
 }
 
+/**
+ * `de` convida `para` (conta `contaPara`), cada um com uma ficha, e `para` aceita: o duelo começado.
+ * As filas das duas salas são limpas antes (o convite de um duelo velho não pode passar por este).
+ */
+async function comecarDuelo(de, para, contaPara, fichaDe, fichaPara) {
+  de.recebidas.length = 0
+  para.recebidas.length = 0
+  await de.mandar({ t: 'duelo.convidar', para: contaPara, fichas: [fichaDe] })
+  const enviado = await doDuelo(de, (m) => m.t === 'duelo.convite' || m.t === 'duelo.recusado', 'o convite enviado')
+  if (enviado.t !== 'duelo.convite') throw new Error(`convite recusado: ${enviado.motivo}`)
+  const { id } = enviado.convite
+  await doDuelo(para, (m) => m.t === 'duelo.convite' && m.convite.id === id, 'o convite')
+  await para.mandar({ t: 'duelo.aceitar', id, fichas: [fichaPara] })
+  const inicio = await doDuelo(para, (m) => (m.t === 'duelo.estado' && m.duelo.id === id) || (m.t === 'duelo.recusado' && m.id === id), 'o duelo começar')
+  if (inicio.t !== 'duelo.estado') throw new Error(`aceitar recusado: ${inicio.motivo}`)
+  return inicio.duelo
+}
+
+/**
+ * Sem tempo por turno (12.15), quem cansou de esperar desiste. Zoro convida (o duelo acabado não o
+ * deixou "ocupado"), a Nami aceita e o Zoro desiste no meio: os dois recebem o fim, a Nami vence.
+ */
+async function desistencia(salas) {
+  const { conta_nami: nami, conta_zoro: zoro } = salas
+  const duelo = await comecarDuelo(zoro, nami, 'conta_nami', 'pers_zoro', 'pers_nami')
+  await zoro.mandar({ t: 'duelo.desistir', id: duelo.id })
+  const fimPara = (sala) => doDuelo(sala, (m) => (m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.fim !== null) || (m.t === 'duelo.recusado' && m.id === duelo.id), 'o fim por desistência')
+  const [paraZoro, paraNami] = await Promise.all([fimPara(zoro), fimPara(nami)])
+  const fimDe = (resposta) => (resposta.t === 'duelo.estado' ? resposta.duelo.fim : resposta)
+  const venceuANami = (resposta) => resposta.t === 'duelo.estado' && resposta.duelo.fim.tipo === 'desistencia' && resposta.duelo.fim.vencedor === 'b'
+  console.log(`        desistência: ${JSON.stringify(fimDe(paraNami))} (Lado B = ${paraNami.t === 'duelo.estado' ? paraNami.duelo.jogadores.b.nome : '?'})`)
+  conferir('Zoro (Lado A) desiste no meio: os dois recebem o fim por desistência com a Nami (Lado B) vencendo', venceuANami(paraZoro) && venceuANami(paraNami), JSON.stringify({ zoro: fimDe(paraZoro), nami: fimDe(paraNami) }))
+}
+
+/**
+ * Achado da revisão: 20 frames duelo.* tortos fazem o SERVIDOR fechar a única aba da Nami (e
+ * bloquear a conta). Ela fica ausente na hora (o Zoro vê), então os 3 minutos dela começam e o
+ * duelo não para para sempre. Fica por último: a Nami sai bloqueada por 5 minutos.
+ */
+async function fechadaPorViolacao(salas) {
+  const { conta_nami: nami, conta_zoro: zoro } = salas
+  const duelo = await comecarDuelo(nami, zoro, 'conta_zoro', 'pers_nami', 'pers_zoro')
+  const fechou = new Promise((pronto) => nami.ws.addEventListener('close', (evento) => pronto(evento.code), { once: true }))
+  // 'duelo.jogar' sem a jogada = fora do formato, uma violação cada; 20 = LIMITES.violacoesAteFechar.
+  for (let vez = 0; vez < 20; vez += 1) nami.ws.send(JSON.stringify({ t: 'duelo.jogar', id: duelo.id }))
+  const codigo = await Promise.race([fechou, esperarMs(ESPERA_MS).then(() => 'não fechou')])
+  const ausente = await doDuelo(zoro, (m) => m.t === 'duelo.estado' && m.duelo.id === duelo.id && m.duelo.jogadores.a.ausenteDesde !== null, 'a Nami ausente').catch(() => null)
+  conferir(
+    '20 duelo.* tortos: o servidor fecha a aba da Nami (1008) e o Zoro a vê ausente na hora (os 3 min dela começam)',
+    codigo === 1008 && ausente !== null && ausente.duelo.fim === null,
+    JSON.stringify({ codigo, jogadores: ausente?.duelo.jogadores ?? null }),
+  )
+}
+
 async function aceiteDoDuelo() {
   const campanhaId = `fumaca-duelo-${Date.now().toString(36)}`
   console.log(`campanha ${campanhaId} em ${BASE}`)
@@ -945,14 +1001,8 @@ async function aceiteDoDuelo() {
     await salas.conta_nami.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_nami' })
     await salas.conta_zoro.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_zoro' })
     await Promise.all([salas.conta_nami, salas.conta_zoro].map((sala) => doDuelo(sala, (m) => m.t === 'duelo.lista', 'a lista vazia')))
-    await salas.conta_nami.mandar({ t: 'duelo.convidar', para: 'conta_zoro', fichas: ['pers_nami'] })
-    const convite = await doDuelo(salas.conta_zoro, (m) => m.t === 'duelo.convite' || m.t === 'duelo.recusado', 'o convite')
-    if (convite.t !== 'duelo.convite') throw new Error(`convite recusado: ${convite.motivo}`)
-    await salas.conta_zoro.mandar({ t: 'duelo.aceitar', id: convite.convite.id, fichas: ['pers_zoro'] })
-    const inicio = await doDuelo(salas.conta_zoro, (m) => (m.t === 'duelo.estado' && m.duelo.id === convite.convite.id) || m.t === 'duelo.recusado', 'o duelo começar')
-    if (inicio.t !== 'duelo.estado') throw new Error(`aceitar recusado: ${inicio.motivo}`)
     const golpes = []
-    let duelo = inicio.duelo
+    let duelo = await comecarDuelo(salas.conta_nami, salas.conta_zoro, 'conta_zoro', 'pers_nami', 'pers_zoro')
     let caiuEVoltou = false
     for (let jogadas = 0; duelo.fim === null; jogadas += 1) {
       if (jogadas >= 40) throw new Error('o duelo não acabou em 40 jogadas')
@@ -970,6 +1020,8 @@ async function aceiteDoDuelo() {
     const vencedor = duelo.fim.tipo === 'vitoria' ? `Lado ${duelo.fim.vencedor.toUpperCase()} (${duelo.jogadores[duelo.fim.vencedor].nome})` : JSON.stringify(duelo.fim)
     console.log(`        vencedor: ${vencedor}, na rodada ${duelo.turnos.rodada}, seq ${duelo.seq}`)
     conferir('o duelo acaba com vencedor (não por tempo): a Nami', duelo.fim.tipo === 'vitoria' && duelo.fim.vencedor === 'a', JSON.stringify(duelo.fim))
+    await desistencia(salas)
+    await fechadaPorViolacao(salas)
   } finally {
     salas.conta_nami.fechar()
     salas.conta_zoro.fechar()
