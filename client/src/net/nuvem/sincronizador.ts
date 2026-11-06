@@ -144,13 +144,26 @@ function motivo(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
 }
 
-/** Só a mudança de uma op (sem envelope), para refazê-la em "Usar a minha". */
-function opDeUsarAMinha(op: Op, novoId: () => string, baseRev: number, agora: number): Op {
-  const nova: Op = { opId: novoId(), loteId: novoId(), fichaId: op.fichaId, caminho: op.caminho, acao: op.acao, baseRev, clienteId: op.clienteId, quandoCliente: agora, resolve: op.opId }
+/** Só a mudança de uma op (sem envelope), para refazê-la em "Usar a minha"; o tudo-ou-nada vai de novo inteiro, no `loteId` novo comum. */
+function opDeUsarAMinha(op: Op, opId: string, loteId: string, baseRev: number, agora: number): Op {
+  const nova: Op = { opId, loteId, fichaId: op.fichaId, caminho: op.caminho, acao: op.acao, baseRev, clienteId: op.clienteId, quandoCliente: agora, resolve: op.opId }
   if (op.valor !== undefined) nova.valor = op.valor
   if (op.delta !== undefined) nova.delta = op.delta
+  if (op.atomico === true) nova.atomico = true
   if (op.autorDeclarado !== undefined) nova.autorDeclarado = op.autorDeclarado
   return nova
+}
+
+/**
+ * As entradas que decidem juntas, na ordem da fila: o tudo-ou-nada inteiro
+ * (`atomico`, o mesmo `loteId`; o servidor recusa o grupo todo com a mesma
+ * resposta) ou só a op solta. Decidir metade de uma troca criaria moeda do
+ * nada ou duplicaria o item.
+ */
+function grupoDaDecisao(paraDecidir: readonly EntradaDaFila[], escolhida: EntradaDaFila): EntradaDaFila[] {
+  const { op } = escolhida
+  if (op.atomico !== true) return [escolhida]
+  return paraDecidir.filter((entrada) => entrada.op.atomico === true && entrada.op.loteId === op.loteId)
 }
 
 /** Para onde o destino do emissor manda as ops depois de a fila abrir. */
@@ -493,20 +506,40 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
     }
   }
 
+  /** Cada entrada do grupo encerrada na fila, na ordem; `usarAMinha` dá a op nova de cada uma. */
+  async function resolverOGrupo(grupo: readonly EntradaDaFila[], usarAMinha?: (op: Op) => Op): Promise<ResultadoNaFila> {
+    for (const { op } of grupo) {
+      const resultado = await fila.resolver(op.opId, usarAMinha?.(op))
+      if (!resultado.ok) return resultado
+    }
+    return { ok: true }
+  }
+
+  /** A escolha vale para o grupo inteiro da op (`grupoDaDecisao`): a troca e o pagamento não se decidem pela metade. */
   async function decidirAgora(opId: string, escolha: EscolhaDaDecisao): Promise<ResultadoNaFila> {
-    const entrada = fila.paraDecidir().find((candidata) => candidata.op.opId === opId)
-    if (entrada === undefined) return { ok: false, problemas: [{ opId, motivo: 'sem-decisao', detalhe: 'Esta mudança não espera decisão' }] }
-    const { situacao: situacaoDaEntrada, op } = entrada
+    const paraDecidir = fila.paraDecidir()
+    const escolhida = paraDecidir.find((candidata) => candidata.op.opId === opId)
+    if (escolhida === undefined) return { ok: false, problemas: [{ opId, motivo: 'sem-decisao', detalhe: 'Esta mudança não espera decisão' }] }
+    const grupo = grupoDaDecisao(paraDecidir, escolhida)
     if (escolha === 'usar-a-minha') {
-      if (situacaoDaEntrada.t !== 'conflito') return { ok: false, problemas: [{ opId, motivo: 'sem-decisao', detalhe: '"Usar a minha" só vale no conflito' }] }
-      return fila.resolver(opId, opDeUsarAMinha(op, deps.novoId, fila.revConfirmada(), deps.agora()))
+      if (grupo.some((entrada) => entrada.situacao.t !== 'conflito')) return { ok: false, problemas: [{ opId, motivo: 'sem-decisao', detalhe: '"Usar a minha" só vale no conflito' }] }
+      // O grupo vai de novo inteiro: as ops novas, seguidas na fila (a cadeia não deixa outra entrar no meio), num `loteId` comum.
+      const loteId = deps.novoId()
+      const baseRev = fila.revConfirmada()
+      const agora = deps.agora()
+      return resolverOGrupo(grupo, (op) => opDeUsarAMinha(op, deps.novoId(), loteId, baseRev, agora))
     }
     if (escolha === 'guardar-como-nota') {
-      if (situacaoDaEntrada.t !== 'negado') return { ok: false, problemas: [{ opId, motivo: 'sem-decisao', detalhe: '"Guardar como nota" só vale na mudança recusada' }] }
-      const nota = { opId, op, motivo: situacaoDaEntrada.motivo, detalhe: situacaoDaEntrada.detalhe ?? null, quando: deps.agora() }
-      await pasta.acrescentar(ARQUIVO_DAS_NEGADAS, `${JSON.stringify(nota)}\n`)
+      const agora = deps.agora()
+      const notas: string[] = []
+      for (const { op, situacao: situacaoDaEntrada } of grupo) {
+        if (situacaoDaEntrada.t !== 'negado') return { ok: false, problemas: [{ opId, motivo: 'sem-decisao', detalhe: '"Guardar como nota" só vale na mudança recusada' }] }
+        notas.push(`${JSON.stringify({ opId: op.opId, op, motivo: situacaoDaEntrada.motivo, detalhe: situacaoDaEntrada.detalhe ?? null, quando: agora })}\n`)
+      }
+      // As notas do grupo numa gravação só.
+      await pasta.acrescentar(ARQUIVO_DAS_NEGADAS, notas.join(''))
     }
-    return fila.resolver(opId)
+    return resolverOGrupo(grupo)
   }
 
   // A fila abriu: o que o mestre mudou durante a abertura entra nela antes do acerto da reabertura.

@@ -6,6 +6,7 @@ import { ehRegistro, paraJson, proprio } from '../../lib/nuvem/json'
 import type { Personagem } from '../../lib/personagem'
 import type { PastaNoDisco } from './discoDaNuvem'
 import { comoTudoOuNada, ligarEmissor, mudancasDaPasta, prepararEmissao } from './emissor'
+import { fichasComAsLinhas, type LinhaDaNuvem } from './historicoDaNuvem'
 import { ErroDaPonte, ponteSobre, type TransporteDaNuvem } from './ponte'
 import { abrirSincronizador, type AplicadorNoApp, type Sincronizador } from './sincronizador'
 
@@ -431,6 +432,29 @@ describe('fechamento da fase 1 (F2): pagamento tudo ou nada e a linha do histór
     // A moeda não some: nem o Luffy pagou, nem o Zoro recebeu.
     expect(campanha.ficha(LUFFY.id)?.doc.moedas).toBe(100)
     expect(campanha.ficha(zoro.id)?.doc.moedas).toBe(5)
+
+    // "Somar mesmo assim" no lado do Luffy decide o pagamento inteiro: os dois lados vão de novo, tudo ou nada, num lote comum.
+    expect((await sincronizador.decidir(paraDecidir[0]?.op.opId ?? '', 'usar-a-minha')).ok).toBe(true)
+    expect(sincronizador.situacao().paraDecidir).toEqual([])
+    await sincronizador.ciclo()
+    const reenviadas = campanha.todasAsOps().slice(-2)
+    expect(reenviadas.map((gravada) => [gravada.fichaId, gravada.atomico, gravada.resolve])).toEqual([
+      [LUFFY.id, true, paraDecidir[0]?.op.opId],
+      [zoro.id, true, paraDecidir[1]?.op.opId],
+    ])
+    expect(new Set(reenviadas.map((gravada) => gravada.loteId)).size).toBe(1)
+    expect(campanha.ficha(LUFFY.id)?.doc.moedas).toBe(70)
+    expect(campanha.ficha(zoro.id)?.doc.moedas).toBe(35)
+  })
+
+  it('dez linhas da Nami de 1 em 1 s viram uma no histórico, e o gravador leve passando de novo por elas sobre o rpg.json já salvo pelo editor não acrescenta nenhuma', () => {
+    const daNami = Array.from({ length: 10 }, (_, i): LinhaDaNuvem => ({
+      fichaId: LUFFY.id,
+      registro: { quem: 'Nami', parte: 'recurso', chave: 'hp', rotulo: 'hp', de: 300 - 10 * i, para: 290 - 10 * i, quando: AGORA + 1000 * i },
+    }))
+    const umaVez = fichasComAsLinhas([LUFFY], daNami)
+    expect(umaVez?.[0]?.historico).toEqual([{ quem: 'Nami', parte: 'recurso', chave: 'hp', rotulo: 'hp', de: 300, para: 200, quando: AGORA + 9000 }])
+    expect(fichasComAsLinhas(umaVez ?? [], daNami)).toBeNull()
   })
 
   it('a Vida mudada pela Nami no site ganha linha no histórico do editor e do rpg.json, que não vira op; o eco da mudança do próprio app não ganha outra', async () => {

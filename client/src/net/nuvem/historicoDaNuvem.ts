@@ -73,18 +73,41 @@ export function linhasDasOpsDaNuvem(base: BaseDaNuvem, novas: readonly OpGravada
 }
 
 /**
- * A linha já entrou no histórico: há uma do mesmo autor, no mesmo número, da
- * mesma hora ou de até uma janela depois — ela mesma, ou outra que `registrar`
- * juntou com ela. O gravador leve pode passar de novo pela linha, e o
- * `rpg.json` salvo pelo editor já a pode ter. Raro e aceito: a mudança do
- * mesmo autor no mesmo número feita no app logo depois (com o relógio daqui)
- * esconde a linha da op do site que ainda não tinha chegado.
+ * Até quando `registrar` pode ter juntado a linha com as que vêm depois dela
+ * na leva: a hora da última de uma sequência do mesmo autor no mesmo número,
+ * com menos de uma janela entre uma e a seguinte. Outra pessoa no mesmo número
+ * corta a sequência, como corta a junção em `registrar`.
  */
-function jaEntrou(historico: readonly RegistroDaFicha[], novo: RegistroDaFicha): boolean {
-  return historico.some((registro) => {
-    const depois = registro.quando - novo.quando
-    return registro.quem === novo.quem && registro.parte === novo.parte && registro.chave === novo.chave && depois >= 0 && depois < JANELA_DO_REGISTRO_MS
-  })
+function fimDaSequencia(primeira: RegistroDaFicha, seguintes: readonly RegistroDaFicha[]): number {
+  let fim = primeira.quando
+  for (const registro of seguintes) {
+    if (registro.parte !== primeira.parte || registro.chave !== primeira.chave) continue
+    const passou = registro.quando - fim
+    if (registro.quem !== primeira.quem || passou < 0 || passou >= JANELA_DO_REGISTRO_MS) break
+    fim = registro.quando
+  }
+  return fim
+}
+
+/**
+ * A linha já entrou no histórico: há uma do mesmo autor, no mesmo número, da
+ * hora dela até uma janela depois do `fim` da sequência dela — ela mesma, ou
+ * a que `registrar` juntou com ela, que fica com a hora da última da
+ * sequência (dez cliques de 1 em 1 s viram uma linha 9 s mais nova que a
+ * primeira). O gravador leve pode passar de novo pela linha, e o `rpg.json`
+ * salvo pelo editor já a pode ter. Raro e aceito: a mudança do mesmo autor no
+ * mesmo número feita no app logo depois (com o relógio daqui) esconde a linha
+ * da op do site que ainda não tinha chegado.
+ */
+function jaEntrou(historico: readonly RegistroDaFicha[], novo: RegistroDaFicha, fim: number): boolean {
+  return historico.some(
+    (registro) =>
+      registro.quem === novo.quem &&
+      registro.parte === novo.parte &&
+      registro.chave === novo.chave &&
+      registro.quando >= novo.quando &&
+      registro.quando - fim < JANELA_DO_REGISTRO_MS,
+  )
 }
 
 /**
@@ -98,10 +121,11 @@ export function fichasComAsLinhas(personagens: readonly Personagem[], linhas: re
   let mudou = false
   const novas = personagens.map((ficha) => {
     if (!vaiAoLobby(ficha)) return ficha
+    const dela = linhas.filter((linha) => linha.fichaId === ficha.id).map((linha) => linha.registro)
     let historico = ficha.historico
-    for (const linha of linhas) {
-      if (linha.fichaId !== ficha.id || jaEntrou(ficha.historico, linha.registro)) continue
-      historico = registrar(historico, linha.registro)
+    for (const [indice, registro] of dela.entries()) {
+      if (jaEntrou(ficha.historico, registro, fimDaSequencia(registro, dela.slice(indice + 1)))) continue
+      historico = registrar(historico, registro)
     }
     if (historico === ficha.historico) return ficha
     mudou = true
