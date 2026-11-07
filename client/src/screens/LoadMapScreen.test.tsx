@@ -17,6 +17,8 @@ const arquivos = vi.hoisted(() => ({
   renameMap: vi.fn<(id: string, newName: string) => Promise<string>>(),
   duplicateMap: vi.fn<(id: string) => Promise<SavedMapEntry>>(),
   deleteMap: vi.fn<(id: string) => Promise<void>>(),
+  // A migração da mochila (net/nuvem/migracaoDaMochila.ts, `discoDoApp`) lê este export ao carregar.
+  writeTextFileSafely: vi.fn<(path: string, data: string) => Promise<void>>(),
 }))
 
 vi.mock('../lib/mapFileIO', () => arquivos)
