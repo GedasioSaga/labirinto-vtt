@@ -6,12 +6,14 @@ import { useNuvemStore } from '../../stores/nuvemStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { useToastStore } from '../../stores/toastStore'
 import { abrirCopiaDaSala, fonteDaSalaSobre, type CopiaDaSalaNoDisco } from './chatSala'
+import { comandosDaR1 } from './comandosDaR1'
 import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from './discoDaNuvem'
 import { ligarEmissor } from './emissor'
 import { lerCampanhas, registrarCampanha, type CampanhaPublicada } from './estadoNoDisco'
 import { gravarRpgLeve } from './gravadorLeve'
 import { criarLaco, ESPERA_DEPOIS_DA_MUDANCA_MS, type Laco } from './laco'
 import { corpoDosMembros, criarMembrosPendentes, type EnvioDaLista, type MembrosPendentes } from './membrosPendentes'
+import { ponteComMidia } from './midiaNaNuvem'
 import { ehFalha, falhaDoStatus, pedirComFalha, ponteSobre, transporteDoTauri, type TransporteDaNuvem } from './ponte'
 import { abrirSincronizador, type AplicadorNoApp, type EscolhaDaDecisao, type Sincronizador } from './sincronizador'
 import type { ResultadoNaFila } from '../../lib/nuvem/fila'
@@ -178,7 +180,6 @@ export async function ligarCampanha(campanha: CampanhaPublicada): Promise<boolea
   await relerContasSePreciso()
   const pasta = pastaNoDisco(primitivasDoTauri, await join(await pastaDaNuvemNoApp(), campanha.campanhaId))
   const transporte = transporteDoTauri()
-  const ponte = ponteSobre(transporte)
   const extras: ExtrasDaCampanha = {
     campanhaId: campanha.campanhaId,
     transporte,
@@ -186,6 +187,12 @@ export async function ligarCampanha(campanha: CampanhaPublicada): Promise<boolea
     salaPedidaEm: null,
     avisados: new Set(),
   }
+  // O retrato ou a imagem de cartão trocados depois de publicar: o arquivo sobe antes da op que o cita.
+  const r1 = comandosDaR1()
+  const ponte = ponteComMidia(ponteSobre(transporte), {
+    enviar: (midiaId) => r1.enviarMidia(campanha.campanhaId, campanha.pastaId, midiaId),
+    aoDesistir: (_midiaId, motivo) => avisarUmaVez(extras, `Uma imagem não subiu ao Lobby (${motivo}). A mudança subiu; no site, a ficha mostra as iniciais no lugar dela.`),
+  })
   let laco: Laco | null = null
   const aberto = await abrirSincronizador(campanha, {
     ponte,

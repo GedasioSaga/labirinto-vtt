@@ -11,7 +11,7 @@ import { ContaNaNuvem, type EstadoDaConta } from './ContaNaNuvem'
 import { problemaDoEmail, reenviarContasAtuais, trocarEmailDaConta } from './contasNoLobby'
 import { IndicadorDoLobby } from './IndicadorDoLobby'
 import { MudancasParaDecidir } from './MudancasParaDecidir'
-import { bloqueioDoDragonBall, dragonBallNaPasta, fichasComOBloco, fichasQueSobem, publicarPasta, type EnvioDosMembros, type Publicacao } from './ponteDoLobby'
+import { bloqueioDoDragonBall, dragonBallNaPasta, fichasComOBloco, fichasQueSobem, publicarPasta, type EnvioDosMembros, type ProgressoDaPublicacao, type Publicacao } from './ponteDoLobby'
 import { contaComOMesmoEmail, emailRepetidoParado, iniciais, listaDeNomes, recadoDeConvite } from './textosDoLobby'
 import { SEM_DONO, useArrastoDaFicha } from './useArrastoDaFicha'
 import { usePastaPublicada } from './usePastaPublicada'
@@ -420,7 +420,13 @@ interface PublicarNoLobbyProps {
   onPublicada: (campanha: CampanhaPublicada) => void
 }
 
-type Publicando = { t: 'parado' } | { t: 'publicando' } | { t: 'feito'; relatorio: Publicacao } | { t: 'falhou'; mensagem: string }
+type Publicando = { t: 'parado' } | { t: 'publicando'; progresso: ProgressoDaPublicacao } | { t: 'feito'; relatorio: Publicacao } | { t: 'falhou'; mensagem: string }
+
+/** "Enviando imagens 3 de 11…": a imagem em curso, não as que já foram (com 3 de uma vez, a conta anda aos saltos). */
+function textoDoProgresso(progresso: ProgressoDaPublicacao): string {
+  if (progresso.t === 'fichas' || progresso.total === 0) return 'Publicando as fichas…'
+  return `Enviando imagens ${Math.min(progresso.feitas + 1, progresso.total)} de ${progresso.total}…`
+}
 
 /** Por que o botão Publicar não pode agir agora; `null` = pode. */
 function bloqueioDaPublicacao(sistema: SistemaDeRpg | undefined, personagens: readonly Personagem[], conta: EstadoDaConta): string | null {
@@ -457,9 +463,11 @@ function PublicarNoLobby({ pasta, rpg, sistema, contas, conta, publicada, campan
 
   const publicar = async () => {
     if (sistema === undefined) return
-    setPublicando({ t: 'publicando' })
+    setPublicando({ t: 'publicando', progresso: { t: 'fichas' } })
     try {
-      const resultado = await publicarPasta({ pastaId: pasta.id, nome: pasta.nome, sistema, personagens: rpg.personagens, contas })
+      const resultado = await publicarPasta({ pastaId: pasta.id, nome: pasta.nome, sistema, personagens: rpg.personagens, contas }, (progresso) =>
+        setPublicando({ t: 'publicando', progresso }),
+      )
       if (!resultado.ok) {
         setPublicando({ t: 'falhou', mensagem: resultado.falha.mensagem })
         return
@@ -472,6 +480,20 @@ function PublicarNoLobby({ pasta, rpg, sistema, contas, conta, publicada, campan
   }
 
   const relatorio = publicando.t === 'feito' ? <RelatorioDaPublicacao relatorio={publicando.relatorio} /> : null
+  const bloqueio = bloqueioDaPublicacao(sistema, rpg.personagens, conta)
+  const ocupado = publicando.t === 'publicando'
+  const progresso =
+    publicando.t === 'publicando' ? (
+      <p className="lby-dica" role="status">
+        {textoDoProgresso(publicando.progresso)}
+      </p>
+    ) : null
+  const falhou =
+    publicando.t === 'falhou' ? (
+      <p className="lb-field__error" role="alert">
+        {publicando.mensagem}
+      </p>
+    ) : null
 
   if (publicada) {
     const dragonBall = avisoDoDragonBallPublicado(sistema, rpg.personagens)
@@ -491,13 +513,33 @@ function PublicarNoLobby({ pasta, rpg, sistema, contas, conta, publicada, campan
             {falhaAoLigar}
           </p>
         )}
+        {/* Publicar de novo é seguro: a ficha que já está lá não muda, e sobem as imagens que faltaram. */}
+        <div className="lby-linha">
+          <button
+            type="button"
+            className="lb-btn lb-btn--ghost lb-btn--compact"
+            disabled={bloqueio !== null || ocupado}
+            aria-describedby={bloqueio !== null ? `${id}-bloqueio` : `${id}-de-novo`}
+            onClick={() => void publicar()}
+          >
+            {ocupado ? 'Publicando…' : 'Publicar de novo'}
+          </button>
+          <span className="lby-dica" id={`${id}-de-novo`}>
+            Manda as imagens que faltam no site; o que já está lá não muda.
+          </span>
+        </div>
+        {bloqueio !== null && (
+          <p className="lby-aviso" data-tom="latao" id={`${id}-bloqueio`}>
+            {bloqueio}
+          </p>
+        )}
+        {progresso}
+        {falhou}
         {relatorio}
       </section>
     )
   }
 
-  const bloqueio = bloqueioDaPublicacao(sistema, rpg.personagens, conta)
-  const ocupado = publicando.t === 'publicando'
   return (
     <section className="lby-publicar" aria-labelledby={`${id}-t`}>
       <h4 className="lby-cab__t" id={`${id}-t`}>
@@ -523,11 +565,8 @@ function PublicarNoLobby({ pasta, rpg, sistema, contas, conta, publicada, campan
           {ocupado ? 'Publicando…' : 'Publicar no Lobby'}
         </button>
       </div>
-      {publicando.t === 'falhou' && (
-        <p className="lb-field__error" role="alert">
-          {publicando.mensagem}
-        </p>
-      )}
+      {progresso}
+      {falhou}
       {relatorio}
     </section>
   )
@@ -549,11 +588,20 @@ function RelatorioDaPublicacao({ relatorio }: { relatorio: Publicacao }) {
           ))}
         </ul>
       )}
-      {imagens.falharam > 0 && (
-        <p className="lby-aviso" data-tom="latao">
-          {imagens.falharam === 1 ? '1 imagem não subiu' : `${imagens.falharam} imagens não subiram`}
-          {imagens.falha !== null ? ` (${imagens.falha.mensagem})` : ''}. As fichas estão lá; falta só a imagem no site.
-        </p>
+      {imagens.enviadas > 0 && <p className="lby-ok">{imagens.enviadas === 1 ? '1 imagem está no site.' : `${imagens.enviadas} imagens estão no site.`}</p>}
+      {imagens.falhas.length > 0 && (
+        <>
+          <p className="lby-aviso" data-tom="latao">
+            {imagens.falhas.length === 1 ? '1 imagem não subiu' : `${imagens.falhas.length} imagens não subiram`}. As fichas estão lá; no site, elas mostram as iniciais no lugar da imagem até você publicar de novo.
+          </p>
+          <ul className="lby-relatorio__fora" aria-label="Imagens que não subiram">
+            {imagens.falhas.map((falha) => (
+              <li key={falha.midiaId}>
+                <b>{listaDeNomes(falha.fichas)}</b>: {falha.motivo}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {relatorio.embutidasDeFora > 0 && (
         <p className="lby-dica">

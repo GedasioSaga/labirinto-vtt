@@ -35,9 +35,10 @@ import { comandosDaR1, invocarDoTauri, type Invocar, type PedidoDaR1 } from './c
  * (espera crescente, §5.5); `sem-credencial` (inclusive a credencial recusada
  * pelo Access) para o laço até a pessoa colar o token.
  *
- * Mídia (PUT/GET) e as credenciais são outros comandos da R1, fora do laço do
- * sincronizador (fatias W3/A6). Os seis comandos, com nome e argumentos, moram
- * num lugar só: `comandosDaR1.ts` (fatia J0).
+ * Mídia (PUT/GET) e as credenciais são outros comandos da R1 (fatias W3/A6);
+ * a imagem que uma op cita sobe antes dela por `ponteComMidia`
+ * (`midiaNaNuvem.ts`), que embrulha esta ponte. Os seis comandos, com nome e
+ * argumentos, moram num lugar só: `comandosDaR1.ts` (fatia J0).
  */
 
 export type RotaDaNuvem =

@@ -12,8 +12,9 @@ import { pastaDaNuvemNoApp, pastaNoDisco, primitivasDoTauri } from '../../net/nu
 import { vaiAoLobby } from '../../net/nuvem/emissor'
 import { estadoNovo, gravarEstado, lerCampanhas, lerEstado, type CampanhaPublicada } from '../../net/nuvem/estadoNoDisco'
 import { corpoDosMembros, type EnvioDaLista } from '../../net/nuvem/membrosPendentes'
+import { enviarImagens, imagensDasFichas, type EnvioDasImagens, type ProgressoDasImagens } from '../../net/nuvem/midiaNaNuvem'
 import { membrosPendentesDoApp, registrarELigar, retomarLobby } from '../../net/nuvem/nuvemNoApp'
-import { copiasDeTreino, inimigosLiberadosDe, midiasDaFicha, semImagemEmbutida } from '../../net/nuvem/publicar'
+import { copiasDeTreino, inimigosLiberadosDe, semImagemEmbutida } from '../../net/nuvem/publicar'
 import { listaDeNomes, membrosDasContas, NOME_DO_MESTRE, textoDoMotivo } from './textosDoLobby'
 
 /**
@@ -183,8 +184,8 @@ export interface Publicacao {
   fichas: FichaNaPublicacao[]
   /** As cópias dos inimigos liberados para o treino (T8); `fichaId` é o da cópia. */
   inimigos: FichaNaPublicacao[]
-  /** Imagens que subiram e que não subiram (a ficha sobe mesmo assim; a imagem falta no site). */
-  imagens: { enviadas: number; falharam: number; falha: FalhaDoLobby | null }
+  /** Imagens que subiram e as que não subiram, com as fichas e o motivo (a ficha sobe mesmo assim; a imagem falta no site). */
+  imagens: EnvioDasImagens
   /** Fotos embutidas antigas que ficaram de fora (ainda não viraram mídia). */
   embutidasDeFora: number
   /** O sincronizador ligou (`false` = a razão foi para o aviso do app). */
@@ -262,17 +263,24 @@ export function bloqueioDoDragonBall(sistema: SistemaDeRpg | undefined, personag
   return `${fichasComOBloco(achado.fichas, true)} o bloco do Dragon Ball, e ficha Dragon Ball ainda não vai ao Lobby, nem numa pasta de outro sistema. ${POR_QUE_O_DRAGON_BALL_FICA_FORA}`
 }
 
+/** Em que parte o publicar está, para a tela: as fichas (um pedido só) e depois cada imagem. */
+export type ProgressoDaPublicacao = { t: 'fichas' } | ({ t: 'imagens' } & ProgressoDasImagens)
+
 /**
  * PUBLICAR (§5.4): cria a campanha no servidor com o sistema, os jogadores
  * com e-mail e as fichas de jogador que ainda não existem lá; depois liga o
  * sincronizador desta pasta e sobe as imagens das fichas.
+ *
+ * Publicar de novo a pasta já publicada é seguro (a ficha que já está lá volta
+ * `ja-publicada` e não muda) e é como sobem as imagens que faltaram: as das
+ * fichas `ja-publicada` também vão.
  *
  * O `clienteId` do publicar é o mesmo que o sincronizador vai usar (gravado no
  * `estado.json` antes do pedido): a mudança que o mestre fizer logo depois,
  * antes da primeira busca, tem a mesma chave de autoria da criação e não vira
  * conflito com ela (§5.2).
  */
-export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resultado<Publicacao>> {
+export async function publicarPasta(pedido: PedidoDePublicacao, aoProgresso?: (progresso: ProgressoDaPublicacao) => void): Promise<Resultado<Publicacao>> {
   // A mesma guarda do botão, aqui também: quem chamar sem passar pela tela não cria campanha nem liga o sincronizador.
   const dragonBall = bloqueioDoDragonBall(pedido.sistema, pedido.personagens)
   if (dragonBall !== null) return { ok: false, falha: { t: 'erro', mensagem: dragonBall } }
@@ -287,6 +295,7 @@ export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resulta
   const liberados = await liberadosDoPedido(pedido)
   const copias = liberados === null ? null : copiasDeTreino(pedido.personagens, liberados)
   const corpo = corpoDoPublicar({ clienteId, nome: campanha.nome, sistema: pedido.sistema, contas: pedido.contas, fichas, copias })
+  aoProgresso?.({ t: 'fichas' })
   const resposta = await chamar((comandos) => comandos.pedir({ rota: 'publicar', campanhaId: campanha.campanhaId, corpo }))
   if (!resposta.ok) return resposta
 
@@ -295,7 +304,7 @@ export async function publicarPasta(pedido: PedidoDePublicacao): Promise<Resulta
 
   // A campanha entra na lista do disco e o sincronizador liga: daqui em diante, cada mudança sobe sozinha.
   const ligou = await registrarELigar(campanha)
-  const imagens = await enviarMidias(campanha, [...fichas, ...(copias ?? [])], [...relatorio, ...inimigos])
+  const imagens = await enviarMidias(campanha, [...fichas, ...(copias ?? [])], [...relatorio, ...inimigos], (progresso) => aoProgresso?.({ t: 'imagens', ...progresso }))
 
   return {
     ok: true,
@@ -373,18 +382,21 @@ function relatorioDoTreino(copias: readonly Personagem[], porId: ReadonlyMap<str
   return relatorioDe(copias, porId).map((inimigo) => (inimigo.situacao === 'adiada' ? { ...inimigo, motivo: 'o servidor está no limite do dia; mande de novo mais tarde' } : inimigo))
 }
 
-/** Sobe as imagens das fichas que estão no servidor (publicadas agora ou de antes). */
-async function enviarMidias(campanha: CampanhaPublicada, fichas: readonly Personagem[], relatorio: readonly FichaNaPublicacao[]): Promise<Publicacao['imagens']> {
+/**
+ * Sobe cada imagem distinta das fichas que estão no servidor: as publicadas
+ * agora e as `ja-publicada` (publicar de novo manda o que faltou). A recusada
+ * e a adiada ainda não existem lá; a adiada leva a imagem quando sobe pela fila.
+ * Quem chama já passou pelo `isTauri()`.
+ */
+function enviarMidias(
+  campanha: CampanhaPublicada,
+  fichas: readonly Personagem[],
+  relatorio: readonly FichaNaPublicacao[],
+  aoProgresso?: (progresso: ProgressoDasImagens) => void,
+): Promise<EnvioDasImagens> {
   const noServidor = new Set(relatorio.filter((ficha) => ficha.situacao === 'publicada' || ficha.situacao === 'ja-publicada').map((ficha) => ficha.fichaId))
-  const ids = [...new Set(fichas.filter((ficha) => noServidor.has(ficha.id)).flatMap(midiasDaFicha))]
-  let enviadas = 0
-  let ultimaFalha: FalhaDoLobby | null = null
-  for (const midiaId of ids) {
-    const envio = await chamar((comandos) => comandos.enviarMidia(campanha.campanhaId, campanha.pastaId, midiaId))
-    if (envio.ok) enviadas += 1
-    else ultimaFalha = envio.falha
-  }
-  return { enviadas, falharam: ids.length - enviadas, falha: ultimaFalha }
+  const porImagem = imagensDasFichas(fichas.filter((ficha) => noServidor.has(ficha.id)))
+  return enviarImagens(porImagem, (midiaId) => r1.enviarMidia(campanha.campanhaId, campanha.pastaId, midiaId), aoProgresso)
 }
 
 // ── Inimigos liberados para o treino (T8) ───────────────────────────────────
@@ -399,7 +411,7 @@ export interface PedidoDoTreino {
 }
 
 /** `so-no-app` = a pasta não está no Lobby: a lista ficou guardada e sobe com o Publicar. */
-export type EnvioDoTreino = { t: 'so-no-app' } | { t: 'enviado'; inimigos: FichaNaPublicacao[]; imagens: Publicacao['imagens'] }
+export type EnvioDoTreino = { t: 'so-no-app' } | { t: 'enviado'; inimigos: FichaNaPublicacao[]; imagens: EnvioDasImagens }
 
 /**
  * Manda ao Lobby as cópias de TODOS os inimigos liberados da pasta, pela

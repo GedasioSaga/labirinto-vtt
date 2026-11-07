@@ -130,7 +130,7 @@ function InimigoDaPasta({ npc, pastaId }: { npc: Personagem; pastaId: string }) 
     const resultado = await enviarInimigosDoTreino({ pastaId, rpg: atual, sistema, contas: contas.arquivo.contas })
     if (!resultado.ok) throw new Error(resultado.falha.mensagem)
     if (resultado.valor.t === 'so-no-app') return null
-    return textoDoEnvio(npc, liberadoAgora, resultado.valor.inimigos, resultado.valor.imagens.falharam)
+    return textoDoEnvio(npc, liberadoAgora, resultado.valor.inimigos, resultado.valor.imagens.falhas.length)
   }
 
   const trocar = async () => {
