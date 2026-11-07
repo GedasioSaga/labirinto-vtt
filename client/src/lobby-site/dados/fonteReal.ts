@@ -78,7 +78,9 @@ export interface OpcoesDaFonteReal {
 function lerCampanhaDoEu(bruto: unknown): CampanhaDoEu | null {
   if (!ehRegistro(bruto)) return null
   const campanhaId = proprio(bruto, 'campanhaId')
-  const nomeDaCampanha = proprio(bruto, 'nomeDaCampanha')
+  // O Diretório manda o nome em `nome` (lobby/nuvem/src/diretorio.ts); `nomeDaCampanha` fica aceito por compatibilidade.
+  const nomeNoFio = proprio(bruto, 'nome')
+  const nomeDaCampanha = typeof nomeNoFio === 'string' ? nomeNoFio : proprio(bruto, 'nomeDaCampanha')
   const papel = proprio(bruto, 'papel')
   if (!segmentoValido(campanhaId) || typeof nomeDaCampanha !== 'string' || (papel !== 'mestre' && papel !== 'jogador')) return null
   return { campanhaId, nomeDaCampanha, papel }
