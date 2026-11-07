@@ -13,7 +13,8 @@ Meta do usuário (/goal, 05-06/11): site do Lobby pronto, com acesso pelo Google
 
 ## Próximos passos
 
-1. Usuário: `npx wrangler login` (navegador, Allow); conferir com `npx wrangler whoami`.
+0. (07/11 noite, MAIS RECENTE) No ar: app 0.5.35 (retratos: Publicar de novo), foto de perfil `3cfa19af`, retratos no site `93fabb82`, "Ver como jogador" `a4e82dcc`; jogadores reais já entraram. Release sai de worktree limpo `../labirinto-release` de origin/main (junctions node_modules da raiz, client e lobby/nuvem; rmdir antes de remover) porque outra sessão tem `client/src/transicoes/*` sem commit; `git push origin main`, `node scripts/publicar-versao.cjs` e `npx wrangler pages secret put` liberados no /permissions. FILA: frente "Arena multijogador" (PEDIDOS 07/11: builds salvas e cópia de colega no Judge; luta com N jogadores em times ou todos contra todos; mestre controla o Judge ou arbitra; espectador). Depois, ideias do vvd.world (enciclopédia > mapa-múndi > conexões) esperando ok do usuário.
+1. (Já feito em 07/11) Usuário: `npx wrangler login` (navegador, Allow); conferir com `npx wrangler whoami`.
 2. Usuário: criar o Service Token (Zero Trust > Access > Service Auth) e colar Client ID e Secret no app, em "Conta na nuvem" (só depois da versão nova do app).
 3. Usuário, em `lobby/site`: `npx wrangler pages secret put ACCESS_AUD --project-name labirintolobby` (o AUD da aplicação do Access), `ACCESS_TIME` (`rapid-boat-2220.cloudflareaccess.com`), `MAPA_DO_APP` (`<Client ID do token>=<e-mail do mestre>`). Conferir no painel que o ramo de produção do Pages é `main`.
 4. Usuário: política do Access só com os e-mails convidados (hoje pode estar "qualquer Google") e exceção Bypass para `/privacidade`.
