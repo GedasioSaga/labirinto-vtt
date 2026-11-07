@@ -222,6 +222,12 @@ fn so_letras_e_digitos(texto: &str) -> bool {
     texto.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
+/// O Client Secret novo do Cloudflare vem com prefixo e sublinhado
+/// (`cfast_...`, visto em 07/11/2026); o antigo era só letras e números.
+fn forma_do_segredo(texto: &str) -> bool {
+    texto.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
 /// Aparada e na forma do Cloudflare. As mensagens citam o campo, nunca o
 /// conteúdo.
 fn validar_credencial(client_id: &str, client_secret: &str) -> Result<Credencial, ErroNuvem> {
@@ -246,10 +252,10 @@ fn validar_credencial(client_id: &str, client_secret: &str) -> Result<Credencial
         ));
     }
     if !(CLIENT_SECRET_MIN..=CLIENT_SECRET_MAX).contains(&segredo.len())
-        || !so_letras_e_digitos(segredo)
+        || !forma_do_segredo(segredo)
     {
         return Err(erro_credencial(format!(
-            "O Client Secret não tem a forma do Cloudflare ({CLIENT_SECRET_MIN} a {CLIENT_SECRET_MAX} letras e números)."
+            "O Client Secret não tem a forma do Cloudflare ({CLIENT_SECRET_MIN} a {CLIENT_SECRET_MAX} letras, números, _ ou -)."
         )));
     }
     Ok(Credencial {
@@ -1252,6 +1258,15 @@ mod testes {
         .map_err(|e| e.mensagem)?;
         assert_eq!(guardada.client_id, CLIENT_ID);
         assert_eq!(guardada.client_secret, CLIENT_SECRET);
+        Ok(())
+    }
+
+    #[test]
+    fn segredo_novo_com_prefixo_cfast_e_aceito() -> Resultado {
+        // Forma do Client Secret que o painel do Cloudflare passou a gerar (valor inventado).
+        let segredo = "cfast_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9fG1hJ3k";
+        let guardada = validar_credencial(CLIENT_ID, segredo).map_err(|e| e.mensagem)?;
+        assert_eq!(guardada.client_secret, segredo);
         Ok(())
     }
 
