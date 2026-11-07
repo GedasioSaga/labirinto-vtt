@@ -4,6 +4,7 @@ import type { EstadoDaCampanha, FichaDoSite, SituacaoDoDesfazer } from '../dados
 import { useAgora, useSistemaDoLobby, useSite } from './contexto'
 import { Icone } from './Icone'
 import { Rosto } from './Rosto'
+import { AvisoDeSoLeitura, useSoLeitura } from './VerComo'
 import { deParaDaOp, fraseDaOp, horaExata, motivoEmTexto, nomeDoDia, quandoRelativo, rotuloDoCaminho, valorEmTexto } from './textos'
 
 /**
@@ -32,6 +33,7 @@ export function PainelHistorico({ campanha, ficha }: PainelProps) {
   const site = useSite()
   const tituloId = useId()
   const agora = useAgora()
+  const soLeitura = useSoLeitura()
   const fichaId = ficha.doc.id
   const emDia = campanha.conexao === 'em-dia'
   const historico = campanha.historicos.get(fichaId)
@@ -59,14 +61,17 @@ export function PainelHistorico({ campanha, ficha }: PainelProps) {
     : `Quem mudou o quê nesta ficha. Só ${ficha.nomeDoDono === null ? 'o mestre desfaz' : `${ficha.nomeDoDono} e o mestre desfazem`}.`
 
   return (
-    <section aria-labelledby={tituloId} aria-busy={carregando}>
+    <section aria-labelledby={tituloId} aria-busy={soLeitura === null && carregando}>
       <div className="lo-painel__cab">
         <h2 className="lo-painel__titulo" id={tituloId}>
           Histórico
         </h2>
         <p className="lo-secao__nota">{regra}</p>
       </div>
-      {!emDia && historico === undefined ? (
+      {soLeitura !== null ? (
+        // O servidor manda o histórico a quem pede, e quem pede aqui é o mestre: viria com o que o jogador não vê.
+        <AvisoDeSoLeitura>O histórico fica de fora da vista de {soLeitura.nome}: ele chegaria como você o vê, mestre. Volte a ser mestre para ver e desfazer.</AvisoDeSoLeitura>
+      ) : !emDia && historico === undefined ? (
         <p className="lo-vazio">Sem internet: o histórico abre quando a conexão voltar.</p>
       ) : carregando ? (
         <p className="lo-carregando" role="status">

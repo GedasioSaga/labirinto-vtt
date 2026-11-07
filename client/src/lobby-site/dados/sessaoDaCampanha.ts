@@ -26,11 +26,13 @@ import {
   ehDoChat,
   ehDoDuelo,
   ehDoMural,
+  ehDoVerComo,
   RELOGIO_DO_NAVEGADOR,
   type Canal,
   type EstadoComSala,
   type FonteDoLobby,
   type MensagemDoSite,
+  type MensagemDoVerComoNoSite,
   type MotivoDoFechamento,
   type Relogio,
   type SalaDaMesa,
@@ -172,6 +174,8 @@ export interface SessaoDaCampanha {
   enviarDoDuelo(pedido: PedidoDoDuelo): boolean
   /** Pede o livro do sistema (F1), como o "Livro" da ficha na sala LAN. `false` = sem canal, ou o sistema não tem livro. */
   pedirLivro(): boolean
+  /** Só o mestre: pede a vista do jogador `contaId` ("ver como", 07/11/2026); a resposta vai ao `verComo` das opções. `false` = sem canal agora. */
+  pedirVerComo(contaId: string, reqId: string): boolean
   fechar(): void
 }
 
@@ -213,6 +217,8 @@ export interface OpcoesDaSessao {
   mural?: ParteDoMural
   /** O duelo da campanha (T7); sem ele, frame `duelo.*` é ignorado. */
   duelo?: ParteDoDuelo
+  /** Quem espera a vista do "ver como"; sem ele, frame `verComo.*` é ignorado. Não mexe na base. */
+  verComo?: (mensagem: MensagemDoVerComoNoSite) => void
   relogio?: Relogio
   novoId?: () => string
 }
@@ -525,6 +531,11 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       opcoes.duelo?.aoReceber(mensagem)
       return
     }
+    // A vista do "ver como" é de outra pessoa: nunca entra na base nem na fila do mestre.
+    if (ehDoVerComo(mensagem)) {
+      opcoes.verComo?.(mensagem)
+      return
+    }
     switch (mensagem.t) {
       case 'estado':
         await receberEstado(mensagem)
@@ -814,6 +825,10 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       return canal.enviar(pedido)
     },
     pedirLivro,
+    pedirVerComo(contaId, reqId) {
+      if (!sincronizada || canal === null || eu?.papel !== 'mestre') return false
+      return canal.enviar({ t: 'verComo', reqId, contaId })
+    },
     fechar() {
       encerrada = true
       conexao = 'fechada'

@@ -10,6 +10,8 @@ import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
 import type { DueloDaDemo, OpcoesDoDueloDaDemo } from './dueloDaDemo'
 import { criarMuralDaDemo, type MuralDaDemo } from './muralDaDemo'
+import { decidirVerComo } from '../../lib/nuvem/verComo'
+import type { MensagemDoDueloDoServidor } from '../../lib/treino/dueloDoLobby'
 import {
   ehPedidoDoChat,
   ehPedidoDoDuelo,
@@ -390,7 +392,32 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
         LIVRO_DA_DEMO.partes.forEach((texto, indice) => entregar({ t: 'livro.parte', reqId: mensagem.reqId, indice, total, texto }))
         return
       }
+      case 'verComo':
+        return verComoNaDemo(mensagem.reqId, mensagem.contaId, alvo, eu)
     }
+  }
+  /** Como o `verComo` do DO: a mesma decisão (só o mestre, só jogador ativo) e as mesmas montagens do `ola` daquele jogador. */
+  function verComoNaDemo(reqId: string, contaId: string, alvo: CampanhaEmMemoria, eu: Membro): void {
+    const decisao = decidirVerComo(eu, alvo.todosOsMembros(), contaId)
+    if (!decisao.ok) {
+      entregar({ t: 'verComo.recusa', reqId, motivo: decisao.motivo })
+      return
+    }
+    const visto = decisao.alvo
+    const doMural = servidor.murais.get(campanhaId)?.estadoPara(visto)
+    const mural = doMural !== undefined && doMural.t === 'mural.estado' ? doMural : null
+    const mandar = (duelos: MensagemDoDueloDoServidor | null): void =>
+      entregar({ t: 'verComo.vista', reqId, contaId: visto.contaId, estado: estadoPara(alvo, visto), mural, duelos: duelos !== null && duelos.t === 'duelo.lista' ? duelos : null })
+    const carregar = servidor.duelos.get(campanhaId)
+    if (carregar === undefined) return mandar(null)
+    carregar().then(
+      (duelo) => {
+        if (!encerrado) mandar(duelo.listaPara(visto.contaId))
+      },
+      () => {
+        if (!encerrado) mandar(null)
+      },
+    )
   }
 
   relogio.depois(LATENCIA_DA_DEMO_MS, () => {

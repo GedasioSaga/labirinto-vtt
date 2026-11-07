@@ -7,6 +7,7 @@ import { useAgora, useSite } from '../contexto'
 import { Icone } from '../Icone'
 import { Rosto } from '../Rosto'
 import { horaExata, nomeDoDia } from '../textos'
+import { motivoDaSoLeitura, useSoLeitura } from '../VerComo'
 import { Compositor } from './Compositor'
 import { RodapeDoPrivado } from './AvisoDoPrivado'
 import { continuaOBloco, nomeDoArquivo, nomeNoChat, pedacosDoTexto, textoDaSituacao, textoDoArquivo } from './textosDoChat'
@@ -66,6 +67,8 @@ export function Conversa(props: PropsDaConversa) {
   const { chave, canal, conversa, pronto, eu, membros, titulo, descricao, nomeDaMesa, comAviso, bloqueado, coberta } = props
   const site = useSite()
   const chat = site.chat()
+  // "Ver como": a sala chega pelo store (ao vivo), mas nada sai daqui: escrever, apagar, baixar e pedir as anteriores ficam de fora.
+  const soLeitura = useSoLeitura()
   // De segundo em segundo só com uma mensagem segurada (a contagem "vai sozinha em 3 s"); senão, de minuto em minuto.
   const agora = useAgora(conversa?.pendentes.some((pendente) => pendente.situacao.t === 'esperando') === true ? 1_000 : 60_000)
   const registroRef = useRef<HTMLDivElement>(null)
@@ -199,9 +202,10 @@ export function Conversa(props: PropsDaConversa) {
       <>
         {conversa.temMaisAntigas ? (
           <div className="lo-chat__antes">
-            <button type="button" className="lo-btn lo-btn--fantasma" disabled={conversa.carregando || !pronto} onClick={carregarAnteriores}>
+            <button type="button" className="lo-btn lo-btn--fantasma" disabled={conversa.carregando || !pronto || soLeitura !== null} onClick={carregarAnteriores}>
               {conversa.carregando ? 'Carregando…' : 'Carregar anteriores'}
             </button>
+            {soLeitura !== null && <span className="lo-motivo">As mais antigas abrem quando você voltar a ser mestre.</span>}
           </div>
         ) : (
           <p className="lo-chat__inicio">Começo da conversa</p>
@@ -221,7 +225,7 @@ export function Conversa(props: PropsDaConversa) {
                 apagando={conversa.apagando.has(msg.id)}
                 eu={eu}
                 membros={membros}
-                podeApagar={pronto && msg.autorContaId === eu?.contaId && msg.apagadaEm === null}
+                podeApagar={pronto && soLeitura === null && msg.autorContaId === eu?.contaId && msg.apagadaEm === null}
               />
             )
           })}
@@ -242,6 +246,7 @@ export function Conversa(props: PropsDaConversa) {
           </h2>
           <p className="lo-motivo">{descricao}</p>
         </div>
+        {soLeitura === null && (
         <div className="lo-chat__cab-acoes">
           <button
             type="button"
@@ -257,8 +262,9 @@ export function Conversa(props: PropsDaConversa) {
             {baixada.t === 'erro' && baixada.texto}
           </p>
         </div>
+        )}
       </header>
-      {!pronto && conversa?.carregada === true && (
+      {!pronto && soLeitura === null && conversa?.carregada === true && (
         <p className="lo-linha-aviso lo-chat__fora" data-tom="mare">
           <Icone nome="sem-rede" />
           <span>Sem conexão com a mesa. O que você enviar fica guardado nesta aba e vai sozinho quando a conexão voltar.</span>
@@ -288,7 +294,7 @@ export function Conversa(props: PropsDaConversa) {
           chave={chave}
           rotulo={ehPrivado ? `Mensagem para ${titulo}` : 'Mensagem para a mesa'}
           nomes={ehPrivado ? [] : nomesParaMencionar(membros, eu)}
-          bloqueado={bloqueado}
+          bloqueado={soLeitura !== null ? `${motivoDaSoLeitura(soLeitura.nome)} A mensagem sairia em seu nome, não no dele.` : bloqueado}
           aoEnviar={(texto) => chat?.enviar(canal, texto) ?? false}
         />
       )}

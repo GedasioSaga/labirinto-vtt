@@ -17,6 +17,7 @@ import { AvisoDaPagina, Carregando } from './Estados'
 import { Icone } from './Icone'
 import { PainelHistorico } from './PainelHistorico'
 import { PainelMochila } from './PainelMochila'
+import { AvisoDeSoLeitura, motivoDaSoLeitura, useSoLeitura } from './VerComo'
 
 /**
  * A FICHA (protótipo, tela 4, com 5, 6 e 7 dentro): a cabeça da ficha, os
@@ -117,7 +118,10 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
   const sistema = useSistemaDoLobby()
   const nomeDaMesa = useDoSite((estado) => (estado.eu.t === 'pronto' ? (estado.eu.eu.campanhas.find((linha) => linha.campanhaId === campanha.campanhaId)?.nomeDaCampanha ?? 'A mesa') : 'A mesa'))
   const voltar: Rota = { tela: 'campanha', campanhaId: campanha.campanhaId }
-  const pode = ficha.ehMinha
+  const soLeitura = useSoLeitura()
+  // No "ver como", a ficha do jogador continua dele (`ehMinha`), mas nada aqui grava: só ver.
+  const dele = soLeitura !== null && ficha.ehMinha
+  const pode = ficha.ehMinha && soLeitura === null
   const offline = campanha.conexao !== 'em-dia'
   const bandaRef = useRef<HTMLDivElement>(null)
   const alto = useAlturaAcima(bandaRef, rota.aba === 'ficha')
@@ -149,6 +153,8 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
             <h1 className="lo-titulo">{ficha.doc.nome}</h1>
             {pode ? (
               <span className="lo-tag lo-tag--sua">Sua ficha</span>
+            ) : dele ? (
+              <span className="lo-tag lo-tag--sua">Ficha de {soLeitura.nome}</span>
             ) : (
               <span className="lo-tag">
                 <Icone nome="olho" /> Só ver
@@ -157,7 +163,12 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
             {ficha.naoAceita && <span className="lo-tag lo-tag--brasa">não aceito pelo servidor</span>}
           </div>
         </header>
-        {!pode && (
+        {dele && (
+          <AvisoDeSoLeitura>
+            {soLeitura.nome} muda esta ficha pelo Lobby. {motivoDaSoLeitura(soLeitura.nome)} Editar, a mochila e o desfazer ficam desligados.
+          </AvisoDeSoLeitura>
+        )}
+        {!pode && !dele && (
           <div className="lo-linha-aviso">
             <Icone nome="olho" />
             <p>
@@ -259,6 +270,7 @@ function useAlturaAcima(bandaRef: RefObject<HTMLDivElement | null>, ligado: bool
 function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampanha; ficha: FichaDoSite; aoFechar: () => void }) {
   const site = useSite()
   const sistema = useSistemaDoLobby()
+  const soLeitura = useSoLeitura()
   const [envio, setEnvio] = useState<EnvioDePersonagem | undefined>(undefined)
   const [pendentes, setPendentes] = useState<readonly AjustePendente[]>([])
   const [erro, setErro] = useState<string | null>(null)
@@ -341,7 +353,8 @@ function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampan
         onClose={aoFechar}
         escolherImagem={() => Promise.reject(new Error(SEM_IMAGEM_PELO_LOBBY))}
         inventarioDe={() => inventario}
-        somenteLeitura={!ficha.ehMinha}
+        // No "ver como" a ficha do jogador abre como a de um colega: nada de Editar.
+        somenteLeitura={!ficha.ehMinha || soLeitura !== null}
         aoAbrirEdicao={aoAbrirEdicao}
         // O livro do sistema publicado (F1): o resumo veio no `estado` e o livro vem sob pedido, como na sala LAN.
         // Sem resumo (`null`), sem "Livro"; o sistema de recuo (One Piece embutido) já traz o livro dentro.

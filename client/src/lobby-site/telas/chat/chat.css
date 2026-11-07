@@ -28,6 +28,12 @@
   font-weight: var(--lb-font-weight-semibold);
 }
 
+/* Ver como jogador: no lugar dos privados, o porquê de não estarem ali. */
+.lo-chat__sem-privado {
+  margin: var(--lb-space-4) 0 0 10px;
+  max-width: 30ch;
+}
+
 .lo-chat__conv {
   position: relative;
   display: flex;

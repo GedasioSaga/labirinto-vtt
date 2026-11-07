@@ -71,6 +71,14 @@ export {
   type SistemaDoJogador,
 } from '../../../client/src/lib/nuvem/projecao'
 export { parseLivroPedir } from '../../../client/src/net/protocoloDoLivro'
+export {
+  decidirVerComo,
+  estadoDoMembro,
+  lerPedidoDeVerComo,
+  type MensagemDoVerComo,
+  type MuralDoVerComo,
+  type PedidoDeVerComo,
+} from '../../../client/src/lib/nuvem/verComo'
 export { diferencas } from '../../../client/src/lib/nuvem/diferencas'
 export {
   CONTA_DO_MESTRE,

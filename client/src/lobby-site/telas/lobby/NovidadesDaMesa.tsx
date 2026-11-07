@@ -7,6 +7,7 @@ import { aoClicarNoLink, useAgora, useDoSite, useSite } from '../contexto'
 import { Icone } from '../Icone'
 import { Rosto } from '../Rosto'
 import { horaExata, quandoRelativo } from '../textos'
+import { AvisoDeSoLeitura, motivoDaSoLeitura, useSoLeitura } from '../VerComo'
 import { nomeDaReacao, partesDaFrase, urlDaImagem } from '../mural/textosDoMural'
 
 /**
@@ -75,6 +76,8 @@ function SemMural({ mural, texto }: { mural: EstadoDoMural | null; texto: string
 export function AvisosDaMesa({ campanha, mural }: Props) {
   const site = useSite()
   const agora = useAgora()
+  // "Ver como": marcar como lido gravaria o "lido" do mestre, não o do jogador.
+  const soLeitura = useSoLeitura()
   const noMural: Rota = { tela: 'mural', campanhaId: campanha.campanhaId, aba: 'noticias' }
   const meuId = campanha.eu?.contaId ?? null
   // O aviso que a própria pessoa postou não espera o "lido" dela (como na faixa do mural).
@@ -128,9 +131,12 @@ export function AvisosDaMesa({ campanha, mural }: Props) {
                     <Icone nome="visto" /> Lido
                   </span>
                 ) : (
-                  <button type="button" className="lo-btn lo-btn--primario" onClick={() => marcarLido(noticia)}>
-                    <Icone nome="visto" /> Marcar como lido
-                  </button>
+                  <>
+                    <button type="button" className="lo-btn lo-btn--primario" disabled={soLeitura !== null} onClick={() => marcarLido(noticia)}>
+                      <Icone nome="visto" /> Marcar como lido
+                    </button>
+                    {soLeitura !== null && <span className="lo-motivo">{motivoDaSoLeitura(soLeitura.nome)}</span>}
+                  </>
                 )}
               </div>
             </article>
@@ -222,6 +228,7 @@ export function UltimasModificacoes({ campanha, mural }: Props) {
   const agora = useAgora()
   const doMural: Rota = { tela: 'mural', campanhaId: campanha.campanhaId, aba: 'modificacoes' }
   const pronto = mural?.pronto === true
+  const soLeitura = useSoLeitura()
 
   // Aqui o feed é o da mesa inteira, sem filtro (o mural guarda um só): pede quando o lobby abre e de novo quando
   // o canal fica pronto. Pedir o mesmo filtro outra vez não sai de novo.
@@ -244,7 +251,9 @@ export function UltimasModificacoes({ campanha, mural }: Props) {
   const visiveis = new Set(campanha.fichas.map((ficha) => ficha.doc.id))
 
   let conteudo
-  if (mural === null || (!mural.pronto && !mural.carregado)) conteudo = <SemMural mural={mural} texto="as modificações" />
+  // "Ver como": o feed viria montado para o mestre (com NPC). Fica de fora da vista, com o porquê.
+  if (soLeitura !== null) conteudo = <AvisoDeSoLeitura>As modificações ficam de fora da vista de {soLeitura.nome}: chegariam como você as vê, mestre.</AvisoDeSoLeitura>
+  else if (mural === null || (!mural.pronto && !mural.carregado)) conteudo = <SemMural mural={mural} texto="as modificações" />
   else if (!semFiltro || !feed.carregada) conteudo = <SemMural mural={mural} texto="as modificações" />
   else if (linhas.length === 0) conteudo = <p className="lo-saguao__vazio">Ninguém mudou as fichas ainda. Cada mudança aparece aqui, com quem fez e quando.</p>
   else {

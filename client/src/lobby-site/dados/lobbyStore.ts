@@ -12,6 +12,35 @@ import { criarMuralDaCampanha, type EstadoDoMural, type MuralDaCampanha } from '
 import { VERSAO_NOVA_DA_DEMO } from './muralDaDemo'
 import { abrirSessaoDaCampanha, type EstadoDaCampanha, type SessaoDaCampanha } from './sessaoDaCampanha'
 import { vigiarVersaoDoSite, type VersaoNova } from './versaoDoSite'
+import type { MensagemDoVerComoNoSite, VistaDoVerComoNoSite } from './fonte'
+import type { MembroProjetado } from '../../lib/nuvem/tipos'
+import { campanhaVistaComo, chatSoDaSala, dueloDaVista, muralDaVista } from './vistaDoVerComo'
+
+/**
+ * "VER COMO JOGADOR" (pedido do mestre, 07/11/2026): o mestre escolhe um
+ * jogador e as telas passam a mostrar a vista daquele jogador, montada pelo
+ * servidor. Por baixo, a sessão, a fila, o chat, o mural e o duelo do mestre
+ * continuam vivos; o store só troca o que as telas leem. SÓ LEITURA: enquanto
+ * a vista está pedida ou aberta, `sessao()`, `chat()`, `mural()` e `duelo()`
+ * devolvem `null` (nada sai em nome de ninguém), e as telas desligam os
+ * controles com o motivo.
+ * - `pedindo`: o pedido saiu; as telas ainda mostram o do mestre, já sem gravar;
+ * - `pronto`: a vista chegou (e se atualiza sozinha quando a mesa muda);
+ * - `erro`: não veio; o mestre volta a ser mestre (grava de novo) e a faixa diz por quê.
+ */
+export type FalhaDoVerComo = 'so-mestre' | 'nao-e-jogador' | 'torta' | 'sem-resposta' | 'sem-canal'
+
+export type VerComoNoSite =
+  | { t: 'pedindo'; contaId: string; nome: string; mestre: MembroProjetado | null }
+  | { t: 'pronto'; contaId: string; nome: string; mestre: MembroProjetado | null }
+  | { t: 'erro'; contaId: string; nome: string; mestre: MembroProjetado | null; motivo: FalhaDoVerComo }
+
+/** Sem resposta neste tempo, o pedido desiste (o DO de antes do "ver como" nem lê o frame). */
+export const PRAZO_DO_VER_COMO_MS = 10_000
+/** A mesa mudou (rev, membros, mural) com a vista aberta: pede de novo depois deste respiro, uma vez só para a rajada. */
+const RESPIRO_DA_ATUALIZACAO_MS = 900
+/** Recusada por ritmo: tenta de novo depois disto (a vista velha continua na tela). */
+const ESPERA_DO_RITMO_MS = 2_500
 
 /**
  * O STORE DO SITE (fatia S2): quem é a pessoa (`/api/eu`), a rota e a
@@ -43,6 +72,8 @@ export interface EstadoDoSite {
   versaoNova: VersaoNova | null
   /** Não deu para abrir a campanha (IndexedDB bloqueado, navegador sem espaço). */
   erroDaCampanha: string | null
+  /** O mestre vendo a mesa como um jogador (só leitura); `null` = cada um vendo como si. */
+  verComo: VerComoNoSite | null
 }
 
 export interface Site {
@@ -57,6 +88,10 @@ export interface Site {
   mural(): MuralDaCampanha | null
   /** O duelo da campanha aberta, para convidar, aceitar, jogar e desistir (T7). */
   duelo(): DueloDaCampanha | null
+  /** Só o mestre: passa a ver a mesa como o jogador `contaId` (só leitura). */
+  verComo(contaId: string): void
+  /** Sai do "ver como": as telas voltam a mostrar (e a gravar) o do mestre. */
+  voltarASerMestre(): void
   encerrar(): void
 }
 
@@ -138,6 +173,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     // A demo não tem carimbo: o cartão aparece com versões inventadas, para a tela ter o que mostrar.
     versaoNova: demo ? VERSAO_NOVA_DA_DEMO : null,
     erroDaCampanha: null,
+    verComo: null,
   }))
   const pararAVigia = demo ? () => undefined : vigiarVersaoDoSite({ origem: janela.location.origin, aoAchar: (versaoNova) => store.setState({ versaoNova }) })
   let aberta: Aberta | null = null
@@ -163,7 +199,130 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     return clienteIdDestaAba
   }
 
+  // ── Ver como jogador ───────────────────────────────────────────────────────
+
+  /** O que as telas mostram fora do "ver como" (o do mestre): com a vista aberta, o store mostra a vista no lugar. */
+  const doMestre: { campanha: EstadoDaCampanha | null; chat: EstadoDoChat | null; mural: EstadoDoMural | null; duelo: EstadoDoDuelo | null } = {
+    campanha: null,
+    chat: null,
+    mural: null,
+    duelo: null,
+  }
+  let vista: VistaDoVerComoNoSite | null = null
+  let pedidoDaVista: { reqId: string; contaId: string; cancelarPrazo: () => void } | null = null
+  let cancelarNovoPedido: (() => void) | null = null
+  /** Como a mesa estava quando a vista foi pedida: mudou (rev, membros, sala, mural), pede de novo. */
+  let marcaDaVista = ''
+
+  /** Vista pedida ou aberta: nada sai pelas partes da mesa (a guarda das telas é a segunda camada). */
+  function soLeitura(): boolean {
+    const verComo = store.getState().verComo
+    return verComo !== null && verComo.t !== 'erro'
+  }
+
+  function marcaDaMesa(): string {
+    const { campanha, mural } = doMestre
+    const membros = campanha === null ? '' : campanha.membros.map((membro) => `${membro.contaId}:${membro.nome}:${membro.foto ?? ''}`).join('|')
+    const noticias = mural === null ? '' : [...mural.fixadas, ...mural.noticias].map((noticia) => `${noticia.id}.${noticia.versao}.${noticia.fixada ? 1 : 0}`).join(',')
+    return `${campanha?.rev ?? -1}#${campanha?.sala?.codigo ?? ''}#${membros}#${noticias}`
+  }
+
+  function pararVerComo(): void {
+    pedidoDaVista?.cancelarPrazo()
+    pedidoDaVista = null
+    cancelarNovoPedido?.()
+    cancelarNovoPedido = null
+    // A sala ficou aberta pelo store enquanto a vista durou (a tela não tem o chat para abrir): solta.
+    if (vista !== null) aberta?.chat.soltar('sala')
+    vista = null
+  }
+
+  /** Uma parte do mestre mudou: guarda; com a vista aberta, a campanha segue a vista e a sala do chat continua ao vivo. */
+  function doMestreMudou(parte: Partial<typeof doMestre>): void {
+    Object.assign(doMestre, parte)
+    const verComo = store.getState().verComo
+    if (verComo === null || verComo.t !== 'pronto' || vista === null) {
+      store.setState(parte)
+      return
+    }
+    if (parte.chat !== undefined) store.setState({ chat: parte.chat === null ? null : chatSoDaSala(parte.chat) })
+    if (parte.campanha !== undefined && parte.campanha !== null) store.setState({ campanha: campanhaVistaComo(parte.campanha, vista.estado) })
+    if (marcaDaMesa() !== marcaDaVista) pedirDeNovoDepois(RESPIRO_DA_ATUALIZACAO_MS)
+  }
+
+  function pedirDeNovoDepois(ms: number): void {
+    if (cancelarNovoPedido !== null) return
+    const id = setTimeout(() => {
+      cancelarNovoPedido = null
+      const verComo = store.getState().verComo
+      if (verComo === null || verComo.t === 'erro') return
+      if (!pedirVista(verComo.contaId)) falhouOVerComo('sem-canal')
+    }, ms)
+    cancelarNovoPedido = () => clearTimeout(id)
+  }
+
+  /** Manda o pedido pela sessão do mestre; `false` = sem canal agora. */
+  function pedirVista(contaId: string): boolean {
+    const sessao = aberta?.sessao
+    if (sessao === undefined) return false
+    const reqId = `vc_${crypto.randomUUID()}`
+    if (!sessao.pedirVerComo(contaId, reqId)) return false
+    pedidoDaVista?.cancelarPrazo()
+    marcaDaVista = marcaDaMesa()
+    const id = setTimeout(() => {
+      if (pedidoDaVista?.reqId !== reqId) return
+      pedidoDaVista = null
+      falhouOVerComo('sem-resposta')
+    }, PRAZO_DO_VER_COMO_MS)
+    pedidoDaVista = { reqId, contaId, cancelarPrazo: () => clearTimeout(id) }
+    return true
+  }
+
+  /**
+   * Não veio. Antes da primeira vista, ou quando o jogador saiu da mesa: o
+   * mestre volta a ver (e a gravar) o dele, e a faixa diz por quê. Com a
+   * vista já na tela e uma falha de passagem (prazo, canal), a velha fica:
+   * a próxima mudança da mesa pede de novo.
+   */
+  function falhouOVerComo(motivo: FalhaDoVerComo): void {
+    const verComo = store.getState().verComo
+    if (verComo === null || verComo.t === 'erro') return
+    const deVez = motivo === 'so-mestre' || motivo === 'nao-e-jogador'
+    if (verComo.t === 'pronto' && !deVez) return
+    pararVerComo()
+    store.setState({ verComo: { t: 'erro', contaId: verComo.contaId, nome: verComo.nome, mestre: verComo.mestre, motivo }, ...doMestre })
+  }
+
+  function receberVerComo(mensagem: MensagemDoVerComoNoSite): void {
+    if (pedidoDaVista === null || mensagem.reqId !== pedidoDaVista.reqId) return
+    pedidoDaVista.cancelarPrazo()
+    const { contaId } = pedidoDaVista
+    pedidoDaVista = null
+    const verComo = store.getState().verComo
+    if (verComo === null || verComo.t === 'erro' || verComo.contaId !== contaId) return
+    if (mensagem.t === 'verComo.recusa') {
+      if (mensagem.motivo === 'ritmo') pedirDeNovoDepois(ESPERA_DO_RITMO_MS)
+      else falhouOVerComo(mensagem.motivo)
+      return
+    }
+    const real = doMestre.campanha
+    if (real === null) return
+    // Ler a sala é o mesmo para o mestre e o jogador: o store a mantém aberta (só pede páginas), já que a tela não tem `chat()`.
+    if (vista === null) aberta?.chat.abrir('sala')
+    vista = mensagem
+    store.setState({
+      verComo: { t: 'pronto', contaId, nome: mensagem.estado.eu.nome, mestre: verComo.mestre },
+      campanha: campanhaVistaComo(real, mensagem.estado),
+      chat: doMestre.chat === null ? null : chatSoDaSala(doMestre.chat),
+      mural: muralDaVista(mensagem),
+      duelo: dueloDaVista(mensagem),
+    })
+  }
+
   function fecharAberta(): void {
+    pararVerComo()
+    Object.assign(doMestre, { campanha: null, chat: null, mural: null, duelo: null })
+    if (store.getState().verComo !== null) store.setState({ verComo: null })
     if (aberta === null) return
     const guardar = aberta.chat.guardarPendentes()
     if (guardar.length > 0) chatGuardado.set(aberta.campanhaId, guardar)
@@ -185,20 +344,20 @@ export function iniciarSite(janela: JanelaDoSite): Site {
       enviar: (pedido) => sessao?.enviarDoChat(pedido) ?? false,
       quemSouEu: () => sessao?.estado().eu?.contaId ?? null,
       aoMudar: (estadoDoChat) => {
-        if (minha === aberturas) store.setState({ chat: estadoDoChat })
+        if (minha === aberturas) doMestreMudou({ chat: estadoDoChat })
       },
       pendentesGuardadas: chatGuardado.get(campanhaId),
     })
     const mural = criarMuralDaCampanha({
       enviar: (pedido) => sessao?.enviarDoMural(pedido) ?? false,
       aoMudar: (estadoDoMural) => {
-        if (minha === aberturas) store.setState({ mural: estadoDoMural })
+        if (minha === aberturas) doMestreMudou({ mural: estadoDoMural })
       },
     })
     const duelo = criarDueloDaCampanha({
       enviar: (pedido) => sessao?.enviarDoDuelo(pedido) ?? false,
       aoMudar: (estadoDoDuelo) => {
-        if (minha === aberturas) store.setState({ duelo: estadoDoDuelo })
+        if (minha === aberturas) doMestreMudou({ duelo: estadoDoDuelo })
       },
     })
     try {
@@ -208,11 +367,14 @@ export function iniciarSite(janela: JanelaDoSite): Site {
         armazenamento: fila.armazenamento,
         clienteId: fila.clienteId,
         aoMudar: (campanha) => {
-          if (minha === aberturas) store.setState({ campanha })
+          if (minha === aberturas) doMestreMudou({ campanha })
         },
         chat,
         mural,
         duelo,
+        verComo: (mensagem) => {
+          if (minha === aberturas) receberVerComo(mensagem)
+        },
       })
     } catch (erro) {
       chat.fechar()
@@ -232,7 +394,8 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     aberta = { campanhaId, sessao, chat, mural, duelo, fecharBanco: fila.fecharBanco }
     // As guardadas agora moram no chat aberto (e voltam para cá se a pessoa sair de novo antes de saírem).
     chatGuardado.delete(campanhaId)
-    store.setState({ campanha: sessao.estado(), chat: chat.estado(), mural: mural.estado(), duelo: duelo.estado(), chatGuardado: contarChatGuardado(), erroDaCampanha: null })
+    Object.assign(doMestre, { campanha: sessao.estado(), chat: chat.estado(), mural: mural.estado(), duelo: duelo.estado() })
+    store.setState({ ...doMestre, chatGuardado: contarChatGuardado(), erroDaCampanha: null })
   }
 
   /** Abre a campanha da rota (e fecha a anterior), quando o `/api/eu` já respondeu. */
@@ -298,10 +461,26 @@ export function iniciarSite(janela: JanelaDoSite): Site {
       store.setState({ rota })
       seguirARota()
     },
-    sessao: () => aberta?.sessao ?? null,
-    chat: () => aberta?.chat ?? null,
-    mural: () => aberta?.mural ?? null,
-    duelo: () => aberta?.duelo ?? null,
+    // No "ver como" nenhuma parte da mesa fica ao alcance das telas: o que elas pedissem sairia como o mestre.
+    sessao: () => (soLeitura() ? null : (aberta?.sessao ?? null)),
+    chat: () => (soLeitura() ? null : (aberta?.chat ?? null)),
+    mural: () => (soLeitura() ? null : (aberta?.mural ?? null)),
+    duelo: () => (soLeitura() ? null : (aberta?.duelo ?? null)),
+    verComo(contaId) {
+      const real = doMestre.campanha
+      if (real === null || real.eu === null || real.eu.papel !== 'mestre') return
+      const alvo = real.membros.find((membro) => membro.contaId === contaId && membro.papel === 'jogador')
+      if (alvo === undefined) return
+      pararVerComo()
+      const mestre = real.eu
+      // Antes do pedido sair: daqui em diante nada grava, mesmo antes de a vista chegar.
+      store.setState({ verComo: { t: 'pedindo', contaId, nome: alvo.nome, mestre }, ...doMestre })
+      if (!pedirVista(contaId)) store.setState({ verComo: { t: 'erro', contaId, nome: alvo.nome, mestre, motivo: 'sem-canal' } })
+    },
+    voltarASerMestre() {
+      pararVerComo()
+      store.setState({ verComo: null, ...doMestre })
+    },
     encerrar() {
       aberturas += 1
       fecharAberta()

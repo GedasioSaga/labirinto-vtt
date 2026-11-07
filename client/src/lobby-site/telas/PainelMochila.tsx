@@ -9,6 +9,7 @@ import { useSite } from './contexto'
 import { enviarMudancas, revDeAgora, textoDaFalha } from './enviar'
 import { Icone } from './Icone'
 import { iniciais, tomDe } from './textos'
+import { useSoLeitura } from './VerComo'
 
 /**
  * A MOCHILA (protótipo, tela 6): as moedas e os itens que o personagem
@@ -38,7 +39,9 @@ function novaVaga(): string {
 export function PainelMochila({ campanha, ficha }: PainelProps) {
   const site = useSite()
   const tituloId = useId()
-  const pode = ficha.ehMinha
+  // No "ver como", a mochila do jogador aparece como a de um colega: só ver (o aviso fica na cabeça da ficha).
+  const soLeitura = useSoLeitura()
+  const pode = ficha.ehMinha && soLeitura === null
   const travado = campanha.conexao !== 'em-dia'
   const [erro, setErro] = useState<string | null>(null)
   const [porItem, setPorItem] = useState(false)

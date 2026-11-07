@@ -7,6 +7,7 @@ import { useSite } from '../contexto'
 import { Icone } from '../Icone'
 import { Rosto } from '../Rosto'
 import { horaExata, quandoRelativo } from '../textos'
+import { motivoDaSoLeitura, useSoLeitura } from '../VerComo'
 import { EscreverNoticia, type ImagemParaEscolher } from './EscreverNoticia'
 import { nomeDaReacao, textoDaRecusa, urlDaImagem } from './textosDoMural'
 
@@ -35,6 +36,9 @@ interface Props {
 export function CartaoDaNoticia({ noticia, eu, souMestre, membros, pronto, aCaminho, recusa, nova, campanhaId, demo, imagens, agora }: Props) {
   const site = useSite()
   const quemId = useId()
+  // "Ver como": reagir e marcar como lido gravariam em nome do mestre. Ficam desligados, com o motivo.
+  const soLeitura = useSoLeitura()
+  const motivo = soLeitura === null ? null : motivoDaSoLeitura(soLeitura.nome)
   const [editando, setEditando] = useState(false)
   /** A versão de quando a edição saiu: a notícia com versão maior fecha o editor. */
   const [versaoDaEdicao, setVersaoDaEdicao] = useState<number | null>(null)
@@ -197,8 +201,8 @@ export function CartaoDaNoticia({ noticia, eu, souMestre, membros, pronto, aCami
                     data-tem={total > 0 ? '1' : undefined}
                     aria-pressed={minha}
                     aria-label={`${nomeDaReacao(reacao)}: ${total} ${total === 1 ? 'pessoa' : 'pessoas'}${minha ? ', inclusive você' : ''}`}
-                    title={pronto ? nomeDaReacao(reacao) : 'Sem conexão: volta quando ela voltar.'}
-                    disabled={!pronto}
+                    title={motivo ?? (pronto ? nomeDaReacao(reacao) : 'Sem conexão: volta quando ela voltar.')}
+                    disabled={!pronto || motivo !== null}
                     onClick={() => reagir(reacao)}
                   >
                     <span className="lo-reacao__emoji" aria-hidden="true">
@@ -210,10 +214,11 @@ export function CartaoDaNoticia({ noticia, eu, souMestre, membros, pronto, aCami
               })}
             </div>
             {avisoNaoLido && (
-              <button type="button" className="lo-btn" onClick={() => site.mural()?.marcarLido(noticia.id, noticia.versao)}>
+              <button type="button" className="lo-btn" disabled={motivo !== null} onClick={() => site.mural()?.marcarLido(noticia.id, noticia.versao)}>
                 <Icone nome="visto" /> Marcar como lido
               </button>
             )}
+            {motivo !== null && <span className="lo-motivo">{motivo} Reagir fica desligado.</span>}
           </div>
         )}
       </div>

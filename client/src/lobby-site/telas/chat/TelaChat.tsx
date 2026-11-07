@@ -9,6 +9,7 @@ import { aoClicarNoLink, useDoSite, useSite } from '../contexto'
 import { AvisoDaPagina, Carregando } from '../Estados'
 import { Icone } from '../Icone'
 import { Rosto } from '../Rosto'
+import { AvisoDeSoLeitura, useSoLeitura } from '../VerComo'
 import { avisoJaVisto, JanelaDoAviso } from './AvisoDoPrivado'
 import { Conversa } from './Conversa'
 import { contagemDeNaoLidas, privadoEntreJogadores } from './textosDoChat'
@@ -96,7 +97,9 @@ function Chat({ rota, campanha, chat, nomeDaMesa }: { rota: RotaDoChat; campanha
   /** Só para desenhar de novo quando a janela do aviso fecha (o "visto" mora fora do React). */
   const [, setAvisosFechados] = useState(0)
   const eu = campanha.eu
-  const entradas = entradasDoChat(campanha, chat)
+  // "Ver como": privado é só de quem conversa (nem o mestre lê o dos jogadores). A vista mostra a sala e mais nada.
+  const soLeitura = useSoLeitura()
+  const entradas = entradasDoChat(campanha, chat).filter((entrada) => soLeitura === null || (entrada.com === null && !entrada.saiu))
   const atual = entradas.find((entrada) => (rota.com === null ? entrada.com === null && !entrada.saiu : entrada.rota.com === rota.com))
   const daMesa: Rota = { tela: 'campanha', campanhaId: campanha.campanhaId }
   const naMesa = new Set(campanha.naMesa.map((pessoa) => pessoa.contaId))
@@ -159,7 +162,13 @@ function Chat({ rota, campanha, chat, nomeDaMesa }: { rota: RotaDoChat; campanha
   }
 
   let painel
-  if (atual === undefined) {
+  if (atual === undefined && soLeitura !== null) {
+    painel = (
+      <section className="lo-folha lo-chat__folha">
+        <AvisoDeSoLeitura>Nenhum privado aparece na vista de {soLeitura.nome}: privado é só de quem conversa. A sala da mesa está na lista.</AvisoDeSoLeitura>
+      </section>
+    )
+  } else if (atual === undefined) {
     painel = (
       <section className="lo-folha lo-chat__folha">
         <p className="lo-vazio">Esta conversa não existe nesta mesa. Escolha a sala ou alguém da lista.</p>
@@ -212,6 +221,7 @@ function Chat({ rota, campanha, chat, nomeDaMesa }: { rota: RotaDoChat; campanha
             Conversas
           </h2>
           <ul className="lo-chat__lista">{salaEPrivados.map(linha)}</ul>
+          {soLeitura !== null && <p className="lo-motivo lo-chat__sem-privado">Os privados de {soLeitura.nome} ficam de fora: são só de quem conversa.</p>}
           {privados.length > 0 && (
             <>
               <p className="lo-chat__grupo" aria-hidden="true">

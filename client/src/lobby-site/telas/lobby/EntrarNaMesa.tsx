@@ -4,6 +4,7 @@ import { enderecoDeEntrada, enderecoDoBotao } from '../../dados/rotas'
 import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { useDoSite, useSite } from '../contexto'
 import { Icone } from '../Icone'
+import { motivoDaSoLeitura, useSoLeitura } from '../VerComo'
 
 /**
  * "ENTRAR NA MESA AGORA" (pedido de 06/11/2026, fatia B6): quando o mestre
@@ -125,6 +126,9 @@ function ConviteDoJogador({ campanha, sala, entra }: { campanha: EstadoDaCampanh
   const demo = useDoSite((estado) => estado.demo)
   const tituloId = useId()
   const avisoId = useId()
+  const motivoId = useId()
+  // "Ver como": o convite sairia para a conta do mestre, não para a do jogador. O botão fica, desligado, com o porquê.
+  const soLeitura = useSoLeitura()
   const [passo, setPasso] = useState<Passo>({ t: 'parado' })
   /** O clique já em voo: um segundo clique (ou Enter repetido) não abre outra aba nem pede outro convite. */
   const emVoo = useRef(false)
@@ -134,7 +138,7 @@ function ConviteDoJogador({ campanha, sala, entra }: { campanha: EstadoDaCampanh
   const nome = campanha.eu?.nome ?? 'você'
 
   async function entrar(): Promise<void> {
-    if (emVoo.current) return
+    if (emVoo.current || soLeitura !== null) return
     // No próprio clique, antes de qualquer `await`: depois dele o navegador barraria a aba como pop-up.
     const aba = window.open('', '_blank')
     if (aba === null) {
@@ -192,13 +196,19 @@ function ConviteDoJogador({ campanha, sala, entra }: { campanha: EstadoDaCampanh
         <button
           type="button"
           className="lo-btn lo-btn--primario lo-btn--grande lo-entrar__botao"
+          disabled={soLeitura !== null}
           aria-disabled={abrindo ? 'true' : undefined}
-          aria-describedby={passo.t === 'erro' ? avisoId : undefined}
+          aria-describedby={soLeitura !== null ? motivoId : passo.t === 'erro' ? avisoId : undefined}
           onClick={() => void entrar()}
         >
           {abrindo ? <span className="lo-giro lo-entrar__giro" aria-hidden="true" /> : <Icone nome="entrar" />}
           {abrindo ? 'Abrindo a mesa…' : 'Entrar na mesa agora'}
         </button>
+        {soLeitura !== null && (
+          <p className="lo-motivo lo-entrar__aviso" id={motivoId}>
+            {motivoDaSoLeitura(soLeitura.nome)} O convite entraria com a sua conta, não com a de {soLeitura.nome}.
+          </p>
+        )}
         {passo.t === 'erro' && (
           <p className="lo-erro-campo lo-entrar__aviso" id={avisoId} role="alert">
             {passo.texto}

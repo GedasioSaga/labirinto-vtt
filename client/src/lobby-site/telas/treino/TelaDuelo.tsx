@@ -11,6 +11,7 @@ import { candidatasDoRobo, proximaDoRobo } from '../../dados/roboDoDuelo'
 import type { EstadoDaCampanha, FichaDoSite } from '../../dados/sessaoDaCampanha'
 import { useAgora, useSistemaDoLobby, useSite } from '../contexto'
 import { Icone } from '../Icone'
+import { AvisoDeSoLeitura, motivoDaSoLeitura, useSoLeitura } from '../VerComo'
 import { ArenaDaLuta, type JogadasDaLuta } from './ArenaDaLuta'
 import type { RespostaDoAndar } from './grade/GradeDaArena'
 import { fichasDoPedido, lembrarMontagemDoDuelo, MontagemDoDuelo, montagemInicialDoDuelo, useMontagemNoServidor } from './montagem/MontagemDoDuelo'
@@ -148,6 +149,8 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
   const site = useSite()
   const sistema = useSistemaDoLobby()
   const agora = useAgora(1_000)
+  // "Ver como": a luta aparece como o jogador a vê, mas nenhuma jogada sai daqui (sairia como o mestre).
+  const soLeitura = useSoLeitura()
   const [confirmarDesistencia, setConfirmarDesistencia] = useState(false)
   const andando = useRef<AndarNoServidor | null>(null)
   const outroLado: LadoDoTreino = meuLado === 'a' ? 'b' : 'a'
@@ -166,7 +169,7 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
   }
   const jogadas = useMemo<JogadasDaLuta | null>(
     () =>
-      duelo.fim !== null
+      duelo.fim !== null || soLeitura !== null
         ? null
         : {
             agir: (vez, pedido) => jogar({ tipo: 'agir', seq: duelo.seq, vez, pedido }),
@@ -174,7 +177,7 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
             passarVez: (cartaId, rodada) => jogar({ tipo: 'passar', seq: duelo.seq, vez: { cartaId, rodada } }),
           },
     // A jogada leva o `seq` do estado que a tela mostra: a conexão muda com o duelo.
-    [duelo],
+    [duelo, soLeitura],
   )
 
   // A resposta do andar: quando o pedido termina, a ficha ficou na casa pedida (aceito) ou não (recusado: ela volta).
@@ -216,7 +219,7 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
       vista={duelo.vista}
       meuLado={meuLado}
       jogadas={jogadas}
-      podeAndar={(vaga, emPe) => vaga.lado === meuLado && emPe && conectado && !ocupado && vaga.tokenId === vezDoToken}
+      podeAndar={(vaga, emPe) => soLeitura === null && vaga.lado === meuLado && emPe && conectado && !ocupado && vaga.tokenId === vezDoToken}
       onAndar={andar}
       detalhes={<span>{fim === null ? 'Sem relógio' : 'Acabou'}</span>}
       aviso={
@@ -235,12 +238,12 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
       }
       acoes={
         <>
-          {fim === null && espera !== null && (
+          {fim === null && espera !== null && soLeitura === null && (
             <button type="button" className="lo-btn lo-btn--fantasma" disabled={ocupado || !conectado} onClick={roboEscolhe}>
               O robô escolhe
             </button>
           )}
-          {fim === null && (
+          {fim === null && soLeitura === null && (
             <button type="button" className="lo-btn" aria-expanded={confirmarDesistencia} onClick={() => setConfirmarDesistencia((antes) => !antes)}>
               Desistir do duelo
             </button>
@@ -250,7 +253,13 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
           </button>
         </>
       }
-      estado={caiu ? 'Sem conexão: tentando voltar. Até lá, nenhuma jogada sai daqui.' : estadoDoDuelo(duelo, meuLado, outro.nome, ocupado)}
+      estado={
+        soLeitura !== null
+          ? `${motivoDaSoLeitura(soLeitura.nome)} A luta aparece como ${soLeitura.nome} a vê; nenhuma jogada sai daqui.`
+          : caiu
+            ? 'Sem conexão: tentando voltar. Até lá, nenhuma jogada sai daqui.'
+            : estadoDoDuelo(duelo, meuLado, outro.nome, ocupado)
+      }
       recusa={recusa === null ? null : { texto: textoDaRecusa(recusa.motivo), n: recusa.n }}
       onEsquecerRecusa={() => site.duelo()?.esquecerAvisos()}
       fim={
@@ -318,6 +327,7 @@ function DueloAcabado({ duelo, contaId, onRever }: { duelo: DueloNoFio; contaId:
 
 export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; duelo: EstadoDoDuelo }) {
   const site = useSite()
+  const soLeitura = useSoLeitura()
   const eu = campanha.eu
   const minhas = useMemo(() => fichasDoDuelo(campanha), [campanha])
   const ativo = duelo.duelos.find((candidato) => candidato.fim === null)
@@ -328,7 +338,7 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
   const ultimoAtivo = useRef<string | null>(null)
   const idDoAtivo = ativo?.id ?? null
   // As casas que a montagem escolheu vão ao servidor (`montar`) enquanto ninguém agiu.
-  useMontagemNoServidor(ativo, ativo === undefined || eu === null ? null : ativo.jogadores.a.contaId === eu.contaId ? 'a' : 'b', duelo.esperando !== null)
+  useMontagemNoServidor(ativo, ativo === undefined || eu === null ? null : ativo.jogadores.a.contaId === eu.contaId ? 'a' : 'b', duelo.esperando !== null || soLeitura !== null)
 
   // O duelo que estava na Arena acabou: ela fica com o resumo até a pessoa fechar.
   useEffect(() => {
@@ -339,7 +349,8 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
 
   if (eu === null) return <p className="lo-vazio">Esta conta não está na mesa.</p>
   const colegas = campanha.membros.filter((membro) => membro.papel === 'jogador' && membro.contaId !== eu.contaId)
-  const ocupado = duelo.esperando !== null
+  // No "ver como" tudo que grava fica desligado: aceitar, recusar, desafiar e desistir do desafio.
+  const ocupado = duelo.esperando !== null || soLeitura !== null
   const acabados = duelo.duelos.filter((candidato) => candidato.fim !== null)
   const ladoDe = (candidato: DueloNoFio): LadoDoTreino => (candidato.jogadores.a.contaId === eu.contaId ? 'a' : 'b')
   const naArena = ativo !== undefined && ativo.id !== foraDaTela ? ativo : acabados.find((candidato) => candidato.id === revendo)
@@ -350,7 +361,12 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
 
   return (
     <div className="lo-tr-pagina-duelo">
-      {(duelo.recusa !== null || fechado !== null) && (
+      {soLeitura !== null && (
+        <AvisoDeSoLeitura>
+          {motivoDaSoLeitura(soLeitura.nome)} Os desafios e as lutas aparecem como {soLeitura.nome} os vê; aceitar, desafiar e jogar ficam desligados.
+        </AvisoDeSoLeitura>
+      )}
+      {soLeitura === null && (duelo.recusa !== null || fechado !== null) && (
         <div className="lo-linha-aviso lo-tr-aviso" role="alert">
           <span>
             {duelo.recusa !== null
@@ -413,6 +429,8 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
                   </button>
                 </div>
               </div>
+            ) : soLeitura !== null ? (
+              <p className="lo-vazio">{soLeitura.nome} não tem desafio enviado agora. Desafiar fica com ele.</p>
             ) : (
               <NovoDesafio campanha={campanha} colegas={colegas} minhas={minhas} ocupado={ocupado} />
             )}

@@ -8,7 +8,8 @@ import { parseLivroParte, parseLivroRecusa } from '../../net/protocoloDoLivro'
 import type { FichaNoEstado, MembroProjetado, MensagemDoServidor, OpGravada, Origem, Papel, PresencaNaMesa, Visibilidade } from '../../lib/nuvem/tipos'
 import { personagemDoArquivo } from '../../lib/personagem'
 import { ehIdDeMidia } from '../../lib/midia'
-import type { EnderecoDaMesa, EstadoComSala, MensagemDoSite, SalaDaMesa } from './fonte'
+import type { MotivoDoVerComo } from '../../lib/nuvem/verComo'
+import type { EnderecoDaMesa, EstadoComSala, MensagemDoSite, MensagemDoVerComoNoSite, SalaDaMesa } from './fonte'
 import { lerFrameDoChat } from './fioDoChat'
 import { enderecoDaMesaValido } from './rotas'
 import { lerFrameDoDuelo } from './fioDoDuelo'
@@ -219,8 +220,47 @@ function lerHistorico(bruto: Record<string, unknown>): MensagemDoServidor | null
   return segmentoValido(fichaId) && lista !== null && typeof temMaisAntigas === 'boolean' ? { t: 'historico', fichaId, lista, temMaisAntigas } : null
 }
 
+function ehMotivoDoVerComo(valor: unknown): valor is MotivoDoVerComo {
+  return valor === 'so-mestre' || valor === 'nao-e-jogador' || valor === 'ritmo' || valor === 'torta'
+}
+
+/**
+ * A resposta do `verComo` (07/11/2026). O `estado` dentro dela passa pelo
+ * MESMO leitor do `estado` do canal, e o mural e os duelos pelos leitores
+ * deles. Ao contrário da base, vista torta NÃO derruba o canal (ela não
+ * mexe na base do mestre): vale como recusa `torta`, e a tela diz que não deu.
+ * Mural ou duelos tortos valem como ausentes (a vista mostra o resto).
+ */
+function lerDoVerComo(bruto: Record<string, unknown>, t: string): MensagemDoVerComoNoSite | null {
+  const reqId = proprio(bruto, 'reqId')
+  if (!segmentoValido(reqId)) return null
+  if (t === 'verComo.recusa') {
+    const motivo = proprio(bruto, 'motivo')
+    return { t: 'verComo.recusa', reqId, motivo: ehMotivoDoVerComo(motivo) ? motivo : 'torta' }
+  }
+  if (t !== 'verComo.vista') return null
+  const contaId = proprio(bruto, 'contaId')
+  const brutoDoEstado = proprio(bruto, 'estado')
+  const estado = ehRegistro(brutoDoEstado) && proprio(brutoDoEstado, 't') === 'estado' ? lerEstado(brutoDoEstado) : null
+  if (typeof contaId !== 'string' || estado === null) return { t: 'verComo.recusa', reqId, motivo: 'torta' }
+  const brutoDoMural = proprio(bruto, 'mural')
+  const lidoDoMural = ehRegistro(brutoDoMural) ? lerFrameDoMural(brutoDoMural) : null
+  const brutoDosDuelos = proprio(bruto, 'duelos')
+  const lidoDosDuelos = ehRegistro(brutoDosDuelos) ? lerFrameDoDuelo(brutoDosDuelos) : null
+  return {
+    t: 'verComo.vista',
+    reqId,
+    contaId,
+    estado,
+    mural: lidoDoMural !== null && lidoDoMural.t === 'mural.estado' ? lidoDoMural : null,
+    duelos: lidoDosDuelos !== null && lidoDosDuelos.t === 'duelo.lista' ? lidoDosDuelos : null,
+  }
+}
+
 function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoSite | null {
   const t = proprio(bruto, 't')
+  // A vista do jogador pedida pelo mestre ("ver como"): só chega a quem pediu.
+  if (typeof t === 'string' && t.startsWith('verComo.')) return lerDoVerComo(bruto, t)
   // O chat (C2) anda pelo mesmo canal: os frames dele têm leitor próprio.
   if (typeof t === 'string' && t.startsWith('chat.')) return lerFrameDoChat(bruto)
   // O mural (M2) também: o DO manda o `mural.estado` logo depois de cada `ola`.

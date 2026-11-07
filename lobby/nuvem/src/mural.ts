@@ -209,16 +209,25 @@ export function recusarMuralPorRitmo(ws: WebSocket, pedido: PedidoDoMural, tenta
 
 // ── Estado de quem entra ────────────────────────────────────────────────────
 
-/** Depois do `ola`: todas as fixadas (os avisos, com o `lida` de quem entra) e a primeira página. */
-export function enviarEstadoDoMural(sql: SqlStorage, ws: WebSocket, contaId: string): void {
+/**
+ * O `mural.estado` como `contaId` o vê: todas as fixadas (os avisos, com o
+ * `lida` e a reação dele) e a primeira página. Só lê: o `verComo` do mestre
+ * usa o mesmo para mostrar o mural do jogador sem marcar nada como lido.
+ */
+export function estadoDoMuralPara(sql: SqlStorage, contaId: string): Extract<MensagemDoMuralDoServidor, { t: 'mural.estado' }> {
   const fixadas = sql.exec(`SELECT ${COLUNAS} FROM mural_noticias WHERE fixada = 1 AND apagadaEm IS NULL ORDER BY id DESC`).toArray().map(noticiaDaLinha)
   const pagina = sql.exec(`SELECT ${COLUNAS} FROM mural_noticias ORDER BY id DESC LIMIT ?`, MURAL_PAGINA_DO_ESTADO + 1).toArray().map(noticiaDaLinha)
-  enviar(ws, {
+  return {
     t: 'mural.estado',
     fixadas: vistasPor(sql, fixadas, contaId),
     noticias: vistasPor(sql, pagina.slice(0, MURAL_PAGINA_DO_ESTADO), contaId),
     temMaisAntigas: pagina.length > MURAL_PAGINA_DO_ESTADO,
-  })
+  }
+}
+
+/** Depois do `ola`: todas as fixadas (os avisos, com o `lida` de quem entra) e a primeira página. */
+export function enviarEstadoDoMural(sql: SqlStorage, ws: WebSocket, contaId: string): void {
+  enviar(ws, estadoDoMuralPara(sql, contaId))
 }
 
 // ── Pedidos ─────────────────────────────────────────────────────────────────

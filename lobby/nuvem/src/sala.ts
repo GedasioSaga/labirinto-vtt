@@ -1,6 +1,7 @@
 import {
   ehRegistro,
   lerJsonSeguro,
+  lerPedidoDeVerComo,
   lerPedidoDoChat,
   lerPedidoDoMural,
   parseLivroPedir,
@@ -11,6 +12,8 @@ import {
   type MensagemDoChatDoServidor,
   type MensagemDoMuralDoServidor,
   type MensagemDoServidor,
+  type MensagemDoVerComo,
+  type PedidoDeVerComo,
 } from './nucleo'
 // O duelo fica fora do `nucleo.ts`: a regra dele puxa a store da batalha (zustand), e o fecho do núcleo é puro.
 import { lerPedidoDoDuelo, type LeituraDoPedidoDoDuelo, type MensagemDoDueloDoServidor } from '../../../client/src/lib/treino/dueloDoLobby'
@@ -75,6 +78,8 @@ export type Frame =
   | { t: 'mural'; leitura: LeituraDoPedidoDoMural }
   /** Todo `duelo.*` (fatia T6): idem. */
   | { t: 'duelo'; leitura: LeituraDoPedidoDoDuelo }
+  /** O mestre pede a vista de um jogador (07/11/2026); quem pode é decidido no DO, pelo papel de agora. */
+  | { t: 'verComo'; pedido: PedidoDeVerComo }
 
 /** O histórico vem em páginas de 50 (§5.3). */
 export const LIMITE_DO_HISTORICO = 50
@@ -117,6 +122,10 @@ function frameDoRegistro(registro: Record<string, unknown>): Frame | null {
       if (!segmentoValido(fichaId) || antesDeRev === undefined || typeof limite !== 'number' || !Number.isSafeInteger(limite) || limite < 1) return null
       return { t: 'historico', fichaId, antesDeRev, limite: Math.min(limite, LIMITE_DO_HISTORICO) }
     }
+    case 'verComo': {
+      const pedido = lerPedidoDeVerComo(registro)
+      return pedido === null ? null : { t: 'verComo', pedido }
+    }
     default:
       return null
   }
@@ -135,7 +144,7 @@ export function lerFrame(texto: string): Frame | null {
 
 export function enviar(
   ws: WebSocket,
-  mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor | MensagemDaSala,
+  mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor | MensagemDaSala | MensagemDoVerComo,
 ): void {
   try {
     ws.send(JSON.stringify(mensagem))

@@ -1,6 +1,7 @@
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
 import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
 import type { MensagemDoCliente, MensagemDoServidor, Papel } from '../../lib/nuvem/tipos'
+import type { MensagemDoVerComo, PedidoDeVerComo } from '../../lib/nuvem/verComo'
 import type { MensagemDoDueloDoServidor, PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
 
 /**
@@ -70,6 +71,18 @@ export type MensagemDoSite =
   | MensagemDoChatDoServidor
   | MensagemDoMuralDoServidor
   | MensagemDoDueloDoServidor
+  | MensagemDoVerComoNoSite
+
+/** A vista de um jogador pedida pelo mestre ("ver como", 07/11/2026), com o `estado` na forma do canal (com a sala). */
+/** O `duelo.lista` que a vista traz (o tipo fica aqui: o núcleo da nuvem não importa o treino). */
+export type DuelosDoVerComo = Extract<MensagemDoDueloDoServidor, { t: 'duelo.lista' }>
+export type MensagemDoVerComoNoSite = MensagemDoVerComo<EstadoComSala, DuelosDoVerComo>
+export type VistaDoVerComoNoSite = Extract<MensagemDoVerComoNoSite, { t: 'verComo.vista' }>
+
+/** O frame é a resposta de um `verComo` (`verComo.*`)? */
+export function ehDoVerComo(mensagem: MensagemDoSite): mensagem is MensagemDoVerComoNoSite {
+  return mensagem.t.startsWith('verComo.')
+}
 
 /**
  * O convite de um clique (`POST /api/c/:id/bilhete`, só jogador): o bilhete
@@ -106,7 +119,7 @@ export type RespostaDaFoto =
   | { ok: false; motivo: 'ritmo'; tentarDepoisDe: number }
 
 /** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat, do mural e do duelo (T7). */
-export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural | PedidoDoDuelo
+export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural | PedidoDoDuelo | PedidoDeVerComo
 
 /** O frame é do duelo (`duelo.*`, fatia T7)? */
 export function ehDoDuelo(mensagem: MensagemDoSite): mensagem is MensagemDoDueloDoServidor {

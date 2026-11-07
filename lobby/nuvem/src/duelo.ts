@@ -616,6 +616,32 @@ export function duelosNoOla(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, agora:
 }
 
 /**
+ * A lista dos duelos como `contaId` a recebe no `ola`, SEM mexer em nada
+ * (o `verComo` do mestre, 07/11/2026): nem vence ausência, nem marca presente,
+ * nem apaga o de outra versão. O que estiver gravado é o que aparece; convite
+ * vencido fica de fora, como no `ola`; convite torto também (não lança).
+ */
+export function duelosParaVer(sql: SqlStorage, contaId: string, agora: number): Extract<MensagemDoDueloDoServidor, { t: 'duelo.lista' }> {
+  const convites: ConviteDoDuelo[] = []
+  const duelos: DueloDoLado[] = []
+  for (const linha of linhasDaConta(sql, contaId)) {
+    if (linha.status === 'convite') {
+      if (linha.prazo !== null && linha.prazo <= agora) continue
+      try {
+        convites.push(conviteDaLinha(sql, linha))
+      } catch {
+        // Convite fora do formato: o `ola` do jogador derrubaria o pedido; aqui a vista só não o mostra.
+      }
+      continue
+    }
+    const duelo = dueloDaLinha(linha)
+    const doLado = duelo === null ? null : dueloDaConta(sql, duelo, contaId)
+    if (doLado !== null) duelos.push(doLado)
+  }
+  return { t: 'duelo.lista', convites, duelos }
+}
+
+/**
  * A conta ficou sem nenhum socket (achado Tr9: por conta, não por socket):
  * cada duelo em andamento dela começa a contar os 3 minutos (12.15) e o outro
  * lado vê na hora. Devolve se algum prazo nasceu (quem chama reagenda o alarme).

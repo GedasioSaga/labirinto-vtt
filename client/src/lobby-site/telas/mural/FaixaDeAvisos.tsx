@@ -4,6 +4,7 @@ import { enderecoDaRota, type Rota } from '../../dados/rotas'
 import { aoClicarNoLink, useAgora, useDoSite, useSite } from '../contexto'
 import { Icone } from '../Icone'
 import { horaExata, quandoRelativo } from '../textos'
+import { useSoLeitura } from '../VerComo'
 import './mural.css'
 
 /**
@@ -88,6 +89,8 @@ interface PropsDoAviso {
 function AvisoFixado({ noticia, noMural, demo, agora, linha }: PropsDoAviso) {
   const site = useSite()
   const [saindo, setSaindo] = useState(false)
+  // "Ver como": o "lido" seria o do mestre. A faixa é de uma linha: o botão sai, o link para o mural fica.
+  const soLeitura = useSoLeitura()
 
   function marcarLido() {
     if (saindo) return
@@ -130,9 +133,11 @@ function AvisoFixado({ noticia, noMural, demo, agora, linha }: PropsDoAviso) {
         <MuralLink alvo={noMural} demo={demo}>
           {linha ?? 'Ver no mural'}
         </MuralLink>
-        <button type="button" className="lo-btn lo-btn--primario" onClick={marcarLido} disabled={saindo} aria-label="Marcar como lido">
-          <Icone nome="visto" /> <span className="lo-aviso-fixo__rotulo">Marcar como lido</span>
-        </button>
+        {soLeitura === null && (
+          <button type="button" className="lo-btn lo-btn--primario" onClick={marcarLido} disabled={saindo} aria-label="Marcar como lido">
+            <Icone nome="visto" /> <span className="lo-aviso-fixo__rotulo">Marcar como lido</span>
+          </button>
+        )}
       </div>
     </article>
   )

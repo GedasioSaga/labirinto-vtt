@@ -28,6 +28,7 @@ import {
   atenderPedidoDoDuelo,
   contaSaiuDosDuelos,
   duelosNoOla,
+  duelosParaVer,
   esquecerSistemaDoDuelo,
   proximoPrazoDosDuelos,
   recusarDueloPorRitmo,
@@ -40,14 +41,15 @@ import { ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro }
 import { chaveDoRitmoDaFoto, conferirRitmoDaFoto, lerFotoDoPedido, trocarFotoDaConta, type RitmoDaFoto } from './fotoDePerfil'
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
 import { receberMidia, servirMidia } from './midia'
-import { atenderPedidoDoMural, enviarEstadoDoMural, esquecerRotulosDoMural, muralParaExportar, recusarMuralPorRitmo, recusarPedidoDoMural } from './mural'
+import { atenderPedidoDoMural, enviarEstadoDoMural, esquecerRotulosDoMural, estadoDoMuralPara, muralParaExportar, recusarMuralPorRitmo, recusarPedidoDoMural } from './mural'
 import {
   assinarBilhete,
   bytesDoTexto,
   chaveDaCotaDaConta,
   conferirRitmo,
   CONTA_DO_MESTRE,
-  fichaNoEstado,
+  decidirVerComo,
+  estadoDoMembro,
   LIMITES,
   membroAtivo,
   novaChaveDaSala,
@@ -55,7 +57,6 @@ import {
   podeVer,
   processarDesfazer,
   processarLote,
-  projetarMembro,
   projetarMembros,
   projetarOpParaJogador,
   proprio,
@@ -66,12 +67,12 @@ import {
   VERSAO_DO_FORMATO,
   type ConferenciaDoRitmo,
   type FichaGuardada,
-  type FichaNoEstado,
   type Identidade,
   type LeitorDaCampanha,
   type Membro,
   type MensagemDoServidor,
   type OpGravada,
+  type PedidoDeVerComo,
   type PresencaNaMesa,
   type ResultadoDoProcessamento,
   type SistemaDoJogador,
@@ -354,7 +355,8 @@ export class Campanha extends DurableObject<Env> {
     if (membro.papel === 'mestre') return { membros, fichas, recusadas, sistema: lerSistema(this.sql) ?? null, chatSala, mural }
     return {
       membros: projetarMembros(membros),
-      fichas: fichasDoEstado(membro, fichas, membros),
+      // As fichas pela mesma projeção do `estado` (a montagem única de `estadoDoMembro`).
+      fichas: estadoDoMembro(membro, fichas, membros, 0, null, null).fichas,
       recusadas: recusadas.filter((recusada) => recusada.autorContaId === membro.contaId),
       chatSala,
       mural,
@@ -573,14 +575,36 @@ export class Campanha extends DurableObject<Env> {
    * ignora os campos a mais.
    */
   private estadoPara(membro: Membro, fichas: readonly FichaGuardada[], membros: readonly Membro[], rev: number, sala: SalaParaJogador | null): EstadoComSala {
-    const estado: EstadoComSala = { t: 'estado', rev, fichas: fichasDoEstado(membro, fichas, membros), membros: projetarMembros(membros), eu: projetarMembro(membro), sala }
-    const doJogador = this.sistemaParaOEstado()
-    if (doJogador !== null) {
-      estado.sistema = doJogador.sistema
-      estado.marcaDoSistema = doJogador.marca
-      if (doJogador.livro !== null) estado.livro = doJogador.livro
+    // A montagem única (`estadoDoMembro`): o `verComo` do mestre sai dela também, então é a vista do jogador por construção.
+    return estadoDoMembro(membro, fichas, membros, rev, sala, this.sistemaParaOEstado())
+  }
+
+  /**
+   * "Ver como jogador" (07/11/2026): o mestre pede pelo socket DELE a vista de
+   * um jogador; a identidade do socket não muda. O papel de quem pede é relido
+   * de `membros` agora (jogador pedindo = `so-mestre`). A vista sai das mesmas
+   * montagens do `ola` daquele jogador (o `estado`, o `mural.estado` com o
+   * `lida` dele e a lista de duelos do lado dele), só lidas: nada é marcado,
+   * vencido nem gravado. O chat não vai: o privado é só de quem conversa.
+   */
+  private verComo(ws: WebSocket, quem: Identidade, pedido: PedidoDeVerComo): void {
+    const membros = todosOsMembros(this.sql)
+    const decisao = decidirVerComo(membroPorConta(this.sql, quem.contaId), membros, pedido.contaId)
+    if (!decisao.ok) {
+      enviar(ws, { t: 'verComo.recusa', reqId: pedido.reqId, motivo: decisao.motivo })
+      return
     }
-    return estado
+    const { alvo } = decisao
+    const agora = Date.now()
+    const estado = this.estadoPara(alvo, todasAsFichas(this.sql), membros, revAtual(this.sql), this.salaVisivel(agora))
+    enviar(ws, {
+      t: 'verComo.vista',
+      reqId: pedido.reqId,
+      contaId: alvo.contaId,
+      estado,
+      mural: estadoDoMuralPara(this.sql, alvo.contaId),
+      duelos: duelosParaVer(this.sql, alvo.contaId, agora),
+    })
   }
 
   /**
@@ -791,6 +815,8 @@ export class Campanha extends DurableObject<Env> {
         return this.duelo(ws, quem, frame.leitura, agora)
       case 'livro':
         return this.livro(ws, frame.pedido)
+      case 'verComo':
+        return this.verComo(ws, quem, frame.pedido)
     }
   }
 
@@ -889,6 +915,11 @@ export class Campanha extends DurableObject<Env> {
       enviar(ws, { t: 'livro.recusa', reqId: frame.pedido.reqId })
       return
     }
+    // A vista do jogador também: o site do mestre guarda a que tinha e pede de novo depois.
+    if (frame.t === 'verComo') {
+      enviar(ws, { t: 'verComo.recusa', reqId: frame.pedido.reqId, motivo: 'ritmo' })
+      return
+    }
     const novoOpId = frame.t === 'desfazer' ? proprio(frame.pedido, 'novoOpId') : undefined
     if (segmentoValido(novoOpId)) enviar(ws, { t: 'adiado', opId: novoOpId, motivo: 'ritmo', tentarDepoisDe })
   }
@@ -920,12 +951,4 @@ function presencaPorConta(prontos: readonly SocketPronto[]): PresencaNaMesa[] {
     porConta.set(membro.contaId, { contaId: membro.contaId, nome: membro.nome, papel: membro.papel, onde })
   }
   return [...porConta.values()].sort((a, b) => Number(b.papel === 'mestre') - Number(a.papel === 'mestre') || a.nome.localeCompare(b.nome, 'pt-BR'))
-}
-
-function fichasDoEstado(eu: Membro, fichas: readonly FichaGuardada[], membros: readonly Membro[]): FichaNoEstado[] {
-  const nomes = new Map(membros.map((membro): [string, string] => [membro.contaId, membro.nome]))
-  return fichas.flatMap((ficha) => {
-    const noEstado = fichaNoEstado(eu, ficha, (contaId) => nomes.get(contaId) ?? null)
-    return noEstado === null ? [] : [noEstado]
-  })
 }

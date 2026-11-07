@@ -4,6 +4,7 @@ import type { EstadoDoMural, PostagemPendente } from '../../dados/muralDaCampanh
 import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { useAgora, useSite } from '../contexto'
 import { Rosto } from '../Rosto'
+import { useSoLeitura } from '../VerComo'
 import { CartaoDaNoticia } from './CartaoDaNoticia'
 import { EscreverNoticia, type ImagemParaEscolher } from './EscreverNoticia'
 import { imagensDaMesa, textoDaPostagem, urlDaImagem } from './textosDoMural'
@@ -26,6 +27,7 @@ export function PainelNoticias({ campanha, mural, eu, souMestre, demo }: Props) 
   const site = useSite()
   const avisosId = useId()
   const noticiasId = useId()
+  const soLeitura = useSoLeitura()
   // Segundo a segundo só com notícia segurada esperando a hora de ir (o "vai sozinha em 12 s").
   const agora = useAgora(mural.pendentes.some((pendente) => pendente.situacao.t === 'esperando') ? 1_000 : 30_000)
   const imagens: ImagemParaEscolher[] = imagensDaMesa([...mural.fixadas, ...mural.noticias], campanha.fichas).map((ref, i) => ({
@@ -108,7 +110,11 @@ export function PainelNoticias({ campanha, mural, eu, souMestre, demo }: Props) 
                   {mural.carregandoAntigas ? <span className="lo-giro" aria-hidden="true" /> : null}
                   {mural.carregandoAntigas ? 'Carregando…' : 'Carregar notícias anteriores'}
                 </button>
-                {!mural.pronto && <span className="lo-motivo">Sem conexão: volta quando ela voltar.</span>}
+                {!mural.pronto && (
+                  <span className="lo-motivo">
+                    {soLeitura !== null ? `A vista de ${soLeitura.nome} traz as notícias mais novas; as anteriores abrem quando você voltar a ser mestre.` : 'Sem conexão: volta quando ela voltar.'}
+                  </span>
+                )}
               </div>
             )}
           </section>

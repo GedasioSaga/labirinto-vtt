@@ -11,6 +11,9 @@
 //      node fumaca.mjs foto                -> a foto de perfil (07/11): a Nami troca a própria (256 KiB exatos) e o
 //                                             Zoro a vê no estado; +1 byte = 413; HTML = 400; o DELETE do Zoro não
 //                                             mexe na da Nami; não membro = 404; tirar apaga a mídia; 4ª seguida = 429
+//      node fumaca.mjs vercomo             -> ver como jogador (07/11): a Nami pede = recusa so-mestre; o mestre como
+//                                             a Nami recebe a projeção dela (sem nota, e-mail nem privado), com mural e
+//                                             duelos; como o mestre = nao-e-jogador; o socket do mestre segue o dele
 //      node fumaca.mjs chat                -> o aceite da C1 (mestre, Nami e Zoro em três sockets): sala chega
 //                                             aos 3; privado Nami<->Zoro não chega ao mestre; chat.antes com
 //                                             canal 'dm:a:b' em texto = recusa; 6º envio em rajada = ritmo;
@@ -678,6 +681,51 @@ async function aceiteDaFoto() {
 
   zoro.fechar()
   console.log(falhas === 0 ? `FOTO OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
+// ── Ver como jogador (07/11) ────────────────────────────────────────────────
+
+async function aceiteDoVerComo() {
+  const campanhaId = `fumaca-vercomo-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, pedidoDePublicar([ficha('pers_nami', 'conta_nami'), ficha('pers_zoro', 'conta_zoro')]))
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  const s = await abrirOs3(campanhaId)
+  try {
+    // Um privado entre os dois jogadores: a vista do mestre nunca o traz.
+    const marcador = `privado-${Date.now().toString(36)}`
+    await s.nami.mandar({ t: 'chat.enviar', canal: { dm: 'conta_zoro' }, texto: `segredo ${marcador}`, idDoCliente: 'c_vc_dm' })
+    await okDe(s.nami, 'c_vc_dm')
+
+    // 1. A jogadora pede: recusa só para ela (o socket dela segue o mesmo).
+    await s.nami.mandar({ t: 'verComo', reqId: 'vc_nami', contaId: 'conta_zoro' })
+    const recusa = await s.nami.esperar((m) => m.t === 'verComo.recusa' && m.reqId === 'vc_nami', 'a recusa do verComo da Nami')
+    conferir('a Nami pede verComo = recusa so-mestre', recusa.motivo === 'so-mestre', JSON.stringify(recusa))
+
+    // 2. O mestre pede como a Nami: a vista é a projeção dela, com mural e duelos dela.
+    await s.mestre.mandar({ t: 'verComo', reqId: 'vc_mestre', contaId: 'conta_nami' })
+    const vista = await s.mestre.esperar((m) => m.t === 'verComo.vista' && m.reqId === 'vc_mestre', 'a vista da Nami')
+    const texto = JSON.stringify(vista)
+    const minha = vista.estado?.fichas?.find((f) => f.doc.id === 'pers_nami')
+    const doZoro = vista.estado?.fichas?.find((f) => f.doc.id === 'pers_zoro')
+    conferir('a vista é da Nami: eu = Nami jogadora, a ficha dela é dela, a do Zoro não', vista.estado?.eu?.contaId === 'conta_nami' && vista.estado?.eu?.papel === 'jogador' && minha?.ehMinha === true && doZoro?.ehMinha === false, texto.slice(0, 300))
+    conferir('a vista não traz nota do mestre, e-mail nem o privado entre jogadores', !texto.includes('notaDoMestre') && !texto.includes('Nota que o jogador nunca vê') && !texto.includes('@') && !texto.includes(marcador), texto.slice(0, 300))
+    conferir('a vista traz o mural e os duelos como a Nami os recebe', vista.mural?.t === 'mural.estado' && vista.duelos?.t === 'duelo.lista', `${vista.mural?.t} ${vista.duelos?.t}`)
+
+    // 3. Como o mestre (não é jogador): recusa.
+    await s.mestre.mandar({ t: 'verComo', reqId: 'vc_mestre_2', contaId: 'mestre' })
+    const comoMestre = await s.mestre.esperar((m) => m.t === 'verComo.recusa' && m.reqId === 'vc_mestre_2', 'a recusa do verComo do mestre como mestre')
+    conferir('o mestre pede como o mestre = recusa nao-e-jogador', comoMestre.motivo === 'nao-e-jogador', JSON.stringify(comoMestre))
+
+    // 4. A identidade do socket não mudou: o chat do mestre continua saindo como o mestre.
+    await s.mestre.mandar({ t: 'chat.enviar', canal: 'sala', texto: 'ainda sou o mestre', idDoCliente: 'c_vc_sala' })
+    const naSala = await s.zoro.esperar((m) => m.t === 'chat.msg' && m.canal === 'sala' && m.msg.texto === 'ainda sou o mestre', 'a mensagem do mestre na sala')
+    conferir('depois da vista, o socket do mestre continua o do mestre', naSala.msg.autorContaId === 'mestre', JSON.stringify(naSala.msg))
+    conferir('nenhum frame verComo chegou a quem não pediu (Zoro)', !s.zoro.todas.some((t) => t.includes('verComo')))
+  } finally {
+    for (const sala of Object.values(s)) sala.fechar()
+  }
+  console.log(falhas === 0 ? `VERCOMO OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
 }
 
 // ── Chat (C1, plano 8.2; liberado pela 12.18 f) ─────────────────────────────
@@ -1772,6 +1820,8 @@ try {
     await aceiteDaMidia()
   } else if (modo === 'foto') {
     await aceiteDaFoto()
+  } else if (modo === 'vercomo') {
+    await aceiteDoVerComo()
   } else if (modo === 'chat') {
     await aceiteDoChat()
   } else if (modo === 'mural') {

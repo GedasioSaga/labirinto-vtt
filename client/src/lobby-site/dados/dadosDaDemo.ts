@@ -353,5 +353,14 @@ export function campanhasDaDemo(): CampanhaDaDemo[] {
       fichas: [naMesa(VELA), naMesa(RUIVO)],
       antigas: [{ quem: CONTA_DO_MESTRE, fichaId: VELA.id, caminho: ['moedas'], acao: 'somar', delta: 50, minutosAtras: 60 * 24 * 12 }],
     },
+    {
+      // A mesa em que a Bia é a mestra (07/11/2026): o "Ver como" do menu da conta tem jogadores para mostrar.
+      // O capitão escondido e as notas do mestre ficam de fora da vista de cada jogador, como no servidor.
+      campanhaId: 'ilha-do-ensaio',
+      nome: 'Ilha do Ensaio',
+      membros: [mestre('Bia', EMAIL_DA_DEMO), membro(CAIO), membro(DUDA)],
+      fichas: [naMesa(GAEL), naMesa(IARA), { ...naMesa(CAPITAO), visivel: 'mestre' }, RECRUTA, TENENTE],
+      antigas: [{ quem: CAIO.contaId, fichaId: GAEL.id, caminho: ['recursos', 'escudo'], acao: 'definir', valor: 4, minutosAtras: 15 }],
+    },
   ]
 }

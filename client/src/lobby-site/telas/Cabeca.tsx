@@ -10,6 +10,7 @@ import { contagemDeNaoLidas } from './chat/textosDoChat'
 import { MOTIVO_DO_TREINO, TREINO_NO_SITE } from './lobby/treinoNoSite'
 import { JanelaDaFoto } from './foto/JanelaDaFoto'
 import { Rosto } from './Rosto'
+import { EscolherQuemVer, FaixaDoVerComo } from './VerComo'
 
 /**
  * A CABEÇA FIXA (protótipo, "cabeça fixa e faixa"): a marca, onde a pessoa
@@ -27,17 +28,20 @@ export function Cabeca() {
   const eu = useDoSite((estado) => estado.eu)
   const rota = useDoSite((estado) => estado.rota)
   const campanha = useDoSite((estado) => estado.campanha)
+  const verComo = useDoSite((estado) => estado.verComo)
+  const vendoComo = verComo !== null && verComo.t !== 'erro'
   const email = eu.t === 'pronto' ? eu.eu.email : null
   const nomeDaMesa = eu.t === 'pronto' && campanha !== null ? (eu.eu.campanhas.find((linha) => linha.campanhaId === campanha.campanhaId)?.nomeDaCampanha ?? null) : null
-  const euNaMesa = campanha?.eu ?? null
+  // No "ver como" a campanha da tela é a do jogador: a conta continua sendo a do mestre.
+  const euNaMesa = (verComo === null ? null : verComo.mestre) ?? campanha?.eu ?? null
   const nomeDaConta = euNaMesa?.nome ?? email ?? 'Você'
   const naMesa = campanha?.naMesa ?? []
   const nomesNaMesa = naMesa.map((pessoa) => (pessoa.papel === 'mestre' ? `${pessoa.nome} (mestre)` : pessoa.nome)).join(', ')
   const botaoDaConta = useRef<HTMLButtonElement>(null)
   const menuDaConta = useRef<HTMLDivElement>(null)
   const [trocandoFoto, setTrocandoFoto] = useState(false)
-  // A foto é da conta NA MESA: fora de uma mesa (ou antes de ela abrir) não há onde guardar.
-  const podeTrocarFoto = campanha !== null && euNaMesa !== null
+  // A foto é da conta NA MESA: fora de uma mesa (ou antes de ela abrir) não há onde guardar. No "ver como", nada grava.
+  const podeTrocarFoto = campanha !== null && euNaMesa !== null && !vendoComo
 
   function abrirFoto(): void {
     menuDaConta.current?.hidePopover()
@@ -57,7 +61,8 @@ export function Cabeca() {
   )
 
   return (
-    <header className="lo-cabeca">
+    <header className="lo-cabeca" data-vendo-como={vendoComo ? '1' : undefined}>
+      {verComo !== null && <FaixaDoVerComo verComo={verComo} />}
       <div className="lo-topo">
         <a className="lo-marca" href={enderecoDaRota({ tela: 'campanhas' }, demo)} onClick={aoClicarNoLink(site, { tela: 'campanhas' })} aria-label="Labirinto Lobby, suas mesas">
           <span className="lo-marca__nome">Labirinto</span>
@@ -106,9 +111,10 @@ export function Cabeca() {
                 </button>
                 {!podeTrocarFoto && (
                   <p className="lo-motivo lo-menu__nota" id="lo-menu-foto-motivo">
-                    Abra uma mesa para trocar a sua foto nela.
+                    {vendoComo ? 'Volte a ser mestre para trocar a sua foto.' : 'Abra uma mesa para trocar a sua foto nela.'}
                   </p>
                 )}
+                <EscolherQuemVer aoEscolher={() => menuDaConta.current?.hidePopover()} />
                 {demo ? (
                   <p className="lo-motivo lo-menu__nota">Demonstração: dados inventados, sem login. Nada sai deste navegador.</p>
                 ) : (
@@ -121,7 +127,8 @@ export function Cabeca() {
           )}
         </div>
       </div>
-      {campanha !== null && <Faixa campanha={campanha} />}
+      {/* No "ver como" a faixa de estado falaria da vista (que nunca envia nada): a do "ver como" diz o que vale. */}
+      {campanha !== null && !vendoComo && <Faixa campanha={campanha} />}
       {trocandoFoto && campanha !== null && euNaMesa !== null && (
         <JanelaDaFoto campanhaId={campanha.campanhaId} nomeDaMesa={nomeDaMesa} contaId={euNaMesa.contaId} nome={euNaMesa.nome} aoFechar={fecharFoto} />
       )}

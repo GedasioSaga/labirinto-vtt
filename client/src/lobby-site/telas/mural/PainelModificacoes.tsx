@@ -6,6 +6,7 @@ import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { aoClicarNoLink, useAgora, useSite } from '../contexto'
 import { horaExata, nomeDoDia, quandoRelativo } from '../textos'
 import { Rosto } from '../Rosto'
+import { AvisoDeSoLeitura, useSoLeitura } from '../VerComo'
 import { partesDaFrase } from './textosDoMural'
 
 /**
@@ -29,6 +30,7 @@ export function PainelModificacoes({ campanha, mural, demo }: Props) {
   const fichaId = useId()
   const pessoaId = useId()
   const agora = useAgora()
+  const soLeitura = useSoLeitura()
   const feed = mural.modificacoes
   const filtroDaFicha = feed?.fichaId ?? null
   const filtroDaPessoa = feed?.autorContaId ?? null
@@ -68,6 +70,15 @@ export function PainelModificacoes({ campanha, mural, demo }: Props) {
     const ultimo = grupos.at(-1)
     if (ultimo !== undefined && ultimo.dia === dia) ultimo.linhas.push(linha)
     else grupos.push({ dia, linhas: [linha] })
+  }
+
+  // "Ver como": o servidor monta o feed para quem pede, e quem pede aqui é o mestre (viria com NPC e o resto).
+  if (soLeitura !== null) {
+    return (
+      <section aria-label="Modificações nas fichas">
+        <AvisoDeSoLeitura>As modificações ficam de fora da vista de {soLeitura.nome}: chegariam como você as vê, mestre. Volte a ser mestre para ver o que mudou.</AvisoDeSoLeitura>
+      </section>
+    )
   }
 
   return (
