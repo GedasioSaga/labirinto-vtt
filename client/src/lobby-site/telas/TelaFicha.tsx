@@ -216,6 +216,12 @@ function FichaAberta({ rota, campanha, ficha }: { rota: RotaDaFicha; campanha: E
 /**
  * Até onde vai o que fica ACIMA da ficha (a cabeça do site, a da ficha, os
  * avisos e as abas): a ficha do app é uma tela fixa, e começa logo abaixo.
+ *
+ * A faixa de avisos do mestre (`FaixaDeAvisos`) mora no `<main>`, ANTES da
+ * página: entrar, sair ou encolher empurra a banda sem mudar o tamanho dela, e
+ * só observar a banda deixava a medida velha (a ficha cobria as abas quando o
+ * aviso chegava depois; sobrava um vão quando ele era lido). Por isso cada
+ * filho do `<main>` também é observado, e um filho que entra ou sai mede de novo.
  */
 function useAlturaAcima(bandaRef: RefObject<HTMLDivElement | null>, ligado: boolean): number {
   const [alto, setAlto] = useState(0)
@@ -228,9 +234,21 @@ function useAlturaAcima(bandaRef: RefObject<HTMLDivElement | null>, ligado: bool
     observador.observe(banda)
     const cabeca = document.querySelector('.lo-cabeca')
     if (cabeca !== null) observador.observe(cabeca)
+    const principal = banda.closest('.lo-principal')
+    const filhos = new MutationObserver(observarOsFilhos)
+    function observarOsFilhos() {
+      if (principal === null) return
+      for (const filho of principal.children) observador.observe(filho)
+      medir()
+    }
+    if (principal !== null) {
+      observarOsFilhos()
+      filhos.observe(principal, { childList: true })
+    }
     window.addEventListener('resize', medir)
     return () => {
       observador.disconnect()
+      filhos.disconnect()
       window.removeEventListener('resize', medir)
     }
   }, [bandaRef, ligado])
