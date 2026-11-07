@@ -7,8 +7,9 @@
  *   node scripts/publicar-versao.cjs --so-lobby              só o site e o Worker do Lobby, sem tauri:build
  *   node scripts/publicar-versao.cjs --so-lobby --publicar   idem + guarda + Worker + Pages (sem release)
  *
- * Ordem (docs/planos/lobby-jogadores-2026-11-05.md, S4 e seção 10): build do
- * app, build do site carimbado com a versão do tauri.conf.json
+ * Ordem (docs/planos/lobby-jogadores-2026-11-05.md, S4 e seção 10): o tsc de
+ * lobby/site e de lobby/nuvem (o `build:lobby` só confere o tsconfig do
+ * client), build do app, build do site carimbado com a versão do tauri.conf.json
  * (client/dist-lobby/versao.json), `wrangler deploy --dry-run` do Worker e a
  * guarda do repo público (scripts/conferir-repo-publico.cjs) ANTES de qualquer
  * envio; depois Worker → Pages → release do GitHub. O Worker vai primeiro
@@ -45,6 +46,14 @@ const PASTA_DO_WORKER = path.join(RAIZ, 'lobby', 'nuvem')
 const PASTA_DO_PAGES = path.join(RAIZ, 'lobby', 'site')
 /** O ramo de produção do projeto `labirintolobby`: outro nome viraria uma prévia, sem os DOs (6.2). */
 const RAMO_DE_PRODUCAO_DO_PAGES = 'main'
+/**
+ * O tsc do repo, chamado direto pelo node: sem shell e sem a busca do `npx`,
+ * que acharia o tsc global (versão errada) ou baixaria o pacote `tsc`, que não
+ * é o TypeScript, se o local sumisse.
+ */
+const TSC = path.join(RAIZ, 'node_modules', 'typescript', 'bin', 'tsc')
+/** Os projetos TypeScript do Lobby fora do client/: o portão do Pages e o Worker. */
+const PROJETOS_DE_TIPO_DO_LOBBY = [PASTA_DO_PAGES, PASTA_DO_WORKER]
 
 function falhar(mensagem) {
   console.error(`\n[publicar-versao] ERRO: ${mensagem}`)
@@ -143,6 +152,20 @@ function npx(args, cwd) {
   rodar('npx', args, { cwd, shell: process.platform === 'win32' })
 }
 
+/** `tsc --noEmit -p <tsconfig>` de lobby/site e de lobby/nuvem; erro de tipo para tudo antes de buildar e de enviar. */
+function conferirTiposDoLobby() {
+  if (!fs.existsSync(TSC)) falhar(`TypeScript não instalado em ${TSC}: rode npm install na raiz`)
+  for (const pasta of PROJETOS_DE_TIPO_DO_LOBBY) {
+    const nome = path.relative(RAIZ, pasta).split(path.sep).join('/')
+    const tsconfig = path.join(pasta, 'tsconfig.json')
+    console.log(`[publicar-versao] tipos de ${nome}: tsc --noEmit -p ${nome}/tsconfig.json`)
+    const r = spawnSync(process.execPath, [TSC, '--noEmit', '-p', tsconfig], { cwd: RAIZ, stdio: 'inherit' })
+    if (r.error) falhar(`o tsc de ${nome} não rodou: ${r.error.message}`)
+    if (r.status !== 0) falhar(`o tsc de ${nome} achou erro de tipo (código ${r.status}): corrija antes de publicar; nada foi buildado nem enviado`)
+    console.log(`[publicar-versao] tipos de ${nome}: sem erro`)
+  }
+}
+
 function main() {
   const args = lerArgumentos(process.argv.slice(2))
   const conf = JSON.parse(fs.readFileSync(CONF, 'utf8'))
@@ -150,6 +173,8 @@ function main() {
   if (!/^\d+\.\d+\.\d+$/.test(versao ?? '')) falhar(`versão estranha em tauri.conf.json: ${versao}`)
   const tag = `v${versao}`
   if (!args.soLobby) conferirAntesDoApp(args, conf, tag)
+  // Antes do tauri:build longo: erro de tipo no Lobby aparece em segundos, não depois do build.
+  conferirTiposDoLobby()
 
   const app = args.soLobby ? null : buildarApp(args, conf, versao, tag)
   buildarLobby(versao)
