@@ -14,6 +14,7 @@ import { act, createElement } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildPin, createEmptyMap } from '../lib/mapFactory'
 import type { Pin, Token } from '../types/map'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_CSS: '#4ea1ff',
@@ -127,7 +128,7 @@ beforeAll(async () => {
     // A chave ainda no chão, perto da Jill: o recorte manda o texto do mestre.
     mestre().manda(recorte(1, [pinoDaChave()], [{ id: 'isqueiro-1', nome: 'Isqueiro' }]))
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

@@ -2,6 +2,7 @@ import { act, createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { addToken, createEmptyMap } from '../lib/mapFactory'
 import { RESUME_STORAGE_KEY } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * RECONEXÃO AUTOMÁTICA, a página do jogador (`main.tsx`): o véu
@@ -130,5 +131,5 @@ describe('página do jogador: véu "Reconectando…" e volta na hora', () => {
     terceiro.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Gina' })
     expect(veu()).toBeNull()
     expect(document.querySelector('[data-testid="mapa"]')).not.toBeNull()
-  })
+  }, PRAZO_DA_IMPORTACAO_MS)
 })

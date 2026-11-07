@@ -1,6 +1,7 @@
 import { act, createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RESUME_STORAGE_KEY } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * VOLTAR É A MESMA PESSOA, a página do jogador (`main.tsx`).
@@ -92,7 +93,7 @@ describe('página do jogador: voltar por aba nova é a mesma pessoa', () => {
     expect(socket.sent[0]).toEqual({ type: 'join', code: CODE, name: 'Ana', resume: 'tok' })
     // Nada de formulário: a Ana não digita nada de novo.
     expect(document.querySelector('form')).toBeNull()
-  })
+  }, PRAZO_DA_IMPORTACAO_MS)
 
   it('o resume que o mestre dá fica no aparelho, onde a próxima aba o acha', async () => {
     window.localStorage.setItem('labirinto.ultima-entrada', JSON.stringify({ code: CODE, name: 'Ana' }))
@@ -108,7 +109,7 @@ describe('página do jogador: voltar por aba nova é a mesma pessoa', () => {
     expect(socket.sent[0]).toEqual({ type: 'join', code: CODE, name: 'Ana' })
     socket.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok-novo', name: 'Ana' })
     expect(window.localStorage.getItem(RESUME_STORAGE_KEY)).toBe(JSON.stringify({ code: CODE, token: 'tok-novo' }))
-  })
+  }, PRAZO_DA_IMPORTACAO_MS)
 
   it('a aba velha avisada pelo host explica e oferece "Usar aqui", que entra de novo com o mesmo resume', async () => {
     window.localStorage.setItem('labirinto.ultima-entrada', JSON.stringify({ code: CODE, name: 'Ana' }))
@@ -131,5 +132,5 @@ describe('página do jogador: voltar por aba nova é a mesma pessoa', () => {
     expect(nova.sent[0]).toEqual({ type: 'join', code: CODE, name: 'Ana', resume: 'tok' })
     // O resume continua lá: a aba velha não apagou o da aba nova.
     expect(window.localStorage.getItem(RESUME_STORAGE_KEY)).toBe(JSON.stringify({ code: CODE, token: 'tok' }))
-  })
+  }, PRAZO_DA_IMPORTACAO_MS)
 })

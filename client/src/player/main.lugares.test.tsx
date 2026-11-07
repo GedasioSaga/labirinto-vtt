@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Pin } from '../types/map'
 import type { PersonalNote } from './personalNotes'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -118,7 +119,7 @@ beforeAll(async () => {
     mestre().manda({ type: 'mynotes.book', notes: [NOTA] })
     mestre().manda({ type: 'snapshot', rev: 1, map: MAPA, vision: [], ownTokens: ['eva'], concealed: [] })
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

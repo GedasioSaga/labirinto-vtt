@@ -10,6 +10,7 @@
 import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_CSS: '#4ea1ff',
@@ -108,7 +109,7 @@ beforeAll(async () => {
     // MINHAS NOTAS: a lista que o host guardou para ela vai no arquivo; o recado acima não (saiu do caderno).
     mestre().manda({ type: 'mynotes.book', notes: [{ id: 'nota-1', mapId: 'mapa-da-nota', x: 10, y: 10, text: 'baú trancado aqui' }] })
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   Reflect.set(URL, 'createObjectURL', originalCreate)

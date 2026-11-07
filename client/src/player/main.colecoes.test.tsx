@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ColecaoProgresso } from '../lib/colecao'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { Pin } from '../types/map'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -117,7 +118,7 @@ beforeAll(async () => {
       concealed: [],
     })
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

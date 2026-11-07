@@ -11,6 +11,7 @@ import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { Pin, Token } from '../types/map'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -112,7 +113,7 @@ beforeAll(async () => {
   act(() => mestre().manda({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Ana' }))
   // Quatro casas da porta: vê, mas não alcança.
   snapshot(1, heroi(PORTA.x - 4 * GRID, PORTA.y))
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

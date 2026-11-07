@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { RESUME_STORAGE_KEY, type PlayerConnection } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * SONS AO VIVO (F5) nas duas páginas que tocam: a do jogador (`PlayerApp`) e a
@@ -131,7 +132,7 @@ describe('sons ao vivo montados nas páginas que tocam', () => {
     act(() => voltar?.click())
     expect(vivas()).toHaveLength(0)
     expect(faixa()).toBeUndefined()
-  })
+  }, PRAZO_DA_IMPORTACAO_MS)
 
   it('TableApp: a tela da mesa instala os sons na conexão dela e mostra a faixinha', async () => {
     const { TableApp } = await import('./TableScreen')
@@ -144,5 +145,5 @@ describe('sons ao vivo montados nas páginas que tocam', () => {
     expect(faixa()).toBeDefined()
     act(() => raiz.render(createElement('div')))
     expect(vivas()).toHaveLength(0)
-  })
+  }, PRAZO_DA_IMPORTACAO_MS)
 })

@@ -16,6 +16,7 @@ import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { Pin } from '../types/map'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -136,7 +137,7 @@ beforeAll(async () => {
   act(() => mestre().abre())
   act(() => mestre().manda({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Gabi' }))
   recorte([BILHETE, BAU])
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

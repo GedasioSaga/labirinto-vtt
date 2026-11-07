@@ -7,6 +7,7 @@
 import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_CSS: '#4ea1ff',
@@ -68,7 +69,7 @@ beforeAll(async () => {
     mestre().manda({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Bruno' })
     mestre().manda({ type: 'snapshot', rev: 1, map: createEmptyMap('m1', '', 10, 10, 50), vision: [], ownTokens: [], concealed: [] })
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

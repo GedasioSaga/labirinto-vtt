@@ -17,6 +17,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData } from '../types/map'
 import { MY_NOTES_SEND_INTERVAL_MS } from '../lib/minhasNotas'
 import type { PersonalNote } from './personalNotes'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -136,7 +137,7 @@ beforeAll(async () => {
     mestre().manda({ type: 'mynotes.book', notes: ANTIGAS })
     mestre().manda({ type: 'snapshot', rev: 1, map: MAPA, vision: [], ownTokens: ['fabi'], concealed: [] })
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { createExploration, encodeExploration, markRings, type ExploredWire } from '../lib/exploration'
 import { PLACE_NAMES_KEY } from './playerPlaces'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_CSS: '#4ea1ff',
@@ -134,7 +135,7 @@ beforeAll(async () => {
       places: ['l1'],
     })
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.restoreAllMocks()

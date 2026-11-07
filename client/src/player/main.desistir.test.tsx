@@ -14,6 +14,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { TRAVEL_REQUEST_MIN_INTERVAL_MS } from '../net/protocol'
 import type { Pin, Token } from '../types/map'
 import { TRAVEL_PACE_MARGIN_MS } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -107,7 +108,7 @@ beforeAll(async () => {
     const ficha: Token = { id: 'heroi', characterId: null, name: 'Ana', x: 150, y: 100, size: 1, image: null }
     mestre().manda({ type: 'snapshot', rev: 1, map: { ...createEmptyMap('m1', '', 10, 10, 50), pins: [PORTA], tokens: [ficha] }, vision: [], ownTokens: ['heroi'], concealed: [] })
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

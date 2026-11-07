@@ -1,5 +1,6 @@
 import { act, createElement } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * ENTRAR PELO LOBBY (`main.tsx`, B5b): a página do jogador aberta pelo botão
@@ -53,9 +54,6 @@ function base64Url(texto: string): string {
  * mentira: o jogador não confere (não tem a chave), quem confere é o mestre.
  */
 const BILHETE = `v1.${base64Url(JSON.stringify({ s: 'ABC123', c: 'conta_gina', n: 'Gina', j: 'A'.repeat(22), e: Date.now() + 120_000 }))}.${'A'.repeat(43)}`
-
-/** A primeira importação transforma a página inteira (main.tsx e o que ela puxa): com a máquina disputada, passa dos 5 s do `it`. */
-const PRAZO_DA_IMPORTACAO_MS = 60_000
 
 beforeAll(async () => {
   Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)

@@ -12,6 +12,7 @@
 import { act } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 vi.mock('./PlayerView', () => ({
   OWN_TOKEN_CSS: '#4ea1ff',
@@ -96,7 +97,7 @@ beforeAll(async () => {
   manda({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Ana' })
   // O mapa dela não tem pino nenhum: a carta está numa sala que ela nunca viu.
   manda({ type: 'snapshot', rev: 1, map: createEmptyMap('m1', '', 10, 10, 50), vision: [], ownTokens: [], concealed: [] })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

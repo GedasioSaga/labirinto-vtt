@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { ARRIVAL_CARD_TITLE } from './PlayerNoteCard'
 import { RESUME_STORAGE_KEY } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * TEXTO DE CHEGADA na tela do jogador, pela página inteira (`main.tsx`): o
@@ -68,7 +69,7 @@ beforeAll(async () => {
   await act(async () => {
     await import('./boot')
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

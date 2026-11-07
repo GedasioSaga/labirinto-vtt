@@ -1,5 +1,6 @@
 import { act, createElement } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * A TELA DE ENTRAR (`main.tsx`, `JoinForm`): o campo de código aceita o link
@@ -65,9 +66,6 @@ function botao(nome: string): HTMLButtonElement {
 }
 
 const gaveta = () => botao('Tenho conta (PIN)')
-
-/** A primeira importação transforma a página inteira (main.tsx e o que ela puxa): com a máquina disputada, passa dos 5 s do `it`. */
-const PRAZO_DA_IMPORTACAO_MS = 60_000
 
 beforeAll(async () => {
   Reflect.set(globalThis, 'IS_REACT_ACT_ENVIRONMENT', true)

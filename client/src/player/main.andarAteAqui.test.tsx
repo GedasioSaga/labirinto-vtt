@@ -15,6 +15,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { createExploration, encodeExploration, markRings } from '../lib/exploration'
 import type { MapData, Wall } from '../types/map'
 import { WALK_LEG_PAUSE_MS } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 type PlayerViewProps = Parameters<(typeof import('./PlayerView'))['PlayerView']>[0]
 
@@ -166,7 +167,7 @@ beforeAll(async () => {
     mestre().manda({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Enzo' })
     mestre().manda({ type: 'snapshot', rev: 1, map: MAPA, vision: [], explored: encodeExploration(memoria), ownTokens: ['enzo'], concealed: [] })
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 afterAll(() => {
   vi.unstubAllGlobals()

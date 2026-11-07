@@ -2,6 +2,7 @@ import { act, createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { RESUME_STORAGE_KEY, type PlayerConnection } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * SONS DO JOGADOR na página (`main.tsx`): a conexão nasce no `join()`, fora
@@ -117,5 +118,5 @@ describe('página do jogador: sons presos à conexão da sessão', () => {
     ultimo().open()
     ultimo().receive({ type: 'welcome', playerId: 'p2', resumeToken: 'tok2', name: 'Gina' })
     expect(segunda?.getState().playerId).toBe('p2')
-  })
+  }, PRAZO_DA_IMPORTACAO_MS)
 })

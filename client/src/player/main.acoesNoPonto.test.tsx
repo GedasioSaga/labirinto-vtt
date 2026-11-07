@@ -5,6 +5,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { POINT_NOTICE_TTL_MS } from '../lib/pointActions'
 import { createPlayerConnection, type PlayerConnection, type SocketLike } from './playerConnection'
 import type { PlayerView } from './PlayerView'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * AÇÕES NO PONTO montadas na sessão do jogador (main.tsx): o toque longo que o
@@ -57,7 +58,7 @@ beforeAll(async () => {
   await act(async () => {
     Session = (await import('./main')).Session
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 describe('sessão do jogador: ações no ponto', () => {
   let container: HTMLDivElement

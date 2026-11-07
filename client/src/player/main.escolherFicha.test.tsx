@@ -2,6 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPlayerConnection, type PlayerConnection, type SocketLike } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * QUEM CHEGA ESCOLHE A PRÓPRIA FICHA, na tela de espera (main.tsx): as fichas
@@ -45,7 +46,7 @@ beforeAll(async () => {
   await act(async () => {
     Session = (await import('./main')).Session
   })
-})
+}, PRAZO_DA_IMPORTACAO_MS)
 
 describe('tela de espera: escolher a própria ficha', () => {
   let container: HTMLDivElement

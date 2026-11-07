@@ -2,6 +2,7 @@ import { act, createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import { RESUME_STORAGE_KEY } from './playerConnection'
+import { PRAZO_DA_IMPORTACAO_MS } from './importacaoDaPagina.testkit'
 
 /**
  * SOM DA MESA na página do jogador (pedido "sons", fatia 3): o alto-falante é
@@ -79,5 +80,5 @@ describe('página do jogador: alto-falante do som da mesa', () => {
     expect(raiz?.classList.contains('lb-som--flutuante')).toBe(true)
     // Logo depois do zoom na ordem do Tab: os dois controles de pedra do mapa.
     expect(raiz?.previousElementSibling?.classList.contains('pp-zoom')).toBe(true)
-  })
+  }, PRAZO_DA_IMPORTACAO_MS)
 })
