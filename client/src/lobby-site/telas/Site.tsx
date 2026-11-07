@@ -1,8 +1,7 @@
-import { lazy, Suspense, useEffect, type ComponentType } from 'react'
+import { lazy, Suspense, useEffect, useMemo, type ComponentType } from 'react'
 import { ImagemDaMesa } from '../../components/ImagemDaMesa'
-import { resolverSoEmbutida } from '../../lib/midia'
 import { pendentesACaminho } from '../dados/chatDaCampanha'
-import { enderecoDaRota, type Rota } from '../dados/rotas'
+import { campanhaDaRota, enderecoDaRota, type Rota } from '../dados/rotas'
 import { Cabeca } from './Cabeca'
 import { aoClicarNoLink, useDoSite, useSite } from './contexto'
 import { mudancasACaminho } from './enviar'
@@ -15,12 +14,13 @@ import { TelaCampanha } from './TelaCampanha'
 import { TelaCampanhas } from './TelaCampanhas'
 import { TelaFicha } from './TelaFicha'
 import { TelaLobby } from './lobby/TelaLobby'
+import { resolverDoLobby } from './imagemDoLobby'
 import type { TelaTreino as TelaDoTreino } from './treino/TelaTreino'
 
 /**
  * O SITE DO LOBBY, tela por tela: a cabeça fixa com a faixa de estado em
- * cima e a página da rota embaixo. Imagem só a embutida na ficha: a mídia
- * da mesa (`midia:`) mora no app e o site ainda não a serve.
+ * cima e a página da rota embaixo. As imagens da ficha (`midia:`) vêm da rota
+ * de mídia da campanha aberta (`resolverDoLobby`); a embutida passa como está.
  */
 
 const NOME_DO_SITE = 'Lobby do Labirinto'
@@ -87,6 +87,8 @@ export function Site() {
 
   // As não lidas do chat (C2) na frente do título, em toda tela da mesa: a aba avisa mesmo atrás de outras.
   const naoLidasDoChat = useDoSite((estado) => estado.chat?.naoLidas ?? 0)
+  const campanhaDaPagina = campanhaDaRota(rota)
+  const resolverDaPagina = useMemo(() => resolverDoLobby(campanhaDaPagina, demo), [campanhaDaPagina, demo])
 
   useEffect(() => {
     const titulo = tituloDaPagina === null ? NOME_DO_SITE : `${tituloDaPagina} | ${NOME_DO_SITE}`
@@ -124,7 +126,7 @@ export function Site() {
   }
 
   return (
-    <ImagemDaMesa.Provider value={resolverSoEmbutida}>
+    <ImagemDaMesa.Provider value={resolverDaPagina}>
       <a className="lo-pular" href="#conteudo">
         Pular para o conteúdo
       </a>
