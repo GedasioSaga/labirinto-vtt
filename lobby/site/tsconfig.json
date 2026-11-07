@@ -10,6 +10,11 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "DOM"],
+    // Por que "jsx": o mesmo do tsconfig de lobby/nuvem. O portão chama o Worker, e o fecho
+    // de TIPOS do duelo (robo.ts -> arena/reacaoDoBoneco.ts) chega a client/src/lib/arena/tipos.ts,
+    // que pega um tipo (`import type`) de um componente .tsx (MiraDoGolpe). Some na compilação:
+    // nenhum JSX nem React de componente entra no bundle do portão.
+    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": [],
