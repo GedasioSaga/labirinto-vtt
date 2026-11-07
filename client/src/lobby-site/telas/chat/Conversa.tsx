@@ -5,7 +5,8 @@ import type { MembroProjetado } from '../../../lib/nuvem/tipos'
 import type { ConversaDoChat, MensagemPendente } from '../../dados/chatDaCampanha'
 import { useAgora, useSite } from '../contexto'
 import { Icone } from '../Icone'
-import { horaExata, nomeDoDia, tomDe } from '../textos'
+import { Rosto } from '../Rosto'
+import { horaExata, nomeDoDia } from '../textos'
 import { Compositor } from './Compositor'
 import { RodapeDoPrivado } from './AvisoDoPrivado'
 import { continuaOBloco, nomeDoArquivo, nomeNoChat, pedacosDoTexto, textoDaSituacao, textoDoArquivo } from './textosDoChat'
@@ -352,9 +353,7 @@ function Linha({ canal, msg, dia, continua, nova, apagando, eu, membros, podeApa
         {continua ? (
           <span className="lo-msg__lado" aria-hidden="true" />
         ) : (
-          <span className="lo-av lo-msg__lado" data-tom={tomDe(msg.autorContaId)} aria-hidden="true">
-            {msg.autorNome.slice(0, 1).toUpperCase()}
-          </span>
+          <Rosto className="lo-msg__lado" contaId={msg.autorContaId} nome={msg.autorNome} />
         )}
         <div className="lo-msg__corpo">
           <p className={continua ? 'lo-sr' : 'lo-msg__cab'}>
@@ -398,9 +397,7 @@ function LinhaPendente({ canal, pendente, eu, membros, agora }: { canal: CanalDo
   const recusada = pendente.situacao.t === 'recusada'
   return (
     <li className="lo-msg" data-pendente="1" data-recusada={recusada ? '1' : undefined} data-nova="1">
-      <span className="lo-av lo-msg__lado" data-tom={tomDe(eu?.contaId ?? '')} aria-hidden="true">
-        {(eu?.nome ?? 'V').slice(0, 1).toUpperCase()}
-      </span>
+      <Rosto className="lo-msg__lado" contaId={eu?.contaId ?? null} nome={eu?.nome ?? 'V'} semente={eu?.contaId ?? ''} />
       <div className="lo-msg__corpo">
         <p className="lo-msg__cab">
           <span className="lo-msg__quem" data-eu="1">

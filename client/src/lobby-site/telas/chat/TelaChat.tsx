@@ -8,7 +8,7 @@ import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { aoClicarNoLink, useDoSite, useSite } from '../contexto'
 import { AvisoDaPagina, Carregando } from '../Estados'
 import { Icone } from '../Icone'
-import { tomDe } from '../textos'
+import { Rosto } from '../Rosto'
 import { avisoJaVisto, JanelaDoAviso } from './AvisoDoPrivado'
 import { Conversa } from './Conversa'
 import { contagemDeNaoLidas, privadoEntreJogadores } from './textosDoChat'
@@ -135,10 +135,9 @@ function Chat({ rota, campanha, chat, nomeDaMesa }: { rota: RotaDoChat; campanha
               <Icone nome="conversa" />
             </span>
           ) : (
-            <span className="lo-av" data-tom={tomDe(contaId ?? entrada.chave)} aria-hidden="true">
-              {entrada.nome.slice(0, 1).toUpperCase()}
+            <Rosto contaId={contaId} nome={entrada.nome} semente={contaId ?? entrada.chave}>
               {contaId !== null && naMesa.has(contaId) && <span className="lo-ponto" />}
-            </span>
+            </Rosto>
           )}
           <span className="lo-chat__conv-nome" aria-hidden="true">
             {entrada.nome}

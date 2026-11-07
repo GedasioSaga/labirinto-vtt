@@ -203,5 +203,10 @@ export function partesDoLivroPublicado(publicado: unknown): { sistemaId: string;
 
 /** Os membros como o jogador os vê: só os ativos, sem e-mail (só `/api/eu` devolve o próprio). */
 export function projetarMembros(membros: readonly Membro[]): MembroProjetado[] {
-  return membros.filter((membro) => membro.estado === 'ativo').map(({ contaId, nome, papel }) => ({ contaId, nome, papel }))
+  return membros.filter((membro) => membro.estado === 'ativo').map(projetarMembro)
+}
+
+/** Um membro como o jogador o vê (o `eu` do `estado` também): sem e-mail nem estado; a foto só quando há. */
+export function projetarMembro({ contaId, nome, papel, foto }: Membro): MembroProjetado {
+  return foto === undefined ? { contaId, nome, papel } : { contaId, nome, papel, foto }
 }

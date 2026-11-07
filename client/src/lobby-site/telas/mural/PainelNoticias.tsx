@@ -3,7 +3,7 @@ import type { MembroProjetado } from '../../../lib/nuvem/tipos'
 import type { EstadoDoMural, PostagemPendente } from '../../dados/muralDaCampanha'
 import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { useAgora, useSite } from '../contexto'
-import { tomDe } from '../textos'
+import { Rosto } from '../Rosto'
 import { CartaoDaNoticia } from './CartaoDaNoticia'
 import { EscreverNoticia, type ImagemParaEscolher } from './EscreverNoticia'
 import { imagensDaMesa, textoDaPostagem, urlDaImagem } from './textosDoMural'
@@ -124,9 +124,7 @@ function Pendente({ pendente, eu, agora, campanhaId, demo }: { pendente: Postage
   const src = pendente.imagem === null ? null : urlDaImagem(pendente.imagem, campanhaId, demo)
   return (
     <article className="lo-noticia" data-pendente="1" data-recusada={recusada ? '1' : undefined} aria-label="Notícia saindo">
-      <span className="lo-av" data-tom={tomDe(eu?.contaId ?? 'mestre')} aria-hidden="true">
-        {(eu?.nome ?? 'M').slice(0, 1).toUpperCase()}
-      </span>
+      <Rosto contaId={eu?.contaId ?? null} nome={eu?.nome ?? 'M'} semente={eu?.contaId ?? 'mestre'} />
       <div className="lo-noticia__corpo">
         <p className="lo-noticia__texto">{pendente.texto}</p>
         {src !== null && (

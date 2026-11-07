@@ -4,7 +4,8 @@ import type { EstadoDoMural } from '../../dados/muralDaCampanha'
 import { enderecoDaRota, type Rota } from '../../dados/rotas'
 import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { aoClicarNoLink, useAgora, useSite } from '../contexto'
-import { horaExata, nomeDoDia, quandoRelativo, tomDe } from '../textos'
+import { horaExata, nomeDoDia, quandoRelativo } from '../textos'
+import { Rosto } from '../Rosto'
 import { partesDaFrase } from './textosDoMural'
 
 /**
@@ -125,9 +126,7 @@ export function PainelModificacoes({ campanha, mural, demo }: Props) {
                 const daFicha: Rota = { tela: 'ficha', campanhaId: campanha.campanhaId, fichaId: linha.fichaId, aba: 'historico' }
                 return (
                   <li key={linha.rev} className="lo-ev">
-                    <span className="lo-av" data-tom={tomDe(linha.autorContaId)} aria-hidden="true">
-                      {linha.autorNome.slice(0, 1).toUpperCase()}
-                    </span>
+                    <Rosto contaId={linha.autorContaId} nome={linha.autorNome} />
                     <div className="lo-ev__corpo">
                       <p className="lo-ev__frase">
                         {quem !== '' && <b>{quem}</b>} {resto}

@@ -125,6 +125,12 @@ export interface MembroProjetado {
   contaId: string
   nome: string
   papel: Papel
+  /**
+   * A foto de perfil da conta NESTA campanha (07/11/2026): o id da mídia
+   * (`<sha256>.<ext>`, servida por `GET /api/c/:id/midia/:midiaId`). Ausente
+   * = a inicial. Campo novo e opcional: o site e o app de antes o ignoram.
+   */
+  foto?: string
 }
 
 /** Linha de `membros` no DO (§4.5). Removido = negado já na mensagem seguinte (§6.4). */

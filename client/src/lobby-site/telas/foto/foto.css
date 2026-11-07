@@ -1,0 +1,199 @@
+/* A JANELA DA FOTO DE PERFIL (JanelaDaFoto.tsx): a mesma caixa do aviso do privado
+   (chat.css), com o palco do recorte à esquerda e os ajustes à direita. */
+
+.lo-foto {
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-xl);
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+  box-shadow: var(--lb-shadow-lg), var(--lb-shadow-bevel);
+}
+
+.lo-foto[open] { animation: lo-foto-entra 200ms var(--lb-gr-ease-out); }
+.lo-foto::backdrop { background: var(--lo-veu); }
+
+@keyframes lo-foto-entra {
+  from { opacity: 0; transform: scale(0.96); }
+}
+
+/* Com a janela aberta, a página atrás não rola com a roda. */
+html:has(.lo-foto[open]) { overflow: hidden; }
+
+/* O miolo cobre a caixa inteira: o clique que chega na própria <dialog> é o do véu. */
+.lo-foto__miolo {
+  padding: var(--lb-space-6);
+  border-radius: inherit;
+  outline: 2px dashed transparent;
+  outline-offset: -10px;
+  transition: outline-color var(--lb-motion-fast) ease;
+}
+
+/* Arrastando um arquivo por cima: a janela inteira é o alvo. */
+.lo-foto__miolo[data-alvo='1'] { outline-color: var(--lb-color-brass); }
+
+.lo-foto__titulo {
+  margin-bottom: var(--lb-space-1);
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-xl);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+.lo-foto__texto {
+  max-width: 46ch;
+  margin-bottom: var(--lb-space-5);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lo-foto__corpo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--lb-space-5);
+  align-items: start;
+}
+
+/* O palco: o quadrado que vira a foto; o círculo inscrito é o que os outros veem. */
+.lo-foto__palco {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-ink);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.lo-foto__palco[data-vazio='1'] { cursor: default; }
+.lo-foto__palco:active:not([data-vazio]) { cursor: grabbing; }
+.lo-foto__palco:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: 3px; }
+
+.lo-foto__imagem {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  pointer-events: none;
+}
+
+.lo-foto__atual {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lo-foto__inicial {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--tom-fundo);
+  color: var(--tom);
+  font-family: var(--lb-font-display);
+  font-size: 96px;
+  line-height: 1;
+}
+
+/* O que fica fora do círculo escurece; o fio claro marca a borda do rosto. */
+.lo-foto__circulo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 999px var(--lo-veu),
+    inset 0 0 0 1px var(--lb-color-line-strong);
+  pointer-events: none;
+}
+
+.lo-foto__lado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lb-space-3);
+  min-width: 0;
+}
+
+.lo-foto__zoom {
+  display: grid;
+  gap: var(--lb-space-2);
+  width: 100%;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-foto__zoom input {
+  width: 100%;
+  height: var(--lo-alvo);
+  margin: 0;
+  accent-color: var(--lb-color-brass);
+  cursor: pointer;
+}
+
+/* Como a foto aparece no botão da conta, no tamanho de verdade. */
+.lo-foto__previa {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: var(--lo-alvo);
+  padding: 0 12px 0 4px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-raised);
+}
+
+.lo-foto__mini { overflow: hidden; }
+.lo-foto__mini img { position: absolute; top: 0; left: 0; max-width: none; }
+
+.lo-foto__previa-nome {
+  max-width: 18ch;
+  overflow: hidden;
+  font-size: var(--lb-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* O fantasma alinha o texto com a coluna (o lobby.css zera a margem do .lo-btn depois deste arquivo). */
+.lo-foto .lo-foto__outra { margin-left: -14px; }
+
+.lo-foto__erro {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-4);
+  color: var(--lb-color-ember);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lo-foto__erro .lo-ic { margin-top: 2px; }
+
+.lo-foto__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+  margin-top: var(--lb-space-5);
+  padding-top: var(--lb-space-4);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lo-foto__vao { flex: 1 1 auto; }
+.lo-foto .lo-foto__tirar { margin-left: -14px; }
+
+/* O giro dentro do botão de latão precisa do contraste do próprio botão. */
+.lo-btn--primario .lo-giro {
+  border-color: color-mix(in srgb, var(--lb-color-brass-contrast) 30%, transparent);
+  border-top-color: var(--lb-color-brass-contrast);
+}
+
+@media (max-width: 560px) {
+  .lo-foto__corpo { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .lo-foto__lado { align-items: stretch; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-foto[open] { animation: none; }
+  .lo-foto__miolo { transition: none; }
+}

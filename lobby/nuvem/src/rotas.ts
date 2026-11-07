@@ -4,7 +4,8 @@
  * mesma leitura para escolher o DO. A mídia (`/midia/:id`, fatia W3) chega
  * com o id já na forma exata `<sha256>.<ext>`. A sala aberta no app e o
  * bilhete do jogador (`/sala`, `/sala/fechar`, `/bilhete`, fatia B2) estão em
- * `salaAberta.ts`.
+ * `salaAberta.ts`. A foto de perfil da própria conta (`/foto`, PUT e DELETE,
+ * 07/11/2026) está em `fotoDePerfil.ts`.
  */
 
 export const ROTA_DO_EU = '/api/eu'
@@ -17,6 +18,8 @@ export type RotaDaCampanha =
   | { campanhaId: string; nome: 'publicar' | 'membros' | 'ops' | 'exportar' | 'ws' | 'chatSala' }
   /** `sala` = abrir ou bater (app), `salaFechar` = `/sala/fechar` (app), `bilhete` = o convite do jogador (site). */
   | { campanhaId: string; nome: 'sala' | 'salaFechar' | 'bilhete' }
+  /** `foto` = a foto de perfil da própria conta (site): PUT troca, DELETE tira. */
+  | { campanhaId: string; nome: 'foto' }
   | RotaDoDesde
   | RotaDaMidia
 
@@ -34,7 +37,7 @@ export interface RotaDaMidia {
 }
 
 const FORMA_DA_ROTA =
-  /^\/api\/c\/([A-Za-z0-9_-]{1,80})\/(publicar|membros|ops|exportar|ws|chat\/sala|sala|sala\/fechar|bilhete|desde\/(\d{1,15})|midia\/([0-9a-f]{64}\.(?:webp|png|jpg|gif)))$/
+  /^\/api\/c\/([A-Za-z0-9_-]{1,80})\/(publicar|membros|ops|exportar|ws|chat\/sala|sala|sala\/fechar|bilhete|foto|desde\/(\d{1,15})|midia\/([0-9a-f]{64}\.(?:webp|png|jpg|gif)))$/
 
 /** A rota de campanha do caminho; `null` = não é rota de campanha (a resposta é "não existe"). */
 export function rotaDaCampanha(caminho: string): RotaDaCampanha | null {
@@ -55,6 +58,8 @@ export function rotaDaCampanha(caminho: string): RotaDaCampanha | null {
     case 'sala':
     case 'bilhete':
       return { campanhaId, nome: trecho }
+    case 'foto':
+      return { campanhaId, nome: 'foto' }
     case 'sala/fechar':
       return { campanhaId, nome: 'salaFechar' }
     default:

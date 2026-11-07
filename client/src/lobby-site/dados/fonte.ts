@@ -88,6 +88,23 @@ export type RespostaDoBilhete =
   | { ok: false; motivo: 'sem-login' | 'sem-sala' | 'sem-convite' | 'fora-da-mesa' | 'rede' | 'servidor' }
   | { ok: false; motivo: 'ritmo'; tentarDepoisDe: number }
 
+/**
+ * A troca da foto de perfil da própria conta na campanha (`PUT` e `DELETE`
+ * `/api/c/:id/foto`, 07/11/2026). `foto` = o id da mídia de agora (`null` =
+ * a inicial); o `estado` com os membros chega pelo canal logo depois, para
+ * todo mundo na mesa. Recusa:
+ * - `sem-login`: o Access pediu login de novo;
+ * - `fora-da-mesa`: a pessoa não está nesta mesa (404);
+ * - `grande`: passou de 256 KiB (413), `tipo`: não é webp, png nem jpg (400);
+ * - `cheia`: as imagens da campanha chegaram no teto (413);
+ * - `ritmo`: trocas demais em pouco tempo (429), `tentarDepoisDe` em ms do relógio do Lobby;
+ * - `rede` e `servidor`: não chegou, ou voltou outra coisa.
+ */
+export type RespostaDaFoto =
+  | { ok: true; foto: string | null }
+  | { ok: false; motivo: 'sem-login' | 'fora-da-mesa' | 'grande' | 'tipo' | 'cheia' | 'rede' | 'servidor' }
+  | { ok: false; motivo: 'ritmo'; tentarDepoisDe: number }
+
 /** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat, do mural e do duelo (T7). */
 export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural | PedidoDoDuelo
 
@@ -141,6 +158,10 @@ export interface FonteDoLobby {
   abrirCanal(campanhaId: string, ouvinte: OuvinteDoCanal): Canal
   /** O convite para entrar na sala aberta no app ("Entrar na mesa agora"); nunca lança. */
   pedirBilhete(campanhaId: string): Promise<RespostaDoBilhete>
+  /** Troca (`imagem`, já reduzida pelo site) ou tira (`null`) a foto de perfil da própria conta nesta campanha; nunca lança. */
+  trocarFoto(campanhaId: string, imagem: Blob | null): Promise<RespostaDaFoto>
+  /** Onde a página busca a foto de um membro (`foto` do `estado`); `null` = não há como mostrar (cai na inicial). */
+  enderecoDaFoto(campanhaId: string, foto: string): string | null
 }
 
 /** O relógio da sessão, injetado: os testes andam o tempo sem esperar. */

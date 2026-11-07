@@ -37,6 +37,7 @@ import {
 } from './duelo'
 import { criarEsquemaDaCampanha } from './esquema'
 import { ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro } from './http'
+import { chaveDoRitmoDaFoto, conferirRitmoDaFoto, lerFotoDoPedido, trocarFotoDaConta, type RitmoDaFoto } from './fotoDePerfil'
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
 import { receberMidia, servirMidia } from './midia'
 import { atenderPedidoDoMural, enviarEstadoDoMural, esquecerRotulosDoMural, muralParaExportar, recusarMuralPorRitmo, recusarPedidoDoMural } from './mural'
@@ -54,6 +55,7 @@ import {
   podeVer,
   processarDesfazer,
   processarLote,
+  projetarMembro,
   projetarMembros,
   projetarOpParaJogador,
   proprio,
@@ -220,6 +222,8 @@ export class Campanha extends DurableObject<Env> {
       case 'bilhete':
         exigirMetodo(request, 'POST')
         return this.bilhete(rota.campanhaId, identidade)
+      case 'foto':
+        return this.foto(request, rota.campanhaId, identidade)
     }
   }
 
@@ -236,7 +240,7 @@ export class Campanha extends DurableObject<Env> {
   /**
    * Rotas que só o app do mestre (Service Token) usa: publicar, membros, ops,
    * desde, exportar, sala e sala/fechar (§5.4, B2). O site só tem eu, ws,
-   * mídia, versão e bilhete (que tem ritmo próprio); pelo
+   * mídia, versão, bilhete e foto (os dois com ritmo próprio); pelo
    * socket, todo frame passa pelo ritmo e pelo bloqueio (§6.5), e uma rota
    * HTTP de leitura aberta ao site seria o caminho sem esse freio.
    */
@@ -443,6 +447,36 @@ export class Campanha extends DurableObject<Env> {
     return ritmo
   }
 
+  // ── Foto de perfil (07/11/2026) ───────────────────────────────────────────
+
+  /**
+   * A foto de perfil da PRÓPRIA conta (`fotoDePerfil.ts`): PUT troca, DELETE
+   * tira. Qualquer membro ativo, só a dele (a conta sai do e-mail do Access).
+   * O ritmo conta a tentativa antes de ler o corpo. Todo mundo na mesa recebe
+   * o `estado` de novo (os membros com a foto), como na troca de membros: o
+   * site de antes ignora o campo novo.
+   */
+  private async foto(request: Request, campanhaId: string, identidade: IdentidadeDoPortao): Promise<Response> {
+    if (request.method !== 'PUT' && request.method !== 'DELETE') throw new ErroDoPedido(405, 'metodo', 'Use PUT ou DELETE')
+    const { membro } = this.acesso(campanhaId, identidade)
+    const agora = Date.now()
+    const ritmo = this.ritmoDaFoto(membro.contaId, agora)
+    if (!ritmo.ok) return json({ erro: 'ritmo', detalhe: 'Fotos demais em pouco tempo; espere alguns segundos', tentarDepoisDe: ritmo.tentarDepoisDe }, 429)
+    const nova = request.method === 'PUT' ? await lerFotoDoPedido(request) : null
+    const foto = this.ctx.storage.transactionSync(() => trocarFotoDaConta(this.sql, membro.contaId, nova, agora))
+    this.enviarEstadoATodos()
+    return json({ foto })
+  }
+
+  /** GCRA por conta no KV do DO, como o do bilhete: sobrevive à hibernação e vale para as várias abas da conta. */
+  private ritmoDaFoto(contaId: string, agora: number): RitmoDaFoto {
+    const chave = chaveDoRitmoDaFoto(contaId)
+    const guardado = this.ctx.storage.kv.get(chave)
+    const ritmo = conferirRitmoDaFoto(typeof guardado === 'number' ? guardado : undefined, agora)
+    if (ritmo.ok) this.ctx.storage.kv.put(chave, ritmo.paceAt)
+    return ritmo
+  }
+
   // ── Mídia (W3) ────────────────────────────────────────────────────────────
 
   /** §6.6: na v1 só o app do mestre sobe imagem (PUT); todo membro ativo baixa (GET), no app e no site. */
@@ -539,8 +573,7 @@ export class Campanha extends DurableObject<Env> {
    * ignora os campos a mais.
    */
   private estadoPara(membro: Membro, fichas: readonly FichaGuardada[], membros: readonly Membro[], rev: number, sala: SalaParaJogador | null): EstadoComSala {
-    const { contaId, nome, papel } = membro
-    const estado: EstadoComSala = { t: 'estado', rev, fichas: fichasDoEstado(membro, fichas, membros), membros: projetarMembros(membros), eu: { contaId, nome, papel }, sala }
+    const estado: EstadoComSala = { t: 'estado', rev, fichas: fichasDoEstado(membro, fichas, membros), membros: projetarMembros(membros), eu: projetarMembro(membro), sala }
     const doJogador = this.sistemaParaOEstado()
     if (doJogador !== null) {
       estado.sistema = doJogador.sistema

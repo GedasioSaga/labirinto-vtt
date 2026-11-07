@@ -1,4 +1,5 @@
 import {
+  ehIdDeMidia,
   ehJson,
   ehRegistro,
   lerEnvelope,
@@ -152,7 +153,11 @@ export function membroDaLinha(linha: Linha): Membro {
   const papel = texto(linha, 'papel')
   const estado = texto(linha, 'estado')
   if (!ehPapel(papel) || (estado !== 'ativo' && estado !== 'removido')) throw new ErroDoBanco('membro gravado fora do formato')
-  return { contaId: texto(linha, 'contaId'), email: texto(linha, 'email'), nome: texto(linha, 'nome'), papel, estado }
+  const membro: Membro = { contaId: texto(linha, 'contaId'), email: texto(linha, 'email'), nome: texto(linha, 'nome'), papel, estado }
+  // `foto` (07/11/2026) chegou depois da tabela: nula, ou fora da forma do id, é a inicial.
+  const foto = linha.foto
+  if (ehIdDeMidia(foto)) membro.foto = foto
+  return membro
 }
 
 export function cotaDaLinha(linha: Linha): Cota {

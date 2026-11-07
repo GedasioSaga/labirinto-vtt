@@ -8,7 +8,8 @@ import { aoClicarNoLink, useDoSite, useSistemaDoLobby, useSite } from './context
 import { DecisoesSemFicha } from './Decisoes'
 import { AvisoDaPagina, Carregando } from './Estados'
 import { Icone } from './Icone'
-import { iniciais, plural, tomDe } from './textos'
+import { Rosto } from './Rosto'
+import { apresentacaoDoMestre, iniciais, plural, tomDe } from './textos'
 
 /**
  * AS FICHAS DA MESA (protótipo, tela 3; em `/c/:id/fichas` desde a H1, que
@@ -82,7 +83,7 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
           </a>
           <h1 className="lo-titulo">Fichas da mesa</h1>
           <p className="lo-sub">
-            {mestre !== undefined ? `Mestre ${mestre.nome}. ` : ''}Sistema {sistema.nome}. {plural(daMesa.length, 'personagem', 'personagens')}.
+            {mestre !== undefined ? apresentacaoDoMestre(mestre.nome) : ''}Sistema {sistema.nome}. {plural(daMesa.length, 'personagem', 'personagens')}.
           </p>
         </div>
         <aside className="lo-agora" aria-labelledby={agoraId}>
@@ -95,10 +96,9 @@ function Mesa({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }) 
             ) : (
               campanha.naMesa.map((pessoa) => (
                 <li key={pessoa.contaId}>
-                  <span className="lo-av" data-tom={tomDe(pessoa.contaId)} aria-hidden="true">
-                    {pessoa.nome.slice(0, 1).toUpperCase()}
+                  <Rosto contaId={pessoa.contaId} nome={pessoa.nome}>
                     <span className="lo-ponto" />
-                  </span>
+                  </Rosto>
                   {pessoa.contaId === campanha.eu?.contaId ? 'Você' : pessoa.nome}
                   {pessoa.papel === 'mestre' && <span className="lo-agora__papel"> (mestre)</span>}
                   {pessoa.onde === 'app' && <span className="lo-agora__papel"> no app</span>}

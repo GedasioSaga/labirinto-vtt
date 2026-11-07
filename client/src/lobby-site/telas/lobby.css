@@ -6,6 +6,8 @@
   --lo-alvo: 36px;
   /* A cor do sistema One Piece (client/src/lib/sistemaOnePiece.ts: cor) tinge o cartão da campanha. */
   --lo-cor-sistema: #b4493c;
+  /* O véu atrás das janelas (o mesmo do aviso do privado, chat.css). */
+  --lo-veu: rgba(8, 8, 10, 0.62);
 }
 
 /* Dedo: todo alvo sobe para 44 px. */
@@ -224,6 +226,18 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   line-height: 1;
   user-select: none;
 }
+
+/* A foto de perfil (Rosto.tsx) cobre a inicial, que fica por baixo enquanto a imagem chega. */
+.lo-av__foto {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.lo-menu__rosto { width: 36px; height: 36px; font-size: var(--lb-font-size-md); }
 
 /* Ponto de presença: verde-musgo do app ("online"), sempre com texto ao lado ou no rótulo. */
 .lo-ponto {

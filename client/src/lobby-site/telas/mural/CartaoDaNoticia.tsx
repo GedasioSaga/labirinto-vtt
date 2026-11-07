@@ -5,7 +5,8 @@ import type { AcaoNaNoticia, RecusaNaNoticia } from '../../dados/muralDaCampanha
 import { pedacosDoTexto } from '../chat/textosDoChat'
 import { useSite } from '../contexto'
 import { Icone } from '../Icone'
-import { horaExata, quandoRelativo, tomDe } from '../textos'
+import { Rosto } from '../Rosto'
+import { horaExata, quandoRelativo } from '../textos'
 import { EscreverNoticia, type ImagemParaEscolher } from './EscreverNoticia'
 import { nomeDaReacao, textoDaRecusa, urlDaImagem } from './textosDoMural'
 
@@ -71,9 +72,7 @@ export function CartaoDaNoticia({ noticia, eu, souMestre, membros, pronto, aCami
 
   return (
     <article className="lo-noticia" aria-labelledby={quemId} data-fixada={noticia.fixada && !apagada ? '1' : undefined} data-nova={nova ? '1' : undefined}>
-      <span className="lo-av" data-tom={tomDe(noticia.autorContaId)} aria-hidden="true">
-        {noticia.autorNome.slice(0, 1).toUpperCase()}
-      </span>
+      <Rosto contaId={noticia.autorContaId} nome={noticia.autorNome} />
       <div className="lo-noticia__corpo">
         <header className="lo-noticia__cab">
           <span className="lo-noticia__quem" id={quemId}>

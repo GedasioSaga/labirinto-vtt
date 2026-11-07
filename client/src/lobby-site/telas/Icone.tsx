@@ -38,6 +38,14 @@ const TRACOS = {
     </>
   ),
   sair: <path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />,
+  /** A foto de perfil: o rosto dentro do círculo. */
+  foto: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M6.8 18.2a6.2 6.2 0 0 1 10.4 0" />
+    </>
+  ),
   entrar: <path d="M10 4h9v16h-9M4 12h10M10 8l4 4-4 4" />,
   ir: <path d="M9 6l6 6-6 6" />,
   desfazer: <path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" />,

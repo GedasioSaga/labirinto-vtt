@@ -70,7 +70,7 @@
 
     <svg viewBox="0 0 1040 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="lobby-arquitetura-title lobby-arquitetura-desc">
       <title id="lobby-arquitetura-title">Lobby dos jogadores: arquitetura</title>
-      <desc id="lobby-arquitetura-desc">O site do Lobby (fila no IndexedDB) e o app do mestre (telas que gravam por dois funis, sincronizador que grava a fila e o diário no disco antes de enviar, ponte nuvem.rs com o Service Token) passam pelo Cloudflare Access com login Google e pelo portão das Pages Functions (com as rotas /sala e /sala/fechar da sala aberta no app e /bilhete da entrada pelo Lobby) até o DO Campanha, único escritor em SQLite, que também guarda o chat, o mural e o duelo ao vivo e indexa os e-mails no DO Diretório.</desc>
+      <desc id="lobby-arquitetura-desc">O site do Lobby (fila no IndexedDB) e o app do mestre (telas que gravam por dois funis, sincronizador que grava a fila e o diário no disco antes de enviar, ponte nuvem.rs com o Service Token) passam pelo Cloudflare Access com login Google e pelo portão das Pages Functions (com as rotas /sala e /sala/fechar da sala aberta no app, /bilhete da entrada pelo Lobby e /foto, a foto de perfil da própria conta) até o DO Campanha, único escritor em SQLite, que também guarda o chat, o mural e o duelo ao vivo e indexa os e-mails no DO Diretório.</desc>
       <defs>
         <marker id="lobby-arquitetura-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
         <marker id="lobby-arquitetura-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
@@ -194,7 +194,7 @@
       <text x="702" y="249" fill="#2d3142" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
       <text x="760" y="268" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Portão</text>
       <text x="760" y="284" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Pages functions/api</text>
-      <text x="760" y="300" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">/sala · /sala/fechar · /bilhete</text>
+      <text x="760" y="300" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">/sala · /sala/fechar · /bilhete · /foto</text>
 
       <!-- Caixa: DO Campanha (foco) -->
       <rect x="680" y="360" width="160" height="80" rx="6" fill="#f5f5f5"/>

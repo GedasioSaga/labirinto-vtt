@@ -243,8 +243,10 @@ export function lerSistema(sql: SqlStorage): Json | undefined {
 
 export function gravarMembro(sql: SqlStorage, membro: Membro): void {
   sql.exec(
+    // A foto de perfil é da pessoa que o e-mail identifica: e-mail trocado = a conta volta para a inicial (como o privado, 12.19).
     `INSERT INTO membros (contaId, email, nome, papel, estado) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (contaId) DO UPDATE SET email = excluded.email, nome = excluded.nome, papel = excluded.papel, estado = excluded.estado`,
+     ON CONFLICT (contaId) DO UPDATE SET email = excluded.email, nome = excluded.nome, papel = excluded.papel, estado = excluded.estado,
+       foto = CASE WHEN membros.email = excluded.email THEN membros.foto ELSE NULL END`,
     membro.contaId,
     membro.email,
     membro.nome,

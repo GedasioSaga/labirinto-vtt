@@ -8,6 +8,9 @@
 //      node fumaca.mjs limites             -> o limitador: ritmo vira adiado; frames tortos fecham e bloqueiam
 //      node fumaca.mjs midia               -> o aceite da W3: PNG de 2 MiB sobe e volta com o mesmo sha256;
 //                                             hash errado = 400; .png com HTML dentro = 400
+//      node fumaca.mjs foto                -> a foto de perfil (07/11): a Nami troca a própria (256 KiB exatos) e o
+//                                             Zoro a vê no estado; +1 byte = 413; HTML = 400; o DELETE do Zoro não
+//                                             mexe na da Nami; não membro = 404; tirar apaga a mídia; 4ª seguida = 429
 //      node fumaca.mjs chat                -> o aceite da C1 (mestre, Nami e Zoro em três sockets): sala chega
 //                                             aos 3; privado Nami<->Zoro não chega ao mestre; chat.antes com
 //                                             canal 'dm:a:b' em texto = recusa; 6º envio em rajada = ritmo;
@@ -597,6 +600,84 @@ async function aceiteDaMidia() {
   conferir('.png com HTML dentro (hash certo) = 400 (tipo-errado) e nada gravado (GET 404)', comHtml.status === 400 && comHtml.json?.erro === 'tipo-errado' && depoisDoHtml.status === 404)
 
   console.log(falhas === 0 ? `MIDIA OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
+// ── Foto de perfil (07/11/2026) ─────────────────────────────────────────────
+
+async function pedirFoto(metodo, campanhaId, eu, bytes, tipo = 'image/png') {
+  const resposta = await fetch(enderecoDe(`/api/c/${campanhaId}/foto`, eu, 'site'), {
+    method: metodo,
+    headers: bytes === undefined ? {} : { 'content-type': tipo },
+    body: bytes,
+  })
+  let json = null
+  try {
+    json = JSON.parse(await resposta.text())
+  } catch {
+    json = null
+  }
+  return { status: resposta.status, json }
+}
+
+const membroNoEstado = (estado, contaId) => estado.membros?.find((membro) => membro.contaId === contaId)
+
+/**
+ * A foto é da PRÓPRIA conta: não há como apontar outra (a conta sai do e-mail);
+ * teto de 256 KiB exatos; só imagem pelos bytes; quem está na mesa recebe o
+ * `estado` com a foto; tirar a de um não mexe na do outro; ritmo por conta.
+ */
+async function aceiteDaFoto() {
+  const campanhaId = `fumaca-foto-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, pedidoDePublicar([ficha('pers_nami', 'conta_nami'), ficha('pers_zoro', 'conta_zoro')]))
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  const zoro = await Sala.abrir(campanhaId, ZORO)
+  await zoro.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: 'cli_zoro_foto' })
+  const primeiro = await zoro.esperar((m) => m.t === 'estado', 'o estado')
+  conferir('antes: ninguém tem foto (o campo nem vai)', primeiro.membros.every((membro) => !('foto' in membro)), JSON.stringify(primeiro.membros))
+
+  // 1. A Nami troca a PRÓPRIA foto com 256 KiB exatos: o Zoro vê a foto nela e em mais ninguém.
+  const foto = pngDe(256 * 1024, 64)
+  const id = `${sha256(foto)}.png`
+  const troca = await pedirFoto('PUT', campanhaId, NAMI, foto)
+  const comFoto = await zoro.esperar((m) => m.t === 'estado' && membroNoEstado(m, 'conta_nami')?.foto !== undefined, 'o estado com a foto da Nami')
+  console.log(`        PUT ${foto.length} bytes -> ${troca.status} ${JSON.stringify(troca.json)}`)
+  conferir(
+    '256 KiB exatos: PUT 200 com o id do sha256; o Zoro recebe o estado com a foto na Nami e nenhuma nele',
+    troca.status === 200 && troca.json?.foto === id && membroNoEstado(comFoto, 'conta_nami')?.foto === id && membroNoEstado(comFoto, 'conta_zoro')?.foto === undefined,
+    JSON.stringify(comFoto.membros),
+  )
+  const baixada = await pedirMidia('GET', campanhaId, id, ZORO, 'site')
+  conferir('a foto é mídia da campanha: o Zoro baixa os mesmos bytes, com os cabeçalhos da W3', baixada.status === 200 && sha256(baixada.bytes) === sha256(foto) && baixada.cabecalhos.get('x-content-type-options') === 'nosniff')
+
+  // 2. Um byte a mais: 413, e a foto dela não muda.
+  const grande = await pedirFoto('PUT', campanhaId, NAMI, pngDe(256 * 1024 + 1, 64))
+  console.log(`        PUT ${256 * 1024 + 1} bytes -> ${grande.status} ${JSON.stringify(grande.json)}`)
+  conferir('256 KiB + 1 = 413 (foto-grande)', grande.status === 413 && grande.json?.erro === 'foto-grande')
+
+  // 3. HTML com nome de imagem: o tipo vem dos bytes.
+  const html = await pedirFoto('PUT', campanhaId, ZORO, Buffer.from('<!doctype html><script>alert(1)</script>', 'utf8'))
+  conferir('HTML no corpo = 400 (foto-tipo)', html.status === 400 && html.json?.erro === 'foto-tipo', `${html.status} ${JSON.stringify(html.json)}`)
+
+  // 4. O Zoro tira a foto: só a dele; a da Nami continua.
+  const tiraZoro = await pedirFoto('DELETE', campanhaId, ZORO)
+  const depoisDoZoro = await zoro.esperar((m) => m.t === 'estado', 'o estado depois do DELETE do Zoro')
+  conferir('DELETE do Zoro = 200 foto null, e a foto da Nami continua lá', tiraZoro.status === 200 && tiraZoro.json?.foto === null && membroNoEstado(depoisDoZoro, 'conta_nami')?.foto === id, JSON.stringify(depoisDoZoro.membros))
+
+  // 5. Quem não é membro: a mesma resposta de "não existe".
+  const estranho = await pedirFoto('PUT', campanhaId, 'ninguem@example.com', foto)
+  conferir('quem não é membro = 404', estranho.status === 404, String(estranho.status))
+
+  // 6. A Nami tira a dela: a mídia (só foto de perfil) some; a 4ª tentativa seguida esbarra no ritmo.
+  const tiraNami = await pedirFoto('DELETE', campanhaId, NAMI)
+  const semFoto = await zoro.esperar((m) => m.t === 'estado' && membroNoEstado(m, 'conta_nami')?.foto === undefined, 'o estado sem a foto da Nami')
+  const sumiu = await pedirMidia('GET', campanhaId, id, ZORO, 'site')
+  conferir('DELETE da Nami = 200; o estado volta sem foto e a mídia some (GET 404)', tiraNami.status === 200 && membroNoEstado(semFoto, 'conta_nami') !== undefined && sumiu.status === 404, `${tiraNami.status} GET ${sumiu.status}`)
+  const rajada = await pedirFoto('DELETE', campanhaId, NAMI)
+  conferir('4ª troca seguida da Nami = 429 (ritmo) com tentarDepoisDe', rajada.status === 429 && rajada.json?.erro === 'ritmo' && typeof rajada.json?.tentarDepoisDe === 'number', `${rajada.status} ${JSON.stringify(rajada.json)}`)
+
+  zoro.fechar()
+  console.log(falhas === 0 ? `FOTO OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
 }
 
 // ── Chat (C1, plano 8.2; liberado pela 12.18 f) ─────────────────────────────
@@ -1689,6 +1770,8 @@ try {
     await limites()
   } else if (modo === 'midia') {
     await aceiteDaMidia()
+  } else if (modo === 'foto') {
+    await aceiteDaFoto()
   } else if (modo === 'chat') {
     await aceiteDoChat()
   } else if (modo === 'mural') {

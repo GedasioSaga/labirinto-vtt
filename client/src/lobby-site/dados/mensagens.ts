@@ -7,6 +7,7 @@ import { sistemaParaOJogador } from '../../lib/nuvem/projecao'
 import { parseLivroParte, parseLivroRecusa } from '../../net/protocoloDoLivro'
 import type { FichaNoEstado, MembroProjetado, MensagemDoServidor, OpGravada, Origem, Papel, PresencaNaMesa, Visibilidade } from '../../lib/nuvem/tipos'
 import { personagemDoArquivo } from '../../lib/personagem'
+import { ehIdDeMidia } from '../../lib/midia'
 import type { EnderecoDaMesa, EstadoComSala, MensagemDoSite, SalaDaMesa } from './fonte'
 import { lerFrameDoChat } from './fioDoChat'
 import { enderecoDaMesaValido } from './rotas'
@@ -54,7 +55,11 @@ function lerMembro(bruto: unknown): MembroProjetado | null {
   const contaId = proprio(bruto, 'contaId')
   const nome = proprio(bruto, 'nome')
   const papel = proprio(bruto, 'papel')
-  return typeof contaId === 'string' && typeof nome === 'string' && ehPapel(papel) ? { contaId, nome, papel } : null
+  if (typeof contaId !== 'string' || typeof nome !== 'string' || !ehPapel(papel)) return null
+  // A foto de perfil (07/11/2026) é opcional: o DO de antes não manda; `null` ou fora da forma do id = a inicial,
+  // nunca o membro (nem o `estado` inteiro) recusado por causa dela.
+  const foto = proprio(bruto, 'foto')
+  return ehIdDeMidia(foto) ? { contaId, nome, papel, foto } : { contaId, nome, papel }
 }
 
 function lerPresenca(bruto: unknown): PresencaNaMesa | null {

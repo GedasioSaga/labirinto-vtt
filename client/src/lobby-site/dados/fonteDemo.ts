@@ -2,8 +2,9 @@ import { processarDesfazer } from '../../lib/nuvem/desfazer'
 import type { Json } from '../../lib/nuvem/json'
 import type { Cota } from '../../lib/nuvem/limites'
 import { processarLote, type Gravacoes, type LeitorDaCampanha, type ResultadoDoProcessamento } from '../../lib/nuvem/lote'
-import { fichaNoEstado, partesDoLivroPublicado, projetarMembros, projetarOpParaJogador, sistemaDoJogador } from '../../lib/nuvem/projecao'
+import { fichaNoEstado, partesDoLivroPublicado, projetarMembro, projetarMembros, projetarOpParaJogador, sistemaDoJogador } from '../../lib/nuvem/projecao'
 import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
+import { hashHex, tipoDosBytes, type TipoDeMidia } from '../../lib/midia'
 import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidade, type Membro, type MensagemDoServidor, type Op, type OpGravada, type Origem, type PresencaNaMesa, type Recusada } from '../../lib/nuvem/tipos'
 import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
@@ -21,6 +22,7 @@ import {
   type OuvinteDoCanal,
   type PedidoDoSite,
   type Relogio,
+  type RespostaDaFoto,
   type RespostaDoBilhete,
   type SalaDaMesa,
 } from './fonte'
@@ -56,6 +58,8 @@ interface CampanhaEmMemoria extends LeitorDaCampanha {
   todasAsOps(): readonly OpGravada[]
   todasAsFichas(): FichaGuardada[]
   todosOsMembros(): Membro[]
+  /** A foto de perfil da conta (o `UPDATE membros SET foto` do DO); `null` = a inicial. */
+  mudarFoto(contaId: string, foto: string | null): void
 }
 
 /** O DO em memória: lê como o SQLite e grava as `Gravacoes` de uma vez (o `transactionSync`). */
@@ -85,6 +89,12 @@ function campanhaEmMemoria(dados: CampanhaDaDemo): CampanhaEmMemoria {
     todasAsOps: () => ops,
     todasAsFichas: () => [...fichas.values()],
     todosOsMembros: () => [...membros.values()],
+    mudarFoto(contaId, foto) {
+      const membro = membros.get(contaId)
+      if (membro === undefined) return
+      const semFoto: Membro = { contaId: membro.contaId, email: membro.email, nome: membro.nome, papel: membro.papel, estado: membro.estado }
+      membros.set(contaId, foto === null ? semFoto : { ...semFoto, foto })
+    },
   }
 }
 
@@ -158,9 +168,8 @@ function estadoPara(campanha: CampanhaEmMemoria, membro: Membro): EstadoComSala 
     const naTela = fichaNoEstado(membro, guardada, nomeDaConta)
     return naTela === null ? [] : [naTela]
   })
-  const { contaId, nome, papel } = membro
   const sala = SALA_DA_DEMO[campanha.campanhaId] ?? null
-  const estado: EstadoComSala = { t: 'estado', rev: campanha.revAtual(), fichas, membros: projetarMembros(campanha.todosOsMembros()), eu: { contaId, nome, papel }, sala }
+  const estado: EstadoComSala = { t: 'estado', rev: campanha.revAtual(), fichas, membros: projetarMembros(campanha.todosOsMembros()), eu: projetarMembro(campanha.membro(membro.contaId) ?? membro), sala }
   if (SISTEMA_DA_DEMO !== null) {
     estado.sistema = SISTEMA_DA_DEMO.sistema
     estado.marcaDoSistema = SISTEMA_DA_DEMO.marca
@@ -214,6 +223,10 @@ interface ServidorDaDemo {
   muraisAbertos: Set<(campanhaId: string) => void>
   /** O duelo de cada mesa (T7), com o colega inventado que aceita, joga e cai da conexão uma vez; carregado na primeira vez que a mesa o usa. */
   duelos: Map<string, () => Promise<DueloDaDemo>>
+  /** Os canais abertos, para mandar o `estado` de novo quando os membros mudam (a foto de perfil). */
+  membrosAbertos: Set<(campanhaId: string) => void>
+  /** As fotos de perfil desta página: id da mídia -> endereço `blob:` (só na memória; recarregar esquece). */
+  fotos: Map<string, string>
 }
 
 /**
@@ -252,6 +265,7 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
     aberto = false
     servidor.abertos.delete(difundir)
     servidor.muraisAbertos.delete(reenviarMural)
+    servidor.membrosAbertos.delete(reenviarEstado)
     pararDeOuvirODuelo?.()
     pararDeOuvirODuelo = null
   }
@@ -280,6 +294,10 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
   }
   function reenviarMural(deQual: string): void {
     if (aberto && deQual === campanhaId) mandarMural()
+  }
+  /** Os membros mudaram (a foto): o `estado` de novo, como o `enviarEstadoATodos` do DO. */
+  function reenviarEstado(deQual: string): void {
+    if (aberto && deQual === campanhaId && campanha !== undefined && membro !== undefined) entregar(estadoPara(campanha, membro))
   }
   /** Ida e volta pelo JSON e pelo leitor da fonte real, como no fio. */
   function entregar(mensagem: MensagemDoSite): void {
@@ -385,6 +403,7 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
     aberto = true
     servidor.abertos.add(difundir)
     servidor.muraisAbertos.add(reenviarMural)
+    servidor.membrosAbertos.add(reenviarEstado)
     ouvinte.aoAbrir()
   })
 
@@ -400,6 +419,50 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
     },
     fechar: encerrar,
   }
+}
+
+/** Como `lobby/nuvem/src/fotoDePerfil.ts`: até 256 KiB, webp, png ou jpg pelos bytes, id pelo sha256. */
+const FOTO_MAX_BYTES_DA_DEMO = 256 * 1024
+const TIPOS_DA_FOTO_DA_DEMO: ReadonlySet<TipoDeMidia> = new Set(['webp', 'png', 'jpg'])
+
+/**
+ * A foto de perfil na demo: as mesmas recusas do DO (teto, tipo pelos bytes),
+ * guardada só na memória desta página (`blob:`), e o `estado` de novo para os
+ * canais abertos da mesa. A foto que ninguém mais usa solta o `blob:`.
+ */
+async function trocarFotoNaDemo(servidor: ServidorDaDemo, campanhaId: string, imagem: Blob | null, relogio: Relogio): Promise<RespostaDaFoto> {
+  const resposta = await decidirFotoNaDemo(servidor, campanhaId, imagem)
+  return new Promise((resolve) => {
+    relogio.depois(LATENCIA_DA_DEMO_MS, () => resolve(resposta))
+  })
+}
+
+async function decidirFotoNaDemo(servidor: ServidorDaDemo, campanhaId: string, imagem: Blob | null): Promise<RespostaDaFoto> {
+  const campanha = servidor.campanhas.get(campanhaId)
+  const membro = campanha === undefined ? undefined : membroPorEmail(campanha, EMAIL_DA_DEMO)
+  if (campanha === undefined || membro === undefined) return { ok: false, motivo: 'fora-da-mesa' }
+  let foto: string | null = null
+  if (imagem !== null) {
+    if (imagem.size > FOTO_MAX_BYTES_DA_DEMO) return { ok: false, motivo: 'grande' }
+    const bytes = new Uint8Array(await imagem.arrayBuffer())
+    const tipo = tipoDosBytes(bytes)
+    if (tipo === null || !TIPOS_DA_FOTO_DA_DEMO.has(tipo)) return { ok: false, motivo: 'tipo' }
+    foto = `${await hashHex(bytes)}.${tipo}`
+    if (!servidor.fotos.has(foto)) servidor.fotos.set(foto, URL.createObjectURL(imagem))
+  }
+  const antiga = membro.foto
+  campanha.mudarFoto(membro.contaId, foto)
+  if (antiga !== undefined && antiga !== foto && !fotoEmUso(servidor, antiga)) {
+    const endereco = servidor.fotos.get(antiga)
+    if (endereco !== undefined) URL.revokeObjectURL(endereco)
+    servidor.fotos.delete(antiga)
+  }
+  for (const reenviar of servidor.membrosAbertos) reenviar(campanhaId)
+  return { ok: true, foto }
+}
+
+function fotoEmUso(servidor: ServidorDaDemo, foto: string): boolean {
+  return [...servidor.campanhas.values()].some((campanha) => campanha.todosOsMembros().some((membro) => membro.foto === foto))
 }
 
 export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDaDemo {
@@ -432,7 +495,7 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
       dueloSobDemanda({ campanhaId: campanha.campanhaId, agora: relogio.agora, depois: relogio.depois, membros: campanha.todosOsMembros, fichas: campanha.todasAsFichas, euContaId: quemVe.contaId }),
     )
   }
-  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set(), murais, comoMestre: new Set(), muraisAbertos: new Set(), duelos }
+  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set(), murais, comoMestre: new Set(), muraisAbertos: new Set(), duelos, membrosAbertos: new Set(), fotos: new Map() }
   let simuladas = 0
 
   return {
@@ -458,6 +521,8 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
         relogio.depois(LATENCIA_DA_DEMO_MS, () => resolve(resposta))
       })
     },
+    trocarFoto: (campanhaId, imagem) => trocarFotoNaDemo(servidor, campanhaId, imagem, relogio),
+    enderecoDaFoto: (_campanhaId, foto) => servidor.fotos.get(foto) ?? null,
     simularMudancaDoMestre(campanhaId, fichaId, caminho, valor) {
       const campanha = campanhas.get(campanhaId)
       const mestre = campanha?.membro(CONTA_DO_MESTRE)

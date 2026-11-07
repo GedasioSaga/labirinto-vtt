@@ -3,7 +3,8 @@ import type { MembroProjetado, OpGravada } from '../../lib/nuvem/tipos'
 import type { EstadoDaCampanha, FichaDoSite, SituacaoDoDesfazer } from '../dados/sessaoDaCampanha'
 import { useAgora, useSistemaDoLobby, useSite } from './contexto'
 import { Icone } from './Icone'
-import { deParaDaOp, fraseDaOp, horaExata, motivoEmTexto, nomeDoDia, quandoRelativo, rotuloDoCaminho, tomDe, valorEmTexto } from './textos'
+import { Rosto } from './Rosto'
+import { deParaDaOp, fraseDaOp, horaExata, motivoEmTexto, nomeDoDia, quandoRelativo, rotuloDoCaminho, valorEmTexto } from './textos'
 
 /**
  * O HISTÓRICO da ficha (protótipo, tela 7): quem mudou o quê, por dia, da
@@ -140,9 +141,7 @@ function LinhaDoEvento({ op, ficha, eu, agora, desfeita, refaz, podeDesfazer, em
 
   return (
     <li className="lo-ev" data-aumento={frase.aumento ? '1' : undefined} data-desfeita={desfeita ? '1' : undefined}>
-      <span className="lo-av" data-tom={tomDe(op.autorContaId)} aria-hidden="true">
-        {op.autorNome.slice(0, 1).toUpperCase()}
-      </span>
+      <Rosto contaId={op.autorContaId} nome={op.autorNome} />
       <div className="lo-ev__corpo">
         <p className="lo-ev__frase">
           <b>{frase.quem}</b> {frase.verbo} <b>{frase.alvo}</b>

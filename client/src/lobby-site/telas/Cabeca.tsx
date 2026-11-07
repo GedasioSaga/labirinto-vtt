@@ -5,10 +5,11 @@ import { aoClicarNoLink, useDoSite, useSite } from './contexto'
 import { mudancasACaminho } from './enviar'
 import { pedirFocoNoAviso } from './foco'
 import { Icone, type NomeDoIcone } from './Icone'
-import { tomDe } from './textos'
 import { campanhaDaRota, enderecoDaRota } from '../dados/rotas'
 import { contagemDeNaoLidas } from './chat/textosDoChat'
 import { MOTIVO_DO_TREINO, TREINO_NO_SITE } from './lobby/treinoNoSite'
+import { JanelaDaFoto } from './foto/JanelaDaFoto'
+import { Rosto } from './Rosto'
 
 /**
  * A CABEÇA FIXA (protótipo, "cabeça fixa e faixa"): a marca, onde a pessoa
@@ -32,6 +33,22 @@ export function Cabeca() {
   const nomeDaConta = euNaMesa?.nome ?? email ?? 'Você'
   const naMesa = campanha?.naMesa ?? []
   const nomesNaMesa = naMesa.map((pessoa) => (pessoa.papel === 'mestre' ? `${pessoa.nome} (mestre)` : pessoa.nome)).join(', ')
+  const botaoDaConta = useRef<HTMLButtonElement>(null)
+  const menuDaConta = useRef<HTMLDivElement>(null)
+  const [trocandoFoto, setTrocandoFoto] = useState(false)
+  // A foto é da conta NA MESA: fora de uma mesa (ou antes de ela abrir) não há onde guardar.
+  const podeTrocarFoto = campanha !== null && euNaMesa !== null
+
+  function abrirFoto(): void {
+    menuDaConta.current?.hidePopover()
+    setTrocandoFoto(true)
+  }
+
+  function fecharFoto(): void {
+    setTrocandoFoto(false)
+    // O menu que abriu a janela já fechou: o foco volta para o botão da conta.
+    requestAnimationFrame(() => botaoDaConta.current?.focus())
+  }
 
   const link = (alvo: Rota, texto: string) => (
     <a href={enderecoDaRota(alvo, demo)} onClick={aoClicarNoLink(site, alvo)}>
@@ -61,9 +78,7 @@ export function Cabeca() {
             <div className="lo-agora-mini" title={`Na mesa agora: ${nomesNaMesa}`}>
               <div className="lo-agora-mini__rostos" aria-hidden="true">
                 {naMesa.map((pessoa) => (
-                  <span key={pessoa.contaId} className="lo-av" data-tom={tomDe(pessoa.contaId)}>
-                    {pessoa.nome.slice(0, 1)}
-                  </span>
+                  <Rosto key={pessoa.contaId} contaId={pessoa.contaId} nome={pessoa.nome} />
                 ))}
               </div>
               <span>
@@ -74,22 +89,26 @@ export function Cabeca() {
           )}
           {email !== null && (
             <>
-              <button type="button" className="lo-conta" popoverTarget="lo-menu-conta" aria-label={`Conta de ${nomeDaConta} (${email})`}>
-                <span className="lo-av" data-tom={tomDe(euNaMesa?.contaId ?? email)} aria-hidden="true">
-                  {nomeDaConta.slice(0, 1).toUpperCase()}
-                </span>
+              <button ref={botaoDaConta} type="button" className="lo-conta" popoverTarget="lo-menu-conta" aria-label={`Conta de ${nomeDaConta} (${email})`}>
+                <Rosto contaId={euNaMesa?.contaId ?? null} nome={nomeDaConta} semente={euNaMesa?.contaId ?? email} />
                 <span className="lo-conta__nome">{nomeDaConta}</span>
               </button>
-              <div className="lo-menu" id="lo-menu-conta" popover="auto">
+              <div ref={menuDaConta} className="lo-menu" id="lo-menu-conta" popover="auto">
                 <div className="lo-menu__quem">
-                  <span className="lo-av" data-tom={tomDe(euNaMesa?.contaId ?? email)} aria-hidden="true">
-                    {nomeDaConta.slice(0, 1).toUpperCase()}
-                  </span>
+                  <Rosto contaId={euNaMesa?.contaId ?? null} nome={nomeDaConta} semente={euNaMesa?.contaId ?? email} className="lo-menu__rosto" />
                   <div>
                     <p>{nomeDaConta}</p>
                     <p className="lo-menu__email">{email}</p>
                   </div>
                 </div>
+                <button type="button" className="lo-btn lo-btn--fantasma" disabled={!podeTrocarFoto} aria-describedby={podeTrocarFoto ? undefined : 'lo-menu-foto-motivo'} onClick={abrirFoto}>
+                  <Icone nome="foto" /> Trocar foto
+                </button>
+                {!podeTrocarFoto && (
+                  <p className="lo-motivo lo-menu__nota" id="lo-menu-foto-motivo">
+                    Abra uma mesa para trocar a sua foto nela.
+                  </p>
+                )}
                 {demo ? (
                   <p className="lo-motivo lo-menu__nota">Demonstração: dados inventados, sem login. Nada sai deste navegador.</p>
                 ) : (
@@ -103,6 +122,9 @@ export function Cabeca() {
         </div>
       </div>
       {campanha !== null && <Faixa campanha={campanha} />}
+      {trocandoFoto && campanha !== null && euNaMesa !== null && (
+        <JanelaDaFoto campanhaId={campanha.campanhaId} nomeDaMesa={nomeDaMesa} contaId={euNaMesa.contaId} nome={euNaMesa.nome} aoFechar={fecharFoto} />
+      )}
     </header>
   )
 }

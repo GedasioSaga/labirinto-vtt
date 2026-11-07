@@ -73,6 +73,15 @@ export function nomeDoDia(t: number, agora: number): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
+/**
+ * "Mestre Ana. " no alto da mesa. O nome que já começa com a palavra "Mestre"
+ * vai sozinho: "Mestre. " e "Mestre Gedásio. ", nunca "Mestre Mestre. ".
+ */
+export function apresentacaoDoMestre(nome: string): string {
+  const limpo = nome.trim()
+  return /^mestre(\s|$)/i.test(limpo) ? `${limpo}. ` : `Mestre ${limpo}. `
+}
+
 export function horaExata(t: number): string {
   return new Date(t).toLocaleString('pt-BR')
 }

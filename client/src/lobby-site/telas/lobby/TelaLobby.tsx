@@ -8,7 +8,8 @@ import { aoClicarNoLink, useDoSite, useSistemaDoLobby, useSite } from '../contex
 import { DecisoesSemFicha } from '../Decisoes'
 import { AvisoDaPagina, Carregando } from '../Estados'
 import { Icone } from '../Icone'
-import { plural, tomDe } from '../textos'
+import { apresentacaoDoMestre, plural } from '../textos'
+import { Rosto } from '../Rosto'
 import { AtalhosDaMesa } from './AtalhosDaMesa'
 import { EntrarNaMesa } from './EntrarNaMesa'
 import { AvisosDaMesa, UltimasModificacoes, UltimasNoticias } from './NovidadesDaMesa'
@@ -78,7 +79,7 @@ function Saguao({ campanha, nome }: { campanha: EstadoDaCampanha; nome: string }
           )}
           <h1 className="lo-titulo">{nome}</h1>
           <p className="lo-sub">
-            {mestre !== undefined ? `Mestre ${mestre.nome}. ` : ''}
+            {mestre !== undefined ? apresentacaoDoMestre(mestre.nome) : ''}
             {plural(campanha.membros.length, 'pessoa', 'pessoas')} na mesa.
           </p>
         </div>
@@ -129,10 +130,9 @@ function QuemEstaNaMesa({ campanha }: { campanha: EstadoDaCampanha }) {
           {campanha.naMesa.map((pessoa) => {
             const papel = `${pessoa.papel === 'mestre' ? ' (mestre)' : ''}${pessoa.onde === 'app' ? ' no app' : ''}`
             const rosto = (
-              <span className="lo-av" data-tom={tomDe(pessoa.contaId)} aria-hidden="true">
-                {pessoa.nome.slice(0, 1).toUpperCase()}
+              <Rosto contaId={pessoa.contaId} nome={pessoa.nome}>
                 <span className="lo-ponto" />
-              </span>
+              </Rosto>
             )
             const privado: Rota = { tela: 'chat', campanhaId: campanha.campanhaId, com: pessoa.contaId }
             return (

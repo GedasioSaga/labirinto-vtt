@@ -19,7 +19,11 @@ import { KIB, MIB } from './pedidos'
  *   que não deixa o arquivo virar página, mesmo aberto direto na aba.
  *
  * Quem pode fazer o quê (na v1 só o app do mestre sobe; todo membro baixa)
- * é conferido pelo DO Campanha antes de chamar este arquivo.
+ * é conferido pelo DO Campanha antes de chamar este arquivo. A exceção é a
+ * foto de perfil (`fotoDePerfil.ts`): cada membro sobe a PRÓPRIA, por uma
+ * rota só dela, com teto e ritmo próprios, e grava aqui com `enviadoPor` =
+ * `perfil:<contaId>`. Só essa mídia é apagada quando a foto troca; se o
+ * mestre sobe os mesmos bytes para uma ficha, ela passa a ser dele e fica.
  */
 
 const PEDACO_BYTES = 512 * KIB
@@ -38,7 +42,7 @@ const CABECALHOS_DA_IMAGEM: Readonly<Record<string, string>> = {
   'content-security-policy': "default-src 'none'; sandbox",
 }
 
-interface IdDaMidia {
+export interface IdDaMidia {
   hash: string
   tipo: TipoDeMidia
 }
@@ -47,7 +51,11 @@ interface MetaDaMidia {
   tipo: string
   tamanho: number
   partes: number
+  enviadoPor: string
 }
+
+/** O `enviadoPor` da mídia que é foto de perfil: só ela some quando a foto troca. */
+export const PREFIXO_DO_PERFIL = 'perfil:'
 
 const FORMA_DO_ID = /^([0-9a-f]{64})\.(webp|png|jpg|gif)$/
 
@@ -71,11 +79,24 @@ function lerIdDaMidia(midiaId: string): IdDaMidia {
   return { hash: achado[1], tipo }
 }
 
-function metaDaMidia(sql: SqlStorage, hash: string): MetaDaMidia | undefined {
-  for (const linha of sql.exec('SELECT tipo, tamanho, partes FROM midia_meta WHERE hash = ?', hash)) {
-    return { tipo: texto(linha, 'tipo'), tamanho: numero(linha, 'tamanho'), partes: numero(linha, 'partes') }
+export function metaDaMidia(sql: SqlStorage, hash: string): MetaDaMidia | undefined {
+  for (const linha of sql.exec('SELECT tipo, tamanho, partes, enviadoPor FROM midia_meta WHERE hash = ?', hash)) {
+    return { tipo: texto(linha, 'tipo'), tamanho: numero(linha, 'tamanho'), partes: numero(linha, 'partes'), enviadoPor: texto(linha, 'enviadoPor') }
   }
   return undefined
+}
+
+/** A mídia que era só foto de perfil passa a ser de quem subiu os mesmos bytes por outro caminho: não some mais com a foto. */
+function adotarSeForFoto(sql: SqlStorage, hash: string, enviadoPor: string): void {
+  const meta = metaDaMidia(sql, hash)
+  if (meta === undefined || !meta.enviadoPor.startsWith(PREFIXO_DO_PERFIL) || enviadoPor.startsWith(PREFIXO_DO_PERFIL)) return
+  sql.exec('UPDATE midia_meta SET enviadoPor = ? WHERE hash = ?', enviadoPor, hash)
+}
+
+/** Apaga a mídia inteira (pedaços e meta). Chamar dentro de `transactionSync`. */
+export function apagarMidia(sql: SqlStorage, hash: string): void {
+  sql.exec('DELETE FROM midia WHERE hash = ?', hash)
+  sql.exec('DELETE FROM midia_meta WHERE hash = ?', hash)
 }
 
 function bytesDaCampanha(sql: SqlStorage): number {
@@ -91,8 +112,8 @@ function blob(linha: Linha, coluna: string): ArrayBuffer {
 
 const grandeDemais = (): ErroDoPedido => new ErroDoPedido(413, 'midia-grande', `A imagem passa de ${MIDIA_MAX_BYTES / MIB} MiB`)
 
-/** O corpo inteiro, parando assim que passa do teto (o `content-length` pode mentir ou faltar). */
-async function lerBytesComTeto(request: Request, teto: number): Promise<Uint8Array> {
+/** O corpo inteiro, parando assim que passa do teto (o `content-length` pode mentir ou faltar). `grandeDemais` = o erro de quem passou. */
+export async function lerBytesComTeto(request: Request, teto: number, grandeDemais: () => ErroDoPedido): Promise<Uint8Array> {
   const declarado = Number(request.headers.get('content-length') ?? '0')
   if (Number.isFinite(declarado) && declarado > teto) throw grandeDemais()
   if (request.body === null) return new Uint8Array(0)
@@ -123,9 +144,12 @@ async function lerBytesComTeto(request: Request, teto: number): Promise<Uint8Arr
 }
 
 /** Grava a imagem já conferida. Chamar dentro de `transactionSync`: o teto estourado no meio desfaz tudo. `false` = já existia. */
-function gravarMidia(sql: SqlStorage, id: IdDaMidia, bytes: Uint8Array, enviadoPor: string, agora: number): boolean {
+export function gravarMidia(sql: SqlStorage, id: IdDaMidia, bytes: Uint8Array, enviadoPor: string, agora: number): boolean {
   // Outro PUT do mesmo id pode ter gravado enquanto este lia o corpo.
-  if (metaDaMidia(sql, id.hash) !== undefined) return false
+  if (metaDaMidia(sql, id.hash) !== undefined) {
+    adotarSeForFoto(sql, id.hash, enviadoPor)
+    return false
+  }
   if (bytesDaCampanha(sql) + bytes.byteLength > MIDIA_MAX_POR_CAMPANHA) {
     throw new ErroDoPedido(413, 'campanha-cheia', `As imagens desta campanha passariam de ${MIDIA_MAX_POR_CAMPANHA / MIB} MB`)
   }
@@ -151,8 +175,11 @@ function gravarMidia(sql: SqlStorage, id: IdDaMidia, bytes: Uint8Array, enviadoP
 export async function receberMidia(request: Request, storage: DurableObjectStorage, midiaId: string, enviadoPor: string): Promise<Response> {
   const id = lerIdDaMidia(midiaId)
   // Já gravada com este id: nada a ler. O mesmo hash com outra extensão segue e cai no tipo pelos bytes.
-  if (metaDaMidia(storage.sql, id.hash)?.tipo === id.tipo) return json({ id: midiaId, novo: false })
-  const bytes = await lerBytesComTeto(request, MIDIA_MAX_BYTES)
+  if (metaDaMidia(storage.sql, id.hash)?.tipo === id.tipo) {
+    storage.transactionSync(() => adotarSeForFoto(storage.sql, id.hash, enviadoPor))
+    return json({ id: midiaId, novo: false })
+  }
+  const bytes = await lerBytesComTeto(request, MIDIA_MAX_BYTES, grandeDemais)
   if (tipoDosBytes(bytes) !== id.tipo) {
     throw new ErroDoPedido(400, 'tipo-errado', `O conteúdo não é uma imagem ${id.tipo} (aceitas: webp, png, jpg, gif)`)
   }

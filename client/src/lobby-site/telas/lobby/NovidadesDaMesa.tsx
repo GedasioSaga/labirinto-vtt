@@ -5,7 +5,8 @@ import { enderecoDaRota, type Rota } from '../../dados/rotas'
 import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { aoClicarNoLink, useAgora, useDoSite, useSite } from '../contexto'
 import { Icone } from '../Icone'
-import { horaExata, quandoRelativo, tomDe } from '../textos'
+import { Rosto } from '../Rosto'
+import { horaExata, quandoRelativo } from '../textos'
 import { nomeDaReacao, partesDaFrase, urlDaImagem } from '../mural/textosDoMural'
 
 /**
@@ -176,9 +177,7 @@ export function UltimasNoticias({ campanha, mural }: Props) {
           const src = noticia.imagem === null ? null : urlDaImagem(noticia.imagem, campanha.campanhaId, demo)
           return (
             <li key={noticia.id} className="lo-noticia" data-nova={mural.novas.has(noticia.id) ? '1' : undefined}>
-              <span className="lo-av" data-tom={tomDe(noticia.autorContaId)} aria-hidden="true">
-                {noticia.autorNome.slice(0, 1).toUpperCase()}
-              </span>
+              <Rosto contaId={noticia.autorContaId} nome={noticia.autorNome} />
               <div className="lo-noticia__corpo">
                 <p className="lo-noticia__cab">
                   <span className="lo-noticia__quem">{noticia.autorNome}</span>
@@ -256,9 +255,7 @@ export function UltimasModificacoes({ campanha, mural }: Props) {
           const historico: Rota = { tela: 'ficha', campanhaId: campanha.campanhaId, fichaId: linha.fichaId, aba: 'historico' }
           return (
             <li key={linha.rev} className="lo-ev">
-              <span className="lo-av" data-tom={tomDe(linha.autorContaId)} aria-hidden="true">
-                {linha.autorNome.slice(0, 1).toUpperCase()}
-              </span>
+              <Rosto contaId={linha.autorContaId} nome={linha.autorNome} />
               <div className="lo-ev__corpo">
                 <p className="lo-ev__frase">
                   {quem !== '' && <b>{quem}</b>} {resto}

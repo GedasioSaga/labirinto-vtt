@@ -22,7 +22,8 @@ const TABELAS_DA_CAMPANHA = [
     email TEXT NOT NULL UNIQUE,
     nome TEXT NOT NULL,
     papel TEXT NOT NULL CHECK (papel IN ('mestre', 'jogador')),
-    estado TEXT NOT NULL CHECK (estado IN ('ativo', 'removido'))
+    estado TEXT NOT NULL CHECK (estado IN ('ativo', 'removido')),
+    foto TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS fichas (
     id TEXT PRIMARY KEY,
@@ -173,8 +174,25 @@ const TABELAS_DA_CAMPANHA = [
   )`,
 ]
 
+/**
+ * Colunas que chegaram depois da tabela: o DO de antes ganha a coluna (nula,
+ * sem regravar nenhuma linha) na primeira vez que acorda com este código. O
+ * `CREATE` acima já nasce com elas.
+ * - `membros.foto` (07/11/2026): a foto de perfil da conta nesta campanha, o
+ *   id da mídia (`<sha256>.<ext>`); `NULL` = a inicial (lobby/nuvem/src/fotoDePerfil.ts).
+ */
+const COLUNAS_NOVAS: readonly { tabela: string; coluna: string; tipo: string }[] = [{ tabela: 'membros', coluna: 'foto', tipo: 'TEXT' }]
+
+function garantirColunasNovas(sql: SqlStorage): void {
+  for (const { tabela, coluna, tipo } of COLUNAS_NOVAS) {
+    const tem = sql.exec(`PRAGMA table_info(${tabela})`).toArray().some((linha) => linha.name === coluna)
+    if (!tem) sql.exec(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${tipo}`)
+  }
+}
+
 export function criarEsquemaDaCampanha(sql: SqlStorage): void {
   for (const comando of TABELAS_DA_CAMPANHA) sql.exec(comando)
+  garantirColunasNovas(sql)
   sql.exec(`INSERT OR IGNORE INTO meta (chave, valor) VALUES ('versaoDoEsquema', ?)`, JSON.stringify(VERSAO_DO_ESQUEMA))
 }
 

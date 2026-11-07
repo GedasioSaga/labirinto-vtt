@@ -1,3 +1,4 @@
+import { ehIdDeMidia } from '../../lib/midia'
 import { segmentoValido } from '../../lib/nuvem/caminho'
 import { ehRegistro, lerJsonSeguro, proprio } from '../../lib/nuvem/json'
 import {
@@ -10,6 +11,7 @@ import {
   type MotivoDoFechamento,
   type OuvinteDoCanal,
   type Relogio,
+  type RespostaDaFoto,
   type RespostaDoBilhete,
 } from './fonte'
 import { lerMensagemDoServidor, lerSalaDaMesa } from './mensagens'
@@ -193,6 +195,64 @@ async function pedirBilheteReal(origem: string, campanhaId: string, buscar: Busc
   return lerCorpoDoBilhete(resposta.status, corpo)
 }
 
+/** Sem resposta da foto neste tempo, o diálogo volta e diz que não chegou. */
+export const PRAZO_DA_FOTO_MS = 20_000
+
+/** O corpo da troca da foto (`{ foto }`) ou da recusa (`{ erro, detalhe, tentarDepoisDe? }`). */
+export function lerCorpoDaFoto(status: number, corpo: unknown): RespostaDaFoto {
+  const registro: Record<string, unknown> = ehRegistro(corpo) ? corpo : {}
+  const erro = proprio(registro, 'erro')
+  if (status >= 200 && status < 300) {
+    const foto = proprio(registro, 'foto')
+    if (foto === null) return { ok: true, foto: null }
+    return ehIdDeMidia(foto) ? { ok: true, foto } : { ok: false, motivo: 'servidor' }
+  }
+  switch (status) {
+    case 401:
+    case 403:
+      return { ok: false, motivo: 'sem-login' }
+    case 404:
+      return { ok: false, motivo: 'fora-da-mesa' }
+    case 400:
+      return { ok: false, motivo: erro === 'foto-tipo' ? 'tipo' : 'servidor' }
+    case 413:
+      return { ok: false, motivo: erro === 'campanha-cheia' ? 'cheia' : 'grande' }
+    case 429: {
+      const tentarDepoisDe = proprio(registro, 'tentarDepoisDe')
+      return typeof tentarDepoisDe === 'number' && Number.isFinite(tentarDepoisDe) ? { ok: false, motivo: 'ritmo', tentarDepoisDe } : { ok: false, motivo: 'servidor' }
+    }
+    default:
+      return { ok: false, motivo: 'servidor' }
+  }
+}
+
+/** `PUT` (com a imagem) ou `DELETE` `/api/c/:id/foto`: a conta sai do e-mail do Access, nunca do pedido. */
+async function trocarFotoReal(origem: string, campanhaId: string, imagem: Blob | null, buscar: Buscar): Promise<RespostaDaFoto> {
+  if (!segmentoValido(campanhaId)) return { ok: false, motivo: 'fora-da-mesa' }
+  let resposta: Response
+  try {
+    resposta = await buscar(new URL(`/api/c/${encodeURIComponent(campanhaId)}/foto`, origem).toString(), {
+      method: imagem === null ? 'DELETE' : 'PUT',
+      credentials: 'same-origin',
+      redirect: 'manual',
+      cache: 'no-store',
+      headers: imagem === null ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': imagem.type },
+      body: imagem,
+      signal: AbortSignal.timeout(PRAZO_DA_FOTO_MS),
+    })
+  } catch {
+    return { ok: false, motivo: 'rede' }
+  }
+  if (resposta.type === 'opaqueredirect') return { ok: false, motivo: 'sem-login' }
+  let corpo: unknown = null
+  try {
+    corpo = lerJsonSeguro(await resposta.text())
+  } catch (erro) {
+    if (!(erro instanceof SyntaxError)) return { ok: false, motivo: 'rede' }
+  }
+  return lerCorpoDaFoto(resposta.status, corpo)
+}
+
 function abrirCanalReal(url: string, ouvinte: OuvinteDoCanal, abrirFio: AbrirFio, relogio: Relogio): Canal {
   let aberto = false
   let encerrado = false
@@ -286,5 +346,7 @@ export function criarFonteReal(opcoes: OpcoesDaFonteReal): FonteDoLobby {
       return abrirCanalReal(enderecoDoCanal(opcoes.origem, campanhaId), ouvinte, abrirFio, relogio)
     },
     pedirBilhete: (campanhaId) => pedirBilheteReal(opcoes.origem, campanhaId, buscar),
+    trocarFoto: (campanhaId, imagem) => trocarFotoReal(opcoes.origem, campanhaId, imagem, buscar),
+    enderecoDaFoto: (campanhaId, foto) => (segmentoValido(campanhaId) && ehIdDeMidia(foto) ? `/api/c/${encodeURIComponent(campanhaId)}/midia/${foto}` : null),
   }
 }
