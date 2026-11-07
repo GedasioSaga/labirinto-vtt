@@ -112,9 +112,13 @@ function mundo(): Container {
   return world
 }
 
-/** A camada das fichas é a penúltima do mundo, acima da névoa (a última é a do Judge, BATALHA F3). */
+/**
+ * A camada das fichas é a penúltima do mundo, acima da névoa (a última é a do Judge, BATALHA F3).
+ * A NEBLINA (c8cae0ff) não conta: de dia ela vai para o topo do mundo a cada quadro, e à noite fica
+ * entre o mapa de luz e o contorno da ficha (ordem de propósito, ver PlayerView.mapaDeLuz.test.tsx).
+ */
 function camadaDasFichas(): Container {
-  const camada = mundo().children.at(-2) // a última faixa é a do Judge (BATALHA F3), por cima das fichas
+  const camada = mundo().children.filter((c) => c.label !== 'neblina').at(-2) // a última faixa é a do Judge (BATALHA F3), por cima das fichas
   if (!(camada instanceof Container)) throw new Error('a PlayerView não montou a camada das fichas')
   return camada
 }

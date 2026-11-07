@@ -117,8 +117,9 @@ function mundo(): Container {
   return world
 }
 
+/** A NEBLINA (c8cae0ff) não conta na posição: de dia ela vai para o topo do mundo a cada quadro. */
 function fichaDaAna(): Container {
-  const ficha = mundo().children.at(-2)?.children[0] // a última faixa é a do Judge (BATALHA F3), por cima das fichas
+  const ficha = mundo().children.filter((c) => c.label !== 'neblina').at(-2)?.children[0] // a última faixa é a do Judge (BATALHA F3), por cima das fichas
   if (!(ficha instanceof Container)) throw new Error('a ficha da Ana não está no mundo')
   return ficha
 }

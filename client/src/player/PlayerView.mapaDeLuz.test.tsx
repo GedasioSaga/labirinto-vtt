@@ -146,7 +146,9 @@ describe('PlayerView — a tinta do período e a luz quente (mapa de luz)', () =
     const mapa = pacote([LAMPIAO])
     await mostra(mapa, NOITE)
     quadro()
-    expect(rotulos().slice(-2)).toEqual(['mapaDeLuz', 'contornoDaFicha'])
+    // Só a NEBLINA (c8cae0ff) fica acima do mapa de luz, de propósito: a bruma que o mestre pôs segue
+    // à vista de noite. O contorno da ficha continua por cima de tudo.
+    expect(rotulos().slice(-3)).toEqual(['mapaDeLuz', 'neblina', 'contornoDaFicha'])
     expect(halosVisiveis(mundo())).toBe(0)
     expect(tela.redesenhos).toBe(1)
     quadro()
