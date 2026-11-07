@@ -1,3 +1,39 @@
+# Lobby dos jogadores: estado em 07/11/2026 (o mais recente; o resto do arquivo é de 04/11)
+
+## Objetivo
+
+Meta do usuário (/goal, 05-06/11): site do Lobby pronto, com acesso pelo Google, ver e editar a ficha, inventário, simulados (treino), duelo entre jogadores, chat, notícias/avisos/modificações (mural), uma entrada de lobby que junta tudo, completo e bonito. Pedidos do caminho: treino e duelo com a cara da Arena de testes do app, o Juiz 3D editável no treino solo, montagem arrastando o personagem para a grade, "Entrar na mesa agora" pelo site sem PIN, a tela de entrar melhor, e no app: arrastar o personagem do painel Personagens para o mapa e a Neblina (pincel + mapa inteiro, intensidade e densidade). Todos os literais em `PEDIDOS.md` (seções de 05/11 e 06/11).
+
+## Estado atual
+
+- Código PRONTO na main, sem push (último commit `34c4e7bb`). Plano e aceites: `docs/planos/lobby-jogadores-2026-11-05.md` (8.1, 8.2, seção 13). Diagramas: `docs/diagrams/lobby-arquitetura.html`, `docs/diagrams/entrada-pelo-lobby.html`.
+- Site: `client/src/lobby-site/` (build `npm run build:lobby --workspace=client`, demo `?demo=1`; um vite de demo foi deixado na porta 1440). Servidor: `lobby/nuvem/` (Worker + DO Campanha/Diretório: fichas, chat, mural, duelo, sala/bilhete) e `lobby/site/` (portão do Access). App: `client/src/net/nuvem/`, `client/src/components/nuvem/`, ponte Rust `desktop/src-tauri/src/nuvem.rs`.
+- NADA está no ar: `npx wrangler whoami` = não autenticado. O projeto Pages `labirintolobby` só tem a página provisória e o Access do Google (U0).
+- Arquivos SEM COMMIT de outra sessão (redesign-mascara-caveira-logo), que não são do Lobby e não devem ser tocados: `client/src/transicoes/motor.ts`, `tipos.ts`, `motor.pronta.test.ts`, `client/src/animacoes/logo/`, `docs/design/mascara-caveira/`, `scripts/gravar-cena.cjs`, `docs/verification/task4-e2e-evidencia.png`.
+
+## Próximos passos
+
+1. Usuário: `npx wrangler login` (navegador, Allow); conferir com `npx wrangler whoami`.
+2. Usuário: criar o Service Token (Zero Trust > Access > Service Auth) e colar Client ID e Secret no app, em "Conta na nuvem" (só depois da versão nova do app).
+3. Usuário, em `lobby/site`: `npx wrangler pages secret put ACCESS_AUD --project-name labirintolobby` (o AUD da aplicação do Access), `ACCESS_TIME` (`rapid-boat-2220.cloudflareaccess.com`), `MAPA_DO_APP` (`<Client ID do token>=<e-mail do mestre>`). Conferir no painel que o ramo de produção do Pages é `main`.
+4. Usuário: política do Access só com os e-mails convidados (hoje pode estar "qualquer Google") e exceção Bypass para `/privacidade`.
+5. Claude: `node scripts/publicar-versao.cjs --so-lobby --publicar` (publica Worker e Pages juntos; o site NUNCA depois do Worker, senão o site antigo derruba o socket em laço com o frame `sala`). Depois, versão do app: `node scripts/publicar-versao.cjs --publicar --notas <N.md>` (disco hoje 49 GB).
+6. Usuário (E1, seção 8.3 do plano): mestre no app + mestre no site + 1 jogador; abrir a sala e usar "Entrar na mesa agora"; jogar 3 lutas de treino contra o Juiz e 1 duelo e responder as 3 perguntas da regra de teste de jogos; ligar uma batalha One Piece no app e conferir que segue igual (ordem de d20, textos, Ctrl+Z).
+
+## Critério de pronto
+
+- `curl -i https://labirintolobby.pages.dev/api/eu` sem login devolve o redirecionamento/403 do Access; logado no navegador, `/api/eu` mostra o e-mail.
+- Um jogador convidado entra com o Google, vê a própria ficha editável e a do colega só para ver, e a mudança que ele faz aparece no app do mestre (roteiro E1 da 8.3 inteiro, `node lobby/nuvem/fumaca.mjs exportar <campanha>` listando as ops).
+- O usuário responde "aceitou? refez?" depois de jogar o treino e o duelo.
+
+## Evidência
+
+- Rodada final (fechamento `wf_60e6874e-a24`, 06/11 noite): 405 testes do Lobby passaram (0 falhas); `fumaca.mjs` do Worker ok nos 9 modos (aceite 30 ok, limites, midia, chat, mural, duelo 16 ok, sala 22 ok, bordas 12 ok, ausencia); `npm run build` e `build:lobby` exit 0; `wrangler deploy --dry-run` 847 KiB; guarda de pureza ok; `cargo clippy` e `cargo test --lib nuvem` ok; `conferir-repo-publico.cjs` e `publicar-versao.cjs --so-lobby` exit 0; passeio Playwright em todas as telas sem erro de console e sem tarefa longa >= 200 ms (maior 175 ms).
+- Suíte inteira do client (06/11 noite): 19.373 passaram, 22 falharam, nenhuma do Lobby (meioTermo, mobília, forja, desempenho sob carga). Depois: `547dbcfa` (LoadMapScreen 11/11), `34c4e7bb` (39 arquivos player/main.* 131/131), `afd8d6a0` (publicar-versao roda o tsc de lobby/site e lobby/nuvem). `rtk proxy npx tsc --noEmit` no client: exit 0.
+- Neblina: `c8cae0ff` `e27e89df`, p95 em mapa 200x200 +0,1 ms; provas em `scratchpad/neblina/`. Juiz animado e Arena: `93c9e472` `d2660be0`, provas em `scratchpad/juiz/`.
+
+---
+
 ## Objetivo
 
 Três linhas de trabalho em paralelo, cada uma em worktree e branch próprios (regras em `docs/planos/trabalho-em-paralelo-2026-10-23.md`, diagrama em `docs/diagrams/trabalho-em-paralelo.html`), com 3 escritores no máximo e integração na main só por mim (orquestrador), a cada fatia testada:
