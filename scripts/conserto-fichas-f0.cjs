@@ -6,7 +6,12 @@
  *   node scripts/conserto-fichas-f0.cjs                  SIMULAÇÃO: só lê e mostra, ficha por ficha, o que mudaria
  *   node scripts/conserto-fichas-f0.cjs --aplicar        grava (app fechado, cópia antes)
  *   ... --pasta <caminho>                                outra pasta com rpg.json (padrão: a "One Piece" do índice do app)
- *   ... --apesar-do-lobby                                grava mesmo com a pasta ligada ao Lobby (ver o AVISO que a simulação mostra)
+ *   ... --ignorar-versao-do-app                          SÓ para cópia de teste: não confere a versão do app instalado
+ *
+ * Pasta ligada ao Lobby (nuvem/campanhas.json): o --aplicar também deixa nuvem/<campanha>/mudadas-no-disco.json
+ * com a ficha de ANTES de cada ficha mudada (F0b). O app 0.5.36+ (net/nuvem/mudadasNoDisco.ts), ao iniciar, põe a
+ * diferença na fila do Lobby como mudança do mestre ANTES de acertar o rpg.json com a nuvem: a mudança fica e sobe.
+ * O app 0.5.35 não lê esse arquivo e desfaria tudo; por isso o --aplicar recusa com app instalado abaixo de 0.5.36.
  *
  * De onde vem cada mudança: as respostas do grilling (docs/auditoria-fichas/respostas-do-grilling.md, que
  * valem como decisão do mestre), os relatórios por personagem da mesma pasta e o `migracao-da-mochila.json`
@@ -38,6 +43,12 @@ const NOME_DA_COPIA = 'rpg.json.antes-do-conserto-20261108'
 const ARQUIVO_TEMPORARIO = 'rpg.json.conserto-tmp'
 /** O Cargo.toml chama o pacote de "labirinto" e o tauri.conf.json não troca o nome do binário: o app instalado e o `tauri dev` rodam como labirinto.exe. */
 const PROCESSO_DO_APP = 'labirinto.exe'
+/** Onde o instalador põe o app (por usuário). */
+const EXE_INSTALADO = path.join(process.env.LOCALAPPDATA ?? '', 'Labirinto', PROCESSO_DO_APP)
+/** A primeira versão que lê as mudadas no disco (net/nuvem/mudadasNoDisco.ts). */
+const VERSAO_QUE_LE_AS_MUDADAS = [0, 5, 36]
+const ARQUIVO_DAS_MUDADAS = 'mudadas-no-disco.json'
+const ORIGEM_DAS_MUDADAS = 'conserto-fichas-f0'
 /** O app grava o rpg.json assim (`JSON.stringify(rpg, null, 2)`, sem quebra no fim): o arquivo sem mudança sai igual, byte a byte. */
 const RECUO_DO_JSON = 2
 /** Quanto de um texto longo aparece na linha "antes -> depois". */
@@ -98,11 +109,11 @@ const FICA_PARA_DEPOIS = [
 // ── Leitura dos argumentos e dos arquivos ──────────────────────────────────
 
 function lerArgumentos(argv) {
-  const opcoes = { aplicar: false, pasta: null, apesarDoLobby: false }
+  const opcoes = { aplicar: false, pasta: null, ignorarVersaoDoApp: false }
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--aplicar') opcoes.aplicar = true
-    else if (arg === '--apesar-do-lobby') opcoes.apesarDoLobby = true
+    else if (arg === '--ignorar-versao-do-app') opcoes.ignorarVersaoDoApp = true
     else if (arg === '--pasta') {
       const valor = argv[i + 1]
       if (valor === undefined) throw new Error('--pasta pede o caminho da pasta que tem o rpg.json')
@@ -553,9 +564,80 @@ function gravarComRenomear(pasta, destino, texto) {
   fs.renameSync(temporario, destino)
 }
 
-function aplicar(pasta, textoDeAntes, antes, depois, previstos) {
+// ── F0b: as fichas mudadas no disco, para o app mandar ao Lobby ───────────
+
+/** A versão do labirinto.exe instalado ("0.5.35"); `null` = não achei ou não deu para ler. */
+function versaoDoAppInstalado() {
+  if (!fs.existsSync(EXE_INSTALADO)) return null
+  const comando = `(Get-Item -LiteralPath '${EXE_INSTALADO.replace(/'/g, "''")}').VersionInfo.ProductVersion`
+  const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', comando], { encoding: 'utf8', windowsHide: true })
+  if (r.error !== undefined || r.status !== 0) return null
+  const versao = r.stdout.trim()
+  return /^\d+\.\d+\.\d+/.test(versao) ? versao : null
+}
+
+function versaoAoMenos(versao, minima) {
+  const partes = versao.split('.').map((parte) => Number.parseInt(parte, 10))
+  for (let i = 0; i < minima.length; i += 1) {
+    const parte = partes[i] ?? 0
+    if (parte !== minima[i]) return parte > minima[i]
+  }
+  return true
+}
+
+/** O app instalado lê as mudadas no disco; senão lança (o 0.5.35 desfaria tudo ao iniciar). */
+function conferirVersaoDoApp() {
+  const versao = versaoDoAppInstalado()
+  const minima = VERSAO_QUE_LE_AS_MUDADAS.join('.')
+  if (versao === null) throw new Error(`não consegui ler a versão do app em ${EXE_INSTALADO}: atualize para ${minima} ou mais e rode de novo. Nada foi gravado.`)
+  if (!versaoAoMenos(versao, VERSAO_QUE_LE_AS_MUDADAS)) throw new Error(`o app instalado é ${versao}: ele desfaria estas mudanças ao iniciar. Atualize para ${minima} ou mais (com o app fechado depois) e rode de novo. Nada foi gravado.`)
+  console.log(`app instalado: ${versao} (lê as mudadas no disco)`)
+}
+
+/** A pasta da campanha (nuvem/<campanhaId>/, ao lado de pastas/). */
+function pastaDaCampanha(pasta, campanhaId) {
+  return path.join(path.dirname(path.dirname(pasta)), 'nuvem', campanhaId)
+}
+
+/**
+ * O mudadas-no-disco.json com a ficha de ANTES de cada ficha mudada. Um que o app ainda não leu (sem `feito`) é
+ * juntado: a ficha que já estava nele guarda a de antes da PRIMEIRA gravação (é dela que a diferença sai).
+ */
+function mudadasNovas(arquivo, antes, ids) {
+  let existente = null
+  if (fs.existsSync(arquivo)) {
+    try {
+      existente = JSON.parse(fs.readFileSync(arquivo, 'utf8'))
+    } catch (erro) {
+      throw new Error(`${arquivo} não abre como JSON (${erro.message}): não gravo por cima. Nada foi gravado.`)
+    }
+    if (!ehRegistro(existente) || existente.versao !== 1 || !Array.isArray(existente.fichas)) throw new Error(`${arquivo} está fora do formato: não gravo por cima. Nada foi gravado.`)
+  }
+  const pendente = existente !== null && existente.feito === undefined ? existente : null
+  const fichas = pendente === null ? [] : [...pendente.fichas]
+  const jaTem = new Set(fichas.map((ficha) => ficha.id))
+  const porIdAntes = new Map(antes.personagens.map((ficha) => [ficha.id, ficha]))
+  for (const id of ids) if (!jaTem.has(id) && porIdAntes.has(id)) fichas.push({ id, antes: porIdAntes.get(id) })
+  return { versao: 1, id: pendente === null ? crypto.randomUUID() : pendente.id, origem: ORIGEM_DAS_MUDADAS, quando: Date.now(), fichas }
+}
+
+function gravarMudadas(pasta, campanhaId, antes, ids) {
+  const dir = pastaDaCampanha(pasta, campanhaId)
+  if (!fs.existsSync(path.join(dir, 'estado.json'))) throw new Error(`a campanha ${campanhaId} não tem ${path.join(dir, 'estado.json')}: o app nunca ligou o Lobby nesta pasta? Nada foi gravado.`)
+  const arquivo = path.join(dir, ARQUIVO_DAS_MUDADAS)
+  const mudadas = mudadasNovas(arquivo, antes, ids)
+  const temporario = `${arquivo}.conserto-tmp`
+  if (fs.existsSync(temporario)) fs.unlinkSync(temporario)
+  fs.writeFileSync(temporario, JSON.stringify(mudadas, null, RECUO_DO_JSON), { encoding: 'utf8', flag: 'wx' })
+  fs.renameSync(temporario, arquivo)
+  console.log(`para o Lobby: ${arquivo} (${mudadas.fichas.length} ficha(s); o app manda ao iniciar)`)
+}
+
+function aplicar(pasta, textoDeAntes, antes, depois, previstos, campanha, idsMudados) {
   const arquivo = path.join(pasta, ARQUIVO_DAS_FICHAS)
   if (appAberto()) throw new Error('o Labirinto está aberto: feche o app e rode de novo')
+  // Antes do rpg.json: se a gravação dele falhar e a cópia voltar, a ficha de antes é igual à do disco e o app não manda nada.
+  if (campanha !== null) gravarMudadas(pasta, campanha, antes, idsMudados)
 
   const copia = nomeDaCopiaLivre(pasta)
   fs.copyFileSync(arquivo, copia, fs.constants.COPYFILE_EXCL)
@@ -623,11 +705,11 @@ function principal() {
     console.log(
       [
         '',
-        `AVISO: esta pasta está ligada à campanha ${campanha} do Lobby (nuvem/campanhas.json).`,
-        'Ao abrir um mapa dela, o app acerta o rpg.json com a cópia da nuvem (net/nuvem/sincronizador.ts, acertarAoAbrir;',
-        'net/nuvem/acertoDasFichas.ts, acertarComAVista): nome, descrição, escolhas, máximos, abas e mochila voltam ao que',
-        'a nuvem tem, que foi como as mochilas sumiram (B1). E "Publicar no Lobby" de novo não muda ficha que já está lá',
-        '(components/nuvem/ponteDoLobby.ts, publicarPasta: "ja-publicada"). Por isso o --aplicar recusa sem --apesar-do-lobby.',
+        `Lobby: esta pasta está ligada à campanha ${campanha} (nuvem/campanhas.json).`,
+        `O --aplicar também grava nuvem/${campanha}/${ARQUIVO_DAS_MUDADAS} com a ficha de antes de cada ficha mudada.`,
+        'Ao iniciar, o app (0.5.36 ou mais) põe a diferença na fila do Lobby como mudança do mestre ANTES de acertar o',
+        'rpg.json com a nuvem: a mudança fica e sobe ao site. O que um jogador mudou no site no mesmo campo depois da',
+        'última sincronia aparece em "Mudanças para decidir". Com o app abaixo de 0.5.36 o --aplicar recusa (ele desfaria tudo).',
       ].join('\n'),
     )
   }
@@ -640,8 +722,9 @@ function principal() {
     console.log('\nNada a gravar.')
     return
   }
-  if (campanha !== null && !opcoes.apesarDoLobby) throw new Error('pasta ligada ao Lobby: o app desfaria estas mudanças ao abrir o mapa (ver o AVISO). Nada foi gravado.')
-  aplicar(pasta, textoDeAntes, antes, depois, previstos)
+  if (campanha !== null && !opcoes.ignorarVersaoDoApp) conferirVersaoDoApp()
+  const idsMudados = registros.filter((registro) => registro.mudancas.length > 0).map((registro) => registro.id)
+  aplicar(pasta, textoDeAntes, antes, depois, previstos, campanha, idsMudados)
 }
 
 try {
