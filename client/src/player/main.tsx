@@ -1842,6 +1842,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             estado={state.batalhaEstado}
             efeitos={state.batalhaEfeitos}
             meus={state.personagens?.personagens}
+            aliados={state.aliados}
             fichas={state.map.tokens}
             sistema={state.sistemaDeRpg ?? null}
             conexao={{

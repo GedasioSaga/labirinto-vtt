@@ -76,6 +76,13 @@ export interface BatalhaDoJogadorProps {
   efeitos: readonly EfeitoParaJogador[] | undefined
   /** Os personagens dele (`state.personagens`). */
   meus: readonly Personagem[] | undefined
+  /**
+   * Conserto das fichas F2b (bug 8): os personagens que o host manda com os
+   * aliados (`batalha.aliados`). Na vez da ficha emprestada (ou do NPC que ele
+   * controla), o personagem dela vem aqui, e o menu da vez é o dela inteiro.
+   * Ausente = só `meus`.
+   */
+  aliados?: readonly Personagem[]
   fichas: readonly FichaDoJogador[]
   sistema: SistemaDeRpg | null
   conexao: ConexaoDaBatalha
@@ -140,7 +147,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, recusa }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, recusa }: BatalhaDoJogadorProps) {
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)
@@ -174,7 +181,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const tokenQueAge = estado.minhaVez ? cartaDaVez?.tokenId : contras[0]?.tokenId
   const cartaQueAge = tokenQueAge === undefined ? undefined : (estado.minhaVez ? cartaDaVez : estado.cartas.find((carta) => carta.tokenId === tokenQueAge && carta.lado === 'eu'))
   const personagemId = cartaQueAge?.personagemId
-  const personagem = personagemId === undefined ? null : (meus.find((candidato) => candidato.id === personagemId) ?? null)
+  // F2b (bug 8): a carta da vez é "eu" (a tela dele); fora dos personagens dele, é a emprestada ou o NPC que ele controla (vem com os aliados).
+  const personagem = personagemId === undefined ? null : (meus.find((candidato) => candidato.id === personagemId) ?? aliados.find((candidato) => candidato.id === personagemId) ?? null)
   const meuCombate = personagemId === undefined ? undefined : estado.meus?.find((combate) => combate.personagemId === personagemId)
   const chave = estado.minhaVez && vez !== null ? chaveDaVez(estado.rodada, vez) : null
   const combate = useMemo(() => combateDoJogador(meuCombate, chave), [meuCombate, chave])

@@ -82,7 +82,7 @@ function mesaDaAna() {
     const turnos = loja.getState().cenas[CENA]?.turnos
     return turnos?.cartas.find((carta) => carta.id === turnos.vez)?.tokenId
   }
-  return { loja, host, ana, vez, tokenDaVez, doZe, daLia, doMarinheiro }
+  return { mesa, loja, host, ana, vez, tokenDaVez, doZe, daLia, doMarinheiro }
 }
 
 const ataque = (tokenId: string): PedidoDeAcao => ({ tipo: 'atacar', armaId: null, alvos: [{ tokenId, dano: 10 }], surpresa: false, perfurante: false })
@@ -94,6 +94,23 @@ describe('bug 8: vez da ficha emprestada', () => {
     const resposta = host.agir(ana, { type: 'batalha.agir', reqId: 'r1', vez: vez(), pedido: ataque(doMarinheiro) })
     expect(resposta.saidas.map((saida) => saida.msg)).toEqual([{ type: 'batalha.resultado', reqId: 'r1', ok: true }])
     expect(loja.getState().cenas[CENA]?.turnos.golpes?.[0]?.atacanteTokenId).toBe(daLia)
+  })
+
+  it('F2b: na vez da Lia, a ficha dela vai primeiro na lista dos aliados (o menu inteiro na tela da Ana); na vez do Zé, sai', () => {
+    const { mesa, host, ana, vez, tokenDaVez, daLia, doZe } = mesaDaAna()
+    // A Lia fica fora da equipe da Ana: sem a vez dela, não seria aliada (a lista só a leva pela vez).
+    const doZeNaFicha = [...ana.lugar?.meusPersonagens ?? []]
+    const fichas = () => ({ sistema: mesa.sistema(), personagens: mesa.personagens(), equipes: [{ id: 'eq_ana', nome: 'Da Ana', cor: '#336699', membros: doZeNaFicha }] })
+    const nomesDosAliados = (saidas: ReturnType<typeof host.sync>): string[] | null => {
+      const msg = saidas.find((saida) => saida.msg.type === 'batalha.aliados')?.msg
+      return msg?.type === 'batalha.aliados' ? msg.personagens.map((personagem) => personagem.nome) : null
+    }
+    expect(tokenDaVez()).toBe(daLia)
+    expect(nomesDosAliados(host.sync([ana], fichas()))?.[0]).toBe('Lia')
+    const daLiaAgora = vez()
+    expect(host.passar(ana, { type: 'batalha.passar', reqId: 'p1', cartaId: daLiaAgora.cartaId, rodada: daLiaAgora.rodada }).mudou).toBe(true)
+    expect(tokenDaVez()).toBe(doZe)
+    expect(nomesDosAliados(host.sync([ana], fichas()))).not.toContain('Lia')
   })
 })
 

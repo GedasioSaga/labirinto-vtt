@@ -101,6 +101,12 @@ export interface CombateDoPersonagem {
   /** Conserto das fichas F1: gastou SP desde o começo da última vez dele; a próxima vez não ganha os +10. Ausente = não gastou. */
   gastouSp?: true
   /**
+   * F2b (Aparência Inofensiva): os tokenIds que já levaram golpe dele nesta
+   * batalha (já o viram lutar: a Surpresa não vale mais neles). Só de quem
+   * tem o cartão (`contaQuemOViuLutar`). Ausente = ninguém.
+   */
+  viramLutar?: readonly string[]
+  /**
    * F2 (revisão da fatia D): os cartaoIds das técnicas MANTIDAS agora (Giro,
    * Campo; `mantidaDe` em `mecanicasAMao.ts`): sem recarga enquanto ficam
    * ligadas; o lembrete do custo sai no começo de cada vez. Ausente = nenhuma.
@@ -635,6 +641,12 @@ export interface NumeroDaForma {
 export interface FormaNaBatalha {
   cartaoId: string
   imagem: string | null
+  /**
+   * F2b (A Caçada Começa, `vezesDaForma`): as vezes do dono que faltam e a
+   * vez em que ligou ("rodada:cartaId", que não conta). No fim da última, a
+   * forma desliga sozinha. Ausente = dura até alguém desfazer.
+   */
+  duracao?: { faltam: number; ligouNa: string }
 }
 
 /**

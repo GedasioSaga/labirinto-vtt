@@ -6,6 +6,7 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type InvocacaoPendente, type InvocadoNaBatalha, type LembreteDaMarca, type SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { contarSelos } from './selos'
+import { fatorDaVelocidade } from './mecanicasAMao'
 
 /**
  * ORDEM DOS TURNOS DA BATALHA ONE PIECE (F1 de
@@ -234,6 +235,9 @@ export function novaCarta(tokenId: string, personagemId: string | null, nome?: s
  * A Agilidade que ordena: o total do atributo (`valorDoRank`). O sistema sem
  * a chave `agilidade` usa o atributo de NOME "Agilidade"; sem nenhum dos dois,
  * todo mundo vale 0 (e a ordem fica a da inclusão, com empate geral).
+ * F2b (Ignição): é a "Velocidade" da ficha; a forma ligada que a multiplica
+ * (`fatorDaVelocidade`, ×1,2) entra aqui, para baixo. Vale no Iniciar e no
+ * "Ordenar pela Agilidade"; a ordem não se mexe sozinha no meio da rodada.
  */
 export function agilidadeDe(personagem: Personagem, sistema: SistemaDeRpg | null): number {
   if (sistema === null) return 0
@@ -241,8 +245,8 @@ export function agilidadeDe(personagem: Personagem, sistema: SistemaDeRpg | null
     sistema.atributos.find((candidato) => candidato.id === 'agilidade') ??
     sistema.atributos.find((candidato) => candidato.nome.trim().toLocaleLowerCase('pt-BR') === 'agilidade')
   if (atributo === undefined) return 0
-  const valor = valorDoRank(personagem, atributo.id)
-  return Number.isFinite(valor) ? valor : 0
+  const valor = valorDoRank(personagem, atributo.id) * fatorDaVelocidade(personagem.cartoesAtivos)
+  return Number.isFinite(valor) ? Math.floor(valor) : 0
 }
 
 type TokenDaOrdem = Pick<Token, 'id' | 'characterId' | 'name' | 'hidden'>

@@ -153,10 +153,48 @@ Desfazer); 3 armas por batalha (já era). Provas: `client/src/lib/batalha/mecani
 - O golpe de oportunidade e os 30 de fogo de quem tenta sair da redoma: lembrete na pílula; o mestre aplica.
 - A arma padrão do Siegfried: a ficha não tem o campo; vale a 1ª arma levada (F0c).
 - Doença: "agiu" = andou, gastou ação (Simples, Completa, Bônus) ou atacou; Concentrar conta. A linha "Fim da vez" não
-  volta junto com o Desfazer da Vez nem roda no "Dar a vez" do mestre.
+  volta junto com o Desfazer da Vez (desde a F2b ela roda também no "Dar a vez" do mestre).
 - Chamas: o alvo ainda reage (esquivar o Debuff evita o selo). "Sem SP, reage com desvantagem" não foi feito.
-Ainda falta: o Imbuir Fogo do Siegfried (+10, vetado com a Ignição), a opção "Dado de reação" da Melodia (+1 no dado
-dele) e a duração da Pazada ("de 1 turno": o leitor de selo só entende "por N turnos"; hoje o Atordoado fica até tirar).
+Ainda falta: a opção "Dado de reação" da Melodia (+1 no dado dele). O Imbuir Fogo e a duração da Pazada saíram na F2b.
+
+### F2b. Lacunas da auditoria da F2 (fatia código, 08/11) — FEITA
+Tabela por cartaoId + funções gerais (seção 6 do construtor: sem `if` por nome, sem regex por ficha, sem extra de nome
+mágico, sem campo novo no pedido; tudo pelas `respostas`).
+- Imbuir Fogo do Siegfried: pergunta "Imbuir fogo? (+10 de dano)" na Balmung, CAÇA, Gilgamesh, Gram: Alvorada e Yamato
+  (os 5 com o extra "Imbuir Fogo: Sim"); o +10 soma no host por cima da fórmula da arma escolhida, em cada alvo (na Lua,
+  depois de dividir); vetado com a Ignição ligada, como no Vagn (`client/src/lib/batalha/mecanicasAMao.ts:405`
+  `FOGO_DO_SIEG`, `somaDasRespostas` :1214; `golpe.ts:502`).
+- Ignição (Vagn e Siegfried): Velocidade × 1,2, para baixo, na Agilidade que ordena (`mecanicasAMao.ts` `velocidade`,
+  `fatorDaVelocidade` :1220; `turnos.ts:248`). Vale no Iniciar e no "Ordenar pela Agilidade"; a ordem não se mexe sozinha
+  no meio da rodada (à mão de propósito: reordenar no meio tiraria a vez de quem já esperava).
+- A Caçada Começa: dura 5 vezes do Alexei DEPOIS da que ligou (`FormaNaBatalha.duracao`, `batalhaFabrica.ts:1484`); no
+  fim da 5ª desliga sozinha com o Cansaço do Overload (`fimDaVezDasMecanicas` :1189, `desligarAForma` :1300, a mesma
+  saída do Desligar). Ligada, todo golpe dele é Overload (`golpesSaoOverload`; `golpe.ts:486`; a mira mostra também,
+  `dadosDoMenu.ts`). Depende do F0c (cartão na aba Transformações): sem isso a forma não liga no app.
+- Pazada: Atordoado por 1 turno pela tabela (`mecanicasAMao.ts:632`), nunca "até tirar".
+- Aparência Inofensiva: pergunta de todo golpe do Alexei, "Sim" por padrão (o mestre desliga na mira); Surpresa (× 1,5,
+  sem reação) em cada alvo que ainda não o viu lutar nesta batalha (`CombateDoPersonagem.viramLutar`; `golpe.ts:520`).
+  Contra-ataque nunca é Surpresa; pedido sem a resposta (versão velha) também não.
+- Respostas de 08/11: a dança da Aira sobe +2 de CD por carga (o comentário de "número inventado" saiu); Proficiência em
+  Fruta do Vagn = 1, CD da fruta 10 + 1 + mod. de ESP sem carga e 11/14/acerta com carga (`CD_DA_FRUTA_DO_VAGN` :414),
+  ligada à Atração Relâmpago (disputa nova: Força do alvo contra a CD; perdeu = selo "Puxado pela Atração",
+  `condicoes.ts:89`) e ao lembrete do Campo de Contenção (com o número da CD); Projeção Letal pega todos numa linha reta
+  de 6 quadrados (`ALCANCE_DA_PROJECAO` :420).
+- Bug 8 (ficha emprestada / NPC controlado): na vez dela, o host manda o personagem dela primeiro na lista
+  `batalha.aliados` (`client/src/net/batalhaNoHost.ts:248` `fichaDaVezQueEleControla`) e a tela do jogador monta o menu
+  inteiro (`BatalhaDoJogador.tsx:185`, prop `aliados`; `player/main.tsx`). Sem mudar o protocolo.
+- Revisão barata: o "Dar a vez" do mestre roda o fim da vez das mecânicas (`batalhaFabrica.ts:2858`); a dica do Evoluir
+  diz que a técnica volta depois do Overload sem evoluir de novo (`dadosDoMenu.ts` `evolucaoNaTela`); o duelo já copiava
+  `pedido.respostas`.
+Provas: `client/src/lib/batalha/mecanicasAMao.f2b.test.ts`, `client/src/stores/batalhaFabrica.mecanicasF2b.test.ts` e o
+caso novo em `client/src/net/batalhaNoHost.recusa.test.ts`.
+À mão DE PROPÓSITO, com dono:
+- Projeção Letal: a mira marca as 4 linhas a partir do Vagn (a mira não sabe a direção); o mestre desmarca o lado errado.
+- Atração Relâmpago: mover o puxado é do mestre (lembrete na pílula); a Atração como reação também.
+- Campo de Contenção: o teste de quem se aproxima segue com o mestre, agora com o número da CD no lembrete.
+- A linha "Fim da vez" (Doença, Chamas, contagem da Caçada) não volta junto com o Desfazer da Vez.
+Ainda abertos (baixos da revisão): o Kit Médico não sai da mochila; a opção "Dado de reação" da Melodia; o duelo do
+treino recusa a Explosão com "precisaAlvo" (`lib/treino/duelo.ts:377`).
 
 ## F3. Recursos novos (decisão 08/11: feitos como PEÇAS DO CONSTRUTOR, fatias C6/C7/C1/C10 de docs/planos/construtor-de-mecanicas-2026-11-08.md)
 1. Tela do mestre ao transformar ou invocar com números livres (Sulong, super lobo).

@@ -18,7 +18,7 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
-import { chavesDoDono, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
+import { chavesDoDono, golpesSaoOverload, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { casaNaAreaVirada, type Casa } from '../../lib/batalha/area'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { subidaDeParte } from '../../lib/batalha/transformacao'
@@ -414,7 +414,7 @@ function comBonus(bonus: BonusDaBatalha | undefined): { bonus?: BonusDaBatalha }
  * apagada, use a outra). A técnica do "Evolui para" de outra: "Evoluída"
  * (apagada até a base evoluir: o motivo vem de `motivoDaTecnica`).
  */
-function evolucaoNaTela(cartao: CartaoDaFicha, todas: readonly CartaoDaFicha[], evoluidas: readonly string[] | undefined): EvolucaoNaTela | undefined {
+function evolucaoNaTela(cartao: CartaoDaFicha, todas: readonly CartaoDaFicha[], evoluidas: readonly string[] | undefined, overloadUsado = false): EvolucaoNaTela | undefined {
   const evolucao = evolucaoDe(cartao, todas)
   if (evolucao === null) {
     const [base] = basesDaEvolucao(cartao, todas)
@@ -430,6 +430,8 @@ function evolucaoNaTela(cartao: CartaoDaFicha, todas: readonly CartaoDaFicha[], 
     const vira = para !== null ? `vira ${para}` : evolucao.overload ? 'o efeito vira o da Evolução, como Overload' : 'o efeito vira o da Evolução'
     return { ...base, marca: 'Evolui', dica: `Evolui nesta batalha: ${vira}` }
   }
+  // F2b (revisão da fatia F, CAÇA AS BRUXAS!): depois da evoluída usada (Overload, 1 por batalha) a base volta; a dica não manda mais para ela.
+  if (para !== null && overloadUsado && mecanicaDoCartao(cartao.id)?.voltaDepoisDoOverload === true) return { ...base, marca: 'Evoluiu', dica: `${para} já foi usada (Overload, 1 por batalha): esta técnica volta, sem evoluir de novo` }
   if (para !== null) return { ...base, marca: 'Evoluiu', dica: `Evoluiu nesta batalha: use ${para}` }
   return { ...base, marca: 'Evoluída', dica: base.overload ? 'Evoluída nesta batalha: vale o efeito da Evolução, como Overload' : 'Evoluída nesta batalha: vale o efeito da Evolução' }
 }
@@ -486,7 +488,8 @@ function golpeDaTecnica(
     acaoTexto: textoDaAcao(tecnica.acao),
     tempoTexto: textoDoTempo(tecnica.tempo, combate, tecnica.cartao.id),
     dano,
-    overload: tecnica.overload,
+    // F2b (A Caçada Começa): com a forma ligada, todo golpe dele é Overload (a mira diz que o alvo não reage).
+    overload: tecnica.overload || golpesSaoOverload(personagem.cartoesAtivos),
     perfurante: tecnica.perfurante,
     perfuracao: tecnica.perfuracao ?? null,
     motivo: tecnica.motivo,
@@ -536,7 +539,7 @@ function golpeDaTecnica(
     }))
   }
   // Tipos de habilidade F4: a evolução nesta batalha e as opções "um ou outro".
-  const evolucao = evolucaoNaTela(tecnica.cartao, todas, combate?.evoluidas)
+  const evolucao = evolucaoNaTela(tecnica.cartao, todas, combate?.evoluidas, combate?.overload === true)
   if (evolucao !== undefined) golpe.evolucao = evolucao
   if (usoEvoluido(tecnica.cartao, todas, combate?.evoluidas)) {
     const efeito = efeitoNaBatalha(tecnica.cartao, todas, combate?.evoluidas)
@@ -669,7 +672,8 @@ export function golpesDeAtaque(
       // R6: o ataque adicional da forma ligada (Ignição) aparece como etiqueta do Atacar.
       tempoTexto: textoDoAtaqueExtra(acoes),
       dano,
-      overload: false,
+      // F2b (A Caçada Começa): com a forma ligada, os tiros dele são Overload (a mira diz que o alvo não reage).
+      overload: personagem !== null && golpesSaoOverload(personagem.cartoesAtivos),
       perfurante: false,
       // A arma que diz "perfura 50%" já traz o número, para quando ligarem o Perfurante.
       perfuracao: arma === null ? null : perfuracaoDe(arma),

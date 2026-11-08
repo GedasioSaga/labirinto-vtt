@@ -237,6 +237,21 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     return personagens.filter((personagem) => naOrdem.has(personagem.id)).slice(0, ALIADOS_MAX)
   }
 
+  /**
+   * Conserto das fichas F2b (bug 8; respostas de 08/11: a ficha emprestada
+   * "PODE AGIR COM O MENU INTEIRO"): na vez de uma ficha que a tela dele
+   * mostra como "sua vez" (`meusTokens`) mas que não é dele de verdade (a
+   * emprestada, o NPC que ele controla), o personagem dela vai na lista dos
+   * aliados, primeiro: a tela monta o menu dela inteiro (armas, técnicas,
+   * formas). Só na vez dela; fora dela, `null`.
+   */
+  const fichaDaVezQueEleControla = (cena: BatalhaEmTurnos, lugar: LugarNaBatalha, personagens: readonly Personagem[]): Personagem | null => {
+    const daVez = cartaDaVez(cena.turnos)
+    if (daVez === null || daVez.personagemId === null || daVez.bando !== undefined) return null
+    if (!lugar.meusTokens.has(daVez.tokenId) || lugar.meusPersonagens.has(daVez.personagemId)) return null
+    return personagens.find((personagem) => personagem.id === daVez.personagemId) ?? null
+  }
+
   const syncDe = (conexao: ConexaoNaBatalha, mesa: FichasDaMesa | undefined): SaidaDaBatalha[] => {
     const { clientId, lugar } = conexao
     const cena = lugar === null || deps.ponte === undefined ? null : deps.ponte.cena(lugar.sceneKey)
@@ -251,7 +266,9 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     const ctx = contextoDe(conexao, lugar, mesa)
     const saidas: SaidaDaBatalha[] = []
     // Os aliados ANTES do recorte: quando a faixa chega, a carta do aliado já acha o personagem dele.
-    const aliados = aliadosNaOrdem(cena, ctx.aliados, ctx.personagens)
+    const daVez = fichaDaVezQueEleControla(cena, lugar, ctx.personagens)
+    const naOrdem = aliadosNaOrdem(cena, ctx.aliados, ctx.personagens)
+    const aliados = daVez === null ? naOrdem : [daVez, ...naOrdem.filter((personagem) => personagem.id !== daVez.id)].slice(0, ALIADOS_MAX)
     const antes = aliadosEnviados.get(clientId)
     // Primeira vez sem aliado nenhum não manda a lista vazia: ausente, para o jogador, já é "nenhum".
     const mudaram = antes === undefined ? aliados.length > 0 : !mesmasReferencias(antes, aliados)

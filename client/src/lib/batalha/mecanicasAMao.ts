@@ -1,7 +1,7 @@
 import type { Personagem } from '../personagem'
 import type { AcaoDaTecnica, NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
 import { normalizar } from './formula'
-import type { ContraDaDisputa, QuemRola } from './disputa'
+import type { CdDaDisputa, ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
 import { motivoDasRespostas, type OpcaoDaPergunta, type PerguntaNaHora, type RespostasDoPedido } from './perguntaNaHora'
 
@@ -181,6 +181,11 @@ export interface MudancaDaResposta {
   selo?: SeloDoGolpe
   /** F2 (fatia D, Projeção Letal): o perfurante do golpe pela resposta (perfurante = direto no HP). */
   perfurante?: boolean
+  /**
+   * F2b (Imbuir Fogo do Siegfried): o dano que a resposta SOMA em cada alvo,
+   * por cima da fórmula (a da ficha ou a da arma escolhida), como o Electro.
+   */
+  soma?: number
 }
 
 /** F2 (fatia B): a parte do golpe que vem depois (Rapid Dash): uma fração do dano base do primeiro, com o próprio perfurante e a própria reação. */
@@ -240,6 +245,13 @@ export interface EmTodoGolpeAMao {
   soCorpoACorpo?: true
   /** F2 (fatia E, vantagem de Ogro): com a resposta `valor`, o alvo reage com desvantagem (2 d20, fica o menor). */
   desvantagemNoAlvo?: true
+  /**
+   * F2b (Aparência Inofensiva do Alexei): com a resposta `valor`, o golpe é
+   * Surpresa (×1,5, sem reação) em cada alvo que ainda não o viu lutar nesta
+   * batalha (`CombateDoPersonagem.viramLutar`). O `rotulo` só vai ao registro
+   * quando algum alvo levou a Surpresa.
+   */
+  surpresaEmQuemNaoViu?: true
 }
 
 export interface MecanicaAMao {
@@ -332,6 +344,20 @@ export interface MecanicaAMao {
   drenoNoFimDaVez?: DrenoNoFimDaVezAMao
   /** F2 (fatia F, Doença das Trevas): o dono perde esta porcentagem do HP máximo no fim da vez em que andou ou agiu. */
   perdeNoFimDaVez?: { hpPorcento: number }
+  /**
+   * F2b (Ignição): com a forma ligada, a Velocidade do dono vezes este fator
+   * (1,2), para baixo. O sistema não tem atributo "Velocidade": vale a
+   * Agilidade que ordena a vez (`agilidadeDe`, turnos.ts).
+   */
+  velocidade?: number
+  /**
+   * F2b (A Caçada Começa): a forma dura este número de vezes do dono DEPOIS da
+   * vez em que ligou e desliga sozinha no fim da última (com o cansaço do
+   * Overload, como no Desfazer).
+   */
+  duraVezesDoDono?: number
+  /** F2b (A Caçada Começa): com a forma ligada, todo golpe do dono é Overload (não dá para desviar; só outra Overload defende). */
+  golpesSaoOverload?: true
 }
 
 const ATORDOADO_1: SeloDoGolpe = { nome: 'Atordoado', turnos: 1, natureza: 'debuff' }
@@ -359,8 +385,41 @@ export const NOME_DA_BENCAO_DA_RAPOSA = 'Bênção de uma Raposa'
 const SELO_DA_BENCAO: SeloDasRespostasAMao = { nome: NOME_DA_BENCAO_DA_RAPOSA, natureza: 'buff', turnosDe: 'turnos', mod: { atributoDe: 'fisico', formula: 'Espírito * 0,2' } }
 /** F2 (revisão da fatia D): o selo de quem está no Campo de Contenção do Vagn; o comportamento (reage com desvantagem, o lembrete do teste) mora na tabela de selos (`condicoes.ts`). */
 export const NOME_DO_PRESO_NO_CAMPO = 'Preso no Campo de Contenção'
+/** F2b: o selo de quem falhou no teste da Atração Relâmpago; o lembrete (puxado até o Vagn, vulnerável) mora em `condicoes.ts`. */
+export const NOME_DO_PUXADO_PELA_ATRACAO = 'Puxado pela Atração'
 /** F2 (fatia D): o cartão da Ignição do Vagn (a forma que veta o fogo e cujos Usos contam os ataques adicionais). */
 const IGNICAO_DO_VAGN = 'cart_8ea9d2d5-f1ac-4d11-9a55-0feb66c75415'
+/** F2b: a Ignição do Siegfried (mesma regra da do Vagn: veta o fogo, 2 ataques adicionais por batalha, Velocidade ×1,2). */
+const IGNICAO_DO_SIEG = 'cart_d6374db1-54d6-4859-9938-1765e2684c38'
+/** F2b (Ignição, resposta do Vagn): "o atributo de velocidade vai receber o buff de 1.2x". */
+const FATOR_DA_IGNICAO = 1.2
+/** Imbuir Fogo (Controle do Fogo da raça): interruptor na mira, +10 de dano, sem custo (Vagn e Siegfried). */
+const PERGUNTA_DO_FOGO: PerguntaNaHora = { chave: 'fogo', texto: 'Imbuir fogo? (+10 de dano)', para: 'quemUsa', tipo: 'opcoes', opcoes: SIM_OU_NAO }
+/** F2b: o fogo do Siegfried soma por cima da fórmula (a arma que ele escolhe na mira muda a base; o +10 fica). */
+const FOGO_SOMA_10: MudancaDaResposta = { chave: 'fogo', valor: 'sim', soma: 10 }
+/** "apagado com a Ignição ligada": a Ignição tira o Controle do Fogo. */
+function fogoVetadoCom(formaId: string): RespostaVetadaAMao {
+  return { chave: 'fogo', valor: 'sim', formaId, motivo: 'Com a Ignição ligada não dá para imbuir fogo' }
+}
+/** F2b: as 5 técnicas do Siegfried com o extra "Embuir Fogo: Sim" na ficha real (CAÇA, Balmung, Gram, Gilgamesh, Yamato). */
+const FOGO_DO_SIEG = { perguntas: [PERGUNTA_DO_FOGO], respostasMudam: [FOGO_SOMA_10], respostaVetada: fogoVetadoCom(IGNICAO_DO_SIEG) } satisfies Partial<MecanicaAMao>
+/** Respostas de 08/11 (depois da F2): os Pontos de Proficiência em Fruta do Vagn. */
+const PROFICIENCIA_EM_FRUTA_DO_VAGN = 1
+/**
+ * A CD da fruta do Vagn (Mecânicas gerais da fruta): sem carga, 10 +
+ * Proficiência em Fruta (1) + mod. de ESP dele; com carga a tabela troca: 1 =
+ * CD 11, 2 = CD 14, 3 = acerta sem teste. O Campo de Contenção e a Atração
+ * Relâmpago usam esta mesma CD.
+ */
+const CD_DA_FRUTA_DO_VAGN: CdDaDisputa = {
+  tipo: 'porCarga',
+  semCarga: { tipo: 'formula', base: 10, mais: PROFICIENCIA_EM_FRUTA_DO_VAGN, atributoId: 'espirito' },
+  cargas: [11, 14, 'acerta'],
+}
+/** F2b (Projeção Letal, respostas de 08/11): a linha reta tem 6 casas. */
+const ALCANCE_DA_PROJECAO = 6
+/** F2b (A Caçada Começa): "5 turnos" = 5 vezes do Alexei depois da vez em que ativou. */
+const VEZES_DA_CACADA = 5
 /** Recuperação Espantosa (May; Guilherme segue a regra dela): o mestre decide quando e com quanto HP volta. */
 const AVISO_DA_RECUPERACAO = 'Recuperação Espantosa: caiu a 0. Mestre, decida em quantos turnos volta e com quanto HP (1 vez por batalha).'
 
@@ -473,23 +532,28 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
     },
   },
   // Vagn: a Ignição liga quantas vezes quiser; os "Usos 2" da ficha são os ataques adicionais da batalha inteira (trocar de forma não renova).
-  [IGNICAO_DO_VAGN]: { nome: 'Ignição (Vagn)', usosContamOAdicional: true },
+  // Ligada: Velocidade ×1,2 (a Agilidade que ordena a vez) e +2 casas (o deslocamento da ficha).
+  [IGNICAO_DO_VAGN]: { nome: 'Ignição (Vagn)', usosContamOAdicional: true, velocidade: FATOR_DA_IGNICAO },
   // Vagn: o Campo não dá dano nem espera reação (o "0" da ficha não é golpe; a Polaridade não soma nele). Os marcados (quem está no
-  // campo) ficam "Presos no Campo de Contenção": reagem com desvantagem (o app rola 2 d20) e a pílula lembra o teste. Fica ligado:
-  // 15 SP por vez (o "por turno" da ficha) e +1 de Concentração por vez mantida (até 3); usar não gasta a carga guardada.
-  // À mão até o F0c e a peça de área do construtor: a área 2 + polaridade (o jogador marca quem está dentro) e o teste pela CD da
-  // fruta de quem chega perto (falta a Proficiência em Fruta na ficha; o mestre rola).
+  // campo) ficam "Presos no Campo de Contenção": reagem com desvantagem (o app rola 2 d20) e a pílula lembra o teste pela CD da fruta
+  // (`CD_DA_FRUTA_DO_VAGN`: 11 + mod. de ESP; com carga 11 / 14 / acerta). Fica ligado: 15 SP por vez (o "por turno" da ficha) e +1
+  // de Concentração por vez mantida (até 3); usar não gasta a carga guardada.
+  // À mão até a peça de área do construtor: a área 2 + polaridade (o jogador marca quem está dentro) e o teste de quem CHEGA perto
+  // (o app não sabe quem entra na área; o mestre rola contra a CD que a pílula mostra).
   'cart_9de30283-6314-44ae-bfd3-a7539c0b17de': { nome: 'Campo de Contenção (Vagn)', dano: '-', selo: { nome: NOME_DO_PRESO_NO_CAMPO, turnos: null, natureza: 'debuff' }, mantida: { cargaPorVez: true } },
   // Siegfried: o alvo testa RES contra 12; falhou, Atordoado 1.
   'cart_3868a90d-a138-4fa0-a902-c30a7a53be7b': {
     nome: 'Gilgamesh: Entardecer (Siegfried)',
     disputa: { quando: 'acerto', testa: 'alvo', rola: { atributoId: 'resistencia' }, contra: { tipo: 'cd', cd: { tipo: 'fixa', cd: 12 } }, seQuemUsaVence: { selo: ATORDOADO_1 } },
+    ...FOGO_DO_SIEG,
   },
   // Vagn: o app pergunta "cortante ou perfurante?": cortante põe Sangramento 10 por 3 turnos (passa pelo Escudo); perfurante vai
-  // direto no HP. Acerta todos na linha reta: o jogador marca quem está nela (a ficha não diz o alcance da linha, então a mira não marca sozinha).
+  // direto no HP. Acerta TODOS na linha reta de 6 casas (respostas de 08/11): a mira marca sozinha quem está a até 6 casas em linha
+  // reta (a frente do Vagn não é conhecida: valem as 4 linhas; quem usa desmarca quem não está na linha escolhida).
   // Imbuir Fogo (Controle do Fogo da raça): interruptor na mira, +10 de dano, sem custo; com a Ignição ligada não vale.
   'cart_d50ef507-dd18-4566-8015-94910a12136e': {
     nome: 'Projeção Letal (Vagn)',
+    area: { forma: { tipo: 'linha', alcance: ALCANCE_DA_PROJECAO }, quem: 'todos' },
     perguntas: [
       {
         chave: 'corte',
@@ -501,15 +565,22 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
           { valor: 'perfurante', rotulo: 'Perfurante' },
         ],
       },
-      { chave: 'fogo', texto: 'Imbuir fogo? (+10 de dano)', para: 'quemUsa', tipo: 'opcoes', opcoes: SIM_OU_NAO },
+      PERGUNTA_DO_FOGO,
     ],
     respostasMudam: [
       { chave: 'corte', valor: 'cortante', perfurante: false, selo: { nome: 'Sangramento', turnos: 3, natureza: 'debuff' } },
       { chave: 'corte', valor: 'perfurante', perfurante: true },
-      // O Dano da ficha (Espírito + 20) mais os 10 do fogo.
+      // O Dano da ficha (Espírito + 20) mais os 10 do fogo (o Vagn não escolhe arma: a mira mostra a conta inteira).
       { chave: 'fogo', valor: 'sim', dano: 'Espírito + 20 + 10' },
     ],
-    respostaVetada: { chave: 'fogo', valor: 'sim', formaId: IGNICAO_DO_VAGN, motivo: 'Com a Ignição ligada não dá para imbuir fogo' },
+    respostaVetada: fogoVetadoCom(IGNICAO_DO_VAGN),
+  },
+  // Vagn (respostas de 08/11): como Ação Simples, o alvo testa FORÇA contra a CD da fruta (sem reação: o teste é a defesa); falhou,
+  // é puxado até o Vagn e fica vulnerável na próxima vez (o selo lembra o mestre de mover o alvo). Como reação: à mão (grilling).
+  'cart_f582a96f-06cc-471c-bc92-a591ce481f73': {
+    nome: 'Atração Relâmpago (Vagn)',
+    semReacao: true,
+    disputa: { quando: 'acerto', testa: 'alvo', rola: { atributoId: 'forca' }, contra: { tipo: 'cd', cd: CD_DA_FRUTA_DO_VAGN }, seQuemUsaVence: { selo: { nome: NOME_DO_PUXADO_PELA_ATRACAO, turnos: 1, natureza: 'debuff' } } },
   },
   // May, modo ataque: todos os INIMIGOS no 6x6 à frente dela, (Força + 100) × 2. Modo reação: rebate (o dano que chegou + Força dela) em quem atacou,
   // também quando o Overload cai em qualquer alvo no 6x6 à frente dela ("perto").
@@ -557,6 +628,34 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   'cart_76fe44e8-629e-4e7c-b524-a1bbc7a85dd8': { nome: 'Rapid Dash (Jimboy)', perfurante: false, segundoGolpe: { fracao: 0.5, perfurante: true } },
   // Jimboy: Overload (fórmula do campo Dano, 257); paralisa 2 turnos; ele perde 200 de HP sempre ("Técnica Incompleta").
   'cart_7062c767-f138-47c3-9676-5695400b23d4': { nome: 'Sai Dai Rin: Rokuogan (Jimboy)', selo: { nome: 'Paralisado', turnos: 2, natureza: 'debuff' }, custoEmHp: 200 },
+  // Harvey: a Pazada atordoa 1 turno ("stun/paralisia de 1 turno"; o Atordoado sai depois de 1 vez do alvo, nunca fica até tirar).
+  'cart_727db45b-e9a9-4510-9392-129c9dca7555': { nome: 'Pazada (Harvey)', selo: ATORDOADO_1 },
+  // Alexei: Surpresa (×1,5, sem reação) no 1º golpe dele em cada alvo que ainda não o viu lutar nesta batalha. O app faz sozinho; a mira
+  // traz "Sim" marcado e quem usa (ou o mestre, pelo NPC) desliga.
+  'cart_a27035d1-22ad-4c0c-9a0c-647ed50b01e6': {
+    nome: 'Aparência Inofensiva (Alexei)',
+    emTodoGolpe: {
+      pergunta: {
+        chave: 'inofensiva',
+        texto: 'Aparência Inofensiva: Surpresa em quem ainda não te viu lutar?',
+        para: 'quemUsa',
+        tipo: 'opcoes',
+        opcoes: [
+          { valor: 'sim', rotulo: 'Sim' },
+          { valor: 'nao', rotulo: 'Não' },
+        ],
+      },
+      valor: 'sim',
+      dano: 0,
+      custoEmSp: 0,
+      rotulo: 'Aparência Inofensiva',
+      surpresaEmQuemNaoViu: true,
+    },
+  },
+  // Alexei: Overload do tipo transformação: dura 5 vezes dele depois da vez em que ativou e desliga sozinha (com o cansaço do
+  // Overload); enquanto ligada, os tiros dele são Overload (não dá para desviar; só outra Overload defende). Os 2 ataques por vez
+  // vêm do campo "Ataques extras" da forma (F0c). Os lobos da Caçada são companion (construtor).
+  'cart_64453d92-4278-4aeb-afed-483ab4ed972c': { nome: 'A Caçada Começa (Alexei)', duraVezesDoDono: VEZES_DA_CACADA, golpesSaoOverload: true },
   // Harvey: os inimigos a 1 casa, marcados sozinhos (ele pode mudar a escolha). A Pá (+ Dano da Arma) já está no campo Dano (F0).
   'cart_9500ae10-0bdc-4f08-b472-edb73cb70685': { nome: 'Giro de Pá (Harvey)', area: { forma: { tipo: 'raio', casas: 1 }, quem: 'inimigos' } },
   // Harvey: "Para você: +8 em reação" por 2 turnos (os do Cego); o Cego do alvo zera a Percepção (tabela de selos). Terreno e alcance: o mestre confere.
@@ -577,8 +676,11 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   },
   // Siegfried: nas técnicas com "Dano da Arma" a mira pergunta qual das armas levadas ele usa (a 1ª levada vem marcada).
   [`${CHAVE_DA_FICHA}pers_f665c18d-a3fa-46dd-9a58-02a100920d60`]: { nome: 'Siegfried (qual arma)', perguntaAArma: true },
-  // Siegfried: a base dividida entre os marcados, para baixo, até 3 alvos.
-  'cart_366f98ce-8206-473a-8646-e34ae6907dbe': { nome: 'Balmung: Lua Incandescente (Siegfried)', divide: { teto: 3 } },
+  // Siegfried: a base dividida entre os marcados, para baixo, até 3 alvos. Com o fogo, os +10 entram em cada alvo depois da divisão.
+  'cart_366f98ce-8206-473a-8646-e34ae6907dbe': { nome: 'Balmung: Lua Incandescente (Siegfried)', divide: { teto: 3 }, ...FOGO_DO_SIEG },
+  // Siegfried: as técnicas com "Embuir Fogo: Sim" têm o interruptor do fogo (+10, sem custo; apagado com a Ignição ligada).
+  'cart_bce515c2-a102-4ee0-b0ac-748878dce49a': { nome: 'Gram: Alvorada (Siegfried)', ...FOGO_DO_SIEG },
+  'cart_2f920423-fe44-4c35-9c4a-905c905db921': { nome: 'Yamato: Julgamento: Crepúsculo (Siegfried)', ...FOGO_DO_SIEG },
   // Siegfried: "Melodia ligada" na opção do +20: +20 de dano em todo golpe dele contra o analisado (o selo dourado).
   [MELODIA_DO_SIEG]: { nome: 'Melodia de todas as coisas (Siegfried)', contraOSeloDaPassiva: { dano: 20 } },
   // Siegfried: evoluir pede a Melodia ligada na opção do +20; depois da SUPER (Overload, 1 por batalha) a CAÇA volta, sem evoluir de novo.
@@ -586,6 +688,7 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
     nome: 'CAÇA AS BRUXAS! (Siegfried)',
     evoluirPede: { cartaoId: MELODIA_DO_SIEG, motivo: 'Para evoluir, a Melodia tem de estar ligada na opção do +20 de dano' },
     voltaDepoisDoOverload: true,
+    ...FOGO_DO_SIEG,
   },
   // Siegfried: a Orquídea não dá dano; põe a redoma (Cego + Imobilizado) até o próximo golpe no alvo. Os 30 de fogo e o golpe de
   // oportunidade quando o preso tenta atacar ou sair: a pílula do selo lembra o mestre.
@@ -607,8 +710,8 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   },
   // Siegfried: a Doença das Trevas tira 3% do HP máximo (27) no fim da vez em que ele andou ou agiu.
   'cart_5e20dfc2-6aad-440c-a2f7-4b5c3b82b67b': { nome: 'Doença das Trevas (Siegfried)', perdeNoFimDaVez: { hpPorcento: 3 } },
-  // Siegfried: a Ignição segue a resposta do Vagn: os "2 por batalha" são os ataques adicionais, não as vezes que liga.
-  'cart_d6374db1-54d6-4859-9938-1765e2684c38': { nome: 'Ignição (Siegfried)', usosContamOAdicional: true },
+  // Siegfried: a Ignição segue a resposta do Vagn: os "2 por batalha" são os ataques adicionais, não as vezes que liga; Velocidade ×1,2.
+  [IGNICAO_DO_SIEG]: { nome: 'Ignição (Siegfried)', usosContamOAdicional: true, velocidade: FATOR_DA_IGNICAO },
   // Aira: o app pergunta quantos turnos e qual físico; o aliado marcado ganha 20% do Espírito dela nele (e cura 10% do dano que causa, pelo selo).
   // Com um aliado abençoado, o Atacar dela vira 3 golpes de +30% do Espírito, com Queimando 10 por 1 turno (renova a cada acerto).
   'cart_369efcd2-19cf-400d-a0f0-c19ceebc0070': {
@@ -617,8 +720,8 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
     seloDasRespostas: SELO_DA_BENCAO,
     ataqueBasico: { enquanto: NOME_DA_BENCAO_DA_RAPOSA, golpes: 3, soma: 'Espírito * 0,3', selo: { nome: 'Queimando', turnos: 1, natureza: 'debuff', porVez: 10 } },
   },
-  // Aira: sem reação; o alvo testa ESPÍRITO contra 12 + mod. de CAR dela. Cargas 1 e 2 sobem a CD (+2 cada: número da mesa, o mestre não deu),
-  // com 3 atordoa sem teste. Falhou: Atordoado 1.
+  // Aira: sem reação; o alvo testa ESPÍRITO contra 12 + mod. de CAR dela. Cada carga sobe a CD em +2 (respostas de 08/11: carga 1 +2,
+  // carga 2 +4); com 3 atordoa sem teste. Falhou: Atordoado 1.
   'cart_b49c9862-9fa4-48fb-9a6f-c39cffc919c4': {
     nome: 'Em Meio às Alegres Nuvens (Aira)',
     semReacao: true,
@@ -842,18 +945,38 @@ export function motivoDasRespostasDoGolpe(cartaoId: string | null, cartoesDoDono
 }
 
 /** F2 (fatia C): o que as respostas de todo golpe somam no dano e cobram em SP, e os rótulos para o registro ("eletricidade"). */
-export function extraDeTodoGolpe(cartoesDoDono: readonly string[], respostas: RespostasDoPedido | undefined): { dano: number; custoEmSp: number; rotulos: string[]; desvantagemNoAlvo: boolean } {
+export interface ExtraDeTodoGolpe {
+  dano: number
+  custoEmSp: number
+  rotulos: string[]
+  desvantagemNoAlvo: boolean
+  /** F2b (Aparência Inofensiva): o rótulo da Surpresa em quem não viu o dono lutar, com a resposta "Sim"; `null` = não vale. */
+  surpresaEmQuemNaoViu: string | null
+}
+
+export function extraDeTodoGolpe(cartoesDoDono: readonly string[], respostas: RespostasDoPedido | undefined): ExtraDeTodoGolpe {
   const rotulos: string[] = []
-  const extra = { dano: 0, custoEmSp: 0, rotulos, desvantagemNoAlvo: false }
+  const extra: ExtraDeTodoGolpe = { dano: 0, custoEmSp: 0, rotulos, desvantagemNoAlvo: false, surpresaEmQuemNaoViu: null }
   if (respostas === undefined) return extra
   for (const emTodo of emTodoGolpeDo(cartoesDoDono)) {
     if (respostas[emTodo.pergunta.chave] !== emTodo.valor) continue
     extra.dano += emTodo.dano
     extra.custoEmSp += emTodo.custoEmSp
-    extra.rotulos.push(emTodo.rotulo)
     if (emTodo.desvantagemNoAlvo === true) extra.desvantagemNoAlvo = true
+    // F2b (Aparência Inofensiva): o rótulo só vai ao registro se algum alvo levou a Surpresa (quem lança decide, `golpe.ts`).
+    if (emTodo.surpresaEmQuemNaoViu === true) extra.surpresaEmQuemNaoViu = emTodo.rotulo
+    else extra.rotulos.push(emTodo.rotulo)
   }
   return extra
+}
+
+/**
+ * F2b (Aparência Inofensiva): o dono tem cartão que faz Surpresa em quem não o
+ * viu lutar? Com ele, todo alvo dos golpes dele passa a tê-lo visto
+ * (`CombateDoPersonagem.viramLutar`), com a resposta "Sim" ou não.
+ */
+export function contaQuemOViuLutar(cartoesDoDono: readonly string[]): boolean {
+  return emTodoGolpeDo(cartoesDoDono).some((emTodo) => emTodo.surpresaEmQuemNaoViu === true)
 }
 
 /** F2 (fatia B): a disputa que o app rola depois do acerto (Corta Cenoura); `null` = nenhuma. */
@@ -1085,6 +1208,27 @@ export function custoPeloMaximo(cartaoId: string, maximos: Readonly<Record<strin
 /** F2 (fatia F): a porcentagem de um máximo, para baixo (3% de 900 = 27). */
 export function porcentoDoMaximo(maximo: number, porcento: number): number {
   return Math.max(0, Math.floor((maximo * porcento) / 100))
+}
+
+/** F2b (Imbuir Fogo do Siegfried): o que as respostas SOMAM no dano de cada alvo, por cima da fórmula; 0 = nada. */
+export function somaDasRespostas(cartaoId: string, respostas: RespostasDoPedido | undefined): number {
+  if (respostas === undefined) return 0
+  return (mecanicaDoCartao(cartaoId)?.respostasMudam ?? []).reduce((soma, regra) => (regra.soma !== undefined && respostas[regra.chave] === regra.valor ? soma + regra.soma : soma), 0)
+}
+
+/** F2b (Ignição): o fator da Velocidade pelas formas ligadas (`cartoesAtivos`); 1 = nenhuma muda. */
+export function fatorDaVelocidade(ativos: readonly string[]): number {
+  return ativos.reduce((fator, cartaoId) => fator * (mecanicaDoCartao(cartaoId)?.velocidade ?? 1), 1)
+}
+
+/** F2b (A Caçada Começa): quantas vezes do dono a forma dura depois da vez em que ligou; `null` = até alguém desfazer. */
+export function vezesDaForma(cartaoId: string): number | null {
+  return mecanicaDoCartao(cartaoId)?.duraVezesDoDono ?? null
+}
+
+/** F2b (A Caçada Começa): alguma forma ligada (`cartoesAtivos`) faz todo golpe do dono ser Overload. */
+export function golpesSaoOverload(ativos: readonly string[]): boolean {
+  return ativos.some((cartaoId) => mecanicaDoCartao(cartaoId)?.golpesSaoOverload === true)
 }
 
 /** F2 (fatia F, Doença das Trevas): a porcentagem do HP máximo que o dono perde no fim da vez em que agiu; `null` = nenhuma. */

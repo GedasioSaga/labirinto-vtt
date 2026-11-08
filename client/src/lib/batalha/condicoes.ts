@@ -76,13 +76,17 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Enraizado', sinal: /^enraizad/, lembrete: 'não anda: sai destruindo a planta, ou com técnica de movimento e d20 15 ou mais' },
   { nome: 'Preso pelo Imã-Gumelo', sinal: /^preso pelo ima/, lembrete: 'para se mover ou arremessar, d20 12 ou mais (senão fica no lugar)' },
   // Vagn (Campo de Contenção; o golpe põe nos marcados, e sai quando ele para de manter): "se alguém que foi pego no campo usar
-  // reação de algum golpe vai jogar com desvantagem". O teste para se aproximar ou atacar o Vagn é do mestre (falta a CD da fruta na ficha).
+  // reação de algum golpe vai jogar com desvantagem". O teste para se aproximar ou atacar o Vagn é do mestre (o app não sabe quem
+  // entra na área); a pílula diz a CD da fruta (respostas de 08/11: Proficiência em Fruta 1, `CD_DA_FRUTA_DO_VAGN` em mecanicasAMao.ts).
   {
     nome: 'Preso no Campo de Contenção',
     sinal: /^preso no campo/,
     reageComDesvantagem: true,
-    lembrete: 'reage com desvantagem (o app rola 2 d20); para se aproximar ou atacar o Vagn com metal, teste de Espírito contra a CD da fruta; de armadura, fica paralisado',
+    lembrete:
+      'reage com desvantagem (o app rola 2 d20); para se aproximar ou atacar o Vagn com metal, teste de Espírito contra a CD da fruta (11 + mod. de Espírito do Vagn; com carga: 11, 14, ou pega sem teste na 3ª); de armadura, fica paralisado',
   },
+  // Vagn (Atração Relâmpago): quem falhou no teste de Força é puxado até ele; o mestre move a ficha.
+  { nome: 'Puxado pela Atração', sinal: /^puxad[oa] pela atracao/, lembrete: 'puxado até o Vagn (o mestre move a ficha) e vulnerável a ataques até o fim da próxima vez dele' },
   // Siegfried (Orquídea): "Cego" (Percepção 0) e "Imobilizado" dentro da redoma, até o próximo golpe nele. Os 30 de fogo e o golpe de
   // oportunidade quando o preso tenta atacar ou sair: o mestre dá (a pílula lembra).
   {

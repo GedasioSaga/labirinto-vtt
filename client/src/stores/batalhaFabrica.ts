@@ -113,7 +113,7 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte, vezesDaForma } from '../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
 import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
@@ -1180,10 +1180,13 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
    *  - Doença das Trevas: o dono perde 3% do HP máximo (27) se andou ou agiu
    *    nesta vez (`gasto`);
    *  - Chamas Celestes: em quem tem o selo, −15 SP; no dono da técnica, +10 SP
-   *    e −3% do HP máximo dele.
-   * Nada a fazer: a cena fica como está.
+   *    e −3% do HP máximo dele;
+   *  - F2b (A Caçada Começa): a forma com duração conta esta vez do dono (a
+   *    vez em que ligou não conta) e, no fim da última, desliga sozinha, com o
+   *    cansaço do Overload.
+   * `rodada` = a da vez que acaba. Nada a fazer: a cena fica como está.
    */
-  const fimDaVezDasMecanicas = (sceneKey: string, saindo: CartaDaOrdem | null, gasto: GastoDaVez | undefined, autor: AutorDaAcao): void => {
+  const fimDaVezDasMecanicas = (sceneKey: string, saindo: CartaDaOrdem | null, gasto: GastoDaVez | undefined, rodada: number, autor: AutorDaAcao): void => {
     const cena = cenaDe(sceneKey)
     if (cena === undefined || saindo === null || saindo.personagemId === null) return
     const { personagens, sistema } = mesaDoRpg()
@@ -1237,13 +1240,37 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const noAlvo = tirou === 0 ? 'sem SP para tirar' : `${tirou} SP`
       textos.push(`${selo.nome} em ${nomeDe(saindo.personagemId)}: ${noAlvo}${dono === undefined || partesDoDono.length === 0 ? '' : `; ${dono.nome.trim() || 'o dono'} ${partesDoDono.join(', ')}`}`)
     }
-    if (partes.length === 0) return
     let novos = cena.turnos
+    const efeitos: EfeitoNovo[] = []
+    // F2b (A Caçada Começa): "5 turnos" = 5 vezes do dono DEPOIS da vez em que ligou (a da carta extra também conta).
+    const forma = novos.formas?.[saindo.personagemId]
+    const ligada = forma !== undefined && dona !== undefined && dona.cartoesAtivos.includes(forma.cartaoId)
+    if (forma?.duracao !== undefined && ligada && forma.duracao.ligouNa !== chaveDaVez(rodada, saindo.id)) {
+      const cartao = dona === undefined ? null : formaDaFicha(dona, sistema, forma.cartaoId)
+      const nomeDaForma = cartao?.nome.trim() || 'A forma'
+      const faltam = forma.duracao.faltam - 1
+      if (faltam > 0) {
+        partes.push({ tipo: 'forma', personagemId: saindo.personagemId, antes: forma })
+        novos = { ...novos, formas: { ...(novos.formas ?? {}), [saindo.personagemId]: { ...forma, duracao: { ...forma.duracao, faltam } } } }
+        textos.push(`${nomeDaForma}: ${faltam === 1 ? 'falta 1 vez' : `faltam ${faltam} vezes`}`)
+      } else {
+        const overload = cartao !== null && ehOverload(cartao)
+        const desligada = desligarAForma(saindo.personagemId, saindo.tokenId, forma.cartaoId, overload, novos, quem)
+        if (desligada !== null) {
+          partes.push(...desligada.partes)
+          novos = desligada.turnos
+          efeitos.push({ tipo: 'forma', tokenId: saindo.tokenId, forma: nomeDaForma, ligou: false })
+          textos.push(`${nomeDaForma} acabou${overload ? ': atributos pela metade até o fim da batalha (Cansaço do Overload)' : ''}`)
+        }
+      }
+    }
+    if (partes.length === 0) return
     const lembrados = lembrarDepoisDoDano(novos)
     partes.push(...partesDosLembretes(lembrados))
     novos = lembrados.turnos
     const atual = cenaDe(sceneKey) ?? cena
-    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'acao', texto: `Fim da vez: ${textos.join(' · ')}`, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } }))
+    const linha = comMudanca(atual, novos, { tipo: 'acao', texto: `Fim da vez: ${textos.join(' · ')}`, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
+    gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
     avisarQuemCaiu(sceneKey, autor)
   }
 
@@ -1261,6 +1288,35 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     if (personagem === undefined || sistema === null) return null
     const cansado = comOCansaco(turnos, tokenId, modsDoCansaco(personagem, sistema), novoIdDeSelo)
     return cansado === null ? null : { turnos: cansado.turnos, partes: cansado.selos.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: null })) }
+  }
+
+  /**
+   * Desliga a forma `cartaoId` do personagem: a ficha (`desfazerForma`), o
+   * cansaço da forma Overload (resposta do Alexei: o fim dela deixa os
+   * atributos base pela metade) e a imagem e o nome na carta (só se eram desta
+   * forma). O Desfazer da forma (ação livre) e o fim sozinho da forma com
+   * duração (F2b, A Caçada Começa) passam por aqui. `null` = a ficha recusou.
+   */
+  const desligarAForma = (personagemId: string, tokenId: string, cartaoId: string, overload: boolean, turnos: TurnosDaCena, quem: string): { turnos: TurnosDaCena; partes: Reversao[] } | null => {
+    const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, cartaoId, quem, Date.now()))
+    if (fichaMudou === null || fichaMudou === 'recusada') return null
+    const partes: Reversao[] = [...reversaoDaFicha(personagemId, fichaMudou)]
+    let novos = turnos
+    if (overload) {
+      const cansado = cansarNoOverload(personagemId, tokenId, novos)
+      if (cansado !== null) {
+        partes.push(...cansado.partes)
+        novos = cansado.turnos
+      }
+    }
+    const formaAntes = turnos.formas?.[personagemId] ?? null
+    if (formaAntes !== null && formaAntes.cartaoId === cartaoId) {
+      partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
+      const formas = { ...(novos.formas ?? {}) }
+      delete formas[personagemId]
+      novos = { ...novos, formas }
+    }
+    return { turnos: novos, partes }
   }
 
   /**
@@ -1423,6 +1479,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       partes.push(...reversaoDaFicha(personagemId, cartaoPrimeiro))
       const imagem = pedido.trocarImagem ? (cartao?.imagem ?? null) : null
       const forma: FormaNaBatalha = { cartaoId: pedido.cartaoId, imagem }
+      // F2b (A Caçada Começa): a forma com duração conta as vezes dele DEPOIS desta (`fimDaVezDasMecanicas` desliga no fim da última).
+      const vezes = vezesDaForma(pedido.cartaoId)
+      if (vezes !== null) forma.duracao = { faltam: vezes, ligouNa: chaveDaVez(turnos.rodada, carta.id) }
       partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
       novos = { ...novos, formas: { ...(novos.formas ?? {}), [personagemId]: forma } }
       const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: carta.tokenId, forma: nomeDaForma, imagem }
@@ -1431,24 +1490,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const comoAtiva = pedido.acao === 'livre' ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
       texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
     } else {
-      const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
-      if (fichaMudou === null || fichaMudou === 'recusada') return false
-      partes.push(...reversaoDaFicha(personagemId, fichaMudou))
-      // Conserto das fichas F1 (resposta do Alexei): o fim da forma Overload deixa os atributos base pela metade.
-      if (cartao !== null && ehOverload(cartao)) {
-        const cansado = cansarNoOverload(personagemId, carta.tokenId, novos)
-        if (cansado !== null) {
-          partes.push(...cansado.partes)
-          novos = cansado.turnos
-        }
-      }
-      // A imagem e o nome na carta saem junto (só se eram desta forma).
-      if (formaAntes !== null && formaAntes.cartaoId === pedido.cartaoId) {
-        partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
-        const formas = { ...(novos.formas ?? {}) }
-        delete formas[personagemId]
-        novos = { ...novos, formas }
-      }
+      const desligada = desligarAForma(personagemId, carta.tokenId, pedido.cartaoId, cartao !== null && ehOverload(cartao), novos, quem)
+      if (desligada === null) return false
+      partes.push(...desligada.partes)
+      novos = desligada.turnos
       efeitos.push({ tipo: 'forma', tokenId: carta.tokenId, forma: nomeDaForma, ligou: false })
       texto = `${quemAge} desfaz ${nomeDaForma} (ação livre)`
     }
@@ -2765,7 +2810,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const atual = cenaDe(sceneKey) ?? cena
       gravarCena(sceneKey, { ...comMudanca(atual, comLembretes, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(acabaram)) })
       // F2 (fatia F): a Doença das Trevas e as Chamas Celestes de quem saiu, numa linha própria (com Desfazer).
-      fimDaVezDasMecanicas(sceneKey, de, de === null ? undefined : turnos.gastos[de.id], autor)
+      fimDaVezDasMecanicas(sceneKey, de, de === null ? undefined : turnos.gastos[de.id], turnos.rodada, autor)
       return true
     },
 
@@ -2808,6 +2853,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
       const atual = cenaDe(sceneKey) ?? cena
       gravarCena(sceneKey, { ...comMudanca(atual, depois, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(acabaram)) })
+      // F2b (revisão da fatia F): o "Dar a vez" do mestre também acaba a vez de quem estava nela (Doença, Chamas, duração da forma).
+      const de = cartaDaVez(antes)
+      if (de !== null && de.id !== para?.id) fimDaVezDasMecanicas(sceneKey, de, antes.gastos[de.id], antes.rodada, MESTRE)
       return true
     },
 
