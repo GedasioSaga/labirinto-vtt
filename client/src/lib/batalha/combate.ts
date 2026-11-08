@@ -435,6 +435,8 @@ export interface AlvoDoGolpe {
   reducao?: number
   /** S4: quem tirou ("Resiliente", "Determinação", "Resiliente e Determinação"); ausente = a forma, como antes. */
   reducaoDe?: string
+  /** F2 (fatia B): a disputa que o app rolou no acerto (Corta Cenoura), já em texto para o registro: "disputa d20 15+1 = 16 contra d20 8+2 = 10, o selo pegou". */
+  disputa?: string
 }
 
 export interface GolpeDaBatalha {

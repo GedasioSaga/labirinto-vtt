@@ -22,6 +22,7 @@ import {
   chaveDaVez,
   combateVazio,
   DANO_MAX,
+  NOME_DO_GOLPE_MAX,
   PERFURACAO_MAX,
   type AcaoDaTecnica,
   type AlvoDoGolpe,
@@ -55,7 +56,7 @@ import {
   type LeituraDoCusto,
 } from './leituraDaFicha'
 import { leituraDaTecnica } from './leituraDaTecnica'
-import { motivoDasRespostasDoCartao } from './mecanicasAMao'
+import { mecanicaDoCartao, motivoDasRespostasDoCartao, rotulosDasRespostas, seloDaMecanica, semSeloPelaResposta, type MecanicaAMao } from './mecanicasAMao'
 import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
@@ -128,6 +129,13 @@ export interface GolpeLancado {
   acao: AcaoDaTecnica | null
   /** A carga que o golpe usou (0 = nenhuma). */
   cargaUsada: number
+  /**
+   * F2 (fatia B): a 2ª parte do golpe (Rapid Dash), com a própria linha, o
+   * próprio perfurante e a própria reação; só quando a store passa os ids dela.
+   * Os alvos já resolvidos dela vão em `resolvidosDoSegundo`.
+   */
+  segundo?: GolpeDaBatalha
+  resolvidosDoSegundo?: readonly AlvoDoGolpe[]
 }
 
 /** O que a sugestão do NPC precisa: a mesa inteira. */
@@ -359,7 +367,7 @@ function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carg
  * recarga, usos e Overload. O contra-ataque
  * (Q6) não gasta ação da vez e sai da lista.
  */
-export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { golpe: string; linha: string }): GolpeLancado {
+export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { golpe: string; linha: string; segundo?: { golpe: string; linha: string } }): GolpeLancado {
   const contra = contraDoPedido(ctx, pedido) ?? null
   const combate = combateDe(ctx)
   const gastoAtual = ctx.turnos.gastos[ctx.carta.id] ?? { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
@@ -383,6 +391,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   const overload = tecnica?.overload ?? false
   const alvos = alvosDoGolpe(ctx, pedido.alvos, combate.carga, pedido.surpresa, overload, reacaoDoTipo(tecnica?.tipo ?? null))
   const arma = armaDoPedido(ctx, pedido.armaId) ?? null
+  // F2 (fatia B): a mecânica à mão da técnica (`mecanicasAMao.ts`): o perfurante, o selo, as respostas, a 2ª parte, o HP que custa.
+  const mecanica = tecnica === null ? null : mecanicaDoCartao(tecnica.cartao.id)
+  const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
   const golpe: GolpeDaBatalha = {
     id: ids.golpe,
     linhaId: ids.linha,
@@ -394,7 +405,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
     nome: tecnica?.cartao.nome.trim() || arma?.nome.trim() || NOME_DO_ATAQUE,
     surpresa: pedido.surpresa,
     overload,
-    perfurante: pedido.perfurante,
+    perfurante: mecanica?.perfurante ?? pedido.perfurante,
     alvos,
   }
   // A porcentagem só vai quando é parcial: 100 é o Perfurante de sempre (golpe sem o campo).
@@ -407,6 +418,12 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   // Com a marca, o selo não vai: a mira de antes (ou de um jogador sem a versão nova) mandava o do Tipo Debuff, e o alvo ficava marcado duas vezes.
   const selo = pedido.selo === undefined || golpe.marca !== undefined ? null : seloPedidoValido(pedido.selo, sistema)
   if (selo !== null) golpe.selo = tecnica === null ? selo : seloDaTecnicaNoGolpe(selo, tecnica)
+  // F2 (fatia B): o selo da tabela vence o da mira (leitura de texto); a técnica de selo só por resposta sai sem ele quando a resposta não pede.
+  if (tecnica !== null && golpe.marca === undefined) {
+    const daMecanica = seloDaMecanica(tecnica.cartao.id, respostas)
+    if (daMecanica !== null) golpe.selo = seloDaTecnicaNoGolpe(daMecanica, tecnica)
+    else if (semSeloPelaResposta(tecnica.cartao.id, respostas)) delete golpe.selo
+  }
   const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
   // R1: a arma que atira (o acerto lembra a passiva de marca).
@@ -414,7 +431,9 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   // Tipos de habilidade F4: a opção escolhida e o uso evoluído vão para o registro ("Medicina (Cirugia)").
   if (tecnica !== null && pedido.tipo === 'habilidade') {
     const variante = pedido.variante === undefined ? null : varianteDoPedido(tecnica.cartao, pedido.variante)
-    if (variante !== null) golpe.variante = variante.rotulo
+    // F2 (fatia B): as respostas de opção também vão ao registro ("Grande Chifre (3 quadrados, Bateu na parede? Sim)").
+    const marcas = [variante?.rotulo ?? null, ...rotulosDasRespostas(tecnica.cartao.id, pedido.respostas)].filter((marca): marca is string => marca !== null)
+    if (marcas.length > 0) golpe.variante = marcas.join(', ').slice(0, NOME_DO_GOLPE_MAX)
     if (tecnica.evoluida) golpe.evoluida = true
   }
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
@@ -424,16 +443,31 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   const extra = naVez !== null && usaOAtaqueExtra(naVez)
   if (extra) combateNovo = comAtaqueExtra(combateNovo, ctx.turnos.rodada)
   const gasto = contra !== null || acao === null || extra ? null : gastarAcao(gastoAtual, acao)
-  return {
+  const custo = tecnica === null || personagem === null || sistema === null ? [] : [...ajustesDoCusto(personagem, sistema, tecnica.custo), ...ajustesDoHpQueCusta(personagem, sistema, mecanica)]
+  const lancado: GolpeLancado = {
     golpe,
     resolvidos: alvos.filter((alvo) => alvo.danoFinal !== undefined),
     gasto: gasto !== null && pedido.tipo === 'atacar' ? { ...gasto, atacou: true } : gasto,
     combate: ctx.carta.personagemId === null || combateNovo === combate ? null : combateNovo,
-    custo: tecnica === null || personagem === null || sistema === null ? [] : ajustesDoCusto(personagem, sistema, tecnica.custo),
+    custo,
     contraUsado: contra,
     acao: contra !== null ? null : acao,
     cargaUsada: combate.carga,
   }
+  const parte = mecanica?.segundoGolpe
+  if (parte === undefined || ids.segundo === undefined) return lancado
+  // F2 (fatia B, Rapid Dash): a 2ª parte é outro golpe nos mesmos alvos, com a fração do dano base, o perfurante dela e outra reação.
+  const alvosDaParte = pedido.alvos.map((alvo): PedidoDeAlvo => ({ ...alvo, dano: alvo.dano === null ? null : Math.floor(alvo.dano * parte.fracao) }))
+  const segundos = alvosDoGolpe(ctx, alvosDaParte, combate.carga, pedido.surpresa, overload, reacaoDoTipo(tecnica?.tipo ?? null))
+  const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, ...semExtras } = golpe
+  const segundo: GolpeDaBatalha = { ...semExtras, id: ids.segundo.golpe, linhaId: ids.segundo.linha, nome: `${golpe.nome} (2º golpe)`.slice(0, NOME_DO_GOLPE_MAX), perfurante: parte.perfurante, alvos: segundos }
+  return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }
+}
+
+/** F2 (fatia B): o HP que a técnica custa sempre (Sai Dai Rin: 200), pelo mesmo ajuste do custo. Sem mecânica: nada. */
+function ajustesDoHpQueCusta(personagem: Personagem, sistema: SistemaDeRpg, mecanica: MecanicaAMao | null): Ajuste[] {
+  const valor = mecanica?.custoEmHp
+  return valor === undefined ? [] : ajustesDoCusto(personagem, sistema, { tipo: 'valor', recurso: 'hp', valor, porTurno: false })
 }
 
 /** A bala como o golpe a guarda: o efeito cortado para caber no registro, e só quando há. */
@@ -626,6 +660,7 @@ function textoDoAlvo(alvo: AlvoDoGolpe): string {
   if (alvo.semDano === true) pedacos.push('passou sem dano')
   else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.reducao === undefined ? '' : ` (${alvo.reducaoDe ?? 'forma'} −${alvo.reducao}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
+  if (alvo.disputa !== undefined) pedacos.push(alvo.disputa)
   return pedacos.join(' · ')
 }
 

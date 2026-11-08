@@ -10,8 +10,10 @@ import {
   type AcaoDaTecnica,
   type PedidoDeAcao,
   type PedidoDeAlvo,
+  type SeloDoGolpe,
   type SeloPedido,
 } from '../../lib/batalha/combate'
+import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
 import { divisaoDoDano } from '../../lib/batalha/reacao'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
@@ -84,6 +86,29 @@ export interface EscolhaDaMira {
   balaId?: string
   /** Tipos de habilidade F4: a chave da opção escolhida nos chips; ausente = a técnica não tem escolha. */
   variante?: string
+  /** F2 (fatia B): as respostas das perguntas na hora; ausente = a técnica não pergunta. */
+  respostas?: RespostasDoPedido
+}
+
+/** F2 (fatia B): a resposta de cada pergunta ao abrir: a 1ª opção, ou o mínimo do número. */
+function respostasAoAbrir(perguntas: readonly PerguntaNaHora[] | undefined): Readonly<Record<string, string | number>> {
+  const respostas: Record<string, string | number> = {}
+  for (const pergunta of perguntas ?? []) {
+    const padrao = pergunta.tipo === 'opcoes' ? pergunta.opcoes[0]?.valor : pergunta.minimo
+    if (padrao !== undefined) respostas[pergunta.chave] = padrao
+  }
+  return respostas
+}
+
+/** F2 (fatia B): o dano e o selo que as respostas pedem (a última mudança que casa vence); `undefined` = nenhuma resposta muda aquilo. */
+function mudancaNaMira(golpe: GolpeNaTela, respostas: Readonly<Record<string, string | number>>): { dano?: DanoNaTela; selo?: SeloDoGolpe | null } {
+  const regras = golpe.respostasMudam ?? []
+  const casam = regras.filter((regra) => respostas[regra.chave] === regra.valor)
+  const mudanca: { dano?: DanoNaTela; selo?: SeloDoGolpe | null } = {}
+  for (const regra of casam) if (regra.dano !== null) mudanca.dano = regra.dano
+  // Só quando a técnica tem selo por resposta: sem a resposta que pede, o golpe sai sem selo.
+  if (regras.some((regra) => regra.selo !== null)) mudanca.selo = casam.reduce<SeloDoGolpe | null>((selo, regra) => regra.selo ?? selo, null)
+  return mudanca
 }
 
 /** O pedido de um golpe da mira (o mesmo no menu do jogador e no painel do NPC). */
@@ -108,6 +133,7 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
     acao: escolha.acao,
     ...selo,
     ...(escolha.variante === undefined ? {} : { variante: escolha.variante }),
+    ...(escolha.respostas === undefined ? {} : { respostas: escolha.respostas }),
   }
 }
 
@@ -211,9 +237,12 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const opcoes = golpe.opcoes
   const [opcaoChave, setOpcaoChave] = useState<string | null>(opcoes?.[0]?.chave ?? null)
   const opcao = opcoes?.find((candidata) => candidata.chave === opcaoChave) ?? null
-  const danoDaOpcao = opcao?.dano ?? golpe.dano
+  // F2 (fatia B): as perguntas na hora (ponto vital, quadrados empurrados): a resposta troca o dano e o selo sugeridos.
+  const [respostas, setRespostas] = useState(() => respostasAoAbrir(golpe.perguntas))
+  const mudanca = mudancaNaMira(golpe, respostas)
+  const danoDaOpcao = opcao?.dano ?? mudanca.dano ?? golpe.dano
   // F3: o selo sugerido começa marcado; desmarcar tira do golpe.
-  const sugerido = opcao?.selo ?? golpe.selo ?? null
+  const sugerido = opcao?.selo ?? (mudanca.selo === undefined ? golpe.selo : mudanca.selo) ?? null
   const [comSelo, setComSelo] = useState(sugerido !== null)
   const [seloNome, setSeloNome] = useState(sugerido?.nome ?? '')
   const [seloTurnos, setSeloTurnos] = useState(sugerido?.turnos === null || sugerido === null ? '' : String(sugerido.turnos))
@@ -328,6 +357,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       selo,
       ...(balaEscolhida === null ? {} : { balaId: balaEscolhida.id }),
       ...(opcao === null ? {} : { variante: opcao.chave }),
+      ...(golpe.perguntas === undefined ? {} : { respostas }),
     })
     if (!saiu) setErro('O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
   }
@@ -370,6 +400,29 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     setLinhasDoSelo(linhasDosMods(selo?.mods))
   }
 
+  /**
+   * F2 (fatia B): responder a pergunta refaz o Dano base (o da resposta, ou o
+   * da técnica) e, na técnica com selo por resposta, o selo (marcado de novo);
+   * os danos editados por alvo voltam à conta.
+   */
+  const responder = (chave: string, valor: string | number) => {
+    if (respostas[chave] === valor) return
+    const novas = { ...respostas, [chave]: valor }
+    const depois = mudancaNaMira(golpe, novas)
+    const dano = opcao?.dano ?? depois.dano ?? golpe.dano
+    setErro(null)
+    setRespostas(novas)
+    setBalaId(null)
+    setBaseTexto(dano.valor === null ? '' : String(dano.valor))
+    setEditados({})
+    if (depois.selo !== undefined) {
+      setComSelo(depois.selo !== null)
+      setSeloNome(depois.selo?.nome ?? '')
+      setSeloTurnos(depois.selo === null || depois.selo.turnos === null ? '' : String(depois.selo.turnos))
+      setLinhasDoSelo(linhasDosMods(depois.selo?.mods))
+    }
+  }
+
   /** Trocar a bala refaz a conta: o Dano base vira o da bala, e os danos editados por alvo voltam à conta. */
   const escolherBala = (id: string | null) => {
     const dano = id === null ? danoDaOpcao : (balas.find((bala) => bala.id === id)?.dano ?? danoDaOpcao)
@@ -397,6 +450,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
           </p>
         )}
         {opcoes !== undefined && <ChipsDaOpcao idBase={idBase} opcoes={opcoes} escolhida={opcao} onEscolher={escolherOpcao} />}
+        {golpe.perguntas?.map((pergunta) => <PerguntaDaMira key={pergunta.chave} idBase={idBase} pergunta={pergunta} resposta={respostas[pergunta.chave]} onResponder={responder} />)}
         {balas.length > 0 && (
           <fieldset className="bt-mira__balas">
             <legend>{golpe.tipo === 'habilidade' ? 'Bala · entra no "Dano da Bala" da técnica' : 'Bala · a conta do dano muda com ela'}</legend>
@@ -720,6 +774,45 @@ export function ChipsDaOpcao({ idBase, opcoes, escolhida, onEscolher }: { idBase
           {texto}
         </p>
       )}
+    </fieldset>
+  )
+}
+
+/**
+ * F2 (fatia B): uma pergunta na hora da técnica ("Acertou ponto vital?"):
+ * opções em chips de rádio, como os do "um ou outro" (setas trocam); número
+ * num campo com o mínimo e o máximo da pergunta.
+ */
+function PerguntaDaMira({ idBase, pergunta, resposta, onResponder }: { idBase: string; pergunta: PerguntaNaHora; resposta: string | number | undefined; onResponder: (chave: string, valor: string | number) => void }) {
+  if (pergunta.tipo === 'numero') {
+    return (
+      <label className="bt-escolha">
+        <span>{pergunta.texto}</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={pergunta.minimo}
+          max={pergunta.maximo}
+          value={typeof resposta === 'number' ? resposta : pergunta.minimo}
+          onChange={(evento) => {
+            const numero = Number.parseInt(evento.target.value, 10)
+            if (Number.isInteger(numero) && numero >= pergunta.minimo && numero <= pergunta.maximo) onResponder(pergunta.chave, numero)
+          }}
+        />
+      </label>
+    )
+  }
+  return (
+    <fieldset className="bt-escolha">
+      <legend>{pergunta.texto}</legend>
+      <div className="bt-escolha__chips">
+        {pergunta.opcoes.map((opcao) => (
+          <label key={opcao.valor} className="bt-escolha__chip">
+            <input type="radio" className="bt-sr" name={`${idBase}-pergunta-${pergunta.chave}`} checked={resposta === opcao.valor} onChange={() => onResponder(pergunta.chave, opcao.valor)} />
+            {opcao.rotulo}
+          </label>
+        ))}
+      </div>
     </fieldset>
   )
 }

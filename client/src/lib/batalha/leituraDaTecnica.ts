@@ -4,6 +4,8 @@ import { overloadNaBatalha } from './escolhaEEvolucao'
 import { CAMPO_DO_DANO, lerDano, type ContextoDaFormula, type LeituraDoDano } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, lerAcao, lerCusto, lerTempo, tecnicasDe, type LeituraDaAcao, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
+import { formulaDaMecanica } from './mecanicasAMao'
+import type { RespostasDoPedido } from './perguntaNaHora'
 
 /**
  * A LEITURA DA TÉCNICA numa função só (conserto das fichas F2, fatia A; seção
@@ -65,6 +67,8 @@ export function leituraDaTecnica(cartao: CartaoDaFicha, ctx: ContextoDaLeitura):
  * O dano do cartão sem a vida do alvo (o menu e a Saúde não sabem o alvo; a
  * mira relê com ele), com a arma e o bônus dos selos de quem usa.
  */
-export function danoDaTecnica(cartao: Pick<CartaoDaFicha, 'campos'>, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>): LeituraDoDano {
-  return lerDano(cartao.campos[CAMPO_DO_DANO] ?? '', { ...ctx, vidaDoAlvo: null })
+export function danoDaTecnica(cartao: Pick<CartaoDaFicha, 'campos'> & { id?: string }, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>, respostas?: RespostasDoPedido): LeituraDoDano {
+  // F2 (fatia B): a fórmula da mecânica à mão (com o que as respostas mudam) vence o campo Dano.
+  const daMecanica = cartao.id === undefined ? null : formulaDaMecanica(cartao.id, respostas)
+  return lerDano(daMecanica ?? cartao.campos[CAMPO_DO_DANO] ?? '', { ...ctx, vidaDoAlvo: null })
 }

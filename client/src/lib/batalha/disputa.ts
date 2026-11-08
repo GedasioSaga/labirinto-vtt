@@ -2,6 +2,7 @@ import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { BonusDaBatalha, VantagemDoDado, VantagemNaRolagem } from './combate'
 import { modificadorDoTeste } from './marca'
+import { textoDaRolagem } from './golpe'
 import { rolarComVantagem } from './reacao'
 
 /**
@@ -106,4 +107,23 @@ export function rolarDisputa(
   const rolagem = rolar(fichas.testa, sistema, disputa.rola, rolarD20)
   const contra = rolar(fichas.resiste, sistema, disputa.contra.quem, rolarD20)
   return { tipo: 'rolagem', passou: rolagem.total > contra.total, rolagem, contra }
+}
+
+function textoDaRolagemDaDisputa(rolagem: RolagemDaDisputa): string {
+  return textoDaRolagem(rolagem.d20, rolagem.modificador, rolagem.total, rolagem.vantagem)
+}
+
+/**
+ * F2 (fatia B): a disputa em texto para o registro: "disputa d20 15+1 = 16
+ * contra d20 8+2 = 10", "teste d20 9+1 = 10 contra CD 12", "passou sem teste".
+ */
+export function textoDaDisputa(resultado: ResultadoDaDisputa): string {
+  switch (resultado.tipo) {
+    case 'automatico':
+      return 'passou sem teste'
+    case 'cd':
+      return `teste ${textoDaRolagemDaDisputa(resultado.rolagem)} contra CD ${resultado.cd}`
+    case 'rolagem':
+      return `disputa ${textoDaRolagemDaDisputa(resultado.rolagem)} contra ${textoDaRolagemDaDisputa(resultado.contra)}`
+  }
 }

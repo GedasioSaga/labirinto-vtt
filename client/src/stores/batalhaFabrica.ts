@@ -109,6 +109,9 @@ import {
   textoDoGolpe,
   type ContextoDoGolpe,
 } from '../lib/batalha/golpe'
+import { rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
+import { lerDano } from '../lib/batalha/formula'
+import { avisoAoCairDe, disputaNoAcerto, mecanicaDoCartao } from '../lib/batalha/mecanicasAMao'
 import {
   ajustesDoPorTurno,
   chaveDoGatilho,
@@ -1167,6 +1170,61 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   }
 
   /**
+   * F2 (fatia B): o selo do golpe no alvo acertado, com a disputa da mecânica
+   * à mão (Corta Cenoura: d20 + FOR com vantagem contra d20 + RES do alvo): o
+   * app rola e o selo só pega se quem usou vencer. O resultado vai no alvo
+   * (`disputa`) para a linha do golpe. Sem disputa: o selo de sempre.
+   */
+  const seloNoAcerto = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selado: ReturnType<typeof seloDoGolpe>; alvo: AlvoDoGolpe } => {
+    const cartaoId = golpe.selo?.cartaoId
+    const disputa = cartaoId === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida) ? null : disputaNoAcerto(cartaoId)
+    const { personagens, sistema } = mesaDoRpg()
+    const usa = personagens.find((candidato) => candidato.id === golpe.atacantePersonagemId)
+    const resiste = personagens.find((candidato) => candidato.id === alvo.personagemId)
+    if (disputa === null || usa === undefined || resiste === undefined || sistema === null) return { selado: seloDoGolpe(turnos, golpe, alvo), alvo }
+    const deQuemUsa = { personagem: usa, bonus: bonusDaBatalha(turnos.selos, golpe.atacanteTokenId) }
+    const doAlvo = { personagem: resiste, bonus: bonusDaBatalha(turnos.selos, alvo.tokenId) }
+    const quemUsaTesta = disputa.testa === 'quemUsa'
+    const resultado = rolarDisputa(disputa, { testa: quemUsaTesta ? deQuemUsa : doAlvo, usa: deQuemUsa, resiste: quemUsaTesta ? doAlvo : deQuemUsa }, sistema, 0, deps.rolarD20)
+    // Quando o alvo testa, quem usa vence se o alvo NÃO passou.
+    const venceu = quemUsaTesta === resultado.passou
+    const comTexto: AlvoDoGolpe = { ...alvo, disputa: `${textoDaDisputa(resultado)}, ${venceu ? 'o selo pegou' : 'o selo não pegou'}` }
+    return { selado: venceu ? seloDoGolpe(turnos, golpe, alvo) : null, alvo: comTexto }
+  }
+
+  /**
+   * F2 (fatia B): o aviso ao mestre de quem caiu a 0 com cartão que avisa
+   * (Recuperação Espantosa: o mestre decide quando e com quanto HP volta), uma
+   * vez por batalha (chave em `lembradas`). Linha própria "acao", cujo
+   * Desfazer tira a chave. Nada a avisar: a cena fica como está.
+   */
+  const avisarQuemCaiu = (sceneKey: string, autor: AutorDaAcao): void => {
+    const cena = cenaDe(sceneKey)
+    const { personagens, sistema } = mesaDoRpg()
+    const recurso = sistema === null ? null : recursoDeVida(sistema)
+    if (cena === undefined || recurso === null) return
+    let novos = cena.turnos
+    const partes: Reversao[] = []
+    const textos: string[] = []
+    const ids = new Set(cena.turnos.cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])))
+    for (const personagemId of ids) {
+      const personagem = personagens.find((candidato) => candidato.id === personagemId)
+      const vida = personagem === undefined ? null : vidaDoPersonagem(personagem, recurso)
+      if (personagem === undefined || vida === null || vida.atual > 0) continue
+      const aviso = avisoAoCairDe(Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id)))
+      const chave = aviso === null ? null : `${aviso.cartaoId}:caiu`
+      const antes = novos.combate?.[personagemId]
+      if (aviso === null || chave === null || (antes?.lembradas ?? []).includes(chave)) continue
+      const depois: CombateDoPersonagem = { ...(antes ?? combateVazio()), lembradas: [...(antes?.lembradas ?? []), chave] }
+      partes.push({ tipo: 'combate', personagemId, antes: antes ?? null, depois })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
+      textos.push(`${personagem.nome.trim() || 'A ficha'}: ${aviso.texto}`)
+    }
+    if (textos.length === 0) return
+    gravarCena(sceneKey, comMudanca(cena, novos, { tipo: 'acao', texto: textos.join(' · '), autor, reversao: { tipo: 'composta', partes } }))
+  }
+
+  /**
    * F3 (fatia T): Ativar a forma (gasta a ação escolhida, liga o cartão, o
    * atual ganha a diferença do máximo, Q1) ou Desfazer a forma (ação livre).
    * Só na vez da carta. A ficha muda pela aventura; a linha "transformacao"
@@ -1699,7 +1757,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const { mudancas } = pedido
     if (personagemId === undefined || personagemId === null || sistema === null || mudancas.length === 0 || mudancas.length > MUDANCAS_DO_AJUSTE_MAX) return false
     if (!mudancas.every((mudanca) => mudancaValida(sistema, mudanca))) return false
-    const naFicha = mudancas.filter((mudanca) => mudanca.tipo !== 'atributo')
+    // F2 (fatia B, resposta da Saga): Atual e Máximo juntos valem o digitado (1300/1300): o Máximo entra antes, para o Atual não parar no máximo de antes.
+    const naFicha = mudancas.filter((mudanca) => mudanca.tipo !== 'atributo').sort((a, b) => Number(b.tipo === 'maximo') - Number(a.tipo === 'maximo'))
     const partes: Reversao[] = []
     if (naFicha.length > 0) {
       const ajustes = (atual: Personagem): Ajuste[] =>
@@ -1878,6 +1937,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       }
     }
     const { alvo: depois } = feita
+    let golpeFeito = feita.golpe
+    let textoDoRebate = ''
     if (depois.rolagem !== undefined && depois.danoFinal === undefined) {
       efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: depois.tokenId, d20: depois.rolagem.d20, modificador: depois.rolagem.modificador, total: depois.rolagem.total })
     } else {
@@ -1889,14 +1950,35 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       }
       partes.push(...dano.partes)
       if (dano.efeito !== null) efeitos.push(dano.efeito)
-      // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo (Metade, Receber).
-      const selado = seloDoGolpe(novos, golpe, depois)
+      // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo (Metade, Receber). F2 (fatia B): com a disputa da mecânica à mão.
+      const noAcerto = seloNoAcerto(novos, golpe, depois)
+      if (noAcerto.alvo !== depois) {
+        golpeFeito = golpeComOAlvo(golpeFeito, noAcerto.alvo)
+        novos = { ...novos, golpes: comGolpe(turnos.golpes, golpeFeito) }
+      }
+      const selado = noAcerto.selado
       if (selado !== null) {
         partes.push(selado.parte)
         novos = { ...novos, selos: selado.selos }
       }
-      // Q6: Contra = sem dano e uma ação a mais na hora (sai no Desfazer pela parte "reacaoComTecnica").
-      if (depois.saida === 'contra' && (novos.contras?.length ?? 0) < CONTRAS_MAX) {
+      // F2 (fatia B, Aplauso da May): a técnica que REBATE devolve o dano que chegou + a Força dela em quem atacou, na hora (no lugar do contra-ataque).
+      const rebate = depois.saida === 'contra' && depois.tecnica !== undefined ? mecanicaDoCartao(depois.tecnica.cartaoId)?.rebate : undefined
+      if (rebate !== undefined) {
+        // A Força de antes da reação: o cansaço do Overload dela vem DEPOIS de rebater.
+        const lida = lerDano(rebate.soma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, alvo.tokenId) })
+        const soma = lida.tipo === 'valor' ? lida.valor : 0
+        const total = Math.min(DANO_MAX, (depois.dano ?? 0) + soma)
+        const noAtacante: AlvoDoGolpe = { tokenId: golpe.atacanteTokenId, personagemId: golpe.atacantePersonagemId, dano: total, podeReagir: false, saida: 'semReacao', danoFinal: total }
+        const rebatido = danoNoAlvo(mesa, noAtacante, { perfurante: false }, autor)
+        if (rebatido === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+          return false
+        }
+        partes.push(...rebatido.partes)
+        if (rebatido.efeito !== null) efeitos.push(rebatido.efeito)
+        textoDoRebate = ` · rebateu ${total} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.dano ?? 0} + ${soma})`
+      } else if (depois.saida === 'contra' && (novos.contras?.length ?? 0) < CONTRAS_MAX) {
+        // Q6: Contra = sem dano e uma ação a mais na hora (sai no Desfazer pela parte "reacaoComTecnica").
         const ganho: ContraAtaque = { golpeId: golpe.id, tokenId: depois.tokenId, personagemId: depois.personagemId, atacanteTokenId: golpe.atacanteTokenId, rodada: turnos.rodada }
         novos = { ...novos, contras: [...(novos.contras ?? []), ganho] }
       }
@@ -1924,12 +2006,13 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const nomeDoToken = nomeDoTokenNa(turnos, personagens)
     // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
     const atual = cenaDe(sceneKey) ?? cena
-    const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(feita.golpe, nomeDoToken), []) }
-    const texto = textoDaReacaoComTecnica(depois, nomeDoToken)
+    const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(golpeFeito, nomeDoToken), []) }
+    const texto = textoDaReacaoComTecnica(depois, nomeDoToken) + textoDoRebate
     gravarCena(sceneKey, {
       ...comMudanca(comOGolpe, novos, { id: linhaId, tipo: 'reacao', texto, autor, tokenIds: [...new Set([depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
     })
+    avisarQuemCaiu(sceneKey, autor)
     return true
   }
 
@@ -1993,7 +2076,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const ctx = contextoDaCarta(cena, autor, carta, turnosDoCtx)
     if (podeAgir(ctx, pedido) !== null) return false
     const linhaId = novoIdDeLinha()
-    const lancado = lancarGolpe(ctx, pedido, { golpe: novoIdDeGolpe(), linha: linhaId })
+    // F2 (fatia B): os ids da 2ª parte (Rapid Dash) vão sempre; só a técnica com `segundoGolpe` na mecânica à mão os usa.
+    const lancado = lancarGolpe(ctx, pedido, { golpe: novoIdDeGolpe(), linha: linhaId, segundo: { golpe: novoIdDeGolpe(), linha: novoIdDeLinha() } })
     const quem = quemNaFicha(autor)
     // A ordem da reversão é a da seção 3.6: gasto, combate, custo, contra-ataque, golpe, fichas dos alvos.
     const partes: Reversao[] = []
@@ -2045,14 +2129,32 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         }
         partes.push(...feito.partes, ...acerto.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
-        // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
-        const selado = seloDoGolpe(novos, golpe, alvo)
+        // F3 (Q6): o selo do golpe pega no alvo que ele acertou (F2, fatia B: com a disputa da mecânica à mão).
+        const noAcerto = seloNoAcerto(novos, golpe, alvo)
+        golpe = golpeComOAlvo(golpe, noAcerto.alvo)
+        const selado = noAcerto.selado
         if (selado !== null) {
           partes.push(selado.parte)
           novos = { ...novos, selos: selado.selos }
         }
       }
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
+    }
+    // F2 (fatia B, Rapid Dash): a 2ª parte entra junto, com a linha dela (gravada logo depois); o dano de quem não reage cai já.
+    const segundo = lancado.segundo ?? null
+    const partesDoSegundo: Reversao[] = []
+    if (segundo !== null) {
+      partesDoSegundo.push({ tipo: 'golpe', golpeId: segundo.id })
+      for (const resolvido of lancado.resolvidosDoSegundo ?? []) {
+        const feito = danoNoAlvo(mesa, resolvido, segundo, autor)
+        if (feito === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, [...partes, ...partesDoSegundo], autor)
+          return false
+        }
+        partesDoSegundo.push(...feito.partes)
+        if (feito.efeito !== null) efeitos.push(feito.efeito)
+      }
+      novos = { ...novos, golpes: comGolpe(novos.golpes, segundo) }
     }
     // Invocação (decisão 9): o invocado que o dano levou a 0 sai do mapa e do bando.
     const caidos = semOsCaidos(mesa, sceneKey, novos)
@@ -2084,6 +2186,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       ...comMudanca(atual, novos, { id: linhaId, tipo, texto, autor, tokenIds, reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
     })
+    if (segundo !== null) {
+      const comALinha = cenaDe(sceneKey)
+      if (comALinha !== undefined) gravarCena(sceneKey, comMudanca(comALinha, comALinha.turnos, { id: segundo.linhaId, tipo, texto: textoDoGolpe(segundo, nomeDoToken), autor, tokenIds, reversao: { tipo: 'composta', partes: partesDoSegundo } }))
+    }
+    avisarQuemCaiu(sceneKey, autor)
     // Conserto das fichas F1 (bug 2): acima do teto, o golpe mais velho vira "Não reagiu"; o ataque novo nunca é recusado por isso.
     const esperando = cenaDe(sceneKey)?.turnos.golpes ?? []
     if (esperando.length > GOLPES_PENDENTES_MAX) {
@@ -2135,7 +2242,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         }
         partes.push({ tipo: 'reacaoComTecnica', golpe, tokenId: esperando.tokenId, alvoAntes: esperando }, ...acerto.partes, ...feito.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
-        const selado = seloDoGolpe(novos, golpe, acerto.alvo)
+        const noAcerto = seloNoAcerto(novos, golpe, acerto.alvo)
+        golpe = golpeComOAlvo(golpe, noAcerto.alvo)
+        const selado = noAcerto.selado
         if (selado !== null) {
           partes.push(selado.parte)
           novos = { ...novos, selos: selado.selos }
@@ -2159,6 +2268,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const atual = cenaDe(sceneKey) ?? cena
       const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(golpe, nomeDoToken), []) }
       gravarCena(sceneKey, { ...comMudanca(comOGolpe, novos, linha), efeitos: comEfeitos(atual.efeitos, efeitos) })
+      avisarQuemCaiu(sceneKey, MESTRE)
       linhas.push(linhaId)
     }
     return linhas
@@ -2741,7 +2851,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           partes.push(...feito.partes, ...acerto.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
-          const selado = seloDoGolpe(marcados, golpe, resolvido)
+          const noAcerto = seloNoAcerto(marcados, golpe, resolvido)
+          novo = golpeComOAlvo(novo, noAcerto.alvo)
+          const selado = noAcerto.selado
           if (selado !== null) {
             partes.push(selado.parte)
             selos = selado.selos
@@ -2766,6 +2878,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const atual = cenaDe(sceneKey) ?? cena
       const registro = linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(novo, nomeDoToken), partes)
       gravarCena(sceneKey, { ...atual, turnos: novos, registro, efeitos: comEfeitos(atual.efeitos, efeitos), turnosRev: atual.turnosRev + 1 })
+      avisarQuemCaiu(sceneKey, autor)
       return true
     },
 
@@ -2803,6 +2916,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [tokenId], reversao: { tipo: 'composta', partes: [...reversaoDaFicha(personagemId, partes), ...caidos.partes, ...partesDosLembretes(lembrados)] } }),
         efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId, valor: dado, saida: 'direto' }]),
       })
+      // F2 (fatia B): o dano livre também pode levar a ficha a 0 (Recuperação Espantosa avisa o mestre).
+      avisarQuemCaiu(sceneKey, autor)
       return true
     },
 

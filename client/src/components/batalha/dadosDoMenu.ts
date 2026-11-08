@@ -17,6 +17,8 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
+import { mecanicaDoCartao, perguntasDoCartao, respostasPadrao, seloDaMecanica, semSeloPelaResposta } from '../../lib/batalha/mecanicasAMao'
+import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
   CAMPO_DA_ACAO,
@@ -118,6 +120,14 @@ export interface GolpeNaTela {
   evolucao?: EvolucaoNaTela
   /** Tipos de habilidade F4: as opções "um ou outro" (a principal primeiro), os chips da mira; ausente = sem escolha. */
   opcoes?: readonly OpcaoNaTela[]
+  /**
+   * F2 (fatia B): as perguntas na hora da mecânica à mão ("Acertou ponto
+   * vital?", "Quantos quadrados empurrou?"); a resposta vai no pedido
+   * (`respostas`). Ausente = a técnica não pergunta.
+   */
+  perguntas?: readonly PerguntaNaHora[]
+  /** F2 (fatia B): o que cada resposta muda, com o dano já feito (a última que casa vence). */
+  respostasMudam?: readonly RespostaNaTela[]
   /** Invocação F3: a técnica de Tipo Invocação. Abre a mira da invocação (não lança golpe); o `motivo` é o do Invocar. */
   invocacao?: boolean
 }
@@ -317,6 +327,14 @@ export function textoDoTempo(tempo: LeituraDoTempo, combate: CombateDoPersonagem
   }
 }
 
+/** F2 (fatia B): uma mudança por resposta, como a mira a usa: o dano já lido e o selo; `null` = a resposta não muda aquilo. */
+export interface RespostaNaTela {
+  chave: string
+  valor: string | number
+  dano: DanoNaTela | null
+  selo: SeloDoGolpe | null
+}
+
 /** A leitura do dano em texto de tela. */
 export function danoNaTela(leitura: LeituraDoDano): DanoNaTela {
   switch (leitura.tipo) {
@@ -454,8 +472,24 @@ function golpeDaTecnica(
   }
   // Tipos de habilidade F2: Buff e Debuff trazem o selo com mods (editável na mira); o resto, o "por N turnos" de sempre.
   // A técnica que marca ao acertar (Desenhar o Alvo, Tipo Debuff) já põe a marca: o selo do Tipo deixaria o alvo marcado duas vezes.
-  const selo = lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar' ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema)
+  // F2 (fatia B): o selo da mecânica à mão (Aéreo, Paralisado 2, o Atordoado da disputa) vence a leitura do texto;
+  // a técnica que só põe selo por resposta (Grande Chifre: bateu na parede) começa sem.
+  const id = tecnica.cartao.id
+  const padrao = respostasPadrao(id)
+  const semSelo = lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar' || semSeloPelaResposta(id, padrao)
+  const selo = seloDaMecanica(id, padrao) ?? (semSelo ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema))
   if (selo !== null) golpe.selo = selo
+  const perguntas = perguntasDoCartao(id)
+  if (perguntas.length > 0) {
+    golpe.perguntas = perguntas
+    const ctxDaFormula = { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }
+    golpe.respostasMudam = (mecanicaDoCartao(id)?.respostasMudam ?? []).map((regra) => ({
+      chave: regra.chave,
+      valor: regra.valor,
+      dano: regra.dano === undefined ? null : danoNaTela(lerDano(regra.dano, ctxDaFormula)),
+      selo: regra.selo ?? null,
+    }))
+  }
   // Tipos de habilidade F4: a evolução nesta batalha e as opções "um ou outro".
   const evolucao = evolucaoNaTela(tecnica.cartao, todas, combate?.evoluidas)
   if (evolucao !== undefined) golpe.evolucao = evolucao
