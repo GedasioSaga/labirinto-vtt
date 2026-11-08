@@ -5,7 +5,7 @@ import { MOTIVO_DO_OVERLOAD_USADO, motivoDaAcao, motivoDoCustoAcimaDoMaximo, typ
 import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type CombateDoPersonagem, type FormaNaBatalha, type NumeroDaForma } from './combate'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, ehOverload, lerAcao, lerCusto } from './leituraDaFicha'
-import { partesEmOrdem, sobeDeParte, usosContamOAdicional } from './mecanicasAMao'
+import { partesEmOrdem, sobeDeParte, usosContamOAdicional, vezesDaForma } from './mecanicasAMao'
 
 /**
  * TRANSFORMAÇÃO NA BATALHA, F3 fatia T (seção 3.2 de
@@ -131,6 +131,19 @@ export function deslocamentoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): { aM
 /** R6: os ataques a mais por rodada ao usar Atacar de UMA forma (Ignição: 1); `null` = a ficha não diz. */
 export function ataquesExtrasDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | null {
   return inteiroDoCampo(cartao, CAMPO_DOS_ATAQUES_EXTRAS)
+}
+
+/**
+ * Conserto das fichas F0c (A Caçada Começa como forma): o campo Duração. O
+ * primeiro número é quantas vezes do dono a forma dura DEPOIS da vez em que
+ * ligou ("5 turnos" = 5 vezes do Alexei, respostas-do-grilling.md); no fim da
+ * última ela desliga sozinha (`fimDaVezDasMecanicas`, batalhaFabrica.ts).
+ */
+export const CAMPO_DA_DURACAO = 'duracao'
+
+/** As vezes que a forma dura: o campo Duração; sem ele, a tabela à mão (`vezesDaForma`); `null` = até alguém desfazer. */
+export function duracaoDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>): number | null {
+  return inteiroDoCampo(cartao, CAMPO_DA_DURACAO) ?? vezesDaForma(cartao.id)
 }
 
 /** R6: o dano que chega com a redução das formas (Resiliente: -20%), arredondado. */

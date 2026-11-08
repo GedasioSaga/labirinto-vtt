@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao, PedidoDeAlvo } from '../lib/batalha/combate'
 import { ficha } from '../lib/batalha/fichasDaFatiaB.testkit'
-import { ATRIBUTOS_DO_ALEXEI, CACADA, RIFLE } from '../lib/batalha/fichasDaFatiaC.testkit'
+import { ATRIBUTOS_DO_ALEXEI, CACADA, CACADA_COMO_FORMA, RIFLE } from '../lib/batalha/fichasDaFatiaC.testkit'
 import { ALVORADA, siegCom } from '../lib/batalha/fichasDaFatiaF.testkit'
 import type { RespostasDoPedido } from '../lib/batalha/perguntaNaHora'
 import type { VezEsperada } from '../lib/batalha/ponte'
@@ -135,6 +135,17 @@ describe('A Caçada Começa do Alexei', () => {
     expect(pessoa(mesa, 'Alexei').cartoesAtivos).not.toContain(CACADA.id)
     expect(selosDe(loja, doAlexei)).toContain('Cansaço do Overload')
     expect(textos(loja).some((texto) => texto.includes('A Caçada Começa acabou'))).toBe(true)
+  })
+
+  it('F0c: a Duração da ficha vale sobre a tabela; com "2 turnos" a Caçada desliga no fim da 2ª vez dele, com o Cansaço', () => {
+    const curta: CartaoDaFicha = { ...CACADA_COMO_FORMA, campos: { ...CACADA_COMO_FORMA.campos, duracao: '2 turnos' } }
+    const { loja, mesa } = batalha({ ...alexeiComCacada(), abas: { transformacoes: [curta], armas: [RIFLE] } })
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Alexei'), { tipo: 'transformar', cartaoId: curta.id, acao: 'livre', trocarImagem: false })).toBe(true)
+    for (let vezes = 0; vezes < 2; vezes += 1) naVezDe(loja, 'Alexei', true)
+    expect(pessoa(mesa, 'Alexei').cartoesAtivos).toContain(curta.id)
+    naVezDe(loja, 'Alexei', true)
+    expect(pessoa(mesa, 'Alexei').cartoesAtivos).not.toContain(curta.id)
+    expect(selosDe(loja, token(loja, 'Alexei'))).toContain('Cansaço do Overload')
   })
 })
 

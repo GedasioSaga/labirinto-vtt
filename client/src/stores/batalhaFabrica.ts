@@ -85,7 +85,7 @@ import {
   textoDosQueAcabaram,
   selosDoToken,
 } from '../lib/batalha/selos'
-import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, formaDaFicha, subidaDeParte, usosDaForma } from '../lib/batalha/transformacao'
+import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, duracaoDaForma, formaDaFicha, subidaDeParte, usosDaForma } from '../lib/batalha/transformacao'
 import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, esquivaComDesvantagem, porVezDoLembrete, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
@@ -113,7 +113,7 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, fatorDaVelocidade, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte, vezesDaForma } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, fatorDaVelocidade, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte } from '../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
 import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
@@ -1480,7 +1480,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const imagem = pedido.trocarImagem ? (cartao?.imagem ?? null) : null
       const forma: FormaNaBatalha = { cartaoId: pedido.cartaoId, imagem }
       // F2b (A Caçada Começa): a forma com duração conta as vezes dele DEPOIS desta (`fimDaVezDasMecanicas` desliga no fim da última).
-      const vezes = vezesDaForma(pedido.cartaoId)
+      // F0c: o campo Duração da forma vale; sem ele, a tabela à mão (`duracaoDaForma`).
+      const vezes = cartao === null ? null : duracaoDaForma(cartao)
       if (vezes !== null) forma.duracao = { faltam: vezes, ligouNa: chaveDaVez(turnos.rodada, carta.id) }
       partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
       novos = { ...novos, formas: { ...(novos.formas ?? {}), [personagemId]: forma } }

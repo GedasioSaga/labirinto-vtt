@@ -22,6 +22,12 @@
  * atributos do Judge padrão e o HP e o SP atuais iguais ao máximo; o texto do Arrombamento do Siegfried só com
  * Força. O que ainda não dá para gravar sai em "Fica para depois".
  *
+ * F0c, A Caçada Começa do Alexei (respostas-do-grilling.md: "é FORMA, Overload do tipo transformação"): o cartão sai
+ * de Habilidades e vai para Transformações com o MESMO id (a batalha acha a duração e o "todo golpe é Overload" pelo
+ * id, `client/src/lib/batalha/mecanicasAMao.ts`), com Custo "200 SP", Duração e Ataques extras "1". O molde de
+ * Transformações só mostra Custo, Efeito e Duração a partir do app 0.5.37: abaixo disso a ficha esconderia os 200 SP e
+ * o texto, e o --aplicar com esta mudança recusa (com ou sem Lobby).
+ *
  * Toda troca confere o valor de antes: se a ficha já tem outro valor (o mestre mexeu), não mexe e avisa.
  * Rodar duas vezes não muda nada na segunda.
  *
@@ -51,6 +57,8 @@ const PROCESSO_DO_APP = 'labirinto.exe'
 const EXE_INSTALADO = path.join(process.env.LOCALAPPDATA ?? '', 'Labirinto', PROCESSO_DO_APP)
 /** A primeira versão que lê as mudadas no disco (net/nuvem/mudadasNoDisco.ts). */
 const VERSAO_QUE_LE_AS_MUDADAS = [0, 5, 36]
+/** A primeira versão com Custo, Efeito e Duração no molde de Transformações (lib/sistemaOnePiece.ts) e que lê a Duração. */
+const VERSAO_DA_FORMA_COM_CUSTO = [0, 5, 37]
 const ARQUIVO_DAS_MUDADAS = 'mudadas-no-disco.json'
 const ORIGEM_DAS_MUDADAS = 'conserto-fichas-f0'
 /** O app grava o rpg.json assim (`JSON.stringify(rpg, null, 2)`, sem quebra no fim): o arquivo sem mudança sai igual, byte a byte. */
@@ -119,9 +127,26 @@ const RECURSOS_CHEIOS_DA_SAGA = ['hp', 'sp']
 const ARROMBAMENTO_DE = '(Força e/ou Percepção)'
 const ARROMBAMENTO_PARA = '(Força)'
 
+/**
+ * Alexei: A Caçada Começa vira forma. A Ação "OVERLOAD | TRANSFORMAÇÃO" fica (a forma lê Completa e Overload dela:
+ * `acaoDaForma`, `ehOverload`); a Descrição é o texto do mestre; o Efeito da ficha fica.
+ */
+const CACADA = {
+  /** A chave da Caçada na tabela da batalha (mecanicasAMao.ts): outro id, a batalha não a acha. */
+  id: 'cart_64453d92-4278-4aeb-afed-483ab4ed972c',
+  nome: 'A Caçada Começa',
+  custoDe: '200 Sp',
+  /** "custo 200 SP com máximo 120 fica bloqueada mostrando o motivo, regra do Jimboy". */
+  custo: '200 SP',
+  /** "5 turnos" = 5 VEZES DO ALEXEI DEPOIS da vez em que ativou. O app lê o 1º número (`duracaoDaForma`). */
+  duracao: '5 turnos (5 vezes dele depois da vez em que ativou)',
+  /** "o Alexei pode atacar 2 vezes": 1 ataque a mais por rodada ao usar Atacar (`ataquesExtrasDaForma`). */
+  ataquesExtras: '1',
+}
+
 /** O que este script não faz, com o motivo: precisa de campo ou regra que o app ainda não tem. */
 const FICA_PARA_DEPOIS = [
-  'F0c Alexei: "A Caçada Começa" continua em Habilidades. O molde de Transformações (client/src/lib/sistemaOnePiece.ts, aba transformacoes) ainda não tem Custo nem Efeito, e a ficha só mostra os campos do molde: mudar de aba esconderia os 200 SP e o texto dos 5 turnos, na ficha e no Lobby. O código já a lê como forma (Ação "Completa", Ataques extras "1"), mas com 200 SP e máximo 120 ela fica bloqueada mesmo assim.',
+  'F0c Alexei: "A Caçada Começa" vai para Transformações, mas na batalha fica bloqueada ("Precisa de 200 SP (o máximo é 120)") até o mestre mudar o custo ou o SP máximo. Forma com Custo que cabe no máximo liga sem cobrar o SP (só o custo "por turno" é cobrado, no lembrete de cada vez).',
   'F0c Siegfried: arma padrão (a ficha não tem o campo; vale a 1ª arma levada).',
   'F0c Saga: o Judge padrão tem os 8 atributos em 0, e a Saga já está assim. A "build média, faixa dos jogadores" do 1º grilling pede os números ao mestre.',
   'F3.4 Vincent: Boomerang sem dano, atordoa, 3 usos por combate. Até lá o Atacar com ele sugere Força + 0 = 10: o mestre zera e põe Atordoado à mão.',
@@ -228,9 +253,14 @@ function curto(valor) {
   return typeof valor === 'string' ? `"${corpo}"` : corpo
 }
 
-/** O que acontece com uma ficha: as mudanças (com o caminho no rpg.json) e os avisos. */
+/** O que acontece com uma ficha: as mudanças (com o caminho no rpg.json), os avisos e a versão do app que elas pedem. */
 function novoRegistro(ficha) {
-  return { nome: ficha.nome, id: ficha.id, mudancas: [], avisos: [] }
+  return { nome: ficha.nome, id: ficha.id, mudancas: [], avisos: [], exige: [] }
+}
+
+/** A mudança só vale com o app `versao` ou mais (abaixo, `motivo`): o --aplicar recusa antes de gravar. */
+function exigirVersao(registro, versao, motivo) {
+  if (!registro.exige.some((exigida) => exigida.motivo === motivo)) registro.exige.push({ versao, motivo })
 }
 
 function mudou(registro, caminho, rotulo, antes, depois) {
@@ -400,7 +430,51 @@ function corrigirAlexei(registro, ficha, textos) {
   trocarCampo(registro, ficha, 'armas', arma, 'dano', '10', '20')
   gravarTextoDoMestre(registro, ficha, 'Armadilhar', textos.armadilhar)
   gravarTextoDoMestre(registro, ficha, 'Chamado do Lobo', textos.chamado)
-  gravarTextoDoMestre(registro, ficha, 'A Caçada Começa', textos.cacada)
+  const antes = registro.mudancas.length
+  moverACacadaParaFormas(registro, ficha, textos.cacada)
+  if (registro.mudancas.length > antes) {
+    exigirVersao(registro, VERSAO_DA_FORMA_COM_CUSTO, 'o molde de Transformações dele não tem Custo, Efeito nem Duração: a ficha esconderia os 200 SP e o texto da Caçada')
+  }
+}
+
+/**
+ * F0c, Alexei: A Caçada Começa de Habilidades para Transformações, MESMO cartão (id, nome, imagem, extras), com a
+ * Descrição do mestre, Custo, Duração e Ataques extras. Já em Transformações (rodada anterior, ou o mestre moveu): só
+ * confere os campos, então rodar de novo não muda nada.
+ */
+function moverACacadaParaFormas(registro, ficha, texto) {
+  if (!ehObjeto(ficha.abas)) {
+    avisar(registro, `a ficha não tem "abas": não movi "${CACADA.nome}"`)
+    return
+  }
+  const naHabilidade = cartoes(ficha, 'habilidades').filter((cartao) => cartao.nome === CACADA.nome)
+  const naForma = cartoes(ficha, 'transformacoes').filter((cartao) => cartao.nome === CACADA.nome)
+  const [cartao] = [...naHabilidade, ...naForma]
+  if (cartao === undefined || naHabilidade.length + naForma.length > 1) {
+    avisar(registro, `esperava 1 "${CACADA.nome}" em habilidades ou transformacoes, achei ${naHabilidade.length} + ${naForma.length}: não mexi`)
+    return
+  }
+  if (cartao.id !== CACADA.id) {
+    avisar(registro, `"${CACADA.nome}" tem o id ${cartao.id} e a batalha a acha por ${CACADA.id}: não mexi`)
+    return
+  }
+  if (!ehObjeto(cartao.campos)) {
+    avisar(registro, `${CACADA.nome} sem campos: não mexi`)
+    return
+  }
+  if (naHabilidade.length === 1) {
+    ficha.abas.habilidades = cartoes(ficha, 'habilidades').filter((outro) => outro.id !== cartao.id)
+    mudou(registro, ['abas', 'habilidades', cartao.id], `habilidades -= ${CACADA.nome} (vai para Transformações, mesmo id)`, cartao.id, undefined)
+    // Ficha sem a aba Transformações: a aba inteira é a mudança (a conferência vê a chave nova, não o cartão).
+    const abaNova = !Array.isArray(ficha.abas.transformacoes)
+    ficha.abas.transformacoes = [...cartoes(ficha, 'transformacoes'), cartao]
+    mudou(registro, abaNova ? ['abas', 'transformacoes'] : ['abas', 'transformacoes', cartao.id], `transformacoes += ${CACADA.nome}`, undefined, cartao.id)
+  }
+  if (texto === null) avisar(registro, `o texto do mestre para "${CACADA.nome}" não está mais em respostas-do-grilling.md: não mexi na Descrição`)
+  else trocarCampo(registro, ficha, 'transformacoes', cartao, 'descricao', null, texto)
+  trocarCampo(registro, ficha, 'transformacoes', cartao, 'custo', CACADA.custoDe, CACADA.custo)
+  trocarCampo(registro, ficha, 'transformacoes', cartao, 'duracao', undefined, CACADA.duracao)
+  trocarCampo(registro, ficha, 'transformacoes', cartao, 'ataquesExtras', undefined, CACADA.ataquesExtras)
 }
 
 function corrigirAira(registro, ficha, textos) {
@@ -556,7 +630,7 @@ function corrigir(rpg, mochilas, textos) {
     else if (ficha.nome === 'Siegfried') corrigirSiegfried(registro, ficha)
     else if (ficha.nome === 'Saga') corrigirSaga(registro, ficha)
   }
-  for (const nome of Object.keys(MAXIMOS)) if (!porNome.has(nome)) registros.push({ nome, id: '?', mudancas: [], avisos: ['ficha não encontrada no rpg.json'] })
+  for (const nome of Object.keys(MAXIMOS)) if (!porNome.has(nome)) registros.push({ nome, id: '?', mudancas: [], avisos: ['ficha não encontrada no rpg.json'], exige: [] })
   return { depois, registros }
 }
 
@@ -668,13 +742,37 @@ function versaoAoMenos(versao, minima) {
   return true
 }
 
-/** O app instalado lê as mudadas no disco; senão lança (o 0.5.35 desfaria tudo ao iniciar). */
-function conferirVersaoDoApp() {
+/** O que esta rodada pede do app instalado: a de cada mudança e, com Lobby, a que lê as mudadas no disco. */
+function versoesExigidas(registros, comLobby) {
+  const exigidas = registros.flatMap((registro) => (registro.mudancas.length > 0 ? registro.exige : []))
+  if (comLobby) exigidas.unshift({ versao: VERSAO_QUE_LE_AS_MUDADAS, motivo: 'ele desfaria estas mudanças ao iniciar' })
+  return exigidas.filter((exigida, indice) => exigidas.findIndex((outra) => outra.motivo === exigida.motivo) === indice)
+}
+
+/** A maior versão entre as exigidas ([0, 0, 0] = nenhuma). */
+function maiorVersao(exigidas) {
+  return exigidas.reduce((atual, exigida) => (versaoAoMenos(exigida.versao.join('.'), atual) ? exigida.versao : atual), [0, 0, 0])
+}
+
+/** O app instalado atende a cada exigência; senão lança (o 0.5.35 desfaria tudo ao iniciar; o 0.5.36 esconderia o Custo da Caçada). */
+function conferirVersaoDoApp(exigidas) {
+  if (exigidas.length === 0) return
   const versao = versaoDoAppInstalado()
-  const minima = VERSAO_QUE_LE_AS_MUDADAS.join('.')
-  if (versao === null) throw new Error(`não consegui ler a versão do app em ${EXE_INSTALADO}: atualize para ${minima} ou mais e rode de novo. Nada foi gravado.`)
-  if (!versaoAoMenos(versao, VERSAO_QUE_LE_AS_MUDADAS)) throw new Error(`o app instalado é ${versao}: ele desfaria estas mudanças ao iniciar. Atualize para ${minima} ou mais (com o app fechado depois) e rode de novo. Nada foi gravado.`)
-  console.log(`app instalado: ${versao} (lê as mudadas no disco)`)
+  const maior = maiorVersao(exigidas).join('.')
+  if (versao === null) throw new Error(`não consegui ler a versão do app em ${EXE_INSTALADO}: atualize para ${maior} ou mais e rode de novo. Nada foi gravado.`)
+  for (const exigida of exigidas) {
+    if (!versaoAoMenos(versao, exigida.versao)) throw new Error(`o app instalado é ${versao}: ${exigida.motivo}. Atualize para ${exigida.versao.join('.')} ou mais (com o app fechado depois) e rode de novo. Nada foi gravado.`)
+  }
+  console.log(`app instalado: ${versao} (${maior} ou mais, como estas mudanças pedem)`)
+}
+
+/** Uma linha para a simulação: a versão que o --aplicar vai pedir e a instalada agora. */
+function situacaoDaVersao(exigidas) {
+  const maior = maiorVersao(exigidas)
+  const versao = versaoDoAppInstalado()
+  const motivos = exigidas.map((exigida) => `${exigida.versao.join('.')}, porque abaixo ${exigida.motivo}`).join('; ')
+  const agora = versao === null ? 'Não consegui ler a instalada' : `Instalado agora: ${versao}${versaoAoMenos(versao, maior) ? '' : ', o --aplicar recusaria'}`
+  return `Versão do app: o --aplicar pede ${maior.join('.')} ou mais (${motivos}). ${agora}.`
 }
 
 /** A pasta da campanha (nuvem/<campanhaId>/, ao lado de pastas/). */
@@ -822,6 +920,8 @@ function principal() {
       ].join('\n'),
     )
   }
+  const exigidas = previstos.length === 0 ? [] : versoesExigidas(registros, campanha !== null)
+  if (exigidas.length > 0) console.log(`\n${situacaoDaVersao(exigidas)}`)
 
   if (!opcoes.aplicar) {
     console.log('\nPara gravar: feche o Labirinto e rode com --aplicar.')
@@ -831,7 +931,7 @@ function principal() {
     console.log('\nNada a gravar.')
     return
   }
-  if (campanha !== null && !opcoes.ignorarVersaoDoApp) conferirVersaoDoApp()
+  if (!opcoes.ignorarVersaoDoApp) conferirVersaoDoApp(exigidas)
   const idsMudados = registros.filter((registro) => registro.mudancas.length > 0).map((registro) => registro.id)
   aplicar(pasta, textoDeAntes, antes, depois, previstos, campanha, idsMudados)
 }

@@ -649,7 +649,7 @@ export interface FormaNaBatalha {
   cartaoId: string
   imagem: string | null
   /**
-   * F2b (A Caçada Começa, `vezesDaForma`): as vezes do dono que faltam e a
+   * F2b (A Caçada Começa, `duracaoDaForma`): as vezes do dono que faltam e a
    * vez em que ligou ("rodada:cartaId", que não conta). No fim da última, a
    * forma desliga sozinha. Ausente = dura até alguém desfazer.
    */

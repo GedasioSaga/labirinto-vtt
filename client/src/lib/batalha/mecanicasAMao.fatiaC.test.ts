@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { sistema } from './fichasDaFatiaB.testkit'
-import { aira, alexei, BENCAO, CACADA, DANCA, LUZ_DO_SOL, RIFLE } from './fichasDaFatiaC.testkit'
+import { camposVisiveis } from '../personagem'
+import { aira, alexei, ARMADILHAR, BENCAO, CACADA, CACADA_COMO_FORMA, DANCA, LUZ_DO_SOL, RIFLE } from './fichasDaFatiaC.testkit'
 import { lembreteDoSelo } from './condicoes'
 import { cdDaDisputa, quemUsaVence } from './disputa'
 import { danoDoAtaque, lerDano } from './formula'
+import { ehOverload } from './leituraDaFicha'
 import { danoDaTecnica } from './leituraDaTecnica'
 import { mecanicaDoCartao, seloDaMecanica } from './mecanicasAMao'
-import { formasNoMenu } from './transformacao'
+import { ataquesExtrasDaForma, duracaoDaForma, formasNoMenu } from './transformacao'
 
 /**
  * Conserto das fichas F2, fatia C (Aira e Alexei, sem os companions): as
@@ -55,9 +57,16 @@ describe('Alexei: o Rifle e A Caçada Começa', () => {
     expect(danoDoAtaque({ personagem: alexei, sistema, arma: RIFLE, vidaDoAlvo: null })).toMatchObject({ tipo: 'valor', valor: 100 })
   })
 
-  it('A Caçada como forma (o F0c a move para Transformações): 200 SP com máximo 120 fica bloqueada com o motivo', () => {
-    const comACacadaComoForma = { ...alexei, abas: { ...alexei.abas, habilidades: [], transformacoes: [{ ...CACADA, campos: { ...CACADA.campos, acao: 'Completa', ataquesExtras: '1' } }] } }
+  it('A Caçada como forma (o F0c a move para Transformações): 200 SP com máximo 120 fica bloqueada com o motivo; a ficha mostra Efeito, Custo e Duração', () => {
+    const comACacadaComoForma = { ...alexei, abas: { ...alexei.abas, habilidades: [ARMADILHAR], transformacoes: [CACADA_COMO_FORMA] } }
     const [forma] = formasNoMenu(comACacadaComoForma, sistema, null)
-    expect(forma?.motivo).toMatch(/200 SP.*120/)
+    expect(forma?.motivo).toBe('Precisa de 200 SP (o máximo é 120)')
+    // A Ação "OVERLOAD | TRANSFORMAÇÃO" fica: liga com ação Completa e gasta o Overload da batalha.
+    expect([forma?.acaoDaFicha, ehOverload(CACADA_COMO_FORMA)]).toEqual(['completa', true])
+    // A batalha acha a Caçada pelo id (tabela à mão) e a Duração da ficha dá as mesmas 5 vezes.
+    expect([mecanicaDoCartao(CACADA.id)?.golpesSaoOverload, duracaoDaForma(CACADA_COMO_FORMA), ataquesExtrasDaForma(CACADA_COMO_FORMA)]).toEqual([true, 5, 1])
+    const aba = sistema.abas.find((candidata) => candidata.id === 'transformacoes')
+    if (aba === undefined) throw new Error('o sistema perdeu a aba Transformações')
+    expect(camposVisiveis(aba, CACADA_COMO_FORMA, 'linha').map((campo) => campo.rotulo)).toEqual(['Ação', 'Efeito', 'Custo', 'Duração', 'Ataques extras'])
   })
 })

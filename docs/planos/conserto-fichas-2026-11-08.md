@@ -42,11 +42,14 @@ máximo (700/60) onde o atual é 0, e os atributos conferidos contra o Judge pad
 `mudadas-no-disco.json` ainda não lido pelo app guarda a ficha de antes do F0, e a diferença que sobe ao Lobby é F0 + F0c;
 já lido (`feito`), sai um novo com a ficha de agora; lido pela metade (`loteId` sem `feito`), o `--aplicar` recusa.
 Sem dado a gravar (resolvido na tabela pela F2b): Proficiência em Fruta do Vagn, alcance da Projeção e duração da Pazada.
+A Caçada Começa como forma (08/11, depois da F2b): o molde de Transformações ganhou Efeito, Custo e Duração
+(`client/src/lib/sistemaOnePiece.ts`); a Duração vale na batalha sobre a tabela (`duracaoDaForma`, `transformacao.ts`).
+O mesmo script MOVE o cartão de Habilidades para Transformações com o mesmo id (a tabela de `mecanicasAMao.ts` o acha),
+Custo "200 SP", Duração "5 turnos (...)" e Ataques extras "1"; a Ação "OVERLOAD | TRANSFORMAÇÃO" fica (lê Completa e
+Overload). Com esta mudança o `--aplicar` pede o app 0.5.37 ou mais (o 0.5.36 esconderia os 200 SP), com ou sem Lobby.
+Na batalha ela fica bloqueada ("Precisa de 200 SP (o máximo é 120)") até o mestre mudar o custo ou o máximo.
 Fica de fora, com dono:
-- A Caçada Começa continua em Habilidades: o molde de Transformações (`client/src/lib/sistemaOnePiece.ts`, aba
-  `transformacoes`) não tem Custo nem Efeito, e a ficha só mostra os campos do molde (`FichaAbas.tsx`): mudar esconderia os
-  200 SP e o texto dos 5 turnos. Mesmo mudada, a forma fica bloqueada (200 SP com máximo 120). Precisa do campo no molde
-  ou da decisão do mestre.
+- Forma com Custo que cabe no máximo liga sem cobrar o SP (só o custo "por turno" é cobrado): sem dono ainda.
 - Arma padrão do Siegfried (sem campo) e o número da Infâmia do Harvey (o mestre não deu).
 - Saga "build média, faixa dos jogadores" (1º grilling): a resposta de 08/11 trocou por "os do Judge padrão" = 0.
 

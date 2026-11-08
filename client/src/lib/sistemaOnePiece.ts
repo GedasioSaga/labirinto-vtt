@@ -129,6 +129,13 @@ export const SISTEMA_ONE_PIECE: SistemaDeRpg = {
         { id: 'descricao', rotulo: 'Descrição', forma: 'paragrafo' },
         // F3 (decisão 16): a ação que Ativar a forma gasta na batalha. Vazio = Completa (`lerAcao`).
         { id: 'acao', rotulo: 'Ação', forma: 'linha' },
+        // Conserto das fichas F0c (A Caçada Começa como forma): o que a forma faz, o custo e quanto dura. Ficha antiga sem os
+        // campos = vazio (a ficha não mostra campo vazio). O Custo acima do máximo do recurso deixa a forma bloqueada com o
+        // motivo (`motivoDoCustoDaForma`) e o "por turno" vira o lembrete de cada vez (`custoPorTurno`); a Duração é quantas
+        // vezes do dono ela dura depois da que ligou (`duracaoDaForma`).
+        { id: 'efeito', rotulo: 'Efeito', forma: 'linha' },
+        { id: 'custo', rotulo: 'Custo', forma: 'linha' },
+        { id: 'duracao', rotulo: 'Duração', forma: 'linha' },
         // Lote de 01/11 (C6): o que é preciso para transformar; só mostra. Ficha antiga sem o campo = vazio.
         { id: 'requisito', rotulo: 'Requisito', forma: 'linha' },
         // Lote de 01/11 (R2): formas do mesmo Grupo se trocam na batalha; vazio = acumula com as outras.

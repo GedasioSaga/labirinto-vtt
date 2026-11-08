@@ -30,6 +30,8 @@ export const CACADA = cartao(
   { acao: 'OVERLOAD | TRANSFORMAÇÃO', efeito: 'Por 5 Turnos, você pode atacar duas vezes.', custo: '200 Sp', tempo: 'OVERLOAD', dano: '-' },
   [{ nome: 'OVERLOAD', valor: 'Após o Fim da Tecnica, você reduz todos seus status pela metade.' }],
 )
+/** A Caçada como o F0c a grava em Transformações (scripts/conserto-fichas-f0.cjs): mesmo id, Custo, Duração e Ataques extras. */
+export const CACADA_COMO_FORMA = cartao(CACADA.id, CACADA.nome, { ...CACADA.campos, custo: '200 SP', duracao: '5 turnos (5 vezes dele depois da vez em que ativou)', ataquesExtras: '1' }, CACADA.extras)
 
 export const ARMADILHAR = cartao('cart_51bfdbe0-fac7-450d-9e83-420bb884bb5f', 'Armadilhar', { acao: 'Ação Simples', efeito: 'Pode posicionar uma das armadilhas disponíveis dentro do alcance deste personagem.', custo: '20', tempo: '1' })
 
