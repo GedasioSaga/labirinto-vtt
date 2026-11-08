@@ -1,5 +1,6 @@
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
-import type { DoorKind, FeitioDaParede, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
+import type { AcabamentoDaParede, DoorKind, FeitioDaParede, FloorPiece, FreehandTexture, MaterialDaParede, Region, TipoMobilia, Wall } from '../types/map'
+import { MATERIAIS_DA_PAREDE } from '../texturas/paredes/catalogo'
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
 import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
@@ -69,6 +70,12 @@ export type ToolVariantGroupInativo =
       motivo: string
     }
   | {
+      /** O material só vale com "Com textura": com "Só linhas" o grupo fica esmaecido. */
+      storeKey: 'wallAcabamento'
+      value: AcabamentoDaParede
+      motivo: string
+    }
+  | {
       /** O grupo só vale com o mapa aberto neste estilo (página Cena); fora dele fica esmaecido. */
       soNoEstilo: 'desenhado'
       motivo: string
@@ -88,6 +95,9 @@ export type ToolVariantGroup = (
   | { storeKey: 'wallKind'; label: string; options: ToolVariantOption<NonNullable<Wall['wallKind']>>[] }
   /** Desenhado: a próxima parede nasce de pedra ou de linha (`Wall.feitio`). */
   | { storeKey: 'wallFeitio'; label: string; options: ToolVariantOption<FeitioDaParede>[] }
+  /** A próxima parede: só linhas ou com textura (`Wall.material`), e o material. */
+  | { storeKey: 'wallAcabamento'; label: string; options: ToolVariantOption<AcabamentoDaParede>[] }
+  | { storeKey: 'wallMaterial'; label: string; options: ToolVariantOption<MaterialDaParede>[] }
   | { storeKey: 'regionFillPattern'; label: string; options: ToolVariantOption<Region['fillPattern']>[] }
   | { storeKey: 'polygonSides'; label: string; options: ToolVariantOption<number>[] }
   | { storeKey: 'stairSizePreset'; label: string; options: ToolVariantOption<StairSizePreset>[] }
@@ -177,6 +187,35 @@ const WALL_FEITIO_GROUP: ToolVariantGroup = {
   inativoQuando: {
     soNoEstilo: 'desenhado',
     motivo: 'Só no estilo Desenhado (página Cena). No Atual e no Simples a parede já é linha.',
+  },
+}
+
+/**
+ * SÓ LINHAS OU COM TEXTURA da PRÓXIMA parede (pedido de 07/11/2026,
+ * `Wall.material`), em qualquer estilo. "Com textura" usa o material do grupo de
+ * baixo (o castelo, antes de qualquer escolha). SÓ NA FERRAMENTA PAREDE (regra do
+ * usuário de 07/11/2026: "a padrão seja a linha atual, só paredes específicas"):
+ * as Salas, a Sala livre e o "Criar paredes" da região nascem sempre Só linhas,
+ * e a ilha ou a costa feita com elas nunca pega a textura por tabela.
+ */
+const WALL_ACABAMENTO_GROUP: ToolVariantGroup = {
+  storeKey: 'wallAcabamento',
+  label: 'Parede',
+  options: [
+    { id: 'linhas', label: 'Só linhas', value: 'linhas', description: 'O traço de sempre, sem material — padrão.' },
+    { id: 'textura', label: 'Com textura', value: 'textura', description: 'A textura do material, repetida ao longo da parede.' },
+  ],
+}
+
+/** O MATERIAL da próxima parede com textura: esmaecido com "Só linhas" (a escolha fica guardada). */
+const WALL_MATERIAL_GROUP: ToolVariantGroup = {
+  storeKey: 'wallMaterial',
+  label: 'Material',
+  options: MATERIAIS_DA_PAREDE.map((m) => ({ id: m.id, label: m.nome, value: m.id, description: m.descricao })),
+  inativoQuando: {
+    storeKey: 'wallAcabamento',
+    value: 'linhas',
+    motivo: 'Escolha Com textura para a parede usar um material.',
   },
 }
 
@@ -393,7 +432,7 @@ const ERASE_MODE_GROUP: ToolVariantGroup = {
 export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // ---- confirmadas prontas (DOSSIE-FEEDBACK-F4.md, tabela "Variantes já
   // existentes no schema/código") ----------------------------------------
-  wall: { available: true, tool: 'wall', groups: [WALL_KIND_GROUP, WALL_FEITIO_GROUP] },
+  wall: { available: true, tool: 'wall', groups: [WALL_KIND_GROUP, WALL_ACABAMENTO_GROUP, WALL_MATERIAL_GROUP, WALL_FEITIO_GROUP] },
   door: { available: true, tool: 'door', groups: [DOOR_KIND_GROUP] },
   // region/room/roomCircle/roomPolygon: as 4 ferramentas criam uma Region e
   // leem a MESMA preferência `regionFillPattern` na hora de desenhar —
@@ -627,6 +666,8 @@ const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
   doorKind: 'Próxima porta',
   wallKind: 'Próxima parede',
   wallFeitio: 'Próxima parede',
+  wallAcabamento: 'Próxima parede',
+  wallMaterial: 'Próxima parede',
   regionFillPattern: 'Próximo preenchimento',
   polygonSides: 'Próximo polígono',
   stairSizePreset: 'Próxima escada',
@@ -652,6 +693,8 @@ const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
   doorKind: DOOR_KIND_GROUP,
   wallKind: WALL_KIND_GROUP,
   wallFeitio: WALL_FEITIO_GROUP,
+  wallAcabamento: WALL_ACABAMENTO_GROUP,
+  wallMaterial: WALL_MATERIAL_GROUP,
   regionFillPattern: REGION_FILL_PATTERN_GROUP,
   polygonSides: POLYGON_SIDES_GROUP,
   stairSizePreset: STAIR_SIZE_GROUP,

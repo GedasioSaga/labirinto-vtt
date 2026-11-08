@@ -98,6 +98,17 @@ export type WallThickness = WallThicknessPreset | number
 /** As duas escolhas do painel para a parede no Desenhado (`Wall.feitio`: só `'linha'` é gravado). */
 export type FeitioDaParede = 'pedra' | 'linha'
 
+/**
+ * O MATERIAL da parede com textura (pedido de 07/11/2026: "parede de castelo,
+ * de madeira, de ferro e afins"). O catálogo, com nome e descrição, mora em
+ * `texturas/paredes/materiais.ts`; a imagem de cada um é a do estúdio, aprovada
+ * pelo usuário em 07/11/2026 (`texturas/paredes/imagens/<material>.png`).
+ */
+export type MaterialDaParede = 'castelo' | 'madeira' | 'ferro' | 'tijolo' | 'pedra-rustica' | 'bambu' | 'palha'
+
+/** Preferência da PRÓXIMA parede na ferramenta: o traço de hoje ou a textura do material escolhido. Não vai para o mapa. */
+export type AcabamentoDaParede = 'linhas' | 'textura'
+
 export interface Wall extends NoPiso, NaCamada {
   id: string
   x1: number
@@ -210,6 +221,18 @@ export interface Wall extends NoPiso, NaCamada {
    * Atravessa no recorte do jogador (`lib/fogFilter.ts` copia a parede).
    */
   feitio?: 'linha'
+  /**
+   * PAREDE COM TEXTURA (pedido de 07/11/2026): a imagem do material repetida ao
+   * longo da parede, em qualquer estilo (`pixi/paredesComMaterial.ts`), no lugar
+   * da linha e da pedra do Desenhado. Ausente = só linhas, o desenho de hoje,
+   * inclusive em mapa de antes do campo, sem linha de migração; valor fora do
+   * catálogo sai na leitura (`lib/mapFile.ts`). Vale numa parede sem porta, que não
+   * seja janela nem invisível (essas têm desenho próprio); a escolha leva junto os
+   * pedaços da parede partida por porta (`definirMaterialDaParede`). Só DESENHO:
+   * a visão, a névoa e o bloqueio não o leem. Atravessa no recorte do jogador
+   * (`lib/fogFilter.ts` copia a parede).
+   */
+  material?: MaterialDaParede
   /**
    * Cor da linha (`#rrggbb`), escolhida no painel da parede. `undefined` = a
    * cor padrão (`WALL_COLOR`, `pixi/drawWalls.ts`), sem linha de migração.

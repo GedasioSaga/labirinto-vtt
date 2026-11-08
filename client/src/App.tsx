@@ -249,7 +249,7 @@ import { sistemaPorId, useRpgStore } from './stores/rpgStore'
 import { ExportImageDialog } from './components/ExportImageDialog'
 import { imageExportFileName, type ImageExportOptions, type MapImageExporter } from './lib/mapImageExport'
 import { saveMapImage } from './lib/mapImageSave'
-import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, ParedesDoDesenho, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
+import type { DoorKind, DoorSide, DrawingCap, DrawingDash, ExitPassage, MapData, MaterialDaParede, ParedesDoDesenho, Pin, PinBlockReason, PinPassage, Region, Token, Wall } from './types/map'
 import { corDoPinoParaGravar, escalaDoPino, escalaDoPinoParaGravar, passageOf, pinKindChangePatch } from './lib/pins'
 import { MINIGAME_PADRAO } from './minigames/danca/tipos'
 import type { MinigameDoPino } from './minigames/tipos'
@@ -686,6 +686,11 @@ function App() {
   const definirFeitioDaParede = useMapStore((state) => state.definirFeitioDaParede)
   const wallFeitio = useMapStore((state) => state.wallFeitio)
   const setWallFeitio = useMapStore((state) => state.setWallFeitio)
+  const definirMaterialDaParede = useMapStore((state) => state.definirMaterialDaParede)
+  const wallAcabamento = useMapStore((state) => state.wallAcabamento)
+  const setWallAcabamento = useMapStore((state) => state.setWallAcabamento)
+  const wallMaterial = useMapStore((state) => state.wallMaterial)
+  const setWallMaterial = useMapStore((state) => state.setWallMaterial)
   const regionStrokeWidth = useMapStore((state) => state.regionStrokeWidth)
   const setRegionStrokeWidth = useMapStore((state) => state.setRegionStrokeWidth)
   const regionStrokeJoin = useMapStore((state) => state.regionStrokeJoin)
@@ -3390,6 +3395,8 @@ function App() {
     doorKind: { value: doorKind, onChange: setDoorKind },
     wallKind: { value: wallKind, onChange: setWallKind },
     wallFeitio: { value: wallFeitio, onChange: setWallFeitio },
+    wallAcabamento: { value: wallAcabamento, onChange: setWallAcabamento },
+    wallMaterial: { value: wallMaterial, onChange: setWallMaterial },
     // Não é eixo: o estilo do mapa aberto desliga o Desenho da parede fora do Desenhado.
     estiloDoMapa: { value: estiloDoMapa(map) },
     regionFillPattern: { value: regionFillPattern, onChange: setRegionFillPattern },
@@ -3952,6 +3959,27 @@ function App() {
                 selectedWall && estiloDoMapa(map) === 'desenhado'
                   ? { valor: selectedWall.feitio ?? 'pedra', onChange: (feitio) => definirFeitioDaParede(selectedWall.id, feitio) }
                   : undefined,
+              // Só linhas ou Com textura: na parede selecionada (com Ctrl+Z, a parede partida
+              // por porta vai junta) ou, sem seleção, a preferência da próxima parede da ferramenta.
+              // Sem seleção, a escolha mora na ficha da ferramenta (os eixos do menu dela) e aqui
+              // fica só o efeito: a espessura do mundo e sem a Cor e o Desenho.
+              acabamento: selectedWall
+                ? {
+                    material: selectedWall.material ?? null,
+                    lembrado: wallMaterial,
+                    onChange: (material: MaterialDaParede | null) => definirMaterialDaParede(selectedWall.id, material),
+                    grid: map.grid,
+                  }
+                : {
+                    material: wallAcabamento === 'textura' ? wallMaterial : null,
+                    lembrado: wallMaterial,
+                    onChange: (material: MaterialDaParede | null) => {
+                      if (material !== null) setWallMaterial(material)
+                      setWallAcabamento(material === null ? 'linhas' : 'textura')
+                    },
+                    grid: map.grid,
+                    semEscolha: true,
+                  },
             }}
             selectedProp={selectedProp}
             propTransform={{

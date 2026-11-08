@@ -1,5 +1,5 @@
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, CamadaId, GridSettings, FeitioDaParede,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, CamadaId, GridSettings, FeitioDaParede, MaterialDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame,
   ConcealZone, Pin, PinIcon, PinKind, RoomMeta, MovementRules, SceneFloor, NivelAlerta, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha,
 } from '../types/map'
@@ -1272,6 +1272,30 @@ export function definirFeitioDaParede(map: MapData, wallId: string, feitio: Feit
       if (emLinha) return { ...w, feitio: 'linha' }
       const { feitio: _feitio, ...dePedra } = w
       return dePedra
+    }),
+  }
+}
+
+/**
+ * PAREDE COM TEXTURA (`Wall.material`, pedido de 07/11/2026): o material grava o
+ * campo; `null` (Só linhas) o tira. Vale para a parede e para os pedaços dela
+ * partidos por porta, como o feitio: a porta numa parede de castelo não deixa um
+ * pedaço de linha. Id inexistente ou nada a mudar devolvem o MESMO `map` (sem
+ * entrada inútil no histórico).
+ */
+export function definirMaterialDaParede(map: MapData, wallId: string, material: MaterialDaParede | null): MapData {
+  const alvo = map.walls.find((w) => w.id === wallId)
+  if (alvo === undefined) return map
+  const ids = pedacosDaMesmaParede(map.walls, alvo)
+  const muda = (w: Wall) => ids.has(w.id) && (w.material ?? null) !== material
+  if (!map.walls.some(muda)) return map
+  return {
+    ...map,
+    walls: map.walls.map((w) => {
+      if (!muda(w)) return w
+      if (material !== null) return { ...w, material }
+      const { material: _material, ...soLinhas } = w
+      return soLinhas
     }),
   }
 }

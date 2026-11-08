@@ -38,6 +38,8 @@ function bindings(): ToolVariantBindings {
     doorKind: { value: 'normal', onChange: vazio },
     wallKind: { value: undefined, onChange: vazio },
     wallFeitio: { value: 'pedra', onChange: vazio },
+    wallAcabamento: { value: 'linhas', onChange: vazio },
+    wallMaterial: { value: 'castelo', onChange: vazio },
     estiloDoMapa: { value: 'atual' },
     regionFillPattern: { value: 'solid', onChange: vazio },
     polygonSides: { value: 6, onChange: vazio },

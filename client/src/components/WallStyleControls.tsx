@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { FeitioDaParede, Wall, WallThicknessPreset } from '../types/map'
+import type { FeitioDaParede, MaterialDaParede, Wall, WallThicknessPreset } from '../types/map'
 import {
   WALL_COLOR,
   WALL_WIDTH_WORLD_MAX,
@@ -10,6 +10,10 @@ import {
 } from '../pixi/drawWalls'
 import { Toggle } from './Toggle'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
+import { AmostraDoMaterial } from './AmostraDoMaterial'
+import { MATERIAIS_DA_PAREDE } from '../texturas/paredes/catalogo'
+import { espessuraDoMaterial } from '../pixi/paredesComMaterial'
+import './TexturasControls.css'
 
 /** Mesmo padrão de `LineCapControls.tsx`/`GridControls.tsx` (`LINE_STYLES`):
  *  array explícito de opções, não `Object.keys` (que tiparia `string[]`). */
@@ -30,6 +34,9 @@ const WALL_COLOR_INPUT_ID = 'lb-wall-color'
 
 /** A frase do "Desenho" (Pedra | Linha), que o campo explica sob demanda. */
 const WALL_FEITIO_HINT_ID = 'lb-wall-feitio-hint'
+
+/** A frase do "Acabamento" (Só linhas | Com textura). */
+const WALL_ACABAMENTO_HINT_ID = 'lb-wall-acabamento-hint'
 
 const FEITIO_OPTIONS: Array<{ value: FeitioDaParede; label: string }> = [
   { value: 'pedra', label: 'Pedra' },
@@ -124,6 +131,26 @@ export interface WallStyleControlsProps {
    */
   feitio?: { valor: FeitioDaParede; onChange: (feitio: FeitioDaParede) => void }
   /**
+   * SÓ LINHAS OU COM TEXTURA (`Wall.material`, pedido de 07/11/2026), em qualquer
+   * estilo: `material` `null` = Só linhas. `lembrado` é o material que "Com
+   * textura" usa (o da ferramenta). Na parede selecionada, trocar é um passo do
+   * Ctrl+Z e leva junto os pedaços da parede partida por porta; na ferramenta, é
+   * a preferência da próxima parede. Com textura, a Cor e o Desenho somem: a
+   * textura tem a cor do material e cobre a pedra e a linha.
+   */
+  acabamento?: {
+    material: MaterialDaParede | null
+    lembrado: MaterialDaParede
+    onChange: (material: MaterialDaParede | null) => void
+    /** A grade do mapa: a espessura da parede com textura é do mundo (`espessuraDoMaterial`). */
+    grid: number
+    /**
+     * A escolha já está na ficha da ferramenta (os eixos do menu dela): aqui só o
+     * efeito dela — a Cor e o Desenho somem e a espessura sai em px do mundo.
+     */
+    semEscolha?: boolean
+  }
+  /**
    * O Avançado da parede ("Ponta e canto"), como a ÚLTIMA linha deste bloco
    * (pedido painel-acervo, fatia 3), e não uma seção irmã com fio: é da
    * parede, como o da ficha é de "Trava e visibilidade". Quem monta é o
@@ -167,6 +194,7 @@ export function WallStyleControls({
   passagem,
   cor,
   feitio,
+  acabamento,
   avancado,
   semTitulo = false,
   parte,
@@ -178,9 +206,12 @@ export function WallStyleControls({
   // "muralha de 32 px" não é Fina, Média nem Grossa, e fingir que é faria o
   // degrau marcado mentir. Clicar num degrau volta para o fio de planta.
   const activePreset = typeof thickness === 'string' ? thickness : thickness === undefined ? 'medium' : null
-  const worldWidth = wallWorldWidth(thickness)
   // Sem `parte`, o bloco inteiro na ordem de sempre; com ela, só os trechos daquele pedaço.
   const mostra = (pedaco: ParteDaParede) => parte === undefined || parte === pedaco
+  const comTextura = acabamento !== undefined && acabamento.material !== null
+  const escolheAqui = acabamento !== undefined && acabamento.semEscolha !== true
+  // Com textura, a espessura é do mundo (fina 12, média 20, grossa 32 por casa de 64): o ajuste fino mostra essa.
+  const worldWidth = comTextura ? Math.round(espessuraDoMaterial({ thickness }, acabamento.grid)) : wallWorldWidth(thickness)
   return (
     <section className="lb-section">
       {parte === undefined && !semTitulo && <h2 className="lb-eyebrow">Parede</h2>}
@@ -203,7 +234,54 @@ export function WallStyleControls({
           <Toggle label="Deixa ver (a visão atravessa)" checked={passagem.deixaVer} onChange={passagem.onDeixaVerChange} />
         </>
       )}
-      {mostra('essencial') && feitio && (
+      {mostra('essencial') && acabamento && escolheAqui && (
+        // A primeira decisão do bloco: com textura, a cor e o desenho de baixo não valem.
+        <div className="lb-field">
+          <span className="lb-label">Acabamento</span>
+          <div className="lb-seg" role="radiogroup" aria-label="Acabamento da parede" aria-describedby={WALL_ACABAMENTO_HINT_ID}>
+            <button type="button" role="radio" aria-checked={!comTextura} className="lb-seg__option" onClick={() => acabamento.onChange(null)}>
+              Só linhas
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={comTextura}
+              className="lb-seg__option"
+              onClick={() => acabamento.onChange(acabamento.material ?? acabamento.lembrado)}
+            >
+              Com textura
+            </button>
+          </div>
+          <p className="lb-field__hint" id={WALL_ACABAMENTO_HINT_ID}>
+            Com textura, a parede leva a imagem do material na cor dele, em qualquer estilo do mapa. A visão e o passo não mudam.
+          </p>
+        </div>
+      )}
+      {mostra('essencial') && acabamento && escolheAqui && acabamento.material !== null && (
+        <div className="lb-field">
+          <span className="lb-label">Material</span>
+          <div className="lb-texturas__grade lb-acabamento__grade" role="radiogroup" aria-label="Material da parede">
+            {MATERIAIS_DA_PAREDE.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="radio"
+                aria-checked={acabamento.material === m.id}
+                aria-label={m.nome}
+                title={m.descricao}
+                className="lb-texturas__opcao"
+                onClick={() => acabamento.onChange(m.id)}
+              >
+                <AmostraDoMaterial material={m.id} forma="faixa" />
+                <span className="lb-texturas__nome" aria-hidden="true">
+                  {m.nome}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {mostra('essencial') && feitio && !comTextura && (
         // A primeira linha do essencial: ela decide o que a cor e a espessura
         // abaixo pintam. Rótulo primeiro filho do campo e a frase por
         // `aria-describedby`, o contrato da dica sob demanda (como "Espessura").
@@ -228,7 +306,7 @@ export function WallStyleControls({
           </p>
         </div>
       )}
-      {mostra('essencial') && cor && (
+      {mostra('essencial') && cor && !comTextura && (
         <div className="lb-section__row">
           <label className="lb-label" htmlFor={WALL_COLOR_INPUT_ID}>
             Cor da parede
@@ -316,7 +394,8 @@ export function WallStyleControls({
               onChange={(event) => onThicknessChange?.(Number(event.target.value))}
             />
           </div>
-          {avancado}
+          {/* O Avançado é "Ponta e canto" da linha: a parede com textura tem ponta reta e quina em esquadro sempre. */}
+          {!comTextura && avancado}
         </>
       )}
     </section>

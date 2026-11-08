@@ -1,6 +1,6 @@
 import { createContext, Fragment, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMapStore } from '../stores/mapStore'
-import type { DoorKind, FeitioDaParede, FloorPiece, FreehandTexture, Region, TipoMobilia, Wall } from '../types/map'
+import type { AcabamentoDaParede, DoorKind, FeitioDaParede, FloorPiece, FreehandTexture, MaterialDaParede, Region, TipoMobilia, Wall } from '../types/map'
 import type { EstiloVisual } from '../lib/estiloDoMapa'
 import type { DrawingTool, RoomFreeKind } from '../types/tools'
 import type { StairSizePreset } from '../lib/stairs'
@@ -19,6 +19,7 @@ import {
 } from '../lib/toolVariants'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { MobiliaIcon } from './icons'
+import { AmostraDoMaterial } from './AmostraDoMaterial'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
 
 /** Tamanho do desenho do móvel ao lado de cada opção de Objetos — o mesmo dos ícones do grupo Forma. */
@@ -46,6 +47,9 @@ export interface ToolVariantBindings {
   wallKind: { value: Wall['wallKind']; onChange: (value: NonNullable<Wall['wallKind']>) => void }
   /** Desenhado — a PRÓXIMA parede nasce de pedra ou de linha (`Wall.feitio`). */
   wallFeitio: { value: FeitioDaParede; onChange: (value: FeitioDaParede) => void }
+  /** A PRÓXIMA parede: só linhas ou com textura (`Wall.material`), e o material dela. */
+  wallAcabamento: { value: AcabamentoDaParede; onChange: (value: AcabamentoDaParede) => void }
+  wallMaterial: { value: MaterialDaParede; onChange: (value: MaterialDaParede) => void }
   /**
    * Não é eixo: o estilo do mapa aberto, só para ler. Desliga o grupo que só vale
    * num estilo (`inativoQuando.soNoEstilo`, o Desenho da parede).
@@ -259,6 +263,13 @@ export function eixoDaVariante(
       return eixo(group.options, bindings.wallKind.value ?? 'exterior', bindings.wallKind.onChange)
     case 'wallFeitio':
       return eixo(group.options, bindings.wallFeitio.value, bindings.wallFeitio.onChange)
+    case 'wallAcabamento':
+      return eixo(group.options, bindings.wallAcabamento.value, bindings.wallAcabamento.onChange)
+    case 'wallMaterial':
+      // A amostra do material no lugar do ícone: escolher pelo que se vê, não pelo nome.
+      return eixo(group.options, bindings.wallMaterial.value, bindings.wallMaterial.onChange, (material) => ({
+        icon: <AmostraDoMaterial material={material} />,
+      }))
     case 'regionFillPattern':
       return eixo(group.options, bindings.regionFillPattern.value, bindings.regionFillPattern.onChange)
     case 'polygonSides':

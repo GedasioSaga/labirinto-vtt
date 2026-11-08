@@ -77,7 +77,7 @@ describe('TOOL_VARIANTS', () => {
       'doorKind', 'wallKind', 'regionFillPattern', 'polygonSides',
       'stairSizePreset', 'drawTexture', 'brushMode', 'eraseMode',
       'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize', 'floorCamada',
-      'roomFreeKind', 'roomFreeRounded', 'mobiliaTipo', 'wallFeitio',
+      'roomFreeKind', 'roomFreeRounded', 'mobiliaTipo', 'wallFeitio', 'wallAcabamento', 'wallMaterial',
     ]
     for (const entry of readyToolVariants()) {
       for (const group of entry.groups) {
@@ -94,13 +94,21 @@ describe('TOOL_VARIANTS', () => {
     }
   })
 
-  it('wall tem as 2 variantes de wallKind (interior/exterior) e o Desenho da parede (pedra/linha)', () => {
+  it('wall tem wallKind (interior/exterior), Só linhas ou Com textura, o Material e o Desenho da parede (pedra/linha)', () => {
     const entry = TOOL_VARIANTS.wall
     expect(entry?.available).toBe(true)
     if (!entry || !entry.available) throw new Error('wall deveria estar disponível')
-    expect(entry.groups).toHaveLength(2)
+    expect(entry.groups.map((g) => g.storeKey)).toEqual(['wallKind', 'wallAcabamento', 'wallMaterial', 'wallFeitio'])
     expect(entry.groups[0].options.map((o) => o.value)).toEqual(['exterior', 'interior'])
-    expect(entry.groups[1].options.map((o) => o.value)).toEqual(['pedra', 'linha'])
+    // Só linhas primeiro: o padrão é a linha de sempre (regra do usuário de 07/11/2026).
+    expect(entry.groups[1].options.map((o) => o.value)).toEqual(['linhas', 'textura'])
+    expect(entry.groups[3].options.map((o) => o.value)).toEqual(['pedra', 'linha'])
+    // As Salas e a Sala livre não oferecem a textura: as paredes delas nascem Só linhas.
+    for (const tool of ['room', 'roomCircle', 'roomPolygon', 'roomFree'] as const) {
+      const sala = TOOL_VARIANTS[tool]
+      if (!sala || !sala.available) throw new Error(`${tool} deveria estar disponível`)
+      expect(sala.groups.map((g) => g.storeKey)).not.toContain('wallAcabamento')
+    }
   })
 
   it('door tem exatamente as 3 variantes de doorKind (normal/double/gate)', () => {

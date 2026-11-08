@@ -117,6 +117,8 @@ function grupoValeAgora(grupo: ToolVariantGroup, variantes: ToolVariantBindings)
   if (grupo.storeKey === 'floorPolygonSides') return variantes.floorShapeKind.value === 'polygon'
   // Pedra ou Linha só no Desenhado: no Atual e no Simples a parede já é linha.
   if (grupo.storeKey === 'wallFeitio') return variantes.estiloDoMapa.value === 'desenhado'
+  // O material só com "Com textura" (a escolha fica guardada com "Só linhas").
+  if (grupo.storeKey === 'wallMaterial') return variantes.wallAcabamento.value === 'textura'
   return true
 }
 

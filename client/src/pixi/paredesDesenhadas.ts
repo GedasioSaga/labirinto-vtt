@@ -13,6 +13,8 @@ import { SELECTION_COLOR } from './constants'
 import { clampWallWidth, drawWallMarks, drawWalls, groupWallChains, isClosedChain, selectionOutlineWidth, traceWallChain, wallColorFor, type WallWithStyle } from './drawWalls'
 import { atlasDasRampas, chaveDaCor, meshDoContorno, meshDoMiolo, paredeCompila } from './malhaDaParede'
 import { soltarMesh, texturaDoTraco, type ImagemNaPlaca } from './malhaDoTraco'
+import { assinarMateriais } from '../texturas/paredes/materiais'
+import { criarPintorDeMateriais, pintarSelecaoDosMateriais, texturaPronta, type ParedeComMaterial } from './paredesComMaterial'
 
 /**
  * AS PAREDES NO ESTILO DESENHADO (plano de 29/10/2026, F4b; CONTRATO.md 11.15),
@@ -28,7 +30,10 @@ import { soltarMesh, texturaDoTraco, type ImagemNaPlaca } from './malhaDoTraco'
  *  5. os MIOLOS: a alvenaria pela espessura (Baixo lajes, Médio blocos, Alto
  *     muralha), na ordem da referência: o T primeiro, a mais fina, a fechada por
  *     último. O miolo de uma apaga o contorno da outra: o T e o cruzamento se fundem;
- *  6. `acima`: as marcas do editor (a invisível e a passagem tracejadas).
+ *  6. as PAREDES COM TEXTURA (`Wall.material`, `paredesComMaterial.ts`), em
+ *     qualquer estilo: saem da linha e da pedra e vêm aqui, com a seleção delas
+ *     no `abaixo`;
+ *  7. `acima`: as marcas do editor (a invisível e a passagem tracejadas).
  *
  * A janela e a grade não partem a cadeia: são trechos dela com a imagem
  * própria. A porta também, desde o lote 18 (CONTRATO 11.16), quando as imagens
@@ -299,6 +304,11 @@ export function criarPintorDeParedes(): PintorDeParedes {
   const pararDeOuvirAsPortas = assinarPortasAnimando(() => {
     if (no !== null && ultimo !== null) desenhar(no, ultimo)
   })
+  // A parede com textura sai como linha até a imagem do material chegar; chegou, repinta.
+  const materiais = criarPintorDeMateriais()
+  const pararDeOuvirOsMateriais = assinarMateriais(() => {
+    if (no !== null && ultimo !== null) desenhar(no, ultimo)
+  })
   /** O dono das folhas que este pintor publica (`portasDesenhadas.ts`). */
   const dono = {}
 
@@ -348,7 +358,7 @@ export function criarPintorDeParedes(): PintorDeParedes {
     if (no === alvo) return
     no = alvo
     desenhado.addChildAt(sombra, 0)
-    alvo.addChild(vetor, abaixo, desenhado, acima)
+    alvo.addChild(vetor, abaixo, desenhado, materiais.container, acima)
   }
 
   /** A seleção das paredes de pedra por baixo, na espessura do mundo (a do Atual, e a da linha, é de tela). */
@@ -369,16 +379,18 @@ export function criarPintorDeParedes(): PintorDeParedes {
     }
   }
 
-  function pintarAtual(pedido: PedidoDasParedes): void {
+  /** `comTextura`: as paredes que saem com textura, fora da linha e da pedra; aqui só entram as marcas delas. */
+  function pintarAtual(pedido: PedidoDasParedes, comTextura: readonly ParedeComMaterial[]): void {
     soltarMalhas()
     publicarFolhasDesenhadas(dono, SEM_FOLHAS)
     sombra.visible = false
     abaixo.clear()
-    acima.clear()
+    if (pedido.marcarPassagem && comTextura.length > 0) drawWallMarks(acima, [...comTextura], pedido.cameraScale, pedido.rendererResolution)
+    else acima.clear()
     drawWalls(vetor, pedido.walls, pedido.selectedWallId, pedido.cameraScale, pedido.rendererResolution, pedido.highlightedRegionId, pedido.marcarPassagem)
   }
 
-  function pintarDesenhado(pedido: PedidoDasParedes, t: Tinta): void {
+  function pintarDesenhado(pedido: PedidoDasParedes, t: Tinta, comTextura: readonly ParedeComMaterial[]): void {
     // As de linha no `vetor`, por baixo da pedra, com a seleção e as marcas do Atual
     // (`drawWalls` limpa antes; sem parede de linha, fica vazio como antes).
     const pedra = pedido.walls.filter((w) => !emLinha(w))
@@ -387,7 +399,7 @@ export function criarPintorDeParedes(): PintorDeParedes {
     const k = pedido.grid / CASA_DO_TRACO
     const p = t.params
     pintarSelecao(pedido, pedra, (w) => (w.door === null ? espessuraDoTraco(w, p, k) * k : 0))
-    if (pedido.marcarPassagem) drawWallMarks(acima, pedra, pedido.cameraScale, pedido.rendererResolution)
+    if (pedido.marcarPassagem) drawWallMarks(acima, [...pedra, ...comTextura], pedido.cameraScale, pedido.rendererResolution)
     else acima.clear()
     // A sombra: só o desfoque acompanha o zoom (px da tela), a malha não.
     const sigma = p.sombra.borraoPx * k * 0.5
@@ -448,9 +460,17 @@ export function criarPintorDeParedes(): PintorDeParedes {
   function desenhar(alvo: Container, pedido: PedidoDasParedes): void {
     montar(alvo)
     ultimo = pedido
+    // As de textura saem da linha e da pedra (inclusive das cadeias do Desenhado, `todas`).
+    const comTextura = pedido.walls.filter(texturaPronta)
+    const resto: PedidoDasParedes =
+      comTextura.length === 0 && !(pedido.todas ?? []).some(texturaPronta)
+        ? pedido
+        : { ...pedido, walls: pedido.walls.filter((w) => !texturaPronta(w)), todas: pedido.todas?.filter((w) => !texturaPronta(w)) }
     const tinta = desenhadoLigado() && !semShader ? tintaPronta() : null
-    if (tinta === null) pintarAtual(pedido)
-    else pintarDesenhado(pedido, tinta)
+    if (tinta === null) pintarAtual(resto, comTextura)
+    else pintarDesenhado(resto, tinta, comTextura)
+    materiais.pintar(comTextura, pedido.grid)
+    if (comTextura.length > 0) pintarSelecaoDosMateriais(abaixo, comTextura, pedido)
   }
 
   return {
@@ -458,6 +478,8 @@ export function criarPintorDeParedes(): PintorDeParedes {
     destroy: () => {
       pararDeOuvir()
       pararDeOuvirAsPortas()
+      pararDeOuvirOsMateriais()
+      materiais.destroy()
       publicarFolhasDesenhadas(dono, SEM_FOLHAS)
       soltarMalhas()
       soltarImagens()

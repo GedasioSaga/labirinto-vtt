@@ -1,0 +1,39 @@
+/* AMOSTRA DO MATERIAL DA PAREDE (AmostraDoMaterial): o pedaço da textura em
+   volta do meio do traço. No menu da ferramenta é o quadradinho de 16 px no
+   lugar do ícone; na grade do painel é uma tira, a parede vista de cima, com o
+   fio escuro dos dois lados (como a borda da parede no mapa) e o fio de latão
+   quando marcada, o mesmo da miniatura da Biblioteca de texturas. */
+.lb-amostra-material {
+  display: block;
+  flex: none;
+  background-color: var(--lb-color-stone-raised);
+  background-repeat: repeat;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.lb-amostra-material--icone {
+  width: 16px;
+  height: 16px;
+}
+
+.lb-amostra-material--faixa {
+  width: 100%;
+  height: 24px;
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+}
+
+.lb-texturas__opcao[aria-checked='true'] .lb-amostra-material--faixa {
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(224, 164, 74, 0.55);
+}
+
+/* No painel da parede selecionada, a grade de materiais em DUAS colunas: a tira
+   larga lê como parede (e não como ladrilho) e "Pedra rústica" cabe sem cortar. */
+.lb-texturas__grade.lb-acabamento__grade {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}

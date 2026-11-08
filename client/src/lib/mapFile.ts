@@ -10,6 +10,7 @@ import { closeIfLocked } from './doorLock'
 import { lerMarcasDoArquivo } from './marcas'
 import { readTokenVehicle, withoutVehicleField } from './vehicle'
 import { linkLooseWallsToRooms } from './roomLink'
+import { ehMaterialDaParede } from '../texturas/paredes/catalogo'
 import {
   cleanPinName,
   isPinBlockReason,
@@ -598,6 +599,14 @@ function feitioDoArquivo(wall: Wall): Wall {
   return semFeitio
 }
 
+/** PAREDE COM TEXTURA (`Wall.material`) — campo NOVO e OPCIONAL: ausente continua
+ *  ausente (só linhas); só material do catálogo volta, o resto SAI. */
+function materialDoArquivo(wall: Wall): Wall {
+  if (!('material' in wall) || ehMaterialDaParede(wall.material)) return wall
+  const { material: _torto, ...semMaterial } = wall
+  return semMaterial
+}
+
 /** MODELO E COR DO TELHADO — campos NOVOS e OPCIONAIS: ausentes continuam
  *  ausentes (telha barro). Modelo fora de `MODELOS_DO_TETO` (telhas, madeira,
  *  palha desde a MT6) e cor que não é
@@ -733,10 +742,11 @@ function deserializeMapFields(json: string): MapData {
     // chave (`semCamadaTorta`); ausente continua ausente.
     // GRADE DE PRISÃO (`Wall.grade`, Meio-Termo): só `true` volta (`gradeDoArquivo`).
     // FEITIO (`Wall.feitio`, Desenhado): só `'linha'` volta (`feitioDoArquivo`).
-    walls: entityList(parsed.walls).map((w) => semCamadaTorta(feitioDoArquivo(gradeDoArquivo({
+    // MATERIAL (`Wall.material`): só o do catálogo volta (`materialDoArquivo`).
+    walls: entityList(parsed.walls).map((w) => semCamadaTorta(materialDoArquivo(feitioDoArquivo(gradeDoArquivo({
       ...w,
       door: w.door ? doorFromFile(w.door) : null,
-    })))),
+    }))))),
     lights: entityList(parsed.lights).map(lightFromFile).map(semCamadaTorta),
     // inalterado — `room` ausente fica undefined (região comum); o ângulo do
     // giro da sala passa como veio, desde que seja número (`roomRotationFromFile`)

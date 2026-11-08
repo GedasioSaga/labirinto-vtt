@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type {
-  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings, FeitioDaParede,
+  MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings, FeitioDaParede, MaterialDaParede, AcabamentoDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, FormaDaPonte, FormaDoMoinho, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
@@ -27,6 +27,7 @@ import type { AparenciaDoMovelPatch } from '../lib/mobilia'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
 import { estiloDoMapa, type EstiloVisual } from '../lib/estiloDoMapa'
+import { MATERIAL_PADRAO } from '../texturas/paredes/catalogo'
 import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
@@ -194,6 +195,18 @@ function texturaNaCena(map: MapData, id: string): boolean {
  */
 function comFeitioDaFerramenta(map: MapData, feitio: FeitioDaParede, wall: Wall): Wall {
   return feitio === 'linha' && estiloDoMapa(map) === 'desenhado' ? { ...wall, feitio: 'linha' } : wall
+}
+
+/**
+ * A parede que a FERRAMENTA PAREDE risca com "Com textura" (`wallAcabamento`)
+ * leva o material escolhido (`wallMaterial`, gravado em `Wall.material`); "Só
+ * linhas" deixa a parede sem o campo, o desenho de hoje. Só o `addWall` (o traço
+ * da ferramenta Parede) passa por aqui: as Salas, a Sala livre e o "Criar
+ * paredes" da região nascem Só linhas (regra do usuário de 07/11/2026: "a padrão
+ * seja a linha atual, só paredes específicas").
+ */
+function comMaterialDaFerramenta(s: Pick<MapStoreState, 'wallAcabamento' | 'wallMaterial'>, wall: Wall): Wall {
+  return s.wallAcabamento === 'textura' ? { ...wall, material: s.wallMaterial } : wall
 }
 
 /** O carimbo que a ferramenta Carimbos escolhe quando o escolhido some (o mais usado no continente). */
@@ -458,6 +471,14 @@ interface MapStoreState {
    *  `linkRegionWalls`), e só com o mapa no Desenhado; 'pedra' = sem o campo. */
   wallFeitio: FeitioDaParede
   setWallFeitio: (feitio: FeitioDaParede) => void
+  /** Só linhas ou Com textura na PRÓXIMA parede (pedido de 07/11/2026) — preferência de
+   *  ferramenta, sem histórico e fora do map.json, mesma classe de `wallFeitio`; vale
+   *  SÓ na ferramenta Parede (`comMaterialDaFerramenta`). 'linhas' = sem `Wall.material`, o desenho de hoje. */
+  wallAcabamento: AcabamentoDaParede
+  setWallAcabamento: (acabamento: AcabamentoDaParede) => void
+  /** O material da próxima parede Com textura; lembrado mesmo com "Só linhas". */
+  wallMaterial: MaterialDaParede
+  setWallMaterial: (material: MaterialDaParede) => void
   setWallThickness: (thickness: NonNullable<Wall['thickness']>) => void
   setWallLineStyle: (lineStyle: NonNullable<Wall['lineStyle']>) => void
   /** Troca `thickness`/`lineStyle` de uma Parede JÁ EXISTENTE e selecionada —
@@ -1155,6 +1176,8 @@ interface MapStoreState {
   definirGrade: (id: string, ligada: boolean) => void
   /** FEITIO da parede no Desenhado (`Wall.feitio`): Pedra ou Linha, com os pedaços da mesma parede partida por porta. Com histórico; o que não muda nada não gasta entrada. */
   definirFeitioDaParede: (id: string, feitio: FeitioDaParede) => void
+  /** TEXTURA da parede (`Wall.material`): o material, ou `null` para Só linhas, com os pedaços da mesma parede partida por porta. Com histórico; o que não muda nada não gasta entrada. */
+  definirMaterialDaParede: (id: string, material: MaterialDaParede | null) => void
   /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo), com histórico; `undefined` = "de cima". */
   definirVistaDosMoveis: (vista: MapData['vistaDosMoveis']) => void
   /** MANCHAS DO CHÃO da cena (`MapData.manchasDoChao`, Meio-Termo), com histórico; desligar tira o campo. */
@@ -2012,6 +2035,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     wallThickness: undefined,
     wallLineStyle: undefined,
     wallFeitio: 'pedra',
+    wallAcabamento: 'linhas',
+    wallMaterial: MATERIAL_PADRAO,
     doorKind: 'normal',
     doorMode: 'porta',
     roomFreeKind: 'sala',
@@ -2213,6 +2238,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setWallThickness: (thickness) => set({ wallThickness: thickness }),
     setWallLineStyle: (lineStyle) => set({ wallLineStyle: lineStyle }),
     setWallFeitio: (feitio) => set({ wallFeitio: feitio }),
+    setWallAcabamento: (acabamento) => set({ wallAcabamento: acabamento }),
+    setWallMaterial: (material) => set({ wallMaterial: material }),
     setDoorKind: (kind) => set({ doorKind: kind }),
     setDoorMode: (mode) => set({ doorMode: mode }),
     setRoomFreeKind: (kind) => set({ roomFreeKind: kind }),
@@ -2288,7 +2315,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     // dela (parede parcial); a Sala de outro piso, ali embaixo, não conta.
     // A parede nasce com o Desenho escolhido na ferramenta (`comFeitioDaFerramenta`).
     addWall: (wall) =>
-      withHistory((map) => mapFactory.addWall(map, linkDrawnWallToRoom(mapaDoPiso(map, get().pisoAtivo).regions, comFeitioDaFerramenta(map, get().wallFeitio, wall)))),
+      withHistory((map) => mapFactory.addWall(map, linkDrawnWallToRoom(mapaDoPiso(map, get().pisoAtivo).regions, comMaterialDaFerramenta(get(), comFeitioDaFerramenta(map, get().wallFeitio, wall))))),
     addWalls: (walls) => {
       // Traçado vazio não gasta entrada de undo que não desfaz nada.
       if (walls.length === 0) return
@@ -2849,6 +2876,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     definirFeitioDaParede: (id, feitio) => {
       if (mapFactory.definirFeitioDaParede(get().map, id, feitio) === get().map) return
       withHistory((map) => mapFactory.definirFeitioDaParede(map, id, feitio))
+    },
+    definirMaterialDaParede: (id, material) => {
+      if (mapFactory.definirMaterialDaParede(get().map, id, material) === get().map) return
+      withHistory((map) => mapFactory.definirMaterialDaParede(map, id, material))
     },
     definirVistaDosMoveis: (vista) => {
       if (mapFactory.definirVistaDosMoveis(get().map, vista) === get().map) return
