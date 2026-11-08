@@ -136,3 +136,16 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - 10 balas do pente: SÓ MOSTRAR na Capacidade (o app não conta).
 - Duas Acrobacia: APAGAR UMA.
 - Boomerang (literal): "É uma arma de Arremesso que quando acerta não da dano mas atordoa o alvo, crie que é um efeito da arma e que esse efeito só pode ser usado 3 vezes no combate." Regra: vai para a aba Armas como ARREMESSO; ao acertar NÃO DÁ DANO e ATORDOA o alvo; efeito da arma com limite de 3 USOS POR COMBATE. (recurso novo: efeito de arma com usos por combate)
+
+## Harvey Solferino (P1, P2, P4, P6; P3 atordoado, P5 Tempo 1, P9 concentração e P12 Surpresa seguem regras já respondidas)
+- Medicina: cura 100, 3 VEZES POR BATALHA (concentração 150 / 200 / 350); CURA SOZINHA, sem reação, nele ou num aliado.
+- Pá: dá 10; Atacar = Força + 10 = 60.
+- Giro de Pá (literal): "113 em todos a 1 casa, inimigos mas harvey pode escolher tambem, e uma coisa, todos os golpes do harvey são feitos usando uma pá então pode editar as habilidade dele e colocar + dano da arma, que é a pá dele." Regras: 113 em todos os INIMIGOS a 1 casa (marcados sozinhos, e o Harvey pode mudar a escolha); TODOS os golpes do Harvey levam + DANO DA ARMA (a Pá): editar as técnicas dele para somar a arma.
+- Golpe Baixo: "+8 em reação" dura 2 TURNOS (como o Cego); Cego ZERA A PERCEPÇÃO (livro). Terreno (terra/areia) e alcance 2: o MESTRE CONFERE, o app só lembra na mira.
+- Cirurgia: SÓ FORA DA BATALHA (sai do menu); nome corrigido para "Cirurgia".
+- Kit Médico: GASTA POR USO (cada Medicina consome 1).
+- "[+1]" no nome da Pazada: fica como nível da técnica (recomendação, sem pergunta).
+- Kit Médico: ele tem 1 AGORA.
+- Dials (Skypean): NÃO TEM; a ficha está certa.
+- Infâmia (literal): "Coloca em algum lugar na ficha que ele é amaldiçoada que a maldição dele é infamia, e ta certo 101 a 300 ele teria que acumular muito mesmo". Regra: mostrar na ficha "Amaldiçoado: Infâmia" (com o número); a faixa 101-300 fica sem efeito de propósito.
+- Asas, planar, "Cap maior em AGI e PER": SÓ NARRATIVA.
