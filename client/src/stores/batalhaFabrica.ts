@@ -923,6 +923,57 @@ function selosDeAntes(antes: TurnosDaCena, depois: TurnosDaCena): { selos?: Turn
   return antes.selos === depois.selos ? {} : { selos: antes.selos ?? [] }
 }
 
+/**
+ * Conserto das fichas F1 (bug 2): os golpes lançados na vez que está
+ * acabando, o contra-ataque fora da vez incluído: a linha deles veio depois
+ * da linha "vez" de pé mais nova. O alvo deles ainda não teve tempo de
+ * responder, então esperam a virada seguinte. Sem linha "vez" (a primeira vez
+ * da batalha): todos são da vez de agora.
+ */
+function golpesDaVezQueAcaba(cena: BatalhaDaCena): ReadonlySet<string> {
+  let comeco = Number.NEGATIVE_INFINITY
+  for (let i = cena.registro.length - 1; i >= 0; i -= 1) {
+    const linha = cena.registro[i]
+    if (linha !== undefined && linha.tipo === 'vez' && linha.desfeita === undefined) {
+      comeco = linha.seq
+      break
+    }
+  }
+  const depois = new Set(cena.registro.filter((linha) => linha.seq > comeco).map((linha) => linha.id))
+  return new Set((cena.turnos.golpes ?? []).filter((golpe) => depois.has(golpe.linhaId)).map((golpe) => golpe.id))
+}
+
+/** Os selos de `foto` com o que mudou de `antes` para `depois` (por id: os que sumiram saem, os que vieram entram). */
+function selosComAMudanca(foto: readonly SeloDaBatalha[], antes: readonly SeloDaBatalha[], depois: readonly SeloDaBatalha[]): SeloDaBatalha[] {
+  const ficaram = new Set(depois.map((selo) => selo.id))
+  const eram = new Set(antes.map((selo) => selo.id))
+  const sumiram = new Set(antes.filter((selo) => !ficaram.has(selo.id)).map((selo) => selo.id))
+  const naFoto = foto.filter((selo) => !sumiram.has(selo.id))
+  const jaNaFoto = new Set(naFoto.map((selo) => selo.id))
+  return [...naFoto, ...depois.filter((selo) => !eram.has(selo.id) && !jaNaFoto.has(selo.id))]
+}
+
+/**
+ * Conserto das fichas F1 (bug 2): o "Não reagiu" da virada desfeito sozinho
+ * sai também da foto da linha "Vez" de pé que o escreveu (os lembretes do
+ * dano saem do combate; a marca volta e o selo do golpe sai, como o Desfazer
+ * fez agora de `antes` para `depois`). Sem isso, o Desfazer da vez depois
+ * traria tudo de volta. Nenhuma vez o listou: o MESMO registro.
+ */
+function semOFechamentoNaFoto(registro: readonly LinhaDoRegistro[], fechamento: LinhaDoRegistro, antes: TurnosDaCena, depois: TurnosDaCena): readonly LinhaDoRegistro[] {
+  let mudou = false
+  const novo = registro.map((linha) => {
+    const { reversao } = linha
+    if (linha.desfeita !== undefined || reversao.tipo !== 'vez' || !(reversao.fechados ?? []).includes(fechamento.id)) return linha
+    mudou = true
+    const foto = reversao.antes
+    const combate = foto.combate === undefined ? undefined : (reverterTurnos({ ...depois, combate: foto.combate }, fechamento.reversao).combate ?? {})
+    const selos = foto.selos === undefined ? undefined : selosComAMudanca(foto.selos, antes.selos ?? [], depois.selos ?? [])
+    return { ...linha, reversao: { ...reversao, antes: { ...foto, ...(combate === undefined ? {} : { combate }), ...(selos === undefined ? {} : { selos }) } } }
+  })
+  return mudou ? novo : registro
+}
+
 /** Um efeito "selo" por selo que acabou ("ATORDOADO ACABOU"). */
 function efeitosDosSelos(acabaram: readonly SeloDaBatalha[]): EfeitoNovo[] {
   return acabaram.map((selo): EfeitoNovo => ({ tipo: 'selo', tokenId: selo.tokenId, nome: selo.nome, acabou: true }))
@@ -1677,10 +1728,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
    * (a marca, o dano na ficha, o selo do golpe). Uma linha "reacao" por golpe
    * diz quem não reagiu e por quê (`porque`); o Desfazer dela devolve o alvo à
    * espera e o dano à ficha (as mesmas partes da reação com técnica). `fecha`
-   * escolhe os golpes, lidos da cena de agora.
+   * escolhe os golpes, lidos da cena de agora. Devolve os ids das linhas
+   * escritas, na ordem.
    */
-  const fecharGolpesSemResposta = (sceneKey: string, fecha: (golpe: GolpeDaBatalha) => boolean, porque: string): void => {
+  const fecharGolpesSemResposta = (sceneKey: string, fecha: (golpe: GolpeDaBatalha) => boolean, porque: string): string[] => {
     const ids = (cenaDe(sceneKey)?.turnos.golpes ?? []).filter(fecha).map((golpe) => golpe.id)
+    const linhas: string[] = []
     for (const golpeId of ids) {
       const cena = cenaDe(sceneKey)
       const antes = cena?.turnos.golpes?.find((candidato) => candidato.id === golpeId)
@@ -1692,7 +1745,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const resolvidos: AlvoDoGolpe[] = []
       for (const esperando of antes.alvos) {
         if (esperando.danoFinal !== undefined) continue
-        const semResposta = resolverAlvo(golpe, esperando.tokenId, 'naoReagiu')
+        // Quem já rolou e não escolheu toma o "Passar" (o 1 natural continua crítico): esperar a virada não foge do dado.
+        const saida = esperando.rolagem === undefined ? 'naoReagiu' : saidaDoPassar(esperando.rolagem.d20)
+        const semResposta = resolverAlvo(golpe, esperando.tokenId, saida)
         const semMarca = semResposta.alvos.find((candidato) => candidato.tokenId === esperando.tokenId)
         if (semMarca === undefined) continue
         // R1: a marca antes do dano, como em toda reação.
@@ -1718,14 +1773,17 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const nomes = resolvidos.map((alvo) => nomeDoToken(alvo.tokenId))
       const quem = nomes.length === 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`
       const texto = `${quem} não ${nomes.length === 1 ? 'reagiu' : 'reagiram'} ${porque} (${golpe.nome} de ${nomeDoToken(golpe.atacanteTokenId)})`
-      const linha: LinhaNova = { tipo: 'reacao', texto, tokenIds: [...new Set([golpe.atacanteTokenId, ...resolvidos.map((alvo) => alvo.tokenId)])], reversao: { tipo: 'composta', partes } }
+      const linhaId = novoIdDeLinha()
+      const linha: LinhaNova = { id: linhaId, tipo: 'reacao', texto, tokenIds: [...new Set([golpe.atacanteTokenId, ...resolvidos.map((alvo) => alvo.tokenId)])], reversao: { tipo: 'composta', partes } }
       const personagemIds = resolvidos.flatMap((alvo) => (alvo.personagemId === null ? [] : [alvo.personagemId]))
       if (personagemIds.length > 0) linha.personagemIds = personagemIds
       // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
       const atual = cenaDe(sceneKey) ?? cena
       const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(golpe, nomeDoToken), []) }
       gravarCena(sceneKey, { ...comMudanca(comOGolpe, novos, linha), efeitos: comEfeitos(atual.efeitos, efeitos) })
+      linhas.push(linhaId)
     }
+    return linhas
   }
 
   return {
@@ -1793,12 +1851,25 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     reset: () => set({ cenas: {}, anuncio: null }),
 
     passarVez: (sceneKey, autor = MESTRE, esperado) => {
-      const cena = cenaDe(sceneKey)
-      if (cena === undefined) return false
+      const inicio = cenaDe(sceneKey)
+      if (inicio === undefined) return false
+      if (esperado !== undefined && (inicio.turnos.vez !== esperado.cartaId || inicio.turnos.rodada !== esperado.rodada)) return false
+      const mesaDeAntes = mesaDoRpg()
+      const caidosAntes = tokensCaidos(inicio.turnos.cartas, mesaDeAntes.personagens, mesaDeAntes.sistema)
+      const previa = passarVezNaOrdem(inicio.turnos, caidosAntes)
+      if (previa === null) return false
+      // Conserto das fichas F1 (bug 2, P3): na virada, o golpe que ninguém respondeu vira "Não reagiu" ANTES de a vez andar
+      // (quem cai com ele não ganha a vez). O da vez que está acabando espera a virada seguinte: o alvo dele ainda não teve tempo.
+      let fechados: string[] = []
+      if (previa.turnos.rodada !== inicio.turnos.rodada) {
+        const daVezQueAcaba = golpesDaVezQueAcaba(inicio)
+        fechados = fecharGolpesSemResposta(sceneKey, (golpe) => !daVezQueAcaba.has(golpe.id), 'até a virada da rodada')
+      }
+      const cena = cenaDe(sceneKey) ?? inicio
       const { turnos } = cena
-      if (esperado !== undefined && (turnos.vez !== esperado.cartaId || turnos.rodada !== esperado.rodada)) return false
       const { personagens, sistema } = mesaDoRpg()
-      const passadaNaOrdem = passarVezNaOrdem(turnos, tokensCaidos(turnos.cartas, personagens, sistema))
+      // Sem fechamento a cena não mudou: vale a prévia. Todos caíram no fechamento: a vez anda como andaria antes dele (a batalha não trava).
+      const passadaNaOrdem = fechados.length === 0 ? previa : (passarVezNaOrdem(turnos, tokensCaidos(turnos.cartas, personagens, sistema)) ?? passarVezNaOrdem(turnos, caidosAntes))
       if (passadaNaOrdem === null) return false
       // Invocação: a carta do bando que ficou vazia na vez dela sai agora; o Desfazer da vez a põe de volta no lugar.
       const semVazios = semBandosVazios(passadaNaOrdem.turnos, turnos.cartas)
@@ -1818,12 +1889,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         autor,
         texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${fimDosSelos}`,
         tokenIds: [...new Set([de?.tokenId, para?.tokenId].filter((id): id is string => id !== undefined))],
-        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, extras: turnos.extras, combate: turnos.combate ?? {}, ...selosDeAntes(turnos, passada.turnos) } },
+        // A foto de antes já tem os "Não reagiu" (vieram antes da vez); `fechados` diz ao Desfazer da vez quais linhas voltam junto.
+        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, extras: turnos.extras, combate: turnos.combate ?? {}, ...selosDeAntes(turnos, passada.turnos) }, ...(fechados.length === 0 ? {} : { fechados }) },
       }
       gravarCena(sceneKey, { ...comMudanca(cena, comLembretes, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
-      // Conserto das fichas F1 (bug 2, P3): na virada da rodada, o golpe das rodadas que passaram que ninguém respondeu vira "Não reagiu".
-      const rodadaNova = passada.turnos.rodada
-      if (rodadaNova !== turnos.rodada) fecharGolpesSemResposta(sceneKey, (golpe) => golpe.rodada < rodadaNova, 'até a virada da rodada')
       return true
     },
 
@@ -2032,7 +2101,18 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           if (outra.desfeita === undefined && reacoesComTecnicaDe(outra.reversao).some((parte) => golpeIds.has(parte.golpe.id))) desfazerLinha(sceneKey, outra.id, autor)
         }
       }
-      return desfazerLinha(sceneKey, linhaId, autor)
+      const antes = cenaDe(sceneKey)?.turnos ?? cena.turnos
+      if (!desfazerLinha(sceneKey, linhaId, autor)) return false
+      // Conserto das fichas F1 (bug 2): o Desfazer da vez desfaz junto os "Não reagiu" que a virada dela escreveu,
+      // do mais novo para o mais velho, depois da foto (que já os tinha). O já desfeito fica como está.
+      if (linha.reversao.tipo === 'vez') {
+        for (const fechado of [...(linha.reversao.fechados ?? [])].reverse()) desfazerLinha(sceneKey, fechado, autor)
+      } else if (linha.tipo === 'reacao') {
+        const depois = cenaDe(sceneKey)
+        const registro = depois === undefined ? undefined : semOFechamentoNaFoto(depois.registro, linha, antes, depois.turnos)
+        if (depois !== undefined && registro !== undefined && registro !== depois.registro) gravarCena(sceneKey, { ...depois, registro })
+      }
+      return true
     },
 
     agir: (sceneKey, autor, vez, pedido) => {

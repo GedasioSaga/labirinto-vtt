@@ -83,6 +83,12 @@ export type Reversao =
         /** F3: os selos de antes (a carta que sai desconta). Ausente = a vez não mexeu neles. */
         selos?: TurnosDaCena['selos']
       }
+      /**
+       * Conserto das fichas F1 (bug 2): as linhas "Não reagiu" que a virada
+       * desta vez escreveu, da mais velha para a mais nova. O Desfazer da vez
+       * as desfaz junto (a store). Ausente = a vez não fechou golpe.
+       */
+      fechados?: readonly string[]
     }
   /** Mover, Ordenar, desempate: os ids na ordem de antes. Desfazer reaplica às cartas que ainda existem. */
   | { tipo: 'ordem'; antes: readonly string[] }

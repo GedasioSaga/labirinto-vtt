@@ -106,7 +106,7 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
         Reações esperando · {itens.length}
         {quantosGolpes !== itens.length && ` em ${quantosGolpes} ${quantosGolpes === 1 ? 'golpe' : 'golpes'}`}
       </h3>
-      <p className="bt-vez__dica">Quem não reagir até a virada da rodada toma o golpe inteiro.</p>
+      <p className="bt-vez__dica">Quem não reagir toma o golpe na virada da rodada. O golpe da última vez da rodada espera a virada seguinte.</p>
       {doMestre.length > 0 && <CaixaDeReacao reacoes={doMestre} onPedir={onPedir} />}
       {deJogador.length > 0 && (
         <ul className="bt-pendentes">
