@@ -4,7 +4,7 @@ import { FichaDoSistema } from '../components/dbt/registroDeFichas'
 import { InventarioDaFicha } from '../components/InventarioDaFicha'
 import { LivroDeRegras } from '../components/LivroDeRegras'
 import type { ResumoDoLivro } from '../lib/livroDeRegras'
-import { comAjustes, valorDaParte, type Ajuste } from '../lib/ajusteDaFicha'
+import { cliqueDaTela, comAjustes, valorDaParte, type Ajuste } from '../lib/ajusteDaFicha'
 import type { Personagem } from '../lib/personagem'
 import type { CapituloDoLivro, SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { TokenDoPersonagem } from '../net/protocoloDoPersonagem'
@@ -226,8 +226,10 @@ export function PlayerFicha({
     somenteLeitura || onAjustar === undefined || mostrado === undefined
       ? undefined
       : (ajuste: Ajuste) => {
-          // Conserto das fichas F1 (bug 5): o número diz de qual valor ele partiu (o que a tela mostrava); o cartão liga ou desliga.
-          const comPartida = ajuste.parte === 'cartao' ? ajuste : { ...ajuste, de: valorDaParte(mostradoComAjustes ?? mostrado, ajuste.parte, ajuste.chave) }
+          // Conserto das fichas F1 (bug 5): o número diz de qual valor ele partiu (o que a tela mostrava) e já vem no limite; o cartão liga ou desliga.
+          const naTela = mostradoComAjustes ?? mostrado
+          const comPartida =
+            sistemaPronto !== null ? cliqueDaTela(naTela, sistemaPronto, ajuste) : ajuste.parte === 'cartao' ? ajuste : { ...ajuste, de: valorDaParte(naTela, ajuste.parte, ajuste.chave) }
           if (!onAjustar(mostrado.id, comPartida)) setErro(ERRO_SEM_CONEXAO)
         }
   // O livro que chegou do mestre, do sistema que está aqui (o de outro sistema não vale).

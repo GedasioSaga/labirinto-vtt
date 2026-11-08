@@ -6169,12 +6169,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing' || socket === null || socket.readyState !== SOCKET_OPEN) return false
       const chave = `${personagemId}|${ajuste.parte}|${ajuste.chave}`
       // Conserto das fichas F1 (bug 5): de onde ele partiu é o do PRIMEIRO clique desta parte na fila (o que via antes
-      // de mexer); a mesa aplica a diferença se a ficha mudou no meio (um golpe), em vez de apagar o golpe.
-      const de = filaDeAjustes.get(chave)?.de ?? ajuste.de
+      // de mexer); a mesa aplica a diferença se a ficha mudou no meio (um golpe), em vez de apagar o golpe. O clique
+      // seguinte soma só o passo DELE (o valor e o `de` dele vêm da tela, que já mostra o golpe que chegou no meio): o
+      // valor dele por cima do `de` do primeiro contaria o golpe de novo a cada clique. Clique sem `de` vale como veio.
+      const naFila = filaDeAjustes.get(chave)
+      const juntado = naFila === undefined || ajuste.de === undefined ? ajuste : { valor: naFila.valor + (ajuste.valor - ajuste.de), de: naFila.de }
+      const { valor, de } = juntado
       // Sai e entra de novo: a fila fica na ORDEM do último clique de cada parte
       // (o máximo que subiu antes da cura tem de chegar antes dela).
       filaDeAjustes.delete(chave)
-      filaDeAjustes.set(chave, { personagemId, parte: ajuste.parte, chave: ajuste.chave, valor: ajuste.valor, ...(de === undefined ? {} : { de }) })
+      filaDeAjustes.set(chave, { personagemId, parte: ajuste.parte, chave: ajuste.chave, valor, ...(de === undefined ? {} : { de }) })
       agendarAjustes()
       publicarAjustes(false)
       return true

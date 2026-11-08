@@ -5,6 +5,7 @@
  * resposta (ou a queda, ou o silêncio) tira o otimista; recusado, avisa.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cliqueDaTela, comAjustes, valorDaParte } from '../lib/ajusteDaFicha'
 import { createEmptyMap } from '../lib/mapFactory'
 import { novoPersonagem, type Personagem } from '../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
@@ -148,5 +149,61 @@ describe('ajuste rápido do jogador: juntar e mandar', () => {
     vi.advanceTimersByTime(AJUSTE_JUNTAR_MS * 2)
     expect(ajustes()).toEqual([])
     expect(menosUm(580)).toBe(false)
+  })
+})
+
+/**
+ * Conserto das fichas F1 (bug 5, revisão da fatia S2): o golpe chega no MEIO
+ * dos cliques. Cada clique sai como a tela o faz (`cliqueDaTela` sobre a
+ * ficha otimista); a mesa aplica o pedido como o host (`comAjustes` sobre a
+ * ficha dela). Números do relatório: HP 365 de 400, Escudo 12, golpe de 112.
+ */
+describe('ajuste rápido do jogador: golpe no meio dos cliques', () => {
+  const ANTES: Personagem = { ...LUFFY, recursos: { hp: 365, sp: 60, escudo: 12 }, maximos: { hp: 400, sp: 60 } }
+
+  function naMesa(inicio: Personagem) {
+    const t = conectado()
+    const receber = (ficha: Personagem) => t.socket.receive({ type: 'personagens', personagens: [ficha], tokens: [{ tokenId: 'tok-ana', nome: 'Ana', personagemId: ficha.id }] })
+    receber(inicio)
+    /** A ficha que o jogador vê: a que chegou, com o que está na fila por cima. */
+    const tela = (): Personagem => {
+      const recebido = t.connection.getState().personagens?.personagens.find((personagem) => personagem.id === LUFFY.id)
+      if (recebido === undefined) throw new Error('a ficha não chegou')
+      return comAjustes(recebido, SISTEMA_ONE_PIECE, t.connection.getState().ajustesPendentes ?? [])
+    }
+    const hpNaTela = () => valorDaParte(tela(), 'recurso', 'hp')
+    const clicar = (passo: number) => t.connection.ajustarPersonagem(LUFFY.id, cliqueDaTela(tela(), SISTEMA_ONE_PIECE, { parte: 'recurso', chave: 'hp', valor: hpNaTela() + passo }))
+    return { ...t, receber, hpNaTela, clicar }
+  }
+
+  it('5 "−", o golpe de 112 chega (HP 265), mais 5 "−": a tela desce de 1 em 1 (260 → 255) e a mesa grava 255', () => {
+    const { ajustes, receber, hpNaTela, clicar } = naMesa(ANTES)
+    for (let i = 0; i < 5; i += 1) expect(clicar(-1)).toBe(true)
+    expect(hpNaTela()).toBe(360)
+    const comOGolpe: Personagem = { ...ANTES, recursos: { ...ANTES.recursos, hp: 265, escudo: 0 } }
+    receber(comOGolpe)
+    expect(hpNaTela()).toBe(260)
+    for (let i = 0; i < 5; i += 1) expect(clicar(-1)).toBe(true)
+    expect(hpNaTela()).toBe(255)
+
+    vi.advanceTimersByTime(AJUSTE_JUNTAR_MS)
+    const enviados = ajustes()[0]?.ajustes
+    expect(enviados).toEqual([{ parte: 'recurso', chave: 'hp', valor: 355, de: 365 }])
+    expect(comAjustes(comOGolpe, SISTEMA_ONE_PIECE, [{ parte: 'recurso', chave: 'hp', valor: 355, de: 365 }]).recursos.hp).toBe(255)
+  })
+
+  it('3 "+" no máximo (a tela fica em 400), o golpe de 100 chega: a mesa grava 300, sem um ganho que a tela não mostrou', () => {
+    const cheio: Personagem = { ...ANTES, recursos: { ...ANTES.recursos, hp: 400 } }
+    const { ajustes, receber, hpNaTela, clicar } = naMesa(cheio)
+    for (let i = 0; i < 3; i += 1) clicar(+1)
+    expect(hpNaTela()).toBe(400)
+    const comOGolpe: Personagem = { ...cheio, recursos: { ...cheio.recursos, hp: 300 } }
+    receber(comOGolpe)
+    expect(hpNaTela()).toBe(300)
+
+    vi.advanceTimersByTime(AJUSTE_JUNTAR_MS)
+    const enviado = ajustes()[0]?.ajustes
+    expect(enviado).toEqual([{ parte: 'recurso', chave: 'hp', valor: 400, de: 400 }])
+    expect(comAjustes(comOGolpe, SISTEMA_ONE_PIECE, [{ parte: 'recurso', chave: 'hp', valor: 400, de: 400 }]).recursos.hp).toBe(300)
   })
 })

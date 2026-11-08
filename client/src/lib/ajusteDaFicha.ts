@@ -390,6 +390,19 @@ export function ajusteSobreOAtual(personagem: Personagem, ajuste: Ajuste): Ajust
 }
 
 /**
+ * Conserto das fichas F1 (bug 5): o clique do jogador como sai da tela, sobre
+ * a ficha que ele vê (`mostrado`, a otimista): diz de onde partiu (`de`) e o
+ * valor já no limite da parte. O "+" no máximo não muda nada; sem o limite, a
+ * fila (que soma o passo de cada clique) guardaria um ganho que a tela nunca
+ * mostrou, e um golpe no meio o revelaria. Cartão (liga e desliga) vai como veio.
+ */
+export function cliqueDaTela(mostrado: Personagem, sistema: SistemaDeRpg, ajuste: Ajuste): Ajuste {
+  if (ajuste.parte === 'cartao') return ajuste
+  const de = valorDaParte(mostrado, ajuste.parte, ajuste.chave)
+  return { parte: ajuste.parte, chave: ajuste.chave, valor: valorDaParte(aplicarAjuste(mostrado, sistema, ajuste), ajuste.parte, ajuste.chave), de }
+}
+
+/**
  * O que a pessoa digitou no campo do ajuste, como o valor NOVO:
  *  - "-50" tira 50 (dano) e "+30" soma 30 (cura): sinal na frente é conta;
  *  - "450", sem sinal, é o valor exato (como no Foundry);
