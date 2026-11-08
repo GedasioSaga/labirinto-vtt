@@ -179,12 +179,28 @@ function gramaNoTom({ base, mancha, moita }: TomDoCampo): (u: number, v: number)
 // se juntam onde o campo secou mais (manchas grandes) e somem noutras partes,
 // e o ruído é torcido antes de medir: nenhuma sai em fileira com a vizinha.
 
-const CAMPO_MORTO_ESCALA = 120
+/**
+ * O ladrilho é o DOBRO do de antes (240, era 120) e as falhas e o capim cabem
+ * duas vezes em cada lado dele: o desenho sai do mesmo tamanho no mundo (a
+ * falha, a moita e o tufo não mudam de escala), mas a repetição vem a cada
+ * 2 x o período de antes. No mapa de 200 casas: de ~19 para ~39 casas, e a
+ * janela de 30 casas deixa de mostrar um ladrilho inteiro repetido.
+ */
+const CAMPO_MORTO_ESCALA = 240
+const DENSIDADE_DO_MORTO = 2
 /** Quantas vezes o capim da Verde (ladrilho de 30) cabe em cada lado do ladrilho. */
-const CAPIM_POR_LADO = 4
-const CAMPO_MORTO: TomDoCampo = { base: rgb('#a3a08f'), mancha: rgb('#ada792'), moita: rgb('#8d8a7b') }
-const TERRA_NUA_CLARA = rgb('#918775')
-const TERRA_NUA_FUNDA = rgb('#837968')
+const CAPIM_POR_LADO = 4 * DENSIDADE_DO_MORTO
+/**
+ * Cor do cinza morto, a da grama-morta aprovada (estúdio, base-1 média #7c776a,
+ * base alvo #7d796c). As manchas e a moita ficam no mesmo passo de antes, mais escuras.
+ */
+const CAMPO_MORTO: TomDoCampo = { base: rgb('#7d796c'), mancha: rgb('#857f70'), moita: rgb('#6e6a5d') }
+/**
+ * A terra nua das falhas: marrom-acinzentada e MAIS ESCURA que o capim cinza, para
+ * a falha seguir lendo como mancha (como no Atual de antes, com a base clara).
+ */
+const TERRA_NUA_CLARA = rgb('#776c59')
+const TERRA_NUA_FUNDA = rgb('#605847')
 
 /**
  * O quanto o chão secou: as falhas (ruído torcido de cinco oitavas, o
@@ -194,24 +210,28 @@ const TERRA_NUA_FUNDA = rgb('#837968')
 function securaDoCampo(u: number, v: number): number {
   // As sementes saíram de uma folha de doze: a 71 espalha as falhas sem nenhuma
   // virar marco (a falha comprida que se repete de ladrilho em ladrilho).
-  const tu = u + fbm(u, v, 6, 2, 72) * 0.025
-  const tv = v + fbm(u, v, 6, 2, 73) * 0.025
-  const regiao = fbm(u, v, 3, 2, 81)
-  return fbm(tu, tv, 8, 5, 71) * 0.5 + 0.5 + regiao * 0.13 + (valor(u * 192, v * 192, 192, 39) - 0.5) * 0.06
+  // Frequências x DENSIDADE_DO_MORTO (ladrilho maior, mesma falha no mundo); o
+  // deslocamento é dividido por ela, então a torção tem o mesmo tamanho no mundo.
+  const k = DENSIDADE_DO_MORTO
+  const tu = u + (fbm(u, v, 6 * k, 2, 72) * 0.025) / k
+  const tv = v + (fbm(u, v, 6 * k, 2, 73) * 0.025) / k
+  const regiao = fbm(u, v, 3 * k, 2, 81)
+  return fbm(tu, tv, 8 * k, 5, 71) * 0.5 + 0.5 + regiao * 0.13 + (valor(u * 192 * k, v * 192 * k, 192 * k, 39) - 0.5) * 0.06
 }
 
 const FALHA = { ralo: [0.57, 0.64], nua: [0.64, 0.69] } as const
 
 function campoMorto(u: number, v: number): number {
-  // O capim da Verde, ponto por ponto, no cinza.
-  const cu = u * CAPIM_POR_LADO
-  const cv = v * CAPIM_POR_LADO
+  // O capim da Verde, ponto por ponto, no cinza. Os ruídos rodam no ladrilho
+  // inteiro (frequência x CAPIM_POR_LADO), e não em quatro cópias dele: antes
+  // o capim se repetia a cada quarto de ladrilho (~5 casas no mapa de 200).
+  const k = CAPIM_POR_LADO
   const { base, mancha, moita } = CAMPO_MORTO
-  let c = misturar(base, mancha, passoSuave(0.2, 0.8, fbm(cu, cv, 2, 4, 31) * 0.5 + 0.5))
-  c = misturar(c, moita, passoSuave(0.55, 0.9, fbm(cu, cv, 5, 3, 32) * 0.5 + 0.5) * 0.7)
+  let c = misturar(base, mancha, passoSuave(0.2, 0.8, fbm(u, v, 2 * k, 4, 31) * 0.5 + 0.5))
+  c = misturar(c, moita, passoSuave(0.55, 0.9, fbm(u, v, 5 * k, 3, 32) * 0.5 + 0.5) * 0.7)
   let tufo = 0
   let debaixoDoTufo = 0
-  vizinhos(cu, cv, 26, 33, 0.38, (p) => {
+  vizinhos(u, v, 26 * k, 33, 0.38, (p) => {
     const r = 0.3 + hash(p.ix, p.iy, 34) * 0.14
     const d = Math.hypot(p.dx, p.dy)
     if (d >= r) return
@@ -226,13 +246,13 @@ function campoMorto(u: number, v: number): number {
   // o tufo no chão escuro virava pontilhado.
   const secura = securaDoCampo(u, v)
   const rareia = passoSuave(FALHA.ralo[0], FALHA.ralo[1], secura)
-  const capim = luz(c, tufo * 0.1 * (1 - 0.6 * rareia) - 0.04 * rareia + (valor(cu * 160, cv * 160, 160, 35) - 0.5) * 0.04)
+  const capim = luz(c, tufo * 0.1 * (1 - 0.6 * rareia) - 0.04 * rareia + (valor(u * 160 * k, v * 160 * k, 160 * k, 35) - 0.5) * 0.04)
   const falha = Math.max(rareia * (1 - debaixoDoTufo) * 0.45, passoSuave(FALHA.nua[0], FALHA.nua[1], secura))
   // Quase todo o campo é capim: a terra só é medida onde aparece (o ladrilho é grande).
   if (falha <= 0) return empacotar(capim)
   // A terra nua: manchas largas de seco e úmido e o grão miúdo.
-  let chao = misturar(TERRA_NUA_CLARA, TERRA_NUA_FUNDA, passoSuave(0.3, 0.8, fbm(u, v, 28, 3, 41) * 0.5 + 0.5))
-  chao = luz(chao, (valor(u * 880, v * 880, 880, 42) - 0.5) * 0.07)
+  let chao = misturar(TERRA_NUA_CLARA, TERRA_NUA_FUNDA, passoSuave(0.3, 0.8, fbm(u, v, 28 * DENSIDADE_DO_MORTO, 3, 41) * 0.5 + 0.5))
+  chao = luz(chao, (valor(u * 880 * DENSIDADE_DO_MORTO, v * 880 * DENSIDADE_DO_MORTO, 880 * DENSIDADE_DO_MORTO, 42) - 0.5) * 0.07)
   return empacotar(misturar(capim, chao, falha))
 }
 

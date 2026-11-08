@@ -32,8 +32,8 @@ const CASCO_DA_TAMPA = 0.86
 const CASCO_DO_FORRO = 0.8
 /** O fim da tampa da cabeça do aberto, em fração do comprimento. */
 const FIM_DA_TAMPA = 0.36
-/** O forro: o linho do Meio-Termo, mais escuro (cetim velho), como o forro da arte. */
-const FORRO: MaterialDaPeca = { classe: 'tecido', fio: 'linho', rgb: rgb(tomDoMeio('linho', 0.9)) }
+/** O forro: o da arte aprovada do caixão aberto (`movel-caixao-aberto`, cor própria #aa987d). */
+const FORRO: MaterialDaPeca = { classe: 'tecido', fio: 'linho', rgb: rgb('#aa987d') }
 /** As alças do aberto, fixas: o ferro claro das ferragens da arte. */
 const ALCA_FIXA: MaterialDaPeca = { classe: 'metal', rgb: rgb(tomDoMeio('ferro', 1.15)) }
 
