@@ -24,6 +24,12 @@ export interface FeatureFlags {
   gatilhoDeArea: boolean
   /** "Perigo" (Pôr fogo/Pôr água) no painel da Sala. O perigo em curso continua avançando. */
   perigoDaSala: boolean
+  /**
+   * PRELÚDIO, a preparação de sessão (docs/planos/preludio-2026-11-08.md §5):
+   * a porta da tela inicial e tudo que lê ou grava em `<appData>/preparo/`.
+   * Desligada, o Ctrl+Alt+P da tela inicial liga só neste PC (`lib/preparo/chave.ts`).
+   */
+  preparo: boolean
 }
 
 export const FEATURES: Readonly<FeatureFlags> = {
@@ -38,4 +44,6 @@ export const FEATURES: Readonly<FeatureFlags> = {
   // Pedido do usuário em 07/10/2026: tirar do painel da Sala.
   gatilhoDeArea: false,
   perigoDaSala: false,
+  // Frente nova de 08/11/2026: escondida até o mestre dizer "pode ligar".
+  preparo: false,
 }

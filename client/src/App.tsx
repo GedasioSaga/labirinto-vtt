@@ -122,6 +122,7 @@ import { NewDungeonMap } from './screens/NewDungeonMap'
 import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
+import { PreludioSobDemanda } from './preludio/PreludioSobDemanda'
 import { LivrosScreen } from './screens/LivrosScreen'
 import { MundoDoLivro } from './components/livros/MundoDoLivro'
 import { useMundoDoLivroStore } from './stores/mundoDoLivroStore'
@@ -3303,6 +3304,7 @@ function App() {
           onLoad={() => setScreen('load-map')}
           onOptions={() => setScreen('options')}
           onRoleplay={() => setScreen('roleplay')}
+          onPreludio={() => setScreen('preludio')}
           onLivros={() => setScreen('livros')}
           recovery={
             recoveryCopy && {
@@ -3358,6 +3360,15 @@ function App() {
     return (
       <>
         <RoleplayScreen onBack={() => setScreen(parentScreen(screen))} />
+        {toastStack}
+      </>
+    )
+  }
+
+  if (screen === 'preludio') {
+    return (
+      <>
+        <PreludioSobDemanda onBack={() => setScreen(parentScreen(screen))} />
         {toastStack}
       </>
     )

@@ -1,9 +1,11 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { AvisoDeAtualizacao, BotaoProcurarAtualizacao, useAtualizacaoDoApp } from '../components/AvisoDeAtualizacao'
 import { useProcuraDeAnimacoes, useProcuraDeAnimacoesNaAbertura } from '../components/ProcurarAnimacoes'
 import { memoriaDaAbertura, portaDoTauri, type MemoriaDaAbertura, type PortaDoAtualizador } from '../lib/atualizacao'
 import { memoriaDaProcuraDeAnimacoes, portaDoPacoteNoApp, type MemoriaDaProcuraDeAnimacoes, type PortaDoPacote } from '../lib/pacoteDeAnimacoes'
 import { FEATURES, type FeatureFlags } from '../lib/features'
+import { alternarPreparoNestePc, ehAtalhoDoPreparo, preparoLigadoNestePc } from '../lib/preparo/chave'
+import { useToastStore } from '../stores/toastStore'
 import { HomeMaze } from './HomeMaze'
 import { useLampGlow } from './useLampGlow'
 import './MainMenu.css'
@@ -23,6 +25,12 @@ interface MainMenuProps {
   onLoad: () => void
   onOptions: () => void
   onRoleplay: () => void
+  /**
+   * Porta "Prelúdio" (preparação de sessão), entre Roleplay e Livros. Ausente =
+   * sem a porta; presente, ela só aparece com a chave `preparo` ligada no app ou
+   * neste PC (Ctrl+Alt+P aqui na tela inicial liga e desliga).
+   */
+  onPreludio?: () => void
   /** Porta "04 · Livros de regras" (o mundo do livro, M1). Ausente = sem a porta. */
   onLivros?: () => void
   /** Default `FEATURES`; o teste passa outro valor para provar o estado religado. */
@@ -97,6 +105,7 @@ export function MainMenu({
   onLoad,
   onOptions,
   onRoleplay,
+  onPreludio,
   onLivros,
   flags = FEATURES,
   recovery,
@@ -121,6 +130,23 @@ export function MainMenu({
   useEffect(() => {
     headingRef.current?.focus()
   }, [])
+
+  // PRELÚDIO escondido: Ctrl+Alt+P liga e desliga a porta só neste PC. Ouvido
+  // na janela, e não no `.lb-home`, para valer com o foco em qualquer lugar.
+  const [preludioNestePc, setPreludioNestePc] = useState(preparoLigadoNestePc)
+  const temPreludio = onPreludio !== undefined
+  useEffect(() => {
+    if (!temPreludio) return
+    const aoTeclar = (evento: WindowEventMap['keydown']) => {
+      if (!ehAtalhoDoPreparo(evento)) return
+      evento.preventDefault()
+      const ligado = alternarPreparoNestePc()
+      setPreludioNestePc(ligado)
+      useToastStore.getState().push('info', ligado ? 'Prelúdio ligado neste PC.' : 'Prelúdio desligado neste PC.')
+    }
+    window.addEventListener('keydown', aoTeclar)
+    return () => window.removeEventListener('keydown', aoTeclar)
+  }, [temPreludio])
 
   // Sem os outros tipos, "Criar Mapas" cria direto um Dungeon Map: a linha
   // de apoio diz o que ele é, em vez de prometer isométrico e mundo.
@@ -174,6 +200,9 @@ export function MainMenu({
             <HomeDoor title="Criar Mapas" description={createDescription} className="lb-home__door--novo-mapa" onClick={onCreate} />
             <HomeDoor title="Carregar Mapa existente" description="Continuar de onde parou" onClick={onLoad} />
             <HomeDoor title="Roleplay" description="Mesa narrativa, sem mapa" badge="Em construção" onClick={onRoleplay} />
+            {onPreludio !== undefined && (flags.preparo || preludioNestePc) && (
+              <HomeDoor title="Prelúdio" description="Roteiro, enciclopédia e segredos da campanha" badge="Em construção" onClick={onPreludio} />
+            )}
             {onLivros !== undefined && <HomeDoor title="Livros de regras" description="Fichas, NPCs de combate e itens de cada sistema" badge="Novo" badgeTom="novo" onClick={onLivros} />}
             {flags.optionsScreen && <HomeDoor title="Opções" description="Conexão, personagens, cenário" onClick={onOptions} />}
           </nav>
