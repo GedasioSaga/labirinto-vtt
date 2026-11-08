@@ -37,6 +37,8 @@ export const IDS_DO_DESENHADO = [
   'penhasco', 'penhasco-borda', 'parede', 'janela', 'grade-de-prisao',
   // Onda 5b: as portas (lote 18).
   'porta', 'porta-dupla', 'porta-portao',
+  // O cemitério (07/11/2026, do estúdio `~/jogos/texturas-labirinto`, lote 19): a cova e os caixões.
+  'movel-cova', 'movel-caixao', 'movel-caixao-aberto',
 ] as const
 
 export type IdDoDesenhado = (typeof IDS_DO_DESENHADO)[number]

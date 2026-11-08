@@ -136,6 +136,10 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   cataVentoBrinquedo: EM_PE,
   // A ponte (03/11/2026): o perfil em pé, como o chafariz e os objetos de vento.
   ponte: EM_PE,
+  // O cemitério (07/11/2026): o monte de terra e os caixões são blocos baixos e cheios, como a caixa e o baú.
+  cova: DERIVADO,
+  caixao: DERIVADO,
+  caixaoAberto: DERIVADO,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

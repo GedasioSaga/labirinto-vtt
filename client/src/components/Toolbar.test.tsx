@@ -99,7 +99,7 @@ const gruposDoMenu = (nome: string) =>
 const radiosDe = (nome: string, grupo: string) =>
   Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
 /** Os objetos do menu do Objeto, nas 3 partes (MT5), na ordem de leitura. */
-const radiosDoObjeto = () => ['Dentro de casa', 'Rua e jardim', 'Feira', 'Oficina', 'Fazenda'].flatMap((parte) => radiosDe('Objeto', parte))
+const radiosDoObjeto = () => ['Dentro de casa', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda'].flatMap((parte) => radiosDe('Objeto', parte))
 
 describe('Toolbar — grupos do protótipo consolidado (fatia 6)', () => {
   it('5 grupos com nome, na ordem: Escolher, Construir, Terreno, Esconder e revelar, Anotar', () => {
@@ -281,10 +281,10 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 45 objetos em 5 partes (Dentro de casa, Rua e jardim, Feira, Oficina, Fazenda), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 48 objetos em 6 partes (Dentro de casa, Rua e jardim, Cemitério, Feira, Oficina, Fazenda), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
-    expect(gruposDoMenu('Objeto')).toEqual(['Colocar', 'Dentro de casa', 'Rua e jardim', 'Feira', 'Oficina', 'Fazenda'])
+    expect(gruposDoMenu('Objeto')).toEqual(['Colocar', 'Dentro de casa', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda'])
     expect(radiosDe('Objeto', 'Colocar').map((r) => r.getAttribute('aria-label'))).toEqual(['Móvel', 'Imagem'])
     const radios = radiosDoObjeto()
     // Lidos em pares (a grade tem 2 colunas): Mesa ao lado da Cadeira, as mesas novas juntas, os dois tapetes juntos;
@@ -292,14 +292,15 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
       'Barril', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Sofá', 'Poltrona', 'Armário de cozinha', 'Aparador',
       'Balcão', 'Pratos', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Tapete', 'Tapete longo', 'Lareira',
-      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Chafariz', 'Lampião', 'Fogueira', 'Fogo', 'Lápide', 'Ponte',
+      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Chafariz', 'Lampião', 'Fogueira', 'Fogo', 'Ponte',
+      'Lápide', 'Cova', 'Caixão', 'Caixão aberto',
       'Barraca de feira', 'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água',
       'Troncos', 'Feno', 'Cata-vento de fazenda', 'Moinho de vento',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(45)
+    expect(new Set(desenhos).size).toBe(48)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 4 ? 'true' : 'false')))
   })
 

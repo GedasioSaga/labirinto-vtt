@@ -53,6 +53,8 @@ import { montarFeno } from './feno'
 import { montarChafariz } from './chafariz'
 import { montarCataVento, montarCataVentoBrinquedo, montarMoinho } from './cataVento'
 import { montarPonte } from './ponte'
+import { montarCova } from './cova'
+import { montarCaixao, montarCaixaoAberto } from './caixao'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -113,6 +115,10 @@ const MONTADORES = {
   cataVentoBrinquedo: montarCataVentoBrinquedo,
   // A ponte (03/11/2026): madeira, pedra ou corda (a forma é a variante).
   ponte: montarPonte,
+  // O cemitério (07/11/2026): no Desenhado sai a arte do estúdio; este é o desenho do Atual.
+  cova: montarCova,
+  caixao: montarCaixao,
+  caixaoAberto: montarCaixaoAberto,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -147,6 +153,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'chafariz',
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   'ponte',
+  'cova', 'caixao', 'caixaoAberto',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

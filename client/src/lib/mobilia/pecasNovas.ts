@@ -28,6 +28,7 @@ export const PECAS_NOVAS = [
   'chafariz',
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   'ponte',
+  'cova', 'caixao', 'caixaoAberto',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -111,6 +112,12 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // A ponte (03/11/2026): corre ao longo da largura (x), 4 casas de comprimento por 1 de largura nas três formas
   // (`lib/mobilia/ponte.ts`); estica nos dois sentidos e gira.
   ponte: { rotulo: 'Ponte', artigo: 'uma ponte', tamanho: { largura: 4, altura: 1 }, redonda: false },
+  // O cemitério (07/11/2026), com a arte do estúdio (`godot/desenhado/exportado/movel-cova`, `movel-caixao`,
+  // `movel-caixao-aberto`): de pé, 1 casa de largura por 2 de comprimento. A cova estica (a imagem acompanha a
+  // pegada); os caixões giram (o fechado é simétrico na meia volta, o aberto não).
+  cova: { rotulo: 'Cova', artigo: 'uma cova', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  caixao: { rotulo: 'Caixão', artigo: 'um caixão', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  caixaoAberto: { rotulo: 'Caixão aberto', artigo: 'um caixão aberto', tamanho: { largura: 1, altura: 2 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -151,6 +158,9 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     moinho: valor(f.moinho),
     cataVentoBrinquedo: valor(f.cataVentoBrinquedo),
     ponte: valor(f.ponte),
+    cova: valor(f.cova),
+    caixao: valor(f.caixao),
+    caixaoAberto: valor(f.caixaoAberto),
   }
 }
 
@@ -173,7 +183,8 @@ export const PECAS_NOVAS_COM_VISTA: readonly PecaNovaComVista[] = ['barraca', 'c
 export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   // O chafariz (02/11/2026) entra logo depois do poço: no seletor de tipo, a água da praça fica junta.
   // A ponte (03/11/2026) logo depois do chafariz: o caminho por cima da água.
-  'mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca',
+  // A cova e os caixões (07/11/2026) logo depois da lápide: o cemitério junto.
+  'mesaQuadrada', 'mesaRedonda', 'lapide', 'cova', 'caixao', 'caixaoAberto', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca',
   'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
@@ -269,6 +280,43 @@ function quadro(x0: number, y0: number, x1: number, y1: number): Traco[] {
 
 function linha(x0: number, y: number, x1: number): Traco {
   return { x1: x0, y1: y, x2: x1, y2: y }
+}
+
+/** Os traços que ligam os pontos em volta (o último volta ao primeiro). */
+function fechado(pontos: readonly (readonly [number, number])[]): Traco[] {
+  return pontos.map(([x1, y1], i) => {
+    const [x2, y2] = pontos[(i + 1) % pontos.length]
+    return { x1, y1, x2, y2 }
+  })
+}
+
+/** O ombro do caixão: a fração do comprimento, a partir da cabeça, onde ele é mais largo. */
+const OMBRO_DO_CAIXAO = 0.26
+
+/**
+ * O caixão de cima (07/11/2026), ao longo do lado maior da pegada: o hexágono da tampa (a cabeça estreita, o
+ * ombro largo a um quarto do comprimento, o pé estreito), a emenda das duas tábuas no meio e, no aberto, a
+ * tampa da cabeça e o forro por dentro.
+ */
+function tracosDoCaixao(largura: number, altura: number, aberto: boolean): Traco[] {
+  const deitado = largura > altura
+  const meioC = (deitado ? largura : altura) / 2
+  const meiaL = (deitado ? altura : largura) / 2
+  const pt = (u: number, v: number): readonly [number, number] => (deitado ? [u, v] : [v, u])
+  const traco = (u1: number, v1: number, u2: number, v2: number): Traco => {
+    const [x1, y1] = pt(u1, v1)
+    const [x2, y2] = pt(u2, v2)
+    return { x1, y1, x2, y2 }
+  }
+  const ombro = -meioC + 2 * meioC * OMBRO_DO_CAIXAO
+  const casco = (k: number): Traco[] => fechado([
+    pt(-meioC * k, -meiaL * 0.62 * k), pt(ombro, -meiaL * 0.94 * k), pt(meioC * k, -meiaL * 0.55 * k),
+    pt(meioC * k, meiaL * 0.55 * k), pt(ombro, meiaL * 0.94 * k), pt(-meioC * k, meiaL * 0.62 * k),
+  ])
+  if (!aberto) return [...casco(0.96), traco(-meioC * 0.96, 0, meioC * 0.96, 0)]
+  // A tampa da cabeça vai até um pouco depois do ombro; o forro é o casco de dentro.
+  const tampa = -meioC + 2 * meioC * 0.36
+  return [...casco(0.96), traco(tampa, -meiaL * 0.9, tampa, meiaL * 0.9), ...casco(0.78)]
 }
 
 /**
@@ -450,6 +498,17 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       }
       return [...bordas, ...tabuas]
     }
+    // O cemitério (07/11/2026). A cova: o monte de terra por dentro da pegada e a beira da terra mais escura,
+    // de través no meio; os caixões, o hexágono da tampa (`tracosDoCaixao`).
+    case 'cova': {
+      const deitada = largura > altura
+      const meio = deitada ? { x1: 0, y1: -hh * 0.86, x2: 0, y2: hh * 0.86 } : linha(-hw * 0.86, 0, hw * 0.86)
+      return [...aro(largura * 0.88, altura * 0.92), meio]
+    }
+    case 'caixao':
+      return tracosDoCaixao(largura, altura, false)
+    case 'caixaoAberto':
+      return tracosDoCaixao(largura, altura, true)
   }
 }
 

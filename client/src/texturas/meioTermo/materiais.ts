@@ -203,6 +203,12 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   // A ponte (03/11/2026): a madeira das tábuas, do corrimão e dos postes (Madeira e Corda) e a pedra do arco e
   // da mureta (Pedra). O painel mostra só o lugar da forma escolhida (`lib/mobilia/ponte.ts`); a corda é fixa.
   ponte: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  // O cemitério (07/11/2026), nos lugares da arte do estúdio (`godot/desenhado/exportado/movel-*`, que o
+  // raster confere): a cova é terra de cor própria; o caixão fechado tem a madeira e as alças; no aberto as
+  // alças e o forro são fixos.
+  cova: [],
+  caixao: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Alças', METAIS, 'ferro')],
+  caixaoAberto: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

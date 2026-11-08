@@ -27,6 +27,8 @@ export const TIPOS_MOBILIA = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // A ponte (03/11/2026): madeira, pedra ou corda.
   'ponte',
+  // O cemitério (07/11/2026): a cova (o monte de terra) e o caixão fechado e aberto, 1 x 2 casas.
+  'cova', 'caixao', 'caixaoAberto',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

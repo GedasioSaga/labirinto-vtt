@@ -1,0 +1,16 @@
+{
+  "id": "movel-cova",
+  "nome": "Cova",
+  "idDoApp": "cova",
+  "tipo": "movel",
+  "onda": 4,
+  "lote": 19,
+  "semente": 71,
+  "margemCasas": 0.0625,
+  "lugares": [],
+  "corFixa": true,
+  "vistas": {
+    "frente": { "casas": [1, 2], "viradas": 4 }
+  },
+  "sombra": { "jeito": "deslocada", "deslocamentoCasas": 0.06, "borraoCasas": 0.03 }
+}

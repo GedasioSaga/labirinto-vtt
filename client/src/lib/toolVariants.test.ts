@@ -211,14 +211,14 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
-      'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta', 'troncos', 'feno',
+      'lapide', 'cova', 'caixao', 'caixaoAberto', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta', 'troncos', 'feno',
       'cataVento', 'moinho', 'cataVentoBrinquedo',
     ])
-    expect(grupo.options).toHaveLength(45)
+    expect(grupo.options).toHaveLength(48)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
-      'Lápide', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Chafariz', 'Ponte', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
+      'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Chafariz', 'Ponte', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
       'Cata-vento de fazenda', 'Moinho de vento', 'Cata-vento de brinquedo',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
@@ -245,17 +245,19 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide em 5 partes (Dentro de casa 21 com os móveis de casa e a lareira, Rua e jardim 11 com o Fogo, Feira 3, Oficina 3, Fazenda 2) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide em 6 partes (Dentro de casa 21 com os móveis de casa e a lareira, Rua e jardim 12 com o Fogo e a ponte, Cemitério 4, Feira 4, Oficina 3, Fazenda 4) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
       ['Dentro de casa', 21],
-      ['Rua e jardim', 11],
-      ['Feira', 3],
+      ['Rua e jardim', 12],
+      ['Cemitério', 4],
+      ['Feira', 4],
       ['Oficina', 3],
-      ['Fazenda', 2],
+      ['Fazenda', 4],
     ])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cemitério')?.tipos).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
     const nasPartes = PARTES_DO_MENU_DE_OBJETO.flatMap((p) => p.tipos)
     expect(new Set(nasPartes).size).toBe(nasPartes.length)
     expect([...nasPartes].sort()).toEqual([...catalogo].sort())

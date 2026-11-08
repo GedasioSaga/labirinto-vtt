@@ -53,6 +53,10 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   cataVentoBrinquedo: [0.5, 0.5],
   // Ponte (03/11/2026): 4 casas de comprimento por 1 de largura, nas três formas.
   ponte: [4, 1],
+  // Cemitério (07/11/2026): a cova e os dois caixões, 1 casa de largura por 2 de comprimento.
+  cova: [1, 2],
+  caixao: [1, 2],
+  caixaoAberto: [1, 2],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -90,6 +94,9 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   moinho: ['Moinho de vento', 'um moinho de vento'],
   cataVentoBrinquedo: ['Cata-vento de brinquedo', 'um cata-vento de brinquedo'],
   ponte: ['Ponte', 'uma ponte'],
+  cova: ['Cova', 'uma cova'],
+  caixao: ['Caixão', 'um caixão'],
+  caixaoAberto: ['Caixão aberto', 'um caixão aberto'],
 }
 
 describe('peças novas: registro', () => {
@@ -172,8 +179,10 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // 26 de antes, os 8 móveis de casa de 28/10/2026 (fogão, geladeira, pia, balcão, pratos, privada, sofá, poltrona)
     // e os 6 de 29/10/2026 (lareira, fornalha, bigorna, balde, troncos, feno).
     // E o chafariz de 02/11/2026, logo depois do poço, e os 3 objetos de vento no fim; a ponte de 03/11/2026
-    // logo depois do chafariz.
-    expect(TIPOS_NO_CATALOGO).toHaveLength(45)
+    // logo depois do chafariz. A cova e os dois caixões de 07/11/2026 logo depois da lápide.
+    const lapide = TIPOS_NO_CATALOGO.indexOf('lapide')
+    expect(TIPOS_NO_CATALOGO.slice(lapide, lapide + 4)).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
+    expect(TIPOS_NO_CATALOGO).toHaveLength(48)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

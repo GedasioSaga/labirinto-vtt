@@ -735,6 +735,31 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6 19.5c.9-3.1 3.1-4.9 6-4.9s5.1 1.8 6 4.9M2.5 21.5h3M18.5 21.5h3" />
         </>
       )
+    // O cemitério (07/11/2026), de cima como a arte: 1 x 2 casas, em pé.
+    case 'cova':
+      // O monte de terra comprido, a beira da terra escura de través e uma pedra.
+      return (
+        <>
+          <rect x="7" y="2.5" width="10" height="19" rx="5" />
+          <path d="M7 12.5c2-1 3.5.8 5 0s3-1.2 5-.3M10.5 15.5l2.5-.8.7 1.8-2.4.9z" />
+        </>
+      )
+    case 'caixao':
+      // O hexágono da tampa (a cabeça estreita, o ombro largo) e a emenda das duas tábuas.
+      return (
+        <>
+          <path d="M9.5 2.5h5l3 5-1.5 14h-8l-1.5-14z" />
+          <path d="M12 2.5v19" />
+        </>
+      )
+    case 'caixaoAberto':
+      // O mesmo hexágono, a tampa da cabeça de través e o forro por dentro.
+      return (
+        <>
+          <path d="M9.5 2.5h5l3 5-1.5 14h-8l-1.5-14z" />
+          <path d="M6.8 9h10.4M9.3 11.5h5.4l-1 7.5h-3.4z" />
+        </>
+      )
   }
 }
 
