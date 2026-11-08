@@ -86,11 +86,11 @@ import {
   selosDoToken,
 } from '../lib/batalha/selos'
 import { ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, formaDaFicha, usosDaForma } from '../lib/batalha/transformacao'
-import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, porVezDoLembrete, saidasComOsSelos, travaDoToken } from '../lib/batalha/condicoes'
+import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, porVezDoLembrete, saidasComOsSelos, travaDoToken, vantagemDaReacao } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
 import { ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
-import { custoPorTurno, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
+import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
 import { aliadosDe, equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
@@ -113,7 +113,7 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, disputaNoAcerto, disputaNoUso, limpezaDe, mecanicaDoCartao, rebatePertoDe, seloPegaNoAlvo } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, rebatePertoDe, seloPegaNoAlvo } from '../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
 import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
@@ -1442,6 +1442,60 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   }
 
   /**
+   * F2 (revisão da fatia D): o lembrete "Aplicar / pular" da técnica MANTIDA
+   * (Giro da Lança, Campo de Contenção). Aplicar com recurso: cobra o custo da
+   * vez (`custoDaMantida`), marca `gastouSp` e, no Campo, +1 de Concentração
+   * (`manterNaVez`). Pular, ou Aplicar sem recurso: para (`pararAMantida`: a
+   * recarga começa agora) e os selos que a técnica pôs saem (ninguém fica
+   * preso no campo desligado). A reversão é [combate, ficha | selos].
+   */
+  const custoDaMantidaNaVez = (
+    sceneKey: string,
+    cena: BatalhaDaCena,
+    autor: AutorDaAcao,
+    carta: CartaDaOrdem,
+    personagem: Personagem,
+    sistema: SistemaDeRpg,
+    pedido: Extract<PedidoDePassiva, { tipo: 'lembrete' }>,
+  ): boolean => {
+    const { turnos } = cena
+    if (motivoDoPedidoDoCusto({ personagem, sistema, turnos, aplicarSoComLembrete: autor.tipo === 'jogador' }, pedido) !== null) return false
+    const personagemId = personagem.id
+    const combateAntes = turnos.combate?.[personagemId] ?? null
+    const semOLembrete = semLembretes(combateAntes ?? combateVazio(), pedido.cartaoId)
+    const mantida = mantidasComCusto(personagem, sistema, combateAntes ?? undefined).find(({ cartao }) => cartao.id === pedido.cartaoId)
+    if (mantida === undefined) return false
+    const { cartao, custo } = mantida
+    const nome = cartao.nome.trim() || 'a técnica'
+    const dono = nomeDoTokenNa(turnos, mesaDoRpg().personagens)(carta.tokenId)
+    const partes: Reversao[] = []
+    let novos: TurnosDaCena
+    let texto: string
+    if (pedido.aplicar && motivoDoCustoPorTurno(personagem, sistema, custo) === null) {
+      const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))
+      // Bug 11: o custo recusado não aplica (o lembrete fica esperando).
+      if (doCusto === 'recusada') return false
+      const mantido = manterNaVez(semOLembrete, cartao.id)
+      const combate: CombateDoPersonagem = custoEmSp(custo) && mantido.gastouSp !== true ? { ...mantido, gastouSp: true } : mantido
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate }, ...reversaoDaFicha(personagemId, doCusto))
+      novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
+      const daCarga = combate.carga === semOLembrete.carga ? '' : `; Concentração ${combate.carga}`
+      texto = `${dono} mantém ${nome} (paga ${textoDoCustoPorTurno(custo, sistema)}${daCarga})`
+    } else {
+      const parado = pararAMantida(semOLembrete, cartao)
+      const tirados = (turnos.selos ?? []).filter((selo) => selo.cartaoId === cartao.id)
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: parado }, ...tirados.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })))
+      novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: parado }, selos: (turnos.selos ?? []).filter((selo) => selo.cartaoId !== cartao.id) }
+      const recarga = parado.recargas[cartao.id]
+      const porque = pedido.aplicar ? `sem ${recursoDoCusto(sistema, custo.recurso)?.nome ?? custo.recurso.toUpperCase()} para manter` : 'parou'
+      texto = `${dono} ${porque} ${nome}${recarga === undefined ? '' : ` (recarga ${recarga})`}`
+    }
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'habilidade', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    return true
+  }
+
+  /**
    * Tipos de habilidade F3: a passiva (`PedidoDePassiva`). Ver `passiva` em
    * `BatalhaState`. A reversão de Ativar é [combate, ficha, selo]; a de
    * Desligar, [combate, selos]; a de Aplicar, [combate, selo, ficha]. O
@@ -1519,6 +1573,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     // Conserto das fichas F1 (P6): o lembrete do custo por turno de uma FORMA tem caminho próprio.
     if (pedido.tipo === 'lembrete' && personagem !== null && sistema !== null && formaDaFicha(personagem, sistema, pedido.cartaoId) !== null) {
       return custoDaFormaNaVez(sceneKey, cena, autor, carta, personagem, sistema, pedido)
+    }
+    // F2 (revisão da fatia D): e o da técnica MANTIDA (Giro, Campo), na mesma faixa.
+    if (pedido.tipo === 'lembrete' && personagem !== null && sistema !== null && mantidaDe(pedido.cartaoId) !== null) {
+      return custoDaMantidaNaVez(sceneKey, cena, autor, carta, personagem, sistema, pedido)
     }
     if (motivoDaPassiva({ personagem, sistema, turnos, aplicarSoComLembrete: autor.tipo === 'jogador' }, pedido) !== null || personagem === null || sistema === null) return false
     const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
@@ -1937,7 +1995,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes }, alvo, pedido, golpe.overload) !== null || personagem === null || sistema === null) return false
     // S4: Atordoado ou Paralisado não reage, nem com técnica.
     if (travaDoToken(turnos.selos, reageTokenId) !== null) return false
-    const rolado = pedido.saida === 'rolar' ? rolarComVantagem(deps.rolarD20, pedido.vantagem) : null
+    // F2 (revisão da fatia D): quem está preso no Campo de Contenção rola com desvantagem, sem marcar.
+    const rolado = pedido.saida === 'rolar' ? rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDoToken(turnos.selos, reageTokenId))) : null
     const combateBase = combateAntes ?? combateVazio()
     const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, rolado?.d20 ?? null, rolado?.vantagem)
     if (lida === null) return false
@@ -2256,8 +2315,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           for (const selo of tirados) partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })
           const fora = new Set(tirados.map((selo) => selo.id))
           novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !fora.has(selo.id)) }
-          // A cura lê o Espírito de quem usa DEPOIS da limpeza (sem o cansaço, se ele limpou a si mesmo).
-          const lida = lerDano(limpeza.cura, { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
+          // A cura lê o Espírito de quem usa DEPOIS da limpeza (sem o cansaço, se ele limpou a si mesmo); com 3 cargas, a fórmula do X3 da ficha.
+          const lida = lerDano(formulaDaCura(limpeza, lancado.cargaUsada), { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
           const cura = lida.tipo === 'valor' ? lida.valor : 0
           const curou = alvo.personagemId === null || cura <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDaCura(atual, sistema, cura), quem)
           if (curou === 'recusada') {
@@ -2927,8 +2986,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Reação livre (o botão Reação sem golpe esperando): o d20 para todos e uma linha.
       if (pedido.tipo === 'rolar' && pedido.golpeId === null) {
         if (!turnos.cartas.some((carta) => carta.tokenId === pedido.tokenId)) return false
-        // S4: com vantagem ou desvantagem, 2 d20 (fica o maior ou o menor).
-        const { d20, vantagem } = rolarComVantagem(deps.rolarD20, pedido.vantagem)
+        // S4: com vantagem ou desvantagem, 2 d20 (fica o maior ou o menor). F2 (revisão da fatia D): preso no Campo, desvantagem.
+        const { d20, vantagem } = rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDoToken(turnos.selos, pedido.tokenId)))
         const total = d20 + pedido.modificador
         const texto = `${nomeDoToken(pedido.tokenId)} reagiu: ${textoDaRolagem(d20, pedido.modificador, total, vantagem)}`
         gravarCena(sceneKey, {
@@ -2958,7 +3017,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           if (!alvo.podeReagir || golpe.overload || (pedido.tipo === 'rolar') !== (alvo.rolagem === undefined)) return false
           // S4: Atordoado ou Paralisado não reage (o golpe que já esperava também não).
           if (travaDoToken(turnos.selos, alvo.tokenId) !== null) return false
-          const { d20, vantagem } = rolarComVantagem(deps.rolarD20, pedido.vantagem)
+          // F2 (revisão da fatia D): quem está preso no Campo de Contenção rola com desvantagem, sem marcar.
+          const { d20, vantagem } = rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDoToken(turnos.selos, alvo.tokenId)))
           novo = rolarReacao(golpe, alvo.tokenId, pedido.modificador, d20, vantagem)
           efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: alvo.tokenId, d20, modificador: pedido.modificador, total: d20 + pedido.modificador })
           break

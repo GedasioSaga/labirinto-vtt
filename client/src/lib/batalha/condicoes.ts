@@ -1,4 +1,4 @@
-import type { LembreteDaPassiva, PorVezDoSelo, SaidaDaReacao, SeloDaBatalha } from './combate'
+import type { LembreteDaPassiva, PorVezDoSelo, SaidaDaReacao, SeloDaBatalha, VantagemDoDado } from './combate'
 import { normalizar } from './formula'
 
 /**
@@ -43,6 +43,8 @@ export interface ComportamentoDoSelo {
   lembrete?: string
   /** F2 (fatia C): quem tem o selo recupera esta porcentagem do dano que causa, em vida (Bênção de uma Raposa: 10). */
   curaDoDano?: number
+  /** F2 (revisão da fatia D): quem tem o selo rola a reação com desvantagem (2 d20, fica o menor), sem precisar marcar (Preso no Campo de Contenção). */
+  reageComDesvantagem?: true
 }
 
 /** Regra do sistema (respostas do Alexei e do Siegfried): o Sangramento tira 10 por vez, direto no HP. */
@@ -63,7 +65,24 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   // Alexei (armadilhas; o mestre põe o selo em quem pisou, pelo "Pôr selo…"): o app só lembra a regra, a armadilha no mapa é do construtor.
   { nome: 'Enraizado', sinal: /^enraizad/, lembrete: 'não anda: sai destruindo a planta, ou com técnica de movimento e d20 15 ou mais' },
   { nome: 'Preso pelo Imã-Gumelo', sinal: /^preso pelo ima/, lembrete: 'para se mover ou arremessar, d20 12 ou mais (senão fica no lugar)' },
+  // Vagn (Campo de Contenção; o golpe põe nos marcados, e sai quando ele para de manter): "se alguém que foi pego no campo usar
+  // reação de algum golpe vai jogar com desvantagem". O teste para se aproximar ou atacar o Vagn é do mestre (falta a CD da fruta na ficha).
+  {
+    nome: 'Preso no Campo de Contenção',
+    sinal: /^preso no campo/,
+    reageComDesvantagem: true,
+    lembrete: 'reage com desvantagem (o app rola 2 d20); para se aproximar ou atacar o Vagn com metal, teste de Espírito contra a CD da fruta; de armadura, fica paralisado',
+  },
 ]
+
+/**
+ * F2 (revisão da fatia D): a vantagem com que a reação rola. Selo de quem
+ * reage que pede desvantagem (Preso no Campo de Contenção) vence o que veio no
+ * pedido, como o mestre disse ("vai jogar com desvantagem"); sem ele, vale o pedido.
+ */
+export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): VantagemDoDado | undefined {
+  return (selos ?? []).some((selo) => comportamentoDoSelo(selo.nome)?.reageComDesvantagem === true) ? 'desvantagem' : pedida
+}
 
 /**
  * F2 (fatia C): a porcentagem do dano que volta em vida para quem bate, pelos

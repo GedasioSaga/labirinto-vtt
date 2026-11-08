@@ -100,6 +100,12 @@ export interface CombateDoPersonagem {
   jaJogou?: true
   /** Conserto das fichas F1: gastou SP desde o começo da última vez dele; a próxima vez não ganha os +10. Ausente = não gastou. */
   gastouSp?: true
+  /**
+   * F2 (revisão da fatia D): os cartaoIds das técnicas MANTIDAS agora (Giro,
+   * Campo; `mantidaDe` em `mecanicasAMao.ts`): sem recarga enquanto ficam
+   * ligadas; o lembrete do custo sai no começo de cada vez. Ausente = nenhuma.
+   */
+  mantidas?: readonly string[]
 }
 
 /** C2: o que o Concentrar da vez gastou (a Simples ou a Bônus) e a linha que o registrou. */

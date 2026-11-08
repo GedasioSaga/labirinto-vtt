@@ -20,7 +20,7 @@ import {
   type SeloPedido,
 } from './combate'
 import { lembreteDoSangramento, sangramentosDoToken } from './condicoes'
-import { chaveDoCustoDaForma, custoPorTurno, formasComCustoPorTurno, motivoDoCustoPorTurno } from './custoPorTurno'
+import { chaveDoCustoDaForma, custoPorTurno, formasComCustoPorTurno, mantidasComCusto, motivoDoCustoPorTurno } from './custoPorTurno'
 import { varianteDoPedido } from './escolhaEEvolucao'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, ehOverload, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, vezesDeRecarga, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
@@ -678,7 +678,8 @@ export function comLembretesDaVez(turnos: TurnosDaCena, mesa: FichasDaPassiva): 
     if (!ligadas.has(cartao.id) || (efeitoPorTurno(cartao, sistema) === null && custoPorTurno(cartao, personagem) === null)) continue
     combate = comLembrete(combate, { cartaoId: cartao.id, tokenId: carta.tokenId, tipo: 'porTurno', chave: chaveDoPorTurno(cartao.id), rodada: turnos.rodada })
   }
-  for (const { cartao } of formasComCustoPorTurno(personagem, sistema)) {
+  // F2 (revisão da fatia D): e as técnicas mantidas (Giro, Campo), com a mesma chave do custo da forma.
+  for (const { cartao } of [...formasComCustoPorTurno(personagem, sistema), ...mantidasComCusto(personagem, sistema, combate)]) {
     combate = comLembrete(combate, { cartaoId: cartao.id, tokenId: carta.tokenId, tipo: 'porTurno', chave: chaveDoCustoDaForma(cartao.id), rodada: turnos.rodada })
   }
   // Conserto das fichas F1 (S4): cada selo de Sangramento da ficha da vez pede "Aplicar / pular" ao mestre (o `cartaoId` é o id do selo).

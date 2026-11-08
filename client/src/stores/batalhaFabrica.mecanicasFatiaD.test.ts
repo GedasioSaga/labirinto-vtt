@@ -7,8 +7,8 @@
  * docs/auditoria-fichas/respostas-do-grilling.md. No máximo 2 testes por situação.
  */
 import { describe, expect, it } from 'vitest'
-import type { PedidoDeAcao, PedidoDeAlvo } from '../lib/batalha/combate'
-import { ARMADURA, EXPLOSAO, guilherme, REVIGORAR, vagnCom } from '../lib/batalha/fichasDaFatiaD.testkit'
+import type { PedidoDeAcao, PedidoDeAlvo, PedidoDePassiva } from '../lib/batalha/combate'
+import { ARMADURA, CAMPO, EXPLOSAO, GIRO, guilherme, REVIGORAR, vagnCom } from '../lib/batalha/fichasDaFatiaD.testkit'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import { numeroDaFicha } from '../lib/personagem'
@@ -104,7 +104,103 @@ describe('Armadura Humana do Vagn contra o Atacar do Guilherme (110)', () => {
   })
 })
 
+/** Passa a vez de agora e espera a de `nome` de novo. */
+function proximaVezDe(loja: LojaDaBatalha, nome: string, agora: VezEsperada): VezEsperada {
+  expect(loja.getState().passarVez(CENA, MESTRE, agora)).toBe(true)
+  return naVezDe(loja, nome)
+}
+
+const combateDe = (loja: LojaDaBatalha, personagemId: string) => cena(loja).turnos.combate?.[personagemId]
+const idDe = (mesa: MesaEmMemoria, nome: string): string => mesa.personagens().find((candidato) => candidato.nome === nome)?.id ?? ''
+const lembrete = (cartaoId: string, aplicar: boolean, tokenId: string): PedidoDePassiva => ({ tipo: 'lembrete', tokenId, cartaoId, aplicar })
+
+describe('Giro da Lança mantido (revisão da fatia D)', () => {
+  it('anula com o Giro na reação (d20 9 + 1): fica ligado, sem recarga; na vez dele o lembrete cobra 30 SP para manter', () => {
+    const { loja, mesa, fila } = batalha()
+    const doGui = token(loja, 'Guilherme')
+    const ataque: PedidoDeAcao = { tipo: 'atacar', armaId: null, alvos: [{ tokenId: doGui, dano: 50 }], surpresa: false, perfurante: false }
+    const vezDoVagn = naVezDe(loja, 'Vagn Kane')
+    expect(loja.getState().agir(CENA, MESTRE, vezDoVagn, ataque)).toBe(true)
+    fila.push(9)
+    expect(loja.getState().reagir(CENA, MESTRE, { tipo: 'tecnica', golpeId: cena(loja).turnos.golpes?.[0]?.id ?? '', tokenId: doGui, cartaoId: GIRO.id, saida: 'rolar', custo: null })).toBe(true)
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))).toMatchObject({ mantidas: [GIRO.id] })
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))?.recargas[GIRO.id]).toBeUndefined()
+    expect(recursos(mesa, 'Guilherme')).toMatchObject({ hp: 900, escudo: 80, sp: 35 })
+    proximaVezDe(loja, 'Guilherme', vezDoVagn)
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))?.lembretes?.some((esperando) => esperando.chave === `${GIRO.id}:custo`)).toBe(true)
+    expect(loja.getState().passiva(CENA, MESTRE, lembrete(GIRO.id, true, doGui))).toBe(true)
+    expect(recursos(mesa, 'Guilherme').sp).toBe(5)
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))).toMatchObject({ mantidas: [GIRO.id] })
+    expect(textos(loja).some((texto) => texto.includes('mantém Giro da Lança (paga 30'))).toBe(true)
+  })
+
+  it('Parar no lembrete: o Giro desliga e a recarga 3 começa (a técnica fica travada nesta vez)', () => {
+    const { loja, mesa } = batalha()
+    const doGui = token(loja, 'Guilherme')
+    const vez = naVezDe(loja, 'Guilherme')
+    expect(loja.getState().agir(CENA, MESTRE, vez, tecnica(GIRO.id, [{ tokenId: token(loja, 'Vagn Kane'), dano: 130 }]))).toBe(true)
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))?.recargas[GIRO.id]).toBeUndefined()
+    const outra = proximaVezDe(loja, 'Guilherme', vez)
+    expect(loja.getState().passiva(CENA, MESTRE, lembrete(GIRO.id, false, doGui))).toBe(true)
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))?.mantidas).toBeUndefined()
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))?.recargas[GIRO.id]).toBe(3)
+    expect(textos(loja).some((texto) => texto.includes('parou Giro da Lança (recarga 3)'))).toBe(true)
+    expect(loja.getState().agir(CENA, MESTRE, outra, tecnica(GIRO.id, [{ tokenId: token(loja, 'Vagn Kane'), dano: 130 }]))).toBe(false)
+  })
+})
+
+describe('Campo de Contenção mantido (revisão da fatia D)', () => {
+  it('usar com Concentração 1 não gasta a carga e prende o marcado; Manter cobra 15 SP e sobe a Concentração para 2', () => {
+    const { loja, mesa } = batalha()
+    const doVagn = token(loja, 'Vagn Kane')
+    const primeira = naVezDe(loja, 'Vagn Kane')
+    expect(loja.getState().agir(CENA, MESTRE, primeira, { tipo: 'concentrar' })).toBe(true)
+    const segunda = proximaVezDe(loja, 'Vagn Kane', primeira)
+    expect(loja.getState().agir(CENA, MESTRE, segunda, tecnica(CAMPO.id, [{ tokenId: token(loja, 'Guilherme'), dano: null }]))).toBe(true)
+    expect(combateDe(loja, idDe(mesa, 'Vagn Kane'))).toMatchObject({ carga: 1, mantidas: [CAMPO.id] })
+    expect(cena(loja).turnos.selos?.find((selo) => selo.tokenId === token(loja, 'Guilherme'))?.nome).toBe('Preso no Campo de Contenção')
+    proximaVezDe(loja, 'Vagn Kane', segunda)
+    const antes = recursos(mesa, 'Vagn Kane').sp
+    expect(loja.getState().passiva(CENA, MESTRE, lembrete(CAMPO.id, true, doVagn))).toBe(true)
+    expect(recursos(mesa, 'Vagn Kane').sp).toBe(antes - 15)
+    expect(combateDe(loja, idDe(mesa, 'Vagn Kane'))).toMatchObject({ carga: 2, mantidas: [CAMPO.id] })
+  })
+
+  it('o Guilherme preso reage com desvantagem sozinho (15 e 4: fica 4, toma cheio); Parar solta ele e começa a recarga 2', () => {
+    const { loja, mesa, fila } = batalha()
+    const doGui = token(loja, 'Guilherme')
+    const doVagn = token(loja, 'Vagn Kane')
+    const vez = naVezDe(loja, 'Vagn Kane')
+    expect(loja.getState().agir(CENA, MESTRE, vez, tecnica(CAMPO.id, [{ tokenId: doGui, dano: null }]))).toBe(true)
+    const outra = proximaVezDe(loja, 'Vagn Kane', vez)
+    const ataque: PedidoDeAcao = { tipo: 'atacar', armaId: null, alvos: [{ tokenId: doGui, dano: 50 }], surpresa: false, perfurante: false }
+    expect(loja.getState().agir(CENA, MESTRE, outra, ataque)).toBe(true)
+    fila.push(15, 4)
+    const golpeId = cena(loja).turnos.golpes?.find((golpe) => golpe.alvos.some((alvo) => alvo.tokenId === doGui && alvo.danoFinal === undefined))?.id ?? ''
+    expect(loja.getState().reagir(CENA, MESTRE, { tipo: 'rolar', golpeId, tokenId: doGui, modificador: 0 })).toBe(true)
+    const rolagem = cena(loja).turnos.golpes?.find((golpe) => golpe.id === golpeId)?.alvos[0]?.rolagem
+    expect(rolagem).toMatchObject({ d20: 4, vantagem: { modo: 'desvantagem', outro: 15 } })
+    expect(loja.getState().passiva(CENA, MESTRE, lembrete(CAMPO.id, false, doVagn))).toBe(true)
+    expect(cena(loja).turnos.selos?.some((selo) => selo.tokenId === doGui) ?? false).toBe(false)
+    expect(combateDe(loja, idDe(mesa, 'Vagn Kane'))?.recargas[CAMPO.id]).toBe(2)
+  })
+})
+
 describe('Revigorar do Guilherme', () => {
+  it('com Concentração 3 (o extra da ficha: Espírito × 3): cura 300 (900 → 1100) e gasta as 3 cargas', () => {
+    const { loja, mesa } = batalha()
+    let vez = naVezDe(loja, 'Guilherme')
+    for (let carga = 1; carga <= 3; carga += 1) {
+      expect(loja.getState().agir(CENA, MESTRE, vez, { tipo: 'concentrar' })).toBe(true)
+      if (carga < 3) vez = proximaVezDe(loja, 'Guilherme', vez)
+    }
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))?.carga).toBe(3)
+    expect(loja.getState().agir(CENA, MESTRE, vez, tecnica(REVIGORAR.id, [{ tokenId: token(loja, 'Guilherme'), dano: null }]))).toBe(true)
+    expect(recursos(mesa, 'Guilherme').hp).toBe(1100)
+    expect(combateDe(loja, idDe(mesa, 'Guilherme'))?.carga).toBe(0)
+    expect(textos(loja).some((texto) => texto.includes('curou 300'))).toBe(true)
+  })
+
   it('nele: cura o Espírito (900 → 1000, máximo 1100); no Vagn (inimigo) é recusado', () => {
     const { loja, mesa } = batalha()
     const vez = naVezDe(loja, 'Guilherme')

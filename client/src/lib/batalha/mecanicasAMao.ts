@@ -69,9 +69,31 @@ export interface RespostaVetadaAMao {
   motivo: string
 }
 
-/** F2 (fatia D, Revigorar): tira os selos negativos do alvo (o cansaço do Overload junto) e cura a fórmula `cura`, lida na ficha de quem usa. */
+/**
+ * F2 (fatia D, Revigorar): tira os selos negativos do alvo (o cansaço do
+ * Overload junto) e cura a fórmula `cura`, lida na ficha de quem usa.
+ * `porCarga`: a fórmula no lugar da `cura` quando o golpe sai com aquela carga
+ * de Concentrar (extra "Concentração" da ficha: "com concentração X3, recupera
+ * Espírito * 3"); carga sem fórmula = a `cura`.
+ */
 export interface LimpezaAMao {
   cura: string
+  porCarga?: Readonly<Partial<Record<1 | 2 | 3, string>>>
+}
+
+/**
+ * F2 (revisão da fatia D): a técnica MANTIDA (Giro da Lança, Campo de
+ * Contenção). Usar liga (sem recarga); no começo de cada vez do dono, o
+ * lembrete "Aplicar / pular" cobra o custo de manter, na mesma faixa do custo
+ * da forma (`custoPorTurno.ts`). Pular, ou não ter o recurso, para: só então
+ * a recarga do Tempo começa, e os selos que a técnica pôs saem.
+ * `custoPorVez`: o custo de cada vez mantida; ausente = o "por turno" do
+ * campo Custo da ficha ("-15 (Por turno)"). `cargaPorVez`: cada vez mantida
+ * dá +1 de Concentração (até 3), e usar a técnica não gasta a guardada.
+ */
+export interface MantidaAMao {
+  custoPorVez?: { recurso: 'sp' | 'hp'; valor: number }
+  cargaPorVez?: true
 }
 
 /**
@@ -208,6 +230,8 @@ export interface MecanicaAMao {
   usosContamOAdicional?: true
   /** F2 (fatia D, Revigorar): tira os debuffs e cura; a mira começa em quem usa e só aceita ele ou os aliados. */
   limpa?: LimpezaAMao
+  /** F2 (revisão da fatia D): a técnica fica ligada e cobra a cada vez (Giro, Campo). */
+  mantida?: MantidaAMao
 }
 
 const ATORDOADO_1: SeloDoGolpe = { nome: 'Atordoado', turnos: 1, natureza: 'debuff' }
@@ -233,6 +257,8 @@ const PERGUNTA_DO_FISICO_DA_BENCAO: PerguntaNaHora = {
 /** O nome do selo da Bênção de uma Raposa: o comportamento dele (o aliado cura 10% do dano que causa) mora na tabela de selos (`condicoes.ts`). */
 export const NOME_DA_BENCAO_DA_RAPOSA = 'Bênção de uma Raposa'
 const SELO_DA_BENCAO: SeloDasRespostasAMao = { nome: NOME_DA_BENCAO_DA_RAPOSA, natureza: 'buff', turnosDe: 'turnos', mod: { atributoDe: 'fisico', formula: 'Espírito * 0,2' } }
+/** F2 (revisão da fatia D): o selo de quem está no Campo de Contenção do Vagn; o comportamento (reage com desvantagem, o lembrete do teste) mora na tabela de selos (`condicoes.ts`). */
+export const NOME_DO_PRESO_NO_CAMPO = 'Preso no Campo de Contenção'
 /** F2 (fatia D): o cartão da Ignição do Vagn (a forma que veta o fogo e cujos Usos contam os ataques adicionais). */
 const IGNICAO_DO_VAGN = 'cart_8ea9d2d5-f1ac-4d11-9a55-0feb66c75415'
 /** Recuperação Espantosa (May; Guilherme segue a regra dela): o mestre decide quando e com quanto HP volta. */
@@ -261,9 +287,14 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
     },
   },
   // Guilherme: na reação, 1d20 + o maior modificador entre FOR e AGI (o app soma); 10 ou mais anula todo o dano.
-  'cart_4a5b6f4f-87d3-49f5-aafa-0bfd5973c2ca': { nome: 'Giro da Lança (Guilherme)', reacao: { rolagem: { atributos: ['forca', 'agilidade'], anulaCom: 10 } } },
-  // Guilherme: tira todos os debuffs (até o cansaço do Overload) e cura o Espírito, nele ou num aliado.
-  'cart_f566bafe-6d3b-4836-aa93-12969ff5788d': { nome: 'Revigorar (Guilherme)', limpa: { cura: 'Espírito' } },
+  // Manter o Giro: fica ligado, cobra 30 SP no começo de cada vez dele (Aplicar / pular); a recarga 3 só começa quando ele para.
+  'cart_4a5b6f4f-87d3-49f5-aafa-0bfd5973c2ca': {
+    nome: 'Giro da Lança (Guilherme)',
+    reacao: { rolagem: { atributos: ['forca', 'agilidade'], anulaCom: 10 } },
+    mantida: { custoPorVez: { recurso: 'sp', valor: 30 } },
+  },
+  // Guilherme: tira todos os debuffs (até o cansaço do Overload) e cura o Espírito, nele ou num aliado; com 3 cargas, Espírito × 3 (extra da ficha).
+  'cart_f566bafe-6d3b-4836-aa93-12969ff5788d': { nome: 'Revigorar (Guilherme)', limpa: { cura: 'Espírito', porCarga: { 3: 'Espírito * 3' } } },
   'cart_c1c30321-a4f2-49b1-a9c6-457938103b57': { nome: 'Recuperação Espantosa (Guilherme)', avisoAoCair: AVISO_DA_RECUPERACAO },
   // Vagn: na reação, duas saídas: Defender toma 90%; Atacar toma tudo e devolve o dano ÷ 7 (para baixo) em quem atacou.
   // Com o Resiliente, a redução da forma vem depois (Defender: −10% e −20% = −28%).
@@ -278,8 +309,12 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   },
   // Vagn: a Ignição liga quantas vezes quiser; os "Usos 2" da ficha são os ataques adicionais da batalha inteira (trocar de forma não renova).
   [IGNICAO_DO_VAGN]: { nome: 'Ignição (Vagn)', usosContamOAdicional: true },
-  // Vagn: o Campo não dá dano nem espera reação (o "0" da ficha não é golpe; a Polaridade não soma nele).
-  'cart_9de30283-6314-44ae-bfd3-a7539c0b17de': { nome: 'Campo de Contenção (Vagn)', dano: '-' },
+  // Vagn: o Campo não dá dano nem espera reação (o "0" da ficha não é golpe; a Polaridade não soma nele). Os marcados (quem está no
+  // campo) ficam "Presos no Campo de Contenção": reagem com desvantagem (o app rola 2 d20) e a pílula lembra o teste. Fica ligado:
+  // 15 SP por vez (o "por turno" da ficha) e +1 de Concentração por vez mantida (até 3); usar não gasta a carga guardada.
+  // À mão até o F0c e a peça de área do construtor: a área 2 + polaridade (o jogador marca quem está dentro) e o teste pela CD da
+  // fruta de quem chega perto (falta a Proficiência em Fruta na ficha; o mestre rola).
+  'cart_9de30283-6314-44ae-bfd3-a7539c0b17de': { nome: 'Campo de Contenção (Vagn)', dano: '-', selo: { nome: NOME_DO_PRESO_NO_CAMPO, turnos: null, natureza: 'debuff' }, mantida: { cargaPorVez: true } },
   // Siegfried: o alvo testa RES contra 12; falhou, Atordoado 1.
   'cart_3868a90d-a138-4fa0-a902-c30a7a53be7b': {
     nome: 'Gilgamesh: Entardecer (Siegfried)',
@@ -666,4 +701,20 @@ export function usosContamOAdicional(cartaoId: string): boolean {
 /** F2 (fatia D, Revigorar): a limpeza da técnica; `null` = a técnica não limpa. */
 export function limpezaDe(cartaoId: string): LimpezaAMao | null {
   return mecanicaDoCartao(cartaoId)?.limpa ?? null
+}
+
+/** F2 (revisão da fatia D, Revigorar): a fórmula da cura com a carga que o golpe gastou (3 = "Espírito * 3"); sem fórmula para a carga, a `cura`. */
+export function formulaDaCura(limpeza: LimpezaAMao, carga: number): string {
+  const porCarga = carga === 1 || carga === 2 || carga === 3 ? limpeza.porCarga?.[carga] : undefined
+  return porCarga ?? limpeza.cura
+}
+
+/** F2 (revisão da fatia D): a técnica mantida (Giro, Campo); `null` = usar marca a recarga na hora, como sempre. */
+export function mantidaDe(cartaoId: string): MantidaAMao | null {
+  return mecanicaDoCartao(cartaoId)?.mantida ?? null
+}
+
+/** F2 (revisão da fatia D, Campo): usar a técnica gasta a Concentração guardada? A que dá carga por vez não gasta. */
+export function gastaACarga(cartaoId: string | null): boolean {
+  return cartaoId === null || mantidaDe(cartaoId)?.cargaPorVez !== true
 }

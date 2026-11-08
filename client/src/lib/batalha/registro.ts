@@ -594,7 +594,9 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>, daVez = false): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, ...fixos } = atual
+  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, mantidas: _mantidas, ...fixos } = atual
+  // F2 (revisão da fatia D): as técnicas mantidas voltam uma a uma (a linha que ligou o Giro desliga só ele).
+  const mantidas = listaSemALinha(atual.mantidas ?? [], antes.mantidas ?? [], depois.mantidas ?? [])
   // Conserto das fichas F1: o "+10 SP por vez" (jaJogou, gastouSp) volta campo a campo.
   const jaJogou = campoSemALinha(atual.jaJogou, antes.jaJogou, depois.jaJogou)
   const gastouSp = campoSemALinha(atual.gastouSp, antes.gastouSp, depois.gastouSp)
@@ -619,6 +621,7 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     ...(lembradas.length === 0 ? {} : { lembradas }),
     ...(lembretes.length === 0 ? {} : { lembretes }),
     ...(evoluidas.length === 0 ? {} : { evoluidas }),
+    ...(mantidas.length === 0 ? {} : { mantidas }),
     ...(jaJogou === undefined ? {} : { jaJogou }),
     ...(gastouSp === undefined ? {} : { gastouSp }),
   }

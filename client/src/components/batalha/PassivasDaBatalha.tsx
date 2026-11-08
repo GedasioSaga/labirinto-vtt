@@ -832,9 +832,22 @@ export interface LembretesDaPassivaProps {
 }
 
 /**
+ * O botão de pagar do lembrete do custo: "Aplicar · 20 SP" na forma, "Manter ·
+ * 30 SP" na técnica mantida; sem recurso, o que acontece ("Voltar para Parte
+ * 1", "Sair da forma", "Parar").
+ */
+function textoDoAplicarDoCusto(custo: CustoDaFormaNaTela): string {
+  const sem = custo.semRecurso
+  if (custo.mantida === true) return sem === undefined ? `Manter · ${custo.custo}` : 'Parar'
+  if (sem === undefined) return `Aplicar · ${custo.custo}`
+  return sem.voltaPara === null ? 'Sair da forma' : `Voltar para ${sem.voltaPara}`
+}
+
+/**
  * Conserto das fichas F1 (P6): o lembrete do custo por turno de uma forma.
  * Aplicar paga; sem recurso, o mesmo botão desce a forma uma Parte (o texto
- * diz para onde). Pular só tira o lembrete.
+ * diz para onde). Pular só tira o lembrete. F2 (revisão da fatia D): na
+ * técnica mantida, "Manter" paga e "Parar" desliga (a recarga começa).
  */
 function UmLembreteDoCusto({ item, esperando, onPedir }: { item: LembreteDoCustoNaTela; esperando?: boolean; onPedir: PedirPassiva }) {
   const { lembrete, custo, quem } = item
@@ -856,15 +869,15 @@ function UmLembreteDoCusto({ item, esperando, onPedir }: { item: LembreteDoCusto
       </p>
       <div className="bt-lembrete__acoes" role="group" aria-labelledby={`${id}-texto`}>
         <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando} aria-describedby={sem === undefined ? undefined : `${id}-motivo`} onClick={() => pedir(true)}>
-          {sem === undefined ? `Aplicar · ${custo.custo}` : sem.voltaPara === null ? 'Sair da forma' : `Voltar para ${sem.voltaPara}`}
+          {textoDoAplicarDoCusto(custo)}
         </button>
         <button type="button" className="bt-botao" disabled={esperando} onClick={() => pedir(false)}>
-          Pular
+          {custo.mantida === true ? 'Parar' : 'Pular'}
         </button>
       </div>
       {sem !== undefined && (
         <p className="bt-lembrete__motivo" id={`${id}-motivo`}>
-          Sem {custo.recurso} para manter a forma.
+          Sem {custo.recurso} para manter {custo.mantida === true ? 'a técnica' : 'a forma'}.
         </p>
       )}
       {erro !== null && (

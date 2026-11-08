@@ -38,6 +38,7 @@ import {
   type SeloPedido,
   type VantagemNaRolagem,
 } from './combate'
+import { comAMantida } from './custoPorTurno'
 import { equipeDe, type Equipe } from './equipes'
 import { usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
 import { danoDoAtaque, lerDano, type ContextoDaFormula } from './formula'
@@ -59,7 +60,9 @@ import { danoDaTecnica, danoDaTecnicaComAVida, leituraDaTecnica } from './leitur
 import {
   ataqueComOSelo,
   extraDeTodoGolpe,
+  gastaACarga,
   limpezaDe,
+  mantidaDe,
   mecanicaDoCartao,
   motivoDaRespostaVetada,
   motivoDasRespostasDoGolpe,
@@ -365,8 +368,10 @@ export function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: Pick<Tecn
   const { id } = tecnica.cartao
   let novo = combate
   if (tecnica.custo !== undefined && custoEmSp(tecnica.custo) && combate.gastouSp !== true) novo = { ...novo, gastouSp: true }
+  // F2 (revisão da fatia D): a técnica mantida (Giro, Campo) liga e fica sem recarga; a recarga começa quando ela para (`pararAMantida`).
+  if (mantidaDe(id) !== null) novo = comAMantida(novo, id)
   // P1: Tempo N bloqueia N vezes do dono; a recarga desce no começo da vez, então guarda N + 1.
-  if (tecnica.tempo.tipo === 'recarga') novo = { ...novo, recargas: { ...novo.recargas, [id]: tecnica.tempo.turnos + RECARGA_A_MAIS } }
+  else if (tecnica.tempo.tipo === 'recarga') novo = { ...novo, recargas: { ...novo.recargas, [id]: tecnica.tempo.turnos + RECARGA_A_MAIS } }
   if (tecnica.tempo.tipo === 'usos') novo = { ...novo, usos: { ...novo.usos, [id]: (novo.usos[id] ?? 0) + 1 } }
   if (tecnica.overload) novo = { ...novo, overload: true }
   return novo
@@ -461,7 +466,10 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // F2 (fatia D, Explosão): o dano "% da vida do alvo" sai da vida de cada alvo.
   const pedidosDoDano = tecnica === null || personagem === null || sistema === null ? pedido.alvos : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, pedido.alvos)
   const pedidos = mecanica?.seloSoNosAliados === true ? comSomaNoDano(semDanoNosAliados(ctx, pedidosDoDano), soma) : comSomaNoDano(pedidosDoDano, soma)
-  const alvos = alvosDoGolpe(ctx, pedidos, combate.carga, pedido.surpresa, overload, reacao)
+  // F2 (revisão da fatia D, Campo): a técnica que dá carga por vez não gasta a guardada (nem a usa).
+  const gasta = gastaACarga(tecnica?.cartao.id ?? null)
+  const carga = gasta ? combate.carga : 0
+  const alvos = alvosDoGolpe(ctx, pedidos, carga, pedido.surpresa, overload, reacao)
   const golpe: GolpeDaBatalha = {
     id: ids.golpe,
     linhaId: ids.linha,
@@ -496,7 +504,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // F2 (fatia C): quem bate com a Bênção de uma Raposa recupera parte do dano (o selo de agora); a carga vai junto para a CD da disputa.
   const cura = curaDoDanoDosSelos(ctx.turnos.selos, ctx.carta.tokenId)
   if (cura > 0) golpe.curaDoDano = cura
-  if (combate.carga > 0) golpe.carga = combate.carga
+  if (carga > 0) golpe.carga = carga
   if (melhorado !== null) {
     golpe.selo = melhorado.selo
     golpe.variante = 'com a Bênção'
@@ -515,7 +523,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   }
   if (deTodoGolpe.rotulos.length > 0) golpe.variante = [golpe.variante, ...deTodoGolpe.rotulos].filter((marca): marca is string => marca !== undefined).join(', ').slice(0, NOME_DO_GOLPE_MAX)
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
-  if (combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
+  if (gasta && combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
   // Conserto das fichas F1 (+10 SP por vez): o SP do Electro também conta como gasto.
   if (deTodoGolpe.custoEmSp > 0 && combateNovo.gastouSp !== true) combateNovo = { ...combateNovo, gastouSp: true }
   // R6: o Atacar da vez marca o gasto (libera o ataque adicional da forma); o adicional não gasta a Simples e conta na rodada.
@@ -533,13 +541,13 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     custo,
     contraUsado: contra,
     acao: contra !== null ? null : acao,
-    cargaUsada: combate.carga,
+    cargaUsada: carga,
   }
   // F2 (fatia C): o Atacar melhorado repete o golpe inteiro (mesmos alvos, mesmo dano e selo), cada parte com a própria reação.
   if (melhorado !== null) {
     const idsDasPartes = [ids.segundo, ...(ids.seguintes ?? [])].filter((daParte): daParte is IdsDaParte => daParte !== undefined).slice(0, melhorado.golpes - 1)
     const partes = idsDasPartes.map((daParte, indice) => {
-      const alvosDaParte = alvosDoGolpe(ctx, pedidos, combate.carga, pedido.surpresa, overload, reacao)
+      const alvosDaParte = alvosDoGolpe(ctx, pedidos, carga, pedido.surpresa, overload, reacao)
       const golpeDaParte: GolpeDaBatalha = { ...golpe, id: daParte.golpe, linhaId: daParte.linha, nome: `${golpe.nome} (${indice + 2}º golpe)`.slice(0, NOME_DO_GOLPE_MAX), alvos: alvosDaParte }
       return { golpe: golpeDaParte, resolvidos: alvosDaParte.filter((alvo) => alvo.danoFinal !== undefined) }
     })
@@ -550,7 +558,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   if (parte === undefined || ids.segundo === undefined) return lancado
   // F2 (fatia B, Rapid Dash): a 2ª parte é outro golpe nos mesmos alvos, com a fração do dano base, o perfurante dela e outra reação.
   const alvosDaParte = pedido.alvos.map((alvo): PedidoDeAlvo => ({ ...alvo, dano: alvo.dano === null ? null : Math.floor(alvo.dano * parte.fracao) }))
-  const segundos = alvosDoGolpe(ctx, alvosDaParte, combate.carga, pedido.surpresa, overload, reacaoDoTipo(tecnica?.tipo ?? null))
+  const segundos = alvosDoGolpe(ctx, alvosDaParte, carga, pedido.surpresa, overload, reacaoDoTipo(tecnica?.tipo ?? null))
   const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, ...semExtras } = golpe
   const segundo: GolpeDaBatalha = { ...semExtras, id: ids.segundo.golpe, linhaId: ids.segundo.linha, nome: `${golpe.nome} (2º golpe)`.slice(0, NOME_DO_GOLPE_MAX), perfurante: parte.perfurante, alvos: segundos }
   return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }

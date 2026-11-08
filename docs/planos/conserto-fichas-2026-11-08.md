@@ -73,10 +73,24 @@ Ignição), Ignição (liga sem limite; 2 ataques adicionais por batalha no tota
 com golpe esperando), Campo sem dano e sem reação, Explosão (teste ao usar, não gasta se passar, 10% da vida
 atual direto no HP, dobra os debuffs), Giro como reação (+1 sozinho, 10+ anula), Revigorar (tira os debuffs
 e o cansaço, cura o Espírito, nele ou num aliado), Recuperação Espantosa do Guilherme (aviso).
-Falta na fatia D (precisa de uma peça nova, "técnica mantida"): manter o Giro (30 SP por vez, recarga só ao
-parar) e o Campo de Contenção ligado (15 SP por vez, +1 Concentração por vez até 3, área 2 + polaridade, teste
-pela CD da fruta para quem chega perto, preso reage com desvantagem); e a Velocidade x1,2 da Ignição (o app
-não tem atributo "Velocidade"; o Vagn tem Agilidade 0).
+Revisão da fatia D, a peça "técnica mantida" (campo `mantida` da tabela, `client/src/lib/batalha/mecanicasAMao.ts:291`
+e `:317`): usar liga a técnica sem recarga (`golpe.ts:372`, também na reação); no começo de cada vez do dono sai o
+lembrete na mesma faixa do custo da forma (`passivas.ts:682`; `custoPorTurno.ts:70` e `:147`). "Manter" paga (Giro 30 SP;
+Campo os 15 SP "por turno" da ficha e +1 Concentração por vez até 3, `custoPorTurno.ts:94`); "Parar", ou não ter o SP,
+desliga, começa a recarga (Tempo N trava esta vez e as N-1 seguintes, `custoPorTurno.ts:105`) e tira os selos que a
+técnica pôs (store `custoDaMantidaNaVez`, `batalhaFabrica.ts:1452`). Campo: usar não gasta a carga guardada
+(`mecanicasAMao.ts:718`, `golpe.ts:470`); os marcados ficam "Preso no Campo de Contenção" (`condicoes.ts:71`, a pílula
+lembra o teste) e reagem com desvantagem sozinhos (`condicoes.ts:83`; `batalhaFabrica.ts:1999`, `:2990`, `:3021`).
+Revigorar com 3 cargas cura Espírito × 3, o extra da ficha (`mecanicasAMao.ts:297`, `:707`; `batalhaFabrica.ts:2319`).
+À mão DE PROPÓSITO, com dono:
+- Teste de quem chega perto do Campo pela CD da fruta: precisa do F0c (Pontos de Proficiência em Fruta) e de saber
+  quem ENTRA na área, a mesma peça de área/token do construtor que as armadilhas do Alexei (F3.5). Até lá o mestre rola,
+  lembrado pela pílula do selo.
+- Área 2 + 1 por polaridade: o jogador marca quem está no campo ao usar (mesma peça; a mira não marca sozinha).
+- Revigorar com 1 ou 2 cargas: a ficha só fala do X3; hoje cura o Espírito e gasta a carga. Perguntar ao mestre.
+- O Giro liga em qualquer uso (ataque ou reação, anulando ou não): o "Parar" do lembrete desliga na vez dele. Usar o
+  Giro de novo enquanto ele está ligado cobra os 30 SP de novo (o mestre não disse). Perguntar ao mestre.
+Ainda falta: a Velocidade x1,2 da Ignição (o app não tem atributo "Velocidade"; o Vagn tem Agilidade 0).
 
 ## F3. Recursos novos (decisão 08/11: feitos como PEÇAS DO CONSTRUTOR, fatias C6/C7/C1/C10 de docs/planos/construtor-de-mecanicas-2026-11-08.md)
 1. Tela do mestre ao transformar ou invocar com números livres (Sulong, super lobo).
