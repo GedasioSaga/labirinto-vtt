@@ -31,8 +31,8 @@ function cartao(id: string, nome: string, campos: Record<string, string>): Carta
 const IGNICAO_DO_SIEG = cartao('cart_d6374db1-54d6-4859-9938-1765e2684c38', 'Ignição', { acao: 'Livre', grupo: 'Lunariano', deslocamento: '+2', ataquesExtras: '1', usos: '2' })
 const APARENCIA = cartao('cart_a27035d1-22ad-4c0c-9a0c-647ed50b01e6', 'Aparência Inofensiva', { acao: 'Passiva' })
 
-function batalha(heroi: Personagem): { loja: LojaDaBatalha; mesa: MesaEmMemoria } {
-  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: heroi, lado: 'a' }, { ficha: pirata('Pirata 1'), lado: 'b' }]))
+function batalha(heroi: Personagem, inimigos: Personagem[] = [pirata('Pirata 1')]): { loja: LojaDaBatalha; mesa: MesaEmMemoria } {
+  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: heroi, lado: 'a' }, ...inimigos.map((inimigo) => ({ ficha: inimigo, lado: 'b' as const }))]))
   const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
   const tokens = mesa.tokens()
   const combatentes = combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id)))
@@ -112,13 +112,15 @@ describe('Imbuir Fogo do Siegfried', () => {
 describe('A Caçada Começa do Alexei', () => {
   const alexeiComCacada = (): Personagem => ({ ...ficha('Alexei', ATRIBUTOS_DO_ALEXEI, { hp: 365, sp: 250, escudo: 12 }, { transformacoes: [CACADA], armas: [RIFLE] }), maximos: { hp: 600, sp: 250 } })
 
-  it('ligada, o Atacar dele é Overload: o pirata não reage e toma os 100 na hora', () => {
+  it('ligada, o Atacar dele é Overload: o pirata não reage e toma os 100 na hora; o Cansaço espera o fim da forma', () => {
     const { loja, mesa } = batalha(alexeiComCacada())
     const vez = naVezDe(loja, 'Alexei')
     expect(loja.getState().agir(CENA, MESTRE, vez, { tipo: 'transformar', cartaoId: CACADA.id, acao: 'livre', trocarImagem: false })).toBe(true)
     expect(loja.getState().agir(CENA, MESTRE, vez, atacar(token(loja, 'Pirata 1')))).toBe(true)
     expect(golpesEsperando(loja)).toBe(0)
     expect(hpDe(mesa, 'Pirata 1')).toBe(400)
+    // Revisão da F2b: o golpe é Overload só pela forma; a lei põe o cansaço "após o fim da técnica".
+    expect(selosDe(loja, token(loja, 'Alexei'))).not.toContain('Cansaço do Overload')
   })
 
   it('dura as 5 vezes dele depois da que ligou e desliga sozinha no fim da 5ª, com o Cansaço do Overload', () => {
@@ -156,5 +158,65 @@ describe('Aparência Inofensiva do Alexei', () => {
       expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Alexei'), atacar(token(loja, 'Pirata 1'), respostas))).toBe(true)
       expect(golpesEsperando(loja)).toBe(1)
     }
+  })
+
+  it('quem estava na ordem e assistiu o 1º golpe já o viu lutar: o Pirata 2 não leva Surpresa depois', () => {
+    const { loja, mesa } = batalha(alexeiInofensivo(), [pirata('Pirata 1'), pirata('Pirata 2')])
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Alexei'), atacar(token(loja, 'Pirata 1'), { inofensiva: 'sim' }))).toBe(true)
+    expect(hpDe(mesa, 'Pirata 1')).toBe(350)
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Alexei', true), atacar(token(loja, 'Pirata 2'), { inofensiva: 'sim' }))).toBe(true)
+    expect(golpesEsperando(loja)).toBe(1)
+    expect(hpDe(mesa, 'Pirata 2')).toBe(500)
+  })
+
+  it('o Desfazer do 1º golpe devolve a Surpresa: o golpe repetido sai de novo com 150, sem reação', () => {
+    const { loja, mesa } = batalha(alexeiInofensivo())
+    const pirata1 = token(loja, 'Pirata 1')
+    const vez = naVezDe(loja, 'Alexei')
+    expect(loja.getState().agir(CENA, MESTRE, vez, atacar(pirata1, { inofensiva: 'sim' }))).toBe(true)
+    const linhaDoGolpe = cena(loja).registro.find((linha) => linha.tipo === 'golpe')
+    expect(linhaDoGolpe).toBeDefined()
+    expect(loja.getState().desfazer(CENA, linhaDoGolpe?.id ?? '', MESTRE)).toBe(true)
+    expect(hpDe(mesa, 'Pirata 1')).toBe(500)
+    expect(loja.getState().agir(CENA, MESTRE, vez, atacar(pirata1, { inofensiva: 'sim' }))).toBe(true)
+    expect(golpesEsperando(loja)).toBe(0)
+    expect(hpDe(mesa, 'Pirata 1')).toBe(350)
+  })
+})
+
+describe('Ignição: a ordem na virada da rodada (revisão da F2b)', () => {
+  // Agilidade 10 × 1,2 = 12 passa o Pirata de 11; sem a forma, ele joga depois.
+  const siegLento = (): Personagem => ficha('Siegfried', { ...ATRIBUTOS_DO_PIRATA, agilidade: 10 }, { hp: 500, sp: 100, escudo: 0 }, { transformacoes: [IGNICAO_DO_SIEG] })
+  const pirataRapido = (): Personagem => ficha('Pirata 1', { ...ATRIBUTOS_DO_PIRATA, agilidade: 11 }, { hp: 500, sp: 50, escudo: 0 }, {})
+  const nomes = (loja: LojaDaBatalha): (string | undefined)[] => cena(loja).turnos.cartas.map((carta) => carta.nome)
+
+  function ligarAIgnicao(): LojaDaBatalha {
+    const { loja } = batalha(siegLento(), [pirataRapido()])
+    expect(nomes(loja)).toEqual(['Pirata 1', 'Siegfried'])
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Siegfried'), { tipo: 'transformar', cartaoId: IGNICAO_DO_SIEG.id, acao: 'livre', trocarImagem: false })).toBe(true)
+    expect(textos(loja).some((texto) => texto.includes('a ordem muda no começo da próxima rodada'))).toBe(true)
+    // No meio da rodada a ordem não se mexe.
+    expect(nomes(loja)).toEqual(['Pirata 1', 'Siegfried'])
+    naVezDe(loja, 'Siegfried', true)
+    return loja
+  }
+
+  it('ligada no meio da rodada, na virada a carta dele vai para a frente e ele joga primeiro', () => {
+    const loja = ligarAIgnicao()
+    expect(cena(loja).turnos.rodada).toBe(2)
+    expect(nomes(loja)).toEqual(['Siegfried', 'Pirata 1'])
+    expect(cena(loja).turnos.cartas.find((carta) => carta.id === cena(loja).turnos.vez)?.nome).toBe('Siegfried')
+    expect(textos(loja).some((texto) => texto.includes('Siegfried vai para a posição 1 (Agilidade de agora: 12)'))).toBe(true)
+  })
+
+  it('o Desfazer da vez volta a ordem e a rodada; passar de novo o põe na frente outra vez', () => {
+    const loja = ligarAIgnicao()
+    const linhaDaVez = [...cena(loja).registro].reverse().find((linha) => linha.tipo === 'vez')
+    expect(loja.getState().desfazer(CENA, linhaDaVez?.id ?? '', MESTRE)).toBe(true)
+    expect(cena(loja).turnos.rodada).toBe(1)
+    expect(nomes(loja)).toEqual(['Pirata 1', 'Siegfried'])
+    const { turnos } = cena(loja)
+    expect(loja.getState().passarVez(CENA, MESTRE, { cartaId: turnos.vez ?? '', rodada: turnos.rodada })).toBe(true)
+    expect(nomes(loja)).toEqual(['Siegfried', 'Pirata 1'])
   })
 })

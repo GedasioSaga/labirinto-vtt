@@ -113,7 +113,7 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte, vezesDaForma } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, fatorDaVelocidade, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte, vezesDaForma } from '../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
 import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
@@ -1497,6 +1497,16 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       efeitos.push({ tipo: 'forma', tokenId: carta.tokenId, forma: nomeDaForma, ligou: false })
       texto = `${quemAge} desfaz ${nomeDaForma} (ação livre)`
     }
+    // F2b (revisão, Ignição): a troca que muda a Velocidade marca a carta; ela vai ao lugar novo na virada (`passarVez`),
+    // nunca no meio da rodada. O Desfazer desta linha tira a marca (parte "combate").
+    const depoisDaTroca = mesaDoRpg().personagens.find((candidato) => candidato.id === personagemId)
+    if (depoisDaTroca !== undefined && fatorDaVelocidade(depoisDaTroca.cartoesAtivos) !== fatorDaVelocidade(personagem.cartoesAtivos)) {
+      const combateAntes = novos.combate?.[personagemId]
+      const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), reordenarNaVirada: true }
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
+      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
+      texto = `${texto} · a ordem muda no começo da próxima rodada`
+    }
     // A ficha passou pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
     const atual = cenaDe(sceneKey) ?? cena
     gravarCena(sceneKey, {
@@ -2443,7 +2453,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       partes.push(...reversaoDaFicha(carta.personagemId, doCusto))
     }
     // Conserto das fichas F1 (Overload): quem usou fica com os atributos base pela metade até o fim da batalha.
-    if (lancado.golpe?.overload === true && carta.personagemId !== null) {
+    // F2b (revisão): só a técnica Overload cansa aqui; o golpe Overload pela forma (A Caçada Começa) cansa no fim dela.
+    if (lancado.gastaOOverload === true && carta.personagemId !== null) {
       const cansado = cansarNoOverload(carta.personagemId, carta.tokenId, novos)
       if (cansado !== null) {
         partes.push(...cansado.partes)
@@ -2766,7 +2777,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (esperado !== undefined && (inicio.turnos.vez !== esperado.cartaId || inicio.turnos.rodada !== esperado.rodada)) return false
       const mesaDeAntes = mesaDoRpg()
       const caidosAntes = tokensCaidos(inicio.turnos.cartas, mesaDeAntes.personagens, mesaDeAntes.sistema)
-      const previa = passarVezNaOrdem(inicio.turnos, caidosAntes)
+      // F2b (revisão, Ignição): as agilidades de agora põem no lugar novo, na virada, quem mudou de Velocidade na rodada.
+      const previa = passarVezNaOrdem(inicio.turnos, caidosAntes, agilidadesDasCartas(inicio.turnos.cartas, mesaDeAntes.personagens, mesaDeAntes.sistema))
       if (previa === null) return false
       // Conserto das fichas F1 (bug 2, P3): na virada, o golpe que ninguém respondeu vira "Não reagiu" ANTES de a vez andar
       // (quem cai com ele não ganha a vez). O da vez que está acabando espera a virada seguinte: o alvo dele ainda não teve tempo.
@@ -2779,7 +2791,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const { turnos } = cena
       const { personagens, sistema } = mesaDoRpg()
       // Sem fechamento a cena não mudou: vale a prévia. Todos caíram no fechamento: a vez anda como andaria antes dele (a batalha não trava).
-      const passadaNaOrdem = fechados.length === 0 ? previa : (passarVezNaOrdem(turnos, tokensCaidos(turnos.cartas, personagens, sistema)) ?? passarVezNaOrdem(turnos, caidosAntes))
+      const agilidades = agilidadesDasCartas(turnos.cartas, personagens, sistema)
+      const passadaNaOrdem = fechados.length === 0 ? previa : (passarVezNaOrdem(turnos, tokensCaidos(turnos.cartas, personagens, sistema), agilidades) ?? passarVezNaOrdem(turnos, caidosAntes, agilidades))
       if (passadaNaOrdem === null) return false
       // Invocação: a carta do bando que ficou vazia na vez dela sai agora; o Desfazer da vez a põe de volta no lugar.
       const semVazios = semBandosVazios(passadaNaOrdem.turnos, turnos.cartas)
@@ -2793,6 +2806,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const de = cartaDaVez(turnos)
       const para = cartaDaVez(passada.turnos)
       const virou = passada.turnos.rodada !== turnos.rodada ? ` (rodada ${passada.turnos.rodada})` : ''
+      // F2b (revisão, Ignição): "· Vagn vai para a posição 1 (Agilidade de agora: 39)".
+      const movidas = (passada.movidas ?? []).map((cartaId) => {
+        const posicao = passada.turnos.cartas.findIndex((carta) => carta.id === cartaId)
+        return ` · ${nomeDaCarta(passada.turnos.cartas[posicao], personagens)} vai para a posição ${posicao + 1} (Agilidade de agora: ${agilidades.get(cartaId) ?? 0})`
+      })
       const acabaram = passada.acabaram ?? []
       // F3 (Q4): "· Atordoado acabou em Ilo" no fim da linha da vez.
       const fimDosSelos = acabaram.length === 0 ? '' : ` · ${textoDosQueAcabaram(acabaram, nomeDoTokenNa(turnos, personagens))}`
@@ -2801,10 +2819,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const linha: LinhaNova = {
         tipo: 'vez',
         autor,
-        texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${fimDosSelos}${sp?.texto ?? ''}`,
+        texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${movidas.join('')}${fimDosSelos}${sp?.texto ?? ''}`,
         tokenIds: [...new Set([de?.tokenId, para?.tokenId].filter((id): id is string => id !== undefined))],
         // Os "Não reagiu" vieram antes da vez (fora de `mudou`); `fechados` diz ao Desfazer da vez quais linhas voltam junto.
-        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos }, ...(mudou === undefined ? {} : { mudou }), ...(fechados.length === 0 ? {} : { fechados }), ...(sp === null ? {} : { ficha: sp.ficha }) },
+        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, ...(movidas.length === 0 ? {} : { ordem: idsDaOrdem(turnos) }) }, ...(mudou === undefined ? {} : { mudou }), ...(fechados.length === 0 ? {} : { fechados }), ...(sp === null ? {} : { ficha: sp.ficha }) },
       }
       // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
       const atual = cenaDe(sceneKey) ?? cena

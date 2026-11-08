@@ -174,6 +174,13 @@ export interface GolpeLancado {
   /** A carga que o golpe usou (0 = nenhuma). */
   cargaUsada: number
   /**
+   * F2b (revisão): a TÉCNICA em si é Overload, e o Cansaço do Overload vem
+   * agora. O golpe que é Overload só porque a forma está ligada (A Caçada
+   * Começa: `golpe.overload` sem a técnica ser) não cansa: a lei põe o
+   * cansaço no FIM da forma (`desligarAForma`). Ausente = não cansa.
+   */
+  gastaOOverload?: true
+  /**
    * F2 (fatia B): a 2ª parte do golpe (Rapid Dash), com a própria linha, o
    * próprio perfurante e a própria reação; só quando a store passa os ids dela.
    * Os alvos já resolvidos dela vão em `resolvidosDoSegundo`.
@@ -583,8 +590,10 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const rotulosDoDono = surpresosPelaAparencia && deTodoGolpe.surpresaEmQuemNaoViu !== null ? [...deTodoGolpe.rotulos, `Surpresa (${deTodoGolpe.surpresaEmQuemNaoViu})`] : deTodoGolpe.rotulos
   if (rotulosDoDono.length > 0) golpe.variante = [golpe.variante, ...rotulosDoDono].filter((marca): marca is string => marca !== undefined).join(', ').slice(0, NOME_DO_GOLPE_MAX)
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
-  // F2b (Aparência Inofensiva): quem levou golpe dele já o viu lutar (com "Sim" ou "Não"): a Surpresa não vale mais nele.
-  const novosQueViram = contaQuemOViuLutar(cartoes) ? [...new Set(pedido.alvos.map((alvo) => alvo.tokenId))].filter((tokenId) => !viram.has(tokenId)) : []
+  // F2b (Aparência Inofensiva, lei: "em quem nunca o viu lutar"): num golpe dele (com "Sim" ou "Não"), os alvos e todos
+  // que estão na ordem agora o viram lutar; a Surpresa não vale mais neles. A carta do bando não é token: fica de fora.
+  const presentes = ctx.turnos.cartas.filter((carta) => carta.bando === undefined && carta.tokenId !== ctx.carta.tokenId).map((carta) => carta.tokenId)
+  const novosQueViram = contaQuemOViuLutar(cartoes) ? [...new Set([...pedido.alvos.map((alvo) => alvo.tokenId), ...presentes])].filter((tokenId) => !viram.has(tokenId)) : []
   if (novosQueViram.length > 0) combateNovo = { ...combateNovo, viramLutar: [...viram, ...novosQueViram] }
   if (gasta && combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
   // Conserto das fichas F1 (+10 SP por vez): o SP do Electro também conta como gasto.
@@ -607,6 +616,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     contraUsado: contra,
     acao: contra !== null ? null : acao,
     cargaUsada: carga,
+    ...(tecnica?.overload === true ? { gastaOOverload: true } : {}),
   }
   // F2 (fatia C): o Atacar melhorado repete o golpe inteiro (mesmos alvos, mesmo dano e selo), cada parte com a própria reação.
   if (melhorado !== null) {

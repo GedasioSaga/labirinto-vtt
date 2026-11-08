@@ -236,8 +236,10 @@ export function novaCarta(tokenId: string, personagemId: string | null, nome?: s
  * a chave `agilidade` usa o atributo de NOME "Agilidade"; sem nenhum dos dois,
  * todo mundo vale 0 (e a ordem fica a da inclusão, com empate geral).
  * F2b (Ignição): é a "Velocidade" da ficha; a forma ligada que a multiplica
- * (`fatorDaVelocidade`, ×1,2) entra aqui, para baixo. Vale no Iniciar e no
- * "Ordenar pela Agilidade"; a ordem não se mexe sozinha no meio da rodada.
+ * (`fatorDaVelocidade`, ×1,2) entra aqui, para baixo. Vale no Iniciar, no
+ * "Ordenar pela Agilidade" e na virada da rodada para quem ligou ou
+ * desligou a forma (`passarVez` com as agilidades); no meio da rodada a
+ * ordem não se mexe (tiraria a vez de quem já esperava).
  */
 export function agilidadeDe(personagem: Personagem, sistema: SistemaDeRpg | null): number {
   if (sistema === null) return 0
@@ -399,15 +401,50 @@ export interface VezPassada {
   removidas: CartaNoLugar[]
   /** F3: os selos da carta que SAIU que chegaram a 0 e saíram (para o texto da linha e o efeito). Ausente = nenhum. */
   acabaram?: SeloDaBatalha[]
+  /** F2b (revisão, Ignição): as cartas que a virada pôs no lugar da Agilidade de agora (`comAVelocidadeNova`). Ausente = nenhuma. */
+  movidas?: readonly string[]
+}
+
+/**
+ * F2b (revisão, Ignição): na virada, a carta (não extra, não bando) de quem
+ * tem `reordenarNaVirada` vai para o lugar da Agilidade de agora: antes da
+ * primeira carta de Agilidade menor (o empate fica depois). As outras ficam
+ * onde estavam (o arrasto do mestre vale). A marca sai de todos.
+ */
+function comAVelocidadeNova(turnos: TurnosDaCena, agilidades: ReadonlyMap<string, number>): { turnos: TurnosDaCena; movidas: string[] } {
+  const marcados = Object.entries(turnos.combate ?? {}).filter(([, combate]) => combate.reordenarNaVirada === true)
+  if (marcados.length === 0) return { turnos, movidas: [] }
+  const quem = new Set(marcados.map(([personagemId]) => personagemId))
+  const original = (carta: CartaDaOrdem): boolean => carta.extra === undefined && carta.bando === undefined
+  const agilidade = (carta: CartaDaOrdem): number => agilidades.get(carta.id) ?? 0
+  let cartas = [...turnos.cartas]
+  const movidas: string[] = []
+  for (const carta of turnos.cartas) {
+    if (!original(carta) || carta.personagemId === null || !quem.has(carta.personagemId)) continue
+    const semEla = cartas.filter((outra) => outra.id !== carta.id)
+    const menor = semEla.findIndex((outra) => original(outra) && agilidade(outra) < agilidade(carta))
+    const lugar = menor < 0 ? semEla.length : menor
+    if (lugar === cartas.findIndex((outra) => outra.id === carta.id)) continue
+    cartas = [...semEla.slice(0, lugar), carta, ...semEla.slice(lugar)]
+    movidas.push(carta.id)
+  }
+  const combate = { ...(turnos.combate ?? {}) }
+  for (const [personagemId, deAntes] of marcados) {
+    const { reordenarNaVirada: _marca, ...semAMarca } = deAntes
+    combate[personagemId] = semAMarca
+  }
+  return { turnos: { ...turnos, cartas: movidas.length === 0 ? turnos.cartas : cartas, combate }, movidas }
 }
 
 /**
  * "Passar a vez": a próxima carta cujo token não caiu (Q3). Sem vez, começa
  * pela primeira. Ao dar a volta: rodada + 1, as cartas extras "só nesta
  * rodada" saem e a vez vai à primeira que joga. Os gastos da vez zeram.
- * `null` = ninguém joga (todos caídos, ou ordem vazia).
+ * `null` = ninguém joga (todos caídos, ou ordem vazia). F2b (revisão,
+ * Ignição): com `agilidades` (por cartaId), a virada põe antes no lugar
+ * certo a carta de quem mudou de Velocidade na rodada (`comAVelocidadeNova`).
  */
-export function passarVez(antes: TurnosDaCena, caidos: ReadonlySet<string>): VezPassada | null {
+export function passarVez(antes: TurnosDaCena, caidos: ReadonlySet<string>, agilidades?: ReadonlyMap<string, number>): VezPassada | null {
   // F3 (Q4): os selos da carta que SAI descontam antes de tudo; os que acabaram vão no resultado.
   // F2 (fatia E): os lembretes da marca de quem sai vencem ("até o fim da vez do Vincent").
   const { turnos, acabaram } = descontarSelosDaVez(semLembretesDaMarcaDeQuemSai(antes))
@@ -421,11 +458,14 @@ export function passarVez(antes: TurnosDaCena, caidos: ReadonlySet<string>): Vez
     if (carta.extra?.duracao === 'rodada') removidas.push({ carta, indice })
     else ficam.push(carta)
   })
-  const primeira = primeiraQueJoga(ficam, 0, caidos)
+  const semAsExtras: TurnosDaCena = { ...turnos, cartas: ficam }
+  const reordenada = agilidades === undefined ? { turnos: semAsExtras, movidas: [] } : comAVelocidadeNova(semAsExtras, agilidades)
+  const primeira = primeiraQueJoga(reordenada.turnos.cartas, 0, caidos)
   if (primeira === null) return null
   const fora = new Set(removidas.map(({ carta }) => carta.id))
-  const virada: TurnosDaCena = { ...turnos, cartas: ficam, vez: primeira.id, rodada: turnos.rodada + 1, gastos: SEM_GASTOS, extras: semChaves(turnos.extras, fora), d20: semChaves(turnos.d20, fora), empates: semChaves(turnos.empates, fora) }
-  return comAcabaram({ turnos: aoComecarAVez(virada, turnos.vez, primeira, true), removidas })
+  const virada: TurnosDaCena = { ...reordenada.turnos, vez: primeira.id, rodada: turnos.rodada + 1, gastos: SEM_GASTOS, extras: semChaves(turnos.extras, fora), d20: semChaves(turnos.d20, fora), empates: semChaves(turnos.empates, fora) }
+  const passada: VezPassada = { turnos: aoComecarAVez(virada, turnos.vez, primeira, true), removidas }
+  return comAcabaram(reordenada.movidas.length === 0 ? passada : { ...passada, movidas: reordenada.movidas })
 }
 
 /**

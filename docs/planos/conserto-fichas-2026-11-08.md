@@ -163,18 +163,28 @@ mágico, sem campo novo no pedido; tudo pelas `respostas`).
 - Imbuir Fogo do Siegfried: pergunta "Imbuir fogo? (+10 de dano)" na Balmung, CAÇA, Gilgamesh, Gram: Alvorada e Yamato
   (os 5 com o extra "Imbuir Fogo: Sim"); o +10 soma no host por cima da fórmula da arma escolhida, em cada alvo (na Lua,
   depois de dividir); vetado com a Ignição ligada, como no Vagn (`client/src/lib/batalha/mecanicasAMao.ts:405`
-  `FOGO_DO_SIEG`, `somaDasRespostas` :1214; `golpe.ts:502`).
+  `FOGO_DO_SIEG`, `somaDasRespostas` :1214; `golpe.ts:509`).
 - Ignição (Vagn e Siegfried): Velocidade × 1,2, para baixo, na Agilidade que ordena (`mecanicasAMao.ts` `velocidade`,
-  `fatorDaVelocidade` :1220; `turnos.ts:248`). Vale no Iniciar e no "Ordenar pela Agilidade"; a ordem não se mexe sozinha
-  no meio da rodada (à mão de propósito: reordenar no meio tiraria a vez de quem já esperava).
+  `fatorDaVelocidade` :1220; `turnos.ts:250`). Vale no Iniciar, no "Ordenar pela Agilidade" e (revisão da fatia código)
+  na virada da rodada: ligar ou desligar a forma marca a carta (`CombateDoPersonagem.reordenarNaVirada`, a linha diz "a
+  ordem muda no começo da próxima rodada") e a virada a põe antes da 1ª carta de Agilidade menor, sem mexer nas outras
+  (`turnos.ts` `comAVelocidadeNova`); a linha da vez diz "vai para a posição N" e o Desfazer da vez volta a ordem. No meio
+  da rodada a ordem não se mexe (tiraria a vez de quem já esperava). PERGUNTA AO MESTRE (aberta): "Velocidade" =
+  Agilidade? Leitura usada até a resposta: Agilidade, porque é ela que ordena a vez no app e o sistema não tem atributo
+  "Velocidade". Na ficha real o Vagn tem Agilidade 0 (0 × 1,2 = 0): para ele não muda nada até a ficha ter o número.
 - A Caçada Começa: dura 5 vezes do Alexei DEPOIS da que ligou (`FormaNaBatalha.duracao`, `batalhaFabrica.ts:1484`); no
   fim da 5ª desliga sozinha com o Cansaço do Overload (`fimDaVezDasMecanicas` :1189, `desligarAForma` :1300, a mesma
-  saída do Desligar). Ligada, todo golpe dele é Overload (`golpesSaoOverload`; `golpe.ts:486`; a mira mostra também,
-  `dadosDoMenu.ts`). Depende do F0c (cartão na aba Transformações): sem isso a forma não liga no app.
+  saída do Desligar). Ligada, todo golpe dele é Overload (`golpesSaoOverload`; `golpe.ts:493`; a mira mostra também,
+  `dadosDoMenu.ts`). Revisão da fatia código: o golpe que é Overload só pela forma NÃO cansa na hora (lei: "Após o Fim
+  da Tecnica, você reduz todos seus status pela metade"); só a técnica Overload em si cansa no golpe
+  (`GolpeLancado.gastaOOverload`). Depende do F0c (cartão na aba Transformações): sem isso a forma não liga no app.
 - Pazada: Atordoado por 1 turno pela tabela (`mecanicasAMao.ts:632`), nunca "até tirar".
 - Aparência Inofensiva: pergunta de todo golpe do Alexei, "Sim" por padrão (o mestre desliga na mira); Surpresa (× 1,5,
-  sem reação) em cada alvo que ainda não o viu lutar nesta batalha (`CombateDoPersonagem.viramLutar`; `golpe.ts:520`).
-  Contra-ataque nunca é Surpresa; pedido sem a resposta (versão velha) também não.
+  sem reação) em cada alvo que ainda não o viu lutar nesta batalha (`CombateDoPersonagem.viramLutar`; `golpe.ts:525`).
+  Contra-ataque nunca é Surpresa; pedido sem a resposta (versão velha) também não. Revisão da fatia código: "viu lutar"
+  = estava na ordem num golpe dele (alvo ou não), leitura literal da lei ("em quem nunca o viu lutar",
+  respostas-do-grilling.md:77) e do cartão ("ninguém que já tenha visto você lutar"); quem entra na ordem depois ainda
+  não viu. O Desfazer do golpe tira de `viramLutar` só quem ele pôs (`registro.ts` `combateSemALinha`).
 - Respostas de 08/11: a dança da Aira sobe +2 de CD por carga (o comentário de "número inventado" saiu); Proficiência em
   Fruta do Vagn = 1, CD da fruta 10 + 1 + mod. de ESP sem carga e 11/14/acerta com carga (`CD_DA_FRUTA_DO_VAGN` :414),
   ligada à Atração Relâmpago (disputa nova: Força do alvo contra a CD; perdeu = selo "Puxado pela Atração",

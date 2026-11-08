@@ -84,6 +84,8 @@ export type Reversao =
         removidas: readonly { carta: CartaDaOrdem; indice: number }[]
         /** Os gastos da vez que acabou. O Desfazer de uma linha dela, depois da vez, tira o gasto daqui também (`semOGastoNaFotoDaVez`). */
         gastos: TurnosDaCena['gastos']
+        /** F2b (revisão, Ignição): a ordem de antes, só quando a virada mudou alguém de lugar (`VezPassada.movidas`). */
+        ordem?: readonly string[]
       }
       /**
        * Conserto das fichas F1 (bug 3): SÓ o que a vez mudou, para o Desfazer
@@ -596,7 +598,7 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>, daVez = false): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, mantidas: _mantidas, ...fixos } = atual
+  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, mantidas: _mantidas, viramLutar: _viram, reordenarNaVirada: _reordenar, ...fixos } = atual
   // F2 (revisão da fatia D): as técnicas mantidas voltam uma a uma (a linha que ligou o Giro desliga só ele).
   const mantidas = listaSemALinha(atual.mantidas ?? [], antes.mantidas ?? [], depois.mantidas ?? [])
   // Conserto das fichas F1: o "+10 SP por vez" (jaJogou, gastouSp) volta campo a campo.
@@ -609,6 +611,10 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
   const lembradas = listaSemALinha(atual.lembradas ?? [], antes.lembradas ?? [], depois.lembradas ?? [])
   const lembretes = lembretesSemALinha(atual.lembretes ?? [], antes.lembretes ?? [], depois.lembretes ?? [], lembradas, ligadas)
   const evoluidas = listaSemALinha(atual.evoluidas ?? [], antes.evoluidas ?? [], depois.evoluidas ?? [])
+  // F2b (revisão): quem viu o dono lutar sai um a um (o Desfazer do golpe devolve a Surpresa só aos que ele marcou).
+  const viramLutar = listaSemALinha(atual.viramLutar ?? [], antes.viramLutar ?? [], depois.viramLutar ?? [])
+  // F2b (revisão, Ignição): a marca de reordenar na virada volta campo a campo (a da forma e a da virada).
+  const reordenarNaVirada = campoSemALinha(atual.reordenarNaVirada, antes.reordenarNaVirada, depois.reordenarNaVirada)
   return {
     ...fixos,
     recargas: numerosSemALinha(atual.recargas, antes.recargas, depois.recargas, daVez),
@@ -626,6 +632,8 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     ...(mantidas.length === 0 ? {} : { mantidas }),
     ...(jaJogou === undefined ? {} : { jaJogou }),
     ...(gastouSp === undefined ? {} : { gastouSp }),
+    ...(viramLutar.length === 0 ? {} : { viramLutar }),
+    ...(reordenarNaVirada === undefined ? {} : { reordenarNaVirada }),
   }
 }
 
@@ -834,6 +842,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
       if (reversao.mudou !== undefined) volta = semAVez(volta, reversao.mudou)
       // Em ordem crescente de lugar: cada uma volta ao índice que tinha antes de a rodada virar.
       for (const { carta, indice } of [...antes.removidas].sort((a, b) => a.indice - b.indice)) volta = inserirCarta(volta, carta, indice)
+      // F2b (revisão, Ignição): a carta que a virada mudou de lugar volta ao de antes (a que entrou depois fica no fim).
+      if (antes.ordem !== undefined) volta = { ...volta, cartas: naOrdemDe(volta.cartas, antes.ordem) }
       // A vez de antes pode ter sido tirada depois: aí fica onde está.
       return volta.vez !== null && !volta.cartas.some((carta) => carta.id === volta.vez) ? { ...volta, vez: turnos.vez } : volta
     }

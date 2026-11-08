@@ -101,11 +101,18 @@ export interface CombateDoPersonagem {
   /** Conserto das fichas F1: gastou SP desde o começo da última vez dele; a próxima vez não ganha os +10. Ausente = não gastou. */
   gastouSp?: true
   /**
-   * F2b (Aparência Inofensiva): os tokenIds que já levaram golpe dele nesta
-   * batalha (já o viram lutar: a Surpresa não vale mais neles). Só de quem
-   * tem o cartão (`contaQuemOViuLutar`). Ausente = ninguém.
+   * F2b (Aparência Inofensiva): os tokenIds que já o viram lutar nesta
+   * batalha (estavam na ordem num golpe dele, alvos ou não: a Surpresa não
+   * vale mais neles). Só de quem tem o cartão (`contaQuemOViuLutar`).
+   * Ausente = ninguém.
    */
   viramLutar?: readonly string[]
+  /**
+   * F2b (revisão, Ignição): uma forma que muda a Velocidade ligou ou
+   * desligou nesta rodada; na virada, a carta dele vai para o lugar da
+   * Agilidade de agora (`passarVez`), e a marca sai. Ausente = não mudou.
+   */
+  reordenarNaVirada?: true
   /**
    * F2 (revisão da fatia D): os cartaoIds das técnicas MANTIDAS agora (Giro,
    * Campo; `mantidaDe` em `mecanicasAMao.ts`): sem recarga enquanto ficam
