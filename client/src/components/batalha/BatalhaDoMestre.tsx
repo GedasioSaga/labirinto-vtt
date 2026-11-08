@@ -20,6 +20,7 @@ import { AcoesExtrasDialog } from './AcoesExtrasDialog'
 import { AjustarDialog } from './AjustarDialog'
 import { DarDanoDialog } from './DarDanoDialog'
 import { EfeitosDaBatalha } from './EfeitosDaBatalha'
+import { usePassarVezDoMestre } from './passarVezDoMestre'
 import { recursosDaCarta } from './dadosDaFaixa'
 import { invocacaoDaFicha, nomeDoBando, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { MOTIVO_SEM_PERSONAGEM, alvosNaOrdemDaMira, armasNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
@@ -272,6 +273,8 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const turnos = cena?.turnos
   const carta = turnos === undefined ? null : cartaDaVez(turnos)
   const chave = carta === null || turnos === undefined ? null : `${carta.id}:${turnos.rodada}`
+  // Conserto das fichas F1 (bug 7): a vez mostrada e o clique que só vale com a vez já assentada (o duplo clique não pula ninguém).
+  const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
 
   // A mira no mapa desliga quando a vez anda ou a página sai.
   useEffect(() => {
@@ -354,7 +357,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
     )
 
   const vez = { cartaId: carta.id, rodada: turnos.rodada }
-  const encerrar = () => useBatalhaStore.getState().passarVez(sceneKey, MESTRE, vez)
+  const encerrar = passarAVez
 
   // Invocação F3: a vez do bando. Os invocados são do mestre; cada um ataca e anda o dele.
   if (carta.bando !== undefined) {

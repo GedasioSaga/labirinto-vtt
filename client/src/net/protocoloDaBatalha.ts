@@ -285,10 +285,15 @@ export interface BatalhaAliadosMessage {
   personagens: Personagem[]
 }
 
+/** Conserto das fichas F1 (bug 1): o teto do motivo da recusa no fio. */
+export const MOTIVO_DA_RECUSA_MAX = 120
+
 export interface BatalhaResultadoMessage {
   type: 'batalha.resultado'
   reqId: string
   ok: boolean
+  /** Só com `ok: false`: por que a mesa não aceitou, em texto curto para o jogador. Ausente = sem motivo. */
+  motivo?: string
 }
 
 /** F2: as animações novas para esta conexão (`efeitosParaJogador`), até `EFEITOS_POR_MENSAGEM`, `seq` crescente. */
@@ -1254,5 +1259,8 @@ export function parseBatalhaResultado(value: unknown): BatalhaResultadoMessage |
   if (!isRecord(value) || value.type !== 'batalha.resultado') return null
   const { reqId, ok } = value
   if (!textoAte(reqId, 1, REQ_ID_MAX) || typeof ok !== 'boolean') return null
-  return { type: 'batalha.resultado', reqId, ok }
+  const { motivo } = value
+  // O motivo torto só sai da mensagem: sem ele, o pedido ainda sai do ar e o jogador lê a recusa genérica.
+  if (ok || !textoAte(motivo, 1, MOTIVO_DA_RECUSA_MAX)) return { type: 'batalha.resultado', reqId, ok }
+  return { type: 'batalha.resultado', reqId, ok, motivo }
 }

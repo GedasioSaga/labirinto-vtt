@@ -619,7 +619,7 @@ export type AcaoDaForma = 'simples' | 'completa' | 'bonus'
 export const ALVOS_MAX = 12
 /** Armas levadas para uma batalha (teto do fio; o limite da ficha vai até 6). */
 export const ARMAS_NA_BATALHA_MAX = 20
-/** Golpes esperando reação numa cena (e no recorte do jogador). */
+/** Golpes esperando reação numa cena (passou: o mais velho vira "Não reagiu", nunca trava o ataque) e no recorte do jogador. */
 export const GOLPES_PENDENTES_MAX = 20
 /** Contra-ataques guardados numa cena. */
 export const CONTRAS_MAX = 20

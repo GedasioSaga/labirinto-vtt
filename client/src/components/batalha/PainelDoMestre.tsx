@@ -13,6 +13,7 @@ import { faixaDoMestre, linhasDoMestre } from './dadosDaFaixa'
 import { EquipesDialog } from './EquipesDialog'
 import { EscolhaDaRegra, confirmarRascunho, rascunhoDe, type RascunhoDaRegra } from './EscolhaDaRegra'
 import { PainelDaBatalha, type FichaForaDaOrdem } from './PainelDaBatalha'
+import { usePassarVezDoMestre } from './passarVezDoMestre'
 
 /**
  * O painel da batalha do MESTRE, montado pelo `ControleDaBatalha` com a
@@ -53,6 +54,8 @@ export function PainelDoMestre({ sceneKey }: PainelDoMestreProps) {
   const turnos = cena?.turnos
   const dados = useMemo(() => (turnos === undefined ? null : faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, registro: cena?.registro })), [turnos, fichas, personagens, equipes, sistema, cena?.registro])
   const registro = useMemo(() => (cena === undefined ? [] : linhasDoMestre(cena.registro)), [cena])
+  // Conserto das fichas F1 (bug 7): passa SÓ a vez mostrada; o duplo clique e o clique junto com o do jogador não pulam ninguém.
+  const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
   const foraDaOrdem = useMemo<FichaForaDaOrdem[]>(() => {
     if (turnos === undefined) return []
     const naOrdem = new Set(turnos.cartas.map((carta) => carta.tokenId))
@@ -74,7 +77,7 @@ export function PainelDoMestre({ sceneKey }: PainelDoMestreProps) {
     <>
       <PainelDaBatalha
         dados={dados}
-        onPassarVez={() => store().passarVez(sceneKey, MESTRE)}
+        onPassarVez={passarAVez}
         onOrdenar={() => store().ordenarPelaAgilidade(sceneKey)}
         desempate={cena.turnos.desempate}
         onDesempate={(desempate: Desempate) => store().trocarDesempate(sceneKey, desempate)}

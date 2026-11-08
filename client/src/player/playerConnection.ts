@@ -324,6 +324,16 @@ export const LIVRO_PRAZO_MS = 20_000
  * pedido morreu no caminho e o clique seguinte tem de sair.
  */
 export const PEDIDO_DE_BATALHA_PRAZO_MS = 8_000
+
+/** Conserto das fichas F1 (bug 1): o aviso do pedido da batalha que passou do prazo sem resposta. */
+export const SEM_RESPOSTA_DA_MESA = 'A mesa não respondeu. Tente de novo.'
+
+/** Conserto das fichas F1 (bug 1): o aviso da recusa ("A mesa não aceitou: a vez já passou."). Sem motivo, o genérico. */
+export function textoDaRecusaDaBatalha(motivo: string | undefined): string {
+  const limpo = motivo?.trim().replace(/[.!]+$/, '') ?? ''
+  if (limpo === '') return 'A mesa não aceitou o pedido.'
+  return `A mesa não aceitou: ${limpo.charAt(0).toLocaleLowerCase('pt-BR')}${limpo.slice(1)}.`
+}
 /** BATALHA DBT: a chave dos pedidos DBT no mapa de pedidos no ar (o recorte DBT que some leva só os dele). */
 const PREFIXO_DO_PEDIDO_DBT = 'dbt|'
 
@@ -397,6 +407,13 @@ export interface PlayerState {
    * queda): numa batalha nova o `seq` pode recomeçar. Ausente = nenhum.
    */
   batalhaEfeitos?: EfeitoParaJogador[]
+  /**
+   * Conserto das fichas F1 (bug 1): a última recusa de um pedido da batalha
+   * One Piece ("A mesa não aceitou: a vez já passou"), ou o pedido que ficou
+   * sem resposta no prazo. `id` sobe a cada aviso (o mesmo texto de novo
+   * também aparece). Ausente = nenhum aviso.
+   */
+  recusaDaBatalha?: { id: number; texto: string }
   /**
    * BATALHA DRAGON BALL TALES: o recorte da batalha DBT da cena dele
    * (`batalhaDBT.estado`, `vistaParaJogadorDBT`): ordem, os combatentes dele
@@ -2795,17 +2812,33 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function pedirNaBatalha(chave: string, mensagem: BatalhaPlayerMessage | BatalhaAcaoPlayerMessage): boolean {
     for (const noAr of pedidosDeBatalha.values()) if (noAr.chave === chave) return true
     if (!send(mensagem)) return false
-    const prazo = setTimeout(() => pedidosDeBatalha.delete(mensagem.reqId), PEDIDO_DE_BATALHA_PRAZO_MS)
+    const prazo = setTimeout(() => {
+      pedidosDeBatalha.delete(mensagem.reqId)
+      // Conserto das fichas F1 (bug 1): sem resposta no prazo, o jogador sabe que o clique não valeu (o DBT tem a tela dele).
+      if (!chave.startsWith(PREFIXO_DO_PEDIDO_DBT)) avisarRecusaDaBatalha(SEM_RESPOSTA_DA_MESA)
+    }, PEDIDO_DE_BATALHA_PRAZO_MS)
     pedidosDeBatalha.set(mensagem.reqId, { chave, prazo })
     return true
   }
 
-  /** `batalha.resultado`: o pedido sai do ar. O efeito (a vez que andou, a linha riscada) chega no `batalha.estado`. */
-  function responderPedidoDeBatalha(reqId: string): void {
+  // Conserto das fichas F1 (bug 1): cada aviso novo tem id novo, para a tela mostrar de novo o mesmo texto.
+  let avisosDaBatalha = 0
+  function avisarRecusaDaBatalha(texto: string): void {
+    avisosDaBatalha += 1
+    setState({ recusaDaBatalha: { id: avisosDaBatalha, texto } })
+  }
+
+  /**
+   * `batalha.resultado`: o pedido sai do ar. O efeito (a vez que andou, a linha riscada) chega no `batalha.estado`.
+   * Conserto das fichas F1 (bug 1): a recusa de um pedido dele vira aviso na tela, com o motivo do host.
+   */
+  function responderPedidoDeBatalha(reqId: string, ok = true, motivo?: string): void {
     const noAr = pedidosDeBatalha.get(reqId)
     if (noAr === undefined) return
     clearTimeout(noAr.prazo)
     pedidosDeBatalha.delete(reqId)
+    // O DBT mostra a recusa dele (`batalhaDBTRecusa`).
+    if (!ok && !noAr.chave.startsWith(PREFIXO_DO_PEDIDO_DBT)) avisarRecusaDaBatalha(textoDaRecusaDaBatalha(motivo))
   }
 
   /**
@@ -2816,8 +2849,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function esquecerBatalha(): void {
     for (const { prazo } of pedidosDeBatalha.values()) clearTimeout(prazo)
     pedidosDeBatalha.clear()
-    if (state.batalhaEstado !== undefined || state.aliados !== undefined || state.batalhaEfeitos !== undefined) {
-      setState({ batalhaEstado: undefined, aliados: undefined, batalhaEfeitos: undefined })
+    if (state.batalhaEstado !== undefined || state.aliados !== undefined || state.batalhaEfeitos !== undefined || state.recusaDaBatalha !== undefined) {
+      setState({ batalhaEstado: undefined, aliados: undefined, batalhaEfeitos: undefined, recusaDaBatalha: undefined })
     }
     // BATALHA DBT: a faixa Dragon Ball também mentiria na cena nova.
     esquecerBatalhaDBT()
@@ -5006,7 +5039,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       }
       case 'batalha.resultado': {
         const msg = parseBatalhaResultado(data)
-        if (msg !== null) responderPedidoDeBatalha(msg.reqId)
+        if (msg !== null) responderPedidoDeBatalha(msg.reqId, msg.ok, msg.motivo)
         return
       }
       case 'batalha.efeitos': {

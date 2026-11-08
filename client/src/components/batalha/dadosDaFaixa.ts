@@ -451,3 +451,21 @@ export function linhasDoJogador(registro: readonly LinhaParaJogador[]): LinhaNaT
   }
   return saida
 }
+
+/**
+ * Conserto das fichas F1 (bug 7): a vez que acabou de mudar na tela do mestre
+ * ainda não "assentou"; o clique no "Passar a vez" dentro deste prazo não vale
+ * (o segundo clique do duplo clique, ou o clique que chegou junto com o
+ * "Encerrar a vez" do jogador, quando a tela já trocou e o mestre não viu).
+ */
+export const VEZ_ASSENTANDO_MS = 500
+
+/** A vez mostrada, como o "Passar a vez" a manda; sem vez (antes de começar) = `undefined`: o clique começa a batalha. */
+export function vezMostrada(turnos: Pick<TurnosDaCena, 'vez' | 'rodada'>): { cartaId: string; rodada: number } | undefined {
+  return turnos.vez === null ? undefined : { cartaId: turnos.vez, rodada: turnos.rodada }
+}
+
+/** O clique no "Passar a vez" vale: a vez mostrada está na tela há `VEZ_ASSENTANDO_MS` (`desde` e `agora` no mesmo relógio, em ms). */
+export function cliqueDoPassarVale(desde: number, agora: number): boolean {
+  return agora - desde >= VEZ_ASSENTANDO_MS
+}

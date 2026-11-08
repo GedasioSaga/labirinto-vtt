@@ -1860,6 +1860,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             alvoDoMapa={alvoDoMapa}
             onMirando={setMirandoNaBatalha}
             onTremor={() => tremer(mapaQueTreme.current)}
+            recusa={state.recusaDaBatalha}
           />
         )}
         {/*

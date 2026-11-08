@@ -8,7 +8,6 @@ import {
   chaveDaVez,
   combateVazio,
   DANO_MAX,
-  GOLPES_PENDENTES_MAX,
   PERFURACAO_MAX,
   type AcaoDaTecnica,
   type AlvoDoGolpe,
@@ -167,8 +166,8 @@ function motivoDosAlvos(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], mi
     if (personagemId === undefined || personagemId === null) return 'O alvo precisa ser ficha com personagem'
     if (alvo.dano !== null && (!Number.isInteger(alvo.dano) || alvo.dano < 0 || alvo.dano > DANO_MAX)) return 'Dano inválido'
   }
-  const esperando = ctx.turnos.golpes?.length ?? 0
-  return esperando >= GOLPES_PENDENTES_MAX ? 'Golpes demais esperando reação' : null
+  // Conserto das fichas F1 (bug 2): sem teto de golpes esperando aqui. A store fecha o mais velho como "Não reagiu" (`GOLPES_PENDENTES_MAX`).
+  return null
 }
 
 /** A leitura da técnica com o que a tela confirmou (custo e ação). */

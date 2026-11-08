@@ -97,10 +97,16 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
   const deJogador = itens.filter((item) => !item.doMestre)
   const golpes = new Map<string, PendenteNaTela>()
   for (const item of itens) if (item.dano !== null && !golpes.has(item.golpeId)) golpes.set(item.golpeId, item)
+  // Conserto das fichas F1 (bug 2): o mestre vê quantos golpes esperam e o que acontece com eles na virada.
+  const quantosGolpes = new Set(itens.map((item) => item.golpeId)).size
 
   return (
     <section className="bt-secao bt-pendentes-secao" aria-label="Reações esperando">
-      <h3 className="bt-secao__titulo">Reações esperando · {itens.length}</h3>
+      <h3 className="bt-secao__titulo">
+        Reações esperando · {itens.length}
+        {quantosGolpes !== itens.length && ` em ${quantosGolpes} ${quantosGolpes === 1 ? 'golpe' : 'golpes'}`}
+      </h3>
+      <p className="bt-vez__dica">Quem não reagir até a virada da rodada toma o golpe inteiro.</p>
       {doMestre.length > 0 && <CaixaDeReacao reacoes={doMestre} onPedir={onPedir} />}
       {deJogador.length > 0 && (
         <ul className="bt-pendentes">

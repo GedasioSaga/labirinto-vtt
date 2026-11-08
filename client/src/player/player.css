@@ -1088,6 +1088,45 @@
   }
 }
 /*
+ * Conserto das fichas F1 (bug 1): o aviso da recusa da mesa ("A mesa não
+ * aceitou: a vez já passou."), no meio, acima do botão REAÇÃO. Não pega
+ * clique: só informa, e sai sozinho (BatalhaDoJogador).
+ */
+.pp-batalha-recusa-lugar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--pp-chao, 12px) + 64px);
+  z-index: 10;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 2 * var(--pp-edge, 12px)));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.pp-batalha-recusa {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 3px;
+  background: rgba(23, 16, 10, 0.94);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  text-align: center;
+  transition:
+    opacity 180ms var(--bt-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 180ms var(--bt-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+@starting-style {
+  .pp-batalha-recusa { opacity: 0; transform: translateY(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-batalha-recusa { transition: opacity 180ms ease; }
+  @starting-style {
+    .pp-batalha-recusa { transform: none; }
+  }
+}
+
+/*
  * Tipos de habilidade F3: os LEMBRETES das passivas ("Melodia pronta: Ativar /
  * Agora não") no alto da coluna do menu, onde o menu começaria; o menu desce
  * a altura deles (`--pp-lembretes-alto`), então nenhum botão da vez fica por

@@ -8,6 +8,7 @@ import {
   CONTRAS_MAX,
   DANO_MAX,
   EFEITOS_GUARDADOS,
+  GOLPES_PENDENTES_MAX,
   INVOCACOES_PENDENTES_MAX,
   MODIFICADOR_DA_REACAO_MAX,
   PERFURACAO_MAX,
@@ -277,6 +278,11 @@ export interface BatalhaState {
   // ---- F1: ordem e vez (o mestre chama direto; o jogador só `passarVez` e `desfazer`, pela ponte) ----
   /** "Passar a vez" (pula carta caída, Q3). Com `esperado`, só passa se a vez ainda é aquela: clique duplo não passa duas. */
   passarVez: (sceneKey: string, autor?: AutorDaAcao, esperado?: VezEsperada) => boolean
+  /**
+   * Conserto das fichas F1 (bug 1): por que o `agir` deste pedido seria
+   * recusado agora (o texto curto da regra, `podeAgir`), ou `null`. Só lê.
+   */
+  motivoDoAgir: (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao) => string | null
   /** O mestre dá a vez a uma carta (até a de quem caiu). */
   darVez: (sceneKey: string, cartaId: string) => boolean
   /** Arrastar ou Alt + seta. Movimentos seguidos da mesma carta viram uma linha só. */
@@ -1555,11 +1561,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
    * é onde o gasto novo é gravado (`carta.id`, ou a chave do membro do
    * bando). A base do que muda é sempre `cena.turnos`.
    */
-  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedido: PedidoDeAcao): boolean => {
+  /** O que a regra do golpe lê para `carta` agir agora (`podeAgir`, `lancarGolpe`). */
+  const contextoDaCarta = (cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena): ContextoDoGolpe => {
     const { turnos } = cena
     const { personagens, sistema } = mesaDoRpg()
     const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
-    const ctx: ContextoDoGolpe = {
+    return {
       turnos: turnosDoCtx,
       carta,
       personagem,
@@ -1572,6 +1579,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // R5: quem gastou a reação no contador também não reage (até a vez dele).
       semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null || gastouAReacao(turnos, tokenId),
     }
+  }
+
+  const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedido: PedidoDeAcao): boolean => {
+    const { turnos } = cena
+    const { personagens } = mesaDoRpg()
+    const ctx = contextoDaCarta(cena, autor, carta, turnosDoCtx)
     if (podeAgir(ctx, pedido) !== null) return false
     const linhaId = novoIdDeLinha()
     const lancado = lancarGolpe(ctx, pedido, { golpe: novoIdDeGolpe(), linha: linhaId })
@@ -1649,7 +1662,70 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       ...comMudanca(atual, novos, { id: linhaId, tipo, texto, autor, tokenIds, reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
     })
+    // Conserto das fichas F1 (bug 2): acima do teto, o golpe mais velho vira "Não reagiu"; o ataque novo nunca é recusado por isso.
+    const esperando = cenaDe(sceneKey)?.turnos.golpes ?? []
+    if (esperando.length > GOLPES_PENDENTES_MAX) {
+      const ficam = new Set(esperando.slice(-GOLPES_PENDENTES_MAX).map((pendente) => pendente.id))
+      fecharGolpesSemResposta(sceneKey, (pendente) => !ficam.has(pendente.id), 'a tempo (golpes demais esperando)')
+    }
     return true
+  }
+
+  /**
+   * Conserto das fichas F1 (bug 2, regra P3 do grilling): o alvo que não
+   * respondeu vira "Não reagiu" sozinho, como no botão Não reagir do mestre
+   * (a marca, o dano na ficha, o selo do golpe). Uma linha "reacao" por golpe
+   * diz quem não reagiu e por quê (`porque`); o Desfazer dela devolve o alvo à
+   * espera e o dano à ficha (as mesmas partes da reação com técnica). `fecha`
+   * escolhe os golpes, lidos da cena de agora.
+   */
+  const fecharGolpesSemResposta = (sceneKey: string, fecha: (golpe: GolpeDaBatalha) => boolean, porque: string): void => {
+    const ids = (cenaDe(sceneKey)?.turnos.golpes ?? []).filter(fecha).map((golpe) => golpe.id)
+    for (const golpeId of ids) {
+      const cena = cenaDe(sceneKey)
+      const antes = cena?.turnos.golpes?.find((candidato) => candidato.id === golpeId)
+      if (cena === undefined || antes === undefined) continue
+      let golpe = antes
+      let novos: TurnosDaCena = cena.turnos
+      const partes: Reversao[] = []
+      const efeitos: EfeitoNovo[] = []
+      const resolvidos: AlvoDoGolpe[] = []
+      for (const esperando of antes.alvos) {
+        if (esperando.danoFinal !== undefined) continue
+        const semResposta = resolverAlvo(golpe, esperando.tokenId, 'naoReagiu')
+        const semMarca = semResposta.alvos.find((candidato) => candidato.tokenId === esperando.tokenId)
+        if (semMarca === undefined) continue
+        // R1: a marca antes do dano, como em toda reação.
+        const acerto = acertoComMarca(mesa, novos, semResposta, semMarca)
+        novos = acerto.turnos
+        golpe = golpeComOAlvo(semResposta, acerto.alvo)
+        const feito = danoNoAlvo(mesa, acerto.alvo, golpe, MESTRE)
+        partes.push({ tipo: 'reacaoComTecnica', golpe, tokenId: esperando.tokenId, alvoAntes: esperando }, ...acerto.partes, ...feito.partes)
+        if (feito.efeito !== null) efeitos.push(feito.efeito)
+        const selado = seloDoGolpe(novos, golpe, acerto.alvo)
+        if (selado !== null) {
+          partes.push(selado.parte)
+          novos = { ...novos, selos: selado.selos }
+        }
+        resolvidos.push(acerto.alvo)
+      }
+      if (resolvidos.length === 0) continue
+      novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
+      const lembrados = lembrarDepoisDoDano(novos)
+      partes.push(...partesDosLembretes(lembrados))
+      novos = lembrados.turnos
+      const nomeDoToken = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)
+      const nomes = resolvidos.map((alvo) => nomeDoToken(alvo.tokenId))
+      const quem = nomes.length === 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`
+      const texto = `${quem} não ${nomes.length === 1 ? 'reagiu' : 'reagiram'} ${porque} (${golpe.nome} de ${nomeDoToken(golpe.atacanteTokenId)})`
+      const linha: LinhaNova = { tipo: 'reacao', texto, tokenIds: [...new Set([golpe.atacanteTokenId, ...resolvidos.map((alvo) => alvo.tokenId)])], reversao: { tipo: 'composta', partes } }
+      const personagemIds = resolvidos.flatMap((alvo) => (alvo.personagemId === null ? [] : [alvo.personagemId]))
+      if (personagemIds.length > 0) linha.personagemIds = personagemIds
+      // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
+      const atual = cenaDe(sceneKey) ?? cena
+      const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(golpe, nomeDoToken), []) }
+      gravarCena(sceneKey, { ...comMudanca(comOGolpe, novos, linha), efeitos: comEfeitos(atual.efeitos, efeitos) })
+    }
   }
 
   return {
@@ -1745,7 +1821,23 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, extras: turnos.extras, combate: turnos.combate ?? {}, ...selosDeAntes(turnos, passada.turnos) } },
       }
       gravarCena(sceneKey, { ...comMudanca(cena, comLembretes, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
+      // Conserto das fichas F1 (bug 2, P3): na virada da rodada, o golpe das rodadas que passaram que ninguém respondeu vira "Não reagiu".
+      const rodadaNova = passada.turnos.rodada
+      if (rodadaNova !== turnos.rodada) fecharGolpesSemResposta(sceneKey, (golpe) => golpe.rodada < rodadaNova, 'até a virada da rodada')
       return true
+    },
+
+    motivoDoAgir: (sceneKey, autor, vez, pedido) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return 'A batalha não está ligada nesta cena'
+      const { turnos } = cena
+      const contraDe = pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
+      const contra = contraDe === undefined ? null : ((turnos.contras ?? []).find((candidato) => candidato.golpeId === contraDe) ?? null)
+      if (contraDe !== undefined && contra === null) return 'Esse contra-ataque não existe mais'
+      if (contra === null && (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada)) return 'A vez já passou'
+      const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
+      if (carta === null || carta.bando !== undefined) return 'Não é a vez desta ficha'
+      return podeAgir(contextoDaCarta(cena, autor, carta, turnos), pedido)
     },
 
     darVez: (sceneKey, cartaId) => {

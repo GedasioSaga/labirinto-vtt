@@ -12,6 +12,7 @@ import { FaixaDaOrdem } from './FaixaDaOrdem'
 import type { ItemDoMenuDaCarta } from './MenuDaCarta'
 import { PassivasDaFicha, alvosDaOrdemParaPassiva, passivasNaCena } from './PassivasDaBatalha'
 import { PerfilDaCarta } from './PerfilDaCarta'
+import { usePassarVezDoMestre } from './passarVezDoMestre'
 
 /**
  * A FAIXA DA ORDEM na tela do MESTRE: lê a batalha da cena aberta na store e
@@ -50,6 +51,8 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
     [turnos, fichas, personagens, equipes, sistema, cena?.registro],
   )
   const registro = useMemo(() => (cena === undefined ? [] : linhasDoMestre(cena.registro)), [cena])
+  // Conserto das fichas F1 (bug 7): passa SÓ a vez mostrada; o duplo clique e o clique junto com o do jogador não pulam ninguém.
+  const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
 
   const menuDaCarta = useCallback(
     (carta: DadosDaCarta): readonly ItemDoMenuDaCarta[] => {
@@ -197,7 +200,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         dados={dados}
         onMover={(cartaId, indice) => useBatalhaStore.getState().moverCarta(sceneKey, cartaId, indice)}
         menuDaCarta={menuDaCarta}
-        onPassarVez={dados.cartas.length === 0 ? undefined : () => useBatalhaStore.getState().passarVez(sceneKey, MESTRE)}
+        onPassarVez={dados.cartas.length === 0 ? undefined : passarAVez}
         regras={cena.regras}
         registro={registro}
         onDesfazer={(linhaId) => useBatalhaStore.getState().desfazer(sceneKey, linhaId, MESTRE)}

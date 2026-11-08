@@ -77,6 +77,12 @@ export interface PonteDaBatalha {
    * null só com `contraDe` (o contra-ataque, Q6, é fora da vez). Devolve se agiu.
    */
   agir(sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao): boolean
+  /**
+   * Conserto das fichas F1 (bug 1): por que o `agir` recusaria este pedido
+   * agora (texto curto da regra), ou `null`. Só lê. Ausente = o host diz a
+   * recusa genérica.
+   */
+  motivoDoAgir?(sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: PedidoDeAcao): string | null
   /** F2: rolar (o d20 é do host), rerolar, escolher a saída ou Não reagir. Devolve se valeu. */
   reagir(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeReacao): boolean
   /** F2: dano livre numa ficha (o jogador, só na dele; o host confere). */

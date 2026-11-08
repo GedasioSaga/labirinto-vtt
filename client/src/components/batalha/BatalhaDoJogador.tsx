@@ -91,6 +91,36 @@ export interface BatalhaDoJogadorProps {
   textoDaVez?: 'suaVez' | 'vezDe'
   /** C4: o lado da casa do mapa (px), para a ordem dos alvos. Ausente = a conta em px (a Arena). */
   tamanhoDaCasa?: number
+  /**
+   * Conserto das fichas F1 (bug 1): a última recusa da mesa ("A mesa não
+   * aceitou: a vez já passou."), por alguns segundos. `id` novo = mostra de
+   * novo. Ausente = sem aviso (a Arena e o Lobby, que não passam).
+   */
+  recusa?: { id: number; texto: string }
+}
+
+/** Conserto das fichas F1 (bug 1): quanto o aviso da recusa fica na tela. */
+const RECUSA_NA_TELA_MS = 4_500
+
+/** O aviso da recusa: a região "status" fica sempre montada (o leitor de tela anuncia o texto novo); o texto sai sozinho. */
+function AvisoDaRecusa({ recusa }: { recusa: { id: number; texto: string } | undefined }) {
+  const [sumiu, setSumiu] = useState<number | null>(null)
+  const id = recusa?.id
+  useEffect(() => {
+    if (id === undefined) return
+    const prazo = setTimeout(() => setSumiu(id), RECUSA_NA_TELA_MS)
+    return () => clearTimeout(prazo)
+  }, [id])
+  const naTela = recusa !== undefined && sumiu !== recusa.id
+  return (
+    <div className="pp-batalha-recusa-lugar" role="status" aria-live="polite">
+      {naTela && (
+        <p key={recusa.id} className="pp-batalha-recusa">
+          {recusa.texto}
+        </p>
+      )}
+    </div>
+  )
 }
 
 /** A classe que o PlayerView dá à `FaixaDoJogador` (player/main.tsx). */
@@ -107,7 +137,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, recusa }: BatalhaDoJogadorProps) {
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)
@@ -478,6 +508,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
           }}
         />
       )}
+      <AvisoDaRecusa recusa={recusa} />
+
     </>
   )
 }

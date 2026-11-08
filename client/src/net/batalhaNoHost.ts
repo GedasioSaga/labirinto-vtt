@@ -8,6 +8,7 @@ import { efeitosParaJogador, vistaParaJogador, type ContextoDoJogador, type Efei
 import {
   ALIADOS_MAX,
   JANELA_DOS_PEDIDOS_DE_BATALHA_MS,
+  MOTIVO_DA_RECUSA_MAX,
   PEDIDOS_DE_BATALHA_POR_JANELA,
   type BatalhaAgirMessage,
   type BatalhaAjustarMessage,
@@ -174,6 +175,18 @@ const NADA: RespostaDaBatalha = { saidas: [], mudou: false }
 /** F2: as respostas guardadas por conexão para o `reqId` repetido (o cliente não tem mais que isso no ar). */
 const RESPOSTAS_GUARDADAS = 32
 
+/** Conserto das fichas F1 (bug 1): a recusa com o motivo que a tela do jogador mostra. */
+interface Recusa {
+  motivo: string
+}
+
+const RECUSA_GENERICA: Recusa = { motivo: 'Essa ação não vale agora' }
+const RECUSA_DA_VEZ: Recusa = { motivo: 'A vez já passou' }
+const RECUSA_DA_FICHA: Recusa = { motivo: 'Essa ficha não pode fazer isso agora' }
+const RECUSA_DO_ALVO: Recusa = { motivo: 'O alvo não está na sua tela' }
+const RECUSA_DA_REACAO: Recusa = { motivo: 'Esse golpe já foi resolvido' }
+const RECUSA_FORA_DA_BATALHA: Recusa = { motivo: 'A batalha não está ligada na sua cena' }
+
 const mesmasReferencias = (a: readonly Personagem[], b: readonly Personagem[]): boolean => a.length === b.length && a.every((personagem, i) => personagem === b[i])
 
 export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
@@ -185,8 +198,8 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   const pedidos = new Map<string, number[]>()
   // F2, por clientId: a cena e o último `seq` de efeito já passado à conexão (enviado ou pulado). Ausente = marca no próximo sync, sem reprise.
   const efeitoVisto = new Map<string, { sceneKey: string; seq: number }>()
-  // F2, por clientId: reqId → ok, as últimas RESPOSTAS_GUARDADAS, na ordem de chegada.
-  const respostas = new Map<string, Map<string, boolean>>()
+  // F2, por clientId: reqId → aceito (`true`) ou a recusa, as últimas RESPOSTAS_GUARDADAS, na ordem de chegada.
+  const respostas = new Map<string, Map<string, true | Recusa>>()
 
   /** Mais um pedido do jogador na janela; `false` = passou do teto. */
   const cabePedido = (playerId: string): boolean => {
@@ -293,7 +306,12 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     return visiveis
   }
 
-  const resultado = (clientId: string, reqId: string, ok: boolean): SaidaDaBatalha => ({ clientId, msg: { type: 'batalha.resultado', reqId, ok } })
+  /** Conserto das fichas F1 (bug 1): a recusa leva um motivo curto, sem nada que a tela dele já não mostre. */
+  const resultado = (clientId: string, reqId: string, ok: boolean, motivo?: string): SaidaDaBatalha => ({
+    clientId,
+    msg: ok || motivo === undefined ? { type: 'batalha.resultado', reqId, ok } : { type: 'batalha.resultado', reqId, ok, motivo: motivo.slice(0, MOTIVO_DA_RECUSA_MAX) },
+  })
+  const saidaDa = (clientId: string, reqId: string, resposta: true | Recusa): SaidaDaBatalha => (resposta === true ? resultado(clientId, reqId, true) : resultado(clientId, reqId, false, resposta.motivo))
 
   /** O autor no registro. O nome não decide nada: quem pode é conferido pelo `playerId`. */
   const autorDe = (conexao: ConexaoNaBatalha): AutorDaAcao => ({ tipo: 'jogador', playerId: conexao.playerId, nome: conexao.nome })
@@ -304,19 +322,21 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
    * conexão: o `reqId` nasce no cliente, e outra conexão pode repeti-lo.
    * `decidir` devolve o `ok` (recusa do host ou o que a store fez).
    */
-  const pedidoUnico = (conexao: ConexaoNaBatalha, reqId: string, decidir: () => boolean): RespostaDaBatalha => {
+  const pedidoUnico = (conexao: ConexaoNaBatalha, reqId: string, decidir: () => boolean | Recusa): RespostaDaBatalha => {
     if (!cabePedido(conexao.playerId)) return NADA
-    const guardadas = respostas.get(conexao.clientId) ?? new Map<string, boolean>()
+    const guardadas = respostas.get(conexao.clientId) ?? new Map<string, true | Recusa>()
     const antes = guardadas.get(reqId)
-    if (antes !== undefined) return { saidas: [resultado(conexao.clientId, reqId, antes)], mudou: false }
-    const ok = decidir()
-    guardadas.set(reqId, ok)
+    if (antes !== undefined) return { saidas: [saidaDa(conexao.clientId, reqId, antes)], mudou: false }
+    const decidido = decidir()
+    // `false` da store sem motivo vira a recusa genérica: o jogador sempre lê alguma coisa.
+    const resposta: true | Recusa = decidido === true ? true : decidido === false ? RECUSA_GENERICA : decidido
+    guardadas.set(reqId, resposta)
     if (guardadas.size > RESPOSTAS_GUARDADAS) {
       const maisVelha = guardadas.keys().next()
       if (maisVelha.done !== true) guardadas.delete(maisVelha.value)
     }
     respostas.set(conexao.clientId, guardadas)
-    return { saidas: [resultado(conexao.clientId, reqId, ok)], mudou: ok }
+    return { saidas: [saidaDa(conexao.clientId, reqId, resposta)], mudou: resposta === true }
   }
 
   /** A cena em batalha da conexão, com a ponte; `null` = fora (o pedido é recusado). */
@@ -353,14 +373,24 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       return contraDe !== undefined && (cena.turnos.contras ?? []).some((contra) => contra.golpeId === contraDe && fichaDele(lugar, contra.tokenId, contra.personagemId))
     }
     const daVez = cartaDaVez(cena.turnos)
-    return (
-      daVez !== null &&
-      daVez.id === vez.cartaId &&
-      cena.turnos.rodada === vez.rodada &&
-      lugar.meusTokens.has(daVez.tokenId) &&
-      daVez.personagemId !== null &&
-      lugar.meusPersonagens.has(daVez.personagemId)
-    )
+    // Conserto das fichas F1 (bug 8): toda ficha da vez que a tela dele mostra como "sua vez" age (a dele, a emprestada, o NPC
+    // que ele controla), a mesma regra do `minhaVez` do recorte e do Passar a vez. A store confere a regra da ficha (`podeAgir`).
+    return daVez !== null && daVez.id === vez.cartaId && cena.turnos.rodada === vez.rodada && lugar.meusTokens.has(daVez.tokenId)
+  }
+
+  /** A vez do pedido ainda é a da mesa (`vez` null = contra-ataque, fora da vez: não confere). */
+  const vezAindaE = (cena: BatalhaEmTurnos, vez: BatalhaAgirMessage['vez']): boolean => vez === null || (cena.turnos.vez === vez.cartaId && cena.turnos.rodada === vez.rodada)
+
+  /**
+   * Conserto das fichas F1 (bug 1): o motivo da regra (`motivoDoAgir`) só sai para a ficha DELE de verdade; na emprestada e no
+   * NPC ele contaria o SP e a recarga de outro. Sem motivo: a recusa genérica.
+   */
+  const recusaDoAgir = (ponte: PonteDaBatalha, lugar: LugarNaBatalha, cena: BatalhaEmTurnos, conexao: ConexaoNaBatalha, msg: BatalhaAgirMessage): Recusa => {
+    const contraDe = msg.pedido.tipo === 'concentrar' ? undefined : msg.pedido.contraDe
+    const tokenId = msg.vez === null ? (cena.turnos.contras ?? []).find((contra) => contra.golpeId === contraDe)?.tokenId : cartaDaVez(cena.turnos)?.tokenId
+    if (tokenId === undefined || !fichaDeVerdade(lugar, cena, tokenId)) return RECUSA_GENERICA
+    const motivo = ponte.motivoDoAgir?.(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido) ?? null
+    return motivo === null ? RECUSA_GENERICA : { motivo }
   }
 
   /** A ficha tem carta na ordem desta batalha (a reação livre e o dano livre só valem nela). */
@@ -407,17 +437,18 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     passar(conexao, msg) {
       // Acima do teto morre calado: nem a recusa sai (o molde dos pedidos de ficha).
       if (!cabePedido(conexao.playerId)) return NADA
-      // Uma recusa só, sem motivo: motivo ensinaria quais cartas e rodadas existem.
-      const recusa: RespostaDaBatalha = { saidas: [resultado(conexao.clientId, msg.reqId, false)], mudou: false }
+      // Um motivo só para toda vez que não bate ("A vez já passou"): um por caso ensinaria quais cartas e rodadas existem.
+      const recusar = (recusa: Recusa): RespostaDaBatalha => ({ saidas: [saidaDa(conexao.clientId, msg.reqId, recusa)], mudou: false })
       const { ponte } = deps
       const { lugar } = conexao
-      if (ponte === undefined || lugar === null) return recusa
+      if (ponte === undefined || lugar === null) return recusar(RECUSA_FORA_DA_BATALHA)
       const cena = ponte.cena(lugar.sceneKey)
-      const daVez = cena === null ? null : cartaDaVez(cena.turnos)
+      if (cena === null) return recusar(RECUSA_FORA_DA_BATALHA)
+      const daVez = cartaDaVez(cena.turnos)
       // A vez tem de ser ESTA carta, NESTA rodada, de ficha dele: o clique duplo e o reenvio acham a vez já andada.
-      if (cena === null || daVez === null || daVez.id !== msg.cartaId || cena.turnos.rodada !== msg.rodada || !lugar.meusTokens.has(daVez.tokenId)) return recusa
+      if (daVez === null || daVez.id !== msg.cartaId || cena.turnos.rodada !== msg.rodada || !lugar.meusTokens.has(daVez.tokenId)) return recusar(RECUSA_DA_VEZ)
       const ok = ponte.passarVez(lugar.sceneKey, autorDe(conexao), { cartaId: msg.cartaId, rodada: msg.rodada })
-      return { saidas: [resultado(conexao.clientId, msg.reqId, ok)], mudou: ok }
+      return { saidas: [saidaDa(conexao.clientId, msg.reqId, ok ? true : RECUSA_DA_VEZ)], mudou: ok }
     },
 
     desfazer(conexao, msg) {
@@ -437,14 +468,16 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       return { saidas: [resultado(conexao.clientId, msg.reqId, ok)], mudou: ok }
     },
 
-    // F2: uma recusa só, sem motivo, como na F1. A store confere a regra (`podeAgir` etc.) e rola o d20.
+    // A store confere a regra (`podeAgir` etc.) e rola o d20. Conserto das fichas F1 (bug 1): a recusa diz por quê.
     agir(conexao, msg) {
       return pedidoUnico(conexao, msg.reqId, () => {
         const daCena = cenaDa(conexao)
-        if (daCena === null) return false
+        if (daCena === null) return RECUSA_FORA_DA_BATALHA
         const { ponte, lugar, cena } = daCena
-        if (!podePedirAcao(lugar, cena, msg) || !alvosNaTela(lugar, msg)) return false
-        return ponte.agir(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido)
+        if (!vezAindaE(cena, msg.vez)) return RECUSA_DA_VEZ
+        if (!podePedirAcao(lugar, cena, msg)) return RECUSA_DA_FICHA
+        if (!alvosNaTela(lugar, msg)) return RECUSA_DO_ALVO
+        return ponte.agir(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido) || recusaDoAgir(ponte, lugar, cena, conexao, msg)
       })
     },
 
@@ -460,8 +493,9 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         } else {
           const golpe = (cena.turnos.golpes ?? []).find((candidato) => candidato.id === pedido.golpeId)
           const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === pedido.tokenId)
-          // O golpe ainda espera, e a ficha é um alvo DELE ainda sem resolver.
-          if (alvo === undefined || alvo.danoFinal !== undefined || !fichaDele(lugar, alvo.tokenId, alvo.personagemId)) return false
+          // O golpe ainda espera, e a ficha é um alvo DELE ainda sem resolver (bug 1: o golpe que já fechou, como "Não reagiu", diz por quê).
+          if (alvo === undefined || alvo.danoFinal !== undefined) return RECUSA_DA_REACAO
+          if (!fichaDele(lugar, alvo.tokenId, alvo.personagemId)) return false
           // "Não reagir" depois do d20 rolado seria fugir do resultado (o 1 natural, do crítico): só o mestre marca.
           if (pedido.tipo === 'naoReagir' && alvo.rolagem !== undefined) return false
           // "Passar" é a saída do jogador DEPOIS do dado: toma o golpe inteiro e o 1 natural continua crítico (a store decide a saída).
