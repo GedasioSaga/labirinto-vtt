@@ -38,8 +38,8 @@ use super::media::hash_hex;
 /// Pasta dentro do `app_data_dir` (o mesmo `appDataDir()` do TS).
 pub const PASTA_DE_ANIMACOES: &str = "animacoes";
 /// O pacote em uso. As outras pastas da raiz são só sobras de uma troca.
-const PASTA_ATUAL: &str = "atual";
-const PREFIXO_NOVO: &str = "novo-";
+pub(super) const PASTA_ATUAL: &str = "atual";
+pub(super) const PREFIXO_NOVO: &str = "novo-";
 const PREFIXO_VELHO: &str = "velho-";
 pub const NOME_DO_INDICE: &str = "indice.json";
 pub const NOME_DA_ASSINATURA: &str = "indice.json.sig";
@@ -130,7 +130,7 @@ impl std::fmt::Display for ErroDoPacote {
 
 impl std::error::Error for ErroDoPacote {}
 
-fn disco(erro: std::io::Error) -> ErroDoPacote {
+pub(super) fn disco(erro: std::io::Error) -> ErroDoPacote {
     ErroDoPacote::Disco(erro.kind())
 }
 
@@ -200,7 +200,7 @@ pub fn nome_valido(nome: &str) -> bool {
         && !nome_de_dispositivo_do_windows(base)
 }
 
-fn nome_de_dispositivo_do_windows(base: &str) -> bool {
+pub(super) fn nome_de_dispositivo_do_windows(base: &str) -> bool {
     match base {
         "con" | "prn" | "aux" | "nul" => true,
         _ => {
@@ -210,7 +210,7 @@ fn nome_de_dispositivo_do_windows(base: &str) -> bool {
     }
 }
 
-fn sha_valido(sha: &str) -> bool {
+pub(super) fn sha_valido(sha: &str) -> bool {
     sha.len() == TAMANHO_DO_SHA && sha.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
@@ -504,32 +504,37 @@ impl Pacote {
         feito
     }
 
-    /// Apaga temporárias de uma atualização interrompida (app fechado no meio).
-    /// Se a queda foi entre as duas trocas de nome, não há `atual`: a velha
-    /// volta a ser a atual. Melhor esforço: falhar aqui não impede atualizar.
+    /// Ver `limpar_sobras` (a função livre, que o pacote de minigames também usa).
     async fn limpar_sobras(&self) {
-        let Ok(mut entradas) = tokio::fs::read_dir(&self.raiz).await else {
-            return;
-        };
-        let mut velhas = Vec::new();
-        while let Ok(Some(entrada)) = entradas.next_entry().await {
-            let nome = entrada.file_name();
-            let nome = nome.to_string_lossy();
-            if nome.starts_with(PREFIXO_NOVO) {
-                let _ = tokio::fs::remove_dir_all(entrada.path()).await;
-            } else if nome.starts_with(PREFIXO_VELHO) {
-                velhas.push(entrada.path());
-            }
+        limpar_sobras(&self.raiz).await;
+    }
+}
+
+/// Apaga temporárias de uma atualização interrompida (app fechado no meio).
+/// Se a queda foi entre as duas trocas de nome, não há `atual`: a velha
+/// volta a ser a atual. Melhor esforço: falhar aqui não impede atualizar.
+pub(super) async fn limpar_sobras(raiz: &Path) {
+    let Ok(mut entradas) = tokio::fs::read_dir(raiz).await else {
+        return;
+    };
+    let mut velhas = Vec::new();
+    while let Ok(Some(entrada)) = entradas.next_entry().await {
+        let nome = entrada.file_name();
+        let nome = nome.to_string_lossy();
+        if nome.starts_with(PREFIXO_NOVO) {
+            let _ = tokio::fs::remove_dir_all(entrada.path()).await;
+        } else if nome.starts_with(PREFIXO_VELHO) {
+            velhas.push(entrada.path());
         }
-        let atual = self.pasta_atual();
-        if !tokio::fs::try_exists(&atual).await.unwrap_or(true) {
-            if let Some(velha) = velhas.pop() {
-                let _ = tokio::fs::rename(&velha, &atual).await;
-            }
+    }
+    let atual = raiz.join(PASTA_ATUAL);
+    if !tokio::fs::try_exists(&atual).await.unwrap_or(true) {
+        if let Some(velha) = velhas.pop() {
+            let _ = tokio::fs::rename(&velha, &atual).await;
         }
-        for velha in velhas {
-            let _ = tokio::fs::remove_dir_all(velha).await;
-        }
+    }
+    for velha in velhas {
+        let _ = tokio::fs::remove_dir_all(velha).await;
     }
 }
 
@@ -563,7 +568,7 @@ async fn preencher(fonte: &impl Fonte, novo: &IndiceVerificado, pasta: &Path) ->
 
 /// `atual` -> `velho-<x>`, `novo` -> `atual`, apaga a velha. Se a segunda troca
 /// falhar, a velha volta a ser `atual` e o erro sobe.
-async fn trocar(raiz: &Path, novo: &Path) -> Result<(), ErroDoPacote> {
+pub(super) async fn trocar(raiz: &Path, novo: &Path) -> Result<(), ErroDoPacote> {
     let atual = raiz.join(PASTA_ATUAL);
     let velha = raiz.join(format!("{PREFIXO_VELHO}{}", sufixo_aleatorio()));
     let tinha_atual = tokio::fs::try_exists(&atual).await.map_err(disco)?;
@@ -583,12 +588,12 @@ async fn trocar(raiz: &Path, novo: &Path) -> Result<(), ErroDoPacote> {
     Ok(())
 }
 
-fn sufixo_aleatorio() -> String {
+pub(super) fn sufixo_aleatorio() -> String {
     format!("{:016x}", rand::rng().random::<u64>())
 }
 
 /// Lê um arquivo comum de até `teto` bytes; o resto é recusa.
-async fn ler_com_teto(caminho: &Path, teto: u64) -> Result<Vec<u8>, ErroDoPacote> {
+pub(super) async fn ler_com_teto(caminho: &Path, teto: u64) -> Result<Vec<u8>, ErroDoPacote> {
     let info = tokio::fs::metadata(caminho).await.map_err(|_| ErroDoPacote::NaoEncontrado)?;
     if !info.is_file() {
         return Err(ErroDoPacote::NaoEncontrado);

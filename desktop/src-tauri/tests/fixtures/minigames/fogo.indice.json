@@ -1,0 +1,20 @@
+{
+  "formato": 1,
+  "jogo": "fogo",
+  "nome": "Fogo na Floresta",
+  "versao": 1,
+  "motorMinimo": "0.5.0",
+  "entrada": "index.html",
+  "arquivos": [
+    {
+      "nome": "fogo.v1.index.html.gz",
+      "sha256": "4df4807d24463f4e6a07c8edb144c11fddec4c9a2cf41f8479aaea76a9816df0",
+      "tamanho": 64
+    },
+    {
+      "nome": "fogo.v1.index.wasm.gz",
+      "sha256": "3226c1cc3b8cd3bc2fd6bb90d9f97ad35589a428a2de8414530628878e2da277",
+      "tamanho": 28
+    }
+  ]
+}

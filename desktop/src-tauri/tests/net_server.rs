@@ -8,6 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use labirinto_lib::net::animacoes;
 use labirinto_lib::net::commands;
 use labirinto_lib::net::media;
+use labirinto_lib::net::minigames;
 use labirinto_lib::net::server::{self, Asset, AssetSource, ClientId, NetSink, PeerEvent, Room};
 use serde_json::{json, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -353,6 +354,62 @@ async fn animacoes_serve_so_o_que_o_indice_assinado_lista() {
     std::fs::write(atual.join("indice.json"), editado).unwrap();
     assert!(http_get(addr, "/animacoes/indice.json").await.starts_with("HTTP/1.1 404"));
     assert!(http_get(addr, "/animacoes/porta-teste.js").await.starts_with("HTTP/1.1 404"));
+    std::fs::remove_dir_all(&raiz).unwrap();
+}
+
+/// Sala com o pacote de minigame da fixture instalado em `atual` (raiz própria).
+async fn sala_com_minigame(rotulo: &str) -> (SocketAddr, Arc<Room>, std::path::PathBuf) {
+    const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/minigames");
+    let (addr, room, _sink) = start_server().await;
+    let raiz = std::env::temp_dir().join(format!("labirinto-sala-minigame-{rotulo}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&raiz);
+    let atual = raiz.join("atual");
+    std::fs::create_dir_all(&atual).unwrap();
+    for nome in ["fogo.indice.json", "fogo.indice.json.sig", "fogo.v1.index.html.gz", "fogo.v1.index.wasm.gz"] {
+        std::fs::copy(format!("{FIXTURE}/{nome}"), atual.join(nome)).unwrap();
+    }
+    room.set_minigame(minigames::Pacote::com_chave(raiz.clone(), "fogo", include_str!("fixtures/minigames/chave-teste.pub")));
+    (addr, room, raiz)
+}
+
+/// MINIGAME: o wasm sai em gzip, como está guardado, com `application/wasm`
+/// (sem ele o Godot não carrega) e o sha256 do índice no `ETag`.
+#[tokio::test]
+async fn minigame_serve_o_wasm_em_gzip_com_o_tipo_certo() {
+    let (addr, _room, raiz) = sala_com_minigame("wasm").await;
+    let resposta = http_get(addr, "/minigames/fogo/index.wasm").await;
+    let cabecalho = resposta.to_ascii_lowercase();
+    assert!(cabecalho.starts_with("http/1.1 200"), "{resposta}");
+    assert!(cabecalho.contains("content-type: application/wasm"));
+    assert!(cabecalho.contains("content-encoding: gzip"));
+    assert!(cabecalho.contains("x-content-type-options: nosniff"));
+    let gz = include_bytes!("fixtures/minigames/fogo.v1.index.wasm.gz");
+    assert!(cabecalho.contains(&format!("content-length: {}", gz.len())));
+    assert!(cabecalho.contains(&format!("etag: \"{}\"", media::hash_hex(gz))));
+    let html = http_get(addr, "/minigames/fogo/index.html").await.to_ascii_lowercase();
+    assert!(html.starts_with("http/1.1 200") && html.contains("content-type: text/html; charset=utf-8"), "{html}");
+    std::fs::remove_dir_all(&raiz).unwrap();
+}
+
+/// MINIGAME: com pacote instalado, só o que o índice assinado lista sai;
+/// nome fora dele, o nome da release, caminho torto, outro jogo e arquivo
+/// trocado no disco são o mesmo 404 (nunca o Vite).
+#[tokio::test]
+async fn minigame_recusa_o_que_o_indice_nao_lista() {
+    let (addr, _room, raiz) = sala_com_minigame("recusa").await;
+    std::fs::write(raiz.join("atual").join("index.js"), b"alert(1)").unwrap();
+    for ruim in [
+        "/minigames/fogo/index.js",
+        "/minigames/fogo/fogo.v1.index.wasm.gz",
+        "/minigames/fogo/fogo.indice.json",
+        "/minigames/fogo/..%2Ffogo.indice.json",
+        "/minigames/fogo/..",
+        "/minigames/pesca/index.html",
+    ] {
+        assert!(http_get(addr, ruim).await.starts_with("HTTP/1.1 404"), "{ruim}");
+    }
+    std::fs::write(raiz.join("atual").join("fogo.v1.index.wasm.gz"), b"trocado").unwrap();
+    assert!(http_get(addr, "/minigames/fogo/index.wasm").await.starts_with("HTTP/1.1 404"));
     std::fs::remove_dir_all(&raiz).unwrap();
 }
 

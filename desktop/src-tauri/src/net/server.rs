@@ -21,6 +21,7 @@ use tokio::sync::{mpsc, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::time::Instant;
 
 use super::animacoes::Pacote;
+use super::minigames;
 use super::conexao::{vigiar_pedido, ConexaoHttp, LimitesDaSala, ListenerDaSala};
 use super::sons::{self, ErroDosSons, LimiteDasBuscas, SonsDaSala, VagaDeBusca};
 
@@ -107,6 +108,8 @@ pub struct Room {
     media_dir: Mutex<Option<PathBuf>>,
     /// Pacote de onde `/animacoes/...` lê (`<appData>/animacoes`); `None` = só 404.
     animacoes: Mutex<Option<Pacote>>,
+    /// Pacotes de onde `/minigames/{jogo}/...` lê (`<appData>/minigames/<jogo>`).
+    minigames: Mutex<Vec<minigames::Pacote>>,
     /// SONS AO VIVO: chave e liberações por conexão e a pasta da aventura (`sons.rs`).
     sons: Mutex<SonsDaSala>,
     /// Taxa e buscas simultâneas de `/sons/{id}`; a vaga vive no corpo da resposta.
@@ -232,6 +235,7 @@ impl Room {
             bad_codes: Mutex::new(BadCodeLimiter::default()),
             media_dir: Mutex::new(None),
             animacoes: Mutex::new(None),
+            minigames: Mutex::new(Vec::new()),
             sons: Mutex::new(SonsDaSala::default()),
             buscas: Arc::new(Mutex::new(LimiteDasBuscas::default())),
         })
@@ -305,6 +309,18 @@ impl Room {
 
     fn animacoes(&self) -> Option<Pacote> {
         lock(&self.animacoes).clone()
+    }
+
+    /// Passa a servir `/minigames/<jogo>/...` deste pacote (ver `minigames.rs`);
+    /// troca o que já houvesse para o mesmo jogo.
+    pub fn set_minigame(&self, pacote: minigames::Pacote) {
+        let mut pacotes = lock(&self.minigames);
+        pacotes.retain(|existente| existente.jogo() != pacote.jogo());
+        pacotes.push(pacote);
+    }
+
+    fn minigame(&self, jogo: &str) -> Option<minigames::Pacote> {
+        lock(&self.minigames).iter().find(|pacote| pacote.jogo() == jogo).cloned()
     }
 
     pub fn code(&self) -> &str {
@@ -427,6 +443,7 @@ pub fn router(room: Arc<Room>) -> Router {
         // A rota fixa vence a com parâmetro: `indice.json` nunca cai em `{nome}`.
         .route("/animacoes/indice.json", get(animacoes_indice))
         .route("/animacoes/{nome}", get(animacoes_arquivo))
+        .route("/minigames/{jogo}/{nome}", get(minigame_arquivo))
         .fallback(dev_fallback)
         // Depois das rotas e do fallback: vale para todos eles.
         .layer(axum::middleware::from_fn(vigiar_pedido))
@@ -835,7 +852,11 @@ async fn dev_proxy(path: &str) -> Response {
 /// a sala em `tauri dev` daria a qualquer pessoa da rede leitura do repositório
 /// do mestre por `/@fs/<caminho absoluto>`. A lista é só o que a página do
 /// jogador pede de verdade.
-const DEV_PREFIXOS: [&str; 7] = ["/player.html", "/src/", "/node_modules/", "/@vite/", "/@react-refresh", "/@id/", "/favicon."];
+///
+/// `/minigames/`: o jogo Godot que o plugin `jogoDoFogoEmDev` do Vite serve
+/// (só chega aqui sem pacote instalado; ver `minigame_arquivo`).
+const DEV_PREFIXOS: [&str; 8] =
+    ["/player.html", "/src/", "/node_modules/", "/@vite/", "/@react-refresh", "/@id/", "/favicon.", "/minigames/"];
 
 /// `/@fs/<caminho absoluto>` é a porta do Vite para o disco inteiro, e o
 /// próprio cliente dele precisa de uma: `@vite/client` importa
@@ -1142,6 +1163,62 @@ async fn animacoes_arquivo(State(room): State<Arc<Room>>, Path(nome): Path<Strin
 /// `private`: o cache da Cloudflare (link público) não guarda o código da
 /// mesa; `no-cache`: o navegador confere o `ETag` antes de reusar.
 const CACHE_DO_MODULO: &str = "private, no-cache";
+
+/// `/minigames/{jogo}/{nome}`: um arquivo do export web do jogo (`index.html`,
+/// `index.wasm`...), só se o índice assinado do pacote instalado o listar e o
+/// sha256 bater. Sai como está guardado, em gzip, com `Content-Encoding: gzip`
+/// (o navegador descompacta; o motor de 38 MB viaja como ~10 MB) e o tipo pela
+/// extensão (`application/wasm`, sem o qual o Godot não carrega). Toda recusa
+/// é o mesmo 404. `get` também responde `HEAD` (a tela do jogador confere a
+/// entrada antes de abrir o iframe).
+///
+/// Sem pacote instalado, em `tauri dev`, o arquivo vem do Vite (plugin
+/// `jogoDoFogoEmDev`), pelas mesmas regras do `dev_fallback`. Com pacote, ele
+/// manda: nome fora do índice é 404, nunca o Vite.
+async fn minigame_arquivo(
+    State(room): State<Arc<Room>>,
+    Path((jogo, nome)): Path<(String, String)>,
+    headers: HeaderMap,
+    uri: Uri,
+) -> Response {
+    let nao_encontrado = || StatusCode::NOT_FOUND.into_response();
+    let tunnel_host = room.tunnel_host();
+    if !host_da_sala(&headers, tunnel_host.as_deref()) {
+        return nao_encontrado();
+    }
+    let instalado = match room.minigame(&jogo) {
+        Some(pacote) => pacote.ler_indice().await.ok().map(|verificado| (pacote, verificado)),
+        None => None,
+    };
+    let Some((pacote, verificado)) = instalado else {
+        let em_dev = cfg!(debug_assertions) && minigames::jogo_conhecido(&jogo).is_some();
+        if em_dev && dev_fallback_permitido(&headers, tunnel_host.as_deref(), uri.path()) {
+            return dev_proxy(uri.path()).await;
+        }
+        return nao_encontrado();
+    };
+    let (Some(arquivo), Some(tipo)) = (verificado.indice.arquivo(&nome), minigames::tipo_do_arquivo(&nome)) else {
+        return nao_encontrado();
+    };
+    let Ok(etag) = HeaderValue::from_str(&format!("\"{}\"", arquivo.sha256)) else {
+        return nao_encontrado();
+    };
+    let cabecalhos = [
+        (header::CONTENT_TYPE, HeaderValue::from_static(tipo)),
+        (header::CONTENT_ENCODING, HeaderValue::from_static("gzip")),
+        (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
+        (header::CACHE_CONTROL, HeaderValue::from_static(CACHE_DO_MODULO)),
+        (header::HeaderName::from_static("cross-origin-resource-policy"), HeaderValue::from_static("same-origin")),
+        (header::ETAG, etag.clone()),
+    ];
+    if headers.get(header::IF_NONE_MATCH) == Some(&etag) {
+        return (StatusCode::NOT_MODIFIED, cabecalhos).into_response();
+    }
+    match pacote.ler_arquivo_de(arquivo).await {
+        Ok(bytes) => (cabecalhos, bytes).into_response(),
+        Err(_) => nao_encontrado(),
+    }
+}
 
 /// `Cache-Control` do que o navegador confere a cada abertura: a `player.html`
 /// (é ela que aponta para os nomes do build atual), o proxy de dev e o que em

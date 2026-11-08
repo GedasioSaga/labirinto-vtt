@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::sync::Mutex;
 
 use super::animacoes;
+use super::minigames;
 use super::server::{self, lock, Asset, ClientId, ErroAoLiberar, NetSink, PeerEvent, Room, SendError};
 use super::sons::{self, ErroDosSons};
 use super::tunnel::{self, CloseReason, SharedChild, TunnelEvent, TUNNEL_EVENT};
@@ -264,6 +265,11 @@ pub async fn net_start_room<R: Runtime>(app: AppHandle<R>, state: State<'_, NetS
     if let Ok(dados) = app.path().app_data_dir() {
         room.set_media_dir(dados.join(super::media::PASTA_DE_MIDIA));
         room.set_animacoes(super::animacoes::Pacote::oficial(&dados));
+        for jogo in minigames::JOGOS {
+            if let Some(pacote) = minigames::Pacote::oficial(&dados, jogo) {
+                room.set_minigame(pacote);
+            }
+        }
     }
     for listener in listeners {
         tauri::async_runtime::spawn(server::serve(listener, room.clone()));
@@ -545,6 +551,40 @@ pub async fn animacoes_ler_arquivo<R: Runtime>(app: AppHandle<R>, nome: String) 
     let pacote = pacote_de_animacoes(&app)?;
     let bytes = pacote.ler_arquivo(&nome).await.map_err(|e| e.to_string())?;
     Ok(tauri::ipc::Response::new(bytes))
+}
+
+// --- Pacote de minigames (ver `minigames.rs`) -------------------------------
+
+fn pacote_de_minigame<R: Runtime>(app: &AppHandle<R>, jogo: &str) -> Result<minigames::Pacote, String> {
+    let dados = app.path().app_data_dir().map_err(|e| format!("pasta de dados do app indisponível: {e}"))?;
+    minigames::Pacote::oficial(&dados, jogo).ok_or_else(|| "minigame desconhecido".to_owned())
+}
+
+/// Procura o pacote do `jogo` no GitHub e instala se for o caso; o progresso
+/// do download vai por `progresso` (`{ baixado, total }`). Rede e pacote ruim
+/// voltam como `estado`; só falha de disco local (ou jogo desconhecido) vira erro.
+#[tauri::command]
+pub async fn minigames_atualizar<R: Runtime>(
+    app: AppHandle<R>,
+    jogo: String,
+    progresso: tauri::ipc::Channel<minigames::Progresso>,
+) -> Result<minigames::ResultadoDaAtualizacao, String> {
+    let pacote = pacote_de_minigame(&app, &jogo)?;
+    let fonte = minigames::GitHub::novo().map_err(|e| e.to_string())?;
+    let versao = &app.package_info().version;
+    let avisar = move |valor: minigames::Progresso| {
+        // Janela fechada no meio: o download segue, só ninguém vê a barra.
+        let _ = progresso.send(valor);
+    };
+    pacote.atualizar(&fonte, (versao.major, versao.minor, versao.patch), &avisar).await.map_err(|e| e.to_string())
+}
+
+/// O índice instalado do `jogo`, com a assinatura reconferida; `None` se não
+/// houver, não conferir ou o jogo for desconhecido.
+#[tauri::command]
+pub async fn minigames_ler_indice<R: Runtime>(app: AppHandle<R>, jogo: String) -> Option<String> {
+    let pacote = pacote_de_minigame(&app, &jogo).ok()?;
+    pacote.ler_indice().await.ok().map(|verificado| verificado.texto)
 }
 
 async fn active_room(state: &NetState) -> Result<Arc<Room>, String> {
