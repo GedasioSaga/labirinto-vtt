@@ -75,14 +75,17 @@ export type Reversao =
         vez: string | null
         rodada: number
         removidas: readonly { carta: CartaDaOrdem; indice: number }[]
+        /** Os gastos da vez que acabou. O Desfazer de uma linha dela, depois da vez, tira o gasto daqui também (`semOGastoNaFotoDaVez`). */
         gastos: TurnosDaCena['gastos']
-        /** F2: as ações extras de antes (as "rodada" somem ao passar). Ausente = a vez não mexeu nelas. */
-        extras?: TurnosDaCena['extras']
-        /** F2: o combate de antes (a recarga desce no começo da vez). Ausente = a vez não mexeu nele. */
-        combate?: TurnosDaCena['combate']
-        /** F3: os selos de antes (a carta que sai desconta). Ausente = a vez não mexeu neles. */
-        selos?: TurnosDaCena['selos']
       }
+      /**
+       * Conserto das fichas F1 (bug 3): SÓ o que a vez mudou, para o Desfazer
+       * voltar só isso. A foto inteira de antes apagava o que outra linha fez
+       * depois (a recarga de uma reação, um selo posto) e devolvia o que outra
+       * linha já desfez (a recarga da técnica desfeita). Ausente = a vez não
+       * mexeu em extras, combate nem selos.
+       */
+      mudou?: MudancasDaVez
       /**
        * Conserto das fichas F1 (bug 2): as linhas "Não reagiu" que a virada
        * desta vez escreveu, da mais velha para a mais nova. O Desfazer da vez
@@ -200,6 +203,27 @@ export type Reversao =
    * colocação) não foram desfeitas e ele não está em campo.
    */
   | { tipo: 'invocadoSaiu'; invocado: InvocadoNaBatalha; personagem: Personagem | null; token: Token | null }
+
+/** O combate de um personagem antes e depois da vez (as recargas que desceram, a reação que voltou, os lembretes). */
+export interface CombateNaVez {
+  personagemId: string
+  antes: CombateDoPersonagem | null
+  depois: CombateDoPersonagem
+}
+
+/** Um selo que a vez descontou (`depois`) ou fez acabar (`depois` `null`), como estava antes. */
+export interface SeloNaVez {
+  antes: SeloDaBatalha
+  depois: SeloDaBatalha | null
+}
+
+/** Conserto das fichas F1 (bug 3): o que a troca de vez mudou. Cada lista ausente = a vez não mexeu ali. */
+export interface MudancasDaVez {
+  /** As ações extras "só nesta rodada" que saíram: cartaId → a extra. */
+  extras?: Readonly<Record<string, AcoesExtras>>
+  combates?: readonly CombateNaVez[]
+  selos?: readonly SeloNaVez[]
+}
 
 export interface LinhaDoRegistro {
   id: string
@@ -461,12 +485,18 @@ function numeroDe(mapa: Readonly<Record<string, number>>, chave: string): number
   return Object.hasOwn(mapa, chave) ? (mapa[chave] ?? 0) : 0
 }
 
-/** Recargas ou usos de agora sem o que a linha somou: por delta, para não apagar o uso de outra linha; 0 ou menos sai. */
-function numerosSemALinha(atual: Readonly<Record<string, number>>, antes: Readonly<Record<string, number>>, depois: Readonly<Record<string, number>>): Readonly<Record<string, number>> {
+/**
+ * Recargas ou usos de agora sem o que a linha somou: por delta, para não
+ * apagar o uso de outra linha; 0 ou menos sai. `daVez` (bug 3): a recarga que
+ * a vez desceu e que outra linha tirou depois (a técnica que a pôs foi
+ * desfeita) não volta: o delta a ressuscitaria com 1.
+ */
+function numerosSemALinha(atual: Readonly<Record<string, number>>, antes: Readonly<Record<string, number>>, depois: Readonly<Record<string, number>>, daVez = false): Readonly<Record<string, number>> {
   const volta: Record<string, number> = { ...atual }
   for (const chave of new Set([...Object.keys(antes), ...Object.keys(depois)])) {
     const somou = numeroDe(depois, chave) - numeroDe(antes, chave)
     if (somou === 0) continue
+    if (daVez && numeroDe(depois, chave) > 0 && numeroDe(volta, chave) === 0) continue
     const valor = numeroDe(volta, chave) - somou
     if (valor > 0) volta[chave] = valor
     else delete volta[chave]
@@ -540,7 +570,7 @@ function lembretesSemALinha(
  * o uso de uma linha posterior, e devolveria o que outra linha já desfez.
  * Lista vazia e campo ausente saem do objeto.
  */
-function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>): CombateDoPersonagem {
+function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>, daVez = false): CombateDoPersonagem {
   const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
   const semReacao = campoSemALinha(atual.semReacao, antes.semReacao, depois.semReacao)
   const ataquesExtras = campoSemALinha(atual.ataquesExtras, antes.ataquesExtras, depois.ataquesExtras, mesmosAtaquesExtras)
@@ -551,7 +581,7 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
   const evoluidas = listaSemALinha(atual.evoluidas ?? [], antes.evoluidas ?? [], depois.evoluidas ?? [])
   return {
     ...fixos,
-    recargas: numerosSemALinha(atual.recargas, antes.recargas, depois.recargas),
+    recargas: numerosSemALinha(atual.recargas, antes.recargas, depois.recargas, daVez),
     usos: numerosSemALinha(atual.usos, antes.usos, depois.usos),
     overload: campoSemALinha(atual.overload, antes.overload, depois.overload),
     carga: campoSemALinha(atual.carga, antes.carga, depois.carga),
@@ -567,6 +597,129 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
 }
 
 /**
+ * Conserto das fichas F1 (bug 3): o que a troca de vez mudou de `antes` para
+ * `depois` (as extras que saíram, o combate de quem mudou, os selos que
+ * descontaram ou acabaram). Nada = `undefined`.
+ */
+export function mudancasDaVez(antes: TurnosDaCena, depois: TurnosDaCena): MudancasDaVez | undefined {
+  const extras: Record<string, AcoesExtras> = {}
+  for (const [cartaId, extra] of Object.entries(antes.extras)) if (!Object.hasOwn(depois.extras, cartaId)) extras[cartaId] = extra
+  const combates: CombateNaVez[] = []
+  for (const [personagemId, combate] of Object.entries(depois.combate ?? {})) {
+    const deAntes = antes.combate?.[personagemId]
+    if (combate !== deAntes) combates.push({ personagemId, antes: deAntes ?? null, depois: combate })
+  }
+  const selos: SeloNaVez[] = []
+  const selosDepois = new Map((depois.selos ?? []).map((selo) => [selo.id, selo]))
+  for (const selo of antes.selos ?? []) {
+    const depoisDele = selosDepois.get(selo.id) ?? null
+    if (depoisDele !== selo) selos.push({ antes: selo, depois: depoisDele })
+  }
+  const mudou: MudancasDaVez = {
+    ...(Object.keys(extras).length === 0 ? {} : { extras }),
+    ...(combates.length === 0 ? {} : { combates }),
+    ...(selos.length === 0 ? {} : { selos }),
+  }
+  return Object.keys(mudou).length === 0 ? undefined : mudou
+}
+
+/** O selo de agora com o desconto da vez desfeito, campo a campo: o que alguém mudou depois (o mestre editou os turnos) fica. */
+function seloSemAVez(atual: SeloDaBatalha, antes: SeloDaBatalha, depois: SeloDaBatalha): SeloDaBatalha {
+  const turnos = campoSemALinha(atual.turnos, antes.turnos, depois.turnos)
+  const contado = campoSemALinha(atual.contadoNaRodada, antes.contadoNaRodada, depois.contadoNaRodada)
+  if (turnos === atual.turnos && contado === atual.contadoNaRodada) return atual
+  const { contadoNaRodada: _contado, ...resto } = atual
+  return { ...resto, turnos, ...(contado === undefined ? {} : { contadoNaRodada: contado }) }
+}
+
+/** Os selos de agora sem o desconto da vez: o descontado volta 1 (se ainda está lá); o que acabou volta no fim (se não voltou por outro caminho). */
+function selosSemAVez(atual: readonly SeloDaBatalha[], mudancas: readonly SeloNaVez[]): readonly SeloDaBatalha[] {
+  let volta = atual
+  for (const { antes, depois } of mudancas) {
+    const indice = volta.findIndex((selo) => selo.id === antes.id)
+    const agora = volta[indice]
+    if (depois === null) {
+      if (agora === undefined) volta = [...volta, antes]
+      continue
+    }
+    // Saiu depois da vez (desligado, desfeito, tirado pelo mestre): não volta.
+    if (agora === undefined) continue
+    const seloDeVolta = seloSemAVez(agora, antes, depois)
+    if (seloDeVolta === agora) continue
+    const lista = [...volta]
+    lista[indice] = seloDeVolta
+    volta = lista
+  }
+  return volta
+}
+
+/** Os turnos de agora sem o que a vez mudou (`mudancasDaVez`), e nada mais. */
+function semAVez(turnos: TurnosDaCena, mudou: MudancasDaVez): TurnosDaCena {
+  let volta = turnos
+  if (mudou.extras !== undefined) {
+    // A extra que saiu volta; a carta que ganhou outra extra depois fica com a nova.
+    const extras: Record<string, AcoesExtras> = { ...volta.extras }
+    for (const [cartaId, extra] of Object.entries(mudou.extras)) if (!Object.hasOwn(extras, cartaId)) extras[cartaId] = extra
+    volta = { ...volta, extras }
+  }
+  if (mudou.combates !== undefined) {
+    const combate: Record<string, CombateDoPersonagem> = { ...(volta.combate ?? {}) }
+    for (const { personagemId, antes, depois } of mudou.combates) {
+      combate[personagemId] = combateSemALinha(combate[personagemId] ?? combateVazio(), antes ?? combateVazio(), depois, passivasLigadas(volta.selos, personagemId), true)
+    }
+    volta = { ...volta, combate }
+  }
+  if (mudou.selos !== undefined) volta = { ...volta, selos: selosSemAVez(volta.selos ?? [], mudou.selos) }
+  return volta
+}
+
+/** O selo foi posto por uma linha que já foi desfeita (a parte "selo" que o criou). A linha que saiu do teto conta como de pé. */
+function seloDeLinhaDesfeita(registro: readonly LinhaDoRegistro[], seloId: string): boolean {
+  return registro.some((linha) => linha.desfeita !== undefined && partesDe(linha.reversao).some((parte) => parte.tipo === 'selo' && parte.seloId === seloId && parte.antes === null))
+}
+
+/**
+ * Bug 3: a reversão da vez como o Desfazer deve aplicá-la AGORA: o selo que
+ * acabou na vez e cuja linha (o golpe que o pôs) foi desfeita depois não
+ * volta. Nada a tirar = a MESMA reversão.
+ */
+export function vezSemOsSelosDesfeitos(registro: readonly LinhaDoRegistro[], reversao: Extract<Reversao, { tipo: 'vez' }>): Extract<Reversao, { tipo: 'vez' }> {
+  const selos = reversao.mudou?.selos
+  if (reversao.mudou === undefined || selos === undefined) return reversao
+  const ficam = selos.filter(({ antes, depois }) => depois !== null || !seloDeLinhaDesfeita(registro, antes.id))
+  if (ficam.length === selos.length) return reversao
+  const { selos: _selos, ...resto } = reversao.mudou
+  return { ...reversao, mudou: ficam.length === 0 ? resto : { ...resto, selos: ficam } }
+}
+
+/**
+ * Bug 3 ("o jogador quer trocar a ação"): a `linha` desfeita é de uma vez que
+ * já passou. O gasto dela sai também dos gastos guardados na primeira linha
+ * "Vez" de pé depois dela (a que encerrou aquela vez), como o Desfazer faria
+ * dentro da vez. Sem isso, o Desfazer da Vez devolveria a ação gasta por uma
+ * linha já desfeita. Nada a mudar = o MESMO registro.
+ */
+export function semOGastoNaFotoDaVez(registro: readonly LinhaDoRegistro[], linha: LinhaDoRegistro): readonly LinhaDoRegistro[] {
+  const gastos = partesDe(linha.reversao).filter((parte): parte is Extract<Reversao, { tipo: 'gasto' }> => parte.tipo === 'gasto')
+  if (gastos.length === 0) return registro
+  const indice = registro.findIndex((candidata) => candidata.seq > linha.seq && candidata.desfeita === undefined && candidata.reversao.tipo === 'vez')
+  const daVez = registro[indice]
+  if (daVez === undefined || daVez.reversao.tipo !== 'vez') return registro
+  const { reversao } = daVez
+  let foto = reversao.antes.gastos
+  // Da última parte para a primeira, como o Desfazer da composta.
+  for (const parte of [...gastos].reverse()) {
+    const outraVez = parte.vez !== undefined && (parte.vez.cartaId !== reversao.antes.vez || parte.vez.rodada !== reversao.antes.rodada)
+    if (outraVez || !Object.hasOwn(foto, parte.cartaId)) continue
+    foto = comValor(foto, parte.cartaId, parte.antes)
+  }
+  if (foto === reversao.antes.gastos) return registro
+  const lista = [...registro]
+  lista[indice] = { ...daVez, reversao: { ...reversao, antes: { ...reversao.antes, gastos: foto } } }
+  return lista
+}
+
+/**
  * Desfaz na ordem dos turnos o que a reversão guarda. Ficha, equipe e regras
  * não moram aqui (a store as volta por outro caminho): para elas, o MESMO
  * estado. A composta volta da última parte para a primeira.
@@ -576,9 +729,7 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'vez': {
       const { antes } = reversao
       let volta: TurnosDaCena = { ...turnos, vez: antes.vez, rodada: antes.rodada, gastos: antes.gastos }
-      if (antes.extras !== undefined) volta = { ...volta, extras: antes.extras }
-      if (antes.combate !== undefined) volta = { ...volta, combate: antes.combate }
-      if (antes.selos !== undefined) volta = { ...volta, selos: antes.selos }
+      if (reversao.mudou !== undefined) volta = semAVez(volta, reversao.mudou)
       // Em ordem crescente de lugar: cada uma volta ao índice que tinha antes de a rodada virar.
       for (const { carta, indice } of [...antes.removidas].sort((a, b) => a.indice - b.indice)) volta = inserirCarta(volta, carta, indice)
       // A vez de antes pode ter sido tirada depois: aí fica onde está.
@@ -701,11 +852,14 @@ export function invocadoSaiuPorLinha(registro: readonly LinhaDoRegistro[], token
  * C10: o maior Escudo que a ficha teve nesta batalha, lido do registro (toda
  * mudança da ficha na batalha vai numa linha com o "de" e o "para"). É o
  * cheio da barra do Escudo, que não tem máximo na ficha. Nenhuma linha mexeu
- * no Escudo = 0 (quem chama usa o atual).
+ * no Escudo = 0 (quem chama usa o atual). Conserto das fichas F1 (bug 12): a
+ * linha desfeita não conta (o Escudo 500 posto por engano e desfeito deixava
+ * a barra quase vazia até o fim da luta).
  */
-export function escudoMaisAlto(registro: readonly Pick<LinhaDoRegistro, 'reversao'>[], personagemId: string, escudoId: string): number {
+export function escudoMaisAlto(registro: readonly Pick<LinhaDoRegistro, 'reversao' | 'desfeita'>[], personagemId: string, escudoId: string): number {
   let maior = 0
   for (const linha of registro) {
+    if (linha.desfeita !== undefined) continue
     for (const parte of partesDe(linha.reversao)) {
       if (parte.tipo !== 'ficha' || parte.personagemId !== personagemId) continue
       for (const mudanca of parte.partes) if (mudanca.parte === 'recurso' && mudanca.chave === escudoId) maior = Math.max(maior, mudanca.de, mudanca.para)

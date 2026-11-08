@@ -128,6 +128,7 @@ import {
   invocadoSaiuPorLinha,
   linhaDesfeita,
   marcarDesfeita,
+  mudancasDaVez,
   nomeDoAutor,
   partesDoAjuste,
   novoIdDeLinha,
@@ -135,9 +136,11 @@ import {
   registrarAjuste as registrarAjusteNasLinhas,
   reverterTurnos,
   semOContraGasto,
+  semOGastoNaFotoDaVez,
   semOLigarDeGraca,
   textoDaLinha,
   TIPOS_QUE_O_JOGADOR_DESFAZ,
+  vezSemOsSelosDesfeitos,
   type LinhaDoRegistro,
   type ParteDaFicha,
   type Reversao,
@@ -689,6 +692,8 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
     case 'contador':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
     case 'vez':
+      // Bug 3: o selo que acabou na vez e cuja linha foi desfeita depois não volta com ela.
+      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, vezSemOsSelosDesfeitos(cena.registro, reversao)) }, emParte: false, ok: true }
     case 'ordem':
     case 'cartaNova':
     case 'cartaRemovida':
@@ -918,11 +923,6 @@ function trocarFicha(mesa: MesaDaBatalha, personagemId: string, mudar: (atual: P
   return partes
 }
 
-/** Os selos de antes na reversão da vez: só quando a vez os mexeu (senão o Desfazer da vez apagaria selo posto depois). */
-function selosDeAntes(antes: TurnosDaCena, depois: TurnosDaCena): { selos?: TurnosDaCena['selos'] } {
-  return antes.selos === depois.selos ? {} : { selos: antes.selos ?? [] }
-}
-
 /**
  * Conserto das fichas F1 (bug 2): os golpes lançados na vez que está
  * acabando, o contra-ataque fora da vez incluído: a linha deles veio depois
@@ -941,37 +941,6 @@ function golpesDaVezQueAcaba(cena: BatalhaDaCena): ReadonlySet<string> {
   }
   const depois = new Set(cena.registro.filter((linha) => linha.seq > comeco).map((linha) => linha.id))
   return new Set((cena.turnos.golpes ?? []).filter((golpe) => depois.has(golpe.linhaId)).map((golpe) => golpe.id))
-}
-
-/** Os selos de `foto` com o que mudou de `antes` para `depois` (por id: os que sumiram saem, os que vieram entram). */
-function selosComAMudanca(foto: readonly SeloDaBatalha[], antes: readonly SeloDaBatalha[], depois: readonly SeloDaBatalha[]): SeloDaBatalha[] {
-  const ficaram = new Set(depois.map((selo) => selo.id))
-  const eram = new Set(antes.map((selo) => selo.id))
-  const sumiram = new Set(antes.filter((selo) => !ficaram.has(selo.id)).map((selo) => selo.id))
-  const naFoto = foto.filter((selo) => !sumiram.has(selo.id))
-  const jaNaFoto = new Set(naFoto.map((selo) => selo.id))
-  return [...naFoto, ...depois.filter((selo) => !eram.has(selo.id) && !jaNaFoto.has(selo.id))]
-}
-
-/**
- * Conserto das fichas F1 (bug 2): o "Não reagiu" da virada desfeito sozinho
- * sai também da foto da linha "Vez" de pé que o escreveu (os lembretes do
- * dano saem do combate; a marca volta e o selo do golpe sai, como o Desfazer
- * fez agora de `antes` para `depois`). Sem isso, o Desfazer da vez depois
- * traria tudo de volta. Nenhuma vez o listou: o MESMO registro.
- */
-function semOFechamentoNaFoto(registro: readonly LinhaDoRegistro[], fechamento: LinhaDoRegistro, antes: TurnosDaCena, depois: TurnosDaCena): readonly LinhaDoRegistro[] {
-  let mudou = false
-  const novo = registro.map((linha) => {
-    const { reversao } = linha
-    if (linha.desfeita !== undefined || reversao.tipo !== 'vez' || !(reversao.fechados ?? []).includes(fechamento.id)) return linha
-    mudou = true
-    const foto = reversao.antes
-    const combate = foto.combate === undefined ? undefined : (reverterTurnos({ ...depois, combate: foto.combate }, fechamento.reversao).combate ?? {})
-    const selos = foto.selos === undefined ? undefined : selosComAMudanca(foto.selos, antes.selos ?? [], depois.selos ?? [])
-    return { ...linha, reversao: { ...reversao, antes: { ...foto, ...(combate === undefined ? {} : { combate }), ...(selos === undefined ? {} : { selos }) } } }
-  })
-  return mudou ? novo : registro
 }
 
 /** Um efeito "selo" por selo que acabou ("ATORDOADO ACABOU"). */
@@ -1483,7 +1452,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const atual = cenaDe(sceneKey) ?? cena
     // F3: o desfazer do MESTRE faz o Judge erguer a carta em todas as telas; o do jogador, não.
     const efeitos = autor.tipo === 'mestre' ? comEfeitos(atual.efeitos, [{ tipo: 'judge', gesto: 'carta' }]) : atual.efeitos
-    let registro = marcarDesfeita(atual.registro, linhaId, por, Date.now())
+    // Bug 3: a linha de uma vez que já passou: o gasto dela sai também da linha "Vez" que encerrou aquela vez.
+    let registro = semOGastoNaFotoDaVez(marcarDesfeita(atual.registro, linhaId, por, Date.now()), linha)
     // O contra-ataque que esta linha deu e alguém já gastou: o Desfazer de quem gastou não o devolve mais.
     for (const { golpeId, tokenId } of contrasDaReversao(linha.reversao)) registro = semOContraGasto(registro, golpeId, tokenId)
     const nomeDoToken = nomeDoTokenNa(feito.cena.turnos, mesaDoRpg().personagens)
@@ -1875,9 +1845,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const semVazios = semBandosVazios(passadaNaOrdem.turnos, turnos.cartas)
       const passada = semVazios.removidas.length === 0 ? passadaNaOrdem : { ...passadaNaOrdem, turnos: semVazios.turnos, removidas: [...passadaNaOrdem.removidas, ...semVazios.removidas] }
       // Tipos de habilidade F3: na virada, o lembrete das passivas de "rodada N"; no começo da vez, o "a cada turno" do dono.
-      // Só o combate muda, e a reversão "vez" já guarda o combate inteiro de antes: o Desfazer da vez tira os lembretes.
+      // Só o combate muda, e a reversão "vez" guarda o combate de antes e de depois de quem mudou: o Desfazer da vez tira os lembretes.
       const virada = passada.turnos.rodada !== turnos.rodada ? comLembretesDoMomento('rodada', passada.turnos, { personagens, sistema }).turnos : passada.turnos
       const comLembretes = comLembretesDaVez(virada, { personagens, sistema }).turnos
+      // Conserto das fichas F1 (bug 3): a linha guarda só o que a vez mudou (o Desfazer volta só isso).
+      const mudou = mudancasDaVez(turnos, comLembretes)
       const de = cartaDaVez(turnos)
       const para = cartaDaVez(passada.turnos)
       const virou = passada.turnos.rodada !== turnos.rodada ? ` (rodada ${passada.turnos.rodada})` : ''
@@ -1889,8 +1861,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         autor,
         texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${fimDosSelos}`,
         tokenIds: [...new Set([de?.tokenId, para?.tokenId].filter((id): id is string => id !== undefined))],
-        // A foto de antes já tem os "Não reagiu" (vieram antes da vez); `fechados` diz ao Desfazer da vez quais linhas voltam junto.
-        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, extras: turnos.extras, combate: turnos.combate ?? {}, ...selosDeAntes(turnos, passada.turnos) }, ...(fechados.length === 0 ? {} : { fechados }) },
+        // Os "Não reagiu" vieram antes da vez (fora de `mudou`); `fechados` diz ao Desfazer da vez quais linhas voltam junto.
+        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos }, ...(mudou === undefined ? {} : { mudou }), ...(fechados.length === 0 ? {} : { fechados }) },
       }
       gravarCena(sceneKey, { ...comMudanca(cena, comLembretes, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
       return true
@@ -1923,11 +1895,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const para = cartaDaVez(depois)
       const acabaram = selosQueSairam(antes, depois)
       const fimDosSelos = acabaram.length === 0 ? '' : ` · ${textoDosQueAcabaram(acabaram, nomeDoTokenNa(antes, personagens))}`
+      const mudou = mudancasDaVez(antes, depois)
       const linha: LinhaNova = {
         tipo: 'vez',
         texto: `Vez dada a ${nomeDaCarta(para, personagens)}${fimDosSelos}`,
         tokenIds: para === null ? [] : [para.tokenId],
-        reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas, gastos: antes.gastos, extras: antes.extras, combate: antes.combate ?? {}, ...selosDeAntes(antes, depois) } },
+        reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas, gastos: antes.gastos }, ...(mudou === undefined ? {} : { mudou }) },
       }
       gravarCena(sceneKey, { ...comMudanca(cena, depois, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
       return true
@@ -2101,16 +2074,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           if (outra.desfeita === undefined && reacoesComTecnicaDe(outra.reversao).some((parte) => golpeIds.has(parte.golpe.id))) desfazerLinha(sceneKey, outra.id, autor)
         }
       }
-      const antes = cenaDe(sceneKey)?.turnos ?? cena.turnos
       if (!desfazerLinha(sceneKey, linhaId, autor)) return false
       // Conserto das fichas F1 (bug 2): o Desfazer da vez desfaz junto os "Não reagiu" que a virada dela escreveu,
-      // do mais novo para o mais velho, depois da foto (que já os tinha). O já desfeito fica como está.
+      // do mais novo para o mais velho. O já desfeito fica como está. (Bug 3: a vez guarda só o que ela mudou, então
+      // o "Não reagiu" desfeito sozinho antes não volta com ela.)
       if (linha.reversao.tipo === 'vez') {
         for (const fechado of [...(linha.reversao.fechados ?? [])].reverse()) desfazerLinha(sceneKey, fechado, autor)
-      } else if (linha.tipo === 'reacao') {
-        const depois = cenaDe(sceneKey)
-        const registro = depois === undefined ? undefined : semOFechamentoNaFoto(depois.registro, linha, antes, depois.turnos)
-        if (depois !== undefined && registro !== undefined && registro !== depois.registro) gravarCena(sceneKey, { ...depois, registro })
       }
       return true
     },

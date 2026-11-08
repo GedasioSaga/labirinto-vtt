@@ -163,7 +163,7 @@ export function recursosQueAparecem(sistema: SistemaDeRpg | null): RecursoDoSist
 }
 
 /** C10: o Escudo atual da ficha (o mestre vê todos) e o cheio da barra (o maior na batalha); sem Escudo no sistema ou 0 = ausente. */
-function escudoDaFicha(personagem: Personagem | undefined, sistema: SistemaDeRpg | null, registro: readonly Pick<LinhaDoRegistro, 'reversao'>[]): { escudo?: number; escudoMax?: number } {
+function escudoDaFicha(personagem: Personagem | undefined, sistema: SistemaDeRpg | null, registro: readonly Pick<LinhaDoRegistro, 'reversao' | 'desfeita'>[]): { escudo?: number; escudoMax?: number } {
   const escudo = sistema === null ? null : recursoDoEscudo(sistema)
   if (personagem === undefined || escudo === null) return {}
   const lido = numeroDaFicha(personagem.recursos, escudo.id)
@@ -203,7 +203,7 @@ export interface EntradaDoMestre {
   equipes: readonly Equipe[] | undefined
   sistema: SistemaDeRpg | null
   /** O registro da cena: o cheio da barra do Escudo sai dele. Ausente (Arena) = a barra cheia no atual. */
-  registro?: readonly Pick<LinhaDoRegistro, 'reversao'>[]
+  registro?: readonly Pick<LinhaDoRegistro, 'reversao' | 'desfeita'>[]
 }
 
 /** A faixa como o MESTRE a vê: tudo, com d20, empate e os números de todos. */
