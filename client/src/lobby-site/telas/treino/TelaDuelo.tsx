@@ -330,6 +330,7 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
   const site = useSite()
   const soLeitura = useSoLeitura()
   const lutas = useDoSite((estado) => estado.lutas)
+  const lutasNaoAbriram = useDoSite((estado) => estado.lutasNaoAbriram)
   const eu = campanha.eu
   const minhas = useMemo(() => fichasDoDuelo(campanha), [campanha])
   const ativo = duelo.duelos.find((candidato) => candidato.fim === null)
@@ -441,7 +442,7 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
       )}
 
       {/* A luta com vários (F5): criar, salas de espera, acontecendo agora e o histórico; também para o mestre. */}
-      <PainelDasLutas campanha={campanha} lutas={lutas} soLeitura={soLeitura !== null} />
+      <PainelDasLutas campanha={campanha} lutas={lutas} naoAbriram={lutasNaoAbriram} soLeitura={soLeitura !== null} />
 
       {acabados.length > 0 && (
         <section className="lo-tr-bloco" aria-labelledby="duelo-acabados">

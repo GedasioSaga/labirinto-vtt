@@ -1,6 +1,6 @@
 import { chaveDaVez } from '../../lib/batalha/combate'
 import { CONTA_DO_MESTRE, type FichaGuardada, type Membro } from '../../lib/nuvem/tipos'
-import type { Personagem } from '../../lib/personagem'
+import { numeroDaFicha, type Personagem } from '../../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../../lib/sistemaOnePiece'
 import { arbitrarNaLuta } from '../../lib/treino/arbitroDaLuta'
 import type { MotorDoDuelo } from '../../lib/treino/duelo'
@@ -22,6 +22,7 @@ import { VAGAS_POR_LADO_MAX, type LadoDaLuta } from '../../lib/treino/mesaEmMemo
 import { jogadaDoRobo } from '../../lib/treino/robo'
 import { criarSorteio, sementeNova } from '../../lib/treino/sorteio'
 import { lutaParaAConta } from '../../lib/treino/vistaDaLuta'
+import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
 import { candidatasDoRobo, golpesNaVezDe, type GolpesDaVez } from './roboDoDuelo'
 
 /**
@@ -41,6 +42,27 @@ const COMECA_EM_MS = 1_600
 const JOGA_EM_MS = 1_100
 /** As lutas do histórico inicial são jogadas na hora pelo robô: um teto para nunca travar a página. */
 const PASSOS_DO_HISTORICO_MAX = 3_000
+/** As jogadas que a luta de abertura "rodando" já tem quando a página abre. */
+const PASSOS_ANTES_DE_ASSISTIR = 4
+const VIDA_DA_DEMO = recursoDeVida(SISTEMA_ONE_PIECE)
+/**
+ * A luta de abertura "rodando" é de treino com fôlego: a vida máxima vezes isto, e cheia. Com a vida da mesa ela
+ * acabava 3 jogadas depois do "Assistir" (um golpe do Gael tira 96 de uma vida de 30; medido em 100 aberturas).
+ */
+const FOLEGO_DA_ABERTURA = 10
+
+/** A ficha com o fôlego da abertura: o modificador da vida máxima sobe e a vida vai ao máximo novo; sem vida no sistema, a mesma. */
+function comFolego(ficha: Personagem): Personagem {
+  const vida = VIDA_DA_DEMO === null ? null : vidaDoPersonagem(ficha, VIDA_DA_DEMO)
+  if (VIDA_DA_DEMO === null || vida === null) return ficha
+  const { id } = VIDA_DA_DEMO
+  const extra = vida.maximo * (FOLEGO_DA_ABERTURA - 1)
+  return {
+    ...ficha,
+    modificadoresDosRecursos: { ...ficha.modificadoresDosRecursos, [id]: numeroDaFicha(ficha.modificadoresDosRecursos, id) + extra },
+    recursos: { ...ficha.recursos, [id]: vida.maximo + extra },
+  }
+}
 
 export interface OpcoesDaLutaDaDemo {
   campanhaId: string
@@ -136,13 +158,14 @@ export function criarLutaDaDemo(opcoes: OpcoesDaLutaDaDemo): LutaDaDemo {
     }
   }
 
-  function inscricao(conta: EsperaDaLuta['contas'][number], aceite: AceiteDaDemo): InscricaoNaLuta | null {
+  /** `preparar`: o que a luta usa de cada ficha de quem joga (a de abertura "rodando" começa com a vida cheia). */
+  function inscricao(conta: EsperaDaLuta['contas'][number], aceite: AceiteDaDemo, preparar: (ficha: Personagem) => Personagem): InscricaoNaLuta | null {
     const { contaId, nome, papel, lado } = conta
     if (motivoDoAceite(contaId, papel, aceite) !== null) return null
     switch (papel) {
       case 'jogador': {
         const fichas = fichasDaConta(contaId, aceite.fichas)
-        return fichas === null ? null : { contaId, nome, papel, lado, fichas }
+        return fichas === null ? null : { contaId, nome, papel, lado, fichas: fichas.map(preparar) }
       }
       case 'juiz': {
         const fichas = fichasDoTreino(aceite.fichas)
@@ -227,10 +250,10 @@ export function criarLutaDaDemo(opcoes: OpcoesDaLutaDaDemo): LutaDaDemo {
     })
   }
 
-  function comecarLuta(espera: EsperaDaDemo): { ok: true; daMesa: LutaDaMesa } | { ok: false; motivo: MotivoDaLutaRecusada } {
+  function comecarLuta(espera: EsperaDaDemo, preparar: (ficha: Personagem) => Personagem = (ficha) => ficha): { ok: true; daMesa: LutaDaMesa } | { ok: false; motivo: MotivoDaLutaRecusada } {
     const inscricoes = espera.espera.contas.flatMap((conta) => {
       const aceite = espera.aceites.get(conta.contaId)
-      const lida = aceite === undefined ? null : inscricao(conta, aceite)
+      const lida = aceite === undefined ? null : inscricao(conta, aceite, preparar)
       return lida === null ? [] : [lida]
     })
     const criada = criarLuta({ id: espera.espera.id, modo: espera.espera.modo, inscricoes }, motor)
@@ -290,12 +313,23 @@ export function criarLutaDaDemo(opcoes: OpcoesDaLutaDaDemo): LutaDaDemo {
       const aceite = aceiteDoColega(conta)
       if (aceite !== null) marcarAceite(espera, conta.contaId, aceite)
     }
-    const comecada = comecarLuta(espera)
+    // Com os dados da demo isto não recusa: a ficha do aceite é a `primeiraFichaDe`, que passa pelo mesmo filtro
+    // do `fichasDaConta`. A luta que sumia de "Lutas acontecendo agora" não era recusa, era o fim nos passos abaixo
+    // (a mesa mata num golpe). A "rodando" começa com fôlego (`comFolego`), para durar enquanto alguém assiste.
+    const comecada = comecarLuta(espera, ate === 'rodando' ? comFolego : undefined)
     if (!comecada.ok) return
     const { daMesa } = comecada
     if (ate === 'rodando') {
-      // Algumas jogadas já feitas: quem assiste chega no meio da luta.
-      for (let i = 0; i < 4; i += 1) passoDoRobo(daMesa)
+      // Algumas jogadas já feitas: quem assiste chega no meio da luta. O passo que a acabaria não vale (volta ao
+      // de antes): sem ninguém dentro ela não anda (`agendarRobo`), então espera de pé pelo "Assistir".
+      for (let i = 0; i < PASSOS_ANTES_DE_ASSISTIR; i += 1) {
+        const antes = { luta: daMesa.luta, golpesDaVez: daMesa.golpesDaVez }
+        if (!passoDoRobo(daMesa)) break
+        if (daMesa.luta.fim === null) continue
+        daMesa.luta = antes.luta
+        daMesa.golpesDaVez = antes.golpesDaVez
+        break
+      }
       return
     }
     for (let i = 0; i < PASSOS_DO_HISTORICO_MAX && daMesa.luta.fim === null; i += 1) {

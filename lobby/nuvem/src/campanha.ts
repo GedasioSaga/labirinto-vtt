@@ -158,8 +158,30 @@ function limiteDaUrl(url: URL, maximo: number): number {
   return Math.min(Math.max(inteiroDaUrl(url, 'limite', maximo), 1), maximo)
 }
 
+/**
+ * A SQL do DO somando as linhas que cada `exec` gravou (`rowsWritten`, o que a Cloudflare cobra na cota do dia,
+ * índices incluídos). Um getter a mais por `exec`; o total só sai pela porta de dev (`linhasGravadas`), para a
+ * fumaça medir a cota da Arena (plano da Arena, Riscos).
+ */
+function sqlQueContaAsGravadas(sql: SqlStorage, somar: (linhas: number) => void): SqlStorage {
+  return {
+    exec<T extends Record<string, SqlStorageValue>>(query: string, ...bindings: unknown[]): SqlStorageCursor<T> {
+      const cursor = sql.exec<T>(query, ...bindings)
+      somar(cursor.rowsWritten)
+      return cursor
+    },
+    get databaseSize() {
+      return sql.databaseSize
+    },
+    Cursor: sql.Cursor,
+    Statement: sql.Statement,
+  }
+}
+
 export class Campanha extends DurableObject<Env> {
   private readonly sql: SqlStorage
+  /** As linhas gravadas desde que esta instância acordou (`sqlQueContaAsGravadas`); hibernar zera. */
+  private linhasDesdeQueAcordou = 0
   /**
    * O sistema do `estado` (F1), com o resumo do livro e a marca, lido de
    * `meta` uma vez por DO acordado (o publicado pode passar de 1 MB com o
@@ -172,9 +194,16 @@ export class Campanha extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
-    this.sql = ctx.storage.sql
+    this.sql = sqlQueContaAsGravadas(ctx.storage.sql, (linhas) => {
+      this.linhasDesdeQueAcordou += linhas
+    })
     criarEsquemaDaCampanha(this.sql)
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG))
+  }
+
+  /** RPC só da porta de dev (`dev.ts`, fora do bundle de produção): as linhas gravadas desde que esta instância acordou. */
+  linhasGravadas(): number {
+    return this.linhasDesdeQueAcordou
   }
 
   async fetch(request: Request): Promise<Response> {
