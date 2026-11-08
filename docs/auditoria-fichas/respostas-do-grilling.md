@@ -100,3 +100,18 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Manter o Giro: FICA LIGADO, cobra 30 SP no começo de cada vez dele (lembrete Aplicar/pular); a recarga só começa quando ele para.
 - Giro, alvos a 1 quadrado: o JOGADOR ESCOLHE (como hoje).
 - Revigorar: remove TUDO, ATÉ O CANSAÇO DO OVERLOAD (a metade dos atributos).
+- Revigorar: NELE OU NUM ALIADO que ele toque.
+- Giro como defesa de projétil/arma: o app OFERECE SEMPRE e o mestre veta.
+- Homem dos Mares: o MESTRE APLICA (fica no texto).
+- Comandante Inato (ordem dos companheiros): fica como hoje (o mestre arruma a ordem como o jogador pedir). Decidido pela recomendação, sem pergunta.
+- Vagn, Atração Relâmpago como reação: À MÃO por enquanto.
+
+## Ryoko D. Violet (P1-P4; P3 custo por turno e P13 fim da batalha seguem regras já respondidas)
+- Fúria do Dragão: SOBE DE PARTE (usar a Fúria leva para a Parte seguinte).
+- Partes em ORDEM 1 → 2 → 3, uma por vez.
+- Superioridade do Ogro (literal): "NO caso da Ryoko tudo, outros ogros são tudo exeto dano verdadeiro". Regra: na Ryoko os −30% valem contra TUDO (até dano verdadeiro); nos outros ogros, tudo menos dano verdadeiro.
+- Forma com custo por turno sem SP: DESCE UMA PARTE (da Parte 1, volta para a base). (regra do sistema)
+- Overload "metade dos Status": metade da FICHA SEM FORMA (atributos base), até o fim da batalha; a forma soma por cima. (vale para todos)
+- Recuperação de forças: só contra golpe de FOGO ou EXPLOSÃO, o MESTRE CONFIRMA; 20% do dano ANTES do −30% do Ogro; vale também contra Overload e Surpresa.
+- Golpe de Chifres: AÇÃO COMPLETA, 35 SP (a ficha); "ignorando sua defesa" = PULA O ESCUDO, o alvo ainda reage.
+- +20 de Ogro: só no ATACAR e nas técnicas CORPO A CORPO que ainda não escrevem o +20 (o do Chute já é ele).
