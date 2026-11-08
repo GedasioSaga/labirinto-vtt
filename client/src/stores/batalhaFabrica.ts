@@ -1719,6 +1719,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const personagem = personagens.find((candidato) => candidato.id === personagemId)
     const achado = personagem === undefined || sistema === null ? null : contadorDoPersonagem(personagem, sistema)
     if (personagemId === null || achado === null || achado.cartao.id !== pedido.cartaoId) return false
+    // S4: carregar gasta a reação, e o Atordoado ou Paralisado não reage. Zerar (do mestre) continua valendo.
+    if (pedido.tipo === 'ganhar' && travaDoToken(turnos.selos, pedido.tokenId) !== null) return false
     const { leitura } = achado
     const combateAntes = turnos.combate?.[personagemId]
     const nivel = nivelDoContador(turnos, pedido.tokenId, pedido.cartaoId)

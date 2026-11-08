@@ -33,16 +33,32 @@ export function motivoDaTrava(condicao: string): string {
   return `${condicao}: nesta vez só dá para passar a vez`
 }
 
+/** A condição que trava ("Atordoado") entre os selos da ficha; `null` = livre. */
+function condicaoDosSelos(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): string | null {
+  for (const selo of selos ?? []) {
+    const condicao = condicaoQueTrava(selo.nome)
+    if (condicao !== null) return condicao
+  }
+  return null
+}
+
 /**
  * Por que a ficha não age nem reage agora (Atordoado ou Paralisado), ou
  * `null`. `selos` = os da ficha (o jogador passa os da carta dele).
  */
 export function travaDosSelos(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): string | null {
-  for (const selo of selos ?? []) {
-    const condicao = condicaoQueTrava(selo.nome)
-    if (condicao !== null) return motivoDaTrava(condicao)
-  }
-  return null
+  const condicao = condicaoDosSelos(selos)
+  return condicao === null ? null : motivoDaTrava(condicao)
+}
+
+/**
+ * Por que a ficha não carrega o contador (a Polaridade) agora: carregar gasta
+ * a reação, e quem está Atordoado ou Paralisado não reage. `null` = livre.
+ * `selos` = os da ficha, como em `travaDosSelos`.
+ */
+export function travaDoContador(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): string | null {
+  const condicao = condicaoDosSelos(selos)
+  return condicao === null ? null : `${condicao}: não reage, então não dá para carregar`
 }
 
 /** A trava da ficha `tokenId` entre os selos da cena; `null` = livre. */

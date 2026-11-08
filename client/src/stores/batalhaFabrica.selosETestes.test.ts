@@ -8,7 +8,8 @@
  * memória do treino, com fichas inventadas. No máximo 2 testes por situação.
  */
 import { describe, expect, it } from 'vitest'
-import type { PedidoDeAcao, PedidoDePassiva, PedidoDeReacao } from '../lib/batalha/combate'
+import type { PedidoDeAcao, PedidoDePassiva, PedidoDeReacao, PedidoDoContador } from '../lib/batalha/combate'
+import { nivelDoContador } from '../lib/batalha/contador'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { bonusDaBatalha, totalDoBonus } from '../lib/batalha/selos'
 import { combatentesIniciais, type AutorDaAcao, type CartaDaOrdem } from '../lib/batalha/turnos'
@@ -65,6 +66,17 @@ const RESILIENTE = ficha({
   atributos: { forca: 30, agilidade: 40 },
   abas: { transformacoes: [{ id: 'forma_resiliente', nome: 'Resiliente', campos: { acao: 'Livre', danoRecebido: '-20%' } }] },
   cartoesAtivos: ['forma_resiliente'],
+})
+
+/** Age depois, com o contador na ficha (a Polaridade: +10 no nível 1, +20 no 2). */
+const POLARIZADO = ficha({
+  id: 'pers_polarizado',
+  tipo: 'jogador',
+  nome: 'Alvo',
+  recursos: { hp: 300, sp: 50 },
+  maximos: { hp: 300, sp: 60 },
+  atributos: { forca: 30, agilidade: 40 },
+  abas: { habilidades: [{ id: 'tec_polaridade', nome: 'Polaridade', campos: { acao: 'Passiva', efeito: 'Nível 1: + 10 de dano. Nível 2: + 20 de dano' } }] },
 })
 
 /** `dados` = os d20 do host, na ordem; acabou a fila, sai 10. */
@@ -131,6 +143,38 @@ describe('S4: Atordoado e Paralisado só passam a vez', () => {
     expect(loja.getState().agir(CENA, MESTRE, vez(loja), golpe('tec_rapida', alvo, 10))).toBe(true)
     expect(hp(mesa, ids.alvo)).toBe(290)
     expect((cena(loja).turnos.golpes ?? []).some((pendente) => pendente.alvos.some((quem) => quem.tokenId === alvo && quem.danoFinal === undefined))).toBe(false)
+  })
+})
+
+describe('S4: Atordoado e Paralisado não carregam o contador (carregar gasta a reação)', () => {
+  it('Atordoado: carregar é recusado sem mexer na cena; tirado o selo, carrega e gasta a reação', () => {
+    const { loja, ids } = batalha(POLARIZADO)
+    const alvo = carta(loja, 'Alvo').tokenId
+    const carregar: PedidoDoContador = { tipo: 'ganhar', tokenId: alvo, cartaoId: 'tec_polaridade' }
+    expect(loja.getState().porSelo(CENA, alvo, { nome: 'Atordoado', turnos: 1 })).toBe(true)
+    const antes = cena(loja)
+    expect(loja.getState().contador(CENA, MESTRE, carregar)).toBe(false)
+    expect(cena(loja)).toBe(antes)
+    const atordoado = (cena(loja).turnos.selos ?? []).find((selo) => selo.tokenId === alvo && selo.nome.startsWith('Atordoado'))
+    if (atordoado === undefined) throw new Error('o selo Atordoado não entrou')
+    expect(loja.getState().tirarSelo(CENA, atordoado.id)).toBe(true)
+    expect(loja.getState().contador(CENA, MESTRE, carregar)).toBe(true)
+    expect(nivelDoContador(cena(loja).turnos, alvo, 'tec_polaridade')).toBe(1)
+    expect(cena(loja).turnos.combate?.[ids.alvo]?.semReacao).toBe(true)
+  })
+
+  it('Paralisado: com a reação de volta, carregar segue recusado; zerar, que é do mestre, vale', () => {
+    const { loja, ids } = batalha(POLARIZADO)
+    const alvo = carta(loja, 'Alvo').tokenId
+    const pedido = { tokenId: alvo, cartaoId: 'tec_polaridade' }
+    expect(loja.getState().contador(CENA, MESTRE, { tipo: 'ganhar', ...pedido })).toBe(true)
+    passar(loja, 1)
+    expect(cena(loja).turnos.combate?.[ids.alvo]?.semReacao).toBeUndefined()
+    expect(loja.getState().porSelo(CENA, alvo, { nome: 'Paralisado', turnos: 2 })).toBe(true)
+    expect(loja.getState().contador(CENA, MESTRE, { tipo: 'ganhar', ...pedido })).toBe(false)
+    expect(nivelDoContador(cena(loja).turnos, alvo, 'tec_polaridade')).toBe(1)
+    expect(loja.getState().contador(CENA, MESTRE, { tipo: 'zerar', ...pedido })).toBe(true)
+    expect(nivelDoContador(cena(loja).turnos, alvo, 'tec_polaridade')).toBe(0)
   })
 })
 

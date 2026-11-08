@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { PedidoDeAjusteNaBatalha, PedidoDePassiva } from '../../lib/batalha/combate'
+import { travaDoContador } from '../../lib/batalha/condicoes'
 import { contadorDoPersonagem } from '../../lib/batalha/contador'
 import { reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
@@ -226,11 +227,15 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
                   const nivel = nivelNaCarta(carta, contador.leitura.nome)
                   const maximo = contador.leitura.danoPorNivel.length
                   const semReacao = estado.meus?.find((meu) => meu.personagemId === personagemId)?.semReacao === true
+                  // S4: Atordoado ou Paralisado não reage, então não carrega (o host recusa igual).
+                  const travado = travaDoContador(estado.cartas.find((daOrdem) => daOrdem.tokenId === carta.tokenId)?.selos)
                   itens.push({
                     id: 'carregar',
                     rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
-                    detalhe: semReacao ? 'Já gastou a reação: volta na sua vez' : nivel >= maximo ? 'Já está no máximo' : `Perde a reação até a sua vez; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`,
-                    desabilitado: semReacao || nivel >= maximo,
+                    detalhe:
+                      travado ??
+                      (semReacao ? 'Já gastou a reação: volta na sua vez' : nivel >= maximo ? 'Já está no máximo' : `Perde a reação até a sua vez; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
+                    desabilitado: travado !== null || semReacao || nivel >= maximo,
                     onEscolher: () => onCarregar(carta.tokenId, contador.cartao.id),
                   })
                 }

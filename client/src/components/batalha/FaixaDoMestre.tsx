@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { travaDoContador } from '../../lib/batalha/condicoes'
 import { contadorDoPersonagem, motivoDoContador, nivelDoContador } from '../../lib/batalha/contador'
 import { equipeDe } from '../../lib/batalha/equipes'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
@@ -128,12 +129,16 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         const nivel = nivelDoContador(turnos, carta.tokenId, contador.cartao.id)
         const maximo = contador.leitura.danoPorNivel.length
         const motivo = motivoDoContador('ganhar', nivel, maximo, turnos.combate?.[personagemId]?.semReacao === true)
+        // S4: Atordoado ou Paralisado não reage, então não carrega (a store recusa igual).
+        const travado = travaDoContador((turnos.selos ?? []).filter((selo) => selo.tokenId === carta.tokenId))
         const pedido = { tokenId: carta.tokenId, cartaoId: contador.cartao.id }
         itens.push({
           id: 'contador-ganhar',
           rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
-          detalhe: motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`,
-          desabilitado: motivo !== null,
+          detalhe:
+            travado ??
+            (motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
+          desabilitado: travado !== null || motivo !== null,
           onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'ganhar', ...pedido }),
         })
         if (nivel > 0)
