@@ -35,6 +35,21 @@ tempo). Testes: no máximo 2 por situação durante a construção; a bateria co
 - Harvey, Pazada: trocar o Efeito para "Atordoa o alvo por 1 turno" (o leitor entende "por N turnos"), ou ensinar
   "de N turno" ao leitor de selos (`selos.ts`, regra geral, fora da fatia F).
 
+Estado do F0c (F2b, fatia dados, 08/11): no mesmo `scripts/conserto-fichas-f0.cjs` (simulação por padrão; `--aplicar`
+com o app fechado e 0.5.36 ou mais). Grava: Harvey com 1 Kit Médico na mochila; Saga com o HP e o SP atuais iguais ao
+máximo (700/60) onde o atual é 0, e os atributos conferidos contra o Judge padrão (o boneco da Arena tem os 8 em 0,
+`lib/arena/boneco.ts` `novoPersonagem`; a Saga já está assim); Arrombamento do Siegfried com o texto "(Força)". O
+`mudadas-no-disco.json` ainda não lido pelo app guarda a ficha de antes do F0, e a diferença que sobe ao Lobby é F0 + F0c;
+já lido (`feito`), sai um novo com a ficha de agora; lido pela metade (`loteId` sem `feito`), o `--aplicar` recusa.
+Sem dado a gravar (resolvido na tabela pela F2b): Proficiência em Fruta do Vagn, alcance da Projeção e duração da Pazada.
+Fica de fora, com dono:
+- A Caçada Começa continua em Habilidades: o molde de Transformações (`client/src/lib/sistemaOnePiece.ts`, aba
+  `transformacoes`) não tem Custo nem Efeito, e a ficha só mostra os campos do molde (`FichaAbas.tsx`): mudar esconderia os
+  200 SP e o texto dos 5 turnos. Mesmo mudada, a forma fica bloqueada (200 SP com máximo 120). Precisa do campo no molde
+  ou da decisão do mestre.
+- Arma padrão do Siegfried (sem campo) e o número da Infâmia do Harvey (o mestre não deu).
+- Saga "build média, faixa dos jogadores" (1º grilling): a resposta de 08/11 trocou por "os do Judge padrão" = 0.
+
 ## F1. Regras do sistema e os 12 bugs (1 dono, em sequência)
 - Bugs 1-12 (recusa muda, golpe sem resposta vira "Não reagiu" na virada da rodada, desfazer "Vez",
   máximo, −/+ rápido, Salvar do jogador, vez pula, ficha emprestada, desfazer forma tira o que deu,

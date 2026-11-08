@@ -18,6 +18,10 @@
  * ao lado do rpg.json (os itens que o bug B1 apagou). Os nomes de campo são os que o app já usa
  * (`client/src/lib/personagem.ts`, `lib/sistemaOnePiece.ts`, `lib/batalha/leituraDaFicha.ts`).
  *
+ * F0c (mesmo plano, seção F0c): os dados que a F2 achou faltando. Harvey com 1 Kit Médico na mochila; Saga com os
+ * atributos do Judge padrão e o HP e o SP atuais iguais ao máximo; o texto do Arrombamento do Siegfried só com
+ * Força. O que ainda não dá para gravar sai em "Fica para depois".
+ *
  * Toda troca confere o valor de antes: se a ficha já tem outro valor (o mestre mexeu), não mexe e avisa.
  * Rodar duas vezes não muda nada na segunda.
  *
@@ -91,16 +95,40 @@ const BOOMERANG = {
 /** Vagn: fica 21 anos, Ferreiro; sai o bloco de 25 anos, Gatuno. */
 const BLOCO_VELHO_DO_VAGN = 'Idade: 25 \nRaça: Lunariano (Sem asas) \nOfício: Gatuno\n\n'
 
+// ── F0c: os dados que a F2 achou faltando ──────────────────────────────────
+
+/** Harvey: "Kit Médico: ele tem 1 AGORA" e "GASTA POR USO". A Medicina conta os kits pelo nome (`mecanicasAMao.ts` `gastaItem`). */
+const KIT_MEDICO = {
+  nome: 'Kit Médico',
+  categoria: 'Consumível',
+  descricao: 'Cada Medicina gasta 1. Na luta o app conta os usos; o mestre tira o kit da mochila depois.',
+}
+
+/**
+ * Saga: "atributos = os do Judge padrão" (respostas de 08/11). O Judge padrão é o boneco da Arena
+ * (lib/treino/juiz.ts `fichaDoJuiz` sem base -> lib/arena/boneco.ts `fichaDoBoneco` -> lib/personagem.ts
+ * `novoPersonagem`): no One Piece todo atributo nasce 0 e `ajustesPadraoDoJuiz().atributos` é vazio.
+ * Este .cjs não importa o TypeScript do app: se o boneco mudar, mude aqui também.
+ */
+const ATRIBUTOS_DO_JUDGE_PADRAO = { forca: 0, agilidade: 0, percepcao: 0, resistencia: 0, intuicao: 0, espirito: 0, carisma: 0, determinacao: 0 }
+
+/** Saga: o HP e o SP atuais vão ao máximo que o F0 gravou (700/60), só onde o atual é 0. */
+const RECURSOS_CHEIOS_DA_SAGA = ['hp', 'sp']
+
+/** Siegfried: "Arrombamento usa FORÇA". O F0 já trocou o atributo; o texto do cartão ainda falava dos dois. */
+const ARROMBAMENTO_DE = '(Força e/ou Percepção)'
+const ARROMBAMENTO_PARA = '(Força)'
+
 /** O que este script não faz, com o motivo: precisa de campo ou regra que o app ainda não tem. */
 const FICA_PARA_DEPOIS = [
-  'F1/F3.5 Alexei: "A Caçada Começa" continua em Habilidades. O molde de Transformações não tem Custo, Efeito nem duração: mudar de aba esconderia os 200 SP e o texto dos 5 turnos. Precisa da forma cara bloqueada (F1) e dos lobos (F3.5).',
-  'F3.4 Siegfried: arma padrão (não há campo).',
+  'F0c Alexei: "A Caçada Começa" continua em Habilidades. O molde de Transformações (client/src/lib/sistemaOnePiece.ts, aba transformacoes) ainda não tem Custo nem Efeito, e a ficha só mostra os campos do molde: mudar de aba esconderia os 200 SP e o texto dos 5 turnos, na ficha e no Lobby. O código já a lê como forma (Ação "Completa", Ataques extras "1"), mas com 200 SP e máximo 120 ela fica bloqueada mesmo assim.',
+  'F0c Siegfried: arma padrão (a ficha não tem o campo; vale a 1ª arma levada).',
+  'F0c Saga: o Judge padrão tem os 8 atributos em 0, e a Saga já está assim. A "build média, faixa dos jogadores" do 1º grilling pede os números ao mestre.',
   'F3.4 Vincent: Boomerang sem dano, atordoa, 3 usos por combate. Até lá o Atacar com ele sugere Força + 0 = 10: o mestre zera e põe Atordoado à mão.',
   'F2 Vincent: selo "Ferido por prata" (a cura pela metade); a bala já soma +Percepção/2 no tiro.',
   'Harvey: o número da Infâmia não existe em lugar nenhum da ficha; o mestre diz o número (campo próprio = F3).',
-  'F2 Harvey: Kit Médico (tem 1, gasta 1 por Medicina) e Medicina 3 vezes por batalha; Cirurgia só fora da batalha (o extra "Efeito 2" ainda vira botão no menu).',
+  'Harvey: o Kit Médico não sai da mochila durante a luta (o app conta os usos contra os kits que ele tem); o mestre tira à mão depois.',
   'Harvey: Golpe Baixo (dano 0, só cega) e Medicina (cura) não ganham + Dano da Arma: não são golpes de dano.',
-  'Saga: os atributos "na faixa dos jogadores" não têm número na resposta, e o atual continua 0/0 (este script não mexe no atual). O mestre ajusta; "ficha sem HP fica de fora" é F1.',
   'F3.5 Aira (Lovecats) e Alexei (lobos, Planta Carnívora): companions. A frase de abertura do Alexei ("assim como a Aira ele também tem Companion...") não é de nenhuma técnica e não foi gravada.',
   'F1/F2 Aira: a Bênção pergunta os turnos ao usar; Electro quando quiser; Concentração da dança.',
   'Não pedido na F0, só nos relatórios (não gravei): Ryoko B3 (Ação e extra OVERLOAD nas Partes 2 e 3), B4 (Dano "-" nas 3 Fúrias) e os 6 modificadores 0 da Parte 3.',
@@ -413,6 +441,59 @@ function corrigirHarvey(registro, ficha) {
 
   const maldicao = acharCartao(registro, ficha, 'desvantagens', ['Amaldiçoado', 'Amaldiçoado: Infâmia'])
   renomearCartao(registro, 'desvantagens', maldicao, 'Amaldiçoado', 'Amaldiçoado: Infâmia')
+  darKitMedico(registro, ficha)
+}
+
+/** Sem acento, sem caixa e sem espaço nas pontas: "Kit médico " acha o "Kit Médico". */
+function semAcento(texto) {
+  return texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+}
+
+/** F0c, Harvey: 1 Kit Médico na mochila, se ainda não houver nenhum (o mestre pode já ter dado). */
+function darKitMedico(registro, ficha) {
+  const antes = Array.isArray(ficha.mochila) ? ficha.mochila : []
+  const procurado = semAcento(KIT_MEDICO.nome)
+  if (antes.some((item) => ehObjeto(item) && typeof item.nome === 'string' && semAcento(item.nome) === procurado)) return
+  // Sem `itemId`: o acervo da pasta não tem Kit Médico. Sem `quantidade`: ausente = 1.
+  ficha.mochila = [...antes, { id: crypto.randomUUID(), ...KIT_MEDICO }]
+  mudou(registro, ['mochila'], `mochila += ${KIT_MEDICO.nome}`, antes.length === 0 ? undefined : `${antes.length} item(ns)`, `${ficha.mochila.length} item(ns)`)
+}
+
+/** F0c, Saga: "igual ao Judge, ajustável". Atributo que o mestre já mudou fica; HP e SP atuais vão ao máximo onde estão em 0. */
+function corrigirSaga(registro, ficha) {
+  if (!ehObjeto(ficha.atributos)) avisar(registro, 'a ficha não tem "atributos": não mexi nos atributos')
+  else {
+    for (const [atributo, doJudge] of Object.entries(ATRIBUTOS_DO_JUDGE_PADRAO)) {
+      const atual = ficha.atributos[atributo]
+      if (atual === doJudge) continue
+      if (atual !== undefined) {
+        avisar(registro, `atributos.${atributo} é ${curto(atual)} (o Judge padrão tem ${doJudge}): não mexi, o mestre ajustou`)
+        continue
+      }
+      ficha.atributos[atributo] = doJudge
+      mudou(registro, ['atributos', atributo], `atributos.${atributo} (o do Judge padrão)`, undefined, doJudge)
+    }
+  }
+  encherOsRecursos(registro, ficha, RECURSOS_CHEIOS_DA_SAGA)
+}
+
+/** O atual vira o máximo gravado, só onde o atual é 0 ou falta. Atual acima de 0 é do mestre: fica. */
+function encherOsRecursos(registro, ficha, recursos) {
+  if (!ehObjeto(ficha.recursos) || !ehObjeto(ficha.maximos)) {
+    avisar(registro, 'a ficha não tem "recursos" ou "maximos": não enchi o HP e o SP')
+    return
+  }
+  for (const recurso of recursos) {
+    const maximo = ficha.maximos[recurso]
+    const atual = ficha.recursos[recurso]
+    if (atual !== undefined && atual !== 0) continue
+    if (!Number.isSafeInteger(maximo) || maximo <= 0) {
+      avisar(registro, `maximos.${recurso} não está gravado: o atual fica ${curto(atual)}`)
+      continue
+    }
+    ficha.recursos[recurso] = maximo
+    mudou(registro, ['recursos', recurso], `recursos.${recurso} (atual = máximo)`, atual, maximo)
+  }
 }
 
 function corrigirVagn(registro, ficha) {
@@ -448,6 +529,7 @@ function corrigirSiegfried(registro, ficha) {
       mudou(registro, ['abas', 'pericias', arrombamento.id, 'atributos'], 'pericias[Arrombamento].atributos', antes, ['forca'])
     } else avisar(registro, `pericias[Arrombamento].atributos é ${JSON.stringify(arrombamento.atributos)}: não mexi`)
   }
+  trocarTrecho(registro, 'pericias', arrombamento, { campo: 'descricao' }, ARROMBAMENTO_DE, ARROMBAMENTO_PARA)
   trocarTrecho(registro, 'desvantagens', acharCartao(registro, ficha, 'desvantagens', 'Amnésia'), { campo: 'efeito' }, 'Testes de Inteligência', 'Testes de Intuição')
 }
 
@@ -472,6 +554,7 @@ function corrigir(rpg, mochilas, textos) {
     else if (ficha.nome === 'Vagn Kane') corrigirVagn(registro, ficha)
     else if (ficha.nome === 'Jimboy Segundo') corrigirJimboy(registro, ficha)
     else if (ficha.nome === 'Siegfried') corrigirSiegfried(registro, ficha)
+    else if (ficha.nome === 'Saga') corrigirSaga(registro, ficha)
   }
   for (const nome of Object.keys(MAXIMOS)) if (!porNome.has(nome)) registros.push({ nome, id: '?', mudancas: [], avisos: ['ficha não encontrada no rpg.json'] })
   return { depois, registros }
@@ -599,21 +682,34 @@ function pastaDaCampanha(pasta, campanhaId) {
   return path.join(path.dirname(path.dirname(pasta)), 'nuvem', campanhaId)
 }
 
+/** O mudadas-no-disco.json que já existe, conferido; `null` = não existe. Fora do formato lança (não grava por cima). */
+function mudadasExistentes(arquivo) {
+  if (!fs.existsSync(arquivo)) return null
+  let existente
+  try {
+    existente = JSON.parse(fs.readFileSync(arquivo, 'utf8'))
+  } catch (erro) {
+    throw new Error(`${arquivo} não abre como JSON (${erro.message}): não gravo por cima. Nada foi gravado.`)
+  }
+  if (!ehRegistro(existente) || existente.versao !== 1 || !Array.isArray(existente.fichas)) throw new Error(`${arquivo} está fora do formato: não gravo por cima. Nada foi gravado.`)
+  return existente
+}
+
 /**
  * O mudadas-no-disco.json com a ficha de ANTES de cada ficha mudada. Um que o app ainda não leu (sem `feito`) é
- * juntado: a ficha que já estava nele guarda a de antes da PRIMEIRA gravação (é dela que a diferença sai).
+ * juntado: a ficha que já estava nele guarda a de antes da PRIMEIRA gravação (é dela que a diferença sai). Assim o
+ * F0c rodado com o F0 ainda pendente manda F0 + F0c; com o F0 já lido (`feito`), sai um arquivo novo com a ficha de
+ * agora como a de antes.
  */
 function mudadasNovas(arquivo, antes, ids) {
-  let existente = null
-  if (fs.existsSync(arquivo)) {
-    try {
-      existente = JSON.parse(fs.readFileSync(arquivo, 'utf8'))
-    } catch (erro) {
-      throw new Error(`${arquivo} não abre como JSON (${erro.message}): não gravo por cima. Nada foi gravado.`)
-    }
-    if (!ehRegistro(existente) || existente.versao !== 1 || !Array.isArray(existente.fichas)) throw new Error(`${arquivo} está fora do formato: não gravo por cima. Nada foi gravado.`)
-  }
+  const existente = mudadasExistentes(arquivo)
   const pendente = existente !== null && existente.feito === undefined ? existente : null
+  // O app grava o `loteId` de cada ficha antes de pôr a mudança na fila e só depois o `feito`. Ficha com lote e sem
+  // `feito` = o app começou e parou no meio: a mudança dela já pode estar na fila sem esta rodada, e a ficha seria pulada.
+  const comLote = pendente === null ? [] : pendente.fichas.filter((ficha) => ehRegistro(ficha) && ids.includes(ficha.id) && ficha.loteId !== undefined)
+  if (comLote.length > 0) {
+    throw new Error(`${arquivo}: o app começou a mandar ao Lobby ${comLote.length} destas fichas e parou no meio. Abra o Labirinto uma vez (ele termina), feche e rode de novo. Nada foi gravado.`)
+  }
   const fichas = pendente === null ? [] : [...pendente.fichas]
   const jaTem = new Set(fichas.map((ficha) => ficha.id))
   const porIdAntes = new Map(antes.personagens.map((ficha) => [ficha.id, ficha]))
@@ -631,6 +727,18 @@ function gravarMudadas(pasta, campanhaId, antes, ids) {
   fs.writeFileSync(temporario, JSON.stringify(mudadas, null, RECUO_DO_JSON), { encoding: 'utf8', flag: 'wx' })
   fs.renameSync(temporario, arquivo)
   console.log(`para o Lobby: ${arquivo} (${mudadas.fichas.length} ficha(s); o app manda ao iniciar)`)
+}
+
+/** Uma linha: o que o --aplicar fará com o mudadas-no-disco.json desta campanha. */
+function situacaoDasMudadas(pasta, campanhaId) {
+  const arquivo = path.join(pastaDaCampanha(pasta, campanhaId), ARQUIVO_DAS_MUDADAS)
+  const existente = mudadasExistentes(arquivo)
+  if (existente === null) return `Ainda não há ${ARQUIVO_DAS_MUDADAS}: o --aplicar cria um, com a ficha de agora como a de antes.`
+  const quando = typeof existente.quando === 'number' ? new Date(existente.quando).toLocaleString('pt-BR') : '?'
+  if (existente.feito === undefined) {
+    return `O ${ARQUIVO_DAS_MUDADAS} de ${quando} ainda não foi lido pelo app (${existente.fichas.length} ficha(s)): o --aplicar junta neste, cada ficha que já está nele guarda a de antes daquela gravação, e a diferença enviada inclui as duas rodadas.`
+  }
+  return `O ${ARQUIVO_DAS_MUDADAS} de ${quando} já foi lido pelo app: o --aplicar grava um novo, com a ficha de agora como a de antes.`
 }
 
 function aplicar(pasta, textoDeAntes, antes, depois, previstos, campanha, idsMudados) {
@@ -710,6 +818,7 @@ function principal() {
         'Ao iniciar, o app (0.5.36 ou mais) põe a diferença na fila do Lobby como mudança do mestre ANTES de acertar o',
         'rpg.json com a nuvem: a mudança fica e sobe ao site. O que um jogador mudou no site no mesmo campo depois da',
         'última sincronia aparece em "Mudanças para decidir". Com o app abaixo de 0.5.36 o --aplicar recusa (ele desfaria tudo).',
+        situacaoDasMudadas(pasta, campanha),
       ].join('\n'),
     )
   }
