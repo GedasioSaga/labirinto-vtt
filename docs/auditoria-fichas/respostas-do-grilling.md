@@ -125,5 +125,14 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - SP durante a luta: +X SP no começo da vez de quem NÃO usou SP na vez anterior (vale para todos; X pedido ao mestre).
 - Passo de Valsa: vale contra QUALQUER ATAQUE (corpo a corpo e à distância), mas sai SÓ COMO ESQUIVA, e a marca só com Esquiva.
 - SP na luta: X = +10 (vale para todos).
-- Bala de Prata (literal): "A bala de prata é só para dar 10-20 de dano a mais é uma bala só isso." e "Bala de Prata não faz isso." (sem metade da cura). Corrigir o texto do item.
+- Bala de Prata: o mestre primeiro disse "só 10-20 de dano a mais" e depois CORRIGIU (literal): "Eu me enganei, o dano da bala de prata é o seguinte Causa dano igual a metade da precisão. Inimigos feridos pela bala de prata terão a cura recebida reduzida pela metade." Vale o texto original do item.
 - Escudo: VOLTA CHEIO A CADA BATALHA (grava o máximo; vale para todo Escudo).
+- Marca: o lembrete vale ATÉ O FIM DA VEZ DO VINCENT; o MESTRE PODE RESPONDER por ele quando o jogador não está.
+- Desenhar o alvo: 1 ALVO; "Dano Perfurante" IGNORA O ESCUDO (direto no HP).
+- O tiro que gasta a marca JÁ PODE MARCAR DE NOVO.
+- Bala de Prata, conta: "precisão" = PERCEPÇÃO; SOMA AO TIRO: 55 + 17 = 72. "Cura pela metade": SELO "Ferido por prata" SÓ LEMBRA o mestre (ele corta à mão).
+- Tempo de recarga: conta nas VEZES DO PRÓPRIO PERSONAGEM (como hoje). (regra do sistema; P1 do 00-bugs)
+- Olhar artístico (literal): "Vamos Fazer o Seguinte deixao Dano Dobrado e coloca que o alvo tem desvantagem em desviar." Regra: DANO DOBRADO e o alvo reage com DESVANTAGEM na esquiva.
+- 10 balas do pente: SÓ MOSTRAR na Capacidade (o app não conta).
+- Duas Acrobacia: APAGAR UMA.
+- Boomerang (literal): "É uma arma de Arremesso que quando acerta não da dano mas atordoa o alvo, crie que é um efeito da arma e que esse efeito só pode ser usado 3 vezes no combate." Regra: vai para a aba Armas como ARREMESSO; ao acertar NÃO DÁ DANO e ATORDOA o alvo; efeito da arma com limite de 3 USOS POR COMBATE. (recurso novo: efeito de arma com usos por combate)
