@@ -29,7 +29,8 @@ tempo). Testes: no máximo 2 por situação durante a construção; a bateria co
   e aplica −10%; "Me dar dano" com Resiliente desconta e avisa; Preparação para a Batalha (+20 no
   atributo escolhido, pergunta no início); ao transformar, o app pergunta a ação ao jogador.
 
-## F2. Automação por personagem (1 dono, em sequência, ficha por ficha)
+## F2. Automação por personagem (1 dono, em sequência, ficha por ficha, PROGRAMADA À MÃO)
+Decisão do mestre (08/11): as fichas que já existem são programadas à mão; o construtor de mecânicas (docs/planos/construtor-de-mecanicas-2026-11-08.md) é para as próximas técnicas, principalmente de NPC.
 Disputas que o app rola (Corta Cenoura, dança da Aira, Explosão, Entardecer, Imã-Gumelo, Campo de
 Contenção com a CD da fruta), áreas (Aplauso 6x6, Giro de Pá, Lua Incandescente dividida, Projeção em
 linha), selos (Aéreo, Cego zera Percepção, Ferido por prata só lembrete, Queimando 1 turno), perguntas
