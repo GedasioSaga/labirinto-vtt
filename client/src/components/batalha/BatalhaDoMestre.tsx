@@ -7,7 +7,7 @@ import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { acoesDoInvocado, comunsQueSaem, membrosDoBando, motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
-import { saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
+import { lembreteDoSelo, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
@@ -67,13 +67,16 @@ function SelosDaVez({ turnos, tokenId, nome, sistema, onDialogo }: { turnos: Tur
     <div className="bt-selos-da-vez" role="group" aria-label={`Selos de ${nome}`}>
       {selos.map((selo) => {
         const mods = textoDosMods(selo.mods, sistema)
+        // F2 (fatia A): o selo que só lembra o mestre (Ferido por prata) diz o quê no título e para o leitor de tela.
+        const lembrete = lembreteDoSelo(selo.nome)
         return (
           <button
             key={selo.id}
             type="button"
             className="bt-selo bt-selo--botao"
             data-natureza={selo.natureza === 'condicao' ? undefined : selo.natureza}
-            aria-label={`${textoDoSeloComMods(selo, sistema)}: editar ou tirar`}
+            title={lembrete === null ? undefined : `${selo.nome}: ${lembrete}`}
+            aria-label={`${textoDoSeloComMods(selo, sistema)}${lembrete === null ? '' : ` (${lembrete})`}: editar ou tirar`}
             onClick={() => onDialogo({ tipo: 'selo', tokenId, seloId: selo.id })}
           >
             {textoDoSelo(selo)}

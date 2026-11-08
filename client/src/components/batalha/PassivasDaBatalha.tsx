@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { CUSTO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type LembreteDaPassiva, type PedidoDePassiva, type SeloDaBatalha, type SeloPedido } from '../../lib/batalha/combate'
-import { comportamentoDoSelo, DANO_DO_SANGRAMENTO, danoPorVezDoSelo, ehLembreteDoSangramento } from '../../lib/batalha/condicoes'
+import { DANO_DO_SANGRAMENTO, ehLembreteDoSangramento, porVezDoLembrete } from '../../lib/batalha/condicoes'
 import { ehLembreteDoCustoDaForma, type CustoDaFormaNaTela } from '../../lib/batalha/custoPorTurno'
 import { BONUS_DA_PREPARACAO, NOME_DA_PREPARACAO, ehLembreteDaPreparacao } from '../../lib/batalha/preparacao'
 import { cartaoDaVariante, temEscolha, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
@@ -786,10 +786,8 @@ export function lembreteDaRegraNaTela(lembrete: LembreteDaPassiva, quem?: string
   const regra = ehLembreteDoSangramento(lembrete) ? 'sangramento' : ehLembreteDaPreparacao(lembrete) ? 'preparacao' : null
   if (regra === null) return null
   const item: LembreteDaRegraNaTela = quem === undefined ? { lembrete, regra } : { lembrete, regra, quem }
-  // F2 (fatia A): o selo do lembrete diz o nome e quanto tira (o `cartaoId` do lembrete é o id do selo).
-  const selo = regra === 'sangramento' ? selos?.find((candidato) => candidato.id === lembrete.cartaoId) : undefined
-  const dano = selo === undefined ? null : danoPorVezDoSelo(selo)
-  if (selo !== undefined && dano !== null) item.porVez = { nome: comportamentoDoSelo(selo.nome)?.nome ?? selo.nome, dano }
+  // F2 (fatia A): o nome e quanto tira vêm do selo (o `cartaoId` do lembrete é o id dele) ou, se ele já saiu no fim da vez, do próprio lembrete; é o mesmo que o Aplicar tira.
+  if (regra === 'sangramento') item.porVez = porVezDoLembrete(lembrete, selos)
   return item
 }
 

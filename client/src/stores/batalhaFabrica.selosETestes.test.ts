@@ -8,6 +8,7 @@
  * memória do treino, com fichas inventadas. No máximo 2 testes por situação.
  */
 import { describe, expect, it } from 'vitest'
+import { reacaoDoBoneco } from '../lib/arena/reacaoDoBoneco'
 import type { PedidoDeAcao, PedidoDePassiva, PedidoDeReacao, PedidoDoContador } from '../lib/batalha/combate'
 import { nivelDoContador } from '../lib/batalha/contador'
 import type { VezEsperada } from '../lib/batalha/ponte'
@@ -229,6 +230,40 @@ describe('S4: Sangramento no começo da vez de quem sangra', () => {
     expect(loja.getState().passiva(CENA, MESTRE, { tipo: 'lembrete', tokenId: lutador, cartaoId, aplicar: false })).toBe(true)
     expect(hp(mesa, ids.lutador)).toBe(300)
     expect((cena(loja).turnos.combate?.[ids.lutador]?.lembretes ?? []).filter((candidato) => candidato.chave.endsWith(':sangra'))).toEqual([])
+  })
+})
+
+describe('F2 (fatia A, revisão): o selo que sai antes da resposta', () => {
+  it('Sangrando que saiu no fim da vez: o Aplicar tira o que o lembrete guardou', () => {
+    const { loja, mesa, ids } = batalha()
+    const lutador = carta(loja, 'Lutador').tokenId
+    // Posto na vez do Lutador, a vez de agora não conta: vale a próxima, e sai no fim dela.
+    expect(loja.getState().porSelo(CENA, lutador, { nome: 'Sangrando', turnos: 1 })).toBe(true)
+    passar(loja, 2)
+    const lembrete = (cena(loja).turnos.combate?.[ids.lutador]?.lembretes ?? []).find((candidato) => candidato.chave.endsWith(':sangra'))
+    if (lembrete === undefined) throw new Error('o lembrete do Sangramento não saiu')
+    expect(lembrete.porVez).toEqual({ nome: 'Sangrando', dano: 10 })
+    passar(loja, 1)
+    expect((cena(loja).turnos.selos ?? []).some((selo) => selo.id === lembrete.cartaoId)).toBe(false)
+    expect(loja.getState().passiva(CENA, MESTRE, { tipo: 'lembrete', tokenId: lutador, cartaoId: lembrete.cartaoId, aplicar: true })).toBe(true)
+    expect(hp(mesa, ids.lutador)).toBe(290)
+    expect(ultimaLinha(loja)).toBe('Lutador sangra: -10 HP (direto, sem o Escudo)')
+  })
+
+  it('o robô do treino com Aéreo: no d20 alto pede Defender, e a batalha aceita (nada de Esquiva recusada sem fim)', () => {
+    const dados: number[] = []
+    const { loja } = batalha(ALVO, dados)
+    const alvo = carta(loja, 'Alvo').tokenId
+    expect(loja.getState().porSelo(CENA, alvo, { nome: 'Aéreo', turnos: 1 })).toBe(true)
+    expect(loja.getState().agir(CENA, MESTRE, vez(loja), golpe('tec_rapida', alvo, 10))).toBe(true)
+    const rolar = reacaoDoBoneco(cena(loja).turnos.golpes, alvo, 'd20', 0, cena(loja).turnos.selos)
+    if (rolar === null) throw new Error('o golpe não esperou a reação do alvo')
+    dados.push(18)
+    expect(loja.getState().reagir(CENA, MESTRE, rolar)).toBe(true)
+    const escolha = reacaoDoBoneco(cena(loja).turnos.golpes, alvo, 'd20', 0, cena(loja).turnos.selos)
+    expect(escolha).toMatchObject({ tipo: 'escolher', saida: 'metade' })
+    if (escolha === null) throw new Error('o robô não escolheu')
+    expect(loja.getState().reagir(CENA, MESTRE, escolha)).toBe(true)
   })
 })
 

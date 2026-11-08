@@ -4,6 +4,7 @@ import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import { membrosDoBando } from '../../lib/batalha/invocacao'
 import { escudoMaisAlto, nomeDoAutor, podeDesfazer, type LinhaDoRegistro, type LinhaParaJogador } from '../../lib/batalha/registro'
 import type { ModDoSelo, NaturezaDoSelo } from '../../lib/batalha/combate'
+import { lembreteDoSelo } from '../../lib/batalha/condicoes'
 import { selosDoToken, textoDoSelo, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, nomeDaFormaLigada } from '../../lib/batalha/transformacao'
 import { proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from '../../lib/batalha/turnos'
@@ -124,7 +125,10 @@ export function textoLongoDoSelo(selo: SeloNaCarta): string {
   const ateTirar = selo.natureza === 'passiva' ? 'até desligar' : 'até o mestre tirar'
   const duracao = selo.turnos === null ? ateTirar : `${selo.turnos} ${selo.turnos === 1 ? 'turno' : 'turnos'}`
   const corpo = `${selo.nome}: ${selo.mods === '' ? duracao : `${selo.mods}, ${duracao}`}`
-  return selo.natureza === undefined ? corpo : `${NOME_DA_NATUREZA[selo.natureza]} · ${corpo}`
+  const comNatureza = selo.natureza === undefined ? corpo : `${NOME_DA_NATUREZA[selo.natureza]} · ${corpo}`
+  // F2 (fatia A): o selo que só lembra o mestre (Ferido por prata) diz o quê.
+  const lembrete = lembreteDoSelo(selo.nome)
+  return lembrete === null ? comNatureza : `${comNatureza} · ${lembrete}`
 }
 
 export interface DadosDaFaixa {

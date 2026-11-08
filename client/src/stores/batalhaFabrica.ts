@@ -84,10 +84,9 @@ import {
   textoDosMods,
   textoDosQueAcabaram,
   selosDoToken,
-  totalDoBonus,
 } from '../lib/batalha/selos'
 import { ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, formaDaFicha, usosDaForma } from '../lib/batalha/transformacao'
-import { comportamentoDoSelo, danoPorVezDoSelo, ehLembreteDoSangramento, modsDoComportamento, saidasComOsSelos, travaDoToken } from '../lib/batalha/condicoes'
+import { comportamentoDoSelo, ehLembreteDoSangramento, porVezDoLembrete, saidasComOsSelos, travaDoToken } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
 import { ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
@@ -185,7 +184,7 @@ import {
   type GastoDaVez,
   type TurnosDaCena,
 } from '../lib/batalha/turnos'
-import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_MAX, valorDoRank, type Ajuste } from '../lib/ajusteDaFicha'
+import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 
@@ -1016,25 +1015,15 @@ function efeitosDosSelos(acabaram: readonly SeloDaBatalha[]): EfeitoNovo[] {
 }
 
 /** Q6: o selo do golpe no alvo que ele ACERTOU (resolvido com saída que pega). Sem selo, sem acerto ou no teto: `null`. */
-function seloDoGolpe(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
+function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
   if (golpe.selo === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida)) return null
-  const pedido = seloComOComportamento(mesa, turnos, alvo.tokenId, alvo.personagemId, golpe.selo)
+  const pedido = golpe.selo
   // F2 (fatia A): o selo que renova (Queimando) volta aos turnos cheios em vez de pôr outro.
   const renovado = seloRenovado(turnos, alvo.tokenId, pedido)
   if (renovado !== null) return renovado
   const selo = criarSelo(alvo.tokenId, pedido, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: golpe.nome })
   const selos = comSeloNovo(turnos.selos, selo)
   return selos === null ? null : { selos, parte: { tipo: 'selo', seloId: selo.id, antes: null } }
-}
-
-/** F2 (fatia A): o selo com os mods do que ele faz (Cego zera a Percepção do alvo de agora). */
-function seloComOComportamento<T extends SeloPedido>(mesa: MesaDaBatalha, turnos: TurnosDaCena, tokenId: string, personagemId: string | null, pedido: T): T {
-  const sistema = mesa.sistema()
-  const personagem = personagemId === null ? undefined : mesa.personagens().find((candidato) => candidato.id === personagemId)
-  if (sistema === null || personagem === undefined) return pedido
-  const bonus = bonusDaBatalha(turnos.selos, tokenId)
-  const mods = modsDoComportamento(pedido.nome, pedido.mods, (atributoId) => (sistema.atributos.some((atributo) => atributo.id === atributoId) ? valorDoRank(personagem, atributoId) + totalDoBonus(bonus, atributoId) : null))
-  return mods === pedido.mods ? pedido : { ...pedido, mods }
 }
 
 /** F2 (fatia A): o selo igual que já está no alvo e renova; `null` = não renova (põe um novo). */
@@ -1398,10 +1387,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const quem = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
     const partes: Reversao[] = [{ tipo: 'combate', personagemId, antes: combateAntes, depois: semOLembrete }]
     if (sangramento) {
-      // F2 (fatia A): o selo diz quanto tira (Sangrando 10, Queimando N) e o verbo da linha.
-      const selo = turnos.selos?.find((candidato) => candidato.id === lembrete.cartaoId)
-      const porVez = selo === undefined ? null : danoPorVezDoSelo(selo)
-      if (selo === undefined || porVez === null) return false
+      // F2 (fatia A): quanto tira (Sangrando 10, Queimando N) e o verbo da linha vêm do selo, ou do lembrete se o selo já saiu no fim da vez.
+      const { nome, dano: porVez } = porVezDoLembrete(lembrete, turnos.selos)
       const feito = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoDano(atual, sistemaDaMesa, porVez, true), quemNaFicha(autor))
       if (feito === 'recusada') return false
       partes.push(...reversaoDaFicha(personagemId, feito))
@@ -1411,7 +1398,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
       const lembrados = lembrarDepoisDoDano(semCaidos)
       partes.push(...partesDosLembretes(lembrados))
-      const texto = `${quem} ${comportamentoDoSelo(selo.nome)?.verbo ?? 'sangra'}: -${porVez} HP (direto, sem o Escudo)${textoDosQueSairam(caidos.nomes)}`
+      const texto = `${quem} ${comportamentoDoSelo(nome)?.verbo ?? 'sangra'}: -${porVez} HP (direto, sem o Escudo)${textoDosQueSairam(caidos.nomes)}`
       gravarCena(sceneKey, {
         ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }),
         efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId: carta.tokenId, valor: porVez, saida: 'direto' }]),
@@ -1903,7 +1890,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       partes.push(...dano.partes)
       if (dano.efeito !== null) efeitos.push(dano.efeito)
       // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo (Metade, Receber).
-      const selado = seloDoGolpe(mesa, novos, golpe, depois)
+      const selado = seloDoGolpe(novos, golpe, depois)
       if (selado !== null) {
         partes.push(selado.parte)
         novos = { ...novos, selos: selado.selos }
@@ -2059,7 +2046,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         partes.push(...feito.partes, ...acerto.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
         // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
-        const selado = seloDoGolpe(mesa, novos, golpe, alvo)
+        const selado = seloDoGolpe(novos, golpe, alvo)
         if (selado !== null) {
           partes.push(selado.parte)
           novos = { ...novos, selos: selado.selos }
@@ -2148,7 +2135,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         }
         partes.push({ tipo: 'reacaoComTecnica', golpe, tokenId: esperando.tokenId, alvoAntes: esperando }, ...acerto.partes, ...feito.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
-        const selado = seloDoGolpe(mesa, novos, golpe, acerto.alvo)
+        const selado = seloDoGolpe(novos, golpe, acerto.alvo)
         if (selado !== null) {
           partes.push(selado.parte)
           novos = { ...novos, selos: selado.selos }
@@ -2754,7 +2741,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           partes.push(...feito.partes, ...acerto.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
-          const selado = seloDoGolpe(mesa, marcados, golpe, resolvido)
+          const selado = seloDoGolpe(marcados, golpe, resolvido)
           if (selado !== null) {
             partes.push(selado.parte)
             selos = selado.selos
@@ -2922,10 +2909,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (cena === undefined || selo === null || !cena.turnos.cartas.some((carta) => carta.tokenId === tokenId)) return false
       const { turnos } = cena
       // Tipos de habilidade F2: a cor do selo à mão vem do sinal dos mods ("Reação +3" = buff).
-      // F2 (fatia A): o selo à mão também faz o que diz (Cego zera a Percepção).
-      const carta = turnos.cartas.find((candidata) => candidata.tokenId === tokenId)
-      const comComportamento = seloComOComportamento(mesa, turnos, tokenId, carta?.personagemId ?? null, selo)
-      const novo = criarSelo(tokenId, { ...comComportamento, natureza: naturezaDosMods(comComportamento.mods) }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos) })
+      // F2 (fatia A): o que o selo faz pelo nome (Cego zera a Percepção) é lido na hora (`bonusDaBatalha`), nada é gravado aqui.
+      const novo = criarSelo(tokenId, { ...selo, natureza: naturezaDosMods(selo.mods) }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos) })
       const selos = comSeloNovo(turnos.selos, novo)
       if (selos === null) return false
       const texto = `Mestre pôs ${textoDoSeloComMods(novo, sistema)} em ${nomeDoTokenNa(turnos, personagens)(tokenId)}`

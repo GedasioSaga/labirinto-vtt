@@ -21,7 +21,7 @@ function trechosDoBonus(bonus: BonusDaBatalha | undefined): TrechoDoBonus[] {
     if (alvo === ALVO_DA_REACAO) continue
     for (const parte of partes) {
       const texto = textoDoBonus([parte]).trim()
-      if (texto !== '' && !trechos.has(texto)) trechos.set(texto, { texto, sinal: parte.delta < 0 ? 'menos' : 'mais' })
+      if (texto !== '' && !trechos.has(texto)) trechos.set(texto, { texto, sinal: parte.delta < 0 || parte.zera === true ? 'menos' : 'mais' })
     }
   }
   return [...trechos.values()]

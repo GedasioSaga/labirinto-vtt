@@ -1,7 +1,7 @@
 import { atributoComposto } from '../ajusteDaFicha'
 import { FORCA_PADRAO, aplicarForca, forcaDe, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { AtributoDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
-import { ALVO_DO_DANO, partesDoBonus, type BonusDaBatalha, type ParteDoBonus } from './combate'
+import { ALVO_DO_DANO, partesDoBonus, valorComAsPartes, type BonusDaBatalha, type ParteDoBonus } from './combate'
 
 /**
  * O DANO DA FICHA, F2 (seção 3.2 de docs/planos/batalha-one-piece-f2-plano.md):
@@ -349,9 +349,9 @@ class Leitor {
     if (atributo === null) return this.falhar({ tipo: 'naoEntende' })
     this.i += 1
     const total = atributoComposto(this.ctx.personagem, atributo.id).total
-    // Tipos de habilidade F2: o selo soma no atributo, e a conta diz qual ("160 Força +20 (Fúria)").
+    // Tipos de habilidade F2: o selo soma no atributo, e a conta diz qual ("160 Força +20 (Fúria)"); F2 (fatia A): o Cego deixa a Percepção em 0 ("→ 0 (Cego)").
     const partes = partesDoBonus(this.ctx.bonusDaBatalha, atributo.id)
-    const valor = partes.reduce((soma, parte) => soma + parte.delta, total)
+    const valor = valorComAsPartes(total, partes)
     return { valor, conta: `${formatarNumero(total)} ${atributo.nome}${textoDoBonus(partes)}` }
   }
 
@@ -497,9 +497,9 @@ export function lerDano(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
   return comBonusDeDano(comForca(lerDanoSemForca(texto, ctx), ctx.personagem), ctx.bonusDaBatalha)
 }
 
-/** " +20 (Fúria) -15 (Lento)": as partes de um bônus como a conta as mostra (com espaço na frente; nenhuma = vazio). */
+/** " +20 (Fúria) -15 (Lento)": as partes de um bônus como a conta as mostra (com espaço na frente; nenhuma = vazio). A que zera: " → 0 (Cego)". */
 export function textoDoBonus(partes: readonly ParteDoBonus[]): string {
-  return partes.map((parte) => ` ${parte.delta < 0 ? '-' : '+'}${formatarNumero(Math.abs(parte.delta))} (${parte.nome})`).join('')
+  return partes.map((parte) => (parte.zera === true ? ` → 0 (${parte.nome})` : ` ${parte.delta < 0 ? '-' : '+'}${formatarNumero(Math.abs(parte.delta))} (${parte.nome})`)).join('')
 }
 
 /**

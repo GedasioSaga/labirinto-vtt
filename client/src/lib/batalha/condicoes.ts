@@ -1,4 +1,4 @@
-import type { LembreteDaPassiva, ModDoSelo, SaidaDaReacao, SeloDaBatalha } from './combate'
+import type { LembreteDaPassiva, PorVezDoSelo, SaidaDaReacao, SeloDaBatalha } from './combate'
 import { normalizar } from './formula'
 
 /**
@@ -31,7 +31,7 @@ export interface ComportamentoDoSelo {
   trava?: true
   /** As saídas da reação que o selo tira (Aéreo: Esquiva e Contra-ataque; Defender e Receber ficam). */
   tiraSaidas?: readonly SaidaDaReacao[]
-  /** O atributo que fica em 0 enquanto o selo existe (Cego: Percepção). */
+  /** O atributo que fica em 0 enquanto o selo existe (Cego: Percepção). Lido na hora (`bonusDaBatalha` põe a parte que zera), nunca congelado quando o selo nasce. */
   zera?: string
   /** O que tira no começo da vez da vítima, direto no HP, pelo lembrete "Aplicar / pular" do mestre. O selo pode trazer o dele (`SeloDaBatalha.porVez`). */
   porVez?: number
@@ -43,6 +43,10 @@ export interface ComportamentoDoSelo {
   lembrete?: string
 }
 
+/** Regra do sistema (respostas do Alexei e do Siegfried): o Sangramento tira 10 por vez, direto no HP. */
+export const DANO_DO_SANGRAMENTO = 10
+const NOME_DO_SANGRAMENTO = 'Sangrando'
+
 /** A tabela, na ordem em que o nome é procurado. */
 const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Atordoado', sinal: /^atordoad/, trava: true },
@@ -50,7 +54,7 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Aéreo', sinal: /^aere[oa]/, tiraSaidas: ['esquiva', 'contra'] },
   { nome: 'Cego', sinal: /^ceg[oa]/, zera: 'percepcao' },
   { nome: 'Ferido por prata', sinal: /^ferid[oa] por prata/, lembrete: 'a cura que recebe cai pela metade (o mestre corta à mão)' },
-  { nome: 'Sangrando', sinal: /^sangr/, porVez: 10, verbo: 'sangra' },
+  { nome: NOME_DO_SANGRAMENTO, sinal: /^sangr/, porVez: DANO_DO_SANGRAMENTO, verbo: 'sangra' },
   { nome: 'Queimando', sinal: /^queima/, porVez: 10, verbo: 'queima', renova: true },
 ]
 
@@ -58,6 +62,11 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
 export function comportamentoDoSelo(nomeDoSelo: string): ComportamentoDoSelo | null {
   const normal = normalizar(nomeDoSelo).trim()
   return COMPORTAMENTOS_DOS_SELOS.find((comportamento) => comportamento.sinal.test(normal)) ?? null
+}
+
+/** O que o selo só lembra ao mestre (Ferido por prata: a cura cai pela metade), para o título da pílula; `null` = nada a lembrar. */
+export function lembreteDoSelo(nomeDoSelo: string): string | null {
+  return comportamentoDoSelo(nomeDoSelo)?.lembrete ?? null
 }
 
 /** O nome da condição que trava ("Atordoado"), se o selo é uma; `null` = não trava. */
@@ -80,24 +89,18 @@ export function saidasTiradas(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | un
   return [...new Set((selos ?? []).flatMap((selo) => comportamentoDoSelo(selo.nome)?.tiraSaidas ?? []))]
 }
 
-/**
- * Os mods que o selo novo leva por fazer o que diz: Cego põe a Percepção do
- * alvo em 0 (o total de agora, com os selos que ele já tem, em negativo).
- * Selo sem atributo para zerar, ou já em 0: os mods do pedido, iguais.
- */
-export function modsDoComportamento(nomeDoSelo: string, mods: readonly ModDoSelo[] | undefined, totalDoAtributo: (atributoId: string) => number | null): readonly ModDoSelo[] | undefined {
-  const zera = comportamentoDoSelo(nomeDoSelo)?.zera
-  if (zera === undefined) return mods
-  const total = totalDoAtributo(zera)
-  if (total === null || total === 0) return mods
-  return [...(mods ?? []).filter((mod) => mod.alvo !== zera), { alvo: zera, delta: -total }]
-}
-
 /** Quanto o selo tira por vez (o dele, ou o da tabela); `null` = não tira. */
 export function danoPorVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'>): number | null {
   const daTabela = comportamentoDoSelo(selo.nome)?.porVez
   if (daTabela === undefined) return null
   return selo.porVez !== undefined && Number.isInteger(selo.porVez) && selo.porVez > 0 ? selo.porVez : daTabela
+}
+
+/** O nome da tabela ("Queimando") e quanto o selo tira por vez; `null` = não tira. */
+export function porVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'>): PorVezDoSelo | null {
+  const comportamento = comportamentoDoSelo(selo.nome)
+  const dano = danoPorVezDoSelo(selo)
+  return comportamento === null || dano === null ? null : { nome: comportamento.nome, dano }
 }
 
 /** "Atordoado: nesta vez só dá para passar a vez". */
@@ -142,12 +145,9 @@ export function travaDoToken(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'no
 // Sangramento
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Regra do sistema (respostas do Alexei e do Siegfried): o Sangramento tira 10 por vez, direto no HP. */
-export const DANO_DO_SANGRAMENTO = 10
-
 /** O selo é de sangramento ("Sangrando", "Sangramento 3"). */
 export function ehSeloDeSangramento(selo: Pick<SeloDaBatalha, 'nome'>): boolean {
-  return comportamentoDoSelo(selo.nome)?.nome === 'Sangrando'
+  return comportamentoDoSelo(selo.nome)?.nome === NOME_DO_SANGRAMENTO
 }
 
 /**
@@ -166,4 +166,25 @@ export function chaveDoSangramento(seloId: string): string {
 /** O lembrete é o de um sangramento (e não o de uma passiva ou forma). */
 export function ehLembreteDoSangramento(lembrete: Pick<LembreteDaPassiva, 'cartaoId' | 'chave'>): boolean {
   return lembrete.chave === chaveDoSangramento(lembrete.cartaoId)
+}
+
+/** O lembrete do sangramento da ficha da vez, com o nome e quanto o selo tira, gravados agora (o selo pode sair antes do Aplicar). */
+export function lembreteDoSangramento(selo: SeloDaBatalha, rodada: number): LembreteDaPassiva {
+  const lembrete: LembreteDaPassiva = { cartaoId: selo.id, tokenId: selo.tokenId, tipo: 'porTurno', chave: chaveDoSangramento(selo.id), rodada }
+  const porVez = porVezDoSelo(selo)
+  if (porVez !== null) lembrete.porVez = porVez
+  return lembrete
+}
+
+/**
+ * O que o lembrete do sangramento tira quando o mestre clica Aplicar: o do
+ * selo, se ele ainda está na ficha (o mestre pode ter editado); senão o
+ * gravado no lembrete quando nasceu (o selo saiu no fim da vez); senão, no
+ * lembrete gravado antes disto, o Sangrando da regra (10).
+ */
+export function porVezDoLembrete(lembrete: Pick<LembreteDaPassiva, 'cartaoId' | 'porVez'>, selos: readonly SeloDaBatalha[] | undefined): PorVezDoSelo {
+  const selo = selos?.find((candidato) => candidato.id === lembrete.cartaoId)
+  const doSelo = selo === undefined ? null : porVezDoSelo(selo)
+  if (doSelo !== null) return doSelo
+  return lembrete.porVez ?? { nome: NOME_DO_SANGRAMENTO, dano: DANO_DO_SANGRAMENTO }
 }

@@ -2,6 +2,7 @@ import { casasDoLado, casasDoPerimetro, GRADE_MEDIA, GRADE_PEQUENA, type GradeDa
 import type { Casa } from '../batalha/blocos'
 import type { Equipe } from '../batalha/equipes'
 import type { MesaDaBatalha } from '../batalha/mesa'
+import { fichaSemHp } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 
@@ -201,6 +202,18 @@ export function montarLutadoresDaLuta(escolhas: readonly EscolhaDaVaga<LadoDaLut
   if (lados.length < 2) return { ok: false, motivo: 'poucosLados' }
   if (escolhas.length > FICHAS_DA_LUTA_MAX) return { ok: false, motivo: 'demais' }
   return montarNosLados(escolhas, lados)
+}
+
+/**
+ * Conserto das fichas F2 (fatia A, resposta da Saga: "FICA DE FORA E AVISA
+ * ficha sem HP"): a primeira ficha da escolha com HP máximo 0
+ * (`fichaSemHp`), com o lado e o nome, para quem cria a luta recusar e dizer
+ * qual; `null` = todas lutam. Sem isto ela entraria na grade sem carta na
+ * ordem (`combatentesIniciais` a pula), parada e calada.
+ */
+export function fichaSemHpNaEscolha<L extends LadoDaLuta>(escolhas: readonly EscolhaDaVaga<L>[], sistema: SistemaDeRpg | null): { lado: L; nome: string } | null {
+  const achada = escolhas.find((escolha) => fichaSemHp(escolha.ficha, sistema))
+  return achada === undefined ? null : { lado: achada.lado, nome: achada.ficha.nome }
 }
 
 /** A montagem nos `lados` pedidos, nesta ordem: cada um com alguém e até `VAGAS_POR_LADO_MAX`. Escolha de outro lado fica de fora. */

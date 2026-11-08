@@ -14,6 +14,7 @@ import { AUTOR_DO_ROBO, type GolpesDaVez } from './lutaAutomatica'
 import {
   casasIniciais,
   criarMesaEmMemoria,
+  fichaSemHpNaEscolha,
   LADOS_DA_LUTA,
   montarLutadoresDaLuta,
   soOsDoisLados,
@@ -171,7 +172,8 @@ export type CriacaoDaLuta =
    * `cheia` = mais de `CONTAS_POR_LUTA_MAX` contas; `contaRepetida` = a mesma
    * conta duas vezes; `papel` = papel com lado, ficha ou Judge que não combina
    * (ou mais de um entre `juiz` e `arbitro`: o mestre é um só); `semFicha` =
-   * quem joga sem ficha; `ladoRepetido` = duas contas no mesmo lado em todos
+   * quem joga sem ficha, ou com uma ficha de HP máximo 0 (F2, fatia A:
+   * `fichaSemHpNaEscolha`); `ladoRepetido` = duas contas no mesmo lado em todos
    * contra todos.
    */
   | { ok: false; motivo: 'cheia' | 'contaRepetida' | 'papel' | 'semFicha' | 'ladoRepetido' }
@@ -308,6 +310,9 @@ export function criarLuta(abertura: AberturaDaLuta, motor: MotorDoDuelo): Criaca
     ladosDeQuemJoga.add(lado)
     escolhas.push(...fichasDaInscricao(inscricao, motor).map((ficha) => ({ ficha, lado, contaId })))
   }
+  // F2 (fatia A): ficha com HP máximo 0 fica de fora, com recusa, em vez de entrar na grade sem carta.
+  // `semFicha` e não um motivo novo: o servidor do Lobby (lobby/nuvem/src/luta.ts) troca cada motivo num switch fechado.
+  if (fichaSemHpNaEscolha(escolhas, motor.sistema) !== null) return { ok: false, motivo: 'semFicha' }
   const montagem = montarLutadoresDaLuta(escolhas)
   if (!montagem.ok) return montagem
   const tamanho = tamanhoDaLuta(montagem.lutadores.vagas)
@@ -412,7 +417,7 @@ function passoDoRobo(aberta: LutaNaLoja, doRobo: (vaga: VagaDaLuta) => boolean, 
   const batalha = aberta.loja.getState()
   for (const vaga of aberta.mesa.vagas()) {
     if (!doRobo(vaga)) continue
-    const pedido = reacaoDoBoneco(turnos.golpes, vaga.tokenId, vaga.reage ?? 'd20', bonusDaReacao(bonusDaBatalha(turnos.selos, vaga.tokenId)))
+    const pedido = reacaoDoBoneco(turnos.golpes, vaga.tokenId, vaga.reage ?? 'd20', bonusDaReacao(bonusDaBatalha(turnos.selos, vaga.tokenId)), turnos.selos)
     if (pedido !== null) return batalha.reagir(CENA_DA_LUTA, AUTOR_DO_ROBO, pedido) ? { jogou: true, golpesDaVez } : ROBO_PAROU
   }
   if ((turnos.golpes ?? []).some((golpe) => golpe.alvos.some((alvo) => alvo.danoFinal === undefined))) return ROBO_PAROU
@@ -474,7 +479,7 @@ function contaAindaLuta(luta: Pick<EstadoDaLuta, 'lutadores'>, contaId: string):
 function golpesSemResposta(loja: LojaDaBatalha, tokenId: string): void {
   const pendentes = cenaDaLoja(loja).turnos.golpes?.length ?? 0
   for (let i = 0; i < pendentes; i += 1) {
-    const pedido = reacaoDoBoneco(cenaDaLoja(loja).turnos.golpes, tokenId, 'parado', 0)
+    const pedido = reacaoDoBoneco(cenaDaLoja(loja).turnos.golpes, tokenId, 'parado', 0, undefined)
     if (pedido === null || !loja.getState().reagir(CENA_DA_LUTA, AUTOR_DA_SAIDA, pedido)) return
   }
 }

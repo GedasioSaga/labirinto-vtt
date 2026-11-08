@@ -98,7 +98,7 @@ export function CemLutas({ montagem }: { montagem: MontagemDaLuta }) {
   const [resultado, setResultado] = useState<ResultadoDasLutas | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const emCurso = useRef<LutasNoWorker<ResultadoDaSerie> | null>(null)
-  const problema = problemaDaMontagem(montagem)
+  const problema = problemaDaMontagem(montagem, sistema)
   // A montagem é um objeto novo a cada render da tela de cima; o texto só é refeito quando ela muda.
   const assinatura = useMemo(() => assinaturaDaMontagem(montagem), [montagem])
 

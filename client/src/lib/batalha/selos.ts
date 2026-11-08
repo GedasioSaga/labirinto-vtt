@@ -21,6 +21,7 @@ import {
   type SeloDoGolpe,
   type SeloPedido,
 } from './combate'
+import { comportamentoDoSelo } from './condicoes'
 import { normalizar } from './formula'
 import type { TurnosDaCena } from './turnos'
 
@@ -230,21 +231,27 @@ export type SeloQueSoma = Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'mods'>
 
 /**
  * O bônus dos selos da ficha `tokenId`: por alvo, as partes "+20 (Fúria)" na
- * ordem em que os selos foram postos; delta 0 não entra. A MESMA conta em
+ * ordem em que os selos foram postos; delta 0 não entra (fora a parte que
+ * zera, `ParteDoBonus.zera`, sempre a última do alvo). A MESMA conta em
  * todas as telas (menu, mira, painel do NPC, caixa de reação). O jogador
  * passa `selosParaOBonus(estado.cartas)`.
  */
 export function bonusDaBatalha(selos: readonly SeloQueSoma[] | undefined, tokenId: string): BonusDaBatalha {
   // Map e não objeto: o alvo veio do fio, e "constructor" num objeto já existe.
   const porAlvo = new Map<string, ParteDoBonus[]>()
-  for (const selo of selos ?? []) {
-    if (selo.tokenId !== tokenId) continue
+  const comParte = (alvo: string, parte: ParteDoBonus): void => {
+    porAlvo.set(alvo, [...(porAlvo.get(alvo) ?? []), parte])
+  }
+  const doToken = (selos ?? []).filter((selo) => selo.tokenId === tokenId)
+  for (const selo of doToken) {
     for (const mod of selo.mods ?? []) {
-      if (mod.delta === 0) continue
-      const partes = porAlvo.get(mod.alvo) ?? []
-      partes.push({ nome: selo.nome, delta: mod.delta })
-      porAlvo.set(mod.alvo, partes)
+      if (mod.delta !== 0) comParte(mod.alvo, { nome: selo.nome, delta: mod.delta })
     }
+  }
+  // F2 (fatia A): o selo que zera um atributo (Cego: Percepção) entra por último, e quem lê (`valorComAsPartes`) deixa em 0 enquanto ele existe.
+  for (const selo of doToken) {
+    const zera = comportamentoDoSelo(selo.nome)?.zera
+    if (zera !== undefined) comParte(zera, { nome: selo.nome, delta: 0, zera: true })
   }
   return Object.fromEntries(porAlvo)
 }

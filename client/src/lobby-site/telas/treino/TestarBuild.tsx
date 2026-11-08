@@ -234,7 +234,7 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
     { rotulo: `Pôr no ${NOME_DO_JUIZ}`, pode: () => true, fazer: builds.porNoJuiz },
   ]
 
-  const problema = problemaDaMontagem(montagem(doc))
+  const problema = problemaDaMontagem(montagem(doc), sistema)
   const muda = rascunhoMuda(rascunho)
 
   return (

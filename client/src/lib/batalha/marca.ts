@@ -3,6 +3,8 @@ import type { CartaoDaFicha, Personagem } from '../personagem'
 import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
 import {
   DANO_MAX,
+  partesDoBonus,
+  valorComAsPartes,
   type AlvoDoGolpe,
   type BonusDaBatalha,
   type GolpeDaBatalha,
@@ -12,7 +14,7 @@ import {
 import { normalizar } from './formula'
 import { CAMPO_DO_CUSTO, tecnicasDe } from './leituraDaFicha'
 import type { Reversao } from './registro'
-import { comSeloNovo, criarSelo, ondeNaVez, pegaOSelo, totalDoBonus } from './selos'
+import { comSeloNovo, criarSelo, ondeNaVez, pegaOSelo } from './selos'
 import { lerTipo } from './tiposDaHabilidade'
 import type { TurnosDaCena } from './turnos'
 
@@ -134,7 +136,8 @@ const RANKS_POR_PONTO = 2
 export function modificadorDoTeste(personagem: Personagem, sistema: SistemaDeRpg, atributoId: string, bonus?: BonusDaBatalha): number {
   const atributo = sistema.atributos.find((candidato) => candidato.id === atributoId)
   if (atributo === undefined) return 0
-  const rank = rankDoValor(atributo.rank, valorDoRank(personagem, atributoId) + totalDoBonus(bonus, atributoId)) ?? 0
+  // F2 (fatia A): com o Cego, a Percepção lida é 0 (`valorComAsPartes`), venha o buff antes ou depois dele.
+  const rank = rankDoValor(atributo.rank, valorComAsPartes(valorDoRank(personagem, atributoId), partesDoBonus(bonus, atributoId))) ?? 0
   return Math.floor(rank / RANKS_POR_PONTO)
 }
 

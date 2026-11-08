@@ -49,7 +49,7 @@ export function LutaTurnoATurno({ montagem, nomeDoInimigo }: { montagem: Montage
   // O fio e a vista do seu lado (o lado A), como o servidor monta para o duelo.
   const sistema = useSistemaDoLobby()
   const lado = useMemo(() => (luta === null ? null : dueloParaOLado(luta.duelo, 'a', sistema)), [luta, sistema])
-  const problema = problemaDaMontagem(montagem)
+  const problema = problemaDaMontagem(montagem, sistema)
 
   // O robô joga quando a vez não é sua (ou quando ele joga por você), com uma pausa para dar tempo de ler.
   useEffect(() => {

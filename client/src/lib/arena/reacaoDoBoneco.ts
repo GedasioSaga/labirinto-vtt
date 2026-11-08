@@ -1,4 +1,5 @@
-import { MODIFICADOR_DA_REACAO_MAX, type GolpeDaBatalha, type PedidoDeReacao, type SaidaDaReacao } from '../batalha/combate'
+import { MODIFICADOR_DA_REACAO_MAX, type GolpeDaBatalha, type PedidoDeReacao, type SaidaDaReacao, type SeloDaBatalha } from '../batalha/combate'
+import { saidasComOsSelos } from '../batalha/condicoes'
 import type { VezEsperada } from '../batalha/ponte'
 import { saidasPossiveis } from '../batalha/reacao'
 import { cartaDaVez, type TurnosDaCena } from '../batalha/turnos'
@@ -19,9 +20,13 @@ import type { ReacaoDoBoneco } from './tipos'
  * Puro: sem store.
  */
 
-/** A melhor saída que o dado liberou, sem o contra-ataque. */
-export function melhorDefesa(d20: number, total: number): SaidaDaReacao {
-  return saidasPossiveis(d20, total).find((saida) => saida !== 'contra') ?? 'cheio'
+/**
+ * A melhor saída que o dado liberou, sem o contra-ataque e sem as que os
+ * selos do boneco tiram (F2, fatia A: Aéreo tira a Esquiva; a batalha recusa
+ * a saída tirada, e o robô pediria a mesma sem fim).
+ */
+export function melhorDefesa(d20: number, total: number, selosDoBoneco: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): SaidaDaReacao {
+  return saidasComOsSelos(saidasPossiveis(d20, total), selosDoBoneco).find((saida) => saida !== 'contra') ?? 'cheio'
 }
 
 /** O modificador no teto da reação (o que a batalha aceita). */
@@ -30,14 +35,25 @@ function modificadorValido(modificador: number): number {
   return Math.min(MODIFICADOR_DA_REACAO_MAX, Math.max(-MODIFICADOR_DA_REACAO_MAX, Math.trunc(modificador)))
 }
 
-/** O próximo pedido de reação do boneco num golpe que espera por ele; `null` = nenhum golpe esperando o boneco. */
-export function reacaoDoBoneco(golpes: readonly GolpeDaBatalha[] | undefined, bonecoTokenId: string, reage: ReacaoDoBoneco, modificador: number): PedidoDeReacao | null {
+/**
+ * O próximo pedido de reação do boneco num golpe que espera por ele; `null` =
+ * nenhum golpe esperando o boneco. `selos` = os da cena (`turnos.selos`): os
+ * do boneco tiram saídas da escolha (Aéreo).
+ */
+export function reacaoDoBoneco(
+  golpes: readonly GolpeDaBatalha[] | undefined,
+  bonecoTokenId: string,
+  reage: ReacaoDoBoneco,
+  modificador: number,
+  selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome'>[] | undefined,
+): PedidoDeReacao | null {
   for (const golpe of golpes ?? []) {
     const alvo = golpe.alvos.find((candidato) => candidato.tokenId === bonecoTokenId)
     if (alvo === undefined || alvo.danoFinal !== undefined || !alvo.podeReagir) continue
     if (reage === 'parado') return { tipo: 'naoReagir', golpeId: golpe.id, tokenId: bonecoTokenId }
     if (alvo.rolagem === undefined) return { tipo: 'rolar', golpeId: golpe.id, tokenId: bonecoTokenId, modificador: modificadorValido(modificador) }
-    return { tipo: 'escolher', golpeId: golpe.id, tokenId: bonecoTokenId, saida: melhorDefesa(alvo.rolagem.d20, alvo.rolagem.total) }
+    const selosDoBoneco = (selos ?? []).filter((selo) => selo.tokenId === bonecoTokenId)
+    return { tipo: 'escolher', golpeId: golpe.id, tokenId: bonecoTokenId, saida: melhorDefesa(alvo.rolagem.d20, alvo.rolagem.total, selosDoBoneco) }
   }
   return null
 }
@@ -58,7 +74,7 @@ export type PassoDoBoneco = { tipo: 'reagir'; pedido: PedidoDeReacao } | { tipo:
  * sozinha — voltaria a ele, rodada após rodada, sem fim; o mestre decide.
  */
 export function passoDoBoneco(turnos: TurnosDaCena, bonecoTokenId: string, reage: ReacaoDoBoneco, modificador: number, caidos: ReadonlySet<string>): PassoDoBoneco | null {
-  const pedido = reacaoDoBoneco(turnos.golpes, bonecoTokenId, reage, modificador)
+  const pedido = reacaoDoBoneco(turnos.golpes, bonecoTokenId, reage, modificador, turnos.selos)
   if (pedido !== null) return { tipo: 'reagir', pedido }
   const esperado = vezDoBoneco(turnos, bonecoTokenId)
   if (esperado === null) return null

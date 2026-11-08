@@ -123,6 +123,19 @@ export interface LembreteDaPassiva {
   chave: string
   /** A rodada em que o lembrete saiu. */
   rodada: number
+  /**
+   * F2 (fatia A): no lembrete de um selo que tira por vez (Sangrando,
+   * Queimando N), o nome e quanto tira, gravados quando o lembrete nasce: o
+   * selo pode sair no fim da vez antes de o mestre clicar Aplicar. Ausente =
+   * lembrete de outro tipo (ou gravado antes disto). Só do host.
+   */
+  porVez?: PorVezDoSelo
+}
+
+/** F2 (fatia A): o que um selo que tira por vez tira: o nome da tabela ("Queimando") e quanto (direto no HP). */
+export interface PorVezDoSelo {
+  nome: string
+  dano: number
 }
 
 export type TipoDoLembrete = 'ativar' | 'porTurno'
@@ -643,6 +656,12 @@ export const NATUREZAS_DO_SELO: readonly NaturezaDoSelo[] = ['buff', 'debuff', '
 export interface ParteDoBonus {
   nome: string
   delta: number
+  /**
+   * F2 (fatia A): o selo deixa o alvo em 0 enquanto existe (Cego: Percepção),
+   * por cima de qualquer soma, na hora em que o valor é lido
+   * (`valorComAsPartes`); `delta` é 0. A conta mostra "→ 0 (Cego)".
+   */
+  zera?: true
 }
 
 /**
@@ -745,4 +764,14 @@ export function chaveDaVez(rodada: number, cartaId: string): string {
  */
 export function partesDoBonus(bonus: BonusDaBatalha | undefined, alvo: string): readonly ParteDoBonus[] {
   return bonus !== undefined && Object.hasOwn(bonus, alvo) ? (bonus[alvo] ?? []) : []
+}
+
+/**
+ * F2 (fatia A): o valor de um alvo com as partes do bônus somadas. Uma parte
+ * que zera (Cego: Percepção) deixa em 0 enquanto o selo existe, venha o buff
+ * antes ou depois dele, e o valor volta sozinho quando o selo sai.
+ */
+export function valorComAsPartes(base: number, partes: readonly ParteDoBonus[]): number {
+  if (partes.some((parte) => parte.zera === true)) return 0
+  return partes.reduce((soma, parte) => soma + parte.delta, base)
 }

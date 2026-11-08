@@ -1,5 +1,6 @@
 import { maximoComposto } from '../../../lib/ajusteDaFicha'
 import type { CasaDaArena } from '../../../lib/arena/grade'
+import { AVISO_SEM_HP, fichaSemHp } from '../../../lib/livros/combate'
 import type { Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
 import { aplicarJogada, criarDuelo, type DueloGravado, type JogadaDoDuelo, type MotivoDaRecusa, type MotorDoDuelo } from '../../../lib/treino/duelo'
@@ -75,12 +76,18 @@ export function lutadoresDaMontagem(montagem: MontagemDaLuta): MontagemDoTreino 
   return montada.ok ? { ok: true, lutadores: comParados(montada.lutadores, montagem.naoReagem) } : montada
 }
 
-/** A montagem cabe na luta? Texto do motivo, ou `null`. */
-export function problemaDaMontagem(montagem: MontagemDaLuta): string | null {
+/** "Sora: ficha sem HP. Dê HP máximo à ficha para ela lutar." (F2, fatia A: resposta da Saga). */
+function textoSemHp(nome: string): string {
+  return `${nome}: ${AVISO_SEM_HP}. Dê HP máximo à ficha para ela lutar.`
+}
+
+/** A montagem cabe na luta? Texto do motivo, ou `null`. F2 (fatia A): ficha com HP máximo 0 fica de fora e diz qual. */
+export function problemaDaMontagem(montagem: MontagemDaLuta, sistema: SistemaDeRpg): string | null {
   if (montagem.minhas.length === 0) return 'Escolha pelo menos um personagem seu.'
   if (montagem.inimigos.length === 0) return 'Escolha um inimigo.'
   if (montagem.minhas.length > VAGAS_POR_LADO_MAX || montagem.inimigos.length > VAGAS_POR_LADO_MAX) return `Cada lado leva no máximo ${VAGAS_POR_LADO_MAX}.`
-  return null
+  const semHp = [...montagem.minhas, ...montagem.inimigos].find((ficha) => fichaSemHp(ficha, sistema))
+  return semHp === undefined ? null : textoSemHp(semHp.nome)
 }
 
 /**
@@ -113,7 +120,7 @@ export type ComecoDaLuta = { ok: true; luta: LutaLocal } | { ok: false; motivo: 
 
 /** A luta nova com a semente: as cópias com o dono de cada lado, a ordem pela Agilidade e o desempate no d20 da semente. */
 export function comecarLutaLocal(montagem: MontagemDaLuta, sistema: SistemaDeRpg, semente: number): ComecoDaLuta {
-  const problema = problemaDaMontagem(montagem)
+  const problema = problemaDaMontagem(montagem, sistema)
   if (problema !== null) return { ok: false, motivo: problema }
   const sorteio = criarSorteio(semente)
   const motor: MotorDoDuelo = { sistema, rolarD20: () => sorteio.d20() }
@@ -125,7 +132,7 @@ export function comecarLutaLocal(montagem: MontagemDaLuta, sistema: SistemaDeRpg
     },
     motor,
   )
-  if (!criado.ok) return { ok: false, motivo: 'Não deu para montar a luta com essas fichas.' }
+  if (!criado.ok) return { ok: false, motivo: criado.motivo === 'semHp' ? textoSemHp(criado.nome) : 'Não deu para montar a luta com essas fichas.' }
   const comReacao: DueloGravado = { ...criado.duelo, lutadores: comParados(criado.duelo.lutadores, montagem.naoReagem) }
   const duelo = montagem.largada === undefined ? comReacao : comLargada(comReacao, montagem.largada)
   return { ok: true, luta: { semente, duelo, golpesDaVez: null, sorteio, motor } }

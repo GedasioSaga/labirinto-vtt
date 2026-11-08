@@ -99,7 +99,7 @@ function dePe(personagem: Personagem, sistema: SistemaDeRpg | null): boolean {
 function reacaoPendente(vista: VistaDoRobo): PedidoDeReacao | null {
   for (const vaga of vista.vagas) {
     const modificador = bonusDaReacao(bonusDaBatalha(vista.turnos.selos, vaga.tokenId))
-    const pedido = reacaoDoBoneco(vista.turnos.golpes, vaga.tokenId, vaga.reage ?? 'd20', modificador)
+    const pedido = reacaoDoBoneco(vista.turnos.golpes, vaga.tokenId, vaga.reage ?? 'd20', modificador, vista.turnos.selos)
     if (pedido !== null) return pedido
   }
   return null

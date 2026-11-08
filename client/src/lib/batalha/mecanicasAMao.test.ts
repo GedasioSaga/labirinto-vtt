@@ -1,16 +1,23 @@
 import { describe, expect, it } from 'vitest'
+import { textoLongoDoSelo } from '../../components/batalha/dadosDaFaixa'
 import { quemPodeEntrar } from '../livros/combate'
 import { novoPersonagem, type CartaoDaFicha, type Personagem } from '../personagem'
 import { SISTEMA_ONE_PIECE } from '../sistemaOnePiece'
+import { criarDuelo } from '../treino/duelo'
+import { MARINHEIRO, ze } from '../treino/fichasDeTreino.testkit'
+import { criarLuta, type InscricaoNaLuta } from '../treino/luta'
 import { alvosNaArea, dividirDano, type CandidatoDaArea } from './area'
-import { comportamentoDoSelo, danoPorVezDoSelo, modsDoComportamento, saidasComOsSelos } from './condicoes'
+import { partesDoBonus, valorComAsPartes } from './combate'
+import { comportamentoDoSelo, danoPorVezDoSelo, lembreteDoSangramento, porVezDoLembrete, saidasComOsSelos } from './condicoes'
 import { custoPorTurno } from './custoPorTurno'
 import { cdDaDisputa, modificadorDaDisputa, rolarDisputa } from './disputa'
+import { lerDano } from './formula'
 import { lancarGolpe, type ContextoDoGolpe } from './golpe'
 import { leituraDaTecnica } from './leituraDaTecnica'
 import { mecanicaDoCartao, motivoDasRespostasDoCartao } from './mecanicasAMao'
 import { lerRespostas } from './perguntaNaHora'
 import { saidasPossiveis } from './reacao'
+import { bonusDaBatalha } from './selos'
 import { combatentesIniciais, novaCarta, type TurnosDaCena } from './turnos'
 
 /**
@@ -155,8 +162,20 @@ describe('selos novos', () => {
   it('Aéreo tira Esquiva e Contra-ataque (fica Defender e Receber); Cego zera a Percepção', () => {
     expect(saidasComOsSelos(saidasPossiveis(20, 20), [{ nome: 'Aéreo' }])).toEqual(['metade'])
     expect(saidasComOsSelos(saidasPossiveis(5, 5), [{ nome: 'Aereo 1' }])).toEqual(['cheio'])
-    // O alvo do Golpe Baixo do Harvey com Percepção 10: o selo leva -10 e a Percepção fica em 0.
-    expect(modsDoComportamento('Cego', undefined, (id) => (id === 'percepcao' ? 10 : null))).toEqual([{ alvo: 'percepcao', delta: -10 }])
+    // O alvo do Golpe Baixo do Harvey com Percepção 10: lida na hora, fica em 0.
+    expect(valorComAsPartes(10, partesDoBonus(bonusDaBatalha([{ tokenId: 't', nome: 'Cego' }], 't'), 'percepcao'))).toBe(0)
+  })
+
+  it('Cego zera a Percepção na leitura: buff antes ou depois dele, buff que sai, e volta quando o Cego sai', () => {
+    const foco = { tokenId: 't', nome: 'Foco', mods: [{ alvo: 'percepcao', delta: 10 }] }
+    const cego = { tokenId: 't', nome: 'Cego 2' }
+    const percepcao = (selos: readonly (typeof foco | typeof cego)[]): number => valorComAsPartes(40, partesDoBonus(bonusDaBatalha(selos, 't'), 'percepcao'))
+    expect([percepcao([foco, cego]), percepcao([cego, foco]), percepcao([cego]), percepcao([foco])]).toEqual([0, 0, 0, 50])
+    // A fórmula (a Bala de Prata lê a Percepção) diz por quê na conta.
+    const harvey = ficha('Harvey', { percepcao: 40 }, 800)
+    const lido = lerDano('Percepção + 5 de dano', { personagem: harvey, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha([foco, cego], 't') })
+    expect(lido).toMatchObject({ tipo: 'valor', valor: 5 })
+    expect(lido.tipo === 'valor' ? lido.conta : '').toContain('+10 (Foco) → 0 (Cego 2)')
   })
 
   it('Queimando tira 10 por vez (ou o N da técnica) e renova; Ferido por prata só lembra', () => {
@@ -166,6 +185,32 @@ describe('selos novos', () => {
     const prata = comportamentoDoSelo('Ferido por prata')
     expect(prata?.lembrete).toContain('metade')
     expect(danoPorVezDoSelo({ nome: 'Ferido por prata' })).toBeNull()
+    // O título da pílula (mestre e leitor de tela) diz o que o selo lembra.
+    expect(textoLongoDoSelo({ id: 'selo_1', nome: 'Ferido por prata', turnos: null, texto: 'Ferido por prata', mods: '' })).toBe('Ferido por prata: até o mestre tirar · a cura que recebe cai pela metade (o mestre corta à mão)')
+  })
+
+  it('o lembrete do Queimando N guarda o nome e o dano: vale com o selo fora da ficha', () => {
+    const queimando = { id: 'selo_q', tokenId: 't', nome: 'Queimando', turnos: 1, total: 1, porVez: 15 }
+    const lembrete = lembreteDoSangramento(queimando, 3)
+    expect(lembrete.porVez).toEqual({ nome: 'Queimando', dano: 15 })
+    expect(porVezDoLembrete(lembrete, [])).toEqual({ nome: 'Queimando', dano: 15 })
+    // Lembrete gravado antes disto, sem o selo: o Sangrando da regra.
+    expect(porVezDoLembrete({ cartaoId: 'selo_velho' }, [])).toEqual({ nome: 'Sangrando', dano: 10 })
+  })
+})
+
+describe('ficha sem HP no treino e no duelo (resposta da Saga)', () => {
+  it('o duelo recusa dizendo qual ficha; a luta do Lobby recusa como ficha que não serve', () => {
+    const motor = { sistema, rolarD20: () => 10 }
+    const ana = { ...ze(60), dono: 'conta_a' }
+    const semHp: Personagem = { ...MARINHEIRO, dono: 'conta_b', maximos: { ...MARINHEIRO.maximos, hp: 0 } }
+    const duelo = criarDuelo({ id: 'duelo_1', a: { contaId: 'conta_a', nome: 'Ana', fichas: [ana] }, b: { contaId: 'conta_b', nome: 'Bia', fichas: [semHp] } }, motor)
+    expect(duelo).toEqual({ ok: false, motivo: 'semHp', lado: 'b', nome: 'Marinheiro' })
+    const inscricoes: InscricaoNaLuta[] = [
+      { contaId: 'conta_a', nome: 'Ana', papel: 'jogador', lado: 'a', fichas: [ana] },
+      { contaId: 'conta_b', nome: 'Bia', papel: 'jogador', lado: 'b', fichas: [semHp] },
+    ]
+    expect(criarLuta({ id: 'luta_1', modo: 'todos', inscricoes }, motor)).toEqual({ ok: false, motivo: 'semFicha' })
   })
 })
 

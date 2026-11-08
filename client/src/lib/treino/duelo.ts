@@ -25,6 +25,7 @@ import { fimDaLuta, mesaDosLutadores, type FimDaLuta } from './fimDaLuta'
 import { TETOS_DO_TREINO } from './lutaAutomatica'
 import {
   criarMesaEmMemoria,
+  fichaSemHpNaEscolha,
   GRADE_DO_TREINO,
   LADOS_DO_TREINO,
   montarLutadores,
@@ -208,6 +209,8 @@ export type CriacaoDoDuelo =
   | { ok: false; motivo: 'mesmaConta' }
   /** `naoEDono` = alguma ficha do lado não é da conta dele; `vazio`/`cheio` como em `montarLutadores`. */
   | { ok: false; motivo: 'naoEDono' | 'vazio' | 'cheio'; lado: LadoDoTreino }
+  /** F2 (fatia A): a ficha `nome` do lado tem HP máximo 0 (`fichaSemHpNaEscolha`): fica de fora, e a tela diz "ficha sem HP". */
+  | { ok: false; motivo: 'semHp'; lado: LadoDoTreino; nome: string }
 
 export type LeituraDaJogada = { ok: true; jogada: JogadaDoDuelo } | { ok: false; motivo: 'grandeDemais' | 'formato' }
 
@@ -262,6 +265,8 @@ export function criarDuelo(pedido: PedidoDeDuelo, motor: MotorDoDuelo): CriacaoD
     if (fichas.some((ficha) => ficha.dono !== contaId)) return { ok: false, motivo: 'naoEDono', lado }
     escolhas.push(...fichas.map((ficha) => ({ ficha, lado })))
   }
+  const semHp = fichaSemHpNaEscolha(escolhas, motor.sistema)
+  if (semHp !== null) return { ok: false, motivo: 'semHp', ...semHp }
   const montagem = montarLutadores(escolhas)
   if (!montagem.ok) return montagem
   const mesa = criarMesaEmMemoria(motor.sistema, montagem.lutadores)

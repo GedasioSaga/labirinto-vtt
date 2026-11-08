@@ -19,7 +19,7 @@ import {
   type SeloDaBatalha,
   type SeloPedido,
 } from './combate'
-import { chaveDoSangramento, sangramentosDoToken } from './condicoes'
+import { lembreteDoSangramento, sangramentosDoToken } from './condicoes'
 import { chaveDoCustoDaForma, custoPorTurno, formasComCustoPorTurno, motivoDoCustoPorTurno } from './custoPorTurno'
 import { varianteDoPedido } from './escolhaEEvolucao'
 import { normalizar } from './formula'
@@ -682,8 +682,9 @@ export function comLembretesDaVez(turnos: TurnosDaCena, mesa: FichasDaPassiva): 
     combate = comLembrete(combate, { cartaoId: cartao.id, tokenId: carta.tokenId, tipo: 'porTurno', chave: chaveDoCustoDaForma(cartao.id), rodada: turnos.rodada })
   }
   // Conserto das fichas F1 (S4): cada selo de Sangramento da ficha da vez pede "Aplicar / pular" ao mestre (o `cartaoId` é o id do selo).
+  // F2 (fatia A): o lembrete guarda o nome e quanto o selo tira; o selo pode sair no fim da vez antes do Aplicar.
   for (const selo of sangramentosDoToken(turnos.selos, carta.tokenId)) {
-    combate = comLembrete(combate, { cartaoId: selo.id, tokenId: carta.tokenId, tipo: 'porTurno', chave: chaveDoSangramento(selo.id), rodada: turnos.rodada })
+    combate = comLembrete(combate, lembreteDoSangramento(selo, turnos.rodada))
   }
   return combate === antes ? { turnos, mudaram: [] } : comCombates(turnos, new Map([[personagemId, combate]]))
 }
