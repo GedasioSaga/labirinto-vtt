@@ -26,7 +26,8 @@ export interface MesaDaBatalha {
   /**
    * Troca o personagem pelo que `ajustar` devolve; `ajustar` recebe o de
    * AGORA. Devolver o mesmo = nada muda. `false` = personagem que não existe
-   * (ou não há onde gravar).
+   * (ou não há onde gravar, ou a gravação foi recusada: a pasta publicada que o
+   * Lobby não aceitaria). Com `false` a ficha ficou como estava.
    */
   ajustarPersonagem(personagemId: string, ajustar: (atual: Personagem) => Personagem): boolean
   /** Põe o personagem na equipe `equipeId` (ou em nenhuma, `null`). `false` = não deu (equipe que não existe, nada onde gravar). */

@@ -750,13 +750,14 @@ function mexerNaFicha(mesa: MesaDaBatalha, personagemId: string, ajustes: (atual
   const sistema = mesa.sistema()
   if (sistema === null) return null
   let partes: ParteDaFicha[] | null = null
-  mesa.ajustarPersonagem(personagemId, (atual) => {
+  const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
     const lista = ajustes(atual, sistema)
     const depois = lista.length === 0 ? atual : aplicarAjustes(atual, sistema, lista, quem, Date.now())
     partes = partesDoAjuste(atual, depois, sistema)
     return depois
   })
-  return partes
+  // Conserto das fichas F1 (bug 11): a gravação recusada (pasta publicada; o aviso já saiu) não deixa partes na linha, senão o Desfazer devolveria o que nunca entrou.
+  return gravou ? partes : null
 }
 
 /** O nome que vai no histórico da ficha quando a batalha mexe nela. */
@@ -914,13 +915,14 @@ function trocarFicha(mesa: MesaDaBatalha, personagemId: string, mudar: (atual: P
   const sistema = mesa.sistema()
   if (sistema === null) return null
   let partes: ParteDaFicha[] | null = null
-  mesa.ajustarPersonagem(personagemId, (atual) => {
+  const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
     const depois = mudar(atual, sistema)
     if (depois === null) return atual
     partes = partesDoAjuste(atual, depois, sistema)
     return depois
   })
-  return partes
+  // Bug 11, como no `mexerNaFicha`: recusada = a ficha ficou como estava.
+  return gravou ? partes : null
 }
 
 /**

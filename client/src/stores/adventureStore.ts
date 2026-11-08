@@ -362,7 +362,8 @@ interface AdventureState {
    * AJUSTE RÁPIDO do mestre (−/+ do HP, a transformação que liga): `ajustar`
    * recebe o personagem de AGORA — o jogador pode ter mexido nele um instante
    * antes — e devolve o novo. Devolveu o mesmo = nada muda, nem pede Salvar.
-   * `false` sem aventura ou sem esse personagem.
+   * `false` sem aventura, sem esse personagem ou com a gravação recusada (a
+   * pasta publicada que o Lobby não aceitaria; o aviso já saiu).
    */
   ajustarPersonagem: (personagemId: string, ajustar: (atual: Personagem) => Personagem) => boolean
   /** "Importar personagens": entram no fim da lista, na ordem. `false` no mapa solto. */
@@ -1756,8 +1757,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (dono === null || atual === undefined) return false
     const novo = ajustar(atual)
     if (novo === atual) return true
-    dono.gravar(lista.map((personagem) => (personagem.id === personagemId ? novo : personagem)))
-    return true
+    // Conserto das fichas F1 (bug 11): a pasta publicada que recusa (o Lobby não aceitaria; o aviso já saiu) não conta como feita.
+    return dono.gravar(lista.map((personagem) => (personagem.id === personagemId ? novo : personagem)))
   },
 
   adicionarPersonagens: (novos) => {
@@ -2556,9 +2557,11 @@ export function applyItemsInScene(change: AppliedItems): boolean {
   const slot = deFundo === null ? null : cache[deFundo]
   if (slot === undefined || (slot !== null && slot.status !== 'ok')) return false
   const bonecos = (slot === null ? useMapStore.getState().map : slot.map).tokens
-  const levar = (): readonly Personagem[] | null => levarParaAsFichas(change, bonecos)
+  const levar = (): FichasGravadas => levarParaAsFichas(change, bonecos)
   // Vinda da sala LAN, em nome do jogador (`comAutor`), como a edição da ficha dele; do mestre, sem autoria.
   const fichasMudaram = comAutor(change.autoria, () => (ehTrocaOuPagamento(change) ? comoTudoOuNada(levar) : levar()))
+  // Conserto das fichas F1 (bug 11): a ficha recusada não mudou, então o mapa também não muda (senão o item some do chão sem chegar à mochila, ou fica nos dois).
+  if (fichasMudaram === 'recusada') return false
   if (deFundo === null || slot === null) {
     const { map, past, future } = useMapStore.getState()
     useMapStore.setState({ map: aplicar(map), past: past.map(aplicar), future: future.map(aplicar) })
@@ -2584,7 +2587,7 @@ export function applyItemsInScene(change: AppliedItems): boolean {
  * fichas como ficaram gravadas, ou `null` quando nenhuma mudou (mochila ainda
  * no boneco, NPC sem ficha, só pino ou objeto do chão).
  */
-function levarParaAsFichas(change: AppliedItems, bonecos: MapData['tokens']): readonly Personagem[] | null {
+function levarParaAsFichas(change: AppliedItems, bonecos: MapData['tokens']): FichasGravadas {
   const fichas = fichasDonasDaMochila(useAdventureStore.getState())
   if (fichas === null) return null
   const novas = mudancaNasFichas(fichas, bonecos, change)
@@ -2592,15 +2595,22 @@ function levarParaAsFichas(change: AppliedItems, bonecos: MapData['tokens']): re
 }
 
 /**
+ * As fichas donas como ficaram gravadas; `null` = não há onde gravar;
+ * `'recusada'` = a pasta publicada não aceitou (o Lobby recusaria; o aviso já
+ * saiu) e nenhuma ficha mudou (conserto das fichas F1, bug 11).
+ */
+type FichasGravadas = readonly Personagem[] | null | 'recusada'
+
+/**
  * MOCHILA NA FICHA: grava `novas` pelo dono das fichas (o mesmo do
  * `ajustarPersonagem`, numa gravação só) e devolve as fichas donas como
- * ficaram — já com as variações sincronizadas. `null` = não há onde gravar.
+ * ficaram — já com as variações sincronizadas (ver `FichasGravadas`).
  */
-function gravarFichasDonas(novas: readonly Personagem[]): readonly Personagem[] | null {
+function gravarFichasDonas(novas: readonly Personagem[]): FichasGravadas {
   const { getState, setState } = useAdventureStore
   const dono = donoDosPersonagens(getState, setState)
   if (dono === null) return null
-  dono.gravar([...novas])
+  if (!dono.gravar([...novas])) return 'recusada'
   return fichasDonasDaMochila(getState())
 }
 
@@ -2690,7 +2700,7 @@ function acertarBonecosNoMapa(antes: MapData, depois: MapData, porOsBonecos: (to
   const acerto = acertarBonecosDasFichas(fichas, antes.tokens, depois.tokens, () => crypto.randomUUID())
   if (acerto.personagens === fichas && acerto.tokens === depois.tokens) return
   const gravadas = acerto.personagens === fichas ? fichas : gravarFichasDonas(acerto.personagens)
-  if (gravadas === null) return
+  if (gravadas === null || gravadas === 'recusada') return
   if (acerto.tokens !== depois.tokens) porOsBonecos([...acerto.tokens])
   for (const aviso of avisosDoAcerto(acerto)) useToastStore.getState().push('info', aviso)
   if (acerto.separadas.length > 0) for (const ouvinte of ouvintesDosBonecosSeparados) ouvinte(acerto.separadas)
@@ -2851,7 +2861,8 @@ export function acertarMochilasRecuperadas(mapas: readonly MapData[], bonecosVen
   if (fichas === null) return
   const novas = bonecosVencem ? fichasComOsBonecos(fichas, mapas) : fichas
   const gravadas = novas === fichas ? fichas : gravarFichasDonas(novas)
-  if (gravadas !== null) espelharEmTodaCena(gravadas)
+  // Recusada: os bonecos recuperados continuam mostrando a mochila deles (o espelho das fichas de antes a apagaria).
+  if (gravadas !== null && gravadas !== 'recusada') espelharEmTodaCena(gravadas)
 }
 
 /** A mochila mora na ficha no mapa aberto (já migrou): a cópia de recuperação guarda isso para o "Recuperar" saber se leva a mochila dos bonecos para as fichas. */
