@@ -27,6 +27,7 @@ import {
   type EstadoDaCampanha,
 } from './estadoNoDisco'
 import { fichasComAsLinhas, linhasDasOpsDaNuvem, type LinhaDaNuvem } from './historicoDaNuvem'
+import { ARQUIVO_DAS_MUDADAS_NO_DISCO, fichaDeAntes, mudadasDoTexto, opsDaMudadaNoDisco, textoDasMudadas } from './mudadasNoDisco'
 import type { FalhaDaNuvem, PaginaDoDesde, PonteDaNuvem } from './ponte'
 
 /**
@@ -538,6 +539,49 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
     return resolverOGrupo(grupo)
   }
 
+  // ── O que foi gravado no `rpg.json` com o app fechado (`mudadasNoDisco.ts`) ──
+  /**
+   * As fichas que um programa de fora mudou no `rpg.json` (o conserto F0) entram
+   * na fila como mudança do mestre ANTES do acerto da reabertura: sem isso o
+   * acerto as desfazia (a vista não as tem) e a nuvem nunca as via (bug B1).
+   */
+  async function adotarMudadasNoDisco(): Promise<void> {
+    const mudadas = mudadasDoTexto(await pasta.ler(ARQUIVO_DAS_MUDADAS_NO_DISCO))
+    if (mudadas === null || mudadas.feito !== undefined) return
+    let locais: readonly Personagem[] = []
+    // Só lê: `null` = o gravador leve não grava nada.
+    await deps.app.gravarRpg(pastaId, (personagens) => {
+      locais = personagens
+      return null
+    })
+    // O lote de cada ficha vai ao disco antes da fila: a queda no meio não manda a mesma mudança duas vezes.
+    const fichas = mudadas.fichas.map((ficha) => (ficha.loteId === undefined ? { ...ficha, loteId: deps.novoId() } : ficha))
+    if (fichas.some((ficha, i) => ficha !== mudadas.fichas[i])) await pasta.reescrever(ARQUIVO_DAS_MUDADAS_NO_DISCO, textoDasMudadas({ ...mudadas, fichas }))
+    const naFila = new Set(fila.entradas().map((entrada) => entrada.op.loteId))
+    // A rev que o `rpg.json` tinha: o que o site mudou depois disso no mesmo campo vira conflito, não é passado por cima.
+    const baseRev = Math.min(estado.revNoRpg, fila.revConfirmada())
+    const recusadas: string[] = []
+    let enfileiradas = 0
+    for (const ficha of fichas) {
+      const loteId = ficha.loteId ?? deps.novoId()
+      const agora = locais.find((local) => local.id === ficha.id)
+      const antes = fichaDeAntes(ficha)
+      if (naFila.has(loteId) || agora === undefined || antes === null) continue
+      const preparadas = opsDaMudadaNoDisco(antes, agora, { clienteId: estado.clienteId, quandoCliente: deps.agora(), baseRev, loteId }, deps.novoId)
+      if (!preparadas.ok) {
+        recusadas.push(`${agora.nome}: ${preparadas.problema}`)
+        continue
+      }
+      if (preparadas.ops.length === 0) continue
+      const resultado = await fila.acrescentar(preparadas.ops)
+      if (resultado.ok) enfileiradas += preparadas.ops.length
+      else recusadas.push(`${agora.nome}: ${resultado.problemas.map((p) => p.detalhe).join('; ')}`)
+    }
+    await pasta.reescrever(ARQUIVO_DAS_MUDADAS_NO_DISCO, textoDasMudadas({ ...mudadas, fichas, feito: deps.agora(), recusadas }))
+    if (recusadas.length > 0) deps.avisar(`O Lobby não aceitou o que foi mudado no disco em: ${recusadas.join(' | ')}. Essas fichas voltam ao que o Lobby tem.`)
+    if (enfileiradas > 0) deps.aoEnfileirar?.()
+  }
+
   // A fila abriu: o que o mestre mudou durante a abertura entra nela antes do acerto da reabertura.
   partes.emEspera.encaminhar({
     revConfirmada: () => fila.revConfirmada(),
@@ -554,6 +598,11 @@ function montar(campanha: CampanhaPublicada, deps: DependenciasDoSincronizador, 
     destino,
     situacao,
     async reabrir() {
+      // Antes do acerto, o que foi gravado no disco com o app fechado vira pendente (a vista passa a tê-lo). Um mapa que abre nesse meio espera (`vistaMudando`).
+      await emOrdem(() => mudandoAVista(adotarMudadasNoDisco, () => undefined)).catch((erro: unknown) => {
+        // Sem `feito`, o arquivo fica: rodar o conserto de novo refaz as mudanças e o próximo início tenta outra vez.
+        deps.avisar(`Não deu para mandar ao Lobby o que foi mudado nas fichas com o app fechado (${motivo(erro)}): elas voltam ao que o Lobby tem.`)
+      })
       // Ao abrir: o editor e o `rpg.json` acertados com a vista (base confirmada + pendentes + o que chegou do emissor na abertura); os conflitos voltam à lista.
       acertarAgora()
       await gravarRpgAgora()
