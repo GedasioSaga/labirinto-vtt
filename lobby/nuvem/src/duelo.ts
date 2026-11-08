@@ -33,7 +33,7 @@ import { gravarCota, lerCota, lerFicha, lerSistema, membroPorConta } from './ban
 import { gravarNoHistorico } from './historicoDeLutas'
 import type { Ouvinte } from './chat'
 import { ErroDoBanco, jsonDoTexto, numero, texto, type Linha } from './linhas'
-import { bytesDoTexto, cabeNaCota, chaveDaCotaDaCampanha, chaveDaCotaDaConta, comOpContada, ehRegistro, lerJsonSeguro, membroAtivo, proprio, type Membro } from './nucleo'
+import { bytesDoTexto, cabeNaCota, chaveDaCotaDaCampanha, chaveDaCotaDaConta, comOpContada, ehRegistro, lerJsonSeguro, membroAtivo, proprio, type Cota, type Membro } from './nucleo'
 import { enviar } from './sala'
 
 /**
@@ -456,18 +456,28 @@ function conviteDaLinha(sql: SqlStorage, linha: LinhaDoDuelo): ConviteDoDuelo {
   return { id: linha.id, de: contaNoDuelo(sql, linha.jogadorA), para: contaNoDuelo(sql, linha.jogadorB), fichasDe: fichasA, criadoEm, venceEm: linha.prazo ?? criadoEm + CONVITE_VALE_MS }
 }
 
-/** Grava com a cota do dia da conta e da campanha contada (§6.5); sem cota, nada é gravado. */
-export function gravarComCota(sala: SalaDoDuelo, contaId: string, bytes: number, agora: number, gravar: () => void): { ok: true } | { ok: false; tentarDepoisDe: number } {
+/** A cota com `ops` ops a mais e `bytes` somados: o `comOpContada` do pedido que vale mais de uma op. */
+function comOpsContadas(cota: Cota | undefined, bytes: number, ops: number): Cota {
+  const contada = comOpContada(cota, bytes)
+  return { ...contada, ops: contada.ops - 1 + ops }
+}
+
+/**
+ * Grava com a cota do dia da conta e da campanha contada (§6.5); sem cota, nada é gravado. `ops` = quanto
+ * o pedido vale: 1, ou as linhas que ele grava (o `luta.criar` grava uma por conta convidada).
+ */
+export function gravarComCota(sala: SalaDoDuelo, contaId: string, bytes: number, agora: number, gravar: () => void, ops = 1): { ok: true } | { ok: false; tentarDepoisDe: number } {
   const { sql } = sala
   return sala.transacao(() => {
     const chaveDaConta = chaveDaCotaDaConta(contaId, agora)
     const chaveDaCampanha = chaveDaCotaDaCampanha(agora)
     const daConta = lerCota(sql, chaveDaConta)
     const daCampanha = lerCota(sql, chaveDaCampanha)
-    const cabe = cabeNaCota(daConta, daCampanha, contaId, bytes, agora)
+    // `cabeNaCota` confere a próxima op; com as outras `ops - 1` já somadas, confere todas as do pedido.
+    const cabe = cabeNaCota(comOpsContadas(daConta, 0, ops - 1), comOpsContadas(daCampanha, 0, ops - 1), contaId, bytes, agora)
     if (!cabe.ok) return { ok: false, tentarDepoisDe: cabe.tentarDepoisDe }
-    gravarCota(sql, chaveDaConta, comOpContada(daConta, bytes))
-    gravarCota(sql, chaveDaCampanha, comOpContada(daCampanha, bytes))
+    gravarCota(sql, chaveDaConta, comOpsContadas(daConta, bytes, ops))
+    gravarCota(sql, chaveDaCampanha, comOpsContadas(daCampanha, bytes, ops))
     gravar()
     return { ok: true }
   })

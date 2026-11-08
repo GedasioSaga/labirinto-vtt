@@ -62,10 +62,12 @@ import { enviar } from './sala'
  *   `ESPERA_DA_LUTA_MS`. A acabada fica `LUTA_ACABADA_FICA_MS` e é apagada; o
  *   resumo dela já foi ao histórico (`historicoDeLutas.ts`).
  * - `participantes` é o índice de quem está em cada luta: 1 luta por conta
- *   (espera que vale ou luta em andamento em que a conta ainda conta), e a
- *   lista de quem joga. Na espera ele é a fonte do papel e do lado; depois,
- *   é refeito do estado quando quem está muda (não a cada jogada: uma linha
- *   gravada a menos por jogada, §7).
+ *   (a espera que vale e que a conta criou ou aceitou, ou a luta em andamento
+ *   em que ela ainda conta; o convite pendente não prende ninguém), e a lista
+ *   de quem joga. Na espera ele é a fonte do papel e do lado; depois, segue o
+ *   estado quando quem está muda, gravando só a diferença (a conta que entrou,
+ *   saiu ou trocou de papel ou lado). Não a cada jogada nem a cada queda e
+ *   volta: o `ausenteDesde` fica só no estado (§7).
  * - O DO tem UM alarme (achado Tr4): o `alarm()` da campanha chama
  *   `vencerPrazosDasLutas` e reagenda para o menor (`proximoPrazoDasLutas`).
  * - Ausente só quando a CONTA fica sem nenhum socket (achado Tr9). Quem joga
@@ -80,9 +82,11 @@ import { enviar } from './sala'
  *   joga o do lado dele, quem assiste sem o combate de ninguém, o árbitro tudo.
  *   Sem teto na saída: o de 64 KiB é só do cliente para o DO.
  * - Ritmo em todo frame (campanha.ts); criar, aceitar, começar, assistir,
- *   cada jogada e cada pedido do árbitro aceitos contam na cota do dia (§6.5).
- *   Sair, recusar e parar ficam fora (como o `duelo.desistir`): a cota cheia
- *   não prende ninguém numa luta.
+ *   cada jogada e cada pedido do árbitro aceitos contam na cota do dia (§6.5),
+ *   o criar por conta convidada (cada uma é uma linha no índice). Sair,
+ *   recusar e parar também contam (senão assistir e parar em laço gravariam
+ *   de graça), mas nunca são recusados por ela: a cota cheia não prende
+ *   ninguém numa luta (cheia, a saída grava sem contar; `gravarNaSaida`).
  */
 
 /** O que a luta usa do DO: o mesmo do duelo, com `ouvintes` só dos sockets que já falaram `luta.*`. */
@@ -407,16 +411,27 @@ function lutaDaLinha(linha: LinhaDaLuta): EstadoDaLuta | null {
 
 // ── Gravar ──────────────────────────────────────────────────────────────────
 
-/** Quem está na luta, como o índice `participantes` guarda. */
+/** Quem está na luta, como o índice `participantes` guarda (sem o `ausenteDesde`: queda e volta não mexem no índice). */
 function chaveDosParticipantes(luta: EstadoDaLuta): string {
-  return JSON.stringify(luta.participantes.map(({ contaId, papel, lado, ausenteDesde }) => [contaId, papel, lado, ausenteDesde]))
+  return JSON.stringify(luta.participantes.map(({ contaId, papel, lado }) => [contaId, papel, lado]))
 }
 
+/**
+ * O índice segue o estado gravando só a diferença: entra a conta que chegou,
+ * sai a que deixou a luta, e muda o papel ou o lado de quem trocou. Cada linha
+ * (e cada índice dela) conta no teto de gravações do dia: refazer as N a cada
+ * espectador que entra ou sai estourava a cota (revisão da F4).
+ */
 function sincronizarParticipantes(sql: SqlStorage, luta: EstadoDaLuta): void {
-  sql.exec('DELETE FROM participantes WHERE lutaId = ?', luta.id)
-  for (const { contaId, papel, lado, ausenteDesde } of luta.participantes) {
-    sql.exec('INSERT INTO participantes (lutaId, contaId, papel, lado, ausenteDesde) VALUES (?, ?, ?, ?, ?)', luta.id, contaId, papel, lado, ausenteDesde)
+  const gravados = new Map(participantesDaLinha(sql, luta.id).map((gravado) => [gravado.contaId, gravado]))
+  for (const { contaId, papel, lado } of luta.participantes) {
+    const gravado = gravados.get(contaId)
+    gravados.delete(contaId)
+    if (gravado === undefined) sql.exec('INSERT INTO participantes (lutaId, contaId, papel, lado) VALUES (?, ?, ?, ?)', luta.id, contaId, papel, lado)
+    else if (gravado.papel !== papel || gravado.lado !== lado) sql.exec('UPDATE participantes SET papel = ?, lado = ? WHERE lutaId = ? AND contaId = ?', papel, lado, luta.id, contaId)
   }
+  // O que sobrou no mapa já não está na luta.
+  for (const contaId of gravados.keys()) sql.exec('DELETE FROM participantes WHERE lutaId = ? AND contaId = ?', luta.id, contaId)
 }
 
 /**
@@ -443,6 +458,16 @@ function gravarLuta(sql: SqlStorage, antes: EstadoDaLuta | null, luta: EstadoDaL
   if (resumo !== null) gravarNoHistorico(sql, resumo)
 }
 
+/**
+ * A saída (sair, recusar, parar de assistir, o criador que desiste) conta uma
+ * op na cota do dia, mas nunca é recusada por ela: a cota cheia não prende
+ * ninguém numa luta. Cheia, grava sem contar (o `gravarComCota` recusado não
+ * gravou nada).
+ */
+function gravarNaSaida(sala: SalaDaLuta, contaId: string, bytes: number, agora: number, gravar: () => void): void {
+  if (!gravarComCota(sala, contaId, bytes, agora, gravar).ok) sala.transacao(gravar)
+}
+
 /** As instâncias do DO que já tiraram as lutas de outra versão: a versão só muda num deploy, que traz instância nova. */
 const SEM_OUTRA_VERSAO = new WeakSet<SqlStorage>()
 
@@ -462,10 +487,22 @@ function contaAindaNaLuta(luta: EstadoDaLuta, contaId: string): boolean {
   return luta.lutadores.vagas.some((vaga) => vaga.contaId === contaId && vaga.fora !== true)
 }
 
-/** 1 luta por conta (plano §2): numa espera que ainda vale, ou numa luta em andamento em que ainda conta. */
-function contaOcupada(sql: SqlStorage, contaId: string, agora: number): boolean {
+/** Na espera, prende quem a criou e quem já aceitou; o convite pendente não (senão uma sala com 11 convidados prenderia todos por 5 min). */
+function esperaPrende(linha: LinhaDaLuta, contaId: string, agora: number): boolean {
+  if (linha.prazo !== null && linha.prazo <= agora) return false
+  const espera = esperaGuardada(linha)
+  return espera !== null && (espera.criador === contaId || espera.aceites.some((aceite) => aceite.contaId === contaId))
+}
+
+/**
+ * 1 luta por conta (plano §2): numa espera que ainda vale e que ela criou ou
+ * aceitou, ou numa luta em andamento em que ainda conta. `exceto` = a luta do
+ * próprio pedido (quem aceita de novo a mesma sala não está ocupado por ela).
+ */
+function contaOcupada(sql: SqlStorage, contaId: string, agora: number, exceto: string | null): boolean {
   return lutasDaConta(sql, contaId).some((linha) => {
-    if (linha.status === 'espera') return linha.prazo === null || linha.prazo > agora
+    if (linha.id === exceto) return false
+    if (linha.status === 'espera') return esperaPrende(linha, contaId, agora)
     const luta = linha.status === 'andamento' ? lutaDaLinha(linha) : null
     return luta !== null && contaAindaNaLuta(luta, contaId)
   })
@@ -590,10 +627,19 @@ function difundirEspera(sala: SalaDaLuta, linha: LinhaDaLuta): void {
   )
 }
 
-/** A espera acaba para todos (some da tabela). */
-function fecharEspera(sala: SalaDaLuta, linha: LinhaDaLuta, motivo: FimDaEspera): void {
+/** Quem fecha a espera pedindo (o criador que desiste): a saída dele conta na cota. */
+interface QuemFecha {
+  contaId: string
+  bytes: number
+  agora: number
+}
+
+/** A espera acaba para todos (some da tabela). `quem` null = venceu o prazo (ninguém pediu, nada a contar). */
+function fecharEspera(sala: SalaDaLuta, linha: LinhaDaLuta, motivo: FimDaEspera, quem: QuemFecha | null): void {
   const contas = participantesDaLinha(sala.sql, linha.id).map((participante) => participante.contaId)
-  sala.transacao(() => apagarLuta(sala.sql, linha.id))
+  const apagar = (): void => apagarLuta(sala.sql, linha.id)
+  if (quem === null) sala.transacao(apagar)
+  else gravarNaSaida(sala, quem.contaId, quem.bytes, quem.agora, apagar)
   paraAsContas(sala, contas, { t: 'luta.fechada', id: linha.id, motivo })
 }
 
@@ -694,7 +740,7 @@ export function atenderPedidoDaLuta(sala: SalaDaLuta, ws: WebSocket, eu: Membro,
     case 'luta.aceitar':
       return aceitar(sala, ws, eu, pedido, agora)
     case 'luta.recusar':
-      return recusarEspera(sala, ws, eu, pedido.id, pedido.t, agora)
+      return recusarEspera(sala, ws, eu, pedido.id, pedido.t, bytesDoTexto(JSON.stringify(pedido)), agora)
     case 'luta.comecar':
       return comecar(sala, ws, eu, pedido, agora)
     case 'luta.jogar':
@@ -754,10 +800,10 @@ function criar(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<Pedi
   const ajustes = pedido.ajustes ?? null
   const doAceite = motivoDoAceite(sql, sistema, eu.contaId, meu.papel, pedido.fichas, ajustes)
   if (doAceite !== null) return recusar(ws, pedido.t, doAceite)
-  if (pedido.convidados.some((convidado) => contaOcupada(sql, convidado.contaId, agora))) return recusar(ws, pedido.t, 'ocupado')
+  if (pedido.convidados.some((convidado) => contaOcupada(sql, convidado.contaId, agora, null))) return recusar(ws, pedido.t, 'ocupado')
   const id = `luta_${crypto.randomUUID()}`
   const espera: EsperaGuardada = { criador: eu.contaId, lados: pedido.lados, criadoEm: agora, aceites: [{ contaId: eu.contaId, fichas: pedido.fichas, ajustes }] }
-  const gravado = gravarComCota(sala, eu.contaId, bytesDoTexto(JSON.stringify(pedido)), agora, () => {
+  const gravar = (): void => {
     sql.exec(
       `INSERT INTO lutas (id, status, modo, estadoJson, seq, versaoDoMotor, prazo, apagarEm, atualizadoEm) VALUES (?, 'espera', ?, ?, 0, ?, ?, NULL, ?)`,
       id,
@@ -768,9 +814,11 @@ function criar(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<Pedi
       agora,
     )
     for (const { contaId, papel, lado } of pedido.convidados) {
-      sql.exec('INSERT INTO participantes (lutaId, contaId, papel, lado, ausenteDesde) VALUES (?, ?, ?, ?, NULL)', id, contaId, papel, lado)
+      sql.exec('INSERT INTO participantes (lutaId, contaId, papel, lado) VALUES (?, ?, ?, ?)', id, contaId, papel, lado)
     }
-  })
+  }
+  // Uma op por conta convidada: cada uma é uma linha (e dois índices) no `participantes`; criar e desistir em laço pagam o que gravam.
+  const gravado = gravarComCota(sala, eu.contaId, bytesDoTexto(JSON.stringify(pedido)), agora, gravar, pedido.convidados.length)
   if (!gravado.ok) return recusar(ws, pedido.t, 'cota', { tentarDepoisDe: gravado.tentarDepoisDe })
   const linha = linhaPorId(sql, id)
   if (linha === undefined) throw new ErroDoBanco('luta gravada e não achada')
@@ -787,7 +835,7 @@ function esperaDaConta(sala: SalaDaLuta, ws: WebSocket, eu: Membro, id: string, 
     return null
   }
   if (linha.prazo !== null && linha.prazo <= agora) {
-    fecharEspera(sala, linha, 'expirou')
+    fecharEspera(sala, linha, 'expirou', null)
     return null
   }
   return { linha, espera, meu }
@@ -812,6 +860,8 @@ function aceitar(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<Pe
   const ajustes = pedido.ajustes ?? null
   const motivo = motivoDoAceite(sql, sistema, eu.contaId, meu.papel, pedido.fichas, ajustes)
   if (motivo !== null) return recusar(ws, pedido.t, motivo, { id: pedido.id })
+  // O convite pendente não prende: é no aceite que a conta fica nesta luta, então ela não pode estar em outra.
+  if (contaOcupada(sql, eu.contaId, agora, linha.id)) return recusar(ws, pedido.t, 'ocupado', { id: pedido.id })
   const nova: EsperaGuardada = { ...espera, aceites: [...espera.aceites.filter((aceite) => aceite.contaId !== eu.contaId), { contaId: eu.contaId, fichas: pedido.fichas, ajustes }] }
   const gravado = gravarComCota(sala, eu.contaId, bytesDoTexto(JSON.stringify(pedido)), agora, () => {
     sql.exec('UPDATE lutas SET estadoJson = ?, atualizadoEm = ? WHERE id = ?', JSON.stringify(nova), agora, linha.id)
@@ -821,14 +871,14 @@ function aceitar(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<Pe
   difundirEspera(sala, { ...linha, estadoJson: JSON.stringify(nova) })
 }
 
-/** Quem foi convidado recusa (ou sai da espera); quem criou desiste da sala inteira. */
-function recusarEspera(sala: SalaDaLuta, ws: WebSocket, eu: Membro, id: string, pedido: TipoDoPedidoDaLuta, agora: number): void {
+/** Quem foi convidado recusa (ou sai da espera); quem criou desiste da sala inteira. As duas contam na cota sem ser recusadas (`gravarNaSaida`). */
+function recusarEspera(sala: SalaDaLuta, ws: WebSocket, eu: Membro, id: string, pedido: TipoDoPedidoDaLuta, bytes: number, agora: number): void {
   const achada = esperaDaConta(sala, ws, eu, id, pedido, agora)
   if (achada === null) return
   const { linha, espera } = achada
-  if (espera.criador === eu.contaId) return fecharEspera(sala, linha, 'desistiu')
+  if (espera.criador === eu.contaId) return fecharEspera(sala, linha, 'desistiu', { contaId: eu.contaId, bytes, agora })
   const nova: EsperaGuardada = { ...espera, aceites: espera.aceites.filter((aceite) => aceite.contaId !== eu.contaId) }
-  sala.transacao(() => {
+  gravarNaSaida(sala, eu.contaId, bytes, agora, () => {
     sala.sql.exec('UPDATE lutas SET estadoJson = ?, atualizadoEm = ? WHERE id = ?', JSON.stringify(nova), agora, linha.id)
     sala.sql.exec('DELETE FROM participantes WHERE lutaId = ? AND contaId = ?', linha.id, eu.contaId)
   })
@@ -900,11 +950,12 @@ function mexer(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<Pedi
 /** Na espera, sair é recusar. Na luta, as fichas de quem joga saem da ordem e a luta segue; quem arbitra ou assiste deixa a lista e recebe o fechamento. */
 function sair(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<PedidoDaLuta, { t: 'luta.sair' }>, agora: number): void {
   const linha = linhaPorId(sala.sql, pedido.id)
-  if (linha?.status === 'espera') return recusarEspera(sala, ws, eu, pedido.id, pedido.t, agora)
-  deixar(sala, ws, eu, pedido.id, pedido.t, agora)
+  const bytes = bytesDoTexto(JSON.stringify(pedido))
+  if (linha?.status === 'espera') return recusarEspera(sala, ws, eu, pedido.id, pedido.t, bytes, agora)
+  deixar(sala, ws, eu, pedido.id, pedido.t, bytes, agora)
 }
 
-function deixar(sala: SalaDaLuta, ws: WebSocket, eu: Membro, id: string, pedido: TipoDoPedidoDaLuta, agora: number): void {
+function deixar(sala: SalaDaLuta, ws: WebSocket, eu: Membro, id: string, pedido: TipoDoPedidoDaLuta, bytes: number, agora: number): void {
   const { sql } = sala
   const achada = lutaDaConta(sala, ws, eu, id, pedido)
   if (achada === null) return
@@ -917,7 +968,7 @@ function deixar(sala: SalaDaLuta, ws: WebSocket, eu: Membro, id: string, pedido:
     if (feito.motivo === 'acabou') enviarEstadoA(sql, ws, luta, eu.contaId)
     return
   }
-  sala.transacao(() => gravarLuta(sql, luta, feito.luta, linha, agora))
+  gravarNaSaida(sala, eu.contaId, bytes, agora, () => gravarLuta(sql, luta, feito.luta, linha, agora))
   if (participanteDaConta(feito.luta, eu.contaId) === null) paraAsContas(sala, [eu.contaId], { t: 'luta.fechada', id, motivo: 'recusou' })
   avisar(sala, luta, feito.luta, linha, agora)
 }
@@ -928,7 +979,7 @@ function parar(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<Pedi
   const meu = luta === null ? null : participanteDaConta(luta, eu.contaId)
   if (meu === null) return recusar(ws, pedido.t, 'nao-existe', { id: pedido.id })
   if (meu.papel !== 'espectador') return recusar(ws, pedido.t, 'papel', { id: pedido.id })
-  deixar(sala, ws, eu, pedido.id, pedido.t, agora)
+  deixar(sala, ws, eu, pedido.id, pedido.t, bytesDoTexto(JSON.stringify(pedido)), agora)
 }
 
 /** Qualquer membro assiste a uma luta em andamento, sem lado e sem ficha, até a 12ª conta; quem já está nela só recebe o estado. */
@@ -939,7 +990,7 @@ function assistir(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<P
   if (linha === undefined || luta === null) return recusar(ws, pedido.t, 'nao-existe', { id: pedido.id })
   if (participanteDaConta(luta, eu.contaId) !== null) return enviarEstadoA(sql, ws, luta, eu.contaId)
   if (luta.participantes.length >= CONTAS_POR_LUTA_MAX) return recusar(ws, pedido.t, 'cheia', { id: pedido.id })
-  if (contaOcupada(sql, eu.contaId, agora)) return recusar(ws, pedido.t, 'ocupado', { id: pedido.id })
+  if (contaOcupada(sql, eu.contaId, agora, null)) return recusar(ws, pedido.t, 'ocupado', { id: pedido.id })
   const novo: ParticipanteDaLuta = { contaId: eu.contaId, nome: eu.nome, papel: 'espectador', lado: null, ausenteDesde: null }
   // Assistir não muda o `seq`: a jogada que alguém mandou sobre o estado de antes continua valendo.
   const depois: EstadoDaLuta = { ...luta, participantes: [...luta.participantes, novo] }
@@ -1033,7 +1084,7 @@ export function vencerPrazosDasLutas(sala: SalaDaLuta, agora: number): void {
   const vencidas = sql.exec('SELECT * FROM lutas WHERE prazo IS NOT NULL AND prazo <= ? ORDER BY id', agora).toArray().map(linhaDaLuta)
   for (const linha of vencidas) {
     if (linha.status === 'espera') {
-      fecharEspera(sala, linha, 'expirou')
+      fecharEspera(sala, linha, 'expirou', null)
       continue
     }
     const luta = lutaDaLinha(linha)

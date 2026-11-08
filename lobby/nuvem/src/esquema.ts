@@ -176,7 +176,9 @@ const TABELAS_DA_CAMPANHA = [
   // linha antes de começar (`status 'espera'`); `estadoJson` = a espera guardada, depois o estado do
   // motor v4. `prazo` = o que vence (a espera; os 3 minutos de quem caiu; o árbitro fora na pausa);
   // `apagarEm` = quando a acabada sai. `participantes` é o índice de quem está em cada luta (1 luta
-  // por conta, a lista de quem joga), refeito do estado quando quem está muda.
+  // por conta, a lista de quem joga): segue o estado gravando só a diferença quando quem está muda.
+  // Sem `ausenteDesde` (fica só no estado): queda e volta gravam só a linha de `lutas`. O DO que já
+  // tinha a tabela com a coluna fica com ela, nula e sem uso.
   `CREATE TABLE IF NOT EXISTS lutas (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL CHECK (status IN ('espera', 'andamento', 'fim')),
@@ -193,7 +195,6 @@ const TABELAS_DA_CAMPANHA = [
     contaId TEXT NOT NULL,
     papel TEXT NOT NULL CHECK (papel IN ('jogador', 'juiz', 'arbitro', 'espectador')),
     lado TEXT,
-    ausenteDesde INTEGER,
     PRIMARY KEY (lutaId, contaId)
   )`,
   `CREATE INDEX IF NOT EXISTS participantes_por_conta ON participantes (contaId)`,

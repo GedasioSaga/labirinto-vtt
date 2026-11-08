@@ -51,7 +51,9 @@
 //                                             no criar = cheia; 2 contra 2 até o fim com o mestre árbitro e um espectador
 //                                             (colega de time = naoEDaConta, espectador = naoJoga e sem combate, o desfazer
 //                                             do árbitro chega às 6 contas), o histórico com o vencedor certo; todos contra
-//                                             todos com 3 até o fim; 12 contas numa luta e a 13ª no assistir = cheia; a conta
+//                                             todos com 3 até o fim; o convite pendente não prende (quem só foi convidado
+//                                             assiste a outra luta; assistindo, aceitar = ocupado; parar e assistir de novo
+//                                             seguem o índice); 12 contas numa luta e a 13ª no assistir = cheia; a conta
 //                                             fora 3 min sai da ordem e a luta segue; imprime o maior frame enviado e recebido
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
@@ -1951,6 +1953,50 @@ async function historicoDasLutas(salas, acabadas) {
   )
 }
 
+/**
+ * O convite pendente não prende (revisão da F4): j16, convidado pelo j15 sem aceitar, assiste à luta da
+ * ausência; assistindo, aceitar a sala = ocupado. Parar e assistir de novo: a linha do j16 sai do índice e
+ * volta (o índice grava só a diferença; a linha que ficasse daria chave repetida). No fim o j15 desiste.
+ */
+async function conviteNaoPrende(salas, { luta }) {
+  const criador = salas[lutador(15).contaId]
+  const convidada = salas[lutador(16).contaId]
+  await mandarNaLuta(criador, { t: 'luta.criar', modo: 'todos', lados: ['a', 'b'], convidados: [jogadorNoLado(15, 'a'), jogadorNoLado(16, 'b')], fichas: [lutador(15).ficha] })
+  const criada = await doLuta(criador, (m) => m.t === 'luta.espera' || m.t === 'luta.recusado', 'a sala de espera do j15')
+  if (criada.t !== 'luta.espera') throw new Error(`criar do j15 recusado: ${criada.motivo}`)
+  const { id } = criada.espera
+  const assistir = async () => {
+    await mandarNaLuta(convidada, { t: 'luta.assistir', id: luta.id })
+    return doLuta(convidada, (m) => (m.t === 'luta.estado' && m.luta.id === luta.id) || (m.t === 'luta.recusado' && m.id === luta.id), 'o assistir do j16')
+  }
+  const parar = async () => {
+    await mandarNaLuta(convidada, { t: 'luta.parar', id: luta.id })
+    return doLuta(convidada, (m) => (m.t === 'luta.fechada' || m.t === 'luta.recusado') && m.id === luta.id, 'o parar do j16')
+  }
+  const assistiu = await assistir()
+  await mandarNaLuta(convidada, { t: 'luta.aceitar', id, lado: null, fichas: [lutador(16).ficha] })
+  const aceite = await doLuta(
+    convidada,
+    (m) => (m.t === 'luta.recusado' && m.id === id) || (m.t === 'luta.espera' && m.espera.id === id && m.espera.contas.some((c) => c.contaId === lutador(16).contaId && c.aceitou)),
+    'o aceite do j16 assistindo',
+  )
+  conferir(
+    'convite pendente não prende: j16 (convidado pelo j15) assiste à luta da ausência; assistindo, aceitar a sala = ocupado',
+    assistiu.t === 'luta.estado' && assistiu.luta.olhar === 'assistindo' && aceite.t === 'luta.recusado' && aceite.motivo === 'ocupado',
+    JSON.stringify({ assistir: assistiu.t === 'luta.estado' ? assistiu.luta.olhar : assistiu.motivo, aceite: aceite.t === 'luta.recusado' ? aceite.motivo : 'aceitou' }),
+  )
+  const parou = await parar()
+  const voltou = await assistir()
+  const parouDeNovo = await parar()
+  conferir(
+    'parar, assistir de novo e parar: o j16 sai do índice e volta (fechada, estado, fechada)',
+    parou.t === 'luta.fechada' && voltou.t === 'luta.estado' && voltou.luta.participantes.filter((p) => p.contaId === lutador(16).contaId).length === 1 && parouDeNovo.t === 'luta.fechada',
+    JSON.stringify([parou.t === 'luta.recusado' ? parou.motivo : parou.t, voltou.t === 'luta.recusado' ? voltou.motivo : voltou.t, parouDeNovo.t === 'luta.recusado' ? parouDeNovo.motivo : parouDeNovo.t]),
+  )
+  await mandarNaLuta(criador, { t: 'luta.recusar', id })
+  await doLuta(convidada, (m) => m.t === 'luta.fechada' && m.id === id && m.motivo === 'desistiu', 'a sala do j15 fechada')
+}
+
 /** j13 x j14, e 10 contas assistem: 12 contas; a 13ª (j16) no assistir = cheia. */
 async function dozeEATreze(salas) {
   const luta = await lutaComecada(salas, lutador(13).contaId, { modo: 'todos', lados: ['a', 'b'], convidados: [jogadorNoLado(13, 'a'), jogadorNoLado(14, 'b')], fichas: [lutador(13).ficha] })
@@ -1987,6 +2033,7 @@ async function aceiteDaLuta() {
     const dois = await doisContraDois(salas)
     const todos = await todosContraTodos(salas)
     await historicoDasLutas(salas, [dois, todos])
+    await conviteNaoPrende(salas, ausencia)
     await dozeEATreze(salas)
     await ausenciaTermina(salas, ausencia)
     const latencias = [...medidas.latencias].sort((a, b) => a - b)
