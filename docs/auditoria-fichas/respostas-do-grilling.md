@@ -89,3 +89,14 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Resiliente (literal): "Resiliente vamos mudar, dura o combate inteiro esse 20% de Resistencia." Regra: os −20% de dano valem o COMBATE INTEIRO enquanto a forma estiver ligada, sem depender de SP ou Escudo.
 - Formas no fim da batalha: DESLIGAM SOZINHAS (todas, de todo personagem). (regra do sistema)
 - Descrição: fica 21 ANOS, FERREIRO; apagar o bloco de 25 anos/Gatuno.
+
+## Guilherme (P1-P3, P6; P4, P5 e P12 seguem regras já respondidas)
+- Explosão: o app rola d20 + mod. de RES do alvo contra CD 11; se o alvo PASSAR, nada acontece e a Explosão NÃO GASTA (devolve os 40 SP e o uso).
+- Explosão, 10% da vida atual: o APP CALCULA, o jogador vê só o dano, e vai DIRETO NO HP (ignora o Escudo).
+- "Dobra os Debuffs": DOBRA OS TURNOS que faltam (Atordoado 2 vira 4), para todo selo negativo, inclusive os postos à mão.
+- Lança: arma "Lança" com DANO 20 (Atacar 110, Giro 130, 10.000 Km/h 315).
+- Atordoado (10.000 Km/h): regra do Jimboy/Aira (perde a vez, só "Passar a vez", não reage). Overload "metade dos Status": regra do Jimboy. Recuperação Espantosa: regra da May (app avisa, mestre decide).
+- Giro como reação: total 10 OU MAIS ANULA TODO O DANO; o +1 (maior entre FOR e AGI) entra sozinho.
+- Manter o Giro: FICA LIGADO, cobra 30 SP no começo de cada vez dele (lembrete Aplicar/pular); a recarga só começa quando ele para.
+- Giro, alvos a 1 quadrado: o JOGADOR ESCOLHE (como hoje).
+- Revigorar: remove TUDO, ATÉ O CANSAÇO DO OVERLOAD (a metade dos atributos).
