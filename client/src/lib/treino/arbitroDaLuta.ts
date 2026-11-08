@@ -9,7 +9,7 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
 import { fimDaMesaDaJogada, type MotorDoDuelo } from './duelo'
 import { recursoDaEnergia } from './juiz'
-import { abrirNaLoja, CENA_DA_LUTA, participanteDaConta, recusaNaLuta, VERSAO_DO_MOTOR_DA_LUTA, type EstadoDaLuta, type LutaNaLoja, type MarcoDaLuta, type ResultadoNaLuta } from './luta'
+import { abrirNaLoja, CENA_DA_LUTA, comMarco, participanteDaConta, recusaNaLuta, semPausa, VERSAO_DO_MOTOR_DA_LUTA, type EstadoDaLuta, type LutaNaLoja, type ResultadoNaLuta } from './luta'
 import { ladosDasVagas, type LadoDaLuta } from './mesaEmMemoria'
 
 /**
@@ -20,13 +20,15 @@ import { ladosDasVagas, type LadoDaLuta } from './mesaEmMemoria'
  *  - DESFAZER a última jogada: a última linha do registro que não está
  *    riscada, pela store da batalha (`desfazer` com o autor mestre: as fichas,
  *    a ordem e o golpe voltam como estavam); a linha fica riscada. A casa
- *    andada não volta: o `andar` não escreve linha;
+ *    andada não volta: o `andar` não escreve linha. A saída de quem deixou a
+ *    luta não se desfaz: o Desfazer para nela (`linhaQueOArbitroDesfaz`);
  *  - AJUSTAR o HP, o SP e o Escudo de uma ficha (`ajustar`, linha "ficha");
  *  - DECIDIR A REGRA do campo (`definirRegras`, ou nenhuma);
  *  - PASSAR A VEZ de quem sumiu (`passarVez`, na vez que ele viu);
  *  - PAUSAR e RETOMAR (`EstadoDaLuta.pausada`: jogada na pausa = `pausada`;
  *    o relógio dos ausentes para e, ao retomar, quem segue fora tem 3 min de
- *    novo);
+ *    novo; o árbitro que sai, ou fica fora 3 min, deixa a luta correr de
+ *    novo, em `luta.ts`);
  *  - ENCERRAR, com um vencedor ou empate (o fim `arbitro`).
  * As quatro primeiras saem no registro assinadas `NOME_DO_ARBITRO`;
  * pausar, retomar e encerrar ficam nos `marcos`. Todo pedido leva o `seq` do
@@ -39,9 +41,6 @@ import { ladosDasVagas, type LadoDaLuta } from './mesaEmMemoria'
 
 /** O nome que assina, no registro, o que o árbitro fez ou desfez. */
 export const NOME_DO_ARBITRO = `${NOME_DO_MESTRE} (árbitro)`
-
-/** Marcos guardados por luta: passou, os mais velhos saem (pausar e retomar sem fim não incham o estado). */
-export const MARCOS_MAX = 50
 
 /** O mestre na store: desfaz qualquer linha, ajusta qualquer ficha e passa qualquer vez. */
 const MESTRE: AutorDaAcao = { tipo: 'mestre' }
@@ -57,13 +56,38 @@ export type PedidoDoArbitro =
 
 type PedidoNaBatalha = Extract<PedidoDoArbitro, { tipo: 'desfazer' | 'ajustar' | 'regras' | 'passarVez' }>
 
-/** A última linha que ainda não está riscada (a que o Desfazer do árbitro desfaz); `null` = nenhuma. */
+/** A última linha que ainda não está riscada (a candidata do Desfazer do árbitro, `linhaQueOArbitroDesfaz`); `null` = nenhuma. */
 export function ultimaNaoRiscada<T extends { desfeita?: unknown }>(linhas: readonly T[]): T | null {
   for (let i = linhas.length - 1; i >= 0; i -= 1) {
     const linha = linhas[i]
     if (linha !== undefined && linha.desfeita === undefined) return linha
   }
   return null
+}
+
+/**
+ * A linha que `tirarContas` escreve por quem sai, de um token que ficou fora:
+ * o "saiu da luta" (`combatente`) e a reação forçada (o autor mestre; a do
+ * robô contra quem saiu cai aqui também, e fica de fora por segurança).
+ */
+function daSaida(linha: LinhaDoRegistro, tokensFora: ReadonlySet<string>): boolean {
+  if (!linha.envolve.tokenIds.some((tokenId) => tokensFora.has(tokenId))) return false
+  return linha.tipo === 'combatente' || (linha.tipo === 'reacao' && linha.autor.tipo === 'mestre')
+}
+
+/**
+ * A linha que o Desfazer do árbitro desfaz: a última não riscada, se não é
+ * da saída de alguém. A saída não se desfaz: a store devolveria a carta à
+ * ordem, mas a vaga segue `fora` (a store não conhece o `fora`) e ninguém
+ * jogaria a carta, travando a luta toda rodada; e a reação forçada, desfeita,
+ * deixaria o golpe esperando a reação de quem saiu. O Desfazer para na
+ * saída. `null` = nada a desfazer.
+ */
+export function linhaQueOArbitroDesfaz(luta: Pick<EstadoDaLuta, 'cena' | 'lutadores'>): LinhaDoRegistro | null {
+  const ultima = ultimaNaoRiscada(luta.cena.registro)
+  if (ultima === null) return null
+  const tokensFora = new Set(luta.lutadores.vagas.flatMap((vaga) => (vaga.fora === true ? [vaga.tokenId] : [])))
+  return daSaida(ultima, tokensFora) ? null : ultima
 }
 
 /** Só o HP, o SP e o Escudo (o atual e o máximo): o modificador de atributo do "Ajustar..." fica fora do árbitro (plano §3). */
@@ -77,8 +101,8 @@ function naBatalha(aberta: LutaNaLoja, luta: EstadoDaLuta, pedido: PedidoNaBatal
   const batalha = aberta.loja.getState()
   switch (pedido.tipo) {
     case 'desfazer': {
-      const ultima = ultimaNaoRiscada(luta.cena.registro)
-      return ultima !== null && batalha.desfazer(CENA_DA_LUTA, ultima.id, MESTRE)
+      const linha = linhaQueOArbitroDesfaz(luta)
+      return linha !== null && batalha.desfazer(CENA_DA_LUTA, linha.id, MESTRE)
     }
     case 'ajustar':
       return soVidaEnergiaEscudo(pedido.pedido, sistema) && batalha.ajustar(CENA_DA_LUTA, MESTRE, pedido.pedido)
@@ -124,19 +148,6 @@ function pelaBatalha(luta: EstadoDaLuta, motor: MotorDoDuelo, contaId: string, p
     seq: luta.seq + 1,
   }
   return { ok: true, luta: { ...depois, fim: fimDaMesaDaJogada(motor.sistema, depois) } }
-}
-
-/** O marco do árbitro, com o `seq` novo (o estado que ele abre). */
-function comMarco(luta: EstadoDaLuta, tipo: MarcoDaLuta['tipo'], quando: number): EstadoDaLuta {
-  const seq = luta.seq + 1
-  return { ...luta, seq, marcos: [...(luta.marcos ?? []), { seq, tipo, quando }].slice(-MARCOS_MAX) }
-}
-
-/** A luta sem a pausa. `ausentesDeNovo`: quem segue fora conta os 3 min a partir de `agora` (na pausa o relógio dele parou). */
-function semPausa(luta: EstadoDaLuta, agora: number, ausentesDeNovo: boolean): EstadoDaLuta {
-  const { pausada: _pausada, ...correndo } = luta
-  if (!ausentesDeNovo) return correndo
-  return { ...correndo, participantes: luta.participantes.map((participante) => (participante.ausenteDesde === null ? participante : { ...participante, ausenteDesde: agora })) }
 }
 
 /**

@@ -59,7 +59,8 @@ import { golpesDoRobo } from './robo'
  *    joga até a vez de gente; o mestre que volta retoma o Judge;
  *  - O ÁRBITRO: desfazer, ajustar, regras, passar a vez, pausar e encerrar
  *    moram em `arbitroDaLuta.ts`. Aqui só a pausa vale: jogada na pausa =
- *    `pausada`, e o relógio dos ausentes para.
+ *    `pausada`, e o relógio dos ausentes para. A pausa não fica presa: o
+ *    árbitro que sai, ou que fica fora 3 min, a retoma (ninguém mais o faria).
  * A rede, a sala de espera e o relógio são do DO (F4).
  *
  * Sem Tauri, sem DOM.
@@ -189,6 +190,22 @@ type CriacaoRecusada = Exclude<CriacaoDaLuta, { ok: true }>
 
 export function recusaNaLuta(motivo: MotivoDaRecusaNaLuta): { ok: false; motivo: MotivoDaRecusaNaLuta } {
   return { ok: false, motivo }
+}
+
+/** Marcos guardados por luta: passou, os mais velhos saem (pausar e retomar sem fim não incham o estado). */
+export const MARCOS_MAX = 50
+
+/** O marco do árbitro, com o `seq` novo (o estado que ele abre). */
+export function comMarco(luta: EstadoDaLuta, tipo: MarcoDaLuta['tipo'], quando: number): EstadoDaLuta {
+  const seq = luta.seq + 1
+  return { ...luta, seq, marcos: [...(luta.marcos ?? []), { seq, tipo, quando }].slice(-MARCOS_MAX) }
+}
+
+/** A luta sem a pausa. `ausentesDeNovo`: quem segue fora conta os 3 min a partir de `agora` (na pausa o relógio dele parou). */
+export function semPausa(luta: EstadoDaLuta, agora: number, ausentesDeNovo: boolean): EstadoDaLuta {
+  const { pausada: _pausada, ...correndo } = luta
+  if (!ausentesDeNovo) return correndo
+  return { ...correndo, participantes: luta.participantes.map((participante) => (participante.ausenteDesde === null ? participante : { ...participante, ausenteDesde: agora })) }
 }
 
 function lojaDaLuta(mesa: MesaDaBatalha, motor: MotorDoDuelo): LojaDaBatalha {
@@ -486,17 +503,37 @@ function tirarContas(luta: EstadoDaLuta, motor: MotorDoDuelo, saem: ReadonlySet<
 }
 
 /**
- * A conta `contaId` sai (`luta.sair`): quem tem lado (quem joga, e o mestre
- * como Judge) tira as fichas dele da luta (a luta segue, e o robô joga se a
- * vez cair nele); quem arbitra ou assiste só deixa a lista. Recusada (versão,
- * acabada, conta de fora): a luta recebida fica como estava.
+ * A pausa sem o árbitro (ele saiu, ou passou 3 min fora): a luta volta a
+ * correr como no retomar (o marco `retomar`, `seq` + 1, quem segue fora com
+ * 3 min de novo) e o robô joga se a vez é dele.
  */
-export function sairDaLuta(luta: EstadoDaLuta, motor: MotorDoDuelo, contaId: string): ResultadoNaLuta {
+function retomarSemOArbitro(luta: EstadoDaLuta, motor: MotorDoDuelo, agora: number): EstadoDaLuta {
+  return jogarPeloRobo(comMarco(semPausa(luta, agora, true), 'retomar', agora), motor)
+}
+
+/** Na pausa, quando o árbitro ausente passa dos 3 min (ms). `null` = a luta corre, ou o árbitro está aqui. */
+function prazoDoArbitroNaPausa(luta: EstadoDaLuta): number | null {
+  if (luta.pausada !== true) return null
+  const arbitro = luta.participantes.find((participante) => participante.papel === 'arbitro')
+  return arbitro === undefined || arbitro.ausenteDesde === null ? null : arbitro.ausenteDesde + VOLTA_DO_AUSENTE_MS
+}
+
+/**
+ * A conta `contaId` sai (`luta.sair`) em `agora`: quem tem lado (quem joga, e
+ * o mestre como Judge) tira as fichas dele da luta (a luta segue, e o robô
+ * joga se a vez cair nele); quem arbitra ou assiste só deixa a lista, e o
+ * árbitro que sai da luta pausada a retoma (senão ninguém mais a retomaria).
+ * Recusada (versão, acabada, conta de fora): a luta recebida fica como estava.
+ */
+export function sairDaLuta(luta: EstadoDaLuta, motor: MotorDoDuelo, contaId: string, agora: number): ResultadoNaLuta {
   if (luta.versao !== VERSAO_DO_MOTOR_DA_LUTA) return recusaNaLuta('versao')
   if (luta.fim !== null) return recusaNaLuta('acabou')
   const eu = participanteDaConta(luta, contaId)
   if (eu === null) return recusaNaLuta('naoJoga')
-  if (!temLado(eu)) return { ok: true, luta: { ...luta, participantes: luta.participantes.filter((participante) => participante.contaId !== contaId) } }
+  if (!temLado(eu)) {
+    const semEle: EstadoDaLuta = { ...luta, participantes: luta.participantes.filter((participante) => participante.contaId !== contaId) }
+    return { ok: true, luta: eu.papel === 'arbitro' && luta.pausada === true ? retomarSemOArbitro(semEle, motor, agora) : semEle }
+  }
   return { ok: true, luta: jogarPeloRobo(tirarContas(luta, motor, new Set([contaId])), motor) }
 }
 
@@ -521,9 +558,15 @@ function prazoDaConta(luta: Pick<EstadoDaLuta, 'lutadores'>, participante: Parti
   return participante.ausenteDesde + VOLTA_DO_AUSENTE_MS
 }
 
-/** O menor prazo (ms) de quem joga, está ausente e ainda tem ficha na luta: a coluna `prazo` e o `alarm()` do DO. `null` = ninguém, já acabou, ou pausada (o relógio dos ausentes para). */
+/**
+ * O menor prazo (ms), a coluna `prazo` e o `alarm()` do DO: correndo, o de
+ * quem joga, está ausente e ainda tem ficha na luta; pausada (o relógio de
+ * quem joga para), o do árbitro ausente, que ao passar retoma a luta.
+ * `null` = ninguém, ou já acabou.
+ */
 export function prazoDaLuta(luta: EstadoDaLuta): number | null {
-  if (luta.fim !== null || luta.pausada === true) return null
+  if (luta.fim !== null) return null
+  if (luta.pausada === true) return prazoDoArbitroNaPausa(luta)
   const prazos = luta.participantes.flatMap((participante) => {
     const prazo = prazoDaConta(luta, participante)
     return prazo === null ? [] : [prazo]
@@ -534,11 +577,16 @@ export function prazoDaLuta(luta: EstadoDaLuta): number | null {
 /**
  * Em `agora`, quem passou do prazo sai da luta (as fichas saem da ordem) e a
  * luta segue; o mestre como Judge não sai: o robô assume as fichas dele e
- * joga se a vez é dele (`seq` + 1). Ninguém passou, já acabou ou pausada: a
- * mesma luta.
+ * joga se a vez é dele (`seq` + 1). Na pausa ninguém sai; só vale o prazo do
+ * árbitro fora: passou, a luta volta a correr (`retomarSemOArbitro`). Ninguém
+ * passou, ou já acabou: a mesma luta.
  */
 export function tirarAusentes(luta: EstadoDaLuta, motor: MotorDoDuelo, agora: number): EstadoDaLuta {
-  if (luta.fim !== null || luta.pausada === true) return luta
+  if (luta.fim !== null) return luta
+  if (luta.pausada === true) {
+    const prazo = prazoDoArbitroNaPausa(luta)
+    return prazo !== null && agora >= prazo ? retomarSemOArbitro(luta, motor, agora) : luta
+  }
   const passaram = luta.participantes.filter((participante) => {
     const prazo = prazoDaConta(luta, participante)
     return prazo !== null && agora >= prazo

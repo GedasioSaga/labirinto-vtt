@@ -6,7 +6,7 @@ import type { TurnosDaCena } from '../batalha/turnos'
 import { vistaParaJogador, type ContextoDoJogador, type EstadoParaJogador } from '../batalha/vistaDoJogador'
 import { projetarParaJogador } from '../nuvem/projecao'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { ultimaNaoRiscada } from './arbitroDaLuta'
+import { linhaQueOArbitroDesfaz } from './arbitroDaLuta'
 import { participanteDaConta, type EstadoDaLuta, type FimDaLutaV4, type MarcoDaLuta, type ModoDaLuta, type ParticipanteDaLuta } from './luta'
 import { criarMesaEmMemoria, type CasaDoTreino, type LutadoresDaLuta, type VagaDaLuta } from './mesaEmMemoria'
 import { efeitosDoLado, turnosDoLado } from './vistaDoDuelo'
@@ -24,8 +24,8 @@ import { efeitosDoLado, turnosDoLado } from './vistaDoDuelo'
  *    formas sem os números. Igual para todos que assistem: montada uma vez só;
  *  - O ÁRBITRO vê tudo: o fio inteiro, e na vista todas as fichas são "eu"
  *    (o combate e os contra-ataques de todos). F3: no registro dele, a
- *    última linha não riscada vem com `podeDesfazer` (o Desfazer do árbitro,
- *    `arbitroDaLuta.ts`).
+ *    última linha não riscada vem com `podeDesfazer`, se não é da saída de
+ *    alguém (o Desfazer do árbitro, `linhaQueOArbitroDesfaz`).
  * F3: a pausa e os marcos do árbitro vão a todos (campos opcionais do fio).
  * A ficha é pública como no duelo: as cópias vão projetadas a todos
  * (`projetarParaJogador`), e o registro é a mesma cauda para todos.
@@ -111,10 +111,9 @@ export function lutaParaOFio(luta: EstadoDaLuta): LutaNoFio {
   }
 }
 
-/** O registro do árbitro: a última linha não riscada com o Desfazer aceso (a única que ele desfaz). */
-function registroDoArbitro(registro: readonly LinhaParaJogador[]): readonly LinhaParaJogador[] {
-  const ultima = ultimaNaoRiscada(registro)
-  return ultima === null ? registro : registro.map((linha) => (linha === ultima ? { ...linha, podeDesfazer: true } : linha))
+/** O registro do árbitro: a linha `desfazivel` com o Desfazer aceso (a única que ele desfaz). */
+function registroDoArbitro(registro: readonly LinhaParaJogador[], desfazivel: string | null): readonly LinhaParaJogador[] {
+  return desfazivel === null ? registro : registro.map((linha) => (linha.id === desfazivel ? { ...linha, podeDesfazer: true } : linha))
 }
 
 /** Quem é o quê para uma conta: as fichas "eu" e os personagens "aliado". */
@@ -123,18 +122,24 @@ interface RecorteDaConta {
   olhar: OlharNaLuta
   minhas: readonly VagaDaLuta[]
   aliadas: readonly VagaDaLuta[]
+  /** O id da linha que o Desfazer do árbitro desfaz; `null` = nenhuma, ou quem olha não arbitra. */
+  desfazivel: string | null
 }
 
 function recorteDaConta(luta: EstadoDaLuta, contaId: string, olhar: OlharNaLuta): RecorteDaConta {
   const { vagas } = luta.lutadores
-  if (olhar === 'arbitro') return { contaId, olhar, minhas: vagas, aliadas: [] }
-  if (olhar === 'assistindo') return { contaId: '', olhar, minhas: [], aliadas: [] }
+  if (olhar === 'arbitro') {
+    const linha = linhaQueOArbitroDesfaz(luta)
+    return { contaId, olhar, minhas: vagas, aliadas: [], desfazivel: linha === null ? null : linha.id }
+  }
+  if (olhar === 'assistindo') return { contaId: '', olhar, minhas: [], aliadas: [], desfazivel: null }
   const lado = participanteDaConta(luta, contaId)?.lado ?? null
   return {
     contaId,
     olhar,
     minhas: vagas.filter((vaga) => vaga.contaId === contaId),
     aliadas: vagas.filter((vaga) => lado !== null && vaga.lado === lado && vaga.contaId !== contaId),
+    desfazivel: null,
   }
 }
 
@@ -145,7 +150,7 @@ function turnosDeQuemAssiste(turnos: TurnosDaCena): TurnosDaCena {
 }
 
 function fioDoRecorte(fio: LutaNoFio, recorte: RecorteDaConta): LutaNoFio {
-  if (recorte.olhar === 'arbitro') return { ...fio, registro: registroDoArbitro(fio.registro) }
+  if (recorte.olhar === 'arbitro') return { ...fio, registro: registroDoArbitro(fio.registro, recorte.desfazivel) }
   if (recorte.olhar === 'assistindo') return { ...fio, turnos: turnosDeQuemAssiste(fio.turnos), efeitos: efeitosDoLado(fio.efeitos, new Set()) }
   const meusTokens = new Set(recorte.minhas.map((vaga) => vaga.tokenId))
   const comNumeros = new Set([...meusTokens, ...recorte.aliadas.map((vaga) => vaga.tokenId)])
