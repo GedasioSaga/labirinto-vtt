@@ -8,7 +8,7 @@ import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEv
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId } from '../batalha/leituraDaFicha'
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
-import { motivoDasRespostasDoCartao } from '../batalha/mecanicasAMao'
+import { motivoDasRespostasDoGolpe } from '../batalha/mecanicasAMao'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
@@ -358,7 +358,9 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
   const daOpcao = variante === null || variante.principal ? null : preenchimentoDaVariante(tecnica.cartao, variante, { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus })
   // F2 (fatia B): as respostas da mira (ponto vital, quadrados empurrados) mudam o dano; resposta torta recusa o pedido.
   const { respostas } = pedido
-  if (respostas !== undefined && motivoDasRespostasDoCartao(pedido.cartaoId, respostas) !== null) return recusa('regra')
+  // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
+  const cartoesDoDono = Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id))
+  if (respostas !== undefined && motivoDasRespostasDoGolpe(pedido.cartaoId, cartoesDoDono, respostas) !== null) return recusa('regra')
   const leitura = daOpcao?.dano ?? (respostas === undefined ? tecnica.dano : danoDaTecnica(tecnica.cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }, respostas))
   if (leitura.tipo !== 'valor' && leitura.tipo !== 'semDano') return recusa('danoAMao')
   const perfurante = pedido.perfurante && tecnica.perfurante

@@ -41,6 +41,8 @@ export interface ComportamentoDoSelo {
   renova?: true
   /** O selo só lembra o mestre disto (o app não aplica nada). */
   lembrete?: string
+  /** F2 (fatia C): quem tem o selo recupera esta porcentagem do dano que causa, em vida (Bênção de uma Raposa: 10). */
+  curaDoDano?: number
 }
 
 /** Regra do sistema (respostas do Alexei e do Siegfried): o Sangramento tira 10 por vez, direto no HP. */
@@ -56,7 +58,22 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Ferido por prata', sinal: /^ferid[oa] por prata/, lembrete: 'a cura que recebe cai pela metade (o mestre corta à mão)' },
   { nome: NOME_DO_SANGRAMENTO, sinal: /^sangr/, porVez: DANO_DO_SANGRAMENTO, verbo: 'sangra' },
   { nome: 'Queimando', sinal: /^queima/, porVez: 10, verbo: 'queima', renova: true },
+  // Aira (texto novo do mestre): "toda vez que um aliado com esse buff causar dano ele vai recuperar na vida 10% do dano que ele causou".
+  { nome: 'Bênção de uma Raposa', sinal: /^bencao de uma raposa/, curaDoDano: 10 },
 ]
+
+/**
+ * F2 (fatia C): a porcentagem do dano que volta em vida para quem bate, pelos
+ * selos dele agora (a maior vale; não somam). 0 = nenhum.
+ */
+export function curaDoDanoDosSelos(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome'>[] | undefined, tokenId: string): number {
+  return (selos ?? []).reduce((maior, selo) => (selo.tokenId === tokenId ? Math.max(maior, comportamentoDoSelo(selo.nome)?.curaDoDano ?? 0) : maior), 0)
+}
+
+/** F2 (fatia C): quanto volta em vida de um dano causado, para baixo. */
+export function curaDoDano(dano: number, porcento: number): number {
+  return dano > 0 && porcento > 0 ? Math.floor((dano * porcento) / 100) : 0
+}
 
 /** O comportamento do selo pelo nome (sem acento nem caixa); `null` = selo comum. */
 export function comportamentoDoSelo(nomeDoSelo: string): ComportamentoDoSelo | null {

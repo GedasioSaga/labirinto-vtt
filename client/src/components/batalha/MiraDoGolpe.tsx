@@ -119,7 +119,9 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
   if (golpe.tipo === 'atacar') {
     // A bala só vai com a arma (o pedido sem `armaId` e com `balaId` é torto).
     const bala = golpe.armaId !== null && escolha.balaId !== undefined ? { balaId: escolha.balaId } : {}
-    return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...perfuracao, ...selo, ...bala }
+    // F2 (fatia C): as respostas de todo golpe do dono (o Electro da Aira) também no Atacar.
+    const respostas = escolha.respostas === undefined ? {} : { respostas: escolha.respostas }
+    return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...perfuracao, ...selo, ...bala, ...respostas }
   }
   return {
     tipo: 'habilidade',

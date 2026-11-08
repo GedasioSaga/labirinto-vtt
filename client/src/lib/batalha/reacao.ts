@@ -1,7 +1,7 @@
 import type { Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { recursoDeVida } from '../vidaDaFicha'
+import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLICADOR_DO_CRITICO, PERFURACAO_MAX, PERFURACAO_MIN, type SaidaDaReacao, type VantagemDoDado, type VantagemNaRolagem } from './combate'
 import { recursoDoEscudo } from './leituraDaFicha'
 
@@ -132,4 +132,15 @@ export function ajustesDoDano(personagem: Personagem, sistema: SistemaDeRpg, dan
   const vida = recursoDeVida(sistema)
   if (noHp > 0 && vida !== null) ajustes.push({ parte: 'recurso', chave: vida.id, valor: Math.max(0, numeroDaFicha(personagem.recursos, vida.id) - noHp) })
   return ajustes
+}
+
+/**
+ * F2 (fatia C, Bênção de uma Raposa): a vida que volta, até o máximo. Sem
+ * máximo na ficha ou já cheia: nada (a cura não passa do teto).
+ */
+export function ajustesDaCura(personagem: Personagem, sistema: SistemaDeRpg, cura: number): Ajuste[] {
+  const recurso = recursoDeVida(sistema)
+  const vida = recurso === null || !(cura > 0) ? null : vidaDoPersonagem(personagem, recurso)
+  if (recurso === null || vida === null || vida.atual >= vida.maximo) return []
+  return [{ parte: 'recurso', chave: recurso.id, valor: Math.min(vida.maximo, vida.atual + cura) }]
 }

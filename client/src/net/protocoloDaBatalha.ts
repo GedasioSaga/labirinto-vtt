@@ -458,6 +458,9 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const perfuracao = lerPerfuracao(value.perfuracao)
       const balaId = lerBalaId(value.balaId)
       const alvosLidos = lerAlvosDoPedido(alvos, 1)
+      // F2 (fatia C): as respostas de todo golpe do dono (Electro); se valem, quem confere é a store.
+      const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
+      if (respostas === null) return null
       if (!cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean' || contraDe === false || selo === false || perfuracao === false || balaId === false) return null
       // Bala sem arma não existe: a bala é subcartão da arma.
       if (balaId !== undefined && armaId === null) return null
@@ -466,6 +469,7 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       if (contraDe !== undefined) pedido.contraDe = contraDe
       if (selo !== undefined) pedido.selo = selo
       if (balaId !== undefined) pedido.balaId = balaId
+      if (respostas !== undefined) pedido.respostas = respostas
       return pedido
     }
     case 'habilidade': {

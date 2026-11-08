@@ -1,4 +1,5 @@
-import type { SeloDoGolpe } from './combate'
+import type { NaturezaDoSelo, SeloDaBatalha, SeloDoGolpe } from './combate'
+import { normalizar } from './formula'
 import type { ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
 import { motivoDasRespostas, type OpcaoDaPergunta, type PerguntaNaHora, type RespostasDoPedido } from './perguntaNaHora'
@@ -78,10 +79,57 @@ export interface RebateAMao {
   perto?: FormaDaArea
 }
 
+/**
+ * F2 (fatia C): o selo montado na hora com as respostas e a ficha de quem usa
+ * (Bênção de uma Raposa: o físico escolhido ganha 20% do Espírito dela, pelos
+ * turnos que ela disser). `turnosDe`: a pergunta de número que dá os turnos.
+ * `mod`: o atributo é a resposta de `atributoDe`; o quanto, a `formula` lida
+ * na ficha de quem usa, para baixo.
+ */
+export interface SeloDasRespostasAMao {
+  nome: string
+  natureza: NaturezaDoSelo
+  turnosDe: string
+  mod?: { atributoDe: string; formula: string }
+}
+
+/**
+ * F2 (fatia C, a melhoria da Aira com a Bênção): enquanto o selo `enquanto`
+ * posto por um cartão do dono está num aliado, o Atacar dele vira `golpes`
+ * golpes (cada um com a própria reação), cada um com a fórmula `soma` (lida
+ * na ficha dele) a mais no dano e o `selo` no acerto.
+ */
+export interface AtaqueBasicoAMao {
+  enquanto: string
+  golpes: number
+  soma: string
+  selo: SeloDoGolpe
+}
+
+/** F2 (fatia C): a pergunta de todo golpe do dono; a resposta `valor` soma `dano` em cada alvo e cobra `custoEmSp` (Electro: +20, -10 SP). */
+export interface EmTodoGolpeAMao {
+  pergunta: PerguntaNaHora
+  valor: string
+  dano: number
+  custoEmSp: number
+  /** O que vai no registro quando a resposta é `valor` ("eletricidade"). */
+  rotulo: string
+}
+
 export interface MecanicaAMao {
   /** Para quem lê a tabela: "Corta Cenoura (Jimboy)". */
   nome: string
   perguntas?: readonly PerguntaNaHora[]
+  /** F2 (fatia C): o alvo não reage; a defesa é o teste da disputa (dança da Aira: Espírito contra a CD). */
+  semReacao?: true
+  /** F2 (fatia C): o selo montado com as respostas (vale quando nenhuma resposta nem o `selo` fixo dão um). */
+  seloDasRespostas?: SeloDasRespostasAMao
+  /** F2 (fatia C): o selo só pega nos ALIADOS marcados de quem usa, e o dano só nos outros (A Luz do Sol: dano no inimigo, Bênção nos aliados). */
+  seloSoNosAliados?: true
+  /** F2 (fatia C): o Atacar do dono muda enquanto um selo com este nome, posto por um cartão dele, está em algum aliado (`ataqueComOSelo`). */
+  ataqueBasico?: AtaqueBasicoAMao
+  /** F2 (fatia C): a pergunta que vale em TODO golpe do dono, Atacar e técnicas, enquanto o cartão está na ficha (o Electro da Aira). */
+  emTodoGolpe?: EmTodoGolpeAMao
   disputa?: DisputaAMao
   area?: AreaAMao
   /** O dano dividido entre os marcados, com o teto de alvos (`dividirDano`). */
@@ -107,6 +155,24 @@ const SIM_OU_NAO: readonly OpcaoDaPergunta[] = [
   { valor: 'nao', rotulo: 'Não' },
   { valor: 'sim', rotulo: 'Sim' },
 ]
+/** Aira: quantos turnos o aliado fica com a Bênção (a Bênção e A Luz do Sol perguntam). */
+const PERGUNTA_DOS_TURNOS_DA_BENCAO: PerguntaNaHora = { chave: 'turnos', texto: 'Quantos turnos o aliado fica com a Bênção?', para: 'quemUsa', tipo: 'numero', minimo: 1, maximo: 99 }
+/** Aira: o Status Físico que ganha os 20% do Espírito dela (os físicos do livro). */
+const PERGUNTA_DO_FISICO_DA_BENCAO: PerguntaNaHora = {
+  chave: 'fisico',
+  texto: 'Qual Status Físico ganha a Bênção?',
+  para: 'quemUsa',
+  tipo: 'opcoes',
+  opcoes: [
+    { valor: 'forca', rotulo: 'Força' },
+    { valor: 'agilidade', rotulo: 'Agilidade' },
+    { valor: 'percepcao', rotulo: 'Percepção' },
+    { valor: 'resistencia', rotulo: 'Resistência' },
+  ],
+}
+/** O nome do selo da Bênção de uma Raposa: o comportamento dele (o aliado cura 10% do dano que causa) mora na tabela de selos (`condicoes.ts`). */
+export const NOME_DA_BENCAO_DA_RAPOSA = 'Bênção de uma Raposa'
+const SELO_DA_BENCAO: SeloDasRespostasAMao = { nome: NOME_DA_BENCAO_DA_RAPOSA, natureza: 'buff', turnosDe: 'turnos', mod: { atributoDe: 'fisico', formula: 'Espírito * 0,2' } }
 /** Recuperação Espantosa (May; Guilherme segue a regra dela): o mestre decide quando e com quanto HP volta. */
 const AVISO_DA_RECUPERACAO = 'Recuperação Espantosa: caiu a 0. Mestre, decida em quantos turnos volta e com quanto HP (1 vez por batalha).'
 
@@ -193,10 +259,36 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   'cart_9500ae10-0bdc-4f08-b472-edb73cb70685': { nome: 'Giro de Pá (Harvey)', area: { forma: { tipo: 'raio', casas: 1 }, quem: 'inimigos' } },
   // Siegfried: a base dividida entre os marcados, para baixo, até 3 alvos.
   'cart_366f98ce-8206-473a-8646-e34ae6907dbe': { nome: 'Balmung: Lua Incandescente (Siegfried)', divide: { teto: 3 } },
-  // Aira: o app pergunta quantos turnos o aliado fica com a Bênção.
+  // Aira: o app pergunta quantos turnos e qual físico; o aliado marcado ganha 20% do Espírito dela nele (e cura 10% do dano que causa, pelo selo).
+  // Com um aliado abençoado, o Atacar dela vira 3 golpes de +30% do Espírito, com Queimando 10 por 1 turno (renova a cada acerto).
   'cart_369efcd2-19cf-400d-a0f0-c19ceebc0070': {
     nome: 'A Virtude Traz Benção (Aira)',
-    perguntas: [{ chave: 'turnos', texto: 'Quantos turnos o aliado fica com a Bênção?', para: 'quemUsa', tipo: 'numero', minimo: 1, maximo: 99 }],
+    perguntas: [PERGUNTA_DOS_TURNOS_DA_BENCAO, PERGUNTA_DO_FISICO_DA_BENCAO],
+    seloDasRespostas: SELO_DA_BENCAO,
+    ataqueBasico: { enquanto: NOME_DA_BENCAO_DA_RAPOSA, golpes: 3, soma: 'Espírito * 0,3', selo: { nome: 'Queimando', turnos: 1, natureza: 'debuff', porVez: 10 } },
+  },
+  // Aira: sem reação; o alvo testa ESPÍRITO contra 12 + mod. de CAR dela. Cargas 1 e 2 sobem a CD (+2 cada: número da mesa, o mestre não deu),
+  // com 3 atordoa sem teste. Falhou: Atordoado 1.
+  'cart_b49c9862-9fa4-48fb-9a6f-c39cffc919c4': {
+    nome: 'Em Meio às Alegres Nuvens (Aira)',
+    semReacao: true,
+    disputa: {
+      quando: 'acerto',
+      testa: 'alvo',
+      rola: { atributoId: 'espirito' },
+      contra: { tipo: 'cd', cd: { tipo: 'porCarga', semCarga: { tipo: 'formula', base: 12, atributoId: 'carisma' }, cargas: [{ mais: 2 }, { mais: 4 }, 'acerta'] } },
+      seQuemUsaVence: { selo: ATORDOADO_1 },
+    },
+  },
+  // Aira: dano igual ao Espírito no inimigo; a Bênção (com as mesmas perguntas) nos aliados que ela marcar.
+  // O extra "Imbuir Eletricidade" deste cartão é o Electro da raça: quando ela quiser, em QUALQUER golpe dela, +20 de dano e -10 SP.
+  'cart_f95a0284-28f8-4265-96fe-bcd0906148a6': {
+    nome: 'A Luz do Sol Brilha Sobre Todos (Aira)',
+    dano: 'Espírito',
+    perguntas: [PERGUNTA_DOS_TURNOS_DA_BENCAO, PERGUNTA_DO_FISICO_DA_BENCAO],
+    seloDasRespostas: SELO_DA_BENCAO,
+    seloSoNosAliados: true,
+    emTodoGolpe: { pergunta: { chave: 'electro', texto: 'Imbuir eletricidade? (+20 de dano, -10 SP)', para: 'quemUsa', tipo: 'opcoes', opcoes: SIM_OU_NAO }, valor: 'sim', dano: 20, custoEmSp: 10, rotulo: 'eletricidade' },
   },
 }
 
@@ -258,10 +350,35 @@ export function formulaDaMecanica(cartaoId: string, respostas?: RespostasDoPedid
  * leitura de texto): o da resposta, o fixo da técnica, ou o da disputa (que
  * só pega se quem usa vencer). `null` = vale o da mira.
  */
-export function seloDaMecanica(cartaoId: string, respostas?: RespostasDoPedido): SeloDoGolpe | null {
+export function seloDaMecanica(cartaoId: string, respostas?: RespostasDoPedido, valorNaFicha?: (formula: string) => number | null): SeloDoGolpe | null {
   const mecanica = mecanicaDoCartao(cartaoId)
   if (mecanica === null) return null
-  return mudancaDasRespostas(cartaoId, respostas).selo ?? mecanica.selo ?? mecanica.disputa?.seQuemUsaVence?.selo ?? null
+  const montado = mecanica.seloDasRespostas === undefined ? null : seloMontado(mecanica.seloDasRespostas, respostas, valorNaFicha)
+  return mudancaDasRespostas(cartaoId, respostas).selo ?? mecanica.selo ?? montado ?? mecanica.disputa?.seQuemUsaVence?.selo ?? null
+}
+
+/**
+ * F2 (fatia C): o selo das respostas. Sem a resposta de turnos: até o mestre
+ * tirar. Sem `valorNaFicha` (a prévia que não tem a ficha) ou sem a resposta
+ * do atributo, o selo sai sem o mod.
+ */
+function seloMontado(molde: SeloDasRespostasAMao, respostas: RespostasDoPedido | undefined, valorNaFicha: ((formula: string) => number | null) | undefined): SeloDoGolpe {
+  const turnos = respostas?.[molde.turnosDe]
+  const selo: SeloDoGolpe = { nome: molde.nome, turnos: typeof turnos === 'number' ? turnos : null, natureza: molde.natureza }
+  const atributo = molde.mod === undefined ? undefined : respostas?.[molde.mod.atributoDe]
+  const valor = molde.mod === undefined || valorNaFicha === undefined ? null : valorNaFicha(molde.mod.formula)
+  if (typeof atributo === 'string' && valor !== null) selo.mods = [{ alvo: atributo, delta: Math.floor(valor) }]
+  return selo
+}
+
+/**
+ * F2 (fatia C): o selo do golpe pega neste alvo? Com `seloSoNosAliados` (A
+ * Luz do Sol), só nos aliados de quem usa (`aliados`: ids de personagem); o
+ * resto das técnicas, em todo alvo acertado.
+ */
+export function seloPegaNoAlvo(cartaoId: string, alvoPersonagemId: string | null, aliados: ReadonlySet<string>): boolean {
+  if (mecanicaDoCartao(cartaoId)?.seloSoNosAliados !== true) return true
+  return alvoPersonagemId !== null && aliados.has(alvoPersonagemId)
 }
 
 /** F2 (fatia B): a técnica pede selo pela resposta e a resposta não pediu (Grande Chifre sem parede): o golpe sai sem selo. */
@@ -283,6 +400,64 @@ export function rotulosDasRespostas(cartaoId: string, respostas: RespostasDoPedi
     // "Sim"/"Não" sozinho não diz nada: leva a pergunta junto ("Bateu na parede?: Sim").
     return [opcao.rotulo.length <= 3 ? `${pergunta.texto} ${opcao.rotulo}` : opcao.rotulo]
   })
+}
+
+/**
+ * F2 (fatia C): o Atacar melhorado do dono agora (Aira com um aliado
+ * abençoado), ou `null`. `cartoesIds` = os cartões da ficha dele; vale o selo
+ * `enquanto` (sem acento nem caixa) que um desses cartões pôs em OUTRO token.
+ */
+export function ataqueComOSelo(cartoesIds: readonly string[], selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'nome' | 'cartaoId'>[] | undefined, tokenIdDoDono: string): AtaqueBasicoAMao | null {
+  const dele = new Set(cartoesIds)
+  for (const cartaoId of cartoesIds) {
+    const ataque = mecanicaDoCartao(cartaoId)?.ataqueBasico
+    if (ataque === undefined) continue
+    const nome = normalizar(ataque.enquanto)
+    const ativo = (selos ?? []).some((selo) => selo.tokenId !== tokenIdDoDono && selo.cartaoId !== undefined && dele.has(selo.cartaoId) && normalizar(selo.nome).trim() === nome)
+    if (ativo) return ataque
+  }
+  return null
+}
+
+/** F2 (fatia C): o que vale em todo golpe do dono, pelos cartões da ficha dele (o Electro da Aira). */
+function emTodoGolpeDo(cartoesDoDono: readonly string[]): EmTodoGolpeAMao[] {
+  return cartoesDoDono.flatMap((cartaoId) => {
+    const emTodo = mecanicaDoCartao(cartaoId)?.emTodoGolpe
+    return emTodo === undefined ? [] : [emTodo]
+  })
+}
+
+/** F2 (fatia C): as perguntas do golpe: as da técnica (`cartaoId`; `null` = Atacar) e as de todo golpe do dono, sem chave repetida. */
+export function perguntasDoGolpe(cartaoId: string | null, cartoesDoDono: readonly string[]): PerguntaNaHora[] {
+  const daTecnica = cartaoId === null ? [] : perguntasDoCartao(cartaoId)
+  const chaves = new Set(daTecnica.map((pergunta) => pergunta.chave))
+  return [...daTecnica, ...emTodoGolpeDo(cartoesDoDono).map((emTodo) => emTodo.pergunta).filter((pergunta) => !chaves.has(pergunta.chave))]
+}
+
+/**
+ * F2 (fatia C): por que as respostas não valem para o golpe (técnica ou
+ * Atacar, com as do dono), ou `null`. As da técnica são todas obrigatórias;
+ * as de todo golpe do dono, só quando vêm (sem resposta = "Não": o pedido
+ * de antes, ou de quem não tocou, segue valendo).
+ */
+export function motivoDasRespostasDoGolpe(cartaoId: string | null, cartoesDoDono: readonly string[], respostas: RespostasDoPedido | undefined): string | null {
+  const daTecnica = new Set((cartaoId === null ? [] : perguntasDoCartao(cartaoId)).map((pergunta) => pergunta.chave))
+  const conferidas = perguntasDoGolpe(cartaoId, cartoesDoDono).filter((pergunta) => daTecnica.has(pergunta.chave) || respostas?.[pergunta.chave] !== undefined)
+  return motivoDasRespostas(conferidas, respostas)
+}
+
+/** F2 (fatia C): o que as respostas de todo golpe somam no dano e cobram em SP, e os rótulos para o registro ("eletricidade"). */
+export function extraDeTodoGolpe(cartoesDoDono: readonly string[], respostas: RespostasDoPedido | undefined): { dano: number; custoEmSp: number; rotulos: string[] } {
+  const rotulos: string[] = []
+  const extra = { dano: 0, custoEmSp: 0, rotulos }
+  if (respostas === undefined) return extra
+  for (const emTodo of emTodoGolpeDo(cartoesDoDono)) {
+    if (respostas[emTodo.pergunta.chave] !== emTodo.valor) continue
+    extra.dano += emTodo.dano
+    extra.custoEmSp += emTodo.custoEmSp
+    extra.rotulos.push(emTodo.rotulo)
+  }
+  return extra
 }
 
 /** F2 (fatia B): a disputa que o app rola depois do acerto (Corta Cenoura); `null` = nenhuma. */

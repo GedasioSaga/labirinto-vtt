@@ -86,12 +86,12 @@ import {
   selosDoToken,
 } from '../lib/batalha/selos'
 import { ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, formaDaFicha, usosDaForma } from '../lib/batalha/transformacao'
-import { comportamentoDoSelo, ehLembreteDoSangramento, porVezDoLembrete, saidasComOsSelos, travaDoToken } from '../lib/batalha/condicoes'
+import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, porVezDoLembrete, saidasComOsSelos, travaDoToken } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
 import { ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
 import { custoPorTurno, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
-import { equipeDe } from '../lib/batalha/equipes'
+import { aliadosDe, equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
   acoesDaCarta,
@@ -100,6 +100,8 @@ import {
   depoisDaTecnica,
   golpePendente,
   lancarGolpe,
+  PARTES_SEGUINTES_MAX,
+  partesSeguintes,
   podeAgir,
   passarSemDano,
   resolverAlvo,
@@ -109,9 +111,9 @@ import {
   textoDoGolpe,
   type ContextoDoGolpe,
 } from '../lib/batalha/golpe'
-import { rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
+import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, disputaNoAcerto, mecanicaDoCartao, rebatePertoDe } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, disputaNoAcerto, mecanicaDoCartao, rebatePertoDe, seloPegaNoAlvo } from '../lib/batalha/mecanicasAMao'
 import {
   ajustesDoPorTurno,
   chaveDoGatilho,
@@ -134,7 +136,7 @@ import { casaNaAreaVirada } from '../lib/batalha/area'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
-import { ajustesDoDano, perfuracaoValida, rolarComVantagem, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
+import { ajustesDaCura, ajustesDoDano, perfuracaoValida, rolarComVantagem, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, VezEsperada } from '../lib/batalha/ponte'
 import {
   comLinha,
@@ -937,13 +939,20 @@ function contrasDaReversao(reversao: Reversao): { golpeId: string; tokenId: stri
  * O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo; com `perfuracao`, só
  * aquela porcentagem pula o Escudo. `'recusada'` (bug 11): a mesa não gravou o dano; quem chama para sem linha e sem animação.
  */
-function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } | Recusada {
+function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'> & Partial<Pick<GolpeDaBatalha, 'curaDoDano' | 'atacantePersonagemId'>>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } | Recusada {
   if (alvo.danoFinal === undefined || alvo.saida === undefined) return { partes: [], efeito: null }
   const valor = alvo.danoFinal
   const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, golpe.perfurante, golpe.perfuracao), quemNaFicha(autor))
   if (partes === 'recusada') return partes
+  const reversao: Reversao[] = alvo.personagemId === null ? [] : [...reversaoDaFicha(alvo.personagemId, partes)]
+  // F2 (fatia C, Bênção de uma Raposa): quem bateu recupera a porcentagem do dano que causou, na mesma linha (o Desfazer tira junto).
+  // A cura recusada (a ficha de quem bateu não grava) não derruba o golpe: o dano já valeu.
+  const quemBateu = golpe.atacantePersonagemId ?? null
+  const cura = partes === null || quemBateu === null ? 0 : curaDoDano(valor, golpe.curaDoDano ?? 0)
+  const curou = cura === 0 || quemBateu === null ? null : mexerNaFicha(mesa, quemBateu, (atual, sistema) => ajustesDaCura(atual, sistema, cura), quemNaFicha(autor))
+  if (curou !== null && curou !== 'recusada' && quemBateu !== null) reversao.push(...reversaoDaFicha(quemBateu, curou))
   // A animação toca sempre (esquiva também: "ESQUIVOU" sobre a ficha).
-  return { partes: alvo.personagemId === null ? [] : reversaoDaFicha(alvo.personagemId, partes), efeito: { tipo: 'dano', tokenId: alvo.tokenId, valor, saida: alvo.saida } }
+  return { partes: reversao, efeito: { tipo: 'dano', tokenId: alvo.tokenId, valor, saida: alvo.saida } }
 }
 
 function novoIdDaMarca(): string {
@@ -1185,17 +1194,20 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
    */
   const seloNoAcerto = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selado: ReturnType<typeof seloDoGolpe>; alvo: AlvoDoGolpe } => {
     const cartaoId = golpe.selo?.cartaoId
-    const disputa = cartaoId === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida) ? null : disputaNoAcerto(cartaoId)
     const { personagens, sistema } = mesaDoRpg()
+    // F2 (fatia C, A Luz do Sol): o selo só nos aliados de quem usou (no inimigo vai só o dano).
+    if (cartaoId !== undefined && golpe.atacantePersonagemId !== null && !seloPegaNoAlvo(cartaoId, alvo.personagemId, aliadosDe(new Set([golpe.atacantePersonagemId]), mesa.equipes(), personagens))) return { selado: null, alvo }
+    const disputa = cartaoId === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida) ? null : disputaNoAcerto(cartaoId)
     const usa = personagens.find((candidato) => candidato.id === golpe.atacantePersonagemId)
     const resiste = personagens.find((candidato) => candidato.id === alvo.personagemId)
     if (disputa === null || usa === undefined || resiste === undefined || sistema === null) return { selado: seloDoGolpe(turnos, golpe, alvo), alvo }
     const deQuemUsa = { personagem: usa, bonus: bonusDaBatalha(turnos.selos, golpe.atacanteTokenId) }
     const doAlvo = { personagem: resiste, bonus: bonusDaBatalha(turnos.selos, alvo.tokenId) }
     const quemUsaTesta = disputa.testa === 'quemUsa'
-    const resultado = rolarDisputa(disputa, { testa: quemUsaTesta ? deQuemUsa : doAlvo, usa: deQuemUsa, resiste: quemUsaTesta ? doAlvo : deQuemUsa }, sistema, 0, deps.rolarD20)
-    // Quando o alvo testa, quem usa vence se o alvo NÃO passou.
-    const venceu = quemUsaTesta === resultado.passou
+    // F2 (fatia C): a carga gasta no golpe entra na CD (a dança da Aira).
+    const resultado = rolarDisputa(disputa, { testa: quemUsaTesta ? deQuemUsa : doAlvo, usa: deQuemUsa, resiste: quemUsaTesta ? doAlvo : deQuemUsa }, sistema, golpe.carga ?? 0, deps.rolarD20)
+    // Quando o alvo testa, quem usa vence se o alvo NÃO passou; sem teste (concentração), quem usa vence.
+    const venceu = quemUsaVence(resultado, disputa.testa)
     const comTexto: AlvoDoGolpe = { ...alvo, disputa: `${textoDaDisputa(resultado)}, ${venceu ? 'o selo pegou' : 'o selo não pegou'}` }
     return { selado: venceu ? seloDoGolpe(turnos, golpe, alvo) : null, alvo: comTexto }
   }
@@ -2116,6 +2128,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         return alvo !== undefined && sistema !== null && temOverloadDeReacao(alvo, sistema, turnos.combate?.[alvo.id])
       },
       quemRebatePor: quemRebatePor(sceneKey, turnos, carta.tokenId),
+      // F2 (fatia C, A Luz do Sol): os aliados de quem age não tomam o dano da técnica de selo só nos aliados.
+      aliados: carta.personagemId === null ? new Set<string>() : aliadosDe(new Set([carta.personagemId]), mesa.equipes(), personagens),
     }
   }
 
@@ -2125,8 +2139,13 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const ctx = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx)
     if (podeAgir(ctx, pedido) !== null) return false
     const linhaId = novoIdDeLinha()
-    // F2 (fatia B): os ids da 2ª parte (Rapid Dash) vão sempre; só a técnica com `segundoGolpe` na mecânica à mão os usa.
-    const lancado = lancarGolpe(ctx, pedido, { golpe: novoIdDeGolpe(), linha: linhaId, segundo: { golpe: novoIdDeGolpe(), linha: novoIdDeLinha() } })
+    // F2 (fatias B e C): os ids das partes seguintes vão sempre; só a técnica com `segundoGolpe` e o Atacar melhorado (Aira com a Bênção) os usam.
+    const lancado = lancarGolpe(ctx, pedido, {
+      golpe: novoIdDeGolpe(),
+      linha: linhaId,
+      segundo: { golpe: novoIdDeGolpe(), linha: novoIdDeLinha() },
+      seguintes: Array.from({ length: PARTES_SEGUINTES_MAX }, () => ({ golpe: novoIdDeGolpe(), linha: novoIdDeLinha() })),
+    })
     const quem = quemNaFicha(autor)
     // A ordem da reversão é a da seção 3.6: gasto, combate, custo, contra-ataque, golpe, fichas dos alvos.
     const partes: Reversao[] = []
@@ -2189,23 +2208,31 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       }
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
     }
-    // F2 (fatia B, Rapid Dash): a 2ª parte entra junto, com a linha dela (gravada logo depois); o dano de quem não reage cai já.
-    const segundo = lancado.segundo ?? null
-    const partesDoSegundo: Reversao[] = []
-    if (segundo !== null) {
-      // O Desfazer da linha do 1º golpe desfaz junto a do 2º (e as reações a ele).
-      partes.push({ tipo: 'linhaJunto', linhaId: segundo.linhaId })
-      partesDoSegundo.push({ tipo: 'golpe', golpeId: segundo.id })
-      for (const resolvido of lancado.resolvidosDoSegundo ?? []) {
-        const feito = danoNoAlvo(mesa, resolvido, segundo, autor)
+    // F2 (fatia B, Rapid Dash; fatia C, o Atacar da Aira com a Bênção): as partes seguintes entram juntas, cada uma com a linha dela
+    // (gravada logo depois); o dano de quem não reage cai já, com o selo da parte.
+    const seguintes: { golpe: GolpeDaBatalha; partes: Reversao[] }[] = []
+    for (const parte of partesSeguintes(lancado)) {
+      // O Desfazer da linha do 1º golpe desfaz junto a das outras partes (e as reações a elas).
+      partes.push({ tipo: 'linhaJunto', linhaId: parte.golpe.linhaId })
+      const daParte: Reversao[] = [{ tipo: 'golpe', golpeId: parte.golpe.id }]
+      let golpeDaParte = parte.golpe
+      for (const resolvido of parte.resolvidos) {
+        const feito = danoNoAlvo(mesa, resolvido, golpeDaParte, autor)
         if (feito === 'recusada') {
-          devolverFichasDaAcao(mesa, sceneKey, cena, [...partes, ...partesDoSegundo], autor)
+          devolverFichasDaAcao(mesa, sceneKey, cena, [...partes, ...seguintes.flatMap((anterior) => anterior.partes), ...daParte], autor)
           return false
         }
-        partesDoSegundo.push(...feito.partes)
+        daParte.push(...feito.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
+        const noAcerto = seloNoAcerto(novos, golpeDaParte, resolvido)
+        golpeDaParte = golpeComOAlvo(golpeDaParte, noAcerto.alvo)
+        if (noAcerto.selado !== null) {
+          daParte.push(noAcerto.selado.parte)
+          novos = { ...novos, selos: noAcerto.selado.selos }
+        }
       }
-      novos = { ...novos, golpes: comGolpe(novos.golpes, segundo) }
+      novos = { ...novos, golpes: comGolpe(novos.golpes, golpeDaParte) }
+      seguintes.push({ golpe: golpeDaParte, partes: daParte })
     }
     // Invocação (decisão 9): o invocado que o dano levou a 0 sai do mapa e do bando.
     const caidos = semOsCaidos(mesa, sceneKey, novos)
@@ -2237,9 +2264,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       ...comMudanca(atual, novos, { id: linhaId, tipo, texto, autor, tokenIds, reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
     })
-    if (segundo !== null) {
+    for (const parte of seguintes) {
       const comALinha = cenaDe(sceneKey)
-      if (comALinha !== undefined) gravarCena(sceneKey, comMudanca(comALinha, comALinha.turnos, { id: segundo.linhaId, tipo, texto: textoDoGolpe(segundo, nomeDoToken), autor, tokenIds, reversao: { tipo: 'composta', partes: partesDoSegundo } }))
+      if (comALinha !== undefined) gravarCena(sceneKey, comMudanca(comALinha, comALinha.turnos, { id: parte.golpe.linhaId, tipo, texto: textoDoGolpe(parte.golpe, nomeDoToken), autor, tokenIds, reversao: { tipo: 'composta', partes: parte.partes } }))
     }
     avisarQuemCaiu(sceneKey, autor)
     // Conserto das fichas F1 (bug 2): acima do teto, o golpe mais velho vira "Não reagiu"; o ataque novo nunca é recusado por isso.

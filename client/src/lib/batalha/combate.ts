@@ -291,7 +291,19 @@ export type PedidoDeAcao =
    * F3: `selo` = o sugerido pela habilidade, marcado na mira; pega só se o golpe acerta (Q6).
    * `balaId` = o tipo de bala da arma (subcartão "Tipos de bala"); exige `armaId`. Ausente = como antes.
    */
-  | { tipo: 'atacar'; armaId: string | null; alvos: readonly PedidoDeAlvo[]; surpresa: boolean; perfurante: boolean; perfuracao?: number; contraDe?: string; selo?: SeloPedido; balaId?: string }
+  | {
+      tipo: 'atacar'
+      armaId: string | null
+      alvos: readonly PedidoDeAlvo[]
+      surpresa: boolean
+      perfurante: boolean
+      perfuracao?: number
+      contraDe?: string
+      selo?: SeloPedido
+      balaId?: string
+      /** F2 (fatia C): as respostas das perguntas de todo golpe do dono (o Electro da Aira). Ausente = sem pergunta. */
+      respostas?: RespostasDoPedido
+    }
   | {
       tipo: 'habilidade'
       cartaoId: string
@@ -490,6 +502,14 @@ export interface GolpeDaBatalha {
   marca?: string
   /** R1: o golpe usou arma que atira (De fogo, Híbrida): o acerto lembra a passiva de marca de quem atirou. */
   armaQueAtira?: true
+  /**
+   * F2 (fatia C): a porcentagem do dano causado que volta em vida para quem
+   * bateu (Bênção de uma Raposa: 10), dos selos dele quando o golpe saiu.
+   * Tirada pelo host, nunca do fio. Ausente = nada volta.
+   */
+  curaDoDano?: number
+  /** F2 (fatia C): a concentração gasta no golpe (a CD da dança da Aira sobe com ela). Ausente = 0. */
+  carga?: number
 }
 
 /**

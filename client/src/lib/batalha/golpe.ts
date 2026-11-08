@@ -40,7 +40,7 @@ import {
 } from './combate'
 import { equipeDe, type Equipe } from './equipes'
 import { usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
-import { danoDoAtaque } from './formula'
+import { danoDoAtaque, lerDano } from './formula'
 import {
   armasDe,
   balaDaArma,
@@ -56,14 +56,15 @@ import {
   type LeituraDoCusto,
 } from './leituraDaFicha'
 import { leituraDaTecnica } from './leituraDaTecnica'
-import { mecanicaDoCartao, motivoDasRespostasDoCartao, rotulosDasRespostas, seloDaMecanica, semSeloPelaResposta, type MecanicaAMao } from './mecanicasAMao'
+import { ataqueComOSelo, extraDeTodoGolpe, mecanicaDoCartao, motivoDasRespostasDoGolpe, rotulosDasRespostas, seloDaMecanica, semSeloPelaResposta, type MecanicaAMao } from './mecanicasAMao'
+import type { RespostasDoPedido } from './perguntaNaHora'
 import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
-import { travaDoToken } from './condicoes'
+import { curaDoDanoDosSelos, travaDoToken } from './condicoes'
 import { comAtaqueExtra, formaDaFicha, formaNaVez, motivoDaForma, motivoDoCustoDaForma, motivoDosUsosDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -111,6 +112,12 @@ export interface ContextoDoGolpe {
    * espera a pergunta. Ausente = ninguém (a mesa sem mapa).
    */
   quemRebatePor?: (tokenId: string) => readonly string[]
+  /**
+   * F2 (fatia C, A Luz do Sol): os ids de personagem ALIADOS de quem age
+   * (`aliadosDe`): a técnica de selo só nos aliados não dá dano neles.
+   * Ausente = ninguém é aliado.
+   */
+  aliados?: ReadonlySet<string>
 }
 
 /** O que `lancarGolpe` devolve para a store aplicar. */
@@ -142,6 +149,17 @@ export interface GolpeLancado {
    */
   segundo?: GolpeDaBatalha
   resolvidosDoSegundo?: readonly AlvoDoGolpe[]
+  /** F2 (fatia C): as partes depois da 2ª (o 3º golpe do Atacar da Aira com a Bênção), cada uma com os alvos já resolvidos. */
+  seguintes?: readonly { golpe: GolpeDaBatalha; resolvidos: readonly AlvoDoGolpe[] }[]
+}
+
+/** F2 (fatia C): quantos ids de parte a store manda além do 2º golpe (o Atacar da Aira com a Bênção usa 1). */
+export const PARTES_SEGUINTES_MAX = 2
+
+/** F2 (fatias B e C): as partes depois do 1º golpe, na ordem (a 2ª e as seguintes). */
+export function partesSeguintes(lancado: GolpeLancado): { golpe: GolpeDaBatalha; resolvidos: readonly AlvoDoGolpe[] }[] {
+  const segunda = lancado.segundo === undefined ? [] : [{ golpe: lancado.segundo, resolvidos: lancado.resolvidosDoSegundo ?? [] }]
+  return [...segunda, ...(lancado.seguintes ?? [])]
 }
 
 /** O que a sugestão do NPC precisa: a mesa inteira. */
@@ -289,7 +307,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const arma = armaDoPedido(ctx, pedido.armaId)
       if (arma === undefined) return 'Arma fora das levadas para a batalha'
       if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
-      const motivo = motivoDosAlvos(ctx, pedido.alvos, 1)
+      const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas)
       if (motivo !== null) return motivo
       // R6: depois de um Atacar na vez, o ataque adicional da forma (Ignição) cabe sem a Simples.
       return acoes === null ? null : motivoDoAtacar(acoes)
@@ -303,7 +321,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (pedido.variante !== undefined && varianteDoPedido(tecnica.cartao, pedido.variante) === null) return 'Opção não encontrada na técnica'
       // F2 (fatia A): com respostas, as perguntas na hora da mecânica à mão (`mecanicasAMao.ts`) todas respondidas, e só elas.
       // Sem respostas a técnica segue como antes, até a mira de cada ficha perguntar (fatias seguintes da F2).
-      const respostas = pedido.respostas === undefined ? null : motivoDasRespostasDoCartao(tecnica.cartao.id, pedido.respostas)
+      // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira) e o SP que o "sim" cobra.
+      const respostas = motivoDasRespostasDoPedido(ctx, tecnica.cartao.id, pedido.respostas)
       if (respostas !== null) return respostas
       if (tecnica.acao === null) return 'Escolha a ação da técnica'
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
@@ -375,7 +394,13 @@ function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carg
  * recarga, usos e Overload. O contra-ataque
  * (Q6) não gasta ação da vez e sai da lista.
  */
-export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { golpe: string; linha: string; segundo?: { golpe: string; linha: string } }): GolpeLancado {
+/** Os ids de uma parte do golpe (o golpe e a linha dela no registro). */
+interface IdsDaParte {
+  golpe: string
+  linha: string
+}
+
+export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: IdsDaParte & { segundo?: IdsDaParte; seguintes?: readonly IdsDaParte[] }): GolpeLancado {
   const contra = contraDoPedido(ctx, pedido) ?? null
   const combate = combateDe(ctx)
   const gastoAtual = ctx.turnos.gastos[ctx.carta.id] ?? { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
@@ -397,10 +422,20 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   const acaoBase = pedido.tipo === 'atacar' ? 'simples' : tecnica?.acao
   const acao = acaoBase === undefined || acaoBase === null || acaoBase === 'passiva' ? null : acaoDoGolpe(acaoBase, combate.carga)
   const overload = tecnica?.overload ?? false
-  const alvos = alvosDoGolpe(ctx, pedido.alvos, combate.carga, pedido.surpresa, overload, reacaoDoTipo(tecnica?.tipo ?? null))
-  const arma = armaDoPedido(ctx, pedido.armaId) ?? null
   // F2 (fatia B): a mecânica à mão da técnica (`mecanicasAMao.ts`): o perfurante, o selo, as respostas, a 2ª parte, o HP que custa.
   const mecanica = tecnica === null ? null : mecanicaDoCartao(tecnica.cartao.id)
+  // F2 (fatia C): a dança da Aira não pede reação (a defesa é o teste); a Luz do Sol não dá dano nos aliados marcados.
+  const reacao: ReacaoDoTipo = mecanica?.semReacao === true ? 'nunca' : reacaoDoTipo(tecnica?.tipo ?? null)
+  // F2 (fatia C): o Atacar melhorado (Aira com um aliado abençoado): a soma no dano de cada alvo, o selo no acerto e os golpes a mais. O contra-ataque fica de fora.
+  const cartoes = cartoesDoDono(personagem)
+  const melhorado = pedido.tipo === 'atacar' && contra === null ? ataqueComOSelo(cartoes, ctx.turnos.selos, ctx.carta.tokenId) : null
+  // F2 (fatia C): o que vale em todo golpe do dono (o Electro da Aira: +20 de dano, -10 SP), pela resposta.
+  const deTodoGolpe = extraDeTodoGolpe(cartoes, pedido.respostas)
+  const somaDoAtaque = melhorado === null || personagem === null || sistema === null ? 0 : Math.max(0, Math.floor(valorNaFichaDe(personagem, sistema)(melhorado.soma) ?? 0))
+  const soma = somaDoAtaque + deTodoGolpe.dano
+  const pedidos = mecanica?.seloSoNosAliados === true ? comSomaNoDano(semDanoNosAliados(ctx, pedido.alvos), soma) : comSomaNoDano(pedido.alvos, soma)
+  const alvos = alvosDoGolpe(ctx, pedidos, combate.carga, pedido.surpresa, overload, reacao)
+  const arma = armaDoPedido(ctx, pedido.armaId) ?? null
   const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
   const golpe: GolpeDaBatalha = {
     id: ids.golpe,
@@ -428,9 +463,17 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   if (selo !== null) golpe.selo = tecnica === null ? selo : seloDaTecnicaNoGolpe(selo, tecnica)
   // F2 (fatia B): o selo da tabela vence o da mira (leitura de texto); a técnica de selo só por resposta sai sem ele quando a resposta não pede.
   if (tecnica !== null && golpe.marca === undefined) {
-    const daMecanica = seloDaMecanica(tecnica.cartao.id, respostas)
+    const daMecanica = seloDaMecanica(tecnica.cartao.id, respostas, personagem === null || sistema === null ? undefined : valorNaFichaDe(personagem, sistema))
     if (daMecanica !== null) golpe.selo = seloDaTecnicaNoGolpe(daMecanica, tecnica)
     else if (semSeloPelaResposta(tecnica.cartao.id, respostas)) delete golpe.selo
+  }
+  // F2 (fatia C): quem bate com a Bênção de uma Raposa recupera parte do dano (o selo de agora); a carga vai junto para a CD da disputa.
+  const cura = curaDoDanoDosSelos(ctx.turnos.selos, ctx.carta.tokenId)
+  if (cura > 0) golpe.curaDoDano = cura
+  if (combate.carga > 0) golpe.carga = combate.carga
+  if (melhorado !== null) {
+    golpe.selo = melhorado.selo
+    golpe.variante = 'com a Bênção'
   }
   const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
@@ -444,14 +487,17 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
     if (marcas.length > 0) golpe.variante = marcas.join(', ').slice(0, NOME_DO_GOLPE_MAX)
     if (tecnica.evoluida) golpe.evoluida = true
   }
+  if (deTodoGolpe.rotulos.length > 0) golpe.variante = [golpe.variante, ...deTodoGolpe.rotulos].filter((marca): marca is string => marca !== undefined).join(', ').slice(0, NOME_DO_GOLPE_MAX)
   let combateNovo = tecnica === null ? combate : depoisDaTecnica(combate, tecnica)
   if (combateNovo.carga !== 0) combateNovo = { ...combateNovo, carga: 0 }
+  // Conserto das fichas F1 (+10 SP por vez): o SP do Electro também conta como gasto.
+  if (deTodoGolpe.custoEmSp > 0 && combateNovo.gastouSp !== true) combateNovo = { ...combateNovo, gastouSp: true }
   // R6: o Atacar da vez marca o gasto (libera o ataque adicional da forma); o adicional não gasta a Simples e conta na rodada.
   const naVez = contra === null && pedido.tipo === 'atacar' ? acoesDaCarta(ctx) : null
   const extra = naVez !== null && usaOAtaqueExtra(naVez)
   if (extra) combateNovo = comAtaqueExtra(combateNovo, ctx.turnos.rodada)
   const gasto = contra !== null || acao === null || extra ? null : gastarAcao(gastoAtual, acao)
-  const custo = tecnica === null || personagem === null || sistema === null ? [] : [...ajustesDoCusto(personagem, sistema, tecnica.custo), ...ajustesDoHpQueCusta(personagem, sistema, mecanica)]
+  const custo = personagem === null || sistema === null ? [] : [...custosDoGolpe(tecnica?.custo ?? null, deTodoGolpe.custoEmSp).flatMap((parte) => ajustesDoCusto(personagem, sistema, parte)), ...ajustesDoHpQueCusta(personagem, sistema, mecanica)]
   const lancado: GolpeLancado = {
     golpe,
     resolvidos: alvos.filter((alvo) => alvo.danoFinal !== undefined),
@@ -462,6 +508,17 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
     acao: contra !== null ? null : acao,
     cargaUsada: combate.carga,
   }
+  // F2 (fatia C): o Atacar melhorado repete o golpe inteiro (mesmos alvos, mesmo dano e selo), cada parte com a própria reação.
+  if (melhorado !== null) {
+    const idsDasPartes = [ids.segundo, ...(ids.seguintes ?? [])].filter((daParte): daParte is IdsDaParte => daParte !== undefined).slice(0, melhorado.golpes - 1)
+    const partes = idsDasPartes.map((daParte, indice) => {
+      const alvosDaParte = alvosDoGolpe(ctx, pedidos, combate.carga, pedido.surpresa, overload, reacao)
+      const golpeDaParte: GolpeDaBatalha = { ...golpe, id: daParte.golpe, linhaId: daParte.linha, nome: `${golpe.nome} (${indice + 2}º golpe)`.slice(0, NOME_DO_GOLPE_MAX), alvos: alvosDaParte }
+      return { golpe: golpeDaParte, resolvidos: alvosDaParte.filter((alvo) => alvo.danoFinal !== undefined) }
+    })
+    const [segunda, ...resto] = partes
+    return segunda === undefined ? lancado : { ...lancado, segundo: segunda.golpe, resolvidosDoSegundo: segunda.resolvidos, seguintes: resto }
+  }
   const parte = mecanica?.segundoGolpe
   if (parte === undefined || ids.segundo === undefined) return lancado
   // F2 (fatia B, Rapid Dash): a 2ª parte é outro golpe nos mesmos alvos, com a fração do dano base, o perfurante dela e outra reação.
@@ -470,6 +527,61 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: { g
   const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, ...semExtras } = golpe
   const segundo: GolpeDaBatalha = { ...semExtras, id: ids.segundo.golpe, linhaId: ids.segundo.linha, nome: `${golpe.nome} (2º golpe)`.slice(0, NOME_DO_GOLPE_MAX), perfurante: parte.perfurante, alvos: segundos }
   return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }
+}
+
+/** F2 (fatia C): os ids dos cartões da ficha (todas as abas); sem ficha, nenhum. */
+function cartoesDoDono(personagem: Personagem | null): string[] {
+  return personagem === null ? [] : Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id))
+}
+
+/**
+ * F2 (fatia C): o que o golpe cobra: o custo da técnica e o SP de todo golpe
+ * (Electro). Os dois em SP viram UM custo (o ajuste é "fica com X": dois
+ * ajustes no mesmo recurso, o segundo apagaria o primeiro).
+ */
+function custosDoGolpe(daTecnica: LeituraDoCusto | null, extraEmSp: number): LeituraDoCusto[] {
+  const extra: LeituraDoCusto = { tipo: 'valor', recurso: 'sp', valor: extraEmSp, porTurno: false }
+  if (daTecnica === null) return extraEmSp > 0 ? [extra] : []
+  if (extraEmSp <= 0) return [daTecnica]
+  if (daTecnica.tipo === 'valor' && daTecnica.recurso === 'sp') return [{ ...daTecnica, valor: daTecnica.valor + extraEmSp }]
+  return [daTecnica, extra]
+}
+
+/**
+ * F2 (fatia C): por que as respostas do golpe não valem (as da técnica e as
+ * de todo golpe do dono), ou o SP que o extra cobra não cabe; `null` = valem.
+ * Sem respostas, nada a conferir (a técnica segue como antes).
+ */
+function motivoDasRespostasDoPedido(ctx: ContextoDoGolpe, cartaoId: string | null, respostas: RespostasDoPedido | undefined): string | null {
+  if (respostas === undefined) return null
+  const cartoes = cartoesDoDono(ctx.personagem)
+  const motivo = motivoDasRespostasDoGolpe(cartaoId, cartoes, respostas)
+  if (motivo !== null || ctx.personagem === null || ctx.sistema === null) return motivo
+  const { custoEmSp } = extraDeTodoGolpe(cartoes, respostas)
+  const sp = custoEmSp > 0 ? recursoDoCusto(ctx.sistema, 'sp') : null
+  return sp !== null && numeroDaFicha(ctx.personagem.recursos, sp.id) < custoEmSp ? `SP insuficiente para imbuir: precisa de ${custoEmSp}` : null
+}
+
+/** F2 (fatia C, o Atacar da Aira com a Bênção; o Electro): a soma no dano de cada alvo (o dano em branco segue em branco). */
+function comSomaNoDano(alvos: readonly PedidoDeAlvo[], soma: number): readonly PedidoDeAlvo[] {
+  return soma <= 0 ? alvos : alvos.map((alvo) => (alvo.dano === null ? alvo : { ...alvo, dano: Math.min(DANO_MAX, alvo.dano + soma) }))
+}
+
+/** F2 (fatia C, A Luz do Sol): os aliados marcados de quem age ficam sem dano (só recebem o selo). */
+function semDanoNosAliados(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[]): PedidoDeAlvo[] {
+  const aliados = ctx.aliados ?? new Set<string>()
+  return alvos.map((alvo) => {
+    const personagemId = ctx.personagemDoToken(alvo.tokenId)
+    return typeof personagemId === 'string' && aliados.has(personagemId) ? { ...alvo, dano: null } : alvo
+  })
+}
+
+/** F2 (fatia C): uma fórmula ("Espírito * 0,2") lida na ficha de quem usa, sem arma, sem alvo e sem os selos; `null` = sem número. */
+function valorNaFichaDe(personagem: Personagem, sistema: SistemaDeRpg): (formula: string) => number | null {
+  return (formula) => {
+    const lido = lerDano(formula, { personagem, sistema, arma: null, vidaDoAlvo: null })
+    return lido.tipo === 'valor' ? lido.valor : null
+  }
 }
 
 /** F2 (fatia B): o HP que a técnica custa sempre (Sai Dai Rin: 200), pelo mesmo ajuste do custo. Sem mecânica: nada. */

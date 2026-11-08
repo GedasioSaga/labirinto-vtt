@@ -27,12 +27,13 @@ export interface QuemRola {
  * `base` + `mais` + o modificador do atributo de QUEM USA a técnica (dança
  * da Aira: 12 + mod. de CAR; Campo do Vagn: 10 + Proficiência + mod. de ESP).
  * `porCarga`: com concentração, a tabela troca a CD (`cargas[0]` vale para a
- * carga 1); "acerta" = sem teste; sem carga, a `semCarga`.
+ * carga 1); "acerta" = sem teste; `{ mais }` = a `semCarga` somada (F2,
+ * fatia C: a dança da Aira sobe a CD com a carga); sem carga, a `semCarga`.
  */
 export type CdDaDisputa =
   | { tipo: 'fixa'; cd: number }
   | { tipo: 'formula'; base: number; mais?: number; atributoId: string }
-  | { tipo: 'porCarga'; semCarga: Exclude<CdDaDisputa, { tipo: 'porCarga' }>; cargas: readonly (number | 'acerta')[] }
+  | { tipo: 'porCarga'; semCarga: Exclude<CdDaDisputa, { tipo: 'porCarga' }>; cargas: readonly (number | 'acerta' | { mais: number })[] }
 
 /** Contra o quê: a CD, ou o d20 de quem resiste (Corta Cenoura: FOR do Jimboy contra RES do alvo). */
 export type ContraDaDisputa = { tipo: 'cd'; cd: CdDaDisputa } | { tipo: 'rolagem'; quem: QuemRola }
@@ -72,9 +73,22 @@ export function cdDaDisputa(cd: CdDaDisputa, usa: FichaNaDisputa, sistema: Siste
     case 'porCarga': {
       const nivel = Math.trunc(carga)
       const daTabela = nivel >= 1 ? cd.cargas[Math.min(nivel, cd.cargas.length) - 1] : undefined
-      return daTabela ?? cdDaDisputa(cd.semCarga, usa, sistema, 0)
+      const semCarga = cdDaDisputa(cd.semCarga, usa, sistema, 0)
+      if (daTabela === undefined) return semCarga
+      if (typeof daTabela === 'object') return semCarga === 'acerta' ? semCarga : semCarga + daTabela.mais
+      return daTabela
     }
   }
+}
+
+/**
+ * F2 (fatia C): quem usa a técnica venceu a disputa? Quando o alvo testa,
+ * vence se o alvo NÃO passou; o "acerta" da concentração (sem teste) é
+ * sempre de quem usa (a dança com 3 cargas atordoa).
+ */
+export function quemUsaVence(resultado: ResultadoDaDisputa, testa: 'quemUsa' | 'alvo'): boolean {
+  if (resultado.tipo === 'automatico') return true
+  return (testa === 'quemUsa') === resultado.passou
 }
 
 function rolar(ficha: FichaNaDisputa, sistema: SistemaDeRpg, quem: QuemRola, rolarD20: () => number): RolagemDaDisputa {
@@ -115,12 +129,12 @@ function textoDaRolagemDaDisputa(rolagem: RolagemDaDisputa): string {
 
 /**
  * F2 (fatia B): a disputa em texto para o registro: "disputa d20 15+1 = 16
- * contra d20 8+2 = 10", "teste d20 9+1 = 10 contra CD 12", "passou sem teste".
+ * contra d20 8+2 = 10", "teste d20 9+1 = 10 contra CD 12", "sem teste (concentração)".
  */
 export function textoDaDisputa(resultado: ResultadoDaDisputa): string {
   switch (resultado.tipo) {
     case 'automatico':
-      return 'passou sem teste'
+      return 'sem teste (concentração)'
     case 'cd':
       return `teste ${textoDaRolagemDaDisputa(resultado.rolagem)} contra CD ${resultado.cd}`
     case 'rolagem':

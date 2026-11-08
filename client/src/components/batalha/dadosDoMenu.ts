@@ -17,7 +17,7 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
-import { mecanicaDoCartao, perguntasDoCartao, respostasPadrao, seloDaMecanica, semSeloPelaResposta } from '../../lib/batalha/mecanicasAMao'
+import { mecanicaDoCartao, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta } from '../../lib/batalha/mecanicasAMao'
 import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
@@ -479,7 +479,8 @@ function golpeDaTecnica(
   const semSelo = lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar' || semSeloPelaResposta(id, padrao)
   const selo = seloDaMecanica(id, padrao) ?? (semSelo ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema))
   if (selo !== null) golpe.selo = selo
-  const perguntas = perguntasDoCartao(id)
+  // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
+  const perguntas = perguntasDoGolpe(id, idsDosCartoes(personagem))
   if (perguntas.length > 0) {
     golpe.perguntas = perguntas
     const ctxDaFormula = { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }
@@ -525,6 +526,11 @@ export function golpesDeHabilidade(
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */
+/** F2 (fatia C): os ids dos cartões da ficha (todas as abas), para as perguntas de todo golpe do dono. */
+function idsDosCartoes(personagem: Personagem): string[] {
+  return Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id))
+}
+
 export function armasNaBatalha(personagem: Personagem | null, combate: Pick<CombateDoPersonagem, 'armas'> | undefined): ArmaDaFicha[] {
   if (personagem === null) return []
   const todas = armasDe(personagem)
@@ -557,6 +563,7 @@ export function golpesDeAtaque(
   const carga = combate?.carga ?? 0
   const danoCom = (arma: ArmaDaFicha | null, bala: BalaDaArma | null): DanoNaTela =>
     personagem === null || sistema === null ? danoNaTela({ tipo: 'naoEntende', texto: '' }) : danoNaTela(danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }, bala))
+  const perguntasDoAtaque = personagem === null ? [] : perguntasDoGolpe(null, idsDosCartoes(personagem))
   const golpeDe = (arma: ArmaDaFicha | null): GolpeNaTela => {
     const lida = arma === null ? null : lerAcao(arma.campos[CAMPO_DA_ACAO] ?? '').acao
     const acaoDaFicha: AcaoDaTecnica = lida === null || lida === 'passiva' ? 'simples' : lida
@@ -571,6 +578,8 @@ export function golpesDeAtaque(
         : arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: bala.efeito, quantidade: bala.quantidade, dano: danoCom(arma, bala) }))
     return {
       ...(selo === null ? {} : { selo }),
+      // F2 (fatia C): as perguntas de todo golpe do dono (o Electro da Aira) também no Atacar.
+      ...(perguntasDoAtaque.length === 0 ? {} : { perguntas: perguntasDoAtaque }),
       ...comBonus(bonus),
       ...(categoria === null ? {} : { categoria }),
       ...(arma === null || arma.capacidade === null ? {} : { capacidade: arma.capacidade }),
