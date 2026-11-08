@@ -119,3 +119,11 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Orgulho dos Ogros (literal): "Só ela não tem isso, ela pode esquivar normal." Regra: os outros ogros só Defendem (não esquivam); a Ryoko esquiva e contra-ataca normal.
 - "25 de Queimadura" do Chute: +25 NO MESMO GOLPE (como hoje).
 - HP 700 e SP 240; a forma NÃO dá HP; Escudo 12.
+
+## Vincent G. (Q1, Q2, Q5/Q6)
+- Mochila: DEVOLVER a lista do relatório (Pastel, Bala de Prata ×50, Pão ×4, Boomerang). O mesmo bug (B1, migração da mochila em 21:35) apagou itens da Aira (1), do Alexei (4) e da May (1): devolver todos pelo `migracao-da-mochila.json`.
+- SP durante a luta: +X SP no começo da vez de quem NÃO usou SP na vez anterior (vale para todos; X pedido ao mestre).
+- Passo de Valsa: vale contra QUALQUER ATAQUE (corpo a corpo e à distância), mas sai SÓ COMO ESQUIVA, e a marca só com Esquiva.
+- SP na luta: X = +10 (vale para todos).
+- Bala de Prata (literal): "A bala de prata é só para dar 10-20 de dano a mais é uma bala só isso." e "Bala de Prata não faz isso." (sem metade da cura). Corrigir o texto do item.
+- Escudo: VOLTA CHEIO A CADA BATALHA (grava o máximo; vale para todo Escudo).
