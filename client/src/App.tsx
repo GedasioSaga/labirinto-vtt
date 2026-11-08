@@ -19,7 +19,7 @@ import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
 import { useSessionStore, subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
 import { restoreRecoveryCopy, startRecoveryAutosave, type RecoveryAutosave } from './stores/recoveryAutosave'
 import { clearRecoveryCopy, formatRecoveryTime, readRecoveryCopy, writeRecoveryCopy, type RecoveryCopy } from './lib/recoveryCopy'
-import { assinarLugarDaAventura, iniciarBatalhaSalva, lugarDaAventura, type BatalhaSalvaNaMesa, type OfertaDaBatalhaSalva } from './stores/batalhaSalvaNaMesa'
+import { assinarLugarDaAventura, assinarTudoSalvo, iniciarBatalhaSalva, lugarDaAventura, tudoSalvoNoApp, type BatalhaSalvaNaMesa, type OfertaDaBatalhaSalva } from './stores/batalhaSalvaNaMesa'
 import { apagarBatalhaSalva, gravarBatalhaSalva, lerBatalhaSalva } from './lib/batalha/batalhaSalvaNoDisco'
 import { RetomarBatalhaDialog } from './components/batalha/RetomarBatalhaDialog'
 import { mesaDaAventura } from './stores/mesaDaAventura'
@@ -1908,9 +1908,10 @@ function App() {
 
   /**
    * Conserto das fichas F1, fatia S5 (P8): a batalha em andamento vai para a
-   * pasta da aventura a cada mudança e, ao abrir uma mesa com batalha guardada,
-   * vira a pergunta "Retomar a batalha" / "Encerrar". Só no app (Tauri), como a
-   * cópia de recuperação.
+   * pasta da aventura a cada mudança feita com tudo salvo (ou junto com o
+   * Salvar, se havia ficha por salvar) e, ao abrir uma mesa com batalha
+   * guardada, vira a pergunta "Retomar a batalha" / "Encerrar". Só no app
+   * (Tauri), como a cópia de recuperação.
    */
   useEffect(() => {
     if (!isTauri()) return
@@ -1920,6 +1921,8 @@ function App() {
       disco: { ler: lerBatalhaSalva, gravar: gravarBatalhaSalva, apagar: apagarBatalhaSalva },
       lugar: lugarDaAventura,
       assinarLugar: assinarLugarDaAventura,
+      tudoSalvo: tudoSalvoNoApp,
+      assinarSalvo: assinarTudoSalvo,
       aoOfertar: setOfertaDaBatalha,
       aoAvisar: (texto) => useToastStore.getState().push('info', texto),
       aoFalhar: reportFileError,

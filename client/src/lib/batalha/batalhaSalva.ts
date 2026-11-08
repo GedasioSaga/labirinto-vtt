@@ -10,9 +10,9 @@ import type { TurnosDaCena } from './turnos'
  * docs/auditoria-fichas/respostas-do-grilling.md): a batalha em andamento
  * (ordem, recargas, usos, Overload, selos, golpes pendentes, registro) mora na
  * memória do app do mestre (decisão 1) e, desde o S5, também num arquivo ao
- * lado da aventura (ou do mapa solto), `batalha-em-andamento.json`. Fechar ou
- * atualizar o app no meio não zera mais nada: ao reabrir, o mestre escolhe
- * "Retomar a batalha" ou "Encerrar".
+ * lado da aventura (ou do mapa solto), `batalha-em-andamento.json`, sempre no
+ * mesmo ponto das fichas salvas. Fechar ou atualizar o app no meio não zera
+ * mais nada: ao reabrir, o mestre escolhe "Retomar a batalha" ou "Encerrar".
  *
  * Aqui só o formato, puro (sem disco): o texto com `versao`, como o
  * `rpg.json` das pastas e a cópia de recuperação. Quem lê e grava é

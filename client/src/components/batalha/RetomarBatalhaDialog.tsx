@@ -5,7 +5,8 @@ import type { CenaOferecida, OfertaDaBatalhaSalva } from '../../stores/batalhaSa
 /**
  * "Retomar a batalha?" (conserto das fichas F1, fatia S5; P8): a mesa aberta
  * tem uma batalha guardada que não foi encerrada (o app fechou, ou foi
- * atualizado, no meio dela). Retomar volta tudo de onde parou; Encerrar acaba
+ * atualizado, no meio dela). Retomar volta a batalha do ponto em que ela e as
+ * fichas foram salvas juntas (`stores/batalhaSalvaNaMesa.ts`); Encerrar acaba
  * com ela (as formas desligam, como no Encerrar do livro).
  *
  * `alertdialog` como o "Alterações não salvas" do App: o foco entra no botão
@@ -76,8 +77,8 @@ export function RetomarBatalhaDialog({ oferta, onRetomar, onEncerrar }: RetomarB
         </header>
         <div className="lb-dialog__body" style={{ padding: 'var(--lb-space-4)' }}>
           <p id={textoId} style={{ margin: 0, lineHeight: 'var(--lb-font-leading-normal)' }}>
-            Ficou uma batalha sem encerrar {ondeEstava(oferta.cenas)}. Retomar volta a ordem, as recargas, os selos, os golpes esperando resposta e o
-            registro de onde parou. Encerrar acaba com ela, e as formas desligam.
+            Ficou uma batalha sem encerrar {ondeEstava(oferta.cenas)}. Retomar volta a batalha junto com as fichas, do jeito que ficaram salvas: a
+            ordem, as recargas, os selos, os golpes esperando resposta e o registro. Encerrar acaba com ela, e as formas desligam.
           </p>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--lb-space-2)', justifyContent: 'flex-end', padding: 'var(--lb-space-4)', paddingTop: 0 }}>
