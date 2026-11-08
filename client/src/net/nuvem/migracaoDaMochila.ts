@@ -13,6 +13,7 @@ import type { RecoveryCopy } from '../../lib/recoveryCopy'
 import { moedasDe, readMoedas } from '../../lib/troca'
 import { useToastStore } from '../../stores/toastStore'
 import type { MapData } from '../../types/map'
+import { prepararEmissao } from './emissor'
 
 /**
  * MOCHILA NA FICHA — a MIGRAÇÃO AO ABRIR (docs/planos/lobby-jogadores-2026-11-05.md
@@ -345,7 +346,7 @@ interface Alvo {
   onde: string
 }
 
-async function migrar(disco: DiscoDaMigracao, alvo: Alvo, lidas: CenasLidas, agoraMs: number): Promise<MigracaoDaMochila> {
+async function migrar(disco: DiscoDaMigracao, alvo: Alvo, lidas: CenasLidas, agoraMs: number, depoisDeGravar?: (antes: readonly Personagem[], depois: readonly Personagem[]) => void): Promise<MigracaoDaMochila> {
   const juncao = juntarMochilas(alvo.personagens, lidas.cenas)
   const copiaDeAntes = `${alvo.arquivo}${SUFIXO_DA_COPIA_DE_ANTES}`
   // A cópia é do arquivo ANTES da PRIMEIRA migração: uma segunda tentativa (a primeira caiu antes do marcador) não a regrava.
@@ -353,6 +354,7 @@ async function migrar(disco: DiscoDaMigracao, alvo: Alvo, lidas: CenasLidas, ago
   const relatorio = await disco.juntar(alvo.dir, ARQUIVO_DO_RELATORIO)
   await disco.gravar(relatorio, textoDoRelatorio(alvo.onde, copiaDeAntes, juncao, lidas.naoAbriram, agoraMs))
   await disco.gravar(alvo.arquivo, JSON.stringify(brutoMigrado(alvo.bruto, juncao.personagens), null, 2))
+  depoisDeGravar?.(alvo.personagens, juncao.personagens)
   return { feita: true, arquivo: alvo.arquivo, relatorio, copiaDeAntes, fichas: juncao.bases.length, diferencas: juncao.diferencas.length, variosBonecos: juncao.variosBonecos.length }
 }
 
@@ -365,6 +367,18 @@ export async function lerIndice(disco: DiscoDaMigracao, pastaDasPastas: string):
   return bruto === null ? null : indiceDoArquivo(bruto)
 }
 
+/**
+ * Numa pasta publicada, a mochila que a migração pôs nas fichas vai ao Lobby
+ * pelo mesmo funil do editor (bug B1): gravada só no disco, a vista da nuvem
+ * não a tinha e o acerto ao abrir o mapa a apagava item por item. Pasta não
+ * publicada, ou com o Lobby ainda desligado: nada (`prepararEmissao`).
+ */
+function levarAoLobby(pastaId: string, antes: readonly Personagem[], depois: readonly Personagem[]): void {
+  const emissao = prepararEmissao(pastaId, antes, depois)
+  if (emissao.ok) emissao.entregar()
+  else useToastStore.getState().push('error', `A mochila passou para as fichas, mas o Lobby não a aceitou (${emissao.problema}): no site e ao abrir o mapa ela pode sumir.`)
+}
+
 async function migrarPasta(disco: DiscoDaMigracao, indice: IndiceDasPastas, pastaDosMapas: string, pastaId: string, nome: string, rpg: Omit<Alvo, 'personagens' | 'onde'>, recuperado: RecoveryCopy | null, agoraMs: number): Promise<MigracaoDaMochila> {
   const lido = rpgDoArquivo(rpg.bruto)
   if (lido.mochilaMigrada !== undefined) return { feita: false, porque: 'ja-migrada' }
@@ -375,7 +389,7 @@ async function migrarPasta(disco: DiscoDaMigracao, indice: IndiceDasPastas, past
     if (lugar.pastaId !== pastaId || lugar.proprio === true) continue
     await lerCenasDoMapa(disco, await disco.juntar(pastaDosMapas, lugar.chave), recuperado, lidas)
   }
-  return migrar(disco, { ...rpg, personagens: lido.personagens, onde: `pasta ${nome}` }, lidas, agoraMs)
+  return migrar(disco, { ...rpg, personagens: lido.personagens, onde: `pasta ${nome}` }, lidas, agoraMs, (antes, depois) => levarAoLobby(pastaId, antes, depois))
 }
 
 async function migrarAventura(disco: DiscoDaMigracao, caminhoDoMapa: string, recuperado: RecoveryCopy | null, agoraMs: number): Promise<MigracaoDaMochila> {

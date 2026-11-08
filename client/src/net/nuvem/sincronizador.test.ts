@@ -4,6 +4,7 @@ import { ehTrocaOuPagamento, mudancaNasFichas } from '../../lib/mochila/espelho'
 import { AGORA, campanhaDeTeste, enviar, ficha, MEMBROS, MESTRE_NO_APP, MESTRE_NO_SITE, NAMI, NAMI_NO_PC, op, TANGERINA, ZORO, ZORO_NO_SITE, type CampanhaDeTeste } from '../../lib/nuvem/campanha.fixture'
 import { ehRegistro, paraJson, proprio } from '../../lib/nuvem/json'
 import type { Personagem } from '../../lib/personagem'
+import type { CarriedItem } from '../../types/map'
 import type { PastaNoDisco } from './discoDaNuvem'
 import { comoTudoOuNada, ligarEmissor, mudancasDaPasta, prepararEmissao } from './emissor'
 import { fichasComAsLinhas, type LinhaDaNuvem } from './historicoDaNuvem'
@@ -485,5 +486,77 @@ describe('fechamento da fase 1 (F2): pagamento tudo ou nada e a linha do histór
     expect(campanha.revAtual()).toBe(revAntes + 1)
     expect(hpDe(app.aberta)).toBe(250)
     expect(app.aberta.find((doc) => doc.id === LUFFY.id)?.historico).toEqual([linha])
+  })
+})
+
+describe('fichas mudadas no disco com o app fechado (B1, conserto F0)', () => {
+  const PAO: CarriedItem = { id: 'vaga_pao', nome: 'Pão', itemId: 'item_pao', empilhavel: true, quantidade: 4 }
+
+  /** Abre, sincroniza e fecha (a base e a `revNoRpg` no disco); o "script" muda o `rpg.json` e deixa o arquivo das mudadas. */
+  async function primeiraSessaoEConserto(servidor: ServidorFalso, disco: DiscoEmMemoria, app: AppFalso): Promise<Personagem> {
+    const primeiro = await abrir(servidor, disco, app)
+    expect((await primeiro.ciclo()).t).toBe('ok')
+    await primeiro.fechar()
+    const antes = app.rpg.find((doc) => doc.id === LUFFY.id) as Personagem
+    const consertada: Personagem = { ...antes, maximos: { ...antes.maximos, hp: 900 }, mochila: [...(antes.mochila ?? []), PAO] }
+    app.rpg = app.rpg.map((doc) => (doc.id === LUFFY.id ? consertada : doc))
+    app.fechada = true
+    disco.arquivos.set('mudadas-no-disco.json', JSON.stringify({ versao: 1, id: 'f0', origem: 'conserto-fichas-f0', quando: AGORA, fichas: [{ id: LUFFY.id, antes: peloFio(antes) }] }))
+    return consertada
+  }
+
+  it('ao abrir, a mudança do disco vai para a fila ANTES do acerto: o rpg.json a mantém, o servidor a recebe e o que o site mudou em outro campo também fica', async () => {
+    const campanha = campanhaDeTeste([], MEMBROS)
+    publicar(campanha, [LUFFY])
+    const servidor = servidorFalso(campanha)
+    const disco = discoEmMemoria()
+    const app = appFalso([LUFFY])
+    await primeiraSessaoEConserto(servidor, disco, app)
+    // Com o app fechado, o mestre muda a Vida pelo site (outro campo).
+    enviar(campanha, MESTRE_NO_SITE, [op(MESTRE_NO_SITE, LUFFY.id, ['recursos', 'hp'], 'definir', { valor: 120, baseRev: 1 })])
+
+    const segundo = await abrir(servidor, disco, app)
+    // Antes de qualquer rede, o rpg.json já não volta ao que a nuvem tinha.
+    expect(app.rpg.find((doc) => doc.id === LUFFY.id)?.maximos.hp).toBe(900)
+    expect(segundo.situacao().esperando).toBe(2)
+    expect((await segundo.ciclo()).t).toBe('ok')
+    await segundo.esvaziar()
+
+    const noRpg = app.rpg.find((doc) => doc.id === LUFFY.id)
+    expect(noRpg?.maximos.hp).toBe(900)
+    expect(noRpg?.mochila?.map((item) => item.id)).toEqual([TANGERINA.id, PAO.id])
+    expect(hpDe(app.rpg)).toBe(120)
+    const naNuvem = campanha.ficha(LUFFY.id)?.doc
+    expect(naNuvem?.maximos.hp).toBe(900)
+    expect(naNuvem?.mochila?.map((item) => item.id)).toEqual([TANGERINA.id, PAO.id])
+    expect(segundo.situacao().esperando).toBe(0)
+    expect(segundo.situacao().paraDecidir).toEqual([])
+    expect(JSON.parse(disco.arquivos.get('mudadas-no-disco.json') ?? '{}').feito).toBe(AGORA)
+    await segundo.fechar()
+
+    // Abrir de novo não manda outra vez (o arquivo tem `feito`): o Pão não dobra.
+    const terceiro = await abrir(servidor, disco, app)
+    expect(terceiro.situacao().esperando).toBe(0)
+    expect((await terceiro.ciclo()).t).toBe('ok')
+    expect(campanha.ficha(LUFFY.id)?.doc.mochila?.find((item) => item.id === PAO.id)?.quantidade).toBe(4)
+  })
+
+  it('o site mudou o MESMO campo depois da última sincronia: vira conflito em "Mudanças para decidir", sem passar por cima do site', async () => {
+    const campanha = campanhaDeTeste([], MEMBROS)
+    publicar(campanha, [LUFFY])
+    const servidor = servidorFalso(campanha)
+    const disco = discoEmMemoria()
+    const app = appFalso([LUFFY])
+    await primeiraSessaoEConserto(servidor, disco, app)
+    enviar(campanha, MESTRE_NO_SITE, [op(MESTRE_NO_SITE, LUFFY.id, ['maximos', 'hp'], 'definir', { valor: 500, baseRev: 1 })])
+
+    const segundo = await abrir(servidor, disco, app)
+    expect((await segundo.ciclo()).t).toBe('ok')
+    await segundo.esvaziar()
+
+    expect(campanha.ficha(LUFFY.id)?.doc.maximos.hp).toBe(500)
+    expect(segundo.situacao().paraDecidir.map((entrada) => [entrada.op.caminho, entrada.situacao.t])).toEqual([[['maximos', 'hp'], 'conflito']])
+    // O item novo (campo que o site não tocou) subiu do mesmo jeito.
+    expect(campanha.ficha(LUFFY.id)?.doc.mochila?.map((item) => item.id)).toEqual([TANGERINA.id, PAO.id])
   })
 })
