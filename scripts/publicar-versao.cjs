@@ -61,10 +61,11 @@ function falhar(mensagem) {
 }
 
 function lerArgumentos(argv) {
-  const args = { publicar: false, notas: null, soLobby: false }
+  const args = { publicar: false, notas: null, soLobby: false, comGoogle: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--publicar') args.publicar = true
     else if (argv[i] === '--so-lobby') args.soLobby = true
+    else if (argv[i] === '--com-google') args.comGoogle = true
     else if (argv[i] === '--notas') args.notas = argv[++i] ?? falhar('--notas pede um arquivo')
     else falhar(`argumento desconhecido: ${argv[i]}`)
   }
@@ -206,6 +207,12 @@ function buildarApp(args, conf, versao, tag) {
   const inicio = Date.now() - 1000
   // Só o filho recebe a chave, pelo caminho; o terminal do usuário fica limpo.
   const env = { ...process.env, TAURI_SIGNING_PRIVATE_KEY: CHAVE, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: '' }
+  // O cliente Google do Prelúdio é só para testes neste PC (decisão do mestre, 08/11/2026):
+  // a versão pública sai sem ele até o mestre liberar com --com-google.
+  if (!args.comGoogle) {
+    delete env.LABIRINTO_GOOGLE_CLIENT_ID
+    delete env.LABIRINTO_GOOGLE_CLIENT_SECRET
+  }
   rodar('npm', ['run', 'tauri:build'], { env, shell: process.platform === 'win32' })
 
   const target = process.env.CARGO_TARGET_DIR || path.join(RAIZ, 'desktop', 'src-tauri', 'target')
