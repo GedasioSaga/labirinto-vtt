@@ -24,6 +24,7 @@ import {
 } from './mobilia/chafariz'
 import { ehMovelDeVento, formaDoMoinho, gravarFormaDoVento, normalizarFormaDoVento, ventoDoMovel, type FormaDoMoinho, type VentoDoMovel } from './mobilia/cataVento'
 import { ehPonte, gravarFormaDaPonte, normalizarFormaDaPonte, type FormaDaPonte } from './mobilia/ponte'
+import { ehCova, gravarFormaDaCova, normalizarFormaDaCova, type FormaDaCova } from './mobilia/cova'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -287,7 +288,9 @@ function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): 
     // Os objetos de vento (02/11/2026): o Parado; no moinho, também a Torre (03/11/2026).
     normalizarFormaDoVento(tipo, valor) ??
     // A ponte (03/11/2026): a pedra ou a corda (ausente = madeira).
-    normalizarFormaDaPonte(tipo, valor)
+    normalizarFormaDaPonte(tipo, valor) ??
+    // A cova (07/11/2026): a antiga ou a com pedras (ausente = fresca).
+    normalizarFormaDaCova(tipo, valor)
   )
 }
 
@@ -1612,6 +1615,16 @@ export function movelComOutraFormaDoMoinho(prop: Prop, forma: FormaDoMoinho): Pr
 export function movelComOutraFormaDaPonte(prop: Prop, forma: FormaDaPonte): Prop {
   if (!ehPonte(prop.mobilia)) return prop
   return comFormaGravada(prop, gravarFormaDaPonte(forma))
+}
+
+/**
+ * A "Versão" da COVA (Fresca | Antiga | Com pedras): a mesma cova na outra
+ * versão, no MESMO tamanho (as três têm a pegada de 1 x 2, e o mestre pode ter
+ * esticado). Outro tipo devolve o mesmo objeto.
+ */
+export function movelComOutraFormaDaCova(prop: Prop, forma: FormaDaCova): Prop {
+  if (!ehCova(prop.mobilia)) return prop
+  return comFormaGravada(prop, gravarFormaDaCova(forma))
 }
 
 export function movelComOutraForma(prop: Prop, forma: FormaDoTapete, grade: number): Prop {

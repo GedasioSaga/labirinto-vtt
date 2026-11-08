@@ -116,6 +116,7 @@ const MONTADORES = {
   // A ponte (03/11/2026): madeira, pedra ou corda (a forma é a variante).
   ponte: montarPonte,
   // O cemitério (07/11/2026): no Desenhado sai a arte do estúdio; este é o desenho do Atual.
+  // A cova tem três versões (fresca, antiga, com pedras): a versão é a variante.
   cova: montarCova,
   caixao: montarCaixao,
   caixaoAberto: montarCaixaoAberto,

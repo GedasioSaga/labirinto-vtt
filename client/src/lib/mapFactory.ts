@@ -37,10 +37,11 @@ import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel, movelComOutraFormaDoChafariz, movelComOutraAguaDoChafariz, movelComOutroVento,
-  movelComOutraFormaDaPonte, movelComOutraFormaDoMoinho,
+  movelComOutraFormaDaPonte, movelComOutraFormaDoMoinho, movelComOutraFormaDaCova,
   type AparenciaDoMovelPatch,
 } from './mobilia'
 import { ehPonte, formaDaPonte, type FormaDaPonte } from './mobilia/ponte'
+import { ehCova, formaDaCova, type FormaDaCova } from './mobilia/cova'
 import { aguaDoChafariz, formaDoChafariz, type AguaDoChafariz, type FormaDoChafariz } from './mobilia/chafariz'
 import { ehMovelDeVento, formaDoMoinho, ventoDoMovel, type FormaDoMoinho, type VentoDoMovel } from './mobilia/cataVento'
 import { CASAS_DO_TAMANHO_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from './mobilia/fogo'
@@ -997,6 +998,17 @@ export function trocarFormaDaPonte(map: MapData, propId: string, forma: FormaDaP
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo === undefined || !ehPonte(alvo.mobilia) || formaDaPonte(alvo.mobiliaForma) === forma) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraFormaDaPonte(p, forma) : p)) }
+}
+
+/**
+ * "Versão" do painel da COVA (Fresca | Antiga | Com pedras): a pegada fica
+ * (`movelComOutraFormaDaCova`). A mesma versão, outro tipo ou id que não
+ * existe devolvem o MESMO mapa (a store não empilha passo vazio).
+ */
+export function trocarFormaDaCova(map: MapData, propId: string, forma: FormaDaCova): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo === undefined || !ehCova(alvo.mobilia) || formaDaCova(alvo.mobiliaForma) === forma) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraFormaDaCova(p, forma) : p)) }
 }
 
 /**

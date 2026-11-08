@@ -5,6 +5,7 @@ import { varianteDaLapide } from '../lib/mobilia/pecasNovas'
 import { ehMovelDePilha, varianteDaPilha } from '../lib/mobilia/pilhas'
 import { varianteDoChafariz } from '../lib/mobilia/chafariz'
 import { varianteDaPonte } from '../lib/mobilia/ponte'
+import { varianteDaCova } from '../lib/mobilia/cova'
 import { formaDoMoinho } from '../lib/mobilia/cataVento'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
@@ -245,6 +246,8 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     ...(prop.mobilia === 'chafariz' ? { variante: varianteDoChafariz(prop.mobiliaForma) } : {}),
     // A ponte: a forma (madeira, pedra, corda) é a variante do desenho.
     ...(prop.mobilia === 'ponte' ? { variante: varianteDaPonte(prop.mobiliaForma) } : {}),
+    // A cova (07/11/2026): a versão do Atual (fresca, antiga, com pedras) é a variante do desenho.
+    ...(prop.mobilia === 'cova' ? { variante: varianteDaCova(prop.mobiliaForma) } : {}),
     // O moinho de torre (03/11/2026) é a variante 1; o Clássico fica sem variante, com a chave (e a semente) de antes.
     ...(prop.mobilia === 'moinho' && formaDoMoinho(prop.mobiliaForma) === 'torre' ? { variante: 1 } : {}),
     ...(giroDaImagem(prop) !== 0 ? { giro: giroDaImagem(prop) } : {}),

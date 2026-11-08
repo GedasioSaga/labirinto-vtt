@@ -720,6 +720,7 @@ function App() {
   const trocarAguaDoChafariz = useMapStore((state) => state.trocarAguaDoChafariz)
   const trocarVentoDoMovel = useMapStore((state) => state.trocarVentoDoMovel)
   const trocarFormaDaPonte = useMapStore((state) => state.trocarFormaDaPonte)
+  const trocarFormaDaCova = useMapStore((state) => state.trocarFormaDaCova)
   const trocarFormaDoMoinho = useMapStore((state) => state.trocarFormaDoMoinho)
   const setAparenciaDoMovel = useMapStore((state) => state.setAparenciaDoMovel)
   const setGridOffset = useMapStore((state) => state.setGridOffset)
@@ -4014,6 +4015,7 @@ function App() {
               onAguaDoChafarizChange: trocarAguaDoChafariz,
               onVentoChange: trocarVentoDoMovel,
               onFormaDaPonteChange: trocarFormaDaPonte,
+              onFormaDaCovaChange: trocarFormaDaCova,
               onFormaDoMoinhoChange: trocarFormaDoMoinho,
               onAparenciaChange: setAparenciaDoMovel,
             }}

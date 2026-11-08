@@ -4,7 +4,7 @@ import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings, FeitioDaParede, MaterialDaParede, AcabamentoDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
-  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, FormaDaPonte, FormaDoMoinho, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
+  TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, FormaDaPonte, FormaDaCova, FormaDoMoinho, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
   PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo, NeblinaDoMapa,
 } from '../types/map'
@@ -1072,6 +1072,9 @@ interface MapStoreState {
   /** "Forma" da PONTE (Madeira | Pedra | Corda): no lugar, o tamanho fica.
    *  Um passo no desfazer; a mesma forma ou outro tipo não entram. */
   trocarFormaDaPonte: (id: string, forma: FormaDaPonte) => void
+  /** "Versão" da COVA (Fresca | Antiga | Com pedras): no lugar, o tamanho fica.
+   *  Um passo no desfazer; a mesma versão ou outro tipo não entram. */
+  trocarFormaDaCova: (id: string, forma: FormaDaCova) => void
   /** "Forma" do MOINHO (Clássico | Torre): no lugar, o tamanho e o vento ficam.
    *  Um passo no desfazer; a mesma forma ou outro tipo não entram. */
   trocarFormaDoMoinho: (id: string, forma: FormaDoMoinho) => void
@@ -2738,6 +2741,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     trocarFormaDaPonte: (id, forma) => {
       if (mapFactory.trocarFormaDaPonte(get().map, id, forma) === get().map) return
       withHistory((map) => mapFactory.trocarFormaDaPonte(map, id, forma))
+    },
+    trocarFormaDaCova: (id, forma) => {
+      if (mapFactory.trocarFormaDaCova(get().map, id, forma) === get().map) return
+      withHistory((map) => mapFactory.trocarFormaDaCova(map, id, forma))
     },
     trocarFormaDoMoinho: (id, forma) => {
       if (mapFactory.trocarFormaDoMoinho(get().map, id, forma) === get().map) return

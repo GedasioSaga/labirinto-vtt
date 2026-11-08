@@ -24,7 +24,7 @@ import { ROTULO_DO_TAMANHO_DO_FOGO, TAMANHOS_DO_FOGO, tamanhoDoFogo, type Tamanh
 import { ofereceDesenhoEmLinhas, saiComTextura } from '../lib/mobilia/desenhoDoMovel'
 import { DEFAULT_FLOOR_STYLE } from '../lib/mapFile'
 import { parseHexColor } from '../lib/tokenColor'
-import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { desenhadoLigado, meioTermoLigado } from '../lib/estiloDoMapa'
 import { useMapStore } from '../stores/mapStore'
 import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_ALPHA, PROP_SILHOUETTE_FILL_COLOR } from '../pixi/drawPropSilhouettes'
 import type { FogoDoMovel, FormaDoTapete, FormaDosPratos, Prop, TipoMobilia, VistaMobilia } from '../types/map'
@@ -52,6 +52,7 @@ import {
   type VentoDoMovel,
 } from '../lib/mobilia/cataVento'
 import { FORMAS_DA_PONTE, ROTULO_DA_FORMA_DA_PONTE, formaDaPonte, type FormaDaPonte } from '../lib/mobilia/ponte'
+import { FORMAS_DA_COVA, ROTULO_DA_FORMA_DA_COVA, formaDaCova, type FormaDaCova } from '../lib/mobilia/cova'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
@@ -120,6 +121,11 @@ export interface MobiliaControlsProps {
    * ficam. Ausente = o painel não oferece a forma.
    */
   onFormaDaPonteChange?: (id: string, forma: FormaDaPonte) => void
+  /**
+   * Cova: troca a versão do Atual (Fresca | Antiga | Com pedras) no lugar; o
+   * tamanho e o giro ficam. Ausente = o painel não oferece a versão.
+   */
+  onFormaDaCovaChange?: (id: string, forma: FormaDaCova) => void
   /**
    * Moinho: troca a forma (Clássico | Torre) no lugar; o tamanho e o vento
    * ficam. Ausente = o painel não oferece a forma.
@@ -329,6 +335,7 @@ export function MobiliaControls({
   onAguaDoChafarizChange,
   onVentoChange,
   onFormaDaPonteChange,
+  onFormaDaCovaChange,
   onFormaDoMoinhoChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
@@ -566,6 +573,28 @@ export function MobiliaControls({
                   onClick={() => onFormaDaPonteChange(prop.id, opcao)}
                 >
                   {ROTULO_DA_FORMA_DA_PONTE[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* A cova: as três versões do estúdio no estilo Atual (o monte fresco, o antigo com mato, a roda de
+            pedras). Só onde o desenho as mostra: no Desenhado a cova é a arte do estúdio, uma só, e no
+            Simples é a silhueta; lá o segmentado não teria efeito e some. A versão fica gravada. */}
+        {tipo === 'cova' && onFormaDaCovaChange !== undefined && meioTermoLigado() && !desenhadoLigado() && (
+          <div className="lb-field">
+            <span className="lb-label">Versão</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Versão">
+              {FORMAS_DA_COVA.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={formaDaCova(prop.mobiliaForma) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onFormaDaCovaChange(prop.id, opcao)}
+                >
+                  {ROTULO_DA_FORMA_DA_COVA[opcao]}
                 </button>
               ))}
             </div>
