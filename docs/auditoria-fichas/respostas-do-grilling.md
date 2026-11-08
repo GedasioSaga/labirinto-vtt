@@ -167,3 +167,12 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Sangramento (de qualquer fonte): os 10 vão DIRETO NO HP (ignora o Escudo). (regra do sistema)
 - "Armas Destruídas": SÓ TÍTULO; "Armas por batalha: 3".
 - Arrombamento usa FORÇA; a "Inteligência" da Amnésia é a INTUIÇÃO.
+- Harvey: HP 700 e SP 60 (Escudo 40, volta cheio a cada batalha).
+
+## Regras do sistema (perguntas do 00-bugs-do-sistema.md)
+- P1 Tempo N: BLOQUEIA N VEZES do dono (Tempo 1: usa, espera 1, usa; Tempo 3: usa na vez 1, bloqueia 2, 3 e 4, usa na 5). Hoje o app bloqueia N-1: corrigir.
+- P3 Golpe sem resposta: vira "NÃO REAGIU" sozinho NA VIRADA DA RODADA, com linha no registro (corrige o bug 2).
+- P6 Custo por turno: lembrete "Aplicar / pular" no começo da vez (resposta do Jimboy); sem SP, a forma desce uma Parte (resposta da Ryoko).
+- P7 Máximos para gravar (bug 4): Saga 700/60, Jimboy 1000/60, May 700/60, Aira HP 900, Vagn 1000/120, Ryoko 700/240, Harvey 700/60, Siegfried 900/140 (com o app fechado e backup).
+- P8 Batalha salva: SIM, a batalha em andamento VOLTA ao reabrir o app (ordem, recargas, usos, selos, golpes, Overload).
+- Faltam (perguntar no fim, são técnicas): P2 carta extra e recarga, P4 desfazer forma e HP, P5 "Me dar dano" com Resiliente; Vagn Q6 (Polaridade com golpe esperando).
