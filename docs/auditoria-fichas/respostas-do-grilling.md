@@ -176,3 +176,8 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - P7 Máximos para gravar (bug 4): Saga 700/60, Jimboy 1000/60, May 700/60, Aira HP 900, Vagn 1000/120, Ryoko 700/240, Harvey 700/60, Siegfried 900/140 (com o app fechado e backup).
 - P8 Batalha salva: SIM, a batalha em andamento VOLTA ao reabrir o app (ordem, recargas, usos, selos, golpes, Overload).
 - Faltam (perguntar no fim, são técnicas): P2 carta extra e recarga, P4 desfazer forma e HP, P5 "Me dar dano" com Resiliente; Vagn Q6 (Polaridade com golpe esperando).
+- P2 Carta extra: recarga E selo descem POR VEZ (age 2x, desce 2).
+- P4 Desfazer forma: TIRA O HP/SP QUE ELA DEU (sem cura de graça).
+- P5 "Me dar dano" com Resiliente: o APP DESCONTA, o jogador digita o dano CHEIO e a tela avisa "Resiliente: −20% aplicado".
+- Vagn Q6 Polaridade com golpe esperando: NÃO DEIXA CARREGAR enquanto houver golpe esperando o Vagn.
+- GRILLING COMPLETO em 08/11/2026 (11 fichas + regras do sistema).
