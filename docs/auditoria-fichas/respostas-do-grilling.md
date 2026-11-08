@@ -181,3 +181,10 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - P5 "Me dar dano" com Resiliente: o APP DESCONTA, o jogador digita o dano CHEIO e a tela avisa "Resiliente: −20% aplicado".
 - Vagn Q6 Polaridade com golpe esperando: NÃO DEIXA CARREGAR enquanto houver golpe esperando o Vagn.
 - GRILLING COMPLETO em 08/11/2026 (11 fichas + regras do sistema).
+
+## Respostas de 08/11 (depois da F2)
+- Aira, dança: cada carga de Concentração sobe a CD em +2 (carga 1: +2; carga 2: +4); com 3, atordoa sem teste.
+- Vagn: Pontos de Proficiência em Fruta = 1 (CD da fruta sem carga = 11 + mod. de ESP).
+- Vagn, Projeção Letal: a linha reta tem 6 CASAS.
+- Ficha emprestada (bug 8): PODE AGIR COM O MENU INTEIRO (armas e técnicas da ficha; o app cobra SP e recarga dela).
+- Saga: atributos = os do Judge padrão (regra "igual ao Judge, ajustável"), decidido pela resposta anterior.
