@@ -188,3 +188,4 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Vagn, Projeção Letal: a linha reta tem 6 CASAS.
 - Ficha emprestada (bug 8): PODE AGIR COM O MENU INTEIRO (armas e técnicas da ficha; o app cobra SP e recarga dela).
 - Saga: atributos = os do Judge padrão (regra "igual ao Judge, ajustável"), decidido pela resposta anterior.
+- Ignição, "Velocidade ×1,2": É A AGILIDADE (a ordem muda na próxima rodada). Conferir a Agilidade 0 do Vagn na ficha real.
