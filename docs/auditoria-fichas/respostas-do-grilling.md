@@ -115,3 +115,7 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Recuperação de forças: só contra golpe de FOGO ou EXPLOSÃO, o MESTRE CONFIRMA; 20% do dano ANTES do −30% do Ogro; vale também contra Overload e Surpresa.
 - Golpe de Chifres: AÇÃO COMPLETA, 35 SP (a ficha); "ignorando sua defesa" = PULA O ESCUDO, o alvo ainda reage.
 - +20 de Ogro: só no ATACAR e nas técnicas CORPO A CORPO que ainda não escrevem o +20 (o do Chute já é ele).
+- Vantagem corpo a corpo (literal): "Pior que pode ser a opção 1 e 2, no combate bota para ela escolher." Regra: no combate o app PERGUNTA A ELA qual usar: o alvo reage com desvantagem (atacando) OU ela reage com vantagem (defendendo de golpe corpo a corpo).
+- Orgulho dos Ogros (literal): "Só ela não tem isso, ela pode esquivar normal." Regra: os outros ogros só Defendem (não esquivam); a Ryoko esquiva e contra-ataca normal.
+- "25 de Queimadura" do Chute: +25 NO MESMO GOLPE (como hoje).
+- HP 700 e SP 240; a forma NÃO dá HP; Escudo 12.
