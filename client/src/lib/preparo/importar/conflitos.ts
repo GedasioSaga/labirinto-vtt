@@ -1,6 +1,6 @@
 import { ehRegistro } from '../molde'
 import { chaveDoCaminho, extensaoDe, type LeitorDoCofre } from './cofre'
-import { inventariar, type ArquivoInventariado } from './inventario'
+import { inventariar, type ArquivoInventariado, type PastaIlegivel } from './inventario'
 
 /**
  * AS CÓPIAS DE CONFLITO DE 14/08 (plano §4, passo 9): não entram na
@@ -14,9 +14,9 @@ import { inventariar, type ArquivoInventariado } from './inventario'
 
 export type SituacaoDaCopia =
   | 'igual'
-  /** Mesmos campos, valores diferentes (a cópia é uma versão mais velha ou mais nova). */
+  /** Valores diferentes, sem nada novo: a cópia tem só o que o original já tem (versão mais velha, ou com menos). */
   | 'soDiferencas'
-  /** A cópia tem campos que o original não tem: pode haver algo a recuperar. */
+  /** A cópia tem campo, item ou palavra que o original não tem: pode haver algo a recuperar. */
   | 'temCoisaAMais'
   | 'semOriginal'
   /** Só na nuvem, atalho, JSON quebrado ou erro de leitura. */
@@ -29,9 +29,9 @@ export interface ComparacaoDaCopia {
   /** O original foi achado na lixeira do Grimório (`.lixeira/<id>/…`), e não no lugar dele. */
   readonly naLixeira: boolean
   readonly situacao: SituacaoDaCopia
-  /** Campos (folhas do JSON) da cópia que o original não tem. */
+  /** Campos (folhas do JSON) da cópia que o original não tem, ou textos com palavra que o original não tem. */
   readonly aMais: number
-  /** Campos dos dois lados com valor diferente. */
+  /** Campos dos dois lados com valor diferente, sem nada novo na cópia. */
   readonly diferentes: number
   readonly motivo?: string
 }
@@ -40,6 +40,12 @@ export interface CopiasDeConflito {
   readonly arquivos: number
   readonly comparacoes: readonly ComparacaoDaCopia[]
   readonly comCoisaAMais: number
+  /** Cópias com valores diferentes do original, mas sem nada novo. */
+  readonly soDiferencas: number
+  /** Cópias que não deu para comparar (só na nuvem, atalho, JSON quebrado, erro de leitura, não é JSON). */
+  readonly naoLidas: number
+  /** Pastas das cópias que não deu para listar: o que há dentro delas não foi comparado. */
+  readonly pastasIlegiveis: readonly PastaIlegivel[]
 }
 
 const SUFIXO_DO_CONFLITO = / \(conflito[^)]*\)( \(\d+\))?/giu
@@ -49,15 +55,35 @@ export function originalDaCopia(caminho: string): string {
   return caminho.replace(SUFIXO_DO_CONFLITO, '')
 }
 
-/** O que muda entre a cópia e o original sem ser conteúdo: id novo, nome com sufixo, datas, a vista do tldraw. */
-const FORA_DA_COMPARACAO: ReadonlySet<string> = new Set(['.id', '.nome', '.criadoEm', '.modificadoEm', '.documento.session'])
+/** O que muda entre a cópia e o original sem ser conteúdo: id novo, datas, a vista do tldraw. */
+const FORA_DA_COMPARACAO: ReadonlySet<string> = new Set(['.id', '.criadoEm', '.modificadoEm', '.documento.session'])
+/** O nome da cópia ganhou a marca de conflito: é comparado sem ela. */
+const CAMPO_DO_NOME = '.nome'
+/** A marca no nome: "(conflito) Nome" no JSON, "Nome (conflito — Grimorio dd-mm hhHmm) (2)" no arquivo. */
+const MARCA_DE_CONFLITO = /\(conflito[^)]*\)( \(\d+\))?/giu
+
+/** O nome sem a marca de conflito, nos dois formatos, com os espaços arrumados. */
+function nomeSemMarcaDeConflito(nome: string): string {
+  return nome.replace(MARCA_DE_CONFLITO, ' ').replace(/\s+/gu, ' ').trim()
+}
+/** Marcas de lista e objeto vazios: nenhum valor do JSON é igual a elas. */
+const LISTA_VAZIA = Symbol('[]')
+const OBJETO_VAZIO = Symbol('{}')
+
+interface Folhas {
+  /** Cada valor (texto, número, sim/não, null, ou a marca de vazio) pelo caminho. */
+  readonly valores: Map<string, unknown>
+  /** Os caminhos que são lista ou objeto, com ou sem conteúdo. */
+  readonly conteineres: Set<string>
+}
 
 /** Cada valor do JSON por caminho; lista de objetos com `id` é indexada pelo id (a ordem não conta). */
-function folhas(valor: unknown, caminho: string, saida: Map<string, string>): void {
+function folhas(valor: unknown, caminho: string, saida: Folhas): void {
   if (FORA_DA_COMPARACAO.has(caminho)) return
   if (Array.isArray(valor)) {
+    saida.conteineres.add(caminho)
     const porId = valor.length > 0 && valor.every((elemento) => ehRegistro(elemento) && typeof elemento.id === 'string')
-    if (valor.length === 0) saida.set(caminho, '[]')
+    if (valor.length === 0) saida.valores.set(caminho, LISTA_VAZIA)
     valor.forEach((elemento: unknown, posicao) => {
       const chave = porId && ehRegistro(elemento) ? `id=${String(elemento.id)}` : String(posicao)
       folhas(elemento, `${caminho}[${chave}]`, saida)
@@ -65,18 +91,46 @@ function folhas(valor: unknown, caminho: string, saida: Map<string, string>): vo
     return
   }
   if (ehRegistro(valor)) {
+    saida.conteineres.add(caminho)
     const chaves = Object.keys(valor)
-    if (chaves.length === 0) saida.set(caminho, '{}')
+    if (chaves.length === 0) saida.valores.set(caminho, OBJETO_VAZIO)
     for (const chave of chaves) folhas(valor[chave], `${caminho}.${chave}`, saida)
     return
   }
-  saida.set(caminho, JSON.stringify(valor) ?? 'undefined')
+  saida.valores.set(caminho, caminho === CAMPO_DO_NOME && typeof valor === 'string' ? nomeSemMarcaDeConflito(valor) : valor)
 }
 
-function folhasDe(json: unknown): Map<string, string> {
-  const saida = new Map<string, string>()
+function folhasDe(json: unknown): Folhas {
+  const saida: Folhas = { valores: new Map(), conteineres: new Set() }
   folhas(json, '', saida)
   return saida
+}
+
+/** As palavras de um texto, sem as etiquetas do HTML nem as entidades (`&nbsp;`), em minúsculas. */
+function palavrasDe(texto: string): Set<string> {
+  const semHtml = texto.replace(/<[^>]*>/g, ' ').replace(/&#?\w+;/g, ' ')
+  return new Set(semHtml.toLocaleLowerCase('pt-BR').match(/[\p{L}\p{N}]+/gu) ?? [])
+}
+
+/**
+ * Os campos de texto escrito pelo mestre: nome e título, as abas da ficha, o
+ * corpo da página, a legenda, a nota do vínculo e o texto do quadro. Caminho de
+ * imagem, URL e id do tldraw ficam de fora: mudam sozinhos (organizar imagens,
+ * outro PC) e cada pedaço novo pareceria "palavra nova".
+ */
+const CAMPOS_DE_TEXTO: ReadonlySet<string> = new Set([
+  'nome', 'titulo', 'resumo', 'descricao', 'informacao', 'historia', 'extras', 'anotacoes', 'eventos', 'itens', 'efeito', 'corpo', 'legenda', 'notas', 'text',
+])
+
+function ehCampoDeTexto(caminho: string): boolean {
+  return CAMPOS_DE_TEXTO.has(caminho.slice(caminho.lastIndexOf('.') + 1))
+}
+
+/** O texto da cópia tem palavra que o do original não tem: algo foi escrito nela. */
+function temPalavraAMais(daCopia: string, doOriginal: string): boolean {
+  const doOriginalPalavras = palavrasDe(doOriginal)
+  for (const palavra of palavrasDe(daCopia)) if (!doOriginalPalavras.has(palavra)) return true
+  return false
 }
 
 function lerJson(texto: string): { ok: true; valor: unknown } | { ok: false } {
@@ -87,14 +141,26 @@ function lerJson(texto: string): { ok: true; valor: unknown } | { ok: false } {
   }
 }
 
+/**
+ * Conta o que a cópia tem a mais e o que só difere. Lista ou objeto vazio onde
+ * o original tem conteúdo é a cópia com MENOS (difere, não é "a mais"); texto
+ * com palavra que o original não tem é "a mais", mesmo no mesmo campo.
+ */
 function comparar(copia: unknown, original: unknown): { aMais: number; diferentes: number } {
   const daOriginal = folhasDe(original)
   let aMais = 0
   let diferentes = 0
-  for (const [caminho, valor] of folhasDe(copia)) {
-    const noOriginal = daOriginal.get(caminho)
-    if (noOriginal === undefined) aMais += 1
-    else if (noOriginal !== valor) diferentes += 1
+  for (const [caminho, valor] of folhasDe(copia).valores) {
+    if (!daOriginal.valores.has(caminho)) {
+      const vazioOndeOOriginalTemConteudo = (valor === LISTA_VAZIA || valor === OBJETO_VAZIO) && daOriginal.conteineres.has(caminho)
+      if (vazioOndeOOriginalTemConteudo) diferentes += 1
+      else aMais += 1
+      continue
+    }
+    const noOriginal = daOriginal.valores.get(caminho)
+    if (Object.is(noOriginal, valor)) continue
+    if (typeof valor === 'string' && typeof noOriginal === 'string' && ehCampoDeTexto(caminho) && temPalavraAMais(valor, noOriginal)) aMais += 1
+    else diferentes += 1
   }
   return { aMais, diferentes }
 }
@@ -159,8 +225,16 @@ export async function compararCopiasDeConflito(
   cofre: LeitorDoCofre,
   noCofre: ReadonlyMap<string, ArquivoInventariado>,
 ): Promise<CopiasDeConflito> {
-  const { arquivos } = await inventariar(copias)
+  const { arquivos, pastasIlegiveis } = await inventariar(copias)
   const naLixeira = lixeiraPorCauda(noCofre)
   const comparacoes = await Promise.all(arquivos.map((copia) => compararUma(copia, copias, cofre, noCofre, naLixeira)))
-  return { arquivos: arquivos.length, comparacoes, comCoisaAMais: comparacoes.filter((comparacao) => comparacao.situacao === 'temCoisaAMais').length }
+  const quantas = (situacao: SituacaoDaCopia) => comparacoes.filter((comparacao) => comparacao.situacao === situacao).length
+  return {
+    arquivos: arquivos.length,
+    comparacoes,
+    comCoisaAMais: quantas('temCoisaAMais'),
+    soDiferencas: quantas('soDiferencas'),
+    naoLidas: quantas('naoLida'),
+    pastasIlegiveis,
+  }
 }

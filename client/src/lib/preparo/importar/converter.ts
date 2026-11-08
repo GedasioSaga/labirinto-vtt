@@ -12,7 +12,8 @@ import {
   type TipoDeVerbete,
   type Verbete,
 } from '../tipos'
-import type { CampanhaG, CenarioG, DocumentoG, ImagemG, ItemG, ItemNoAcervoG, PaginaG, PersonagemG, VersaoCenarioG, VersaoPersonagemG, VinculoG } from './grimorio'
+import { ehRegistro } from '../molde'
+import type { CampanhaG, CenarioG, DatasG, DocumentoG, ImagemG, ItemG, ItemNoAcervoG, PaginaG, PersonagemG, VersaoCenarioG, VersaoPersonagemG, VinculoG } from './grimorio'
 import { htmlParaTexto, htmlTemConteudo, type MidiaDoCaminho } from './texto'
 
 /**
@@ -41,6 +42,29 @@ export interface MetaDoVerbete {
   readonly paiId?: string
   /** As pastas do Grimório onde o arquivo morava, da seção até ele. */
   readonly pastas?: readonly string[]
+  /** `criadoEm`/`modificadoEm` do arquivo: vão em `extras`. */
+  readonly datas?: DatasG
+  /** Página-raiz do caderno de um canvas ou mapa: o quadro dono (vai em `extras.quadroId`). */
+  readonly quadroId?: string
+}
+
+/** O que o quadro leva além da foto do tldraw. */
+export interface MetaDoQuadro {
+  readonly campanhaId?: string
+  readonly sessaoId?: string
+  /** Id no Grimório e caminho do arquivo dono (o canvas, o mapa ou a sessão). */
+  readonly origem: { readonly id: string; readonly caminho: string }
+  readonly datas: DatasG
+}
+
+const ARQUIVO_DOS_VINCULOS = 'vinculos.json'
+
+/** Os registros da foto do tldraw (`{document: {store}}`, ou `{store}` nas fotos antigas). */
+function registrosDoTldraw(tldraw: unknown): Record<string, unknown>[] {
+  if (!ehRegistro(tldraw)) return []
+  const documento = ehRegistro(tldraw.document) ? tldraw.document : tldraw
+  const store = documento.store
+  return ehRegistro(store) ? Object.values(store).filter(ehRegistro) : []
 }
 
 interface SecaoDoGrimorio {
@@ -142,7 +166,7 @@ export class Conversor {
 
   cenario(cenario: CenarioG, meta: MetaDoVerbete): Verbete {
     const lugar = verbete('lugar', cenario.nome, cenario.versoes.map((versao) => this.formaDeCenario(versao)), cenario.versaoAtivaId, meta)
-    if (cenario.personagens.length > 0) lugar.extras = { personagens: cenario.personagens.map((id) => this.idNoPreludio(id)) }
+    if (cenario.personagens.length > 0) lugar.extras = { ...lugar.extras, personagens: cenario.personagens.map((id) => this.idNoPreludio(id)) }
     return lugar
   }
 
@@ -161,7 +185,7 @@ export class Conversor {
     const formaId = `${meta.id}-forma`
     const secoes = htmlTemConteudo(pagina.corpo) ? [{ id: `${formaId}-corpo`, titulo: '', texto: this.texto(pagina.corpo), segredo: false }] : []
     const resultado = verbete('pagina', pagina.titulo, [{ id: formaId, nome: pagina.titulo, resumo: '', secoes, imagens: [] }], formaId, meta)
-    resultado.extras = { ordem: pagina.ordem }
+    resultado.extras = { ...resultado.extras, ordem: pagina.ordem }
     return resultado
   }
 
@@ -171,20 +195,38 @@ export class Conversor {
     return verbete(tipo, documento.nome, [{ id: formaId, nome: documento.nome, resumo: '', secoes: [], imagens: [] }], formaId, meta)
   }
 
-  /** As camadas do mapa (nome, travada, oculta) vão em `extras`; a foto do tldraw vai intacta. */
-  quadro(documento: DocumentoG, campanhaId: string | undefined, sessaoId: string | undefined): Quadro {
-    const quadro: Quadro = { formato: ARQUIVO_DO_QUADRO.formato, nome: documento.nome, tldraw: documento.documento }
-    if (campanhaId !== undefined) quadro.campanhaId = campanhaId
-    if (sessaoId !== undefined) quadro.sessaoId = sessaoId
-    const extras: Record<string, unknown> = {}
+  /**
+   * As camadas do mapa (nome, travada, oculta) e as datas vão em `extras`; a foto do tldraw vai
+   * intacta. A imagem do quadro guarda o caminho do cofre em `meta.rel` (`canvasDoc.ts:27-50`):
+   * cada uma é procurada como as das fichas, e a que não existe entra na conta das sem arquivo.
+   */
+  quadro(documento: DocumentoG, meta: MetaDoQuadro): Quadro {
+    const quadro: Quadro = { formato: ARQUIVO_DO_QUADRO.formato, nome: documento.nome, tldraw: documento.documento, origem: { grimorio: { ...meta.origem } } }
+    if (meta.campanhaId !== undefined) quadro.campanhaId = meta.campanhaId
+    if (meta.sessaoId !== undefined) quadro.sessaoId = meta.sessaoId
+    const extras: Record<string, unknown> = { ...meta.datas }
     if (documento.camadas !== undefined) extras.camadas = documento.camadas
     if (documento.versaoCamadas !== undefined) extras.versaoCamadas = documento.versaoCamadas
     if (Object.keys(extras).length > 0) quadro.extras = extras
+    for (const registro of registrosDoTldraw(documento.documento)) {
+      const rel = registro.typeName === 'asset' && ehRegistro(registro.meta) ? registro.meta.rel : undefined
+      if (typeof rel === 'string') this.midia(rel)
+    }
     return quadro
   }
 
   ligacao(vinculo: VinculoG, id: string): Ligacao {
-    return { id, de: this.idNoPreludio(vinculo.deId), para: this.idNoPreludio(vinculo.paraId), tipo: vinculo.tipo, notas: vinculo.notas, segredo: false }
+    const ligacao: Ligacao = {
+      id,
+      de: this.idNoPreludio(vinculo.deId),
+      para: this.idNoPreludio(vinculo.paraId),
+      tipo: vinculo.tipo,
+      notas: vinculo.notas,
+      segredo: false,
+      origem: { grimorio: { id: vinculo.id, caminho: ARQUIVO_DOS_VINCULOS } },
+    }
+    if (vinculo.datas !== undefined) ligacao.extras = { ...vinculo.datas }
+    return ligacao
   }
 }
 
@@ -202,11 +244,16 @@ function verbete(tipo: TipoDeVerbete, titulo: string, formas: Forma[], formaAtiv
   }
   if (meta.paiId !== undefined) resultado.paiId = meta.paiId
   if (meta.pastas !== undefined && meta.pastas.length > 0) resultado.organizacao = [...meta.pastas]
+  const extras: Record<string, unknown> = { ...meta.datas }
+  if (meta.quadroId !== undefined) extras.quadroId = meta.quadroId
+  if (Object.keys(extras).length > 0) resultado.extras = extras
   return resultado
 }
 
-export function campanhaDoGrimorio(campanha: CampanhaG, id: string): Campanha {
-  const resultado: Campanha = { id, nome: campanha.nome }
-  if (campanha.descricao !== '') resultado.extras = { descricao: campanha.descricao }
+export function campanhaDoGrimorio(campanha: CampanhaG, id: string, caminho: string, datas: DatasG): Campanha {
+  const resultado: Campanha = { id, nome: campanha.nome, origem: { grimorio: { id: campanha.id, caminho } } }
+  const extras: Record<string, unknown> = { ...datas }
+  if (campanha.descricao !== '') extras.descricao = campanha.descricao
+  if (Object.keys(extras).length > 0) resultado.extras = extras
   return resultado
 }

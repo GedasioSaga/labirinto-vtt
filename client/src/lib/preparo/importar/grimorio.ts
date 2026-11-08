@@ -126,6 +126,22 @@ export interface VinculoG {
   paraId: string
   tipo: string
   notas: string
+  /** `criadoEm` do vínculo, quando há (`datasDe`). */
+  datas?: DatasG
+}
+
+/** As datas que o Grimório põe em todo arquivo e vínculo (ISO 8601, `types.ts`). */
+export type DatasG = Readonly<Record<string, unknown>>
+
+const CHAVES_DE_DATA: readonly string[] = ['criadoEm', 'modificadoEm']
+
+/**
+ * `criadoEm` e `modificadoEm` como vieram: o Prelúdio ainda não tem campo para
+ * eles, então vão em `extras` (o molde grava de volta como chave do arquivo).
+ * Vazio quando o arquivo não tem nenhuma das duas.
+ */
+export function datasDe(raw: Bruto): DatasG {
+  return Object.fromEntries(CHAVES_DE_DATA.filter((chave) => raw[chave] !== undefined).map((chave) => [chave, raw[chave]]))
 }
 
 // ─── Peças ───────────────────────────────────────────────────────────────────
@@ -336,7 +352,10 @@ export function normalizarVinculos(raw: unknown): { vinculos: VinculoG[]; descar
     if (!ehRegistro(entrada)) continue
     const { id, deTipo, deId, paraTipo, paraId, tipo, notas } = entrada
     if (!textoCheio(id) || !textoCheio(deId) || !textoCheio(paraId) || !textoCheio(tipo) || !ehOrigem(deTipo) || !ehDestino(paraTipo)) continue
-    vinculos.push({ id, deTipo, deId, paraTipo, paraId, tipo, notas: typeof notas === 'string' ? notas : '' })
+    const vinculo: VinculoG = { id, deTipo, deId, paraTipo, paraId, tipo, notas: typeof notas === 'string' ? notas : '' }
+    const datas = datasDe(entrada)
+    if (Object.keys(datas).length > 0) vinculo.datas = datas
+    vinculos.push(vinculo)
   }
   return { vinculos, descartados: lista.length - vinculos.length }
 }

@@ -48,14 +48,35 @@ function ehTextoRico(bruto: unknown): bruto is TextoRico {
 
 const TEXTO_RICO: Molde<TextoRico> = intacto(ehTextoRico, 'um documento do editor de texto')
 
+// ─── Origem: de onde veio o que foi importado ────────────────────────────────
+
+export const ORIGEM_NO_GRIMORIO = objeto({
+  id: texto(),
+  /** Caminho do arquivo dentro do cofre do Grimório (`vinculos.json` para a ligação). */
+  caminho: texto(),
+  /**
+   * SHA-256 do que foi importado (verbete, quadro, ligação ou campanha), sem
+   * `origem` e sem `formato` (`importar/reimportar.ts`). Na reimportação: o que
+   * não bate mais com este hash foi editado no Prelúdio e fica como está. Quem
+   * salva nunca recalcula este campo.
+   */
+  hash: opcional(texto()),
+})
+
+/** De onde veio, para a reimportação achar o mesmo (verbete, quadro, ligação e campanha). */
+export const ORIGEM = objeto({
+  grimorio: opcional(ORIGEM_NO_GRIMORIO),
+})
+
 // ─── Índice: preparo.json ────────────────────────────────────────────────────
 
 /** As campanhas são etiquetas (como o "participa" do Grimório); cada uma pode apontar para 1 pasta do Labirinto. */
 export const CAMPANHA = objeto({
   id: texto(),
   nome: texto(),
-  /** A pasta de mapas (que é a campanha do Lobby). Ausente = "sem pasta". */
+  /** A pasta de mapas (que é a campanha do Lobby). Ausente = "sem pasta". Só existe no Prelúdio: a reimportação nunca mexe. */
   pastaId: opcional(texto()),
+  origem: opcional(ORIGEM),
 })
 
 export const INDICE_DO_PREPARO = objeto({
@@ -131,24 +152,6 @@ export const CARTAZ = objeto({
   crime: texto(),
 })
 
-export const ORIGEM_NO_GRIMORIO = objeto({
-  id: texto(),
-  /** Caminho do arquivo dentro do cofre do Grimório. */
-  caminho: texto(),
-  /**
-   * SHA-256 do verbete como foi importado (sem `origem` e sem `formato`;
-   * `importar/reimportar.ts`). Na reimportação: verbete que não bate mais com
-   * este hash foi editado no Prelúdio e fica como está. Quem salva o verbete
-   * nunca recalcula este campo.
-   */
-  hash: opcional(texto()),
-})
-
-/** De onde o verbete veio, para a reimportação achar o mesmo. */
-export const ORIGEM = objeto({
-  grimorio: opcional(ORIGEM_NO_GRIMORIO),
-})
-
 export const VERBETE = objeto({
   formato: numero(),
   id: texto(),
@@ -179,6 +182,8 @@ export const LIGACAO = objeto({
   tipo: texto(),
   notas: texto(),
   segredo: booleano(),
+  /** Ausente = criada no Prelúdio: a reimportação não toca. */
+  origem: opcional(ORIGEM),
 })
 
 export const LIGACOES = objeto({
@@ -239,6 +244,7 @@ export const QUADRO = objeto({
   sessaoId: opcional(texto()),
   /** A foto do documento do tldraw, intacta: o tldraw tem esquema e migração próprios. */
   tldraw: qualquer(),
+  origem: opcional(ORIGEM),
 })
 
 // ─── Atlas: atlas/<id>.json ──────────────────────────────────────────────────
@@ -306,6 +312,7 @@ export type LigaFicha = Valor<typeof LIGA_FICHA>
 export type LigaCena = Valor<typeof LIGA_CENA>
 export type Recompensa = Valor<typeof RECOMPENSA>
 export type Cartaz = Valor<typeof CARTAZ>
+export type Origem = Valor<typeof ORIGEM>
 export type Verbete = Valor<typeof VERBETE>
 export type Ligacao = Valor<typeof LIGACAO>
 export type Ligacoes = Valor<typeof LIGACOES>

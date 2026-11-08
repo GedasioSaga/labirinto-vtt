@@ -1,5 +1,6 @@
 import type { IndiceDoPreparo, Ligacoes, Quadro, TipoDeVerbete, Verbete } from '../tipos'
 import { DESTINOS, TIPOS_NO_GRIMORIO, type Destino, type TipoNoGrimorio } from './classificar'
+import { chaveDoCaminho } from './cofre'
 import type { CopiasDeConflito } from './conflitos'
 import type { PlanoDeReimportacao } from './reimportar'
 
@@ -84,6 +85,11 @@ export interface RelatorioDaSimulacao {
     readonly ligacoes: number
     readonly campanhas: number
     readonly midias: number
+    readonly chats: number
+    /** 1 com o `layout-teia.json`, 0 sem ele. */
+    readonly teia: number
+    /** Entradas da lixeira (`.lixeira/<id>/`). */
+    readonly lixeira: number
   }
   readonly espaco: EspacoEmDisco
   /** Falha, pasta ilegível ou falta de espaço travam o "Aplicar". */
@@ -94,17 +100,63 @@ export interface RelatorioDaSimulacao {
   readonly copiasDeConflito: CopiasDeConflito | null
   readonly reimportacao: PlanoDeReimportacao | null
   readonly arquivos: readonly ArquivoNoRelatorio[]
-  /** Caminho antigo da imagem no cofre → `midia/<sha256>.<ext>` (passo 10 do plano). */
+  /**
+   * Caminho antigo da imagem no cofre → `midia/<sha256>.<ext>` (passo 10 do plano).
+   * A chave é `chaveDoCaminho` (o cofre cita `imagens/…` e o disco tem `Imagens/…`):
+   * procure com `midiaDaTabela`, nunca pela grafia crua.
+   */
   readonly tabelaDeMidia: Readonly<Record<string, string>>
+}
+
+/** O chat de IA (`<x>.notas/chat-ia.json`), guardado só para leitura junto do dono. */
+export interface ChatDoGrimorio {
+  /** Id no Prelúdio da sessão, do caderno ou do quadro dono. */
+  readonly donoId: string
+  readonly caminho: string
+  /** O arquivo como veio (`{mensagens: [{papel, texto, em}]}` no Grimório). */
+  readonly conteudo: Readonly<Record<string, unknown>>
+}
+
+export interface PosicaoNaTeia {
+  readonly x: number
+  readonly y: number
+}
+
+/** O `layout-teia.json`: as posições que o mestre arrumou na Teia, com os ids já do Prelúdio. */
+export interface TeiaDoGrimorio {
+  readonly caminho: string
+  /** Escopo (`cofre` ou `campanha:<id>`) → id → posição em fração da moldura (`grafoLayoutPersistido.ts`). */
+  readonly porEscopo: Readonly<Record<string, Readonly<Record<string, PosicaoNaTeia>>>>
+}
+
+/** Uma entrada da lixeira do Grimório (`.lixeira/<id>/`): o `entrada.json` e o que foi apagado, como vieram. */
+export interface EntradaDaLixeira {
+  readonly id: string
+  readonly arquivos: readonly { readonly caminho: string; readonly conteudo: Readonly<Record<string, unknown>> }[]
 }
 
 /** O que o "Aplicar" (F2) gravaria. Nada disto vai ao disco na simulação. */
 export interface PlanoDaImportacao {
+  /**
+   * `importacao`: tudo entra. `reimportacao` (`reimportar.ts`): verbetes e quadros
+   * trazem só os novos e os trocados, e o índice e as ligações são o arquivo
+   * inteiro, já mesclado com o que é do Prelúdio.
+   */
+  readonly modo: 'importacao' | 'reimportacao'
   readonly indice: IndiceDoPreparo
   readonly verbetes: readonly Verbete[]
   readonly quadros: readonly { readonly id: string; readonly quadro: Quadro }[]
   readonly ligacoes: Ligacoes
   readonly midias: readonly { readonly midia: string; readonly caminho: string; readonly bytes: number }[]
+  readonly chats: readonly ChatDoGrimorio[]
+  readonly teia: TeiaDoGrimorio | null
+  readonly lixeira: readonly EntradaDaLixeira[]
+}
+
+/** A mídia nova de um caminho do cofre (`meta.rel` do quadro, `data-rel`), com qualquer grafia; `null` se não há. */
+export function midiaDaTabela(tabela: Readonly<Record<string, string>>, rel: string): string | null {
+  const chave = chaveDoCaminho(rel)
+  return Object.hasOwn(tabela, chave) ? tabela[chave] : null
 }
 
 export interface ResultadoDaSimulacao {
