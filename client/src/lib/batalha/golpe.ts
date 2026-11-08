@@ -31,9 +31,11 @@ import {
   type GolpeDaBatalha,
   type PedidoDeAcao,
   type PedidoDeAlvo,
+  type RolagemDaReacao,
   type SaidaDaReacao,
   type SeloDoGolpe,
   type SeloPedido,
+  type VantagemNaRolagem,
 } from './combate'
 import { equipeDe, type Equipe } from './equipes'
 import { overloadNaBatalha, usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
@@ -63,7 +65,8 @@ import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
-import { comAtaqueExtra, formaDaFicha, formaLivre, formaNaVez, motivoDaForma, motivoDoCustoDaForma, motivoDosUsosDaForma } from './transformacao'
+import { travaDoToken } from './condicoes'
+import { comAtaqueExtra, formaDaFicha, formaNaVez, motivoDaForma, motivoDoCustoDaForma, motivoDosUsosDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -240,6 +243,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
   const contra = contraDoPedido(ctx, pedido)
   if (contra === undefined) return 'Esse contra-ataque não existe mais'
   if (contra === null && ctx.turnos.vez !== ctx.carta.id) return 'Não é a vez desta carta'
+  // Conserto das fichas F1 (S4): Atordoado ou Paralisado só passa a vez (nada de agir, nem pelo contra-ataque guardado).
+  const trava = travaDoToken(ctx.turnos.selos, ctx.carta.tokenId)
+  if (trava !== null) return trava
   // O contra-ataque é fora da vez (Q6): a ação da vez não conta.
   const acoes = contra === null ? acoesDaCarta(ctx) : null
   const combate = combateDe(ctx)
@@ -264,7 +270,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // Conserto das fichas F1: forma que custa mais que o máximo (A Caçada Começa: 200 SP com máximo 120) fica bloqueada.
       const cara = motivoDoCustoDaForma(cartao, personagem, sistema)
       if (cara !== null) return cara
-      return formaLivre(cartao) ? null : motivoDaForma({ ligada: false }, pedido.acao, acoes)
+      // S4: a ação é a que quem se transforma escolheu na hora; "livre" não gasta.
+      return pedido.acao === 'livre' ? null : motivoDaForma({ ligada: false }, pedido.acao, acoes)
     }
     case 'destransformar': {
       const { personagem, sistema } = ctx
@@ -455,10 +462,12 @@ function comAlvo(golpe: GolpeDaBatalha, tokenId: string, mudar: (alvo: AlvoDoGol
 }
 
 /** A rolagem (ou rerolagem) do alvo. Alvo resolvido ou que não reage: o MESMO golpe. */
-export function rolarReacao(golpe: GolpeDaBatalha, tokenId: string, modificador: number, d20: number): GolpeDaBatalha {
+export function rolarReacao(golpe: GolpeDaBatalha, tokenId: string, modificador: number, d20: number, vantagem?: VantagemNaRolagem): GolpeDaBatalha {
   return comAlvo(golpe, tokenId, (alvo) => {
     if (alvo.danoFinal !== undefined || !alvo.podeReagir) return null
-    return { ...alvo, rolagem: { d20, modificador, total: d20 + modificador, vezes: (alvo.rolagem?.vezes ?? 0) + 1 } }
+    const rolagem: RolagemDaReacao = { d20, modificador, total: d20 + modificador, vezes: (alvo.rolagem?.vezes ?? 0) + 1 }
+    if (vantagem !== undefined) rolagem.vantagem = vantagem
+    return { ...alvo, rolagem }
   })
 }
 
@@ -556,9 +565,15 @@ function comSinal(numero: number): string {
   return numero < 0 ? String(numero) : `+${numero}`
 }
 
-/** "d20 7+2 = 9". */
-export function textoDaRolagem(d20: number, modificador: number, total: number): string {
-  return `d20 ${d20}${comSinal(modificador)} = ${total}`
+/** "d20 7+2 = 9"; S4, com 2 d20: "d20 15 (vantagem: 15 e 7)+2 = 17". */
+export function textoDaRolagem(d20: number, modificador: number, total: number, vantagem?: VantagemNaRolagem): string {
+  const dados = vantagem === undefined ? '' : ` (${vantagem.modo}: ${d20} e ${vantagem.outro})`
+  return `d20 ${d20}${dados}${comSinal(modificador)} = ${total}`
+}
+
+/** O texto da rolagem guardada no alvo. */
+function textoDaRolagemDoAlvo(rolagem: RolagemDaReacao): string {
+  return textoDaRolagem(rolagem.d20, rolagem.modificador, rolagem.total, rolagem.vantagem)
 }
 
 /** Golpe sem dano (Buff, Debuff de suporte): o que aconteceu, sem o "recebeu 0". */
@@ -609,9 +624,9 @@ function comATecnica(alvo: AlvoDoGolpe): string {
  */
 function textoDoAlvo(alvo: AlvoDoGolpe): string {
   const pedacos: string[] = []
-  if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}${comATecnica(alvo)}`)
+  if (alvo.rolagem !== undefined) pedacos.push(`${textoDaRolagemDoAlvo(alvo.rolagem)}${comATecnica(alvo)}`)
   if (alvo.semDano === true) pedacos.push('passou sem dano')
-  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.reducao === undefined ? '' : ` (forma −${alvo.reducao}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
+  else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.reducao === undefined ? '' : ` (${alvo.reducaoDe ?? 'forma'} −${alvo.reducao}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   return pedacos.join(' · ')
 }
@@ -624,7 +639,7 @@ function textoDoAlvo(alvo: AlvoDoGolpe): string {
 export function textoDaReacaoComTecnica(alvo: AlvoDoGolpe, nomeDoToken: (tokenId: string) => string): string {
   const tecnica = alvo.tecnica
   const comeco = `${nomeDoToken(alvo.tokenId)} reage com ${tecnica?.nome ?? 'técnica'}${tecnica?.aMao === true ? ' (à mão)' : ''}`
-  if (alvo.rolagem !== undefined) return `${comeco}: ${textoDaRolagem(alvo.rolagem.d20, alvo.rolagem.modificador, alvo.rolagem.total)}`
+  if (alvo.rolagem !== undefined) return `${comeco}: ${textoDaRolagemDoAlvo(alvo.rolagem)}`
   if (alvo.saida !== undefined && alvo.danoFinal !== undefined) return `${comeco}: ${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}`
   return comeco
 }

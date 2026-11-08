@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { MODIFICADOR_DA_REACAO_MAX, PERFURACAO_MAX, type ParteDoBonus, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao } from '../../lib/batalha/combate'
+import { MODIFICADOR_DA_REACAO_MAX, PERFURACAO_MAX, VANTAGENS_DO_DADO, type ParteDoBonus, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao, type VantagemDoDado } from '../../lib/batalha/combate'
 import { danoFinal, divisaoDoDano, porcentagemQuePerfura, saidaDoPassar, saidasPossiveis } from '../../lib/batalha/reacao'
 import type { ReacaoComTecnica } from '../../lib/batalha/reacaoComTecnica'
 import { origemDoBonus } from './ContaComBonus'
@@ -51,6 +51,17 @@ export interface ReacaoNaCaixa {
   tecnicas?: readonly ReacaoComTecnica[]
   /** Tipos de habilidade F2: o "reacao" dos selos de quem reage: o total (`bonusDaReacao`) e as partes ("+3 (Foco)"). Ausente = nenhum. */
   bonus?: BonusDaReacaoNaTela
+  /** Conserto das fichas F1 (S4): o que sai do dano de quem reage ("Resiliente −20%"), `avisoDasReducoes`. Ausente = nada. */
+  reducao?: string
+}
+
+/** S4: o dado da reação: um d20 (normal) ou dois, ficando o maior (vantagem) ou o menor (desvantagem). */
+const ROTULO_DO_DADO: Record<VantagemDoDado, string> = { vantagem: 'Vantagem: 2 dados, fica o maior', desvantagem: 'Desvantagem: 2 dados, fica o menor' }
+
+/** "15" ou "15 (vantagem: 15 e 7)": o d20 que valeu e, com dois dados, os dois. */
+function textoDoD20(rolagem: RolagemDaReacao): string {
+  const { d20, vantagem } = rolagem
+  return vantagem === undefined ? String(d20) : `${d20} (${vantagem.modo}: ${d20} e ${vantagem.outro})`
 }
 
 /** O bônus de reação como a caixa o mostra. */
@@ -161,6 +172,10 @@ function UmaReacao({
   const idDaOrigem = useId()
   const [esperando, setEsperando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  // S4: `null` = dado normal; vantagem e desvantagem rolam dois d20 no host.
+  const [dado, setDado] = useState<VantagemDoDado | null>(null)
+  const comDado = dado === null ? {} : { vantagem: dado }
+  const idDoDado = useId()
   const primeiro = useRef<HTMLButtonElement>(null)
   const rolagem = reacao.rolagem
   const chaveDaRolagem = rolagem === undefined ? null : `${rolagem.d20}:${rolagem.vezes}`
@@ -208,6 +223,7 @@ function UmaReacao({
           {reacao.dano === null ? ' (sem dano).' : <>: <b>{formatarNumero(reacao.dano)}</b> de dano{textoDoPerfuranteNaCaixa(reacao, reacao.dano)}.</>}
         </p>
       )}
+      {golpeId !== null && reacao.dano !== null && reacao.reducao !== undefined && <p className="bt-reacao__texto">Menos dano em {reacao.alvo ?? 'você'}: {reacao.reducao}. O app já desconta.</p>}
       <div className="bt-reacao__linha">
         <DadoDaReacao rolagem={rolagem} />
         <div className="bt-reacao__opcoes">
@@ -215,9 +231,20 @@ function UmaReacao({
             <span className="bt-dado-rotulo">{TEXTO_DO_OVERLOAD}</span>
           ) : rolagem === undefined ? (
             <>
-              <button ref={primeiro} type="button" className="bt-botao bt-botao--batalha" disabled={esperando} onClick={() => pedir({ tipo: 'rolar', golpeId, tokenId: reacao.tokenId, modificador })}>
-                {esperando ? 'Rolando…' : 'Rolar 1d20'}
+              <button ref={primeiro} type="button" className="bt-botao bt-botao--batalha" disabled={esperando} onClick={() => pedir({ tipo: 'rolar', golpeId, tokenId: reacao.tokenId, modificador, ...comDado })}>
+                {esperando ? 'Rolando…' : dado === null ? 'Rolar 1d20' : 'Rolar 2d20'}
               </button>
+              <label className="bt-mod" htmlFor={idDoDado}>
+                Dado
+                <select id={idDoDado} value={dado ?? ''} disabled={esperando} onChange={(evento) => setDado(VANTAGENS_DO_DADO.find((modo) => modo === evento.target.value) ?? null)}>
+                  <option value="">Normal: 1 dado</option>
+                  {VANTAGENS_DO_DADO.map((modo) => (
+                    <option key={modo} value={modo}>
+                      {ROTULO_DO_DADO[modo]}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="bt-mod">
                 Modificador
                 <input
@@ -239,7 +266,7 @@ function UmaReacao({
             </>
           ) : golpeId === null ? (
             <span className="bt-dado-rotulo">
-              Total {rolagem.d20}
+              Total {textoDoD20(rolagem)}
               {textoDoModificador} = {rolagem.total}
             </span>
           ) : (
@@ -260,7 +287,7 @@ function UmaReacao({
                   {rotuloDaSaida(passar, reacao.dano === null ? null : danoFinal(reacao.dano, passar))}
                 </button>
               )}
-              <button type="button" className="bt-botao bt-botao--fantasma" disabled={esperando} onClick={() => pedir({ tipo: 'rerolar', golpeId, tokenId: reacao.tokenId, modificador })}>
+              <button type="button" className="bt-botao bt-botao--fantasma" disabled={esperando} onClick={() => pedir({ tipo: 'rerolar', golpeId, tokenId: reacao.tokenId, modificador, ...comDado })}>
                 {esperando ? 'Rolando…' : 'Rolar de novo'}
               </button>
             </>
@@ -276,7 +303,7 @@ function UmaReacao({
           dano={reacao.dano}
           modificadorInicial={modTexto}
           esperando={esperando}
-          onPedir={pedir}
+          onPedir={(pedido) => pedir(pedido.tipo === 'tecnica' && pedido.saida === 'rolar' ? { ...pedido, ...comDado } : pedido)}
         />
       )}
       <div className="bt-reacao__pe">
@@ -285,7 +312,7 @@ function UmaReacao({
             ? 'Overload não erra: só uma técnica Overload defende. Sem ela, receba o golpe.'
             : rolagem === undefined
             ? '10+ defende (metade) · 15+ esquiva · 20 contra-ataca · 1 é falha crítica (×1,5). Conta o total.'
-            : `d20 ${rolagem.d20}${textoDoModificador} = ${rolagem.total} · ${TEXTO_DA_SAIDA[saidasPossiveis(rolagem.d20, rolagem.total)[0] ?? 'cheio'].selo}`}
+            : `d20 ${textoDoD20(rolagem)}${textoDoModificador} = ${rolagem.total} · ${TEXTO_DA_SAIDA[saidasPossiveis(rolagem.d20, rolagem.total)[0] ?? 'cheio'].selo}`}
         </span>
         {golpeId !== null && (
           <span className="bt-reacao__pe-acoes">

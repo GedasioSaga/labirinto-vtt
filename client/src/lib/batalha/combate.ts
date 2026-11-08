@@ -149,7 +149,8 @@ export const TIPOS_DO_LEMBRETE: readonly TipoDoLembrete[] = ['ativar', 'porTurno
  */
 export type PedidoDePassiva =
   | { tipo: 'passiva'; tokenId: string; cartaoId: string; ligar: boolean; alvoTokenId?: string; custo: number | null; selo?: SeloPedido; variante?: string }
-  | { tipo: 'lembrete'; tokenId: string; cartaoId: string; aplicar: boolean }
+  /** S4: `atributoId` = o atributo escolhido no Aplicar da Preparação para a Batalha (+20); só nela. */
+  | { tipo: 'lembrete'; tokenId: string; cartaoId: string; aplicar: boolean; atributoId?: string }
 
 /**
  * Tipos de habilidade F4 (Evolução, seções 3.3 e 4d do plano, decisão 5 do
@@ -315,8 +316,8 @@ export type TipoDoPedidoDeAcao = PedidoDeAcao['tipo']
 
 export type PedidoDeReacao =
   /** `golpeId` null = reação livre (o botão Reação sem golpe esperando). */
-  | { tipo: 'rolar'; golpeId: string | null; tokenId: string; modificador: number }
-  | { tipo: 'rerolar'; golpeId: string; tokenId: string; modificador: number }
+  | { tipo: 'rolar'; golpeId: string | null; tokenId: string; modificador: number; vantagem?: VantagemDoDado }
+  | { tipo: 'rerolar'; golpeId: string; tokenId: string; modificador: number; vantagem?: VantagemDoDado }
   /** Só uma das saídas que o dado liberou (`saidasPossiveis`). */
   | { tipo: 'escolher'; golpeId: string; tokenId: string; saida: SaidaDaReacao }
   | { tipo: 'naoReagir'; golpeId: string; tokenId: string }
@@ -330,7 +331,7 @@ export type PedidoDeReacao =
    * ficha), marca recarga, usos e Overload e não gasta ação da vez.
    * `seloNoAtacante` = o selo sugerido ("Marcado"), marcado na caixa.
    */
-  | { tipo: 'tecnica'; golpeId: string; tokenId: string; cartaoId: string; saida: SaidaDaTecnica; custo: number | null; modificador?: number; seloNoAtacante?: SeloPedido }
+  | { tipo: 'tecnica'; golpeId: string; tokenId: string; cartaoId: string; saida: SaidaDaTecnica; custo: number | null; modificador?: number; seloNoAtacante?: SeloPedido; vantagem?: VantagemDoDado }
   /**
    * R3 (lote de 01/11): passa SEM tomar dano, antes ou depois do dado (o mestre
    * decidiu na mesa que não pegou). Não é acerto: sem dano, sem selo, sem marca.
@@ -368,12 +369,29 @@ export interface PedidoDoContador {
   cartaoId: string
 }
 
+/**
+ * Conserto das fichas F1 (fatia S4, regra do sistema): com vantagem o host
+ * rola 2 d20 e fica com o MAIOR; com desvantagem, com o MENOR. Na reação (o
+ * d20 e a técnica que rola); a disputa de dados usa a mesma regra.
+ */
+export type VantagemDoDado = 'vantagem' | 'desvantagem'
+
+export const VANTAGENS_DO_DADO: readonly VantagemDoDado[] = ['vantagem', 'desvantagem']
+
+/** A vantagem na rolagem: o modo e o d20 que ficou de fora. */
+export interface VantagemNaRolagem {
+  modo: VantagemDoDado
+  outro: number
+}
+
 /** O d20 da reação, rolado pelo HOST. `vezes` conta as rerolagens (1 = a primeira). */
 export interface RolagemDaReacao {
   d20: number
   modificador: number
   total: number
   vezes: number
+  /** Rolou 2 d20 (S4): `d20` é o que ficou. Ausente = 1 d20. */
+  vantagem?: VantagemNaRolagem
 }
 
 export interface AlvoDoGolpe {
@@ -392,8 +410,10 @@ export interface AlvoDoGolpe {
   marcado?: true
   /** R3 (lote de 01/11): passou sem tomar dano (saída "esquiva", `danoFinal` 0). */
   semDano?: true
-  /** R6 (lote de 01/11): a forma ligada do alvo tirou este tanto por cento do dano (Resiliente: 20). */
+  /** R6 (lote de 01/11): a forma ligada do alvo tirou este tanto por cento do dano (Resiliente: 20). S4: com a Determinação, o total das duas. */
   reducao?: number
+  /** S4: quem tirou ("Resiliente", "Determinação", "Resiliente e Determinação"); ausente = a forma, como antes. */
+  reducaoDe?: string
 }
 
 export interface GolpeDaBatalha {
@@ -625,8 +645,15 @@ export const ALVO_DO_DANO = 'dano'
 /** O alvo do mod que soma no modificador da reação ("+3 na reação"). */
 export const ALVO_DA_REACAO = 'reacao'
 
-/** F3: a ação que Ativar a forma gasta (o campo Ação; vazio = Completa). */
-export type AcaoDaForma = 'simples' | 'completa' | 'bonus'
+/**
+ * F3: a ação que Ativar a forma gasta. Conserto das fichas F1 (fatia S4,
+ * resposta do Jimboy): quem se transforma ESCOLHE na hora entre Simples,
+ * Bônus, Completa ou Livre (não gasta), toda vez; a ficha não fixa.
+ */
+export type AcaoDaForma = 'simples' | 'completa' | 'bonus' | 'livre'
+
+/** As ações que a pergunta do Ativar oferece, na ordem da tela. */
+export const ACOES_DA_FORMA: readonly AcaoDaForma[] = ['simples', 'bonus', 'completa', 'livre']
 
 /** Alvos num golpe. */
 export const ALVOS_MAX = 12

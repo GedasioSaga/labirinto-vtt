@@ -28,6 +28,7 @@ import {
   type PedidoDeMarca,
   type PedidoDePassiva,
   type PedidoDeReacao,
+  type LembreteDaPassiva,
   type AcaoDaForma,
   type FormaNaBatalha,
   type NumeroDaForma,
@@ -79,9 +80,13 @@ import {
   seloPedidoValido,
   textoDoSelo,
   textoDoSeloComMods,
+  textoDosMods,
   textoDosQueAcabaram,
 } from '../lib/batalha/selos'
-import { ativarForma, danoComAReducao, descerUmaParte, desfazerForma, desfazerFormasNoFim, efeitosDasFormasLigadas, formaDaFicha, formaLivre, usosDaForma } from '../lib/batalha/transformacao'
+import { ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, formaDaFicha, usosDaForma } from '../lib/batalha/transformacao'
+import { DANO_DO_SANGRAMENTO, ehLembreteDoSangramento, travaDoToken } from '../lib/batalha/condicoes'
+import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
+import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
 import { ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
 import { custoPorTurno, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
 import { equipeDe } from '../lib/batalha/equipes'
@@ -123,7 +128,7 @@ import { motivoDaReacaoComTecnica, reagirComTecnica, temOverloadDeReacao, type P
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
-import { ajustesDoDano, perfuracaoValida, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
+import { ajustesDoDano, perfuracaoValida, rolarComVantagem, saidaDoPassar, saidasPossiveis } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, VezEsperada } from '../lib/batalha/ponte'
 import {
   comLinha,
@@ -931,11 +936,16 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   const tecnicaQueMarca = golpe.marca === undefined ? null : { id: golpe.marca, nome: golpe.nome }
   const acerto = acertoNaMarca(turnos, golpe, alvo, { linhaId: golpe.linhaId, novoId: novoIdDaMarca, passiva, tecnicaQueMarca })
   // R6: a forma ligada do alvo que reduz o dano recebido (Resiliente: -20%), depois do dobro da marca.
+  // S4: e a Determinação (rank 4+, HP abaixo da metade), uma depois da outra.
   const dele = alvo.personagemId === null || sistema === null ? undefined : mesa.personagens().find((personagem) => personagem.id === alvo.personagemId)
   const { danoFinal } = acerto.alvo
   if (dele === undefined || sistema === null || danoFinal === undefined || danoFinal <= 0) return acerto
-  const { reducaoDoDano } = efeitosDasFormasLigadas(dele, sistema)
-  return reducaoDoDano <= 0 ? acerto : { ...acerto, alvo: { ...acerto.alvo, danoFinal: danoComAReducao(danoFinal, reducaoDoDano), reducao: reducaoDoDano } }
+  const reducoes = reducoesDoDano(dele, sistema)
+  if (reducoes.length === 0) return acerto
+  const reduzido: AlvoDoGolpe = { ...acerto.alvo, danoFinal: danoComAsReducoes(danoFinal, reducoes), reducao: porcentoDasReducoes(reducoes) }
+  // Só a forma: o registro segue "(forma −20%)", como antes.
+  if (reducoes.some((reducao) => reducao.nome === 'Determinação')) reduzido.reducaoDe = nomesDasReducoes(reducoes)
+  return { ...acerto, alvo: reduzido }
 }
 
 /** A linha do registro com outro texto e mais partes na reversão (o golpe que se resolve alvo a alvo). */
@@ -1009,7 +1019,7 @@ function partesDosLembretes(feito: TurnosComLembretes): Reversao[] {
   })
 }
 
-const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus' }
+const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus', livre: 'Livre' }
 
 /** "+1 Simples, +1 Bônus". */
 function textoDasExtras(extras: AcoesExtras): string {
@@ -1167,9 +1177,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         return feito?.personagem ?? null
       })
       if (fichaMudou === null || fichaMudou === 'recusada') return false
-      // R6: a forma "Livre" não gasta ação; a de "Usos por batalha" conta o uso (o Desfazer o devolve pela parte "combate").
-      const livre = cartao !== null && formaLivre(cartao)
-      if (!livre) {
+      // S4: a ação é a que quem se transforma escolheu na hora ("livre" não gasta); a de "Usos por batalha" conta o uso (o Desfazer o devolve pela parte "combate").
+      if (pedido.acao !== 'livre') {
         partes.push({ tipo: 'gasto', cartaId: carta.id, antes: turnos.gastos[carta.id] ?? null })
         novos = { ...novos, gastos: { ...novos.gastos, [carta.id]: gastarAcao(turnos.gastos[carta.id] ?? GASTO_ZERO, pedido.acao) } }
       }
@@ -1199,7 +1208,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: carta.tokenId, forma: nomeDaForma, imagem }
       if (numeros.length > 0) efeito.numeros = numeros
       efeitos.push(efeito)
-      const comoAtiva = cartao !== null && formaLivre(cartao) ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
+      const comoAtiva = pedido.acao === 'livre' ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
       texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
     } else {
       const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
@@ -1324,6 +1333,57 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
    * vem primeiro: no Desfazer, o selo volta antes e o lembrete "a cada turno"
    * acha a passiva ligada.
    */
+  /**
+   * Conserto das fichas F1 (S4): a resposta aos lembretes que a REGRA põe (não
+   * uma passiva da ficha). `lembrete` = o que está esperando no combate.
+   *  - Sangramento: só o mestre decide. Aplicar tira 10 direto no HP (sem
+   *    Escudo), com linha "dano"; pular só tira o lembrete.
+   *  - Preparação para a Batalha: Aplicar com `atributoId` põe o selo +20 nele
+   *    até o fim do combate; "Agora não" só tira o lembrete.
+   * A reversão é [combate, ficha | selo]: o Desfazer devolve o lembrete.
+   */
+  const lembreteDaRegra = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, personagemId: string, lembrete: LembreteDaPassiva, pedido: Extract<PedidoDePassiva, { tipo: 'lembrete' }>): boolean => {
+    const { turnos } = cena
+    const { personagens, sistema } = mesaDoRpg()
+    const sangramento = ehLembreteDoSangramento(lembrete)
+    if (sistema === null || (sangramento && autor.tipo === 'jogador')) return false
+    const combateAntes = turnos.combate?.[personagemId] ?? null
+    const semOLembrete = semLembretes(combateAntes ?? combateVazio(), lembrete.cartaoId)
+    const comCombate = (base: TurnosDaCena): TurnosDaCena => ({ ...base, combate: { ...(base.combate ?? {}), [personagemId]: semOLembrete } })
+    if (!pedido.aplicar) {
+      gravarCena(sceneKey, comMudanca(cena, comCombate(turnos), null))
+      return true
+    }
+    const quem = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
+    const partes: Reversao[] = [{ tipo: 'combate', personagemId, antes: combateAntes, depois: semOLembrete }]
+    if (sangramento) {
+      const feito = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoDano(atual, sistemaDaMesa, DANO_DO_SANGRAMENTO, true), quemNaFicha(autor))
+      if (feito === 'recusada') return false
+      partes.push(...reversaoDaFicha(personagemId, feito))
+      const atual = cenaDe(sceneKey) ?? cena
+      const caidos = semOsCaidos(mesa, sceneKey, comCombate(atual.turnos))
+      partes.push(...caidos.partes)
+      const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
+      const lembrados = lembrarDepoisDoDano(semCaidos)
+      partes.push(...partesDosLembretes(lembrados))
+      const texto = `${quem} sangra: -${DANO_DO_SANGRAMENTO} HP (direto, sem o Escudo)${textoDosQueSairam(caidos.nomes)}`
+      gravarCena(sceneKey, {
+        ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }),
+        efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId: carta.tokenId, valor: DANO_DO_SANGRAMENTO, saida: 'direto' }]),
+      })
+      return true
+    }
+    const pedidoDoSelo = pedido.atributoId === undefined ? null : seloDaPreparacao(sistema, pedido.atributoId)
+    if (pedidoDoSelo === null) return false
+    const selo = criarSelo(carta.tokenId, { ...pedidoDoSelo, natureza: 'buff' }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: NOME_DA_PREPARACAO })
+    const selos = comSeloNovo(turnos.selos, selo)
+    if (selos === null) return false
+    partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
+    const texto = `${quem} faz a ${NOME_DA_PREPARACAO}: ${textoDosMods(selo.mods, sistema)} até o fim do combate`
+    gravarCena(sceneKey, comMudanca(cena, { ...comCombate(turnos), selos }, { tipo: 'selo', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    return true
+  }
+
   const mudarPassiva = (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDePassiva): boolean => {
     const cena = cenaDe(sceneKey)
     if (cena === undefined) return false
@@ -1331,6 +1391,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const carta = turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)
     if (carta === undefined || carta.personagemId === null) return false
     const personagemId = carta.personagemId
+    // S4: o lembrete do Sangramento e o da Preparação têm caminho próprio (não são passiva da ficha).
+    if (pedido.tipo === 'lembrete') {
+      const daRegra = (turnos.combate?.[personagemId]?.lembretes ?? []).find((lembrete) => lembrete.cartaoId === pedido.cartaoId && (ehLembreteDoSangramento(lembrete) || ehLembreteDaPreparacao(lembrete)))
+      if (daRegra !== undefined) return lembreteDaRegra(sceneKey, cena, autor, carta, personagemId, daRegra, pedido)
+    }
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
     // Conserto das fichas F1 (P6): o lembrete do custo por turno de uma FORMA tem caminho próprio.
@@ -1745,9 +1810,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const combateAntes = turnos.combate?.[personagemId]
     // Conserto das fichas F1: contra golpe Overload, só técnica Overload.
     if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes }, alvo, pedido, golpe.overload) !== null || personagem === null || sistema === null) return false
-    const d20 = pedido.saida === 'rolar' ? deps.rolarD20() : null
+    // S4: Atordoado ou Paralisado não reage, nem com técnica.
+    if (travaDoToken(turnos.selos, alvo.tokenId) !== null) return false
+    const rolado = pedido.saida === 'rolar' ? rolarComVantagem(deps.rolarD20, pedido.vantagem) : null
     const combateBase = combateAntes ?? combateVazio()
-    const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, d20)
+    const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, rolado?.d20 ?? null, rolado?.vantagem)
     if (lida === null) return false
     // R1: resolvido na reação, o alvo passa pela marca antes do dano (o golpe da reversão já leva o dobro).
     const acerto = lida.alvo.danoFinal === undefined ? null : acertoComMarca(mesa, turnos, lida.golpe, lida.alvo)
@@ -1875,7 +1942,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       personagemDoToken: personagemDoTokenNa(turnos),
       // Invocação (decisão 8): o invocado não reage; o dano nele resolve na hora.
       // R5: quem gastou a reação no contador também não reage (até a vez dele).
-      semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null || gastouAReacao(turnos, tokenId),
+      // Conserto das fichas F1 (S4): Atordoado ou Paralisado não reage (o golpe nele resolve na hora).
+      semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null || gastouAReacao(turnos, tokenId) || travaDoToken(turnos.selos, tokenId) !== null,
       // Conserto das fichas F1: o golpe Overload espera só quem tem outra Overload de reação disponível.
       reageAOverload: (tokenId) => {
         const personagemId = personagemDoTokenNa(turnos)(tokenId)
@@ -2443,6 +2511,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const dono = turnos.cartas.find((carta) => carta.tokenId === pedido.tokenId && carta.bando === undefined)
       const daVez = cartaDaVez(turnos)
       if (dono === undefined || dono.personagemId === null || daVez === null || daVez.bando !== undefined) return false
+      // Conserto das fichas F1 (S4): Atordoado ou Paralisado só passa a vez, então não invoca.
+      if (travaDoToken(turnos.selos, dono.tokenId) !== null) return false
       const personagemId = dono.personagemId
       const { personagens, sistema } = mesaDoRpg()
       const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
@@ -2555,9 +2625,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Reação livre (o botão Reação sem golpe esperando): o d20 para todos e uma linha.
       if (pedido.tipo === 'rolar' && pedido.golpeId === null) {
         if (!turnos.cartas.some((carta) => carta.tokenId === pedido.tokenId)) return false
-        const d20 = deps.rolarD20()
+        // S4: com vantagem ou desvantagem, 2 d20 (fica o maior ou o menor).
+        const { d20, vantagem } = rolarComVantagem(deps.rolarD20, pedido.vantagem)
         const total = d20 + pedido.modificador
-        const texto = `${nomeDoToken(pedido.tokenId)} reagiu: ${textoDaRolagem(d20, pedido.modificador, total)}`
+        const texto = `${nomeDoToken(pedido.tokenId)} reagiu: ${textoDaRolagem(d20, pedido.modificador, total, vantagem)}`
         gravarCena(sceneKey, {
           ...comMudanca(cena, turnos, { tipo: 'reacao', texto, autor, tokenIds: [pedido.tokenId], reversao: { tipo: 'composta', partes: [] } }),
           efeitos: comEfeitos(cena.efeitos, [{ tipo: 'reacao', golpeId: null, tokenId: pedido.tokenId, d20, modificador: pedido.modificador, total }]),
@@ -2583,8 +2654,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           // Rolar só sem rolagem; Rerolar só com (Ponto Saga é manual, sem limite: decisão 10).
           // Conserto das fichas F1: Overload não erra; o d20 não defende dele (só outra Overload, pela técnica).
           if (!alvo.podeReagir || golpe.overload || (pedido.tipo === 'rolar') !== (alvo.rolagem === undefined)) return false
-          const d20 = deps.rolarD20()
-          novo = rolarReacao(golpe, alvo.tokenId, pedido.modificador, d20)
+          // S4: Atordoado ou Paralisado não reage (o golpe que já esperava também não).
+          if (travaDoToken(turnos.selos, alvo.tokenId) !== null) return false
+          const { d20, vantagem } = rolarComVantagem(deps.rolarD20, pedido.vantagem)
+          novo = rolarReacao(golpe, alvo.tokenId, pedido.modificador, d20, vantagem)
           efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: alvo.tokenId, d20, modificador: pedido.modificador, total: d20 + pedido.modificador })
           break
         }
@@ -2653,15 +2726,16 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const personagemId = personagemDoTokenNa(cena.turnos)(tokenId)
       if (personagemId === undefined || personagemId === null) return false
       // R6: a forma ligada do alvo que reduz o dano recebido (Resiliente: -20%) vale também no dano livre do mestre.
+      // S4 (P5): no "Me dar dano" o jogador digita o dano CHEIO; o app desconta a forma e a Determinação (a tela avisa antes).
       let dado = valor
       let reducao = ''
       const partes = mexerNaFicha(
         mesa,
         personagemId,
         (atual, sistema) => {
-          const { reducaoDoDano, formaDaReducao } = efeitosDasFormasLigadas(atual, sistema)
-          dado = danoComAReducao(valor, reducaoDoDano)
-          reducao = reducaoDoDano > 0 ? ` (${formaDaReducao ?? 'forma'} -${reducaoDoDano}%)` : ''
+          const reducoes = reducoesDoDano(atual, sistema)
+          dado = danoComAsReducoes(valor, reducoes)
+          reducao = reducoes.length === 0 ? '' : ` (${reducoes.map((parte) => `${parte.nome} -${parte.porcento}%`).join(', ')}: de ${valor})`
           return ajustesDoDano(atual, sistema, dado, false)
         },
         quemNaFicha(autor),
@@ -2839,7 +2913,9 @@ function cenaDoInicio(mesa: MesaDaBatalha, inicio: InicioDaBatalha, rolarD20: ()
   const comeco = passarVezNaOrdem(ordenados, tokensCaidos(ordenados.cartas, personagens, sistema))
   // Tipos de habilidade F3: o lembrete das passivas de início do combate (e das que já começam no gatilho: rodada 1, vida baixa).
   // Nunca ativa (decisão 3). Sem linha: o Iniciar não se desfaz.
-  const turnos = comLembretesDoMomento('inicio', comeco?.turnos ?? ordenados, { personagens, sistema }).turnos
+  const lembrados = comLembretesDoMomento('inicio', comeco?.turnos ?? ordenados, { personagens, sistema }).turnos
+  // Conserto das fichas F1 (S4): quem tem a Preparação para a Batalha recebe a pergunta "vai fazer?" no começo.
+  const turnos = comLembretesDaPreparacao(lembrados, { personagens, sistema }).turnos
   const cena: BatalhaDaCena = { ...CENA_NOVA, turnos, regras: inicio.regras }
   // F3: o Judge que o Iniciar já trouxe (torto fica de fora; o App põe depois).
   const judge = inicio.judge === undefined ? null : lerJudgeNaCena(inicio.judge)

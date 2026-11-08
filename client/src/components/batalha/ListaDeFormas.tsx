@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { AcoesDaVez } from '../../lib/batalha/acoes'
-import type { AcaoDaForma, PedidoDeAcao } from '../../lib/batalha/combate'
+import { ACOES_DA_FORMA, type AcaoDaForma, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { armazemDoAparelho, gravarEscolhaDaImagem, lerEscolhaDaImagem } from '../../lib/batalha/escolhaDaImagem'
 import { ataquesExtrasDaForma, deslocamentoDaForma, formaLivre, motivoDaForma, reducaoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
 import { formatarNumero, textoDaAcao, type PipDaVez } from './dadosDoMenu'
@@ -13,7 +13,9 @@ import './combate.css'
  * forma da ficha (as abas que ligam), no padrão das tiras da Habilidades.
  * Escolher a tira abre o PAINEL DA FORMA, em papel como a mira: a descrição, a
  * prévia dos números ("FOR 160 → 220"), as técnicas que a forma traz, e:
- *  - forma desligada: a ação em 3 botões (a da ficha marcada), a caixa
+ *  - forma desligada: a ação em 4 botões, nenhum marcado (conserto das
+ *    fichas F1, S4: o jogador diz se gastou Simples, Bônus, Completa ou
+ *    Livre, e o app cobra a escolhida; a da ficha leva "da ficha"), a caixa
  *    "Trocar a imagem do token e do retrato" (só com imagem; lembrada no
  *    aparelho por personagem) e Ativar, apagado com o motivo;
  *  - forma ligada: "Desfazer a forma · ação livre".
@@ -24,7 +26,7 @@ import './combate.css'
  * seta para a esquerda voltam; no painel, Enter ativa e Esc volta à lista.
  */
 
-const ACOES_DA_FORMA: readonly AcaoDaForma[] = ['simples', 'completa', 'bonus']
+const ESCOLHA_A_ACAO = 'Escolha a ação: Simples, Bônus, Completa ou Livre'
 
 export function nomeDaForma(forma: FormaNoMenu): string {
   return forma.cartao.nome.trim() || 'Forma sem nome'
@@ -42,7 +44,7 @@ function detalheDaForma(forma: FormaNoMenu): string | null {
 
 /** A linha curta da forma desligada no painel do NPC: a ação (ou "sem gastar ação"), quantos números muda e o requisito. */
 export function linhaDaFormaDoNpc(forma: FormaNoMenu): string {
-  return [textoDaAtivacao(forma, forma.acaoDaFicha), forma.numeros.length > 0 ? `muda ${forma.numeros.length}` : '', forma.requisito === null ? '' : `requisito: ${forma.requisito}`].filter((parte) => parte !== '').join(' · ')
+  return [textoDaAtivacao(forma.acaoDaFicha), forma.numeros.length > 0 ? `muda ${forma.numeros.length}` : '', forma.requisito === null ? '' : `requisito: ${forma.requisito}`].filter((parte) => parte !== '').join(' · ')
 }
 
 function blocos(quantos: number): string {
@@ -63,9 +65,10 @@ function textoDosAtaquesExtras(forma: FormaNoMenu): string | null {
   return `+${formatarNumero(quantos)} ${quantos === 1 ? 'ataque' : 'ataques'} por rodada ao usar Atacar`
 }
 
-/** R6: o que Ativar gasta, na tira e no botão: "sem gastar ação" na forma Livre, senão a ação. */
-function textoDaAtivacao(forma: FormaNoMenu, acao: AcaoDaForma): string {
-  return formaLivre(forma.cartao) ? 'sem gastar ação' : textoDaAcao(acao)
+/** R6: o que Ativar gasta, na tira e no botão: "sem gastar ação" na Livre, senão a ação; `null` = ainda não escolheu. */
+function textoDaAtivacao(acao: AcaoDaForma | null): string {
+  if (acao === null) return 'escolha a ação'
+  return acao === 'livre' ? 'sem gastar ação' : textoDaAcao(acao)
 }
 
 export interface PainelDaFormaProps {
@@ -88,14 +91,14 @@ export interface PainelDaFormaProps {
 /** O painel de uma forma: a leitura, a prévia e Ativar ou Desfazer. */
 export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer, onVoltar, esperando, className }: PainelDaFormaProps) {
   const idBase = useId()
-  const [acao, setAcao] = useState<AcaoDaForma>(forma.acaoDaFicha)
+  // Conserto das fichas F1 (S4): sem ação marcada; o jogador diz qual gastou.
+  const [acao, setAcao] = useState<AcaoDaForma | null>(null)
   const [trocar, setTrocar] = useState(() => lerEscolhaDaImagem(armazemDoAparelho(), personagemId))
   const [erro, setErro] = useState<string | null>(null)
   const nome = nomeDaForma(forma)
   const descricao = descricaoDaForma(forma)
-  const livre = formaLivre(forma.cartao)
-  // R6: a forma Livre liga e desliga sem gastar ação: a economia da vez não apaga o Ativar; os usos acabados apagam sempre.
-  const motivo = forma.ligada ? null : (forma.motivoDosUsos ?? (livre ? null : motivoDaForma(forma, acao, acoes)))
+  // A ação Livre não pesa na economia da vez; os usos acabados apagam o Ativar sempre.
+  const motivo = forma.ligada ? null : (forma.motivoDosUsos ?? (acao === null ? ESCOLHA_A_ACAO : motivoDaForma(forma, acao, acoes)))
   const comImagem = forma.imagem !== null
   const usos = usosDaForma(forma.cartao)
   const deslocamento = textoDoDeslocamento(forma)
@@ -109,8 +112,8 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
       setErro(onDesfazer() ? null : 'Não desfez: sem conexão com o mestre, ou a forma já foi desligada.')
       return
     }
-    if (motivo !== null) {
-      setErro(motivo)
+    if (motivo !== null || acao === null) {
+      setErro(motivo ?? ESCOLHA_A_ACAO)
       return
     }
     const saiu = onAtivar(acao, comImagem && trocar)
@@ -199,10 +202,9 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
           <small>{forma.ligada ? ' · já estão em Habilidades' : ' · entram em Habilidades quando ativa'}</small>
         </p>
       )}
-      {!forma.ligada && livre && <p className="bt-mira__nota">Ação Livre na ficha: liga e desliga sem gastar ação.</p>}
-      {!forma.ligada && !livre && (
+      {!forma.ligada && (
         <fieldset className="bt-forma__acoes">
-          <legend>Ação para ativar</legend>
+          <legend>Que ação você gastou?</legend>
           {ACOES_DA_FORMA.map((opcao) => (
             <label key={opcao} className="bt-forma__acao">
               <input
@@ -247,7 +249,7 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
           disabled={esperando || motivo !== null}
           aria-describedby={motivo === null ? undefined : `${idBase}-motivo`}
         >
-          {forma.ligada ? 'Desfazer a forma · ação livre' : `Ativar · ${textoDaAtivacao(forma, acao)}`} <kbd>Enter</kbd>
+          {forma.ligada ? 'Desfazer a forma · ação livre' : `Ativar · ${textoDaAtivacao(acao)}`} <kbd>Enter</kbd>
         </button>
         {onVoltar !== undefined && (
           <button type="button" className="bt-botao" onClick={onVoltar}>

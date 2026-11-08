@@ -2,7 +2,7 @@ import type { Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
-import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLICADOR_DO_CRITICO, PERFURACAO_MAX, PERFURACAO_MIN, type SaidaDaReacao } from './combate'
+import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLICADOR_DO_CRITICO, PERFURACAO_MAX, PERFURACAO_MIN, type SaidaDaReacao, type VantagemDoDado, type VantagemNaRolagem } from './combate'
 import { recursoDoEscudo } from './leituraDaFicha'
 
 /**
@@ -21,6 +21,19 @@ const DADO_DO_CRITICO = 1
 const TOTAL_DA_METADE = 10
 const TOTAL_DA_ESQUIVA = 15
 const TOTAL_DO_CONTRA = 20
+
+/**
+ * Conserto das fichas F1 (fatia S4): o d20 com vantagem (2 d20, fica o maior)
+ * ou desvantagem (fica o menor). Sem `vantagem`: 1 d20, sem o campo.
+ */
+export function rolarComVantagem(rolarD20: () => number, vantagem: VantagemDoDado | undefined): { d20: number; vantagem?: VantagemNaRolagem } {
+  const primeiro = rolarD20()
+  if (vantagem === undefined) return { d20: primeiro }
+  const segundo = rolarD20()
+  const fica = vantagem === 'vantagem' ? Math.max(primeiro, segundo) : Math.min(primeiro, segundo)
+  const outro = fica === primeiro ? segundo : primeiro
+  return { d20: fica, vantagem: { modo: vantagem, outro } }
+}
 
 /** As saídas que o dado libera, a melhor para quem reage primeiro. Abaixo de 10: só receber o golpe. */
 export function saidasPossiveis(d20: number, total: number): SaidaDaReacao[] {

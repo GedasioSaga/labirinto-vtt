@@ -7,6 +7,8 @@ import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { acoesDoInvocado, comunsQueSaem, membrosDoBando, motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
+import { travaDoToken } from '../../lib/batalha/condicoes'
+import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, formasNoMenu } from '../../lib/batalha/transformacao'
@@ -31,7 +33,7 @@ import type { InvocarNoMenu } from './MenuDaVez'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
 import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
-import { LembretesDaPassiva, PassivasDaFicha, lembretesNaTela, passivasNaCena, type LembreteNaTela } from './PassivasDaBatalha'
+import { LembretesDaPassiva, PassivasDaFicha, lembreteDaRegraNaTela, lembretesNaTela, passivasNaCena, type LembreteNaTela } from './PassivasDaBatalha'
 import { ReacoesPendentes, type PendenteNaTela } from './ReacoesPendentes'
 import { SeloDialog } from './SeloDialog'
 
@@ -236,6 +238,11 @@ function invocarDoNpc(sceneKey: string, personagem: Personagem, sistema: Sistema
   }
 }
 
+/** S4: com a trava (Atordoado, Paralisado), cada golpe apaga com o motivo dela; `null` = a lista como veio. */
+function comATrava<T extends { motivo: string | null }>(lista: T[], trava: string | null): T[] {
+  return trava === null ? lista : lista.map((item) => ({ ...item, motivo: trava }))
+}
+
 /** Tipos de habilidade F3: os lembretes dos NPCs fora do `exceto` (o da vez, que os vê no painel), com o nome de cada um. */
 function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string; mesa: Mesa; turnos: TurnosDaCena; exceto: string | null }) {
   const itens: LembreteNaTela[] = []
@@ -243,7 +250,15 @@ function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string
     if (personagemId === exceto || (combate.lembretes ?? []).length === 0) continue
     const personagem = mesa.personagens.find((candidato) => candidato.id === personagemId)
     const carta = turnos.cartas.find((candidata) => candidata.personagemId === personagemId)
-    if (personagem?.tipo !== 'npc' || carta === undefined) continue
+    if (personagem === undefined || carta === undefined) continue
+    // Conserto das fichas F1 (S4): o Sangramento do jogador quem aplica é o mestre (o jogador só vê o aviso).
+    if (personagem.tipo !== 'npc') {
+      for (const lembrete of combate.lembretes ?? []) {
+        const daRegra = lembreteDaRegraNaTela(lembrete, nomeDaFicha(mesa, lembrete.tokenId))
+        if (daRegra?.regra === 'sangramento') itens.push(daRegra)
+      }
+      continue
+    }
     const passivas = passivasNaCena(personagem, mesa.sistema, turnos, carta.tokenId)
     itens.push(...lembretesNaTela(combate.lembretes, passivas, alvosDaOrdem(mesa, turnos.cartas, carta), nomeDaFicha(mesa, carta.tokenId, carta), custosDasFormasNaTela(personagem, mesa.sistema)))
   }
@@ -309,6 +324,10 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         // Tipos de habilidade F1: o NPC reage também com técnica (a caixa do mestre, por NPC).
         const doNpc = item.doMestre && alvo.personagemId !== null ? personagens.find((candidato) => candidato.id === alvo.personagemId) : undefined
         if (doNpc !== undefined && sistema !== null) item.tecnicas = reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id], golpe.overload)
+        // Conserto das fichas F1 (S4): Resiliente e Determinação de quem reage, no aviso da caixa.
+        const doAlvo = alvo.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === alvo.personagemId)
+        const reducao = doAlvo === undefined || sistema === null ? '' : avisoDasReducoes(reducoesDoDano(doAlvo, sistema))
+        if (reducao !== '') item.reducao = reducao
         itens.push(item)
       }
     }
@@ -431,14 +450,16 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const arma = armasNaBatalha(personagem, combate)[0] ?? null
   // Tipos de habilidade F2: os selos do NPC somam na conta (a mesma `bonusDaBatalha` do jogador e da caixa).
   const bonus = bonusDaBatalha(turnos.selos, carta.tokenId)
-  const habilidades = personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, acoes, arma, bonus) : []
-  const armas = golpesDeAtaque(personagem, sistema, combate, acoes, bonus)
+  // Conserto das fichas F1 (S4): Atordoado ou Paralisado só passa a vez; tudo apaga com o motivo, menos o Encerrar.
+  const trava = travaDoToken(turnos.selos, carta.tokenId)
+  const habilidades = comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, acoes, arma, bonus) : [], trava)
+  const armas = comATrava(golpesDeAtaque(personagem, sistema, combate, acoes, bonus), trava)
   const caidos = tokensCaidos(turnos.cartas, personagens, sistema)
   const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos })
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
   const agir = (pedido: PedidoDeAcao) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)
   // F3: as formas do NPC (a tira Transformação do painel) e a imagem da forma ligada, que vence a foto.
-  const formas = personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate) : []
+  const formas = (personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate) : []).map((forma) => (trava === null ? forma : { ...forma, motivo: trava, motivoDosUsos: trava }))
   const aparencia = carta.personagemId === null || personagem === null ? null : aparenciaDaForma(turnos.formas?.[carta.personagemId], personagem)
   // Tipos de habilidade F3: as passivas do NPC da vez e os lembretes dele (o mestre aplica o "a cada turno" quando quiser).
   const alvos = alvosDaOrdem(mesa, turnos.cartas, carta)
@@ -465,7 +486,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           recursos={personagem === null ? [] : recursosDaCarta(personagem, sistema)}
           acoes={acoes}
           carga={carga}
-          motivoDoConcentrar={motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
+          motivoDoConcentrar={trava ?? motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
           armas={armas}
           habilidades={habilidades}
           alvos={alvos}
@@ -545,9 +566,14 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
     const vistos = new Set<string>()
     const invocados = turnos.invocados ?? SEM_INVOCADOS
     // A carta do bando não é ficha (a store recusa): o dano vai em cada invocado dele, pelo nome do token.
+    // Conserto das fichas F1 (S4): Resiliente e Determinação de quem leva o dano, no aviso da janela.
+    const reducoesDaCarta = (carta: CartaDaOrdem) => {
+      const personagem = carta.personagemId === null ? undefined : mesa.personagens.find((candidato) => candidato.id === carta.personagemId)
+      return personagem === undefined || mesa.sistema === null ? [] : reducoesDoDano(personagem, mesa.sistema)
+    }
     const doBando = (carta: CartaDaOrdem) => membrosDoBando({ invocados }, carta).map((invocado) => ({ tokenId: invocado.tokenId, nome: mesa.fichas.find((ficha) => ficha.id === invocado.tokenId)?.name.trim() || invocado.nome }))
     const alvos = turnos.cartas
-      .flatMap((carta) => (carta.bando === undefined ? [{ tokenId: carta.tokenId, nome: nomeDaFicha(mesa, carta.tokenId, carta) }] : doBando(carta)))
+      .flatMap((carta) => (carta.bando === undefined ? [{ tokenId: carta.tokenId, nome: nomeDaFicha(mesa, carta.tokenId, carta), reducoes: reducoesDaCarta(carta) }] : doBando(carta)))
       .filter((alvo) => !vistos.has(alvo.tokenId) && vistos.add(alvo.tokenId))
     // Aberto pela carta do bando: começa no primeiro invocado dele.
     const cartaDoBando = turnos.cartas.find((carta) => carta.bando !== undefined && carta.tokenId === dialogo.tokenId)

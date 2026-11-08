@@ -4,6 +4,8 @@ import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type Pedi
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
+import { travaDosSelos } from '../../lib/batalha/condicoes'
+import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
@@ -330,6 +332,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       if (dele !== undefined && sistema !== null) {
         const combateDele = combateDoJogador(estado.meus?.find((meu) => meu.personagemId === dele.id), null)
         item.tecnicas = reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele, reacao.overload === true)
+        // Conserto das fichas F1 (S4): Resiliente, Determinação (HP abaixo da metade): o aviso do que sai do dano.
+        const reducao = avisoDasReducoes(reducoesDoDano(dele, sistema))
+        if (reducao !== '') item.reducao = reducao
       }
       return item
     })
@@ -447,6 +452,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             passivas={conexao.passiva === undefined || menu.passivas.length === 0 ? undefined : { itens: menu.passivas, tokenId: cartaQueAge.tokenId, sistema, onPedir: conexao.passiva }}
             evoluir={evoluir}
             invocacao={invocacao}
+            travado={travaDosSelos(estado.cartas.find((carta) => carta.tokenId === cartaQueAge.tokenId)?.selos)}
           />
         </div>
       )}

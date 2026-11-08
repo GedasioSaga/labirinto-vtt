@@ -25,7 +25,9 @@ import {
   type SeloDaBatalha,
 } from './combate'
 import { selosComONivel } from './contador'
+import { ehLembreteDoSangramento } from './condicoes'
 import { ehLembreteDoCustoDaForma } from './custoPorTurno'
+import { ehLembreteDaPreparacao } from './preparacao'
 import { semEvoluida } from './escolhaEEvolucao'
 import { passivasLigadas } from './passivas'
 import type { RegrasDaBatalha } from './regrasDoCampo'
@@ -553,6 +555,8 @@ function mesmoLembrete(a: LembreteDaPassiva | undefined, b: LembreteDaPassiva | 
 function lembreteVale(lembrete: LembreteDaPassiva, lembradas: readonly string[], ligadas: ReadonlySet<string>): boolean {
   // Conserto das fichas F1 (P6): o custo por turno da FORMA volta sempre (a parte "ficha" da mesma linha religa a forma).
   if (ehLembreteDoCustoDaForma(lembrete)) return true
+  // S4: o do Sangramento e o da Preparação também voltam (não dependem de passiva ligada).
+  if (ehLembreteDoSangramento(lembrete) || ehLembreteDaPreparacao(lembrete)) return true
   return lembrete.tipo === 'porTurno' ? ligadas.has(lembrete.cartaoId) : !ligadas.has(lembrete.cartaoId) && lembradas.includes(lembrete.chave)
 }
 

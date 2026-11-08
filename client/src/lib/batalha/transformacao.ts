@@ -190,8 +190,14 @@ export interface FormaNoMenu {
   motivoDosUsos?: string | null
 }
 
-/** A ação que Ativar a forma gasta, pelo campo Ação: Simples, Completa ou Bônus; o resto (vazio, Livre, ilegível) = Completa. */
+/**
+ * A ação que o campo Ação da forma diz: Simples, Bônus, Livre ("Livre" liga
+ * sem gastar); o resto (vazio, ilegível) = Completa. S4: na mesa quem se
+ * transforma escolhe na hora (a tela não marca nada); isto é só o que a ficha
+ * diz, para o duelo do Lobby (onde o cliente não escolhe) e para a dica.
+ */
 export function acaoDaForma(cartao: CartaoDaFicha): AcaoDaForma {
+  if (formaLivre(cartao)) return 'livre'
   const { acao } = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
   return acao === 'simples' || acao === 'bonus' ? acao : 'completa'
 }

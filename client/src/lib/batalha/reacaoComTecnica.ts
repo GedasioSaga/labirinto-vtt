@@ -14,6 +14,7 @@ import {
   type SaidaDaTecnica,
   type SeloPedido,
   type TecnicaDaReacao,
+  type VantagemNaRolagem,
 } from './combate'
 import { overloadNaBatalha } from './escolhaEEvolucao'
 import { ajustesDoCusto, depoisDaTecnica, resolverAlvo, rolarReacao } from './golpe'
@@ -229,6 +230,7 @@ export function reagirComTecnica(
   sistema: SistemaDeRpg,
   combate: CombateDoPersonagem,
   d20: number | null,
+  vantagem?: VantagemNaRolagem,
 ): ReacaoFeita | null {
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return null
@@ -240,7 +242,7 @@ export function reagirComTecnica(
   let novo: GolpeDaBatalha
   if (saida === 'rolar') {
     if (d20 === null) return null
-    novo = rolarReacao(golpe, tokenId, pedido.modificador ?? 0, d20)
+    novo = rolarReacao(golpe, tokenId, pedido.modificador ?? 0, d20, vantagem)
   } else {
     novo = resolverAlvo(golpe, tokenId, saida)
   }

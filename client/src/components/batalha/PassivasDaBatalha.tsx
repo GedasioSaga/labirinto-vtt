@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { CUSTO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type LembreteDaPassiva, type PedidoDePassiva, type SeloPedido } from '../../lib/batalha/combate'
+import { DANO_DO_SANGRAMENTO, ehLembreteDoSangramento } from '../../lib/batalha/condicoes'
 import { ehLembreteDoCustoDaForma, type CustoDaFormaNaTela } from '../../lib/batalha/custoPorTurno'
+import { BONUS_DA_PREPARACAO, NOME_DA_PREPARACAO, ehLembreteDaPreparacao } from '../../lib/batalha/preparacao'
 import { cartaoDaVariante, temEscolha, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_EFEITO } from '../../lib/batalha/leituraDaFicha'
 import { passivasDe, passivasLigadas, seloDaPassiva, textoDoPorTurno, type EstadoDaPassiva, type PassivaNaTira } from '../../lib/batalha/passivas'
@@ -768,7 +770,21 @@ export interface LembreteDoCustoNaTela {
   quem?: string
 }
 
-export type LembreteNaTela = LembreteDaPassivaNaTela | LembreteDoCustoNaTela
+/** Conserto das fichas F1 (S4): o lembrete de uma regra da mesa (Sangramento, Preparação para a Batalha). */
+export interface LembreteDaRegraNaTela {
+  lembrete: LembreteDaPassiva
+  regra: 'sangramento' | 'preparacao'
+  quem?: string
+}
+
+export type LembreteNaTela = LembreteDaPassivaNaTela | LembreteDoCustoNaTela | LembreteDaRegraNaTela
+
+/** S4: o lembrete do Sangramento ou da Preparação na tela; `null` = é de passiva ou de forma. */
+export function lembreteDaRegraNaTela(lembrete: LembreteDaPassiva, quem?: string): LembreteDaRegraNaTela | null {
+  const regra = ehLembreteDoSangramento(lembrete) ? 'sangramento' : ehLembreteDaPreparacao(lembrete) ? 'preparacao' : null
+  if (regra === null) return null
+  return quem === undefined ? { lembrete, regra } : { lembrete, regra, quem }
+}
 
 /**
  * Junta os lembretes de um dono com as passivas dele (lembrete de passiva que
@@ -784,6 +800,11 @@ export function lembretesNaTela(
 ): LembreteNaTela[] {
   const itens: LembreteNaTela[] = []
   for (const lembrete of lembretes ?? []) {
+    const daRegra = lembreteDaRegraNaTela(lembrete, quem)
+    if (daRegra !== null) {
+      itens.push(daRegra)
+      continue
+    }
     if (ehLembreteDoCustoDaForma(lembrete)) {
       const custo = custos?.find((candidato) => candidato.cartaoId === lembrete.cartaoId)
       if (custo !== undefined) itens.push(quem === undefined ? { lembrete, custo } : { lembrete, custo, quem })
@@ -842,6 +863,94 @@ function UmLembreteDoCusto({ item, esperando, onPedir }: { item: LembreteDoCusto
         </p>
       )}
       {erro !== null && (
+        <p className="bt-lembrete__motivo" role="alert">
+          {erro}
+        </p>
+      )}
+    </li>
+  )
+}
+
+/**
+ * Conserto das fichas F1 (S4): o lembrete de uma regra da mesa.
+ *  - Sangramento: no começo da vez de quem sangra, o mestre aplica (-10 HP
+ *    direto, sem o Escudo) ou pula; o jogador só vê o aviso.
+ *  - Preparação para a Batalha: no começo do combate, "vai fazer?" e qual
+ *    atributo; Fazer põe +20 nele até o fim do combate.
+ */
+function UmLembreteDaRegra({ item, sistema, aplicarLivre, esperando, onPedir }: Omit<LembretesDaPassivaProps, 'itens' | 'className'> & { item: LembreteDaRegraNaTela }) {
+  const { lembrete, regra, quem } = item
+  const atributos = sistema?.atributos ?? []
+  const [atributoId, setAtributoId] = useState('')
+  const [erro, setErro] = useState<string | null>(null)
+  const id = useId()
+  const sangra = regra === 'sangramento'
+  const decide = !sangra || aplicarLivre === true
+  const motivo = sangra || atributoId !== '' ? null : 'Escolha o atributo que ganha +20'
+  const pedir = (aplicar: boolean) => {
+    if (esperando) return
+    if (aplicar && motivo !== null) {
+      setErro(motivo)
+      return
+    }
+    const pedido: PedidoDePassiva = { tipo: 'lembrete', tokenId: lembrete.tokenId, cartaoId: lembrete.cartaoId, aplicar }
+    if (aplicar && !sangra) pedido.atributoId = atributoId
+    const saiu = onPedir(pedido)
+    setErro(saiu ? null : 'Não saiu: sem conexão com o mestre, ou o lembrete já foi respondido.')
+  }
+  return (
+    <li className="bt-lembrete" data-tipo={lembrete.tipo}>
+      <p className="bt-lembrete__texto" id={`${id}-texto`}>
+        <span className="bt-lembrete__marca" aria-hidden="true" />
+        {quem !== undefined && <span className="bt-lembrete__quem">{quem} · </span>}
+        {sangra ? (
+          <>
+            <b>Sangrando</b>
+            <span className="bt-lembrete__det">
+              {' '}
+              · tira {DANO_DO_SANGRAMENTO} de HP direto, sem o Escudo{decide ? '' : ' · o mestre aplica'}
+            </span>
+          </>
+        ) : (
+          <>
+            <b title={NOME_DA_PREPARACAO}>{NOME_DA_PREPARACAO}</b>
+            <span className="bt-lembrete__det"> · vai fazer? +{BONUS_DA_PREPARACAO} num atributo até o fim do combate</span>
+          </>
+        )}
+      </p>
+      {!sangra && (
+        <label className="bt-lembrete__det">
+          Atributo{' '}
+          <select value={atributoId} disabled={esperando} onChange={(evento) => {
+              setErro(null)
+              setAtributoId(evento.target.value)
+            }}
+          >
+            <option value="">Escolha…</option>
+            {atributos.map((atributo) => (
+              <option key={atributo.id} value={atributo.id}>
+                {atributo.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {decide && (
+        <div className="bt-lembrete__acoes" role="group" aria-labelledby={`${id}-texto`}>
+          <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando || motivo !== null} aria-describedby={motivo === null ? undefined : `${id}-motivo`} onClick={() => pedir(true)}>
+            {sangra ? `Aplicar · -${DANO_DO_SANGRAMENTO} HP` : `Fazer (+${BONUS_DA_PREPARACAO})`}
+          </button>
+          <button type="button" className="bt-botao" disabled={esperando} onClick={() => pedir(false)}>
+            {sangra ? 'Pular' : 'Agora não'}
+          </button>
+        </div>
+      )}
+      {motivo !== null && (
+        <p className="bt-lembrete__motivo" id={`${id}-motivo`}>
+          {motivo}
+        </p>
+      )}
+      {erro !== null && erro !== motivo && (
         <p className="bt-lembrete__motivo" role="alert">
           {erro}
         </p>
@@ -955,7 +1064,9 @@ export function LembretesDaPassiva({ itens, className, ...resto }: LembretesDaPa
     <section className={['bt-lembretes', className].filter(Boolean).join(' ')} aria-label="Lembretes de passiva">
       <ul className="bt-lembretes__lista">
         {itens.map((item) =>
-          'custo' in item ? (
+          'regra' in item ? (
+            <UmLembreteDaRegra key={`${item.lembrete.tokenId}:${item.lembrete.chave}`} item={item} {...resto} />
+          ) : 'custo' in item ? (
             <UmLembreteDoCusto key={`${item.lembrete.tokenId}:${item.lembrete.chave}`} item={item} esperando={resto.esperando} onPedir={resto.onPedir} />
           ) : (
             <UmLembrete key={`${item.lembrete.tokenId}:${item.lembrete.chave}`} item={item} {...resto} />

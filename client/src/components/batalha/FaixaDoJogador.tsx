@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { PedidoDeAjusteNaBatalha, PedidoDePassiva } from '../../lib/batalha/combate'
 import { contadorDoPersonagem } from '../../lib/batalha/contador'
+import { reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -280,9 +281,12 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
         const personagem = ajusteEm.personagemId === null ? undefined : meus.find((candidato) => candidato.id === ajusteEm.personagemId)
         return personagem === undefined ? null : <AjustarDialog quem={ajusteEm.nome || 'você'} tokenId={ajusteEm.tokenId} personagem={personagem} sistema={sistema} onConfirmar={onAjustar} onFechar={() => setAjusteEm(null)} />
       })()}
-      {danoEm !== null && onMeDarDano !== undefined && (
-        <DarDanoDialog titulo="Me dar dano" alvos={[{ tokenId: danoEm.tokenId, nome: danoEm.nome }]} onConfirmar={onMeDarDano} onFechar={() => setDanoEm(null)} />
-      )}
+      {danoEm !== null && onMeDarDano !== undefined && (() => {
+        // Conserto das fichas F1 (S4): com Resiliente (ou Determinação), digita o dano cheio e o app desconta.
+        const personagem = danoEm.personagemId === null ? undefined : meus.find((candidato) => candidato.id === danoEm.personagemId)
+        const reducoes = personagem === undefined || sistema === null ? [] : reducoesDoDano(personagem, sistema)
+        return <DarDanoDialog titulo="Me dar dano" alvos={[{ tokenId: danoEm.tokenId, nome: danoEm.nome, reducoes }]} onConfirmar={onMeDarDano} onFechar={() => setDanoEm(null)} />
+      })()}
     </>
   )
 }

@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { DANO_MAX } from '../../lib/batalha/combate'
+import { avisoDasReducoes, danoComAsReducoes, type ReducaoDoDano } from '../../lib/batalha/reducaoDoDano'
 import { BotaoDaCalculadora, CalculadoraDeDano } from './CalculadoraDeDano'
 import { lerInteiro } from './dadosDoMenu'
 import { JanelaDaBatalha } from './JanelaDaBatalha'
@@ -16,6 +17,8 @@ import './combate.css'
 export interface AlvoDoDano {
   tokenId: string
   nome: string
+  /** Conserto das fichas F1 (S4): Resiliente, Determinação: digita o dano cheio e o app desconta (`reducoesDoDano`). Ausente ou vazio = nada. */
+  reducoes?: readonly ReducaoDoDano[]
 }
 
 export interface DarDanoDialogProps {
@@ -37,6 +40,8 @@ export function DarDanoDialog({ titulo = 'Dar dano', alvos, alvoInicial, onConfi
   const [calculando, setCalculando] = useState(false)
   const campo = useRef<HTMLInputElement>(null)
   const botaoDaCalculadora = useRef<HTMLButtonElement>(null)
+  const reducoes = alvos.find((candidato) => candidato.tokenId === alvo)?.reducoes ?? []
+  const chega = valor === null || valor < 1 || reducoes.length === 0 ? null : danoComAsReducoes(valor, reducoes)
 
   const confirmar = (evento: FormEvent) => {
     evento.preventDefault()
@@ -102,6 +107,11 @@ export function DarDanoDialog({ titulo = 'Dar dano', alvos, alvoInicial, onConfi
               botaoDaCalculadora.current?.focus()
             }}
           />
+        )}
+        {reducoes.length > 0 && (
+          <p className="bt-mira__nota">
+            {avisoDasReducoes(reducoes)} aplicado: digite o dano cheio{chega === null ? '.' : `, chega ${chega}.`}
+          </p>
         )}
         {erro !== null && (
           <p className="bt-form__erro" role="alert">

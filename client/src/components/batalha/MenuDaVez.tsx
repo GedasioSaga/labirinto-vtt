@@ -101,6 +101,8 @@ export interface MenuDaVezProps {
   evoluir?: EvoluirNaTela
   /** Invocação F3: a mira da invocação. Ausente = a técnica de Tipo Invocação fica apagada. */
   invocacao?: InvocarNoMenu
+  /** Conserto das fichas F1 (S4): Atordoado ou Paralisado (o motivo); só o Encerrar vez fica aceso. Ausente ou `null` = livre. */
+  travado?: string | null
 }
 
 type Tela =
@@ -117,7 +119,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao, travado = null } = props
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
@@ -393,6 +395,10 @@ export function MenuDaVez(props: MenuDaVezProps) {
         },
       })
   }
+  // Conserto das fichas F1 (S4): travado, tudo apaga com o motivo, menos o Encerrar vez.
+  if (travado !== null) itens.forEach((item, indice) => {
+    if (item.chave !== 'encerrar') itens[indice] = { ...item, motivo: travado, zerar: undefined }
+  })
   tiras.current.length = itens.length
 
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {

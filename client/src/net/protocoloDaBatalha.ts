@@ -29,6 +29,8 @@ import {
   SELOS_POR_TOKEN_MAX,
   TIPOS_DO_LEMBRETE,
   TURNOS_DO_SELO_MAX,
+  ACOES_DA_FORMA,
+  VANTAGENS_DO_DADO,
   type AcaoDaForma,
   type AcaoDaTecnica,
   type LembreteDaPassiva,
@@ -44,6 +46,8 @@ import {
   type SaidaDaReacao,
   type SaidaDaTecnica,
   type SeloPedido,
+  type VantagemDoDado,
+  type VantagemNaRolagem,
   MUDANCAS_DO_AJUSTE_MAX,
   type MudancaDoAjuste,
   type PedidoDeAjusteNaBatalha,
@@ -438,7 +442,8 @@ function lerVarianteOpcional(value: unknown): string | undefined | false {
 }
 
 function lerAcaoDaForma(value: unknown): AcaoDaForma | null {
-  return value === 'simples' || value === 'completa' || value === 'bonus' ? value : null
+  // Conserto das fichas F1 (S4): o jogador diz a ação que gastou, Livre inclusive.
+  return ACOES_DA_FORMA.find((acao) => acao === value) ?? null
 }
 
 /** O pedido de ação, enum fechado no `tipo`. */
@@ -527,10 +532,16 @@ export function lerPedidoDeReacao(value: unknown): PedidoDeReacao | null {
   const { golpeId, tokenId } = value
   if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX)) return null
   switch (value.tipo) {
-    case 'rolar':
-      return idOuNulo(golpeId) && lerModificador(value.modificador) ? { tipo: 'rolar', golpeId, tokenId, modificador: value.modificador } : null
-    case 'rerolar':
-      return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) && lerModificador(value.modificador) ? { tipo: 'rerolar', golpeId, tokenId, modificador: value.modificador } : null
+    case 'rolar': {
+      const vantagem = lerVantagemDoDado(value.vantagem)
+      if (!idOuNulo(golpeId) || !lerModificador(value.modificador) || vantagem === false) return null
+      return { tipo: 'rolar', golpeId, tokenId, modificador: value.modificador, ...(vantagem === undefined ? {} : { vantagem }) }
+    }
+    case 'rerolar': {
+      const vantagem = lerVantagemDoDado(value.vantagem)
+      if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !lerModificador(value.modificador) || vantagem === false) return null
+      return { tipo: 'rerolar', golpeId, tokenId, modificador: value.modificador, ...(vantagem === undefined ? {} : { vantagem }) }
+    }
     case 'escolher': {
       const saida = lerSaida(value.saida)
       return textoAte(golpeId, 1, ID_DA_BATALHA_MAX) && saida !== null ? { tipo: 'escolher', golpeId, tokenId, saida } : null
@@ -550,6 +561,12 @@ export function lerPedidoDeReacao(value: unknown): PedidoDeReacao | null {
   }
 }
 
+/** Conserto das fichas F1 (S4): `vantagem` ausente = dado normal; fora do enum = pedido recusado. */
+function lerVantagemDoDado(value: unknown): VantagemDoDado | undefined | false {
+  if (value === undefined) return undefined
+  return VANTAGENS_DO_DADO.find((modo) => modo === value) ?? false
+}
+
 function lerSaidaDaTecnica(value: unknown): SaidaDaTecnica | null {
   return SAIDAS_DA_TECNICA.find((saida) => saida === value) ?? null
 }
@@ -567,6 +584,8 @@ function lerReacaoComTecnica(value: Record<string, unknown>, golpeId: unknown, t
   if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX) || saida === null || selo === false) return null
   if (custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) return null
   if (modificador !== undefined && (saida !== 'rolar' || !lerModificador(modificador))) return null
+  const vantagem = lerVantagemDoDado(value.vantagem)
+  if (vantagem === false || (vantagem !== undefined && saida !== 'rolar')) return null
   return {
     tipo: 'tecnica',
     golpeId,
@@ -575,6 +594,7 @@ function lerReacaoComTecnica(value: Record<string, unknown>, golpeId: unknown, t
     saida,
     custo,
     ...(modificador === undefined ? {} : { modificador }),
+    ...(vantagem === undefined ? {} : { vantagem }),
     ...(selo === undefined ? {} : { seloNoAtacante: selo }),
   }
 }
@@ -641,8 +661,12 @@ export function lerPedidoDePassiva(value: unknown): PedidoDePassiva | null {
       if (variante !== undefined) pedido.variante = variante
       return pedido
     }
-    case 'lembrete':
-      return typeof value.aplicar === 'boolean' ? { tipo: 'lembrete', tokenId, cartaoId, aplicar: value.aplicar } : null
+    case 'lembrete': {
+      // Conserto das fichas F1 (S4): a Preparação para a Batalha manda o atributo escolhido.
+      const { atributoId } = value
+      if (typeof value.aplicar !== 'boolean' || (atributoId !== undefined && !ehAlvoDeMod(atributoId))) return null
+      return { tipo: 'lembrete', tokenId, cartaoId, aplicar: value.aplicar, ...(atributoId === undefined ? {} : { atributoId }) }
+    }
     default:
       return null
   }
@@ -1015,7 +1039,19 @@ function lerRolagem(value: unknown): RolagemDaReacao | null {
   if (!isRecord(value)) return null
   const { d20, modificador, total, vezes } = value
   if (!lerD20(d20) || !lerModificador(modificador) || total !== d20 + modificador || !inteiroAte(vezes, 1, REROLAGENS_MAX)) return null
-  return { d20, modificador, total, vezes }
+  if (value.vantagem === undefined) return { d20, modificador, total, vezes }
+  const vantagem = lerVantagemNaRolagem(value.vantagem, d20)
+  return vantagem === null ? null : { d20, modificador, total, vezes, vantagem }
+}
+
+/** Conserto das fichas F1 (S4): o outro d20 tem de ser dado e o que ficou tem de ser o melhor (ou o pior). */
+function lerVantagemNaRolagem(value: unknown, d20: number): VantagemNaRolagem | null {
+  if (!isRecord(value)) return null
+  const { outro } = value
+  const modo = VANTAGENS_DO_DADO.find((candidato) => candidato === value.modo)
+  if (modo === undefined || !lerD20(outro)) return null
+  const ficouCerto = modo === 'vantagem' ? d20 >= outro : d20 <= outro
+  return ficouCerto ? { modo, outro } : null
 }
 
 function lerReacao(value: unknown): ReacaoParaJogador | null {
