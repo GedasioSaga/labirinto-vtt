@@ -108,6 +108,37 @@ export function casasDoLado(quantas: number, lado: LadoDaArena, grade: GradeDaAr
   return casas
 }
 
+/** As casas da borda da grade, uma volta no sentido horário a partir da quina de cima à esquerda, sem repetir quina. */
+function anelDaBorda(grade: GradeDaArena): CasaDaArena[] {
+  const { colunas, linhas } = grade
+  if (colunas < 1 || linhas < 1) return []
+  const anel: CasaDaArena[] = []
+  for (let col = 0; col < colunas; col += 1) anel.push({ col, row: 0 })
+  for (let row = 1; row < linhas; row += 1) anel.push({ col: colunas - 1, row })
+  if (linhas > 1) for (let col = colunas - 2; col >= 0; col -= 1) anel.push({ col, row: linhas - 1 })
+  if (colunas > 1) for (let row = linhas - 2; row >= 1; row -= 1) anel.push({ col: 0, row })
+  return anel
+}
+
+/**
+ * As largadas de N lados pelo perímetro (Arena multijogador, plano de
+ * 07/11/2026 §1: mais de 2 lados nascem pela borda da grade média): a borda
+ * dividida em arcos iguais, um por lado, na ordem de `quantas`; as fichas de
+ * cada lado lado a lado no meio do arco dele. Lado com mais fichas que o arco
+ * recebe só as casas que cabem (quem chama confere; na grade média, 12 fichas
+ * em até 12 lados sempre cabem).
+ */
+export function casasDoPerimetro(quantas: readonly number[], grade: GradeDaArena): CasaDaArena[][] {
+  const anel = anelDaBorda(grade)
+  if (quantas.length === 0) return []
+  const arco = Math.floor(anel.length / quantas.length)
+  return quantas.map((quantasNoLado, i) => {
+    const cabem = Math.max(0, Math.min(Math.floor(quantasNoLado), arco))
+    const inicio = i * arco + Math.floor((arco - cabem) / 2)
+    return anel.slice(inicio, inicio + cabem)
+  })
+}
+
 /** O boneco: no centro-direita (2 casas à direita do meio), na linha do meio. */
 export function casaDoBoneco(grade: GradeDaArena): CasaDaArena {
   return { col: Math.min(grade.colunas - 1, Math.floor(grade.colunas / 2) + 2), row: Math.floor(grade.linhas / 2) }

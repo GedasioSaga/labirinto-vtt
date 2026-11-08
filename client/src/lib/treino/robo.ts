@@ -12,7 +12,7 @@ import { reacaoDoBoneco } from '../arena/reacaoDoBoneco'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
-import type { VagaDoTreino } from './mesaEmMemoria'
+import type { VagaDaLuta } from './mesaEmMemoria'
 
 /**
  * O ROBÔ DO TREINO (LOBBY v2, fatia T3 de
@@ -65,7 +65,7 @@ export const GOLPES_POR_VEZ_MAX = 3
 export interface VistaDoRobo {
   turnos: TurnosDaCena
   regras: RegrasDaBatalha | null
-  vagas: readonly VagaDoTreino[]
+  vagas: readonly VagaDaLuta[]
   personagens: readonly Personagem[]
   sistema: SistemaDeRpg | null
   /** Quantos golpes a carta da vez já deu nesta vez (quem executa conta). */
@@ -106,7 +106,7 @@ function reacaoPendente(vista: VistaDoRobo): PedidoDeReacao | null {
 }
 
 /** O token inimigo de pé, na ordem, com a menor proporção de vida; `null` = nenhum. */
-function alvoMaisFerido(vista: VistaDoRobo, minhaVaga: VagaDoTreino): string | null {
+function alvoMaisFerido(vista: VistaDoRobo, minhaVaga: VagaDaLuta): string | null {
   const porId = new Map(vista.personagens.map((personagem) => [personagem.id, personagem]))
   const naOrdem = new Set(vista.turnos.cartas.map((carta) => carta.tokenId))
   let melhor: { tokenId: string; proporcao: number } | null = null

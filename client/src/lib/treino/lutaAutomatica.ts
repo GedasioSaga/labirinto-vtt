@@ -4,7 +4,7 @@ import { combatentesIniciais, type AutorDaAcao } from '../batalha/turnos'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem, type VidaDaFicha } from '../vidaDaFicha'
 import { fimDaLuta, type FimDaLuta, type RelogioDaLuta, type TetosDaLuta } from './fimDaLuta'
-import { criarMesaEmMemoria, type LadoDoTreino, type LutadoresDoTreino, type MesaEmMemoria } from './mesaEmMemoria'
+import { criarMesaEmMemoria, type LadoDaLuta, type LadoDoTreino, type LutadoresDaLuta, type MesaDaLuta } from './mesaEmMemoria'
 import { jogadaDoRobo, type JogadaDoRobo } from './robo'
 import { criarSorteio, retomarSorteio, type EstadoDoSorteio, type Sorteio } from './sorteio'
 
@@ -24,6 +24,10 @@ import { criarSorteio, retomarSorteio, type EstadoDoSorteio, type Sorteio } from
  * e o robô não decide por id aleatório. A luta pausa a qualquer passo
  * (`gravar`: só dados, vai a JSON) e volta por `retomarLuta`, terminando igual.
  *
+ * N LADOS (Arena multijogador, fatia F2): os mesmos passos com até 12 lados
+ * (`montarLutadoresDaLuta`); os tipos seguem o lado dos lutadores, e o
+ * padrão é o treino de 2 lados.
+ *
  * Sem DOM e sem Tauri: roda no navegador, num worker (T4) e no vitest.
  */
 
@@ -40,11 +44,11 @@ export const TETOS_DO_TREINO: TetosDaLuta = { rodadas: 30, passos: 3_000 }
 export const VERSAO_DA_LUTA_GRAVADA = 1
 
 /** O que a luta precisa para começar. */
-export interface PedidoDeLuta {
+export interface PedidoDeLuta<L extends LadoDaLuta = LadoDoTreino> {
   /** O sistema do livro (One Piece). */
   sistema: SistemaDeRpg | null
-  /** As vagas e as cópias (`montarLutadores`). */
-  lutadores: LutadoresDoTreino
+  /** As vagas e as cópias (`montarLutadores`, ou `montarLutadoresDaLuta` com mais lados). */
+  lutadores: LutadoresDaLuta<L>
   /** Inteiro de 0 a `SEMENTE_MAX` (`sorteio.ts`). */
   semente: number
   /** Ausente = `TETOS_DO_TREINO`. */
@@ -58,9 +62,9 @@ export interface GolpesDaVez {
 }
 
 /** A luta pausada, só dados: vai a JSON e volta por `retomarLuta` com o mesmo sistema. */
-export interface LutaGravada {
+export interface LutaGravada<L extends LadoDaLuta = LadoDoTreino> {
   versao: typeof VERSAO_DA_LUTA_GRAVADA
-  lutadores: LutadoresDoTreino
+  lutadores: LutadoresDaLuta<L>
   cena: BatalhaDaCena
   sorteio: EstadoDoSorteio
   passos: number
@@ -76,43 +80,43 @@ export type PassoDaLuta =
   | { tipo: 'parado' }
 
 /** Uma vaga no fim da luta: a vida da cópia (`null` = sem vida legível). */
-export interface LutadorNoResumo {
+export interface LutadorNoResumo<L extends LadoDaLuta = LadoDoTreino> {
   vaga: string
-  lado: LadoDoTreino
+  lado: L
   nome: string
   vida: VidaDaFicha | null
 }
 
 /** Como a luta acabou. Sem id nem hora: duas lutas com a mesma semente dão o mesmo resumo. */
-export interface ResumoDaLuta {
+export interface ResumoDaLuta<L extends LadoDaLuta = LadoDoTreino> {
   semente: number
-  fim: FimDaLuta
+  fim: FimDaLuta<L>
   /** A rodada da ordem no fim. */
   rodada: number
   passos: number
   /** Quantos d20 saíram do sorteio. */
   d20: number
-  lutadores: readonly LutadorNoResumo[]
+  lutadores: readonly LutadorNoResumo<L>[]
   /** O texto de cada linha do registro, da mais velha à mais nova (as últimas `REGISTRO_MAX`). */
   registro: readonly string[]
 }
 
-export interface LutaEmAndamento {
+export interface LutaEmAndamento<L extends LadoDaLuta = LadoDoTreino> {
   /** Um passo; `null` = a luta já tinha acabado (nada muda). */
   passo(): PassoDaLuta | null
   /** Passos até acabar; o resumo. */
-  terminar(): ResumoDaLuta
+  terminar(): ResumoDaLuta<L>
   /** Como acabou, ou `null` se continua. */
-  fim(): FimDaLuta | null
+  fim(): FimDaLuta<L> | null
   relogio(): RelogioDaLuta
   /** A cena da batalha de agora (a ordem, os golpes, o registro). */
   cena(): BatalhaDaCena
   /** A mesa em memória (as vagas e as cópias de agora). */
-  mesa(): MesaEmMemoria
+  mesa(): MesaDaLuta<L>
   /** A luta de agora, só dados (cópia funda). */
-  gravar(): LutaGravada
+  gravar(): LutaGravada<L>
   /** O resumo; `null` enquanto a luta não acabou. */
-  resumo(): ResumoDaLuta | null
+  resumo(): ResumoDaLuta<L> | null
 }
 
 interface EstadoDoRelogio {
@@ -121,11 +125,11 @@ interface EstadoDoRelogio {
   golpesDaVez: GolpesDaVez | null
 }
 
-function lojaDoTreino(mesa: MesaEmMemoria, sorteio: Sorteio): LojaDaBatalha {
+function lojaDoTreino(mesa: MesaDaLuta, sorteio: Sorteio): LojaDaBatalha {
   return criarBatalhaStore(mesa, { rolarD20: () => sorteio.d20(), outraBatalhaLigada: () => false })
 }
 
-function lutadoresNoResumo(mesa: MesaEmMemoria): LutadorNoResumo[] {
+function lutadoresNoResumo<L extends LadoDaLuta>(mesa: MesaDaLuta<L>): LutadorNoResumo<L>[] {
   const recurso = recursoDeVida(mesa.sistema())
   const porId = new Map(mesa.personagens().map((personagem) => [personagem.id, personagem]))
   return mesa.vagas().map((vaga) => {
@@ -136,7 +140,7 @@ function lutadoresNoResumo(mesa: MesaEmMemoria): LutadorNoResumo[] {
 }
 
 /** A luta sobre a mesa, o sorteio e a store já com a cena ligada (nova ou retomada). */
-function lutaSobre(mesa: MesaEmMemoria, sorteio: Sorteio, loja: LojaDaBatalha, inicial: EstadoDoRelogio): LutaEmAndamento {
+function lutaSobre<L extends LadoDaLuta>(mesa: MesaDaLuta<L>, sorteio: Sorteio, loja: LojaDaBatalha, inicial: EstadoDoRelogio): LutaEmAndamento<L> {
   let { passos, golpesDaVez } = inicial
   const { tetos } = inicial
 
@@ -162,7 +166,7 @@ function lutaSobre(mesa: MesaEmMemoria, sorteio: Sorteio, loja: LojaDaBatalha, i
     return { tipo: 'passarVez', tokenId: jogada.tokenId, aceito: loja.getState().passarVez(CENA_DO_TREINO, AUTOR_DO_ROBO, jogada.esperado) }
   }
 
-  const resumo = (): ResumoDaLuta | null => {
+  const resumo = (): ResumoDaLuta<L> | null => {
     if (fim === null) return null
     const cena = cenaDeAgora()
     return {
@@ -194,12 +198,12 @@ function lutaSobre(mesa: MesaEmMemoria, sorteio: Sorteio, loja: LojaDaBatalha, i
     return feito
   }
 
-  const gravar = (): LutaGravada => {
-    const agora: LutaGravada = { versao: VERSAO_DA_LUTA_GRAVADA, lutadores: mesa.lutadores(), cena: cenaDeAgora(), sorteio: sorteio.estado(), passos, tetos, golpesDaVez }
+  const gravar = (): LutaGravada<L> => {
+    const agora: LutaGravada<L> = { versao: VERSAO_DA_LUTA_GRAVADA, lutadores: mesa.lutadores(), cena: cenaDeAgora(), sorteio: sorteio.estado(), passos, tetos, golpesDaVez }
     return structuredClone(agora)
   }
 
-  const terminar = (): ResumoDaLuta => {
+  const terminar = (): ResumoDaLuta<L> => {
     // Cada passo conta no relógio: o teto de passos de `fimDaLuta` garante que o laço acaba.
     let feito = resumo()
     while (feito === null) {
@@ -219,7 +223,7 @@ function lutaSobre(mesa: MesaEmMemoria, sorteio: Sorteio, loja: LojaDaBatalha, i
  * `RangeError`, antes de qualquer d20. Os lutadores do pedido não mudam: a
  * luta trabalha numa cópia (as 100 lutas da T4 reusam o mesmo pedido).
  */
-export function comecarLuta(pedido: PedidoDeLuta): LutaEmAndamento {
+export function comecarLuta<L extends LadoDaLuta = LadoDoTreino>(pedido: PedidoDeLuta<L>): LutaEmAndamento<L> {
   const tetos = pedido.tetos ?? TETOS_DO_TREINO
   const sorteio = criarSorteio(pedido.semente)
   const mesa = criarMesaEmMemoria(pedido.sistema, structuredClone(pedido.lutadores))
@@ -233,7 +237,7 @@ export function comecarLuta(pedido: PedidoDeLuta): LutaEmAndamento {
 }
 
 /** A luta inteira, do começo ao fim: o resumo. */
-export function lutaAutomatica(pedido: PedidoDeLuta): ResumoDaLuta {
+export function lutaAutomatica<L extends LadoDaLuta = LadoDoTreino>(pedido: PedidoDeLuta<L>): ResumoDaLuta<L> {
   return comecarLuta(pedido).terminar()
 }
 
@@ -246,7 +250,7 @@ function inteiroNaoNegativo(valor: unknown): boolean {
 }
 
 /** A forma de fora da luta gravada (a versão, os números, a cena com ordem e registro). O miolo da cena é a batalha que confere. */
-function gravadaValida(gravada: LutaGravada): boolean {
+function gravadaValida(gravada: LutaGravada<LadoDaLuta>): boolean {
   const { cena, golpesDaVez } = gravada
   const turnos: unknown = ehRegistro(cena) ? cena.turnos : null
   return (
@@ -265,7 +269,7 @@ function gravadaValida(gravada: LutaGravada): boolean {
  * sorteio, a mesa e os tetos também conferem os deles). A gravada não é
  * mudada: a luta trabalha numa cópia.
  */
-export function retomarLuta(gravada: LutaGravada, sistema: SistemaDeRpg | null): LutaEmAndamento {
+export function retomarLuta<L extends LadoDaLuta = LadoDoTreino>(gravada: LutaGravada<L>, sistema: SistemaDeRpg | null): LutaEmAndamento<L> {
   if (!gravadaValida(gravada)) throw new RangeError('luta gravada do treino inválida')
   const copia = structuredClone(gravada)
   const sorteio = retomarSorteio(copia.sorteio)

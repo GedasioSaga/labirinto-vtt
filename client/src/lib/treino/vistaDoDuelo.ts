@@ -67,7 +67,7 @@ export function ladoDaContaNoDuelo(duelo: Pick<DueloGravado, 'jogadores'>, conta
 }
 
 /** A ordem do duelo para um lado: o combate, os contra-ataques e os lembretes da marca só das fichas dele (a vista os dá só ao dono, em `meus` e `contras`). */
-function turnosDoLado(turnos: TurnosDaCena, meusTokens: ReadonlySet<string>, minhasFichas: ReadonlySet<string>): TurnosDaCena {
+export function turnosDoLado(turnos: TurnosDaCena, meusTokens: ReadonlySet<string>, minhasFichas: ReadonlySet<string>): TurnosDaCena {
   const { combate, contras, lembretesDaMarca, ...daOrdem } = turnos
   const recorte: TurnosDaCena = { ...daOrdem }
   if (combate !== undefined) recorte.combate = Object.fromEntries(Object.entries(combate).filter(([personagemId]) => minhasFichas.has(personagemId)))
@@ -77,7 +77,7 @@ function turnosDoLado(turnos: TurnosDaCena, meusTokens: ReadonlySet<string>, min
 }
 
 /** Os efeitos para um lado: a forma do outro lado sai sem os números ("FOR 160 → 220"), como `efeitosParaJogador` faz a quem não é dono nem aliado. */
-function efeitosDoLado(efeitos: readonly EfeitoDaBatalha[], meusTokens: ReadonlySet<string>): EfeitoDaBatalha[] {
+export function efeitosDoLado(efeitos: readonly EfeitoDaBatalha[], meusTokens: ReadonlySet<string>): EfeitoDaBatalha[] {
   return efeitos.map((efeito) => {
     if (efeito.tipo !== 'transformacao' || efeito.numeros === undefined || meusTokens.has(efeito.tokenId)) return efeito
     const { numeros: _soDoDono, ...soONome } = efeito
