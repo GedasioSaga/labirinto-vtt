@@ -19,6 +19,10 @@ import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
 import { useSessionStore, subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
 import { restoreRecoveryCopy, startRecoveryAutosave, type RecoveryAutosave } from './stores/recoveryAutosave'
 import { clearRecoveryCopy, formatRecoveryTime, readRecoveryCopy, writeRecoveryCopy, type RecoveryCopy } from './lib/recoveryCopy'
+import { assinarLugarDaAventura, iniciarBatalhaSalva, lugarDaAventura, type BatalhaSalvaNaMesa, type OfertaDaBatalhaSalva } from './stores/batalhaSalvaNaMesa'
+import { apagarBatalhaSalva, gravarBatalhaSalva, lerBatalhaSalva } from './lib/batalha/batalhaSalvaNoDisco'
+import { RetomarBatalhaDialog } from './components/batalha/RetomarBatalhaDialog'
+import { mesaDaAventura } from './stores/mesaDaAventura'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -1692,6 +1696,9 @@ function App() {
   const [recoveryCopy, setRecoveryCopy] = useState<RecoveryCopy | null>(null)
   const recoveryOfferExpiredRef = useRef(false)
   const recoveryAutosaveRef = useRef<RecoveryAutosave | null>(null)
+  /** S5 (P8): a batalha guardada da mesa aberta, esperando "Retomar a batalha" ou "Encerrar". */
+  const [ofertaDaBatalha, setOfertaDaBatalha] = useState<OfertaDaBatalhaSalva | null>(null)
+  const batalhaSalvaRef = useRef<BatalhaSalvaNaMesa | null>(null)
   /**
    * Troca de mapa que está esperando o mestre responder sobre o trabalho não
    * salvo. `run` é a abertura que já ia acontecer (seletor de arquivo ou
@@ -1857,6 +1864,8 @@ function App() {
 
   useEffect(() => {
     currentMapPathRef.current = currentMapPath
+    // S5: a batalha do mapa solto mora na pasta dele. Fora do app (sem Tauri) não há batalha guardada.
+    batalhaSalvaRef.current?.definirMapaSolto(currentMapPath, useMapStore.getState().map.id)
   }, [currentMapPath])
 
   /**
@@ -1894,6 +1903,33 @@ function App() {
       cancelled = true
       autosave.stop()
       recoveryAutosaveRef.current = null
+    }
+  }, [])
+
+  /**
+   * Conserto das fichas F1, fatia S5 (P8): a batalha em andamento vai para a
+   * pasta da aventura a cada mudança e, ao abrir uma mesa com batalha guardada,
+   * vira a pergunta "Retomar a batalha" / "Encerrar". Só no app (Tauri), como a
+   * cópia de recuperação.
+   */
+  useEffect(() => {
+    if (!isTauri()) return
+    const batalhaSalva = iniciarBatalhaSalva({
+      loja: useBatalhaStore,
+      mesa: mesaDaAventura,
+      disco: { ler: lerBatalhaSalva, gravar: gravarBatalhaSalva, apagar: apagarBatalhaSalva },
+      lugar: lugarDaAventura,
+      assinarLugar: assinarLugarDaAventura,
+      aoOfertar: setOfertaDaBatalha,
+      aoAvisar: (texto) => useToastStore.getState().push('info', texto),
+      aoFalhar: reportFileError,
+    })
+    batalhaSalvaRef.current = batalhaSalva
+    // O caminho do mapa solto já aberto (o efeito do caminho rodou antes deste).
+    batalhaSalva.definirMapaSolto(currentMapPathRef.current, useMapStore.getState().map.id)
+    return () => {
+      batalhaSalva.parar()
+      batalhaSalvaRef.current = null
     }
   }, [])
 
@@ -3244,6 +3280,15 @@ function App() {
     <>
       <Toast toasts={toasts} onDismiss={dismissToast} onPausar={pausarAvisos} onRetomar={retomarAvisos} />
       {unsavedDialog}
+      {screen === 'editor' && ofertaDaBatalha !== null && (
+        <RetomarBatalhaDialog
+          oferta={ofertaDaBatalha}
+          onRetomar={() => batalhaSalvaRef.current?.retomar()}
+          onEncerrar={() => {
+            for (const linha of batalhaSalvaRef.current?.encerrar() ?? []) useToastStore.getState().push('info', linha)
+          }}
+        />
+      )}
     </>
   )
 

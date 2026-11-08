@@ -287,6 +287,19 @@ export interface BatalhaState {
   ligada: (sceneKey: string) => boolean
   /** Sala fechada: nenhuma cena em batalha. */
   reset: () => void
+  /**
+   * Conserto das fichas F1, fatia S5 (P8): a batalha salva VOLTA como estava
+   * (ordem, recargas, usos, Overload, selos, golpes pendentes, registro), sem
+   * a abertura e sem limpar invocados. Cena já em batalha (aqui ou na DBT):
+   * nada, e `false`.
+   */
+  retomar: (sceneKey: string, cena: BatalhaDaCena) => boolean
+  /**
+   * S5: "Encerrar" a batalha salva que não voltou: o mesmo fim do `desligar`
+   * (formas desligam, cansaço do Overload sai, invocados saem), sem ela passar
+   * pela memória. Cena já em batalha aqui: nada.
+   */
+  encerrarSalva: (sceneKey: string, cena: BatalhaDaCena) => void
 
   // ---- F1: ordem e vez (o mestre chama direto; o jogador só `passarVez` e `desfazer`, pela ponte) ----
   /** "Passar a vez" (pula carta caída, Q3). Com `esperado`, só passa se a vez ainda é aquela: clique duplo não passa duas. */
@@ -2199,6 +2212,21 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     ligada: (sceneKey) => Object.hasOwn(get().cenas, sceneKey),
 
     reset: () => set({ cenas: {}, anuncio: null }),
+
+    retomar: (sceneKey, cena) => {
+      if (Object.hasOwn(get().cenas, sceneKey) || deps.outraBatalhaLigada(sceneKey)) return false
+      // As animações não voltam (já tocaram); sem `anuncio`, a abertura não toca de novo.
+      const { efeitos: _jaTocados, ...semEfeitos } = cena
+      set({ cenas: { ...get().cenas, [sceneKey]: semEfeitos } })
+      return true
+    },
+
+    encerrarSalva: (sceneKey, cena) => {
+      if (Object.hasOwn(get().cenas, sceneKey)) return
+      for (const invocado of cena.turnos.invocados ?? []) mesa.tirarInvocado?.(sceneKey, invocado.personagemId, invocado.tokenId)
+      mesa.limparInvocados?.(sceneKey)
+      fimDaBatalhaNasFichas(cena.turnos)
+    },
 
     passarVez: (sceneKey, autor = MESTRE, esperado) => {
       const inicio = cenaDe(sceneKey)
