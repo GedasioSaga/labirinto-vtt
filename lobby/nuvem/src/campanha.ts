@@ -40,6 +40,7 @@ import { criarEsquemaDaCampanha } from './esquema'
 import { ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro } from './http'
 import { chaveDoRitmoDaFoto, conferirRitmoDaFoto, lerFotoDoPedido, trocarFotoDaConta, type RitmoDaFoto } from './fotoDePerfil'
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
+import { atenderPedidoDaLuta, contaSaiuDasLutas, lutasNoOla, proximoPrazoDasLutas, recusarLutaPorRitmo, recusarPedidoDaLuta, vencerPrazosDasLutas, type SalaDaLuta } from './luta'
 import { receberMidia, servirMidia } from './midia'
 import { atenderPedidoDoMural, enviarEstadoDoMural, esquecerRotulosDoMural, estadoDoMuralPara, muralParaExportar, recusarMuralPorRitmo, recusarPedidoDoMural } from './mural'
 import {
@@ -675,15 +676,26 @@ export class Campanha extends DurableObject<Env> {
     return { ...this.salaDoChatNoSocket(), contaConectada: (contaId, exceto) => this.contaConectada(contaId, exceto) }
   }
 
+  /** O que a luta usa do DO (lobby/nuvem/src/luta.ts): o mesmo do duelo, com os ouvintes só dos sockets que já falaram `luta.*`. */
+  private salaDaLuta(): SalaDaLuta {
+    return {
+      ...this.salaDoDuelo(),
+      ouvintes: () => this.socketsProntos().flatMap(({ ws, anexo, membro }) => (anexo.lutas === true ? [{ ws, contaId: membro.contaId }] : [])),
+    }
+  }
+
   /** Algum socket da conta ainda aberto além de `exceto` (o que está fechando, ou fechado pelo servidor, já não conta). */
   private contaConectada(contaId: string, exceto: WebSocket | null): boolean {
     return this.ctx.getWebSockets(tagDaConta(contaId)).some((ws) => ws !== exceto && ws.readyState === WebSocket.OPEN)
   }
 
-  /** A conta perdeu um socket: sem nenhum aberto, os duelos dela começam a contar os 3 minutos (achado Tr9). */
+  /** A conta perdeu um socket: sem nenhum aberto, os duelos e as lutas dela começam a contar os 3 minutos (achado Tr9). */
   private async contaSaiu(contaId: string, exceto: WebSocket | null): Promise<void> {
     if (this.contaConectada(contaId, exceto)) return
-    if (contaSaiuDosDuelos(this.salaDoDuelo(), contaId, Date.now())) await this.agendarAlarme()
+    const agora = Date.now()
+    const doDuelo = contaSaiuDosDuelos(this.salaDoDuelo(), contaId, agora)
+    const daLuta = contaSaiuDasLutas(this.salaDaLuta(), contaId, agora)
+    if (doDuelo || daLuta) await this.agendarAlarme()
   }
 
   /**
@@ -695,7 +707,7 @@ export class Campanha extends DurableObject<Env> {
    */
   private async agendarAlarme(): Promise<void> {
     const sala = this.registroDaSala()
-    const proximo = menorPrazo([proximoPrazoDosDuelos(this.sql), sala === null ? null : sala.expiraEm])
+    const proximo = menorPrazo([proximoPrazoDosDuelos(this.sql), proximoPrazoDasLutas(this.sql), sala === null ? null : sala.expiraEm])
     if (proximo === null) return
     const marcado = await this.ctx.storage.getAlarm()
     if (marcado === null || proximo < marcado) await this.ctx.storage.setAlarm(proximo)
@@ -704,6 +716,7 @@ export class Campanha extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const agora = Date.now()
     vencerPrazosDosDuelos(this.salaDoDuelo(), agora)
+    vencerPrazosDasLutas(this.salaDaLuta(), agora)
     this.vencerSala(agora)
     await this.agendarAlarme()
   }
@@ -714,6 +727,15 @@ export class Campanha extends DurableObject<Env> {
     if (!leitura.ok || !membroAtivo(membro)) return
     atenderPedidoDoDuelo(this.salaDoDuelo(), ws, membro, leitura.pedido, agora)
     // Convite novo, duelo que começou com alguém fora ou que acabou: um prazo pode ter nascido.
+    await this.agendarAlarme()
+  }
+
+  private async luta(ws: WebSocket, quem: Identidade, leitura: Extract<Frame, { t: 'luta' }>['leitura'], agora: number): Promise<void> {
+    // O torto já foi respondido em `webSocketMessage`; aqui só chega pedido lido, de membro ativo relido agora.
+    const membro = membroPorConta(this.sql, quem.contaId)
+    if (!leitura.ok || !membroAtivo(membro)) return
+    atenderPedidoDaLuta(this.salaDaLuta(), ws, membro, leitura.pedido, agora)
+    // Sala de espera nova, luta que começou com alguém fora, pausa ou fim: um prazo pode ter nascido ou mudado.
     await this.agendarAlarme()
   }
 
@@ -761,6 +783,12 @@ export class Campanha extends DurableObject<Env> {
     }
     if (frame.t === 'duelo' && !frame.leitura.ok) {
       recusarPedidoDoDuelo(ws, frame.leitura.pedido, 'formato', frame.leitura.id)
+      return this.contarViolacoes(ws, anexo, 1, agora)
+    }
+    // O socket que fala `luta.*` passa a receber o que a luta difunde (o site de antes da F5 nunca fala).
+    if (frame.t === 'luta' && anexo.lutas !== true) ws.serializeAttachment({ ...anexo, lutas: true })
+    if (frame.t === 'luta' && !frame.leitura.ok) {
+      recusarPedidoDaLuta(ws, frame.leitura.pedido, 'formato', frame.leitura.id)
       return this.contarViolacoes(ws, anexo, 1, agora)
     }
     // O primeiro `ola` do socket não passa pelo ritmo: sem ele o socket não serve para nada, e sockets por conta já têm teto.
@@ -813,6 +841,8 @@ export class Campanha extends DurableObject<Env> {
       }
       case 'duelo':
         return this.duelo(ws, quem, frame.leitura, agora)
+      case 'luta':
+        return this.luta(ws, quem, frame.leitura, agora)
       case 'livro':
         return this.livro(ws, frame.pedido)
       case 'verComo':
@@ -853,6 +883,8 @@ export class Campanha extends DurableObject<Env> {
     enviarEstadoDoMural(this.sql, ws, membro.contaId)
     // E os duelos dele: quem tinha caído volta (o relógio dos 3 minutos para) e recebe a lista (T6).
     duelosNoOla(this.salaDoDuelo(), ws, membro, Date.now())
+    // E as lutas (F4): quem tinha caído volta; a lista só vai quando o site novo pede (`luta.lista`).
+    lutasNoOla(this.salaDaLuta(), membro, Date.now())
   }
 
   /** As ops que faltam, em páginas; já em dia = uma página vazia (o site sabe que alcançou). */
@@ -904,6 +936,10 @@ export class Campanha extends DurableObject<Env> {
     }
     if (frame.t === 'duelo') {
       if (frame.leitura.ok) recusarDueloPorRitmo(ws, frame.leitura.pedido, tentarDepoisDe)
+      return
+    }
+    if (frame.t === 'luta') {
+      if (frame.leitura.ok) recusarLutaPorRitmo(ws, frame.leitura.pedido, tentarDepoisDe)
       return
     }
     if (frame.t === 'ops') {

@@ -17,6 +17,7 @@ import {
 } from './nucleo'
 // O duelo fica fora do `nucleo.ts`: a regra dele puxa a store da batalha (zustand), e o fecho do núcleo é puro.
 import { lerPedidoDoDuelo, type LeituraDoPedidoDoDuelo, type MensagemDoDueloDoServidor } from '../../../client/src/lib/treino/dueloDoLobby'
+import { lerPedidoDaLuta, type LeituraDoPedidoDaLuta, type MensagemDaLutaDoServidor } from '../../../client/src/lib/treino/lutaDoLobby'
 import type { MensagemDaSala } from './salaAberta'
 
 /**
@@ -49,6 +50,8 @@ export interface Anexo {
   origem: 'app' | 'site'
   clienteId: string | null
   violacoes: number
+  /** O socket já mandou algum `luta.*` (Arena multijogador F4): só ele recebe o que a luta difunde; o site de antes não conhece esses frames. */
+  lutas?: true
 }
 
 export function lerAnexo(valor: unknown): Anexo | null {
@@ -58,9 +61,10 @@ export function lerAnexo(valor: unknown): Anexo | null {
   const origem = proprio(valor, 'origem')
   const clienteId = proprio(valor, 'clienteId')
   const violacoes = proprio(valor, 'violacoes')
+  const lutas = proprio(valor, 'lutas')
   if (typeof contaId !== 'string' || typeof email !== 'string' || (origem !== 'app' && origem !== 'site')) return null
   if ((clienteId !== null && typeof clienteId !== 'string') || typeof violacoes !== 'number') return null
-  return { contaId, email, origem, clienteId, violacoes }
+  return { contaId, email, origem, clienteId, violacoes, ...(lutas === true ? { lutas } : {}) }
 }
 
 export type Frame =
@@ -78,6 +82,8 @@ export type Frame =
   | { t: 'mural'; leitura: LeituraDoPedidoDoMural }
   /** Todo `duelo.*` (fatia T6): idem. */
   | { t: 'duelo'; leitura: LeituraDoPedidoDoDuelo }
+  /** Todo `luta.*` (Arena multijogador F4): idem. */
+  | { t: 'luta'; leitura: LeituraDoPedidoDaLuta }
   /** O mestre pede a vista de um jogador (07/11/2026); quem pode é decidido no DO, pelo papel de agora. */
   | { t: 'verComo'; pedido: PedidoDeVerComo }
 
@@ -96,6 +102,7 @@ function frameDoRegistro(registro: Record<string, unknown>): Frame | null {
   if (typeof tipo === 'string' && tipo.startsWith('chat.')) return { t: 'chat', leitura: lerPedidoDoChat(registro) }
   if (typeof tipo === 'string' && tipo.startsWith('mural.')) return { t: 'mural', leitura: lerPedidoDoMural(registro) }
   if (typeof tipo === 'string' && tipo.startsWith('duelo.')) return { t: 'duelo', leitura: lerPedidoDoDuelo(registro) }
+  if (typeof tipo === 'string' && tipo.startsWith('luta.')) return { t: 'luta', leitura: lerPedidoDaLuta(registro) }
   switch (tipo) {
     case 'ola': {
       const desdeRev = revOuNulo(proprio(registro, 'desdeRev'))
@@ -144,7 +151,7 @@ export function lerFrame(texto: string): Frame | null {
 
 export function enviar(
   ws: WebSocket,
-  mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor | MensagemDaSala | MensagemDoVerComo,
+  mensagem: MensagemDoServidor | MensagemDoChatDoServidor | MensagemDoMuralDoServidor | MensagemDoDueloDoServidor | MensagemDaLutaDoServidor | MensagemDaSala | MensagemDoVerComo,
 ): void {
   try {
     ws.send(JSON.stringify(mensagem))

@@ -47,6 +47,12 @@
 //                                             mestre; HTML literal no chat e no mural; o privado preso ao e-mail do Zoro
 //      node fumaca.mjs ausencia            -> 12.15 de verdade (~3,5 min): a Nami cai e não volta; aos 2,5 min nada,
 //                                             depois dos 3 min o Zoro vence por ausência
+//      node fumaca.mjs luta                -> a Arena multijogador F4 (16 contas falsas e o mestre, ~4 min): a 13ª conta
+//                                             no criar = cheia; 2 contra 2 até o fim com o mestre árbitro e um espectador
+//                                             (colega de time = naoEDaConta, espectador = naoJoga e sem combate, o desfazer
+//                                             do árbitro chega às 6 contas), o histórico com o vencedor certo; todos contra
+//                                             todos com 3 até o fim; 12 contas numa luta e a 13ª no assistir = cheia; a conta
+//                                             fora 3 min sai da ordem e a luta segue; imprime o maior frame enviado e recebido
 // Outro endereço: NUVEM_URL=http://127.0.0.1:9000 node fumaca.mjs
 //
 // Prova do bundle (nada de Tauri, React, DOM ou Pixi):
@@ -1659,6 +1665,341 @@ async function aceiteDaAusencia() {
   console.log(falhas === 0 ? `AUSENCIA OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
 }
 
+// ── Luta de N lados (Arena multijogador F4) ──────────────────────────────────
+
+/** 16 contas falsas (j01..j16), cada uma com uma ficha dela na mesa. */
+const LUTADORES = Array.from({ length: 16 }, (_, indice) => {
+  const n = String(indice + 1).padStart(2, '0')
+  return { contaId: `conta_j${n}`, email: `j${n}@example.com`, nome: `Lutador ${n}`, ficha: `pers_j${n}` }
+})
+const lutador = (n) => LUTADORES[n - 1]
+const CONTA_DO_MESTRE_NA_LUTA = 'mestre'
+/** As fichas fortes: o lado delas tem de vencer (j01 e j02 no 2 contra 2, j05 no todos contra todos). */
+const FORTES = new Set([1, 2, 5])
+/** A ausência de verdade (12.15): 3 min, com folga para o alarme. */
+const AUSENCIA_MS = 180_000
+
+function fichaDoLutador(n) {
+  const { contaId, ficha } = lutador(n)
+  return FORTES.has(n)
+    ? lutadoraDoDuelo(ficha, contaId, 120, 60, 80, { id: `arma_j${n}`, nome: 'Bastão', dano: 20 })
+    : lutadoraDoDuelo(ficha, contaId, 40, 30, 10, { id: `arma_j${n}`, nome: 'Faca', dano: 10 })
+}
+
+const doLuta = (sala, criterio, descricao) => sala.esperar((m) => typeof m.t === 'string' && m.t.startsWith('luta.') && criterio(m), descricao)
+
+/** O maior frame que a fumaça mandou ao DO (o teto de 64 KiB é deste lado) e as latências de cada jogada aceita. */
+const medidas = { maiorEnviado: 0, latencias: [] }
+
+async function mandarNaLuta(sala, frame) {
+  medidas.maiorEnviado = Math.max(medidas.maiorEnviado, Buffer.byteLength(JSON.stringify(frame)))
+  await sala.mandar(frame)
+}
+
+/** O maior `luta.estado` que chegou a qualquer socket (o DO não tem teto na saída). */
+function maiorEstadoRecebido(salas) {
+  let maior = 0
+  for (const sala of salas) for (const texto of sala.todas) if (texto.startsWith('{"t":"luta.estado"')) maior = Math.max(maior, Buffer.byteLength(texto))
+  return maior
+}
+
+/** Cada conta abre o socket, manda o `ola` e o `luta.lista` (o site novo: só assim recebe o que a luta difunde). */
+async function abrirNaLuta(campanhaId, emails) {
+  const salas = await Promise.all(
+    emails.map(async ({ contaId, email }) => {
+      const sala = await Sala.abrir(campanhaId, email)
+      await sala.mandar({ t: 'ola', desdeRev: null, v: VERSAO, clienteId: `cli_${contaId}` })
+      await mandarNaLuta(sala, { t: 'luta.lista' })
+      await doLuta(sala, (m) => m.t === 'luta.lista', 'a lista das lutas')
+      return [contaId, sala]
+    }),
+  )
+  return Object.fromEntries(salas)
+}
+
+function vagaNaLuta(luta, tokenId) {
+  const vaga = luta.lutadores.vagas.find((candidata) => candidata.tokenId === tokenId)
+  if (vaga === undefined) throw new Error(`token ${tokenId} sem vaga`)
+  return vaga
+}
+
+function copiaNaLuta(luta, vaga) {
+  return luta.lutadores.personagens.find((p) => p.id === vaga.personagemId)
+}
+
+const vidaNaLuta = (luta, tokenId) => copiaNaLuta(luta, vagaNaLuta(luta, tokenId)).recursos.hp
+
+/**
+ * A próxima jogada, como jogadores bem simples (o do duelo, com N lados): golpe esperando reação =
+ * "não reagir", pela conta da ficha atingida; na vez, Atacar o primeiro inimigo de pé pedindo
+ * DANO_FORJADO; depois do Atacar, ou com a ficha da vez caída, passar.
+ */
+function proximaJogadaNaLuta(luta) {
+  const { turnos, seq } = luta
+  for (const golpe of turnos.golpes ?? []) {
+    for (const alvo of golpe.alvos) {
+      if (alvo.danoFinal !== undefined || !alvo.podeReagir) continue
+      const jogada = { tipo: 'reagir', seq, pedido: { tipo: 'naoReagir', golpeId: golpe.id, tokenId: alvo.tokenId } }
+      return { contaId: vagaNaLuta(luta, alvo.tokenId).contaId, golpe: { tokenId: alvo.tokenId }, jogada }
+    }
+  }
+  const carta = turnos.cartas.find((candidata) => candidata.id === turnos.vez)
+  if (carta === undefined) throw new Error('luta sem vez')
+  const vez = { cartaId: carta.id, rodada: turnos.rodada }
+  const minha = vagaNaLuta(luta, carta.tokenId)
+  const passar = { contaId: minha.contaId, jogada: { tipo: 'passar', seq, vez } }
+  if ((turnos.gastos?.[carta.id]?.simples ?? 0) > 0 || vidaNaLuta(luta, carta.tokenId) <= 0) return passar
+  const alvo = luta.lutadores.vagas.find((vaga) => vaga.lado !== minha.lado && vaga.fora !== true && vidaNaLuta(luta, vaga.tokenId) > 0)
+  if (alvo === undefined) return passar
+  const pedido = { tipo: 'atacar', armaId: copiaNaLuta(luta, minha).abas.armas[0].id, alvos: [{ tokenId: alvo.tokenId, dano: DANO_FORJADO }], surpresa: false, perfurante: false }
+  return { contaId: minha.contaId, jogada: { tipo: 'agir', seq, vez, pedido } }
+}
+
+/** Manda `jogada` por `sala` e devolve o estado novo (seq maior) ou a recusa. */
+async function jogadaNaLuta(sala, luta, jogada) {
+  await mandarNaLuta(sala, { t: 'luta.jogar', id: luta.id, jogada })
+  const inicio = Date.now()
+  const resposta = await doLuta(sala, (m) => (m.t === 'luta.estado' && m.luta.id === luta.id && m.luta.seq > luta.seq) || (m.t === 'luta.recusado' && m.id === luta.id), `a resposta de ${jogada.tipo} de ${sala.email}`)
+  if (resposta.t === 'luta.estado') medidas.latencias.push(Date.now() - inicio)
+  return resposta
+}
+
+async function jogarUmaVezNaLuta(salas, luta) {
+  const { contaId, jogada, golpe } = proximaJogadaNaLuta(luta)
+  const resposta = await jogadaNaLuta(salas[contaId], luta, jogada)
+  if (resposta.t === 'luta.recusado') throw new Error(`${jogada.tipo} de ${contaId} recusado: ${resposta.motivo}`)
+  return { luta: resposta.luta, golpe }
+}
+
+/** `criador` cria a sala de espera; os outros aceitam (com a ficha deles, ou sem nada quem arbitra ou assiste); `criador` começa. */
+async function lutaComecada(salas, criador, corpo) {
+  await mandarNaLuta(salas[criador], { t: 'luta.criar', ...corpo })
+  const criada = await doLuta(salas[criador], (m) => m.t === 'luta.espera' || m.t === 'luta.recusado', 'a sala de espera')
+  if (criada.t !== 'luta.espera') throw new Error(`criar recusado: ${criada.motivo}`)
+  const { id } = criada.espera
+  for (const convidado of corpo.convidados) {
+    if (convidado.contaId === criador) continue
+    const sala = salas[convidado.contaId]
+    const fichas = convidado.papel === 'jogador' ? [LUTADORES.find((l) => l.contaId === convidado.contaId).ficha] : []
+    await mandarNaLuta(sala, { t: 'luta.aceitar', id, lado: null, fichas })
+    const aceito = await doLuta(
+      sala,
+      (m) => (m.t === 'luta.espera' && m.espera.id === id && m.espera.contas.some((c) => c.contaId === convidado.contaId && c.aceitou)) || (m.t === 'luta.recusado' && m.id === id),
+      `o aceite de ${convidado.contaId}`,
+    )
+    if (aceito.t !== 'luta.espera') throw new Error(`aceitar de ${convidado.contaId} recusado: ${aceito.motivo}`)
+  }
+  await mandarNaLuta(salas[criador], { t: 'luta.comecar', id })
+  const comeco = await doLuta(salas[criador], (m) => (m.t === 'luta.estado' && m.luta.id === id) || (m.t === 'luta.recusado' && m.id === id), 'a luta começar')
+  if (comeco.t !== 'luta.estado') throw new Error(`comecar recusado: ${comeco.motivo}`)
+  return comeco.luta
+}
+
+const jogadorNoLado = (n, lado) => ({ contaId: lutador(n).contaId, papel: 'jogador', lado })
+
+/** 13 contas no criar: recusado `cheia` (12 é o teto, somando quem joga, arbitra e assiste). */
+async function trezeNoCriar(salas) {
+  const convidados = [13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n, i) => jogadorNoLado(n, i === 0 ? 'a' : 'b'))
+  await mandarNaLuta(salas[lutador(13).contaId], { t: 'luta.criar', modo: 'times', lados: ['a', 'b'], convidados, fichas: [lutador(13).ficha] })
+  const resposta = await doLuta(salas[lutador(13).contaId], (m) => m.t === 'luta.recusado' || m.t === 'luta.espera', 'a resposta do criar com 13')
+  conferir('criar com 13 contas = recusado cheia', resposta.t === 'luta.recusado' && resposta.motivo === 'cheia', JSON.stringify(resposta))
+}
+
+/** Todos contra todos com j10, j11 e j12; j12 fecha a única aba. A luta segue até os 3 min (o fim é conferido em `ausenciaTermina`). */
+async function ausenciaComeca(salas) {
+  const convidados = [jogadorNoLado(10, 'a'), jogadorNoLado(11, 'b'), jogadorNoLado(12, 'c')]
+  const luta = await lutaComecada(salas, lutador(10).contaId, { modo: 'todos', lados: ['a', 'b', 'c'], convidados, fichas: [lutador(10).ficha] })
+  salas[lutador(12).contaId].fechar()
+  const vigia = salas[lutador(10).contaId]
+  const caiu = await doLuta(vigia, (m) => m.t === 'luta.estado' && m.luta.id === luta.id && m.luta.participantes.some((p) => p.contaId === lutador(12).contaId && p.ausenteDesde !== null), 'o j12 ausente')
+  const desde = caiu.luta.participantes.find((p) => p.contaId === lutador(12).contaId).ausenteDesde
+  conferir('j12 fecha a única aba: j10 vê ausente na hora, a luta segue', caiu.luta.fim === null, JSON.stringify(caiu.luta.fim))
+  return { luta, desde }
+}
+
+async function ausenciaTermina(salas, { luta, desde }) {
+  const vigia = salas[lutador(10).contaId]
+  const falta = desde + AUSENCIA_MS - Date.now()
+  if (falta > 0) {
+    console.log(`        esperando ${Math.round(falta / 1000)} s para os 3 min do j12...`)
+    await esperarMs(falta - 20_000)
+    const cedo = vigia.recebidas.find((m) => m.t === 'luta.estado' && m.luta.id === luta.id && m.luta.lutadores.vagas.some((v) => v.contaId === lutador(12).contaId && v.fora === true))
+    conferir('20 s antes dos 3 min o j12 ainda está na ordem', cedo === undefined)
+  }
+  const saiu = await new Promise((pronto) => {
+    const limite = Date.now() + 60_000
+    const olhar = () => {
+      const achou = vigia.recebidas.find((m) => m.t === 'luta.estado' && m.luta.id === luta.id && m.luta.lutadores.vagas.some((v) => v.contaId === lutador(12).contaId && v.fora === true))
+      if (achou !== undefined || Date.now() > limite) pronto(achou)
+      else setTimeout(olhar, 1000)
+    }
+    olhar()
+  })
+  const fichasDoJ12 = saiu?.luta.lutadores.vagas.filter((v) => v.contaId === lutador(12).contaId) ?? []
+  const naOrdem = saiu?.luta.turnos.cartas.some((carta) => fichasDoJ12.some((v) => v.tokenId === carta.tokenId)) ?? true
+  conferir(
+    'passados os 3 min sem o j12 voltar: as fichas dele saem da ordem (fora) e a luta segue entre j10 e j11 (sem fim)',
+    saiu !== undefined && fichasDoJ12.every((v) => v.fora === true) && !naOrdem && saiu.luta.fim === null,
+    JSON.stringify(saiu === undefined ? 'não saiu' : { fim: saiu.luta.fim, naOrdem }),
+  )
+  if (saiu !== undefined) console.log(`        j12 ausente desde ${desde}; fora visto ${Math.round((Date.now() - desde) / 1000)} s depois (prazo 180 s)`)
+}
+
+/** O estado da luta `seq` que `sala` recebeu (de qualquer ordem na fila). */
+const estadoNoSeq = (sala, luta, seq, descricao) => doLuta(sala, (m) => m.t === 'luta.estado' && m.luta.id === luta.id && m.luta.seq === seq, descricao)
+
+/** Na 1ª vez da luta: o colega de time manda a jogada da ficha do outro = naoEDaConta. */
+async function colegaNaoJoga(salas, luta) {
+  const { contaId, jogada } = proximaJogadaNaLuta(luta)
+  const meu = luta.lutadores.vagas.find((vaga) => vaga.contaId === contaId)
+  const colega = luta.lutadores.vagas.find((vaga) => vaga.lado === meu.lado && vaga.contaId !== contaId)
+  const resposta = await jogadaNaLuta(salas[colega.contaId], luta, jogada)
+  conferir(`colega de time (${colega.contaId}) joga a ficha de ${contaId} = naoEDaConta`, resposta.t === 'luta.recusado' && resposta.motivo === 'naoEDaConta', JSON.stringify(resposta.t === 'luta.recusado' ? resposta : resposta.t))
+}
+
+/** O espectador: a jogada dele = naoJoga; o estado dele vem como quem assiste, sem combate, contra-ataques nem lembretes de ninguém. */
+async function espectadorNaoJoga(salas, luta, espectador) {
+  const sala = salas[espectador]
+  const visto = await estadoNoSeq(sala, luta, luta.seq, 'o estado no espectador')
+  const { turnos } = visto.luta
+  conferir(
+    'espectador recebe a luta como quem assiste: sem combate, contras nem lembretes da marca',
+    visto.luta.olhar === 'assistindo' && !('combate' in turnos) && !('contras' in turnos) && !('lembretesDaMarca' in turnos),
+    JSON.stringify({ olhar: visto.luta.olhar, chaves: Object.keys(turnos) }),
+  )
+  const carta = turnos.cartas.find((candidata) => candidata.id === turnos.vez)
+  const resposta = await jogadaNaLuta(sala, luta, { tipo: 'passar', seq: luta.seq, vez: { cartaId: carta.id, rodada: turnos.rodada } })
+  conferir('espectador joga = naoJoga', resposta.t === 'luta.recusado' && resposta.motivo === 'naoJoga', JSON.stringify(resposta.t === 'luta.recusado' ? resposta : resposta.t))
+}
+
+/** Depois do 1º golpe resolvido: o árbitro desfaz; as 6 contas recebem seq+1, a vida volta e a linha fica riscada. */
+async function desfazerDoArbitro(salas, luta, golpe, antes, contas) {
+  await mandarNaLuta(salas[CONTA_DO_MESTRE_NA_LUTA], { t: 'luta.arbitrar', id: luta.id, pedido: { tipo: 'desfazer', seq: luta.seq } })
+  const vistos = await Promise.all(contas.map((contaId) => estadoNoSeq(salas[contaId], luta, luta.seq + 1, `o desfazer em ${contaId}`)))
+  const doArbitro = vistos[contas.indexOf(CONTA_DO_MESTRE_NA_LUTA)].luta
+  const riscada = doArbitro.registro.some((linha) => linha.desfeita !== undefined)
+  conferir(
+    `desfazer do árbitro chega às ${contas.length} contas (seq ${luta.seq + 1}), a vida volta (${vidaNaLuta(luta, golpe.tokenId)} -> ${vidaNaLuta(doArbitro, golpe.tokenId)}) e a linha fica riscada`,
+    vistos.length === contas.length && vidaNaLuta(doArbitro, golpe.tokenId) === antes && riscada,
+    JSON.stringify({ vida: vidaNaLuta(doArbitro, golpe.tokenId), antes, riscada }),
+  )
+  return doArbitro
+}
+
+async function lutaAteOFim(salas, luta, rotulo, aoResolverOPrimeiro = async (atual) => atual) {
+  let atual = luta
+  let primeiro = true
+  for (let jogadas = 0; atual.fim === null; jogadas += 1) {
+    if (jogadas >= 150) throw new Error(`${rotulo}: não acabou em 150 jogadas`)
+    const antes = atual
+    const feita = await jogarUmaVezNaLuta(salas, atual)
+    atual = feita.luta
+    if (primeiro && feita.golpe !== undefined && atual.fim === null) {
+      primeiro = false
+      atual = await aoResolverOPrimeiro(atual, feita.golpe, vidaNaLuta(antes, feita.golpe.tokenId))
+    }
+  }
+  return atual
+}
+
+/** 2 contra 2 (j01+j02 x j03+j04), o mestre árbitro e o j08 assistindo, até o fim; depois o histórico. */
+async function doisContraDois(salas) {
+  const convidados = [jogadorNoLado(1, 'a'), jogadorNoLado(2, 'a'), jogadorNoLado(3, 'b'), jogadorNoLado(4, 'b'), { contaId: CONTA_DO_MESTRE_NA_LUTA, papel: 'arbitro', lado: null }, { contaId: lutador(8).contaId, papel: 'espectador', lado: null }]
+  const contas = convidados.map((c) => c.contaId)
+  const luta = await lutaComecada(salas, lutador(1).contaId, { modo: 'times', lados: ['a', 'b'], convidados, fichas: [lutador(1).ficha] })
+  conferir('2 contra 2 começa com 4 fichas, 6 contas e a vaga levando a conta', luta.lutadores.vagas.length === 4 && luta.participantes.length === 6 && luta.lutadores.vagas.every((v) => typeof v.contaId === 'string'), JSON.stringify(luta.lutadores.vagas))
+  await colegaNaoJoga(salas, luta)
+  await espectadorNaoJoga(salas, luta, lutador(8).contaId)
+  const fim = await lutaAteOFim(salas, luta, '2 contra 2', (atual, golpe, antes) => desfazerDoArbitro(salas, atual, golpe, antes, contas))
+  console.log(`        2 contra 2: fim ${JSON.stringify(fim.fim)} na rodada ${fim.turnos.rodada}, seq ${fim.seq}`)
+  conferir('2 contra 2 acaba com o time forte vencendo (vitoria, lado a)', fim.fim.tipo === 'vitoria' && fim.fim.vencedor === 'a', JSON.stringify(fim.fim))
+  return fim
+}
+
+async function todosContraTodos(salas) {
+  const convidados = [jogadorNoLado(5, 'a'), jogadorNoLado(6, 'b'), jogadorNoLado(7, 'c')]
+  const luta = await lutaComecada(salas, lutador(5).contaId, { modo: 'todos', lados: ['a', 'b', 'c'], convidados, fichas: [lutador(5).ficha] })
+  conferir('todos contra todos com 3: 3 lados, a grade média', new Set(luta.lutadores.vagas.map((v) => v.lado)).size === 3 && luta.tamanho === 'media', `${luta.tamanho}`)
+  const fim = await lutaAteOFim(salas, luta, 'todos contra todos')
+  console.log(`        todos contra todos: fim ${JSON.stringify(fim.fim)} na rodada ${fim.turnos.rodada}, seq ${fim.seq}`)
+  conferir('todos contra todos acaba com 1 vencedor (vitoria)', fim.fim.tipo === 'vitoria', JSON.stringify(fim.fim))
+  return fim
+}
+
+/** Uma luta terminada aparece no histórico (para quem nem lutou) com o vencedor certo; pelo id, com o registro final. */
+async function historicoDasLutas(salas, acabadas) {
+  const quemLe = salas[lutador(16).contaId]
+  await mandarNaLuta(quemLe, { t: 'luta.historico', limite: 20 })
+  const pagina = await doLuta(quemLe, (m) => m.t === 'luta.historico', 'a página do histórico')
+  for (const luta of acabadas) {
+    const achada = pagina.lista.find((item) => item.id === luta.id)
+    conferir(
+      `histórico: ${luta.modo} ${luta.id.slice(0, 13)} com vencedor ${luta.fim.vencedor}, sem o registro na página`,
+      achada !== undefined && achada.vencedor === luta.fim.vencedor && achada.motivo === luta.fim.tipo && achada.modo === luta.modo && achada.registro === undefined,
+      JSON.stringify(achada),
+    )
+  }
+  const [primeira] = acabadas
+  await mandarNaLuta(quemLe, { t: 'luta.historico', id: primeira.id })
+  const uma = await doLuta(quemLe, (m) => m.t === 'luta.historico', 'a luta do histórico')
+  const item = uma.lista[0]
+  const contasDoA = item?.lados.find((lado) => lado.lado === 'a')?.contas.map((c) => c.contaId) ?? []
+  conferir(
+    'histórico pelo id: o registro final e quem lutou no lado a (j01 e j02)',
+    item !== undefined && Array.isArray(item.registro) && item.registro.length > 0 && contasDoA.includes(lutador(1).contaId) && contasDoA.includes(lutador(2).contaId),
+    JSON.stringify({ lados: item?.lados, linhas: item?.registro?.length }),
+  )
+}
+
+/** j13 x j14, e 10 contas assistem: 12 contas; a 13ª (j16) no assistir = cheia. */
+async function dozeEATreze(salas) {
+  const luta = await lutaComecada(salas, lutador(13).contaId, { modo: 'todos', lados: ['a', 'b'], convidados: [jogadorNoLado(13, 'a'), jogadorNoLado(14, 'b')], fichas: [lutador(13).ficha] })
+  for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9, 15]) {
+    const sala = salas[lutador(n).contaId]
+    await mandarNaLuta(sala, { t: 'luta.assistir', id: luta.id })
+    const visto = await doLuta(sala, (m) => (m.t === 'luta.estado' && m.luta.id === luta.id) || (m.t === 'luta.recusado' && m.id === luta.id), `o assistir de j${n}`)
+    if (visto.t !== 'luta.estado') throw new Error(`assistir de j${n} recusado: ${visto.motivo}`)
+  }
+  const trezeAvos = salas[lutador(16).contaId]
+  await mandarNaLuta(trezeAvos, { t: 'luta.assistir', id: luta.id })
+  const resposta = await doLuta(trezeAvos, (m) => (m.t === 'luta.recusado' || m.t === 'luta.estado') && (m.id === luta.id || m.luta?.id === luta.id), 'o assistir da 13ª')
+  conferir('12 contas na luta (2 jogam, 10 assistem); a 13ª no assistir = recusado cheia', resposta.t === 'luta.recusado' && resposta.motivo === 'cheia', JSON.stringify(resposta.t === 'luta.recusado' ? resposta : resposta.luta.participantes.length))
+  // As listas que a difusão já mandou (lutas começando, acabando, gente assistindo) saem da fila: vale a resposta deste pedido.
+  const semListasVelhas = trezeAvos.recebidas.filter((m) => m.t !== 'luta.lista')
+  trezeAvos.recebidas.splice(0, trezeAvos.recebidas.length, ...semListasVelhas)
+  await mandarNaLuta(trezeAvos, { t: 'luta.lista' })
+  const lista = await doLuta(trezeAvos, (m) => m.t === 'luta.lista', 'a lista com as lutas acontecendo')
+  const naLista = lista.acontecendo.find((item) => item.id === luta.id)
+  conferir('"Lutas acontecendo agora" mostra a luta com 10 assistindo e 0 vagas', naLista?.assistindo === 10 && naLista.vagas === 0, JSON.stringify(naLista ?? lista.acontecendo))
+}
+
+async function aceiteDaLuta() {
+  const campanhaId = `fumaca-luta-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE} (espera ~3,5 min pela ausência)`)
+  const fichas = LUTADORES.map((_, indice) => fichaDoLutador(indice + 1))
+  const membros = LUTADORES.map(({ contaId, email, nome }) => ({ contaId, email, nome }))
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, { ...pedidoDePublicar(fichas), sistema: SISTEMA_DO_DUELO, membros })
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  const salas = await abrirNaLuta(campanhaId, [...LUTADORES, { contaId: CONTA_DO_MESTRE_NA_LUTA, email: MESTRE }])
+  try {
+    await trezeNoCriar(salas)
+    const ausencia = await ausenciaComeca(salas)
+    const dois = await doisContraDois(salas)
+    const todos = await todosContraTodos(salas)
+    await historicoDasLutas(salas, [dois, todos])
+    await dozeEATreze(salas)
+    await ausenciaTermina(salas, ausencia)
+    const latencias = [...medidas.latencias].sort((a, b) => a - b)
+    const p95 = latencias[Math.floor(latencias.length * 0.95)] ?? 0
+    console.log(`        maior frame enviado ao DO: ${medidas.maiorEnviado} bytes (teto 65536); maior luta.estado recebido: ${maiorEstadoRecebido(Object.values(salas))} bytes`)
+    console.log(`        ${latencias.length} jogadas aceitas: latência mediana ${latencias[Math.floor(latencias.length / 2)] ?? 0} ms, p95 ${p95} ms, máx ${latencias.at(-1) ?? 0} ms`)
+    conferir('o maior frame enviado cabe no teto de 64 KiB', medidas.maiorEnviado <= 65536, String(medidas.maiorEnviado))
+  } finally {
+    for (const sala of Object.values(salas)) sala.fechar()
+  }
+  console.log(falhas === 0 ? `LUTA OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
 // ── Sala aberta no app e bilhete do jogador (B2) ─────────────────────────────
 
 const CODIGO_DA_SALA = 'ABC234'
@@ -1834,6 +2175,8 @@ try {
     await aceiteDasBordas()
   } else if (modo === 'ausencia') {
     await aceiteDaAusencia()
+  } else if (modo === 'luta') {
+    await aceiteDaLuta()
   } else {
     await aceite()
   }

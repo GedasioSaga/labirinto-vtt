@@ -172,6 +172,43 @@ const TABELAS_DA_CAMPANHA = [
     apagarEm INTEGER,
     atualizadoEm INTEGER NOT NULL
   )`,
+  // Luta de N lados (Arena multijogador F4; lobby/nuvem/src/luta.ts). A sala de espera é a mesma
+  // linha antes de começar (`status 'espera'`); `estadoJson` = a espera guardada, depois o estado do
+  // motor v4. `prazo` = o que vence (a espera; os 3 minutos de quem caiu; o árbitro fora na pausa);
+  // `apagarEm` = quando a acabada sai. `participantes` é o índice de quem está em cada luta (1 luta
+  // por conta, a lista de quem joga), refeito do estado quando quem está muda.
+  `CREATE TABLE IF NOT EXISTS lutas (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK (status IN ('espera', 'andamento', 'fim')),
+    modo TEXT NOT NULL CHECK (modo IN ('times', 'todos')),
+    estadoJson TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    versaoDoMotor INTEGER NOT NULL,
+    prazo INTEGER,
+    apagarEm INTEGER,
+    atualizadoEm INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS participantes (
+    lutaId TEXT NOT NULL,
+    contaId TEXT NOT NULL,
+    papel TEXT NOT NULL CHECK (papel IN ('jogador', 'juiz', 'arbitro', 'espectador')),
+    lado TEXT,
+    ausenteDesde INTEGER,
+    PRIMARY KEY (lutaId, contaId)
+  )`,
+  `CREATE INDEX IF NOT EXISTS participantes_por_conta ON participantes (contaId)`,
+  // O resumo de cada luta e duelo acabados (§6 do plano), as últimas 100 da campanha (historicoDeLutas.ts).
+  `CREATE TABLE IF NOT EXISTS historicoDeLutas (
+    id TEXT PRIMARY KEY,
+    fim INTEGER NOT NULL,
+    modo TEXT NOT NULL CHECK (modo IN ('times', 'todos', 'duelo')),
+    ladosJson TEXT NOT NULL,
+    vencedor TEXT,
+    motivo TEXT NOT NULL,
+    rodadas INTEGER NOT NULL,
+    registroJson TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS historico_por_fim ON historicoDeLutas (fim)`,
 ]
 
 /**

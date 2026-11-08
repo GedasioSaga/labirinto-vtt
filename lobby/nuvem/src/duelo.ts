@@ -27,8 +27,10 @@ import {
   type PedidoDoDuelo,
   type TipoDoPedidoDoDuelo,
 } from '../../../client/src/lib/treino/dueloDoLobby'
+import { resumoDoDuelo } from '../../../client/src/lib/treino/lutaDoLobby'
 import { dueloParaOLado, dueloParaOsLados, ladoDaContaNoDuelo, type DueloDoLado } from '../../../client/src/lib/treino/vistaDoDuelo'
 import { gravarCota, lerCota, lerFicha, lerSistema, membroPorConta } from './banco'
+import { gravarNoHistorico } from './historicoDeLutas'
 import type { Ouvinte } from './chat'
 import { ErroDoBanco, jsonDoTexto, numero, texto, type Linha } from './linhas'
 import { bytesDoTexto, cabeNaCota, chaveDaCotaDaCampanha, chaveDaCotaDaConta, comOpContada, ehRegistro, lerJsonSeguro, membroAtivo, proprio, type Membro } from './nucleo'
@@ -294,9 +296,15 @@ function dueloDaLinha(linha: LinhaDoDuelo): DueloGravado | null {
   return dueloGravadoDoJson(linha.estadoJson, linha.id)
 }
 
-/** O duelo vai à linha: o prazo de quem caiu; acabado, sem prazo e com a hora de ser apagado (a primeira que valeu). */
+/**
+ * O duelo vai à linha: o prazo de quem caiu; acabado, sem prazo e com a hora
+ * de ser apagado (a primeira que valeu). Na primeira vez que acaba (ainda sem
+ * `apagarEm`), o resumo vai ao histórico de lutas (Arena multijogador §6).
+ */
 function gravarDuelo(sql: SqlStorage, duelo: DueloGravado, linha: Pick<LinhaDoDuelo, 'jogadorA' | 'jogadorB' | 'apagarEm'>, agora: number): void {
   const acabou = duelo.fim !== null
+  const resumo = acabou && linha.apagarEm === null ? resumoDoDuelo(duelo, agora) : null
+  if (resumo !== null) gravarNoHistorico(sql, resumo)
   sql.exec(
     `INSERT INTO duelos (id, status, jogadorA, jogadorB, estadoJson, seq, versaoDoMotor, prazo, apagarEm, atualizadoEm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET status = excluded.status, estadoJson = excluded.estadoJson, seq = excluded.seq, versaoDoMotor = excluded.versaoDoMotor,
@@ -355,7 +363,7 @@ function conviteEsperando(sql: SqlStorage, contaId: string, agora: number): bool
 /** O sistema lido de `meta`, por DO (o mesmo isolado pode ter várias campanhas). `null` = não é do motor do One Piece. */
 const SISTEMAS = new WeakMap<SqlStorage, SistemaDeRpg | null>()
 
-function sistemaDoDuelo(sql: SqlStorage): SistemaDeRpg | null {
+export function sistemaDoDuelo(sql: SqlStorage): SistemaDeRpg | null {
   const guardado = SISTEMAS.get(sql)
   if (guardado !== undefined) return guardado
   const lido = lerSistemaDeRpg(lerSistema(sql))
@@ -370,12 +378,12 @@ export function esquecerSistemaDoDuelo(sql: SqlStorage): void {
   SISTEMAS.delete(sql)
 }
 
-function motorDe(sistema: SistemaDeRpg): MotorDoDuelo {
+export function motorDe(sistema: SistemaDeRpg): MotorDoDuelo {
   return { sistema, rolarD20: () => secureRollDie(D20) }
 }
 
 /** Os docs COMPLETOS das fichas (com o `dono`, achado Tr5), se todas são da conta, estão na mesa e não foram apagadas; senão `null`. */
-function fichasDaConta(sql: SqlStorage, contaId: string, ids: readonly string[]): Personagem[] | null {
+export function fichasDaConta(sql: SqlStorage, contaId: string, ids: readonly string[]): Personagem[] | null {
   const docs: Personagem[] = []
   for (const id of ids) {
     const ficha = lerFicha(sql, id)
@@ -449,7 +457,7 @@ function conviteDaLinha(sql: SqlStorage, linha: LinhaDoDuelo): ConviteDoDuelo {
 }
 
 /** Grava com a cota do dia da conta e da campanha contada (§6.5); sem cota, nada é gravado. */
-function gravarComCota(sala: SalaDoDuelo, contaId: string, bytes: number, agora: number, gravar: () => void): { ok: true } | { ok: false; tentarDepoisDe: number } {
+export function gravarComCota(sala: SalaDoDuelo, contaId: string, bytes: number, agora: number, gravar: () => void): { ok: true } | { ok: false; tentarDepoisDe: number } {
   const { sql } = sala
   return sala.transacao(() => {
     const chaveDaConta = chaveDaCotaDaConta(contaId, agora)
