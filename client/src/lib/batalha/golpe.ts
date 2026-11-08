@@ -56,7 +56,7 @@ import {
   type LeituraDoCusto,
 } from './leituraDaFicha'
 import { leituraDaTecnica } from './leituraDaTecnica'
-import { ataqueComOSelo, extraDeTodoGolpe, mecanicaDoCartao, motivoDasRespostasDoGolpe, rotulosDasRespostas, seloDaMecanica, semSeloPelaResposta, type MecanicaAMao } from './mecanicasAMao'
+import { ataqueComOSelo, extraDeTodoGolpe, mecanicaDoCartao, motivoDasRespostasDoGolpe, motivoDoTetoDeDano, rotulosDasRespostas, seloDaMecanica, semSeloPelaResposta, type MecanicaAMao } from './mecanicasAMao'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
@@ -307,7 +307,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const arma = armaDoPedido(ctx, pedido.armaId)
       if (arma === undefined) return 'Arma fora das levadas para a batalha'
       if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
-      const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas)
+      const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
       if (motivo !== null) return motivo
       // R6: depois de um Atacar na vez, o ataque adicional da forma (Ignição) cabe sem a Simples.
       return acoes === null ? null : motivoDoAtacar(acoes)
@@ -321,14 +321,16 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (pedido.variante !== undefined && varianteDoPedido(tecnica.cartao, pedido.variante) === null) return 'Opção não encontrada na técnica'
       // F2 (fatia A): com respostas, as perguntas na hora da mecânica à mão (`mecanicasAMao.ts`) todas respondidas, e só elas.
       // Sem respostas a técnica segue como antes, até a mira de cada ficha perguntar (fatias seguintes da F2).
-      // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira) e o SP que o "sim" cobra.
-      const respostas = motivoDasRespostasDoPedido(ctx, tecnica.cartao.id, pedido.respostas)
+      // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira) e o SP que o "sim" cobra, somado ao da técnica.
+      const respostas = motivoDasRespostasDoPedido(ctx, tecnica.cartao.id, pedido.respostas, tecnica.custo)
       if (respostas !== null) return respostas
       if (tecnica.acao === null) return 'Escolha a ação da técnica'
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
       if (armaDoPedido(ctx, pedido.armaId) === undefined) return 'Arma fora das levadas para a batalha'
       const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes)
-      return motivo ?? motivoDosAlvos(ctx, pedido.alvos, 0)
+      // F2 (fatia C, A Luz do Sol): o teto de alvos que tomam dano ("em um inimigo"); os aliados marcados só levam o selo.
+      const alvosPersonagemIds = pedido.alvos.map((alvo) => ctx.personagemDoToken(alvo.tokenId))
+      return motivo ?? motivoDosAlvos(ctx, pedido.alvos, 0) ?? motivoDoTetoDeDano(tecnica.cartao.id, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>())
     }
   }
 }
@@ -550,16 +552,22 @@ function custosDoGolpe(daTecnica: LeituraDoCusto | null, extraEmSp: number): Lei
 /**
  * F2 (fatia C): por que as respostas do golpe não valem (as da técnica e as
  * de todo golpe do dono), ou o SP que o extra cobra não cabe; `null` = valem.
- * Sem respostas, nada a conferir (a técnica segue como antes).
+ * Sem respostas, nada a conferir (a técnica segue como antes). O SP do extra
+ * é conferido SOMADO ao custo da técnica (`custoDaTecnica`; `null` = Atacar),
+ * como a cobrança junta os dois (`custosDoGolpe`): Electro (10) na Luz do Sol
+ * (25) com 30 de SP recusa, em vez de passar e cobrar só os 30.
  */
-function motivoDasRespostasDoPedido(ctx: ContextoDoGolpe, cartaoId: string | null, respostas: RespostasDoPedido | undefined): string | null {
+function motivoDasRespostasDoPedido(ctx: ContextoDoGolpe, cartaoId: string | null, respostas: RespostasDoPedido | undefined, custoDaTecnica: LeituraDoCusto | null): string | null {
   if (respostas === undefined) return null
   const cartoes = cartoesDoDono(ctx.personagem)
   const motivo = motivoDasRespostasDoGolpe(cartaoId, cartoes, respostas)
   if (motivo !== null || ctx.personagem === null || ctx.sistema === null) return motivo
   const { custoEmSp } = extraDeTodoGolpe(cartoes, respostas)
   const sp = custoEmSp > 0 ? recursoDoCusto(ctx.sistema, 'sp') : null
-  return sp !== null && numeroDaFicha(ctx.personagem.recursos, sp.id) < custoEmSp ? `SP insuficiente para imbuir: precisa de ${custoEmSp}` : null
+  if (sp === null) return null
+  const custa = custosDoGolpe(custoDaTecnica, custoEmSp).reduce((soma, parte) => (parte.tipo === 'valor' && parte.recurso === 'sp' ? soma + parte.valor : soma), 0)
+  const tem = numeroDaFicha(ctx.personagem.recursos, sp.id)
+  return tem < custa ? `SP insuficiente: custa ${custa}, você tem ${tem}` : null
 }
 
 /** F2 (fatia C, o Atacar da Aira com a Bênção; o Electro): a soma no dano de cada alvo (o dano em branco segue em branco). */

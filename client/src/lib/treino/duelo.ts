@@ -316,9 +316,21 @@ function comODano(alvos: readonly PedidoDeAlvo[], dano: number | null): PedidoDe
   return alvos.map((alvo) => ({ tokenId: alvo.tokenId, dano }))
 }
 
-/** O Atacar refeito: o dano da arma (e da bala) pela cópia; Perfurante só se a arma diz; o Atacar não leva selo (a mira só o sugere na técnica). */
+/** F2 (fatia C): os ids dos cartões da cópia (todas as abas), para as perguntas de todo golpe do dono (o Electro da Aira). */
+function idsDosCartoes(personagem: Personagem): string[] {
+  return Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id))
+}
+
+/**
+ * O Atacar refeito: o dano da arma (e da bala) pela cópia; Perfurante só se a
+ * arma diz; o Atacar não leva selo (a mira só o sugere na técnica). F2 (fatia
+ * C): as respostas de todo golpe do dono (o Electro da Aira) vão junto, depois
+ * de conferidas; resposta torta recusa o pedido.
+ */
 function ataqueRecalculado(pedido: Extract<PedidoDeAcao, { tipo: 'atacar' }>, personagem: Personagem, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
   if (pedido.surpresa) return recusa('surpresa')
+  const { respostas } = pedido
+  if (respostas !== undefined && motivoDasRespostasDoGolpe(null, idsDosCartoes(personagem), respostas) !== null) return recusa('regra')
   const arma = pedido.armaId === null ? null : armasDe(personagem).find((candidata) => candidata.id === pedido.armaId)
   if (arma === undefined) return recusa('regra')
   if (arma !== null && arma.aMao === true) return recusa('danoAMao')
@@ -332,6 +344,7 @@ function ataqueRecalculado(pedido: Extract<PedidoDeAcao, { tipo: 'atacar' }>, pe
   if (perfuracao !== null) novo.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) novo.contraDe = pedido.contraDe
   if (pedido.balaId !== undefined) novo.balaId = pedido.balaId
+  if (respostas !== undefined) novo.respostas = respostas
   return { ok: true, pedido: novo }
 }
 
@@ -359,8 +372,7 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
   // F2 (fatia B): as respostas da mira (ponto vital, quadrados empurrados) mudam o dano; resposta torta recusa o pedido.
   const { respostas } = pedido
   // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
-  const cartoesDoDono = Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id))
-  if (respostas !== undefined && motivoDasRespostasDoGolpe(pedido.cartaoId, cartoesDoDono, respostas) !== null) return recusa('regra')
+  if (respostas !== undefined && motivoDasRespostasDoGolpe(pedido.cartaoId, idsDosCartoes(personagem), respostas) !== null) return recusa('regra')
   const leitura = daOpcao?.dano ?? (respostas === undefined ? tecnica.dano : danoDaTecnica(tecnica.cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }, respostas))
   if (leitura.tipo !== 'valor' && leitura.tipo !== 'semDano') return recusa('danoAMao')
   const perfurante = pedido.perfurante && tecnica.perfurante

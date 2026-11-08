@@ -17,6 +17,14 @@ tempo). Testes: no máximo 2 por situação durante a construção; a bateria co
   como forma), arma padrão do Siegfried.
 - Depois: "Publicar no Lobby" para o site ficar igual.
 
+## F0c. Dados que a F2 achou faltando na ficha (sem código; app FECHADO e backup antes)
+- Alexei, A Caçada Começa: hoje está na aba Habilidades, com Ação "OVERLOAD | TRANSFORMAÇÃO" e sem o
+  campo de ataques extras, então o app não liga a forma e o Alexei transformado ataca 1 vez só.
+  Mover o cartão para a aba Transformações, com Ação "Completa" e Ataques extras "1" (o "pode atacar
+  2 vezes" do mestre). O código já lê isso: `formasNoMenu` e `efeitosDasFormasLigadas`
+  (`client/src/lib/batalha/transformacao.ts`); o teste `mecanicasAMao.fatiaC.test.ts` simula a ficha
+  já mudada. Até o F0c gravar, o ataque duplo da Caçada não existe no app.
+
 ## F1. Regras do sistema e os 12 bugs (1 dono, em sequência)
 - Bugs 1-12 (recusa muda, golpe sem resposta vira "Não reagiu" na virada da rodada, desfazer "Vez",
   máximo, −/+ rápido, Salvar do jogador, vez pula, ficha emprestada, desfazer forma tira o que deu,
@@ -36,6 +44,21 @@ Contenção com a CD da fruta), áreas (Aplauso 6x6, Giro de Pá, Lua Incandesce
 linha), selos (Aéreo, Cego zera Percepção, Ferido por prata só lembrete, Queimando 1 turno), perguntas
 na hora (cortante ou perfurante, qual arma, vantagem da Ryoko), contas (Sai Dai Rin, Grande Chifre por
 quadrado empurrado, Polaridade x3,5 no todo, furtivo x3 com Surpresa x1,5, Bala de Prata 72).
+
+À mão DE PROPÓSITO até a armadilha virar token (peça do construtor, junto do companion da F3.5): as
+armadilhas do Alexei. O Armadilhar (fatia C) só posiciona: cobra 20 SP, gasta a Simples, sai sem alvo e
+põe a armadilha escolhida no registro (`client/src/lib/batalha/mecanicasAMao.ts`, cartão Armadilhar).
+O app não sabe ONDE a armadilha ficou nem QUANDO alguém pisa, então não tem como achar quem está perto.
+Por isso, linha por linha do grilling (Imã-Gumelo):
+- "o app pergunta a cada um perto (inimigo e aliado) se tem metal grande": à mão. O mestre pergunta na
+  mesa. Falta a posição da armadilha para achar o 5x5.
+- "Imã-Gumelo, perto: ÁREA 5x5 em volta do cogumelo": à mão, pelo mesmo motivo (sem token, sem centro).
+- "quem disser sim fica travado": à mão, ajudado. O mestre põe o selo "Preso pelo Imã-Gumelo" à mão
+  em quem disse sim; a pílula do selo lembra a regra (`client/src/lib/batalha/condicoes.ts`, tabela de selos).
+- "para mover ou arremessar, d20 puro >= 12": à mão, ajudado. O lembrete do selo diz "d20 12 ou mais";
+  o mestre rola na hora em que a pessoa tenta. Automatizar pede o teste dentro do Mover e do arremesso,
+  que é o mesmo trabalho do token de armadilha.
+O mesmo vale para a Batata-mina (50 em todos na 3x3 de quem pisou) e a Emaranhalga (selo "Enraizado").
 
 ## F3. Recursos novos (decisão 08/11: feitos como PEÇAS DO CONSTRUTOR, fatias C6/C7/C1/C10 de docs/planos/construtor-de-mecanicas-2026-11-08.md)
 1. Tela do mestre ao transformar ou invocar com números livres (Sulong, super lobo).

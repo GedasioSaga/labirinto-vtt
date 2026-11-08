@@ -8,14 +8,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao, PedidoDeAlvo } from '../lib/batalha/combate'
-import { may } from '../lib/batalha/fichasDaFatiaB.testkit'
+import { jimboy, may } from '../lib/batalha/fichasDaFatiaB.testkit'
 import { aira, alexei, ARMADILHAR, BENCAO, DANCA, LUZ_DO_SOL } from '../lib/batalha/fichasDaFatiaC.testkit'
 import type { RespostasDoPedido } from '../lib/batalha/perguntaNaHora'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import { numeroDaFicha } from '../lib/personagem'
 import { lutadoresDe, SISTEMA_DO_TESTE } from '../lib/treino/fichasDeTreino.testkit'
-import { criarMesaEmMemoria, type MesaEmMemoria } from '../lib/treino/mesaEmMemoria'
+import { criarMesaEmMemoria, type EscolhaDaVaga, type MesaEmMemoria } from '../lib/treino/mesaEmMemoria'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from './batalhaFabrica'
 
 const CENA = 'cena_da_batalha'
@@ -28,9 +28,10 @@ interface Batalha {
   fila: number[]
 }
 
-function batalha(): Batalha {
+/** Aira e Alexei no lado A, a May no B (ou as escolhas pedidas). */
+function batalha(escolhas: readonly EscolhaDaVaga[] = [{ ficha: aira, lado: 'a' }, { ficha: alexei, lado: 'a' }, { ficha: may, lado: 'b' }]): Batalha {
   const fila: number[] = []
-  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: aira, lado: 'a' }, { ficha: alexei, lado: 'a' }, { ficha: may, lado: 'b' }]))
+  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe(escolhas))
   const loja = criarBatalhaStore(mesa, { rolarD20: () => fila.shift() ?? 10, outraBatalhaLigada: () => false })
   const tokens = mesa.tokens()
   const combatentes = combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id)))
@@ -155,6 +156,19 @@ describe('o Electro da Aira: quando ela quiser, em qualquer golpe, +20 de dano e
     expect(recurso(mesa, 'May D. Ark', 'escudo')).toBe(12)
     expect(recurso(mesa, 'Aira', 'sp')).toBe(105)
   })
+
+  it('o SP do Electro é conferido somado ao da técnica: com 30 de SP, A Luz do Sol (25) + Electro (10) recusa e o SP fica em 30', () => {
+    const comPoucoSp = { ...aira, recursos: { ...aira.recursos, sp: 30 } }
+    const { loja, mesa } = batalha([{ ficha: comPoucoSp, lado: 'a' }, { ficha: may, lado: 'b' }])
+    const daMay = token(loja, 'May D. Ark')
+    const vez = naVezDe(loja, 'Aira')
+    const comElectro = tecnica(LUZ_DO_SOL.id, [{ tokenId: daMay, dano: 40 }], { turnos: 1, fisico: 'forca', electro: 'sim' })
+    expect(loja.getState().motivoDoAgir(CENA, MESTRE, vez, comElectro)).toBe('SP insuficiente: custa 35, você tem 30')
+    expect(loja.getState().agir(CENA, MESTRE, vez, comElectro)).toBe(false)
+    expect(recurso(mesa, 'Aira', 'sp')).toBe(30)
+    // Sem o Electro, os 25 cabem nos 30.
+    expect(loja.getState().motivoDoAgir(CENA, MESTRE, vez, tecnica(LUZ_DO_SOL.id, [{ tokenId: daMay, dano: 40 }], { turnos: 1, fisico: 'forca' }))).toBeNull()
+  })
 })
 
 describe('Armadilhar (Alexei): posiciona a armadilha, sem alvo e sem dano', () => {
@@ -179,5 +193,14 @@ describe('A Luz do Sol: 40 no inimigo, a Bênção só nos aliados marcados', ()
     naoReagir(loja, golpesEsperando(loja)[0] ?? '', daMay)
     expect(recurso(mesa, 'May D. Ark', 'escudo')).toBe(32)
     expect(selosDe(loja, daMay)).toEqual([])
+  })
+
+  it('"em um inimigo": marcando a May e o Jimboy (dois inimigos) e o Alexei, o pedido é recusado com o motivo', () => {
+    const { loja } = batalha([{ ficha: aira, lado: 'a' }, { ficha: alexei, lado: 'a' }, { ficha: may, lado: 'b' }, { ficha: jimboy, lado: 'b' }])
+    const alvos = ['May D. Ark', 'Jimboy Segundo', 'Alexei'].map((nome) => ({ tokenId: token(loja, nome), dano: 40 }))
+    const vez = naVezDe(loja, 'Aira')
+    const pedido = tecnica(LUZ_DO_SOL.id, alvos, { turnos: 1, fisico: 'forca' })
+    expect(loja.getState().motivoDoAgir(CENA, MESTRE, vez, pedido)).toBe('A Luz do Sol Brilha Sobre Todos dá dano em um inimigo só')
+    expect(loja.getState().agir(CENA, MESTRE, vez, pedido)).toBe(false)
   })
 })

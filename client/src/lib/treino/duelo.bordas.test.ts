@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import type { VezEsperada } from '../batalha/ponte'
 import { VARIANTE_PRINCIPAL } from '../batalha/escolhaEEvolucao'
 import { GRANDE_CHIFRE, jimboy, may, QUEBRA_QUEIXO } from '../batalha/fichasDaFatiaB.testkit'
+import { aira } from '../batalha/fichasDaFatiaC.testkit'
 import type { RespostasDoPedido } from '../batalha/perguntaNaHora'
 import { cartaDaVez } from '../batalha/turnos'
 import { LIMITES } from '../nuvem/limites'
@@ -354,6 +355,32 @@ describe('as respostas da mira (F2, fatia B): o servidor refaz o dano com elas',
     const golpeId = golpeado.cena.turnos.golpes?.at(-1)?.id ?? ''
     const depois = aceita(aplicarJogada(golpeado, m, CONTA_B, { tipo: 'reagir', seq: golpeado.seq, pedido: { tipo: 'naoReagir', golpeId, tokenId: TOKEN_DO_MARINHEIRO } }), 'o Jimboy não reagir')
     expect((depois.cena.turnos.selos ?? []).filter((selo) => selo.tokenId === TOKEN_DO_MARINHEIRO).map((selo) => selo.nome)).toContain('Atordoado')
+  })
+})
+
+describe('o Electro no Atacar (F2, fatia C): o servidor leva as respostas junto', () => {
+  const m = motor()
+  /** O Atacar sem arma da Aira na May, com as respostas da mira. */
+  const atacarDaAira = (duelo: DueloGravado, respostas: RespostasDoPedido): JogadaDoDuelo => ({
+    tipo: 'agir',
+    seq: duelo.seq,
+    vez: vezDe(duelo),
+    pedido: { tipo: 'atacar', armaId: null, alvos: [{ tokenId: TOKEN_DO_MARINHEIRO, dano: null }], surpresa: false, perfurante: false, respostas },
+  })
+  const spDaAira = (duelo: DueloGravado): number | undefined => duelo.lutadores.personagens.find((personagem) => personagem.nome === 'Aira')?.recursos.sp
+
+  it('"Sim": +20 no dano, -10 SP (140 → 130) e "eletricidade" no golpe; "Não": nada disso', () => {
+    const d = naVezDoZe(daConta(aira, CONTA_A), daConta(may, CONTA_B), m)
+    const comElectro = aceita(aplicarJogada(d, m, CONTA_A, atacarDaAira(d, { electro: 'sim' })), 'o Atacar com Electro')
+    const semElectro = aceita(aplicarJogada(d, m, CONTA_A, atacarDaAira(d, { electro: 'nao' })), 'o Atacar sem Electro')
+    expect((danoNoMarinheiro(comElectro) ?? 0) - (danoNoMarinheiro(semElectro) ?? 0)).toBe(20)
+    expect([spDaAira(comElectro), spDaAira(semElectro)]).toEqual([130, 140])
+    expect(comElectro.cena.turnos.golpes?.at(-1)?.variante).toContain('eletricidade')
+  })
+
+  it('resposta fora das opções é recusada (regra)', () => {
+    const d = naVezDoZe(daConta(aira, CONTA_A), daConta(may, CONTA_B), m)
+    expect(aplicarJogada(d, m, CONTA_A, atacarDaAira(d, { electro: 'talvez' }))).toEqual({ ok: false, motivo: 'regra' })
   })
 })
 

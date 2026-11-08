@@ -128,6 +128,8 @@ export interface MecanicaAMao {
   seloDasRespostas?: SeloDasRespostasAMao
   /** F2 (fatia C): o selo só pega nos ALIADOS marcados de quem usa, e o dano só nos outros (A Luz do Sol: dano no inimigo, Bênção nos aliados). */
   seloSoNosAliados?: true
+  /** F2 (fatia C): quantos alvos, no máximo, tomam dano; com `seloSoNosAliados` os aliados não contam (A Luz do Sol: "em um inimigo" = 1). */
+  tetoDeAlvosComDano?: number
   /** F2 (fatia C): o Atacar do dono muda enquanto um selo com este nome, posto por um cartão dele, está em algum aliado (`ataqueComOSelo`). */
   ataqueBasico?: AtaqueBasicoAMao
   /** F2 (fatia C): a pergunta que vale em TODO golpe do dono, Atacar e técnicas, enquanto o cartão está na ficha (o Electro da Aira). */
@@ -284,7 +286,9 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   },
   // Alexei: Armadilhar POSICIONA a armadilha (20 SP, Simples, sem alvo e sem dano; a escolhida vai ao registro). O que ela faz quando
   // alguém pisa é do mestre: Batata-mina 50 em todos na 3x3, Emaranhalga o selo "Enraizado", Imã-Gumelo o selo "Preso pelo Imã-Gumelo"
-  // (a tabela de selos lembra a regra); a Planta Carnívora é companion (construtor).
+  // (a tabela de selos lembra a regra); a Planta Carnívora é companion (construtor). À mão DE PROPÓSITO até a armadilha virar token
+  // (construtor): o app não sabe onde ela está nem quando dispara, então não acha "quem está perto" (o 5x5 do Imã-Gumelo, o 3x3 da
+  // Batata-mina) nem pergunta "tem metal grande?" a cada um. Registrado em docs/planos/conserto-fichas-2026-11-08.md (F2).
   'cart_51bfdbe0-fac7-450d-9e83-420bb884bb5f': {
     nome: 'Armadilhar (Alexei)',
     dano: '-',
@@ -312,6 +316,7 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
     perguntas: [PERGUNTA_DOS_TURNOS_DA_BENCAO, PERGUNTA_DO_FISICO_DA_BENCAO],
     seloDasRespostas: SELO_DA_BENCAO,
     seloSoNosAliados: true,
+    tetoDeAlvosComDano: 1,
     emTodoGolpe: { pergunta: { chave: 'electro', texto: 'Imbuir eletricidade? (+20 de dano, -10 SP)', para: 'quemUsa', tipo: 'opcoes', opcoes: SIM_OU_NAO }, valor: 'sim', dano: 20, custoEmSp: 10, rotulo: 'eletricidade' },
   },
 }
@@ -403,6 +408,21 @@ function seloMontado(molde: SeloDasRespostasAMao, respostas: RespostasDoPedido |
 export function seloPegaNoAlvo(cartaoId: string, alvoPersonagemId: string | null, aliados: ReadonlySet<string>): boolean {
   if (mecanicaDoCartao(cartaoId)?.seloSoNosAliados !== true) return true
   return alvoPersonagemId !== null && aliados.has(alvoPersonagemId)
+}
+
+/**
+ * F2 (fatia C): por que os alvos passam do teto de quem toma dano (A Luz do
+ * Sol: "em um inimigo"), ou `null`. `alvosPersonagemIds`: o personagem de
+ * cada alvo marcado; com `seloSoNosAliados`, os aliados de quem usa não
+ * contam (eles só levam o selo). `nomeDaTecnica` vai no motivo.
+ */
+export function motivoDoTetoDeDano(cartaoId: string, nomeDaTecnica: string, alvosPersonagemIds: readonly (string | null | undefined)[], aliados: ReadonlySet<string>): string | null {
+  const mecanica = mecanicaDoCartao(cartaoId)
+  const teto = mecanica?.tetoDeAlvosComDano
+  if (mecanica === null || teto === undefined) return null
+  const comDano = mecanica.seloSoNosAliados === true ? alvosPersonagemIds.filter((id) => typeof id !== 'string' || !aliados.has(id)) : alvosPersonagemIds
+  if (comDano.length <= teto) return null
+  return teto === 1 ? `${nomeDaTecnica} dá dano em um inimigo só` : `${nomeDaTecnica} dá dano em no máximo ${teto} inimigos`
 }
 
 /** F2 (fatia B): a técnica pede selo pela resposta e a resposta não pediu (Grande Chifre sem parede): o golpe sai sem selo. */
