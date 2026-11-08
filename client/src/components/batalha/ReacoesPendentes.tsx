@@ -25,6 +25,8 @@ export interface PendenteNaTela extends ReacaoNaCaixa {
   /** Alvo do mestre (NPC ou ficha sem personagem); `false` = de jogador. */
   doMestre: boolean
   perfurante: boolean
+  /** F2 (fatia B, o "perto" do Aplauso): os nomes das fichas de jogador que podem rebater no lugar dele ("May"); ausente = ninguém. */
+  quemRebate?: string
 }
 
 export interface ReacoesPendentesProps {
@@ -118,7 +120,7 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
                   <b>{item.atacante}</b> usa <b>{item.nome}</b> em <b>{item.alvo}</b>
                   {item.dano === null ? '' : `: ${formatarNumero(item.dano)}`}
                   {' · '}
-                  {rolagem === undefined ? `esperando ${item.alvo}` : <span className="bt-pendente__d20">d20 {rolagem.d20}{rolagem.modificador === 0 ? '' : ` ${rolagem.modificador > 0 ? '+' : '−'} ${Math.abs(rolagem.modificador)}`} = {rolagem.total}</span>}
+                  {rolagem === undefined ? `esperando ${item.alvo}${item.quemRebate === undefined ? '' : ` (ou ${item.quemRebate} rebater)`}` : <span className="bt-pendente__d20">d20 {rolagem.d20}{rolagem.modificador === 0 ? '' : ` ${rolagem.modificador > 0 ? '+' : '−'} ${Math.abs(rolagem.modificador)}`} = {rolagem.total}</span>}
                 </span>
                 <span className="bt-pendente__acoes">
                   {rolagem === undefined ? (

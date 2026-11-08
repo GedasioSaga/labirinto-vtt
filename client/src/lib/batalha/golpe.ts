@@ -105,6 +105,12 @@ export interface ContextoDoGolpe {
    * = ninguém reage a Overload (o golpe sai resolvido, como antes).
    */
   reageAOverload?: (tokenId: string) => boolean
+  /**
+   * F2 (fatia B, o "perto" do Aplauso): os tokens das fichas que podem rebater
+   * o golpe Overload em `tokenId` (ele está na área delas). Com alguém, o alvo
+   * espera a pergunta. Ausente = ninguém (a mesa sem mapa).
+   */
+  quemRebatePor?: (tokenId: string) => readonly string[]
 }
 
 /** O que `lancarGolpe` devolve para a store aplicar. */
@@ -349,11 +355,13 @@ export function ajustesDoCusto(personagem: Personagem, sistema: SistemaDeRpg, cu
 function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carga: number, surpresa: boolean, overload: boolean, reacao: ReacaoDoTipo): AlvoDoGolpe[] {
   return alvos.map((pedido): AlvoDoGolpe => {
     const dano = pedido.dano === null ? null : danoQueChega(pedido.dano, carga, surpresa)
-    const overloadDeixa = !overload || ctx.reageAOverload?.(pedido.tokenId) === true
+    // F2 (fatia B): Overload em alvo perto de quem rebate (Aplauso) também espera, pela pergunta a ela.
+    const porPerto = overload && ctx.quemRebatePor !== undefined ? ctx.quemRebatePor(pedido.tokenId) : []
+    const overloadDeixa = !overload || ctx.reageAOverload?.(pedido.tokenId) === true || porPerto.length > 0
     // F2 (fatia A, resposta da Saga): golpe que chega com 0 de dano é golpe sem dano, sem reação (o Debuff, "sempre", ainda reage pelo selo).
     const podeReagir = !surpresa && overloadDeixa && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null && dano > 0)) && ctx.semReacao?.(pedido.tokenId) !== true
     const alvo: AlvoDoGolpe = { tokenId: pedido.tokenId, personagemId: ctx.personagemDoToken(pedido.tokenId) ?? null, dano, podeReagir }
-    if (podeReagir) return alvo
+    if (podeReagir) return porPerto.length === 0 ? alvo : { ...alvo, porPerto }
     const saida: SaidaDaReacao = 'semReacao'
     return { ...alvo, saida, danoFinal: dano === null ? 0 : danoFinal(dano, saida) }
   })

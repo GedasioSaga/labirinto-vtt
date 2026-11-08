@@ -70,6 +70,11 @@ function casaDaFicha(p: Point, deslocamento: number, grid: number): Casa {
   return casaDoPonto({ x: p.x - deslocamento, y: p.y - deslocamento }, grid)
 }
 
+/** F2 (fatia B): a casa de referência do token com o centro em `p` e `tamanho` casas, a mesma do passo em batalha. */
+export function casaDoToken(p: Point, tamanho: number, grid: number): Casa {
+  return casaDaFicha(p, deslocamentoDaFicha(tamanho, grid), grid)
+}
+
 function limitarAoMapa(casa: Casa, colunas: number, linhas: number): Casa {
   const ultimaColuna = Math.max(0, Math.ceil(colunas) - 1)
   const ultimaLinha = Math.max(0, Math.ceil(linhas) - 1)

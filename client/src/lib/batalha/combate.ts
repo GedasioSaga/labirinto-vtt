@@ -352,7 +352,19 @@ export type PedidoDeReacao =
    * ficha), marca recarga, usos e Overload e não gasta ação da vez.
    * `seloNoAtacante` = o selo sugerido ("Marcado"), marcado na caixa.
    */
-  | { tipo: 'tecnica'; golpeId: string; tokenId: string; cartaoId: string; saida: SaidaDaTecnica; custo: number | null; modificador?: number; seloNoAtacante?: SeloPedido; vantagem?: VantagemDoDado }
+  | {
+      tipo: 'tecnica'
+      golpeId: string
+      tokenId: string
+      cartaoId: string
+      saida: SaidaDaTecnica
+      custo: number | null
+      modificador?: number
+      seloNoAtacante?: SeloPedido
+      vantagem?: VantagemDoDado
+      /** F2 (fatia B): o token de quem reage no lugar do alvo `tokenId` (um dos `porPerto` dele); ausente = o próprio alvo. */
+      por?: string
+    }
   /**
    * R3 (lote de 01/11): passa SEM tomar dano, antes ou depois do dado (o mestre
    * decidiu na mesa que não pegou). Não é acerto: sem dano, sem selo, sem marca.
@@ -437,6 +449,12 @@ export interface AlvoDoGolpe {
   reducaoDe?: string
   /** F2 (fatia B): a disputa que o app rolou no acerto (Corta Cenoura), já em texto para o registro: "disputa d20 15+1 = 16 contra d20 8+2 = 10, o selo pegou". */
   disputa?: string
+  /**
+   * F2 (fatia B, o "perto" do Aplauso): os tokens das fichas perto que podem
+   * reagir NO LUGAR dele a este golpe Overload (técnica que rebate, com o alvo
+   * na área dela), lidos ao lançar. Ausente = ninguém.
+   */
+  porPerto?: readonly string[]
 }
 
 export interface GolpeDaBatalha {

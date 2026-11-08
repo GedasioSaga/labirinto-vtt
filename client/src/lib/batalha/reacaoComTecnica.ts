@@ -19,6 +19,7 @@ import {
 import { ajustesDoCusto, depoisDaTecnica, resolverAlvo, rolarReacao } from './golpe'
 import { tecnicaPorId, tecnicasComForma, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { leituraDaTecnica } from './leituraDaTecnica'
+import { rebatePertoDe } from './mecanicasAMao'
 import { seloPedidoValido } from './selos'
 import { lerTipo, modoDaReacao, saidaSugerida, seloDaReacao, type LeituraDoTipo, type ModoDaReacao } from './tiposDaHabilidade'
 
@@ -157,6 +158,21 @@ export function reacoesParaOAlvo(alvo: AlvoQueReage, personagem: Personagem, sis
   if (!alvo.podeReagir || alvo.danoFinal !== undefined) return []
   const todas = reacoesDisponiveis(personagem, sistema, combate).filter((reacao) => !contraOverload || reacao.overload)
   return alvo.rolagem === undefined ? todas : todas.map((reacao) => (reacao.motivo === null ? { ...reacao, motivo: MOTIVO_JA_ROLOU } : reacao))
+}
+
+/** F2 (fatia B): a única saída de quem reage no lugar de outro alvo: rebater (o golpe não pega nele). */
+const SAIDAS_DO_REBATE: readonly SaidaDaTecnica[] = ['contra']
+
+/**
+ * F2 (fatia B, o "perto" do Aplauso): as técnicas que a ficha usa no lugar
+ * de um alvo perto dela, no golpe Overload: só as Overload que rebatem de
+ * perto (mecânica à mão), e só rebatendo. Ex.: a May com o Aplauso, pelo
+ * aliado no 6x6 à frente dela.
+ */
+export function reacoesPorPerto(alvo: AlvoQueReage, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): ReacaoComTecnica[] {
+  return reacoesParaOAlvo(alvo, personagem, sistema, combate, true)
+    .filter((reacao) => rebatePertoDe(reacao.cartao.id) !== null)
+    .map((reacao) => ({ ...reacao, saidas: SAIDAS_DO_REBATE, sugerida: 'contra' }))
 }
 
 export type PedidoDeTecnica = Extract<PedidoDeReacao, { tipo: 'tecnica' }>

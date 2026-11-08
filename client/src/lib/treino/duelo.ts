@@ -7,6 +7,8 @@ import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, Pedido
 import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEvolucao'
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId } from '../batalha/leituraDaFicha'
+import { danoDaTecnica } from '../batalha/leituraDaTecnica'
+import { motivoDasRespostasDoCartao } from '../batalha/mecanicasAMao'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
@@ -354,7 +356,10 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
   if (pedido.variante !== undefined && variante === null) return recusa('regra')
   // A opção que não é a principal pode trazer o dano e o selo dela (`preenchimentoDaVariante`, como a mira).
   const daOpcao = variante === null || variante.principal ? null : preenchimentoDaVariante(tecnica.cartao, variante, { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus })
-  const leitura = daOpcao?.dano ?? tecnica.dano
+  // F2 (fatia B): as respostas da mira (ponto vital, quadrados empurrados) mudam o dano; resposta torta recusa o pedido.
+  const { respostas } = pedido
+  if (respostas !== undefined && motivoDasRespostasDoCartao(pedido.cartaoId, respostas) !== null) return recusa('regra')
+  const leitura = daOpcao?.dano ?? (respostas === undefined ? tecnica.dano : danoDaTecnica(tecnica.cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }, respostas))
   if (leitura.tipo !== 'valor' && leitura.tipo !== 'semDano') return recusa('danoAMao')
   const perfurante = pedido.perfurante && tecnica.perfurante
   const novo: PedidoDeAcao = {
@@ -371,6 +376,7 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
   if (perfurante && tecnica.perfuracao !== undefined) novo.perfuracao = tecnica.perfuracao
   if (pedido.contraDe !== undefined) novo.contraDe = pedido.contraDe
   if (pedido.variante !== undefined) novo.variante = pedido.variante
+  if (respostas !== undefined) novo.respostas = respostas
   if (pedido.selo !== undefined) {
     const sugerido = daOpcao === null ? seloDaMira(tecnica.cartao, sistema) : daOpcao.selo === null ? null : seloPedidoValido(daOpcao.selo, sistema)
     if (sugerido !== null) novo.selo = sugerido

@@ -60,6 +60,27 @@ export function casaNaArea(forma: FormaDaArea, origem: Casa, direcao: Direcao, c
   return frente >= 1 && frente <= forma.lado && lado >= esquerda && lado < esquerda + forma.lado
 }
 
+const DIRECOES: readonly Direcao[] = ['norte', 'leste', 'sul', 'oeste']
+const QUARTO_DE_VOLTA = 90
+const VOLTA = 360
+
+/**
+ * F2 (fatia B): para onde a ficha olha, pela rotação do token (graus no
+ * sentido horário, 0 = para cima), no lado mais perto. Sem rotação = `null`:
+ * o mestre nunca deu frente à ficha.
+ */
+export function direcaoDaRotacao(graus: number | undefined): Direcao | null {
+  if (graus === undefined || !Number.isFinite(graus)) return null
+  const lado = Math.round((((graus % VOLTA) + VOLTA) % VOLTA) / QUARTO_DE_VOLTA) % DIRECOES.length
+  return DIRECOES[lado] ?? null
+}
+
+/** F2 (fatia B): a casa está na área de quem olha para `direcao`; sem frente (`null`), vale qualquer dos 4 lados. */
+export function casaNaAreaVirada(forma: FormaDaArea, origem: Casa, direcao: Direcao | null, casa: Casa): boolean {
+  if (direcao !== null) return casaNaArea(forma, origem, direcao, casa)
+  return DIRECOES.some((lado) => casaNaArea(forma, origem, lado, casa))
+}
+
 /** Os tokens na área, na ordem dos candidatos. `quem` = "inimigos" deixa os aliados de fora. */
 export function alvosNaArea(forma: FormaDaArea, origem: Casa, direcao: Direcao, candidatos: readonly CandidatoDaArea[], quem: QuemEntraNaArea): string[] {
   return candidatos.filter((candidato) => (quem === 'todos' || candidato.inimigo) && casaNaArea(forma, origem, direcao, candidato)).map((candidato) => candidato.tokenId)

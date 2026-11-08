@@ -9,6 +9,8 @@
 import { describe, expect, it } from 'vitest'
 import type { VezEsperada } from '../batalha/ponte'
 import { VARIANTE_PRINCIPAL } from '../batalha/escolhaEEvolucao'
+import { GRANDE_CHIFRE, jimboy, may, QUEBRA_QUEIXO } from '../batalha/fichasDaFatiaB.testkit'
+import type { RespostasDoPedido } from '../batalha/perguntaNaHora'
 import { cartaDaVez } from '../batalha/turnos'
 import { LIMITES } from '../nuvem/limites'
 import type { Personagem } from '../personagem'
@@ -322,6 +324,36 @@ describe('a opção (variante) da técnica: o servidor lê o dano da opção ped
   it('técnica que não está na ficha é recusada', () => {
     const d = naVezDoZe(zeComOpcoes(), daConta(MARINHEIRO, CONTA_B), m)
     expect(aplicarJogada(d, m, CONTA_A, golpeDoZe(d, 'tec_inventada'))).toEqual({ ok: false, motivo: 'regra' })
+  })
+})
+
+/** A técnica do lado A no lado B com as respostas da mira (o dano o servidor refaz). */
+function golpeComRespostas(duelo: DueloGravado, cartaoId: string, respostas: RespostasDoPedido): JogadaDoDuelo {
+  return {
+    tipo: 'agir',
+    seq: duelo.seq,
+    vez: vezDe(duelo),
+    pedido: { tipo: 'habilidade', cartaoId, armaId: null, alvos: [{ tokenId: TOKEN_DO_MARINHEIRO, dano: null }], surpresa: false, perfurante: false, custo: null, acao: null, respostas },
+  }
+}
+
+describe('as respostas da mira (F2, fatia B): o servidor refaz o dano com elas', () => {
+  const m = motor()
+
+  it('Quebra-Queixo do Jimboy: ponto vital = 90, sem ele = 60; resposta fora das opções é recusada', () => {
+    const d = naVezDoZe(daConta(jimboy, CONTA_A), daConta(may, CONTA_B), m)
+    expect(danoNoMarinheiro(aceita(aplicarJogada(d, m, CONTA_A, golpeComRespostas(d, QUEBRA_QUEIXO.id, { vital: 'sim' })), 'o ponto vital'))).toBe(90)
+    expect(danoNoMarinheiro(aceita(aplicarJogada(d, m, CONTA_A, golpeComRespostas(d, QUEBRA_QUEIXO.id, { vital: 'nao' })), 'sem o ponto vital'))).toBe(60)
+    expect(aplicarJogada(d, m, CONTA_A, golpeComRespostas(d, QUEBRA_QUEIXO.id, { vital: 'talvez' }))).toEqual({ ok: false, motivo: 'regra' })
+  })
+
+  it('Grande Chifre da May: 3 quadrados e parede = 151, e o Jimboy que não reage fica Atordoado', () => {
+    const d = naVezDoZe(daConta(may, CONTA_A), daConta(jimboy, CONTA_B), m)
+    const golpeado = aceita(aplicarJogada(d, m, CONTA_A, golpeComRespostas(d, GRANDE_CHIFRE.id, { quadrados: '3', parede: 'sim' })), 'o Grande Chifre')
+    expect(danoNoMarinheiro(golpeado)).toBe(151)
+    const golpeId = golpeado.cena.turnos.golpes?.at(-1)?.id ?? ''
+    const depois = aceita(aplicarJogada(golpeado, m, CONTA_B, { tipo: 'reagir', seq: golpeado.seq, pedido: { tipo: 'naoReagir', golpeId, tokenId: TOKEN_DO_MARINHEIRO } }), 'o Jimboy não reagir')
+    expect((depois.cena.turnos.selos ?? []).filter((selo) => selo.tokenId === TOKEN_DO_MARINHEIRO).map((selo) => selo.nome)).toContain('Atordoado')
   })
 })
 

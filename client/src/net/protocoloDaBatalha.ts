@@ -591,6 +591,9 @@ function lerReacaoComTecnica(value: Record<string, unknown>, golpeId: unknown, t
   if (modificador !== undefined && (saida !== 'rolar' || !lerModificador(modificador))) return null
   const vantagem = lerVantagemDoDado(value.vantagem)
   if (vantagem === false || (vantagem !== undefined && saida !== 'rolar')) return null
+  // F2 (fatia B): quem reage no lugar do alvo (o "perto" do Aplauso); a store confere se é um dos `porPerto` dele.
+  const { por } = value
+  if (por !== undefined && !textoAte(por, 1, ID_DA_BATALHA_MAX)) return null
   return {
     tipo: 'tecnica',
     golpeId,
@@ -601,6 +604,7 @@ function lerReacaoComTecnica(value: Record<string, unknown>, golpeId: unknown, t
     ...(modificador === undefined ? {} : { modificador }),
     ...(vantagem === undefined ? {} : { vantagem }),
     ...(selo === undefined ? {} : { seloNoAtacante: selo }),
+    ...(por === undefined ? {} : { por }),
   }
 }
 
@@ -1061,10 +1065,15 @@ function lerVantagemNaRolagem(value: unknown, d20: number): VantagemNaRolagem | 
 
 function lerReacao(value: unknown): ReacaoParaJogador | null {
   if (!isRecord(value)) return null
-  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, overload, rolagem } = value
+  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, overload, rolagem, por } = value
   if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(atacante, 1, NOME_NA_CARTA_MAX)) return null
   if (!textoAte(nome, 0, NOME_DO_GOLPE_MAX) || (dano !== null && !inteiroAte(dano, 0, DANO_MAX))) return null
   const reacao: ReacaoParaJogador = { golpeId, tokenId, atacante, nome, dano }
+  // F2 (fatia B): a ficha dele que rebate no lugar do alvo (o "perto" do Aplauso); ausente = o próprio alvo.
+  if (por !== undefined) {
+    if (!textoAte(por, 1, ID_DA_BATALHA_MAX)) return null
+    reacao.por = por
+  }
   if (perfurante !== undefined) {
     if (perfurante !== true) return null
     reacao.perfurante = true

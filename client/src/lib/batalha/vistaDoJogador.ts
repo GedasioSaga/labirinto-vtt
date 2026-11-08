@@ -262,6 +262,12 @@ export interface ReacaoParaJogador {
   /** Conserto das fichas F1: golpe Overload (o d20 não defende; só outra Overload). Ausente = golpe comum. */
   overload?: true
   rolagem?: RolagemDaReacao
+  /**
+   * F2 (fatia B, o "perto" do Aplauso): a ficha DELE que pode rebater no
+   * lugar do alvo `tokenId` (que pode ser de outro). Ausente = a ficha que
+   * reage é o próprio alvo.
+   */
+  por?: string
 }
 
 export interface AlvoParaJogador {
@@ -611,25 +617,34 @@ function nomeDoGolpe(golpe: GolpeDaBatalha): string {
   return golpe.nome.slice(0, NOME_DO_GOLPE_MAX)
 }
 
-/** Os golpes esperando a reação de ficha DELE: uma caixa REAÇÃO por alvo. */
-function reacoesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJogador): ReacaoParaJogador[] {
+/**
+ * Os golpes esperando a reação de ficha DELE: uma caixa REAÇÃO por alvo. F2
+ * (fatia B): e uma por alvo que a ficha dele pode rebater de perto
+ * (`porPerto`, o Aplauso), com `por`.
+ */
+function reacoesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJogador, personagemDoToken: (tokenId: string) => string | null): ReacaoParaJogador[] {
   const reacoes: ReacaoParaJogador[] = []
   for (const golpe of golpes) {
     for (const alvo of golpe.alvos) {
-      if (reacoes.length >= GOLPES_PENDENTES_MAX) return reacoes
-      if (alvo.danoFinal !== undefined || !alvo.podeReagir || !fichaMinha(alvo.tokenId, alvo.personagemId, ctx)) continue
-      const reacao: ReacaoParaJogador = {
-        golpeId: golpe.id,
-        tokenId: alvo.tokenId,
-        atacante: (ctx.tokensNoRecorte.get(golpe.atacanteTokenId) ?? ATACANTE_FORA_DA_VISTA).slice(0, NOME_NA_CARTA_MAX),
-        nome: nomeDoGolpe(golpe),
-        dano: alvo.dano,
+      if (alvo.danoFinal !== undefined || !alvo.podeReagir) continue
+      const quem = fichaMinha(alvo.tokenId, alvo.personagemId, ctx) ? [undefined] : []
+      const dePerto = (alvo.porPerto ?? []).filter((tokenId) => fichaMinha(tokenId, personagemDoToken(tokenId), ctx))
+      for (const por of [...quem, ...dePerto]) {
+        if (reacoes.length >= GOLPES_PENDENTES_MAX) return reacoes
+        const reacao: ReacaoParaJogador = {
+          golpeId: golpe.id,
+          tokenId: alvo.tokenId,
+          atacante: (ctx.tokensNoRecorte.get(golpe.atacanteTokenId) ?? ATACANTE_FORA_DA_VISTA).slice(0, NOME_NA_CARTA_MAX),
+          nome: nomeDoGolpe(golpe),
+          dano: alvo.dano,
+        }
+        if (golpe.perfurante) reacao.perfurante = true
+        if (golpe.perfurante && golpe.perfuracao !== undefined) reacao.perfuracao = golpe.perfuracao
+        if (golpe.overload) reacao.overload = true
+        if (alvo.rolagem !== undefined) reacao.rolagem = { ...alvo.rolagem }
+        if (por !== undefined) reacao.por = por
+        reacoes.push(reacao)
       }
-      if (golpe.perfurante) reacao.perfurante = true
-      if (golpe.perfurante && golpe.perfuracao !== undefined) reacao.perfuracao = golpe.perfuracao
-      if (golpe.overload) reacao.overload = true
-      if (alvo.rolagem !== undefined) reacao.rolagem = { ...alvo.rolagem }
-      reacoes.push(reacao)
     }
   }
   return reacoes
@@ -808,7 +823,7 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   const meus = meusNoCombate(cena, ctx)
   if (meus.length > 0) estado.meus = meus
   const golpes = turnos.golpes ?? []
-  const reacoes = reacoesParaJogador(golpes, ctx)
+  const reacoes = reacoesParaJogador(golpes, ctx, (tokenId) => turnos.cartas.find((carta) => carta.tokenId === tokenId)?.personagemId ?? null)
   if (reacoes.length > 0) estado.reacoes = reacoes
   const golpesVistos = golpesParaJogador(golpes, ctx)
   if (golpesVistos.length > 0) estado.golpes = golpesVistos

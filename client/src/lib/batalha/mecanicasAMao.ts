@@ -66,9 +66,16 @@ export interface SegundoGolpeAMao {
   perfurante: boolean
 }
 
-/** F2 (fatia B): a técnica de reação que REBATE (Aplauso): o dano que chegou + a fórmula `soma` (de quem rebate) volta em quem atacou. */
+/**
+ * F2 (fatia B): a técnica de reação que REBATE (Aplauso): o dano que chegou +
+ * a fórmula `soma` (de quem rebate) volta em quem atacou. `perto`: a área em
+ * volta de quem rebate onde o golpe Overload em QUALQUER alvo também dispara a
+ * pergunta (o "perto" do Aplauso = o 6x6 à frente dela); o "sim" anula o golpe
+ * naquele alvo.
+ */
 export interface RebateAMao {
   soma: string
+  perto?: FormaDaArea
 }
 
 export interface MecanicaAMao {
@@ -136,12 +143,13 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
       },
     ],
   },
-  // May, modo ataque: todos os INIMIGOS no 6x6 à frente dela, (Força + 100) × 2. Modo reação: rebate (o dano que chegou + Força dela) em quem atacou.
+  // May, modo ataque: todos os INIMIGOS no 6x6 à frente dela, (Força + 100) × 2. Modo reação: rebate (o dano que chegou + Força dela) em quem atacou,
+  // também quando o Overload cai em qualquer alvo no 6x6 à frente dela ("perto").
   'cart_39e23a9c-84c7-4270-821d-bdd7701c32d3': {
     nome: 'Aplauso do Deus do Trovão (May)',
     area: { forma: { tipo: 'frente', lado: 6 }, quem: 'inimigos' },
     dano: '(Força + 100) * 2',
-    rebate: { soma: 'Força' },
+    rebate: { soma: 'Força', perto: { tipo: 'frente', lado: 6 } },
   },
   // May: soma por quadrado EMPURRADO (1 = 30 + FOR, 2 = + FOR/2, 3 = + AGI/2: 100/135/151); bater na parede atordoa.
   'cart_84d81561-cdae-48a3-9ef2-8467de918656': {
@@ -281,6 +289,11 @@ export function rotulosDasRespostas(cartaoId: string, respostas: RespostasDoPedi
 export function disputaNoAcerto(cartaoId: string): DisputaAMao | null {
   const disputa = mecanicaDoCartao(cartaoId)?.disputa
   return disputa !== undefined && disputa.quando === 'acerto' ? disputa : null
+}
+
+/** F2 (fatia B): a área em volta de quem usa onde a técnica rebate o golpe Overload em outro alvo (Aplauso); `null` = só quando o alvo é quem usa. */
+export function rebatePertoDe(cartaoId: string): FormaDaArea | null {
+  return mecanicaDoCartao(cartaoId)?.rebate?.perto ?? null
 }
 
 /** F2 (fatia B): o aviso ao cair a 0 de um dos cartões (o primeiro que tem), com o id dele; `null` = nenhum. */

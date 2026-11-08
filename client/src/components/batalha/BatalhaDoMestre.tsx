@@ -9,7 +9,7 @@ import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { lembreteDoSelo, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
-import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
+import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, formasNoMenu } from '../../lib/batalha/transformacao'
 import { cartaDaVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
@@ -334,7 +334,20 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         const doAlvo = alvo.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === alvo.personagemId)
         const reducao = doAlvo === undefined || sistema === null ? '' : avisoDasReducoes(reducoesDoDano(doAlvo, sistema))
         if (reducao !== '') item.reducao = reducao
+        // F2 (fatia B, o "perto" do Aplauso): quem pode rebater no lugar dele. Ficha de jogador: a pergunta vai a ele (o mestre vê o nome); NPC: na caixa do mestre.
+        const dePerto = (alvo.porPerto ?? []).flatMap((tokenId) => {
+          const personagemId = turnos.cartas.find((carta) => carta.tokenId === tokenId)?.personagemId ?? null
+          const personagem = personagemId === null ? undefined : personagens.find((candidato) => candidato.id === personagemId)
+          return personagem === undefined ? [] : [{ tokenId, personagem }]
+        })
+        const deJogador = dePerto.filter(({ personagem }) => !ehDoMestre(personagem.id, personagens))
+        if (deJogador.length > 0) item.quemRebate = deJogador.map(({ tokenId }) => nomeDaFicha(mesa, tokenId)).join(', ')
         itens.push(item)
+        for (const { tokenId, personagem } of dePerto) {
+          if (sistema === null || !ehDoMestre(personagem.id, personagens)) continue
+          const tecnicas = reacoesPorPerto(alvo, personagem, sistema, turnos.combate?.[personagem.id])
+          itens.push({ golpeId: golpe.id, tokenId: alvo.tokenId, alvo: item.alvo, atacante: item.atacante, nome: golpe.nome, dano: alvo.dano, perfurante: golpe.perfurante, overload: true, doMestre: true, por: { tokenId, nome: nomeDaFicha(mesa, tokenId) }, tecnicas })
+        }
       }
     }
     return itens

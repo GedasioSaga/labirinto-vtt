@@ -1,6 +1,7 @@
 import type { Token } from '../../types/map'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import type { Casa, Direcao } from './area'
 import type { Equipe } from './equipes'
 
 /**
@@ -43,4 +44,17 @@ export interface MesaDaBatalha {
   tirarInvocado?(sceneKey: string, personagemId: string, tokenId: string): { personagem: Personagem | null; token: Token | null }
   /** Invocação, fim da batalha: tira todo personagem temporário nascido nesta cena (`invocadoNaCena`) e os tokens ligados a eles. */
   limparInvocados?(sceneKey: string): void
+  /**
+   * F2 (fatia B, o "perto" do Aplauso): a casa do token na grade da cena e
+   * para onde ele olha (`null` = o mestre nunca deu frente). `null` = token
+   * ou cena fora de alcance. Opcional: a mesa sem mapa (a arena, o duelo) não
+   * sabe onde ninguém está, e nada depende de "perto" lá.
+   */
+  posicaoDoToken?(sceneKey: string, tokenId: string): PosicaoNaGrade | null
+}
+
+/** F2 (fatia B): onde o token está na grade e para onde olha. */
+export interface PosicaoNaGrade {
+  casa: Casa
+  direcao: Direcao | null
 }

@@ -20,6 +20,8 @@ export interface TecnicasDaReacaoProps {
   tecnicas: readonly ReacaoComTecnica[]
   golpeId: string
   tokenId: string
+  /** F2 (fatia B, o "perto" do Aplauso): a ficha que reage no lugar do alvo `tokenId`; ausente = o próprio alvo. */
+  por?: string
   atacante: string
   /** O dano que chega; `null` = golpe sem dano. */
   dano: number | null
@@ -49,7 +51,7 @@ function textoDosTurnos(turnos: number | null): string {
   return turnos === null ? 'até tirar' : `${turnos} ${turnos === 1 ? 'turno' : 'turnos'}`
 }
 
-function UmaTecnica({ tecnica, golpeId, tokenId, atacante, dano, modificadorInicial, esperando, onPedir }: Omit<TecnicasDaReacaoProps, 'tecnicas'> & { tecnica: ReacaoComTecnica }) {
+function UmaTecnica({ tecnica, golpeId, tokenId, por, atacante, dano, modificadorInicial, esperando, onPedir }: Omit<TecnicasDaReacaoProps, 'tecnicas'> & { tecnica: ReacaoComTecnica }) {
   const id = useId()
   const [saida, setSaida] = useState<SaidaDaTecnica | null>(tecnica.sugerida)
   const [modTexto, setModTexto] = useState(modificadorInicial)
@@ -78,6 +80,7 @@ function UmaTecnica({ tecnica, golpeId, tokenId, atacante, dano, modificadorInic
     const pedido: PedidoDeTecnica = { tipo: 'tecnica', golpeId, tokenId, cartaoId: tecnica.cartao.id, saida, custo }
     if (saida === 'rolar') pedido.modificador = lerModificadorDaReacao(modTexto)
     if (comSelo && tecnica.seloNoAtacante !== null) pedido.seloNoAtacante = tecnica.seloNoAtacante
+    if (por !== undefined) pedido.por = por
     onPedir(pedido)
   }
 

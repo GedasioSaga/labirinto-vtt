@@ -55,6 +55,12 @@ export interface ReacaoNaCaixa {
   reducao?: string
   /** F2 (fatia A): as saídas que os selos de quem reage tiram (Aéreo: Esquiva e Contra-ataque). Ausente = nenhuma. */
   semSaidas?: readonly SaidaDaReacao[]
+  /**
+   * F2 (fatia B, o "perto" do Aplauso): a ficha que rebate no lugar do alvo
+   * (`alvo` é o nome dele). Com ela, só a técnica que rebate: o dado, o Não
+   * reagir e o Passar sem dano são do alvo e ficam fora.
+   */
+  por?: { tokenId: string; nome: string }
 }
 
 /** S4: o dado da reação: um d20 (normal) ou dois, ficando o maior (vantagem) ou o menor (desvantagem). */
@@ -104,7 +110,7 @@ const NUMEROS_DO_GIRO = 8
 const PASSO_DO_GIRO_MS = 48
 
 function chaveDa(reacao: ReacaoNaCaixa): string {
-  return `${reacao.golpeId ?? 'livre'}:${reacao.tokenId}`
+  return `${reacao.golpeId ?? 'livre'}:${reacao.tokenId}${reacao.por === undefined ? '' : `:${reacao.por.tokenId}`}`
 }
 
 /** O d20 que gira e pousa quando a rolagem do host chega. */
@@ -209,6 +215,33 @@ function UmaReacao({
   // Passar só quando o dado liberou uma reação: no 1 natural e abaixo de 10 o único botão já é receber o golpe.
   const passar = rolagem === undefined || saidas.some((saida) => saida.saida === 'cheio' || saida.saida === 'critico') ? null : saidaDoPassar(rolagem.d20)
   const textoDoModificador = rolagem === undefined || rolagem.modificador === 0 ? '' : ` ${rolagem.modificador > 0 ? '+' : '−'} ${Math.abs(rolagem.modificador)}`
+
+  // F2 (fatia B, o "perto" do Aplauso): a ficha dele rebate no lugar do alvo. Só a técnica: o dado e o Não reagir são do alvo.
+  const por = reacao.por
+  if (por !== undefined && golpeId !== null) {
+    const alvo = reacao.alvo ?? 'um aliado'
+    return (
+      <>
+        <p className="bt-reacao__texto">
+          Perto de <b>{por.nome}</b>: <b>{reacao.atacante}</b> usa <b>{reacao.nome}</b> em <b>{alvo}</b>
+          {reacao.dano === null ? '.' : <>: <b>{formatarNumero(reacao.dano)}</b> de dano.</>}
+        </p>
+        {reacao.tecnicas !== undefined && (
+          <TecnicasDaReacao tecnicas={reacao.tecnicas} golpeId={golpeId} tokenId={reacao.tokenId} por={por.tokenId} atacante={reacao.atacante} dano={reacao.dano} modificadorInicial="" esperando={esperando} onPedir={pedir} />
+        )}
+        <div className="bt-reacao__pe">
+          <span className="bt-reacao__regra">
+            Rebater: {alvo} não toma o golpe e o dano volta em {reacao.atacante}. Se não quiser rebater, é só fechar.
+          </span>
+        </div>
+        {erro !== null && (
+          <p className="bt-form__erro" role="alert">
+            {erro}
+          </p>
+        )}
+      </>
+    )
+  }
 
   return (
     <>

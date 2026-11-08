@@ -169,6 +169,12 @@ export type Reversao =
   | { tipo: 'contra'; contra: ContraAtaque }
   /** F2: um golpe = a ficha de N alvos + o gasto de quem atacou, desfeitos juntos. */
   | { tipo: 'composta'; partes: readonly Reversao[] }
+  /**
+   * F2 (fatia B, Rapid Dash): a linha que nasceu junto desta (o 2º golpe, com
+   * linha e reações próprias). O Desfazer desta desfaz aquela antes (a store);
+   * sozinha, a parte não muda nada.
+   */
+  | { tipo: 'linhaJunto'; linhaId: string }
   /** F3: a forma (e a imagem) de um personagem antes da linha. `null` = não tinha. */
   | { tipo: 'forma'; personagemId: string; antes: FormaNaBatalha | null }
   /**
@@ -897,6 +903,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'invocacaoColocada':
     case 'invocacaoCancelada':
     case 'invocadoSaiu':
+    // A linha que nasceu junto volta pelo Desfazer dela (a store).
+    case 'linhaJunto':
       return turnos
   }
 }

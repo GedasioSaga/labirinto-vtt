@@ -6,7 +6,7 @@ import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { saidasTiradas, travaDosSelos } from '../../lib/batalha/condicoes'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
-import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
+import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
 import { formasNoMenu } from '../../lib/batalha/transformacao'
@@ -319,6 +319,19 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     const variasFichas = new Set((estado.reacoes ?? []).map((reacao) => reacao.tokenId)).size > 1
     return (estado.reacoes ?? []).map((reacao) => {
       const item: ReacaoNaCaixa = { golpeId: reacao.golpeId, tokenId: reacao.tokenId, atacante: reacao.atacante === ATACANTE_FORA_DA_VISTA ? 'Alguém fora da sua vista' : reacao.atacante, nome: reacao.nome, dano: reacao.dano }
+      // F2 (fatia B, o "perto" do Aplauso): a ficha dele rebate no lugar do alvo, só com a técnica que rebate.
+      const por = reacao.por
+      if (por !== undefined) {
+        item.alvo = nomeDe(reacao.tokenId)
+        item.por = { tokenId: por, nome: nomeDe(por) }
+        if (reacao.overload === true) item.overload = true
+        const personagemDoPor = estado.cartas.find((carta) => carta.tokenId === por && carta.lado === 'eu')?.personagemId
+        const quemRebate = personagemDoPor === undefined ? undefined : meus.find((candidato) => candidato.id === personagemDoPor)
+        if (quemRebate !== undefined && sistema !== null) {
+          item.tecnicas = reacoesPorPerto({ podeReagir: true, rolagem: reacao.rolagem }, quemRebate, sistema, combateDoJogador(estado.meus?.find((meu) => meu.personagemId === quemRebate.id), null))
+        }
+        return item
+      }
       if (variasFichas) item.alvo = nomeDe(reacao.tokenId)
       if (reacao.perfurante) item.perfurante = true
       if (reacao.perfurante && reacao.perfuracao !== undefined) item.perfuracao = reacao.perfuracao

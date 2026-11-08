@@ -111,7 +111,7 @@ import {
 } from '../lib/batalha/golpe'
 import { rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, disputaNoAcerto, mecanicaDoCartao } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, disputaNoAcerto, mecanicaDoCartao, rebatePertoDe } from '../lib/batalha/mecanicasAMao'
 import {
   ajustesDoPorTurno,
   chaveDoGatilho,
@@ -129,7 +129,8 @@ import {
   textoDoPorTurno,
   type TurnosComLembretes,
 } from '../lib/batalha/passivas'
-import { motivoDaReacaoComTecnica, reagirComTecnica, temOverloadDeReacao, type PedidoDeTecnica } from '../lib/batalha/reacaoComTecnica'
+import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOverloadDeReacao, type PedidoDeTecnica } from '../lib/batalha/reacaoComTecnica'
+import { casaNaAreaVirada } from '../lib/batalha/area'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
@@ -737,6 +738,7 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
     case 'forma':
     case 'selo':
     case 'evolucao':
+    case 'linhaJunto':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
   }
 }
@@ -914,6 +916,12 @@ function reacoesComTecnicaDe(reversao: Reversao): Extract<Reversao, { tipo: 'rea
 function golpesDaReversao(reversao: Reversao): string[] {
   if (reversao.tipo === 'golpe') return [reversao.golpeId]
   return reversao.tipo === 'composta' ? reversao.partes.flatMap(golpesDaReversao) : []
+}
+
+/** F2 (fatia B): as linhas que nasceram junto desta (o 2º golpe do Rapid Dash), na ordem em que foram escritas. */
+function linhasJuntoDe(reversao: Reversao): string[] {
+  if (reversao.tipo === 'linhaJunto') return [reversao.linhaId]
+  return reversao.tipo === 'composta' ? reversao.partes.flatMap(linhasJuntoDe) : []
 }
 
 /** Os contra-ataques que a linha deu: todo contra do golpe que nasceu nela (`tokenId` null) e o da reação com técnica que saiu "contra". */
@@ -1222,6 +1230,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     if (textos.length === 0) return
     gravarCena(sceneKey, comMudanca(cena, novos, { tipo: 'acao', texto: textos.join(' · '), autor, reversao: { tipo: 'composta', partes } }))
+  }
+
+  /** F2 (fatia B): o pedido que saiu e pode ter tirado HP (o Aplicar do Sangramento ou do Queimando, o "a cada turno", o Ajustar) passa pelo aviso de quem caiu. */
+  const comAvisoDeQuemCaiu = (sceneKey: string, autor: AutorDaAcao, feito: boolean): boolean => {
+    if (feito) avisarQuemCaiu(sceneKey, autor)
+    return feito
   }
 
   /**
@@ -1896,7 +1910,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
    */
   const reagirComTecnicaNaCena = (sceneKey: string, cena: BatalhaDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe, autor: AutorDaAcao, pedido: PedidoDeTecnica): boolean => {
     const { turnos } = cena
-    const personagemId = alvo.personagemId
+    // F2 (fatia B, o "perto" do Aplauso): quem reage no lugar do alvo é um dos `porPerto` dele, só com a técnica que rebate e só rebatendo.
+    const { por } = pedido
+    if (por !== undefined && (!(alvo.porPerto ?? []).includes(por) || pedido.saida !== 'contra' || rebatePertoDe(pedido.cartaoId) === null)) return false
+    const reageTokenId = por ?? alvo.tokenId
+    const personagemId = por === undefined ? alvo.personagemId : (personagemDoTokenNa(turnos)(por) ?? null)
     if (personagemId === null) return false
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
@@ -1904,7 +1922,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     // Conserto das fichas F1: contra golpe Overload, só técnica Overload.
     if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes }, alvo, pedido, golpe.overload) !== null || personagem === null || sistema === null) return false
     // S4: Atordoado ou Paralisado não reage, nem com técnica.
-    if (travaDoToken(turnos.selos, alvo.tokenId) !== null) return false
+    if (travaDoToken(turnos.selos, reageTokenId) !== null) return false
     const rolado = pedido.saida === 'rolar' ? rolarComVantagem(deps.rolarD20, pedido.vantagem) : null
     const combateBase = combateAntes ?? combateVazio()
     const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, rolado?.d20 ?? null, rolado?.vantagem)
@@ -1930,7 +1948,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     // Conserto das fichas F1 (Overload, resposta da May "nos 2 modos"): reagir com Overload também cansa.
     if (feita.combate.overload && !combateBase.overload) {
-      const cansado = cansarNoOverload(personagemId, alvo.tokenId, novos)
+      const cansado = cansarNoOverload(personagemId, reageTokenId, novos)
       if (cansado !== null) {
         partes.push(...cansado.partes)
         novos = cansado.turnos
@@ -1965,7 +1983,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const rebate = depois.saida === 'contra' && depois.tecnica !== undefined ? mecanicaDoCartao(depois.tecnica.cartaoId)?.rebate : undefined
       if (rebate !== undefined) {
         // A Força de antes da reação: o cansaço do Overload dela vem DEPOIS de rebater.
-        const lida = lerDano(rebate.soma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, alvo.tokenId) })
+        const lida = lerDano(rebate.soma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, reageTokenId) })
         const soma = lida.tipo === 'valor' ? lida.valor : 0
         const total = Math.min(DANO_MAX, (depois.dano ?? 0) + soma)
         const noAtacante: AlvoDoGolpe = { tokenId: golpe.atacanteTokenId, personagemId: golpe.atacantePersonagemId, dano: total, podeReagir: false, saida: 'semReacao', danoFinal: total }
@@ -2007,9 +2025,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
     const atual = cenaDe(sceneKey) ?? cena
     const comOGolpe = { ...atual, registro: linhaAtualizada(atual.registro, golpe.linhaId, textoDoGolpe(golpeFeito, nomeDoToken), []) }
-    const texto = textoDaReacaoComTecnica(depois, nomeDoToken) + textoDoRebate
+    const quemReage = por === undefined ? textoDaReacaoComTecnica(depois, nomeDoToken) : `${nomeDoToken(por)} reage com ${depois.tecnica?.nome ?? 'técnica'} por ${nomeDoToken(depois.tokenId)}: o golpe não pega`
+    const texto = quemReage + textoDoRebate
     gravarCena(sceneKey, {
-      ...comMudanca(comOGolpe, novos, { id: linhaId, tipo: 'reacao', texto, autor, tokenIds: [...new Set([depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
+      ...comMudanca(comOGolpe, novos, { id: linhaId, tipo: 'reacao', texto, autor, tokenIds: [...new Set([reageTokenId, depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
     })
     avisarQuemCaiu(sceneKey, autor)
@@ -2043,8 +2062,37 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
    * é onde o gasto novo é gravado (`carta.id`, ou a chave do membro do
    * bando). A base do que muda é sempre `cena.turnos`.
    */
+  /**
+   * F2 (fatia B, o "perto" do Aplauso = o 6x6 à frente da May): as fichas que
+   * podem rebater o golpe Overload de `atacanteTokenId` no alvo: técnica de
+   * reação Overload disponível com rebate e área `perto` (mecânica à mão), o
+   * alvo dentro dela, sem Atordoado nem Paralisado; fora quem ataca e o
+   * próprio alvo. A mesa sem mapa (arena, duelo) não sabe onde ninguém está:
+   * ninguém.
+   */
+  const quemRebatePor = (sceneKey: string, turnos: TurnosDaCena, atacanteTokenId: string) => (alvoTokenId: string): string[] => {
+    const { personagens, sistema } = mesaDoRpg()
+    const doAlvo = mesa.posicaoDoToken?.(sceneKey, alvoTokenId) ?? null
+    if (sistema === null || doAlvo === null) return []
+    const tokens = new Set<string>()
+    for (const carta of turnos.cartas) {
+      const { tokenId, personagemId } = carta
+      // Como o alvo: quem gastou a reação no contador (R5) ou está travado (S4) não reage.
+      if (personagemId === null || tokenId === alvoTokenId || tokenId === atacanteTokenId || tokens.has(tokenId) || gastouAReacao(turnos, tokenId) || travaDoToken(turnos.selos, tokenId) !== null) continue
+      const personagem = personagens.find((candidato) => candidato.id === personagemId)
+      if (personagem === undefined) continue
+      const areas = reacoesDisponiveis(personagem, sistema, turnos.combate?.[personagemId]).flatMap((reacao) => {
+        const perto = reacao.overload && reacao.motivo === null ? rebatePertoDe(reacao.cartao.id) : null
+        return perto === null ? [] : [perto]
+      })
+      const dele = areas.length === 0 ? null : (mesa.posicaoDoToken?.(sceneKey, tokenId) ?? null)
+      if (dele !== null && areas.some((forma) => casaNaAreaVirada(forma, dele.casa, dele.direcao, doAlvo.casa))) tokens.add(tokenId)
+    }
+    return [...tokens]
+  }
+
   /** O que a regra do golpe lê para `carta` agir agora (`podeAgir`, `lancarGolpe`). */
-  const contextoDaCarta = (cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena): ContextoDoGolpe => {
+  const contextoDaCarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena): ContextoDoGolpe => {
     const { turnos } = cena
     const { personagens, sistema } = mesaDoRpg()
     const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
@@ -2067,13 +2115,14 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         const alvo = personagemId === null || personagemId === undefined ? undefined : personagens.find((candidato) => candidato.id === personagemId)
         return alvo !== undefined && sistema !== null && temOverloadDeReacao(alvo, sistema, turnos.combate?.[alvo.id])
       },
+      quemRebatePor: quemRebatePor(sceneKey, turnos, carta.tokenId),
     }
   }
 
   const agirComACarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena, chaveDoGasto: string, pedido: PedidoDeAcao): boolean => {
     const { turnos } = cena
     const { personagens } = mesaDoRpg()
-    const ctx = contextoDaCarta(cena, autor, carta, turnosDoCtx)
+    const ctx = contextoDaCarta(sceneKey, cena, autor, carta, turnosDoCtx)
     if (podeAgir(ctx, pedido) !== null) return false
     const linhaId = novoIdDeLinha()
     // F2 (fatia B): os ids da 2ª parte (Rapid Dash) vão sempre; só a técnica com `segundoGolpe` na mecânica à mão os usa.
@@ -2144,6 +2193,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const segundo = lancado.segundo ?? null
     const partesDoSegundo: Reversao[] = []
     if (segundo !== null) {
+      // O Desfazer da linha do 1º golpe desfaz junto a do 2º (e as reações a ele).
+      partes.push({ tipo: 'linhaJunto', linhaId: segundo.linhaId })
       partesDoSegundo.push({ tipo: 'golpe', golpeId: segundo.id })
       for (const resolvido of lancado.resolvidosDoSegundo ?? []) {
         const feito = danoNoAlvo(mesa, resolvido, segundo, autor)
@@ -2419,7 +2470,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (contra === null && (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada)) return 'A vez já passou'
       const carta = contra === null ? cartaDaVez(turnos) : (turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId) ?? null)
       if (carta === null || carta.bando !== undefined) return 'Não é a vez desta ficha'
-      return podeAgir(contextoDaCarta(cena, autor, carta, turnos), pedido)
+      return podeAgir(contextoDaCarta(sceneKey, cena, autor, carta, turnos), pedido)
     },
 
     darVez: (sceneKey, cartaId) => {
@@ -2612,13 +2663,16 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const linha = cena?.registro.find((candidata) => candidata.id === linhaId)
       if (cena === undefined || linha === undefined || linha.desfeita !== undefined) return false
       if (autor.tipo === 'jogador' && (linha.autor.tipo !== 'jogador' || linha.autor.playerId !== autor.playerId || !TIPOS_QUE_O_JOGADOR_DESFAZ.has(linha.tipo))) return false
+      // F2 (fatia B, Rapid Dash): a linha que nasceu junto (o 2º golpe) sai com esta.
+      const juntas = linhasJuntoDe(linha.reversao).flatMap((id) => cena.registro.find((candidata) => candidata.id === id) ?? [])
       // Tipos de habilidade F1: desfazer o golpe desfaz ANTES as reações com técnica a ele (o custo de quem reagiu volta).
-      const golpeIds = new Set(golpesDaReversao(linha.reversao))
+      const golpeIds = new Set([linha, ...juntas].flatMap((dela) => golpesDaReversao(dela.reversao)))
       if (golpeIds.size > 0) {
         for (const outra of cena.registro) {
           if (outra.desfeita === undefined && reacoesComTecnicaDe(outra.reversao).some((parte) => golpeIds.has(parte.golpe.id))) desfazerLinha(sceneKey, outra.id, autor)
         }
       }
+      for (const junta of [...juntas].reverse()) desfazerLinha(sceneKey, junta.id, autor)
       if (!desfazerLinha(sceneKey, linhaId, autor)) return false
       // Conserto das fichas F1 (bug 2): o Desfazer da vez desfaz junto os "Não reagiu" que a virada dela escreveu,
       // do mais novo para o mais velho. O já desfeito fica como está. (Bug 3: a vez guarda só o que ela mudou, então
@@ -3043,12 +3097,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
 
     tirarSelo: (sceneKey, seloId) => mudarSelo(sceneKey, seloId, null),
 
-    passiva: (sceneKey, autor, pedido) => mudarPassiva(sceneKey, autor, pedido),
+    passiva: (sceneKey, autor, pedido) => comAvisoDeQuemCaiu(sceneKey, autor, mudarPassiva(sceneKey, autor, pedido)),
 
     evoluir: (sceneKey, autor, pedido) => evoluirTecnica(sceneKey, autor, pedido),
 
     marcar: (sceneKey, autor, pedido) => marcarOAlvo(sceneKey, autor, pedido),
-    ajustar: (sceneKey, autor, pedido) => ajustarNaBatalha(sceneKey, autor, pedido),
+    ajustar: (sceneKey, autor, pedido) => comAvisoDeQuemCaiu(sceneKey, autor, ajustarNaBatalha(sceneKey, autor, pedido)),
     contador: (sceneKey, autor, pedido) => mexerNoContador(sceneKey, autor, pedido),
   }
 }

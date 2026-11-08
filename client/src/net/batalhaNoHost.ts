@@ -495,6 +495,15 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
           const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === pedido.tokenId)
           // O golpe ainda espera, e a ficha é um alvo DELE ainda sem resolver (bug 1: o golpe que já fechou, como "Não reagiu", diz por quê).
           if (alvo === undefined || alvo.danoFinal !== undefined) return RECUSA_DA_REACAO
+          // F2 (fatia B, o "perto" do Aplauso): a técnica no lugar do alvo sai da ficha DELE que está perto (um dos `porPerto`), de
+          // verdade e com o personagem dela, pela mesma regra da técnica abaixo; o alvo pode ser de outro. A store confere o resto.
+          if (pedido.tipo === 'tecnica' && pedido.por !== undefined) {
+            const por = pedido.por
+            const personagemDoPor = cena.turnos.cartas.find((carta) => carta.tokenId === por)?.personagemId ?? null
+            const deleDeVerdade = personagemDoPor !== null && fichaDele(lugar, por, personagemDoPor) && lugar.personagemDaFicha.get(por) === personagemDoPor
+            if (!deleDeVerdade || !alvo.podeReagir || alvo.rolagem !== undefined || !(alvo.porPerto ?? []).includes(por)) return false
+            return ponte.reagir(lugar.sceneKey, autorDe(conexao), pedido)
+          }
           if (!fichaDele(lugar, alvo.tokenId, alvo.personagemId)) return false
           // "Não reagir" depois do d20 rolado seria fugir do resultado (o 1 natural, do crítico): só o mestre marca.
           if (pedido.tipo === 'naoReagir' && alvo.rolagem !== undefined) return false

@@ -1,4 +1,6 @@
+import { direcaoDaRotacao } from '../lib/batalha/area'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
+import { casaDoToken } from '../lib/batalha/movimentoEmBatalha'
 import * as mapFactory from '../lib/mapFactory'
 import type { MapData, Token } from '../types/map'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
@@ -34,6 +36,13 @@ function tokensDaCena(sceneKey: string): readonly Token[] {
   if (cenaAberta(sceneKey)) return useMapStore.getState().map.tokens
   const slot = useAdventureStore.getState().cache[sceneKey]
   return slot !== undefined && slot.status === 'ok' ? slot.map.tokens : []
+}
+
+/** O tamanho da casa da grade da cena (a aberta, ou a de fundo já carregada); cena que não está à mão = `null`. */
+function gradeDaCena(sceneKey: string): number | null {
+  if (cenaAberta(sceneKey)) return useMapStore.getState().map.grid
+  const slot = useAdventureStore.getState().cache[sceneKey]
+  return slot !== undefined && slot.status === 'ok' ? slot.map.grid : null
 }
 
 /** Muda o mapa da cena: a aberta por `naAberta`, a de fundo por `mudar`. `false` = cena que não está à mão. */
@@ -96,5 +105,12 @@ export const mesaDaAventura: MesaDaBatalha = {
     const ids = new Set(temporarios.map((personagem) => personagem.id))
     for (const token of tokensDaCena(sceneKey)) if (token.characterId !== null && ids.has(token.characterId)) tirarToken(sceneKey, token.id)
     for (const personagem of temporarios) useAdventureStore.getState().apagarPersonagem(personagem.id)
+  },
+
+  posicaoDoToken: (sceneKey, tokenId) => {
+    const token = tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId)
+    const grid = gradeDaCena(sceneKey)
+    if (token === undefined || grid === null || !(grid > 0)) return null
+    return { casa: casaDoToken(token, token.size, grid), direcao: direcaoDaRotacao(token.rotation) }
   },
 }
