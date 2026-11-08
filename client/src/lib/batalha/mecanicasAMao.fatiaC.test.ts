@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { sistema } from './fichasDaFatiaB.testkit'
 import { aira, alexei, BENCAO, CACADA, DANCA, LUZ_DO_SOL, RIFLE } from './fichasDaFatiaC.testkit'
+import { lembreteDoSelo } from './condicoes'
 import { cdDaDisputa, quemUsaVence } from './disputa'
-import { danoDoAtaque } from './formula'
+import { danoDoAtaque, lerDano } from './formula'
 import { danoDaTecnica } from './leituraDaTecnica'
 import { mecanicaDoCartao, seloDaMecanica } from './mecanicasAMao'
 import { formasNoMenu } from './transformacao'
-import { lerDano } from './formula'
 
 /**
  * Conserto das fichas F2, fatia C (Aira e Alexei, sem os companions): as
@@ -40,6 +40,13 @@ describe('a Bênção de uma Raposa e A Luz do Sol', () => {
     expect(danoDaTecnica(LUZ_DO_SOL, { personagem: aira, sistema, arma: null })).toMatchObject({ tipo: 'valor', valor: 40 })
     expect(seloDaMecanica(LUZ_DO_SOL.id, { turnos: 1, fisico: 'forca' }, valorNaAira)?.mods).toEqual([{ alvo: 'forca', delta: 8 }])
     expect(mecanicaDoCartao(LUZ_DO_SOL.id)?.seloSoNosAliados).toBe(true)
+  })
+})
+
+describe('Alexei: as armadilhas que o mestre aplica (o selo lembra a regra)', () => {
+  it('Enraizado lembra a CD 15 da técnica de movimento; Preso pelo Imã-Gumelo lembra o d20 12 ou mais', () => {
+    expect(lembreteDoSelo('Enraizado')).toContain('15')
+    expect(lembreteDoSelo('Preso pelo Imã-Gumelo')).toContain('12 ou mais')
   })
 })
 

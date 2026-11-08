@@ -218,6 +218,8 @@ function voceNaLista(alvos: readonly AlvoNaMira[]): string | null {
 function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoInicial: string | null | undefined): string[] {
   const emSi = golpe.alvoEmSi === true ? voceNaLista(alvos) : null
   if (emSi !== null) return [emSi]
+  // F2 (fatia C): a técnica sem alvo (Armadilhar posiciona a armadilha) abre sem ninguém marcado.
+  if (golpe.semAlvo === true) return []
   const sugerido = alvoInicial !== undefined && alvoInicial !== null && alvos.some((alvo) => alvo.tokenId === alvoInicial && !alvo.motivo) ? alvoInicial : null
   const primeiro = sugerido ?? (alvoInicial === undefined ? primeiroAlvo(alvos) : null)
   return primeiro === null ? [] : [primeiro]
@@ -298,7 +300,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
 
   const lancar = (evento?: FormEvent) => {
     evento?.preventDefault()
-    if (marcados.length === 0) {
+    if (marcados.length === 0 && golpe.semAlvo !== true) {
       setErro('Escolha ao menos um alvo (clique na ficha no mapa ou marque na lista).')
       return
     }

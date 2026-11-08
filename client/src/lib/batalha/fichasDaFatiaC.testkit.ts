@@ -31,9 +31,11 @@ export const CACADA = cartao(
   [{ nome: 'OVERLOAD', valor: 'Após o Fim da Tecnica, você reduz todos seus status pela metade.' }],
 )
 
+export const ARMADILHAR = cartao('cart_51bfdbe0-fac7-450d-9e83-420bb884bb5f', 'Armadilhar', { acao: 'Ação Simples', efeito: 'Pode posicionar uma das armadilhas disponíveis dentro do alcance deste personagem.', custo: '20', tempo: '1' })
+
 export const ATRIBUTOS_DA_AIRA = { forca: 1, agilidade: 34, percepcao: 5, resistencia: 50, intuicao: 4, espirito: 40, carisma: 55, determinacao: 16 }
 export const ATRIBUTOS_DO_ALEXEI = { forca: 1, agilidade: 33, percepcao: 80, resistencia: 6, intuicao: 30, espirito: 50, carisma: 20, determinacao: 40 }
 
 export const aira = ficha('Aira', ATRIBUTOS_DA_AIRA, { hp: 900, sp: 140, escudo: 100 }, { habilidades: [BENCAO, DANCA, LUZ_DO_SOL] })
 /** O Alexei com HP 365 de 600 (a ficha real) e o Rifle de dano 20 (gravado pelo F0). */
-export const alexei = { ...ficha('Alexei', ATRIBUTOS_DO_ALEXEI, { hp: 365, sp: 120, escudo: 12 }, { habilidades: [CACADA], armas: [RIFLE] }), maximos: { hp: 600, sp: 120 } }
+export const alexei = { ...ficha('Alexei', ATRIBUTOS_DO_ALEXEI, { hp: 365, sp: 120, escudo: 12 }, { habilidades: [ARMADILHAR, CACADA], armas: [RIFLE] }), maximos: { hp: 600, sp: 120 } }

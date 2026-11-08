@@ -61,6 +61,8 @@ export interface DanoNaTela {
 export interface GolpeNaTela {
   /** Chave estável na lista: "arma:<id>", "tecnica:<id>" ou "ataque" (sem arma). */
   chave: string
+  /** F2 (fatia C): a técnica sai sem alvo (Armadilhar posiciona a armadilha); a mira não pede ninguém. */
+  semAlvo?: true
   tipo: 'atacar' | 'habilidade'
   /** Só na habilidade. */
   cartaoId: string | null
@@ -479,6 +481,7 @@ function golpeDaTecnica(
   const semSelo = lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar' || semSeloPelaResposta(id, padrao)
   const selo = seloDaMecanica(id, padrao) ?? (semSelo ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema))
   if (selo !== null) golpe.selo = selo
+  if (mecanicaDoCartao(id)?.semAlvo === true) golpe.semAlvo = true
   // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
   const perguntas = perguntasDoGolpe(id, idsDosCartoes(personagem))
   if (perguntas.length > 0) {

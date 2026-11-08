@@ -122,6 +122,8 @@ export interface MecanicaAMao {
   perguntas?: readonly PerguntaNaHora[]
   /** F2 (fatia C): o alvo não reage; a defesa é o teste da disputa (dança da Aira: Espírito contra a CD). */
   semReacao?: true
+  /** F2 (fatia C): a técnica sai sem alvo (Armadilhar posiciona a armadilha); a mira abre sem ninguém marcado e aceita lançar assim. */
+  semAlvo?: true
   /** F2 (fatia C): o selo montado com as respostas (vale quando nenhuma resposta nem o `selo` fixo dão um). */
   seloDasRespostas?: SeloDasRespostasAMao
   /** F2 (fatia C): o selo só pega nos ALIADOS marcados de quem usa, e o dano só nos outros (A Luz do Sol: dano no inimigo, Bênção nos aliados). */
@@ -279,6 +281,28 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
       contra: { tipo: 'cd', cd: { tipo: 'porCarga', semCarga: { tipo: 'formula', base: 12, atributoId: 'carisma' }, cargas: [{ mais: 2 }, { mais: 4 }, 'acerta'] } },
       seQuemUsaVence: { selo: ATORDOADO_1 },
     },
+  },
+  // Alexei: Armadilhar POSICIONA a armadilha (20 SP, Simples, sem alvo e sem dano; a escolhida vai ao registro). O que ela faz quando
+  // alguém pisa é do mestre: Batata-mina 50 em todos na 3x3, Emaranhalga o selo "Enraizado", Imã-Gumelo o selo "Preso pelo Imã-Gumelo"
+  // (a tabela de selos lembra a regra); a Planta Carnívora é companion (construtor).
+  'cart_51bfdbe0-fac7-450d-9e83-420bb884bb5f': {
+    nome: 'Armadilhar (Alexei)',
+    dano: '-',
+    semAlvo: true,
+    perguntas: [
+      {
+        chave: 'armadilha',
+        texto: 'Qual armadilha?',
+        para: 'quemUsa',
+        tipo: 'opcoes',
+        opcoes: [
+          { valor: 'emaranhalga', rotulo: 'Emaranhalga' },
+          { valor: 'batata', rotulo: 'Batata-mina' },
+          { valor: 'ima', rotulo: 'Imã-Gumelo' },
+          { valor: 'planta', rotulo: 'Planta Carnívora' },
+        ],
+      },
+    ],
   },
   // Aira: dano igual ao Espírito no inimigo; a Bênção (com as mesmas perguntas) nos aliados que ela marcar.
   // O extra "Imbuir Eletricidade" deste cartão é o Electro da raça: quando ela quiser, em QUALQUER golpe dela, +20 de dano e -10 SP.

@@ -60,6 +60,9 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Queimando', sinal: /^queima/, porVez: 10, verbo: 'queima', renova: true },
   // Aira (texto novo do mestre): "toda vez que um aliado com esse buff causar dano ele vai recuperar na vida 10% do dano que ele causou".
   { nome: 'Bênção de uma Raposa', sinal: /^bencao de uma raposa/, curaDoDano: 10 },
+  // Alexei (armadilhas; o mestre põe o selo em quem pisou, pelo "Pôr selo…"): o app só lembra a regra, a armadilha no mapa é do construtor.
+  { nome: 'Enraizado', sinal: /^enraizad/, lembrete: 'não anda: sai destruindo a planta, ou com técnica de movimento e d20 15 ou mais' },
+  { nome: 'Preso pelo Imã-Gumelo', sinal: /^preso pelo ima/, lembrete: 'para se mover ou arremessar, d20 12 ou mais (senão fica no lugar)' },
 ]
 
 /**

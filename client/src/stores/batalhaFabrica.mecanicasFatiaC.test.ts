@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao, PedidoDeAlvo } from '../lib/batalha/combate'
 import { may } from '../lib/batalha/fichasDaFatiaB.testkit'
-import { aira, alexei, BENCAO, DANCA, LUZ_DO_SOL } from '../lib/batalha/fichasDaFatiaC.testkit'
+import { aira, alexei, ARMADILHAR, BENCAO, DANCA, LUZ_DO_SOL } from '../lib/batalha/fichasDaFatiaC.testkit'
 import type { RespostasDoPedido } from '../lib/batalha/perguntaNaHora'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
@@ -154,6 +154,16 @@ describe('o Electro da Aira: quando ela quiser, em qualquer golpe, +20 de dano e
     naoReagir(loja, golpesEsperando(loja)[0] ?? '', daMay)
     expect(recurso(mesa, 'May D. Ark', 'escudo')).toBe(12)
     expect(recurso(mesa, 'Aira', 'sp')).toBe(105)
+  })
+})
+
+describe('Armadilhar (Alexei): posiciona a armadilha, sem alvo e sem dano', () => {
+  it('Batata-mina: 20 SP (120 → 100), nenhum golpe esperando, a escolhida no registro', () => {
+    const { loja, mesa } = batalha()
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Alexei'), tecnica(ARMADILHAR.id, [], { armadilha: 'batata' }))).toBe(true)
+    expect(recurso(mesa, 'Alexei', 'sp')).toBe(100)
+    expect(golpesEsperando(loja)).toEqual([])
+    expect(textos(loja).some((texto) => texto.includes('Armadilhar') && texto.includes('Batata-mina'))).toBe(true)
   })
 })
 
