@@ -159,3 +159,11 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Melodia, "+20 de precisão": +20 DE DANO nos golpes do Sieg contra o analisado.
 - Florescer e furtivo (literal): "Pronto, o Florescer ele não pode ser usado com concentração, ele da o dano do furtivo e se tiver surpresa ele soma u x1,5". Regras: Florescer NÃO ACEITA CONCENTRAÇÃO; dá o dano do furtivo (3x) e, com Surpresa, multiplica MAIS ×1,5 (somam: 453).
 - Entardecer: o alvo testa RESISTÊNCIA (d20 + mod. RES contra 12); falhou, Atordoado 1 (perde a vez, regra do sistema).
+- Redoma da Orquídea: dura ATÉ O PRÓXIMO GOLPE no alvo.
+- CAÇA depois da SUPER (literal): "Depois de usar um Super Caças bruxas se ele ainda tiver sp ele pode usar o caça as bruxas normal, mas não pode evoluir denovo por causa que é overload". Regra: a CAÇA normal VOLTA (se tiver SP); a evolução para SUPER não volta (Overload 1 por batalha).
+- "Caminho do dano ativo": MELODIA LIGADA NA OPÇÃO +20 de dano; o app confere antes de evoluir.
+- Chamas Celestes: custa 10% do HP MÁXIMO (90), dura a luta; no fim de cada vez do alvo: alvo −15 SP, Sieg +10 SP e o SIEG perde 3% do HP (soma com a Doença).
+- Doença das Trevas: o APP TIRA SOZINHO 3% do HP máximo (27) no fim da vez em que ele andou ou atacou, com Desfazer.
+- Sangramento (de qualquer fonte): os 10 vão DIRETO NO HP (ignora o Escudo). (regra do sistema)
+- "Armas Destruídas": SÓ TÍTULO; "Armas por batalha: 3".
+- Arrombamento usa FORÇA; a "Inteligência" da Amnésia é a INTUIÇÃO.
