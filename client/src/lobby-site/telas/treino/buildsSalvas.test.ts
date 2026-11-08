@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import type { Personagem } from '../../../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../../../lib/sistemaOnePiece'
 import { ze } from '../../../lib/treino/fichasDeTreino.testkit'
-import { ajustesPadraoDoJuiz, fichaDoJuiz, ID_DO_JUIZ } from '../../../lib/treino/juiz'
+import { ajusteDoNumero, ajustesPadraoDoJuiz, fichaDoJuiz, ID_DO_JUIZ, numerosDaBase, numerosNaLuta } from '../../../lib/treino/juiz'
 import { baseDoJuiz, BUILDS_MAX, buildDesligada, comBuild, diferencaDoJuiz, guardarBuilds, juizDaBuild, lerBuilds, rascunhoDaBuild, type BuildSalva, type DiferencaDaBuild } from './buildsSalvas'
 import { comRascunho } from './rascunhoDeTreino'
 
@@ -83,5 +84,45 @@ describe('builds salvas', () => {
     expect(buildDesligada(guardada.build, (fichaId) => fichaId === 'pers_ze')).toBe(false)
     expect(buildDesligada({ ...guardada.build, base: { tipo: 'juiz', fichaId: ID_DO_JUIZ } }, () => false)).toBe(false)
     expect(comRascunho(zeNaMesa, daMinha)).toMatchObject({ id: 'pers_ze', atributos: { forca: 80 }, maximos: { hp: 900 } })
+  })
+
+  it('a cópia do doc completo não leva nada do mestre, e o número do painel é o número com que o Judge luta', () => {
+    // Arrange: o Zé como o servidor o guarda, NPC de força 2, com dono e anotação; HP 600 + 100 de modificador, Força 60 + 15.
+    const completo: Personagem = {
+      ...ze(60),
+      tipo: 'npc',
+      dono: 'conta_ze',
+      notaDoMestre: 'Trai a tripulação no arco 3.',
+      nomeDoJogador: 'Zé',
+      soCenario: true,
+      combate: { forca: 2 },
+      recursos: { hp: 600, sp: 100 },
+      maximos: { hp: 600, sp: 100 },
+      modificadoresDosRecursos: { hp: 100 },
+      modificadoresDosAtributos: { forca: 15 },
+    }
+    const ajustes = { ...ajustesPadraoDoJuiz(), baseFichaId: completo.id }
+
+    // Act: o painel lê a base; a pessoa digita a vida 400 e a Força 70, números da luta.
+    const daBase = numerosDaBase(SISTEMA_ONE_PIECE, completo)
+    const digitado = {
+      ...ajustes,
+      hp: ajusteDoNumero(400, daBase.hp, daBase.soma.hp),
+      atributos: { forca: ajusteDoNumero(70, daBase.atributos.forca ?? 0, daBase.soma.atributos.forca ?? 0) ?? 0 },
+    }
+    const semAjuste = fichaDoJuiz(SISTEMA_ONE_PIECE, ajustes, completo)
+    const ajustado = fichaDoJuiz(SISTEMA_ONE_PIECE, digitado, completo)
+
+    // Assert: nenhum campo do mestre; sem a marca de combate, a força não dobra a vida.
+    for (const campo of ['dono', 'notaDoMestre', 'nomeDoJogador', 'soCenario', 'combate']) {
+      expect(semAjuste).not.toHaveProperty(campo)
+      expect(ajustado).not.toHaveProperty(campo)
+    }
+    expect(semAjuste).toMatchObject({ id: ID_DO_JUIZ, nome: 'Cópia de Zé' })
+    expect(daBase).toMatchObject({ hp: 700, atributos: { forca: 75 }, soma: { hp: 100, atributos: { forca: 15 } } })
+    expect(numerosNaLuta(SISTEMA_ONE_PIECE, semAjuste)).toMatchObject({ hp: 700, atributos: { forca: 75 } })
+    expect(digitado).toMatchObject({ hp: 300, atributos: { forca: 55 } })
+    expect(numerosNaLuta(SISTEMA_ONE_PIECE, ajustado)).toMatchObject({ hp: 400, atributos: { forca: 70 } })
+    expect(completo.dono).toBe('conta_ze')
   })
 })

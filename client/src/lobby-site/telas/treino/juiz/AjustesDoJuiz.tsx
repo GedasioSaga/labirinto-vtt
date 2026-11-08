@@ -3,7 +3,19 @@ import type { ReacaoDoBoneco } from '../../../../lib/arena/tipos'
 import { recursoDoEscudo } from '../../../../lib/batalha/leituraDaFicha'
 import type { Personagem } from '../../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../../lib/sistemaDeRpg'
-import { ajustesPadraoDoJuiz, fichaDoJuiz, juizMudou, NOME_DO_JUIZ, NUMERO_DO_JUIZ_MAX, numerosDaBase, RETRATO_DO_JUIZ, recursoDaEnergia, type AjustesDoJuiz as Ajustes } from '../../../../lib/treino/juiz'
+import {
+  ajusteDoNumero,
+  ajustesPadraoDoJuiz,
+  faixaDoNumero,
+  fichaDoJuiz,
+  juizMudou,
+  NOME_DO_JUIZ,
+  numerosDaBase,
+  numerosNaLuta,
+  RETRATO_DO_JUIZ,
+  recursoDaEnergia,
+  type AjustesDoJuiz as Ajustes,
+} from '../../../../lib/treino/juiz'
 import { recursoDeVida } from '../../../../lib/vidaDaFicha'
 import { CampoInteiro, EditorDeTecnicas } from './CamposDoTreino'
 
@@ -12,7 +24,9 @@ import { CampoInteiro, EditorDeTecnicas } from './CamposDoTreino'
  * (o boneco da Arena ou a cópia de uma ficha da mesa), os status (HP, SP,
  * Escudo e cada atributo), o que ele faz quando leva um golpe (o mesmo par do
  * boneco da Arena: rola o d20 ou fica parado) e as técnicas de treino. Os
- * números são a diferença sobre a base: igual ao da base = sem ajuste. Cada
+ * números são os da LUTA (com o modificador e as transformações da base já
+ * somados), e se guarda a diferença sobre a base: igual ao da base = sem
+ * ajuste. Cada
  * número válido vai na hora para `onMudar` (quem chama guarda no navegador, por
  * mesa); "Voltar ao padrão" apaga tudo e o Judge volta a ser o boneco da Arena
  * (HP 100, sem técnica). Nada daqui vai ao servidor nem muda ficha de ninguém.
@@ -59,20 +73,20 @@ export function AjustesDoJuiz({ ajustes, sistema, base, opcoesDeBase, onMudar, o
   const vida = recursoDeVida(sistema)
   const energia = recursoDaEnergia(sistema)
   const escudo = recursoDoEscudo(sistema)
-  // A ficha como vai à luta: o dano das técnicas é lido com os atributos de agora.
+  // A ficha como vai à luta: o dano das técnicas é lido com os atributos de agora, e os campos mostram os números dela.
   const ficha = fichaDoJuiz(sistema, ajustes, base)
+  const naLuta = numerosNaLuta(sistema, ficha)
   const mudou = juizMudou(ajustes)
   const baseSumiu = ajustes.baseFichaId !== null && base === null
   const mudar = (parte: Partial<Ajustes>) => onMudar({ ...ajustes, ...parte, salvoEm: Date.now() })
   const deOnde = base === null ? 'padrão' : `na ficha de ${base.nome}`
   const nota = (valor: number, daBase: number) => (valor === daBase ? (base === null ? 'igual ao padrão' : `igual à ficha de ${base.nome}`) : `${deOnde}: ${daBase.toLocaleString('pt-BR')}`)
-  /** Igual ao da base = sem ajuste (`null`): a cópia acompanha a ficha quando ela muda. */
-  const ajuste = (valor: number, daBase: number): number | null => (valor === daBase ? null : valor)
 
   function mudarAtributo(id: string, valor: number) {
     const atributos = { ...ajustes.atributos }
-    if (valor === (padrao.atributos[id] ?? 0)) delete atributos[id]
-    else atributos[id] = valor
+    const guardado = ajusteDoNumero(valor, padrao.atributos[id] ?? 0, padrao.soma.atributos[id] ?? 0)
+    if (guardado === null) delete atributos[id]
+    else atributos[id] = guardado
     mudar({ atributos })
   }
 
@@ -81,9 +95,11 @@ export function AjustesDoJuiz({ ajustes, sistema, base, opcoesDeBase, onMudar, o
     mudar({ baseFichaId: valor === SEM_BASE ? null : valor, hp: null, sp: null, escudo: null, atributos: {} })
   }
 
-  const hp = ajustes.hp ?? padrao.hp
-  const sp = ajustes.sp ?? padrao.sp
-  const valorDoEscudo = ajustes.escudo ?? padrao.escudo
+  const { hp, sp, escudo: valorDoEscudo } = naLuta
+  // A faixa de cada campo é a do número guardado (`validarAjustesDoJuiz`), com a soma da base por cima.
+  const faixaDoHp = faixaDoNumero(1, padrao.soma.hp)
+  const faixaDoSp = faixaDoNumero(0, padrao.soma.sp)
+  const faixaDoEscudo = faixaDoNumero(0, 0)
 
   return (
     <div className="lo-tr-build lo-tr-juiz">
@@ -127,10 +143,35 @@ export function AjustesDoJuiz({ ajustes, sistema, base, opcoesDeBase, onMudar, o
 
       <fieldset className="lo-tr-build__grade">
         <legend>Status</legend>
-        {vida !== null && <CampoInteiro rotulo={`${vida.nome} máxima`} valor={hp} min={1} max={NUMERO_DO_JUIZ_MAX} onMudar={(valor) => mudar({ hp: ajuste(valor, padrao.hp) })} nota={nota(hp, padrao.hp)} mudou={hp !== padrao.hp} />}
-        {energia !== null && <CampoInteiro rotulo={`${energia.nome} máxima`} valor={sp} min={0} max={NUMERO_DO_JUIZ_MAX} onMudar={(valor) => mudar({ sp: ajuste(valor, padrao.sp) })} nota={nota(sp, padrao.sp)} mudou={sp !== padrao.sp} />}
+        {vida !== null && (
+          <CampoInteiro
+            rotulo={`${vida.nome} máxima`}
+            valor={hp}
+            {...faixaDoHp}
+            onMudar={(valor) => mudar({ hp: ajusteDoNumero(valor, padrao.hp, padrao.soma.hp) })}
+            nota={nota(hp, padrao.hp)}
+            mudou={hp !== padrao.hp}
+          />
+        )}
+        {energia !== null && (
+          <CampoInteiro
+            rotulo={`${energia.nome} máxima`}
+            valor={sp}
+            {...faixaDoSp}
+            onMudar={(valor) => mudar({ sp: ajusteDoNumero(valor, padrao.sp, padrao.soma.sp) })}
+            nota={nota(sp, padrao.sp)}
+            mudou={sp !== padrao.sp}
+          />
+        )}
         {escudo !== null && (
-          <CampoInteiro rotulo={escudo.nome} valor={valorDoEscudo} min={0} max={NUMERO_DO_JUIZ_MAX} onMudar={(valor) => mudar({ escudo: ajuste(valor, padrao.escudo) })} nota={nota(valorDoEscudo, padrao.escudo)} mudou={valorDoEscudo !== padrao.escudo} />
+          <CampoInteiro
+            rotulo={escudo.nome}
+            valor={valorDoEscudo}
+            {...faixaDoEscudo}
+            onMudar={(valor) => mudar({ escudo: ajusteDoNumero(valor, padrao.escudo, 0) })}
+            nota={nota(valorDoEscudo, padrao.escudo)}
+            mudou={valorDoEscudo !== padrao.escudo}
+          />
         )}
       </fieldset>
 
@@ -153,8 +194,9 @@ export function AjustesDoJuiz({ ajustes, sistema, base, opcoesDeBase, onMudar, o
         <legend>Atributos</legend>
         {sistema.atributos.map((atributo) => {
           const daBase = padrao.atributos[atributo.id] ?? 0
-          const valor = ajustes.atributos[atributo.id] ?? daBase
-          return <CampoInteiro key={atributo.id} rotulo={atributo.nome} valor={valor} min={0} max={NUMERO_DO_JUIZ_MAX} onMudar={(novo) => mudarAtributo(atributo.id, novo)} nota={nota(valor, daBase)} mudou={valor !== daBase} />
+          const valor = naLuta.atributos[atributo.id] ?? daBase
+          const faixa = faixaDoNumero(0, padrao.soma.atributos[atributo.id] ?? 0)
+          return <CampoInteiro key={atributo.id} rotulo={atributo.nome} valor={valor} {...faixa} onMudar={(novo) => mudarAtributo(atributo.id, novo)} nota={nota(valor, daBase)} mudou={valor !== daBase} />
         })}
       </fieldset>
 

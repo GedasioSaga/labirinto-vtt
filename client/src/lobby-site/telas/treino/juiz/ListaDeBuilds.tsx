@@ -6,7 +6,8 @@ import './builds.css'
  * AS BUILDS SALVAS NA TELA (F1 da Arena multijogador, 07/11/2026): o campo do
  * nome com o "Salvar", e a lista das builds desta conta nesta mesa, cada uma
  * com o que dá para fazer com ela aqui (abrir no rascunho, pôr no Judge) e o
- * "Apagar" com confirmação no lugar. A mesma peça no Testar build e no Ajustar
+ * "Apagar" com confirmação no lugar; a ação que jogaria fora algo não salvo
+ * (`AcaoDaBuild.perda`) confirma do mesmo jeito. A mesma peça no Testar build e no Ajustar
  * o Judge; quem chama diz de onde a build nova sai e o que cada uma faz.
  */
 
@@ -30,9 +31,20 @@ export interface BuildsDaMesa {
 export interface AcaoDaBuild {
   rotulo: string
   pode(build: BuildSalva): boolean
+  /**
+   * O que a ação joga fora, se joga ("o rascunho de Zé tem mudanças..."):
+   * texto = pede confirmação no lugar antes, como o Apagar; `null` ou ausente =
+   * faz direto.
+   */
+  perda?(build: BuildSalva): string | null
+  /** O botão que confirma a perda ("Abrir mesmo", como o "Apagar mesmo"); ausente = o rótulo da ação. */
+  confirmar?: string
   /** Faz e devolve o texto do que mudou (vai para a linha de status). */
   fazer(build: BuildSalva): string
 }
+
+/** A confirmação aberta numa build: o Apagar, ou uma ação que joga algo fora (pelo rótulo dela). */
+type Confirmacao = { buildId: string; tipo: 'apagar' } | { buildId: string; tipo: 'acao'; acao: string; perda: string }
 
 interface ListaDeBuildsProps {
   builds: BuildsDaMesa
@@ -59,7 +71,7 @@ export function ListaDeBuilds({ builds, base, diferenca, doQue, acoes }: ListaDe
   const [nome, setNome] = useState('')
   const [semNome, setSemNome] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
-  const [confirmando, setConfirmando] = useState<string | null>(null)
+  const [confirmando, setConfirmando] = useState<Confirmacao | null>(null)
   const travado = builds.bloqueio !== null
 
   function salvar(evento: FormEvent<HTMLFormElement>) {
@@ -76,6 +88,28 @@ export function ListaDeBuilds({ builds, base, diferenca, doQue, acoes }: ListaDe
     setAviso(`Build “${build.nome}” apagada.`)
     // A linha some: o foco volta ao nome, o começo da peça.
     campo.current?.focus()
+  }
+
+  /** A ação que joga algo fora confirma no lugar primeiro; a confirmada (ou a que não perde nada) faz. */
+  function usar(acao: AcaoDaBuild, build: BuildSalva, confirmada: boolean) {
+    const perda = confirmada || acao.perda === undefined ? null : acao.perda(build)
+    if (perda !== null) {
+      setConfirmando({ buildId: build.id, tipo: 'acao', acao: acao.rotulo, perda })
+      return
+    }
+    setConfirmando(null)
+    setAviso(acao.fazer(build))
+  }
+
+  /** A ação de agora com o rótulo da confirmação (a de quando ela abriu pode ter ficado velha); sumiu = nada a fazer. */
+  function acaoDoRotulo(rotulo: string, build: BuildSalva): AcaoDaBuild | null {
+    return acoes.find((candidata) => candidata.rotulo === rotulo && candidata.pode(build)) ?? null
+  }
+
+  function confirmarAcao(rotulo: string, build: BuildSalva) {
+    const acao = acaoDoRotulo(rotulo, build)
+    if (acao === null) setConfirmando(null)
+    else usar(acao, build, true)
   }
 
   function teclaNaConfirmacao(evento: KeyboardEvent<HTMLDivElement>) {
@@ -132,6 +166,8 @@ export function ListaDeBuilds({ builds, base, diferenca, doQue, acoes }: ListaDe
         <ul className="lo-tr-builds__lista">
           {builds.lista.map((build) => {
             const desligada = builds.desligada(build)
+            const pedido = confirmando !== null && confirmando.buildId === build.id ? confirmando : null
+            const perdaId = `${id}-perda-${build.id}`
             return (
               <li key={build.id} className="lo-tr-builds__item" data-desligada={desligada ? '1' : undefined}>
                 <div className="lo-tr-builds__texto">
@@ -140,11 +176,25 @@ export function ListaDeBuilds({ builds, base, diferenca, doQue, acoes }: ListaDe
                     {builds.descreverBase(build)}, salva em {quando(build.salvoEm)}
                   </span>
                   {desligada && <span className="lo-tr-builds__aviso">A ficha de base saiu da mesa: a build fica desligada até ela voltar.</span>}
+                  {pedido !== null && pedido.tipo === 'acao' && (
+                    <span className="lo-tr-builds__aviso" id={perdaId}>
+                      {pedido.perda}
+                    </span>
+                  )}
                 </div>
-                {confirmando === build.id ? (
+                {pedido !== null && pedido.tipo === 'apagar' ? (
                   <div className="lo-tr-builds__botoes" role="group" aria-label={`Apagar a build ${build.nome}?`} onKeyDown={teclaNaConfirmacao}>
                     <button type="button" className="lo-btn lo-tr-builds__apagar" autoFocus onClick={() => apagar(build)}>
                       Apagar mesmo
+                    </button>
+                    <button type="button" className="lo-btn lo-btn--fantasma" onClick={() => setConfirmando(null)}>
+                      Manter
+                    </button>
+                  </div>
+                ) : pedido !== null ? (
+                  <div className="lo-tr-builds__botoes" role="group" aria-label={`${pedido.acao}: ${build.nome}?`} aria-describedby={perdaId} onKeyDown={teclaNaConfirmacao}>
+                    <button type="button" className="lo-btn" autoFocus disabled={travado || desligada} onClick={() => confirmarAcao(pedido.acao, build)}>
+                      {acaoDoRotulo(pedido.acao, build)?.confirmar ?? pedido.acao}
                     </button>
                     <button type="button" className="lo-btn lo-btn--fantasma" onClick={() => setConfirmando(null)}>
                       Manter
@@ -154,11 +204,11 @@ export function ListaDeBuilds({ builds, base, diferenca, doQue, acoes }: ListaDe
                   <div className="lo-tr-builds__botoes">
                     {/* Só o que vale para esta build (a de um colega não abre no meu rascunho); a base fora da mesa desliga. */}
                     {acoes.filter((acao) => acao.pode(build)).map((acao) => (
-                      <button key={acao.rotulo} type="button" className="lo-btn" disabled={travado || desligada} onClick={() => setAviso(acao.fazer(build))}>
+                      <button key={acao.rotulo} type="button" className="lo-btn" disabled={travado || desligada} onClick={() => usar(acao, build, false)}>
                         {acao.rotulo}
                       </button>
                     ))}
-                    <button type="button" className="lo-btn lo-btn--fantasma" disabled={travado} aria-label={`Apagar a build ${build.nome}`} onClick={() => setConfirmando(build.id)}>
+                    <button type="button" className="lo-btn lo-btn--fantasma" disabled={travado} aria-label={`Apagar a build ${build.nome}`} onClick={() => setConfirmando({ buildId: build.id, tipo: 'apagar' })}>
                       Apagar
                     </button>
                   </div>

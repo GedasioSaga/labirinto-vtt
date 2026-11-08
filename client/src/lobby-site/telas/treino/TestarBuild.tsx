@@ -197,7 +197,20 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
       })
   }
 
-  /** A build de uma ficha minha abre no rascunho dela (o que estava lá dá lugar à build). */
+  /** O rascunho guardado da ficha da build: o da tela, se é a ficha aberta (pode não ter ido ao navegador). */
+  function rascunhoDaFicha(fichaIdDaBuild: string): RascunhoDeTreino | null {
+    return doc !== undefined && fichaIdDaBuild === doc.id ? rascunho : lerRascunho(campanhaId, fichaIdDaBuild, demo)
+  }
+
+  /** Abrir a build joga fora o rascunho que a ficha tem: com mudança, confirma antes (não tem desfazer). */
+  function perdaAoAbrir(build: BuildSalva): string | null {
+    if (!rascunhoMuda(rascunhoDaFicha(build.base.fichaId))) return null
+    const alvo = fichas.find((ficha) => ficha.id === build.base.fichaId)
+    const de = alvo === undefined ? 'desta ficha' : `de ${alvo.nome}`
+    return `O rascunho ${de} tem mudanças: abrir a build “${build.nome}” troca por ela, e o rascunho de agora some. Salve-o como build antes, se quiser guardar.`
+  }
+
+  /** A build de uma ficha minha abre no rascunho dela (o que estava lá dá lugar à build, depois da confirmação de `perdaAoAbrir`). */
   function abrirBuild(build: BuildSalva): string {
     const alvo = fichas.find((ficha) => ficha.id === build.base.fichaId)
     if (alvo === undefined) return `A ficha da build “${build.nome}” não é sua nesta mesa.`
@@ -211,7 +224,13 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
     return `A build “${build.nome}” está no rascunho de ${alvo.nome}.`
   }
   const acoesDasBuilds: AcaoDaBuild[] = [
-    { rotulo: 'Abrir no rascunho', pode: (build) => build.base.tipo === 'minha' && fichas.some((ficha) => ficha.id === build.base.fichaId), fazer: abrirBuild },
+    {
+      rotulo: 'Abrir no rascunho',
+      pode: (build) => build.base.tipo === 'minha' && fichas.some((ficha) => ficha.id === build.base.fichaId),
+      perda: perdaAoAbrir,
+      confirmar: 'Abrir mesmo',
+      fazer: abrirBuild,
+    },
     { rotulo: `Pôr no ${NOME_DO_JUIZ}`, pode: () => true, fazer: builds.porNoJuiz },
   ]
 
