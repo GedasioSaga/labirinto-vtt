@@ -11,7 +11,14 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Treino/Arena/Judge com ficha sem HP: FICA DE FORA E AVISA "ficha sem HP".
 - Os 7 tokens "Saga" nas cenas: DEIXAR COMO ESTÃO.
 
-## Jimboy Segundo (Q1-Q7 respondidas; faltam Q8-Q15)
+## Jimboy Segundo (todas respondidas)
+- Transformar (literal): "Na verdade toda transformação é bom perguntar se gasta uma ação simples, bonus, completa ou se é livre". Esclarecido: O APP PERGUNTA NA HORA, AO JOGADOR, toda vez que ele se transforma (ou troca de forma): "gasta ação Simples, Bônus, Completa ou é Livre?". Vale para toda transformação de todo personagem; nada fica gravado fixo na forma. (regra do sistema)
+- Preparação Para a Batalha (literal): "Preparação para batalha ela para cada jogador aumenta 20 em algum status, ou seja no inicio do combate vai perguntar se vai fazer alguma preparação para batalha se dizer sim ele pergunta qual status vai aumentar 2, até o final do combate." Regra: no INÍCIO DO COMBATE o app pergunta a quem tem a passiva "vai fazer Preparação para a Batalha?"; se sim, pergunta QUAL atributo sobe e o bônus dura até o fim do combate. Esclarecido: +20 no atributo escolhido.
+- Vantagem/desvantagem em teste: o app ROLA 2 d20 e fica com o MELHOR (vantagem) ou o PIOR (desvantagem), na reação e na disputa, só dentro da batalha. (regra do sistema)
+- Sai Dai Rin, dano: vale a FÓRMULA DO CAMPO DANO ((FOR+ESP)×1,5)×1,5+100 (= 257 hoje).
+- Quebra-Queixo: o ×1,5 SÓ NO PONTO VITAL (a mira pergunta "acertou ponto vital?"; sem ele, 60 na forma base); "analisar" sem custo.
+- Rapid Water (literal): "É a concentração, ele aumenta o alcance e o dano." Fica como o app faz hoje (concentrar aumenta alcance E dano).
+- Full, "anda +2": +2 CASAS EM CADA MOVIMENTO (como a Ignição).
 - HP 1000 e SP 60 são os máximos de verdade (o +100 do Corpo Vigoroso já está nos 1000).
 - Corta Cenoura: depois do acerto o APP ROLA A DISPUTA (d20 + mod. de FOR do Jimboy, com vantagem da Força Superior, contra d20 + mod. de RES do alvo) e só põe Atordoado se ele vencer.
 - Sai Dai Rin (resposta literal): "Sai Dai Rin é um tecnica OVERLOAD é impossivel de errar a não ser que outra tecnica OVERLOAD seja usada, ou seja ele vai perder 200 de hp e e todos os stastus/atributos ficarão pela metade ou seja se ele tiver 50 de força ficará com 25, isso até o final do combate." Regras que saem daí: técnica OVERLOAD NÃO ERRA (o alvo só se defende com outra OVERLOAD; vale para todos); depois dela o usuário perde 200 de HP sempre e TODOS os atributos ficam pela metade (arredondar para baixo? perguntar se aparecer número ímpar) até o fim da batalha.
@@ -19,3 +26,4 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Rapid Dash: DOIS GOLPES na mesma habilidade; o oponente gasta reação 2 vezes (uma por golpe) para tentar desviar de cada um.
 - Atordoado e Paralisado na vez do alvo: SÓ "PASSAR A VEZ" fica liberado. (regra do sistema)
 - Custo de SP "por turno" das formas: LEMBRETE "Aplicar / pular" a cada vez. (regra do sistema)
+- Overload: UMA VEZ POR BATALHA (cada batalha nova libera de novo).
