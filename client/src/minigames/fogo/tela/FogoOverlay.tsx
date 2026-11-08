@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { FogoDoJogador, FogoParaOJogo } from '../../../player/estadoDoFogo'
-import { FOGO_REPASSE_MS, type FogoEntrada, type FogoPlacar } from '../../../net/protocoloDoFogo'
+import { FOGO_REPASSE_MS, type FogoEntrada, type FogoPlacar, type FogoStatus } from '../../../net/protocoloDoFogo'
 import { FUNCOES_FOGO, type FuncaoFogo } from '../tipos'
 import { criarPonteDoJogo, type EstadoDaPonte, type PonteDoJogo } from './ponteDoJogo'
 import {
   CONTROLES_DO_FOGO,
   DICA_DA_FUNCAO_FOGO,
+  ERRO_DA_CARGA_DEMORADA,
+  ERRO_DO_JOGO_AUSENTE,
   MOTIVO_DO_ENCERRAMENTO_FOGO,
   NOME_DA_DIFICULDADE_FOGO,
   NOME_DA_FUNCAO_FOGO,
@@ -28,6 +30,11 @@ import './fogo.css'
 /** Onde o mestre serve o jogo (a mesma origem da página do jogador). */
 export const ROTA_DO_FOGO = '/minigames/fogo/'
 export const URL_DO_JOGO_FOGO = `${ROTA_DO_FOGO}index.html`
+/**
+ * Até quando esperar o `pronto` do jogo: são ~38 MB do motor (10 MB com gzip),
+ * e numa rede local fraca isso leva meio minuto. Passou disso, é erro.
+ */
+const FOGO_CARGA_MAX_MS = 90_000
 
 export interface AcoesDoFogo {
   prontoFogo(funcao: FuncaoFogo): boolean
@@ -35,6 +42,7 @@ export interface AcoesDoFogo {
   hashFogo(tique: number, hash: number): boolean
   fimFogo(tique: number, hash: number, placar: FogoPlacar): boolean
   fecharFogo(): void
+  falhouFogo(): boolean
   ouvirFogo(ouvinte: (msg: FogoParaOJogo) => void): () => void
 }
 
@@ -80,6 +88,8 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = URL_DO_JOGO_FOGO }: Fog
       aoMudar: (estado, erro) => {
         setEstadoDoJogo(estado)
         if (erro !== undefined) setErroDoJogo(erro)
+        // Jogo quebrado aqui: o mestre fica sabendo, e ninguém da equipe espera por este aparelho.
+        if (estado === 'erro') acoesRef.current.falhouFogo()
       },
     })
     ponteRef.current = ponte
@@ -90,7 +100,21 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = URL_DO_JOGO_FOGO }: Fog
       else ponte.sair(msg.id, msg.depoisDe)
     })
     const repasse = window.setInterval(() => ponte.repassar(), FOGO_REPASSE_MS)
+    // O jogo que não chega vira erro, em vez de "Carregando" para sempre: o prazo
+    // pega o download que caiu; a conferência pega na hora a rota que o mestre não serve.
+    let viva = true
+    const prazo = window.setTimeout(() => ponte.falhouCarga(ERRO_DA_CARGA_DEMORADA), FOGO_CARGA_MAX_MS)
+    const conferencia = new AbortController()
+    fetch(urlDoJogo, { method: 'HEAD', cache: 'no-store', signal: conferencia.signal })
+      .then((resposta) => {
+        if (viva && !resposta.ok) ponte.falhouCarga(ERRO_DO_JOGO_AUSENTE)
+      })
+      // Sem resposta (rede caída, ou a tela fechou e abortou): quem decide é o prazo.
+      .catch(() => undefined)
     return () => {
+      viva = false
+      conferencia.abort()
+      window.clearTimeout(prazo)
       window.clearInterval(repasse)
       desligarCanal()
       window.removeEventListener('message', aoReceber)
@@ -115,7 +139,9 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = URL_DO_JOGO_FOGO }: Fog
   }, [encerrada])
 
   const emJogo = comecar !== undefined && encerrada === undefined && fogo.desfecho === undefined
-  const tela = fogo.desfecho !== undefined ? 'resultado' : encerrada !== undefined ? 'encerrada' : emJogo ? 'jogo' : 'convite'
+  // `parou`: a partida começou, mas o jogo quebrou neste aparelho (o mestre já foi avisado).
+  const tela =
+    fogo.desfecho !== undefined ? 'resultado' : encerrada !== undefined ? 'encerrada' : emJogo ? (estadoDoJogo === 'erro' ? 'parou' : 'jogo') : 'convite'
 
   return (
     <div className={`lb-fogo lb-fogo--${tela}`} role="dialog" aria-modal="true" aria-label={NOME_DO_JOGO_FOGO}>
@@ -128,7 +154,9 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = URL_DO_JOGO_FOGO }: Fog
         aria-hidden={tela !== 'jogo'}
         tabIndex={tela === 'jogo' ? 0 : -1}
       />
-      {tela === 'convite' && <Convite fogo={fogo} playerId={playerId} funcao={funcao} setFuncao={setFuncao} estadoDoJogo={estadoDoJogo} acoes={acoes} />}
+      {tela === 'convite' && (
+        <Convite fogo={fogo} playerId={playerId} funcao={funcao} setFuncao={setFuncao} estadoDoJogo={estadoDoJogo} erroDoJogo={erroDoJogo} acoes={acoes} />
+      )}
       {tela === 'jogo' && (
         <div className="lb-fogo__barra" aria-live="polite">
           <span>
@@ -137,7 +165,15 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = URL_DO_JOGO_FOGO }: Fog
           {estadoDoJogo === 'carregando' && <span>Carregando o jogo…</span>}
           {fogo.pausada && <span className="lb-fogo__selo">Pausado pelo mestre</span>}
           {fogo.fimEnviado && <span className="lb-fogo__selo">Esperando os colegas terminarem…</span>}
-          {erroDoJogo !== null && <span className="lb-fogo__selo lb-fogo__selo--erro">O jogo não começou: {erroDoJogo}</span>}
+        </div>
+      )}
+      {tela === 'parou' && (
+        <div className="lb-fogo__cartao" role="alert">
+          <h2 className="lb-fogo__titulo">{NOME_DO_JOGO_FOGO}</h2>
+          <p>O jogo parou neste aparelho{erroDoJogo === null ? '' : ` (${erroDoJogo})`}. Você saiu da partida e o mestre já sabe.</p>
+          <button type="button" className="lb-btn lb-btn--primary" onClick={acoes.fecharFogo}>
+            Voltar ao mapa
+          </button>
         </div>
       )}
       {tela === 'resultado' && fogo.desfecho !== undefined && <Resultado fogo={fogo} playerId={playerId} onFechar={acoes.fecharFogo} />}
@@ -160,12 +196,22 @@ interface ConviteProps {
   funcao: FuncaoFogo
   setFuncao(funcao: FuncaoFogo): void
   estadoDoJogo: EstadoDaPonte
+  erroDoJogo: string | null
   acoes: AcoesDoFogo
 }
 
-function Convite({ fogo, playerId, funcao, setFuncao, estadoDoJogo, acoes }: ConviteProps) {
+/** Como cada chamado aparece na lista do convite. */
+function statusNoConvite(status: FogoStatus | undefined): string {
+  if (status === 'pronto') return 'Pronto'
+  if (status === 'fora') return 'Ficou de fora'
+  return 'Esperando'
+}
+
+function Convite({ fogo, playerId, funcao, setFuncao, estadoDoJogo, erroDoJogo, acoes }: ConviteProps) {
   const c = fogo.convite
   const pronto = fogo.pronto
+  // Só com o jogo carregado: Pronto sem jogo deixaria a equipe esperando entradas que nunca saem.
+  const jogoCarregado = estadoDoJogo === 'esperando'
   const statusDe = (id: string) => fogo.estado?.participantes.find((p) => p.playerId === id)
   return (
     <div className="lb-fogo__cartao">
@@ -193,13 +239,13 @@ function Convite({ fogo, playerId, funcao, setFuncao, estadoDoJogo, acoes }: Con
             <li key={p.playerId}>
               <span className="lb-fogo__nome">{p.playerId === playerId ? `${p.nome} (você)` : p.nome}</span>
               <span>{NOME_DA_FUNCAO_FOGO[st?.funcao ?? p.funcao]}</span>
-              <span>{st?.status === 'pronto' ? 'Pronto' : 'Esperando'}</span>
+              <span>{statusNoConvite(st?.status)}</span>
             </li>
           )
         })}
       </ul>
       <div className="lb-fogo__acoes">
-        <button type="button" className="lb-btn lb-btn--primary" disabled={pronto === funcao} onClick={() => acoes.prontoFogo(funcao)}>
+        <button type="button" className="lb-btn lb-btn--primary" disabled={!jogoCarregado || pronto === funcao} onClick={() => acoes.prontoFogo(funcao)}>
           {pronto === undefined ? 'Pronto' : pronto === funcao ? 'Pronto: esperando o mestre começar' : 'Trocar para esta função'}
         </button>
         <button type="button" className="lb-btn lb-btn--ghost" onClick={acoes.fecharFogo}>
@@ -207,7 +253,11 @@ function Convite({ fogo, playerId, funcao, setFuncao, estadoDoJogo, acoes }: Con
         </button>
       </div>
       <p className="lb-fogo__dica" aria-live="polite">
-        {estadoDoJogo === 'carregando' ? 'Carregando o jogo…' : estadoDoJogo === 'erro' ? 'O jogo não carregou. Avise o mestre.' : 'Jogo carregado.'}
+        {estadoDoJogo === 'carregando'
+          ? 'Carregando o jogo… o Pronto libera quando terminar.'
+          : estadoDoJogo === 'erro'
+            ? `O jogo não carregou${erroDoJogo === null ? '' : ` (${erroDoJogo})`}. Avise o mestre.`
+            : 'Jogo carregado.'}
       </p>
     </div>
   )

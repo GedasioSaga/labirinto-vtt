@@ -1581,7 +1581,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     lastFogoKey = key
     const tinha = (campo: 'divergencia' | 'desfecho'): boolean => typeof antes === 'object' && antes !== null && Reflect.get(antes, campo) !== undefined && Reflect.get(antes, 'sessao') === fogo?.sessao
     if (fogo?.divergencia !== undefined && !tinha('divergencia')) {
-      toastSink.push('error', `Fogo na Floresta: as partidas de ${fogo.divergencia.nomes.join(' e ')} ficaram diferentes (tique ${fogo.divergencia.tique}). Encerre e chame de novo.`)
+      // Achada só no fim (os placares não bateram), o jogo já fechou sozinho: não há o que encerrar.
+      const depois = fogo.fase === 'encerrada' ? 'O jogo foi encerrado sem prêmio.' : 'Encerre e chame de novo.'
+      toastSink.push('error', `Fogo na Floresta: as partidas de ${fogo.divergencia.nomes.join(' e ')} ficaram diferentes (tique ${fogo.divergencia.tique}). ${depois}`)
     }
     if (fogo?.fase === 'fim' && !tinha('desfecho')) {
       const time = fogo.desfecho

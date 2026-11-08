@@ -80,6 +80,15 @@ export function fogoAceitaPronto(fogo: FogoDoJogador | undefined): fogo is FogoD
   return fogo !== undefined && fogo.comecar === undefined && fogo.encerrada === undefined && fogo.desfecho === undefined && (fogo.estado?.fase ?? 'convite') === 'convite'
 }
 
+/**
+ * Ainda vale avisar o mestre que este jogador saiu (`fogo.desistir`): nada
+ * encerrou o fogo e o fim deste aparelho não saiu (depois dele, o placar
+ * mandado é o que vale).
+ */
+export function fogoAceitaDesistir(fogo: FogoDoJogador | undefined): fogo is FogoDoJogador {
+  return fogo !== undefined && fogo.encerrada === undefined && fogo.desfecho === undefined && !fogo.fimEnviado
+}
+
 /** Ainda dá para mandar entradas, hash e o fim: a partida começou para ESTE aparelho e nada a encerrou. */
 export function fogoEmJogo(fogo: FogoDoJogador | undefined): fogo is FogoDoJogador {
   return fogo !== undefined && fogo.comecar !== undefined && fogo.encerrada === undefined && fogo.desfecho === undefined && !fogo.fimEnviado

@@ -28,6 +28,8 @@ describe('protocolo do Fogo na Floresta', () => {
       { type: 'fogo.entradas', sessao: 's', de: 5, lista: [ENTRADA, ENTRADA] },
       { type: 'fogo.hash', sessao: 's', tique: 50, hash: 3908000128 },
       { type: 'fogo.fim', sessao: 's', tique: 353, hash: 3908000128, placar },
+      { type: 'fogo.desistir', sessao: 's', motivo: 'recusou' },
+      { type: 'fogo.desistir', sessao: 's', motivo: 'erro' },
     ]
     for (const msg of doJogador) expect(parseFogoPlayerMessage(msg)).toEqual(msg)
     const doMestre = [
@@ -55,6 +57,7 @@ describe('protocolo do Fogo na Floresta', () => {
       { type: 'fogo.hash', sessao: 's', tique: 50, hash: 1.5 },
       { type: 'fogo.fim', sessao: 's', tique: 353, hash: 1, placar: { ...PLACAR_DO_JOGO } },
       { type: 'fogo.pronto', sessao: '', funcao: 'bombeiro' },
+      { type: 'fogo.desistir', sessao: 's', motivo: 'cansei' },
     ]
     for (const msg of tortas) expect(parseFogoPlayerMessage(msg)).toBeNull()
     expect(parseFogoHostMessage({ type: 'fogo.comecar', sessao: 's', semente: 1, dificuldade: 'normal', atraso: 4, jogadores: Array.from({ length: 7 }, (_, i) => ({ id: `j${i}`, nome: 'X', funcao: 'bombeiro' })) })).toBeNull()

@@ -34,7 +34,11 @@ export const MOTIVO_DO_ENCERRAMENTO_FOGO: Record<FogoMotivoDoFim, string> = {
   fora: 'O jogo começou sem você: da próxima vez, toque em Pronto antes.',
   mestre: 'O mestre encerrou o jogo.',
   saiu: 'Você saiu do jogo (a conexão caiu ou a página recarregou).',
-  divergiu: 'As partidas dos aparelhos ficaram diferentes e o mestre encerrou. Nada foi ganho nem perdido.',
+  divergiu: 'As partidas dos aparelhos ficaram diferentes e o jogo foi encerrado. Nada foi ganho nem perdido.',
 }
+
+/** Por que o jogo não chegou neste aparelho (entra no aviso: "O jogo não carregou (...)"). */
+export const ERRO_DO_JOGO_AUSENTE = 'o aparelho do mestre ainda não tem este jogo'
+export const ERRO_DA_CARGA_DEMORADA = 'demorou demais para carregar'
 
 export const CONTROLES_DO_FOGO = 'WASD ou setas andam; o mouse mira; clique ou Espaço faz a ação; E pega e solta; 1, 2 e 3 trocam de função no caminhão.'

@@ -66,6 +66,8 @@ export interface PonteDoJogo {
   sair(id: string, depoisDe: number): void
   pausar(pausada: boolean): void
   encerrar(): void
+  /** O jogo não chegou (a rota não existe, o download caiu, demorou demais): `carregando` vira `erro`. Depois do `pronto`, nada muda. */
+  falhouCarga(erro: string): void
   /** Manda ao mestre as minhas entradas juntas desde o último. */
   repassar(): void
   estado(): EstadoDaPonte
@@ -210,6 +212,9 @@ export function criarPonteDoJogo(op: OpcoesDaPonte): PonteDoJogo {
     encerrar() {
       if (estado === 'jogando') paraOJogo('encerrar')
       mudar('fim')
+    },
+    falhouCarga(erro) {
+      if (estado === 'carregando') mudar('erro', erro)
     },
     repassar,
     estado: () => estado,

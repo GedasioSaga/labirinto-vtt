@@ -177,7 +177,7 @@ import { parseDancaHostMessage, parseDancaPlayerMessage, type DancaEvento, type 
 import { dancaAceitaPronto, dancaNaPista, receberDanca, type DancaDoJogador } from './estadoDaDanca'
 import type { FuncaoFogo } from '../minigames/fogo/tipos'
 import { parseFogoHostMessage, parseFogoPlayerMessage, type FogoEntrada, type FogoPlacar, type FogoPlayerMessage } from '../net/protocoloDoFogo'
-import { fogoAceitaPronto, fogoEmJogo, receberFogo, type FogoDoJogador, type FogoParaOJogo } from './estadoDoFogo'
+import { fogoAceitaDesistir, fogoAceitaPronto, fogoEmJogo, receberFogo, type FogoDoJogador, type FogoParaOJogo } from './estadoDoFogo'
 import type { DificuldadePesca } from '../minigames/pesca/tipos'
 import {
   parsePescaHostMessage,
@@ -1666,8 +1666,18 @@ export interface PlayerConnection {
   hashFogo(tique: number, hash: number): boolean
   /** FOGO: o placar do fim. Uma vez só; depois dele nada sai. */
   fimFogo(tique: number, hash: number, placar: FogoPlacar): boolean
-  /** FOGO: a tela fechou o resultado (ou o aviso de encerrado): o estado do fogo sai. */
+  /**
+   * FOGO: a tela fechou ("Agora não", o resultado, o aviso de encerrado): o
+   * estado do fogo sai. Antes do fim, o mestre fica sabendo (`fogo.desistir`),
+   * para a equipe não esperar as entradas deste aparelho.
+   */
   fecharFogo(): void
+  /**
+   * FOGO: o jogo não carregou ou parou neste aparelho. Avisa o mestre (sai
+   * do Pronto no convite, sai da partida no jogo) e tira o Pronto daqui; a
+   * tela continua aberta para mostrar o aviso. `false` = nada a avisar.
+   */
+  falhouFogo(): boolean
   /**
    * FOGO: o canal das entradas dos colegas e do `fogo.sair`, direto ao jogo
    * (sem estado: 10 por segundo não redesenham a tela). Devolve o desligar.
@@ -6001,7 +6011,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     },
 
     fecharFogo() {
-      if (state.fogo !== undefined) setState({ fogo: undefined })
+      const fogo = state.fogo
+      if (fogo === undefined) return
+      if (fogoAceitaDesistir(fogo)) enviarFogo({ type: 'fogo.desistir', sessao: fogo.sessao, motivo: 'recusou' })
+      setState({ fogo: undefined })
+    },
+
+    falhouFogo() {
+      const fogo = state.fogo
+      if (!fogoAceitaDesistir(fogo) || !enviarFogo({ type: 'fogo.desistir', sessao: fogo.sessao, motivo: 'erro' })) return false
+      // O mestre voltou este jogador a Convidado: se o jogo carregar depois, o Pronto é pedido de novo.
+      if (fogo.pronto !== undefined) setState({ fogo: { ...fogo, pronto: undefined } })
+      return true
     },
 
     ouvirFogo(ouvinte) {

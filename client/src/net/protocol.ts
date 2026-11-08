@@ -3514,6 +3514,7 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'fogo.entradas':
     case 'fogo.hash':
     case 'fogo.fim':
+    case 'fogo.desistir':
       return parseFogoPlayerMessage(value)
     case 'pesca.pedir':
     case 'pesca.pronto':

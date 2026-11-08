@@ -8,6 +8,7 @@ import {
   type FogoComecarMessage,
   type FogoConviteMessage,
   type FogoDesfechoMessage,
+  type FogoDesistirMessage,
   type FogoEntrada,
   type FogoEntradasMessage,
   type FogoEstadoMessage,
@@ -36,7 +37,12 @@ import {
  *     (nunca de volta ao remetente);
  *  3. quem cai: `fogo.sair` com `depoisDe` = o último tique dele que foi
  *     repassado; o que estava na fila dele morre ali (ninguém o recebeu);
- *  4. hash diferente no mesmo tique é defeito: o painel do mestre avisa.
+ *  4. hash diferente no mesmo tique é defeito: o painel do mestre avisa;
+ *  5. na equipe, todo fim (tique, hash e placar) tem de ser igual: com
+ *     divergência, o jogo fecha como `divergiu`, sem prêmio nem consequência.
+ *
+ * Quem desiste (`fogo.desistir`: "Agora não", ou o jogo não carregou) sai do
+ * convite ou da partida, para a equipe não ficar esperando as entradas dele.
  *
  * Um incêndio ativo por vez. Mensagem de outra sessão, de quem não foi
  * chamado ou fora de fase morre calada, como na dança.
@@ -135,6 +141,8 @@ export interface FogoNoHost {
   entradas(playerId: string, msg: FogoEntradasMessage): SaidaDoFogo[]
   hash(playerId: string, msg: FogoHashMessage): SaidaDoFogo[]
   fim(playerId: string, msg: FogoFimMessage): SaidaDoFogo[]
+  /** No convite: "Agora não" deixa de fora; o jogo que não carregou volta a Convidado. No jogo: sai como quem caiu. */
+  desistir(playerId: string, msg: FogoDesistirMessage): SaidaDoFogo[]
   /** O que chegou desde o último repasse, a cada colega. Vazio quando não há o que mandar. */
   repassar(): SaidaDoFogo[]
   /** `null` = nada a fazer (sem convite aberto, ou ninguém pronto e conectado). */
@@ -252,13 +260,46 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
 
   const linhaDe = (p: Participante): FogoLinhaDaMesa => ({ playerId: p.playerId, nome: p.nome, funcao: p.funcao, pontos: p.pontos ?? 0, resultado: p.resultado ?? 'saiu' })
 
+  /** Fecha o fogo ativo sem desfecho: ninguém ganha nem perde. Avisa todo mundo menos quem já ficou de fora. */
+  const fecharSemDesfecho = (f: Fogo, motivo: FogoMotivoDoFim): SaidaDoFogo[] => {
+    f.fase = 'encerrada'
+    const msg = encerra(f, motivo)
+    return f.participantes.filter((p) => p.status !== 'fora').flatMap((p) => para(p, msg))
+  }
+
+  /** O fim de um aparelho, para comparar com o dos colegas: tique, hash e o placar inteiro (as linhas por id). */
+  const chaveDoFim = (fim: NonNullable<Participante['fim']>): string => {
+    const p = fim.placar
+    const linhas = [...p.porJogador].sort((a, b) => a.id.localeCompare(b.id)).map((l) => [l.id, l.funcao, l.pontos])
+    return JSON.stringify([fim.tique, fim.hash, p.vitoria, p.motivo, p.pontos, p.estrelas, p.florestaViva, p.casas, p.tempoS, linhas])
+  }
+
+  /**
+   * Equipe: todo aparelho roda a MESMA partida, então todo fim tem de ser
+   * igual. Hash que já divergiu no meio, ou um fim diferente (aparelho com
+   * defeito, placar forjado), derruba o desfecho. A primeira diferença fica
+   * para o painel, como a do hash.
+   */
+  const finsDivergem = (f: Fogo, fins: readonly { p: Participante; fim: NonNullable<Participante['fim']> }[]): boolean => {
+    if (f.divergencia !== undefined) return true
+    const [primeiro, ...outros] = fins
+    if (primeiro === undefined) return false
+    const chave = chaveDoFim(primeiro.fim)
+    const outro = outros.find((o) => chaveDoFim(o.fim) !== chave)
+    if (outro === undefined) return false
+    f.divergencia = { tique: Math.min(primeiro.fim.tique, outro.fim.tique), nomes: [primeiro.p.nome, outro.p.nome] }
+    return true
+  }
+
   /** Ninguém mais jogando: o desfecho, uma vez só. */
   const concluirSePronto = (f: Fogo): SaidaDoFogo[] => {
     if ((f.fase !== 'jogo' && f.fase !== 'pausa') || jogando(f).length > 0) return []
     const jogaram = f.participantes.filter((p) => p.status === 'terminou' || p.status === 'saiu')
+    const fins = jogaram.flatMap((p) => (p.fim === undefined ? [] : [{ p, fim: p.fim }]))
+    if (f.modo === 'equipe' && finsDivergem(f, fins)) return fecharSemDesfecho(f, 'divergiu')
     const m = f.conf.minigame
-    // Equipe: o placar do time é o do primeiro que terminou (os hashes conferem que todos viram o mesmo).
-    const doTime = f.modo === 'equipe' ? jogaram.find((p) => p.fim !== undefined)?.fim?.placar : undefined
+    // Equipe: os fins conferidos são todos iguais, então o placar do time é o de qualquer um.
+    const doTime = f.modo === 'equipe' ? fins[0]?.fim.placar : undefined
     for (const p of jogaram) {
       const placar = f.modo === 'equipe' ? doTime : p.fim?.placar
       p.pontos = placar?.porJogador.find((linha) => linha.id === p.playerId)?.pontos ?? 0
@@ -354,9 +395,28 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
       conferirHash(f, p, msg.tique, msg.hash)
       p.status = 'terminou'
       p.fim = { tique: msg.tique, hash: msg.hash, placar: msg.placar }
-      // O último a terminar fecha o jogo: o desfecho já diz tudo, sem estado antes.
-      const desfecho = concluirSePronto(f)
-      return f.fase === 'fim' ? desfecho : estadoATodos(f)
+      // O último a terminar fecha o jogo: o desfecho (ou o encerra da divergência) já diz tudo, sem estado antes.
+      const fechou = concluirSePronto(f)
+      return f.fase === 'jogo' || f.fase === 'pausa' ? estadoATodos(f) : fechou
+    },
+
+    desistir(playerId, msg) {
+      const achado = doJogador(playerId, msg.sessao, ['convite', ...noJogo])
+      if (achado === null) return []
+      const { f, p } = achado
+      if (f.fase === 'convite') {
+        // "Agora não": fica de fora (o painel mostra, e a volta da conexão não reabre o convite).
+        // O jogo não carregou: volta a Convidado, sem o Pronto; se carregar depois (recarregou a página), entra de novo.
+        if (p.status === 'fora') return []
+        const status: FogoStatus = msg.motivo === 'recusou' ? 'fora' : 'convidado'
+        if (p.status === status) return []
+        p.status = status
+        return estadoATodos(f)
+      }
+      // No jogo: quem já terminou fica com o fim que mandou; quem jogava sai como quem caiu.
+      if (p.status !== 'jogando') return []
+      const colegas = tirarDoJogo(f, p)
+      return [...colegas, ...estadoATodos(f), ...concluirSePronto(f)]
     },
 
     repassar() {
@@ -388,7 +448,8 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
       if (jogam.length === 0) return null
       const outbound: SaidaDoFogo[] = []
       for (const p of f.participantes) {
-        if (jogam.includes(p)) continue
+        // Quem já ficou de fora no convite ("Agora não") fechou a tela: não precisa ouvir de novo.
+        if (jogam.includes(p) || p.status === 'fora') continue
         outbound.push(...para(p, encerra(f, 'fora')))
         p.status = 'fora'
       }
@@ -429,10 +490,7 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
     encerrar() {
       const f = ativo()
       if (f === null) return null
-      f.fase = 'encerrada'
-      const motivo: FogoMotivoDoFim = f.divergencia === undefined ? 'mestre' : 'divergiu'
-      const msg = encerra(f, motivo)
-      return f.participantes.filter((p) => p.status !== 'fora').flatMap((p) => para(p, msg))
+      return fecharSemDesfecho(f, f.divergencia === undefined ? 'mestre' : 'divergiu')
     },
 
     entrou(playerId) {

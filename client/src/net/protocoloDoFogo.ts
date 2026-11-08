@@ -16,7 +16,8 @@ import {
  *    `fogo.entradas` (as dos colegas, em lotes, a cada `FOGO_REPASSE_MS`),
  *    `fogo.sair`, `fogo.pausa`, `fogo.retoma`, `fogo.encerra` e `fogo.desfecho`;
  *  - jogador → mestre: `fogo.pronto`, `fogo.entradas` (as minhas, de `de` em
- *    diante), `fogo.hash` (a cada 5 s de jogo) e `fogo.fim` (o placar).
+ *    diante), `fogo.hash` (a cada 5 s de jogo), `fogo.fim` (o placar) e
+ *    `fogo.desistir` ("Agora não", ou o jogo não carregou neste aparelho).
  *
  * Lockstep (o jogo é um export web do Godot, `minigames/fogo/tela/ponteDoJogo.ts`):
  * todo aparelho roda a MESMA partida com a mesma semente e as mesmas entradas
@@ -213,7 +214,18 @@ export interface FogoFimMessage {
   placar: FogoPlacar
 }
 
-export type FogoPlayerMessage = FogoProntoMessage | FogoEntradasMessage | FogoHashMessage | FogoFimMessage
+/** `recusou`: o jogador tocou em "Agora não" (ou fechou a tela); `erro`: o jogo não carregou ou travou neste aparelho. */
+export type FogoMotivoDaDesistencia = 'recusou' | 'erro'
+const MOTIVOS_DA_DESISTENCIA: readonly FogoMotivoDaDesistencia[] = ['recusou', 'erro']
+
+/** O jogador sai do fogo antes do fim: o mestre tira do convite ou da partida, e a equipe não fica esperando por ele. */
+export interface FogoDesistirMessage {
+  type: 'fogo.desistir'
+  sessao: string
+  motivo: FogoMotivoDaDesistencia
+}
+
+export type FogoPlayerMessage = FogoProntoMessage | FogoEntradasMessage | FogoHashMessage | FogoFimMessage | FogoDesistirMessage
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -339,6 +351,10 @@ export function parseFogoPlayerMessage(value: unknown): FogoPlayerMessage | null
       const placar = lerPlacar(value.placar)
       if (!inteiroEntre(tique, 0, FOGO_TIQUE_MAX) || !ehHash(hash) || placar === null) return null
       return { type: 'fogo.fim', sessao, tique, hash, placar }
+    }
+    case 'fogo.desistir': {
+      const motivo = umDaLista(MOTIVOS_DA_DESISTENCIA, value.motivo)
+      return motivo === undefined ? null : { type: 'fogo.desistir', sessao, motivo }
     }
     default:
       return null

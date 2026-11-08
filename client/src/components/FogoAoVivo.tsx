@@ -235,6 +235,12 @@ export function FogoAoVivoPainel({ pinId, permitida, players, fogo, onConvidar, 
         </>
       ) : (
         <>
+          {desteFogo !== null && desteFogo.fase === 'encerrada' && desteFogo.divergencia !== undefined && (
+            <p className="lb-minigame__aviso" role="status">
+              O último incêndio acabou sem prêmio nem consequência: as partidas de {desteFogo.divergencia.nomes.join(' e ')} ficaram diferentes no tique{' '}
+              {desteFogo.divergencia.tique}.
+            </p>
+          )}
           {desteFogo !== null && desteFogo.fase === 'fim' && (
             <div className="lb-fogo-vivo__placar">
               <span className="lb-eyebrow">Último incêndio</span>

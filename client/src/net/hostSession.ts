@@ -9732,7 +9732,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
-   * FOGO NA FLORESTA: pronto, entradas, hash e placar. Quem confere sessão,
+   * FOGO NA FLORESTA: pronto, entradas, hash, placar e desistência. Quem confere sessão,
    * fase e participante é `fogoNoHost`; o que não vale morre calado. As
    * entradas não saem daqui: esperam o repasse (`repassarFogo`).
    */
@@ -9748,6 +9748,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return { outbound: fogoNoHost.hash(playerId, msg) }
       case 'fogo.fim':
         return { outbound: fogoNoHost.fim(playerId, msg) }
+      case 'fogo.desistir':
+        return { outbound: fogoNoHost.desistir(playerId, msg) }
     }
   }
 
@@ -10002,6 +10004,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'fogo.entradas':
       case 'fogo.hash':
       case 'fogo.fim':
+      case 'fogo.desistir':
         return handleFogo(clientId, msg)
       case 'pesca.pedir':
       case 'pesca.pronto':

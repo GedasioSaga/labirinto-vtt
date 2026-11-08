@@ -23,6 +23,9 @@ interface Resultado {
   fins: { id: string; tique: number; hash: number; vitoria: boolean; pontos: number }[]
   hashes: Record<string, Record<number, number>>
   divergencia: unknown
+  /** Como o mestre fechou: `fim` com o desfecho do time, ou `encerrada` (divergiu). */
+  fase: string | null
+  desfecho: unknown
   repasses: number
   erros: string[]
 }
@@ -41,7 +44,7 @@ const ATRASO_DA_REDE_MAX_MS = 60
 
 const NOMES = ['ana', 'bia', 'caio', 'davi', 'eva', 'fabio']
 const ids = NOMES.slice(0, n)
-const resultado: Resultado = { pronto: false, fins: [], hashes: {}, divergencia: null, repasses: 0, erros: [] }
+const resultado: Resultado = { pronto: false, fins: [], hashes: {}, divergencia: null, fase: null, desfecho: null, repasses: 0, erros: [] }
 window.resultadoDaMesa = resultado
 const relato = document.getElementById('relato')
 const quadros = document.getElementById('quadros')
@@ -104,7 +107,10 @@ function aoMestre(id: string, msg: FogoPlayerMessage) {
       resultado.fins.push({ id, tique: lida.tique, hash: lida.hash, vitoria: lida.placar.vitoria, pontos: lida.placar.pontos })
       entregar(host.fim(id, lida))
     }
-    resultado.divergencia = host.aoVivo()?.divergencia ?? null
+    const aoVivo = host.aoVivo()
+    resultado.divergencia = aoVivo?.divergencia ?? null
+    resultado.fase = aoVivo?.fase ?? null
+    resultado.desfecho = aoVivo?.desfecho ?? null
   })
 }
 
