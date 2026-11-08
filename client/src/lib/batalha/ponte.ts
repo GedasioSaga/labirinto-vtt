@@ -106,6 +106,12 @@ export interface PonteDaBatalha {
    */
   evoluir?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao): boolean
   /**
+   * F2 (revisão da fatia F): por que o `evoluir` recusaria este pedido agora
+   * (a regra de `motivoDoEvoluir`, também a Melodia ligada que a CAÇA pede), ou
+   * `null`. Só lê. Ausente = o host diz a recusa genérica.
+   */
+  motivoDoEvoluir?(sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao): string | null
+  /**
    * Invocação (docs/planos/batalha-invocacao-plano.md): pedir a técnica de
    * Tipo Invocação na vez do dono; nasce a pendência que o MESTRE põe no
    * mapa. A store confere a regra (`motivoDaInvocacao`); o host já conferiu

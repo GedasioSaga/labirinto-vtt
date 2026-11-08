@@ -96,6 +96,7 @@ export const ponteDaBatalha: PonteDaBatalha = {
   zerarCarga: (sceneKey, autor, personagemId) => useBatalhaStore.getState().zerarCarga(sceneKey, autor, personagemId),
   passiva: (sceneKey, autor, pedido) => useBatalhaStore.getState().passiva(sceneKey, autor, pedido),
   evoluir: (sceneKey, autor, pedido) => useBatalhaStore.getState().evoluir(sceneKey, autor, pedido),
+  motivoDoEvoluir: (sceneKey, autor, pedido) => useBatalhaStore.getState().motivoDoEvoluir(sceneKey, autor, pedido),
   invocar: (sceneKey, autor, pedido) => useBatalhaStore.getState().invocar(sceneKey, autor, pedido),
   marcar: (sceneKey, autor, pedido) => useBatalhaStore.getState().marcar(sceneKey, autor, pedido),
   ajustar: (sceneKey, autor, pedido) => useBatalhaStore.getState().ajustar(sceneKey, autor, pedido),

@@ -426,6 +426,8 @@ export interface BatalhaState {
    * evolução e devolve o SP.
    */
   evoluir: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao) => boolean
+  /** F2 (revisão da fatia F): por que o `evoluir` deste pedido seria recusado agora (`motivoDoEvoluir`, com a Melodia da CAÇA), ou `null`. Só lê. */
+  motivoDoEvoluir: (sceneKey: string, autor: AutorDaAcao, pedido: PedidoDeEvolucao) => string | null
 
   // ---- Invocação (docs/planos/batalha-invocacao-plano.md). O jogador só `invocar`, pela ponte; o resto é do mestre. ----
   /**
@@ -1208,8 +1210,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const maximo = ficha === undefined ? null : maximoDoRecurso(ficha, sistema, 'hp')
       return maximo === null ? 0 : porcentoDoMaximo(maximo, porcento)
     }
-    // Doença das Trevas: só na vez em que andou ou agiu (Mover, Atacar, técnica, Concentrar).
-    const agiu = gasto !== undefined && (gasto.movimento > 0 || gasto.blocos > 0 || gasto.simples > 0 || gasto.bonus > 0 || gasto.atacou === true)
+    // Doença das Trevas: só na vez em que andou ou agiu (Mover, Atacar, técnica, Concentrar). `golpeou`: a técnica livre (Florescer) não soma nos contadores.
+    const agiu = gasto !== undefined && (gasto.movimento > 0 || gasto.blocos > 0 || gasto.simples > 0 || gasto.bonus > 0 || gasto.atacou === true || gasto.golpeou === true)
     const dona = fichaDe(saindo.personagemId)
     const doenca = dona === undefined ? null : perdaNoFimDaVez(chavesDoDono(dona))
     if (agiu && doenca !== null) {
@@ -3418,6 +3420,15 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     passiva: (sceneKey, autor, pedido) => comAvisoDeQuemCaiu(sceneKey, autor, mudarPassiva(sceneKey, autor, pedido)),
 
     evoluir: (sceneKey, autor, pedido) => evoluirTecnica(sceneKey, autor, pedido),
+
+    motivoDoEvoluir: (sceneKey, autor, pedido) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return 'A batalha não está ligada nesta cena'
+      const personagemId = cena.turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)?.personagemId ?? null
+      const { personagens, sistema } = mesaDoRpg()
+      const personagem = personagemId === null ? null : (personagens.find((candidato) => candidato.id === personagemId) ?? null)
+      return motivoDoEvoluir({ personagem, sistema, turnos: cena.turnos, soNaVez: autor.tipo === 'jogador' }, pedido)
+    },
 
     marcar: (sceneKey, autor, pedido) => marcarOAlvo(sceneKey, autor, pedido),
     ajustar: (sceneKey, autor, pedido) => comAvisoDeQuemCaiu(sceneKey, autor, ajustarNaBatalha(sceneKey, autor, pedido)),

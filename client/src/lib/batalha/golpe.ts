@@ -578,11 +578,13 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // F2 (fatia D, Ignição): o adicional também conta nos da batalha (2 no total).
   if (extra) combateNovo = comAtaqueExtra(combateNovo, ctx.turnos.rodada, personagem === null || sistema === null ? undefined : efeitosDasFormasLigadas(personagem, sistema).adicionaisNaBatalha?.cartaoId)
   const gasto = contra !== null || acao === null || extra ? null : gastarAcao(gastoAtual, acao)
+  // F2 (revisão da fatia F): todo golpe da vez marca que golpeou (a técnica livre devolve o gasto igual; a Doença das Trevas lê isto).
+  const gastoDoGolpe: GastoDaVez | null = gasto === null ? null : pedido.tipo === 'atacar' ? { ...gasto, atacou: true, golpeou: true } : { ...gasto, golpeou: true }
   const custo = personagem === null || sistema === null ? [] : [...custosDoGolpe(tecnica?.custo ?? null, deTodoGolpe.custoEmSp).flatMap((parte) => ajustesDoCusto(personagem, sistema, parte)), ...ajustesDoHpQueCusta(personagem, sistema, mecanica)]
   const lancado: GolpeLancado = {
     golpe,
     resolvidos: alvos.filter((alvo) => alvo.danoFinal !== undefined),
-    gasto: gasto !== null && pedido.tipo === 'atacar' ? { ...gasto, atacou: true } : gasto,
+    gasto: gastoDoGolpe,
     combate: ctx.carta.personagemId === null || combateNovo === combate ? null : combateNovo,
     custo,
     contraUsado: contra,

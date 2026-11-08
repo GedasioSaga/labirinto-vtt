@@ -581,7 +581,11 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
         // Só na vez dele: a carta da vez é token dele com o MESMO personagem (a store confere de novo).
         const daVez = cartaDaVez(cena.turnos)
         if (daVez === null || daVez.personagemId !== carta.personagemId || !lugar.meusTokens.has(daVez.tokenId)) return false
-        return ponte.evoluir(lugar.sceneKey, autorDe(conexao), pedido)
+        if (ponte.evoluir(lugar.sceneKey, autorDe(conexao), pedido)) return true
+        // F2 (revisão da fatia F): o personagem é dele (conferido acima), então a recusa diz a regra, como no `agir` (a Melodia
+        // que a CAÇA pede só o host sabe). Sem motivo: a recusa genérica.
+        const motivo = ponte.motivoDoEvoluir?.(lugar.sceneKey, autorDe(conexao), pedido) ?? null
+        return motivo === null ? RECUSA_GENERICA : { motivo }
       })
     },
 

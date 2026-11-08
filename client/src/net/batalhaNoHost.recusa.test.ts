@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao } from '../lib/batalha/combate'
+import { CACA, siegCom } from '../lib/batalha/fichasDaFatiaF.testkit'
 import type { PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais } from '../lib/batalha/turnos'
 import { LIA, lutadoresDe, MARINHEIRO, SISTEMA_DO_TESTE, ze } from '../lib/treino/fichasDeTreino.testkit'
@@ -33,6 +34,8 @@ function ponteDa(loja: LojaDaBatalha): PonteDaBatalha {
     darDano: (sceneKey, autor, tokenId, valor) => s().darDano(sceneKey, autor, tokenId, valor),
     escolherArmas: (sceneKey, autor, personagemId, armas) => s().escolherArmas(sceneKey, autor, personagemId, armas),
     zerarCarga: (sceneKey, autor, personagemId) => s().zerarCarga(sceneKey, autor, personagemId),
+    evoluir: (sceneKey, autor, pedido) => s().evoluir(sceneKey, autor, pedido),
+    motivoDoEvoluir: (sceneKey, autor, pedido) => s().motivoDoEvoluir(sceneKey, autor, pedido),
   }
 }
 
@@ -118,5 +121,33 @@ describe('bug 1: a recusa diz por quê', () => {
     expect(lida?.motivo).not.toBe('Essa ação não vale agora')
     // O reenvio do mesmo reqId devolve a mesma recusa, sem agir de novo.
     expect(host.agir(ana, { type: 'batalha.agir', reqId: 'r7', vez: vez(), pedido: ataque(doMarinheiro) }).saidas[0]?.msg).toEqual(daRegra)
+  })
+})
+
+describe('F2 (revisão da fatia F): o Evoluir recusado diz por quê', () => {
+  it('o Siegfried (jogador) sem a Melodia ligada no +20 pede o Evoluir da CAÇA: a recusa traz a regra', () => {
+    const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: siegCom(), lado: 'a' }, { ficha: MARINHEIRO, lado: 'b' }]))
+    const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
+    const tokens = mesa.tokens()
+    loja.getState().ligar(CENA, {}, { combatentes: combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id))), regras: null, desempate: 'd20' })
+    const sieg = mesa.personagens().find((candidato) => candidato.nome === 'Siegfried')
+    const doSieg = tokens.find((token) => token.characterId === sieg?.id)?.id
+    if (sieg === undefined || doSieg === undefined) throw new Error('sem o Siegfried')
+    // A vez anda até a carta do Siegfried (o mestre passa a do Marinheiro, se vier antes).
+    for (let i = 0; i < 3; i += 1) {
+      const turnos = loja.getState().cenas[CENA]?.turnos
+      const daVez = turnos?.cartas.find((carta) => carta.id === turnos.vez)
+      if (turnos === undefined || daVez === undefined || daVez.tokenId === doSieg) break
+      loja.getState().passarVez(CENA, { tipo: 'mestre' }, { cartaId: daVez.id, rodada: turnos.rodada })
+    }
+    const host = criarBatalhaNoHost({ ponte: ponteDa(loja), agora: () => 1_000, paraOFio: (personagem) => personagem })
+    const bia: ConexaoNaBatalha = {
+      clientId: 'c-bia',
+      playerId: 'jogador_bia',
+      nome: 'Bia',
+      lugar: { sceneKey: CENA, meusTokens: new Set([doSieg]), fichasNaTela: tokens.map((token) => ({ id: token.id, name: token.name })), meusPersonagens: new Set([sieg.id]), personagemDaFicha: new Map([[doSieg, sieg.id]]) },
+    }
+    const resposta = host.evoluir(bia, { type: 'batalha.evoluir', reqId: 'e1', pedido: { tipo: 'evoluir', tokenId: doSieg, cartaoId: CACA.id, custo: 50 } })
+    expect(resposta.saidas.map((saida) => saida.msg)).toEqual([{ type: 'batalha.resultado', reqId: 'e1', ok: false, motivo: 'Para evoluir, a Melodia tem de estar ligada na opção do +20 de dano' }])
   })
 })

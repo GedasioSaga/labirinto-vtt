@@ -1030,12 +1030,13 @@ export function perguntaAArma(chaves: readonly string[]): boolean {
 /**
  * F2 (fatia F, Medicina): quantos do item que a técnica gasta sobram (os da
  * mochila menos os usos nesta batalha); `null` = a técnica não gasta item.
+ * Conta a `quantidade` de cada vaga (ausente = 1): 3 kits empilhados são 3.
  */
-export function itensQueSobram(cartaoId: string, mochila: readonly { nome: string }[] | undefined, usadas: number): { nome: string; sobram: number } | null {
+export function itensQueSobram(cartaoId: string, mochila: readonly { nome: string; quantidade?: number }[] | undefined, usadas: number): { nome: string; sobram: number } | null {
   const nome = mecanicaDoCartao(cartaoId)?.gastaItem
   if (nome === undefined) return null
   const procurado = normalizar(nome).trim()
-  const tem = (mochila ?? []).filter((item) => normalizar(item.nome).trim() === procurado).length
+  const tem = (mochila ?? []).reduce((soma, item) => (normalizar(item.nome).trim() === procurado ? soma + (item.quantidade ?? 1) : soma), 0)
   return { nome, sobram: Math.max(0, tem - usadas) }
 }
 

@@ -280,7 +280,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const operaComoMestre = textoDaVez === 'vezDe'
 
   // ---- Tipos de habilidade F4: o Evoluir na leitura das Habilidades. O jogador, só na vez dele (o contra-ataque guardado é
-  // fora dela); na Arena o mestre opera e evolui sempre. A regra da ficha é a do host (`motivoDoEvoluirNaFicha`); ele confere de novo.
+  // fora dela); na Arena o mestre opera e evolui sempre. A regra da ficha é a do host (`motivoDoEvoluirNaFicha`); ele confere de novo
+  // e a recusa traz o motivo (a Melodia que a CAÇA pede só o host vê).
   const pedirEvolucao = conexao.evoluir
   const evoluir: EvoluirNaTela | undefined =
     pedirEvolucao === undefined || cartaQueAge === undefined || personagem === null || sistema === null

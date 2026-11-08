@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao, PedidoDeAlvo } from '../lib/batalha/combate'
 import { ficha } from '../lib/batalha/fichasDaFatiaB.testkit'
-import { BALMUNG, CHAMAS, ENTARDECER, FLORESCER, GILGAMESH, GOLPE_BAIXO, GRAM, harveyCom, LUA, MEDICINA, ORQUIDEA, siegCom, YAMATO } from '../lib/batalha/fichasDaFatiaF.testkit'
+import { BALMUNG, CHAMAS, ENTARDECER, FLORESCER, GILGAMESH, GOLPE_BAIXO, GRAM, harveyCom, KIT_MEDICO, LUA, MEDICINA, ORQUIDEA, siegCom, YAMATO } from '../lib/batalha/fichasDaFatiaF.testkit'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import { numeroDaFicha, type Personagem } from '../lib/personagem'
@@ -90,6 +90,15 @@ describe('Medicina do Harvey', () => {
     const outra = naVezDe(loja, 'Harvey Solferino', true)
     expect(loja.getState().motivoDoAgir(CENA, MESTRE, outra, tecnica(MEDICINA.id, [{ tokenId: token(loja, 'Harvey Solferino'), dano: null }]))).toBe('Sem Kit Médico na mochila (cada uso gasta 1)')
   })
+
+  it('3 Kits Médicos empilhados numa vaga só: depois do 1º uso a Medicina continua valendo', () => {
+    const { loja } = batalha(harveyCom({ hp: 500, sp: 60, escudo: 40 }, [{ ...KIT_MEDICO, quantidade: 3 }]))
+    const noHarvey = (): Extract<PedidoDeAcao, { tipo: 'habilidade' }> => tecnica(MEDICINA.id, [{ tokenId: token(loja, 'Harvey Solferino'), dano: null }])
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Harvey Solferino'), noHarvey())).toBe(true)
+    const outra = naVezDe(loja, 'Harvey Solferino', true)
+    expect(loja.getState().motivoDoAgir(CENA, MESTRE, outra, noHarvey())).toBeNull()
+    expect(loja.getState().agir(CENA, MESTRE, outra, noHarvey())).toBe(true)
+  })
 })
 
 describe('Golpe Baixo do Harvey', () => {
@@ -154,6 +163,18 @@ describe('Chamas Celestes e Doença das Trevas do Siegfried', () => {
     expect(recursos(mesa, 'Pirata 1').sp).toBe(35)
     expect(recursos(mesa, 'Siegfried').hp).toBe(756)
     expect(textos(loja)).toContain('Fim da vez: Chamas Celestes em Pirata 1: -15 SP; Siegfried +10 SP, -27 HP')
+  })
+
+  it('a Doença tira 27 também na vez em que ele só usa a Florescer (ação livre, a Orquídea foi na vez anterior)', () => {
+    const { loja, mesa } = batalha(siegCom())
+    const pirata1 = token(loja, 'Pirata 1')
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Siegfried'), tecnica(ORQUIDEA.id, [{ tokenId: pirata1, dano: null }]))).toBe(true)
+    tomar(loja, pirata1)
+    naVezDe(loja, 'Pirata 1')
+    expect(recursos(mesa, 'Siegfried').hp).toBe(873)
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Siegfried'), tecnica(FLORESCER.id, [{ tokenId: pirata1, dano: 302 }], true))).toBe(true)
+    naVezDe(loja, 'Pirata 1')
+    expect(recursos(mesa, 'Siegfried').hp).toBe(846)
   })
 
   it('a Doença não tira nada quando ele só passa a vez', () => {

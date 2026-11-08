@@ -75,6 +75,12 @@ export interface GastoDaVez {
   blocos: number
   /** R6 (lote de 01/11): usou a ação Atacar nesta vez (libera o ataque adicional da forma, `ataqueExtra`). Ausente = não. */
   atacou?: true
+  /**
+   * F2 (revisão da fatia F): lançou algum golpe nesta vez (Atacar ou técnica,
+   * também a de ação livre, que não soma nos contadores). Não libera o ataque
+   * adicional (isso é só do `atacou`). Ausente = não.
+   */
+  golpeou?: true
 }
 
 export interface TurnosDaCena {
