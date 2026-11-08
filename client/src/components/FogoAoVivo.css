@@ -1,0 +1,62 @@
+/*
+ * FOGO NA FLORESTA AO VIVO no painel do pino de minigame (FogoAoVivo.tsx).
+ * Mesmo molde do tiro: ação de MESA, separada do desafio por uma linha.
+ * Prefixo próprio (`lb-fogo-vivo`): `.lb-fogo` é a tela do jogador.
+ */
+
+.lb-fogo-vivo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-fogo-vivo__chamar,
+.lb-fogo-vivo__placar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-fogo-vivo__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Nome à esquerda, função e status à direita; nome longo quebra sem empurrar o resto. */
+.lb-fogo-vivo__pessoa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1) var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-fogo-vivo__pessoa > .lb-gather__item {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.lb-fogo-vivo__nome {
+  flex: 1 1 6rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lb-fogo-vivo__funcao {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.lb-fogo-vivo__status,
+.lb-fogo-vivo__fase {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  font-variant-numeric: tabular-nums;
+}

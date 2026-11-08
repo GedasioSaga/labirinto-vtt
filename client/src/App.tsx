@@ -247,6 +247,8 @@ import { ContasDosJogadoresDoApp } from './components/ContasDosJogadores'
 import { dancaNoPainel } from './components/dancaNoPainel'
 import { pescaNoPainel } from './components/pescaNoPainel'
 import { tiroNoPainel } from './components/tiroNoPainel'
+import { fogoNoPainel } from './components/fogoNoPainel'
+import type { FogoAoVivo } from './net/fogoNoHost'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
 import { acoesDoModeloDeCamadasCom, garantirAventura, garantirAventuraParaCamadas } from './stores/virarAventura'
@@ -874,6 +876,7 @@ function App() {
   const [pescas, setPescas] = useState<PescaAoVivo[]>([])
   // MINIGAME DE TIRO: cada pino com barraca de tiro (quem atira, o vivo, as rodadas), como o painel lê. O dono é a sessão do host.
   const [tiros, setTiros] = useState<TiroAoVivo[]>([])
+  const [fogo, setFogo] = useState<FogoAoVivo | null>(null)
   // CHAT DOS JOGADORES: o que o mestre lê (Global e cenas), relido a cada linha nova.
   const [masterChat, setMasterChat] = useState<MasterChatState>(NO_MASTER_CHAT)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
@@ -1006,6 +1009,7 @@ function App() {
         onDancaChange: setDanca,
         onPescaChange: setPescas,
         onTiroChange: setTiros,
+        onFogoChange: setFogo,
         // ENTRAR PELO LOBBY: o link público pronto (ou caído) muda os endereços que o site oferece.
         onTunnelChange: (estado) => {
           setTunnel(estado)
@@ -2847,6 +2851,12 @@ function App() {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       tiros,
+      ponte: () => hostBridgeRef.current,
+    }),
+    aoVivoDoFogo: fogoNoPainel(pin.id, {
+      aberta: room !== null,
+      players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
+      fogo,
       ponte: () => hostBridgeRef.current,
     }),
   })

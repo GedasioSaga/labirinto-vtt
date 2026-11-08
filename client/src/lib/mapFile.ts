@@ -60,6 +60,14 @@ import {
   type DificuldadeTiro,
   type MinigameTiro,
 } from '../minigames/tiro/tipos'
+import {
+  DIFICULDADES_FOGO,
+  FLORESTA_MAX_LENGTH,
+  FOGO_TEXTO_MAX_LENGTH,
+  MINIGAME_FOGO_PADRAO,
+  type DificuldadeFogo,
+  type MinigameFogo,
+} from '../minigames/fogo/tipos'
 import type { MinigameDoPino } from '../minigames/tipos'
 import { readPinLock } from './pinLock'
 import { sanitizeRoomLabelStyle } from './roomLabelStyle'
@@ -275,7 +283,29 @@ export function lerMinigameDoArquivo(valor: unknown): MinigameDoPino | undefined
   if (jogo === 'danca') return lerDancaDoArquivo(valor)
   if (jogo === 'pesca') return lerPescaDoArquivo(valor)
   if (jogo === 'tiro') return lerTiroDoArquivo(valor)
+  if (jogo === 'fogo') return lerFogoDoArquivo(valor)
   return undefined
+}
+
+const PERMITIDAS_FOGO: readonly ('escolha' | DificuldadeFogo)[] = ['escolha', ...DIFICULDADES_FOGO]
+
+/**
+ * O FOGO do disco, pelo caminho do tiro: textos aparados e cortados nos tetos
+ * de `fogo/tipos.ts`; `permitida` fora da lista volta o padrão. A entrada é
+ * sempre o mestre (jogo de equipe), venha o que vier no arquivo.
+ */
+function lerFogoDoArquivo(valor: object): MinigameFogo {
+  const padrao = MINIGAME_FOGO_PADRAO
+  return {
+    jogo: 'fogo',
+    npc: textoDoArquivo(campoDoArquivo(valor, 'npc'), NPC_MAX_LENGTH, padrao.npc),
+    fala: textoDoArquivo(campoDoArquivo(valor, 'fala'), FALA_MAX_LENGTH, padrao.fala),
+    floresta: textoDoArquivo(campoDoArquivo(valor, 'floresta'), FLORESTA_MAX_LENGTH, padrao.floresta),
+    entrada: 'mestre',
+    permitida: umDaLista(PERMITIDAS_FOGO, campoDoArquivo(valor, 'permitida')) ?? padrao.permitida,
+    premio: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'premio'), padrao.premio.texto, FOGO_TEXTO_MAX_LENGTH) },
+    consequencia: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'consequencia'), padrao.consequencia.texto, FOGO_TEXTO_MAX_LENGTH) },
+  }
 }
 
 const PERMITIDAS_TIRO: readonly ('escolha' | DificuldadeTiro)[] = ['escolha', ...DIFICULDADES_TIRO]

@@ -5088,6 +5088,8 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
  */
 function minigameVisivelDe(pin: Pin): MinigameVisivel {
   const minigame = pin.minigame
+  // O fogo é de equipe: sempre o mestre chama, como a dança.
+  if (minigame?.jogo === 'fogo') return { jogo: 'fogo', entrada: 'mestre' }
   if (minigame === undefined || (minigame.jogo !== 'pesca' && minigame.jogo !== 'tiro')) return { jogo: 'danca', entrada: 'mestre' }
   // Pesca e tiro: o jogo, e a entrada pela lista (o torto cai no mestre).
   return { jogo: minigame.jogo, entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }

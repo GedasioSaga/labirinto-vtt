@@ -136,6 +136,9 @@ import { giveNewItemChange } from '../lib/items'
 import type { DancaAoVivo, DancaConviteResultado, DancaDesfechoSinal } from './dancaNoHost'
 import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
 import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
+import type { FogoAoVivo, FogoConviteResultado } from './fogoNoHost'
+import { FOGO_REPASSE_MS } from './protocoloDoFogo'
+import type { DificuldadeFogo, FuncaoFogo, ModoFogo } from '../minigames/fogo/tipos'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -312,6 +315,8 @@ export interface HostBridgeDeps {
    * está pronto, placar ao vivo, desfecho), a cada mudança. Sala fechada = `null`.
    */
   onDancaChange?: (danca: DancaAoVivo | null) => void
+  /** MINIGAME FOGO NA FLORESTA: o incêndio como o painel do mestre o lê (convite, quem joga, hash, desfecho). Sala fechada = `null`. */
+  onFogoChange?: (fogo: FogoAoVivo | null) => void
   /**
    * MINIGAME DE PESCA: cada pino com pesca como o painel do mestre lê (quem
    * entrou, fase, lance k de N, medidor, cesto e maior peixe), a cada
@@ -692,6 +697,22 @@ export interface HostBridge extends RedeDosSons {
   encerrarDanca(): boolean
   /** A dança de agora (ou a última), para o painel; `null` = nenhuma, ou sala fechada. */
   danca(): DancaAoVivo | null
+  /**
+   * MINIGAME FOGO NA FLORESTA: chama estes jogadores (cada um com a função
+   * inicial) para o incêndio do pino `pinId`, em equipe ou cada um no seu.
+   * `null` com a sala fechada. O resto chega por `onFogoChange`.
+   */
+  convidarParaFogo(pinId: string, convidados: readonly { playerId: string; funcao: FuncaoFogo }[], modo: ModoFogo): FogoConviteResultado | null
+  /** Troca a função inicial de um convidado (só antes de começar). */
+  mudarFuncaoNoFogo(playerId: string, funcao: FuncaoFogo): boolean
+  /** Todos os prontos começam juntos, na dificuldade dada. `false` = ninguém pronto, fora de fase ou sala fechada. */
+  comecarFogo(dificuldade: DificuldadeFogo): boolean
+  pausarFogo(): boolean
+  retomarFogo(): boolean
+  /** "Encerrar para todos": sem desfecho. */
+  encerrarFogo(): boolean
+  /** O fogo de agora (ou o último), para o painel; `null` = nenhum, ou sala fechada. */
+  fogo(): FogoAoVivo | null
   /**
    * MINIGAME DE PESCA ("Mestre chama"): chama estes jogadores para a pesca do
    * pino `pinId`. O resultado diz quantos entraram, ou por que não saiu;
@@ -1138,6 +1159,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastSecretRevealsKey = '{}'
   let lastSecretChecksKey = '[]'
   let lastDancaKey = 'null'
+  let lastFogoKey = 'null'
+  /** FOGO: o repasse das entradas a cada `FOGO_REPASSE_MS`, com a sala aberta. */
+  let repasseDoFogo: ReturnType<typeof setInterval> | null = null
   let lastPescaKey = '[]'
   let lastTiroKey = '[]'
   let tunnelState: TunnelState = TUNNEL_IDLE
@@ -1544,6 +1568,44 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     deps.onPescaChange?.(pescas)
   }
 
+  /**
+   * FOGO: o painel do mestre só ouve quando algo mudou (as entradas não entram
+   * no `aoVivo`: 10 por segundo não redesenham o painel). A primeira
+   * divergência de hash e o desfecho viram aviso na tela do mestre.
+   */
+  const notifyFogoIfChanged = () => {
+    const fogo = session === null ? null : session.fogo()
+    const key = JSON.stringify(fogo)
+    if (key === lastFogoKey) return
+    const antes: unknown = JSON.parse(lastFogoKey)
+    lastFogoKey = key
+    const tinha = (campo: 'divergencia' | 'desfecho'): boolean => typeof antes === 'object' && antes !== null && Reflect.get(antes, campo) !== undefined && Reflect.get(antes, 'sessao') === fogo?.sessao
+    if (fogo?.divergencia !== undefined && !tinha('divergencia')) {
+      toastSink.push('error', `Fogo na Floresta: as partidas de ${fogo.divergencia.nomes.join(' e ')} ficaram diferentes (tique ${fogo.divergencia.tique}). Encerre e chame de novo.`)
+    }
+    if (fogo?.fase === 'fim' && !tinha('desfecho')) {
+      const time = fogo.desfecho
+      toastSink.push('info', time === undefined ? 'Fogo na Floresta: todos terminaram.' : time.vitoria ? `Fogo na Floresta: a equipe salvou a vila (${time.pontos ?? 0} pontos).` : 'Fogo na Floresta: a equipe não salvou a vila.')
+    }
+    deps.onFogoChange?.(fogo)
+  }
+
+  /** FOGO: um comando do painel do mestre — despacha, e o painel relê. `null` = sala fechada. */
+  const comandoDoFogo = <T extends HostResult>(run: (room: HostSession) => T): T | null => {
+    if (session === null) return null
+    const result = run(session)
+    void dispatch(result)
+    notifyFogoIfChanged()
+    return result
+  }
+
+  /** FOGO: o repasse do lockstep; sem nada na fila não sai mensagem nenhuma. */
+  const repassarFogo = () => {
+    if (session === null) return
+    const result = session.repassarFogo()
+    if (result.outbound.length > 0) void dispatch(result)
+  }
+
   /** TIRO: o painel do mestre só ouve quando algo mudou (os pontos mudam a cada `tiro.vivo`). */
   const notifyTiroIfChanged = () => {
     const tiros = session === null ? [] : session.tiro()
@@ -1621,6 +1683,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const result = run(session)
     void dispatch(result)
     notifyDancaIfChanged()
+    notifyFogoIfChanged()
     return result
   }
 
@@ -3723,6 +3786,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     notifyPlayersIfChanged()
     notifyDancaIfChanged()
+    notifyFogoIfChanged()
     notifyPescaIfChanged()
     notifyTiroIfChanged()
     if (wasJoined) return
@@ -3762,6 +3826,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.medidaDoJogador !== undefined) deps.onMedidaDoJogador?.(result.medidaDoJogador)
     if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
     notifyDancaIfChanged()
+    notifyFogoIfChanged()
     notifyPescaIfChanged()
     notifyTiroIfChanged()
     forgetScreen(clientId)
@@ -3811,6 +3876,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const stopLivenessSweep = () => {
     if (livenessTimer !== null) clearInterval(livenessTimer)
     livenessTimer = null
+    if (repasseDoFogo !== null) clearInterval(repasseDoFogo)
+    repasseDoFogo = null
     lastHeard.clear()
     awayClients.clear()
   }
@@ -3886,6 +3953,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       ]
       stopLivenessSweep()
       livenessTimer = setInterval(sweepSilent, LIVENESS_SWEEP_MS)
+      repasseDoFogo = setInterval(repassarFogo, FOGO_REPASSE_MS)
       currentRoom = room
       // SONS AO VIVO: a aba Sons passa a mandar som por esta sala (a Visão de jogador fica de fora).
       salaDosSonsAberta = true
@@ -3973,6 +4041,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifySecretRevealsIfChanged()
       notifySecretChecksIfChanged()
       notifyDancaIfChanged()
+      notifyFogoIfChanged()
       notifyPescaIfChanged()
       notifyTiroIfChanged()
       try {
@@ -4337,6 +4406,35 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return session === null ? null : session.danca()
     },
 
+    convidarParaFogo(pinId, convidados, modo) {
+      const result = comandoDoFogo((room) => room.convidarParaFogo(pinId, convidados, modo, world()))
+      return result === null ? null : result.convite
+    },
+
+    mudarFuncaoNoFogo(playerId, funcao) {
+      return comandoDoFogo((room) => room.mudarFuncaoNoFogo(playerId, funcao))?.ok === true
+    },
+
+    comecarFogo(dificuldade) {
+      return comandoDoFogo((room) => room.comecarFogo(dificuldade))?.comecou === true
+    },
+
+    pausarFogo() {
+      return comandoDoFogo((room) => room.pausarFogo())?.ok === true
+    },
+
+    retomarFogo() {
+      return comandoDoFogo((room) => room.retomarFogo())?.ok === true
+    },
+
+    encerrarFogo() {
+      return comandoDoFogo((room) => room.encerrarFogo())?.ok === true
+    },
+
+    fogo() {
+      return session === null ? null : session.fogo()
+    },
+
     convidarParaPesca(pinId, playerIds) {
       const result = comandoDaPesca((room) => room.convidarParaPesca(pinId, playerIds, world()))
       return result === null ? null : result.convite
@@ -4423,6 +4521,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (result.medidaDoJogador !== undefined) deps.onMedidaDoJogador?.(result.medidaDoJogador)
       if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
       notifyDancaIfChanged()
+      notifyFogoIfChanged()
       notifyPescaIfChanged()
       notifyTiroIfChanged()
       // O expulso devolve o ajudante: o prazo dele não acorda mais ninguém.

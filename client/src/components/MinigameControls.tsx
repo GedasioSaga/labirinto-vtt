@@ -45,6 +45,8 @@ import {
   type MedalhaTiro,
   type MinigameTiro,
 } from '../minigames/tiro/tipos'
+import { FLORESTA_MAX_LENGTH, FOGO_TEXTO_MAX_LENGTH, DIFICULDADES_FOGO, type DificuldadeFogo, type MinigameFogo } from '../minigames/fogo/tipos'
+import { NOME_DA_DIFICULDADE_FOGO } from '../minigames/fogo/tela/textos'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { trocarJogoDoMinigame } from '../lib/pins'
 import { DANCA_DURACAO_MAX_S } from '../net/protocoloDaDanca'
@@ -53,6 +55,8 @@ import { PescaAoVivoPainel } from './PescaAoVivo'
 import type { PescaNoPainel } from './pescaNoPainel'
 import { TiroAoVivoPainel } from './TiroAoVivo'
 import type { TiroNoPainel } from './tiroNoPainel'
+import { FogoAoVivoPainel } from './FogoAoVivo'
+import type { FogoNoPainel } from './fogoNoPainel'
 import './MinigameControls.css'
 
 /**
@@ -159,6 +163,12 @@ const JOGOS: readonly { valor: JogoDoMinigame; rotulo: string }[] = [
   { valor: 'danca', rotulo: 'Dança' },
   { valor: 'pesca', rotulo: 'Pesca' },
   { valor: 'tiro', rotulo: 'Tiro' },
+  { valor: 'fogo', rotulo: 'Fogo na Floresta' },
+]
+
+const PERMITIDAS_DO_FOGO: readonly { valor: 'escolha' | DificuldadeFogo; rotulo: string }[] = [
+  { valor: 'escolha', rotulo: 'Escolho na hora' },
+  ...DIFICULDADES_FOGO.map((d) => ({ valor: d, rotulo: `Só ${NOME_DA_DIFICULDADE_FOGO[d]}` })),
 ]
 
 const ENTRADAS: readonly { valor: EntradaPesca; rotulo: string }[] = [
@@ -688,6 +698,8 @@ export interface MinigameControlsProps {
   aoVivoDaPesca?: PescaNoPainel | null
   /** Sala aberta: a barraca de tiro ao vivo deste pino (`tiroNoPainel`). `null` ou ausente = sem sala. */
   aoVivoDoTiro?: TiroNoPainel | null
+  /** Sala aberta: o Fogo na Floresta ao vivo (`fogoNoPainel`). `null` ou ausente = sem sala. */
+  aoVivoDoFogo?: FogoNoPainel | null
   /** O teste troca; o app usa o disco e o Web Audio de verdade. */
   caminho?: CaminhoDaMusica
 }
@@ -715,6 +727,8 @@ export function MinigameControls(props: MinigameControlsProps) {
         <PainelDaPesca {...props} minigame={minigame} />
       ) : minigame.jogo === 'tiro' ? (
         <PainelDoTiro {...props} minigame={minigame} />
+      ) : minigame.jogo === 'fogo' ? (
+        <PainelDoFogo {...props} minigame={minigame} />
       ) : (
         <PainelDaDanca {...props} minigame={minigame} />
       )}
@@ -863,6 +877,64 @@ function PainelDoTiro({ pinId, minigame, onChange, aoVivoDoTiro }: PainelDoTiroP
         <span className="lb-label lb-minigame__sem-sala">Abra a sala para acompanhar o placar{minigame.entrada === 'mestre' ? ' e chamar para a barraca' : ''}.</span>
       ) : (
         <TiroAoVivoPainel pinId={pinId} entrada={minigame.entrada} {...aoVivoDoTiro} />
+      )}
+    </>
+  )
+}
+
+type PainelDoFogoProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDoFogo'> & { minigame: MinigameFogo }
+
+/**
+ * O Fogo na Floresta do pino: quem pede ajuda, a fala, a floresta, a
+ * dificuldade permitida, o prêmio e a consequência. Sempre o mestre chama
+ * (jogo de equipe), daqui do painel, com a sala aberta. Sem porta: o fogo não
+ * abre nada.
+ */
+function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo }: PainelDoFogoProps) {
+  const baseId = useId()
+  const mudar = (patch: Partial<MinigameFogo>) => onChange({ ...minigame, ...patch })
+  const id = (nome: string) => `${baseId}-${nome}`
+  return (
+    <>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('npc')}>
+          Quem pede ajuda
+        </label>
+        <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
+      </div>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('fala')}>
+          Fala
+        </label>
+        <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
+      </div>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('floresta')}>
+          Nome da floresta
+        </label>
+        <CampoDeTexto id={id('floresta')} valor={minigame.floresta} max={FLORESTA_MAX_LENGTH} onCommit={(floresta) => mudar({ floresta })} />
+      </div>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Dificuldade permitida</legend>
+        <Pastilhas rotulo="Dificuldade permitida" opcoes={PERMITIDAS_DO_FOGO} valor={minigame.permitida} onChange={(permitida) => mudar({ permitida })} />
+        <span className="lb-label">Todos jogam na mesma dificuldade: com "Escolho na hora", você escolhe ao começar.</span>
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">O que vale</legend>
+        <label className="lb-label" htmlFor={id('premio')}>
+          Prêmio (salvou a vila)
+        </label>
+        <CampoDeTexto id={id('premio')} valor={minigame.premio.texto} max={FOGO_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ premio: { texto } })} />
+        <label className="lb-label" htmlFor={id('consequencia')}>
+          Consequência (não salvou)
+        </label>
+        <CampoDeTexto id={id('consequencia')} valor={minigame.consequencia.texto} max={FOGO_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ consequencia: { texto } })} />
+        <span className="lb-label">Só texto: aparece no convite e no resultado do jogador. O fogo não abre porta nem entrega item.</span>
+      </fieldset>
+      {aoVivoDoFogo === null || aoVivoDoFogo === undefined ? (
+        <span className="lb-label lb-minigame__sem-sala">Abra a sala para chamar para o fogo.</span>
+      ) : (
+        <FogoAoVivoPainel pinId={pinId} permitida={minigame.permitida} {...aoVivoDoFogo} />
       )}
     </>
   )

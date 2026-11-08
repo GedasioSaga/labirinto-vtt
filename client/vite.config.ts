@@ -1,6 +1,9 @@
 /// <reference types="vitest/config" />
+import { createReadStream, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig, normalizePath, searchForWorkspaceRoot } from 'vite'
+import { defineConfig, normalizePath, searchForWorkspaceRoot, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 // Porta por árvore de trabalho: 1420 na principal, própria em cada worktree.
 // Sem isso, dois portões em paralelo testam o mesmo servidor (client/porta.js).
@@ -31,8 +34,56 @@ function embutirAsset(arquivo: string): boolean | undefined {
   return normalizePath(arquivo).startsWith(PREFIXO_DO_DESENHADO) ? false : undefined
 }
 
+/**
+ * FOGO NA FLORESTA (minigames/fogo/): o jogo é um export web do Godot que
+ * mora FORA do repositório (40 MB, quase tudo o motor). Em dev, o Vite serve a
+ * pasta do build em `/minigames/fogo/`, a mesma rota que a página do jogador
+ * usa (`ROTA_DO_FOGO` de `FogoOverlay.tsx`). Pasta: `FOGO_WEB_DIR`, ou o build
+ * do projeto do jogo em `~/jogos/fogo-na-floresta/build/web`. No app instalado
+ * quem serve é o mestre, pelo pacote baixado na primeira vez (fora daqui).
+ */
+const ROTA_DO_FOGO = '/minigames/fogo/'
+const PASTA_DO_FOGO = process.env.FOGO_WEB_DIR ?? join(homedir(), 'jogos', 'fogo-na-floresta', 'build', 'web')
+const TIPO_DO_ARQUIVO_DO_FOGO: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.wasm': 'application/wasm',
+  '.pck': 'application/octet-stream',
+  '.png': 'image/png',
+}
+/** Só um nome de arquivo do build, sem pasta nem ponto na frente: nada sai da pasta do jogo. */
+const NOME_DO_ARQUIVO_DO_FOGO = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/
+
+function jogoDoFogoEmDev(): Plugin {
+  return {
+    name: 'labirinto-jogo-do-fogo',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use(ROTA_DO_FOGO, (req, res, next) => {
+        // O `use` com rota já tira o prefixo: sobra `/index.wasm?v=1`.
+        const nome = (req.url ?? '').split('?')[0].slice(1) || 'index.html'
+        const tipo = TIPO_DO_ARQUIVO_DO_FOGO[extname(nome)]
+        if (!NOME_DO_ARQUIVO_DO_FOGO.test(nome) || tipo === undefined) return next()
+        const caminho = join(PASTA_DO_FOGO, nome)
+        let tamanho: number
+        try {
+          tamanho = statSync(caminho).size
+        } catch {
+          res.statusCode = 404
+          res.end('O build do Fogo na Floresta não está nesta máquina (FOGO_WEB_DIR).')
+          return
+        }
+        res.setHeader('Content-Type', tipo)
+        res.setHeader('Content-Length', String(tamanho))
+        res.setHeader('Cache-Control', 'no-cache')
+        createReadStream(caminho).pipe(res)
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), jogoDoFogoEmDev()],
   clearScreen: false,
   // Cache de dependências por porta, e não o `node_modules/.vite` padrão: os
   // worktrees de teste ligam o `node_modules` da árvore principal por junction,

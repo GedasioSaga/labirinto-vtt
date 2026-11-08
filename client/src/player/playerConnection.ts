@@ -175,6 +175,9 @@ import { lembrarCena, type CenaLembrada } from './meuCaderno'
 import type { DificuldadeDanca } from '../minigames/danca/tipos'
 import { parseDancaHostMessage, parseDancaPlayerMessage, type DancaEvento, type DancaPlacarAoVivo, type DancaPlacarFinal, type DancaPlayerMessage } from '../net/protocoloDaDanca'
 import { dancaAceitaPronto, dancaNaPista, receberDanca, type DancaDoJogador } from './estadoDaDanca'
+import type { FuncaoFogo } from '../minigames/fogo/tipos'
+import { parseFogoHostMessage, parseFogoPlayerMessage, type FogoEntrada, type FogoPlacar, type FogoPlayerMessage } from '../net/protocoloDoFogo'
+import { fogoAceitaPronto, fogoEmJogo, receberFogo, type FogoDoJogador, type FogoParaOJogo } from './estadoDoFogo'
 import type { DificuldadePesca } from '../minigames/pesca/tipos'
 import {
   parsePescaHostMessage,
@@ -707,6 +710,13 @@ export interface PlayerState {
    * puro (`player/estadoDaDanca.ts`). Sai com `fecharDanca`, ou com a sala.
    */
   danca?: DancaDoJogador
+  /**
+   * FOGO NA FLORESTA: o convite que o mestre mandou a ESTE jogador e o que
+   * chegou depois (estado, começar, pausa, desfecho), como estado puro
+   * (`player/estadoDoFogo.ts`). As entradas dos colegas não entram aqui (vão
+   * por `ouvirFogo`). Sai com `fecharFogo`, ou com a sala.
+   */
+  fogo?: FogoDoJogador
   /**
    * MINIGAME DE PESCA: o convite (do mestre, ou a volta do "Pescar" deste
    * jogador), o que chegou depois (estado, pausa, encerramento) e os lances
@@ -1648,6 +1658,21 @@ export interface PlayerConnection {
   dancaFim(placar: DancaPlacarFinal): boolean
   /** DANÇA: a tela fechou o resultado (ou o aviso de encerrada): o estado da dança sai. */
   fecharDanca(): void
+  /** FOGO: "Pronto" com a função escolhida. `false` sem convite aberto ou com o socket fechado. Mandar de novo troca a função. */
+  prontoFogo(funcao: FuncaoFogo): boolean
+  /** FOGO: as MINHAS entradas dos tiques `de`, `de + 1`, ... (a tela junta a cada `FOGO_REPASSE_MS`). */
+  entradasFogo(de: number, lista: FogoEntrada[]): boolean
+  /** FOGO: a impressão digital do estado num tique (a cada 5 s de jogo), para o mestre comparar. */
+  hashFogo(tique: number, hash: number): boolean
+  /** FOGO: o placar do fim. Uma vez só; depois dele nada sai. */
+  fimFogo(tique: number, hash: number, placar: FogoPlacar): boolean
+  /** FOGO: a tela fechou o resultado (ou o aviso de encerrado): o estado do fogo sai. */
+  fecharFogo(): void
+  /**
+   * FOGO: o canal das entradas dos colegas e do `fogo.sair`, direto ao jogo
+   * (sem estado: 10 por segundo não redesenham a tela). Devolve o desligar.
+   */
+  ouvirFogo(ouvinte: (msg: FogoParaOJogo) => void): () => void
   /**
    * PESCA ("Jogador toca no pino"): pede para pescar no pino `pinId`. O
    * convite volta do mestre se a ficha estiver encostada. `false` (nada sai)
@@ -2296,6 +2321,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let ultimoVivoDaPesca = Number.NEGATIVE_INFINITY
   /** TIRO: `performance.now()` do último `tiro.vivo` que saiu (no máximo 4 por segundo). */
   let ultimoVivoDoTiro = Number.NEGATIVE_INFINITY
+  /** FOGO: quem ouve as entradas dos colegas (a tela do jogo aberta). */
+  const ouvintesDoFogo = new Set<(msg: FogoParaOJogo) => void>()
   let mapSharedTimer: ReturnType<typeof setTimeout> | null = null
 
   function clearMapSharedTimer(): void {
@@ -3494,6 +3521,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
+  /** FOGO: a mesma conferência do host antes de sair, como a dança. */
+  function enviarFogo(message: FogoPlayerMessage): boolean {
+    const conferida = parseFogoPlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
   /** TIRO: a mesma conferência do host antes de sair, como a pesca. */
   function enviarTiro(message: TiroPlayerMessage): boolean {
     const conferida = parseTiroPlayerMessage(message)
@@ -4680,6 +4713,29 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (danca !== state.danca) setState({ danca })
         return
       }
+      case 'fogo.convite':
+      case 'fogo.estado':
+      case 'fogo.comecar':
+      case 'fogo.entradas':
+      case 'fogo.sair':
+      case 'fogo.pausa':
+      case 'fogo.retoma':
+      case 'fogo.encerra':
+      case 'fogo.desfecho': {
+        // A tela da mesa só olha: o fogo é de quem o mestre chamou.
+        if (isTable) return
+        const msg = parseFogoHostMessage(data)
+        if (msg === null) return
+        if (msg.type === 'fogo.entradas' || msg.type === 'fogo.sair') {
+          // Só a sessão que está na tela: a de antes é atrasada e cai.
+          if (state.fogo?.sessao !== msg.sessao) return
+          for (const ouvinte of ouvintesDoFogo) ouvinte(msg)
+          return
+        }
+        const fogo = receberFogo(state.fogo, msg)
+        if (fogo !== state.fogo) setState({ fogo })
+        return
+      }
       case 'pesca.convite':
       case 'pesca.estado':
       case 'pesca.pausa':
@@ -5098,7 +5154,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         loopsVivos.clear()
         chaveDaMidia = null
         clearReconnectTimers()
-        setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -5132,7 +5188,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, tiro: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -5151,7 +5207,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', danca: undefined, pesca: undefined, tiro: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -5164,7 +5220,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           writeResume(storage, null)
           clearReconnectTimers()
           chaveDaMidia = null
-          setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -5917,6 +5973,42 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     fecharDanca() {
       if (state.danca !== undefined) setState({ danca: undefined })
+    },
+
+    prontoFogo(funcao) {
+      const fogo = state.fogo
+      if (!fogoAceitaPronto(fogo)) return false
+      if (!enviarFogo({ type: 'fogo.pronto', sessao: fogo.sessao, funcao })) return false
+      setState({ fogo: { ...fogo, pronto: funcao } })
+      return true
+    },
+
+    entradasFogo(de, lista) {
+      const fogo = state.fogo
+      return fogoEmJogo(fogo) && enviarFogo({ type: 'fogo.entradas', sessao: fogo.sessao, de, lista })
+    },
+
+    hashFogo(tique, hash) {
+      const fogo = state.fogo
+      return fogoEmJogo(fogo) && enviarFogo({ type: 'fogo.hash', sessao: fogo.sessao, tique, hash })
+    },
+
+    fimFogo(tique, hash, placar) {
+      const fogo = state.fogo
+      if (!fogoEmJogo(fogo) || !enviarFogo({ type: 'fogo.fim', sessao: fogo.sessao, tique, hash, placar })) return false
+      setState({ fogo: { ...fogo, fimEnviado: true } })
+      return true
+    },
+
+    fecharFogo() {
+      if (state.fogo !== undefined) setState({ fogo: undefined })
+    },
+
+    ouvirFogo(ouvinte) {
+      ouvintesDoFogo.add(ouvinte)
+      return () => {
+        ouvintesDoFogo.delete(ouvinte)
+      }
     },
 
     pedirPesca(pinId) {

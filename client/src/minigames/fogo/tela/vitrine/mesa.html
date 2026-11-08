@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Mesa de prova do fogo (só desenvolvimento)</title>
+    <link rel="icon" href="data:," />
+    <style>
+      body { margin: 0; background: #121214; color: #e8e2d0; font: 13px/1.4 system-ui, sans-serif; }
+      #quadros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+      #quadros iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000; }
+      #relato { padding: 8px 12px; white-space: pre-wrap; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body>
+    <!-- Só no servidor de desenvolvimento: fora do build (vite.config.ts lista as 3 páginas do app). -->
+    <div id="quadros"></div>
+    <div id="relato">Carregando...</div>
+    <script type="module" src="./mesa.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,181 @@
+/*
+ * FOGO NA FLORESTA, a tela do jogador por cima do mapa (FogoOverlay.tsx).
+ * O jogo é um iframe do tamanho da tela; o convite, o resultado e o aviso de
+ * encerrado são um cartão por cima. Abre com o mesmo fade curto da pesca
+ * (raro: uma vez por convite); nada mais anima.
+ */
+
+.lb-fogo {
+  --fg-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --fg-brasa: #e8894a;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font: 13px/1.45 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lb-fogo {
+    animation: fg-aparece 220ms var(--fg-ease-out);
+  }
+}
+@keyframes fg-aparece {
+  from {
+    opacity: 0;
+  }
+}
+
+/* O jogo ocupa tudo; fora do jogo carrega escondido (o `pronto` chega antes do "Começar"). */
+.lb-fogo__jogo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+}
+.lb-fogo:not(.lb-fogo--jogo) .lb-fogo__jogo {
+  visibility: hidden;
+}
+/* No resultado e no encerrado, o fim do jogo fica visível por trás do cartão. */
+/* .lb-fogo dobrado: vence o :not() de cima, que conta como duas classes. */
+.lb-fogo.lb-fogo--resultado .lb-fogo__jogo,
+.lb-fogo.lb-fogo--encerrada .lb-fogo__jogo {
+  visibility: visible;
+  filter: brightness(0.35);
+}
+
+.lb-fogo__cartao {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 20px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: 10px;
+  background: var(--lb-color-ink);
+}
+
+.lb-fogo__eyebrow {
+  margin: 0;
+  color: var(--fg-brasa);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.lb-fogo__titulo {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.lb-fogo__fala,
+.lb-fogo__premio,
+.lb-fogo__consequencia,
+.lb-fogo__numeros,
+.lb-fogo__dica {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.lb-fogo__dica {
+  color: var(--lb-color-parchment-dim);
+  font-size: 12px;
+}
+.lb-fogo__numeros {
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-fogo__funcoes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lb-fogo__funcoes legend {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.lb-fogo__funcao {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  align-items: baseline;
+  padding: 8px 10px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.lb-fogo__funcao:has(input:checked) {
+  border-color: var(--fg-brasa);
+}
+.lb-fogo__funcao:has(input:focus-visible) {
+  outline: 2px solid var(--fg-brasa);
+  outline-offset: 2px;
+}
+.lb-fogo__funcao-nome {
+  font-weight: 600;
+}
+.lb-fogo__funcao-dica {
+  grid-column: 2;
+  color: var(--lb-color-parchment-dim);
+  font-size: 12px;
+}
+
+.lb-fogo__equipe {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-fogo__equipe li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.lb-fogo__nome {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lb-fogo__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* No jogo, só uma faixa fina em cima: o resto é do jogo. */
+.lb-fogo__barra {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 4px 12px;
+  background: rgb(0 0 0 / 0.55);
+  font-size: 12px;
+  pointer-events: none;
+}
+.lb-fogo__selo {
+  color: var(--fg-brasa);
+}
+.lb-fogo__selo--erro {
+  color: #ff8a80;
+}

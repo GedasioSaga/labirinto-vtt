@@ -78,6 +78,9 @@ import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
 import type { MinigameTiro } from '../minigames/tiro/tipos'
 import { criarDancaNoHost, type DancaAoVivo, type DancaConviteResultado, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
 import { DANCA_PARTICIPANTES_MAX, type DancaPlayerMessage } from './protocoloDaDanca'
+import { criarFogoNoHost, type FogoAoVivo, type FogoConviteResultado } from './fogoNoHost'
+import { FOGO_PARTICIPANTES_MAX, type FogoPlayerMessage } from './protocoloDoFogo'
+import type { DificuldadeFogo, FuncaoFogo, ModoFogo } from '../minigames/fogo/tipos'
 import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from './pescaNoHost'
 import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
 import { criarTiroNoHost, type TiroAoVivo, type TiroConviteResultado } from './tiroNoHost'
@@ -2096,6 +2099,26 @@ export interface HostSession {
   /** A dança como o painel do MESTRE a lê (a última, mesmo terminada); `null` = nenhuma nesta sala. */
   danca(): DancaAoVivo | null
   /**
+   * MINIGAME FOGO NA FLORESTA: `fogo.convite` (o desafio do pino `pinId`,
+   * congelado agora) aos escolhidos que estão na sala e jogando, na ordem da
+   * sala, cada um com a função inicial que o mestre deu. Equipe: até 6 no mesmo
+   * incêndio; solo: cada um no seu. Recusa pino que não é de fogo, fogo ativo
+   * (um por vez) e lista sem ninguém válido.
+   */
+  convidarParaFogo(pinId: string, convidados: readonly { playerId: string; funcao: FuncaoFogo }[], modo: ModoFogo, source: HostMapSource): HostResult & { convite: FogoConviteResultado }
+  /** O mestre troca a função inicial de alguém (só no convite). */
+  mudarFuncaoNoFogo(playerId: string, funcao: FuncaoFogo): HostResult & { ok: boolean }
+  /** Só os prontos (e na sala) jogam; os outros recebem `fogo.encerra` `fora`. `comecou: false` = ninguém pronto. */
+  comecarFogo(dificuldade: DificuldadeFogo): HostResult & { comecou: boolean }
+  pausarFogo(): HostResult & { ok: boolean }
+  retomarFogo(): HostResult & { ok: boolean }
+  /** Encerra o fogo ativo sem desfecho. */
+  encerrarFogo(): HostResult & { ok: boolean }
+  /** O REPASSE do lockstep: as entradas que chegaram desde o último, a cada colega (a ponte chama a cada `FOGO_REPASSE_MS`). */
+  repassarFogo(): HostResult
+  /** O fogo como o painel do MESTRE o lê (o último, mesmo terminado); `null` = nenhum nesta sala. */
+  fogo(): FogoAoVivo | null
+  /**
    * MINIGAME DE PESCA ("Mestre chama"): `pesca.convite` (o desafio do pino
    * `pinId`) aos escolhidos que estão na sala e jogando, na ordem da sala, até
    * `PESCA_PARTICIPANTES_MAX`. Entram na sessão do pino se ela ainda tem
@@ -3595,6 +3618,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const secretChecks = new Map<string, SecretCheckRecord>()
   // MINIGAME DE DANÇA: a dança ativa (uma por vez) e a última, para o painel.
   const dancaNoHost = criarDancaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
+  // MINIGAME FOGO NA FLORESTA: o incêndio ativo (um por vez) e o último, para o painel.
+  const fogoNoHost = criarFogoNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME DE PESCA: uma sessão por pino (a de agora ou a última), para o painel.
   const pescaNoHost = criarPescaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME DE TIRO: uma barraca por pino (a de agora ou a última), com as tentativas de cada um.
@@ -5543,6 +5568,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     outbound.push(...batalhaDBTNoHost.entrou(conexaoNaBatalhaDBT(clientId, playerId, world), world.rpg))
     // DANÇA: no convite, o convite de novo; no meio da música, a aba nova perdeu a música e sai.
     outbound.push(...dancaNoHost.entrou(playerId))
+    // FOGO: no convite, o convite de novo; no meio do jogo, a aba nova perdeu a partida e sai.
+    outbound.push(...fogoNoHost.entrou(playerId))
     // PESCA: no convite, o convite de novo; no meio da pesca, a aba nova perdeu o jogo e sai.
     outbound.push(...pescaNoHost.entrou(playerId))
     // TIRO: o convite de novo, com as tentativas que já gastou; no meio da rodada, a aba nova perdeu a rodada.
@@ -9705,6 +9732,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * FOGO NA FLORESTA: pronto, entradas, hash e placar. Quem confere sessão,
+   * fase e participante é `fogoNoHost`; o que não vale morre calado. As
+   * entradas não saem daqui: esperam o repasse (`repassarFogo`).
+   */
+  function handleFogo(clientId: string, msg: FogoPlayerMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    switch (msg.type) {
+      case 'fogo.pronto':
+        return { outbound: fogoNoHost.pronto(playerId, msg) }
+      case 'fogo.entradas':
+        return { outbound: fogoNoHost.entradas(playerId, msg) }
+      case 'fogo.hash':
+        return { outbound: fogoNoHost.hash(playerId, msg) }
+      case 'fogo.fim':
+        return { outbound: fogoNoHost.fim(playerId, msg) }
+    }
+  }
+
+  /**
    * PESCA: o pedido do pino ("Jogador toca no pino"), o Pronto, o vivo, cada
    * lance e o cesto. O pedido passa aqui pelas regras do pino: jogando, cena
    * sem pausa, pino de pesca que chega ao recorte DELE e uma ficha dele
@@ -9951,6 +9998,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'danca.toques':
       case 'danca.fim':
         return handleDanca(clientId, msg)
+      case 'fogo.pronto':
+      case 'fogo.entradas':
+      case 'fogo.hash':
+      case 'fogo.fim':
+        return handleFogo(clientId, msg)
       case 'pesca.pedir':
       case 'pesca.pronto':
       case 'pesca.vivo':
@@ -10908,7 +10960,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // TIRO: quem atirava e caiu perde a rodada (a tentativa já contou).
       // COMPARTILHAR COM O MESTRE: a medida de quem caiu some da tela do mestre.
       return comDesfechoDaDanca({
-        outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId), ...tiroNoHost.caiu(playerId)],
+        outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId), ...tiroNoHost.caiu(playerId), ...fogoNoHost.caiu(playerId)],
         ...apagarMedidaNoMestre(playerId),
       })
     },
@@ -10941,7 +10993,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // PESCA: o expulso sai da pesca (do convite, ou da água).
       // TIRO: o expulso sai da barraca (do convite, ou da rodada, que conta como perdida).
       return comDesfechoDaDanca({
-        outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId)],
+        outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId), ...fogoNoHost.esquecer(playerId)],
         ...apagarMedidaNoMestre(playerId),
       })
     },
@@ -11647,6 +11699,58 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     danca() {
       return dancaNoHost.aoVivo()
+    },
+
+    convidarParaFogo(pinId, escolhidos, modo, source) {
+      const world = toWorld(source)
+      const pin = allScenes(world)
+        .flatMap((scene) => scene.map.pins)
+        .find((p) => p.id === pinId)
+      const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
+      if (desafio === undefined || desafio.jogo !== 'fogo') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
+      const funcaoDe = new Map(escolhidos.map((e) => [e.playerId, e.funcao]))
+      const convidados = inRoomOrder(new Set(funcaoDe.keys()))
+        .flatMap((playerId) => {
+          const record = players.get(playerId)
+          const funcao = funcaoDe.get(playerId)
+          return record !== undefined && funcao !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name, funcao }] : []
+        })
+        .slice(0, FOGO_PARTICIPANTES_MAX)
+      const { outbound, resultado } = fogoNoHost.convidar({ pinId, minigame: copiarMinigame(desafio) }, modo, convidados)
+      return { outbound, convite: resultado }
+    },
+
+    mudarFuncaoNoFogo(playerId, funcao) {
+      const outbound = fogoNoHost.mudarFuncao(playerId, funcao)
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    comecarFogo(dificuldade) {
+      const outbound = fogoNoHost.comecar(dificuldade)
+      return { outbound: outbound ?? [], comecou: outbound !== null }
+    },
+
+    pausarFogo() {
+      const outbound = fogoNoHost.pausar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    retomarFogo() {
+      const outbound = fogoNoHost.retomar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    encerrarFogo() {
+      const outbound = fogoNoHost.encerrar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    repassarFogo() {
+      return { outbound: fogoNoHost.repassar() }
+    },
+
+    fogo() {
+      return fogoNoHost.aoVivo()
     },
 
     convidarParaPesca(pinId, playerIds, source) {

@@ -44,6 +44,7 @@ import {
 import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from './protocoloDoLivro'
 import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
+import { parseFogoPlayerMessage, type FogoHostMessage, type FogoPlayerMessage } from './protocoloDoFogo'
 import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
 import { parseMedidaCompartilhar, type MedidaCompartilharMessage } from './protocoloDaMedida'
 import {
@@ -1200,6 +1201,8 @@ export type PlayerMessage =
   | DancaPlayerMessage
   // MINIGAME DE PESCA: pedir, pronto, vivo, lance e cesto (`protocoloDaPesca.ts`).
   | PescaPlayerMessage
+  // MINIGAME FOGO NA FLORESTA: pronto, entradas por tique, hash e placar (`protocoloDoFogo.ts`).
+  | FogoPlayerMessage
   // MINIGAME DE TIRO: pedir, pronto, vivo e resultado (`protocoloDoTiro.ts`).
   | TiroPlayerMessage
   | MyNotesSetMessage
@@ -2057,6 +2060,8 @@ export type HostMessage =
   | DancaHostMessage
   // MINIGAME DE PESCA: convite, estado, pausa e encerramento (`protocoloDaPesca.ts`).
   | PescaHostMessage
+  // MINIGAME FOGO NA FLORESTA: convite, começar, entradas dos colegas, sair, pausa e desfecho (`protocoloDoFogo.ts`).
+  | FogoHostMessage
   // MINIGAME DE TIRO: convite, estado, início, pausa, encerramento e recusa (`protocoloDoTiro.ts`).
   | TiroHostMessage
   // BATALHA F1: o recorte da ordem dos turnos, os aliados e a resposta aos pedidos (`protocoloDaBatalha.ts`).
@@ -3505,6 +3510,11 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'danca.toques':
     case 'danca.fim':
       return parseDancaPlayerMessage(value)
+    case 'fogo.pronto':
+    case 'fogo.entradas':
+    case 'fogo.hash':
+    case 'fogo.fim':
+      return parseFogoPlayerMessage(value)
     case 'pesca.pedir':
     case 'pesca.pronto':
     case 'pesca.vivo':
