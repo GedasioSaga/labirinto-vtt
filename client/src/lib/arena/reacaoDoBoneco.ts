@@ -1,7 +1,7 @@
-import { MODIFICADOR_DA_REACAO_MAX, type GolpeDaBatalha, type PedidoDeReacao, type SaidaDaReacao, type SeloDaBatalha } from '../batalha/combate'
+import { MODIFICADOR_DA_REACAO_MAX, type GolpeDaBatalha, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao, type SeloDaBatalha } from '../batalha/combate'
 import { saidasComOsSelos } from '../batalha/condicoes'
 import type { VezEsperada } from '../batalha/ponte'
-import { saidasPossiveis } from '../batalha/reacao'
+import { saidasDaRolagem } from '../batalha/reacao'
 import { cartaDaVez, type TurnosDaCena } from '../batalha/turnos'
 import type { ReacaoDoBoneco } from './tipos'
 
@@ -25,8 +25,9 @@ import type { ReacaoDoBoneco } from './tipos'
  * selos do boneco tiram (F2, fatia A: Aéreo tira a Esquiva; a batalha recusa
  * a saída tirada, e o robô pediria a mesma sem fim).
  */
-export function melhorDefesa(d20: number, total: number, selosDoBoneco: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): SaidaDaReacao {
-  return saidasComOsSelos(saidasPossiveis(d20, total), selosDoBoneco).find((saida) => saida !== 'contra') ?? 'cheio'
+export function melhorDefesa(rolagem: Pick<RolagemDaReacao, 'd20' | 'modificador' | 'total' | 'd20DaEsquiva'>, selosDoBoneco: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): SaidaDaReacao {
+  // F2 (revisão da fatia E): o boneco Marcado só esquiva se o dado da esquiva também deixa.
+  return saidasComOsSelos(saidasDaRolagem(rolagem), selosDoBoneco).find((saida) => saida !== 'contra') ?? 'cheio'
 }
 
 /** O modificador no teto da reação (o que a batalha aceita). */
@@ -50,10 +51,11 @@ export function reacaoDoBoneco(
   for (const golpe of golpes ?? []) {
     const alvo = golpe.alvos.find((candidato) => candidato.tokenId === bonecoTokenId)
     if (alvo === undefined || alvo.danoFinal !== undefined || !alvo.podeReagir) continue
-    if (reage === 'parado') return { tipo: 'naoReagir', golpeId: golpe.id, tokenId: bonecoTokenId }
+    // Overload e Surpresa não rolam o d20 (só a técnica que vale contra eles defende, e o boneco não usa técnica): recebe o golpe.
+    if (reage === 'parado' || golpe.overload || golpe.surpresa) return { tipo: 'naoReagir', golpeId: golpe.id, tokenId: bonecoTokenId }
     if (alvo.rolagem === undefined) return { tipo: 'rolar', golpeId: golpe.id, tokenId: bonecoTokenId, modificador: modificadorValido(modificador) }
     const selosDoBoneco = (selos ?? []).filter((selo) => selo.tokenId === bonecoTokenId)
-    return { tipo: 'escolher', golpeId: golpe.id, tokenId: bonecoTokenId, saida: melhorDefesa(alvo.rolagem.d20, alvo.rolagem.total, selosDoBoneco) }
+    return { tipo: 'escolher', golpeId: golpe.id, tokenId: bonecoTokenId, saida: melhorDefesa(alvo.rolagem, selosDoBoneco) }
   }
   return null
 }

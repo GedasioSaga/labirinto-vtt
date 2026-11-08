@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { MODIFICADOR_DA_REACAO_MAX, PERFURACAO_MAX, VANTAGENS_DO_DADO, type ParteDoBonus, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao, type VantagemDoDado } from '../../lib/batalha/combate'
-import { danoFinal, divisaoDoDano, porcentagemQuePerfura, saidaDoPassar, saidasPossiveis } from '../../lib/batalha/reacao'
+import { danoFinal, divisaoDoDano, porcentagemQuePerfura, saidaDoPassar, saidasDaRolagem } from '../../lib/batalha/reacao'
 import type { ReacaoComTecnica } from '../../lib/batalha/reacaoComTecnica'
 import { origemDoBonus } from './ContaComBonus'
 import { formatarNumero, lerModificadorDaReacao, movimentoReduzido, saidasNaTela, TEXTO_DA_SAIDA } from './dadosDoMenu'
@@ -46,6 +46,8 @@ export interface ReacaoNaCaixa {
   perfuracao?: number
   /** Conserto das fichas F1: golpe Overload. O d20 não defende: só outra Overload (as `tecnicas` já vêm só as Overload). */
   overload?: boolean
+  /** F2 (revisão da fatia E): golpe Surpresa. O d20 não defende: só a técnica que vale contra ela (as `tecnicas` já vêm só essas). */
+  surpresa?: boolean
   rolagem?: RolagemDaReacao
   /** Tipos de habilidade F1: as técnicas de reação de quem reage (`reacoesParaOAlvo`); ausente ou vazia = sem a seção Usar técnica. */
   tecnicas?: readonly ReacaoComTecnica[]
@@ -66,10 +68,11 @@ export interface ReacaoNaCaixa {
 /** S4: o dado da reação: um d20 (normal) ou dois, ficando o maior (vantagem) ou o menor (desvantagem). */
 const ROTULO_DO_DADO: Record<VantagemDoDado, string> = { vantagem: 'Vantagem: 2 dados, fica o maior', desvantagem: 'Desvantagem: 2 dados, fica o menor' }
 
-/** "15" ou "15 (vantagem: 15 e 7)": o d20 que valeu e, com dois dados, os dois. */
+/** "15" ou "15 (vantagem: 15 e 7)": o d20 que valeu e, com dois dados, os dois. F2 (revisão da fatia E): o Marcado mostra o dado da esquiva. */
 function textoDoD20(rolagem: RolagemDaReacao): string {
-  const { d20, vantagem } = rolagem
-  return vantagem === undefined ? String(d20) : `${d20} (${vantagem.modo}: ${d20} e ${vantagem.outro})`
+  const { d20, vantagem, d20DaEsquiva } = rolagem
+  const dados = vantagem === undefined ? String(d20) : `${d20} (${vantagem.modo}: ${d20} e ${vantagem.outro})`
+  return d20DaEsquiva === undefined ? dados : `${dados} (para esquivar, marcado: ${d20DaEsquiva})`
 }
 
 /** O bônus de reação como a caixa o mostra. */
@@ -102,6 +105,8 @@ export interface CaixaDeReacaoProps {
 
 /** Conserto das fichas F1: o lugar do "Rolar 1d20" num golpe Overload. */
 const TEXTO_DO_OVERLOAD = 'Overload: o dado não defende'
+/** F2 (revisão da fatia E): o lugar do "Rolar 1d20" num golpe Surpresa (só a técnica que vale contra ela defende). */
+const TEXTO_DA_SURPRESA = 'Surpresa: o dado não defende'
 
 /** O modificador de reação lembrado por ficha durante a sessão (some ao recarregar a página). */
 const modificadorLembrado = new Map<string, number>()
@@ -153,7 +158,7 @@ export function DadoDaReacao({ rolagem }: { rolagem: RolagemDaReacao | undefined
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chave])
 
-  const saida = rolagem === undefined || mostrado !== String(rolagem.d20) ? undefined : saidasPossiveis(rolagem.d20, rolagem.total)[0]
+  const saida = rolagem === undefined || mostrado !== String(rolagem.d20) ? undefined : saidasDaRolagem(rolagem)[0]
   return (
     <div ref={dado} className="bt-dado" data-s={saida ?? ''} aria-hidden="true">
       {mostrado}
@@ -211,7 +216,10 @@ function UmaReacao({
   }
   const golpeId = reacao.golpeId
   const overload = reacao.overload === true && golpeId !== null
-  const saidas = rolagem === undefined ? [] : saidasNaTela(rolagem.d20, rolagem.total, reacao.dano, reacao.semSaidas)
+  const surpresa = reacao.surpresa === true && golpeId !== null
+  // Overload e Surpresa: no lugar do dado, o aviso (a técnica que vale contra eles fica na seção Usar técnica).
+  const semDado = overload || surpresa
+  const saidas = rolagem === undefined ? [] : saidasNaTela(rolagem, reacao.dano, reacao.semSaidas)
   // Passar só quando o dado liberou uma reação: no 1 natural e abaixo de 10 o único botão já é receber o golpe.
   const passar = rolagem === undefined || saidas.some((saida) => saida.saida === 'cheio' || saida.saida === 'critico') ? null : saidaDoPassar(rolagem.d20)
   const textoDoModificador = rolagem === undefined || rolagem.modificador === 0 ? '' : ` ${rolagem.modificador > 0 ? '+' : '−'} ${Math.abs(rolagem.modificador)}`
@@ -262,8 +270,8 @@ function UmaReacao({
       <div className="bt-reacao__linha">
         <DadoDaReacao rolagem={rolagem} />
         <div className="bt-reacao__opcoes">
-          {overload && rolagem === undefined ? (
-            <span className="bt-dado-rotulo">{TEXTO_DO_OVERLOAD}</span>
+          {semDado && rolagem === undefined ? (
+            <span className="bt-dado-rotulo">{overload ? TEXTO_DO_OVERLOAD : TEXTO_DA_SURPRESA}</span>
           ) : rolagem === undefined ? (
             <>
               <button ref={primeiro} type="button" className="bt-botao bt-botao--batalha" disabled={esperando} onClick={() => pedir({ tipo: 'rolar', golpeId, tokenId: reacao.tokenId, modificador, ...comDado })}>
@@ -345,9 +353,11 @@ function UmaReacao({
         <span className="bt-reacao__regra">
           {overload && rolagem === undefined
             ? 'Overload não erra: só uma técnica Overload defende. Sem ela, receba o golpe.'
+            : surpresa && rolagem === undefined
+            ? 'Surpresa não deixa reagir: só a técnica que vale contra ela defende. Sem ela, receba o golpe.'
             : rolagem === undefined
             ? '10+ defende (metade) · 15+ esquiva · 20 contra-ataca · 1 é falha crítica (×1,5). Conta o total.'
-            : `d20 ${textoDoD20(rolagem)}${textoDoModificador} = ${rolagem.total} · ${TEXTO_DA_SAIDA[saidasPossiveis(rolagem.d20, rolagem.total)[0] ?? 'cheio'].selo}`}
+            : `d20 ${textoDoD20(rolagem)}${textoDoModificador} = ${rolagem.total} · ${TEXTO_DA_SAIDA[saidasDaRolagem(rolagem)[0] ?? 'cheio'].selo}`}
         </span>
         {golpeId !== null && (
           <span className="bt-reacao__pe-acoes">
@@ -388,7 +398,7 @@ function rotuloDaSaida(saida: SaidaDaReacao, dano: number | null): string {
 export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps) {
   const sozinha = reacoes.length === 1
   // O golpe Overload não rola (só outra Overload defende): fica fora do "Rolar todas".
-  const naoRoladas = reacoes.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null && reacao.overload !== true)
+  const naoRoladas = reacoes.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null && reacao.overload !== true && reacao.surpresa !== true)
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
     // A caixa não deixa a tecla virar atalho do mapa atrás dela.
     evento.stopPropagation()

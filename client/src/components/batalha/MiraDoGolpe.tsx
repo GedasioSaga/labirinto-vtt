@@ -116,9 +116,10 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
   const selo = escolha.selo === null ? {} : { selo: escolha.selo }
   // A porcentagem só vai quando é parcial: 100% é o Perfurante de sempre, o pedido sem o campo.
   const perfuracao = escolha.perfurante && escolha.perfuracao !== null && escolha.perfuracao < PERFURACAO_MAX ? { perfuracao: escolha.perfuracao } : {}
+  // A bala só vai com a arma (o pedido sem `armaId` e com `balaId` é torto). F2 (revisão da fatia E): também na técnica
+  // que diz "Dano da Bala" (Desenhar o alvo): o host lê dela o selo da bala ("Ferido por prata").
+  const bala = golpe.armaId !== null && escolha.balaId !== undefined ? { balaId: escolha.balaId } : {}
   if (golpe.tipo === 'atacar') {
-    // A bala só vai com a arma (o pedido sem `armaId` e com `balaId` é torto).
-    const bala = golpe.armaId !== null && escolha.balaId !== undefined ? { balaId: escolha.balaId } : {}
     // F2 (fatia C): as respostas de todo golpe do dono (o Electro da Aira) também no Atacar.
     const respostas = escolha.respostas === undefined ? {} : { respostas: escolha.respostas }
     return { tipo: 'atacar', armaId: golpe.armaId, alvos: escolha.alvos, surpresa: escolha.surpresa, perfurante: escolha.perfurante, ...perfuracao, ...selo, ...bala, ...respostas }
@@ -136,6 +137,7 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
     ...selo,
     ...(escolha.variante === undefined ? {} : { variante: escolha.variante }),
     ...(escolha.respostas === undefined ? {} : { respostas: escolha.respostas }),
+    ...bala,
   }
 }
 

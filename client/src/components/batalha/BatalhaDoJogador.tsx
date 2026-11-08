@@ -6,7 +6,7 @@ import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { saidasTiradas, travaDosSelos } from '../../lib/batalha/condicoes'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
-import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
+import { reacoesDoJogador, reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
 import { formasNoMenu } from '../../lib/batalha/transformacao'
@@ -336,6 +336,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       if (reacao.perfurante) item.perfurante = true
       if (reacao.perfurante && reacao.perfuracao !== undefined) item.perfuracao = reacao.perfuracao
       if (reacao.overload === true) item.overload = true
+      if (reacao.surpresa === true) item.surpresa = true
       if (reacao.rolagem !== undefined) item.rolagem = reacao.rolagem
       const bonus = bonusDaReacaoDe(selosQueSomam, reacao.tokenId)
       if (bonus !== undefined) item.bonus = bonus
@@ -347,7 +348,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       const dele = personagemDoAlvo === undefined ? undefined : meus.find((candidato) => candidato.id === personagemDoAlvo)
       if (dele !== undefined && sistema !== null) {
         const combateDele = combateDoJogador(estado.meus?.find((meu) => meu.personagemId === dele.id), null)
-        item.tecnicas = reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele, reacao.overload === true)
+        // F2 (revisão da fatia E): contra Surpresa só a técnica que vale contra ela; a que o mestre confirma vem apagada com o motivo.
+        item.tecnicas = reacoesDoJogador(reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele, reacao.overload === true, reacao.surpresa === true))
         // Conserto das fichas F1 (S4): Resiliente, Determinação (HP abaixo da metade): o aviso do que sai do dano.
         const reducao = avisoDasReducoes(reducoesDoDano(dele, sistema))
         if (reducao !== '') item.reducao = reducao

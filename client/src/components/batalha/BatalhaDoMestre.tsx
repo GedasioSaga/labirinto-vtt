@@ -8,7 +8,7 @@ import { acoesDoInvocado, comunsQueSaem, membrosDoBando, motivoDaInvocacao, quan
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { lembreteDoSelo, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
-import { chavesDoDono, saidasTiradasDoDono } from '../../lib/batalha/mecanicasAMao'
+import { chavesDoDono, saidasTiradasDoDono, soOMestreReage } from '../../lib/batalha/mecanicasAMao'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
@@ -321,6 +321,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         }
         if (golpe.perfuracao !== undefined) item.perfuracao = golpe.perfuracao
         if (golpe.overload) item.overload = true
+        if (golpe.surpresa) item.surpresa = true
         // Tipos de habilidade F2: o "+3 na reação" dos selos de quem reage começa no modificador (NPC e "Rolar por Lia").
         const bonus = bonusDaBatalha(turnos.selos, alvo.tokenId)
         const partes = partesDoBonus(bonus, ALVO_DA_REACAO)
@@ -334,7 +335,11 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         if (alvo.rolagem !== undefined) item.rolagem = alvo.rolagem
         // Tipos de habilidade F1: o NPC reage também com técnica (a caixa do mestre, por NPC).
         const doNpc = item.doMestre && alvo.personagemId !== null ? personagens.find((candidato) => candidato.id === alvo.personagemId) : undefined
-        if (doNpc !== undefined && sistema !== null) item.tecnicas = reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id], golpe.overload)
+        if (doNpc !== undefined && sistema !== null) item.tecnicas = reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id], golpe.overload, golpe.surpresa)
+        // F2 (revisão da fatia E, Recuperação de forças): na ficha de jogador, a técnica que só o mestre usa (ele confirma na mesa).
+        const doJogador = !item.doMestre && alvo.personagemId !== null ? personagens.find((candidato) => candidato.id === alvo.personagemId) : undefined
+        const soDoMestre = doJogador === undefined || sistema === null ? [] : reacoesParaOAlvo(alvo, doJogador, sistema, turnos.combate?.[doJogador.id], golpe.overload, golpe.surpresa).filter((reacao) => soOMestreReage(reacao.cartao.id) !== null)
+        if (soDoMestre.length > 0) item.tecnicas = soDoMestre
         // Conserto das fichas F1 (S4): Resiliente e Determinação de quem reage, no aviso da caixa.
         const doAlvo = alvo.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === alvo.personagemId)
         const reducao = doAlvo === undefined || sistema === null ? '' : avisoDasReducoes(reducoesDoDano(doAlvo, sistema))

@@ -41,7 +41,7 @@ import {
 import { comAMantida } from './custoPorTurno'
 import { equipeDe, type Equipe } from './equipes'
 import { usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
-import { danoDoAtaque, lerDano, type ContextoDaFormula } from './formula'
+import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type ContextoDaFormula } from './formula'
 import {
   armasDe,
   balaDaArma,
@@ -124,6 +124,13 @@ export interface ContextoDoGolpe {
    * = ninguém reage a Overload (o golpe sai resolvido, como antes).
    */
   reageAOverload?: (tokenId: string) => boolean
+  /**
+   * F2 (revisão da fatia E, Recuperação de forças: "vale também contra
+   * Surpresa"): a ficha tem técnica de reação que vale contra Surpresa
+   * disponível. Com ela, o golpe Surpresa espera a reação (o d20 não defende;
+   * só essa técnica). Ausente = ninguém reage a Surpresa (como antes).
+   */
+  reageASurpresa?: (tokenId: string) => boolean
   /**
    * F2 (fatia B, o "perto" do Aplauso): os tokens das fichas que podem rebater
    * o golpe Overload em `tokenId` (ele está na área delas). Com alguém, o alvo
@@ -347,7 +354,10 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (respostas !== null) return respostas
       if (tecnica.acao === null) return 'Escolha a ação da técnica'
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
-      if (armaDoPedido(ctx, pedido.armaId) === undefined) return 'Arma fora das levadas para a batalha'
+      const arma = armaDoPedido(ctx, pedido.armaId)
+      if (arma === undefined) return 'Arma fora das levadas para a batalha'
+      // F2 (revisão da fatia E, Desenhar o alvo com a Bala de Prata): a bala só na técnica cuja fórmula diz "Dano da Bala", e da arma dela.
+      if (pedido.balaId !== undefined && (arma === null || !formulaUsaBala(tecnica.cartao.campos[CAMPO_DO_DANO] ?? '') || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
       const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes)
       // F2 (fatia D, Imbuir Fogo): a resposta que a forma ligada não deixa (fogo com a Ignição).
       const vetada = motivoDaRespostaVetada(tecnica.cartao.id, pedido.respostas, personagem.cartoesAtivos)
@@ -405,7 +415,8 @@ export function ajustesDoCusto(personagem: Personagem, sistema: SistemaDeRpg, cu
  * Os alvos do golpe: o dano que chega e se reagem. Sem reação (Surpresa,
  * Overload, sem dano, Buff) já saem resolvidos. Debuff reage mesmo sem dano
  * (`reacaoDoTipo`): o selo só pega se acertar. Overload: só reage quem tem
- * outra Overload de reação disponível (`reageAOverload`).
+ * outra Overload de reação disponível (`reageAOverload`). Surpresa (F2,
+ * revisão da fatia E): só quem tem técnica que vale contra ela (`reageASurpresa`).
  */
 function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carga: number, surpresa: boolean, overload: boolean, reacao: ReacaoDoTipo): AlvoDoGolpe[] {
   return alvos.map((pedido): AlvoDoGolpe => {
@@ -413,8 +424,10 @@ function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carg
     // F2 (fatia B): Overload em alvo perto de quem rebate (Aplauso) também espera, pela pergunta a ela.
     const porPerto = overload && ctx.quemRebatePor !== undefined ? ctx.quemRebatePor(pedido.tokenId) : []
     const overloadDeixa = !overload || ctx.reageAOverload?.(pedido.tokenId) === true || porPerto.length > 0
+    // F2 (revisão da fatia E): a Surpresa espera só quem tem técnica que vale contra ela (Recuperação de forças da Ryoko).
+    const surpresaDeixa = !surpresa || ctx.reageASurpresa?.(pedido.tokenId) === true
     // F2 (fatia A, resposta da Saga): golpe que chega com 0 de dano é golpe sem dano, sem reação (o Debuff, "sempre", ainda reage pelo selo).
-    const podeReagir = !surpresa && overloadDeixa && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null && dano > 0)) && ctx.semReacao?.(pedido.tokenId) !== true
+    const podeReagir = surpresaDeixa && overloadDeixa && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null && dano > 0)) && ctx.semReacao?.(pedido.tokenId) !== true
     const alvo: AlvoDoGolpe = { tokenId: pedido.tokenId, personagemId: ctx.personagemDoToken(pedido.tokenId) ?? null, dano, podeReagir }
     if (podeReagir) return porPerto.length === 0 ? alvo : { ...alvo, porPerto }
     const saida: SaidaDaReacao = 'semReacao'
@@ -519,11 +532,13 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     golpe.selo = melhorado.selo
     golpe.variante = 'com a Bênção'
   }
-  const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
+  // F2 (revisão da fatia E): a bala vem também na técnica que diz "Dano da Bala" (Desenhar o alvo).
+  const bala = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
-  // F2 (fatia E, Bala de Prata): o selo da bala na tabela ("Ferido por prata") pega em quem o tiro acerta.
-  const seloDaBala = bala === null || golpe.marca !== undefined ? null : seloDaMecanica(bala.id)
-  if (seloDaBala !== null) golpe.selo = seloDaBala
+  // F2 (fatia E, Bala de Prata): o selo da bala na tabela ("Ferido por prata") pega em quem o tiro acerta, à parte do selo
+  // da mira, do da técnica e da marca (revisão da fatia E: no Desenhar o alvo a marca não o apaga mais).
+  const seloDaBala = bala === null ? null : seloDaMecanica(bala.id)
+  if (seloDaBala !== null) golpe.seloDaBala = seloDaBala
   // F2 (fatia E, vantagem de Ogro): a resposta "sim" faz os alvos reagirem com desvantagem.
   if (deTodoGolpe.desvantagemNoAlvo) golpe.reacaoComDesvantagem = true
   // R1: a arma que atira (o acerto lembra a passiva de marca).
@@ -574,7 +589,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // F2 (fatia B, Rapid Dash): a 2ª parte é outro golpe nos mesmos alvos, com a fração do dano base, o perfurante dela e outra reação.
   const alvosDaParte = pedido.alvos.map((alvo): PedidoDeAlvo => ({ ...alvo, dano: alvo.dano === null ? null : Math.floor(alvo.dano * parte.fracao) }))
   const segundos = alvosDoGolpe(ctx, alvosDaParte, carga, pedido.surpresa, overload, reacaoDoTipo(tecnica?.tipo ?? null))
-  const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, ...semExtras } = golpe
+  const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, seloDaBala: _seloDaBala, ...semExtras } = golpe
   const segundo: GolpeDaBatalha = { ...semExtras, id: ids.segundo.golpe, linhaId: ids.segundo.linha, nome: `${golpe.nome} (2º golpe)`.slice(0, NOME_DO_GOLPE_MAX), perfurante: parte.perfurante, alvos: segundos }
   return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }
 }
@@ -704,12 +719,17 @@ function comAlvo(golpe: GolpeDaBatalha, tokenId: string, mudar: (alvo: AlvoDoGol
   return { ...golpe, alvos }
 }
 
-/** A rolagem (ou rerolagem) do alvo. Alvo resolvido ou que não reage: o MESMO golpe. */
-export function rolarReacao(golpe: GolpeDaBatalha, tokenId: string, modificador: number, d20: number, vantagem?: VantagemNaRolagem): GolpeDaBatalha {
+/**
+ * A rolagem (ou rerolagem) do alvo. Alvo resolvido ou que não reage: o MESMO
+ * golpe. `d20DaEsquiva` (F2, revisão da fatia E: o alvo Marcado) = o dado que
+ * vale para Esquivar e Contra-atacar.
+ */
+export function rolarReacao(golpe: GolpeDaBatalha, tokenId: string, modificador: number, d20: number, vantagem?: VantagemNaRolagem, d20DaEsquiva?: number): GolpeDaBatalha {
   return comAlvo(golpe, tokenId, (alvo) => {
     if (alvo.danoFinal !== undefined || !alvo.podeReagir) return null
     const rolagem: RolagemDaReacao = { d20, modificador, total: d20 + modificador, vezes: (alvo.rolagem?.vezes ?? 0) + 1 }
     if (vantagem !== undefined) rolagem.vantagem = vantagem
+    if (d20DaEsquiva !== undefined) rolagem.d20DaEsquiva = d20DaEsquiva
     return { ...alvo, rolagem }
   })
 }
@@ -814,9 +834,11 @@ export function textoDaRolagem(d20: number, modificador: number, total: number, 
   return `d20 ${d20}${dados}${comSinal(modificador)} = ${total}`
 }
 
-/** O texto da rolagem guardada no alvo. */
+/** O texto da rolagem guardada no alvo; F2 (revisão da fatia E), o Marcado: "d20 13+2 = 15 · esquiva com desvantagem: 4+2 = 6". */
 function textoDaRolagemDoAlvo(rolagem: RolagemDaReacao): string {
-  return textoDaRolagem(rolagem.d20, rolagem.modificador, rolagem.total, rolagem.vantagem)
+  const texto = textoDaRolagem(rolagem.d20, rolagem.modificador, rolagem.total, rolagem.vantagem)
+  const esquiva = rolagem.d20DaEsquiva
+  return esquiva === undefined ? texto : `${texto} · esquiva com desvantagem: ${esquiva}${comSinal(rolagem.modificador)} = ${esquiva + rolagem.modificador}`
 }
 
 /** Golpe sem dano (Buff, Debuff de suporte): o que aconteceu, sem o "recebeu 0". */

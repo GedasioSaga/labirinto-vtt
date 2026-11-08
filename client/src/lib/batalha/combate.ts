@@ -337,6 +337,13 @@ export type PedidoDeAcao =
        * Ausente = sem pergunta.
        */
       respostas?: RespostasDoPedido
+      /**
+       * F2 (revisão da fatia E): o tipo de bala da arma, na técnica cuja
+       * fórmula diz "Dano da Bala" (Desenhar o alvo com a Bala de Prata). O
+       * dano dela já vem no de cada alvo; o host lê daqui o selo da bala e o
+       * registro. Exige `armaId`. Ausente = sem bala especial.
+       */
+      balaId?: string
     }
   | { tipo: 'concentrar' }
   /** Q6: o contra-ataque gasto em se mover. Só marca (e tira o atalho); o movimento em si é o arrasto de sempre. */
@@ -443,6 +450,12 @@ export interface RolagemDaReacao {
   vezes: number
   /** Rolou 2 d20 (S4): `d20` é o que ficou. Ausente = 1 d20. */
   vantagem?: VantagemNaRolagem
+  /**
+   * F2 (revisão da fatia E, Marcado: "desvantagem em desviar"): o d20 que
+   * vale para Esquivar e Contra-atacar, o menor entre o `d20` e mais um.
+   * Defender e Receber seguem com o `d20`. Ausente = o `d20` vale para tudo.
+   */
+  d20DaEsquiva?: number
 }
 
 export interface AlvoDoGolpe {
@@ -520,6 +533,12 @@ export interface GolpeDaBatalha {
   carga?: number
   /** F2 (fatia E, vantagem de Ogro): os alvos reagem com desvantagem (2 d20, fica o menor). Tirado pelo host. Ausente = dado normal. */
   reacaoComDesvantagem?: true
+  /**
+   * F2 (revisão da fatia E, Bala de Prata): o selo da bala ("Ferido por
+   * prata"), à parte do `selo`: pega em quem o tiro acerta junto com o selo
+   * da mira, o da técnica e a marca. Tirado pelo host. Ausente = nenhum.
+   */
+  seloDaBala?: SeloDoGolpe
 }
 
 /**

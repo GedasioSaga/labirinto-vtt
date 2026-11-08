@@ -106,7 +106,8 @@ import {
  *    `batalha.zerarCarga` (zerar a concentração, a qualquer hora);
  *  - F3 (fatia T): nenhuma mensagem nova; `batalha.agir` aceita `transformar`
  *    e `destransformar`, e `atacar`/`habilidade` aceitam `selo?`;
- *  - balas: `atacar` aceita `balaId?` (só com `armaId`);
+ *  - balas: `atacar` aceita `balaId?` (só com `armaId`); F2 (revisão da
+ *    fatia E): `habilidade` também (a técnica que diz "Dano da Bala");
  *  - tipos de habilidade F1: `batalha.reagir` aceita `tecnica` (a técnica
  *    de reação no lugar do d20; "rolar" com `modificador`);
  *  - tipos de habilidade F2: o selo do pedido aceita `mods?` (as linhas
@@ -478,6 +479,8 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const selo = lerSeloOpcional(value.selo)
       const perfuracao = lerPerfuracao(value.perfuracao)
       const variante = lerVarianteOpcional(value.variante)
+      // F2 (revisão da fatia E): a bala da técnica que diz "Dano da Bala" (Desenhar o alvo); se vale para a técnica, quem confere é a store.
+      const balaId = lerBalaId(value.balaId)
       // F2 (fatia A): as respostas das perguntas na hora; se valem para a técnica, quem confere é a store.
       const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
       if (respostas === null) return null
@@ -485,8 +488,11 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const alvosLidos = lerAlvosDoPedido(alvos, 0)
       const acaoLida = acao === null ? null : lerAcaoDaTecnica(acao)
       if (!textoAte(cartaoId, 1, CARTAO_ID_MAX) || !cartaoOuNulo(armaId) || alvosLidos === null || typeof surpresa !== 'boolean' || typeof perfurante !== 'boolean') return null
-      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false || perfuracao === false || variante === false) return null
+      if ((custo !== null && !inteiroAte(custo, 0, CUSTO_MAX)) || (acao !== null && acaoLida === null) || contraDe === false || selo === false || perfuracao === false || variante === false || balaId === false) return null
+      // Bala sem arma não existe: a bala é subcartão da arma.
+      if (balaId !== undefined && armaId === null) return null
       const pedido: PedidoDeAcao = { tipo: 'habilidade', cartaoId, armaId, alvos: alvosLidos, surpresa, perfurante, custo, acao: acaoLida }
+      if (balaId !== undefined) pedido.balaId = balaId
       if (perfuracao !== undefined) pedido.perfuracao = perfuracao
       if (contraDe !== undefined) pedido.contraDe = contraDe
       if (selo !== undefined) pedido.selo = selo
@@ -1052,9 +1058,19 @@ function lerRolagem(value: unknown): RolagemDaReacao | null {
   if (!isRecord(value)) return null
   const { d20, modificador, total, vezes } = value
   if (!lerD20(d20) || !lerModificador(modificador) || total !== d20 + modificador || !inteiroAte(vezes, 1, REROLAGENS_MAX)) return null
-  if (value.vantagem === undefined) return { d20, modificador, total, vezes }
-  const vantagem = lerVantagemNaRolagem(value.vantagem, d20)
-  return vantagem === null ? null : { d20, modificador, total, vezes, vantagem }
+  const rolagem: RolagemDaReacao = { d20, modificador, total, vezes }
+  if (value.vantagem !== undefined) {
+    const vantagem = lerVantagemNaRolagem(value.vantagem, d20)
+    if (vantagem === null) return null
+    rolagem.vantagem = vantagem
+  }
+  // F2 (revisão da fatia E, Marcado): o dado da esquiva é um d20 e nunca passa do que ficou (é o menor dos dois).
+  const { d20DaEsquiva } = value
+  if (d20DaEsquiva !== undefined) {
+    if (!lerD20(d20DaEsquiva) || d20DaEsquiva > d20) return null
+    rolagem.d20DaEsquiva = d20DaEsquiva
+  }
+  return rolagem
 }
 
 /** Conserto das fichas F1 (S4): o outro d20 tem de ser dado e o que ficou tem de ser o melhor (ou o pior). */
@@ -1069,7 +1085,7 @@ function lerVantagemNaRolagem(value: unknown, d20: number): VantagemNaRolagem | 
 
 function lerReacao(value: unknown): ReacaoParaJogador | null {
   if (!isRecord(value)) return null
-  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, overload, rolagem, por } = value
+  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, overload, surpresa, rolagem, por } = value
   if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(atacante, 1, NOME_NA_CARTA_MAX)) return null
   if (!textoAte(nome, 0, NOME_DO_GOLPE_MAX) || (dano !== null && !inteiroAte(dano, 0, DANO_MAX))) return null
   const reacao: ReacaoParaJogador = { golpeId, tokenId, atacante, nome, dano }
@@ -1091,6 +1107,11 @@ function lerReacao(value: unknown): ReacaoParaJogador | null {
   if (overload !== undefined) {
     if (overload !== true) return null
     reacao.overload = true
+  }
+  // F2 (revisão da fatia E): o golpe Surpresa que espera a técnica contra ela (ausente = golpe comum; o host de antes não manda).
+  if (surpresa !== undefined) {
+    if (surpresa !== true) return null
+    reacao.surpresa = true
   }
   if (rolagem !== undefined) {
     const lida = lerRolagem(rolagem)

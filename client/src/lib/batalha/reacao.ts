@@ -2,7 +2,7 @@ import type { Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
-import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLICADOR_DO_CRITICO, PERFURACAO_MAX, PERFURACAO_MIN, type SaidaDaReacao, type VantagemDoDado, type VantagemNaRolagem } from './combate'
+import { CARGA_MAX, MULTIPLICADOR_DA_CARGA, MULTIPLICADOR_DA_SURPRESA, MULTIPLICADOR_DO_CRITICO, PERFURACAO_MAX, PERFURACAO_MIN, type RolagemDaReacao, type SaidaDaReacao, type VantagemDoDado, type VantagemNaRolagem } from './combate'
 import { recursoDoEscudo } from './leituraDaFicha'
 
 /**
@@ -42,6 +42,25 @@ export function saidasPossiveis(d20: number, total: number): SaidaDaReacao[] {
   if (total >= TOTAL_DA_ESQUIVA) return ['esquiva', 'metade']
   if (total >= TOTAL_DA_METADE) return ['metade']
   return ['cheio']
+}
+
+/**
+ * F2 (revisão da fatia E, Marcado: "o alvo tem desvantagem em desviar"): as
+ * saídas da rolagem guardada. Com `d20DaEsquiva`, Esquivar e Contra-atacar só
+ * ficam se o dado da esquiva (o menor) também libera; Defender e Receber
+ * seguem com o `d20`. Ex.: d20 13 e esquiva 4, +2 = Defender (15 de total não
+ * esquiva, porque 4 + 2 = 6).
+ */
+export function saidasDaRolagem(rolagem: Pick<RolagemDaReacao, 'd20' | 'modificador' | 'total' | 'd20DaEsquiva'>): SaidaDaReacao[] {
+  const saidas = saidasPossiveis(rolagem.d20, rolagem.total)
+  if (rolagem.d20DaEsquiva === undefined) return saidas
+  const daEsquiva = saidasPossiveis(rolagem.d20DaEsquiva, rolagem.d20DaEsquiva + rolagem.modificador)
+  return saidas.filter((saida) => (saida !== 'esquiva' && saida !== 'contra') || daEsquiva.includes(saida))
+}
+
+/** F2 (revisão da fatia E, Marcado): o dado da esquiva com desvantagem: o menor entre o `d20` que ficou e mais um. */
+export function rolarODadoDaEsquiva(rolarD20: () => number, d20: number): number {
+  return Math.min(d20, rolarD20())
 }
 
 /**

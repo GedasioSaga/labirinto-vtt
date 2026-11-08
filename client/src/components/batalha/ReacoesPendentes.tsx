@@ -123,7 +123,27 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
                   {rolagem === undefined ? `esperando ${item.alvo}${item.quemRebate === undefined ? '' : ` (ou ${item.quemRebate} rebater)`}` : <span className="bt-pendente__d20">d20 {rolagem.d20}{rolagem.modificador === 0 ? '' : ` ${rolagem.modificador > 0 ? '+' : '−'} ${Math.abs(rolagem.modificador)}`} = {rolagem.total}</span>}
                 </span>
                 <span className="bt-pendente__acoes">
-                  {rolagem === undefined ? (
+                  {/* F2 (revisão da fatia E, Recuperação de forças): a técnica que só o mestre usa, por ele, depois de confirmar na mesa. */}
+                  {rolagem === undefined &&
+                    (item.tecnicas ?? []).map((tecnica) => {
+                      const saida = tecnica.sugerida ?? tecnica.saidas[0]
+                      if (saida === undefined) return null
+                      const daTabela = tecnica.daTabela?.[saida]
+                      return (
+                        <button
+                          key={tecnica.cartao.id}
+                          type="button"
+                          className="bt-botao bt-botao--p"
+                          disabled={tecnica.motivo !== null}
+                          title={tecnica.motivo ?? 'Só o mestre usa: confira na mesa se vale para este golpe'}
+                          onClick={() => onPedir({ tipo: 'tecnica', golpeId: item.golpeId, tokenId: item.tokenId, cartaoId: tecnica.cartao.id, saida, custo: null })}
+                        >
+                          Usar {tecnica.nome} por {item.alvo}
+                          {daTabela === undefined ? '' : ` · ${daTabela.rotulo}`}
+                        </button>
+                      )
+                    })}
+                  {rolagem === undefined && (item.overload === true || item.surpresa === true) ? null : rolagem === undefined ? (
                     <button
                       type="button"
                       className="bt-botao bt-botao--p"
@@ -138,7 +158,7 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
                       )}
                     </button>
                   ) : (
-                    saidasNaTela(rolagem.d20, rolagem.total, item.dano, item.semSaidas).map((saida) => (
+                    saidasNaTela(rolagem, item.dano, item.semSaidas).map((saida) => (
                       <button key={saida.saida} type="button" className="bt-botao bt-botao--p" onClick={() => onPedir({ tipo: 'escolher', golpeId: item.golpeId, tokenId: item.tokenId, saida: saida.saida })}>
                         {saida.rotulo}
                         {saida.dano === null ? '' : ` · ${formatarNumero(saida.dano)}`}

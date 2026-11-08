@@ -45,6 +45,12 @@ export interface ComportamentoDoSelo {
   curaDoDano?: number
   /** F2 (revisão da fatia D): quem tem o selo rola a reação com desvantagem (2 d20, fica o menor), sem precisar marcar (Preso no Campo de Contenção). */
   reageComDesvantagem?: true
+  /**
+   * F2 (revisão da fatia E, Marcado): só a Esquiva e o Contra-ataque de quem
+   * tem o selo vão com desvantagem (o app rola mais um d20 para eles e fica o
+   * menor); Defender e Receber usam o dado normal (`saidasDaRolagem`).
+   */
+  esquivaComDesvantagem?: true
 }
 
 /** Regra do sistema (respostas do Alexei e do Siegfried): o Sangramento tira 10 por vez, direto no HP. */
@@ -58,7 +64,7 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Aéreo', sinal: /^aere[oa]/, tiraSaidas: ['esquiva', 'contra'] },
   { nome: 'Cego', sinal: /^ceg[oa]/, zera: 'percepcao' },
   // Vincent (Olhar artístico, resposta do mestre): "deixa o Dano Dobrado e coloca que o alvo tem desvantagem em desviar". O dobro mora em `marca.ts`.
-  { nome: 'Marcado', sinal: /^marcad[oa]/, reageComDesvantagem: true },
+  { nome: 'Marcado', sinal: /^marcad[oa]/, esquivaComDesvantagem: true },
   { nome: 'Ferido por prata', sinal: /^ferid[oa] por prata/, lembrete: 'a cura que recebe cai pela metade (o mestre corta à mão)' },
   { nome: NOME_DO_SANGRAMENTO, sinal: /^sangr/, porVez: DANO_DO_SANGRAMENTO, verbo: 'sangra' },
   { nome: 'Queimando', sinal: /^queima/, porVez: 10, verbo: 'queima', renova: true },
@@ -86,6 +92,16 @@ export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: read
   // F2 (fatia E): o golpe com a vantagem de Ogro (a Ryoko respondeu "sim") também faz o alvo rolar com desvantagem.
   if (golpe?.reacaoComDesvantagem === true) return 'desvantagem'
   return (selos ?? []).some((selo) => comportamentoDoSelo(selo.nome)?.reageComDesvantagem === true) ? 'desvantagem' : pedida
+}
+
+/**
+ * F2 (revisão da fatia E, Marcado): a esquiva de quem reage vai com
+ * desvantagem? Não quando a reação inteira já rola com desvantagem (o dado que
+ * ficou já é o menor). `vantagem` = a com que a reação rolou.
+ */
+export function esquivaComDesvantagem(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined, vantagem: VantagemDoDado | undefined): boolean {
+  if (vantagem === 'desvantagem') return false
+  return (selos ?? []).some((selo) => comportamentoDoSelo(selo.nome)?.esquivaComDesvantagem === true)
 }
 
 /**

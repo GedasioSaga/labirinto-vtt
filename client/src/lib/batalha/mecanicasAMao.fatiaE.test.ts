@@ -3,7 +3,7 @@ import { golpesDeHabilidade } from '../../components/batalha/dadosDoMenu'
 import { atributoComposto, maximoComposto } from '../ajusteDaFicha'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import { combateVazio, type GolpeDaBatalha, type LembreteDaMarca, type PedidoDeAcao } from './combate'
-import { vantagemDaReacao } from './condicoes'
+import { esquivaComDesvantagem, vantagemDaReacao } from './condicoes'
 import { sistema } from './fichasDaFatiaB.testkit'
 import {
   BALA_DE_PRATA,
@@ -25,13 +25,22 @@ import {
   vincentCom,
 } from './fichasDaFatiaE.testkit'
 import { danoDoAtaque, lerDano } from './formula'
-import { lancarGolpe, type ContextoDoGolpe } from './golpe'
+import { lancarGolpe, podeAgir, type ContextoDoGolpe } from './golpe'
 import { ehPerfurante } from './leituraDaFicha'
 import { danoDaTecnica } from './leituraDaTecnica'
 import { acertoNaMarca, criarMarca, marcaDoToken } from './marca'
 import { chavesDoDono, motivoDasRespostasDoGolpe, motivoDoTetoDeDano, perguntasDoGolpe, saidasTiradasDoDono, somaCorpoACorpo } from './mecanicasAMao'
-import { ajustesDaCura, ajustesDoDano } from './reacao'
-import { motivoDaReacaoComTecnica, reagirComTecnica, saidasDaTecnica, temOverloadDeReacao } from './reacaoComTecnica'
+import { ajustesDaCura, ajustesDoDano, saidasDaRolagem } from './reacao'
+import {
+  MOTIVO_SO_CONTRA_SURPRESA,
+  motivoDaReacaoComTecnica,
+  reacoesDoJogador,
+  reacoesParaOAlvo,
+  reagirComTecnica,
+  saidasDaTecnica,
+  temOverloadDeReacao,
+  temReacaoContraSurpresa,
+} from './reacaoComTecnica'
 import { escudoNoComeco } from './recursosDaBatalha'
 import { danoComAsReducoes, reducoesDoDano } from './reducaoDoDano'
 import { mudancasDaVez, reverterTurnos } from './registro'
@@ -62,7 +71,7 @@ function contexto(quem: Personagem, alvo: Personagem): ContextoDoGolpe {
 
 const IDS = { golpe: 'golpe_1', linha: 'linha_1' }
 const atacar = (dano: number, extra: Partial<Extract<PedidoDeAcao, { tipo: 'atacar' }>> = {}): PedidoDeAcao => ({ tipo: 'atacar', armaId: null, alvos: [{ tokenId: 'tok_alvo', dano }], surpresa: false, perfurante: false, ...extra })
-const tecnica = (cartaoId: string, dano: number): PedidoDeAcao => ({ tipo: 'habilidade', cartaoId, armaId: null, alvos: [{ tokenId: 'tok_alvo', dano }], surpresa: false, perfurante: false, custo: null, acao: null })
+const tecnica = (cartaoId: string, dano: number): Extract<PedidoDeAcao, { tipo: 'habilidade' }> => ({ tipo: 'habilidade', cartaoId, armaId: null, alvos: [{ tokenId: 'tok_alvo', dano }], surpresa: false, perfurante: false, custo: null, acao: null })
 
 describe('Ryoko: Fúria do Dragão e as Partes em ordem', () => {
   it('a Fúria da Parte 1 liga a Parte 2; na Parte 3 não sobe (o menu apaga com o motivo); fora da forma, recusa', () => {
@@ -126,7 +135,23 @@ describe('Ryoko: Recuperação de forças (come fogo ou explosão)', () => {
     expect(motivoDaReacaoComTecnica({ personagem: ryoko, sistema, combate: undefined }, overload.alvos[0] ?? { podeReagir: false }, reacaoCom(RECUPERACAO_DE_FORCAS.id, 'esquiva', 't-ryoko'), true)).toBeNull()
     expect(temOverloadDeReacao(vincentCom(), sistema, undefined)).toBe(false)
   })
+
+  it('revisão: vale contra Surpresa (o golpe espera só quem a tem) e só o mestre usa; o jogador vê o botão apagado com o motivo', () => {
+    const ryoko = ryokoCom()
+    const surpresa = (reageASurpresa?: (tokenId: string) => boolean) => lancarGolpe({ ...contexto(vincentCom(), ryoko), ...(reageASurpresa === undefined ? {} : { reageASurpresa }) }, atacar(100, { surpresa: true }), IDS).golpe?.alvos[0]
+    expect(surpresa()).toMatchObject({ dano: 150, podeReagir: false, saida: 'semReacao' })
+    expect(surpresa(() => temReacaoContraSurpresa(ryoko, sistema, undefined))).toMatchObject({ dano: 150, podeReagir: true })
+    expect(temReacaoContraSurpresa(vincentCom(), sistema, undefined)).toBe(false)
+    const alvo = golpeEm('t-ryoko', ryoko.id, 150, { surpresa: true }).alvos[0] ?? { podeReagir: false }
+    const pedido = reacaoCom(RECUPERACAO_DE_FORCAS.id, 'esquiva', 't-ryoko')
+    expect(motivoDaReacaoComTecnica({ personagem: ryoko, sistema, combate: undefined }, alvo, pedido, false, true)).toBeNull()
+    expect(motivoDaReacaoComTecnica({ personagem: ryoko, sistema, combate: undefined, quemPede: 'jogador' }, alvo, pedido, false, true)).toBe(SO_O_MESTRE)
+    expect(motivoDaReacaoComTecnica({ personagem: vincentCom(), sistema, combate: undefined }, alvo, reacaoCom(PASSO_DE_VALSA.id, 'esquiva', 't-ryoko'), false, true)).toBe(MOTIVO_SO_CONTRA_SURPRESA)
+    expect(reacoesDoJogador(reacoesParaOAlvo(alvo, ryoko, sistema, undefined, false, true)).map((reacao) => [reacao.cartao.id, reacao.motivo])).toEqual([[RECUPERACAO_DE_FORCAS.id, SO_O_MESTRE]])
+  })
 })
+
+const SO_O_MESTRE = 'Só o mestre usa: peça a ele, que confirma se o golpe é de fogo ou explosão'
 
 describe('Ryoko: Golpe de Chifres, Chute e o +20 de Ogro', () => {
   it('Golpe de Chifres: Completa, 35 SP, pula o Escudo e o alvo ainda reage; 60 + 50 + 20 de Ogro = 130', () => {
@@ -186,10 +211,19 @@ describe('Vincent: Bala de Prata, a marca e o Escudo', () => {
     expect(danoDoAtaque({ personagem: vincent, sistema, arma: ROSA_FUNEBRE, vidaDoAlvo: null }, bala)).toMatchObject({ tipo: 'valor', valor: 72 })
     expect(lerDano(DESENHAR.campos.dano ?? '', { personagem: vincent, sistema, arma: ROSA_FUNEBRE, vidaDoAlvo: null, bala })).toMatchObject({ tipo: 'valor', valor: 72 })
     const golpe = lancarGolpe(contexto(vincent, ryokoCom()), atacar(72, { armaId: ROSA_FUNEBRE.id, balaId: BALA_DE_PRATA.id }), IDS).golpe
-    expect(golpe?.selo).toEqual({ nome: 'Ferido por prata', turnos: null, natureza: 'debuff' })
+    expect(golpe?.seloDaBala).toEqual({ nome: 'Ferido por prata', turnos: null, natureza: 'debuff' })
   })
 
-  it('o tiro que gasta a marca dobra (55 → 110) e já marca de novo; o marcado reage com desvantagem', () => {
+  it('revisão: o Desenhar o alvo com a Bala de Prata leva a marca E o selo da bala; a bala só na técnica que diz "Dano da Bala"', () => {
+    const ctx = contexto(vincentCom(), ryokoCom())
+    const desenhar: PedidoDeAcao = { ...tecnica(DESENHAR.id, 72), armaId: ROSA_FUNEBRE.id, balaId: BALA_DE_PRATA.id }
+    expect(podeAgir(ctx, desenhar)).toBeNull()
+    const golpe = lancarGolpe(ctx, desenhar, IDS).golpe
+    expect([golpe?.marca, golpe?.seloDaBala?.nome, golpe?.bala?.nome]).toEqual([DESENHAR.id, 'Ferido por prata', BALA_DE_PRATA.nome])
+    expect(podeAgir(ctx, { ...tecnica(PASSO_DE_VALSA.id, 0), armaId: ROSA_FUNEBRE.id, balaId: BALA_DE_PRATA.id })).toBe('Bala não encontrada na arma')
+  })
+
+  it('o tiro que gasta a marca dobra (55 → 110) e já marca de novo; o marcado ESQUIVA com desvantagem (Defender usa o d20)', () => {
     const vincent = vincentCom()
     const turnos: TurnosDaCena = { cartas: [novaCarta('t-vincent', vincent.id, 'Vincent'), novaCarta('t-alvo', 'p-alvo', 'Alvo')], vez: null, rodada: 1, desempate: 'd20', d20: {}, empates: {}, extras: {}, gastos: {} }
     const marca = criarMarca(turnos, 't-alvo', { selo: 's1', linha: 'l0' }, DESENHAR)
@@ -201,7 +235,11 @@ describe('Vincent: Bala de Prata, a marca e o Escudo', () => {
     expect(marcaDoToken(desenhar.turnos.selos, 't-alvo')?.id).toBe('nova')
     const tiro = acertoNaMarca(comMarca, golpe, acertou, { linhaId: 'l1', novoId: () => 'lm', passiva: OLHAR, tecnicaQueMarca: null })
     expect([tiro.alvo.danoFinal, tiro.turnos.lembretesDaMarca?.map((lembrete) => lembrete.alvoTokenId)]).toEqual([110, ['t-alvo']])
-    expect(vantagemDaReacao(undefined, [marca])).toBe('desvantagem')
+    // Revisão: "desvantagem em DESVIAR": a reação rola normal; só a Esquiva e o Contra-ataque pedem o dado menor.
+    expect(vantagemDaReacao(undefined, [marca])).toBeUndefined()
+    expect([esquivaComDesvantagem([marca], undefined), esquivaComDesvantagem([marca], 'desvantagem')]).toEqual([true, false])
+    expect(saidasDaRolagem({ d20: 13, modificador: 2, total: 15, d20DaEsquiva: 4 })).toEqual(['metade'])
+    expect(saidasDaRolagem({ d20: 19, modificador: 2, total: 21, d20DaEsquiva: 13 })).toEqual(['esquiva', 'metade'])
   })
 
   it('o lembrete "Marcar o alvo?" vence no fim da vez do Vincent (não na de outro) e o Desfazer da vez o devolve', () => {

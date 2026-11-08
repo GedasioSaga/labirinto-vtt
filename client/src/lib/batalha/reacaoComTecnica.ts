@@ -20,7 +20,8 @@ import { ajustesDoCusto, depoisDaTecnica, resolverAlvo, rolarReacao } from './go
 import { tecnicaPorId, tecnicasComForma, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { leituraDaTecnica } from './leituraDaTecnica'
 import { modificadorDoTeste } from './marca'
-import { reacaoAMaoDe, reageContraOverload, rebatePertoDe } from './mecanicasAMao'
+import { reacaoAMaoDe, reageContraOverload, reageContraSurpresa, rebatePertoDe, soOMestreReage } from './mecanicasAMao'
+import type { AutorDaAcao } from './turnos'
 import { seloPedidoValido } from './selos'
 import { lerTipo, modoDaReacao, saidaSugerida, seloDaReacao, type LeituraDoTipo, type ModoDaReacao } from './tiposDaHabilidade'
 
@@ -177,16 +178,41 @@ function valeContraOverload(tecnica: { overload: boolean; cartao: Pick<CartaoDaF
 /** O motivo da técnica que não é Overload contra golpe Overload. */
 export const MOTIVO_SO_OVERLOAD = 'Contra Overload, só outra Overload defende'
 
+/** F2 (revisão da fatia E): o motivo da técnica que não vale contra golpe Surpresa. */
+export const MOTIVO_SO_CONTRA_SURPRESA = 'Contra Surpresa não há reação: só a técnica que vale contra ela defende'
+
+/**
+ * F2 (revisão da fatia E, Recuperação de forças: "vale também contra
+ * Surpresa"): o personagem tem técnica de reação que vale contra golpe
+ * Surpresa disponível agora. Com ela, o golpe Surpresa espera a reação dele.
+ */
+export function temReacaoContraSurpresa(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): boolean {
+  return reacoesDisponiveis(personagem, sistema, combate).some((reacao) => reageContraSurpresa(reacao.cartao.id) && reacao.motivo === null)
+}
+
 /**
  * As técnicas de reação para ESTE alvo de golpe. Golpe sem reação (Surpresa,
  * sem dano) ou alvo resolvido: nenhuma. Depois do d20: todas apagadas
  * (`MOTIVO_JA_ROLOU`), a técnica vem no lugar do dado. `contraOverload`
  * (conserto das fichas F1): o golpe é Overload, só as técnicas Overload.
+ * `contraSurpresa` (F2, revisão da fatia E): o golpe é Surpresa, só as que
+ * valem contra ela (Recuperação de forças).
  */
-export function reacoesParaOAlvo(alvo: AlvoQueReage, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, contraOverload = false): ReacaoComTecnica[] {
+export function reacoesParaOAlvo(alvo: AlvoQueReage, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, contraOverload = false, contraSurpresa = false): ReacaoComTecnica[] {
   if (!alvo.podeReagir || alvo.danoFinal !== undefined) return []
-  const todas = reacoesDisponiveis(personagem, sistema, combate).filter((reacao) => !contraOverload || valeContraOverload(reacao))
+  const todas = reacoesDisponiveis(personagem, sistema, combate).filter((reacao) => (!contraOverload || valeContraOverload(reacao)) && (!contraSurpresa || reageContraSurpresa(reacao.cartao.id)))
   return alvo.rolagem === undefined ? todas : todas.map((reacao) => (reacao.motivo === null ? { ...reacao, motivo: MOTIVO_JA_ROLOU } : reacao))
+}
+
+/**
+ * F2 (revisão da fatia E, Recuperação de forças): as técnicas como o JOGADOR
+ * as vê: a que só o mestre usa vem apagada com o motivo (ele pede ao mestre).
+ */
+export function reacoesDoJogador(reacoes: readonly ReacaoComTecnica[]): ReacaoComTecnica[] {
+  return reacoes.map((reacao) => {
+    const soOMestre = reacao.motivo === null ? soOMestreReage(reacao.cartao.id) : null
+    return soOMestre === null ? reacao : { ...reacao, motivo: soOMestre }
+  })
 }
 
 /** F2 (fatia B): a única saída de quem reage no lugar de outro alvo: rebater (o golpe não pega nele). */
@@ -212,6 +238,8 @@ export interface ContextoDaReacao {
   personagem: Personagem | null
   sistema: SistemaDeRpg | null
   combate: CombateDoPersonagem | undefined
+  /** F2 (revisão da fatia E): quem pede; o jogador não usa a técnica que só o mestre usa (`soOMestreReage`). Ausente = o mestre. */
+  quemPede?: AutorDaAcao['tipo']
 }
 
 /**
@@ -221,7 +249,7 @@ export interface ContextoDaReacao {
  * personagem, de reação, disponível (recarga, usos, Overload, SP) e com o
  * custo confirmado. `contraOverload` (o golpe é Overload): só técnica Overload.
  */
-export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueReage, pedido: PedidoDeTecnica, contraOverload = false): string | null {
+export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueReage, pedido: PedidoDeTecnica, contraOverload = false, contraSurpresa = false): string | null {
   if (!alvo.podeReagir) return 'Este golpe não deixa reagir'
   if (alvo.danoFinal !== undefined) return 'Este alvo já foi resolvido'
   if (alvo.rolagem !== undefined) return MOTIVO_JA_ROLOU
@@ -238,6 +266,10 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   // F2 (fatia D): a técnica da tabela só dá as saídas dela (Armadura: Defender ou Atacar; Giro: rolar).
   if (!saidasDaTecnica(tecnica.cartao.id, modoDaReacao(tecnica.cartao)).saidas.includes(pedido.saida)) return 'Saída que a técnica não dá'
   if (contraOverload && !valeContraOverload(tecnica)) return MOTIVO_SO_OVERLOAD
+  if (contraSurpresa && !reageContraSurpresa(tecnica.cartao.id)) return MOTIVO_SO_CONTRA_SURPRESA
+  // F2 (revisão da fatia E, Recuperação de forças): "o MESTRE CONFIRMA": o jogador não aplica sozinho.
+  const soOMestre = ctx.quemPede === 'jogador' ? soOMestreReage(tecnica.cartao.id) : null
+  if (soOMestre !== null) return soOMestre
   if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
   return motivoDaTecnica(tecnica, personagem, sistema, ctx.combate, null, true)
 }
@@ -280,6 +312,7 @@ export function reagirComTecnica(
   combate: CombateDoPersonagem,
   d20: number | null,
   vantagem?: VantagemNaRolagem,
+  d20DaEsquiva?: number,
 ): ReacaoFeita | null {
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return null
@@ -296,7 +329,9 @@ export function reagirComTecnica(
     if (d20 === null) return null
     const rolagem = daTabela?.rolagem
     // F2 (fatia D, Giro da Lança): o modificador sai da ficha e o total resolve na hora (anulaCom ou mais anula; o 1 natural é crítico).
-    novo = rolarReacao(golpe, tokenId, rolagem === undefined ? (pedido.modificador ?? 0) : maiorModificador(personagem, sistema, rolagem.atributos), d20, vantagem)
+    // F2 (revisão da fatia E): o dado da esquiva do Marcado vale na escolha depois do d20; o Giro bloqueia com a lança (não é esquiva) e fica com o dele.
+    const esquiva = rolagem === undefined ? d20DaEsquiva : undefined
+    novo = rolarReacao(golpe, tokenId, rolagem === undefined ? (pedido.modificador ?? 0) : maiorModificador(personagem, sistema, rolagem.atributos), d20, vantagem, esquiva)
     const total = novo.alvos.find((candidato) => candidato.tokenId === tokenId)?.rolagem?.total
     if (rolagem !== undefined && total !== undefined) novo = resolverAlvo(novo, tokenId, total >= rolagem.anulaCom ? 'esquiva' : d20 === DADO_DO_CRITICO ? 'critico' : 'cheio')
   } else {

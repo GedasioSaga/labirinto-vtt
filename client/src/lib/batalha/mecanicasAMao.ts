@@ -68,6 +68,18 @@ export interface ReacaoAMao {
   rolagem?: RolagemDaReacaoAMao
   /** F2 (fatia E, Recuperação de forças): vale também contra golpe Overload (como se fosse outra Overload). */
   contraOverload?: true
+  /**
+   * F2 (revisão da fatia E, Recuperação de forças): vale também contra golpe
+   * Surpresa: o golpe espera a reação de quem tem a técnica disponível (só
+   * ela defende; o d20 não), como no Overload.
+   */
+  contraSurpresa?: true
+  /**
+   * F2 (revisão da fatia E, Recuperação de forças: "o MESTRE CONFIRMA"): só o
+   * mestre usa a técnica na reação (ele confirma na mesa o que o texto pede);
+   * o jogador vê o botão apagado com este motivo e pede a ele.
+   */
+  soOMestre?: string
 }
 
 /**
@@ -340,11 +352,16 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   'cart_b0bc47ef-4a3e-4ccc-8650-8c26b823b5c6': { nome: 'Chute do Dragão (Ryoko)', corpoACorpo: { somaDaRaca: false } },
   // Ryoko: Ação Completa, 35 SP (a ficha); "ignorando sua defesa" = pula o Escudo (o alvo ainda reage); corpo a corpo, + 20 de Ogro.
   'cart_bd88bb1b-2c2d-4b48-af1a-b50bd0009f03': { nome: 'Golpe de Chifres (Ryoko)', perfurante: true, corpoACorpo: { somaDaRaca: true } },
-  // Ryoko: come o golpe de FOGO ou EXPLOSÃO (o mestre confirma na mesa): anula e 20% do que chegava (antes do −30%) vira vida.
-  // Vale também contra Overload. Contra Surpresa fica à mão (o golpe Surpresa não espera reação).
+  // Ryoko: come o golpe de FOGO ou EXPLOSÃO, "o MESTRE CONFIRMA": só o mestre usa a reação (o jogador vê o botão apagado e pede a ele).
+  // Anula e 20% do que chegava (antes do −30%) vira vida. Vale também contra Overload e Surpresa (o golpe espera a reação dela).
   'cart_f9a3ebf3-cc68-4892-9e90-75b3a1bdc947': {
     nome: 'Recuperação de forças (Ryoko)',
-    reacao: { saidas: [{ saida: 'esquiva', rotulo: 'come o fogo', noAlvo: 'esquiva', fator: 0, curaDoQueChega: 20 }], contraOverload: true },
+    reacao: {
+      saidas: [{ saida: 'esquiva', rotulo: 'come o fogo', noAlvo: 'esquiva', fator: 0, curaDoQueChega: 20 }],
+      contraOverload: true,
+      contraSurpresa: true,
+      soOMestre: 'Só o mestre usa: peça a ele, que confirma se o golpe é de fogo ou explosão',
+    },
   },
   'cart_5b1f2e01-5ed4-4fb1-aa28-46b533b54521': PARTE_DA_FORMA_HIBRIDA,
   'cart_82959662-3d4b-4715-99e9-675856c1fcfa': PARTE_DA_FORMA_HIBRIDA,
@@ -888,4 +905,14 @@ export function sobeDeParte(cartaoId: string): boolean {
 /** F2 (fatia E, Recuperação de forças): a técnica de reação vale também contra golpe Overload. */
 export function reageContraOverload(cartaoId: string): boolean {
   return mecanicaDoCartao(cartaoId)?.reacao?.contraOverload === true
+}
+
+/** F2 (revisão da fatia E, Recuperação de forças): a técnica de reação vale também contra golpe Surpresa. */
+export function reageContraSurpresa(cartaoId: string): boolean {
+  return mecanicaDoCartao(cartaoId)?.reacao?.contraSurpresa === true
+}
+
+/** F2 (revisão da fatia E, Recuperação de forças): o motivo de a reação com a técnica ser só do mestre; `null` = o jogador também usa. */
+export function soOMestreReage(cartaoId: string): string | null {
+  return mecanicaDoCartao(cartaoId)?.reacao?.soOMestre ?? null
 }

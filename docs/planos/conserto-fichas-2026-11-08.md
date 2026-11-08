@@ -106,15 +106,22 @@ cura 20% do que chegava antes do −30%, 2 por combate, vale contra Overload; `m
 Vincent: Passo de Valsa só como Esquiva, contra qualquer ataque; Desenhar 1 alvo e perfurante (`mecanicasAMao.ts:361`);
 o lembrete "Marcar o alvo?" vence no fim da vez dele (`turnos.ts:439`), o Desfazer da vez devolve (`registro.ts:651`)
 e o mestre pode responder por ele; o tiro que gasta a marca já marca de novo (já era); Bala de Prata 72 e "Ferido por
-prata" só lembrete (`mecanicasAMao.ts:364`); o marcado reage com desvantagem (`condicoes.ts:61`); Escudo volta cheio
+prata" só lembrete (`mecanicasAMao.ts:364`); o marcado esquiva com desvantagem (`condicoes.ts:61`); Escudo volta cheio
 (F1). Provas: `client/src/lib/batalha/mecanicasAMao.fatiaE.test.ts`.
+Revisão da fatia E (corrigido): o Sangrando/Queimando do Aplicar passa pelas reduções de quem sangra (Ryoko: 10 vira 7;
+`batalhaFabrica.ts` `lembreteDaRegra`); o Marcado só ESQUIVA e contra-ataca com desvantagem (o host rola mais um d20,
+`RolagemDaReacao.d20DaEsquiva`; Defender e Receber usam o d20 normal; `reacao.ts` `saidasDaRolagem`, `condicoes.ts`
+`esquivaComDesvantagem`); a Recuperação de forças só o MESTRE usa (ele confirma o fogo ou a explosão: o jogador vê o
+botão apagado com o motivo, o mestre tem "Usar ... por Ryoko" nas reações esperando; `mecanicasAMao.ts` `soOMestre`) e
+vale também contra Surpresa (o golpe Surpresa espera só quem tem a técnica, `golpe.ts` `reageASurpresa`; o d20 não
+defende); o Desenhar o alvo leva a bala no pedido (`balaId` na habilidade) e o selo da bala mora à parte
+(`GolpeDaBatalha.seloDaBala`), junto da marca. Provas: `client/src/stores/batalhaFabrica.mecanicasFatiaE.test.ts`.
 À mão DE PROPÓSITO, com dono:
-- Recuperação: o mestre confirma DEPOIS (a reação resolve na hora; o registro diz "só fogo ou explosão: o mestre
-  confirma"; se não era fogo, Desfazer). Contra Surpresa fica à mão (a Surpresa não deixa reagir).
 - "Exceto dano verdadeiro" dos outros ogros: o app não marca dano verdadeiro; hoje os −30% valem em tudo.
 - A vantagem de Ogro ao defender é o seletor "Vantagem" do dado que já existe; o app não impede usar as duas.
 - Grande Fissura entrou como corpo a corpo (+20 de Ogro): leitura minha, confirmar com o mestre.
-- Desenhar com a Bala de Prata: o pedido da técnica não leva a bala; o selo "Ferido por prata" sai só do Atacar.
+- O Giro da Lança marcado anula com o dado dele (bloqueio com a lança, não esquiva); a animação do d20 mostra a melhor
+  saída do d20 normal (o dado da esquiva do Marcado aparece na caixa e no registro, não na animação).
 
 ## F3. Recursos novos (decisão 08/11: feitos como PEÇAS DO CONSTRUTOR, fatias C6/C7/C1/C10 de docs/planos/construtor-de-mecanicas-2026-11-08.md)
 1. Tela do mestre ao transformar ou invocar com números livres (Sulong, super lobo).

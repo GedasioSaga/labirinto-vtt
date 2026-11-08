@@ -10,6 +10,7 @@ import {
   type BonusDaBatalha,
   type CombateDoPersonagem,
   type EfeitoDaBatalha,
+  type RolagemDaReacao,
   type SaidaDaReacao,
   type SeloDoGolpe,
 } from '../../lib/batalha/combate'
@@ -35,7 +36,7 @@ import {
   type LeituraDoTempo,
   vezesDeRecarga,
 } from '../../lib/batalha/leituraDaFicha'
-import { danoFinal, danoQueChega, saidasPossiveis } from '../../lib/batalha/reacao'
+import { danoFinal, danoQueChega, saidasDaRolagem } from '../../lib/batalha/reacao'
 import { blocosEntreTokens, ordenarAlvosDaMira } from '../../lib/batalha/ordemDosAlvos'
 import type { CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
@@ -719,9 +720,13 @@ export interface SaidaNaTela {
   dano: number | null
 }
 
-/** As saídas que o d20 liberou (a melhor primeiro), com o dano de cada uma. `tiradas` (F2, fatia A) = as que os selos de quem reage tiram (Aéreo). */
-export function saidasNaTela(d20: number, total: number, dano: number | null, tiradas: readonly SaidaDaReacao[] = []): SaidaNaTela[] {
-  return saidasPossiveis(d20, total).filter((saida) => !tiradas.includes(saida)).map((saida) => ({ saida, rotulo: TEXTO_DA_SAIDA[saida].botao, dano: dano === null ? null : danoFinal(dano, saida) }))
+/**
+ * As saídas que o d20 liberou (a melhor primeiro), com o dano de cada uma.
+ * `tiradas` (F2, fatia A) = as que os selos de quem reage tiram (Aéreo). F2
+ * (revisão da fatia E): o Marcado só esquiva se o dado da esquiva também deixa (`saidasDaRolagem`).
+ */
+export function saidasNaTela(rolagem: Pick<RolagemDaReacao, 'd20' | 'modificador' | 'total' | 'd20DaEsquiva'>, dano: number | null, tiradas: readonly SaidaDaReacao[] = []): SaidaNaTela[] {
+  return saidasDaRolagem(rolagem).filter((saida) => !tiradas.includes(saida)).map((saida) => ({ saida, rotulo: TEXTO_DA_SAIDA[saida].botao, dano: dano === null ? null : danoFinal(dano, saida) }))
 }
 
 /** A palavra grande sobre o número do dano; `null` = só o número. */

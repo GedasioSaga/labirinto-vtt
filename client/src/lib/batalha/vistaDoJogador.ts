@@ -261,6 +261,8 @@ export interface ReacaoParaJogador {
   perfuracao?: number
   /** Conserto das fichas F1: golpe Overload (o d20 não defende; só outra Overload). Ausente = golpe comum. */
   overload?: true
+  /** F2 (revisão da fatia E): golpe Surpresa que espera a técnica que vale contra ela (o d20 não defende). Ausente = golpe comum. */
+  surpresa?: true
   rolagem?: RolagemDaReacao
   /**
    * F2 (fatia B, o "perto" do Aplauso): a ficha DELE que pode rebater no
@@ -641,6 +643,7 @@ function reacoesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJo
         if (golpe.perfurante) reacao.perfurante = true
         if (golpe.perfurante && golpe.perfuracao !== undefined) reacao.perfuracao = golpe.perfuracao
         if (golpe.overload) reacao.overload = true
+        if (golpe.surpresa) reacao.surpresa = true
         if (alvo.rolagem !== undefined) reacao.rolagem = { ...alvo.rolagem }
         if (por !== undefined) reacao.por = por
         reacoes.push(reacao)
