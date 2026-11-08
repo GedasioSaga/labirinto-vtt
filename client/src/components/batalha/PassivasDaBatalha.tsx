@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { CUSTO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type LembreteDaPassiva, type PedidoDePassiva, type SeloPedido } from '../../lib/batalha/combate'
+import { ehLembreteDoCustoDaForma, type CustoDaFormaNaTela } from '../../lib/batalha/custoPorTurno'
 import { cartaoDaVariante, temEscolha, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_EFEITO } from '../../lib/batalha/leituraDaFicha'
 import { passivasDe, passivasLigadas, seloDaPassiva, textoDoPorTurno, type EstadoDaPassiva, type PassivaNaTira } from '../../lib/batalha/passivas'
@@ -751,7 +752,7 @@ export function PassivasDaFicha({ passivas, tokenId, alvos, sistema, aplicarLivr
 // A faixa de lembretes
 // ───────────────────────────────────────────────────────────────────────────
 
-export interface LembreteNaTela {
+export interface LembreteDaPassivaNaTela {
   lembrete: LembreteDaPassiva
   passiva: PassivaNaTira
   /** Os alvos do ponto de vista do dono (para o oponente da passiva). */
@@ -760,10 +761,34 @@ export interface LembreteNaTela {
   quem?: string
 }
 
-/** Junta os lembretes de um dono com as passivas dele (lembrete de passiva que sumiu da ficha fica de fora). */
-export function lembretesNaTela(lembretes: readonly LembreteDaPassiva[] | undefined, passivas: readonly PassivaNaTira[], alvos: readonly AlvoDaPassiva[], quem?: string): LembreteNaTela[] {
+/** Conserto das fichas F1 (P6): o lembrete do custo por turno de uma forma ligada. */
+export interface LembreteDoCustoNaTela {
+  lembrete: LembreteDaPassiva
+  custo: CustoDaFormaNaTela
+  quem?: string
+}
+
+export type LembreteNaTela = LembreteDaPassivaNaTela | LembreteDoCustoNaTela
+
+/**
+ * Junta os lembretes de um dono com as passivas dele (lembrete de passiva que
+ * sumiu da ficha fica de fora). `custos` (P6) = as formas ligadas com custo
+ * por turno (`custosDasFormasNaTela`): o lembrete do custo de cada uma.
+ */
+export function lembretesNaTela(
+  lembretes: readonly LembreteDaPassiva[] | undefined,
+  passivas: readonly PassivaNaTira[],
+  alvos: readonly AlvoDaPassiva[],
+  quem?: string,
+  custos?: readonly CustoDaFormaNaTela[],
+): LembreteNaTela[] {
   const itens: LembreteNaTela[] = []
   for (const lembrete of lembretes ?? []) {
+    if (ehLembreteDoCustoDaForma(lembrete)) {
+      const custo = custos?.find((candidato) => candidato.cartaoId === lembrete.cartaoId)
+      if (custo !== undefined) itens.push(quem === undefined ? { lembrete, custo } : { lembrete, custo, quem })
+      continue
+    }
     const passiva = passivas.find((candidata) => candidata.cartao.id === lembrete.cartaoId)
     if (passiva === undefined) continue
     itens.push(quem === undefined ? { lembrete, passiva, alvos } : { lembrete, passiva, alvos, quem })
@@ -780,16 +805,63 @@ export interface LembretesDaPassivaProps {
   className?: string
 }
 
-function UmLembrete({ item, sistema, aplicarLivre, esperando, onPedir }: Omit<LembretesDaPassivaProps, 'itens' | 'className'> & { item: LembreteNaTela }) {
+/**
+ * Conserto das fichas F1 (P6): o lembrete do custo por turno de uma forma.
+ * Aplicar paga; sem recurso, o mesmo botão desce a forma uma Parte (o texto
+ * diz para onde). Pular só tira o lembrete.
+ */
+function UmLembreteDoCusto({ item, esperando, onPedir }: { item: LembreteDoCustoNaTela; esperando?: boolean; onPedir: PedirPassiva }) {
+  const { lembrete, custo, quem } = item
+  const [erro, setErro] = useState<string | null>(null)
+  const id = useId()
+  const pedir = (aplicar: boolean) => {
+    if (esperando) return
+    const saiu = onPedir({ tipo: 'lembrete', tokenId: lembrete.tokenId, cartaoId: lembrete.cartaoId, aplicar })
+    setErro(saiu ? null : 'Não saiu: sem conexão com o mestre, ou o lembrete já foi respondido.')
+  }
+  const sem = custo.semRecurso
+  return (
+    <li className="bt-lembrete" data-tipo={lembrete.tipo}>
+      <p className="bt-lembrete__texto" id={`${id}-texto`}>
+        <span className="bt-lembrete__marca" aria-hidden="true" />
+        {quem !== undefined && <span className="bt-lembrete__quem">{quem} · </span>}
+        <b title={custo.nome}>{custo.nome}</b>
+        <span className="bt-lembrete__det"> · a cada turno: {custo.custo}</span>
+      </p>
+      <div className="bt-lembrete__acoes" role="group" aria-labelledby={`${id}-texto`}>
+        <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando} aria-describedby={sem === undefined ? undefined : `${id}-motivo`} onClick={() => pedir(true)}>
+          {sem === undefined ? `Aplicar · ${custo.custo}` : sem.voltaPara === null ? 'Sair da forma' : `Voltar para ${sem.voltaPara}`}
+        </button>
+        <button type="button" className="bt-botao" disabled={esperando} onClick={() => pedir(false)}>
+          Pular
+        </button>
+      </div>
+      {sem !== undefined && (
+        <p className="bt-lembrete__motivo" id={`${id}-motivo`}>
+          Sem {custo.recurso} para manter a forma.
+        </p>
+      )}
+      {erro !== null && (
+        <p className="bt-lembrete__motivo" role="alert">
+          {erro}
+        </p>
+      )}
+    </li>
+  )
+}
+
+function UmLembrete({ item, sistema, aplicarLivre, esperando, onPedir }: Omit<LembretesDaPassivaProps, 'itens' | 'className'> & { item: LembreteDaPassivaNaTela }) {
   const { lembrete, passiva, alvos, quem } = item
   const [aberto, setAberto] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const botao = useRef<HTMLButtonElement>(null)
   const id = useId()
   const ativar = lembrete.tipo === 'ativar'
-  const motivo = ativar && passiva.estado !== 'ativa' ? passiva.motivo : null
+  // Conserto das fichas F1 (P6): o Aplicar da técnica mantida apaga quando o recurso não paga o custo por turno.
+  const motivo = ativar ? (passiva.estado !== 'ativa' ? passiva.motivo : null) : (passiva.motivoDoAplicar ?? null)
   const custo = textoDoCusto(passiva.custo)
-  const efeito = passiva.porTurno === null ? 'efeito a cada turno' : textoDoPorTurno(passiva.porTurno, sistema)
+  const pagaPorVez = passiva.custo.tipo === 'valor' && passiva.custo.porTurno ? `paga ${passiva.custo.valor} ${passiva.custo.recurso.toUpperCase()}` : null
+  const efeito = [passiva.porTurno === null ? null : textoDoPorTurno(passiva.porTurno, sistema), pagaPorVez].filter((parte) => parte !== null).join(' · ') || 'efeito a cada turno'
   const base = { tokenId: lembrete.tokenId, cartaoId: lembrete.cartaoId }
 
   const pedir = (pedido: PedidoDePassiva) => {
@@ -882,9 +954,13 @@ export function LembretesDaPassiva({ itens, className, ...resto }: LembretesDaPa
   return (
     <section className={['bt-lembretes', className].filter(Boolean).join(' ')} aria-label="Lembretes de passiva">
       <ul className="bt-lembretes__lista">
-        {itens.map((item) => (
-          <UmLembrete key={`${item.lembrete.tokenId}:${item.lembrete.chave}`} item={item} {...resto} />
-        ))}
+        {itens.map((item) =>
+          'custo' in item ? (
+            <UmLembreteDoCusto key={`${item.lembrete.tokenId}:${item.lembrete.chave}`} item={item} esperando={resto.esperando} onPedir={resto.onPedir} />
+          ) : (
+            <UmLembrete key={`${item.lembrete.tokenId}:${item.lembrete.chave}`} item={item} {...resto} />
+          ),
+        )}
       </ul>
     </section>
   )

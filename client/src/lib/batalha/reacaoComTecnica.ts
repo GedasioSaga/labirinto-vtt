@@ -137,13 +137,26 @@ export function reacoesDisponiveis(personagem: Personagem, sistema: SistemaDeRpg
 export type AlvoQueReage = Pick<AlvoDoGolpe, 'podeReagir' | 'rolagem' | 'danoFinal'>
 
 /**
- * As técnicas de reação para ESTE alvo de golpe. Golpe sem reação (Surpresa,
- * Overload, sem dano) ou alvo resolvido: nenhuma. Depois do d20: todas
- * apagadas (`MOTIVO_JA_ROLOU`), a técnica vem no lugar do dado.
+ * Conserto das fichas F1 ("Overload não erra; o alvo só se defende com outra
+ * Overload"): o personagem tem técnica Overload de reação disponível agora
+ * (sem motivo: Overload ainda não usado, sem recarga, recurso que paga).
  */
-export function reacoesParaOAlvo(alvo: AlvoQueReage, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): ReacaoComTecnica[] {
+export function temOverloadDeReacao(personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): boolean {
+  return reacoesDisponiveis(personagem, sistema, combate).some((reacao) => reacao.overload && reacao.motivo === null)
+}
+
+/** O motivo da técnica que não é Overload contra golpe Overload. */
+export const MOTIVO_SO_OVERLOAD = 'Contra Overload, só outra Overload defende'
+
+/**
+ * As técnicas de reação para ESTE alvo de golpe. Golpe sem reação (Surpresa,
+ * sem dano) ou alvo resolvido: nenhuma. Depois do d20: todas apagadas
+ * (`MOTIVO_JA_ROLOU`), a técnica vem no lugar do dado. `contraOverload`
+ * (conserto das fichas F1): o golpe é Overload, só as técnicas Overload.
+ */
+export function reacoesParaOAlvo(alvo: AlvoQueReage, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, contraOverload = false): ReacaoComTecnica[] {
   if (!alvo.podeReagir || alvo.danoFinal !== undefined) return []
-  const todas = reacoesDisponiveis(personagem, sistema, combate)
+  const todas = reacoesDisponiveis(personagem, sistema, combate).filter((reacao) => !contraOverload || reacao.overload)
   return alvo.rolagem === undefined ? todas : todas.map((reacao) => (reacao.motivo === null ? { ...reacao, motivo: MOTIVO_JA_ROLOU } : reacao))
 }
 
@@ -162,9 +175,9 @@ export interface ContextoDaReacao {
  * host: alvo que ainda reage e não rolou; saída do conjunto
  * (`SAIDAS_DA_TECNICA`); modificador só ao rolar; custo no teto; técnica do
  * personagem, de reação, disponível (recarga, usos, Overload, SP) e com o
- * custo confirmado.
+ * custo confirmado. `contraOverload` (o golpe é Overload): só técnica Overload.
  */
-export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueReage, pedido: PedidoDeTecnica): string | null {
+export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueReage, pedido: PedidoDeTecnica, contraOverload = false): string | null {
   if (!alvo.podeReagir) return 'Este golpe não deixa reagir'
   if (alvo.danoFinal !== undefined) return 'Este alvo já foi resolvido'
   if (alvo.rolagem !== undefined) return MOTIVO_JA_ROLOU
@@ -178,6 +191,7 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   if (achada === null) return 'Técnica não encontrada na ficha'
   const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, ctx.combate?.evoluidas)
   if (!tecnica.tipo.tambemReacao) return 'Esta técnica não é de reação'
+  if (contraOverload && !tecnica.overload) return MOTIVO_SO_OVERLOAD
   if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
   return motivoDaTecnica(tecnica, personagem, sistema, ctx.combate, null, true)
 }

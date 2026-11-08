@@ -19,6 +19,7 @@ import {
   type SeloDaBatalha,
   type SeloPedido,
 } from './combate'
+import { chaveDoCustoDaForma, custoPorTurno, formasComCustoPorTurno, motivoDoCustoPorTurno } from './custoPorTurno'
 import { varianteDoPedido } from './escolhaEEvolucao'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, ehOverload, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, vezesDeRecarga, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
@@ -384,6 +385,8 @@ export interface PassivaNaTira {
   motivo: string | null
   /** O lembrete esperando resposta; `null` = nenhum. */
   lembrete: LembreteDaPassiva | null
+  /** Conserto das fichas F1 (P6): ligada, com custo por turno que o recurso não paga ("SP insuficiente..."). Ausente = Aplicar pode. */
+  motivoDoAplicar?: string
 }
 
 /** O nome do botão quando o cartão não tem nome. */
@@ -505,6 +508,9 @@ export function passivasDe(personagem: Personagem, sistema: SistemaDeRpg, cena: 
         lembrete: (cena.combate?.lembretes ?? []).find((lembrete) => lembrete.cartaoId === cartao.id) ?? null,
       }
       if (forma !== undefined) passiva.forma = forma
+      const porTurno = ativa ? custoPorTurno(cartao, personagem) : null
+      const semRecurso = porTurno === null ? null : motivoDoCustoPorTurno(personagem, sistema, porTurno)
+      if (semRecurso !== null) passiva.motivoDoAplicar = semRecurso
       return passiva
     })
 }
@@ -652,8 +658,10 @@ export function comLembretesDoMomento(momento: MomentoDaPassiva, turnos: TurnosD
 
 /**
  * O lembrete "a cada turno" no começo da vez (decisão 4): as passivas
- * LIGADAS do personagem da carta da vez que têm `efeitoPorTurno`. Troca o
- * lembrete velho da mesma passiva. Nada: os MESMOS turnos.
+ * LIGADAS do personagem da carta da vez que têm `efeitoPorTurno` ou custo
+ * por turno (a técnica mantida). Conserto das fichas F1 (P6): e as formas
+ * LIGADAS com custo por turno (chave `chaveDoCustoDaForma`). Troca o
+ * lembrete velho do mesmo cartão. Nada: os MESMOS turnos.
  */
 export function comLembretesDaVez(turnos: TurnosDaCena, mesa: FichasDaPassiva): TurnosComLembretes {
   const carta = cartaDaVez(turnos)
@@ -661,13 +669,16 @@ export function comLembretesDaVez(turnos: TurnosDaCena, mesa: FichasDaPassiva): 
   if (carta === null || carta.personagemId === null || sistema === null) return { turnos, mudaram: [] }
   const personagemId = carta.personagemId
   const personagem = mesa.personagens.find((candidato) => candidato.id === personagemId)
+  if (personagem === undefined) return { turnos, mudaram: [] }
   const ligadas = passivasLigadas(turnos.selos, personagemId)
-  if (personagem === undefined || ligadas.size === 0) return { turnos, mudaram: [] }
   let combate = turnos.combate?.[personagemId] ?? combateVazio()
   const antes = combate
-  for (const { cartao } of tecnicasComForma(personagem, sistema)) {
-    if (!ligadas.has(cartao.id) || efeitoPorTurno(cartao, sistema) === null) continue
+  for (const { cartao } of ligadas.size === 0 ? [] : tecnicasComForma(personagem, sistema)) {
+    if (!ligadas.has(cartao.id) || (efeitoPorTurno(cartao, sistema) === null && custoPorTurno(cartao, personagem) === null)) continue
     combate = comLembrete(combate, { cartaoId: cartao.id, tokenId: carta.tokenId, tipo: 'porTurno', chave: chaveDoPorTurno(cartao.id), rodada: turnos.rodada })
+  }
+  for (const { cartao } of formasComCustoPorTurno(personagem, sistema)) {
+    combate = comLembrete(combate, { cartaoId: cartao.id, tokenId: carta.tokenId, tipo: 'porTurno', chave: chaveDoCustoDaForma(cartao.id), rodada: turnos.rodada })
   }
   return combate === antes ? { turnos, mudaram: [] } : comCombates(turnos, new Map([[personagemId, combate]]))
 }
@@ -709,8 +720,11 @@ export function motivoDaPassiva(ctx: ContextoDaPassiva, pedido: PedidoDePassiva)
     const lembrete = lembreteDe(combate, cartao.id)
     if (!pedido.aplicar) return lembrete === null ? 'Nenhum lembrete desta passiva' : null
     if (!ligada) return 'Ative a passiva primeiro'
-    if (efeitoPorTurno(cartao, sistema) === null) return 'A passiva não tem efeito a cada turno'
-    return ctx.aplicarSoComLembrete && lembrete?.tipo !== 'porTurno' ? 'Aplicar só no começo da sua vez' : null
+    const custo = custoPorTurno(cartao, personagem)
+    if (efeitoPorTurno(cartao, sistema) === null && custo === null) return 'A passiva não tem efeito a cada turno'
+    if (ctx.aplicarSoComLembrete && lembrete?.tipo !== 'porTurno') return 'Aplicar só no começo da sua vez'
+    // Conserto das fichas F1 (P6): o custo por turno da técnica mantida precisa caber no recurso de agora.
+    return custo === null ? null : motivoDoCustoPorTurno(personagem, sistema, custo)
   }
   if (!pedido.ligar) return ligada ? null : 'A passiva não está ativa'
   if (ligada) return 'A passiva já está ativa'

@@ -99,12 +99,6 @@ export interface CombateDoPersonagem {
   jaJogou?: true
   /** Conserto das fichas F1: gastou SP desde o começo da última vez dele; a próxima vez não ganha os +10. Ausente = não gastou. */
   gastouSp?: true
-  /**
-   * Conserto das fichas F1 (Overload, resposta do Jimboy e da Ryoko):
-   * atributoId → quanto o Overload tirou do modificador do atributo (metade
-   * da ficha sem forma). Volta no fim da batalha. Ausente = sem cansaço.
-   */
-  cansaco?: Readonly<Record<string, number>>
 }
 
 /** C2: o que o Concentrar da vez gastou (a Simples ou a Bônus) e a linha que o registrou. */

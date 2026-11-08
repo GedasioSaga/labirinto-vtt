@@ -3,6 +3,7 @@ import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDeInvocacao, type PedidoDeMarca, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
+import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
@@ -227,7 +228,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       // C4: inimigos do mais perto ao mais longe, aliados depois, ele por último.
       alvos: alvosNaOrdemDaMira(alvos, fichas, cartaQueAge.tokenId, tamanhoDaCasa),
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
-      formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate?.usos) : [],
+      formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate) : [],
       // Tipos de habilidade F3: a tira Passivas (as ligadas vêm do recorte, `passivasAtivas`).
       passivas: passivasNoRecorte(personagem, sistema, estado.rodada, meuCombate, selosDoDono),
     }
@@ -254,7 +255,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       const dele = meus.find((candidato) => candidato.id === meu.personagemId)
       const selosDoDono = estado.cartas.find((carta) => carta.tokenId === primeiro.tokenId)?.selos?.length ?? 0
       const passivas = passivasNoRecorte(dele, sistema, estado.rodada, meu, selosDoDono)
-      itens.push(...lembretesNaTela(meu.lembretes, passivas, alvos, varios ? nomeDe(primeiro.tokenId) : undefined))
+      itens.push(...lembretesNaTela(meu.lembretes, passivas, alvos, varios ? nomeDe(primeiro.tokenId) : undefined, custosDasFormasNaTela(dele, sistema)))
     }
     return itens
   }, [comPassiva, estado.meus, estado.rodada, estado.cartas, meus, sistema, alvos, nomeDe])
@@ -319,6 +320,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       if (variasFichas) item.alvo = nomeDe(reacao.tokenId)
       if (reacao.perfurante) item.perfurante = true
       if (reacao.perfurante && reacao.perfuracao !== undefined) item.perfuracao = reacao.perfuracao
+      if (reacao.overload === true) item.overload = true
       if (reacao.rolagem !== undefined) item.rolagem = reacao.rolagem
       const bonus = bonusDaReacaoDe(selosQueSomam, reacao.tokenId)
       if (bonus !== undefined) item.bonus = bonus
@@ -327,7 +329,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       const dele = personagemDoAlvo === undefined ? undefined : meus.find((candidato) => candidato.id === personagemDoAlvo)
       if (dele !== undefined && sistema !== null) {
         const combateDele = combateDoJogador(estado.meus?.find((meu) => meu.personagemId === dele.id), null)
-        item.tecnicas = reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele)
+        item.tecnicas = reacoesParaOAlvo({ podeReagir: true, rolagem: reacao.rolagem }, dele, sistema, combateDele, reacao.overload === true)
       }
       return item
     })

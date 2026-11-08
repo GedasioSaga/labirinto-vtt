@@ -81,8 +81,9 @@ import {
   textoDoSeloComMods,
   textoDosQueAcabaram,
 } from '../lib/batalha/selos'
-import { ativarForma, danoComAReducao, desfazerForma, desfazerFormasNoFim, efeitosDasFormasLigadas, formaDaFicha, formaLivre, usosDaForma } from '../lib/batalha/transformacao'
-import { ajusteDoSpDaVez, ajustesDoFimDoCansaco, cansacoDoOverload, escudoNoComeco, ganhaSpNaVez } from '../lib/batalha/recursosDaBatalha'
+import { ativarForma, danoComAReducao, descerUmaParte, desfazerForma, desfazerFormasNoFim, efeitosDasFormasLigadas, formaDaFicha, formaLivre, usosDaForma } from '../lib/batalha/transformacao'
+import { ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
+import { custoPorTurno, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
 import { equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
@@ -118,7 +119,7 @@ import {
   textoDoPorTurno,
   type TurnosComLembretes,
 } from '../lib/batalha/passivas'
-import { motivoDaReacaoComTecnica, reagirComTecnica, type PedidoDeTecnica } from '../lib/batalha/reacaoComTecnica'
+import { motivoDaReacaoComTecnica, reagirComTecnica, temOverloadDeReacao, type PedidoDeTecnica } from '../lib/batalha/reacaoComTecnica'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
@@ -177,7 +178,7 @@ import {
   type TurnosDaCena,
 } from '../lib/batalha/turnos'
 import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
-import { numeroDaFicha, type Personagem } from '../lib/personagem'
+import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 
 /**
@@ -850,6 +851,12 @@ function textoDosQueSairam(nomes: readonly string[]): string {
 }
 
 /** A reversão de uma ficha mexida; nada mudou = nenhuma. */
+/** Conserto das fichas F1 (+10 SP por vez): as partes gravadas tiraram SP (o recurso de custo "sp" do sistema). */
+function tirouSp(partes: readonly ParteDaFicha[] | null, sistema: SistemaDeRpg): boolean {
+  const sp = recursoDoCusto(sistema, 'sp')
+  return sp !== null && (partes ?? []).some((parte) => parte.parte === 'recurso' && parte.chave === sp.id && parte.para < parte.de)
+}
+
 function reversaoDaFicha(personagemId: string, partes: readonly ParteDaFicha[] | null): Reversao[] {
   return partes === null || partes.length === 0 ? [] : [{ tipo: 'ficha', personagemId, partes }]
 }
@@ -1064,22 +1071,16 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   }
 
   /**
-   * Conserto das fichas F1 (respostas do Vagn e do Jimboy): no fim da batalha,
-   * cada personagem dela (na ordem ou com combate) volta o que o Overload tirou
-   * dos atributos e desliga TODAS as formas (o atual perde o que elas deram,
-   * bug 9). Gravação recusada pela pasta publicada: fica como está.
+   * Conserto das fichas F1 (resposta do Vagn): no fim da batalha, cada
+   * personagem dela (na ordem ou com combate) desliga TODAS as formas (o atual
+   * perde o que elas deram, bug 9). O cansaço do Overload mora nos selos da
+   * batalha e some com ela. Gravação recusada pela pasta publicada: fica como está.
    */
   const fimDaBatalhaNasFichas = (turnos: TurnosDaCena): void => {
     const sistema = mesa.sistema()
     if (sistema === null) return
     const ids = new Set([...turnos.cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])), ...Object.keys(turnos.combate ?? {})])
-    for (const personagemId of ids) {
-      const cansaco = turnos.combate?.[personagemId]?.cansaco
-      mesa.ajustarPersonagem(personagemId, (atual) => {
-        const descansado = cansaco === undefined ? atual : aplicarAjustes(atual, sistema, ajustesDoFimDoCansaco(atual, cansaco), NOME_DO_MESTRE, Date.now())
-        return desfazerFormasNoFim(descansado, sistema, NOME_DO_MESTRE, Date.now()) ?? descansado
-      })
-    }
+    for (const personagemId of ids) mesa.ajustarPersonagem(personagemId, (atual) => desfazerFormasNoFim(atual, sistema, NOME_DO_MESTRE, Date.now()) ?? atual)
   }
 
   /**
@@ -1110,31 +1111,19 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   }
 
   /**
-   * Conserto das fichas F1 (Overload): depois dele, os atributos base de
-   * `personagemId` ficam pela metade até o fim da batalha (`cansacoDoOverload`;
-   * o `desligar` devolve). Já cansado = `null` (a metade não divide de novo).
-   * As partes [combate, ficha] vão na linha do Overload: o Desfazer dela tira
-   * o cansaço.
+   * Conserto das fichas F1 (Overload): depois dele, os atributos base do
+   * personagem da ficha `tokenId` ficam pela metade até o fim da batalha. Mora
+   * nos selos "Cansaço do Overload" da batalha (`comOCansaco`), NUNCA na ficha:
+   * o app fechado no meio não deixa a ficha pela metade. Já cansado = `null`
+   * (a metade não divide de novo). As partes "selo" vão na linha do Overload:
+   * o Desfazer dela tira o cansaço; o mestre também tira pelo selo.
    */
-  const cansarNoOverload = (personagemId: string, turnos: TurnosDaCena, quem: string): { turnos: TurnosDaCena; partes: Reversao[] } | null | Recusada => {
-    const combateAntes = turnos.combate?.[personagemId]
-    if (combateAntes?.cansaco !== undefined) return null
-    // Num objeto: a atribuição dentro do callback não estreita a variável de fora.
-    const guardado: { cansaco: Record<string, number> } = { cansaco: {} }
-    const feito = mexerNaFicha(
-      mesa,
-      personagemId,
-      (atual, sistemaDaMesa) => {
-        const cansado = cansacoDoOverload(atual, sistemaDaMesa)
-        guardado.cansaco = cansado.cansaco
-        return cansado.ajustes
-      },
-      quem,
-    )
-    if (feito === 'recusada') return feito
-    if (feito === null || feito.length === 0) return null
-    const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), cansaco: guardado.cansaco }
-    return { turnos: { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: depois } }, partes: [{ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois }, ...reversaoDaFicha(personagemId, feito)] }
+  const cansarNoOverload = (personagemId: string, tokenId: string, turnos: TurnosDaCena): { turnos: TurnosDaCena; partes: Reversao[] } | null => {
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = personagens.find((candidato) => candidato.id === personagemId)
+    if (personagem === undefined || sistema === null) return null
+    const cansado = comOCansaco(turnos, tokenId, modsDoCansaco(personagem, sistema), novoIdDeSelo)
+    return cansado === null ? null : { turnos: cansado.turnos, partes: cansado.selos.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: null })) }
   }
 
   /**
@@ -1218,11 +1207,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       partes.push(...reversaoDaFicha(personagemId, fichaMudou))
       // Conserto das fichas F1 (resposta do Alexei): o fim da forma Overload deixa os atributos base pela metade.
       if (cartao !== null && ehOverload(cartao)) {
-        const cansado = cansarNoOverload(personagemId, novos, quem)
-        if (cansado === 'recusada') {
-          devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
-          return false
-        }
+        const cansado = cansarNoOverload(personagemId, carta.tokenId, novos)
         if (cansado !== null) {
           partes.push(...cansado.partes)
           novos = cansado.turnos
@@ -1256,6 +1241,82 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   const lembrarDepoisDoDano = (turnos: TurnosDaCena): TurnosComLembretes => comLembretesDoMomento('dano', turnos, mesaDoRpg())
 
   /**
+   * Conserto das fichas F1 (bug 10, P6): o lembrete "Aplicar / pular" do
+   * custo por turno de uma FORMA ligada. Pular: só tira o lembrete. Aplicar
+   * com recurso: cobra (`ajustesDoCusto`) e marca `gastouSp`. Sem recurso: a
+   * forma desce uma Parte (`descerUmaParte`: da Parte 1, volta para a base).
+   * A reversão é [combate, ficha, forma]; o Desfazer devolve o lembrete.
+   */
+  const custoDaFormaNaVez = (
+    sceneKey: string,
+    cena: BatalhaDaCena,
+    autor: AutorDaAcao,
+    carta: CartaDaOrdem,
+    personagem: Personagem,
+    sistema: SistemaDeRpg,
+    pedido: Extract<PedidoDePassiva, { tipo: 'lembrete' }>,
+  ): boolean => {
+    const { turnos } = cena
+    if (motivoDoPedidoDoCusto({ personagem, sistema, turnos, aplicarSoComLembrete: autor.tipo === 'jogador' }, pedido) !== null) return false
+    const personagemId = personagem.id
+    const combateAntes = turnos.combate?.[personagemId] ?? null
+    const combateBase = combateAntes ?? combateVazio()
+    const semOLembrete = semLembretes(combateBase, pedido.cartaoId)
+    if (!pedido.aplicar) {
+      gravarCena(sceneKey, comMudanca(cena, { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: semOLembrete } }, null))
+      return true
+    }
+    const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
+    const custo = cartao === null ? null : custoPorTurno(cartao, personagem)
+    if (cartao === null || custo === null) return false
+    const quem = quemNaFicha(autor)
+    const nome = cartao.nome.trim() || 'a forma'
+    const dono = nomeDoTokenNa(turnos, mesaDoRpg().personagens)(carta.tokenId)
+    const partes: Reversao[] = []
+    let novos: TurnosDaCena
+    let texto: string
+    const paga = motivoDoCustoPorTurno(personagem, sistema, custo) === null
+    if (paga) {
+      const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quem)
+      // Bug 11: o custo recusado não aplica (o lembrete fica esperando).
+      if (doCusto === 'recusada') return false
+      const combate: CombateDoPersonagem = custoEmSp(custo) && semOLembrete.gastouSp !== true ? { ...semOLembrete, gastouSp: true } : semOLembrete
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate }, ...reversaoDaFicha(personagemId, doCusto))
+      novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
+      texto = `${dono} mantém ${nome} (paga ${textoDoCustoPorTurno(custo, sistema)})`
+    } else {
+      // Sem recurso (resposta da Ryoko): desce uma Parte. O cartão vem primeiro na reversão, como no Ativar da forma.
+      // Num objeto: a atribuição dentro do callback não estreita a variável de fora.
+      const descida: { anterior: CartaoDaFicha | null } = { anterior: null }
+      const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => {
+        const feita = descerUmaParte(atual, sistemaDaMesa, cartao.id, quem, Date.now())
+        descida.anterior = feita?.anterior ?? null
+        return feita?.personagem ?? null
+      })
+      if (fichaMudou === null || fichaMudou === 'recusada') return false
+      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: semOLembrete })
+      partes.push(...reversaoDaFicha(personagemId, [...fichaMudou.filter((parte) => parte.parte === 'cartao'), ...fichaMudou.filter((parte) => parte.parte !== 'cartao')]))
+      novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: semOLembrete } }
+      // A imagem da forma na carta: passa para a Parte anterior (se a de agora mostrava imagem) ou sai.
+      const formaAntes = turnos.formas?.[personagemId] ?? null
+      if (formaAntes !== null && formaAntes.cartaoId === cartao.id) {
+        partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
+        const formas = { ...(novos.formas ?? {}) }
+        const voltou = descida.anterior
+        if (voltou === null) delete formas[personagemId]
+        else formas[personagemId] = { cartaoId: voltou.id, imagem: formaAntes.imagem === null ? null : voltou.imagem }
+        novos = { ...novos, formas }
+      }
+      const destino = descida.anterior
+      const recurso = recursoDoCusto(sistema, custo.recurso)?.nome ?? custo.recurso.toUpperCase()
+      texto = `${dono} sem ${recurso} para manter ${nome}: ${destino === null ? 'sai da forma' : `volta para ${destino.nome.trim() || 'a Parte anterior'}`}`
+    }
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'transformacao', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    return true
+  }
+
+  /**
    * Tipos de habilidade F3: a passiva (`PedidoDePassiva`). Ver `passiva` em
    * `BatalhaState`. A reversão de Ativar é [combate, ficha, selo]; a de
    * Desligar, [combate, selos]; a de Aplicar, [combate, selo, ficha]. O
@@ -1272,6 +1333,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const personagemId = carta.personagemId
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
+    // Conserto das fichas F1 (P6): o lembrete do custo por turno de uma FORMA tem caminho próprio.
+    if (pedido.tipo === 'lembrete' && personagem !== null && sistema !== null && formaDaFicha(personagem, sistema, pedido.cartaoId) !== null) {
+      return custoDaFormaNaVez(sceneKey, cena, autor, carta, personagem, sistema, pedido)
+    }
     if (motivoDaPassiva({ personagem, sistema, turnos, aplicarSoComLembrete: autor.tipo === 'jogador' }, pedido) !== null || personagem === null || sistema === null) return false
     const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
     if (achada === null) return false
@@ -1298,11 +1363,34 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     if (pedido.tipo === 'lembrete') {
       // Aplicar o "a cada turno" (decisão 4): HP/SP pela aventura e os mods somados no selo dela.
       const efeito = efeitoPorTurno(cartao, sistema)
+      // Conserto das fichas F1 (P6): o custo por turno da técnica mantida (a regra já conferiu que o recurso paga).
+      const custoDaVez = custoPorTurno(cartao, personagem)
       const selo = selosDaPassiva(turnos.selos, personagemId, cartao.id)[0]
-      if (efeito === null || selo === undefined) return false
-      partes.push(...parteDoLembrete)
-      novos = comCombate(turnos, semOLembrete)
-      if (efeito.mods.length > 0) {
+      if ((efeito === null && custoDaVez === null) || selo === undefined) return false
+      const doCusto = custoDaVez === null ? null : mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custoDaVez), quem)
+      // Bug 11: o custo recusado não aplica (o lembrete fica para o Aplicar de novo).
+      if (doCusto === 'recusada') return false
+      const fichas: Reversao[] = reversaoDaFicha(personagemId, doCusto)
+      novos = turnos
+      // HP e SP em quem tem o selo, como os mods: no oponente, "o alvo perde 20 de HP a cada turno" não tira do dono.
+      const doSelo = turnos.cartas.find((candidata) => candidata.tokenId === selo.tokenId)?.personagemId ?? null
+      let doPorTurno: ParteDaFicha[] | null = null
+      if (efeito !== null && doSelo !== null) {
+        const feito = mexerNaFicha(mesa, doSelo, (atual, sistemaDaMesa) => ajustesDoPorTurno(atual, sistemaDaMesa, efeito), quem)
+        // Bug 11: a ficha recusada não leva o "a cada turno" (o custo já pago volta; o lembrete fica para o Aplicar de novo).
+        if (feito === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, fichas, autor)
+          return false
+        }
+        doPorTurno = feito
+        fichas.push(...reversaoDaFicha(doSelo, feito))
+      }
+      // Conserto das fichas F1 (+10 SP por vez): o custo, ou o "a cada turno" que tira SP do próprio dono (Manter o Giro), conta como gastar SP.
+      const gastou = (custoDaVez !== null && custoEmSp(custoDaVez)) || (doSelo === personagemId && tirouSp(doPorTurno, sistema))
+      const combateDepois: CombateDoPersonagem = gastou && semOLembrete.gastouSp !== true ? { ...semOLembrete, gastouSp: true } : semOLembrete
+      if (combateDepois !== combateBase) partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combateDepois })
+      novos = comCombate(turnos, combateDepois)
+      if (efeito !== null && efeito.mods.length > 0) {
         const mods = modsSomados(selo.mods, efeito.mods)
         const depois: SeloDaBatalha = { ...selo }
         if (mods.length > 0) depois.mods = mods
@@ -1310,16 +1398,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         partes.push({ tipo: 'selo', seloId: selo.id, antes: selo, editado: true })
         novos = { ...novos, selos: (novos.selos ?? []).map((candidato) => (candidato.id === selo.id ? depois : candidato)) }
       }
-      // HP e SP em quem tem o selo, como os mods: no oponente, "o alvo perde 20 de HP a cada turno" não tira do dono.
-      const doSelo = turnos.cartas.find((candidata) => candidata.tokenId === selo.tokenId)?.personagemId ?? null
-      if (doSelo !== null) {
-        const doPorTurno = mexerNaFicha(mesa, doSelo, (atual, sistemaDaMesa) => ajustesDoPorTurno(atual, sistemaDaMesa, efeito), quem)
-        // Bug 11: a ficha recusada não leva o "a cada turno" (o lembrete fica para o Aplicar de novo).
-        if (doPorTurno === 'recusada') return false
-        partes.push(...reversaoDaFicha(doSelo, doPorTurno))
-      }
+      partes.push(...fichas)
       tokenIds.add(selo.tokenId)
-      texto = `${nome} (a cada turno) em ${nomeDoToken(selo.tokenId)}: ${textoDoPorTurno(efeito, sistema)}`
+      const pago = custoDaVez === null ? '' : `${dono} paga ${textoDoCustoPorTurno(custoDaVez, sistema)}`
+      const doEfeito = efeito === null ? '' : `em ${nomeDoToken(selo.tokenId)}: ${textoDoPorTurno(efeito, sistema)}`
+      texto = `${nome} (a cada turno) ${[doEfeito, pago].filter((parte) => parte !== '').join(' · ')}`
     } else if (!pedido.ligar) {
       const tirados = selosDaPassiva(turnos.selos, personagemId, cartao.id)
       const ids = new Set(tirados.map((selo) => selo.id))
@@ -1479,6 +1562,13 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         const doCusto = mexerNaFicha(mesa, personagem.id, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, { tipo: 'valor', recurso: 'sp', valor: custo, porTurno: false }), quemNaFicha(autor))
         // Bug 11: o SP recusado não marca (o lembrete fica esperando).
         if (doCusto === 'recusada') return false
+        // Conserto das fichas F1 (+10 SP por vez, regra que veio do Vincent): a Marca paga com SP conta como gastar SP.
+        const combateAntes = novos.combate?.[personagem.id]
+        if (tirouSp(doCusto, sistema) && combateAntes?.gastouSp !== true) {
+          const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), gastouSp: true }
+          partes.push({ tipo: 'combate', personagemId: personagem.id, antes: combateAntes ?? null, depois })
+          novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagem.id]: depois } }
+        }
         partes.push(...reversaoDaFicha(personagem.id, doCusto))
       }
       partes.push({ tipo: 'selo', seloId: marca.id, antes: null })
@@ -1653,7 +1743,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
     const combateAntes = turnos.combate?.[personagemId]
-    if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes }, alvo, pedido) !== null || personagem === null || sistema === null) return false
+    // Conserto das fichas F1: contra golpe Overload, só técnica Overload.
+    if (motivoDaReacaoComTecnica({ personagem, sistema, combate: combateAntes }, alvo, pedido, golpe.overload) !== null || personagem === null || sistema === null) return false
     const d20 = pedido.saida === 'rolar' ? deps.rolarD20() : null
     const combateBase = combateAntes ?? combateVazio()
     const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, d20)
@@ -1679,11 +1770,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     // Conserto das fichas F1 (Overload, resposta da May "nos 2 modos"): reagir com Overload também cansa.
     if (feita.combate.overload && !combateBase.overload) {
-      const cansado = cansarNoOverload(personagemId, novos, quem)
-      if (cansado === 'recusada') {
-        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
-        return false
-      }
+      const cansado = cansarNoOverload(personagemId, alvo.tokenId, novos)
       if (cansado !== null) {
         partes.push(...cansado.partes)
         novos = cansado.turnos
@@ -1789,6 +1876,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Invocação (decisão 8): o invocado não reage; o dano nele resolve na hora.
       // R5: quem gastou a reação no contador também não reage (até a vez dele).
       semReacao: (tokenId) => invocadoDoToken(turnos, tokenId) !== null || gastouAReacao(turnos, tokenId),
+      // Conserto das fichas F1: o golpe Overload espera só quem tem outra Overload de reação disponível.
+      reageAOverload: (tokenId) => {
+        const personagemId = personagemDoTokenNa(turnos)(tokenId)
+        const alvo = personagemId === null || personagemId === undefined ? undefined : personagens.find((candidato) => candidato.id === personagemId)
+        return alvo !== undefined && sistema !== null && temOverloadDeReacao(alvo, sistema, turnos.combate?.[alvo.id])
+      },
     }
   }
 
@@ -1820,11 +1913,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     // Conserto das fichas F1 (Overload): quem usou fica com os atributos base pela metade até o fim da batalha.
     if (lancado.golpe?.overload === true && carta.personagemId !== null) {
-      const cansado = cansarNoOverload(carta.personagemId, novos, quem)
-      if (cansado === 'recusada') {
-        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
-        return false
-      }
+      const cansado = cansarNoOverload(carta.personagemId, carta.tokenId, novos)
       if (cansado !== null) {
         partes.push(...cansado.partes)
         novos = cansado.turnos
@@ -2492,7 +2581,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         case 'rolar':
         case 'rerolar': {
           // Rolar só sem rolagem; Rerolar só com (Ponto Saga é manual, sem limite: decisão 10).
-          if (!alvo.podeReagir || (pedido.tipo === 'rolar') !== (alvo.rolagem === undefined)) return false
+          // Conserto das fichas F1: Overload não erra; o d20 não defende dele (só outra Overload, pela técnica).
+          if (!alvo.podeReagir || golpe.overload || (pedido.tipo === 'rolar') !== (alvo.rolagem === undefined)) return false
           const d20 = deps.rolarD20()
           novo = rolarReacao(golpe, alvo.tokenId, pedido.modificador, d20)
           efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: alvo.tokenId, d20, modificador: pedido.modificador, total: d20 + pedido.modificador })

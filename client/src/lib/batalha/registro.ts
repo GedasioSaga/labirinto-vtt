@@ -25,6 +25,7 @@ import {
   type SeloDaBatalha,
 } from './combate'
 import { selosComONivel } from './contador'
+import { ehLembreteDoCustoDaForma } from './custoPorTurno'
 import { semEvoluida } from './escolhaEEvolucao'
 import { passivasLigadas } from './passivas'
 import type { RegrasDaBatalha } from './regrasDoCampo'
@@ -550,6 +551,8 @@ function mesmoLembrete(a: LembreteDaPassiva | undefined, b: LembreteDaPassiva | 
  * acima do gatilho).
  */
 function lembreteVale(lembrete: LembreteDaPassiva, lembradas: readonly string[], ligadas: ReadonlySet<string>): boolean {
+  // Conserto das fichas F1 (P6): o custo por turno da FORMA volta sempre (a parte "ficha" da mesma linha religa a forma).
+  if (ehLembreteDoCustoDaForma(lembrete)) return true
   return lembrete.tipo === 'porTurno' ? ligadas.has(lembrete.cartaoId) : !ligadas.has(lembrete.cartaoId) && lembradas.includes(lembrete.chave)
 }
 
@@ -581,11 +584,10 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>, daVez = false): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, cansaco: _cansaco, ...fixos } = atual
-  // Conserto das fichas F1: o "+10 SP por vez" (jaJogou, gastouSp) e o cansaço do Overload voltam campo a campo.
+  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, ...fixos } = atual
+  // Conserto das fichas F1: o "+10 SP por vez" (jaJogou, gastouSp) volta campo a campo.
   const jaJogou = campoSemALinha(atual.jaJogou, antes.jaJogou, depois.jaJogou)
   const gastouSp = campoSemALinha(atual.gastouSp, antes.gastouSp, depois.gastouSp)
-  const cansaco = campoSemALinha(atual.cansaco, antes.cansaco, depois.cansaco)
   const semReacao = campoSemALinha(atual.semReacao, antes.semReacao, depois.semReacao)
   const ataquesExtras = campoSemALinha(atual.ataquesExtras, antes.ataquesExtras, depois.ataquesExtras, mesmosAtaquesExtras)
   const concentrouEm = campoSemALinha(atual.concentrouEm, antes.concentrouEm, depois.concentrouEm)
@@ -609,7 +611,6 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     ...(evoluidas.length === 0 ? {} : { evoluidas }),
     ...(jaJogou === undefined ? {} : { jaJogou }),
     ...(gastouSp === undefined ? {} : { gastouSp }),
-    ...(cansaco === undefined ? {} : { cansaco }),
   }
 }
 

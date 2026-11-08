@@ -242,7 +242,7 @@ export function motivoDaTecnica(
   if (tecnica.transformacao) return 'É transformação: use a tira Transformação'
   const evolucao = motivoDaEvolucao(cartao, tecnicasDe(personagem, sistema), combate?.evoluidas)
   if (evolucao !== null) return evolucao
-  if (tecnica.overload && combate?.overload === true) return 'Overload: já usado nesta batalha'
+  if (tecnica.overload && combate?.overload === true) return MOTIVO_DO_OVERLOAD_USADO
   const recarga = combate?.recargas[cartao.id] ?? 0
   if (recarga > 0) return `Recarga: ${turnos(vezesDeRecarga(recarga, tecnica.tempo))}`
   if (tecnica.tempo.tipo === 'usos') {
@@ -266,6 +266,9 @@ export function motivoDaTecnica(
   }
   return null
 }
+
+/** O motivo do Overload já usado (técnica ou forma): 1 por batalha. */
+export const MOTIVO_DO_OVERLOAD_USADO = 'Overload: já usado nesta batalha'
 
 /**
  * Conserto das fichas F1 (resposta do Jimboy, "certos jogadores têm técnica

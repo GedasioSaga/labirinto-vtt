@@ -9,8 +9,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import { maximoComposto } from '../lib/ajusteDaFicha'
-import { ativarForma, desfazerForma } from '../lib/batalha/transformacao'
-import type { PedidoDeAcao } from '../lib/batalha/combate'
+import { bonusDaBatalha, totalDoBonus } from '../lib/batalha/selos'
+import { ativarForma, desfazerForma, formasNoMenu, formasQueDesligamNoFim } from '../lib/batalha/transformacao'
+import type { PedidoDeAcao, PedidoDePassiva, PedidoDeReacao } from '../lib/batalha/combate'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao, type CartaDaOrdem } from '../lib/batalha/turnos'
 import { numeroDaFicha, personagemDoArquivo, type Personagem } from '../lib/personagem'
@@ -56,8 +57,8 @@ const ALVO = ficha({
 })
 
 /** A mesa em memória dá ids próprios às fichas: `ids` = o personagem de cada carta, lido logo depois do Iniciar. */
-function batalha(): { loja: LojaDaBatalha; mesa: MesaEmMemoria; ids: { lutador: string; alvo: string } } {
-  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: LUTADOR, lado: 'a' }, { ficha: ALVO, lado: 'b' }]))
+function batalha(lutador: Personagem = LUTADOR, alvo: Personagem = ALVO): { loja: LojaDaBatalha; mesa: MesaEmMemoria; ids: { lutador: string; alvo: string } } {
+  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: lutador, lado: 'a' }, { ficha: alvo, lado: 'b' }]))
   const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
   const tokens = mesa.tokens()
   const combatentes = combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id)))
@@ -162,12 +163,129 @@ describe('S3: Overload', () => {
     // Sem reação: o dano entra na hora.
     expect(numeroDaFicha(pessoa(mesa, ids.alvo).recursos, 'hp')).toBe(250)
     expect(cena(loja).turnos.gastos[lutador.id]).toMatchObject({ simples: 1, movimento: 1 })
-    // FOR 51 → 25 e AGI 70 → 35 (metade para baixo, pelo modificador).
-    expect(pessoa(mesa, ids.lutador).modificadoresDosAtributos).toMatchObject({ forca: -26, agilidade: -35 })
+    // Revisão S3: FOR 51 → 25 e AGI 70 → 35 (metade para baixo) num selo da BATALHA; a ficha não muda (o app fechado não a deixa pela metade).
+    const bonus = bonusDaBatalha(cena(loja).turnos.selos, lutador.tokenId)
+    expect([totalDoBonus(bonus, 'forca'), totalDoBonus(bonus, 'agilidade')]).toEqual([-26, -35])
+    expect(pessoa(mesa, ids.lutador).modificadoresDosAtributos).toEqual({})
     passar(loja, 2)
     expect(loja.getState().motivoDoAgir(CENA, MESTRE, vez(loja), usar('tec_over', alvo, 50))).toBe('Overload: já usado nesta batalha')
     loja.getState().desligar(CENA)
-    expect(pessoa(mesa, ids.lutador).modificadoresDosAtributos).toMatchObject({ forca: 0, agilidade: 0 })
+    expect(pessoa(mesa, ids.lutador).modificadoresDosAtributos).toEqual({})
+  })
+})
+
+/** Revisão S3: formas em Partes com custo por turno, a forma Overload cara (A Caçada: 200 SP com máximo 120). */
+const COM_FORMAS = ficha({
+  id: 'pers_formas',
+  tipo: 'jogador',
+  nome: 'Lutador',
+  recursos: { hp: 300, sp: 100 },
+  maximos: { hp: 700, sp: 120 },
+  atributos: { forca: 51, agilidade: 70 },
+  abas: {
+    habilidades: [{ id: 'tec_over', nome: 'Explosão Final', campos: { acao: 'Simples / Overload', custo: '20 SP', tempo: '-', dano: '50' } }],
+    transformacoes: [
+      { id: 'parte_1', nome: 'Híbrida Parte 1', campos: { acao: 'Livre', grupo: 'Híbrida', custo: '20 SP (por turno)' } },
+      { id: 'parte_2', nome: 'Híbrida Parte 2', campos: { acao: 'Livre', grupo: 'Híbrida', custo: '60 SP (por turno)' } },
+      { id: 'cacada', nome: 'A Caçada', campos: { acao: 'Livre / Overload', custo: '200 SP' } },
+    ],
+  },
+})
+
+/** Revisão S3: o alvo que rebate Overload com Overload (o Aplauso da May) e uma reação comum. */
+const COM_APLAUSO = ficha({
+  id: 'pers_aplauso',
+  tipo: 'jogador',
+  nome: 'Alvo',
+  recursos: { hp: 300, sp: 50 },
+  maximos: { hp: 300, sp: 60 },
+  atributos: { forca: 30, agilidade: 40 },
+  abas: {
+    habilidades: [
+      { id: 'tec_aplauso', nome: 'Aplauso', campos: { acao: 'Reação / Overload', custo: '-', tempo: '-', dano: '-' } },
+      { id: 'tec_passo', nome: 'Passo', campos: { acao: 'Reação', custo: '-', tempo: '-', dano: '-' } },
+    ],
+  },
+})
+
+const transformar = (cartaoId: string): PedidoDeAcao => ({ tipo: 'transformar', cartaoId, acao: 'completa', trocarImagem: false })
+
+describe('Revisão S3: custo por turno da forma (bug 10, P6)', () => {
+  it('lembra no começo da vez, cobra e marca o SP gasto; sem SP, desce uma Parte, e o Desfazer volta', () => {
+    const { loja, mesa, ids } = batalha(COM_FORMAS)
+    const lutador = carta(loja, 'Lutador')
+    const sp = (): number => numeroDaFicha(pessoa(mesa, ids.lutador).recursos, 'sp')
+    const lembrete = (): boolean => (cena(loja).turnos.combate?.[ids.lutador]?.lembretes ?? []).some((candidato) => candidato.chave === 'parte_2:custo')
+    const aplicar: PedidoDePassiva = { tipo: 'lembrete', tokenId: lutador.tokenId, cartaoId: 'parte_2', aplicar: true }
+    expect(loja.getState().agir(CENA, MESTRE, vez(loja), transformar('parte_2'))).toBe(true)
+    expect(lembrete()).toBe(false)
+    passar(loja, 2)
+    // Rodada 2: o lembrete chegou; os +10 SP também (não gastou SP na vez 1): 110.
+    expect([lembrete(), sp()]).toEqual([true, 110])
+    expect(loja.getState().passiva(CENA, MESTRE, aplicar)).toBe(true)
+    expect([lembrete(), sp(), cena(loja).turnos.combate?.[ids.lutador]?.gastouSp]).toEqual([false, 50, true])
+    passar(loja, 2)
+    // Rodada 3: sem os +10 (pagou a forma); 50 não paga 60: Aplicar desce para a Parte 1.
+    expect([lembrete(), sp()]).toEqual([true, 50])
+    expect(loja.getState().passiva(CENA, MESTRE, aplicar)).toBe(true)
+    expect(pessoa(mesa, ids.lutador).cartoesAtivos).toEqual(['parte_1'])
+    const linha = cena(loja).registro.at(-1)
+    expect(linha?.texto).toBe('Lutador sem SP para manter Híbrida Parte 2: volta para Híbrida Parte 1')
+    expect(loja.getState().desfazer(CENA, linha?.id ?? '', MESTRE)).toBe(true)
+    expect([pessoa(mesa, ids.lutador).cartoesAtivos, lembrete()]).toEqual([['parte_2'], true])
+  })
+})
+
+describe('Revisão S3: a tira Transformação e o Encerrar', () => {
+  it('a forma Overload apaga com o Overload usado e com custo acima do máximo; o Encerrar diz quem saiu de forma', () => {
+    const sistema = SISTEMA_DO_TESTE
+    const motivo = (combate: { usos: Record<string, number>; overload: boolean }): string | null => formasNoMenu(COM_FORMAS, sistema, null, combate).find((forma) => forma.cartao.id === 'cacada')?.motivo ?? null
+    expect(motivo({ usos: {}, overload: true })).toBe('Overload: já usado nesta batalha')
+    expect(motivo({ usos: {}, overload: false })).toBe('Precisa de 200 SP (o máximo é 120)')
+    const { loja, mesa, ids } = batalha(COM_FORMAS)
+    expect(loja.getState().motivoDoAgir(CENA, MESTRE, vez(loja), transformar('cacada'))).toBe('Precisa de 200 SP (o máximo é 120)')
+    expect(loja.getState().agir(CENA, MESTRE, vez(loja), transformar('parte_1'))).toBe(true)
+    expect(formasQueDesligamNoFim([ids.lutador, ids.alvo], mesa.personagens(), sistema)).toEqual(['Lutador saiu de Híbrida Parte 1 (fim da batalha)'])
+  })
+})
+
+describe('Revisão S3: Overload só se defende com Overload', () => {
+  it('o alvo com Overload de reação espera: o d20 e a reação comum são recusados, o Aplauso rebate', () => {
+    const { loja, mesa, ids } = batalha(COM_FORMAS, COM_APLAUSO)
+    const alvo = carta(loja, 'Alvo').tokenId
+    expect(loja.getState().agir(CENA, MESTRE, vez(loja), usar('tec_over', alvo, 50))).toBe(true)
+    const golpe = (cena(loja).turnos.golpes ?? []).at(-1)
+    expect(golpe?.alvos[0]?.podeReagir).toBe(true)
+    const golpeId = golpe?.id ?? ''
+    expect(loja.getState().reagir(CENA, MESTRE, { tipo: 'rolar', golpeId, tokenId: alvo, modificador: 0 })).toBe(false)
+    const tecnica = (cartaoId: string): PedidoDeReacao => ({ tipo: 'tecnica', golpeId, tokenId: alvo, cartaoId, saida: 'esquiva', custo: null })
+    expect(loja.getState().reagir(CENA, MESTRE, tecnica('tec_passo'))).toBe(false)
+    expect(loja.getState().reagir(CENA, MESTRE, tecnica('tec_aplauso'))).toBe(true)
+    expect(numeroDaFicha(pessoa(mesa, ids.alvo).recursos, 'hp')).toBe(300)
+    expect(cena(loja).turnos.combate?.[ids.alvo]?.overload).toBe(true)
+  })
+})
+
+describe('Revisão S3: a Marca paga com SP conta como gastar SP', () => {
+  it('Marcar com SP marca gastouSp: a próxima vez não ganha os +10', () => {
+    const atirador = ficha({
+      id: 'pers_atirador',
+      tipo: 'jogador',
+      nome: 'Lutador',
+      recursos: { hp: 300, sp: 100 },
+      maximos: { hp: 300, sp: 120 },
+      atributos: { forca: 30, agilidade: 70 },
+      abas: { habilidades: [{ id: 'pas_olhar', nome: 'Olhar artístico', campos: { acao: 'Passiva', custo: '15 SP', efeito: 'Ao acertar, marca o alvo' } }] },
+    })
+    const { loja, mesa, ids } = batalha(atirador)
+    const lutador = carta(loja, 'Lutador')
+    const alvo = carta(loja, 'Alvo').tokenId
+    const lembrete = { id: 'marca_teste', linhaId: 'linha_teste', golpeId: 'golpe_teste', cartaoId: 'pas_olhar', tokenId: lutador.tokenId, personagemId: ids.lutador, alvoTokenId: alvo, rodada: 1 }
+    loja.setState((estado) => ({ cenas: { ...estado.cenas, [CENA]: { ...cena(loja), turnos: { ...cena(loja).turnos, lembretesDaMarca: [lembrete] } } } }))
+    expect(loja.getState().marcar(CENA, MESTRE, { tipo: 'marcar', lembreteId: 'marca_teste', como: 'sp' })).toBe(true)
+    expect(numeroDaFicha(pessoa(mesa, ids.lutador).recursos, 'sp')).toBe(85)
+    passar(loja, 2)
+    expect(numeroDaFicha(pessoa(mesa, ids.lutador).recursos, 'sp')).toBe(85)
   })
 })
 

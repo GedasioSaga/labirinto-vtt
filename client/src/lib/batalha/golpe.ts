@@ -2,7 +2,21 @@ import type { Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
-import { acaoComOverload, acaoDoConcentrar, acaoDoGolpe, acoesDaVez, gastarAcao, motivoDaTecnica, motivoDoAtacar, motivoDoConcentrar, rankDeAgilidade, tecnicasNoMenu, usaOAtaqueExtra, type AcoesDaVez } from './acoes'
+import {
+  acaoComOverload,
+  acaoDoConcentrar,
+  acaoDoGolpe,
+  acoesDaVez,
+  gastarAcao,
+  MOTIVO_DO_OVERLOAD_USADO,
+  motivoDaTecnica,
+  motivoDoAtacar,
+  motivoDoConcentrar,
+  rankDeAgilidade,
+  tecnicasNoMenu,
+  usaOAtaqueExtra,
+  type AcoesDaVez,
+} from './acoes'
 import {
   ALVOS_MAX,
   chaveDaVez,
@@ -49,7 +63,7 @@ import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
-import { comAtaqueExtra, formaDaFicha, formaLivre, formaNaVez, motivoDaForma, motivoDosUsosDaForma } from './transformacao'
+import { comAtaqueExtra, formaDaFicha, formaLivre, formaNaVez, motivoDaForma, motivoDoCustoDaForma, motivoDosUsosDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -83,6 +97,13 @@ export interface ContextoDoGolpe {
    * reação. Ausente = todo alvo reage como sempre.
    */
   semReacao?: (tokenId: string) => boolean
+  /**
+   * Conserto das fichas F1 ("Overload não erra; o alvo só se defende com
+   * outra Overload"): a ficha tem técnica Overload de reação disponível. Com
+   * ela, o golpe Overload espera a reação (a caixa só aceita Overload). Ausente
+   * = ninguém reage a Overload (o golpe sai resolvido, como antes).
+   */
+  reageAOverload?: (tokenId: string) => boolean
 }
 
 /** O que `lancarGolpe` devolve para a store aplicar. */
@@ -240,6 +261,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // R6: "Usos por batalha" (Ignição: 2) e a Ação "Livre" (liga sem gastar ação).
       const esgotada = motivoDosUsosDaForma(cartao, ctx.turnos.combate?.[personagem.id]?.usos)
       if (esgotada !== null) return esgotada
+      // Conserto das fichas F1: forma que custa mais que o máximo (A Caçada Começa: 200 SP com máximo 120) fica bloqueada.
+      const cara = motivoDoCustoDaForma(cartao, personagem, sistema)
+      if (cara !== null) return cara
       return formaLivre(cartao) ? null : motivoDaForma({ ligada: false }, pedido.acao, acoes)
     }
     case 'destransformar': {
@@ -288,8 +312,8 @@ export function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: Pick<Tecn
   return novo
 }
 
-/** O motivo do Overload já usado (técnica ou forma). */
-export const MOTIVO_DO_OVERLOAD_USADO = 'Overload: já usado nesta batalha'
+// O motivo mora em `acoes.ts` (a tira Transformação também o usa); segue exportado daqui.
+export { MOTIVO_DO_OVERLOAD_USADO }
 
 /** Conserto das fichas F1 (+10 SP por vez): o custo pago gasta SP. */
 export function custoEmSp(custo: LeituraDoCusto): boolean {
@@ -307,12 +331,14 @@ export function ajustesDoCusto(personagem: Personagem, sistema: SistemaDeRpg, cu
 /**
  * Os alvos do golpe: o dano que chega e se reagem. Sem reação (Surpresa,
  * Overload, sem dano, Buff) já saem resolvidos. Debuff reage mesmo sem dano
- * (`reacaoDoTipo`): o selo só pega se acertar.
+ * (`reacaoDoTipo`): o selo só pega se acertar. Overload: só reage quem tem
+ * outra Overload de reação disponível (`reageAOverload`).
  */
 function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carga: number, surpresa: boolean, overload: boolean, reacao: ReacaoDoTipo): AlvoDoGolpe[] {
   return alvos.map((pedido): AlvoDoGolpe => {
     const dano = pedido.dano === null ? null : danoQueChega(pedido.dano, carga, surpresa)
-    const podeReagir = !surpresa && !overload && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null)) && ctx.semReacao?.(pedido.tokenId) !== true
+    const overloadDeixa = !overload || ctx.reageAOverload?.(pedido.tokenId) === true
+    const podeReagir = !surpresa && overloadDeixa && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null)) && ctx.semReacao?.(pedido.tokenId) !== true
     const alvo: AlvoDoGolpe = { tokenId: pedido.tokenId, personagemId: ctx.personagemDoToken(pedido.tokenId) ?? null, dano, podeReagir }
     if (podeReagir) return alvo
     const saida: SaidaDaReacao = 'semReacao'

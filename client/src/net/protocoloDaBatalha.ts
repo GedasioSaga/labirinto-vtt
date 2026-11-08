@@ -1020,7 +1020,7 @@ function lerRolagem(value: unknown): RolagemDaReacao | null {
 
 function lerReacao(value: unknown): ReacaoParaJogador | null {
   if (!isRecord(value)) return null
-  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, rolagem } = value
+  const { golpeId, tokenId, atacante, nome, dano, perfurante, perfuracao, overload, rolagem } = value
   if (!textoAte(golpeId, 1, ID_DA_BATALHA_MAX) || !textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(atacante, 1, NOME_NA_CARTA_MAX)) return null
   if (!textoAte(nome, 0, NOME_DO_GOLPE_MAX) || (dano !== null && !inteiroAte(dano, 0, DANO_MAX))) return null
   const reacao: ReacaoParaJogador = { golpeId, tokenId, atacante, nome, dano }
@@ -1032,6 +1032,11 @@ function lerReacao(value: unknown): ReacaoParaJogador | null {
   if (perfuracao !== undefined) {
     if (reacao.perfurante !== true || !inteiroAte(perfuracao, PERFURACAO_MIN, PERFURACAO_MAX)) return null
     reacao.perfuracao = perfuracao
+  }
+  // Conserto das fichas F1: o golpe Overload (ausente = golpe comum; o host de antes não manda).
+  if (overload !== undefined) {
+    if (overload !== true) return null
+    reacao.overload = true
   }
   if (rolagem !== undefined) {
     const lida = lerRolagem(rolagem)

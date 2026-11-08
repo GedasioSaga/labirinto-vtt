@@ -259,6 +259,8 @@ export interface ReacaoParaJogador {
   perfurante?: true
   /** Só com `perfurante`, quando é parcial: quanto do dano vai direto ao HP (1 a 99). */
   perfuracao?: number
+  /** Conserto das fichas F1: golpe Overload (o d20 não defende; só outra Overload). Ausente = golpe comum. */
+  overload?: true
   rolagem?: RolagemDaReacao
 }
 
@@ -625,6 +627,7 @@ function reacoesParaJogador(golpes: readonly GolpeDaBatalha[], ctx: ContextoDoJo
       }
       if (golpe.perfurante) reacao.perfurante = true
       if (golpe.perfurante && golpe.perfuracao !== undefined) reacao.perfuracao = golpe.perfuracao
+      if (golpe.overload) reacao.overload = true
       if (alvo.rolagem !== undefined) reacao.rolagem = { ...alvo.rolagem }
       reacoes.push(reacao)
     }

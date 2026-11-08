@@ -6,6 +6,7 @@ import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { acoesDoInvocado, comunsQueSaem, membrosDoBando, motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
+import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, formasNoMenu } from '../../lib/batalha/transformacao'
@@ -244,7 +245,7 @@ function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string
     const carta = turnos.cartas.find((candidata) => candidata.personagemId === personagemId)
     if (personagem?.tipo !== 'npc' || carta === undefined) continue
     const passivas = passivasNaCena(personagem, mesa.sistema, turnos, carta.tokenId)
-    itens.push(...lembretesNaTela(combate.lembretes, passivas, alvosDaOrdem(mesa, turnos.cartas, carta), nomeDaFicha(mesa, carta.tokenId, carta)))
+    itens.push(...lembretesNaTela(combate.lembretes, passivas, alvosDaOrdem(mesa, turnos.cartas, carta), nomeDaFicha(mesa, carta.tokenId, carta), custosDasFormasNaTela(personagem, mesa.sistema)))
   }
   // R1 (lote de 01/11): a marca de atirador NPC (a do jogador, ele responde na tela dele).
   const marcas: MarcaNaTela[] = []
@@ -299,6 +300,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           doMestre: ehDoMestre(alvo.personagemId, personagens),
         }
         if (golpe.perfuracao !== undefined) item.perfuracao = golpe.perfuracao
+        if (golpe.overload) item.overload = true
         // Tipos de habilidade F2: o "+3 na reação" dos selos de quem reage começa no modificador (NPC e "Rolar por Lia").
         const bonus = bonusDaBatalha(turnos.selos, alvo.tokenId)
         const partes = partesDoBonus(bonus, ALVO_DA_REACAO)
@@ -306,7 +308,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         if (alvo.rolagem !== undefined) item.rolagem = alvo.rolagem
         // Tipos de habilidade F1: o NPC reage também com técnica (a caixa do mestre, por NPC).
         const doNpc = item.doMestre && alvo.personagemId !== null ? personagens.find((candidato) => candidato.id === alvo.personagemId) : undefined
-        if (doNpc !== undefined && sistema !== null) item.tecnicas = reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id])
+        if (doNpc !== undefined && sistema !== null) item.tecnicas = reacoesParaOAlvo(alvo, doNpc, sistema, turnos.combate?.[doNpc.id], golpe.overload)
         itens.push(item)
       }
     }
@@ -436,12 +438,12 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
   const agir = (pedido: PedidoDeAcao) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)
   // F3: as formas do NPC (a tira Transformação do painel) e a imagem da forma ligada, que vence a foto.
-  const formas = personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate?.usos) : []
+  const formas = personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate) : []
   const aparencia = carta.personagemId === null || personagem === null ? null : aparenciaDaForma(turnos.formas?.[carta.personagemId], personagem)
   // Tipos de habilidade F3: as passivas do NPC da vez e os lembretes dele (o mestre aplica o "a cada turno" quando quiser).
   const alvos = alvosDaOrdem(mesa, turnos.cartas, carta)
   const passivas = passivasNaCena(personagem, sistema, turnos, carta.tokenId)
-  const lembretes = lembretesNaTela(combate?.lembretes, passivas, alvos)
+  const lembretes = lembretesNaTela(combate?.lembretes, passivas, alvos, undefined, custosDasFormasNaTela(personagem, sistema))
 
   return (
     <>

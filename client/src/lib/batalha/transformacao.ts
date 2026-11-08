@@ -1,10 +1,10 @@
 import { aplicarAjustes, atributoComposto, cartoesQueLigam, maximoComposto, temMaximo, type Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { motivoDaAcao, type AcoesDaVez, type MovimentoDaForma } from './acoes'
+import { MOTIVO_DO_OVERLOAD_USADO, motivoDaAcao, motivoDoCustoAcimaDoMaximo, type AcoesDaVez, type MovimentoDaForma } from './acoes'
 import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type CombateDoPersonagem, type FormaNaBatalha, type NumeroDaForma } from './combate'
 import { normalizar } from './formula'
-import { CAMPO_DA_ACAO, lerAcao } from './leituraDaFicha'
+import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, ehOverload, lerAcao, lerCusto } from './leituraDaFicha'
 
 /**
  * TRANSFORMAÇÃO NA BATALHA, F3 fatia T (seção 3.2 de
@@ -211,11 +211,26 @@ export function motivoDaForma(forma: Pick<FormaNoMenu, 'ligada'>, acao: AcaoDaFo
   return acoes === null ? null : motivoDaAcao(acoes, acao)
 }
 
-/** As formas da ficha para a tira Transformação, com a prévia de cada uma desligada. */
-export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoes: AcoesDaVez | null, usados?: Readonly<Record<string, number>>): FormaNoMenu[] {
+/**
+ * Conserto das fichas F1 (resposta do Jimboy, valendo para forma): o Custo da
+ * forma acima do MÁXIMO do recurso a deixa bloqueada com o motivo ("Precisa
+ * de 200 SP (o máximo é 120)"). `null` = cabe, ou a forma não tem custo.
+ */
+export function motivoDoCustoDaForma(cartao: Pick<CartaoDaFicha, 'campos'>, personagem: Personagem, sistema: SistemaDeRpg): string | null {
+  return motivoDoCustoAcimaDoMaximo(lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem), personagem, sistema)
+}
+
+/**
+ * As formas da ficha para a tira Transformação, com a prévia de cada uma
+ * desligada. `combate` = o do personagem nesta batalha: os "Usos por
+ * batalha" e o Overload já usado (1 por batalha) apagam o Ativar, com a
+ * mesma frase que o host usa ao recusar (`podeAgir`).
+ */
+export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoes: AcoesDaVez | null, combate?: Pick<CombateDoPersonagem, 'usos' | 'overload'>): FormaNoMenu[] {
   return cartoesQueLigam(personagem, sistema).map((cartao) => {
     const ligada = personagem.cartoesAtivos.includes(cartao.id)
-    const motivoDosUsos = ligada ? null : motivoDosUsosDaForma(cartao, usados)
+    const motivoDosUsos = ligada ? null : motivoDosUsosDaForma(cartao, combate?.usos)
+    const motivoDaFicha = ligada ? null : ehOverload(cartao) && combate?.overload === true ? MOTIVO_DO_OVERLOAD_USADO : motivoDoCustoDaForma(cartao, personagem, sistema)
     const acaoDaFicha = acaoDaForma(cartao)
     // A prévia é a própria ativação feita no ar (o histórico e o relógio não importam aqui).
     const previa = ligada ? null : ativarForma(personagem, sistema, cartao.id, '', 0)
@@ -229,7 +244,7 @@ export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoe
       imagem: cartao.imagem,
       numeros: previa?.numeros ?? [],
       tecnicas: cartao.subcartoes.map((subcartao) => subcartao.nome),
-      motivo: motivoDosUsos ?? motivoDaForma({ ligada }, acaoDaFicha, acoes),
+      motivo: motivoDosUsos ?? motivoDaFicha ?? motivoDaForma({ ligada }, acaoDaFicha, acoes),
       motivoDosUsos,
     }
   })
@@ -345,18 +360,56 @@ export function aparenciaDaForma(forma: FormaNaBatalha | undefined, personagem: 
 }
 
 /**
- * Q3, no Encerrar: a forma ativada pelo menu CONTINUA ligada (a ficha manda;
- * só a imagem volta, porque `formas` some com a batalha). As linhas "Bruno
- * segue em Punho Negro", uma por personagem cuja forma segue ligada, para a
- * tela do Encerrar mostrar (o registro some junto com a batalha).
+ * P6 (resposta da Ryoko, "sem SP, a forma desce uma Parte"): a forma do
+ * MESMO grupo que vem antes na ficha (Parte 2 → Parte 1). A primeira do
+ * grupo, ou forma sem grupo = `null` (volta para a base).
  */
-export function formasQueSeguem(formas: Readonly<Record<string, FormaNaBatalha>> | undefined, personagens: readonly Personagem[]): string[] {
-  if (formas === undefined) return []
+export function parteAnterior(personagem: Personagem, sistema: SistemaDeRpg, cartao: CartaoDaFicha): CartaoDaFicha | null {
+  const grupo = grupoDaForma(cartao)
+  if (grupo === null) return null
+  const chave = normalizar(grupo)
+  const formas = cartoesQueLigam(personagem, sistema)
+  const indice = formas.findIndex((outra) => outra.id === cartao.id)
+  for (let i = indice - 1; i >= 0; i -= 1) {
+    const outra = formas[i]
+    const dela = outra === undefined ? null : grupoDaForma(outra)
+    if (outra !== undefined && dela !== null && normalizar(dela) === chave) return outra
+  }
+  return null
+}
+
+/**
+ * P6: a forma desce uma Parte: desliga (o atual perde o que ela deu, bug 9) e
+ * liga a Parte anterior do grupo (`parteAnterior`), se houver. `anterior` =
+ * o cartão que ligou; `null` = voltou para a base. `null` no todo = a forma
+ * não estava ligada.
+ */
+export function descerUmaParte(personagem: Personagem, sistema: SistemaDeRpg, cartaoId: string, quem: string, quando: number): { personagem: Personagem; anterior: CartaoDaFicha | null } | null {
+  const cartao = formaDaFicha(personagem, sistema, cartaoId)
+  if (cartao === null) return null
+  const semEla = desfazerForma(personagem, sistema, cartaoId, quem, quando)
+  if (semEla === null) return null
+  const anterior = parteAnterior(personagem, sistema, cartao)
+  const ligada = anterior === null ? null : ativarForma(semEla, sistema, anterior.id, quem, quando)
+  return ligada === null ? { personagem: semEla, anterior: null } : { personagem: ligada.personagem, anterior }
+}
+
+/**
+ * Conserto das fichas F1 (resposta do Vagn): no Encerrar TODAS as formas
+ * desligam (`desfazerFormasNoFim`). As linhas "Bruno saiu de Punho Negro (fim
+ * da batalha)", uma por personagem com forma ligada, lidas ANTES de desligar,
+ * para a tela do Encerrar avisar.
+ */
+export function formasQueDesligamNoFim(personagemIds: Iterable<string>, personagens: readonly Personagem[], sistema: SistemaDeRpg | null): string[] {
+  if (sistema === null) return []
   const linhas: string[] = []
-  for (const [personagemId, forma] of Object.entries(formas)) {
+  for (const personagemId of new Set(personagemIds)) {
     const personagem = personagens.find((candidato) => candidato.id === personagemId)
-    const nome = nomeDaFormaLigada(forma, personagem)
-    if (personagem !== undefined && nome !== null) linhas.push(`${personagem.nome} segue em ${nome}`)
+    if (personagem === undefined) continue
+    const nomes = cartoesQueLigam(personagem, sistema)
+      .filter((cartao) => personagem.cartoesAtivos.includes(cartao.id))
+      .map((cartao) => cartao.nome.trim() || 'a forma')
+    if (nomes.length > 0) linhas.push(`${personagem.nome.trim() || 'A ficha'} saiu de ${nomes.join(', ')} (fim da batalha)`)
   }
   return linhas
 }

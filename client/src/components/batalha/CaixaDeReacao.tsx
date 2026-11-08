@@ -44,6 +44,8 @@ export interface ReacaoNaCaixa {
   perfurante?: boolean
   /** Com `perfurante`, quando é parcial: quanto do dano vai direto ao HP (1 a 99); ausente = tudo. */
   perfuracao?: number
+  /** Conserto das fichas F1: golpe Overload. O d20 não defende: só outra Overload (as `tecnicas` já vêm só as Overload). */
+  overload?: boolean
   rolagem?: RolagemDaReacao
   /** Tipos de habilidade F1: as técnicas de reação de quem reage (`reacoesParaOAlvo`); ausente ou vazia = sem a seção Usar técnica. */
   tecnicas?: readonly ReacaoComTecnica[]
@@ -78,6 +80,9 @@ export interface CaixaDeReacaoProps {
   /** Esc ou "Depois": recolhe. Ausente = a caixa não recolhe. */
   onFechar?: () => void
 }
+
+/** Conserto das fichas F1: o lugar do "Rolar 1d20" num golpe Overload. */
+const TEXTO_DO_OVERLOAD = 'Overload: o dado não defende'
 
 /** O modificador de reação lembrado por ficha durante a sessão (some ao recarregar a página). */
 const modificadorLembrado = new Map<string, number>()
@@ -182,6 +187,7 @@ function UmaReacao({
     if (saiu && (pedido.tipo === 'rolar' || pedido.tipo === 'rerolar' || (pedido.tipo === 'tecnica' && pedido.saida === 'rolar'))) setEsperando(true)
   }
   const golpeId = reacao.golpeId
+  const overload = reacao.overload === true && golpeId !== null
   const saidas = rolagem === undefined ? [] : saidasNaTela(rolagem.d20, rolagem.total, reacao.dano)
   // Passar só quando o dado liberou uma reação: no 1 natural e abaixo de 10 o único botão já é receber o golpe.
   const passar = rolagem === undefined || saidas.some((saida) => saida.saida === 'cheio' || saida.saida === 'critico') ? null : saidaDoPassar(rolagem.d20)
@@ -205,7 +211,9 @@ function UmaReacao({
       <div className="bt-reacao__linha">
         <DadoDaReacao rolagem={rolagem} />
         <div className="bt-reacao__opcoes">
-          {rolagem === undefined ? (
+          {overload && rolagem === undefined ? (
+            <span className="bt-dado-rotulo">{TEXTO_DO_OVERLOAD}</span>
+          ) : rolagem === undefined ? (
             <>
               <button ref={primeiro} type="button" className="bt-botao bt-botao--batalha" disabled={esperando} onClick={() => pedir({ tipo: 'rolar', golpeId, tokenId: reacao.tokenId, modificador })}>
                 {esperando ? 'Rolando…' : 'Rolar 1d20'}
@@ -273,7 +281,9 @@ function UmaReacao({
       )}
       <div className="bt-reacao__pe">
         <span className="bt-reacao__regra">
-          {rolagem === undefined
+          {overload && rolagem === undefined
+            ? 'Overload não erra: só uma técnica Overload defende. Sem ela, receba o golpe.'
+            : rolagem === undefined
             ? '10+ defende (metade) · 15+ esquiva · 20 contra-ataca · 1 é falha crítica (×1,5). Conta o total.'
             : `d20 ${rolagem.d20}${textoDoModificador} = ${rolagem.total} · ${TEXTO_DA_SAIDA[saidasPossiveis(rolagem.d20, rolagem.total)[0] ?? 'cheio'].selo}`}
         </span>
@@ -315,7 +325,8 @@ function rotuloDaSaida(saida: SaidaDaReacao, dano: number | null): string {
 
 export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps) {
   const sozinha = reacoes.length === 1
-  const naoRoladas = reacoes.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null)
+  // O golpe Overload não rola (só outra Overload defende): fica fora do "Rolar todas".
+  const naoRoladas = reacoes.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null && reacao.overload !== true)
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
     // A caixa não deixa a tecla virar atalho do mapa atrás dela.
     evento.stopPropagation()

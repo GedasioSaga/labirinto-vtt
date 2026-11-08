@@ -9,7 +9,7 @@ import {
   nomeParaOFio,
   type ArmazemDaAbertura,
 } from '../../lib/batalha/aberturaLembrada'
-import { formasQueSeguem } from '../../lib/batalha/transformacao'
+import { formasQueDesligamNoFim } from '../../lib/batalha/transformacao'
 import { combatentesIniciais, type Desempate } from '../../lib/batalha/turnos'
 import { fichaDaEscolha, modelosDeNpc, precisaPerguntar, quemPodeEntrar, type CandidatoDaBatalha, type EscolhaDaBatalha } from '../../lib/livros/combate'
 import type { Personagem } from '../../lib/personagem'
@@ -133,16 +133,19 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
   }
 
   /**
-   * F3 (Q3): a forma ativada pelo menu CONTINUA ligada depois do Encerrar (a
-   * ficha manda); só a imagem volta, porque o registro das formas some com a
-   * batalha. Lido antes de desligar: um aviso por forma, que fica até o mestre fechar.
+   * Conserto das fichas F1 (resposta do Vagn, troca a Q3): o Encerrar desliga
+   * TODAS as formas de quem estava na batalha. Lido antes de desligar: um
+   * aviso por personagem ("Alexei saiu de Caçada (fim da batalha)").
    */
   const encerrar = () => {
     const batalha = useBatalhaStore.getState()
     const cena = Object.hasOwn(batalha.cenas, sceneKey) ? batalha.cenas[sceneKey] : undefined
-    const seguem = cena === undefined ? [] : formasQueSeguem(cena.turnos.formas, personagensAtivos(useAdventureStore.getState()))
+    const aventura = useAdventureStore.getState()
+    const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura)) ?? null
+    const ids = cena === undefined ? [] : [...cena.turnos.cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])), ...Object.keys(cena.turnos.combate ?? {})]
+    const sairam = formasQueDesligamNoFim(ids, personagensAtivos(aventura), sistema)
     batalha.desligar(sceneKey)
-    for (const linha of seguem) useToastStore.getState().push('instrucao', `${linha}: a forma continua ligada na ficha, só a imagem voltou ao normal. Desligue pela ficha se quiser.`)
+    for (const linha of sairam) useToastStore.getState().push('info', linha)
   }
 
   const alternar = () => {
