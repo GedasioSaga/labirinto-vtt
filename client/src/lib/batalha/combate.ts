@@ -539,6 +539,8 @@ export interface GolpeDaBatalha {
    * da mira, o da técnica e a marca. Tirado pelo host. Ausente = nenhum.
    */
   seloDaBala?: SeloDoGolpe
+  /** F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao lançar (o "+8 em reação" por 2 turnos). Ausente = nenhum. */
+  seloEmQuemUsa?: SeloDoGolpe
 }
 
 /**
@@ -671,6 +673,12 @@ export interface SeloDaBatalha {
    * escolhido). Só do host: nunca sai ao jogador. Ausente = não é de passiva.
    */
   donoId?: string
+  /**
+   * F2 (fatia F, Melodia): a opção da passiva escolhida ao ativar, quando NÃO
+   * é a principal ("Opção Dado de reação"). Ausente = a principal (o "+20
+   * contra o analisado" só vale nela). Só do host.
+   */
+  opcao?: string
   /** R1 (lote de 01/11): é a MARCA (`marca.ts`): o próximo golpe que acerta dá o dobro e a tira. Ausente = selo comum. */
   marca?: true
   /** R1: a linha que pôs a marca. Desfeita, o Desfazer de quem usou a marca não a devolve. Só do host. */

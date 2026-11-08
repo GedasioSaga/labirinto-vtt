@@ -3,6 +3,7 @@ import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { CUSTO_MAX, EVOLUIDAS_MAX, NOME_DO_GOLPE_MAX, type CombateDoPersonagem, type PedidoDeEvolucao, type SeloDoGolpe } from './combate'
 import { lerDano, normalizar, type ContextoDaFormula, type LeituraDoDano } from './formula'
 import { CAMPO_DO_EFEITO, ehOverload, recursoDoCusto, tecnicaPorId, tecnicasDe, type LeituraDoCusto } from './leituraDaFicha'
+import { mecanicaDoCartao, motivoDoEvoluirPelaMecanica } from './mecanicasAMao'
 import { lerDuracao, lerMods, seloComMods } from './selos'
 import { lerTipo, seloSugeridoDaTecnica } from './tiposDaHabilidade'
 import { cartaDaVez, type TurnosDaCena } from './turnos'
@@ -143,9 +144,11 @@ function chaveUnica(nome: string, usadas: Set<string>): string {
  * Cirugia (extra "Efeito 2": "Cirugia - Pode fazer isso 1 vez")]; Aplauso do
  * Deus do Trovão = só a principal (os extras "Ação" e "Reação" não são opção).
  */
-export function variantesDe(cartao: Pick<CartaoDaFicha, 'campos' | 'extras'>): VarianteDaHabilidade[] {
+export function variantesDe(cartao: Pick<CartaoDaFicha, 'campos' | 'extras'> & { id?: string }): VarianteDaHabilidade[] {
   const principal: VarianteDaHabilidade = { chave: VARIANTE_PRINCIPAL, rotulo: VARIANTE_PRINCIPAL, texto: (cartao.campos[CAMPO_DO_EFEITO] ?? '').trim(), principal: true }
   const opcoes = [principal]
+  // F2 (fatia F, Medicina): as outras opções são só fora da batalha (a Cirurgia sai do menu e o host recusa).
+  if (cartao.id !== undefined && mecanicaDoCartao(cartao.id)?.soAPrincipal === true) return opcoes
   const usadas = new Set([normalizar(VARIANTE_PRINCIPAL)])
   for (const extra of cartao.extras) {
     const texto = extra.valor.trim()
@@ -161,7 +164,7 @@ export function temEscolha(cartao: Pick<CartaoDaFicha, 'campos' | 'extras'>): bo
 }
 
 /** A opção do pedido (`variante`), pela chave exata de `variantesDe`; `null` = não é opção desta habilidade. */
-export function varianteDoPedido(cartao: Pick<CartaoDaFicha, 'campos' | 'extras'>, chave: string): VarianteDaHabilidade | null {
+export function varianteDoPedido(cartao: Pick<CartaoDaFicha, 'campos' | 'extras'> & { id?: string }, chave: string): VarianteDaHabilidade | null {
   return variantesDe(cartao).find((variante) => variante.chave === chave) ?? null
 }
 
@@ -406,7 +409,8 @@ export function motivoDoEvoluir(ctx: ContextoDaEvolucao, pedido: PedidoDeEvoluca
   const carta = turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)
   if (carta === undefined || carta.personagemId !== personagem.id) return 'A ficha não está na luta'
   if (ctx.soNaVez && cartaDaVez(turnos)?.personagemId !== personagem.id) return 'Evoluir só na sua vez'
-  return motivoDoEvoluirNaFicha(personagem, sistema, turnos.combate?.[personagem.id]?.evoluidas, pedido)
+  // F2 (fatia F, CAÇA AS BRUXAS!): "Melodia ativada e o caminho do dano ativo" = a Melodia ligada na opção do +20.
+  return motivoDoEvoluirNaFicha(personagem, sistema, turnos.combate?.[personagem.id]?.evoluidas, pedido) ?? motivoDoEvoluirPelaMecanica(pedido.cartaoId, turnos.selos, personagem.id)
 }
 
 /**

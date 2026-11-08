@@ -29,6 +29,11 @@ tempo). Testes: no máximo 2 por situação durante a construção; a bateria co
   Campo for ler (a fatia D não criou extra com nome mágico para isso).
 - Vagn, Projeção Letal: "em linha reta" sem alcance. Com o alcance (em casas) a mira pode marcar sozinha
   quem está na linha (`area.ts`, forma `linha`); até lá o jogador marca.
+- Harvey, mochila: falta 1 "Kit Médico" (o mestre disse que ele tem 1 agora). Sem o kit a Medicina fica apagada
+  com o motivo "Sem Kit Médico na mochila".
+- Siegfried, arma padrão: a ficha não diz qual é; hoje a mira marca a 1ª arma levada. Gravar o campo quando existir.
+- Harvey, Pazada: trocar o Efeito para "Atordoa o alvo por 1 turno" (o leitor entende "por N turnos"), ou ensinar
+  "de N turno" ao leitor de selos (`selos.ts`, regra geral, fora da fatia F).
 
 ## F1. Regras do sistema e os 12 bugs (1 dono, em sequência)
 - Bugs 1-12 (recusa muda, golpe sem resposta vira "Não reagiu" na virada da rodada, desfazer "Vez",
@@ -122,6 +127,36 @@ defende); o Desenhar o alvo leva a bala no pedido (`balaId` na habilidade) e o s
 - Grande Fissura entrou como corpo a corpo (+20 de Ogro): leitura minha, confirmar com o mestre.
 - O Giro da Lança marcado anula com o dado dele (bloqueio com a lança, não esquiva); a animação do d20 mostra a melhor
   saída do d20 normal (o dado da esquiva do Marcado aparece na caixa e no registro, não na animação).
+
+Fatia F (Harvey e Siegfried), na mesma tabela (`client/src/lib/batalha/mecanicasAMao.ts`) e nas funções gerais:
+Harvey: todo golpe soma a Pá (Atacar 60, Giro de Pá 123, Pazada 105); o Giro de Pá marca sozinho os inimigos a 1 casa
+(`dadosDoMenu.ts` `alvosNaAreaDaMira`, pela casa de cada alvo em `alvosNaOrdemDaMira`; dá para mudar as marcas); Golpe
+Baixo põe "+8 em reação" por 2 turnos em quem usa (`seloEmQuemUsa`, `GolpeDaBatalha.seloEmQuemUsa`) e a mira lembra o
+terreno e o alcance (`lembreteNaMira`); Cego zera a Percepção (já era); Medicina cura 100 sem reação, nele ou num aliado,
+3 por batalha, 150/200/350 com concentração, e gasta 1 Kit Médico por uso (`usosPorBatalha`, `gastaItem`; o motivo
+"Sem Kit Médico na mochila" em `acoes.ts` `motivoDaTecnica`); a Cirurgia sai do menu (`soAPrincipal`).
+Siegfried: a técnica com dano da arma pergunta qual arma, com a 1ª levada já marcada (`ficha:<id>` `perguntaAArma`;
+`dadosDoMenu.ts` `armasDaTecnica`; `MiraDoGolpe.tsx` "Qual arma?"); Lua Incandescente divide a base em até 3 (71 vira
+23; `golpe.ts` `comDanoDividido`, recusa o 4º); Orquídea sem dano põe a "Redoma da Orquídea" (Cego e preso; a pílula
+lembra os 30 de fogo e o golpe de oportunidade) até o próximo golpe nele (`condicoes.ts` `saiNoProximoGolpe`); Florescer
+sai como Livre, só em quem está na redoma (`soContraOSelo`), sem concentração (`semConcentracao`): 302 × 1,5 da Surpresa
+= 453; Melodia na opção do +20 soma 20 contra o analisado (`somaContraOSelo`; a opção da passiva fica em
+`SeloDaBatalha.opcao`); Entardecer RES contra 12 (já era); evoluir a CAÇA pede a Melodia no +20
+(`motivoDoEvoluirPelaMecanica`) e a CAÇA volta depois do SUPER (`voltaDepoisDoOverload`); Chamas Celestes custa 10% do
+HP máximo (90; `custoDoMaximo`) e no fim de cada vez do alvo: alvo −15 SP, Sieg +10 SP e −3% do HP; Doença das Trevas
+−27 no fim da vez em que andou ou agiu (`batalhaFabrica.ts` `fimDaVezDasMecanicas`, linha "Fim da vez: ..." com
+Desfazer); 3 armas por batalha (já era). Provas: `client/src/lib/batalha/mecanicasAMao.fatiaF.test.ts` e
+`client/src/stores/batalhaFabrica.mecanicasFatiaF.test.ts`.
+À mão DE PROPÓSITO, com dono:
+- O Kit Médico não sai da mochila: o app conta os usos da batalha contra os kits que ele tem (não há peça de mochila no
+  desfazer). O mestre tira o kit à mão depois da luta.
+- O golpe de oportunidade e os 30 de fogo de quem tenta sair da redoma: lembrete na pílula; o mestre aplica.
+- A arma padrão do Siegfried: a ficha não tem o campo; vale a 1ª arma levada (F0c).
+- Doença: "agiu" = andou, gastou ação (Simples, Completa, Bônus) ou atacou; Concentrar conta. A linha "Fim da vez" não
+  volta junto com o Desfazer da Vez nem roda no "Dar a vez" do mestre.
+- Chamas: o alvo ainda reage (esquivar o Debuff evita o selo). "Sem SP, reage com desvantagem" não foi feito.
+Ainda falta: o Imbuir Fogo do Siegfried (+10, vetado com a Ignição), a opção "Dado de reação" da Melodia (+1 no dado
+dele) e a duração da Pazada ("de 1 turno": o leitor de selo só entende "por N turnos"; hoje o Atordoado fica até tirar).
 
 ## F3. Recursos novos (decisão 08/11: feitos como PEÇAS DO CONSTRUTOR, fatias C6/C7/C1/C10 de docs/planos/construtor-de-mecanicas-2026-11-08.md)
 1. Tela do mestre ao transformar ou invocar com números livres (Sulong, super lobo).

@@ -15,6 +15,7 @@ import {
 } from '../../lib/batalha/combate'
 import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
 import { divisaoDoDano } from '../../lib/batalha/reacao'
+import { dividirDano } from '../../lib/batalha/area'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
@@ -22,6 +23,7 @@ import { BotaoDaCalculadora, CalculadoraDeDano } from './CalculadoraDeDano'
 import { ContaComBonus } from './ContaComBonus'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import {
+  alvosNaAreaDaMira,
   contaDoGolpe,
   formatarNumero,
   lerInteiro,
@@ -88,6 +90,8 @@ export interface EscolhaDaMira {
   variante?: string
   /** F2 (fatia B): as respostas das perguntas na hora; ausente = a técnica não pergunta. */
   respostas?: RespostasDoPedido
+  /** F2 (fatia F, Siegfried): a arma escolhida na técnica que pergunta qual; ausente = a do golpe. */
+  armaId?: string
 }
 
 /** F2 (fatia B): a resposta de cada pergunta ao abrir: a 1ª opção, ou o mínimo do número. */
@@ -127,7 +131,7 @@ export function pedidoDoGolpe(golpe: GolpeNaTela, escolha: EscolhaDaMira): Pedid
   return {
     tipo: 'habilidade',
     cartaoId: golpe.cartaoId ?? '',
-    armaId: golpe.armaId,
+    armaId: escolha.armaId ?? golpe.armaId,
     alvos: escolha.alvos,
     surpresa: escolha.surpresa,
     perfurante: escolha.perfurante,
@@ -190,6 +194,8 @@ export interface MiraDoGolpeProps {
   semVoltar?: boolean
   /** O mestre liga "Escolher no mapa" à mão (com ele ligado, o clique no mapa só mira). */
   mapa?: { ligado: boolean; onTrocar: (ligado: boolean) => void }
+  /** F2 (fatia F, Giro de Pá): quem está na área da técnica (`alvosDaAreaNaMira`), marcados ao abrir; ausente = a regra de sempre. */
+  marcadosDaArea?: readonly string[]
 }
 
 const ACOES_PERGUNTADAS: readonly AcaoDaTecnica[] = ['simples', 'completa', 'bonus', 'livre']
@@ -210,26 +216,38 @@ function notaDaReacao(golpe: GolpeNaTela, semReacao: boolean, semDano: boolean):
   return NOTA_DA_REACAO
 }
 
+/** F2 (fatia F, Lua Incandescente): a nota do dano dividido ("71 ÷ 3 = 23 em cada"), com a mesma conta do host. */
+function textoDoDanoDividido(base: number | null, alvos: number, teto: number): string {
+  const cada = base === null ? null : dividirDano(base, alvos, teto)
+  if (base === null || alvos < 1) return `O dano se divide entre os marcados (até ${teto}).`
+  if (cada === null) return `No máximo ${teto} alvos: desmarque ${alvos - teto}.`
+  return alvos === 1 ? `Um alvo só: toma ${base} (o dano se divide entre até ${teto}).` : `O dano se divide: ${base} ÷ ${alvos} = ${cada} em cada.`
+}
+
 /** Buff (tipos de habilidade F2): a mira começa em quem usa (o "você" da lista; no mestre, o NPC da vez). */
 function voceNaLista(alvos: readonly AlvoNaMira[]): string | null {
   const meus = alvos.filter((alvo) => alvo.lado === 'eu' && !alvo.motivo)
   return (meus.find((alvo) => !alvo.caiu) ?? meus[0])?.tokenId ?? null
 }
 
-/** Quem a mira marca ao abrir: Buff em si; a sugestão do NPC; o primeiro de outra equipe. */
-function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoInicial: string | null | undefined): string[] {
+/** Quem a mira marca ao abrir: Buff em si; quem está na área (F2, fatia F: Giro de Pá); a sugestão do NPC; o primeiro de outra equipe. */
+function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoInicial: string | null | undefined, daArea: readonly string[] | undefined): string[] {
   const emSi = golpe.alvoEmSi === true ? voceNaLista(alvos) : null
   if (emSi !== null) return [emSi]
   // F2 (fatia C): a técnica sem alvo (Armadilhar posiciona a armadilha) abre sem ninguém marcado.
   if (golpe.semAlvo === true) return []
+  if (golpe.area !== undefined && daArea !== undefined && daArea.length > 0) return daArea.filter((tokenId) => alvos.some((alvo) => alvo.tokenId === tokenId && !alvo.motivo)).slice(0, ALVOS_MAX)
   const sugerido = alvoInicial !== undefined && alvoInicial !== null && alvos.some((alvo) => alvo.tokenId === alvoInicial && !alvo.motivo) ? alvoInicial : null
   const primeiro = sugerido ?? (alvoInicial === undefined ? primeiroAlvo(alvos) : null)
   return primeiro === null ? [] : [primeiro]
 }
 
-export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa }: MiraDoGolpeProps) {
+export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa, marcadosDaArea }: MiraDoGolpeProps) {
   const idBase = useId()
-  const [marcados, setMarcados] = useState<readonly string[]>(() => marcadosAoAbrir(golpe, alvos, alvoInicial))
+  const [marcados, setMarcados] = useState<readonly string[]>(() => marcadosAoAbrir(golpe, alvos, alvoInicial, marcadosDaArea ?? (golpe.area === undefined ? undefined : alvosNaAreaDaMira(golpe.area, alvos))))
+  // F2 (fatia F, Siegfried): a arma da técnica (a 1ª levada vem marcada); trocar refaz o Dano base.
+  const [armaId, setArmaId] = useState<string | null>(golpe.armas?.[0]?.id ?? null)
+  const armaEscolhida = golpe.armas?.find((arma) => arma.id === armaId) ?? null
   const [foco, setFoco] = useState<string | null>(() => marcados[0] ?? null)
   const [baseTexto, setBaseTexto] = useState(golpe.dano.valor === null ? '' : String(golpe.dano.valor))
   const [editados, setEditados] = useState<Readonly<Record<string, string>>>({})
@@ -246,7 +264,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   // F2 (fatia B): as perguntas na hora (ponto vital, quadrados empurrados): a resposta troca o dano e o selo sugeridos.
   const [respostas, setRespostas] = useState(() => respostasAoAbrir(golpe.perguntas))
   const mudanca = mudancaNaMira(golpe, respostas)
-  const danoDaOpcao = opcao?.dano ?? mudanca.dano ?? golpe.dano
+  const danoDaOpcao = opcao?.dano ?? mudanca.dano ?? armaEscolhida?.dano ?? golpe.dano
   // F3: o selo sugerido começa marcado; desmarcar tira do golpe.
   const sugerido = opcao?.selo ?? (mudanca.selo === undefined ? golpe.selo : mudanca.selo) ?? null
   const [comSelo, setComSelo] = useState(sugerido !== null)
@@ -304,6 +322,11 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     evento?.preventDefault()
     if (marcados.length === 0 && golpe.semAlvo !== true) {
       setErro('Escolha ao menos um alvo (clique na ficha no mapa ou marque na lista).')
+      return
+    }
+    // F2 (fatia F, Lua Incandescente): a mesma regra do host, dita antes de mandar.
+    if (golpe.divide !== undefined && marcados.length > golpe.divide) {
+      setErro(`${golpe.nome} acerta no máximo ${golpe.divide} alvos (o dano é dividido).`)
       return
     }
     const pedidoDeAlvos: PedidoDeAlvo[] = []
@@ -365,6 +388,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       ...(balaEscolhida === null ? {} : { balaId: balaEscolhida.id }),
       ...(opcao === null ? {} : { variante: opcao.chave }),
       ...(golpe.perguntas === undefined ? {} : { respostas }),
+      ...(armaEscolhida === null ? {} : { armaId: armaEscolhida.id }),
     })
     if (!saiu) setErro('O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
   }
@@ -430,6 +454,16 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     }
   }
 
+  /** F2 (fatia F, Siegfried): trocar a arma refaz a conta: o Dano base vira o da técnica com ela, e os editados voltam à conta. */
+  const escolherArma = (_chave: string, valor: string | number) => {
+    const escolhida = golpe.armas?.find((arma) => arma.id === valor)
+    if (escolhida === undefined || escolhida.id === armaId) return
+    setErro(null)
+    setArmaId(escolhida.id)
+    setBaseTexto(escolhida.dano.valor === null ? '' : String(escolhida.dano.valor))
+    setEditados({})
+  }
+
   /** Trocar a bala refaz a conta: o Dano base vira o da bala, e os danos editados por alvo voltam à conta. */
   const escolherBala = (id: string | null) => {
     const dano = id === null ? danoDaOpcao : (balas.find((bala) => bala.id === id)?.dano ?? danoDaOpcao)
@@ -457,7 +491,17 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
           </p>
         )}
         {opcoes !== undefined && <ChipsDaOpcao idBase={idBase} opcoes={opcoes} escolhida={opcao} onEscolher={escolherOpcao} />}
+        {golpe.armas !== undefined && armaId !== null && (
+          <PerguntaDaMira
+            idBase={idBase}
+            pergunta={{ chave: 'arma', texto: 'Qual arma?', para: 'quemUsa', tipo: 'opcoes', opcoes: golpe.armas.map((arma) => ({ valor: arma.id, rotulo: `${arma.nome} (${arma.dano.valor ?? '?'})` })) }}
+            resposta={armaId}
+            onResponder={escolherArma}
+          />
+        )}
         {golpe.perguntas?.map((pergunta) => <PerguntaDaMira key={pergunta.chave} idBase={idBase} pergunta={pergunta} resposta={respostas[pergunta.chave]} onResponder={responder} />)}
+        {golpe.lembrete !== undefined && <p className="bt-mira__nota">{golpe.lembrete}</p>}
+        {golpe.divide !== undefined && <p className="bt-mira__nota">{textoDoDanoDividido(base, marcados.length, golpe.divide)}</p>}
         {balas.length > 0 && (
           <fieldset className="bt-mira__balas">
             <legend>{golpe.tipo === 'habilidade' ? 'Bala · entra no "Dano da Bala" da técnica' : 'Bala · a conta do dano muda com ela'}</legend>

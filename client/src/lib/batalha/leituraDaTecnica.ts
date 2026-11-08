@@ -4,7 +4,7 @@ import { overloadNaBatalha } from './escolhaEEvolucao'
 import { CAMPO_DO_DANO, lerDano, type ContextoDaFormula, type LeituraDoDano } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, lerAcao, lerCusto, lerTempo, tecnicasDe, type LeituraDaAcao, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
-import { formulaDaMecanica } from './mecanicasAMao'
+import { custoPeloMaximo, formulaDaMecanica, mecanicaDoCartao } from './mecanicasAMao'
 import type { RespostasDoPedido } from './perguntaNaHora'
 
 /**
@@ -48,15 +48,27 @@ function custoComATela(lido: LeituraDoCusto, custoDaTela: number | null | undefi
   return { tipo: 'valor', recurso, valor: custoDaTela, porTurno: false }
 }
 
-/** A técnica lida do cartão. */
+/**
+ * F2 (fatia F): o custo da ficha, ou o da mecânica à mão pela porcentagem do
+ * máximo (Chamas Celestes: 10% do HP máximo = 90, não do atual).
+ */
+function custoDaFicha(cartao: CartaoDaFicha, personagem: Personagem): LeituraDoCusto {
+  const peloMaximo = custoPeloMaximo(cartao.id, personagem.maximos)
+  if (peloMaximo !== null) return { tipo: 'valor', recurso: peloMaximo.recurso, valor: peloMaximo.valor, porTurno: false }
+  return lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
+}
+
+/** A técnica lida do cartão. F2 (fatia F): a ação e os usos da mecânica à mão vencem os da ficha (Florescer livre, Medicina 3 por batalha). */
 export function leituraDaTecnica(cartao: CartaoDaFicha, ctx: ContextoDaLeitura): LeituraDaTecnica {
   const { personagem, sistema } = ctx
-  const acaoDaFicha = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
+  const mecanica = mecanicaDoCartao(cartao.id)
+  const lida = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
+  const acaoDaFicha = mecanica?.acao === undefined ? lida : { ...lida, acao: mecanica.acao }
   return {
     cartao,
     acaoDaFicha,
-    custo: custoComATela(lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem), ctx.custoDaTela),
-    tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
+    custo: custoComATela(custoDaFicha(cartao, personagem), ctx.custoDaTela),
+    tempo: mecanica?.usosPorBatalha === undefined ? lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? '') : { tipo: 'usos', vezes: mecanica.usosPorBatalha },
     overload: overloadNaBatalha(cartao, ctx.todas ?? tecnicasDe(personagem, sistema), ctx.evoluidas),
     transformacao: acaoDaFicha.transformacao,
     tipo: lerTipo(cartao),

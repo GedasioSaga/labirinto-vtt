@@ -68,13 +68,16 @@ import {
   mecanicaDoCartao,
   motivoDaRespostaVetada,
   motivoDasRespostasDoGolpe,
+  motivoDoSeloPedido,
   motivoDoTetoDeDano,
   perfuranteDaMecanica,
   rotulosDasRespostas,
   seloDaMecanica,
   semSeloPelaResposta,
+  somaContraOSelo,
   type MecanicaAMao,
 } from './mecanicasAMao'
+import { dividirDano } from './area'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
@@ -365,13 +368,17 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const alvosPersonagemIds = pedido.alvos.map((alvo) => ctx.personagemDoToken(alvo.tokenId))
       // F2 (fatia E, Fúria do Dragão): sobe de Parte só com a forma dela ligada e uma Parte acima.
       const subida = subidaDeParte(personagem, sistema, tecnica.cartao.id)
+      // F2 (fatia F, Florescer): só em quem tem a redoma da Orquídea.
+      const selosDosAlvos = pedido.alvos.map((alvo) => (ctx.turnos.selos ?? []).filter((selo) => selo.tokenId === alvo.tokenId).map((selo) => selo.nome))
       return (
         motivo ??
         vetada ??
         (subida !== null && 'motivo' in subida ? subida.motivo : null) ??
         motivoDosAlvos(ctx, pedido.alvos, 0) ??
         motivoDaLimpeza(ctx, tecnica.cartao, alvosPersonagemIds) ??
-        motivoDoTetoDeDano(tecnica.cartao.id, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>())
+        motivoDoTetoDeDano(tecnica.cartao.id, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
+        motivoDoDivide(tecnica.cartao, pedido.alvos.length) ??
+        motivoDoSeloPedido(tecnica.cartao.id, selosDosAlvos)
       )
     }
   }
@@ -487,8 +494,15 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const soma = somaDoAtaque + deTodoGolpe.dano + daRaca
   const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
   // F2 (fatia D, Explosão): o dano "% da vida do alvo" sai da vida de cada alvo.
-  const pedidosDoDano = tecnica === null || personagem === null || sistema === null ? pedido.alvos : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, pedido.alvos)
-  const pedidos = mecanica?.seloSoNosAliados === true ? comSomaNoDano(semDanoNosAliados(ctx, pedidosDoDano), soma) : comSomaNoDano(pedidosDoDano, soma)
+  const pelaVida = tecnica === null || personagem === null || sistema === null ? pedido.alvos : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, pedido.alvos)
+  // F2 (fatia F, Lua Incandescente): a base dividida entre os marcados, para baixo (71 em 3 = 23 em cada).
+  const pedidosDoDano = mecanica?.divide === undefined ? pelaVida : comDanoDividido(pelaVida, mecanica.divide.teto)
+  const somados = mecanica?.seloSoNosAliados === true ? comSomaNoDano(semDanoNosAliados(ctx, pedidosDoDano), soma) : comSomaNoDano(pedidosDoDano, soma)
+  // F2 (fatia F, Melodia): +20 em cada alvo que o dono analisou (o selo da passiva dele na opção principal).
+  const pedidos = somados.map((alvo) => {
+    const contra = alvo.dano === null ? 0 : somaContraOSelo(ctx.turnos.selos, alvo.tokenId, ctx.carta.personagemId)
+    return contra === 0 || alvo.dano === null ? alvo : { ...alvo, dano: alvo.dano + contra }
+  })
   // F2 (revisão da fatia D, Campo): a técnica que dá carga por vez não gasta a guardada (nem a usa).
   const gasta = gastaACarga(tecnica?.cartao.id ?? null)
   const carga = gasta ? combate.carga : 0
@@ -541,6 +555,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   if (seloDaBala !== null) golpe.seloDaBala = seloDaBala
   // F2 (fatia E, vantagem de Ogro): a resposta "sim" faz os alvos reagirem com desvantagem.
   if (deTodoGolpe.desvantagemNoAlvo) golpe.reacaoComDesvantagem = true
+  // F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao usar ("+8 em reação" por 2 turnos); a store o põe nele.
+  if (mecanica?.seloEmQuemUsa !== undefined) golpe.seloEmQuemUsa = mecanica.seloEmQuemUsa
   // R1: a arma que atira (o acerto lembra a passiva de marca).
   if (arma !== null && categoriaAtira(arma.categoria)) golpe.armaQueAtira = true
   // Tipos de habilidade F4: a opção escolhida e o uso evoluído vão para o registro ("Medicina (Cirugia)").
@@ -592,6 +608,18 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const { selo: _selo, marca: _marca, perfuracao: _perfuracao, bala: _bala, seloDaBala: _seloDaBala, ...semExtras } = golpe
   const segundo: GolpeDaBatalha = { ...semExtras, id: ids.segundo.golpe, linhaId: ids.segundo.linha, nome: `${golpe.nome} (2º golpe)`.slice(0, NOME_DO_GOLPE_MAX), perfurante: parte.perfurante, alvos: segundos }
   return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }
+}
+
+/** F2 (fatia F, Lua Incandescente): por que os marcados passam do teto da técnica que divide o dano, ou `null`. */
+function motivoDoDivide(cartao: Pick<CartaoDaFicha, 'id' | 'nome'>, alvos: number): string | null {
+  const teto = mecanicaDoCartao(cartao.id)?.divide?.teto
+  if (teto === undefined || alvos <= teto) return null
+  return `${cartao.nome.trim() || 'A técnica'} acerta no máximo ${teto} alvos (o dano é dividido)`
+}
+
+/** F2 (fatia F, Lua Incandescente): a base de cada alvo dividida pelos marcados, para baixo; sem dano fica sem dano. */
+function comDanoDividido(alvos: readonly PedidoDeAlvo[], teto: number): readonly PedidoDeAlvo[] {
+  return alvos.map((alvo) => (alvo.dano === null ? alvo : { ...alvo, dano: dividirDano(alvo.dano, alvos.length, teto) ?? alvo.dano }))
 }
 
 /** F2 (fatia C): os ids dos cartões da ficha (todas as abas), e (fatia E) as chaves da raça e da ficha; sem ficha, nenhum. */

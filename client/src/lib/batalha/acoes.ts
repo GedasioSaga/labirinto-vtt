@@ -15,7 +15,7 @@ import {
   type LeituraDoTempo,
 } from './leituraDaFicha'
 import { danoDaTecnica, leituraDaTecnica } from './leituraDaTecnica'
-import { perfuranteDaMecanica, respostasPadrao } from './mecanicasAMao'
+import { itensQueSobram, mecanicaDoCartao, perfuranteDaMecanica, respostasPadrao } from './mecanicasAMao'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
 import type { AcoesExtras, GastoDaVez } from './turnos'
 
@@ -237,7 +237,9 @@ export function motivoDaTecnica(
   if (tipo === 'invocacao' && comoInvocacao !== true) return MOTIVO_DA_INVOCACAO
   if (tecnica.transformacao) return 'É transformação: use a tira Transformação'
   const evolucao = motivoDaEvolucao(cartao, tecnicasDe(personagem, sistema), combate?.evoluidas)
-  if (evolucao !== null) return evolucao
+  // F2 (fatia F, CAÇA AS BRUXAS!): depois da evoluída (Overload) usada, a base volta.
+  const voltou = combate?.overload === true && mecanicaDoCartao(cartao.id)?.voltaDepoisDoOverload === true
+  if (evolucao !== null && !voltou) return evolucao
   if (tecnica.overload && combate?.overload === true) return MOTIVO_DO_OVERLOAD_USADO
   const recarga = combate?.recargas[cartao.id] ?? 0
   if (recarga > 0) return `Recarga: ${turnos(vezesDeRecarga(recarga, tecnica.tempo))}`
@@ -245,6 +247,9 @@ export function motivoDaTecnica(
     const usadas = combate?.usos[cartao.id] ?? 0
     if (usadas >= tecnica.tempo.vezes) return `Já usada nesta batalha (${usadas}/${tecnica.tempo.vezes})`
   }
+  // F2 (fatia F, Medicina): cada uso gasta 1 Kit Médico da mochila; sem nenhum sobrando, apagada.
+  const item = itensQueSobram(cartao.id, personagem.mochila, combate?.usos[cartao.id] ?? 0)
+  if (item !== null && item.sobram <= 0) return `Sem ${item.nome} na mochila (cada uso gasta 1)`
   // Conserto das fichas F1 (resposta do Jimboy): custo acima do MÁXIMO do recurso = bloqueada com o motivo, antes da ação.
   const caro = motivoDoCustoAcimaDoMaximo(tecnica.custo, personagem, sistema)
   if (caro !== null) return caro

@@ -18,7 +18,9 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
-import { chavesDoDono, limpezaDe, mecanicaDoCartao, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta } from '../../lib/batalha/mecanicasAMao'
+import { chavesDoDono, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
+import { casaNaAreaVirada, type Casa } from '../../lib/batalha/area'
+import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { subidaDeParte } from '../../lib/batalha/transformacao'
 import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
@@ -67,6 +69,14 @@ export interface GolpeNaTela {
   chave: string
   /** F2 (fatia C): a técnica sai sem alvo (Armadilhar posiciona a armadilha); a mira não pede ninguém. */
   semAlvo?: true
+  /** F2 (fatia F, Giro de Pá): a área da técnica; a mira já abre com quem está nela marcado (quem usa pode mudar). */
+  area?: AreaAMao
+  /** F2 (fatia F, Lua Incandescente): o dano se divide entre os marcados, até este teto de alvos. */
+  divide?: number
+  /** F2 (fatia F, Golpe Baixo): o que a mira lembra (o mestre confere). */
+  lembrete?: string
+  /** F2 (fatia F, Siegfried): as armas levadas, cada uma com o dano da técnica com ela; a mira pergunta qual (a 1ª vem marcada). Ausente = sem escolha. */
+  armas?: readonly { id: string; nome: string; dano: DanoNaTela }[]
   tipo: 'atacar' | 'habilidade'
   /** Só na habilidade. */
   cartaoId: string | null
@@ -255,6 +265,8 @@ export interface AlvoNaMira {
   imagem?: string | null
   /** A cor da equipe, no anel da miniatura; ausente = o anel neutro. */
   cor?: string | null
+  /** F2 (fatia F): a casa do alvo em relação a quem age (colunas e linhas); ausente = sem posição ou sem o tamanho da casa. */
+  deslocamento?: Casa
 }
 
 /** A ficha sem personagem não é alvo (a store recusa): fica na lista, apagada. */
@@ -279,9 +291,20 @@ export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fi
     const ficha = porId.get(tokenId)
     return ficha === undefined || ficha.x === undefined || ficha.y === undefined ? undefined : { x: ficha.x, y: ficha.y }
   }
-  const casa = tamanhoDaCasa !== undefined && Number.isFinite(tamanhoDaCasa) && tamanhoDaCasa > 0 ? tamanhoDaCasa : 1
+  const temCasa = tamanhoDaCasa !== undefined && Number.isFinite(tamanhoDaCasa) && tamanhoDaCasa > 0
+  const casa = temCasa ? tamanhoDaCasa : 1
   const origem = ponto(deTokenId)
-  return ordenarAlvosDaMira(alvos, (tokenId) => blocosEntreTokens(origem, ponto(tokenId), casa))
+  const ordenados = ordenarAlvosDaMira(alvos, (tokenId) => blocosEntreTokens(origem, ponto(tokenId), casa))
+  if (!temCasa || origem === undefined) return ordenados
+  // F2 (fatia F, Giro de Pá): a casa de cada alvo em relação a quem age, para a mira marcar quem está na área.
+  const casaDe = (p: { x: number; y: number }): Casa => ({ col: Math.floor(p.x / casa), row: Math.floor(p.y / casa) })
+  const daOrigem = casaDe(origem)
+  return ordenados.map((alvo) => {
+    const p = ponto(alvo.tokenId)
+    if (p === undefined) return alvo
+    const dele = casaDe(p)
+    return { ...alvo, deslocamento: { col: dele.col - daOrigem.col, row: dele.row - daOrigem.row } }
+  })
 }
 
 const ROTULO_DA_ACAO: Record<AcaoDaTecnica | 'passiva', string> = {
@@ -485,7 +508,15 @@ function golpeDaTecnica(
   const semSelo = lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar' || semSeloPelaResposta(id, padrao)
   const selo = seloDaMecanica(id, padrao) ?? (semSelo ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema))
   if (selo !== null) golpe.selo = selo
-  if (mecanicaDoCartao(id)?.semAlvo === true) golpe.semAlvo = true
+  const mecanica = mecanicaDoCartao(id)
+  if (mecanica?.semAlvo === true) golpe.semAlvo = true
+  // F2 (fatia F): a área (Giro de Pá), o dano dividido (Lua Incandescente) e o lembrete da mira (Golpe Baixo).
+  if (mecanica?.area !== undefined) golpe.area = mecanica.area
+  if (mecanica?.divide !== undefined) golpe.divide = mecanica.divide.teto
+  if (mecanica?.lembreteNaMira !== undefined) golpe.lembrete = mecanica.lembreteNaMira
+  // F2 (fatia F, Siegfried): qual arma, quando o dano muda com ela (a técnica com "Dano da Arma").
+  const armas = perguntaAArma(idsDosCartoes(personagem)) ? armasDaTecnica(tecnica.cartao, personagem, sistema, combate, bonus) : null
+  if (armas !== null) golpe.armas = armas
   // F2 (fatia E, Fúria do Dragão): sem Parte acima, apagada com o motivo (a mesma frase do host).
   const subida = subidaDeParte(personagem, sistema, id)
   if (golpe.motivo === null && subida !== null && 'motivo' in subida) golpe.motivo = subida.motivo
@@ -536,6 +567,33 @@ export function golpesDeHabilidade(
 ): GolpeNaTela[] {
   const todas = tecnicasDe(personagem, sistema)
   return tecnicasNoMenu(personagem, sistema, combate, acoes, arma, bonus).map((tecnica) => golpeDaTecnica(tecnica, personagem, sistema, combate, arma, bonus, todas, acoes))
+}
+
+/**
+ * F2 (fatia F, Siegfried): cada arma levada com o dano da técnica com ela, na
+ * ordem das levadas (a 1ª é a padrão até a ficha ter o campo). `null` = uma
+ * arma só, ou o dano não muda com a arma (a técnica não usa "Dano da Arma").
+ */
+function armasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, bonus: BonusDaBatalha | undefined): { id: string; nome: string; dano: DanoNaTela }[] | null {
+  const armas = armasNaBatalha(personagem, combate)
+  if (armas.length < 2) return null
+  const comDano = armas.map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', dano: danoNaTela(danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonus })) }))
+  const valores = new Set(comDano.map((arma) => arma.dano.valor))
+  return valores.size < 2 ? null : comDano
+}
+
+/**
+ * F2 (fatia F, Giro de Pá): quem a área da técnica pega, pela casa de cada
+ * alvo em relação a quem usa (`deslocamento`, de `alvosNaOrdemDaMira`). A
+ * frente de quem usa não é conhecida aqui: vale qualquer lado
+ * (`casaNaAreaVirada`). Alvo sem posição fica de fora (quem usa marca à mão).
+ */
+export function alvosNaAreaDaMira(area: AreaAMao, alvos: readonly AlvoNaMira[]): string[] {
+  const origem: Casa = { col: 0, row: 0 }
+  return alvos
+    .filter((alvo) => !alvo.motivo && !alvo.caiu && alvo.lado !== 'eu' && (area.quem === 'todos' || alvo.lado === 'outro'))
+    .filter((alvo) => alvo.deslocamento !== undefined && casaNaAreaVirada(area.forma, origem, null, alvo.deslocamento))
+    .map((alvo) => alvo.tokenId)
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */

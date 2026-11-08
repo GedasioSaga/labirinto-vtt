@@ -51,6 +51,8 @@ export interface ComportamentoDoSelo {
    * menor); Defender e Receber usam o dado normal (`saidasDaRolagem`).
    */
   esquivaComDesvantagem?: true
+  /** F2 (fatia F, redoma da Orquídea): o selo sai quando o próximo golpe chega em quem o tem ("dura até o próximo golpe no alvo"). */
+  saiNoProximoGolpe?: true
 }
 
 /** Regra do sistema (respostas do Alexei e do Siegfried): o Sangramento tira 10 por vez, direto no HP. */
@@ -81,7 +83,27 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
     reageComDesvantagem: true,
     lembrete: 'reage com desvantagem (o app rola 2 d20); para se aproximar ou atacar o Vagn com metal, teste de Espírito contra a CD da fruta; de armadura, fica paralisado',
   },
+  // Siegfried (Orquídea): "Cego" (Percepção 0) e "Imobilizado" dentro da redoma, até o próximo golpe nele. Os 30 de fogo e o golpe de
+  // oportunidade quando o preso tenta atacar ou sair: o mestre dá (a pílula lembra).
+  {
+    nome: 'Redoma da Orquídea',
+    sinal: /^redoma da orquidea/,
+    zera: 'percepcao',
+    saiNoProximoGolpe: true,
+    lembrete: 'cego e sem poder se mexer; se tentar atacar ou sair: 30 de fogo e o Siegfried ganha um golpe de oportunidade (a Florescer sai sem a Bônus)',
+  },
+  // Siegfried (Chamas Celestes): o app tira e dá o SP sozinho no fim de cada vez de quem tem o selo (`mecanicasAMao.ts`).
+  { nome: 'Chamas Celestes', sinal: /^chamas celestes/, lembrete: 'no fim de cada vez dele: -15 SP nele, +10 SP e -3% do HP no Siegfried (o app faz)' },
 ]
+
+/**
+ * F2 (fatia F, redoma da Orquídea): os selos que saem porque um golpe novo
+ * chegou nestes alvos. Nenhum = lista vazia.
+ */
+export function selosQueSaemNoGolpe(selos: readonly SeloDaBatalha[] | undefined, alvosTokenIds: readonly string[]): SeloDaBatalha[] {
+  const alvos = new Set(alvosTokenIds)
+  return (selos ?? []).filter((selo) => alvos.has(selo.tokenId) && comportamentoDoSelo(selo.nome)?.saiNoProximoGolpe === true)
+}
 
 /**
  * F2 (revisão da fatia D): a vantagem com que a reação rola. Selo de quem

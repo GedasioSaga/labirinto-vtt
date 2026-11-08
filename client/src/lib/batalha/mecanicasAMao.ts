@@ -1,5 +1,5 @@
 import type { Personagem } from '../personagem'
-import type { NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
+import type { AcaoDaTecnica, NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
 import { normalizar } from './formula'
 import type { ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
@@ -118,6 +118,19 @@ export interface RespostaVetadaAMao {
 export interface LimpezaAMao {
   cura: string
   porCarga?: Readonly<Partial<Record<1 | 2 | 3, string>>>
+  /** F2 (fatia F, Medicina do Harvey): só cura; os debuffs do alvo ficam. */
+  soCura?: true
+}
+
+/**
+ * F2 (fatia F, Chamas Celestes do Siegfried): no fim de cada vez de quem tem o
+ * selo desta técnica, ele perde `alvoSp` de SP e o dono da técnica ganha
+ * `donoSp` de SP e perde `donoHpPorcento`% do HP MÁXIMO dele (para baixo).
+ */
+export interface DrenoNoFimDaVezAMao {
+  alvoSp: number
+  donoSp: number
+  donoHpPorcento: number
 }
 
 /**
@@ -285,6 +298,40 @@ export interface MecanicaAMao {
   sobeDeParte?: true
   /** F2 (fatia E, Forma Híbrida): as Partes deste grupo ligam em ordem, uma por vez (1 → 2 → 3). */
   partesEmOrdem?: true
+  /** F2 (fatia F, Medicina): os usos por batalha, no lugar do Tempo da ficha (o "0" dela é livre para o app). */
+  usosPorBatalha?: number
+  /** F2 (fatia F, Medicina): cada uso gasta 1 deste item da mochila da ficha (pelo nome); sem nenhum sobrando, a técnica fica apagada. */
+  gastaItem?: string
+  /** F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao usar (o "Para você: +8 em reação" por 2 turnos). */
+  seloEmQuemUsa?: SeloDoGolpe
+  /** F2 (fatia F, Golpe Baixo): o que a mira lembra (o mestre confere; o app não trava). */
+  lembreteNaMira?: string
+  /** F2 (fatia F, Medicina): as outras opções da técnica são só fora da batalha (a Cirurgia sai do menu). */
+  soAPrincipal?: true
+  /** F2 (fatia F, a linha da FICHA do Siegfried): nas técnicas com "Dano da Arma", a mira pergunta qual arma (já marcada a padrão). */
+  perguntaAArma?: true
+  /** F2 (fatia F, Florescer): a ação no lugar da da ficha (a Florescer não precisa da Bônus dada pelo mestre). */
+  acao?: AcaoDaTecnica
+  /** F2 (fatia F, Florescer): só vale em alvo com este selo (o da Orquídea); o motivo da recusa. */
+  soContraOSelo?: { nome: string; motivo: string }
+  /** F2 (fatia F, Florescer): não aceita Concentração (a carga guardada não multiplica nem é gasta). */
+  semConcentracao?: true
+  /**
+   * F2 (fatia F, Melodia): a passiva cujo selo, posto pelo dono na opção
+   * principal, soma `dano` em todo golpe do dono naquele alvo (o "+20 de
+   * precisão" = +20 de dano contra o analisado).
+   */
+  contraOSeloDaPassiva?: { dano: number }
+  /** F2 (fatia F, CAÇA AS BRUXAS!): evoluir pede o selo da passiva `cartaoId`, posto pelo dono na opção principal, em alguém. */
+  evoluirPede?: { cartaoId: string; motivo: string }
+  /** F2 (fatia F, CAÇA AS BRUXAS!): depois da evoluída (Overload) usada, a base volta (sem evoluir de novo). */
+  voltaDepoisDoOverload?: true
+  /** F2 (fatia F, Chamas Celestes): o custo é esta porcentagem do MÁXIMO do recurso (10% do HP máximo = 90), no lugar do texto da ficha. */
+  custoDoMaximo?: { recurso: 'sp' | 'hp'; porcento: number }
+  /** F2 (fatia F, Chamas Celestes): o que o selo desta técnica tira e dá no fim de cada vez de quem o tem. */
+  drenoNoFimDaVez?: DrenoNoFimDaVezAMao
+  /** F2 (fatia F, Doença das Trevas): o dono perde esta porcentagem do HP máximo no fim da vez em que andou ou agiu. */
+  perdeNoFimDaVez?: { hpPorcento: number }
 }
 
 const ATORDOADO_1: SeloDoGolpe = { nome: 'Atordoado', turnos: 1, natureza: 'debuff' }
@@ -316,6 +363,11 @@ export const NOME_DO_PRESO_NO_CAMPO = 'Preso no Campo de Contenção'
 const IGNICAO_DO_VAGN = 'cart_8ea9d2d5-f1ac-4d11-9a55-0feb66c75415'
 /** Recuperação Espantosa (May; Guilherme segue a regra dela): o mestre decide quando e com quanto HP volta. */
 const AVISO_DA_RECUPERACAO = 'Recuperação Espantosa: caiu a 0. Mestre, decida em quantos turnos volta e com quanto HP (1 vez por batalha).'
+
+/** F2 (fatia F): a Melodia do Siegfried (a passiva do "+20 contra o analisado", que a evolução da CAÇA pede). */
+const MELODIA_DO_SIEG = 'cart_bb6d363f-449f-4fc1-bbe5-fac6589f2301'
+/** F2 (fatia F): o selo da redoma da Orquídea; o comportamento (zera a Percepção, sai no próximo golpe, o lembrete) mora em `condicoes.ts`. */
+export const NOME_DA_REDOMA = 'Redoma da Orquídea'
 
 /** F2 (fatia E): o prefixo da chave da linha da raça e da linha da ficha (`chavesDoDono`). */
 export const CHAVE_DA_RACA = 'raca:'
@@ -505,10 +557,58 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   'cart_76fe44e8-629e-4e7c-b524-a1bbc7a85dd8': { nome: 'Rapid Dash (Jimboy)', perfurante: false, segundoGolpe: { fracao: 0.5, perfurante: true } },
   // Jimboy: Overload (fórmula do campo Dano, 257); paralisa 2 turnos; ele perde 200 de HP sempre ("Técnica Incompleta").
   'cart_7062c767-f138-47c3-9676-5695400b23d4': { nome: 'Sai Dai Rin: Rokuogan (Jimboy)', selo: { nome: 'Paralisado', turnos: 2, natureza: 'debuff' }, custoEmHp: 200 },
-  // Harvey: os inimigos a 1 casa, marcados sozinhos (ele pode mudar a escolha).
+  // Harvey: os inimigos a 1 casa, marcados sozinhos (ele pode mudar a escolha). A Pá (+ Dano da Arma) já está no campo Dano (F0).
   'cart_9500ae10-0bdc-4f08-b472-edb73cb70685': { nome: 'Giro de Pá (Harvey)', area: { forma: { tipo: 'raio', casas: 1 }, quem: 'inimigos' } },
+  // Harvey: "Para você: +8 em reação" por 2 turnos (os do Cego); o Cego do alvo zera a Percepção (tabela de selos). Terreno e alcance: o mestre confere.
+  'cart_387e7dce-4d87-42d7-8392-10d0d015243b': {
+    nome: 'Golpe Baixo (Harvey)',
+    seloEmQuemUsa: { nome: 'Golpe Baixo: +8 em reação', turnos: 2, natureza: 'buff', mods: [{ alvo: 'reacao', delta: 8 }] },
+    lembreteNaMira: 'Só em chão de terra ou areia, e o alvo a até 2 casas: o mestre confere.',
+  },
+  // Harvey: cura 100 sozinha, sem reação, nele ou num aliado; Concentração 150 / 200 / 350; 3 por batalha; cada uso gasta 1 Kit Médico.
+  // A Cirurgia (extra "Efeito 2") é só fora da batalha: sai do menu.
+  'cart_d281702e-da8c-4e96-9a97-8e4dd8ef07e9': {
+    nome: 'Medicina (Harvey)',
+    dano: '-',
+    limpa: { cura: '100', porCarga: { 1: '150', 2: '200', 3: '350' }, soCura: true },
+    usosPorBatalha: 3,
+    gastaItem: 'Kit Médico',
+    soAPrincipal: true,
+  },
+  // Siegfried: nas técnicas com "Dano da Arma" a mira pergunta qual das armas levadas ele usa (a 1ª levada vem marcada).
+  [`${CHAVE_DA_FICHA}pers_f665c18d-a3fa-46dd-9a58-02a100920d60`]: { nome: 'Siegfried (qual arma)', perguntaAArma: true },
   // Siegfried: a base dividida entre os marcados, para baixo, até 3 alvos.
   'cart_366f98ce-8206-473a-8646-e34ae6907dbe': { nome: 'Balmung: Lua Incandescente (Siegfried)', divide: { teto: 3 } },
+  // Siegfried: "Melodia ligada" na opção do +20: +20 de dano em todo golpe dele contra o analisado (o selo dourado).
+  [MELODIA_DO_SIEG]: { nome: 'Melodia de todas as coisas (Siegfried)', contraOSeloDaPassiva: { dano: 20 } },
+  // Siegfried: evoluir pede a Melodia ligada na opção do +20; depois da SUPER (Overload, 1 por batalha) a CAÇA volta, sem evoluir de novo.
+  'cart_89db5c9a-728a-4150-8361-a5638b156ec4': {
+    nome: 'CAÇA AS BRUXAS! (Siegfried)',
+    evoluirPede: { cartaoId: MELODIA_DO_SIEG, motivo: 'Para evoluir, a Melodia tem de estar ligada na opção do +20 de dano' },
+    voltaDepoisDoOverload: true,
+  },
+  // Siegfried: a Orquídea não dá dano; põe a redoma (Cego + Imobilizado) até o próximo golpe no alvo. Os 30 de fogo e o golpe de
+  // oportunidade quando o preso tenta atacar ou sair: a pílula do selo lembra o mestre.
+  'cart_cbdb2bab-bf3e-488b-89ca-c71fcae3e77b': { nome: 'Apunhaladora de Sóis: Orquídea (Siegfried)', dano: '-', selo: { nome: NOME_DA_REDOMA, turnos: null, natureza: 'debuff' } },
+  // Siegfried: a Florescer sai sem a Bônus do mestre, só em quem está na redoma (e a consome: é o próximo golpe nele); sem Concentração.
+  // O 3x do furtivo já está na fórmula; com Surpresa, mais ×1,5 (302 vira 453).
+  'cart_aa5281be-6028-47f3-a877-3ef8c40b2424': {
+    nome: 'Orquídea: Florescer (Siegfried)',
+    acao: 'livre',
+    soContraOSelo: { nome: NOME_DA_REDOMA, motivo: 'A Florescer só vale em quem está na redoma da Orquídea' },
+    semConcentracao: true,
+  },
+  // Siegfried: custa 10% do HP MÁXIMO (90) e dura a luta; no fim de cada vez do alvo: alvo −15 SP, Sieg +10 SP e −3% do HP dele.
+  'cart_22d65606-022c-4e24-b0f0-d77ba59c486a': {
+    nome: 'Chamas Celestes (Siegfried)',
+    custoDoMaximo: { recurso: 'hp', porcento: 10 },
+    selo: { nome: 'Chamas Celestes', turnos: null, natureza: 'debuff' },
+    drenoNoFimDaVez: { alvoSp: 15, donoSp: 10, donoHpPorcento: 3 },
+  },
+  // Siegfried: a Doença das Trevas tira 3% do HP máximo (27) no fim da vez em que ele andou ou agiu.
+  'cart_5e20dfc2-6aad-440c-a2f7-4b5c3b82b67b': { nome: 'Doença das Trevas (Siegfried)', perdeNoFimDaVez: { hpPorcento: 3 } },
+  // Siegfried: a Ignição segue a resposta do Vagn: os "2 por batalha" são os ataques adicionais, não as vezes que liga.
+  'cart_d6374db1-54d6-4859-9938-1765e2684c38': { nome: 'Ignição (Siegfried)', usosContamOAdicional: true },
   // Aira: o app pergunta quantos turnos e qual físico; o aliado marcado ganha 20% do Espírito dela nele (e cura 10% do dano que causa, pelo selo).
   // Com um aliado abençoado, o Atacar dela vira 3 golpes de +30% do Espírito, com Queimando 10 por 1 turno (renova a cada acerto).
   'cart_369efcd2-19cf-400d-a0f0-c19ceebc0070': {
@@ -833,9 +933,14 @@ export function mantidaDe(cartaoId: string): MantidaAMao | null {
   return mecanicaDoCartao(cartaoId)?.mantida ?? null
 }
 
-/** F2 (revisão da fatia D, Campo): usar a técnica gasta a Concentração guardada? A que dá carga por vez não gasta. */
+/**
+ * F2 (revisão da fatia D, Campo): usar a técnica gasta a Concentração
+ * guardada? A que dá carga por vez não gasta; F2 (fatia F, Florescer): a que
+ * não aceita Concentração também não (nem a usa).
+ */
 export function gastaACarga(cartaoId: string | null): boolean {
-  return cartaoId === null || mantidaDe(cartaoId)?.cargaPorVez !== true
+  if (cartaoId === null) return true
+  return mantidaDe(cartaoId)?.cargaPorVez !== true && mecanicaDoCartao(cartaoId)?.semConcentracao !== true
 }
 
 /**
@@ -915,4 +1020,77 @@ export function reageContraSurpresa(cartaoId: string): boolean {
 /** F2 (revisão da fatia E, Recuperação de forças): o motivo de a reação com a técnica ser só do mestre; `null` = o jogador também usa. */
 export function soOMestreReage(cartaoId: string): string | null {
   return mecanicaDoCartao(cartaoId)?.reacao?.soOMestre ?? null
+}
+
+/** F2 (fatia F): o dono pede a arma nas técnicas com "Dano da Arma" (a linha da ficha do Siegfried). */
+export function perguntaAArma(chaves: readonly string[]): boolean {
+  return chaves.some((chave) => mecanicaDoCartao(chave)?.perguntaAArma === true)
+}
+
+/**
+ * F2 (fatia F, Medicina): quantos do item que a técnica gasta sobram (os da
+ * mochila menos os usos nesta batalha); `null` = a técnica não gasta item.
+ */
+export function itensQueSobram(cartaoId: string, mochila: readonly { nome: string }[] | undefined, usadas: number): { nome: string; sobram: number } | null {
+  const nome = mecanicaDoCartao(cartaoId)?.gastaItem
+  if (nome === undefined) return null
+  const procurado = normalizar(nome).trim()
+  const tem = (mochila ?? []).filter((item) => normalizar(item.nome).trim() === procurado).length
+  return { nome, sobram: Math.max(0, tem - usadas) }
+}
+
+/**
+ * F2 (fatia F, Florescer): por que algum alvo não tem o selo que a técnica
+ * pede (pelo nome, sem acento nem caixa), ou `null`. `selosDoAlvo` = os nomes
+ * dos selos de cada alvo marcado.
+ */
+export function motivoDoSeloPedido(cartaoId: string, selosDosAlvos: readonly (readonly string[])[]): string | null {
+  const pedido = mecanicaDoCartao(cartaoId)?.soContraOSelo
+  if (pedido === undefined) return null
+  const nome = normalizar(pedido.nome).trim()
+  const falta = selosDosAlvos.length === 0 || selosDosAlvos.some((nomes) => !nomes.some((outro) => normalizar(outro).trim() === nome))
+  return falta ? pedido.motivo : null
+}
+
+/**
+ * F2 (fatia F, Melodia): o dano a mais do dono neste alvo, pelos selos de
+ * passiva que ELE pôs ali na opção principal (`opcao` ausente) de um cartão
+ * com `contraOSeloDaPassiva`. 0 = nenhum.
+ */
+export function somaContraOSelo(selos: readonly Pick<SeloDaBatalha, 'tokenId' | 'cartaoId' | 'donoId' | 'opcao'>[] | undefined, alvoTokenId: string, donoPersonagemId: string | null): number {
+  if (donoPersonagemId === null) return 0
+  return (selos ?? []).reduce((soma, selo) => {
+    if (selo.tokenId !== alvoTokenId || selo.donoId !== donoPersonagemId || selo.cartaoId === undefined || selo.opcao !== undefined) return soma
+    return soma + (mecanicaDoCartao(selo.cartaoId)?.contraOSeloDaPassiva?.dano ?? 0)
+  }, 0)
+}
+
+/** F2 (fatia F, CAÇA): por que o Evoluir não vale sem o selo da passiva pedida (posto pelo dono, na opção principal), ou `null`. */
+export function motivoDoEvoluirPelaMecanica(cartaoId: string, selos: readonly Pick<SeloDaBatalha, 'cartaoId' | 'donoId' | 'opcao'>[] | undefined, donoPersonagemId: string): string | null {
+  const pede = mecanicaDoCartao(cartaoId)?.evoluirPede
+  if (pede === undefined) return null
+  const ligada = (selos ?? []).some((selo) => selo.cartaoId === pede.cartaoId && selo.donoId === donoPersonagemId && selo.opcao === undefined)
+  return ligada ? null : pede.motivo
+}
+
+/** F2 (fatia F, Chamas Celestes): o custo pela porcentagem do máximo (para baixo); `null` = vale o texto da ficha. */
+export function custoPeloMaximo(cartaoId: string, maximos: Readonly<Record<string, number>> | undefined): { recurso: 'sp' | 'hp'; valor: number } | null {
+  const regra = mecanicaDoCartao(cartaoId)?.custoDoMaximo
+  const maximo = regra === undefined ? undefined : maximos?.[regra.recurso]
+  if (regra === undefined || maximo === undefined) return null
+  return { recurso: regra.recurso, valor: Math.floor((maximo * regra.porcento) / 100) }
+}
+
+/** F2 (fatia F): a porcentagem de um máximo, para baixo (3% de 900 = 27). */
+export function porcentoDoMaximo(maximo: number, porcento: number): number {
+  return Math.max(0, Math.floor((maximo * porcento) / 100))
+}
+
+/** F2 (fatia F, Doença das Trevas): a porcentagem do HP máximo que o dono perde no fim da vez em que agiu; `null` = nenhuma. */
+export function perdaNoFimDaVez(chaves: readonly string[]): { cartaoId: string; hpPorcento: number } | null {
+  for (const chave of chaves) {
+    const perde = mecanicaDoCartao(chave)?.perdeNoFimDaVez
+    if (perde !== undefined) return { cartaoId: chave, hpPorcento: perde.hpPorcento }
+  }
+  return null
 }

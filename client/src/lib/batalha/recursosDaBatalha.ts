@@ -80,6 +80,26 @@ export function ganhaSpNaVez(combateAntes: CombateDoPersonagem | undefined): boo
   return combateAntes?.jaJogou === true && combateAntes.gastouSp !== true
 }
 
+/**
+ * F2 (fatia F, Doença das Trevas e Chamas Celestes): o ajuste que soma
+ * `delta` no recurso (perder para em 0; o `aplicarAjuste` limita o ganho no
+ * máximo). `null` = o sistema não tem o recurso, ou nada muda.
+ */
+export function ajusteDoRecurso(personagem: Personagem, sistema: SistemaDeRpg, qual: 'sp' | 'hp', delta: number): Ajuste | null {
+  const recurso = recursoDoCusto(sistema, qual)
+  if (recurso === null || delta === 0) return null
+  const atual = numeroDaFicha(personagem.recursos, recurso.id)
+  const valor = Math.max(0, atual + delta)
+  return valor === atual ? null : { parte: 'recurso', chave: recurso.id, valor }
+}
+
+/** F2 (fatia F): o máximo do recurso (HP 900 do Siegfried); `null` = o sistema não tem o recurso ou ele não tem máximo. */
+export function maximoDoRecurso(personagem: Personagem, sistema: SistemaDeRpg, qual: 'sp' | 'hp'): number | null {
+  const recurso = recursoDoCusto(sistema, qual)
+  if (recurso === null || !temMaximo(sistema, recurso.id)) return null
+  return maximoComposto(personagem, recurso.id).total
+}
+
 /** O ajuste dos +10 SP (o `aplicarAjuste` limita no máximo); `null` = sem SP no sistema ou já cheio. */
 export function ajusteDoSpDaVez(personagem: Personagem, sistema: SistemaDeRpg): Ajuste | null {
   const recurso = recursoDoCusto(sistema, 'sp')

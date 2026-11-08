@@ -86,10 +86,10 @@ import {
   selosDoToken,
 } from '../lib/batalha/selos'
 import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, formaDaFicha, subidaDeParte, usosDaForma } from '../lib/batalha/transformacao'
-import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, esquivaComDesvantagem, porVezDoLembrete, saidasComOsSelos, travaDoToken, vantagemDaReacao } from '../lib/batalha/condicoes'
+import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, esquivaComDesvantagem, porVezDoLembrete, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
-import { ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
+import { ajusteDoRecurso, ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, maximoDoRecurso, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
 import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
 import { aliadosDe, equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
@@ -113,7 +113,7 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte } from '../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
 import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
@@ -1173,6 +1173,79 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   }
 
   /**
+   * F2 (fatia F, Siegfried): o que o fim da vez de `saindo` tira e dá sozinho,
+   * numa linha própria com Desfazer, gravada depois da linha da vez:
+   *  - Doença das Trevas: o dono perde 3% do HP máximo (27) se andou ou agiu
+   *    nesta vez (`gasto`);
+   *  - Chamas Celestes: em quem tem o selo, −15 SP; no dono da técnica, +10 SP
+   *    e −3% do HP máximo dele.
+   * Nada a fazer: a cena fica como está.
+   */
+  const fimDaVezDasMecanicas = (sceneKey: string, saindo: CartaDaOrdem | null, gasto: GastoDaVez | undefined, autor: AutorDaAcao): void => {
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined || saindo === null || saindo.personagemId === null) return
+    const { personagens, sistema } = mesaDoRpg()
+    if (sistema === null) return
+    const quem = quemNaFicha(autor)
+    const partes: Reversao[] = []
+    const textos: string[] = []
+    const tokenIds = new Set<string>([saindo.tokenId])
+    const fichaDe = (personagemId: string): Personagem | undefined => mesa.personagens().find((candidato) => candidato.id === personagemId)
+    const nomeDe = (personagemId: string): string => fichaDe(personagemId)?.nome.trim() || 'a ficha'
+    /** Soma `delta` no recurso; devolve quanto mudou de verdade (0 = nada, ou recusado). */
+    const mexer = (personagemId: string, qual: 'sp' | 'hp', delta: number): number => {
+      const antes = fichaDe(personagemId)
+      const feito = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => {
+        const ajuste = ajusteDoRecurso(atual, sistemaDaMesa, qual, delta)
+        return ajuste === null ? [] : [ajuste]
+      }, quem)
+      if (feito === null || feito === 'recusada' || feito.length === 0 || antes === undefined) return 0
+      partes.push(...reversaoDaFicha(personagemId, feito))
+      return feito.reduce((soma, parte) => (parte.parte === 'recurso' ? soma + parte.para - parte.de : soma), 0)
+    }
+    const perdaDoMaximo = (personagemId: string, porcento: number): number => {
+      const ficha = fichaDe(personagemId)
+      const maximo = ficha === undefined ? null : maximoDoRecurso(ficha, sistema, 'hp')
+      return maximo === null ? 0 : porcentoDoMaximo(maximo, porcento)
+    }
+    // Doença das Trevas: só na vez em que andou ou agiu (Mover, Atacar, técnica, Concentrar).
+    const agiu = gasto !== undefined && (gasto.movimento > 0 || gasto.blocos > 0 || gasto.simples > 0 || gasto.bonus > 0 || gasto.atacou === true)
+    const dona = fichaDe(saindo.personagemId)
+    const doenca = dona === undefined ? null : perdaNoFimDaVez(chavesDoDono(dona))
+    if (agiu && doenca !== null) {
+      const perdeu = mexer(saindo.personagemId, 'hp', -perdaDoMaximo(saindo.personagemId, doenca.hpPorcento))
+      if (perdeu !== 0) textos.push(`${nomeDe(saindo.personagemId)} perde ${-perdeu} HP (Doença das Trevas)`)
+    }
+    // Chamas Celestes: cada selo dela em quem sai.
+    for (const selo of cena.turnos.selos ?? []) {
+      const dreno = selo.tokenId === saindo.tokenId && selo.cartaoId !== undefined ? mecanicaDoCartao(selo.cartaoId)?.drenoNoFimDaVez : undefined
+      const cartaoDoSelo = selo.cartaoId
+      if (dreno === undefined || cartaoDoSelo === undefined) continue
+      const dono = personagens.find((candidato) => chavesDoDono(candidato).includes(cartaoDoSelo))
+      const tirou = mexer(saindo.personagemId, 'sp', -dreno.alvoSp)
+      const partesDoDono: string[] = []
+      if (dono !== undefined) {
+        const ganhou = mexer(dono.id, 'sp', dreno.donoSp)
+        const perdeu = mexer(dono.id, 'hp', -perdaDoMaximo(dono.id, dreno.donoHpPorcento))
+        if (ganhou !== 0) partesDoDono.push(`+${ganhou} SP`)
+        if (perdeu !== 0) partesDoDono.push(`${perdeu} HP`)
+        const doDono = cena.turnos.cartas.find((carta) => carta.personagemId === dono.id && carta.extra === undefined)
+        if (doDono !== undefined) tokenIds.add(doDono.tokenId)
+      }
+      const noAlvo = tirou === 0 ? 'sem SP para tirar' : `${tirou} SP`
+      textos.push(`${selo.nome} em ${nomeDe(saindo.personagemId)}: ${noAlvo}${dono === undefined || partesDoDono.length === 0 ? '' : `; ${dono.nome.trim() || 'o dono'} ${partesDoDono.join(', ')}`}`)
+    }
+    if (partes.length === 0) return
+    let novos = cena.turnos
+    const lembrados = lembrarDepoisDoDano(novos)
+    partes.push(...partesDosLembretes(lembrados))
+    novos = lembrados.turnos
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'acao', texto: `Fim da vez: ${textos.join(' · ')}`, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } }))
+    avisarQuemCaiu(sceneKey, autor)
+  }
+
+  /**
    * Conserto das fichas F1 (Overload): depois dele, os atributos base do
    * personagem da ficha `tokenId` ficam pela metade até o fim da batalha. Mora
    * nos selos "Cansaço do Overload" da batalha (`comOCansaco`), NUNCA na ficha:
@@ -1712,7 +1785,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const alvoTokenId = pedido.alvoTokenId ?? carta.tokenId
       if (pedidoDoSelo === null) return false
       const onde = { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: cartao.nome }
-      const selo: SeloDaBatalha = { ...criarSelo(alvoTokenId, { ...pedidoDoSelo, natureza: 'passiva', cartaoId: cartao.id }, onde), donoId: personagemId }
+      // F2 (fatia F, Melodia): a opção que não é a principal fica no selo (o "+20 contra o analisado" só vale na principal).
+      const selo: SeloDaBatalha = { ...criarSelo(alvoTokenId, { ...pedidoDoSelo, natureza: 'passiva', cartaoId: cartao.id }, onde), donoId: personagemId, ...(variante === null || variante.principal ? {} : { opcao: variante.chave }) }
       const selos = comSeloNovo(turnos.selos, selo)
       if (selos === null) return false
       // Usos e recarga do Tempo, o lembrete fora e a chave do gatilho em `lembradas` (ativada à mão antes do gatilho não lembra depois).
@@ -2337,6 +2411,20 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const efeitos: EfeitoNovo[] = []
     let golpe = lancado.golpe
     if (golpe !== null) {
+      // F2 (fatia F, redoma da Orquídea): o selo que dura "até o próximo golpe" sai dos alvos deste golpe (antes do selo novo dele).
+      for (const saiu of selosQueSaemNoGolpe(novos.selos, golpe.alvos.map((alvo) => alvo.tokenId))) {
+        partes.push({ tipo: 'selo', seloId: saiu.id, antes: saiu })
+        novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => selo.id !== saiu.id) }
+      }
+      // F2 (fatia F, Golpe Baixo): quem usa ganha o selo da técnica ("+8 em reação" por 2 turnos dele).
+      if (golpe.seloEmQuemUsa !== undefined) {
+        const proprio = criarSelo(carta.tokenId, golpe.seloEmQuemUsa, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: golpe.nome })
+        const comOProprio = comSeloNovo(novos.selos, proprio)
+        if (comOProprio !== null) {
+          partes.push({ tipo: 'selo', seloId: proprio.id, antes: null })
+          novos = { ...novos, selos: comOProprio }
+        }
+      }
       partes.push({ tipo: 'golpe', golpeId: golpe.id })
       efeitos.push({ tipo: 'golpe', golpeId: golpe.id, atacanteTokenId: golpe.atacanteTokenId, nome: golpe.nome, alvos: golpe.alvos.map((alvo) => alvo.tokenId), surpresa: golpe.surpresa, overload: golpe.overload })
       for (const resolvido of lancado.resolvidos) {
@@ -2375,7 +2463,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const limpeza = pedido.tipo === 'habilidade' ? limpezaDe(pedido.cartaoId) : null
       if (limpeza !== null && ctx.personagem !== null && ctx.sistema !== null) {
         for (const alvo of golpe.alvos) {
-          const tirados = debuffsDoToken(novos.selos, alvo.tokenId)
+          // F2 (fatia F, Medicina): a que só cura deixa os debuffs.
+          const tirados = limpeza.soCura === true ? [] : debuffsDoToken(novos.selos, alvo.tokenId)
           for (const selo of tirados) partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })
           const fora = new Set(tirados.map((selo) => selo.id))
           novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !fora.has(selo.id)) }
@@ -2388,7 +2477,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
             return false
           }
           if (curou !== null && alvo.personagemId !== null) partes.push(...reversaoDaFicha(alvo.personagemId, curou))
-          golpe = golpeComOAlvo(golpe, { ...alvo, nota: `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}, curou ${cura}` })
+          // F2 (fatia F, Medicina): a nota diz o item gasto ("curou 100, gastou 1 Kit Médico").
+          const item = pedido.tipo === 'habilidade' ? mecanicaDoCartao(pedido.cartaoId)?.gastaItem : undefined
+          const doItem = item === undefined ? '' : `, gastou 1 ${item}`
+          const nota = limpeza.soCura === true ? `curou ${cura}${doItem}` : `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}, curou ${cura}${doItem}`
+          golpe = golpeComOAlvo(golpe, { ...alvo, nota })
         }
       }
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
@@ -2669,6 +2762,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
       const atual = cenaDe(sceneKey) ?? cena
       gravarCena(sceneKey, { ...comMudanca(atual, comLembretes, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(acabaram)) })
+      // F2 (fatia F): a Doença das Trevas e as Chamas Celestes de quem saiu, numa linha própria (com Desfazer).
+      fimDaVezDasMecanicas(sceneKey, de, de === null ? undefined : turnos.gastos[de.id], autor)
       return true
     },
 
