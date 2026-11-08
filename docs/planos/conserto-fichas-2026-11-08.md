@@ -37,7 +37,7 @@ linha), selos (Aéreo, Cego zera Percepção, Ferido por prata só lembrete, Que
 na hora (cortante ou perfurante, qual arma, vantagem da Ryoko), contas (Sai Dai Rin, Grande Chifre por
 quadrado empurrado, Polaridade x3,5 no todo, furtivo x3 com Surpresa x1,5, Bala de Prata 72).
 
-## F3. Recursos novos (cada um com plano curto antes)
+## F3. Recursos novos (decisão 08/11: feitos como PEÇAS DO CONSTRUTOR, fatias C6/C7/C1/C10 de docs/planos/construtor-de-mecanicas-2026-11-08.md)
 1. Tela do mestre ao transformar ou invocar com números livres (Sulong, super lobo).
 2. Habilidades ocultas: o jogador vê "???" até o mestre revelar.
 3. Técnicas complementares (Orquídea → Florescer, redoma até o próximo golpe).

@@ -218,3 +218,10 @@ Cuidados com a F1 (em andamento; mexe em golpe.ts, turnos.ts, selos.ts, batalhaF
 - Física de empurrão e colisão, munição contada, regra entre duas fichas: é a peça `aMao`.
 - Gatilho que age sozinho: todo gatilho é lembrete com Aplicar ou pular, como as passivas hoje.
 - IA preenchendo peças; "sugerir a partir do texto" no editor só se o mestre pedir.
+
+## Decisões do mestre (08/11/2026)
+1. Quem edita: MESTRE E O DONO DA FICHA (o jogador monta a mecânica da própria técnica; o mestre aprova ou muda).
+2. Número do dano: o APP DO MESTRE RECALCULA pelas peças; o mestre pode mudar; o jogador não.
+3. Onde mora: NA TÉCNICA, com modelos prontos e "copiar de".
+4. F3 do conserto (tela do mestre ao transformar/invocar, habilidade oculta, efeito de arma com usos, Companion): vira PEÇAS DO CONSTRUTOR (fatias C6, C7, C1, C10), não à mão.
+Ordem: F1 (bugs) → F2 à mão (11 fichas, unificando os leitores no começo) → C1-C5 → F3 como C6/C7/C10.
