@@ -6149,7 +6149,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     salvarPersonagem(base, rascunho) {
       if (state.status !== 'playing') return { ok: false, erro: 'A ficha só salva com você na mesa.' }
       if (envioDePersonagemNoAr()) return { ok: false, erro: 'Ainda esperando a mesa responder o último envio.' }
-      const pacote = mensagensDoSalvar(base, rascunho, { novoReqId: () => `p${nextReqId++}`, cabe: cabeNoTeto })
+      // Conserto das fichas F1 (bug 6): a aba inteira sai por cima da ficha que a mesa mandou por último (a base do host),
+      // com o que o mestre mudou desde que a edição abriu; sem isso, o Salvar desfazia a mudança dele na mesma aba.
+      const recebida = state.personagens?.personagens.find((personagem) => personagem.id === base.id)
+      const pacote = mensagensDoSalvar(base, rascunho, { novoReqId: () => `p${nextReqId++}`, cabe: cabeNoTeto }, recebida)
       if (!pacote.ok) return pacote
       if (pacote.mensagens.length === 0) return { ok: true, nada: true }
       // Todas ou nenhuma: o socket que cai no meio deixaria a ficha meio salva sem a tela saber qual meio.

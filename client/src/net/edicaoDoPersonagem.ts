@@ -47,12 +47,19 @@ function chavesMudadas<T>(base: Record<string, T>, rascunho: Record<string, T>):
  * edição ABRIU, e não a de agora: parte que o jogador não tocou não vai, e a
  * mudança que o mestre fez nela nesse meio-tempo continua valendo. Imagem não
  * entra (vai em `imagensMudadas`); aba só com imagem trocada também não.
+ *
+ * Conserto das fichas F1 (bug 6): a aba e a lista de etiquetas vão INTEIRAS,
+ * e o host as mescla a partir da ficha que mandou por último (`recebida`), não
+ * da de quando a edição abriu. Com `recebida`, elas saem por cima dela: o que
+ * o mestre mudou desde que a edição abriu e o jogador não tocou (o custo de
+ * outra técnica da mesma aba) vai junto, em vez de voltar atrás.
  */
-export function partesMudadas(base: Personagem, rascunho: Personagem): PartesDoPersonagem {
+export function partesMudadas(base: Personagem, rascunho: Personagem, recebida?: Personagem): PartesDoPersonagem {
   const partes: PartesDoPersonagem = {}
+  const inteiras = recebida === undefined ? rascunho : mesclarSemDesfazer(base, rascunho, recebida, rascunho)
   if (rascunho.nome !== base.nome) partes.nome = rascunho.nome
   if (rascunho.descricao !== base.descricao) partes.descricao = rascunho.descricao
-  if (!mesmoTexto(rascunho.etiquetas, base.etiquetas)) partes.etiquetas = rascunho.etiquetas
+  if (!mesmoTexto(rascunho.etiquetas, base.etiquetas)) partes.etiquetas = inteiras.etiquetas
   const escolhas = chavesMudadas(base.escolhas, rascunho.escolhas)
   if (escolhas !== undefined) partes.escolhas = escolhas
   for (const campo of NUMEROS_DA_FICHA) {
@@ -60,8 +67,8 @@ export function partesMudadas(base: Personagem, rascunho: Personagem): PartesDoP
     if (mudadas !== undefined) partes[campo] = mudadas
   }
   const abas = Object.entries(rascunho.abas).flatMap(([abaId, cartoes]): [string, CartaoSemImagem[]][] => {
-    const semImagem = cartoes.map(cartaoSemImagem)
-    return mesmoTexto((base.abas[abaId] ?? []).map(cartaoSemImagem), semImagem) ? [] : [[abaId, semImagem]]
+    if (mesmoTexto((base.abas[abaId] ?? []).map(cartaoSemImagem), cartoes.map(cartaoSemImagem))) return []
+    return [[abaId, (inteiras.abas[abaId] ?? cartoes).map(cartaoSemImagem)]]
   })
   if (abas.length > 0) partes.abas = Object.fromEntries(abas)
   // A ficha Dragon Ball vai só nos campos que mudaram; sumir do rascunho não apaga a do host (não há parte para isso).
@@ -116,9 +123,10 @@ const REQ_ID_DE_SONDA = 'x'.repeat(64)
  * — o cartão novo já existe no host quando a imagem dele chega. Recusa antes
  * de enviar, com o motivo, o que o host recusaria: aba que sozinha passa do
  * teto, texto fora do limite, imagem pesada. Nada mudou = lista vazia.
+ * `recebida` = a ficha que a mesa mandou por último (bug 6, `partesMudadas`).
  */
-export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes: OpcoesDoSalvar): ResultadoDoSalvar {
-  const { abas, dbt, ...escalares } = partesMudadas(base, rascunho)
+export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes: OpcoesDoSalvar, recebida?: Personagem): ResultadoDoSalvar {
+  const { abas, dbt, ...escalares } = partesMudadas(base, rascunho, recebida)
   const sonda = (partes: PartesDoPersonagem): PersonagemEditarMessage => ({ type: 'personagem.editar', reqId: REQ_ID_DE_SONDA, personagemId: base.id, partes })
   const pacotes: PartesDoPersonagem[] = []
   let atual: PartesDoPersonagem | null = Object.keys(escalares).length > 0 ? escalares : null
