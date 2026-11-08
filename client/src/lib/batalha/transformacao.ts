@@ -12,8 +12,9 @@ import { CAMPO_DA_ACAO, lerAcao } from './leituraDaFicha'
  * a tira Transformação do menu da vez. Ativar liga o cartão, gasta a ação do
  * campo Ação (vazio = Completa) e o ATUAL de cada recurso com atual e máximo
  * ganha a diferença do máximo (Q1: HP e SP). Desfazer a forma é ação livre.
- * Ligar pela FICHA no meio da batalha continua manual (Q2); ao encerrar, a
- * forma segue ligada e só a imagem volta (Q3).
+ * Ligar pela FICHA no meio da batalha continua manual (Q2). Conserto das
+ * fichas F1 (troca a Q3): ao encerrar, TODAS as formas ligadas desligam
+ * sozinhas (`desfazerFormasNoFim`).
  *
  * Puro: sem store, sem rede.
  */
@@ -268,8 +269,8 @@ function numerosDaForma(antes: Personagem, depois: Personagem, sistema: SistemaD
 /**
  * Ativar: liga o cartão e, para cada recurso de atual e máximo que a forma
  * AUMENTA, soma a diferença do máximo ao atual (Q1: HP e SP; o
- * `aplicarAjuste` limita no máximo novo). Máximo que cai: o corte do ligar já
- * resolve. R2: antes, desliga as formas ligadas do mesmo grupo
+ * `aplicarAjuste` limita no máximo novo). Máximo que cai (a troca para uma
+ * Parte menor): o atual perde a diferença (bug 9, `atualSeguindoOMaximo`). R2: antes, desliga as formas ligadas do mesmo grupo
  * (`formasQueTroca`): fica só com os modificadores da nova, e a diferença do
  * máximo conta desde antes da troca. Tudo pelo `aplicarAjustes`, com o
  * histórico da ficha em nome de `quem`. `null` = não ativou (não é forma da
@@ -290,19 +291,51 @@ export function ativarForma(
   const trocas: Ajuste[] = [...desligadas.map((outra): Ajuste => ({ parte: 'cartao', chave: outra.id, valor: 0 })), { parte: 'cartao', chave: cartaoId, valor: 1 }]
   const ligado = aplicarAjustes(personagem, sistema, trocas, quem, quando)
   if (!ligado.cartoesAtivos.includes(cartaoId)) return null
-  const ganhos = recursos.flatMap((recurso) => {
-    const diferenca = maximoComposto(ligado, recurso).total - (maximosAntes.get(recurso) ?? 0)
-    return diferenca > 0 ? [{ parte: 'recurso' as const, chave: recurso, valor: numeroDaFicha(ligado.recursos, recurso) + diferenca }] : []
-  })
-  const depois = ganhos.length === 0 ? ligado : aplicarAjustes(ligado, sistema, ganhos, quem, quando)
+  const depois = atualSeguindoOMaximo(personagem, ligado, sistema, maximosAntes, quem, quando)
   return { personagem: depois, numeros: numerosDaForma(personagem, depois, sistema, [cartao, ...desligadas]), desligadas }
 }
 
-/** "Desfazer a forma" (ação livre): desliga o cartão; o corte do máximo já resolve o atual. `null` = não estava ligada. */
+/**
+ * Bug 9 (P4 do grilling: "desfazer a forma tira o HP/SP que ela deu"): o
+ * atual de cada recurso de `maximosAntes` anda o que o máximo andou, a partir
+ * do atual de ANTES da troca: o máximo que subiu soma, o que desceu tira (no
+ * 0; o `aplicarAjuste` limita no máximo novo). Assim ativar e desfazer (ou
+ * trocar de Parte e voltar) não curam de graça. Nada a mudar = `depois`.
+ */
+function atualSeguindoOMaximo(antes: Personagem, depois: Personagem, sistema: SistemaDeRpg, maximosAntes: ReadonlyMap<string, number>, quem: string, quando: number): Personagem {
+  const ajustes = [...maximosAntes].flatMap(([recurso, maximoAntes]): Ajuste[] => {
+    const diferenca = maximoComposto(depois, recurso).total - maximoAntes
+    return diferenca === 0 ? [] : [{ parte: 'recurso', chave: recurso, valor: Math.max(0, numeroDaFicha(antes.recursos, recurso) + diferenca) }]
+  })
+  return ajustes.length === 0 ? depois : aplicarAjustes(depois, sistema, ajustes, quem, quando)
+}
+
+/**
+ * "Desfazer a forma" (ação livre): desliga o cartão e, bug 9, o atual perde o
+ * que a forma deu no máximo (300/700 → ativa 600/1.000 → desfaz 300/700).
+ * `null` = não estava ligada.
+ */
 export function desfazerForma(personagem: Personagem, sistema: SistemaDeRpg, cartaoId: string, quem: string, quando: number): Personagem | null {
   if (!personagem.cartoesAtivos.includes(cartaoId)) return null
-  const depois = aplicarAjustes(personagem, sistema, [{ parte: 'cartao', chave: cartaoId, valor: 0 }], quem, quando)
-  return depois.cartoesAtivos.includes(cartaoId) ? null : depois
+  const cartao = formaDaFicha(personagem, sistema, cartaoId)
+  const { recursos } = chavesDoCartao(cartao === null ? [] : [cartao], sistema)
+  const maximosAntes = new Map(recursos.map((recurso) => [recurso, maximoComposto(personagem, recurso).total]))
+  const desligado = aplicarAjustes(personagem, sistema, [{ parte: 'cartao', chave: cartaoId, valor: 0 }], quem, quando)
+  if (desligado.cartoesAtivos.includes(cartaoId)) return null
+  return atualSeguindoOMaximo(personagem, desligado, sistema, maximosAntes, quem, quando)
+}
+
+/**
+ * Conserto das fichas F1 (resposta do Vagn, "formas no fim da batalha
+ * desligam sozinhas, todas, de todo personagem"): cada forma ligada desliga
+ * como no Desfazer (o atual perde o que ela deu, bug 9). Nenhuma ligada =
+ * `null` (nada a gravar).
+ */
+export function desfazerFormasNoFim(personagem: Personagem, sistema: SistemaDeRpg, quem: string, quando: number): Personagem | null {
+  const ligadas = cartoesQueLigam(personagem, sistema).filter((cartao) => personagem.cartoesAtivos.includes(cartao.id))
+  let atual = personagem
+  for (const cartao of ligadas) atual = desfazerForma(atual, sistema, cartao.id, quem, quando) ?? atual
+  return atual === personagem ? null : atual
 }
 
 /** A imagem da forma para o token e o retrato: só enquanto o cartão segue ligado (R5: desligou pela ficha, a imagem volta sozinha). */

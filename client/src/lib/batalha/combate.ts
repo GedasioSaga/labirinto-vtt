@@ -92,6 +92,19 @@ export interface CombateDoPersonagem {
    * editar a ficha. Ausente = nenhum. Até `EVOLUIDAS_MAX`.
    */
   evoluidas?: readonly string[]
+  /**
+   * Conserto das fichas F1 (+10 SP por vez, resposta do Vincent): já começou
+   * uma vez nesta batalha. A primeira vez não ganha SP. Ausente = ainda não.
+   */
+  jaJogou?: true
+  /** Conserto das fichas F1: gastou SP desde o começo da última vez dele; a próxima vez não ganha os +10. Ausente = não gastou. */
+  gastouSp?: true
+  /**
+   * Conserto das fichas F1 (Overload, resposta do Jimboy e da Ryoko):
+   * atributoId → quanto o Overload tirou do modificador do atributo (metade
+   * da ficha sem forma). Volta no fim da batalha. Ausente = sem cansaço.
+   */
+  cansaco?: Readonly<Record<string, number>>
 }
 
 /** C2: o que o Concentrar da vez gastou (a Simples ou a Bônus) e a linha que o registrou. */
@@ -532,8 +545,14 @@ export interface SeloDaBatalha {
   /** Os turnos que faltam; `null` = até o mestre tirar. */
   turnos: number | null
   total: number | null
-  /** A rodada em que já descontou (1 vez por rodada). */
+  /** A rodada em que já descontou. Com `contadoNaCarta`, 1 vez por VEZ; sem ele (selo de antes), 1 vez por rodada. */
   contadoNaRodada?: number
+  /**
+   * Conserto das fichas F1 (P2 do grilling): a carta da vez em que já
+   * descontou (ou em que nasceu). Com carta extra o selo desce por vez: a
+   * outra carta do mesmo token desconta de novo na mesma rodada.
+   */
+  contadoNaCarta?: string
   /** O nome da técnica que o pôs. */
   origem?: string
   /** Tipos de habilidade F2: o que o selo soma enquanto existe ("FOR +20"); ausente = nada. */

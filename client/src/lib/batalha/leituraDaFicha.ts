@@ -124,6 +124,22 @@ export function lerTempo(texto: string): LeituraDoTempo {
   return { tipo: 'texto', texto }
 }
 
+/**
+ * Conserto das fichas F1 (P1 do grilling): "Tempo N" bloqueia N VEZES do dono
+ * (Tempo 3: usa na vez 1, bloqueada na 2, 3 e 4, usa na 5). A recarga desce no
+ * começo de cada vez do dono, então guarda N + 1 ao usar (`RECARGA_A_MAIS`).
+ */
+export const RECARGA_A_MAIS = 1
+
+/**
+ * As vezes de recarga que a tela mostra: as que ainda vão ficar bloqueadas
+ * (na vez do uso, o "+1" guardado ainda não desceu). Sem a leitura do Tempo,
+ * o número guardado.
+ */
+export function vezesDeRecarga(guardada: number, tempo: LeituraDoTempo | null): number {
+  return tempo !== null && tempo.tipo === 'recarga' ? Math.min(guardada, tempo.turnos) : guardada
+}
+
 /** Ação, tempo ou extra de NOME "OVERLOAD". */
 export function ehOverload(cartao: CartaoDaFicha): boolean {
   if (lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '').overload) return true

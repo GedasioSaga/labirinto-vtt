@@ -3,7 +3,7 @@ import { valorDoRank } from '../ajusteDaFicha'
 import { entraNaBatalha } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import type { CombateDoPersonagem, ContraAtaque, FormaNaBatalha, GolpeDaBatalha, InvocacaoPendente, InvocadoNaBatalha, LembreteDaMarca, SeloDaBatalha } from './combate'
+import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type InvocacaoPendente, type InvocadoNaBatalha, type LembreteDaMarca, type SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { contarSelos } from './selos'
 
@@ -427,7 +427,7 @@ export function darVez(antes: TurnosDaCena, cartaId: string): TurnosDaCena {
   return aoComecarAVez({ ...turnos, vez: cartaId, gastos: SEM_GASTOS }, turnos.vez, para, false)
 }
 
-/** F3 (Q4): a carta da vez SAI: os selos da ficha dela descontam 1 (1 vez por rodada). Sem vez ou sem selo: os MESMOS turnos. */
+/** F3 (Q4): a carta da vez SAI: os selos da ficha dela descontam 1 (P2: 1 vez por VEZ, a carta extra conta). Sem vez ou sem selo: os MESMOS turnos. */
 function descontarSelosDaVez(turnos: TurnosDaCena): { turnos: TurnosDaCena; acabaram: SeloDaBatalha[] } {
   const saindo = cartaDaVez(turnos)
   if (saindo === null || turnos.selos === undefined || turnos.selos.length === 0) return { turnos, acabaram: [] }
@@ -437,7 +437,7 @@ function descontarSelosDaVez(turnos: TurnosDaCena): { turnos: TurnosDaCena; acab
   let selos = turnos.selos
   const acabaram: SeloDaBatalha[] = []
   for (const tokenId of tokenIds) {
-    const contados = contarSelos(selos, tokenId, turnos.rodada)
+    const contados = contarSelos(selos, tokenId, turnos.rodada, saindo.id)
     selos = contados.selos
     acabaram.push(...contados.acabaram)
   }
@@ -467,19 +467,25 @@ function aoComecarAVez(turnos: TurnosDaCena, de: string | null, para: CartaDaOrd
   return novo
 }
 
-/** As recargas do personagem menos 1; no 0, a técnica sai da lista. Sem recarga = o mesmo mapa. */
+/**
+ * O começo da vez do personagem: as recargas menos 1 (no 0, a técnica sai da
+ * lista) e a reação do contador volta. Conserto das fichas F1 (+10 SP por
+ * vez): marca `jaJogou` e limpa o `gastouSp` da vez anterior (a store lê o
+ * combate de ANTES para dar os +10). Nada a mudar = o mesmo mapa.
+ */
 function recargasDescendo(
   combate: TurnosDaCena['combate'],
   personagemId: string | null,
 ): TurnosDaCena['combate'] {
-  if (combate === undefined || personagemId === null) return combate
-  const dele = combate[personagemId]
-  if (dele === undefined || (Object.keys(dele.recargas).length === 0 && dele.semReacao === undefined)) return combate
+  if (personagemId === null) return combate
+  const dele = combate?.[personagemId]
+  if (dele === undefined) return { ...(combate ?? {}), [personagemId]: { ...combateVazio(), jaJogou: true } }
+  if (Object.keys(dele.recargas).length === 0 && dele.semReacao === undefined && dele.jaJogou === true && dele.gastouSp === undefined) return combate
   const recargas: Record<string, number> = {}
   for (const [cartaoId, faltam] of Object.entries(dele.recargas)) if (faltam > 1) recargas[cartaoId] = faltam - 1
   // R5 (lote de 01/11): a reação gasta no contador volta no começo da vez dele.
-  const { semReacao: _gasta, ...comReacao } = dele
-  return { ...combate, [personagemId]: { ...comReacao, recargas } }
+  const { semReacao: _gasta, gastouSp: _gastou, ...comReacao } = dele
+  return { ...combate, [personagemId]: { ...comReacao, recargas, jaJogou: true } }
 }
 
 /** O registro sem as chaves de `fora`; nada a tirar = o mesmo objeto. */

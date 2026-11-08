@@ -58,9 +58,13 @@ export type TipoDaLinha =
   // Invocação: o mestre pôs um invocado no mapa (o pedido em si é uma linha "habilidade").
   | 'invocacao'
 
-/** Um número da ficha que a linha mudou, de quanto para quanto. Cartão: 1 = ligado, 0 = desligado. */
+/**
+ * Um número da ficha que a linha mudou, de quanto para quanto. Cartão: 1 =
+ * ligado, 0 = desligado. Conserto das fichas F1: "modAtributo" = o
+ * modificador do atributo (o cansaço do Overload).
+ */
 export interface ParteDaFicha {
-  parte: Extract<ParteDoAjuste, 'recurso' | 'maximo' | 'cartao'>
+  parte: Extract<ParteDoAjuste, 'recurso' | 'maximo' | 'cartao' | 'modAtributo'>
   chave: string
   de: number
   para: number
@@ -92,6 +96,12 @@ export type Reversao =
        * as desfaz junto (a store). Ausente = a vez não fechou golpe.
        */
       fechados?: readonly string[]
+      /**
+       * Conserto das fichas F1 (+10 SP por vez): a ficha que ganhou SP no
+       * começo da vez. O Desfazer da vez tira por diferença (a store).
+       * Ausente = ninguém ganhou.
+       */
+      ficha?: { personagemId: string; partes: readonly ParteDaFicha[] }
     }
   /** Mover, Ordenar, desempate: os ids na ordem de antes. Desfazer reaplica às cartas que ainda existem. */
   | { tipo: 'ordem'; antes: readonly string[] }
@@ -571,7 +581,11 @@ function lembretesSemALinha(
  * Lista vazia e campo ausente saem do objeto.
  */
 function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem, depois: CombateDoPersonagem, ligadas: ReadonlySet<string>, daVez = false): CombateDoPersonagem {
-  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, ...fixos } = atual
+  const { concentrouEm: _concentrou, concentrouCom: _com, semReacao: _semReacao, ataquesExtras: _extras, lembradas: _lembradas, lembretes: _lembretes, evoluidas: _evoluidas, jaJogou: _jogou, gastouSp: _gastou, cansaco: _cansaco, ...fixos } = atual
+  // Conserto das fichas F1: o "+10 SP por vez" (jaJogou, gastouSp) e o cansaço do Overload voltam campo a campo.
+  const jaJogou = campoSemALinha(atual.jaJogou, antes.jaJogou, depois.jaJogou)
+  const gastouSp = campoSemALinha(atual.gastouSp, antes.gastouSp, depois.gastouSp)
+  const cansaco = campoSemALinha(atual.cansaco, antes.cansaco, depois.cansaco)
   const semReacao = campoSemALinha(atual.semReacao, antes.semReacao, depois.semReacao)
   const ataquesExtras = campoSemALinha(atual.ataquesExtras, antes.ataquesExtras, depois.ataquesExtras, mesmosAtaquesExtras)
   const concentrouEm = campoSemALinha(atual.concentrouEm, antes.concentrouEm, depois.concentrouEm)
@@ -593,6 +607,9 @@ function combateSemALinha(atual: CombateDoPersonagem, antes: CombateDoPersonagem
     ...(lembradas.length === 0 ? {} : { lembradas }),
     ...(lembretes.length === 0 ? {} : { lembretes }),
     ...(evoluidas.length === 0 ? {} : { evoluidas }),
+    ...(jaJogou === undefined ? {} : { jaJogou }),
+    ...(gastouSp === undefined ? {} : { gastouSp }),
+    ...(cansaco === undefined ? {} : { cansaco }),
   }
 }
 
@@ -627,9 +644,10 @@ export function mudancasDaVez(antes: TurnosDaCena, depois: TurnosDaCena): Mudanc
 function seloSemAVez(atual: SeloDaBatalha, antes: SeloDaBatalha, depois: SeloDaBatalha): SeloDaBatalha {
   const turnos = campoSemALinha(atual.turnos, antes.turnos, depois.turnos)
   const contado = campoSemALinha(atual.contadoNaRodada, antes.contadoNaRodada, depois.contadoNaRodada)
-  if (turnos === atual.turnos && contado === atual.contadoNaRodada) return atual
-  const { contadoNaRodada: _contado, ...resto } = atual
-  return { ...resto, turnos, ...(contado === undefined ? {} : { contadoNaRodada: contado }) }
+  const naCarta = campoSemALinha(atual.contadoNaCarta, antes.contadoNaCarta, depois.contadoNaCarta)
+  if (turnos === atual.turnos && contado === atual.contadoNaRodada && naCarta === atual.contadoNaCarta) return atual
+  const { contadoNaRodada: _contado, contadoNaCarta: _naCarta, ...resto } = atual
+  return { ...resto, turnos, ...(contado === undefined ? {} : { contadoNaRodada: contado }), ...(naCarta === undefined ? {} : { contadoNaCarta: naCarta }) }
 }
 
 /** Os selos de agora sem o desconto da vez: o descontado volta 1 (se ainda está lá); o que acabou volta no fim (se não voltou por outro caminho). */
@@ -951,6 +969,15 @@ export function partesDoAjuste(antes: Personagem, depois: Personagem, sistema: S
     const para = depois.cartoesAtivos.includes(chave) ? 1 : 0
     if (de !== para) partes.push({ parte: 'cartao', chave, de, para })
   }
+  // Conserto das fichas F1: o modificador do atributo (o cansaço do Overload) volta no Desfazer da linha.
+  if (antes.modificadoresDosAtributos !== depois.modificadoresDosAtributos) {
+    const atributos = sistema === null ? [...new Set([...Object.keys(antes.modificadoresDosAtributos), ...Object.keys(depois.modificadoresDosAtributos)])] : sistema.atributos.map((atributo) => atributo.id)
+    for (const chave of atributos) {
+      const de = numeroDaFicha(antes.modificadoresDosAtributos, chave)
+      const para = numeroDaFicha(depois.modificadoresDosAtributos, chave)
+      if (de !== para) partes.push({ parte: 'modAtributo', chave, de, para })
+    }
+  }
   return partes
 }
 
@@ -959,7 +986,7 @@ export function textoDaFicha(personagem: Personagem, partes: readonly ParteDaFic
   const rotulo = (parte: ParteDaFicha): string => (sistema === null ? parte.chave : rotuloDaParte(sistema, personagem, parte.parte, parte.chave))
   const pedacos = partes.map((parte) => {
     if (parte.parte === 'cartao') return `${parte.para === 1 ? 'ativou' : 'desativou'} ${rotulo(parte)}`
-    const nome = parte.parte === 'maximo' ? `${rotulo(parte)} máx.` : rotulo(parte)
+    const nome = parte.parte === 'maximo' ? `${rotulo(parte)} máx.` : parte.parte === 'modAtributo' ? `${rotulo(parte)} (modificador)` : rotulo(parte)
     return `${nome} ${parte.de} → ${parte.para}`
   })
   return textoDaLinha(`${personagem.nome}: ${pedacos.join(', ')}`)

@@ -70,6 +70,7 @@ import {
   bonusDaBatalha,
   comSeloNovo,
   criarSelo,
+  ondeNaVez,
   modsIguais,
   naturezaDosMods,
   novoIdDeSelo,
@@ -80,12 +81,14 @@ import {
   textoDoSeloComMods,
   textoDosQueAcabaram,
 } from '../lib/batalha/selos'
-import { ativarForma, danoComAReducao, desfazerForma, efeitosDasFormasLigadas, formaDaFicha, formaLivre, usosDaForma } from '../lib/batalha/transformacao'
+import { ativarForma, danoComAReducao, desfazerForma, desfazerFormasNoFim, efeitosDasFormasLigadas, formaDaFicha, formaLivre, usosDaForma } from '../lib/batalha/transformacao'
+import { ajusteDoSpDaVez, ajustesDoFimDoCansaco, cansacoDoOverload, escudoNoComeco, ganhaSpNaVez } from '../lib/batalha/recursosDaBatalha'
 import { equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
   acoesDaCarta,
   ajustesDoCusto,
+  custoEmSp,
   depoisDaTecnica,
   golpePendente,
   lancarGolpe,
@@ -692,9 +695,12 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
     case 'lembreteDaMarca':
     case 'contador':
       return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
-    case 'vez':
+    case 'vez': {
       // Bug 3: o selo que acabou na vez e cuja linha foi desfeita depois não volta com ela.
-      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, vezSemOsSelosDesfeitos(cena.registro, reversao)) }, emParte: false, ok: true }
+      const volta = { ...cena, turnos: reverterTurnos(cena.turnos, vezSemOsSelosDesfeitos(cena.registro, reversao)) }
+      // Conserto das fichas F1: os +10 SP do começo da vez saem junto.
+      return reversao.ficha === undefined ? { cena: volta, emParte: false, ok: true } : desfazerReversao(mesa, sceneKey, volta, { tipo: 'ficha', ...reversao.ficha }, autor)
+    }
     case 'ordem':
     case 'cartaNova':
     case 'cartaRemovida':
@@ -979,7 +985,7 @@ function efeitosDosSelos(acabaram: readonly SeloDaBatalha[]): EfeitoNovo[] {
 /** Q6: o selo do golpe no alvo que ele ACERTOU (resolvido com saída que pega). Sem selo, sem acerto ou no teto: `null`. */
 function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
   if (golpe.selo === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida)) return null
-  const selo = criarSelo(alvo.tokenId, golpe.selo, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: golpe.nome })
+  const selo = criarSelo(alvo.tokenId, golpe.selo, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: golpe.nome })
   const selos = comSeloNovo(turnos.selos, selo)
   return selos === null ? null : { selos, parte: { tipo: 'selo', seloId: selo.id, antes: null } }
 }
@@ -1038,6 +1044,100 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   }
 
   /**
+   * Conserto das fichas F1 (resposta do Vincent, "o Escudo volta cheio a cada
+   * batalha"): no Iniciar, o Escudo de cada personagem da ordem volta ao cheio
+   * gravado em `maximos` (`escudoNoComeco`; sem cheio, o de agora vira o
+   * cheio). Gravação recusada pela pasta publicada: fica como está.
+   */
+  const encherOsEscudos = (cartas: readonly CartaDaOrdem[]): void => {
+    const sistema = mesa.sistema()
+    if (sistema === null) return
+    const ids = new Set(cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])))
+    for (const personagemId of ids) {
+      mesa.ajustarPersonagem(personagemId, (atual) => {
+        const escudo = escudoNoComeco(atual, sistema)
+        if (escudo === null) return atual
+        const gravado: Personagem = { ...atual, maximos: { ...atual.maximos, [escudo.escudoId]: escudo.cheio } }
+        return escudo.ajuste === null ? gravado : aplicarAjustes(gravado, sistema, [escudo.ajuste], NOME_DO_MESTRE, Date.now())
+      })
+    }
+  }
+
+  /**
+   * Conserto das fichas F1 (respostas do Vagn e do Jimboy): no fim da batalha,
+   * cada personagem dela (na ordem ou com combate) volta o que o Overload tirou
+   * dos atributos e desliga TODAS as formas (o atual perde o que elas deram,
+   * bug 9). Gravação recusada pela pasta publicada: fica como está.
+   */
+  const fimDaBatalhaNasFichas = (turnos: TurnosDaCena): void => {
+    const sistema = mesa.sistema()
+    if (sistema === null) return
+    const ids = new Set([...turnos.cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])), ...Object.keys(turnos.combate ?? {})])
+    for (const personagemId of ids) {
+      const cansaco = turnos.combate?.[personagemId]?.cansaco
+      mesa.ajustarPersonagem(personagemId, (atual) => {
+        const descansado = cansaco === undefined ? atual : aplicarAjustes(atual, sistema, ajustesDoFimDoCansaco(atual, cansaco), NOME_DO_MESTRE, Date.now())
+        return desfazerFormasNoFim(descansado, sistema, NOME_DO_MESTRE, Date.now()) ?? descansado
+      })
+    }
+  }
+
+  /**
+   * Conserto das fichas F1 (resposta do Vincent): +10 SP no começo da vez de
+   * quem não gastou SP desde a vez anterior (`ganhaSpNaVez` no combate de
+   * `antes`; a primeira vez da batalha não ganha). Grava pela mesa e devolve a
+   * parte para a linha da vez e o pedaço do texto (só do jogador: o SP do NPC
+   * não aparece). Nada a ganhar, SP cheio ou gravação recusada = `null`.
+   */
+  const spDoComecoDaVez = (antes: TurnosDaCena, depois: TurnosDaCena, autor: AutorDaAcao): { ficha: { personagemId: string; partes: ParteDaFicha[] }; texto: string } | null => {
+    const para = cartaDaVez(depois)
+    if (para === null || para.personagemId === null || para.id === antes.vez || !ganhaSpNaVez(antes.combate?.[para.personagemId])) return null
+    const personagemId = para.personagemId
+    const feito = mexerNaFicha(
+      mesa,
+      personagemId,
+      (atual, sistemaDaMesa) => {
+        const ajuste = ajusteDoSpDaVez(atual, sistemaDaMesa)
+        return ajuste === null ? [] : [ajuste]
+      },
+      quemNaFicha(autor),
+    )
+    if (feito === null || feito === 'recusada' || feito.length === 0) return null
+    const ganho = feito.reduce((soma, parte) => (parte.parte === 'recurso' ? soma + parte.para - parte.de : soma), 0)
+    const personagem = mesa.personagens().find((candidato) => candidato.id === personagemId)
+    const nome = personagem?.nome.trim() || 'a ficha'
+    return { ficha: { personagemId, partes: feito }, texto: personagem?.tipo === 'jogador' ? ` · ${nome} recupera ${ganho} SP` : '' }
+  }
+
+  /**
+   * Conserto das fichas F1 (Overload): depois dele, os atributos base de
+   * `personagemId` ficam pela metade até o fim da batalha (`cansacoDoOverload`;
+   * o `desligar` devolve). Já cansado = `null` (a metade não divide de novo).
+   * As partes [combate, ficha] vão na linha do Overload: o Desfazer dela tira
+   * o cansaço.
+   */
+  const cansarNoOverload = (personagemId: string, turnos: TurnosDaCena, quem: string): { turnos: TurnosDaCena; partes: Reversao[] } | null | Recusada => {
+    const combateAntes = turnos.combate?.[personagemId]
+    if (combateAntes?.cansaco !== undefined) return null
+    // Num objeto: a atribuição dentro do callback não estreita a variável de fora.
+    const guardado: { cansaco: Record<string, number> } = { cansaco: {} }
+    const feito = mexerNaFicha(
+      mesa,
+      personagemId,
+      (atual, sistemaDaMesa) => {
+        const cansado = cansacoDoOverload(atual, sistemaDaMesa)
+        guardado.cansaco = cansado.cansaco
+        return cansado.ajustes
+      },
+      quem,
+    )
+    if (feito === 'recusada') return feito
+    if (feito === null || feito.length === 0) return null
+    const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), cansaco: guardado.cansaco }
+    return { turnos: { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: depois } }, partes: [{ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois }, ...reversaoDaFicha(personagemId, feito)] }
+  }
+
+  /**
    * F3 (fatia T): Ativar a forma (gasta a ação escolhida, liga o cartão, o
    * atual ganha a diferença do máximo, Q1) ou Desfazer a forma (ação livre).
    * Só na vez da carta. A ficha muda pela aventura; a linha "transformacao"
@@ -1091,6 +1191,13 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
         novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
       }
+      // Conserto das fichas F1: a forma Overload (A Caçada Começa) gasta o Overload da batalha (1 por batalha).
+      if (cartao !== null && ehOverload(cartao)) {
+        const combateAntes = novos.combate?.[personagemId]
+        const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), overload: true }
+        partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
+        novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
+      }
       // O Desfazer volta as partes de trás para a frente: o cartão vem PRIMEIRO aqui para o ganho voltar antes de
       // desligar (1.500/1.800 → 900/1.800 → 900/1.200). Na ordem de `partesDoAjuste`, o corte do desligar viria antes
       // e o delta tiraria o ganho de novo (1.200 − 600 = 600).
@@ -1109,6 +1216,18 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
       if (fichaMudou === null || fichaMudou === 'recusada') return false
       partes.push(...reversaoDaFicha(personagemId, fichaMudou))
+      // Conserto das fichas F1 (resposta do Alexei): o fim da forma Overload deixa os atributos base pela metade.
+      if (cartao !== null && ehOverload(cartao)) {
+        const cansado = cansarNoOverload(personagemId, novos, quem)
+        if (cansado === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+          return false
+        }
+        if (cansado !== null) {
+          partes.push(...cansado.partes)
+          novos = cansado.turnos
+        }
+      }
       // A imagem e o nome na carta saem junto (só se eram desta forma).
       if (formaAntes !== null && formaAntes.cartaoId === pedido.cartaoId) {
         partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
@@ -1225,13 +1344,13 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const pedidoDoSelo = pedido.selo === undefined ? seloDaPassiva(variante === null ? cartao : cartaoDaVariante(cartao, variante), sistema) : seloPedidoValido(pedido.selo, sistema)
       const alvoTokenId = pedido.alvoTokenId ?? carta.tokenId
       if (pedidoDoSelo === null) return false
-      const onde = { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: cartao.nome }
+      const onde = { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: cartao.nome }
       const selo: SeloDaBatalha = { ...criarSelo(alvoTokenId, { ...pedidoDoSelo, natureza: 'passiva', cartaoId: cartao.id }, onde), donoId: personagemId }
       const selos = comSeloNovo(turnos.selos, selo)
       if (selos === null) return false
       // Usos e recarga do Tempo, o lembrete fora e a chave do gatilho em `lembradas` (ativada à mão antes do gatilho não lembra depois).
       const chave = chaveDoGatilho(cartao.id, gatilhoDaPassiva(cartao))
-      const usada = semLembretes(depoisDaTecnica(combateBase, { cartao, tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''), overload: ehOverload(cartao) }), cartao.id)
+      const usada = semLembretes(depoisDaTecnica(combateBase, { cartao, tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''), overload: ehOverload(cartao), custo }), cartao.id)
       const combate = chave === null ? usada : comLembrada(usada, chave)
       if (combate !== combateBase) partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate })
       const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quem)
@@ -1281,10 +1400,14 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const evolucao = achada === null ? null : evolucaoDe(achada.cartao, tecnicasDe(personagem, sistema))
     if (achada === null || evolucao === null) return false
     const { cartao } = achada
-    const combate = comEvoluida(turnos.combate?.[personagemId] ?? combateVazio(), cartao.id)
-    const novos: TurnosDaCena = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
     const custo = custoDaEvolucao(pedido.custo)
+    const combateAntes = turnos.combate?.[personagemId]
+    const evoluida = comEvoluida(combateAntes ?? combateVazio(), cartao.id)
+    // Conserto das fichas F1 (+10 SP por vez): evoluir pagando SP conta como gastar SP na vez.
+    const combate: CombateDoPersonagem = custoEmSp(custo) && evoluida.gastouSp !== true ? { ...evoluida, gastouSp: true } : evoluida
+    const novos: TurnosDaCena = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
     const partes: Reversao[] = [{ tipo: 'evolucao', personagemId, cartaoId: cartao.id }]
+    if (combate !== evoluida) partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois: combate })
     const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))
     // Bug 11: custo recusado = a técnica não evolui.
     if (doCusto === 'recusada') return false
@@ -1409,7 +1532,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         const nome = sistema.atributos.find((atributo) => atributo.id === mudanca.atributoId)?.nome ?? mudanca.atributoId
         const sinal = mudanca.delta > 0 ? `+${mudanca.delta}` : String(mudanca.delta)
         const selo: SeloDaBatalha = {
-          ...criarSelo(pedido.tokenId, { nome: `${nome} ${sinal}`.slice(0, NOME_DO_SELO_MAX), turnos: null, mods: [{ alvo: mudanca.atributoId, delta: mudanca.delta }], natureza: mudanca.delta > 0 ? 'buff' : 'debuff' }, { id: novoIdDeSelo(), rodada: novos.rodada, tokenDaVez: cartaDaVez(novos)?.tokenId ?? null, origem: 'Ajustar' }),
+          ...criarSelo(pedido.tokenId, { nome: `${nome} ${sinal}`.slice(0, NOME_DO_SELO_MAX), turnos: null, mods: [{ alvo: mudanca.atributoId, delta: mudanca.delta }], natureza: mudanca.delta > 0 ? 'buff' : 'debuff' }, { id: novoIdDeSelo(), rodada: novos.rodada, ...ondeNaVez(novos), origem: 'Ajustar' }),
           ajuste: true,
         }
         const selos = comSeloNovo(novos.selos, selo)
@@ -1446,7 +1569,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const nivel = nivelDoContador(turnos, pedido.tokenId, pedido.cartaoId)
     if (motivoDoContador(pedido.tipo, nivel, leitura.danoPorNivel.length, combateAntes?.semReacao === true) !== null) return false
     const molde = seloDoContador(turnos, pedido.tokenId, pedido.cartaoId) ?? {
-      ...criarSelo(pedido.tokenId, { nome: leitura.nome, turnos: null, natureza: 'buff', cartaoId: achado.cartao.id }, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: achado.cartao.nome }),
+      ...criarSelo(pedido.tokenId, { nome: leitura.nome, turnos: null, natureza: 'buff', cartaoId: achado.cartao.id }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: achado.cartao.nome }),
       contador: 0,
     }
     // Selo novo acima do teto da ficha ou da cena: recusa sem gastar a reação.
@@ -1554,6 +1677,18 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (doCusto === 'recusada') return false
       partes.push(...reversaoDaFicha(personagemId, doCusto))
     }
+    // Conserto das fichas F1 (Overload, resposta da May "nos 2 modos"): reagir com Overload também cansa.
+    if (feita.combate.overload && !combateBase.overload) {
+      const cansado = cansarNoOverload(personagemId, novos, quem)
+      if (cansado === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      if (cansado !== null) {
+        partes.push(...cansado.partes)
+        novos = cansado.turnos
+      }
+    }
     const { alvo: depois } = feita
     if (depois.rolagem !== undefined && depois.danoFinal === undefined) {
       efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: depois.tokenId, d20: depois.rolagem.d20, modificador: depois.rolagem.modificador, total: depois.rolagem.total })
@@ -1587,7 +1722,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const selo =
         marcaNoAtacante && depois.tecnica !== undefined
           ? criarMarca(novos, golpe.atacanteTokenId, { selo: novoIdDaMarca(), linha: linhaId }, { id: depois.tecnica.cartaoId, nome: depois.tecnica.nome })
-          : criarSelo(golpe.atacanteTokenId, feita.seloNoAtacante, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: depois.tecnica?.nome })
+          : criarSelo(golpe.atacanteTokenId, feita.seloNoAtacante, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: depois.tecnica?.nome })
       const selos = comSeloNovo(novos.selos, selo)
       if (selos !== null) {
         partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
@@ -1682,6 +1817,18 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Bug 11: custo recusado = a técnica não sai (sem recarga, sem golpe, sem linha).
       if (doCusto === 'recusada') return false
       partes.push(...reversaoDaFicha(carta.personagemId, doCusto))
+    }
+    // Conserto das fichas F1 (Overload): quem usou fica com os atributos base pela metade até o fim da batalha.
+    if (lancado.golpe?.overload === true && carta.personagemId !== null) {
+      const cansado = cansarNoOverload(carta.personagemId, novos, quem)
+      if (cansado === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      if (cansado !== null) {
+        partes.push(...cansado.partes)
+        novos = cansado.turnos
+      }
     }
     if (lancado.contraUsado !== null) {
       const usado = lancado.contraUsado
@@ -1848,6 +1995,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const sobras = new Set(mesa.personagens().filter((personagem) => personagem.combate?.invocadoNaCena === sceneKey).map((personagem) => personagem.id))
       if (sobras.size > 0) mesa.limparInvocados?.(sceneKey)
       const semSobras = inicio === undefined || sobras.size === 0 ? inicio : { ...inicio, combatentes: inicio.combatentes.filter((carta) => carta.personagemId === null || !sobras.has(carta.personagemId)) }
+      // Conserto das fichas F1 (resposta do Vincent): o Escudo de cada combatente volta cheio. Sem linha: o Iniciar não se desfaz.
+      if (semSobras !== undefined) encherOsEscudos(semSobras.combatentes)
       set({ cenas: { ...get().cenas, [sceneKey]: semSobras === undefined ? CENA_NOVA : cenaDoInicio(mesa, semSobras, deps.rolarD20) }, anuncio: novo })
     },
 
@@ -1859,6 +2008,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       for (const invocado of cena?.turnos.invocados ?? []) mesa.tirarInvocado?.(sceneKey, invocado.personagemId, invocado.tokenId)
       mesa.limparInvocados?.(sceneKey)
       if (cena === undefined) return
+      // Conserto das fichas F1: no fim da batalha as formas desligam sozinhas e o cansaço do Overload sai.
+      fimDaBatalhaNasFichas(cena.turnos)
       set({ cenas: semACena(get().cenas, sceneKey) })
     },
 
@@ -1926,15 +2077,19 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const acabaram = passada.acabaram ?? []
       // F3 (Q4): "· Atordoado acabou em Ilo" no fim da linha da vez.
       const fimDosSelos = acabaram.length === 0 ? '' : ` · ${textoDosQueAcabaram(acabaram, nomeDoTokenNa(turnos, personagens))}`
+      // Conserto das fichas F1: +10 SP para quem começa a vez sem ter gastado SP na anterior.
+      const sp = spDoComecoDaVez(turnos, comLembretes, autor)
       const linha: LinhaNova = {
         tipo: 'vez',
         autor,
-        texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${fimDosSelos}`,
+        texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${fimDosSelos}${sp?.texto ?? ''}`,
         tokenIds: [...new Set([de?.tokenId, para?.tokenId].filter((id): id is string => id !== undefined))],
         // Os "Não reagiu" vieram antes da vez (fora de `mudou`); `fechados` diz ao Desfazer da vez quais linhas voltam junto.
-        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos }, ...(mudou === undefined ? {} : { mudou }), ...(fechados.length === 0 ? {} : { fechados }) },
+        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos }, ...(mudou === undefined ? {} : { mudou }), ...(fechados.length === 0 ? {} : { fechados }), ...(sp === null ? {} : { ficha: sp.ficha }) },
       }
-      gravarCena(sceneKey, { ...comMudanca(cena, comLembretes, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
+      // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
+      const atual = cenaDe(sceneKey) ?? cena
+      gravarCena(sceneKey, { ...comMudanca(atual, comLembretes, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(acabaram)) })
       return true
     },
 
@@ -1966,13 +2121,17 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const acabaram = selosQueSairam(antes, depois)
       const fimDosSelos = acabaram.length === 0 ? '' : ` · ${textoDosQueAcabaram(acabaram, nomeDoTokenNa(antes, personagens))}`
       const mudou = mudancasDaVez(antes, depois)
+      // Conserto das fichas F1: +10 SP para quem começa a vez sem ter gastado SP na anterior.
+      const sp = spDoComecoDaVez(antes, depois, MESTRE)
       const linha: LinhaNova = {
         tipo: 'vez',
-        texto: `Vez dada a ${nomeDaCarta(para, personagens)}${fimDosSelos}`,
+        texto: `Vez dada a ${nomeDaCarta(para, personagens)}${fimDosSelos}${sp?.texto ?? ''}`,
         tokenIds: para === null ? [] : [para.tokenId],
-        reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas, gastos: antes.gastos }, ...(mudou === undefined ? {} : { mudou }) },
+        reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas, gastos: antes.gastos }, ...(mudou === undefined ? {} : { mudou }), ...(sp === null ? {} : { ficha: sp.ficha }) },
       }
-      gravarCena(sceneKey, { ...comMudanca(cena, depois, linha), efeitos: comEfeitos(cena.efeitos, efeitosDosSelos(acabaram)) })
+      // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
+      const atual = cenaDe(sceneKey) ?? cena
+      gravarCena(sceneKey, { ...comMudanca(atual, depois, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(acabaram)) })
       return true
     },
 
@@ -2536,7 +2695,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (cena === undefined || selo === null || !cena.turnos.cartas.some((carta) => carta.tokenId === tokenId)) return false
       const { turnos } = cena
       // Tipos de habilidade F2: a cor do selo à mão vem do sinal dos mods ("Reação +3" = buff).
-      const novo = criarSelo(tokenId, { ...selo, natureza: naturezaDosMods(selo.mods) }, { id: novoIdDeSelo(), rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null })
+      const novo = criarSelo(tokenId, { ...selo, natureza: naturezaDosMods(selo.mods) }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos) })
       const selos = comSeloNovo(turnos.selos, novo)
       if (selos === null) return false
       const texto = `Mestre pôs ${textoDoSeloComMods(novo, sistema)} em ${nomeDoTokenNa(turnos, personagens)(tokenId)}`

@@ -12,9 +12,9 @@ import {
 import { normalizar } from './formula'
 import { CAMPO_DO_CUSTO, tecnicasDe } from './leituraDaFicha'
 import type { Reversao } from './registro'
-import { comSeloNovo, criarSelo, pegaOSelo, totalDoBonus } from './selos'
+import { comSeloNovo, criarSelo, ondeNaVez, pegaOSelo, totalDoBonus } from './selos'
 import { lerTipo } from './tiposDaHabilidade'
-import { cartaDaVez, type TurnosDaCena } from './turnos'
+import type { TurnosDaCena } from './turnos'
 
 /**
  * R1 (lote de 01/11, item 1 do pedido): A MARCA do Vincent (Olhar Artístico e
@@ -140,7 +140,7 @@ export function modificadorDoTeste(personagem: Personagem, sistema: SistemaDeRpg
 
 /** A marca nova no alvo: "Marcado", sem turnos, debuff. `linhaId` = a linha que a pôs (o Desfazer de quem a usou só a devolve com ela de pé). */
 export function criarMarca(turnos: TurnosDaCena, alvoTokenId: string, ids: { selo: string; linha: string }, origem: Pick<CartaoDaFicha, 'id' | 'nome'>): SeloDaBatalha {
-  const selo = criarSelo(alvoTokenId, { nome: NOME_DA_MARCA, turnos: null, natureza: 'debuff', cartaoId: origem.id }, { id: ids.selo, rodada: turnos.rodada, tokenDaVez: cartaDaVez(turnos)?.tokenId ?? null, origem: origem.nome })
+  const selo = criarSelo(alvoTokenId, { nome: NOME_DA_MARCA, turnos: null, natureza: 'debuff', cartaoId: origem.id }, { id: ids.selo, rodada: turnos.rodada, ...ondeNaVez(turnos), origem: origem.nome })
   return { ...selo, marca: true, linhaDaMarca: ids.linha }
 }
 

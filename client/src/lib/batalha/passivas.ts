@@ -21,7 +21,7 @@ import {
 } from './combate'
 import { varianteDoPedido } from './escolhaEEvolucao'
 import { normalizar } from './formula'
-import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, ehOverload, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
+import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, ehOverload, lerCusto, lerTempo, recursoDoCusto, tecnicaPorId, tecnicasComForma, vezesDeRecarga, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { ehNomeDeSelo, lerDuracao, lerMods, seloPedidoValido, selosDoToken, textoDoMod } from './selos'
 import { lerTipo } from './tiposDaHabilidade'
 import { cartaDaVez, type TurnosDaCena } from './turnos'
@@ -446,7 +446,7 @@ function motivoDoUso(
 ): string | null {
   if (tecnica.overload && combate?.overload === true) return 'Overload: já usado nesta batalha'
   const recarga = combate?.recargas[tecnica.cartao.id] ?? 0
-  if (recarga > 0) return `Recarga: ${turnos(recarga)}`
+  if (recarga > 0) return `Recarga: ${turnos(vezesDeRecarga(recarga, tecnica.tempo))}`
   if (tecnica.tempo.tipo === 'usos') {
     const usadas = combate?.usos[tecnica.cartao.id] ?? 0
     if (usadas >= tecnica.tempo.vezes) return `Já usada nesta batalha (${usadas}/${tecnica.tempo.vezes})`

@@ -1,4 +1,4 @@
-import { valorDoRank } from '../ajusteDaFicha'
+import { maximoComposto, temMaximo, valorDoRank } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
 import { CARGA_MAX, type AcaoDaTecnica, type BonusDaBatalha, type CombateDoPersonagem } from './combate'
@@ -16,6 +16,7 @@ import {
   recursoDoCusto,
   tecnicasComForma,
   tecnicasDe,
+  vezesDeRecarga,
   type LeituraDoCusto,
   type LeituraDoTempo,
 } from './leituraDaFicha'
@@ -198,6 +199,14 @@ export function acaoDoGolpe(acao: AcaoDaTecnica | null, _carga?: number): AcaoDa
   return acao
 }
 
+/**
+ * Conserto das fichas F1 (resposta da May): a técnica OVERLOAD que não é
+ * transformação gasta a ação Completa, seja qual for a ação escrita na ficha.
+ */
+export function acaoComOverload(acao: AcaoDaTecnica | 'passiva' | null, overload: boolean, transformacao: boolean): AcaoDaTecnica | 'passiva' | null {
+  return overload && !transformacao && acao !== 'passiva' ? 'completa' : acao
+}
+
 /** O motivo da técnica de Tipo Reação no menu da vez: ela só se usa na caixa REAÇÃO. */
 export const MOTIVO_DA_REACAO_PURA = 'Reação: use na caixa REAÇÃO'
 
@@ -235,11 +244,14 @@ export function motivoDaTecnica(
   if (evolucao !== null) return evolucao
   if (tecnica.overload && combate?.overload === true) return 'Overload: já usado nesta batalha'
   const recarga = combate?.recargas[cartao.id] ?? 0
-  if (recarga > 0) return `Recarga: ${turnos(recarga)}`
+  if (recarga > 0) return `Recarga: ${turnos(vezesDeRecarga(recarga, tecnica.tempo))}`
   if (tecnica.tempo.tipo === 'usos') {
     const usadas = combate?.usos[cartao.id] ?? 0
     if (usadas >= tecnica.tempo.vezes) return `Já usada nesta batalha (${usadas}/${tecnica.tempo.vezes})`
   }
+  // Conserto das fichas F1 (resposta do Jimboy): custo acima do MÁXIMO do recurso = bloqueada com o motivo, antes da ação.
+  const caro = motivoDoCustoAcimaDoMaximo(tecnica.custo, personagem, sistema)
+  if (caro !== null) return caro
   if (acoes !== null) {
     const acao = acaoDoGolpe(tecnica.acao, combate?.carga ?? 0)
     const motivo = acao === null ? null : motivoDaAcao(acoes, acao)
@@ -253,6 +265,20 @@ export function motivoDaTecnica(
     }
   }
   return null
+}
+
+/**
+ * Conserto das fichas F1 (resposta do Jimboy, "certos jogadores têm técnica
+ * que custa SP que eles ainda não podem gastar"): o custo passa do MÁXIMO do
+ * recurso ("Precisa de 105 SP (o máximo é 60)"). `null` = cabe no máximo, o
+ * recurso não tem máximo ou o custo não é número.
+ */
+export function motivoDoCustoAcimaDoMaximo(custo: LeituraDoCusto, personagem: Personagem, sistema: SistemaDeRpg): string | null {
+  if (custo.tipo !== 'valor') return null
+  const recurso = recursoDoCusto(sistema, custo.recurso)
+  if (recurso === null || !temMaximo(sistema, recurso.id)) return null
+  const maximo = maximoComposto(personagem, recurso.id).total
+  return custo.valor > maximo ? `Precisa de ${custo.valor} ${recurso.nome} (o máximo é ${maximo})` : null
 }
 
 /**
@@ -273,13 +299,14 @@ export function tecnicasNoMenu(
   const todas = tecnicas.map((tecnica) => tecnica.cartao)
   return tecnicas.map(({ cartao, forma }) => {
     const leituraDaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
+    // Tipos de habilidade F4: a base evoluída sem "Evolui para" cujo texto diz OVERLOAD conta como Overload.
+    const overload = overloadNaBatalha(cartao, todas, combate?.evoluidas)
     const base = {
       cartao,
       custo: lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem),
-      acao: leituraDaAcao.acao,
+      acao: acaoComOverload(leituraDaAcao.acao, overload, leituraDaAcao.transformacao),
       tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
-      // Tipos de habilidade F4: a base evoluída sem "Evolui para" cujo texto diz OVERLOAD conta como Overload.
-      overload: overloadNaBatalha(cartao, todas, combate?.evoluidas),
+      overload,
       transformacao: leituraDaAcao.transformacao,
     }
     const tecnica: TecnicaNoMenu = {

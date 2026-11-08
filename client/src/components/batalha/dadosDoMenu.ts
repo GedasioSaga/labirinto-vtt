@@ -30,6 +30,7 @@ import {
   type BalaDaArma,
   type LeituraDoCusto,
   type LeituraDoTempo,
+  vezesDeRecarga,
 } from '../../lib/batalha/leituraDaFicha'
 import { danoFinal, danoQueChega, saidasPossiveis } from '../../lib/batalha/reacao'
 import { blocosEntreTokens, ordenarAlvosDaMira } from '../../lib/batalha/ordemDosAlvos'
@@ -303,7 +304,8 @@ export function textoDoTempo(tempo: LeituraDoTempo, combate: CombateDoPersonagem
     case 'livre':
       return null
     case 'recarga': {
-      const falta = combate?.recargas[cartaoId] ?? 0
+      // P1: a recarga guarda o "+1" da vez do uso; a tela mostra as vezes que ainda ficam bloqueadas.
+      const falta = vezesDeRecarga(combate?.recargas[cartaoId] ?? 0, tempo)
       return falta > 0 ? `Recarga ${falta}/${tempo.turnos}` : `Recarga ${tempo.turnos}`
     }
     case 'usos':

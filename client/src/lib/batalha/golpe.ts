@@ -2,7 +2,7 @@ import type { Ajuste } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
-import { acaoDoConcentrar, acaoDoGolpe, acoesDaVez, gastarAcao, motivoDaTecnica, motivoDoAtacar, motivoDoConcentrar, rankDeAgilidade, tecnicasNoMenu, usaOAtaqueExtra, type AcoesDaVez } from './acoes'
+import { acaoComOverload, acaoDoConcentrar, acaoDoGolpe, acoesDaVez, gastarAcao, motivoDaTecnica, motivoDoAtacar, motivoDoConcentrar, rankDeAgilidade, tecnicasNoMenu, usaOAtaqueExtra, type AcoesDaVez } from './acoes'
 import {
   ALVOS_MAX,
   chaveDaVez,
@@ -37,6 +37,8 @@ import {
   CAMPO_DA_ACAO,
   CAMPO_DO_CUSTO,
   CAMPO_DO_TEMPO,
+  ehOverload,
+  RECARGA_A_MAIS,
   type ArmaDaFicha,
   type BalaDaArma,
   type LeituraDoCusto,
@@ -198,12 +200,14 @@ function tecnicaPedida(personagem: Personagem, sistema: SistemaDeRpg, pedido: Ex
   // A tela confirma o custo: o número dela vale sobre o da ficha, no recurso que a ficha diz (SP por padrão).
   const recurso = lidoCusto.tipo === 'nada' ? 'sp' : lidoCusto.recurso
   const custo: LeituraDoCusto = pedido.custo === null ? lidoCusto : { tipo: 'valor', recurso, valor: pedido.custo, porTurno: false }
+  const overload = overloadNaBatalha(cartao, todas, evoluidas)
   return {
     cartao,
     custo,
-    acao: lidaAcao.acao ?? pedido.acao,
+    // Conserto das fichas F1 (resposta da May): Overload que não é transformação gasta a Completa.
+    acao: acaoComOverload(lidaAcao.acao ?? pedido.acao, overload, lidaAcao.transformacao),
     tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
-    overload: overloadNaBatalha(cartao, todas, evoluidas),
+    overload,
     transformacao: lidaAcao.transformacao,
     tipo: lerTipo(cartao).tipo,
     evoluida: usoEvoluido(cartao, todas, evoluidas),
@@ -231,6 +235,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
       if (cartao === null) return 'Forma não encontrada na ficha'
       if (personagem.cartoesAtivos.includes(pedido.cartaoId)) return 'A forma já está ativa'
+      // Conserto das fichas F1: Overload (técnica ou forma) é UMA vez por batalha.
+      if (ehOverload(cartao) && combate.overload) return MOTIVO_DO_OVERLOAD_USADO
       // R6: "Usos por batalha" (Ignição: 2) e a Ação "Livre" (liga sem gastar ação).
       const esgotada = motivoDosUsosDaForma(cartao, ctx.turnos.combate?.[personagem.id]?.usos)
       if (esgotada !== null) return esgotada
@@ -266,14 +272,28 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
   }
 }
 
-/** O combate depois de usar a técnica: recarga, usos, Overload. O mesmo no golpe e na reação com técnica. */
-export function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: Pick<TecnicaPedida, 'cartao' | 'tempo' | 'overload'>): CombateDoPersonagem {
+/**
+ * O combate depois de usar a técnica: recarga, usos, Overload. O mesmo no
+ * golpe e na reação com técnica. `custo` (o pago): SP acima de 0 marca
+ * `gastouSp` (sem o +10 SP no começo da próxima vez).
+ */
+export function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: Pick<TecnicaPedida, 'cartao' | 'tempo' | 'overload'> & { custo?: LeituraDoCusto }): CombateDoPersonagem {
   const { id } = tecnica.cartao
   let novo = combate
-  if (tecnica.tempo.tipo === 'recarga') novo = { ...novo, recargas: { ...novo.recargas, [id]: tecnica.tempo.turnos } }
+  if (tecnica.custo !== undefined && custoEmSp(tecnica.custo) && combate.gastouSp !== true) novo = { ...novo, gastouSp: true }
+  // P1: Tempo N bloqueia N vezes do dono; a recarga desce no começo da vez, então guarda N + 1.
+  if (tecnica.tempo.tipo === 'recarga') novo = { ...novo, recargas: { ...novo.recargas, [id]: tecnica.tempo.turnos + RECARGA_A_MAIS } }
   if (tecnica.tempo.tipo === 'usos') novo = { ...novo, usos: { ...novo.usos, [id]: (novo.usos[id] ?? 0) + 1 } }
   if (tecnica.overload) novo = { ...novo, overload: true }
   return novo
+}
+
+/** O motivo do Overload já usado (técnica ou forma). */
+export const MOTIVO_DO_OVERLOAD_USADO = 'Overload: já usado nesta batalha'
+
+/** Conserto das fichas F1 (+10 SP por vez): o custo pago gasta SP. */
+export function custoEmSp(custo: LeituraDoCusto): boolean {
+  return custo.tipo === 'valor' && custo.recurso === 'sp' && custo.valor > 0
 }
 
 /** Os ajustes do custo pago. O mesmo no golpe e na reação com técnica. */

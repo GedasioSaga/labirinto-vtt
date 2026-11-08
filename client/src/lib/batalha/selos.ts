@@ -22,6 +22,7 @@ import {
   type SeloPedido,
 } from './combate'
 import { normalizar } from './formula'
+import type { TurnosDaCena } from './turnos'
 
 /**
  * SELOS DE DURAÇÃO, F3 fatia T (seção 3.3 de
@@ -124,8 +125,16 @@ export interface OndeNasceOSelo {
   rodada: number
   /** O token da carta da vez agora; `null` = nenhuma. */
   tokenDaVez: string | null
+  /** P2: o id da carta da vez agora (o selo posto nela não desconta no fim DESTA vez). Ausente = 1 vez por rodada, como antes. */
+  cartaIdDaVez?: string
   /** A técnica que o pôs. */
   origem?: string
+}
+
+/** P2: o token e a carta da vez de agora, para o `OndeNasceOSelo`. */
+export function ondeNaVez(turnos: Pick<TurnosDaCena, 'cartas' | 'vez'>): Pick<OndeNasceOSelo, 'tokenDaVez' | 'cartaIdDaVez'> {
+  const carta = turnos.vez === null ? undefined : turnos.cartas.find((candidata) => candidata.id === turnos.vez)
+  return carta === undefined ? { tokenDaVez: null } : { tokenDaVez: carta.tokenId, cartaIdDaVez: carta.id }
 }
 
 /**
@@ -138,7 +147,10 @@ export function criarSelo(tokenId: string, pedido: SeloDoGolpe, onde: OndeNasceO
   if (pedido.mods !== undefined && pedido.mods.length > 0) selo.mods = pedido.mods
   if (pedido.natureza !== undefined && pedido.natureza !== 'condicao') selo.natureza = pedido.natureza
   if (pedido.cartaoId !== undefined) selo.cartaoId = pedido.cartaoId
-  if (onde.tokenDaVez === tokenId) selo.contadoNaRodada = onde.rodada
+  if (onde.tokenDaVez === tokenId) {
+    selo.contadoNaRodada = onde.rodada
+    if (onde.cartaIdDaVez !== undefined) selo.contadoNaCarta = onde.cartaIdDaVez
+  }
   if (onde.origem !== undefined && onde.origem.trim().length > 0) selo.origem = onde.origem.trim()
   return selo
 }
@@ -152,25 +164,35 @@ export function comSeloNovo(selos: readonly SeloDaBatalha[] | undefined, selo: S
 
 /**
  * A carta de `tokenIdQueSai` passou a vez na `rodada`: os selos dela
- * descontam 1 (só se `contadoNaRodada !== rodada`); os que chegam a 0 saem e
- * vêm em `acabaram`. Selo sem turnos nunca desconta. Nada mudou = a MESMA
- * lista em `selos`.
+ * descontam 1; os que chegam a 0 saem e vêm em `acabaram`. Selo sem turnos
+ * nunca desconta. P2 do grilling: com `cartaIdQueSai`, desconta uma vez por
+ * VEZ (a carta extra do mesmo token desconta de novo na rodada; a MESMA
+ * carta de novo na rodada, pelo "Dar a vez", não). Selo sem `contadoNaCarta`
+ * (o de antes) e chamada sem a carta: 1 vez por rodada, como antes. Nada
+ * mudou = a MESMA lista em `selos`.
  */
-export function contarSelos(selos: readonly SeloDaBatalha[], tokenIdQueSai: string, rodada: number): { selos: readonly SeloDaBatalha[]; acabaram: SeloDaBatalha[] } {
+export function contarSelos(selos: readonly SeloDaBatalha[], tokenIdQueSai: string, rodada: number, cartaIdQueSai?: string): { selos: readonly SeloDaBatalha[]; acabaram: SeloDaBatalha[] } {
   const acabaram: SeloDaBatalha[] = []
   let mudou = false
   const ficam: SeloDaBatalha[] = []
+  const marca = (selo: SeloDaBatalha, turnos: number): SeloDaBatalha => (cartaIdQueSai === undefined ? { ...selo, turnos, contadoNaRodada: rodada } : { ...selo, turnos, contadoNaRodada: rodada, contadoNaCarta: cartaIdQueSai })
   for (const selo of selos) {
-    if (selo.tokenId !== tokenIdQueSai || selo.turnos === null || selo.contadoNaRodada === rodada) {
+    if (selo.tokenId !== tokenIdQueSai || selo.turnos === null || jaContouNestaVez(selo, rodada, cartaIdQueSai)) {
       ficam.push(selo)
       continue
     }
     mudou = true
     const turnos = selo.turnos - 1
-    if (turnos <= 0) acabaram.push({ ...selo, turnos: 0, contadoNaRodada: rodada })
-    else ficam.push({ ...selo, turnos, contadoNaRodada: rodada })
+    if (turnos <= 0) acabaram.push(marca(selo, 0))
+    else ficam.push(marca(selo, turnos))
   }
   return { selos: mudou ? ficam : selos, acabaram }
+}
+
+/** P2: o selo já descontou (ou nasceu) nesta vez. Sem carta dos dois lados: nesta rodada. */
+function jaContouNestaVez(selo: SeloDaBatalha, rodada: number, cartaIdQueSai: string | undefined): boolean {
+  if (selo.contadoNaRodada !== rodada) return false
+  return selo.contadoNaCarta === undefined || cartaIdQueSai === undefined || selo.contadoNaCarta === cartaIdQueSai
 }
 
 /** Os selos de uma ficha, na ordem em que foram postos. */
