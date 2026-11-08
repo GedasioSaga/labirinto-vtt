@@ -2743,7 +2743,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
   /** A ficha otimista: os no ar primeiro (saíram antes), depois a fila. `falhou` ausente = o aviso fica como está. */
   function publicarAjustes(falhou?: boolean): void {
-    const ajustesPendentes = [...[...ajustesNoAr.values()].flatMap((noAr) => noAr.ajustes), ...filaDeAjustes.values()]
+    // Conserto das fichas F1 (bug 5): o que já saiu pode ter chegado à mesa (a ficha nova vem antes da resposta); por
+    // cima dela vale o valor como saiu, senão a diferença contaria duas vezes até a resposta. Só a fila, que a mesa
+    // ainda não viu, vai pela diferença (o golpe que entrou no meio aparece na hora).
+    const noAr = [...ajustesNoAr.values()].flatMap((enviado) => enviado.ajustes).map(({ de: _de, ...comoSaiu }) => comoSaiu)
+    const ajustesPendentes = [...noAr, ...filaDeAjustes.values()]
     setState(falhou === undefined ? { ajustesPendentes } : { ajustesPendentes, ajusteFalhou: falhou })
   }
 
@@ -2766,7 +2770,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           type: 'personagem.ajustar',
           reqId: `a${nextReqId++}`,
           personagemId,
-          ajustes: ajustes.map(({ parte, chave, valor }) => ({ parte, chave, valor })),
+          ajustes: ajustes.map(({ parte, chave, valor, de }) => (de === undefined ? { parte, chave, valor } : { parte, chave, valor, de })),
         }
         if (!send(mensagem)) {
           falhou = true
@@ -6161,10 +6165,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // Sem conexão agora, o clique não entra: mostrar o valor e desfazer depois seria pior que avisar já.
       if (state.status !== 'playing' || socket === null || socket.readyState !== SOCKET_OPEN) return false
       const chave = `${personagemId}|${ajuste.parte}|${ajuste.chave}`
+      // Conserto das fichas F1 (bug 5): de onde ele partiu é o do PRIMEIRO clique desta parte na fila (o que via antes
+      // de mexer); a mesa aplica a diferença se a ficha mudou no meio (um golpe), em vez de apagar o golpe.
+      const de = filaDeAjustes.get(chave)?.de ?? ajuste.de
       // Sai e entra de novo: a fila fica na ORDEM do último clique de cada parte
       // (o máximo que subiu antes da cura tem de chegar antes dela).
       filaDeAjustes.delete(chave)
-      filaDeAjustes.set(chave, { personagemId, parte: ajuste.parte, chave: ajuste.chave, valor: ajuste.valor })
+      filaDeAjustes.set(chave, { personagemId, parte: ajuste.parte, chave: ajuste.chave, valor: ajuste.valor, ...(de === undefined ? {} : { de }) })
       agendarAjustes()
       publicarAjustes(false)
       return true

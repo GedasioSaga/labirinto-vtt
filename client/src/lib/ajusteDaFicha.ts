@@ -54,6 +54,13 @@ export interface Ajuste {
   parte: ParteDoAjuste
   chave: string
   valor: number
+  /**
+   * Conserto das fichas F1 (bug 5): o número de que a pessoa partiu (o que
+   * ela via antes do primeiro clique). Se o de agora já não é ele (um golpe
+   * entrou no meio), vale a DIFERENÇA (`ajusteSobreOAtual`). Ausente = o valor
+   * como veio (o mestre, que mexe na ficha de agora). O cartão ignora.
+   */
+  de?: number
 }
 
 /** Um cartão ligado que soma num número: "+10 Forma Híbrida". */
@@ -238,10 +245,9 @@ export function aplicarAjuste(personagem: Personagem, sistema: SistemaDeRpg, aju
  * A troca CRUA de um número, para a edição (Editar/Salvar): sem as regras do
  * ajuste, porque o campo passa por valores do meio enquanto a pessoa digita
  * ("8" antes de "800" no máximo puxaria o atual para 8). Só o teto. Aqui o
- * máximo NÃO é gravado antes de o atual mudar: sem máximo gravado, a ficha é
- * de um número só, e digitar o atual é digitar os dois (600 vira 600/600) —
- * gravar o "atual de antes" a cada tecla deixaria 600/6. O máximo passa a
- * valer por si quando alguém o digita.
+ * máximo NÃO é gravado antes de o atual mudar: gravar o "atual de antes" a
+ * cada tecla deixaria 600/6. O Atual de HP/SP na edição passa por
+ * `trocarAtualNaEdicao`, que grava o máximo de quando a edição ABRIU.
  */
 export function trocarNumero(personagem: Personagem, parte: Exclude<ParteDoAjuste, 'cartao'>, chave: string, valor: number): Personagem {
   const dentro = limitar(Math.trunc(valor), -NUMERO_DA_FICHA_MAX, NUMERO_DA_FICHA_MAX)
@@ -257,6 +263,21 @@ export function trocarNumero(personagem: Personagem, parte: Exclude<ParteDoAjust
     case 'modAtributo':
       return trocar(personagem, 'modificadoresDosAtributos', chave, dentro)
   }
+}
+
+/**
+ * Conserto das fichas F1 (bug 4): o Atual de um recurso de atual e máximo
+ * digitado na edição. Digitar o atual nunca muda o máximo: a ficha de um
+ * número só (sem máximo gravado) ganha, antes de o atual mudar, o máximo que
+ * tinha quando a edição abriu (`aberta`) — e não o da tecla anterior, que
+ * deixaria 600/6. Digitado junto, o Máximo vale o que foi digitado (1300/1300).
+ * A ficha vazia (0, a nova) não tem máximo a proteger: segue de um número só
+ * (600 vira 600/600).
+ */
+export function trocarAtualNaEdicao(personagem: Personagem, aberta: Personagem, recursoId: string, valor: number): Personagem {
+  const maximoAoAbrir = maximoBase(aberta, recursoId)
+  const gravar = personagem.maximos[recursoId] === undefined && maximoAoAbrir > 0
+  return trocarNumero(gravar ? trocar(personagem, 'maximos', recursoId, maximoAoAbrir) : personagem, 'recurso', recursoId, valor)
 }
 
 /** O valor de uma parte como a ficha o mostra: o máximo da ficha de antes é o atual; o cartão é 1 (ligado) ou 0. */
@@ -331,7 +352,8 @@ export function registrar(historico: readonly RegistroDaFicha[], novo: RegistroD
 export function aplicarAjustes(personagem: Personagem, sistema: SistemaDeRpg, ajustes: readonly Ajuste[], quem: string, quando: number): Personagem {
   let atual = personagem
   let historico = personagem.historico
-  for (const ajuste of ajustes) {
+  for (const pedido of ajustes) {
+    const ajuste = ajusteSobreOAtual(atual, pedido)
     const depois = aplicarAjuste(atual, sistema, ajuste)
     if (depois === atual) continue
     for (const { parte, chave } of partesMexidas(sistema, atual, ajuste)) {
@@ -344,9 +366,27 @@ export function aplicarAjustes(personagem: Personagem, sistema: SistemaDeRpg, aj
   return atual === personagem ? personagem : { ...atual, historico }
 }
 
-/** Os ajustes por cima da ficha, sem histórico: a ficha otimista do jogador enquanto a mesa não confirma. */
+/**
+ * Os ajustes por cima da ficha, sem histórico: a ficha otimista do jogador
+ * enquanto a mesa não confirma. Com `de`, a diferença por cima da ficha que
+ * chegou (o golpe que entrou no meio aparece na hora: 265 − 10 = 255).
+ */
 export function comAjustes(personagem: Personagem, sistema: SistemaDeRpg, ajustes: readonly Ajuste[]): Personagem {
-  return ajustes.reduce((atual, ajuste) => aplicarAjuste(atual, sistema, ajuste), personagem)
+  return ajustes.reduce((atual, ajuste) => aplicarAjuste(atual, sistema, ajusteSobreOAtual(atual, ajuste)), personagem)
+}
+
+/**
+ * Conserto das fichas F1 (bug 5): o ajuste que diz de onde partiu (`de`)
+ * vira DIFERENÇA quando o número de agora já não é aquele. O jogador apertou
+ * "−" dez vezes (365 → 355) e um golpe de 100 entrou antes de o pedido chegar
+ * (HP 265): vale 265 − 10 = 255, e não 355 (que apagaria o golpe). Sem `de`,
+ * com o de agora igual a ele, ou cartão (liga e desliga): o valor como veio.
+ */
+export function ajusteSobreOAtual(personagem: Personagem, ajuste: Ajuste): Ajuste {
+  const { de } = ajuste
+  if (de === undefined || ajuste.parte === 'cartao') return ajuste
+  const agora = valorDaParte(personagem, ajuste.parte, ajuste.chave)
+  return agora === de ? ajuste : { parte: ajuste.parte, chave: ajuste.chave, valor: agora + (ajuste.valor - de) }
 }
 
 /**

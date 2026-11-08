@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { ajusteDoAtualDigitado, atributoComposto, atualSemForca, comSinal, forcaDoRecurso, maximoComposto, textoDaConta, trocarNumero, valorDoRank, type Ajuste, type ValorComposto } from '../lib/ajusteDaFicha'
+import { ajusteDoAtualDigitado, atributoComposto, atualSemForca, comSinal, forcaDoRecurso, maximoComposto, textoDaConta, trocarAtualNaEdicao, trocarNumero, valorDoRank, type Ajuste, type ValorComposto } from '../lib/ajusteDaFicha'
 import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../lib/personagem'
 import { rankDoValor, rotuloDoRank, type AtributoDoSistema, type RecursoDoSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { BotaoPasso, DicaDoAjuste, LinhaDeAjuste, PainelDeAjuste } from './AjusteRapido'
@@ -315,6 +315,10 @@ interface NumerosEditaveisProps {
 /** Os recursos na edição: o HP com atual, máximo e modificador; o Escudo, um campo. */
 export function RecursosEditaveis({ personagem, sistema, onChange }: NumerosEditaveisProps) {
   const idBase = useId()
+  // Conserto das fichas F1 (bug 4): a ficha como estava quando a edição abriu (este bloco monta ao abrir). O Atual
+  // digitado grava o máximo DE ENTÃO antes de mudar; outra ficha no mesmo lugar vale como aberta agora.
+  const [abertaNaMontagem] = useState(personagem)
+  const aberta = abertaNaMontagem.id === personagem.id ? abertaNaMontagem : personagem
   if (sistema.recursos.length === 0) return null
   const trocar = (parte: Exclude<ParteDoAjuste, 'cartao'>, chave: string) => (valor: number) => onChange(trocarNumero(personagem, parte, chave, valor))
   return (
@@ -330,7 +334,7 @@ export function RecursosEditaveis({ personagem, sistema, onChange }: NumerosEdit
             <CampoNumero
               rotulo={`${recurso.nome} atual`}
               valor={atualSemForca(personagem, recurso.id)}
-              onChange={(valor) => onChange(trocarNumero(personagem, 'recurso', recurso.id, ajusteDoAtualDigitado(personagem, recurso.id, valor).valor))}
+              onChange={(valor) => onChange(trocarAtualNaEdicao(personagem, aberta, recurso.id, ajusteDoAtualDigitado(personagem, recurso.id, valor).valor))}
             />
             <span className="lb-ficha__mini" aria-hidden="true">
               Máximo

@@ -60,14 +60,14 @@ const clicar = (rotulo: string) => act(() => porRotulo(rotulo).click())
 const quadrinhoDoHp = () => container.querySelector('.lb-ficha__recurso[data-tom="vida"]')?.textContent
 
 describe('PlayerFicha: ajuste rápido', () => {
-  it('o "−" do HP e o "+" da Força vão à conexão com o valor novo, do personagem mostrado', () => {
+  it('o "−" do HP e o "+" da Força vão à conexão com o valor novo e o de partida (bug 5 do conserto das fichas), do personagem mostrado', () => {
     const p = props()
     render(p)
     clicar('HP 600 de 600. Ajustar')
     clicar('Diminuir HP')
     clicar('Aumentar Força')
-    expect(p.onAjustar).toHaveBeenNthCalledWith(1, LUFFY.id, { parte: 'recurso', chave: 'hp', valor: 599 })
-    expect(p.onAjustar).toHaveBeenNthCalledWith(2, LUFFY.id, { parte: 'atributo', chave: 'forca', valor: 1 })
+    expect(p.onAjustar).toHaveBeenNthCalledWith(1, LUFFY.id, { parte: 'recurso', chave: 'hp', valor: 599, de: 600 })
+    expect(p.onAjustar).toHaveBeenNthCalledWith(2, LUFFY.id, { parte: 'atributo', chave: 'forca', valor: 1, de: 0 })
   })
 
   it('o ajuste que a mesa ainda não confirmou já aparece na ficha (e o rank da transformação ligada)', () => {

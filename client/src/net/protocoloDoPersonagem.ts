@@ -123,8 +123,9 @@ export interface PersonagemImagemMessage {
 
 /**
  * Ajuste rápido, sem Editar/Salvar: o valor novo de cada parte mexida, em
- * ordem. Não traz histórico: quem grava a linha é o host, com o nome do
- * jogador — o jogador não escreve o que "o mestre fez".
+ * ordem, e de qual valor o jogador partiu (`de`: o host aplica a diferença se
+ * a ficha mudou no meio). Não traz histórico: quem grava a linha é o host,
+ * com o nome do jogador — o jogador não escreve o que "o mestre fez".
  */
 export interface PersonagemAjustarMessage {
   type: 'personagem.ajustar'
@@ -362,7 +363,10 @@ function ajuste(value: unknown): Ajuste | null {
   const valor = numeroNoTeto(value.valor)
   if (parte === undefined || valor === null) return null
   if (parte === 'cartao') return textoEntre(value.chave, 1, PERSONAGEM_ID_MAX) && (valor === 0 || valor === 1) ? { parte, chave: value.chave, valor } : null
-  return idValido(value.chave) ? { parte, chave: value.chave, valor } : null
+  // Conserto das fichas F1 (bug 5): de onde o jogador partiu, no mesmo teto do valor. Ausente = o valor como veio; torto = o ajuste cai.
+  const de = value.de === undefined ? undefined : numeroNoTeto(value.de)
+  if (de === null || !idValido(value.chave)) return null
+  return de === undefined ? { parte, chave: value.chave, valor } : { parte, chave: value.chave, valor, de }
 }
 
 export function parsePersonagemAjustar(obj: Record<string, unknown>): PersonagemAjustarMessage | null {
