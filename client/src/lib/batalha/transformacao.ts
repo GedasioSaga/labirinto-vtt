@@ -5,6 +5,7 @@ import { MOTIVO_DO_OVERLOAD_USADO, motivoDaAcao, motivoDoCustoAcimaDoMaximo, typ
 import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type CombateDoPersonagem, type FormaNaBatalha, type NumeroDaForma } from './combate'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, ehOverload, lerAcao, lerCusto } from './leituraDaFicha'
+import { usosContamOAdicional } from './mecanicasAMao'
 
 /**
  * TRANSFORMAÇÃO NA BATALHA, F3 fatia T (seção 3.2 de
@@ -51,9 +52,18 @@ export function formaLivre(cartao: Pick<CartaoDaFicha, 'campos'>): boolean {
   return normalizar(cartao.campos[CAMPO_DA_ACAO] ?? '').trim().startsWith('livre')
 }
 
-/** R6: quantas vezes a forma liga numa batalha; `null` = sem limite. */
-export function usosDaForma(cartao: Pick<CartaoDaFicha, 'campos'>): number | null {
-  return inteiroDoCampo(cartao, CAMPO_DOS_USOS)
+/**
+ * R6: quantas vezes a forma liga numa batalha; `null` = sem limite. F2
+ * (fatia D, Ignição): na forma da tabela os Usos são dos ataques adicionais
+ * (`adicionaisPorBatalha`), e ela liga quantas vezes quiser.
+ */
+export function usosDaForma(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>): number | null {
+  return usosContamOAdicional(cartao.id) ? null : inteiroDoCampo(cartao, CAMPO_DOS_USOS)
+}
+
+/** F2 (fatia D, Ignição): os ataques adicionais que a forma dá na batalha INTEIRA (trocar de forma não renova); `null` = sem teto na batalha. */
+export function adicionaisPorBatalha(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>): number | null {
+  return usosContamOAdicional(cartao.id) ? inteiroDoCampo(cartao, CAMPO_DOS_USOS) : null
 }
 
 /**
@@ -77,11 +87,13 @@ export interface EfeitosDasFormas {
   deslocamentoMax: number | null
   /** Ataques a mais por rodada ao usar Atacar (o maior vale). */
   ataquesExtras: number
+  /** F2 (fatia D, Ignição): a forma ligada que conta os adicionais na batalha (os usados ficam em `combate.usos[cartaoId]`); `null` = sem teto. */
+  adicionaisNaBatalha: { cartaoId: string; teto: number } | null
 }
 
 /** R6: o que as formas ligadas do personagem fazem na batalha agora. Nenhuma: tudo zerado. */
 export function efeitosDasFormasLigadas(personagem: Personagem, sistema: SistemaDeRpg): EfeitosDasFormas {
-  const efeitos: EfeitosDasFormas = { reducaoDoDano: 0, formaDaReducao: null, deslocamentoAMais: null, deslocamentoMax: null, ataquesExtras: 0 }
+  const efeitos: EfeitosDasFormas = { reducaoDoDano: 0, formaDaReducao: null, deslocamentoAMais: null, deslocamentoMax: null, ataquesExtras: 0, adicionaisNaBatalha: null }
   for (const cartao of cartoesQueLigam(personagem, sistema)) {
     if (!personagem.cartoesAtivos.includes(cartao.id)) continue
     const porcento = reducaoDaForma(cartao) ?? 0
@@ -93,6 +105,8 @@ export function efeitosDasFormasLigadas(personagem: Personagem, sistema: Sistema
     if (aMais !== null) efeitos.deslocamentoAMais = Math.max(efeitos.deslocamentoAMais ?? 0, aMais)
     if (max !== null) efeitos.deslocamentoMax = Math.min(efeitos.deslocamentoMax ?? NUMERO_DO_CAMPO_MAX, max)
     efeitos.ataquesExtras = Math.max(efeitos.ataquesExtras, ataquesExtrasDaForma(cartao) ?? 0)
+    const teto = adicionaisPorBatalha(cartao)
+    if (teto !== null && efeitos.adicionaisNaBatalha === null) efeitos.adicionaisNaBatalha = { cartaoId: cartao.id, teto }
   }
   return efeitos
 }
@@ -129,17 +143,28 @@ export function danoComAReducao(dano: number, reducaoDoDano: number): number {
  * deslocamento e o ataque adicional, com os já feitos na `rodada`. O mesmo
  * no mestre (`acoesDaCarta`) e no recorte do jogador.
  */
-export function formaNaVez(personagem: Personagem, sistema: SistemaDeRpg, combate: Pick<CombateDoPersonagem, 'ataquesExtras'> | undefined, rodada: number): MovimentoDaForma {
+export function formaNaVez(personagem: Personagem, sistema: SistemaDeRpg, combate: (Pick<CombateDoPersonagem, 'ataquesExtras'> & Partial<Pick<CombateDoPersonagem, 'usos'>>) | undefined, rodada: number): MovimentoDaForma {
   const efeitos = efeitosDasFormasLigadas(personagem, sistema)
   const vez: MovimentoDaForma = { aMais: efeitos.deslocamentoAMais, max: efeitos.deslocamentoMax }
-  if (efeitos.ataquesExtras > 0) vez.ataquesExtras = { total: efeitos.ataquesExtras, usados: combate?.ataquesExtras?.rodada === rodada ? combate.ataquesExtras.usados : 0 }
+  if (efeitos.ataquesExtras <= 0) return vez
+  const usados = combate?.ataquesExtras?.rodada === rodada ? combate.ataquesExtras.usados : 0
+  // F2 (fatia D, Ignição): o que sobra dos adicionais da batalha limita os da rodada (os 2 acabaram = nenhum, mesmo trocando de forma).
+  const teto = efeitos.adicionaisNaBatalha
+  const restam = teto === null ? efeitos.ataquesExtras : Math.max(0, teto.teto - (combate?.usos?.[teto.cartaoId] ?? 0))
+  const total = Math.min(efeitos.ataquesExtras, usados + restam)
+  if (total > 0) vez.ataquesExtras = { total, usados }
   return vez
 }
 
-/** R6: o combate depois do ataque adicional da forma: +1 nesta `rodada` (outra rodada recomeça do 1). */
-export function comAtaqueExtra(combate: CombateDoPersonagem, rodada: number): CombateDoPersonagem {
+/**
+ * R6: o combate depois do ataque adicional da forma: +1 nesta `rodada` (outra
+ * rodada recomeça do 1). F2 (fatia D): `formaDoTeto` = a forma que conta os
+ * adicionais da batalha (Ignição): +1 nos usos dela.
+ */
+export function comAtaqueExtra(combate: CombateDoPersonagem, rodada: number, formaDoTeto?: string): CombateDoPersonagem {
   const usados = combate.ataquesExtras?.rodada === rodada ? combate.ataquesExtras.usados : 0
-  return { ...combate, ataquesExtras: { rodada, usados: usados + 1 } }
+  const depois: CombateDoPersonagem = { ...combate, ataquesExtras: { rodada, usados: usados + 1 } }
+  return formaDoTeto === undefined ? depois : { ...depois, usos: { ...depois.usos, [formaDoTeto]: (depois.usos[formaDoTeto] ?? 0) + 1 } }
 }
 /** C6 (lote de 01/11): o que é preciso para transformar ("Vida abaixo de 50%"). Só mostra: o app não confere. */
 export const CAMPO_DO_REQUISITO = 'requisito'

@@ -42,9 +42,15 @@ const ROTULO_DA_SAIDA: Record<SaidaDaTecnica, string> = {
 }
 
 /** "Esquivar · 0", "Defender · 50", "Rolar 1d20". */
-function rotuloComDano(saida: SaidaDaTecnica, dano: number | null): string {
-  if (saida === 'rolar' || dano === null) return ROTULO_DA_SAIDA[saida]
-  return `${ROTULO_DA_SAIDA[saida]} · ${formatarNumero(danoFinal(dano, saida))}`
+function rotuloComDano(tecnica: ReacaoComTecnica, saida: SaidaDaTecnica, dano: number | null): string {
+  // F2 (fatia D): a saída da tabela leva o nome e a parte do dano dela (Armadura: "Defender · 90");
+  // a rolagem da tabela, o modificador que o app soma (Giro: "Rolar 1d20 +1 (10+ anula)").
+  const daTabela = tecnica.daTabela?.[saida]
+  const rolagem = tecnica.rolagemDaTabela
+  if (saida === 'rolar' && rolagem !== undefined) return `${ROTULO_DA_SAIDA.rolar} ${rolagem.modificador >= 0 ? '+' : ''}${rolagem.modificador} (${rolagem.anulaCom}+ anula)`
+  const rotulo = daTabela?.rotulo ?? ROTULO_DA_SAIDA[saida]
+  if (saida === 'rolar' || dano === null) return rotulo
+  return `${rotulo} · ${formatarNumero(daTabela === undefined ? danoFinal(dano, saida) : Math.floor(dano * daTabela.fator))}`
 }
 
 function textoDosTurnos(turnos: number | null): string {
@@ -78,7 +84,8 @@ function UmaTecnica({ tecnica, golpeId, tokenId, por, atacante, dano, modificado
     }
     setErro(null)
     const pedido: PedidoDeTecnica = { tipo: 'tecnica', golpeId, tokenId, cartaoId: tecnica.cartao.id, saida, custo }
-    if (saida === 'rolar') pedido.modificador = lerModificadorDaReacao(modTexto)
+    // F2 (fatia D, Giro da Lança): com a rolagem da tabela o host soma o modificador da ficha; a caixa não manda o dela.
+    if (saida === 'rolar' && tecnica.rolagemDaTabela === undefined) pedido.modificador = lerModificadorDaReacao(modTexto)
     if (comSelo && tecnica.seloNoAtacante !== null) pedido.seloNoAtacante = tecnica.seloNoAtacante
     if (por !== undefined) pedido.por = por
     onPedir(pedido)
@@ -120,14 +127,14 @@ function UmaTecnica({ tecnica, golpeId, tokenId, por, atacante, dano, modificado
                     setSaida(opcao)
                   }}
                 />
-                {rotuloComDano(opcao, dano)}
+                {rotuloComDano(tecnica, opcao, dano)}
                 {opcao === tecnica.sugerida && <span className="bt-tec__lida">pelo texto</span>}
               </label>
             ))}
           </fieldset>
-          {(saida === 'rolar' || tecnica.custo.tipo === 'pergunta' || tecnica.seloNoAtacante !== null) && (
+          {((saida === 'rolar' && tecnica.rolagemDaTabela === undefined) || tecnica.custo.tipo === 'pergunta' || tecnica.seloNoAtacante !== null) && (
             <div className="bt-tec__extras">
-              {saida === 'rolar' && (
+              {saida === 'rolar' && tecnica.rolagemDaTabela === undefined && (
                 <label className="bt-mod">
                   Modificador
                   <input className="bt-num" inputMode="numeric" value={modTexto} placeholder="0" onChange={(evento) => setModTexto(evento.target.value)} />

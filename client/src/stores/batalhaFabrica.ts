@@ -40,7 +40,7 @@ import {
   MUDANCAS_DO_AJUSTE_MAX,
   NOME_DO_SELO_MAX,
 } from '../lib/batalha/combate'
-import { contadorDoPersonagem, motivoDoContador, nivelDoContador, seloDoContador, selosComONivel } from '../lib/batalha/contador'
+import { contadorDoPersonagem, motivoDoContador, nivelDoContador, seloDoContador, selosComONivel, temGolpeEsperando } from '../lib/batalha/contador'
 import { gastarAcao } from '../lib/batalha/acoes'
 import {
   chaveDoGastoDoInvocado,
@@ -113,7 +113,9 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, disputaNoAcerto, mecanicaDoCartao, rebatePertoDe, seloPegaNoAlvo } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, disputaNoAcerto, disputaNoUso, limpezaDe, mecanicaDoCartao, rebatePertoDe, seloPegaNoAlvo } from '../lib/batalha/mecanicasAMao'
+import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
+import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
   ajustesDoPorTurno,
   chaveDoGatilho,
@@ -1841,7 +1843,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const { leitura } = achado
     const combateAntes = turnos.combate?.[personagemId]
     const nivel = nivelDoContador(turnos, pedido.tokenId, pedido.cartaoId)
-    if (motivoDoContador(pedido.tipo, nivel, leitura.danoPorNivel.length, combateAntes?.semReacao === true) !== null) return false
+    if (motivoDoContador(pedido.tipo, nivel, leitura.danoPorNivel.length, combateAntes?.semReacao === true, temGolpeEsperando(turnos.golpes, pedido.tokenId)) !== null) return false
     const molde = seloDoContador(turnos, pedido.tokenId, pedido.cartaoId) ?? {
       ...criarSelo(pedido.tokenId, { nome: leitura.nome, turnos: null, natureza: 'buff', cartaoId: achado.cartao.id }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: achado.cartao.nome }),
       contador: 0,
@@ -1993,7 +1995,19 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       }
       // F2 (fatia B, Aplauso da May): a técnica que REBATE devolve o dano que chegou + a Força dela em quem atacou, na hora (no lugar do contra-ataque).
       const rebate = depois.saida === 'contra' && depois.tecnica !== undefined ? mecanicaDoCartao(depois.tecnica.cartaoId)?.rebate : undefined
-      if (rebate !== undefined) {
+      // F2 (fatia D, Armadura Humana "Atacar"): toma o golpe inteiro e devolve o que tomou ÷ 7 (para baixo) em quem atacou, sem reação.
+      const devolve = feita.devolveDividido === undefined || feita.devolveDividido <= 0 ? 0 : Math.floor((depois.danoFinal ?? 0) / feita.devolveDividido)
+      if (devolve > 0) {
+        const noAtacante: AlvoDoGolpe = { tokenId: golpe.atacanteTokenId, personagemId: golpe.atacantePersonagemId, dano: devolve, podeReagir: false, saida: 'semReacao', danoFinal: devolve }
+        const devolvido = danoNoAlvo(mesa, noAtacante, { perfurante: false }, autor)
+        if (devolvido === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+          return false
+        }
+        partes.push(...devolvido.partes)
+        if (devolvido.efeito !== null) efeitos.push(devolvido.efeito)
+        textoDoRebate = ` · devolveu ${devolve} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.danoFinal ?? 0} ÷ ${feita.devolveDividido ?? 1})`
+      } else if (rebate !== undefined) {
         // A Força de antes da reação: o cansaço do Overload dela vem DEPOIS de rebater.
         const lida = lerDano(rebate.soma, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(turnos.selos, reageTokenId) })
         const soma = lida.tipo === 'valor' ? lida.valor : 0
@@ -2140,12 +2154,31 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     if (podeAgir(ctx, pedido) !== null) return false
     const linhaId = novoIdDeLinha()
     // F2 (fatias B e C): os ids das partes seguintes vão sempre; só a técnica com `segundoGolpe` e o Atacar melhorado (Aira com a Bênção) os usam.
-    const lancado = lancarGolpe(ctx, pedido, {
+    const bruto = lancarGolpe(ctx, pedido, {
       golpe: novoIdDeGolpe(),
       linha: linhaId,
       segundo: { golpe: novoIdDeGolpe(), linha: novoIdDeLinha() },
       seguintes: Array.from({ length: PARTES_SEGUINTES_MAX }, () => ({ golpe: novoIdDeGolpe(), linha: novoIdDeLinha() })),
     })
+    // F2 (fatia D, Explosão): a disputa da mecânica à mão rolada LOGO AO USAR (o alvo testa; passou = nada; se ninguém falhou, não gasta).
+    const noUso = pedido.tipo === 'habilidade' ? disputaNoUso(pedido.cartaoId) : null
+    const fichaNaDisputa = (personagemId: string | null, tokenId: string) => {
+      const dele = personagemId === null ? undefined : personagens.find((candidato) => candidato.id === personagemId)
+      return dele === undefined ? null : { personagem: dele, bonus: bonusDaBatalha(turnos.selos, tokenId) }
+    }
+    const deQuemUsa = fichaNaDisputa(carta.personagemId, carta.tokenId)
+    const usado =
+      noUso === null || deQuemUsa === null || ctx.sistema === null
+        ? null
+        : comADisputaNoUso(bruto, noUso, {
+            usa: deQuemUsa,
+            fichaDoAlvo: (alvo) => fichaNaDisputa(alvo.personagemId, alvo.tokenId),
+            combateAntes: carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId],
+            sistema: ctx.sistema,
+            carga: bruto.cargaUsada,
+            rolarD20: deps.rolarD20,
+          })
+    const lancado = usado?.lancado ?? bruto
     const quem = quemNaFicha(autor)
     // A ordem da reversão é a da seção 3.6: gasto, combate, custo, contra-ataque, golpe, fichas dos alvos.
     const partes: Reversao[] = []
@@ -2204,6 +2237,35 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         if (selado !== null) {
           partes.push(selado.parte)
           novos = { ...novos, selos: selado.selos }
+        }
+      }
+      // F2 (fatia D, Explosão): em quem falhou, os selos negativos dobram os turnos que faltam (Atordoado 2 vira 4).
+      if (usado !== null && noUso?.seQuemUsaVence?.dobraOsDebuffs === true) {
+        for (const tokenId of usado.venceuEm) {
+          for (const { antes, depois } of debuffsDobrados(novos.selos, tokenId)) {
+            partes.push({ tipo: 'selo', seloId: antes.id, antes, editado: true })
+            novos = { ...novos, selos: (novos.selos ?? []).map((selo) => (selo.id === antes.id ? depois : selo)) }
+          }
+        }
+      }
+      // F2 (fatia D, Revigorar): tira os selos negativos (o cansaço do Overload junto) e cura, em cada alvo (ele ou um aliado).
+      const limpeza = pedido.tipo === 'habilidade' ? limpezaDe(pedido.cartaoId) : null
+      if (limpeza !== null && ctx.personagem !== null && ctx.sistema !== null) {
+        for (const alvo of golpe.alvos) {
+          const tirados = debuffsDoToken(novos.selos, alvo.tokenId)
+          for (const selo of tirados) partes.push({ tipo: 'selo', seloId: selo.id, antes: selo })
+          const fora = new Set(tirados.map((selo) => selo.id))
+          novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !fora.has(selo.id)) }
+          // A cura lê o Espírito de quem usa DEPOIS da limpeza (sem o cansaço, se ele limpou a si mesmo).
+          const lida = lerDano(limpeza.cura, { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
+          const cura = lida.tipo === 'valor' ? lida.valor : 0
+          const curou = alvo.personagemId === null || cura <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDaCura(atual, sistema, cura), quem)
+          if (curou === 'recusada') {
+            devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+            return false
+          }
+          if (curou !== null && alvo.personagemId !== null) partes.push(...reversaoDaFicha(alvo.personagemId, curou))
+          golpe = golpeComOAlvo(golpe, { ...alvo, nota: `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}, curou ${cura}` })
         }
       }
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }

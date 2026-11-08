@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { travaDoContador } from '../../lib/batalha/condicoes'
-import { contadorDoPersonagem, motivoDoContador, nivelDoContador } from '../../lib/batalha/contador'
+import { contadorDoPersonagem, motivoDoContador, nivelDoContador, temGolpeEsperando } from '../../lib/batalha/contador'
 import { equipeDe } from '../../lib/batalha/equipes'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
@@ -128,7 +128,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
       if (contador !== null && personagemId !== null && turnos !== undefined) {
         const nivel = nivelDoContador(turnos, carta.tokenId, contador.cartao.id)
         const maximo = contador.leitura.danoPorNivel.length
-        const motivo = motivoDoContador('ganhar', nivel, maximo, turnos.combate?.[personagemId]?.semReacao === true)
+        const motivo = motivoDoContador('ganhar', nivel, maximo, turnos.combate?.[personagemId]?.semReacao === true, temGolpeEsperando(turnos.golpes, carta.tokenId))
         // S4: Atordoado ou Paralisado não reage, então não carrega (a store recusa igual).
         const travado = travaDoContador((turnos.selos ?? []).filter((selo) => selo.tokenId === carta.tokenId))
         const pedido = { tokenId: carta.tokenId, cartaoId: contador.cartao.id }
@@ -137,7 +137,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
           rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
           detalhe:
             travado ??
-            (motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
+            (motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'golpeEsperando' ? 'Tem golpe esperando a reação: responda antes de carregar' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
           desabilitado: travado !== null || motivo !== null,
           onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'ganhar', ...pedido }),
         })

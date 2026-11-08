@@ -19,7 +19,8 @@ import {
 import { ajustesDoCusto, depoisDaTecnica, resolverAlvo, rolarReacao } from './golpe'
 import { tecnicaPorId, tecnicasComForma, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
 import { leituraDaTecnica } from './leituraDaTecnica'
-import { rebatePertoDe } from './mecanicasAMao'
+import { modificadorDoTeste } from './marca'
+import { reacaoAMaoDe, rebatePertoDe } from './mecanicasAMao'
 import { seloPedidoValido } from './selos'
 import { lerTipo, modoDaReacao, saidaSugerida, seloDaReacao, type LeituraDoTipo, type ModoDaReacao } from './tiposDaHabilidade'
 
@@ -58,6 +59,10 @@ export interface ReacaoComTecnica {
   /** O selo sugerido em quem atacou ("Marcado"), marcado na caixa; `null` = nenhum. */
   seloNoAtacante: SeloPedido | null
   motivo: string | null
+  /** F2 (fatia D, Armadura Humana): o nome e quanto do dano fica em cada saída da tabela ("Defender", 0,9); ausente = os de sempre. */
+  daTabela?: Partial<Record<SaidaDaTecnica, { rotulo: string; fator: number }>>
+  /** F2 (fatia D, Giro da Lança): o modificador que o app soma sozinho ao rolar e o total que anula; ausente = o da caixa. */
+  rolagemDaTabela?: { modificador: number; anulaCom: number }
 }
 
 /** O nome do botão quando o cartão não tem nome. */
@@ -99,8 +104,24 @@ function confirmar(cartao: CartaoDaFicha, forma: string | undefined, personagem:
   return tecnica
 }
 
+/** F2 (fatia D, Giro da Lança): o maior modificador entre os atributos (o do teste da marca: metade do rank, para baixo). */
+function maiorModificador(personagem: Personagem, sistema: SistemaDeRpg, atributos: readonly string[]): number {
+  return atributos.reduce((maior, atributoId) => Math.max(maior, modificadorDoTeste(personagem, sistema, atributoId)), Number.NEGATIVE_INFINITY)
+}
+
+/** F2 (fatia D): as saídas que a técnica dá e a marcada: as da tabela (Armadura: Defender ou Atacar; Giro: só rolar) ou as de sempre. */
+export function saidasDaTecnica(cartaoId: string, modo: ModoDaReacao): { saidas: readonly SaidaDaTecnica[]; sugerida: SaidaDaTecnica | null } {
+  const daTabela = reacaoAMaoDe(cartaoId)
+  if (daTabela?.rolagem !== undefined) return { saidas: SAIDAS_DA_ROLAGEM, sugerida: 'rolar' }
+  if (daTabela?.saidas !== undefined && daTabela.saidas.length > 0) return { saidas: daTabela.saidas.map((saida) => saida.saida), sugerida: daTabela.saidas[0]?.saida ?? null }
+  return { saidas: SAIDAS_DA_TECNICA, sugerida: saidaSugerida(modo) }
+}
+
+const SAIDAS_DA_ROLAGEM: readonly SaidaDaTecnica[] = ['rolar']
+
 function comoBotao(tecnica: TecnicaConfirmada, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined): ReacaoComTecnica {
   const modo = modoDaReacao(tecnica.cartao)
+  const { saidas, sugerida } = saidasDaTecnica(tecnica.cartao.id, modo)
   const reacao: ReacaoComTecnica = {
     cartao: tecnica.cartao,
     nome: tecnica.cartao.nome.trim() || TECNICA_SEM_NOME,
@@ -109,13 +130,16 @@ function comoBotao(tecnica: TecnicaConfirmada, personagem: Personagem, sistema: 
     tempo: tecnica.tempo,
     overload: tecnica.overload,
     modo,
-    sugerida: saidaSugerida(modo),
-    saidas: SAIDAS_DA_TECNICA,
+    sugerida,
+    saidas,
     seloNoAtacante: seloDaReacao(tecnica.cartao),
     // Na caixa REAÇÃO a ação da vez não conta (`acoes` null) e o tipo Reação vale (`comoReacao`).
     motivo: motivoDaTecnica(tecnica, personagem, sistema, combate, null, true),
   }
   if (tecnica.forma !== undefined) reacao.forma = tecnica.forma
+  const daTabela = reacaoAMaoDe(tecnica.cartao.id)
+  if (daTabela?.saidas !== undefined) reacao.daTabela = Object.fromEntries(daTabela.saidas.map((saida) => [saida.saida, { rotulo: saida.rotulo, fator: saida.fator }]))
+  if (daTabela?.rolagem !== undefined) reacao.rolagemDaTabela = { modificador: maiorModificador(personagem, sistema, daTabela.rolagem.atributos), anulaCom: daTabela.rolagem.anulaCom }
   return reacao
 }
 
@@ -206,6 +230,8 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   if (achada === null) return 'Técnica não encontrada na ficha'
   const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, ctx.combate?.evoluidas)
   if (!tecnica.tipo.tambemReacao) return 'Esta técnica não é de reação'
+  // F2 (fatia D): a técnica da tabela só dá as saídas dela (Armadura: Defender ou Atacar; Giro: rolar).
+  if (!saidasDaTecnica(tecnica.cartao.id, modoDaReacao(tecnica.cartao)).saidas.includes(pedido.saida)) return 'Saída que a técnica não dá'
   if (contraOverload && !tecnica.overload) return MOTIVO_SO_OVERLOAD
   if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
   return motivoDaTecnica(tecnica, personagem, sistema, ctx.combate, null, true)
@@ -223,6 +249,8 @@ export interface ReacaoFeita {
   custo: readonly Ajuste[]
   /** O selo em quem atacou, já dentro das regras; `null` = nenhum. */
   seloNoAtacante: SeloPedido | null
+  /** F2 (fatia D, Armadura Humana "Atacar"): o dano que ficou no alvo (depois das reduções dele), dividido por este número, volta em quem atacou. */
+  devolveDividido?: number
 }
 
 function comTecnicaNoAlvo(golpe: GolpeDaBatalha, tokenId: string, tecnica: TecnicaDaReacao): GolpeDaBatalha {
@@ -249,21 +277,39 @@ export function reagirComTecnica(
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return null
   const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, combate.evoluidas)
-  const sugerida = saidaSugerida(modoDaReacao(tecnica.cartao))
-  const marca: TecnicaDaReacao = { cartaoId: tecnica.cartao.id, nome: tecnica.cartao.nome.trim() || TECNICA_SEM_NOME }
-  if (sugerida !== null && pedido.saida !== sugerida) marca.aMao = true
+  const { sugerida } = saidasDaTecnica(tecnica.cartao.id, modoDaReacao(tecnica.cartao))
+  const daTabela = reacaoAMaoDe(tecnica.cartao.id)
+  const saidaDaTabela = daTabela?.saidas?.find((candidata) => candidata.saida === pedido.saida)
+  const nome = tecnica.cartao.nome.trim() || TECNICA_SEM_NOME
+  const marca: TecnicaDaReacao = { cartaoId: tecnica.cartao.id, nome: saidaDaTabela === undefined ? nome : `${nome} (${saidaDaTabela.rotulo})` }
+  if (sugerida !== null && pedido.saida !== sugerida && saidaDaTabela === undefined) marca.aMao = true
   const { saida } = pedido
   let novo: GolpeDaBatalha
   if (saida === 'rolar') {
     if (d20 === null) return null
-    novo = rolarReacao(golpe, tokenId, pedido.modificador ?? 0, d20, vantagem)
+    const rolagem = daTabela?.rolagem
+    // F2 (fatia D, Giro da Lança): o modificador sai da ficha e o total resolve na hora (anulaCom ou mais anula; o 1 natural é crítico).
+    novo = rolarReacao(golpe, tokenId, rolagem === undefined ? (pedido.modificador ?? 0) : maiorModificador(personagem, sistema, rolagem.atributos), d20, vantagem)
+    const total = novo.alvos.find((candidato) => candidato.tokenId === tokenId)?.rolagem?.total
+    if (rolagem !== undefined && total !== undefined) novo = resolverAlvo(novo, tokenId, total >= rolagem.anulaCom ? 'esquiva' : d20 === DADO_DO_CRITICO ? 'critico' : 'cheio')
   } else {
-    novo = resolverAlvo(golpe, tokenId, saida)
+    // F2 (fatia D, Armadura Humana): a saída da tabela resolve como `noAlvo` e fica com a parte `fator` do dano.
+    novo = saidaDaTabela === undefined ? resolverAlvo(golpe, tokenId, saida) : comFatorNoAlvo(resolverAlvo(golpe, tokenId, saidaDaTabela.noAlvo), tokenId, saidaDaTabela.fator)
   }
   if (novo === golpe) return null
   novo = comTecnicaNoAlvo(novo, tokenId, marca)
   const alvo = novo.alvos.find((candidato) => candidato.tokenId === tokenId)
   if (alvo === undefined) return null
   const selo = pedido.seloNoAtacante === undefined ? null : seloPedidoValido(pedido.seloNoAtacante, sistema)
-  return { golpe: novo, alvo, combate: depoisDaTecnica(combate, tecnica), custo: ajustesDoCusto(personagem, sistema, tecnica.custo), seloNoAtacante: selo }
+  const feita: ReacaoFeita = { golpe: novo, alvo, combate: depoisDaTecnica(combate, tecnica), custo: ajustesDoCusto(personagem, sistema, tecnica.custo), seloNoAtacante: selo }
+  if (saidaDaTabela?.devolveDividido !== undefined) feita.devolveDividido = saidaDaTabela.devolveDividido
+  return feita
+}
+
+/** O 1 natural do d20 (crítico, como em `reacao.ts`). */
+const DADO_DO_CRITICO = 1
+
+/** F2 (fatia D): o alvo já resolvido fica com a parte `fator` do dano que chegou, para baixo (Defender: 90%). */
+function comFatorNoAlvo(golpe: GolpeDaBatalha, tokenId: string, fator: number): GolpeDaBatalha {
+  return { ...golpe, alvos: golpe.alvos.map((alvo) => (alvo.tokenId === tokenId && alvo.dano !== null && alvo.danoFinal !== undefined ? { ...alvo, danoFinal: Math.max(0, Math.floor(alvo.dano * fator)) } : alvo)) }
 }

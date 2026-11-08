@@ -40,7 +40,7 @@ import {
 } from './combate'
 import { equipeDe, type Equipe } from './equipes'
 import { usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
-import { danoDoAtaque, lerDano } from './formula'
+import { danoDoAtaque, lerDano, type ContextoDaFormula } from './formula'
 import {
   armasDe,
   balaDaArma,
@@ -55,8 +55,21 @@ import {
   type BalaDaArma,
   type LeituraDoCusto,
 } from './leituraDaFicha'
-import { leituraDaTecnica } from './leituraDaTecnica'
-import { ataqueComOSelo, extraDeTodoGolpe, mecanicaDoCartao, motivoDasRespostasDoGolpe, motivoDoTetoDeDano, rotulosDasRespostas, seloDaMecanica, semSeloPelaResposta, type MecanicaAMao } from './mecanicasAMao'
+import { danoDaTecnica, danoDaTecnicaComAVida, leituraDaTecnica } from './leituraDaTecnica'
+import {
+  ataqueComOSelo,
+  extraDeTodoGolpe,
+  limpezaDe,
+  mecanicaDoCartao,
+  motivoDaRespostaVetada,
+  motivoDasRespostasDoGolpe,
+  motivoDoTetoDeDano,
+  perfuranteDaMecanica,
+  rotulosDasRespostas,
+  seloDaMecanica,
+  semSeloPelaResposta,
+  type MecanicaAMao,
+} from './mecanicasAMao'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
@@ -65,7 +78,7 @@ import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
 import { curaDoDanoDosSelos, travaDoToken } from './condicoes'
-import { comAtaqueExtra, formaDaFicha, formaNaVez, motivoDaForma, motivoDoCustoDaForma, motivoDosUsosDaForma } from './transformacao'
+import { comAtaqueExtra, efeitosDasFormasLigadas, formaDaFicha, formaNaVez, motivoDaForma, motivoDoCustoDaForma, motivoDosUsosDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -328,9 +341,17 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
       if (armaDoPedido(ctx, pedido.armaId) === undefined) return 'Arma fora das levadas para a batalha'
       const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes)
+      // F2 (fatia D, Imbuir Fogo): a resposta que a forma ligada não deixa (fogo com a Ignição).
+      const vetada = motivoDaRespostaVetada(tecnica.cartao.id, pedido.respostas, personagem.cartoesAtivos)
       // F2 (fatia C, A Luz do Sol): o teto de alvos que tomam dano ("em um inimigo"); os aliados marcados só levam o selo.
       const alvosPersonagemIds = pedido.alvos.map((alvo) => ctx.personagemDoToken(alvo.tokenId))
-      return motivo ?? motivoDosAlvos(ctx, pedido.alvos, 0) ?? motivoDoTetoDeDano(tecnica.cartao.id, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>())
+      return (
+        motivo ??
+        vetada ??
+        motivoDosAlvos(ctx, pedido.alvos, 0) ??
+        motivoDaLimpeza(ctx, tecnica.cartao, alvosPersonagemIds) ??
+        motivoDoTetoDeDano(tecnica.cartao.id, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>())
+      )
     }
   }
 }
@@ -435,10 +456,12 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const deTodoGolpe = extraDeTodoGolpe(cartoes, pedido.respostas)
   const somaDoAtaque = melhorado === null || personagem === null || sistema === null ? 0 : Math.max(0, Math.floor(valorNaFichaDe(personagem, sistema)(melhorado.soma) ?? 0))
   const soma = somaDoAtaque + deTodoGolpe.dano
-  const pedidos = mecanica?.seloSoNosAliados === true ? comSomaNoDano(semDanoNosAliados(ctx, pedido.alvos), soma) : comSomaNoDano(pedido.alvos, soma)
-  const alvos = alvosDoGolpe(ctx, pedidos, combate.carga, pedido.surpresa, overload, reacao)
   const arma = armaDoPedido(ctx, pedido.armaId) ?? null
   const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
+  // F2 (fatia D, Explosão): o dano "% da vida do alvo" sai da vida de cada alvo.
+  const pedidosDoDano = tecnica === null || personagem === null || sistema === null ? pedido.alvos : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, pedido.alvos)
+  const pedidos = mecanica?.seloSoNosAliados === true ? comSomaNoDano(semDanoNosAliados(ctx, pedidosDoDano), soma) : comSomaNoDano(pedidosDoDano, soma)
+  const alvos = alvosDoGolpe(ctx, pedidos, combate.carga, pedido.surpresa, overload, reacao)
   const golpe: GolpeDaBatalha = {
     id: ids.golpe,
     linhaId: ids.linha,
@@ -450,7 +473,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     nome: tecnica?.cartao.nome.trim() || arma?.nome.trim() || NOME_DO_ATAQUE,
     surpresa: pedido.surpresa,
     overload,
-    perfurante: mecanica?.perfurante ?? pedido.perfurante,
+    // F2 (fatia D, Projeção Letal): o perfurante pela resposta ("cortante ou perfurante?") vence o fixo da tabela e o da mira.
+    perfurante: (tecnica === null ? null : perfuranteDaMecanica(tecnica.cartao.id, respostas)) ?? pedido.perfurante,
     alvos,
   }
   // A porcentagem só vai quando é parcial: 100 é o Perfurante de sempre (golpe sem o campo).
@@ -497,7 +521,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // R6: o Atacar da vez marca o gasto (libera o ataque adicional da forma); o adicional não gasta a Simples e conta na rodada.
   const naVez = contra === null && pedido.tipo === 'atacar' ? acoesDaCarta(ctx) : null
   const extra = naVez !== null && usaOAtaqueExtra(naVez)
-  if (extra) combateNovo = comAtaqueExtra(combateNovo, ctx.turnos.rodada)
+  // F2 (fatia D, Ignição): o adicional também conta nos da batalha (2 no total).
+  if (extra) combateNovo = comAtaqueExtra(combateNovo, ctx.turnos.rodada, personagem === null || sistema === null ? undefined : efeitosDasFormasLigadas(personagem, sistema).adicionaisNaBatalha?.cartaoId)
   const gasto = contra !== null || acao === null || extra ? null : gastarAcao(gastoAtual, acao)
   const custo = personagem === null || sistema === null ? [] : [...custosDoGolpe(tecnica?.custo ?? null, deTodoGolpe.custoEmSp).flatMap((parte) => ajustesDoCusto(personagem, sistema, parte)), ...ajustesDoHpQueCusta(personagem, sistema, mecanica)]
   const lancado: GolpeLancado = {
@@ -547,6 +572,36 @@ function custosDoGolpe(daTecnica: LeituraDoCusto | null, extraEmSp: number): Lei
   if (extraEmSp <= 0) return [daTecnica]
   if (daTecnica.tipo === 'valor' && daTecnica.recurso === 'sp') return [{ ...daTecnica, valor: daTecnica.valor + extraEmSp }]
   return [daTecnica, extra]
+}
+
+/**
+ * F2 (fatia D, Revigorar: "nele ou num aliado"): a técnica que limpa só vale
+ * em quem usa ou nos aliados dele (`ctx.aliados`, ids de personagem). Ficha
+ * sem personagem ou de outra equipe recusa com o motivo.
+ */
+function motivoDaLimpeza(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'id' | 'nome'>, alvosPersonagemIds: readonly (string | null | undefined)[]): string | null {
+  if (limpezaDe(cartao.id) === null) return null
+  const deQuemUsa = ctx.carta.personagemId
+  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || (ctx.aliados?.has(id) ?? false))
+  return alvosPersonagemIds.every(vale) ? null : `${cartao.nome.trim() || 'A técnica'} só vale em você ou num aliado`
+}
+
+/**
+ * F2 (fatia D, Explosão): a técnica de dano "% da vida do alvo" (`precisaAlvo`)
+ * tem o dano calculado AQUI, com a vida atual de cada alvo: o jogador não vê
+ * a vida de ninguém, só o dano no registro. Alvo sem ficha com vida: vale o
+ * número que veio da mira. As outras técnicas: os alvos como vieram.
+ */
+function comDanoPelaVida(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formula: Omit<ContextoDaFormula, 'vidaDoAlvo'>, respostas: RespostasDoPedido | undefined, alvos: readonly PedidoDeAlvo[]): readonly PedidoDeAlvo[] {
+  if (danoDaTecnica(cartao, formula, respostas).tipo !== 'precisaAlvo') return alvos
+  const recurso = recursoDeVida(formula.sistema)
+  return alvos.map((alvo) => {
+    const personagemId = ctx.personagemDoToken(alvo.tokenId)
+    const dele = typeof personagemId === 'string' ? ctx.personagens.find((candidato) => candidato.id === personagemId) : undefined
+    const vida = dele === undefined || recurso === null ? null : vidaDoPersonagem(dele, recurso)
+    const lido = vida === null ? null : danoDaTecnicaComAVida(cartao, formula, vida, respostas)
+    return lido?.tipo === 'valor' ? { ...alvo, dano: lido.valor } : alvo
+  })
 }
 
 /**
@@ -789,6 +844,7 @@ function textoDoAlvo(alvo: AlvoDoGolpe): string {
   else if (alvo.saida !== undefined && alvo.danoFinal !== undefined) pedacos.push(`${textoDaSaida(alvo.saida, alvo.dano === null ? null : alvo.danoFinal)}${alvo.marcado === true ? ' (marca ×2)' : ''}${alvo.reducao === undefined ? '' : ` (${alvo.reducaoDe ?? 'forma'} −${alvo.reducao}%)`}${alvo.rolagem === undefined ? comATecnica(alvo) : ''}`)
   else if (alvo.rolagem === undefined) pedacos.push('esperando reação')
   if (alvo.disputa !== undefined) pedacos.push(alvo.disputa)
+  if (alvo.nota !== undefined) pedacos.push(alvo.nota)
   return pedacos.join(' · ')
 }
 

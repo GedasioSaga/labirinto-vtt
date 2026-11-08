@@ -24,6 +24,11 @@ tempo). Testes: no máximo 2 por situação durante a construção; a bateria co
   2 vezes" do mestre). O código já lê isso: `formasNoMenu` e `efeitosDasFormasLigadas`
   (`client/src/lib/batalha/transformacao.ts`); o teste `mecanicasAMao.fatiaC.test.ts` simula a ficha
   já mudada. Até o F0c gravar, o ataque duplo da Caçada não existe no app.
+- Vagn, Mecânicas gerais da fruta: falta o número de "Pontos de Proficiência em Fruta" (a CD do Campo e da
+  Atração é 10 + Proficiência + mod. de ESP). A ficha não diz; perguntar ao mestre e gravar onde a F2 do
+  Campo for ler (a fatia D não criou extra com nome mágico para isso).
+- Vagn, Projeção Letal: "em linha reta" sem alcance. Com o alcance (em casas) a mira pode marcar sozinha
+  quem está na linha (`area.ts`, forma `linha`); até lá o jogador marca.
 
 ## F1. Regras do sistema e os 12 bugs (1 dono, em sequência)
 - Bugs 1-12 (recusa muda, golpe sem resposta vira "Não reagiu" na virada da rodada, desfazer "Vez",
@@ -59,6 +64,19 @@ Por isso, linha por linha do grilling (Imã-Gumelo):
   o mestre rola na hora em que a pessoa tenta. Automatizar pede o teste dentro do Mover e do arremesso,
   que é o mesmo trabalho do token de armadilha.
 O mesmo vale para a Batata-mina (50 em todos na 3x3 de quem pisou) e a Emaranhalga (selo "Enraizado").
+
+Fatia D (Vagn e Guilherme), feito em `client/src/lib/batalha/mecanicasAMao.ts` (tabela) e nas funções gerais
+(`reacaoComTecnica.ts`, `disputaNoUso.ts`, `debuffs.ts`, `transformacao.ts`, `golpe.ts`, `contador.ts`):
+Armadura Humana (Defender 90% / Atacar 100% e devolve ÷ 7), Resiliente o combate inteiro (já era; provado),
+Projeção Letal (cortante = Sangramento 10 por 3; perfurante = direto no HP; Imbuir Fogo +10 vetado com a
+Ignição), Ignição (liga sem limite; 2 ataques adicionais por batalha no total), Polaridade (297; não carrega
+com golpe esperando), Campo sem dano e sem reação, Explosão (teste ao usar, não gasta se passar, 10% da vida
+atual direto no HP, dobra os debuffs), Giro como reação (+1 sozinho, 10+ anula), Revigorar (tira os debuffs
+e o cansaço, cura o Espírito, nele ou num aliado), Recuperação Espantosa do Guilherme (aviso).
+Falta na fatia D (precisa de uma peça nova, "técnica mantida"): manter o Giro (30 SP por vez, recarga só ao
+parar) e o Campo de Contenção ligado (15 SP por vez, +1 Concentração por vez até 3, área 2 + polaridade, teste
+pela CD da fruta para quem chega perto, preso reage com desvantagem); e a Velocidade x1,2 da Ignição (o app
+não tem atributo "Velocidade"; o Vagn tem Agilidade 0).
 
 ## F3. Recursos novos (decisão 08/11: feitos como PEÇAS DO CONSTRUTOR, fatias C6/C7/C1/C10 de docs/planos/construtor-de-mecanicas-2026-11-08.md)
 1. Tela do mestre ao transformar ou invocar com números livres (Sulong, super lobo).

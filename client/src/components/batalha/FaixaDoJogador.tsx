@@ -227,6 +227,8 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
                   const nivel = nivelNaCarta(carta, contador.leitura.nome)
                   const maximo = contador.leitura.danoPorNivel.length
                   const semReacao = estado.meus?.find((meu) => meu.personagemId === personagemId)?.semReacao === true
+                  // F2 (fatia D, Q6 do Vagn): com golpe esperando a reação dele, carregar não vale (o host recusa igual).
+                  const esperando = (estado.reacoes ?? []).some((reacao) => reacao.tokenId === carta.tokenId)
                   // S4: Atordoado ou Paralisado não reage, então não carrega (o host recusa igual).
                   const travado = travaDoContador(estado.cartas.find((daOrdem) => daOrdem.tokenId === carta.tokenId)?.selos)
                   itens.push({
@@ -234,8 +236,8 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
                     rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
                     detalhe:
                       travado ??
-                      (semReacao ? 'Já gastou a reação: volta na sua vez' : nivel >= maximo ? 'Já está no máximo' : `Perde a reação até a sua vez; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
-                    desabilitado: travado !== null || semReacao || nivel >= maximo,
+                      (semReacao ? 'Já gastou a reação: volta na sua vez' : esperando ? 'Tem golpe esperando a sua reação: responda antes de carregar' : nivel >= maximo ? 'Já está no máximo' : `Perde a reação até a sua vez; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
+                    desabilitado: travado !== null || semReacao || esperando || nivel >= maximo,
                     onEscolher: () => onCarregar(carta.tokenId, contador.cartao.id),
                   })
                 }

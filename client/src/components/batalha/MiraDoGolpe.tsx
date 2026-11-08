@@ -307,11 +307,12 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     const pedidoDeAlvos: PedidoDeAlvo[] = []
     for (const tokenId of marcados) {
       const dano = baseDe(tokenId)
-      if (!semDano && dano === null) {
+      // F2 (fatia D, Explosão): o dano pela vida do alvo é do host (o jogador não vê a vida); vai 0 só para o golpe ter dano.
+      if (!semDano && dano === null && danoDaOpcao.pelaVida !== true) {
         setErro('Digite o dano: a ficha não dá um número para este golpe.')
         return
       }
-      pedidoDeAlvos.push({ tokenId, dano })
+      pedidoDeAlvos.push({ tokenId, dano: dano ?? (semDano ? null : 0) })
     }
     let custo: number | null = null
     if (golpe.custo.tipo === 'pergunta') {

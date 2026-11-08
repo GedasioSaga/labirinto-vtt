@@ -1,6 +1,6 @@
 import type { CartaoDaFicha, Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { ALVO_DO_DANO, DANO_MAX, type SeloDaBatalha } from './combate'
+import { ALVO_DO_DANO, DANO_MAX, type GolpeDaBatalha, type SeloDaBatalha } from './combate'
 import { normalizar } from './formula'
 import { tecnicasDe } from './leituraDaFicha'
 import type { TurnosDaCena } from './turnos'
@@ -128,11 +128,21 @@ export function selosComONivel(selos: readonly SeloDaBatalha[], base: SeloDaBata
   return existente === undefined ? [...selos, novo] : selos.map((selo) => (selo.id === existente.id ? novo : selo))
 }
 
-export type MotivoDoContador = 'semContador' | 'semReacao' | 'noMaximo' | 'zerado'
+export type MotivoDoContador = 'semContador' | 'semReacao' | 'noMaximo' | 'zerado' | 'golpeEsperando'
 
-/** Por que o pedido não vale agora; `null` = vale. */
-export function motivoDoContador(tipo: 'ganhar' | 'zerar', nivel: number, maximo: number, semReacao: boolean): MotivoDoContador | null {
+/**
+ * Por que o pedido não vale agora; `null` = vale. F2 (fatia D, resposta Q6
+ * do Vagn): com golpe esperando a reação dele (`golpeEsperando`), carregar
+ * não vale (carregar gasta a reação que esse golpe ainda pede).
+ */
+export function motivoDoContador(tipo: 'ganhar' | 'zerar', nivel: number, maximo: number, semReacao: boolean, golpeEsperando = false): MotivoDoContador | null {
   if (tipo === 'zerar') return nivel === 0 ? 'zerado' : null
   if (semReacao) return 'semReacao'
+  if (golpeEsperando) return 'golpeEsperando'
   return nivel >= maximo ? 'noMaximo' : null
+}
+
+/** F2 (fatia D): algum golpe da cena ainda espera a reação deste token (alvo que reage e não resolveu). */
+export function temGolpeEsperando(golpes: readonly Pick<GolpeDaBatalha, 'alvos'>[] | undefined, tokenId: string): boolean {
+  return (golpes ?? []).some((golpe) => golpe.alvos.some((alvo) => alvo.tokenId === tokenId && alvo.podeReagir && alvo.danoFinal === undefined))
 }

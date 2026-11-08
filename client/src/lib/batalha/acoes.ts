@@ -15,7 +15,7 @@ import {
   type LeituraDoTempo,
 } from './leituraDaFicha'
 import { danoDaTecnica, leituraDaTecnica } from './leituraDaTecnica'
-import { mecanicaDoCartao } from './mecanicasAMao'
+import { perfuranteDaMecanica, respostasPadrao } from './mecanicasAMao'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
 import type { AcoesExtras, GastoDaVez } from './turnos'
 
@@ -315,7 +315,7 @@ export function tecnicasNoMenu(
       dano: danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }),
       overload: base.overload,
       // F2 (fatia B): o perfurante da mecânica à mão vence a leitura do texto (Rapid Dash: só o 2º golpe perfura).
-      perfurante: mecanicaDoCartao(cartao.id)?.perfurante ?? ehPerfurante(cartao),
+      perfurante: perfuranteDaMecanica(cartao.id, respostasPadrao(cartao.id)) ?? ehPerfurante(cartao),
       tipo: lida.tipo,
       motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes),
     }

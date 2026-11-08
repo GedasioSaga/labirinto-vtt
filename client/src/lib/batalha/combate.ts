@@ -461,6 +461,8 @@ export interface AlvoDoGolpe {
   reducaoDe?: string
   /** F2 (fatia B): a disputa que o app rolou no acerto (Corta Cenoura), já em texto para o registro: "disputa d20 15+1 = 16 contra d20 8+2 = 10, o selo pegou". */
   disputa?: string
+  /** F2 (fatia D, Revigorar): o que a técnica fez no alvo além do dano, em texto para o registro ("tirou 2 debuffs, curou 100"). */
+  nota?: string
   /**
    * F2 (fatia B, o "perto" do Aplauso): os tokens das fichas perto que podem
    * reagir NO LUGAR dele a este golpe Overload (técnica que rebate, com o alvo

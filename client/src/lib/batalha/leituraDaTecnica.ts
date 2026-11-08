@@ -68,7 +68,12 @@ export function leituraDaTecnica(cartao: CartaoDaFicha, ctx: ContextoDaLeitura):
  * mira relê com ele), com a arma e o bônus dos selos de quem usa.
  */
 export function danoDaTecnica(cartao: Pick<CartaoDaFicha, 'campos'> & { id?: string }, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>, respostas?: RespostasDoPedido): LeituraDoDano {
+  return danoDaTecnicaComAVida(cartao, ctx, null, respostas)
+}
+
+/** F2 (fatia D, Explosão): o dano do cartão com a vida de UM alvo ("10% da vida atual do alvo"); o host relê alvo a alvo (`golpe.ts`). */
+export function danoDaTecnicaComAVida(cartao: Pick<CartaoDaFicha, 'campos'> & { id?: string }, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>, vidaDoAlvo: ContextoDaFormula['vidaDoAlvo'], respostas?: RespostasDoPedido): LeituraDoDano {
   // F2 (fatia B): a fórmula da mecânica à mão (com o que as respostas mudam) vence o campo Dano.
   const daMecanica = cartao.id === undefined ? null : formulaDaMecanica(cartao.id, respostas)
-  return lerDano(daMecanica ?? cartao.campos[CAMPO_DO_DANO] ?? '', { ...ctx, vidaDoAlvo: null })
+  return lerDano(daMecanica ?? cartao.campos[CAMPO_DO_DANO] ?? '', { ...ctx, vidaDoAlvo })
 }

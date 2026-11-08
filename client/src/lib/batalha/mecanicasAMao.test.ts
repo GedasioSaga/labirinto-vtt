@@ -217,7 +217,7 @@ describe('ficha sem HP no treino e no duelo (resposta da Saga)', () => {
 describe('pergunta na hora', () => {
   it('Projeção Letal: "cortante ou perfurante?" respondida, fora das opções ou sem resposta', () => {
     const id = 'cart_d50ef507-dd18-4566-8015-94910a12136e'
-    expect(motivoDasRespostasDoCartao(id, { corte: 'perfurante' })).toBeNull()
+    expect(motivoDasRespostasDoCartao(id, { corte: 'perfurante', fogo: 'nao' })).toBeNull()
     expect(motivoDasRespostasDoCartao(id, { corte: 'contundente' })).toContain('fora das opções')
     expect(motivoDasRespostasDoCartao(id, {})).toContain('Cortante ou perfurante?')
     expect(motivoDasRespostasDoCartao(CORTA_CENOURA.id, { corte: 'perfurante' })).toBe('Resposta que a técnica não pergunta')

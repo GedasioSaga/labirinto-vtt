@@ -1,4 +1,4 @@
-import type { NaturezaDoSelo, SeloDaBatalha, SeloDoGolpe } from './combate'
+import type { NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
 import { normalizar } from './formula'
 import type { ContraDaDisputa, QuemRola } from './disputa'
 import type { FormaDaArea, QuemEntraNaArea } from './area'
@@ -26,6 +26,52 @@ export interface EfeitoDaDisputa {
   selo?: SeloDoGolpe
   /** A técnica não gasta: devolve o custo e o uso (Explosão quando o alvo passa). */
   devolveOCusto?: true
+  /** F2 (fatia D, Explosão): os turnos que faltam de cada selo negativo do alvo dobram (Atordoado 2 vira 4). */
+  dobraOsDebuffs?: true
+}
+
+/**
+ * F2 (fatia D, Armadura Humana): uma saída da reação com técnica dada pela
+ * tabela. `saida`: a que vai no pedido (o fio de sempre); `noAlvo`: como o
+ * alvo fica resolvido; `fator`: quanto do dano que chega fica (0,9 = toma
+ * 90%); `devolveDividido`: o dano que ficou, dividido por ele (para baixo),
+ * volta em quem atacou, sem reação.
+ */
+export interface SaidaDaReacaoAMao {
+  saida: SaidaDaTecnica
+  rotulo: string
+  noAlvo: SaidaDaReacao
+  fator: number
+  devolveDividido?: number
+}
+
+/**
+ * F2 (fatia D, Giro da Lança): a reação rola 1d20 + o MAIOR modificador
+ * entre os `atributos` (o app soma sozinho); total `anulaCom` ou mais anula
+ * todo o dano, abaixo toma cheio (o 1 natural segue crítico).
+ */
+export interface RolagemDaReacaoAMao {
+  atributos: readonly string[]
+  anulaCom: number
+}
+
+/** F2 (fatia D): a reação com técnica pela tabela: só as `saidas` dela (a 1ª vem marcada), ou a `rolagem` própria. */
+export interface ReacaoAMao {
+  saidas?: readonly SaidaDaReacaoAMao[]
+  rolagem?: RolagemDaReacaoAMao
+}
+
+/** F2 (fatia D, Imbuir Fogo do Vagn): a resposta `valor` da pergunta `chave` não vale com a forma `formaId` ligada. */
+export interface RespostaVetadaAMao {
+  chave: string
+  valor: string
+  formaId: string
+  motivo: string
+}
+
+/** F2 (fatia D, Revigorar): tira os selos negativos do alvo (o cansaço do Overload junto) e cura a fórmula `cura`, lida na ficha de quem usa. */
+export interface LimpezaAMao {
+  cura: string
 }
 
 /**
@@ -59,6 +105,8 @@ export interface MudancaDaResposta {
   valor: string | number
   dano?: string
   selo?: SeloDoGolpe
+  /** F2 (fatia D, Projeção Letal): o perfurante do golpe pela resposta (perfurante = direto no HP). */
+  perfurante?: boolean
 }
 
 /** F2 (fatia B): a parte do golpe que vem depois (Rapid Dash): uma fração do dano base do primeiro, com o próprio perfurante e a própria reação. */
@@ -152,6 +200,14 @@ export interface MecanicaAMao {
   rebate?: RebateAMao
   /** F2 (fatia B): cartão que avisa o mestre quando o dono cai a 0, uma vez por batalha (Recuperação Espantosa). O texto do aviso. */
   avisoAoCair?: string
+  /** F2 (fatia D): a reação com técnica pela tabela (Armadura Humana, Giro da Lança). */
+  reacao?: ReacaoAMao
+  /** F2 (fatia D): a resposta que a forma ligada não deixa (Imbuir Fogo com a Ignição). */
+  respostaVetada?: RespostaVetadaAMao
+  /** F2 (fatia D, Ignição): os Usos da forma contam os ATAQUES ADICIONAIS da batalha inteira, não as vezes que ela liga. */
+  usosContamOAdicional?: true
+  /** F2 (fatia D, Revigorar): tira os debuffs e cura; a mira começa em quem usa e só aceita ele ou os aliados. */
+  limpa?: LimpezaAMao
 }
 
 const ATORDOADO_1: SeloDoGolpe = { nome: 'Atordoado', turnos: 1, natureza: 'debuff' }
@@ -177,6 +233,8 @@ const PERGUNTA_DO_FISICO_DA_BENCAO: PerguntaNaHora = {
 /** O nome do selo da Bênção de uma Raposa: o comportamento dele (o aliado cura 10% do dano que causa) mora na tabela de selos (`condicoes.ts`). */
 export const NOME_DA_BENCAO_DA_RAPOSA = 'Bênção de uma Raposa'
 const SELO_DA_BENCAO: SeloDasRespostasAMao = { nome: NOME_DA_BENCAO_DA_RAPOSA, natureza: 'buff', turnosDe: 'turnos', mod: { atributoDe: 'fisico', formula: 'Espírito * 0,2' } }
+/** F2 (fatia D): o cartão da Ignição do Vagn (a forma que veta o fogo e cujos Usos contam os ataques adicionais). */
+const IGNICAO_DO_VAGN = 'cart_8ea9d2d5-f1ac-4d11-9a55-0feb66c75415'
 /** Recuperação Espantosa (May; Guilherme segue a regra dela): o mestre decide quando e com quanto HP volta. */
 const AVISO_DA_RECUPERACAO = 'Recuperação Espantosa: caiu a 0. Mestre, decida em quantos turnos volta e com quanto HP (1 vez por batalha).'
 
@@ -187,17 +245,49 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
     nome: 'Corta Cenoura (Jimboy)',
     disputa: { quando: 'acerto', testa: 'quemUsa', rola: { atributoId: 'forca', vantagem: 'vantagem' }, contra: { tipo: 'rolagem', quem: { atributoId: 'resistencia' } }, seQuemUsaVence: { selo: ATORDOADO_1 } },
   },
-  // Guilherme: o alvo testa RES contra CD 11; se passar, nada acontece e a Explosão não gasta.
+  // Guilherme: o alvo testa RES contra CD 11 ao usar (o teste é a defesa: sem reação); se passar, nada acontece e a Explosão não gasta
+  // (volta o SP e o uso). Falhou: 10% da vida ATUAL dele (o host calcula; o jogador só vê o dano) direto no HP, e os debuffs dele dobram.
   'cart_14ed4fb4-817c-41ea-a417-517ece9782ed': {
     nome: 'Explosão (Guilherme)',
-    disputa: { quando: 'uso', testa: 'alvo', rola: { atributoId: 'resistencia' }, contra: { tipo: 'cd', cd: { tipo: 'fixa', cd: 11 } }, seQuemUsaPerde: { devolveOCusto: true } },
+    semReacao: true,
+    perfurante: true,
+    disputa: {
+      quando: 'uso',
+      testa: 'alvo',
+      rola: { atributoId: 'resistencia' },
+      contra: { tipo: 'cd', cd: { tipo: 'fixa', cd: 11 } },
+      seQuemUsaVence: { dobraOsDebuffs: true },
+      seQuemUsaPerde: { devolveOCusto: true },
+    },
   },
+  // Guilherme: na reação, 1d20 + o maior modificador entre FOR e AGI (o app soma); 10 ou mais anula todo o dano.
+  'cart_4a5b6f4f-87d3-49f5-aafa-0bfd5973c2ca': { nome: 'Giro da Lança (Guilherme)', reacao: { rolagem: { atributos: ['forca', 'agilidade'], anulaCom: 10 } } },
+  // Guilherme: tira todos os debuffs (até o cansaço do Overload) e cura o Espírito, nele ou num aliado.
+  'cart_f566bafe-6d3b-4836-aa93-12969ff5788d': { nome: 'Revigorar (Guilherme)', limpa: { cura: 'Espírito' } },
+  'cart_c1c30321-a4f2-49b1-a9c6-457938103b57': { nome: 'Recuperação Espantosa (Guilherme)', avisoAoCair: AVISO_DA_RECUPERACAO },
+  // Vagn: na reação, duas saídas: Defender toma 90%; Atacar toma tudo e devolve o dano ÷ 7 (para baixo) em quem atacou.
+  // Com o Resiliente, a redução da forma vem depois (Defender: −10% e −20% = −28%).
+  'cart_06d82bee-8643-4b48-b43f-462d58a12dfe': {
+    nome: 'Armadura Humana (Vagn)',
+    reacao: {
+      saidas: [
+        { saida: 'cheio', rotulo: 'Defender', noAlvo: 'cheio', fator: 0.9 },
+        { saida: 'contra', rotulo: 'Atacar e devolver ÷ 7', noAlvo: 'cheio', fator: 1, devolveDividido: 7 },
+      ],
+    },
+  },
+  // Vagn: a Ignição liga quantas vezes quiser; os "Usos 2" da ficha são os ataques adicionais da batalha inteira (trocar de forma não renova).
+  [IGNICAO_DO_VAGN]: { nome: 'Ignição (Vagn)', usosContamOAdicional: true },
+  // Vagn: o Campo não dá dano nem espera reação (o "0" da ficha não é golpe; a Polaridade não soma nele).
+  'cart_9de30283-6314-44ae-bfd3-a7539c0b17de': { nome: 'Campo de Contenção (Vagn)', dano: '-' },
   // Siegfried: o alvo testa RES contra 12; falhou, Atordoado 1.
   'cart_3868a90d-a138-4fa0-a902-c30a7a53be7b': {
     nome: 'Gilgamesh: Entardecer (Siegfried)',
     disputa: { quando: 'acerto', testa: 'alvo', rola: { atributoId: 'resistencia' }, contra: { tipo: 'cd', cd: { tipo: 'fixa', cd: 12 } }, seQuemUsaVence: { selo: ATORDOADO_1 } },
   },
-  // Vagn: o app pergunta "cortante ou perfurante?" e acerta todos na linha reta.
+  // Vagn: o app pergunta "cortante ou perfurante?": cortante põe Sangramento 10 por 3 turnos (passa pelo Escudo); perfurante vai
+  // direto no HP. Acerta todos na linha reta: o jogador marca quem está nela (a ficha não diz o alcance da linha, então a mira não marca sozinha).
+  // Imbuir Fogo (Controle do Fogo da raça): interruptor na mira, +10 de dano, sem custo; com a Ignição ligada não vale.
   'cart_d50ef507-dd18-4566-8015-94910a12136e': {
     nome: 'Projeção Letal (Vagn)',
     perguntas: [
@@ -211,7 +301,15 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
           { valor: 'perfurante', rotulo: 'Perfurante' },
         ],
       },
+      { chave: 'fogo', texto: 'Imbuir fogo? (+10 de dano)', para: 'quemUsa', tipo: 'opcoes', opcoes: SIM_OU_NAO },
     ],
+    respostasMudam: [
+      { chave: 'corte', valor: 'cortante', perfurante: false, selo: { nome: 'Sangramento', turnos: 3, natureza: 'debuff' } },
+      { chave: 'corte', valor: 'perfurante', perfurante: true },
+      // O Dano da ficha (Espírito + 20) mais os 10 do fogo.
+      { chave: 'fogo', valor: 'sim', dano: 'Espírito + 20 + 10' },
+    ],
+    respostaVetada: { chave: 'fogo', valor: 'sim', formaId: IGNICAO_DO_VAGN, motivo: 'Com a Ignição ligada não dá para imbuir fogo' },
   },
   // May, modo ataque: todos os INIMIGOS no 6x6 à frente dela, (Força + 100) × 2. Modo reação: rebate (o dano que chegou + Força dela) em quem atacou,
   // também quando o Overload cai em qualquer alvo no 6x6 à frente dela ("perto").
@@ -522,4 +620,50 @@ export function avisoAoCairDe(cartoesIds: readonly string[]): { cartaoId: string
     if (texto !== undefined) return { cartaoId, texto }
   }
   return null
+}
+
+/** F2 (fatia D, Projeção Letal): o perfurante pela resposta (a última que casa vence) ou o fixo da tabela; `null` = vale o da mira. */
+export function perfuranteDaMecanica(cartaoId: string, respostas: RespostasDoPedido | undefined): boolean | null {
+  const mecanica = mecanicaDoCartao(cartaoId)
+  if (mecanica === null) return null
+  let pelaResposta: boolean | null = null
+  for (const regra of mecanica.respostasMudam ?? []) {
+    if (regra.perfurante !== undefined && respostas?.[regra.chave] === regra.valor) pelaResposta = regra.perfurante
+  }
+  return pelaResposta ?? mecanica.perfurante ?? null
+}
+
+/** F2 (fatia D, Explosão): a disputa que o app rola LOGO AO USAR, antes do dano; `null` = nenhuma. */
+export function disputaNoUso(cartaoId: string): DisputaAMao | null {
+  const disputa = mecanicaDoCartao(cartaoId)?.disputa
+  return disputa !== undefined && disputa.quando === 'uso' ? disputa : null
+}
+
+/** F2 (fatia D): a reação da tabela (Armadura Humana, Giro da Lança); `null` = a de sempre, lida do texto. */
+export function reacaoAMaoDe(cartaoId: string): ReacaoAMao | null {
+  return mecanicaDoCartao(cartaoId)?.reacao ?? null
+}
+
+/** F2 (fatia D, Imbuir Fogo com a Ignição): por que a resposta não vale com as formas ligadas (`ativos` = os `cartoesAtivos` da ficha), ou `null`. */
+export function motivoDaRespostaVetada(cartaoId: string, respostas: RespostasDoPedido | undefined, ativos: readonly string[]): string | null {
+  const veto = mecanicaDoCartao(cartaoId)?.respostaVetada
+  if (veto === undefined || respostas?.[veto.chave] !== veto.valor || !ativos.includes(veto.formaId)) return null
+  return veto.motivo
+}
+
+/** F2 (fatia D): as perguntas como a mira mostra com as formas ligadas: a opção vetada some (a Ignição ligada deixa só "Não" no fogo). */
+export function perguntasComAsFormas(perguntas: readonly PerguntaNaHora[], cartaoId: string, ativos: readonly string[]): PerguntaNaHora[] {
+  const veto = mecanicaDoCartao(cartaoId)?.respostaVetada
+  if (veto === undefined || !ativos.includes(veto.formaId)) return [...perguntas]
+  return perguntas.map((pergunta) => (pergunta.chave === veto.chave && pergunta.tipo === 'opcoes' ? { ...pergunta, opcoes: pergunta.opcoes.filter((opcao) => opcao.valor !== veto.valor) } : pergunta))
+}
+
+/** F2 (fatia D, Ignição): os Usos desta forma contam os ataques adicionais da batalha, não as vezes que ela liga. */
+export function usosContamOAdicional(cartaoId: string): boolean {
+  return mecanicaDoCartao(cartaoId)?.usosContamOAdicional === true
+}
+
+/** F2 (fatia D, Revigorar): a limpeza da técnica; `null` = a técnica não limpa. */
+export function limpezaDe(cartaoId: string): LimpezaAMao | null {
+  return mecanicaDoCartao(cartaoId)?.limpa ?? null
 }

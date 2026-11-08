@@ -8,13 +8,14 @@ import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEv
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId } from '../batalha/leituraDaFicha'
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
-import { motivoDasRespostasDoGolpe } from '../batalha/mecanicasAMao'
+import { motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
+import { saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
 import { registroParaJogador, type LinhaParaJogador } from '../batalha/registro'
 import { bonusDaBatalha, bonusDaReacao, seloPedidoValido } from '../batalha/selos'
-import { modoDaReacao, saidaSugerida, seloDaReacao } from '../batalha/tiposDaHabilidade'
+import { modoDaReacao, seloDaReacao } from '../batalha/tiposDaHabilidade'
 import { acaoDaForma, formaDaFicha } from '../batalha/transformacao'
 import { cartaDaVez, combatentesIniciais, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../batalha/turnos'
 import { bytesDoTexto, ehRegistro, lerJsonSeguro } from '../nuvem/json'
@@ -449,7 +450,9 @@ function reacaoRecalculada(pedido: PedidoDeReacao, turnos: TurnosDaCena, persona
       const achada = personagem === null ? null : tecnicaPorId(personagem, sistema, pedido.cartaoId)
       if (achada === null) return recusa('regra')
       // O texto que não diz a saída (modo "escolher") rola o d20: no duelo ninguém escolhe a esquiva.
-      const saida = saidaSugerida(modoDaReacao(achada.cartao)) ?? 'rolar'
+      // F2 (fatia D): a técnica da tabela com saídas próprias (Armadura Humana: Defender ou Atacar) aceita a escolha de quem reage.
+      const daTecnica = saidasDaTecnica(achada.cartao.id, modoDaReacao(achada.cartao))
+      const saida = reacaoAMaoDe(achada.cartao.id)?.saidas !== undefined && daTecnica.saidas.includes(pedido.saida) ? pedido.saida : (daTecnica.sugerida ?? 'rolar')
       const novo: PedidoDeReacao = { tipo: 'tecnica', golpeId: pedido.golpeId, tokenId: pedido.tokenId, cartaoId: pedido.cartaoId, saida, custo: null }
       if (saida === 'rolar') novo.modificador = modificadorDaReacao(turnos, pedido.tokenId)
       const selo = pedido.seloNoAtacante === undefined ? null : seloDaReacao(achada.cartao)

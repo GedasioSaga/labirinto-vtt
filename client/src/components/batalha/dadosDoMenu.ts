@@ -17,7 +17,7 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
-import { mecanicaDoCartao, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta } from '../../lib/batalha/mecanicasAMao'
+import { limpezaDe, mecanicaDoCartao, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta } from '../../lib/batalha/mecanicasAMao'
 import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
@@ -55,6 +55,8 @@ export interface DanoNaTela {
   conta: string
   /** Golpe de suporte ("-"): nenhum dano a digitar. */
   semDano: boolean
+  /** F2 (fatia D, Explosão): o dano sai da vida de cada alvo e o app calcula ao lançar; nada a digitar. */
+  pelaVida?: true
 }
 
 /** Um golpe que o menu oferece: uma arma (Atacar) ou uma técnica (Habilidades). */
@@ -347,7 +349,7 @@ export function danoNaTela(leitura: LeituraDoDano): DanoNaTela {
     case 'precisaArma':
       return { valor: null, conta: `Precisa de uma arma: ${leitura.conta}`, semDano: false }
     case 'precisaAlvo':
-      return { valor: null, conta: 'Depende da vida do alvo: digite o dano', semDano: false }
+      return { valor: null, conta: 'Depende da vida do alvo: o app calcula ao lançar', semDano: false, pelaVida: true }
     case 'naoEntende':
       return { valor: null, conta: leitura.texto.trim() === '' ? 'A ficha não diz: digite o dano' : `"${leitura.texto.trim()}": digite o dano`, semDano: false }
   }
@@ -482,8 +484,11 @@ function golpeDaTecnica(
   const selo = seloDaMecanica(id, padrao) ?? (semSelo ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema))
   if (selo !== null) golpe.selo = selo
   if (mecanicaDoCartao(id)?.semAlvo === true) golpe.semAlvo = true
+  // F2 (fatia D, Revigorar): a técnica que limpa começa em quem usa (vale nele ou num aliado).
+  if (limpezaDe(id) !== null) golpe.alvoEmSi = true
   // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
-  const perguntas = perguntasDoGolpe(id, idsDosCartoes(personagem))
+  // F2 (fatia D, Imbuir Fogo): a opção que a forma ligada não deixa some (a Ignição ligada deixa só "Não" no fogo).
+  const perguntas = perguntasComAsFormas(perguntasDoGolpe(id, idsDosCartoes(personagem)), id, personagem.cartoesAtivos)
   if (perguntas.length > 0) {
     golpe.perguntas = perguntas
     const ctxDaFormula = { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }
