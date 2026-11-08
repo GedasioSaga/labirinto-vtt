@@ -136,6 +136,7 @@ import {
   registrarAjuste as registrarAjusteNasLinhas,
   reverterTurnos,
   semOContraGasto,
+  semARecargaNasVezes,
   semOGastoNaFotoDaVez,
   semOLigarDeGraca,
   textoDaLinha,
@@ -743,21 +744,50 @@ function novoIdDeGolpe(): string {
  * Mexe na ficha pela mesa (na aventura, o histórico dela cresce em nome de
  * `quem` e a mudança chega ao jogador pelo `syncPersonagens` de sempre).
  * `ajustes` recebe o personagem de AGORA (o Escudo de agora, o SP de agora).
- * Devolve as partes que mudaram (vazio = nada), ou `null` (personagem ou
- * sistema não existe).
+ * Devolve as partes que mudaram (vazio = nada), `null` (personagem ou
+ * sistema não existe) ou `'recusada'` (ver `Recusada`).
  */
-function mexerNaFicha(mesa: MesaDaBatalha, personagemId: string, ajustes: (atual: Personagem, sistema: SistemaDeRpg) => readonly Ajuste[], quem: string): ParteDaFicha[] | null {
+function mexerNaFicha(mesa: MesaDaBatalha, personagemId: string, ajustes: (atual: Personagem, sistema: SistemaDeRpg) => readonly Ajuste[], quem: string): ParteDaFicha[] | null | Recusada {
   const sistema = mesa.sistema()
   if (sistema === null) return null
-  let partes: ParteDaFicha[] | null = null
-  const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
+  return gravarNaFicha(mesa, personagemId, sistema, (atual) => {
     const lista = ajustes(atual, sistema)
-    const depois = lista.length === 0 ? atual : aplicarAjustes(atual, sistema, lista, quem, Date.now())
-    partes = partesDoAjuste(atual, depois, sistema)
+    return lista.length === 0 ? atual : aplicarAjustes(atual, sistema, lista, quem, Date.now())
+  })
+}
+
+/**
+ * Conserto das fichas F1 (bug 11): a mesa calculou a ficha nova e RECUSOU
+ * gravá-la (a pasta publicada que o Lobby não aceitaria; o aviso já saiu). Não
+ * é o `null` de "nada mudou": a ação que cobra custo ou dá dano para ali, sem
+ * linha, e devolve `false` (o jogador vê a recusa). O que ela já tinha gravado
+ * em outra ficha volta (`devolverFichasDaAcao`).
+ */
+type Recusada = 'recusada'
+
+/** O miolo de `mexerNaFicha` e `trocarFicha`: `mudar` devolve `null` = não deu (a ficha fica). */
+function gravarNaFicha(mesa: MesaDaBatalha, personagemId: string, sistema: SistemaDeRpg, mudar: (atual: Personagem) => Personagem | null): ParteDaFicha[] | null | Recusada {
+  // Num objeto: a atribuição dentro do callback não estreita a variável de fora (o TS a daria como sempre `null`).
+  const feito: { partes: ParteDaFicha[] | null } = { partes: null }
+  const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
+    const depois = mudar(atual)
+    if (depois === null) return atual
+    feito.partes = partesDoAjuste(atual, depois, sistema)
     return depois
   })
-  // Conserto das fichas F1 (bug 11): a gravação recusada (pasta publicada; o aviso já saiu) não deixa partes na linha, senão o Desfazer devolveria o que nunca entrou.
-  return gravou ? partes : null
+  if (gravou) return feito.partes
+  // Ficha que não existe (o callback nem rodou) ou sem nada a mudar: `null`, como antes.
+  return feito.partes === null || feito.partes.length === 0 ? null : 'recusada'
+}
+
+/**
+ * Bug 11: a ação parou no meio porque a mesa recusou gravar uma ficha. O que
+ * ela já gravou em outras fichas (as partes "ficha" juntadas até ali: o custo
+ * de quem atacou, o dano do alvo anterior) volta, e nada dela fica.
+ */
+function devolverFichasDaAcao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDaCena, partes: readonly Reversao[], autor: AutorDaAcao): void {
+  const daFicha = partes.filter((parte) => parte.tipo === 'ficha')
+  if (daFicha.length > 0) desfazerReversao(mesa, sceneKey, cena, { tipo: 'composta', partes: daFicha }, autor)
 }
 
 /** O nome que vai no histórico da ficha quando a batalha mexe nela. */
@@ -859,11 +889,15 @@ function contrasDaReversao(reversao: Reversao): { golpeId: string; tokenId: stri
   return [...doGolpe, ...daReacao]
 }
 
-/** O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo; com `perfuracao`, só aquela porcentagem pula o Escudo. */
-function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } {
+/**
+ * O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo; com `perfuracao`, só
+ * aquela porcentagem pula o Escudo. `'recusada'` (bug 11): a mesa não gravou o dano; quem chama para sem linha e sem animação.
+ */
+function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } | Recusada {
   if (alvo.danoFinal === undefined || alvo.saida === undefined) return { partes: [], efeito: null }
   const valor = alvo.danoFinal
   const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, golpe.perfurante, golpe.perfuracao), quemNaFicha(autor))
+  if (partes === 'recusada') return partes
   // A animação toca sempre (esquiva também: "ESQUIVOU" sobre a ficha).
   return { partes: alvo.personagemId === null ? [] : reversaoDaFicha(alvo.personagemId, partes), efeito: { tipo: 'dano', tokenId: alvo.tokenId, valor, saida: alvo.saida } }
 }
@@ -909,20 +943,12 @@ function linhaAtualizada(registro: readonly LinhaDoRegistro[], linhaId: string, 
 /**
  * Como `mexerNaFicha`, mas com o personagem novo pronto (a forma passa pelo
  * `aplicarAjustes` em `transformacao.ts`). `mudar` devolve `null` = não deu:
- * a ficha fica e volta `null`.
+ * a ficha fica e volta `null`. Gravação recusada = `'recusada'` (bug 11).
  */
-function trocarFicha(mesa: MesaDaBatalha, personagemId: string, mudar: (atual: Personagem, sistema: SistemaDeRpg) => Personagem | null): ParteDaFicha[] | null {
+function trocarFicha(mesa: MesaDaBatalha, personagemId: string, mudar: (atual: Personagem, sistema: SistemaDeRpg) => Personagem | null): ParteDaFicha[] | null | Recusada {
   const sistema = mesa.sistema()
   if (sistema === null) return null
-  let partes: ParteDaFicha[] | null = null
-  const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
-    const depois = mudar(atual, sistema)
-    if (depois === null) return atual
-    partes = partesDoAjuste(atual, depois, sistema)
-    return depois
-  })
-  // Bug 11, como no `mexerNaFicha`: recusada = a ficha ficou como estava.
-  return gravou ? partes : null
+  return gravarNaFicha(mesa, personagemId, sistema, (atual) => mudar(atual, sistema))
 }
 
 /**
@@ -1051,7 +1077,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         }
         return feito?.personagem ?? null
       })
-      if (fichaMudou === null) return false
+      if (fichaMudou === null || fichaMudou === 'recusada') return false
       // R6: a forma "Livre" não gasta ação; a de "Usos por batalha" conta o uso (o Desfazer o devolve pela parte "combate").
       const livre = cartao !== null && formaLivre(cartao)
       if (!livre) {
@@ -1081,7 +1107,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
     } else {
       const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now()))
-      if (fichaMudou === null) return false
+      if (fichaMudou === null || fichaMudou === 'recusada') return false
       partes.push(...reversaoDaFicha(personagemId, fichaMudou))
       // A imagem e o nome na carta saem junto (só se eram desta forma).
       if (formaAntes !== null && formaAntes.cartaoId === pedido.cartaoId) {
@@ -1167,7 +1193,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       }
       // HP e SP em quem tem o selo, como os mods: no oponente, "o alvo perde 20 de HP a cada turno" não tira do dono.
       const doSelo = turnos.cartas.find((candidata) => candidata.tokenId === selo.tokenId)?.personagemId ?? null
-      if (doSelo !== null) partes.push(...reversaoDaFicha(doSelo, mexerNaFicha(mesa, doSelo, (atual, sistemaDaMesa) => ajustesDoPorTurno(atual, sistemaDaMesa, efeito), quem)))
+      if (doSelo !== null) {
+        const doPorTurno = mexerNaFicha(mesa, doSelo, (atual, sistemaDaMesa) => ajustesDoPorTurno(atual, sistemaDaMesa, efeito), quem)
+        // Bug 11: a ficha recusada não leva o "a cada turno" (o lembrete fica para o Aplicar de novo).
+        if (doPorTurno === 'recusada') return false
+        partes.push(...reversaoDaFicha(doSelo, doPorTurno))
+      }
       tokenIds.add(selo.tokenId)
       texto = `${nome} (a cada turno) em ${nomeDoToken(selo.tokenId)}: ${textoDoPorTurno(efeito, sistema)}`
     } else if (!pedido.ligar) {
@@ -1203,7 +1234,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const usada = semLembretes(depoisDaTecnica(combateBase, { cartao, tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''), overload: ehOverload(cartao) }), cartao.id)
       const combate = chave === null ? usada : comLembrada(usada, chave)
       if (combate !== combateBase) partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate })
-      partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quem)))
+      const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quem)
+      // Bug 11: custo recusado = a passiva não liga (sem selo, recarga nem linha).
+      if (doCusto === 'recusada') return false
+      partes.push(...reversaoDaFicha(personagemId, doCusto))
       partes.push({ tipo: 'selo', seloId: selo.id, antes: null })
       novos = { ...comCombate(turnos, combate), selos }
       tokenIds.add(alvoTokenId)
@@ -1251,7 +1285,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const novos: TurnosDaCena = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
     const custo = custoDaEvolucao(pedido.custo)
     const partes: Reversao[] = [{ tipo: 'evolucao', personagemId, cartaoId: cartao.id }]
-    partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))))
+    const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))
+    // Bug 11: custo recusado = a técnica não evolui.
+    if (doCusto === 'recusada') return false
+    partes.push(...reversaoDaFicha(personagemId, doCusto))
     const dono = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
     const nome = cartao.nome.trim() || 'a técnica'
     // Com link: "→ SUPER CAÇA AS BRUXAS!"; sem link e o texto diz OVERLOAD: o uso evoluído é Overload.
@@ -1316,7 +1353,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (selos === null) return false
       if (pedido.como === 'sp' && leitura.sp !== null) {
         const custo = leitura.sp
-        partes.push(...reversaoDaFicha(personagem.id, mexerNaFicha(mesa, personagem.id, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, { tipo: 'valor', recurso: 'sp', valor: custo, porTurno: false }), quemNaFicha(autor))))
+        const doCusto = mexerNaFicha(mesa, personagem.id, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, { tipo: 'valor', recurso: 'sp', valor: custo, porTurno: false }), quemNaFicha(autor))
+        // Bug 11: o SP recusado não marca (o lembrete fica esperando).
+        if (doCusto === 'recusada') return false
+        partes.push(...reversaoDaFicha(personagem.id, doCusto))
       }
       partes.push({ tipo: 'selo', seloId: marca.id, antes: null })
       novos = { ...novos, selos }
@@ -1356,7 +1396,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         naFicha.flatMap((mudanca): Ajuste[] =>
           mudanca.tipo === 'atual' ? [ajusteDoAtualDigitado(atual, mudanca.recursoId, mudanca.valor)] : mudanca.tipo === 'maximo' ? [{ parte: 'maximo', chave: mudanca.recursoId, valor: mudanca.valor }] : [],
         )
-      partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, ajustes, quemNaFicha(autor))))
+      const naMesa = mexerNaFicha(mesa, personagemId, ajustes, quemNaFicha(autor))
+      // Bug 11: recusada = o "Ajustar..." inteiro não entra (nem os atributos, que só moram aqui).
+      if (naMesa === 'recusada') return false
+      partes.push(...reversaoDaFicha(personagemId, naMesa))
     }
     const atual = cenaDe(sceneKey) ?? cena
     let novos = atual.turnos
@@ -1456,6 +1499,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const efeitos = autor.tipo === 'mestre' ? comEfeitos(atual.efeitos, [{ tipo: 'judge', gesto: 'carta' }]) : atual.efeitos
     // Bug 3: a linha de uma vez que já passou: o gasto dela sai também da linha "Vez" que encerrou aquela vez.
     let registro = semOGastoNaFotoDaVez(marcarDesfeita(atual.registro, linhaId, por, Date.now()), linha)
+    // Bug 3: a recarga que esta linha pôs sai também das linhas "Vez" que a desceram (a que chegou a 0 voltaria no Desfazer delas).
+    registro = semARecargaNasVezes(registro, linha)
     // O contra-ataque que esta linha deu e alguém já gastou: o Desfazer de quem gastou não o devolve mais.
     for (const { golpeId, tokenId } of contrasDaReversao(linha.reversao)) registro = semOContraGasto(registro, golpeId, tokenId)
     const nomeDoToken = nomeDoTokenNa(feito.cena.turnos, mesaDoRpg().personagens)
@@ -1504,13 +1549,21 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     if (feita.custo.length > 0) {
       const custo = feita.custo
-      partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, () => custo, quem)))
+      const doCusto = mexerNaFicha(mesa, personagemId, () => custo, quem)
+      // Bug 11: custo recusado = a reação não sai (o alvo segue esperando).
+      if (doCusto === 'recusada') return false
+      partes.push(...reversaoDaFicha(personagemId, doCusto))
     }
     const { alvo: depois } = feita
     if (depois.rolagem !== undefined && depois.danoFinal === undefined) {
       efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: depois.tokenId, d20: depois.rolagem.d20, modificador: depois.rolagem.modificador, total: depois.rolagem.total })
     } else {
       const dano = danoNoAlvo(mesa, depois, golpe, autor)
+      // Bug 11: o dano recusado leva o custo junto de volta; a reação não sai.
+      if (dano === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
       partes.push(...dano.partes)
       if (dano.efeito !== null) efeitos.push(dano.efeito)
       // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo (Metade, Receber).
@@ -1625,7 +1678,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     if (lancado.custo.length > 0 && carta.personagemId !== null) {
       const custo = lancado.custo
-      partes.push(...reversaoDaFicha(carta.personagemId, mexerNaFicha(mesa, carta.personagemId, () => custo, quem)))
+      const doCusto = mexerNaFicha(mesa, carta.personagemId, () => custo, quem)
+      // Bug 11: custo recusado = a técnica não sai (sem recarga, sem golpe, sem linha).
+      if (doCusto === 'recusada') return false
+      partes.push(...reversaoDaFicha(carta.personagemId, doCusto))
     }
     if (lancado.contraUsado !== null) {
       const usado = lancado.contraUsado
@@ -1644,6 +1700,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         golpe = golpeComOAlvo(golpe, acerto.alvo)
         const alvo = acerto.alvo
         const feito = danoNoAlvo(mesa, alvo, golpe, autor)
+        // Bug 11: o dano recusado leva de volta o custo e o dano dos alvos anteriores; o golpe não sai.
+        if (feito === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+          return false
+        }
         partes.push(...feito.partes, ...acerto.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
         // F3 (Q6): o selo do golpe pega no alvo que ele acertou.
@@ -1715,6 +1776,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const partes: Reversao[] = []
       const efeitos: EfeitoNovo[] = []
       const resolvidos: AlvoDoGolpe[] = []
+      let recusou = false
       for (const esperando of antes.alvos) {
         if (esperando.danoFinal !== undefined) continue
         // Quem já rolou e não escolheu toma o "Passar" (o 1 natural continua crítico): esperar a virada não foge do dado.
@@ -1727,6 +1789,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         novos = acerto.turnos
         golpe = golpeComOAlvo(semResposta, acerto.alvo)
         const feito = danoNoAlvo(mesa, acerto.alvo, golpe, MESTRE)
+        // Bug 11: dano recusado = este golpe segue esperando (o dano dos outros alvos dele volta); a próxima virada tenta de novo.
+        if (feito === 'recusada') {
+          devolverFichasDaAcao(mesa, sceneKey, cena, partes, MESTRE)
+          recusou = true
+          break
+        }
         partes.push({ tipo: 'reacaoComTecnica', golpe, tokenId: esperando.tokenId, alvoAntes: esperando }, ...acerto.partes, ...feito.partes)
         if (feito.efeito !== null) efeitos.push(feito.efeito)
         const selado = seloDoGolpe(novos, golpe, acerto.alvo)
@@ -1736,7 +1804,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         }
         resolvidos.push(acerto.alvo)
       }
-      if (resolvidos.length === 0) continue
+      if (recusou || resolvidos.length === 0) continue
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
       const lembrados = lembrarDepoisDoDano(novos)
       partes.push(...partesDosLembretes(lembrados))
@@ -2142,7 +2210,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         { tipo: 'combate', personagemId, antes: turnos.combate?.[personagemId] ?? null, depois: pedida.combate },
       ]
       const { custo } = pedida
-      if (custo.length > 0) partes.push(...reversaoDaFicha(personagemId, mexerNaFicha(mesa, personagemId, () => custo, quemNaFicha(autor))))
+      if (custo.length > 0) {
+        const doCusto = mexerNaFicha(mesa, personagemId, () => custo, quemNaFicha(autor))
+        // Bug 11: custo recusado = a invocação não sai.
+        if (doCusto === 'recusada') return false
+        partes.push(...reversaoDaFicha(personagemId, doCusto))
+      }
       partes.push({ tipo: 'invocacaoPedida', pendente: pedida.pendente })
       let novos: TurnosDaCena = {
         ...turnos,
@@ -2291,6 +2364,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           novo = golpeComOAlvo(novo, acerto.alvo)
           const resolvido = acerto.alvo
           const feito = danoNoAlvo(mesa, resolvido, golpe, autor)
+          // Bug 11: dano recusado = o alvo segue esperando (sem linha nova nem animação).
+          if (feito === 'recusada') return false
           partes.push(...feito.partes, ...acerto.partes)
           if (feito.efeito !== null) efeitos.push(feito.efeito)
           // F3 (Q6): o selo do golpe só pega se o golpe acertou este alvo.
@@ -2342,7 +2417,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         },
         quemNaFicha(autor),
       )
-      if (partes === null) return false
+      if (partes === null || partes === 'recusada') return false
       const alvo = nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(tokenId)
       const atual = cenaDe(sceneKey) ?? cena
       // Invocação (decisão 9): o invocado que o dano levou a 0 sai do mapa e do bando.

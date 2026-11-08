@@ -719,6 +719,65 @@ export function semOGastoNaFotoDaVez(registro: readonly LinhaDoRegistro[], linha
   return lista
 }
 
+/** As recargas que a parte "combate" PÔS ou subiu (a técnica usada), por personagem. */
+function recargasPostas(parte: Reversao): { personagemId: string; cartaoId: string }[] {
+  if (parte.tipo !== 'combate') return []
+  const antes = parte.antes?.recargas ?? {}
+  return Object.keys(parte.depois.recargas)
+    .filter((cartaoId) => numeroDe(parte.depois.recargas, cartaoId) > numeroDe(antes, cartaoId))
+    .map((cartaoId) => ({ personagemId: parte.personagemId, cartaoId }))
+}
+
+/** A reversão da vez sem a recarga `cartaoId` de `personagemId` (antes e depois): o Desfazer dela não mexe mais nessa recarga. */
+function vezSemARecarga(reversao: Extract<Reversao, { tipo: 'vez' }>, personagemId: string, cartaoId: string): Extract<Reversao, { tipo: 'vez' }> {
+  const combates = reversao.mudou?.combates
+  if (reversao.mudou === undefined || combates === undefined) return reversao
+  const semAChave = (recargas: Readonly<Record<string, number>>): Readonly<Record<string, number>> => {
+    const { [cartaoId]: _fora, ...resto } = recargas
+    return resto
+  }
+  let mudou = false
+  const novos = combates.map((combate): CombateNaVez => {
+    const tinha = Object.hasOwn(combate.depois.recargas, cartaoId) || (combate.antes !== null && Object.hasOwn(combate.antes.recargas, cartaoId))
+    if (combate.personagemId !== personagemId || !tinha) return combate
+    mudou = true
+    const antes = combate.antes === null ? null : { ...combate.antes, recargas: semAChave(combate.antes.recargas) }
+    return { personagemId, antes, depois: { ...combate.depois, recargas: semAChave(combate.depois.recargas) } }
+  })
+  return mudou ? { ...reversao, mudou: { ...reversao.mudou, combates: novos } } : reversao
+}
+
+/**
+ * Bug 3, a recarga que a vez levou a 0: a `linha` desfeita pôs recarga numa
+ * técnica. As linhas "Vez" de pé depois dela que desceram ESSA recarga deixam
+ * de guardá-la, senão o Desfazer delas devolveria recarga a uma técnica que
+ * não foi usada (a proteção `daVez` de `numerosSemALinha` só pega a recarga
+ * que a vez deixou acima de 0). Para na linha de pé seguinte que pôs a mesma
+ * recarga de novo: dali em diante a recarga é a dela. Nada a mudar = o MESMO
+ * registro.
+ */
+export function semARecargaNasVezes(registro: readonly LinhaDoRegistro[], linha: LinhaDoRegistro): readonly LinhaDoRegistro[] {
+  const postas = partesDe(linha.reversao).flatMap(recargasPostas)
+  if (postas.length === 0) return registro
+  let lista: LinhaDoRegistro[] | null = null
+  for (const { personagemId, cartaoId } of postas) {
+    for (let indice = 0; indice < registro.length; indice += 1) {
+      const candidata = (lista ?? registro)[indice]
+      if (candidata === undefined || candidata.seq <= linha.seq || candidata.desfeita !== undefined) continue
+      const { reversao } = candidata
+      if (reversao.tipo !== 'vez') {
+        if (partesDe(reversao).flatMap(recargasPostas).some((posta) => posta.personagemId === personagemId && posta.cartaoId === cartaoId)) break
+        continue
+      }
+      const semEla = vezSemARecarga(reversao, personagemId, cartaoId)
+      if (semEla === reversao) continue
+      lista ??= [...registro]
+      lista[indice] = { ...candidata, reversao: semEla }
+    }
+  }
+  return lista ?? registro
+}
+
 /**
  * Desfaz na ordem dos turnos o que a reversão guarda. Ficha, equipe e regras
  * não moram aqui (a store as volta por outro caminho): para elas, o MESMO

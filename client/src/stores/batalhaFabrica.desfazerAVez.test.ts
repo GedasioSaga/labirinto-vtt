@@ -154,3 +154,40 @@ describe('bug 3: desfazer a Vez volta só o que ela mudou', () => {
     expect(selos().find((selo) => selo.nome === 'Lento')?.turnos).toBe(3)
   })
 })
+
+/** Passa a vez até a recarga do Desenhar sair (cada linha "Vez", na ordem); 12 vezes no máximo. */
+function passarAteARecargaSair(loja: LojaDaBatalha): string[] {
+  const vezes: string[] = []
+  for (let i = 0; i < 12 && recargas(loja, 'Atirador').tec_desenhar !== undefined; i += 1) {
+    expect(loja.getState().passarVez(CENA, MESTRE, vez(loja))).toBe(true)
+    vezes.push(linhaCom(loja, 'Vez:'))
+  }
+  expect(recargas(loja, 'Atirador').tec_desenhar).toBeUndefined()
+  return vezes
+}
+
+describe('bug 3 (revisão da fatia S2): a recarga que a vez levou a 0', () => {
+  it('Desenhar → vezes até a recarga sair → desfaz o Desenhar → desfaz cada Vez, da última à primeira: a recarga nunca volta', () => {
+    const { loja } = batalha()
+    expect(loja.getState().agir(CENA, MESTRE, vez(loja), desenhar(carta(loja, 'Coveiro').tokenId))).toBe(true)
+    const linhaDoDesenhar = linhaCom(loja, 'Desenhar o alvo')
+    const vezes = passarAteARecargaSair(loja)
+
+    expect(loja.getState().desfazer(CENA, linhaDoDesenhar, MESTRE)).toBe(true)
+    for (const linhaDaVez of [...vezes].reverse()) {
+      expect(loja.getState().desfazer(CENA, linhaDaVez, MESTRE)).toBe(true)
+      expect(recargas(loja, 'Atirador').tec_desenhar).toBeUndefined()
+    }
+  })
+
+  it('com o Desenhar de pé, desfazer a Vez que levou a recarga a 0 a devolve (1): só a técnica desfeita perde a recarga', () => {
+    const { loja } = batalha()
+    expect(loja.getState().agir(CENA, MESTRE, vez(loja), desenhar(carta(loja, 'Coveiro').tokenId))).toBe(true)
+    const vezes = passarAteARecargaSair(loja)
+    const ultima = vezes.at(-1)
+    if (ultima === undefined) throw new Error('nenhuma vez passou')
+
+    expect(loja.getState().desfazer(CENA, ultima, MESTRE)).toBe(true)
+    expect(recargas(loja, 'Atirador').tec_desenhar).toBe(1)
+  })
+})
