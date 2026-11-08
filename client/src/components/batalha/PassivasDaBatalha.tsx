@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { CUSTO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type LembreteDaPassiva, type PedidoDePassiva, type SeloPedido } from '../../lib/batalha/combate'
-import { DANO_DO_SANGRAMENTO, ehLembreteDoSangramento } from '../../lib/batalha/condicoes'
+import { CUSTO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type LembreteDaPassiva, type PedidoDePassiva, type SeloDaBatalha, type SeloPedido } from '../../lib/batalha/combate'
+import { comportamentoDoSelo, DANO_DO_SANGRAMENTO, danoPorVezDoSelo, ehLembreteDoSangramento } from '../../lib/batalha/condicoes'
 import { ehLembreteDoCustoDaForma, type CustoDaFormaNaTela } from '../../lib/batalha/custoPorTurno'
 import { BONUS_DA_PREPARACAO, NOME_DA_PREPARACAO, ehLembreteDaPreparacao } from '../../lib/batalha/preparacao'
 import { cartaoDaVariante, temEscolha, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
@@ -775,15 +775,22 @@ export interface LembreteDaRegraNaTela {
   lembrete: LembreteDaPassiva
   regra: 'sangramento' | 'preparacao'
   quem?: string
+  /** F2 (fatia A): o selo que tira por vez (Sangrando 10, Queimando N), com o nome e quanto tira. Ausente = Sangrando, 10. */
+  porVez?: { nome: string; dano: number }
 }
 
 export type LembreteNaTela = LembreteDaPassivaNaTela | LembreteDoCustoNaTela | LembreteDaRegraNaTela
 
 /** S4: o lembrete do Sangramento ou da Preparação na tela; `null` = é de passiva ou de forma. */
-export function lembreteDaRegraNaTela(lembrete: LembreteDaPassiva, quem?: string): LembreteDaRegraNaTela | null {
+export function lembreteDaRegraNaTela(lembrete: LembreteDaPassiva, quem?: string, selos?: readonly SeloDaBatalha[]): LembreteDaRegraNaTela | null {
   const regra = ehLembreteDoSangramento(lembrete) ? 'sangramento' : ehLembreteDaPreparacao(lembrete) ? 'preparacao' : null
   if (regra === null) return null
-  return quem === undefined ? { lembrete, regra } : { lembrete, regra, quem }
+  const item: LembreteDaRegraNaTela = quem === undefined ? { lembrete, regra } : { lembrete, regra, quem }
+  // F2 (fatia A): o selo do lembrete diz o nome e quanto tira (o `cartaoId` do lembrete é o id do selo).
+  const selo = regra === 'sangramento' ? selos?.find((candidato) => candidato.id === lembrete.cartaoId) : undefined
+  const dano = selo === undefined ? null : danoPorVezDoSelo(selo)
+  if (selo !== undefined && dano !== null) item.porVez = { nome: comportamentoDoSelo(selo.nome)?.nome ?? selo.nome, dano }
+  return item
 }
 
 /**
@@ -905,10 +912,10 @@ function UmLembreteDaRegra({ item, sistema, aplicarLivre, esperando, onPedir }: 
         {quem !== undefined && <span className="bt-lembrete__quem">{quem} · </span>}
         {sangra ? (
           <>
-            <b>Sangrando</b>
+            <b>{item.porVez?.nome ?? 'Sangrando'}</b>
             <span className="bt-lembrete__det">
               {' '}
-              · tira {DANO_DO_SANGRAMENTO} de HP direto, sem o Escudo{decide ? '' : ' · o mestre aplica'}
+              · tira {item.porVez?.dano ?? DANO_DO_SANGRAMENTO} de HP direto, sem o Escudo{decide ? '' : ' · o mestre aplica'}
             </span>
           </>
         ) : (
@@ -938,7 +945,7 @@ function UmLembreteDaRegra({ item, sistema, aplicarLivre, esperando, onPedir }: 
       {decide && (
         <div className="bt-lembrete__acoes" role="group" aria-labelledby={`${id}-texto`}>
           <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando || motivo !== null} aria-describedby={motivo === null ? undefined : `${id}-motivo`} onClick={() => pedir(true)}>
-            {sangra ? `Aplicar · -${DANO_DO_SANGRAMENTO} HP` : `Fazer (+${BONUS_DA_PREPARACAO})`}
+            {sangra ? `Aplicar · -${item.porVez?.dano ?? DANO_DO_SANGRAMENTO} HP` : `Fazer (+${BONUS_DA_PREPARACAO})`}
           </button>
           <button type="button" className="bt-botao" disabled={esperando} onClick={() => pedir(false)}>
             {sangra ? 'Pular' : 'Agora não'}

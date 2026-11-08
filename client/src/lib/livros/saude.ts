@@ -1,16 +1,16 @@
-import { CAMPO_DO_DANO, formulaUsaBala, lerDano, normalizar, type ContextoDaFormula } from '../batalha/formula'
+import { CAMPO_DO_DANO, formulaUsaBala, normalizar } from '../batalha/formula'
 import {
   ABA_DAS_TECNICAS,
   CAMPO_DA_ACAO,
   CAMPO_DO_CUSTO,
   CAMPO_DO_TEMPO,
   armasDe,
-  lerAcao,
-  lerCusto,
-  lerTempo,
   recursoDoCusto,
   type LeituraDaAcao,
+  type LeituraDoCusto,
+  type LeituraDoTempo,
 } from '../batalha/leituraDaFicha'
+import { danoDaTecnica, leituraDaTecnica } from '../batalha/leituraDaTecnica'
 import type { CartaoDaFicha, Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { ehVariacao } from './combate'
@@ -115,8 +115,7 @@ function nomeDoRecurso(sistema: SistemaDeRpg, recurso: 'sp' | 'hp'): string {
   return recursoDoCusto(sistema, recurso)?.nome ?? recurso.toUpperCase()
 }
 
-function lerCampoDoCusto(texto: string, personagem: Personagem, sistema: SistemaDeRpg): LeituraDoCampo | null {
-  const custo = lerCusto(texto, personagem)
+function lerCampoDoCusto(custo: LeituraDoCusto, sistema: SistemaDeRpg): LeituraDoCampo | null {
   if (custo.tipo === 'nada') return null
   const recurso = nomeDoRecurso(sistema, custo.recurso)
   if (custo.tipo === 'valor') return { estado: 'lido', leitura: `${custo.valor} ${recurso}${custo.porTurno ? ' por turno' : ''}`, motivo: '' }
@@ -126,9 +125,8 @@ function lerCampoDoCusto(texto: string, personagem: Personagem, sistema: Sistema
   return { estado: 'naoLe', leitura: '', motivo: 'O app vai perguntar o custo toda vez que a técnica for usada.' }
 }
 
-function lerCampoDaAcao(texto: string): LeituraDoCampo | null {
+function lerCampoDaAcao(texto: string, acao: LeituraDaAcao): LeituraDoCampo | null {
   if (vazio(texto)) return null
-  const acao = lerAcao(texto)
   if (acao.acao === null) {
     return { estado: 'naoLe', leitura: '', motivo: 'Tipo de ação desconhecido. O app entende Simples, Bônus, Completa, Livre, Reação, OVERLOAD, Transformação e Passiva.' }
   }
@@ -141,9 +139,8 @@ function lerCampoDaAcao(texto: string): LeituraDoCampo | null {
   return { estado: 'lido', leitura: partes.join(' + '), motivo: '' }
 }
 
-function lerCampoDoTempo(texto: string): LeituraDoCampo | null {
+function lerCampoDoTempo(texto: string, tempo: LeituraDoTempo): LeituraDoCampo | null {
   if (vazio(texto)) return null
-  const tempo = lerTempo(texto)
   switch (tempo.tipo) {
     case 'livre':
       return { estado: 'lido', leitura: 'Sem recarga', motivo: '' }
@@ -179,8 +176,9 @@ const MOTIVO_DA_BALA = 'O "Dano da Bala" vem da bala escolhida na mira (0 sem ba
  * `null` = fora: "-" (suporte) ou vazio sem `aMao`.
  */
 export function lerDanoDoCartao(texto: string, cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg): DanoDoCartao | null {
-  const ctx: ContextoDaFormula = { personagem, sistema, arma: null, vidaDoAlvo: null }
-  const lido = lerDano(texto, ctx)
+  // F2 (fatia A): o dano pela mesma leitura do menu da batalha (`danoDaTecnica`).
+  const comTexto = { campos: { [CAMPO_DO_DANO]: texto } }
+  const lido = danoDaTecnica(comTexto, { personagem, sistema, arma: null })
   switch (lido.tipo) {
     case 'semDano':
       return null
@@ -191,7 +189,7 @@ export function lerDanoDoCartao(texto: string, cartao: CartaoDaFicha, personagem
     case 'precisaArma': {
       const arma = armasDe(personagem)[0]
       if (arma === undefined) return { estado: 'naHora', leitura: lido.conta, motivo: 'Pede o "Dano da arma" e a ficha não tem arma na aba Armas.', valor: null }
-      const comArma = lerDano(texto, { ...ctx, arma })
+      const comArma = danoDaTecnica(comTexto, { personagem, sistema, arma })
       const motivo = formulaUsaBala(texto) ? `Usa a arma escolhida na hora do golpe. ${MOTIVO_DA_BALA}` : 'Usa a arma escolhida na hora do golpe.'
       return comArma.tipo === 'valor'
         ? { estado: 'naHora', leitura: `${comArma.conta} (com ${arma.nome})`, motivo: comArma.aviso === undefined ? motivo : `${motivo} ${comArma.aviso}`, valor: comArma.valor }
@@ -214,17 +212,20 @@ export function lerDanoDoCartao(texto: string, cartao: CartaoDaFicha, personagem
  * `lerDanoDoCartao`.
  */
 export function lerCampo(campo: CampoDaSaude, texto: string, cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg): LeituraDoCampo | null {
+  if (campo === 'dano') {
+    const dano = lerDanoDoCartao(texto, cartao, personagem, sistema)
+    return dano === null ? null : { estado: dano.estado, leitura: dano.leitura, motivo: dano.motivo }
+  }
+  // F2 (fatia A): o cartão com o texto digitado passa pela leitura única da batalha (`leituraDaTecnica`).
+  const chave = campo === 'custo' ? CAMPO_DO_CUSTO : campo === 'acao' ? CAMPO_DA_ACAO : CAMPO_DO_TEMPO
+  const lida = leituraDaTecnica({ ...cartao, campos: { ...cartao.campos, [chave]: texto } }, { personagem, sistema })
   switch (campo) {
     case 'custo':
-      return lerCampoDoCusto(texto, personagem, sistema)
+      return lerCampoDoCusto(lida.custo, sistema)
     case 'acao':
-      return lerCampoDaAcao(texto)
+      return lerCampoDaAcao(texto, lida.acaoDaFicha)
     case 'tempo':
-      return lerCampoDoTempo(texto)
-    case 'dano': {
-      const dano = lerDanoDoCartao(texto, cartao, personagem, sistema)
-      return dano === null ? null : { estado: dano.estado, leitura: dano.leitura, motivo: dano.motivo }
-    }
+      return lerCampoDoTempo(texto, lida.tempo)
   }
 }
 

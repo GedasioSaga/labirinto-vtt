@@ -17,10 +17,10 @@ import {
   type NumerosDoInvocado,
   type PedidoDeInvocacao,
 } from './combate'
-import { overloadNaBatalha } from './escolhaEEvolucao'
 import { normalizar } from './formula'
 import { ajustesDoCusto, depoisDaTecnica } from './golpe'
-import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_EFEITO, CAMPO_DO_TEMPO, lerAcao, lerCusto, lerTempo, tecnicaPorId, tecnicasDe, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
+import { CAMPO_DO_EFEITO, tecnicaPorId, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
+import { leituraDaTecnica } from './leituraDaTecnica'
 import { lerTipo } from './tiposDaHabilidade'
 import { cartaDaVez, inserirCarta, removerCarta, type AutorDaAcao, type CartaDaOrdem, type CartaNoLugar, type GastoDaVez, type TurnosDaCena } from './turnos'
 
@@ -393,16 +393,15 @@ function tecnicaDoPedido(personagem: Personagem, sistema: SistemaDeRpg, pedido: 
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return null
   const { cartao } = achada
-  const lidaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
-  const lidoCusto = lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
-  const recurso = lidoCusto.tipo === 'nada' ? 'sp' : lidoCusto.recurso
+  // F2 (fatia A): a leitura única, com o custo confirmado na tela.
+  const lida = leituraDaTecnica(cartao, { personagem, sistema, evoluidas, custoDaTela: pedido.custo })
   return {
     cartao,
-    custo: pedido.custo === null ? lidoCusto : { tipo: 'valor', recurso, valor: pedido.custo, porTurno: false },
-    acao: lidaAcao.acao ?? pedido.acao,
-    tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
-    overload: overloadNaBatalha(cartao, tecnicasDe(personagem, sistema), evoluidas),
-    transformacao: lidaAcao.transformacao,
+    custo: lida.custo,
+    acao: lida.acaoDaFicha.acao ?? pedido.acao,
+    tempo: lida.tempo,
+    overload: lida.overload,
+    transformacao: lida.transformacao,
   }
 }
 

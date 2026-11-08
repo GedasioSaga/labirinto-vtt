@@ -147,6 +147,7 @@ export function criarSelo(tokenId: string, pedido: SeloDoGolpe, onde: OndeNasceO
   if (pedido.mods !== undefined && pedido.mods.length > 0) selo.mods = pedido.mods
   if (pedido.natureza !== undefined && pedido.natureza !== 'condicao') selo.natureza = pedido.natureza
   if (pedido.cartaoId !== undefined) selo.cartaoId = pedido.cartaoId
+  if (pedido.porVez !== undefined) selo.porVez = pedido.porVez
   if (onde.tokenDaVez === tokenId) {
     selo.contadoNaRodada = onde.rodada
     if (onde.cartaIdDaVez !== undefined) selo.contadoNaCarta = onde.cartaIdDaVez

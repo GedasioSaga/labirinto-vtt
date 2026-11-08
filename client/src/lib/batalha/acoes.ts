@@ -2,17 +2,11 @@ import { maximoComposto, temMaximo, valorDoRank } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
 import { CARGA_MAX, type AcaoDaTecnica, type BonusDaBatalha, type CombateDoPersonagem } from './combate'
-import { motivoDaEvolucao, overloadNaBatalha } from './escolhaEEvolucao'
-import { CAMPO_DO_DANO, lerDano, type LeituraDoDano } from './formula'
+import { motivoDaEvolucao } from './escolhaEEvolucao'
+import type { LeituraDoDano } from './formula'
 import {
-  CAMPO_DA_ACAO,
-  CAMPO_DO_CUSTO,
-  CAMPO_DO_TEMPO,
   ehPerfurante,
-  lerAcao,
   perfuracaoDe,
-  lerCusto,
-  lerTempo,
   recursoDoCusto,
   tecnicasComForma,
   tecnicasDe,
@@ -20,6 +14,7 @@ import {
   type LeituraDoCusto,
   type LeituraDoTempo,
 } from './leituraDaFicha'
+import { danoDaTecnica, leituraDaTecnica } from './leituraDaTecnica'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
 import type { AcoesExtras, GastoDaVez } from './turnos'
 
@@ -301,26 +296,25 @@ export function tecnicasNoMenu(
   const tecnicas = tecnicasComForma(personagem, sistema)
   const todas = tecnicas.map((tecnica) => tecnica.cartao)
   return tecnicas.map(({ cartao, forma }) => {
-    const leituraDaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
-    // Tipos de habilidade F4: a base evoluída sem "Evolui para" cujo texto diz OVERLOAD conta como Overload.
-    const overload = overloadNaBatalha(cartao, todas, combate?.evoluidas)
+    // F2 (fatia A): a leitura única. Tipos de habilidade F4: a base evoluída sem "Evolui para" cujo texto diz OVERLOAD conta como Overload.
+    const lida = leituraDaTecnica(cartao, { personagem, sistema, evoluidas: combate?.evoluidas, todas })
     const base = {
       cartao,
-      custo: lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem),
-      acao: acaoComOverload(leituraDaAcao.acao, overload, leituraDaAcao.transformacao),
-      tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
-      overload,
-      transformacao: leituraDaAcao.transformacao,
+      custo: lida.custo,
+      acao: acaoComOverload(lida.acaoDaFicha.acao, lida.overload, lida.transformacao),
+      tempo: lida.tempo,
+      overload: lida.overload,
+      transformacao: lida.transformacao,
     }
     const tecnica: TecnicaNoMenu = {
       cartao,
       custo: base.custo,
       acao: base.acao,
       tempo: base.tempo,
-      dano: lerDano(cartao.campos[CAMPO_DO_DANO] ?? '', { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus }),
+      dano: danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }),
       overload: base.overload,
       perfurante: ehPerfurante(cartao),
-      tipo: lerTipo(cartao),
+      tipo: lida.tipo,
       motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes),
     }
     if (forma !== undefined) tecnica.forma = forma

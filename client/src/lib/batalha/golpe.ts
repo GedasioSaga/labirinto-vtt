@@ -38,33 +38,30 @@ import {
   type VantagemNaRolagem,
 } from './combate'
 import { equipeDe, type Equipe } from './equipes'
-import { overloadNaBatalha, usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
+import { usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
 import { danoDoAtaque } from './formula'
 import {
   armasDe,
   balaDaArma,
   categoriaAtira,
-  lerAcao,
-  lerCusto,
   lerTempo,
   recursoDoCusto,
   tecnicaPorId,
   tecnicasDe,
-  CAMPO_DA_ACAO,
-  CAMPO_DO_CUSTO,
-  CAMPO_DO_TEMPO,
   ehOverload,
   RECARGA_A_MAIS,
   type ArmaDaFicha,
   type BalaDaArma,
   type LeituraDoCusto,
 } from './leituraDaFicha'
+import { leituraDaTecnica } from './leituraDaTecnica'
+import { motivoDasRespostasDoCartao } from './mecanicasAMao'
 import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
-import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
+import { naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
 import { travaDoToken } from './condicoes'
 import { comAtaqueExtra, formaDaFicha, formaNaVez, motivoDaForma, motivoDoCustoDaForma, motivoDosUsosDaForma } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
@@ -219,21 +216,17 @@ function tecnicaPedida(personagem: Personagem, sistema: SistemaDeRpg, pedido: Ex
   if (achada === null) return null
   const { cartao } = achada
   const todas = tecnicasDe(personagem, sistema)
-  const lidaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
-  const lidoCusto = lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
-  // A tela confirma o custo: o número dela vale sobre o da ficha, no recurso que a ficha diz (SP por padrão).
-  const recurso = lidoCusto.tipo === 'nada' ? 'sp' : lidoCusto.recurso
-  const custo: LeituraDoCusto = pedido.custo === null ? lidoCusto : { tipo: 'valor', recurso, valor: pedido.custo, porTurno: false }
-  const overload = overloadNaBatalha(cartao, todas, evoluidas)
+  // F2 (fatia A): a leitura única. A tela confirma o custo: o número dela vale sobre o da ficha, no recurso que a ficha diz (SP por padrão).
+  const lida = leituraDaTecnica(cartao, { personagem, sistema, evoluidas, todas, custoDaTela: pedido.custo })
   return {
     cartao,
-    custo,
+    custo: lida.custo,
     // Conserto das fichas F1 (resposta da May): Overload que não é transformação gasta a Completa.
-    acao: acaoComOverload(lidaAcao.acao ?? pedido.acao, overload, lidaAcao.transformacao),
-    tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
-    overload,
-    transformacao: lidaAcao.transformacao,
-    tipo: lerTipo(cartao).tipo,
+    acao: acaoComOverload(lida.acaoDaFicha.acao ?? pedido.acao, lida.overload, lida.transformacao),
+    tempo: lida.tempo,
+    overload: lida.overload,
+    transformacao: lida.transformacao,
+    tipo: lida.tipo.tipo,
     evoluida: usoEvoluido(cartao, todas, evoluidas),
   }
 }
@@ -294,6 +287,10 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (tecnica === null) return 'Técnica não encontrada na ficha'
       // Tipos de habilidade F4: a opção dos chips da mira tem de ser opção desta técnica.
       if (pedido.variante !== undefined && varianteDoPedido(tecnica.cartao, pedido.variante) === null) return 'Opção não encontrada na técnica'
+      // F2 (fatia A): com respostas, as perguntas na hora da mecânica à mão (`mecanicasAMao.ts`) todas respondidas, e só elas.
+      // Sem respostas a técnica segue como antes, até a mira de cada ficha perguntar (fatias seguintes da F2).
+      const respostas = pedido.respostas === undefined ? null : motivoDasRespostasDoCartao(tecnica.cartao.id, pedido.respostas)
+      if (respostas !== null) return respostas
       if (tecnica.acao === null) return 'Escolha a ação da técnica'
       if (tecnica.custo.tipo === 'pergunta') return 'Confirme o custo'
       if (armaDoPedido(ctx, pedido.armaId) === undefined) return 'Arma fora das levadas para a batalha'
@@ -345,7 +342,8 @@ function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carg
   return alvos.map((pedido): AlvoDoGolpe => {
     const dano = pedido.dano === null ? null : danoQueChega(pedido.dano, carga, surpresa)
     const overloadDeixa = !overload || ctx.reageAOverload?.(pedido.tokenId) === true
-    const podeReagir = !surpresa && overloadDeixa && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null)) && ctx.semReacao?.(pedido.tokenId) !== true
+    // F2 (fatia A, resposta da Saga): golpe que chega com 0 de dano é golpe sem dano, sem reação (o Debuff, "sempre", ainda reage pelo selo).
+    const podeReagir = !surpresa && overloadDeixa && (reacao === 'sempre' || (reacao === 'comDano' && dano !== null && dano > 0)) && ctx.semReacao?.(pedido.tokenId) !== true
     const alvo: AlvoDoGolpe = { tokenId: pedido.tokenId, personagemId: ctx.personagemDoToken(pedido.tokenId) ?? null, dano, podeReagir }
     if (podeReagir) return alvo
     const saida: SaidaDaReacao = 'semReacao'

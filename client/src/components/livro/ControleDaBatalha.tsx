@@ -184,7 +184,7 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura))
     const tokens = useMapStore.getState().map.tokens
     const personagens = personagensAtivos(aventura)
-    const todos = quemPodeEntrar(tokens, personagens)
+    const todos = quemPodeEntrar(tokens, personagens, sistema ?? null)
     const ehNpc = new Set(tokens.filter((token) => token.npc === true).map((token) => token.id))
     // Token de JOGADOR sem ficha não ganha ficha mínima: fica fora da lista, e a caixa diz quantos.
     const candidatos = todos.filter((candidato) => candidato.situacao !== 'semFicha' || ehNpc.has(candidato.tokenId))

@@ -7,7 +7,7 @@ import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { acoesDoInvocado, comunsQueSaem, membrosDoBando, motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
-import { travaDoToken } from '../../lib/batalha/condicoes'
+import { saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
@@ -254,7 +254,7 @@ function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string
     // Conserto das fichas F1 (S4): o Sangramento do jogador quem aplica é o mestre (o jogador só vê o aviso).
     if (personagem.tipo !== 'npc') {
       for (const lembrete of combate.lembretes ?? []) {
-        const daRegra = lembreteDaRegraNaTela(lembrete, nomeDaFicha(mesa, lembrete.tokenId))
+        const daRegra = lembreteDaRegraNaTela(lembrete, nomeDaFicha(mesa, lembrete.tokenId), turnos.selos)
         if (daRegra?.regra === 'sangramento') itens.push(daRegra)
       }
       continue
@@ -320,6 +320,9 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         const bonus = bonusDaBatalha(turnos.selos, alvo.tokenId)
         const partes = partesDoBonus(bonus, ALVO_DA_REACAO)
         if (partes.length > 0) item.bonus = { total: bonusDaReacao(bonus), partes }
+        // F2 (fatia A): Aéreo tira a Esquiva e o Contra-ataque dos botões.
+        const semSaidas = saidasTiradas(selosDoToken(turnos.selos, alvo.tokenId))
+        if (semSaidas.length > 0) item.semSaidas = semSaidas
         if (alvo.rolagem !== undefined) item.rolagem = alvo.rolagem
         // Tipos de habilidade F1: o NPC reage também com técnica (a caixa do mestre, por NPC).
         const doNpc = item.doMestre && alvo.personagemId !== null ? personagens.find((candidato) => candidato.id === alvo.personagemId) : undefined

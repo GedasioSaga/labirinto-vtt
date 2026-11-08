@@ -4,7 +4,7 @@ import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type Pedi
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
-import { travaDosSelos } from '../../lib/batalha/condicoes'
+import { saidasTiradas, travaDosSelos } from '../../lib/batalha/condicoes'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo } from '../../lib/batalha/reacaoComTecnica'
 import type { VezEsperada } from '../../lib/batalha/ponte'
@@ -326,6 +326,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       if (reacao.rolagem !== undefined) item.rolagem = reacao.rolagem
       const bonus = bonusDaReacaoDe(selosQueSomam, reacao.tokenId)
       if (bonus !== undefined) item.bonus = bonus
+      // F2 (fatia A): Aéreo tira a Esquiva e o Contra-ataque dos botões.
+      const semSaidas = saidasTiradas(selosQueSomam.filter((selo) => selo.tokenId === reacao.tokenId))
+      if (semSaidas.length > 0) item.semSaidas = semSaidas
       // Tipos de habilidade F1: as técnicas de reação da ficha dele que reage (o recorte só traz alvo que reage).
       const personagemDoAlvo = estado.cartas.find((carta) => carta.tokenId === reacao.tokenId && carta.lado === 'eu')?.personagemId
       const dele = personagemDoAlvo === undefined ? undefined : meus.find((candidato) => candidato.id === personagemDoAlvo)

@@ -53,6 +53,8 @@ export interface ReacaoNaCaixa {
   bonus?: BonusDaReacaoNaTela
   /** Conserto das fichas F1 (S4): o que sai do dano de quem reage ("Resiliente −20%"), `avisoDasReducoes`. Ausente = nada. */
   reducao?: string
+  /** F2 (fatia A): as saídas que os selos de quem reage tiram (Aéreo: Esquiva e Contra-ataque). Ausente = nenhuma. */
+  semSaidas?: readonly SaidaDaReacao[]
 }
 
 /** S4: o dado da reação: um d20 (normal) ou dois, ficando o maior (vantagem) ou o menor (desvantagem). */
@@ -203,7 +205,7 @@ function UmaReacao({
   }
   const golpeId = reacao.golpeId
   const overload = reacao.overload === true && golpeId !== null
-  const saidas = rolagem === undefined ? [] : saidasNaTela(rolagem.d20, rolagem.total, reacao.dano)
+  const saidas = rolagem === undefined ? [] : saidasNaTela(rolagem.d20, rolagem.total, reacao.dano, reacao.semSaidas)
   // Passar só quando o dado liberou uma reação: no 1 natural e abaixo de 10 o único botão já é receber o golpe.
   const passar = rolagem === undefined || saidas.some((saida) => saida.saida === 'cheio' || saida.saida === 'critico') ? null : saidaDoPassar(rolagem.d20)
   const textoDoModificador = rolagem === undefined || rolagem.modificador === 0 ? '' : ` ${rolagem.modificador > 0 ? '+' : '−'} ${Math.abs(rolagem.modificador)}`

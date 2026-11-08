@@ -3,7 +3,7 @@ import { EQUIPE_DO_LADO, GRADES_DA_ARENA, type LadoDaArena, type TamanhoDaGrade 
 import { fichasNoLado, montagemPronta } from '../../lib/arena/montagem'
 import { FICHAS_POR_LADO_MAX, VEZES_MAX, type EscolhaNaMontagem, type ModoDaArena, type MontagemDaArena } from '../../lib/arena/tipos'
 import { recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
-import { entraNaBatalha } from '../../lib/livros/combate'
+import { AVISO_SEM_HP, entraNaBatalha, fichaSemHp } from '../../lib/livros/combate'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { recursoDeVida } from '../../lib/vidaDaFicha'
@@ -84,6 +84,8 @@ interface LinhaDaFichaProps {
 /** Uma ficha da pasta com o "+ A" / "+ B". O jogador entra uma vez por lado; o NPC repete (mais uma cópia a cada toque). */
 function LinhaDaFicha({ personagem, sistema, montagem, lados }: LinhaDaFichaProps) {
   const repete = personagem.tipo === 'npc'
+  // F2 (fatia A, resposta da Saga): ficha sem HP fica de fora da Arena, com o aviso no lugar dos botões.
+  const semHp = fichaSemHp(personagem, sistema)
   return (
     <li className="ar-ficha">
       <Retrato imagem={personagem.retrato} nome={personagem.nome} tamanho="p" />
@@ -96,8 +98,10 @@ function LinhaDaFicha({ personagem, sistema, montagem, lados }: LinhaDaFichaProp
           const atual = montagem.escolhas.find((escolha) => escolha.personagemId === personagem.id && escolha.lado === lado)
           const cheio = fichasNoLado(montagem, lado) >= FICHAS_POR_LADO_MAX
           const jaEsta = atual !== undefined && (!repete || atual.vezes >= VEZES_MAX)
-          const texto = jaEsta ? `No ${NOME_DO_LADO[lado]}` : `+ ${NOME_DO_LADO[lado]}`
-          const rotulo = jaEsta
+          const texto = semHp ? 'Sem HP' : jaEsta ? `No ${NOME_DO_LADO[lado]}` : `+ ${NOME_DO_LADO[lado]}`
+          const rotulo = semHp
+            ? `${personagem.nome} fica de fora: ${AVISO_SEM_HP}`
+            : jaEsta
             ? `${personagem.nome} já está no Lado ${NOME_DO_LADO[lado]}`
             : cheio
               ? `O Lado ${NOME_DO_LADO[lado]} já tem ${FICHAS_POR_LADO_MAX} fichas`
@@ -111,7 +115,7 @@ function LinhaDaFicha({ personagem, sistema, montagem, lados }: LinhaDaFichaProp
               className="ar-mais"
               style={corDoLado(lado)}
               data-esta={atual !== undefined ? 'sim' : undefined}
-              disabled={jaEsta || cheio}
+              disabled={semHp || jaEsta || cheio}
               aria-label={rotulo}
               title={rotulo}
               onClick={() => useArenaStore.getState().escolher(personagem.id, lado, (atual?.vezes ?? 0) + 1)}

@@ -664,9 +664,9 @@ export interface SaidaNaTela {
   dano: number | null
 }
 
-/** As saídas que o d20 liberou (a melhor primeiro), com o dano de cada uma. */
-export function saidasNaTela(d20: number, total: number, dano: number | null): SaidaNaTela[] {
-  return saidasPossiveis(d20, total).map((saida) => ({ saida, rotulo: TEXTO_DA_SAIDA[saida].botao, dano: dano === null ? null : danoFinal(dano, saida) }))
+/** As saídas que o d20 liberou (a melhor primeiro), com o dano de cada uma. `tiradas` (F2, fatia A) = as que os selos de quem reage tiram (Aéreo). */
+export function saidasNaTela(d20: number, total: number, dano: number | null, tiradas: readonly SaidaDaReacao[] = []): SaidaNaTela[] {
+  return saidasPossiveis(d20, total).filter((saida) => !tiradas.includes(saida)).map((saida) => ({ saida, rotulo: TEXTO_DA_SAIDA[saida].botao, dano: dano === null ? null : danoFinal(dano, saida) }))
 }
 
 /** A palavra grande sobre o número do dano; `null` = só o número. */

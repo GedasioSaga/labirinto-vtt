@@ -1,3 +1,4 @@
+import type { RespostasDoPedido } from './perguntaNaHora'
 import type { AutorDaAcao } from './turnos'
 
 /**
@@ -298,6 +299,13 @@ export type PedidoDeAcao =
        * escolha. Vai no registro: "Harvey usa Medicina (Cirugia)".
        */
       variante?: string
+      /**
+       * Conserto das fichas F2 (fatia A): as respostas das perguntas na hora
+       * da técnica ("cortante ou perfurante?"), chave → opção ou número. O
+       * host confere contra a mecânica do cartão (`mecanicasAMao.ts`).
+       * Ausente = sem pergunta.
+       */
+      respostas?: RespostasDoPedido
     }
   | { tipo: 'concentrar' }
   /** Q6: o contra-ataque gasto em se mover. Só marca (e tira o atalho); o movimento em si é o arrasto de sempre. */
@@ -589,6 +597,8 @@ export interface SeloDaBatalha {
   contador?: number
   /** R4 (lote de 01/11): o modificador de atributo do "Ajustar...". Na carta de NPC, nunca sai ao jogador. */
   ajuste?: true
+  /** F2 (fatia A): quanto o selo que tira por vez (Queimando N) tira; ausente = o da tabela (`danoPorVezDoSelo`). Só do host. */
+  porVez?: number
 }
 
 /** O selo como chega no pedido (o sugerido na mira, ou o do mestre). `turnos` null = até tirar. */
@@ -607,6 +617,8 @@ export interface SeloPedido {
 export interface SeloDoGolpe extends SeloPedido {
   natureza?: NaturezaDoSelo
   cartaoId?: string
+  /** F2 (fatia A): o "Queimando N" da mecânica à mão (`mecanicasAMao.ts`), nunca do fio. */
+  porVez?: number
 }
 
 /**

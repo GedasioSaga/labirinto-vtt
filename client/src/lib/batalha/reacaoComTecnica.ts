@@ -16,9 +16,9 @@ import {
   type TecnicaDaReacao,
   type VantagemNaRolagem,
 } from './combate'
-import { overloadNaBatalha } from './escolhaEEvolucao'
 import { ajustesDoCusto, depoisDaTecnica, resolverAlvo, rolarReacao } from './golpe'
-import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, lerAcao, lerCusto, lerTempo, tecnicaPorId, tecnicasComForma, tecnicasDe, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
+import { tecnicaPorId, tecnicasComForma, type LeituraDoCusto, type LeituraDoTempo } from './leituraDaFicha'
+import { leituraDaTecnica } from './leituraDaTecnica'
 import { seloPedidoValido } from './selos'
 import { lerTipo, modoDaReacao, saidaSugerida, seloDaReacao, type LeituraDoTipo, type ModoDaReacao } from './tiposDaHabilidade'
 
@@ -83,18 +83,16 @@ interface TecnicaConfirmada {
  * OVERLOAD conta como Overload aqui também (`overloadNaBatalha`).
  */
 function confirmar(cartao: CartaoDaFicha, forma: string | undefined, personagem: Personagem, sistema: SistemaDeRpg, custo: number | null, evoluidas: readonly string[] | undefined): TecnicaConfirmada {
-  const lidaAcao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
-  const lidoCusto = lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
-  // A tela confirma o custo: o número dela vale sobre o da ficha, no recurso que a ficha diz (SP por padrão), como no golpe.
-  const recurso = lidoCusto.tipo === 'nada' ? 'sp' : lidoCusto.recurso
+  // F2 (fatia A): a leitura única. A tela confirma o custo: o número dela vale sobre o da ficha, como no golpe.
+  const lida = leituraDaTecnica(cartao, { personagem, sistema, evoluidas, custoDaTela: custo })
   const tecnica: TecnicaConfirmada = {
     cartao,
-    tipo: lerTipo(cartao),
-    custo: custo === null ? lidoCusto : { tipo: 'valor', recurso, valor: custo, porTurno: false },
-    tempo: lerTempo(cartao.campos[CAMPO_DO_TEMPO] ?? ''),
-    acao: lidaAcao.acao,
-    overload: overloadNaBatalha(cartao, tecnicasDe(personagem, sistema), evoluidas),
-    transformacao: lidaAcao.transformacao,
+    tipo: lida.tipo,
+    custo: lida.custo,
+    tempo: lida.tempo,
+    acao: lida.acaoDaFicha.acao,
+    overload: lida.overload,
+    transformacao: lida.transformacao,
   }
   if (forma !== undefined) tecnica.forma = forma
   return tecnica

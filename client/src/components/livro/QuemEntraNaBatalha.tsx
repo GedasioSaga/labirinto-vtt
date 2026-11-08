@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import { maximoComposto } from '../../lib/ajusteDaFicha'
-import type { CandidatoDaBatalha, ComoEntra, EscolhaDaBatalha } from '../../lib/livros/combate'
+import { AVISO_SEM_HP, type CandidatoDaBatalha, type ComoEntra, type EscolhaDaBatalha } from '../../lib/livros/combate'
 import { RECURSO_QUE_A_FORCA_MULTIPLICA, type Personagem } from '../../lib/personagem'
 import { ImagemOuIniciais } from '../FichaPecas'
 import { Acoes, Botao } from '../grimorio/Botao'
@@ -70,7 +70,9 @@ export function QuemEntraNaBatalha({ aberto, candidatos, jogadoresSemFicha, mode
   const [comoPorToken, setComoPorToken] = useState<Readonly<Record<string, ComoEntra>>>({})
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
   const comFicha = candidatos.filter((candidato) => candidato.situacao === 'combate')
-  const semFicha = candidatos.filter((candidato) => candidato.situacao !== 'combate')
+  const semFicha = candidatos.filter((candidato) => candidato.situacao === 'semFicha' || candidato.situacao === 'soCenario')
+  // F2 (fatia A, resposta da Saga): a ficha sem HP fica de fora, sem caixa de marcar; a linha diz por quê.
+  const semHp = candidatos.filter((candidato) => candidato.situacao === 'semHp')
   const comoDe = (candidato: CandidatoDaBatalha): ComoEntra => comoPorToken[candidato.tokenId] ?? comoDePartida(candidato)
 
   const alternar = (tokenId: string) => {
@@ -133,7 +135,10 @@ export function QuemEntraNaBatalha({ aberto, candidatos, jogadoresSemFicha, mode
     )
   }
 
-  const descricao = `Há ${semFicha.length} ${semFicha.length === 1 ? 'token' : 'tokens'} no mapa sem ficha de combate. Marque os que lutam; o resto fica fora da ordem dos turnos.`
+  const descricao =
+    semFicha.length === 0
+      ? 'Marque quem luta. Ficha sem HP fica fora da ordem dos turnos.'
+      : `Há ${semFicha.length} ${semFicha.length === 1 ? 'token' : 'tokens'} no mapa sem ficha de combate. Marque os que lutam; o resto fica fora da ordem dos turnos.`
   const resumo =
     extras === 0
       ? 'Ninguém sem ficha entra.'
@@ -148,10 +153,17 @@ export function QuemEntraNaBatalha({ aberto, candidatos, jogadoresSemFicha, mode
             <ul className="gr-entra-lista">{comFicha.map(linha)}</ul>
           </fieldset>
         )}
-        <fieldset className="gr-entra-grupo">
-          <legend className="gr-entra-grupo__tit">Sem ficha de combate</legend>
-          <ul className="gr-entra-lista">{semFicha.map(linha)}</ul>
-        </fieldset>
+        {semFicha.length > 0 && (
+          <fieldset className="gr-entra-grupo">
+            <legend className="gr-entra-grupo__tit">Sem ficha de combate</legend>
+            <ul className="gr-entra-lista">{semFicha.map(linha)}</ul>
+          </fieldset>
+        )}
+        {semHp.length > 0 && (
+          <p className="gr-nota">
+            Ficam de fora, {AVISO_SEM_HP}: {semHp.map((candidato) => candidato.nome).join(', ')}. Dê HP máximo à ficha para ela lutar.
+          </p>
+        )}
         {jogadoresSemFicha > 0 && (
           <p className="gr-nota">
             {jogadoresSemFicha === 1

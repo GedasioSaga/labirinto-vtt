@@ -136,7 +136,7 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
                       )}
                     </button>
                   ) : (
-                    saidasNaTela(rolagem.d20, rolagem.total, item.dano).map((saida) => (
+                    saidasNaTela(rolagem.d20, rolagem.total, item.dano, item.semSaidas).map((saida) => (
                       <button key={saida.saida} type="button" className="bt-botao bt-botao--p" onClick={() => onPedir({ tipo: 'escolher', golpeId: item.golpeId, tokenId: item.tokenId, saida: saida.saida })}>
                         {saida.rotulo}
                         {saida.dano === null ? '' : ` · ${formatarNumero(saida.dano)}`}

@@ -1,6 +1,6 @@
 import type { Token } from '../../types/map'
 import { valorDoRank } from '../ajusteDaFicha'
-import { entraNaBatalha } from '../livros/combate'
+import { entraNaBatalha, fichaSemHp } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type InvocacaoPendente, type InvocadoNaBatalha, type LembreteDaMarca, type SeloDaBatalha } from './combate'
@@ -266,6 +266,8 @@ export function combatentesIniciais(
     const personagem = porId.get(token.characterId)
     if (personagem === undefined) continue
     if (incluir === undefined && !entraNaBatalha(personagem)) continue
+    // F2 (fatia A, resposta da Saga): ficha sem HP não entra, nem marcada na caixa, nem no treino, no duelo ou na Arena.
+    if (fichaSemHp(personagem, sistema)) continue
     comAgilidade.push({ carta: novaCarta(token.id, personagem.id, token.name), agilidade: agilidadeDe(personagem, sistema) })
   }
   // `sort` é estável: empate fica na ordem do mapa.

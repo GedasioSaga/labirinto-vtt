@@ -13,6 +13,7 @@ import {
   type Personagem,
 } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
+import { recursoDeVida } from '../vidaDaFicha'
 
 /**
  * NPCS DE COMBATE do mundo do livro de regras (M1,
@@ -44,6 +45,20 @@ const CAMPO_DA_ACAO = 'acao'
  */
 export function entraNaBatalha(personagem: Personagem): boolean {
   return personagem.tipo === 'jogador' || personagem.soCenario !== true
+}
+
+/** O aviso de quem fica de fora por não ter HP (resposta da Saga). */
+export const AVISO_SEM_HP = 'ficha sem HP'
+
+/**
+ * Conserto das fichas F2 (fatia A, resposta da Saga): a ficha com HP máximo 0
+ * (com os modificadores e a força do NPC) não entra na batalha, nem no
+ * treino, no duelo ou na Arena; quem a escolheu vê "ficha sem HP". Sistema
+ * sem recurso de vida: ninguém fica de fora por isso.
+ */
+export function fichaSemHp(personagem: Personagem, sistema: SistemaDeRpg | null): boolean {
+  const vida = recursoDeVida(sistema)
+  return vida !== null && maximoComposto(personagem, vida.id).total <= 0
 }
 
 /** É variação de um modelo (a ficha vem dele, `sincronizarVariacoes`). */
@@ -338,7 +353,7 @@ export function novaVariacao(modelo: Personagem, nome: string): Personagem {
 // ───────────────────────────────────────────────────────────────────────────
 
 /** Como o token está para a batalha: com ficha de combate, sem ficha nenhuma, ou com ficha "Só no cenário". */
-export type SituacaoNaBatalha = 'combate' | 'semFicha' | 'soCenario'
+export type SituacaoNaBatalha = 'combate' | 'semFicha' | 'soCenario' | 'semHp'
 
 export interface CandidatoDaBatalha {
   tokenId: string
@@ -369,13 +384,15 @@ type TokenDaCaixa = Pick<Token, 'id' | 'characterId' | 'name' | 'hidden'>
  * editor (os escondidos já ficam fora da ordem, `combatentesIniciais`).
  * Ligado a personagem apagado = sem ficha.
  */
-export function quemPodeEntrar(tokens: readonly TokenDaCaixa[], personagens: readonly Personagem[]): CandidatoDaBatalha[] {
+export function quemPodeEntrar(tokens: readonly TokenDaCaixa[], personagens: readonly Personagem[], sistema: SistemaDeRpg | null = null): CandidatoDaBatalha[] {
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
   return tokens
     .filter((token) => token.hidden !== true)
     .map((token): CandidatoDaBatalha => {
       const personagem = token.characterId === null ? undefined : porId.get(token.characterId)
       if (personagem === undefined) return { tokenId: token.id, nome: token.name, personagemId: null, situacao: 'semFicha' }
+      // F2 (fatia A): ficha sem HP fica de fora e a caixa diz por quê.
+      if (fichaSemHp(personagem, sistema)) return { tokenId: token.id, nome: token.name, personagemId: personagem.id, situacao: 'semHp' }
       return { tokenId: token.id, nome: token.name, personagemId: personagem.id, situacao: entraNaBatalha(personagem) ? 'combate' : 'soCenario' }
     })
 }

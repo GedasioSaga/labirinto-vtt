@@ -2,8 +2,9 @@ import { cartoesQueLigam } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { LembreteDaPassiva, PedidoDePassiva } from './combate'
+import { normalizar } from './formula'
 import { CAMPO_DO_CUSTO, lerCusto, recursoDoCusto, type LeituraDoCusto } from './leituraDaFicha'
-import { parteAnterior } from './transformacao'
+import { CAMPO_DO_REQUISITO, parteAnterior } from './transformacao'
 import type { TurnosDaCena } from './turnos'
 
 /**
@@ -19,10 +20,25 @@ import type { TurnosDaCena } from './turnos'
 /** O custo que repete a cada vez. */
 export type CustoPorTurno = Extract<LeituraDoCusto, { tipo: 'valor' }>
 
-/** O custo do campo Custo quando é "por turno" e acima de 0; `null` = não repete. */
+/**
+ * F2 (fatia A, sobra da F1): o Requisito das formas que diz o gasto por vez
+ * ("Gasta 5 SP por turno", "Gasta 10 SP por turno para manter a forma": as
+ * formas do Jimboy e da Ryoko). Já sem acento e em minúsculas.
+ */
+const GASTO_POR_TURNO_NO_REQUISITO = /\bgasta (\d+) ?(?:de )?(sp|hp) \(? ?por turno\b/
+
+/**
+ * O custo que repete a cada vez: o do campo Custo quando é "por turno"; senão
+ * o gasto por turno escrito no Requisito. Acima de 0; `null` = não repete.
+ */
 export function custoPorTurno(cartao: Pick<CartaoDaFicha, 'campos'>, personagem: Personagem): CustoPorTurno | null {
   const lido = lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
-  return lido.tipo === 'valor' && lido.porTurno && lido.valor > 0 ? lido : null
+  if (lido.tipo === 'valor' && lido.porTurno) return lido.valor > 0 ? lido : null
+  const noRequisito = GASTO_POR_TURNO_NO_REQUISITO.exec(normalizar(cartao.campos[CAMPO_DO_REQUISITO] ?? ''))
+  const numero = noRequisito?.[1]
+  if (noRequisito === null || numero === undefined) return null
+  const valor = Number.parseInt(numero, 10)
+  return valor > 0 ? { tipo: 'valor', recurso: noRequisito[2] === 'hp' ? 'hp' : 'sp', valor, porTurno: true } : null
 }
 
 /** A chave do lembrete do custo da forma (a do "a cada turno" da passiva é `cartaoId:turno`). */

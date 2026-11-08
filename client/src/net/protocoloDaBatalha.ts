@@ -59,6 +59,7 @@ import { COMO_MARCA, LEMBRETES_DA_MARCA_MAX } from '../lib/batalha/marca'
 import { NOME_DA_EQUIPE_MAX } from '../lib/batalha/equipes'
 import { lerJudgeNaCena } from '../lib/batalha/judge'
 import { LIMITE_DE_ARMAS_MAX } from '../lib/batalha/leituraDaFicha'
+import { lerRespostas } from '../lib/batalha/perguntaNaHora'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { AUTOR_NO_REGISTRO_MAX, REGISTRO_PARA_JOGADOR_MAX, REGISTRO_TEXTO_MAX, type LinhaParaJogador } from '../lib/batalha/registro'
 import { lerRegrasDaBatalha, type RegrasDaBatalha } from '../lib/batalha/regrasDoCampo'
@@ -473,6 +474,9 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       const selo = lerSeloOpcional(value.selo)
       const perfuracao = lerPerfuracao(value.perfuracao)
       const variante = lerVarianteOpcional(value.variante)
+      // F2 (fatia A): as respostas das perguntas na hora; se valem para a técnica, quem confere é a store.
+      const respostas = value.respostas === undefined ? undefined : lerRespostas(value.respostas)
+      if (respostas === null) return null
       // Habilidade de suporte pode não ter alvo.
       const alvosLidos = lerAlvosDoPedido(alvos, 0)
       const acaoLida = acao === null ? null : lerAcaoDaTecnica(acao)
@@ -483,6 +487,7 @@ export function lerPedidoDeAcao(value: unknown): PedidoDeAcao | null {
       if (contraDe !== undefined) pedido.contraDe = contraDe
       if (selo !== undefined) pedido.selo = selo
       if (variante !== undefined) pedido.variante = variante
+      if (respostas !== undefined) pedido.respostas = respostas
       return pedido
     }
     case 'concentrar':

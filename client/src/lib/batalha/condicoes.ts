@@ -1,4 +1,4 @@
-import type { LembreteDaPassiva, SeloDaBatalha } from './combate'
+import type { LembreteDaPassiva, ModDoSelo, SaidaDaReacao, SeloDaBatalha } from './combate'
 import { normalizar } from './formula'
 
 /**
@@ -16,16 +16,88 @@ import { normalizar } from './formula'
  * Puro: sem store, sem rede.
  */
 
-/** Os selos que travam a vez, na ordem em que o texto os procura. */
-const SELOS_QUE_TRAVAM: readonly { sinal: RegExp; nome: string }[] = [
-  { sinal: /^atordoad/, nome: 'Atordoado' },
-  { sinal: /^paralisad/, nome: 'Paralisado' },
+/**
+ * O que o selo FAZ, pelo nome (conserto das fichas F2, fatia A; seção 6 de
+ * docs/planos/construtor-de-mecanicas-2026-11-08.md: "tabela nome →
+ * comportamento", que a peça `selo` do construtor reusa). Respostas do
+ * grilling: Aéreo (May), Cego (Harvey), Ferido por prata (Vincent),
+ * Queimando (Aira), Sangrando (Alexei e Siegfried), Atordoado (Jimboy).
+ */
+export interface ComportamentoDoSelo {
+  /** O nome que a tela mostra ("Aéreo"). */
+  nome: string
+  sinal: RegExp
+  /** Na vez do dono só "Passar a vez", e ele não reage. */
+  trava?: true
+  /** As saídas da reação que o selo tira (Aéreo: Esquiva e Contra-ataque; Defender e Receber ficam). */
+  tiraSaidas?: readonly SaidaDaReacao[]
+  /** O atributo que fica em 0 enquanto o selo existe (Cego: Percepção). */
+  zera?: string
+  /** O que tira no começo da vez da vítima, direto no HP, pelo lembrete "Aplicar / pular" do mestre. O selo pode trazer o dele (`SeloDaBatalha.porVez`). */
+  porVez?: number
+  /** O verbo da linha do registro quando o mestre aplica ("Ilo sangra: -10 HP"). */
+  verbo?: string
+  /** Um acerto novo com o mesmo selo renova os turnos dele em vez de pôr outro (Queimando). */
+  renova?: true
+  /** O selo só lembra o mestre disto (o app não aplica nada). */
+  lembrete?: string
+}
+
+/** A tabela, na ordem em que o nome é procurado. */
+const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
+  { nome: 'Atordoado', sinal: /^atordoad/, trava: true },
+  { nome: 'Paralisado', sinal: /^paralisad/, trava: true },
+  { nome: 'Aéreo', sinal: /^aere[oa]/, tiraSaidas: ['esquiva', 'contra'] },
+  { nome: 'Cego', sinal: /^ceg[oa]/, zera: 'percepcao' },
+  { nome: 'Ferido por prata', sinal: /^ferid[oa] por prata/, lembrete: 'a cura que recebe cai pela metade (o mestre corta à mão)' },
+  { nome: 'Sangrando', sinal: /^sangr/, porVez: 10, verbo: 'sangra' },
+  { nome: 'Queimando', sinal: /^queima/, porVez: 10, verbo: 'queima', renova: true },
 ]
+
+/** O comportamento do selo pelo nome (sem acento nem caixa); `null` = selo comum. */
+export function comportamentoDoSelo(nomeDoSelo: string): ComportamentoDoSelo | null {
+  const normal = normalizar(nomeDoSelo).trim()
+  return COMPORTAMENTOS_DOS_SELOS.find((comportamento) => comportamento.sinal.test(normal)) ?? null
+}
 
 /** O nome da condição que trava ("Atordoado"), se o selo é uma; `null` = não trava. */
 function condicaoQueTrava(nomeDoSelo: string): string | null {
-  const normal = normalizar(nomeDoSelo).trim()
-  return SELOS_QUE_TRAVAM.find((trava) => trava.sinal.test(normal))?.nome ?? null
+  const comportamento = comportamentoDoSelo(nomeDoSelo)
+  return comportamento?.trava === true ? comportamento.nome : null
+}
+
+/**
+ * As saídas da reação que o d20 liberou, sem as que os selos de quem reage
+ * tiram (Aéreo: só Defender e Receber). A melhor que sobra fica primeiro.
+ */
+export function saidasComOsSelos(saidas: readonly SaidaDaReacao[], selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): SaidaDaReacao[] {
+  const tiradas = new Set(saidasTiradas(selos))
+  return saidas.filter((saida) => !tiradas.has(saida))
+}
+
+/** As saídas que os selos de quem reage tiram (Aéreo: Esquiva e Contra-ataque); nenhuma = vazio. */
+export function saidasTiradas(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): SaidaDaReacao[] {
+  return [...new Set((selos ?? []).flatMap((selo) => comportamentoDoSelo(selo.nome)?.tiraSaidas ?? []))]
+}
+
+/**
+ * Os mods que o selo novo leva por fazer o que diz: Cego põe a Percepção do
+ * alvo em 0 (o total de agora, com os selos que ele já tem, em negativo).
+ * Selo sem atributo para zerar, ou já em 0: os mods do pedido, iguais.
+ */
+export function modsDoComportamento(nomeDoSelo: string, mods: readonly ModDoSelo[] | undefined, totalDoAtributo: (atributoId: string) => number | null): readonly ModDoSelo[] | undefined {
+  const zera = comportamentoDoSelo(nomeDoSelo)?.zera
+  if (zera === undefined) return mods
+  const total = totalDoAtributo(zera)
+  if (total === null || total === 0) return mods
+  return [...(mods ?? []).filter((mod) => mod.alvo !== zera), { alvo: zera, delta: -total }]
+}
+
+/** Quanto o selo tira por vez (o dele, ou o da tabela); `null` = não tira. */
+export function danoPorVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'>): number | null {
+  const daTabela = comportamentoDoSelo(selo.nome)?.porVez
+  if (daTabela === undefined) return null
+  return selo.porVez !== undefined && Number.isInteger(selo.porVez) && selo.porVez > 0 ? selo.porVez : daTabela
 }
 
 /** "Atordoado: nesta vez só dá para passar a vez". */
@@ -75,12 +147,15 @@ export const DANO_DO_SANGRAMENTO = 10
 
 /** O selo é de sangramento ("Sangrando", "Sangramento 3"). */
 export function ehSeloDeSangramento(selo: Pick<SeloDaBatalha, 'nome'>): boolean {
-  return /^sangr/.test(normalizar(selo.nome).trim())
+  return comportamentoDoSelo(selo.nome)?.nome === 'Sangrando'
 }
 
-/** Os selos de sangramento da ficha, na ordem em que foram postos. */
+/**
+ * Os selos da ficha que tiram por vez (Sangrando, Queimando), na ordem em que
+ * foram postos: cada um pede "Aplicar / pular" ao mestre no começo da vez.
+ */
 export function sangramentosDoToken(selos: readonly SeloDaBatalha[] | undefined, tokenId: string): SeloDaBatalha[] {
-  return (selos ?? []).filter((selo) => selo.tokenId === tokenId && ehSeloDeSangramento(selo))
+  return (selos ?? []).filter((selo) => selo.tokenId === tokenId && danoPorVezDoSelo(selo) !== null)
 }
 
 /** A chave do lembrete do sangramento: o `cartaoId` do lembrete é o id do SELO. */
