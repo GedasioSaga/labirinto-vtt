@@ -1,7 +1,7 @@
-import { ABA_DAS_TECNICAS, CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO } from '../../../../lib/batalha/leituraDaFicha'
-import { CAMPO_DO_DANO, lerDano, type LeituraDoDano } from '../../../../lib/batalha/formula'
-import type { CartaoDaFicha, Personagem } from '../../../../lib/personagem'
-import type { SistemaDeRpg } from '../../../../lib/sistemaDeRpg'
+import { ABA_DAS_TECNICAS, CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO } from '../batalha/leituraDaFicha'
+import { CAMPO_DO_DANO, lerDano, type LeituraDoDano } from '../batalha/formula'
+import type { CartaoDaFicha, Personagem } from '../personagem'
+import type { SistemaDeRpg } from '../sistemaDeRpg'
 
 /**
  * A TÉCNICA DE TREINO (fatia J, pedido de 06/11/2026: "eles vão poder dar

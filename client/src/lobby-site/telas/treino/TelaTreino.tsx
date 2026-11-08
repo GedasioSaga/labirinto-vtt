@@ -1,14 +1,18 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { Personagem } from '../../../lib/personagem'
 import { enderecoDaRota, type Rota } from '../../dados/rotas'
-import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
+import type { EstadoDaCampanha, FichaDoSite } from '../../dados/sessaoDaCampanha'
 import { aoClicarNoLink, sistemaDaCampanha, useDoSite, useSite } from '../contexto'
 import { AvisoDaPagina } from '../Estados'
 import { Icone } from '../Icone'
 import { CemLutas } from './CemLutas'
 import { ImagemDoSite } from './grade/ImagemDoSite'
-import { AjustesDoJuiz } from './juiz/AjustesDoJuiz'
-import { apagarAjustesDoJuiz, ajustesPadraoDoJuiz, fichaDoJuiz, guardarAjustesDoJuiz, ID_DO_JUIZ, juizMudou, juizNaoReage, lerAjustesDoJuiz, NOME_DO_JUIZ, RETRATO_DO_JUIZ, type AjustesDoJuiz as Ajustes } from './juiz/juizDoTreino'
+import { ajustesPadraoDoJuiz, fichaDoJuiz, ID_DO_JUIZ, juizMudou, juizNaoReage, NOME_DO_JUIZ, RETRATO_DO_JUIZ, type AjustesDoJuiz as Ajustes } from '../../../lib/treino/juiz'
+import { motivoDaSoLeitura, useSoLeitura } from '../VerComo'
+import { baseDoJuiz, buildDesligada, comBuild, diferencaDoJuiz, guardarBuilds, juizDaBuild, lerBuilds, semBuild, type BuildSalva } from './buildsSalvas'
+import { AjustesDoJuiz, type OpcaoDeBase } from './juiz/AjustesDoJuiz'
+import { apagarAjustesDoJuiz, guardarAjustesDoJuiz, lerAjustesDoJuiz } from './juiz/juizDoTreino'
+import { ListaDeBuilds, type BuildsDaMesa } from './juiz/ListaDeBuilds'
 import { comVidaCheia, type MontagemDaLuta } from './lutaDeTreino'
 import { LutaTurnoATurno } from './LutaTurnoATurno'
 import { MontagemNaGrade } from './montagem/MontagemNaGrade'
@@ -39,6 +43,13 @@ const MODOS: readonly { id: Modo; nome: string }[] = [
   { id: 'juiz', nome: `Ajustar o ${NOME_DO_JUIZ}` },
 ]
 
+/** De quem é a ficha, para a escolha da base do Judge: "sua" (ou sem dono, para o mestre) ou "de Pedro". */
+function donoDaFicha(ficha: FichaDoSite, meuNome: string | null): string {
+  const dono = ficha.nomeDoDono
+  if (dono === null) return ficha.ehMinha ? 'sua' : 'sem dono'
+  return ficha.ehMinha && dono === meuNome ? 'sua' : `de ${dono}`
+}
+
 /** "Judge", "Judge e companhia": contra quem, para a barra e o fim da luta. */
 function nomeDoLadoB(inimigos: readonly Personagem[]): string {
   const primeiro = inimigos[0]
@@ -57,6 +68,25 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
   const [juiz, setJuiz] = useState<Ajustes>(() => lerAjustesDoJuiz(campanhaId, demo, sistema))
   const [juizGuardado, setJuizGuardado] = useState<boolean | null>(null)
   const listaDeModos = useRef<HTMLDivElement>(null)
+  // As builds salvas são desta conta nesta mesa. No "Ver como" a conta é a do jogador: a lista é a dele neste navegador e nada é gravado.
+  const soLeitura = useSoLeitura()
+  const contaId = campanha.eu?.contaId ?? null
+  const [builds, setBuilds] = useState<BuildSalva[]>(() => (contaId === null ? [] : lerBuilds(campanhaId, contaId, demo)))
+  const [buildsDaConta, setBuildsDaConta] = useState(contaId)
+  const [buildsGuardadas, setBuildsGuardadas] = useState<boolean | null>(null)
+  if (buildsDaConta !== contaId) {
+    setBuildsDaConta(contaId)
+    setBuilds(contaId === null ? [] : lerBuilds(campanhaId, contaId, demo))
+    setBuildsGuardadas(null)
+  }
+
+  // A base do Judge pode ser qualquer ficha da mesa que entra no treino (as minhas e as dos colegas).
+  const daMesa = [...minhas, ...colegas]
+  const fichaDaMesa = (fichaId: string): FichaDoSite | null => daMesa.find((ficha) => ficha.doc.id === fichaId) ?? null
+  const ehMinha = (fichaId: string) => minhas.some((ficha) => ficha.doc.id === fichaId)
+  const meuNome = campanha.eu?.nome ?? null
+  const copiada = juiz.baseFichaId === null ? null : (fichaDaMesa(juiz.baseFichaId)?.doc ?? null)
+  const opcoesDeBase: OpcaoDeBase[] = daMesa.map((ficha) => ({ fichaId: ficha.doc.id, nome: ficha.doc.nome, dono: donoDaFicha(ficha, meuNome) }))
 
   // `versaoDosRascunhos` muda quando o Testar build guarda: o "usar o rascunho" relê o que está no navegador.
   const idsDasMinhas = minhas.map((ficha) => ficha.doc.id).join(',')
@@ -78,7 +108,14 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
       detalhe: comORascunho && rascunhoMuda(rascunhos.get(ficha.doc.id) ?? null) ? 'seu, com o rascunho de treino' : 'seu personagem',
     })),
     ...colegas.map((ficha): PecaDaMontagem => ({ id: ficha.doc.id, nome: ficha.doc.nome, retrato: ficha.doc.retrato, selo: ficha.doc.tipo === 'npc' ? 'npc' : 'jogador', origem: 'colega', detalhe: `de ${ficha.nomeDoDono ?? 'um colega'}, cópia de treino` })),
-    { id: ID_DO_JUIZ, nome: NOME_DO_JUIZ, retrato: RETRATO_DO_JUIZ, selo: 'npc', origem: 'juiz', detalhe: juizMudou(juiz) ? 'boneco de teste, ajustado por você' : 'boneco de teste da Arena' },
+    {
+      id: ID_DO_JUIZ,
+      nome: copiada === null ? NOME_DO_JUIZ : `Cópia de ${copiada.nome}`,
+      retrato: copiada === null ? RETRATO_DO_JUIZ : copiada.retrato,
+      selo: 'npc',
+      origem: 'juiz',
+      detalhe: copiada !== null ? `o ${NOME_DO_JUIZ} copiando ${copiada.nome}` : juizMudou(juiz) ? 'boneco de teste, ajustado por você' : 'boneco de teste da Arena',
+    },
     ...inimigos.map((ficha): PecaDaMontagem => ({ id: ficha.doc.id, nome: ficha.doc.nome, retrato: ficha.doc.retrato, selo: 'npc', origem: 'inimigo', detalhe: 'liberado pelo mestre' })),
   ]
   const [guardada, setGuardada] = useState<PecaNaGrade[]>(() => montagemInicial(pecas))
@@ -87,7 +124,7 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
 
   const preparar = (doc: Personagem): Personagem => (vidaCheia ? comVidaCheia(doc, sistema) : doc)
   const docDaPeca = (pecaId: string): Personagem | null => {
-    if (pecaId === ID_DO_JUIZ) return fichaDoJuiz(sistema, juiz)
+    if (pecaId === ID_DO_JUIZ) return fichaDoJuiz(sistema, juiz, copiada)
     const minha = minhas.find((ficha) => ficha.doc.id === pecaId)
     if (minha !== undefined) return comORascunho ? comRascunho(minha.doc, rascunhos.get(pecaId) ?? null) : minha.doc
     return [...colegas, ...inimigos].find((ficha) => ficha.doc.id === pecaId)?.doc ?? null
@@ -118,6 +155,35 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
     setJuiz(ajustesPadraoDoJuiz())
     setJuizGuardado(null)
   }
+  function mudarBuilds(novas: BuildSalva[]) {
+    if (contaId === null || soLeitura !== null) return
+    setBuilds(novas)
+    setBuildsGuardadas(guardarBuilds(campanhaId, contaId, demo, novas))
+  }
+  const buildsDaMesa: BuildsDaMesa = {
+    lista: builds,
+    bloqueio: soLeitura !== null ? `${motivoDaSoLeitura(soLeitura.nome)} Nenhuma build é salva nem usada aqui.` : contaId === null ? 'Sem conta nesta mesa: as builds ficam desligadas.' : null,
+    guardado: buildsGuardadas,
+    salvar(nome, base, diferenca) {
+      const resultado = comBuild(builds, nome, base, diferenca, Date.now())
+      if (resultado.ok) mudarBuilds(resultado.builds)
+      return resultado
+    },
+    apagar: (id) => mudarBuilds(semBuild(builds, id)),
+    descreverBase(build) {
+      if (build.base.tipo === 'juiz') return `sobre o boneco do ${NOME_DO_JUIZ}`
+      const ficha = fichaDaMesa(build.base.fichaId)
+      if (ficha === null) return 'sobre uma ficha que saiu da mesa'
+      const dono = donoDaFicha(ficha, meuNome)
+      return dono === 'sua' ? `sobre ${ficha.doc.nome}, a sua ficha` : `sobre ${ficha.doc.nome}, ${dono}`
+    },
+    desligada: (build) => buildDesligada(build, (fichaId) => fichaDaMesa(fichaId) !== null),
+    porNoJuiz(build) {
+      mudarJuiz(juizDaBuild(build, sistema, juiz, Date.now()))
+      return `O ${NOME_DO_JUIZ} agora veste a build “${build.nome}”.`
+    },
+  }
+
   function irParaOJuiz() {
     setModo('juiz')
     requestAnimationFrame(() => listaDeModos.current?.querySelector<HTMLElement>('#modo-treino-juiz')?.focus())
@@ -184,10 +250,19 @@ function Montagem({ campanha, campanhaId, demo, modo, setModo, versaoDosRascunho
             fichaInicial={lista.map((peca) => peca.pecaId).find((pecaId) => minhas.some((ficha) => ficha.doc.id === pecaId)) ?? null}
             montagem={montagemDoBuild}
             aoMudarRascunho={mudouRascunho}
+            builds={buildsDaMesa}
           />
         </div>
         <div className="lo-painel" role="tabpanel" id="painel-treino-juiz" aria-labelledby="modo-treino-juiz" hidden={modo !== 'juiz'}>
-          <AjustesDoJuiz ajustes={juiz} sistema={sistema} onMudar={mudarJuiz} onVoltarAoPadrao={juizPadrao} guardado={juizGuardado} />
+          <AjustesDoJuiz ajustes={juiz} sistema={sistema} base={copiada} opcoesDeBase={opcoesDeBase} onMudar={mudarJuiz} onVoltarAoPadrao={juizPadrao} guardado={juizGuardado}>
+            <ListaDeBuilds
+              builds={buildsDaMesa}
+              base={baseDoJuiz(juiz, ehMinha)}
+              diferenca={diferencaDoJuiz(juiz, sistema)}
+              doQue={copiada === null ? `o ${NOME_DO_JUIZ} como está` : `o ${NOME_DO_JUIZ} copiando ${copiada.nome}`}
+              acoes={[{ rotulo: `Pôr no ${NOME_DO_JUIZ}`, pode: () => true, fazer: buildsDaMesa.porNoJuiz }]}
+            />
+          </AjustesDoJuiz>
         </div>
       </div>
     </div>

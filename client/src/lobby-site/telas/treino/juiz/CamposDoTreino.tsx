@@ -13,7 +13,7 @@ import {
   TECNICAS_DE_TREINO_MAX,
   tecnicaNova,
   type TecnicaDeTreino,
-} from './tecnicaDeTreino'
+} from '../../../../lib/treino/tecnicaDeTreino'
 
 /**
  * OS CAMPOS DO TREINO (fatia J): o inteiro com rascunho e o editor das

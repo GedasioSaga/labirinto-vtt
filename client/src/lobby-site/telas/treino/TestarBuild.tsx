@@ -2,11 +2,14 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Personagem } from '../../../lib/personagem'
 import { LUTAS_DA_SERIE, type ComparacaoDeBuild } from '../../../lib/treino/cemLutas'
 import { compararBuildNoWorker, type LutasNoWorker } from '../../../lib/treino/lutasNoWorker'
+import { NOME_DO_JUIZ } from '../../../lib/treino/juiz'
 import { sementeNova } from '../../../lib/treino/sorteio'
 import { useSistemaDoLobby } from '../contexto'
 import { assentarAnimacao } from './ArenaDaLuta'
+import { diferencaDoRascunho, rascunhoDaBuild, type BuildSalva } from './buildsSalvas'
 import { AvisoDeMontagemVelha, BarraDasLutas, NumerosDaSerie, type Progresso } from './CemLutas'
 import { EditorDeTecnicas } from './juiz/CamposDoTreino'
+import { ListaDeBuilds, type AcaoDaBuild, type BuildsDaMesa } from './juiz/ListaDeBuilds'
 import { assinaturaDaMontagem, lutadoresDaMontagem, problemaDaMontagem, quemLutou, type MontagemDaLuta } from './lutaDeTreino'
 import { apagarRascunho, comRascunho, guardarRascunho, lerRascunho, NUMERO_DO_RASCUNHO_MAX, rascunhoMuda, rascunhoVazio, type RascunhoDeTreino } from './rascunhoDeTreino'
 
@@ -28,6 +31,8 @@ interface PropsDoBuild {
   /** Os inimigos e as outras fichas do meu lado; `prepararMinha` põe a Vida cheia, se marcada. */
   montagem: (minhaNoLado: Personagem) => MontagemDaLuta
   aoMudarRascunho(): void
+  /** As builds salvas desta conta (as mesmas do Judge): o rascunho vira build, e a build volta ao rascunho. */
+  builds: BuildsDaMesa
 }
 
 function horaCurta(ms: number): string {
@@ -90,7 +95,7 @@ function ResultadoDaComparacao({ comparacao, quem, velha }: { comparacao: Compar
   )
 }
 
-export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, aoMudarRascunho }: PropsDoBuild) {
+export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, aoMudarRascunho, builds }: PropsDoBuild) {
   // Os campos do rascunho são os do sistema da campanha: atributos, máximos e os de um número só (o Escudo, que muda o valor).
   const sistema = useSistemaDoLobby()
   const recursosComMaximo = sistema.recursos.filter((recurso) => recurso.atualEMaximo === true)
@@ -192,6 +197,24 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
       })
   }
 
+  /** A build de uma ficha minha abre no rascunho dela (o que estava lá dá lugar à build). */
+  function abrirBuild(build: BuildSalva): string {
+    const alvo = fichas.find((ficha) => ficha.id === build.base.fichaId)
+    if (alvo === undefined) return `A ficha da build “${build.nome}” não é sua nesta mesa.`
+    pararComparacao()
+    setFichaId(alvo.id)
+    setComparacao(null)
+    const novo = rascunhoDaBuild(build, Date.now())
+    setRascunho(novo)
+    setGuardado(guardarRascunho(campanhaId, novo, demo))
+    aoMudarRascunho()
+    return `A build “${build.nome}” está no rascunho de ${alvo.nome}.`
+  }
+  const acoesDasBuilds: AcaoDaBuild[] = [
+    { rotulo: 'Abrir no rascunho', pode: (build) => build.base.tipo === 'minha' && fichas.some((ficha) => ficha.id === build.base.fichaId), fazer: abrirBuild },
+    { rotulo: `Pôr no ${NOME_DO_JUIZ}`, pode: () => true, fazer: builds.porNoJuiz },
+  ]
+
   const problema = problemaDaMontagem(montagem(doc))
   const muda = rascunhoMuda(rascunho)
 
@@ -274,6 +297,8 @@ export function TestarBuild({ campanhaId, demo, fichas, fichaInicial, montagem, 
       {comparacao !== null && (
         <ResultadoDaComparacao comparacao={comparacao.valor} quem={comparacao.quem} velha={comparacao.assinatura !== assinatura} />
       )}
+
+      <ListaDeBuilds builds={builds} base={{ tipo: 'minha', fichaId: doc.id }} diferenca={diferencaDoRascunho(rascunho)} doQue={`o rascunho de ${doc.nome}`} acoes={acoesDasBuilds} />
     </div>
   )
 }

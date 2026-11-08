@@ -1,5 +1,5 @@
 import type { Personagem } from '../../../lib/personagem'
-import { comTecnicasDeTreino, lerTecnicasDeTreino, type TecnicaDeTreino } from './juiz/tecnicaDeTreino'
+import { comTecnicasDeTreino, lerTecnicasDeTreino, type TecnicaDeTreino } from '../../../lib/treino/tecnicaDeTreino'
 
 /**
  * O RASCUNHO DE TREINO (fatia T7; achado Tr6 do plano: "rascunho de build
