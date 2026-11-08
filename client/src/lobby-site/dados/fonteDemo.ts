@@ -9,10 +9,13 @@ import { CONTA_DO_MESTRE, type FichaGuardada, type FichaNoEstado, type Identidad
 import { criarChatDaDemo, type ChatDaDemo } from './chatDaDemo'
 import { campanhasDaDemo, EMAIL_DA_DEMO, type CampanhaDaDemo, type MudancaAntiga } from './dadosDaDemo'
 import type { DueloDaDemo, OpcoesDoDueloDaDemo } from './dueloDaDemo'
+import type { MensagemDaLutaDoServidor } from '../../lib/treino/lutaDoLobby'
+import type { LutaDaDemo, OpcoesDaLutaDaDemo } from './lutaDaDemo'
 import { criarMuralDaDemo, type MuralDaDemo } from './muralDaDemo'
 import { decidirVerComo } from '../../lib/nuvem/verComo'
 import type { MensagemDoDueloDoServidor } from '../../lib/treino/dueloDoLobby'
 import {
+  ehPedidoDaLuta,
   ehPedidoDoChat,
   ehPedidoDoDuelo,
   ehPedidoDoMural,
@@ -225,6 +228,8 @@ interface ServidorDaDemo {
   muraisAbertos: Set<(campanhaId: string) => void>
   /** O duelo de cada mesa (T7), com o colega inventado que aceita, joga e cai da conexão uma vez; carregado na primeira vez que a mesa o usa. */
   duelos: Map<string, () => Promise<DueloDaDemo>>
+  /** As lutas de N lados de cada mesa (F5), com os colegas inventados no robô; carregadas no primeiro `luta.*` da mesa. */
+  lutas: Map<string, () => Promise<LutaDaDemo>>
   /** Os canais abertos, para mandar o `estado` de novo quando os membros mudam (a foto de perfil). */
   membrosAbertos: Set<(campanhaId: string) => void>
   /** As fotos de perfil desta página: id da mídia -> endereço `blob:` (só na memória; recarregar esquece). */
@@ -240,6 +245,15 @@ function dueloSobDemanda(opcoes: OpcoesDoDueloDaDemo): () => Promise<DueloDaDemo
   let carregando: Promise<DueloDaDemo> | null = null
   return () => {
     carregando ??= import('./dueloDaDemo').then(({ criarDueloDaDemo }) => criarDueloDaDemo(opcoes))
+    return carregando
+  }
+}
+
+/** A luta de N lados da demo, como o duelo: só baixa no primeiro `luta.*` da mesa, uma promessa só por mesa. */
+function lutaSobDemanda(opcoes: OpcoesDaLutaDaDemo): () => Promise<LutaDaDemo> {
+  let carregando: Promise<LutaDaDemo> | null = null
+  return () => {
+    carregando ??= import('./lutaDaDemo').then(({ criarLutaDaDemo }) => criarLutaDaDemo(opcoes))
     return carregando
   }
 }
@@ -261,8 +275,12 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
   let chegou = false
   /** O canal ouvindo o duelo da mesa (o que o colega inventado faz sozinho); `null` antes do primeiro `ola`. */
   let pararDeOuvirODuelo: (() => void) | null = null
+  /** O canal ouvindo as lutas da mesa; `null` até o primeiro `luta.*` (o DO só difunde a quem já falou `luta.*`). */
+  let pararDeOuvirAsLutas: (() => void) | null = null
 
   function encerrar(): void {
+    pararDeOuvirAsLutas?.()
+    pararDeOuvirAsLutas = null
     encerrado = true
     aberto = false
     servidor.abertos.delete(difundir)
@@ -301,8 +319,12 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
   function reenviarEstado(deQual: string): void {
     if (aberto && deQual === campanhaId && campanha !== undefined && membro !== undefined) entregar(estadoPara(campanha, membro))
   }
-  /** Ida e volta pelo JSON e pelo leitor da fonte real, como no fio. */
-  function entregar(mensagem: MensagemDoSite): void {
+  /**
+   * Ida e volta pelo JSON e pelo leitor da fonte real, como no fio. A luta de
+   * N lados manda o frame do servidor como ele é: o leitor o separa
+   * (`luta.fio`) e as lutas o leem.
+   */
+  function entregar(mensagem: MensagemDoSite | MensagemDaLutaDoServidor): void {
     relogio.depois(LATENCIA_DA_DEMO_MS, () => {
       if (encerrado) return
       const lida = lerMensagemDoServidor(JSON.stringify(mensagem))
@@ -330,6 +352,21 @@ function abrirCanalDaDemo(servidor: ServidorDaDemo, campanhaId: string, ouvinte:
     }
     if (ehPedidoDoMural(mensagem)) {
       servidor.murais.get(campanhaId)?.atender(mensagem, quemNoMural(servidor, alvo, eu), entregar)
+      return
+    }
+    if (ehPedidoDaLuta(mensagem)) {
+      const carregar = servidor.lutas.get(campanhaId)
+      if (carregar === undefined) return
+      carregar().then(
+        (luta) => {
+          if (encerrado) return
+          pararDeOuvirAsLutas ??= luta.ouvir(entregar)
+          luta.atender(mensagem, eu, entregar)
+        },
+        () => {
+          if (!encerrado) entregar({ t: 'luta.recusado', pedido: mensagem.t, motivo: 'sistema' })
+        },
+      )
       return
     }
     if (ehPedidoDoDuelo(mensagem)) {
@@ -522,7 +559,16 @@ export function criarFonteDemo(relogio: Relogio = RELOGIO_DO_NAVEGADOR): FonteDa
       dueloSobDemanda({ campanhaId: campanha.campanhaId, agora: relogio.agora, depois: relogio.depois, membros: campanha.todosOsMembros, fichas: campanha.todasAsFichas, euContaId: quemVe.contaId }),
     )
   }
-  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set(), murais, comoMestre: new Set(), muraisAbertos: new Set(), duelos, membrosAbertos: new Set(), fotos: new Map() }
+  const lutas = new Map<string, () => Promise<LutaDaDemo>>()
+  for (const campanha of campanhas.values()) {
+    const quemVe = membroPorEmail(campanha, EMAIL_DA_DEMO)
+    if (quemVe === undefined) continue
+    lutas.set(
+      campanha.campanhaId,
+      lutaSobDemanda({ campanhaId: campanha.campanhaId, agora: relogio.agora, depois: relogio.depois, membros: campanha.todosOsMembros, fichas: campanha.todasAsFichas, euContaId: quemVe.contaId }),
+    )
+  }
+  const servidor: ServidorDaDemo = { campanhas, chats, abertos: new Set(), murais, comoMestre: new Set(), muraisAbertos: new Set(), duelos, lutas, membrosAbertos: new Set(), fotos: new Map() }
   let simuladas = 0
 
   return {

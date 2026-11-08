@@ -267,6 +267,9 @@ function lerDoRegistro(bruto: Record<string, unknown>): MensagemDoSite | null {
   if (typeof t === 'string' && t.startsWith('mural.')) return lerFrameDoMural(bruto)
   // E o duelo (T7): o DO manda o `duelo.lista` depois de cada `ola`.
   if (typeof t === 'string' && t.startsWith('duelo.')) return lerFrameDoDuelo(bruto)
+  // E a luta de N lados (Arena multijogador F5): o canal só separa o frame; as lutas (sob demanda) o leem,
+  // e o torto vira `luta.torta` lá, nunca derruba o canal.
+  if (typeof t === 'string' && t.startsWith('luta.')) return { t: 'luta.fio', bruto }
   switch (t) {
     case 'estado':
       return lerEstado(bruto)

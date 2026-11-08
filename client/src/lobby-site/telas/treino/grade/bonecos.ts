@@ -11,6 +11,9 @@ export interface BonecoNaGrade {
   tokenId: string
   nome: string
   lado: LadoDaArena
+  /** A luta de N lados (Arena multijogador F5): a cor e o nome do lado de c em diante. Ausente = os de `lado`. */
+  cor?: string
+  nomeDoLado?: string
   casa: CasaDaArena
   /** A imagem da ficha como ela guarda (`data:` embutida ou `midia:`); `null` = as iniciais no disco. */
   retrato: string | null

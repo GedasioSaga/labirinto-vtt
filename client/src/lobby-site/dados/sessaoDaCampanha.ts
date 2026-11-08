@@ -22,7 +22,10 @@ import type { LivroDoJogador } from '../../player/playerConnection'
 import type { MensagemDoChatDoServidor, PedidoDoChat } from '../../lib/nuvem/chatDoLobby'
 import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/muralDoLobby'
 import type { MensagemDoDueloDoServidor, PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
+import type { PedidoDaLuta } from '../../lib/treino/lutaDoLobby'
+import type { ParteDasLutas } from './lutasDaCampanha'
 import {
+  ehDaLuta,
   ehDoChat,
   ehDoDuelo,
   ehDoMural,
@@ -172,6 +175,8 @@ export interface SessaoDaCampanha {
   enviarDoMural(pedido: PedidoDoMural): boolean
   /** Um pedido do duelo (T7) pelo mesmo canal; `false` como no `enviarDoChat`. */
   enviarDoDuelo(pedido: PedidoDoDuelo): boolean
+  /** Um pedido da luta de N lados (Arena multijogador F5) pelo mesmo canal; `false` como no `enviarDoChat`. */
+  enviarDaLuta(pedido: PedidoDaLuta): boolean
   /** Pede o livro do sistema (F1), como o "Livro" da ficha na sala LAN. `false` = sem canal, ou o sistema não tem livro. */
   pedirLivro(): boolean
   /** Só o mestre: pede a vista do jogador `contaId` ("ver como", 07/11/2026); a resposta vai ao `verComo` das opções. `false` = sem canal agora. */
@@ -217,6 +222,8 @@ export interface OpcoesDaSessao {
   mural?: ParteDoMural
   /** O duelo da campanha (T7); sem ele, frame `duelo.*` é ignorado. */
   duelo?: ParteDoDuelo
+  /** As lutas de N lados (Arena multijogador F5); sem elas, frame `luta.*` é ignorado. */
+  lutas?: ParteDasLutas
   /** Quem espera a vista do "ver como"; sem ele, frame `verComo.*` é ignorado. Não mexe na base. */
   verComo?: (mensagem: MensagemDoVerComoNoSite) => void
   relogio?: Relogio
@@ -453,6 +460,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     opcoes.chat?.aoCair()
     opcoes.mural?.aoCair()
     opcoes.duelo?.aoCair()
+    opcoes.lutas?.aoCair()
     if (motivo === 'sem-acesso') {
       conexao = 'sem-acesso'
       publicar()
@@ -511,6 +519,7 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     opcoes.chat?.aoFicarEmDia()
     opcoes.mural?.aoFicarEmDia()
     opcoes.duelo?.aoFicarEmDia()
+    opcoes.lutas?.aoFicarEmDia()
   }
 
   // ── O que chega ──────────────────────────────────────────────────────────
@@ -529,6 +538,11 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
     // O duelo (T7) também.
     if (ehDoDuelo(mensagem)) {
       opcoes.duelo?.aoReceber(mensagem)
+      return
+    }
+    // E a luta de N lados (F5).
+    if (ehDaLuta(mensagem)) {
+      opcoes.lutas?.aoReceber(mensagem)
       return
     }
     // A vista do "ver como" é de outra pessoa: nunca entra na base nem na fila do mestre.
@@ -821,6 +835,10 @@ function montarSessao(fila: Fila, opcoes: OpcoesDaSessao): SessaoDaCampanha {
       return canal.enviar(pedido)
     },
     enviarDoDuelo(pedido) {
+      if (!sincronizada || canal === null) return false
+      return canal.enviar(pedido)
+    },
+    enviarDaLuta(pedido) {
       if (!sincronizada || canal === null) return false
       return canal.enviar(pedido)
     },

@@ -5,16 +5,15 @@ import { faixaDoJogador, linhasDoJogador } from '../../../components/batalha/dad
 import { tremer } from '../../../components/batalha/EfeitosDaBatalha'
 import { FaixaDaOrdem } from '../../../components/batalha/FaixaDaOrdem'
 import type { ConsultaDaFicha } from '../../../components/batalha/MiraDoGolpe'
-import type { CasaDaArena } from '../../../lib/arena/grade'
+import type { CasaDaArena, GradeDaArena as MedidaDaGrade } from '../../../lib/arena/grade'
 import type { PedidoDeAcao } from '../../../lib/batalha/combate'
 import type { EstadoParaJogador } from '../../../lib/batalha/vistaDoJogador'
-import type { DueloNoFio } from '../../../lib/treino/duelo'
-import type { LadoDoTreino, VagaDoTreino } from '../../../lib/treino/mesaEmMemoria'
+import type { LadoDaLuta, VagaDaLuta } from '../../../lib/treino/mesaEmMemoria'
 import { useDoSite, useSistemaDoLobby } from '../contexto'
 import { Icone, type NomeDoIcone } from '../Icone'
 import { bonecosDoDuelo } from './grade/bonecosDoDuelo'
 import { GradeDaArena, type RespostaDoAndar } from './grade/GradeDaArena'
-import { copiasDoLado, faixaComFichaPublica, fichasDaLuta } from './hudDaLuta'
+import { copiasDoLado, faixaComFichaPublica, fichasDaLuta, type FioDaArena } from './hudDaLuta'
 import '../../../components/arena/arena.css'
 import './arenaDaLuta.css'
 
@@ -40,14 +39,19 @@ export type JogadasDaLuta = Pick<ConexaoDaBatalha, 'agir' | 'reagir' | 'passarVe
 export interface ArenaDaLutaProps {
   titulo: string
   icone: NomeDoIcone
-  fio: DueloNoFio
+  fio: FioDaArena
   /** O recorte do lado de quem joga (`vistaParaJogador`); `null` = sem o HUD (o duelo de um servidor antigo). */
   vista: EstadoParaJogador | null
-  meuLado: LadoDoTreino
+  /** `null` = quem olha não tem lado (assiste ou arbitra a luta de N lados). */
+  meuLado: LadoDaLuta | null
+  /** As fichas que o menu da vez joga; ausente = o lado inteiro (`meuLado`). No time da luta de N lados, só as da conta. */
+  ehMinha?: (vaga: VagaDaLuta) => boolean
+  /** A grade da luta; ausente = a pequena (12 x 8) do treino e do duelo. */
+  grade?: MedidaDaGrade
   /** `null` = só olhar (a luta acabou). */
   jogadas: JogadasDaLuta | null
   /** Quem a grade deixa pegar; a ficha com o "Mover" do contra-ataque entra sozinha. */
-  podeAndar: (vaga: VagaDoTreino, emPe: boolean) => boolean
+  podeAndar: (vaga: VagaDaLuta, emPe: boolean) => boolean
   onAndar: (tokenId: string, casa: CasaDaArena, contraDe: string | undefined) => RespostaDoAndar
   trilhas?: Readonly<Record<string, readonly CasaDaArena[]>>
   /** O que vem depois da Rodada na barra (a semente, contra quem). */
@@ -108,7 +112,7 @@ function useTelaCheia(titulo: { current: HTMLElement | null }) {
   }, [titulo])
 }
 
-export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeAndar, onAndar, trilhas, detalhes, aviso, acoes, estado, recusa, onEsquecerRecusa, fim, sobre }: ArenaDaLutaProps) {
+export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade, jogadas, podeAndar, onAndar, trilhas, detalhes, aviso, acoes, estado, recusa, onEsquecerRecusa, fim, sobre }: ArenaDaLutaProps) {
   const demo = useDoSite((site) => site.demo)
   const sistema = useSistemaDoLobby()
   const idDoTitulo = useId()
@@ -124,7 +128,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
 
   const acabou = fio.fim !== null
   const fichas = useMemo(() => fichasDaLuta(fio, demo), [fio, demo])
-  const meus = useMemo(() => copiasDoLado(fio, meuLado), [fio, meuLado])
+  const meus = useMemo(() => copiasDoLado(fio, ehMinha ?? ((vaga) => vaga.lado === meuLado)), [fio, meuLado, ehMinha])
   const nomeDe = (tokenId: string) => fichas.find((ficha) => ficha.id === tokenId)?.name ?? 'A ficha'
   // O "Mover" do contra-ataque vale enquanto o contra existir (gasto ao andar, ou a vez virou): depois some sozinho.
   const contraValido = contraDoPasso !== null && !acabou && (fio.turnos.contras ?? []).some((contra) => contra.golpeId === contraDoPasso.golpeId) ? contraDoPasso : null
@@ -157,7 +161,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
     }
   }, [jogadas, fio.turnos.contras, fichas, avisar])
 
-  const podeAndarAqui = (vaga: VagaDoTreino, emPe: boolean) => podeAndar(vaga, emPe) || (emPe && contraValido?.tokenId === vaga.tokenId)
+  const podeAndarAqui = (vaga: VagaDaLuta, emPe: boolean) => podeAndar(vaga, emPe) || (emPe && contraValido?.tokenId === vaga.tokenId)
   const bonecos = bonecosDoDuelo(fio, demo, podeAndarAqui, sistema)
 
   function andar(tokenId: string, casa: CasaDaArena): RespostaDoAndar {
@@ -262,6 +266,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, jogadas, podeA
       <div ref={palco} className="ar-palco lo-ar-palco" data-mirando={mirando ? 'sim' : undefined}>
         <GradeDaArena
           bonecos={bonecos}
+          grade={grade}
           trilhas={trilhas}
           caber="tudo"
           mirando={mirando}

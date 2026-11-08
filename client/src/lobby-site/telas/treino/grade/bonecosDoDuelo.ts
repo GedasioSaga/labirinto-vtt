@@ -1,6 +1,6 @@
 import { cartaDaVez } from '../../../../lib/batalha/turnos'
-import type { DueloNoFio } from '../../../../lib/treino/duelo'
-import type { VagaDoTreino } from '../../../../lib/treino/mesaEmMemoria'
+import { EQUIPE_DA_LUTA, type VagaDaLuta } from '../../../../lib/treino/mesaEmMemoria'
+import type { FioDaArena } from '../hudDaLuta'
 import { recursoDeVida, vidaDoPersonagem } from '../../../../lib/vidaDaFicha'
 import type { CasaDaArena } from '../../../../lib/arena/grade'
 import type { SistemaDeRpg } from '../../../../lib/sistemaDeRpg'
@@ -18,12 +18,12 @@ import { retratoDoBoneco } from './retratos'
  */
 
 /** O Judge na luta: para quem ele olha (o golpe que o envolve, senão a ficha da vez), como casa da grade. */
-function olharDoJuiz(duelo: DueloNoFio, tokenId: string): { olhaPara: CasaDaArena | null } {
+function olharDoJuiz(duelo: FioDaArena, tokenId: string): { olhaPara: CasaDaArena | null } {
   const outro = quemOJuizOlha(duelo.turnos, tokenId)
   return { olhaPara: outro === null ? null : (duelo.posicoes[outro] ?? null) }
 }
 
-export function bonecosDoDuelo(duelo: DueloNoFio, demo: boolean, podeAndar: (vaga: VagaDoTreino, dePe: boolean) => boolean, sistema: SistemaDeRpg): BonecoNaGrade[] {
+export function bonecosDoDuelo(duelo: FioDaArena, demo: boolean, podeAndar: (vaga: VagaDaLuta, dePe: boolean) => boolean, sistema: SistemaDeRpg): BonecoNaGrade[] {
   const recursoDaVida = recursoDeVida(sistema)
   const vezDe = duelo.fim === null ? (cartaDaVez(duelo.turnos)?.tokenId ?? null) : null
   const porId = new Map(duelo.lutadores.personagens.map((personagem) => [personagem.id, personagem]))
@@ -31,14 +31,17 @@ export function bonecosDoDuelo(duelo: DueloNoFio, demo: boolean, podeAndar: (vag
   for (const vaga of duelo.lutadores.vagas) {
     const doc = porId.get(vaga.personagemId)
     const casa = duelo.posicoes[vaga.tokenId]
-    if (doc === undefined || casa === undefined) continue
+    // A vaga que saiu da luta (a conta sumiu ou saiu) não fica na grade.
+    if (doc === undefined || casa === undefined || vaga.fora === true) continue
     const vida = recursoDaVida === null ? null : vidaDoPersonagem(doc, recursoDaVida)
     const dePe = vida === null || vida.atual > 0
     bonecos.push({
       ...(vaga.origem === ID_DO_JUIZ ? { juiz: olharDoJuiz(duelo, vaga.tokenId) } : {}),
       tokenId: vaga.tokenId,
       nome: doc.nome,
-      lado: vaga.lado,
+      // A luta de N lados (F5): a e b são os de sempre; de c em diante, a cor do lado vem junto e o nome também.
+      lado: vaga.lado === 'a' ? 'a' : 'b',
+      ...(vaga.lado === 'a' || vaga.lado === 'b' ? {} : { cor: EQUIPE_DA_LUTA[vaga.lado].cor, nomeDoLado: EQUIPE_DA_LUTA[vaga.lado].nome }),
       casa,
       // A semente do rosto inventado da demo é a ficha de origem: as cópias do mesmo inimigo têm o mesmo rosto.
       retrato: retratoDoBoneco(doc.retrato, vaga.origem, demo),

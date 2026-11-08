@@ -346,8 +346,9 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
     onTocar?.(boneco.tokenId)
   }
 
-  const ladoDe = new Map(bonecos.map((boneco) => [boneco.tokenId, boneco.lado]))
-  const caminhos = trilhas === undefined ? [] : Object.entries(trilhas).filter(([tokenId, casas]) => casas.length > 1 && ladoDe.has(tokenId))
+  // A cor do lado de cada boneco: a e b pela equipe de sempre; de c em diante (a luta de N lados), a que vem com ele.
+  const corDe = new Map(bonecos.map((boneco) => [boneco.tokenId, boneco.cor ?? EQUIPE_DO_LADO[boneco.lado].cor]))
+  const caminhos = trilhas === undefined ? [] : Object.entries(trilhas).filter(([tokenId, casas]) => casas.length > 1 && corDe.has(tokenId))
   const idDaDica = `${idBase}-dica`
   const idDaDicaParada = `${idBase}-dica-parada`
 
@@ -387,10 +388,10 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
           {caminhos.length > 0 && (
             <svg className="lo-ga-trilhas" viewBox={`0 0 ${largura} ${altura}`} aria-hidden="true">
               {caminhos.map(([tokenId, casas]) => {
-                const lado = ladoDe.get(tokenId) ?? 'a'
+                const cor = corDe.get(tokenId) ?? EQUIPE_DO_LADO.a.cor
                 const pontos = casas.map((casa) => `${(casa.col + 0.5) * CASA_DA_ARENA},${(casa.row + 0.5) * CASA_DA_ARENA}`).join(' ')
                 return (
-                  <g key={tokenId} style={{ '--lo-ga-lado': EQUIPE_DO_LADO[lado].cor } as CSSProperties}>
+                  <g key={tokenId} style={{ '--lo-ga-lado': cor } as CSSProperties}>
                     <polyline className="lo-ga-trilha" points={pontos} />
                     {casas.slice(0, -1).map((casa, i) => (
                       <circle key={i} className="lo-ga-trilha__passo" cx={(casa.col + 0.5) * CASA_DA_ARENA} cy={(casa.row + 0.5) * CASA_DA_ARENA} r={3.5} />
@@ -422,7 +423,7 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
             // O Judge fica de pé com a folha animada: o disco vira só a base dele, sem retrato.
             const src = boneco.juiz === undefined ? resolver(boneco.retrato) : null
             const foto = src !== null && !semFoto.has(src) ? src : null
-            const estado = [boneco.lado === 'a' ? EQUIPE_DO_LADO.a.nome : EQUIPE_DO_LADO.b.nome, `casa ${rotuloDaCasa(boneco.casa)}`, boneco.naVez ? 'na vez' : null, boneco.caiu ? 'caiu' : null]
+            const estado = [boneco.nomeDoLado ?? (boneco.lado === 'a' ? EQUIPE_DO_LADO.a.nome : EQUIPE_DO_LADO.b.nome), `casa ${rotuloDaCasa(boneco.casa)}`, boneco.naVez ? 'na vez' : null, boneco.caiu ? 'caiu' : null]
             // Na primeira e na última coluna o nome inteiro (ao pairar ou focar) cresce para dentro da grade, não para fora.
             const borda = boneco.casa.col === 0 ? 'esquerda' : boneco.casa.col === grade.colunas - 1 ? 'direita' : undefined
             return (
@@ -434,7 +435,7 @@ export function GradeDaArena({ bonecos, grade = GRADE_PEQUENA, onAndar, onTocar,
                   if (botao === null) botoes.current.delete(boneco.tokenId)
                   else botoes.current.set(boneco.tokenId, botao)
                 }}
-                style={{ transform: posicaoDaCasa(boneco.casa), '--lo-ga-lado': EQUIPE_DO_LADO[boneco.lado].cor } as CSSProperties}
+                style={{ transform: posicaoDaCasa(boneco.casa), '--lo-ga-lado': boneco.cor ?? EQUIPE_DO_LADO[boneco.lado].cor } as CSSProperties}
                 data-lado={boneco.lado}
                 data-pode={boneco.podeAndar ? '' : undefined}
                 data-vez={boneco.naVez ? '' : undefined}

@@ -1,0 +1,184 @@
+/*
+ * AS LUTAS COM VÁRIOS (Arena multijogador F5): criar, sala de espera, lutas
+ * acontecendo, histórico e o painel do árbitro. Usa a linguagem do Duelo
+ * (treino.css: lo-tr-convite, lo-tr-acabado, lo-tr-ficha, lo-tr-opcao) e só
+ * acrescenta o que a luta de N lados pede: os lados lado a lado, quem aceitou,
+ * os campos do árbitro e o painel dele por cima da Arena.
+ */
+
+.lo-lu-subtitulo {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: var(--lb-font-size-lg);
+  font-weight: var(--lb-font-weight-regular);
+  color: var(--lb-color-parchment);
+}
+
+/* ── criar ── */
+
+.lo-lu-chamada { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--lb-space-3); }
+.lo-lu-chamada > .lo-motivo { max-width: 62ch; }
+
+.lo-lu-criar {
+  display: grid;
+  gap: var(--lb-space-5);
+  padding: var(--lb-space-5);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-raised);
+  animation: lo-lu-entra 180ms var(--lb-gr-ease-out) both;
+}
+.lo-lu-criar > .lo-tr-grupo { max-width: 640px; }
+
+.lo-lu-quantos { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-3); }
+.lo-lu-quantos__n {
+  min-width: 2ch;
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-lg);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Uma pessoa da mesa: a caixa de chamar à esquerda, o time à direita. */
+.lo-lu-pessoa { justify-content: space-between; cursor: default; }
+.lo-lu-pessoa:has(input:checked), .lo-lu-pessoa[data-eu] { border-color: var(--lb-color-line-strong); background: var(--lb-color-stone-sunken); }
+.lo-lu-pessoa__chamar { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-3); min-height: var(--lo-alvo); cursor: pointer; }
+.lo-lu-pessoa__chamar input { margin: 0; accent-color: var(--lb-color-brass); }
+.lo-lu-pessoa:has(.lo-lu-pessoa__chamar input:focus-visible) { outline: 2px solid var(--lb-color-brass); outline-offset: 2px; }
+
+/* O time (e os outros seletores curtos da luta). */
+.lo-lu-time,
+.lo-lu-numero > input,
+.lo-lu-numero > textarea {
+  min-height: var(--lo-alvo);
+  padding: 6px 10px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-campo);
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  transition: border-color var(--lb-motion-fast) ease;
+}
+.lo-lu-time { cursor: pointer; }
+.lo-lu-time:disabled { opacity: 0.45; cursor: not-allowed; }
+.lo-lu-time:focus-visible,
+.lo-lu-numero > input:focus-visible,
+.lo-lu-numero > textarea:focus-visible { outline: none; border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px var(--lb-color-brass); }
+.lo-lu-numero > textarea { min-height: 72px; resize: vertical; line-height: 1.45; }
+
+.lo-lu-problemas { display: grid; gap: var(--lb-space-1); margin: 0; padding-left: 1.2em; color: var(--lb-color-ember); font-size: var(--lb-font-size-sm); }
+.lo-lu-resumo { color: var(--lb-color-parchment-dim); }
+.lo-lu-resumo b { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-regular); }
+
+/* ── sala de espera ── */
+
+.lo-lu-sala { animation: lo-lu-entra 180ms var(--lb-gr-ease-out) both; }
+.lo-lu-sala__cabeca { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--lb-space-2) var(--lb-space-3); }
+.lo-lu-sala__titulo { margin: 0; color: var(--lb-color-parchment); font-size: var(--lb-font-size-lg); }
+.lo-lu-sala__prazo { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.lo-lu-lados { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--lb-space-3); }
+.lo-lu-lado {
+  display: grid;
+  align-content: start;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+.lo-lu-lado--fora { border-style: dashed; background: transparent; }
+.lo-lu-lado__nome { margin: 0; color: var(--lb-color-brass-bright); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-regular); }
+
+.lo-lu-contas { display: grid; gap: var(--lb-space-2); margin: 0; padding: 0; list-style: none; }
+.lo-lu-conta { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 2px var(--lb-space-2); }
+.lo-lu-conta > .lo-motivo { grid-column: 2; }
+.lo-lu-conta__marca {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 50%;
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease;
+}
+.lo-lu-conta[data-aceitou] .lo-lu-conta__marca { border-color: var(--lb-color-online); background: var(--lb-color-online); }
+.lo-lu-conta__nome { color: var(--lb-color-parchment); }
+
+/* ── acontecendo e histórico ── */
+
+.lo-lu-item > .lo-tag--brasa { margin-left: 0; }
+
+.lo-lu-historicos { display: grid; gap: var(--lb-space-2); margin: 0; padding: 0; list-style: none; }
+.lo-lu-historico {
+  display: grid;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-2) var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+.lo-lu-historico__linha { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-4); min-height: var(--lo-alvo); }
+.lo-lu-historico__linha > .lo-btn { margin-left: auto; }
+.lo-lu-historico__lados { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.lo-lu-historico__lados b { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-regular); }
+
+/* O registro final: só para ler, as linhas desfeitas riscadas. */
+.lo-lu-registro {
+  display: grid;
+  gap: var(--lb-space-1);
+  max-height: 320px;
+  margin: 0;
+  padding: var(--lb-space-3);
+  overflow-y: auto;
+  border-top: 1px solid var(--lb-color-line);
+  list-style: none;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  overscroll-behavior: contain;
+}
+.lo-lu-registro b { color: var(--lb-color-parchment); font-weight: var(--lb-font-weight-regular); }
+.lo-lu-registro > [data-riscada] { text-decoration: line-through; opacity: 0.6; }
+.lo-lu-registro .lo-motivo { font-variant-numeric: tabular-nums; }
+
+/* ── o painel do árbitro: por cima da Arena, à direita, abaixo da barra ── */
+
+.lo-lu-arbitro {
+  position: fixed;
+  top: calc(var(--ar-barra) + 10px);
+  right: 14px;
+  z-index: 15;
+  display: grid;
+  align-content: start;
+  gap: var(--lb-space-4);
+  width: min(340px, calc(100% - 28px));
+  max-height: calc(100vh - var(--ar-barra) - 24px);
+  padding: var(--lb-space-4);
+  overflow-y: auto;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-lg);
+  overscroll-behavior: contain;
+  transform-origin: top right;
+  animation: lo-lu-painel-entra 180ms var(--lb-gr-ease-out) both;
+}
+.lo-lu-arbitro__cabeca { display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-2); }
+.lo-lu-arbitro__grupo { display: grid; gap: var(--lb-space-2); margin: 0; padding-top: var(--lb-space-3); border-top: 1px solid var(--lb-color-line); }
+.lo-lu-arbitro__grupo:first-of-type { padding-top: 0; border-top: 0; }
+.lo-lu-arbitro__rotulo { margin: 0; color: var(--lb-color-brass-bright); font-size: var(--lb-font-size-sm); font-weight: var(--lb-font-weight-regular); }
+.lo-lu-arbitro .lo-btn { justify-content: flex-start; }
+
+.lo-lu-numeros { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--lb-space-2); }
+.lo-lu-numero { display: grid; gap: 4px; min-width: 0; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.lo-lu-numero > input { width: 100%; font-variant-numeric: tabular-nums; }
+
+@keyframes lo-lu-entra { from { opacity: 0; transform: translateY(4px); } }
+@keyframes lo-lu-painel-entra { from { opacity: 0; transform: scale(0.97); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-lu-criar,
+  .lo-lu-sala,
+  .lo-lu-arbitro { animation-name: lo-lu-aparece; }
+  @keyframes lo-lu-aparece { from { opacity: 0; } }
+}

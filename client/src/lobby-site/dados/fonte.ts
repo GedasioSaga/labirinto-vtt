@@ -3,6 +3,17 @@ import type { MensagemDoMuralDoServidor, PedidoDoMural } from '../../lib/nuvem/m
 import type { MensagemDoCliente, MensagemDoServidor, Papel } from '../../lib/nuvem/tipos'
 import type { MensagemDoVerComo, PedidoDeVerComo } from '../../lib/nuvem/verComo'
 import type { MensagemDoDueloDoServidor, PedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
+import type { PedidoDaLuta } from '../../lib/treino/lutaDoLobby'
+
+/**
+ * Um frame `luta.*` como chegou (Arena multijogador F5): o canal só o separa;
+ * quem o lê (`lerFrameDaLuta`) mora com as lutas, que carregam sob demanda,
+ * para o leitor não pesar na entrada do site.
+ */
+export interface FrameDaLutaNoFio {
+  t: 'luta.fio'
+  bruto: Record<string, unknown>
+}
 
 /**
  * A FONTE DOS DADOS do site do Lobby (docs/planos/lobby-jogadores-2026-11-05.md
@@ -71,6 +82,7 @@ export type MensagemDoSite =
   | MensagemDoChatDoServidor
   | MensagemDoMuralDoServidor
   | MensagemDoDueloDoServidor
+  | FrameDaLutaNoFio
   | MensagemDoVerComoNoSite
 
 /** A vista de um jogador pedida pelo mestre ("ver como", 07/11/2026), com o `estado` na forma do canal (com a sala). */
@@ -119,7 +131,17 @@ export type RespostaDaFoto =
   | { ok: false; motivo: 'ritmo'; tentarDepoisDe: number }
 
 /** Tudo o que o site manda pelo canal: o protocolo das fichas e os pedidos do chat, do mural e do duelo (T7). */
-export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural | PedidoDoDuelo | PedidoDeVerComo
+export type PedidoDoSite = MensagemDoCliente | PedidoDoChat | PedidoDoMural | PedidoDoDuelo | PedidoDaLuta | PedidoDeVerComo
+
+/** O frame é da luta de N lados (`luta.*`, Arena multijogador F5)? */
+export function ehDaLuta(mensagem: MensagemDoSite): mensagem is FrameDaLutaNoFio {
+  return mensagem.t === 'luta.fio'
+}
+
+/** O pedido é da luta (`luta.*`)? */
+export function ehPedidoDaLuta(pedido: PedidoDoSite): pedido is PedidoDaLuta {
+  return pedido.t.startsWith('luta.')
+}
 
 /** O frame é do duelo (`duelo.*`, fatia T7)? */
 export function ehDoDuelo(mensagem: MensagemDoSite): mensagem is MensagemDoDueloDoServidor {

@@ -9,8 +9,9 @@ import type { DueloRecebido } from '../../../lib/treino/vistaDoDuelo'
 import type { EstadoDoDuelo, RecusaDoDuelo } from '../../dados/dueloDaCampanha'
 import { candidatasDoRobo, proximaDoRobo } from '../../dados/roboDoDuelo'
 import type { EstadoDaCampanha, FichaDoSite } from '../../dados/sessaoDaCampanha'
-import { useAgora, useSistemaDoLobby, useSite } from '../contexto'
+import { useAgora, useDoSite, useSistemaDoLobby, useSite } from '../contexto'
 import { Icone } from '../Icone'
+import { PainelDasLutas } from '../luta/PainelDasLutas'
 import { AvisoDeSoLeitura, motivoDaSoLeitura, useSoLeitura } from '../VerComo'
 import { ArenaDaLuta, type JogadasDaLuta } from './ArenaDaLuta'
 import type { RespostaDoAndar } from './grade/GradeDaArena'
@@ -328,6 +329,7 @@ function DueloAcabado({ duelo, contaId, onRever }: { duelo: DueloNoFio; contaId:
 export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; duelo: EstadoDoDuelo }) {
   const site = useSite()
   const soLeitura = useSoLeitura()
+  const lutas = useDoSite((estado) => estado.lutas)
   const eu = campanha.eu
   const minhas = useMemo(() => fichasDoDuelo(campanha), [campanha])
   const ativo = duelo.duelos.find((candidato) => candidato.fim === null)
@@ -437,6 +439,9 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
           </section>
         </>
       )}
+
+      {/* A luta com vários (F5): criar, salas de espera, acontecendo agora e o histórico; também para o mestre. */}
+      <PainelDasLutas campanha={campanha} lutas={lutas} soLeitura={soLeitura !== null} />
 
       {acabados.length > 0 && (
         <section className="lo-tr-bloco" aria-labelledby="duelo-acabados">

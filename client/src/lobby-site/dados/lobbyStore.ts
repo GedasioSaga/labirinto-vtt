@@ -3,6 +3,7 @@ import { armazenamentoEmTexto, type ArmazenamentoDaFila, type ArquivoDeTexto } f
 import { criarChatDaCampanha, pendentesACaminho, type ChatDaCampanha, type EstadoDoChat, type PendentesGuardadas } from './chatDaCampanha'
 import { clienteIdDaAba, type AmbienteDaAba } from './clienteDaAba'
 import { criarDueloDaCampanha, type DueloDaCampanha, type EstadoDoDuelo } from './dueloDaCampanha'
+import type { EstadoDasLutas, LutasDaCampanha, OpcoesDasLutas, ParteDasLutas } from './lutasDaCampanha'
 import { abrirBancoDaFila, armazenamentoNoIndexedDB } from './filaNoIndexedDB'
 import { ErroDoEu, type Eu, type FonteDoLobby } from './fonte'
 import { criarFonteDemo } from './fonteDemo'
@@ -68,6 +69,8 @@ export interface EstadoDoSite {
   mural: EstadoDoMural | null
   /** Os convites e duelos da campanha aberta (T7); `null` junto com ela. */
   duelo: EstadoDoDuelo | null
+  /** As lutas de N lados da campanha aberta (Arena multijogador F5); `null` junto com ela. Fora do "ver como": é sempre o do mestre. */
+  lutas: EstadoDasLutas | null
   /** O servidor já serve uma versão do Labirinto maior que a desta página (M2, cartão do mural). */
   versaoNova: VersaoNova | null
   /** Não deu para abrir a campanha (IndexedDB bloqueado, navegador sem espaço). */
@@ -88,6 +91,8 @@ export interface Site {
   mural(): MuralDaCampanha | null
   /** O duelo da campanha aberta, para convidar, aceitar, jogar e desistir (T7). */
   duelo(): DueloDaCampanha | null
+  /** As lutas de N lados da campanha aberta: criar, aceitar, jogar, arbitrar, assistir e ler o histórico (F5). */
+  lutas(): LutasDaCampanha | null
   /** Só o mestre: passa a ver a mesa como o jogador `contaId` (só leitura). */
   verComo(contaId: string): void
   /** Sai do "ver como": as telas voltam a mostrar (e a gravar) o do mestre. */
@@ -107,12 +112,64 @@ export interface JanelaDoSite {
   readonly navigator: { readonly locks?: Pick<LockManager, 'request'> }
 }
 
+/** As lutas de N lados enquanto o módulo delas carrega (`pronta()` é `null` até chegar). */
+interface LutasSobDemanda extends ParteDasLutas {
+  pronta(): LutasDaCampanha | null
+  fechar(): void
+}
+
+/**
+ * As lutas de N lados (Arena multijogador F5) carregam sob demanda: o leitor
+ * dos frames e o controlador ficam fora da entrada do site. O canal só fala
+ * `luta.*` depois que elas chegam (o `luta.lista` sai do `aoFicarEmDia`
+ * delas), então até lá não há frame para guardar; o que chegar entra na fila.
+ * Sem o módulo (a rede caiu no meio), as lutas ficam fora e o resto segue.
+ */
+function lutasSobDemanda(opcoes: OpcoesDasLutas, aoCarregar: (lutas: LutasDaCampanha) => void): LutasSobDemanda {
+  let lutas: LutasDaCampanha | null = null
+  let fechada = false
+  let emDia = false
+  const fila: Parameters<ParteDasLutas['aoReceber']>[0][] = []
+  void import('./lutasDaCampanha').then(
+    ({ criarLutasDaCampanha }) => {
+      if (fechada) return
+      const prontas = criarLutasDaCampanha(opcoes)
+      lutas = prontas
+      aoCarregar(prontas)
+      if (emDia) prontas.aoFicarEmDia()
+      for (const frame of fila.splice(0)) prontas.aoReceber(frame)
+    },
+    () => undefined,
+  )
+  return {
+    aoFicarEmDia() {
+      emDia = true
+      lutas?.aoFicarEmDia()
+    },
+    aoCair() {
+      emDia = false
+      lutas?.aoCair()
+    },
+    aoReceber(frame) {
+      if (lutas !== null) lutas.aoReceber(frame)
+      else if (!fechada) fila.push(frame)
+    },
+    fechar() {
+      fechada = true
+      fila.length = 0
+      lutas?.fechar()
+    },
+    pronta: () => lutas,
+  }
+}
+
 interface Aberta {
   campanhaId: string
   sessao: SessaoDaCampanha
   chat: ChatDaCampanha
   mural: MuralDaCampanha
   duelo: DueloDaCampanha
+  lutas: LutasSobDemanda
   fecharBanco(): void
 }
 
@@ -170,6 +227,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     chatGuardado: 0,
     mural: null,
     duelo: null,
+    lutas: null,
     // A demo não tem carimbo: o cartão aparece com versões inventadas, para a tela ter o que mostrar.
     versaoNova: demo ? VERSAO_NOVA_DA_DEMO : null,
     erroDaCampanha: null,
@@ -330,6 +388,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     aberta.chat.fechar()
     aberta.mural.fechar()
     aberta.duelo.fechar()
+    aberta.lutas.fechar()
     aberta.sessao.fechar()
     aberta.fecharBanco()
     aberta = null
@@ -360,6 +419,18 @@ export function iniciarSite(janela: JanelaDoSite): Site {
         if (minha === aberturas) doMestreMudou({ duelo: estadoDoDuelo })
       },
     })
+    // As lutas de N lados não entram no "ver como" (a vista do jogador não as traz): o store mostra sempre as do mestre, e as telas as escondem na vista.
+    const lutas = lutasSobDemanda(
+      {
+        enviar: (pedido) => sessao?.enviarDaLuta(pedido) ?? false,
+        aoMudar: (estadoDasLutas) => {
+          if (minha === aberturas) store.setState({ lutas: estadoDasLutas })
+        },
+      },
+      (prontas) => {
+        if (minha === aberturas) store.setState({ lutas: prontas.estado() })
+      },
+    )
     try {
       sessao = await abrirSessaoDaCampanha({
         fonte,
@@ -372,6 +443,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
         chat,
         mural,
         duelo,
+        lutas,
         verComo: (mensagem) => {
           if (minha === aberturas) receberVerComo(mensagem)
         },
@@ -380,6 +452,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
       chat.fechar()
       mural.fechar()
       duelo.fechar()
+      lutas.fechar()
       fila.fecharBanco()
       throw erro
     }
@@ -387,15 +460,16 @@ export function iniciarSite(janela: JanelaDoSite): Site {
       chat.fechar()
       mural.fechar()
       duelo.fechar()
+      lutas.fechar()
       sessao.fechar()
       fila.fecharBanco()
       return
     }
-    aberta = { campanhaId, sessao, chat, mural, duelo, fecharBanco: fila.fecharBanco }
+    aberta = { campanhaId, sessao, chat, mural, duelo, lutas, fecharBanco: fila.fecharBanco }
     // As guardadas agora moram no chat aberto (e voltam para cá se a pessoa sair de novo antes de saírem).
     chatGuardado.delete(campanhaId)
     Object.assign(doMestre, { campanha: sessao.estado(), chat: chat.estado(), mural: mural.estado(), duelo: duelo.estado() })
-    store.setState({ ...doMestre, chatGuardado: contarChatGuardado(), erroDaCampanha: null })
+    store.setState({ ...doMestre, lutas: lutas.pronta()?.estado() ?? null, chatGuardado: contarChatGuardado(), erroDaCampanha: null })
   }
 
   /** Abre a campanha da rota (e fecha a anterior), quando o `/api/eu` já respondeu. */
@@ -407,15 +481,15 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     aberturas += 1
     fecharAberta()
     if (campanhaId === null) {
-      store.setState({ campanha: null, chat: null, mural: null, duelo: null, erroDaCampanha: null })
+      store.setState({ campanha: null, chat: null, mural: null, duelo: null, lutas: null, erroDaCampanha: null })
       return
     }
     // Mesa que não está na lista desta pessoa: não abre base nem canal com id que veio só da URL.
     if (!eu.eu.campanhas.some((campanha) => campanha.campanhaId === campanhaId)) {
-      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, mural: null, duelo: null, erroDaCampanha: null })
+      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, mural: null, duelo: null, lutas: null, erroDaCampanha: null })
       return
     }
-    store.setState({ campanha: null, chat: null, mural: null, duelo: null, erroDaCampanha: null })
+    store.setState({ campanha: null, chat: null, mural: null, duelo: null, lutas: null, erroDaCampanha: null })
     const minha = aberturas
     abrir(eu.eu, campanhaId, minha).catch((erro: unknown) => {
       if (minha === aberturas) store.setState({ erroDaCampanha: textoDoErro(erro) })
@@ -466,6 +540,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     chat: () => (soLeitura() ? null : (aberta?.chat ?? null)),
     mural: () => (soLeitura() ? null : (aberta?.mural ?? null)),
     duelo: () => (soLeitura() ? null : (aberta?.duelo ?? null)),
+    lutas: () => (soLeitura() ? null : (aberta?.lutas.pronta() ?? null)),
     verComo(contaId) {
       const real = doMestre.campanha
       if (real === null || real.eu === null || real.eu.papel !== 'mestre') return
