@@ -20,7 +20,8 @@ import { juntarNomes, nomeDoTime, textoDaRecusaDaLuta, textoDoFimDaLuta, tomDoFi
  *    joga as dele), andar só a ficha dela na vez dela;
  *  - QUEM ASSISTE: só olha (a grade, a ordem e o registro), sem o que cada
  *    lado ainda não revelou; "Parar de assistir" sai da lista;
- *  - O ÁRBITRO: não joga; o painel dele fica ao lado da grade.
+ *  - O ÁRBITRO: não joga; o painel dele fica ao lado da grade, a faixa diz
+ *    de quem é a vez (nunca "Sua vez") e o Desfazer do Registro é o do painel.
  * A luta acabada mostra o resumo e só se olha.
  */
 
@@ -36,11 +37,24 @@ export function LutaNaArena({ luta, eu, conectado, ocupado, recusa, onFechar }: 
   const andando = useRef<AndarNoServidor | null>(null)
   const [confirmarSaida, setConfirmarSaida] = useState(false)
   const [painelAberto, setPainelAberto] = useState(luta.olhar === 'arbitro')
+  /** A linha cujo Desfazer o árbitro pediu pelo Registro da faixa: "Desfazendo…" até a resposta. */
+  const [desfazendo, setDesfazendo] = useState<string | null>(null)
   const minha = luta.participantes.find((participante) => participante.contaId === eu) ?? null
   const meuLado = luta.olhar === 'jogador' ? (minha?.lado ?? null) : null
   const { fim } = luta
   const pausada = luta.pausada === true
   const joga = luta.olhar === 'jogador' && fim === null
+  const arbitra = luta.olhar === 'arbitro'
+
+  useEffect(() => {
+    if (!ocupado) setDesfazendo(null)
+  }, [ocupado])
+  // O Desfazer do Registro é o do painel: só o árbitro, com a luta correndo e a conexão em dia. Enquanto
+  // outro pedido espera resposta ele sai da linha (o pedido voltaria recusado sem ninguém ver).
+  const desfazPeloRegistro = arbitra && fim === null && conectado && (!ocupado || desfazendo !== null)
+  function desfazer(linhaId: string): void {
+    if (site.lutas()?.arbitrar(luta.id, { tipo: 'desfazer', seq: luta.seq }) === true) setDesfazendo(linhaId)
+  }
 
   /** No times, "Time A"; no todos contra todos, quem luta por aquele lado. */
   const nomeDoLado = (lado: LadoDaLuta): string => {
@@ -114,6 +128,9 @@ export function LutaNaArena({ luta, eu, conectado, ocupado, recusa, onFechar }: 
       icone="duelo"
       fio={luta}
       vista={luta.vista}
+      arbitra={arbitra}
+      onDesfazer={desfazPeloRegistro ? desfazer : undefined}
+      desfazendo={desfazendo === null ? undefined : new Set([desfazendo])}
       meuLado={meuLado}
       ehMinha={ehMinha}
       grade={GRADES_DA_ARENA[luta.tamanho]}

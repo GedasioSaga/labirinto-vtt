@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type AnimationEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { BatalhaDoJogador, type ConexaoDaBatalha } from '../../../components/batalha/BatalhaDoJogador'
-import { faixaDoJogador, linhasDoJogador } from '../../../components/batalha/dadosDaFaixa'
+import { linhasDoJogador } from '../../../components/batalha/dadosDaFaixa'
 import { tremer } from '../../../components/batalha/EfeitosDaBatalha'
 import { FaixaDaOrdem } from '../../../components/batalha/FaixaDaOrdem'
 import type { ConsultaDaFicha } from '../../../components/batalha/MiraDoGolpe'
@@ -13,7 +13,7 @@ import { useDoSite, useSistemaDoLobby } from '../contexto'
 import { Icone, type NomeDoIcone } from '../Icone'
 import { bonecosDoDuelo } from './grade/bonecosDoDuelo'
 import { GradeDaArena, type RespostaDoAndar } from './grade/GradeDaArena'
-import { copiasDoLado, faixaComFichaPublica, fichasDaLuta, type FioDaArena } from './hudDaLuta'
+import { copiasDoLado, faixaDaArena, fichasDaLuta, type FioDaArena } from './hudDaLuta'
 import '../../../components/arena/arena.css'
 import './arenaDaLuta.css'
 
@@ -68,10 +68,17 @@ export interface ArenaDaLutaProps {
   fim: ReactNode | null
   /** O que mais fica por cima da Arena (a confirmação de desistir). */
   sobre?: ReactNode
+  /** Quem olha arbitra a luta de N lados: as fichas chegam todas como "eu", mas a faixa diz de quem é a vez. */
+  arbitra?: boolean
+  /** O Desfazer do Registro; ausente = o registro não mostra Desfazer (no treino e no duelo ninguém desfaz). */
+  onDesfazer?: (linhaId: string) => void
+  /** As linhas com o Desfazer pedido e sem resposta ainda. */
+  desfazendo?: ReadonlySet<string>
 }
 
 const MOTIVO_DAS_ARMAS = 'No treino e no duelo a luta usa as armas da ficha: a troca é só na mesa, com o mestre.'
 const MOTIVO_DA_REACAO_LIVRE = 'A reação livre é só na mesa, com o mestre. Aqui a defesa é a do golpe que chega.'
+/** A faixa pede a função; sem `onDesfazer` as linhas chegam sem o Desfazer, então esta nunca é chamada. */
 const SEM_DESFAZER = () => {}
 
 /**
@@ -112,7 +119,7 @@ function useTelaCheia(titulo: { current: HTMLElement | null }) {
   }, [titulo])
 }
 
-export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade, jogadas, podeAndar, onAndar, trilhas, detalhes, aviso, acoes, estado, recusa, onEsquecerRecusa, fim, sobre }: ArenaDaLutaProps) {
+export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade, jogadas, podeAndar, onAndar, trilhas, detalhes, aviso, acoes, estado, recusa, onEsquecerRecusa, fim, sobre, arbitra = false, onDesfazer, desfazendo }: ArenaDaLutaProps) {
   const demo = useDoSite((site) => site.demo)
   const sistema = useSistemaDoLobby()
   const idDoTitulo = useId()
@@ -171,8 +178,13 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
   }
 
   const vistaDoHud = useMemo(() => (vista === null ? null : semEscolhaDeArmas(vista)), [vista])
-  const dados = useMemo(() => (vista === null ? null : faixaComFichaPublica(faixaDoJogador({ estado: vista, fichas, personagens: meus, sistema }), fio, sistema)), [vista, fichas, meus, fio, sistema])
-  const registro = useMemo(() => linhasDoJogador(vista?.registro ?? fio.registro), [vista, fio.registro])
+  const dados = useMemo(() => (vista === null ? null : faixaDaArena({ vista, fio, fichas, meus, sistema, arbitra })), [vista, fichas, meus, fio, sistema, arbitra])
+  // Sem quem desfaça, a linha perde o Desfazer: um botão que não faz nada é pior que nenhum.
+  const desfaz = onDesfazer !== undefined
+  const registro = useMemo(() => {
+    const linhas = linhasDoJogador(vista?.registro ?? fio.registro)
+    return desfaz ? linhas : linhas.map((linha) => (linha.podeDesfazer ? { ...linha, podeDesfazer: false } : linha))
+  }, [vista, fio.registro, desfaz])
   const consulta = useCallback<ConsultaDaFicha>((tokenId) => consultaAtual.current?.(tokenId) ?? null, [])
   const vezDaVista = vista?.vez ?? null
   const passarVez = vista !== null && vista.minhaVez && vezDaVista !== null && conexao !== null && !acabou ? () => conexao.passarVez(vezDaVista, vista.rodada) : undefined
@@ -280,7 +292,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
       </div>
 
       {dados !== null && (
-        <FaixaDaOrdem papel="jogador" className="pp-batalha-faixa" dados={dados} regras={fio.regras} registro={registro} onDesfazer={SEM_DESFAZER} onPassarVez={passarVez} />
+        <FaixaDaOrdem papel="jogador" className="pp-batalha-faixa" dados={dados} regras={fio.regras} registro={registro} onDesfazer={onDesfazer ?? SEM_DESFAZER} pendentes={desfazendo} onPassarVez={passarVez} />
       )}
 
       {vistaDoHud !== null && conexao !== null && !acabou && (

@@ -1,6 +1,7 @@
 import type { FichaDoJogador } from '../../../components/batalha/BatalhaDoJogador'
-import { recursosDaCarta, type DadosDaFaixa } from '../../../components/batalha/dadosDaFaixa'
+import { faixaDoJogador, recursosDaCarta, type DadosDaFaixa, type FichaNaFaixa } from '../../../components/batalha/dadosDaFaixa'
 import { CASA_DA_ARENA } from '../../../lib/arena/grade'
+import type { EstadoParaJogador } from '../../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../../lib/personagem'
 import type { DueloNoFio } from '../../../lib/treino/duelo'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
@@ -75,4 +76,42 @@ export function faixaComFichaPublica(dados: DadosDaFaixa, fio: FioDaArena, siste
     return { ...carta, vida: recursos.length > 0 ? ('numeros' as const) : ('sem' as const), recursos, caiu: !dePe(doc, sistema), ...(escudo > 0 ? { escudo } : {}) }
   })
   return { ...dados, cartas }
+}
+
+/**
+ * A faixa de quem arbitra a luta de N lados: o servidor manda ao árbitro todas
+ * as fichas como "eu" (ele vê os números de todas), mas nenhuma é dele. A
+ * faixa diz "Vez de <ficha>" e "Depois: <ficha>", como a do mestre, e nunca
+ * "Sua vez", "Você joga em 2 turnos" nem "Abre a sua ficha".
+ */
+function faixaDeQuemArbitra(dados: DadosDaFaixa): DadosDaFaixa {
+  const proxima = dados.proxima === null || dados.proxima === dados.vez ? undefined : dados.cartas.find((carta) => carta.id === dados.proxima)
+  return {
+    ...dados,
+    cartas: dados.cartas.map((carta) => (carta.minha ? { ...carta, minha: false } : carta)),
+    minhaVez: false,
+    depois: proxima === undefined ? null : `Depois: ${proxima.nome}`,
+  }
+}
+
+/** O que a faixa da ordem da Arena do site lê. `arbitra` = quem olha arbitra a luta de N lados. */
+export interface EntradaDaFaixa {
+  vista: EstadoParaJogador
+  fio: FioDaArena
+  fichas: readonly FichaNaFaixa[]
+  /** As cópias de quem joga (`copiasDoLado`). */
+  meus: readonly Personagem[]
+  sistema: SistemaDeRpg
+  arbitra: boolean
+}
+
+/**
+ * A faixa da ordem da Arena do site: a do jogador, com a ficha pública. A de
+ * quem arbitra lê os números de todas as fichas (ele não tem cópias suas, e
+ * sem elas a carta diria "Sem vida na ficha") e diz de quem é a vez.
+ */
+export function faixaDaArena({ vista, fio, fichas, meus, sistema, arbitra }: EntradaDaFaixa): DadosDaFaixa {
+  const personagens = arbitra ? fio.lutadores.personagens : meus
+  const dados = faixaComFichaPublica(faixaDoJogador({ estado: vista, fichas, personagens, sistema }), fio, sistema)
+  return arbitra ? faixaDeQuemArbitra(dados) : dados
 }

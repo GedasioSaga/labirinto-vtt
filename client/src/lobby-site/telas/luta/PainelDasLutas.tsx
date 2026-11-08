@@ -5,6 +5,7 @@ import type { EstadoDaCampanha } from '../../dados/sessaoDaCampanha'
 import { useAgora, useSite } from '../contexto'
 import { CriarLuta } from './CriarLuta'
 import { LutaNaArena } from './LutaNaArena'
+import { lutasDaConta } from './lutasDaConta'
 import { SalaDeEspera } from './SalaDeEspera'
 import { nomeDoLado, quandoFoi, textoDaEsperaFechada, textoDaRecusaDaLuta, textoDoResultado, TEXTO_DO_MODO } from './textosDaLuta'
 import './luta.css'
@@ -19,7 +20,12 @@ import './luta.css'
  * na Arena (`LutaNaArena`).
  */
 
-function ItemAcontecendo({ luta, souDela, ocupado, onVoltar }: { luta: LutaAcontecendo; souDela: boolean; ocupado: boolean; onVoltar(): void }) {
+/**
+ * `minhaComo`: a conta joga ou arbitra esta luta ("luta"), só assiste
+ * ("assistindo") ou não está nela (`null`). `presa`: a conta já está noutra
+ * luta (jogando, arbitrando ou assistindo), e o servidor recusaria o Assistir.
+ */
+function ItemAcontecendo({ luta, minhaComo, presa, ocupado, onVoltar }: { luta: LutaAcontecendo; minhaComo: 'luta' | 'assistindo' | null; presa: boolean; ocupado: boolean; onVoltar(): void }) {
   const site = useSite()
   const cheia = luta.vagas <= 0
   return (
@@ -31,12 +37,12 @@ function ItemAcontecendo({ luta, souDela, ocupado, onVoltar }: { luta: LutaAcont
         {luta.assistindo > 0 ? `, ${luta.assistindo} assistindo` : ''}
       </span>
       {luta.pausada && <span className="lo-tag lo-tag--brasa">pausada</span>}
-      {souDela ? (
+      {minhaComo !== null ? (
         <button type="button" className="lo-btn lo-btn--primario" onClick={onVoltar}>
-          Voltar à luta
+          {minhaComo === 'assistindo' ? 'Voltar a assistir' : 'Voltar à luta'}
         </button>
       ) : (
-        <button type="button" className="lo-btn" disabled={ocupado || cheia} title={cheia ? 'A luta já tem 12 pessoas' : undefined} onClick={() => site.lutas()?.assistir(luta.id)}>
+        <button type="button" className="lo-btn" disabled={ocupado || cheia || presa} title={cheia ? 'A luta já tem 12 pessoas' : presa ? 'Uma luta por vez' : undefined} onClick={() => site.lutas()?.assistir(luta.id)}>
           Assistir
         </button>
       )}
@@ -93,14 +99,16 @@ export function PainelDasLutas({ campanha, lutas, soLeitura }: { campanha: Estad
   const [revendo, setRevendo] = useState<string | null>(null)
   const ultimaAtiva = useRef<string | null>(null)
   const eu = campanha.eu?.contaId ?? ''
-  const ativa = lutas?.lutas.find((luta) => luta.fim === null)
-  const idDaAtiva = ativa?.id ?? null
+  // Quem joga ou arbitra tem "a sua" luta; quem só assiste, a assistida (as duas abrem na Arena).
+  const { minha: ativa, assistida } = lutasDaConta(lutas?.lutas ?? [])
+  const naFrente = ativa ?? assistida
+  const idNaFrente = naFrente?.id ?? null
 
   useEffect(() => {
     const antes = ultimaAtiva.current
-    ultimaAtiva.current = idDaAtiva
-    if (idDaAtiva === null && antes !== null && antes !== foraDaTela && lutas?.lutas.some((luta) => luta.id === antes) === true) setRevendo(antes)
-  }, [idDaAtiva, foraDaTela, lutas])
+    ultimaAtiva.current = idNaFrente
+    if (idNaFrente === null && antes !== null && antes !== foraDaTela && lutas?.lutas.some((luta) => luta.id === antes) === true) setRevendo(antes)
+  }, [idNaFrente, foraDaTela, lutas])
 
   if (soLeitura) {
     return (
@@ -123,7 +131,8 @@ export function PainelDasLutas({ campanha, lutas, soLeitura }: { campanha: Estad
 
   const ocupado = lutas.esperando !== null
   const minhaSala = lutas.convites.find((espera) => espera.criador.contaId === eu)
-  const naArena = ativa !== undefined && ativa.id !== foraDaTela ? ativa : lutas.lutas.find((luta) => luta.id === revendo)
+  const naArena = naFrente !== undefined && naFrente.id !== foraDaTela ? naFrente : lutas.lutas.find((luta) => luta.id === revendo)
+  const outrasAcontecendo = lutas.acontecendo.some((luta) => luta.id !== idNaFrente)
   const { historico, fechada, recusa } = lutas
   const avisoDaPagina =
     lutas.torta
@@ -158,10 +167,24 @@ export function PainelDasLutas({ campanha, lutas, soLeitura }: { campanha: Estad
         )}
         {ativa !== undefined ? (
           <div className="lo-tr-convite">
-            <p className="lo-tr-convite__texto">Você está numa luta agora, rodada {ativa.turnos.rodada}. Uma luta por vez.</p>
+            <p className="lo-tr-convite__texto">
+              {ativa.olhar === 'arbitro' ? 'Você está arbitrando uma luta agora' : 'Você está numa luta agora'}, rodada {ativa.turnos.rodada}. Uma luta por vez.
+            </p>
             <div className="lo-tr-vez__botoes">
               <button type="button" className="lo-btn lo-btn--primario" onClick={() => setForaDaTela(null)}>
                 Voltar à luta
+              </button>
+            </div>
+          </div>
+        ) : assistida !== undefined ? (
+          <div className="lo-tr-convite">
+            <p className="lo-tr-convite__texto">Você está assistindo a uma luta, rodada {assistida.turnos.rodada}. Uma luta por vez: para criar ou aceitar outra, pare de assistir.</p>
+            <div className="lo-tr-vez__botoes">
+              <button type="button" className="lo-btn lo-btn--primario" onClick={() => setForaDaTela(null)}>
+                Voltar a assistir
+              </button>
+              <button type="button" className="lo-btn" disabled={ocupado} onClick={() => site.lutas()?.parar(assistida.id)}>
+                Parar de assistir
               </button>
             </div>
           </div>
@@ -186,9 +209,19 @@ export function PainelDasLutas({ campanha, lutas, soLeitura }: { campanha: Estad
         ) : (
           <ul className="lo-tr-acabados">
             {lutas.acontecendo.map((luta) => (
-              <ItemAcontecendo key={luta.id} luta={luta} souDela={lutas.lutas.some((minha) => minha.id === luta.id && minha.fim === null)} ocupado={ocupado} onVoltar={() => setForaDaTela(null)} />
+              <ItemAcontecendo
+                key={luta.id}
+                luta={luta}
+                minhaComo={luta.id === ativa?.id ? 'luta' : luta.id === assistida?.id ? 'assistindo' : null}
+                presa={naFrente !== undefined}
+                ocupado={ocupado}
+                onVoltar={() => setForaDaTela(null)}
+              />
             ))}
           </ul>
+        )}
+        {naFrente !== undefined && outrasAcontecendo && (
+          <p className="lo-motivo">Uma luta por vez: para assistir outra, {ativa !== undefined ? 'saia da sua antes' : 'pare de assistir esta antes'}.</p>
         )}
       </section>
 
