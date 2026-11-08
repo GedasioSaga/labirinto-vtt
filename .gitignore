@@ -10,6 +10,7 @@ client/test-results/
 client/playwright-report/
 # Saída de scripts/pacote-animacoes.cjs (módulos compilados, índice e assinatura)
 client/dist-animacoes/
+client/dist-minigames/
 # Saída de scripts/conferir-som.cjs (wav, espectrograma e medidas de cada transição)
 client/dist-som/
 # Build do site do Lobby (npm run build:lobby --workspace=client)

@@ -57,6 +57,7 @@ import { TiroAoVivoPainel } from './TiroAoVivo'
 import type { TiroNoPainel } from './tiroNoPainel'
 import { FogoAoVivoPainel } from './FogoAoVivo'
 import type { FogoNoPainel } from './fogoNoPainel'
+import { PacoteDoMinigame } from './PacoteDoMinigame'
 import './MinigameControls.css'
 
 /**
@@ -894,6 +895,9 @@ function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo }: PainelDoFogoP
   const baseId = useId()
   const mudar = (patch: Partial<MinigameFogo>) => onChange({ ...minigame, ...patch })
   const id = (nome: string) => `${baseId}-${nome}`
+  // Sala fechada ou sem incêndio = nada aberto; com incêndio aberto o jogo não troca de versão.
+  const faseDoFogo = aoVivoDoFogo?.fogo?.fase
+  const fogoAberto = faseDoFogo === 'convite' || faseDoFogo === 'jogo' || faseDoFogo === 'pausa'
   return (
     <>
       <div className="lb-field">
@@ -931,11 +935,13 @@ function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo }: PainelDoFogoP
         <CampoDeTexto id={id('consequencia')} valor={minigame.consequencia.texto} max={FOGO_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ consequencia: { texto } })} />
         <span className="lb-label">Só texto: aparece no convite e no resultado do jogador. O fogo não abre porta nem entrega item.</span>
       </fieldset>
-      {aoVivoDoFogo === null || aoVivoDoFogo === undefined ? (
-        <span className="lb-label lb-minigame__sem-sala">Abra a sala para chamar para o fogo.</span>
-      ) : (
-        <FogoAoVivoPainel pinId={pinId} permitida={minigame.permitida} {...aoVivoDoFogo} />
-      )}
+      <PacoteDoMinigame jogo="fogo" ocupado={fogoAberto}>
+        {aoVivoDoFogo === null || aoVivoDoFogo === undefined ? (
+          <span className="lb-label lb-minigame__sem-sala">Abra a sala para chamar para o fogo.</span>
+        ) : (
+          <FogoAoVivoPainel pinId={pinId} permitida={minigame.permitida} {...aoVivoDoFogo} />
+        )}
+      </PacoteDoMinigame>
     </>
   )
 }

@@ -1,0 +1,74 @@
+'use strict'
+// O pacote de minigames de ponta a ponta, com um export web falso (pequeno).
+// Rodar: node --test scripts/pacote-minigames.test.cjs
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const { spawnSync } = require('node:child_process')
+const crypto = require('node:crypto')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const zlib = require('node:zlib')
+const { assinaturaConfere } = require('./publicar-versao.cjs')
+
+const SCRIPT = path.join(__dirname, 'pacote-minigames.cjs')
+const CHAVE = path.join(os.homedir(), '.tauri', 'labirinto.key')
+const SEM_CHAVE = !fs.existsSync(CHAVE) && 'sem a chave de assinatura nesta máquina'
+
+/** Um export do Godot em miniatura: o HTML com o GODOT_CONFIG e os tamanhos certos. */
+function exportFalso(pasta, { wasm = Buffer.alloc(5000, 7) } = {}) {
+  const pck = Buffer.from('pck de mentira')
+  const config = { executable: 'index', fileSizes: { 'index.pck': pck.length, 'index.wasm': 5000 } }
+  fs.writeFileSync(path.join(pasta, 'index.html'), `<html><script src="index.js"></script><script>const GODOT_CONFIG = ${JSON.stringify(config)};</script></html>`)
+  fs.writeFileSync(path.join(pasta, 'index.js'), 'console.log("motor")')
+  fs.writeFileSync(path.join(pasta, 'index.wasm'), wasm)
+  fs.writeFileSync(path.join(pasta, 'index.pck'), pck)
+  fs.writeFileSync(path.join(pasta, 'index.png.import'), 'coisa do editor')
+}
+
+function rodar(build, saida) {
+  return spawnSync(process.execPath, [SCRIPT, '--build', build, '--versao', '3', '--saida', saida], { encoding: 'utf8' })
+}
+
+test('empacota: um .gz por arquivo, o índice lista o sha256 e o tamanho de cada um e a assinatura confere', { skip: SEM_CHAVE }, () => {
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'pacote-minigames-'))
+  const saida = path.join(raiz, 'saida')
+  try {
+    exportFalso(raiz)
+    const r = rodar(raiz, saida)
+    assert.equal(r.status, 0, r.stderr)
+    const indice = JSON.parse(fs.readFileSync(path.join(saida, 'fogo.indice.json'), 'utf8'))
+    assert.deepEqual(
+      { formato: indice.formato, jogo: indice.jogo, versao: indice.versao, entrada: indice.entrada },
+      { formato: 1, jogo: 'fogo', versao: 3, entrada: 'index.html' },
+    )
+    // O .import do editor fica de fora; o nome servido sai do nome do arquivo.
+    assert.deepEqual(indice.arquivos.map((a) => a.nome), ['fogo.index.html.gz', 'fogo.index.js.gz', 'fogo.index.pck.gz', 'fogo.index.wasm.gz'])
+    for (const arquivo of indice.arquivos) {
+      const gz = fs.readFileSync(path.join(saida, arquivo.nome))
+      assert.equal(gz.length, arquivo.tamanho)
+      assert.equal(crypto.createHash('sha256').update(gz).digest('hex'), arquivo.sha256)
+      const servido = arquivo.nome.slice('fogo.'.length, -'.gz'.length)
+      assert.ok(zlib.gunzipSync(gz).equals(fs.readFileSync(path.join(raiz, servido))), `${servido} volta igual`)
+    }
+    const conf = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src-tauri', 'tauri.conf.json'), 'utf8'))
+    const sig = fs.readFileSync(path.join(saida, 'fogo.indice.json.sig'), 'utf8').trim()
+    assert.ok(assinaturaConfere(path.join(saida, 'fogo.indice.json'), sig, conf.plugins.updater.pubkey))
+  } finally {
+    fs.rmSync(raiz, { recursive: true, force: true })
+  }
+})
+
+test('recusa build copiado pela metade (tamanho fora do GODOT_CONFIG) sem gerar saída', { skip: SEM_CHAVE }, () => {
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), 'pacote-minigames-'))
+  const saida = path.join(raiz, 'saida')
+  try {
+    exportFalso(raiz, { wasm: Buffer.alloc(1234, 7) })
+    const r = rodar(raiz, saida)
+    assert.equal(r.status, 1)
+    assert.match(r.stderr, /index\.wasm tem 1234 bytes, mas o GODOT_CONFIG diz 5000/)
+    assert.equal(fs.existsSync(saida), false)
+  } finally {
+    fs.rmSync(raiz, { recursive: true, force: true })
+  }
+})
