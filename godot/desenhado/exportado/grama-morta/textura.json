@@ -1,0 +1,82 @@
+{
+  "base": {
+    "arquivos": [
+      "base-1.png",
+      "base-2.png",
+      "base-3.png"
+    ],
+    "ladoPx": 512,
+    "periodoCasas": 8
+  },
+  "casaPx": 64,
+  "contrato": 1,
+  "corMedia": "#7b776a",
+  "detalhes": {
+    "agrupamento": 0.85,
+    "arquivo": "detalhes.png",
+    "celulaCasas": 2,
+    "colunas": 2,
+    "densidade": 0.14,
+    "escalaMax": 1.5,
+    "escalaMin": 1.0,
+    "espelhar": true,
+    "gradeDoMundoPx": 64,
+    "grupos": {
+      "chance": 0.7,
+      "gradeCasas": 12.0,
+      "raioMax": 0.5,
+      "raioMin": 0.3
+    },
+    "ladoPx": 512,
+    "linhas": 2,
+    "pesos": [
+      3.0,
+      2.5,
+      2.5,
+      1.0
+    ],
+    "pxPorCasa": 128,
+    "quantos": 4,
+    "semente": 4416,
+    "variacaoDeTom": 0.06
+  },
+  "emendas": {
+    "base-1.png": {
+      "borda": 0.851562637253664,
+      "miolo": 0.884223234655413,
+      "razao": 0.963062950483905
+    },
+    "base-2.png": {
+      "borda": 0.901041899924167,
+      "miolo": 0.895616602501832,
+      "razao": 1.00605761149043
+    },
+    "base-3.png": {
+      "borda": 0.864583281800151,
+      "miolo": 0.869249080133159,
+      "razao": 0.994632380476844
+    }
+  },
+  "id": "grama-morta",
+  "idDoApp": "grama-morta",
+  "lote": 1,
+  "memoria": {
+    "discoBytes": 650470,
+    "gpuBytes": 5592404,
+    "tetoDiscoBytes": 1572864,
+    "tetoGpuBytes": 6291456
+  },
+  "mistura": {
+    "corte": 0.18,
+    "escala": 2.0,
+    "faixa": 0.12,
+    "semente": 4354
+  },
+  "nome": "Campo (morto, cemitério)",
+  "onda": 1,
+  "tom": {
+    "amplitude": 0.05,
+    "escala": 6.0,
+    "semente": 4380
+  }
+}

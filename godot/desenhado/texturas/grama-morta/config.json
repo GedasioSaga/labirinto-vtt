@@ -1,0 +1,31 @@
+{
+  "id": "grama-morta",
+  "nome": "Campo (morto, cemitério)",
+  "idDoApp": "grama-morta",
+  "onda": 1,
+  "lote": 1,
+  "semente": 43,
+  "variantes": 3,
+  "periodoCasas": 8,
+  "mistura": {
+    "escala": 2,
+    "faixa": 0.12,
+    "corte": 0.18
+  },
+  "tom": {
+    "escala": 6,
+    "amplitude": 0.05
+  },
+  "detalhes": {
+    "celulaCasas": 2,
+    "quantos": 4,
+    "pesos": [3, 2.5, 2.5, 1],
+    "densidade": 0.14,
+    "agrupamento": 0.85,
+    "escalaMin": 1.0,
+    "escalaMax": 1.5,
+    "variacaoDeTom": 0.06,
+    "espelhar": true,
+    "grupos": { "gradeCasas": 12, "chance": 0.7, "raioMin": 0.3, "raioMax": 0.5 }
+  }
+}

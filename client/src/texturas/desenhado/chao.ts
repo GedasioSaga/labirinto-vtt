@@ -28,10 +28,14 @@ import { TINGIR_PADRAO, rgbDoHex, type ContaDeTingir } from './tingir'
 /** px de imagem da base por casa (CONTRATO.md seção 3, `casaPx`). */
 export const CASA_PX_DO_DESENHADO = 64
 
-/** Os 18 chãos do pacote (onda 1): 16 cobrem uma textura do catálogo (o id é o mesmo), o caminho e o piso não. */
+/**
+ * Os 19 chãos do pacote (onda 1): 17 cobrem uma textura do catálogo (o id é o mesmo), o caminho e o piso não.
+ * A grama-morta (o Campo forma Morto, 07/11/2026) veio do estúdio depois, para o cemitério.
+ */
 export const CHAOS_DO_DESENHADO = [
   'grama', 'grama-amarela', 'floresta', 'terra', 'caminho', 'chao-de-floresta', 'bosque', 'pinheiros', 'pantano',
   'areia', 'duna', 'pedra', 'neve', 'lajotas', 'lajotas-escuras', 'calcamento', 'conves', 'piso',
+  'grama-morta',
 ] as const
 export type IdDoChaoDesenhado = (typeof CHAOS_DO_DESENHADO)[number]
 

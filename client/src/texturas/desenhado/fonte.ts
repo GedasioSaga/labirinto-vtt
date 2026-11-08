@@ -39,6 +39,8 @@ export const IDS_DO_DESENHADO = [
   'porta', 'porta-dupla', 'porta-portao',
   // O cemitério (07/11/2026, do estúdio `~/jogos/texturas-labirinto`, lote 19): a cova e os caixões.
   'movel-cova', 'movel-caixao', 'movel-caixao-aberto',
+  // E o chão do Campo forma Morto, mais escuro e sem repetição (onda 1, do mesmo estúdio).
+  'grama-morta',
 ] as const
 
 export type IdDoDesenhado = (typeof IDS_DO_DESENHADO)[number]
