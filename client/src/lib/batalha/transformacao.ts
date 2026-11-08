@@ -5,7 +5,7 @@ import { MOTIVO_DO_OVERLOAD_USADO, motivoDaAcao, motivoDoCustoAcimaDoMaximo, typ
 import { NUMEROS_DA_FORMA_MAX, type AcaoDaForma, type CombateDoPersonagem, type FormaNaBatalha, type NumeroDaForma } from './combate'
 import { normalizar } from './formula'
 import { CAMPO_DA_ACAO, CAMPO_DO_CUSTO, ehOverload, lerAcao, lerCusto } from './leituraDaFicha'
-import { usosContamOAdicional } from './mecanicasAMao'
+import { partesEmOrdem, sobeDeParte, usosContamOAdicional } from './mecanicasAMao'
 
 /**
  * TRANSFORMAÇÃO NA BATALHA, F3 fatia T (seção 3.2 de
@@ -261,7 +261,8 @@ export function formasNoMenu(personagem: Personagem, sistema: SistemaDeRpg, acoe
   return cartoesQueLigam(personagem, sistema).map((cartao) => {
     const ligada = personagem.cartoesAtivos.includes(cartao.id)
     const motivoDosUsos = ligada ? null : motivoDosUsosDaForma(cartao, combate?.usos)
-    const motivoDaFicha = ligada ? null : ehOverload(cartao) && combate?.overload === true ? MOTIVO_DO_OVERLOAD_USADO : motivoDoCustoDaForma(cartao, personagem, sistema)
+    // F2 (fatia E): a Forma Híbrida liga em ordem (a mesma frase que o host usa ao recusar).
+    const motivoDaFicha = ligada ? null : ehOverload(cartao) && combate?.overload === true ? MOTIVO_DO_OVERLOAD_USADO : (motivoDaOrdemDasPartes(personagem, sistema, cartao) ?? motivoDoCustoDaForma(cartao, personagem, sistema))
     const acaoDaFicha = acaoDaForma(cartao)
     // A prévia é a própria ativação feita no ar (o histórico e o relógio não importam aqui).
     const previa = ligada ? null : ativarForma(personagem, sistema, cartao.id, '', 0)
@@ -407,6 +408,54 @@ export function parteAnterior(personagem: Personagem, sistema: SistemaDeRpg, car
     if (outra !== undefined && dela !== null && normalizar(dela) === chave) return outra
   }
   return null
+}
+
+/** F2 (fatia E): as formas do MESMO grupo de `cartao`, na ordem da ficha (ele junto). Sem grupo: só ele. */
+function formasDoGrupo(personagem: Personagem, sistema: SistemaDeRpg, cartao: CartaoDaFicha): CartaoDaFicha[] {
+  const grupo = grupoDaForma(cartao)
+  if (grupo === null) return [cartao]
+  const chave = normalizar(grupo)
+  return cartoesQueLigam(personagem, sistema).filter((outra) => {
+    const dela = grupoDaForma(outra)
+    return dela !== null && normalizar(dela) === chave
+  })
+}
+
+/**
+ * F2 (fatia E, resposta da Ryoko: "Partes em ordem 1 → 2 → 3, uma por vez"):
+ * a Parte do grupo que pode ligar agora: a seguinte à ligada (a mais alta
+ * ligada), ou a primeira sem nenhuma ligada. `null` = a última já está ligada.
+ */
+function parteQueLiga(personagem: Personagem, sistema: SistemaDeRpg, cartao: CartaoDaFicha): CartaoDaFicha | null {
+  const grupo = formasDoGrupo(personagem, sistema, cartao)
+  const ligada = grupo.reduce((maior, forma, indice) => (personagem.cartoesAtivos.includes(forma.id) ? indice : maior), -1)
+  return grupo[ligada + 1] ?? null
+}
+
+/**
+ * F2 (fatia E): por que Ativar esta forma fura a ordem das Partes, ou `null`.
+ * Só vale nas formas da tabela com `partesEmOrdem` (a Forma Híbrida); as
+ * outras trocam no grupo como sempre.
+ */
+export function motivoDaOrdemDasPartes(personagem: Personagem, sistema: SistemaDeRpg, cartao: CartaoDaFicha): string | null {
+  if (!partesEmOrdem(cartao.id)) return null
+  const seguinte = parteQueLiga(personagem, sistema, cartao)
+  if (seguinte?.id === cartao.id) return null
+  return seguinte === null ? 'Já está na última Parte' : `Uma Parte por vez: a próxima é ${seguinte.nome.trim() || 'a Parte seguinte'}`
+}
+
+/**
+ * F2 (fatia E, Fúria do Dragão): a Parte que a técnica liga (a seguinte à
+ * forma de onde ela vem), ou o motivo de não subir. `null` = a técnica não
+ * sobe de Parte.
+ */
+export function subidaDeParte(personagem: Personagem, sistema: SistemaDeRpg, cartaoId: string): { para: CartaoDaFicha } | { motivo: string } | null {
+  if (!sobeDeParte(cartaoId)) return null
+  const dona = cartoesQueLigam(personagem, sistema).find((forma) => forma.subcartoes.some((subcartao) => subcartao.id === cartaoId))
+  if (dona === undefined || !personagem.cartoesAtivos.includes(dona.id)) return { motivo: 'A forma desta técnica não está ligada' }
+  const grupo = formasDoGrupo(personagem, sistema, dona)
+  const seguinte = grupo[grupo.findIndex((forma) => forma.id === dona.id) + 1]
+  return seguinte === undefined ? { motivo: 'Já está na última Parte' } : { para: seguinte }
 }
 
 /**

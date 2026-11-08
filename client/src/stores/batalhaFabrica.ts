@@ -85,7 +85,7 @@ import {
   textoDosQueAcabaram,
   selosDoToken,
 } from '../lib/batalha/selos'
-import { ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, formaDaFicha, usosDaForma } from '../lib/batalha/transformacao'
+import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, formaDaFicha, subidaDeParte, usosDaForma } from '../lib/batalha/transformacao'
 import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, porVezDoLembrete, saidasComOsSelos, travaDoToken, vantagemDaReacao } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
@@ -113,7 +113,7 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, rebatePertoDe, seloPegaNoAlvo } from '../lib/batalha/mecanicasAMao'
+import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte } from '../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
 import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
@@ -1258,6 +1258,25 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
    * Só na vez da carta. A ficha muda pela aventura; a linha "transformacao"
    * leva a reversão composta [gasto, ficha, forma] e o texto sem números.
    */
+  /**
+   * F2 (fatia E, Fúria do Dragão): o pedido da técnica que sobe de Parte, na
+   * vez da carta, vira o Ativar da Parte seguinte (a ação é a do campo Ação da
+   * técnica). `null` = não é essa técnica, ou não há Parte acima (aí o pedido
+   * segue e o `podeAgir` recusa com o motivo).
+   */
+  const subidaDoPedido = (sceneKey: string, pedido: PedidoDeAcao): Extract<PedidoDeAcao, { tipo: 'transformar' }> | null => {
+    if (pedido.tipo !== 'habilidade' || pedido.contraDe !== undefined || !sobeDeParte(pedido.cartaoId)) return null
+    const cena = cenaDe(sceneKey)
+    const carta = cena === undefined ? null : cartaDaVez(cena.turnos)
+    const { personagens, sistema } = mesaDoRpg()
+    const personagem = carta === null || carta.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === carta.personagemId)
+    if (personagem === undefined || sistema === null) return null
+    const subida = subidaDeParte(personagem, sistema, pedido.cartaoId)
+    const tecnica = tecnicaPorId(personagem, sistema, pedido.cartaoId)
+    if (subida === null || !('para' in subida) || tecnica === null) return null
+    return { tipo: 'transformar', cartaoId: subida.para.id, acao: acaoDaForma(tecnica.cartao), trocarImagem: true }
+  }
+
   const mudarForma = (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: Extract<PedidoDeAcao, { tipo: 'transformar' | 'destransformar' }>): boolean => {
     const cena = cenaDe(sceneKey)
     if (cena === undefined || vez === null) return false
@@ -1996,7 +2015,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     // S4: Atordoado ou Paralisado não reage, nem com técnica.
     if (travaDoToken(turnos.selos, reageTokenId) !== null) return false
     // F2 (revisão da fatia D): quem está preso no Campo de Contenção rola com desvantagem, sem marcar.
-    const rolado = pedido.saida === 'rolar' ? rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDoToken(turnos.selos, reageTokenId))) : null
+    const rolado = pedido.saida === 'rolar' ? rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDoToken(turnos.selos, reageTokenId), golpe)) : null
     const combateBase = combateAntes ?? combateVazio()
     const lida = reagirComTecnica(golpe, alvo.tokenId, pedido, personagem, sistema, combateBase, rolado?.d20 ?? null, rolado?.vantagem)
     if (lida === null) return false
@@ -2084,6 +2103,17 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         // Q6: Contra = sem dano e uma ação a mais na hora (sai no Desfazer pela parte "reacaoComTecnica").
         const ganho: ContraAtaque = { golpeId: golpe.id, tokenId: depois.tokenId, personagemId: depois.personagemId, atacanteTokenId: golpe.atacanteTokenId, rodada: turnos.rodada }
         novos = { ...novos, contras: [...(novos.contras ?? []), ganho] }
+      }
+      // F2 (fatia E, Recuperação de forças): 20% do dano que chegava volta em vida (até o máximo); o mestre confirma na mesa que era fogo ou explosão.
+      const cura = feita.cura ?? 0
+      const curou = cura <= 0 ? null : mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDaCura(atual, sistemaDaMesa, cura), quem)
+      if (curou === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      if (curou !== null) {
+        partes.push(...reversaoDaFicha(personagemId, curou))
+        textoDoRebate += ` · come o golpe e cura ${cura} (só fogo ou explosão: o mestre confirma)`
       }
     }
     // O selo da técnica em QUEM ATACOU ("Marcado"), se marcado na caixa e o atacante segue na ordem.
@@ -2834,6 +2864,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     agir: (sceneKey, autor, vez, pedido) => {
       // F3 (fatia T): Ativar e Desfazer a forma têm caminho próprio (não lançam golpe).
       if (pedido.tipo === 'transformar' || pedido.tipo === 'destransformar') return mudarForma(sceneKey, autor, vez, pedido)
+      // F2 (fatia E, Fúria do Dragão): a técnica que sobe de Parte é o Ativar da Parte seguinte, com a ação da técnica.
+      const subida = subidaDoPedido(sceneKey, pedido)
+      if (subida !== null) return mudarForma(sceneKey, autor, vez, subida)
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return false
       const { turnos } = cena
@@ -3018,7 +3051,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           // S4: Atordoado ou Paralisado não reage (o golpe que já esperava também não).
           if (travaDoToken(turnos.selos, alvo.tokenId) !== null) return false
           // F2 (revisão da fatia D): quem está preso no Campo de Contenção rola com desvantagem, sem marcar.
-          const { d20, vantagem } = rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDoToken(turnos.selos, alvo.tokenId)))
+          const { d20, vantagem } = rolarComVantagem(deps.rolarD20, vantagemDaReacao(pedido.vantagem, selosDoToken(turnos.selos, alvo.tokenId), golpe))
           novo = rolarReacao(golpe, alvo.tokenId, pedido.modificador, d20, vantagem)
           efeitos.push({ tipo: 'reacao', golpeId: golpe.id, tokenId: alvo.tokenId, d20, modificador: pedido.modificador, total: d20 + pedido.modificador })
           break
@@ -3031,7 +3064,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           if (pedido.tipo === 'naoReagir' && alvo.rolagem !== undefined && autor.tipo === 'jogador') return false
           if (pedido.tipo === 'escolher') {
             // F2 (fatia A): Aéreo tira a Esquiva e o Contra-ataque de quem reage.
-            if (alvo.rolagem === undefined || !saidasComOsSelos(saidasPossiveis(alvo.rolagem.d20, alvo.rolagem.total), selosDoToken(turnos.selos, alvo.tokenId)).includes(pedido.saida)) return false
+            // F2 (fatia E, Orgulho dos Ogros): o ogro (menos a Ryoko) só Defende ou Recebe.
+            const doAlvo = personagens.find((candidato) => candidato.id === alvo.personagemId)
+            const daRaca = doAlvo === undefined ? [] : saidasTiradasDoDono(chavesDoDono(doAlvo))
+            if (alvo.rolagem === undefined || daRaca.includes(pedido.saida) || !saidasComOsSelos(saidasPossiveis(alvo.rolagem.d20, alvo.rolagem.total), selosDoToken(turnos.selos, alvo.tokenId)).includes(pedido.saida)) return false
             saida = pedido.saida
           }
           // Passar só depois do dado: o golpe inteiro, sem usar a reação; o 1 natural continua crítico.

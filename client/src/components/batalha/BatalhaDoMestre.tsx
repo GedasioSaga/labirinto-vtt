@@ -8,6 +8,7 @@ import { acoesDoInvocado, comunsQueSaem, membrosDoBando, motivoDaInvocacao, quan
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { lembreteDoSelo, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
+import { chavesDoDono, saidasTiradasDoDono } from '../../lib/batalha/mecanicasAMao'
 import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDano'
 import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
@@ -265,18 +266,19 @@ function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string
     const passivas = passivasNaCena(personagem, mesa.sistema, turnos, carta.tokenId)
     itens.push(...lembretesNaTela(combate.lembretes, passivas, alvosDaOrdem(mesa, turnos.cartas, carta), nomeDaFicha(mesa, carta.tokenId, carta), custosDasFormasNaTela(personagem, mesa.sistema)))
   }
-  // R1 (lote de 01/11): a marca de atirador NPC (a do jogador, ele responde na tela dele).
+  // R1 (lote de 01/11): a marca de atirador NPC. F2 (fatia E, resposta do Vincent): também a do jogador, que o mestre
+  // pode responder por ele (quando o jogador não está); o jogador segue respondendo na tela dele.
   const marcas: MarcaNaTela[] = []
   for (const lembrete of turnos.lembretesDaMarca ?? []) {
     const personagem = mesa.personagens.find((candidato) => candidato.id === lembrete.personagemId)
-    if (personagem?.tipo !== 'npc') continue
+    if (personagem === undefined) continue
     const item = marcaNaTela(lembrete, personagem, mesa.sistema, (tokenId) => nomeDaFicha(mesa, tokenId), bonusDaBatalha(turnos.selos, lembrete.tokenId), nomeDaFicha(mesa, lembrete.tokenId))
     if (item !== null) marcas.push(item)
   }
   if (itens.length === 0 && marcas.length === 0) return null
   return (
-    <section className="bt-secao" aria-label="Lembretes das passivas dos NPCs">
-      <h3 className="bt-secao__titulo">Passivas dos NPCs</h3>
+    <section className="bt-secao" aria-label="Lembretes das passivas dos NPCs e das marcas">
+      <h3 className="bt-secao__titulo">Passivas dos NPCs e marcas</h3>
       {marcas.length > 0 && <LembretesDaMarca itens={marcas} onResponder={(pedido) => useBatalhaStore.getState().marcar(sceneKey, MESTRE, pedido)} className="bt-lembretes--npc" />}
       {itens.length > 0 && <LembretesDaPassiva itens={itens} sistema={mesa.sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} className="bt-lembretes--npc" />}
     </section>
@@ -324,7 +326,10 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         const partes = partesDoBonus(bonus, ALVO_DA_REACAO)
         if (partes.length > 0) item.bonus = { total: bonusDaReacao(bonus), partes }
         // F2 (fatia A): Aéreo tira a Esquiva e o Contra-ataque dos botões.
-        const semSaidas = saidasTiradas(selosDoToken(turnos.selos, alvo.tokenId))
+        // F2 (fatia E, Orgulho dos Ogros): o ogro (menos a Ryoko) só Defende ou Recebe.
+        const deQuemReage = alvo.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === alvo.personagemId)
+        const daRaca = deQuemReage === undefined ? [] : saidasTiradasDoDono(chavesDoDono(deQuemReage))
+        const semSaidas = [...new Set([...saidasTiradas(selosDoToken(turnos.selos, alvo.tokenId)), ...daRaca])]
         if (semSaidas.length > 0) item.semSaidas = semSaidas
         if (alvo.rolagem !== undefined) item.rolagem = alvo.rolagem
         // Tipos de habilidade F1: o NPC reage também com técnica (a caixa do mestre, por NPC).

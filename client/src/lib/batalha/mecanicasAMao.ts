@@ -1,3 +1,4 @@
+import type { Personagem } from '../personagem'
 import type { NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
 import { normalizar } from './formula'
 import type { ContraDaDisputa, QuemRola } from './disputa'
@@ -43,6 +44,12 @@ export interface SaidaDaReacaoAMao {
   noAlvo: SaidaDaReacao
   fator: number
   devolveDividido?: number
+  /**
+   * F2 (fatia E, Recuperação de forças da Ryoko): esta porcentagem do dano que
+   * CHEGAVA (antes das reduções de quem reage, como o −30% do Ogro) volta em
+   * vida, para baixo, até o máximo.
+   */
+  curaDoQueChega?: number
 }
 
 /**
@@ -59,6 +66,26 @@ export interface RolagemDaReacaoAMao {
 export interface ReacaoAMao {
   saidas?: readonly SaidaDaReacaoAMao[]
   rolagem?: RolagemDaReacaoAMao
+  /** F2 (fatia E, Recuperação de forças): vale também contra golpe Overload (como se fosse outra Overload). */
+  contraOverload?: true
+}
+
+/**
+ * F2 (fatia E, a raça Ogro): o que a raça dá a toda ficha dela. `reducao`: o
+ * dano recebido que cai (Superioridade do Ogro, −30%); `somaCorpoACorpo`: o
+ * dano a mais no Atacar e nas técnicas corpo a corpo que não o escrevem
+ * (Força Aumentada, +20); `soDefende`: a reação não esquiva nem contra-ataca
+ * (Orgulho dos Ogros), menos na ficha com `esquivaNormal`.
+ */
+export interface RacaAMao {
+  reducao?: { nome: string; porcento: number }
+  somaCorpoACorpo?: number
+  soDefende?: true
+}
+
+/** F2 (fatia E): a técnica corpo a corpo. `somaDaRaca`: soma o dano corpo a corpo da raça (o Chute já escreve o +20 de Ogro: `false`). */
+export interface CorpoACorpoAMao {
+  somaDaRaca: boolean
 }
 
 /** F2 (fatia D, Imbuir Fogo do Vagn): a resposta `valor` da pergunta `chave` não vale com a forma `formaId` ligada. */
@@ -184,6 +211,10 @@ export interface EmTodoGolpeAMao {
   custoEmSp: number
   /** O que vai no registro quando a resposta é `valor` ("eletricidade"). */
   rotulo: string
+  /** F2 (fatia E, vantagem de Ogro): a pergunta só vem no golpe corpo a corpo (o Atacar e as técnicas com `corpoACorpo`). */
+  soCorpoACorpo?: true
+  /** F2 (fatia E, vantagem de Ogro): com a resposta `valor`, o alvo reage com desvantagem (2 d20, fica o menor). */
+  desvantagemNoAlvo?: true
 }
 
 export interface MecanicaAMao {
@@ -232,6 +263,16 @@ export interface MecanicaAMao {
   limpa?: LimpezaAMao
   /** F2 (revisão da fatia D): a técnica fica ligada e cobra a cada vez (Giro, Campo). */
   mantida?: MantidaAMao
+  /** F2 (fatia E): a técnica é corpo a corpo (a vantagem de Ogro pergunta; `somaDaRaca` soma o +20). */
+  corpoACorpo?: CorpoACorpoAMao
+  /** F2 (fatia E): a linha da RAÇA (chave `raca:<nome>`, ver `chavesDoDono`). */
+  raca?: RacaAMao
+  /** F2 (fatia E): a linha da FICHA (chave `ficha:<id>`): o `soDefende` da raça não vale nela (a Ryoko esquiva e contra-ataca). */
+  esquivaNormal?: true
+  /** F2 (fatia E, Fúria do Dragão): usar a técnica liga a Parte SEGUINTE do grupo da forma de onde ela vem. */
+  sobeDeParte?: true
+  /** F2 (fatia E, Forma Híbrida): as Partes deste grupo ligam em ordem, uma por vez (1 → 2 → 3). */
+  partesEmOrdem?: true
 }
 
 const ATORDOADO_1: SeloDoGolpe = { nome: 'Atordoado', turnos: 1, natureza: 'debuff' }
@@ -264,8 +305,63 @@ const IGNICAO_DO_VAGN = 'cart_8ea9d2d5-f1ac-4d11-9a55-0feb66c75415'
 /** Recuperação Espantosa (May; Guilherme segue a regra dela): o mestre decide quando e com quanto HP volta. */
 const AVISO_DA_RECUPERACAO = 'Recuperação Espantosa: caiu a 0. Mestre, decida em quantos turnos volta e com quanto HP (1 vez por batalha).'
 
-/** A tabela. A chave é o `cartaoId` da técnica na ficha real. */
+/** F2 (fatia E): o prefixo da chave da linha da raça e da linha da ficha (`chavesDoDono`). */
+export const CHAVE_DA_RACA = 'raca:'
+export const CHAVE_DA_FICHA = 'ficha:'
+/** Ryoko: a Fúria do Dragão (uma em cada Parte) liga a Parte seguinte; sem dano e sem alvo. */
+const FURIA_DO_DRAGAO: MecanicaAMao = { nome: 'Fúria do Dragão (Ryoko)', dano: '-', semAlvo: true, sobeDeParte: true }
+/** Ryoko: a Grande Fissura (uma em cada Parte) é golpe corpo a corpo (socos e chutes): soma o +20 de Ogro. */
+const GRANDE_FISSURA: MecanicaAMao = { nome: 'Grande Fissura (Ryoko)', corpoACorpo: { somaDaRaca: true } }
+/** Ryoko: as Partes da Forma Híbrida ligam em ordem, uma por vez. */
+const PARTE_DA_FORMA_HIBRIDA: MecanicaAMao = { nome: 'Forma Híbrida (Ryoko)', partesEmOrdem: true }
+
+/** A tabela. A chave é o `cartaoId` da técnica na ficha real (ou a da raça e a da ficha, F2 fatia E). */
 const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
+  // Ogro (raça; respostas da Ryoko): −30% em todo dano recebido (nos outros ogros, menos o dano verdadeiro: o app ainda não
+  // marca golpe de dano verdadeiro, então vale em tudo); +20 no Atacar e nas técnicas corpo a corpo que não escrevem o +20;
+  // os outros ogros só Defendem. Vantagem corpo a corpo: no golpe corpo a corpo o app pergunta se o alvo reage com
+  // desvantagem; defendendo, quem reage escolhe "Vantagem" no dado da caixa (já existe para todos).
+  [`${CHAVE_DA_RACA}ogro`]: {
+    nome: 'Ogro (raça)',
+    raca: { reducao: { nome: 'Superioridade do Ogro', porcento: 30 }, somaCorpoACorpo: 20, soDefende: true },
+    emTodoGolpe: {
+      pergunta: { chave: 'vantagemDeOgro', texto: 'Vantagem de Ogro: o alvo reage com desvantagem?', para: 'quemUsa', tipo: 'opcoes', opcoes: SIM_OU_NAO },
+      valor: 'sim',
+      dano: 0,
+      custoEmSp: 0,
+      rotulo: 'vantagem de Ogro',
+      soCorpoACorpo: true,
+      desvantagemNoAlvo: true,
+    },
+  },
+  // Ryoko: "Só ela não tem isso, ela pode esquivar normal" (o Orgulho dos Ogros não vale nela).
+  [`${CHAVE_DA_FICHA}pers_7479adc1-5276-4b27-8adb-394f39463d58`]: { nome: 'Ryoko D. Violet (esquiva normal)', esquivaNormal: true },
+  // Ryoko: o +20 escrito no Chute já é o de Ogro (não soma de novo); os 25 de queimadura entram no mesmo golpe (campo Dano).
+  'cart_b0bc47ef-4a3e-4ccc-8650-8c26b823b5c6': { nome: 'Chute do Dragão (Ryoko)', corpoACorpo: { somaDaRaca: false } },
+  // Ryoko: Ação Completa, 35 SP (a ficha); "ignorando sua defesa" = pula o Escudo (o alvo ainda reage); corpo a corpo, + 20 de Ogro.
+  'cart_bd88bb1b-2c2d-4b48-af1a-b50bd0009f03': { nome: 'Golpe de Chifres (Ryoko)', perfurante: true, corpoACorpo: { somaDaRaca: true } },
+  // Ryoko: come o golpe de FOGO ou EXPLOSÃO (o mestre confirma na mesa): anula e 20% do que chegava (antes do −30%) vira vida.
+  // Vale também contra Overload. Contra Surpresa fica à mão (o golpe Surpresa não espera reação).
+  'cart_f9a3ebf3-cc68-4892-9e90-75b3a1bdc947': {
+    nome: 'Recuperação de forças (Ryoko)',
+    reacao: { saidas: [{ saida: 'esquiva', rotulo: 'come o fogo', noAlvo: 'esquiva', fator: 0, curaDoQueChega: 20 }], contraOverload: true },
+  },
+  'cart_5b1f2e01-5ed4-4fb1-aa28-46b533b54521': PARTE_DA_FORMA_HIBRIDA,
+  'cart_82959662-3d4b-4715-99e9-675856c1fcfa': PARTE_DA_FORMA_HIBRIDA,
+  'cart_8db149cc-a1e0-4c61-a064-8a4b836d7c12': PARTE_DA_FORMA_HIBRIDA,
+  'cart_d2b48141-2b42-474b-9003-27b40f38c174': FURIA_DO_DRAGAO,
+  'cart_7fa7e21f-8085-4410-95c7-9ca8dd03b8fb': FURIA_DO_DRAGAO,
+  'cart_ba677726-fba0-439a-a35f-66fdea245a08': FURIA_DO_DRAGAO,
+  'cart_59843628-cd2c-4368-a45b-d353524c7a3b': GRANDE_FISSURA,
+  'cart_0fbab5c6-e8c2-4ff7-ace2-4b927e37c763': GRANDE_FISSURA,
+  'cart_2ee09460-6332-49b4-9a03-7e18ae5427a0': GRANDE_FISSURA,
+  // Vincent: contra QUALQUER ataque, só como Esquiva (a marca no atacante vem só com ela).
+  'cart_5ef11e05-c73e-4972-a432-9fc23a6641ef': { nome: 'Passo de Valsa (Vincent)', reacao: { saidas: [{ saida: 'esquiva', rotulo: 'esquiva e marca', noAlvo: 'esquiva', fator: 0 }] } },
+  // Vincent: 1 alvo; "Dano Perfurante" vai direto no HP (o perfurante já sai do texto).
+  'cart_206aa17a-dc52-472b-adab-8cd4c71638b0': { nome: 'Desenhar o alvo (Vincent)', tetoDeAlvosComDano: 1 },
+  // Vincent: a Bala de Prata (tipo de bala da Rosa Fúnebre: + metade da Percepção, 55 + 17 = 72) deixa "Ferido por prata" em quem
+  // ela acerta; o selo só lembra o mestre de cortar a cura pela metade.
+  'cart_e41ee968-7a05-4591-a003-6900a6482e91': { nome: 'Bala de Prata (Vincent)', selo: { nome: 'Ferido por prata', turnos: null, natureza: 'debuff' } },
   // Jimboy: depois do acerto, d20 + FOR (vantagem da Força Superior) contra d20 + RES do alvo; só atordoa se vencer.
   'cart_8d2a46e7-afa7-4b7a-bbaf-53ef36cb1669': {
     nome: 'Corta Cenoura (Jimboy)',
@@ -596,11 +692,16 @@ export function ataqueComOSelo(cartoesIds: readonly string[], selos: readonly Pi
   return null
 }
 
-/** F2 (fatia C): o que vale em todo golpe do dono, pelos cartões da ficha dele (o Electro da Aira). */
-function emTodoGolpeDo(cartoesDoDono: readonly string[]): EmTodoGolpeAMao[] {
-  return cartoesDoDono.flatMap((cartaoId) => {
-    const emTodo = mecanicaDoCartao(cartaoId)?.emTodoGolpe
-    return emTodo === undefined ? [] : [emTodo]
+/**
+ * F2 (fatia C): o que vale em todo golpe do dono, pelos cartões da ficha dele
+ * (o Electro da Aira). F2 (fatia E): com `cartaoId` (`null` = Atacar), o que é
+ * só de golpe corpo a corpo (vantagem de Ogro) fica de fora da técnica que não é.
+ */
+function emTodoGolpeDo(cartoesDoDono: readonly string[], cartaoId?: string | null): EmTodoGolpeAMao[] {
+  return cartoesDoDono.flatMap((chave) => {
+    const emTodo = mecanicaDoCartao(chave)?.emTodoGolpe
+    if (emTodo === undefined) return []
+    return emTodo.soCorpoACorpo === true && cartaoId !== undefined && cartaoId !== null && corpoACorpoDe(cartaoId) === null ? [] : [emTodo]
   })
 }
 
@@ -608,7 +709,7 @@ function emTodoGolpeDo(cartoesDoDono: readonly string[]): EmTodoGolpeAMao[] {
 export function perguntasDoGolpe(cartaoId: string | null, cartoesDoDono: readonly string[]): PerguntaNaHora[] {
   const daTecnica = cartaoId === null ? [] : perguntasDoCartao(cartaoId)
   const chaves = new Set(daTecnica.map((pergunta) => pergunta.chave))
-  return [...daTecnica, ...emTodoGolpeDo(cartoesDoDono).map((emTodo) => emTodo.pergunta).filter((pergunta) => !chaves.has(pergunta.chave))]
+  return [...daTecnica, ...emTodoGolpeDo(cartoesDoDono, cartaoId).map((emTodo) => emTodo.pergunta).filter((pergunta) => !chaves.has(pergunta.chave))]
 }
 
 /**
@@ -624,15 +725,16 @@ export function motivoDasRespostasDoGolpe(cartaoId: string | null, cartoesDoDono
 }
 
 /** F2 (fatia C): o que as respostas de todo golpe somam no dano e cobram em SP, e os rótulos para o registro ("eletricidade"). */
-export function extraDeTodoGolpe(cartoesDoDono: readonly string[], respostas: RespostasDoPedido | undefined): { dano: number; custoEmSp: number; rotulos: string[] } {
+export function extraDeTodoGolpe(cartoesDoDono: readonly string[], respostas: RespostasDoPedido | undefined): { dano: number; custoEmSp: number; rotulos: string[]; desvantagemNoAlvo: boolean } {
   const rotulos: string[] = []
-  const extra = { dano: 0, custoEmSp: 0, rotulos }
+  const extra = { dano: 0, custoEmSp: 0, rotulos, desvantagemNoAlvo: false }
   if (respostas === undefined) return extra
   for (const emTodo of emTodoGolpeDo(cartoesDoDono)) {
     if (respostas[emTodo.pergunta.chave] !== emTodo.valor) continue
     extra.dano += emTodo.dano
     extra.custoEmSp += emTodo.custoEmSp
     extra.rotulos.push(emTodo.rotulo)
+    if (emTodo.desvantagemNoAlvo === true) extra.desvantagemNoAlvo = true
   }
   return extra
 }
@@ -717,4 +819,73 @@ export function mantidaDe(cartaoId: string): MantidaAMao | null {
 /** F2 (revisão da fatia D, Campo): usar a técnica gasta a Concentração guardada? A que dá carga por vez não gasta. */
 export function gastaACarga(cartaoId: string | null): boolean {
   return cartaoId === null || mantidaDe(cartaoId)?.cargaPorVez !== true
+}
+
+/**
+ * F2 (fatia E): as chaves da tabela que valem para o dono: os ids dos cartões
+ * da ficha (todas as abas), a da raça (`raca:ogro`, sem acento nem caixa) e a
+ * da ficha (`ficha:<id>`). Quem lê "os cartões do dono" (as perguntas de todo
+ * golpe, o Atacar melhorado) passa por aqui.
+ */
+export function chavesDoDono(personagem: Pick<Personagem, 'id' | 'abas' | 'escolhas'>): string[] {
+  const cartoes = Object.values(personagem.abas).flatMap((lista) => lista.map((cartao) => cartao.id))
+  const raca = normalizar(personagem.escolhas.raca ?? '').trim()
+  return [...cartoes, ...(raca.length === 0 ? [] : [`${CHAVE_DA_RACA}${raca}`]), `${CHAVE_DA_FICHA}${personagem.id}`]
+}
+
+/** F2 (fatia E): a raça do dono na tabela (a primeira chave com `raca`); `null` = a raça não faz nada no app. */
+export function racaDoDono(chaves: readonly string[]): RacaAMao | null {
+  for (const chave of chaves) {
+    const raca = mecanicaDoCartao(chave)?.raca
+    if (raca !== undefined) return raca
+  }
+  return null
+}
+
+/** F2 (fatia E, Superioridade do Ogro): o dano recebido que a raça tira; `null` = nenhum. */
+export function reducaoDaRaca(personagem: Pick<Personagem, 'id' | 'abas' | 'escolhas'>): { nome: string; porcento: number } | null {
+  return racaDoDono(chavesDoDono(personagem))?.reducao ?? null
+}
+
+/**
+ * F2 (fatia E, Orgulho dos Ogros): as saídas da reação que a raça tira (só
+ * Defender e Receber), menos na ficha com `esquivaNormal` (a Ryoko). Vazio =
+ * nenhuma.
+ */
+export function saidasTiradasDoDono(chaves: readonly string[]): SaidaDaReacao[] {
+  if (racaDoDono(chaves)?.soDefende !== true) return []
+  return chaves.some((chave) => mecanicaDoCartao(chave)?.esquivaNormal === true) ? [] : ['esquiva', 'contra']
+}
+
+/** F2 (fatia E): a técnica corpo a corpo da tabela; `null` = não é (ou não está na tabela). */
+export function corpoACorpoDe(cartaoId: string): CorpoACorpoAMao | null {
+  return mecanicaDoCartao(cartaoId)?.corpoACorpo ?? null
+}
+
+/**
+ * F2 (fatia E, Força Aumentada do Ogro): o dano corpo a corpo que a raça soma
+ * neste golpe. `cartaoId` `null` = o Atacar, que soma quando `atacarCorpoACorpo`
+ * (sem arma, ou arma que não atira nem é de arremesso); a técnica soma só
+ * com `corpoACorpo.somaDaRaca`.
+ */
+export function somaCorpoACorpo(chaves: readonly string[], cartaoId: string | null, atacarCorpoACorpo: boolean): number {
+  const soma = racaDoDono(chaves)?.somaCorpoACorpo ?? 0
+  if (soma <= 0) return 0
+  if (cartaoId === null) return atacarCorpoACorpo ? soma : 0
+  return corpoACorpoDe(cartaoId)?.somaDaRaca === true ? soma : 0
+}
+
+/** F2 (fatia E, Forma Híbrida): a forma liga em ordem dentro do grupo (uma Parte por vez). */
+export function partesEmOrdem(cartaoId: string): boolean {
+  return mecanicaDoCartao(cartaoId)?.partesEmOrdem === true
+}
+
+/** F2 (fatia E, Fúria do Dragão): usar a técnica liga a Parte seguinte. */
+export function sobeDeParte(cartaoId: string): boolean {
+  return mecanicaDoCartao(cartaoId)?.sobeDeParte === true
+}
+
+/** F2 (fatia E, Recuperação de forças): a técnica de reação vale também contra golpe Overload. */
+export function reageContraOverload(cartaoId: string): boolean {
+  return mecanicaDoCartao(cartaoId)?.reacao?.contraOverload === true
 }

@@ -8,7 +8,7 @@ import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEv
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId } from '../batalha/leituraDaFicha'
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
-import { motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
+import { chavesDoDono, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
 import { saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import type { VezEsperada } from '../batalha/ponte'
@@ -317,9 +317,9 @@ function comODano(alvos: readonly PedidoDeAlvo[], dano: number | null): PedidoDe
   return alvos.map((alvo) => ({ tokenId: alvo.tokenId, dano }))
 }
 
-/** F2 (fatia C): os ids dos cartões da cópia (todas as abas), para as perguntas de todo golpe do dono (o Electro da Aira). */
+/** F2 (fatia C): os ids dos cartões da cópia (todas as abas), e (fatia E) as chaves da raça e da ficha, para as perguntas de todo golpe do dono (o Electro da Aira). */
 function idsDosCartoes(personagem: Personagem): string[] {
-  return Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id))
+  return chavesDoDono(personagem)
 }
 
 /**

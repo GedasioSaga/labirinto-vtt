@@ -399,7 +399,8 @@ export interface VezPassada {
  */
 export function passarVez(antes: TurnosDaCena, caidos: ReadonlySet<string>): VezPassada | null {
   // F3 (Q4): os selos da carta que SAI descontam antes de tudo; os que acabaram vão no resultado.
-  const { turnos, acabaram } = descontarSelosDaVez(antes)
+  // F2 (fatia E): os lembretes da marca de quem sai vencem ("até o fim da vez do Vincent").
+  const { turnos, acabaram } = descontarSelosDaVez(semLembretesDaMarcaDeQuemSai(antes))
   const comAcabaram = (passada: VezPassada): VezPassada => (acabaram.length === 0 ? passada : { ...passada, acabaram })
   const atual = turnos.vez === null ? -1 : turnos.cartas.findIndex((carta) => carta.id === turnos.vez)
   const seguinte = primeiraQueJoga(turnos.cartas, atual + 1, caidos)
@@ -425,8 +426,21 @@ export function passarVez(antes: TurnosDaCena, caidos: ReadonlySet<string>): Vez
 export function darVez(antes: TurnosDaCena, cartaId: string): TurnosDaCena {
   const para = antes.cartas.find((carta) => carta.id === cartaId)
   if (antes.vez === cartaId || para === undefined) return antes
-  const { turnos } = descontarSelosDaVez(antes)
+  const { turnos } = descontarSelosDaVez(semLembretesDaMarcaDeQuemSai(antes))
   return aoComecarAVez({ ...turnos, vez: cartaId, gastos: SEM_GASTOS }, turnos.vez, para, false)
+}
+
+/**
+ * F2 (fatia E, resposta do Vincent: "o lembrete vale até o fim da vez do
+ * Vincent"): a carta da vez SAI e os lembretes "Marcar o alvo?" do token dela
+ * vencem (o tiro fora da vez dele vale até o fim da próxima vez dele). Nenhum:
+ * os MESMOS turnos. O Desfazer da vez os devolve (`mudancasDaVez`).
+ */
+export function semLembretesDaMarcaDeQuemSai(turnos: TurnosDaCena): TurnosDaCena {
+  const saindo = cartaDaVez(turnos)
+  const lembretes = turnos.lembretesDaMarca ?? []
+  if (saindo === null || !lembretes.some((lembrete) => lembrete.tokenId === saindo.tokenId)) return turnos
+  return { ...turnos, lembretesDaMarca: lembretes.filter((lembrete) => lembrete.tokenId !== saindo.tokenId) }
 }
 
 /** F3 (Q4): a carta da vez SAI: os selos da ficha dela descontam 1 (P2: 1 vez por VEZ, a carta extra conta). Sem vez ou sem selo: os MESMOS turnos. */

@@ -242,6 +242,8 @@ export interface MudancasDaVez {
   extras?: Readonly<Record<string, AcoesExtras>>
   combates?: readonly CombateNaVez[]
   selos?: readonly SeloNaVez[]
+  /** F2 (fatia E): os lembretes da marca que venceram no fim da vez de quem atirou. */
+  lembretesDaMarca?: readonly LembreteDaMarca[]
 }
 
 export interface LinhaDoRegistro {
@@ -646,7 +648,10 @@ export function mudancasDaVez(antes: TurnosDaCena, depois: TurnosDaCena): Mudanc
     const depoisDele = selosDepois.get(selo.id) ?? null
     if (depoisDele !== selo) selos.push({ antes: selo, depois: depoisDele })
   }
+  const ficam = new Set((depois.lembretesDaMarca ?? []).map((lembrete) => lembrete.id))
+  const vencidos = (antes.lembretesDaMarca ?? []).filter((lembrete) => !ficam.has(lembrete.id))
   const mudou: MudancasDaVez = {
+    ...(vencidos.length === 0 ? {} : { lembretesDaMarca: vencidos }),
     ...(Object.keys(extras).length === 0 ? {} : { extras }),
     ...(combates.length === 0 ? {} : { combates }),
     ...(selos.length === 0 ? {} : { selos }),
@@ -702,6 +707,12 @@ function semAVez(turnos: TurnosDaCena, mudou: MudancasDaVez): TurnosDaCena {
     volta = { ...volta, combate }
   }
   if (mudou.selos !== undefined) volta = { ...volta, selos: selosSemAVez(volta.selos ?? [], mudou.selos) }
+  // F2 (fatia E): o lembrete da marca que venceu volta (se não voltou por outro caminho).
+  if (mudou.lembretesDaMarca !== undefined) {
+    const agora = volta.lembretesDaMarca ?? []
+    const voltam = mudou.lembretesDaMarca.filter((lembrete) => !agora.some((outro) => outro.id === lembrete.id))
+    if (voltam.length > 0) volta = { ...volta, lembretesDaMarca: [...agora, ...voltam] }
+  }
   return volta
 }
 

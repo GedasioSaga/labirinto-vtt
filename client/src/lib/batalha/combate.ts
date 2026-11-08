@@ -518,6 +518,8 @@ export interface GolpeDaBatalha {
   curaDoDano?: number
   /** F2 (fatia C): a concentração gasta no golpe (a CD da dança da Aira sobe com ela). Ausente = 0. */
   carga?: number
+  /** F2 (fatia E, vantagem de Ogro): os alvos reagem com desvantagem (2 d20, fica o menor). Tirado pelo host. Ausente = dado normal. */
+  reacaoComDesvantagem?: true
 }
 
 /**

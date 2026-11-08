@@ -17,7 +17,8 @@ import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/sel
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
-import { limpezaDe, mecanicaDoCartao, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta } from '../../lib/batalha/mecanicasAMao'
+import { chavesDoDono, limpezaDe, mecanicaDoCartao, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta } from '../../lib/batalha/mecanicasAMao'
+import { subidaDeParte } from '../../lib/batalha/transformacao'
 import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
 import { alvoPadraoEmSi, reacaoDoTipo, rotuloDoTipo, seloSugeridoDaTecnica, type ReacaoDoTipo } from '../../lib/batalha/tiposDaHabilidade'
 import {
@@ -484,6 +485,9 @@ function golpeDaTecnica(
   const selo = seloDaMecanica(id, padrao) ?? (semSelo ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema))
   if (selo !== null) golpe.selo = selo
   if (mecanicaDoCartao(id)?.semAlvo === true) golpe.semAlvo = true
+  // F2 (fatia E, Fúria do Dragão): sem Parte acima, apagada com o motivo (a mesma frase do host).
+  const subida = subidaDeParte(personagem, sistema, id)
+  if (golpe.motivo === null && subida !== null && 'motivo' in subida) golpe.motivo = subida.motivo
   // F2 (fatia D, Revigorar): a técnica que limpa começa em quem usa (vale nele ou num aliado).
   if (limpezaDe(id) !== null) golpe.alvoEmSi = true
   // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
@@ -534,9 +538,9 @@ export function golpesDeHabilidade(
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */
-/** F2 (fatia C): os ids dos cartões da ficha (todas as abas), para as perguntas de todo golpe do dono. */
+/** F2 (fatia C): os ids dos cartões da ficha (todas as abas), e (fatia E) as chaves da raça e da ficha, para as perguntas de todo golpe do dono. */
 function idsDosCartoes(personagem: Personagem): string[] {
-  return Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id))
+  return chavesDoDono(personagem)
 }
 
 export function armasNaBatalha(personagem: Personagem | null, combate: Pick<CombateDoPersonagem, 'armas'> | undefined): ArmaDaFicha[] {

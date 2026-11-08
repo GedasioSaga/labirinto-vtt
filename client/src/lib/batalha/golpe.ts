@@ -59,7 +59,9 @@ import {
 import { danoDaTecnica, danoDaTecnicaComAVida, leituraDaTecnica } from './leituraDaTecnica'
 import {
   ataqueComOSelo,
+  chavesDoDono,
   extraDeTodoGolpe,
+  somaCorpoACorpo,
   gastaACarga,
   limpezaDe,
   mantidaDe,
@@ -81,7 +83,7 @@ import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, seloPedidoValido } from './selos'
 import { naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
 import { curaDoDanoDosSelos, travaDoToken } from './condicoes'
-import { comAtaqueExtra, efeitosDasFormasLigadas, formaDaFicha, formaNaVez, motivoDaForma, motivoDoCustoDaForma, motivoDosUsosDaForma } from './transformacao'
+import { comAtaqueExtra, efeitosDasFormasLigadas, formaDaFicha, formaNaVez, motivoDaForma, motivoDaOrdemDasPartes, motivoDoCustoDaForma, motivoDosUsosDaForma, subidaDeParte } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
 
 /**
@@ -303,6 +305,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
       if (cartao === null) return 'Forma não encontrada na ficha'
       if (personagem.cartoesAtivos.includes(pedido.cartaoId)) return 'A forma já está ativa'
+      // F2 (fatia E, Forma Híbrida da Ryoko): as Partes ligam em ordem, uma por vez.
+      const ordem = motivoDaOrdemDasPartes(personagem, sistema, cartao)
+      if (ordem !== null) return ordem
       // Conserto das fichas F1: Overload (técnica ou forma) é UMA vez por batalha.
       if (ehOverload(cartao) && combate.overload) return MOTIVO_DO_OVERLOAD_USADO
       // R6: "Usos por batalha" (Ignição: 2) e a Ação "Livre" (liga sem gastar ação).
@@ -348,9 +353,12 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const vetada = motivoDaRespostaVetada(tecnica.cartao.id, pedido.respostas, personagem.cartoesAtivos)
       // F2 (fatia C, A Luz do Sol): o teto de alvos que tomam dano ("em um inimigo"); os aliados marcados só levam o selo.
       const alvosPersonagemIds = pedido.alvos.map((alvo) => ctx.personagemDoToken(alvo.tokenId))
+      // F2 (fatia E, Fúria do Dragão): sobe de Parte só com a forma dela ligada e uma Parte acima.
+      const subida = subidaDeParte(personagem, sistema, tecnica.cartao.id)
       return (
         motivo ??
         vetada ??
+        (subida !== null && 'motivo' in subida ? subida.motivo : null) ??
         motivoDosAlvos(ctx, pedido.alvos, 0) ??
         motivoDaLimpeza(ctx, tecnica.cartao, alvosPersonagemIds) ??
         motivoDoTetoDeDano(tecnica.cartao.id, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>())
@@ -460,8 +468,10 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // F2 (fatia C): o que vale em todo golpe do dono (o Electro da Aira: +20 de dano, -10 SP), pela resposta.
   const deTodoGolpe = extraDeTodoGolpe(cartoes, pedido.respostas)
   const somaDoAtaque = melhorado === null || personagem === null || sistema === null ? 0 : Math.max(0, Math.floor(valorNaFichaDe(personagem, sistema)(melhorado.soma) ?? 0))
-  const soma = somaDoAtaque + deTodoGolpe.dano
   const arma = armaDoPedido(ctx, pedido.armaId) ?? null
+  // F2 (fatia E, Força Aumentada do Ogro): +20 no Atacar corpo a corpo e nas técnicas corpo a corpo que não escrevem o +20.
+  const daRaca = pedido.tipo === 'atacar' || tecnica !== null ? somaCorpoACorpo(cartoes, tecnica?.cartao.id ?? null, atacarCorpoACorpo(arma)) : 0
+  const soma = somaDoAtaque + deTodoGolpe.dano + daRaca
   const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
   // F2 (fatia D, Explosão): o dano "% da vida do alvo" sai da vida de cada alvo.
   const pedidosDoDano = tecnica === null || personagem === null || sistema === null ? pedido.alvos : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, pedido.alvos)
@@ -511,6 +521,11 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   }
   const bala = pedido.tipo === 'atacar' && pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
+  // F2 (fatia E, Bala de Prata): o selo da bala na tabela ("Ferido por prata") pega em quem o tiro acerta.
+  const seloDaBala = bala === null || golpe.marca !== undefined ? null : seloDaMecanica(bala.id)
+  if (seloDaBala !== null) golpe.selo = seloDaBala
+  // F2 (fatia E, vantagem de Ogro): a resposta "sim" faz os alvos reagirem com desvantagem.
+  if (deTodoGolpe.desvantagemNoAlvo) golpe.reacaoComDesvantagem = true
   // R1: a arma que atira (o acerto lembra a passiva de marca).
   if (arma !== null && categoriaAtira(arma.categoria)) golpe.armaQueAtira = true
   // Tipos de habilidade F4: a opção escolhida e o uso evoluído vão para o registro ("Medicina (Cirugia)").
@@ -564,9 +579,14 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   return { ...lancado, segundo, resolvidosDoSegundo: segundos.filter((alvo) => alvo.danoFinal !== undefined) }
 }
 
-/** F2 (fatia C): os ids dos cartões da ficha (todas as abas); sem ficha, nenhum. */
+/** F2 (fatia C): os ids dos cartões da ficha (todas as abas), e (fatia E) as chaves da raça e da ficha; sem ficha, nenhum. */
 function cartoesDoDono(personagem: Personagem | null): string[] {
-  return personagem === null ? [] : Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id))
+  return personagem === null ? [] : chavesDoDono(personagem)
+}
+
+/** F2 (fatia E, Força Aumentada do Ogro): o Atacar é corpo a corpo sem arma ou com arma que não atira nem é de arremesso. */
+function atacarCorpoACorpo(arma: ArmaDaFicha | null): boolean {
+  return arma === null || (!categoriaAtira(arma.categoria) && arma.categoria !== 'arremesso')
 }
 
 /**

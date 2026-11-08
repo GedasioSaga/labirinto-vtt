@@ -2,6 +2,7 @@ import { valorDoRank } from '../ajusteDaFicha'
 import type { Personagem } from '../personagem'
 import { rankDoValor, type SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
+import { reducaoDaRaca } from './mecanicasAMao'
 import { efeitosDasFormasLigadas } from './transformacao'
 
 /**
@@ -47,11 +48,17 @@ export function reducaoDaDeterminacao(personagem: Personagem, sistema: SistemaDe
   return REDUCAO_POR_RANK[Math.min(rank, RANK_MAXIMO_DA_TABELA)] ?? 0
 }
 
-/** O que tira do dano que chega na ficha AGORA, na ordem forma, Determinação. Nenhum: lista vazia. */
+/**
+ * O que tira do dano que chega na ficha AGORA, na ordem forma, raça (F2 fatia
+ * E, Superioridade do Ogro: −30% em tudo, `mecanicasAMao.ts`), Determinação.
+ * Nenhum: lista vazia.
+ */
 export function reducoesDoDano(personagem: Personagem, sistema: SistemaDeRpg): ReducaoDoDano[] {
   const reducoes: ReducaoDoDano[] = []
   const { reducaoDoDano, formaDaReducao } = efeitosDasFormasLigadas(personagem, sistema)
   if (reducaoDoDano > 0) reducoes.push({ nome: formaDaReducao ?? 'forma', porcento: reducaoDoDano })
+  const raca = reducaoDaRaca(personagem)
+  if (raca !== null && raca.porcento > 0) reducoes.push(raca)
   const determinacao = reducaoDaDeterminacao(personagem, sistema)
   if (determinacao > 0) reducoes.push({ nome: 'Determinação', porcento: determinacao })
   return reducoes

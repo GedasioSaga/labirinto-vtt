@@ -1,4 +1,4 @@
-import type { LembreteDaPassiva, PorVezDoSelo, SaidaDaReacao, SeloDaBatalha, VantagemDoDado } from './combate'
+import type { GolpeDaBatalha, LembreteDaPassiva, PorVezDoSelo, SaidaDaReacao, SeloDaBatalha, VantagemDoDado } from './combate'
 import { normalizar } from './formula'
 
 /**
@@ -57,6 +57,8 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
   { nome: 'Paralisado', sinal: /^paralisad/, trava: true },
   { nome: 'Aéreo', sinal: /^aere[oa]/, tiraSaidas: ['esquiva', 'contra'] },
   { nome: 'Cego', sinal: /^ceg[oa]/, zera: 'percepcao' },
+  // Vincent (Olhar artístico, resposta do mestre): "deixa o Dano Dobrado e coloca que o alvo tem desvantagem em desviar". O dobro mora em `marca.ts`.
+  { nome: 'Marcado', sinal: /^marcad[oa]/, reageComDesvantagem: true },
   { nome: 'Ferido por prata', sinal: /^ferid[oa] por prata/, lembrete: 'a cura que recebe cai pela metade (o mestre corta à mão)' },
   { nome: NOME_DO_SANGRAMENTO, sinal: /^sangr/, porVez: DANO_DO_SANGRAMENTO, verbo: 'sangra' },
   { nome: 'Queimando', sinal: /^queima/, porVez: 10, verbo: 'queima', renova: true },
@@ -80,7 +82,9 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
  * reage que pede desvantagem (Preso no Campo de Contenção) vence o que veio no
  * pedido, como o mestre disse ("vai jogar com desvantagem"); sem ele, vale o pedido.
  */
-export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined): VantagemDoDado | undefined {
+export function vantagemDaReacao(pedida: VantagemDoDado | undefined, selos: readonly Pick<SeloDaBatalha, 'nome'>[] | undefined, golpe?: Pick<GolpeDaBatalha, 'reacaoComDesvantagem'>): VantagemDoDado | undefined {
+  // F2 (fatia E): o golpe com a vantagem de Ogro (a Ryoko respondeu "sim") também faz o alvo rolar com desvantagem.
+  if (golpe?.reacaoComDesvantagem === true) return 'desvantagem'
   return (selos ?? []).some((selo) => comportamentoDoSelo(selo.nome)?.reageComDesvantagem === true) ? 'desvantagem' : pedida
 }
 
