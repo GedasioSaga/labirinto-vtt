@@ -27,3 +27,9 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Atordoado e Paralisado na vez do alvo: SÓ "PASSAR A VEZ" fica liberado. (regra do sistema)
 - Custo de SP "por turno" das formas: LEMBRETE "Aplicar / pular" a cada vez. (regra do sistema)
 - Overload: UMA VEZ POR BATALHA (cada batalha nova libera de novo).
+
+## May D. Ark (P1, P2, P3, P6 respondidas)
+- HP 700 e SP 60 são os máximos (técnica cara fica bloqueada com o motivo, regra do Jimboy).
+- Fortaleza: ATIVOU, VALE A LUTA TODA (uma vez abaixo de 50%, continua mesmo se ela curar; como o app faz hoje).
+- Grande Chifre (literal): "Vai Somando, ou seja se ela empurrar so um bloco vai dar 100 de dano mas se empurrar 3 vai dar 151 de dano." Conta: 1 bloco = 30 + Força (100); 2 = + Força/2 (135); 3 = + Agilidade/2 (151).
+- Aplauso, Overload (literal): "Pronto esse é um exemplo de uma OVERLOAD que rebate Overload, se alguem usar uma tecnica overload perto de May vai perguntar para ela se ela quer usar a Overload dela para rebater a overload, nesse caso vai dar o dano da tecnica rebatida + Força dela, mas claro ela pode rebater tecnicas que não são overload e pode usar para atacar se ele usar para atacar vai acertar todos os inimigos numa area de 6x6 causando o dano de (Força + 100)*2". Regras: (1) quando alguém usa Overload PERTO da May, o app PERGUNTA A ELA se quer gastar a Overload dela para rebater; (2) rebatido = dano da técnica rebatida + Força dela, no atacante; (3) também rebate técnica que não é Overload (na reação comum); (4) modo ataque: todos os INIMIGOS numa área 6x6, dano (Força + 100) × 2.
