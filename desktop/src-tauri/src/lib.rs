@@ -4,6 +4,7 @@ use tauri_plugin_fs::FsExt;
 pub mod ia;
 pub mod net;
 pub mod nuvem;
+pub mod preludio;
 pub mod visao_jogador;
 
 // Este comando concede acesso de FS para um path arbitrário. Não dá pra validar
@@ -37,6 +38,7 @@ pub fn run() {
         .manage(net::commands::NetState::default())
         .manage(ia::IaEstado::default())
         .manage(nuvem::NuvemEstado::default())
+        .manage(preludio::PreludioEstado::default())
         .invoke_handler(tauri::generate_handler![
             grant_fs_access,
             net::commands::net_start_room,
@@ -64,7 +66,16 @@ pub fn run() {
             nuvem::nuvem_credencial_apagar,
             nuvem::nuvem_pedir,
             nuvem::nuvem_enviar_midia,
-            nuvem::nuvem_baixar_midia
+            nuvem::nuvem_baixar_midia,
+            // Prelúdio, cópia no Google Drive: só a janela main; os tokens nunca voltam.
+            preludio::comandos::preludio_google_estado,
+            preludio::comandos::preludio_google_entrar,
+            preludio::comandos::preludio_google_cancelar,
+            preludio::comandos::preludio_google_sair,
+            preludio::comandos::preludio_copia_ultima,
+            preludio::comandos::preludio_copia_fazer,
+            preludio::comandos::preludio_copia_listar,
+            preludio::comandos::preludio_copia_restaurar
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

@@ -3,6 +3,7 @@ import { MenuShell } from '../screens/MenuShell'
 import { lerIndiceDoPreparo, type DocumentoLido } from '../lib/preparo/disco'
 import type { Campanha, IndiceDoPreparo } from '../lib/preparo/tipos'
 import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
+import { PainelDaCopia } from './copia/PainelDaCopia'
 import '../screens/MainMenu.css'
 
 interface TelaDoPreludioProps {
@@ -37,10 +38,13 @@ function textoDaLeitura(indice: DocumentoLido<IndiceDoPreparo>): { texto: string
 
 /**
  * O PRELÚDIO, a preparação de sessão (F0, fundação): por enquanto só diz o
- * que já existe em `<appData>/preparo/`. Abrir só lê; nada é gravado.
+ * que já existe em `<appData>/preparo/`. Abrir só lê; nada é gravado ali (a
+ * cópia diária no Google Drive, `copia/PainelDaCopia.tsx`, também só lê preparo/).
  */
 export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
   const [leitura, setLeitura] = useState<Leitura>({ t: 'abrindo' })
+  // Uma cópia restaurada do Google Drive troca preparo/ inteira: lê de novo.
+  const [rodada, setRodada] = useState(0)
 
   useEffect(() => {
     let aberta = true
@@ -56,7 +60,7 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
     return () => {
       aberta = false
     }
-  }, [])
+  }, [rodada])
 
   return (
     <MenuShell title={TITULO_DO_PRELUDIO} subtitle={SUBTITULO_DO_PRELUDIO} onBack={onBack} crumbs={['Labirinto']}>
@@ -65,6 +69,7 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
       ) : (
         <ConteudoDoPreludio {...textoDaLeitura(leitura.indice)} />
       )}
+      <PainelDaCopia onRestaurado={() => setRodada((anterior) => anterior + 1)} />
     </MenuShell>
   )
 }

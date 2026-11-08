@@ -1,0 +1,193 @@
+/* A CÓPIA NO GOOGLE DRIVE (PainelDaCopia): o mesmo bloco de pedra rasa da "Conta na
+   nuvem" do Lobby (components/nuvem/lobby.css, .lby-conta), centrado embaixo do
+   Prelúdio. Só tokens do app; nada anima além do aperto dos botões (.lb-btn) e do
+   avanço da barra. */
+
+.pl-copia {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto 32px;
+  padding: 12px 14px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone-solid);
+  box-shadow: var(--lb-shadow-bevel);
+  text-align: left;
+}
+
+.pl-copia__cab {
+  display: flex;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+}
+
+.pl-copia__t {
+  margin: 0;
+  font-family: var(--lb-font-display);
+  font-size: 17px;
+  font-weight: var(--lb-font-weight-regular);
+  line-height: 1.2;
+}
+
+.pl-copia__marca {
+  padding: 1px 8px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-online-soft);
+  color: var(--lb-color-online);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+}
+
+.pl-copia__texto,
+.pl-copia__dica {
+  margin: 0;
+  max-width: 64ch;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-copia__texto { color: var(--lb-color-parchment-dim); }
+.pl-copia__dica { color: var(--lb-color-parchment-faint); }
+
+/* O e-mail é longo e sem espaço: quebra em qualquer letra em vez de vazar do bloco. */
+.pl-copia__email {
+  color: var(--lb-color-parchment);
+  font-weight: var(--lb-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.pl-copia__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pl-copia__aviso {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--lb-gr-filete-latao);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+}
+
+.pl-copia__ok {
+  margin: 0;
+  color: var(--lb-color-online);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+}
+
+.pl-copia__recado {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pl-copia__avisos {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.pl-copia__andar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Barra fina de latão: progresso constante anda em linha reta (linear), e rápido. */
+.pl-copia__barra {
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-stone-sunken);
+  overflow: hidden;
+}
+
+.pl-copia__barra::-webkit-progress-bar {
+  background: var(--lb-color-stone-sunken);
+}
+
+.pl-copia__barra::-webkit-progress-value {
+  background: var(--lb-color-brass);
+  transition: width 200ms linear;
+}
+
+.pl-copia__barra::-moz-progress-bar {
+  background: var(--lb-color-brass);
+}
+
+.pl-copia__datas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pl-copia__legenda {
+  padding: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+}
+
+.pl-copia__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.pl-copia__data {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  padding: 4px 6px;
+  border-radius: var(--lb-radius-md);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.pl-copia__data:has(input:checked) {
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+}
+
+.pl-copia__data input {
+  margin: 0;
+  accent-color: var(--lb-color-brass);
+}
+
+.pl-copia__confirmar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-copia__barra::-webkit-progress-value {
+    transition: none;
+  }
+}
