@@ -149,3 +149,13 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Dials (Skypean): NÃO TEM; a ficha está certa.
 - Infâmia (literal): "Coloca em algum lugar na ficha que ele é amaldiçoada que a maldição dele é infamia, e ta certo 101 a 300 ele teria que acumular muito mesmo". Regra: mostrar na ficha "Amaldiçoado: Infâmia" (com o número); a faixa 101-300 fica sem efeito de propósito.
 - Asas, planar, "Cap maior em AGI e PER": SÓ NARRATIVA.
+
+## Siegfried (P1-P4; P7/P20 Ignição e P18 Resiliente seguem as respostas do Vagn; P12 Overload, P15 Imbuir Fogo e P21 Preparação/Recuperação seguem as regras do sistema)
+- Armas (literal): "Nas tecnicas do sieg que usam dano da arma é bom perguntar qual arma ele ta usando e para ele colocar a arma padrão". Regra: nas técnicas que usam dano da arma, o app PERGUNTA QUAL ARMA (já marcada a ARMA PADRÃO que ele escolhe na ficha).
+- Lua Incandescente: DIVIDE A BASE entre os marcados, para baixo, máximo 3 alvos (71 → 23 em cada).
+- Orquídea + Florescer (literal): "É que a tecnica Apunhaladora de Sóis: Orquídea  e Orquídea: Florescer são tecnicas complementares, é bom ter um sitema para elas uam vez que o florescer o Sieg pode usar logo em seguida de fazer a Orquídea como ele pode esperar o o cara presos tentar fazer algo para ele tomar 30 de dano de queimadura e o golpe de oportunidade." Regra: SISTEMA DE TÉCNICAS COMPLEMENTARES (combo): depois da Orquídea, a Florescer fica liberada logo em seguida (sem a Bônus do mestre) OU o Sieg espera; se o preso tentar agir/sair, toma 30 de queimadura e o Sieg ganha um golpe de oportunidade.
+- Orquídea: usar NÃO DÁ DANO; os 30 de fogo SÓ quando o alvo tenta atacar ou sair (o app lembra o mestre).
+- HP 900 e SP 140.
+- Melodia, "+20 de precisão": +20 DE DANO nos golpes do Sieg contra o analisado.
+- Florescer e furtivo (literal): "Pronto, o Florescer ele não pode ser usado com concentração, ele da o dano do furtivo e se tiver surpresa ele soma u x1,5". Regras: Florescer NÃO ACEITA CONCENTRAÇÃO; dá o dano do furtivo (3x) e, com Surpresa, multiplica MAIS ×1,5 (somam: 453).
+- Entardecer: o alvo testa RESISTÊNCIA (d20 + mod. RES contra 12); falhou, Atordoado 1 (perde a vez, regra do sistema).
