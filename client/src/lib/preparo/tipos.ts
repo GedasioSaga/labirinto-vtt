@@ -135,6 +135,13 @@ export const ORIGEM_NO_GRIMORIO = objeto({
   id: texto(),
   /** Caminho do arquivo dentro do cofre do Grimório. */
   caminho: texto(),
+  /**
+   * SHA-256 do verbete como foi importado (sem `origem` e sem `formato`;
+   * `importar/reimportar.ts`). Na reimportação: verbete que não bate mais com
+   * este hash foi editado no Prelúdio e fica como está. Quem salva o verbete
+   * nunca recalcula este campo.
+   */
+  hash: opcional(texto()),
 })
 
 /** De onde o verbete veio, para a reimportação achar o mesmo. */
