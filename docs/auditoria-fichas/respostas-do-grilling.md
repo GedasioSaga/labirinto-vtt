@@ -43,11 +43,17 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Determinação rank 4 (10% a menos de dano abaixo de 50% do HP): o APP APLICA SOZINHO, para toda ficha, MAS AVISA ANTES que está aplicando. (regra do sistema)
 - Aplauso modo ataque (literal): "É uma ação overload né, overload desse tipo sem ser transformação é ação completa." Regra: técnica OVERLOAD que não é transformação gasta AÇÃO COMPLETA. (regra do sistema)
 
-## Aira (P1-P4 respondidas; o mestre reescreveu as habilidades)
-- Concentração (literal): "No caso Aira, eu me enquivou quei do Concentrar do 1 a 2 aumenta, mas no 3 ela vence automatico". Leitura: carga 1 e 2 aumentam; com 3 ela vence automático (a dança atordoa sem teste). (esclarecimento pedido: 1 e 2 aumentam o quê?)
+## Aira (P1-P4, P5, P6, P9 respondidas; o mestre reescreveu as habilidades)
+- Concentração (literal): "No caso Aira, eu me enquivou quei do Concentrar do 1 a 2 aumenta, mas no 3 ela vence automatico". Leitura: carga 1 e 2 aumentam; com 3 ela vence automático (a dança atordoa sem teste). Esclarecido: cargas 1 e 2 AUMENTAM A CD DA DANÇA (teste do alvo mais difícil); com 3, atordoa sem teste.
 - COMPANION (literal): "Aira é um personagem que tem Companion, ela em si anda sempre com um grupo chamado Lovecats, e ela pode levar para batalha até 3 lovecats que lutam por ela, esse Lovecats possuem ficha vida e tudo mais, pode evoluir seria bom ter um sistema para isso pois certos personagens tem essa mecânica de companion, ou o companion luta no campo ou da algum efeito especial". FEATURE NOVA (ver PEDIDOS.md).
 - BÊNÇÃO DE UMA RAPOSA (texto novo do mestre, literal): "Essa é uma habilidade de Buff, ela da buff do aliado sendo esse buff: Ela da 20% do Espirito dela a um Status Fisico de um aliado ou seja se ela tiver 100 de espirito ela pode dar 20 de força a um aliado, fora isso toda vez que um aliado com esse buff causar dano ele vai recuperar na vida 10% do dano que ele causou. Contudo fora isso enquanto o aliado tiver esse status de Benção de uma Raposa Aira recebe uma melhoria, num ataque basico ele pode fazer 3 onde ela causa 30% do espirito a mais no dano + queimadura na qual o dano é + 10."
 - Bênção, duração: QUANDO ELA USA, O APP PERGUNTA QUANTOS TURNOS o aliado fica com a bênção.
-- EM MEIO ÀS ALEGRES NUVENS (literal): "É um golpe de Atordoamento/Debuff que quando ela usa o oponente tem que fazer um teste de carisma 1d20, onde para passar é 12+Modificador de Carisma ou seja se Aira tiver rank 2 em carisma o modificador dela é +1 ou seja 13 nisso ele falhar ele fica atordoado ou seja ele não pode fazer nada." Escolha na pergunta: teste contra CD 12 + mod. de CAR dela (o atributo do teste do alvo foi pedido de novo: Carisma ou Espírito).
+- EM MEIO ÀS ALEGRES NUVENS (literal): "É um golpe de Atordoamento/Debuff que quando ela usa o oponente tem que fazer um teste de carisma 1d20, onde para passar é 12+Modificador de Carisma ou seja se Aira tiver rank 2 em carisma o modificador dela é +1 ou seja 13 nisso ele falhar ele fica atordoado ou seja ele não pode fazer nada." Escolha na pergunta: teste contra CD 12 + mod. de CAR dela Esclarecido: o alvo testa ESPÍRITO (d20 + mod. de ESP do alvo contra 12 + mod. de CAR da Aira)..
 - Distraído/Atordoado da dança: 1 TURNO (perde a vez, não reage).
 - A LUZ DO SOL BRILHA SOBRE TODOS (literal): "Ela da dano igual ao espirito dela em um inimigo e todos os aliados dela ganham os buffs de Benção de Uma Raposa, simples, Aira pode escolher quem recebe o buff."
+- Queimadura do ataque básico com a Bênção: SELO QUEIMANDO de 1 turno, tira 10 no começo da vez do alvo, renovado a cada acerto.
+- Electro / Imbuir Eletricidade: QUANDO ELA QUISER, em qualquer golpe: +20 de dano e -10 SP.
+- Tempo 1 (Bênção e dança): UMA SIM, UMA NÃO (depois de usar, espera uma vez inteira). Vale como leitura do "Tempo N" do sistema (P1 do 00-bugs): Tempo N = N vezes de espera.
+- HP máximo 900.
+- Moeda: SÓ NARRATIVA.
+- Sulong (se ela tiver): segue a regra da May (o mestre escolhe os modificadores na hora).
