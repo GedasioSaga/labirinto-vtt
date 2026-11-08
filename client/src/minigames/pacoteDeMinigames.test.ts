@@ -15,7 +15,7 @@ const INDICE_V1 = JSON.stringify({
   versao: 1,
   motorMinimo: '0.5.37',
   entrada: 'index.html',
-  arquivos: [{ nome: 'fogo.index.wasm.gz', sha256: 'a'.repeat(64), tamanho: 200 }],
+  arquivos: [{ nome: 'fogo.v1.index.wasm.gz', sha256: 'a'.repeat(64), tamanho: 200 }],
 })
 
 function portaFalsa(lerIndice: () => Promise<unknown>, atualizar: (aoProgredir: (valor: unknown) => void) => Promise<unknown>) {
@@ -57,9 +57,9 @@ describe('pacote de minigames', () => {
     const fases = gravarFases()
     await prepararMinigame('fogo', { porta: primeira })
     expect(fases).toEqual([
-      { tipo: 'baixando', primeiraVez: true, baixado: 0, total: null },
-      { tipo: 'baixando', primeiraVez: true, baixado: 0, total: 200 },
-      { tipo: 'baixando', primeiraVez: true, baixado: 200, total: 200 },
+      { tipo: 'baixando', baixado: 0, total: null },
+      { tipo: 'baixando', baixado: 0, total: 200 },
+      { tipo: 'baixando', baixado: 200, total: 200 },
       { tipo: 'pronto', versao: 1 },
     ])
     // Reabrir o painel no mesmo processo não pergunta de novo ao GitHub.
@@ -75,10 +75,15 @@ describe('pacote de minigames', () => {
     const depois = gravarFases()
     await prepararMinigame('fogo', { porta: offline, ocupado: true })
     expect(offline.atualizar).not.toHaveBeenCalled()
-    // A partida acabou: procura agora; sem internet, continua o instalado, sem barra.
+    // A partida acabou: procura agora, com o painel travado desde a pergunta;
+    // sem internet, continua o instalado, sem barra.
     await prepararMinigame('fogo', { porta: offline, ocupado: false })
     expect(offline.atualizar).toHaveBeenCalledTimes(1)
-    expect(depois).toEqual([{ tipo: 'pronto', versao: 1 }, { tipo: 'pronto', versao: 1 }])
+    expect(depois).toEqual([
+      { tipo: 'pronto', versao: 1 },
+      { tipo: 'atualizando', versao: 1, baixado: 0, total: null },
+      { tipo: 'pronto', versao: 1 },
+    ])
   })
 
   it('falhas: sem internet na primeira vez pede para tentar de novo; app sem o lado Rust fica sem suporte', async () => {

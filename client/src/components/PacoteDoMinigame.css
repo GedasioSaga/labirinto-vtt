@@ -52,3 +52,16 @@
     transition: none;
   }
 }
+
+/* O painel do pino dentro do fieldset que o trava enquanto procura ou baixa
+   versão nova: sem caixa própria, e flex em coluna como o `.lb-minigame` de
+   fora, para o filho continuar em bloco (a borda de cima do "Abra a sala"). */
+.lb-pacote-jogo__painel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

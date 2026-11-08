@@ -13,17 +13,20 @@
  *   --saida <pasta>     grava a saída em outra pasta (padrão: client/dist-minigames)
  *
  * O QUE SAI (release fixa "minigames", pré-lançamento, como a "animacoes"):
- *   <jogo>.indice.json        o índice: versão, motorMinimo, entrada e a lista dos arquivos
- *   <jogo>.indice.json.sig    a assinatura do índice, pela MESMA chave do atualizador
- *   <jogo>.<nome>.gz          cada arquivo do export web, em gzip (ex.: fogo.index.wasm.gz)
+ *   <jogo>.indice.json              o índice: versão, motorMinimo, entrada e a lista dos arquivos
+ *   <jogo>.indice.json.sig          a assinatura do índice, pela MESMA chave do atualizador
+ *   <jogo>.v<versao>.<nome>.gz      cada arquivo do export web, em gzip (ex.: fogo.v3.index.wasm.gz)
  *
  * Por que gzip arquivo a arquivo (e não um .zip): o motor tem 38 MB e vira 10 MB
  * em gzip. O mestre baixa e guarda os .gz como vieram, confere o sha256 de cada
  * um contra o índice assinado e serve aos jogadores com `Content-Encoding: gzip`:
  * o navegador descompacta sozinho e ninguém precisa abrir zip no app.
  *
- * O nome servido sai do nome do arquivo: tira o "<jogo>." da frente e o ".gz" do
- * fim (`fogo.index.wasm.gz` vira `/minigames/fogo/index.wasm`).
+ * O nome servido sai do nome do arquivo: tira o "<jogo>.v<versao>." da frente (a
+ * versão é a do índice que o lista) e o ".gz" do fim (`fogo.v3.index.wasm.gz` vira
+ * `/minigames/fogo/index.wasm`). A versão no nome é o que deixa publicar com app
+ * baixando: a v4 sobe em arquivos novos e o índice v3, ainda publicado, continua
+ * apontando para arquivos da v3, inteiros. (Os de versões velhas ficam na release.)
  *
  * O app instalado só aceita o pacote se o índice vier assinado pela chave do
  * atualizador (%USERPROFILE%\.tauri\labirinto.key, sem senha). O caminho da chave
@@ -168,22 +171,34 @@ function lerArquivosDoBuild(pasta, erro) {
 }
 
 /** Compacta cada arquivo e confere que o gzip volta ao original. */
-function compactar(jogo, arquivos, erro) {
+function compactar(arquivos, erro) {
   let total = 0
   const saida = arquivos.map(({ servido, bytes }) => {
-    const nome = `${jogo}.${servido}.gz`
-    if (nome.length > MAX_NOME) erro(`${nome}: nome com mais de ${MAX_NOME} letras`)
     const gz = zlib.gzipSync(bytes, { level: 9 })
     if (!zlib.gunzipSync(gz).equals(bytes)) erro(`${servido}: o gzip não voltou ao original`)
-    if (gz.length > TETO_ARQUIVO) erro(`${nome}: ${gz.length} bytes, acima do teto de ${TETO_ARQUIVO}`)
+    if (gz.length > TETO_ARQUIVO) erro(`${servido}: ${gz.length} bytes em gzip, acima do teto de ${TETO_ARQUIVO}`)
     total += gz.length
-    return { nome, gz, original: bytes.length, sha256: crypto.createHash('sha256').update(gz).digest('hex') }
+    return { servido, gz, original: bytes.length, sha256: crypto.createHash('sha256').update(gz).digest('hex') }
   })
   if (total > TETO_TOTAL) erro(`pacote com ${total} bytes, acima do teto de ${TETO_TOTAL}`)
   return saida
 }
 
-function montarIndice({ jogo, versao, motorMinimo, compactados }) {
+/** O nome do .gz na release: `fogo.v3.index.wasm.gz`. O Rust tira o `<jogo>.v<versao>.` e o `.gz` para servir. */
+function nomeNaRelease(jogo, versao, servido) {
+  return `${jogo}.v${versao}.${servido}.gz`
+}
+
+/** Dá a cada arquivo compactado o nome da release; a versão só se sabe depois de compactar (pode vir da rede). */
+function nomear(jogo, versao, compactados, erro) {
+  return compactados.map((compactado) => {
+    const nome = nomeNaRelease(jogo, versao, compactado.servido)
+    if (nome.length > MAX_NOME) erro(`${nome}: nome com mais de ${MAX_NOME} letras`)
+    return { ...compactado, nome }
+  })
+}
+
+function montarIndice({ jogo, versao, motorMinimo, nomeados }) {
   return {
     formato: FORMATO,
     jogo,
@@ -191,7 +206,7 @@ function montarIndice({ jogo, versao, motorMinimo, compactados }) {
     versao,
     motorMinimo,
     entrada: ENTRADA,
-    arquivos: compactados.map(({ nome, sha256, gz }) => ({ nome, sha256, tamanho: gz.length })),
+    arquivos: nomeados.map(({ nome, sha256, gz }) => ({ nome, sha256, tamanho: gz.length })),
   }
 }
 
@@ -247,9 +262,16 @@ function publicar(arquivos, indice, sig) {
     log(`criando a release "${RELEASE}" como PRÉ-LANÇAMENTO (não vira a "latest" do atualizador)`)
     rodar('gh', ['release', 'create', RELEASE, '--repo', REPO_GITHUB, '--prerelease', '--title', 'Pacote de minigames', '--notes', 'Jogos baixados pelo app na primeira vez que o mestre abre o minigame (Fogo na Floresta). Publicado por scripts/pacote-minigames.cjs.'])
   }
-  // Arquivos primeiro, índice e assinatura por último: o app nunca vê um índice
-  // novo apontando para arquivo que ainda não subiu.
+  // Arquivos primeiro: o app nunca vê um índice novo apontando para arquivo que
+  // ainda não subiu. E, com a versão no nome, nenhum deles é de um índice já
+  // publicado: quem lê o índice velho enquanto estes sobem baixa os arquivos
+  // velhos, inteiros. O --clobber só pega a sobra de uma publicação DESTA versão
+  // que caiu no meio (nenhum índice publicado aponta para ela).
   rodar('gh', ['release', 'upload', RELEASE, ...arquivos, '--clobber', '--repo', REPO_GITHUB])
+  // Índice e assinatura por último, juntos. Ainda sobra um instante (o tempo de
+  // subir dois arquivos de 1 KB) em que um app pode ler o índice de uma versão
+  // com a .sig da outra, ou não achar o índice (o --clobber apaga antes de
+  // subir): por isso o app relê índice e .sig uma vez antes de recusar.
   rodar('gh', ['release', 'upload', RELEASE, sig, indice, '--clobber', '--repo', REPO_GITHUB])
   log(`publicado em https://github.com/${REPO_GITHUB}/releases/tag/${RELEASE}`)
 }
@@ -272,20 +294,21 @@ async function main() {
   const { arquivos, ignorados } = lerArquivosDoBuild(pasta, falhar)
   log(`${JOGOS[args.jogo].nome}: ${arquivos.length} arquivo(s) em ${pasta}`)
   if (ignorados.length > 0) log(`  fora do pacote: ${ignorados.join(', ')}`)
-  const compactados = compactar(args.jogo, arquivos, falhar)
+  const compactados = compactar(arquivos, falhar)
 
   const versao = args.versao ?? (await proximaVersao(args.jogo))
+  const nomeados = nomear(args.jogo, versao, compactados, falhar)
   const motorMinimo = maiorVersao(conf.version, MOTOR_MINIMO_PISO)
   fs.rmSync(args.saida, { recursive: true, force: true })
   fs.mkdirSync(args.saida, { recursive: true })
   const caminhos = []
-  for (const { nome, gz, original } of compactados) {
+  for (const { nome, gz, original } of nomeados) {
     const destino = path.join(args.saida, nome)
     fs.writeFileSync(destino, gz)
     caminhos.push(destino)
     log(`  ${nome} (${tamanhoLegivel(original)} -> ${tamanhoLegivel(gz.length)})`)
   }
-  const indice = montarIndice({ jogo: args.jogo, versao, motorMinimo, compactados })
+  const indice = montarIndice({ jogo: args.jogo, versao, motorMinimo, nomeados })
   const indiceArquivo = path.join(args.saida, `${args.jogo}.indice.json`)
   fs.writeFileSync(indiceArquivo, `${JSON.stringify(indice, null, 2)}\n`)
   const sig = assinar(indiceArquivo)
@@ -306,4 +329,4 @@ async function main() {
 // Rodado direto, empacota; carregado por require (o teste), só expõe as peças puras.
 if (require.main === module) main().catch((erro) => falhar(erro && erro.stack ? erro.stack : String(erro)))
 
-module.exports = { lerArquivosDoBuild, compactar, montarIndice, TETO_ARQUIVO, TETO_TOTAL, MAX_ARQUIVOS }
+module.exports = { lerArquivosDoBuild, compactar, nomeNaRelease, nomear, montarIndice, TETO_ARQUIVO, TETO_TOTAL, MAX_ARQUIVOS }

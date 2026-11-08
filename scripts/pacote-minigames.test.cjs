@@ -42,13 +42,15 @@ test('empacota: um .gz por arquivo, o índice lista o sha256 e o tamanho de cada
       { formato: indice.formato, jogo: indice.jogo, versao: indice.versao, entrada: indice.entrada },
       { formato: 1, jogo: 'fogo', versao: 3, entrada: 'index.html' },
     )
-    // O .import do editor fica de fora; o nome servido sai do nome do arquivo.
-    assert.deepEqual(indice.arquivos.map((a) => a.nome), ['fogo.index.html.gz', 'fogo.index.js.gz', 'fogo.index.pck.gz', 'fogo.index.wasm.gz'])
+    // O .import do editor fica de fora; a versão do índice vai no nome (publicar a
+    // próxima nunca troca um arquivo do índice publicado); o nome servido sai do nome.
+    assert.deepEqual(indice.arquivos.map((a) => a.nome), ['fogo.v3.index.html.gz', 'fogo.v3.index.js.gz', 'fogo.v3.index.pck.gz', 'fogo.v3.index.wasm.gz'])
+    assert.deepEqual(fs.readdirSync(saida).sort(), [...indice.arquivos.map((a) => a.nome), 'fogo.indice.json', 'fogo.indice.json.sig'].sort())
     for (const arquivo of indice.arquivos) {
       const gz = fs.readFileSync(path.join(saida, arquivo.nome))
       assert.equal(gz.length, arquivo.tamanho)
       assert.equal(crypto.createHash('sha256').update(gz).digest('hex'), arquivo.sha256)
-      const servido = arquivo.nome.slice('fogo.'.length, -'.gz'.length)
+      const servido = arquivo.nome.slice(`fogo.v${indice.versao}.`.length, -'.gz'.length)
       assert.ok(zlib.gunzipSync(gz).equals(fs.readFileSync(path.join(raiz, servido))), `${servido} volta igual`)
     }
     const conf = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'desktop', 'src-tauri', 'tauri.conf.json'), 'utf8'))

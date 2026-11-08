@@ -15,7 +15,9 @@ import './PacoteDoMinigame.css'
  * O JOGO BAIXADO NA PRIMEIRA VEZ, no painel do pino: enquanto o pacote não
  * está no computador do mestre, mostra o download (com a barra) ou o porquê
  * de não ter dado, e esconde o que chama os jogadores; com o jogo pronto, só
- * mostra o painel. Quem baixa e confere é `minigames/pacoteDeMinigames.ts`.
+ * mostra o painel. Procurando ou baixando versão nova, o painel fica à vista
+ * e travado (um `fieldset disabled`, sem desmontar: o que estava nele fica).
+ * Quem baixa e confere é `minigames/pacoteDeMinigames.ts`.
  */
 
 export interface PacoteDoMinigameProps {
@@ -36,6 +38,26 @@ const BYTES_POR_MB = 1024 * 1024
 
 function megas(bytes: number): string {
   return (bytes / BYTES_POR_MB).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
+interface BarraDoDownloadProps {
+  titulo: string
+  nome: string
+  baixado: number
+  /** Nulo = ainda sem resposta do GitHub: a barra fica indeterminada. */
+  total: number | null
+}
+
+function BarraDoDownload({ titulo, nome, baixado, total }: BarraDoDownloadProps) {
+  return (
+    <div className="lb-pacote-jogo">
+      <span className="lb-pacote-jogo__titulo" role="status">
+        {titulo}
+      </span>
+      <progress className="lb-pacote-jogo__barra" max={total ?? undefined} value={total === null ? undefined : baixado} aria-label={`Download do ${nome}`} />
+      <span className="lb-pacote-jogo__conta">{total === null ? 'Começando…' : `${megas(baixado)} de ${megas(total)} MB`}</span>
+    </div>
+  )
 }
 
 function textoDaFalha(motivo: MotivoDaFalha, nome: string): string {
@@ -64,9 +86,27 @@ export function PacoteDoMinigame({ jogo, ocupado, children, porta = portaDoPacot
   if (!porta.disponivel()) return children
   const nome = NOME_DO_JOGO_DO_PACOTE[jogo]
   switch (fase.tipo) {
-    case 'pronto':
     case 'dispensado':
       return children
+    // Os dois com a mesma árvore: entre um e outro o React reaproveita o
+    // fieldset, e o painel (o que o mestre marcou, um convite) não desmonta.
+    case 'pronto':
+    case 'atualizando':
+      return (
+        <>
+          {fase.tipo === 'atualizando' &&
+            (fase.total === null ? (
+              <p className="lb-label" role="status">
+                Procurando versão nova do {nome}… Dá para chamar quando terminar.
+              </p>
+            ) : (
+              <BarraDoDownload titulo={`Baixando a versão nova do ${nome}`} nome={nome} baixado={fase.baixado} total={fase.total} />
+            ))}
+          <fieldset className="lb-pacote-jogo__painel" disabled={fase.tipo === 'atualizando'} aria-busy={fase.tipo === 'atualizando'}>
+            {children}
+          </fieldset>
+        </>
+      )
     case 'conferindo':
       return (
         <p className="lb-label" role="status">
@@ -74,20 +114,7 @@ export function PacoteDoMinigame({ jogo, ocupado, children, porta = portaDoPacot
         </p>
       )
     case 'baixando':
-      return (
-        <div className="lb-pacote-jogo">
-          <span className="lb-pacote-jogo__titulo" role="status">
-            {fase.primeiraVez ? `Baixando o ${nome} (só na primeira vez)` : `Baixando a versão nova do ${nome}`}
-          </span>
-          <progress
-            className="lb-pacote-jogo__barra"
-            max={fase.total ?? undefined}
-            value={fase.total === null ? undefined : fase.baixado}
-            aria-label={`Download do ${nome}`}
-          />
-          <span className="lb-pacote-jogo__conta">{fase.total === null ? 'Começando…' : `${megas(fase.baixado)} de ${megas(fase.total)} MB`}</span>
-        </div>
-      )
+      return <BarraDoDownload titulo={`Baixando o ${nome} (só na primeira vez)`} nome={nome} baixado={fase.baixado} total={fase.total} />
     case 'sem_suporte':
       if (dispensarSemPacote) return children
       return (

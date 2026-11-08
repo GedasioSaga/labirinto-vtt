@@ -124,8 +124,14 @@ export type FaseDoPacote =
   | { tipo: 'conferindo' }
   /** Fora do app: o servidor de páginas serve o jogo (o Vite em dev, `FOGO_WEB_DIR`). */
   | { tipo: 'dispensado' }
-  /** `total` nulo = ainda sem resposta do GitHub. */
-  | { tipo: 'baixando'; primeiraVez: boolean; baixado: number; total: number | null }
+  /** Primeira vez, nada instalado: a barra no lugar do painel. `total` nulo = ainda sem resposta do GitHub. */
+  | { tipo: 'baixando'; baixado: number; total: number | null }
+  /**
+   * Com o jogo instalado, perguntando ao GitHub (`total` nulo) ou baixando a
+   * versão nova. O painel fica à vista, mas travado: ninguém abre incêndio
+   * enquanto o Rust ainda pode trocar os arquivos que os jogadores carregam.
+   */
+  | { tipo: 'atualizando'; versao: number; baixado: number; total: number | null }
   | { tipo: 'pronto'; versao: number }
   /** O app não tem os comandos do pacote (versão sem o lado Rust). */
   | { tipo: 'sem_suporte' }
@@ -186,24 +192,31 @@ async function versaoInstalada(jogo: JogoDoPacote, porta: PortaDoPacoteDeMinigam
 }
 
 /**
- * Pergunta ao GitHub. Sem pacote, a barra aparece já; com pacote, o painel
- * só sai do "pronto" se vier arquivo de verdade (versão nova), e qualquer
- * falha deixa o instalado em uso, em silêncio: é o "funciona sem internet".
+ * Pergunta ao GitHub. Sem pacote, a barra toma o lugar do painel; com
+ * pacote, o painel trava desde a pergunta (antes do 1º byte: é aí que o
+ * mestre clicaria "Chamar"), e qualquer falha deixa o instalado em uso, em
+ * silêncio: é o "funciona sem internet".
  */
 async function atualizar(jogo: JogoDoPacote, porta: PortaDoPacoteDeMinigames, instalada: number | null): Promise<void> {
-  const primeiraVez = instalada === null
+  const andamento = (baixado: number, total: number | null): FaseDoPacote =>
+    instalada === null ? { tipo: 'baixando', baixado, total } : { tipo: 'atualizando', versao: instalada, baixado, total }
   const voltar = (falha: FaseDoPacote) => mudar(jogo, instalada === null ? falha : { tipo: 'pronto', versao: instalada })
-  if (primeiraVez) mudar(jogo, { tipo: 'baixando', primeiraVez, baixado: 0, total: null })
+  mudar(jogo, andamento(0, null))
+  // O canal do Tauri só garante a ordem entre as próprias mensagens: uma que
+  // chegasse depois da resposta voltaria a travar o painel para sempre.
+  let respondeu = false
   let bruto: unknown
   try {
     bruto = await porta.atualizar(jogo, (valor) => {
       const progresso = lerProgresso(valor)
-      if (progresso !== null) mudar(jogo, { tipo: 'baixando', primeiraVez, ...progresso })
+      if (progresso !== null && !respondeu) mudar(jogo, andamento(progresso.baixado, progresso.total))
     })
   } catch (erro) {
     console.warn(`minigames: o download de ${jogo} falhou`, erro)
     voltar(comandoAusente(erro) ? SEM_SUPORTE : { tipo: 'falhou', motivo: 'disco' })
     return
+  } finally {
+    respondeu = true
   }
   const resposta = lerRespostaDaAtualizacao(bruto)
   if (resposta === null) {
