@@ -10,3 +10,9 @@ Base: os relatórios desta pasta. Cada resposta vale como decisão para o conser
 - Números da Saga: IGUAL AO JUDGE, AJUSTÁVEL (começa com build média da mesa: HP 700, SP 60, atributos na faixa dos jogadores; o mestre muda quando quiser testar).
 - Treino/Arena/Judge com ficha sem HP: FICA DE FORA E AVISA "ficha sem HP".
 - Os 7 tokens "Saga" nas cenas: DEIXAR COMO ESTÃO.
+
+## Jimboy Segundo (perguntas Q1-Q4 e Q6 do relatório; faltam Q5 Corta Cenoura e Q7 "perde metade dos Status" e as seguintes)
+- Sai Dai Rin custa 105 SP e ele tem 60: "Certos jogadores têm técnica que custa SP que eles ainda não podem gastar." O dado fica; o app mostra a técnica BLOQUEADA com o motivo ("precisa de 105 SP") em vez de quebrar. (vale para todos)
+- Rapid Dash: DOIS GOLPES na mesma habilidade; o oponente gasta reação 2 vezes (uma por golpe) para tentar desviar de cada um.
+- Atordoado e Paralisado na vez do alvo: SÓ "PASSAR A VEZ" fica liberado. (regra do sistema)
+- Custo de SP "por turno" das formas: LEMBRETE "Aplicar / pular" a cada vez. (regra do sistema)
