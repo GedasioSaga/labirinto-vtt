@@ -13,6 +13,8 @@ import { emailNormalizado } from './identidade'
 export { Campanha, Diretorio } from './index'
 
 const HOSTS_LOCAIS: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '[::1]'])
+/** `GET /dev/linhas/<campanhaId>` = `{ linhas }`, o `Campanha.linhasGravadas()` (só aqui, nunca no deploy). */
+const ROTA_DAS_LINHAS = /^\/dev\/linhas\/([^/]+)$/
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -20,6 +22,12 @@ export default {
     if (!HOSTS_LOCAIS.has(url.hostname)) return naoExiste()
     const email = emailNormalizado(url.searchParams.get('eu'))
     if (email === null) return json({ erro: 'dev', detalhe: 'Porta de dev: falta ?eu=<email>' }, 400)
+    // A medida da cota da Arena (plano da Arena, Riscos): as linhas que o DO da campanha gravou desde que acordou.
+    const linhas = ROTA_DAS_LINHAS.exec(url.pathname)
+    if (linhas !== null) {
+      const campanhaId = decodeURIComponent(linhas[1])
+      return json({ linhas: await env.CAMPANHA.get(env.CAMPANHA.idFromName(campanhaId)).linhasGravadas() })
+    }
     const origem = url.searchParams.get('origem') === 'app' ? 'app' : 'site'
     url.searchParams.delete('eu')
     url.searchParams.delete('origem')

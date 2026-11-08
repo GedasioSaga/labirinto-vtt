@@ -71,6 +71,8 @@ export interface EstadoDoSite {
   duelo: EstadoDoDuelo | null
   /** As lutas de N lados da campanha aberta (Arena multijogador F5); `null` junto com ela. Fora do "ver como": é sempre o do mestre. */
   lutas: EstadoDasLutas | null
+  /** O pedaço do site com as lutas de N lados não baixou (a rede caiu, ou o site foi publicado de novo): a tela mostra o aviso com "Tentar de novo". */
+  lutasNaoAbriram: boolean
   /** O servidor já serve uma versão do Labirinto maior que a desta página (M2, cartão do mural). */
   versaoNova: VersaoNova | null
   /** Não deu para abrir a campanha (IndexedDB bloqueado, navegador sem espaço). */
@@ -93,6 +95,8 @@ export interface Site {
   duelo(): DueloDaCampanha | null
   /** As lutas de N lados da campanha aberta: criar, aceitar, jogar, arbitrar, assistir e ler o histórico (F5). */
   lutas(): LutasDaCampanha | null
+  /** Baixa de novo o pedaço das lutas que não chegou (`lutasNaoAbriram`). */
+  tentarAsLutasDeNovo(): void
   /** Só o mestre: passa a ver a mesa como o jogador `contaId` (só leitura). */
   verComo(contaId: string): void
   /** Sai do "ver como": as telas voltam a mostrar (e a gravar) o do mestre. */
@@ -115,6 +119,8 @@ export interface JanelaDoSite {
 /** As lutas de N lados enquanto o módulo delas carrega (`pronta()` é `null` até chegar). */
 interface LutasSobDemanda extends ParteDasLutas {
   pronta(): LutasDaCampanha | null
+  /** Baixa de novo o módulo que não chegou; já baixando, chegado ou fechado, nada. */
+  tentarDeNovo(): void
   fechar(): void
 }
 
@@ -123,25 +129,38 @@ interface LutasSobDemanda extends ParteDasLutas {
  * dos frames e o controlador ficam fora da entrada do site. O canal só fala
  * `luta.*` depois que elas chegam (o `luta.lista` sai do `aoFicarEmDia`
  * delas), então até lá não há frame para guardar; o que chegar entra na fila.
- * Sem o módulo (a rede caiu no meio), as lutas ficam fora e o resto segue.
+ * Sem o módulo (a rede caiu no meio, ou o site foi publicado de novo e o
+ * arquivo antigo saiu), `aoFalhar` avisa e o resto da mesa segue; a fila
+ * continua guardando até o `tentarDeNovo` trazer o módulo.
  */
-function lutasSobDemanda(opcoes: OpcoesDasLutas, aoCarregar: (lutas: LutasDaCampanha) => void): LutasSobDemanda {
+function lutasSobDemanda(opcoes: OpcoesDasLutas, aoCarregar: (lutas: LutasDaCampanha) => void, aoFalhar: () => void): LutasSobDemanda {
   let lutas: LutasDaCampanha | null = null
   let fechada = false
   let emDia = false
+  let baixando = false
   const fila: Parameters<ParteDasLutas['aoReceber']>[0][] = []
-  void import('./lutasDaCampanha').then(
-    ({ criarLutasDaCampanha }) => {
-      if (fechada) return
-      const prontas = criarLutasDaCampanha(opcoes)
-      lutas = prontas
-      aoCarregar(prontas)
-      if (emDia) prontas.aoFicarEmDia()
-      for (const frame of fila.splice(0)) prontas.aoReceber(frame)
-    },
-    () => undefined,
-  )
+  function baixar(): void {
+    if (baixando || lutas !== null || fechada) return
+    baixando = true
+    void import('./lutasDaCampanha')
+      .then(({ criarLutasDaCampanha }) => {
+        baixando = false
+        if (fechada) return
+        const prontas = criarLutasDaCampanha(opcoes)
+        lutas = prontas
+        aoCarregar(prontas)
+        if (emDia) prontas.aoFicarEmDia()
+        for (const frame of fila.splice(0)) prontas.aoReceber(frame)
+      })
+      .catch(() => {
+        baixando = false
+        // Erro depois de o módulo chegar não é "não abriu": as lutas já estão na tela.
+        if (!fechada && lutas === null) aoFalhar()
+      })
+  }
+  baixar()
   return {
+    tentarDeNovo: baixar,
     aoFicarEmDia() {
       emDia = true
       lutas?.aoFicarEmDia()
@@ -228,6 +247,7 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     mural: null,
     duelo: null,
     lutas: null,
+    lutasNaoAbriram: false,
     // A demo não tem carimbo: o cartão aparece com versões inventadas, para a tela ter o que mostrar.
     versaoNova: demo ? VERSAO_NOVA_DA_DEMO : null,
     erroDaCampanha: null,
@@ -428,7 +448,10 @@ export function iniciarSite(janela: JanelaDoSite): Site {
         },
       },
       (prontas) => {
-        if (minha === aberturas) store.setState({ lutas: prontas.estado() })
+        if (minha === aberturas) store.setState({ lutas: prontas.estado(), lutasNaoAbriram: false })
+      },
+      () => {
+        if (minha === aberturas) store.setState({ lutasNaoAbriram: true })
       },
     )
     try {
@@ -481,15 +504,15 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     aberturas += 1
     fecharAberta()
     if (campanhaId === null) {
-      store.setState({ campanha: null, chat: null, mural: null, duelo: null, lutas: null, erroDaCampanha: null })
+      store.setState({ campanha: null, chat: null, mural: null, duelo: null, lutas: null, lutasNaoAbriram: false, erroDaCampanha: null })
       return
     }
     // Mesa que não está na lista desta pessoa: não abre base nem canal com id que veio só da URL.
     if (!eu.eu.campanhas.some((campanha) => campanha.campanhaId === campanhaId)) {
-      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, mural: null, duelo: null, lutas: null, erroDaCampanha: null })
+      store.setState({ rota: { tela: 'nao-achada' }, campanha: null, chat: null, mural: null, duelo: null, lutas: null, lutasNaoAbriram: false, erroDaCampanha: null })
       return
     }
-    store.setState({ campanha: null, chat: null, mural: null, duelo: null, lutas: null, erroDaCampanha: null })
+    store.setState({ campanha: null, chat: null, mural: null, duelo: null, lutas: null, lutasNaoAbriram: false, erroDaCampanha: null })
     const minha = aberturas
     abrir(eu.eu, campanhaId, minha).catch((erro: unknown) => {
       if (minha === aberturas) store.setState({ erroDaCampanha: textoDoErro(erro) })
@@ -541,6 +564,11 @@ export function iniciarSite(janela: JanelaDoSite): Site {
     mural: () => (soLeitura() ? null : (aberta?.mural ?? null)),
     duelo: () => (soLeitura() ? null : (aberta?.duelo ?? null)),
     lutas: () => (soLeitura() ? null : (aberta?.lutas.pronta() ?? null)),
+    tentarAsLutasDeNovo() {
+      if (aberta === null) return
+      store.setState({ lutasNaoAbriram: false })
+      aberta.lutas.tentarDeNovo()
+    },
     verComo(contaId) {
       const real = doMestre.campanha
       if (real === null || real.eu === null || real.eu.papel !== 'mestre') return

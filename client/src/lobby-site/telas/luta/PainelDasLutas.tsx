@@ -89,7 +89,8 @@ function ItemDoHistorico({ luta, agora, aberta, abrindo, onAbrir, onFecharRegist
   )
 }
 
-export function PainelDasLutas({ campanha, lutas, soLeitura }: { campanha: EstadoDaCampanha; lutas: EstadoDasLutas | null; soLeitura: boolean }) {
+/** `naoAbriram`: o pedaço do site com as lutas não baixou (`lutasNaoAbriram` do store); sem ele o painel ficaria para sempre em "Abrindo". */
+export function PainelDasLutas({ campanha, lutas, naoAbriram, soLeitura }: { campanha: EstadoDaCampanha; lutas: EstadoDasLutas | null; naoAbriram: boolean; soLeitura: boolean }) {
   const site = useSite()
   const agora = useAgora(60_000)
   const [criando, setCriando] = useState(false)
@@ -118,6 +119,16 @@ export function PainelDasLutas({ campanha, lutas, soLeitura }: { campanha: Estad
         </h2>
         <p className="lo-vazio">No “Ver como” as lutas com vários ficam de fora: elas aparecem só para quem está nelas.</p>
       </section>
+    )
+  }
+  if (lutas === null && naoAbriram) {
+    return (
+      <div className="lo-linha-aviso lo-tr-aviso" role="alert">
+        <span>As lutas da mesa não abriram: a parte do site com elas não chegou. Confira a conexão e tente de novo (se não vier, recarregue a página).</span>
+        <button type="button" className="lo-btn" onClick={() => site.tentarAsLutasDeNovo()}>
+          Tentar de novo
+        </button>
+      </div>
     )
   }
   if (lutas === null || !lutas.emDia) {
