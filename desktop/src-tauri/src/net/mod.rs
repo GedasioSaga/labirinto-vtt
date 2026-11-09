@@ -10,6 +10,7 @@ pub mod commands;
 pub mod conexao;
 pub mod media;
 pub mod minigames;
+pub mod protocolo_minigame;
 pub mod server;
 pub mod sons;
 pub mod tunnel;

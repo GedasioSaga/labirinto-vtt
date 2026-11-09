@@ -38,6 +38,20 @@ import './fogo.css'
 /** Onde o mestre serve o jogo (a mesma origem da página do jogador). */
 export const ROTA_DO_FOGO = '/minigames/fogo/'
 export const URL_DO_JOGO_FOGO = `${ROTA_DO_FOGO}index.html`
+
+/**
+ * De onde ESTA página carrega o jogo. A do jogador servida pela sala (e o
+ * Vite em dev) acha o jogo na própria origem. Uma página do app instalado (a
+ * Visão de jogador do mestre) não tem sala: a URL relativa caía no resolver
+ * do Tauri, que responde caminho desconhecido com o `index.html` do editor, e
+ * o jogo nunca dizia `pronto`. Ela busca no protocolo `minigame` do app
+ * (`net/protocolo_minigame.rs`), que lê o pacote baixado.
+ */
+export function urlDoJogoFogoPara(local: Pick<Location, 'protocol' | 'hostname'>): string {
+  if (local.protocol === 'tauri:') return 'minigame://localhost/fogo/index.html'
+  if (local.hostname === 'tauri.localhost') return `${local.protocol}//minigame.localhost/fogo/index.html`
+  return URL_DO_JOGO_FOGO
+}
 /**
  * Até quando esperar o `pronto` do jogo: são ~38 MB do motor (10 MB com gzip),
  * e numa rede local fraca isso leva meio minuto. Passou disso, é erro.
@@ -73,7 +87,7 @@ function ferramentaDoConvite(fogo: FogoDoJogador, playerId: string | undefined):
   return doEstado ?? fogo.convite.participantes.find((p) => p.playerId === playerId)?.ferramenta ?? FERRAMENTAS_FOGO[0]
 }
 
-function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = URL_DO_JOGO_FOGO }: FogoOverlayProps) {
+function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = urlDoJogoFogoPara(window.location) }: FogoOverlayProps) {
   const quadroRef = useRef<HTMLIFrameElement>(null)
   const ponteRef = useRef<PonteDoJogo | null>(null)
   const acoesRef = useRef(acoes)

@@ -35,6 +35,11 @@ pub fn run() {
         // `relaunch` depois de instalar. Quem decide QUANDO é a tela inicial.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // O jogo dos minigames para as janelas do app (a Visão de jogador não tem sala).
+        .register_asynchronous_uri_scheme_protocol(
+            net::protocolo_minigame::ESQUEMA,
+            net::protocolo_minigame::atender,
+        )
         .manage(net::commands::NetState::default())
         .manage(ia::IaEstado::default())
         .manage(nuvem::NuvemEstado::default())

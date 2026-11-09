@@ -1949,6 +1949,7 @@ version = "0.5.41"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "flate2",
  "futures-core",
  "futures-util",
  "http-body",

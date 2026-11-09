@@ -30,6 +30,8 @@ minisign-verify = "0.2.5"
 base64 = "0.22.1"
 futures-core = { version = "0.3", default-features = false }
 http-body = "1"
+# Já vinha na árvore (png do tauri-codegen); o protocolo minigame:// descompacta o pacote do jogo.
+flate2 = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "io-util"] }
