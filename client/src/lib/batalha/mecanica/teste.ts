@@ -47,11 +47,11 @@ export function disputaDoTeste(teste: Teste): DisputaAMao | null {
     case 'naoErra':
       return null
     case 'resistencia': {
-      const disputa: DisputaAMao = { quando: 'uso', testa: 'alvo', rola: quemRola(teste.alvo), contra: { tipo: 'cd', cd: cdDoTeste(teste.cd) } }
+      const disputa: DisputaAMao = { quando: 'uso', testa: 'alvo', rola: quemRola(teste.alvo), contra: { tipo: 'cd', cd: cdDoTeste(teste.cd) }, avisaSemFicha: true }
       if (teste.sePassar === 'devolveCusto') disputa.seQuemUsaPerde = { devolveOCusto: true }
       return disputa
     }
     case 'disputa':
-      return { quando: 'uso', testa: 'quemUsa', rola: quemRola(teste.usuario), contra: { tipo: 'rolagem', quem: quemRola(teste.alvo) } }
+      return { quando: 'uso', testa: 'quemUsa', rola: quemRola(teste.usuario), contra: { tipo: 'rolagem', quem: quemRola(teste.alvo) }, avisaSemFicha: true }
   }
 }

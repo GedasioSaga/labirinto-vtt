@@ -4,8 +4,12 @@
  * Concentração). Dados inventados; no máximo 2 testes por situação.
  */
 import { describe, expect, it } from 'vitest'
+import type { Personagem } from '../../personagem'
+import { combateVazio, type BonusDaBatalha } from '../combate'
 import { cdDaDisputa, quemUsaVence, rolarDisputa } from '../disputa'
+import { comADisputaNoUso, TEXTO_DO_ALVO_SEM_FICHA } from '../disputaNoUso'
 import { ficha } from '../fichasDaFatiaB.testkit'
+import type { GolpeLancado } from '../golpe'
 import { modificadorDoTeste } from '../marca'
 import { SISTEMA_ONE_PIECE } from '../../sistemaOnePiece'
 import { lerMecanica, type MecanicaV1 } from './modelo'
@@ -55,5 +59,44 @@ describe('a CD do teste', () => {
       return 1
     })
     expect([resultado.tipo, rolou, quemUsaVence(resultado, 'alvo')]).toEqual(['semCd', false, false])
+  })
+})
+
+describe('revisão da C4', () => {
+  it('a CD por fórmula não leva o "dano" dos selos nem a força do NPC: "12 + mod(Carisma)" = a CD digitada como número; o selo no Carisma continua valendo', () => {
+    const npcForte: Personagem = { ...bardo, tipo: 'npc', combate: { forca: 2 } }
+    const furia: BonusDaBatalha = { dano: [{ nome: 'Fúria', delta: 30 }] }
+    const comFuria = { personagem: npcForte, bonus: furia }
+    const esperada = 12 + modificadorDoTeste(npcForte, sistema, 'carisma', furia)
+    const porFormula = cdDaDisputa({ tipo: 'expressao', formula: '12 + mod(Carisma)' }, comFuria, sistema, 0)
+    const naTabela = cdDaDisputa({ tipo: 'porCarga', semCarga: { tipo: 'fixa', cd: esperada }, cargas: [{ expressao: '12 + mod(Carisma)' }] }, comFuria, sistema, 1)
+    expect([porFormula, naTabela]).toEqual([esperada, esperada])
+
+    const canto: BonusDaBatalha = { carisma: [{ nome: 'Canto', delta: 40 }] }
+    const comCanto = cdDaDisputa({ tipo: 'expressao', formula: '12 + mod(Carisma)' }, { personagem: npcForte, bonus: canto }, sistema, 0)
+    expect(comCanto).toBe(12 + modificadorDoTeste(npcForte, sistema, 'carisma', canto))
+  })
+
+  it('alvo sem ficha: na técnica montada pega sem rolar e a linha avisa o mestre; na disputa à mão da F2 (sem o aviso) fica como antes', () => {
+    const montada = disputaDoTeste(pecas(comTeste({ tipo: 'resistencia', alvo: { atributo: 'espirito' }, cd: { fixo: 12 } })).teste)
+    if (montada === null) throw new Error('o teste não virou disputa')
+    const lancado: GolpeLancado = {
+      golpe: { id: 'g1', linhaId: 'l1', cartaId: 'c-npc', rodada: 1, atacanteTokenId: 't-bardo', atacantePersonagemId: bardo.id, autor: { tipo: 'mestre' }, nome: 'Debuff com teste', surpresa: false, overload: false, perfurante: false, alvos: [{ tokenId: 't-generico', personagemId: null, dano: null, podeReagir: false }] },
+      resolvidos: [],
+      gasto: null,
+      combate: null,
+      custo: [],
+      contraUsado: null,
+      acao: 'simples',
+      cargaUsada: 0,
+    }
+    let rolou = false
+    const ctx = { usa, fichaDoAlvo: () => null, combateAntes: combateVazio(), sistema, carga: 0, rolarD20: () => { rolou = true; return 1 } }
+    const naMontada = comADisputaNoUso(lancado, montada, ctx)
+    expect([naMontada.venceuEm, naMontada.lancado.golpe?.alvos[0]?.disputa, rolou]).toEqual([['t-generico'], TEXTO_DO_ALVO_SEM_FICHA, false])
+
+    const { avisaSemFicha: _aviso, ...aMao } = montada
+    const naMaoDaF2 = comADisputaNoUso(lancado, aMao, ctx)
+    expect([naMaoDaF2.venceuEm, naMaoDaF2.lancado.golpe?.alvos[0]]).toEqual([['t-generico'], lancado.golpe?.alvos[0]])
   })
 })

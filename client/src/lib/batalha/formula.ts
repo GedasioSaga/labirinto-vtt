@@ -517,6 +517,16 @@ export function lerDano(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
   return comBonusDeDano(comForca(lerDanoSemForca(texto, ctx), ctx.personagem), ctx.bonusDaBatalha)
 }
 
+/**
+ * Construtor C4 (revisão): a fórmula como número SEM o que só vale para dano,
+ * nem a força do NPC (`comForca`) nem o "dano" dos selos (`comBonusDeDano`).
+ * O selo que sobe um atributo continua entrando nele (o Leitor). Assim a CD
+ * "12 + mod(Carisma)" dá o mesmo número que a CD digitada como "14".
+ */
+export function lerFormula(texto: string, ctx: ContextoDaFormula): LeituraDoDano {
+  return lerDanoSemForca(texto, ctx)
+}
+
 /** " +20 (Fúria) -15 (Lento)": as partes de um bônus como a conta as mostra (com espaço na frente; nenhuma = vazio). A que zera: " → 0 (Cego)". */
 export function textoDoBonus(partes: readonly ParteDoBonus[]): string {
   return partes.map((parte) => (parte.zera === true ? ` → 0 (${parte.nome})` : ` ${parte.delta < 0 ? '-' : '+'}${formatarNumero(Math.abs(parte.delta))} (${parte.nome})`)).join('')

@@ -17,7 +17,7 @@ import type { DisputaAMao } from './mecanicasAMao'
 export interface ContextoDaDisputaNoUso {
   /** Quem usa a técnica (a CD por fórmula e a concentração são dele). */
   usa: FichaNaDisputa
-  /** A ficha de cada alvo; `null` = alvo sem ficha (não testa: a técnica pega e o mestre resolve). */
+  /** A ficha de cada alvo; `null` = alvo sem ficha (não testa: a técnica pega e o mestre resolve; na montada, a linha avisa). */
   fichaDoAlvo: (alvo: AlvoDoGolpe) => FichaNaDisputa | null
   /** O combate de quem usa ANTES do golpe (para devolver o uso). */
   combateAntes: CombateDoPersonagem | undefined
@@ -33,6 +33,9 @@ export interface UsoComADisputa {
   /** Ninguém falhou e a mecânica devolve o custo: não gastou SP nem uso. */
   naoGastou: boolean
 }
+
+/** Construtor C4 (revisão): a linha do alvo sem ficha na técnica montada, que pega sem teste. */
+export const TEXTO_DO_ALVO_SEM_FICHA = 'sem teste: o alvo não tem ficha (o mestre confere)'
 
 /** O combate com os usos, recargas, Overload e o "gastou SP" de antes (a técnica não gastou). */
 function semOGastoDaTecnica(depois: CombateDoPersonagem, antes: CombateDoPersonagem | undefined): CombateDoPersonagem {
@@ -50,7 +53,7 @@ export function comADisputaNoUso(lancado: GolpeLancado, disputa: DisputaAMao, ct
     const doAlvo = ctx.fichaDoAlvo(alvo)
     if (doAlvo === null) {
       venceuEm.push(alvo.tokenId)
-      return alvo
+      return disputa.avisaSemFicha === true ? { ...alvo, disputa: TEXTO_DO_ALVO_SEM_FICHA } : alvo
     }
     const alvoTesta = disputa.testa === 'alvo'
     const resultado = rolarDisputa(disputa, { testa: alvoTesta ? doAlvo : ctx.usa, usa: ctx.usa, resiste: alvoTesta ? ctx.usa : doAlvo }, ctx.sistema, ctx.carga, ctx.rolarD20)

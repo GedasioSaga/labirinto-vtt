@@ -1,7 +1,7 @@
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { BonusDaBatalha, VantagemDoDado, VantagemNaRolagem } from './combate'
-import { lerDano } from './formula'
+import { lerFormula } from './formula'
 import { modificadorDoTeste } from './marca'
 import { textoDaRolagem } from './golpe'
 import { rolarComVantagem } from './reacao'
@@ -73,10 +73,11 @@ export function modificadorDaDisputa(ficha: FichaNaDisputa, sistema: SistemaDeRp
 /**
  * Construtor C4: a CD por fórmula na ficha de quem usa (com os selos dele e o
  * "mod(Atributo)" do teste); `null` = a fórmula não fecha (fora da gramática
- * ou pede arma).
+ * ou pede arma). Lida por `lerFormula`, não por `lerDano`: o "dano" dos selos
+ * (Fúria +30) e a força do NPC são do dano, não da CD.
  */
 export function cdDaExpressao(formula: string, usa: FichaNaDisputa, sistema: SistemaDeRpg): number | null {
-  const lido = lerDano(formula, { personagem: usa.personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: usa.bonus, modificador: (atributoId) => modificadorDaDisputa(usa, sistema, atributoId) })
+  const lido = lerFormula(formula, { personagem: usa.personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: usa.bonus, modificador: (atributoId) => modificadorDaDisputa(usa, sistema, atributoId) })
   return lido.tipo === 'valor' ? lido.valor : null
 }
 

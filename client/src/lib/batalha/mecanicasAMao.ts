@@ -162,6 +162,13 @@ export interface DisputaAMao {
   contra: ContraDaDisputa
   seQuemUsaVence?: EfeitoDaDisputa
   seQuemUsaPerde?: EfeitoDaDisputa
+  /**
+   * Construtor C4 (revisão): o alvo sem ficha (token genérico) não rola e a
+   * técnica pega nele; com isto, a linha dele diz que não houve teste, para o
+   * mestre conferir. A técnica montada sempre avisa; as mecânicas à mão da F2
+   * não têm o campo e jogam como antes.
+   */
+  avisaSemFicha?: true
 }
 
 /** A área do golpe e quem entra nela. */
