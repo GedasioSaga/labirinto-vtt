@@ -225,3 +225,27 @@ Cuidados com a F1 (em andamento; mexe em golpe.ts, turnos.ts, selos.ts, batalhaF
 3. Onde mora: NA TÉCNICA, com modelos prontos e "copiar de".
 4. F3 do conserto (tela do mestre ao transformar/invocar, habilidade oculta, efeito de arma com usos, Companion): vira PEÇAS DO CONSTRUTOR (fatias C6, C7, C1, C10), não à mão.
 Ordem: F1 (bugs) → F2 à mão (11 fichas, unificando os leitores no começo) → C1-C5 → F3 como C6/C7/C10.
+
+## PAUSADO em 09/11/2026, 20h45: onde paramos e o que falta
+
+O mestre pediu para guardar o estado e trabalhar em outra coisa. Nenhum agente do construtor está rodando.
+
+**Pronto e commitado na main** (cada peça construída, revisada e corrigida pelo workflow `wf_7e07ce1d-b51`):
+- C1 a C5: `4952405a..e9add1eb`, mais a proposta do dono pelo site (`36128d3f`) e os consertos pequenos (`2d03ed01`). Já publicados.
+- C6, o mestre decide os números de uma forma: `fced3355`, revisão `888854be`.
+- C7, habilidade oculta aparece como "???" para o jogador: `05946e9e`, revisão `f2df9870`.
+- C8, efeito de arma com usos por combate e arma padrão (o Boomerang): `a7c0be9d`, revisão `07fba205`. Esta C8 é o item "efeito de arma com usos" da decisão 4, não a C8 "Gatilhos" da tabela da seção 5.
+- C6 e C7 estão na 0.5.41. A C8 **não** está na 0.5.42 (ela saiu da base `905247ee`, anterior); entra na 0.5.43.
+
+**Pela metade: C10, Companion.** O agente caiu por volta das 20h05, no começo: tinha feito o retrato "antes" das 11 fichas, o modelo do companion em `lib/personagem.ts`, o leitor do arquivo e a costura em `lib/batalha/invocacao.ts` (leitura com o dono, limite do dono, `companionId` na pendência). **Sem commit, sem `tsc`, sem teste, sem tela.**
+- Na árvore de trabalho, sem commit (11 arquivos, 425 linhas a mais; cópia na branch `wip/construtor-c10-pausa`, commit `95cfdedd`): `components/batalha/BatalhaDoJogador.tsx`, `BatalhaDoMestre.tsx`, `dadosDaInvocacao.ts`, `lib/batalha/combate.ts`, `invocacao.ts`, `mecanica/modelo.ts`, `tiposDaHabilidade.ts`, `lib/personagem.ts`, `stores/batalhaFabrica.ts` e os novos `lib/batalha/companion.ts` e `lib/batalha/zzCompara.c10.tmp.test.ts` (arquivo temporário da comparação das fichas: apagar antes do commit).
+- O pedido inteiro da C10 está no primeiro registro de `~/.claude/projects/C--dev-labirinto/6d1d8a12-b288-49f2-b197-5699ce8b6ed1/subagents/workflows/wf_7e07ce1d-b51/agent-aa4b86bdd906efa07.jsonl`.
+
+**O que falta, em ordem.**
+1. C10: terminar o motor (companion entra no campo como token do lado do dono; age na vez do dono ou na própria, o mestre escolhe; ou dá um efeito especial; limite por dono, a Aira com até 3 Lovecats; evolução), a invocação pela peça (Chamado do Lobo do Alexei, lobos da Caçada que somem, Planta Carnívora) e a aba Companions na ficha do dono.
+2. C10: `rtk proxy npx tsc --noEmit`, a comparação das 11 fichas reais antes e depois (regra de ouro), revisão e correção.
+3. Auditoria final das peças especiais (C6, C7, C8, C10), que o workflow faria no fim.
+4. Não começados: C8 "Gatilhos" da tabela (início do combate, começo e fim da vez, cai a 0, entrou na área) e C9 "Combo" (`requisito.depoisDe`). Só sob demanda.
+5. Publicar: a versão que levar a C8 e a C10 precisa republicar o Worker do Lobby se algum campo novo viajar pela nuvem (`caminho.ts`).
+
+**Cuidado ao retomar.** Um dono por vez na batalha. A árvore de trabalho tem mudanças de outras frentes (Prelúdio, transições): commitar só os caminhos da batalha e `lib/personagem.ts`.
