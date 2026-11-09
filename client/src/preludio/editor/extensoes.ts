@@ -1,6 +1,7 @@
-import { getSchema, mergeAttributes, Node, type AnyExtension, type Extensions } from '@tiptap/core'
-import type { DOMOutputSpec } from '@tiptap/pm/model'
+import { getSchema, mergeAttributes, Node, type AnyExtension, type Editor, type Extensions } from '@tiptap/core'
+import type { DOMOutputSpec, Node as NoDoDocumento } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extensions'
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion'
@@ -152,12 +153,57 @@ export interface OpcoesDaMencao {
   /** O nome atual do verbete; `undefined` = ele não existe mais. */
   tituloDe: (id: string) => string | undefined
   aoAbrir: (id: string) => void
+  /**
+   * O jogador lê este verbete só pelo nome, sem link, no texto revelado deste
+   * campo (F2c: ele vê a seção e não vê o verbete mencionado). A lista mudou
+   * fora do texto (revelar, ocultar): `reavaliarSoNome`.
+   */
+  soNome: (id: string) => boolean
   /** Lista e desenho da sugestão (`SugestaoDeMencao.tsx`). */
   sugestao: Pick<SuggestionOptions<ItemDaMencao, ItemDaMencao>, 'items' | 'render'>
 }
 
 const CHAVE_DA_SUGESTAO = new PluginKey('pr-mencao-sugestao')
 const CHAVE_DO_CLIQUE = new PluginKey('pr-mencao-clique')
+const CHAVE_DO_SO_NOME = new PluginKey<DecorationSet>('pr-mencao-so-nome')
+
+/** A dica da menção: o desenho do nó e a decoração usam a mesma. */
+function dicaDaMencao(titulo: string | undefined, soNome: boolean): string {
+  if (titulo === undefined) return 'Este verbete não existe mais'
+  return soNome ? `Abrir ${titulo}. O jogador lê só o nome, sem link.` : `Abrir ${titulo}`
+}
+
+/** O bloco de segredo nunca vai ao jogador: a menção dentro dele não chega nem como nome. */
+function dentroDeSegredo(documento: NoDoDocumento, posicao: number): boolean {
+  const resolvida = documento.resolve(posicao)
+  for (let nivel = resolvida.depth; nivel > 0; nivel--) if (resolvida.node(nivel).type.name === PECAS_DO_TEXTO.segredo) return true
+  return false
+}
+
+/**
+ * A marca do "só o nome" (F2c). Toda menção ganha a decoração, mesmo a comum:
+ * quando a decoração sai, o ProseMirror apaga do nó o `title` que ela pôs, e a
+ * menção ficaria sem a dica de abrir.
+ */
+function decoracoesDasMencoes(documento: NoDoDocumento, tituloDe: OpcoesDaMencao['tituloDe'], soNome: OpcoesDaMencao['soNome']): DecorationSet {
+  const decoracoes: Decoration[] = []
+  documento.descendants((no, posicao) => {
+    if (no.type.name !== PECAS_DO_TEXTO.mencao) return true
+    const id = typeof no.attrs.verbeteId === 'string' ? no.attrs.verbeteId : ''
+    const titulo = tituloDe(id)
+    const marcada = titulo !== undefined && soNome(id) && !dentroDeSegredo(documento, posicao)
+    const dica = dicaDaMencao(titulo, marcada)
+    decoracoes.push(Decoration.node(posicao, posicao + no.nodeSize, marcada ? { class: 'pr-mencao--so-nome', title: dica } : { title: dica }))
+    return false
+  })
+  return DecorationSet.create(documento, decoracoes)
+}
+
+/** Refaz a marca do "só o nome" depois que a lista mudou. Não mexe no texto: não conta como edição nem entra no desfazer. */
+export function reavaliarSoNome(editor: Editor): void {
+  if (editor.isDestroyed) return
+  editor.view.dispatch(editor.state.tr.setMeta(CHAVE_DO_SO_NOME, true).setMeta('addToHistory', false))
+}
 
 export const Mencao = Node.create<OpcoesDaMencao>({
   name: PECAS_DO_TEXTO.mencao,
@@ -166,7 +212,7 @@ export const Mencao = Node.create<OpcoesDaMencao>({
   atom: true,
   selectable: false,
   addOptions() {
-    return { tituloDe: () => undefined, aoAbrir: () => undefined, sugestao: { items: () => [] } }
+    return { tituloDe: () => undefined, aoAbrir: () => undefined, soNome: () => false, sugestao: { items: () => [] } }
   },
   addAttributes() {
     return {
@@ -183,17 +229,28 @@ export const Mencao = Node.create<OpcoesDaMencao>({
     const titulo = this.options.tituloDe(id)
     const rotulo = typeof node.attrs.rotulo === 'string' ? node.attrs.rotulo : ''
     if (titulo === undefined) {
-      return ['span', mergeAttributes(HTMLAttributes, { 'data-mencao': '', class: 'pr-mencao pr-mencao--quebrada', title: 'Este verbete não existe mais' }), `@${rotulo || 'verbete'}`]
+      return ['span', mergeAttributes(HTMLAttributes, { 'data-mencao': '', class: 'pr-mencao pr-mencao--quebrada', title: dicaDaMencao(undefined, false) }), `@${rotulo || 'verbete'}`]
     }
-    return ['span', mergeAttributes(HTMLAttributes, { 'data-mencao': '', class: 'pr-mencao', title: `Abrir ${titulo}` }), `@${titulo}`]
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-mencao': '', class: 'pr-mencao', title: dicaDaMencao(titulo, false) }), `@${titulo}`]
   },
   renderText({ node }) {
     const id = typeof node.attrs.verbeteId === 'string' ? node.attrs.verbeteId : ''
     return `@${this.options.tituloDe(id) ?? String(node.attrs.rotulo ?? '')}`
   },
   addProseMirrorPlugins() {
-    const { aoAbrir, sugestao } = this.options
+    const { aoAbrir, sugestao, tituloDe, soNome } = this.options
     return [
+      new Plugin<DecorationSet>({
+        key: CHAVE_DO_SO_NOME,
+        state: {
+          init: (_configuracao, estado) => decoracoesDasMencoes(estado.doc, tituloDe, soNome),
+          apply: (transacao, antes, _estadoAntes, estadoDepois) =>
+            transacao.docChanged || transacao.getMeta(CHAVE_DO_SO_NOME) === true ? decoracoesDasMencoes(estadoDepois.doc, tituloDe, soNome) : antes,
+        },
+        props: {
+          decorations: (estado) => CHAVE_DO_SO_NOME.getState(estado),
+        },
+      }),
       Suggestion<ItemDaMencao, ItemDaMencao>({
         editor: this.editor,
         pluginKey: CHAVE_DA_SUGESTAO,

@@ -65,7 +65,8 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 const { FEATURES } = await import('../../features')
-const { LUGARES, gravarNoPreparo, gravarVerbete, lerDoPreparo, lerIndiceDoPreparo, lerVerbete } = await import('../disco')
+const { LUGARES, gravarNoPreparo, gravarRevelado, gravarVerbete, lerDoPreparo, lerIndiceDoPreparo, lerVerbete } = await import('../disco')
+const { alvoDaSecao, alvoDoVerbete } = await import('../revelado')
 const { aplicarImportacao, RecusaDaImportacao } = await import('./aplicar')
 const { lerPreludio } = await import('./noPreludio')
 const { simularImportacao } = await import('./simular')
@@ -259,6 +260,65 @@ describe('aplicar a importação do Grimório', () => {
 
     await expect(aplicarImportacao(resultado, depois.leitor, { foto, pastas: new Map(), espacoLivreBytes: COM_ESPACO.espacoLivreBytes, flags: LIGADO })).rejects.toThrow(/mudou no cofre/)
     expect(arquivosEm(`${PREPARO}/verbetes`)).toEqual([])
+  })
+})
+
+describe('revelar conta como editar: a reimportação não troca o que o jogador já pode ver', () => {
+  const CONTA = 'conta-inventada'
+  const QUANDO = '2026-11-09T12:00:00.000Z'
+
+  /** O mestre segue escrevendo no Grimório: muda a Capitã (que está na campanha) e a Bússola (que não está). */
+  function grimorioMudado(): Record<string, Conteudo> {
+    const mudado = cofreInventado()
+    mudado['personagens-soltos/piratas/capita.json'] = String(mudado['personagens-soltos/piratas/capita.json']).replace('Navega em testes.', 'Na verdade é filha do Almirante.')
+    mudado['itens/bussola.json'] = json({ id: 'item-bussola', nome: 'Bússola Falsa', resumo: 'Aponta para outro teste.', retrato: null, descricao: '<p>d</p>', informacao: '', efeito: '<p>e</p>' })
+    return mudado
+  }
+
+  it('uma seção revelada a uma conta só segura o verbete inteiro: ele fica como estava, e o resto é atualizado', async () => {
+    await simularEAplicar(cofreInventado())
+    const capita = await verbeteNoDisco('pers-capita')
+    const [parte] = capita.formas.flatMap((forma) => forma.secoes.map((secao) => ({ forma, secao })))
+    if (parte === undefined) throw new Error('a Capitã inventada devia ter uma seção')
+    await gravarRevelado('camp-mar', { formato: 1, revelacoes: [{ alvo: alvoDaSecao('pers-capita', parte.forma.id, parte.secao.id), para: [CONTA], quando: QUANDO }] }, LIGADO)
+    const antes = disco.get(`${PREPARO}/verbetes/pers-capita.json`)
+
+    const { resultado, resumo } = await simularEAplicar(grimorioMudado())
+
+    expect(resultado.relatorio.reimportacao?.verbetes).toMatchObject({
+      atualizar: ['item-bussola'],
+      editadosNoPreludio: [{ id: 'pers-capita', titulo: capita.titulo, mudouNoGrimorioTambem: true, revelado: true }],
+    })
+    expect(resumo.verbetes).toBe(1)
+    expect(disco.get(`${PREPARO}/verbetes/pers-capita.json`)).toBe(antes)
+    expect(JSON.stringify(await verbeteNoDisco('pers-capita'))).not.toContain('Almirante')
+  })
+
+  it('revelado que não abre (danificado sem cópia, formato mais novo) segura todos os verbetes daquela campanha', async () => {
+    for (const conteudo of ['{ isto não é JSON', JSON.stringify({ formato: 2, revelacoes: [], revelarTudoDoTipo: 'personagem' })]) {
+      disco.clear()
+      pastasCriadas.clear()
+      await simularEAplicar(cofreInventado())
+      expect((await verbeteNoDisco('pers-capita')).campanhas).toContain('camp-mar')
+      expect((await verbeteNoDisco('item-bussola')).campanhas).not.toContain('camp-mar')
+      disco.set(`${PREPARO}/revelado/camp-mar.json`, conteudo)
+
+      const { resultado } = await simularEAplicar(grimorioMudado())
+
+      expect(resultado.relatorio.reimportacao?.verbetes).toMatchObject({ atualizar: ['item-bussola'], editadosNoPreludio: [expect.objectContaining({ id: 'pers-capita', revelado: true })] })
+      expect(JSON.stringify(await verbeteNoDisco('pers-capita'))).not.toContain('Almirante')
+    }
+  })
+
+  it('revelar entre a simulação e o Aplicar: o Aplicar recusa e nada é gravado', async () => {
+    await simularEAplicar(cofreInventado())
+    const { resultado, aplicar } = await simularDeNovo(grimorioMudado())
+    expect([...(resultado.relatorio.reimportacao?.verbetes.atualizar ?? [])].sort()).toEqual(['item-bussola', 'pers-capita'])
+    await gravarRevelado('camp-mar', { formato: 1, revelacoes: [{ alvo: alvoDoVerbete('pers-capita'), para: 'todos', quando: QUANDO }] }, LIGADO)
+    const antes = new Map(disco)
+
+    await expect(aplicar(COM_ESPACO.espacoLivreBytes)).rejects.toThrow(/mudou desde a simulação/)
+    expect(disco).toEqual(antes)
   })
 })
 

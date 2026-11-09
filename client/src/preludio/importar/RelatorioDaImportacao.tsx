@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { FotoDoPreludio } from '../../lib/preparo/importar/noPreludio'
-import type { ItemDaLista, PlanoDeReimportacao } from '../../lib/preparo/importar/reimportar'
+import type { EditadoNoPreludio, ItemDaLista, PlanoDeReimportacao } from '../../lib/preparo/importar/reimportar'
 import type { ResultadoDaSimulacao } from '../../lib/preparo/importar/relatorio'
 import { lerIndiceDasPastas, type PastaDeMapas } from '../../lib/pastasDeMapas'
 import type { Campanha } from '../../lib/preparo/tipos'
@@ -151,14 +151,17 @@ function Reimportacao({ plano }: { plano: PlanoDeReimportacao }) {
           </tbody>
         </table>
       </div>
-      <Lista
-        titulo="Editados no Prelúdio: ficam como estão"
-        itens={editados.map((item) => (item.mudouNoGrimorioTambem ? `${item.titulo} (mudou no Grimório também)` : item.titulo))}
-      />
+      <Lista titulo="Editados ou revelados no Prelúdio: ficam como estão" itens={editados.map(rotuloDoEditado)} />
       <Lista titulo="Sumiu do Grimório: fica no Prelúdio" itens={titulos(TIPOS_DA_REIMPORTACAO.flatMap(({ chave }) => plano[chave].sumiuLa))} />
       <Lista titulo="Apagados no Prelúdio: não voltam" itens={titulos(TIPOS_DA_REIMPORTACAO.flatMap(({ chave }) => plano[chave].apagadosNoPreludio))} />
     </section>
   )
+}
+
+/** "Capitão (já revelado; mudou no Grimório também)": o revelado fica sem ninguém ter editado, e a lista diz por quê. */
+function rotuloDoEditado(item: EditadoNoPreludio): string {
+  const motivos = [...(item.revelado === true ? ['já revelado'] : []), ...(item.mudouNoGrimorioTambem ? ['mudou no Grimório também'] : [])]
+  return motivos.length === 0 ? item.titulo : `${item.titulo} (${motivos.join('; ')})`
 }
 
 function titulos(itens: readonly ItemDaLista[]): string[] {

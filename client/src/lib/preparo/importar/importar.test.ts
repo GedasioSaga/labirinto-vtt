@@ -299,6 +299,28 @@ describe('simulação da importação do Grimório', () => {
     expect(gravados).not.toContain(idDoAntigo)
   })
 
+  it('reimportar: revelar conta como editar; com o Grimório mudado o revelado fica (o mestre decide), com o Grimório igual nada muda', async () => {
+    const antes = await simularImportacao(cofreFalso(cofreInventado()).leitor)
+    const existentes = ['pers-capita', 'cen-porto', 'item-bussola'].map((id) => verbeteDe(antes.plano.verbetes, id))
+    const mudado = cofreInventado()
+    mudado['personagens-soltos/piratas/capita.json'] = String(mudado['personagens-soltos/piratas/capita.json']).replace('Navega em testes.', 'Na verdade é filha do Almirante.')
+    mudado['itens/bussola.json'] = json({ id: 'item-bussola', nome: 'Bússola Falsa', resumo: 'Aponta para outro teste.', retrato: null, descricao: '<p>d</p>', informacao: '', efeito: '<p>e</p>' })
+    // A Capitã e o Porto têm revelação (a forma ou a seção basta); a Bússola não.
+    const noPreludio: NoPreludio = { verbetes: existentes, revelados: new Set(['pers-capita', 'cen-porto']) }
+    const { relatorio, plano: paraGravar } = await simularImportacao(cofreFalso(mudado).leitor, { ...COM_ESPACO, existentes: noPreludio })
+
+    const plano = relatorio.reimportacao?.verbetes
+    expect(plano?.editadosNoPreludio).toEqual([{ id: 'pers-capita', titulo: verbeteDe(antes.plano.verbetes, 'pers-capita').titulo, mudouNoGrimorioTambem: true, revelado: true }])
+    expect(plano?.atualizar).toEqual(['item-bussola'])
+    expect(plano?.iguais).toEqual(['cen-porto'])
+    const gravados = paraGravar.verbetes.map((verbete) => verbete.id)
+    expect(gravados).toContain('item-bussola')
+    expect(gravados).not.toContain('pers-capita')
+    // Sem a lista de revelados (quem chamou não leu o revelado), vale a regra do hash: a Capitã seria trocada.
+    const semRevelados = await simularImportacao(cofreFalso(mudado).leitor, { ...COM_ESPACO, existentes: { verbetes: existentes } })
+    expect([...(semRevelados.relatorio.reimportacao?.verbetes.atualizar ?? [])].sort()).toEqual(['item-bussola', 'pers-capita'])
+  })
+
   it('reimportar quadro, ligação e campanha: a pasta ligada, a ligação do Prelúdio, o segredo marcado e o quadro editado ficam; o apagado não volta', async () => {
     const antes = (await simularImportacao(cofreFalso(cofreInventado()).leitor, COM_ESPACO)).plano
     const [campanha] = antes.indice.campanhas

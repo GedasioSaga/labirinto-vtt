@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ancestraisDe, compararTitulos, formaDe, formaNova, idNovo, ordemDe, ROTULO_DO_TIPO, textoPlano, verbeteNovo } from '../../lib/preparo/enciclopedia'
+import { nomesSemLinkNasCampanhas, type NomeSemLink, type RevelacoesParaOPacote } from '../../lib/preparo/pacoteDoJogador'
 import { alvoDaForma, alvoDaSecao, alvoDoVerbete, paraDe } from '../../lib/preparo/revelado'
 import type { AlvoDaRevelacao, Forma, Secao, TextoRico, Verbete } from '../../lib/preparo/tipos'
 import { citadoEm, usePreludio, type Lugar } from '../estado/preludio'
@@ -44,6 +45,44 @@ function filhosDe(verbete: Verbete, verbetes: ReadonlyMap<string, Verbete>): Ver
   return filhos.sort((a, b) => (ordemDe(a) ?? Infinity) - (ordemDe(b) ?? Infinity) || compararTitulos(a.titulo, b.titulo))
 }
 
+// ─── O nome sem link (F2c) ───────────────────────────────────────────────────
+
+function chaveDaSecao(formaId: string, secaoId: string): string {
+  return JSON.stringify([formaId, secaoId])
+}
+
+/** Em cada seção deste verbete (`chaveDaSecao`), os mencionados que o jogador lê só pelo nome. */
+function soNomePorSecao(nomes: readonly NomeSemLink[]): Map<string, Set<string>> {
+  const porSecao = new Map<string, Set<string>>()
+  for (const nome of nomes) {
+    const chave = chaveDaSecao(nome.formaId, nome.secaoId)
+    const mencionados = porSecao.get(chave) ?? new Set<string>()
+    mencionados.add(nome.mencionadoId)
+    porSecao.set(chave, mencionados)
+  }
+  return porSecao
+}
+
+/** "Reino › Descrição", com a forma no meio quando o verbete tem mais de uma; `null` = a seção não existe mais. */
+function lugarDoNome(nome: NomeSemLink, verbetes: ReadonlyMap<string, Verbete>): string | null {
+  const dono = verbetes.get(nome.verbeteId)
+  const forma = dono === undefined ? undefined : dono.formas.find((uma) => uma.id === nome.formaId)
+  const secao = forma === undefined ? undefined : forma.secoes.find((uma) => uma.id === nome.secaoId)
+  if (dono === undefined || forma === undefined || secao === undefined) return null
+  const partes = [dono.titulo || 'Sem nome', ...(dono.formas.length > 1 ? [forma.nome || 'Forma sem nome'] : []), secao.titulo || 'Texto']
+  return partes.join(' › ')
+}
+
+const LUGARES_NO_AVISO = 3
+const LISTA = new Intl.ListFormat('pt-BR', { type: 'conjunction' })
+
+/** "Reino › Descrição (revelada)", "A, B e C", "A, B, C e mais 2". */
+function lugaresEmTexto(lugares: readonly string[]): string {
+  const comEstado = lugares.map((lugar) => `${lugar} (revelada)`)
+  if (comEstado.length <= LUGARES_NO_AVISO + 1) return LISTA.format(comEstado)
+  return LISTA.format([...comEstado.slice(0, LUGARES_NO_AVISO), `mais ${comEstado.length - LUGARES_NO_AVISO}`])
+}
+
 const CADEADO = (
   <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
     <rect x="4.5" y="9" width="11" height="7.5" rx="1.5" />
@@ -66,9 +105,11 @@ interface SecaoProps {
   revelacao?: ReactNode
   /** Virou segredo: a revelação dela sai, para não voltar sozinha se deixar de ser. */
   aoTornarSegredo?: () => void
+  /** Os mencionados que o jogador lê só pelo nome no texto desta seção (F2c). */
+  soNome?: ReadonlySet<string>
 }
 
-function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar, revelacao, aoTornarSegredo }: SecaoProps) {
+function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar, revelacao, aoTornarSegredo, soNome }: SecaoProps) {
   const temTitulo = secao.titulo !== ''
   const rotulo = temTitulo ? `${secao.titulo} de ${dono}` : `Texto de ${dono}`
   // A cabeça (nome e segredo) não muda a cada tecla: apagar o nome para escrever outro não pode tirar o campo do lugar.
@@ -110,6 +151,7 @@ function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, a
           convite={temTitulo ? `Escreva ${secao.titulo.toLowerCase()}… (@ menciona um verbete)` : 'Escreva aqui… (@ menciona um verbete)'}
           editavel={editavel}
           aoMudar={(texto: TextoRico) => aoMudar((atual) => ({ ...atual, texto }))}
+          soNome={soNome}
         />
       ) : (
         <div className="pr-texto pr-texto--esperando">
@@ -211,11 +253,13 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   const criarVerbete = usePreludio((estado) => estado.criarVerbete)
   const revelar = usePreludio((estado) => estado.revelar)
   const ir = usePreludio((estado) => estado.ir)
+  const revelados = usePreludio((estado) => estado.revelados)
   const verbete = verbetes.get(id)
   const campanha = useCampanhaDaRevelacao(verbete)
   const revelacoes = useRevelacoesDaCampanha(campanha.campanhaId)
   const [formaVista, setFormaVista] = useState<string | null>(null)
   const [montadas, setMontadas] = useState(SECOES_NA_HORA)
+  const [renomeando, setRenomeando] = useState(false)
   const artigo = useRef<HTMLElement>(null)
 
   const forma = verbete === undefined ? undefined : formaDe(verbete, formaVista)
@@ -251,6 +295,23 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
     [verbete, verbetes],
   )
 
+  // Nome sem link (F2c): a menção a quem o jogador não vê, num texto que ele lê, chega a ele só como o nome de agora.
+  const revelacoesDoPacote = useMemo(
+    // Campanha sem revelado lido (o arquivo não abriu) não revela nada.
+    (): RevelacoesParaOPacote[] => campanhas.map((uma) => ({ campanhaId: uma.id, revelado: revelados.get(uma.id)?.revelado ?? null })),
+    [campanhas, revelados],
+  )
+  const soNomeNasSecoes = useMemo(
+    () => (verbete === undefined ? new Map<string, Set<string>>() : soNomePorSecao(nomesSemLinkNasCampanhas(revelacoesDoPacote, verbetes.values(), new Set([verbete.id])))),
+    [verbete, verbetes, revelacoesDoPacote],
+  )
+  // Onde o nome DESTE verbete chega ao jogador como texto: renomear troca o que ele lê lá.
+  const nomeComoTexto = useMemo(() => {
+    if (verbete === undefined) return []
+    const nomes = nomesSemLinkNasCampanhas(revelacoesDoPacote, verbetes.values(), new Set(citadoEm(verbete.id))).filter((nome) => nome.mencionadoId === verbete.id)
+    return nomes.map((nome) => lugarDoNome(nome, verbetes)).filter((lugar): lugar is string => lugar !== null)
+  }, [verbete, verbetes, revelacoesDoPacote])
+
   if (verbete === undefined || forma === undefined) {
     return (
       <section className="pr-vazio" aria-live="polite">
@@ -263,6 +324,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   }
 
   const editavel = avisoDeLeitura === undefined && !travado
+  const avisaNomeComoTexto = editavel && nomeComoTexto.length > 0
   const documento = ehDocumento(verbete)
   const rotuloDoTipo = ROTULO_DO_TIPO[verbete.tipo]
   const mudar = (fazer: (atual: Verbete) => Verbete) => mudarVerbete(verbete.id, fazer)
@@ -336,10 +398,19 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
               className="pr-verbete__titulo"
               value={verbete.titulo}
               aria-label={documento ? 'Título da página' : `Nome do ${rotuloDoTipo.um.toLowerCase()}`}
+              aria-describedby={avisaNomeComoTexto ? 'pr-verbete-nome-texto' : undefined}
               placeholder="Sem nome"
               readOnly={!editavel}
               onChange={(evento) => renomear(evento.target.value)}
+              onFocus={() => setRenomeando(true)}
+              onBlur={() => setRenomeando(false)}
             />
+            {avisaNomeComoTexto && (
+              // Fica no DOM, escondido, enquanto o nome não está em edição: o leitor de tela já o lê ao entrar no campo.
+              <p id="pr-verbete-nome-texto" className="pr-verbete__nome-texto" hidden={!renomeando}>
+                Este nome aparece como texto em: <strong>{lugaresEmTexto(nomeComoTexto)}</strong>. Trocar o nome troca o texto que o jogador lê.
+              </p>
+            )}
             {!documento && (
               <>
                 <div className="pr-verbete__meta">
@@ -455,6 +526,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
                 ) : undefined
               }
               aoTornarSegredo={revelavel ? () => ocultarEmTodas(alvoDaSecao(verbete.id, forma.id, secao.id)) : undefined}
+              soNome={soNomeNasSecoes.get(chaveDaSecao(forma.id, secao.id))}
             />
           ))}
           {forma.secoes.length === 0 && <p className="pr-quieto">Nenhum texto nesta forma ainda.</p>}

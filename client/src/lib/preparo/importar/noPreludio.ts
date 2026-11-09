@@ -1,6 +1,17 @@
 import { FEATURES, type FeatureFlags } from '../../features'
-import { LUGARES, lerDoPreparo, lerIndiceDoPreparo, lerVerbete, listarNoPreparo, pastaDoPreparo, type DocumentoLido } from '../disco'
-import { ARQUIVO_DAS_LIGACOES, ARQUIVO_DOS_VINDOS, ARQUIVO_DO_QUADRO, type IndiceDoPreparo, type Ligacoes, type VindosDoGrimorio } from '../tipos'
+import { LUGARES, idDoPreparoValido, lerDoPreparo, lerIndiceDoPreparo, lerRevelado, lerVerbete, listarNoPreparo, pastaDoPreparo, type DocumentoLido } from '../disco'
+import {
+  ARQUIVO_DAS_LIGACOES,
+  ARQUIVO_DOS_VINDOS,
+  ARQUIVO_DO_QUADRO,
+  type AlvoDaRevelacao,
+  type Campanha,
+  type IndiceDoPreparo,
+  type Ligacoes,
+  type Revelado,
+  type Verbete,
+  type VindosDoGrimorio,
+} from '../tipos'
 import { hashDoTexto } from './cofre'
 import { midiasNoPreludio } from './copiarArquivos'
 import type { ApagadosNoPreludio, NoPreludio, QuadroComId } from './reimportar'
@@ -15,8 +26,11 @@ import type { ApagadosNoPreludio, NoPreludio, QuadroComId } from './reimportar'
  * - Arquivo que esta versão não abre para editar (formato mais novo, danificado
  *   sem cópia, nome diferente do id) trava a importação: ela poderia gravar por
  *   cima de algo que não entende.
- * - A `impressao` resume tudo o que foi lido: o "Aplicar" lê de novo e recusa
- *   se o Prelúdio mudou desde a simulação.
+ * - Lê também o revelado de cada campanha (`revelado/<campanhaId>.json`): o
+ *   verbete revelado a algum jogador conta como editado (`NoPreludio.revelados`).
+ * - A `impressao` resume tudo o que foi lido, os revelados inclusive: o
+ *   "Aplicar" lê de novo e recusa se o Prelúdio mudou desde a simulação (revelar
+ *   no meio também conta).
  * - Lista também as imagens de `midia/`, que ficam fora da `impressao`: imagem a
  *   mais ou a menos não invalida o plano (o "Aplicar" só copia a que falta), mas
  *   muda o espaço, e o "Aplicar" conta de novo na hora.
@@ -70,6 +84,32 @@ function apagadosDe(vindos: VindosDoGrimorio | null, presentes: Readonly<Record<
   }
 }
 
+/** Os verbetes que um alvo de revelação nomeia: o próprio verbete, e o dono da forma e da seção. */
+function verbetesDoAlvo(alvo: AlvoDaRevelacao): string[] {
+  const ids = alvo.tipo === 'verbete' ? [alvo.id] : []
+  return alvo.verbeteId === undefined ? ids : [...ids, alvo.verbeteId]
+}
+
+/**
+ * Os verbetes que a reimportação não troca por terem sido revelados (F2c). Vale
+ * toda revelação do arquivo, até a que o pacote do jogador ignora (chave
+ * desconhecida, alvo torto): na dúvida, protegido. O arquivo que não abre para
+ * editar (danificado sem cópia, formato mais novo, algo que esta versão não
+ * entende) protege todos os verbetes da campanha: não dá para saber o que ele revela.
+ */
+async function verbetesRevelados(campanhas: readonly Campanha[], verbetes: readonly Verbete[], flags: Readonly<FeatureFlags>): Promise<Set<string>> {
+  const protegidos = new Set<string>()
+  // Campanha cujo id não serve de nome de arquivo não tem revelado: nem a tela consegue gravar um.
+  const lidos = await Promise.all(campanhas.filter((campanha) => idDoPreparoValido(campanha.id)).map(async (campanha) => ({ campanhaId: campanha.id, lido: await lerRevelado(campanha.id, flags) })))
+  for (const { campanhaId, lido } of lidos) {
+    if (lido.estado === 'novo') continue
+    const revelado: Revelado | null = lido.estado === 'falhou' ? null : lido.valor
+    for (const revelacao of revelado?.revelacoes ?? []) for (const id of verbetesDoAlvo(revelacao.alvo)) protegidos.add(id)
+    if (lido.estado !== 'ok') for (const verbete of verbetes) if (verbete.campanhas.includes(campanhaId)) protegidos.add(verbete.id)
+  }
+  return protegidos
+}
+
 async function lerTudo(flags: Readonly<FeatureFlags>): Promise<LeituraDoPreludio> {
   const problemas: string[] = []
   const indice = valorOuProblema(await lerIndiceDoPreparo(flags), problemas)
@@ -96,11 +136,12 @@ async function lerTudo(flags: Readonly<FeatureFlags>): Promise<LeituraDoPreludio
     ligacoes: new Set(listaDeLigacoes.map((ligacao) => ligacao.id)),
     campanhas: new Set(campanhas.map((campanha) => campanha.id)),
   })
-  const noPreludio: NoPreludio = { verbetes, quadros, ligacoes: listaDeLigacoes, campanhas, apagados }
+  const revelados = await verbetesRevelados(campanhas, verbetes, flags)
+  const noPreludio: NoPreludio = { verbetes, quadros, ligacoes: listaDeLigacoes, campanhas, apagados, revelados }
   const vazio = vindos === null && verbetes.length === 0 && quadros.length === 0 && listaDeLigacoes.length === 0 && campanhas.length === 0
   const midias = await midiasNoPreludio(await pastaDoPreparo(flags))
   // Os mesmos arquivos lidos de novo dão o mesmo texto: cada molde monta o objeto na ordem dele.
-  const impressao = await hashDoTexto(JSON.stringify({ indice, ligacoes, vindos, verbetes, quadros }))
+  const impressao = await hashDoTexto(JSON.stringify({ indice, ligacoes, vindos, verbetes, quadros, revelados: [...revelados].sort() }))
   return { ok: true, foto: { noPreludio, vazio, vindos, indice, ligacoes, midias, impressao } }
 }
 

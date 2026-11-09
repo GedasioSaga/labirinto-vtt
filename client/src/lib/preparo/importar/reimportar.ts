@@ -8,6 +8,11 @@ import type { PlanoDaImportacao } from './relatorio'
  * "Depois do conselho"), igual para verbete, quadro, ligação e campanha:
  * - o que o mestre EDITOU no Prelúdio fica como está, e entra na lista
  *   ("mudou no Grimório também", quando o Grimório também mudou);
+ * - o verbete que o mestre REVELOU a algum jogador (o verbete, uma forma ou uma
+ *   seção, em qualquer campanha) conta como editado quando o Grimório mudou: a
+ *   revelação vale para o que o mestre viu, e trocar o verbete passaria o texto
+ *   novo do Grimório ao jogador sem um clique (F2c). Quem lê o revelado é
+ *   `noPreludio.ts` (`NoPreludio.revelados`);
  * - o resto é atualizado com o que veio do Grimório;
  * - nada de juntar versões: cada um fica ou é trocado inteiro;
  * - nada some do Prelúdio porque sumiu do Grimório: vai para "sumiu lá";
@@ -185,6 +190,8 @@ export interface ItemDaLista {
 export interface EditadoNoPreludio extends ItemDaLista {
   /** O Grimório também mudou desde a última importação: o mestre decide à mão. */
   readonly mudouNoGrimorioTambem: boolean
+  /** Ninguém editou: fica porque foi revelado a algum jogador (ausente = editado de verdade). */
+  readonly revelado?: true
 }
 
 export interface ReimportacaoDoTipo {
@@ -230,6 +237,8 @@ export interface NoPreludio {
   readonly campanhas?: readonly Campanha[]
   /** O que veio do Grimório e o mestre apagou no Prelúdio: a reimportação não traz de volta. */
   readonly apagados?: ApagadosNoPreludio
+  /** Ids de verbete com alguma revelação, em qualquer campanha: revelar conta como editar. */
+  readonly revelados?: ReadonlySet<string>
 }
 
 /** O que a importação nova traz, já com os hashes (`comHashDaImportacao` e irmãos). */
@@ -252,7 +261,14 @@ const DO_QUADRO: Jeito<QuadroComId> = { id: (q) => q.id, titulo: (q) => q.quadro
 const DA_LIGACAO: Jeito<Ligacao> = { id: (l) => l.id, titulo: (l) => `${l.de} → ${l.para} (${l.tipo})`, origem: (l) => l.origem, hash: hashDaLigacao }
 const DA_CAMPANHA: Jeito<Campanha> = { id: (c) => c.id, titulo: (c) => c.nome, origem: (c) => c.origem, hash: hashDaCampanha }
 
-async function planejarTipo<T>(existentes: readonly T[], novos: readonly T[], apagados: readonly string[], jeito: Jeito<T>): Promise<ReimportacaoDoTipo> {
+/** `protegidos`: ids que contam como editados mesmo com o hash batendo (o verbete revelado a algum jogador). */
+async function planejarTipo<T>(
+  existentes: readonly T[],
+  novos: readonly T[],
+  apagados: readonly string[],
+  jeito: Jeito<T>,
+  protegidos: ReadonlySet<string> = new Set(),
+): Promise<ReimportacaoDoTipo> {
   const doGrimorio = new Map(existentes.filter((valor) => jeito.origem(valor)?.grimorio !== undefined).map((valor) => [jeito.id(valor), valor]))
   const soDoPreludio = new Map(existentes.filter((valor) => jeito.origem(valor)?.grimorio === undefined).map((valor) => [jeito.id(valor), valor]))
   const foiApagado = new Set(apagados)
@@ -276,11 +292,14 @@ async function planejarTipo<T>(existentes: readonly T[], novos: readonly T[], ap
     }
     const guardado = jeito.origem(atual)?.grimorio?.hash
     const hashNovo = jeito.origem(novo)?.grimorio?.hash ?? (await jeito.hash(novo))
+    const mudouNoGrimorio = hashNovo !== guardado
     // Sem hash guardado não dá para provar que ninguém mexeu: fica, como se editado.
     const editado = guardado === undefined || (await jeito.hash(atual)) !== guardado
-    if (editado) editadosNoPreludio.push({ id, titulo: jeito.titulo(atual), mudouNoGrimorioTambem: hashNovo !== guardado })
-    else if (hashNovo !== guardado) atualizar.push(id)
-    else iguais.push(id)
+    if (editado) editadosNoPreludio.push({ id, titulo: jeito.titulo(atual), mudouNoGrimorioTambem: mudouNoGrimorio })
+    else if (!mudouNoGrimorio) iguais.push(id)
+    // Revelado: a revelação vale para o que o mestre viu, e o texto novo do Grimório chegaria ao jogador sem um clique.
+    else if (protegidos.has(id)) editadosNoPreludio.push({ id, titulo: jeito.titulo(atual), mudouNoGrimorioTambem: true, revelado: true })
+    else atualizar.push(id)
   }
   const sumiuLa = [...doGrimorio.values()].filter((atual) => !vistos.has(jeito.id(atual))).map((atual) => ({ id: jeito.id(atual), titulo: jeito.titulo(atual) }))
   return { novos: entram, atualizar, iguais, editadosNoPreludio, sumiuLa, apagadosNoPreludio }
@@ -290,7 +309,7 @@ async function planejarTipo<T>(existentes: readonly T[], novos: readonly T[], ap
 export async function planejarReimportacao(noPreludio: NoPreludio, novos: Importado): Promise<PlanoDeReimportacao> {
   const apagados = noPreludio.apagados ?? {}
   return {
-    verbetes: await planejarTipo(noPreludio.verbetes, novos.verbetes, apagados.verbetes ?? [], DO_VERBETE),
+    verbetes: await planejarTipo(noPreludio.verbetes, novos.verbetes, apagados.verbetes ?? [], DO_VERBETE, noPreludio.revelados ?? new Set()),
     quadros: await planejarTipo(noPreludio.quadros ?? [], novos.quadros, apagados.quadros ?? [], DO_QUADRO),
     ligacoes: await planejarTipo(noPreludio.ligacoes ?? [], novos.ligacoes, apagados.ligacoes ?? [], DA_LIGACAO),
     campanhas: await planejarTipo(noPreludio.campanhas ?? [], novos.campanhas, apagados.campanhas ?? [], DA_CAMPANHA),

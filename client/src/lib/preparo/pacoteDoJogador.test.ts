@@ -4,7 +4,7 @@
  * aqui um erro é segredo vazado. Dados inventados (o repositório é público).
  */
 import { describe, expect, it } from 'vitest'
-import { montarPacoteDoJogador, type NoDoPacote, type PacoteDoJogador } from './pacoteDoJogador'
+import { montarPacoteDoJogador, nomesSemLink, nomesSemLinkNasCampanhas, type NoDoPacote, type PacoteDoJogador } from './pacoteDoJogador'
 import { alvoDaForma, alvoDaLigacao, alvoDaSecao, alvoDoVerbete, comRevelacoes, paraDe, revelacoesPorAlvo, reveladoVazio, type ParaQuem } from './revelado'
 import type { AlvoDaRevelacao, Forma, Ligacao, Revelacao, Revelado, Secao, TextoRico, TipoDeVerbete, Verbete } from './tipos'
 
@@ -106,6 +106,8 @@ function campanhaComSegredos() {
             'Descrição',
             doc(
               p(t('Texto VISIVEL '), mencao('vb-imediato', `${SEGREDO} rótulo antigo`), t(' e '), mencao(`vb-${SEGREDO}`, 'Sombra'), t(' e '), mencao('vb-apagado', 'Fantasma')),
+              // A sessão e o formato mais novo nunca vão ao jogador: nem o nome deles sai pela menção.
+              p(t('Visto em '), mencao('vb-sessao', 'x'), t(' e '), mencao('vb-futuro', 'y')),
               p(t('Rumo a '), { type: 'ligacaoMesa', attrs: { alvo: { chave: `${SEGREDO}-mapa`, sceneId: 'cena-2', pinoId: `${SEGREDO}-pino` }, rotulo: `${SEGREDO} pino` } }),
               { type: 'segredo', content: [p(t(`${SEGREDO} bloco `), mencao('vb-imediato', 'Imediato Brisa'))] },
               { type: 'image', attrs: { midia: midia('c'), alt: `${SEGREDO} alt`, title: `${SEGREDO} title`, rel: `Imagens/${SEGREDO}.png`, legenda: 'Figura VISIVEL', largura: 320 } },
@@ -334,6 +336,36 @@ describe('pacote do jogador: o texto', () => {
     expect(verbeteNoPacote(montarPacoteDoJogador({ campanhaId: MAR, contaId: BIA, verbetes, revelado: doMar }), 'vb-capitao')?.citadoEm).toEqual([])
     // A menção do Capitão ao Imediato está também dentro do bloco de segredo: ela não conta, só a do texto comum.
     expect(verbeteNoPacote(montarPacoteDoJogador({ campanhaId: MAR, contaId: ANA, verbetes, revelado: doMar }), 'vb-imediato')?.citadoEm).toEqual(['vb-capitao'])
+  })
+
+  it('nome sem link: onde a menção virou só o nome, por jogador; menção que fica, apagada, sessão, formato novo e bloco de segredo não contam', () => {
+    const onde = { verbeteId: 'vb-capitao', formaId: 'forma-1', secaoId: 'secao-a' }
+    // Bia (e o jogador qualquer) não veem o Imediato nem a Sombra: os dois viram só o nome na Descrição do Capitão.
+    for (const contaId of [BIA, null]) {
+      expect(nomesSemLink({ campanhaId: MAR, contaId, verbetes, revelado: doMar })).toEqual([
+        { mencionadoId: 'vb-imediato', ...onde },
+        { mencionadoId: `vb-${SEGREDO}`, ...onde },
+      ])
+    }
+    // Ana vê o Imediato: a menção fica menção, e só a Sombra vira nome (a menção ao Imediato no bloco de segredo some com o bloco).
+    expect(nomesSemLink({ campanhaId: MAR, contaId: ANA, verbetes, revelado: doMar })).toEqual([{ mencionadoId: `vb-${SEGREDO}`, ...onde }])
+    expect(nomesSemLink({ campanhaId: MAR, contaId: ANA, verbetes, revelado: reveladoVazio() })).toEqual([])
+  })
+
+  it('nome sem link em todas as campanhas: conta a conta com revelação própria, não repete, e textosDe limita a busca', () => {
+    const onde = { verbeteId: 'vb-capitao', formaId: 'forma-1', secaoId: 'secao-a' }
+    const emOrdem = [
+      { mencionadoId: `vb-${SEGREDO}`, ...onde },
+      { mencionadoId: 'vb-imediato', ...onde },
+    ]
+    expect(nomesSemLinkNasCampanhas([{ campanhaId: MAR, revelado: doMar }, { campanhaId: OUTRA, revelado: null }], verbetes)).toEqual(emOrdem)
+    // Revelada só à Ana: o jogador qualquer não vê a seção, e o nome sem link aparece pela conta dela.
+    const soAna = revelado(revelacao(alvoDoVerbete('vb-capitao'), [ANA]), revelacao(alvoDaForma('vb-capitao', 'forma-1'), [ANA]), revelacao(alvoDaSecao('vb-capitao', 'forma-1', 'secao-a'), [ANA]))
+    expect(nomesSemLink({ campanhaId: MAR, contaId: null, verbetes, revelado: soAna })).toEqual([])
+    expect(nomesSemLinkNasCampanhas([{ campanhaId: MAR, revelado: soAna }], verbetes)).toEqual(emOrdem)
+    // Só o texto do Imediato: ele menciona o Capitão, que todo mundo que vê o Imediato também vê.
+    expect(nomesSemLinkNasCampanhas([{ campanhaId: MAR, revelado: doMar }], verbetes, new Set(['vb-imediato']))).toEqual([])
+    expect(nomesSemLinkNasCampanhas([{ campanhaId: MAR, revelado: doMar }], verbetes, new Set(['vb-capitao']))).toEqual(emOrdem)
   })
 
   it('a menção só no bloco de segredo não cita', () => {

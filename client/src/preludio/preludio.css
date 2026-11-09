@@ -236,6 +236,9 @@
 }
 .pr-tela .pr-verbete__titulo:focus-visible { box-shadow: none; border-bottom-color: var(--lb-color-brass); }
 .pr-verbete__titulo::placeholder { color: var(--lb-color-parchment-faint); }
+/* O nome deste verbete chega ao jogador como texto (F2c): o aviso aparece só enquanto o nome está em edição, sem animar (o foco vem também pelo teclado). */
+.pr-verbete__nome-texto { margin: 0; max-width: 64ch; font: 400 var(--lb-font-size-sm)/1.45 var(--lb-font-sans); color: var(--lb-color-parchment-dim); }
+.pr-verbete__nome-texto strong { font-weight: 500; color: var(--lb-color-brass-bright); }
 .pr-verbete__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-3); }
 .pr-verbete__tipo { font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wide); color: var(--lb-gr-gravado); }
 .pr-apelidos { max-width: 520px; }
@@ -380,6 +383,11 @@
   color: var(--lb-color-brass-bright); cursor: pointer; white-space: nowrap;
 }
 .pr-mencao--quebrada { background: none; color: var(--lb-color-parchment-faint); text-decoration: line-through; cursor: help; }
+/* O jogador lê só o nome, sem link (F2c): sem a pílula de link, com um tracejado de latão. */
+.pr-mencao--so-nome {
+  background: none; padding: 0;
+  text-decoration: underline dashed var(--lb-color-brass); text-decoration-thickness: 1px; text-underline-offset: 3px;
+}
 .pr-mesa { padding: 0 3px; border-radius: 4px; background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
 
 .pr-figura { margin: 1.2em 0; }

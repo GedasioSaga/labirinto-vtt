@@ -6,7 +6,7 @@ import { compararTitulos, ROTULO_DO_TIPO, semAcento, textoPlano } from '../../li
 import type { TextoRico } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
-import { extensoesDoTexto, textoCabeNoEditor, type ItemDaMencao } from './extensoes'
+import { extensoesDoTexto, reavaliarSoNome, textoCabeNoEditor, type ItemDaMencao } from './extensoes'
 
 /**
  * O EDITOR DE TEXTO DO PRELÚDIO (TipTap, licença MIT). Este arquivo e o
@@ -166,7 +166,11 @@ export interface EditorDeTextoProps {
   editavel: boolean
   aoMudar: (texto: TextoRico) => void
   classe?: string
+  /** Os verbetes que o jogador lê só pelo nome, sem link, neste texto (F2c): a menção a eles ganha marca própria. */
+  soNome?: ReadonlySet<string>
 }
+
+const NENHUM_SO_NOME: ReadonlySet<string> = new Set()
 
 export function EditorDeTexto(props: EditorDeTextoProps) {
   // Conferido uma vez, ao abrir: o que o próprio editor emite cabe no esquema por construção.
@@ -184,15 +188,17 @@ export function EditorDeTexto(props: EditorDeTextoProps) {
   return <EditorQueCabe {...props} />
 }
 
-function EditorQueCabe({ texto, rotulo, convite, editavel, aoMudar, classe }: EditorDeTextoProps) {
+function EditorQueCabe({ texto, rotulo, convite, editavel, aoMudar, classe, soNome = NENHUM_SO_NOME }: EditorDeTextoProps) {
   const raiz = useRaizDaMidia()
   const raizAtual = useRef(raiz)
   const aoMudarAtual = useRef(aoMudar)
+  const soNomeAtual = useRef(soNome)
   const ultimoEmitido = useRef<string | null>(null)
   const relogio = useRef<ReturnType<typeof setTimeout> | null>(null)
   useLayoutEffect(() => {
     aoMudarAtual.current = aoMudar
     raizAtual.current = raiz
+    soNomeAtual.current = soNome
   })
 
   const emitir = (editor: Editor) => {
@@ -218,6 +224,7 @@ function EditorQueCabe({ texto, rotulo, convite, editavel, aoMudar, classe }: Ed
             if (alvo === undefined) return
             ir(alvo.tipo === 'pagina' ? { secao: 'escrita', paginaId: id } : { secao: 'enciclopedia', tipo: alvo.tipo, verbeteId: id })
           },
+          soNome: (id) => soNomeAtual.current.has(id),
           sugestao: { items: ({ query }) => sugerir(query), render: desenhoDaSugestao },
         },
       }),
@@ -245,6 +252,12 @@ function EditorQueCabe({ texto, rotulo, convite, editavel, aoMudar, classe }: Ed
   useEffect(() => {
     editor.setEditable(editavel, false)
   }, [editor, editavel])
+
+  // A lista chega nova a cada gravação do texto: o editor refaz a marca só quando ela muda de verdade.
+  const chaveDoSoNome = [...soNome].sort().join('\n')
+  useEffect(() => {
+    reavaliarSoNome(editor)
+  }, [editor, chaveDoSoNome])
 
   useEffect(
     () => () => {
