@@ -32,7 +32,14 @@ const HOST_SUFFIX: &str = ".trycloudflare.com";
 /// Rótulo usado pela API do quick tunnel (aparece em mensagens de erro).
 const API_LABEL: &str = "api";
 const URL_TIMEOUT: Duration = Duration::from_secs(30);
-const READY_TIMEOUT: Duration = Duration::from_secs(30);
+/// 90 s, não 30: o nome novo `*.trycloudflare.com` pode levar alguns segundos
+/// para existir no DNS, e a primeira consulta cedo demais volta "não existe",
+/// que o Windows e o resolvedor guardam por 60 s (TTL negativo do SOA de
+/// trycloudflare.com, medido em 09/11/2026). Com 30 s, toda tentativa caía
+/// nesse "não existe" guardado e o link era descartado já pronto.
+const READY_TIMEOUT: Duration = Duration::from_secs(90);
+/// Teto do trecho do stderr do cloudflared que vai na mensagem de erro.
+const DETAIL_MAX_CHARS: usize = 200;
 const READY_INTERVAL: Duration = Duration::from_secs(1);
 const READY_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const WATCH_INTERVAL: Duration = Duration::from_millis(500);
@@ -273,7 +280,8 @@ async fn await_tunnel_url(
         return Err("stderr do cloudflared indisponível".to_owned());
     };
     let (url_tx, url_rx) = oneshot::channel();
-    tauri::async_runtime::spawn(drain_stderr(stderr, url_tx));
+    let last_error: LastError = Arc::new(Mutex::new(None));
+    tauri::async_runtime::spawn(drain_stderr(stderr, url_tx, last_error.clone()));
     let waited = tokio::select! {
         waited = tokio::time::timeout(timeout, url_rx) => waited,
         () = until_cancelled(&is_cancelled) => {
@@ -285,13 +293,34 @@ async fn await_tunnel_url(
         Ok(Ok(url)) => Ok(SpawnedTunnel { child: Arc::new(Mutex::new(Some(child))), url }),
         Ok(Err(_)) => {
             let _ = child.start_kill();
-            Err("o cloudflared encerrou antes de criar o link público".to_owned())
+            Err(with_detail("o cloudflared encerrou antes de criar o link público", &last_error))
         }
         Err(_) => {
             let _ = child.start_kill();
-            Err("o cloudflared não criou o link público em 30 s".to_owned())
+            Err(with_detail("o cloudflared não criou o link público em 30 s", &last_error))
         }
     }
+}
+
+/// Última linha de erro do stderr do cloudflared (`ERR ...`), para a mensagem.
+type LastError = Arc<Mutex<Option<String>>>;
+
+/// A mensagem com o motivo que o cloudflared deu, quando deu. Sem isso, o
+/// mestre via só "encerrou" e ninguém sabia se era rede, firewall ou o limite
+/// de túneis rápidos da Cloudflare.
+fn with_detail(message: &str, last_error: &LastError) -> String {
+    match lock(last_error).as_deref() {
+        Some(detail) => format!("{message} (cloudflared: {detail})"),
+        None => message.to_owned(),
+    }
+}
+
+/// O trecho útil de uma linha de erro do stderr: do `ERR` em diante, sem a
+/// data, com no máximo `DETAIL_MAX_CHARS` caracteres. `None` se não é erro.
+fn error_detail(line: &str) -> Option<String> {
+    let start = line.find(" ERR ")?;
+    let detail = line.get(start + 1..)?.trim();
+    Some(detail.chars().take(DETAIL_MAX_CHARS).collect())
 }
 
 /// Termina quando `is_cancelled` ficar verdadeiro (checado a cada `CANCEL_POLL`).
@@ -302,7 +331,7 @@ async fn until_cancelled(is_cancelled: &impl Fn() -> bool) {
 }
 
 /// Lê o stderr até o fim; a primeira URL válida vai pelo canal.
-async fn drain_stderr(stderr: ChildStderr, url_tx: oneshot::Sender<String>) {
+async fn drain_stderr(stderr: ChildStderr, url_tx: oneshot::Sender<String>, last_error: LastError) {
     let mut reader = BufReader::new(stderr);
     let mut url_tx = Some(url_tx);
     let mut line = Vec::new();
@@ -315,7 +344,11 @@ async fn drain_stderr(stderr: ChildStderr, url_tx: oneshot::Sender<String>) {
         if url_tx.is_none() {
             continue;
         }
-        if let Some(url) = parse_quick_tunnel_url(&String::from_utf8_lossy(&line)) {
+        let text = String::from_utf8_lossy(&line);
+        if let Some(detail) = error_detail(&text) {
+            *lock(&last_error) = Some(detail);
+        }
+        if let Some(url) = parse_quick_tunnel_url(&text) {
             if let Some(sender) = url_tx.take() {
                 let _ = sender.send(url);
             }
@@ -353,17 +386,30 @@ async fn wait_ready_at(
             attempt = client.get(target).timeout(READY_REQUEST_TIMEOUT).send() => attempt,
             () = until_cancelled(&is_cancelled) => return Err(CANCELLED.to_owned()),
         };
-        if attempt.is_ok_and(|resp| resp.status().is_success()) {
-            return Ok(());
-        }
+        let last_cause = match attempt {
+            Ok(resp) if resp.status().is_success() => return Ok(()),
+            Ok(resp) => format!("HTTP {}", resp.status().as_u16()),
+            Err(error) => root_cause(&error),
+        };
         if Instant::now() + READY_INTERVAL > deadline {
-            return Err("o link público não respondeu em 30 s".to_owned());
+            return Err(format!("o link público não respondeu em {} s (última tentativa: {last_cause})", READY_TIMEOUT.as_secs()));
         }
         tokio::select! {
             () = tokio::time::sleep(READY_INTERVAL) => {}
             () = until_cancelled(&is_cancelled) => return Err(CANCELLED.to_owned()),
         }
     }
+}
+
+/// A causa mais funda de um erro do reqwest ("dns error: ...", "connection
+/// refused"), que é o que diz ao mestre onde parou; o topo é sempre "error
+/// sending request for url (...)".
+fn root_cause(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut deepest: &(dyn std::error::Error + 'static) = error;
+    while let Some(source) = deepest.source() {
+        deepest = source;
+    }
+    deepest.to_string().chars().take(DETAIL_MAX_CHARS).collect()
 }
 
 /// Vigia: se o processo terminar sozinho, recolhe e chama `on_exit`. Se alguém
@@ -429,6 +475,20 @@ pub(crate) mod tests {
             parse_quick_tunnel_url("https://x.trycloudflare.com.evil.io https://ok-1.trycloudflare.com").as_deref(),
             Some("https://ok-1.trycloudflare.com")
         );
+    }
+
+    #[test]
+    fn motivo_do_cloudflared_vai_na_mensagem() {
+        let linha = "2026-11-09T16:40:01Z ERR Error unmarshaling QuickTunnel response: status_code=\"429 Too Many Requests\"\n";
+        let detalhe = error_detail(linha);
+        assert_eq!(detalhe.as_deref(), Some("ERR Error unmarshaling QuickTunnel response: status_code=\"429 Too Many Requests\""));
+        assert_eq!(error_detail("2026-11-09T16:40:01Z INF Requesting new quick Tunnel on trycloudflare.com..."), None);
+        assert!(error_detail(&format!("x ERR {}", "a".repeat(500))).is_some_and(|d| d.chars().count() == DETAIL_MAX_CHARS));
+
+        let ultimo: LastError = Arc::new(Mutex::new(None));
+        assert_eq!(with_detail("encerrou", &ultimo), "encerrou");
+        *lock(&ultimo) = detalhe;
+        assert!(with_detail("encerrou", &ultimo).starts_with("encerrou (cloudflared: ERR Error unmarshaling"));
     }
 
     #[test]

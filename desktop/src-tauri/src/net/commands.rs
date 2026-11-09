@@ -613,9 +613,10 @@ fn player_urls(private: &[Ipv4Addr], port: u16) -> Vec<String> {
     private.iter().map(|ip| format!("http://{ip}:{port}/player")).collect()
 }
 
-/// IPv4 privados (RFC 1918) das interfaces da máquina, ordenados e sem repetição.
+/// IPv4 privados (RFC 1918) das interfaces da máquina, sem repetição, com o da
+/// rota padrão primeiro.
 fn private_ipv4s() -> Vec<Ipv4Addr> {
-    let mut ips: Vec<Ipv4Addr> = local_ip_address::list_afinet_netifas()
+    let ips: Vec<Ipv4Addr> = local_ip_address::list_afinet_netifas()
         .unwrap_or_default()
         .into_iter()
         .filter_map(|(_, ip)| match ip {
@@ -623,9 +624,35 @@ fn private_ipv4s() -> Vec<Ipv4Addr> {
             _ => None,
         })
         .collect();
+    order_lan_ips(ips, default_route_ipv4())
+}
+
+/// Ordena e tira repetição, mas põe na frente o IP da rota padrão (a placa que
+/// o PC usa para a internet, quase sempre a do Wi-Fi/roteador de casa). Em
+/// ordem numérica pura, um adaptador de VPN ou de trabalho (`10.x`) ou o switch
+/// virtual do Hyper-V (`172.16-31.x`) vinha antes do `192.168.x` de casa: o
+/// site abria esse endereço (o primeiro) e o jogador esperava até o tempo
+/// esgotar (relato de 09/11/2026, `http://10.81.0.5:7777`). Também é o que
+/// sobra quando o Lobby corta a lista no teto de endereços.
+fn order_lan_ips(mut ips: Vec<Ipv4Addr>, preferred: Option<Ipv4Addr>) -> Vec<Ipv4Addr> {
     ips.sort();
     ips.dedup();
+    if let Some(pos) = preferred.and_then(|ip| ips.iter().position(|candidate| *candidate == ip)) {
+        let ip = ips.remove(pos);
+        ips.insert(0, ip);
+    }
     ips
+}
+
+/// IP de origem que o sistema escolhe para sair à internet. O `connect` de UDP
+/// só consulta a tabela de rotas: nenhum pacote sai.
+fn default_route_ipv4() -> Option<Ipv4Addr> {
+    let socket = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
+    socket.connect((Ipv4Addr::new(8, 8, 8, 8), 53)).ok()?;
+    match socket.local_addr().ok()?.ip() {
+        IpAddr::V4(v4) if !v4.is_unspecified() => Some(v4),
+        _ => None,
+    }
 }
 
 fn qr_svg(url: &str) -> Result<String, String> {
@@ -661,6 +688,20 @@ mod tests {
         assert_eq!(player_urls(&[], 7777), vec!["http://127.0.0.1:7777/player".to_owned()]);
         let lan = [Ipv4Addr::new(192, 168, 0, 5)];
         assert_eq!(player_urls(&lan, 7778), vec!["http://192.168.0.5:7778/player".to_owned()]);
+    }
+
+    #[test]
+    fn ip_da_rota_padrao_vem_primeiro() {
+        // As placas do PC do mestre em 09/11/2026: VPN/trabalho, Hyper-V, cabo e Wi-Fi (rota padrão).
+        let vpn = Ipv4Addr::new(10, 81, 0, 5);
+        let hyperv = Ipv4Addr::new(172, 20, 240, 1);
+        let cabo = Ipv4Addr::new(192, 168, 0, 8);
+        let wifi = Ipv4Addr::new(192, 168, 1, 165);
+        let placas = vec![wifi, vpn, cabo, hyperv, vpn];
+        assert_eq!(order_lan_ips(placas.clone(), Some(wifi)), vec![wifi, vpn, hyperv, cabo]);
+        // Sem rota padrão (offline) ou com ela fora da lista: só a ordem numérica.
+        assert_eq!(order_lan_ips(placas.clone(), None), vec![vpn, hyperv, cabo, wifi]);
+        assert_eq!(order_lan_ips(placas, Some(Ipv4Addr::new(100, 64, 0, 1))), vec![vpn, hyperv, cabo, wifi]);
     }
 
     #[tokio::test]

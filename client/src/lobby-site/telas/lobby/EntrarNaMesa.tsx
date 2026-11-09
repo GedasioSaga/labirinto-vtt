@@ -32,6 +32,18 @@ type Passo =
   | { t: 'aberta' }
   | { t: 'erro'; texto: string }
 
+/**
+ * Sala sem link público: o Lobby só tem o endereço da rede local do mestre
+ * (`http://10.x`/`192.168.x`), que ninguém de fora da rede dele alcança (relato
+ * de 09/11/2026: jogador de longe, `10.81.0.5`, a aba esgotou o tempo).
+ */
+function soNaRedeLocal(sala: SalaDaMesa): boolean {
+  return enderecoDoBotao(sala)?.tipo === 'lan'
+}
+
+const AVISO_AO_MESTRE =
+  'Sua mesa está só na rede local: jogador de longe não entra por aqui. No app, em Convidar, clique em Tornar pública; quando o link público ficar pronto, o botão dos jogadores passa a usá-lo sozinho.'
+
 /** O relógio do Lobby e o daqui podem divergir: a espera mostrada fica entre 1 s e 1 min. */
 const ESPERA_MIN_S = 1
 const ESPERA_MAX_S = 60
@@ -117,6 +129,7 @@ function SalaDoMestre({ sala, entra }: { sala: SalaDaMesa; entra: boolean }) {
           Os jogadores veem aqui o botão Entrar na mesa agora e entram com a conta deles, sem código nem PIN. Código da sala: <b className="lo-entrar__codigo">{sala.codigo}</b>.
         </p>
       </div>
+      {soNaRedeLocal(sala) && <p className="lo-entrar__rede">{AVISO_AO_MESTRE}</p>}
     </section>
   )
 }
@@ -226,7 +239,11 @@ function ConviteDoJogador({ campanha, sala, entra }: { campanha: EstadoDaCampanh
         </p>
       )}
       {doBotao?.tipo === 'lan' && (
-        <p className="lo-entrar__rede">Se o navegador perguntar se este site pode acessar a rede local, permita: a mesa roda no computador do mestre.</p>
+        <p className="lo-entrar__rede">
+          <b>Esta mesa está aberta só na rede local do mestre.</b> O botão só funciona para quem está na mesma rede que o computador dele (o mesmo Wi-Fi
+          ou cabo); de longe, a aba fica carregando até dar erro. Está longe? Peça {mestre !== undefined ? `a ${mestre.nome}` : 'ao mestre'} para clicar
+          em Tornar pública no app (Convidar) e volte aqui. Na mesma rede, se o navegador perguntar se este site pode acessar a rede local, permita.
+        </p>
       )}
     </section>
   )
