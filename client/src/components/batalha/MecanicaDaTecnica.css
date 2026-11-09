@@ -58,6 +58,16 @@
   background: var(--lb-color-stone-sunken);
 }
 
+/* A proposta do dono ainda não vale: borda tracejada e título em latão, como a marca de espera. */
+.lb-mec__resumo[data-espera] {
+  border-style: dashed;
+  border-color: var(--lb-color-brass);
+}
+
+.lb-mec__resumo[data-espera] .lb-mec__resumo-titulo {
+  color: var(--lb-color-brass-bright);
+}
+
 .lb-mec__resumo-cab {
   display: flex;
   flex-wrap: wrap;
@@ -428,6 +438,18 @@
     border-color: var(--lb-color-parchment-faint);
     color: var(--lb-color-parchment);
   }
+}
+
+/*
+ * Na fórmula do dano da mecânica, os atributos e as contas ficam SEMPRE à vista
+ * (seção 3 do plano: "atributos em botões"). No campo Dano da ficha eles só
+ * aparecem com o foco no campo; aqui, sumir no blur subia o resto do bloco no
+ * meio do clique, e o clique em "Perfurante" logo depois da fórmula se perdia
+ * (visto no passeio de 09/11). Quem não programa também não adivinha que
+ * clicar no campo mostra os botões.
+ */
+.lb-mec .lb-dano__teclado {
+  display: flex;
 }
 
 /* ─── Marcar, números e textos ───────────────────────────────────────────── */

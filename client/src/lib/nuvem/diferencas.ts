@@ -50,17 +50,22 @@ export function diferencas(antes: Personagem | null, depois: Personagem | null, 
   return todas.map(cartaoNovoSemImagem).filter((mudanca) => quemEscreveAMudanca(mudanca) !== 'mestre')
 }
 
-/** Imagem é só do mestre na v1 (12.4): o cartão que o jogador cria entra sem ela. */
+/**
+ * Imagem é só do mestre na v1 (12.4): o cartão que o jogador cria entra sem ela.
+ * A `mecanica` que vale na batalha também (decisão 1 do mestre: o dono só propõe),
+ * como o host da sala LAN faz com a que o jogador manda (`aplicarPartes`).
+ */
 function cartaoNovoSemImagem(mudanca: Mudanca): Mudanca {
   if (mudanca.acao !== 'criar' || mudanca.valor === undefined || alvoDoCaminho(mudanca.caminho)?.regra !== 'cartao') return mudanca
   return { ...mudanca, valor: semImagem(mudanca.valor) }
 }
 
-/** O cartão (já em JSON) com `imagem: null` nele e em todos os subcartões. */
+/** O cartão (já em JSON) com `imagem: null` e sem `mecanica`, nele e em todos os subcartões. */
 function semImagem(cartao: Json): Json {
   if (cartao === null || typeof cartao !== 'object' || Array.isArray(cartao)) return cartao
-  const subcartoes = proprio(cartao, 'subcartoes')
-  return { ...cartao, imagem: null, ...(Array.isArray(subcartoes) ? { subcartoes: subcartoes.map(semImagem) } : {}) }
+  const { mecanica: _soDoMestre, ...resto } = cartao
+  const subcartoes = proprio(resto, 'subcartoes')
+  return { ...resto, imagem: null, ...(Array.isArray(subcartoes) ? { subcartoes: subcartoes.map(semImagem) } : {}) }
 }
 
 function definir(fichaId: string, caminho: string[], valor: unknown): Mudanca {
@@ -157,6 +162,7 @@ function umCartao(f: string, base: string[], antes: CartaoDaFicha, depois: Carta
   return [
     ...CAMPOS_SIMPLES_DO_CARTAO.filter((campo) => !jsonIgual(antes[campo], depois[campo])).map((campo) => definir(f, [...base, campo], depois[campo])),
     ...(antes.imagem === depois.imagem ? [] : [definir(f, [...base, 'imagem'], depois.imagem)]),
+    ...(jsonIgual(antes.mecanica, depois.mecanica) ? [] : [definir(f, [...base, 'mecanica'], depois.mecanica)]),
     ...registro(f, [...base, 'campos'], antes.campos, depois.campos),
     ...listaDeCartoes(f, [...base, 'subcartoes'], antes.subcartoes, depois.subcartoes),
   ]

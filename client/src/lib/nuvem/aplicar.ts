@@ -201,6 +201,7 @@ function naFicha(doc: Personagem, lida: Exclude<MudancaLida, { regra: 'ficha' }>
     case 'ordemDosCartoes':
     case 'campoDoCartao':
     case 'imagemDoCartao':
+    case 'mecanicaDoCartao':
     case 'textoDoCartao':
       return nasAbas(doc, lida)
     case 'vaga':
@@ -270,6 +271,14 @@ function mudarLista(lista: CartaoDaFicha[], lida: MudancaNasAbas): Passo<CartaoD
     case 'imagemDoCartao': {
       const imagem = lida.valor
       return noCartao(lista, lida.trilha, (cartao) => ({ ok: true, novo: { ...cartao, imagem }, antes: cartao.imagem, depois: imagem }))
+    }
+    case 'mecanicaDoCartao': {
+      const mecanica = lida.valor
+      return noCartao(lista, lida.trilha, (cartao) => {
+        // Sem valor, a chave sai (o cartão volta ao texto), como o leitor do disco guarda.
+        const { mecanica: antes, ...semMecanica } = cartao
+        return { ok: true, novo: mecanica === undefined ? semMecanica : { ...semMecanica, mecanica }, antes, depois: mecanica }
+      })
     }
     case 'textoDoCartao': {
       const { campoId, valor } = lida
@@ -352,6 +361,10 @@ function mudarCampoDoCartao(cartao: CartaoDaFicha, mudar: MudancaNoCartao): Pass
       return { ok: true, novo: { ...cartao, modificadores: mudar.valor }, antes: cartao.modificadores, depois: mudar.valor }
     case 'atributos':
       return { ok: true, novo: { ...cartao, atributos: mudar.valor }, antes: cartao.atributos, depois: mudar.valor }
+    case 'mecanicaProposta': {
+      const { mecanicaProposta: antes, ...semProposta } = cartao
+      return { ok: true, novo: mudar.valor === undefined ? semProposta : { ...semProposta, mecanicaProposta: mudar.valor }, antes, depois: mudar.valor }
+    }
   }
 }
 

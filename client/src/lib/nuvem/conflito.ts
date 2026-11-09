@@ -93,6 +93,7 @@ export function valorNoCaminho(doc: Personagem | null, caminho: readonly string[
     if (alvo.regra === 'cartao') return paraJson(cartao)
     if (alvo.regra === 'campoDoCartao') return comoJson(cartao[alvo.campo])
     if (alvo.regra === 'imagemDoCartao') return cartao.imagem
+    if (alvo.regra === 'mecanicaDoCartao') return comoJson(cartao.mecanica)
     return proprio(cartao.campos, alvo.campoId)
   }
   switch (alvo.regra) {

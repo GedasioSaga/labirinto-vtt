@@ -313,6 +313,55 @@ describe('imagem é só do mestre na v1 (12.4)', () => {
   })
 })
 
+describe('mecânica da técnica: o dono propõe, o mestre aceita (decisão 1 do construtor)', () => {
+  // Opacas para o caminho (quem confere as peças é `lerMecanica`, na batalha).
+  const VALE = { versao: 1, acao: 'simples', custos: [{ recurso: 'sp', quanto: { fixo: 30 }, quando: 'aoUsar' }], efeitos: [] }
+  const PROPOSTA = { versao: 1, acao: 'completa', custos: [{ recurso: 'sp', quanto: { fixo: 50 }, quando: 'aoUsar' }], efeitos: [] }
+
+  function comMecanica(extra: Partial<CartaoDaFicha>): Personagem {
+    const antes = luffyAntes()
+    const [pistol, ...outras] = antes.abas.tecnicas
+    return { ...antes, abas: { ...antes.abas, tecnicas: [{ ...pistol, ...extra }, ...outras] } }
+  }
+
+  it('jogador: só a proposta vira op; a mecânica que vale e a do cartão novo dele ficam de fora', () => {
+    const antes = comMecanica({ mecanica: VALE })
+    const [pistol, ...outras] = antes.abas.tecnicas
+    const copia = cartao('cart_copia', 'Cópia do Pistol', { mecanica: VALE })
+    const depois: Personagem = { ...antes, abas: { ...antes.abas, tecnicas: [{ ...pistol, mecanica: PROPOSTA, mecanicaProposta: PROPOSTA }, ...outras], habilidades: [copia] } }
+    const doJogador = diferencas(antes, depois, { papel: 'jogador' })
+    const { mecanica: _fora, ...copiaSemMecanica } = copia
+    expect(doJogador).toEqual([
+      { fichaId: 'pers_luffy', caminho: ['abas', 'tecnicas', 'cart_pistol', 'mecanicaProposta'], acao: 'definir', valor: PROPOSTA },
+      { fichaId: 'pers_luffy', caminho: ['abas', 'habilidades', 'cart_copia'], acao: 'criar', valor: paraJson(copiaSemMecanica) },
+    ])
+    expect(doJogador.map((mudanca) => quemEscreveAMudanca(mudanca))).toEqual(['donoOuMestre', 'donoOuMestre'])
+    // O cartão novo que traz a mecânica que vale é só do mestre (o servidor confere o mesmo).
+    expect(quemEscreveAMudanca({ caminho: ['abas', 'habilidades', 'cart_copia'], acao: 'criar', valor: paraJson(copia) })).toBe('mestre')
+    expect(lerJsonSeguro(JSON.stringify(doJogador))).toEqual(doJogador)
+    expect(aplicar(antes, doJogador)).toEqual({
+      doc: { ...antes, abas: { ...antes.abas, tecnicas: [{ ...pistol, mecanicaProposta: PROPOSTA }, ...outras], habilidades: [copiaSemMecanica] } },
+      recusadas: [],
+    })
+  })
+
+  it('mestre: aceitar troca a mecânica e tira a proposta, ida e volta; mecânica que não é objeto é recusada', () => {
+    const antes = comMecanica({ mecanica: VALE, mecanicaProposta: PROPOSTA })
+    const depois = comMecanica({ mecanica: PROPOSTA })
+    const doMestre = diferencas(antes, depois)
+    expect(doMestre).toEqual([
+      { fichaId: 'pers_luffy', caminho: ['abas', 'tecnicas', 'cart_pistol', 'mecanicaProposta'], acao: 'definir' },
+      { fichaId: 'pers_luffy', caminho: ['abas', 'tecnicas', 'cart_pistol', 'mecanica'], acao: 'definir', valor: PROPOSTA },
+    ])
+    expect(doMestre.map((mudanca) => quemEscreveAMudanca(mudanca))).toEqual(['donoOuMestre', 'mestre'])
+    expect(aplicar(antes, doMestre)).toEqual({ doc: depois, recusadas: [] })
+    expect(aplicar(depois, diferencas(depois, antes))).toEqual({ doc: antes, recusadas: [] })
+    const torta = aplicar(antes, [{ fichaId: 'pers_luffy', caminho: ['abas', 'tecnicas', 'cart_pistol', 'mecanica'], acao: 'definir', valor: 'Dano 2d6' }])
+    expect(torta.doc).toEqual(antes)
+    expect(torta.recusadas).toHaveLength(1)
+  })
+})
+
 describe('o que nunca vira op', () => {
   it('o histórico não gera op', () => {
     const antes = luffyAntes()

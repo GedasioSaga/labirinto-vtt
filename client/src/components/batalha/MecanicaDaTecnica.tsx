@@ -23,7 +23,7 @@ import './MecanicaDaTecnica.css'
  * mecânica que a batalha leria como inválida (revisão da C2).
  */
 
-/** `ninguem` = só lê o resumo (o site do Lobby, que ainda não leva a mecânica). */
+/** `ninguem` = só lê o resumo (a ficha de um colega, ou quem chama sem dizer). */
 export type QuemEditaAMecanica = 'mestre' | 'dono' | 'ninguem'
 
 export interface MecanicaDaTecnicaProps {
@@ -43,11 +43,11 @@ function semCampo(cartao: CartaoDaFicha, campo: 'mecanica' | 'mecanicaProposta')
   return resto
 }
 
-/** O resumo em frases, com a etiqueta (o que o jogador também vê). */
-export function ResumoDaMecanica({ mecanica, ficha, titulo }: { mecanica: MecanicaV1; ficha?: FichaDaPrevia; titulo?: string }) {
+/** O resumo em frases, com a etiqueta (o que o jogador também vê). `espera` = proposta que ainda não vale (borda tracejada). */
+export function ResumoDaMecanica({ mecanica, ficha, titulo, espera = false }: { mecanica: MecanicaV1; ficha?: FichaDaPrevia; titulo?: string; espera?: boolean }) {
   const aMao = pecasAMao(mecanica)
   return (
-    <div className="lb-mec__resumo">
+    <div className="lb-mec__resumo" data-espera={espera ? '' : undefined}>
       <div className="lb-mec__resumo-cab">
         {titulo !== undefined && <span className="lb-mec__resumo-titulo">{titulo}</span>}
         <span className="lb-mec__etiqueta" data-a-mao={aMao > 0 ? '' : undefined}>
@@ -82,17 +82,25 @@ function enquantoFalta(quemEdita: MecanicaDaTecnicaProps['quemEdita'], cartao: C
 
 /**
  * Fora da edição (o mestre e o jogador): o resumo em frases da mecânica que
- * vale e, se houver, a marca da proposta que espera o mestre. Sem mecânica e
- * sem proposta = nada (o cartão segue pelo texto, como antes).
+ * vale e, se houver, a proposta que espera o mestre, também em frases (quem
+ * propôs vê o que mandou; o mestre vê o que vai aceitar). Sem mecânica e sem
+ * proposta = nada (o cartão segue pelo texto, como antes).
  */
 export function MecanicaLida({ cartao, ficha }: { cartao: CartaoDaFicha; ficha: FichaDaPrevia }) {
   if (cartao.mecanica === undefined && cartao.mecanicaProposta === undefined) return null
   const valendo = lerMecanica(cartao.mecanica)
+  const proposta = lerMecanica(cartao.mecanicaProposta)
+  const temProposta = cartao.mecanicaProposta !== undefined
   return (
     <div className="lb-mec lb-mec--lida">
-      {valendo.tipo === 'pecas' && <ResumoDaMecanica mecanica={valendo.mecanica} ficha={ficha} titulo="Mecânica" />}
+      {valendo.tipo === 'pecas' && <ResumoDaMecanica mecanica={valendo.mecanica} ficha={ficha} titulo={temProposta ? 'Vale agora' : 'Mecânica'} />}
       <AvisoDaLida lida={valendo} />
-      {cartao.mecanicaProposta !== undefined && <p className="lb-mec__espera">Proposta de mecânica esperando o mestre.</p>}
+      {temProposta &&
+        (proposta.tipo === 'pecas' ? (
+          <ResumoDaMecanica mecanica={proposta.mecanica} ficha={ficha} titulo="Proposta, esperando o mestre" espera />
+        ) : (
+          <p className="lb-mec__espera">Proposta de mecânica esperando o mestre.</p>
+        ))}
     </div>
   )
 }

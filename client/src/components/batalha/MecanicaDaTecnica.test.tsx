@@ -5,7 +5,7 @@ import { ficha, sistema } from '../../lib/batalha/fichasDaFatiaB.testkit'
 import { lerMecanica } from '../../lib/batalha/mecanica/modelo'
 import { guardarMecanica, mecanicaDoModelo } from '../../lib/batalha/mecanica/modelos'
 import { novoCartao, type CartaoDaFicha } from '../../lib/personagem'
-import { MecanicaDaTecnica } from './MecanicaDaTecnica'
+import { MecanicaDaTecnica, MecanicaLida } from './MecanicaDaTecnica'
 
 /**
  * A TELA DE MONTAR A MECÂNICA (construtor, revisão da fatia C2): a peça pela
@@ -77,5 +77,15 @@ describe('tela de montar a mecânica', () => {
     expect(caixa?.checked).toBe(false)
     expect(blocos()[4]?.open).toBe(true)
     expect(document.activeElement).toBe(caixa)
+  })
+})
+
+describe('fora da edição (a ficha do jogador, no app e no site)', () => {
+  it('a proposta do dono aparece em frases, separada da mecânica que vale', () => {
+    const proposta = guardarMecanica(mecanicaDoModelo('debuff', sistema))
+    act(() => root.render(<MecanicaLida cartao={{ ...ESPADADA, mecanicaProposta: proposta }} ficha={{ personagem: marinheiro, sistema }} />))
+    const titulos = [...container.querySelectorAll('.lb-mec__resumo-titulo')].map((titulo) => titulo.textContent)
+    expect(titulos).toEqual(['Vale agora', 'Proposta, esperando o mestre'])
+    expect(container.querySelector('.lb-mec__resumo[data-espera]')?.textContent).toContain('Atordoado')
   })
 })

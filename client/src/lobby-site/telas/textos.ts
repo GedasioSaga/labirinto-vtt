@@ -94,7 +94,9 @@ export function valorEmTexto(valor: Json | undefined): string {
   if (typeof valor === 'string') return `“${valor.length > TEXTO_CURTO_MAX ? `${valor.slice(0, TEXTO_CURTO_MAX)}…` : valor}”`
   if (Array.isArray(valor)) return plural(valor.length, 'item', 'itens')
   const nome = valor.nome
-  return typeof nome === 'string' ? nome : 'um bloco'
+  if (typeof nome === 'string') return nome
+  // A mecânica montada (construtor de mecânicas) não tem nome: diz o que ela é.
+  return typeof valor.versao === 'number' && 'acao' in valor ? 'uma mecânica montada' : 'um bloco'
 }
 
 function cartaoDe(doc: Personagem | undefined, aba: string, cartaoId: string): { nome: string } | undefined {
@@ -157,6 +159,8 @@ export function rotuloDoCaminho(sistema: SistemaDeRpg, doc: Personagem | undefin
         const campo = sistema.abas.find((aba) => aba.id === a)?.campos.find((candidato) => candidato.id === d)
         return `${campo?.rotulo ?? 'Campo'} de ${nomeDoCartao}`
       }
+      if (c === 'mecanica') return `Mecânica de ${nomeDoCartao}`
+      if (c === 'mecanicaProposta') return `Proposta de mecânica de ${nomeDoCartao}`
       return c === 'nome' ? `Nome de ${nomeDoCartao}` : nomeDoCartao
     }
     default:

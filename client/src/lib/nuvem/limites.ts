@@ -112,6 +112,7 @@ function tetoDoValor(regra: NomeDaRegra): number {
       return TETOS_DO_CAMINHO.docBytes
     case 'cartao':
     case 'campoDoCartao':
+    case 'mecanicaDoCartao':
       return TETOS_DO_CAMINHO.cartaoBytes
     default:
       return 0

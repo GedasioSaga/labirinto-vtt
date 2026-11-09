@@ -2,7 +2,7 @@ import type { CarriedItem } from '../../types/map'
 import { ITEM_QUANTIDADE_MAX, readCarriedItems } from '../items'
 import { ehRefDeMidia } from '../midia'
 import { personagemDoArquivo } from '../personagem'
-import type { CampoDaFichaDBT, CampoExtra, CartaoDaFicha, MarcaDeCombate, Modificador, Personagem } from '../personagem'
+import type { CampoDaFichaDBT, CampoExtra, CartaoDaFicha, MarcaDeCombate, MecanicaGuardada, Modificador, Personagem } from '../personagem'
 import { MOEDAS_MAX } from '../troca'
 import { bytesDoJson, bytesDoTexto, CHAVES_PROIBIDAS, ehJson, ehRegistro, jsonIgual, PROFUNDIDADE_MAX, problemaNoValor, proprio, type Json } from './json'
 import type { Acao, MotivoNegado, Mudanca } from './tipos'
@@ -78,13 +78,13 @@ export const MAPAS_NUMERICOS = chavesDe(MAPA_NUMERICO, ehMapaNumerico)
 
 /**
  * Partes do cartão trocadas inteiras por `definir`; `imagem`, `campos` e `subcartoes` têm caminho próprio.
- * Construtor de mecânicas C1: a `mecanica` ainda não tem caminho no Lobby (só viaja com o cartão
- * novo); o caminho dela entra junto com a tela de montar (fatia C2), sem mexer no fio de hoje.
- * Fatia C2: a tela de montar entrou só na mesa (LAN); a `mecanica` e a `mecanicaProposta` seguem sem
- * caminho no Lobby, porque o caminho novo pede o servidor do Lobby publicado junto (frente própria).
+ * Construtor de mecânicas (decisão 1 do mestre: o mestre E o dono da ficha editam): a
+ * `mecanicaProposta` é do dono e do mestre, como o resto do cartão, e entra aqui. A `mecanica`
+ * que vale na batalha tem caminho próprio, só do mestre (`mecanicaDoCartao`): o dono propõe e o
+ * mestre aceita. As duas pedem o servidor do Lobby publicado com esta tabela (ele usa esta mesma).
  */
-export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica' | 'mecanicaProposta'>
-const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = { nome: true, aMao: true, extras: true, modificadores: true, atributos: true }
+export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica'>
+const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = { nome: true, aMao: true, extras: true, modificadores: true, atributos: true, mecanicaProposta: true }
 const ehCampoSimplesDoCartao = guardaDe(CAMPO_SIMPLES_DO_CARTAO)
 export const CAMPOS_SIMPLES_DO_CARTAO = chavesDe(CAMPO_SIMPLES_DO_CARTAO, ehCampoSimplesDoCartao)
 
@@ -150,6 +150,7 @@ export type NomeDaRegra =
   | 'ordemDosCartoes'
   | 'campoDoCartao'
   | 'imagemDoCartao'
+  | 'mecanicaDoCartao'
   | 'textoDoCartao'
   | 'vaga'
   | 'quantidade'
@@ -189,8 +190,14 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   cartaoAtivo: { caminho: "['cartoesAtivos', cartaoId]", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
   cartao: { caminho: "['abas', aba, cartaoId]", acoes: ['criar', 'apagar'], quem: 'donoOuMestre', visivelAoJogador: true },
   ordemDosCartoes: { caminho: "['abas', aba, '#ordem']", acoes: ['ordenar'], quem: 'donoOuMestre', visivelAoJogador: true },
-  campoDoCartao: { caminho: "['abas', aba, cartaoId, 'nome' | 'aMao' | 'extras' | 'modificadores' | 'atributos']", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
+  campoDoCartao: {
+    caminho: "['abas', aba, cartaoId, 'nome' | 'aMao' | 'extras' | 'modificadores' | 'atributos' | 'mecanicaProposta']",
+    acoes: ['definir'],
+    quem: 'donoOuMestre',
+    visivelAoJogador: true,
+  },
   imagemDoCartao: { caminho: "['abas', aba, cartaoId, 'imagem']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
+  mecanicaDoCartao: { caminho: "['abas', aba, cartaoId, 'mecanica']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
   textoDoCartao: { caminho: "['abas', aba, cartaoId, 'campos', campoId]", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
   vaga: { caminho: "['mochila', vagaId]", acoes: ['criar', 'apagar'], quem: 'donoOuMestre', visivelAoJogador: true },
   quantidade: { caminho: "['mochila', vagaId, 'quantidade']", acoes: ['somar', 'definir'], quem: 'donoOuMestre', visivelAoJogador: true },
@@ -218,6 +225,7 @@ export type Alvo =
   | { regra: 'ordemDosCartoes'; aba: string; trilha: string[] }
   | { regra: 'campoDoCartao'; aba: string; trilha: string[]; campo: CampoSimplesDoCartao }
   | { regra: 'imagemDoCartao'; aba: string; trilha: string[] }
+  | { regra: 'mecanicaDoCartao'; aba: string; trilha: string[] }
   | { regra: 'textoDoCartao'; aba: string; trilha: string[]; campoId: string }
   | { regra: 'vaga'; vagaId: string }
   | { regra: 'quantidade'; vagaId: string }
@@ -239,6 +247,7 @@ function alvoNaLista(aba: string, dono: readonly string[], resto: readonly strin
   if (campo === 'campos') return mais.length === 1 ? { regra: 'textoDoCartao', aba, trilha, campoId: mais[0] } : null
   if (mais.length > 0) return null
   if (campo === 'imagem') return { regra: 'imagemDoCartao', aba, trilha }
+  if (campo === 'mecanica') return { regra: 'mecanicaDoCartao', aba, trilha }
   return ehCampoSimplesDoCartao(campo) ? { regra: 'campoDoCartao', aba, trilha, campo } : null
 }
 
@@ -310,18 +319,24 @@ export function quemEscreve(caminho: unknown): QuemEscreve | null {
 export function quemEscreveAMudanca(m: Pick<Mudanca, 'caminho' | 'acao' | 'valor'>): QuemEscreve | null {
   const alvo = alvoDoCaminho(m.caminho)
   if (alvo === null) return null
-  if (alvo.regra === 'cartao' && m.acao === 'criar' && cartaoTrazImagem(m.valor)) return 'mestre'
+  if (alvo.regra === 'cartao' && m.acao === 'criar' && cartaoTrazDoMestre(m.valor)) return 'mestre'
   return ESQUEMA_DO_CAMINHO[alvo.regra].quem
 }
 
-/** O cartão como veio (antes do leitor) ou algum subcartão dele tem imagem. Fundo demais conta como sim: na dúvida, só o mestre. */
-function cartaoTrazImagem(valor: unknown, profundidade = 0): boolean {
+/**
+ * O cartão como veio (antes do leitor) ou algum subcartão dele traz o que só o
+ * mestre grava: imagem, ou a `mecanica` que vale na batalha (o dono só propõe).
+ * Sem isso bastaria apagar o próprio cartão e criar de novo com outra. Fundo
+ * demais conta como sim: na dúvida, só o mestre.
+ */
+function cartaoTrazDoMestre(valor: unknown, profundidade = 0): boolean {
   if (profundidade > PROFUNDIDADE_MAX) return true
   if (!ehRegistro(valor)) return false
   const imagem = proprio(valor, 'imagem')
   if (imagem !== undefined && imagem !== null) return true
+  if (proprio(valor, 'mecanica') !== undefined) return true
   const subcartoes = proprio(valor, 'subcartoes')
-  return Array.isArray(subcartoes) && Array.from(subcartoes).some((sub: unknown) => cartaoTrazImagem(sub, profundidade + 1))
+  return Array.isArray(subcartoes) && Array.from(subcartoes).some((sub: unknown) => cartaoTrazDoMestre(sub, profundidade + 1))
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -361,6 +376,7 @@ export type MudancaNoCartao =
   | { campo: 'extras'; valor: CampoExtra[] }
   | { campo: 'modificadores'; valor: Modificador[] }
   | { campo: 'atributos'; valor: string[] }
+  | { campo: 'mecanicaProposta'; valor: MecanicaGuardada | undefined }
 
 export type MudancaDoMestre =
   | { campo: 'dono'; valor: string | undefined }
@@ -385,6 +401,7 @@ export type MudancaLida =
   | { regra: 'ordemDosCartoes'; aba: string; trilha: string[]; ids: string[] }
   | { regra: 'campoDoCartao'; aba: string; trilha: string[]; mudar: MudancaNoCartao }
   | { regra: 'imagemDoCartao'; aba: string; trilha: string[]; valor: string | null }
+  | { regra: 'mecanicaDoCartao'; aba: string; trilha: string[]; valor: MecanicaGuardada | undefined }
   | { regra: 'textoDoCartao'; aba: string; trilha: string[]; campoId: string; valor: string | undefined }
   | { regra: 'vaga'; acao: 'criar'; item: CarriedItem }
   | { regra: 'vaga'; acao: 'apagar'; vagaId: string }
@@ -539,6 +556,8 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): Leitura {
       return imagemDaOp(valor)
         ? aceita({ regra: 'imagemDoCartao', aba: alvo.aba, trilha: alvo.trilha, valor })
         : recusa('fora-do-esquema', IMAGEM_FORA_DA_MIDIA)
+    case 'mecanicaDoCartao':
+      return lerMecanicaDoCartao(alvo.aba, alvo.trilha, valor)
     case 'textoDoCartao':
       if (valor !== undefined && typeof valor !== 'string') return recusa('fora-do-esquema', FORA_DO_FORMATO)
       if (valor !== undefined && bytesDoTexto(valor) > TETOS_DO_CAMINHO.campoDoCartaoBytes) return recusa('acima-do-teto', 'Texto grande demais: máximo 8 KiB')
@@ -664,6 +683,8 @@ function mudancaNoCartao(campo: CampoSimplesDoCartao, valor: Json | undefined): 
       return { campo, valor: lido.modificadores }
     case 'atributos':
       return { campo, valor: lido.atributos }
+    case 'mecanicaProposta':
+      return { campo, valor: lido.mecanicaProposta }
   }
 }
 
@@ -673,6 +694,17 @@ function lerCampoDoCartao(aba: string, trilha: string[], campo: CampoSimplesDoCa
   if (mudar.campo === 'nome' && mudar.valor.length > TETOS_DO_CAMINHO.nome) return recusa('acima-do-teto', `Nome grande demais: máximo ${TETOS_DO_CAMINHO.nome} letras`)
   if (bytesDoJson(valor) > TETOS_DO_CAMINHO.cartaoBytes) return recusa('acima-do-teto', 'Cartão grande demais: máximo 32 KiB')
   return aceita({ regra: 'campoDoCartao', aba, trilha, mudar })
+}
+
+/**
+ * A mecânica que vale (só o mestre): o leitor do disco é o juiz, como no resto
+ * do cartão. Ele guarda opaca a mecânica torta ou de app mais novo (quem a
+ * confere é `lerMecanica`, na batalha), e tira a que não é objeto ou passa do teto.
+ */
+function lerMecanicaDoCartao(aba: string, trilha: string[], valor: Json | undefined): Leitura {
+  const lido = cartaoPeloLeitor({ ...CARTAO_DE_LEITURA, mecanica: valor })
+  if (lido === null || !jsonIgual(lido.mecanica, valor)) return recusa('fora-do-esquema', FORA_DO_FORMATO)
+  return aceita({ regra: 'mecanicaDoCartao', aba, trilha, valor: lido.mecanica })
 }
 
 // ── Item da mochila: `readCarriedItems` é o juiz ────────────────────────────

@@ -355,6 +355,9 @@ function FichaNoPlayer({ campanha, ficha, aoFechar }: { campanha: EstadoDaCampan
         inventarioDe={() => inventario}
         // No "ver como" a ficha do jogador abre como a de um colega: nada de Editar.
         somenteLeitura={!ficha.ehMinha || soLeitura !== null}
+        // Decisão 1 do construtor de mecânicas: o mestre monta a mecânica que vale; o dono monta
+        // a proposta, que vai ao mestre no Salvar (caminho `mecanicaProposta`, lib/nuvem/caminho.ts).
+        quemEditaAMecanica={papel === 'mestre' ? 'mestre' : 'dono'}
         aoAbrirEdicao={aoAbrirEdicao}
         // O livro do sistema publicado (F1): o resumo veio no `estado` e o livro vem sob pedido, como na sala LAN.
         // Sem resumo (`null`), sem "Livro"; o sistema de recuo (One Piece embutido) já traz o livro dentro.

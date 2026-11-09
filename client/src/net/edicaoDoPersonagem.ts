@@ -105,10 +105,9 @@ function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>, campo: 'meca
  * Fatia C2 (revisão): a proposta de mecânica de um cartão que o jogador NÃO
  * tocou desde que a edição abriu sai como a da ficha recebida por último, ou
  * some se ela não tem. Sem isso, a proposta que o mestre recusou nesse
- * meio-tempo voltava com o Salvar de outro cartão da mesma aba: a mescla da
- * nuvem (`mesclarSemDesfazer`) não a traz, porque a comparação de cartões
- * (`diferencas`) não olha a proposta, que ainda não tem caminho no Lobby
- * (`lib/nuvem/caminho.ts`). A proposta que o jogador mudou vai como está.
+ * meio-tempo voltava com o Salvar de outro cartão da mesma aba. A proposta que
+ * o jogador mudou vai como está. (A proposta ganhou caminho no Lobby depois,
+ * `lib/nuvem/caminho.ts`; esta regra continua valendo para a sala LAN.)
  */
 function propostaNaoTocadaDaRecebida(base: Personagem, recebida: Personagem): (cartao: CartaoSemImagem) => CartaoSemImagem {
   const daBase = mecanicasDosCartoes(base.abas, 'mecanicaProposta')
