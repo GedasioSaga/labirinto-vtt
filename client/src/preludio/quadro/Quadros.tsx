@@ -73,8 +73,8 @@ function ListaDeQuadros() {
   )
 }
 
-export function Quadros({ quadroId }: { quadroId: string | null }) {
+export function Quadros({ quadroId, alvo }: { quadroId: string | null; alvo?: string }) {
   const ir = usePreludio((estado) => estado.ir)
   if (quadroId === null) return <ListaDeQuadros />
-  return <QuadroSobDemanda key={quadroId} id={quadroId} aoVoltar={() => ir({ secao: 'quadros', quadroId: null })} />
+  return <QuadroSobDemanda key={quadroId} id={quadroId} alvo={alvo} aoVoltar={() => ir({ secao: 'quadros', quadroId: null })} />
 }

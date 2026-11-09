@@ -34,9 +34,18 @@ export type Lugar =
   | { readonly secao: 'inicio' }
   | { readonly secao: 'enciclopedia'; readonly tipo: TipoDeVerbete | 'todos'; readonly verbeteId: string | null }
   | { readonly secao: 'escrita'; readonly paginaId: string | null }
-  | { readonly secao: 'sessoes'; readonly sessaoId: string | null }
-  /** Os quadros (mapa mental); `quadroId` = o quadro aberto no editor. */
-  | { readonly secao: 'quadros'; readonly quadroId: string | null }
+  /** `aba` = a sessão aberta no Roteiro (o padrão) ou no Quadro; `alvo` = a forma do quadro a mostrar (`shape:…`). */
+  | { readonly secao: 'sessoes'; readonly sessaoId: string | null; readonly aba?: AbaDaSessao; readonly alvo?: string }
+  /** Os quadros (mapa mental); `quadroId` = o quadro aberto no editor; `alvo` = a forma a mostrar ao abrir. */
+  | { readonly secao: 'quadros'; readonly quadroId: string | null; readonly alvo?: string }
+
+export type AbaDaSessao = 'roteiro' | 'quadro'
+
+/** O caminho de volta de uma página aberta a partir do quadro. */
+export interface Volta {
+  readonly lugar: Lugar
+  readonly rotulo: string
+}
 
 export type Carga = { readonly t: 'fechada' } | { readonly t: 'lendo' } | { readonly t: 'pronta' } | { readonly t: 'falhou'; readonly aviso: string }
 
@@ -85,7 +94,10 @@ interface EstadoDoPreludio {
   avisoDoTempo: string | null
   carregar: () => Promise<void>
   fechar: () => Promise<void>
-  ir: (lugar: Lugar) => void
+  /** Vai a outro lugar. `voltar` = o lugar de onde veio (o quadro), para a página oferecer a volta. */
+  ir: (lugar: Lugar, voltar?: Volta) => void
+  /** A volta que a página aberta oferece ("‹ Voltar ao quadro"); qualquer outro `ir` a esquece. */
+  voltar: Volta | null
   escolherCampanha: (campanhaId: string | null) => void
   /** Trava (ou solta) a edição por um motivo; fica travado enquanto sobrar algum. */
   travar: (motivo: MotivoDaTrava, travado: boolean) => void
@@ -399,6 +411,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
   salvamento: { t: 'em-dia' },
   travado: false,
   lugar: INICIO,
+  voltar: null,
   campanhaId: null,
   revelados: new Map(),
   avisoDoRevelado: null,
@@ -471,13 +484,14 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       avisoDoTempo: null,
       avisos: [],
       lugar: INICIO,
+  voltar: null,
       salvamento: situacao(),
       travado: false,
     })
   },
 
-  ir(lugar) {
-    set({ lugar })
+  ir(lugar, voltar) {
+    set({ lugar, voltar: voltar ?? null })
   },
 
   escolherCampanha(campanhaId) {

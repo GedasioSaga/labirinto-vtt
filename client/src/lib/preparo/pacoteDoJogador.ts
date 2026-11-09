@@ -289,6 +289,7 @@ function noDoPacote(bruto: unknown, contexto: ContextoDoTexto): NoDoPacote[] {
       return mencaoDoPacote(atributos, contexto)
     case PECAS_DO_TEXTO.segredo:
     case PECAS_DO_TEXTO.ligacaoMesa:
+    case PECAS_DO_TEXTO.citacaoQuadro:
       return []
     default:
       return []

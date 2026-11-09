@@ -56,7 +56,8 @@ function trilhaDe(lugar: Lugar, tituloDe: (id: string) => string | undefined, no
     }
     case 'sessoes': {
       const nome = lugar.sessaoId === null ? undefined : (tituloDe(lugar.sessaoId) ?? 'Sessão sem nome')
-      return nome === undefined ? ['Sessões'] : ['Sessões', nome || 'Sessão sem nome']
+      if (nome === undefined) return ['Sessões']
+      return lugar.aba === 'quadro' ? ['Sessões', nome || 'Sessão sem nome', 'Quadro'] : ['Sessões', nome || 'Sessão sem nome']
     }
     case 'quadros': {
       const nome = lugar.quadroId === null ? undefined : (nomeDoQuadro(lugar.quadroId) ?? 'Quadro')
@@ -206,7 +207,11 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
   useEffect(() => {
     if (lugar.secao === 'inicio') void salvarPendentes()
     else if (lugar.secao === 'quadros') precarregarQuadro()
-    else precarregarEditor()
+    else {
+      precarregarEditor()
+      // A sessão tem a aba Quadro: o tldraw já vem baixando enquanto o mestre lê o roteiro.
+      if (lugar.secao === 'sessoes') precarregarQuadro()
+    }
   }, [lugar.secao, salvarPendentes])
 
   // A lista dos quadros é relida a cada leitura do Prelúdio (ao abrir, e depois de importar ou restaurar).
@@ -242,7 +247,8 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
     (id) => verbetes.get(id)?.titulo,
     (id) => (listaDosQuadros.t === 'pronta' ? listaDosQuadros.quadros.find((quadro) => quadro.id === id)?.nome : undefined),
   )
-  const quadroAberto = lugar.secao === 'quadros' && lugar.quadroId !== null
+  // O quadro (da lista ou o da sessão) ocupa o palco inteiro: quem rola e aproxima é o tldraw.
+  const quadroAberto = (lugar.secao === 'quadros' && lugar.quadroId !== null) || (lugar.secao === 'sessoes' && lugar.sessaoId !== null && lugar.aba === 'quadro')
   const atual = trilha[trilha.length - 1] ?? TITULO_DO_PRELUDIO
   const antes = ['Labirinto', ...(trilha.length > 0 ? [TITULO_DO_PRELUDIO] : []), ...trilha.slice(0, -1)]
 
@@ -291,9 +297,9 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
               <PaginaDoVerbete key={lugar.verbeteId} id={lugar.verbeteId} />
             )
           ) : lugar.secao === 'sessoes' ? (
-            <Sessoes sessaoId={lugar.sessaoId} />
+            <Sessoes sessaoId={lugar.sessaoId} aba={lugar.aba ?? 'roteiro'} alvo={lugar.alvo} />
           ) : lugar.secao === 'quadros' ? (
-            <Quadros quadroId={lugar.quadroId} />
+            <Quadros quadroId={lugar.quadroId} alvo={lugar.alvo} />
           ) : (
             <Escrita paginaId={lugar.paginaId} />
           )}

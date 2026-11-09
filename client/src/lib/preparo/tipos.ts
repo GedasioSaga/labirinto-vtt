@@ -40,6 +40,8 @@ export const PECAS_DO_TEXTO = Object.freeze({
   mencao: 'mencao',
   /** Link para a mesa; `attrs` com a cena, o pino ou a ficha. */
   ligacaoMesa: 'ligacaoMesa',
+  /** Citação de um quadro (F3b); `attrs.quadroId` e, se for um ponto dele, `attrs.formaId`. Nunca vai ao jogador. */
+  citacaoQuadro: 'citacaoQuadro',
 })
 
 function ehTextoRico(bruto: unknown): bruto is TextoRico {

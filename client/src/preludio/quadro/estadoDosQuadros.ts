@@ -31,8 +31,12 @@ interface EstadoDosQuadros {
   /** O disco recusou o quadro novo: a lista mostra o motivo. */
   avisoDaCriacao: string | null
   recarregar: () => Promise<void>
-  /** Cria um quadro vazio e grava na hora; devolve o id, ou `null` se o disco recusou (o motivo fica em `avisoDaCriacao`). */
-  criar: (campanhaId: string | null) => Promise<string | null>
+  /**
+   * Cria um quadro vazio e grava na hora; devolve o id, ou `null` se o disco
+   * recusou (o motivo fica em `avisoDaCriacao`). Com `sessaoId`, é o quadro
+   * daquela sessão (a aba Quadro dela), e o nome não vem selecionado.
+   */
+  criar: (campanhaId: string | null, opcoes?: { readonly sessaoId?: string; readonly nome?: string }) => Promise<string | null>
   /** O editor gravou: o resumo acompanha (nome e contagem). */
   gravado: (id: string, quadro: Quadro) => void
   /** O nome mudou no editor (a gravação vem depois): a trilha e a lista já mostram o novo. */
@@ -88,9 +92,9 @@ export const useQuadros = create<EstadoDosQuadros>()((set, get) => ({
     }
   },
 
-  async criar(campanhaId) {
+  async criar(campanhaId, opcoes = {}) {
     const id = idDeQuadroNovo()
-    const quadro = quadroNovo(NOME_DE_QUADRO_NOVO, campanhaId === null ? {} : { campanhaId })
+    const quadro = quadroNovo(opcoes.nome ?? NOME_DE_QUADRO_NOVO, { ...(campanhaId === null ? {} : { campanhaId }), ...(opcoes.sessaoId === undefined ? {} : { sessaoId: opcoes.sessaoId }) })
     try {
       await gravarQuadro(id, quadro)
     } catch (erro) {
@@ -99,7 +103,7 @@ export const useQuadros = create<EstadoDosQuadros>()((set, get) => ({
     }
     const lista = get().lista
     const quadros = lista.t === 'pronta' ? lista.quadros : []
-    set({ lista: { t: 'pronta', quadros: emOrdem([...quadros, resumir(id, quadro, null)]) }, recemCriado: id, avisoDaCriacao: null })
+    set({ lista: { t: 'pronta', quadros: emOrdem([...quadros, resumir(id, quadro, null)]) }, recemCriado: opcoes.sessaoId === undefined ? id : null, avisoDaCriacao: null })
     return id
   },
 
@@ -145,4 +149,9 @@ export function resumoDaContagem(contagem: ContagemDoQuadro): string {
   const contadas = contagem.cartoes + contagem.salas + contagem.imagens + contagem.setas + contagem.molduras + contagem.textos
   por(contagem.formas - contadas, 'outra forma', 'outras formas')
   return new Intl.ListFormat('pt-BR', { type: 'conjunction' }).format(partes)
+}
+
+/** Os quadros de uma sessão (o da aba Quadro é o primeiro, na ordem do nome). */
+export function quadrosDaSessao(lista: ListaDosQuadros, sessaoId: string): readonly ResumoDoQuadro[] {
+  return lista.t === 'pronta' ? lista.quadros.filter((quadro) => quadro.sessaoId === sessaoId) : []
 }

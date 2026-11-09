@@ -5,8 +5,10 @@ import type { Forma, Secao, Verbete } from '../../lib/preparo/tipos'
 import { BarraDoTexto } from '../editor/sobDemanda'
 import { SecaoDoVerbete } from '../enciclopedia/PaginaDoVerbete'
 import { lugarDoVerbete } from '../enciclopedia/ListaDeVerbetes'
-import { usePreludio } from '../estado/preludio'
+import { usePreludio, type AbaDaSessao } from '../estado/preludio'
+import { AbasDaSessao, ID_DO_PAINEL_DA_SESSAO, idDaAba } from './AbasDaSessao'
 import { OQueAconteceu } from './OQueAconteceu'
+import { QuadroDaSessao } from './QuadroDaSessao'
 import { RevelarHoje } from './RevelarHoje'
 import './sessoes.css'
 
@@ -36,7 +38,7 @@ export function abrirComONomeSelecionado(sessaoId: string): void {
   recemCriada = sessaoId
 }
 
-export function PaginaDaSessao({ id }: { id: string }) {
+export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?: AbaDaSessao; alvo?: string }) {
   const verbetes = usePreludio((estado) => estado.verbetes)
   const campanhas = usePreludio((estado) => estado.campanhas)
   const avisoDeLeitura = usePreludio((estado) => estado.soLeitura.get(id))
@@ -73,6 +75,8 @@ export function PaginaDaSessao({ id }: { id: string }) {
     )
   }
 
+  if (aba === 'quadro') return <QuadroDaSessao sessao={sessao} alvo={alvo} />
+
   const editavel = avisoDeLeitura === undefined && !travado
   const mudar = (fazer: (atual: Verbete) => Verbete) => mudarVerbete(sessao.id, fazer)
   const mudarForma = (fazer: (atual: Forma) => Forma) => mudar((atual) => ({ ...atual, formas: atual.formas.map((outra) => (outra.id === forma.id ? fazer(outra) : outra)) }))
@@ -85,7 +89,11 @@ export function PaginaDaSessao({ id }: { id: string }) {
   }
 
   return (
-    <div className="pr-folha pr-sessao">
+    <>
+    <div className="pr-sessao__abas">
+      <AbasDaSessao sessaoId={sessao.id} aba="roteiro" />
+    </div>
+    <div className="pr-folha pr-sessao" id={ID_DO_PAINEL_DA_SESSAO} role="tabpanel" aria-labelledby={idDaAba('roteiro')}>
       <article ref={artigo} className="pr-verbete" tabIndex={-1} aria-labelledby="pr-sessao-nome">
         {avisoDeLeitura !== undefined && (
           <p className="pr-aviso" role="note">
@@ -210,5 +218,6 @@ export function PaginaDaSessao({ id }: { id: string }) {
         <p className="pr-quieto pr-trilho__origem">No mapa, o marcador Roteiro do Livro do mestre mostra esta sessão, só para leitura, com os links e o Revelar.</p>
       </aside>
     </div>
+    </>
   )
 }

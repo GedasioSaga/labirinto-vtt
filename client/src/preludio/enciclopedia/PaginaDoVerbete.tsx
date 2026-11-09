@@ -254,6 +254,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   const criarVerbete = usePreludio((estado) => estado.criarVerbete)
   const revelar = usePreludio((estado) => estado.revelar)
   const ir = usePreludio((estado) => estado.ir)
+  const voltar = usePreludio((estado) => estado.voltar)
   const revelados = usePreludio((estado) => estado.revelados)
   const verbete = verbetes.get(id)
   const campanha = useCampanhaDaRevelacao(verbete)
@@ -369,6 +370,11 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   return (
     <div className="pr-folha">
       <article ref={artigo} className="pr-verbete" tabIndex={-1} aria-labelledby="pr-verbete-titulo">
+        {voltar !== null && (
+          <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma pr-voltar" onClick={() => ir(voltar.lugar)}>
+            ‹ {voltar.rotulo}
+          </button>
+        )}
         {ancestrais.length > 0 && (
           <nav className="pr-trilha" aria-label={documento ? 'Dentro de' : 'Fica dentro de'}>
             {ancestrais.map((ancestral) => (

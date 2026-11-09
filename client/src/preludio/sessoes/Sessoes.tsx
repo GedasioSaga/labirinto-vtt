@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { verbeteNovo } from '../../lib/preparo/enciclopedia'
 import { dadosDaSessao, nomeDaProximaSessao, ordemDaProximaSessao, sessoesEmOrdem } from '../../lib/preparo/sessoes'
 import type { Verbete } from '../../lib/preparo/tipos'
-import { usePreludio } from '../estado/preludio'
+import { usePreludio, type AbaDaSessao } from '../estado/preludio'
 import { abrirComONomeSelecionado, PaginaDaSessao } from './PaginaDaSessao'
 import './sessoes.css'
 
@@ -100,6 +100,6 @@ function ListaDeSessoes() {
   )
 }
 
-export function Sessoes({ sessaoId }: { sessaoId: string | null }) {
-  return sessaoId === null ? <ListaDeSessoes /> : <PaginaDaSessao key={sessaoId} id={sessaoId} />
+export function Sessoes({ sessaoId, aba, alvo }: { sessaoId: string | null; aba: AbaDaSessao; alvo?: string }) {
+  return sessaoId === null ? <ListaDeSessoes /> : <PaginaDaSessao key={sessaoId} id={sessaoId} aba={aba} alvo={alvo} />
 }

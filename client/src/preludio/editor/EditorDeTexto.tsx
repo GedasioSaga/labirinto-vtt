@@ -10,7 +10,9 @@ import { estadoDoLink, mapaNaMemoriaAgora, pedirLeitura, useCatalogoDaMesa } fro
 import { EscolherNaMesa } from '../mesa/EscolherNaMesa'
 import { abrirNaMesaPeloPreludio, podeAbrirNaMesa } from '../mesa/ponte'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
-import { extensoesDoTexto, reavaliarMesa, reavaliarSoNome, textoCabeNoEditor, type EstadoDaMesaNoTexto, type ItemDaMencao } from './extensoes'
+import { EscolherNoQuadro } from '../quadro/EscolherNoQuadro'
+import { quadrosDaSessao, useQuadros } from '../quadro/estadoDosQuadros'
+import { extensoesDoTexto, reavaliarMesa, reavaliarSoNome, textoCabeNoEditor, type AlvoDaCitacao, type EstadoDaMesaNoTexto, type ItemDaMencao } from './extensoes'
 
 /**
  * O EDITOR DE TEXTO DO PRELÚDIO (TipTap, licença MIT). Este arquivo e o
@@ -195,6 +197,22 @@ function abrirDaMesa(alvo: AlvoNaMesa): void {
   if (verbete !== undefined) usePreludio.getState().ir({ secao: 'enciclopedia', tipo: verbete.tipo, verbeteId: verbete.id })
 }
 
+// ─── Citação do quadro (F3b) ─────────────────────────────────────────────────
+
+/** Abre o quadro citado naquele ponto: o da sessão, na aba Quadro dela; os outros, em Quadros. */
+function abrirCitacao(alvo: AlvoDaCitacao): void {
+  const { verbetes, ir } = usePreludio.getState()
+  const lista = useQuadros.getState().lista
+  const resumo = lista.t === 'pronta' ? lista.quadros.find((quadro) => quadro.id === alvo.quadroId) : undefined
+  const ponto = alvo.formaId === null ? {} : { alvo: alvo.formaId }
+  const sessao = resumo?.sessaoId == null ? undefined : verbetes.get(resumo.sessaoId)
+  if (sessao?.tipo === 'sessao' && quadrosDaSessao(lista, sessao.id)[0]?.id === alvo.quadroId) {
+    ir({ secao: 'sessoes', sessaoId: sessao.id, aba: 'quadro', ...ponto })
+    return
+  }
+  ir({ secao: 'quadros', quadroId: alvo.quadroId, ...ponto })
+}
+
 // ─── O editor ────────────────────────────────────────────────────────────────
 
 export interface EditorDeTextoProps {
@@ -268,6 +286,7 @@ function EditorQueCabe({ texto, rotulo, convite, editavel, aoMudar, classe, soNo
           sugestao: { items: ({ query }) => sugerir(query), render: desenhoDaSugestao },
         },
         mesa: { estadoDe: estadoDaMesa, aoAbrir: abrirDaMesa },
+        citacao: { aoAbrir: abrirCitacao },
       }),
       // O texto já passou por `textoCabeNoEditor` (mesmo esquema): aqui ele é um documento do TipTap.
       content: texto as JSONContent,
@@ -394,6 +413,14 @@ const ICONES: Readonly<Record<string, ReactNode>> = {
       <path d="m12.5 5 3.5 3.5-3.5 3.5M15.5 8.5h-7a4 4 0 0 0 0 8H11" />
     </svg>
   ),
+  quadro: (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <rect x="3" y="4" width="14" height="12" rx="1.5" />
+      <rect x="5.5" y="6.5" width="4" height="3" rx="0.6" />
+      <rect x="11" y="10.5" width="3.5" height="3" rx="0.6" />
+      <path d="m9.5 9.5 1.5 1" />
+    </svg>
+  ),
   mesa: (
     <svg viewBox="0 0 20 20" aria-hidden="true">
       <path d="M10 17.5s5-4.6 5-8.6a5 5 0 0 0-10 0c0 4 5 8.6 5 8.6z" />
@@ -436,6 +463,8 @@ export function BarraDoEditor() {
   const desligado = estado === null || !estado.editavel
   /** O editor que pediu o link: o diálogo tira o foco dele, e o link entra onde o cursor estava. */
   const [ligandoEm, setLigandoEm] = useState<Editor | null>(null)
+  /** O mesmo, para a citação do quadro. */
+  const [citandoEm, setCitandoEm] = useState<Editor | null>(null)
   const comando = (acao: (editor: Editor) => void) => () => {
     if (editor !== null && !editor.isDestroyed) acao(editor)
   }
@@ -475,6 +504,9 @@ export function BarraDoEditor() {
       <BotaoDaBarra rotulo="Ligar à mesa: cena, pino ou ficha" desligado={desligado} aoAcionar={comando((e) => setLigandoEm(e))}>
         {ICONES.mesa}
       </BotaoDaBarra>
+      <BotaoDaBarra rotulo="Citar o quadro: inteiro, uma moldura ou um cartão" desligado={desligado} aoAcionar={comando((e) => setCitandoEm(e))}>
+        {ICONES.quadro}
+      </BotaoDaBarra>
       <span className="pr-barra__div" aria-hidden="true" />
       <BotaoDaBarra rotulo="Desfazer" atalho="Ctrl+Z" desligado={desligado || !estado.desfazer} aoAcionar={comando((e) => e.chain().focus().undo().run())}>
         {ICONES.desfazer}
@@ -485,6 +517,27 @@ export function BarraDoEditor() {
       <span className="pr-barra__dica">
         <kbd className="gr-kbd">@</kbd> menciona um verbete
       </span>
+      {citandoEm !== null && (
+        <EscolherNoQuadro
+          aoFechar={() => {
+            if (!citandoEm.isDestroyed) citandoEm.commands.focus()
+            setCitandoEm(null)
+          }}
+          aoEscolher={(alvo, rotulo) => {
+            if (!citandoEm.isDestroyed) {
+              citandoEm
+                .chain()
+                .focus()
+                .insertContent([
+                  { type: 'citacaoQuadro', attrs: { quadroId: alvo.quadroId, formaId: alvo.formaId, rotulo } },
+                  { type: 'text', text: ' ' },
+                ])
+                .run()
+            }
+            setCitandoEm(null)
+          }}
+        />
+      )}
       {ligandoEm !== null && (
         <EscolherNaMesa
           aoFechar={() => {

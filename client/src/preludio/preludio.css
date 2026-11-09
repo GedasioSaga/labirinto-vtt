@@ -514,6 +514,13 @@
 }
 .pr-busca__trecho mark { padding: 0 1px; border-radius: 2px; background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
 .pr-busca__dica { margin: 0; padding: var(--lb-space-4); color: var(--lb-color-parchment-faint); line-height: var(--lb-font-leading-normal); }
+/* com um quadro aberto (F3b), os resultados vêm em dois grupos: "Neste quadro" e "No Prelúdio" */
+.pr-busca__grupo {
+  display: block; padding: var(--lb-space-3) var(--lb-space-3) var(--lb-space-1);
+  font: 500 var(--lb-font-size-xs)/1.2 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wide); text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.pr-busca__casca:first-child > .pr-busca__grupo { padding-top: var(--lb-space-2); }
 .pr-busca__rodape { display: flex; gap: var(--lb-space-4); margin: 0; padding: var(--lb-space-2) var(--lb-space-4); border-top: 1px solid var(--lb-gr-filete); font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
 
 /* ------------------------------------------------------------------ quadros (mapa mental, F3) */
@@ -554,8 +561,10 @@
   width: 100%; height: 100%; display: flex; overflow: hidden;
   border: 1px solid var(--lb-gr-filete-forte); border-radius: 8px;
   background: var(--lb-gr-cartao); color: var(--lb-color-parchment);
-  font-family: var(--lb-font-sans); pointer-events: all;
+  font-family: var(--lb-font-sans);
 }
+/* O tldraw desliga o ponteiro do contêiner HTML, e o CSS dele chega depois (pedaço sob demanda): o cartão religa com mais peso, senão os botões dele não recebem o clique. */
+.tl-html-container.pr-cartao { pointer-events: all; }
 .pr-cartao__principal { flex: 0 0 var(--pr-cartao-coluna, 100%); min-width: 0; display: flex; flex-direction: column; }
 .pr-cartao__retrato { flex: 1; min-height: 0; display: grid; place-items: center; background: var(--lb-gr-papel-baixo); }
 .pr-cartao__retrato img { width: 100%; height: 100%; object-fit: cover; }
@@ -575,6 +584,176 @@
 .pr-cartao--sumiu { align-items: center; justify-content: center; padding: calc(12 * var(--pr-cartao-u)); border-style: dashed; }
 .pr-cartao__sumiu { margin: 0; text-align: center; font-size: calc(13 * var(--pr-cartao-u)); color: var(--lb-color-parchment-faint); }
 
+/* ------------------------------------------------------------------ quadro ligado ao Prelúdio (F3b) */
+
+/* o cartão: o botão de abrir o verbete mora no canto do retrato; aparece ao passar o mouse e no cartão escolhido */
+.pr-cartao--selecionado { border-color: var(--lb-gr-filete-latao); }
+.pr-cartao__retrato { position: relative; }
+.pr-cartao__ir {
+  position: absolute; top: calc(6 * var(--pr-cartao-u)); right: calc(6 * var(--pr-cartao-u));
+  width: calc(28 * var(--pr-cartao-u)); height: calc(28 * var(--pr-cartao-u)); display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); cursor: pointer;
+  box-shadow: var(--lb-shadow-bevel);
+  opacity: 0; transition: opacity var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.pr-cartao__ir svg { width: 62%; height: 62%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.pr-cartao__ir:active { transform: scale(0.95); }
+.pr-cartao--selecionado .pr-cartao__ir, .pr-cartao__ir:focus-visible { opacity: 1; }
+/* o cartão que acabou de chegar (soltar, clique na gaveta, Shift+Enter na busca) assenta, uma vez só */
+.pr-cartao--chegou { animation: pr-cartao-chega 200ms var(--lb-gr-ease-out); }
+@keyframes pr-cartao-chega {
+  from { opacity: 0; transform: scale(0.96); }
+}
+
+/* a barra: as abas da sessão abrem a fileira; o botão da gaveta fica aceso enquanto ela está aberta */
+.pr-quadro__barra > .pr-abas { flex: none; margin-right: var(--lb-space-1); }
+.pr-quadro__gaveta-bt svg { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.pr-quadro__gaveta-bt[aria-expanded='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+
+/* o corpo: a tela do tldraw e, à direita, a gaveta de verbetes */
+.pr-quadro__corpo { position: relative; flex: 1; min-height: 0; display: flex; background: var(--lb-gr-papel-alto); }
+.pr-quadro__corpo > .pr-quadro__tela { min-width: 0; isolation: isolate; }
+.pr-quadro__tela > .tl-container { z-index: 0; }
+/* O anel de foco do tldraw (tecla) vira um filete por dentro, por cima das camadas dele: o anel de fora ficava cortado pela barra e pela gaveta. */
+.pr-tela .pr-quadro__tela > .tl-container:focus-visible { box-shadow: none; }
+.pr-quadro__tela:has(> .tl-container:focus-visible)::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao);
+}
+/* arrastando um verbete: a tela inteira vira alvo, e o fantasma mostra onde o cartão cai (segue o ponteiro sem atraso) */
+.pr-quadro__corpo > .pr-quadro__tela.pr-quadro__tela--soltando::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+.pr-quadro__fantasma {
+  position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none;
+  border: 1.5px dashed var(--lb-color-brass); border-radius: 8px;
+  background: var(--lb-color-brass-soft);
+}
+.pr-quadro__soltar {
+  position: absolute; top: var(--lb-space-3); left: 50%; z-index: 2; translate: -50% 0; margin: 0; pointer-events: none;
+  padding: var(--lb-space-1) var(--lb-space-3); border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-full);
+  background: var(--lb-gr-cartao-alto); box-shadow: var(--lb-shadow-float);
+  font: 500 var(--lb-font-size-sm)/1.4 var(--lb-font-sans); color: var(--lb-color-brass-bright); white-space: nowrap;
+}
+
+/* a pergunta da seta: cartão flutuante no alto da tela, logo abaixo da fileira de menus do tldraw (não a cobre) */
+.pr-quadro__tela { --pr-quadro-abaixo-dos-menus: 56px; }
+.pr-pergunta {
+  position: absolute; top: var(--pr-quadro-abaixo-dos-menus); left: 50%; z-index: 3; translate: -50% 0;
+  width: min(480px, calc(100% - 2 * var(--lb-space-4)));
+  display: flex; flex-direction: column; gap: var(--lb-space-2);
+  padding: var(--lb-space-3) var(--lb-space-4);
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-cartao-alto); box-shadow: var(--lb-shadow-float);
+  transition: opacity var(--lb-motion-base) var(--lb-gr-ease-out), transform var(--lb-motion-base) var(--lb-gr-ease-out);
+}
+@starting-style { .pr-pergunta { opacity: 0; transform: translateY(-6px); } }
+.pr-pergunta__texto { margin: 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.pr-pergunta__texto b { font-weight: 500; color: var(--lb-color-parchment); }
+.pr-pergunta__linha { display: flex; align-items: center; gap: var(--lb-space-2); margin: 0; }
+.pr-pergunta__campo {
+  flex: 1; min-width: 0; min-height: 30px; padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo); color: var(--lb-color-parchment); font: inherit; font-size: var(--lb-font-size-sm);
+}
+.pr-pergunta__campo::placeholder { color: var(--lb-color-parchment-faint); }
+.pr-pergunta__bloqueio { flex: 1; margin: 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.pr-pergunta__erro { margin: 0; font-size: var(--lb-font-size-xs); color: var(--lb-color-ember); }
+
+/* a gaveta de verbetes: encaixada à direita da tela; a tela encolhe na hora, a gaveta assenta por cima do mesmo papel.
+   Só assenta quando aberta pelo botão (--entra): abrir o quadro ou trocar de aba a mostra parada. */
+.pr-gaveta {
+  flex: none; width: 296px; min-height: 0; display: flex; flex-direction: column;
+  border-left: 1px solid var(--lb-gr-filete); background: var(--lb-gr-papel-alto);
+  transition: opacity var(--lb-motion-base) var(--lb-gr-ease-out), transform var(--lb-motion-base) var(--lb-gr-ease-out);
+}
+@starting-style { .pr-gaveta--entra { opacity: 0; transform: translateX(8px); } }
+.pr-gaveta__cabeca { display: flex; align-items: center; gap: var(--lb-space-2); padding: var(--lb-space-3) var(--lb-space-2) var(--lb-space-2) var(--lb-space-4); }
+.pr-gaveta__titulo { margin: 0; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); color: var(--lb-color-parchment); }
+.pr-gaveta__conta { flex: 1; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-faint); }
+.pr-gaveta__fechar {
+  flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment-faint); cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.pr-gaveta__fechar:active { transform: scale(0.95); }
+.pr-gaveta__fechar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.pr-gaveta__busca { position: relative; margin: 0 var(--lb-space-3) var(--lb-space-2); color: var(--lb-color-parchment-faint); }
+.pr-gaveta__busca svg { position: absolute; left: var(--lb-space-2); top: 50%; translate: 0 -50%; width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
+.pr-gaveta__campo {
+  width: 100%; min-height: 32px; padding: 0 var(--lb-space-2) 0 calc(var(--lb-space-2) + 21px);
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo); color: var(--lb-color-parchment); font: inherit; font-size: var(--lb-font-size-sm);
+}
+.pr-gaveta__campo::placeholder { color: var(--lb-color-parchment-faint); }
+.pr-gaveta__tipos { padding: 0 var(--lb-space-3) var(--lb-space-2); }
+.pr-gaveta__vazio { margin: 0; padding: var(--lb-space-3) var(--lb-space-4); font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-faint); }
+.pr-gaveta__lista {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  list-style: none; margin: 0; padding: var(--lb-space-1) var(--lb-space-2); border-top: 1px solid var(--lb-gr-filete);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.pr-gaveta__item {
+  width: 100%; display: flex; align-items: center; gap: var(--lb-space-3);
+  min-height: 48px; padding: var(--lb-space-1) var(--lb-space-2); border: 0; border-radius: var(--lb-radius-sm);
+  background: none; color: var(--lb-color-parchment); font: inherit; text-align: left; cursor: grab;
+  transition: background-color var(--lb-motion-fast) ease, opacity var(--lb-motion-fast) ease;
+}
+.pr-gaveta__item:active { cursor: grabbing; }
+.pr-gaveta__item:disabled { cursor: default; opacity: 0.5; }
+.pr-gaveta__item:not([draggable='true']):not(:disabled) { cursor: pointer; }
+/* o verbete que está sendo arrastado fica marcado no lugar de onde saiu */
+.pr-gaveta__item--levantado { opacity: 0.45; }
+.pr-gaveta__retrato {
+  flex: none; width: 36px; height: 36px; display: grid; place-items: center; overflow: hidden;
+  border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-sm); background: var(--lb-gr-papel-baixo);
+  font: 400 var(--lb-font-size-lg)/1 var(--lb-font-display); color: var(--lb-color-parchment-faint);
+}
+.pr-gaveta__retrato img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.pr-gaveta__nomes { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pr-gaveta__nome { font: 400 var(--lb-font-size-md)/1.3 var(--lb-font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-gaveta__tipo { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.pr-gaveta__no {
+  flex: none; padding: 1px var(--lb-space-2); border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-full);
+  font: 500 var(--lb-font-size-xs)/1.4 var(--lb-font-utility); color: var(--lb-color-brass);
+}
+.pr-gaveta__pe { display: flex; flex-direction: column; gap: var(--lb-space-2); padding: var(--lb-space-2) var(--lb-space-4) var(--lb-space-3); border-top: 1px solid var(--lb-gr-filete); }
+.pr-gaveta__faltam { display: flex; flex-direction: column; align-items: flex-start; gap: var(--lb-space-2); margin: 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.pr-gaveta__dica { margin: 0; font-size: var(--lb-font-size-xs); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-faint); }
+@media (hover: hover) and (pointer: fine) {
+  .pr-cartao:hover .pr-cartao__ir { opacity: 1; }
+  .pr-cartao__ir:hover { border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+  .pr-gaveta__fechar:hover { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
+  .pr-gaveta__item:hover:not(:disabled) { background: var(--lb-gr-hover); }
+}
+@media (max-width: 760px) {
+  .pr-gaveta { width: min(296px, 70%); }
+}
+
+/* a citação do quadro no texto: latão contornado, com o ícone de quadro; no mapa é só o nome */
+.pr-citacao {
+  padding: 0 4px 0 3px; border: 1px solid var(--lb-gr-filete-latao); border-radius: 4px;
+  color: var(--lb-color-brass-bright); white-space: nowrap; cursor: pointer;
+  text-decoration: underline transparent; text-underline-offset: 3px; transition: text-decoration-color var(--lb-motion-fast) ease;
+}
+.pr-citacao::before {
+  content: ''; display: inline-block; width: 0.8em; height: 0.8em; margin-right: 3px; vertical-align: -0.06em;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Crect x='1.75' y='2.75' width='12.5' height='10.5' rx='1.25'/%3E%3Cpath d='M4.5 5.5h3v2.5h-3zM9 9h2.5v2H9z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Crect x='1.75' y='2.75' width='12.5' height='10.5' rx='1.25'/%3E%3Cpath d='M4.5 5.5h3v2.5h-3zM9 9h2.5v2H9z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.pr-tela .ProseMirror .pr-citacao { white-space: nowrap; }
+.pr-citacao--so-nome { padding: 0; border: 0; cursor: default; color: inherit; text-decoration: underline dashed var(--lb-gr-filete-latao); text-decoration-thickness: 1px; }
+.pr-citacao--so-nome::before { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .pr-citacao:not(.pr-citacao--so-nome):hover { text-decoration-color: currentColor; }
+}
+
+/* a volta: da página do verbete para o quadro de onde ela foi aberta */
+.pr-voltar { margin-bottom: var(--lb-space-3); }
+
 /* ------------------------------------------------------------------ telas menores */
 @media (max-width: 1180px) {
   .pr-folha { grid-template-columns: minmax(0, var(--pr-medida)); }
@@ -592,4 +771,11 @@
   .pr-salvo__sair { transition: opacity var(--lb-motion-base) var(--lb-motion-ease); }
   @starting-style { .pr-salvo__sair { transform: none; } }
   .pr-caderno:active, .pr-galeria__item:active, .pr-barra__bt:active:not(:disabled) { transform: none; }
+  .pr-cartao--chegou { animation: pr-cartao-chega-quieto 200ms ease; }
+  .pr-gaveta, .pr-pergunta { transition: opacity var(--lb-motion-base) ease; }
+  @starting-style { .pr-gaveta--entra, .pr-pergunta { transform: none; } }
+  .pr-cartao__ir:active, .pr-gaveta__fechar:active { transform: none; }
+}
+@keyframes pr-cartao-chega-quieto {
+  from { opacity: 0; }
 }

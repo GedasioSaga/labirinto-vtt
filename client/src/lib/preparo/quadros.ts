@@ -82,6 +82,43 @@ export function contarFormas(tldraw: unknown): ContagemDoQuadro {
  * quadro de sessão (o Grimório registra as peças nos canvases para aceitar a
  * colagem) fica nele, editável como o resto.
  */
+/** O id do verbete que um cartão desenha (cada tipo do Grimório guardou com um nome); `null` = não é cartão. */
+export function verbeteDoRegistro(registro: Record<string, unknown>): string | null {
+  if (registro.typeName !== 'shape' || typeof registro.type !== 'string' || !TIPOS_DE_CARTAO.has(registro.type) || !ehRegistro(registro.props)) return null
+  const { personagemId, cenarioId, itemId } = registro.props
+  const id = registro.type === 'cenario-card' ? cenarioId : registro.type === 'item-card' ? itemId : personagemId
+  return typeof id === 'string' && id !== '' ? id : null
+}
+
+/** Um ponto do quadro que o texto pode citar: uma moldura, pelo nome, ou um cartão, pelo verbete. */
+export interface LugarNoQuadro {
+  /** O id da forma no tldraw (`shape:…`). */
+  readonly formaId: string
+  readonly tipo: 'moldura' | 'cartao'
+  /** O nome da moldura (pode ser vazio) ou o id do verbete do cartão. */
+  readonly nome: string
+}
+
+const numeroOuZero = (valor: unknown): number => (typeof valor === 'number' && Number.isFinite(valor) ? valor : 0)
+
+/** As molduras (na ordem de leitura: de cima para baixo, da esquerda para a direita) e os cartões de um quadro, lidos da foto sem o tldraw. */
+export function lugaresDoQuadro(tldraw: unknown): LugarNoQuadro[] {
+  const molduras: (LugarNoQuadro & { y: number; x: number })[] = []
+  const cartoes: LugarNoQuadro[] = []
+  for (const registro of registrosDaFoto(tldraw)) {
+    if (registro.typeName !== 'shape' || typeof registro.id !== 'string') continue
+    if (registro.type === 'frame') {
+      const nome = ehRegistro(registro.props) && typeof registro.props.name === 'string' ? registro.props.name.trim() : ''
+      molduras.push({ formaId: registro.id, tipo: 'moldura', nome, y: numeroOuZero(registro.y), x: numeroOuZero(registro.x) })
+      continue
+    }
+    const verbeteId = verbeteDoRegistro(registro)
+    if (verbeteId !== null) cartoes.push({ formaId: registro.id, tipo: 'cartao', nome: verbeteId })
+  }
+  molduras.sort((a, b) => a.y - b.y || a.x - b.x)
+  return [...molduras.map(({ formaId, tipo, nome }) => ({ formaId, tipo, nome })), ...cartoes]
+}
+
 export function ehPlanta(quadro: Quadro): boolean {
   return chaveDoCaminho(quadro.origem?.grimorio?.caminho ?? '').startsWith(PASTA_DAS_PLANTAS)
 }

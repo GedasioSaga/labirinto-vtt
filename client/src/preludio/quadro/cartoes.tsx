@@ -1,7 +1,7 @@
 // Copiado do Grimório: src/components/{CharacterCardShape,CenarioCardShape,ItemCardShape}.tsx
 // (adaptado: o esquema e as migrações são os mesmos, letra por letra, para os quadros
 // importados abrirem; o cartão desenha o verbete do Prelúdio, não a ficha do Grimório).
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   BaseBoxShapeUtil,
   HTMLContainer,
@@ -9,15 +9,18 @@ import {
   createShapePropsMigrationIds,
   createShapePropsMigrationSequence,
   useEditor,
+  useValue,
   type RecordProps,
   type TLShape,
   type TLShapePartial,
 } from 'tldraw'
 import { ROTULO_DO_TIPO, textoPlano } from '../../lib/preparo/enciclopedia'
 import type { Verbete } from '../../lib/preparo/tipos'
-import { usePreludio } from '../estado/preludio'
+import { lugarDoVerbete } from '../enciclopedia/ListaDeVerbetes'
+import { usePreludio, type Lugar } from '../estado/preludio'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
 import { ajustarLargura, alturaMoldadaAImagem, colunasPaineisVisiveis, colunasTotais, escalaDoCartao } from './cartaoCanvas'
+import { verbeteDoCartao } from './cartaoSemTldraw'
 
 export const CARD_LARGURA_PADRAO = 240
 export const CARD_ALTURA_PADRAO = 320
@@ -329,25 +332,7 @@ export const UTILS_DOS_CARTOES = [CartaoDePersonagemUtil, CartaoDeLugarUtil, Car
 
 // ─── O cartão desenhado ──────────────────────────────────────────────────────
 
-/** Id do Grimório → id no Prelúdio, para o cartão importado achar o verbete cujo id mudou na importação. */
-const indicePorOrigem = new WeakMap<ReadonlyMap<string, Verbete>, Map<string, string>>()
-
-/** O verbete do cartão: pelo id e, se não achar, pelo id que ele tinha no Grimório. */
-export function verbeteDoCartao(verbetes: ReadonlyMap<string, Verbete>, id: string): Verbete | undefined {
-  const direto = verbetes.get(id)
-  if (direto !== undefined) return direto
-  let indice = indicePorOrigem.get(verbetes)
-  if (indice === undefined) {
-    indice = new Map()
-    for (const verbete of verbetes.values()) {
-      const origem = verbete.origem?.grimorio?.id
-      if (origem !== undefined) indice.set(origem, verbete.id)
-    }
-    indicePorOrigem.set(verbetes, indice)
-  }
-  const real = indice.get(id)
-  return real === undefined ? undefined : verbetes.get(real)
-}
+export { verbeteDoCartao } from './cartaoSemTldraw'
 
 /** Para o rótulo e para o tipo de cartão de um verbete novo no quadro. */
 export function tipoDeCartaoDo(verbete: Verbete): CartaoDeVerbete['type'] {
@@ -372,6 +357,26 @@ function pararNoCartao(evento: { stopPropagation: () => void }) {
   evento.stopPropagation()
 }
 
+/** De onde se volta à página do verbete: o quadro como está (sem alvo, a câmera volta onde estava). */
+function voltaDoQuadro(lugar: Lugar): Lugar {
+  if (lugar.secao === 'quadros') return { secao: 'quadros', quadroId: lugar.quadroId }
+  if (lugar.secao === 'sessoes') return { secao: 'sessoes', sessaoId: lugar.sessaoId, aba: 'quadro' }
+  return lugar
+}
+
+/** Abre a página do verbete, com "‹ Voltar ao quadro" no topo. */
+export function abrirVerbeteDoQuadro(verbete: Verbete): void {
+  const { lugar, verbetes, ir } = usePreludio.getState()
+  ir(lugarDoVerbete(verbete, verbetes), { lugar: voltaDoQuadro(lugar), rotulo: 'Voltar ao quadro' })
+}
+
+/** Cartões que acabaram de ser postos pelo mestre: entram com um assentar curto, uma vez (os que abrem com o quadro, não). */
+const recemChegados = new Set<string>()
+
+export function marcarChegada(formaId: string): void {
+  recemChegados.add(formaId)
+}
+
 function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: number }) {
   const editor = useEditor()
   const id = idDoCartao(shape)
@@ -382,6 +387,8 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
   const retrato = raiz === null ? null : urlDaMidia(raiz, forma?.retrato)
   const { expandido, fonteEscala } = shape.props
   const escala = escalaDoCartao(shape.props.w, colunas) * fonteEscala
+  const selecionado = useValue('cartão selecionado', () => editor.getSelectedShapeIds().includes(shape.id), [editor, shape.id])
+  const [chegou] = useState(() => recemChegados.delete(shape.id))
 
   // A roda dentro do painel rola o texto, não o quadro.
   useEffect(() => {
@@ -430,10 +437,15 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
   const secoes = forma.secoes.filter((secao) => textoPlano(secao.texto).trim() !== '')
 
   return (
-    <HTMLContainer className={`pr-cartao${expandido ? ' pr-cartao--aberto' : ''}`} style={estilo}>
+    <HTMLContainer className={`pr-cartao${expandido ? ' pr-cartao--aberto' : ''}${selecionado ? ' pr-cartao--selecionado' : ''}${chegou ? ' pr-cartao--chegou' : ''}`} style={estilo}>
       <div className="pr-cartao__principal">
         <div className="pr-cartao__retrato">
           {retrato === null ? <span className="pr-cartao__inicial" aria-hidden="true">{nome.charAt(0).toUpperCase()}</span> : <img src={retrato} alt="" draggable={false} />}
+          <button type="button" className="pr-cartao__ir" aria-label={`Abrir o verbete ${nome}`} title="Abrir o verbete" onPointerDown={pararNoCartao} onClick={() => abrirVerbeteDoQuadro(verbete)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M8 4.5H5.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V12M11 4.5h4.5V9M15.5 4.5 9 11" />
+            </svg>
+          </button>
         </div>
         <div className="pr-cartao__texto">
           <span className="pr-cartao__tipo">{ROTULO_DO_TIPO[verbete.tipo].um}</span>
@@ -467,7 +479,7 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
               </section>
             ))
           )}
-          <button type="button" className="pr-cartao__abrir" onClick={() => usePreludio.getState().ir({ secao: 'enciclopedia', tipo: 'todos', verbeteId: verbete.id })}>
+          <button type="button" className="pr-cartao__abrir" onClick={() => abrirVerbeteDoQuadro(verbete)}>
             Abrir o verbete
           </button>
         </div>

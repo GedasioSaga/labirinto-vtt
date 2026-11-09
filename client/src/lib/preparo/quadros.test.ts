@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import { FEATURES } from '../features'
-import { caminhosSemMidia, contarFormas, ehPlanta, esquecerTabelaDeMidia, extensaoDaImagem, fotoComMidia, midiaNaTabela, tabelaDeMidiaDasImportacoes } from './quadros'
+import { caminhosSemMidia, contarFormas, ehPlanta, esquecerTabelaDeMidia, extensaoDaImagem, fotoComMidia, lugaresDoQuadro, midiaNaTabela, tabelaDeMidiaDasImportacoes } from './quadros'
 import type { Quadro } from './tipos'
 
 /** O `<appData>` de mentira: caminho → texto. */
@@ -119,5 +119,35 @@ describe('a tabela de mídia das importações', () => {
     const relida = await tabelaDeMidiaDasImportacoes(LIGADO)
     expect(midiaNaTabela(relida, 'campanhas/ilha inventada/imagens/farol.webp')).toBe('midia/bbbb.webp')
     expect(midiaNaTabela(relida, 'campanhas/ilha inventada/imagens/porto.png')).toBe('midia/aaaa.png')
+  })
+})
+
+describe('o que o texto pode citar num quadro (F3b)', () => {
+  it('lê da foto do Grimório as molduras, na ordem de leitura, e os cartões pelo verbete de cada tipo', () => {
+    const moldura = (id: string, nome: unknown, x: number, y: number) => ({ id: `shape:${id}`, typeName: 'shape', type: 'frame', x, y, props: { name: nome, w: 400, h: 300 } })
+    const cartao = (id: string, type: string, props: Record<string, unknown>) => ({ id: `shape:${id}`, typeName: 'shape', type, x: 0, y: 0, props })
+    const registros = [
+      moldura('m-baixo', 'Cena 2: o cais', 0, 900),
+      moldura('m-direita', '  Cena 1b  ', 500, 0),
+      moldura('m-alto', 'Cena 1: a taverna', 0, 0),
+      moldura('m-sem-nome', 7, 0, 1800),
+      cartao('c1', 'character-card', { personagemId: 'per-inventado' }),
+      cartao('c2', 'cenario-card', { cenarioId: 'lug-inventado' }),
+      cartao('c3', 'item-card', { itemId: 'ite-inventado' }),
+      cartao('c4', 'character-card', { personagemId: '' }),
+      cartao('seta', 'arrow', {}),
+    ]
+    const foto = { document: { store: Object.fromEntries(registros.map((registro) => [registro.id, registro])), schema: {} }, session: {} }
+
+    expect(lugaresDoQuadro(foto)).toEqual([
+      { formaId: 'shape:m-alto', tipo: 'moldura', nome: 'Cena 1: a taverna' },
+      { formaId: 'shape:m-direita', tipo: 'moldura', nome: 'Cena 1b' },
+      { formaId: 'shape:m-baixo', tipo: 'moldura', nome: 'Cena 2: o cais' },
+      { formaId: 'shape:m-sem-nome', tipo: 'moldura', nome: '' },
+      { formaId: 'shape:c1', tipo: 'cartao', nome: 'per-inventado' },
+      { formaId: 'shape:c2', tipo: 'cartao', nome: 'lug-inventado' },
+      { formaId: 'shape:c3', tipo: 'cartao', nome: 'ite-inventado' },
+    ])
+    expect(lugaresDoQuadro(null)).toEqual([])
   })
 })

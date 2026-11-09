@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import type { EditorDoQuadroProps } from './EditorDoQuadro'
+import { QuadroEsperando } from './esperando'
 
 /**
  * O editor do quadro (tldraw, com fontes e ícones dentro do app) baixa quando
@@ -14,16 +15,21 @@ export function precarregarQuadro(): void {
   void carregar().catch(() => undefined)
 }
 
-function QuadroNaoAbriu({ aoVoltar }: EditorDoQuadroProps) {
+function QuadroNaoAbriu({ aoVoltar, cabeca }: EditorDoQuadroProps) {
   return (
-    <section className="pr-lista">
-      <p className="pr-aviso" role="alert">
-        O editor do quadro não abriu. Feche e abra o Labirinto de novo; o quadro continua salvo.
-      </p>
-      <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" onClick={aoVoltar}>
-        Voltar aos quadros
-      </button>
-    </section>
+    <div className="pr-quadro">
+      {cabeca !== undefined && <div className="pr-quadro__barra">{cabeca}</div>}
+      <section className="pr-lista">
+        <p className="pr-aviso" role="alert">
+          O editor do quadro não abriu. Feche e abra o Labirinto de novo; o quadro continua salvo.
+        </p>
+        {aoVoltar !== undefined && (
+          <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" onClick={aoVoltar}>
+            Voltar aos quadros
+          </button>
+        )}
+      </section>
+    </div>
   )
 }
 
@@ -36,13 +42,7 @@ const EditorPreguicoso = lazy(() =>
 
 export function QuadroSobDemanda(props: EditorDoQuadroProps) {
   return (
-    <Suspense
-      fallback={
-        <p className="pr-quieto pr-palco__abrindo" role="status">
-          Abrindo o quadro…
-        </p>
-      }
-    >
+    <Suspense fallback={<QuadroEsperando cabeca={props.cabeca} />}>
       <EditorPreguicoso {...props} />
     </Suspense>
   )

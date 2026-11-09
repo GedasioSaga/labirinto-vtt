@@ -242,6 +242,84 @@ export const LigacaoMesa = Node.create<OpcoesDaMesa>({
   },
 })
 
+// ─── Citação do quadro (F3b) ─────────────────────────────────────────────────
+
+export interface AlvoDaCitacao {
+  readonly quadroId: string
+  /** A forma citada (`shape:…`); `null` = o quadro inteiro. */
+  readonly formaId: string | null
+}
+
+export interface OpcoesDaCitacao {
+  aoAbrir: (alvo: AlvoDaCitacao) => void
+}
+
+const CHAVE_DO_CLIQUE_NA_CITACAO = new PluginKey('pr-citacao-clique')
+
+/** Lê os `attrs` de uma citação; sem quadro, `null`. */
+export function alvoDaCitacao(atributos: unknown): AlvoDaCitacao | null {
+  if (typeof atributos !== 'object' || atributos === null) return null
+  const { quadroId, formaId } = atributos as { quadroId?: unknown; formaId?: unknown }
+  if (typeof quadroId !== 'string' || quadroId === '') return null
+  return { quadroId, formaId: typeof formaId === 'string' && formaId !== '' ? formaId : null }
+}
+
+/**
+ * O texto cita um quadro: o quadro inteiro, uma moldura ou um cartão (pelo id da
+ * forma). O rótulo é o nome na hora de citar; um clique abre o quadro naquele
+ * ponto (`EditorDeTexto.tsx`). O jogador nunca recebe a citação: o pacote do
+ * revelado só leva os nós que conhece (`pacoteDoJogador.ts`).
+ */
+export const CitacaoQuadro = Node.create<OpcoesDaCitacao>({
+  name: PECAS_DO_TEXTO.citacaoQuadro,
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: false,
+  addOptions() {
+    return { aoAbrir: () => undefined }
+  },
+  addAttributes() {
+    return {
+      quadroId: { default: '', parseHTML: (elemento: HTMLElement) => elemento.getAttribute('data-quadro') ?? '', renderHTML: (atributos: Record<string, unknown>) => ({ 'data-quadro': String(atributos.quadroId ?? '') }) },
+      formaId: {
+        default: null,
+        parseHTML: (elemento: HTMLElement) => elemento.getAttribute('data-forma') || null,
+        renderHTML: (atributos: Record<string, unknown>) => (typeof atributos.formaId === 'string' && atributos.formaId !== '' ? { 'data-forma': atributos.formaId } : {}),
+      },
+      rotulo: { default: '', parseHTML: (elemento: HTMLElement) => elemento.getAttribute('data-rotulo') ?? '', renderHTML: (atributos: Record<string, unknown>) => ({ 'data-rotulo': String(atributos.rotulo ?? '') }) },
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-citacao-quadro]' }]
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const rotulo = typeof node.attrs.rotulo === 'string' && node.attrs.rotulo !== '' ? node.attrs.rotulo : 'quadro'
+    const dica = node.attrs.formaId === null ? `Abrir o quadro ${rotulo}` : `Abrir o quadro em ${rotulo}`
+    return ['span', mergeAttributes(HTMLAttributes, { class: 'pr-citacao', 'data-citacao-quadro': '', title: dica }), rotulo]
+  },
+  renderText({ node }) {
+    return typeof node.attrs.rotulo === 'string' ? node.attrs.rotulo : ''
+  },
+  addProseMirrorPlugins() {
+    const { aoAbrir } = this.options
+    return [
+      new Plugin({
+        key: CHAVE_DO_CLIQUE_NA_CITACAO,
+        props: {
+          handleClickOn: (_vista, _posicao, no) => {
+            if (no.type.name !== PECAS_DO_TEXTO.citacaoQuadro) return false
+            const alvo = alvoDaCitacao(no.attrs)
+            if (alvo === null) return false
+            aoAbrir(alvo)
+            return true
+          },
+        },
+      }),
+    ]
+  },
+})
+
 // ─── @menção ─────────────────────────────────────────────────────────────────
 
 export interface ItemDaMencao {
@@ -390,6 +468,8 @@ export interface OpcoesDoTexto {
   readonly mencao: OpcoesDaMencao
   /** Sem ela, o link para a mesa só aparece (sem estado nem clique). */
   readonly mesa?: OpcoesDaMesa
+  /** Sem ela, a citação do quadro só aparece (sem clique). */
+  readonly citacao?: OpcoesDaCitacao
 }
 
 export function extensoesDoTexto(opcoes?: OpcoesDoTexto): Extensions {
@@ -400,6 +480,7 @@ export function extensoesDoTexto(opcoes?: OpcoesDoTexto): Extensions {
     Imagem.configure(opcoes?.imagem ?? {}),
     Segredo,
     LigacaoMesa.configure(opcoes?.mesa ?? {}),
+    CitacaoQuadro.configure(opcoes?.citacao ?? {}),
     Mencao.configure(opcoes?.mencao ?? {}),
   ]
   if (opcoes !== undefined) lista.push(Placeholder.configure({ placeholder: opcoes.convite }))

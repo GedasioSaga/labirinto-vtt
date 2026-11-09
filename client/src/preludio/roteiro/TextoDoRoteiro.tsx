@@ -203,6 +203,13 @@ function desenhar(no: No, chave: number, contexto: ContextoDoRoteiro): ReactNode
         <LinkDaMesa key={chave} alvo={alvo} rotulo={rotulo} contexto={contexto} />
       )
     }
+    case PECAS_DO_TEXTO.citacaoQuadro:
+      // No mapa, a citação do quadro é só o nome: o quadro abre no Prelúdio.
+      return (
+        <span key={chave} className="pr-citacao pr-citacao--so-nome" title="Quadro do Prelúdio">
+          {textoDe(atributos.rotulo) || 'quadro'}
+        </span>
+      )
     default:
       return Array.isArray(no.content) ? <Fragment key={chave}>{filhos(no, contexto)}</Fragment> : null
   }

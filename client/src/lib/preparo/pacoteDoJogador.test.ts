@@ -109,6 +109,8 @@ function campanhaComSegredos() {
               // A sessão e o formato mais novo nunca vão ao jogador: nem o nome deles sai pela menção.
               p(t('Visto em '), mencao('vb-sessao', 'x'), t(' e '), mencao('vb-futuro', 'y')),
               p(t('Rumo a '), { type: 'ligacaoMesa', attrs: { alvo: { chave: `${SEGREDO}-mapa`, sceneId: 'cena-2', pinoId: `${SEGREDO}-pino` }, rotulo: `${SEGREDO} pino` } }),
+              // A citação do quadro (F3b) é do mestre: nem o endereço nem o rótulo saem.
+              p(t('Ver no quadro '), { type: 'citacaoQuadro', attrs: { quadroId: `${SEGREDO}-quadro`, formaId: `shape:${SEGREDO}`, rotulo: `${SEGREDO} moldura` } }),
               { type: 'segredo', content: [p(t(`${SEGREDO} bloco `), mencao('vb-imediato', 'Imediato Brisa'))] },
               { type: 'image', attrs: { midia: midia('c'), alt: `${SEGREDO} alt`, title: `${SEGREDO} title`, rel: `Imagens/${SEGREDO}.png`, legenda: 'Figura VISIVEL', largura: 320 } },
               { type: 'image', attrs: { midia: `midia/${SEGREDO}.png`, legenda: 'arquivo com nome' } },
@@ -304,11 +306,12 @@ describe('pacote do jogador: o texto', () => {
     expect(daBia).toContainEqual({ type: 'text', text: 'Fantasma' })
   })
 
-  it('bloco de segredo, ligação com a mesa, nó e marca desconhecidos somem; o link perigoso perde o link e fica o texto', () => {
+  it('bloco de segredo, ligação com a mesa, citação do quadro, nó e marca desconhecidos somem; o link perigoso perde o link e fica o texto', () => {
     const tipos = new Set(textoDoCapitao(ANA).map((no) => no.type))
     expect([...tipos].sort()).toEqual(['image', 'mencao', 'paragraph', 'text'])
     expect(textoDoCapitao(ANA)).toContainEqual({ type: 'text', text: 'link perigoso' })
     expect(textoDoCapitao(ANA)).toContainEqual({ type: 'text', text: 'Rumo a ' })
+    expect(textoDoCapitao(ANA)).toContainEqual({ type: 'text', text: 'Ver no quadro ' })
   })
 
   it('a imagem do texto sai só com o caminho do conteúdo e a legenda', () => {
