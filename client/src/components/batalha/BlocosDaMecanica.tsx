@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from 'react'
 import { CUSTO_MAX, DANO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX } from '../../lib/batalha/combate'
 import { CAMPO_DO_DANO } from '../../lib/batalha/formula'
 import { CASAS_MAX, EFEITOS_MAX, EXTRAS_MAX, FORMULA_MAX, LIMITE_MAX, TEXTO_A_MAO_MAX, VEZES_MAX, type AcaoDaMecanica, type Custo, type Efeito, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega } from '../../lib/batalha/mecanica/modelo'
-import { ehAjuda, formaNova, ladoValido, motivoDaForma, motivoDoQuem, trocarQuem } from '../../lib/batalha/mecanica/modelos'
+import { ehAjuda, formaNova, ladoValido, motivoDoQuem, trocarQuem } from '../../lib/batalha/mecanica/modelos'
 import { fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDoDano, frasesDosOutrosCustos, numeroComVirgula, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
 import { SELOS_PRONTOS } from '../../lib/batalha/selos'
 import type { CartaoDaFicha } from '../../lib/personagem'
@@ -308,7 +308,7 @@ function BlocoDoAlvo({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onC
         <>
           <Escolha
             legenda="O desenho"
-            opcoes={FORMAS.map((forma) => ({ ...forma, bloqueio: motivoDaForma(alvo, forma.valor) }))}
+            opcoes={FORMAS}
             valor={alvo.forma.tipo}
             onChange={(tipo) => onChange({ ...mecanica, alvo: { ...alvo, forma: formaNova(tipo, alvo.forma) } })}
           />

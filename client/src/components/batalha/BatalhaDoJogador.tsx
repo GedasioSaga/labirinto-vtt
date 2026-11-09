@@ -69,6 +69,9 @@ export interface FichaDoJogador {
   /** C4: a posição no mapa (px do mundo), para a ordem dos alvos por distância. */
   x?: number
   y?: number
+  /** Construtor C3: casas por lado e rotação do token, para a área montada marcar pela grade. */
+  size?: number
+  rotation?: number
 }
 
 export interface BatalhaDoJogadorProps {

@@ -1,6 +1,6 @@
 import type { CartaoDaFicha, MecanicaGuardada } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
-import { lerMecanica, VERSAO_DA_MECANICA, type AlvoDaMecanica, type FormaDoAlvo, type MecanicaV1, type QuemOAlvoPega } from './modelo'
+import { lerMecanica, VERSAO_DA_MECANICA, type FormaDoAlvo, type MecanicaV1, type QuemOAlvoPega } from './modelo'
 
 /**
  * OS MODELOS PRONTOS e as regras de edição da tela de montar (construtor de
@@ -127,11 +127,6 @@ export function tecnicasParaCopiar(cartoes: readonly CartaoDaFicha[], excetoId: 
 
 // ─── As regras que a tela segue ao trocar uma peça ──────────────────────────
 
-/** A forma é área (linha, quadrado, raio)? */
-export function formaDeArea(forma: FormaDoAlvo): boolean {
-  return forma.tipo === 'linha' || forma.tipo === 'quadrado' || forma.tipo === 'raio'
-}
-
 /** Ajuda: o golpe pega em quem usa ou num aliado (cura e tirar selos só valem aí). */
 export function ehAjuda(quem: QuemOAlvoPega): boolean {
   return quem === 'aliados' || quem === 'si'
@@ -151,16 +146,9 @@ export function motivoDoQuem(mecanica: MecanicaV1, quem: QuemOAlvoPega): string 
   return null
 }
 
-/** Por que esta forma não pode ser escolhida agora; `null` = pode. */
-export function motivoDaForma(alvo: AlvoDaMecanica, tipo: FormaDoAlvo['tipo']): string | null {
-  if (alvo.quem === 'si') return null
-  if (alvo.quem === 'aliados' && (tipo === 'linha' || tipo === 'quadrado' || tipo === 'raio')) return 'Área só de aliados chega numa próxima versão.'
-  return null
-}
-
-/** Troca quem o golpe pega: "em si" é um alvo só; aliado não pega área (ainda). Natureza do selo acompanha. */
+/** Troca quem o golpe pega: "em si" é um alvo só (o resto guarda a forma). Natureza do selo acompanha. */
 export function trocarQuem(mecanica: MecanicaV1, quem: QuemOAlvoPega): MecanicaV1 {
-  const forma: FormaDoAlvo = quem === 'si' || (quem === 'aliados' && formaDeArea(mecanica.alvo.forma)) ? { tipo: 'um' } : mecanica.alvo.forma
+  const forma: FormaDoAlvo = quem === 'si' ? { tipo: 'um' } : mecanica.alvo.forma
   const natureza: 'buff' | 'debuff' = ehAjuda(quem) ? 'buff' : 'debuff'
   const efeitos = mecanica.efeitos.map((efeito) => (efeito.tipo === 'selo' ? { ...efeito, natureza } : efeito))
   return { ...mecanica, alvo: { quem, forma }, efeitos }

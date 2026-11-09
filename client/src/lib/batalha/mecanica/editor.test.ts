@@ -13,7 +13,7 @@ import { etiquetaDaMecanica, resumoDaMecanica } from './resumo'
 const marinheiro = ficha('Marinheiro de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, {})
 
 describe('modelos prontos e resumo em frases', () => {
-  it('os 5 modelos passam na leitura do motor; trocar para aliado tira a área e o selo vira buff', () => {
+  it('os 5 modelos passam na leitura do motor; trocar para aliado guarda a área (C3) e o selo vira buff', () => {
     for (const modelo of MODELOS_PRONTOS) {
       const mecanica = mecanicaDoModelo(modelo.id, sistema)
       expect(lerMecanica(guardarMecanica(mecanica)).tipo, modelo.nome).toBe('pecas')
@@ -21,7 +21,8 @@ describe('modelos prontos e resumo em frases', () => {
     }
     const area = mecanicaDoModelo('area', sistema)
     const emAliado = trocarQuem({ ...area, dano: undefined, efeitos: [{ tipo: 'selo', nome: 'Marcado', duracao: 1, natureza: 'debuff' }] }, 'aliados')
-    expect(emAliado.alvo).toEqual({ quem: 'aliados', forma: { tipo: 'um' } })
+    expect(emAliado.alvo).toEqual({ quem: 'aliados', forma: area.alvo.forma })
+    expect(lerMecanica(guardarMecanica(emAliado)).tipo).toBe('pecas')
     expect(emAliado.efeitos).toEqual([{ tipo: 'selo', nome: 'Marcado', duracao: 1, natureza: 'buff' }])
     expect(problemaDaMecanica({ ...emAliado, dano: undefined })).toBeNull()
   })

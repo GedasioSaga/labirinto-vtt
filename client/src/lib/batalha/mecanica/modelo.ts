@@ -13,7 +13,7 @@ import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX } from '../co
  * texto, que pode estar velho.
  *
  * Esta fatia aceita só as peças que o motor já executa. As fatias seguintes
- * (C3 área livre e alcance, C4 teste e disputa, C5 selos vivos, C6 perguntas)
+ * (área num ponto livre e alcance, C4 teste e disputa, C5 selos vivos, C6 perguntas)
  * acrescentam variantes opcionais; até lá, um cartão com elas é recusado
  * aqui, e não executado pela metade.
  *
@@ -257,9 +257,7 @@ function alvo(valor: unknown): AlvoDaMecanica {
   soChaves(peca, ['quem', 'forma'], 'alvo')
   const quem = umDe(peca.quem, ['inimigos', 'aliados', 'todos', 'si', 'escolha'] as const, 'quem o alvo pega')
   const lida = forma(peca.forma)
-  const area = lida.tipo === 'linha' || lida.tipo === 'quadrado' || lida.tipo === 'raio'
-  // A área de hoje (`area.ts`) marca os inimigos ou todos; só aliados e "em si" chegam na fatia C3.
-  if (area && (quem === 'aliados' || quem === 'si')) torta('área só de aliados ou em si ainda não existe')
+  // Construtor C3: a área marca os inimigos, os aliados (a cura em área) ou todos; "em si" não tem área.
   if (quem === 'si' && lida.tipo !== 'um') torta('"em si" é um alvo só')
   return { quem, forma: lida }
 }

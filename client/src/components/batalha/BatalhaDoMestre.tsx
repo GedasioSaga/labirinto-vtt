@@ -94,7 +94,8 @@ function SelosDaVez({ turnos, tokenId, nome, sistema, onDialogo }: { turnos: Tur
 
 interface Mesa {
   cena: BatalhaDaCena | undefined
-  fichas: readonly { id: string; name: string; imageData?: string | null; x?: number; y?: number }[]
+  /** Construtor C3: `size` e `rotation` para a área montada marcar pela grade (o token grande, a frente). */
+  fichas: readonly { id: string; name: string; imageData?: string | null; x?: number; y?: number; size?: number; rotation?: number }[]
   /** C4: o lado da casa (px), para a ordem dos alvos por distância. */
   tamanhoDaCasa?: number
   personagens: readonly Personagem[]

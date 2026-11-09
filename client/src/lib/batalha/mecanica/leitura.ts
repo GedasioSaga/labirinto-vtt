@@ -206,7 +206,8 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   }
   const { forma, quem } = mecanica.alvo
   const area = areaDaForma(forma)
-  if (area !== null) linha.area = { forma: area, quem: quem === 'inimigos' ? 'inimigos' : 'todos' }
+  // Construtor C3: "a escolher" e "todos" marcam todos na área (quem usa desmarca); "aliados" só os do lado dele.
+  if (area !== null) linha.area = { forma: area, quem: quem === 'inimigos' || quem === 'aliados' ? quem : 'todos' }
   if (forma.tipo === 'varios' && forma.dividirDano === true) linha.divide = { teto: forma.max }
   else if (forma.tipo === 'varios') linha.tetoDeAlvosComDano = forma.max
   else if (forma.tipo === 'um') linha.tetoDeAlvosComDano = 1

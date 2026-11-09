@@ -15,7 +15,8 @@ import {
 } from '../../lib/batalha/combate'
 import type { PerguntaNaHora, RespostasDoPedido } from '../../lib/batalha/perguntaNaHora'
 import { divisaoDoDano } from '../../lib/batalha/reacao'
-import { dividirDano } from '../../lib/batalha/area'
+import { dividirDano, type Direcao } from '../../lib/batalha/area'
+import type { AreaAMao } from '../../lib/batalha/mecanicasAMao'
 import { ehNomeDeSelo, textoDoSelo } from '../../lib/batalha/selos'
 import { iniciais } from '../FichaPecas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
@@ -24,7 +25,11 @@ import { ContaComBonus } from './ContaComBonus'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import {
   alvosNaAreaDaMira,
+  alvosNaAreaPelaGrade,
+  areaComFrente,
   contaDoGolpe,
+  direcaoDaAreaAoAbrir,
+  miraComGrade,
   formatarNumero,
   lerInteiro,
   lerPerfuracao,
@@ -224,10 +229,35 @@ function textoDoDanoDividido(base: number | null, alvos: number, teto: number): 
   return alvos === 1 ? `Um alvo só: toma ${base} (o dano se divide entre até ${teto}).` : `O dano se divide: ${base} ÷ ${alvos} = ${cada} em cada.`
 }
 
+/** Construtor C3: a nota da área pela grade: quantas fichas ela pega daqui, e que dá para mudar. */
+function textoDaAreaNaMira(naArea: number, comFrente: boolean): string {
+  if (naArea === 0) return comFrente ? 'Ninguém na área deste lado. Vire a área ou marque à mão.' : 'Ninguém na área. Marque à mão, se quiser.'
+  return `A área pega ${naArea} ${naArea === 1 ? 'ficha' : 'fichas'}. Clique numa ficha para tirar ou pôr.`
+}
+
 /** Buff (tipos de habilidade F2): a mira começa em quem usa (o "você" da lista; no mestre, o NPC da vez). */
 function voceNaLista(alvos: readonly AlvoNaMira[]): string | null {
   const meus = alvos.filter((alvo) => alvo.lado === 'eu' && !alvo.motivo)
   return (meus.find((alvo) => !alvo.caiu) ?? meus[0])?.tokenId ?? null
+}
+
+/** Construtor C3: cada lado no seletor da área (o mapa visto de cima, como na tela), na ordem das setas do teclado. */
+const LADOS_DA_AREA: readonly { direcao: Direcao; seta: string; rotulo: string }[] = [
+  { direcao: 'oeste', seta: '←', rotulo: 'Esquerda' },
+  { direcao: 'norte', seta: '↑', rotulo: 'Cima' },
+  { direcao: 'sul', seta: '↓', rotulo: 'Baixo' },
+  { direcao: 'leste', seta: '→', rotulo: 'Direita' },
+]
+
+/** Construtor C3: a área da técnica montada marca sozinha (tem a grade); `null` = a regra de sempre. */
+function areaDaGrade(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[]): AreaAMao | null {
+  return golpe.areaPelaGrade === true && golpe.area !== undefined && miraComGrade(alvos) ? golpe.area : null
+}
+
+/** Marca ou desmarca `tokenId`; com o teto de 1 alvo, marcar outro troca (como escolher numa lista de um). */
+function alternarNaLista(antes: readonly string[], tokenId: string, tetoDeAlvos: number | undefined): readonly string[] {
+  if (antes.includes(tokenId)) return antes.filter((id) => id !== tokenId)
+  return tetoDeAlvos === 1 ? [tokenId] : [...antes, tokenId].slice(-ALVOS_MAX)
 }
 
 /** Quem a mira marca ao abrir: Buff em si; quem está na área (F2, fatia F: Giro de Pá); a sugestão do NPC; o primeiro de outra equipe. */
@@ -236,6 +266,8 @@ function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoI
   if (emSi !== null) return [emSi]
   // F2 (fatia C): a técnica sem alvo (Armadilhar posiciona a armadilha) abre sem ninguém marcado.
   if (golpe.semAlvo === true) return []
+  // Construtor C3: a área montada com a grade marca só quem está nela, mesmo ninguém (a área vazia não vira o "primeiro inimigo").
+  if (areaDaGrade(golpe, alvos) !== null && daArea !== undefined) return daArea.slice(0, ALVOS_MAX)
   if (golpe.area !== undefined && daArea !== undefined && daArea.length > 0) return daArea.filter((tokenId) => alvos.some((alvo) => alvo.tokenId === tokenId && !alvo.motivo)).slice(0, ALVOS_MAX)
   const sugerido = alvoInicial !== undefined && alvoInicial !== null && alvos.some((alvo) => alvo.tokenId === alvoInicial && !alvo.motivo) ? alvoInicial : null
   const primeiro = sugerido ?? (alvoInicial === undefined ? primeiroAlvo(alvos) : null)
@@ -244,7 +276,16 @@ function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoI
 
 export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa, marcadosDaArea }: MiraDoGolpeProps) {
   const idBase = useId()
-  const [marcados, setMarcados] = useState<readonly string[]>(() => marcadosAoAbrir(golpe, alvos, alvoInicial, marcadosDaArea ?? (golpe.area === undefined ? undefined : alvosNaAreaDaMira(golpe.area, alvos))))
+  // Construtor C3: a área montada aponta para a frente de quem age (ou o lado que pega mais); quem usa pode virar.
+  const [direcao, setDirecao] = useState<Direcao>(() => {
+    const area = areaDaGrade(golpe, alvos)
+    return area === null ? 'norte' : direcaoDaAreaAoAbrir(area, alvos)
+  })
+  const [marcados, setMarcados] = useState<readonly string[]>(() => {
+    const area = areaDaGrade(golpe, alvos)
+    const daArea = area !== null ? alvosNaAreaPelaGrade(area, alvos, direcao) : golpe.area === undefined ? undefined : alvosNaAreaDaMira(golpe.area, alvos)
+    return marcadosAoAbrir(golpe, alvos, alvoInicial, marcadosDaArea ?? daArea)
+  })
   // F2 (fatia F, Siegfried): a arma da técnica (a 1ª levada vem marcada); trocar refaz o Dano base.
   const [armaId, setArmaId] = useState<string | null>(golpe.armas?.[0]?.id ?? null)
   const armaEscolhida = golpe.armas?.find((arma) => arma.id === armaId) ?? null
@@ -293,8 +334,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     ultimoSeq.current = alvoDoMapa.seq
     if (!alvos.some((alvo) => alvo.tokenId === alvoDoMapa.tokenId)) return
     setFoco(alvoDoMapa.tokenId)
-    setMarcados((antes) => (antes.includes(alvoDoMapa.tokenId) ? antes.filter((id) => id !== alvoDoMapa.tokenId) : [...antes, alvoDoMapa.tokenId].slice(-ALVOS_MAX)))
-  }, [alvoDoMapa, alvos])
+    setMarcados((antes) => alternarNaLista(antes, alvoDoMapa.tokenId, golpe.tetoDeAlvos))
+  }, [alvoDoMapa, alvos, golpe.tetoDeAlvos])
 
   const semDano = danoDaOpcao.semDano
   const base = semDano ? null : lerInteiro(baseTexto, DANO_MAX)
@@ -315,7 +356,16 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const alternar = (tokenId: string) => {
     if (alvos.find((alvo) => alvo.tokenId === tokenId)?.motivo) return
     setErro(null)
-    setMarcados((antes) => (antes.includes(tokenId) ? antes.filter((id) => id !== tokenId) : [...antes, tokenId].slice(-ALVOS_MAX)))
+    setMarcados((antes) => alternarNaLista(antes, tokenId, golpe.tetoDeAlvos))
+  }
+
+  /** Construtor C3: virar a área remarca quem está nela (o que quem usa mudou à mão sai junto: é outra mira). */
+  const virarArea = (lado: Direcao) => {
+    const area = areaDaGrade(golpe, alvos)
+    if (area === null) return
+    setErro(null)
+    setDirecao(lado)
+    setMarcados(alvosNaAreaPelaGrade(area, alvos, lado).slice(0, ALVOS_MAX))
   }
 
   const lancar = (evento?: FormEvent) => {
@@ -327,6 +377,11 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     // F2 (fatia F, Lua Incandescente): a mesma regra do host, dita antes de mandar.
     if (golpe.divide !== undefined && marcados.length > golpe.divide) {
       setErro(`${golpe.nome} acerta no máximo ${golpe.divide} alvos (o dano é dividido).`)
+      return
+    }
+    // Construtor C3: a mesma regra do host (`motivoDoTetoDeDano`), dita antes de mandar.
+    if (golpe.tetoDeAlvos !== undefined && marcados.length > golpe.tetoDeAlvos) {
+      setErro(golpe.tetoDeAlvos === 1 ? `${golpe.nome} acerta um alvo só.` : `${golpe.nome} acerta no máximo ${golpe.tetoDeAlvos} alvos.`)
       return
     }
     const pedidoDeAlvos: PedidoDeAlvo[] = []
@@ -474,6 +529,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   }
 
   const marcadosSet = useMemo(() => new Set(marcados), [marcados])
+  const areaNaGrade = areaDaGrade(golpe, alvos)
   const verbo = rotuloDoLancar ?? 'Lançar'
   const textoDoLancar = marcados.length > 1 ? `${verbo} em ${marcados.length} alvos` : verbo
 
@@ -501,6 +557,21 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
         )}
         {golpe.perguntas?.map((pergunta) => <PerguntaDaMira key={pergunta.chave} idBase={idBase} pergunta={pergunta} resposta={respostas[pergunta.chave]} onResponder={responder} />)}
         {golpe.lembrete !== undefined && <p className="bt-mira__nota">{golpe.lembrete}</p>}
+        {areaNaGrade !== null && areaComFrente(areaNaGrade) && (
+          <fieldset className="bt-escolha">
+            <legend>Para onde a área aponta</legend>
+            <div className="bt-escolha__chips">
+              {LADOS_DA_AREA.map((lado) => (
+                <label key={lado.direcao} className="bt-escolha__chip bt-mira__lado" title={lado.rotulo}>
+                  <input type="radio" className="bt-sr" name={`${idBase}-area`} checked={direcao === lado.direcao} onChange={() => virarArea(lado.direcao)} />
+                  <span aria-hidden="true">{lado.seta}</span>
+                  <span className="bt-sr">{lado.rotulo}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        {areaNaGrade !== null && <p className="bt-mira__nota">{textoDaAreaNaMira(alvosNaAreaPelaGrade(areaNaGrade, alvos, direcao).length, areaComFrente(areaNaGrade))}</p>}
         {golpe.divide !== undefined && <p className="bt-mira__nota">{textoDoDanoDividido(base, marcados.length, golpe.divide)}</p>}
         {balas.length > 0 && (
           <fieldset className="bt-mira__balas">

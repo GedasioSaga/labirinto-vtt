@@ -19,8 +19,9 @@ import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preench
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
 import { chavesDoDono, golpesSaoOverload, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
-import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao } from '../../lib/batalha/mecanica/leitura'
-import { casaNaAreaVirada, type Casa } from '../../lib/batalha/area'
+import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas } from '../../lib/batalha/mecanica/leitura'
+import { casaNaAreaVirada, direcaoDaRotacao, DIRECOES, fichaNaArea, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
+import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { subidaDeParte } from '../../lib/batalha/transformacao'
 import type { PerguntaNaHora } from '../../lib/batalha/perguntaNaHora'
@@ -74,6 +75,10 @@ export interface GolpeNaTela {
   area?: AreaAMao
   /** F2 (fatia F, Lua Incandescente): o dano se divide entre os marcados, até este teto de alvos. */
   divide?: number
+  /** Construtor C3: a área da técnica montada marca pela grade (a ficha inteira, a frente de quem age, a mira vira a área). */
+  areaPelaGrade?: true
+  /** Construtor C3: a técnica montada acerta no máximo tantos alvos (1 alvo, "até N"); a mira avisa antes do host. */
+  tetoDeAlvos?: number
   /** F2 (fatia F, Golpe Baixo): o que a mira lembra (o mestre confere). */
   lembrete?: string
   /** Construtor C1: os multiplicadores extras da técnica montada (furtivo ×3), na ordem; a prévia os mostra na conta. */
@@ -272,6 +277,16 @@ export interface AlvoNaMira {
   cor?: string | null
   /** F2 (fatia F): a casa do alvo em relação a quem age (colunas e linhas); ausente = sem posição ou sem o tamanho da casa. */
   deslocamento?: Casa
+  /** Construtor C3: a ficha do alvo e a de quem age na grade, inteiras (token grande), e para onde quem age olha; ausente = sem posição. */
+  naGrade?: GradeDaMira
+}
+
+/** Construtor C3: onde o alvo e quem age estão na grade (a ficha inteira de cada um). */
+export interface GradeDaMira {
+  ficha: PegadaNaGrade
+  deQuemAge: PegadaNaGrade
+  /** Para onde quem age olha (a rotação do token); `null` = o mestre nunca deu frente. */
+  frente: Direcao | null
 }
 
 /** A ficha sem personagem não é alvo (a store recusa): fica na lista, apagada. */
@@ -282,6 +297,10 @@ export interface FichaComPosicao {
   id: string
   x?: number
   y?: number
+  /** Construtor C3: casas por lado (o token grande ocupa várias); ausente = 1. */
+  size?: number
+  /** Construtor C3: a rotação do token (graus, 0 = para cima), para a frente de quem age. */
+  rotation?: number
 }
 
 /**
@@ -304,11 +323,18 @@ export function alvosNaOrdemDaMira<T extends AlvoNaMira>(alvos: readonly T[], fi
   // F2 (fatia F, Giro de Pá): a casa de cada alvo em relação a quem age, para a mira marcar quem está na área.
   const casaDe = (p: { x: number; y: number }): Casa => ({ col: Math.floor(p.x / casa), row: Math.floor(p.y / casa) })
   const daOrigem = casaDe(origem)
+  // Construtor C3: a ficha inteira na grade, pela mesma casa de referência do passo em batalha (`casaDoToken`).
+  const pegadaDe = (p: { x: number; y: number }, tokenId: string): PegadaNaGrade => {
+    const size = porId.get(tokenId)?.size
+    return pegadaDaFicha(casaDoToken(p, size ?? 1, casa), size)
+  }
+  const deQuemAge = pegadaDe(origem, deTokenId)
+  const frente = direcaoDaRotacao(porId.get(deTokenId)?.rotation)
   return ordenados.map((alvo) => {
     const p = ponto(alvo.tokenId)
     if (p === undefined) return alvo
     const dele = casaDe(p)
-    return { ...alvo, deslocamento: { col: dele.col - daOrigem.col, row: dele.row - daOrigem.row } }
+    return { ...alvo, deslocamento: { col: dele.col - daOrigem.col, row: dele.row - daOrigem.row }, naGrade: { ficha: pegadaDe(p, alvo.tokenId), deQuemAge, frente } }
   })
 }
 
@@ -527,6 +553,17 @@ function golpeDaTecnica(
   // F2 (fatia F): a área (Giro de Pá), o dano dividido (Lua Incandescente) e o lembrete da mira (Golpe Baixo).
   if (mecanica?.area !== undefined) golpe.area = mecanica.area
   if (mecanica?.divide !== undefined) golpe.divide = mecanica.divide.teto
+  // Construtor C3: só a técnica montada marca pela grade e avisa o teto na mira (as fichas de hoje seguem como estão).
+  if (cartaoMontado(cartao)) {
+    if (mecanica?.area !== undefined) golpe.areaPelaGrade = true
+    if (mecanica?.tetoDeAlvosComDano !== undefined) golpe.tetoDeAlvos = mecanica.tetoDeAlvosComDano
+    // A peça de alvo manda na mira como manda no host (`reacaoDasPecas`), não o Tipo escrito: ajuda não reage e começa em quem usa.
+    const alvoDasPecas = pecasDoCartao(cartao)
+    if (alvoDasPecas !== null) {
+      golpe.reacao = reacaoDasPecas(alvoDasPecas)
+      golpe.alvoEmSi = alvoDasPecas.alvo.quem === 'si' || (alvoDasPecas.alvo.quem === 'aliados' && mecanica?.area === undefined)
+    }
+  }
   if (mecanica?.lembreteNaMira !== undefined) golpe.lembrete = mecanica.lembreteNaMira
   // Construtor C1: os multiplicadores da peça entram na prévia (o host recalcula de qualquer jeito).
   const multiplicadores = pecasDoCartao(cartao)?.dano?.multiplicadores
@@ -539,7 +576,8 @@ function golpeDaTecnica(
   const subida = subidaDeParte(personagem, sistema, id)
   if (golpe.motivo === null && subida !== null && 'motivo' in subida) golpe.motivo = subida.motivo
   // F2 (fatia D, Revigorar): a técnica que limpa começa em quem usa (vale nele ou num aliado).
-  if (limpezaDe(cartao) !== null) golpe.alvoEmSi = true
+  // Construtor C3: a cura montada em área começa em quem está na área (a grade marca os aliados).
+  if (limpezaDe(cartao) !== null && golpe.areaPelaGrade !== true) golpe.alvoEmSi = true
   // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
   // F2 (fatia D, Imbuir Fogo): a opção que a forma ligada não deixa some (a Ignição ligada deixa só "Não" no fogo).
   const perguntas = perguntasComAsFormas(perguntasDoGolpe(id, idsDosCartoes(personagem)), id, personagem.cartoesAtivos)
@@ -609,9 +647,58 @@ function armasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: 
 export function alvosNaAreaDaMira(area: AreaAMao, alvos: readonly AlvoNaMira[]): string[] {
   const origem: Casa = { col: 0, row: 0 }
   return alvos
-    .filter((alvo) => !alvo.motivo && !alvo.caiu && alvo.lado !== 'eu' && (area.quem === 'todos' || alvo.lado === 'outro'))
+    .filter((alvo) => !alvo.motivo && !alvo.caiu && alvo.lado !== 'eu' && (area.quem === 'todos' || alvo.lado === (area.quem === 'inimigos' ? 'outro' : 'aliado')))
     .filter((alvo) => alvo.deslocamento !== undefined && casaNaAreaVirada(area.forma, origem, null, alvo.deslocamento))
     .map((alvo) => alvo.tokenId)
+}
+
+/** Construtor C3: o lado do alvo entra pelo filtro da área ("aliados" inclui as outras fichas de quem olha, como o invocado dele). */
+function entraPeloLado(quem: AreaAMao['quem'], lado: AlvoNaMira['lado']): boolean {
+  if (quem === 'todos') return true
+  return quem === 'inimigos' ? lado === 'outro' : lado !== 'outro'
+}
+
+/**
+ * Construtor C3: quem a área da técnica montada pega, pela grade, com a área
+ * virada para `direcao`: a ficha inteira de quem age e a de cada alvo (o
+ * token grande entra com qualquer casa dele). Quem age nunca entra (a casa
+ * dele não é da área); alvo sem posição fica de fora (quem usa marca à mão).
+ */
+export function alvosNaAreaPelaGrade(area: AreaAMao, alvos: readonly AlvoNaMira[], direcao: Direcao): string[] {
+  return alvos
+    .filter((alvo) => !alvo.motivo && !alvo.caiu && entraPeloLado(area.quem, alvo.lado))
+    .filter((alvo) => alvo.naGrade !== undefined && fichaNaArea(area.forma, alvo.naGrade.deQuemAge, direcao, alvo.naGrade.ficha))
+    .map((alvo) => alvo.tokenId)
+}
+
+/** Construtor C3: a área aponta para um lado (linha, quadrado à frente); o raio e o "em volta" não. */
+export function areaComFrente(area: AreaAMao): boolean {
+  return area.forma.tipo !== 'raio'
+}
+
+/** Construtor C3: alguma ficha da mira tem posição na grade (sem mapa, a Arena: a área não marca nada sozinha). */
+export function miraComGrade(alvos: readonly AlvoNaMira[]): boolean {
+  return alvos.some((alvo) => alvo.naGrade !== undefined)
+}
+
+/**
+ * Construtor C3: para onde a área aponta ao abrir a mira: a frente de quem
+ * age (a rotação do token) ou, sem ela, o lado que pega mais fichas (no
+ * empate, a ordem cima, direita, baixo, esquerda).
+ */
+export function direcaoDaAreaAoAbrir(area: AreaAMao, alvos: readonly AlvoNaMira[]): Direcao {
+  const frente = alvos.find((alvo) => alvo.naGrade !== undefined)?.naGrade?.frente ?? null
+  if (frente !== null) return frente
+  let melhor: Direcao = 'norte'
+  let pegos = -1
+  for (const direcao of DIRECOES) {
+    const quantos = alvosNaAreaPelaGrade(area, alvos, direcao).length
+    if (quantos > pegos) {
+      melhor = direcao
+      pegos = quantos
+    }
+  }
+  return melhor
 }
 
 /** As armas que valem nesta batalha: as levadas (Q8) ou, sem escolha, todas da aba Armas. */

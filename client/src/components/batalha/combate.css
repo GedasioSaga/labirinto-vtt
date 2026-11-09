@@ -3070,6 +3070,13 @@
     background: rgba(12, 12, 14, 0.12);
   }
 }
+/* Construtor C3: o lado da área, 4 setas quadradas numa linha só (o nome vai no leitor de tela e no title). */
+.bt-mira__lado {
+  justify-content: center;
+  min-width: 38px;
+  padding: 2px 8px;
+  font-size: var(--lb-font-size-md);
+}
 .bt-escolha__texto {
   margin: 0;
   max-height: 8.5em;
