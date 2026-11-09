@@ -71,7 +71,7 @@
 .pr-hoje__acoes { flex: none; display: flex; align-items: center; gap: 2px; }
 .pr-hoje__estado { display: flex; align-items: center; gap: var(--lb-space-1); margin: 2px 0 0; font-size: var(--lb-font-size-sm); line-height: 1.35; color: var(--lb-color-parchment-faint); }
 .pr-hoje__item[data-estado='revelado'] .pr-hoje__estado { color: var(--lb-color-brass-bright); }
-.pr-hoje__item[data-estado='parte'] .pr-hoje__estado { color: var(--lb-color-parchment-dim); }
+.pr-hoje__item[data-estado='parte'] .pr-hoje__estado, .pr-hoje__item[data-estado='outro'] .pr-hoje__estado { color: var(--lb-color-parchment-dim); }
 .pr-hoje__check { flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 /* O check confirma o Revelar: entra pequeno e assenta (raro, alguns por sessão). */
 .pr-hoje__check { animation: pr-hoje-check 180ms var(--lb-gr-ease-out) both; }

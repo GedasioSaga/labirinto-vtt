@@ -6,7 +6,7 @@ import { compararTitulos, ROTULO_DO_TIPO, semAcento, textoPlano } from '../../li
 import { alvoParaGravar, type AlvoNaMesa } from '../../lib/preparo/sessoes'
 import type { TextoRico, Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
-import { estadoDoLink, pedirLeitura, useCatalogoDaMesa } from '../mesa/catalogo'
+import { estadoDoLink, mapaNaMemoriaAgora, pedirLeitura, useCatalogoDaMesa } from '../mesa/catalogo'
 import { EscolherNaMesa } from '../mesa/EscolherNaMesa'
 import { abrirNaMesaPeloPreludio, podeAbrirNaMesa } from '../mesa/ponte'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
@@ -170,7 +170,8 @@ function verbeteDaFicha(alvo: Extract<AlvoNaMesa, { tipo: 'ficha' }>): Verbete |
 }
 
 function estadoDaMesa(alvo: AlvoNaMesa): EstadoDaMesaNoTexto {
-  const estado = estadoDoLink(alvo, useCatalogoDaMesa.getState())
+  // O mapa aberto no editor vale pela memória (o que ainda não foi salvo conta); os outros, pelo disco.
+  const estado = estadoDoLink(alvo, useCatalogoDaMesa.getState(), mapaNaMemoriaAgora())
   if (estado.t === 'lendo') pedirLeitura(alvo)
   if (estado.t === 'quebrado') return { quebrado: true, dica: estado.aviso, abre: false }
   if (alvo.tipo === 'ficha') {

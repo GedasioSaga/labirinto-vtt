@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { verbeteNovo } from '../../lib/preparo/enciclopedia'
-import { dadosDaSessao, nomeDaProximaSessao, sessoesEmOrdem } from '../../lib/preparo/sessoes'
+import { dadosDaSessao, nomeDaProximaSessao, ordemDaProximaSessao, sessoesEmOrdem } from '../../lib/preparo/sessoes'
 import type { Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
 import { abrirComONomeSelecionado, PaginaDaSessao } from './PaginaDaSessao'
@@ -18,14 +18,18 @@ export function useSessoes(): Verbete[] {
   return useMemo(() => sessoesEmOrdem(verbetes.values(), campanhaId), [verbetes, campanhaId])
 }
 
-/** Cria a próxima sessão ("Sessão 4") na campanha do filtro (ou na única que houver) e abre com o nome selecionado. */
+/**
+ * Cria a próxima sessão ("Sessão 4") na campanha do filtro (ou na única que
+ * houver) e abre com o nome selecionado. Ela grava a ordem (depois de todas):
+ * renomear para "A Fuga" não a tira do fim nem do "Mais recente".
+ */
 export function useNovaSessao(): () => Promise<void> {
   const sessoes = useSessoes()
   return useCallback(async () => {
-    const { campanhaId, campanhas, criarVerbete, ir, travado } = usePreludio.getState()
+    const { campanhaId, campanhas, criarVerbete, ir, travado, verbetes } = usePreludio.getState()
     if (travado) return
     const etiquetas = campanhaId !== null ? [campanhaId] : campanhas.length === 1 && campanhas[0] !== undefined ? [campanhas[0].id] : []
-    const nova = verbeteNovo('sessao', nomeDaProximaSessao(sessoes), { campanhas: etiquetas })
+    const nova = verbeteNovo('sessao', nomeDaProximaSessao(sessoes), { campanhas: etiquetas, ordem: ordemDaProximaSessao(verbetes.values(), Date.now()) })
     await criarVerbete(nova)
     abrirComONomeSelecionado(nova.id)
     ir({ secao: 'sessoes', sessaoId: nova.id })

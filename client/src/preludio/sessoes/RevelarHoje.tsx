@@ -1,8 +1,8 @@
 import { useId, useMemo, useState, type KeyboardEvent } from 'react'
 import { compararTitulos, ROTULO_DO_TIPO, semAcento } from '../../lib/preparo/enciclopedia'
-import type { ParaQuem } from '../../lib/preparo/revelado'
+import { paraNormal, type ParaQuem } from '../../lib/preparo/revelado'
 import { alvosParaRevelar, comParaRevelar, dadosDaSessao, formaParaRevelar, situacaoDoItem, type SituacaoDoItem } from '../../lib/preparo/sessoes'
-import type { DadosDaSessao, ParaRevelar, Verbete } from '../../lib/preparo/tipos'
+import type { AlvoDaRevelacao, DadosDaSessao, ParaRevelar, Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
 import { useContasDoJogo, type ContaDoJogo } from '../revelar/contas'
 import { bloqueioDoVerbete, estadoEmTexto, useCampanhaDaRevelacao, useRevelacoesDaCampanha, type CampanhaDaRevelacao } from '../revelar/Revelar'
@@ -26,11 +26,27 @@ const CHECK = (
   </svg>
 )
 
-function textoDaSituacao(situacao: SituacaoDoItem, para: ParaQuem, contas: readonly ContaDoJogo[]): string {
+/** "a todos", "a Ana", "a Ana e Bia": o público, para seguir um verbo. */
+function aQuem(para: ParaQuem, contas: readonly ContaDoJogo[]): string {
+  return para === 'todos' ? 'a todos' : estadoEmTexto(para, contas, false).replace(/^Revelado /, '')
+}
+
+function textoDaSituacao(situacao: SituacaoDoItem, para: ParaQuem | null, contas: readonly ContaDoJogo[]): string {
   if (situacao.t === 'revelado') return estadoEmTexto(situacao.para, contas, false)
   if (situacao.t === 'parte') return `${estadoEmTexto(situacao.para, contas, false)}, em parte`
-  return `Oculto. Revelar mostra ${para === 'todos' ? 'a todos' : estadoEmTexto(para, contas, false).replace(/^Revelado /, '')}`
+  if (situacao.t === 'outro') {
+    const agora = situacao.para === null ? 'Revelado a jogadores diferentes em cada parte' : estadoEmTexto(situacao.para, contas, false)
+    return `${agora}${situacao.emParte ? ', em parte' : ''}`
+  }
+  return para === null ? 'Oculto' : `Oculto. Revelar mostra ${aQuem(para, contas)}`
 }
+
+/** O botão do público diferente diz o que muda: "Revelar a todos", "Revelar só a Ana". */
+function rotuloDoAjuste(para: ParaQuem, contas: readonly ContaDoJogo[]): string {
+  return para === 'todos' ? 'Revelar a todos' : `Revelar só ${aQuem(para, contas)}`
+}
+
+const SEM_PUBLICO = 'Escolha para quem revelar.'
 
 // ─── Para quem ───────────────────────────────────────────────────────────────
 
@@ -99,18 +115,21 @@ function ItemDeRevelar({ item, verbete, campanhaId, bloqueio, porAlvo, contas, e
   }
   const situacao = situacaoDoItem(verbete, item, porAlvo)
   const nome = verbete.titulo || 'Sem nome'
+  // O público que o item pede (lista vazia, só num arquivo mexido à mão, não revela a ninguém).
+  const publico = paraNormal(item.para)
   // O pacote do jogador só leva o verbete etiquetado na campanha: revelar fora dela não chegaria a ninguém. Ocultar sempre pode.
   const fora = campanhaId !== null && !verbete.campanhas.includes(campanhaId)
   const doItem = bloqueioDoVerbete(verbete) ?? (fora ? `Fora de ${campanhas.find((campanha) => campanha.id === campanhaId)?.nome ?? 'esta campanha'}. Para revelar, marque a campanha no verbete.` : null)
-  const paradoParaRevelar = bloqueio ?? doItem
+  const paradoParaRevelar = bloqueio ?? doItem ?? (publico === null ? SEM_PUBLICO : null)
   const paradoParaOcultar = bloqueio ?? bloqueioDoVerbete(verbete)
-  const mudar = (para: ParaQuem | null) => {
+  const mudar = (alvos: readonly AlvoDaRevelacao[], para: ParaQuem | null) => {
     if (campanhaId === null) return
     void revelar(
       campanhaId,
-      alvosParaRevelar(verbete, item).map((alvo) => ({ alvo, para })),
+      alvos.map((alvo) => ({ alvo, para })),
     )
   }
+  const tudo = () => alvosParaRevelar(verbete, item)
   return (
     <li className="pr-hoje__item" data-estado={situacao.t}>
       <div className="pr-hoje__linha">
@@ -122,13 +141,38 @@ function ItemDeRevelar({ item, verbete, campanhaId, bloqueio, porAlvo, contas, e
           </button>
         )}
         <div className="pr-hoje__acoes">
-          {situacao.t === 'revelado' ? (
-            <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" disabled={paradoParaOcultar !== null} title={paradoParaOcultar ?? `Ocultar ${nome} de novo`} onClick={() => mudar(null)}>
+          {situacao.t === 'revelado' && (
+            <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" disabled={paradoParaOcultar !== null} title={paradoParaOcultar ?? `Ocultar ${nome} de novo`} onClick={() => mudar(tudo(), null)}>
               Ocultar
             </button>
-          ) : (
-            <button type="button" className="gr-bt gr-bt--p gr-bt--latao pr-hoje__revelar" disabled={paradoParaRevelar !== null} title={paradoParaRevelar ?? undefined} onClick={() => mudar(item.para)}>
-              {situacao.t === 'parte' ? 'Revelar o resto' : 'Revelar'}
+          )}
+          {/* O resto vai a quem já vê: o público do que já foi revelado não muda. */}
+          {situacao.t === 'parte' && (
+            <button
+              type="button"
+              className="gr-bt gr-bt--p gr-bt--latao pr-hoje__revelar"
+              disabled={paradoParaRevelar !== null}
+              title={paradoParaRevelar ?? `Revela o que falta de ${nome} ${aQuem(situacao.para, contas)}`}
+              onClick={() => mudar(situacao.faltam, situacao.para)}
+            >
+              Revelar o resto
+            </button>
+          )}
+          {/* Público diferente: o botão diz o novo público, e a dica, quem deixa de ver. */}
+          {situacao.t === 'outro' && (
+            <button
+              type="button"
+              className="gr-bt gr-bt--p gr-bt--latao pr-hoje__revelar"
+              disabled={paradoParaRevelar !== null}
+              title={paradoParaRevelar ?? (publico === null ? undefined : `${nome} passa a ser revelado ${aQuem(publico, contas)}${situacao.estreita ? ': os outros jogadores deixam de ver' : ''}`)}
+              onClick={() => publico !== null && mudar(tudo(), publico)}
+            >
+              {publico === null ? 'Revelar' : rotuloDoAjuste(publico, contas)}
+            </button>
+          )}
+          {situacao.t === 'oculto' && (
+            <button type="button" className="gr-bt gr-bt--p gr-bt--latao pr-hoje__revelar" disabled={paradoParaRevelar !== null} title={paradoParaRevelar ?? undefined} onClick={() => publico !== null && mudar(tudo(), publico)}>
+              Revelar
             </button>
           )}
           {editavel && (
@@ -143,7 +187,7 @@ function ItemDeRevelar({ item, verbete, campanhaId, bloqueio, porAlvo, contas, e
       {/* O motivo de não poder revelar fica escrito na linha, não só na dica do botão. */}
       <p className="pr-hoje__estado" data-parado={doItem !== null ? '' : undefined} aria-live="polite">
         {doItem === null && situacao.t === 'revelado' && CHECK}
-        {doItem ?? textoDaSituacao(situacao, item.para, contas)}
+        {doItem ?? textoDaSituacao(situacao, publico, contas)}
       </p>
       {editavel && (verbete.formas.length > 1 || contas.length > 0) && (
         <div className="pr-hoje__opcoes">

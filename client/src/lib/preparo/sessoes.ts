@@ -1,5 +1,5 @@
 import { compararTitulos, ordemDe } from './enciclopedia'
-import { alvoDaForma, alvoDaSecao, alvoDoVerbete, paraDe, type ParaQuem } from './revelado'
+import { alvoDaForma, alvoDaSecao, alvoDoVerbete, paraDe, paraNormal, type ParaQuem } from './revelado'
 import { ARQUIVO_DO_TEMPO, LIGA_CENA, LIGA_FICHA, PECAS_DO_TEXTO } from './tipos'
 import type { Acontecimento, AlvoDaRevelacao, DadosDaSessao, Evento, Forma, LigaCena, LigaFicha, ParaRevelar, Revelacao, Tempo, TextoRico, Verbete } from './tipos'
 
@@ -18,11 +18,40 @@ export function dadosDaSessao(sessao: Verbete): DadosDaSessao {
   return sessao.sessao ?? SEM_DADOS
 }
 
-/** As sessões da primeira à última: a ordem gravada, senão o nome ("Sessão 2" antes de "Sessão 10"). `campanhaId` nulo = de todas. */
+/**
+ * A régua das sessões: a ordem gravada (a sessão nova grava a hora em que
+ * nasceu, `ordemDaProximaSessao`), senão a data de criação que veio do Grimório
+ * (`extras.criadoEm`), em ms. Nunca o nome: renomear não muda a ordem.
+ */
+export function ordemDaSessao(sessao: Verbete): number | undefined {
+  const gravada = ordemDe(sessao)
+  if (gravada !== undefined) return gravada
+  const criadoEm = sessao.extras?.criadoEm
+  const ms = typeof criadoEm === 'number' ? criadoEm : typeof criadoEm === 'string' ? Date.parse(criadoEm) : Number.NaN
+  return Number.isFinite(ms) ? ms : undefined
+}
+
+/**
+ * As sessões da primeira à última, pela régua de `ordemDaSessao`. As que não
+ * têm nenhuma das duas vêm antes, pelo nome ("Sessão 2" antes de "Sessão 10"):
+ * são as mais antigas (do Grimório sem data, ou de antes da régua), e a sessão
+ * nova, que sempre tem, fica no fim. `campanhaId` nulo = de todas.
+ */
 export function sessoesEmOrdem(verbetes: Iterable<Verbete>, campanhaId: string | null): Verbete[] {
   const sessoes: Verbete[] = []
   for (const verbete of verbetes) if (verbete.tipo === 'sessao' && (campanhaId === null || verbete.campanhas.includes(campanhaId))) sessoes.push(verbete)
-  return sessoes.sort((a, b) => (ordemDe(a) ?? Infinity) - (ordemDe(b) ?? Infinity) || compararTitulos(a.titulo, b.titulo))
+  return sessoes.sort((a, b) => (ordemDaSessao(a) ?? -Infinity) - (ordemDaSessao(b) ?? -Infinity) || compararTitulos(a.titulo, b.titulo))
+}
+
+/** A ordem da sessão nova: a hora de agora, e sempre depois de todas as sessões que já existem, de qualquer campanha. */
+export function ordemDaProximaSessao(verbetes: Iterable<Verbete>, agora: number): number {
+  let maior = -Infinity
+  for (const verbete of verbetes) {
+    if (verbete.tipo !== 'sessao') continue
+    const ordem = ordemDaSessao(verbete)
+    if (ordem !== undefined && ordem > maior) maior = ordem
+  }
+  return Math.max(agora, maior + 1)
 }
 
 /** "Sessão 4" quando já há 3: o nome da próxima. */
@@ -55,18 +84,50 @@ export function alvosParaRevelar(verbete: Verbete, item: Pick<ParaRevelar, 'form
 }
 
 export type SituacaoDoItem =
-  /** Nada do item chega ao jogador. */
+  /** O verbete está oculto: nada do item chega ao jogador. */
   | { readonly t: 'oculto' }
-  /** O verbete e tudo o que o item revela, para `para` (o do verbete). */
+  /** O verbete e tudo o que o item revela, para o público do item. */
   | { readonly t: 'revelado'; readonly para: ParaQuem }
-  /** O verbete foi revelado, mas a forma ou alguma seção comum ainda não. */
-  | { readonly t: 'parte'; readonly para: ParaQuem }
+  /** O verbete foi revelado ao público do item, mas a forma ou alguma seção comum ainda não: `faltam` (o "Revelar o resto"). */
+  | { readonly t: 'parte'; readonly para: ParaQuem; readonly faltam: readonly AlvoDaRevelacao[] }
+  /**
+   * Já chega a alguém, mas não ao público do item: o verbete ou uma parte foi
+   * revelado a outros jogadores (no próprio verbete, F2c). `para` é o público
+   * de tudo o que foi revelado, ou `null` quando cada parte está com um.
+   * `estreita`: dar ao item o público dele tira o acesso de quem vê hoje.
+   */
+  | { readonly t: 'outro'; readonly para: ParaQuem | null; readonly emParte: boolean; readonly estreita: boolean }
 
-export function situacaoDoItem(verbete: Verbete, item: Pick<ParaRevelar, 'formaId'>, porAlvo: ReadonlyMap<string, Revelacao>): SituacaoDoItem {
-  const [doVerbete, ...partes] = alvosParaRevelar(verbete, item)
-  const para = doVerbete === undefined ? null : paraDe(porAlvo, doVerbete)
-  if (para === null) return { t: 'oculto' }
-  return partes.every((alvo) => paraDe(porAlvo, alvo) !== null) ? { t: 'revelado', para } : { t: 'parte', para }
+function mesmoPublico(a: ParaQuem, b: ParaQuem): boolean {
+  return JSON.stringify(paraNormal(a)) === JSON.stringify(paraNormal(b))
+}
+
+/** Todos os que veem `menor` também veem `maior`? */
+function contemPublico(maior: ParaQuem, menor: ParaQuem): boolean {
+  return maior === 'todos' || (menor !== 'todos' && menor.every((conta) => maior.includes(conta)))
+}
+
+/**
+ * Onde o item está, comparando o público de cada parte com o do item: só o
+ * "Revelar" e o "Revelar o resto" seguem sem perguntar, porque não mudam o
+ * público de nada que já foi revelado. Público diferente vira `outro`, com
+ * botão próprio na tela.
+ */
+export function situacaoDoItem(verbete: Verbete, item: Pick<ParaRevelar, 'formaId' | 'para'>, porAlvo: ReadonlyMap<string, Revelacao>): SituacaoDoItem {
+  const alvos = alvosParaRevelar(verbete, item)
+  const publicos = alvos.map((alvo) => paraDe(porAlvo, alvo))
+  const doVerbete = publicos[0] ?? null
+  if (doVerbete === null) return { t: 'oculto' }
+  const revelados = publicos.filter((para): para is ParaQuem => para !== null)
+  const faltam = alvos.filter((_, indice) => publicos[indice] === null)
+  const doItem = paraNormal(item.para)
+  if (doItem !== null && revelados.every((para) => mesmoPublico(para, doItem))) return faltam.length === 0 ? { t: 'revelado', para: doVerbete } : { t: 'parte', para: doVerbete, faltam }
+  return {
+    t: 'outro',
+    para: revelados.every((para) => mesmoPublico(para, doVerbete)) ? doVerbete : null,
+    emParte: faltam.length > 0,
+    estreita: doItem !== null && revelados.some((para) => !contemPublico(doItem, para)),
+  }
 }
 
 /** Põe um verbete no fim da lista (ele já estando, nada muda). */

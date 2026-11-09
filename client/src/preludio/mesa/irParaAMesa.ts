@@ -5,6 +5,7 @@ import { selectionOfItem } from '../../lib/selectionModel'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
 import { useMapStore } from '../../stores/mapStore'
+import { cenaDoLinkNaAventura } from './catalogo'
 
 /**
  * O LINK DO ROTEIRO ABRE A MESA (plano §2, "Como liga com o Labirinto"): pela
@@ -19,13 +20,31 @@ export interface PonteDaMesa {
   readonly caminhoAberto: () => string | null
   /** Abre o arquivo no editor, com a pasta dele (o mesmo do Carregar mapa). */
   readonly abrirArquivo: (caminho: string) => Promise<void>
-  readonly irAoEditor: () => void
+  /**
+   * Troca para o editor e resolve quando o mapa dele já atende pedido de
+   * câmera: o PixiCanvas descarta o pedido que chega antes de montar, e o pino
+   * pedido cedo demais virava o enquadramento do mapa inteiro.
+   */
+  readonly irAoEditor: () => Promise<void>
   /** Com trabalho não salvo em outro mapa, pergunta antes; roda `seguir` se puder. */
   readonly antesDeTrocar: (seguir: () => Promise<void>) => void
   readonly avisar: (texto: string, tipo: 'info' | 'error') => void
 }
 
 const ESPERA_DA_CENA_MS = 15_000
+/** O mapa que não monta nesse prazo (sem WebGL, por exemplo) não segura o link: a cena e o pino ainda se escolhem. */
+const ESPERA_DO_MAPA_MS = 8_000
+
+function esperarOMapa(ponte: PonteDaMesa): Promise<void> {
+  return new Promise((pronto) => {
+    const relogio = setTimeout(pronto, ESPERA_DO_MAPA_MS)
+    const fim = () => {
+      clearTimeout(relogio)
+      pronto()
+    }
+    ponte.irAoEditor().then(fim, fim)
+  })
+}
 
 function normalizado(caminho: string): string {
   return caminho.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
@@ -78,7 +97,12 @@ function esperarCena(sceneId: string): Promise<boolean> {
 /** No mapa já aberto: vai à cena e ao pino. Devolve o aviso do que não deu; `null` = chegou. */
 export async function irNaCena(alvo: LigaCena): Promise<string | null> {
   const { adventure } = useAdventureStore.getState()
-  const sceneId = alvo.sceneId === '' ? null : alvo.sceneId
+  let sceneId = alvo.sceneId === '' ? null : alvo.sceneId
+  // O link de quando o mapa não tinha cenas: com cenas, vale a que mora no map.json da raiz (ela ganhou um id novo).
+  if (alvo.sceneId === '' && adventure !== null) {
+    sceneId = cenaDoLinkNaAventura(adventure.scenes, '')
+    if (sceneId === null) return 'A cena deste link não existe mais.'
+  }
   if (sceneId !== null) {
     if (adventure === null || !adventure.scenes.some((cena) => cena.id === sceneId)) return 'A cena deste link não existe mais.'
     if (!(await esperarCena(sceneId))) return 'A cena deste link não abriu.'
@@ -92,16 +116,20 @@ export async function irNaCena(alvo: LigaCena): Promise<string | null> {
 export function abrirNaMesa(alvo: LigaCena, ponte: PonteDaMesa): void {
   void (async () => {
     try {
-      const mapa = (await listSavedMaps()).find((entrada) => entrada.id === alvo.chave && entrada.damaged !== true)
+      const mapa = (await listSavedMaps()).find((entrada) => entrada.id === alvo.chave)
       if (mapa === undefined) {
         ponte.avisar('O mapa deste link não existe mais.', 'error')
+        return
+      }
+      if (mapa.damaged === true) {
+        ponte.avisar('O mapa deste link não abriu: o arquivo dele está danificado.', 'error')
         return
       }
       const mesmo = (await chaveDoMapaAberto(ponte.caminhoAberto())) === alvo.chave
       const seguir = async () => {
         try {
           if (!mesmo) await ponte.abrirArquivo(mapa.path)
-          ponte.irAoEditor()
+          await esperarOMapa(ponte)
           const aviso = await irNaCena(alvo)
           if (aviso !== null) ponte.avisar(aviso, 'error')
         } catch (erro) {
@@ -126,8 +154,10 @@ export function abrirFichaNaCena(alvo: Extract<AlvoNaMesa, { tipo: 'ficha' }>, n
   const { map } = useMapStore.getState()
   const boneco = map.tokens.find((token) => token.characterId === alvo.personagemId)
   if (boneco === undefined) return `Nenhum boneco de ${nome} nesta cena.`
+  // PISOS NA MESMA CENA: a câmera e o piso vão juntos até o boneco (no térreo, o do 1º piso ficaria selecionado e invisível).
+  useAdventureStore.getState().goToPointNoPiso(null, { x: boneco.x, y: boneco.y }, boneco.piso ?? 0)
+  // Depois do piso: trocar de piso limpa a seleção.
   useMapStore.getState().setSelection(selectionOfItem({ kind: 'token', id: boneco.id }))
-  useAdventureStore.getState().goToPoint(null, { x: boneco.x, y: boneco.y })
   useLivroDoMestreStore.getState().abrirPagina('ficha')
   return null
 }

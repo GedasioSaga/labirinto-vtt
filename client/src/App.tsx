@@ -1745,6 +1745,12 @@ function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   /** "Exportar imagem": a função do canvas que gera o PNG (`null` sem canvas montado). */
   const imageExporterRef = useRef<MapImageExporter | null>(null)
+  /**
+   * PRELÚDIO (F4): quem espera o mapa do editor montar para pedir a câmera (o
+   * link de pino que vem de outra tela). O exportador chega no fim da montagem
+   * do canvas, quando ele já atende pedido de câmera.
+   */
+  const esperasDoMapaRef = useRef<(() => void)[]>([])
   /** Janela "Exportar imagem" aberta (`null` = fechada), gerando/gravando, e o erro da última tentativa. */
   const [exportImageState, setExportImageState] = useState<{ busy: boolean; error: string | null } | null>(null)
   /** Container do canvas: o tamanho dele é a "tela" usada para achar o centro visível ao adicionar token. */
@@ -3095,7 +3101,11 @@ function App() {
         abrirNaMesa(alvo, {
           caminhoAberto: () => currentMapPathRef.current,
           abrirArquivo: openMapFileWithFolder,
-          irAoEditor: () => setScreen('editor'),
+          // O canvas descarta o pedido de câmera que chega antes de montar: o link espera o mapa ficar pronto.
+          irAoEditor: () => {
+            setScreen('editor')
+            return imageExporterRef.current !== null ? Promise.resolve() : new Promise<void>((pronto) => esperasDoMapaRef.current.push(pronto))
+          },
           antesDeTrocar: askBeforeReplacingMap,
           avisar,
         }),
@@ -3557,6 +3567,7 @@ function App() {
           onShowShortcuts={() => setShortcutsOpen(true)}
           onImageExporterChange={(exporter) => {
             imageExporterRef.current = exporter
+            if (exporter !== null) for (const seguir of esperasDoMapaRef.current.splice(0)) seguir()
           }}
           fantasmaDeTeste={fantasmaDaVisao}
           fichaDoFantasma={fichaDoFantasma}

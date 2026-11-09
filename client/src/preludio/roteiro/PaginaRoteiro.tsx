@@ -4,6 +4,7 @@ import { formaDe } from '../../lib/preparo/enciclopedia'
 import { paginasDaSessao, sessoesEmOrdem, type AlvoNaMesa } from '../../lib/preparo/sessoes'
 import type { Campanha, LigaCena, Verbete } from '../../lib/preparo/tipos'
 import { useAdventureStore } from '../../stores/adventureStore'
+import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
 import { useToastStore } from '../../stores/toastStore'
 import { usePreludio } from '../estado/preludio'
 import { abrirFichaNaCena } from '../mesa/irParaAMesa'
@@ -156,11 +157,15 @@ export const PaginaRoteiro = memo(function PaginaRoteiro({ aoAbrirNaMesa }: Pagi
   const verbetes = usePreludio((estado) => estado.verbetes)
   const campanhas = usePreludio((estado) => estado.campanhas)
   const pastaId = useAdventureStore((estado) => estado.pasta?.pastaId ?? null)
+  const aberta = useLivroDoMestreStore((estado) => estado.pagina === 'roteiro' && !estado.recolhido)
 
-  // A lista de mapas, cenas e pinos é relida: pode ter mudado no editor desde a última vez.
+  // A lista de mapas, cenas e pinos é relida cada vez que a página aparece (o
+  // marcador abre, ou a página sai da lombada): o Livro a mantém montada, e o
+  // mestre pode ter apagado e salvo uma cena em outra aba. O mapa aberto nem
+  // espera o disco: os links dele leem a memória.
   useEffect(() => {
-    useCatalogoDaMesa.getState().esquecer()
-  }, [])
+    if (aberta) useCatalogoDaMesa.getState().esquecer()
+  }, [aberta])
   // O Prelúdio abre aqui na primeira vez (e de novo se a tela dele o fechou).
   useEffect(() => {
     if (carga.t === 'fechada') void usePreludio.getState().carregar()

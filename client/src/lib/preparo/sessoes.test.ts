@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { alvoDaForma, alvoDaSecao, alvoDoVerbete, revelacoesPorAlvo, reveladoVazio } from './revelado'
-import { alvoDaMesa, alvosParaRevelar, comEvento, eventoDoAcontecimento, ligacoesDaMesa, semEvento, sessoesEmOrdem, situacaoDoItem, tempoVazio } from './sessoes'
+import { alvoDaMesa, alvosParaRevelar, comEvento, eventoDoAcontecimento, ligacoesDaMesa, ordemDaProximaSessao, semEvento, sessoesEmOrdem, situacaoDoItem, tempoVazio } from './sessoes'
 import type { Forma, Revelacao, TextoRico, Verbete } from './tipos'
 
 const VAZIO: TextoRico = { type: 'doc', content: [] }
@@ -21,7 +21,11 @@ function verbete(id: string, titulo: string, opcoes: Partial<Verbete> = {}): Ver
 
 /** O revelado com estes alvos para todos, já por alvo (como o Prelúdio lê do disco). */
 function reveladoPara(...alvos: Revelacao['alvo'][]): ReadonlyMap<string, Revelacao> {
-  return revelacoesPorAlvo({ ...reveladoVazio(), revelacoes: alvos.map((alvo) => ({ alvo, para: 'todos', quando: '2026-11-09T12:00:00.000Z' })) })
+  return reveladoCom(...alvos.map((alvo): [Revelacao['alvo'], Revelacao['para']] => [alvo, 'todos']))
+}
+
+function reveladoCom(...pares: [Revelacao['alvo'], Revelacao['para']][]): ReadonlyMap<string, Revelacao> {
+  return revelacoesPorAlvo({ ...reveladoVazio(), revelacoes: pares.map(([alvo, para]) => ({ alvo, para, quando: '2026-11-09T12:00:00.000Z' })) })
 }
 
 describe('Revelar hoje', () => {
@@ -32,11 +36,24 @@ describe('Revelar hoje', () => {
     expect(alvosParaRevelar(vigia, { formaId: 'fb' })).toEqual([alvoDoVerbete('vb-vigia'), alvoDaForma('vb-vigia', 'fb'), alvoDaSecao('vb-vigia', 'fb', 's-outra')])
   })
 
-  it('diz se o item está oculto, revelado ou só em parte', () => {
-    expect(situacaoDoItem(vigia, {}, reveladoPara())).toEqual({ t: 'oculto' })
-    expect(situacaoDoItem(vigia, {}, reveladoPara(alvoDoVerbete('vb-vigia')))).toEqual({ t: 'parte', para: 'todos' })
+  it('diz se o item está oculto, revelado ou só em parte; o resto é só o que falta', () => {
+    expect(situacaoDoItem(vigia, { para: 'todos' }, reveladoPara())).toEqual({ t: 'oculto' })
+    expect(situacaoDoItem(vigia, { para: 'todos' }, reveladoPara(alvoDoVerbete('vb-vigia')))).toEqual({
+      t: 'parte',
+      para: 'todos',
+      faltam: [alvoDaForma('vb-vigia', 'fa'), alvoDaSecao('vb-vigia', 'fa', 's-comum')],
+    })
     const tudo = reveladoPara(alvoDoVerbete('vb-vigia'), alvoDaForma('vb-vigia', 'fa'), alvoDaSecao('vb-vigia', 'fa', 's-comum'))
-    expect(situacaoDoItem(vigia, {}, tudo)).toEqual({ t: 'revelado', para: 'todos' })
+    expect(situacaoDoItem(vigia, { para: 'todos' }, tudo)).toEqual({ t: 'revelado', para: 'todos' })
+  })
+
+  it('público diferente do item nunca passa por "em parte": vira "outro", e diz se o item tiraria o acesso de alguém', () => {
+    // Revelado só à Ana no verbete (F2c), com a seção ainda oculta; o item pede todos.
+    const soAna = reveladoCom([alvoDoVerbete('vb-vigia'), ['conta-ana']], [alvoDaForma('vb-vigia', 'fa'), ['conta-ana']])
+    expect(situacaoDoItem(vigia, { para: 'todos' }, soAna)).toEqual({ t: 'outro', para: ['conta-ana'], emParte: true, estreita: false })
+    // O inverso: revelado a todos, o item pede só a Ana; e cada parte com um público.
+    const misturado = reveladoCom([alvoDoVerbete('vb-vigia'), 'todos'], [alvoDaForma('vb-vigia', 'fa'), ['conta-ana']], [alvoDaSecao('vb-vigia', 'fa', 's-comum'), 'todos'])
+    expect(situacaoDoItem(vigia, { para: ['conta-ana'] }, misturado)).toEqual({ t: 'outro', para: null, emParte: false, estreita: true })
   })
 })
 
@@ -90,14 +107,24 @@ describe('Links do roteiro para a mesa', () => {
 })
 
 describe('Ordem das sessões', () => {
-  it('a ordem gravada vem antes; sem ela, "Sessão 2" antes de "Sessão 10", e só as da campanha', () => {
+  it('sem ordem nem data vêm antes, pelo nome ("Sessão 2" antes de "Sessão 10"); depois a ordem gravada e a data do Grimório; só as da campanha', () => {
     const sessoes = [
       verbete('s10', 'Sessão 10', { tipo: 'sessao' }),
+      verbete('s-nova', 'Aaa', { tipo: 'sessao', extras: { ordem: Date.parse('2026-11-09T10:00:00.000Z') } }),
+      verbete('s-grimorio', 'Zzz', { tipo: 'sessao', extras: { criadoEm: '2026-10-01T20:00:00.000Z' } }),
       verbete('s2', 'Sessão 2', { tipo: 'sessao' }),
-      verbete('s-zero', 'Prólogo', { tipo: 'sessao', extras: { ordem: 0 } }),
       verbete('s-fora', 'Sessão 1', { tipo: 'sessao', campanhas: ['camp-outra'] }),
       verbete('vb-vigia', 'Vigia'),
     ]
-    expect(sessoesEmOrdem(sessoes, 'camp-ilha').map((sessao) => sessao.id)).toEqual(['s-zero', 's2', 's10'])
+    expect(sessoesEmOrdem(sessoes, 'camp-ilha').map((sessao) => sessao.id)).toEqual(['s2', 's10', 's-grimorio', 's-nova'])
+  })
+
+  it('a sessão nova fica por último, de qualquer campanha, e renomear não a tira de lá', () => {
+    const agora = Date.parse('2026-11-09T12:00:00.000Z')
+    const antigas = [verbete('s9', 'Sessão 9', { tipo: 'sessao', extras: { criadoEm: '2026-11-01T20:00:00.000Z' } }), verbete('s-fora', 'Sessão 1', { tipo: 'sessao', campanhas: ['camp-outra'], extras: { ordem: agora + 5 } })]
+    const ordem = ordemDaProximaSessao(antigas, agora)
+    expect(ordem).toBe(agora + 6)
+    const nova = verbete('s10', 'A Fuga', { tipo: 'sessao', extras: { ordem } })
+    expect(sessoesEmOrdem([...antigas, nova], 'camp-ilha').map((sessao) => sessao.id)).toEqual(['s9', 's10'])
   })
 })

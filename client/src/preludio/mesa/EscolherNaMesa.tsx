@@ -49,9 +49,9 @@ export function EscolherNaMesa({ aoFechar, aoEscolher }: EscolherNaMesaProps) {
 
 // ─── Cena ou pino ────────────────────────────────────────────────────────────
 
-/** Os mapas da pasta da campanha primeiro (pelo índice das pastas), depois o resto, cada grupo por nome. */
+/** Os mapas da pasta da campanha primeiro (pelo índice das pastas), depois o resto, cada grupo por nome. O que não abre fica fora da escolha. */
 function mapasEmOrdem(mapas: ReadonlyMap<string, MapaNoCatalogo>, daPasta: ReadonlySet<string>): MapaNoCatalogo[] {
-  return [...mapas.values()].sort((a, b) => Number(daPasta.has(b.chave)) - Number(daPasta.has(a.chave)) || compararTitulos(a.nome, b.nome))
+  return [...mapas.values()].filter((mapa) => mapa.abriu).sort((a, b) => Number(daPasta.has(b.chave)) - Number(daPasta.has(a.chave)) || compararTitulos(a.nome, b.nome))
 }
 
 function useMapasDaPasta(pastaId: string | null): ReadonlySet<string> {
