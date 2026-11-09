@@ -5,6 +5,7 @@ import { defaultMapsDir, ensureDir, mapDirFor, writeTextFileSafely } from './map
 import { levarMidiaParaAPasta, pastaDaMidiaDaAventura, PASTA_DE_MIDIA_DA_AVENTURA, trazerMidiaDaPasta } from './midiaDaPasta'
 import { personagensDoArquivo, sistemaDaAventuraDoArquivo, type Personagem } from './personagem'
 import { equipesDoArquivo, type Equipe } from './batalha/equipes'
+import { pastasDeFichasDoArquivo, type PastaDeFichas } from './pastasDeFichas'
 import { useToastStore } from '../stores/toastStore'
 
 /**
@@ -80,6 +81,11 @@ export interface RpgDaPasta {
   mochilaMigrada?: number
   /** TREINO DO LOBBY (plano do Lobby §8.2, T8): os NPCs que o mestre liberou. Ausente = nenhum. */
   treino?: TreinoDaPasta
+  /**
+   * PASTAS DO MESTRE no painel Personagens (`lib/pastasDeFichas.ts`): nome e
+   * ids das fichas, como o treino — mover não muda a ficha. Ausente = nenhuma.
+   */
+  pastasDeFichas?: PastaDeFichas[]
 }
 
 /**
@@ -268,7 +274,13 @@ export function rpgDoArquivo(valor: unknown): RpgDaPasta {
   const personagens = personagensDoArquivo(valor.personagens) ?? []
   const equipes = equipesDoArquivo(valor.equipes)
   const base: RpgDaPasta = sistemaDeRpg === undefined ? { personagens } : { sistemaDeRpg, personagens }
-  return comTreino(comMochilaMigrada(comEquipes(base, equipes), mochilaMigradaDoArquivo(valor.mochilaMigrada)), treinoDoArquivo(valor.treino))
+  const lido = comTreino(comMochilaMigrada(comEquipes(base, equipes), mochilaMigradaDoArquivo(valor.mochilaMigrada)), treinoDoArquivo(valor.treino))
+  return comPastasDeFichas(lido, pastasDeFichasDoArquivo(valor.pastasDeFichas))
+}
+
+/** As pastas do mestre SEGUEM o RPG na leitura, na gravação e na cópia. Vazia, sem a chave: o `rpg.json` de antes continua igual. */
+function comPastasDeFichas(rpg: RpgDaPasta, pastasDeFichas: PastaDeFichas[] | undefined): RpgDaPasta {
+  return pastasDeFichas === undefined || pastasDeFichas.length === 0 ? rpg : { ...rpg, pastasDeFichas }
 }
 
 /** A lista do treino como veio do disco: só ids em texto, sem repetir, no teto. Torta conta como ausente. */
@@ -322,8 +334,9 @@ export function serializarRpg(rpg: RpgDaPasta): string {
   const equipes = rpg.equipes === undefined || rpg.equipes.length === 0 ? {} : { equipes: rpg.equipes }
   const marcador = rpg.mochilaMigrada === undefined ? {} : { mochilaMigrada: rpg.mochilaMigrada }
   const treino = rpg.treino === undefined || rpg.treino.inimigosLiberados.length === 0 ? {} : { treino: rpg.treino }
+  const pastasDeFichas = rpg.pastasDeFichas === undefined || rpg.pastasDeFichas.length === 0 ? {} : { pastasDeFichas: rpg.pastasDeFichas }
   return JSON.stringify(
-    { versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens, ...equipes, ...marcador, ...treino },
+    { versao: VERSAO, ...(rpg.sistemaDeRpg === undefined ? {} : { sistemaDeRpg: rpg.sistemaDeRpg }), personagens: rpg.personagens, ...equipes, ...marcador, ...treino, ...pastasDeFichas },
     null,
     2,
   )
@@ -361,7 +374,7 @@ export function rpgComOsPersonagensDoMapa(rpg: RpgDaPasta, doMapa: RpgDaPasta): 
 /** Só o RPG de uma `PastaAberta` (sem chave, nome e modo): é o que vai para o `rpg.json`. */
 export function rpgDe(pasta: RpgDaPasta): RpgDaPasta {
   const base: RpgDaPasta = pasta.sistemaDeRpg === undefined ? { personagens: pasta.personagens } : { sistemaDeRpg: pasta.sistemaDeRpg, personagens: pasta.personagens }
-  return comTreino(comMochilaMigrada(comEquipes(base, pasta.equipes), pasta.mochilaMigrada), pasta.treino)
+  return comPastasDeFichas(comTreino(comMochilaMigrada(comEquipes(base, pasta.equipes), pasta.mochilaMigrada), pasta.treino), pasta.pastasDeFichas)
 }
 
 // ───────────────────────────────────────────────────────────────────────────

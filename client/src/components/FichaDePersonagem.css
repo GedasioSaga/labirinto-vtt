@@ -1582,8 +1582,7 @@
 
 .lb-rpg__linha {
   display: flex;
-  align-items: center;
-  gap: var(--lb-space-1);
+  flex-direction: column;
 }
 
 .lb-rpg__abrir {
@@ -1604,19 +1603,10 @@
   cursor: pointer;
 }
 
-.lb-rpg__abrir:hover {
-  background: var(--lb-color-stone-raised);
-}
-
 /* Arrastar a linha até o mapa: o nome não vira seleção de texto no meio do gesto. */
 .lb-rpg__abrir {
   -webkit-user-select: none;
   user-select: none;
-}
-
-/* Arrastando, o ponteiro passa por cima das outras linhas: nenhuma acende. */
-.lb-rpg__lista--arrastando .lb-rpg__abrir:hover {
-  background: none;
 }
 
 /* Fantasma do arrasto para o mapa: o retrato como o disco do token, com o
@@ -1695,18 +1685,19 @@
   font-size: 5px;
 }
 
+/* O nome inteiro, em até duas linhas: quebra na palavra, e só a terceira vira reticências. */
 .lb-rpg__nome {
+  display: -webkit-box;
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
-.lb-rpg__confirma {
-  display: inline-flex;
-  gap: var(--lb-space-1);
-}
 
 .lb-rpg__estado > p {
   margin: 0;
@@ -1717,6 +1708,422 @@
   padding-left: var(--lb-space-4);
   font-size: var(--lb-font-size-sm);
   color: var(--lb-color-parchment-dim);
+}
+
+/* ------------------------------------- Painel Personagens organizado (09/11) */
+
+/* Busca e "Pasta" na mesma linha, no topo da lista. */
+.lb-rpg__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+.lb-rpg__busca {
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-rpg__busca > .lb-input {
+  width: 100%;
+  min-height: 32px;
+}
+
+.lb-rpg__nova-pasta.lb-btn {
+  flex: none;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.lb-rpg__grupos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* A lista encosta nas bordas do livro: o recuo das linhas fica por conta delas. */
+  margin: 0 calc(var(--lb-space-1) * -1);
+}
+
+/* Cada grupo e cada pasta é também lugar de SOLTAR a ficha arrastada. */
+.lb-rpg__grupo {
+  border-radius: var(--lb-radius-md);
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.lb-rpg__grupo[data-alvo-do-soltar='sim'] {
+  background: color-mix(in srgb, var(--lb-color-brass) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lb-color-brass) 70%, transparent);
+}
+
+.lb-rpg__grupo-topo {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 30px;
+}
+
+/* O cabeçalho inteiro é o botão: título de grupo em caixa alta, como AVENTURA e ESTA CENA no painel. */
+.lb-rpg__grupo-cab {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 var(--lb-space-1);
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-semibold);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.lb-rpg__grupo-cab:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-rpg__grupo-cab:hover {
+    color: var(--lb-color-parchment);
+  }
+}
+
+.lb-rpg__grupo-nome {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lb-rpg__grupo-nome > svg {
+  flex: none;
+  color: var(--lb-color-brass);
+}
+
+/* A pasta do mestre tem o nome que ele deu: sem caixa alta, cortado com reticências se for longo. */
+.lb-rpg__grupo-texto {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--lb-font-body, inherit);
+  font-size: var(--lb-font-size-sm);
+  letter-spacing: normal;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.lb-rpg__grupo-conta {
+  flex: none;
+  min-width: 1.5em;
+  color: var(--lb-color-parchment-faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* A setinha gira com o abrir (o mesmo do `gr-ficha__seta`). */
+.lb-rpg__grupo-seta {
+  display: inline-flex;
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  transform: rotate(-90deg);
+  transition: transform 200ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-rpg__grupo--aberto > .lb-rpg__grupo-topo .lb-rpg__grupo-seta {
+  transform: none;
+}
+
+/* Abrir e fechar: a altura pela linha da grade (0fr → 1fr) e o conteúdo por opacidade, como as Fichas do grimório. */
+.lb-rpg__grupo-corpo {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-rpg__grupo--aberto > .lb-rpg__grupo-corpo,
+.lb-rpg__copias-corpo.lb-e-aberto {
+  grid-template-rows: 1fr;
+}
+
+.lb-rpg__grupo-miolo {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.lb-rpg__grupo--aberto > .lb-rpg__grupo-corpo > .lb-rpg__grupo-miolo,
+.lb-rpg__copias-corpo.lb-e-aberto > .lb-rpg__grupo-miolo {
+  opacity: 1;
+  transition-delay: 40ms;
+}
+
+.lb-rpg__grupo-miolo > .lb-rpg__lista {
+  padding-bottom: var(--lb-space-1);
+}
+
+.lb-rpg__vazio-pasta {
+  margin: 0;
+  padding: 2px var(--lb-space-2) var(--lb-space-2) 26px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-rpg__pasta-nome.lb-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-rpg__linha-topo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--lb-radius-sm);
+}
+
+.lb-rpg__linha-topo:hover,
+.lb-rpg__linha-topo:focus-within {
+  background: var(--lb-color-stone-raised);
+}
+
+/* O nome em cima e a etiqueta discreta embaixo: o nome nunca disputa a largura com ela. */
+.lb-rpg__texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-rpg__abrir:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
+}
+
+/* A etiqueta discreta (só dentro de uma pasta do mestre): texto miúdo, sem caixa colorida. */
+.lb-rpg__etiqueta {
+  line-height: 1.3;
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+/* "2 cópias": embaixo do nome do modelo, abre a lista delas. */
+.lb-rpg__copias {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  margin: 0 0 2px 34px;
+  padding: 0 6px 0 2px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-xs);
+  cursor: pointer;
+}
+
+.lb-rpg__copias:hover {
+  color: var(--lb-color-parchment);
+}
+
+.lb-rpg__copias:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 1px;
+}
+
+.lb-rpg__copias-seta {
+  display: inline-flex;
+  transform: rotate(-90deg);
+  transition: transform 200ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.lb-rpg__copias[aria-expanded='true'] .lb-rpg__copias-seta {
+  transform: none;
+}
+
+.lb-rpg__lista--copias {
+  margin-left: 22px;
+  padding-left: var(--lb-space-1);
+  border-left: 1px solid var(--lb-color-stone-hover);
+}
+
+.lb-rpg__linha--copia .lb-rpg__abrir {
+  min-height: 28px;
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-rpg__linha--copia .lb-rpg__retrato {
+  width: 20px;
+  height: 20px;
+}
+
+/* Mover para pasta e apagar: sem destaque. Aparecem na linha sob o ponteiro ou com o foco nela. */
+.lb-rpg__acoes {
+  display: inline-flex;
+  flex: none;
+  gap: 1px;
+}
+
+.lb-rpg__acao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: none;
+  color: var(--lb-color-parchment-faint);
+  font: inherit;
+  font-size: var(--lb-font-size-xs);
+  cursor: pointer;
+}
+
+.lb-rpg__acao:hover,
+.lb-rpg__acao:focus-visible {
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+}
+
+.lb-rpg__acao:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
+}
+
+.lb-rpg__remover:hover {
+  color: var(--lb-color-danger, var(--lb-color-parchment));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* Por cima do fim da linha, num degradê do fundo: escondidas não roubam largura do nome. */
+  .lb-rpg__linha-topo > .lb-rpg__acoes,
+  .lb-rpg__grupo-topo > .lb-rpg__acoes {
+    position: absolute;
+    top: 50%;
+    right: 2px;
+    padding-left: 18px;
+    background: linear-gradient(to right, transparent, var(--lb-color-stone-raised) 16px);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: opacity 100ms ease;
+  }
+
+  .lb-rpg__grupo-topo > .lb-rpg__acoes {
+    background: linear-gradient(to right, transparent, var(--lb-gr-cartao, var(--lb-color-stone-solid)) 16px);
+  }
+
+  .lb-rpg__linha-topo:hover > .lb-rpg__acoes,
+  .lb-rpg__linha-topo:focus-within > .lb-rpg__acoes,
+  .lb-rpg__grupo-topo:hover > .lb-rpg__acoes,
+  .lb-rpg__grupo-topo:focus-within > .lb-rpg__acoes,
+  .lb-rpg__acoes:has([aria-expanded='true']) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Arrastando, nenhuma linha acende nem mostra as ações. */
+  .lb-rpg__lista--arrastando .lb-rpg__linha-topo:hover {
+    background: none;
+  }
+
+  .lb-rpg__lista--arrastando .lb-rpg__linha-topo:hover > .lb-rpg__acoes {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+/* "+ Personagem" e "Importar personagens…" na coluna estreita: quebram entre si, nunca no meio da palavra. */
+.lb-rpg > .lb-cenas__acoes {
+  flex-wrap: wrap;
+}
+
+.lb-rpg > .lb-cenas__acoes > .lb-btn {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
+/* A decisão de apagar, embaixo da linha: o nome não espreme. */
+.lb-rpg__confirma {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1);
+  margin: 2px var(--lb-space-1) var(--lb-space-1);
+  padding: var(--lb-space-1) var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-rpg__confirma-texto {
+  flex: 1 1 100%;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+}
+
+/* O menu "Mover para pasta" mora no `body`: fixo, por cima do painel que recorta. */
+.lb-panel.lb-portamenu.lb-rpg__menu-pasta {
+  position: fixed;
+  z-index: 1002;
+  max-width: 16rem;
+  transform-origin: top right;
+}
+
+/* Em cima de um token: o anel em volta dele e o que o soltar faz. */
+.lb-rpg__casa-alvo[data-alvo='token'] {
+  border-width: 3px;
+  background: color-mix(in srgb, var(--lb-color-brass) 12%, transparent);
+}
+
+.lb-rpg__casa-alvo[data-alvo='token']::after {
+  content: attr(data-rotulo);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 6px;
+  padding: 2px var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* Aberto pelo teclado: seco, sem altura nem seta andando (ação repetida, o olho está no foco). */
+.lb-rpg__grupo[data-seco='sim'] > .lb-rpg__grupo-topo .lb-rpg__grupo-seta,
+.lb-rpg__grupo[data-seco='sim'] > .lb-rpg__grupo-corpo,
+.lb-rpg__grupo[data-seco='sim'] > .lb-rpg__grupo-corpo > .lb-rpg__grupo-miolo,
+.lb-rpg__linha[data-seco='sim'] > .lb-rpg__copias .lb-rpg__copias-seta,
+.lb-rpg__linha[data-seco='sim'] > .lb-rpg__copias-corpo,
+.lb-rpg__linha[data-seco='sim'] > .lb-rpg__copias-corpo > .lb-rpg__grupo-miolo {
+  transition: none;
+}
+
+/* Movimento reduzido: a altura e a seta param; o esmaecer do conteúdo (só opacidade) fica. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-rpg__grupo-corpo,
+  .lb-rpg__grupo-seta,
+  .lb-rpg__copias-seta {
+    transition-duration: 0ms;
+  }
 }
 
 /* ------------------------------------------------- Personagem no token */

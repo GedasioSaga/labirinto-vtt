@@ -8814,7 +8814,14 @@ function PixiCanvasDoContexto({
         const porta = findDoorAt(doPisoEmEdicao(useMapStore.getState().map), ponto)
         if (porta === null) {
           // Em cima do que está selecionado (fatia 8 das camadas): "Mover para camada" da seleção inteira.
-          if (!cliqueNaSelecao(ponto)) return
+          if (!cliqueNaSelecao(ponto)) {
+            // LIGAR FICHA (09/11/2026): botão direito num token fora da seleção o seleciona (o mesmo
+            // alvo do clique de selecionar) e abre o menu dele, com "Ligar ficha ›".
+            const estado = useMapStore.getState()
+            const alvo = findSelectableAt(clickSelectMap(estado.map), ponto, pinosNoToque(estado.map))
+            if (alvo === null || alvo.kind !== 'token') return
+            estado.setSelection([{ kind: 'token', id: alvo.id }])
+          }
           event.preventDefault()
           selecaoDoCliqueDireito = true
           setMenuDaSelecao({ x: local.x, y: local.y })

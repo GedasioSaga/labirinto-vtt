@@ -5,6 +5,7 @@ import { lerAgenda, type AgendaDaCampanha } from './agendaDaCampanha'
 import { estadosDoArquivo, type EstadoDoMundo } from './estadoDoMundo'
 import { cabinesDoArquivo, type CabineDeTransporte } from './cabine'
 import { equipesDoArquivo, type Equipe } from './batalha/equipes'
+import { pastasDeFichasDoArquivo, type PastaDeFichas } from './pastasDeFichas'
 import { personagensDoArquivo, sistemaDaAventuraDoArquivo, type Personagem } from './personagem'
 import { marcadorDaMochilaDoArquivo } from './mochila/marcador'
 
@@ -95,6 +96,8 @@ export interface Adventure {
    * ativa é a da aventura. Ausente = sem equipes (grava sem a chave).
    */
   equipes?: Equipe[]
+  /** PASTAS DO MESTRE no painel Personagens (`lib/pastasDeFichas.ts`): seguem os personagens, como as equipes. Ausente = nenhuma. */
+  pastasDeFichas?: PastaDeFichas[]
   /**
    * CAMADAS (`lib/camadas`): a lista de camadas da aventura (nomes e ordem,
    * de baixo para cima), a mesma em todas as cenas; o estado de cada uma
@@ -279,6 +282,8 @@ export function parseAdventure(json: string): Adventure {
   const personagens = personagensDoArquivo(parsed.personagens)
   // EQUIPES DA BATALHA: idem; lista vazia também grava sem a chave.
   const equipes = equipesDoArquivo(parsed.equipes)
+  // PASTAS DO MESTRE (painel Personagens): idem; lista vazia grava sem a chave.
+  const pastasDeFichas = pastasDeFichasDoArquivo(parsed.pastasDeFichas)
   // CAMADAS: idem — sem a chave, a aventura continua sem ela; entrada torta sai.
   const camadas = lerModeloDeCamadas(parsed.camadas)
   // PERÍODO DA SESSÃO: idem; 'manha' antigo abre como 'dia' e nunca volta ao arquivo.
@@ -296,6 +301,7 @@ export function parseAdventure(json: string): Adventure {
     ...(sistemaDeRpg === undefined ? {} : { sistemaDeRpg }),
     ...(personagens === undefined ? {} : { personagens }),
     ...(equipes === undefined || equipes.length === 0 ? {} : { equipes }),
+    ...(pastasDeFichas === undefined || pastasDeFichas.length === 0 ? {} : { pastasDeFichas }),
     ...(camadas === undefined ? {} : { camadas }),
     ...(periodo === undefined ? {} : { periodo }),
     ...(mochilaMigrada === undefined ? {} : { mochilaMigrada }),

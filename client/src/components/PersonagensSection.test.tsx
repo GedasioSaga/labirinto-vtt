@@ -57,12 +57,33 @@ describe('PersonagensSection', () => {
     return chamadas
   }
 
-  it('a lista com selo, sem o botão do sistema (mora em Configurações do mapa); tocar abre a ficha', () => {
+  it('a lista em grupos que fecham, com contador; o nome inteiro sem selo no grupo; tocar abre a ficha', () => {
     const { onAbrirFicha } = montar()
     expect(container.textContent).not.toContain('Sistema de RPG')
-    expect(Array.from(container.querySelectorAll('.lb-rpg__abrir')).map((linha) => linha.textContent)).toEqual(['AAiraJogador', 'SSmokerNPC'])
+    const cabecalhos = Array.from(container.querySelectorAll<HTMLButtonElement>('.lb-rpg__grupo-cab'))
+    expect(cabecalhos.map((cab) => cab.textContent)).toEqual(['Jogadores1', 'NPCs1'])
+    expect(Array.from(container.querySelectorAll('.lb-rpg__abrir')).map((linha) => linha.textContent)).toEqual(['AAira', 'SSmoker'])
     act(() => container.querySelectorAll<HTMLButtonElement>('.lb-rpg__abrir')[1].click())
     expect(onAbrirFicha).toHaveBeenCalledWith('p-smoker')
+    // Fechar o grupo guarda o estado e tira as linhas dele da ordem do Tab.
+    act(() => cabecalhos[1].click())
+    expect(cabecalhos[1].getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById(cabecalhos[1].getAttribute('aria-controls') ?? '')?.hasAttribute('inert')).toBe(true)
+  })
+
+  it('a busca filtra pelo nome sem acento; sem nada, diz que não achou', () => {
+    montar({ personagens: [novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Aira'), { ...novoPersonagem(SISTEMA_ONE_PIECE, 'npc', 'Capitão Smóker'), id: 'p-smoker' }] })
+    const campo = container.querySelector<HTMLInputElement>('input[type="search"]')
+    if (campo === null) throw new Error('a busca deveria estar no topo')
+    const digitar = (texto: string) =>
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(campo, texto)
+        campo.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    digitar('capitao smo')
+    expect(Array.from(container.querySelectorAll('.lb-rpg__nome')).map((nome) => nome.textContent)).toEqual(['Capitão Smóker'])
+    digitar('zzz')
+    expect(container.textContent).toContain('Nenhum personagem com “zzz”')
   })
 
   it('apagar pede confirmação na própria linha', () => {

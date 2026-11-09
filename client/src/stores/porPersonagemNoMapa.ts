@@ -2,7 +2,9 @@ import type { Personagem } from '../lib/personagem'
 import { ehRefDeMidia } from '../lib/midia'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { buildTokenPhotoData, isTokenPhotoData } from '../lib/tokenPhoto'
-import { snapPointForTarget } from '../pixi/tokenInteraction'
+import { visibleTokens } from '../lib/layers'
+import { mapaDoPiso } from '../lib/pisos'
+import { findTokenAt, snapPointForTarget } from '../pixi/tokenInteraction'
 import type { Camera, Point } from '../pixi/world'
 import type { MapData } from '../types/map'
 import { criarToken, type TamanhoDaVista } from './criarToken'
@@ -60,6 +62,36 @@ export function casaSobOPonteiro(host: HTMLElement | null, clientX: number, clie
   if (host === null || sob === null || !host.contains(sob)) return null
   const { camera, map } = useMapStore.getState()
   return casaDoSoltar({ x: clientX, y: clientY }, host.getBoundingClientRect(), camera, map)
+}
+
+/**
+ * SOLTAR EM CIMA DO TOKEN (pedido de 09/11/2026): o token sob o ponteiro no
+ * piso em edição, e os tokens que a ficha vai ligar — ele só, ou a seleção
+ * inteira quando ele faz parte de uma seleção de vários tokens ("vários de
+ * uma vez"). `tela` é o disco do token (px de janela), para o realce.
+ */
+export interface TokenDoSoltar {
+  tokenIds: string[]
+  nome: string
+  tela: { x: number; y: number; lado: number }
+}
+
+export function tokenSobOPonteiro(host: HTMLElement | null, clientX: number, clientY: number): TokenDoSoltar | null {
+  const sob = document.elementFromPoint(clientX, clientY)
+  if (host === null || sob === null || !host.contains(sob)) return null
+  const { camera, map, pisoAtivo, selection } = useMapStore.getState()
+  const caixa = host.getBoundingClientRect()
+  const ponto = { x: (clientX - caixa.left - camera.x) / camera.scale, y: (clientY - caixa.top - camera.y) / camera.scale }
+  const doPiso = mapaDoPiso(map, pisoAtivo)
+  const token = findTokenAt(visibleTokens(doPiso.tokens, map.hiddenLayers), ponto, map.grid)
+  if (token === null) return null
+  const selecionados = selection.filter((item) => item.kind === 'token').map((item) => item.id)
+  const tokenIds = selecionados.length > 1 && selecionados.includes(token.id) ? selecionados : [token.id]
+  return {
+    tokenIds,
+    nome: token.name,
+    tela: { x: caixa.left + camera.x + token.x * camera.scale, y: caixa.top + camera.y + token.y * camera.scale, lado: map.grid * token.size * camera.scale },
+  }
 }
 
 /**

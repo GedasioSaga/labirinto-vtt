@@ -97,3 +97,72 @@
 .lb-menusel__cena:disabled:hover {
   background: transparent;
 }
+
+/* LIGAR FICHA (painel Personagens, 09/11): busca no alto e as fichas embaixo, com retrato. */
+.lb-panel.lb-portamenu.lb-ligar {
+  width: 15rem;
+  overflow: hidden;
+}
+
+.lb-ligar__busca.lb-input {
+  min-height: 30px;
+  margin: 2px 2px 4px;
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-ligar__nota {
+  margin: 0;
+  padding: 0 var(--lb-space-2) 4px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-ligar__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(18rem, 50vh);
+  overflow-y: auto;
+}
+
+.lb-ligar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-ligar__retrato {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  overflow: hidden;
+  border-radius: var(--lb-radius-sm);
+  font-size: 5px;
+}
+
+.lb-ligar__retrato img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lb-ligar__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-ligar__tipo {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-ligar__vazio {
+  margin: 0;
+  padding: 4px var(--lb-space-2) 6px;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+}

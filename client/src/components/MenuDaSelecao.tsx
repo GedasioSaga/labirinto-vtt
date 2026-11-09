@@ -2,10 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { camadaDosItens, motivoParaNaoMover, nomeDaCamada, refsDaSelecao } from '../lib/camadas/mover'
 import { opcoesDoEnvio } from '../lib/enviarParaCena'
-import { useAdventureStore } from '../stores/adventureStore'
+import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
 import { enviarParaCena } from '../stores/enviarParaCena'
+import { desligarFichaDosTokens, ligarFichaAosTokens } from '../stores/ligarFichaNoToken'
 import { useMapStore } from '../stores/mapStore'
 import { SubmenuDeCenas } from './SubmenuDeCenas'
+import { SubmenuLigarFicha } from './SubmenuLigarFicha'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
 import './MenuDaSelecao.css'
 
@@ -46,7 +48,12 @@ function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1
  * mapa (`SubmenuDeCenas`). As fichas selecionadas vão juntas para o pino de
  * chegada de lá, num passo do Ctrl+Z (`stores/enviarParaCena.ts`); o resto da
  * seleção fica. Mapa de uma cena só: o item aparece desligado, com o porquê.
- * Setas para cima e para baixo andam entre os dois itens.
+ * Setas para cima e para baixo andam entre os itens.
+ *
+ * LIGAR FICHA (pedido de 09/11/2026): com ficha na seleção, "Ligar ficha ›"
+ * (busca e a lista dos Personagens; cada token com a própria vida,
+ * `stores/ligarFichaNoToken.ts`) e "Desligar ficha". Vale para todos os
+ * tokens selecionados, num passo do Ctrl+Z.
  */
 export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoProps & ComSaidaFilho) {
   const map = useMapStore((state) => state.map)
@@ -57,6 +64,11 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const [submenuAberto, setSubmenuAberto] = useState(false)
   // "Enviar para cena ›" aberto; `focar` = abriu pelo teclado.
   const [cenasAbertas, setCenasAbertas] = useState<{ focar: boolean } | null>(null)
+  // "Ligar ficha ›" aberto; `focar` = abriu pelo teclado.
+  const [fichasAbertas, setFichasAbertas] = useState<{ focar: boolean } | null>(null)
+  const personagens = useAdventureStore(personagensAtivos)
+  const fichaRef = useRef<HTMLButtonElement | null>(null)
+  const desligarRef = useRef<HTMLButtonElement | null>(null)
   const adventure = useAdventureStore((state) => state.adventure)
   const cenaAberta = useAdventureStore((state) => state.activeSceneId)
   const situacao = useAdventureStore((state) => state.cache)
@@ -113,8 +125,11 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const opcoes = [...camadas.ordem].reverse()
   const envio = opcoesDoEnvio(adventure, cenaAberta, situacao)
 
+  const ligados = fichas.filter((id) => map.tokens.some((token) => token.id === id && token.characterId !== null))
+
   const abrirSubmenu = (focar: boolean) => {
     setCenasAbertas(null)
+    setFichasAbertas(null)
     if (motivo !== null) return
     setSubmenuAberto(true)
     if (!focar) return
@@ -134,7 +149,30 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const abrirCenas = (focar: boolean) => {
     if (envio.motivo !== null) return
     setSubmenuAberto(false)
+    setFichasAbertas(null)
     setCenasAbertas({ focar })
+  }
+
+  const abrirFichas = (focar: boolean) => {
+    setSubmenuAberto(false)
+    setCenasAbertas(null)
+    setFichasAbertas({ focar })
+  }
+
+  const fecharFichas = () => {
+    setFichasAbertas(null)
+    fichaRef.current?.focus()
+  }
+
+  const ligar = (personagemId: string) => {
+    void ligarFichaAosTokens(personagemId, fichas)
+    onClose()
+  }
+
+  const desligar = () => {
+    if (ligados.length === 0) return
+    desligarFichaDosTokens(ligados)
+    onClose()
   }
 
   const fecharCenas = () => {
@@ -173,12 +211,15 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
-      const pais = [itemRef.current, cenaRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const pais = [itemRef.current, cenaRef.current, fichaRef.current, desligarRef.current].filter((item): item is HTMLButtonElement => item !== null)
       const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         if (document.activeElement === cenaRef.current) abrirCenas(true)
-        else abrirSubmenu(true)
+        else if (document.activeElement === fichaRef.current) abrirFichas(true)
+        else if (document.activeElement === desligarRef.current) {
+          if (event.key !== 'ArrowRight') desligar()
+        } else abrirSubmenu(true)
       } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
         event.preventDefault()
         const proximo = event.key === 'Home' ? 0 : event.key === 'End' ? pais.length - 1 : noPai + (event.key === 'ArrowDown' ? 1 : -1)
@@ -245,7 +286,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
         </span>
       </button>
       {motivo !== null && <p className="lb-menusel__motivo">{motivo}</p>}
-      {submenuAberto && cenasAbertas === null && (
+      {submenuAberto && cenasAbertas === null && fichasAbertas === null && (
         <div ref={submenuRef} className="lb-panel lb-portamenu lb-menusel__sub" role="menu" aria-label="Mover para camada">
           {opcoes.map((camada) => {
             const travada = camadas.travada(camada)
@@ -308,6 +349,50 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
               onSair={onClose}
             />
           )}
+          <button
+            ref={fichaRef}
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className="lb-portamenu__item lb-menusel__pai"
+            aria-haspopup="menu"
+            aria-expanded={fichasAbertas !== null}
+            onPointerEnter={(event) => {
+              event.currentTarget.focus()
+              if (fichasAbertas === null) abrirFichas(false)
+            }}
+            onClick={() => (fichasAbertas !== null ? fecharFichas() : abrirFichas(true))}
+          >
+            <span>{fichas.length > 1 ? `Ligar ficha aos ${fichas.length}` : 'Ligar ficha'}</span>
+            <span className="lb-menusel__seta" aria-hidden="true">
+              ›
+            </span>
+          </button>
+          {fichasAbertas !== null && (
+            <SubmenuLigarFicha
+              personagens={personagens}
+              quantos={fichas.length}
+              ancora={fichaRef.current}
+              focar
+              onEscolher={ligar}
+              onFechar={fecharFichas}
+              onSair={onClose}
+            />
+          )}
+          <button
+            ref={desligarRef}
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className="lb-portamenu__item lb-menusel__pai"
+            aria-disabled={ligados.length === 0}
+            title={ligados.length === 0 ? 'Nenhum token selecionado tem ficha.' : undefined}
+            // Só o foco: o ponteiro passa por aqui a caminho do "Ligar ficha ›" aberto, e ele não pode fechar no meio.
+            onPointerEnter={(event) => event.currentTarget.focus()}
+            onClick={desligar}
+          >
+            <span>{ligados.length > 1 ? `Desligar ficha dos ${ligados.length}` : 'Desligar ficha'}</span>
+          </button>
         </>
       )}
     </div>

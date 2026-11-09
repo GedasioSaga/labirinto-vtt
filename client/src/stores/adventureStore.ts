@@ -47,6 +47,7 @@ import { sincronizarVariacoes } from '../lib/livros/combate'
 import type { Personagem } from '../lib/personagem'
 import { gravarRpgDaPasta, rpgDe, type PastaAberta, type RpgDaPasta } from '../lib/pastasDeMapas'
 import type { Equipe } from '../lib/batalha/equipes'
+import type { PastaDeFichas } from '../lib/pastasDeFichas'
 import { personagemComMidia } from '../lib/imagensDaFicha'
 import { comAutor, comoTudoOuNada, prepararEmissao } from '../net/nuvem/emissor'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -389,6 +390,12 @@ interface AdventureState {
    * `false` quando não há onde guardar (mapa solto fora de pasta que herda).
    */
   salvarEquipes: (equipes: readonly Equipe[]) => boolean
+  /**
+   * PASTAS DO MESTRE no painel Personagens: grava a lista inteira (criar,
+   * renomear, mover ficha, apagar pasta) no mesmo dono dos personagens, como
+   * as equipes. Fora do desfazer do mapa. `false` sem onde guardar.
+   */
+  salvarPastasDeFichas: (pastas: readonly PastaDeFichas[]) => boolean
   /**
    * Põe o personagem na equipe `equipeId` (sai da que estava), ou em nenhuma
    * (`null`). Mesma equipe de antes = nada muda. `false` sem onde guardar ou
@@ -1030,6 +1037,33 @@ function espelhoDasFichas(state: RpgState): (map: MapData) => MapData {
 
 /** Referência estável para "sem equipes": o host compara por referência. */
 const SEM_EQUIPES: readonly Equipe[] = []
+
+const SEM_PASTAS_DE_FICHAS: readonly PastaDeFichas[] = []
+
+/** PASTAS DO MESTRE do painel Personagens: do MESMO dono que `personagensAtivos`. Referência estável enquanto nada muda. */
+export function pastasDeFichasAtivas(state: RpgState): readonly PastaDeFichas[] {
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) return pasta.pastasDeFichas ?? SEM_PASTAS_DE_FICHAS
+  return state.adventure?.pastasDeFichas ?? SEM_PASTAS_DE_FICHAS
+}
+
+/** Como `donoDasEquipes`, para as pastas do mestre: devolve o gravador, ou `null` sem onde guardar. Vazia grava sem a chave. */
+function donoDasPastasDeFichas(get: () => AdventureState, set: (patch: Partial<AdventureState>) => void): ((pastas: PastaDeFichas[]) => void) | null {
+  const state = get()
+  const pasta = pastaQueManda(state)
+  if (pasta !== null) {
+    return (pastas) => {
+      const { pastasDeFichas: _antigas, ...sem } = pasta
+      set({ pasta: pastas.length === 0 ? sem : { ...sem, pastasDeFichas: pastas }, pastaSuja: true })
+    }
+  }
+  const { adventure } = state
+  if (adventure === null) return null
+  return (pastas) => {
+    const { pastasDeFichas: _antigas, ...sem } = adventure
+    set({ adventure: pastas.length === 0 ? sem : { ...sem, pastasDeFichas: pastas }, structureDirty: true })
+  }
+}
 
 /**
  * BATALHA F1: as equipes em uso — do MESMO dono que `personagensAtivos` (a
@@ -1792,6 +1826,13 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const dono = donoDasEquipes(get, set)
     if (dono === null) return false
     dono.gravar([...equipes])
+    return true
+  },
+
+  salvarPastasDeFichas: (pastas) => {
+    const dono = donoDasPastasDeFichas(get, set)
+    if (dono === null) return false
+    dono([...pastas])
     return true
   },
 

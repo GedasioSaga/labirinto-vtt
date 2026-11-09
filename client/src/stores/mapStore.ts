@@ -62,6 +62,7 @@ import {
 import { applyPatrolOp, setPassosDoPonto, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
 import { nomesDosLugaresLigados, temPilula } from '../lib/nomesDosLugares'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { mapaComAsLigacoes, type MudancaDaLigacao } from '../lib/ligarFicha'
 import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
 import { boardVehicle, leaveVehicle, setVehicleSeats as setVehicleSeatsOnMap, vehicleCarrying } from '../lib/vehicle'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
@@ -933,6 +934,13 @@ interface MapStoreState {
     id: string,
     patch: Partial<Pick<Token, 'rotation' | 'locked' | 'congelado' | 'hidden' | 'color' | 'size' | 'health' | 'vigia' | 'npc' | 'publicName' | 'playerCharacter' | 'characterId'>>,
   ) => void
+  /**
+   * LIGAR FICHA AO TOKEN (painel Personagens, menu da seleção): a ficha de
+   * cada token, a marca de NPC e a foto do retrato, em VÁRIOS tokens num
+   * passo só do Ctrl+Z (`stores/ligarFichaNoToken.ts`). Lista vazia ou token
+   * que não existe mais não gasta entrada de histórico.
+   */
+  ligarFichasAosTokens: (mudancas: readonly MudancaDaLigacao[]) => void
   /**
    * CONDIÇÃO NA FICHA: marca a condição se ela não está na ficha, desmarca se
    * está (`lib/tokenConditions.ts`) — o clique do painel. Com histórico, mesmo
@@ -2544,6 +2552,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       ...map,
       tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     })),
+    ligarFichasAosTokens: (mudancas) => passoSeMudou((map) => mapaComAsLigacoes(map, mudancas)),
     toggleTokenCondition: (id, condition) => {
       const next = toggleConditionOnMap(get().map, id, condition)
       if (next !== get().map) withHistory(() => next)
