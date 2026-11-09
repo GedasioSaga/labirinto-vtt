@@ -77,7 +77,8 @@ pub fn run() {
             preludio::comandos::preludio_copia_ultima,
             preludio::comandos::preludio_copia_fazer,
             preludio::comandos::preludio_copia_listar,
-            preludio::comandos::preludio_copia_restaurar
+            preludio::comandos::preludio_copia_restaurar,
+            preludio::comandos::preludio_espaco_livre
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

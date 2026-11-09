@@ -7,7 +7,7 @@ use tauri::{AppHandle, Emitter as _, Manager as _, State, WebviewWindow};
 
 use super::copia::{self, Progresso, ResumoDaCopia, ResumoDaRestauracao, UltimaCopia};
 use super::drive::{CopiaNoDrive, Drive};
-use super::{erro_disco, google, ErroPreludio, PreludioEstado};
+use super::{disco, erro_disco, google, ErroPreludio, PreludioEstado};
 
 /// Única janela que fala com o Google.
 const ROTULO_MAIN: &str = "main";
@@ -142,4 +142,18 @@ pub async fn preludio_copia_restaurar(
     let resultado = copia::restaurar(&dados, &drive, &copia_id, &avisar).await;
     avisar(Progresso::fim());
     resultado
+}
+
+/// Bytes livres no disco de `<appData>`. O TS trava o "Aplicar" da importação do
+/// Grimório abaixo de 8 GB, e também quando este comando falha.
+#[tauri::command]
+pub async fn preludio_espaco_livre(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<u64, ErroPreludio> {
+    exigir_main(&window)?;
+    let dados = dados_do_app(&app)?;
+    tauri::async_runtime::spawn_blocking(move || disco::espaco_livre_em(&dados))
+        .await
+        .map_err(|_| super::erro_interrompido())?
 }

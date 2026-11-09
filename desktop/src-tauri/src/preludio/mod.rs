@@ -30,6 +30,7 @@
 //! | `preludio_copia_fazer` | — | o resumo da cópia (`nadaMudou` = o Drive já tinha tudo) |
 //! | `preludio_copia_listar` | — | as cópias no Drive, da mais nova para a mais velha |
 //! | `preludio_copia_restaurar` | `copiaId` | o resumo; o Prelúdio de antes fica guardado no PC |
+//! | `preludio_espaco_livre` | — | os bytes livres no disco de `<appData>` (inteiro; a importação do Grimório exige 8 GB) |
 //!
 //! Enquanto copia ou restaura, o Rust avisa o andamento no evento `preludio:copia`
 //! (só para a janela `main`): `{fase, feitos, total}`, com `fase` = `lendo`,
@@ -43,6 +44,7 @@
 
 pub mod comandos;
 mod copia;
+mod disco;
 mod drive;
 mod google;
 mod plano;
