@@ -81,4 +81,27 @@ describe('PlayerPinCard: minigame', () => {
     expect(acoes()[0].disabled).toBe(true)
     expect(container.textContent).toContain('Chegue mais perto para pescar.')
   })
+
+  it('fogo: a fala de quem pede ajuda e "Apagar o fogo", nunca o texto da dança', () => {
+    const onApagarFogo = vi.fn()
+    const visivel = { jogo: 'fogo', entrada: 'pino', npc: 'Guarda Florêncio', fala: 'O fogo está descendo o morro!' } as const
+    act(() => root.render(<PlayerPinCard pin={pino({ description: '', minigameVisivel: visivel })} onClose={() => {}} stairs={[]} onApagarFogo={onApagarFogo} />))
+    expect(container.textContent).not.toContain('Desafio de dança')
+    expect(container.textContent).not.toContain('O mestre ainda não escreveu nada')
+    expect(container.textContent).toContain('Fogo na floresta! Alguém precisa de ajuda aqui.')
+    expect(container.querySelector('.pp-pincard__fala-texto')?.textContent).toBe('“O fogo está descendo o morro!”')
+    expect(container.querySelector('.pp-pincard__fala-quem')?.textContent).toBe('Guarda Florêncio')
+    const [apagar] = acoes()
+    expect(apagar.textContent).toBe('Apagar o fogo')
+    act(() => apagar.click())
+    expect(onApagarFogo).toHaveBeenCalledTimes(1)
+  })
+
+  it('sem texto do mestre, cada jogo diz a sua frase', () => {
+    render(pino({ description: '', minigameVisivel: { jogo: 'tiro', entrada: 'mestre' } }))
+    expect(container.textContent).toContain('Uma barraca de tiro ao alvo.')
+    expect(container.textContent).not.toContain('Desafio de dança')
+    render(pino({ description: '' }))
+    expect(container.textContent).toContain('Um desafio de dança espera por aqui.')
+  })
 })

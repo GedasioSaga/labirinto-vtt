@@ -16,8 +16,10 @@ import {
  *
  *  - mestre → jogador: `fogo.convite`, `fogo.estado`, `fogo.comecar`,
  *    `fogo.entradas` (as dos colegas, em lotes, a cada `FOGO_REPASSE_MS`),
- *    `fogo.sair`, `fogo.pausa`, `fogo.retoma`, `fogo.encerra` e `fogo.desfecho`;
- *  - jogador → mestre: `fogo.pronto`, `fogo.entradas` (as minhas, de `de` em
+ *    `fogo.sair`, `fogo.pausa`, `fogo.retoma`, `fogo.encerra`, `fogo.desfecho`
+ *    e `fogo.recusado` (o "Apagar o fogo" do pino não abriu);
+ *  - jogador → mestre: `fogo.pedir` ("Apagar o fogo" no cartão do pino: um
+ *    incêndio só dele), `fogo.pronto`, `fogo.entradas` (as minhas, de `de` em
  *    diante), `fogo.hash` (a cada 5 s de jogo), `fogo.fim` (o placar) e
  *    `fogo.desistir` ("Agora não", ou o jogo não carregou neste aparelho).
  *
@@ -144,6 +146,30 @@ export interface FogoConviteMessage {
   premio: { texto: string }
   consequencia: { texto: string }
   participantes: FogoParticipante[]
+  /**
+   * SOZINHO NO PINO: a volta do "Apagar o fogo" deste jogador (`fogo.pedir`).
+   * Ninguém espera o mestre: o Pronto já leva a dificuldade e começa. Diz a
+   * dificuldade que o mestre deixou (`escolha` = o jogador escolhe). Ausente =
+   * convite do mestre, como sempre.
+   */
+  sozinho?: { permitida: 'escolha' | DificuldadeFogo }
+}
+
+/** Por que o "Apagar o fogo" não abriu: ficha longe, outro incêndio aceso nesta sala, ou o pino não vale. */
+export type FogoMotivoDaRecusa = 'longe' | 'ocupado' | 'indisponivel'
+export const FOGO_MOTIVOS_DA_RECUSA: readonly FogoMotivoDaRecusa[] = ['longe', 'ocupado', 'indisponivel']
+
+/** A recusa do `fogo.pedir`: sem sessão (nenhuma começou), só o pino e o motivo curto. */
+export interface FogoRecusadoMessage {
+  type: 'fogo.recusado'
+  pinId: string
+  motivo: FogoMotivoDaRecusa
+}
+
+/** O jogador tocou em "Apagar o fogo" no cartão do pino: pede um incêndio só dele. */
+export interface FogoPedirMessage {
+  type: 'fogo.pedir'
+  pinId: string
 }
 
 export interface FogoEstadoMessage {
@@ -217,11 +243,17 @@ export type FogoHostMessage =
   | FogoPausaMessage
   | FogoEncerraMessage
   | FogoDesfechoMessage
+  | FogoRecusadoMessage
+
+/** O que o host manda DENTRO de uma sessão (a recusa vem antes de haver uma). */
+export type FogoDaSessaoMessage = Exclude<FogoHostMessage, FogoRecusadoMessage>
 
 export interface FogoProntoMessage {
   type: 'fogo.pronto'
   sessao: string
   ferramenta: FerramentaFogo
+  /** Só no convite `sozinho`: a dificuldade escolhida (o host confere com a que o mestre deixou). */
+  dificuldade?: DificuldadeFogo
 }
 
 export interface FogoEntradasMessage {
@@ -257,7 +289,7 @@ export interface FogoDesistirMessage {
   motivo: FogoMotivoDaDesistencia
 }
 
-export type FogoPlayerMessage = FogoProntoMessage | FogoEntradasMessage | FogoHashMessage | FogoFimMessage | FogoDesistirMessage
+export type FogoPlayerMessage = FogoPedirMessage | FogoProntoMessage | FogoEntradasMessage | FogoHashMessage | FogoFimMessage | FogoDesistirMessage
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -394,12 +426,17 @@ export function placarDoJogo(value: unknown): FogoPlacar | null {
 /** Do jogador, no host. Qualquer campo torto recusa a mensagem inteira. */
 export function parseFogoPlayerMessage(value: unknown): FogoPlayerMessage | null {
   if (!isRecord(value)) return null
+  // O pedido vem antes de haver sessão.
+  if (value.type === 'fogo.pedir') return idValido(value.pinId) ? { type: 'fogo.pedir', pinId: value.pinId } : null
   const { sessao } = value
   if (!sessaoValida(sessao)) return null
   switch (value.type) {
     case 'fogo.pronto': {
       const ferramenta = umDaLista(FERRAMENTAS_FOGO, value.ferramenta)
-      return ferramenta === undefined ? null : { type: 'fogo.pronto', sessao, ferramenta }
+      if (ferramenta === undefined) return null
+      if (value.dificuldade === undefined) return { type: 'fogo.pronto', sessao, ferramenta }
+      const dificuldade = umDaLista(DIFICULDADES_FOGO, value.dificuldade)
+      return dificuldade === undefined ? null : { type: 'fogo.pronto', sessao, ferramenta, dificuldade }
     }
     case 'fogo.entradas': {
       const lista = listaDe(value.lista, FOGO_LOTE_MAX, lerEntradaDoFogo, 1)
@@ -478,7 +515,13 @@ function lerDesfecho(value: Record<string, unknown>, sessao: string): FogoDesfec
 
 /** Do mestre, no jogador. O host é de confiança, mas a mensagem torta cai inteira em vez de virar meia tela. */
 export function parseFogoHostMessage(value: unknown): FogoHostMessage | null {
-  if (!isRecord(value) || !sessaoValida(value.sessao)) return null
+  if (!isRecord(value)) return null
+  // A recusa do pedido vem antes de haver sessão.
+  if (value.type === 'fogo.recusado') {
+    const motivo = umDaLista(FOGO_MOTIVOS_DA_RECUSA, value.motivo)
+    return idValido(value.pinId) && motivo !== undefined ? { type: 'fogo.recusado', pinId: value.pinId, motivo } : null
+  }
+  if (!sessaoValida(value.sessao)) return null
   const sessao = value.sessao
   switch (value.type) {
     case 'fogo.convite': {
@@ -489,7 +532,13 @@ export function parseFogoHostMessage(value: unknown): FogoHostMessage | null {
       const participantes = listaDe(value.participantes, FOGO_PARTICIPANTES_MAX, lerParticipante, 1)
       if (!idValido(pinId) || !textoEntre(npc, 0, TEXTO_CURTO_MAX) || !textoEntre(fala, 0, TEXTO_CURTO_MAX) || !textoEntre(floresta, 0, TEXTO_CURTO_MAX)) return null
       if (modo === undefined || premio === null || consequencia === null || participantes === null) return null
-      return { type: 'fogo.convite', sessao, pinId, npc, fala, floresta, modo, premio, consequencia, participantes }
+      const convite: FogoConviteMessage = { type: 'fogo.convite', sessao, pinId, npc, fala, floresta, modo, premio, consequencia, participantes }
+      if (value.sozinho !== undefined) {
+        const permitida = isRecord(value.sozinho) ? (value.sozinho.permitida === 'escolha' ? 'escolha' : umDaLista(DIFICULDADES_FOGO, value.sozinho.permitida)) : undefined
+        if (permitida === undefined) return null
+        convite.sozinho = { permitida }
+      }
+      return convite
     }
     case 'fogo.estado': {
       const fase = umDaLista(FASES_NO_FIO, value.fase)

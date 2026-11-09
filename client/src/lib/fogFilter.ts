@@ -4942,7 +4942,8 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: 
  *   cartão avisa que há um desafio), mas NPC, fala, lago, música, prêmio e
  *   consequência são do mestre — chegam só no convite, aos jogadores chamados.
  *   Em troca vai `minigameVisivel`, montado AQUI: só o jogo e como ele começa
- *   (o cartão oferece "Pescar" ou avisa que o mestre chama).
+ *   (o cartão oferece "Pescar" ou avisa que o mestre chama) e, só no fogo,
+ *   quem pede ajuda e a fala do pedido (o cartão a mostra).
  * - `soMarco` quando `known` é falso: o pino só chegou por ser marco, e a
  *   passagem por ele não vale daqui.
  * - `nome` (o "Nome do local", título do painel da revelação) VAI só junto
@@ -5076,7 +5077,7 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   if (loja !== null) forPlayer.loja = loja
   // MINIGAME: do desafio sai só o jogo e como ele começa, montados aqui — um
   // `minigameVisivel` gravado no mapa do mestre não é copiado.
-  if (pin.kind === 'minigame') forPlayer.minigameVisivel = minigameVisivelDe(pin)
+  if (pin.kind === 'minigame') forPlayer.minigameVisivel = minigameVisivelDe(pin, readable)
   return forPlayer
 }
 
@@ -5086,10 +5087,17 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
  * sempre começa pelo mestre. Valor torto (mapa montado sem passar pelo disco)
  * cai na dança e no mestre: o cartão nunca oferece começar sozinho por engano.
  */
-function minigameVisivelDe(pin: Pin): MinigameVisivel {
+function minigameVisivelDe(pin: Pin, readable: boolean): MinigameVisivel {
   const minigame = pin.minigame
-  // O fogo é de equipe: sempre o mestre chama, como a dança.
-  if (minigame?.jogo === 'fogo') return { jogo: 'fogo', entrada: 'mestre' }
+  // O fogo: "Apagar o fogo" começa sozinho no pino (a equipe vem do painel do
+  // mestre), e o pedido de ajuda do NPC é a fala do cartão. Pino "só de perto"
+  // visto de longe não leva a fala, como não leva a descrição.
+  if (minigame?.jogo === 'fogo') {
+    const visivel: MinigameVisivel = { jogo: 'fogo', entrada: 'pino' }
+    if (readable && typeof minigame.npc === 'string' && minigame.npc.trim() !== '') visivel.npc = minigame.npc
+    if (readable && typeof minigame.fala === 'string' && minigame.fala.trim() !== '') visivel.fala = minigame.fala
+    return visivel
+  }
   if (minigame === undefined || (minigame.jogo !== 'pesca' && minigame.jogo !== 'tiro')) return { jogo: 'danca', entrada: 'mestre' }
   // Pesca e tiro: o jogo, e a entrada pela lista (o torto cai no mestre).
   return { jogo: minigame.jogo, entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }

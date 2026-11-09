@@ -175,9 +175,9 @@ import { lembrarCena, type CenaLembrada } from './meuCaderno'
 import type { DificuldadeDanca } from '../minigames/danca/tipos'
 import { parseDancaHostMessage, parseDancaPlayerMessage, type DancaEvento, type DancaPlacarAoVivo, type DancaPlacarFinal, type DancaPlayerMessage } from '../net/protocoloDaDanca'
 import { dancaAceitaPronto, dancaNaPista, receberDanca, type DancaDoJogador } from './estadoDaDanca'
-import type { FerramentaFogo } from '../minigames/fogo/tipos'
-import { parseFogoHostMessage, parseFogoPlayerMessage, type FogoEntrada, type FogoPlacar, type FogoPlayerMessage } from '../net/protocoloDoFogo'
-import { fogoAceitaDesistir, fogoAceitaPronto, fogoEmJogo, receberFogo, type FogoDoJogador, type FogoParaOJogo } from './estadoDoFogo'
+import type { DificuldadeFogo, FerramentaFogo } from '../minigames/fogo/tipos'
+import { parseFogoHostMessage, parseFogoPlayerMessage, type FogoEntrada, type FogoMotivoDaRecusa, type FogoPlacar, type FogoPlayerMessage } from '../net/protocoloDoFogo'
+import { FOGO_RECUSA_AVISO_MS, fogoAceitaDesistir, fogoAceitaPronto, fogoEmJogo, receberFogo, type FogoDoJogador, type FogoParaOJogo } from './estadoDoFogo'
 import type { DificuldadePesca } from '../minigames/pesca/tipos'
 import {
   parsePescaHostMessage,
@@ -717,6 +717,8 @@ export interface PlayerState {
    * por `ouvirFogo`). Sai com `fecharFogo`, ou com a sala.
    */
   fogo?: FogoDoJogador
+  /** FOGO "Apagar o fogo" no pino: o host não deixou (`fogo.recusado`); some sozinho em `FOGO_RECUSA_AVISO_MS`. */
+  fogoRecusado?: { id: number; pinId: string; motivo: FogoMotivoDaRecusa }
   /**
    * MINIGAME DE PESCA: o convite (do mestre, ou a volta do "Pescar" deste
    * jogador), o que chegou depois (estado, pausa, encerramento) e os lances
@@ -1658,8 +1660,20 @@ export interface PlayerConnection {
   dancaFim(placar: DancaPlacarFinal): boolean
   /** DANÇA: a tela fechou o resultado (ou o aviso de encerrada): o estado da dança sai. */
   fecharDanca(): void
-  /** FOGO: "Pronto" com a ferramenta escolhida. `false` sem convite aberto ou com o socket fechado. Mandar de novo troca a ferramenta. */
-  prontoFogo(ferramenta: FerramentaFogo): boolean
+  /**
+   * FOGO: "Pronto" com a ferramenta escolhida. `false` sem convite aberto ou
+   * com o socket fechado. Mandar de novo troca a ferramenta. No convite
+   * `sozinho` (o "Apagar o fogo" do pino) leva a dificuldade e já começa:
+   * `false` também com a dificuldade que o mestre não deixou.
+   */
+  prontoFogo(ferramenta: FerramentaFogo, dificuldade?: DificuldadeFogo): boolean
+  /**
+   * FOGO "Apagar o fogo": pede um incêndio só deste jogador no pino `pinId`.
+   * O convite volta do mestre se a ficha estiver encostada. `false` (nada
+   * sai) fora do jogo, com pino que não é de fogo no mapa dele, com um fogo
+   * aberto na tela ou com o socket fechado.
+   */
+  pedirFogo(pinId: string): boolean
   /** FOGO: as MINHAS entradas dos tiques `de`, `de + 1`, ... (a tela junta a cada `FOGO_REPASSE_MS`). */
   entradasFogo(de: number, lista: FogoEntrada[]): boolean
   /** FOGO: a impressão digital do estado num tique (a cada 5 s de jogo), para o mestre comparar. */
@@ -4731,11 +4745,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'fogo.pausa':
       case 'fogo.retoma':
       case 'fogo.encerra':
-      case 'fogo.desfecho': {
+      case 'fogo.desfecho':
+      case 'fogo.recusado': {
         // A tela da mesa só olha: o fogo é de quem o mestre chamou.
         if (isTable) return
         const msg = parseFogoHostMessage(data)
         if (msg === null) return
+        if (msg.type === 'fogo.recusado') {
+          if (state.status !== 'playing') return
+          const id = nextNoticeId++
+          setState({ fogoRecusado: { id, pinId: msg.pinId, motivo: msg.motivo } })
+          setTimeout(() => {
+            if (state.fogoRecusado?.id === id) setState({ fogoRecusado: undefined })
+          }, FOGO_RECUSA_AVISO_MS)
+          return
+        }
         if (msg.type === 'fogo.entradas' || msg.type === 'fogo.sair') {
           // Só a sessão que está na tela: a de antes é atrasada e cai.
           if (state.fogo?.sessao !== msg.sessao) return
@@ -5985,12 +6009,30 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.danca !== undefined) setState({ danca: undefined })
     },
 
-    prontoFogo(ferramenta) {
+    prontoFogo(ferramenta, dificuldade) {
       const fogo = state.fogo
       if (!fogoAceitaPronto(fogo)) return false
-      if (!enviarFogo({ type: 'fogo.pronto', sessao: fogo.sessao, ferramenta })) return false
+      const sozinho = fogo.convite.sozinho
+      if (sozinho === undefined) {
+        if (!enviarFogo({ type: 'fogo.pronto', sessao: fogo.sessao, ferramenta })) return false
+      } else {
+        // Sozinho no pino: a dificuldade que o mestre deixou (o host recusaria calado a outra).
+        const escolhida = sozinho.permitida === 'escolha' ? dificuldade : sozinho.permitida
+        if (escolhida === undefined || (dificuldade !== undefined && dificuldade !== escolhida)) return false
+        if (!enviarFogo({ type: 'fogo.pronto', sessao: fogo.sessao, ferramenta, dificuldade: escolhida })) return false
+      }
       setState({ fogo: { ...fogo, pronto: ferramenta } })
       return true
+    },
+
+    pedirFogo(pinId) {
+      if (state.status !== 'playing') return false
+      // Um fogo por vez na tela: o aberto fecha antes de pedir outro.
+      const aberto = state.fogo
+      if (aberto !== undefined && aberto.encerrada === undefined && aberto.desfecho === undefined) return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin?.kind !== 'minigame' || pin.minigameVisivel?.jogo !== 'fogo' || pin.minigameVisivel.entrada !== 'pino') return false
+      return enviarFogo({ type: 'fogo.pedir', pinId })
     },
 
     entradasFogo(de, lista) {

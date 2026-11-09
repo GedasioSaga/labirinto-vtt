@@ -1,4 +1,4 @@
-import { ALTURAS_FOGO, type DificuldadeFogo, type FerramentaFogo, type MinigameFogo, type ModoFogo } from '../minigames/fogo/tipos'
+import { ALTURAS_FOGO, FERRAMENTAS_FOGO, type DificuldadeFogo, type FerramentaFogo, type MinigameFogo, type ModoFogo } from '../minigames/fogo/tipos'
 import {
   FOGO_ATRASO_PADRAO,
   FOGO_EQUIPE_MAX,
@@ -135,10 +135,18 @@ interface Fogo {
   hashes: Map<number, { hash: number; playerId: string }>
   divergencia?: { tique: number; nomes: string[] }
   desfecho?: FogoAoVivo['desfecho']
+  /** SOZINHO NO PINO (`pedir`): a dificuldade que o mestre deixou; o Pronto do jogador já começa. */
+  sozinho?: { permitida: 'escolha' | DificuldadeFogo }
 }
 
 export interface FogoNoHost {
   convidar(conf: FogoCongelado, modo: ModoFogo, convidados: readonly FogoConvidado[]): { outbound: SaidaDoFogo[]; resultado: FogoConviteResultado }
+  /**
+   * SOZINHO NO PINO: o jogador tocou em "Apagar o fogo". Abre um incêndio solo
+   * só dele, sem o mestre no meio: o convite volta com `sozinho` e o Pronto
+   * dele (com a dificuldade) já começa. Um incêndio por vez, como o do mestre.
+   */
+  pedir(conf: FogoCongelado, quem: { playerId: string; nome: string }): { outbound: SaidaDoFogo[]; resultado: { ok: true; sessao: string } | { ok: false; motivo: 'ocupado' } }
   pronto(playerId: string, msg: FogoProntoMessage): SaidaDoFogo[]
   /** O mestre troca a ferramenta inicial de alguém no painel (só no convite). */
   mudarFerramenta(playerId: string, ferramenta: FerramentaFogo): SaidaDoFogo[] | null
@@ -234,6 +242,7 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
       premio: { ...m.premio },
       consequencia: { ...m.consequencia },
       participantes: f.participantes.map((p) => ({ playerId: p.playerId, nome: p.nome, ferramenta: p.ferramenta })),
+      ...(f.sozinho === undefined ? {} : { sozinho: { ...f.sozinho } }),
     }
   }
 
@@ -349,6 +358,38 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
     })
   }
 
+  /** Começa o convite aberto com quem está pronto. `null` = nada a fazer. */
+  const comecarFogo = (dificuldade: DificuldadeFogo, atraso: number): SaidaDoFogo[] | null => {
+    const f = fogo
+    if (f === null || f.fase !== 'convite') return null
+    // Pronto E na sala agora: quem caiu depois do Pronto não ouviria o "começar".
+    const jogam = f.participantes.filter((p) => p.status === 'pronto' && ctx.conexaoDe(p.playerId) !== null)
+    if (jogam.length === 0) return null
+    const outbound: SaidaDoFogo[] = []
+    for (const p of f.participantes) {
+      // Quem já ficou de fora no convite ("Agora não") fechou a tela: não precisa ouvir de novo.
+      if (jogam.includes(p) || p.status === 'fora') continue
+      outbound.push(...para(p, encerra(f, 'fora')))
+      p.status = 'fora'
+    }
+    for (const p of jogam) p.status = 'jogando'
+    f.fase = 'jogo'
+    f.dificuldade = dificuldade
+    const semente = sementeDoFogo(ctx.randomId())
+    const partida = (quem: readonly Participante[]): FogoComecarMessage => ({
+      type: 'fogo.comecar',
+      sessao: f.sessao,
+      semente,
+      dificuldade,
+      atraso,
+      jogadores: quem.map((p) => ({ id: p.playerId, nome: p.nome, ferramenta: p.ferramenta })),
+    })
+    // Equipe: o MESMO começar para todos (a ordem é o número na simulação); solo: cada um no seu incêndio.
+    const daEquipe = partida(jogam)
+    for (const p of jogam) outbound.push(...para(p, f.modo === 'equipe' ? daEquipe : partida([p])))
+    return [...outbound, ...estadoATodos(f)]
+  }
+
   return {
     convidar(conf, modo, convidados) {
       if (ativo() !== null) return { outbound: [], resultado: { ok: false, motivo: 'ocupada' } }
@@ -368,11 +409,37 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
       return { outbound: f.participantes.flatMap((p) => para(p, convite)), resultado: { ok: true, sessao: f.sessao, convidados: f.participantes.length } }
     },
 
+    pedir(conf, quem) {
+      if (ativo() !== null) return { outbound: [], resultado: { ok: false, motivo: 'ocupado' } }
+      const f: Fogo = {
+        sessao: ctx.randomId(),
+        conf,
+        modo: 'solo',
+        fase: 'convite',
+        // A ferramenta é só a sugestão: o jogador escolhe a principal no convite.
+        participantes: [{ playerId: quem.playerId, nome: quem.nome, ferramenta: FERRAMENTAS_FOGO[0], status: 'convidado', ultimoRecebido: 0, ultimoRepassado: 0, fila: [] }],
+        hashes: new Map(),
+        sozinho: { permitida: conf.minigame.permitida },
+      }
+      fogo = f
+      return { outbound: f.participantes.flatMap((p) => para(p, conviteDe(f))), resultado: { ok: true, sessao: f.sessao } }
+    },
+
     pronto(playerId, msg) {
       const achado = doJogador(playerId, msg.sessao, ['convite'])
       if (achado === null) return []
       const { f, p } = achado
       if (p.status !== 'convidado' && p.status !== 'pronto') return []
+      if (f.sozinho !== undefined) {
+        // Sozinho no pino: o Pronto já começa. A dificuldade é a que o mestre
+        // deixou; na "escolha", a do jogador (sem ela, nada começa).
+        const permitida = f.sozinho.permitida
+        const dificuldade = permitida === 'escolha' ? msg.dificuldade : permitida
+        if (dificuldade === undefined) return []
+        p.status = 'pronto'
+        p.ferramenta = msg.ferramenta
+        return comecarFogo(dificuldade, FOGO_ATRASO_PADRAO) ?? estadoATodos(f)
+      }
       if (p.status === 'pronto' && p.ferramenta === msg.ferramenta) return []
       p.status = 'pronto'
       p.ferramenta = msg.ferramenta
@@ -462,34 +529,7 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
     },
 
     comecar(dificuldade, atraso = FOGO_ATRASO_PADRAO) {
-      const f = fogo
-      if (f === null || f.fase !== 'convite') return null
-      // Pronto E na sala agora: quem caiu depois do Pronto não ouviria o "começar".
-      const jogam = f.participantes.filter((p) => p.status === 'pronto' && ctx.conexaoDe(p.playerId) !== null)
-      if (jogam.length === 0) return null
-      const outbound: SaidaDoFogo[] = []
-      for (const p of f.participantes) {
-        // Quem já ficou de fora no convite ("Agora não") fechou a tela: não precisa ouvir de novo.
-        if (jogam.includes(p) || p.status === 'fora') continue
-        outbound.push(...para(p, encerra(f, 'fora')))
-        p.status = 'fora'
-      }
-      for (const p of jogam) p.status = 'jogando'
-      f.fase = 'jogo'
-      f.dificuldade = dificuldade
-      const semente = sementeDoFogo(ctx.randomId())
-      const partida = (quem: readonly Participante[]): FogoComecarMessage => ({
-        type: 'fogo.comecar',
-        sessao: f.sessao,
-        semente,
-        dificuldade,
-        atraso,
-        jogadores: quem.map((p) => ({ id: p.playerId, nome: p.nome, ferramenta: p.ferramenta })),
-      })
-      // Equipe: o MESMO começar para todos (a ordem é o número na simulação); solo: cada um no seu incêndio.
-      const daEquipe = partida(jogam)
-      for (const p of jogam) outbound.push(...para(p, f.modo === 'equipe' ? daEquipe : partida([p])))
-      return [...outbound, ...estadoATodos(f)]
+      return comecarFogo(dificuldade, atraso)
     },
 
     pausar() {

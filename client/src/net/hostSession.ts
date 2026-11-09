@@ -79,7 +79,7 @@ import type { MinigameTiro } from '../minigames/tiro/tipos'
 import { criarDancaNoHost, type DancaAoVivo, type DancaConviteResultado, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
 import { DANCA_PARTICIPANTES_MAX, type DancaPlayerMessage } from './protocoloDaDanca'
 import { criarFogoNoHost, type FogoAoVivo, type FogoConviteResultado } from './fogoNoHost'
-import { FOGO_PARTICIPANTES_MAX, type FogoPlayerMessage } from './protocoloDoFogo'
+import { FOGO_PARTICIPANTES_MAX, type FogoMotivoDaRecusa, type FogoPlayerMessage } from './protocoloDoFogo'
 import type { DificuldadeFogo, FerramentaFogo, ModoFogo } from '../minigames/fogo/tipos'
 import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from './pescaNoHost'
 import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
@@ -9736,10 +9736,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * fase e participante é `fogoNoHost`; o que não vale morre calado. As
    * entradas não saem daqui: esperam o repasse (`repassarFogo`).
    */
-  function handleFogo(clientId: string, msg: FogoPlayerMessage): HostResult {
+  function handleFogo(clientId: string, msg: FogoPlayerMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     switch (msg.type) {
+      case 'fogo.pedir':
+        return pedirFogo(clientId, playerId, msg.pinId, world)
       case 'fogo.pronto':
         return { outbound: fogoNoHost.pronto(playerId, msg) }
       case 'fogo.entradas':
@@ -9751,6 +9753,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'fogo.desistir':
         return { outbound: fogoNoHost.desistir(playerId, msg) }
     }
+  }
+
+  /**
+   * FOGO "Apagar o fogo" no cartão do pino: um incêndio solo só deste jogador,
+   * pelas regras do pedido da pesca e do tiro (jogando, cena sem pausa, pino de
+   * fogo no recorte DELE e uma ficha dele encostada). Um incêndio por vez na
+   * sala: com outro aceso (da equipe ou de alguém sozinho), volta `ocupado`.
+   */
+  function pedirFogo(clientId: string, playerId: string, pinId: string, world: HostWorld): HostResult {
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const recusa = (motivo: FogoMotivoDaRecusa): HostResult => reply(clientId, { type: 'fogo.recusado', pinId, motivo })
+    const scene = sceneFor(playerId, world)
+    if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
+    const map = scene.map
+    const pin = map.pins.find((p) => p.id === pinId)
+    if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'fogo') return recusa('indisponivel')
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
+    const owned = new Set(ownership[playerId] ?? [])
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return recusa('longe')
+    const { outbound, resultado } = fogoNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
+    return resultado.ok ? { outbound } : recusa('ocupado')
   }
 
   /**
@@ -10000,12 +10026,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'danca.toques':
       case 'danca.fim':
         return handleDanca(clientId, msg)
+      case 'fogo.pedir':
       case 'fogo.pronto':
       case 'fogo.entradas':
       case 'fogo.hash':
       case 'fogo.fim':
       case 'fogo.desistir':
-        return handleFogo(clientId, msg)
+        return handleFogo(clientId, msg, world)
       case 'pesca.pedir':
       case 'pesca.pronto':
       case 'pesca.vivo':

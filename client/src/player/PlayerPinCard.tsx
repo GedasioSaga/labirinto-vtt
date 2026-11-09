@@ -22,6 +22,7 @@ import { PlayerLockPad } from './PlayerLockPad'
 import { PASS_CHECK_TEXT } from './travelNotice'
 import { TEXTO_A_BORDO_VIAGEM, type PinTravelChoice } from '../lib/pinTravelers'
 import { TEXTO_CONGELADO } from '../lib/congelar'
+import type { JogoDoMinigame } from '../minigames/tipos'
 
 const NO_TRAVELERS: readonly PinTravelChoice[] = []
 
@@ -146,18 +147,35 @@ interface PlayerPinCardProps {
    * se joga ali.
    */
   onAtirar?: () => void
+  /**
+   * FOGO "Apagar o fogo": pede um incêndio só deste jogador, como o "Atirar".
+   * Apagado com a ficha longe. Ausente = o cartão só diz como se joga ali. A
+   * equipe continua vindo do mestre, pelo painel.
+   */
+  onApagarFogo?: () => void
 }
 
 const TEXTO_LONGE = 'Chegue mais perto para passar'
-/** O cartão do minigame: o jogador sabe que há um desafio, e que quem chama é o mestre. */
-const TEXTO_DO_MINIGAME = 'Desafio de dança. O mestre chama quando for a hora.'
-/** Pesca que o mestre chama: o cartão não oferece gesto, como a dança. */
-const TEXTO_DA_PESCA_DO_MESTRE = 'Pesca. O mestre chama quando for a hora.'
+/**
+ * O REGISTRO DOS JOGOS no cartão: o que cada um diz quando o mestre não
+ * escreveu nada no pino (`vazio`) e quando quem chama é o mestre (`doMestre`).
+ * `Record` de todos os jogos: jogo novo sem frase não compila — nenhum cai na
+ * frase da dança por engano (bug de 09/11/2026: o Fogo dizia "Desafio de dança").
+ */
+const TEXTOS_DO_JOGO: Record<JogoDoMinigame, { vazio: string; doMestre: string }> = {
+  danca: { vazio: 'Um desafio de dança espera por aqui.', doMestre: 'Desafio de dança. O mestre chama quando for a hora.' },
+  pesca: { vazio: 'Um lugar para pescar.', doMestre: 'Pesca. O mestre chama quando for a hora.' },
+  tiro: { vazio: 'Uma barraca de tiro ao alvo.', doMestre: 'Barraca de tiro. O mestre chama quando for a hora.' },
+  fogo: { vazio: 'Fogo na floresta! Alguém precisa de ajuda aqui.', doMestre: 'Fogo na floresta. O mestre chama quando for a hora.' },
+}
+/** Fogo sem como pedir daqui (o cartão que o mestre mostrou). */
+const TEXTO_DO_FOGO_NO_PINO = 'Fogo na floresta. Encoste no pino e toque em "Apagar o fogo".'
+const TEXTO_LONGE_DO_FOGO = 'Chegue mais perto para apagar o fogo.'
+/** Debaixo do "Apagar o fogo": sozinho é aqui; a equipe, o mestre chama. */
+const TEXTO_FOGO_EM_EQUIPE = 'Sozinho, com a sua ferramenta. Em equipe, o mestre chama.'
 /** Pesca "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
 const TEXTO_DA_PESCA_NO_PINO = 'Pesca. Encoste no pino e toque em "Pescar".'
 const TEXTO_LONGE_DA_PESCA = 'Chegue mais perto para pescar.'
-/** Barraca de tiro que o mestre chama: o cartão não oferece gesto, como a pesca do mestre. */
-const TEXTO_DO_TIRO_DO_MESTRE = 'Barraca de tiro. O mestre chama quando for a hora.'
 /** Tiro "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
 const TEXTO_DO_TIRO_NO_PINO = 'Barraca de tiro. Encoste no pino e toque em "Atirar".'
 const TEXTO_LONGE_DO_TIRO = 'Chegue mais perto para atirar.'
@@ -344,6 +362,7 @@ export function PlayerPinCard({
   onVerAnimacao,
   onPescar,
   onAtirar,
+  onApagarFogo,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   /**
@@ -433,10 +452,14 @@ export function PlayerPinCard({
   // Só data URL vira foto: se um caminho de disco escapasse até aqui, o
   // `<img>` tentaria abrir o computador do mestre pelo navegador do jogador.
   const foto = isPlayerSafePinImage(pin.image) ? pin.image : null
+  // MINIGAME: o jogo do pino (sem o recorte, a dança, como o host faz). O
+  // texto vazio é o do JOGO, nunca o de ponto de interesse nem o da dança.
+  const jogoDoPino: JogoDoMinigame | null = pin.kind === 'minigame' ? (pin.minigameVisivel?.jogo ?? 'danca') : null
+  const textosDoJogo = jogoDoPino === null ? null : (TEXTOS_DO_JOGO[jogoDoPino] ?? TEXTOS_DO_JOGO.danca)
   const textoDoCartao = longeParaLer
     ? 'Chegue mais perto para ler.'
     : descricao === ''
-      ? 'O mestre ainda não escreveu nada sobre este ponto.'
+      ? (textosDoJogo?.vazio ?? 'O mestre ainda não escreveu nada sobre este ponto.')
       : descricao
   const altDaImagem =
     foto !== null
@@ -459,6 +482,8 @@ export function PlayerPinCard({
   const pesca = minigame && pin.minigameVisivel?.jogo === 'pesca' ? pin.minigameVisivel.entrada : null
   // A barraca de tiro, do mesmo jeito: só o jogo e como começa.
   const tiro = minigame && pin.minigameVisivel?.jogo === 'tiro' ? pin.minigameVisivel.entrada : null
+  // O fogo: a entrada e, do pedido de ajuda, quem pede e a fala (a única fala que chega ao cartão).
+  const fogo = minigame && pin.minigameVisivel?.jogo === 'fogo' ? pin.minigameVisivel : null
   // O símbolo que o mestre escolheu (baú, armadilha…) é o que o jogador vê no
   // mapa: o cartão repete o mesmo desenho e o nome dele, em vez do "!" do
   // tipo. Nome desconhecido (versão futura) cai no glifo, como no mapa.
@@ -669,12 +694,30 @@ export function PlayerPinCard({
             Puxar a alavanca
           </button>
         )}
-        {minigame && pesca === null && tiro === null && (
+        {minigame && pesca === null && tiro === null && fogo === null && (
           // Frase, não botão: o convite chega quando o mestre chamar, e um
           // botão aqui prometeria um gesto que o jogador não tem.
-          <p className="pp-pincard__locked">{TEXTO_DO_MINIGAME}</p>
+          <p className="pp-pincard__locked">{textosDoJogo?.doMestre ?? TEXTOS_DO_JOGO.danca.doMestre}</p>
         )}
-        {pesca === 'mestre' && <p className="pp-pincard__locked">{TEXTO_DA_PESCA_DO_MESTRE}</p>}
+        {fogo !== null && fogo.fala !== undefined && (
+          // O pedido de ajuda do NPC, como fala: quem pede e o que diz.
+          <figure className="pp-pincard__fala">
+            <blockquote className="pp-pincard__fala-texto">“{fogo.fala}”</blockquote>
+            {fogo.npc !== undefined && <figcaption className="pp-pincard__fala-quem">{fogo.npc}</figcaption>}
+          </figure>
+        )}
+        {fogo !== null && fogo.entrada === 'mestre' && <p className="pp-pincard__locked">{TEXTOS_DO_JOGO.fogo.doMestre}</p>}
+        {fogo !== null && fogo.entrada === 'pino' && onApagarFogo === undefined && <p className="pp-pincard__locked">{TEXTO_DO_FOGO_NO_PINO}</p>}
+        {fogo !== null && fogo.entrada === 'pino' && onApagarFogo !== undefined && (
+          // Sem confirmação, como o "Atirar": o convite que volta pergunta a ferramenta e a dificuldade.
+          <>
+            <button type="button" className="pp-pincard__travel" disabled={longe} onClick={onApagarFogo}>
+              Apagar o fogo
+            </button>
+            {longe ? <p className="pp-itemcard__longe">{TEXTO_LONGE_DO_FOGO}</p> : <p className="pp-pincard__watch-hint">{TEXTO_FOGO_EM_EQUIPE}</p>}
+          </>
+        )}
+        {pesca === 'mestre' && <p className="pp-pincard__locked">{TEXTOS_DO_JOGO.pesca.doMestre}</p>}
         {pesca === 'pino' && onPescar === undefined && <p className="pp-pincard__locked">{TEXTO_DA_PESCA_NO_PINO}</p>}
         {pesca === 'pino' && onPescar !== undefined && (
           // Sem confirmação, como o "Pegar": o convite que volta já pergunta a dificuldade.
@@ -685,7 +728,7 @@ export function PlayerPinCard({
             {longe && <p className="pp-itemcard__longe">{TEXTO_LONGE_DA_PESCA}</p>}
           </>
         )}
-        {tiro === 'mestre' && <p className="pp-pincard__locked">{TEXTO_DO_TIRO_DO_MESTRE}</p>}
+        {tiro === 'mestre' && <p className="pp-pincard__locked">{TEXTOS_DO_JOGO.tiro.doMestre}</p>}
         {tiro === 'pino' && onAtirar === undefined && <p className="pp-pincard__locked">{TEXTO_DO_TIRO_NO_PINO}</p>}
         {tiro === 'pino' && onAtirar !== undefined && (
           // Sem confirmação, como o "Pescar": o convite que volta já pergunta a dificuldade.

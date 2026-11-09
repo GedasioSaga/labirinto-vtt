@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { MinigamePesca } from '../minigames/pesca/tipos'
+import { MINIGAME_FOGO_PADRAO } from '../minigames/fogo/tipos'
 import type { MapData, Pin, Token, Wall } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
 import { buildPin, createEmptyMap } from './mapFactory'
@@ -119,5 +120,15 @@ describe('filterMapForPlayer — minigame de pesca', () => {
     // Pino de dança com um `minigameVisivel` mentiroso (arquivo editado à mão): sai dança e mestre.
     const pino = pinoDoJogador(desafio({ minigameVisivel: { jogo: 'pesca', entrada: 'pino' } }))
     expect(pino.minigameVisivel).toEqual({ jogo: 'danca', entrada: 'mestre' })
+  })
+})
+
+describe('filterMapForPlayer — minigame do fogo', () => {
+  it('o fogo chega como "pino" com quem pede ajuda e a fala; prêmio, consequência e floresta ficam no mestre', () => {
+    const fogo = { ...MINIGAME_FOGO_PADRAO, npc: 'Guarda Florêncio', fala: 'O fogo desce o morro!', premio: { texto: 'PREMIO-SECRETO' } }
+    const pino = pinoDoJogador(desafio({ minigame: fogo }))
+    expect(pino.minigameVisivel).toEqual({ jogo: 'fogo', entrada: 'pino', npc: 'Guarda Florêncio', fala: 'O fogo desce o morro!' })
+    expect(JSON.stringify(pino)).not.toContain('PREMIO-SECRETO')
+    expect(JSON.stringify(pino)).not.toContain(MINIGAME_FOGO_PADRAO.floresta)
   })
 })

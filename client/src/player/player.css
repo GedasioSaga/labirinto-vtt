@@ -3456,6 +3456,30 @@
   color: var(--lb-color-parchment, #eceae4);
 }
 
+/* FOGO: o pedido de ajuda do NPC como fala — a frase entre aspas, com um fio
+   à esquerda (é alguém falando, não estado do pino), e quem pede embaixo. */
+.pp-pincard__fala {
+  margin: 10px var(--lb-space-4, 16px) 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.28));
+}
+
+.pp-pincard__fala-texto {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  font-style: italic;
+  color: var(--lb-color-parchment, #eceae4);
+  overflow-wrap: anywhere;
+}
+
+.pp-pincard__fala-quem {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
 /* "Só ida": a passagem não tem volta. Etiqueta chapada de linha fina, na cor
    do texto em volta (clara no cartão, escura dentro do botão de latão) — diz
    como a porta é, sem virar alerta. */

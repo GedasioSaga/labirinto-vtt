@@ -3510,6 +3510,7 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'danca.toques':
     case 'danca.fim':
       return parseDancaPlayerMessage(value)
+    case 'fogo.pedir':
     case 'fogo.pronto':
     case 'fogo.entradas':
     case 'fogo.hash':

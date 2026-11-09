@@ -5,6 +5,7 @@ import { JOIN_CODE_LENGTH, NAME_MAX_LENGTH, type ClueEntry, type NoteEntry } fro
 import { latestActionNotice } from './moveNotice'
 import { textoDaRecusaDaPesca } from './estadoDaPesca'
 import { textoDaRecusaDoTiro } from './estadoDoTiro'
+import { textoDaRecusaDoFogo } from './estadoDoFogo'
 import { themeCss } from '../theme'
 import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnectionOptions } from './playerConnection'
@@ -2208,6 +2209,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onAtirar={() => {
               if (connection.pedirTiro(openPin.id)) setOpenPinId(null)
             }}
+            // FOGO "Apagar o fogo": o mesmo caminho; o convite volta (sozinho) e abre a tela do fogo.
+            onApagarFogo={() => {
+              if (connection.pedirFogo(openPin.id)) setOpenPinId(null)
+            }}
           />
         )}
         {/* ESPIAR PELA PASSAGEM: o recorte do outro lado, por alguns segundos. Nunca entra no mapa. */}
@@ -2489,6 +2494,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.tiroRecusado && (
           <p key={state.tiroRecusado.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {textoDaRecusaDoTiro(state.tiroRecusado.motivo)}
+          </p>
+        )}
+        {/* FOGO no pino: o host não deixou (o cartão já fechou ao pedir). Some sozinho. */}
+        {state.fogoRecusado && (
+          <p key={state.fogoRecusado.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {textoDaRecusaDoFogo(state.fogoRecusado.motivo)}
           </p>
         )}
         {state.travel && (

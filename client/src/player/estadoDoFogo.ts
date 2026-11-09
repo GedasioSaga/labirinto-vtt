@@ -2,10 +2,11 @@ import type { FerramentaFogo } from '../minigames/fogo/tipos'
 import type {
   FogoComecarMessage,
   FogoConviteMessage,
+  FogoDaSessaoMessage,
   FogoDesfechoMessage,
   FogoEstadoMessage,
-  FogoHostMessage,
   FogoLotesMessage,
+  FogoMotivoDaRecusa,
   FogoMotivoDoFim,
   FogoSairMessage,
 } from '../net/protocoloDoFogo'
@@ -42,7 +43,7 @@ export interface FogoDoJogador {
  * só vale para a sessão que está na tela. Entradas e `sair` não mudam o
  * estado (vão pelo canal): voltam o mesmo objeto.
  */
-export function receberFogo(atual: FogoDoJogador | undefined, msg: FogoHostMessage): FogoDoJogador | undefined {
+export function receberFogo(atual: FogoDoJogador | undefined, msg: FogoDaSessaoMessage): FogoDoJogador | undefined {
   if (msg.type === 'fogo.convite') {
     const { type: _type, ...convite } = msg
     if (atual !== undefined && atual.sessao === msg.sessao) return { ...atual, convite }
@@ -92,4 +93,19 @@ export function fogoAceitaDesistir(fogo: FogoDoJogador | undefined): fogo is Fog
 /** Ainda dá para mandar entradas, hash e o fim: a partida começou para ESTE aparelho e nada a encerrou. */
 export function fogoEmJogo(fogo: FogoDoJogador | undefined): fogo is FogoDoJogador {
   return fogo !== undefined && fogo.comecar !== undefined && fogo.encerrada === undefined && fogo.desfecho === undefined && !fogo.fimEnviado
+}
+
+/** Quanto o aviso da recusa do "Apagar o fogo" fica na tela. */
+export const FOGO_RECUSA_AVISO_MS = 4000
+
+/** O aviso curto quando o host não deixou apagar o fogo sozinho (o cartão já fechou). */
+export function textoDaRecusaDoFogo(motivo: FogoMotivoDaRecusa): string {
+  switch (motivo) {
+    case 'longe':
+      return 'Chegue mais perto do pino para apagar o fogo.'
+    case 'ocupado':
+      return 'Já tem um incêndio aceso nesta sala. Espere ele acabar.'
+    case 'indisponivel':
+      return 'Não dá para apagar o fogo aí agora.'
+  }
 }

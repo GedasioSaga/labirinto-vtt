@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { FogoDoJogador, FogoParaOJogo } from '../../../player/estadoDoFogo'
 import { FOGO_REPASSE_MS, type FogoEntrada, type FogoPlacar, type FogoResumoDoPlacar, type FogoStatus } from '../../../net/protocoloDoFogo'
-import { ALTURAS_FOGO, FERRAMENTAS_FOGO, type FerramentaFogo } from '../tipos'
+import { ALTURAS_FOGO, DIFICULDADES_FOGO, FERRAMENTAS_FOGO, type DificuldadeFogo, type FerramentaFogo } from '../tipos'
 import { criarPonteDoJogo, type EstadoDaPonte, type PonteDoJogo } from './ponteDoJogo'
 import {
   AVISO_MOUSE_E_TECLADO_FOGO,
@@ -45,7 +45,8 @@ export const URL_DO_JOGO_FOGO = `${ROTA_DO_FOGO}index.html`
 const FOGO_CARGA_MAX_MS = 90_000
 
 export interface AcoesDoFogo {
-  prontoFogo(ferramenta: FerramentaFogo): boolean
+  /** No convite `sozinho` (o "Apagar o fogo" do pino), leva a dificuldade e já começa. */
+  prontoFogo(ferramenta: FerramentaFogo, dificuldade?: DificuldadeFogo): boolean
   entradasFogo(de: number, lista: FogoEntrada[]): boolean
   hashFogo(tique: number, hash: number): boolean
   fimFogo(tique: number, hash: number, placar: FogoPlacar): boolean
@@ -220,13 +221,17 @@ function Convite({ fogo, playerId, ferramenta, setFerramenta, estadoDoJogo, erro
   const c = fogo.convite
   const pronto = fogo.pronto
   const solo = c.modo === 'solo'
+  // SOZINHO NO PINO: ninguém espera o mestre. A dificuldade é a que ele deixou;
+  // na "escolha", o jogador escolhe aqui, e o "Começar" já abre o incêndio.
+  const sozinho = c.sozinho
+  const [dificuldade, setDificuldade] = useState<DificuldadeFogo>(() => (sozinho === undefined || sozinho.permitida === 'escolha' ? 'normal' : sozinho.permitida))
   // Só com o jogo carregado: Pronto sem jogo deixaria a equipe esperando entradas que nunca saem.
   const jogoCarregado = estadoDoJogo === 'esperando'
   const statusDe = (id: string) => fogo.estado?.participantes.find((p) => p.playerId === id)
   return (
     <div className="lb-fogo__cartao">
       <p className="lb-fogo__eyebrow">
-        {NOME_DO_JOGO_FOGO} · {c.floresta} · {solo ? 'cada um no seu incêndio' : 'em equipe'}
+        {NOME_DO_JOGO_FOGO} · {c.floresta} · {sozinho !== undefined ? 'sozinho' : solo ? 'cada um no seu incêndio' : 'em equipe'}
       </p>
       <h2 className="lb-fogo__titulo">{c.npc === '' ? 'Pedido de ajuda' : c.npc}</h2>
       {c.fala !== '' && <p className="lb-fogo__fala">“{c.fala}”</p>}
@@ -249,30 +254,52 @@ function Convite({ fogo, playerId, ferramenta, setFerramenta, estadoDoJogo, erro
           ? 'Sozinho, só conta o fogo da sua ferramenta principal: as outras alturas também queimam, mais fracas, e atrapalham. No caminhão dá para trocar de ferramenta, mas a principal não muda.'
           : 'Em equipe as 3 alturas contam. Pode repetir ferramenta; no caminhão cada um troca a sua.'}
       </p>
+      {sozinho !== undefined &&
+        (sozinho.permitida === 'escolha' ? (
+          <fieldset className="lb-fogo__ferramentas">
+            <legend>Dificuldade</legend>
+            {DIFICULDADES_FOGO.map((d) => (
+              <label key={d} className="lb-fogo__ferramenta">
+                <input type="radio" name={`fogo-dificuldade-${fogo.sessao}`} value={d} checked={dificuldade === d} onChange={() => setDificuldade(d)} />
+                <span className="lb-fogo__ferramenta-nome">{NOME_DA_DIFICULDADE_FOGO[d]}</span>
+              </label>
+            ))}
+          </fieldset>
+        ) : (
+          <p className="lb-fogo__dica">Dificuldade: {NOME_DA_DIFICULDADE_FOGO[sozinho.permitida]} (o mestre escolheu).</p>
+        ))}
       <p className="lb-fogo__dica">{CONTROLES_DO_FOGO}</p>
-      <ul className="lb-fogo__equipe" aria-label="Quem foi chamado">
-        {c.participantes.map((p) => {
-          const st = statusDe(p.playerId)
-          return (
-            <li key={p.playerId}>
-              <span className="lb-fogo__nome">{p.playerId === playerId ? `${p.nome} (você)` : p.nome}</span>
-              <span>{NOME_DA_FERRAMENTA_FOGO[st?.ferramenta ?? p.ferramenta]}</span>
-              <span>{statusNoConvite(st?.status)}</span>
-            </li>
-          )
-        })}
-      </ul>
+      {sozinho === undefined && (
+        <ul className="lb-fogo__equipe" aria-label="Quem foi chamado">
+          {c.participantes.map((p) => {
+            const st = statusDe(p.playerId)
+            return (
+              <li key={p.playerId}>
+                <span className="lb-fogo__nome">{p.playerId === playerId ? `${p.nome} (você)` : p.nome}</span>
+                <span>{NOME_DA_FERRAMENTA_FOGO[st?.ferramenta ?? p.ferramenta]}</span>
+                <span>{statusNoConvite(st?.status)}</span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
       <div className="lb-fogo__acoes">
-        <button type="button" className="lb-btn lb-btn--primary" disabled={!jogoCarregado || pronto === ferramenta} onClick={() => acoes.prontoFogo(ferramenta)}>
-          {pronto === undefined ? 'Pronto' : pronto === ferramenta ? 'Pronto: esperando o mestre começar' : 'Trocar para esta ferramenta'}
-        </button>
+        {sozinho !== undefined ? (
+          <button type="button" className="lb-btn lb-btn--primary" disabled={!jogoCarregado || pronto !== undefined} onClick={() => acoes.prontoFogo(ferramenta, dificuldade)}>
+            {pronto === undefined ? 'Começar' : 'Começando…'}
+          </button>
+        ) : (
+          <button type="button" className="lb-btn lb-btn--primary" disabled={!jogoCarregado || pronto === ferramenta} onClick={() => acoes.prontoFogo(ferramenta)}>
+            {pronto === undefined ? 'Pronto' : pronto === ferramenta ? 'Pronto: esperando o mestre começar' : 'Trocar para esta ferramenta'}
+          </button>
+        )}
         <button type="button" className="lb-btn lb-btn--ghost" onClick={acoes.fecharFogo}>
           Agora não
         </button>
       </div>
       <p className="lb-fogo__dica" aria-live="polite">
         {estadoDoJogo === 'carregando'
-          ? 'Carregando o jogo… o Pronto libera quando terminar.'
+          ? `Carregando o jogo… o ${sozinho === undefined ? 'Pronto' : 'Começar'} libera quando terminar.`
           : estadoDoJogo === 'erro'
             ? `O jogo não carregou${erroDoJogo === null ? '' : ` (${erroDoJogo})`}. Avise o mestre.`
             : 'Jogo carregado.'}

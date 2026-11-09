@@ -17,10 +17,18 @@ export const JOGOS_DO_MINIGAME: readonly JogoDoMinigame[] = ['danca', 'pesca', '
 /**
  * O pouco do desafio que vai no recorte do JOGADOR (`Pin.minigameVisivel`):
  * o jogo e como ele começa, para o cartão saber se oferece "Pescar" ou
- * "Atirar", ou avisa que o mestre chama. Fala, prêmio, consequência e música
- * nunca vão. A dança sempre começa pelo mestre.
+ * "Atirar", ou avisa que o mestre chama. Prêmio, consequência e música nunca
+ * vão. A dança sempre começa pelo mestre.
+ *
+ * O FOGO é a exceção da fala: o pedido de ajuda do NPC é o que o jogador lê no
+ * cartão (pedido do usuário, 09/11/2026), e "Apagar o fogo" começa sozinho
+ * (`entrada: 'pino'`); a equipe continua vindo do mestre, pelo painel.
  */
 export interface MinigameVisivel {
   jogo: JogoDoMinigame
   entrada: EntradaPesca | EntradaTiro
+  /** Só do fogo, e só com o pino legível: quem pede ajuda. */
+  npc?: string
+  /** Só do fogo, e só com o pino legível: o pedido de ajuda, como fala no cartão. */
+  fala?: string
 }

@@ -54,7 +54,10 @@ export interface MinigameFogo {
   fala: string
   /** Nome da floresta, que o jogador lê no convite. */
   floresta: string
-  /** Sempre o mestre chama: é jogo de equipe, todos começam juntos. */
+  /**
+   * A EQUIPE o mestre chama, pelo painel. Sozinho, o jogador começa no cartão
+   * do pino ("Apagar o fogo", desde 09/11/2026): o recorte manda `entrada: 'pino'`.
+   */
   entrada: 'mestre'
   /** 'escolha' = o mestre escolhe na hora de começar; senão, só a dificuldade dada. */
   permitida: 'escolha' | DificuldadeFogo

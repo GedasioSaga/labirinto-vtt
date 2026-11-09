@@ -169,3 +169,34 @@ describe('fogo no host: quem desiste', () => {
     expect(desfechos).toEqual(['c-ana:Ana:venceu,Bia:venceu,Caio:saiu', 'c-bia:Ana:venceu,Bia:venceu,Caio:saiu', 'c-caio:Ana:venceu,Bia:venceu,Caio:saiu'])
   })
 })
+
+describe('fogoNoHost: "Apagar o fogo" sozinho no pino', () => {
+  const novoHost = () => {
+    let seq = 0
+    return criarFogoNoHost({ conexaoDe: (id) => (id === 'ana' ? 'c-ana' : id === 'bia' ? 'c-bia' : null), randomId: () => `s-${(seq += 1)}` })
+  }
+
+  it('o convite volta só a quem pediu, com a dificuldade do mestre; o Começar dele já abre o incêndio solo', () => {
+    const host = novoHost()
+    const { outbound, resultado } = host.pedir({ pinId: 'p1', minigame: { ...MINIGAME_FOGO_PADRAO, permitida: 'escolha' } }, { playerId: 'ana', nome: 'Ana' })
+    if (!resultado.ok) throw new Error('pedido recusado')
+    const convite = outbound.find((s) => s.msg.type === 'fogo.convite')
+    expect(outbound.map((s) => s.clientId)).toEqual(['c-ana'])
+    expect(convite?.msg.type === 'fogo.convite' && convite.msg.modo).toBe('solo')
+    expect(convite?.msg.type === 'fogo.convite' && convite.msg.sozinho).toEqual({ permitida: 'escolha' })
+    const saida = host.pronto('ana', { type: 'fogo.pronto', sessao: resultado.sessao, ferramenta: 'areia', dificuldade: 'extremo' })
+    const comecar = saida.find((s) => s.msg.type === 'fogo.comecar')
+    expect(comecar?.msg.type === 'fogo.comecar' && [comecar.msg.dificuldade, comecar.msg.jogadores.map((j) => `${j.id}:${j.ferramenta}`)]).toEqual(['extremo', ['ana:areia']])
+    expect(host.aoVivo()?.fase).toBe('jogo')
+  })
+
+  it('dificuldade fixa do mestre vence a do jogador; com um incêndio aceso, o segundo pedido volta ocupado', () => {
+    const host = novoHost()
+    const { resultado } = host.pedir({ pinId: 'p1', minigame: { ...MINIGAME_FOGO_PADRAO, permitida: 'facil' } }, { playerId: 'ana', nome: 'Ana' })
+    if (!resultado.ok) throw new Error('pedido recusado')
+    expect(host.pedir({ pinId: 'p1', minigame: { ...MINIGAME_FOGO_PADRAO } }, { playerId: 'bia', nome: 'Bia' }).resultado).toEqual({ ok: false, motivo: 'ocupado' })
+    const saida = host.pronto('ana', { type: 'fogo.pronto', sessao: resultado.sessao, ferramenta: 'bolha', dificuldade: 'extremo' })
+    const comecar = saida.find((s) => s.msg.type === 'fogo.comecar')
+    expect(comecar?.msg.type === 'fogo.comecar' && comecar.msg.dificuldade).toBe('facil')
+  })
+})
