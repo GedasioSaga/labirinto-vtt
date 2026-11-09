@@ -4,6 +4,7 @@ import { lerIndiceDoPreparo, type DocumentoLido } from '../lib/preparo/disco'
 import type { Campanha, IndiceDoPreparo } from '../lib/preparo/tipos'
 import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
 import { PainelDaCopia } from './copia/PainelDaCopia'
+import { PainelDaImportacao } from './importar/PainelDaImportacao'
 import '../screens/MainMenu.css'
 
 interface TelaDoPreludioProps {
@@ -13,7 +14,7 @@ interface TelaDoPreludioProps {
 type Leitura = { t: 'abrindo' } | { t: 'lida'; indice: DocumentoLido<IndiceDoPreparo> }
 
 const NADA_AINDA =
-  'Nada preparado ainda. Aqui vão morar as sessões, a escrita e a enciclopédia das campanhas; a importação do Grimório é a próxima etapa.'
+  'Nada preparado ainda. Aqui vão morar as sessões, a escrita e a enciclopédia das campanhas; dá para começar importando as campanhas do Grimório, logo abaixo.'
 
 /** "One Piece, Dragon Ball e Geonova": os nomes vêm do disco e entram como texto. */
 function frasesDasCampanhas(campanhas: readonly Campanha[]): string {
@@ -37,14 +38,17 @@ function textoDaLeitura(indice: DocumentoLido<IndiceDoPreparo>): { texto: string
 }
 
 /**
- * O PRELÚDIO, a preparação de sessão (F0, fundação): por enquanto só diz o
- * que já existe em `<appData>/preparo/`. Abrir só lê; nada é gravado ali (a
- * cópia diária no Google Drive, `copia/PainelDaCopia.tsx`, também só lê preparo/).
+ * O PRELÚDIO, a preparação de sessão: por enquanto diz o que já existe em
+ * `<appData>/preparo/`, importa do Grimório (`importar/PainelDaImportacao.tsx`,
+ * a única parte que grava, e só depois do ok do mestre) e faz a cópia diária no
+ * Google Drive (`copia/PainelDaCopia.tsx`, que só lê preparo/).
  */
 export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
   const [leitura, setLeitura] = useState<Leitura>({ t: 'abrindo' })
-  // Uma cópia restaurada do Google Drive troca preparo/ inteira: lê de novo.
+  // Uma cópia restaurada do Google Drive troca preparo/ inteira, e a importação grava nela: lê de novo.
   const [rodada, setRodada] = useState(0)
+  const [pedidoDeCopia, setPedidoDeCopia] = useState(0)
+  const [gravando, setGravando] = useState(false)
 
   useEffect(() => {
     let aberta = true
@@ -63,13 +67,19 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
   }, [rodada])
 
   return (
-    <MenuShell title={TITULO_DO_PRELUDIO} subtitle={SUBTITULO_DO_PRELUDIO} onBack={onBack} crumbs={['Labirinto']}>
+    // Sair no meio da gravação deixaria a importação sem a cópia no Drive e sem o aviso de como terminou.
+    <MenuShell title={TITULO_DO_PRELUDIO} subtitle={SUBTITULO_DO_PRELUDIO} onBack={gravando ? undefined : onBack} crumbs={['Labirinto']}>
       {leitura.t === 'abrindo' ? (
         <section className="lb-wip" aria-busy="true" aria-label="Abrindo o Prelúdio" />
       ) : (
         <ConteudoDoPreludio {...textoDaLeitura(leitura.indice)} />
       )}
-      <PainelDaCopia onRestaurado={() => setRodada((anterior) => anterior + 1)} />
+      <PainelDaImportacao
+        onAplicado={() => setRodada((anterior) => anterior + 1)}
+        onPedirCopia={() => setPedidoDeCopia((anterior) => anterior + 1)}
+        onGravando={setGravando}
+      />
+      <PainelDaCopia onRestaurado={() => setRodada((anterior) => anterior + 1)} pedidoDeCopia={pedidoDeCopia} travado={gravando} />
     </MenuShell>
   )
 }

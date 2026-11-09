@@ -1,0 +1,181 @@
+/* IMPORTAR DO GRIMÓRIO (PainelDaImportacao): o mesmo bloco de pedra rasa da cópia no
+   Google Drive (.pl-copia, copia.css), um pouco mais largo porque carrega o relatório.
+   O relatório é um livro-caixa: rótulo à esquerda, número à direita, em algarismos
+   de mesma largura. Nada anima além do aperto dos botões (.lb-btn) e da barra. */
+
+.pl-imp {
+  max-width: 680px;
+}
+
+.pl-imp__relatorio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.pl-imp__sub {
+  margin: 0;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 1.3;
+}
+
+.pl-imp__sub--alto {
+  color: var(--lb-color-parchment);
+  font-size: 15px;
+}
+
+.pl-imp__sub:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+  border-radius: var(--lb-radius-sm, 4px);
+}
+
+/* O caminho do cofre é longo e sem espaço: quebra em qualquer letra em vez de vazar. */
+.pl-imp__caminho {
+  color: var(--lb-color-parchment);
+  font-weight: var(--lb-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.pl-imp__selo {
+  margin: 0;
+  color: var(--lb-color-online);
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-imp__parte {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* O livro-caixa do cofre: duas colunas de linhas, cada linha com rótulo e número. */
+.pl-imp__livro {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  column-gap: var(--lb-space-4, 16px);
+  margin: 0;
+}
+
+.pl-imp__linha {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--lb-color-line);
+  font-size: var(--lb-font-size-sm);
+}
+
+.pl-imp__linha dt {
+  color: var(--lb-color-parchment-dim);
+}
+
+.pl-imp__linha dd {
+  margin: 0;
+  color: var(--lb-color-parchment);
+  font-weight: var(--lb-font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-imp__rolagem {
+  overflow-x: auto;
+}
+
+.pl-imp__tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-imp__tabela th,
+.pl-imp__tabela td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--lb-color-line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pl-imp__tabela thead th {
+  color: var(--lb-color-parchment-faint);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+.pl-imp__tabela th[scope='row'],
+.pl-imp__tabela thead th:first-child {
+  padding-left: 0;
+  text-align: left;
+  color: var(--lb-color-parchment-dim);
+  font-weight: var(--lb-font-weight-regular);
+}
+
+.pl-imp__tabela td {
+  color: var(--lb-color-parchment);
+}
+
+/* Zero é o normal: fica apagado, e o que pede atenção se destaca sozinho. */
+.pl-imp__tabela td[data-zero] {
+  color: var(--lb-color-parchment-faint);
+}
+
+.pl-imp__det summary {
+  width: fit-content;
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+}
+
+.pl-imp__det[open] summary {
+  margin-bottom: 4px;
+}
+
+.pl-imp__det summary:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+  border-radius: var(--lb-radius-sm, 4px);
+}
+
+.pl-imp__campanhas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: var(--lb-space-2) 0 0;
+  border: 0;
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.pl-imp__campanha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.pl-imp__nome {
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.pl-imp__escolha {
+  width: 100%;
+  min-width: 0;
+}
+
+.pl-imp__sem-margem {
+  margin: 0;
+}
+
+.pl-imp__motivos {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}

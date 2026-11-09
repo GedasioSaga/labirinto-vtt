@@ -1,7 +1,25 @@
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readDir, readFile, readTextFile, stat, type DirEntry } from '@tauri-apps/plugin-fs'
+import { preparoLigado } from '../chave'
 import type { LeitorDoCofre, TipoDaEntrada } from './cofre'
+
+/**
+ * O espaço livre, em bytes, no disco de `<appData>` (plano §4, passo 6: a
+ * importação é recusada se sobrarem menos de 8 GB). Quem mede é o Rust, pelo
+ * comando `preludio_espaco_livre`; enquanto o binário não tiver o comando (ou
+ * fora do app), devolve `null`, e com `null` o "Aplicar" fica travado.
+ */
+export async function espacoLivreNoDisco(): Promise<number | null> {
+  if (!preparoLigado() || !isTauri()) return null
+  try {
+    const livre: unknown = await invoke('preludio_espaco_livre')
+    return typeof livre === 'number' && Number.isSafeInteger(livre) && livre >= 0 ? livre : null
+  } catch {
+    return null
+  }
+}
 
 /**
  * O COFRE NO APP INSTALADO (plano §4, passo 1): o mestre escolhe a pasta no

@@ -57,9 +57,16 @@ function erro(falha: FalhaDaCopia): Recado {
 export interface PainelDaCopiaProps {
   /** Uma cópia foi restaurada: a tela relê o Prelúdio. */
   onRestaurado?: () => void
+  /**
+   * Sobe a cada pedido de cópia vindo de fora (a importação do Grimório acabou de
+   * gravar): com login, a cópia sai assim que o painel estiver livre.
+   */
+  pedidoDeCopia?: number
+  /** Outra parte da tela está gravando no Prelúdio: copiar e restaurar esperam. */
+  travado?: boolean
 }
 
-export function PainelDaCopia({ onRestaurado }: PainelDaCopiaProps) {
+export function PainelDaCopia({ onRestaurado, pedidoDeCopia = 0, travado = false }: PainelDaCopiaProps) {
   const id = useId()
   const [conta, setConta] = useState<Conta>({ t: 'lendo' })
   const [ultima, setUltima] = useState<UltimaCopia | null>(null)
@@ -143,6 +150,16 @@ export function PainelDaCopia({ onRestaurado }: PainelDaCopiaProps) {
     }
   }, [copiar])
 
+  // O pedido de fora espera o painel ficar livre (uma cópia diária pode estar andando) e a conta ser lida.
+  const pedidoAtendido = useRef(pedidoDeCopia)
+  useEffect(() => {
+    if (pedidoDeCopia === pedidoAtendido.current || trabalho.t !== 'parado' || travado || conta.t === 'lendo') return
+    pedidoAtendido.current = pedidoDeCopia
+    if (conta.t !== 'pronta' || conta.email === null) return
+    ultimaAutomatica = Date.now()
+    void copiar(false)
+  }, [pedidoDeCopia, trabalho, travado, conta, copiar])
+
   const entrar = async () => {
     setRecado(null)
     setTrabalho({ t: 'entrando' })
@@ -205,7 +222,7 @@ export function PainelDaCopia({ onRestaurado }: PainelDaCopiaProps) {
   }
 
   const titulo = `${id}-t`
-  const ocupado = trabalho.t !== 'parado'
+  const ocupado = trabalho.t !== 'parado' || travado
   const textoDoAndar = andamento === null ? null : textoDoAndamento(andamento)
   const comBarra = andamento !== null && (andamento.fase === 'enviando' || andamento.fase === 'baixando') && andamento.total > 0
 

@@ -299,8 +299,70 @@ export const REVELADO = objeto({
   revelacoes: lista(REVELACAO),
 })
 
+// ─── O que veio do Grimório e é só leitura no Prelúdio ───────────────────────
+//
+// O chat de IA, as posições da Teia e a lixeira do Grimório entram como vieram
+// (plano §4, passo 4) e a reimportação troca inteiros: o Prelúdio ainda não
+// edita nenhum dos três.
+
+/** Um arquivo do cofre guardado como veio: o caminho dele no cofre e o JSON. */
+export const ARQUIVO_COMO_VEIO = objeto({
+  caminho: texto(),
+  conteudo: qualquer(),
+})
+
+/** chats/<donoId>.json: o chat de IA da sessão, do caderno ou do quadro dono (pode haver mais de um com o mesmo dono). */
+export const CHATS = objeto({
+  formato: numero(),
+  donoId: texto(),
+  chats: lista(ARQUIVO_COMO_VEIO),
+})
+
+/** `{ x, y }` em fração da moldura, por escopo (`cofre` ou `campanha:<id>`) e id: o `layout-teia.json` com os ids do Prelúdio. */
+function ehPosicoesDaTeia(bruto: unknown): bruto is Readonly<Record<string, Readonly<Record<string, { x: number; y: number }>>>> {
+  if (!ehRegistro(bruto)) return false
+  return Object.values(bruto).every(
+    (escopo) =>
+      ehRegistro(escopo) &&
+      Object.values(escopo).every((posicao) => ehRegistro(posicao) && typeof posicao.x === 'number' && Number.isFinite(posicao.x) && typeof posicao.y === 'number' && Number.isFinite(posicao.y)),
+  )
+}
+
+/** teia.json: as posições que o mestre arrumou na Teia do Grimório. */
+export const TEIA = objeto({
+  formato: numero(),
+  porEscopo: intacto(ehPosicoesDaTeia, 'as posições da Teia (escopo → id → {x, y})'),
+  origem: opcional(ORIGEM),
+})
+
+/** lixeira/do-grimorio/<id>.json: uma entrada da lixeira do Grimório (`.lixeira/<id>/`), com o que foi apagado. */
+export const ENTRADA_DA_LIXEIRA = objeto({
+  formato: numero(),
+  id: texto(),
+  arquivos: lista(ARQUIVO_COMO_VEIO),
+  origem: opcional(ORIGEM),
+})
+
+/**
+ * importacoes/vindos-do-grimorio.json: os ids que alguma importação aplicada
+ * gravou. Veio do Grimório, está aqui e não está mais no Prelúdio = o mestre
+ * apagou, e a reimportação não traz de volta (plano §4, passo 7).
+ */
+export const VINDOS_DO_GRIMORIO = objeto({
+  formato: numero(),
+  verbetes: lista(texto()),
+  quadros: lista(texto()),
+  ligacoes: lista(texto()),
+  campanhas: lista(texto()),
+})
+
 // ─── Os tipos ────────────────────────────────────────────────────────────────
 
+export type ArquivoComoVeio = Valor<typeof ARQUIVO_COMO_VEIO>
+export type Chats = Valor<typeof CHATS>
+export type Teia = Valor<typeof TEIA>
+export type EntradaDaLixeiraNoPreludio = Valor<typeof ENTRADA_DA_LIXEIRA>
+export type VindosDoGrimorio = Valor<typeof VINDOS_DO_GRIMORIO>
 export type Campanha = Valor<typeof CAMPANHA>
 export type IndiceDoPreparo = Valor<typeof INDICE_DO_PREPARO>
 export type TipoDeVerbete = Valor<typeof TIPO_DE_VERBETE>
@@ -343,3 +405,7 @@ export const ARQUIVO_DO_TEMPO: ArquivoDoPreparo<Tempo> = { formato: 1, molde: TE
 export const ARQUIVO_DO_QUADRO: ArquivoDoPreparo<Quadro> = { formato: 1, molde: QUADRO }
 export const ARQUIVO_DO_ATLAS: ArquivoDoPreparo<Atlas> = { formato: 1, molde: ATLAS }
 export const ARQUIVO_DO_REVELADO: ArquivoDoPreparo<Revelado> = { formato: 1, molde: REVELADO }
+export const ARQUIVO_DOS_CHATS: ArquivoDoPreparo<Chats> = { formato: 1, molde: CHATS }
+export const ARQUIVO_DA_TEIA: ArquivoDoPreparo<Teia> = { formato: 1, molde: TEIA }
+export const ARQUIVO_DA_LIXEIRA: ArquivoDoPreparo<EntradaDaLixeiraNoPreludio> = { formato: 1, molde: ENTRADA_DA_LIXEIRA }
+export const ARQUIVO_DOS_VINDOS: ArquivoDoPreparo<VindosDoGrimorio> = { formato: 1, molde: VINDOS_DO_GRIMORIO }

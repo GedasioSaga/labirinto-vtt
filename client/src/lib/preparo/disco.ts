@@ -1,4 +1,4 @@
-import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readDir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { FEATURES, type FeatureFlags } from '../features'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
@@ -51,6 +51,16 @@ function parteValida(parte: string): boolean {
   return idDoPreparoValido(parte.endsWith(EXTENSAO) ? parte.slice(0, -EXTENSAO.length) : parte)
 }
 
+/** As pastas de preparo/ com 1 arquivo por item (o nome do arquivo é o id). */
+const PASTAS_DE_ITENS = {
+  verbetes: ['verbetes'],
+  quadros: ['quadros'],
+  chats: ['chats'],
+  lixeiraDoGrimorio: ['lixeira', 'do-grimorio'],
+} as const
+
+export type PastaDeItens = keyof typeof PASTAS_DE_ITENS
+
 /** Onde mora cada arquivo, em partes relativas a preparo/. */
 export const LUGARES = {
   indice: (): string[] => [`preparo${EXTENSAO}`],
@@ -60,6 +70,10 @@ export const LUGARES = {
   quadro: (id: string): string[] => ['quadros', `${id}${EXTENSAO}`],
   atlas: (id: string): string[] => ['atlas', `${id}${EXTENSAO}`],
   revelado: (campanhaId: string): string[] => ['revelado', `${campanhaId}${EXTENSAO}`],
+  chats: (donoId: string): string[] => [...PASTAS_DE_ITENS.chats, `${donoId}${EXTENSAO}`],
+  teia: (): string[] => [`teia${EXTENSAO}`],
+  lixeiraDoGrimorio: (id: string): string[] => [...PASTAS_DE_ITENS.lixeiraDoGrimorio, `${id}${EXTENSAO}`],
+  vindosDoGrimorio: (): string[] => ['importacoes', `vindos-do-grimorio${EXTENSAO}`],
 }
 
 /** Para os avisos: "preparo/verbetes/x.json". */
@@ -208,10 +222,24 @@ export async function gravarNoPreparo<T extends { formato: number }>(
   valor: T,
   flags: Readonly<FeatureFlags> = FEATURES,
 ): Promise<void> {
+  await gravarNoPreparoSeMudou(arquivo, partes, valor, flags)
+}
+
+/**
+ * O mesmo `gravarNoPreparo`, dizendo se o disco mudou: `false` = o arquivo já
+ * tinha exatamente este texto e nada foi escrito (a importação conta as mudanças por aqui).
+ */
+export async function gravarNoPreparoSeMudou<T extends { formato: number }>(
+  arquivo: ArquivoDoPreparo<T>,
+  partes: readonly string[],
+  valor: T,
+  flags: Readonly<FeatureFlags> = FEATURES,
+): Promise<boolean> {
   if (!preparoLigado(flags)) throw new Error(DESLIGADO)
   const rotulo = rotuloDe(partes)
   const texto = textoParaGravar(arquivo, valor, rotulo)
   const { pasta, arquivo: caminho } = await caminhoNoPreparo(partes)
+  let mudou = false
   await naFila(caminho, async () => {
     try {
       const atual = await lerSeExiste(caminho)
@@ -225,10 +253,40 @@ export async function gravarNoPreparo<T extends { formato: number }>(
       await ensureDir(pasta)
       if (atual !== null) await guardarAnterior(caminho, atual)
       await writeTextFileSafely(caminho, texto)
+      mudou = true
     } catch (erro) {
       throw new Error(`Não deu para gravar ${rotulo}: ${motivo(erro)}.`)
     }
   })
+  return mudou
+}
+
+/**
+ * O caminho de `<appData>/preparo/`, para quem grava o que não é JSON com
+ * molde (a mídia e a pasta da importação: `importar/copiarArquivos.ts`).
+ */
+export async function pastaDoPreparo(flags: Readonly<FeatureFlags> = FEATURES): Promise<string> {
+  if (!preparoLigado(flags)) throw new Error(DESLIGADO)
+  return join(await appDataDir(), PASTA_DO_PREPARO)
+}
+
+// ─── Listar ──────────────────────────────────────────────────────────────────
+
+/**
+ * Os ids de uma pasta de itens (`verbetes/`, `quadros/`…), pelo nome dos
+ * arquivos `<id>.json`. A cópia `.anterior`, o `.tmp` de uma gravação pela
+ * metade e o nome que não serve de id ficam de fora. Pasta que não existe = nenhum.
+ */
+export async function listarNoPreparo(pasta: PastaDeItens, flags: Readonly<FeatureFlags> = FEATURES): Promise<string[]> {
+  if (!preparoLigado(flags)) throw new Error(DESLIGADO)
+  const caminho = await join(await appDataDir(), PASTA_DO_PREPARO, ...PASTAS_DE_ITENS[pasta])
+  if (!(await exists(caminho))) return []
+  const entradas = await readDir(caminho)
+  return entradas
+    .filter((entrada) => entrada.isFile && entrada.name.endsWith(EXTENSAO))
+    .map((entrada) => entrada.name.slice(0, -EXTENSAO.length))
+    .filter(idDoPreparoValido)
+    .sort()
 }
 
 // ─── Os de todo dia ──────────────────────────────────────────────────────────
