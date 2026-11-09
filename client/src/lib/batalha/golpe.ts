@@ -1,5 +1,5 @@
 import type { Ajuste } from '../ajusteDaFicha'
-import { motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha } from '../habilidadeOculta'
+import { motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha, ocultoNaBatalha } from '../habilidadeOculta'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
@@ -88,7 +88,7 @@ import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
-import { bonusDaBatalha, seloPedidoValido } from './selos'
+import { bonusDaBatalha, nomeDoSeloNaBatalha, seloPedidoValido } from './selos'
 import { naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
 import { curaDoDanoDosSelos, travaDoToken } from './condicoes'
 import { comAtaqueExtra, efeitosDasFormasLigadas, formaDaFicha, formaNaVez, motivoDaForma, motivoDaOrdemDasPartes, motivoDoCustoDaForma, motivoDosUsosDaForma, subidaDeParte } from './transformacao'
@@ -697,6 +697,11 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   if (deTodoGolpe.desvantagemNoAlvo) golpe.reacaoComDesvantagem = true
   // F2 (fatia F, Golpe Baixo): o selo que quem usa ganha ao usar ("+8 em reação" por 2 turnos); a store o põe nele.
   if (mecanica?.seloEmQuemUsa !== undefined) golpe.seloEmQuemUsa = mecanica.seloEmQuemUsa
+  // Fatia C7 (revisão): o selo fica no token, à vista de todos; o que leva o nome da técnica oculta sai como "???".
+  if (tecnica !== null && ocultoNaBatalha(personagem, tecnica.cartao)) {
+    if (golpe.selo !== undefined) golpe.selo = { ...golpe.selo, nome: nomeDoSeloNaBatalha(personagem, tecnica.cartao, golpe.selo.nome) }
+    if (golpe.seloEmQuemUsa !== undefined) golpe.seloEmQuemUsa = { ...golpe.seloEmQuemUsa, nome: nomeDoSeloNaBatalha(personagem, tecnica.cartao, golpe.seloEmQuemUsa.nome) }
+  }
   // R1: a arma que atira (o acerto lembra a passiva de marca).
   if (arma !== null && categoriaAtira(arma.categoria)) golpe.armaQueAtira = true
   // Tipos de habilidade F4: a opção escolhida e o uso evoluído vão para o registro ("Medicina (Cirugia)").

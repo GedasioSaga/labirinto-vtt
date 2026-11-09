@@ -48,7 +48,8 @@ describe('o que vai ao jogador', () => {
     expect(noFio.abas.habilidades?.map((c) => c.id)).toEqual(['cart_soco', 'cart_chute'])
     expect(noFio.abas.transformacoes?.[0]?.subcartoes.map((c) => c.id)).toEqual(['cart_uivo'])
     expect(noFio.cartoesAtivos).toEqual(['cart_forma'])
-    expect(noFio.ocultas).toEqual({ habilidades: 1, transformacoes: 1 })
+    // O subcartão oculto da forma visível sai sem contar: o "???" da aba seria um cartão solto, fora da forma.
+    expect(noFio.ocultas).toEqual({ habilidades: 1 })
   })
 
   it('ficha sem cartão oculto sai igual (mesma referência) e a contagem lida do disco passa pelo leitor', () => {

@@ -78,6 +78,7 @@ import {
   ondeNaVez,
   modsIguais,
   naturezaDosMods,
+  nomeDoSeloNaBatalha,
   novoIdDeSelo,
   pegaOSelo,
   seloEditado,
@@ -208,7 +209,7 @@ import {
   type TurnosDaCena,
 } from '../lib/batalha/turnos'
 import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
-import { nomeNaBatalha, revelacaoAoUsar } from '../lib/habilidadeOculta'
+import { cartaoPorId as cartaoEmQualquerNivel, comAsMarcasDeOcultaDe, motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha, ocultoNaBatalha, revelacaoAoUsar, revelarCartao } from '../lib/habilidadeOculta'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 
@@ -360,6 +361,13 @@ export interface BatalhaState {
    * e, com a batalha ligada, escreve a linha nas cenas em que ele está na ordem.
    */
   trocarEquipe: (personagemId: string, equipeId: string | null) => boolean
+  /**
+   * Fatia C7 (revisão): o mestre revela o cartão oculto com um clique no
+   * perfil da carta, sem sair da batalha. Grava pela mesa (a aventura, a
+   * pasta ou a cópia da arena); sem linha no registro: é a ficha que muda, não
+   * uma ação da batalha. `false` = a mesa recusou.
+   */
+  revelar: (personagemId: string, cartaoId: string) => boolean
   /** Um ajuste rápido aceito vira linha "ficha" em toda cena em batalha com o personagem na ordem. */
   registrarAjuste: (personagemId: string, antes: Personagem, depois: Personagem, autor: AutorDaAcao) => void
   /**
@@ -771,7 +779,8 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
           outraDecisao = true
           return atual
         }
-        return comCartaoTrocado(atual, antes)
+        // Fatia C7 (revisão): voltam os números; a forma que o uso revelou (ou que o mestre revelou depois) não se esconde de novo.
+        return comCartaoTrocado(atual, agora === null ? antes : comAsMarcasDeOcultaDe(antes, agora))
       })
       return { cena, emParte: !ok || outraDecisao, ok: true }
     }
@@ -1329,7 +1338,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const ligada = forma !== undefined && dona !== undefined && dona.cartoesAtivos.includes(forma.cartaoId)
     if (forma?.duracao !== undefined && ligada && forma.duracao.ligouNa !== chaveDaVez(rodada, saindo.id)) {
       const cartao = dona === undefined ? null : formaDaFicha(dona, sistema, forma.cartaoId)
-      const nomeDaForma = cartao?.nome.trim() || 'A forma'
+      // Fatia C7 (revisão): a forma oculta conta e acaba como "???".
+      const nomeDaForma = cartao === null || dona === undefined ? 'A forma' : nomeNaBatalha(dona, cartao, 'A forma')
       const faltam = forma.duracao.faltam - 1
       if (faltam > 0) {
         partes.push({ tipo: 'forma', personagemId: saindo.personagemId, antes: forma })
@@ -1532,6 +1542,20 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     return { turnos: novos, partes }
   }
 
+  /**
+   * Fatia C7 (revisão): o cartão oculto que revela ao usar sai revelado depois
+   * do uso (golpe, forma, passiva, reação, evolução, contador, marca,
+   * invocação). O Desfazer da linha não o esconde de novo. Cartão sem a marca:
+   * a ficha fica a mesma e nada grava.
+   */
+  const revelarAoUsar = (personagemId: string, cartaoId: string): void => {
+    mesa.ajustarPersonagem(personagemId, (atual) => revelacaoAoUsar(atual, cartaoId) ?? atual)
+  }
+
+  /** Fatia C7 (revisão): o pedido do JOGADOR por um cartão oculto (que ele nem vê) é forjado: recusado em toda rota. */
+  const ocultoParaQuemPede = (autor: AutorDaAcao, personagem: Personagem | null | undefined, cartaoId: string): boolean =>
+    autor.tipo === 'jogador' && motivoDoOcultoParaJogador(personagem ?? null, cartaoId) !== null
+
   const mudarForma = (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: Extract<PedidoDeAcao, { tipo: 'transformar' | 'destransformar' }>): boolean => {
     const cena = cenaDe(sceneKey)
     if (cena === undefined || vez === null) return false
@@ -1600,7 +1624,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
       novos = { ...novos, formas: { ...(novos.formas ?? {}), [personagemId]: forma } }
       const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: carta.tokenId, forma: nomeDaForma, imagem }
-      if (numeros.length > 0) efeito.numeros = numeros
+      // Fatia C7 (revisão): os números da forma oculta são do segredo (o efeito chega ao dono e aos aliados).
+      if (numeros.length > 0 && (cartao === null || !ocultoNaBatalha(personagem, cartao))) efeito.numeros = numeros
       efeitos.push(efeito)
       const comoAtiva = pedido.acao === 'livre' ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
       texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
@@ -1708,7 +1733,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       }
       const destino = descida.anterior
       const recurso = recursoDoCusto(sistema, custo.recurso)?.nome ?? custo.recurso.toUpperCase()
-      texto = `${dono} sem ${recurso} para manter ${nome}: ${destino === null ? 'sai da forma' : `volta para ${destino.nome.trim() || 'a Parte anterior'}`}`
+      texto = `${dono} sem ${recurso} para manter ${nome}: ${destino === null ? 'sai da forma' : `volta para ${nomeNaBatalha(personagem, destino, 'a Parte anterior')}`}`
     }
     const atual = cenaDe(sceneKey) ?? cena
     gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'transformacao', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
@@ -1859,6 +1884,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
+    // Fatia C7 (revisão): passiva, forma e mantida ocultas são só do mestre, também pelo lembrete.
+    if (ocultoParaQuemPede(autor, personagem, pedido.cartaoId)) return false
     // Conserto das fichas F1 (P6): o lembrete do custo por turno de uma FORMA tem caminho próprio.
     if (pedido.tipo === 'lembrete' && personagem !== null && sistema !== null && formaDaFicha(personagem, sistema, pedido.cartaoId) !== null) {
       return custoDaFormaNaVez(sceneKey, cena, autor, carta, personagem, sistema, pedido)
@@ -1884,6 +1911,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const nomeDoToken = nomeDoTokenNa(turnos, personagens)
     const dono = nomeDoToken(carta.tokenId)
     const nome = nomeNaBatalha(personagem, cartao, 'a passiva')
+    // Fatia C7 (revisão): a passiva oculta liga como "???": sem a opção escolhida e sem os números na linha.
+    const oculta = ocultoNaBatalha(personagem, cartao)
     const quem = quemNaFicha(autor)
     const partes: Reversao[] = []
     // O lembrete que Aplicar e Desligar tiram volta no Desfazer (só ele: a parte "combate" volta o que a linha mudou).
@@ -1932,7 +1961,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       partes.push(...fichas)
       tokenIds.add(selo.tokenId)
       const pago = custoDaVez === null ? '' : `${dono} paga ${textoDoCustoPorTurno(custoDaVez, sistema)}`
-      const doEfeito = efeito === null ? '' : `em ${nomeDoToken(selo.tokenId)}: ${textoDoPorTurno(efeito, sistema)}`
+      const doEfeito = efeito === null ? '' : oculta ? `em ${nomeDoToken(selo.tokenId)}` : `em ${nomeDoToken(selo.tokenId)}: ${textoDoPorTurno(efeito, sistema)}`
       texto = `${nome} (a cada turno) ${[doEfeito, pago].filter((parte) => parte !== '').join(' · ')}`
     } else if (!pedido.ligar) {
       const tirados = selosDaPassiva(turnos.selos, personagemId, cartao.id)
@@ -1960,7 +1989,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (pedidoDoSelo === null) return false
       const onde = { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: nomeNaBatalha(personagem, cartao, cartao.nome) }
       // F2 (fatia F, Melodia): a opção que não é a principal fica no selo (o "+20 contra o analisado" só vale na principal).
-      const selo: SeloDaBatalha = { ...criarSelo(alvoTokenId, { ...pedidoDoSelo, natureza: 'passiva', cartaoId: cartao.id }, onde), donoId: personagemId, ...(variante === null || variante.principal ? {} : { opcao: variante.chave }) }
+      // Fatia C7 (revisão): o selo fica no token, à vista de todos; o da passiva oculta leva "???" no lugar do nome dela.
+      const nomeDoSelo = nomeDoSeloNaBatalha(personagem, cartao, pedidoDoSelo.nome)
+      const selo: SeloDaBatalha = { ...criarSelo(alvoTokenId, { ...pedidoDoSelo, nome: nomeDoSelo, natureza: 'passiva', cartaoId: cartao.id }, onde), donoId: personagemId, ...(variante === null || variante.principal ? {} : { opcao: variante.chave }) }
       const selos = comSeloNovo(turnos.selos, selo)
       if (selos === null) return false
       // Usos e recarga do Tempo, o lembrete fora e a chave do gatilho em `lembradas` (ativada à mão antes do gatilho não lembra depois).
@@ -1980,7 +2011,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // O selo com o mesmo nome e sem mods nem turnos ("Fortaleza · Fortaleza") não diz nada a mais.
       const doSelo = textoDoSeloComMods(selo, sistema)
       const escolha = variante === null ? '' : ` (${variante.rotulo})`
-      texto = `${dono} ativou ${nome}${escolha}${emQuem}${pago}${doSelo === nome ? '' : ` · ${doSelo}`}`
+      texto = oculta ? `${dono} ativou ${nome}${emQuem}${pago}` : `${dono} ativou ${nome}${escolha}${emQuem}${pago}${doSelo === nome ? '' : ` · ${doSelo}`}`
     }
     // O custo de HP do Ativar e o HP que o Aplicar tira podem levar alguém abaixo do gatilho de vida (o mesmo ponto do dano).
     if (partes.some((parte) => parte.tipo === 'ficha')) {
@@ -1992,6 +2023,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     // `personagemIds` = o dono: a linha da passiva de NPC (custo, HP) não sai ao jogador.
     const atual = cenaDe(sceneKey) ?? cena
     gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'habilidade', texto, autor, tokenIds: [...tokenIds], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    // Ativar e Aplicar são uso; Desligar, não.
+    if (pedido.tipo === 'lembrete' || pedido.ligar) revelarAoUsar(personagemId, cartao.id)
     return true
   }
 
@@ -2010,6 +2043,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const personagemId = carta.personagemId
     const { personagens, sistema } = mesaDoRpg()
     const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
+    if (ocultoParaQuemPede(autor, personagem, pedido.cartaoId)) return false
     if (motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: autor.tipo === 'jogador' }, pedido) !== null || personagem === null || sistema === null) return false
     const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
     const evolucao = achada === null ? null : evolucaoDe(achada.cartao, tecnicasDe(personagem, sistema))
@@ -2030,13 +2064,15 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const dono = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
     const nome = nomeNaBatalha(personagem, cartao, 'a técnica')
     // Com link: "→ SUPER CAÇA AS BRUXAS!"; sem link e o texto diz OVERLOAD: o uso evoluído é Overload.
-    const destino = evolucao.para !== null ? ` → ${evolucao.para.nome.trim() || 'a evoluída'}` : evolucao.overload ? ' (agora Overload)' : ''
+    // Fatia C7 (revisão): a evoluída oculta também sai como "???".
+    const destino = evolucao.para !== null ? ` → ${nomeNaBatalha(personagem, evolucao.para, 'a evoluída')}` : evolucao.overload ? ' (agora Overload)' : ''
     const recurso = recursoDoCusto(sistema, 'sp')?.nome ?? 'SP'
     const pago = custo.tipo === 'valor' && personagem.tipo === 'jogador' ? ` (${custo.valor} ${recurso})` : ''
     const texto = `${dono} evoluiu ${nome}${destino}${pago}`
     // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
     const atual = cenaDe(sceneKey) ?? cena
     gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'habilidade', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    revelarAoUsar(personagemId, cartao.id)
     return true
   }
 
@@ -2057,6 +2093,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const personagem = personagens.find((candidato) => candidato.id === lembrete.personagemId)
     const achada = personagem === undefined || sistema === null ? null : passivaDaMarca(personagem, sistema)
     if (personagem === undefined || sistema === null || achada === null || achada.cartao.id !== lembrete.cartaoId) return false
+    if (ocultoParaQuemPede(autor, personagem, achada.cartao.id)) return false
+    // Fatia C7 (revisão): a passiva de marca oculta vai à linha e à origem da marca como "???".
+    const nome = nomeNaBatalha(personagem, achada.cartao, 'a passiva')
     // O alvo segue na ordem e sem marca (uma marca por alvo).
     if (!turnos.cartas.some((carta) => carta.tokenId === lembrete.alvoTokenId) || marcaDoToken(turnos.selos, lembrete.alvoTokenId) !== undefined) return false
     const recursoDoSp = recursoDoCusto(sistema, 'sp')
@@ -2086,7 +2125,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const partes: Reversao[] = [{ tipo: 'lembreteDaMarcaRespondido', lembrete }]
     if (passou) {
       // A marca é calculada ANTES de cobrar: selo que não cabe no teto recusa sem mexer no SP.
-      const marca = criarMarca(novos, lembrete.alvoTokenId, { selo: novoIdDaMarca(), linha: linhaId }, achada.cartao)
+      const marca = criarMarca(novos, lembrete.alvoTokenId, { selo: novoIdDaMarca(), linha: linhaId }, ocultoNaBatalha(personagem, achada.cartao) ? { id: achada.cartao.id, nome: NOME_DO_OCULTO } : achada.cartao)
       const selos = comSeloNovo(novos.selos, marca)
       if (selos === null) return false
       if (pedido.como === 'sp' && leitura.sp !== null) {
@@ -2107,7 +2146,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       novos = { ...novos, selos }
     }
     const nomeDoToken = nomeDoTokenNa(turnos, personagens)
-    const nome = nomeNaBatalha(personagem, achada.cartao, 'a passiva')
     const texto = passou
       ? `${nomeDoToken(lembrete.tokenId)} marcou ${nomeDoToken(lembrete.alvoTokenId)} (${nome} · ${detalhe})`
       : `${nomeDoToken(lembrete.tokenId)} não marcou ${nomeDoToken(lembrete.alvoTokenId)} (${nome} · ${detalhe} · falhou)`
@@ -2117,6 +2155,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       ...comMudanca(atual, novos, { id: linhaId, tipo: 'habilidade', texto, autor, tokenIds: [lembrete.tokenId, lembrete.alvoTokenId], personagemIds: [personagem.id], reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
     })
+    revelarAoUsar(personagem.id, achada.cartao.id)
     return true
   }
 
@@ -2187,21 +2226,25 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const personagem = personagens.find((candidato) => candidato.id === personagemId)
     const achado = personagem === undefined || sistema === null ? null : contadorDoPersonagem(personagem, sistema)
     if (personagemId === null || achado === null || achado.cartao.id !== pedido.cartaoId) return false
+    if (ocultoParaQuemPede(autor, personagem, achado.cartao.id)) return false
     // S4: carregar gasta a reação, e o Atordoado ou Paralisado não reage. Zerar (do mestre) continua valendo.
     if (pedido.tipo === 'ganhar' && travaDoToken(turnos.selos, pedido.tokenId) !== null) return false
     const { leitura } = achado
+    // Fatia C7 (revisão): o contador oculto (nome do cartão ou o escrito nele) vai ao selo e à linha como "???", sem o dano do nível.
+    const oculto = ocultoNaBatalha(personagem ?? null, achado.cartao)
+    const nomeDoContador = oculto ? NOME_DO_OCULTO : leitura.nome
     const combateAntes = turnos.combate?.[personagemId]
     const nivel = nivelDoContador(turnos, pedido.tokenId, pedido.cartaoId)
     if (motivoDoContador(pedido.tipo, nivel, leitura.danoPorNivel.length, combateAntes?.semReacao === true, temGolpeEsperando(turnos.golpes, pedido.tokenId)) !== null) return false
     const molde = seloDoContador(turnos, pedido.tokenId, pedido.cartaoId) ?? {
-      ...criarSelo(pedido.tokenId, { nome: leitura.nome, turnos: null, natureza: 'buff', cartaoId: achado.cartao.id }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: achado.cartao.nome }),
+      ...criarSelo(pedido.tokenId, { nome: nomeDoContador, turnos: null, natureza: 'buff', cartaoId: achado.cartao.id }, { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: oculto ? NOME_DO_OCULTO : achado.cartao.nome }),
       contador: 0,
     }
     // Selo novo acima do teto da ficha ou da cena: recusa sem gastar a reação.
     if (nivel === 0 && comSeloNovo(turnos.selos, molde) === null) return false
     const delta = pedido.tipo === 'ganhar' ? 1 : -nivel
-    const selos = selosComONivel(turnos.selos ?? [], molde, leitura.nome, leitura.danoPorNivel, delta)
-    const partes: Reversao[] = [{ tipo: 'contador', selo: molde, nome: leitura.nome, danoPorNivel: leitura.danoPorNivel, delta }]
+    const selos = selosComONivel(turnos.selos ?? [], molde, nomeDoContador, leitura.danoPorNivel, delta)
+    const partes: Reversao[] = [{ tipo: 'contador', selo: molde, nome: nomeDoContador, danoPorNivel: leitura.danoPorNivel, delta }]
     let novos: TurnosDaCena = { ...turnos, selos: [...selos] }
     if (pedido.tipo === 'ganhar') {
       const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), semReacao: true }
@@ -2210,8 +2253,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     const nome = nomeDoTokenNa(turnos, personagens)(pedido.tokenId)
     const dano = leitura.danoPorNivel[nivel] ?? 0
-    const texto = pedido.tipo === 'ganhar' ? `${nome} carregou ${leitura.nome}: nível ${nivel + 1} (+${dano} de dano) · sem reação até a vez dele` : `${nomeDoAutor(autor)} zerou ${leitura.nome} de ${nome}`
+    const doDano = oculto ? '' : ` (+${dano} de dano)`
+    const texto = pedido.tipo === 'ganhar' ? `${nome} carregou ${nomeDoContador}: nível ${nivel + 1}${doDano} · sem reação até a vez dele` : `${nomeDoAutor(autor)} zerou ${nomeDoContador} de ${nome}`
     gravarCena(sceneKey, comMudanca(cena, novos, { tipo: 'habilidade', texto, autor, tokenIds: [pedido.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+    if (pedido.tipo === 'ganhar') revelarAoUsar(personagemId, achado.cartao.id)
     return true
   }
 
@@ -2422,6 +2467,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       ...comMudanca(comOGolpe, novos, { id: linhaId, tipo: 'reacao', texto, autor, tokenIds: [...new Set([reageTokenId, depois.tokenId, golpe.atacanteTokenId])], reversao: { tipo: 'composta', partes } }),
       efeitos: comEfeitos(atual.efeitos, efeitos),
     })
+    revelarAoUsar(personagemId, pedido.cartaoId)
     avisarQuemCaiu(sceneKey, autor)
     return true
   }
@@ -3122,6 +3168,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (turnos !== cena.turnos) gravarCena(sceneKey, comMudanca(cena, turnos, null))
     },
 
+    revelar: (personagemId, cartaoId) => mesa.ajustarPersonagem(personagemId, (atual) => revelarCartao(atual, cartaoId)),
+
     trocarEquipe: (personagemId, equipeId) => {
       // Lidos ANTES de trocar, como a foto da aventura de antes: a equipe e o nome não mudam com a troca.
       const equipes = mesa.equipes()
@@ -3237,7 +3285,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const { personagens, sistema } = mesaDoRpg()
       const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
       const ctx: ContextoDaInvocacao = { personagem, sistema, turnos, acoes: acoesDaCarta({ turnos, carta: daVez, personagem, sistema, regras: cena.regras }) }
-      if (motivoDaInvocacao(ctx, pedido) !== null) return false
+      if (ocultoParaQuemPede(autor, personagem, pedido.cartaoId) || motivoDaInvocacao(ctx, pedido) !== null) return false
       const linhaId = novoIdDeLinha()
       const pedida = pedirInvocacao({ ...ctx, autor, donoTokenId: dono.tokenId }, pedido, { pendente: novoIdDeInvocacao(), linha: linhaId })
       if (pedida === null) return false
@@ -3268,10 +3316,14 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // O SP só aparece na linha da ficha de jogador (o de NPC nunca vai à mesa).
       const recurso = pedida.pago === null || sistema === null ? null : (recursoDoCusto(sistema, pedida.pago.recurso)?.nome ?? pedida.pago.recurso.toUpperCase())
       const pago = pedida.pago !== null && personagem !== null && personagem.tipo === 'jogador' ? ` (${pedida.pago.valor} ${recurso ?? ''})` : ''
-      const texto = `${nomeDoTokenNa(turnos, personagens)(dono.tokenId)} invocou 1 ${pedida.pendente.nome} com ${pedida.tecnica}${pago}`
+      // Fatia C7 (revisão): a técnica de invocação oculta sai como "???" (o invocado aparece no mapa de todo jeito).
+      const daTecnica = personagem === null ? null : cartaoEmQualquerNivel(personagem, pedido.cartaoId)
+      const tecnica = daTecnica !== null && ocultoNaBatalha(personagem, daTecnica) ? NOME_DO_OCULTO : pedida.tecnica
+      const texto = `${nomeDoTokenNa(turnos, personagens)(dono.tokenId)} invocou 1 ${pedida.pendente.nome} com ${tecnica}${pago}`
       // A ficha passa pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
       const atual = cenaDe(sceneKey) ?? cena
       gravarCena(sceneKey, comMudanca(atual, novos, { id: linhaId, tipo: 'habilidade', texto, autor, tokenIds: [dono.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
+      revelarAoUsar(personagemId, pedido.cartaoId)
       return true
     },
 
@@ -3367,9 +3419,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         const feito = ativarForma(atual, sistemaDaMesa, cartao.id, NOME_DO_MESTRE, Date.now())
         if (feito !== null) {
           numeros = feito.numeros
-          desligadas = feito.desligadas.map((cartaoDesligado) => cartaoDesligado.nome.trim() || 'a forma')
+          desligadas = feito.desligadas.map((cartaoDesligado) => nomeNaBatalha(atual, cartaoDesligado, 'a forma'))
         }
-        return feito?.personagem ?? null
+        // Fatia C7 (revisão): a forma oculta que revela ao usar sai revelada, como no Ativar de sempre.
+        return feito === null ? null : (revelacaoAoUsar(feito.personagem, cartao.id) ?? feito.personagem)
       })
       if (fichaMudou === null || fichaMudou === 'recusada') {
         // Não ligou: o cartão volta como era e nada mais muda.
@@ -3385,7 +3438,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       partes.push({ tipo: 'forma', personagemId, antes: turnos.formas?.[personagemId] ?? null })
       let novos: TurnosDaCena = { ...turnos, formas: { ...(turnos.formas ?? {}), [personagemId]: forma } }
       const quemAge = nomeDoTokenNa(turnos, personagens)(pendente.tokenId)
-      let texto = `${quemAge} ativa ${pendente.nome} · o mestre decidiu: ${textoDaDecisao(decisao, sistema)}${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
+      // Fatia C7 (revisão): os números que o mestre decidiu para a forma oculta são do segredo (a linha e o efeito chegam a todos).
+      const oculta = ocultoNaBatalha(personagem, cartao)
+      const decidiu = oculta ? 'o mestre decidiu' : `o mestre decidiu: ${textoDaDecisao(decisao, sistema)}`
+      let texto = `${quemAge} ativa ${pendente.nome} · ${decidiu}${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
       // F2b (Ignição): a troca que muda a Velocidade marca a carta para a virada, como no Ativar de sempre.
       const depoisDaTroca = mesa.personagens().find((candidato) => candidato.id === personagemId)
       if (depoisDaTroca !== undefined && fatorDaVelocidade(depoisDaTroca.cartoesAtivos) !== fatorDaVelocidade(personagem.cartoesAtivos)) {
@@ -3399,7 +3455,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       partes.push({ tipo: 'formaDecidida', pendente })
       novos = { ...novos, formasPendentes: (novos.formasPendentes ?? []).filter((candidata) => candidata.id !== pendente.id) }
       const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: pendente.tokenId, forma: pendente.nome, imagem }
-      if (numeros.length > 0) efeito.numeros = numeros
+      if (numeros.length > 0 && !oculta) efeito.numeros = numeros
       const atual = cenaDe(sceneKey) ?? cena
       gravarCena(sceneKey, {
         ...comMudanca(atual, novos, { tipo: 'transformacao', texto, autor: MESTRE, tokenIds: [pendente.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }),
@@ -3708,7 +3764,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const personagemId = cena.turnos.cartas.find((candidata) => candidata.tokenId === pedido.tokenId)?.personagemId ?? null
       const { personagens, sistema } = mesaDoRpg()
       const personagem = personagemId === null ? null : (personagens.find((candidato) => candidato.id === personagemId) ?? null)
-      return motivoDoEvoluir({ personagem, sistema, turnos: cena.turnos, soNaVez: autor.tipo === 'jogador' }, pedido)
+      // Fatia C7 (revisão): o mesmo motivo que o `evoluir` recusa.
+      const oculto = autor.tipo === 'jogador' ? motivoDoOcultoParaJogador(personagem, pedido.cartaoId) : null
+      return oculto ?? motivoDoEvoluir({ personagem, sistema, turnos: cena.turnos, soNaVez: autor.tipo === 'jogador' }, pedido)
     },
 
     marcar: (sceneKey, autor, pedido) => marcarOAlvo(sceneKey, autor, pedido),

@@ -1,3 +1,4 @@
+import { idsOcultos } from '../habilidadeOculta'
 import { ehImagemDaMesa, ehRefDeMidia } from '../midia'
 import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
@@ -546,6 +547,9 @@ function acoesParaJogador(cena: BatalhaEmTurnos, daVez: CartaDaOrdem, ctx: Conte
   return acoesDaVez(turnos.gastos[daVez.id], turnos.extras[daVez.id], rank, cena.regras?.blocosPorRank ?? BLOCOS_POR_RANK_PADRAO, forma)
 }
 
+/** Ficha que o host não achou: nada oculto a tirar. */
+const SEM_OCULTOS: ReadonlySet<string> = new Set()
+
 /** O combate dos personagens DELE com carta na ordem, na ordem das cartas. */
 function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombateParaJogador[] {
   const { turnos } = cena
@@ -572,13 +576,17 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
     // Passivas e evoluções só do personagem DELE: o token de NPC que ele controla entra em `meus`, mas o lembrete
     // "vida abaixo de 50%" contaria a vida do NPC.
     if (combate.semReacao === true) meu.semReacao = true
+    // Fatia C7 (revisão): o cartão oculto é só do mestre; o id dele não vai ao jogador em lembrete, passiva ligada,
+    // evolução nem marca (com o id, o "Aplicar" do lembrete viraria um pedido que o host executaria).
+    const ocultos = personagem === undefined ? SEM_OCULTOS : idsOcultos(personagem)
+    const visivel = (cartaoId: string): boolean => !ocultos.has(cartaoId)
     // R1: os lembretes da marca do personagem DELE, de token dele (o SP e o teste são do personagem dele).
     const marcas = (turnos.lembretesDaMarca ?? [])
-      .filter((lembrete) => lembrete.personagemId === personagemId && ctx.meusPersonagens.has(personagemId) && ctx.meusTokens.has(lembrete.tokenId))
+      .filter((lembrete) => lembrete.personagemId === personagemId && ctx.meusPersonagens.has(personagemId) && ctx.meusTokens.has(lembrete.tokenId) && visivel(lembrete.cartaoId))
       .slice(-LEMBRETES_DA_MARCA_MAX)
       .map((lembrete) => ({ id: lembrete.id, tokenId: lembrete.tokenId, alvoTokenId: lembrete.alvoTokenId, cartaoId: lembrete.cartaoId }))
     if (marcas.length > 0) meu.marcas = marcas
-    meus.push(ctx.meusPersonagens.has(personagemId) ? comFormasEsperando(comInvocacoesDoDono(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]), turnos, personagemId), turnos, personagemId) : meu)
+    meus.push(ctx.meusPersonagens.has(personagemId) ? comFormasEsperando(comInvocacoesDoDono(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)], visivel), turnos, personagemId), turnos, personagemId) : meu)
   }
   return meus
 }
@@ -589,8 +597,9 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
  * e as técnicas evoluídas. Nos tetos do fio; campo vazio não sai (o JSON de
  * quem não tem passiva nem evolução fica igual byte a byte).
  */
-function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem, ativas: readonly string[]): CombateParaJogador {
-  const cabe = (cartaoId: string): boolean => cartaoId.length >= 1 && cartaoId.length <= ID_DO_CARTAO_MAX
+function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem, ativas: readonly string[], visivel: (cartaoId: string) => boolean): CombateParaJogador {
+  // `visivel` (fatia C7): o cartão oculto não sai, nem só o id.
+  const cabe = (cartaoId: string): boolean => cartaoId.length >= 1 && cartaoId.length <= ID_DO_CARTAO_MAX && visivel(cartaoId)
   const lembretes = (combate.lembretes ?? [])
     .filter((lembrete) => cabe(lembrete.cartaoId) && lembrete.chave.length >= 1 && lembrete.chave.length <= CHAVE_DA_LEMBRADA_MAX && lembrete.rodada >= 1)
     .slice(0, LEMBRETES_MAX)

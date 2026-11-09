@@ -29,13 +29,19 @@ export interface PerfilDaCartaProps {
    * A ficha padrão fora da edição não muda com isto.
    */
   quemOlha?: 'mestre' | 'jogador'
+  /**
+   * Fatia C7 (revisão): o mestre revela o cartão oculto com um clique, sem sair
+   * da batalha (o botão "Revelar" ao lado do selo "Oculta"). Só vale com
+   * `quemOlha` 'mestre'; ausente = sem o botão (a arena de teste, a cópia DBT).
+   */
+  onRevelar?: (cartaoId: string) => void
   onFechar: () => void
 }
 
 const NADA_MUDA = () => {}
 const SEM_IMAGEM = () => Promise.resolve(null)
 
-export function PerfilDaCarta({ personagem, sistema, descricao, imagemDaForma, passivas, quemOlha = 'mestre', onFechar }: PerfilDaCartaProps) {
+export function PerfilDaCarta({ personagem, sistema, descricao, imagemDaForma, passivas, quemOlha = 'mestre', onRevelar, onFechar }: PerfilDaCartaProps) {
   // Só leitura (`onChange` não grava): trocar o retrato aqui não chega à ficha.
   const mostrado = useMemo(
     () => (imagemDaForma === undefined || imagemDaForma === null ? personagem : { ...personagem, retrato: imagemDaForma }),
@@ -47,7 +53,15 @@ export function PerfilDaCarta({ personagem, sistema, descricao, imagemDaForma, p
       {sistema === null ? (
         <p className="bt-regras__vazio">Esta mesa não tem sistema de RPG: o perfil não tem o que mostrar.</p>
       ) : (
-        <FichaDoSistema personagem={mostrado} sistema={sistema} editando={false} onChange={NADA_MUDA} escolherImagem={SEM_IMAGEM} tipoEditavel={quemOlha === 'mestre'} />
+        <FichaDoSistema
+          personagem={mostrado}
+          sistema={sistema}
+          editando={false}
+          onChange={NADA_MUDA}
+          escolherImagem={SEM_IMAGEM}
+          tipoEditavel={quemOlha === 'mestre'}
+          onRevelar={quemOlha === 'mestre' ? onRevelar : undefined}
+        />
       )}
     </JanelaDaBatalha>
   )

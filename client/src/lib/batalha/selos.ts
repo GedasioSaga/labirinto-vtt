@@ -1,4 +1,5 @@
-import type { CartaoDaFicha } from '../personagem'
+import { NOME_DO_OCULTO, ocultoNaBatalha } from '../habilidadeOculta'
+import type { CartaoDaFicha, Personagem } from '../personagem'
 import { idValido, type SistemaDeRpg } from '../sistemaDeRpg'
 import {
   ALVO_DA_REACAO,
@@ -41,6 +42,26 @@ export const SELOS_PRONTOS = ['Atordoado', 'Cego', 'Sangrando', 'Queimando', 'En
 
 /** O nome quando nem a palavra-chave nem a técnica dão um. */
 const NOME_DO_SELO_PADRAO = 'Selo'
+
+/** O nome sem o que está entre parênteses, normalizado e sem espaço a mais (como o nome curto do selo da passiva). */
+function nomeComparavel(nome: string): string {
+  return normalizar(nome.replace(/\([^)]*\)/g, ' ')).replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Fatia C7 (revisão): o nome do selo que um cartão põe na batalha (no alvo,
+ * em quem usa, em quem atacou). O selo fica no token, à vista de todos: vira
+ * "???" quando o cartão sai como "???" (`ocultoNaBatalha`) e o nome do selo
+ * veio do nome dele (o da passiva, o da técnica sem palavra-chave no texto:
+ * "Garra Lunar", "Fortaleza"). O selo pronto ou com regra ("Atordoado",
+ * "Marcado") fica: ele é o efeito, a regra o lê pelo nome, e não é o segredo.
+ */
+export function nomeDoSeloNaBatalha(personagem: Pick<Personagem, 'abas'> | null, cartao: CartaoDaFicha, nomeDoSelo: string): string {
+  if (!ocultoNaBatalha(personagem, cartao)) return nomeDoSelo
+  if (SELOS_PRONTOS.some((pronto) => pronto === nomeDoSelo) || comportamentoDoSelo(nomeDoSelo) !== null) return nomeDoSelo
+  const doSelo = nomeComparavel(nomeDoSelo)
+  return doSelo.length > 0 && nomeComparavel(cartao.nome).startsWith(doSelo) ? NOME_DO_OCULTO : nomeDoSelo
+}
 
 /** Os campos da técnica que a leitura do selo olha, nesta ordem. */
 const CAMPOS_DO_SELO = ['efeito', 'descricao'] as const

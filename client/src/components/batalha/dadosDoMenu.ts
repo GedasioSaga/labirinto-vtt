@@ -1,5 +1,5 @@
 import { acaoDoGolpe, motivoDoAtacar, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
-import { cartaoEstaOculto, NOME_DO_OCULTO } from '../../lib/habilidadeOculta'
+import { cartaoEstaOculto, NOME_DO_OCULTO, ocultoNaBatalha } from '../../lib/habilidadeOculta'
 import {
   CARGA_MAX,
   MULTIPLICADOR_DA_CARGA,
@@ -66,10 +66,18 @@ export interface DanoNaTela {
   pelaVida?: true
 }
 
-/** Um golpe que o menu oferece: uma arma (Atacar) ou uma técnica (Habilidades). */
 /** Fatia C7: o sufixo do nome da técnica oculta no menu do mestre ("Garra Lunar (os jogadores veem ???)"). */
 const MARCA_DE_OCULTA_NO_MENU = ` (os jogadores veem ${NOME_DO_OCULTO})`
+/** Fatia C7 (revisão): a oculta que revela ao usar sai com o nome de verdade, e o uso a revela. */
+const MARCA_DE_REVELA_AO_USAR_NO_MENU = ' (revela ao usar)'
 
+/** O sufixo do nome no menu do mestre: o que os jogadores vão ver quando ele usar a técnica oculta; '' = visível. */
+function marcaDeOcultaNoMenu(personagem: Personagem, cartao: CartaoDaFicha): string {
+  if (!cartaoEstaOculto(personagem, cartao.id)) return ''
+  return ocultoNaBatalha(personagem, cartao) ? MARCA_DE_OCULTA_NO_MENU : MARCA_DE_REVELA_AO_USAR_NO_MENU
+}
+
+/** Um golpe que o menu oferece: uma arma (Atacar) ou uma técnica (Habilidades). */
 export interface GolpeNaTela {
   /** Chave estável na lista: "arma:<id>", "tecnica:<id>" ou "ataque" (sem arma). */
   chave: string
@@ -519,7 +527,7 @@ function golpeDaTecnica(
     cartaoId: tecnica.cartao.id,
     armaId: arma?.id ?? null,
     // Fatia C7: só o mestre tem o cartão oculto no menu; a marca lembra que, para os jogadores, o golpe sai como "???".
-    nome: `${tecnica.cartao.nome.trim() || 'Habilidade sem nome'}${cartaoEstaOculto(personagem, tecnica.cartao.id) ? MARCA_DE_OCULTA_NO_MENU : ''}`,
+    nome: `${tecnica.cartao.nome.trim() || 'Habilidade sem nome'}${marcaDeOcultaNoMenu(personagem, tecnica.cartao)}`,
     descricao: (tecnica.cartao.campos.descricao ?? tecnica.cartao.campos.efeito ?? '').trim(),
     custoTexto: textoDoCusto(tecnica.custo),
     custo: tecnica.custo,

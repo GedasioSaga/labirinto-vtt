@@ -217,6 +217,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
           sistema={sistema}
           descricao={[equipeDoPerfil?.nome, perfil.tipo === 'npc' ? 'NPC' : 'Jogador', cartaDoPerfil !== undefined && passivasDoPerfil.length > 0 ? 'ficha só para ler, passivas ativam aqui' : 'só leitura'].filter(Boolean).join(' · ')}
           imagemDaForma={aparenciaDaForma(cena.turnos.formas?.[perfil.id], perfil)}
+          onRevelar={(cartaoId) => useBatalhaStore.getState().revelar(perfil.id, cartaoId)}
           passivas={
             cartaDoPerfil === undefined || passivasDoPerfil.length === 0 ? undefined : (
               <PassivasDaFicha

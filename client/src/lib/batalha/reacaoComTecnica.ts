@@ -1,4 +1,5 @@
 import type { Ajuste } from '../ajusteDaFicha'
+import { motivoDoOcultoParaJogador, nomeNaBatalha, ocultoNaBatalha } from '../habilidadeOculta'
 import type { CartaoDaFicha, Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { motivoDaTecnica } from './acoes'
@@ -22,7 +23,7 @@ import { leituraDaTecnica } from './leituraDaTecnica'
 import { modificadorDoTeste } from './marca'
 import { reacaoAMaoDe, reageContraOverload, reageContraSurpresa, rebatePertoDe, soOMestreReage } from './mecanicasAMao'
 import type { AutorDaAcao } from './turnos'
-import { seloPedidoValido } from './selos'
+import { nomeDoSeloNaBatalha, seloPedidoValido } from './selos'
 import { lerTipo, modoDaReacao, saidaSugerida, seloDaReacao, type LeituraDoTipo, type ModoDaReacao } from './tiposDaHabilidade'
 
 /**
@@ -259,6 +260,9 @@ export function motivoDaReacaoComTecnica(ctx: ContextoDaReacao, alvo: AlvoQueRea
   if (pedido.seloNoAtacante !== undefined && seloPedidoValido(pedido.seloNoAtacante, ctx.sistema) === null) return 'Selo inválido'
   const { personagem, sistema } = ctx
   if (personagem === null || sistema === null) return 'Ficha sem personagem não reage com técnica'
+  // Fatia C7 (revisão): a técnica oculta é só do mestre (o jogador nem a vê; o pedido dele é forjado).
+  const oculto = ctx.quemPede === 'jogador' ? motivoDoOcultoParaJogador(personagem, pedido.cartaoId) : null
+  if (oculto !== null) return oculto
   const achada = tecnicaPorId(personagem, sistema, pedido.cartaoId)
   if (achada === null) return 'Técnica não encontrada na ficha'
   const tecnica = confirmar(achada.cartao, achada.forma, personagem, sistema, pedido.custo, ctx.combate?.evoluidas)
@@ -320,8 +324,10 @@ export function reagirComTecnica(
   const { sugerida } = saidasDaTecnica(tecnica.cartao.id, modoDaReacao(tecnica.cartao))
   const daTabela = reacaoAMaoDe(tecnica.cartao.id)
   const saidaDaTabela = daTabela?.saidas?.find((candidata) => candidata.saida === pedido.saida)
-  const nome = tecnica.cartao.nome.trim() || TECNICA_SEM_NOME
-  const marca: TecnicaDaReacao = { cartaoId: tecnica.cartao.id, nome: saidaDaTabela === undefined ? nome : `${nome} (${saidaDaTabela.rotulo})` }
+  // Fatia C7 (revisão): a técnica oculta vai ao golpe (linha do registro, origem do selo, marca) como "???", sem o rótulo da saída.
+  const oculta = ocultoNaBatalha(personagem, tecnica.cartao)
+  const nome = nomeNaBatalha(personagem, tecnica.cartao, TECNICA_SEM_NOME)
+  const marca: TecnicaDaReacao = { cartaoId: tecnica.cartao.id, nome: saidaDaTabela === undefined || oculta ? nome : `${nome} (${saidaDaTabela.rotulo})` }
   if (sugerida !== null && pedido.saida !== sugerida && saidaDaTabela === undefined) marca.aMao = true
   const { saida } = pedido
   let novo: GolpeDaBatalha
@@ -342,7 +348,8 @@ export function reagirComTecnica(
   novo = comTecnicaNoAlvo(novo, tokenId, marca)
   const alvo = novo.alvos.find((candidato) => candidato.tokenId === tokenId)
   if (alvo === undefined) return null
-  const selo = pedido.seloNoAtacante === undefined ? null : seloPedidoValido(pedido.seloNoAtacante, sistema)
+  const lido = pedido.seloNoAtacante === undefined ? null : seloPedidoValido(pedido.seloNoAtacante, sistema)
+  const selo = lido === null || !oculta ? lido : { ...lido, nome: nomeDoSeloNaBatalha(personagem, tecnica.cartao, lido.nome) }
   const feita: ReacaoFeita = { golpe: novo, alvo, combate: depoisDaTecnica(combate, tecnica), custo: ajustesDoCusto(personagem, sistema, tecnica.custo), seloNoAtacante: selo }
   if (saidaDaTabela?.devolveDividido !== undefined) feita.devolveDividido = saidaDaTabela.devolveDividido
   // F2 (fatia E): "20% do dano que tomaria se torna vida", do dano que chegava (antes do −30% do Ogro), para baixo.

@@ -54,7 +54,12 @@ export function cartaoEstaOculto(personagem: Pick<Personagem, 'abas'>, cartaoId:
 
 interface ListaSemOcultos {
   cartoes: CartaoDaFicha[]
-  /** Quantos cartões ocultos saíram (os de fora; o subcartão de um oculto sai junto com ele e não conta de novo). */
+  /**
+   * Quantos cartões ocultos saíram DESTE nível. O subcartão oculto de um
+   * cartão visível (técnica da forma, bala da arma) sai sem contar: o "???"
+   * da aba fica no fim da lista de cima, e lá ele seria um cartão solto, fora
+   * do cartão dono (revisão da fatia C7).
+   */
   tirados: number
 }
 
@@ -70,7 +75,6 @@ function listaSemOcultos(cartoes: CartaoDaFicha[]): ListaSemOcultos {
       continue
     }
     const subs = listaSemOcultos(cartao.subcartoes)
-    tirados += subs.tirados
     if (subs.cartoes === cartao.subcartoes) ficam.push(cartao)
     else {
       mudou = true
@@ -101,7 +105,9 @@ export function semOcultas(personagem: Personagem): Personagem {
     if (tirados > 0) contagem[abaId] = Math.min(tirados, OCULTAS_POR_ABA_MAX)
   }
   const { ocultas: _velha, ...resto } = personagem
-  return { ...resto, abas, cartoesAtivos: personagem.cartoesAtivos.filter((id) => !ocultos.has(id)), ocultas: contagem }
+  const semOsOcultos: Personagem = { ...resto, abas, cartoesAtivos: personagem.cartoesAtivos.filter((id) => !ocultos.has(id)) }
+  // Só subcartão oculto (nenhum "???" solto na aba): sem a contagem, como a ficha que não tem oculto.
+  return Object.keys(contagem).length === 0 ? semOsOcultos : { ...semOsOcultos, ocultas: contagem }
 }
 
 /** Os cartões ocultos de uma lista (só os do nível dela), cada um com o id do cartão visível que vinha antes dele (`null` = o primeiro da lista). */
@@ -225,6 +231,19 @@ function comCartaoMarcado(personagem: Personagem, cartaoId: string, mudar: (cart
   return achou ? { ...personagem, abas } : null
 }
 
+/**
+ * `cartao` com as marcas de oculta de `de` (o cartão de agora). O Desfazer
+ * que volta os números de um cartão (a decisão da forma) não volta o que o
+ * mestre revelou ou escondeu depois, nem o que o uso revelou. O MESMO cartão
+ * quando as marcas já batem.
+ */
+export function comAsMarcasDeOcultaDe(cartao: CartaoDaFicha, de: Pick<CartaoDaFicha, 'oculta' | 'revelaAoUsar'>): CartaoDaFicha {
+  if (cartao.oculta === de.oculta && cartao.revelaAoUsar === de.revelaAoUsar) return cartao
+  const visivel = semMarcaDeOculta(cartao)
+  if (de.oculta !== true) return visivel
+  return de.revelaAoUsar === true ? { ...visivel, oculta: true, revelaAoUsar: true } : { ...visivel, oculta: true }
+}
+
 /** O mestre revela: o cartão volta a ir ao jogador inteiro. A MESMA ficha quando ele não estava oculto (ou não existe). */
 export function revelarCartao(personagem: Personagem, cartaoId: string): Personagem {
   return comCartaoMarcado(personagem, cartaoId, semMarcaDeOculta) ?? personagem
@@ -271,9 +290,16 @@ export function ocultasDaAba(personagem: Pick<Personagem, 'ocultas'>, abaId: str
  * a linha é a mesma para ele e para o jogador.
  */
 export function nomeNaBatalha(personagem: Pick<Personagem, 'abas'> | null, cartao: CartaoDaFicha, padrao: string): string {
-  const nome = cartao.nome.trim() || padrao
-  if (personagem === null || cartao.revelaAoUsar === true) return nome
-  return cartaoEstaOculto(personagem, cartao.id) ? NOME_DO_OCULTO : nome
+  return ocultoNaBatalha(personagem, cartao) ? NOME_DO_OCULTO : cartao.nome.trim() || padrao
+}
+
+/**
+ * O cartão sai como "???" na batalha (`nomeNaBatalha`): oculto (ele ou um de
+ * cima) e sem "revela ao usar". Aí também os números e a opção escolhida ficam
+ * fora das linhas e dos efeitos que todos veem.
+ */
+export function ocultoNaBatalha(personagem: Pick<Personagem, 'abas'> | null, cartao: Pick<CartaoDaFicha, 'id' | 'revelaAoUsar'>): boolean {
+  return personagem !== null && cartao.revelaAoUsar !== true && cartaoEstaOculto(personagem, cartao.id)
 }
 
 /** O mestre usou na batalha um cartão oculto que revela ao usar: a ficha com ele revelado; `null` = nada a revelar. */
