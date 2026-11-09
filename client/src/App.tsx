@@ -123,6 +123,7 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
 import { PreludioSobDemanda } from './preludio/PreludioSobDemanda'
+import { preludioDeixaFechar } from './preludio/aoFechar'
 import { LivrosScreen } from './screens/LivrosScreen'
 import { MundoDoLivro } from './components/livros/MundoDoLivro'
 import { useMundoDoLivroStore } from './stores/mundoDoLivroStore'
@@ -1986,6 +1987,8 @@ function App() {
     })
     getCurrentWindow()
       .onCloseRequested(async (pedido) => {
+        // O Prelúdio grava o que a digitação ainda segura e, se algo não gravou, pergunta antes (preludio/aoFechar.ts).
+        if (!(await preludioDeixaFechar({ esperaMaximaMs: CLOSE_DIALOG_MAX_WAIT_MS }))) return pedido.preventDefault()
         await perguntarAoFechar(pedido)
         // Sem pergunta, o Tauri fecha a janela logo depois deste handler: a sala sai do Lobby antes.
         if (!pedido.isPreventDefault()) await fecharNoLobbyComPrazo(salaNoLobbyRef.current)

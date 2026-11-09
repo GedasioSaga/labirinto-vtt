@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useId, useMemo, useRef, type KeyboardEvent } from 'react'
 import { BackIcon } from '../components/icons'
 import { ehDaEscrita, naCampanha, ROTULO_DO_TIPO, TIPOS_DA_ENCICLOPEDIA, type NoDaArvore } from '../lib/preparo/enciclopedia'
 import type { TipoDeVerbete } from '../lib/preparo/tipos'
@@ -17,17 +17,52 @@ function itensDosCadernos(nos: readonly NoDaArvore[]): ItemDaArvore[] {
   return nos.map((no) => ({ id: no.verbete.id, rotulo: no.verbete.titulo || 'Sem nome', filhos: itensDosCadernos(no.filhos) }))
 }
 
-function Salvamento() {
+/** Pediu para sair com algo que não gravou. */
+export interface SaidaPendente {
+  aoSair: () => void
+  aoFicar: () => void
+}
+
+/** A pergunta antes de sair: "Ficar" é o padrão (o foco cai nele) e Esc desiste, sem tirar o mestre da tela. */
+function PerguntaDeSaida({ aoSair, aoFicar }: SaidaPendente) {
+  const id = useId()
+  const aoTeclar = (evento: KeyboardEvent<HTMLDivElement>) => {
+    if (evento.key !== 'Escape') return
+    evento.preventDefault()
+    evento.stopPropagation()
+    aoFicar()
+  }
+  return (
+    <div className="pr-salvo__sair" role="group" aria-labelledby={id} onKeyDown={aoTeclar}>
+      <p className="pr-salvo__texto" id={id}>
+        Sair mesmo assim? O que não salvou fica guardado até você fechar o Labirinto, e o Prelúdio tenta gravar de novo quando você voltar.
+      </p>
+      <div className="pr-salvo__acoes">
+        <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" onClick={aoSair}>
+          Sair mesmo assim
+        </button>
+        <button type="button" className="gr-bt gr-bt--p gr-bt--latao" autoFocus onClick={aoFicar}>
+          Ficar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Salvamento({ saida }: { saida?: SaidaPendente }) {
   const salvamento = usePreludio((estado) => estado.salvamento)
   const tentarDeNovo = usePreludio((estado) => estado.tentarDeNovo)
   if (salvamento.t === 'falhou') {
     return (
-      <div className="pr-salvo pr-salvo--falhou" role="alert">
-        <p className="pr-salvo__texto">Não salvou: {salvamento.motivo} O texto continua aqui.</p>
-        <button type="button" className="gr-bt gr-bt--p gr-bt--perigo" onClick={tentarDeNovo}>
-          Tentar de novo
-        </button>
-      </div>
+      <>
+        <div className="pr-salvo pr-salvo--falhou" role="alert">
+          <p className="pr-salvo__texto">Não salvou: {salvamento.motivo} O texto continua aqui.</p>
+          <button type="button" className="gr-bt gr-bt--p gr-bt--perigo" onClick={tentarDeNovo}>
+            Tentar de novo
+          </button>
+        </div>
+        {saida !== undefined && <PerguntaDeSaida {...saida} />}
+      </>
     )
   }
   return (
@@ -39,12 +74,14 @@ function Salvamento() {
 }
 
 interface LadoProps {
-  /** Ausente enquanto a importação grava: sair no meio deixaria a cópia sem o aviso de como terminou. */
+  /** Ausente enquanto a importação ou a restauração gravam: sair no meio deixaria a tela sem o aviso de como terminou. */
   aoVoltar?: () => void
   aoBuscar: () => void
+  /** Presente quando o mestre pediu para sair e algo não gravou: o rodapé pergunta. */
+  saida?: SaidaPendente
 }
 
-export function Lado({ aoVoltar, aoBuscar }: LadoProps) {
+export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   const lugar = usePreludio((estado) => estado.lugar)
   const campanhas = usePreludio((estado) => estado.campanhas)
   const campanhaId = usePreludio((estado) => estado.campanhaId)
@@ -56,10 +93,23 @@ export function Lado({ aoVoltar, aoBuscar }: LadoProps) {
   const cadernos = useCadernos()
   const novoCaderno = useNovoCaderno()
   const titulo = useRef<HTMLHeadingElement>(null)
+  const voltar = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     titulo.current?.focus({ preventScroll: true })
   }, [])
+
+  // Ficar devolve o foco ao Voltar, de onde a pergunta saiu (senão ele cairia no body).
+  const saidaDoRodape: SaidaPendente | undefined =
+    saida === undefined
+      ? undefined
+      : {
+          aoSair: saida.aoSair,
+          aoFicar: () => {
+            saida.aoFicar()
+            voltar.current?.focus()
+          },
+        }
 
   const contas = useMemo(() => {
     const porTipo = new Map<TipoDeVerbete, number>()
@@ -81,7 +131,7 @@ export function Lado({ aoVoltar, aoBuscar }: LadoProps) {
     <aside className="pr-lado" aria-label="Navegação do Prelúdio">
       <div className="pr-lado__topo">
         {aoVoltar !== undefined && (
-          <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma pr-lado__voltar" onClick={aoVoltar}>
+          <button ref={voltar} type="button" className="gr-bt gr-bt--p gr-bt--fantasma pr-lado__voltar" onClick={aoVoltar}>
             <BackIcon />
             Voltar
           </button>
@@ -165,7 +215,7 @@ export function Lado({ aoVoltar, aoBuscar }: LadoProps) {
       </nav>
 
       <div className="pr-lado__pe">
-        <Salvamento />
+        <Salvamento saida={saidaDoRodape} />
       </div>
     </aside>
   )

@@ -82,3 +82,8 @@ export function textoDaRestauracao(resumo: ResumoDaRestauracao, quando: number |
   const guardado = resumo.guardadoEm === null ? '' : ` O de antes ficou guardado na pasta de dados do app, em ${resumo.guardadoEm}.`
   return `O Prelúdio voltou para ${data} (${textoDosArquivos(resumo.arquivos)}).${guardado}`
 }
+
+/** A restauração nem começou: antes de trocar a pasta, o que mudou tem de estar no disco (e não foi). */
+export function textoDaRestauracaoBarrada(motivo: string): string {
+  return `A restauração não começou, e nada foi trocado: antes dela, o Prelúdio precisa gravar o que mudou, e não conseguiu. ${motivo.trim()}`
+}

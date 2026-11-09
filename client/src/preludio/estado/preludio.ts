@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { gravarVerbete, lerIndiceDoPreparo, lerVerbete, listarNoPreparo } from '../../lib/preparo/disco'
 import { IndiceDeCitacoes, entradaDaBusca, type EntradaDaBusca } from '../../lib/preparo/enciclopedia'
 import type { Campanha, TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
+import { registrarSalvarAoFechar } from '../aoFechar'
 import { prepararMidia } from '../midia'
 
 /**
@@ -16,7 +17,12 @@ import { prepararMidia } from '../midia'
  *   diferente do id) nunca é gravado; enquanto a importação ou a restauração
  *   gravam em preparo/ (`travado`), ninguém edita.
  * - Falha ao gravar não perde nada: o texto fica na memória, o aviso aparece e
- *   "Tentar de novo" grava outra vez.
+ *   "Tentar de novo" grava outra vez. Sair do Prelúdio não joga fora o que não
+ *   gravou (ao abrir de novo, ele tenta outra vez e esse texto vale mais que o
+ *   do disco), e fechar a janela grava o que falta ou pergunta (`aoFechar.ts`).
+ * - A restauração do Google Drive trava a edição, grava o que estava pendente
+ *   antes de trocar a pasta e, depois, relê o que voltou sem gravar a memória
+ *   de antes por cima.
  */
 
 export type Lugar =
@@ -27,6 +33,9 @@ export type Lugar =
 export type Carga = { readonly t: 'fechada' } | { readonly t: 'lendo' } | { readonly t: 'pronta' } | { readonly t: 'falhou'; readonly aviso: string }
 
 export type Salvamento = { readonly t: 'em-dia' } | { readonly t: 'esperando' } | { readonly t: 'salvando' } | { readonly t: 'falhou'; readonly motivo: string }
+
+/** Quem está gravando em preparo/ por fora do salvar automático: enquanto houver um, ninguém edita. */
+export type MotivoDaTrava = 'importacao' | 'restauracao'
 
 interface EstadoDoPreludio {
   carga: Carga
@@ -47,13 +56,24 @@ interface EstadoDoPreludio {
   fechar: () => Promise<void>
   ir: (lugar: Lugar) => void
   escolherCampanha: (campanhaId: string | null) => void
-  travar: (travado: boolean) => void
+  /** Trava (ou solta) a edição por um motivo; fica travado enquanto sobrar algum. */
+  travar: (motivo: MotivoDaTrava, travado: boolean) => void
   /** Muda um verbete na memória e agenda a gravação. Só leitura ou travado: nada acontece. */
   mudarVerbete: (id: string, mudar: (verbete: Verbete) => Verbete) => void
   /** Põe um verbete novo na memória e grava na hora. */
   criarVerbete: (verbete: Verbete) => Promise<void>
-  salvarPendentes: () => Promise<void>
+  /** Grava agora o que mudou. `true` = está tudo no disco. */
+  salvarPendentes: () => Promise<boolean>
   tentarDeNovo: () => void
+  /**
+   * A restauração vai trocar a pasta preparo/ (o Prelúdio de agora vai inteiro
+   * para antes-de-restaurar): trava a edição na hora e grava o que estava
+   * pendente. Devolve o motivo quando algo não gravou, e aí a restauração não
+   * deve começar.
+   */
+  antesDeRestaurar: () => Promise<string | null>
+  /** A restauração acabou. Se trocou a pasta, relê o que voltou sem gravar a memória de antes por cima. Depois, destrava. */
+  depoisDeRestaurar: (restaurou: boolean) => Promise<void>
 }
 
 const ESPERA_PARA_SALVAR_MS = 800
@@ -90,6 +110,9 @@ let ultimaFalha: string | null = null
 let citacoes = new IndiceDeCitacoes()
 /** Cada abrir e fechar ganha um número: a leitura que terminou depois de outro abrir (ou do fechar) é jogada fora. */
 let geracao = 0
+const travas = new Set<MotivoDaTrava>()
+
+const AINDA_FALTA = 'Uma mudança do Prelúdio ainda não foi para o disco.'
 
 function situacao(): Salvamento {
   if (ultimaFalha !== null) return { t: 'falhou', motivo: ultimaFalha }
@@ -98,14 +121,35 @@ function situacao(): Salvamento {
   return { t: 'em-dia' }
 }
 
+/** O aviso de falha sai quando nada do que falhou continua pendente (o que só está agendado grava sozinho). */
+function conferirFalha(): void {
+  if ([...sujos].every((id) => agendados.has(id))) ultimaFalha = null
+}
+
+/** `null` = tudo no disco; senão, o motivo. */
+function oQueFaltou(): string | null {
+  return sujos.size === 0 ? null : (ultimaFalha ?? AINDA_FALTA)
+}
+
+/** Esquece o que ia para o disco: depois de uma restauração vale o que voltou (o de antes ficou guardado inteiro). */
+function descartarPendentes(): void {
+  for (const relogio of agendados.values()) clearTimeout(relogio)
+  agendados.clear()
+  sujos.clear()
+  ultimaFalha = null
+}
+
 function gravar(id: string): Promise<void> {
   const verbete = usePreludio.getState().verbetes.get(id)
   sujos.delete(id)
-  if (verbete === undefined || usePreludio.getState().soLeitura.has(id)) return Promise.resolve()
+  if (verbete === undefined || usePreludio.getState().soLeitura.has(id)) {
+    // Nada a gravar: sem isto, a falha de um verbete que saiu da memória ficava no rodapé para sempre.
+    conferirFalha()
+    usePreludio.setState({ salvamento: situacao() })
+    return Promise.resolve()
+  }
   const tarefa = gravarVerbete(verbete)
-    .then(() => {
-      if (!sujos.has(id) && [...sujos].every((outro) => agendados.has(outro))) ultimaFalha = null
-    })
+    .then(conferirFalha)
     .catch((erro: unknown) => {
       sujos.add(id)
       ultimaFalha = motivo(erro)
@@ -205,13 +249,19 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
         if (lido.estado === 'somenteLeitura') soLeitura.set(verbete.id, lido.aviso)
         else if (verbete.id !== id) soLeitura.set(verbete.id, `O arquivo preparo/verbetes/${id}.json guarda o verbete "${verbete.id}": ele abre só para leitura.`)
       }
+      // O que de novo não gravou continua sendo o da memória: o disco tem o de antes, e a próxima gravação tenta outra vez.
+      const naMemoria = get().verbetes
+      for (const id of sujos) {
+        const pendente = naMemoria.get(id)
+        if (pendente !== undefined && !soLeitura.has(id)) verbetes.set(id, pendente)
+      }
       citacoes = new IndiceDeCitacoes(verbetes.values())
       // As imagens do texto nascem com o endereço certo (`midia.ts`).
       await prepararMidia()
       if (minha !== geracao) return
       const guardada = campanhaGuardada()
       const campanhaId = guardada !== null && campanhas.some((campanha) => campanha.id === guardada) ? guardada : null
-      set({ carga: { t: 'pronta' }, campanhas, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId })
+      set({ carga: { t: 'pronta' }, campanhas, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, salvamento: situacao() })
     } catch (erro) {
       if (minha === geracao) set({ carga: { t: 'falhou', aviso: `Não deu para ler o Prelúdio: ${motivo(erro)}.` } })
     }
@@ -219,10 +269,21 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
 
   async fechar() {
     const minha = (geracao += 1)
+    // A tela saiu: a importação e a restauração dela não seguram mais a edição.
+    travas.clear()
     await gravarTudoAgora()
     if (minha !== geracao) return
-    citacoes = new IndiceDeCitacoes()
-    set({ carga: { t: 'fechada' }, verbetes: new Map(), soLeitura: new Map(), avisos: [], lugar: INICIO, salvamento: situacao() })
+    // O que não gravou fica na memória até a próxima abertura (que tenta de novo) ou até fechar a janela (que pergunta).
+    const guardar = sujos.size > 0
+    if (!guardar) citacoes = new IndiceDeCitacoes()
+    set({
+      carga: { t: 'fechada' },
+      ...(guardar ? {} : { verbetes: new Map<string, Verbete>(), soLeitura: new Map<string, string>() }),
+      avisos: [],
+      lugar: INICIO,
+      salvamento: situacao(),
+      travado: false,
+    })
   },
 
   ir(lugar) {
@@ -234,8 +295,10 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     set({ campanhaId })
   },
 
-  travar(travado) {
-    set({ travado })
+  travar(motivoDaTrava, travado) {
+    if (travado) travas.add(motivoDaTrava)
+    else travas.delete(motivoDaTrava)
+    set({ travado: travas.size > 0 })
   },
 
   mudarVerbete(id, mudar) {
@@ -261,8 +324,9 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     await gravar(verbete.id)
   },
 
-  salvarPendentes() {
-    return gravarTudoAgora()
+  async salvarPendentes() {
+    await gravarTudoAgora()
+    return sujos.size === 0
   },
 
   tentarDeNovo() {
@@ -270,4 +334,39 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     for (const id of [...sujos]) if (!agendados.has(id)) void gravar(id)
     set({ salvamento: situacao() })
   },
+
+  async antesDeRestaurar() {
+    // Trava antes de qualquer espera: uma tecla no meio agendaria uma gravação para cair na pasta trocada.
+    get().travar('restauracao', true)
+    await gravarTudoAgora()
+    return oQueFaltou()
+  },
+
+  async depoisDeRestaurar(restaurou) {
+    if (restaurou) {
+      descartarPendentes()
+      // Tela aberta relê na hora; fechada, a próxima abertura lê do disco.
+      if (get().carga.t !== 'fechada') await get().carregar()
+      else {
+        citacoes = new IndiceDeCitacoes()
+        set({ verbetes: new Map(), soLeitura: new Map() })
+      }
+    }
+    get().travar('restauracao', false)
+    set({ salvamento: situacao() })
+  },
 }))
+
+/**
+ * Fechar a janela (X, Alt+F4) grava o que ainda não foi ao disco. O editor
+ * segura o texto 250 ms e os apelidos só gravam ao perder o foco: tirar o foco
+ * leva os dois para a loja antes da gravação. Se a janela não fechar (a pessoa
+ * desistiu na pergunta), o cursor volta para onde estava.
+ */
+registrarSalvarAoFechar(async () => {
+  const ativo = usePreludio.getState().carga.t !== 'fechada' && document.activeElement instanceof HTMLElement ? document.activeElement : null
+  ativo?.blur()
+  await gravarTudoAgora()
+  if (ativo?.isConnected === true) ativo.focus({ preventScroll: true })
+  return oQueFaltou()
+})

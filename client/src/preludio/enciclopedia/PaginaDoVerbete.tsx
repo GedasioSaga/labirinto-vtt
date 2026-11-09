@@ -25,10 +25,20 @@ function lugarDe(verbete: Verbete): Lugar {
   return verbete.tipo === 'pagina' ? { secao: 'escrita', paginaId: verbete.id } : { secao: 'enciclopedia', tipo: verbete.tipo, verbeteId: verbete.id }
 }
 
-/** Os filhos diretos do verbete, do mesmo tipo (lugar dentro de lugar, página dentro de página). */
+function ehDocumento(verbete: Verbete): boolean {
+  return verbete.tipo === 'pagina' || verbete.tipo === 'sessao'
+}
+
+/** O tipo do que fica dentro: lugar dentro de lugar; dentro de página ou sessão, páginas (a sessão importada é a casca, e o roteiro mora nas páginas filhas). */
+function tipoDosFilhos(verbete: Verbete): Verbete['tipo'] {
+  return ehDocumento(verbete) ? 'pagina' : verbete.tipo
+}
+
+/** Os filhos diretos do verbete que esta tela mostra e cria (`tipoDosFilhos`). */
 function filhosDe(verbete: Verbete, verbetes: ReadonlyMap<string, Verbete>): Verbete[] {
+  const tipo = tipoDosFilhos(verbete)
   const filhos: Verbete[] = []
-  for (const outro of verbetes.values()) if (outro.paiId === verbete.id && outro.tipo === verbete.tipo) filhos.push(outro)
+  for (const outro of verbetes.values()) if (outro.paiId === verbete.id && outro.tipo === tipo) filhos.push(outro)
   return filhos.sort((a, b) => (ordemDe(a) ?? Infinity) - (ordemDe(b) ?? Infinity) || compararTitulos(a.titulo, b.titulo))
 }
 
@@ -44,17 +54,23 @@ const CADEADO = (
 interface SecaoProps {
   secao: Secao
   dono: string
+  /** Página ou sessão: a primeira seção sem nome é o corpo do texto, sem cabeça. */
+  documento: boolean
+  primeira: boolean
   editavel: boolean
   montada: boolean
   aoMudar: (mudar: (secao: Secao) => Secao) => void
 }
 
-function SecaoDoVerbete({ secao, dono, editavel, montada, aoMudar }: SecaoProps) {
+function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar }: SecaoProps) {
   const temTitulo = secao.titulo !== ''
   const rotulo = temTitulo ? `${secao.titulo} de ${dono}` : `Texto de ${dono}`
+  // A cabeça (nome e segredo) não muda a cada tecla: apagar o nome para escrever outro não pode tirar o campo do lugar.
+  const [cabecaAoAbrir] = useState(() => temTitulo || secao.segredo)
+  const comCabeca = !documento || !primeira || cabecaAoAbrir
   return (
     <section className={`pr-secao ${secao.segredo ? 'pr-secao--segredo' : ''}`} aria-label={rotulo}>
-      {(temTitulo || secao.segredo) && (
+      {comCabeca && (
         <header className="pr-secao__cabeca">
           <input
             className="pr-secao__nome"
@@ -231,7 +247,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   }
 
   const editavel = avisoDeLeitura === undefined && !travado
-  const ehDocumento = verbete.tipo === 'pagina' || verbete.tipo === 'sessao'
+  const documento = ehDocumento(verbete)
   const rotuloDoTipo = ROTULO_DO_TIPO[verbete.tipo]
   const mudar = (fazer: (atual: Verbete) => Verbete) => mudarVerbete(verbete.id, fazer)
   const mudarForma = (formaId: string, fazer: (atual: Forma) => Forma) => mudar((atual) => ({ ...atual, formas: atual.formas.map((outra) => (outra.id === formaId ? fazer(outra) : outra)) }))
@@ -248,8 +264,8 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
 
   const criarFilho = async () => {
     const ultimo = filhos[filhos.length - 1]
-    const ordem = ehDocumento ? (ultimo === undefined ? 0 : (ordemDe(ultimo) ?? filhos.length) + 1) : undefined
-    const novo = verbeteNovo(verbete.tipo, ehDocumento ? 'Página sem nome' : `${rotuloDoTipo.novo.replace(/^Nov[oa] /, '')} sem nome`, { campanhas: verbete.campanhas, paiId: verbete.id, ordem })
+    const ordem = documento ? (ultimo === undefined ? 0 : (ordemDe(ultimo) ?? filhos.length) + 1) : undefined
+    const novo = verbeteNovo(tipoDosFilhos(verbete), documento ? 'Página sem nome' : `${rotuloDoTipo.novo.replace(/^Nov[oa] /, '')} sem nome`, { campanhas: verbete.campanhas, paiId: verbete.id, ordem })
     await criarVerbete(novo)
     ir(lugarDe(novo))
   }
@@ -261,7 +277,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
     <div className="pr-folha">
       <article ref={artigo} className="pr-verbete" tabIndex={-1} aria-labelledby="pr-verbete-titulo">
         {ancestrais.length > 0 && (
-          <nav className="pr-trilha" aria-label={ehDocumento ? 'Dentro de' : 'Fica dentro de'}>
+          <nav className="pr-trilha" aria-label={documento ? 'Dentro de' : 'Fica dentro de'}>
             {ancestrais.map((ancestral) => (
               <button key={ancestral.id} type="button" className="pr-trilha__passo" onClick={() => ir(lugarDe(ancestral))}>
                 {ancestral.titulo || 'Sem nome'}
@@ -280,8 +296,8 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
           </p>
         )}
 
-        <header className={`pr-verbete__cabeca ${ehDocumento ? 'pr-verbete__cabeca--doc' : ''}`}>
-          {!ehDocumento && <Retrato nome={verbete.titulo} midia={forma.retrato} tamanho="g" />}
+        <header className={`pr-verbete__cabeca ${documento ? 'pr-verbete__cabeca--doc' : ''}`}>
+          {!documento && <Retrato nome={verbete.titulo} midia={forma.retrato} tamanho="g" />}
           <div className="pr-verbete__nomes">
             <h2 className="pr-sr" id="pr-verbete-titulo">
               {verbete.titulo || 'Sem nome'}
@@ -289,12 +305,12 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
             <input
               className="pr-verbete__titulo"
               value={verbete.titulo}
-              aria-label={ehDocumento ? 'Título da página' : `Nome do ${rotuloDoTipo.um.toLowerCase()}`}
+              aria-label={documento ? 'Título da página' : `Nome do ${rotuloDoTipo.um.toLowerCase()}`}
               placeholder="Sem nome"
               readOnly={!editavel}
               onChange={(evento) => renomear(evento.target.value)}
             />
-            {!ehDocumento && (
+            {!documento && (
               <>
                 <div className="pr-verbete__meta">
                   <span className="pr-verbete__tipo">{rotuloDoTipo.um}</span>
@@ -326,7 +342,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
           </div>
         </header>
 
-        {!ehDocumento && (
+        {!documento && (
           <Formas
             verbete={verbete}
             forma={forma}
@@ -346,7 +362,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
           />
         )}
 
-        {!ehDocumento && (
+        {!documento && (
           <label className="pr-resumo">
             <span className="pr-sr">Resumo</span>
             <textarea
@@ -366,12 +382,21 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
 
         <div className="pr-secoes" key={forma.id}>
           {forma.secoes.map((secao, indice) => (
-            <SecaoDoVerbete key={secao.id} secao={secao} dono={verbete.titulo || 'sem nome'} editavel={editavel} montada={indice < montadas} aoMudar={(fazer) => mudarSecao(secao.id, fazer)} />
+            <SecaoDoVerbete
+              key={secao.id}
+              secao={secao}
+              dono={verbete.titulo || 'sem nome'}
+              documento={documento}
+              primeira={indice === 0}
+              editavel={editavel}
+              montada={indice < montadas}
+              aoMudar={(fazer) => mudarSecao(secao.id, fazer)}
+            />
           ))}
           {forma.secoes.length === 0 && <p className="pr-quieto">Nenhum texto nesta forma ainda.</p>}
           {editavel && (
-            <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma pr-secoes__nova" onClick={ehDocumento && forma.secoes.length === 0 ? () => mudarForma(forma.id, (atual) => ({ ...atual, secoes: [{ id: idNovo('sc'), titulo: '', texto: { type: 'doc', content: [{ type: 'paragraph' }] }, segredo: false }] })) : novaSecao}>
-              {ehDocumento && forma.secoes.length === 0 ? 'Começar a escrever' : '+ Nova seção'}
+            <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma pr-secoes__nova" onClick={documento && forma.secoes.length === 0 ? () => mudarForma(forma.id, (atual) => ({ ...atual, secoes: [{ id: idNovo('sc'), titulo: '', texto: { type: 'doc', content: [{ type: 'paragraph' }] }, segredo: false }] })) : novaSecao}>
+              {documento && forma.secoes.length === 0 ? 'Começar a escrever' : '+ Nova seção'}
             </button>
           )}
         </div>
@@ -380,13 +405,13 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
       </article>
 
       <aside className="pr-trilho" aria-label={`Ao redor de ${verbete.titulo || 'sem nome'}`}>
-        {(verbete.tipo === 'lugar' || ehDocumento) && (
+        {(verbete.tipo === 'lugar' || documento) && (
           <section className="pr-trilho__bloco" aria-labelledby="pr-dentro-titulo">
             <h3 id="pr-dentro-titulo" className="pr-trilho__titulo">
-              {ehDocumento ? 'Páginas aqui dentro' : 'Lugares aqui dentro'}
+              {documento ? 'Páginas aqui dentro' : 'Lugares aqui dentro'}
             </h3>
             {filhos.length === 0 ? (
-              <p className="pr-quieto">{ehDocumento ? 'Nenhuma página dentro desta.' : 'Nenhum lugar dentro deste.'}</p>
+              <p className="pr-quieto">{documento ? 'Nenhuma página dentro desta.' : 'Nenhum lugar dentro deste.'}</p>
             ) : (
               <ul className="pr-ligacoes">
                 {filhos.map((filho) => (
@@ -400,7 +425,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
             )}
             {editavel && (
               <button type="button" className="gr-bt gr-bt--p gr-bt--latao" onClick={() => void criarFilho()}>
-                {ehDocumento ? '+ Página aqui dentro' : '+ Lugar aqui dentro'}
+                {documento ? '+ Página aqui dentro' : '+ Lugar aqui dentro'}
               </button>
             )}
           </section>

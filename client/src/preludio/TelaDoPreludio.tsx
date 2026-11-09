@@ -52,12 +52,22 @@ function emCampoDeTexto(alvo: EventTarget | null): boolean {
   return alvo instanceof HTMLElement && (alvo.isContentEditable || alvo.closest('input, textarea, select') !== null)
 }
 
-function Inicio({ aoMudarGravacao, pedidoDeCopia, aoPedirCopia, gravando }: { aoMudarGravacao: (gravando: boolean) => void; pedidoDeCopia: number; aoPedirCopia: () => void; gravando: boolean }) {
+interface InicioProps {
+  importando: boolean
+  aoImportar: (importando: boolean) => void
+  aoRestaurar: (restaurando: boolean) => void
+  pedidoDeCopia: number
+  aoPedirCopia: () => void
+}
+
+function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCopia }: InicioProps) {
   const carga = usePreludio((estado) => estado.carga)
   const campanhas = usePreludio((estado) => estado.campanhas)
   const total = usePreludio((estado) => estado.verbetes.size)
   const avisos = usePreludio((estado) => estado.avisos)
   const carregar = usePreludio((estado) => estado.carregar)
+  const antesDeRestaurar = usePreludio((estado) => estado.antesDeRestaurar)
+  const depoisDeRestaurar = usePreludio((estado) => estado.depoisDeRestaurar)
   const ir = usePreludio((estado) => estado.ir)
   return (
     <div className="pr-inicio">
@@ -93,8 +103,19 @@ function Inicio({ aoMudarGravacao, pedidoDeCopia, aoPedirCopia, gravando }: { ao
           )}
         </section>
       )}
-      <PainelDaImportacao onAplicado={() => void carregar()} onPedirCopia={aoPedirCopia} onGravando={aoMudarGravacao} />
-      <PainelDaCopia onRestaurado={() => void carregar()} pedidoDeCopia={pedidoDeCopia} travado={gravando} />
+      <PainelDaImportacao onAplicado={() => void carregar()} onPedirCopia={aoPedirCopia} onGravando={aoImportar} />
+      <PainelDaCopia
+        pedidoDeCopia={pedidoDeCopia}
+        travado={importando}
+        antesDeRestaurar={() => {
+          aoRestaurar(true)
+          return antesDeRestaurar()
+        }}
+        depoisDeRestaurar={async (restaurou) => {
+          await depoisDeRestaurar(restaurou)
+          aoRestaurar(false)
+        }}
+      />
     </div>
   )
 }
@@ -111,9 +132,15 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
   const carregar = usePreludio((estado) => estado.carregar)
   const travar = usePreludio((estado) => estado.travar)
   const salvarPendentes = usePreludio((estado) => estado.salvarPendentes)
+  const naoSalvou = usePreludio((estado) => estado.salvamento.t === 'falhou')
   const [pedidoDeCopia, setPedidoDeCopia] = useState(0)
-  const [gravando, setGravando] = useState(false)
+  const [importando, setImportando] = useState(false)
+  const [restaurando, setRestaurando] = useState(false)
   const [buscando, setBuscando] = useState(false)
+  /** Pediu para sair com algo que não gravou: o rodapé da barra pergunta antes. */
+  const [pedindoSaida, setPedindoSaida] = useState(false)
+  // Importar e restaurar gravam em preparo/: sair no meio deixaria a tela sem o aviso de como terminou.
+  const gravando = importando || restaurando
 
   useEffect(() => {
     void carregar()
@@ -123,8 +150,13 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
   }, [carregar])
 
   useEffect(() => {
-    travar(gravando)
-  }, [gravando, travar])
+    travar('importacao', importando)
+  }, [importando, travar])
+
+  // Gravou depois do "Tentar de novo": a pergunta de saída não tem mais razão de ser.
+  useEffect(() => {
+    if (!naoSalvou) setPedindoSaida(false)
+  }, [naoSalvou])
 
   // Na Enciclopédia e na Escrita o editor vai ser preciso; no Início, o que mudou vai já para o disco (a importação lê o disco).
   useEffect(() => {
@@ -132,8 +164,10 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
     else precarregarEditor()
   }, [lugar.secao, salvarPendentes])
 
-  const sair = useCallback(() => {
-    void salvarPendentes().finally(onBack)
+  const sair = useCallback(async () => {
+    const tudoNoDisco = await salvarPendentes()
+    if (!tudoNoDisco && usePreludio.getState().salvamento.t === 'falhou') setPedindoSaida(true)
+    else onBack()
   }, [salvarPendentes, onBack])
 
   useEffect(() => {
@@ -146,7 +180,7 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
       }
       // Esc volta ao menu só no Início, como nas outras telas de menu; nas outras seções ele é do texto e das janelas.
       if (evento.key === 'Escape' && !evento.defaultPrevented && lugar.secao === 'inicio' && !buscando && !gravando && !emCampoDeTexto(evento.target) && document.querySelector('[role="dialog"]') === null) {
-        sair()
+        void sair()
       }
     }
     window.addEventListener('keydown', aoTeclar)
@@ -175,11 +209,21 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
         </nav>
       </div>
       <div className="pr-corpo">
-        <Lado aoVoltar={gravando ? undefined : sair} aoBuscar={() => setBuscando(true)} />
+        <Lado
+          aoVoltar={gravando ? undefined : () => void sair()}
+          aoBuscar={() => setBuscando(true)}
+          saida={pedindoSaida && naoSalvou && !gravando ? { aoSair: onBack, aoFicar: () => setPedindoSaida(false) } : undefined}
+        />
         <main className="pr-palco" aria-busy={carga.t === 'lendo'}>
           {/* O Início fica montado: a importação e a cópia seguem (e terminam) enquanto a pessoa lê um verbete. */}
           <div hidden={lugar.secao !== 'inicio'}>
-            <Inicio aoMudarGravacao={setGravando} pedidoDeCopia={pedidoDeCopia} aoPedirCopia={() => setPedidoDeCopia((anterior) => anterior + 1)} gravando={gravando} />
+            <Inicio
+              importando={importando}
+              aoImportar={setImportando}
+              aoRestaurar={setRestaurando}
+              pedidoDeCopia={pedidoDeCopia}
+              aoPedirCopia={() => setPedidoDeCopia((anterior) => anterior + 1)}
+            />
           </div>
           {lugar.secao === 'inicio' ? null : carga.t !== 'pronta' ? (
             <p className="pr-quieto pr-palco__abrindo" role="status">

@@ -14,7 +14,7 @@ import {
   type FalhaDaCopia,
   type UltimaCopia,
 } from './ponteDaCopia'
-import { precisaDaCopiaDiaria, textoDaCopia, textoDaCopiaFeita, textoDaData, textoDaRestauracao, textoDoAndamento } from './textosDaCopia'
+import { precisaDaCopiaDiaria, textoDaCopia, textoDaCopiaFeita, textoDaData, textoDaRestauracao, textoDaRestauracaoBarrada, textoDoAndamento } from './textosDaCopia'
 import './copia.css'
 
 /**
@@ -55,8 +55,17 @@ function erro(falha: FalhaDaCopia): Recado {
 }
 
 export interface PainelDaCopiaProps {
-  /** Uma cópia foi restaurada: a tela relê o Prelúdio. */
-  onRestaurado?: () => void
+  /**
+   * A restauração vai trocar a pasta preparo/: antes de baixar, a tela trava a
+   * edição e grava o que estava pendente. Devolve o motivo quando algo não
+   * gravou, e aí a restauração não começa.
+   */
+  antesDeRestaurar?: () => Promise<string | null>
+  /**
+   * Chamado sempre que a restauração acaba, mesmo com o painel já fechado:
+   * `restaurou` = trocou a pasta (a tela relê o que voltou). A tela destrava.
+   */
+  depoisDeRestaurar?: (restaurou: boolean) => Promise<void>
   /**
    * Sobe a cada pedido de cópia vindo de fora (a importação do Grimório acabou de
    * gravar): com login, a cópia sai assim que o painel estiver livre.
@@ -66,7 +75,7 @@ export interface PainelDaCopiaProps {
   travado?: boolean
 }
 
-export function PainelDaCopia({ onRestaurado, pedidoDeCopia = 0, travado = false }: PainelDaCopiaProps) {
+export function PainelDaCopia({ antesDeRestaurar, depoisDeRestaurar, pedidoDeCopia = 0, travado = false }: PainelDaCopiaProps) {
   const id = useId()
   const [conta, setConta] = useState<Conta>({ t: 'lendo' })
   const [ultima, setUltima] = useState<UltimaCopia | null>(null)
@@ -207,18 +216,25 @@ export function PainelDaCopia({ onRestaurado, pedidoDeCopia = 0, travado = false
     setRecado(null)
     setTrabalho({ t: 'restaurando' })
     setAndamento(null)
-    const resultado = await restaurarCopia(copia.id)
+    let barrada: string | null = null
+    let resultado: Awaited<ReturnType<typeof restaurarCopia>> | null = null
+    try {
+      barrada = (await antesDeRestaurar?.()) ?? null
+      if (barrada === null) resultado = await restaurarCopia(copia.id)
+    } finally {
+      // Destravar não depende do painel continuar aberto: sem isto, a edição ficaria travada até sair do Prelúdio.
+      await depoisDeRestaurar?.(resultado?.ok === true)
+    }
     if (!montado.current) return
     setTrabalho({ t: 'parado' })
     setAndamento(null)
-    if (!resultado.ok) {
+    if (resultado === null || !resultado.ok) {
       setEscolha((atual) => (atual.t === 'aberta' ? { ...atual, confirmando: false } : atual))
-      setRecado(erro(resultado.falha))
+      setRecado(resultado === null ? { tom: 'erro', texto: textoDaRestauracaoBarrada(barrada ?? ''), avisos: [] } : erro(resultado.falha))
       return
     }
     setEscolha({ t: 'fechada' })
     setRecado({ tom: 'ok', texto: textoDaRestauracao(resultado.valor, copia.quando), avisos: [] })
-    onRestaurado?.()
   }
 
   const titulo = `${id}-t`

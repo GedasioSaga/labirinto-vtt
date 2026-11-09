@@ -30,18 +30,28 @@ export interface OpcoesDaImagem {
   urlDe: (midia: string | null) => string | null
 }
 
-function atributoDeDado(nome: string) {
+/**
+ * Um atributo que vai e volta pelo HTML como `data-<nome>`. É o caminho do
+ * copiar, recortar e colar, e do arrastar de uma seção para outra: o que não
+ * sai no HTML some no colar. `chave` é o nome no documento (`verbeteId`) e
+ * `nome`, o do HTML (`verbete-id`).
+ */
+function atributoDeDado(chave: string, nome: string = chave) {
   return {
     default: null,
     parseHTML: (elemento: HTMLElement) => elemento.getAttribute(`data-${nome}`),
     renderHTML: (atributos: Record<string, unknown>) => {
-      const valor = atributos[nome]
+      const valor = atributos[chave]
       return valor === null || valor === undefined ? {} : { [`data-${nome}`]: String(valor) }
     },
   }
 }
 
 const LARGURA_MAXIMA = 4000
+
+function larguraValida(valor: unknown): number | null {
+  return typeof valor === 'number' && Number.isFinite(valor) && valor > 0 ? valor : null
+}
 
 /** A imagem do texto, com os atributos da importação (`rel` guarda o caminho antigo do cofre). */
 export const Imagem = Node.create<OpcoesDaImagem>({
@@ -60,11 +70,11 @@ export const Imagem = Node.create<OpcoesDaImagem>({
       title: atributoDeDado('title'),
       largura: {
         default: null,
-        parseHTML: (elemento: HTMLElement) => {
-          const largura = Number(elemento.getAttribute('data-largura'))
-          return Number.isFinite(largura) && largura > 0 ? largura : null
+        parseHTML: (elemento: HTMLElement) => larguraValida(Number(elemento.getAttribute('data-largura'))),
+        renderHTML: (atributos: Record<string, unknown>) => {
+          const largura = larguraValida(atributos.largura)
+          return largura === null ? {} : { 'data-largura': String(largura) }
         },
-        renderHTML: () => ({}),
       },
       align: atributoDeDado('align'),
       legenda: atributoDeDado('legenda'),
@@ -78,7 +88,8 @@ export const Imagem = Node.create<OpcoesDaImagem>({
     const { midia, alt, title, largura, legenda } = node.attrs as Record<string, unknown>
     const src = this.options.urlDe(typeof midia === 'string' ? midia : null)
     const texto = typeof legenda === 'string' && legenda !== '' ? legenda : typeof alt === 'string' ? alt : ''
-    const tamanho = typeof largura === 'number' && Number.isFinite(largura) && largura > 0 ? Math.min(largura, LARGURA_MAXIMA) : null
+    const valida = larguraValida(largura)
+    const tamanho = valida === null ? null : Math.min(valida, LARGURA_MAXIMA)
     const figura = mergeAttributes(HTMLAttributes, { 'data-imagem': '', class: 'pr-figura' })
     const conteudo: DOMOutputSpec =
       src === null
@@ -159,7 +170,7 @@ export const Mencao = Node.create<OpcoesDaMencao>({
   },
   addAttributes() {
     return {
-      verbeteId: atributoDeDado('verbete-id'),
+      verbeteId: atributoDeDado('verbeteId', 'verbete-id'),
       /** O nome no momento da menção: o que aparece se o verbete sumir. */
       rotulo: { default: '', parseHTML: (elemento: HTMLElement) => elemento.getAttribute('data-rotulo') ?? '', renderHTML: (atributos: Record<string, unknown>) => ({ 'data-rotulo': String(atributos.rotulo ?? '') }) },
     }

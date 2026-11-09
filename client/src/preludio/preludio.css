@@ -98,6 +98,14 @@
 .pr-salvo[data-estado='esperando'] .pr-salvo__ponto, .pr-salvo[data-estado='salvando'] .pr-salvo__ponto { background: var(--lb-color-brass); }
 .pr-salvo--falhou { display: flex; flex-direction: column; align-items: flex-start; gap: var(--lb-space-2); }
 .pr-salvo__texto { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment); }
+/* A pergunta de sair com algo sem gravar: entra sem saltar (é rara; some na hora quando o mestre decide). */
+.pr-salvo__sair {
+  display: flex; flex-direction: column; gap: var(--lb-space-2);
+  margin-top: var(--lb-space-3); padding-top: var(--lb-space-3); border-top: 1px solid var(--lb-gr-filete);
+  transition: opacity var(--lb-motion-base) var(--lb-motion-ease), transform var(--lb-motion-base) var(--lb-motion-ease);
+}
+@starting-style { .pr-salvo__sair { opacity: 0; transform: translateY(4px); } }
+.pr-salvo__acoes { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
 
 /* ------------------------------------------------------------------ campos */
 .pr-campo { display: flex; flex-direction: column; gap: var(--lb-space-1); }
@@ -492,5 +500,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pr-arvore__seta svg { transition: none; }
+  .pr-salvo__sair { transition: opacity var(--lb-motion-base) var(--lb-motion-ease); }
+  @starting-style { .pr-salvo__sair { transform: none; } }
   .pr-caderno:active, .pr-galeria__item:active, .pr-barra__bt:active:not(:disabled) { transform: none; }
 }
