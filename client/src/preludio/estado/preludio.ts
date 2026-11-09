@@ -35,6 +35,8 @@ export type Lugar =
   | { readonly secao: 'enciclopedia'; readonly tipo: TipoDeVerbete | 'todos'; readonly verbeteId: string | null }
   | { readonly secao: 'escrita'; readonly paginaId: string | null }
   | { readonly secao: 'sessoes'; readonly sessaoId: string | null }
+  /** Os quadros (mapa mental); `quadroId` = o quadro aberto no editor. */
+  | { readonly secao: 'quadros'; readonly quadroId: string | null }
 
 export type Carga = { readonly t: 'fechada' } | { readonly t: 'lendo' } | { readonly t: 'pronta' } | { readonly t: 'falhou'; readonly aviso: string }
 
@@ -173,20 +175,33 @@ function descartarPendentes(): void {
   for (const relogio of agendados.values()) clearTimeout(relogio)
   agendados.clear()
   sujos.clear()
+  gravadoresDeFora.clear()
   ultimaFalha = null
 }
 
+/** Quem grava o que não é verbete (o quadro aberto), pela chave dele em `sujos`. A chave tem `:`, que id de verbete não tem. */
+const gravadoresDeFora = new Map<string, () => Promise<void>>()
+
 function gravar(id: string): Promise<void> {
+  const deFora = gravadoresDeFora.get(id)
   const verbete = usePreludio.getState().verbetes.get(id)
   sujos.delete(id)
-  if (verbete === undefined || usePreludio.getState().soLeitura.has(id)) {
+  let escrever: () => Promise<void>
+  if (deFora !== undefined) escrever = deFora
+  else if (verbete !== undefined && !usePreludio.getState().soLeitura.has(id)) escrever = () => gravarVerbete(verbete)
+  else {
     // Nada a gravar: sem isto, a falha de um verbete que saiu da memória ficava no rodapé para sempre.
     conferirFalha()
     usePreludio.setState({ salvamento: situacao() })
     return Promise.resolve()
   }
-  const tarefa = gravarVerbete(verbete)
-    .then(conferirFalha)
+  const tarefa = Promise.resolve()
+    .then(escrever)
+    .then(() => {
+      // Uma mudança no meio da gravação agendou outra: o gravador dela fica.
+      if (!sujos.has(id)) gravadoresDeFora.delete(id)
+      conferirFalha()
+    })
     .catch((erro: unknown) => {
       sujos.add(id)
       ultimaFalha = motivo(erro)
@@ -211,6 +226,25 @@ function agendar(id: string): void {
       void gravar(id)
     }, ESPERA_PARA_SALVAR_MS),
   )
+}
+
+/**
+ * Agenda a gravação de algo que não é verbete (o quadro aberto, F3): o mesmo
+ * relógio, o mesmo rodapé, o mesmo "Tentar de novo" e a mesma pergunta ao
+ * fechar a janela. `gravarAgora` monta o que vai ao disco na hora de gravar.
+ * Travado (importação ou restauração gravando): nada é agendado, e devolve `false`.
+ */
+export function agendarGravacaoDeFora(chave: string, gravarAgora: () => Promise<void>): boolean {
+  if (usePreludio.getState().travado) return false
+  gravadoresDeFora.set(chave, gravarAgora)
+  agendar(chave)
+  usePreludio.setState({ salvamento: situacao() })
+  return true
+}
+
+/** Ainda há o que gravar com esta chave: agendado, gravando ou que falhou. */
+export function gravacaoPendente(chave: string): boolean {
+  return sujos.has(chave) || agendados.has(chave)
 }
 
 // ─── Revelado ────────────────────────────────────────────────────────────────

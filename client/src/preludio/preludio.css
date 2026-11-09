@@ -516,6 +516,65 @@
 .pr-busca__dica { margin: 0; padding: var(--lb-space-4); color: var(--lb-color-parchment-faint); line-height: var(--lb-font-leading-normal); }
 .pr-busca__rodape { display: flex; gap: var(--lb-space-4); margin: 0; padding: var(--lb-space-2) var(--lb-space-4); border-top: 1px solid var(--lb-gr-filete); font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
 
+/* ------------------------------------------------------------------ quadros (mapa mental, F3) */
+.pr-quadro__selo { align-self: flex-start; padding: 2px var(--lb-space-2); border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-full); font: 500 var(--lb-font-size-xs)/1.4 var(--lb-font-utility); color: var(--lb-color-brass); }
+.pr-quadro__aviso { font-size: var(--lb-font-size-xs); color: var(--lb-color-ember); }
+
+/* o quadro aberto ocupa o palco inteiro: quem rola e aproxima é o tldraw */
+.pr-palco--quadro { overflow: hidden; display: flex; flex-direction: column; }
+.pr-quadro { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pr-quadro__barra {
+  display: flex; align-items: center; gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3); border-bottom: 1px solid var(--lb-gr-filete);
+  background: var(--lb-gr-papel-alto);
+}
+.pr-quadro__nome {
+  min-width: 0; width: min(360px, 40%); min-height: 32px; padding: 0 var(--lb-space-2);
+  border: 1px solid transparent; border-radius: var(--lb-radius-sm);
+  background: none; color: var(--lb-color-parchment); font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display);
+  text-overflow: ellipsis;
+  transition: border-color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease;
+}
+.pr-quadro__nome:focus { border-color: var(--lb-gr-filete-forte); background: var(--lb-gr-campo); }
+.pr-quadro__nome[readonly] { cursor: default; }
+.pr-quadro__espaco { flex: 1; }
+.pr-quadro__resultado { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-dim); }
+.pr-quadro__resultado--falhou { color: var(--lb-color-ember); }
+.pr-quadro__avisos { padding: var(--lb-space-1) var(--lb-space-3); border-bottom: 1px solid var(--lb-gr-filete); background: var(--lb-gr-cartao); }
+.pr-quadro__nota { margin: 0; font-size: var(--lb-font-size-xs); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.pr-quadro__tela { position: relative; flex: 1; min-height: 0; }
+.pr-quadro__tela > .tl-container { position: absolute; inset: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .pr-quadro__nome:not([readonly]):hover { border-color: var(--lb-gr-filete); }
+}
+
+/* o cartão de verbete no quadro: a letra acompanha o tamanho do cartão (--pr-cartao-fe), como no Grimório */
+.pr-cartao {
+  --pr-cartao-u: calc(1px * var(--pr-cartao-fe, 1));
+  width: 100%; height: 100%; display: flex; overflow: hidden;
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: 8px;
+  background: var(--lb-gr-cartao); color: var(--lb-color-parchment);
+  font-family: var(--lb-font-sans); pointer-events: all;
+}
+.pr-cartao__principal { flex: 0 0 var(--pr-cartao-coluna, 100%); min-width: 0; display: flex; flex-direction: column; }
+.pr-cartao__retrato { flex: 1; min-height: 0; display: grid; place-items: center; background: var(--lb-gr-papel-baixo); }
+.pr-cartao__retrato img { width: 100%; height: 100%; object-fit: cover; }
+.pr-cartao__inicial { font: 400 calc(64 * var(--pr-cartao-u))/1 var(--lb-font-display); color: var(--lb-color-parchment-faint); }
+.pr-cartao__texto { flex: none; display: flex; flex-direction: column; gap: calc(2 * var(--pr-cartao-u)); padding: calc(8 * var(--pr-cartao-u)) calc(10 * var(--pr-cartao-u)); border-top: 1px solid var(--lb-gr-filete); }
+.pr-cartao__tipo { font: 500 calc(10 * var(--pr-cartao-u))/1.2 var(--lb-font-utility); letter-spacing: 0.06em; text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.pr-cartao__nome { font: 400 calc(17 * var(--pr-cartao-u))/1.2 var(--lb-font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-cartao__resumo { font-size: calc(12 * var(--pr-cartao-u)); line-height: 1.35; color: var(--lb-color-parchment-dim); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.pr-cartao__formas { display: flex; align-items: center; gap: calc(4 * var(--pr-cartao-u)); font-size: calc(11 * var(--pr-cartao-u)); color: var(--lb-color-brass); }
+.pr-cartao__formas button { padding: 0 calc(4 * var(--pr-cartao-u)); border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.pr-cartao__painel { flex: 1; min-width: 0; overflow-y: auto; padding: calc(10 * var(--pr-cartao-u)) calc(12 * var(--pr-cartao-u)); border-left: 1px solid var(--lb-gr-filete); }
+.pr-cartao__secao h3 { display: flex; align-items: center; gap: calc(6 * var(--pr-cartao-u)); margin: 0 0 calc(4 * var(--pr-cartao-u)); font: 500 calc(12 * var(--pr-cartao-u))/1.3 var(--lb-font-utility); color: var(--lb-color-parchment-dim); }
+.pr-cartao__secao p { margin: 0 0 calc(10 * var(--pr-cartao-u)); font-size: calc(13 * var(--pr-cartao-u)); line-height: 1.45; white-space: pre-wrap; }
+.pr-cartao__segredo { padding: 0 calc(5 * var(--pr-cartao-u)); border-radius: var(--lb-radius-full); background: var(--lb-color-ember-soft); color: var(--lb-color-parchment); font-size: calc(10 * var(--pr-cartao-u)); }
+.pr-cartao__vazio { margin: 0; font-size: calc(12 * var(--pr-cartao-u)); color: var(--lb-color-parchment-faint); }
+.pr-cartao__abrir { margin-top: calc(4 * var(--pr-cartao-u)); padding: calc(4 * var(--pr-cartao-u)) calc(8 * var(--pr-cartao-u)); border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-brass-bright); font: 500 calc(12 * var(--pr-cartao-u))/1.2 var(--lb-font-utility); cursor: pointer; }
+.pr-cartao--sumiu { align-items: center; justify-content: center; padding: calc(12 * var(--pr-cartao-u)); border-style: dashed; }
+.pr-cartao__sumiu { margin: 0; text-align: center; font-size: calc(13 * var(--pr-cartao-u)); color: var(--lb-color-parchment-faint); }
+
 /* ------------------------------------------------------------------ telas menores */
 @media (max-width: 1180px) {
   .pr-folha { grid-template-columns: minmax(0, var(--pr-medida)); }

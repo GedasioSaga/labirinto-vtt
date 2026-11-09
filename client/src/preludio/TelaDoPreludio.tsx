@@ -12,6 +12,9 @@ import { usePreludio, type Lugar } from './estado/preludio'
 import { PainelDaImportacao } from './importar/PainelDaImportacao'
 import { Lado } from './Lado'
 import { useCatalogoDaMesa } from './mesa/catalogo'
+import { useQuadros } from './quadro/estadoDosQuadros'
+import { Quadros } from './quadro/Quadros'
+import { precarregarQuadro } from './quadro/sobDemanda'
 import { definirAberturaNaMesa } from './mesa/ponte'
 import { Sessoes } from './sessoes/Sessoes'
 import { TITULO_DO_PRELUDIO } from './textos'
@@ -37,7 +40,7 @@ function frasesDasCampanhas(campanhas: readonly Campanha[], verbetes: number): s
 }
 
 /** Onde a pessoa está, para a trilha do topo. */
-function trilhaDe(lugar: Lugar, tituloDe: (id: string) => string | undefined): string[] {
+function trilhaDe(lugar: Lugar, tituloDe: (id: string) => string | undefined, nomeDoQuadro: (id: string) => string | undefined): string[] {
   switch (lugar.secao) {
     case 'inicio':
       return []
@@ -53,6 +56,10 @@ function trilhaDe(lugar: Lugar, tituloDe: (id: string) => string | undefined): s
     case 'sessoes': {
       const nome = lugar.sessaoId === null ? undefined : (tituloDe(lugar.sessaoId) ?? 'Sessão sem nome')
       return nome === undefined ? ['Sessões'] : ['Sessões', nome || 'Sessão sem nome']
+    }
+    case 'quadros': {
+      const nome = lugar.quadroId === null ? undefined : (nomeDoQuadro(lugar.quadroId) ?? 'Quadro')
+      return nome === undefined ? ['Quadros'] : ['Quadros', nome || 'Quadro sem nome']
     }
   }
 }
@@ -132,7 +139,7 @@ function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCop
 /**
  * O PRELÚDIO, a preparação de sessão (plano §1): a barra lateral com as seções
  * e, no palco, o Início (importar do Grimório e cópia no Google Drive, com a
- * cópia diária ao abrir), as Sessões, a Enciclopédia e a Escrita. Ctrl+K
+ * cópia diária ao abrir), as Sessões, os Quadros, a Enciclopédia e a Escrita. Ctrl+K
  * busca em tudo.
  */
 export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
@@ -143,6 +150,7 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
   const travar = usePreludio((estado) => estado.travar)
   const salvarPendentes = usePreludio((estado) => estado.salvarPendentes)
   const naoSalvou = usePreludio((estado) => estado.salvamento.t === 'falhou')
+  const listaDosQuadros = useQuadros((estado) => estado.lista)
   const [pedidoDeCopia, setPedidoDeCopia] = useState(0)
   const [importando, setImportando] = useState(false)
   const [restaurando, setRestaurando] = useState(false)
@@ -184,11 +192,17 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
     if (!naoSalvou) setPedindoSaida(false)
   }, [naoSalvou])
 
-  // Na Enciclopédia e na Escrita o editor vai ser preciso; no Início, o que mudou vai já para o disco (a importação lê o disco).
+  // Na Enciclopédia e na Escrita o editor vai ser preciso (nos Quadros, o tldraw); no Início, o que mudou vai já para o disco (a importação lê o disco).
   useEffect(() => {
     if (lugar.secao === 'inicio') void salvarPendentes()
+    else if (lugar.secao === 'quadros') precarregarQuadro()
     else precarregarEditor()
   }, [lugar.secao, salvarPendentes])
+
+  // A lista dos quadros é relida a cada leitura do Prelúdio (ao abrir, e depois de importar ou restaurar).
+  useEffect(() => {
+    if (carga.t === 'pronta') void useQuadros.getState().recarregar()
+  }, [carga.t])
 
   const sair = useCallback(async () => {
     const tudoNoDisco = await salvarPendentes()
@@ -213,7 +227,12 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [carga.t, lugar.secao, buscando, gravando, sair])
 
-  const trilha = trilhaDe(lugar, (id) => verbetes.get(id)?.titulo)
+  const trilha = trilhaDe(
+    lugar,
+    (id) => verbetes.get(id)?.titulo,
+    (id) => (listaDosQuadros.t === 'pronta' ? listaDosQuadros.quadros.find((quadro) => quadro.id === id)?.nome : undefined),
+  )
+  const quadroAberto = lugar.secao === 'quadros' && lugar.quadroId !== null
   const atual = trilha[trilha.length - 1] ?? TITULO_DO_PRELUDIO
   const antes = ['Labirinto', ...(trilha.length > 0 ? [TITULO_DO_PRELUDIO] : []), ...trilha.slice(0, -1)]
 
@@ -240,7 +259,7 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
           aoBuscar={() => setBuscando(true)}
           saida={pedindoSaida && naoSalvou && !gravando ? { aoSair: onBack, aoFicar: () => setPedindoSaida(false) } : undefined}
         />
-        <main className="pr-palco" aria-busy={carga.t === 'lendo'}>
+        <main className={`pr-palco${quadroAberto ? ' pr-palco--quadro' : ''}`} aria-busy={carga.t === 'lendo'}>
           {/* O Início fica montado: a importação e a cópia seguem (e terminam) enquanto a pessoa lê um verbete. */}
           <div hidden={lugar.secao !== 'inicio'}>
             <Inicio
@@ -263,6 +282,8 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
             )
           ) : lugar.secao === 'sessoes' ? (
             <Sessoes sessaoId={lugar.sessaoId} />
+          ) : lugar.secao === 'quadros' ? (
+            <Quadros quadroId={lugar.quadroId} />
           ) : (
             <Escrita paginaId={lugar.paginaId} />
           )}

@@ -91,6 +91,10 @@ export default defineConfig({
   // do outro dava tela branca ("Failed to fetch dynamically imported module",
   // medido em 22/09). Cada porta é uma árvore de trabalho (client/porta.js).
   cacheDir: `node_modules/.vite-${porta}`,
+  // As fontes e os ícones do tldraw (quadro do Prelúdio) chegam por `import x from './f.woff2?url'`
+  // dentro do pacote; pré-empacotado pelo esbuild do dev, cada `?url` vira undefined e o
+  // quadro não abre. Fora do pré-empacotamento, o Vite resolve como no build.
+  optimizeDeps: { exclude: ['@tldraw/assets'] },
   server: {
     port: porta,
     strictPort: true,

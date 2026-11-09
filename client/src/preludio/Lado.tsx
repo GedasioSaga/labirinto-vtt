@@ -5,13 +5,15 @@ import type { TipoDeVerbete } from '../lib/preparo/tipos'
 import { Arvore, type ItemDaArvore } from './arvore/Arvore'
 import { useCadernos, useNovoCaderno } from './escrita/Escrita'
 import { usePreludio } from './estado/preludio'
+import { quadrosDaCampanha, useQuadros } from './quadro/estadoDosQuadros'
+import { useNovoQuadro } from './quadro/Quadros'
 import { useNovaSessao, useSessoes } from './sessoes/Sessoes'
 import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
 
 /**
  * A BARRA LATERAL DO PRELÚDIO: voltar, o filtro "Campanha" (como no Grimório),
- * a busca, as seções (Início, Sessões, Enciclopédia por tipo, Escrita em
- * árvore) e, embaixo, se está tudo salvo.
+ * a busca, as seções (Início, Sessões, Quadros, Enciclopédia por tipo, Escrita
+ * em árvore) e, embaixo, se está tudo salvo.
  */
 
 /** Quantas sessões a barra mostra: as últimas, a mais recente embaixo, junto do "+ Nova sessão". */
@@ -98,6 +100,8 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   const novoCaderno = useNovoCaderno()
   const sessoes = useSessoes()
   const novaSessao = useNovaSessao()
+  const listaDosQuadros = useQuadros((estado) => estado.lista)
+  const novoQuadro = useNovoQuadro()
   const titulo = useRef<HTMLHeadingElement>(null)
   const voltar = useRef<HTMLButtonElement>(null)
 
@@ -131,6 +135,7 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   const itensDaEscrita = useMemo(() => itensDosCadernos(cadernos), [cadernos])
 
   const sessoesNaBarra = sessoes.slice(-SESSOES_NA_BARRA)
+  const quadros = quadrosDaCampanha(listaDosQuadros, campanhaId)
   const sessaoAberta = lugar.secao === 'sessoes' ? lugar.sessaoId : null
   const naEnciclopedia = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo && lugar.verbeteId === null
   const doTipoAberto = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo
@@ -203,6 +208,25 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
         </ul>
         <button type="button" className="pr-nav__novo" disabled={!pronta || travado} onClick={() => void novaSessao()}>
           + Nova sessão
+        </button>
+
+        <h2 className="pr-nav__grupo">Quadros</h2>
+        <ul className="pr-nav__lista">
+          <li>
+            <button
+              type="button"
+              className="pr-nav__item"
+              aria-current={lugar.secao === 'quadros' ? (lugar.quadroId === null ? 'page' : 'true') : undefined}
+              disabled={!pronta}
+              onClick={() => ir({ secao: 'quadros', quadroId: null })}
+            >
+              <span>Todos</span>
+              <span className="pr-nav__conta">{listaDosQuadros.t === 'pronta' ? quadros.length : ''}</span>
+            </button>
+          </li>
+        </ul>
+        <button type="button" className="pr-nav__novo" disabled={!pronta || travado || listaDosQuadros.t !== 'pronta'} onClick={() => void novoQuadro()}>
+          + Novo quadro
         </button>
 
         <h2 className="pr-nav__grupo">Enciclopédia</h2>
