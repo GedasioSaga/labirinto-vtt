@@ -11,7 +11,7 @@ Pedidos do usuário de 07-09/11 (todos literais em PEDIDOS.md): (1) conserto das
 - Worktree ../labirinto-release ficou no disco (remove deu Permission denied; junções já removidas): rodar git worktree prune e apagar a pasta depois.
 
 ## Próximos passos
-1. Quando o comando espaço livre entrar: build LOCAL 0.5.39-teste.1 da main com --com-google (sem --publicar), instalar (/S, app fechado), mandar ao mestre o roteiro do portão (~/.claude/jobs/6d1d8a12/tmp/roteiro-portao-preludio.md).
+1. Comando espaço livre PRONTO (d1bd8ad6). Build LOCAL de teste em curso no worktree ../labirinto-teste (d1bd8ad6 + versão 0.5.39 sem commit, --com-google, SEM --publicar; log ~/.claude/jobs/6d1d8a12/tmp/teste-0.5.39.log). Depois: instalar (/S, app fechado), mandar ao mestre o roteiro do portão (~/.claude/jobs/6d1d8a12/tmp/roteiro-portao-preludio.md). ATENÇÃO: o PC do mestre fica com 0.5.39 local; a PRÓXIMA versão pública tem de ser 0.5.40 (senão o atualizador não troca).
 2. PORTÃO: o mestre prepara 1 sessão real no Prelúdio; só depois F3 quadro (tldraw), IA, F5 revelado no Lobby, troca.
 3. Construtor: terminar C4/C5 e auditoria; depois F3 do conserto como peças (C6 tela do mestre, C7 oculta, C10 companion, efeito de arma com usos).
 4. Pendentes do usuário: e-mails dos jogadores no Access; reiniciar o PC quando nada rodar (pagefile).
