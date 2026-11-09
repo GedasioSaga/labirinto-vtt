@@ -1,6 +1,7 @@
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { BonusDaBatalha, VantagemDoDado, VantagemNaRolagem } from './combate'
+import { lerDano } from './formula'
 import { modificadorDoTeste } from './marca'
 import { textoDaRolagem } from './golpe'
 import { rolarComVantagem } from './reacao'
@@ -29,11 +30,15 @@ export interface QuemRola {
  * `porCarga`: com concentração, a tabela troca a CD (`cargas[0]` vale para a
  * carga 1); "acerta" = sem teste; `{ mais }` = a `semCarga` somada (F2,
  * fatia C: a dança da Aira sobe a CD com a carga); sem carga, a `semCarga`.
+ * `expressao` (construtor C4): a fórmula da técnica montada, lida pela
+ * gramática do dano na ficha de quem usa, com "mod(Atributo)" ("12 +
+ * mod(Carisma)"); na tabela, `{ expressao }` é a fórmula daquela carga.
  */
 export type CdDaDisputa =
   | { tipo: 'fixa'; cd: number }
   | { tipo: 'formula'; base: number; mais?: number; atributoId: string }
-  | { tipo: 'porCarga'; semCarga: Exclude<CdDaDisputa, { tipo: 'porCarga' }>; cargas: readonly (number | 'acerta' | { mais: number })[] }
+  | { tipo: 'expressao'; formula: string }
+  | { tipo: 'porCarga'; semCarga: Exclude<CdDaDisputa, { tipo: 'porCarga' }>; cargas: readonly (number | 'acerta' | { mais: number } | { expressao: string })[] }
 
 /** Contra o quê: a CD, ou o d20 de quem resiste (Corta Cenoura: FOR do Jimboy contra RES do alvo). */
 export type ContraDaDisputa = { tipo: 'cd'; cd: CdDaDisputa } | { tipo: 'rolagem'; quem: QuemRola }
@@ -49,6 +54,8 @@ export interface RolagemDaDisputa {
 export type ResultadoDaDisputa =
   /** Concentração no "acerta" da tabela: passa sem rolar (Aira com 3 cargas atordoa sem teste). */
   | { tipo: 'automatico'; passou: true }
+  /** Construtor C4: a fórmula da CD não fecha com a ficha de quem usa: ninguém rola, e a técnica não pega (o mestre confere). */
+  | { tipo: 'semCd'; passou: false }
   | { tipo: 'cd'; passou: boolean; rolagem: RolagemDaDisputa; cd: number }
   | { tipo: 'rolagem'; passou: boolean; rolagem: RolagemDaDisputa; contra: RolagemDaDisputa }
 
@@ -63,20 +70,37 @@ export function modificadorDaDisputa(ficha: FichaNaDisputa, sistema: SistemaDeRp
   return atributoId === null ? 0 : modificadorDoTeste(ficha.personagem, sistema, atributoId, ficha.bonus)
 }
 
-/** A CD que vale agora; "acerta" = passa sem teste. `usa` = a ficha de quem usa a técnica; `carga` = a concentração dela (0 a 3). */
-export function cdDaDisputa(cd: CdDaDisputa, usa: FichaNaDisputa, sistema: SistemaDeRpg, carga: number): number | 'acerta' {
+/**
+ * Construtor C4: a CD por fórmula na ficha de quem usa (com os selos dele e o
+ * "mod(Atributo)" do teste); `null` = a fórmula não fecha (fora da gramática
+ * ou pede arma).
+ */
+export function cdDaExpressao(formula: string, usa: FichaNaDisputa, sistema: SistemaDeRpg): number | null {
+  const lido = lerDano(formula, { personagem: usa.personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: usa.bonus, modificador: (atributoId) => modificadorDaDisputa(usa, sistema, atributoId) })
+  return lido.tipo === 'valor' ? lido.valor : null
+}
+
+/**
+ * A CD que vale agora; "acerta" = passa sem teste; `null` = a fórmula não
+ * fecha (construtor C4). `usa` = a ficha de quem usa a técnica; `carga` = a
+ * concentração dela (0 a 3).
+ */
+export function cdDaDisputa(cd: CdDaDisputa, usa: FichaNaDisputa, sistema: SistemaDeRpg, carga: number): number | 'acerta' | null {
   switch (cd.tipo) {
     case 'fixa':
       return cd.cd
     case 'formula':
       return cd.base + (cd.mais ?? 0) + modificadorDaDisputa(usa, sistema, cd.atributoId)
+    case 'expressao':
+      return cdDaExpressao(cd.formula, usa, sistema)
     case 'porCarga': {
       const nivel = Math.trunc(carga)
       const daTabela = nivel >= 1 ? cd.cargas[Math.min(nivel, cd.cargas.length) - 1] : undefined
       const semCarga = cdDaDisputa(cd.semCarga, usa, sistema, 0)
       if (daTabela === undefined) return semCarga
-      if (typeof daTabela === 'object') return semCarga === 'acerta' ? semCarga : semCarga + daTabela.mais
-      return daTabela
+      if (typeof daTabela !== 'object') return daTabela
+      if ('expressao' in daTabela) return cdDaExpressao(daTabela.expressao, usa, sistema)
+      return semCarga === 'acerta' || semCarga === null ? semCarga : semCarga + daTabela.mais
     }
   }
 }
@@ -88,6 +112,8 @@ export function cdDaDisputa(cd: CdDaDisputa, usa: FichaNaDisputa, sistema: Siste
  */
 export function quemUsaVence(resultado: ResultadoDaDisputa, testa: 'quemUsa' | 'alvo'): boolean {
   if (resultado.tipo === 'automatico') return true
+  // Construtor C4: sem CD, a técnica não pega sozinha (nada de debuff sem teste); o registro diz para o mestre conferir.
+  if (resultado.tipo === 'semCd') return false
   return (testa === 'quemUsa') === resultado.passou
 }
 
@@ -115,6 +141,7 @@ export function rolarDisputa(
   if (disputa.contra.tipo === 'cd') {
     const cd = cdDaDisputa(disputa.contra.cd, fichas.usa, sistema, carga)
     if (cd === 'acerta') return { tipo: 'automatico', passou: true }
+    if (cd === null) return { tipo: 'semCd', passou: false }
     const rolagem = rolar(fichas.testa, sistema, disputa.rola, rolarD20)
     return { tipo: 'cd', passou: rolagem.total >= cd, rolagem, cd }
   }
@@ -135,6 +162,8 @@ export function textoDaDisputa(resultado: ResultadoDaDisputa): string {
   switch (resultado.tipo) {
     case 'automatico':
       return 'sem teste (concentração)'
+    case 'semCd':
+      return 'sem teste: a fórmula da CD não fecha com a ficha (o mestre confere)'
     case 'cd':
       return `teste ${textoDaRolagemDaDisputa(resultado.rolagem)} contra CD ${resultado.cd}`
     case 'rolagem':

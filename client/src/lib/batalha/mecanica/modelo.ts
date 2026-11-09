@@ -1,4 +1,4 @@
-import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX } from '../combate'
+import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, type VantagemDoDado } from '../combate'
 
 /**
  * AS PEÇAS DA TÉCNICA MONTADA (construtor de mecânicas, fatia C1; seção 1 de
@@ -13,7 +13,7 @@ import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX } from '../co
  * texto, que pode estar velho.
  *
  * Esta fatia aceita só as peças que o motor já executa. As fatias seguintes
- * (área num ponto livre e alcance, C4 teste e disputa, C5 selos vivos, C6 perguntas)
+ * (área num ponto livre e alcance, C5 selos vivos, C6 perguntas)
  * acrescentam variantes opcionais; até lá, um cartão com elas é recusado
  * aqui, e não executado pela metade.
  *
@@ -38,6 +38,10 @@ export const TEXTO_A_MAO_MAX = 200
 export const LIMITE_MAX = 20
 /** Teto de alvos, de casas e do lado do quadrado. */
 export const CASAS_MAX = 20
+/** Teto da CD fixa (construtor C4). */
+export const CD_MAX = 99
+/** Teto do id de atributo num teste (construtor C4). */
+export const ATRIBUTO_MAX = 64
 
 /** Um número da peça: fixo ou fórmula da ficha de quem usa. */
 export type NumeroSimples = { fixo: number } | { formula: string }
@@ -76,8 +80,39 @@ export interface AlvoDaMecanica {
   forma: FormaDoAlvo
 }
 
-/** Como acerta: o alvo reage com o d20 de sempre, ou não erra (sem reação). */
-export type Teste = { tipo: 'reacao' } | { tipo: 'naoErra' }
+/** Um número da CD que muda com a Concentração; `automatico` = naquela carga pega sem teste. */
+export type NumeroDaCd = NumeroSimples | 'automatico'
+
+/**
+ * A CD do teste (construtor C4): um número, uma fórmula na ficha de quem usa
+ * ("12 + mod(Carisma)"), ou pela Concentração guardada (carga 0 a 3; na carga
+ * 0 sempre há teste).
+ */
+export type CdDoTeste = NumeroSimples | { porCarga: readonly [NumeroSimples, NumeroDaCd, NumeroDaCd, NumeroDaCd] }
+
+/** Quem rola num teste: o atributo (id do sistema) e, se houver, a vantagem (2 d20, fica o maior) ou a desvantagem (fica o menor). */
+export interface QuemRolaNoTeste {
+  atributo: string
+  vantagem?: VantagemDoDado
+}
+
+/**
+ * Como acerta. `reacao`: o alvo reage com o d20 de sempre. `naoErra`: sem
+ * reação. Construtor C4, os dois testes que o app rola ao usar, no lugar da
+ * reação: `resistencia` (o alvo rola d20 + mod do atributo contra a CD;
+ * passou = nada, ou nada e a técnica não gasta) e `disputa` (d20 + mod de
+ * quem usa contra d20 + mod do alvo; o empate fica com o alvo).
+ */
+export type Teste =
+  | { tipo: 'reacao' }
+  | { tipo: 'naoErra' }
+  | { tipo: 'resistencia'; alvo: QuemRolaNoTeste; cd: CdDoTeste; sePassar: 'nada' | 'devolveCusto' }
+  | { tipo: 'disputa'; usuario: QuemRolaNoTeste; alvo: QuemRolaNoTeste }
+
+/** O teste é rolado pelo app ao usar (resistência ou disputa)? */
+export function testeRolado(teste: Teste): teste is Extract<Teste, { tipo: 'resistencia' | 'disputa' }> {
+  return teste.tipo === 'resistencia' || teste.tipo === 'disputa'
+}
 
 /** Um multiplicador a mais, na ordem da lista, depois da Concentração e da Surpresa. */
 export interface MultiplicadorExtra {
@@ -262,10 +297,56 @@ function alvo(valor: unknown): AlvoDaMecanica {
   return { quem, forma: lida }
 }
 
+function quemRola(valor: unknown, onde: string): QuemRolaNoTeste {
+  const peca = registro(valor, onde)
+  soChaves(peca, ['atributo', 'vantagem'], onde)
+  const lido: QuemRolaNoTeste = { atributo: texto(peca.atributo, ATRIBUTO_MAX, `${onde} (atributo)`) }
+  if (peca.vantagem !== undefined) lido.vantagem = umDe(peca.vantagem, ['vantagem', 'desvantagem'] as const, `${onde} (vantagem)`)
+  return lido
+}
+
+function numeroDaCd(valor: unknown, onde: string): NumeroDaCd {
+  return valor === 'automatico' ? valor : numeroSimples(valor, CD_MAX, onde)
+}
+
+function cd(valor: unknown): CdDoTeste {
+  const peca = registro(valor, 'CD')
+  if (!('porCarga' in peca)) return numeroSimples(peca, CD_MAX, 'CD')
+  soChaves(peca, ['porCarga'], 'CD')
+  const [zero, um, dois, tres] = lista(peca.porCarga, 4, 'CD por carga')
+  if (zero === undefined || um === undefined || dois === undefined || tres === undefined) torta('a CD por carga precisa de 4 números (carga 0 a 3)')
+  // Sem carga, sempre há teste: o "pega sem teste" só vale com a Concentração guardada.
+  return { porCarga: [numeroSimples(zero, CD_MAX, 'CD sem carga'), numeroDaCd(um, 'CD na carga 1'), numeroDaCd(dois, 'CD na carga 2'), numeroDaCd(tres, 'CD na carga 3')] }
+}
+
 function teste(valor: unknown): Teste {
   const peca = registro(valor ?? { tipo: 'reacao' }, 'teste')
-  soChaves(peca, ['tipo'], 'teste')
-  return { tipo: umDe(peca.tipo, ['reacao', 'naoErra'] as const, 'teste') }
+  const tipo = umDe(peca.tipo, ['reacao', 'naoErra', 'resistencia', 'disputa'] as const, 'teste')
+  switch (tipo) {
+    case 'reacao':
+    case 'naoErra':
+      soChaves(peca, ['tipo'], 'teste')
+      return { tipo }
+    case 'resistencia':
+      soChaves(peca, ['tipo', 'alvo', 'cd', 'sePassar'], 'teste')
+      return { tipo, alvo: quemRola(peca.alvo, 'quem testa'), cd: cd(peca.cd), sePassar: umDe(peca.sePassar ?? 'nada', ['nada', 'devolveCusto'] as const, 'se o alvo passar') }
+    case 'disputa':
+      soChaves(peca, ['tipo', 'usuario', 'alvo'], 'teste')
+      return { tipo, usuario: quemRola(peca.usuario, 'quem usa na disputa'), alvo: quemRola(peca.alvo, 'o alvo na disputa') }
+  }
+}
+
+/**
+ * As regras do teste rolado com o resto da mecânica: ajuda não testa, e a CD
+ * pela Concentração pede a carga, que o dano sem Concentração não gasta.
+ */
+function conferirTeste(mecanica: Pick<MecanicaV1, 'teste' | 'alvo' | 'dano'>): void {
+  const { teste: lido } = mecanica
+  if (!testeRolado(lido)) return
+  if (mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si') torta('teste e disputa não valem em aliado nem em quem usa')
+  if (lido.tipo === 'resistencia' && 'porCarga' in lido.cd && mecanica.dano !== undefined && !mecanica.dano.multiplicadores.concentracao) {
+    torta('a CD pela Concentração precisa do dano que multiplica com a Concentração')
+  }
 }
 
 function multiplicador(valor: unknown, indice: number): MultiplicadorExtra {
@@ -348,6 +429,7 @@ function mecanicaV1(peca: Record<string, unknown>): MecanicaV1 {
     efeitos,
   }
   if (peca.dano !== undefined) mecanica.dano = dano(peca.dano)
+  conferirTeste(mecanica)
   return mecanica
 }
 

@@ -2419,7 +2419,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       seguintes: Array.from({ length: PARTES_SEGUINTES_MAX }, () => ({ golpe: novoIdDeGolpe(), linha: novoIdDeLinha() })),
     })
     // F2 (fatia D, Explosão): a disputa da mecânica à mão rolada LOGO AO USAR (o alvo testa; passou = nada; se ninguém falhou, não gasta).
-    const noUso = pedido.tipo === 'habilidade' ? disputaNoUso(pedido.cartaoId) : null
+    // Construtor C1/C4: procura pelo cartão (o teste e a disputa da técnica montada vêm das peças; a cura e a limpeza também, mais abaixo).
+    const cartaoDoPedido = pedido.tipo !== 'habilidade' ? null : ctx.personagem !== null && ctx.sistema !== null ? (tecnicaPorId(ctx.personagem, ctx.sistema, pedido.cartaoId)?.cartao ?? pedido.cartaoId) : pedido.cartaoId
+    const noUso = cartaoDoPedido === null ? null : disputaNoUso(cartaoDoPedido)
     const fichaNaDisputa = (personagemId: string | null, tokenId: string) => {
       const dele = personagemId === null ? undefined : personagens.find((candidato) => candidato.id === personagemId)
       return dele === undefined ? null : { personagem: dele, bonus: bonusDaBatalha(turnos.selos, tokenId) }
@@ -2522,9 +2524,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         }
       }
       // F2 (fatia D, Revigorar): tira os selos negativos (o cansaço do Overload junto) e cura, em cada alvo (ele ou um aliado).
-      // Construtor C1: procura pelo cartão (a cura e a limpeza do montado vêm das peças).
-      const cartaoDaLimpeza = pedido.tipo !== 'habilidade' ? null : ctx.personagem !== null && ctx.sistema !== null ? (tecnicaPorId(ctx.personagem, ctx.sistema, pedido.cartaoId)?.cartao ?? pedido.cartaoId) : pedido.cartaoId
-      const limpeza = cartaoDaLimpeza === null ? null : limpezaDe(cartaoDaLimpeza)
+      const limpeza = cartaoDoPedido === null ? null : limpezaDe(cartaoDoPedido)
       if (limpeza !== null && ctx.personagem !== null && ctx.sistema !== null) {
         for (const alvo of golpe.alvos) {
           // F2 (fatia F, Medicina): a que só cura deixa os debuffs.

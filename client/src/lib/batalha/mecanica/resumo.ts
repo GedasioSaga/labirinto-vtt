@@ -1,7 +1,8 @@
 import type { Personagem } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
+import { cdDaExpressao } from '../disputa'
 import { lerDano } from '../formula'
-import type { Custo, Efeito, MecanicaV1, Numero, NumeroSimples, QuemOAlvoPega } from './modelo'
+import type { CdDoTeste, Custo, Efeito, MecanicaV1, Numero, NumeroDaCd, NumeroSimples, QuemOAlvoPega, QuemRolaNoTeste } from './modelo'
 
 /**
  * O RESUMO EM FRASES da técnica montada (construtor de mecânicas, fatia C2;
@@ -105,11 +106,69 @@ export function fraseDoAlvo(mecanica: MecanicaV1): string {
   }
 }
 
+/** O nome do atributo no sistema da ficha ("Resistência"); sem a ficha, o id guardado. */
+export function nomeDoAtributo(atributoId: string, ficha?: FichaDaPrevia): string {
+  const achado = ficha?.sistema.atributos.find((atributo) => atributo.id === atributoId)
+  return achado === undefined || achado.nome.trim() === '' ? atributoId : achado.nome.trim()
+}
+
+/** "Resistência com desvantagem". */
+function quemRolaNaFrase(quem: QuemRolaNoTeste, ficha?: FichaDaPrevia): string {
+  const vantagem = quem.vantagem === undefined ? '' : ` com ${quem.vantagem}`
+  return `${nomeDoAtributo(quem.atributo, ficha)}${vantagem}`
+}
+
+/** A prévia da CD por fórmula: "= 14 com a ficha de hoje"; `null` = sem ficha. */
+export function previaDaCd(formula: string, ficha?: FichaDaPrevia): string | null {
+  if (ficha === undefined || formula.trim() === '') return null
+  const valor = cdDaExpressao(formula, { personagem: ficha.personagem }, ficha.sistema)
+  return valor === null ? 'a fórmula não fecha com esta ficha' : `= ${valor} com a ficha de hoje`
+}
+
+function numeroDaCdNaFrase(numero: NumeroDaCd): string {
+  return numero === 'automatico' ? 'pega sem teste' : numeroSimples(numero) || '?'
+}
+
+/** "CD 12", "CD 12 + mod(Carisma) (= 14 com a ficha de hoje)", "CD 11 (com Concentração: 14 / 17 / pega sem teste)". */
+export function textoDaCd(cd: CdDoTeste, ficha?: FichaDaPrevia): string {
+  if ('porCarga' in cd) {
+    const [zero, um, dois, tres] = cd.porCarga
+    return `CD ${numeroSimples(zero) || '?'} (com Concentração: ${[um, dois, tres].map(numeroDaCdNaFrase).join(' / ')})`
+  }
+  const previa = 'formula' in cd ? previaDaCd(cd.formula, ficha) : null
+  return `CD ${numeroSimples(cd) || '?'}${previa === null ? '' : ` (${previa})`}`
+}
+
 /** Bloco 4: como acerta. Ajuda (aliado, em si) não se esquiva. */
-export function fraseDoTeste(mecanica: MecanicaV1): string {
+export function fraseDoTeste(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
   const { quem } = mecanica.alvo
   if (quem === 'aliados' || quem === 'si') return 'Ajuda não se esquiva: pega sem teste.'
-  return mecanica.teste.tipo === 'naoErra' ? 'Não erra: o alvo não reage.' : 'O alvo reage normal (o d20 de sempre).'
+  const { teste } = mecanica
+  switch (teste.tipo) {
+    case 'reacao':
+      return 'O alvo reage normal (o d20 de sempre).'
+    case 'naoErra':
+      return 'Não erra: o alvo não reage.'
+    case 'resistencia': {
+      const devolve = teste.sePassar === 'devolveCusto' ? ' Se todos passarem, a técnica não gasta: o custo e o uso voltam.' : ''
+      return `O alvo não reage: testa ${quemRolaNaFrase(teste.alvo, ficha)} (d20 + mod) contra ${textoDaCd(teste.cd, ficha)}. Se passar, nada acontece.${devolve}`
+    }
+    case 'disputa':
+      return `O alvo não reage: disputa de d20 + ${quemRolaNaFrase(teste.usuario, ficha)} de quem usa contra d20 + ${quemRolaNaFrase(teste.alvo, ficha)} do alvo. Empate fica com o alvo; se o alvo vencer, nada acontece.`
+  }
+}
+
+/** O começo da frase do selo: depende de como o golpe pega ("Se acertar", "Se o alvo falhar"). */
+function quandoOSeloPega(mecanica: MecanicaV1): string {
+  switch (mecanica.teste.tipo) {
+    case 'resistencia':
+      return 'Se o alvo falhar'
+    case 'disputa':
+      return 'Se vencer a disputa'
+    case 'reacao':
+    case 'naoErra':
+      return 'Se acertar'
+  }
 }
 
 /** A prévia do número com a ficha: "= 80 com a ficha de hoje", "+ a arma escolhida na hora"; `null` = sem prévia. */
@@ -154,7 +213,7 @@ export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1): string {
   const ajuda = mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si'
   switch (efeito.tipo) {
     case 'selo':
-      return ajuda ? `Dá ${efeito.nome} ${duracaoDoSelo(efeito.duracao)}.` : `Se acertar: ${efeito.nome} ${duracaoDoSelo(efeito.duracao)}.`
+      return ajuda ? `Dá ${efeito.nome} ${duracaoDoSelo(efeito.duracao)}.` : `${quandoOSeloPega(mecanica)}: ${efeito.nome} ${duracaoDoSelo(efeito.duracao)}.`
     case 'cura':
       return `Cura ${numeroDaPeca(efeito.quanto)} de HP.`
     case 'tirarSelos':
@@ -188,7 +247,7 @@ export function etiquetaDaMecanica(mecanica: MecanicaV1): string {
 
 /** O resumo inteiro, na ordem dos blocos do editor. */
 export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string[] {
-  const alvoETeste = `${fraseDoAlvo(mecanica)} ${fraseDoTeste(mecanica)}`
+  const alvoETeste = `${fraseDoAlvo(mecanica)} ${fraseDoTeste(mecanica, ficha)}`
   const limite = fraseDoLimite(mecanica)
   return [
     fraseDoCustoEDaAcao(mecanica),

@@ -5,7 +5,8 @@ import type { FormaDaArea } from '../area'
 import type { LeituraDaAcao, LeituraDoCusto, LeituraDoTempo } from '../leituraDaFicha'
 import type { LimpezaAMao, MecanicaAMao } from '../mecanicasAMao'
 import type { ReacaoDoTipo } from '../tiposDaHabilidade'
-import { avisoDaMecanica, lerMecanica, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples } from './modelo'
+import { avisoDaMecanica, lerMecanica, testeRolado, type Custo, type FormaDoAlvo, type MecanicaLida, type MecanicaV1, type Numero, type NumeroSimples } from './modelo'
+import { disputaDoTeste } from './teste'
 
 /**
  * A TRADUÇÃO DAS PEÇAS (construtor de mecânicas, fatia C1; seção 2 do plano):
@@ -112,7 +113,8 @@ export function tempoDasPecas(mecanica: MecanicaV1): LeituraDoTempo {
  * (esquivou, o efeito não pega); o resto, só com dano.
  */
 export function reacaoDasPecas(mecanica: MecanicaV1): ReacaoDoTipo {
-  if (mecanica.teste.tipo === 'naoErra' || mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si') return 'nunca'
+  // Construtor C4: com teste de resistência ou disputa, a defesa é o teste rolado ao usar (o alvo não reage com o d20 de sempre).
+  if (mecanica.teste.tipo === 'naoErra' || testeRolado(mecanica.teste) || mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si') return 'nunca'
   const temSelo = mecanica.efeitos.some((efeito) => efeito.tipo === 'selo')
   return temSelo || mecanica.dano === undefined ? 'sempre' : 'comDano'
 }
@@ -189,6 +191,12 @@ export function linhaDasPecas(nome: string, mecanica: MecanicaV1): MecanicaAMao 
   if (mecanica.acao !== 'perguntar') linha.acao = mecanica.acao
   if (mecanica.limite.usosPorBatalha !== undefined) linha.usosPorBatalha = mecanica.limite.usosPorBatalha
   if (mecanica.teste.tipo === 'naoErra') linha.semReacao = true
+  // Construtor C4: o teste vira a disputa da F2, rolada ao usar; o alvo não reage (a defesa é o teste).
+  const disputa = disputaDoTeste(mecanica.teste)
+  if (disputa !== null) {
+    linha.disputa = disputa
+    linha.semReacao = true
+  }
   for (const custo of mecanica.custos) {
     if (custo.quando === 'aoUsar' && 'porcento' in custo.quanto && custo.quanto.de === 'maximo') linha.custoDoMaximo = { recurso: custo.recurso, porcento: custo.quanto.porcento }
     // A técnica mantida: o "por vez" é sempre fixo (a leitura confere).

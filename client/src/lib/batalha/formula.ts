@@ -53,6 +53,13 @@ export interface ContextoDaFormula {
    * (Fúria) = 195"). Ausente = sem selo (a Saúde e o livro não passam).
    */
   bonusDaBatalha?: BonusDaBatalha
+  /**
+   * Construtor C4: o modificador do teste de um atributo (o d20 + mod do
+   * teste, `modificadorDoTeste`), que a fórmula lê como "mod(Carisma)" (a CD
+   * "12 + mod(Carisma)"). Ausente = "mod(...)" não é entendido, como sempre
+   * foi (o dano das fichas de hoje não passa por aqui).
+   */
+  modificador?: (atributoId: string) => number
 }
 
 export type LeituraDoDano =
@@ -345,6 +352,8 @@ class Leitor {
       this.i += ehDanoDaArma ? 3 : 1
       return this.danoDaArma()
     }
+    // Construtor C4: "mod(Carisma)" só com o modificador no contexto, e nunca no lugar de um atributo chamado "mod".
+    if (primeira.chave === 'mod' && this.ctx.modificador !== undefined && atributoPelaChave(this.ctx.sistema, primeira.chave) === null) return this.modDoAtributo(this.ctx.modificador)
     const atributo = atributoPelaChave(this.ctx.sistema, primeira.chave)
     if (atributo === null) return this.falhar({ tipo: 'naoEntende' })
     this.i += 1
@@ -353,6 +362,17 @@ class Leitor {
     const partes = partesDoBonus(this.ctx.bonusDaBatalha, atributo.id)
     const valor = valorComAsPartes(total, partes)
     return { valor, conta: `${formatarNumero(total)} ${atributo.nome}${textoDoBonus(partes)}` }
+  }
+
+  /** Construtor C4: "mod(Carisma)" = o modificador do teste de quem usa ("+2 mod(Carisma)" na conta). */
+  private modDoAtributo(modificador: (atributoId: string) => number): Parcial | null {
+    const [abre, nome, fecha] = [this.olhar(1), this.olhar(2), this.olhar(3)]
+    if (!this.ehOp(abre, '(') || nome === undefined || nome.tipo !== 'palavra' || !this.ehOp(fecha, ')')) return this.falhar({ tipo: 'naoEntende' })
+    const atributo = atributoPelaChave(this.ctx.sistema, nome.chave)
+    if (atributo === null) return this.falhar({ tipo: 'naoEntende' })
+    this.i += 4
+    const valor = modificador(atributo.id)
+    return { valor, conta: `${valor < 0 ? '' : '+'}${formatarNumero(valor)} mod(${atributo.nome})` }
   }
 
   /**

@@ -1020,9 +1020,13 @@ export function perfuranteDaMecanica(cartao: ChaveDaMecanica, respostas: Respost
   return pelaResposta ?? mecanica.perfurante ?? null
 }
 
-/** F2 (fatia D, Explosão): a disputa que o app rola LOGO AO USAR, antes do dano; `null` = nenhuma. */
-export function disputaNoUso(cartaoId: string): DisputaAMao | null {
-  const disputa = mecanicaDoCartao(cartaoId)?.disputa
+/**
+ * F2 (fatia D, Explosão): a disputa que o app rola LOGO AO USAR, antes do
+ * dano; `null` = nenhuma. Construtor C4: pelo cartão, também o teste da
+ * técnica montada (pelo id, só a tabela à mão).
+ */
+export function disputaNoUso(cartao: ChaveDaMecanica): DisputaAMao | null {
+  const disputa = mecanicaDoCartao(cartao)?.disputa
   return disputa !== undefined && disputa.quando === 'uso' ? disputa : null
 }
 

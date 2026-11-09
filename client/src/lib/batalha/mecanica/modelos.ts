@@ -1,6 +1,8 @@
 import type { CartaoDaFicha, MecanicaGuardada } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
-import { lerMecanica, VERSAO_DA_MECANICA, type FormaDoAlvo, type MecanicaV1, type QuemOAlvoPega } from './modelo'
+import { cdDaExpressao } from '../disputa'
+import { lerMecanica, testeRolado, VERSAO_DA_MECANICA, type CdDoTeste, type FormaDoAlvo, type MecanicaV1, type NumeroSimples, type QuemOAlvoPega, type Teste } from './modelo'
+import type { FichaDaPrevia } from './resumo'
 
 /**
  * OS MODELOS PRONTOS e as regras de edição da tela de montar (construtor de
@@ -24,7 +26,7 @@ export const MODELOS_PRONTOS: readonly ModeloPronto[] = [
   { id: 'golpe', nome: 'Golpe simples', dica: '1 inimigo, que reage normal; dano por fórmula' },
   { id: 'area', nome: 'Golpe em área', dica: 'Todos os inimigos num quadrado 3x3 à frente' },
   { id: 'cura', nome: 'Cura', dica: 'Cura HP de 1 aliado, sem teste' },
-  { id: 'debuff', nome: 'Debuff com teste', dica: '1 inimigo reage; se pegar, fica Atordoado' },
+  { id: 'debuff', nome: 'Debuff com teste', dica: '1 inimigo testa contra CD 12; se falhar, fica Atordoado' },
   { id: 'buff', nome: 'Buff em aliado', dica: 'Um selo bom em 1 aliado; o bônus você confere à mão' },
 ]
 
@@ -35,6 +37,41 @@ function formulaDeExemplo(sistema: SistemaDeRpg): string {
 }
 
 const MULTIPLICADORES_DE_SEMPRE = { concentracao: true, surpresa: true } as const
+
+/** CD de partida do modelo com teste (construtor C4). */
+const CD_DO_MODELO = 12
+
+/** O atributo de partida de um teste: o pedido (`forca`, `resistencia`) ou, sem ele no sistema, o 1º; `null` = sistema sem atributos. */
+function atributoDePartida(sistema: SistemaDeRpg, preferido: string): string | null {
+  const achado = sistema.atributos.find((atributo) => atributo.id === preferido) ?? sistema.atributos.at(0)
+  return achado === undefined ? null : achado.id
+}
+
+/**
+ * Construtor C4: o teste novo ao trocar o tipo no bloco 4, com números de
+ * partida (o alvo testa Resistência contra CD 12; a disputa é Força contra
+ * Resistência). Sistema sem atributos: o alvo reage normal (a tela não
+ * oferece teste).
+ */
+export function testeNovo(tipo: Teste['tipo'], atual: Teste, sistema: SistemaDeRpg): Teste {
+  if (tipo === atual.tipo) return atual
+  const resiste = atributoDePartida(sistema, 'resistencia')
+  const forca = atributoDePartida(sistema, 'forca')
+  switch (tipo) {
+    case 'reacao':
+    case 'naoErra':
+      return { tipo }
+    case 'resistencia':
+      return resiste === null ? { tipo: 'reacao' } : { tipo, alvo: { atributo: resiste }, cd: { fixo: CD_DO_MODELO }, sePassar: 'nada' }
+    case 'disputa':
+      return resiste === null || forca === null ? { tipo: 'reacao' } : { tipo, usuario: { atributo: forca }, alvo: { atributo: resiste } }
+  }
+}
+
+/** O teste do "Debuff com teste" (construtor C4): o alvo testa Resistência contra CD 12. */
+function testeDoModelo(sistema: SistemaDeRpg): Teste {
+  return testeNovo('resistencia', { tipo: 'reacao' }, sistema)
+}
 
 /** A mecânica do modelo, pronta para o motor (os números são ponto de partida). */
 export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): MecanicaV1 {
@@ -56,7 +93,7 @@ export function mecanicaDoModelo(id: IdDoModelo, sistema: SistemaDeRpg): Mecanic
     case 'cura':
       return { ...base, acao: 'simples', custos: [...custo30], alvo: { quem: 'aliados', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'cura', recurso: 'hp', quanto: { fixo: 100 }, emQuem: 'alvo' }] }
     case 'debuff':
-      return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 2 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 1, natureza: 'debuff' }] }
+      return { ...base, acao: 'simples', custos: [...custo30], limite: { recarga: 2 }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, teste: testeDoModelo(sistema), efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 1, natureza: 'debuff' }] }
     case 'buff':
       return {
         ...base,
@@ -79,10 +116,30 @@ export function guardarMecanica(mecanica: MecanicaV1): MecanicaGuardada {
 
 const vazio = (texto: string): boolean => texto.trim() === ''
 
+/** Os números da CD (sem o "pega sem teste"). */
+function numerosDaCd(cd: CdDoTeste): NumeroSimples[] {
+  if (!('porCarga' in cd)) return [cd]
+  return cd.porCarga.filter((numero): numero is NumeroSimples => numero !== 'automatico')
+}
+
+/**
+ * Construtor C4: o que o teste pede com a ficha de quem usa, em frase: o
+ * atributo que o sistema tem e a fórmula da CD que fecha ("12 + mod(Carisma)").
+ */
+function problemaDoTeste(teste: Teste, ficha: FichaDaPrevia): string | null {
+  if (!testeRolado(teste)) return null
+  const quem = teste.tipo === 'resistencia' ? [teste.alvo] : [teste.usuario, teste.alvo]
+  if (quem.some((lado) => !ficha.sistema.atributos.some((atributo) => atributo.id === lado.atributo))) return 'o atributo do teste não existe neste sistema'
+  if (teste.tipo !== 'resistencia') return null
+  const fecha = numerosDaCd(teste.cd).every((numero) => 'fixo' in numero || cdDaExpressao(numero.formula, { personagem: ficha.personagem }, ficha.sistema) !== null)
+  return fecha ? null : 'a fórmula da CD não fecha com esta ficha'
+}
+
 /** O que falta preencher, em frase de quem monta (antes do motivo técnico da leitura). */
 function faltaPreencher(mecanica: MecanicaV1): string | null {
   const custo = mecanica.custos.find((item) => 'formula' in item.quanto && vazio(item.quanto.formula))
   if (custo !== undefined) return 'falta a fórmula do custo'
+  if (mecanica.teste.tipo === 'resistencia' && numerosDaCd(mecanica.teste.cd).some((numero) => 'formula' in numero && vazio(numero.formula))) return 'falta a fórmula da CD'
   const { dano } = mecanica
   if (dano !== undefined && 'formula' in dano.base && vazio(dano.base.formula)) return 'falta a fórmula do dano'
   if (dano?.multiplicadores.extra?.some((extra) => vazio(extra.nome)) === true) return 'falta o nome de um multiplicador'
@@ -97,12 +154,16 @@ function faltaPreencher(mecanica: MecanicaV1): string | null {
   return null
 }
 
-/** O motivo de a mecânica do editor não valer ainda; `null` = o motor aceita. */
-export function problemaDaMecanica(mecanica: MecanicaV1): string | null {
+/**
+ * O motivo de a mecânica do editor não valer ainda; `null` = o motor aceita.
+ * Com a `ficha` (construtor C4), também o que o teste pede dela.
+ */
+export function problemaDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): string | null {
   const falta = faltaPreencher(mecanica)
   if (falta !== null) return falta
   const lida = lerMecanica(guardarMecanica(mecanica))
-  return lida.tipo === 'invalida' ? lida.motivo : null
+  if (lida.tipo === 'invalida') return lida.motivo
+  return ficha === undefined ? null : problemaDoTeste(mecanica.teste, ficha)
 }
 
 /** Mesma mecânica (ordem das chaves conta pouco: as duas saem do mesmo editor ou do mesmo fio). */
@@ -146,12 +207,17 @@ export function motivoDoQuem(mecanica: MecanicaV1, quem: QuemOAlvoPega): string 
   return null
 }
 
-/** Troca quem o golpe pega: "em si" é um alvo só (o resto guarda a forma). Natureza do selo acompanha. */
+/**
+ * Troca quem o golpe pega: "em si" é um alvo só (o resto guarda a forma).
+ * Natureza do selo acompanha. Ajuda não testa (C4): o teste rolado volta a
+ * "reage normal", que na ajuda não pede reação.
+ */
 export function trocarQuem(mecanica: MecanicaV1, quem: QuemOAlvoPega): MecanicaV1 {
   const forma: FormaDoAlvo = quem === 'si' ? { tipo: 'um' } : mecanica.alvo.forma
   const natureza: 'buff' | 'debuff' = ehAjuda(quem) ? 'buff' : 'debuff'
   const efeitos = mecanica.efeitos.map((efeito) => (efeito.tipo === 'selo' ? { ...efeito, natureza } : efeito))
-  return { ...mecanica, alvo: { quem, forma }, efeitos }
+  const teste: Teste = ehAjuda(quem) && testeRolado(mecanica.teste) ? { tipo: 'reacao' } : mecanica.teste
+  return { ...mecanica, alvo: { quem, forma }, efeitos, teste }
 }
 
 /** A forma nova com números de partida razoáveis (3x3 à frente, linha de 5, raio de 1, até 3). */

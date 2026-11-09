@@ -121,7 +121,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
    */
   const gravar = (mecanica: MecanicaV1) => {
     setRascunho(mecanica)
-    if (problemaDaMecanica(mecanica) !== null) return
+    if (problemaDaMecanica(mecanica, ficha) !== null) return
     const guardada: MecanicaGuardada = guardarMecanica(mecanica)
     if (quemEdita === 'dono' && mesmaMecanica(guardada, cartao.mecanica)) {
       onChange(semCampo(cartao, 'mecanicaProposta'))
@@ -132,7 +132,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
 
   const abrir = () => {
     // O rascunho com peça faltando (não entrou no cartão) volta como estava, em vez de se perder.
-    const atual = rascunho !== null && problemaDaMecanica(rascunho) !== null ? rascunho : inicial()
+    const atual = rascunho !== null && problemaDaMecanica(rascunho, ficha) !== null ? rascunho : inicial()
     if (atual === null) {
       setFase('escolhendo')
       return
@@ -156,9 +156,9 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   }
 
   const editando = fase === 'editando' && rascunho !== null
-  const problema = editando ? problemaDaMecanica(rascunho) : null
+  const problema = editando ? problemaDaMecanica(rascunho, ficha) : null
   /** Fechado com o rascunho pela metade: o que falta (o cartão segue com a versão de antes). */
-  const pendente = fase === 'fechado' && rascunho !== null ? problemaDaMecanica(rascunho) : null
+  const pendente = fase === 'fechado' && rascunho !== null ? problemaDaMecanica(rascunho, ficha) : null
   const temAlgo = cartao.mecanica !== undefined || cartao.mecanicaProposta !== undefined
 
   return (
