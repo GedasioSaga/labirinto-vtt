@@ -8,7 +8,7 @@ import {
   valorDaParte,
   type Ajuste,
 } from '../ajusteDaFicha'
-import { numeroDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
+import { numeroDaFicha, type CartaoDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Token } from '../../types/map'
 import {
@@ -17,6 +17,7 @@ import {
   type CombateDoPersonagem,
   type ContraAtaque,
   type FormaNaBatalha,
+  type FormaPendente,
   type GolpeDaBatalha,
   type InvocacaoPendente,
   type InvocadoNaBatalha,
@@ -224,6 +225,21 @@ export type Reversao =
    * colocação) não foram desfeitas e ele não está em campo.
    */
   | { tipo: 'invocadoSaiu'; invocado: InvocadoNaBatalha; personagem: Personagem | null; token: Token | null }
+  /**
+   * Construtor C6: a forma pedida ficou esperando o mestre decidir os números.
+   * Desfazer = a pendência sai (a ação, os usos e o Overload voltam pelas
+   * outras partes da mesma linha). Se o mestre já decidiu, a linha da decisão
+   * é desfeita antes (a store), e o Desfazer volta tudo.
+   */
+  | { tipo: 'formaPedida'; pendente: FormaPendente }
+  /**
+   * C6: o mestre decidiu e a forma ligou. Desfazer = a pendência volta a
+   * esperar, se a linha do pedido não foi desfeita (a ficha e a forma voltam
+   * pelas outras partes da mesma linha).
+   */
+  | { tipo: 'formaDecidida'; pendente: FormaPendente }
+  /** C6: o cartão da forma antes de receber os números do mestre (modificadores e a habilidade nova). Desfazer = o cartão volta como estava (a mesa). */
+  | { tipo: 'cartaoDaForma'; personagemId: string; antes: CartaoDaFicha }
 
 /** O combate de um personagem antes e depois da vez (as recargas que desceram, a reação que voltou, os lembretes). */
 export interface CombateNaVez {
@@ -927,6 +943,10 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'invocacaoColocada':
     case 'invocacaoCancelada':
     case 'invocadoSaiu':
+    // C6: a pendência da forma olha o registro (a linha do pedido desfeita) e o cartão volta pela mesa (a store).
+    case 'formaPedida':
+    case 'formaDecidida':
+    case 'cartaoDaForma':
     // A linha que nasceu junto volta pelo Desfazer dela (a store).
     case 'linhaJunto':
       return turnos

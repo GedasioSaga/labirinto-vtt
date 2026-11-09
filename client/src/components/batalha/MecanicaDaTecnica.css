@@ -559,3 +559,25 @@
 .lb-mec__lembretes .lb-mec__texto .lb-input {
   width: 100%;
 }
+
+/* Construtor C6: no cartão da forma, o interruptor "o mestre decide os números". */
+.lb-mec__forma-opcao {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 44px;
+  font-weight: 600;
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+}
+.lb-mec__forma-opcao input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lb-color-brass-bright);
+}
+.lb-mec__dica-da-forma {
+  margin: 0;
+  max-width: 65ch;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}

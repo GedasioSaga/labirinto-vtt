@@ -3,6 +3,7 @@ import type { AcoesDaVez } from '../../lib/batalha/acoes'
 import { ACOES_DA_FORMA, type AcaoDaForma, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { armazemDoAparelho, gravarEscolhaDaImagem, lerEscolhaDaImagem } from '../../lib/batalha/escolhaDaImagem'
 import { ataquesExtrasDaForma, deslocamentoDaForma, formaLivre, motivoDaForma, reducaoDaForma, usosDaForma, type FormaNoMenu } from '../../lib/batalha/transformacao'
+import { formaDecididaPeloMestre } from '../../lib/batalha/mecanica/formaDoMestre'
 import { formatarNumero, textoDaAcao, type PipDaVez } from './dadosDoMenu'
 import { CabecaDaVez, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
 import './batalha.css'
@@ -182,6 +183,7 @@ export function PainelDaForma({ forma, acoes, personagemId, onAtivar, onDesfazer
           )}
         </dl>
       )}
+      {!forma.ligada && formaDecididaPeloMestre(forma.cartao) && <p className="bt-forma__do-mestre">Os números o mestre decide na hora.</p>}
       {forma.numeros.length > 0 && (
         <dl className="bt-forma__numeros" aria-label={forma.ligada ? 'O que a forma mudou' : 'O que muda ao ativar'}>
           {forma.numeros.map((numero, i) => (

@@ -13,6 +13,7 @@ import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './Esco
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
+import { PecaDoMestreNaForma } from './batalha/FormasDoMestre'
 
 /**
  * As abas da ficha de personagem (Habilidades, Perícias...): os cartões de
@@ -499,6 +500,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
           ) : (
             <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} onChange={onChange} />
           ))}
+        {aba.modificadores === true && <PecaDoMestreNaForma cartao={cartao} podeMudar={quemEditaAMecanica === 'mestre'} onChange={onChange} />}
         {aba.atributos === true && <EscolhaDeAtributos sistema={sistema} escolhidos={cartao.atributos} onChange={(atributos) => onChange({ ...cartao, atributos })} />}
         {aba.imagem === true && (
           <div className="lb-field">

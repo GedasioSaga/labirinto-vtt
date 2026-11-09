@@ -19,6 +19,7 @@ import {
   MODS_POR_SELO_MAX,
   NOME_DO_INVOCADO_MAX,
   NOME_DA_FORMA_MAX,
+  FORMAS_PENDENTES_MAX,
   NOME_DO_GOLPE_MAX,
   NOME_DO_SELO_MAX,
   NUMERO_DA_FORMA_MAX,
@@ -208,6 +209,8 @@ export interface CombateParaJogador {
    * A tela conta o máximo da opção e mostra "esperando o mestre colocar". Ausente = nenhum.
    */
   invocacoes?: InvocacaoDoDono[]
+  /** Construtor C6: as formas dele que esperam o mestre decidir os números ("o mestre está decidindo"). Ausente = nenhuma. */
+  formasEsperando?: FormaEsperandoOMestre[]
   /** R5 (lote de 01/11): gastou a reação no contador e não reage até a vez dele. Ausente = reage. */
   semReacao?: true
   /**
@@ -229,6 +232,15 @@ export interface MarcaParaJogador {
 }
 
 /** Invocação F3: um invocado do dono, como a tela dele o mostra. */
+/** C6: uma forma pedida esperando o mestre, como o dono a vê (sem números). */
+export interface FormaEsperandoOMestre {
+  /** O id da pendência (`decisao_<uuid>`). */
+  id: string
+  cartaoId: string
+  /** O nome da forma ("Sulong"). */
+  nome: string
+}
+
 export interface InvocacaoDoDono {
   /** O id da pendência (`invocacao_<uuid>`) ou o tokenId do invocado posto. */
   id: string
@@ -566,7 +578,7 @@ function meusNoCombate(cena: BatalhaEmTurnos, ctx: ContextoDoJogador): CombatePa
       .slice(-LEMBRETES_DA_MARCA_MAX)
       .map((lembrete) => ({ id: lembrete.id, tokenId: lembrete.tokenId, alvoTokenId: lembrete.alvoTokenId, cartaoId: lembrete.cartaoId }))
     if (marcas.length > 0) meu.marcas = marcas
-    meus.push(ctx.meusPersonagens.has(personagemId) ? comInvocacoesDoDono(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]), turnos, personagemId) : meu)
+    meus.push(ctx.meusPersonagens.has(personagemId) ? comFormasEsperando(comInvocacoesDoDono(comPassivasDoDono(meu, combate, [...passivasLigadas(turnos.selos, personagemId)]), turnos, personagemId), turnos, personagemId) : meu)
   }
   return meus
 }
@@ -591,6 +603,18 @@ function comPassivasDoDono(meu: CombateParaJogador, combate: CombateDoPersonagem
   if (lembradas.length > 0) meu.lembradas = lembradas
   if (passivasAtivas.length > 0) meu.passivasAtivas = passivasAtivas
   if (evoluidas.length > 0) meu.evoluidas = evoluidas
+  return meu
+}
+
+/**
+ * Construtor C6: as formas DESTE dono esperando o mestre decidir os números
+ * (só o nome; os números chegam quando ela liga). Nenhuma = campo ausente.
+ */
+function comFormasEsperando(meu: CombateParaJogador, turnos: TurnosDaCena, personagemId: string): CombateParaJogador {
+  const lista = (turnos.formasPendentes ?? [])
+    .filter((pendente) => pendente.personagemId === personagemId && pendente.cartaoId.length >= 1 && pendente.cartaoId.length <= ID_DO_CARTAO_MAX)
+    .map((pendente): FormaEsperandoOMestre => ({ id: pendente.id, cartaoId: pendente.cartaoId, nome: pendente.nome.slice(0, NOME_DA_FORMA_MAX) }))
+  if (lista.length > 0) meu.formasEsperando = lista.slice(0, FORMAS_PENDENTES_MAX)
   return meu
 }
 

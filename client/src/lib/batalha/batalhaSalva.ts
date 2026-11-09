@@ -107,7 +107,7 @@ function ehTurnosSalvos(valor: unknown): valor is TurnosDaCena {
   if (vez !== null && !ehTexto(vez)) return false
   if (!ehContagem(rodada) || (desempate !== 'd20' && desempate !== 'manual')) return false
   if (!registroDe(d20, ehNumero) || !registroDe(empates, ehNumero) || !registroDe(extras, isRecord) || !registroDe(gastos, isRecord)) return false
-  const listas = [valor.golpes, valor.contras, valor.selos, valor.invocados, valor.invocacoes, valor.lembretesDaMarca]
+  const listas = [valor.golpes, valor.contras, valor.selos, valor.invocados, valor.invocacoes, valor.formasPendentes, valor.lembretesDaMarca]
   if (!listas.every((lista) => ausenteOu(lista, listaDeObjetos))) return false
   return ausenteOu(valor.combate, (combate) => registroDe(combate, isRecord)) && ausenteOu(valor.formas, (formas) => registroDe(formas, isRecord))
 }

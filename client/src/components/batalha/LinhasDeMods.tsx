@@ -30,8 +30,8 @@ function comSinal(numero: number): string {
 }
 
 /** Os mods de um selo (o sugerido, o que já existe) em linhas editáveis. */
-export function linhasDosMods(mods: readonly ModDoSelo[] | undefined): LinhaDeMod[] {
-  return (mods ?? []).slice(0, MODS_POR_SELO_MAX).map((mod) => ({ chave: novaChave(), alvo: mod.alvo, delta: comSinal(mod.delta) }))
+export function linhasDosMods(mods: readonly ModDoSelo[] | undefined, maximo = MODS_POR_SELO_MAX): LinhaDeMod[] {
+  return (mods ?? []).slice(0, maximo).map((mod) => ({ chave: novaChave(), alvo: mod.alvo, delta: comSinal(mod.delta) }))
 }
 
 /** "+20", "-15", "20", "−15" (o menos tipográfico também); vazio = 0; torto ou acima do teto = `null`. */
@@ -59,13 +59,13 @@ export function resumoDasLinhas(linhas: readonly LinhaDeMod[], alvos: readonly A
 }
 
 /** As linhas que vão no pedido (`selo.mods`), ou o porquê de não irem. Delta 0 sai calado. */
-export function modsDasLinhas(linhas: readonly LinhaDeMod[], alvos: readonly AlvoDeMod[]): { mods: ModDoSelo[] } | { erro: string } {
+export function modsDasLinhas(linhas: readonly LinhaDeMod[], alvos: readonly AlvoDeMod[], deQue = 'do selo'): { mods: ModDoSelo[] } | { erro: string } {
   const mods: ModDoSelo[] = []
   for (const [i, linha] of linhas.entries()) {
     const delta = lerDelta(linha.delta)
-    if (delta === null) return { erro: `Linha ${i + 1} do selo: escreva um número inteiro, como +20 ou -15.` }
+    if (delta === null) return { erro: `Linha ${i + 1} ${deQue}: escreva um número inteiro, como +20 ou -15.` }
     if (delta === 0) continue
-    if (mods.some((mod) => mod.alvo === linha.alvo)) return { erro: `${rotuloDe(alvos, linha.alvo).rotulo} está em duas linhas do selo: deixe uma só.` }
+    if (mods.some((mod) => mod.alvo === linha.alvo)) return { erro: `${rotuloDe(alvos, linha.alvo).rotulo} está em duas linhas ${deQue}: deixe uma só.` }
     mods.push({ alvo: linha.alvo, delta })
   }
   return { mods }
@@ -79,13 +79,17 @@ export interface LinhasDeModsProps {
   idBase: string
   /** O que a legenda diz ao lado de "Modificadores". */
   dica?: string
+  /** Construtor C6 (a forma do mestre): o teto de linhas. Padrão: `MODS_POR_SELO_MAX`. */
+  maximo?: number
+  /** O texto sem nenhuma linha. Padrão: o do selo. */
+  vazio?: string
 }
 
-export function LinhasDeMods({ linhas, alvos, onMudar, idBase, dica = 'somam enquanto o selo existir' }: LinhasDeModsProps) {
+export function LinhasDeMods({ linhas, alvos, onMudar, idBase, dica = 'somam enquanto o selo existir', maximo = MODS_POR_SELO_MAX, vazio = 'Nenhum: o selo só marca.' }: LinhasDeModsProps) {
   const campos = useRef(new Map<string, HTMLSelectElement>())
   const botaoDePor = useRef<HTMLButtonElement>(null)
   const focar = useRef<string | null>(null)
-  const cheio = linhas.length >= MODS_POR_SELO_MAX
+  const cheio = linhas.length >= maximo
 
   // A linha nova recebe o foco no atributo; tirar devolve o foco ao "+ Linha" (o Tab segue a leitura).
   useEffect(() => {
@@ -117,7 +121,7 @@ export function LinhasDeMods({ linhas, alvos, onMudar, idBase, dica = 'somam enq
         Modificadores <small>{dica}</small>
       </legend>
       {linhas.length === 0 ? (
-        <p className="bt-mods__vazio">Nenhum: o selo só marca.</p>
+        <p className="bt-mods__vazio">{vazio}</p>
       ) : (
         <ul className="bt-mods__lista">
           {linhas.map((linha, i) => {
@@ -171,7 +175,7 @@ export function LinhasDeMods({ linhas, alvos, onMudar, idBase, dica = 'somam enq
         <button ref={botaoDePor} type="button" className="bt-botao bt-botao--p bt-mods__por" disabled={cheio || alvos.length === 0} onClick={por}>
           + Linha
         </button>
-        <small className="bt-mods__nota">{cheio ? `Até ${MODS_POR_SELO_MAX} linhas por selo.` : 'Com menos, tira (-15). Linha vazia ou 0 não entra.'}</small>
+        <small className="bt-mods__nota">{cheio ? `Até ${maximo} linhas${maximo === MODS_POR_SELO_MAX ? ' por selo' : ''}.` : 'Com menos, tira (-15). Linha vazia ou 0 não entra.'}</small>
       </div>
     </fieldset>
   )

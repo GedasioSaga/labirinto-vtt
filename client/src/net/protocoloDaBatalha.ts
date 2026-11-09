@@ -17,6 +17,7 @@ import {
   MODS_POR_SELO_MAX,
   NATUREZAS_DO_SELO,
   NOME_DA_FORMA_MAX,
+  FORMAS_PENDENTES_MAX,
   NOME_DO_GOLPE_MAX,
   NOME_DO_INVOCADO_MAX,
   NUMERO_DA_FORMA_MAX,
@@ -81,6 +82,7 @@ import {
   type EfeitoParaJogador,
   type EstadoParaJogador,
   type GolpeParaJogador,
+  type FormaEsperandoOMestre,
   type InvocacaoDoDono,
   type MarcaParaJogador,
   type LadoNaCarta,
@@ -1013,8 +1015,11 @@ function comPassivasLidas(combate: CombateParaJogador, value: Record<string, unk
   const evoluidas = value.evoluidas === undefined ? undefined : lerLista(value.evoluidas, EVOLUIDAS_MAX, lerCartaoId)
   // Invocação F3: as pendências e os postos do dono (nome, rótulo, opção; nada de números).
   const invocacoes = value.invocacoes === undefined ? undefined : lerLista(value.invocacoes, INVOCACOES_DO_DONO_MAX, lerInvocacaoDoDono)
-  if (lembretes === null || lembradas === null || ativas === null || evoluidas === null || invocacoes === null) return null
+  // Construtor C6: as formas dele esperando o mestre decidir os números (só o nome).
+  const formasEsperando = value.formasEsperando === undefined ? undefined : lerLista(value.formasEsperando, FORMAS_PENDENTES_MAX, lerFormaEsperando)
+  if (lembretes === null || lembradas === null || ativas === null || evoluidas === null || invocacoes === null || formasEsperando === null) return null
   if (invocacoes !== undefined) combate.invocacoes = invocacoes
+  if (formasEsperando !== undefined) combate.formasEsperando = formasEsperando
   if (lembretes !== undefined) combate.lembretes = lembretes
   if (lembradas !== undefined) combate.lembradas = lembradas
   if (ativas !== undefined) combate.passivasAtivas = ativas
@@ -1041,6 +1046,13 @@ function lerMarcaParaJogador(value: unknown): MarcaParaJogador | null {
 }
 
 /** Invocação F3: um invocado do dono no recorte. Ids, opção, nome e rótulo no teto; `posto` booleano. */
+function lerFormaEsperando(value: unknown): FormaEsperandoOMestre | null {
+  if (!isRecord(value)) return null
+  const { id, cartaoId, nome } = value
+  if (!textoAte(id, 1, ID_DA_BATALHA_MAX) || !textoAte(cartaoId, 1, CARTAO_ID_MAX) || !textoAte(nome, 0, NOME_DA_FORMA_MAX)) return null
+  return { id, cartaoId, nome }
+}
+
 function lerInvocacaoDoDono(value: unknown): InvocacaoDoDono | null {
   if (!isRecord(value)) return null
   const { id, cartaoId, opcao, nome, rotulo, posto } = value

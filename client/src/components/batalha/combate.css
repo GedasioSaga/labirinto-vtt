@@ -3682,3 +3682,101 @@
     0 0 0 3px var(--bt-papel),
     0 0 0 7px color-mix(in srgb, var(--lado, var(--bt-papel)) 45%, transparent);
 }
+
+/* Construtor C6: a janela em que o mestre decide os números da forma (Sulong) e o aviso na tira da forma. */
+.bt-decisao__requisito {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+}
+.bt-decisao__rotulo {
+  margin-right: 6px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-decisao__habilidade {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.bt-decisao__ja {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-decisao__opcao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+}
+.bt-decisao__opcao input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lb-color-brass-bright);
+}
+.bt-decisao__campos {
+  display: grid;
+  gap: 8px;
+}
+.bt-decisao__campo {
+  display: grid;
+  gap: 4px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-decisao .bt-num.bt-num--texto {
+  width: 100%;
+  background: var(--lb-color-stone-sunken);
+  border-color: var(--lb-color-line-strong);
+  color: var(--lb-color-parchment);
+}
+.bt-decisao__texto {
+  resize: vertical;
+  min-height: 4.5em;
+  font: inherit;
+  line-height: 1.4;
+}
+.bt-decisao__previa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+.bt-decisao__numeros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.bt-decisao__numeros b {
+  color: var(--lb-color-brass-bright);
+  font-weight: 600;
+}
+.bt-decisao__nada {
+  color: var(--lb-color-parchment-faint);
+}
+.bt-forma__do-mestre {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass-bright);
+}

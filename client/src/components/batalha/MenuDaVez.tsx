@@ -62,6 +62,13 @@ export function textoDaEspera(esperando: readonly { nome: string }[]): string {
   return partes.length <= 1 ? (partes[0] ?? '') : `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}`
 }
 
+/** C6: "O mestre está decidindo os números de Sulong" (com duas: "de Sulong e Forma Híbrida"). */
+export function textoDoMestreDecidindo(formas: readonly { nome: string }[]): string {
+  const nomes = [...new Set(formas.map((forma) => forma.nome.trim() || 'a forma'))]
+  const lista = nomes.length <= 1 ? (nomes[0] ?? 'a forma') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`
+  return `O mestre está decidindo os números de ${lista}`
+}
+
 export interface MenuDaVezProps {
   quem: string
   /** `null` = fora da vez (só o contra-ataque). */
@@ -91,6 +98,8 @@ export interface MenuDaVezProps {
   consulta?: ConsultaDaFicha | null
   /** Esperando o host responder um pedido: as tiras ficam paradas. */
   esperando?: boolean
+  /** Construtor C6: as formas dele que esperam o mestre decidir os números ("o mestre está decidindo"). */
+  formasEsperando?: readonly { id: string; nome: string }[]
   /** F3: as formas da ficha (`formasNoMenu`). Vazio ou ausente = a tira Transformação apagada. */
   formas?: readonly FormaNoMenu[]
   /** F3: de quem é a ficha (lembra "trocar a imagem" no aparelho). */
@@ -119,7 +128,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
 
 export function MenuDaVez(props: MenuDaVezProps) {
-  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao, travado = null } = props
+  const { quem, acoes, carga, motivoDoConcentrar, alvos, escolhaDeArmas, contras = SEM_CONTRAS, golpesDoContra, onAgir, onZerarCarga, onEncerrar, alvoDoMapa, onMirando, consulta, esperando, formas = SEM_FORMAS, personagemId = null, passivas, evoluir, invocacao, travado = null, formasEsperando } = props
   const [tela, setTela] = useState<Tela>({ tipo: 'menu' })
   const [contraId, setContraId] = useState<string | null>(null)
   const foraDaVez = props.acoes === null
@@ -422,6 +431,12 @@ export function MenuDaVez(props: MenuDaVezProps) {
   return (
     <div className="bt-vez" data-instantaneo={porTeclado ? 'sim' : 'nao'} onKeyDown={teclar} aria-busy={esperando ? true : undefined}>
       <CabecaDaVez quem={modoContra || foraDaVez ? `${quem} · contra-ataque` : quem} pips={pips} carga={carga} />
+      {formasEsperando !== undefined && formasEsperando.length > 0 && (
+        <p className="bt-vez__espera" role="status">
+          <span className="bt-vez__espera-ponto" aria-hidden="true" />
+          {textoDoMestreDecidindo(formasEsperando)}
+        </p>
+      )}
       {invocacao !== undefined && invocacao.esperando.length > 0 && (
         <p className="bt-vez__espera" role="status">
           <span className="bt-vez__espera-ponto" aria-hidden="true" />

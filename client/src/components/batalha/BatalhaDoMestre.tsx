@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type InvocadoNaBatalha, type PedidoDeAcao, type PedidoDePassiva } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type FormaPendente, type InvocadoNaBatalha, type PedidoDeAcao, type PedidoDePassiva } from '../../lib/batalha/combate'
 import { equipeDe, ladoNaBatalha, type Equipe } from '../../lib/batalha/equipes'
 import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
@@ -13,6 +13,7 @@ import { avisoDasReducoes, reducoesDoDano } from '../../lib/batalha/reducaoDoDan
 import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTecnica'
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, formasNoMenu } from '../../lib/batalha/transformacao'
+import { formasComODecidirDoMestre } from '../../lib/batalha/mecanica/formaDoMestre'
 import { cartaDaVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -30,6 +31,7 @@ import { invocacaoDaFicha, nomeDoBando, pedidoDeInvocacao } from './dadosDaInvoc
 import { MOTIVO_SEM_PERSONAGEM, alvosNaOrdemDaMira, armasNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { InvocacoesPendentes, PainelDoBando, type MembroNaVez, type PendenciaNaTela } from './InvocacoesDoMestre'
+import { FormasPendentes } from './FormasDoMestre'
 import type { InvocarNoMenu } from './MenuDaVez'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
@@ -91,6 +93,9 @@ function SelosDaVez({ turnos, tokenId, nome, sistema, onDialogo }: { turnos: Tur
     </div>
   )
 }
+
+/** C6: nenhuma forma esperando o mestre (a mesma lista vazia, para a fila não refazer a cada quadro). */
+const SEM_FORMAS_PENDENTES: readonly FormaPendente[] = []
 
 interface Mesa {
   cena: BatalhaDaCena | undefined
@@ -381,7 +386,20 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
 
   if (cena === undefined || turnos === undefined) return null
 
-  const invocacoes = <InvocacoesPendentes sceneKey={sceneKey} itens={pendenciasDeInvocacao} onCancelar={(invocacaoId) => useBatalhaStore.getState().cancelarInvocacao(sceneKey, invocacaoId)} />
+  // Construtor C6: as formas em que o mestre decide os números ficam no alto, junto das invocações (e a janela abre sozinha).
+  const invocacoes = (
+    <>
+      <FormasPendentes
+        itens={turnos.formasPendentes ?? SEM_FORMAS_PENDENTES}
+        personagens={mesa.personagens}
+        sistema={mesa.sistema}
+        nomeDoToken={(tokenId) => nomeDaFicha(mesa, tokenId)}
+        onDecidir={(pendenteId, decisao) => useBatalhaStore.getState().decidirForma(sceneKey, pendenteId, decisao)}
+        onRecusar={(pendenteId) => useBatalhaStore.getState().cancelarForma(sceneKey, pendenteId)}
+      />
+      <InvocacoesPendentes sceneKey={sceneKey} itens={pendenciasDeInvocacao} onCancelar={(invocacaoId) => useBatalhaStore.getState().cancelarInvocacao(sceneKey, invocacaoId)} />
+    </>
+  )
   const reacoes = (
     <ReacoesPendentes
       itens={pendentes}
@@ -480,7 +498,9 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
   const agir = (pedido: PedidoDeAcao) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)
   // F3: as formas do NPC (a tira Transformação do painel) e a imagem da forma ligada, que vence a foto.
-  const formas = (personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate) : []).map((forma) => (trava === null ? forma : { ...forma, motivo: trava, motivoDosUsos: trava }))
+  // C6: a forma em que o mestre decide os números não mostra prévia; a que já espera fica apagada.
+  const esperando = (turnos.formasPendentes ?? []).filter((pendente) => pendente.personagemId === personagem?.id)
+  const formas = (personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), esperando) : []).map((forma) => (trava === null ? forma : { ...forma, motivo: trava, motivoDosUsos: trava }))
   const aparencia = carta.personagemId === null || personagem === null ? null : aparenciaDaForma(turnos.formas?.[carta.personagemId], personagem)
   // Tipos de habilidade F3: as passivas do NPC da vez e os lembretes dele (o mestre aplica o "a cada turno" quando quiser).
   const alvos = alvosDaOrdem(mesa, turnos.cartas, carta)

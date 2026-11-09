@@ -10,6 +10,7 @@ import { reacoesDoJogador, reacoesParaOAlvo, reacoesPorPerto } from '../../lib/b
 import type { VezEsperada } from '../../lib/batalha/ponte'
 import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
 import { formasNoMenu } from '../../lib/batalha/transformacao'
+import { formasComODecidirDoMestre } from '../../lib/batalha/mecanica/formaDoMestre'
 import { ATACANTE_FORA_DA_VISTA, selosParaOBonus, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -20,7 +21,7 @@ import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { invocacaoDaFicha, motivoNoJogador, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import type { EvoluirNaTela } from './ListaDeTecnicas'
-import { MenuDaVez, textoDaEspera, type ContraNoMenu, type InvocarNoMenu } from './MenuDaVez'
+import { MenuDaVez, textoDaEspera, textoDoMestreDecidindo, type ContraNoMenu, type InvocarNoMenu } from './MenuDaVez'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
 import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
@@ -241,7 +242,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       // C4: inimigos do mais perto ao mais longe, aliados depois, ele por último.
       alvos: alvosNaOrdemDaMira(alvos, fichas, cartaQueAge.tokenId, tamanhoDaCasa),
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
-      formas: personagem !== null && sistema !== null ? formasNoMenu(personagem, sistema, acoes, combate) : [],
+      // C6: a forma em que o mestre decide os números não mostra prévia, e a que já espera o mestre fica apagada.
+      formas: personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), meuCombate?.formasEsperando) : [],
       // Tipos de habilidade F3: a tira Passivas (as ligadas vêm do recorte, `passivasAtivas`).
       passivas: passivasNoRecorte(personagem, sistema, estado.rodada, meuCombate, selosDoDono),
     }
@@ -325,6 +327,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   }, [pedirInvocacao, cartaQueAge, minhasInvocacoes, personagem, sistema, golpesDoMenu, combate])
   // Fora da vez (e com mais de uma ficha), a espera de todas as fichas dele fica na coluna dos lembretes.
   const esperandoOMestre = useMemo(() => (estado.meus ?? []).flatMap((meu) => (meu.invocacoes ?? []).filter((item) => !item.posto)), [estado.meus])
+  // Construtor C6: as formas dele esperando o mestre decidir os números ("o mestre está decidindo").
+  const formasEsperando = useMemo(() => (estado.meus ?? []).flatMap((meu) => meu.formasEsperando ?? []), [estado.meus])
 
   // ---- a reação
   const reacoes = useMemo<ReacaoNaCaixa[]>(() => {
@@ -416,7 +420,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const lugarDoMenu = useRef<HTMLDivElement>(null)
   const lugarDosLembretes = useRef<HTMLDivElement>(null)
   const comEspera = esperandoOMestre.length > 0 && conexao.invocar !== undefined
-  const comLembretes = lembretes.length > 0 || marcas.length > 0 || (comEspera && !mostrarMenu)
+  const comFormaEsperando = formasEsperando.length > 0
+  const comLembretes = lembretes.length > 0 || marcas.length > 0 || ((comEspera || comFormaEsperando) && !mostrarMenu)
   useLayoutEffect(() => {
     const menuNaTela = lugarDoMenu.current
     const avisos = lugarDosLembretes.current
@@ -457,6 +462,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         <div ref={lugarDoMenu} className="pp-batalha-menu" data-palco={noPalco}>
           <MenuDaVez
             key={estado.minhaVez ? `${vez}:${estado.rodada}` : 'contra'}
+            formasEsperando={formasEsperando}
             quem={cartaQueAge.nome.trim() || 'Você'}
             acoes={acoes}
             carga={combate?.carga ?? 0}
@@ -486,8 +492,14 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
           />
         </div>
       )}
-      {comLembretes && (conexao.passiva !== undefined || comEspera || marcas.length > 0) && (
+      {comLembretes && (conexao.passiva !== undefined || comEspera || comFormaEsperando || marcas.length > 0) && (
         <div ref={lugarDosLembretes} className="pp-batalha-lembretes" data-palco={noPalco}>
+          {comFormaEsperando && !mostrarMenu && (
+            <p className="bt-vez__espera" role="status">
+              <span className="bt-vez__espera-ponto" aria-hidden="true" />
+              {textoDoMestreDecidindo(formasEsperando)}
+            </p>
+          )}
           {comEspera && !mostrarMenu && (
             <p className="bt-vez__espera" role="status">
               <span className="bt-vez__espera-ponto" aria-hidden="true" />

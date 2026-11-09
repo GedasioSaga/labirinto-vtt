@@ -3,7 +3,7 @@ import { valorDoRank } from '../ajusteDaFicha'
 import { entraNaBatalha, fichaSemHp } from '../livros/combate'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type GolpeDaBatalha, type InvocacaoPendente, type InvocadoNaBatalha, type LembreteDaMarca, type SeloDaBatalha } from './combate'
+import { combateVazio, type CombateDoPersonagem, type ContraAtaque, type FormaNaBatalha, type FormaPendente, type GolpeDaBatalha, type InvocacaoPendente, type InvocadoNaBatalha, type LembreteDaMarca, type SeloDaBatalha } from './combate'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { contarSelos } from './selos'
 import { fatorDaVelocidade } from './mecanicasAMao'
@@ -114,6 +114,8 @@ export interface TurnosDaCena {
   invocados?: readonly InvocadoNaBatalha[]
   /** Invocação: os pedidos aceitos esperando o mestre pôr no mapa (no máximo `INVOCACOES_PENDENTES_MAX`). Ausente = nenhum. */
   invocacoes?: readonly InvocacaoPendente[]
+  /** Construtor C6: as formas pedidas esperando o mestre decidir os números (no máximo `FORMAS_PENDENTES_MAX`). Ausente = nenhuma. */
+  formasPendentes?: readonly FormaPendente[]
   /** R1 (lote de 01/11): os lembretes "Marcar o alvo?" esperando resposta (no máximo `LEMBRETES_DA_MARCA_MAX`). Ausente = nenhum. */
   lembretesDaMarca?: readonly LembreteDaMarca[]
 }

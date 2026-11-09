@@ -1,3 +1,4 @@
+import type { Modificador } from '../personagem'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import type { AutorDaAcao } from './turnos'
 
@@ -279,6 +280,47 @@ export interface InvocadoNaBatalha {
   linhaDoPedido: string
   /** A linha "invocacao" que o pôs no mapa. Desfeita = nada traz este invocado de volta. */
   linhaId: string
+}
+
+/**
+ * Construtor C6 (tela do mestre ao transformar): a forma com a peça "o mestre
+ * decide os números" (`formaDecididaPeloMestre`) não liga no pedido. O pedido
+ * gasta a ação, os usos e o Overload como sempre e nasce esta PENDÊNCIA: o
+ * mestre escolhe os modificadores e, se quiser, uma habilidade que ela ganha
+ * (`decidirForma`), e só aí a forma liga. Só do mestre; o dono vê "o mestre
+ * está decidindo" pelo recorte (`FormaEsperandoOMestre`).
+ */
+export interface FormaPendente {
+  /** `decisao_<uuid>`. */
+  id: string
+  /** A linha "transformacao" do pedido (o Desfazer dela tira a pendência, ou a forma decidida). */
+  linhaId: string
+  rodada: number
+  /** A carta da vez do pedido: a Duração da forma conta a partir desta vez, não da vez em que o mestre decidiu. */
+  cartaId: string
+  autor: AutorDaAcao
+  tokenId: string
+  personagemId: string
+  cartaoId: string
+  /** O nome da forma na ficha ("Sulong"), para a fila do mestre. */
+  nome: string
+  /** O pedido quis a imagem da forma no token e no retrato. */
+  trocarImagem: boolean
+}
+
+/** C6: formas esperando o mestre numa cena. */
+export const FORMAS_PENDENTES_MAX = 8
+/** C6: modificadores que o mestre decide numa forma (atributos e recursos de atual e máximo). */
+export const MODS_DA_DECISAO_MAX = 8
+/** C6: o nome da habilidade que a forma ganha. */
+export const NOME_DA_HABILIDADE_MAX = 40
+/** C6: o que a habilidade faz, em texto (o app só lembra; o mestre aplica). */
+export const TEXTO_DA_HABILIDADE_MAX = 300
+
+/** C6: o que o mestre decidiu ao transformar. `habilidade` `null` = não ganha nenhuma. */
+export interface DecisaoDaForma {
+  mods: readonly Modificador[]
+  habilidade: { nome: string; texto: string } | null
 }
 
 /** Invocação: pendências numa cena. */
