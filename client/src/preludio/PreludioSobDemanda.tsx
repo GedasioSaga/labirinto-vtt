@@ -32,11 +32,11 @@ const TelaDoPreludio = lazy<ComponentType<PropsDaTela>>(() =>
   ),
 )
 
-export function PreludioSobDemanda({ onBack }: PropsDaTela) {
+export function PreludioSobDemanda({ onBack, aoAbrirNaMesa }: PropsDaTela) {
   return (
     // Enquanto baixa: o mesmo cabeçalho, sem conteúdo (vem do disco em milissegundos; um "Carregando" só piscaria).
     <Suspense fallback={<MenuShell title={TITULO_DO_PRELUDIO} subtitle={SUBTITULO_DO_PRELUDIO} onBack={onBack} crumbs={['Labirinto']}>{null}</MenuShell>}>
-      <TelaDoPreludio onBack={onBack} />
+      <TelaDoPreludio onBack={onBack} aoAbrirNaMesa={aoAbrirNaMesa} />
     </Suspense>
   )
 }

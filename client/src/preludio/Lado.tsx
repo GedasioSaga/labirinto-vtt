@@ -5,13 +5,17 @@ import type { TipoDeVerbete } from '../lib/preparo/tipos'
 import { Arvore, type ItemDaArvore } from './arvore/Arvore'
 import { useCadernos, useNovoCaderno } from './escrita/Escrita'
 import { usePreludio } from './estado/preludio'
+import { useNovaSessao, useSessoes } from './sessoes/Sessoes'
 import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
 
 /**
  * A BARRA LATERAL DO PRELÚDIO: voltar, o filtro "Campanha" (como no Grimório),
- * a busca, as seções (Início, Enciclopédia por tipo, Escrita em árvore) e,
- * embaixo, se está tudo salvo.
+ * a busca, as seções (Início, Sessões, Enciclopédia por tipo, Escrita em
+ * árvore) e, embaixo, se está tudo salvo.
  */
+
+/** Quantas sessões a barra mostra: as últimas, a mais recente embaixo, junto do "+ Nova sessão". */
+const SESSOES_NA_BARRA = 5
 
 function itensDosCadernos(nos: readonly NoDaArvore[]): ItemDaArvore[] {
   return nos.map((no) => ({ id: no.verbete.id, rotulo: no.verbete.titulo || 'Sem nome', filhos: itensDosCadernos(no.filhos) }))
@@ -92,6 +96,8 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   const escolherCampanha = usePreludio((estado) => estado.escolherCampanha)
   const cadernos = useCadernos()
   const novoCaderno = useNovoCaderno()
+  const sessoes = useSessoes()
+  const novaSessao = useNovaSessao()
   const titulo = useRef<HTMLHeadingElement>(null)
   const voltar = useRef<HTMLButtonElement>(null)
 
@@ -124,6 +130,8 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   }, [verbetes, campanhaId])
   const itensDaEscrita = useMemo(() => itensDosCadernos(cadernos), [cadernos])
 
+  const sessoesNaBarra = sessoes.slice(-SESSOES_NA_BARRA)
+  const sessaoAberta = lugar.secao === 'sessoes' ? lugar.sessaoId : null
   const naEnciclopedia = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo && lugar.verbeteId === null
   const doTipoAberto = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo
 
@@ -169,6 +177,32 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
       <nav className="pr-nav" aria-label="Seções do Prelúdio">
         <button type="button" className="pr-nav__item" aria-current={lugar.secao === 'inicio' ? 'page' : undefined} onClick={() => ir({ secao: 'inicio' })}>
           Início
+        </button>
+
+        <h2 className="pr-nav__grupo">Sessões</h2>
+        <ul className="pr-nav__lista">
+          <li>
+            <button
+              type="button"
+              className="pr-nav__item"
+              aria-current={lugar.secao === 'sessoes' ? (sessaoAberta === null ? 'page' : 'true') : undefined}
+              disabled={!pronta}
+              onClick={() => ir({ secao: 'sessoes', sessaoId: null })}
+            >
+              <span>Todas</span>
+              <span className="pr-nav__conta">{sessoes.length}</span>
+            </button>
+          </li>
+          {sessoesNaBarra.map((sessao) => (
+            <li key={sessao.id}>
+              <button type="button" className="pr-nav__item" aria-current={sessaoAberta === sessao.id ? 'page' : undefined} title={sessao.titulo || 'Sessão sem nome'} onClick={() => ir({ secao: 'sessoes', sessaoId: sessao.id })}>
+                <span className="pr-nav__nome">{sessao.titulo || 'Sessão sem nome'}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button type="button" className="pr-nav__novo" disabled={!pronta || travado} onClick={() => void novaSessao()}>
+          + Nova sessão
         </button>
 
         <h2 className="pr-nav__grupo">Enciclopédia</h2>

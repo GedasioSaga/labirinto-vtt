@@ -35,14 +35,18 @@ export interface CampanhaDaRevelacao {
   readonly escolher: (campanhaId: string) => void
 }
 
-/** A campanha em que a página revela: a escolhida aqui, senão a do filtro da barra lateral, senão a primeira do verbete. */
-export function useCampanhaDaRevelacao(verbete: Verbete | undefined): CampanhaDaRevelacao {
+/**
+ * A campanha em que a página revela: a escolhida aqui, senão a `preferida`
+ * (no mapa, a da pasta aberta), senão a do filtro da barra lateral, senão a
+ * primeira do verbete.
+ */
+export function useCampanhaDaRevelacao(verbete: Verbete | undefined, preferida: string | null = null): CampanhaDaRevelacao {
   const filtro = usePreludio((estado) => estado.campanhaId)
   const todas = usePreludio((estado) => estado.campanhas)
   const [escolhida, setEscolhida] = useState<string | null>(null)
   const campanhas = verbete === undefined ? [] : todas.filter((campanha) => verbete.campanhas.includes(campanha.id))
   const existe = (id: string | null) => id !== null && campanhas.some((campanha) => campanha.id === id)
-  const campanhaId = existe(escolhida) ? escolhida : existe(filtro) ? filtro : (campanhas[0]?.id ?? null)
+  const campanhaId = existe(escolhida) ? escolhida : existe(preferida) ? preferida : existe(filtro) ? filtro : (campanhas[0]?.id ?? null)
   return { campanhaId, campanhas, escolher: setEscolhida }
 }
 

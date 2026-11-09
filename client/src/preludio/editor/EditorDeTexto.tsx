@@ -3,10 +3,14 @@ import { EditorContent, ReactRenderer, useEditor, useEditorState, type Editor, t
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion'
 import { create } from 'zustand'
 import { compararTitulos, ROTULO_DO_TIPO, semAcento, textoPlano } from '../../lib/preparo/enciclopedia'
-import type { TextoRico } from '../../lib/preparo/tipos'
+import { alvoParaGravar, type AlvoNaMesa } from '../../lib/preparo/sessoes'
+import type { TextoRico, Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
+import { estadoDoLink, pedirLeitura, useCatalogoDaMesa } from '../mesa/catalogo'
+import { EscolherNaMesa } from '../mesa/EscolherNaMesa'
+import { abrirNaMesaPeloPreludio, podeAbrirNaMesa } from '../mesa/ponte'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
-import { extensoesDoTexto, reavaliarSoNome, textoCabeNoEditor, type ItemDaMencao } from './extensoes'
+import { extensoesDoTexto, reavaliarMesa, reavaliarSoNome, textoCabeNoEditor, type EstadoDaMesaNoTexto, type ItemDaMencao } from './extensoes'
 
 /**
  * O EDITOR DE TEXTO DO PRELÚDIO (TipTap, licença MIT). Este arquivo e o
@@ -155,6 +159,40 @@ function desenhoDaSugestao() {
   }
 }
 
+// ─── Links para a mesa ───────────────────────────────────────────────────────
+
+/** O verbete ligado à ficha (pela ficha do Livro do verbete): é para ele que o link de ficha leva, dentro do Prelúdio. */
+function verbeteDaFicha(alvo: Extract<AlvoNaMesa, { tipo: 'ficha' }>): Verbete | undefined {
+  for (const verbete of usePreludio.getState().verbetes.values()) {
+    if (verbete.liga?.fichas.some((ficha) => ficha.pastaId === alvo.pastaId && ficha.personagemId === alvo.personagemId) === true) return verbete
+  }
+  return undefined
+}
+
+function estadoDaMesa(alvo: AlvoNaMesa): EstadoDaMesaNoTexto {
+  const estado = estadoDoLink(alvo, useCatalogoDaMesa.getState())
+  if (estado.t === 'lendo') pedirLeitura(alvo)
+  if (estado.t === 'quebrado') return { quebrado: true, dica: estado.aviso, abre: false }
+  if (alvo.tipo === 'ficha') {
+    const sobre = estado.t === 'ok' ? `${estado.nome}, ${estado.onde.charAt(0).toLowerCase()}${estado.onde.slice(1)}.` : 'Ficha do Livro do mestre.'
+    const verbete = verbeteDaFicha(alvo)
+    return verbete === undefined
+      ? { quebrado: false, dica: `${sobre} Na mesa, clicar seleciona o boneco dela.`, abre: false }
+      : { quebrado: false, dica: `${sobre} Abrir o verbete ${verbete.titulo || 'sem nome'}.`, abre: true }
+  }
+  const onde = estado.t === 'ok' ? (alvo.pinoId === undefined ? estado.onde : `${estado.onde}, pino ${estado.nome}`) : 'o mapa deste link'
+  return podeAbrirNaMesa() ? { quebrado: false, dica: `Abrir no mapa: ${onde}`, abre: true } : { quebrado: false, dica: onde, abre: false }
+}
+
+function abrirDaMesa(alvo: AlvoNaMesa): void {
+  if (alvo.tipo === 'cena') {
+    abrirNaMesaPeloPreludio(alvo.pinoId === undefined ? { chave: alvo.chave, sceneId: alvo.sceneId } : { chave: alvo.chave, sceneId: alvo.sceneId, pinoId: alvo.pinoId })
+    return
+  }
+  const verbete = verbeteDaFicha(alvo)
+  if (verbete !== undefined) usePreludio.getState().ir({ secao: 'enciclopedia', tipo: verbete.tipo, verbeteId: verbete.id })
+}
+
 // ─── O editor ────────────────────────────────────────────────────────────────
 
 export interface EditorDeTextoProps {
@@ -222,11 +260,12 @@ function EditorQueCabe({ texto, rotulo, convite, editavel, aoMudar, classe, soNo
             const { verbetes, ir } = usePreludio.getState()
             const alvo = verbetes.get(id)
             if (alvo === undefined) return
-            ir(alvo.tipo === 'pagina' ? { secao: 'escrita', paginaId: id } : { secao: 'enciclopedia', tipo: alvo.tipo, verbeteId: id })
+            ir(alvo.tipo === 'pagina' ? { secao: 'escrita', paginaId: id } : alvo.tipo === 'sessao' ? { secao: 'sessoes', sessaoId: id } : { secao: 'enciclopedia', tipo: alvo.tipo, verbeteId: id })
           },
           soNome: (id) => soNomeAtual.current.has(id),
           sugestao: { items: ({ query }) => sugerir(query), render: desenhoDaSugestao },
         },
+        mesa: { estadoDe: estadoDaMesa, aoAbrir: abrirDaMesa },
       }),
       // O texto já passou por `textoCabeNoEditor` (mesmo esquema): aqui ele é um documento do TipTap.
       content: texto as JSONContent,
@@ -258,6 +297,9 @@ function EditorQueCabe({ texto, rotulo, convite, editavel, aoMudar, classe, soNo
   useEffect(() => {
     reavaliarSoNome(editor)
   }, [editor, chaveDoSoNome])
+
+  // O catálogo da mesa leu o disco (ou esqueceu): os links refazem o "existe / não existe mais".
+  useEffect(() => useCatalogoDaMesa.subscribe(() => queueMicrotask(() => reavaliarMesa(editor))), [editor])
 
   useEffect(
     () => () => {
@@ -350,6 +392,12 @@ const ICONES: Readonly<Record<string, ReactNode>> = {
       <path d="m12.5 5 3.5 3.5-3.5 3.5M15.5 8.5h-7a4 4 0 0 0 0 8H11" />
     </svg>
   ),
+  mesa: (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M10 17.5s5-4.6 5-8.6a5 5 0 0 0-10 0c0 4 5 8.6 5 8.6z" />
+      <circle cx="10" cy="8.8" r="1.8" />
+    </svg>
+  ),
 }
 
 interface BotaoDaBarraProps {
@@ -384,6 +432,8 @@ export function BarraDoEditor() {
   const editor = useEditorAtivo((estado) => estado.editor)
   const estado = useEditorState({ editor, selector: ({ editor: atual }) => estadoDaBarra(atual) })
   const desligado = estado === null || !estado.editavel
+  /** O editor que pediu o link: o diálogo tira o foco dele, e o link entra onde o cursor estava. */
+  const [ligandoEm, setLigandoEm] = useState<Editor | null>(null)
   const comando = (acao: (editor: Editor) => void) => () => {
     if (editor !== null && !editor.isDestroyed) acao(editor)
   }
@@ -420,6 +470,9 @@ export function BarraDoEditor() {
       <BotaoDaBarra rotulo="Bloco de segredo (só o mestre vê)" ativo={estado?.segredo} desligado={desligado} aoAcionar={comando((e) => e.chain().focus().alternarSegredo().run())}>
         {ICONES.segredo}
       </BotaoDaBarra>
+      <BotaoDaBarra rotulo="Ligar à mesa: cena, pino ou ficha" desligado={desligado} aoAcionar={comando((e) => setLigandoEm(e))}>
+        {ICONES.mesa}
+      </BotaoDaBarra>
       <span className="pr-barra__div" aria-hidden="true" />
       <BotaoDaBarra rotulo="Desfazer" atalho="Ctrl+Z" desligado={desligado || !estado.desfazer} aoAcionar={comando((e) => e.chain().focus().undo().run())}>
         {ICONES.desfazer}
@@ -430,6 +483,27 @@ export function BarraDoEditor() {
       <span className="pr-barra__dica">
         <kbd className="gr-kbd">@</kbd> menciona um verbete
       </span>
+      {ligandoEm !== null && (
+        <EscolherNaMesa
+          aoFechar={() => {
+            if (!ligandoEm.isDestroyed) ligandoEm.commands.focus()
+            setLigandoEm(null)
+          }}
+          aoEscolher={(alvo, rotulo) => {
+            if (!ligandoEm.isDestroyed) {
+              ligandoEm
+                .chain()
+                .focus()
+                .insertContent([
+                  { type: 'ligacaoMesa', attrs: { alvo: alvoParaGravar(alvo), rotulo } },
+                  { type: 'text', text: ' ' },
+                ])
+                .run()
+            }
+            setLigandoEm(null)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -7,7 +7,8 @@ import { create } from 'zustand'
  * enquanto o app está aberto, como no protótipo; nada disso vai para o disco.
  */
 
-export type PaginaDoMestre = 'ficha' | 'cena' | 'aventura' | 'acervo'
+/** `roteiro` só existe com a chave do Prelúdio ligada (`preludio/roteiro/RoteiroNoLivro.tsx`). */
+export type PaginaDoMestre = 'ficha' | 'cena' | 'aventura' | 'acervo' | 'roteiro'
 
 /**
  * A preferência "Categorias do painel" (esconder Aventura e Esta cena com uma

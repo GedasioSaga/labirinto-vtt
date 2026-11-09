@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { LabyrinthMark } from '../components/icons'
 import { ROTULO_DO_TIPO } from '../lib/preparo/enciclopedia'
-import type { Campanha } from '../lib/preparo/tipos'
+import type { Campanha, LigaCena } from '../lib/preparo/tipos'
 import { BuscaGeral } from './busca/BuscaGeral'
 import { PainelDaCopia } from './copia/PainelDaCopia'
 import { precarregarEditor } from './editor/sobDemanda'
@@ -11,6 +11,9 @@ import { Escrita } from './escrita/Escrita'
 import { usePreludio, type Lugar } from './estado/preludio'
 import { PainelDaImportacao } from './importar/PainelDaImportacao'
 import { Lado } from './Lado'
+import { useCatalogoDaMesa } from './mesa/catalogo'
+import { definirAberturaNaMesa } from './mesa/ponte'
+import { Sessoes } from './sessoes/Sessoes'
 import { TITULO_DO_PRELUDIO } from './textos'
 import '../screens/MainMenu.css'
 import '../components/grimorio/grimorio.css'
@@ -18,6 +21,8 @@ import './preludio.css'
 
 interface TelaDoPreludioProps {
   onBack: () => void
+  /** Abre o mapa do link na cena e no pino (o App sabe trocar de mapa); sem ela, o link de cena só não abre. */
+  aoAbrirNaMesa?: (alvo: LigaCena) => void
 }
 
 const NADA_AINDA =
@@ -44,6 +49,10 @@ function trilhaDe(lugar: Lugar, tituloDe: (id: string) => string | undefined): s
     case 'escrita': {
       const nome = lugar.paginaId === null ? undefined : (tituloDe(lugar.paginaId) ?? 'Sem nome')
       return nome === undefined ? ['Escrita'] : ['Escrita', nome || 'Sem nome']
+    }
+    case 'sessoes': {
+      const nome = lugar.sessaoId === null ? undefined : (tituloDe(lugar.sessaoId) ?? 'Sessão sem nome')
+      return nome === undefined ? ['Sessões'] : ['Sessões', nome || 'Sessão sem nome']
     }
   }
 }
@@ -123,9 +132,10 @@ function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCop
 /**
  * O PRELÚDIO, a preparação de sessão (plano §1): a barra lateral com as seções
  * e, no palco, o Início (importar do Grimório e cópia no Google Drive, com a
- * cópia diária ao abrir), a Enciclopédia e a Escrita. Ctrl+K busca em tudo.
+ * cópia diária ao abrir), as Sessões, a Enciclopédia e a Escrita. Ctrl+K
+ * busca em tudo.
  */
-export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
+export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
   const carga = usePreludio((estado) => estado.carga)
   const lugar = usePreludio((estado) => estado.lugar)
   const verbetes = usePreludio((estado) => estado.verbetes)
@@ -148,6 +158,22 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
       void usePreludio.getState().fechar()
     }
   }, [carregar])
+
+  // A porta para o mapa vale enquanto a tela está aberta. A função do App nasce de novo a cada desenho dele: a porta chama sempre a mais nova.
+  const abrirNaMesa = useRef(aoAbrirNaMesa)
+  useLayoutEffect(() => {
+    abrirNaMesa.current = aoAbrirNaMesa
+  })
+  const temPorta = aoAbrirNaMesa !== undefined
+  useEffect(() => {
+    definirAberturaNaMesa(temPorta ? (alvo) => abrirNaMesa.current?.(alvo) : null)
+    return () => definirAberturaNaMesa(null)
+  }, [temPorta])
+
+  // Ao abrir, a lista de mapas, cenas e fichas é relida: pode ter mudado no editor.
+  useEffect(() => {
+    useCatalogoDaMesa.getState().esquecer()
+  }, [])
 
   useEffect(() => {
     travar('importacao', importando)
@@ -235,6 +261,8 @@ export function TelaDoPreludio({ onBack }: TelaDoPreludioProps) {
             ) : (
               <PaginaDoVerbete key={lugar.verbeteId} id={lugar.verbeteId} />
             )
+          ) : lugar.secao === 'sessoes' ? (
+            <Sessoes sessaoId={lugar.sessaoId} />
           ) : (
             <Escrita paginaId={lugar.paginaId} />
           )}

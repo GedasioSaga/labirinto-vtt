@@ -150,7 +150,13 @@ function campanhaComSegredos() {
   })
   const ilha = verbete({ id: `vb-${SEGREDO}-ilha`, titulo: 'Ilha', tipo: 'lugar' })
   const porto = verbete({ id: 'vb-porto', titulo: 'Porto VISIVEL', tipo: 'lugar', paiId: `vb-${SEGREDO}-ilha` })
-  const sessao = verbete({ id: 'vb-sessao', titulo: `${SEGREDO} sessão`, tipo: 'sessao' })
+  // A sessão (F4) leva o "Revelar hoje" e o "O que aconteceu": nada disso sai, nem revelada.
+  const sessao = verbete({
+    id: 'vb-sessao',
+    titulo: `${SEGREDO} sessão`,
+    tipo: 'sessao',
+    resto: { sessao: { revelarHoje: [{ verbeteId: `vb-${SEGREDO}-ilha`, para: 'todos' }], aconteceu: [{ id: 'ev-1', texto: `${SEGREDO} aconteceu` }] } },
+  })
   const deOutra = verbete({ id: 'vb-de-outra', titulo: `${SEGREDO} outra campanha`, campanhas: [OUTRA] })
   const futuro = verbete({ id: 'vb-futuro', titulo: `${SEGREDO} formato novo`, formato: 2 })
 

@@ -25,6 +25,7 @@ import { Galeria, Retrato } from './Imagens'
 const SECOES_NA_HORA = 2
 
 function lugarDe(verbete: Verbete): Lugar {
+  if (verbete.tipo === 'sessao') return { secao: 'sessoes', sessaoId: verbete.id }
   return verbete.tipo === 'pagina' ? { secao: 'escrita', paginaId: verbete.id } : { secao: 'enciclopedia', tipo: verbete.tipo, verbeteId: verbete.id }
 }
 
@@ -109,7 +110,7 @@ interface SecaoProps {
   soNome?: ReadonlySet<string>
 }
 
-function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar, revelacao, aoTornarSegredo, soNome }: SecaoProps) {
+export function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar, revelacao, aoTornarSegredo, soNome }: SecaoProps) {
   const temTitulo = secao.titulo !== ''
   const rotulo = temTitulo ? `${secao.titulo} de ${dono}` : `Texto de ${dono}`
   // A cabeça (nome e segredo) não muda a cada tecla: apagar o nome para escrever outro não pode tirar o campo do lugar.

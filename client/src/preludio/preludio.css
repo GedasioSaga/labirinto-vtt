@@ -92,6 +92,7 @@
 .pr-nav__item[aria-current='true'] { color: var(--lb-color-parchment); }
 .pr-nav__item:disabled, .pr-nav__grupo-bt:disabled, .pr-nav__novo:disabled { opacity: 0.5; cursor: default; }
 .pr-nav__conta { font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-faint); }
+.pr-nav__nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .pr-salvo { display: flex; align-items: center; gap: var(--lb-space-2); margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
 .pr-salvo__ponto { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--lb-color-online); }
@@ -388,7 +389,28 @@
   background: none; padding: 0;
   text-decoration: underline dashed var(--lb-color-brass); text-decoration-thickness: 1px; text-underline-offset: 3px;
 }
-.pr-mesa { padding: 0 3px; border-radius: 4px; background: var(--lb-color-tide-soft); color: var(--lb-color-tide); }
+/* Link para a mesa (F4): maré, com o ícone do que abre (pino, cena ou ficha). */
+.pr-mesa { padding: 0 4px 0 3px; border-radius: 4px; background: var(--lb-color-tide-soft); color: var(--lb-color-tide); white-space: nowrap; }
+.pr-mesa::before {
+  content: ''; display: inline-block; width: 0.8em; height: 0.8em; margin-right: 3px; vertical-align: -0.06em;
+  background-color: currentColor; -webkit-mask: var(--pr-icone-mesa) center / contain no-repeat; mask: var(--pr-icone-mesa) center / contain no-repeat;
+}
+.pr-mesa[data-tipo='pino'] { --pr-icone-mesa: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M8 1a5 5 0 0 0-5 5c0 3.6 5 9 5 9s5-5.4 5-9a5 5 0 0 0-5-5Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z'/%3E%3C/svg%3E"); }
+.pr-mesa[data-tipo='cena'] { --pr-icone-mesa: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M1.75 3.75 5.5 2.25l5 1.5 3.75-1.5v10l-3.75 1.5-5-1.5-3.75 1.5Z M5.5 2.25v10 M10.5 3.75v10'/%3E%3C/svg%3E"); }
+.pr-mesa[data-tipo='ficha'] { --pr-icone-mesa: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='5' r='3'/%3E%3Cpath d='M2.5 15c0-3.2 2.5-5.5 5.5-5.5s5.5 2.3 5.5 5.5Z'/%3E%3C/svg%3E"); }
+.pr-mesa[data-tipo='torto']::before { display: none; }
+/* O ProseMirror põe `white-space: normal` em todo nó atômico ([contenteditable=false], 0,2,0): a pílula volta a não partir no meio, com o ícone longe do nome. */
+.pr-tela .ProseMirror :is(.pr-mesa, .pr-mencao) { white-space: nowrap; }
+.pr-mesa--abre { cursor: pointer; text-decoration: underline transparent; text-underline-offset: 3px; transition: text-decoration-color var(--lb-motion-fast) ease; }
+@media (hover: hover) and (pointer: fine) {
+  .pr-mesa--abre:hover { text-decoration-color: currentColor; }
+}
+/* O alvo sumiu: nome riscado e o aviso escrito ao lado (o inline-block não herda o risco). */
+.pr-mesa--quebrada { background: none; color: var(--lb-color-parchment-faint); text-decoration: line-through; cursor: help; }
+.pr-mesa--quebrada::after {
+  content: attr(data-aviso); display: inline-block; margin-left: 4px;
+  font: italic 400 0.85em var(--lb-font-sans); color: var(--lb-color-ember); text-decoration: none;
+}
 
 .pr-figura { margin: 1.2em 0; }
 .pr-figura img { display: block; max-width: 100%; height: auto; border-radius: var(--lb-radius-md); box-shadow: 0 0 0 1px var(--lb-gr-filete); }

@@ -1,0 +1,136 @@
+/*
+ * SESSÕES (F4): a lista, a sessão aberta, o "Revelar hoje" e o "O que
+ * aconteceu". Os mesmos materiais do Prelúdio: papel escuro, filete de 1 px,
+ * latão para o que age agora e maré (azul) para o que liga à mesa. O
+ * "Revelar hoje" também aparece no Livro do mestre, no mapa.
+ */
+
+/* ─── A lista ─────────────────────────────────────────────────────────────── */
+
+.pr-sessoes { max-width: calc(var(--pr-medida) + var(--lb-layout-rail-width) + var(--lb-space-10)); margin: 0 auto; padding: var(--lb-space-8) var(--lb-space-6) var(--lb-space-12); }
+.pr-sessoes__cabeca { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--lb-space-6); margin-bottom: var(--lb-space-6); }
+.pr-sessoes__titulo { margin: 0 0 var(--lb-space-2); font: 400 var(--lb-font-size-xxl)/1.15 var(--lb-font-display); color: var(--lb-color-parchment); }
+.pr-sessoes__explica { margin: 0; max-width: 60ch; font-size: var(--lb-font-size-sm); line-height: 1.5; color: var(--lb-color-parchment-dim); }
+.pr-sessoes__lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--lb-gr-filete); }
+.pr-sessoes__lista > li { border-bottom: 1px solid var(--lb-gr-filete); }
+.pr-sessoes__item {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--lb-space-3); row-gap: 2px;
+  padding: var(--lb-space-3) var(--lb-space-2); border: 0; border-radius: var(--lb-radius-sm);
+  background: none; color: var(--lb-color-parchment); font: inherit; text-align: left; cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease;
+}
+.pr-sessoes__nome { font: 400 var(--lb-font-size-xl)/1.25 var(--lb-font-display); }
+.pr-sessoes__selo { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-sans); color: var(--lb-color-brass-bright); }
+.pr-sessoes__resumo { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--lb-space-1) var(--lb-space-3); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.pr-sessoes__campanha { color: var(--lb-color-parchment-dim); }
+@media (hover: hover) and (pointer: fine) {
+  .pr-sessoes__item:hover { background: var(--lb-gr-hover); }
+}
+
+/* ─── A sessão aberta ─────────────────────────────────────────────────────── */
+
+.pr-sessao__subtitulo { margin: 0 0 var(--lb-space-3); font: 400 var(--lb-font-size-xl)/1.25 var(--lb-font-display); color: var(--lb-gr-gravado-forte); }
+.pr-sessao__roteiro { margin-bottom: var(--lb-space-10); }
+
+/* ─── O que aconteceu ─────────────────────────────────────────────────────── */
+
+.pr-aconteceu { padding-top: var(--lb-space-6); border-top: 1px solid var(--lb-gr-filete); }
+.pr-aconteceu__cabeca { display: flex; align-items: baseline; justify-content: space-between; gap: var(--lb-space-3); }
+.pr-aconteceu__conta { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.pr-aconteceu__lista { list-style: none; margin: var(--lb-space-3) 0; padding: 0; display: flex; flex-direction: column; }
+.pr-aconteceu__linha {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--lb-space-2);
+  min-height: 44px; border-bottom: 1px solid var(--lb-gr-filete);
+}
+.pr-aconteceu__campo {
+  width: 100%; min-height: 32px; padding: 0 var(--lb-space-2); border: 1px solid transparent; border-radius: var(--lb-radius-sm);
+  background: transparent; color: var(--lb-color-parchment); font: 400 var(--lb-font-size-md)/1.4 var(--lb-font-sans);
+  transition: border-color var(--lb-motion-fast) ease;
+}
+.pr-aconteceu__campo:hover:not(:read-only), .pr-aconteceu__campo:focus-visible { border-color: var(--lb-gr-filete-forte); }
+.pr-tela .pr-aconteceu__campo:focus-visible { box-shadow: none; border-color: var(--lb-color-brass); }
+.pr-aconteceu__linha--evento { grid-template-columns: minmax(0, 1fr) auto auto; padding-left: var(--lb-space-2); }
+.pr-aconteceu__texto { min-width: 0; overflow-wrap: anywhere; line-height: 1.4; }
+.pr-aconteceu__selo {
+  padding: 2px var(--lb-space-2); border-radius: var(--lb-radius-sm); background: var(--lb-color-tide-soft);
+  font: 500 var(--lb-font-size-xs)/1.4 var(--lb-font-sans); color: var(--lb-color-tide); white-space: nowrap;
+}
+.pr-aconteceu__nova { display: flex; gap: var(--lb-space-2); margin-top: var(--lb-space-3); }
+.pr-aconteceu__nova .pr-campo__entrada { flex: 1; min-width: 0; }
+
+/* ─── Revelar hoje ────────────────────────────────────────────────────────── */
+
+.pr-hoje { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: var(--lb-space-2); }
+.pr-hoje > .pr-trilho__titulo, .pr-hoje > .pr-quieto { align-self: flex-start; }
+.pr-hoje__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pr-hoje__item { padding: var(--lb-space-2) 0; border-bottom: 1px solid var(--lb-gr-filete); }
+.pr-hoje__linha { display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-2); min-height: 32px; }
+.pr-hoje__nome { min-width: 0; overflow-wrap: anywhere; font: 400 var(--lb-font-size-lg)/1.3 var(--lb-font-display); color: var(--lb-color-parchment); }
+.pr-hoje__nome--link { padding: 0; border: 0; background: none; text-align: left; cursor: pointer; text-decoration: underline transparent; text-underline-offset: 3px; transition: text-decoration-color var(--lb-motion-fast) ease; }
+.pr-hoje__nome--sumiu { color: var(--lb-color-parchment-faint); text-decoration: line-through; font-family: var(--lb-font-sans); font-size: var(--lb-font-size-sm); }
+.pr-hoje__acoes { flex: none; display: flex; align-items: center; gap: 2px; }
+.pr-hoje__estado { display: flex; align-items: center; gap: var(--lb-space-1); margin: 2px 0 0; font-size: var(--lb-font-size-sm); line-height: 1.35; color: var(--lb-color-parchment-faint); }
+.pr-hoje__item[data-estado='revelado'] .pr-hoje__estado { color: var(--lb-color-brass-bright); }
+.pr-hoje__item[data-estado='parte'] .pr-hoje__estado { color: var(--lb-color-parchment-dim); }
+.pr-hoje__check { flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* O check confirma o Revelar: entra pequeno e assenta (raro, alguns por sessão). */
+.pr-hoje__check { animation: pr-hoje-check 180ms var(--lb-gr-ease-out) both; }
+@keyframes pr-hoje-check { from { opacity: 0; transform: scale(0.85); } }
+.pr-hoje__opcoes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-1); margin-top: var(--lb-space-1); }
+.pr-hoje__escolha {
+  min-height: 28px; max-width: 100%; padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md);
+  background: transparent; color: var(--lb-color-parchment-dim); font: inherit; font-size: var(--lb-font-size-sm);
+}
+.pr-hoje__tirar {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment-faint); cursor: pointer;
+  transition: color var(--lb-motion-fast) ease, background-color var(--lb-motion-fast) ease;
+}
+.pr-hoje__tirar svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.pr-hoje__novo { position: relative; margin-top: var(--lb-space-1); }
+.pr-hoje__novo .pr-campo__entrada { width: 100%; }
+.pr-hoje__achados {
+  position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; max-height: 260px; overflow-y: auto;
+  list-style: none; margin: 0; padding: 4px; border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-cartao-alto); box-shadow: var(--lb-shadow-float);
+  transform-origin: top center;
+}
+.pr-hoje__achado { display: flex; justify-content: space-between; gap: var(--lb-space-2); padding: 6px var(--lb-space-2); border-radius: var(--lb-radius-sm); cursor: pointer; }
+.pr-hoje__achado[aria-selected='true'] { background: var(--lb-gr-hover); }
+.pr-hoje__achado-tipo { flex: none; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+/* O motivo de não poder revelar (fora da campanha, versão mais nova), escrito no lugar do estado. */
+.pr-hoje__estado[data-parado] { color: var(--lb-color-parchment-dim); }
+.pr-hoje__sugestoes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-1); }
+.pr-hoje__sugestoes-rotulo { flex-basis: 100%; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+@media (hover: hover) and (pointer: fine) {
+  .pr-hoje__nome--link:hover { text-decoration-color: var(--lb-gr-filete-latao); }
+  .pr-hoje__tirar:hover { color: var(--lb-color-parchment); background: var(--lb-gr-hover); }
+}
+
+/* ─── O Revelar de uma menção (o pop do roteiro no Livro do mestre) ─────────── */
+
+.pr-hoje--mencao { width: 264px; max-width: 100%; gap: var(--lb-space-1); padding: 2px var(--lb-space-2) var(--lb-space-2); }
+.pr-hoje--mencao .pr-hoje__item { padding-top: 0; border-bottom: 0; }
+.pr-hoje__resumo {
+  margin: 0; font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-dim);
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pr-hoje__origem { margin: 0; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+
+/* ─── Ligar à mesa ────────────────────────────────────────────────────────── */
+
+.pr-mesa-escolha { display: flex; flex-direction: column; gap: var(--lb-space-3); }
+.pr-mesa-escolha__modos { display: flex; gap: var(--lb-space-1); margin-bottom: var(--lb-space-3); }
+.pr-mesa-escolha .pr-escolha { margin-top: 0; max-height: 300px; overflow-y: auto; }
+.pr-mesa-escolha__nota { padding: var(--lb-space-2) var(--lb-space-3); }
+
+@media (max-width: 720px) {
+  .pr-sessoes { padding-inline: var(--lb-space-4); }
+  .pr-sessoes__cabeca { flex-direction: column; align-items: flex-start; }
+  .pr-aconteceu__linha { grid-template-columns: minmax(0, 1fr) auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-hoje__check { animation: none; }
+}

@@ -5,6 +5,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import StarterKit from '@tiptap/starter-kit'
 import { Placeholder } from '@tiptap/extensions'
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion'
+import { alvoDaMesa, alvoParaGravar, type AlvoNaMesa } from '../../lib/preparo/sessoes'
 import { PECAS_DO_TEXTO, type TextoRico } from '../../lib/preparo/tipos'
 
 /**
@@ -126,18 +127,118 @@ export const Segredo = Node.create({
 
 // ─── Ligação com a mesa ──────────────────────────────────────────────────────
 
-/** Link para cena, pino ou ficha (F4). Por enquanto só aparece: quem cria e abre é a fatia das Sessões. */
-export const LigacaoMesa = Node.create({
+export interface EstadoDaMesaNoTexto {
+  /** O alvo sumiu: o link fica riscado, com a dica dizendo o quê. */
+  readonly quebrado: boolean
+  readonly dica: string
+  /** O clique leva a algum lugar (a ficha sem verbete ligado não leva). */
+  readonly abre: boolean
+}
+
+export interface OpcoesDaMesa {
+  /** Como o link está agora; a lista mudou fora do texto (o catálogo da mesa leu o disco): `reavaliarMesa`. */
+  estadoDe: (alvo: AlvoNaMesa) => EstadoDaMesaNoTexto
+  aoAbrir: (alvo: AlvoNaMesa) => void
+}
+
+const CHAVE_DA_MESA = new PluginKey<DecorationSet>('pr-mesa-estado')
+const CHAVE_DO_CLIQUE_NA_MESA = new PluginKey('pr-mesa-clique')
+
+/** "pino", "cena" ou "ficha": o desenho do link muda o ícone por ele. */
+function tipoDoLink(alvo: AlvoNaMesa | null): string {
+  if (alvo === null) return 'torto'
+  return alvo.tipo === 'ficha' ? 'ficha' : alvo.pinoId === undefined ? 'cena' : 'pino'
+}
+
+function decoracoesDaMesa(documento: NoDoDocumento, estadoDe: OpcoesDaMesa['estadoDe']): DecorationSet {
+  const decoracoes: Decoration[] = []
+  documento.descendants((no, posicao) => {
+    if (no.type.name !== PECAS_DO_TEXTO.ligacaoMesa) return true
+    const alvo = alvoDaMesa(no.attrs.alvo)
+    const estado = alvo === null ? { quebrado: true, dica: 'Este link não aponta para nada que o Labirinto entenda.', abre: false } : estadoDe(alvo)
+    // Quebrado: o "não existe mais" aparece escrito ao lado do nome (preludio.css), e a dica diz o que sumiu.
+    const atributos = estado.quebrado ? { class: 'pr-mesa--quebrada', title: estado.dica, 'data-aviso': 'não existe mais' } : { class: estado.abre ? 'pr-mesa--abre' : '', title: estado.dica }
+    decoracoes.push(Decoration.node(posicao, posicao + no.nodeSize, atributos))
+    return false
+  })
+  return DecorationSet.create(documento, decoracoes)
+}
+
+/** Refaz o estado dos links depois que o catálogo da mesa leu o disco. Não mexe no texto nem entra no desfazer. */
+export function reavaliarMesa(editor: Editor): void {
+  if (editor.isDestroyed) return
+  editor.view.dispatch(editor.state.tr.setMeta(CHAVE_DA_MESA, true).setMeta('addToHistory', false))
+}
+
+/**
+ * Link para cena, pino ou ficha (F4), pelo id (`lib/preparo/sessoes.ts`). O
+ * rótulo é o nome na hora de ligar; o estado (existe, "não existe mais") vem
+ * da decoração, refeita quando o catálogo da mesa muda. O alvo vai e volta
+ * pelo HTML (`data-alvo`), para o link sobreviver ao copiar e colar.
+ */
+export const LigacaoMesa = Node.create<OpcoesDaMesa>({
   name: PECAS_DO_TEXTO.ligacaoMesa,
   group: 'inline',
   inline: true,
   atom: true,
-  addAttributes() {
-    return { alvo: { default: null, rendered: false }, rotulo: { default: '', rendered: false } }
+  selectable: false,
+  addOptions() {
+    return { estadoDe: () => ({ quebrado: false, dica: '', abre: false }), aoAbrir: () => undefined }
   },
-  renderHTML({ node }) {
+  addAttributes() {
+    return {
+      alvo: {
+        default: null,
+        parseHTML: (elemento: HTMLElement) => {
+          try {
+            const alvo = alvoDaMesa(JSON.parse(elemento.getAttribute('data-alvo') ?? 'null'))
+            return alvo === null ? null : alvoParaGravar(alvo)
+          } catch {
+            return null
+          }
+        },
+        renderHTML: (atributos: Record<string, unknown>) => {
+          const alvo = alvoDaMesa(atributos.alvo)
+          return alvo === null ? {} : { 'data-alvo': JSON.stringify(alvoParaGravar(alvo)) }
+        },
+      },
+      rotulo: { default: '', parseHTML: (elemento: HTMLElement) => elemento.getAttribute('data-rotulo') ?? '', renderHTML: (atributos: Record<string, unknown>) => ({ 'data-rotulo': String(atributos.rotulo ?? '') }) },
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-ligacao-mesa]' }]
+  },
+  renderHTML({ node, HTMLAttributes }) {
     const rotulo = typeof node.attrs.rotulo === 'string' && node.attrs.rotulo !== '' ? node.attrs.rotulo : 'mesa'
-    return ['span', { class: 'pr-mesa', 'data-ligacao-mesa': '' }, rotulo]
+    return ['span', mergeAttributes(HTMLAttributes, { class: 'pr-mesa', 'data-ligacao-mesa': '', 'data-tipo': tipoDoLink(alvoDaMesa(node.attrs.alvo)) }), rotulo]
+  },
+  renderText({ node }) {
+    return typeof node.attrs.rotulo === 'string' ? node.attrs.rotulo : ''
+  },
+  addProseMirrorPlugins() {
+    const { estadoDe, aoAbrir } = this.options
+    return [
+      new Plugin<DecorationSet>({
+        key: CHAVE_DA_MESA,
+        state: {
+          init: (_configuracao, estado) => decoracoesDaMesa(estado.doc, estadoDe),
+          apply: (transacao, antes, _estadoAntes, estadoDepois) => (transacao.docChanged || transacao.getMeta(CHAVE_DA_MESA) === true ? decoracoesDaMesa(estadoDepois.doc, estadoDe) : antes),
+        },
+        props: { decorations: (estado) => CHAVE_DA_MESA.getState(estado) },
+      }),
+      new Plugin({
+        key: CHAVE_DO_CLIQUE_NA_MESA,
+        props: {
+          handleClickOn: (_vista, _posicao, no) => {
+            if (no.type.name !== PECAS_DO_TEXTO.ligacaoMesa) return false
+            const alvo = alvoDaMesa(no.attrs.alvo)
+            if (alvo === null || !estadoDe(alvo).abre) return false
+            aoAbrir(alvo)
+            return true
+          },
+        },
+      }),
+    ]
   },
 })
 
@@ -287,6 +388,8 @@ export interface OpcoesDoTexto {
   readonly convite: string
   readonly imagem: OpcoesDaImagem
   readonly mencao: OpcoesDaMencao
+  /** Sem ela, o link para a mesa só aparece (sem estado nem clique). */
+  readonly mesa?: OpcoesDaMesa
 }
 
 export function extensoesDoTexto(opcoes?: OpcoesDoTexto): Extensions {
@@ -296,7 +399,7 @@ export function extensoesDoTexto(opcoes?: OpcoesDoTexto): Extensions {
     StarterKit.configure({ trailingNode: false, link: { openOnClick: false, autolink: true, linkOnPaste: true } }),
     Imagem.configure(opcoes?.imagem ?? {}),
     Segredo,
-    LigacaoMesa,
+    LigacaoMesa.configure(opcoes?.mesa ?? {}),
     Mencao.configure(opcoes?.mencao ?? {}),
   ]
   if (opcoes !== undefined) lista.push(Placeholder.configure({ placeholder: opcoes.convite }))

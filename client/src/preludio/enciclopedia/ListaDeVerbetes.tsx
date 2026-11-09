@@ -40,6 +40,7 @@ function itensDaArvore(nos: readonly NoDaArvore[]): ItemDaArvore[] {
 
 export function lugarDoVerbete(verbete: Verbete, verbetes: ReadonlyMap<string, Verbete>): Lugar {
   if (verbete.tipo === 'pagina' && ehDaEscrita(verbete, verbetes)) return { secao: 'escrita', paginaId: verbete.id }
+  if (verbete.tipo === 'sessao') return { secao: 'sessoes', sessaoId: verbete.id }
   return { secao: 'enciclopedia', tipo: verbete.tipo, verbeteId: verbete.id }
 }
 

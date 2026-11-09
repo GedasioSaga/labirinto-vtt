@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import { gravarRevelado, gravarVerbete, lerIndiceDoPreparo, lerRevelado, lerVerbete, listarNoPreparo, type DocumentoLido } from '../../lib/preparo/disco'
+import { gravarRevelado, gravarTempo, gravarVerbete, lerIndiceDoPreparo, lerRevelado, lerTempo, lerVerbete, listarNoPreparo, type DocumentoLido } from '../../lib/preparo/disco'
 import { IndiceDeCitacoes, entradaDaBusca, type EntradaDaBusca } from '../../lib/preparo/enciclopedia'
 import { comRevelacoes, reveladoVazio, type MudancaDeRevelacao } from '../../lib/preparo/revelado'
-import type { Campanha, Revelado, TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
+import { comEvento, semEvento, tempoVazio } from '../../lib/preparo/sessoes'
+import type { Campanha, Evento, Revelado, Tempo, TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
 import { registrarSalvarAoFechar } from '../aoFechar'
 import { prepararMidia } from '../midia'
 
@@ -33,6 +34,7 @@ export type Lugar =
   | { readonly secao: 'inicio' }
   | { readonly secao: 'enciclopedia'; readonly tipo: TipoDeVerbete | 'todos'; readonly verbeteId: string | null }
   | { readonly secao: 'escrita'; readonly paginaId: string | null }
+  | { readonly secao: 'sessoes'; readonly sessaoId: string | null }
 
 export type Carga = { readonly t: 'fechada' } | { readonly t: 'lendo' } | { readonly t: 'pronta' } | { readonly t: 'falhou'; readonly aviso: string }
 
@@ -40,6 +42,14 @@ export type Salvamento = { readonly t: 'em-dia' } | { readonly t: 'esperando' } 
 
 /** Quem está gravando em preparo/ por fora do salvar automático: enquanto houver um, ninguém edita. */
 export type MotivoDaTrava = 'importacao' | 'restauracao'
+
+/** A linha do tempo como abriu (a F4 põe e tira os eventos de "O que aconteceu"). */
+export interface TempoNaTela {
+  /** `null` = o arquivo não abriu: nada vira evento até abrir de novo. */
+  readonly tempo: Tempo | null
+  /** Por que não dá para mudar (versão mais nova, arquivo danificado); `null` = dá. */
+  readonly soLeitura: string | null
+}
 
 /** O revelado de uma campanha como abriu. */
 export interface RevelacoesDaCampanha {
@@ -68,6 +78,9 @@ interface EstadoDoPreludio {
   revelados: ReadonlyMap<string, RevelacoesDaCampanha>
   /** A última revelação que o disco recusou (a tela já voltou ao que está gravado). */
   avisoDoRevelado: string | null
+  tempo: TempoNaTela
+  /** A última mudança da linha do tempo que o disco recusou (a tela já voltou ao que está gravado). */
+  avisoDoTempo: string | null
   carregar: () => Promise<void>
   fechar: () => Promise<void>
   ir: (lugar: Lugar) => void
@@ -81,6 +94,11 @@ interface EstadoDoPreludio {
   /** Revela ou oculta, numa campanha, e grava na hora. Travado, ou arquivo só de leitura: nada acontece. */
   revelar: (campanhaId: string, mudancas: readonly MudancaDeRevelacao[]) => Promise<void>
   dispensarAvisoDoRevelado: () => void
+  /** Põe (ou troca, pelo id) um evento na linha do tempo e grava na hora. Travado, ou arquivo só de leitura: nada acontece. */
+  registrarEvento: (evento: Evento) => Promise<void>
+  /** Tira o evento da linha do tempo e grava na hora. */
+  tirarEvento: (eventoId: string) => Promise<void>
+  dispensarAvisoDoTempo: () => void
   /** Grava agora o que mudou. `true` = está tudo no disco. */
   salvarPendentes: () => Promise<boolean>
   tentarDeNovo: () => void
@@ -248,6 +266,47 @@ function gravarRevelacoesEmVoo(campanhaId: string, revelado: Revelado): Promise<
   return tarefa
 }
 
+// ─── Linha do tempo ──────────────────────────────────────────────────────────
+
+const TEMPO_NAO_LIDO: TempoNaTela = { tempo: null, soLeitura: null }
+
+function tempoNaTela(lido: DocumentoLido<Tempo>): TempoNaTela {
+  switch (lido.estado) {
+    case 'novo':
+      return { tempo: tempoVazio(), soLeitura: null }
+    case 'ok':
+      return { tempo: lido.valor, soLeitura: null }
+    case 'somenteLeitura':
+      return { tempo: lido.valor, soLeitura: lido.aviso }
+    case 'falhou':
+      return { tempo: null, soLeitura: lido.aviso }
+  }
+}
+
+/** Muda a linha do tempo na memória e grava na hora; se o disco recusar, a tela volta ao que está gravado. */
+async function mudarTempo(mudar: (tempo: Tempo) => Tempo): Promise<void> {
+  const estado = usePreludio.getState()
+  const atual = estado.tempo
+  if (estado.travado || estado.carga.t !== 'pronta' || atual.tempo === null || atual.soLeitura !== null) return
+  const novo = mudar(atual.tempo)
+  if (novo === atual.tempo) return
+  usePreludio.setState({ tempo: { ...atual, tempo: novo }, avisoDoTempo: null })
+  const minha = geracao
+  const tarefa = gravarTempo(novo)
+    .catch(async (erro: unknown) => {
+      const lido = await lerTempo()
+      if (minha !== geracao) return
+      usePreludio.setState({ tempo: tempoNaTela(lido), avisoDoTempo: `A linha do tempo não foi gravada (${motivo(erro)}). A tela voltou ao que está no disco.` })
+    })
+    .finally(() => {
+      emVoo.delete(tarefa)
+      usePreludio.setState({ salvamento: situacao() })
+    })
+  emVoo.add(tarefa)
+  usePreludio.setState({ salvamento: situacao() })
+  await tarefa
+}
+
 async function gravarTudoAgora(): Promise<void> {
   for (const [id, relogio] of agendados) {
     clearTimeout(relogio)
@@ -297,6 +356,8 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
   campanhaId: null,
   revelados: new Map(),
   avisoDoRevelado: null,
+  tempo: TEMPO_NAO_LIDO,
+  avisoDoTempo: null,
 
   async carregar() {
     const minha = (geracao += 1)
@@ -333,12 +394,13 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       const revelados = new Map(
         await Promise.all(campanhas.map(async (campanha): Promise<[string, RevelacoesDaCampanha]> => [campanha.id, revelacoesDe(await lerRevelado(campanha.id))])),
       )
+      const tempo = tempoNaTela(await lerTempo())
       // As imagens do texto nascem com o endereço certo (`midia.ts`).
       await prepararMidia()
       if (minha !== geracao) return
       const guardada = campanhaGuardada()
       const campanhaId = guardada !== null && campanhas.some((campanha) => campanha.id === guardada) ? guardada : null
-      set({ carga: { t: 'pronta' }, campanhas, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, revelados, avisoDoRevelado: null, salvamento: situacao() })
+      set({ carga: { t: 'pronta' }, campanhas, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, revelados, avisoDoRevelado: null, tempo, avisoDoTempo: null, salvamento: situacao() })
     } catch (erro) {
       if (minha === geracao) set({ carga: { t: 'falhou', aviso: `Não deu para ler o Prelúdio: ${motivo(erro)}.` } })
     }
@@ -359,6 +421,8 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       // O revelado já foi ao disco (a espera acima inclui as gravações dele): a próxima abertura relê.
       revelados: new Map<string, RevelacoesDaCampanha>(),
       avisoDoRevelado: null,
+      tempo: TEMPO_NAO_LIDO,
+      avisoDoTempo: null,
       avisos: [],
       lugar: INICIO,
       salvamento: situacao(),
@@ -420,6 +484,18 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     set({ avisoDoRevelado: null })
   },
 
+  registrarEvento(evento) {
+    return mudarTempo((tempo) => comEvento(tempo, evento))
+  },
+
+  tirarEvento(eventoId) {
+    return mudarTempo((tempo) => semEvento(tempo, eventoId))
+  },
+
+  dispensarAvisoDoTempo() {
+    set({ avisoDoTempo: null })
+  },
+
   async salvarPendentes() {
     await gravarTudoAgora()
     return sujos.size === 0
@@ -445,7 +521,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       if (get().carga.t !== 'fechada') await get().carregar()
       else {
         citacoes = new IndiceDeCitacoes()
-        set({ verbetes: new Map(), soLeitura: new Map(), revelados: new Map() })
+        set({ verbetes: new Map(), soLeitura: new Map(), revelados: new Map(), tempo: TEMPO_NAO_LIDO })
       }
     }
     get().travar('restauracao', false)

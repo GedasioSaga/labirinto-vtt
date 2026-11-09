@@ -45,6 +45,15 @@ export interface LivroDoMestreProps {
   configuracoes: ReactNode
   /** Recebe o que o livro tapa do mapa: o livro aberto, ou só a lombada quando a página está recolhida. */
   obstaculoRef?: RefObject<HTMLElement | null>
+  /** Marcadores depois dos quatro de sempre (o Roteiro do Prelúdio). Lista estável: uma nova a cada desenho faria a fita reler o layout. */
+  paginasExtras?: readonly PaginaExtraDoMestre[]
+}
+
+/** Um marcador a mais no livro, com a página dele (uma `FolhaDoLivro` com o mesmo id). */
+export interface PaginaExtraDoMestre {
+  readonly id: PaginaDoMestre
+  readonly rotulo: string
+  readonly icone: ReactNode
 }
 
 const PAGINAS: readonly { id: PaginaDoMestre; rotulo: string; icone: NomeDoIcone }[] = [
@@ -96,7 +105,7 @@ function BotaoDoTopo({ nome, balao, atalho, icone, ...resto }: { nome: string; b
  * sempre, sem mudar o que fazem.
  */
 export function LivroDoMestre(props: LivroDoMestreProps) {
-  const { children, temSelecao, arquivo, obstaculoRef } = props
+  const { children, temSelecao, arquivo, obstaculoRef, paginasExtras } = props
   const pagina = useLivroDoMestreStore((state) => state.pagina)
   const recolhido = useLivroDoMestreStore((state) => state.recolhido)
   const novoTokenAberto = useLivroDoMestreStore((state) => state.novoTokenAberto)
@@ -151,14 +160,16 @@ export function LivroDoMestre(props: LivroDoMestreProps) {
   // Memorizado: o App renderiza a cada mudança do mapa (arrastar token,
   // pincelada) e um array novo faria a fita reler o layout em todo quadro.
   const marcadores = useMemo<PaginaDoMarcador<PaginaDoMestre>[]>(
-    () =>
-      PAGINAS.map((p) => ({
+    () => [
+      ...PAGINAS.map((p) => ({
         id: p.id,
         rotulo: p.rotulo,
         icone: <IconeDoLivro nome={p.icone} />,
         ...(p.id === 'ficha' ? { ponto: temSelecao && pagina !== 'ficha' } : {}),
       })),
-    [temSelecao, pagina],
+      ...(paginasExtras ?? []).map((p) => ({ id: p.id, rotulo: p.rotulo, icone: p.icone })),
+    ],
+    [temSelecao, pagina, paginasExtras],
   )
 
   const rotuloDoRecolher = recolhido ? 'Abrir a página' : 'Recolher a página'

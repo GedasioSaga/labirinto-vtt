@@ -22,6 +22,9 @@ vi.mock('../../lib/preparo/disco', () => ({
     if (recusaDoDisco !== null) throw new Error(recusaDoDisco)
     disco.set(verbete.id, structuredClone(verbete))
   }),
+  // A linha do tempo (F4) que o carregar também lê: sem arquivo, como num Prelúdio novo.
+  lerTempo: vi.fn(async () => ({ estado: 'novo' })),
+  gravarTempo: vi.fn(async () => undefined),
 }))
 
 vi.mock('../midia', () => ({ prepararMidia: vi.fn(async () => null) }))

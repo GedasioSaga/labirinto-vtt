@@ -152,6 +152,42 @@ export const CARTAZ = objeto({
   crime: texto(),
 })
 
+// ─── Para quem (revelado e sessão) ───────────────────────────────────────────
+
+const TODOS = 'todos'
+const CONTAS = lista(texto())
+
+/** `'todos'` = o grupo inteiro; senão, os ids das contas dos jogadores escolhidos. */
+export const PARA_QUEM: Molde<typeof TODOS | string[]> = {
+  ler: (bruto, onde) => (bruto === TODOS ? { ok: true, valor: TODOS } : CONTAS.ler(bruto, onde)),
+  gravar: (valor) => valor,
+}
+
+// ─── Sessão (F4) ─────────────────────────────────────────────────────────────
+
+/**
+ * Um verbete da lista "Revelar hoje". O botão Revelar revela, de uma vez, o
+ * verbete, a forma (a escolhida aqui, senão a ativa na hora do clique) e as
+ * seções comuns dela, para quem está em `para` (`lib/preparo/sessoes.ts`).
+ */
+export const PARA_REVELAR = objeto({
+  verbeteId: texto(),
+  formaId: opcional(texto()),
+  para: PARA_QUEM,
+})
+
+/** Uma linha de "O que aconteceu". Virar evento grava em tempo.json um evento com este mesmo id. */
+export const ACONTECIMENTO = objeto({
+  id: texto(),
+  texto: texto(),
+})
+
+/** O que só a sessão tem: o roteiro é o texto das seções dela, como na página. */
+export const DADOS_DA_SESSAO = objeto({
+  revelarHoje: lista(PARA_REVELAR),
+  aconteceu: lista(ACONTECIMENTO),
+})
+
 export const VERBETE = objeto({
   formato: numero(),
   id: texto(),
@@ -168,6 +204,8 @@ export const VERBETE = objeto({
   formaAtivaId: texto(),
   liga: opcional(LIGA),
   cartaz: opcional(CARTAZ),
+  /** Só no verbete de tipo sessão (F4). Campo opcional novo: o formato fica (`disco.ts`). */
+  sessao: opcional(DADOS_DA_SESSAO),
   origem: opcional(ORIGEM),
 })
 
@@ -284,15 +322,6 @@ export const ALVO_DA_REVELACAO = objeto({
   formaId: opcional(texto()),
 })
 
-const TODOS = 'todos'
-const CONTAS = lista(texto())
-
-/** `'todos'` = o grupo inteiro; senão, os ids das contas dos jogadores escolhidos. */
-const PARA_QUEM: Molde<typeof TODOS | string[]> = {
-  ler: (bruto, onde) => (bruto === TODOS ? { ok: true, valor: TODOS } : CONTAS.ler(bruto, onde)),
-  gravar: (valor) => valor,
-}
-
 /** Tudo começa oculto: só o que tem revelação aqui chega ao jogador. */
 export const REVELACAO = objeto({
   alvo: ALVO_DA_REVELACAO,
@@ -382,6 +411,9 @@ export type LigaFicha = Valor<typeof LIGA_FICHA>
 export type LigaCena = Valor<typeof LIGA_CENA>
 export type Recompensa = Valor<typeof RECOMPENSA>
 export type Cartaz = Valor<typeof CARTAZ>
+export type ParaRevelar = Valor<typeof PARA_REVELAR>
+export type Acontecimento = Valor<typeof ACONTECIMENTO>
+export type DadosDaSessao = Valor<typeof DADOS_DA_SESSAO>
 export type Origem = Valor<typeof ORIGEM>
 export type Verbete = Valor<typeof VERBETE>
 export type Ligacao = Valor<typeof LIGACAO>

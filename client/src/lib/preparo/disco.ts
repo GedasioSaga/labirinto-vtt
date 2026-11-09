@@ -4,7 +4,7 @@ import { FEATURES, type FeatureFlags } from '../features'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
 import { preparoLigado } from './chave'
 import { ehRegistro } from './molde'
-import { ARQUIVO_DO_INDICE, ARQUIVO_DO_REVELADO, ARQUIVO_DO_VERBETE, type ArquivoDoPreparo, type IndiceDoPreparo, type Revelado, type Verbete } from './tipos'
+import { ARQUIVO_DO_INDICE, ARQUIVO_DO_REVELADO, ARQUIVO_DO_TEMPO, ARQUIVO_DO_VERBETE, type ArquivoDoPreparo, type IndiceDoPreparo, type Revelado, type Tempo, type Verbete } from './tipos'
 
 /**
  * O DISCO DO PRELÚDIO: ler e gravar os arquivos de `<appData>/preparo/`
@@ -313,4 +313,13 @@ export function lerRevelado(campanhaId: string, flags: Readonly<FeatureFlags> = 
 
 export function gravarRevelado(campanhaId: string, revelado: Revelado, flags: Readonly<FeatureFlags> = FEATURES): Promise<void> {
   return gravarNoPreparo(ARQUIVO_DO_REVELADO, LUGARES.revelado(campanhaId), revelado, flags)
+}
+
+/** A linha do tempo (eras, faixas e eventos): a F4 só põe e tira os eventos que vêm de "O que aconteceu". */
+export function lerTempo(flags: Readonly<FeatureFlags> = FEATURES): Promise<DocumentoLido<Tempo>> {
+  return lerDoPreparo(ARQUIVO_DO_TEMPO, LUGARES.tempo(), flags)
+}
+
+export function gravarTempo(tempo: Tempo, flags: Readonly<FeatureFlags> = FEATURES): Promise<void> {
+  return gravarNoPreparo(ARQUIVO_DO_TEMPO, LUGARES.tempo(), tempo, flags)
 }

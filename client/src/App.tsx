@@ -123,6 +123,8 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
 import { PreludioSobDemanda } from './preludio/PreludioSobDemanda'
+import { RoteiroNoLivro, usePaginasDoPreludioNoLivro } from './preludio/roteiro/RoteiroNoLivro'
+import type { LigaCena } from './lib/preparo/tipos'
 import { preludioDeixaFechar } from './preludio/aoFechar'
 import { LivrosScreen } from './screens/LivrosScreen'
 import { MundoDoLivro } from './components/livros/MundoDoLivro'
@@ -1693,6 +1695,8 @@ function App() {
   const [currentMapPath, setCurrentMapPath] = useState<string | null>(null)
   /** O salvamento automático lê a origem na hora da cópia, fora do render. */
   const currentMapPathRef = useRef<string | null>(null)
+  /** PRELÚDIO (F4): o marcador Roteiro do Livro do mestre, só com a chave preparo ligada. */
+  const paginasDoPreludio = usePaginasDoPreludioNoLivro()
   /**
    * Cópia de recuperação deixada por uma abertura anterior que fechou sem
    * salvar — vira a oferta "Recuperar" no menu inicial. Só vale até o mestre
@@ -3080,6 +3084,25 @@ function App() {
     setPendingOpen({ run })
   }
 
+  /**
+   * PRELÚDIO (F4): o link de cena ou pino do roteiro abre o mapa dele, na cena
+   * e no pino. Trocar de mapa passa pela mesma pergunta de trabalho não salvo.
+   */
+  const abrirNaMesaPeloRoteiro = (alvo: LigaCena) => {
+    const avisar = (texto: string, tipo: ToastKind) => useToastStore.getState().push(tipo, texto)
+    void import('./preludio/mesa/irParaAMesa').then(
+      ({ abrirNaMesa }) =>
+        abrirNaMesa(alvo, {
+          caminhoAberto: () => currentMapPathRef.current,
+          abrirArquivo: openMapFileWithFolder,
+          irAoEditor: () => setScreen('editor'),
+          antesDeTrocar: askBeforeReplacingMap,
+          avisar,
+        }),
+      () => avisar('Não deu para abrir o mapa do link. Feche e abra o Labirinto de novo.', 'error'),
+    )
+  }
+
   const handleOpen = () => askBeforeReplacingMap(openMapFromPicker)
 
   const handleOpenSavedPath = (path: string) => askBeforeReplacingMap(() => openMapFromPath(path))
@@ -3381,7 +3404,7 @@ function App() {
   if (screen === 'preludio') {
     return (
       <>
-        <PreludioSobDemanda onBack={() => setScreen(parentScreen(screen))} />
+        <PreludioSobDemanda onBack={() => setScreen(parentScreen(screen))} aoAbrirNaMesa={abrirNaMesaPeloRoteiro} />
         {toastStack}
       </>
     )
@@ -3605,6 +3628,7 @@ function App() {
           antiga barra de ações). Grupo, Chat, Cenas e Mesa moram no livro da mesa. */}
       <LivroDoMestre
         obstaculoRef={editorRailRef}
+        paginasExtras={paginasDoPreludio}
         temSelecao={selection.length > 0 || selectedPinId !== null || selectedConcealZone !== null}
         onDesfazer={undo}
         onRefazer={redo}
@@ -4616,6 +4640,7 @@ function App() {
               pincel: pincelNasCamadas,
             }}
           />
+          {paginasDoPreludio !== undefined && <RoteiroNoLivro aoAbrirNaMesa={abrirNaMesaPeloRoteiro} />}
       </LivroDoMestre>
 
       {/* LIVRO DA MESA (fatia 4 do design consolidado): a lombada com Grupo,
