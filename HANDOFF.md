@@ -5,8 +5,8 @@ Pedidos do usuário de 07-09/11 (todos literais em PEDIDOS.md): (1) conserto das
 
 ## Estado atual
 - PUBLICADO E INSTALADO no PC do usuário: 0.5.38 (Fogo no pino; release minigames com o jogo; release v0.5.38; site e Worker). main = dfb31d1b enviada. Fichas: F1+F2+F2b na 0.5.37; dados F0/F0c/F0d aplicados com backups rpg.json.antes-do-conserto-20261108(-2,-3); sobem ao Lobby quando o mestre abrir o app (mudadas-no-disco.json).
-- PRELÚDIO: F0, Drive, F1, F2a, F2b, F2c, F4 prontos na main, escondidos (chave preparo / Ctrl+Alt+P). Falta o comando Rust preludio_espaco_livre (agente engenheiro-desktop em curso) e a versão de teste local.
-- CONSTRUTOR: C1-C3 prontos (4952405a, 9b271d15, a4ef186f, 3c7ee56c, f456f9fd + correção C3); workflow wf_d0dfe479-6a4 em curso (C4, C5, auditoria).
+- PRELÚDIO: F0, Drive, F1, F2a, F2b, F2c, F4 e preludio_espaco_livre (d1bd8ad6) prontos, escondidos (Ctrl+Alt+P na tela inicial). Versão de teste 0.5.39 instalada no PC do mestre. ESPERANDO O MESTRE no portão (roteiro entregue; ele perguntou onde está a porta: é o Ctrl+Alt+P).
+- CONSTRUTOR: C1-C5 prontos e revisados (4952405a..e9add1eb); auditoria: 326 testes da batalha verdes, 11 fichas reais idênticas (sha256 igual), NPC inventado com 3 técnicas montadas joga; faltam ver a tela da C2 (prints/passeio) e o dono propor mecânica pelo site do Lobby: agente designer-opus fazendo.
 - Fogo: projeto em ~/jogos/fogo-na-floresta (fase 3c aprovada: "Gostei").
 - Worktree ../labirinto-release ficou no disco (remove deu Permission denied; junções já removidas): rodar git worktree prune e apagar a pasta depois.
 
