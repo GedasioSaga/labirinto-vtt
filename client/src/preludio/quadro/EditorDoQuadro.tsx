@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEven
 import { getAssetUrlsByImport } from '@tldraw/assets/imports.vite'
 import {
   Tldraw,
+  createShapeId,
   createTLStore,
   defaultShapeUtils,
   getSnapshot,
@@ -14,22 +15,26 @@ import {
   type TLAssetStore,
   type TLEditorSnapshot,
   type TLEventInfo,
+  type TLImageShape,
   type TLShapeId,
   type TLStore,
 } from 'tldraw'
 import 'tldraw/tldraw.css'
+import { ROTULO_DO_TIPO, verbeteNovo } from '../../lib/preparo/enciclopedia'
 import { ehLugarDentroDeLugar, gravarLigacoes, haLigacaoEntre, lerLigacoes, ligacaoNova, ligacoesVazias, tiposParaSugerir } from '../../lib/preparo/ligacoes'
 import { caminhosSemMidia, ehPlanta, extensaoDaImagem, fotoComMidia, gravarMidiaDoQuadro, midiaDoAsset, midiaNaTabela, tabelaDeMidiaDasImportacoes } from '../../lib/preparo/quadros'
 import type { Ligacao, Quadro, Verbete } from '../../lib/preparo/tipos'
 import { agendarGravacaoDeFora, usePreludio } from '../estado/preludio'
 import { prepararMidia, urlDaMidia } from '../midia'
-import { CARD_ALTURA_PADRAO, CARD_LARGURA_PADRAO, UTILS_DOS_CARTOES, abrirVerbeteDoQuadro, verbeteDoCartao } from './cartoes'
+import { CARD_ALTURA_PADRAO, CARD_LARGURA_PADRAO, UTILS_DOS_CARTOES, abrirVerbeteDoQuadro, marcarChegada, tipoDeCartaoDo, verbeteDoCartao } from './cartoes'
 import { chaveDaGravacaoDoQuadro, gravarQuadroAtual, lerQuadroAtual, useQuadros } from './estadoDosQuadros'
 import { exportarQuadro, type FormatoDeExportacao } from './exportarQuadro'
 import { GavetaDeVerbetes } from './GavetaDeVerbetes'
 import { criarGravadorDoQuadro } from './gravadorDoQuadro'
 import { cartoesPorVerbete, desenharSetasDasLigacoes, mostrarForma, pontasDaSeta, porCartao, rotularSeta, setasQueFaltam, textoDaSeta, verbeteDaForma } from './ligacoesNoQuadro'
 import { PerguntaDaLigacao, type PerguntaDeLigacao } from './PerguntaDaLigacao'
+import { PerguntaDaImagem, type TipoDaImagem } from './PerguntaDaImagem'
+import { registrarAtalhosDoQuadro } from './atalhosDoQuadro'
 import { UTILS_DA_PLANTA, definirResolvedoresDaPlanta } from './planta'
 import { QuadroEsperando } from './esperando'
 import { definirQuadroAberto, focoFicaFora, MIME_DO_VERBETE } from './quadroAtivo'
@@ -74,6 +79,11 @@ const ENDERECOS_DO_TLDRAW = getAssetUrlsByImport()
 const CHAVE_DO_TLDRAW: string | undefined = import.meta.env.VITE_TLDRAW_LICENSE_KEY || undefined
 
 const PLANTA_SO_PARA_VER = 'Planta do Grimório: abre só para ver. O mapa se faz no editor de mapas do Labirinto.'
+const NA_LIXEIRA = 'Este quadro está na lixeira: abre só para ver. Para mexer, restaure pela lista de Quadros (botão Lixeira).'
+const IMAGEM_SEM_ARQUIVO = 'Esta imagem não tem arquivo no Prelúdio (veio do Grimório sem ele). Importe de novo pelo Início para trazê-la.'
+/** O tldraw dá à primeira página do quadro novo o nome "Page 1"; o Prelúdio fala português. */
+const PAGINA_EM_INGLES = 'Page 1'
+const PRIMEIRA_PAGINA = 'Página 1'
 const TRAVADO = 'O Prelúdio está gravando uma importação ou uma cópia restaurada. Tente de novo quando terminar.'
 
 /** Quanto tempo o resultado (exportar, pôr cartão, ligação criada) fica na barra. */
@@ -195,6 +205,7 @@ async function abrir(id: string): Promise<Abertura> {
     if (lido.estado === 'somenteLeitura') soLeitura = lido.aviso
   }
   if (soLeitura === null && ehPlanta(quadro)) soLeitura = PLANTA_SO_PARA_VER
+  if (soLeitura === null && quadro.lixeira !== undefined) soLeitura = NA_LIXEIRA
 
   // Imagem vinda do Grimório: o endereço do Prelúdio sai da tabela da importação (o `meta.rel` fica).
   let foto: unknown = quadro.tldraw
@@ -253,6 +264,7 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
   const [gavetaPeloBotao, setGavetaPeloBotao] = useState(false)
   const [ligacoes, setLigacoes] = useState<LigacoesDoQuadro>({ lista: [], bloqueio: null })
   const [pergunta, setPergunta] = useState<Pergunta | null>(null)
+  const [imagemEmVerbete, setImagemEmVerbete] = useState<{ readonly id: TLShapeId; readonly sugestao: string; readonly midia: string | null } | null>(null)
   const [soltando, setSoltando] = useState(false)
   const nomeGravado = useRef(quadro.nome)
   const campoDoNome = useRef<HTMLInputElement>(null)
@@ -429,7 +441,26 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
   }, [editor, somenteVer])
 
   const aoMontar = (montado: Editor) => {
-    montado.user.updateUserPreferences({ colorScheme: 'dark' })
+    // O idioma fica em português, qualquer que seja o do Windows (o tldraw seguia o do sistema).
+    montado.user.updateUserPreferences({ colorScheme: 'dark', locale: 'pt-br' })
+    // O quadro nascido no Prelúdio: a primeira página ganha nome em português, fora do desfazer e antes de marcar a abertura (o importado fica como veio).
+    if (quadro.origem === undefined && !somenteVer) {
+      const paginas = montado.getPages()
+      const primeira = paginas[0]
+      if (paginas.length === 1 && primeira !== undefined && primeira.name === PAGINA_EM_INGLES) montado.run(() => montado.renamePage(primeira.id, PRIMEIRA_PAGINA), { history: 'ignore' })
+    }
+    const pararAtalhos = registrarAtalhosDoQuadro(montado, {
+      abrirVerbete: abrirVerbeteDoQuadro,
+      imagemEmVerbete: somenteVer
+        ? null
+        : (imagem: TLImageShape) => {
+            const asset = imagem.props.assetId === null ? undefined : montado.getAsset(imagem.props.assetId)
+            const nomeDoArquivo = asset?.type === 'image' ? asset.props.name : ''
+            setPergunta(null)
+            setImagemEmVerbete({ id: imagem.id, sugestao: nomeDoArquivo.replace(/\.[A-Za-z0-9]{1,8}$/, '').replace(/[-_]+/g, ' ').trim(), midia: midiaDoAsset(asset?.meta) })
+          },
+      avisar: (texto, falhou) => setResultado({ texto, falhou }),
+    })
     // As salas da planta mostram o nome do lugar ligado, e o duplo clique abre o verbete.
     const verbeteDe = (verbeteId: string) => verbeteDoCartao(usePreludio.getState().verbetes, verbeteId)
     const abrirVerbete = (verbeteId: string) => {
@@ -453,6 +484,7 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
     return () => {
       const { x, y, z } = montado.getCamera()
       cameras.set(id, { x, y, z })
+      pararAtalhos()
       pararDeOuvir()
       definirResolvedoresDaPlanta({})
       setEditor(null)
@@ -611,6 +643,47 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
 
   const bloqueioDaLigacao = travado ? TRAVADO : ligacoes.bloqueio
 
+  const dispensarImagem = () => {
+    setImagemEmVerbete(null)
+    editor?.focus()
+  }
+
+  /** A imagem vira verbete: ele nasce com ela de retrato (o arquivo já está em `midia/`), e o cartão fica no lugar dela, na mesma moldura. */
+  const criarVerbeteDaImagem = async (tipo: TipoDaImagem, nomeDoVerbete: string): Promise<string | null> => {
+    const pedido = imagemEmVerbete
+    if (pedido === null || editor === null) return null
+    if (usePreludio.getState().travado) return TRAVADO
+    if (pedido.midia === null) return IMAGEM_SEM_ARQUIVO
+    const imagem = editor.getShape(pedido.id)
+    if (imagem === undefined) return 'A imagem não está mais no quadro.'
+    const campanha = quadro.campanhaId ?? campanhaDoFiltro
+    const base = verbeteNovo(tipo, nomeDoVerbete, { campanhas: campanha === null ? [] : [campanha] })
+    const midia = pedido.midia
+    const novo: Verbete = { ...base, formas: base.formas.map((forma, indice) => (indice === 0 ? { ...forma, retrato: midia } : forma)) }
+    await usePreludio.getState().criarVerbete(novo)
+    const centro = editor.getShapePageBounds(imagem)?.center ?? pontoNoMeio(editor)
+    const pai = imagem.parentId
+    const formaNova = createShapeId()
+    const tipoDoCartao = tipoDeCartaoDo(novo)
+    const posicao = { id: formaNova, x: centro.x - CARD_LARGURA_PADRAO / 2, y: centro.y - CARD_ALTURA_PADRAO / 2 }
+    marcarChegada(formaNova)
+    // Um passo só no desfazer: a imagem sai e o cartão entra juntos.
+    editor.markHistoryStoppingPoint('imagem vira verbete')
+    editor.run(() => {
+      editor.deleteShapes([imagem.id])
+      if (tipoDoCartao === 'cenario-card') editor.createShape({ ...posicao, type: tipoDoCartao, props: { cenarioId: novo.id } })
+      else if (tipoDoCartao === 'item-card') editor.createShape({ ...posicao, type: tipoDoCartao, props: { itemId: novo.id } })
+      else editor.createShape({ ...posicao, type: tipoDoCartao, props: { personagemId: novo.id } })
+      // Dentro de uma moldura (a cena do mapa mental), o cartão continua dentro dela.
+      if (editor.getShape(pai)?.type === 'frame') editor.reparentShapes([formaNova], pai)
+    })
+    editor.select(formaNova)
+    setImagemEmVerbete(null)
+    setResultado({ texto: `${nomeDoVerbete} virou ${ROTULO_DO_TIPO[tipo].um.toLowerCase()}, com a imagem de retrato.`, falhou: false })
+    editor.focus()
+    return null
+  }
+
   return (
     <div className="pr-quadro">
       <div className="pr-quadro__barra">
@@ -683,6 +756,15 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
             </>
           )}
           {pergunta !== null && <PerguntaDaLigacao key={pergunta.setaId} pergunta={pergunta} tipos={tipos} bloqueio={bloqueioDaLigacao} aoCriar={criarLigacao} aoDispensar={dispensarPergunta} />}
+          {imagemEmVerbete !== null && (
+            <PerguntaDaImagem
+              key={imagemEmVerbete.id}
+              sugestao={imagemEmVerbete.sugestao}
+              bloqueio={travado ? TRAVADO : imagemEmVerbete.midia === null ? IMAGEM_SEM_ARQUIVO : null}
+              aoCriar={criarVerbeteDaImagem}
+              aoDispensar={dispensarImagem}
+            />
+          )}
         </div>
         {gavetaAberta && editor !== null && (
           <GavetaDeVerbetes

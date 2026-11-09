@@ -56,6 +56,76 @@
 /* A aba Quadro: o quadro da sessão ocupa o palco inteiro, como em Quadros. */
 .pr-sessao__quadro { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .pr-sessao__sem-quadro { width: min(560px, 100%); margin: 0 auto; padding: var(--lb-space-12) var(--lb-space-6); }
+.pr-sessao__sem-quadro-acoes { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--lb-space-2); }
+
+/*
+ * A sessão aberta ocupa o palco (F3c): em abas, o roteiro rola dentro dela;
+ * lado a lado (palco largo), o roteiro e o quadro dividem a largura, como o
+ * Workspace do Grimório. A divisória acompanha o ponteiro sem atraso.
+ */
+.pr-sessao-casca { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pr-sessao__rolagem { flex: 1; min-height: 0; overflow-y: auto; }
+
+.pr-lados { flex: 1; min-height: 0; display: flex; }
+.pr-lados__lado { flex-basis: 0; min-width: 0; display: flex; flex-direction: column; }
+.pr-lados__lado--recolhido { flex: 0 0 40px; }
+.pr-lados__roteiro { background: var(--lb-gr-papel-alto); }
+.pr-lados__cabeca {
+  flex: none; display: flex; align-items: center; gap: var(--lb-space-2); min-height: calc(32px + 2 * var(--lb-space-2));
+  padding: var(--lb-space-2) var(--lb-space-3); border-bottom: 1px solid var(--lb-gr-filete); background: var(--lb-gr-papel-alto);
+}
+.pr-lados__titulo { font: 500 var(--lb-font-size-sm)/1 var(--lb-font-sans); color: var(--lb-color-parchment-dim); }
+.pr-lados__cabeca > .pr-lados__recolher { margin-left: auto; }
+.pr-lados__titulo-do-quadro { flex: none; display: flex; align-items: center; gap: var(--lb-space-2); margin-right: var(--lb-space-1); }
+.pr-lados__recolher {
+  width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
+  border: 1px solid transparent; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment-faint); cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out), color var(--lb-motion-fast) ease;
+}
+.pr-lados__recolher:active { transform: scale(0.95); }
+.pr-lados__recolher svg, .pr-lados__faixa svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.pr-lados__quadro .pr-lados__recolher svg { transform: scaleX(-1); }
+.pr-lados__rolagem { flex: 1; min-height: 0; overflow-y: auto; container-type: inline-size; }
+
+/* o lado recolhido vira uma faixa: o botão inteiro traz o lado de volta */
+.pr-lados__faixa {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: var(--lb-space-2); padding: var(--lb-space-3) 0;
+  border: 0; border-right: 1px solid var(--lb-gr-filete); background: var(--lb-gr-papel-baixo); color: var(--lb-color-parchment-faint); cursor: pointer;
+  font: 500 var(--lb-font-size-sm)/1 var(--lb-font-sans);
+}
+.pr-lados__quadro .pr-lados__faixa { border-right: 0; border-left: 1px solid var(--lb-gr-filete); }
+.pr-lados__faixa span { writing-mode: vertical-rl; letter-spacing: 0.04em; }
+
+/* a divisória: 9 px de alvo, 1 px de linha; acende com o ponteiro, o foco e o arrasto */
+.pr-lados__divisoria {
+  position: relative; z-index: 2; flex: none; width: 9px; margin: 0 -4px; cursor: col-resize; touch-action: none; outline: none;
+}
+.pr-lados__divisoria::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: var(--lb-gr-filete-forte);
+  transition: background-color var(--lb-motion-fast) ease, width var(--lb-motion-fast) ease, left var(--lb-motion-fast) ease;
+}
+.pr-lados__divisoria::after {
+  content: ''; position: absolute; top: 50%; left: 2px; width: 5px; height: 32px; translate: 0 -50%;
+  border-radius: var(--lb-radius-full); background: var(--lb-color-brass); opacity: 0; transition: opacity var(--lb-motion-fast) ease;
+}
+.pr-lados__divisoria:focus-visible::before, .pr-lados--arrastando .pr-lados__divisoria::before { left: 3px; width: 3px; background: var(--lb-color-brass); }
+.pr-lados__divisoria:focus-visible::after, .pr-lados--arrastando .pr-lados__divisoria::after { opacity: 1; }
+.pr-tela .pr-lados__divisoria:focus-visible { box-shadow: none; }
+/* arrastando: nada se seleciona e o quadro não disputa o ponteiro */
+.pr-lados--arrastando { cursor: col-resize; user-select: none; }
+.pr-lados--arrastando .pr-lados__lado { pointer-events: none; }
+
+/* o roteiro estreito: a folha vira uma coluna só, com o trilho embaixo */
+@container (max-width: 860px) {
+  .pr-lados__rolagem .pr-folha { grid-template-columns: minmax(0, 1fr); gap: var(--lb-space-6); padding: var(--lb-space-5) var(--lb-space-5) var(--lb-space-10); }
+  .pr-lados__rolagem .pr-trilho { position: static; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .pr-lados__divisoria:hover::before { left: 3px; width: 3px; background: var(--lb-gr-filete-latao); }
+  .pr-lados__divisoria:hover::after { opacity: 0.7; }
+  .pr-lados__recolher:hover { color: var(--lb-color-parchment); background: var(--lb-gr-hover); }
+  .pr-lados__faixa:hover { color: var(--lb-color-parchment); background: var(--lb-gr-hover); }
+}
 
 /* ─── O que aconteceu ─────────────────────────────────────────────────────── */
 

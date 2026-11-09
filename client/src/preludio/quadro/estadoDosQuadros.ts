@@ -22,6 +22,8 @@ export interface ResumoDoQuadro {
   readonly planta: boolean
   /** Por que abre só para leitura, ou por que não abre; `null` = abre para editar. */
   readonly aviso: string | null
+  /** Na lixeira desde (ISO); `null` = fora dela. */
+  readonly lixeira: string | null
 }
 
 export type ListaDosQuadros = { readonly t: 'nao-lida' } | { readonly t: 'lendo' } | { readonly t: 'pronta'; readonly quadros: readonly ResumoDoQuadro[] } | { readonly t: 'falhou'; readonly aviso: string }
@@ -44,6 +46,46 @@ interface EstadoDosQuadros {
   /** O nome mudou no editor (a gravação vem depois): a trilha e a lista já mostram o novo. */
   renomear: (id: string, nome: string) => void
   esquecerRecemCriado: () => void
+  /** Manda para a lixeira (`true`) ou restaura (`false`); devolve o motivo se não deu. */
+  porNaLixeira: (id: string, naLixeira: boolean) => Promise<string | null>
+  /** Muda o quadro de campanha (`null` = sem campanha); devolve o motivo se não deu. */
+  mudarCampanha: (id: string, campanhaId: string | null) => Promise<string | null>
+}
+
+const TRAVADO = 'O Prelúdio está gravando uma importação ou uma cópia restaurada. Tente de novo quando terminar.'
+
+/**
+ * Muda o arquivo de um quadro fechado (a lista): lê o de agora (a gravação
+ * pendente dele termina antes) e grava o que `mudar` devolve, com o resto
+ * como estava. Devolve o quadro gravado, ou o motivo de não ter mudado.
+ */
+async function mudarArquivo(id: string, mudar: (quadro: Quadro) => Quadro): Promise<{ readonly quadro: Quadro } | { readonly aviso: string }> {
+  if (usePreludio.getState().travado) return { aviso: TRAVADO }
+  let quadro: Quadro
+  try {
+    const atual = await lerQuadroAtual(id)
+    if (atual.t === 'naoGravado') quadro = atual.quadro
+    else if (atual.lido.estado === 'ok' && atual.lido.valor !== null) quadro = atual.lido.valor
+    else if (atual.lido.estado === 'novo') return { aviso: 'Este quadro não existe mais.' }
+    else if (atual.lido.estado === 'somenteLeitura') return { aviso: `${atual.lido.aviso} Ele não muda daqui.` }
+    else return { aviso: atual.lido.estado === 'falhou' ? atual.lido.aviso : 'O arquivo do quadro está vazio.' }
+  } catch (erro) {
+    return { aviso: `Não deu para ler o quadro: ${motivo(erro)}.` }
+  }
+  const novo = mudar(quadro)
+  try {
+    await gravarQuadroAtual(id, novo)
+  } catch (erro) {
+    return { aviso: `O quadro não foi gravado: ${motivo(erro)}` }
+  }
+  return { quadro: novo }
+}
+
+/** O quadro sem a chave (e não com ela valendo `undefined`): restaurar devolve o arquivo igual ao de antes da lixeira. */
+function sem<C extends 'lixeira' | 'campanhaId'>(quadro: Quadro, chave: C): Quadro {
+  const copia = { ...quadro }
+  delete copia[chave]
+  return copia
 }
 
 export const NOME_DE_QUADRO_NOVO = 'Quadro sem nome'
@@ -63,11 +105,12 @@ export function resumir(id: string, quadro: Quadro, aviso: string | null): Resum
     contagem: contarFormas(quadro.tldraw),
     planta: ehPlanta(quadro),
     aviso,
+    lixeira: quadro.lixeira ?? null,
   }
 }
 
 function resumoDaLista(item: QuadroNaLista): ResumoDoQuadro {
-  if (item.quadro === null) return { id: item.id, nome: item.id, campanhaId: null, sessaoId: null, contagem: null, planta: false, aviso: item.aviso }
+  if (item.quadro === null) return { id: item.id, nome: item.id, campanhaId: null, sessaoId: null, contagem: null, planta: false, aviso: item.aviso, lixeira: null }
   return resumir(item.id, item.quadro, item.aviso)
 }
 
@@ -126,6 +169,20 @@ export const useQuadros = create<EstadoDosQuadros>()((set, get) => ({
   esquecerRecemCriado() {
     set({ recemCriado: null })
   },
+
+  async porNaLixeira(id, naLixeira) {
+    const feito = await mudarArquivo(id, (quadro) => (naLixeira ? { ...quadro, lixeira: new Date().toISOString() } : sem(quadro, 'lixeira')))
+    if ('aviso' in feito) return feito.aviso
+    get().gravado(id, feito.quadro)
+    return null
+  },
+
+  async mudarCampanha(id, campanhaId) {
+    const feito = await mudarArquivo(id, (quadro) => (campanhaId === null ? sem(quadro, 'campanhaId') : { ...quadro, campanhaId }))
+    if ('aviso' in feito) return feito.aviso
+    get().gravado(id, feito.quadro)
+    return null
+  },
 }))
 
 /** O quadro entra no filtro "Campanha"? Sem filtro, todos; o quadro sem campanha, em qualquer filtro. */
@@ -133,11 +190,22 @@ function noFiltro(quadro: ResumoDoQuadro, campanhaId: string | null): boolean {
   return campanhaId === null || quadro.campanhaId === null || quadro.campanhaId === campanhaId
 }
 
-/** Os quadros do filtro "Campanha" (todos, sem filtro). O quadro sem campanha aparece em qualquer filtro. */
+/** Os quadros do filtro "Campanha" (todos, sem filtro), fora os da lixeira. O quadro sem campanha aparece em qualquer filtro. */
 export function quadrosDaCampanha(lista: ListaDosQuadros, campanhaId: string | null): readonly ResumoDoQuadro[] {
   if (lista.t !== 'pronta') return []
-  if (campanhaId === null) return lista.quadros
-  return lista.quadros.filter((quadro) => noFiltro(quadro, campanhaId))
+  return lista.quadros.filter((quadro) => quadro.lixeira === null && noFiltro(quadro, campanhaId))
+}
+
+/** Os quadros na lixeira (de todas as campanhas: o filtro não esconde o que foi jogado fora), o último a entrar primeiro. */
+export function quadrosNaLixeira(lista: ListaDosQuadros): readonly ResumoDoQuadro[] {
+  if (lista.t !== 'pronta') return []
+  return lista.quadros.filter((quadro) => quadro.lixeira !== null).sort((a, b) => (b.lixeira ?? '').localeCompare(a.lixeira ?? ''))
+}
+
+/** O quadro desta sessão que está na lixeira (a aba Quadro oferece restaurar). */
+export function quadroDaSessaoNaLixeira(lista: ListaDosQuadros, sessaoId: string): ResumoDoQuadro | undefined {
+  if (lista.t !== 'pronta') return undefined
+  return quadrosNaLixeira(lista).find((quadro) => quadro.sessaoId === sessaoId)
 }
 
 /**
@@ -149,7 +217,7 @@ export function quadrosDaCampanha(lista: ListaDosQuadros, campanhaId: string | n
 export function quadroDaSessao(lista: ListaDosQuadros, sessaoId: string): ResumoDoQuadro | undefined {
   if (lista.t !== 'pronta') return undefined
   let escolhido: ResumoDoQuadro | undefined
-  for (const quadro of lista.quadros) if (quadro.sessaoId === sessaoId && (escolhido === undefined || quadro.id < escolhido.id)) escolhido = quadro
+  for (const quadro of lista.quadros) if (quadro.sessaoId === sessaoId && quadro.lixeira === null && (escolhido === undefined || quadro.id < escolhido.id)) escolhido = quadro
   return escolhido
 }
 
@@ -165,7 +233,7 @@ export function quadrosParaCitar(lista: ListaDosQuadros, campanhaId: string | nu
   const daAba = sessaoId === null ? undefined : quadroDaSessao(lista, sessaoId)
   const peso = (quadro: ResumoDoQuadro) => (quadro.id === daAba?.id ? 2 : sessaoId !== null && quadro.sessaoId === sessaoId ? 1 : 0)
   // A lista já vem em ordem de nome, e o sort é estável: dentro de cada peso, a ordem fica.
-  return lista.quadros.filter((quadro) => !quadro.planta && quadro.contagem !== null && (peso(quadro) > 0 || noFiltro(quadro, campanhaId))).sort((a, b) => peso(b) - peso(a))
+  return lista.quadros.filter((quadro) => !quadro.planta && quadro.contagem !== null && quadro.lixeira === null && (peso(quadro) > 0 || noFiltro(quadro, campanhaId))).sort((a, b) => peso(b) - peso(a))
 }
 
 // ─── O quadro como o mestre o deixou ─────────────────────────────────────────

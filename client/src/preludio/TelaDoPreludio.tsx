@@ -247,8 +247,9 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
     (id) => verbetes.get(id)?.titulo,
     (id) => (listaDosQuadros.t === 'pronta' ? listaDosQuadros.quadros.find((quadro) => quadro.id === id)?.nome : undefined),
   )
-  // O quadro (da lista ou o da sessão) ocupa o palco inteiro: quem rola e aproxima é o tldraw.
-  const quadroAberto = (lugar.secao === 'quadros' && lugar.quadroId !== null) || (lugar.secao === 'sessoes' && lugar.sessaoId !== null && lugar.aba === 'quadro')
+  // O quadro (da lista ou o da sessão) ocupa o palco inteiro: quem rola e aproxima é o tldraw. A sessão aberta
+  // também (F3c): lado a lado, cada lado rola por conta própria; em abas, o roteiro rola dentro da sessão.
+  const quadroAberto = (lugar.secao === 'quadros' && lugar.quadroId !== null) || (lugar.secao === 'sessoes' && lugar.sessaoId !== null)
   const atual = trilha[trilha.length - 1] ?? TITULO_DO_PRELUDIO
   const antes = ['Labirinto', ...(trilha.length > 0 ? [TITULO_DO_PRELUDIO] : []), ...trilha.slice(0, -1)]
 

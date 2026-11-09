@@ -285,6 +285,12 @@ export const QUADRO = objeto({
   /** A foto do documento do tldraw, intacta: o tldraw tem esquema e migração próprios. */
   tldraw: qualquer(),
   origem: opcional(ORIGEM),
+  /**
+   * Na lixeira desde (data e hora, ISO). O quadro continua no lugar e com tudo
+   * dentro; a lista e a sessão o deixam de fora até o mestre restaurar (F3c).
+   * Campo opcional novo: o formato fica.
+   */
+  lixeira: opcional(texto()),
 })
 
 // ─── Atlas: atlas/<id>.json ──────────────────────────────────────────────────

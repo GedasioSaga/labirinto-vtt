@@ -14,13 +14,15 @@ import {
   type TLShape,
   type TLShapePartial,
 } from 'tldraw'
-import { ROTULO_DO_TIPO, textoPlano } from '../../lib/preparo/enciclopedia'
+import { ROTULO_DO_TIPO } from '../../lib/preparo/enciclopedia'
 import type { Verbete } from '../../lib/preparo/tipos'
 import { lugarDoVerbete } from '../enciclopedia/ListaDeVerbetes'
 import { usePreludio, type Lugar } from '../estado/preludio'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
 import { ajustarLargura, alturaMoldadaAImagem, colunasPaineisVisiveis, colunasTotais, escalaDoCartao } from './cartaoCanvas'
 import { verbeteDoCartao } from './cartaoSemTldraw'
+import { escalaDosControles } from './escalaFonte'
+import { ControlesDaFonte, TextoDoCartao } from './PainelDoCartao'
 
 export const CARD_LARGURA_PADRAO = 240
 export const CARD_ALTURA_PADRAO = 320
@@ -353,6 +355,18 @@ function comAltura(cartao: CartaoDeVerbete, h: number): TLShapePartial<CartaoDeV
   }
 }
 
+/** A mudança só do tamanho da letra, com o tipo certo de cada cartão. */
+function comFonte(cartao: CartaoDeVerbete, fonteEscala: number): TLShapePartial<CartaoDeVerbete> {
+  switch (cartao.type) {
+    case 'character-card':
+      return { id: cartao.id, type: cartao.type, props: { fonteEscala } }
+    case 'cenario-card':
+      return { id: cartao.id, type: cartao.type, props: { fonteEscala } }
+    case 'item-card':
+      return { id: cartao.id, type: cartao.type, props: { fonteEscala } }
+  }
+}
+
 function pararNoCartao(evento: { stopPropagation: () => void }) {
   evento.stopPropagation()
 }
@@ -388,7 +402,18 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
   const { expandido, fonteEscala } = shape.props
   const escala = escalaDoCartao(shape.props.w, colunas) * fonteEscala
   const selecionado = useValue('cartão selecionado', () => editor.getSelectedShapeIds().includes(shape.id), [editor, shape.id])
+  const somenteVer = useValue('quadro só para ver', () => editor.getInstanceState().isReadonly, [editor])
+  const verbeteTravado = usePreludio((estado) => estado.travado || (verbete !== undefined && estado.soLeitura.has(verbete.id)))
+  // Os controles do cartão escolhido não somem com a câmera afastada (Grimório, `escalaDosControles`).
+  const controles = useValue('escala dos controles', () => (selecionado ? escalaDosControles(escala, editor.getZoomLevel()) : 1), [editor, selecionado, escala])
   const [chegou] = useState(() => recemChegados.delete(shape.id))
+  const [editando, setEditando] = useState<string | null>(null)
+
+  // Trocar de forma ou fechar o painel fecha o editor (o que estava para gravar vai antes).
+  const formaId = forma?.id
+  useEffect(() => {
+    setEditando(null)
+  }, [formaId, expandido])
 
   // A roda dentro do painel rola o texto, não o quadro.
   useEffect(() => {
@@ -419,7 +444,7 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
   }, [retrato, shape.id, editor])
 
   // A coluna da imagem tem a largura de uma coluna do cartão; a letra segue a escala (e o "tamanho da fonte" do Grimório).
-  const estilo = { '--pr-cartao-fe': escala, '--pr-cartao-coluna': `${shape.props.w / colunas}px` } as CSSProperties
+  const estilo = { '--pr-cartao-fe': escala, '--pr-cartao-ctrl': controles, '--pr-cartao-coluna': `${shape.props.w / colunas}px` } as CSSProperties
   if (verbete === undefined || forma === undefined) {
     return (
       <HTMLContainer className="pr-cartao pr-cartao--sumiu" style={estilo}>
@@ -434,7 +459,12 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
     const proxima = verbete.formas[(indiceDaForma + passo + verbete.formas.length) % verbete.formas.length]
     if (proxima !== undefined) usePreludio.getState().mudarVerbete(verbete.id, (atual) => ({ ...atual, formaAtivaId: proxima.id }))
   }
-  const secoes = forma.secoes.filter((secao) => textoPlano(secao.texto).trim() !== '')
+  const mudarFonte = (proxima: number) => {
+    const atual = editor.getShape<CartaoDeVerbete>(shape.id)
+    if (atual === undefined || editor.getInstanceState().isReadonly) return
+    editor.markHistoryStoppingPoint('tamanho da letra do cartão')
+    editor.updateShape(comFonte(atual, proxima))
+  }
 
   return (
     <HTMLContainer className={`pr-cartao${expandido ? ' pr-cartao--aberto' : ''}${selecionado ? ' pr-cartao--selecionado' : ''}${chegou ? ' pr-cartao--chegou' : ''}`} style={estilo}>
@@ -462,23 +492,12 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
               </button>
             </span>
           )}
+          {selecionado && !somenteVer && <ControlesDaFonte escala={fonteEscala} aoMudar={mudarFonte} />}
         </div>
       </div>
       {expandido && (
         <div className="pr-cartao__painel" ref={painel} onPointerDown={pararNoCartao}>
-          {secoes.length === 0 ? (
-            <p className="pr-cartao__vazio">Sem texto nesta forma.</p>
-          ) : (
-            secoes.map((secao) => (
-              <section key={secao.id} className="pr-cartao__secao">
-                <h3>
-                  {secao.titulo || 'Sem título'}
-                  {secao.segredo && <span className="pr-cartao__segredo">Segredo</span>}
-                </h3>
-                <p>{textoPlano(secao.texto, (outro) => usePreludio.getState().verbetes.get(outro)?.titulo)}</p>
-              </section>
-            ))
-          )}
+          <TextoDoCartao verbete={verbete} forma={forma} raiz={raiz} podeEscrever={!somenteVer && !verbeteTravado} editando={editando} aoEditar={setEditando} aoAbrirVerbete={abrirVerbeteDoQuadro} />
           <button type="button" className="pr-cartao__abrir" onClick={() => abrirVerbeteDoQuadro(verbete)}>
             Abrir o verbete
           </button>

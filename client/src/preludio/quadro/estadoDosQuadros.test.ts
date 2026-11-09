@@ -9,7 +9,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { quadroNovo } from '../../lib/preparo/quadros'
 import type { Quadro } from '../../lib/preparo/tipos'
 import { agendarGravacaoDeFora, gravacaoPendente, usePreludio } from '../estado/preludio'
-import { chaveDaGravacaoDoQuadro, gravarQuadroAtual, lerQuadroAtual, quadroDaSessao, quadrosParaCitar, useQuadros, type ResumoDoQuadro } from './estadoDosQuadros'
+import {
+  chaveDaGravacaoDoQuadro,
+  gravarQuadroAtual,
+  lerQuadroAtual,
+  quadroDaSessao,
+  quadroDaSessaoNaLixeira,
+  quadrosDaCampanha,
+  quadrosNaLixeira,
+  quadrosParaCitar,
+  useQuadros,
+  type ResumoDoQuadro,
+} from './estadoDosQuadros'
 
 const discoFalso = vi.hoisted(() => ({ arquivos: new Map<string, string>(), recusar: false }))
 
@@ -29,7 +40,7 @@ const SESSAO = 'vb-sessao-inventada'
 const VAZIO = { formas: 0, cartoes: 0, imagens: 0, setas: 0, molduras: 0, salas: 0, textos: 0 }
 
 function resumo(id: string, nome: string, extra: Partial<ResumoDoQuadro> = {}): ResumoDoQuadro {
-  return { id, nome, campanhaId: 'cp-ambar', sessaoId: null, contagem: VAZIO, planta: false, aviso: null, ...extra }
+  return { id, nome, campanhaId: 'cp-ambar', sessaoId: null, contagem: VAZIO, planta: false, aviso: null, lixeira: null, ...extra }
 }
 
 describe('o quadro da sessão e a lista do "Citar o quadro"', () => {
@@ -61,6 +72,48 @@ describe('o quadro da sessão e a lista do "Citar o quadro"', () => {
     expect(quadrosParaCitar(lista, 'cp-bruma', SESSAO).map((quadro) => quadro.id)).toEqual(['quadro-aaaa', 'quadro-zzzz', 'quadro-bruma', 'quadro-solto'])
     // Texto fora de sessão: só o filtro.
     expect(quadrosParaCitar(lista, 'cp-bruma', null).map((quadro) => quadro.id)).toEqual(['quadro-bruma', 'quadro-solto'])
+  })
+})
+
+describe('lixeira e campanha do quadro (F3c)', () => {
+  it('na lixeira, sai da lista, da sessão e do citar; restaurar devolve o arquivo igual, byte por byte', async () => {
+    const id = 'quadro-da-sessao-inventada'
+    const original: Quadro = { ...quadroNovo('Farol de Âmbar', { campanhaId: 'cp-ambar', sessaoId: SESSAO }), tldraw: { document: { store: {} } } }
+    const bytesDeAntes = JSON.stringify(original)
+    discoFalso.arquivos.set(id, bytesDeAntes)
+    useQuadros.setState({ lista: { t: 'pronta', quadros: [resumo(id, 'Farol de Âmbar', { sessaoId: SESSAO })] } })
+
+    expect(await useQuadros.getState().porNaLixeira(id, true)).toBeNull()
+    expect((JSON.parse(discoFalso.arquivos.get(id) ?? '{}') as Quadro).lixeira).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    const naLixeira = useQuadros.getState().lista
+    expect(quadrosDaCampanha(naLixeira, null)).toEqual([])
+    expect(quadroDaSessao(naLixeira, SESSAO)).toBeUndefined()
+    expect(quadroDaSessaoNaLixeira(naLixeira, SESSAO)?.id).toBe(id)
+    expect(quadrosParaCitar(naLixeira, 'cp-ambar', SESSAO)).toEqual([])
+    expect(quadrosNaLixeira(naLixeira).map((quadro) => quadro.id)).toEqual([id])
+
+    // Restaurar tira a chave (não a deixa vazia): a reimportação volta a reconhecer o quadro como estava.
+    expect(await useQuadros.getState().porNaLixeira(id, false)).toBeNull()
+    expect(discoFalso.arquivos.get(id)).toBe(bytesDeAntes)
+    expect(quadroDaSessao(useQuadros.getState().lista, SESSAO)?.id).toBe(id)
+  })
+
+  it('muda de campanha e fica sem campanha; o disco que recusa devolve o motivo e a lista não muda', async () => {
+    const id = 'quadro-solto-inventado'
+    discoFalso.arquivos.set(id, JSON.stringify(quadroNovo('Rotas da Bruma', { campanhaId: 'cp-ambar' })))
+    useQuadros.setState({ lista: { t: 'pronta', quadros: [resumo(id, 'Rotas da Bruma')] } })
+
+    expect(await useQuadros.getState().mudarCampanha(id, 'cp-bruma')).toBeNull()
+    expect(quadrosDaCampanha(useQuadros.getState().lista, 'cp-bruma').map((quadro) => quadro.campanhaId)).toEqual(['cp-bruma'])
+    expect(await useQuadros.getState().mudarCampanha(id, null)).toBeNull()
+    expect('campanhaId' in (JSON.parse(discoFalso.arquivos.get(id) ?? '{}') as Quadro)).toBe(false)
+
+    discoFalso.recusar = true
+    expect(await useQuadros.getState().mudarCampanha(id, 'cp-ambar')).toMatch(/não foi gravado/)
+    discoFalso.recusar = false
+    await usePreludio.getState().salvarPendentes()
+    const lista = useQuadros.getState().lista
+    expect(lista.t === 'pronta' ? lista.quadros[0]?.campanhaId : 'sem lista').toBeNull()
   })
 })
 

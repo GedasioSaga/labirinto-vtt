@@ -606,6 +606,112 @@
   from { opacity: 0; transform: scale(0.96); }
 }
 
+/* ------------------------------------------------------------------ o cartão como o do Grimório (F3c) */
+
+/* os controles do cartão escolhido crescem com a câmera afastada (--pr-cartao-ctrl), até um teto */
+.pr-cartao { --pr-cartao-c: calc(var(--pr-cartao-u) * var(--pr-cartao-ctrl, 1)); }
+.pr-cartao__fonte { display: inline-flex; align-items: center; align-self: flex-start; gap: calc(2 * var(--pr-cartao-c)); margin-top: calc(4 * var(--pr-cartao-u)); }
+.pr-cartao__fonte button {
+  min-width: calc(26 * var(--pr-cartao-c)); height: calc(22 * var(--pr-cartao-c)); padding: 0 calc(4 * var(--pr-cartao-c));
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment);
+  font: 600 calc(11 * var(--pr-cartao-c))/1 var(--lb-font-utility); cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out);
+}
+.pr-cartao__fonte button:active:not(:disabled) { transform: scale(0.95); }
+.pr-cartao__fonte button:disabled { opacity: 0.4; cursor: default; }
+.pr-cartao__fonte-valor { min-width: calc(34 * var(--pr-cartao-c)); text-align: center; font: 500 calc(10 * var(--pr-cartao-c))/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+
+/* cada seção: o nome, o selo de segredo e o lápis que abre o editor ali mesmo */
+.pr-cartao__secao + .pr-cartao__secao { margin-top: calc(8 * var(--pr-cartao-u)); }
+.pr-cartao__secao h3 { min-height: calc(22 * var(--pr-cartao-u)); }
+.pr-cartao__secao-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-cartao__secao-vazia { font-weight: 400; font-style: italic; color: var(--lb-color-parchment-faint); }
+.pr-cartao__lapis {
+  flex: none; margin-left: auto; width: calc(22 * var(--pr-cartao-c)); height: calc(22 * var(--pr-cartao-c)); display: grid; place-items: center; padding: 0;
+  border: 1px solid transparent; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment-dim); cursor: pointer;
+  opacity: 0; transition: opacity var(--lb-motion-fast) ease, transform 120ms var(--lb-gr-ease-out);
+}
+.pr-cartao__lapis svg { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.pr-cartao__lapis:active { transform: scale(0.95); }
+.pr-cartao--selecionado .pr-cartao__lapis, .pr-cartao__lapis:focus-visible { opacity: 1; }
+.pr-cartao__lapis[aria-pressed='true'] { opacity: 1; border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+
+/* o texto formatado no cartão: as medidas da página do verbete, na escala do cartão */
+.pr-cartao__secao .pr-texto__campo { font: 400 calc(13 * var(--pr-cartao-u))/1.45 var(--pr-fonte-texto, var(--lb-font-sans)); color: var(--lb-color-parchment); }
+.pr-cartao__secao .pr-texto__campo > * + *, .pr-cartao__secao .pr-texto__campo :where(blockquote, .pr-segredo) > * + * { margin-top: 0.55em; }
+.pr-cartao__secao .pr-texto__campo :is(h1, h2, h3, h4, h5, h6) { margin: 0.7em 0 0; font: 600 1.08em/1.3 var(--lb-font-display); color: var(--lb-gr-gravado-forte); }
+.pr-cartao__secao .pr-texto__campo > :first-child { margin-top: 0; }
+.pr-cartao__secao .pr-texto__campo img { max-width: 100%; height: auto; }
+
+/* editando: o campo ganha a moldura de latão (no lugar do fio da margem, que o cartão cortaria) */
+.pr-cartao__edicao {
+  padding: calc(6 * var(--pr-cartao-u)) calc(8 * var(--pr-cartao-u));
+  border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo); cursor: text;
+}
+.pr-cartao__edicao .pr-texto { font: 400 calc(13 * var(--pr-cartao-u))/1.45 var(--pr-fonte-texto, var(--lb-font-sans)); }
+.pr-cartao__edicao .pr-texto:focus-within::before { display: none; }
+.pr-cartao__edicao .pr-texto__plano { font-size: calc(13 * var(--pr-cartao-u)); }
+@media (hover: hover) and (pointer: fine) {
+  .pr-cartao:hover .pr-cartao__lapis { opacity: 1; }
+  .pr-cartao__lapis:hover { border-color: var(--lb-gr-filete); background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
+  .pr-cartao__fonte button:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); }
+}
+
+/* a pergunta da imagem que vira verbete: o tipo ao lado do nome */
+.pr-pergunta__tipo {
+  flex: none; min-height: 30px; padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo); color: var(--lb-color-parchment); font: inherit; font-size: var(--lb-font-size-sm);
+}
+
+/* a lista dos quadros (F3c): cada cartão leva a campanha e a lixeira no pé, como a barra do Grimório */
+.pr-quadros__item {
+  display: flex; flex-direction: column; min-width: 0;
+  border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao);
+  transition: border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.pr-quadros__item > .pr-caderno { flex: 1; border: 0; background: none; }
+.pr-quadros__item > .pr-caderno:active { transform: none; }
+.pr-quadros__item:has(> button.pr-caderno:active) { transform: scale(0.98); }
+.pr-quadros__item[aria-busy='true'] { opacity: 0.6; }
+.pr-caderno--parado { cursor: default; }
+.pr-quadros__acoes { display: flex; align-items: center; gap: var(--lb-space-2); padding: 0 var(--lb-space-4) var(--lb-space-3); }
+.pr-quadros__campanha {
+  flex: 1; min-width: 0; min-height: 28px; padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo); color: var(--lb-color-parchment-dim); font: inherit; font-size: var(--lb-font-size-xs);
+}
+.pr-quadros__lixeira {
+  flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment-faint); cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out), color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease;
+}
+.pr-quadros__lixeira:active:not(:disabled) { transform: scale(0.95); }
+.pr-quadros__lixeira svg, .pr-quadros__ver-lixeira svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.pr-quadros__ver-lixeira[aria-pressed='true'] { background: var(--lb-color-brass-soft); border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.pr-quadros__aviso-casca:empty { display: none; }
+.pr-quadros__aviso {
+  display: flex; align-items: center; gap: var(--lb-space-3); margin: 0 0 var(--lb-space-4); padding: var(--lb-space-2) var(--lb-space-2) var(--lb-space-2) var(--lb-space-4);
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao-alto);
+  font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment);
+  transition: opacity 200ms var(--lb-gr-ease-out), transform 200ms var(--lb-gr-ease-out);
+}
+@starting-style { .pr-quadros__aviso { opacity: 0; transform: translateY(-4px); } }
+.pr-quadros__aviso > span { flex: 1; min-width: 0; }
+.pr-quadros__aviso--falhou { border-color: var(--lb-color-ember-soft); color: var(--lb-color-ember); }
+.pr-quadros__explica { margin-top: var(--lb-space-4); }
+@media (hover: hover) and (pointer: fine) {
+  .pr-quadros__item:has(> button.pr-caderno:hover) { border-color: var(--lb-gr-filete-latao); }
+  .pr-quadros__lixeira:hover:not(:disabled) { color: var(--lb-color-ember); border-color: var(--lb-color-ember-soft); }
+  .pr-quadros__campanha:hover:not(:disabled) { border-color: var(--lb-gr-filete-forte); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-quadros__item:has(> button.pr-caderno:active) { transform: none; }
+  @starting-style { .pr-quadros__aviso { transform: none; } }
+}
+
 /* a barra: as abas da sessão abrem a fileira; o botão da gaveta fica aceso enquanto ela está aberta */
 .pr-quadro__barra > .pr-abas { flex: none; margin-right: var(--lb-space-1); }
 .pr-quadro__gaveta-bt svg { fill: none; stroke: currentColor; stroke-width: 1.5; }
