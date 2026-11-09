@@ -150,6 +150,15 @@ export interface ContextoDoGolpe {
    * Ausente = ninguém é aliado.
    */
   aliados?: ReadonlySet<string>
+  /**
+   * Construtor C3 (revisão): o personagem está do lado de quem age na luta
+   * (`mesmoLadoNaBatalha`: a equipe, ou sem equipes o tipo; o invocado conta
+   * como o dono), a mesma regra da mira do mestre. Vale só no cartão montado
+   * (a peça "nos aliados", a cura e a limpeza das peças): o NPC cura o NPC
+   * da equipe dele. O cartão de texto e o à mão seguem com `aliados`.
+   * Ausente = `aliados` (como antes).
+   */
+  doMesmoLado?: (personagemId: string) => boolean
 }
 
 /** O que `lancarGolpe` devolve para a store aplicar. */
@@ -529,7 +538,7 @@ function motivoDoAlvoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvos
   const quem = pecasDoCartao(cartao)?.alvo.quem
   if (quem !== 'si' && quem !== 'aliados') return null
   const deQuemUsa = ctx.carta.personagemId
-  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || (quem === 'aliados' && (ctx.aliados?.has(id) ?? false)))
+  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || (quem === 'aliados' && aliadoPeloCartao(ctx, cartao, id)))
   if (alvosPersonagemIds.every(vale)) return null
   const nome = cartao.nome.trim() || 'A técnica'
   return quem === 'si' ? `${nome} só vale em você` : `${nome} só vale em você ou num aliado`
@@ -769,8 +778,19 @@ function custosDoGolpe(daTecnica: LeituraDoCusto | null, extraEmSp: number): Lei
 function motivoDaLimpeza(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>, alvosPersonagemIds: readonly (string | null | undefined)[]): string | null {
   if (limpezaDe(cartao) === null) return null
   const deQuemUsa = ctx.carta.personagemId
-  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || (ctx.aliados?.has(id) ?? false))
+  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || aliadoPeloCartao(ctx, cartao, id))
   return alvosPersonagemIds.every(vale) ? null : `${cartao.nome.trim() || 'A técnica'} só vale em você ou num aliado`
+}
+
+/**
+ * Construtor C3 (revisão): o personagem é aliado de quem age para a regra do
+ * cartão. O montado usa o lado na luta (`doMesmoLado`, a regra da mira do
+ * mestre: o NPC cura o NPC da equipe dele); o de texto e o à mão (Revigorar),
+ * `aliados`, como sempre.
+ */
+function aliadoPeloCartao(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'mecanica'>, personagemId: string): boolean {
+  if (ctx.doMesmoLado !== undefined && cartaoMontado(cartao)) return ctx.doMesmoLado(personagemId)
+  return ctx.aliados?.has(personagemId) ?? false
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type InvocadoNaBatalha, type PedidoDeAcao, type PedidoDePassiva } from '../../lib/batalha/combate'
-import { equipeDe, type Equipe } from '../../lib/batalha/equipes'
+import { equipeDe, ladoNaBatalha, type Equipe } from '../../lib/batalha/equipes'
 import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { acoesDoInvocado, comunsQueSaem, membrosDoBando, motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
@@ -127,24 +127,15 @@ function ehDoMestre(personagemId: string | null, personagens: readonly Personage
 
 const SEM_INVOCADOS: readonly InvocadoNaBatalha[] = []
 
-/** O personagem que dá a equipe: o invocado conta como o dono (a ficha temporária dele não tem equipe). */
-function personagemDaEquipe(mesa: Mesa, personagemId: string | null): string | null {
-  if (personagemId === null) return null
-  return (mesa.cena?.turnos?.invocados ?? SEM_INVOCADOS).find((invocado) => invocado.personagemId === personagemId)?.donoPersonagemId ?? personagemId
-}
-
 /**
- * O lado de um personagem na mira do mestre: a equipe dele. Sem equipe
- * cadastrada, o lado implícito de `aliadosDe` (todo jogador é aliado de todo
- * jogador) e os NPCs do outro; sem isso, tudo era "outro" e o aliado do lobo
- * ou do NPC da vez vinha no meio dos inimigos.
+ * O lado de um personagem na mira do mestre: a equipe dele (o invocado conta
+ * como o dono). Sem equipe cadastrada, os jogadores de um lado e os NPCs do
+ * outro; sem isso, tudo era "outro" e o aliado do lobo ou do NPC da vez vinha
+ * no meio dos inimigos. Construtor C3 (revisão): é a mesma regra que o host
+ * confere na área "aliados" da técnica montada (`ladoNaBatalha`).
  */
 function ladoDoPersonagem(mesa: Mesa, personagemId: string | null): string | null {
-  const daEquipe = personagemDaEquipe(mesa, personagemId)
-  if (daEquipe === null) return null
-  if (mesa.equipes !== undefined && mesa.equipes.length > 0) return equipeDe(daEquipe, mesa.equipes)?.id ?? null
-  const tipo = mesa.personagens.find((personagem) => personagem.id === daEquipe)?.tipo
-  return tipo === undefined ? null : `tipo:${tipo}`
+  return ladoNaBatalha(personagemId, { equipes: mesa.equipes, personagens: mesa.personagens, invocados: mesa.cena?.turnos?.invocados ?? SEM_INVOCADOS })
 }
 
 /** O HP de um invocado (a ficha temporária dele); sem ficha ou sem vida, `null`. */

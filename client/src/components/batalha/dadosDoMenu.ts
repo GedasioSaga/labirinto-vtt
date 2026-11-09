@@ -652,7 +652,13 @@ export function alvosNaAreaDaMira(area: AreaAMao, alvos: readonly AlvoNaMira[]):
     .map((alvo) => alvo.tokenId)
 }
 
-/** Construtor C3: o lado do alvo entra pelo filtro da área ("aliados" inclui as outras fichas de quem olha, como o invocado dele). */
+/**
+ * Construtor C3: o lado do alvo entra pelo filtro da área ("aliados" inclui
+ * as outras fichas de quem olha, como o invocado dele). Revisão: o lado da
+ * mira do mestre sai de `ladoNaBatalha`, a regra que o host confere na área
+ * "aliados" (`doMesmoLado`); o da mira do jogador vem do recorte (os colegas
+ * jogadores da equipe dele), que o host também aceita.
+ */
 function entraPeloLado(quem: AreaAMao['quem'], lado: AlvoNaMira['lado']): boolean {
   if (quem === 'todos') return true
   return quem === 'inimigos' ? lado === 'outro' : lado !== 'outro'

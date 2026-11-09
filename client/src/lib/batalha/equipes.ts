@@ -105,3 +105,37 @@ export function aliadosDe(meusPersonagens: ReadonlySet<string>, equipes: readonl
   }
   return aliados
 }
+
+/** O que `ladoNaBatalha` lê da mesa. */
+export interface LadosDaBatalha {
+  equipes: readonly Equipe[] | undefined
+  personagens: readonly Personagem[]
+  /** Os invocados em campo: a ficha temporária conta como a do dono. */
+  invocados: readonly { personagemId: string; donoPersonagemId: string }[]
+}
+
+/**
+ * Construtor C3 (revisão): o lado de um personagem NA LUTA, a regra única de
+ * "aliado" da técnica montada. A mira do mestre marca a área "aliados" por
+ * ela e o host confere o golpe por ela, para a mira não marcar quem o host
+ * recusa:
+ *  - o invocado conta como o dono (a ficha temporária não tem equipe);
+ *  - com equipes cadastradas: a equipe dele (sem equipe = sem lado);
+ *  - sem equipes: o tipo (os jogadores de um lado, os NPCs do outro).
+ * Não é `aliadosDe`, que decide o que o jogador VÊ dos colegas e nunca põe
+ * NPC: na luta, o NPC tem aliados. `null` = sem lado (ninguém é aliado dele).
+ */
+export function ladoNaBatalha(personagemId: string | null, mesa: LadosDaBatalha): string | null {
+  if (personagemId === null) return null
+  const doInvocado = mesa.invocados.find((invocado) => invocado.personagemId === personagemId)
+  const quemDaOLado = doInvocado === undefined ? personagemId : doInvocado.donoPersonagemId
+  if (mesa.equipes !== undefined && mesa.equipes.length > 0) return equipeDe(quemDaOLado, mesa.equipes)?.id ?? null
+  const tipo = mesa.personagens.find((personagem) => personagem.id === quemDaOLado)?.tipo
+  return tipo === undefined ? null : `tipo:${tipo}`
+}
+
+/** Construtor C3 (revisão): `outro` está do lado de `deQuem` na luta (`ladoNaBatalha`). Quem não tem lado não tem aliado. */
+export function mesmoLadoNaBatalha(deQuem: string | null, outro: string | null, mesa: LadosDaBatalha): boolean {
+  const lado = ladoNaBatalha(deQuem, mesa)
+  return lado !== null && ladoNaBatalha(outro, mesa) === lado
+}

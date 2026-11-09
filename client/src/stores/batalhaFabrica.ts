@@ -91,7 +91,7 @@ import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, s
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
 import { ajusteDoRecurso, ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, maximoDoRecurso, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
 import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
-import { aliadosDe, equipeDe } from '../lib/batalha/equipes'
+import { aliadosDe, equipeDe, mesmoLadoNaBatalha } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
   acoesDaCarta,
@@ -2400,6 +2400,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       quemRebatePor: quemRebatePor(sceneKey, turnos, carta.tokenId),
       // F2 (fatia C, A Luz do Sol): os aliados de quem age não tomam o dano da técnica de selo só nos aliados.
       aliados: carta.personagemId === null ? new Set<string>() : aliadosDe(new Set([carta.personagemId]), mesa.equipes(), personagens),
+      // Construtor C3 (revisão): na técnica montada, o aliado é o do lado na luta, a mesma regra da mira do mestre (o NPC cura o NPC da equipe dele).
+      doMesmoLado: (personagemId) => mesmoLadoNaBatalha(carta.personagemId, personagemId, { equipes: mesa.equipes(), personagens, invocados: turnos.invocados ?? [] }),
     }
   }
 
