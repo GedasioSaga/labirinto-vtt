@@ -71,8 +71,9 @@ export interface LeituraDoTipo {
  * ("Reação/Ação Completa") = ativa com `tambemReacao`; Fortaleza ("Passiva")
  * = passiva.
  */
-export function lerTipo(cartao: Pick<CartaoDaFicha, 'campos'>): LeituraDoTipo {
-  const acao = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
+export function lerTipo(cartao: Pick<CartaoDaFicha, 'campos' | 'mecanica'>): LeituraDoTipo {
+  // Construtor C1: no cartão montado a Ação escrita é só descrição; a ação vem das peças (nunca passiva nem reação pura).
+  const acao = lerAcao(cartao.mecanica === undefined ? (cartao.campos[CAMPO_DA_ACAO] ?? '') : '')
   const texto = (cartao.campos[CAMPO_DO_TIPO] ?? '').trim()
   const escrito = tipoDoTexto(texto)
   const tipo: TipoDaHabilidade = escrito ?? (acao.acao === 'passiva' ? 'passiva' : acao.soReacao === true ? 'reacao' : 'ativa')

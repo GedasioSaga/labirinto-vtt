@@ -1,4 +1,5 @@
-import type { Personagem } from '../personagem'
+import type { CartaoDaFicha, Personagem } from '../personagem'
+import { linhaDoCartaoMontado } from './mecanica/leitura'
 import type { AcaoDaTecnica, NaturezaDoSelo, SaidaDaReacao, SaidaDaTecnica, SeloDaBatalha, SeloDoGolpe } from './combate'
 import { normalizar } from './formula'
 import type { CdDaDisputa, ContraDaDisputa, QuemRola } from './disputa'
@@ -770,27 +771,36 @@ const MECANICAS_A_MAO: Readonly<Record<string, MecanicaAMao>> = {
   },
 }
 
+/**
+ * Construtor de mecânicas C1: quem procura a mecânica passa o id (as fichas de
+ * hoje, só a tabela) ou o cartão. O cartão MONTADO (com `mecanica`) dá a
+ * linha das peças e nunca cai na tabela nem no texto (tudo ou nada); o cartão
+ * sem o campo cai na tabela pelo id, como antes.
+ */
+export type ChaveDaMecanica = string | (Pick<CartaoDaFicha, 'id' | 'mecanica'> & { nome?: string })
+
 /** A mecânica à mão do cartão; `null` = a técnica segue só pelo texto da ficha. */
-export function mecanicaDoCartao(cartaoId: string): MecanicaAMao | null {
-  return Object.hasOwn(MECANICAS_A_MAO, cartaoId) ? MECANICAS_A_MAO[cartaoId] : null
+export function mecanicaDoCartao(chave: ChaveDaMecanica): MecanicaAMao | null {
+  if (typeof chave !== 'string') return linhaDoCartaoMontado(chave) ?? mecanicaDoCartao(chave.id)
+  return Object.hasOwn(MECANICAS_A_MAO, chave) ? MECANICAS_A_MAO[chave] : null
 }
 
 /** As perguntas na hora da técnica (vazio = nenhuma). */
-export function perguntasDoCartao(cartaoId: string): readonly PerguntaNaHora[] {
-  return mecanicaDoCartao(cartaoId)?.perguntas ?? []
+export function perguntasDoCartao(cartao: ChaveDaMecanica): readonly PerguntaNaHora[] {
+  return mecanicaDoCartao(cartao)?.perguntas ?? []
 }
 
 /** Por que as respostas do pedido não valem para a técnica, ou `null`. Técnica sem pergunta não aceita resposta. */
-export function motivoDasRespostasDoCartao(cartaoId: string, respostas: RespostasDoPedido | undefined): string | null {
-  return motivoDasRespostas(perguntasDoCartao(cartaoId), respostas)
+export function motivoDasRespostasDoCartao(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): string | null {
+  return motivoDasRespostas(perguntasDoCartao(cartao), respostas)
 }
 
 /**
  * F2 (fatia B): as respostas que a mira manda sem a pessoa tocar: a 1ª opção
  * de cada pergunta e o mínimo de cada número. Sem pergunta: `undefined`.
  */
-export function respostasPadrao(cartaoId: string): RespostasDoPedido | undefined {
-  const perguntas = perguntasDoCartao(cartaoId)
+export function respostasPadrao(cartao: ChaveDaMecanica): RespostasDoPedido | undefined {
+  const perguntas = perguntasDoCartao(cartao)
   if (perguntas.length === 0) return undefined
   const respostas: Record<string, string | number> = {}
   for (const pergunta of perguntas) {
@@ -807,10 +817,10 @@ export interface MudancaNoGolpe {
 }
 
 /** F2 (fatia B): o que as respostas mudam (a última mudança que casa vence). Sem resposta: nada muda. */
-export function mudancaDasRespostas(cartaoId: string, respostas: RespostasDoPedido | undefined): MudancaNoGolpe {
+export function mudancaDasRespostas(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): MudancaNoGolpe {
   const mudanca: MudancaNoGolpe = { dano: null, selo: null }
   if (respostas === undefined) return mudanca
-  for (const regra of mecanicaDoCartao(cartaoId)?.respostasMudam ?? []) {
+  for (const regra of mecanicaDoCartao(cartao)?.respostasMudam ?? []) {
     if (respostas[regra.chave] !== regra.valor) continue
     if (regra.dano !== undefined) mudanca.dano = regra.dano
     if (regra.selo !== undefined) mudanca.selo = regra.selo
@@ -819,8 +829,8 @@ export function mudancaDasRespostas(cartaoId: string, respostas: RespostasDoPedi
 }
 
 /** F2 (fatia B): a fórmula do dano da tabela, com o que as respostas mudam; `null` = vale o campo Dano da ficha. */
-export function formulaDaMecanica(cartaoId: string, respostas?: RespostasDoPedido): string | null {
-  return mudancaDasRespostas(cartaoId, respostas).dano ?? mecanicaDoCartao(cartaoId)?.dano ?? null
+export function formulaDaMecanica(cartao: ChaveDaMecanica, respostas?: RespostasDoPedido): string | null {
+  return mudancaDasRespostas(cartao, respostas).dano ?? mecanicaDoCartao(cartao)?.dano ?? null
 }
 
 /**
@@ -828,11 +838,11 @@ export function formulaDaMecanica(cartaoId: string, respostas?: RespostasDoPedid
  * leitura de texto): o da resposta, o fixo da técnica, ou o da disputa (que
  * só pega se quem usa vencer). `null` = vale o da mira.
  */
-export function seloDaMecanica(cartaoId: string, respostas?: RespostasDoPedido, valorNaFicha?: (formula: string) => number | null): SeloDoGolpe | null {
-  const mecanica = mecanicaDoCartao(cartaoId)
+export function seloDaMecanica(cartao: ChaveDaMecanica, respostas?: RespostasDoPedido, valorNaFicha?: (formula: string) => number | null): SeloDoGolpe | null {
+  const mecanica = mecanicaDoCartao(cartao)
   if (mecanica === null) return null
   const montado = mecanica.seloDasRespostas === undefined ? null : seloMontado(mecanica.seloDasRespostas, respostas, valorNaFicha)
-  return mudancaDasRespostas(cartaoId, respostas).selo ?? mecanica.selo ?? montado ?? mecanica.disputa?.seQuemUsaVence?.selo ?? null
+  return mudancaDasRespostas(cartao, respostas).selo ?? mecanica.selo ?? montado ?? mecanica.disputa?.seQuemUsaVence?.selo ?? null
 }
 
 /**
@@ -854,8 +864,8 @@ function seloMontado(molde: SeloDasRespostasAMao, respostas: RespostasDoPedido |
  * Luz do Sol), só nos aliados de quem usa (`aliados`: ids de personagem); o
  * resto das técnicas, em todo alvo acertado.
  */
-export function seloPegaNoAlvo(cartaoId: string, alvoPersonagemId: string | null, aliados: ReadonlySet<string>): boolean {
-  if (mecanicaDoCartao(cartaoId)?.seloSoNosAliados !== true) return true
+export function seloPegaNoAlvo(cartao: ChaveDaMecanica, alvoPersonagemId: string | null, aliados: ReadonlySet<string>): boolean {
+  if (mecanicaDoCartao(cartao)?.seloSoNosAliados !== true) return true
   return alvoPersonagemId !== null && aliados.has(alvoPersonagemId)
 }
 
@@ -865,8 +875,8 @@ export function seloPegaNoAlvo(cartaoId: string, alvoPersonagemId: string | null
  * cada alvo marcado; com `seloSoNosAliados`, os aliados de quem usa não
  * contam (eles só levam o selo). `nomeDaTecnica` vai no motivo.
  */
-export function motivoDoTetoDeDano(cartaoId: string, nomeDaTecnica: string, alvosPersonagemIds: readonly (string | null | undefined)[], aliados: ReadonlySet<string>): string | null {
-  const mecanica = mecanicaDoCartao(cartaoId)
+export function motivoDoTetoDeDano(cartao: ChaveDaMecanica, nomeDaTecnica: string, alvosPersonagemIds: readonly (string | null | undefined)[], aliados: ReadonlySet<string>): string | null {
+  const mecanica = mecanicaDoCartao(cartao)
   const teto = mecanica?.tetoDeAlvosComDano
   if (mecanica === null || teto === undefined) return null
   const comDano = mecanica.seloSoNosAliados === true ? alvosPersonagemIds.filter((id) => typeof id !== 'string' || !aliados.has(id)) : alvosPersonagemIds
@@ -875,16 +885,16 @@ export function motivoDoTetoDeDano(cartaoId: string, nomeDaTecnica: string, alvo
 }
 
 /** F2 (fatia B): a técnica pede selo pela resposta e a resposta não pediu (Grande Chifre sem parede): o golpe sai sem selo. */
-export function semSeloPelaResposta(cartaoId: string, respostas: RespostasDoPedido | undefined): boolean {
-  const mecanica = mecanicaDoCartao(cartaoId)
+export function semSeloPelaResposta(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): boolean {
+  const mecanica = mecanicaDoCartao(cartao)
   if (mecanica === null || mecanica.selo !== undefined || mecanica.disputa !== undefined) return false
-  return (mecanica.respostasMudam ?? []).some((regra) => regra.selo !== undefined) && mudancaDasRespostas(cartaoId, respostas).selo === null
+  return (mecanica.respostasMudam ?? []).some((regra) => regra.selo !== undefined) && mudancaDasRespostas(cartao, respostas).selo === null
 }
 
 /** F2 (fatia B): os rótulos das respostas de opção, para o registro ("Grande Chifre (3 quadrados, parede: Sim)"). */
-export function rotulosDasRespostas(cartaoId: string, respostas: RespostasDoPedido | undefined): string[] {
+export function rotulosDasRespostas(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): string[] {
   if (respostas === undefined) return []
-  return perguntasDoCartao(cartaoId).flatMap((pergunta): string[] => {
+  return perguntasDoCartao(cartao).flatMap((pergunta): string[] => {
     const resposta = respostas[pergunta.chave]
     if (resposta === undefined) return []
     if (pergunta.tipo === 'numero') return [`${pergunta.chave}: ${resposta}`]
@@ -1000,8 +1010,8 @@ export function avisoAoCairDe(cartoesIds: readonly string[]): { cartaoId: string
 }
 
 /** F2 (fatia D, Projeção Letal): o perfurante pela resposta (a última que casa vence) ou o fixo da tabela; `null` = vale o da mira. */
-export function perfuranteDaMecanica(cartaoId: string, respostas: RespostasDoPedido | undefined): boolean | null {
-  const mecanica = mecanicaDoCartao(cartaoId)
+export function perfuranteDaMecanica(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): boolean | null {
+  const mecanica = mecanicaDoCartao(cartao)
   if (mecanica === null) return null
   let pelaResposta: boolean | null = null
   for (const regra of mecanica.respostasMudam ?? []) {
@@ -1041,8 +1051,8 @@ export function usosContamOAdicional(cartaoId: string): boolean {
 }
 
 /** F2 (fatia D, Revigorar): a limpeza da técnica; `null` = a técnica não limpa. */
-export function limpezaDe(cartaoId: string): LimpezaAMao | null {
-  return mecanicaDoCartao(cartaoId)?.limpa ?? null
+export function limpezaDe(cartao: ChaveDaMecanica): LimpezaAMao | null {
+  return mecanicaDoCartao(cartao)?.limpa ?? null
 }
 
 /** F2 (revisão da fatia D, Revigorar): a fórmula da cura com a carga que o golpe gastou (3 = "Espírito * 3"); sem fórmula para a carga, a `cura`. */
@@ -1052,8 +1062,8 @@ export function formulaDaCura(limpeza: LimpezaAMao, carga: number): string {
 }
 
 /** F2 (revisão da fatia D): a técnica mantida (Giro, Campo); `null` = usar marca a recarga na hora, como sempre. */
-export function mantidaDe(cartaoId: string): MantidaAMao | null {
-  return mecanicaDoCartao(cartaoId)?.mantida ?? null
+export function mantidaDe(cartao: ChaveDaMecanica): MantidaAMao | null {
+  return mecanicaDoCartao(cartao)?.mantida ?? null
 }
 
 /**
@@ -1061,9 +1071,9 @@ export function mantidaDe(cartaoId: string): MantidaAMao | null {
  * guardada? A que dá carga por vez não gasta; F2 (fatia F, Florescer): a que
  * não aceita Concentração também não (nem a usa).
  */
-export function gastaACarga(cartaoId: string | null): boolean {
-  if (cartaoId === null) return true
-  return mantidaDe(cartaoId)?.cargaPorVez !== true && mecanicaDoCartao(cartaoId)?.semConcentracao !== true
+export function gastaACarga(cartao: ChaveDaMecanica | null): boolean {
+  if (cartao === null) return true
+  return mantidaDe(cartao)?.cargaPorVez !== true && mecanicaDoCartao(cartao)?.semConcentracao !== true
 }
 
 /**
@@ -1198,8 +1208,8 @@ export function motivoDoEvoluirPelaMecanica(cartaoId: string, selos: readonly Pi
 }
 
 /** F2 (fatia F, Chamas Celestes): o custo pela porcentagem do máximo (para baixo); `null` = vale o texto da ficha. */
-export function custoPeloMaximo(cartaoId: string, maximos: Readonly<Record<string, number>> | undefined): { recurso: 'sp' | 'hp'; valor: number } | null {
-  const regra = mecanicaDoCartao(cartaoId)?.custoDoMaximo
+export function custoPeloMaximo(cartao: ChaveDaMecanica, maximos: Readonly<Record<string, number>> | undefined): { recurso: 'sp' | 'hp'; valor: number } | null {
+  const regra = mecanicaDoCartao(cartao)?.custoDoMaximo
   const maximo = regra === undefined ? undefined : maximos?.[regra.recurso]
   if (regra === undefined || maximo === undefined) return null
   return { recurso: regra.recurso, valor: Math.floor((maximo * regra.porcento) / 100) }
@@ -1211,9 +1221,9 @@ export function porcentoDoMaximo(maximo: number, porcento: number): number {
 }
 
 /** F2b (Imbuir Fogo do Siegfried): o que as respostas SOMAM no dano de cada alvo, por cima da fórmula; 0 = nada. */
-export function somaDasRespostas(cartaoId: string, respostas: RespostasDoPedido | undefined): number {
+export function somaDasRespostas(cartao: ChaveDaMecanica, respostas: RespostasDoPedido | undefined): number {
   if (respostas === undefined) return 0
-  return (mecanicaDoCartao(cartaoId)?.respostasMudam ?? []).reduce((soma, regra) => (regra.soma !== undefined && respostas[regra.chave] === regra.valor ? soma + regra.soma : soma), 0)
+  return (mecanicaDoCartao(cartao)?.respostasMudam ?? []).reduce((soma, regra) => (regra.soma !== undefined && respostas[regra.chave] === regra.valor ? soma + regra.soma : soma), 0)
 }
 
 /** F2b (Ignição): o fator da Velocidade pelas formas ligadas (`cartoesAtivos`); 1 = nenhuma muda. */

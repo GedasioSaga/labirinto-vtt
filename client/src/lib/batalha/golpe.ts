@@ -81,6 +81,7 @@ import {
   type MecanicaAMao,
 } from './mecanicasAMao'
 import { dividirDano } from './area'
+import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
@@ -370,7 +371,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const arma = armaDoPedido(ctx, pedido.armaId)
       if (arma === undefined) return 'Arma fora das levadas para a batalha'
       // F2 (revisão da fatia E, Desenhar o alvo com a Bala de Prata): a bala só na técnica cuja fórmula diz "Dano da Bala", e da arma dela.
-      if (pedido.balaId !== undefined && (arma === null || !formulaUsaBala(tecnica.cartao.campos[CAMPO_DO_DANO] ?? '') || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
+      // Construtor C1: no cartão montado, a fórmula é a da peça (o campo Dano é só descrição).
+      const formulaDoDano = formulaDoDanoDasPecas(tecnica.cartao) ?? tecnica.cartao.campos[CAMPO_DO_DANO] ?? ''
+      if (pedido.balaId !== undefined && (arma === null || !formulaUsaBala(formulaDoDano) || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
       const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes)
       // F2 (fatia D, Imbuir Fogo): a resposta que a forma ligada não deixa (fogo com a Ignição).
       const vetada = motivoDaRespostaVetada(tecnica.cartao.id, pedido.respostas, personagem.cartoesAtivos)
@@ -386,7 +389,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         (subida !== null && 'motivo' in subida ? subida.motivo : null) ??
         motivoDosAlvos(ctx, pedido.alvos, 0) ??
         motivoDaLimpeza(ctx, tecnica.cartao, alvosPersonagemIds) ??
-        motivoDoTetoDeDano(tecnica.cartao.id, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
+        motivoDoTetoDeDano(tecnica.cartao, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
         motivoDoDivide(tecnica.cartao, pedido.alvos.length) ??
         motivoDoSeloPedido(tecnica.cartao.id, selosDosAlvos)
       )
@@ -404,7 +407,7 @@ export function depoisDaTecnica(combate: CombateDoPersonagem, tecnica: Pick<Tecn
   let novo = combate
   if (tecnica.custo !== undefined && custoEmSp(tecnica.custo) && combate.gastouSp !== true) novo = { ...novo, gastouSp: true }
   // F2 (revisão da fatia D): a técnica mantida (Giro, Campo) liga e fica sem recarga; a recarga começa quando ela para (`pararAMantida`).
-  if (mantidaDe(id) !== null) novo = comAMantida(novo, id)
+  if (mantidaDe(tecnica.cartao) !== null) novo = comAMantida(novo, id)
   // P1: Tempo N bloqueia N vezes do dono; a recarga desce no começo da vez, então guarda N + 1.
   else if (tecnica.tempo.tipo === 'recarga') novo = { ...novo, recargas: { ...novo.recargas, [id]: tecnica.tempo.turnos + RECARGA_A_MAIS } }
   if (tecnica.tempo.tipo === 'usos') novo = { ...novo, usos: { ...novo.usos, [id]: (novo.usos[id] ?? 0) + 1 } }
@@ -436,10 +439,12 @@ export function ajustesDoCusto(personagem: Personagem, sistema: SistemaDeRpg, cu
  * revisão da fatia E): só quem tem técnica que vale contra ela (`reageASurpresa`).
  * F2b (Aparência Inofensiva): a Surpresa é por alvo (`surpresaEm`).
  */
-function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carga: number, surpresaEm: (tokenId: string) => boolean, overload: boolean, reacao: ReacaoDoTipo): AlvoDoGolpe[] {
+function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carga: number, surpresaEm: (tokenId: string) => boolean, overload: boolean, reacao: ReacaoDoTipo, pecas?: MultiplicadoresNoGolpe): AlvoDoGolpe[] {
   return alvos.map((pedido): AlvoDoGolpe => {
     const surpresa = surpresaEm(pedido.tokenId)
-    const dano = pedido.dano === null ? null : danoQueChega(pedido.dano, carga, surpresa)
+    // Construtor C1: a técnica montada pode não multiplicar a Surpresa e soma os extras e a divisão (a ordem é a de `danoQueChega`).
+    const multiplica = surpresa && pecas?.surpresa !== false
+    const dano = pedido.dano === null ? null : danoQueChega(pedido.dano, carga, multiplica, pecas === undefined ? undefined : { extras: pecas.extras, dividirPor: pecas.dividirPor })
     // F2 (fatia B): Overload em alvo perto de quem rebate (Aplauso) também espera, pela pergunta a ela.
     const porPerto = overload && ctx.quemRebatePor !== undefined ? ctx.quemRebatePor(pedido.tokenId) : []
     const overloadDeixa = !overload || ctx.reageAOverload?.(pedido.tokenId) === true || porPerto.length > 0
@@ -462,6 +467,34 @@ function alvosDoGolpe(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], carg
  * recarga, usos e Overload. O contra-ataque
  * (Q6) não gasta ação da vez e sai da lista.
  */
+/** Construtor C1: os multiplicadores da técnica montada mais a divisão entre os marcados (`dividirPor`, ausente = cada um toma inteiro). */
+interface MultiplicadoresNoGolpe extends MultiplicadoresDasPecas {
+  dividirPor?: number
+}
+
+/** Construtor C1: os multiplicadores da técnica montada para estes alvos; `undefined` = técnica de texto (como sempre). */
+function multiplicadoresNoGolpe(pecas: ReturnType<typeof pecasDoCartao>, alvos: number): MultiplicadoresNoGolpe | undefined {
+  if (pecas === null) return undefined
+  const teto = divisaoDasPecas(pecas)
+  return teto === null ? multiplicadoresDasPecas(pecas) : { ...multiplicadoresDasPecas(pecas), dividirPor: Math.max(1, alvos) }
+}
+
+/**
+ * Construtor C1 (decisão 2 do mestre): no cartão montado, o app do mestre
+ * recalcula a base pelas peças e o número da tela não vale; só o mestre pode
+ * mudá-lo (o pedido dele passa como veio). Sem peça de dano = sem dano. A
+ * fórmula que pede a vida do alvo segue para `comDanoPelaVida`; a que pede
+ * arma sem arma escolhida fica com o número da tela, como no cartão de texto.
+ */
+function comODanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formula: Omit<ContextoDaFormula, 'vidaDoAlvo'>, alvos: readonly PedidoDeAlvo[]): readonly PedidoDeAlvo[] {
+  if (ctx.autor.tipo === 'mestre') return alvos
+  const lido = danoDaTecnica(cartao, formula)
+  if (lido.tipo === 'semDano') return alvos.map((alvo) => ({ ...alvo, dano: null }))
+  if (lido.tipo !== 'valor') return alvos
+  const base = Math.min(DANO_MAX, lido.valor)
+  return alvos.map((alvo) => ({ ...alvo, dano: base }))
+}
+
 /** Os ids de uma parte do golpe (o golpe e a linha dela no registro). */
 interface IdsDaParte {
   golpe: string
@@ -492,9 +525,13 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   // F2b (A Caçada Começa): com a forma ligada, todo golpe do dono é Overload (não dá para desviar; só outra Overload defende).
   const overload = (tecnica?.overload ?? false) || (personagem !== null && golpesSaoOverload(personagem.cartoesAtivos))
   // F2 (fatia B): a mecânica à mão da técnica (`mecanicasAMao.ts`): o perfurante, o selo, as respostas, a 2ª parte, o HP que custa.
-  const mecanica = tecnica === null ? null : mecanicaDoCartao(tecnica.cartao.id)
+  // Construtor C1: o cartão montado dá a linha das peças no lugar da da tabela (tudo ou nada).
+  const mecanica = tecnica === null ? null : mecanicaDoCartao(tecnica.cartao)
+  const montada = tecnica !== null && cartaoMontado(tecnica.cartao)
+  const pecas = tecnica === null ? null : pecasDoCartao(tecnica.cartao)
   // F2 (fatia C): a dança da Aira não pede reação (a defesa é o teste); a Luz do Sol não dá dano nos aliados marcados.
-  const reacao: ReacaoDoTipo = mecanica?.semReacao === true ? 'nunca' : reacaoDoTipo(tecnica?.tipo ?? null)
+  // Construtor C1: na técnica montada, quem reage sai das peças (o teste e o selo), não do Tipo escrito.
+  const reacao: ReacaoDoTipo = mecanica?.semReacao === true ? 'nunca' : pecas !== null ? reacaoDasPecas(pecas) : reacaoDoTipo(tecnica?.tipo ?? null)
   // F2 (fatia C): o Atacar melhorado (Aira com um aliado abençoado): a soma no dano de cada alvo, o selo no acerto e os golpes a mais. O contra-ataque fica de fora.
   const cartoes = cartoesDoDono(personagem)
   const melhorado = pedido.tipo === 'atacar' && contra === null ? ataqueComOSelo(cartoes, ctx.turnos.selos, ctx.carta.tokenId) : null
@@ -506,12 +543,19 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const daRaca = pedido.tipo === 'atacar' || tecnica !== null ? somaCorpoACorpo(cartoes, tecnica?.cartao.id ?? null, atacarCorpoACorpo(arma)) : 0
   const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
   // F2b (Imbuir Fogo do Siegfried): o +10 da resposta soma por cima da fórmula (a da arma escolhida), em cada alvo.
-  const doFogo = tecnica === null ? 0 : somaDasRespostas(tecnica.cartao.id, respostas)
+  const doFogo = tecnica === null ? 0 : somaDasRespostas(tecnica.cartao, respostas)
   const soma = somaDoAtaque + deTodoGolpe.dano + daRaca + doFogo
+  // Construtor C1 (decisão 2): na técnica montada, a base do jogador sai das peças, com a arma, a bala e o bônus dos selos de quem usa.
+  const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
+  const daTela =
+    tecnica === null || !montada || personagem === null || sistema === null
+      ? pedido.alvos
+      : comODanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) }, pedido.alvos)
   // F2 (fatia D, Explosão): o dano "% da vida do alvo" sai da vida de cada alvo.
-  const pelaVida = tecnica === null || personagem === null || sistema === null ? pedido.alvos : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, pedido.alvos)
+  const pelaVida = tecnica === null || personagem === null || sistema === null ? daTela : comDanoPelaVida(ctx, tecnica.cartao, { personagem, sistema, arma }, respostas, daTela)
   // F2 (fatia F, Lua Incandescente): a base dividida entre os marcados, para baixo (71 em 3 = 23 em cada).
-  const pedidosDoDano = mecanica?.divide === undefined ? pelaVida : comDanoDividido(pelaVida, mecanica.divide.teto)
+  // Construtor C1: na técnica montada a divisão vem depois dos multiplicadores, dentro de `danoQueChega` (`multiplicadoresNoGolpe`).
+  const pedidosDoDano = mecanica?.divide === undefined || montada ? pelaVida : comDanoDividido(pelaVida, mecanica.divide.teto)
   const somados = mecanica?.seloSoNosAliados === true ? comSomaNoDano(semDanoNosAliados(ctx, pedidosDoDano), soma) : comSomaNoDano(pedidosDoDano, soma)
   // F2 (fatia F, Melodia): +20 em cada alvo que o dono analisou (o selo da passiva dele na opção principal).
   const pedidos = somados.map((alvo) => {
@@ -519,14 +563,15 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     return contra === 0 || alvo.dano === null ? alvo : { ...alvo, dano: alvo.dano + contra }
   })
   // F2 (revisão da fatia D, Campo): a técnica que dá carga por vez não gasta a guardada (nem a usa).
-  const gasta = gastaACarga(tecnica?.cartao.id ?? null)
+  const gasta = gastaACarga(tecnica?.cartao ?? null)
   const carga = gasta ? combate.carga : 0
   // F2b (Aparência Inofensiva): com o "Sim", Surpresa também em cada alvo que ainda não viu o dono lutar (o contra-ataque nunca é Surpresa).
   const viram = new Set(combate.viramLutar ?? [])
   const inofensiva = deTodoGolpe.surpresaEmQuemNaoViu !== null && contra === null
   const surpresaEm = (tokenId: string): boolean => pedido.surpresa || (inofensiva && !viram.has(tokenId))
   const surpresosPelaAparencia = inofensiva && !pedido.surpresa && pedidos.some((alvo) => !viram.has(alvo.tokenId))
-  const alvos = alvosDoGolpe(ctx, pedidos, carga, surpresaEm, overload, reacao)
+  const multiplicadores = multiplicadoresNoGolpe(pecas, pedidos.length)
+  const alvos = alvosDoGolpe(ctx, pedidos, carga, surpresaEm, overload, reacao, multiplicadores)
   const golpe: GolpeDaBatalha = {
     id: ids.golpe,
     linhaId: ids.linha,
@@ -539,11 +584,12 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     surpresa: pedido.surpresa,
     overload,
     // F2 (fatia D, Projeção Letal): o perfurante pela resposta ("cortante ou perfurante?") vence o fixo da tabela e o da mira.
-    perfurante: (tecnica === null ? null : perfuranteDaMecanica(tecnica.cartao.id, respostas)) ?? pedido.perfurante,
+    perfurante: (tecnica === null ? null : perfuranteDaMecanica(tecnica.cartao, respostas)) ?? pedido.perfurante,
     alvos,
   }
   // A porcentagem só vai quando é parcial: 100 é o Perfurante de sempre (golpe sem o campo).
-  const perfuracao = perfuracaoValida(pedido.perfuracao)
+  // Construtor C1: a técnica montada não tem perfuração parcial (a do texto da ficha não vale nela).
+  const perfuracao = montada ? null : perfuracaoValida(pedido.perfuracao)
   if (perfuracao !== null && perfuracao < PERFURACAO_MAX) golpe.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) golpe.contraDe = pedido.contraDe
   // R1: a técnica que marca ao acertar (Desenhar o Alvo) e a arma que atira (o acerto lembra a passiva de marca).
@@ -554,9 +600,10 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   if (selo !== null) golpe.selo = tecnica === null ? selo : seloDaTecnicaNoGolpe(selo, tecnica)
   // F2 (fatia B): o selo da tabela vence o da mira (leitura de texto); a técnica de selo só por resposta sai sem ele quando a resposta não pede.
   if (tecnica !== null && golpe.marca === undefined) {
-    const daMecanica = seloDaMecanica(tecnica.cartao.id, respostas, personagem === null || sistema === null ? undefined : valorNaFichaDe(personagem, sistema))
-    if (daMecanica !== null) golpe.selo = seloDaTecnicaNoGolpe(daMecanica, tecnica)
-    else if (semSeloPelaResposta(tecnica.cartao.id, respostas)) delete golpe.selo
+    const daMecanica = seloDaMecanica(tecnica.cartao, respostas, personagem === null || sistema === null ? undefined : valorNaFichaDe(personagem, sistema))
+    // Construtor C1: a natureza escrita na peça vence a do Tipo; sem selo na peça, o golpe sai sem selo (o da mira é leitura de texto).
+    if (daMecanica !== null) golpe.selo = montada && daMecanica.natureza !== undefined ? { ...seloDaTecnicaNoGolpe(daMecanica, tecnica), natureza: daMecanica.natureza } : seloDaTecnicaNoGolpe(daMecanica, tecnica)
+    else if (montada || semSeloPelaResposta(tecnica.cartao, respostas)) delete golpe.selo
   }
   // F2 (fatia C): quem bate com a Bênção de uma Raposa recupera parte do dano (o selo de agora); a carga vai junto para a CD da disputa.
   const cura = curaDoDanoDosSelos(ctx.turnos.selos, ctx.carta.tokenId)
@@ -640,8 +687,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
 }
 
 /** F2 (fatia F, Lua Incandescente): por que os marcados passam do teto da técnica que divide o dano, ou `null`. */
-function motivoDoDivide(cartao: Pick<CartaoDaFicha, 'id' | 'nome'>, alvos: number): string | null {
-  const teto = mecanicaDoCartao(cartao.id)?.divide?.teto
+function motivoDoDivide(cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>, alvos: number): string | null {
+  const teto = mecanicaDoCartao(cartao)?.divide?.teto
   if (teto === undefined || alvos <= teto) return null
   return `${cartao.nome.trim() || 'A técnica'} acerta no máximo ${teto} alvos (o dano é dividido)`
 }
@@ -679,8 +726,8 @@ function custosDoGolpe(daTecnica: LeituraDoCusto | null, extraEmSp: number): Lei
  * em quem usa ou nos aliados dele (`ctx.aliados`, ids de personagem). Ficha
  * sem personagem ou de outra equipe recusa com o motivo.
  */
-function motivoDaLimpeza(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'id' | 'nome'>, alvosPersonagemIds: readonly (string | null | undefined)[]): string | null {
-  if (limpezaDe(cartao.id) === null) return null
+function motivoDaLimpeza(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>, alvosPersonagemIds: readonly (string | null | undefined)[]): string | null {
+  if (limpezaDe(cartao) === null) return null
   const deQuemUsa = ctx.carta.personagemId
   const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || (ctx.aliados?.has(id) ?? false))
   return alvosPersonagemIds.every(vale) ? null : `${cartao.nome.trim() || 'A técnica'} só vale em você ou num aliado`

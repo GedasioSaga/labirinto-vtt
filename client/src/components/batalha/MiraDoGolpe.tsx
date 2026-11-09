@@ -577,7 +577,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
           {alvos.map((alvo) => {
             const marcado = marcadosSet.has(alvo.tokenId)
             const baseDoAlvo = marcado ? baseDe(alvo.tokenId) : null
-            const conta = baseDoAlvo === null ? null : contaDoGolpe(baseDoAlvo, carga, comSurpresa)
+            const conta = baseDoAlvo === null ? null : contaDoGolpe(baseDoAlvo, carga, comSurpresa && golpe.semSurpresa !== true, golpe.multiplicadores)
             const editado = editados[alvo.tokenId] !== undefined
             // Perfurante parcial: quanto do que chega vai direto no HP ("· 123 direto no HP").
             const direto = conta === null || !comPerfurante || perfuracao === null || perfuracao >= PERFURACAO_MAX ? '' : ` · ${formatarNumero(divisaoDoDano(conta.valor, perfuracao).direto)} direto no HP`

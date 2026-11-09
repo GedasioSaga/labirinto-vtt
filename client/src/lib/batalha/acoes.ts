@@ -15,6 +15,7 @@ import {
   type LeituraDoTempo,
 } from './leituraDaFicha'
 import { danoDaTecnica, leituraDaTecnica } from './leituraDaTecnica'
+import { cartaoMontado } from './mecanica/leitura'
 import { itensQueSobram, mecanicaDoCartao, perfuranteDaMecanica, respostasPadrao } from './mecanicasAMao'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
 import type { AcoesExtras, GastoDaVez } from './turnos'
@@ -320,12 +321,14 @@ export function tecnicasNoMenu(
       dano: danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }),
       overload: base.overload,
       // F2 (fatia B): o perfurante da mecânica à mão vence a leitura do texto (Rapid Dash: só o 2º golpe perfura).
-      perfurante: perfuranteDaMecanica(cartao.id, respostasPadrao(cartao.id)) ?? ehPerfurante(cartao),
+      // Construtor C1: o cartão montado dá o perfurante da peça (passa o cartão, não o id).
+      perfurante: perfuranteDaMecanica(cartao, respostasPadrao(cartao)) ?? ehPerfurante(cartao),
       tipo: lida.tipo,
       motivo: motivoDaTecnica(base, personagem, sistema, combate, acoes),
     }
     if (forma !== undefined) tecnica.forma = forma
-    const perfuracao = perfuracaoDe(cartao)
+    // Construtor C1: a perfuração parcial é leitura do texto; a técnica montada perfura inteiro ou nada.
+    const perfuracao = cartaoMontado(cartao) ? null : perfuracaoDe(cartao)
     if (perfuracao !== null) tecnica.perfuracao = perfuracao
     return tecnica
   })

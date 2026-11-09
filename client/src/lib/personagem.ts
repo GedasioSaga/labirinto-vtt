@@ -65,7 +65,19 @@ export interface CartaoDaFicha {
    * ficha (vai ao jogador e volta na edição dele), não do mestre.
    */
   aMao?: true
+  /**
+   * CONSTRUTOR DE MECÂNICAS (fatia C1, docs/planos/construtor-de-mecanicas-2026-11-08.md):
+   * as peças da técnica montada, guardadas como vieram. Quem as lê e confere é
+   * `lerMecanica` (lib/batalha/mecanica/modelo.ts); aqui ficam opacas, para o app
+   * de antes regravar a mecânica de um app mais novo sem apagá-la. É dado da
+   * ficha (o dono e o mestre editam; decisão 1 do mestre). Ausente = o cartão
+   * segue pelo texto, como antes.
+   */
+  mecanica?: MecanicaGuardada
 }
+
+/** A mecânica do cartão como o disco e o fio a guardam: um objeto JSON, conferido só por quem lê (`lerMecanica`). */
+export type MecanicaGuardada = Readonly<Record<string, unknown>>
 
 /**
  * Que número da ficha um ajuste rápido mexe (`lib/ajusteDaFicha.ts`):
@@ -445,7 +457,29 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     subcartoes: semNulos((Array.isArray(value.subcartoes) ? value.subcartoes : []).map(cartaoDoArquivo)),
     // Só o `true` conta: qualquer outro valor (ficha de antes, valor torto) é "a leitura decide".
     ...(value.aMao === true ? { aMao: true } : {}),
+    ...mecanicaDoArquivo(value.mecanica),
   }
+}
+
+/** Teto do JSON da mecânica guardada: as peças cabem folgadas (8 efeitos, fórmulas de 200); mais que isto é lixo. */
+const MECANICA_GUARDADA_MAX = 16_000
+
+/**
+ * A mecânica do cartão como veio, em cópia funda e só JSON. Objeto que passa
+ * do teto ou não é objeto sai (o cartão segue pelo texto); objeto torto fica,
+ * para `lerMecanica` dizer "mecânica inválida" em vez de o texto voltar.
+ */
+function mecanicaDoArquivo(value: unknown): Pick<CartaoDaFicha, 'mecanica'> {
+  if (!isRecord(value)) return {}
+  let texto: string
+  try {
+    texto = JSON.stringify(value)
+  } catch {
+    return {}
+  }
+  if (texto.length > MECANICA_GUARDADA_MAX) return {}
+  const copia: unknown = JSON.parse(texto)
+  return isRecord(copia) ? { mecanica: copia } : {}
 }
 
 /** Corta em `max` unidades UTF-16 sem deixar meio emoji no fim. */

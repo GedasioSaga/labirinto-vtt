@@ -11,6 +11,7 @@ import {
   type LeituraDoTempo,
 } from '../batalha/leituraDaFicha'
 import { danoDaTecnica, leituraDaTecnica } from '../batalha/leituraDaTecnica'
+import { cartaoMontado, pecasDoCartao } from '../batalha/mecanica/leitura'
 import type { CartaoDaFicha, Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { ehVariacao } from './combate'
@@ -267,6 +268,12 @@ export function lerSaude(personagens: readonly Personagem[], sistema: SistemaDeR
   for (const personagem of personagens) {
     if (ehVariacao(personagem)) continue
     for (const { cartao, forma } of tecnicasDaFicha(personagem, sistema)) {
+      // Construtor C1: o cartão montado não passa pelo texto. Peças válidas = o motor faz tudo (Lido); torto ou de app mais novo = à mão.
+      if (cartaoMontado(cartao)) {
+        const estado = pecasDoCartao(cartao) === null ? 'aMao' : 'lido'
+        for (const campo of CAMPOS_DA_SAUDE) contagem[campo][estado] += 1
+        continue
+      }
       for (const campo of CAMPOS_DA_SAUDE) {
         const texto = cartao.campos[CAMPO_DO_CARTAO[campo]] ?? ''
         const leitura = lerCampo(campo, texto, cartao, personagem, sistema)

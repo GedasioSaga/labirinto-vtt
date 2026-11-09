@@ -89,11 +89,29 @@ export function fatorDaSaida(saida: SaidaDaReacao): number {
   }
 }
 
-/** O dano que chega ao alvo: base × concentração × Surpresa, para baixo, nunca negativo. `carga` = o nível (0 a 3). */
-export function danoQueChega(base: number, carga: number, surpresa: boolean): number {
+/**
+ * Construtor C1: o que a técnica montada põe depois da Concentração e da
+ * Surpresa. `extras`: os multiplicadores a mais, na ordem da lista (furtivo,
+ * ponto vital, marca); `dividirPor`: quantos dividem o dano (inteiro de 1 em diante).
+ */
+export interface DepoisDaSurpresa {
+  extras?: readonly number[]
+  dividirPor?: number
+}
+
+/**
+ * O dano que chega ao alvo, na ORDEM ÚNICA do dano (seção 2 do plano do
+ * construtor): base (já com as somas) × concentração × Surpresa × os extras
+ * na ordem ÷ a divisão entre os alvos, e só então para baixo, UMA vez; nunca
+ * negativo. `carga` = o nível (0 a 3). Sem `depois`: base × concentração ×
+ * Surpresa, como sempre. Ex.: Polaridade (55 + 30) × 3,5 = 297.
+ */
+export function danoQueChega(base: number, carga: number, surpresa: boolean, depois?: DepoisDaSurpresa): number {
   const nivel = Math.min(CARGA_MAX, Math.max(0, Math.trunc(carga)))
   const vezes = MULTIPLICADOR_DA_CARGA[nivel] ?? 1
-  return Math.max(0, Math.floor(base * vezes * (surpresa ? MULTIPLICADOR_DA_SURPRESA : 1)))
+  const extras = (depois?.extras ?? []).reduce((produto, extra) => (Number.isFinite(extra) && extra > 0 ? produto * extra : produto), 1)
+  const dividir = depois?.dividirPor !== undefined && Number.isInteger(depois.dividirPor) && depois.dividirPor > 1 ? depois.dividirPor : 1
+  return Math.max(0, Math.floor((base * vezes * (surpresa ? MULTIPLICADOR_DA_SURPRESA : 1) * extras) / dividir))
 }
 
 /** O dano que cai na ficha depois da reação: para baixo, nunca negativo. */

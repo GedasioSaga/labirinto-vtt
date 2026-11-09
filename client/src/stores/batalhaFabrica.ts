@@ -1749,7 +1749,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       return custoDaFormaNaVez(sceneKey, cena, autor, carta, personagem, sistema, pedido)
     }
     // F2 (revisão da fatia D): e o da técnica MANTIDA (Giro, Campo), na mesma faixa.
-    if (pedido.tipo === 'lembrete' && personagem !== null && sistema !== null && mantidaDe(pedido.cartaoId) !== null) {
+    // Construtor C1: procura pelo cartão (o montado com custo por vez também é mantido).
+    if (pedido.tipo === 'lembrete' && personagem !== null && sistema !== null && mantidaDe(tecnicaPorId(personagem, sistema, pedido.cartaoId)?.cartao ?? pedido.cartaoId) !== null) {
       return custoDaMantidaNaVez(sceneKey, cena, autor, carta, personagem, sistema, pedido)
     }
     if (motivoDaPassiva({ personagem, sistema, turnos, aplicarSoComLembrete: autor.tipo === 'jogador' }, pedido) !== null || personagem === null || sistema === null) return false
@@ -2519,7 +2520,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         }
       }
       // F2 (fatia D, Revigorar): tira os selos negativos (o cansaço do Overload junto) e cura, em cada alvo (ele ou um aliado).
-      const limpeza = pedido.tipo === 'habilidade' ? limpezaDe(pedido.cartaoId) : null
+      // Construtor C1: procura pelo cartão (a cura e a limpeza do montado vêm das peças).
+      const cartaoDaLimpeza = pedido.tipo !== 'habilidade' ? null : ctx.personagem !== null && ctx.sistema !== null ? (tecnicaPorId(ctx.personagem, ctx.sistema, pedido.cartaoId)?.cartao ?? pedido.cartaoId) : pedido.cartaoId
+      const limpeza = cartaoDaLimpeza === null ? null : limpezaDe(cartaoDaLimpeza)
       if (limpeza !== null && ctx.personagem !== null && ctx.sistema !== null) {
         for (const alvo of golpe.alvos) {
           // F2 (fatia F, Medicina): a que só cura deixa os debuffs.

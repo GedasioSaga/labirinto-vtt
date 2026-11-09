@@ -76,8 +76,12 @@ const MAPA_NUMERICO: Record<MapaNumerico, true> = {
 const ehMapaNumerico = guardaDe(MAPA_NUMERICO)
 export const MAPAS_NUMERICOS = chavesDe(MAPA_NUMERICO, ehMapaNumerico)
 
-/** Partes do cartão trocadas inteiras por `definir`; `imagem`, `campos` e `subcartoes` têm caminho próprio. */
-export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes'>
+/**
+ * Partes do cartão trocadas inteiras por `definir`; `imagem`, `campos` e `subcartoes` têm caminho próprio.
+ * Construtor de mecânicas C1: a `mecanica` ainda não tem caminho no Lobby (só viaja com o cartão
+ * novo); o caminho dela entra junto com a tela de montar (fatia C2), sem mexer no fio de hoje.
+ */
+export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica'>
 const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = { nome: true, aMao: true, extras: true, modificadores: true, atributos: true }
 const ehCampoSimplesDoCartao = guardaDe(CAMPO_SIMPLES_DO_CARTAO)
 export const CAMPOS_SIMPLES_DO_CARTAO = chavesDe(CAMPO_SIMPLES_DO_CARTAO, ehCampoSimplesDoCartao)

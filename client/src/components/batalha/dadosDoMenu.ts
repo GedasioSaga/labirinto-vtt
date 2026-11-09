@@ -19,6 +19,7 @@ import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preench
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
 import { chavesDoDono, golpesSaoOverload, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
+import { cartaoMontado, pecasDoCartao } from '../../lib/batalha/mecanica/leitura'
 import { casaNaAreaVirada, type Casa } from '../../lib/batalha/area'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { subidaDeParte } from '../../lib/batalha/transformacao'
@@ -75,6 +76,10 @@ export interface GolpeNaTela {
   divide?: number
   /** F2 (fatia F, Golpe Baixo): o que a mira lembra (o mestre confere). */
   lembrete?: string
+  /** Construtor C1: os multiplicadores extras da técnica montada (furtivo ×3), na ordem; a prévia os mostra na conta. */
+  multiplicadores?: readonly { nome: string; vezes: number }[]
+  /** Construtor C1: a técnica montada não multiplica a Surpresa (o ×1,5). */
+  semSurpresa?: true
   /** F2 (fatia F, Siegfried): as armas levadas, cada uma com o dano da técnica com ela; a mira pergunta qual (a 1ª vem marcada). Ausente = sem escolha. */
   armas?: readonly { id: string; nome: string; dano: DanoNaTela }[]
   tipo: 'atacar' | 'habilidade'
@@ -507,16 +512,23 @@ function golpeDaTecnica(
   // F2 (fatia B): o selo da mecânica à mão (Aéreo, Paralisado 2, o Atordoado da disputa) vence a leitura do texto;
   // a técnica que só põe selo por resposta (Grande Chifre: bateu na parede) começa sem.
   const id = tecnica.cartao.id
-  const padrao = respostasPadrao(id)
-  const semSelo = lerMarca(tecnica.cartao, sistema)?.tipo === 'aoAcertar' || semSeloPelaResposta(id, padrao)
-  const selo = seloDaMecanica(id, padrao) ?? (semSelo ? null : seloSugeridoDaTecnica(tecnica.cartao, sistema))
+  // Construtor C1: a mecânica é procurada pelo cartão (o montado dá a linha das peças; o de texto cai na tabela pelo id).
+  const { cartao } = tecnica
+  const padrao = respostasPadrao(cartao)
+  // Tudo ou nada: a técnica montada sem selo na peça não sugere o selo lido do texto.
+  const semSelo = lerMarca(cartao, sistema)?.tipo === 'aoAcertar' || semSeloPelaResposta(cartao, padrao) || cartaoMontado(cartao)
+  const selo = seloDaMecanica(cartao, padrao) ?? (semSelo ? null : seloSugeridoDaTecnica(cartao, sistema))
   if (selo !== null) golpe.selo = selo
-  const mecanica = mecanicaDoCartao(id)
+  const mecanica = mecanicaDoCartao(cartao)
   if (mecanica?.semAlvo === true) golpe.semAlvo = true
   // F2 (fatia F): a área (Giro de Pá), o dano dividido (Lua Incandescente) e o lembrete da mira (Golpe Baixo).
   if (mecanica?.area !== undefined) golpe.area = mecanica.area
   if (mecanica?.divide !== undefined) golpe.divide = mecanica.divide.teto
   if (mecanica?.lembreteNaMira !== undefined) golpe.lembrete = mecanica.lembreteNaMira
+  // Construtor C1: os multiplicadores da peça entram na prévia (o host recalcula de qualquer jeito).
+  const multiplicadores = pecasDoCartao(cartao)?.dano?.multiplicadores
+  if (multiplicadores?.extra !== undefined && multiplicadores.extra.length > 0) golpe.multiplicadores = multiplicadores.extra
+  if (multiplicadores?.surpresa === false) golpe.semSurpresa = true
   // F2 (fatia F, Siegfried): qual arma, quando o dano muda com ela (a técnica com "Dano da Arma").
   const armas = perguntaAArma(idsDosCartoes(personagem)) ? armasDaTecnica(tecnica.cartao, personagem, sistema, combate, bonus) : null
   if (armas !== null) golpe.armas = armas
@@ -524,7 +536,7 @@ function golpeDaTecnica(
   const subida = subidaDeParte(personagem, sistema, id)
   if (golpe.motivo === null && subida !== null && 'motivo' in subida) golpe.motivo = subida.motivo
   // F2 (fatia D, Revigorar): a técnica que limpa começa em quem usa (vale nele ou num aliado).
-  if (limpezaDe(id) !== null) golpe.alvoEmSi = true
+  if (limpezaDe(cartao) !== null) golpe.alvoEmSi = true
   // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
   // F2 (fatia D, Imbuir Fogo): a opção que a forma ligada não deixa some (a Ignição ligada deixa só "Não" no fogo).
   const perguntas = perguntasComAsFormas(perguntasDoGolpe(id, idsDosCartoes(personagem)), id, personagem.cartoesAtivos)
@@ -753,13 +765,18 @@ export function textoDoPerfurante(porcentagem: number): string {
   return porcentagem >= PERFURACAO_MAX ? 'direto no HP, sem gastar o Escudo' : `${porcentagem}% direto no HP, o resto passa pelo Escudo`
 }
 
-/** O dano que chega e a conta ao lado: "205 × 2 concentração × 1,5 Surpresa = 615". */
-export function contaDoGolpe(base: number, carga: number, surpresa: boolean): { valor: number; conta: string } {
-  const valor = danoQueChega(base, carga, surpresa)
+/**
+ * O dano que chega e a conta ao lado: "205 × 2 concentração × 1,5 Surpresa = 615".
+ * Construtor C1: `extras` (os multiplicadores da técnica montada) entram depois
+ * da Surpresa, na ordem: "100 × 1,5 Surpresa × 3 furtivo = 450".
+ */
+export function contaDoGolpe(base: number, carga: number, surpresa: boolean, extras?: readonly { nome: string; vezes: number }[]): { valor: number; conta: string } {
+  const valor = danoQueChega(base, carga, surpresa, extras === undefined ? undefined : { extras: extras.map((extra) => extra.vezes) })
   const partes = [formatarNumero(base)]
   const vezes = MULTIPLICADOR_DA_CARGA[Math.min(CARGA_MAX, Math.max(0, carga))] ?? 1
   if (vezes !== 1) partes.push(`${formatarNumero(vezes)} concentração`)
   if (surpresa) partes.push(`${formatarNumero(MULTIPLICADOR_DA_SURPRESA)} Surpresa`)
+  for (const extra of extras ?? []) partes.push(`${formatarNumero(extra.vezes)} ${extra.nome}`)
   return { valor, conta: partes.length === 1 ? formatarNumero(valor) : `${partes.join(' × ')} = ${formatarNumero(valor)}` }
 }
 

@@ -1,4 +1,5 @@
-import type { CartaoDaFicha, Personagem } from '../personagem'
+import type { CartaoDaFicha, MecanicaGuardada, Personagem } from '../personagem'
+import { acaoDasPecas, avisoDoCartaoMontado, cartaoMontado, custoDasPecas, formulaDoNumero, pecasDoCartao, tempoDasPecas } from './mecanica/leitura'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { overloadNaBatalha } from './escolhaEEvolucao'
 import { CAMPO_DO_DANO, lerDano, type ContextoDaFormula, type LeituraDoDano } from './formula'
@@ -58,8 +59,38 @@ function custoDaFicha(cartao: CartaoDaFicha, personagem: Personagem): LeituraDoC
   return lerCusto(cartao.campos[CAMPO_DO_CUSTO] ?? '', personagem)
 }
 
+/**
+ * Construtor C1: o cartão MONTADO lido pelas peças, nas mesmas leituras do
+ * texto (tudo ou nada: o texto vira só descrição). Peça torta ou de app mais
+ * novo = à mão: custo perguntado com o aviso, ação perguntada, sem Tempo.
+ */
+function leituraDasPecas(cartao: CartaoDaFicha, ctx: ContextoDaLeitura): LeituraDaTecnica {
+  const { personagem, sistema } = ctx
+  const pecas = pecasDoCartao(cartao)
+  const tipo = lerTipo(cartao)
+  if (pecas === null) {
+    const aviso = avisoDoCartaoMontado(cartao) ?? ''
+    return { cartao, acaoDaFicha: { acao: null, overload: false, transformacao: false, tambemReacao: false }, custo: custoComATela({ tipo: 'pergunta', recurso: 'sp', sugestao: null, texto: aviso }, ctx.custoDaTela), tempo: { tipo: 'livre' }, overload: false, transformacao: false, tipo }
+  }
+  const lerFormula = (formula: string): number | null => {
+    const lido = lerDano(formula, { personagem, sistema, arma: null, vidaDoAlvo: null })
+    return lido.tipo === 'valor' ? lido.valor : null
+  }
+  const acaoDaFicha = acaoDasPecas(pecas)
+  return {
+    cartao,
+    acaoDaFicha,
+    custo: custoComATela(custoDasPecas(pecas, personagem, lerFormula), ctx.custoDaTela),
+    tempo: tempoDasPecas(pecas),
+    overload: acaoDaFicha.overload,
+    transformacao: false,
+    tipo,
+  }
+}
+
 /** A técnica lida do cartão. F2 (fatia F): a ação e os usos da mecânica à mão vencem os da ficha (Florescer livre, Medicina 3 por batalha). */
 export function leituraDaTecnica(cartao: CartaoDaFicha, ctx: ContextoDaLeitura): LeituraDaTecnica {
+  if (cartaoMontado(cartao)) return leituraDasPecas(cartao, ctx)
   const { personagem, sistema } = ctx
   const mecanica = mecanicaDoCartao(cartao.id)
   const lida = lerAcao(cartao.campos[CAMPO_DA_ACAO] ?? '')
@@ -79,12 +110,28 @@ export function leituraDaTecnica(cartao: CartaoDaFicha, ctx: ContextoDaLeitura):
  * O dano do cartão sem a vida do alvo (o menu e a Saúde não sabem o alvo; a
  * mira relê com ele), com a arma e o bônus dos selos de quem usa.
  */
-export function danoDaTecnica(cartao: Pick<CartaoDaFicha, 'campos'> & { id?: string }, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>, respostas?: RespostasDoPedido): LeituraDoDano {
+export function danoDaTecnica(cartao: CartaoDoDano, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>, respostas?: RespostasDoPedido): LeituraDoDano {
   return danoDaTecnicaComAVida(cartao, ctx, null, respostas)
 }
 
+/** O cartão como o dano o lê: os campos, e (quando há) o id da tabela à mão e as peças do construtor. */
+type CartaoDoDano = Pick<CartaoDaFicha, 'campos'> & { id?: string; mecanica?: MecanicaGuardada }
+
+/**
+ * Construtor C1: o dano do cartão MONTADO, pela fórmula da peça (a arma só
+ * entra com `arma: 'padrao'`). Sem peça de dano = sem dano; torto ou de app
+ * mais novo = à mão (a mira pede o número), nunca o campo Dano.
+ */
+function danoDasPecas(cartao: CartaoDoDano, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>, vidaDoAlvo: ContextoDaFormula['vidaDoAlvo']): LeituraDoDano {
+  const pecas = pecasDoCartao(cartao)
+  if (pecas === null) return { tipo: 'naoEntende', texto: avisoDoCartaoMontado(cartao) ?? '' }
+  if (pecas.dano === undefined) return { tipo: 'semDano' }
+  return lerDano(formulaDoNumero(pecas.dano.base), { ...ctx, arma: pecas.dano.arma === 'padrao' ? ctx.arma : null, vidaDoAlvo })
+}
+
 /** F2 (fatia D, Explosão): o dano do cartão com a vida de UM alvo ("10% da vida atual do alvo"); o host relê alvo a alvo (`golpe.ts`). */
-export function danoDaTecnicaComAVida(cartao: Pick<CartaoDaFicha, 'campos'> & { id?: string }, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>, vidaDoAlvo: ContextoDaFormula['vidaDoAlvo'], respostas?: RespostasDoPedido): LeituraDoDano {
+export function danoDaTecnicaComAVida(cartao: CartaoDoDano, ctx: Omit<ContextoDaFormula, 'vidaDoAlvo'>, vidaDoAlvo: ContextoDaFormula['vidaDoAlvo'], respostas?: RespostasDoPedido): LeituraDoDano {
+  if (cartaoMontado(cartao)) return danoDasPecas(cartao, ctx, vidaDoAlvo)
   // F2 (fatia B): a fórmula da mecânica à mão (com o que as respostas mudam) vence o campo Dano.
   const daMecanica = cartao.id === undefined ? null : formulaDaMecanica(cartao.id, respostas)
   return lerDano(daMecanica ?? cartao.campos[CAMPO_DO_DANO] ?? '', { ...ctx, vidaDoAlvo })

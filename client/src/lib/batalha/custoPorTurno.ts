@@ -67,8 +67,9 @@ export function formasComCustoPorTurno(personagem: Personagem, sistema: SistemaD
 }
 
 /** F2 (revisão da fatia D): o custo de cada vez da técnica mantida: o da tabela, ou o "por turno" do campo Custo. `null` = não é mantida (ou não custa). */
-export function custoDaMantida(cartao: Pick<CartaoDaFicha, 'id' | 'campos'>, personagem: Personagem): CustoPorTurno | null {
-  const mantida = mantidaDe(cartao.id)
+export function custoDaMantida(cartao: Pick<CartaoDaFicha, 'id' | 'campos' | 'mecanica'>, personagem: Personagem): CustoPorTurno | null {
+  // Construtor C1: pelo cartão (o montado traz o custo por vez da peça, sempre na tabela da linha).
+  const mantida = mantidaDe(cartao)
   if (mantida === null) return null
   const daTabela = mantida.custoPorVez
   if (daTabela === undefined) return custoPorTurno(cartao, personagem)
