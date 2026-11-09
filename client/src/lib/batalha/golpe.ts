@@ -85,6 +85,7 @@ import {
 } from './mecanicasAMao'
 import { dividirDano } from './area'
 import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
+import { armaPadraoEntre } from './mecanica/arma'
 import { danoUsaArma } from './mecanica/modelo'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import { lerMarca } from './marca'
@@ -345,7 +346,8 @@ function motivoDoAtacarComArmaMontada(ctx: ContextoDoGolpe, pedido: Extract<Pedi
   return (
     motivoDaArmaNaVez(arma, lida, personagem, sistema, combate, acoes) ??
     motivoDoDanoDasPecas(ctx, arma, { personagem, sistema, arma, bala, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) }) ??
-    motivoDoTetoDeDano(arma, arma.nome.trim() || 'A arma', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
+    // Sem peça de dano (o Boomerang), a recusa diz "acerta um inimigo só", não "dá dano".
+    motivoDoTetoDeDano(arma, arma.nome.trim() || 'A arma', alvosPersonagemIds, ctx.aliados ?? new Set<string>(), lida.mecanica.dano !== undefined) ??
     motivoDoDivide(arma, pedido.alvos.length)
   )
 }
@@ -1036,7 +1038,8 @@ export function sugestaoParaNpc(npc: Personagem, cena: BatalhaEmTurnos, ctx: Con
   const combate = cena.turnos.combate?.[npc.id]
   const levadas = combate?.armas ?? null
   const armas = armasDe(npc).filter((arma) => levadas === null || levadas.includes(arma.id))
-  const arma = armas[0] ?? null
+  // Construtor C8: a arma padrão, como o painel do mestre (sem marca, a primeira, como antes).
+  const arma = armaPadraoEntre(armas)
   const armaId = arma?.id ?? null
   if (sistema === null) return { cartaoId: null, armaId, alvoTokenId }
   const daVez = cartaDaVez(cena.turnos)

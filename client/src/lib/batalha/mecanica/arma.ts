@@ -1,5 +1,6 @@
 import type { CartaoDaFicha } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
+import { FORMULA_DO_ATAQUE, formulaDoAtaque } from '../formula'
 import { avisoDoCartaoMontado, cartaoMontado, mecanicaLidaDoCartao } from './leitura'
 import { testeRolado, VERSAO_DA_MECANICA, type MecanicaV1 } from './modelo'
 
@@ -58,17 +59,21 @@ export const MODELOS_DA_ARMA: readonly { id: IdDoModeloDaArma; nome: string; dic
   { id: 'golpeComSelo', nome: 'Golpe com efeito', dica: 'Dano da arma e um selo no acerto. 2 vezes por batalha' },
 ]
 
-/** A fórmula do golpe da arma: o 1º atributo do sistema mais o "Dano da Arma" (o dela mesma). */
-function formulaDaArma(sistema: SistemaDeRpg): string {
-  const atributo = sistema.atributos[0]?.nome.trim()
-  return atributo === undefined || atributo === '' ? 'Dano da Arma' : `${atributo} + Dano da Arma`
+/**
+ * A fórmula do golpe da arma: a mesma do Atacar com ela, o "Soma no ataque"
+ * dela mais o Dano da arma (a Rosa Fúnebre soma Percepção, não Força). Sem a
+ * arma em mãos, a do Atacar de sempre (Força + Dano da arma).
+ */
+function formulaDaArma(sistema: SistemaDeRpg, arma: CartaoDaFicha | undefined): string {
+  return arma === undefined ? FORMULA_DO_ATAQUE : formulaDoAtaque(arma, sistema)
 }
 
 /** USOS de partida de cada modelo (o Boomerang: 3 por combate). */
 const USOS_DO_ATORDOA = 3
 const USOS_DO_GOLPE_COM_SELO = 2
 
-export function mecanicaDoModeloDaArma(id: IdDoModeloDaArma, sistema: SistemaDeRpg): MecanicaV1 {
+/** `arma`: a arma em que o modelo vai (o editor passa o cartão); o "Golpe com efeito" soma o que ela soma no Atacar. */
+export function mecanicaDoModeloDaArma(id: IdDoModeloDaArma, sistema: SistemaDeRpg, arma?: CartaoDaFicha): MecanicaV1 {
   const base = { versao: VERSAO_DA_MECANICA, acao: 'simples', custos: [], teste: { tipo: 'reacao' }, alvo: { quem: 'inimigos', forma: { tipo: 'um' } } } as const
   switch (id) {
     case 'atordoa':
@@ -77,7 +82,7 @@ export function mecanicaDoModeloDaArma(id: IdDoModeloDaArma, sistema: SistemaDeR
       return {
         ...base,
         limite: { usosPorBatalha: USOS_DO_GOLPE_COM_SELO },
-        dano: { base: { formula: formulaDaArma(sistema) }, arma: 'padrao', multiplicadores: { concentracao: true, surpresa: true } },
+        dano: { base: { formula: formulaDaArma(sistema, arma) }, arma: 'padrao', multiplicadores: { concentracao: true, surpresa: true } },
         efeitos: [{ tipo: 'selo', nome: 'Sangrando', duracao: 3, natureza: 'debuff' }],
       }
   }

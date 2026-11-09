@@ -1,5 +1,7 @@
 import { maximoComposto, valorDoRank } from '../ajusteDaFicha'
-import { ATRIBUTO_PADRAO_DO_ATAQUE, CAMPO_DO_DANO, armaSoDeEfeito, atributoDoAtaque, danoDoAtaque } from '../batalha/formula'
+import { ATRIBUTO_PADRAO_DO_ATAQUE, CAMPO_DO_DANO, armaSoDeEfeito, atributoDoAtaque, danoDoAtaque, type LeituraDoDano } from '../batalha/formula'
+import { danoDaTecnica } from '../batalha/leituraDaTecnica'
+import { cartaoMontado, formulaDoDanoDasPecas } from '../batalha/mecanica/leitura'
 import { armasDe, ehOverload, lerAcao, lerCusto, recursoDoCusto, recursoDoEscudo, tecnicasComForma, CAMPO_DA_ACAO, CAMPO_DO_CUSTO } from '../batalha/leituraDaFicha'
 import { fatorDaSaida, saidasPossiveis } from '../batalha/reacao'
 import { FORCA_MAX, FORCA_MIN, forcaDe, forcaNoPasso, numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
@@ -154,14 +156,27 @@ function escudoDe(personagem: Personagem, sistema: SistemaDeRpg): number | null 
   return escudo.atualEMaximo === true ? maximoComposto(personagem, escudo.id).total : numeroDaFicha(personagem.recursos, escudo.id)
 }
 
+/**
+ * Construtor C8: o dano do Atacar com a arma, como o host conta. A montada vai
+ * pelas peças (o Dano em texto dela é só descrição); a de texto, pelo Atacar
+ * de sempre ("Nada" no Soma no ataque = sem dano).
+ */
+function danoDoAtacar(personagem: Personagem, sistema: SistemaDeRpg, arma: CartaoDaFicha | null): LeituraDoDano {
+  return arma !== null && cartaoMontado(arma) ? danoDaTecnica(arma, { personagem, sistema, arma }) : danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null })
+}
+
 /** O Atacar como o menu da vez oferece: uma tira por arma; sem arma, o desarmado (Força). */
 function ataquesDe(personagem: Personagem, sistema: SistemaDeRpg): GolpeDaFicha[] {
-  // Construtor C8: a arma só de efeito ("Nada" no Soma no ataque, o Boomerang) não é golpe de dano: fica fora da conta.
-  const armas: (CartaoDaFicha | null)[] = armasDe(personagem).filter((arma) => !armaSoDeEfeito(arma))
+  // Construtor C8: a arma que não dá dano (a só de efeito, "Nada" no Soma no ataque; a montada sem peça de dano, o Boomerang) fica fora da conta.
+  const daDano = (arma: CartaoDaFicha): boolean => (cartaoMontado(arma) ? danoDoAtacar(personagem, sistema, arma).tipo !== 'semDano' : !armaSoDeEfeito(arma))
+  const armas: (CartaoDaFicha | null)[] = armasDe(personagem).filter(daDano)
   return (armas.length === 0 ? [null] : armas).map((arma) => {
-    const lido = danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null })
+    const lido = danoDoAtacar(personagem, sistema, arma)
     const nome = arma === null ? NOME_DO_ATAQUE : `${NOME_DO_ATAQUE} (${arma.nome})`
     if (lido.tipo === 'valor') return { cartao: null, nome, valor: lido.valor, conta: lido.conta, estado: 'lido' }
+    // A montada que a conta não lê diz a fórmula das peças, não a do Atacar de texto.
+    const dasPecas = arma === null ? null : formulaDoDanoDasPecas(arma)
+    if (dasPecas !== null) return { cartao: null, nome, valor: null, conta: dasPecas, estado: 'naoLe' }
     // A arma que soma outro atributo ("Soma no ataque") diz qual: "Percepção + Rosa Fúnebre".
     const atributo = arma === null ? null : atributoDoAtaque(arma, sistema)
     const somado = atributo?.nome ?? ATRIBUTO_PADRAO_DO_ATAQUE

@@ -82,6 +82,12 @@ export interface CartaoSemImagem {
    * aceita ou recusa na janela da ficha.
    */
   mecanicaProposta?: CartaoDaFicha['mecanicaProposta']
+  /**
+   * `CartaoDaFicha.armaPadrao` (construtor C8): viaja com o cartão, como o
+   * `aMao`, para o Salvar do jogador na aba Armas não apagar a marca do mestre
+   * e para a marca do jogador chegar ao host (mestre e dono editam).
+   */
+  armaPadrao?: true
 }
 
 /**
@@ -283,7 +289,19 @@ function cartao(value: unknown, nivel: 1 | 2): CartaoSemImagem | null {
   const subcartoes = lista<CartaoSemImagem>(value.subcartoes, nivel === 1 ? PERSONAGEM_CARTOES_MAX : 0, (sub) => cartao(sub, 2))
   if (nome === null || campos === null || extras === null || atributos === null || modificadores === null || subcartoes === null) return null
   // A mecânica pelo leitor do disco, com o mesmo teto: a que passa dele ou não é objeto sai (o host guarda a dele de qualquer jeito).
-  return { id: value.id, nome, campos, extras, atributos, modificadores, subcartoes, ...(value.aMao === true ? { aMao: true } : {}), ...mecanicaDoArquivo(value.mecanica), ...mecanicaPropostaDoArquivo(value.mecanicaProposta) }
+  return {
+    id: value.id,
+    nome,
+    campos,
+    extras,
+    atributos,
+    modificadores,
+    subcartoes,
+    ...(value.aMao === true ? { aMao: true } : {}),
+    ...(value.armaPadrao === true ? { armaPadrao: true } : {}),
+    ...mecanicaDoArquivo(value.mecanica),
+    ...mecanicaPropostaDoArquivo(value.mecanicaProposta),
+  }
 }
 
 /** Os ids de cartão de uma lista, subcartões juntos. */
@@ -467,6 +485,7 @@ export function cartaoSemImagem(cartao: CartaoDaFicha): CartaoSemImagem {
     modificadores: cartao.modificadores,
     subcartoes: cartao.subcartoes.map(cartaoSemImagem),
     ...(cartao.aMao === true ? { aMao: true } : {}),
+    ...(cartao.armaPadrao === true ? { armaPadrao: true } : {}),
     ...(cartao.mecanica === undefined ? {} : { mecanica: cartao.mecanica }),
     ...(cartao.mecanicaProposta === undefined ? {} : { mecanicaProposta: cartao.mecanicaProposta }),
   }

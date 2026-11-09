@@ -183,3 +183,26 @@ describe('construtor de mecânicas: a edição do jogador nunca mexe na mecânic
     ])
   })
 })
+
+describe('construtor C8: a arma padrão na sala LAN (mestre e dono editam)', () => {
+  it('a marca do mestre fica quando o jogador salva outra coisa na aba Armas, e a marca do jogador chega ao host', () => {
+    const espada = { ...novoCartao('Espada de Teste'), id: 'arma_espada' }
+    const lanca = { ...novoCartao('Lança de Teste'), id: 'arma_lanca' }
+    const pelaRede = (base: Personagem, rascunho: Personagem) => aplicarPartes(base, parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(base, rascunho)))) ?? {})
+    const padroes = (personagem: Personagem) => personagem.abas.armas?.map((arma) => [arma.id, arma.armaPadrao])
+    // O mestre marcou a Lança; o jogador muda só o nome da Espada e salva.
+    const doMestre: Personagem = { ...luffy(), abas: { ...luffy().abas, armas: [espada, { ...lanca, armaPadrao: true }] } }
+    const renomeada: Personagem = { ...doMestre, abas: { ...doMestre.abas, armas: [{ ...espada, nome: 'Espada Nova' }, { ...lanca, armaPadrao: true }] } }
+    expect(padroes(pelaRede(doMestre, renomeada))).toEqual([
+      ['arma_espada', undefined],
+      ['arma_lanca', true],
+    ])
+    // O jogador marca a Espada no app dele: a marca chega ao host.
+    const semMarca: Personagem = { ...luffy(), abas: { ...luffy().abas, armas: [espada, lanca] } }
+    const marcada: Personagem = { ...semMarca, abas: { ...semMarca.abas, armas: [{ ...espada, armaPadrao: true }, lanca] } }
+    expect(padroes(pelaRede(semMarca, marcada))).toEqual([
+      ['arma_espada', true],
+      ['arma_lanca', undefined],
+    ])
+  })
+})

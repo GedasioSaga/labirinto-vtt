@@ -846,9 +846,11 @@ function golpeDaArmaMontada(
   if (lida.tipo === 'recusada') return { ...semOTexto, motivo: lida.motivo }
   const { mecanica } = lida
   const tempo = [textoDoTempo(lida.tempo, combate, arma.id), lida.acao === 'simples' ? textoDoAtaqueExtra(acoes) : null].filter((texto): texto is string => texto !== null)
+  // A leitura com o dano das peças: a "Conta" do Dano em texto diria um número que a arma montada não dá.
+  const dano = danoNaTela(danoDaTecnica(arma, { personagem, sistema, arma, bonusDaBatalha: bonus }))
   const golpe: GolpeNaTela = {
     ...semOTexto,
-    dano: danoNaTela(danoDaTecnica(arma, { personagem, sistema, arma, bonusDaBatalha: bonus })),
+    dano,
     reacao: reacaoDasPecas(mecanica),
     custoTexto: textoDoCusto(lida.custo),
     custo: lida.custo,
@@ -858,7 +860,7 @@ function golpeDaArmaMontada(
     perfurante: mecanica.dano?.perfurante === true,
     perfuracao: null,
     motivo: motivoDaArmaNaVez(arma, lida, personagem, sistema, combate, acoes),
-    leitura: [...base.leitura, { rotulo: 'Mecânica', texto: resumoDaMecanica(mecanica, { personagem, sistema }).join(' ') }],
+    leitura: [...leituraDoCartao(arma, sistema, ABA_DAS_ARMAS, dano), { rotulo: 'Mecânica', texto: resumoDaMecanica(mecanica, { personagem, sistema }).join(' ') }],
   }
   const selo = seloDasPecas(mecanica)
   if (selo !== null) golpe.selo = selo

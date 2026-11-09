@@ -53,11 +53,12 @@ interface ModeloNaTela {
   id: string
   nome: string
   dica: string
-  montar: (sistema: SistemaDeRpg) => MecanicaV1
+  /** `cartao`: onde o modelo vai; o da arma soma o que ela soma no Atacar. */
+  montar: (sistema: SistemaDeRpg, cartao: CartaoDaFicha) => MecanicaV1
 }
 
 const MODELOS_DA_TECNICA_NA_TELA: readonly ModeloNaTela[] = MODELOS_PRONTOS.map((modelo) => ({ ...modelo, montar: (sistema) => mecanicaDoModelo(modelo.id, sistema) }))
-const MODELOS_DA_ARMA_NA_TELA: readonly ModeloNaTela[] = MODELOS_DA_ARMA.map((modelo) => ({ ...modelo, montar: (sistema) => mecanicaDoModeloDaArma(modelo.id, sistema) }))
+const MODELOS_DA_ARMA_NA_TELA: readonly ModeloNaTela[] = MODELOS_DA_ARMA.map((modelo) => ({ ...modelo, montar: (sistema, cartao) => mecanicaDoModeloDaArma(modelo.id, sistema, cartao) }))
 
 type Fase = 'fechado' | 'escolhendo' | 'editando'
 
@@ -273,7 +274,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           </p>
           <div className="lb-mec__modelos">
             {modelos.map((modelo) => (
-              <button key={modelo.id} type="button" className="lb-mec__modelo" onClick={() => comecarDe(modelo.montar(ficha.sistema))}>
+              <button key={modelo.id} type="button" className="lb-mec__modelo" onClick={() => comecarDe(modelo.montar(ficha.sistema, cartao))}>
                 <span className="lb-mec__modelo-nome">{modelo.nome}</span>
                 <span className="lb-mec__modelo-dica">{modelo.dica}</span>
               </button>

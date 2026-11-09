@@ -880,15 +880,18 @@ export function seloPegaNoAlvo(cartao: ChaveDaMecanica, alvoPersonagemId: string
  * F2 (fatia C): por que os alvos passam do teto de quem toma dano (A Luz do
  * Sol: "em um inimigo"), ou `null`. `alvosPersonagemIds`: o personagem de
  * cada alvo marcado; com `seloSoNosAliados`, os aliados de quem usa não
- * contam (eles só levam o selo). `nomeDaTecnica` vai no motivo.
+ * contam (eles só levam o selo). `nomeDaTecnica` vai no motivo. `daDano`
+ * falso (construtor C8: a arma montada sem peça de dano, o Boomerang) troca o
+ * "dá dano em" por "acerta", que é o que ela faz.
  */
-export function motivoDoTetoDeDano(cartao: ChaveDaMecanica, nomeDaTecnica: string, alvosPersonagemIds: readonly (string | null | undefined)[], aliados: ReadonlySet<string>): string | null {
+export function motivoDoTetoDeDano(cartao: ChaveDaMecanica, nomeDaTecnica: string, alvosPersonagemIds: readonly (string | null | undefined)[], aliados: ReadonlySet<string>, daDano = true): string | null {
   const mecanica = mecanicaDoCartao(cartao)
   const teto = mecanica?.tetoDeAlvosComDano
   if (mecanica === null || teto === undefined) return null
   const comDano = mecanica.seloSoNosAliados === true ? alvosPersonagemIds.filter((id) => typeof id !== 'string' || !aliados.has(id)) : alvosPersonagemIds
   if (comDano.length <= teto) return null
-  return teto === 1 ? `${nomeDaTecnica} dá dano em um inimigo só` : `${nomeDaTecnica} dá dano em no máximo ${teto} inimigos`
+  const verbo = daDano ? 'dá dano em' : 'acerta'
+  return teto === 1 ? `${nomeDaTecnica} ${verbo} um inimigo só` : `${nomeDaTecnica} ${verbo} no máximo ${teto} inimigos`
 }
 
 /** F2 (fatia B): a técnica pede selo pela resposta e a resposta não pediu (Grande Chifre sem parede): o golpe sai sem selo. */
