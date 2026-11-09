@@ -2,7 +2,7 @@ import { join } from '@tauri-apps/api/path'
 import { exists, readDir, readTextFile, remove, rename, writeFile } from '@tauri-apps/plugin-fs'
 import { FEATURES, type FeatureFlags } from '../features'
 import { ensureDir } from '../mapFileIO'
-import { hashHex } from '../midia'
+import { hashHex, tipoDosBytes } from '../midia'
 import { LUGARES, gravarNoPreparo, lerDoPreparo, listarNoPreparo, pastaDoPreparo, type DocumentoLido } from './disco'
 import { chaveDoCaminho } from './importar/cofre'
 import { ehRegistro } from './molde'
@@ -32,20 +32,8 @@ const SUFIXO_TEMPORARIO = '.tmp'
 /** Os tipos de forma que contam como cartão de verbete (os 3 do Grimório). */
 export const TIPOS_DE_CARTAO: ReadonlySet<string> = new Set(['character-card', 'cenario-card', 'item-card'])
 
-/** Os tipos de forma de planta (mapa de masmorra do Grimório): o quadro com eles abre só para ver. */
-export const TIPOS_DE_PLANTA: ReadonlySet<string> = new Set([
-  'porta-mapa',
-  'simbolo-mapa',
-  'sala-mapa',
-  'linha-mapa',
-  'item-mapa',
-  'retangulo-mapa',
-  'escada-mapa',
-  'corredor-mapa',
-  'torre-mapa',
-  'sala-poligono-mapa',
-  'muralha-mapa',
-])
+/** Onde o Grimório guarda o mapa de masmorra (a planta): a pasta do cofre, como a importação a classifica (`classificar.ts`). */
+const PASTA_DAS_PLANTAS = 'mapas-soltos/'
 
 /** Os registros da foto (`{document: {store}}`, ou `{store}` nas fotos antigas). Foto vazia ou estranha = nenhum. */
 export function registrosDaFoto(tldraw: unknown): Record<string, unknown>[] {
@@ -88,11 +76,14 @@ export function contarFormas(tldraw: unknown): ContagemDoQuadro {
   return { formas, cartoes, imagens, setas, molduras, salas, textos }
 }
 
-/** Quadro de planta (os `mapas-soltos` do Grimório, ou foto com peça de planta): abre só para ver. */
+/**
+ * Quadro de planta: o mapa de masmorra do Grimório (`mapas-soltos/`), que abre
+ * só para ver. Decide a origem, nunca as formas: a sala ou a porta colada num
+ * quadro de sessão (o Grimório registra as peças nos canvases para aceitar a
+ * colagem) fica nele, editável como o resto.
+ */
 export function ehPlanta(quadro: Quadro): boolean {
-  const caminho = quadro.origem?.grimorio?.caminho ?? ''
-  if (chaveDoCaminho(caminho).startsWith('mapas-soltos/')) return true
-  return registrosDaFoto(quadro.tldraw).some((registro) => registro.typeName === 'shape' && typeof registro.type === 'string' && TIPOS_DE_PLANTA.has(registro.type))
+  return chaveDoCaminho(quadro.origem?.grimorio?.caminho ?? '').startsWith(PASTA_DAS_PLANTAS)
 }
 
 /** O que a foto leva para o asset store: o caminho da mídia do Prelúdio. */
@@ -203,8 +194,16 @@ const EXTENSAO_DO_TIPO: Readonly<Record<string, string>> = {
   'image/avif': 'avif',
 }
 
-/** A extensão da mídia pelo tipo do arquivo, ou pelo nome; `png` quando nada diz. */
-export function extensaoDaImagem(tipo: string, nome: string): string {
+/**
+ * A extensão da mídia pela assinatura dos bytes, como faz a importação
+ * (`simular.ts`): o "retrato.png" que é webp vira `midia/<sha>.webp`, o mesmo
+ * arquivo que a importação já gravou, e o nome não mente o formato. Sem
+ * assinatura conhecida (svg, avif), vale o tipo do arquivo, depois o nome;
+ * `png` quando nada diz.
+ */
+export function extensaoDaImagem(bytes: Uint8Array, tipo: string, nome: string): string {
+  const dosBytes = tipoDosBytes(bytes)
+  if (dosBytes !== null) return dosBytes
   const doTipo = EXTENSAO_DO_TIPO[tipo.toLowerCase()]
   if (doTipo !== undefined) return doTipo
   const doNome = /\.([a-z0-9]{1,8})$/i.exec(nome)?.[1]?.toLowerCase()
@@ -238,15 +237,29 @@ let tabelaGuardada: Promise<ReadonlyMap<string, string>> | null = null
 
 /**
  * Caminho do cofre → mídia do Prelúdio, juntando as tabelas de todas as
- * importações aplicadas (a mais nova vence). Lida uma vez por abertura do app,
- * e só quando um quadro tem imagem do Grimório sem `meta.midia`.
+ * importações aplicadas (a mais nova vence). Lida só quando um quadro tem
+ * imagem do Grimório sem `meta.midia`, e guardada até a próxima importação
+ * aplicada ou restauração do Drive (`esquecerTabelaDeMidia`).
  */
 export function tabelaDeMidiaDasImportacoes(flags: Readonly<FeatureFlags> = FEATURES): Promise<ReadonlyMap<string, string>> {
-  tabelaGuardada ??= lerTabelas(flags).catch(() => {
-    tabelaGuardada = null
+  if (tabelaGuardada !== null) return tabelaGuardada
+  const lendo: Promise<ReadonlyMap<string, string>> = lerTabelas(flags).catch(() => {
+    // A leitura que falhou não fica guardada: o próximo quadro aberto tenta de novo.
+    if (tabelaGuardada === lendo) tabelaGuardada = null
     return new Map<string, string>()
   })
-  return tabelaGuardada
+  tabelaGuardada = lendo
+  return lendo
+}
+
+/**
+ * A importação aplicada e a restauração do Drive trocam o que há em
+ * `importacoes/`: a tabela guardada sai, e o próximo quadro aberto relê. Sem
+ * isto, a imagem nova do Grimório caía no `props.src` (o caminho do cofre, fora
+ * da pasta do app) e aparecia quebrada até reiniciar o app.
+ */
+export function esquecerTabelaDeMidia(): void {
+  tabelaGuardada = null
 }
 
 async function lerTabelas(flags: Readonly<FeatureFlags>): Promise<ReadonlyMap<string, string>> {

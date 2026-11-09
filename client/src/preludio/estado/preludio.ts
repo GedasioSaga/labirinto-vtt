@@ -145,6 +145,8 @@ const agendados = new Map<string, ReturnType<typeof setTimeout>>()
 /** Mudou e ainda não foi para o disco (inclusive o que falhou). */
 const sujos = new Set<string>()
 const emVoo = new Set<Promise<void>>()
+/** Quantas gravações de cada id estão indo ao disco agora (a chave sai de `sujos` quando a gravação começa). */
+const gravandoPorId = new Map<string, number>()
 let ultimaFalha: string | null = null
 let citacoes = new IndiceDeCitacoes()
 /** Cada abrir e fechar ganha um número: a leitura que terminou depois de outro abrir (ou do fechar) é jogada fora. */
@@ -182,6 +184,12 @@ function descartarPendentes(): void {
 /** Quem grava o que não é verbete (o quadro aberto), pela chave dele em `sujos`. A chave tem `:`, que id de verbete não tem. */
 const gravadoresDeFora = new Map<string, () => Promise<void>>()
 
+function contarGravando(id: string, mais: 1 | -1): void {
+  const quantas = (gravandoPorId.get(id) ?? 0) + mais
+  if (quantas > 0) gravandoPorId.set(id, quantas)
+  else gravandoPorId.delete(id)
+}
+
 function gravar(id: string): Promise<void> {
   const deFora = gravadoresDeFora.get(id)
   const verbete = usePreludio.getState().verbetes.get(id)
@@ -195,18 +203,18 @@ function gravar(id: string): Promise<void> {
     usePreludio.setState({ salvamento: situacao() })
     return Promise.resolve()
   }
+  contarGravando(id, 1)
   const tarefa = Promise.resolve()
     .then(escrever)
-    .then(() => {
-      // Uma mudança no meio da gravação agendou outra: o gravador dela fica.
-      if (!sujos.has(id)) gravadoresDeFora.delete(id)
-      conferirFalha()
-    })
+    .then(conferirFalha)
     .catch((erro: unknown) => {
       sujos.add(id)
       ultimaFalha = motivo(erro)
     })
     .finally(() => {
+      contarGravando(id, -1)
+      // O gravador de fora fica enquanto a chave espera o disco: agendada de novo no meio, gravando em outra leva ou com falha.
+      if (!gravacaoPendente(id)) gravadoresDeFora.delete(id)
       emVoo.delete(tarefa)
       usePreludio.setState({ salvamento: situacao() })
     })
@@ -242,9 +250,13 @@ export function agendarGravacaoDeFora(chave: string, gravarAgora: () => Promise<
   return true
 }
 
-/** Ainda há o que gravar com esta chave: agendado, gravando ou que falhou. */
+/**
+ * Ainda há o que gravar com esta chave: agendado, gravando ou que falhou. Quem
+ * relê o arquivo espera antes (`salvarPendentes`): no meio da gravação, o disco
+ * ainda tem o de antes.
+ */
 export function gravacaoPendente(chave: string): boolean {
-  return sujos.has(chave) || agendados.has(chave)
+  return sujos.has(chave) || agendados.has(chave) || gravandoPorId.has(chave)
 }
 
 // ─── Revelado ────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { LabyrinthMark } from '../components/icons'
 import { ROTULO_DO_TIPO } from '../lib/preparo/enciclopedia'
+import { esquecerTabelaDeMidia } from '../lib/preparo/quadros'
 import type { Campanha, LigaCena } from '../lib/preparo/tipos'
 import { BuscaGeral } from './busca/BuscaGeral'
 import { PainelDaCopia } from './copia/PainelDaCopia'
@@ -119,7 +120,15 @@ function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCop
           )}
         </section>
       )}
-      <PainelDaImportacao onAplicado={() => void carregar()} onPedirCopia={aoPedirCopia} onGravando={aoImportar} />
+      <PainelDaImportacao
+        onAplicado={() => {
+          // A importação traz a tabela de mídia nova: o próximo quadro aberto a relê.
+          esquecerTabelaDeMidia()
+          void carregar()
+        }}
+        onPedirCopia={aoPedirCopia}
+        onGravando={aoImportar}
+      />
       <PainelDaCopia
         pedidoDeCopia={pedidoDeCopia}
         travado={importando}
@@ -128,6 +137,7 @@ function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCop
           return antesDeRestaurar()
         }}
         depoisDeRestaurar={async (restaurou) => {
+          if (restaurou) esquecerTabelaDeMidia()
           await depoisDeRestaurar(restaurou)
           aoRestaurar(false)
         }}

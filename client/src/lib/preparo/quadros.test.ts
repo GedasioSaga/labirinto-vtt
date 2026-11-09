@@ -1,11 +1,35 @@
 /**
  * PRELÚDIO F3a: a foto do quadro vista sem o tldraw (contar as formas e dar às
- * imagens do Grimório o endereço da mídia do Prelúdio). Dados inventados (o
- * repositório é público).
+ * imagens do Grimório o endereço da mídia do Prelúdio), o que abre só para
+ * ver, a extensão da imagem colada e a tabela de mídia das importações. Dados
+ * e disco inventados (o repositório é público).
  */
-import { describe, expect, it } from 'vitest'
-import { caminhosSemMidia, contarFormas, ehPlanta, fotoComMidia, midiaNaTabela } from './quadros'
+import { describe, expect, it, vi } from 'vitest'
+import { FEATURES } from '../features'
+import { caminhosSemMidia, contarFormas, ehPlanta, esquecerTabelaDeMidia, extensaoDaImagem, fotoComMidia, midiaNaTabela, tabelaDeMidiaDasImportacoes } from './quadros'
 import type { Quadro } from './tipos'
+
+/** O `<appData>` de mentira: caminho → texto. */
+const discoFalso = vi.hoisted(() => new Map<string, string>())
+
+vi.mock('@tauri-apps/api/path', () => ({
+  appDataDir: async () => 'C:/appdata-inventado',
+  join: async (...partes: string[]) => partes.join('/'),
+}))
+
+vi.mock('@tauri-apps/plugin-fs', async (original) => ({
+  ...(await original<typeof import('@tauri-apps/plugin-fs')>()),
+  exists: async (caminho: string) => [...discoFalso.keys()].some((chave) => chave === caminho || chave.startsWith(`${caminho}/`)),
+  readDir: async (caminho: string) => {
+    const filhos = new Set([...discoFalso.keys()].filter((chave) => chave.startsWith(`${caminho}/`)).map((chave) => chave.slice(caminho.length + 1).split('/')[0]))
+    return [...filhos].map((name) => ({ name, isDirectory: true, isFile: false, isSymlink: false }))
+  },
+  readTextFile: async (caminho: string) => {
+    const texto = discoFalso.get(caminho)
+    if (texto === undefined) throw new Error(`não existe: ${caminho}`)
+    return texto
+  },
+}))
 
 function forma(id: string, type: string): Record<string, unknown> {
   return { id: `shape:${id}`, typeName: 'shape', type, props: {} }
@@ -18,6 +42,10 @@ function imagem(id: string, rel: string): Record<string, unknown> {
 /** Uma foto no formato que o Grimório grava: `{document: {store, schema}, session}`. */
 function foto(registros: Record<string, unknown>[]): { document: { store: Record<string, unknown>; schema: unknown }; session: unknown } {
   return { document: { store: Object.fromEntries(registros.map((registro) => [registro.id as string, registro])), schema: { schemaVersion: 2, sequences: {} } }, session: { versao: 'qualquer' } }
+}
+
+function vindoDe(caminho: string): NonNullable<Quadro['origem']> {
+  return { grimorio: { id: 'grim-inventado', caminho } }
 }
 
 describe('a foto do quadro', () => {
@@ -52,10 +80,44 @@ describe('a foto do quadro', () => {
     // A foto recebida não muda: quem grava é o editor, só depois de uma mudança do mestre.
     expect(original.document.store['asset:a1']).not.toHaveProperty('meta.midia')
 
-    const planta: Quadro = { formato: 1, nome: 'Masmorra inventada', tldraw: foto([forma('p1', 'sala-mapa'), forma('p2', 'porta-mapa')]) }
-    const mapaMental: Quadro = { formato: 1, nome: 'Sessão inventada', tldraw: original }
+    // Só para ver é a planta do Grimório, pela origem (`mapas-soltos/`). A sala colada num quadro de sessão não trava o quadro.
+    const planta: Quadro = { formato: 1, nome: 'Masmorra inventada', tldraw: foto([forma('p1', 'sala-mapa'), forma('p2', 'porta-mapa')]), origem: vindoDe('Mapas-Soltos/masmorra-inventada.json') }
+    const comSalaColada: Quadro = { formato: 1, nome: 'Sessão inventada', tldraw: foto([forma('c1', 'character-card'), forma('p3', 'sala-mapa')]), origem: vindoDe('campanhas/ilha-inventada/canvases/sessao-1.json') }
+    const doPreludio: Quadro = { formato: 1, nome: 'Quadro inventado', tldraw: foto([forma('p4', 'porta-mapa')]) }
     expect(ehPlanta(planta)).toBe(true)
     expect(contarFormas(planta.tldraw).salas).toBe(1)
-    expect(ehPlanta(mapaMental)).toBe(false)
+    expect(ehPlanta(comSalaColada)).toBe(false)
+    expect(ehPlanta(doPreludio)).toBe(false)
+  })
+
+  it('a imagem colada ganha a extensão da assinatura dos bytes, como na importação: o "retrato.png" que é webp não vira um segundo arquivo', () => {
+    const WEBP = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0x10, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])
+    const JPG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])
+    expect(extensaoDaImagem(WEBP, 'image/png', 'retrato.png')).toBe('webp')
+    expect(extensaoDaImagem(JPG, '', 'foto.png')).toBe('jpg')
+    // Sem assinatura conhecida, o tipo e depois o nome.
+    expect(extensaoDaImagem(new TextEncoder().encode('<svg xmlns="x">'), 'image/svg+xml', 'mapa.png')).toBe('svg')
+    expect(extensaoDaImagem(new Uint8Array(), '', 'figura.jpeg')).toBe('jpg')
+  })
+})
+
+describe('a tabela de mídia das importações', () => {
+  it('fica guardada entre um quadro e outro, e depois de esquecida (importação aplicada, restauração) traz a imagem nova', async () => {
+    const LIGADO = { ...FEATURES, preparo: true }
+    const IMPORTACOES = 'C:/appdata-inventado/preparo/importacoes'
+    const relatorio = (tabelaDeMidia: Record<string, string>) => JSON.stringify({ tabelaDeMidia })
+    esquecerTabelaDeMidia()
+    discoFalso.clear()
+    discoFalso.set(`${IMPORTACOES}/2026-11-08T12-00-00Z/relatorio.json`, relatorio({ 'campanhas/ilha inventada/imagens/porto.png': 'midia/aaaa.png' }))
+    expect(midiaNaTabela(await tabelaDeMidiaDasImportacoes(LIGADO), 'Campanhas/Ilha Inventada/imagens/Porto.png')).toBe('midia/aaaa.png')
+
+    // Reimportar + Aplicar sem fechar o app: outra pasta, com a imagem nova. A tabela guardada ainda é a de antes.
+    discoFalso.set(`${IMPORTACOES}/2026-11-09T08-00-00Z/relatorio.json`, relatorio({ 'campanhas/ilha inventada/imagens/farol.webp': 'midia/bbbb.webp' }))
+    expect(midiaNaTabela(await tabelaDeMidiaDasImportacoes(LIGADO), 'campanhas/ilha inventada/imagens/farol.webp')).toBeNull()
+
+    esquecerTabelaDeMidia()
+    const relida = await tabelaDeMidiaDasImportacoes(LIGADO)
+    expect(midiaNaTabela(relida, 'campanhas/ilha inventada/imagens/farol.webp')).toBe('midia/bbbb.webp')
+    expect(midiaNaTabela(relida, 'campanhas/ilha inventada/imagens/porto.png')).toBe('midia/aaaa.png')
   })
 })

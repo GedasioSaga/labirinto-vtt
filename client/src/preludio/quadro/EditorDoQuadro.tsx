@@ -21,6 +21,7 @@ import { prepararMidia, urlDaMidia } from '../midia'
 import { UTILS_DOS_CARTOES, verbeteDoCartao } from './cartoes'
 import { useQuadros } from './estadoDosQuadros'
 import { exportarQuadro, type FormatoDeExportacao } from './exportarQuadro'
+import { criarGravadorDoQuadro } from './gravadorDoQuadro'
 import { UTILS_DA_PLANTA, definirResolvedoresDaPlanta } from './planta'
 
 /**
@@ -36,8 +37,10 @@ import { UTILS_DA_PLANTA, definirResolvedoresDaPlanta } from './planta'
  *   letra por letra: sem isso a foto importada não abre.
  * - Salvar é automático, pela mesma fila dos verbetes (`agendarGravacaoDeFora`):
  *   o rodapé "Tudo salvo neste PC", o "Tentar de novo" e a pergunta ao fechar
- *   a janela valem para o quadro. Abrir não grava: só a mudança do mestre.
- * - A planta do Grimório e o arquivo de formato mais novo abrem só para ver.
+ *   a janela valem para o quadro. Abrir não grava: só a mudança do mestre, e
+ *   mexer e desfazer não conta como mudança (`gravadorDoQuadro.ts`).
+ * - A planta do Grimório (`mapas-soltos/`) e o arquivo de formato mais novo
+ *   abrem só para ver.
  */
 
 export interface EditorDoQuadroProps {
@@ -68,7 +71,15 @@ type Abertura =
   | { readonly t: 'lendo' }
   | { readonly t: 'sumiu' }
   | { readonly t: 'falhou'; readonly aviso: string }
-  | { readonly t: 'pronto'; readonly store: TLStore; readonly quadro: Quadro; readonly soLeitura: string | null; readonly semArquivo: number }
+  | {
+      readonly t: 'pronto'
+      readonly store: TLStore
+      readonly quadro: Quadro
+      /** O arquivo tem exatamente `quadro`; falso quando ele é o que o disco recusou. */
+      readonly noDisco: boolean
+      readonly soLeitura: string | null
+      readonly semArquivo: number
+    }
 
 function motivo(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
@@ -79,7 +90,7 @@ function lojaDeImagens(raiz: string | null): TLAssetStore {
   return {
     async upload(_asset, arquivo) {
       const bytes = new Uint8Array(await arquivo.arrayBuffer())
-      const midia = await gravarMidiaDoQuadro(bytes, extensaoDaImagem(arquivo.type, arquivo.name))
+      const midia = await gravarMidiaDoQuadro(bytes, extensaoDaImagem(bytes, arquivo.type, arquivo.name))
       return { src: (raiz === null ? null : urlDaMidia(raiz, midia)) ?? midia, meta: { midia } }
     },
     resolve(asset) {
@@ -91,13 +102,15 @@ function lojaDeImagens(raiz: string | null): TLAssetStore {
 }
 
 async function abrir(id: string): Promise<Abertura> {
-  // Uma mudança deste quadro ainda esperando o relógio: vai ao disco antes de reler.
+  // Uma mudança deste quadro esperando o relógio ou indo ao disco agora: termina antes de reler.
   if (gravacaoPendente(chaveDaGravacao(id))) await usePreludio.getState().salvarPendentes()
   let quadro: Quadro
+  let noDisco = true
   let soLeitura: string | null = null
   const pendente = naoGravados.get(id)
   if (pendente !== undefined && gravacaoPendente(chaveDaGravacao(id))) {
     quadro = pendente
+    noDisco = false
   } else {
     naoGravados.delete(id)
     const lido = await lerQuadro(id)
@@ -129,19 +142,20 @@ async function abrir(id: string): Promise<Abertura> {
       return { t: 'falhou', aviso: `O tldraw não abriu este quadro (${motivo(erro)}). O arquivo continua intacto.` }
     }
   }
-  return { t: 'pronto', store, quadro, soLeitura, semArquivo }
+  return { t: 'pronto', store, quadro, noDisco, soLeitura, semArquivo }
 }
 
 interface QuadroProntoProps {
   id: string
   store: TLStore
   quadro: Quadro
+  noDisco: boolean
   soLeitura: string | null
   semArquivo: number
   aoVoltar: () => void
 }
 
-function QuadroPronto({ id, store, quadro, soLeitura, semArquivo, aoVoltar }: QuadroProntoProps) {
+function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVoltar }: QuadroProntoProps) {
   const travado = usePreludio((estado) => estado.travado)
   const recemCriado = useQuadros((estado) => estado.recemCriado === id)
   const [nome, setNome] = useState(quadro.nome)
@@ -153,13 +167,24 @@ function QuadroPronto({ id, store, quadro, soLeitura, semArquivo, aoVoltar }: Qu
   const somenteVer = soLeitura !== null
 
   // O que vai ao disco é montado na hora de gravar: a foto de agora, o nome de agora, o resto como veio.
+  const [gravador] = useState(() =>
+    criarGravadorDoQuadro({
+      id,
+      quadro,
+      noDisco,
+      foto: () => getSnapshot(store),
+      nome: () => nomeGravado.current,
+      async gravarNoDisco(novo) {
+        naoGravados.set(id, novo)
+        await gravarQuadro(id, novo)
+        if (naoGravados.get(id) === novo) naoGravados.delete(id)
+        useQuadros.getState().gravado(id, novo)
+      },
+    }),
+  )
   const agendar = useRef(() => {
     agendarGravacaoDeFora(chaveDaGravacao(id), async () => {
-      const novo: Quadro = { ...quadro, nome: nomeGravado.current, tldraw: getSnapshot(store) }
-      naoGravados.set(id, novo)
-      await gravarQuadro(id, novo)
-      if (naoGravados.get(id) === novo) naoGravados.delete(id)
-      useQuadros.getState().gravado(id, novo)
+      await gravador.gravar()
     })
   }).current
 
@@ -189,7 +214,11 @@ function QuadroPronto({ id, store, quadro, soLeitura, semArquivo, aoVoltar }: Qu
     }
     definirResolvedoresDaPlanta({ nomeDoCenario: (cenarioId) => verbeteDe(cenarioId)?.titulo, nomeDoItem: (itemId) => verbeteDe(itemId)?.titulo, abrirCenario: abrirVerbete, abrirItem: abrirVerbete })
     // Depois de montar: o que o editor arruma ao nascer (página, câmera) não conta como mudança do mestre.
-    const pararDeOuvir = somenteVer ? () => undefined : montado.store.listen(agendar, { scope: 'document', source: 'user' })
+    let pararDeOuvir = () => {}
+    if (!somenteVer) {
+      gravador.marcarAbertura()
+      pararDeOuvir = montado.store.listen(agendar, { scope: 'document', source: 'user' })
+    }
     setEditor(montado)
     return () => {
       pararDeOuvir()
@@ -299,7 +328,9 @@ export function EditorDoQuadro({ id, aoVoltar }: EditorDoQuadroProps) {
     }
   }, [id])
 
-  if (abertura.t === 'pronto') return <QuadroPronto id={id} store={abertura.store} quadro={abertura.quadro} soLeitura={abertura.soLeitura} semArquivo={abertura.semArquivo} aoVoltar={aoVoltar} />
+  if (abertura.t === 'pronto') {
+    return <QuadroPronto id={id} store={abertura.store} quadro={abertura.quadro} noDisco={abertura.noDisco} soLeitura={abertura.soLeitura} semArquivo={abertura.semArquivo} aoVoltar={aoVoltar} />
+  }
   if (abertura.t === 'lendo') {
     return (
       <p className="pr-quieto pr-palco__abrindo" role="status">

@@ -29,7 +29,7 @@ vi.mock('../../lib/preparo/disco', () => ({
 
 vi.mock('../midia', () => ({ prepararMidia: vi.fn(async () => null) }))
 
-const { usePreludio } = await import('./preludio')
+const { agendarGravacaoDeFora, gravacaoPendente, usePreludio } = await import('./preludio')
 const { gravarVerbete } = await import('../../lib/preparo/disco')
 
 function verbeteDeTeste(titulo: string): Verbete {
@@ -65,6 +65,38 @@ it('sair com a gravação falhando guarda o texto na memória; ao abrir de novo 
   expect(await usePreludio.getState().salvarPendentes()).toBe(true)
   expect(disco.get('vb-marujo-inventado')?.titulo).toBe('Nome novo')
   expect(usePreludio.getState().salvamento).toEqual({ t: 'em-dia' })
+})
+
+it('o quadro que está gravando continua pendente até o disco responder: quem reabre espera, e não lê o arquivo de antes', async () => {
+  await usePreludio.getState().carregar()
+  const chave = 'quadro:quadro-inventado'
+  const noDisco: string[] = []
+  let soltarODisco = () => {}
+  const gravarDevagar = () =>
+    new Promise<void>((pronto) => {
+      soltarODisco = () => {
+        noDisco.push('edição E1')
+        pronto()
+      }
+    })
+  vi.useFakeTimers()
+  try {
+    expect(agendarGravacaoDeFora(chave, gravarDevagar)).toBe(true)
+    expect(gravacaoPendente(chave)).toBe(true)
+    // O relógio dispara: a chave sai do relógio e de `sujos`, e a gravação começa.
+    await vi.runOnlyPendingTimersAsync()
+    expect(noDisco).toEqual([])
+    expect(gravacaoPendente(chave)).toBe(true)
+    const tudoNoDisco = usePreludio.getState().salvarPendentes()
+    soltarODisco()
+    expect(await tudoNoDisco).toBe(true)
+    expect(noDisco).toEqual(['edição E1'])
+    expect(gravacaoPendente(chave)).toBe(false)
+  } finally {
+    // Se uma conferência falhar no meio, o disco de mentira responde assim mesmo: o fechar do afterEach não fica esperando.
+    soltarODisco()
+    vi.useRealTimers()
+  }
 })
 
 it('a restauração grava o pendente antes, trava a edição e depois vale o que voltou, sem a memória de antes por cima', async () => {
