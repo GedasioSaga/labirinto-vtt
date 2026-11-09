@@ -374,6 +374,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // Construtor C1: no cartão montado, a fórmula é a da peça (o campo Dano é só descrição).
       const formulaDoDano = formulaDoDanoDasPecas(tecnica.cartao) ?? tecnica.cartao.campos[CAMPO_DO_DANO] ?? ''
       if (pedido.balaId !== undefined && (arma === null || !formulaUsaBala(formulaDoDano) || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
+      // Construtor C1 (revisão, decisão 2): a mesma conta que `lancarGolpe` faz pelas peças, com a arma, a bala e os selos de quem usa.
+      const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
+      const semConta = motivoDoDanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) })
       const motivo = motivoDaTecnica(tecnica, personagem, sistema, combate, acoes)
       // F2 (fatia D, Imbuir Fogo): a resposta que a forma ligada não deixa (fogo com a Ignição).
       const vetada = motivoDaRespostaVetada(tecnica.cartao.id, pedido.respostas, personagem.cartoesAtivos)
@@ -388,7 +391,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         vetada ??
         (subida !== null && 'motivo' in subida ? subida.motivo : null) ??
         motivoDosAlvos(ctx, pedido.alvos, 0) ??
+        semConta ??
         motivoDaLimpeza(ctx, tecnica.cartao, alvosPersonagemIds) ??
+        motivoDoAlvoDasPecas(ctx, tecnica.cartao, alvosPersonagemIds) ??
         motivoDoTetoDeDano(tecnica.cartao, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
         motivoDoDivide(tecnica.cartao, pedido.alvos.length) ??
         motivoDoSeloPedido(tecnica.cartao.id, selosDosAlvos)
@@ -483,8 +488,9 @@ function multiplicadoresNoGolpe(pecas: ReturnType<typeof pecasDoCartao>, alvos: 
  * Construtor C1 (decisão 2 do mestre): no cartão montado, o app do mestre
  * recalcula a base pelas peças e o número da tela não vale; só o mestre pode
  * mudá-lo (o pedido dele passa como veio). Sem peça de dano = sem dano. A
- * fórmula que pede a vida do alvo segue para `comDanoPelaVida`; a que pede
- * arma sem arma escolhida fica com o número da tela, como no cartão de texto.
+ * fórmula que pede a vida do alvo segue para `comDanoPelaVida`. A conta que
+ * não fecha (fórmula fora da gramática, arma que falta, mecânica torta) nem
+ * chega aqui: `podeAgir` já recusou o golpe do jogador (`motivoDoDanoDasPecas`).
  */
 function comODanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formula: Omit<ContextoDaFormula, 'vidaDoAlvo'>, alvos: readonly PedidoDeAlvo[]): readonly PedidoDeAlvo[] {
   if (ctx.autor.tipo === 'mestre') return alvos
@@ -493,6 +499,40 @@ function comODanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formula: 
   if (lido.tipo !== 'valor') return alvos
   const base = Math.min(DANO_MAX, lido.valor)
   return alvos.map((alvo) => ({ ...alvo, dano: base }))
+}
+
+/**
+ * Construtor C1 (decisão 2 do mestre, revisão): no cartão montado o jogador
+ * não muda o número. Quando o app não fecha a conta pelas peças (fórmula fora
+ * da gramática, "Dano da Arma" sem arma, mecânica torta ou de app mais novo),
+ * o golpe do jogador não sai, porque o número da tela nunca vale nele. O
+ * mestre segue livre. A conta pela vida do alvo (`precisaAlvo`) fecha depois,
+ * alvo a alvo (`comDanoPelaVida`).
+ */
+function motivoDoDanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formula: Omit<ContextoDaFormula, 'vidaDoAlvo'>): string | null {
+  if (ctx.autor.tipo === 'mestre' || !cartaoMontado(cartao)) return null
+  const lido = danoDaTecnica(cartao, formula)
+  if (lido.tipo === 'valor' || lido.tipo === 'semDano' || lido.tipo === 'precisaAlvo') return null
+  const pecas = pecasDoCartao(cartao)
+  if (pecas === null) return 'O mestre precisa conferir a mecânica desta técnica'
+  if (lido.tipo === 'precisaArma' && pecas.dano?.arma === 'padrao' && formula.arma === null) return 'Escolha a arma da técnica'
+  return 'O mestre precisa conferir a fórmula do dano desta técnica'
+}
+
+/**
+ * Construtor C1 (revisão): a peça "em si" ou "nos aliados" não pede reação
+ * (`reacaoDasPecas`). Por isso só vale em quem usa ("em si") ou nele e nos
+ * aliados dele, com a regra da limpeza (`motivoDaLimpeza`); lançada num
+ * inimigo, ele levaria o selo ou o dano sem reagir.
+ */
+function motivoDoAlvoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvosPersonagemIds: readonly (string | null | undefined)[]): string | null {
+  const quem = pecasDoCartao(cartao)?.alvo.quem
+  if (quem !== 'si' && quem !== 'aliados') return null
+  const deQuemUsa = ctx.carta.personagemId
+  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || (quem === 'aliados' && (ctx.aliados?.has(id) ?? false)))
+  if (alvosPersonagemIds.every(vale)) return null
+  const nome = cartao.nome.trim() || 'A técnica'
+  return quem === 'si' ? `${nome} só vale em você` : `${nome} só vale em você ou num aliado`
 }
 
 /** Os ids de uma parte do golpe (o golpe e a linha dela no registro). */

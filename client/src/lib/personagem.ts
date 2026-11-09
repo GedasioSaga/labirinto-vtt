@@ -468,8 +468,9 @@ const MECANICA_GUARDADA_MAX = 16_000
  * A mecânica do cartão como veio, em cópia funda e só JSON. Objeto que passa
  * do teto ou não é objeto sai (o cartão segue pelo texto); objeto torto fica,
  * para `lerMecanica` dizer "mecânica inválida" em vez de o texto voltar.
+ * O fio (`net/protocoloDoPersonagem.ts`) usa o mesmo leitor e o mesmo teto.
  */
-function mecanicaDoArquivo(value: unknown): Pick<CartaoDaFicha, 'mecanica'> {
+export function mecanicaDoArquivo(value: unknown): Pick<CartaoDaFicha, 'mecanica'> {
   if (!isRecord(value)) return {}
   let texto: string
   try {

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { personagemDoArquivo, type CartaoDaFicha, type Personagem } from '../../personagem'
 import { ficha, sistema } from '../fichasDaFatiaB.testkit'
-import { lancarGolpe, type ContextoDoGolpe } from '../golpe'
+import { armasNaBatalha, golpesDeHabilidade } from '../../../components/batalha/dadosDoMenu'
+import type { PedidoDeAcao } from '../combate'
+import { lancarGolpe, podeAgir, type ContextoDoGolpe } from '../golpe'
 import { danoDaTecnica, leituraDaTecnica } from '../leituraDaTecnica'
 import { danoQueChega } from '../reacao'
 import { novaCarta, type AutorDaAcao, type TurnosDaCena } from '../turnos'
@@ -37,12 +39,12 @@ const DE_APP_NOVO = cartao('cart_futura', 'Golpe do Futuro', { custo: '10', dano
 const marinheiro = ficha('Marinheiro de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [ESPADADA_EM_TEXTO, ESPADADA_MONTADA, DE_APP_NOVO] })
 const boneco = ficha('Boneco de Treino', { forca: 10 }, { hp: 400, sp: 50, escudo: 0 }, {})
 
-function contexto(autor: AutorDaAcao): ContextoDoGolpe {
-  const carta = novaCarta('tok_marinheiro', marinheiro.id, marinheiro.nome)
+function contexto(autor: AutorDaAcao, quem: Personagem = marinheiro): ContextoDoGolpe {
+  const carta = novaCarta('tok_marinheiro', quem.id, quem.nome)
   const outra = novaCarta('tok_boneco', boneco.id, boneco.nome)
   const turnos: TurnosDaCena = { cartas: [carta, outra], vez: carta.id, rodada: 1, desempate: 'd20', d20: {}, empates: {}, extras: {}, gastos: {} }
-  const personagens: Personagem[] = [marinheiro, boneco]
-  return { turnos, carta, personagem: marinheiro, sistema, regras: null, autor, personagens, personagemDoToken: (tokenId) => (tokenId === 'tok_marinheiro' ? marinheiro.id : tokenId === 'tok_boneco' ? boneco.id : undefined) }
+  const personagens: Personagem[] = [quem, boneco]
+  return { turnos, carta, personagem: quem, sistema, regras: null, autor, personagens, personagemDoToken: (tokenId) => (tokenId === 'tok_marinheiro' ? quem.id : tokenId === 'tok_boneco' ? boneco.id : undefined) }
 }
 
 function lancar(autor: AutorDaAcao, cartaoId: string, dano: number, selo?: { nome: string; turnos: number }) {
@@ -75,6 +77,9 @@ describe('tudo ou nada e a versão', () => {
   it('peça torta é recusada com o motivo; versão futura vira à mão e não volta para o texto', () => {
     expect(lerMecanica({ ...PECAS_DA_ESPADADA, ramos: [] })).toMatchObject({ tipo: 'invalida' })
     expect(lerMecanica({ ...PECAS_DA_ESPADADA, custos: [{ recurso: 'sp', quanto: { formula: 'Força' }, quando: 'porTurno' }] })).toMatchObject({ tipo: 'invalida' })
+    // Revisão: o "depois" só cobra HP fixo (`custoEmHp`); o resto seria lido e nunca cobrado.
+    expect(lerMecanica({ ...PECAS_DA_ESPADADA, custos: [{ recurso: 'sp', quanto: { fixo: 10 }, quando: 'depois' }] })).toMatchObject({ tipo: 'invalida' })
+    expect(lerMecanica({ ...PECAS_DA_ESPADADA, custos: [{ recurso: 'hp', quanto: { fixo: 200 }, quando: 'depois' }] })).toMatchObject({ tipo: 'pecas' })
     expect(lerMecanica(DE_APP_NOVO.mecanica)).toEqual({ tipo: 'futura', versao: 2 })
     const lida = leituraDaTecnica(DE_APP_NOVO, { personagem: marinheiro, sistema })
     expect([lida.custo.tipo, lida.acaoDaFicha.acao]).toEqual(['pergunta', null])
@@ -108,5 +113,57 @@ describe('a ordem única do dano (danoQueChega)', () => {
     expect(danoQueChega(100, 0, true, { extras: [3] })).toBe(450)
     expect(danoQueChega(71, 0, false, { dividirPor: 3 })).toBe(23)
     expect(danoQueChega(80, 1, true, { extras: [1.5], dividirPor: 2 })).toBe(135)
+  })
+})
+
+describe('revisão da C1: o host confere o que as peças prometem', () => {
+  const jogadora: AutorDaAcao = { tipo: 'jogador', playerId: 'p1', nome: 'Jogadora' }
+  const mestre: AutorDaAcao = { tipo: 'mestre' }
+  const UM_INIMIGO = { quem: 'inimigos', forma: { tipo: 'um' } }
+  const MULT = { concentracao: true, surpresa: true }
+  const pedido = (cartaoId: string, tokenId = 'tok_boneco', extra: Partial<Extract<PedidoDeAcao, { tipo: 'habilidade' }>> = {}): PedidoDeAcao => ({
+    tipo: 'habilidade',
+    cartaoId,
+    armaId: null,
+    alvos: [{ tokenId, dano: 999 }],
+    surpresa: false,
+    perfurante: false,
+    custo: null,
+    acao: null,
+    ...extra,
+  })
+
+  it('decisão 2: sem conta pelas peças (fórmula fora da gramática, arma que falta, mecânica de app novo), o golpe do jogador não sai; o do mestre sai', () => {
+    const torta = cartao('cart_torta', 'Golpe Torto', { dano: '50' }, { versao: 1, acao: 'simples', alvo: UM_INIMIGO, dano: { base: { formula: 'Força do Céu' }, multiplicadores: MULT } })
+    const armado = cartao('cart_armado', 'Golpe Armado', { dano: '50' }, { versao: 1, acao: 'simples', alvo: UM_INIMIGO, dano: { base: { formula: 'Dano da Arma + Força' }, arma: 'padrao', multiplicadores: MULT } })
+    const capitao = ficha('Capitão de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [torta, armado] })
+    expect(danoDaTecnica(torta, { personagem: capitao, sistema, arma: null }).tipo).toBe('naoEntende')
+    expect(podeAgir(contexto(jogadora, capitao), pedido(torta.id))).toBe('O mestre precisa conferir a fórmula do dano desta técnica')
+    expect(podeAgir(contexto(jogadora, capitao), pedido(armado.id))).toBe('Escolha a arma da técnica')
+    expect(podeAgir(contexto(jogadora), pedido(DE_APP_NOVO.id, 'tok_boneco', { custo: 10, acao: 'simples' }))).toBe('O mestre precisa conferir a mecânica desta técnica')
+    expect(podeAgir(contexto(mestre, capitao), pedido(torta.id))).toBeNull()
+  })
+
+  it('"em si" e "nos aliados" não pedem reação: num inimigo, recusa; em quem usa, vale', () => {
+    const furia = cartao('cart_furia', 'Fúria de Teste', {}, { versao: 1, acao: 'simples', alvo: { quem: 'si', forma: { tipo: 'um' } }, efeitos: [{ tipo: 'selo', nome: 'Fúria', duracao: 2, natureza: 'buff' }] })
+    const empurrao = cartao('cart_empurrao', 'Empurrão Amigo', {}, { versao: 1, acao: 'simples', alvo: { quem: 'aliados', forma: { tipo: 'um' } }, dano: { base: { fixo: 40 }, multiplicadores: MULT } })
+    const capitao = ficha('Capitão de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [furia, empurrao] })
+    expect(podeAgir(contexto(jogadora, capitao), pedido(furia.id))).toBe('Fúria de Teste só vale em você')
+    expect(podeAgir(contexto(mestre, capitao), pedido(empurrao.id))).toBe('Empurrão Amigo só vale em você ou num aliado')
+    expect(podeAgir(contexto(jogadora, capitao), pedido(furia.id, 'tok_marinheiro'))).toBeNull()
+  })
+
+  it('as balas no menu seguem a fórmula da peça, não o campo Dano (a mesma conta que o host confere)', () => {
+    const bala = cartao('cart_bala_teste', 'Bala de Teste', { dano: '+15' })
+    const pistola: CartaoDaFicha = { ...cartao('cart_pistola_teste', 'Pistola de Teste', { dano: '20', categoria: 'De fogo' }), subcartoes: [bala] }
+    const comBala = cartao('cart_com_bala', 'Tiro Montado', { dano: '50' }, { versao: 1, acao: 'simples', alvo: UM_INIMIGO, dano: { base: { formula: 'Dano da Bala + Força' }, arma: 'padrao', multiplicadores: MULT } })
+    const textoVelho = cartao('cart_texto_velho', 'Tiro de Texto Velho', { dano: 'Dano da Bala + 10' }, { versao: 1, acao: 'simples', alvo: UM_INIMIGO, dano: { base: { formula: 'Força + 10' }, multiplicadores: MULT } })
+    const atirador = ficha('Atirador de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [comBala, textoVelho], armas: [pistola] })
+    const [arma] = armasNaBatalha(atirador, undefined)
+    const golpes = golpesDeHabilidade(atirador, sistema, undefined, null, arma ?? null)
+    expect(golpes.map((golpe) => [golpe.nome, golpe.balas?.map((item) => item.dano.valor)])).toEqual([
+      ['Tiro Montado', [75]],
+      ['Tiro de Texto Velho', undefined],
+    ])
   })
 })

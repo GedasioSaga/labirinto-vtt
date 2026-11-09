@@ -1,5 +1,5 @@
 import { NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
-import { camposDBTDaRede, PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CamposDaFichaDBT, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
+import { camposDBTDaRede, mecanicaDoArquivo, PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CamposDaFichaDBT, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
 import { CATALOGOS_DO_LIVRO, type ChaveDoCatalogo, type ResumoDoLivro } from '../lib/livroDeRegras'
 import { idValido, lerSistemaDeRpg, LIVRO_CAPITULOS_MAX, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
@@ -69,6 +69,13 @@ export interface CartaoSemImagem {
   subcartoes: CartaoSemImagem[]
   /** `CartaoDaFicha.aMao`: volta na edição do jogador para o Salvar dele não apagar a marca do mestre. */
   aMao?: true
+  /**
+   * `CartaoDaFicha.mecanica` (construtor de mecânicas): viaja com o cartão para
+   * o campo não se perder no caminho. O host NÃO a aplica: guarda a do cartão
+   * de mesmo id que já tinha (`aplicarPartes`), porque a mecânica que o jogador
+   * muda só vale depois que o mestre aprovar (decisão 1 do mestre).
+   */
+  mecanica?: CartaoDaFicha['mecanica']
 }
 
 /**
@@ -269,7 +276,8 @@ function cartao(value: unknown, nivel: 1 | 2): CartaoSemImagem | null {
   const modificadores = lista(value.modificadores, PERSONAGEM_MODIFICADORES_MAX, modificador)
   const subcartoes = lista<CartaoSemImagem>(value.subcartoes, nivel === 1 ? PERSONAGEM_CARTOES_MAX : 0, (sub) => cartao(sub, 2))
   if (nome === null || campos === null || extras === null || atributos === null || modificadores === null || subcartoes === null) return null
-  return { id: value.id, nome, campos, extras, atributos, modificadores, subcartoes, ...(value.aMao === true ? { aMao: true } : {}) }
+  // A mecânica pelo leitor do disco, com o mesmo teto: a que passa dele ou não é objeto sai (o host guarda a dele de qualquer jeito).
+  return { id: value.id, nome, campos, extras, atributos, modificadores, subcartoes, ...(value.aMao === true ? { aMao: true } : {}), ...mecanicaDoArquivo(value.mecanica) }
 }
 
 /** Os ids de cartão de uma lista, subcartões juntos. */
@@ -453,5 +461,6 @@ export function cartaoSemImagem(cartao: CartaoDaFicha): CartaoSemImagem {
     modificadores: cartao.modificadores,
     subcartoes: cartao.subcartoes.map(cartaoSemImagem),
     ...(cartao.aMao === true ? { aMao: true } : {}),
+    ...(cartao.mecanica === undefined ? {} : { mecanica: cartao.mecanica }),
   }
 }

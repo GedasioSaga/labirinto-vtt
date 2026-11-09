@@ -9,7 +9,7 @@ import { novoCartao, novoPersonagem, PERSONAGEM_SEM_NOME, type Personagem } from
 import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
 import { PLAYER_MESSAGE_MAX_BYTES } from './protocol'
 import { aplicarImagem, aplicarPartes, ERRO_ABA_GRANDE, ERRO_CAMPO_FORA_DO_TETO, mensagensDoSalvar, partesMudadas, type MensagemDoSalvar } from './edicaoDoPersonagem'
-import { PERSONAGEM_TEXTO_MAX } from './protocoloDoPersonagem'
+import { parsePartesDoPersonagem, PERSONAGEM_TEXTO_MAX } from './protocoloDoPersonagem'
 
 const FOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 const OUTRA_FOTO = 'data:image/png;base64,AAAA'
@@ -137,5 +137,27 @@ describe('host: a edição entra na ficha de agora', () => {
       abas: { ...atual.abas, transformacoes: (atual.abas.transformacoes ?? []).map((c) => ({ ...c, subcartoes: [{ ...novoCartao('Jet'), id: 'cart_jet' }] })) },
     }
     expect(aplicarImagem(comSub, 'cart_jet', FOTO)?.abas.transformacoes?.[0]?.subcartoes[0]?.imagem).toBe(FOTO)
+  })
+})
+
+describe('construtor de mecânicas: a edição do jogador nunca mexe na mecânica montada', () => {
+  const PECAS = { versao: 1, acao: 'simples', alvo: { quem: 'inimigos', forma: { tipo: 'um' } } }
+
+  it('o jogador muda OUTRO cartão da aba e troca a mecânica: pelo fio ela viaja, e o host guarda a do mestre', () => {
+    const montado = { ...novoCartao('Golpe Montado'), id: 'cart_montado', mecanica: PECAS }
+    const deTexto = { ...novoCartao('Golpe de Texto'), id: 'cart_texto' }
+    const base: Personagem = { ...luffy(), abas: { ...luffy().abas, habilidades: [montado, deTexto] } }
+    const rascunho: Personagem = {
+      ...base,
+      abas: { ...base.abas, habilidades: [{ ...montado, mecanica: { ...PECAS, acao: 'completa' } }, { ...deTexto, campos: { ...deTexto.campos, descricao: 'Texto novo' } }] },
+    }
+    // O caminho inteiro: as partes do Salvar, pelo fio (JSON e o parse do host), aplicadas na ficha de agora.
+    const doFio = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(base, rascunho))))
+    expect(doFio?.abas?.habilidades?.[0]?.mecanica).toEqual({ ...PECAS, acao: 'completa' })
+    const depois = aplicarPartes(base, doFio ?? {})
+    expect(depois.abas.habilidades?.map((cartao) => [cartao.campos.descricao, cartao.mecanica])).toEqual([
+      [montado.campos.descricao, PECAS],
+      ['Texto novo', undefined],
+    ])
   })
 })

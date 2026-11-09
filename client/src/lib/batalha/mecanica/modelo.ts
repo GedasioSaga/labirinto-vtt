@@ -44,7 +44,7 @@ export type NumeroSimples = { fixo: number } | { formula: string }
 /** Um número que muda com a Concentração guardada (carga 0, 1, 2 e 3). */
 export type Numero = NumeroSimples | { porCarga: readonly [NumeroSimples, NumeroSimples, NumeroSimples, NumeroSimples] }
 
-/** Quanto custa: `aoUsar` bloqueia sem o recurso; `porTurno` = técnica mantida (lembrete "Aplicar / pular"); `depois` cobra sem bloquear. */
+/** Quanto custa: `aoUsar` bloqueia sem o recurso; `porTurno` = técnica mantida (lembrete "Aplicar / pular"), só fixo; `depois` cobra sem bloquear, só HP fixo. */
 export interface Custo {
   recurso: 'sp' | 'hp'
   quanto: NumeroSimples | { porcento: number; de: 'maximo' | 'atual' }
@@ -203,7 +203,10 @@ function custo(valor: unknown, indice: number): Custo {
   const quando = umDe(peca.quando, ['aoUsar', 'porTurno', 'depois'] as const, `${onde} (quando)`)
   // A técnica mantida cobra o mesmo número a cada vez (`MantidaAMao.custoPorVez`): só o fixo cabe nela.
   if (quando === 'porTurno' && !('fixo' in lido)) torta(`${onde}: o custo por vez precisa ser um número fixo`)
-  return { recurso: umDe(peca.recurso, ['sp', 'hp'] as const, `${onde} (recurso)`), quanto: lido, quando }
+  const recurso = umDe(peca.recurso, ['sp', 'hp'] as const, `${onde} (recurso)`)
+  // O "depois" cobra pelo `custoEmHp` da linha (Sai Dai Rin): só HP fixo. Outro "depois" seria lido e nunca cobrado.
+  if (quando === 'depois' && (recurso !== 'hp' || !('fixo' in lido))) torta(`${onde}: o custo depois de usar, por enquanto, só aceita HP em número fixo`)
+  return { recurso, quanto: lido, quando }
 }
 
 function limite(valor: unknown): Limite {

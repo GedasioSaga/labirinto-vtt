@@ -19,7 +19,7 @@ import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preench
 import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
 import { chavesDoDono, golpesSaoOverload, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
-import { cartaoMontado, pecasDoCartao } from '../../lib/batalha/mecanica/leitura'
+import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao } from '../../lib/batalha/mecanica/leitura'
 import { casaNaAreaVirada, type Casa } from '../../lib/batalha/area'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
 import { subidaDeParte } from '../../lib/batalha/transformacao'
@@ -393,17 +393,20 @@ const ABA_DAS_ARMAS = 'armas'
  * As balas da técnica cuja fórmula diz "Dano da Bala" (tipos de habilidade
  * F1): uma por tipo de bala da arma que entra na conta, com o dano da técnica
  * já feito com ela. Sem arma, arma sem balas ou fórmula sem bala: nenhuma.
+ * Construtor C1 (revisão): no cartão montado, a fórmula e a prévia são as da
+ * peça (o campo Dano é só descrição), a mesma conta que o host confere.
  */
 function balasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha | null, bonus: BonusDaBatalha | undefined): BalaNaTela[] {
-  const formula = cartao.campos[CAMPO_DO_DANO] ?? ''
+  const formula = formulaDoDanoDasPecas(cartao) ?? cartao.campos[CAMPO_DO_DANO] ?? ''
   if (arma === null || arma.balas.length === 0 || !formulaUsaBala(formula)) return []
+  const montado = cartaoMontado(cartao)
   return arma.balas.map((bala) => ({
     id: bala.id,
     nome: bala.nome,
     danoTexto: bala.dano,
     efeito: bala.efeito,
     quantidade: bala.quantidade,
-    dano: danoNaTela(lerDano(formula, { personagem, sistema, arma, vidaDoAlvo: null, bala, bonusDaBatalha: bonus })),
+    dano: danoNaTela(montado ? danoDaTecnica(cartao, { personagem, sistema, arma, bala, bonusDaBatalha: bonus }) : lerDano(formula, { personagem, sistema, arma, vidaDoAlvo: null, bala, bonusDaBatalha: bonus })),
   }))
 }
 

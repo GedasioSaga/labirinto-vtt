@@ -88,6 +88,17 @@ function imagensDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, s
   return imagens
 }
 
+/** A mecânica montada de cada cartão que tem uma, pelo id, subcartões juntos. */
+function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, NonNullable<CartaoDaFicha['mecanica']>> {
+  const mecanicas = new Map<string, NonNullable<CartaoDaFicha['mecanica']>>()
+  const visitar = (cartao: CartaoDaFicha): void => {
+    if (cartao.mecanica !== undefined) mecanicas.set(cartao.id, cartao.mecanica)
+    cartao.subcartoes.forEach(visitar)
+  }
+  for (const cartoes of Object.values(abas)) cartoes.forEach(visitar)
+  return mecanicas
+}
+
 /** As imagens que o rascunho trocou: o retrato e a de cada cartão (o novo só se já tem imagem). */
 export function imagensMudadas(base: Personagem, rascunho: Personagem): ImagemMudada[] {
   const mudadas: ImagemMudada[] = rascunho.retrato === base.retrato ? [] : [{ imagem: rascunho.retrato }]
@@ -173,10 +184,17 @@ export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes
  * HOST: as partes aceitas entram no personagem de AGORA. Registro troca chave
  * a chave; o cartão volta com a imagem que o de mesmo id já tinha (novo, sem).
  * Nome em branco vira "Personagem sem nome", como na janela do mestre.
+ * A mecânica montada (construtor de mecânicas, decisão 1 do mestre) também é
+ * a que o cartão de mesmo id já tinha: a que o jogador manda é ignorada até o
+ * mestre aprovar, e o Salvar dele em OUTRO cartão da aba nunca a apaga.
  */
 export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem): Personagem {
   const imagens = imagensDosCartoes(atual.abas)
-  const comImagem = (cartao: CartaoSemImagem): CartaoDaFicha => ({ ...cartao, imagem: imagens.get(cartao.id) ?? null, subcartoes: cartao.subcartoes.map(comImagem) })
+  const mecanicas = mecanicasDosCartoes(atual.abas)
+  const comImagem = ({ mecanica: _doJogador, ...cartao }: CartaoSemImagem): CartaoDaFicha => {
+    const mecanica = mecanicas.get(cartao.id)
+    return { ...cartao, imagem: imagens.get(cartao.id) ?? null, subcartoes: cartao.subcartoes.map(comImagem), ...(mecanica === undefined ? {} : { mecanica }) }
+  }
   const abasNovas = partes.abas === undefined ? {} : Object.fromEntries(Object.entries(partes.abas).map(([abaId, cartoes]) => [abaId, cartoes.map(comImagem)]))
   const aplicado: Personagem = {
     ...atual,
