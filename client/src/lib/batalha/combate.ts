@@ -708,7 +708,7 @@ export interface SeloDaBatalha {
   ajuste?: true
   /** F2 (fatia A): quanto o selo que tira por vez (Queimando N) tira; ausente = o da tabela (`danoPorVezDoSelo`). Só do host. */
   porVez?: number
-  /** Construtor C5: o selo sai quando o próximo golpe chega em quem o tem (`selosQueSaemNoGolpe`), além do da tabela (a redoma). Só do host. */
+  /** Construtor C5: o selo sai quando o próximo golpe chega em quem o tem (`selosQueSaemNoGolpe`; a técnica de ajuda não conta), além do da tabela (a redoma). Só do host. */
   saiNoProximoGolpe?: true
 }
 

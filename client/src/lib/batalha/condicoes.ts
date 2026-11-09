@@ -110,11 +110,14 @@ export const SELOS_COM_REGRA = ['Atordoado', 'Paralisado', 'Aéreo', 'Cego', 'Ma
 /**
  * F2 (fatia F, redoma da Orquídea): os selos que saem porque um golpe novo
  * chegou nestes alvos. Nenhum = lista vazia. Construtor C5: também o selo
- * montado com a duração "até o próximo golpe".
+ * montado com a duração "até o próximo golpe", mas esse só sai com golpe de
+ * verdade: a técnica de ajuda (`ajuda`: em si, nos aliados, o Buff) não o
+ * tira (revisão da C5: a cura de um aliado levava o "Protegido até o próximo
+ * golpe"). A redoma da tabela sai com qualquer golpe, como na F2.
  */
-export function selosQueSaemNoGolpe(selos: readonly SeloDaBatalha[] | undefined, alvosTokenIds: readonly string[]): SeloDaBatalha[] {
+export function selosQueSaemNoGolpe(selos: readonly SeloDaBatalha[] | undefined, alvosTokenIds: readonly string[], ajuda = false): SeloDaBatalha[] {
   const alvos = new Set(alvosTokenIds)
-  return (selos ?? []).filter((selo) => alvos.has(selo.tokenId) && (selo.saiNoProximoGolpe === true || comportamentoDoSelo(selo.nome)?.saiNoProximoGolpe === true))
+  return (selos ?? []).filter((selo) => alvos.has(selo.tokenId) && (comportamentoDoSelo(selo.nome)?.saiNoProximoGolpe === true || (!ajuda && selo.saiNoProximoGolpe === true)))
 }
 
 /**

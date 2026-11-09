@@ -1056,8 +1056,12 @@ function seloRenovado(turnos: TurnosDaCena, tokenId: string, pedido: SeloDoGolpe
   if (comportamento?.renova !== true) return null
   const antes = (turnos.selos ?? []).find((selo) => selo.tokenId === tokenId && comportamentoDoSelo(selo.nome) === comportamento)
   if (antes === undefined) return null
-  const depois: SeloDaBatalha = { ...antes, turnos: pedido.turnos, total: pedido.turnos }
+  // Construtor C5 (revisão): a duração vem toda do pedido, o "até o próximo golpe" junto com os turnos (um Queimando 2 renovado
+  // por "Queimando até o próximo golpe" passa a sair no golpe seguinte; o contrário volta a contar turnos).
+  const { saiNoProximoGolpe: _anterior, ...semADuracao } = antes
+  const depois: SeloDaBatalha = { ...semADuracao, turnos: pedido.turnos, total: pedido.turnos }
   if (pedido.porVez !== undefined) depois.porVez = pedido.porVez
+  if (pedido.saiNoProximoGolpe === true) depois.saiNoProximoGolpe = true
   return { selos: (turnos.selos ?? []).map((selo) => (selo.id === antes.id ? depois : selo)), parte: { tipo: 'selo', seloId: antes.id, antes, editado: true } }
 }
 
@@ -2477,7 +2481,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     let golpe = lancado.golpe
     if (golpe !== null) {
       // F2 (fatia F, redoma da Orquídea): o selo que dura "até o próximo golpe" sai dos alvos deste golpe (antes do selo novo dele).
-      for (const saiu of selosQueSaemNoGolpe(novos.selos, golpe.alvos.map((alvo) => alvo.tokenId))) {
+      // Construtor C5 (revisão): o montado não sai com a técnica de ajuda (a cura de um aliado, a técnica "em si").
+      for (const saiu of selosQueSaemNoGolpe(novos.selos, golpe.alvos.map((alvo) => alvo.tokenId), lancado.ajuda === true)) {
         partes.push({ tipo: 'selo', seloId: saiu.id, antes: saiu })
         novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => selo.id !== saiu.id) }
       }

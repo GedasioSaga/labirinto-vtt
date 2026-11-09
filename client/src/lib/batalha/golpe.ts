@@ -191,6 +191,12 @@ export interface GolpeLancado {
    */
   gastaOOverload?: true
   /**
+   * Construtor C5 (revisão): a técnica é de ajuda (a montada "em si" ou "nos
+   * aliados"; a de texto, o Tipo Buff). O selo montado "até o próximo golpe"
+   * não sai com ela (`selosQueSaemNoGolpe`). Ausente = golpe de verdade.
+   */
+  ajuda?: true
+  /**
    * F2 (fatia B): a 2ª parte do golpe (Rapid Dash), com a própria linha, o
    * próprio perfurante e a própria reação; só quando a store passa os ids dela.
    * Os alvos já resolvidos dela vão em `resolvidosDoSegundo`.
@@ -544,6 +550,17 @@ function motivoDoAlvoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvos
   return quem === 'si' ? `${nome} só vale em você` : `${nome} só vale em você ou num aliado`
 }
 
+/**
+ * Construtor C5 (revisão): a técnica é de ajuda? Na montada, pelas peças ("em
+ * si" ou "nos aliados", como `reacaoDasPecas`); na de texto (ou montada torta),
+ * pelo Tipo Buff, como `reacaoDoTipo`. O Atacar nunca é.
+ */
+function tecnicaDeAjuda(tecnica: TecnicaPedida | null, pecas: ReturnType<typeof pecasDoCartao>): boolean {
+  if (tecnica === null) return false
+  if (pecas !== null) return pecas.alvo.quem === 'si' || pecas.alvo.quem === 'aliados'
+  return tecnica.tipo === 'buff'
+}
+
 /** Os ids de uma parte do golpe (o golpe e a linha dela no registro). */
 interface IdsDaParte {
   golpe: string
@@ -713,6 +730,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     acao: contra !== null ? null : acao,
     cargaUsada: carga,
     ...(tecnica?.overload === true ? { gastaOOverload: true } : {}),
+    ...(tecnicaDeAjuda(tecnica, pecas) ? { ajuda: true } : {}),
   }
   // F2 (fatia C): o Atacar melhorado repete o golpe inteiro (mesmos alvos, mesmo dano e selo), cada parte com a própria reação.
   if (melhorado !== null) {

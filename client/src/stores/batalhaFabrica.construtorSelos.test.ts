@@ -18,7 +18,11 @@ import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from './bat
 const CENA = 'cena_do_teste'
 const MESTRE: AutorDaAcao = { tipo: 'mestre' }
 
-function cartao(id: string, nome: string, selo: unknown): CartaoDaFicha {
+const NUM_INIMIGO = { quem: 'inimigos', forma: { tipo: 'um' } }
+const EM_SI = { quem: 'si', forma: { tipo: 'um' } }
+
+/** Técnica montada que não erra, com um efeito. A ação Livre não gasta a vez (várias na mesma vez). */
+function cartao(id: string, nome: string, efeito: unknown, como: { alvo?: unknown; acao?: 'simples' | 'livre' } = {}): CartaoDaFicha {
   return {
     id,
     nome,
@@ -28,7 +32,7 @@ function cartao(id: string, nome: string, selo: unknown): CartaoDaFicha {
     imagem: null,
     modificadores: [],
     subcartoes: [],
-    mecanica: { versao: 1, acao: 'simples', custos: [], alvo: { quem: 'inimigos', forma: { tipo: 'um' } }, teste: { tipo: 'naoErra' }, efeitos: [selo] },
+    mecanica: { versao: 1, acao: como.acao ?? 'simples', custos: [], alvo: como.alvo ?? NUM_INIMIGO, teste: { tipo: 'naoErra' }, efeitos: [efeito] },
   }
 }
 
@@ -36,8 +40,20 @@ function cartao(id: string, nome: string, selo: unknown): CartaoDaFicha {
 const CORTE = cartao('cart_corte_fundo', 'Corte Fundo', { tipo: 'selo', nome: 'Sangrando', duracao: 3, natureza: 'debuff' })
 /** Veneno de NPC (fora da tabela): 15 por vez, até o próximo golpe. */
 const MORDIDA = cartao('cart_mordida_venenosa', 'Mordida Venenosa', { tipo: 'selo', nome: 'Veneno', duracao: 'proximoGolpe', natureza: 'debuff', porTurno: { recurso: 'hp', quanto: { fixo: 15 }, direto: true } })
+/** Ajuda em si: "Protegido" até o próximo golpe, e uma cura em si. */
+const TEIA = cartao('cart_teia_protetora', 'Teia Protetora', { tipo: 'selo', nome: 'Protegido', duracao: 'proximoGolpe', natureza: 'buff' }, { alvo: EM_SI, acao: 'livre' })
+const MUDA = cartao('cart_muda_de_pele', 'Muda de Pele', { tipo: 'cura', recurso: 'hp', quanto: { fixo: 20 }, emQuem: 'alvo' }, { alvo: EM_SI, acao: 'livre' })
+/** Queimando (renova) por 2 turnos, e o mesmo até o próximo golpe. */
+const BRASA = cartao('cart_brasa', 'Brasa', { tipo: 'selo', nome: 'Queimando', duracao: 2, natureza: 'debuff' }, { acao: 'livre' })
+const LABAREDA = cartao('cart_labareda', 'Labareda', { tipo: 'selo', nome: 'Queimando', duracao: 'proximoGolpe', natureza: 'debuff' }, { acao: 'livre' })
+/** Os mesmos dois em si (a ajuda não tira o selo no lançamento, então o 2º renova o 1º). */
+const CHAMA_INTERNA = cartao('cart_chama_interna', 'Chama Interna', { tipo: 'selo', nome: 'Queimando', duracao: 'proximoGolpe', natureza: 'buff' }, { alvo: EM_SI, acao: 'livre' })
+const BRASA_INTERNA = cartao('cart_brasa_interna', 'Brasa Interna', { tipo: 'selo', nome: 'Queimando', duracao: 2, natureza: 'buff' }, { alvo: EM_SI, acao: 'livre' })
 
-const aranha: Personagem = { ...ficha('Aranha de Teste', { forca: 30 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [CORTE, MORDIDA] }), tipo: 'npc' }
+const aranha: Personagem = {
+  ...ficha('Aranha de Teste', { forca: 30 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [CORTE, MORDIDA, TEIA, MUDA, BRASA, LABAREDA, CHAMA_INTERNA, BRASA_INTERNA] }),
+  tipo: 'npc',
+}
 const marujo: Personagem = ficha('Marujo de Teste', { resistencia: 30 }, { hp: 500, sp: 100, escudo: 40 }, {})
 
 function batalha(): { loja: LojaDaBatalha; mesa: MesaEmMemoria } {
@@ -65,18 +81,24 @@ function naVezDe(loja: LojaDaBatalha, nome: string): VezEsperada {
   throw new Error(`a vez de ${nome} não chegou`)
 }
 
-function cartaDoMarujo(loja: LojaDaBatalha): { tokenId: string; personagemId: string } {
-  const achada = cena(loja).turnos.cartas.find((carta) => carta.nome === 'Marujo de Teste')
-  if (achada === undefined || achada.personagemId === null) throw new Error('sem a carta do Marujo')
+function cartaDe(loja: LojaDaBatalha, nome: string): { tokenId: string; personagemId: string } {
+  const achada = cena(loja).turnos.cartas.find((carta) => carta.nome === nome)
+  if (achada === undefined || achada.personagemId === null) throw new Error(`sem a carta de ${nome}`)
   return { tokenId: achada.tokenId, personagemId: achada.personagemId }
 }
+
+const cartaDoMarujo = (loja: LojaDaBatalha): { tokenId: string; personagemId: string } => cartaDe(loja, 'Marujo de Teste')
 
 function usar(loja: LojaDaBatalha, pedido: PedidoDeAcao): boolean {
   return loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Aranha de Teste'), pedido)
 }
 
-const tecnica = (loja: LojaDaBatalha, cartaoId: string): PedidoDeAcao => ({ tipo: 'habilidade', cartaoId, armaId: null, alvos: [{ tokenId: cartaDoMarujo(loja).tokenId, dano: null }], surpresa: false, perfurante: false, custo: null, acao: null })
-const recursoDoMarujo = (mesa: MesaEmMemoria, recurso: 'hp' | 'escudo'): number => numeroDaFicha(mesa.personagens().find((item) => item.nome === 'Marujo de Teste')?.recursos ?? {}, recurso)
+const tecnica = (loja: LojaDaBatalha, cartaoId: string, tokenId = cartaDoMarujo(loja).tokenId): PedidoDeAcao => ({ tipo: 'habilidade', cartaoId, armaId: null, alvos: [{ tokenId, dano: null }], surpresa: false, perfurante: false, custo: null, acao: null })
+const daAranha = (loja: LojaDaBatalha): string => cartaDe(loja, 'Aranha de Teste').tokenId
+const emSi = (loja: LojaDaBatalha, cartaoId: string): PedidoDeAcao => tecnica(loja, cartaoId, daAranha(loja))
+const atacarAAranha = (loja: LojaDaBatalha): PedidoDeAcao => ({ tipo: 'atacar', armaId: null, alvos: [{ tokenId: daAranha(loja), dano: 30 }], surpresa: false, perfurante: false })
+const selosNaAranha = (loja: LojaDaBatalha): string[] => (cena(loja).turnos.selos ?? []).filter((selo) => selo.tokenId === daAranha(loja)).map((selo) => selo.nome)
+const recursoDoMarujo =(mesa: MesaEmMemoria, recurso: 'hp' | 'escudo'): number => numeroDaFicha(mesa.personagens().find((item) => item.nome === 'Marujo de Teste')?.recursos ?? {}, recurso)
 const selosNoMarujo = (loja: LojaDaBatalha): string[] => (cena(loja).turnos.selos ?? []).filter((selo) => selo.tokenId === cartaDoMarujo(loja).tokenId).map((selo) => `${selo.nome} ${selo.turnos ?? ''}`.trim())
 const ultimaLinha = (loja: LojaDaBatalha): string => cena(loja).registro[cena(loja).registro.length - 1]?.texto ?? ''
 
@@ -124,5 +146,34 @@ describe('veneno de NPC montado, até o próximo golpe', () => {
     expect(selosNoMarujo(loja)).toEqual(['Veneno'])
     expect(usar(loja, { tipo: 'atacar', armaId: null, alvos: [{ tokenId: cartaDoMarujo(loja).tokenId, dano: 30 }], surpresa: false, perfurante: false })).toBe(true)
     expect(selosNoMarujo(loja)).toEqual([])
+  })
+
+  it('a técnica de ajuda em quem tem o selo não o tira; o golpe do inimigo tira', () => {
+    const { loja } = batalha()
+    expect(usar(loja, emSi(loja, TEIA.id))).toBe(true)
+    expect(usar(loja, emSi(loja, MUDA.id))).toBe(true)
+    expect(selosNaAranha(loja)).toEqual(['Protegido'])
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Marujo de Teste'), atacarAAranha(loja))).toBe(true)
+    expect(selosNaAranha(loja)).toEqual([])
+  })
+
+  it('o Queimando renovado pelo "até o próximo golpe" sai no golpe seguinte', () => {
+    const { loja } = batalha()
+    expect(usar(loja, tecnica(loja, BRASA.id))).toBe(true)
+    expect(selosNoMarujo(loja)).toEqual(['Queimando 2'])
+    expect(usar(loja, tecnica(loja, LABAREDA.id))).toBe(true)
+    expect(selosNoMarujo(loja)).toEqual(['Queimando'])
+    expect(usar(loja, { tipo: 'atacar', armaId: null, alvos: [{ tokenId: cartaDoMarujo(loja).tokenId, dano: 30 }], surpresa: false, perfurante: false })).toBe(true)
+    expect(selosNoMarujo(loja)).toEqual([])
+  })
+
+  it('o "até o próximo golpe" renovado por turnos volta a contar turnos e fica no golpe seguinte', () => {
+    const { loja } = batalha()
+    // Em si (ajuda): a 2ª não tira a 1ª no lançamento, então renova.
+    expect(usar(loja, emSi(loja, CHAMA_INTERNA.id))).toBe(true)
+    expect(usar(loja, emSi(loja, BRASA_INTERNA.id))).toBe(true)
+    expect((cena(loja).turnos.selos ?? []).map((selo) => [selo.nome, selo.turnos, selo.saiNoProximoGolpe ?? false])).toEqual([['Queimando', 2, false]])
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Marujo de Teste'), atacarAAranha(loja))).toBe(true)
+    expect(selosNaAranha(loja)).toEqual(['Queimando'])
   })
 })
