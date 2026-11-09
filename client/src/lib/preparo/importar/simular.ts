@@ -48,6 +48,7 @@ import {
 import {
   FORMATO_DO_RELATORIO,
   MINIMO_QUE_SOBRA_BYTES,
+  bytesDasMidiasQueFaltam,
   registroDe,
   somarPorDestino,
   somarPorTipo,
@@ -77,6 +78,11 @@ export interface OpcoesDaSimulacao {
   readonly espacoLivreBytes?: number | null
   /** O que já está no Prelúdio: o relatório traz o plano da reimportação, e o plano respeita a regra dela. */
   readonly existentes?: NoPreludio
+  /**
+   * As imagens que já estão em `midia/` do Prelúdio (`FotoDoPreludio.midias`),
+   * em qualquer modo: o "Aplicar" não copia de novo, então ficam fora do espaço.
+   */
+  readonly midiasNoPreludio?: ReadonlySet<string>
   /** Andamento da leitura (as imagens demoram). */
   readonly aoAvancar?: (feitos: number, total: number) => void
   readonly agora?: () => Date
@@ -756,9 +762,9 @@ function contagensDe(simulacao: Simulacao, quadros: number): Contagens {
   }
 }
 
-function espacoDe(necessarioBytes: number, livreBytes: number | null): EspacoEmDisco {
+function espacoDe(necessarioBytes: number, midiaBytes: number, livreBytes: number | null): EspacoEmDisco {
   const sobraDepoisBytes = livreBytes === null ? null : livreBytes - necessarioBytes
-  return { necessarioBytes, livreBytes, minimoQueSobraBytes: MINIMO_QUE_SOBRA_BYTES, sobraDepoisBytes, cabe: sobraDepoisBytes === null ? null : sobraDepoisBytes >= MINIMO_QUE_SOBRA_BYTES }
+  return { necessarioBytes, midiaBytes, livreBytes, minimoQueSobraBytes: MINIMO_QUE_SOBRA_BYTES, sobraDepoisBytes, cabe: sobraDepoisBytes === null ? null : sobraDepoisBytes >= MINIMO_QUE_SOBRA_BYTES }
 }
 
 function arquivoNoRelatorio(registro: Registro): ArquivoNoRelatorio {
@@ -848,9 +854,10 @@ export async function simularImportacao(leitor: LeitorDoCofre, opcoes: OpcoesDaS
   const dasLigacoes = noDisco(ARQUIVO_DAS_LIGACOES, plano.ligacoes)
   const deTudo = [...plano.chats.map((chat) => chat.conteudo), plano.teia?.porEscopo ?? {}, ...plano.lixeira.flatMap((entrada) => entrada.arquivos.map((arquivo) => arquivo.conteudo))]
   const doSoLeitura = deTudo.reduce<number>((soma, valor) => soma + bytesDoTexto(JSON.stringify(valor, null, 2)), 0)
-  const necessario =
-    midias.reduce((soma, midia) => soma + midia.bytes, 0) + validada.bytes + originais + doSoLeitura + (doIndice.ok ? doIndice.bytes : 0) + (dasLigacoes.ok ? dasLigacoes.bytes : 0)
-  const espaco = espacoDe(necessario, opcoes.espacoLivreBytes ?? null)
+  // Só as imagens que faltam em midia/: a que já está lá o "Aplicar" pula (reimportação, ou importação que parou no meio).
+  const midiaBytes = bytesDasMidiasQueFaltam(plano.midias, opcoes.midiasNoPreludio ?? new Set())
+  const necessario = midiaBytes + validada.bytes + originais + doSoLeitura + (doIndice.ok ? doIndice.bytes : 0) + (dasLigacoes.ok ? dasLigacoes.bytes : 0)
+  const espaco = espacoDe(necessario, midiaBytes, opcoes.espacoLivreBytes ?? null)
   const problemas = conferirDestinos(inventario.arquivos.map((arquivo) => arquivo.caminho), simulacao.registros, completo)
   for (const problema of problemas.slice(0, PROBLEMAS_LISTADOS)) simulacao.avisos.push(`Conferência de destino: ${problema}.`)
   if (problemas.length > PROBLEMAS_LISTADOS) simulacao.avisos.push(`Conferência de destino: e mais ${problemas.length - PROBLEMAS_LISTADOS} problema(s).`)

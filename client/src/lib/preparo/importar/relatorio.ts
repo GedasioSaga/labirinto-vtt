@@ -59,8 +59,14 @@ export interface Contagens {
 }
 
 export interface EspacoEmDisco {
-  /** Mídia sem repetição + os arquivos novos do Prelúdio + a cópia dos JSON originais. */
+  /** As imagens que faltam em `midia/` + os arquivos novos do Prelúdio + a cópia dos JSON originais. */
   readonly necessarioBytes: number
+  /**
+   * A parte das imagens em `necessarioBytes`: só as que ainda não estão em
+   * `midia/`, porque a que já está lá não é copiada de novo. O "Aplicar" troca
+   * esta parte pela conta feita na hora (`midia/` pode mudar depois da simulação).
+   */
+  readonly midiaBytes: number
   /** `null` = não deu para medir aqui. */
   readonly livreBytes: number | null
   readonly minimoQueSobraBytes: number
@@ -139,8 +145,9 @@ export interface EntradaDaLixeira {
 export interface PlanoDaImportacao {
   /**
    * `importacao`: tudo entra. `reimportacao` (`reimportar.ts`): verbetes e quadros
-   * trazem só os novos e os trocados, e o índice e as ligações são o arquivo
-   * inteiro, já mesclado com o que é do Prelúdio.
+   * trazem só os novos e os trocados, e o índice e as ligações trazem a lista
+   * inteira, já mesclada com o que é do Prelúdio. Nos dois, o "Aplicar" troca só
+   * a lista no arquivo que já está no Prelúdio: o resto dele volta igual.
    */
   readonly modo: 'importacao' | 'reimportacao'
   readonly indice: IndiceDoPreparo
@@ -151,6 +158,14 @@ export interface PlanoDaImportacao {
   readonly chats: readonly ChatDoGrimorio[]
   readonly teia: TeiaDoGrimorio | null
   readonly lixeira: readonly EntradaDaLixeira[]
+}
+
+/**
+ * Os bytes das imagens do plano que ainda não estão em `midia/` (`jaNoPreludio`,
+ * com o nome que o plano usa: `midia/<sha256>.<ext>`). Só essas o "Aplicar" copia.
+ */
+export function bytesDasMidiasQueFaltam(midias: PlanoDaImportacao['midias'], jaNoPreludio: ReadonlySet<string>): number {
+  return midias.reduce((soma, midia) => (jaNoPreludio.has(midia.midia) ? soma : soma + midia.bytes), 0)
 }
 
 /** A mídia nova de um caminho do cofre (`meta.rel` do quadro, `data-rel`), com qualquer grafia; `null` se não há. */

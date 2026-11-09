@@ -87,6 +87,7 @@ export function PainelDaImportacao({ onAplicado, onPedirCopia, onGravando }: Pai
       })
       const resultado = await simularImportacao(leitorDoCofreNoApp(raiz), {
         existentes: foto.vazio ? undefined : foto.noPreludio,
+        midiasNoPreludio: foto.midias,
         espacoLivreBytes: await espacoLivreNoDisco(),
         copiasDeConflito: copias === null ? undefined : leitorDoCofreNoApp(copias),
         aoAvancar: (feitos, total) => andar('cofre', feitos, total),

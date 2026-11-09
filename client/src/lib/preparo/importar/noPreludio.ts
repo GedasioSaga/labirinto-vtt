@@ -1,7 +1,8 @@
 import { FEATURES, type FeatureFlags } from '../../features'
-import { LUGARES, lerDoPreparo, lerIndiceDoPreparo, lerVerbete, listarNoPreparo, type DocumentoLido } from '../disco'
-import { ARQUIVO_DAS_LIGACOES, ARQUIVO_DOS_VINDOS, ARQUIVO_DO_QUADRO, type VindosDoGrimorio } from '../tipos'
+import { LUGARES, lerDoPreparo, lerIndiceDoPreparo, lerVerbete, listarNoPreparo, pastaDoPreparo, type DocumentoLido } from '../disco'
+import { ARQUIVO_DAS_LIGACOES, ARQUIVO_DOS_VINDOS, ARQUIVO_DO_QUADRO, type IndiceDoPreparo, type Ligacoes, type VindosDoGrimorio } from '../tipos'
 import { hashDoTexto } from './cofre'
+import { midiasNoPreludio } from './copiarArquivos'
 import type { ApagadosNoPreludio, NoPreludio, QuadroComId } from './reimportar'
 
 /**
@@ -16,6 +17,9 @@ import type { ApagadosNoPreludio, NoPreludio, QuadroComId } from './reimportar'
  *   cima de algo que não entende.
  * - A `impressao` resume tudo o que foi lido: o "Aplicar" lê de novo e recusa
  *   se o Prelúdio mudou desde a simulação.
+ * - Lista também as imagens de `midia/`, que ficam fora da `impressao`: imagem a
+ *   mais ou a menos não invalida o plano (o "Aplicar" só copia a que falta), mas
+ *   muda o espaço, e o "Aplicar" conta de novo na hora.
  */
 
 export interface FotoDoPreludio {
@@ -24,6 +28,15 @@ export interface FotoDoPreludio {
   readonly vazio: boolean
   /** O registro das importações anteriores; `null` = nenhuma aplicada ainda. */
   readonly vindos: VindosDoGrimorio | null
+  /**
+   * `preparo.json` e `ligacoes.json` inteiros, como estão (`null` = ainda não
+   * existem). O "Aplicar" troca só a lista: o resto do arquivo (chave que esta
+   * versão não conhece, em `extras`, ou campo que outra fatia acrescentar) volta igual.
+   */
+  readonly indice: IndiceDoPreparo | null
+  readonly ligacoes: Ligacoes | null
+  /** As imagens que já estão em `midia/` (`midia/<sha256>.<ext>`): não são copiadas de novo, então não contam no espaço. */
+  readonly midias: ReadonlySet<string>
   readonly impressao: string
 }
 
@@ -85,9 +98,10 @@ async function lerTudo(flags: Readonly<FeatureFlags>): Promise<LeituraDoPreludio
   })
   const noPreludio: NoPreludio = { verbetes, quadros, ligacoes: listaDeLigacoes, campanhas, apagados }
   const vazio = vindos === null && verbetes.length === 0 && quadros.length === 0 && listaDeLigacoes.length === 0 && campanhas.length === 0
+  const midias = await midiasNoPreludio(await pastaDoPreparo(flags))
   // Os mesmos arquivos lidos de novo dão o mesmo texto: cada molde monta o objeto na ordem dele.
   const impressao = await hashDoTexto(JSON.stringify({ indice, ligacoes, vindos, verbetes, quadros }))
-  return { ok: true, foto: { noPreludio, vazio, vindos, impressao } }
+  return { ok: true, foto: { noPreludio, vazio, vindos, indice, ligacoes, midias, impressao } }
 }
 
 /** Lê o Prelúdio inteiro para a importação. Nunca lança: o que deu errado vem em `problemas`. */

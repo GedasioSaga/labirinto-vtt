@@ -18,21 +18,24 @@ import { compararCaminhos, idFixoDoCaminho, type LeitorDoCofre } from './cofre'
 import { copiarMidias, criarPastaDaImportacao, gravarRelatorio, guardarOriginais, vaoParaOOriginal, type Andar } from './copiarArquivos'
 import { lerPreludio, type FotoDoPreludio } from './noPreludio'
 import { hashDoQuadro, hashDoVerbete } from './reimportar'
-import { MINIMO_QUE_SOBRA_BYTES, type ChatDoGrimorio, type PlanoDaImportacao, type ResultadoDaSimulacao } from './relatorio'
+import { MINIMO_QUE_SOBRA_BYTES, bytesDasMidiasQueFaltam, type ChatDoGrimorio, type PlanoDaImportacao, type ResultadoDaSimulacao } from './relatorio'
 
 /**
  * O "APLICAR" DA IMPORTAÇÃO (plano §4, passos 6 a 10): grava no Prelúdio o
  * plano que a simulação montou, depois do ok do mestre na tela.
  *
  * Antes de gravar qualquer coisa, recusa (`RecusaDaImportacao`) quando: o
- * relatório trava, o espaço livre não foi medido ou sobrariam menos de 8 GB, ou
- * o Prelúdio mudou desde a simulação. Depois, na ordem:
+ * relatório trava, o Prelúdio mudou desde a simulação, ou o espaço livre não
+ * foi medido ou sobrariam menos de 8 GB. Na conta do espaço, a imagem que já
+ * está em `midia/` não entra (não é copiada de novo), e `midia/` é lido de novo
+ * na hora, porque pode ter mudado desde a simulação. Depois, na ordem:
  *   1. imagens em `midia/<sha256>.<ext>`, cada uma uma vez (`copiarArquivos.ts`);
  *   2. verbetes e quadros, pelos moldes da F0. Cada um é conferido de novo na
  *      hora: o que o mestre editou no Prelúdio fica como está;
  *   3. o que é só leitura no Prelúdio: chat de IA, Teia e lixeira do Grimório;
  *   4. as ligações e o índice, com a pasta do Labirinto que o mestre ligou a
- *      cada campanha (passo 8);
+ *      cada campanha (passo 8). Da importação vem só a lista: o resto do arquivo
+ *      que já está no Prelúdio volta igual;
  *   5. se algo mudou: `importacoes/<data>/` com o relatório e os JSON originais;
  *   6. o registro do que veio do Grimório: o que sumir do Prelúdio depois foi
  *      apagado pelo mestre, e a reimportação não traz de volta.
@@ -98,11 +101,23 @@ function conferirEspaco(necessario: number, livre: number | null): void {
   }
 }
 
-async function conferirPreludio(plano: PlanoDaImportacao, foto: FotoDoPreludio, flags: Readonly<FeatureFlags>): Promise<void> {
+/**
+ * Lê o Prelúdio de novo e recusa se mudou desde a simulação. Devolve a leitura
+ * de agora: nos arquivos, igual à foto da simulação (a impressão confere); em
+ * `midia/`, que fica fora da impressão, como está neste momento.
+ */
+async function conferirPreludio(plano: PlanoDaImportacao, foto: FotoDoPreludio, flags: Readonly<FeatureFlags>): Promise<FotoDoPreludio> {
   if (plano.modo === 'importacao' && !foto.vazio) throw new RecusaDaImportacao('A simulação foi feita como primeira importação, mas o Prelúdio já tem conteúdo. Simule de novo.')
   const agora = await lerPreludio(flags)
   if (!agora.ok) throw new RecusaDaImportacao(`O Prelúdio tem arquivos que esta versão não abre para editar: ${agora.problemas.join(' ')}`)
   if (agora.foto.impressao !== foto.impressao) throw new RecusaDaImportacao('O Prelúdio mudou desde a simulação. Simule de novo para o relatório valer.')
+  return agora.foto
+}
+
+/** O espaço da simulação com as imagens contadas de novo pelo `midia/` de agora: só as que faltam lá são copiadas. */
+function necessarioAgora(resultado: ResultadoDaSimulacao, midias: ReadonlySet<string>): number {
+  const { necessarioBytes, midiaBytes } = resultado.relatorio.espaco
+  return necessarioBytes - midiaBytes + bytesDasMidiasQueFaltam(resultado.plano.midias, midias)
 }
 
 // ─── Verbetes e quadros ──────────────────────────────────────────────────────
@@ -268,8 +283,12 @@ async function gravarConteudo(resultado: ResultadoDaSimulacao, leitor: LeitorDoC
   const quadros = await gravarQuadros(plano, flags, andar('quadros'))
   andar('restante')(0, 1)
   const soLeitura = (await gravarChats(plano, flags, avisos)) + (await gravarTeiaELixeira(plano, flags))
-  const ligacoesMudaram = await gravarNoPreparoSeMudou(ARQUIVO_DAS_LIGACOES, LUGARES.ligacoes(), plano.ligacoes, flags)
-  const indice = comAsPastas(plano.indice, opcoes.pastas)
+  // Da importação vem só a lista; o resto do arquivo que já está no Prelúdio volta igual. A impressão
+  // conferiu que a foto é o que está no disco. Sem arquivo, vale o objeto novo da simulação.
+  const { foto } = opcoes
+  const ligacoes = foto.ligacoes === null ? plano.ligacoes : { ...foto.ligacoes, ligacoes: plano.ligacoes.ligacoes }
+  const ligacoesMudaram = await gravarNoPreparoSeMudou(ARQUIVO_DAS_LIGACOES, LUGARES.ligacoes(), ligacoes, flags)
+  const indice = comAsPastas(foto.indice === null ? plano.indice : { ...foto.indice, campanhas: plano.indice.campanhas }, opcoes.pastas)
   const indiceMudou = await gravarNoPreparoSeMudou(ARQUIVO_DO_INDICE, LUGARES.indice(), indice, flags)
   andar('restante')(1, 1)
   return { imagens, verbetes, quadros, soLeitura, ligacoesMudaram, indiceMudou, indice, avisos, andar }
@@ -281,8 +300,8 @@ export async function aplicarImportacao(resultado: ResultadoDaSimulacao, leitor:
   if (!preparoLigado(flags)) throw new RecusaDaImportacao('O Prelúdio está desligado: nada é gravado.')
   opcoes.aoAvancar?.('conferindo', 0, 1)
   conferirRelatorio(resultado)
-  conferirEspaco(resultado.relatorio.espaco.necessarioBytes, opcoes.espacoLivreBytes)
-  await conferirPreludio(resultado.plano, opcoes.foto, flags)
+  const agora = await conferirPreludio(resultado.plano, opcoes.foto, flags)
+  conferirEspaco(necessarioAgora(resultado, agora.midias), opcoes.espacoLivreBytes)
 
   const raiz = await pastaDoPreparo(flags)
   const feito = await gravarConteudo(resultado, leitor, opcoes, raiz, flags)

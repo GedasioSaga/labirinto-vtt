@@ -1,5 +1,5 @@
 import { join } from '@tauri-apps/api/path'
-import { exists, remove, rename, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readDir, remove, rename, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { hashHex } from '../../midia'
 import { ensureDir, writeTextFileSafely } from '../../mapFileIO'
 import { extensaoDe, type LeitorDoCofre } from './cofre'
@@ -50,6 +50,19 @@ async function gravarBytes(destino: string, bytes: Uint8Array): Promise<void> {
 }
 
 // ─── Mídia ───────────────────────────────────────────────────────────────────
+
+/**
+ * As imagens que já estão em `midia/`, com o nome que o plano usa
+ * (`midia/<sha256>.<ext>`): o `copiarMidias` não copia de novo, então elas não
+ * contam no espaço. O `.tmp` de uma cópia pela metade e o que não tem nome de
+ * mídia ficam de fora. Pasta que não existe = nenhuma.
+ */
+export async function midiasNoPreludio(raiz: string): Promise<Set<string>> {
+  const pasta = await join(raiz, PASTA_DA_MIDIA)
+  if (!(await exists(pasta))) return new Set()
+  const nomes = (await readDir(pasta)).filter((entrada) => entrada.isFile).map((entrada) => `${PASTA_DA_MIDIA}/${entrada.name}`)
+  return new Set(nomes.filter((nome) => NOME_DA_MIDIA.test(nome)))
+}
 
 /**
  * Cada imagem nova vai para `midia/` uma vez só; a que já está lá (de outra

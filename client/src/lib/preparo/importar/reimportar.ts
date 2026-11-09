@@ -325,9 +325,10 @@ function comAPastaDoMestre(atual: Campanha, nova: Campanha): Campanha {
 /**
  * O plano da reimportação, pronto para o "Aplicar": verbetes e quadros só os
  * novos e os trocados (o resto fica como está no disco); o índice e as ligações
- * são o arquivo inteiro, mesclado com o que é do Prelúdio. O chat, a Teia e a
- * lixeira são só leitura no Prelúdio: vêm do Grimório, menos o chat de um dono
- * que o mestre apagou.
+ * trazem a lista inteira, mesclada com o que é do Prelúdio (o "Aplicar" troca só
+ * a lista no arquivo, e o resto dele volta igual). O chat, a Teia e a lixeira
+ * são só leitura no Prelúdio: vêm do Grimório, menos o chat de um dono que o
+ * mestre apagou.
  */
 export function planoDaReimportacao(plano: PlanoDaImportacao, noPreludio: NoPreludio, reimportacao: PlanoDeReimportacao): PlanoDaImportacao {
   const verbetes = quemEntra(reimportacao.verbetes)

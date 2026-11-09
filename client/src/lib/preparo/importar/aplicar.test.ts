@@ -4,7 +4,9 @@
  * `<appData>`. O repositório é público: nenhum dado real.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { COM_ESPACO, cofreFalso, cofreInventado, json, png, type Conteudo } from './cofreDeTeste'
+import { ARQUIVO_DAS_LIGACOES, ARQUIVO_DO_INDICE, type ArquivoDoPreparo } from '../tipos'
+import { COM_ESPACO, CRIADO, cofreFalso, cofreInventado, json, png, type Conteudo } from './cofreDeTeste'
+import { MINIMO_QUE_SOBRA_BYTES } from './relatorio'
 
 const APPDATA = 'C:/Users/teste/AppData/Roaming/labirinto'
 const PREPARO = `${APPDATA}/preparo`
@@ -63,7 +65,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 const { FEATURES } = await import('../../features')
-const { gravarVerbete, lerIndiceDoPreparo, lerVerbete } = await import('../disco')
+const { LUGARES, gravarNoPreparo, gravarVerbete, lerDoPreparo, lerIndiceDoPreparo, lerVerbete } = await import('../disco')
 const { aplicarImportacao, RecusaDaImportacao } = await import('./aplicar')
 const { lerPreludio } = await import('./noPreludio')
 const { simularImportacao } = await import('./simular')
@@ -82,9 +84,37 @@ async function fotoDoPreludio() {
 async function simularEAplicar(arquivos: Readonly<Record<string, Conteudo>>, pastas: ReadonlyMap<string, string | null> = new Map()) {
   const foto = await fotoDoPreludio()
   const falso = cofreFalso(arquivos)
-  const resultado = await simularImportacao(falso.leitor, { ...COM_ESPACO, existentes: foto.vazio ? undefined : foto.noPreludio })
+  const resultado = await simularImportacao(falso.leitor, { ...COM_ESPACO, existentes: foto.vazio ? undefined : foto.noPreludio, midiasNoPreludio: foto.midias })
   const resumo = await aplicarImportacao(resultado, falso.leitor, { foto, pastas, espacoLivreBytes: COM_ESPACO.espacoLivreBytes, agora: () => AGORA, flags: LIGADO })
   return { resultado, resumo }
+}
+
+/** Um arquivo de preparo/ lido pelo molde, como o app lê. */
+async function lidoNoPreparo<T extends { formato: number }>(arquivo: ArquivoDoPreparo<T>, partes: readonly string[]): Promise<T> {
+  const lido = await lerDoPreparo(arquivo, partes, LIGADO)
+  if (lido.estado !== 'ok') throw new Error(`preparo/${partes.join('/')} devia abrir, veio ${lido.estado}`)
+  return lido.valor
+}
+
+/** Uma fatia futura acrescenta uma chave no topo dos dois arquivos; esta versão não a conhece, então ela mora em `extras`. */
+async function comChaveNovaNoTopo(): Promise<void> {
+  const indice = await lidoNoPreparo(ARQUIVO_DO_INDICE, LUGARES.indice())
+  const ligacoes = await lidoNoPreparo(ARQUIVO_DAS_LIGACOES, LUGARES.ligacoes())
+  await gravarNoPreparo(ARQUIVO_DO_INDICE, LUGARES.indice(), { ...indice, extras: { ordem: ['camp-mar'] } }, LIGADO)
+  await gravarNoPreparo(ARQUIVO_DAS_LIGACOES, LUGARES.ligacoes(), { ...ligacoes, extras: { vista: { zoom: 2 } } }, LIGADO)
+}
+
+/** O mesmo caminho do mestre, só a simulação: o Aplicar fica com o teste. */
+async function simularDeNovo(arquivos: Readonly<Record<string, Conteudo>>) {
+  const foto = await fotoDoPreludio()
+  const falso = cofreFalso(arquivos)
+  const resultado = await simularImportacao(falso.leitor, { ...COM_ESPACO, existentes: foto.vazio ? undefined : foto.noPreludio, midiasNoPreludio: foto.midias })
+  const aplicar = (espacoLivreBytes: number) => aplicarImportacao(resultado, falso.leitor, { foto, pastas: new Map(), espacoLivreBytes, agora: () => AGORA, flags: LIGADO })
+  return { foto, resultado, aplicar }
+}
+
+function somaDosBytes(midias: readonly { readonly bytes: number }[]): number {
+  return midias.reduce((soma, midia) => soma + midia.bytes, 0)
 }
 
 /** O JSON é copiado como texto e o resto byte a byte: compara pelo texto. */
@@ -229,5 +259,101 @@ describe('aplicar a importação do Grimório', () => {
 
     await expect(aplicarImportacao(resultado, depois.leitor, { foto, pastas: new Map(), espacoLivreBytes: COM_ESPACO.espacoLivreBytes, flags: LIGADO })).rejects.toThrow(/mudou no cofre/)
     expect(arquivosEm(`${PREPARO}/verbetes`)).toEqual([])
+  })
+})
+
+describe('o resto do preparo.json e do ligacoes.json volta igual: só a lista vem da importação', () => {
+  it('chave no topo que esta versão não conhece fica, e o Grimório igual dá 0 mudanças', async () => {
+    await simularEAplicar(cofreInventado())
+    await comChaveNovaNoTopo()
+    const antes = new Map(disco)
+
+    const { resumo } = await simularEAplicar(cofreInventado())
+
+    expect(resumo).toMatchObject({ mudancas: 0, indiceMudou: false, ligacoesMudaram: false, pasta: null })
+    expect(disco).toEqual(antes)
+  })
+
+  it('com o Grimório mudado, só a lista é trocada: a chave no topo e a pasta ligada ficam', async () => {
+    await simularEAplicar(cofreInventado(), new Map([['camp-mar', 'pasta-do-labirinto']]))
+    await comChaveNovaNoTopo()
+    const mudado = cofreInventado()
+    mudado['campanhas/mar-de-teste/campanha.json'] = json({ id: 'camp-mar', nome: 'Mar Renomeado', descricao: 'Inventada.', criadoEm: CRIADO })
+    mudado['vinculos.json'] = String(mudado['vinculos.json']).replace('desde o teste', 'desde o teste de novo')
+
+    const { resumo } = await simularEAplicar(mudado)
+
+    expect(resumo).toMatchObject({ indiceMudou: true, ligacoesMudaram: true })
+    const indice = await lidoNoPreparo(ARQUIVO_DO_INDICE, LUGARES.indice())
+    expect(indice.extras).toEqual({ ordem: ['camp-mar'] })
+    expect(indice.campanhas.map((campanha) => [campanha.id, campanha.nome, campanha.pastaId])).toEqual([['camp-mar', 'Mar Renomeado', 'pasta-do-labirinto']])
+    const ligacoes = await lidoNoPreparo(ARQUIVO_DAS_LIGACOES, LUGARES.ligacoes())
+    expect(ligacoes.extras).toEqual({ vista: { zoom: 2 } })
+    expect(ligacoes.ligacoes.find((ligacao) => ligacao.id === 'v5')?.notas).toBe('desde o teste de novo')
+  })
+
+  it('o exemplo da revisão: "ordem" escrita à mão no fim do preparo.json fica, e a reimportação seguinte dá 0 mudanças', async () => {
+    await simularEAplicar(cofreInventado())
+    const caminho = `${PREPARO}/preparo.json`
+    disco.set(caminho, JSON.stringify({ ...JSON.parse(String(disco.get(caminho))), ordem: ['a', 'b'] }))
+
+    await simularEAplicar(cofreInventado())
+    expect((await lidoNoPreparo(ARQUIVO_DO_INDICE, LUGARES.indice())).extras).toEqual({ ordem: ['a', 'b'] })
+
+    expect((await simularEAplicar(cofreInventado())).resumo).toMatchObject({ mudancas: 0, indiceMudou: false })
+  })
+
+  it('primeira importação sobre preparo.json e ligacoes.json de lista vazia: a chave no topo também fica', async () => {
+    await gravarNoPreparo(ARQUIVO_DO_INDICE, LUGARES.indice(), { formato: 1, campanhas: [], extras: { ordem: [] } }, LIGADO)
+    await gravarNoPreparo(ARQUIVO_DAS_LIGACOES, LUGARES.ligacoes(), { formato: 1, ligacoes: [], extras: { vista: { zoom: 2 } } }, LIGADO)
+    expect((await fotoDoPreludio()).vazio).toBe(true)
+
+    const { resultado } = await simularEAplicar(cofreInventado())
+
+    expect(resultado.plano.modo).toBe('importacao')
+    const indice = await lidoNoPreparo(ARQUIVO_DO_INDICE, LUGARES.indice())
+    expect(indice.extras).toEqual({ ordem: [] })
+    expect(indice.campanhas.map((campanha) => campanha.id)).toEqual(['camp-mar'])
+    expect((await lidoNoPreparo(ARQUIVO_DAS_LIGACOES, LUGARES.ligacoes())).extras).toEqual({ vista: { zoom: 2 } })
+  })
+})
+
+describe('o espaço não conta as imagens que já estão em midia/', () => {
+  it('reimportar: nem a simulação nem o Aplicar pedem espaço para elas; o Aplicar conta de novo a que sumiu depois da simulação', async () => {
+    const primeira = await simularEAplicar(cofreInventado())
+    const todas = somaDosBytes(primeira.resultado.plano.midias)
+    expect(todas).toBeGreaterThan(0)
+    expect(primeira.resultado.relatorio.espaco.midiaBytes).toBe(todas)
+
+    const { foto, resultado, aplicar } = await simularDeNovo(cofreInventado())
+    expect([...foto.midias].sort()).toEqual(primeira.resultado.plano.midias.map((midia) => midia.midia).sort())
+    const contandoTodas = await simularImportacao(cofreFalso(cofreInventado()).leitor, { ...COM_ESPACO, existentes: foto.noPreludio })
+    expect(resultado.relatorio.espaco.midiaBytes).toBe(0)
+    expect(contandoTodas.relatorio.espaco.necessarioBytes - resultado.relatorio.espaco.necessarioBytes).toBe(todas)
+
+    // Livre = o mínimo + só o que a reimportação grava. Antes, o Aplicar pedia todas as imagens de novo e recusava.
+    const justo = MINIMO_QUE_SOBRA_BYTES + resultado.relatorio.espaco.necessarioBytes
+    await expect(aplicar(justo - 1)).rejects.toThrow(/mínimo é 8 GB/)
+    expect(await aplicar(justo)).toMatchObject({ mudancas: 0, imagens: 0 })
+
+    // Uma imagem some de midia/ depois da simulação: o Aplicar conta de novo na hora, pede o espaço dela e a copia.
+    const [sumida] = resultado.plano.midias
+    disco.delete(`${PREPARO}/${sumida.midia}`)
+    await expect(aplicar(justo + sumida.bytes - 1)).rejects.toThrow(/mínimo é 8 GB/)
+    expect(await aplicar(justo + sumida.bytes)).toMatchObject({ imagens: 1 })
+    expect(disco.has(`${PREPARO}/${sumida.midia}`)).toBe(true)
+  })
+
+  it('primeira importação depois de uma que parou no meio: a imagem já copiada não conta nem é copiada de novo', async () => {
+    const arquivos = cofreInventado()
+    const [copiada, faltando] = (await simularImportacao(cofreFalso(arquivos).leitor, COM_ESPACO)).plano.midias
+    disco.set(`${PREPARO}/${copiada.midia}`, arquivos[copiada.caminho])
+    expect((await fotoDoPreludio()).vazio).toBe(true)
+
+    const { resultado, resumo } = await simularEAplicar(arquivos)
+
+    expect(resultado.plano.modo).toBe('importacao')
+    expect(resultado.relatorio.espaco.midiaBytes).toBe(faltando.bytes)
+    expect(resumo.imagens).toBe(1)
   })
 })
