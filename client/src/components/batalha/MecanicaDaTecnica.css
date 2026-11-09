@@ -440,18 +440,6 @@
   }
 }
 
-/*
- * Na fórmula do dano da mecânica, os atributos e as contas ficam SEMPRE à vista
- * (seção 3 do plano: "atributos em botões"). No campo Dano da ficha eles só
- * aparecem com o foco no campo; aqui, sumir no blur subia o resto do bloco no
- * meio do clique, e o clique em "Perfurante" logo depois da fórmula se perdia
- * (visto no passeio de 09/11). Quem não programa também não adivinha que
- * clicar no campo mostra os botões.
- */
-.lb-mec .lb-dano__teclado {
-  display: flex;
-}
-
 /* ─── Marcar, números e textos ───────────────────────────────────────────── */
 
 .lb-mec__marcas {

@@ -109,6 +109,12 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
                 <input type="radio" name="bt-golpe-do-npc" checked={escolhida === item.chave} disabled={item.motivo !== null} onChange={() => setEscolhida(item.chave)} />
                 <span className="bt-opcao__nome">
                   {item.nome}
+                  {/* A marca é do golpe que o app sugere, não do custo: ao lado do custo ela lia como "custo sugerido" (passeio do construtor, 09/11). */}
+                  {sugestao.chave === item.chave && (
+                    <span className="bt-opcao__sug" title="O app sugere este golpe para a vez do NPC">
+                      sugestão
+                    </span>
+                  )}
                   {item.tipoTexto !== undefined && (
                     <span
                       className="bt-etq bt-etq--tipo"
@@ -122,9 +128,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
                   <MarcaDasOpcoes golpe={item} />
                   <small>{item.motivo ?? [item.categoria, item.capacidade === undefined ? null : `Cap. ${item.capacidade}`, item.acaoTexto, item.dano.valor === null ? (item.dano.semDano ? 'sem dano' : 'dano à mão') : `dano ${formatarNumero(item.dano.valor)}`, item.tempoTexto].filter(Boolean).join(' · ')}</small>
                 </span>
-                <span className="bt-opcao__lado">
-                  {sugestao.chave === item.chave && <span className="bt-opcao__sug">sugerido</span>} {item.custoTexto ?? ''}
-                </span>
+                <span className="bt-opcao__lado">{item.custoTexto ?? ''}</span>
                 <button
                   type="button"
                   className="bt-seta"

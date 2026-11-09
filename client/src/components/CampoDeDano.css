@@ -1,6 +1,6 @@
 /*
- * O campo Dano do cartão (CampoDeDano.tsx): o teclado de variáveis só aparece
- * com o foco dentro do campo, e a prévia fica numa linha discreta embaixo.
+ * O campo Dano do cartão (CampoDeDano.tsx): o teclado de variáveis fica sempre
+ * à vista, e a prévia fica numa linha discreta embaixo.
  * Só `var(--lb-*)` de theme.ts.
  */
 
@@ -52,16 +52,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* O teclado nasce com o foco: sem animação (o Tab chega aqui dezenas de vezes). */
+/*
+ * O teclado fica SEMPRE à vista, na ficha e na fórmula da mecânica (seção 3
+ * do plano do construtor: "atributos em botões"): sumir
+ * no blur subia o resto do cartão no meio do clique, e o clique no campo de
+ * baixo se perdia (passeio do construtor, 09/11). Quem não programa também
+ * não adivinha que clicar no campo mostra os botões.
+ */
 .lb-dano__teclado {
-  display: none;
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lb-space-1) var(--lb-space-2);
-}
-
-.lb-dano:focus-within .lb-dano__teclado {
-  display: flex;
 }
 
 .lb-dano__grupo {
@@ -141,13 +143,17 @@
   color: var(--lb-color-parchment-dim);
 }
 
-/* Campo vazio: o "Sem dano" só aparece com o foco, para não repetir em todo cartão de suporte. */
+/*
+ * Campo vazio: o "Sem dano" só aparece com o foco, para não repetir em todo
+ * cartão de suporte. A linha guarda o lugar (`visibility`, não `display`):
+ * sumir no blur subia o cartão 23 px no meio do clique, como o teclado.
+ */
 .lb-dano__previa[data-estado='vazio'] {
-  display: none;
+  visibility: hidden;
 }
 
 .lb-dano:focus-within .lb-dano__previa[data-estado='vazio'] {
-  display: flex;
+  visibility: visible;
 }
 
 .lb-dano__selo {

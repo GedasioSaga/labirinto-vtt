@@ -1518,6 +1518,23 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+/* A sugestão do app é do golpe: fica junto do nome, longe do custo. */
+.bt-opcao__nome .bt-opcao__sug {
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+/*
+ * No painel da vez do NPC o nome quebra a linha em vez de cortar (a técnica
+ * montada "Espadada do Marinheiro" lia "Espadad…" no passeio de 09/11); a
+ * linha miúda de baixo segue numa linha só.
+ */
+.bt-npc__lista .bt-opcao__nome {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.bt-npc__lista .bt-opcao__nome small {
+  white-space: nowrap;
+}
 .bt-seta {
   display: grid;
   place-items: center;

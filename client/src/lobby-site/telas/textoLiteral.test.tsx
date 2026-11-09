@@ -25,7 +25,8 @@ const MESTRE: MembroProjetado = { contaId: 'mestre', nome: 'Mestre', papel: 'mes
 /** Só o que as duas telas chamam ao montar: sem chat nem mural ligados. */
 // Teste: um Site falso com o mínimo que a tela usa ao desenhar.
 // O rosto do autor (07/11/2026) lê a foto dos membros no store; sem campanha aberta, a inicial.
-const SITE_FALSO = { chat: () => null, mural: () => null, irPara: () => undefined, store: createStore(() => ({ campanha: null })), fonte: { enderecoDaFoto: () => null } } as unknown as Site
+// O "ver como" (07/11/2026) lê `verComo` no cartão e na conversa: `null` = cada um vendo como si.
+const SITE_FALSO = { chat: () => null, mural: () => null, irPara: () => undefined, store: createStore(() => ({ campanha: null, verComo: null })), fonte: { enderecoDaFoto: () => null } } as unknown as Site
 
 let container: HTMLDivElement
 let root: Root
