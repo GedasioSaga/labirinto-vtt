@@ -86,7 +86,7 @@ import {
   selosDoToken,
 } from '../lib/batalha/selos'
 import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, duracaoDaForma, formaDaFicha, subidaDeParte, usosDaForma } from '../lib/batalha/transformacao'
-import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, esquivaComDesvantagem, porVezDoLembrete, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao } from '../lib/batalha/condicoes'
+import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, esquivaComDesvantagem, porVezDoLembrete, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao, verboDoPorVez } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
 import { ajusteDoRecurso, ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, maximoDoRecurso, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
@@ -1712,7 +1712,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
       const lembrados = lembrarDepoisDoDano(semCaidos)
       partes.push(...partesDosLembretes(lembrados))
-      const texto = `${quem} ${comportamentoDoSelo(nome)?.verbo ?? 'sangra'}: -${dado} HP (direto, sem o Escudo${reducao})${textoDosQueSairam(caidos.nomes)}`
+      // Construtor C5: o selo montado fora da tabela ("Veneno") diz "sofre com Veneno".
+      const texto = `${quem} ${verboDoPorVez(nome)}: -${dado} HP (direto, sem o Escudo${reducao})${textoDosQueSairam(caidos.nomes)}`
       gravarCena(sceneKey, {
         ...comMudanca(atual, lembrados.turnos, { tipo: 'dano', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }),
         efeitos: comEfeitos(atual.efeitos, [{ tipo: 'dano', tokenId: carta.tokenId, valor: dado, saida: 'direto' }]),

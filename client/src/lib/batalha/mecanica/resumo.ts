@@ -1,8 +1,10 @@
 import type { Personagem } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
+import type { SaidaDaReacao } from '../combate'
+import { comportamentoDoSelo } from '../condicoes'
 import { cdDaExpressao } from '../disputa'
 import { lerDano } from '../formula'
-import type { CdDoTeste, Custo, Efeito, MecanicaV1, Numero, NumeroDaCd, NumeroSimples, QuemOAlvoPega, QuemRolaNoTeste } from './modelo'
+import type { CdDoTeste, Custo, DuracaoDoSelo, Efeito, MecanicaV1, Numero, NumeroDaCd, NumeroSimples, QuemOAlvoPega, QuemRolaNoTeste } from './modelo'
 
 /**
  * O RESUMO EM FRASES da técnica montada (construtor de mecânicas, fatia C2;
@@ -203,17 +205,55 @@ export function frasesDoDano(mecanica: MecanicaV1, ficha?: FichaDaPrevia): strin
   return frases
 }
 
-function duracaoDoSelo(duracao: number | 'ateTirar'): string {
+/** Construtor C5: o número conta na vez de quem tem o selo (a regra do sistema), e a frase diz de quem. */
+function duracaoDoSelo(duracao: DuracaoDoSelo, ajuda: boolean): string {
   if (duracao === 'ateTirar') return 'até tirarem'
-  return `por ${duracao} ${duracao === 1 ? 'vez' : 'vezes'}`
+  if (duracao === 'proximoGolpe') return 'até o próximo golpe que tomar'
+  return `por ${duracao} ${duracao === 1 ? 'vez' : 'vezes'} ${ajuda ? 'de quem recebe' : 'do alvo'}`
+}
+
+/** As saídas da reação em verbo, para "não pode esquivar nem contra-atacar". */
+const SAIDA_EM_VERBO: Readonly<Record<SaidaDaReacao, string>> = {
+  critico: 'acertar crítico',
+  cheio: 'receber',
+  metade: 'defender',
+  esquiva: 'esquivar',
+  contra: 'contra-atacar',
+  naoReagiu: 'não reagir',
+  passou: 'passar',
+  semReacao: 'ficar sem reação',
+}
+
+/**
+ * Construtor C5: o que o selo FAZ, em frases curtas, pela regra do nome
+ * (`condicoes.ts`) e pelo "tira X por vez" da peça. Vazio = selo sem regra
+ * própria (o app só mostra o selo na carta).
+ */
+export function frasesDoSelo(selo: Pick<Extract<Efeito, { tipo: 'selo' }>, 'nome' | 'porTurno'>, ficha?: FichaDaPrevia): string[] {
+  const regra = comportamentoDoSelo(selo.nome)
+  const frases: string[] = []
+  if (regra?.trava === true) frases.push('na vez dele só passa a vez, e não reage')
+  if (regra?.tiraSaidas !== undefined && regra.tiraSaidas.length > 0) frases.push(`não pode ${regra.tiraSaidas.map((saida) => SAIDA_EM_VERBO[saida]).join(' nem ')}`)
+  if (regra?.zera !== undefined) frases.push(`${nomeDoAtributo(regra.zera, ficha)} fica em 0`)
+  if (regra?.reageComDesvantagem === true) frases.push('reage com desvantagem')
+  if (regra?.esquivaComDesvantagem === true) frases.push('esquiva com desvantagem')
+  if (regra?.curaDoDano !== undefined) frases.push(`recupera em vida ${regra.curaDoDano}% do dano que causa`)
+  const porVez = selo.porTurno?.quanto.fixo ?? regra?.porVez
+  if (porVez !== undefined) frases.push(`perde ${porVez} de HP no começo de cada vez dele, direto, quando o mestre clica Aplicar`)
+  if (regra?.renova === true) frases.push('acertar de novo renova a duração')
+  if (regra?.lembrete !== undefined) frases.push(`o app só lembra: ${regra.lembrete}`)
+  return frases
 }
 
 /** Bloco 6: uma frase por efeito. */
-export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1): string {
+export function fraseDoEfeito(efeito: Efeito, mecanica: MecanicaV1, ficha?: FichaDaPrevia): string {
   const ajuda = mecanica.alvo.quem === 'aliados' || mecanica.alvo.quem === 'si'
   switch (efeito.tipo) {
-    case 'selo':
-      return ajuda ? `Dá ${efeito.nome} ${duracaoDoSelo(efeito.duracao)}.` : `${quandoOSeloPega(mecanica)}: ${efeito.nome} ${duracaoDoSelo(efeito.duracao)}.`
+    case 'selo': {
+      const comeco = ajuda ? `Dá ${efeito.nome}` : `${quandoOSeloPega(mecanica)}: ${efeito.nome}`
+      const regra = frasesDoSelo(efeito, ficha)
+      return `${comeco} ${duracaoDoSelo(efeito.duracao, ajuda)}${regra.length === 0 ? '' : ` (${regra.join('; ')})`}.`
+    }
     case 'cura':
       return `Cura ${numeroDaPeca(efeito.quanto)} de HP.`
     case 'tirarSelos':
@@ -254,7 +294,7 @@ export function resumoDaMecanica(mecanica: MecanicaV1, ficha?: FichaDaPrevia): s
     ...frasesDosOutrosCustos(mecanica),
     alvoETeste,
     ...frasesDoDano(mecanica, ficha),
-    ...mecanica.efeitos.map((efeito) => fraseDoEfeito(efeito, mecanica)),
+    ...mecanica.efeitos.map((efeito) => fraseDoEfeito(efeito, mecanica, ficha)),
     ...(limite === null ? [] : [limite]),
   ]
 }

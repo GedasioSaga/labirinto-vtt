@@ -101,12 +101,20 @@ const COMPORTAMENTOS_DOS_SELOS: readonly ComportamentoDoSelo[] = [
 ]
 
 /**
+ * Construtor C5: os selos com regra que a tela de montar oferece em botões, na
+ * ordem da tela. Só os gerais: os de uma ficha só (a redoma do Siegfried, o
+ * campo do Vagn) ficam de fora. Todos estão na tabela acima.
+ */
+export const SELOS_COM_REGRA = ['Atordoado', 'Paralisado', 'Aéreo', 'Cego', 'Marcado', 'Sangrando', 'Queimando'] as const
+
+/**
  * F2 (fatia F, redoma da Orquídea): os selos que saem porque um golpe novo
- * chegou nestes alvos. Nenhum = lista vazia.
+ * chegou nestes alvos. Nenhum = lista vazia. Construtor C5: também o selo
+ * montado com a duração "até o próximo golpe".
  */
 export function selosQueSaemNoGolpe(selos: readonly SeloDaBatalha[] | undefined, alvosTokenIds: readonly string[]): SeloDaBatalha[] {
   const alvos = new Set(alvosTokenIds)
-  return (selos ?? []).filter((selo) => alvos.has(selo.tokenId) && comportamentoDoSelo(selo.nome)?.saiNoProximoGolpe === true)
+  return (selos ?? []).filter((selo) => alvos.has(selo.tokenId) && (selo.saiNoProximoGolpe === true || comportamentoDoSelo(selo.nome)?.saiNoProximoGolpe === true))
 }
 
 /**
@@ -174,18 +182,26 @@ export function saidasTiradas(selos: readonly Pick<SeloDaBatalha, 'nome'>[] | un
   return [...new Set((selos ?? []).flatMap((selo) => comportamentoDoSelo(selo.nome)?.tiraSaidas ?? []))]
 }
 
-/** Quanto o selo tira por vez (o dele, ou o da tabela); `null` = não tira. */
+/**
+ * Quanto o selo tira por vez (o dele, ou o da tabela); `null` = não tira.
+ * Construtor C5: o selo montado com "tira X por vez" tira mesmo com nome fora
+ * da tabela (um veneno de NPC). O `porVez` do selo só nasce no host, da peça
+ * ou da tabela à mão (o Queimando da Aira), então nenhum selo de hoje muda.
+ */
 export function danoPorVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'>): number | null {
-  const daTabela = comportamentoDoSelo(selo.nome)?.porVez
-  if (daTabela === undefined) return null
-  return selo.porVez !== undefined && Number.isInteger(selo.porVez) && selo.porVez > 0 ? selo.porVez : daTabela
+  const doSelo = selo.porVez !== undefined && Number.isInteger(selo.porVez) && selo.porVez > 0 ? selo.porVez : null
+  return doSelo ?? comportamentoDoSelo(selo.nome)?.porVez ?? null
 }
 
-/** O nome da tabela ("Queimando") e quanto o selo tira por vez; `null` = não tira. */
+/** O nome da tabela ("Queimando"), ou o do selo fora dela, e quanto tira por vez; `null` = não tira. */
 export function porVezDoSelo(selo: Pick<SeloDaBatalha, 'nome' | 'porVez'>): PorVezDoSelo | null {
-  const comportamento = comportamentoDoSelo(selo.nome)
   const dano = danoPorVezDoSelo(selo)
-  return comportamento === null || dano === null ? null : { nome: comportamento.nome, dano }
+  return dano === null ? null : { nome: comportamentoDoSelo(selo.nome)?.nome ?? selo.nome, dano }
+}
+
+/** O verbo da linha do Aplicar ("sangra", "queima"); fora da tabela, "sofre com Veneno". */
+export function verboDoPorVez(nomeDoSelo: string): string {
+  return comportamentoDoSelo(nomeDoSelo)?.verbo ?? `sofre com ${nomeDoSelo}`
 }
 
 /** "Atordoado: nesta vez só dá para passar a vez". */

@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { CUSTO_MAX, DANO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type VantagemDoDado } from '../../lib/batalha/combate'
+import { comportamentoDoSelo, SELOS_COM_REGRA } from '../../lib/batalha/condicoes'
 import { CAMPO_DO_DANO } from '../../lib/batalha/formula'
 import {
   CASAS_MAX,
@@ -24,7 +25,7 @@ import {
   type Teste,
 } from '../../lib/batalha/mecanica/modelo'
 import { ehAjuda, formaNova, ladoValido, motivoDoQuem, testeNovo, trocarQuem } from '../../lib/batalha/mecanica/modelos'
-import { fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDoDano, frasesDosOutrosCustos, numeroComVirgula, previaDaCd, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
+import { fraseDoAlvo, fraseDoCusto, fraseDoEfeito, fraseDoLimite, fraseDoTeste, frasesDoDano, frasesDoSelo, frasesDosOutrosCustos, numeroComVirgula, previaDaCd, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
 import { SELOS_PRONTOS } from '../../lib/batalha/selos'
 import type { CartaoDaFicha } from '../../lib/personagem'
 import { CampoDeDano } from '../CampoDeDano'
@@ -554,7 +555,87 @@ function textoDaCura(quanto: Numero, carga: 0 | 1 | 2 | 3): string {
   return carga === 0 ? textoDoNumero(quanto) : ''
 }
 
-function BlocoDosEfeitos({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
+type SeloDaPeca = Extract<Efeito, { tipo: 'selo' }>
+type ComoDura = 'vezes' | 'proximoGolpe' | 'ateTirar'
+
+/** Construtor C5: o "tira X por vez" que a tela escreve (só HP fixo, direto: a peça confere). */
+function porTurnoDe(fixo: number): NonNullable<SeloDaPeca['porTurno']> {
+  return { recurso: 'hp', quanto: { fixo }, direto: true }
+}
+
+/** O selo sem o "tira por vez" (trocar de selo pronto começa do zero). */
+function semPorTurno(selo: SeloDaPeca): SeloDaPeca {
+  const { porTurno: _antes, ...resto } = selo
+  return resto
+}
+
+/**
+ * Construtor C5, o selo da peça: o nome (pronto com regra ou livre), o que ele
+ * faz em frase, quanto tira por vez e por quanto tempo. A regra vem do nome
+ * (`condicoes.ts`), então a frase muda enquanto o mestre digita.
+ */
+function PecasDoSelo({ selo, ajuda, listaId, ficha, onChange }: { selo: SeloDaPeca; ajuda: boolean; listaId: string; ficha: FichaDaPrevia; onChange: (selo: SeloDaPeca) => void }) {
+  const regra = comportamentoDoSelo(selo.nome)
+  const pronto = regra === null ? undefined : SELOS_COM_REGRA.find((nome) => comportamentoDoSelo(nome) === regra)
+  const frases = frasesDoSelo(selo, ficha)
+  const daRegra = regra?.porVez
+  const tira = selo.porTurno?.quanto.fixo ?? daRegra
+  const como: ComoDura = typeof selo.duracao === 'number' ? 'vezes' : selo.duracao
+  return (
+    <div className="lb-mec__selo lb-mec__linha--recuo">
+      <datalist id={listaId}>
+        {[...SELOS_COM_REGRA, ...SELOS_PRONTOS.filter((nome) => comportamentoDoSelo(nome) === null)].map((nome) => (
+          <option key={nome} value={nome} />
+        ))}
+      </datalist>
+      {!ajuda && (
+        <Escolha
+          legenda="Selo pronto"
+          opcoes={[...SELOS_COM_REGRA.map((nome) => ({ valor: nome, rotulo: nome })), { valor: 'outro' as const, rotulo: 'Outro' }]}
+          valor={pronto ?? 'outro'}
+          onChange={(nome) => onChange(semPorTurno({ ...selo, nome: nome === 'outro' ? '' : nome }))}
+        />
+      )}
+      <div className="lb-mec__linha">
+        <Texto rotulo="Nome do selo" valor={selo.nome} maximo={NOME_DO_SELO_MAX} lista={listaId} placeholder="Ex.: Envenenado" onChange={(nome) => onChange({ ...selo, nome })} />
+      </div>
+      <p className="lb-field__hint lb-mec__regra">{frases.length === 0 ? 'Sem regra própria: o app só mostra o selo na carta.' : `O que faz: ${frases.join('; ')}.`}</p>
+      <Marcar
+        rotulo="Tira HP no começo de cada vez dele (o mestre clica Aplicar)"
+        marcado={tira !== undefined}
+        bloqueio={regra !== null && daRegra !== undefined ? `${regra.nome} sempre tira.` : null}
+        onChange={(sim) => onChange(sim ? { ...selo, porTurno: porTurnoDe(10) } : semPorTurno(selo))}
+      />
+      {tira !== undefined && (
+        <div className="lb-mec__linha lb-mec__linha--recuo">
+          <CampoInteiro rotulo="Tira" valor={tira} minimo={1} maximo={DANO_MAX} depois="de HP por vez, direto (sem o Escudo)" onChange={(fixo) => onChange({ ...selo, porTurno: porTurnoDe(fixo) })} />
+        </div>
+      )}
+      <div className="lb-mec__linha">
+        <Escolha
+          legenda="Por quanto tempo"
+          opcoes={[
+            { valor: 'vezes', rotulo: 'Algumas vezes' },
+            { valor: 'proximoGolpe', rotulo: 'Até o próximo golpe' },
+            { valor: 'ateTirar', rotulo: 'Até tirarem' },
+          ]}
+          valor={como}
+          onChange={(novo) => onChange({ ...selo, duracao: novo === 'vezes' ? 1 : novo })}
+        />
+        {typeof selo.duracao === 'number' && <CampoInteiro rotulo="Dura" valor={selo.duracao} minimo={1} maximo={TURNOS_DO_SELO_MAX} depois={selo.duracao === 1 ? 'vez' : 'vezes'} onChange={(duracao) => onChange({ ...selo, duracao })} />}
+      </div>
+      <p className="lb-field__hint lb-mec__regra">
+        {typeof selo.duracao === 'number'
+          ? 'Conta na vez de quem tem o selo: desce 1 no fim de cada vez dele (1 = até o fim da próxima vez dele).'
+          : selo.duracao === 'proximoGolpe'
+            ? 'Sai quando outro golpe chegar em quem tem o selo.'
+            : 'Fica até o mestre tirar na carta.'}
+      </p>
+    </div>
+  )
+}
+
+function BlocoDosEfeitos({ mecanica, ficha, onChange }: Pick<BlocosProps, 'mecanica' | 'ficha' | 'onChange'>) {
   const listaId = useId()
   const { efeitos } = mecanica
   const ajuda = ehAjuda(mecanica.alvo.quem)
@@ -579,7 +660,7 @@ function BlocoDosEfeitos({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 
     cargas[carga] = numero
     trocarUm('cura', { ...cura, quanto: { porCarga: cargas } })
   }
-  const frases = efeitos.map((efeito) => fraseDoEfeito(efeito, mecanica))
+  const frases = efeitos.map((efeito) => fraseDoEfeito(efeito, mecanica, ficha))
   return (
     <Bloco numero={6} titulo="O que deixa" frase={frases.length === 0 ? 'Nada além do dano.' : frases.join(' ')} abertoAoMontar={efeitos.length > 0}>
       <Marcar
@@ -588,26 +669,7 @@ function BlocoDosEfeitos({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 
         bloqueio={selo === undefined && cheio ? `Já tem ${EFEITOS_MAX} efeitos.` : null}
         onChange={(sim) => trocarUm('selo', sim ? { tipo: 'selo', nome: ajuda ? 'Fortalecido' : 'Atordoado', duracao: 1, natureza: ajuda ? 'buff' : 'debuff' } : null)}
       />
-      {selo !== undefined && (
-        <div className="lb-mec__linha lb-mec__linha--recuo">
-          <datalist id={listaId}>
-            {SELOS_PRONTOS.map((nome) => (
-              <option key={nome} value={nome} />
-            ))}
-          </datalist>
-          <Texto rotulo="Selo" valor={selo.nome} maximo={NOME_DO_SELO_MAX} lista={listaId} onChange={(nome) => trocarUm('selo', { ...selo, nome })} />
-          <Escolha
-            legenda="Por quanto tempo"
-            opcoes={[
-              { valor: 'vezes', rotulo: 'Algumas vezes' },
-              { valor: 'ateTirar', rotulo: 'Até tirarem' },
-            ]}
-            valor={selo.duracao === 'ateTirar' ? 'ateTirar' : 'vezes'}
-            onChange={(como) => trocarUm('selo', { ...selo, duracao: como === 'ateTirar' ? 'ateTirar' : 1 })}
-          />
-          {selo.duracao !== 'ateTirar' && <CampoInteiro rotulo="Dura" valor={selo.duracao} minimo={1} maximo={TURNOS_DO_SELO_MAX} depois={selo.duracao === 1 ? 'vez' : 'vezes'} onChange={(duracao) => trocarUm('selo', { ...selo, duracao })} />}
-        </div>
-      )}
+      {selo !== undefined && <PecasDoSelo selo={selo} ajuda={ajuda} listaId={listaId} ficha={ficha} onChange={(novo) => trocarUm('selo', novo)} />}
       <Marcar rotulo="Cura HP" marcado={cura !== undefined} bloqueio={cura === undefined ? (semAjuda ?? (cheio ? `Já tem ${EFEITOS_MAX} efeitos.` : null)) : null} onChange={(sim) => trocarUm('cura', sim ? { tipo: 'cura', recurso: 'hp', quanto: { fixo: 100 }, emQuem: 'alvo' } : null)} />
       {cura !== undefined && (
         <div className="lb-mec__linha lb-mec__linha--recuo">
@@ -698,7 +760,7 @@ export function BlocosDaMecanica(props: BlocosProps) {
       <BlocoDoAlvo mecanica={props.mecanica} onChange={props.onChange} />
       <BlocoDoTeste mecanica={props.mecanica} ficha={props.ficha} onChange={props.onChange} />
       <BlocoDoDano {...props} />
-      <BlocoDosEfeitos mecanica={props.mecanica} onChange={props.onChange} />
+      <BlocoDosEfeitos mecanica={props.mecanica} ficha={props.ficha} onChange={props.onChange} />
       <BlocoDosLimites mecanica={props.mecanica} onChange={props.onChange} />
     </div>
   )

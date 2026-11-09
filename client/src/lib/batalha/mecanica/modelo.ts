@@ -13,7 +13,7 @@ import { NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, DANO_MAX, CUSTO_MAX, type Vantage
  * texto, que pode estar velho.
  *
  * Esta fatia aceita só as peças que o motor já executa. As fatias seguintes
- * (área num ponto livre e alcance, C5 selos vivos, C6 perguntas)
+ * (área num ponto livre e alcance, C6 perguntas)
  * acrescentam variantes opcionais; até lá, um cartão com elas é recusado
  * aqui, e não executado pela metade.
  *
@@ -128,8 +128,36 @@ export interface DanoDaMecanica {
   multiplicadores: { concentracao: boolean; surpresa: boolean; extra?: readonly MultiplicadorExtra[] }
 }
 
+/**
+ * Por quanto tempo o selo fica (construtor C5). O número conta na vez de quem
+ * tem o selo, como a regra do sistema (`contarSelos`): desce 1 no fim de cada
+ * vez dele, e a vez em que nasceu não conta (1 = até o fim da próxima vez
+ * dele). `ateTirar` = até o mestre tirar; `proximoGolpe` = sai quando o
+ * próximo golpe chega em quem o tem (a redoma da Orquídea).
+ */
+export type DuracaoDoSelo = number | 'ateTirar' | 'proximoGolpe'
+
+/**
+ * O que o selo tira no começo de cada vez de quem o tem (construtor C5:
+ * Sangrando, Queimando N, um veneno de NPC). Sempre pelo lembrete "Aplicar /
+ * pular" do mestre. Por enquanto só HP em número fixo, direto (sem o Escudo):
+ * é o que o lembrete do sangramento aplica. A forma completa do plano
+ * (`recurso` SP, fórmula, pelo Escudo) entra sem mudar a peça.
+ */
+export interface PorTurnoDoSelo {
+  recurso: 'hp'
+  quanto: { fixo: number }
+  direto: true
+}
+
 export type Efeito =
-  | { tipo: 'selo'; nome: string; duracao: number | 'ateTirar'; natureza?: 'buff' | 'debuff' }
+  /**
+   * O comportamento do selo vem do NOME, pela tabela de `condicoes.ts` (a
+   * mesma da F2): Atordoado trava a vez, Aéreo tira a esquiva e o contra, Cego
+   * zera a Percepção, Queimando renova. Assim a regra chega também ao jogador,
+   * que só recebe o nome. Nome fora da tabela = selo sem regra própria.
+   */
+  | { tipo: 'selo'; nome: string; duracao: DuracaoDoSelo; natureza?: 'buff' | 'debuff'; porTurno?: PorTurnoDoSelo }
   | { tipo: 'cura'; recurso: 'hp'; quanto: Numero; emQuem: 'alvo' }
   | { tipo: 'tirarSelos'; quais: 'negativos' }
   /** Porta de escape: o app não executa nada, só lembra o mestre. */
@@ -376,16 +404,28 @@ function dano(valor: unknown): DanoDaMecanica {
   return lido
 }
 
+/** Construtor C5: o "tira X por vez" do selo. Só HP fixo e direto: é o que o lembrete "Aplicar" do mestre executa. */
+function porTurnoDoSelo(valor: unknown, onde: string): PorTurnoDoSelo {
+  const peca = registro(valor, `${onde} (por vez)`)
+  soChaves(peca, ['recurso', 'quanto', 'direto'], `${onde} (por vez)`)
+  if (peca.recurso !== 'hp' || peca.direto !== true) torta(`${onde}: o selo que tira por vez, por enquanto, só tira HP direto (sem o Escudo)`)
+  const quanto = registro(peca.quanto, `${onde} (quanto tira por vez)`)
+  if (!('fixo' in quanto)) torta(`${onde}: o quanto tira por vez precisa ser um número fixo`)
+  soChaves(quanto, ['fixo'], `${onde} (quanto tira por vez)`)
+  return { recurso: 'hp', quanto: { fixo: inteiro(quanto.fixo, 1, DANO_MAX, `${onde} (quanto tira por vez)`) }, direto: true }
+}
+
 function efeito(valor: unknown, indice: number): Efeito {
   const onde = `efeito ${indice + 1}`
   const peca = registro(valor, onde)
   const tipo = umDe(peca.tipo, ['selo', 'cura', 'tirarSelos', 'aMao'] as const, onde)
   switch (tipo) {
     case 'selo': {
-      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza'], onde)
-      const duracao = peca.duracao === 'ateTirar' ? 'ateTirar' : inteiro(peca.duracao, 1, TURNOS_DO_SELO_MAX, `${onde} (duração)`)
+      soChaves(peca, ['tipo', 'nome', 'duracao', 'natureza', 'porTurno'], onde)
+      const duracao = peca.duracao === 'ateTirar' || peca.duracao === 'proximoGolpe' ? peca.duracao : inteiro(peca.duracao, 1, TURNOS_DO_SELO_MAX, `${onde} (duração)`)
       const lido: Efeito = { tipo, nome: texto(peca.nome, NOME_DO_SELO_MAX, `${onde} (nome do selo)`), duracao }
       if (peca.natureza !== undefined) lido.natureza = umDe(peca.natureza, ['buff', 'debuff'] as const, `${onde} (natureza)`)
+      if (peca.porTurno !== undefined) lido.porTurno = porTurnoDoSelo(peca.porTurno, onde)
       return lido
     }
     case 'cura':

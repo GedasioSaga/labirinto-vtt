@@ -312,6 +312,22 @@
   padding-left: var(--lb-space-4);
 }
 
+/* ─── O selo da peça (construtor C5) ─────────────────────────────────────── */
+
+/* Prontos, nome, o que faz, quanto tira e quanto tempo: uma coluna, cada linha no seu ritmo. */
+.lb-mec__selo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+/* A frase da regra fica colada no controle que ela explica. */
+.lb-mec__regra {
+  margin: 0;
+  max-width: 64ch;
+}
+
 /* ─── CD do teste (construtor C4) ────────────────────────────────────────── */
 
 /* O campo da CD com a prévia ao lado ("= 14 com a ficha de hoje"); quebra para baixo em tela estreita. */

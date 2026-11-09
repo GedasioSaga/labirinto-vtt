@@ -167,12 +167,19 @@ function limpezaDasPecas(mecanica: MecanicaV1): LimpezaAMao | null {
   return limpeza
 }
 
-/** O selo que o golpe põe no acerto; `null` = nenhum. */
+/**
+ * O selo que o golpe põe no acerto; `null` = nenhum. Construtor C5: a regra
+ * do selo vem do nome (`condicoes.ts`), e a peça leva o que o nome não diz: o
+ * "tira X por vez" (o `porVez` que o lembrete Aplicar usa) e o "até o próximo
+ * golpe" (sem turnos: sai quando outro golpe chega nele).
+ */
 export function seloDasPecas(mecanica: MecanicaV1): SeloDoGolpe | null {
   const selo = mecanica.efeitos.find((efeito) => efeito.tipo === 'selo')
   if (selo === undefined) return null
-  const lido: SeloDoGolpe = { nome: selo.nome, turnos: selo.duracao === 'ateTirar' ? null : selo.duracao }
+  const lido: SeloDoGolpe = { nome: selo.nome, turnos: typeof selo.duracao === 'number' ? selo.duracao : null }
   if (selo.natureza !== undefined) lido.natureza = selo.natureza
+  if (selo.porTurno !== undefined) lido.porVez = selo.porTurno.quanto.fixo
+  if (selo.duracao === 'proximoGolpe') lido.saiNoProximoGolpe = true
   return lido
 }
 

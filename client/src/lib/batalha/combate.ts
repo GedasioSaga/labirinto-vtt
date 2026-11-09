@@ -708,6 +708,8 @@ export interface SeloDaBatalha {
   ajuste?: true
   /** F2 (fatia A): quanto o selo que tira por vez (Queimando N) tira; ausente = o da tabela (`danoPorVezDoSelo`). Só do host. */
   porVez?: number
+  /** Construtor C5: o selo sai quando o próximo golpe chega em quem o tem (`selosQueSaemNoGolpe`), além do da tabela (a redoma). Só do host. */
+  saiNoProximoGolpe?: true
 }
 
 /** O selo como chega no pedido (o sugerido na mira, ou o do mestre). `turnos` null = até tirar. */
@@ -726,8 +728,10 @@ export interface SeloPedido {
 export interface SeloDoGolpe extends SeloPedido {
   natureza?: NaturezaDoSelo
   cartaoId?: string
-  /** F2 (fatia A): o "Queimando N" da mecânica à mão (`mecanicasAMao.ts`), nunca do fio. */
+  /** F2 (fatia A): o "Queimando N" da mecânica à mão (`mecanicasAMao.ts`), nunca do fio. Construtor C5: também o "tira X por vez" da peça. */
   porVez?: number
+  /** Construtor C5: a duração "até o próximo golpe" da peça, nunca do fio. */
+  saiNoProximoGolpe?: true
 }
 
 /**

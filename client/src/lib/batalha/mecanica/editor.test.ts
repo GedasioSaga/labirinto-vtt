@@ -38,7 +38,7 @@ describe('modelos prontos e resumo em frases', () => {
       'Custa 30 SP e gasta a Ação Simples.',
       'Acerta 1 inimigo. O alvo reage normal (o d20 de sempre).',
       'Dano: Força + 20 (= 80 com a ficha de hoje).',
-      'Se acertar: Atordoado por 1 vez.',
+      'Se acertar: Atordoado por 1 vez do alvo (na vez dele só passa a vez, e não reage).',
       'Depois de usar, espera 3 vezes para usar de novo.',
     ])
     expect(etiquetaDaMecanica(espadada)).toBe('O app faz tudo')
