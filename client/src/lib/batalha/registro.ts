@@ -8,7 +8,7 @@ import {
   valorDaParte,
   type Ajuste,
 } from '../ajusteDaFicha'
-import { numeroDaFicha, type CartaoDaFicha, type ParteDoAjuste, type Personagem } from '../personagem'
+import { numeroDaFicha, type CartaoDaFicha, type Modificador, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Token } from '../../types/map'
 import {
@@ -238,8 +238,14 @@ export type Reversao =
    * pelas outras partes da mesma linha).
    */
   | { tipo: 'formaDecidida'; pendente: FormaPendente }
-  /** C6: o cartão da forma antes de receber os números do mestre (modificadores e a habilidade nova). Desfazer = o cartão volta como estava (a mesa). */
-  | { tipo: 'cartaoDaForma'; personagemId: string; antes: CartaoDaFicha }
+  /**
+   * C6: o cartão da forma antes de receber os números do mestre (modificadores
+   * e a habilidade nova). Desfazer = o cartão volta como estava (a mesa), só
+   * se ele ainda tem o que esta decisão escreveu (`escrito`: os modificadores
+   * e o id da habilidade marcada na peça); outra decisão por cima fica.
+   * Linha sem `escrito` (de antes) volta sempre.
+   */
+  | { tipo: 'cartaoDaForma'; personagemId: string; antes: CartaoDaFicha; escrito?: { mods: readonly Modificador[]; habilidade: string | null } }
 
 /** O combate de um personagem antes e depois da vez (as recargas que desceram, a reação que voltou, os lembretes). */
 export interface CombateNaVez {

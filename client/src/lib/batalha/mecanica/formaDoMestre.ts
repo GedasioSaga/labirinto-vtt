@@ -4,8 +4,10 @@ import { ativarForma, type FormaNoMenu } from '../transformacao'
 import { temMaximo } from '../../ajusteDaFicha'
 import { novoCartao, type CartaoDaFicha, type Modificador, type Personagem } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
-import { DANO_MAX, MODS_DA_DECISAO_MAX, NOME_DA_HABILIDADE_MAX, TEXTO_DA_HABILIDADE_MAX, type DecisaoDaForma, type NumeroDaForma } from '../combate'
+import { DANO_MAX, MODS_DA_DECISAO_MAX, NOME_DA_HABILIDADE_MAX, TEXTO_DA_HABILIDADE_MAX, type DecisaoDaForma, type FormaPendente, type NumeroDaForma } from '../combate'
+import type { LinhaDoRegistro, Reversao } from '../registro'
 import type { AlvoDeMod } from '../selos'
+import type { TurnosDaCena } from '../turnos'
 
 /**
  * A TELA DO MESTRE AO TRANSFORMAR (construtor de mecânicas, fatia C6; decisão
@@ -22,20 +24,37 @@ import type { AlvoDeMod } from '../selos'
  * fórmulas, a ordem pela Agilidade) segue igual, e desligar a forma tira tudo.
  * O cartão guarda a última decisão; a tela a sugere da próxima vez.
  *
+ * A habilidade vale só naquela transformação ("se ela vai ganhar alguma
+ * habilidade", a cada vez): a peça guarda o id do subcartão que a decisão
+ * criou (`habilidade`), e a decisão seguinte o tira (ou o reescreve, com o
+ * mesmo nome). As habilidades que o cartão já tinha ficam.
+ *
  * Forma sem a peça, ou com peça de outro formato: liga como sempre.
  *
  * Puro: sem store, sem rede.
  */
 
-/** A peça como o cartão a guarda. */
+/** A peça como o cartão a guarda (sem a habilidade da última decisão). */
 export const PECA_DO_MESTRE_NA_FORMA = { versao: 1, numeros: 'mestre' } as const
 
-/** A forma tem a peça "o mestre decide os números"? Só o formato exato vale (o resto liga como sempre). */
+/** A forma tem a peça "o mestre decide os números"? Só o formato exato vale (o resto liga como sempre): a versão, os números e, se houver, o id da habilidade da última decisão. */
 export function formaDecididaPeloMestre(cartao: Pick<CartaoDaFicha, 'mecanica'>): boolean {
   const peca = cartao.mecanica
   if (peca === undefined) return false
-  const chaves = Object.keys(peca)
-  return chaves.length === 2 && peca.versao === PECA_DO_MESTRE_NA_FORMA.versao && peca.numeros === PECA_DO_MESTRE_NA_FORMA.numeros
+  if (peca.versao !== PECA_DO_MESTRE_NA_FORMA.versao || peca.numeros !== PECA_DO_MESTRE_NA_FORMA.numeros) return false
+  return Object.keys(peca).every((chave) => chave === 'versao' || chave === 'numeros' || (chave === 'habilidade' && typeof peca.habilidade === 'string'))
+}
+
+/** O subcartão que a última decisão do mestre deu à forma; `null` = não deu, ou ele já saiu da ficha. */
+export function habilidadeDaUltimaDecisao(cartao: Pick<CartaoDaFicha, 'mecanica' | 'subcartoes'>): CartaoDaFicha | null {
+  if (!formaDecididaPeloMestre(cartao)) return null
+  const id = cartao.mecanica?.habilidade
+  return typeof id === 'string' ? (cartao.subcartoes.find((subcartao) => subcartao.id === id) ?? null) : null
+}
+
+/** O nome e o texto da habilidade da última decisão, para a tela oferecer de novo (desmarcada). */
+export function textoDaHabilidade(subcartao: CartaoDaFicha): { nome: string; texto: string } {
+  return { nome: subcartao.nome, texto: subcartao.campos[CAMPO_DO_EFEITO] ?? '' }
 }
 
 /** O que a tela pode somar: os atributos do sistema e o máximo dos recursos de atual e máximo (o "HP +300" da forma). */
@@ -70,24 +89,61 @@ export function decisaoValida(decisao: DecisaoDaForma, sistema: SistemaDeRpg): {
   return { decisao: { mods, habilidade: { nome, texto } } }
 }
 
+const mesmoNome = (a: string, b: string): boolean => normalizar(a).trim() === normalizar(b).trim()
+
 /**
  * O cartão da forma com a decisão: os modificadores TROCAM pelos do mestre, e
  * a habilidade entra como subcartão à mão (o número dela é digitado na
- * batalha). Habilidade com o nome de um subcartão que já existe atualiza o
- * texto dele em vez de repetir.
+ * batalha). A habilidade da decisão anterior sai; com o mesmo nome, o
+ * subcartão dela é reescrito (o mesmo id). Habilidade com o nome de um
+ * subcartão que o cartão já tinha atualiza o texto dele em vez de repetir (e
+ * ele segue sendo do cartão). A peça passa a guardar o id da habilidade nova.
  */
 export function cartaoComADecisao(cartao: CartaoDaFicha, decisao: DecisaoDaForma): CartaoDaFicha {
-  const comMods: CartaoDaFicha = { ...cartao, modificadores: decisao.mods.map((mod) => ({ ...mod })) }
+  const anterior = habilidadeDaUltimaDecisao(cartao)
   const habilidade = decisao.habilidade
-  if (habilidade === null) return comMods
-  const chave = normalizar(habilidade.nome).trim()
-  const existente = cartao.subcartoes.find((subcartao) => normalizar(subcartao.nome).trim() === chave)
-  if (existente !== undefined) {
-    const atualizado: CartaoDaFicha = { ...existente, campos: { ...existente.campos, [CAMPO_DO_EFEITO]: habilidade.texto } }
-    return { ...comMods, subcartoes: cartao.subcartoes.map((subcartao) => (subcartao.id === existente.id ? atualizado : subcartao)) }
+  let subcartoes = anterior === null ? cartao.subcartoes : cartao.subcartoes.filter((subcartao) => subcartao.id !== anterior.id)
+  let marcada: string | null = null
+  if (habilidade !== null) {
+    const doCartao = subcartoes.find((subcartao) => mesmoNome(subcartao.nome, habilidade.nome))
+    if (doCartao !== undefined) {
+      const atualizado: CartaoDaFicha = { ...doCartao, campos: { ...doCartao.campos, [CAMPO_DO_EFEITO]: habilidade.texto } }
+      subcartoes = subcartoes.map((subcartao) => (subcartao.id === doCartao.id ? atualizado : subcartao))
+    } else if (anterior !== null && mesmoNome(anterior.nome, habilidade.nome)) {
+      const reescrita: CartaoDaFicha = { ...anterior, nome: habilidade.nome, campos: { ...anterior.campos, [CAMPO_DO_EFEITO]: habilidade.texto } }
+      subcartoes = cartao.subcartoes.map((subcartao) => (subcartao.id === anterior.id ? reescrita : subcartao))
+      marcada = anterior.id
+    } else {
+      const nova: CartaoDaFicha = { ...novoCartao(habilidade.nome), campos: { [CAMPO_DO_EFEITO]: habilidade.texto }, aMao: true }
+      subcartoes = [...subcartoes, nova]
+      marcada = nova.id
+    }
   }
-  const nova: CartaoDaFicha = { ...novoCartao(habilidade.nome), campos: { [CAMPO_DO_EFEITO]: habilidade.texto }, aMao: true }
-  return { ...comMods, subcartoes: [...cartao.subcartoes, nova] }
+  const comDecisao: CartaoDaFicha = { ...cartao, modificadores: decisao.mods.map((mod) => ({ ...mod })), subcartoes }
+  // Sem a peça (o mestre a tirou enquanto a forma esperava): a habilidade entra, mas não há onde marcar.
+  if (!formaDecididaPeloMestre(cartao)) return comDecisao
+  return { ...comDecisao, mecanica: marcada === null ? { ...PECA_DO_MESTRE_NA_FORMA } : { ...PECA_DO_MESTRE_NA_FORMA, habilidade: marcada } }
+}
+
+/** O que a decisão deixou no cartão (o Desfazer confere antes de voltar o cartão): os modificadores e o id da habilidade marcada na peça. */
+export interface EscritoPelaDecisao {
+  mods: readonly Modificador[]
+  habilidade: string | null
+}
+
+export function escritoNoCartao(cartao: Pick<CartaoDaFicha, 'modificadores' | 'mecanica'>): EscritoPelaDecisao {
+  const habilidade = cartao.mecanica?.habilidade
+  return { mods: cartao.modificadores.map((mod) => ({ atributo: mod.atributo, delta: mod.delta })), habilidade: typeof habilidade === 'string' ? habilidade : null }
+}
+
+/** O cartão ainda tem o que a decisão escreveu? Outra decisão por cima (outros números ou outra habilidade) = não. */
+export function cartaoAindaComADecisao(cartao: Pick<CartaoDaFicha, 'modificadores' | 'mecanica'>, escrito: EscritoPelaDecisao): boolean {
+  const agora = escritoNoCartao(cartao)
+  return (
+    agora.habilidade === escrito.habilidade &&
+    agora.mods.length === escrito.mods.length &&
+    agora.mods.every((mod, indice) => mod.atributo === escrito.mods[indice]?.atributo && mod.delta === escrito.mods[indice]?.delta)
+  )
 }
 
 /** O personagem com o cartão (de mesmo id, em qualquer aba) trocado. Sem o cartão = o mesmo personagem. */
@@ -148,6 +204,42 @@ export function formasComODecidirDoMestre(formas: readonly FormaNoMenu[], espera
     const espera = (esperando ?? []).some((item) => item.cartaoId === forma.cartao.id)
     return espera ? { ...forma, numeros: [], motivo: MOTIVO_DO_MESTRE_DECIDINDO, motivoDosUsos: MOTIVO_DO_MESTRE_DECIDINDO } : { ...forma, numeros: [] }
   })
+}
+
+function partesDe(reversao: Reversao): Reversao[] {
+  return reversao.tipo === 'composta' ? reversao.partes.flatMap(partesDe) : [reversao]
+}
+
+function emLista(itens: readonly string[]): string {
+  return itens.length <= 1 ? (itens[0] ?? '') : `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}`
+}
+
+/**
+ * C6: a frase da confirmação de Recusar, pelo que o Desfazer do pedido devolve
+ * de fato: a ação só se ainda é a vez do pedido (o gasto é "só na vez"), o uso
+ * e o Overload só se o pedido os gastou, e nada se a linha do pedido já saiu
+ * do registro (a store só tira a pendência).
+ */
+export function fraseDoRecusar(pendente: FormaPendente, quem: string, turnos: Pick<TurnosDaCena, 'vez' | 'rodada'>, registro: readonly LinhaDoRegistro[]): string {
+  const linha = registro.find((candidata) => candidata.id === pendente.linhaId)
+  if (linha === undefined) return `O pedido já saiu do registro: nada volta para ${quem}.`
+  const partes = partesDe(linha.reversao)
+  const gasto = partes.find((parte) => parte.tipo === 'gasto')
+  const naVez = gasto !== undefined && (gasto.vez === undefined || (turnos.vez === gasto.vez.cartaId && turnos.rodada === gasto.vez.rodada))
+  const voltam: string[] = naVez ? ['a ação'] : []
+  for (const parte of partes) {
+    if (parte.tipo !== 'combate' || parte.personagemId !== pendente.personagemId) continue
+    if ((parte.depois.usos[pendente.cartaoId] ?? 0) !== (parte.antes?.usos[pendente.cartaoId] ?? 0)) voltam.push('o uso')
+    if (parte.depois.overload && parte.antes?.overload !== true) voltam.push('o Overload')
+  }
+  const frases: string[] = []
+  if (voltam.length > 0) {
+    const lista = emLista(voltam)
+    frases.push(`${lista.charAt(0).toUpperCase()}${lista.slice(1)} ${voltam.length === 1 ? 'volta' : 'voltam'} para ${quem}.`)
+  }
+  if (gasto !== undefined && !naVez) frases.push('A ação não volta: a vez já passou.')
+  if (frases.length === 0) frases.push(`${pendente.nome} não gastou nada.`)
+  return frases.join(' ')
 }
 
 /** C6: o id da pendência. */

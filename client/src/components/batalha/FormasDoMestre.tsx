@@ -1,7 +1,19 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { MODS_DA_DECISAO_MAX, NOME_DA_HABILIDADE_MAX, TEXTO_DA_HABILIDADE_MAX, type DecisaoDaForma, type FormaPendente } from '../../lib/batalha/combate'
-import { alvosDaDecisao, cartaoPorId, decisaoValida, formaDecididaPeloMestre, PECA_DO_MESTRE_NA_FORMA, previaDaDecisao } from '../../lib/batalha/mecanica/formaDoMestre'
+import {
+  alvosDaDecisao,
+  cartaoPorId,
+  decisaoValida,
+  formaDecididaPeloMestre,
+  fraseDoRecusar,
+  habilidadeDaUltimaDecisao,
+  PECA_DO_MESTRE_NA_FORMA,
+  previaDaDecisao,
+  textoDaHabilidade,
+} from '../../lib/batalha/mecanica/formaDoMestre'
+import type { LinhaDoRegistro } from '../../lib/batalha/registro'
 import { requisitoDaForma } from '../../lib/batalha/transformacao'
+import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { ImagemOuIniciais } from '../FichaPecas'
@@ -18,13 +30,19 @@ import './MecanicaDaTecnica.css'
  * pedido. Ela entra nesta lista, e a janela abre sozinha para o mestre: o que
  * a forma soma (atributos e máximos), se ganha uma habilidade, e a prévia
  * ("FOR 160 → 190"). Só ao confirmar a forma liga. "Depois" fecha e a forma
- * fica esperando aqui; "Recusar" é o Desfazer do pedido (a ação volta).
+ * fica esperando aqui; "Recusar" é o Desfazer do pedido (a confirmação diz o
+ * que volta de fato: a ação só na vez do pedido, o uso só se a forma tem).
+ * Com dois pedidos seguidos, as janelas abrem uma depois da outra.
  */
 
 export interface FormasPendentesProps {
   itens: readonly FormaPendente[]
   personagens: readonly Personagem[]
   sistema: SistemaDeRpg | null
+  /** A vez e a rodada de agora: a ação do pedido só volta no Recusar se ainda é a vez dele. */
+  turnos: Pick<TurnosDaCena, 'vez' | 'rodada'>
+  /** O registro da cena: o que a linha do pedido gastou (e se ela ainda está lá). */
+  registro: readonly LinhaDoRegistro[]
   /** O nome do token na mesa ("May"). */
   nomeDoToken: (tokenId: string) => string
   onDecidir: (pendenteId: string, decisao: DecisaoDaForma) => boolean
@@ -32,14 +50,21 @@ export interface FormasPendentesProps {
 }
 
 /** A lista "Formas · você decide" (aba Batalha do mestre), no alto, junto das invocações. */
-export function FormasPendentes({ itens, personagens, sistema, nomeDoToken, onDecidir, onRecusar }: FormasPendentesProps) {
+export function FormasPendentes({ itens, personagens, sistema, turnos, registro, nomeDoToken, onDecidir, onRecusar }: FormasPendentesProps) {
   const [aberta, setAberta] = useState<string | null>(null)
   const vistas = useRef(new Set<string>())
-  // O pedido novo abre a janela sozinho ("vai abrir uma tela para mim"); o que o mestre deixou para depois não reabre.
+  const abrir = (id: string) => {
+    vistas.current.add(id)
+    setAberta(id)
+  }
+  // O pedido novo abre a janela sozinho ("vai abrir uma tela para mim"), um de cada vez: o seguinte espera a janela
+  // de agora fechar. Só conta como visto o que de fato abriu; o que o mestre deixou para depois não reabre.
   useEffect(() => {
+    if (aberta !== null) return
     const nova = itens.find((item) => !vistas.current.has(item.id))
-    for (const item of itens) vistas.current.add(item.id)
-    if (nova !== undefined && aberta === null) setAberta(nova.id)
+    if (nova === undefined) return
+    vistas.current.add(nova.id)
+    setAberta(nova.id)
   }, [itens, aberta])
   // A pendência saiu (decidida, recusada, desfeita): a janela dela fecha.
   useEffect(() => {
@@ -55,7 +80,18 @@ export function FormasPendentes({ itens, personagens, sistema, nomeDoToken, onDe
         {itens.map((item) => {
           const personagem = personagens.find((candidato) => candidato.id === item.personagemId)
           const cartao = personagem === undefined ? null : cartaoPorId(personagem, item.cartaoId)
-          return <PendenciaDaForma key={item.id} item={item} quem={nomeDoToken(item.tokenId)} imagem={cartao?.imagem ?? null} onAbrir={() => setAberta(item.id)} onRecusar={() => onRecusar(item.id)} />
+          const quem = nomeDoToken(item.tokenId)
+          return (
+            <PendenciaDaForma
+              key={item.id}
+              item={item}
+              quem={quem}
+              imagem={cartao?.imagem ?? null}
+              oQueVolta={fraseDoRecusar(item, quem, turnos, registro)}
+              onAbrir={() => abrir(item.id)}
+              onRecusar={() => onRecusar(item.id)}
+            />
+          )
         })}
       </ul>
       {naJanela !== null && personagemDaJanela !== undefined && sistema !== null && (
@@ -73,7 +109,17 @@ export function FormasPendentes({ itens, personagens, sistema, nomeDoToken, onDe
   )
 }
 
-function PendenciaDaForma({ item, quem, imagem, onAbrir, onRecusar }: { item: FormaPendente; quem: string; imagem: string | null; onAbrir: () => void; onRecusar: () => boolean }) {
+interface PendenciaDaFormaProps {
+  item: FormaPendente
+  quem: string
+  imagem: string | null
+  /** "A ação volta para May." montada pelo que o Desfazer do pedido devolve de fato (`fraseDoRecusar`). */
+  oQueVolta: string
+  onAbrir: () => void
+  onRecusar: () => boolean
+}
+
+function PendenciaDaForma({ item, quem, imagem, oQueVolta, onAbrir, onRecusar }: PendenciaDaFormaProps) {
   const [confirmando, setConfirmando] = useState(false)
   const manter = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -95,7 +141,7 @@ function PendenciaDaForma({ item, quem, imagem, onAbrir, onRecusar }: { item: Fo
       </div>
       {confirmando ? (
         <div className="bt-pendente__acoes" role="group" aria-label={`Recusar ${item.nome} de ${quem}`}>
-          <span className="bt-invocacao__pergunta">Recusar a forma? A ação e o uso voltam para {quem}.</span>
+          <span className="bt-invocacao__pergunta">Recusar a forma? {oQueVolta}</span>
           <button type="button" className="bt-botao bt-botao--p" onClick={() => onRecusar()}>
             Recusar
           </button>
@@ -139,10 +185,12 @@ export function DecisaoDaFormaDialog({ pendente, quem, personagem, sistema, onDe
   const idBase = useId()
   const cartao = cartaoPorId(personagem, pendente.cartaoId)
   const alvos = useMemo(() => alvosDaDecisao(sistema), [sistema])
+  // A habilidade da última decisão não vem junto: fica oferecida, desmarcada, com o nome e o texto prontos.
+  const ultima = cartao === null ? null : habilidadeDaUltimaDecisao(cartao)
   const [linhas, setLinhas] = useState<LinhaDeMod[]>(() => linhasDoCartao(cartao))
   const [ganha, setGanha] = useState(false)
-  const [nome, setNome] = useState('')
-  const [texto, setTexto] = useState('')
+  const [nome, setNome] = useState(() => (ultima === null ? '' : textoDaHabilidade(ultima).nome.slice(0, NOME_DA_HABILIDADE_MAX)))
+  const [texto, setTexto] = useState(() => (ultima === null ? '' : textoDaHabilidade(ultima).texto.slice(0, TEXTO_DA_HABILIDADE_MAX)))
   const [erro, setErro] = useState<string | null>(null)
   const lidos = useMemo(() => modsDasLinhas(linhas, alvos, 'dos modificadores'), [linhas, alvos])
   const decisao = useMemo<DecisaoDaForma | null>(
@@ -153,7 +201,12 @@ export function DecisaoDaFormaDialog({ pendente, quem, personagem, sistema, onDe
   const mods = decisao?.mods
   const previa = useMemo(() => (mods === undefined ? [] : previaDaDecisao(personagem, sistema, pendente.cartaoId, { mods, habilidade: null })), [mods, personagem, sistema, pendente.cartaoId])
   const requisito = cartao === null ? null : requisitoDaForma(cartao)
-  const jaTem = cartao?.subcartoes.map((subcartao) => subcartao.nome.trim()).filter((nomeDaHabilidade) => nomeDaHabilidade.length > 0) ?? []
+  const jaTem =
+    cartao?.subcartoes
+      .filter((subcartao) => subcartao.id !== ultima?.id)
+      .map((subcartao) => subcartao.nome.trim())
+      .filter((nomeDaHabilidade) => nomeDaHabilidade.length > 0) ?? []
+  const nomeDaUltima = ultima?.nome.trim() ?? ''
 
   const confirmar = (evento: FormEvent) => {
     evento.preventDefault()
@@ -204,13 +257,19 @@ export function DecisaoDaFormaDialog({ pendente, quem, personagem, sistema, onDe
             <input
               type="checkbox"
               checked={ganha}
+              aria-describedby={nomeDaUltima.length > 0 && !ganha ? `${idBase}-ultima` : undefined}
               onChange={(evento) => {
                 setErro(null)
                 setGanha(evento.target.checked)
               }}
             />
-            {quem} ganha uma habilidade nova nesta forma
+            {quem} ganha uma habilidade desta vez
           </label>
+          {nomeDaUltima.length > 0 && !ganha && (
+            <p id={`${idBase}-ultima`} className="bt-decisao__ultima">
+              Da última vez ganhou {nomeDaUltima}. Marque para dar de novo ou trocar.
+            </p>
+          )}
           {ganha && (
             <div className="bt-decisao__campos">
               <label className="bt-decisao__campo" htmlFor={`${idBase}-nome`}>

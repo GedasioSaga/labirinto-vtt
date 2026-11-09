@@ -3727,6 +3727,13 @@
   height: 18px;
   accent-color: var(--lb-color-brass-bright);
 }
+/* C6 (revisão): a habilidade da última decisão, logo sob a opção desmarcada e alinhada ao texto dela (caixa 18 + 8). */
+.bt-decisao__ultima {
+  margin: -12px 0 0;
+  padding-left: 26px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
 .bt-decisao__campos {
   display: grid;
   gap: 8px;

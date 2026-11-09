@@ -89,7 +89,18 @@ import {
   selosDoToken,
 } from '../lib/batalha/selos'
 import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, duracaoDaForma, formaDaFicha, subidaDeParte, usosDaForma } from '../lib/batalha/transformacao'
-import { cartaoComADecisao, cartaoPorId, comCartaoTrocado, decisaoValida, formaDecididaPeloMestre, novoIdDeDecisao, textoDaDecisao } from '../lib/batalha/mecanica/formaDoMestre'
+import {
+  cartaoAindaComADecisao,
+  cartaoComADecisao,
+  cartaoPorId,
+  comCartaoTrocado,
+  decisaoValida,
+  escritoNoCartao,
+  formaDecididaPeloMestre,
+  novoIdDeDecisao,
+  textoDaDecisao,
+  type EscritoPelaDecisao,
+} from '../lib/batalha/mecanica/formaDoMestre'
 import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, esquivaComDesvantagem, porVezDoLembrete, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao, verboDoPorVez } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
@@ -682,8 +693,11 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
       let atual = cena
       let emParte = false
       let ok = true
-      // Da última parte para a primeira, como foram feitas ao contrário.
-      for (const parte of [...reversao.partes].reverse()) {
+      // Da última parte para a primeira, como foram feitas ao contrário. C6: a pendência da forma decidida volta
+      // por último, depois que a ficha desligou a forma (ela só volta a esperar o mestre com a forma desligada).
+      const deTrasParaFrente = [...reversao.partes].reverse()
+      const naOrdem = [...deTrasParaFrente.filter((parte) => parte.tipo !== 'formaDecidida'), ...deTrasParaFrente.filter((parte) => parte.tipo === 'formaDecidida')]
+      for (const parte of naOrdem) {
         const feito = desfazerReversao(mesa, sceneKey, atual, parte, autor)
         atual = feito.cena
         emParte = emParte || feito.emParte
@@ -736,18 +750,29 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
       return { cena: { ...cena, turnos: { ...cena.turnos, formasPendentes } }, emParte: false, ok: true }
     }
     case 'formaDecidida': {
-      // C6: a pendência volta a esperar o mestre, só se o pedido segue de pé, ela não está lá e cabe no teto.
+      // C6: a pendência volta a esperar o mestre, só se o pedido segue de pé, ela não está lá, cabe no teto e a forma
+      // está desligada (Desfazer fora de ordem: outra decisão já a ligou, e "decidir" daria "já está ligada").
       const { pendente } = reversao
       const lista = cena.turnos.formasPendentes ?? []
-      const volta = !linhaDesfeita(cena.registro, pendente.linhaId) && !lista.some((candidata) => candidata.id === pendente.id) && lista.length < FORMAS_PENDENTES_MAX
-      if (!volta) return { cena, emParte: false, ok: true }
+      const ligada = mesa.personagens().find((personagem) => personagem.id === pendente.personagemId)?.cartoesAtivos.includes(pendente.cartaoId) === true
+      const volta = !ligada && !linhaDesfeita(cena.registro, pendente.linhaId) && !lista.some((candidata) => candidata.id === pendente.id) && lista.length < FORMAS_PENDENTES_MAX
+      if (!volta) return { cena, emParte: ligada, ok: true }
       return { cena: { ...cena, turnos: { ...cena.turnos, formasPendentes: [...lista, pendente] } }, emParte: false, ok: true }
     }
     case 'cartaoDaForma': {
-      // C6: o cartão da forma volta como era antes dos números do mestre (modificadores e subcartões).
-      const { antes } = reversao
-      const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => comCartaoTrocado(atual, antes))
-      return { cena, emParte: !ok, ok: true }
+      // C6: o cartão da forma volta como era antes dos números do mestre (modificadores e subcartões), só se ainda tem
+      // os números desta decisão: uma decisão posterior por cima fica (Desfazer fora de ordem).
+      const { antes, escrito } = reversao
+      let outraDecisao = false
+      const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => {
+        const agora = cartaoPorId(atual, antes.id)
+        if (escrito !== undefined && agora !== null && !cartaoAindaComADecisao(agora, escrito)) {
+          outraDecisao = true
+          return atual
+        }
+        return comCartaoTrocado(atual, antes)
+      })
+      return { cena, emParte: !ok || outraDecisao, ok: true }
     }
     case 'invocadoSaiu': {
       // Só volta quem foi posto por linhas ainda de pé (desfazer fora de ordem não ressuscita) e não está em campo.
@@ -3316,12 +3341,17 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       if (personagem === undefined || cartao === null || personagem.cartoesAtivos.includes(cartao.id) || 'motivo' in valida) return false
       const { decisao } = valida
       // 1) O cartão recebe os números do mestre (os modificadores trocam; a habilidade entra como subcartão).
+      // `as`: o callback escreve; sem ele o TypeScript fixaria `null` aqui.
+      let escrito = null as EscritoPelaDecisao | null
       const escreveu = mesa.ajustarPersonagem(personagemId, (atual) => {
         const doCartao = cartaoPorId(atual, cartao.id)
-        return doCartao === null ? atual : comCartaoTrocado(atual, cartaoComADecisao(doCartao, decisao))
+        if (doCartao === null) return atual
+        const comDecisao = cartaoComADecisao(doCartao, decisao)
+        escrito = escritoNoCartao(comDecisao)
+        return comCartaoTrocado(atual, comDecisao)
       })
-      if (!escreveu) return false
-      const partes: Reversao[] = [{ tipo: 'cartaoDaForma', personagemId, antes: cartao }]
+      if (!escreveu || escrito === null) return false
+      const partes: Reversao[] = [{ tipo: 'cartaoDaForma', personagemId, antes: cartao, escrito }]
       // 2) A forma liga como no Ativar de sempre (os máximos, o atual, as do mesmo grupo).
       let numeros: NumeroDaForma[] = []
       let desligadas: string[] = []

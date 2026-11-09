@@ -393,6 +393,8 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         itens={turnos.formasPendentes ?? SEM_FORMAS_PENDENTES}
         personagens={mesa.personagens}
         sistema={mesa.sistema}
+        turnos={turnos}
+        registro={cena.registro}
         nomeDoToken={(tokenId) => nomeDaFicha(mesa, tokenId)}
         onDecidir={(pendenteId, decisao) => useBatalhaStore.getState().decidirForma(sceneKey, pendenteId, decisao)}
         onRecusar={(pendenteId) => useBatalhaStore.getState().cancelarForma(sceneKey, pendenteId)}

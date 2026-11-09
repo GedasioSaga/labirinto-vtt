@@ -9,7 +9,8 @@
 import { describe, expect, it } from 'vitest'
 import { atributoComposto } from '../lib/ajusteDaFicha'
 import { ficha } from '../lib/batalha/fichasDaFatiaB.testkit'
-import { PECA_DO_MESTRE_NA_FORMA } from '../lib/batalha/mecanica/formaDoMestre'
+import type { DecisaoDaForma, FormaPendente } from '../lib/batalha/combate'
+import { fraseDoRecusar, PECA_DO_MESTRE_NA_FORMA } from '../lib/batalha/mecanica/formaDoMestre'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import type { CartaoDaFicha, Personagem } from '../lib/personagem'
@@ -107,5 +108,66 @@ describe('C6: o mestre decide os números da forma', () => {
     expect(atributoComposto(nina(mesa), 'forca').total).toBe(10)
     expect(cena(loja).turnos.formasPendentes ?? []).toEqual([])
     expect(cena(loja).turnos.gastos[vez.cartaId] ?? null).toEqual(gastoAntes)
+  })
+})
+
+/** Liga a Lua Cheia pelo pedido e pela decisão (sem gastar ação) e devolve a pendência que o mestre decidiu. */
+function transformar(loja: LojaDaBatalha, vez: VezEsperada, escolha: DecisaoDaForma): FormaPendente {
+  expect(loja.getState().agir(CENA, MESTRE, vez, { ...pedirLuaCheia, acao: 'livre' })).toBe(true)
+  const pendente = cena(loja).turnos.formasPendentes?.at(-1)
+  if (pendente === undefined) throw new Error('o pedido não esperou o mestre')
+  expect(loja.getState().decidirForma(CENA, pendente.id, escolha)).toBe(true)
+  return pendente
+}
+
+function desligar(loja: LojaDaBatalha, vez: VezEsperada): void {
+  expect(loja.getState().agir(CENA, MESTRE, vez, { tipo: 'destransformar', cartaoId: LUA_CHEIA.id })).toBe(true)
+}
+
+describe('C6 (revisão): a habilidade vale só na transformação, e o Desfazer fora de ordem não estraga a decisão de agora', () => {
+  it('a habilidade da noite 1 sai na noite 2 sem habilidade, e uma nova não se soma à velha', () => {
+    const { loja, mesa } = batalha()
+    const vez = naVezDe(loja, 'Nina')
+    transformar(loja, vez, decisao)
+    const garras = cartaoDaForma(mesa)?.subcartoes[0]
+    expect(cartaoDaForma(mesa)?.mecanica).toEqual({ ...PECA_DO_MESTRE_NA_FORMA, habilidade: garras?.id })
+    desligar(loja, vez)
+
+    transformar(loja, vez, { mods: [{ atributo: 'forca', delta: 30 }], habilidade: null })
+    expect(cartaoDaForma(mesa)?.subcartoes).toEqual([])
+    expect(cartaoDaForma(mesa)?.mecanica).toEqual(PECA_DO_MESTRE_NA_FORMA)
+    desligar(loja, vez)
+
+    transformar(loja, vez, decisao)
+    desligar(loja, vez)
+    transformar(loja, vez, { mods: [], habilidade: { nome: 'Uivo', texto: 'assusta quem ouve' } })
+    expect(cartaoDaForma(mesa)?.subcartoes.map((subcartao) => subcartao.nome)).toEqual(['Uivo'])
+  })
+
+  it('desfazer a decisão da noite 1 depois da noite 2 deixa os números da noite 2 e não devolve o pedido 1 com a forma ligada', () => {
+    const { loja, mesa } = batalha()
+    const vez = naVezDe(loja, 'Nina')
+    const pedido1 = transformar(loja, vez, decisao)
+    const linhaDaDecisao1 = cena(loja).registro.at(-1)?.id ?? ''
+    desligar(loja, vez)
+    transformar(loja, vez, { mods: [{ atributo: 'forca', delta: 50 }], habilidade: null })
+
+    expect(loja.getState().desfazer(CENA, linhaDaDecisao1, MESTRE)).toBe(true)
+    expect(cartaoDaForma(mesa)?.modificadores).toEqual([{ atributo: 'forca', delta: 50 }])
+    // O Desfazer da noite 1 desliga a forma (a ficha volta ao "desligada" daquela linha): só então o pedido 1 volta a esperar, e decidir funciona.
+    expect(nina(mesa).cartoesAtivos).not.toContain(LUA_CHEIA.id)
+    expect((cena(loja).turnos.formasPendentes ?? []).map((pendente) => pendente.id)).toEqual([pedido1.id])
+    expect(loja.getState().decidirForma(CENA, pedido1.id, decisao)).toBe(true)
+  })
+
+  it('a confirmação de Recusar diz o que volta: a ação na vez do pedido, nada depois que a vez passou', () => {
+    const { loja } = batalha()
+    const vez = naVezDe(loja, 'Nina')
+    expect(loja.getState().agir(CENA, MESTRE, vez, pedirLuaCheia)).toBe(true)
+    const pendente = cena(loja).turnos.formasPendentes?.[0]
+    if (pendente === undefined) throw new Error('sem pendência')
+    expect(fraseDoRecusar(pendente, 'Nina', cena(loja).turnos, cena(loja).registro)).toBe('A ação volta para Nina.')
+    expect(loja.getState().passarVez(CENA, MESTRE, vez)).toBe(true)
+    expect(fraseDoRecusar(pendente, 'Nina', cena(loja).turnos, cena(loja).registro)).toBe('A ação não volta: a vez já passou.')
   })
 })
