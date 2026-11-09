@@ -57,6 +57,7 @@ function chavesMudadas<T>(base: Record<string, T>, rascunho: Record<string, T>):
 export function partesMudadas(base: Personagem, rascunho: Personagem, recebida?: Personagem): PartesDoPersonagem {
   const partes: PartesDoPersonagem = {}
   const inteiras = recebida === undefined ? rascunho : mesclarSemDesfazer(base, rascunho, recebida, rascunho)
+  const comProposta = recebida === undefined ? (cartao: CartaoSemImagem) => cartao : propostaNaoTocadaDaRecebida(base, recebida)
   if (rascunho.nome !== base.nome) partes.nome = rascunho.nome
   if (rascunho.descricao !== base.descricao) partes.descricao = rascunho.descricao
   if (!mesmoTexto(rascunho.etiquetas, base.etiquetas)) partes.etiquetas = inteiras.etiquetas
@@ -68,7 +69,7 @@ export function partesMudadas(base: Personagem, rascunho: Personagem, recebida?:
   }
   const abas = Object.entries(rascunho.abas).flatMap(([abaId, cartoes]): [string, CartaoSemImagem[]][] => {
     if (mesmoTexto((base.abas[abaId] ?? []).map(cartaoSemImagem), cartoes.map(cartaoSemImagem))) return []
-    return [[abaId, (inteiras.abas[abaId] ?? cartoes).map(cartaoSemImagem)]]
+    return [[abaId, (inteiras.abas[abaId] ?? cartoes).map(cartaoSemImagem).map(comProposta)]]
   })
   if (abas.length > 0) partes.abas = Object.fromEntries(abas)
   // A ficha Dragon Ball vai só nos campos que mudaram; sumir do rascunho não apaga a do host (não há parte para isso).
@@ -98,6 +99,25 @@ function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>, campo: 'meca
   }
   for (const cartoes of Object.values(abas)) cartoes.forEach(visitar)
   return mecanicas
+}
+
+/**
+ * Fatia C2 (revisão): a proposta de mecânica de um cartão que o jogador NÃO
+ * tocou desde que a edição abriu sai como a da ficha recebida por último, ou
+ * some se ela não tem. Sem isso, a proposta que o mestre recusou nesse
+ * meio-tempo voltava com o Salvar de outro cartão da mesma aba: a mescla da
+ * nuvem (`mesclarSemDesfazer`) não a traz, porque a comparação de cartões
+ * (`diferencas`) não olha a proposta, que ainda não tem caminho no Lobby
+ * (`lib/nuvem/caminho.ts`). A proposta que o jogador mudou vai como está.
+ */
+function propostaNaoTocadaDaRecebida(base: Personagem, recebida: Personagem): (cartao: CartaoSemImagem) => CartaoSemImagem {
+  const daBase = mecanicasDosCartoes(base.abas, 'mecanicaProposta')
+  const daRecebida = mecanicasDosCartoes(recebida.abas, 'mecanicaProposta')
+  const ajustar = ({ mecanicaProposta: doRascunho, ...cartao }: CartaoSemImagem): CartaoSemImagem => {
+    const proposta = mesmoTexto(doRascunho, daBase.get(cartao.id)) ? daRecebida.get(cartao.id) : doRascunho
+    return { ...cartao, subcartoes: cartao.subcartoes.map(ajustar), ...(proposta === undefined ? {} : { mecanicaProposta: proposta }) }
+  }
+  return ajustar
 }
 
 /** As imagens que o rascunho trocou: o retrato e a de cada cartão (o novo só se já tem imagem). */

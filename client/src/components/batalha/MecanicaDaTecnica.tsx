@@ -15,9 +15,12 @@ import './MecanicaDaTecnica.css'
  * vale depois que ele aceitar. O número que sai das peças, na batalha, é o
  * que o app do mestre recalcula (decisão 2): aqui é só a prévia.
  *
- * Cada mudança vai na hora para o cartão em edição (como os outros campos da
- * ficha); quem grava é o Salvar da janela. O rascunho do editor fica aqui
- * dentro: a peça pela metade (fórmula vazia) não se perde ao reler o cartão.
+ * Cada mudança COMPLETA vai na hora para o cartão em edição (como os outros
+ * campos da ficha); quem grava é o Salvar da janela. O rascunho do editor fica
+ * aqui dentro: a peça pela metade (fórmula vazia, custo "Fórmula" sem
+ * preencher) não entra no cartão, que guarda a última versão que vale, e não
+ * se perde ao fechar e abrir o editor. Assim o Salvar nunca grava uma
+ * mecânica que a batalha leria como inválida (revisão da C2).
  */
 
 /** `ninguem` = só lê o resumo (o site do Lobby, que ainda não leva a mecânica). */
@@ -70,6 +73,13 @@ function AvisoDaLida({ lida }: { lida: LeituraDaMecanica }) {
   )
 }
 
+/** O que vale enquanto o rascunho do editor tem peça faltando (ele não entra no cartão). */
+function enquantoFalta(quemEdita: MecanicaDaTecnicaProps['quemEdita'], cartao: CartaoDaFicha, valendo: LeituraDaMecanica): string {
+  if (quemEdita === 'dono') return cartao.mecanicaProposta === undefined ? 'nada vai ao mestre' : 'fica a proposta anterior'
+  if (valendo.tipo === 'pecas') return 'a ficha guarda a última versão completa'
+  return valendo.tipo === 'nenhuma' ? 'a técnica segue pelo texto' : 'a ficha fica como estava'
+}
+
 /**
  * Fora da edição (o mestre e o jogador): o resumo em frases da mecânica que
  * vale e, se houver, a marca da proposta que espera o mestre. Sem mecânica e
@@ -105,9 +115,13 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
     return valendo.tipo === 'pecas' ? valendo.mecanica : null
   }
 
-  /** Grava no cartão em edição: o mestre na mecânica; o dono na proposta (igual à que vale = proposta nenhuma). */
+  /**
+   * Grava no cartão em edição: o mestre na mecânica; o dono na proposta (igual à que vale = proposta nenhuma).
+   * Com peça faltando, fica só no rascunho: o cartão guarda a última versão que vale.
+   */
   const gravar = (mecanica: MecanicaV1) => {
     setRascunho(mecanica)
+    if (problemaDaMecanica(mecanica) !== null) return
     const guardada: MecanicaGuardada = guardarMecanica(mecanica)
     if (quemEdita === 'dono' && mesmaMecanica(guardada, cartao.mecanica)) {
       onChange(semCampo(cartao, 'mecanicaProposta'))
@@ -117,7 +131,8 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   }
 
   const abrir = () => {
-    const atual = inicial()
+    // O rascunho com peça faltando (não entrou no cartão) volta como estava, em vez de se perder.
+    const atual = rascunho !== null && problemaDaMecanica(rascunho) !== null ? rascunho : inicial()
     if (atual === null) {
       setFase('escolhendo')
       return
@@ -142,6 +157,8 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
 
   const editando = fase === 'editando' && rascunho !== null
   const problema = editando ? problemaDaMecanica(rascunho) : null
+  /** Fechado com o rascunho pela metade: o que falta (o cartão segue com a versão de antes). */
+  const pendente = fase === 'fechado' && rascunho !== null ? problemaDaMecanica(rascunho) : null
   const temAlgo = cartao.mecanica !== undefined || cartao.mecanicaProposta !== undefined
 
   return (
@@ -189,6 +206,11 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
         <>
           {valendo.tipo === 'pecas' && <ResumoDaMecanica mecanica={valendo.mecanica} ficha={ficha} titulo={cartao.mecanicaProposta !== undefined ? 'Vale agora' : undefined} />}
           <AvisoDaLida lida={valendo} />
+          {pendente !== null && (
+            <p className="lb-mec__aviso" role="note">
+              O que você montou por último não entrou na ficha: {pendente}. Até completar, {enquantoFalta(quemEdita, cartao, valendo)}.
+            </p>
+          )}
           <div className="lb-mec__acoes">
             <button ref={montarRef} type="button" className="lb-btn lb-btn--compact" disabled={futura} title={futura ? 'Feita num app mais novo: atualize o app para editar' : undefined} onClick={abrir}>
               {temAlgo ? (quemEdita === 'dono' ? 'Editar a proposta' : 'Editar a mecânica') : quemEdita === 'dono' ? 'Montar mecânica (vai ao mestre)' : 'Montar mecânica'}
@@ -263,7 +285,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           <ResumoDaMecanica mecanica={rascunho} ficha={ficha} titulo={quemEdita === 'dono' ? 'Como fica a proposta' : 'Como fica'} />
           {problema !== null && (
             <p className="lb-field__error" role="status">
-              Ainda não vale na batalha: {problema}.
+              {quemEdita === 'dono' ? 'Ainda não vai ao mestre' : 'Ainda não vale na batalha'}: {problema}. Até completar, {enquantoFalta(quemEdita, cartao, valendo)}.
             </p>
           )}
           <div className="lb-mec__acoes">

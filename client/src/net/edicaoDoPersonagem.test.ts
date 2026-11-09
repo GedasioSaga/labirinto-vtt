@@ -161,7 +161,7 @@ describe('construtor de mecânicas: a edição do jogador nunca mexe na mecânic
     ])
   })
 
-  it('fatia C2: a mecânica do dono fica como proposta; recusada pelo mestre, o Salvar velho do jogador em outro cartão não a traz de volta', () => {
+  it('fatia C2: a mecânica do dono fica como proposta; recusada pelo mestre, o Salvar do jogador em outro cartão não a traz de volta', () => {
     const PROPOSTA = { ...PECAS, acao: 'bonus' }
     const montado = { ...novoCartao('Golpe Montado'), id: 'cart_montado', mecanica: PECAS }
     const deTexto = { ...novoCartao('Golpe de Texto'), id: 'cart_texto' }
@@ -170,12 +170,13 @@ describe('construtor de mecânicas: a edição do jogador nunca mexe na mecânic
     const doFio = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(base, propoe))))
     const comProposta = aplicarPartesPelaBase(base, base, doFio ?? {})
     expect(comProposta.abas.habilidades?.[0]).toMatchObject({ mecanica: PECAS, mecanicaProposta: PROPOSTA })
-    // O mestre recusa (a proposta sai); o jogador, ainda com a ficha de antes, salva o OUTRO cartão da aba.
+    // O mestre recusa e salva: o host manda ao jogador a ficha sem a proposta, e ela vira a base da conexão.
     const { mecanicaProposta: _recusada, ...semProposta } = comProposta.abas.habilidades?.[0] ?? montado
     const recusada: Personagem = { ...comProposta, abas: { ...comProposta.abas, habilidades: [semProposta, deTexto] } }
+    // O jogador, com a edição aberta desde ANTES da recusa (base = a ficha com a proposta), salva o OUTRO cartão da aba.
     const outroCartao: Personagem = { ...comProposta, abas: { ...comProposta.abas, habilidades: [comProposta.abas.habilidades?.[0] ?? montado, { ...deTexto, campos: { ...deTexto.campos, descricao: 'Outro' } }] } }
-    const velho = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(comProposta, outroCartao))))
-    const depois = aplicarPartesPelaBase(comProposta, recusada, velho ?? {})
+    const velho = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(comProposta, outroCartao, recusada))))
+    const depois = aplicarPartesPelaBase(recusada, recusada, velho ?? {})
     expect(depois.abas.habilidades?.map((cartao) => [cartao.campos.descricao, cartao.mecanica, cartao.mecanicaProposta])).toEqual([
       [montado.campos.descricao, PECAS, undefined],
       ['Outro', undefined, undefined],

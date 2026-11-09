@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { CUSTO_MAX, DANO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX } from '../../lib/batalha/combate'
 import { CAMPO_DO_DANO } from '../../lib/batalha/formula'
 import { CASAS_MAX, EFEITOS_MAX, EXTRAS_MAX, FORMULA_MAX, LIMITE_MAX, TEXTO_A_MAO_MAX, VEZES_MAX, type AcaoDaMecanica, type Custo, type Efeito, type FormaDoAlvo, type MecanicaV1, type Numero, type NumeroSimples, type QuemOAlvoPega } from '../../lib/batalha/mecanica/modelo'
@@ -99,10 +99,17 @@ function Texto({ rotulo, valor, maximo, onChange, placeholder, lista }: { rotulo
   )
 }
 
-/** Um bloco numerado que abre e fecha; fechado, a frase do que está escolhido. */
-function Bloco({ numero, titulo, frase, aberto, children }: { numero: number; titulo: string; frase: string; aberto: boolean; children: ReactNode }) {
+/**
+ * Um bloco numerado que abre e fecha; fechado, a frase do que está escolhido.
+ * `abertoAoMontar` vale só quando o editor abre: depois, quem abre e fecha é
+ * a pessoa. O bloco não fecha sozinho quando o conteúdo muda (desmarcar "Dá
+ * dano", tirar o último efeito, "Sem limite"): fechava embaixo do cursor, e o
+ * foco do teclado sumia junto com o controle.
+ */
+function Bloco({ numero, titulo, frase, abertoAoMontar, children }: { numero: number; titulo: string; frase: string; abertoAoMontar: boolean; children: ReactNode }) {
+  const [aberto, setAberto] = useState(abertoAoMontar)
   return (
-    <details className="lb-mec__bloco" open={aberto}>
+    <details className="lb-mec__bloco" open={aberto} onToggle={(event) => setAberto(event.currentTarget.open)}>
       <summary className="lb-mec__bloco-cab">
         <span className="lb-mec__bloco-numero" aria-hidden="true">
           {numero}
@@ -173,7 +180,7 @@ function BlocoDoCusto({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'on
     trocar('aoUsar', { ...aoUsar, quanto })
   }
   return (
-    <Bloco numero={1} titulo="Quanto custa" frase={[fraseDoCusto(mecanica), ...frasesDosOutrosCustos(mecanica)].join(' ')} aberto>
+    <Bloco numero={1} titulo="Quanto custa" frase={[fraseDoCusto(mecanica), ...frasesDosOutrosCustos(mecanica)].join(' ')} abertoAoMontar>
       <Escolha
         legenda="Ao usar, gasta"
         opcoes={[{ valor: 'nada' as const, rotulo: 'Nada' }, ...RECURSOS]}
@@ -228,7 +235,7 @@ const ACOES: readonly Opcao<AcaoDaMecanica>[] = [
 function BlocoDaAcao({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
   const frase = mecanica.acao === 'perguntar' ? 'Quem usa escolhe na hora.' : `Gasta ${ACOES.find((acao) => acao.valor === mecanica.acao)?.rotulo ?? ''}.`
   return (
-    <Bloco numero={2} titulo="Que ação gasta" frase={frase} aberto>
+    <Bloco numero={2} titulo="Que ação gasta" frase={frase} abertoAoMontar>
       <Escolha legenda="A ação" opcoes={ACOES} valor={mecanica.acao} onChange={(acao) => onChange({ ...mecanica, acao })} />
     </Bloco>
   )
@@ -290,7 +297,7 @@ function ParametrosDaForma({ forma, onChange }: { forma: FormaDoAlvo; onChange: 
 function BlocoDoAlvo({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
   const { alvo } = mecanica
   return (
-    <Bloco numero={3} titulo="Em quem pega" frase={fraseDoAlvo(mecanica)} aberto>
+    <Bloco numero={3} titulo="Em quem pega" frase={fraseDoAlvo(mecanica)} abertoAoMontar>
       <Escolha
         legenda="Pega"
         opcoes={QUEM.map((quem) => ({ ...quem, bloqueio: quem.valor === alvo.quem ? null : motivoDoQuem(mecanica, quem.valor) }))}
@@ -315,7 +322,7 @@ function BlocoDoAlvo({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onC
 function BlocoDoTeste({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 'onChange'>) {
   const ajuda = ehAjuda(mecanica.alvo.quem)
   return (
-    <Bloco numero={4} titulo="Como acerta" frase={fraseDoTeste(mecanica)} aberto={!ajuda}>
+    <Bloco numero={4} titulo="Como acerta" frase={fraseDoTeste(mecanica)} abertoAoMontar={!ajuda}>
       {ajuda ? (
         <p className="lb-field__hint">Em aliado ou em quem usa, não há teste: a ajuda sempre pega.</p>
       ) : (
@@ -353,7 +360,7 @@ function BlocoDoDano({ mecanica, cartao, ficha, onChange }: BlocosProps) {
     onChange({ ...mecanica, dano: { ...dano, multiplicadores: novos.length === 0 ? mult : { ...mult, extra: novos } } })
   }
   return (
-    <Bloco numero={5} titulo="Quanto dano" frase={frasesDoDano(mecanica, ficha).join(' ') || 'Sem dano.'} aberto={dano !== undefined}>
+    <Bloco numero={5} titulo="Quanto dano" frase={frasesDoDano(mecanica, ficha).join(' ') || 'Sem dano.'} abertoAoMontar={dano !== undefined}>
       <Marcar
         rotulo="Dá dano"
         marcado={dano !== undefined}
@@ -450,7 +457,7 @@ function BlocoDosEfeitos({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 
   }
   const frases = efeitos.map((efeito) => fraseDoEfeito(efeito, mecanica))
   return (
-    <Bloco numero={6} titulo="O que deixa" frase={frases.length === 0 ? 'Nada além do dano.' : frases.join(' ')} aberto={efeitos.length > 0}>
+    <Bloco numero={6} titulo="O que deixa" frase={frases.length === 0 ? 'Nada além do dano.' : frases.join(' ')} abertoAoMontar={efeitos.length > 0}>
       <Marcar
         rotulo={ajuda ? 'Dá um selo' : 'Se acertar, deixa um selo'}
         marcado={selo !== undefined}
@@ -525,7 +532,7 @@ function BlocoDosLimites({ mecanica, onChange }: Pick<BlocosProps, 'mecanica' | 
   const tipo: TipoDeLimite = limite.recarga !== undefined ? 'recarga' : limite.usosPorBatalha !== undefined ? 'usos' : 'livre'
   const comOverload = limite.overload === true ? { overload: true as const } : {}
   return (
-    <Bloco numero={7} titulo="Limites" frase={fraseDoLimite(mecanica) ?? 'Sem limite: usa sempre que tiver o custo.'} aberto={tipo !== 'livre' || limite.overload === true}>
+    <Bloco numero={7} titulo="Limites" frase={fraseDoLimite(mecanica) ?? 'Sem limite: usa sempre que tiver o custo.'} abertoAoMontar={tipo !== 'livre' || limite.overload === true}>
       <Escolha
         legenda="Quantas vezes"
         opcoes={[
