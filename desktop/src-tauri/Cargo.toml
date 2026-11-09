@@ -40,8 +40,10 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 
 [profile.release]
 panic = "abort"
-codegen-units = 1
-lto = true
+# LTO fino + 16 unidades: o LTO completo com 1 unidade compilava em 1 núcleo,
+# levava ~33 min e estourou a memória na 0.5.42 (rustc-LLVM out of memory).
+codegen-units = 16
+lto = "thin"
 opt-level = "s"
 
 [target."cfg(windows)".dependencies]
