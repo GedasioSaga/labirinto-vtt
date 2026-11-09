@@ -174,7 +174,8 @@ function estadoDaMesa(alvo: AlvoNaMesa): EstadoDaMesaNoTexto {
   if (estado.t === 'lendo') pedirLeitura(alvo)
   if (estado.t === 'quebrado') return { quebrado: true, dica: estado.aviso, abre: false }
   if (alvo.tipo === 'ficha') {
-    const sobre = estado.t === 'ok' ? `${estado.nome}, ${estado.onde.charAt(0).toLowerCase()}${estado.onde.slice(1)}.` : 'Ficha do Livro do mestre.'
+    // "Vigia: NPC na pasta Ilha." Sem baixar a primeira letra do "onde": "NPC" viraria "nPC".
+    const sobre = estado.t === 'ok' ? `${estado.nome}: ${estado.onde}.` : 'Ficha do Livro do mestre.'
     const verbete = verbeteDaFicha(alvo)
     return verbete === undefined
       ? { quebrado: false, dica: `${sobre} Na mesa, clicar seleciona o boneco dela.`, abre: false }
