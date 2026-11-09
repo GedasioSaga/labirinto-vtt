@@ -274,6 +274,14 @@ export const ATLAS = objeto({
 export const ALVO_DA_REVELACAO = objeto({
   tipo: umDe('verbete', 'forma', 'secao', 'ligacao', 'evento', 'marcador', 'atlas', 'cartaz'),
   id: texto(),
+  /**
+   * Forma e seção: o verbete dono. O id de forma e o de seção só são únicos
+   * dentro do verbete (o Grimório repete o id da versão entre personagens), e
+   * revelar a forma de um não pode revelar a de outro (`revelado.ts`).
+   */
+  verbeteId: opcional(texto()),
+  /** Seção: a forma dona. */
+  formaId: opcional(texto()),
 })
 
 const TODOS = 'todos'

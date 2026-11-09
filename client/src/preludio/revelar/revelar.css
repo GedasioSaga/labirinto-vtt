@@ -1,0 +1,100 @@
+/* ------------------------------------------------------------------ revelar (F2c) */
+
+.pr-revelar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-3); margin-top: var(--lb-space-4); }
+.pr-revelar__campanha { display: inline-flex; align-items: center; gap: var(--lb-space-2); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.pr-revelar__escolha {
+  min-height: 28px; padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md);
+  background: transparent; color: var(--lb-color-parchment); font: inherit; font-size: var(--lb-font-size-sm);
+}
+.pr-revelar__ver { margin-left: auto; }
+/* A gravação falhou: a linha inteira, embaixo dos controles. */
+.pr-revelar__aviso { flex-basis: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-3); margin: 0; }
+
+/* O estado no botão: tracejado e apagado quando oculto, latão quando alguém vê. */
+.pr-revelar__estado {
+  display: inline-flex; align-items: center; gap: var(--lb-space-1); flex: none; max-width: 100%;
+  min-height: 28px; padding: 0 var(--lb-space-3) 0 var(--lb-space-2);
+  border: 1px dashed var(--lb-gr-filete-forte); border-radius: var(--lb-radius-full); background: none;
+  color: var(--lb-color-parchment-faint); font: inherit; font-size: var(--lb-font-size-sm); cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform 120ms var(--lb-gr-ease-out);
+}
+.pr-revelar__estado > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-revelar__estado svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.pr-revelar__estado[data-estado='revelado'] { border-style: solid; border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+/* Revelado, mas o verbete ou a forma de cima ainda está oculto: ainda não chega a ninguém. */
+.pr-revelar__estado[data-espera] { border-style: dashed; background: none; }
+.pr-revelar__estado[data-bloqueado] { opacity: 0.6; }
+.pr-revelar__estado:active { transform: scale(0.97); }
+.pr-revelar__estado--p { min-height: 26px; padding: 0 var(--lb-space-2); font-size: var(--lb-font-size-xs); }
+.pr-revelar__estado--p svg { width: 14px; height: 14px; }
+.pr-revelar__prefixo { color: var(--lb-color-parchment-dim); }
+.pr-revelar__prefixo::after { content: ' ·'; }
+@media (hover: hover) and (pointer: fine) {
+  .pr-revelar__estado:hover { color: var(--lb-color-parchment); background: var(--lb-gr-hover); }
+  .pr-revelar__estado[data-estado='revelado']:not([data-espera]):hover { color: var(--lb-color-brass-bright); background: var(--lb-color-brass-soft); border-color: var(--lb-color-brass); }
+}
+
+/* Na seção, o estado fica junto do cadeado do segredo. */
+.pr-secao__cabeca .pr-revelar__estado { margin-left: var(--lb-space-1); }
+.pr-formas__linha .pr-revelar__estado { margin-left: auto; }
+
+/* ------------------------------------------------------------------ o pop */
+.pr-revelar-pop { display: flex; flex-direction: column; width: 272px; max-width: 100%; }
+.pr-revelar-pop__opcoes { display: flex; flex-direction: column; gap: 2px; }
+.pr-revelar-pop__opcao {
+  display: flex; align-items: flex-start; gap: var(--lb-space-2);
+  padding: 6px var(--lb-space-2); border-radius: var(--lb-radius-md);
+  color: var(--lb-color-parchment); font-size: var(--lb-font-size-sm); line-height: 1.35; cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease;
+}
+.pr-revelar-pop__opcao input { flex: none; margin: 2px 0 0; accent-color: var(--lb-color-brass); }
+.pr-revelar-pop__opcao small { display: block; margin-top: 1px; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+@media (hover: hover) and (pointer: fine) {
+  .pr-revelar-pop__opcao:hover { background: var(--lb-gr-hover); }
+}
+.pr-revelar-pop__legenda {
+  margin: var(--lb-space-2) 0 0; padding: var(--lb-space-1) var(--lb-space-2) 2px; border-top: 1px solid var(--lb-gr-filete);
+  font: 500 var(--lb-font-size-xs)/1.2 var(--lb-font-utility); letter-spacing: var(--lb-font-tracking-wide); color: var(--lb-gr-gravado);
+}
+.pr-revelar-pop__contas { list-style: none; margin: 0; padding: 0; max-height: 208px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.pr-revelar-pop__explica { margin: var(--lb-space-2) var(--lb-space-2) 0; font-size: var(--lb-font-size-xs); line-height: 1.45; color: var(--lb-color-parchment-faint); }
+.pr-revelar-pop__espera { color: var(--lb-color-brass-bright); }
+.pr-revelar-pop__extra { align-self: flex-start; margin: var(--lb-space-3) var(--lb-space-2) var(--lb-space-1); white-space: normal; text-align: left; }
+
+/* ------------------------------------------------------------------ ver como jogador */
+.gr-dlg.pr-jogador-dlg { width: min(1000px, 100%); max-height: calc(100vh - 32px); }
+.pr-jogador { display: flex; flex-direction: column; gap: var(--lb-space-4); }
+.pr-jogador__barra { display: flex; flex-wrap: wrap; gap: var(--lb-space-3) var(--lb-space-5); padding-bottom: var(--lb-space-3); border-bottom: 1px solid var(--lb-gr-filete); }
+.pr-jogador__barra .pr-campo { min-width: 0; }
+.pr-jogador__corpo { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: var(--lb-space-6); align-items: start; }
+@media (max-width: 760px) {
+  .pr-jogador__corpo { grid-template-columns: minmax(0, 1fr); }
+}
+.pr-jogador__folha { min-width: 0; }
+.pr-jogador__folha:focus { outline: none; }
+.pr-jogador__folha:focus-visible { outline: 2px solid var(--lb-color-brass); outline-offset: 4px; border-radius: var(--lb-radius-sm); }
+.pr-jogador__lado { display: flex; flex-direction: column; gap: var(--lb-space-2); position: sticky; top: 0; }
+.pr-jogador__lado .pr-ligacoes__item[aria-current='true'] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.pr-jogador__cabeca { display: flex; align-items: center; gap: var(--lb-space-4); margin-bottom: var(--lb-space-4); }
+.pr-jogador__nomes { display: flex; flex-direction: column; gap: var(--lb-space-1); min-width: 0; }
+.pr-jogador__titulo { margin: 0; font: 400 var(--lb-font-size-xxl)/1.15 var(--lb-font-display); color: var(--lb-gr-gravado-forte); overflow-wrap: anywhere; }
+.pr-jogador__forma + .pr-jogador__forma { margin-top: var(--lb-space-6); padding-top: var(--lb-space-4); border-top: 1px solid var(--lb-gr-filete); }
+.pr-jogador__forma-cabeca { display: flex; align-items: center; gap: var(--lb-space-3); margin-bottom: var(--lb-space-2); }
+.pr-jogador__forma-nome { margin: 0; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); color: var(--lb-gr-gravado-forte); }
+.pr-jogador__resumo { margin: 0 0 var(--lb-space-3); color: var(--lb-color-parchment-dim); font-style: italic; overflow-wrap: anywhere; }
+.pr-jogador__secao { margin-top: var(--lb-space-5); }
+.pr-jogador__secao-titulo { margin: 0 0 var(--lb-space-2); padding-bottom: var(--lb-space-1); border-bottom: 1px solid var(--lb-gr-filete); font: 400 var(--lb-font-size-xl)/1.25 var(--lb-font-display); color: var(--lb-gr-gravado-forte); }
+.pr-jogador__texto { overflow-wrap: anywhere; }
+.pr-jogador__mencao { border: 0; font: inherit; line-height: inherit; }
+.pr-jogador__link { color: var(--lb-color-brass-bright); text-decoration: underline; text-underline-offset: 2px; cursor: help; }
+/* Duas classes: o `.pr-galeria__grade` zera a margem e vem depois na ordem dos arquivos. */
+.pr-galeria__grade.pr-jogador__galeria { margin-top: var(--lb-space-6); }
+.pr-jogador__imagem { margin: 0; }
+.pr-jogador__imagem img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--lb-radius-md); box-shadow: 0 0 0 1px var(--lb-gr-filete); }
+.pr-jogador__citado { margin-top: var(--lb-space-6); display: flex; flex-direction: column; gap: var(--lb-space-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-revelar__estado { transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease; }
+  .pr-revelar__estado:active { transform: none; }
+}

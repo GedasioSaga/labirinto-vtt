@@ -4,7 +4,7 @@ import { FEATURES, type FeatureFlags } from '../features'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
 import { preparoLigado } from './chave'
 import { ehRegistro } from './molde'
-import { ARQUIVO_DO_INDICE, ARQUIVO_DO_VERBETE, type ArquivoDoPreparo, type IndiceDoPreparo, type Verbete } from './tipos'
+import { ARQUIVO_DO_INDICE, ARQUIVO_DO_REVELADO, ARQUIVO_DO_VERBETE, type ArquivoDoPreparo, type IndiceDoPreparo, type Revelado, type Verbete } from './tipos'
 
 /**
  * O DISCO DO PRELÚDIO: ler e gravar os arquivos de `<appData>/preparo/`
@@ -305,4 +305,12 @@ export function lerVerbete(id: string, flags: Readonly<FeatureFlags> = FEATURES)
 
 export function gravarVerbete(verbete: Verbete, flags: Readonly<FeatureFlags> = FEATURES): Promise<void> {
   return gravarNoPreparo(ARQUIVO_DO_VERBETE, LUGARES.verbete(verbete.id), verbete, flags)
+}
+
+export function lerRevelado(campanhaId: string, flags: Readonly<FeatureFlags> = FEATURES): Promise<DocumentoLido<Revelado>> {
+  return lerDoPreparo(ARQUIVO_DO_REVELADO, LUGARES.revelado(campanhaId), flags)
+}
+
+export function gravarRevelado(campanhaId: string, revelado: Revelado, flags: Readonly<FeatureFlags> = FEATURES): Promise<void> {
+  return gravarNoPreparo(ARQUIVO_DO_REVELADO, LUGARES.revelado(campanhaId), revelado, flags)
 }

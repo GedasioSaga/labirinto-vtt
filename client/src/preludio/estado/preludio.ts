@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import { gravarVerbete, lerIndiceDoPreparo, lerVerbete, listarNoPreparo } from '../../lib/preparo/disco'
+import { gravarRevelado, gravarVerbete, lerIndiceDoPreparo, lerRevelado, lerVerbete, listarNoPreparo, type DocumentoLido } from '../../lib/preparo/disco'
 import { IndiceDeCitacoes, entradaDaBusca, type EntradaDaBusca } from '../../lib/preparo/enciclopedia'
-import type { Campanha, TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
+import { comRevelacoes, reveladoVazio, type MudancaDeRevelacao } from '../../lib/preparo/revelado'
+import type { Campanha, Revelado, TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
 import { registrarSalvarAoFechar } from '../aoFechar'
 import { prepararMidia } from '../midia'
 
@@ -23,6 +24,9 @@ import { prepararMidia } from '../midia'
  * - A restauração do Google Drive trava a edição, grava o que estava pendente
  *   antes de trocar a pasta e, depois, relê o que voltou sem gravar a memória
  *   de antes por cima.
+ * - O revelado (`revelado/<campanhaId>.json`, F2c) vai ao disco na hora do
+ *   clique. Se não gravar, a tela volta ao que está no disco: um "oculto" que
+ *   não gravou não pode ficar parecendo oculto.
  */
 
 export type Lugar =
@@ -36,6 +40,14 @@ export type Salvamento = { readonly t: 'em-dia' } | { readonly t: 'esperando' } 
 
 /** Quem está gravando em preparo/ por fora do salvar automático: enquanto houver um, ninguém edita. */
 export type MotivoDaTrava = 'importacao' | 'restauracao'
+
+/** O revelado de uma campanha como abriu. */
+export interface RevelacoesDaCampanha {
+  /** `null` = o arquivo não abriu: nada é revelado e nada muda. */
+  readonly revelado: Revelado | null
+  /** Por que não dá para mudar (versão mais nova, arquivo danificado); `null` = dá. */
+  readonly soLeitura: string | null
+}
 
 interface EstadoDoPreludio {
   carga: Carga
@@ -52,6 +64,10 @@ interface EstadoDoPreludio {
   lugar: Lugar
   /** O filtro "Campanha" da barra lateral; `null` = todas. */
   campanhaId: string | null
+  /** O que foi revelado em cada campanha do índice, e a quem. */
+  revelados: ReadonlyMap<string, RevelacoesDaCampanha>
+  /** A última revelação que o disco recusou (a tela já voltou ao que está gravado). */
+  avisoDoRevelado: string | null
   carregar: () => Promise<void>
   fechar: () => Promise<void>
   ir: (lugar: Lugar) => void
@@ -62,6 +78,9 @@ interface EstadoDoPreludio {
   mudarVerbete: (id: string, mudar: (verbete: Verbete) => Verbete) => void
   /** Põe um verbete novo na memória e grava na hora. */
   criarVerbete: (verbete: Verbete) => Promise<void>
+  /** Revela ou oculta, numa campanha, e grava na hora. Travado, ou arquivo só de leitura: nada acontece. */
+  revelar: (campanhaId: string, mudancas: readonly MudancaDeRevelacao[]) => Promise<void>
+  dispensarAvisoDoRevelado: () => void
   /** Grava agora o que mudou. `true` = está tudo no disco. */
   salvarPendentes: () => Promise<boolean>
   tentarDeNovo: () => void
@@ -176,6 +195,59 @@ function agendar(id: string): void {
   )
 }
 
+// ─── Revelado ────────────────────────────────────────────────────────────────
+
+function revelacoesDe(lido: DocumentoLido<Revelado>): RevelacoesDaCampanha {
+  switch (lido.estado) {
+    case 'novo':
+      return { revelado: reveladoVazio(), soLeitura: null }
+    case 'ok':
+      return { revelado: lido.valor, soLeitura: null }
+    case 'somenteLeitura':
+      return { revelado: lido.valor, soLeitura: lido.aviso }
+    case 'falhou':
+      return { revelado: null, soLeitura: lido.aviso }
+  }
+}
+
+/** Gravações do revelado ainda no disco, por campanha, e a falha da leva (a tela só volta ao disco quando a última termina). */
+const revelacoesEmVoo = new Map<string, number>()
+const falhasDoRevelado = new Map<string, string>()
+
+async function gravarRevelacoes(campanhaId: string, revelado: Revelado, minha: number): Promise<void> {
+  revelacoesEmVoo.set(campanhaId, (revelacoesEmVoo.get(campanhaId) ?? 0) + 1)
+  try {
+    await gravarRevelado(campanhaId, revelado)
+  } catch (erro) {
+    falhasDoRevelado.set(campanhaId, motivo(erro))
+  }
+  const restantes = (revelacoesEmVoo.get(campanhaId) ?? 1) - 1
+  if (restantes > 0) {
+    revelacoesEmVoo.set(campanhaId, restantes)
+    return
+  }
+  revelacoesEmVoo.delete(campanhaId)
+  const falha = falhasDoRevelado.get(campanhaId)
+  if (falha === undefined) return
+  falhasDoRevelado.delete(campanhaId)
+  // O disco manda: a tela volta ao que ficou gravado (lerRevelado nunca lança).
+  const lido = await lerRevelado(campanhaId)
+  if (minha !== geracao) return
+  const revelados = new Map(usePreludio.getState().revelados)
+  revelados.set(campanhaId, revelacoesDe(lido))
+  usePreludio.setState({ revelados, avisoDoRevelado: `A revelação não foi gravada (${falha}). A tela voltou ao que está no disco.` })
+}
+
+function gravarRevelacoesEmVoo(campanhaId: string, revelado: Revelado): Promise<void> {
+  const tarefa = gravarRevelacoes(campanhaId, revelado, geracao).finally(() => {
+    emVoo.delete(tarefa)
+    usePreludio.setState({ salvamento: situacao() })
+  })
+  emVoo.add(tarefa)
+  usePreludio.setState({ salvamento: situacao() })
+  return tarefa
+}
+
 async function gravarTudoAgora(): Promise<void> {
   for (const [id, relogio] of agendados) {
     clearTimeout(relogio)
@@ -223,6 +295,8 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
   travado: false,
   lugar: INICIO,
   campanhaId: null,
+  revelados: new Map(),
+  avisoDoRevelado: null,
 
   async carregar() {
     const minha = (geracao += 1)
@@ -256,12 +330,15 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
         if (pendente !== undefined && !soLeitura.has(id)) verbetes.set(id, pendente)
       }
       citacoes = new IndiceDeCitacoes(verbetes.values())
+      const revelados = new Map(
+        await Promise.all(campanhas.map(async (campanha): Promise<[string, RevelacoesDaCampanha]> => [campanha.id, revelacoesDe(await lerRevelado(campanha.id))])),
+      )
       // As imagens do texto nascem com o endereço certo (`midia.ts`).
       await prepararMidia()
       if (minha !== geracao) return
       const guardada = campanhaGuardada()
       const campanhaId = guardada !== null && campanhas.some((campanha) => campanha.id === guardada) ? guardada : null
-      set({ carga: { t: 'pronta' }, campanhas, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, salvamento: situacao() })
+      set({ carga: { t: 'pronta' }, campanhas, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, revelados, avisoDoRevelado: null, salvamento: situacao() })
     } catch (erro) {
       if (minha === geracao) set({ carga: { t: 'falhou', aviso: `Não deu para ler o Prelúdio: ${motivo(erro)}.` } })
     }
@@ -279,6 +356,9 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     set({
       carga: { t: 'fechada' },
       ...(guardar ? {} : { verbetes: new Map<string, Verbete>(), soLeitura: new Map<string, string>() }),
+      // O revelado já foi ao disco (a espera acima inclui as gravações dele): a próxima abertura relê.
+      revelados: new Map<string, RevelacoesDaCampanha>(),
+      avisoDoRevelado: null,
       avisos: [],
       lugar: INICIO,
       salvamento: situacao(),
@@ -324,6 +404,22 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     await gravar(verbete.id)
   },
 
+  async revelar(campanhaId, mudancas) {
+    const estado = get()
+    const atual = estado.revelados.get(campanhaId)
+    if (estado.travado || estado.carga.t !== 'pronta' || atual === undefined || atual.revelado === null || atual.soLeitura !== null) return
+    const novo = comRevelacoes(atual.revelado, mudancas, new Date().toISOString())
+    if (novo === atual.revelado) return
+    const revelados = new Map(estado.revelados)
+    revelados.set(campanhaId, { ...atual, revelado: novo })
+    set({ revelados, avisoDoRevelado: null })
+    await gravarRevelacoesEmVoo(campanhaId, novo)
+  },
+
+  dispensarAvisoDoRevelado() {
+    set({ avisoDoRevelado: null })
+  },
+
   async salvarPendentes() {
     await gravarTudoAgora()
     return sujos.size === 0
@@ -349,7 +445,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       if (get().carga.t !== 'fechada') await get().carregar()
       else {
         citacoes = new IndiceDeCitacoes()
-        set({ verbetes: new Map(), soLeitura: new Map() })
+        set({ verbetes: new Map(), soLeitura: new Map(), revelados: new Map() })
       }
     }
     get().travar('restauracao', false)

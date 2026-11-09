@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ancestraisDe, compararTitulos, formaDe, formaNova, idNovo, ordemDe, ROTULO_DO_TIPO, textoPlano, verbeteNovo } from '../../lib/preparo/enciclopedia'
-import type { Forma, Secao, TextoRico, Verbete } from '../../lib/preparo/tipos'
+import { alvoDaForma, alvoDaSecao, alvoDoVerbete, paraDe } from '../../lib/preparo/revelado'
+import type { AlvoDaRevelacao, Forma, Secao, TextoRico, Verbete } from '../../lib/preparo/tipos'
 import { citadoEm, usePreludio, type Lugar } from '../estado/preludio'
 import { BarraDoTexto, TextoDoPreludio } from '../editor/sobDemanda'
+import { bloqueioDoVerbete, ControleDeRevelacao, RevelarVerbete, useCampanhaDaRevelacao, useRevelacoesDaCampanha } from '../revelar/Revelar'
 import { FichaDoLivro } from './FichaDoLivro'
 import { Galeria, Retrato } from './Imagens'
 
@@ -60,9 +62,13 @@ interface SecaoProps {
   editavel: boolean
   montada: boolean
   aoMudar: (mudar: (secao: Secao) => Secao) => void
+  /** Quem vê esta seção (some enquanto ela é de segredo: segredo nunca sai do PC). */
+  revelacao?: ReactNode
+  /** Virou segredo: a revelação dela sai, para não voltar sozinha se deixar de ser. */
+  aoTornarSegredo?: () => void
 }
 
-function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar }: SecaoProps) {
+function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar, revelacao, aoTornarSegredo }: SecaoProps) {
   const temTitulo = secao.titulo !== ''
   const rotulo = temTitulo ? `${secao.titulo} de ${dono}` : `Texto de ${dono}`
   // A cabeça (nome e segredo) não muda a cada tecla: apagar o nome para escrever outro não pode tirar o campo do lugar.
@@ -86,11 +92,15 @@ function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, a
             aria-pressed={secao.segredo}
             disabled={!editavel}
             title={secao.segredo ? 'Seção de segredo: só você vê. Clique para tornar comum.' : 'Tornar esta seção um segredo (só você vê)'}
-            onClick={() => aoMudar((atual) => ({ ...atual, segredo: !atual.segredo }))}
+            onClick={() => {
+              if (!secao.segredo) aoTornarSegredo?.()
+              aoMudar((atual) => ({ ...atual, segredo: !atual.segredo }))
+            }}
           >
             {CADEADO}
             <span>{secao.segredo ? 'Segredo' : 'Comum'}</span>
           </button>
+          {!secao.segredo && revelacao}
         </header>
       )}
       {montada ? (
@@ -120,9 +130,11 @@ interface FormasProps {
   aoCriar: () => void
   aoTornarAtual: () => void
   aoRenomear: (nome: string) => void
+  /** Quem vê a forma aberta. */
+  revelacao?: ReactNode
 }
 
-function Formas({ verbete, forma, editavel, aoVer, aoCriar, aoTornarAtual, aoRenomear }: FormasProps) {
+function Formas({ verbete, forma, editavel, aoVer, aoCriar, aoTornarAtual, aoRenomear, revelacao }: FormasProps) {
   const lista = useRef<HTMLDivElement>(null)
   const aoTeclar = (evento: KeyboardEvent<HTMLDivElement>) => {
     const indice = verbete.formas.findIndex((outra) => outra.id === forma.id)
@@ -165,6 +177,7 @@ function Formas({ verbete, forma, editavel, aoVer, aoCriar, aoTornarAtual, aoRen
             + Nova forma
           </button>
         )}
+        {revelacao}
       </div>
       {verbete.formas.length > 1 && (
         <div className="pr-formas__detalhe">
@@ -196,8 +209,11 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   const travado = usePreludio((estado) => estado.travado)
   const mudarVerbete = usePreludio((estado) => estado.mudarVerbete)
   const criarVerbete = usePreludio((estado) => estado.criarVerbete)
+  const revelar = usePreludio((estado) => estado.revelar)
   const ir = usePreludio((estado) => estado.ir)
   const verbete = verbetes.get(id)
+  const campanha = useCampanhaDaRevelacao(verbete)
+  const revelacoes = useRevelacoesDaCampanha(campanha.campanhaId)
   const [formaVista, setFormaVista] = useState<string | null>(null)
   const [montadas, setMontadas] = useState(SECOES_NA_HORA)
   const artigo = useRef<HTMLElement>(null)
@@ -273,6 +289,20 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   const novaSecao = () =>
     mudarForma(forma.id, (atual) => ({ ...atual, secoes: [...atual.secoes, { id: idNovo('sc'), titulo: 'Nova seção', texto: { type: 'doc', content: [{ type: 'paragraph' }] }, segredo: false }] }))
 
+  // Revelar (F2c): a sessão é do mestre e não tem controle; o resto nasce oculto.
+  const revelavel = verbete.tipo !== 'sessao'
+  const bloqueio = bloqueioDoVerbete(verbete)
+  const verbeteOculto = paraDe(revelacoes.porAlvo, alvoDoVerbete(verbete.id)) === null
+  const formaOculta = paraDe(revelacoes.porAlvo, alvoDaForma(verbete.id, forma.id)) === null
+  const esperaDaSecao = verbeteOculto
+    ? `${documento ? 'A página ainda está oculta' : 'O verbete ainda está oculto'}: esta seção só aparece depois que ${documento ? 'ela for revelada' : 'ele for revelado'}.`
+    : !documento && formaOculta
+      ? `A forma ${forma.nome || 'sem nome'} ainda está oculta: esta seção só aparece depois que ela for revelada.`
+      : null
+  const ocultarEmTodas = (alvo: AlvoDaRevelacao) => {
+    for (const outra of campanha.campanhas) void revelar(outra.id, [{ alvo, para: null }])
+  }
+
   return (
     <div className="pr-folha">
       <article ref={artigo} className="pr-verbete" tabIndex={-1} aria-labelledby="pr-verbete-titulo">
@@ -342,11 +372,29 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
           </div>
         </header>
 
+        {revelavel && <RevelarVerbete verbete={verbete} forma={forma} documento={documento} campanha={campanha} revelacoes={revelacoes} />}
+
         {!documento && (
           <Formas
             verbete={verbete}
             forma={forma}
             editavel={editavel}
+            revelacao={
+              revelavel ? (
+                <ControleDeRevelacao
+                  campanhaId={campanha.campanhaId}
+                  revelacoes={revelacoes}
+                  alvo={alvoDaForma(verbete.id, forma.id)}
+                  nome={`a forma ${forma.nome || 'sem nome'}`}
+                  prefixo={verbete.formas.length > 1 ? 'Esta forma' : 'Forma'}
+                  explica="O jogador vê o nome, o retrato, o resumo e a galeria desta forma. As seções se revelam uma a uma."
+                  feminino
+                  pequeno
+                  acimaOculto={verbeteOculto ? 'O verbete ainda está oculto: esta forma só aparece depois que ele for revelado.' : null}
+                  bloqueio={bloqueio}
+                />
+              ) : undefined
+            }
             aoVer={(formaId) => {
               setFormaVista(formaId)
               setMontadas(SECOES_NA_HORA)
@@ -391,6 +439,22 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
               editavel={editavel}
               montada={indice < montadas}
               aoMudar={(fazer) => mudarSecao(secao.id, fazer)}
+              revelacao={
+                revelavel ? (
+                  <ControleDeRevelacao
+                    campanhaId={campanha.campanhaId}
+                    revelacoes={revelacoes}
+                    alvo={alvoDaSecao(verbete.id, forma.id, secao.id)}
+                    nome={`a seção ${secao.titulo || 'sem título'}`}
+                    explica="O jogador lê o título e o texto desta seção, sem os blocos de segredo."
+                    feminino
+                    pequeno
+                    acimaOculto={esperaDaSecao}
+                    bloqueio={bloqueio}
+                  />
+                ) : undefined
+              }
+              aoTornarSegredo={revelavel ? () => ocultarEmTodas(alvoDaSecao(verbete.id, forma.id, secao.id)) : undefined}
             />
           ))}
           {forma.secoes.length === 0 && <p className="pr-quieto">Nenhum texto nesta forma ainda.</p>}
