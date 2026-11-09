@@ -1,5 +1,5 @@
 import { maximoComposto, valorDoRank } from '../ajusteDaFicha'
-import { ATRIBUTO_PADRAO_DO_ATAQUE, CAMPO_DO_DANO, atributoDoAtaque, danoDoAtaque } from '../batalha/formula'
+import { ATRIBUTO_PADRAO_DO_ATAQUE, CAMPO_DO_DANO, armaSoDeEfeito, atributoDoAtaque, danoDoAtaque } from '../batalha/formula'
 import { armasDe, ehOverload, lerAcao, lerCusto, recursoDoCusto, recursoDoEscudo, tecnicasComForma, CAMPO_DA_ACAO, CAMPO_DO_CUSTO } from '../batalha/leituraDaFicha'
 import { fatorDaSaida, saidasPossiveis } from '../batalha/reacao'
 import { FORCA_MAX, FORCA_MIN, forcaDe, forcaNoPasso, numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
@@ -156,7 +156,8 @@ function escudoDe(personagem: Personagem, sistema: SistemaDeRpg): number | null 
 
 /** O Atacar como o menu da vez oferece: uma tira por arma; sem arma, o desarmado (Força). */
 function ataquesDe(personagem: Personagem, sistema: SistemaDeRpg): GolpeDaFicha[] {
-  const armas: (CartaoDaFicha | null)[] = armasDe(personagem)
+  // Construtor C8: a arma só de efeito ("Nada" no Soma no ataque, o Boomerang) não é golpe de dano: fica fora da conta.
+  const armas: (CartaoDaFicha | null)[] = armasDe(personagem).filter((arma) => !armaSoDeEfeito(arma))
   return (armas.length === 0 ? [null] : armas).map((arma) => {
     const lido = danoDoAtaque({ personagem, sistema, arma, vidaDoAlvo: null })
     const nome = arma === null ? NOME_DO_ATAQUE : `${NOME_DO_ATAQUE} (${arma.nome})`

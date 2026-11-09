@@ -3,6 +3,7 @@ import { motivoDoAtacar, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } f
 import { DANO_MAX, type CombateDoPersonagem, type PedidoDeAcao, type PedidoDeMarca, type PedidoDeReacao, type SeloPedido } from '../batalha/combate'
 import { armasDe, type ArmaDaFicha } from '../batalha/leituraDaFicha'
 import { lerMarca, type ComoMarca } from '../batalha/marca'
+import { cartaoMontado } from '../batalha/mecanica/leitura'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
 import { bonusDaBatalha, bonusDaReacao, seloPedidoValido } from '../batalha/selos'
@@ -164,6 +165,9 @@ interface GolpeCandidato {
 
 /** O Atacar com a arma (`null` = sem arma, a Força); `null` = a conta não lê o dano dela. */
 function ataqueCom(personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha | null, alvo: string): GolpeCandidato | null {
+  // Construtor C8: a arma montada (efeito com usos, o Boomerang) fica fora: o robô não conta os usos nem lê o dano das peças.
+  // A só de efeito ("Nada" no Soma no ataque) já sai pela conta: `danoSugeridoDoAtaque` dá `null` (sem dano).
+  if (arma !== null && cartaoMontado(arma)) return null
   const valor = danoSugeridoDoAtaque(personagem, sistema, arma)
   if (valor === null) return null
   const dano = danoNoTeto(valor)

@@ -89,6 +89,13 @@ export const CAMPO_DO_DANO = 'dano'
 export const CAMPO_DO_ATRIBUTO_DO_ATAQUE = 'atributoDoAtaque'
 /** O atributo do Atacar quando a arma não diz outro, e sempre no ataque desarmado. */
 export const ATRIBUTO_PADRAO_DO_ATAQUE = 'Força'
+/**
+ * Construtor C8 (o Boomerang do Vincent, 09/11: "ele não dá dano, ele é só
+ * efeito"): o "Soma no ataque" que diz que a arma NÃO dá dano. O Atacar com
+ * ela não tem número: o alvo reage só quando há selo (o do Efeito ou o da
+ * mecânica), e o selo pega no acerto.
+ */
+export const ATAQUE_SO_DE_EFEITO = 'Nada'
 /** Q2: o dano do Atacar com arma que não diz outro atributo. Sem arma, só a Força. */
 export const FORMULA_DO_ATAQUE = `${ATRIBUTO_PADRAO_DO_ATAQUE} + Dano da arma`
 const FORMULA_DO_ATAQUE_SEM_ARMA = ATRIBUTO_PADRAO_DO_ATAQUE
@@ -188,6 +195,16 @@ function atributoPelaChave(sistema: SistemaDeRpg, chave: string): AtributoDoSist
 export function lerAtributoDoAtaque(texto: string, sistema: SistemaDeRpg): AtributoDoSistema | null {
   const chave = normalizar(texto)
   return chave.length === 0 ? null : atributoPelaChave(sistema, chave)
+}
+
+/** O texto do "Soma no ataque" diz "Nada" (arma só de efeito, construtor C8)? Sem acento e sem caixa, como os atributos. */
+export function ehAtaqueSoDeEfeito(texto: string): boolean {
+  return normalizar(texto) === normalizar(ATAQUE_SO_DE_EFEITO)
+}
+
+/** Construtor C8: a arma é só de efeito (o "Soma no ataque" diz "Nada"): o Atacar com ela não dá dano. */
+export function armaSoDeEfeito(arma: Pick<CartaoDaFicha, 'campos'>): boolean {
+  return ehAtaqueSoDeEfeito(arma.campos[CAMPO_DO_ATRIBUTO_DO_ATAQUE] ?? '')
 }
 
 /** O atributo que o Atacar com esta arma soma (o campo "Soma no ataque"). `null` = a arma não diz: a Força. */
@@ -575,6 +592,8 @@ function lerTrecho(limpo: string, texto: string, ctx: ContextoDaFormula): Leitur
  * "40" troca o dano da arma ("160 Força + 40 Bala Explosiva = 200"); a força do NPC vale do mesmo jeito.
  */
 export function danoDoAtaque(ctx: ContextoDaFormula, bala?: { nome: string; dano: string } | null): LeituraDoDano {
+  // Construtor C8: a arma só de efeito (o Boomerang) não dá dano, nem com bala.
+  if (ctx.arma !== null && armaSoDeEfeito(ctx.arma)) return { tipo: 'semDano' }
   const comBala = bala === undefined || bala === null || ctx.arma === null ? ctx : { ...ctx, bala }
   return lerDano(formulaDoAtaque(ctx.arma, ctx.sistema), comBala)
 }

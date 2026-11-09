@@ -1,4 +1,4 @@
-import { ATRIBUTO_PADRAO_DO_ATAQUE, CAMPO_DO_ATRIBUTO_DO_ATAQUE, lerAtributoDoAtaque, normalizar } from '../lib/batalha/formula'
+import { ATAQUE_SO_DE_EFEITO, ATRIBUTO_PADRAO_DO_ATAQUE, CAMPO_DO_ATRIBUTO_DO_ATAQUE, ehAtaqueSoDeEfeito, lerAtributoDoAtaque, normalizar } from '../lib/batalha/formula'
 import { CAMPO_DA_CATEGORIA, CATEGORIAS_DE_ARMA, categoriaAtira, lerCategoria } from '../lib/batalha/leituraDaFicha'
 import { CAMPO_DO_TIPO, lerTipo, rotuloDoTipo } from '../lib/batalha/tiposDaHabilidade'
 import type { CampoDoCartao, SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -24,6 +24,9 @@ export interface EscolhaDoCampo {
 /** O texto da opção vazia da caixa. */
 const ROTULO_DO_VAZIO = '—'
 
+/** Construtor C8: a opção que guarda uma palavra curta e mostra a frase inteira ("Nada" = arma só de efeito). */
+const ROTULO_DA_OPCAO: Readonly<Record<string, string>> = { [ATAQUE_SO_DE_EFEITO]: `${ATAQUE_SO_DE_EFEITO}: arma só de efeito (sem dano)` }
+
 /**
  * O texto da opção vazia de um campo. No Tipo da habilidade, vazio não é
  * "nada": a batalha deduz pela Ação, então a caixa diz o que vale
@@ -44,7 +47,7 @@ export function rotuloDoVazio(campoId: string, campos: Readonly<Record<string, s
  */
 export function escolhaDoCampo(opcoes: readonly string[], valor: string, casarComCategoria: boolean, rotuloDoVazio = ROTULO_DO_VAZIO): EscolhaDoCampo {
   const atual = valor.trim()
-  const base: OpcaoDaEscolha[] = [{ valor: '', rotulo: rotuloDoVazio }, ...opcoes.map((opcao) => ({ valor: opcao, rotulo: opcao }))]
+  const base: OpcaoDaEscolha[] = [{ valor: '', rotulo: rotuloDoVazio }, ...opcoes.map((opcao) => ({ valor: opcao, rotulo: ROTULO_DA_OPCAO[opcao] ?? opcao }))]
   if (atual.length === 0) return { selecionada: '', opcoes: base }
   const porTexto = opcoes.find((opcao) => normalizar(opcao) === normalizar(atual))
   const categoria = casarComCategoria ? lerCategoria(atual) : null
@@ -60,7 +63,8 @@ export function escolhaDoCampo(opcoes: readonly string[], valor: string, casarCo
  * o sistema editado leva os atributos dele); os outros, as `opcoes` do molde.
  */
 export function opcoesDoCampo(campo: CampoDoCartao, sistema: SistemaDeRpg): readonly string[] | undefined {
-  if (campo.id === CAMPO_DO_ATRIBUTO_DO_ATAQUE) return sistema.atributos.map((atributo) => atributo.nome)
+  // Construtor C8: por último, "Nada" (a arma que não dá dano, só põe o efeito: o Boomerang).
+  if (campo.id === CAMPO_DO_ATRIBUTO_DO_ATAQUE) return [...sistema.atributos.map((atributo) => atributo.nome), ATAQUE_SO_DE_EFEITO]
   return campo.opcoes
 }
 
@@ -70,12 +74,20 @@ export function opcoesDoCampo(campo: CampoDoCartao, sistema: SistemaDeRpg): read
  */
 export function valorDaEscolha(campoId: string, valor: string, sistema: SistemaDeRpg): string {
   if (campoId !== CAMPO_DO_ATRIBUTO_DO_ATAQUE) return valor
+  if (ehAtaqueSoDeEfeito(valor)) return ATAQUE_SO_DE_EFEITO
   return lerAtributoDoAtaque(valor, sistema)?.nome ?? valor
 }
 
-/** O "Soma no ataque" guarda um atributo que o sistema não tem? Então avisa que o Atacar soma a Força. `null` = nada a dizer. */
+/** O que o Atacar faz com a arma "Nada" (construtor C8), dito embaixo da caixa. */
+const AVISO_DO_SO_DE_EFEITO = 'O Atacar com esta arma não dá dano. O alvo reage só se houver efeito (um selo no Efeito ou na mecânica).'
+
+/**
+ * O "Soma no ataque" guarda um atributo que o sistema não tem? Então avisa que o Atacar soma a Força.
+ * Construtor C8: "Nada" explica que a arma é só de efeito. `null` = nada a dizer.
+ */
 export function avisoDoAtributoDoAtaque(valor: string, sistema: SistemaDeRpg): string | null {
   const texto = valor.trim()
+  if (ehAtaqueSoDeEfeito(texto)) return AVISO_DO_SO_DE_EFEITO
   if (texto.length === 0 || lerAtributoDoAtaque(texto, sistema) !== null) return null
   return `"${texto}" não é um atributo deste sistema: o Atacar soma a ${ATRIBUTO_PADRAO_DO_ATAQUE}.`
 }

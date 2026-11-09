@@ -381,6 +381,10 @@ function mudarCampoDoCartao(cartao: CartaoDaFicha, mudar: MudancaNoCartao): Pass
       const { mecanicaProposta: antes, ...semProposta } = cartao
       return { ok: true, novo: mudar.valor === undefined ? semProposta : { ...semProposta, mecanicaProposta: mudar.valor }, antes, depois: mudar.valor }
     }
+    case 'armaPadrao': {
+      const { armaPadrao: antes, ...semPadrao } = cartao
+      return { ok: true, novo: mudar.valor === true ? { ...semPadrao, armaPadrao: true } : semPadrao, antes, depois: mudar.valor }
+    }
   }
 }
 

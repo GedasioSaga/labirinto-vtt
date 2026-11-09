@@ -202,6 +202,8 @@ export function frasesDoDano(mecanica: MecanicaV1, ficha?: FichaDaPrevia): strin
   const sem = [concentracao ? null : 'a Concentração', surpresa ? null : 'a Surpresa'].filter((item): item is string => item !== null)
   if (sem.length > 0) frases.push(`Não multiplica com ${sem.join(' nem com ')}.`)
   for (const mult of extra) frases.push(`× ${numeroComVirgula(mult.vezes)} (${mult.nome}).`)
+  // Construtor C8: o Siegfried escolhe a arma na hora, e a padrão já vem marcada.
+  if (dano.arma === 'perguntar') frases.push('Pergunta qual arma na hora (a padrão vem marcada).')
   return frases
 }
 

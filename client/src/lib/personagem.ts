@@ -91,6 +91,12 @@ export interface CartaoDaFicha {
   oculta?: true
   /** Com `oculta`: o mestre usar na batalha revela sozinho. Ausente = só revela com o clique do mestre. */
   revelaAoUsar?: true
+  /**
+   * CONSTRUTOR DE MECÂNICAS (fatia C8, Siegfried): a arma PADRÃO da ficha, só
+   * na aba Armas. As técnicas com "Dano da Arma" perguntam qual arma, já com
+   * esta marcada. O dono e o mestre marcam. Ausente = nenhuma (vale a ordem da ficha).
+   */
+  armaPadrao?: true
 }
 
 /** A mecânica do cartão como o disco e o fio a guardam: um objeto JSON, conferido só por quem lê (`lerMecanica`). */
@@ -487,6 +493,8 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     ...mecanicaPropostaDoArquivo(value.mecanicaProposta),
     // Fatia C7: só o `true` conta (como o `aMao`); "revela ao usar" só vale no cartão oculto.
     ...(value.oculta === true ? { oculta: true, ...(value.revelaAoUsar === true ? { revelaAoUsar: true } : {}) } : {}),
+    // Fatia C8: só o `true` conta (como o `aMao`).
+    ...(value.armaPadrao === true ? { armaPadrao: true } : {}),
   }
 }
 

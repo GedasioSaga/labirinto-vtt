@@ -109,6 +109,11 @@ export type Teste =
   | { tipo: 'resistencia'; alvo: QuemRolaNoTeste; cd: CdDoTeste; sePassar: 'nada' | 'devolveCusto' }
   | { tipo: 'disputa'; usuario: QuemRolaNoTeste; alvo: QuemRolaNoTeste }
 
+/** A fórmula do dano soma a arma (a padrão, ou a que a mira pergunta). */
+export function danoUsaArma(dano: Pick<DanoDaMecanica, 'arma'> | undefined): boolean {
+  return dano?.arma === 'padrao' || dano?.arma === 'perguntar'
+}
+
 /** O teste é rolado pelo app ao usar (resistência ou disputa)? */
 export function testeRolado(teste: Teste): teste is Extract<Teste, { tipo: 'resistencia' | 'disputa' }> {
   return teste.tipo === 'resistencia' || teste.tipo === 'disputa'
@@ -122,8 +127,12 @@ export interface MultiplicadorExtra {
 
 export interface DanoDaMecanica {
   base: NumeroSimples
-  /** `padrao` = a arma escolhida na mira entra no "Dano da arma"; ausente ou `nenhuma` = sem arma. */
-  arma?: 'nenhuma' | 'padrao'
+  /**
+   * `padrao` = a arma padrão da ficha entra no "Dano da arma" (na arma montada, ela mesma);
+   * `perguntar` (construtor C8, o Siegfried) = a mira pergunta qual das armas levadas, já
+   * marcada a padrão; ausente ou `nenhuma` = sem arma.
+   */
+  arma?: 'nenhuma' | 'padrao' | 'perguntar'
   perfurante?: boolean
   multiplicadores: { concentracao: boolean; surpresa: boolean; extra?: readonly MultiplicadorExtra[] }
 }
@@ -396,7 +405,7 @@ function dano(valor: unknown): DanoDaMecanica {
     multiplicadores: { concentracao: mult.concentracao !== false, surpresa: mult.surpresa !== false },
   }
   if (mult.extra !== undefined) lido.multiplicadores.extra = lista(mult.extra, EXTRAS_MAX, 'multiplicadores extras').map(multiplicador)
-  if (peca.arma !== undefined) lido.arma = umDe(peca.arma, ['nenhuma', 'padrao'] as const, 'arma')
+  if (peca.arma !== undefined) lido.arma = umDe(peca.arma, ['nenhuma', 'padrao', 'perguntar'] as const, 'arma')
   if (peca.perfurante !== undefined) {
     if (typeof peca.perfurante !== 'boolean') torta('perfurante só aceita sim ou não')
     lido.perfurante = peca.perfurante

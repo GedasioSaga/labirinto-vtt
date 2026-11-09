@@ -59,6 +59,11 @@ const EXE_INSTALADO = path.join(process.env.LOCALAPPDATA ?? '', 'Labirinto', PRO
 const VERSAO_QUE_LE_AS_MUDADAS = [0, 5, 36]
 /** A primeira versão com Custo, Efeito e Duração no molde de Transformações (lib/sistemaOnePiece.ts) e que lê a Duração. */
 const VERSAO_DA_FORMA_COM_CUSTO = [0, 5, 37]
+/**
+ * A primeira versão com a arma montada por peças e o "Nada" no Soma no ataque (construtor C8). O app mais velho
+ * não lê o "Nada" (somaria a Força) e ignora a mecânica da arma (o Boomerang daria dano e não contaria os usos).
+ */
+const VERSAO_DA_ARMA_MONTADA = [0, 5, 42]
 const ARQUIVO_DAS_MUDADAS = 'mudadas-no-disco.json'
 const ORIGEM_DAS_MUDADAS = 'conserto-fichas-f0'
 /** O app grava o rpg.json assim (`JSON.stringify(rpg, null, 2)`, sem quebra no fim): o arquivo sem mudança sai igual, byte a byte. */
@@ -92,12 +97,35 @@ const BALA_DE_PRATA = {
     'Cura pela metade: lembrete. Inimigos feridos pela bala de prata terão a cura recebida reduzida pela metade (o mestre corta à mão).',
 }
 
-/** Vincent: o Boomerang vai para a aba Armas como Arremesso; o efeito com usos por combate ainda não existe (F3). */
+/** Vincent: o Boomerang vai para a aba Armas como Arremesso. */
 const BOOMERANG = {
   nome: 'Boomerang',
   categoria: 'Arremesso',
   dano: '0',
   efeito: 'Não dá dano: ao acertar, atordoa o alvo. 3 usos por combate (à mão até o app ter efeito de arma com usos).',
+}
+
+/**
+ * Construtor C8 (respostas-do-grilling.md, Vincent: "quando acerta não da dano mas atordoa o alvo, crie que é um
+ * efeito da arma e que esse efeito só pode ser usado 3 vezes no combate"; 09/11: "ele não da dano ele é só efeito").
+ * O "Soma no ataque" vira "Nada" (arma só de efeito) e a arma ganha a mecânica do modelo "Atordoa sem dano"
+ * (client/src/lib/batalha/mecanica/arma.ts, `mecanicaDoModeloDaArma('atordoa')`, guardada como `guardarMecanica`):
+ * 1 inimigo reage normal; se acertar, Atordoado por 1 vez; 3 usos por batalha. Este .cjs não importa o TypeScript:
+ * se o modelo mudar, mude aqui também.
+ */
+const BOOMERANG_C8 = {
+  somaNoAtaque: 'Nada',
+  efeitoDe: ' (à mão até o app ter efeito de arma com usos)',
+  efeitoPara: '',
+  mecanica: {
+    versao: 1,
+    acao: 'simples',
+    custos: [],
+    teste: { tipo: 'reacao' },
+    alvo: { quem: 'inimigos', forma: { tipo: 'um' } },
+    limite: { usosPorBatalha: 3 },
+    efeitos: [{ tipo: 'selo', nome: 'Atordoado', duracao: 1, natureza: 'debuff' }],
+  },
 }
 
 /** Vagn: fica 21 anos, Ferreiro; sai o bloco de 25 anos, Gatuno. */
@@ -147,9 +175,9 @@ const CACADA = {
 /** O que este script não faz, com o motivo: precisa de campo ou regra que o app ainda não tem. */
 const FICA_PARA_DEPOIS = [
   'F0c Alexei: "A Caçada Começa" vai para Transformações, mas na batalha fica bloqueada ("Precisa de 200 SP (o máximo é 120)") até o mestre mudar o custo ou o SP máximo. Forma com Custo que cabe no máximo liga sem cobrar o SP (só o custo "por turno" é cobrado, no lembrete de cada vez).',
-  'F0c Siegfried: arma padrão (a ficha não tem o campo; vale a 1ª arma levada).',
+  'Siegfried, arma padrão: a partir do app 0.5.42 ele mesmo marca na ficha (aba Armas, "Arma padrão"; o mestre disse "para ele colocar a arma padrão"). O script não escolhe por ele; sem marca, vale a 1ª arma levada.',
   'F0c Saga: o Judge padrão tem os 8 atributos em 0, e a Saga já está assim. A "build média, faixa dos jogadores" do 1º grilling pede os números ao mestre.',
-  'F3.4 Vincent: Boomerang sem dano, atordoa, 3 usos por combate. Até lá o Atacar com ele sugere Força + 0 = 10: o mestre zera e põe Atordoado à mão.',
+  'F3.4 Vincent: o Boomerang só de efeito (mecânica de 3 usos, construtor C8) só é gravado com o app 0.5.42 ou mais instalado; abaixo disso o --aplicar recusa, e o Atacar com ele sugere Força + 0 = 10 (o mestre zera e põe Atordoado à mão).',
   'F2 Vincent: selo "Ferido por prata" (a cura pela metade); a bala já soma +Percepção/2 no tiro.',
   'Harvey: o número da Infâmia não existe em lugar nenhum da ficha; o mestre diz o número (campo próprio = F3).',
   'Harvey: o Kit Médico não sai da mochila durante a luta (o app conta os usos contra os kits que ele tem); o mestre tira à mão depois.',
@@ -422,6 +450,22 @@ function corrigirVincent(registro, ficha, mochilaDoRelatorio) {
     ficha.abas.armas = [...cartoes(ficha, 'armas'), arma]
     mudou(registro, abaNova ? ['abas', 'armas'] : ['abas', 'armas', arma.id], 'armas += Boomerang', undefined, `${BOOMERANG.categoria}, dano ${BOOMERANG.dano}`)
   }
+  montarOBoomerang(registro, ficha)
+}
+
+/** Construtor C8: o Boomerang só de efeito, com a mecânica de 3 usos. Só com o app que a lê (`VERSAO_DA_ARMA_MONTADA`). */
+function montarOBoomerang(registro, ficha) {
+  const boomerang = cartoes(ficha, 'armas').find((arma) => arma.nome === BOOMERANG.nome) ?? null
+  if (boomerang === null) return
+  const antes = registro.mudancas.length
+  trocarCampo(registro, ficha, 'armas', boomerang, 'atributoDoAtaque', undefined, BOOMERANG_C8.somaNoAtaque)
+  trocarTrecho(registro, 'armas', boomerang, { campo: 'efeito' }, BOOMERANG_C8.efeitoDe, BOOMERANG_C8.efeitoPara)
+  const mecanica = JSON.stringify(BOOMERANG_C8.mecanica)
+  if (boomerang.mecanica === undefined) {
+    boomerang.mecanica = structuredClone(BOOMERANG_C8.mecanica)
+    mudou(registro, ['abas', 'armas', boomerang.id, 'mecanica'], 'armas[Boomerang].mecanica (Atordoa sem dano, 3 usos)', undefined, mecanica)
+  } else if (JSON.stringify(boomerang.mecanica) !== mecanica) avisar(registro, 'armas[Boomerang] já tem outra mecânica (o mestre montou): não mexi')
+  if (registro.mudancas.length > antes) exigirVersao(registro, VERSAO_DA_ARMA_MONTADA, 'o Boomerang só de efeito e a mecânica da arma (construtor C8): o app mais velho daria dano com ele e não contaria os 3 usos')
 }
 
 function corrigirAlexei(registro, ficha, textos) {

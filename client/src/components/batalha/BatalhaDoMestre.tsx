@@ -28,7 +28,7 @@ import { EfeitosDaBatalha } from './EfeitosDaBatalha'
 import { usePassarVezDoMestre } from './passarVezDoMestre'
 import { recursosDaCarta } from './dadosDaFaixa'
 import { invocacaoDaFicha, nomeDoBando, pedidoDeInvocacao } from './dadosDaInvocacao'
-import { MOTIVO_SEM_PERSONAGEM, alvosNaOrdemDaMira, armasNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
+import { MOTIVO_SEM_PERSONAGEM, alvosNaOrdemDaMira, armaPadraoNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { InvocacoesPendentes, PainelDoBando, type MembroNaVez, type PendenciaNaTela } from './InvocacoesDoMestre'
 import { FormasPendentes } from './FormasDoMestre'
@@ -488,7 +488,8 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
     )
   }
 
-  const arma = armasNaBatalha(personagem, combate)[0] ?? null
+  // Construtor C8: a arma padrão da ficha entra no "Dano da arma" das técnicas (sem padrão, a 1ª levada).
+  const arma = armaPadraoNaBatalha(personagem, combate)
   // Tipos de habilidade F2: os selos do NPC somam na conta (a mesma `bonusDaBatalha` do jogador e da caixa).
   const bonus = bonusDaBatalha(turnos.selos, carta.tokenId)
   // Conserto das fichas F1 (S4): Atordoado ou Paralisado só passa a vez; tudo apaga com o motivo, menos o Encerrar.

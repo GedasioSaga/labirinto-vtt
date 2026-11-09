@@ -1,6 +1,8 @@
 import { useId, useRef, useState } from 'react'
 import { avisoDaMecanica, lerMecanica, type MecanicaLida as LeituraDaMecanica, type MecanicaV1 } from '../../lib/batalha/mecanica/modelo'
+import { MODELOS_DA_ARMA, mecanicaDoModeloDaArma, motivoDaArmaNasPecas } from '../../lib/batalha/mecanica/arma'
 import { guardarMecanica, MODELOS_PRONTOS, mecanicaDoModelo, mesmaMecanica, problemaDaMecanica, tecnicasParaCopiar } from '../../lib/batalha/mecanica/modelos'
+import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { etiquetaDaMecanica, pecasAMao, resumoDaMecanica, type FichaDaPrevia } from '../../lib/batalha/mecanica/resumo'
 import type { CartaoDaFicha, MecanicaGuardada } from '../../lib/personagem'
 import { BlocosDaMecanica } from './BlocosDaMecanica'
@@ -30,10 +32,32 @@ export interface MecanicaDaTecnicaProps {
   cartao: CartaoDaFicha
   ficha: FichaDaPrevia
   quemEdita: Exclude<QuemEditaAMecanica, 'ninguem'>
-  /** As técnicas da ficha, para o "Copiar de outra técnica". */
+  /** As técnicas da ficha (ou as armas, na arma), para o "Copiar de outra". */
   tecnicas: readonly CartaoDaFicha[]
   onChange: (cartao: CartaoDaFicha) => void
+  /**
+   * Construtor C8: `arma` = o efeito da arma (o Boomerang): o Atacar com ela
+   * segue as peças. Os modelos são os da arma, e a peça que o Atacar não
+   * executa (área, teste rolado, ajuda) fica bloqueada. Ausente = técnica.
+   */
+  doQue?: 'tecnica' | 'arma'
 }
+
+/** O que falta para a mecânica valer: o da técnica e, na arma, a peça que o Atacar não executa. */
+function problemaDe(mecanica: MecanicaV1, ficha: FichaDaPrevia, naArma: boolean): string | null {
+  return problemaDaMecanica(mecanica, ficha) ?? (naArma ? motivoDaArmaNasPecas(mecanica) : null)
+}
+
+/** Um modelo do "Comece por um modelo": o da técnica ou o da arma. */
+interface ModeloNaTela {
+  id: string
+  nome: string
+  dica: string
+  montar: (sistema: SistemaDeRpg) => MecanicaV1
+}
+
+const MODELOS_DA_TECNICA_NA_TELA: readonly ModeloNaTela[] = MODELOS_PRONTOS.map((modelo) => ({ ...modelo, montar: (sistema) => mecanicaDoModelo(modelo.id, sistema) }))
+const MODELOS_DA_ARMA_NA_TELA: readonly ModeloNaTela[] = MODELOS_DA_ARMA.map((modelo) => ({ ...modelo, montar: (sistema) => mecanicaDoModeloDaArma(modelo.id, sistema) }))
 
 type Fase = 'fechado' | 'escolhendo' | 'editando'
 
@@ -105,7 +129,9 @@ export function MecanicaLida({ cartao, ficha }: { cartao: CartaoDaFicha; ficha: 
   )
 }
 
-export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange }: MecanicaDaTecnicaProps) {
+export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange, doQue = 'tecnica' }: MecanicaDaTecnicaProps) {
+  const naArma = doQue === 'arma'
+  const modelos = naArma ? MODELOS_DA_ARMA_NA_TELA : MODELOS_DA_TECNICA_NA_TELA
   const tituloId = useId()
   const copiarId = useId()
   const campo = quemEdita === 'mestre' ? 'mecanica' : 'mecanicaProposta'
@@ -129,7 +155,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
    */
   const gravar = (mecanica: MecanicaV1) => {
     setRascunho(mecanica)
-    if (problemaDaMecanica(mecanica, ficha) !== null) return
+    if (problemaDe(mecanica, ficha, naArma) !== null) return
     const guardada: MecanicaGuardada = guardarMecanica(mecanica)
     if (quemEdita === 'dono' && mesmaMecanica(guardada, cartao.mecanica)) {
       onChange(semCampo(cartao, 'mecanicaProposta'))
@@ -140,7 +166,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
 
   const abrir = () => {
     // O rascunho com peça faltando (não entrou no cartão) volta como estava, em vez de se perder.
-    const atual = rascunho !== null && problemaDaMecanica(rascunho, ficha) !== null ? rascunho : inicial()
+    const atual = rascunho !== null && problemaDe(rascunho, ficha, naArma) !== null ? rascunho : inicial()
     if (atual === null) {
       setFase('escolhendo')
       return
@@ -164,9 +190,9 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
   }
 
   const editando = fase === 'editando' && rascunho !== null
-  const problema = editando ? problemaDaMecanica(rascunho, ficha) : null
+  const problema = editando ? problemaDe(rascunho, ficha, naArma) : null
   /** Fechado com o rascunho pela metade: o que falta (o cartão segue com a versão de antes). */
-  const pendente = fase === 'fechado' && rascunho !== null ? problemaDaMecanica(rascunho, ficha) : null
+  const pendente = fase === 'fechado' && rascunho !== null ? problemaDe(rascunho, ficha, naArma) : null
   const temAlgo = cartao.mecanica !== undefined || cartao.mecanicaProposta !== undefined
 
   return (
@@ -175,7 +201,9 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
         <h5 className="lb-label lb-mec__titulo" id={tituloId}>
           Mecânica
         </h5>
-        {valendo.tipo === 'nenhuma' && fase === 'fechado' && <span className="lb-mec__cab-dica">O app lê o Custo, a Ação e o Dano do texto.</span>}
+        {valendo.tipo === 'nenhuma' && fase === 'fechado' && (
+          <span className="lb-mec__cab-dica">{naArma ? 'Sem mecânica, o Atacar usa só o dano da arma.' : 'O app lê o Custo, a Ação e o Dano do texto.'}</span>
+        )}
       </div>
 
       {/* O mestre decide a proposta do dono antes de mexer na mecânica. */}
@@ -205,7 +233,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
 
       {quemEdita === 'dono' && cartao.mecanicaProposta !== undefined && fase === 'fechado' && (
         <div className="lb-mec__proposta" role="group" aria-label="Sua proposta">
-          <p className="lb-mec__proposta-texto">Sua proposta espera o mestre. Até ele aceitar, vale {valendo.tipo === 'nenhuma' ? 'o texto da técnica' : 'a mecânica de antes'}.</p>
+          <p className="lb-mec__proposta-texto">Sua proposta espera o mestre. Até ele aceitar, vale {valendo.tipo === 'nenhuma' ? (naArma ? 'o dano da arma' : 'o texto da técnica') : 'a mecânica de antes'}.</p>
           {proposta.tipo === 'pecas' ? <ResumoDaMecanica mecanica={proposta.mecanica} ficha={ficha} titulo="Proposta" /> : <AvisoDaLida lida={proposta} />}
         </div>
       )}
@@ -244,8 +272,8 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
             Comece por um modelo e ajuste os números.
           </p>
           <div className="lb-mec__modelos">
-            {MODELOS_PRONTOS.map((modelo) => (
-              <button key={modelo.id} type="button" className="lb-mec__modelo" onClick={() => comecarDe(mecanicaDoModelo(modelo.id, ficha.sistema))}>
+            {modelos.map((modelo) => (
+              <button key={modelo.id} type="button" className="lb-mec__modelo" onClick={() => comecarDe(modelo.montar(ficha.sistema))}>
                 <span className="lb-mec__modelo-nome">{modelo.nome}</span>
                 <span className="lb-mec__modelo-dica">{modelo.dica}</span>
               </button>
@@ -254,7 +282,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           {copiaveis.length > 0 && (
             <div className="lb-mec__copiar">
               <label className="lb-mec__numero-rotulo" htmlFor={copiarId}>
-                Ou copie de outra técnica desta ficha
+                {naArma ? 'Ou copie de outra arma desta ficha' : 'Ou copie de outra técnica desta ficha'}
               </label>
               <select
                 id={copiarId}
@@ -265,7 +293,7 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
                   if (escolhida !== undefined) comecarDe(escolhida.mecanica)
                 }}
               >
-                <option value="">Escolha a técnica…</option>
+                <option value="">{naArma ? 'Escolha a arma…' : 'Escolha a técnica…'}</option>
                 {copiaveis.map((tecnica) => (
                   <option key={tecnica.id} value={tecnica.id}>
                     {tecnica.nome}
@@ -287,9 +315,11 @@ export function MecanicaDaTecnica({ cartao, ficha, quemEdita, tecnicas, onChange
           <p className="lb-field__hint">
             {quemEdita === 'dono'
               ? 'Vai ao mestre quando você salvar a ficha. O número final na batalha é o que o app do mestre calcula.'
-              : 'Com a mecânica, os campos Custo, Ação, Tempo, Dano e Efeito em texto viram só descrição.'}
+              : naArma
+                ? 'Com a mecânica, o Atacar com esta arma segue as peças: o dano (ou nenhum), o efeito e os usos por batalha.'
+                : 'Com a mecânica, os campos Custo, Ação, Tempo, Dano e Efeito em texto viram só descrição.'}
           </p>
-          <BlocosDaMecanica mecanica={rascunho} cartao={cartao} ficha={ficha} onChange={gravar} />
+          <BlocosDaMecanica mecanica={rascunho} cartao={cartao} ficha={ficha} onChange={gravar} naArma={naArma} />
           <ResumoDaMecanica mecanica={rascunho} ficha={ficha} titulo={quemEdita === 'dono' ? 'Como fica a proposta' : 'Como fica'} />
           {problema !== null && (
             <p className="lb-field__error" role="status">

@@ -8,8 +8,10 @@ import {
   acaoDoConcentrar,
   acaoDoGolpe,
   acoesDaVez,
+  armaNaVez,
   gastarAcao,
   MOTIVO_DO_OVERLOAD_USADO,
+  motivoDaArmaNaVez,
   motivoDaTecnica,
   motivoDoAtacar,
   motivoDoConcentrar,
@@ -42,7 +44,7 @@ import {
 import { comAMantida } from './custoPorTurno'
 import { equipeDe, type Equipe } from './equipes'
 import { usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
-import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type ContextoDaFormula } from './formula'
+import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type ContextoDaFormula } from './formula'
 import {
   armasDe,
   balaDaArma,
@@ -83,13 +85,14 @@ import {
 } from './mecanicasAMao'
 import { dividirDano } from './area'
 import { cartaoMontado, formulaDoDanoDasPecas, multiplicadoresDasPecas, pecasDoCartao, reacaoDasPecas, divisaoDasPecas, type MultiplicadoresDasPecas } from './mecanica/leitura'
+import { danoUsaArma } from './mecanica/modelo'
 import type { RespostasDoPedido } from './perguntaNaHora'
 import { lerMarca } from './marca'
 import type { BatalhaEmTurnos } from './ponte'
 import { danoFinal, danoQueChega, perfuracaoValida, porcentagemQuePerfura } from './reacao'
 import { BLOCOS_POR_RANK_PADRAO, type RegrasDaBatalha } from './regrasDoCampo'
 import { bonusDaBatalha, nomeDoSeloNaBatalha, seloPedidoValido } from './selos'
-import { naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
+import { lerTipo, naturezaDoTipo, reacaoDoTipo, type ReacaoDoTipo, type TipoDaHabilidade } from './tiposDaHabilidade'
 import { curaDoDanoDosSelos, travaDoToken } from './condicoes'
 import { comAtaqueExtra, efeitosDasFormasLigadas, formaDaFicha, formaNaVez, motivoDaForma, motivoDaOrdemDasPartes, motivoDoCustoDaForma, motivoDosUsosDaForma, subidaDeParte } from './transformacao'
 import { cartaDaVez, type AutorDaAcao, type CartaDaOrdem, type GastoDaVez, type TurnosDaCena } from './turnos'
@@ -318,6 +321,35 @@ function tecnicaPedida(personagem: Personagem, sistema: SistemaDeRpg, pedido: Ex
   }
 }
 
+/**
+ * Construtor C8: a arma montada como a técnica do golpe (custo, ação, usos e
+ * as peças). O Atacar com ela passa pelo mesmo caminho da técnica montada em
+ * `lancarGolpe`, e `depoisDaTecnica` conta o uso em `combate.usos[arma.id]`.
+ * `null` = arma de texto ou recusada (`podeAgir` já não deixou chegar aqui).
+ */
+function tecnicaDaArma(personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha): TecnicaPedida | null {
+  const lida = armaNaVez(arma, personagem, sistema)
+  if (lida.tipo !== 'pecas') return null
+  return { cartao: arma, custo: lida.custo, acao: lida.acao, tempo: lida.tempo, overload: false, transformacao: false, tipo: lerTipo(arma).tipo, evoluida: false }
+}
+
+/** Construtor C8: por que o Atacar com a arma montada não sai, ou `null`. A tira (`golpesDeAtaque`) mostra o mesmo motivo. */
+function motivoDoAtacarComArmaMontada(ctx: ContextoDoGolpe, pedido: Extract<PedidoDeAcao, { tipo: 'atacar' }>, arma: ArmaDaFicha, combate: CombateDoPersonagem, acoes: AcoesDaVez | null): string | null {
+  const { personagem, sistema } = ctx
+  if (personagem === null || sistema === null) return 'Ficha sem personagem não usa o efeito da arma'
+  const lida = armaNaVez(arma, personagem, sistema)
+  if (lida.tipo === 'recusada') return lida.motivo
+  if (lida.tipo === 'texto') return null
+  const bala = pedido.balaId === undefined ? null : balaDaArma(arma, pedido.balaId)
+  const alvosPersonagemIds = pedido.alvos.map((alvo) => ctx.personagemDoToken(alvo.tokenId))
+  return (
+    motivoDaArmaNaVez(arma, lida, personagem, sistema, combate, acoes) ??
+    motivoDoDanoDasPecas(ctx, arma, { personagem, sistema, arma, bala, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) }) ??
+    motivoDoTetoDeDano(arma, arma.nome.trim() || 'A arma', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
+    motivoDoDivide(arma, pedido.alvos.length)
+  )
+}
+
 /** Por que o pedido não vale, ou `null` (pode). Mesma regra no mestre e no jogador. */
 export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | null {
   const contra = contraDoPedido(ctx, pedido)
@@ -372,6 +404,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
       const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
       if (motivo !== null) return motivo
+      // Construtor C8: a arma montada (o Boomerang) segue as peças: usos da batalha, custo, ação, dano e alvos.
+      if (arma !== null && cartaoMontado(arma)) return motivoDoAtacarComArmaMontada(ctx, pedido, arma, combate, acoes)
       // R6: depois de um Atacar na vez, o ataque adicional da forma (Ignição) cabe sem a Simples.
       return acoes === null ? null : motivoDoAtacar(acoes)
     }
@@ -536,7 +570,7 @@ function motivoDoDanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formu
   if (lido.tipo === 'valor' || lido.tipo === 'semDano' || lido.tipo === 'precisaAlvo') return null
   const pecas = pecasDoCartao(cartao)
   if (pecas === null) return 'O mestre precisa conferir a mecânica desta técnica'
-  if (lido.tipo === 'precisaArma' && pecas.dano?.arma === 'padrao' && formula.arma === null) return 'Escolha a arma da técnica'
+  if (lido.tipo === 'precisaArma' && danoUsaArma(pecas.dano) && formula.arma === null) return 'Escolha a arma da técnica'
   return 'O mestre precisa conferir a fórmula do dano desta técnica'
 }
 
@@ -591,8 +625,11 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     return { ...vazio, gasto: acao === 'livre' ? null : gastarAcao(gastoAtual, acao), combate: concentrado, acao }
   }
   const { personagem, sistema } = ctx
-  const tecnica = pedido.tipo === 'habilidade' && personagem !== null && sistema !== null ? tecnicaPedida(personagem, sistema, pedido, combate.evoluidas) : null
-  const acaoBase = pedido.tipo === 'atacar' ? 'simples' : tecnica?.acao
+  const arma = armaDoPedido(ctx, pedido.armaId) ?? null
+  // Construtor C8: o Atacar com a arma montada (o Boomerang) vira a "técnica" do golpe: dano, selo, custo e usos pelas peças.
+  const daArma = pedido.tipo === 'atacar' && arma !== null && personagem !== null && sistema !== null && cartaoMontado(arma) ? tecnicaDaArma(personagem, sistema, arma) : null
+  const tecnica = pedido.tipo === 'habilidade' && personagem !== null && sistema !== null ? tecnicaPedida(personagem, sistema, pedido, combate.evoluidas) : daArma
+  const acaoBase = pedido.tipo === 'atacar' ? (daArma?.acao ?? 'simples') : tecnica?.acao
   const acao = acaoBase === undefined || acaoBase === null || acaoBase === 'passiva' ? null : acaoDoGolpe(acaoBase, combate.carga)
   // F2b (A Caçada Começa): com a forma ligada, todo golpe do dono é Overload (não dá para desviar; só outra Overload defende).
   const overload = (tecnica?.overload ?? false) || (personagem !== null && golpesSaoOverload(personagem.cartoesAtivos))
@@ -603,24 +640,31 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
   const pecas = tecnica === null ? null : pecasDoCartao(tecnica.cartao)
   // F2 (fatia C): a dança da Aira não pede reação (a defesa é o teste); a Luz do Sol não dá dano nos aliados marcados.
   // Construtor C1: na técnica montada, quem reage sai das peças (o teste e o selo), não do Tipo escrito.
-  const reacao: ReacaoDoTipo = mecanica?.semReacao === true ? 'nunca' : pecas !== null ? reacaoDasPecas(pecas) : reacaoDoTipo(tecnica?.tipo ?? null)
   // F2 (fatia C): o Atacar melhorado (Aira com um aliado abençoado): a soma no dano de cada alvo, o selo no acerto e os golpes a mais. O contra-ataque fica de fora.
   const cartoes = cartoesDoDono(personagem)
   const melhorado = pedido.tipo === 'atacar' && contra === null ? ataqueComOSelo(cartoes, ctx.turnos.selos, ctx.carta.tokenId) : null
+  // Construtor C8: a arma de texto com "Nada" no Soma no ataque (só de efeito) não dá dano, venha o número que vier;
+  // o alvo reage só quando o golpe leva selo (o da mira ou o do Atacar melhorado). A arma montada segue as peças.
+  const soDeEfeito = pedido.tipo === 'atacar' && daArma === null && arma !== null && !cartaoMontado(arma) && armaSoDeEfeito(arma)
+  const comSelo = melhorado !== null || (pedido.selo !== undefined && seloPedidoValido(pedido.selo, sistema) !== null)
+  // Sem selo, 'comDano' com o dano nulo = ninguém reage (a mira diz "Sem dano: o alvo não reage").
+  const reacaoDoTexto: ReacaoDoTipo = soDeEfeito && comSelo ? 'sempre' : reacaoDoTipo(tecnica?.tipo ?? null)
+  const reacao: ReacaoDoTipo = mecanica?.semReacao === true ? 'nunca' : pecas !== null ? reacaoDasPecas(pecas) : reacaoDoTexto
   // F2 (fatia C): o que vale em todo golpe do dono (o Electro da Aira: +20 de dano, -10 SP), pela resposta.
   const deTodoGolpe = extraDeTodoGolpe(cartoes, pedido.respostas)
   const somaDoAtaque = melhorado === null || personagem === null || sistema === null ? 0 : Math.max(0, Math.floor(valorNaFichaDe(personagem, sistema)(melhorado.soma) ?? 0))
-  const arma = armaDoPedido(ctx, pedido.armaId) ?? null
   // F2 (fatia E, Força Aumentada do Ogro): +20 no Atacar corpo a corpo e nas técnicas corpo a corpo que não escrevem o +20.
-  const daRaca = pedido.tipo === 'atacar' || tecnica !== null ? somaCorpoACorpo(cartoes, tecnica?.cartao.id ?? null, atacarCorpoACorpo(arma)) : 0
+  // Construtor C8: o Atacar com a arma montada continua Atacar (a regra da raça olha a arma, não a técnica).
+  const daRaca = pedido.tipo === 'atacar' || tecnica !== null ? somaCorpoACorpo(cartoes, pedido.tipo === 'atacar' ? null : (tecnica?.cartao.id ?? null), atacarCorpoACorpo(arma)) : 0
   const respostas = pedido.tipo === 'habilidade' ? pedido.respostas : undefined
   // F2b (Imbuir Fogo do Siegfried): o +10 da resposta soma por cima da fórmula (a da arma escolhida), em cada alvo.
   const doFogo = tecnica === null ? 0 : somaDasRespostas(tecnica.cartao, respostas)
   const soma = somaDoAtaque + deTodoGolpe.dano + daRaca + doFogo
   // Construtor C1 (decisão 2): na técnica montada, a base do jogador sai das peças, com a arma, a bala e o bônus dos selos de quem usa.
   const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
-  const daTela =
-    tecnica === null || !montada || personagem === null || sistema === null
+  const daTela = soDeEfeito
+    ? pedido.alvos.map((alvo) => ({ ...alvo, dano: null }))
+    : tecnica === null || !montada || personagem === null || sistema === null
       ? pedido.alvos
       : comODanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) }, pedido.alvos)
   // F2 (fatia D, Explosão): o dano "% da vida do alvo" sai da vida de cada alvo.

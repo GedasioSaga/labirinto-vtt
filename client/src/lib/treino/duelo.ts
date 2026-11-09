@@ -6,8 +6,10 @@ import type { ParedeDoPasso } from '../batalha/blocos'
 import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeMarca, PedidoDeReacao } from '../batalha/combate'
 import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEvolucao'
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
-import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId } from '../batalha/leituraDaFicha'
+import { armaSoDeEfeito } from '../batalha/formula'
+import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId, type ArmaDaFicha, type BalaDaArma } from '../batalha/leituraDaFicha'
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
+import { cartaoMontado } from '../batalha/mecanica/leitura'
 import { COMO_MARCA } from '../batalha/marca'
 import { chavesDoDono, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
 import { saidasDaTecnica } from '../batalha/reacaoComTecnica'
@@ -346,16 +348,36 @@ function ataqueRecalculado(pedido: Extract<PedidoDeAcao, { tipo: 'atacar' }>, pe
   if (arma !== null && arma.aMao === true) return recusa('danoAMao')
   const bala = pedido.balaId === undefined ? null : arma === null ? null : balaDaArma(arma, pedido.balaId)
   if (pedido.balaId !== undefined && bala === null) return recusa('regra')
-  const valor = danoSugeridoDoAtaque(personagem, sistema, arma, bala)
-  if (valor === null) return recusa('danoAMao')
+  const valor = danoDoAtacarNoDuelo(personagem, sistema, arma, bala)
+  if (valor === undefined) return recusa('danoAMao')
   const perfurante = pedido.perfurante && arma !== null && ehPerfurante(arma)
   const perfuracao = perfurante && arma !== null ? perfuracaoDe(arma) : null
-  const novo: PedidoDeAcao = { tipo: 'atacar', armaId: pedido.armaId, alvos: comODano(pedido.alvos, danoNoTeto(valor)), surpresa: false, perfurante }
+  const novo: PedidoDeAcao = { tipo: 'atacar', armaId: pedido.armaId, alvos: comODano(pedido.alvos, valor === null ? null : danoNoTeto(valor)), surpresa: false, perfurante }
   if (perfuracao !== null) novo.perfuracao = perfuracao
   if (pedido.contraDe !== undefined) novo.contraDe = pedido.contraDe
   if (pedido.balaId !== undefined) novo.balaId = pedido.balaId
   if (respostas !== undefined) novo.respostas = respostas
+  // Construtor C8: a arma de texto só de efeito leva o selo do Efeito dela (o mesmo que a mira sugere); é o golpe inteiro.
+  // A montada não precisa: o host tira o selo das peças.
+  if (pedido.selo !== undefined && arma !== null && !cartaoMontado(arma) && armaSoDeEfeito(arma)) {
+    const sugerido = seloDaMira(arma, sistema)
+    if (sugerido !== null) novo.selo = sugerido
+  }
   return { ok: true, pedido: novo }
+}
+
+/**
+ * Construtor C8: o dano do Atacar pela cópia. A arma montada pelas peças (o
+ * host recalcula igual); a só de efeito ("Nada" no Soma no ataque) e a montada
+ * sem dano dão `null` (golpe sem número); `undefined` = a conta não lê.
+ */
+function danoDoAtacarNoDuelo(personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFicha | null, bala: BalaDaArma | null): number | null | undefined {
+  if (arma !== null && cartaoMontado(arma)) {
+    const lido = danoDaTecnica(arma, { personagem, sistema, arma })
+    return lido.tipo === 'valor' ? lido.valor : lido.tipo === 'semDano' ? null : undefined
+  }
+  if (arma !== null && armaSoDeEfeito(arma)) return null
+  return danoSugeridoDoAtaque(personagem, sistema, arma, bala) ?? undefined
 }
 
 /**

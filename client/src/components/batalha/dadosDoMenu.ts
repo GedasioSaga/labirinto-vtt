@@ -1,4 +1,6 @@
-import { acaoDoGolpe, motivoDoAtacar, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
+import { acaoDoGolpe, armaNaVez, motivoDaArmaNaVez, motivoDoAtacar, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
+import { armaPadraoEntre, comAPadraoNaFrente } from '../../lib/batalha/mecanica/arma'
+import { resumoDaMecanica } from '../../lib/batalha/mecanica/resumo'
 import { cartaoEstaOculto, NOME_DO_OCULTO, ocultoNaBatalha } from '../../lib/habilidadeOculta'
 import {
   CARGA_MAX,
@@ -17,10 +19,10 @@ import {
 } from '../../lib/batalha/combate'
 import { alvosDeMod, seloDaTecnica, type AlvoDeMod } from '../../lib/batalha/selos'
 import { basesDaEvolucao, efeitoNaBatalha, evolucaoDe, evoluiuNaBatalha, preenchimentoDaVariante, usoEvoluido, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
-import { CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
+import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type LeituraDoDano } from '../../lib/batalha/formula'
 import { lerMarca } from '../../lib/batalha/marca'
 import { chavesDoDono, golpesSaoOverload, limpezaDe, mecanicaDoCartao, perguntaAArma, perguntasComAsFormas, perguntasDoGolpe, respostasPadrao, seloDaMecanica, semSeloPelaResposta, type AreaAMao } from '../../lib/batalha/mecanicasAMao'
-import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas } from '../../lib/batalha/mecanica/leitura'
+import { cartaoMontado, formulaDoDanoDasPecas, pecasDoCartao, reacaoDasPecas, seloDasPecas } from '../../lib/batalha/mecanica/leitura'
 import { casaNaAreaVirada, direcaoDaRotacao, DIRECOES, fichaNaArea, pegadaDaFicha, type Casa, type Direcao, type PegadaNaGrade } from '../../lib/batalha/area'
 import { casaDoToken } from '../../lib/batalha/movimentoEmBatalha'
 import { danoDaTecnica } from '../../lib/batalha/leituraDaTecnica'
@@ -583,7 +585,9 @@ function golpeDaTecnica(
   if (multiplicadores?.extra !== undefined && multiplicadores.extra.length > 0) golpe.multiplicadores = multiplicadores.extra
   if (multiplicadores?.surpresa === false) golpe.semSurpresa = true
   // F2 (fatia F, Siegfried): qual arma, quando o dano muda com ela (a técnica com "Dano da Arma").
-  const armas = perguntaAArma(idsDosCartoes(personagem)) ? armasDaTecnica(tecnica.cartao, personagem, sistema, combate, bonus) : null
+  // Construtor C8: a técnica montada pergunta pela peça (`arma: 'perguntar'`), já marcada a arma padrão.
+  const perguntaQualArma = perguntaAArma(idsDosCartoes(personagem)) || pecasDoCartao(cartao)?.dano?.arma === 'perguntar'
+  const armas = perguntaQualArma ? armasDaTecnica(tecnica.cartao, personagem, sistema, combate, bonus) : null
   if (armas !== null) golpe.armas = armas
   // F2 (fatia E, Fúria do Dragão): sem Parte acima, apagada com o motivo (a mesma frase do host).
   const subida = subidaDeParte(personagem, sistema, id)
@@ -639,12 +643,13 @@ export function golpesDeHabilidade(
 }
 
 /**
- * F2 (fatia F, Siegfried): cada arma levada com o dano da técnica com ela, na
- * ordem das levadas (a 1ª é a padrão até a ficha ter o campo). `null` = uma
- * arma só, ou o dano não muda com a arma (a técnica não usa "Dano da Arma").
+ * F2 (fatia F, Siegfried): cada arma levada com o dano da técnica com ela.
+ * Construtor C8: a arma padrão da ficha vem na frente (a mira abre marcada
+ * nela); sem padrão, a ordem das levadas. `null` = uma arma só, ou o dano não
+ * muda com a arma (a técnica não usa "Dano da Arma").
  */
 function armasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, bonus: BonusDaBatalha | undefined): { id: string; nome: string; dano: DanoNaTela }[] | null {
-  const armas = armasNaBatalha(personagem, combate)
+  const armas = comAPadraoNaFrente(armasNaBatalha(personagem, combate))
   if (armas.length < 2) return null
   const comDano = armas.map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', dano: danoNaTela(danoDaTecnica(cartao, { personagem, sistema, arma, bonusDaBatalha: bonus })) }))
   const valores = new Set(comDano.map((arma) => arma.dano.valor))
@@ -734,6 +739,14 @@ export function armasNaBatalha(personagem: Personagem | null, combate: Pick<Comb
   return todas.filter((arma) => levadas.includes(arma.id))
 }
 
+/**
+ * Construtor C8: a arma que entra no "Dano da arma" das técnicas: a padrão da
+ * ficha, se foi levada; senão a 1ª levada (como antes). `null` = sem arma.
+ */
+export function armaPadraoNaBatalha(personagem: Personagem | null, combate: Pick<CombateDoPersonagem, 'armas'> | undefined): ArmaDaFicha | null {
+  return armaPadraoEntre(armasNaBatalha(personagem, combate))
+}
+
 const DESCRICAO_DO_DESARMADO = 'Sem arma: o dano é a Força.'
 
 /** R6: o que sobra do ataque adicional da forma nesta rodada ("+1 ataque"); `null` = fora da vez, nenhuma forma dá, ou já usou. */
@@ -773,6 +786,8 @@ export function golpesDeAtaque(
         : arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: bala.efeito, quantidade: bala.quantidade, dano: danoCom(arma, bala) }))
     return {
       ...(selo === null ? {} : { selo }),
+      // Construtor C8: a arma só de efeito ("Nada" no Soma no ataque) não dá dano; com selo, o alvo reage para fugir dele (a regra do host).
+      ...(selo !== null && arma !== null && armaSoDeEfeito(arma) ? { reacao: 'sempre' as const } : {}),
       // F2 (fatia C): as perguntas de todo golpe do dono (o Electro da Aira) também no Atacar.
       ...(perguntasDoAtaque.length === 0 ? {} : { perguntas: perguntasDoAtaque }),
       ...comBonus(bonus),
@@ -802,8 +817,59 @@ export function golpesDeAtaque(
       motivo: acoes === null ? null : motivoDoAtacar(acoes),
     }
   }
-  const armas = armasNaBatalha(personagem, combate)
-  return armas.length === 0 ? [golpeDe(null)] : armas.map(golpeDe)
+  // Construtor C8: a arma padrão da ficha vem primeiro na lista do Atacar.
+  const armas = comAPadraoNaFrente(armasNaBatalha(personagem, combate))
+  if (armas.length === 0) return [golpeDe(null)]
+  // Construtor C8: a arma montada (o Boomerang) ataca pelas peças; a de texto segue como sempre.
+  return armas.map((arma) => (personagem !== null && sistema !== null && cartaoMontado(arma) ? golpeDaArmaMontada(golpeDe(arma), arma, personagem, sistema, combate, acoes, bonus) : golpeDe(arma)))
+}
+
+/**
+ * Construtor C8: a tira da arma montada (o Boomerang). O dano, o selo do
+ * acerto, quem reage, o custo, a ação e os usos ("1/3 usos") saem das peças,
+ * e o motivo é o mesmo do host (`motivoDaArmaNaVez`). Tudo ou nada: o Dano e o
+ * Efeito em texto da arma ficam só na leitura, e as balas saem (o dano delas é
+ * o do Atacar de texto).
+ */
+function golpeDaArmaMontada(
+  base: GolpeNaTela,
+  arma: ArmaDaFicha,
+  personagem: Personagem,
+  sistema: SistemaDeRpg,
+  combate: CombateDoPersonagem | undefined,
+  acoes: AcoesDaVez | null,
+  bonus: BonusDaBatalha | undefined,
+): GolpeNaTela {
+  const lida = armaNaVez(arma, personagem, sistema)
+  if (lida.tipo === 'texto') return base
+  const { balas: _balas, selo: _selo, ...semOTexto } = base
+  if (lida.tipo === 'recusada') return { ...semOTexto, motivo: lida.motivo }
+  const { mecanica } = lida
+  const tempo = [textoDoTempo(lida.tempo, combate, arma.id), lida.acao === 'simples' ? textoDoAtaqueExtra(acoes) : null].filter((texto): texto is string => texto !== null)
+  const golpe: GolpeNaTela = {
+    ...semOTexto,
+    dano: danoNaTela(danoDaTecnica(arma, { personagem, sistema, arma, bonusDaBatalha: bonus })),
+    reacao: reacaoDasPecas(mecanica),
+    custoTexto: textoDoCusto(lida.custo),
+    custo: lida.custo,
+    acao: lida.acao,
+    acaoTexto: textoDaAcao(acaoDoGolpe(lida.acao, combate?.carga ?? 0) ?? lida.acao),
+    tempoTexto: tempo.length === 0 ? null : tempo.join(' · '),
+    perfurante: mecanica.dano?.perfurante === true,
+    perfuracao: null,
+    motivo: motivoDaArmaNaVez(arma, lida, personagem, sistema, combate, acoes),
+    leitura: [...base.leitura, { rotulo: 'Mecânica', texto: resumoDaMecanica(mecanica, { personagem, sistema }).join(' ') }],
+  }
+  const selo = seloDasPecas(mecanica)
+  if (selo !== null) golpe.selo = selo
+  const linha = mecanicaDoCartao(arma)
+  if (linha?.tetoDeAlvosComDano !== undefined) golpe.tetoDeAlvos = linha.tetoDeAlvosComDano
+  if (linha?.divide !== undefined) golpe.divide = linha.divide.teto
+  if (linha?.lembreteNaMira !== undefined) golpe.lembrete = linha.lembreteNaMira
+  const extras = mecanica.dano?.multiplicadores.extra
+  if (extras !== undefined && extras.length > 0) golpe.multiplicadores = extras
+  if (mecanica.dano?.multiplicadores.surpresa === false) golpe.semSurpresa = true
+  return golpe
 }
 
 /** A arma de um golpe pelo id, entre as da ficha. */

@@ -11,7 +11,9 @@ import { describe, expect, it } from 'vitest'
 import { DANO_MAX, chaveDaVez, type AcaoDaForma, type PedidoDeAcao } from '../batalha/combate'
 import type { VezEsperada } from '../batalha/ponte'
 import { cartaDaVez } from '../batalha/turnos'
-import { novoCartao, type Personagem } from '../personagem'
+import { mecanicaDoModeloDaArma } from '../batalha/mecanica/arma'
+import { guardarMecanica } from '../batalha/mecanica/modelos'
+import { novoCartao, type CartaoDaFicha, type Personagem } from '../personagem'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
 import { aplicarJogada, criarDuelo, jogadaDoValor, type DueloGravado, type JogadaDoDuelo, type MotivoDaRecusa, type MotorDoDuelo, type ResultadoDaJogada } from './duelo'
 import { LIA, lutadoresDe, MARINHEIRO, SISTEMA_DO_TESTE, ze } from './fichasDeTreino.testkit'
@@ -213,6 +215,24 @@ describe('duelo', () => {
     const primeira = aceita(aplicarJogada(duelo, motor, CONTA_A, jogada), 'o primeiro Atacar')
     expect(primeira.seq).toBe(duelo.seq + 1)
     expect(aplicarJogada(primeira, motor, CONTA_A, jogada)).toEqual({ ok: false, motivo: 'seqVelho' })
+  })
+
+  it('construtor C8: a arma só de efeito ("Nada") e a montada sem dano entram no duelo com dano nulo, mesmo forjado', () => {
+    const { motor } = motorDaSemente(7)
+    const [espada] = ZE.abas.armas ?? []
+    if (espada === undefined) throw new Error('o Zé do teste sem espada')
+    const soDeEfeito: CartaoDaFicha = { ...espada, id: 'arma_funda', campos: { ...espada.campos, atributoDoAtaque: 'Nada' } }
+    const montada: CartaoDaFicha = { ...espada, id: 'arma_bumerangue', mecanica: guardarMecanica(mecanicaDoModeloDaArma('atordoa', SISTEMA_DO_TESTE)) }
+    const atacarCom = (arma: CartaoDaFicha): DueloGravado => {
+      const duelo = umContraUmNaVezDoZe(motor, { ...ZE, abas: { ...ZE.abas, armas: [arma] } })
+      const ataque: PedidoDeAcao = { tipo: 'atacar', armaId: arma.id, alvos: [{ tokenId: TOKEN_DO_MARINHEIRO, dano: 999 }], surpresa: false, perfurante: false }
+      return aceita(aplicarJogada(duelo, motor, CONTA_A, { tipo: 'agir', seq: duelo.seq, vez: vezDe(duelo), pedido: ataque }), `o Atacar com ${arma.id}`)
+    }
+    // A montada (Atordoa sem dano): o Marinheiro reage para fugir do Atordoado, sem número.
+    const pelaMontada = atacarCom(montada).cena.turnos.golpes ?? []
+    expect(pelaMontada.map((golpe) => ({ alvos: golpe.alvos.map((alvo) => ({ dano: alvo.dano, reage: alvo.podeReagir })), selo: golpe.selo?.nome }))).toEqual([{ alvos: [{ dano: null, reage: true }], selo: 'Atordoado' }])
+    // A só de efeito sem selo: nada a reagir, e o registro não traz número.
+    expect(atacarCom(soDeEfeito).cena.registro.map((linha) => linha.texto)).toEqual(['Zé usa Espada em Marinheiro: sem reação'])
   })
 
   // Fatia M1: a grade 12 x 8 da Arena. No 1×1, o Zé nasce na casa (1, 3) e o Marinheiro na (10, 3).

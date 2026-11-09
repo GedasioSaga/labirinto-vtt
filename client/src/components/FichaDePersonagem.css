@@ -2156,6 +2156,11 @@
   margin-right: auto;
 }
 
+/* Construtor C8: o "Padrão" da arma fica colado ao nome; a categoria segue na ponta. */
+.lb-cartao__topo > .lb-ficha__chip--padrao {
+  margin-right: auto;
+}
+
 .lb-cartao__revelar {
   min-height: 28px;
   padding: 0 var(--lb-space-2);

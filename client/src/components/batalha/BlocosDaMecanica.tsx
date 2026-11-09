@@ -5,6 +5,7 @@ import { CAMPO_DO_DANO } from '../../lib/batalha/formula'
 import {
   CASAS_MAX,
   CD_MAX,
+  danoUsaArma,
   EFEITOS_MAX,
   EXTRAS_MAX,
   FORMULA_MAX,
@@ -45,6 +46,8 @@ export interface BlocosProps {
   cartao: CartaoDaFicha
   ficha: FichaDaPrevia
   onChange: (mecanica: MecanicaV1) => void
+  /** Construtor C8: montando o efeito da própria arma (não há "qual arma" a perguntar). */
+  naArma?: boolean
 }
 
 // ─── Peças de controle ──────────────────────────────────────────────────────
@@ -466,7 +469,7 @@ function BlocoDoTeste({ mecanica, ficha, onChange }: Pick<BlocosProps, 'mecanica
   )
 }
 
-function BlocoDoDano({ mecanica, cartao, ficha, onChange }: BlocosProps) {
+function BlocoDoDano({ mecanica, cartao, ficha, onChange, naArma }: BlocosProps) {
   const { dano } = mecanica
   const formula = dano === undefined ? '' : textoDoNumero(dano.base)
   // A prévia usa o campo Dano de sempre (o mesmo leitor da Saúde), num cartão de mentira só com a fórmula.
@@ -476,7 +479,9 @@ function BlocoDoDano({ mecanica, cartao, ficha, onChange }: BlocosProps) {
     if (dano === undefined) return
     const comArma = DANO_DA_ARMA.test(texto)
     const { arma: _arma, ...semArma } = dano
-    onChange({ ...mecanica, dano: { ...semArma, base: { formula: texto.slice(0, FORMULA_MAX) }, ...(comArma ? { arma: 'padrao' } : {}) } })
+    // Quem já marcou "perguntar qual arma" continua perguntando enquanto a fórmula tiver o Dano da Arma.
+    const arma = dano.arma === 'perguntar' ? 'perguntar' : 'padrao'
+    onChange({ ...mecanica, dano: { ...semArma, base: { formula: texto.slice(0, FORMULA_MAX) }, ...(comArma ? { arma } : {}) } })
   }
   const extras = dano?.multiplicadores.extra ?? []
   const trocarExtras = (novos: { nome: string; vezes: number }[]) => {
@@ -515,6 +520,9 @@ function BlocoDoDano({ mecanica, cartao, ficha, onChange }: BlocosProps) {
             <Marcar rotulo="Perfurante" marcado={dano.perfurante === true} onChange={(perfurante) => onChange({ ...mecanica, dano: { ...dano, perfurante } })} />
             <Marcar rotulo="Multiplica com a Concentração" marcado={dano.multiplicadores.concentracao} onChange={(concentracao) => onChange({ ...mecanica, dano: { ...dano, multiplicadores: { ...dano.multiplicadores, concentracao } } })} />
             <Marcar rotulo="Multiplica com a Surpresa" marcado={dano.multiplicadores.surpresa} onChange={(surpresa) => onChange({ ...mecanica, dano: { ...dano, multiplicadores: { ...dano.multiplicadores, surpresa } } })} />
+            {naArma !== true && danoUsaArma(dano) && (
+              <Marcar rotulo="Pergunta qual arma na hora (já vem marcada a padrão)" marcado={dano.arma === 'perguntar'} onChange={(sim) => onChange({ ...mecanica, dano: { ...dano, arma: sim ? 'perguntar' : 'padrao' } })} />
+            )}
           </div>
           {extras.map((extra, indice) => (
             <div key={`${indice}-${extras.length}`} className="lb-mec__linha lb-mec__linha--recuo">

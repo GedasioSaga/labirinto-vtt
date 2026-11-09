@@ -91,7 +91,7 @@ export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' 
  * próprio app (`salvarPelaBase`); o caminho existe para a mescla não perder a marca.
  */
 export type CampoDeOculta = 'oculta' | 'revelaAoUsar'
-const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = { nome: true, aMao: true, extras: true, modificadores: true, atributos: true, mecanicaProposta: true }
+const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = { nome: true, aMao: true, extras: true, modificadores: true, atributos: true, mecanicaProposta: true, armaPadrao: true }
 const ehCampoSimplesDoCartao = guardaDe(CAMPO_SIMPLES_DO_CARTAO)
 export const CAMPOS_SIMPLES_DO_CARTAO = chavesDe(CAMPO_SIMPLES_DO_CARTAO, ehCampoSimplesDoCartao)
 
@@ -200,7 +200,7 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   cartao: { caminho: "['abas', aba, cartaoId]", acoes: ['criar', 'apagar'], quem: 'donoOuMestre', visivelAoJogador: true },
   ordemDosCartoes: { caminho: "['abas', aba, '#ordem']", acoes: ['ordenar'], quem: 'donoOuMestre', visivelAoJogador: true },
   campoDoCartao: {
-    caminho: "['abas', aba, cartaoId, 'nome' | 'aMao' | 'extras' | 'modificadores' | 'atributos' | 'mecanicaProposta']",
+    caminho: "['abas', aba, cartaoId, 'nome' | 'aMao' | 'extras' | 'modificadores' | 'atributos' | 'mecanicaProposta' | 'armaPadrao']",
     acoes: ['definir'],
     quem: 'donoOuMestre',
     visivelAoJogador: true,
@@ -396,6 +396,8 @@ export type MudancaNoCartao =
   | { campo: 'modificadores'; valor: Modificador[] }
   | { campo: 'atributos'; valor: string[] }
   | { campo: 'mecanicaProposta'; valor: MecanicaGuardada | undefined }
+  /** Construtor C8: a arma padrão da ficha (o dono ou o mestre marcam). */
+  | { campo: 'armaPadrao'; valor: true | undefined }
 
 export type MudancaDoMestre =
   | { campo: 'dono'; valor: string | undefined }
@@ -720,6 +722,8 @@ function mudancaNoCartao(campo: CampoSimplesDoCartao, valor: Json | undefined): 
       return { campo, valor: lido.atributos }
     case 'mecanicaProposta':
       return { campo, valor: lido.mecanicaProposta }
+    case 'armaPadrao':
+      return { campo, valor: lido.armaPadrao }
   }
 }
 

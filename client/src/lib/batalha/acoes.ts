@@ -15,7 +15,9 @@ import {
   type LeituraDoTempo,
 } from './leituraDaFicha'
 import { danoDaTecnica, leituraDaTecnica } from './leituraDaTecnica'
+import { armaLida } from './mecanica/arma'
 import { cartaoMontado } from './mecanica/leitura'
+import type { MecanicaV1 } from './mecanica/modelo'
 import { itensQueSobram, mecanicaDoCartao, perfuranteDaMecanica, respostasPadrao } from './mecanicasAMao'
 import { lerTipo, type LeituraDoTipo } from './tiposDaHabilidade'
 import type { AcoesExtras, GastoDaVez } from './turnos'
@@ -267,6 +269,53 @@ export function motivoDaTecnica(
     }
   }
   return null
+}
+
+/**
+ * Construtor C8: a arma lida para o Atacar. `texto` = sem mecânica (o Atacar
+ * de sempre); `recusada` = mecânica torta, de app mais novo ou com peça que a
+ * arma não executa (o Atacar com ela não sai); `pecas` = o Atacar segue as
+ * peças, com o custo, a ação e os usos lidos como os da técnica.
+ */
+export type ArmaNaVez =
+  | { tipo: 'texto' }
+  | { tipo: 'recusada'; motivo: string }
+  | { tipo: 'pecas'; mecanica: MecanicaV1; custo: LeituraDoCusto; acao: AcaoDaTecnica; tempo: LeituraDoTempo }
+
+export function armaNaVez(arma: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg): ArmaNaVez {
+  const lida = armaLida(arma)
+  if (lida.tipo !== 'pecas') return lida
+  const leitura = leituraDaTecnica(arma, { personagem, sistema })
+  const acao = leitura.acaoDaFicha.acao
+  // A arma nunca pergunta a ação (`motivoDaArmaNasPecas`): `null` aqui seria peça que a leitura mudou.
+  if (acao === null || acao === 'passiva') return { tipo: 'recusada', motivo: `${arma.nome.trim() || 'A arma'}: escolha a ação na mecânica` }
+  return { tipo: 'pecas', mecanica: lida.mecanica, custo: leitura.custo, acao, tempo: leitura.tempo }
+}
+
+/**
+ * Construtor C8: por que o Atacar com a arma montada não sai agora (a mesma
+ * regra na tira e no host); `null` = sai. Os usos contam por arma em
+ * `combate.usos` e zeram na batalha nova, como os da técnica. A ação Simples
+ * segue o Atacar de sempre (o ataque adicional da forma vale nela).
+ */
+export function motivoDaArmaNaVez(arma: Pick<CartaoDaFicha, 'id'>, lida: Extract<ArmaNaVez, { tipo: 'pecas' }>, personagem: Personagem, sistema: SistemaDeRpg, combate: CombateDoPersonagem | undefined, acoes: AcoesDaVez | null): string | null {
+  const recarga = combate?.recargas[arma.id] ?? 0
+  if (recarga > 0) return `Recarga: ${turnos(vezesDeRecarga(recarga, lida.tempo))}`
+  if (lida.tempo.tipo === 'usos') {
+    const usadas = combate?.usos[arma.id] ?? 0
+    if (usadas >= lida.tempo.vezes) return `Já usada nesta batalha (${usadas}/${lida.tempo.vezes})`
+  }
+  const caro = motivoDoCustoAcimaDoMaximo(lida.custo, personagem, sistema)
+  if (caro !== null) return caro
+  if (acoes !== null) {
+    const motivo = lida.acao === 'simples' ? motivoDoAtacar(acoes) : motivoDaAcao(acoes, lida.acao)
+    if (motivo !== null) return motivo
+  }
+  if (lida.custo.tipo !== 'valor') return null
+  const recurso = recursoDoCusto(sistema, lida.custo.recurso)
+  if (recurso === null) return null
+  const tem = numeroDaFicha(personagem.recursos, recurso.id)
+  return tem < lida.custo.valor ? `${recurso.nome} insuficiente: custa ${lida.custo.valor}, você tem ${tem}` : null
 }
 
 /** O motivo do Overload já usado (técnica ou forma): 1 por batalha. */

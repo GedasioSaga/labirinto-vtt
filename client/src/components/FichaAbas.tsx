@@ -208,6 +208,7 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
         <div className="lb-cartao__texto">
           <div className="lb-cartao__topo">
             <h4 className="lb-cartao__nome">{cartao.nome}</h4>
+            {ehArma && cartao.armaPadrao === true && <span className="lb-ficha__chip lb-ficha__chip--padrao">Padrão</span>}
             {categoria !== null && <span className="lb-ficha__chip lb-ficha__chip--categoria">{categoria}</span>}
             {atributos.length > 0 && <span className="lb-ficha__chip lb-ficha__chip--atributos">{atributos.join(' · ')}</span>}
             <SeloDeOculta cartao={cartao} onRevelar={onRevelar} />
@@ -241,7 +242,7 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevela
               {campo.valor}
             </p>
           ))}
-          {aba.id === ABA_DAS_TECNICAS && <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />}
+          {(aba.id === ABA_DAS_TECNICAS || ehArma) && <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />}
         </div>
       </div>
       {sub !== undefined && cartao.subcartoes.length > 0 && (
@@ -313,6 +314,14 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
     fecharEscolha()
   }
   const trocar = (id: string, cartao: CartaoDaFicha) => onChange(cartoes.map((atual) => (atual.id === id ? cartao : atual)))
+  // Construtor C8: só uma arma é a padrão; marcar uma desmarca as outras.
+  const marcarPadrao = (id: string, marcar: boolean) =>
+    onChange(
+      cartoes.map((atual) => {
+        const { armaPadrao: _antes, ...semPadrao } = atual
+        return marcar && atual.id === id ? { ...semPadrao, armaPadrao: true } : semPadrao
+      }),
+    )
   const mover = (indice: number, delta: -1 | 1) => {
     const alvo = indice + delta
     if (alvo < 0 || alvo >= cartoes.length) return
@@ -339,6 +348,7 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
           daArma={daArma}
           aberto={cartao.id === recemCriado}
           onChange={(novo) => trocar(cartao.id, novo)}
+          onMarcarPadrao={!daArma && aba.id === ABA_DAS_ARMAS ? (marcar) => marcarPadrao(cartao.id, marcar) : undefined}
           onRemover={() => onChange(cartoes.filter((atual) => atual.id !== cartao.id))}
           onSubir={indice > 0 ? () => mover(indice, -1) : undefined}
           onDescer={indice < cartoes.length - 1 ? () => mover(indice, 1) : undefined}
@@ -409,6 +419,8 @@ interface CartaoEditavelProps {
   daArma: boolean
   aberto: boolean
   onChange: (cartao: CartaoDaFicha) => void
+  /** Construtor C8: na arma, marca esta como a padrão (e desmarca as outras). */
+  onMarcarPadrao?: (marcar: boolean) => void
   onRemover: () => void
   onSubir: (() => void) | undefined
   onDescer: (() => void) | undefined
@@ -418,7 +430,7 @@ interface CartaoEditavelProps {
   podeOcultar: boolean
 }
 
-function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onRemover, onSubir, onDescer, escolherImagem, quemEditaAMecanica, podeOcultar }: CartaoEditavelProps) {
+function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onMarcarPadrao, onRemover, onSubir, onDescer, escolherImagem, quemEditaAMecanica, podeOcultar }: CartaoEditavelProps) {
   const ehArma = !daArma && aba.id === ABA_DAS_ARMAS
   const semTiro = ehArma && armaQueNaoAtira(aba, cartao)
   const [erroDaImagem, setErroDaImagem] = useState<string | null>(null)
@@ -518,6 +530,21 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
             <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />
           ) : (
             <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} onChange={onChange} />
+          ))}
+        {ehArma && onMarcarPadrao !== undefined && (
+          <div className="lb-field">
+            <label className="lb-mec__marcar">
+              <input type="checkbox" checked={cartao.armaPadrao === true} onChange={(event) => onMarcarPadrao(event.target.checked)} />
+              <span>Arma padrão</span>
+            </label>
+            <span className="lb-field__hint">A técnica com Dano da Arma usa esta. Só uma arma da ficha é a padrão.</span>
+          </div>
+        )}
+        {ehArma &&
+          (quemEditaAMecanica === 'ninguem' ? (
+            <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />
+          ) : (
+            <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={cartoesDaAba(personagem, ABA_DAS_ARMAS)} onChange={onChange} doQue="arma" />
           ))}
         {aba.modificadores === true && <PecaDoMestreNaForma cartao={cartao} podeMudar={quemEditaAMecanica === 'mestre'} onChange={onChange} />}
         {podeOcultar && <OcultaNoCartao cartao={cartao} onChange={onChange} />}

@@ -1,5 +1,6 @@
 import type { CartaoDaFicha, MecanicaGuardada, Personagem } from '../personagem'
 import { acaoDasPecas, avisoDoCartaoMontado, cartaoMontado, custoDasPecas, formulaDoNumero, pecasDoCartao, tempoDasPecas } from './mecanica/leitura'
+import { danoUsaArma } from './mecanica/modelo'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { overloadNaBatalha } from './escolhaEEvolucao'
 import { CAMPO_DO_DANO, lerDano, type ContextoDaFormula, type LeituraDoDano } from './formula'
@@ -126,7 +127,7 @@ function danoDasPecas(cartao: CartaoDoDano, ctx: Omit<ContextoDaFormula, 'vidaDo
   const pecas = pecasDoCartao(cartao)
   if (pecas === null) return { tipo: 'naoEntende', texto: avisoDoCartaoMontado(cartao) ?? '' }
   if (pecas.dano === undefined) return { tipo: 'semDano' }
-  return lerDano(formulaDoNumero(pecas.dano.base), { ...ctx, arma: pecas.dano.arma === 'padrao' ? ctx.arma : null, vidaDoAlvo })
+  return lerDano(formulaDoNumero(pecas.dano.base), { ...ctx, arma: danoUsaArma(pecas.dano) ? ctx.arma : null, vidaDoAlvo })
 }
 
 /** F2 (fatia D, Explosão): o dano do cartão com a vida de UM alvo ("10% da vida atual do alvo"); o host relê alvo a alvo (`golpe.ts`). */

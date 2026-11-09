@@ -404,3 +404,22 @@ describe('o que nunca vira op', () => {
     expect(diferencas(goku, comNpc, { papel: 'jogador' })).toEqual([])
   })
 })
+
+describe('arma padrão (construtor C8): campo simples do cartão, o dono marca', () => {
+  it('trocar a padrão vira ops do dono, e aplicar devolve a ficha igual', () => {
+    const base = luffyAntes()
+    const comArmas = (padrao: 'arma_a' | 'arma_b'): Personagem => ({
+      ...base,
+      abas: {
+        ...base.abas,
+        armas: [cartao('arma_a', 'Espada de Teste', padrao === 'arma_a' ? { armaPadrao: true } : {}), cartao('arma_b', 'Lança de Teste', padrao === 'arma_b' ? { armaPadrao: true } : {})],
+      },
+    })
+    const antes = comArmas('arma_a')
+    const depois = comArmas('arma_b')
+    const doJogador = diferencas(antes, depois, { papel: 'jogador' })
+    expect(doJogador.map((mudanca) => mudanca.caminho.join('/'))).toEqual(['abas/armas/arma_a/armaPadrao', 'abas/armas/arma_b/armaPadrao'])
+    expect(doJogador.map((mudanca) => quemEscreveAMudanca(mudanca))).toEqual(['donoOuMestre', 'donoOuMestre'])
+    expect(aplicar(antes, doJogador)).toEqual({ doc: depois, recusadas: [] })
+  })
+})
