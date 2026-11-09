@@ -1,8 +1,8 @@
 import { danoSugeridoDoAtaque, acoesDaCarta } from '../batalha/golpe'
 import { motivoDoAtacar, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../batalha/acoes'
-import { DANO_MAX, type CombateDoPersonagem, type PedidoDeAcao, type PedidoDeReacao, type SeloPedido } from '../batalha/combate'
+import { DANO_MAX, type CombateDoPersonagem, type PedidoDeAcao, type PedidoDeMarca, type PedidoDeReacao, type SeloPedido } from '../batalha/combate'
 import { armasDe, type ArmaDaFicha } from '../batalha/leituraDaFicha'
-import { lerMarca } from '../batalha/marca'
+import { lerMarca, type ComoMarca } from '../batalha/marca'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
 import { bonusDaBatalha, bonusDaReacao, seloPedidoValido } from '../batalha/selos'
@@ -49,7 +49,9 @@ import type { VagaDaLuta } from './mesaEmMemoria'
  * técnicas na ordem da ficha. Teto de golpes por vez (`GOLPES_POR_VEZ_MAX`):
  * a técnica de Ação Livre sem custo nem recarga não segura a vez para sempre.
  * O robô nunca concentra, nunca se transforma, nunca põe selo por conta
- * própria ("Pôr selo...") e nunca usa passiva: é o simples primeiro.
+ * própria ("Pôr selo...") e nunca usa passiva: é o simples primeiro. A
+ * exceção é o lembrete da marca (`marcaDoRobo`): o acerto o deixa esperando,
+ * e quem executa o robô o responde antes da vez.
  *
  * Nada aqui olha id aleatório para decidir (carta, golpe e linha têm
  * `crypto.randomUUID`): só a ordem das vagas, das cartas e dos golpes. Assim
@@ -255,6 +257,27 @@ export function golpesDoRobo(vista: VistaDoRobo, carta: CartaDaOrdem): PedidoDeA
     golpes.push(candidato.pedido)
   }
   return golpes
+}
+
+/**
+ * Como o robô responde ao lembrete da marca (o Olhar Artístico do Vincent),
+ * na ordem de tentar: o TESTE primeiro (o d20 do motor, como a reação do
+ * boneco rola o dela: com semente, a mesma luta), o SP só quando a passiva não
+ * tem teste com CD (o SP é o que paga os golpes dele) e, se nenhum valer
+ * (SP curto, alvo já marcado), "Agora não", que sempre tira o lembrete.
+ */
+const RESPOSTAS_DA_MARCA: readonly ComoMarca[] = ['teste', 'sp', 'agoraNao']
+
+/**
+ * O primeiro lembrete da marca (na ordem) de uma ficha que o robô joga
+ * (`doRobo`): a ficha que atirou e os pedidos, na ordem de tentar; `null` =
+ * nenhum. Quem executa tenta um por um: a store recusa o que não vale (sem
+ * CD, SP insuficiente).
+ */
+export function marcaDoRobo(turnos: Pick<TurnosDaCena, 'lembretesDaMarca'>, doRobo: (tokenId: string) => boolean): { tokenId: string; pedidos: PedidoDeMarca[] } | null {
+  const lembrete = (turnos.lembretesDaMarca ?? []).find((candidato) => doRobo(candidato.tokenId))
+  if (lembrete === undefined) return null
+  return { tokenId: lembrete.tokenId, pedidos: RESPOSTAS_DA_MARCA.map((como): PedidoDeMarca => ({ tipo: 'marcar', lembreteId: lembrete.id, como })) }
 }
 
 /** A próxima jogada do robô: a reação esperando, ou a vez; `null` = sem vez (a luta não começou ou a vez sumiu). */

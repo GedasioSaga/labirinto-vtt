@@ -4,7 +4,7 @@ import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { aplicarJogada, type DueloGravado, type JogadaDoDuelo, type JogadorDoDuelo, type MotorDoDuelo } from '../../lib/treino/duelo'
 import type { LadoDoTreino, LutadoresDoTreino } from '../../lib/treino/mesaEmMemoria'
-import { jogadaDoRobo, type JogadaDoRobo } from '../../lib/treino/robo'
+import { jogadaDoRobo, marcaDoRobo, type JogadaDoRobo } from '../../lib/treino/robo'
 
 /**
  * O ROBÔ NO DUELO (fatia T7): o robô do treino (`lib/treino/robo.ts`, T3)
@@ -66,12 +66,34 @@ export interface PassoDoRobo {
 }
 
 /**
- * Um passo do robô pelo lado `lado` num duelo gravado: aplica a primeira
- * candidata aceita. `null` = a jogada esperada não é desse lado, ou nenhuma
+ * O lembrete da marca de uma ficha do robô respondido (`marcaDoRobo`: o teste,
+ * o SP ou "Agora não"); `null` = nenhum esperando. Vem antes da reação e da
+ * vez: o lembrete não segura a luta, mas o segundo golpe da vez já dobra.
+ */
+function marcaPeloRobo(duelo: DueloGravado, motor: MotorDoDuelo, podeJogar: (lado: LadoDoTreino) => boolean): DueloGravado | null {
+  const doRobo = (tokenId: string): boolean => {
+    const lado = ladoDoToken(duelo.lutadores, tokenId)
+    return lado !== null && podeJogar(lado)
+  }
+  const marca = marcaDoRobo(duelo.cena.turnos, doRobo)
+  const lado = marca === null ? null : ladoDoToken(duelo.lutadores, marca.tokenId)
+  if (marca === null || lado === null) return null
+  for (const pedido of marca.pedidos) {
+    const feito = aplicarJogada(duelo, motor, duelo.jogadores[lado].contaId, { tipo: 'marcar', seq: duelo.seq, pedido })
+    if (feito.ok) return feito.duelo
+  }
+  return null
+}
+
+/**
+ * Um passo do robô pelo lado `lado` num duelo gravado: o lembrete da marca
+ * dele, se houver; senão aplica a primeira candidata aceita. `null` = a jogada esperada não é desse lado, ou nenhuma
  * candidata passou (não deveria: passar a vez na vez dele sempre passa).
  */
 export function passoDoRobo(duelo: DueloGravado, motor: MotorDoDuelo, golpesDaVez: GolpesDaVez | null, podeJogar: (lado: LadoDoTreino) => boolean): PassoDoRobo | null {
   if (duelo.fim !== null) return null
+  const marcou = marcaPeloRobo(duelo, motor, podeJogar)
+  if (marcou !== null) return { duelo: marcou, golpesDaVez }
   const proxima = proximaDoRobo(vistaDoGravado(duelo), motor.sistema, golpesDaVez)
   if (proxima === null || !podeJogar(proxima.lado)) return null
   const contaId = duelo.jogadores[proxima.lado].contaId

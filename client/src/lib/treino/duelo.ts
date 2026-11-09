@@ -3,11 +3,12 @@ import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../..
 import { CASA_DA_ARENA, centroDaCasaNaArena, type GradeDaArena } from '../arena/grade'
 import { tecnicasNoMenu } from '../batalha/acoes'
 import type { ParedeDoPasso } from '../batalha/blocos'
-import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeReacao } from '../batalha/combate'
+import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeMarca, PedidoDeReacao } from '../batalha/combate'
 import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEvolucao'
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId } from '../batalha/leituraDaFicha'
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
+import { COMO_MARCA } from '../batalha/marca'
 import { chavesDoDono, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
 import { saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
@@ -178,6 +179,14 @@ export type JogadaDoDuelo =
   | { tipo: 'andar'; seq: number; vez: VezEsperada | null; tokenId: string; col: number; row: number; contraDe?: string }
   /** Na montagem, a ficha `tokenId` (do lado de quem pede) vai para a casa `col`/`row` da metade dele: a casa de largada escolhida. */
   | { tipo: 'montar'; seq: number; tokenId: string; col: number; row: number }
+  /**
+   * A resposta ao lembrete "Marcar o alvo?" (a passiva de marca, o Olhar
+   * Artístico do Vincent) de uma ficha de quem pede: pagar o SP, o teste (o
+   * servidor rola o d20 com o modificador da ficha) ou "Agora não". O "rolei
+   * fora" (`passou`/`falhou`) é só da mesa (`foraDoDuelo`). Não conta passo:
+   * não é golpe nem vez.
+   */
+  | { tipo: 'marcar'; seq: number; pedido: PedidoDeMarca }
 
 /**
  * Quem anda e quando. `naVez` (o duelo: o servidor decide): só a ficha da vez,
@@ -200,7 +209,7 @@ export type MotivoDaRecusa =
   | 'surpresa'
   /** Dano que a ficha não calcula (À mão, "1d6", "% da vida do alvo", "Dano da arma" sem arma): no duelo ninguém digita dano. */
   | 'danoAMao'
-  /** Fora do duelo: o `agir` de mover pelo contra-ataque (vai pelo `andar`), reação livre, rerolar e passar sem dano (decisões do mestre na mesa). */
+  /** Fora do duelo: o `agir` de mover pelo contra-ataque (vai pelo `andar`), reação livre, rerolar, passar sem dano e o "rolei fora" da marca (decisões do mestre na mesa). */
   | 'foraDoDuelo'
   /** A batalha recusou: não é a vez, ação gasta, técnica em recarga, alvo que não reage, casa ocupada ou fora da grade, montar fora da montagem ou na metade do outro... */
   | 'regra'
@@ -462,6 +471,16 @@ function reacaoRecalculada(pedido: PedidoDeReacao, turnos: TurnosDaCena, persona
   }
 }
 
+/**
+ * A resposta à marca refeita: o "rolei fora" é da mesa; o teste rola com o
+ * modificador da ficha (o rank do atributo com os selos, `modificadorDoTeste`
+ * na store), nunca o digitado, como o bônus da reação.
+ */
+function marcaRecalculada(pedido: PedidoDeMarca): Recalculo<PedidoDeMarca> {
+  if (pedido.como === 'passou' || pedido.como === 'falhou') return recusa('foraDoDuelo')
+  return { ok: true, pedido: { tipo: 'marcar', lembreteId: pedido.lembreteId, como: pedido.como } }
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Jogar
 // ───────────────────────────────────────────────────────────────────────────
@@ -545,6 +564,15 @@ function jogarNaLoja(
       const refeito = reacaoRecalculada(jogada.pedido, turnos, copiaDe(vaga.personagemId), sistema)
       if (!refeito.ok) return refeito.motivo
       return loja.getState().reagir(CENA_DO_DUELO, autor, refeito.pedido) ? null : 'regra'
+    }
+    case 'marcar': {
+      // O lembrete é da ficha que atirou: só quem a joga responde (a store confere a passiva, o SP e o alvo).
+      const lembrete = (turnos.lembretesDaMarca ?? []).find((candidato) => candidato.id === jogada.pedido.lembreteId)
+      if (lembrete === undefined) return 'regra'
+      if (!ehDoLado(lembrete.tokenId)) return 'naoEDaConta'
+      const refeito = marcaRecalculada(jogada.pedido)
+      if (!refeito.ok) return refeito.motivo
+      return loja.getState().marcar(CENA_DO_DUELO, autor, refeito.pedido) ? null : 'regra'
     }
   }
 }
@@ -670,7 +698,9 @@ export function jogarNaMesa<L extends LadoDaLuta>(
   }
   const motivo = jogarNaLoja(loja, mesa, copia.cena, quem, jogada, motor.sistema)
   if (motivo !== null) return recusa(motivo)
-  return { ok: true, mexeuNaLuta: true, mesa: { lutadores: mesa.lutadores(), posicoes: copia.posicoes, montagem: false, cena: cenaDaLoja(loja), passos: copia.passos + 1 } }
+  // A marca não conta passo (não é golpe nem vez), como andar.
+  const passos = jogada.tipo === 'marcar' ? copia.passos : copia.passos + 1
+  return { ok: true, mexeuNaLuta: true, mesa: { lutadores: mesa.lutadores(), posicoes: copia.posicoes, montagem: false, cena: cenaDaLoja(loja), passos } }
 }
 
 /** O fim pela regra da luta de treino sobre os campos da jogada (os tetos de sempre). */
@@ -802,6 +832,17 @@ function contraDoPedido(pedido: PedidoDeAcao): string | undefined {
   return pedido.tipo === 'concentrar' ? undefined : pedido.contraDe
 }
 
+/**
+ * A resposta à marca do fio: `como` em enum fechado (`COMO_MARCA`). O
+ * modificador digitado fica de fora ANTES da leitura, como o dano: o servidor
+ * usa o da ficha, então nem um número torto recusa a jogada por formato.
+ */
+function lerPedidoDeMarca(valor: unknown): PedidoDeMarca | null {
+  if (!ehRegistro(valor) || valor.tipo !== 'marcar' || !idDoFio(valor.lembreteId)) return null
+  const como = COMO_MARCA.find((candidato) => candidato === valor.como)
+  return como === undefined ? null : { tipo: 'marcar', lembreteId: valor.lembreteId, como }
+}
+
 /** A jogada de um valor do fio já lido como JSON; `null` = forma torta (enum fechado no `tipo`). */
 export function jogadaDoValor(valor: unknown): JogadaDoDuelo | null {
   if (!ehRegistro(valor) || !seqValido(valor.seq)) return null
@@ -835,6 +876,10 @@ export function jogadaDoValor(valor: unknown): JogadaDoDuelo | null {
     case 'montar': {
       const { tokenId, col, row } = valor
       return idDoFio(tokenId) && indiceDaCasa(col) && indiceDaCasa(row) ? { tipo: 'montar', seq, tokenId, col, row } : null
+    }
+    case 'marcar': {
+      const pedido = lerPedidoDeMarca(valor.pedido)
+      return pedido === null ? null : { tipo: 'marcar', seq, pedido }
     }
     default:
       return null

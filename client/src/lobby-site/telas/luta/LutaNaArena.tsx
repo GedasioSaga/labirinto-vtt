@@ -74,6 +74,7 @@ export function LutaNaArena({ luta, eu, conectado, ocupado, recusa, onFechar }: 
             agir: (vez, pedido) => jogar({ tipo: 'agir', seq: luta.seq, vez, pedido }),
             reagir: (pedido) => jogar({ tipo: 'reagir', seq: luta.seq, pedido }),
             passarVez: (cartaId, rodada) => jogar({ tipo: 'passar', seq: luta.seq, vez: { cartaId, rodada } }),
+            marcar: (pedido) => jogar({ tipo: 'marcar', seq: luta.seq, pedido }),
           },
     // A jogada leva o `seq` do estado que a tela mostra.
     // eslint-disable-next-line react-hooks/exhaustive-deps
