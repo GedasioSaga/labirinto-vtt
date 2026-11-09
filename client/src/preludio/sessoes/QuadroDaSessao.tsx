@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
 import { QuadroEsperando } from '../quadro/esperando'
-import { quadrosDaSessao, useQuadros } from '../quadro/estadoDosQuadros'
+import { quadroDaSessao, useQuadros } from '../quadro/estadoDosQuadros'
 import { QuadroSobDemanda } from '../quadro/sobDemanda'
 import { AbasDaSessao, ID_DO_PAINEL_DA_SESSAO, idDaAba } from './AbasDaSessao'
 
@@ -18,7 +18,8 @@ export function QuadroDaSessao({ sessao, alvo }: { sessao: Verbete; alvo?: strin
   const travado = usePreludio((estado) => estado.travado)
   const [criando, setCriando] = useState(false)
   const abas = <AbasDaSessao sessaoId={sessao.id} aba="quadro" />
-  const quadro = quadrosDaSessao(lista, sessao.id)[0]
+  // Pelo id, não pelo nome: renomear o quadro aberto não troca o que a aba mostra.
+  const quadro = quadroDaSessao(lista, sessao.id)
 
   if (lista.t === 'falhou') {
     return (

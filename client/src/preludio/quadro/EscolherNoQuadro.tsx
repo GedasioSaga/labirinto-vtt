@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Dialogo } from '../../components/grimorio/Dialogo'
 import { compararTitulos } from '../../lib/preparo/enciclopedia'
-import { lerQuadro, lugaresDoQuadro, type LugarNoQuadro } from '../../lib/preparo/quadros'
+import { lugaresDoQuadro, type LugarNoQuadro } from '../../lib/preparo/quadros'
 import { usePreludio } from '../estado/preludio'
 import { verbeteDoCartao } from './cartaoSemTldraw'
-import { quadrosDaCampanha, useQuadros, type ResumoDoQuadro } from './estadoDosQuadros'
+import { lerQuadroAtual, quadrosParaCitar, useQuadros, type ResumoDoQuadro } from './estadoDosQuadros'
 
 /**
  * "CITAR O QUADRO" (fatia F3b): o texto (o roteiro da sessão, mas serve em
  * qualquer texto) cita o quadro inteiro, uma moldura ou um cartão. A citação
  * guarda o endereço (o id do quadro e da forma); um clique nela abre o quadro
- * naquele ponto. Abre no quadro da sessão do texto, quando há. Só lê o disco.
+ * naquele ponto. Abre no quadro da sessão do texto, quando há, mesmo com o
+ * filtro em outra campanha da sessão. Não grava: lê o quadro como o mestre o
+ * deixou (a gravação pendente termina antes; a recusada vale).
  */
 
 export interface AlvoNoQuadro {
@@ -42,11 +44,7 @@ export function EscolherNoQuadro({ aoFechar, aoEscolher }: EscolherNoQuadroProps
   const campanhaId = usePreludio((estado) => estado.campanhaId)
   const verbetes = usePreludio((estado) => estado.verbetes)
   const sessaoDoTexto = useSessaoDoTexto()
-  const quadros = useMemo(() => {
-    // A planta do Grimório é para ver: não se cita.
-    const daCampanha = quadrosDaCampanha(lista, campanhaId).filter((quadro) => !quadro.planta && quadro.contagem !== null)
-    return [...daCampanha].sort((a, b) => Number(b.sessaoId !== null && b.sessaoId === sessaoDoTexto) - Number(a.sessaoId !== null && a.sessaoId === sessaoDoTexto) || compararTitulos(a.nome, b.nome))
-  }, [lista, campanhaId, sessaoDoTexto])
+  const quadros = useMemo(() => quadrosParaCitar(lista, campanhaId, sessaoDoTexto), [lista, campanhaId, sessaoDoTexto])
   const [escolhido, setEscolhido] = useState<string | null>(null)
   const quadro: ResumoDoQuadro | undefined = quadros.find((cada) => cada.id === escolhido) ?? quadros[0]
   const [lugares, setLugares] = useState<Lugares>({ t: 'lendo' })
@@ -60,11 +58,21 @@ export function EscolherNoQuadro({ aoFechar, aoEscolher }: EscolherNoQuadroProps
     if (quadroId === undefined) return
     let vivo = true
     setLugares({ t: 'lendo' })
-    void lerQuadro(quadroId).then((lido) => {
-      if (!vivo) return
-      if (lido.estado === 'ok' || (lido.estado === 'somenteLeitura' && lido.valor !== null)) setLugares({ t: 'pronto', lugares: lugaresDoQuadro(lido.valor?.tldraw) })
-      else setLugares({ t: 'falhou', motivo: lido.estado === 'novo' ? 'o quadro não existe mais' : lido.aviso })
-    })
+    lerQuadroAtual(quadroId).then(
+      (atual) => {
+        if (!vivo) return
+        if (atual.t === 'naoGravado') {
+          setLugares({ t: 'pronto', lugares: lugaresDoQuadro(atual.quadro.tldraw) })
+          return
+        }
+        const { lido } = atual
+        if (lido.estado === 'ok' || (lido.estado === 'somenteLeitura' && lido.valor !== null)) setLugares({ t: 'pronto', lugares: lugaresDoQuadro(lido.valor?.tldraw) })
+        else setLugares({ t: 'falhou', motivo: lido.estado === 'novo' ? 'o quadro não existe mais' : lido.aviso })
+      },
+      (erro: unknown) => {
+        if (vivo) setLugares({ t: 'falhou', motivo: erro instanceof Error ? erro.message : String(erro) })
+      },
+    )
     return () => {
       vivo = false
     }

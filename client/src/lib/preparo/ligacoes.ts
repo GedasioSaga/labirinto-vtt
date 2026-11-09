@@ -84,6 +84,17 @@ export interface SetaPlanejada {
 const chaveDoPar = (a: string, b: string): string => (a < b ? `${a}\n${b}` : `${b}\n${a}`)
 
 /**
+ * Lugar dentro de lugar: um é o pai do outro e os dois são lugares. O quadro
+ * desenha a seta desse par sozinho (pai → filho, sem rótulo); ela é a
+ * hierarquia, não uma ligação, e por isso não oferece criar uma. Página dentro
+ * de página é da Escrita e não entra.
+ */
+export function ehLugarDentroDeLugar(a: Verbete, b: Verbete): boolean {
+  const dentro = (filho: Verbete, pai: Verbete) => filho.paiId === pai.id && filho.tipo === 'lugar' && pai.tipo === 'lugar'
+  return dentro(a, b) || dentro(b, a)
+}
+
+/**
  * As setas que o quadro deve ter entre os verbetes que estão nele (`noQuadro`).
  * Com `so`, só os pares que tocam aquele verbete (o cartão que acabou de chegar).
  * A ligação vem antes do lugar dentro de lugar: o par que tem as duas fica com o
@@ -101,11 +112,11 @@ export function setasDasLigacoes(ligacoes: readonly Ligacao[], noQuadro: Readonl
     else if (limpo !== '' && !par.tipos.includes(limpo)) par.tipos.push(limpo)
   }
   for (const id of noQuadro) {
-    const paiId = verbetes.get(id)?.paiId
-    if (paiId === undefined || !toca(paiId, id)) continue
+    const filho = verbetes.get(id)
+    const paiId = filho?.paiId
+    if (filho === undefined || paiId === undefined || !toca(paiId, id)) continue
     const pai = verbetes.get(paiId)
-    // Só lugar dentro de lugar vira seta; página dentro de página é da Escrita.
-    if (pai?.tipo !== 'lugar' || verbetes.get(id)?.tipo !== 'lugar') continue
+    if (pai === undefined || !ehLugarDentroDeLugar(pai, filho)) continue
     const chave = chaveDoPar(paiId, id)
     if (!porPar.has(chave)) porPar.set(chave, { de: paiId, para: id, tipos: [] })
   }

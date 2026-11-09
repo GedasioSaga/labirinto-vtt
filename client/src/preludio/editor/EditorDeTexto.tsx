@@ -11,7 +11,7 @@ import { EscolherNaMesa } from '../mesa/EscolherNaMesa'
 import { abrirNaMesaPeloPreludio, podeAbrirNaMesa } from '../mesa/ponte'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
 import { EscolherNoQuadro } from '../quadro/EscolherNoQuadro'
-import { quadrosDaSessao, useQuadros } from '../quadro/estadoDosQuadros'
+import { quadroDaSessao, useQuadros } from '../quadro/estadoDosQuadros'
 import { extensoesDoTexto, reavaliarMesa, reavaliarSoNome, textoCabeNoEditor, type AlvoDaCitacao, type EstadoDaMesaNoTexto, type ItemDaMencao } from './extensoes'
 
 /**
@@ -206,7 +206,7 @@ function abrirCitacao(alvo: AlvoDaCitacao): void {
   const resumo = lista.t === 'pronta' ? lista.quadros.find((quadro) => quadro.id === alvo.quadroId) : undefined
   const ponto = alvo.formaId === null ? {} : { alvo: alvo.formaId }
   const sessao = resumo?.sessaoId == null ? undefined : verbetes.get(resumo.sessaoId)
-  if (sessao?.tipo === 'sessao' && quadrosDaSessao(lista, sessao.id)[0]?.id === alvo.quadroId) {
+  if (sessao?.tipo === 'sessao' && quadroDaSessao(lista, sessao.id)?.id === alvo.quadroId) {
     ir({ secao: 'sessoes', sessaoId: sessao.id, aba: 'quadro', ...ponto })
     return
   }

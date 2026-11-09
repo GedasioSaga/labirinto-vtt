@@ -96,12 +96,21 @@ export function porCartao(editor: Editor, verbete: Verbete, ponto: { x: number; 
   return { formaId, setas }
 }
 
-/** Mostra uma forma: a câmera vai até ela e ela fica selecionada. Sem `duracao`, salta (ao abrir o quadro). */
+/**
+ * Mostra uma forma: a câmera vai até ela e ela fica selecionada, na página dela
+ * (o quadro pode ter várias, e a citação pode apontar para qualquer uma). Sem
+ * `duracao`, salta (ao abrir o quadro); trocando de página também salta, porque
+ * a vista inteira muda e não há caminho a mostrar.
+ */
 export function mostrarForma(editor: Editor, formaId: TLShapeId, duracao?: number): boolean {
+  const pagina = editor.getAncestorPageId(formaId)
+  if (pagina === undefined) return false
+  const trocaDePagina = pagina !== editor.getCurrentPageId()
+  if (trocaDePagina) editor.setCurrentPage(pagina)
   const limites = editor.getShapePageBounds(formaId)
   if (limites === undefined) return false
   editor.select(formaId)
-  editor.zoomToBounds(limites, { targetZoom: 1, inset: 96, ...(duracao === undefined ? { immediate: true } : { animation: { duration: duracao } }) })
+  editor.zoomToBounds(limites, { targetZoom: 1, inset: 96, ...(duracao === undefined || trocaDePagina ? { immediate: true } : { animation: { duration: duracao } }) })
   return true
 }
 

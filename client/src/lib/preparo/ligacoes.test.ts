@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { verbeteNovo } from './enciclopedia'
-import { haLigacaoEntre, ligacaoNova, setasDasLigacoes, tiposParaSugerir, TIPOS_SUGERIDOS } from './ligacoes'
+import { ehLugarDentroDeLugar, haLigacaoEntre, ligacaoNova, setasDasLigacoes, tiposParaSugerir, TIPOS_SUGERIDOS } from './ligacoes'
 import type { Ligacao, Verbete } from './tipos'
 
 function ligacao(id: string, de: string, para: string, tipo: string, segredo = false): Ligacao {
@@ -41,6 +41,22 @@ describe('setas do quadro a partir das ligações', () => {
     expect(setasDasLigacoes(ligacoes, noQuadro, verbetes, 'cais')).toEqual([{ de: 'porto', para: 'cais', rotulo: '' }])
     // Sem o outro cartão no quadro, não há seta.
     expect(setasDasLigacoes(ligacoes, new Set(['vela']), verbetes)).toEqual([])
+  })
+
+  it('a seta de lugar dentro de lugar é a hierarquia, nas duas direções, e não pede ligação; outro par pede', () => {
+    const porto = verbete('porto', 'lugar')
+    const cais = verbete('cais', 'lugar', 'porto')
+    const doca = verbete('doca', 'lugar')
+    const caderno = verbete('caderno', 'pagina')
+    const folha = verbete('folha', 'pagina', 'caderno')
+    const vigia = verbete('vigia', 'personagem', 'porto')
+    // A seta Porto → Cais que o quadro desenha sozinho, e a mesma desenhada ao contrário.
+    expect(ehLugarDentroDeLugar(porto, cais)).toBe(true)
+    expect(ehLugarDentroDeLugar(cais, porto)).toBe(true)
+    // Dois lugares sem pai em comum, página dentro de página e um personagem "dentro" de um lugar pedem a ligação.
+    expect(ehLugarDentroDeLugar(porto, doca)).toBe(false)
+    expect(ehLugarDentroDeLugar(caderno, folha)).toBe(false)
+    expect(ehLugarDentroDeLugar(porto, vigia)).toBe(false)
   })
 
   it('a ligação nova de uma seta: tipo limpo, sem origem, sem segredo; achada nas duas direções; sugestões com as usadas primeiro', () => {

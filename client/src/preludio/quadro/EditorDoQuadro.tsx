@@ -18,24 +18,13 @@ import {
   type TLStore,
 } from 'tldraw'
 import 'tldraw/tldraw.css'
-import { gravarLigacoes, haLigacaoEntre, lerLigacoes, ligacaoNova, ligacoesVazias, tiposParaSugerir } from '../../lib/preparo/ligacoes'
-import {
-  caminhosSemMidia,
-  ehPlanta,
-  extensaoDaImagem,
-  fotoComMidia,
-  gravarMidiaDoQuadro,
-  gravarQuadro,
-  lerQuadro,
-  midiaDoAsset,
-  midiaNaTabela,
-  tabelaDeMidiaDasImportacoes,
-} from '../../lib/preparo/quadros'
+import { ehLugarDentroDeLugar, gravarLigacoes, haLigacaoEntre, lerLigacoes, ligacaoNova, ligacoesVazias, tiposParaSugerir } from '../../lib/preparo/ligacoes'
+import { caminhosSemMidia, ehPlanta, extensaoDaImagem, fotoComMidia, gravarMidiaDoQuadro, midiaDoAsset, midiaNaTabela, tabelaDeMidiaDasImportacoes } from '../../lib/preparo/quadros'
 import type { Ligacao, Quadro, Verbete } from '../../lib/preparo/tipos'
-import { agendarGravacaoDeFora, gravacaoPendente, usePreludio } from '../estado/preludio'
+import { agendarGravacaoDeFora, usePreludio } from '../estado/preludio'
 import { prepararMidia, urlDaMidia } from '../midia'
 import { CARD_ALTURA_PADRAO, CARD_LARGURA_PADRAO, UTILS_DOS_CARTOES, abrirVerbeteDoQuadro, verbeteDoCartao } from './cartoes'
-import { useQuadros } from './estadoDosQuadros'
+import { chaveDaGravacaoDoQuadro, gravarQuadroAtual, lerQuadroAtual, useQuadros } from './estadoDosQuadros'
 import { exportarQuadro, type FormatoDeExportacao } from './exportarQuadro'
 import { GavetaDeVerbetes } from './GavetaDeVerbetes'
 import { criarGravadorDoQuadro } from './gravadorDoQuadro'
@@ -98,14 +87,7 @@ const ANEIS_NO_MEIO = 3
 const ID_DA_GAVETA = 'pr-quadro-gaveta'
 const CHAVE_DA_GAVETA = 'lb-preparo:gaveta-do-quadro'
 
-const chaveDaGravacao = (id: string) => `quadro:${id}`
 const chaveDoPar = (a: string, b: string) => (a < b ? `${a}\n${b}` : `${b}\n${a}`)
-
-/**
- * O último quadro mandado ao disco que ainda não chegou lá (o disco recusou),
- * por id: reabrir o quadro mostra este, e não o do disco, que é o de antes.
- */
-const naoGravados = new Map<string, Quadro>()
 
 /** Onde a câmera estava em cada quadro: voltar da página de um verbete (ou trocar de aba) não perde o lugar. */
 const cameras = new Map<string, { x: number; y: number; z: number }>()
@@ -196,18 +178,16 @@ function lojaDeImagens(raiz: string | null): TLAssetStore {
 }
 
 async function abrir(id: string): Promise<Abertura> {
-  // Uma mudança deste quadro esperando o relógio ou indo ao disco agora: termina antes de reler.
-  if (gravacaoPendente(chaveDaGravacao(id))) await usePreludio.getState().salvarPendentes()
+  // Uma mudança deste quadro esperando o relógio ou indo ao disco agora termina antes de reler; a recusada vale.
+  const atual = await lerQuadroAtual(id)
   let quadro: Quadro
   let noDisco = true
   let soLeitura: string | null = null
-  const pendente = naoGravados.get(id)
-  if (pendente !== undefined && gravacaoPendente(chaveDaGravacao(id))) {
-    quadro = pendente
+  if (atual.t === 'naoGravado') {
+    quadro = atual.quadro
     noDisco = false
   } else {
-    naoGravados.delete(id)
-    const lido = await lerQuadro(id)
+    const { lido } = atual
     if (lido.estado === 'novo') return { t: 'sumiu' }
     if (lido.estado === 'falhou') return { t: 'falhou', aviso: lido.aviso }
     if (lido.valor === null) return { t: 'falhou', aviso: lido.estado === 'somenteLeitura' ? lido.aviso : 'O arquivo do quadro está vazio.' }
@@ -296,15 +276,13 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
       foto: () => getSnapshot(store),
       nome: () => nomeGravado.current,
       async gravarNoDisco(novo) {
-        naoGravados.set(id, novo)
-        await gravarQuadro(id, novo)
-        if (naoGravados.get(id) === novo) naoGravados.delete(id)
+        await gravarQuadroAtual(id, novo)
         useQuadros.getState().gravado(id, novo)
       },
     }),
   )
   const agendar = useRef(() => {
-    agendarGravacaoDeFora(chaveDaGravacao(id), async () => {
+    agendarGravacaoDeFora(chaveDaGravacaoDoQuadro(id), async () => {
       await gravador.gravar()
     })
   }).current
@@ -425,6 +403,8 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
         const de = verbeteDaForma(editor, pontas.inicio, todos)
         const para = verbeteDaForma(editor, pontas.fim, todos)
         if (de === undefined || para === undefined || de.id === para.id) continue
+        // A seta de lugar dentro de lugar é a hierarquia, que o próprio quadro desenha: não vira ligação.
+        if (ehLugarDentroDeLugar(de, para)) continue
         if (haLigacaoEntre(ligacoesAtuais.current, de.id, para.id) || dispensadas.current.has(chaveDoPar(de.id, para.id))) continue
         achada = { setaId, de: de.titulo || 'Sem nome', para: para.titulo || 'Sem nome', tipo: textoDaSeta(editor, seta as TLArrowShape), deId: de.id, paraId: para.id }
       }

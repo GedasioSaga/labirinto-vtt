@@ -220,9 +220,11 @@ export function TextoDoRoteiro({ texto, contexto }: { texto: TextoRico; contexto
   return <div className="pr-texto__campo pr-roteiro__texto">{nosDe(texto.content).map((no, indice) => desenhar(no, indice, contexto))}</div>
 }
 
+/** As peças que contam como conteúdo sozinhas, sem texto em volta (a seção só com uma citação do quadro existe). */
+const PECAS_COM_CONTEUDO: ReadonlySet<unknown> = new Set(['image', PECAS_DO_TEXTO.mencao, PECAS_DO_TEXTO.ligacaoMesa, PECAS_DO_TEXTO.citacaoQuadro])
+
 /** O texto tem algo para ler (um parágrafo vazio não conta). */
 export function temTexto(texto: TextoRico): boolean {
-  const andar = (nos: readonly No[]): boolean =>
-    nos.some((no) => (no.type === 'text' ? textoDe(no.text).trim() !== '' : no.type === 'image' || no.type === PECAS_DO_TEXTO.mencao || no.type === PECAS_DO_TEXTO.ligacaoMesa || andar(nosDe(no.content))))
+  const andar = (nos: readonly No[]): boolean => nos.some((no) => (no.type === 'text' ? textoDe(no.text).trim() !== '' : PECAS_COM_CONTEUDO.has(no.type) || andar(nosDe(no.content))))
   return andar(nosDe(texto.content))
 }
