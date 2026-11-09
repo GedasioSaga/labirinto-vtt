@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type FocusEvent, type KeyboardEvent } from 'react'
+import { useSvgExportContext } from 'tldraw'
 import type { AlvoNaMesa } from '../../lib/preparo/sessoes'
 import type { Forma, Secao, TextoRico, Verbete } from '../../lib/preparo/tipos'
 import { precarregarEditor, TextoDoPreludio } from '../editor/sobDemanda'
@@ -6,6 +7,7 @@ import { usePreludio } from '../estado/preludio'
 import { abrirNaMesaPeloPreludio, podeAbrirNaMesa } from '../mesa/ponte'
 import { temTexto, TextoDoRoteiro, type ContextoDoRoteiro } from '../roteiro/TextoDoRoteiro'
 import { FONTE_MAX, FONTE_MIN, FONTE_PASSO, proximaEscala } from './escalaFonte'
+import { useVezDoTexto } from './vezDoTexto'
 
 /**
  * O TEXTO DO CARTÃO NO QUADRO (fatia F3c, como no Grimório,
@@ -119,6 +121,8 @@ interface PainelProps {
 export function TextoDoCartao({ verbete, forma, raiz, podeEscrever, editando, aoEditar, aoAbrirVerbete }: PainelProps) {
   const lapis = useRef(new Map<string, HTMLButtonElement>())
   const nome = verbete.titulo || 'Sem nome'
+  // Na exportação (PNG/SVG) o texto sai na hora; no quadro, espera a vez dele.
+  const vez = useVezDoTexto(useSvgExportContext() !== null || editando !== null)
 
   const contexto = useMemo<ContextoDoRoteiro>(
     () => ({
@@ -141,6 +145,7 @@ export function TextoDoCartao({ verbete, forma, raiz, podeEscrever, editando, ao
     if (devolverFoco) requestAnimationFrame(() => lapis.current.get(secaoId)?.focus())
   }
 
+  if (!vez) return null
   if (forma.secoes.length === 0) return <p className="pr-cartao__vazio">Sem texto nesta forma.</p>
 
   return (

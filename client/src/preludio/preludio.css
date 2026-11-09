@@ -806,6 +806,9 @@
   min-height: 48px; padding: var(--lb-space-1) var(--lb-space-2); border: 0; border-radius: var(--lb-radius-sm);
   background: none; color: var(--lb-color-parchment); font: inherit; text-align: left; cursor: grab;
   transition: background-color var(--lb-motion-fast) ease, opacity var(--lb-motion-fast) ease;
+  /* 253 verbetes na gaveta do mestre: o que está fora da rolagem não entra no layout (abertura do quadro grande). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 48px;
 }
 .pr-gaveta__item:active { cursor: grabbing; }
 .pr-gaveta__item:disabled { cursor: default; opacity: 0.5; }
