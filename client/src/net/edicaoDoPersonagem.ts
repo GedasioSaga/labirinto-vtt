@@ -1,4 +1,5 @@
 import { aplicarCamposDBT, camposDBTMudados, PERSONAGEM_SEM_NOME, type CartaoDaFicha, type Personagem } from '../lib/personagem'
+import { comOcultasDe, comOcultasDoLocal } from '../lib/habilidadeOculta'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { mesclarSemDesfazer } from './nuvem/emissor'
 import {
@@ -232,7 +233,9 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
       ...(espera ? { mecanicaProposta: proposta } : {}),
     }
   }
-  const abasNovas = partes.abas === undefined ? {} : Object.fromEntries(Object.entries(partes.abas).map(([abaId, cartoes]) => [abaId, cartoes.map(comImagem)]))
+  // Fatia C7: a aba volta inteira do jogador, que nunca viu os cartões ocultos; eles voltam do personagem de AGORA.
+  const abasNovas =
+    partes.abas === undefined ? {} : Object.fromEntries(Object.entries(partes.abas).map(([abaId, cartoes]) => [abaId, comOcultasDe(atual.abas[abaId] ?? [], cartoes.map(comImagem))]))
   const aplicado: Personagem = {
     ...atual,
     ...(partes.nome === undefined ? {} : { nome: partes.nome.trim() || PERSONAGEM_SEM_NOME }),
@@ -261,7 +264,8 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
  * fora do que o jogador tocou, volta por cima (`mesclarSemDesfazer`).
  */
 export function aplicarPartesPelaBase(base: Personagem, atual: Personagem, partes: PartesDoPersonagem): Personagem {
-  return mesclarSemDesfazer(base, aplicarPartes(base, partes), atual, aplicarPartes(atual, partes, base))
+  // Fatia C7: a base é a ficha que o jogador recebeu (sem os ocultos); o resultado fica com os ocultos de agora.
+  return comOcultasDoLocal(atual, mesclarSemDesfazer(base, aplicarPartes(base, partes), atual, aplicarPartes(atual, partes, base)))
 }
 
 /** HOST: a imagem aceita entra no retrato (`cartaoId` ausente) ou no cartão; `null` = o cartão não existe mais. */

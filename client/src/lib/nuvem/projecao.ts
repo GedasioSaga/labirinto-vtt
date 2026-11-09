@@ -1,5 +1,6 @@
 import { partesDoLivro } from '../../net/protocoloDoLivro'
 import { resumoDoLivro, type ResumoDoLivro } from '../livroDeRegras'
+import { semOcultas } from '../habilidadeOculta'
 import type { Personagem } from '../personagem'
 import { lerSistemaDeRpg, type SistemaDeRpg } from '../sistemaDeRpg'
 import { alvoDoCaminho, CAMPOS_DO_MESTRE, ESQUEMA_DO_CAMINHO, type NomeDaRegra } from './caminho'
@@ -46,7 +47,8 @@ export function ehCopiaDeTreino(fichaId: string): boolean {
 
 /** A ficha sem os campos do mestre e sem o NPC da Dragon Ball; mantém mochila e moedas. Nunca muda a recebida. */
 export function projetarParaJogador(doc: Personagem): Personagem {
-  const copia: Personagem = { ...doc }
+  // Fatia C7, por garantia: o app do mestre nunca sobe cartão oculto (o emissor o tira), mas se um chegar, não desce ao jogador.
+  const copia: Personagem = { ...semOcultas(doc) }
   for (const campo of CAMPOS_DO_MESTRE) delete copia[campo]
   if (copia.dbt !== undefined && copia.dbt.npc !== undefined) {
     // Sem a chave, como a ficha de jogador (nada de `npc: undefined`).

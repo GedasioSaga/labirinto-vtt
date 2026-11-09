@@ -1,4 +1,4 @@
-import { quemEscreveAMudanca } from './caminho'
+import { alvoDoCaminho, quemEscreveAMudanca } from './caminho'
 import type { FichaGuardada, Identidade, Membro, MotivoNegado, Mudanca, OpGravada, Papel } from './tipos'
 
 /**
@@ -55,6 +55,8 @@ export function permissaoDaMudanca(membro: Membro | undefined, ficha: FichaGuard
   if (!membroAtivo(membro)) return negar('Você não está nesta campanha')
   const quem = quemEscreveAMudanca(mudanca)
   if (quem === null) return { ok: false, motivo: 'fora-do-esquema', detalhe: 'Campo fora da tabela do Lobby' }
+  // Fatia C7: esconder um cartão é só no app do mestre (o cartão oculto nunca sobe); no Lobby o segredo ficaria no servidor.
+  if (alvoDoCaminho(mudanca.caminho)?.regra === 'ocultaDoCartao') return negar('Esconder um cartão dos jogadores é só pelo app do mestre')
   if (membro.papel === 'mestre') return PERMITIDO
   if (quem === 'mestre') return negar('Só o mestre muda este campo')
   if (podeEscreverNaFicha(membro, ficha)) return PERMITIDO

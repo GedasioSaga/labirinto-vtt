@@ -1,3 +1,4 @@
+import { caminhoTocaOculta, comOcultasDoLocal } from '../../lib/habilidadeOculta'
 import { aplicar, aplicarOp } from '../../lib/nuvem/aplicar'
 import { diferencas } from '../../lib/nuvem/diferencas'
 import type { RemotasRecebidas } from '../../lib/nuvem/fila'
@@ -126,7 +127,12 @@ export function aplicarNasFichasDoApp(locais: readonly Personagem[], mudancas: r
     const indice = lista.findIndex((ficha) => ficha.id === fichaId)
     const local = indice === -1 ? null : lista[indice]
     if (local !== null && !vaiAoLobby(local)) continue
-    const resultado = aplicar(local, daFicha).doc
+    // Fatia C7: op nenhuma do Lobby toca no cartão oculto (ele só muda no app do mestre), e a ficha
+    // trocada inteira volta com os ocultos de agora.
+    const semSegredo = local === null ? daFicha : daFicha.filter((mudanca) => !caminhoTocaOculta(local, mudanca.caminho))
+    if (semSegredo.length === 0) continue
+    const aplicado = aplicar(local, semSegredo).doc
+    const resultado = local === null || aplicado === null ? aplicado : comOcultasDoLocal(local, aplicado)
     if (resultado === local) continue
     mudou = true
     if (resultado === null) lista = lista.filter((ficha) => ficha.id !== fichaId)
@@ -160,8 +166,10 @@ export function acertarComAVista(locais: readonly Personagem[], vista: ReadonlyM
       else lista.push(local)
       continue
     }
-    const mudancas = mudancasDaPasta([local], [naVista])
-    const acertada = mudancas.length === 0 ? local : (aplicar(local, mudancas).doc ?? local)
+    // Fatia C7: a vista não tem os cartões ocultos (`mudancasDaPasta` os tira dos dois lados); eles ficam como no app.
+    const mudancas = mudancasDaPasta([local], [naVista]).filter((mudanca) => !caminhoTocaOculta(local, mudanca.caminho))
+    const aplicada = mudancas.length === 0 ? local : (aplicar(local, mudancas).doc ?? local)
+    const acertada = aplicada === local ? local : comOcultasDoLocal(local, aplicada)
     if (acertada !== local) mudou = true
     lista.push(acertada)
   }

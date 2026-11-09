@@ -208,6 +208,7 @@ import {
   type TurnosDaCena,
 } from '../lib/batalha/turnos'
 import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
+import { nomeNaBatalha, revelacaoAoUsar } from '../lib/habilidadeOculta'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 
@@ -1545,7 +1546,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const ctx: ContextoDoGolpe = { turnos, carta, personagem, sistema, regras: cena.regras, autor, personagens, personagemDoToken: personagemDoTokenNa(turnos) }
     if (podeAgir(ctx, pedido) !== null) return false
     const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
-    const nomeDaForma = cartao?.nome.trim() || 'a forma'
+    // Fatia C7: a forma oculta liga como "???" (a não ser que revele ao usar: aí o uso a revela, logo abaixo).
+    const nomeDaForma = cartao === null ? 'a forma' : nomeNaBatalha(personagem, cartao, 'a forma')
     const quem = quemNaFicha(autor)
     const quemAge = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
     const formaAntes = turnos.formas?.[personagemId] ?? null
@@ -1575,9 +1577,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         const feito = ativarForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now())
         if (feito !== null) {
           numeros = feito.numeros
-          desligadas = feito.desligadas.map((cartaoDesligado) => cartaoDesligado.nome.trim() || 'a forma')
+          desligadas = feito.desligadas.map((cartaoDesligado) => nomeNaBatalha(atual, cartaoDesligado, 'a forma'))
         }
-        return feito?.personagem ?? null
+        // Fatia C7: a forma oculta que revela ao usar sai revelada (o Desfazer da linha não a esconde de novo).
+        return feito === null ? null : (revelacaoAoUsar(feito.personagem, pedido.cartaoId) ?? feito.personagem)
       })
       if (fichaMudou === null || fichaMudou === 'recusada') return false
       const gastos = gastosDoAtivar(novos, carta.id, personagemId, cartao, pedido.acao, false)
@@ -1666,7 +1669,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const custo = cartao === null ? null : custoPorTurno(cartao, personagem)
     if (cartao === null || custo === null) return false
     const quem = quemNaFicha(autor)
-    const nome = cartao.nome.trim() || 'a forma'
+    const nome = nomeNaBatalha(personagem, cartao, 'a forma')
     const dono = nomeDoTokenNa(turnos, mesaDoRpg().personagens)(carta.tokenId)
     const partes: Reversao[] = []
     let novos: TurnosDaCena
@@ -1737,7 +1740,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const mantida = mantidasComCusto(personagem, sistema, combateAntes ?? undefined).find(({ cartao }) => cartao.id === pedido.cartaoId)
     if (mantida === undefined) return false
     const { cartao, custo } = mantida
-    const nome = cartao.nome.trim() || 'a técnica'
+    const nome = nomeNaBatalha(personagem, cartao, 'a técnica')
     const dono = nomeDoTokenNa(turnos, mesaDoRpg().personagens)(carta.tokenId)
     const partes: Reversao[] = []
     let novos: TurnosDaCena
@@ -1880,7 +1883,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     const nomeDoToken = nomeDoTokenNa(turnos, personagens)
     const dono = nomeDoToken(carta.tokenId)
-    const nome = cartao.nome.trim() || 'a passiva'
+    const nome = nomeNaBatalha(personagem, cartao, 'a passiva')
     const quem = quemNaFicha(autor)
     const partes: Reversao[] = []
     // O lembrete que Aplicar e Desligar tiram volta no Desfazer (só ele: a parte "combate" volta o que a linha mudou).
@@ -1955,7 +1958,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const pedidoDoSelo = pedido.selo === undefined ? seloDaPassiva(variante === null ? cartao : cartaoDaVariante(cartao, variante), sistema) : seloPedidoValido(pedido.selo, sistema)
       const alvoTokenId = pedido.alvoTokenId ?? carta.tokenId
       if (pedidoDoSelo === null) return false
-      const onde = { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: cartao.nome }
+      const onde = { id: novoIdDeSelo(), rodada: turnos.rodada, ...ondeNaVez(turnos), origem: nomeNaBatalha(personagem, cartao, cartao.nome) }
       // F2 (fatia F, Melodia): a opção que não é a principal fica no selo (o "+20 contra o analisado" só vale na principal).
       const selo: SeloDaBatalha = { ...criarSelo(alvoTokenId, { ...pedidoDoSelo, natureza: 'passiva', cartaoId: cartao.id }, onde), donoId: personagemId, ...(variante === null || variante.principal ? {} : { opcao: variante.chave }) }
       const selos = comSeloNovo(turnos.selos, selo)
@@ -2025,7 +2028,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     if (doCusto === 'recusada') return false
     partes.push(...reversaoDaFicha(personagemId, doCusto))
     const dono = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
-    const nome = cartao.nome.trim() || 'a técnica'
+    const nome = nomeNaBatalha(personagem, cartao, 'a técnica')
     // Com link: "→ SUPER CAÇA AS BRUXAS!"; sem link e o texto diz OVERLOAD: o uso evoluído é Overload.
     const destino = evolucao.para !== null ? ` → ${evolucao.para.nome.trim() || 'a evoluída'}` : evolucao.overload ? ' (agora Overload)' : ''
     const recurso = recursoDoCusto(sistema, 'sp')?.nome ?? 'SP'
@@ -2104,7 +2107,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       novos = { ...novos, selos }
     }
     const nomeDoToken = nomeDoTokenNa(turnos, personagens)
-    const nome = achada.cartao.nome.trim() || 'a passiva'
+    const nome = nomeNaBatalha(personagem, achada.cartao, 'a passiva')
     const texto = passou
       ? `${nomeDoToken(lembrete.tokenId)} marcou ${nomeDoToken(lembrete.alvoTokenId)} (${nome} · ${detalhe})`
       : `${nomeDoToken(lembrete.tokenId)} não marcou ${nomeDoToken(lembrete.alvoTokenId)} (${nome} · ${detalhe} · falhou)`
@@ -2722,6 +2725,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     for (const parte of seguintes) {
       const comALinha = cenaDe(sceneKey)
       if (comALinha !== undefined) gravarCena(sceneKey, comMudanca(comALinha, comALinha.turnos, { id: parte.golpe.linhaId, tipo, texto: textoDoGolpe(parte.golpe, nomeDoToken), autor, tokenIds, reversao: { tipo: 'composta', partes: parte.partes } }))
+    }
+    // Fatia C7: a técnica oculta que revela ao usar sai revelada depois do golpe (o Desfazer da linha não a esconde de novo).
+    if (pedido.tipo === 'habilidade' && carta.personagemId !== null) {
+      const { cartaoId } = pedido
+      mesa.ajustarPersonagem(carta.personagemId, (atual) => revelacaoAoUsar(atual, cartaoId) ?? atual)
     }
     avisarQuemCaiu(sceneKey, autor)
     // Conserto das fichas F1 (bug 2): acima do teto, o golpe mais velho vira "Não reagiu"; o ataque novo nunca é recusado por isso.

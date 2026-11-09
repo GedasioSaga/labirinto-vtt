@@ -1,4 +1,5 @@
 import { acaoDoGolpe, motivoDoAtacar, motivoDaTecnica, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../../lib/batalha/acoes'
+import { cartaoEstaOculto, NOME_DO_OCULTO } from '../../lib/habilidadeOculta'
 import {
   CARGA_MAX,
   MULTIPLICADOR_DA_CARGA,
@@ -66,6 +67,9 @@ export interface DanoNaTela {
 }
 
 /** Um golpe que o menu oferece: uma arma (Atacar) ou uma técnica (Habilidades). */
+/** Fatia C7: o sufixo do nome da técnica oculta no menu do mestre ("Garra Lunar (os jogadores veem ???)"). */
+const MARCA_DE_OCULTA_NO_MENU = ` (os jogadores veem ${NOME_DO_OCULTO})`
+
 export interface GolpeNaTela {
   /** Chave estável na lista: "arma:<id>", "tecnica:<id>" ou "ataque" (sem arma). */
   chave: string
@@ -514,7 +518,8 @@ function golpeDaTecnica(
     tipo: 'habilidade',
     cartaoId: tecnica.cartao.id,
     armaId: arma?.id ?? null,
-    nome: tecnica.cartao.nome.trim() || 'Habilidade sem nome',
+    // Fatia C7: só o mestre tem o cartão oculto no menu; a marca lembra que, para os jogadores, o golpe sai como "???".
+    nome: `${tecnica.cartao.nome.trim() || 'Habilidade sem nome'}${cartaoEstaOculto(personagem, tecnica.cartao.id) ? MARCA_DE_OCULTA_NO_MENU : ''}`,
     descricao: (tecnica.cartao.campos.descricao ?? tecnica.cartao.campos.efeito ?? '').trim(),
     custoTexto: textoDoCusto(tecnica.custo),
     custo: tecnica.custo,

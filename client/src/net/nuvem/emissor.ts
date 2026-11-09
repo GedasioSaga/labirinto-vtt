@@ -1,4 +1,5 @@
 import { salvarSobreOAtual } from '../../lib/ajusteDaFicha'
+import { semOcultas } from '../../lib/habilidadeOculta'
 import { ehRefDeMidia } from '../../lib/midia'
 import { aplicar } from '../../lib/nuvem/aplicar'
 import { lerMudanca, quemEscreveAMudanca } from '../../lib/nuvem/caminho'
@@ -231,8 +232,10 @@ export function mudancasDaPasta(antes: readonly Personagem[], depois: readonly P
     const deAntes = porIdAntes.get(id)
     const deDepois = porIdDepois.get(id)
     if (deAntes === deDepois) return []
-    const naNuvemAntes = deAntes !== undefined && vaiAoLobby(deAntes) ? semImagemEmbutida(deAntes) : null
-    const naNuvemDepois = deDepois !== undefined && vaiAoLobby(deDepois) ? imagensComoAntes(deDepois, naNuvemAntes) : null
+    // Fatia C7: a nuvem conhece a ficha SEM os cartões ocultos (`semOcultas`): o segredo nunca sobe ao Lobby.
+    // Esconder vira "apagar" do cartão; revelar, "criar" dele inteiro; mexer no oculto não gera op nenhuma.
+    const naNuvemAntes = deAntes !== undefined && vaiAoLobby(deAntes) ? semImagemEmbutida(semOcultas(deAntes)) : null
+    const naNuvemDepois = deDepois !== undefined && vaiAoLobby(deDepois) ? imagensComoAntes(semOcultas(deDepois), naNuvemAntes) : null
     return diferencas(naNuvemAntes, naNuvemDepois)
   })
 }

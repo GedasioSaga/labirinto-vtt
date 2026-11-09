@@ -1,6 +1,7 @@
 import type { CarriedItem } from '../types/map'
 import { cleanPlayerName } from './chat'
 import { ATRIBUTO_INICIAL, fichaDBTVazia, lerFichaDBT, LIMITES_DBT, type FichaDBT } from './dbt/modelo'
+import { OCULTAS_POR_ABA_MAX, semOcultas } from './habilidadeOculta'
 import { readCarriedItems } from './items'
 import { ehImagemDaMesa } from './midia'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from './motores'
@@ -81,6 +82,15 @@ export interface CartaoDaFicha {
    * sai. Ausente = nada esperando o mestre.
    */
   mecanicaProposta?: MecanicaGuardada
+  /**
+   * HABILIDADE OCULTA (fatia C7, `lib/habilidadeOculta.ts`): o jogador vê "???"
+   * no lugar deste cartão (e dos subcartões dele) até o mestre revelar. Só o
+   * mestre grava: o cartão oculto nunca vai ao jogador (`paraOFio`, emissor do
+   * Lobby), e a edição dele o põe de volta (`comOcultasDe`). Ausente = visível.
+   */
+  oculta?: true
+  /** Com `oculta`: o mestre usar na batalha revela sozinho. Ausente = só revela com o clique do mestre. */
+  revelaAoUsar?: true
 }
 
 /** A mecânica do cartão como o disco e o fio a guardam: um objeto JSON, conferido só por quem lê (`lerMecanica`). */
@@ -209,6 +219,13 @@ export interface Personagem {
   nomeDoJogador?: string
   /** A anotação do mestre, no máximo `NOTA_DO_MESTRE_MAX`. Entra na IA só quando a ficha é citada (M4). */
   notaDoMestre?: string
+  /**
+   * HABILIDADE OCULTA (fatia C7): quantos cartões ocultos cada aba tem, pela
+   * chave da aba. SÓ na ficha que vai ao jogador (`semOcultas`), que mostra um
+   * "???" para cada; a ficha do mestre nunca guarda (o que vale lá é o
+   * `oculta` de cada cartão). Ausente = nenhum.
+   */
+  ocultas?: Record<string, number>
 }
 
 /** A marca de NPC de combate (`Personagem.combate`). */
@@ -314,7 +331,9 @@ export function comNotaDoMestre(personagem: Personagem, texto: string): Personag
  * jogador e batalha). Sem nenhum desses campos devolve a MESMA referência: o
  * host compara por referência para não reenviar.
  */
-export function paraOFio(personagem: Personagem): Personagem {
+export function paraOFio(personagemDoMestre: Personagem): Personagem {
+  // Fatia C7: o cartão oculto sai inteiro (nome, texto, números, mecânica); fica a contagem "???" por aba.
+  const personagem = semOcultas(personagemDoMestre)
   const { dono, combate, soCenario, nomeDoJogador, notaDoMestre, mochila, moedas, ...publico } = personagem
   const npcDaFicha = personagem.dbt?.npc
   const nadaATirar = dono === undefined && combate === undefined && soCenario === undefined && nomeDoJogador === undefined && notaDoMestre === undefined
@@ -466,6 +485,8 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     ...(value.aMao === true ? { aMao: true } : {}),
     ...mecanicaDoArquivo(value.mecanica),
     ...mecanicaPropostaDoArquivo(value.mecanicaProposta),
+    // Fatia C7: só o `true` conta (como o `aMao`); "revela ao usar" só vale no cartão oculto.
+    ...(value.oculta === true ? { oculta: true, ...(value.revelaAoUsar === true ? { revelaAoUsar: true } : {}) } : {}),
   }
 }
 
@@ -576,7 +597,25 @@ export function personagemDoArquivo(value: unknown): Personagem | null {
     ...mochilaDoArquivo(value),
     ...(typeof value.dono === 'string' && DONO_PADRAO.test(value.dono) ? { dono: value.dono } : {}),
     ...camposDoMundoDoArquivo(value),
+    ...ocultasDoArquivo(value.ocultas),
   }
+}
+
+/** A chave de aba que a contagem aceita: a do segmento do Lobby (`lib/nuvem/caminho.ts`). */
+const CHAVE_DA_ABA = /^[A-Za-z0-9_:.-]{1,80}$/
+
+/**
+ * A contagem de cartões ocultos por aba (fatia C7), como a projeção do
+ * jogador a escreve: chave de aba curta, inteiro de 1 a `OCULTAS_POR_ABA_MAX`.
+ * O que não é isso sai; sem nenhuma chave boa, o campo sai.
+ */
+export function ocultasDoArquivo(value: unknown): Pick<Personagem, 'ocultas'> {
+  if (!isRecord(value)) return {}
+  const boas: [string, number][] = []
+  for (const [chave, quantos] of Object.entries(value)) {
+    if (CHAVE_DA_ABA.test(chave) && typeof quantos === 'number' && Number.isSafeInteger(quantos) && quantos >= 1 && quantos <= OCULTAS_POR_ABA_MAX) boas.push([chave, quantos])
+  }
+  return boas.length === 0 ? {} : { ocultas: Object.fromEntries(boas) }
 }
 
 /**

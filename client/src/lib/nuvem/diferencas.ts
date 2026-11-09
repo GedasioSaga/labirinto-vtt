@@ -12,6 +12,7 @@ import {
   MAPAS_NUMERICOS,
   ORDEM,
   quemEscreveAMudanca,
+  type CampoDeOculta,
 } from './caminho'
 import { jsonIgual, paraJson, proprio, type Json } from './json'
 import type { Mudanca, Papel } from './tipos'
@@ -63,7 +64,7 @@ function cartaoNovoSemImagem(mudanca: Mudanca): Mudanca {
 /** O cartão (já em JSON) com `imagem: null` e sem `mecanica`, nele e em todos os subcartões. */
 function semImagem(cartao: Json): Json {
   if (cartao === null || typeof cartao !== 'object' || Array.isArray(cartao)) return cartao
-  const { mecanica: _soDoMestre, ...resto } = cartao
+  const { mecanica: _soDoMestre, oculta: _oculta, revelaAoUsar: _revela, ...resto } = cartao
   const subcartoes = proprio(resto, 'subcartoes')
   return { ...resto, imagem: null, ...(Array.isArray(subcartoes) ? { subcartoes: subcartoes.map(semImagem) } : {}) }
 }
@@ -110,8 +111,12 @@ function diferencasDaFicha(antes: Personagem | null, depois: Personagem | null):
     ...moedas(f, antes.moedas ?? 0, depois.moedas ?? 0),
     ...dbt(f, antes.dbt, depois.dbt),
     ...CAMPOS_DO_MESTRE.filter((campo) => !jsonIgual(antes[campo], depois[campo])).map((campo) => definir(f, [campo], depois[campo])),
+    // Fatia C7: a contagem "???" da projeção (o emissor a calcula; a ficha do mestre não a guarda).
+    ...(jsonIgual(antes.ocultas, depois.ocultas) ? [] : [definir(f, ['ocultas'], depois.ocultas)]),
   ]
 }
+
+const CAMPOS_DE_OCULTA: readonly CampoDeOculta[] = ['oculta', 'revelaAoUsar']
 
 const CAMPOS_DE_TEXTO: readonly ('nome' | 'descricao' | 'retrato')[] = ['nome', 'descricao', 'retrato']
 
@@ -163,6 +168,8 @@ function umCartao(f: string, base: string[], antes: CartaoDaFicha, depois: Carta
     ...CAMPOS_SIMPLES_DO_CARTAO.filter((campo) => !jsonIgual(antes[campo], depois[campo])).map((campo) => definir(f, [...base, campo], depois[campo])),
     ...(antes.imagem === depois.imagem ? [] : [definir(f, [...base, 'imagem'], depois.imagem)]),
     ...(jsonIgual(antes.mecanica, depois.mecanica) ? [] : [definir(f, [...base, 'mecanica'], depois.mecanica)]),
+    // Fatia C7: a marca de oculta (só do mestre; o cartão oculto nem sobe ao Lobby, `semOcultas`).
+    ...CAMPOS_DE_OCULTA.filter((campo) => antes[campo] !== depois[campo]).map((campo) => definir(f, [...base, campo], depois[campo])),
     ...registro(f, [...base, 'campos'], antes.campos, depois.campos),
     ...listaDeCartoes(f, [...base, 'subcartoes'], antes.subcartoes, depois.subcartoes),
   ]

@@ -8,6 +8,7 @@ import {
   itemPeloLeitor,
   lerMudanca,
   TETOS_DO_CAMINHO,
+  type CampoDeOculta,
   type CampoDoMestre,
   type MudancaLida,
   type MudancaNoCartao,
@@ -162,7 +163,7 @@ function comChave<T>(registro: Readonly<Record<string, T>>, chave: string, valor
   return Object.fromEntries(Object.entries(registro).filter(([outra]) => outra !== chave))
 }
 
-type CampoOpcional = 'mochila' | 'moedas' | CampoDoMestre
+type CampoOpcional = 'mochila' | 'moedas' | 'ocultas' | CampoDoMestre
 
 /** Ficha com o campo opcional trocado; ausente tira a chave (nada de `campo: undefined` gravado no disco). */
 function comOpcional<K extends CampoOpcional>(doc: Personagem, campo: K, valor: Personagem[K] | undefined): Personagem {
@@ -202,6 +203,7 @@ function naFicha(doc: Personagem, lida: Exclude<MudancaLida, { regra: 'ficha' }>
     case 'campoDoCartao':
     case 'imagemDoCartao':
     case 'mecanicaDoCartao':
+    case 'ocultaDoCartao':
     case 'textoDoCartao':
       return nasAbas(doc, lida)
     case 'vaga':
@@ -214,6 +216,8 @@ function naFicha(doc: Personagem, lida: Exclude<MudancaLida, { regra: 'ficha' }>
       return noDbt(doc, lida.campo, lida.valor)
     case 'doMestre':
       return { ok: true, novo: comOpcional(doc, lida.mudar.campo, lida.mudar.valor), antes: doc[lida.mudar.campo], depois: lida.mudar.valor }
+    case 'ocultas':
+      return { ok: true, novo: comOpcional(doc, 'ocultas', lida.valor), antes: doc.ocultas, depois: lida.valor }
   }
 }
 
@@ -280,6 +284,10 @@ function mudarLista(lista: CartaoDaFicha[], lida: MudancaNasAbas): Passo<CartaoD
         return { ok: true, novo: mecanica === undefined ? semMecanica : { ...semMecanica, mecanica }, antes, depois: mecanica }
       })
     }
+    case 'ocultaDoCartao': {
+      const { campo, valor } = lida
+      return noCartao(lista, lida.trilha, (cartao) => ({ ok: true, novo: comMarcaDeOculta(cartao, campo, valor), antes: cartao[campo], depois: valor }))
+    }
     case 'textoDoCartao': {
       const { campoId, valor } = lida
       return noCartao(lista, lida.trilha, (cartao) => ({
@@ -290,6 +298,14 @@ function mudarLista(lista: CartaoDaFicha[], lida: MudancaNasAbas): Passo<CartaoD
       }))
     }
   }
+}
+
+/** O cartão com a marca de oculta trocada (fatia C7); sem valor, a chave sai, como o leitor do disco guarda. */
+function comMarcaDeOculta(cartao: CartaoDaFicha, campo: CampoDeOculta, valor: true | undefined): CartaoDaFicha {
+  const copia: CartaoDaFicha = { ...cartao }
+  if (valor === undefined) delete copia[campo]
+  else copia[campo] = valor
+  return copia
 }
 
 /** Desce pelos subcartões até a lista dona (`dono` vazio = a lista de cima) e a troca pelo que `mudar` devolver. */

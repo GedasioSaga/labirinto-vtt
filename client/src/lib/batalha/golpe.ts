@@ -1,4 +1,5 @@
 import type { Ajuste } from '../ajusteDaFicha'
+import { motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha } from '../habilidadeOculta'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem } from '../vidaDaFicha'
@@ -325,6 +326,11 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
   // Conserto das fichas F1 (S4): Atordoado ou Paralisado só passa a vez (nada de agir, nem pelo contra-ataque guardado).
   const trava = travaDoToken(ctx.turnos.selos, ctx.carta.tokenId)
   if (trava !== null) return trava
+  // Fatia C7: o cartão oculto é só do mestre na batalha (o jogador nem o vê; o pedido dele é forjado).
+  if (ctx.autor.tipo === 'jogador') {
+    const oculto = motivoDoOcultoParaJogador(ctx.personagem, 'cartaoId' in pedido ? pedido.cartaoId : undefined)
+    if (oculto !== null) return oculto
+  }
   // O contra-ataque é fora da vez (Q6): a ação da vez não conta.
   const acoes = contra === null ? acoesDaCarta(ctx) : null
   const combate = combateDe(ctx)
@@ -646,7 +652,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     atacanteTokenId: ctx.carta.tokenId,
     atacantePersonagemId: ctx.carta.personagemId,
     autor: ctx.autor,
-    nome: tecnica?.cartao.nome.trim() || arma?.nome.trim() || NOME_DO_ATAQUE,
+    // Fatia C7: a técnica oculta aparece como "???" para todos, até o mestre revelar (ou ela revelar ao usar).
+    nome: (tecnica === null ? '' : nomeNaBatalha(personagem, tecnica.cartao, '')) || arma?.nome.trim() || NOME_DO_ATAQUE,
     surpresa: pedido.surpresa,
     overload,
     // F2 (fatia D, Projeção Letal): o perfurante pela resposta ("cortante ou perfurante?") vence o fixo da tabela e o da mira.
@@ -697,7 +704,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     const variante = pedido.variante === undefined ? null : varianteDoPedido(tecnica.cartao, pedido.variante)
     // F2 (fatia B): as respostas de opção também vão ao registro ("Grande Chifre (3 quadrados, Bateu na parede? Sim)").
     const marcas = [variante?.rotulo ?? null, ...rotulosDasRespostas(tecnica.cartao.id, pedido.respostas)].filter((marca): marca is string => marca !== null)
-    if (marcas.length > 0) golpe.variante = marcas.join(', ').slice(0, NOME_DO_GOLPE_MAX)
+    // Fatia C7: a opção escolhida também é do segredo.
+    if (marcas.length > 0 && golpe.nome !== NOME_DO_OCULTO) golpe.variante = marcas.join(', ').slice(0, NOME_DO_GOLPE_MAX)
     if (tecnica.evoluida) golpe.evoluida = true
   }
   const rotulosDoDono = surpresosPelaAparencia && deTodoGolpe.surpresaEmQuemNaoViu !== null ? [...deTodoGolpe.rotulos, `Surpresa (${deTodoGolpe.surpresaEmQuemNaoViu})`] : deTodoGolpe.rotulos

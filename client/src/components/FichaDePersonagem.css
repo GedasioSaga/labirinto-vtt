@@ -1731,3 +1731,97 @@
   flex: 1;
   min-width: 0;
 }
+
+/* ── Habilidade oculta (fatia C7) ──────────────────────────────────────────
+ * O mestre vê o selo tracejado "Oculta" e o botão Revelar; o jogador vê um
+ * cartão "???" tracejado no lugar de cada um. Sem animação: o "???" é estado,
+ * não acontecimento, e a revelação já chega como o cartão novo na lista.
+ */
+.lb-ficha__chip--oculta {
+  flex: none;
+  border-style: dashed;
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* O selo fica colado ao nome e o "Revelar" vai para a ponta, como os outros botões do topo. */
+.lb-cartao__topo > .lb-ficha__chip--oculta {
+  margin-right: auto;
+}
+
+.lb-cartao__revelar {
+  min-height: 28px;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-cartao__revelar:active {
+  transform: scale(0.97);
+}
+
+.lb-cartao__revelar:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+
+.lb-cartao--oculto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--lb-space-2) var(--lb-space-3);
+  border-style: dashed;
+  background: transparent;
+}
+
+.lb-cartao__nome--oculto {
+  color: var(--lb-color-parchment-dim);
+  letter-spacing: 0.2em;
+}
+
+.lb-cartao__oculto-dica {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-oculta {
+  display: grid;
+  gap: var(--lb-space-2);
+  margin: 0;
+  padding: var(--lb-space-3);
+  border: 1px dashed var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+}
+
+.lb-oculta[data-ligada] {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-oculta__opcao {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 28px;
+  cursor: pointer;
+}
+
+.lb-oculta__ajuda {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+@media (pointer: coarse) {
+  .lb-cartao__revelar,
+  .lb-oculta__opcao {
+    min-height: 44px;
+  }
+}

@@ -50,9 +50,15 @@ export interface FichaDePersonagemProps {
   inventario?: ReactNode
   /** Construtor de mecânicas C2: quem monta a mecânica da técnica. O mestre grava; o dono propõe. Padrão: mestre. */
   quemEditaAMecanica?: QuemEditaAMecanica
+  /**
+   * HABILIDADE OCULTA (fatia C7): só a janela do mestre no app passa. Fora da
+   * edição, o "Revelar" do cartão oculto grava na hora; na edição, o mestre
+   * marca e desmarca "Esconder dos jogadores". Ausente = nem um nem outro.
+   */
+  onRevelar?: (cartaoId: string) => void
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, quemEditaAMecanica }: FichaDePersonagemProps) {
+export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, quemEditaAMecanica, onRevelar }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   return (
     <div className="lb-ficha">
@@ -75,6 +81,7 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
           livro={livro}
           onAjustar={ajustar}
           quemEditaAMecanica={quemEditaAMecanica}
+          onRevelar={onRevelar}
         />
       </div>
     </div>

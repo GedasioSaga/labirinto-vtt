@@ -14,6 +14,8 @@ import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
 import { PecaDoMestreNaForma } from './batalha/FormasDoMestre'
+import { CartoesOcultos, OcultaNoCartao, SeloDeOculta } from './batalha/HabilidadeOculta'
+import { ocultasDaAba } from '../lib/habilidadeOculta'
 
 /**
  * As abas da ficha de personagem (Habilidades, Perícias...): os cartões de
@@ -36,9 +38,11 @@ export interface FichaAbasProps {
    * da técnica; o dono da ficha monta uma proposta que o mestre aceita. Padrão: mestre.
    */
   quemEditaAMecanica?: QuemEditaAMecanica
+  /** Fatia C7: só o mestre revela um cartão oculto, com um clique fora da edição. Ausente = sem o botão. */
+  onRevelar?: (cartaoId: string) => void
 }
 
-export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre' }: FichaAbasProps) {
+export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre', onRevelar }: FichaAbasProps) {
   const idBase = useId()
   // As balas moram dentro do cartão da arma ("Tipos de bala"): a aba só aparece na barra se alguma bala ficou solta nela.
   const abas = sistema.abas.filter((aba) => aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0)
@@ -60,13 +64,15 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
   }
 
   const cartoes = cartoesDaAba(personagem, ativa.id)
+  const ocultas = ocultasDaAba(personagem, ativa.id)
   const trocarCartoes = (novos: CartaoDaFicha[]) => onChange({ ...personagem, abas: { ...personagem.abas, [ativa.id]: novos } })
 
   return (
     <div className="lb-ficha__abas">
       <div className="lb-ficha__abas-lista" role="tablist" aria-label={`Abas da ficha de ${personagem.nome}`} onKeyDown={onKeyDown}>
         {abas.map((aba) => {
-          const quantos = cartoesDaAba(personagem, aba.id).length
+          // Fatia C7: o "???" que o mestre escondeu conta na aba do jogador, como um cartão.
+          const quantos = cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
           return (
             <button
               key={aba.id}
@@ -101,8 +107,9 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
             escolherImagem={escolherImagem}
             livro={livro}
             quemEditaAMecanica={quemEditaAMecanica}
+            podeOcultar={quemEditaAMecanica === 'mestre' && onRevelar !== undefined}
           />
-        ) : cartoes.length === 0 ? (
+        ) : cartoes.length === 0 && ocultas === 0 ? (
           <p className="lb-ficha__vazio">{ativa.vazio}</p>
         ) : (
           <ul className="lb-ficha__cartoes">
@@ -117,8 +124,10 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
                 onLigar={
                   onAjustar === undefined || ativa.modificadores !== true ? undefined : (ligar) => onAjustar({ parte: 'cartao', chave: cartao.id, valor: ligar ? 1 : 0 })
                 }
+                onRevelar={onRevelar}
               />
             ))}
+            <CartoesOcultos quantos={ocultas} />
           </ul>
         )}
       </div>
@@ -172,9 +181,11 @@ interface CartaoLidoProps {
   ativo: boolean
   /** Liga ou desliga na hora; ausente = o cartão não liga (aba sem modificadores, ou ficha só de leitura). */
   onLigar?: (ligar: boolean) => void
+  /** Fatia C7: o mestre revela o cartão oculto com um clique; ausente = sem o botão. */
+  onRevelar?: (cartaoId: string) => void
 }
 
-function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar }: CartaoLidoProps) {
+function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar, onRevelar }: CartaoLidoProps) {
   const ehArma = aba.id === ABA_DAS_ARMAS
   const semTiro = armaQueNaoAtira(aba, cartao)
   const sub = aba.subcartoes === undefined || semTiro ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
@@ -199,6 +210,7 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar }: Cartao
             <h4 className="lb-cartao__nome">{cartao.nome}</h4>
             {categoria !== null && <span className="lb-ficha__chip lb-ficha__chip--categoria">{categoria}</span>}
             {atributos.length > 0 && <span className="lb-ficha__chip lb-ficha__chip--atributos">{atributos.join(' · ')}</span>}
+            <SeloDeOculta cartao={cartao} onRevelar={onRevelar} />
             {onLigar !== undefined && (
               // Nome fixo e o estado no aria-pressed: o leitor de tela diz "Ativar Forma Híbrida, pressionado".
               <button type="button" className="lb-cartao__ligar" aria-pressed={ativo} aria-label={`Ativar ${cartao.nome}`} onClick={() => onLigar(!ativo)}>
@@ -238,6 +250,7 @@ function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar }: Cartao
           {cartao.subcartoes.map((subcartao) => (
             <div key={subcartao.id} className="lb-cartao__sub">
               <span className="lb-cartao__sub-nome">{subcartao.nome}</span>
+              <SeloDeOculta cartao={subcartao} onRevelar={onRevelar} />
               {paragrafosDoCartao(sub, subcartao).map((paragrafo, i) => (
                 <span key={i} className="lb-cartao__sub-texto">
                   {' — '}
@@ -272,9 +285,11 @@ interface ListaEditavelProps {
   daArma?: boolean
   livro?: LivroDaFicha
   quemEditaAMecanica: QuemEditaAMecanica
+  /** Fatia C7: o app do mestre esconde cartões dos jogadores (o site, não: lá o segredo subiria ao Lobby). */
+  podeOcultar: boolean
 }
 
-function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherImagem, aninhada = false, daArma = false, livro, quemEditaAMecanica }: ListaEditavelProps) {
+function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherImagem, aninhada = false, daArma = false, livro, quemEditaAMecanica, podeOcultar }: ListaEditavelProps) {
   // O cartão que acabou de nascer abre aberto; os outros ficam fechados numa linha cada.
   const [recemCriado, setRecemCriado] = useState<string | null>(null)
   const [escolhendo, setEscolhendo] = useState(false)
@@ -329,6 +344,7 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
           onDescer={indice < cartoes.length - 1 ? () => mover(indice, 1) : undefined}
           escolherImagem={escolherImagem}
           quemEditaAMecanica={quemEditaAMecanica}
+          podeOcultar={podeOcultar}
         />
       ))}
       <div className="lb-cartoes-edit__botoes">
@@ -398,9 +414,11 @@ interface CartaoEditavelProps {
   onDescer: (() => void) | undefined
   escolherImagem: () => Promise<string | null>
   quemEditaAMecanica: QuemEditaAMecanica
+  /** Fatia C7: o app do mestre esconde cartões dos jogadores (o site, não: lá o segredo subiria ao Lobby). */
+  podeOcultar: boolean
 }
 
-function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onRemover, onSubir, onDescer, escolherImagem, quemEditaAMecanica }: CartaoEditavelProps) {
+function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onRemover, onSubir, onDescer, escolherImagem, quemEditaAMecanica, podeOcultar }: CartaoEditavelProps) {
   const ehArma = !daArma && aba.id === ABA_DAS_ARMAS
   const semTiro = ehArma && armaQueNaoAtira(aba, cartao)
   const [erroDaImagem, setErroDaImagem] = useState<string | null>(null)
@@ -453,6 +471,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
     <details className="lb-cartao lb-cartao--edit" open={aberto}>
       <summary className="lb-cartao__resumo">
         <span className="lb-cartao__nome">{cartao.nome}</span>
+        <SeloDeOculta cartao={cartao} />
       </summary>
       <div className="lb-cartao__form">
         <label className="lb-field">
@@ -501,6 +520,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
             <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} onChange={onChange} />
           ))}
         {aba.modificadores === true && <PecaDoMestreNaForma cartao={cartao} podeMudar={quemEditaAMecanica === 'mestre'} onChange={onChange} />}
+        {podeOcultar && <OcultaNoCartao cartao={cartao} onChange={onChange} />}
         {aba.atributos === true && <EscolhaDeAtributos sistema={sistema} escolhidos={cartao.atributos} onChange={(atributos) => onChange({ ...cartao, atributos })} />}
         {aba.imagem === true && (
           <div className="lb-field">
@@ -643,6 +663,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
               aninhada
               daArma={ehArma}
               quemEditaAMecanica={quemEditaAMecanica}
+              podeOcultar={podeOcultar}
             />
           </fieldset>
         )}

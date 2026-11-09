@@ -4,6 +4,7 @@ import type { Ajuste } from '../lib/ajusteDaFicha'
 import { comNotaDoMestre, NOTA_DO_MESTRE_MAX, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { comBase, marcaDaBase, salvarPelaBase } from '../net/nuvem/emissor'
+import { revelarCartao } from '../lib/habilidadeOculta'
 import { FichaDoSistema } from './dbt/registroDeFichas'
 import { CloseIcon } from './icons'
 import { InimigoDoTreino } from './nuvem/InimigoDoTreino'
@@ -257,6 +258,7 @@ export function FichaDePersonagemDialog({
               tituloId={tituloId}
               onAjustar={onAjustar}
               inventario={inventario}
+              onRevelar={(cartaoId) => onSalvar(revelarCartao(personagem, cartaoId))}
             />
           )}
           <section className="lb-ficha-nota" aria-labelledby={`${notaId}-titulo`}>

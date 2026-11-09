@@ -1,7 +1,7 @@
 import type { CarriedItem } from '../../types/map'
 import { ITEM_QUANTIDADE_MAX, readCarriedItems } from '../items'
 import { ehRefDeMidia } from '../midia'
-import { personagemDoArquivo } from '../personagem'
+import { ocultasDoArquivo, personagemDoArquivo } from '../personagem'
 import type { CampoDaFichaDBT, CampoExtra, CartaoDaFicha, MarcaDeCombate, MecanicaGuardada, Modificador, Personagem } from '../personagem'
 import { MOEDAS_MAX } from '../troca'
 import { bytesDoJson, bytesDoTexto, CHAVES_PROIBIDAS, ehJson, ehRegistro, jsonIgual, PROFUNDIDADE_MAX, problemaNoValor, proprio, type Json } from './json'
@@ -83,7 +83,14 @@ export const MAPAS_NUMERICOS = chavesDe(MAPA_NUMERICO, ehMapaNumerico)
  * que vale na batalha tem caminho próprio, só do mestre (`mecanicaDoCartao`): o dono propõe e o
  * mestre aceita. As duas pedem o servidor do Lobby publicado com esta tabela (ele usa esta mesma).
  */
-export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica'>
+export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' | 'campos' | 'subcartoes' | 'mecanica' | CampoDeOculta>
+
+/**
+ * Habilidade oculta (fatia C7, `lib/habilidadeOculta.ts`): as duas marcas do cartão, só do mestre. O cartão
+ * oculto nunca sobe ao Lobby (o emissor o tira), então estas ops só correm entre a janela e a ficha do
+ * próprio app (`salvarPelaBase`); o caminho existe para a mescla não perder a marca.
+ */
+export type CampoDeOculta = 'oculta' | 'revelaAoUsar'
 const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = { nome: true, aMao: true, extras: true, modificadores: true, atributos: true, mecanicaProposta: true }
 const ehCampoSimplesDoCartao = guardaDe(CAMPO_SIMPLES_DO_CARTAO)
 export const CAMPOS_SIMPLES_DO_CARTAO = chavesDe(CAMPO_SIMPLES_DO_CARTAO, ehCampoSimplesDoCartao)
@@ -151,6 +158,7 @@ export type NomeDaRegra =
   | 'campoDoCartao'
   | 'imagemDoCartao'
   | 'mecanicaDoCartao'
+  | 'ocultaDoCartao'
   | 'textoDoCartao'
   | 'vaga'
   | 'quantidade'
@@ -159,6 +167,7 @@ export type NomeDaRegra =
   | 'dbt'
   | 'npcDoDbt'
   | 'doMestre'
+  | 'ocultas'
 
 /** `donoOuMestre`: o dono da ficha (qualquer conta dele) e o mestre. Ficha sem dono: só o mestre (§6.4, permissão na N2). */
 export type QuemEscreve = 'mestre' | 'donoOuMestre'
@@ -198,6 +207,7 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   },
   imagemDoCartao: { caminho: "['abas', aba, cartaoId, 'imagem']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
   mecanicaDoCartao: { caminho: "['abas', aba, cartaoId, 'mecanica']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
+  ocultaDoCartao: { caminho: "['abas', aba, cartaoId, 'oculta' | 'revelaAoUsar']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: false },
   textoDoCartao: { caminho: "['abas', aba, cartaoId, 'campos', campoId]", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
   vaga: { caminho: "['mochila', vagaId]", acoes: ['criar', 'apagar'], quem: 'donoOuMestre', visivelAoJogador: true },
   quantidade: { caminho: "['mochila', vagaId, 'quantidade']", acoes: ['somar', 'definir'], quem: 'donoOuMestre', visivelAoJogador: true },
@@ -206,6 +216,8 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   dbt: { caminho: "['dbt', chaveDeTopo]", acoes: ['definir'], quem: 'donoOuMestre', visivelAoJogador: true },
   npcDoDbt: { caminho: "['dbt', 'npc']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: false },
   doMestre: { caminho: "['dono'] | ['combate'] | ['soCenario'] | ['nomeDoJogador'] | ['notaDoMestre']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: false },
+  // Fatia C7: quantos "???" cada aba mostra ao jogador. Quem escreve é o emissor do app do mestre (a projeção).
+  ocultas: { caminho: "['ocultas']", acoes: ['definir'], quem: 'mestre', visivelAoJogador: true },
 }
 
 /**
@@ -226,6 +238,7 @@ export type Alvo =
   | { regra: 'campoDoCartao'; aba: string; trilha: string[]; campo: CampoSimplesDoCartao }
   | { regra: 'imagemDoCartao'; aba: string; trilha: string[] }
   | { regra: 'mecanicaDoCartao'; aba: string; trilha: string[] }
+  | { regra: 'ocultaDoCartao'; aba: string; trilha: string[]; campo: CampoDeOculta }
   | { regra: 'textoDoCartao'; aba: string; trilha: string[]; campoId: string }
   | { regra: 'vaga'; vagaId: string }
   | { regra: 'quantidade'; vagaId: string }
@@ -234,6 +247,7 @@ export type Alvo =
   | { regra: 'dbt'; campo: CampoDaFichaDBT }
   | { regra: 'npcDoDbt' }
   | { regra: 'doMestre'; campo: CampoDoMestre }
+  | { regra: 'ocultas' }
 
 function alvoNaLista(aba: string, dono: readonly string[], resto: readonly string[]): Alvo | null {
   if (resto.length === 0) return null
@@ -248,6 +262,7 @@ function alvoNaLista(aba: string, dono: readonly string[], resto: readonly strin
   if (mais.length > 0) return null
   if (campo === 'imagem') return { regra: 'imagemDoCartao', aba, trilha }
   if (campo === 'mecanica') return { regra: 'mecanicaDoCartao', aba, trilha }
+  if (campo === 'oculta' || campo === 'revelaAoUsar') return { regra: 'ocultaDoCartao', aba, trilha, campo }
   return ehCampoSimplesDoCartao(campo) ? { regra: 'campoDoCartao', aba, trilha, campo } : null
 }
 
@@ -280,6 +295,8 @@ export function alvoDoCaminho(caminho: unknown): Alvo | null {
       return resto.length === 0 ? { regra: 'retrato' } : null
     case 'moedas':
       return resto.length === 0 ? { regra: 'moedas' } : null
+    case 'ocultas':
+      return resto.length === 0 ? { regra: 'ocultas' } : null
     case 'etiquetas':
       return umaChave === undefined ? null : { regra: 'etiqueta', chave: umaChave }
     case 'escolhas':
@@ -335,6 +352,8 @@ function cartaoTrazDoMestre(valor: unknown, profundidade = 0): boolean {
   const imagem = proprio(valor, 'imagem')
   if (imagem !== undefined && imagem !== null) return true
   if (proprio(valor, 'mecanica') !== undefined) return true
+  // Fatia C7: o cartão que já nasce oculto também é do mestre (o jogador não esconde nada de si).
+  if (proprio(valor, 'oculta') !== undefined || proprio(valor, 'revelaAoUsar') !== undefined) return true
   const subcartoes = proprio(valor, 'subcartoes')
   return Array.isArray(subcartoes) && Array.from(subcartoes).some((sub: unknown) => cartaoTrazDoMestre(sub, profundidade + 1))
 }
@@ -402,6 +421,7 @@ export type MudancaLida =
   | { regra: 'campoDoCartao'; aba: string; trilha: string[]; mudar: MudancaNoCartao }
   | { regra: 'imagemDoCartao'; aba: string; trilha: string[]; valor: string | null }
   | { regra: 'mecanicaDoCartao'; aba: string; trilha: string[]; valor: MecanicaGuardada | undefined }
+  | { regra: 'ocultaDoCartao'; aba: string; trilha: string[]; campo: CampoDeOculta; valor: true | undefined }
   | { regra: 'textoDoCartao'; aba: string; trilha: string[]; campoId: string; valor: string | undefined }
   | { regra: 'vaga'; acao: 'criar'; item: CarriedItem }
   | { regra: 'vaga'; acao: 'apagar'; vagaId: string }
@@ -412,6 +432,7 @@ export type MudancaLida =
   | { regra: 'moedas'; acao: 'definir'; valor: number }
   | { regra: 'dbt'; campo: CampoDaFichaDBT; valor: Json | undefined }
   | { regra: 'doMestre'; mudar: MudancaDoMestre }
+  | { regra: 'ocultas'; valor: Record<string, number> | undefined }
 
 export interface RecusaDoEsquema {
   ok: false
@@ -558,6 +579,10 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): Leitura {
         : recusa('fora-do-esquema', IMAGEM_FORA_DA_MIDIA)
     case 'mecanicaDoCartao':
       return lerMecanicaDoCartao(alvo.aba, alvo.trilha, valor)
+    case 'ocultaDoCartao':
+      return valor === undefined || valor === true
+        ? aceita({ regra: 'ocultaDoCartao', aba: alvo.aba, trilha: alvo.trilha, campo: alvo.campo, valor })
+        : recusa('fora-do-esquema', FORA_DO_FORMATO)
     case 'textoDoCartao':
       if (valor !== undefined && typeof valor !== 'string') return recusa('fora-do-esquema', FORA_DO_FORMATO)
       if (valor !== undefined && bytesDoTexto(valor) > TETOS_DO_CAMINHO.campoDoCartaoBytes) return recusa('acima-do-teto', 'Texto grande demais: máximo 8 KiB')
@@ -578,7 +603,17 @@ function lerNoAlvo(m: Mudanca, alvo: Alvo): Leitura {
       return lerCampoDbt('npc', valor)
     case 'doMestre':
       return lerDoMestre(m.fichaId, alvo.campo, valor)
+    case 'ocultas':
+      return lerOcultas(valor)
   }
+}
+
+/** A contagem "???" por aba (fatia C7) pelo leitor do disco: o que ele não guardaria igual é recusado. */
+function lerOcultas(valor: Json | undefined): Leitura {
+  if (valor === undefined) return aceita({ regra: 'ocultas', valor: undefined })
+  const lido = ocultasDoArquivo(valor).ocultas
+  if (lido === undefined || !jsonIgual(lido, valor)) return recusa('fora-do-esquema', FORA_DO_FORMATO)
+  return aceita({ regra: 'ocultas', valor: lido })
 }
 
 function lerQuantidade(vagaId: string, valor: Json): Leitura {

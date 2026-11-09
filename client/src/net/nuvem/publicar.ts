@@ -1,3 +1,4 @@
+import { semOcultas } from '../../lib/habilidadeOculta'
 import { ehRefDeMidia, idDaRef } from '../../lib/midia'
 import { idDaCopiaDeTreino, projetarParaTreino } from '../../lib/nuvem/projecao'
 import type { RpgDaPasta } from '../../lib/pastasDeMapas'
@@ -71,7 +72,8 @@ export function comInimigoLiberado(rpg: RpgDaPasta, npcId: string, liberado: boo
 
 /** A cópia de treino do NPC: id próprio, projeção do treino, sem foto embutida e sem o histórico de ajustes. */
 export function copiaDeTreino(npc: Personagem): Personagem {
-  const { ficha } = semImagemEmbutida(projetarParaTreino(npc))
+  // Fatia C7: a técnica oculta do NPC não sobe ao treino (o jogador veria o segredo lutando contra ele).
+  const { ficha } = semImagemEmbutida(projetarParaTreino(semOcultas(npc)))
   return { ...ficha, id: idDaCopiaDeTreino(npc.id), historico: [] }
 }
 
