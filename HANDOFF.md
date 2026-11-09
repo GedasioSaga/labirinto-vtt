@@ -1,3 +1,32 @@
+# Estado em 09/11/2026 (o mais recente; abaixo, o histórico)
+
+## Objetivo
+Pedidos do usuário de 07-09/11 (todos literais em PEDIDOS.md): (1) conserto das 11 fichas e bugs da batalha; (2) PRELÚDIO, preparação de sessão com o Grimório dentro do Labirinto (plano docs/planos/preludio-2026-11-08.md, Opus max); (3) minigame Fogo na Floresta (Godot, primeira pessoa, noite) no pino; (4) construtor de mecânicas para técnicas novas/NPC (docs/planos/construtor-de-mecanicas-2026-11-08.md). Autonomia total com publicação (memória autonomia-08-11-conserto).
+
+## Estado atual
+- PUBLICADO E INSTALADO no PC do usuário: 0.5.38 (Fogo no pino; release minigames com o jogo; release v0.5.38; site e Worker). main = dfb31d1b enviada. Fichas: F1+F2+F2b na 0.5.37; dados F0/F0c/F0d aplicados com backups rpg.json.antes-do-conserto-20261108(-2,-3); sobem ao Lobby quando o mestre abrir o app (mudadas-no-disco.json).
+- PRELÚDIO: F0, Drive, F1, F2a, F2b, F2c, F4 prontos na main, escondidos (chave preparo / Ctrl+Alt+P). Falta o comando Rust preludio_espaco_livre (agente engenheiro-desktop em curso) e a versão de teste local.
+- CONSTRUTOR: C1-C3 prontos (4952405a, 9b271d15, a4ef186f, 3c7ee56c, f456f9fd + correção C3); workflow wf_d0dfe479-6a4 em curso (C4, C5, auditoria).
+- Fogo: projeto em ~/jogos/fogo-na-floresta (fase 3c aprovada: "Gostei").
+- Worktree ../labirinto-release ficou no disco (remove deu Permission denied; junções já removidas): rodar git worktree prune e apagar a pasta depois.
+
+## Próximos passos
+1. Quando o comando espaço livre entrar: build LOCAL 0.5.39-teste.1 da main com --com-google (sem --publicar), instalar (/S, app fechado), mandar ao mestre o roteiro do portão (~/.claude/jobs/6d1d8a12/tmp/roteiro-portao-preludio.md).
+2. PORTÃO: o mestre prepara 1 sessão real no Prelúdio; só depois F3 quadro (tldraw), IA, F5 revelado no Lobby, troca.
+3. Construtor: terminar C4/C5 e auditoria; depois F3 do conserto como peças (C6 tela do mestre, C7 oculta, C10 companion, efeito de arma com usos).
+4. Pendentes do usuário: e-mails dos jogadores no Access; reiniciar o PC quando nada rodar (pagefile).
+
+## Critério de pronto
+- Prelúdio no portão: o mestre segue o roteiro do portão no app instalado e diz se prepara a sessão sem voltar ao Grimório; Aplicar destravado; login do Google e cópia funcionando.
+- Construtor: auditoria final PRONTO (NPC inventado com 3 técnicas montadas joga numa batalha; 11 fichas reais leem igual).
+
+## Evidência
+- v0.5.38: publicar-0.5.38.log exit=0, "release v0.5.38 publicada com latest.json", Pages e25232d6; setup /S exit=0.
+- Prelúdio: auditoria wf_acddde75-089: tsc EXIT=0; vitest src/lib/preparo src/preludio 84/84; conferir-repo-publico "nada bloqueia"; nenhum nome da campanha real no git.
+- Fogo 3c: 78 testes; metas do robô 11/11 (fogo-fase3c-fim.log).
+
+---
+
 # Lobby dos jogadores: estado em 07/11/2026 (o mais recente; o resto do arquivo é de 04/11)
 
 ## Objetivo
