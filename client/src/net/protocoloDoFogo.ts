@@ -1,9 +1,11 @@
 import {
+  ALTURAS_FOGO,
   DIFICULDADES_FOGO,
-  FUNCOES_FOGO,
+  FERRAMENTAS_FOGO,
   MODOS_FOGO,
+  type AlturaFogo,
   type DificuldadeFogo,
-  type FuncaoFogo,
+  type FerramentaFogo,
   type ModoFogo,
 } from '../minigames/fogo/tipos'
 
@@ -22,8 +24,10 @@ import {
  * Lockstep (o jogo é um export web do Godot, `minigames/fogo/tela/ponteDoJogo.ts`):
  * todo aparelho roda a MESMA partida com a mesma semente e as mesmas entradas
  * por tique. A rede nunca simula nada: o mestre só repassa entradas e
- * compara os hashes. Contrato do jogo: `docs/ponte-app-labirinto.md` do
- * projeto do jogo.
+ * compara os hashes. Contrato do jogo (versão 2, primeira pessoa):
+ * `docs/ponte-app-labirinto.md` do projeto do jogo. Cada jogador sai com uma
+ * FERRAMENTA (`bolha`, `mangueira` ou `areia`), que o mestre sugere e o
+ * jogador confirma no Pronto.
  *
  * Este módulo não importa `protocol.ts`, que importa daqui.
  */
@@ -41,7 +45,7 @@ export const FOGO_LOTE_MAX = 100
 export const FOGO_LOTES_MAX = 24
 /** Tique mais alto que o jogo aceita (`TIQUE_MAX`): 180 s de partida são 1800. */
 export const FOGO_TIQUE_MAX = 100_000
-/** Uma entrada no fio: `[mx, my, ax, ay, acao, pegar, funcao]`, só inteiros. */
+/** Uma entrada no fio: `[frente, lado, olhar, mx, my, acao, ferramenta]`, só inteiros (opaca: o app só repassa). */
 export const FOGO_ENTRADA_TAMANHO = 7
 /** O jogo saneia cada número; o teto aqui só barra lixo (a mira vai em centésimos de célula). */
 const FOGO_ENTRADA_VALOR_MAX = 1_000_000
@@ -74,7 +78,7 @@ export type FogoEntrada = number[]
 export interface FogoParticipante {
   playerId: string
   nome: string
-  funcao: FuncaoFogo
+  ferramenta: FerramentaFogo
 }
 
 /** As entradas do jogador `id` para os tiques `de`, `de + 1`, ... */
@@ -88,20 +92,46 @@ export interface FogoLote {
 export interface FogoJogadorDaPartida {
   id: string
   nome: string
-  funcao: FuncaoFogo
+  ferramenta: FerramentaFogo
+}
+
+/** Uma altura do fogo no fim: `viva` em %, o resto em células daquela altura. */
+export interface FogoAlturaNoPlacar {
+  viva: number
+  inicial: number
+  vivasNoFim: number
+  queimadas: number
+}
+
+/** A linha de um jogador no placar do jogo: a ferramenta com que saiu, os pontos e o fogo que tirou das alturas que contam. */
+export interface FogoPlacarDoJogador {
+  id: string
+  ferramenta: FerramentaFogo
+  pontos: number
+  /** 1000 = uma altura acesa inteira numa célula (GDD seção 3, "Pontos por jogador"). */
+  fogoCerto: number
 }
 
 /** O placar do fim que o jogo manda (convertido para o app: só o que a mesa lê). */
 export interface FogoPlacar {
   vitoria: boolean
+  /** `apagado`, `tempo` ou `vila` hoje; texto livre para não recusar um motivo novo do jogo. */
   motivo: string
+  /** Do JOGO: `solo` quando a partida teve 1 jogador (só a altura da ferramenta dele contou). */
+  modo: ModoFogo
+  /** As alturas que contaram: as 3 na equipe, só a da ferramenta principal no solo. */
+  contam: AlturaFogo[]
   pontos: number
   estrelas: number
   florestaViva: number
+  alturas: Record<AlturaFogo, FogoAlturaNoPlacar>
   casas: number
   tempoS: number
-  porJogador: { id: string; funcao: FuncaoFogo; pontos: number }[]
+  porJogador: FogoPlacarDoJogador[]
 }
+
+/** O placar do time, sem as linhas de cada jogador (o desfecho leva as linhas na mesa). */
+export type FogoResumoDoPlacar = Omit<FogoPlacar, 'porJogador'>
 
 export interface FogoConviteMessage {
   type: 'fogo.convite'
@@ -120,7 +150,7 @@ export interface FogoEstadoMessage {
   type: 'fogo.estado'
   sessao: string
   fase: FogoFaseNoFio
-  participantes: { playerId: string; status: FogoStatus; funcao: FuncaoFogo }[]
+  participantes: { playerId: string; status: FogoStatus; ferramenta: FerramentaFogo }[]
 }
 
 export interface FogoComecarMessage {
@@ -160,8 +190,10 @@ export interface FogoEncerraMessage {
 export interface FogoLinhaDaMesa {
   playerId: string
   nome: string
-  funcao: FuncaoFogo
+  ferramenta: FerramentaFogo
   pontos: number
+  /** O `fogoCerto` do placar dele (0 para quem saiu antes do fim). */
+  fogoCerto: number
   resultado: FogoResultado
 }
 
@@ -170,7 +202,7 @@ export interface FogoDesfechoMessage {
   sessao: string
   modo: ModoFogo
   /** O placar da equipe (no solo, o do próprio jogador); ausente = ninguém terminou. */
-  placar?: Omit<FogoPlacar, 'porJogador'>
+  placar?: FogoResumoDoPlacar
   mesa: FogoLinhaDaMesa[]
   /** O que é DESTE jogador: o prêmio de quem venceu, a consequência de quem não venceu. */
   seu: { passou: boolean; premio?: { texto: string }; consequencia?: { texto: string } }
@@ -189,7 +221,7 @@ export type FogoHostMessage =
 export interface FogoProntoMessage {
   type: 'fogo.pronto'
   sessao: string
-  funcao: FuncaoFogo
+  ferramenta: FerramentaFogo
 }
 
 export interface FogoEntradasMessage {
@@ -278,49 +310,81 @@ export function lerEntradaDoFogo(value: unknown): FogoEntrada | null {
 
 const contagem = (value: unknown): value is number => inteiroEntre(value, 0, FOGO_CONTAGEM_MAX)
 
-type ResumoDoPlacar = Omit<FogoPlacar, 'porJogador'>
+function lerAltura(value: unknown): FogoAlturaNoPlacar | null {
+  if (!isRecord(value)) return null
+  const { viva, inicial, vivasNoFim, queimadas } = value
+  if (!inteiroEntre(viva, 0, 100) || !contagem(inicial) || !contagem(vivasNoFim) || !contagem(queimadas)) return null
+  return { viva, inicial, vivasNoFim, queimadas }
+}
 
-/** O placar do time, sem as linhas de cada jogador (o desfecho leva as linhas na mesa). */
-function lerResumoDoPlacar(value: unknown): ResumoDoPlacar | null {
+/** As 3 alturas, sempre todas (o jogo manda as 3 mesmo no solo, em que só uma conta). */
+function lerAlturas(value: unknown): Record<AlturaFogo, FogoAlturaNoPlacar> | null {
+  if (!isRecord(value)) return null
+  const rasteiro = lerAltura(value.rasteiro)
+  const tronco = lerAltura(value.tronco)
+  const copa = lerAltura(value.copa)
+  return rasteiro === null || tronco === null || copa === null ? null : { rasteiro, tronco, copa }
+}
+
+const lerAlturaQueConta = (item: unknown): AlturaFogo | null => umDaLista(ALTURAS_FOGO, item) ?? null
+
+function lerResumoDoPlacar(value: unknown): FogoResumoDoPlacar | null {
   if (!isRecord(value)) return null
   const { vitoria, motivo, pontos, estrelas, florestaViva, casas, tempoS } = value
+  const modo = umDaLista(MODOS_FOGO, value.modo)
+  const contam = listaDe(value.contam, ALTURAS_FOGO.length, lerAlturaQueConta, 1)
+  const alturas = lerAlturas(value.alturas)
   if (typeof vitoria !== 'boolean' || !textoEntre(motivo, 0, MOTIVO_MAX) || !contagem(pontos) || !inteiroEntre(estrelas, 0, 10)) return null
   if (!inteiroEntre(florestaViva, 0, 100) || !contagem(casas) || !inteiroEntre(tempoS, 0, FOGO_TIQUE_MAX)) return null
-  return { vitoria, motivo, pontos, estrelas, florestaViva, casas, tempoS }
+  if (modo === undefined || contam === null || alturas === null) return null
+  return { vitoria, motivo, modo, contam, pontos, estrelas, florestaViva, alturas, casas, tempoS }
+}
+
+function lerPlacarDoJogador(item: unknown): FogoPlacarDoJogador | null {
+  if (!isRecord(item)) return null
+  const ferramenta = umDaLista(FERRAMENTAS_FOGO, item.ferramenta)
+  if (ferramenta === undefined || !idValido(item.id) || !contagem(item.pontos) || !contagem(item.fogoCerto)) return null
+  return { id: item.id, ferramenta, pontos: item.pontos, fogoCerto: item.fogoCerto }
 }
 
 /** O placar no formato do APP (camelCase). O do jogo (snake_case) é convertido por `placarDoJogo`. */
 function lerPlacar(value: unknown): FogoPlacar | null {
   const resumo = lerResumoDoPlacar(value)
   if (resumo === null || !isRecord(value)) return null
-  const porJogador = listaDe(
-    value.porJogador,
-    FOGO_EQUIPE_MAX,
-    (item) => {
-      const funcao = isRecord(item) ? umDaLista(FUNCOES_FOGO, item.funcao) : undefined
-      if (!isRecord(item) || funcao === undefined || !idValido(item.id) || !contagem(item.pontos)) return null
-      return { id: item.id, funcao, pontos: item.pontos }
-    },
-    1,
-  )
+  const porJogador = listaDe(value.porJogador, FOGO_EQUIPE_MAX, lerPlacarDoJogador, 1)
   return porJogador === null ? null : { ...resumo, porJogador }
 }
 
+/** Uma altura como o jogo manda (`vivas_no_fim`), no formato do app. */
+const alturaDoJogo = (value: unknown): unknown =>
+  isRecord(value) ? { viva: value.viva, inicial: value.inicial, vivasNoFim: value.vivas_no_fim, queimadas: value.queimadas } : null
+
 /**
- * O placar como o JOGO manda (`fim.placar`, snake_case, seção 6 do GDD),
- * convertido para o do app. `null` = torto. Campos que a mesa não lê ficam.
+ * O placar como o JOGO manda (`fim.placar`, snake_case, seção 6 do GDD,
+ * versão 2), convertido para o do app. `null` = torto. Os campos que a mesa
+ * não lê (`apagou`, `agua_usada`, `bolhas_usadas`, `areia_usada`, `desmaios`)
+ * ficam. A ferramenta da linha é a INICIAL (a que a mesa escolheu): a final
+ * é só onde ele estava quando acabou.
  */
 export function placarDoJogo(value: unknown): FogoPlacar | null {
   if (!isRecord(value)) return null
   const porJogador = Array.isArray(value.por_jogador)
-    ? value.por_jogador.map((item: unknown) => (isRecord(item) ? { id: item.id, funcao: item.funcao_inicial ?? item.funcao, pontos: item.pontos } : null))
+    ? value.por_jogador.map((item: unknown) =>
+        isRecord(item) ? { id: item.id, ferramenta: item.ferramenta_inicial ?? item.ferramenta, pontos: item.pontos, fogoCerto: item.fogo_certo } : null,
+      )
+    : null
+  const alturas = isRecord(value.alturas)
+    ? { rasteiro: alturaDoJogo(value.alturas.rasteiro), tronco: alturaDoJogo(value.alturas.tronco), copa: alturaDoJogo(value.alturas.copa) }
     : null
   return lerPlacar({
     vitoria: value.vitoria,
     motivo: value.motivo,
+    modo: value.modo,
+    contam: value.contam,
     pontos: value.pontos,
     estrelas: value.estrelas,
     florestaViva: value.floresta_viva,
+    alturas,
     casas: value.casas,
     tempoS: value.tempo_s,
     porJogador,
@@ -334,8 +398,8 @@ export function parseFogoPlayerMessage(value: unknown): FogoPlayerMessage | null
   if (!sessaoValida(sessao)) return null
   switch (value.type) {
     case 'fogo.pronto': {
-      const funcao = umDaLista(FUNCOES_FOGO, value.funcao)
-      return funcao === undefined ? null : { type: 'fogo.pronto', sessao, funcao }
+      const ferramenta = umDaLista(FERRAMENTAS_FOGO, value.ferramenta)
+      return ferramenta === undefined ? null : { type: 'fogo.pronto', sessao, ferramenta }
     }
     case 'fogo.entradas': {
       const lista = listaDe(value.lista, FOGO_LOTE_MAX, lerEntradaDoFogo, 1)
@@ -363,16 +427,16 @@ export function parseFogoPlayerMessage(value: unknown): FogoPlayerMessage | null
 
 function lerParticipante(value: unknown): FogoParticipante | null {
   if (!isRecord(value)) return null
-  const funcao = umDaLista(FUNCOES_FOGO, value.funcao)
-  if (!idValido(value.playerId) || !textoEntre(value.nome, 1, FOGO_NOME_MAX) || funcao === undefined) return null
-  return { playerId: value.playerId, nome: value.nome, funcao }
+  const ferramenta = umDaLista(FERRAMENTAS_FOGO, value.ferramenta)
+  if (!idValido(value.playerId) || !textoEntre(value.nome, 1, FOGO_NOME_MAX) || ferramenta === undefined) return null
+  return { playerId: value.playerId, nome: value.nome, ferramenta }
 }
 
 function lerJogadorDaPartida(value: unknown): FogoJogadorDaPartida | null {
   if (!isRecord(value)) return null
-  const funcao = umDaLista(FUNCOES_FOGO, value.funcao)
-  if (!idValido(value.id) || !textoEntre(value.nome, 0, FOGO_NOME_MAX) || funcao === undefined) return null
-  return { id: value.id, nome: value.nome, funcao }
+  const ferramenta = umDaLista(FERRAMENTAS_FOGO, value.ferramenta)
+  if (!idValido(value.id) || !textoEntre(value.nome, 0, FOGO_NOME_MAX) || ferramenta === undefined) return null
+  return { id: value.id, nome: value.nome, ferramenta }
 }
 
 function lerTexto(value: unknown): { texto: string } | null {
@@ -388,8 +452,8 @@ function lerLote(value: unknown): FogoLote | null {
 function lerLinhaDaMesa(value: unknown): FogoLinhaDaMesa | null {
   const base = lerParticipante(value)
   const resultado = isRecord(value) ? umDaLista(RESULTADOS, value.resultado) : undefined
-  if (base === null || !isRecord(value) || !contagem(value.pontos) || resultado === undefined) return null
-  return { ...base, pontos: value.pontos, resultado }
+  if (base === null || !isRecord(value) || !contagem(value.pontos) || !contagem(value.fogoCerto) || resultado === undefined) return null
+  return { ...base, pontos: value.pontos, fogoCerto: value.fogoCerto, resultado }
 }
 
 function lerDesfecho(value: Record<string, unknown>, sessao: string): FogoDesfechoMessage | null {
@@ -431,8 +495,8 @@ export function parseFogoHostMessage(value: unknown): FogoHostMessage | null {
       const fase = umDaLista(FASES_NO_FIO, value.fase)
       const participantes = listaDe(value.participantes, FOGO_PARTICIPANTES_MAX, (item) => {
         const status = isRecord(item) ? umDaLista(FOGO_STATUS, item.status) : undefined
-        const funcao = isRecord(item) ? umDaLista(FUNCOES_FOGO, item.funcao) : undefined
-        return status === undefined || funcao === undefined || !isRecord(item) || !idValido(item.playerId) ? null : { playerId: item.playerId, status, funcao }
+        const ferramenta = isRecord(item) ? umDaLista(FERRAMENTAS_FOGO, item.ferramenta) : undefined
+        return status === undefined || ferramenta === undefined || !isRecord(item) || !idValido(item.playerId) ? null : { playerId: item.playerId, status, ferramenta }
       })
       return fase === undefined || participantes === null ? null : { type: 'fogo.estado', sessao, fase, participantes }
     }

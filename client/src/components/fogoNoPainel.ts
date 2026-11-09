@@ -9,7 +9,7 @@ import type { FogoAoVivoProps, JogadorDoFogo } from './FogoAoVivo'
  */
 
 /** Os comandos do fogo que o painel manda. */
-export type PonteDoFogo = Pick<HostBridge, 'convidarParaFogo' | 'mudarFuncaoNoFogo' | 'comecarFogo' | 'pausarFogo' | 'retomarFogo' | 'encerrarFogo'>
+export type PonteDoFogo = Pick<HostBridge, 'convidarParaFogo' | 'mudarFerramentaNoFogo' | 'comecarFogo' | 'pausarFogo' | 'retomarFogo' | 'encerrarFogo'>
 
 /** O fogo ao vivo como o painel do pino o recebe (`MinigameControls`); a dificuldade permitida vem do pino. */
 export type FogoNoPainel = Omit<FogoAoVivoProps, 'pinId' | 'permitida'>
@@ -30,7 +30,7 @@ export function fogoNoPainel(pinId: string, sala: SalaDoFogo): FogoNoPainel | nu
     players: sala.players,
     fogo: sala.fogo,
     onConvidar: (convidados, modo) => sala.ponte()?.convidarParaFogo(pinId, convidados, modo) ?? null,
-    onMudarFuncao: (playerId, funcao) => sala.ponte()?.mudarFuncaoNoFogo(playerId, funcao) ?? false,
+    onMudarFerramenta: (playerId, ferramenta) => sala.ponte()?.mudarFerramentaNoFogo(playerId, ferramenta) ?? false,
     onComecar: (dificuldade) => sala.ponte()?.comecarFogo(dificuldade) ?? false,
     onPausar: () => sala.ponte()?.pausarFogo() ?? false,
     onRetomar: () => sala.ponte()?.retomarFogo() ?? false,

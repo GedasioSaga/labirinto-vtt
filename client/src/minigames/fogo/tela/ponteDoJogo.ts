@@ -13,7 +13,8 @@ import {
 /**
  * A PONTE COM O JOGO (o export web do Godot num iframe), contrato da seção 6
  * do GDD do Fogo na Floresta: só `postMessage`, texto JSON com
- * `{jogo: 'fogo', v: 1, tipo, ...}`.
+ * `{jogo: 'fogo', v: 2, tipo, ...}` (a versão 2 é a primeira pessoa: o
+ * `iniciar` leva a `ferramenta` de cada um, e o jogo ignora `v: 1`).
  *
  *  - jogo → app: `pronto`, `iniciado`, `erro`, `entrada` (a MINHA, uma por
  *    tique), `hash` (a cada 50 tiques) e `fim` (o placar);
@@ -73,7 +74,7 @@ export interface PonteDoJogo {
   estado(): EstadoDaPonte
 }
 
-const ENVELOPE = { jogo: 'fogo', v: 1 } as const
+const ENVELOPE = { jogo: 'fogo', v: 2 } as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -81,7 +82,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const inteiro = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value)
 
-/** O texto do jogo, aberto: `null` = não é do Fogo v1. */
+/** O texto do jogo, aberto: `null` = não é do Fogo na versão da ponte (`ENVELOPE.v`). */
 function lerDoJogo(data: unknown): Record<string, unknown> | null {
   if (typeof data !== 'string') return null
   let valor: unknown
@@ -118,7 +119,9 @@ export function criarPonteDoJogo(op: OpcoesDaPonte): PonteDoJogo {
 
   const mandarIniciar = () => {
     if (partida === null || estado !== 'esperando') return
-    const { semente, dificuldade, atraso, jogadores, eu } = partida
+    const { semente, dificuldade, atraso, eu } = partida
+    // Só os 3 campos que o jogo lê, na ordem do mestre (a ordem é o número na simulação).
+    const jogadores = partida.jogadores.map(({ id, nome, ferramenta }) => ({ id, nome, ferramenta }))
     paraOJogo('iniciar', { semente, dificuldade, atraso, jogadores, eu })
   }
 

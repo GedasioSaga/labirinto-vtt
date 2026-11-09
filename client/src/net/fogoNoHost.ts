@@ -1,4 +1,4 @@
-import type { DificuldadeFogo, FuncaoFogo, MinigameFogo, ModoFogo } from '../minigames/fogo/tipos'
+import { ALTURAS_FOGO, type DificuldadeFogo, type FerramentaFogo, type MinigameFogo, type ModoFogo } from '../minigames/fogo/tipos'
 import {
   FOGO_ATRASO_PADRAO,
   FOGO_EQUIPE_MAX,
@@ -21,6 +21,7 @@ import {
   type FogoPlacar,
   type FogoProntoMessage,
   type FogoResultado,
+  type FogoResumoDoPlacar,
   type FogoStatus,
 } from './protocoloDoFogo'
 
@@ -65,7 +66,7 @@ export interface FogoCongelado {
 export interface FogoConvidado {
   playerId: string
   nome: string
-  funcao: FuncaoFogo
+  ferramenta: FerramentaFogo
 }
 
 export type FogoConviteResultado = { ok: true; sessao: string; convidados: number } | { ok: false; motivo: 'pino' | 'ocupada' | 'ninguem' }
@@ -73,11 +74,13 @@ export type FogoConviteResultado = { ok: true; sessao: string; convidados: numbe
 export interface FogoParticipanteNoMestre {
   playerId: string
   nome: string
-  funcao: FuncaoFogo
+  ferramenta: FerramentaFogo
   status: FogoStatus
   conectado: boolean
   /** Só depois do desfecho. */
   pontos?: number
+  /** Só depois do desfecho: o fogo que as ferramentas dele tiraram das alturas que contam. */
+  fogoCerto?: number
   resultado?: FogoResultado
 }
 
@@ -93,8 +96,8 @@ export interface FogoAoVivo {
   participantes: FogoParticipanteNoMestre[]
   /** O primeiro tique em que os aparelhos discordaram, e de quem era cada lado. */
   divergencia?: { tique: number; nomes: string[] }
-  /** No modo equipe, o placar do time; no solo, ausente (cada linha tem o seu). */
-  desfecho?: { vitoria: boolean; pontos?: number; estrelas?: number; florestaViva?: number }
+  /** No modo equipe, o placar do time (ausente quando ninguém terminou); no solo, o desfecho inteiro fica ausente (cada linha tem o seu). */
+  desfecho?: { vitoria: boolean; placar?: FogoResumoDoPlacar }
 }
 
 export interface ContextoDoFogo {
@@ -106,7 +109,7 @@ export interface ContextoDoFogo {
 interface Participante {
   playerId: string
   nome: string
-  funcao: FuncaoFogo
+  ferramenta: FerramentaFogo
   status: FogoStatus
   /** Último tique dele que chegou ao mestre (0 = nenhum). */
   ultimoRecebido: number
@@ -117,6 +120,7 @@ interface Participante {
   fim?: { tique: number; hash: number; placar: FogoPlacar }
   resultado?: FogoResultado
   pontos?: number
+  fogoCerto?: number
 }
 
 interface Fogo {
@@ -136,8 +140,8 @@ interface Fogo {
 export interface FogoNoHost {
   convidar(conf: FogoCongelado, modo: ModoFogo, convidados: readonly FogoConvidado[]): { outbound: SaidaDoFogo[]; resultado: FogoConviteResultado }
   pronto(playerId: string, msg: FogoProntoMessage): SaidaDoFogo[]
-  /** O mestre troca a função inicial de alguém no painel (só no convite). */
-  mudarFuncao(playerId: string, funcao: FuncaoFogo): SaidaDoFogo[] | null
+  /** O mestre troca a ferramenta inicial de alguém no painel (só no convite). */
+  mudarFerramenta(playerId: string, ferramenta: FerramentaFogo): SaidaDoFogo[] | null
   entradas(playerId: string, msg: FogoEntradasMessage): SaidaDoFogo[]
   hash(playerId: string, msg: FogoHashMessage): SaidaDoFogo[]
   fim(playerId: string, msg: FogoFimMessage): SaidaDoFogo[]
@@ -171,6 +175,18 @@ export function sementeDoFogo(id: string): number {
   return (h >>> 0) % (FOGO_SEMENTE_MAX + 1)
 }
 
+/** Cópia funda do resumo: o painel e cada desfecho não dividem objeto. */
+function copiaDoResumo(resumo: FogoResumoDoPlacar): FogoResumoDoPlacar {
+  const { contam, alturas } = resumo
+  return { ...resumo, contam: [...contam], alturas: { rasteiro: { ...alturas.rasteiro }, tronco: { ...alturas.tronco }, copa: { ...alturas.copa } } }
+}
+
+/** O placar do time sem as linhas de cada um. */
+function resumoDe(placar: FogoPlacar): FogoResumoDoPlacar {
+  const { porJogador: _porJogador, ...resumo } = placar
+  return copiaDoResumo(resumo)
+}
+
 /** Os lotes de um jogador: trechos de tiques seguidos, até `FOGO_LOTE_MAX` entradas cada. */
 function lotesDaFila(id: string, fila: readonly { tique: number; e: FogoEntrada }[]): FogoLote[] {
   const lotes: FogoLote[] = []
@@ -196,7 +212,7 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
     type: 'fogo.estado',
     sessao: f.sessao,
     fase: f.fase === 'convite' ? 'convite' : f.fase === 'pausa' ? 'pausa' : 'jogo',
-    participantes: f.participantes.map((p) => ({ playerId: p.playerId, status: p.status, funcao: p.funcao })),
+    participantes: f.participantes.map((p) => ({ playerId: p.playerId, status: p.status, ferramenta: p.ferramenta })),
   })
 
   /** O estado a quem segue no fogo: o `fora` já recebeu o `fogo.encerra`. */
@@ -217,7 +233,7 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
       modo: f.modo,
       premio: { ...m.premio },
       consequencia: { ...m.consequencia },
-      participantes: f.participantes.map((p) => ({ playerId: p.playerId, nome: p.nome, funcao: p.funcao })),
+      participantes: f.participantes.map((p) => ({ playerId: p.playerId, nome: p.nome, ferramenta: p.ferramenta })),
     }
   }
 
@@ -258,7 +274,14 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
     return jogando(f).flatMap((o) => para(o, sair))
   }
 
-  const linhaDe = (p: Participante): FogoLinhaDaMesa => ({ playerId: p.playerId, nome: p.nome, funcao: p.funcao, pontos: p.pontos ?? 0, resultado: p.resultado ?? 'saiu' })
+  const linhaDe = (p: Participante): FogoLinhaDaMesa => ({
+    playerId: p.playerId,
+    nome: p.nome,
+    ferramenta: p.ferramenta,
+    pontos: p.pontos ?? 0,
+    fogoCerto: p.fogoCerto ?? 0,
+    resultado: p.resultado ?? 'saiu',
+  })
 
   /** Fecha o fogo ativo sem desfecho: ninguém ganha nem perde. Avisa todo mundo menos quem já ficou de fora. */
   const fecharSemDesfecho = (f: Fogo, motivo: FogoMotivoDoFim): SaidaDoFogo[] => {
@@ -267,11 +290,12 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
     return f.participantes.filter((p) => p.status !== 'fora').flatMap((p) => para(p, msg))
   }
 
-  /** O fim de um aparelho, para comparar com o dos colegas: tique, hash e o placar inteiro (as linhas por id). */
+  /** O fim de um aparelho, para comparar com o dos colegas: tique, hash e o placar inteiro (as linhas por id, as alturas na ordem fixa). */
   const chaveDoFim = (fim: NonNullable<Participante['fim']>): string => {
     const p = fim.placar
-    const linhas = [...p.porJogador].sort((a, b) => a.id.localeCompare(b.id)).map((l) => [l.id, l.funcao, l.pontos])
-    return JSON.stringify([fim.tique, fim.hash, p.vitoria, p.motivo, p.pontos, p.estrelas, p.florestaViva, p.casas, p.tempoS, linhas])
+    const linhas = [...p.porJogador].sort((a, b) => a.id.localeCompare(b.id)).map((l) => [l.id, l.ferramenta, l.pontos, l.fogoCerto])
+    const alturas = ALTURAS_FOGO.map((a) => [a, p.alturas[a].viva, p.alturas[a].inicial, p.alturas[a].vivasNoFim, p.alturas[a].queimadas])
+    return JSON.stringify([fim.tique, fim.hash, p.vitoria, p.motivo, p.modo, p.contam, p.pontos, p.estrelas, p.florestaViva, alturas, p.casas, p.tempoS, linhas])
   }
 
   /**
@@ -302,15 +326,15 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
     const doTime = f.modo === 'equipe' ? fins[0]?.fim.placar : undefined
     for (const p of jogaram) {
       const placar = f.modo === 'equipe' ? doTime : p.fim?.placar
-      p.pontos = placar?.porJogador.find((linha) => linha.id === p.playerId)?.pontos ?? 0
+      // Quem saiu no meio não está no placar do time: fica com 0.
+      const linha = placar?.porJogador.find((item) => item.id === p.playerId)
+      p.pontos = linha?.pontos ?? 0
+      p.fogoCerto = linha?.fogoCerto ?? 0
       p.resultado = p.status === 'saiu' || placar === undefined ? 'saiu' : placar.vitoria ? 'venceu' : 'perdeu'
     }
     f.fase = 'fim'
     if (f.modo === 'equipe') {
-      f.desfecho =
-        doTime === undefined
-          ? { vitoria: false }
-          : { vitoria: doTime.vitoria, pontos: doTime.pontos, estrelas: doTime.estrelas, florestaViva: doTime.florestaViva }
+      f.desfecho = doTime === undefined ? { vitoria: false } : { vitoria: doTime.vitoria, placar: resumoDe(doTime) }
     }
     const mesa = jogaram.map(linhaDe)
     return jogaram.flatMap((p) => {
@@ -320,10 +344,7 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
       if (passou && m.premio.texto.trim() !== '') seu.premio = { ...m.premio }
       if (!passou && m.consequencia.texto.trim() !== '') seu.consequencia = { ...m.consequencia }
       const msg: FogoDesfechoMessage = { type: 'fogo.desfecho', sessao: f.sessao, modo: f.modo, mesa, seu }
-      if (placar !== undefined) {
-        const { porJogador: _porJogador, ...resumo } = placar
-        msg.placar = resumo
-      }
+      if (placar !== undefined) msg.placar = resumoDe(placar)
       return para(p, msg)
     })
   }
@@ -339,7 +360,7 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
         conf,
         modo,
         fase: 'convite',
-        participantes: chamados.map((c) => ({ playerId: c.playerId, nome: c.nome, funcao: c.funcao, status: 'convidado', ultimoRecebido: 0, ultimoRepassado: 0, fila: [] })),
+        participantes: chamados.map((c) => ({ playerId: c.playerId, nome: c.nome, ferramenta: c.ferramenta, status: 'convidado', ultimoRecebido: 0, ultimoRepassado: 0, fila: [] })),
         hashes: new Map(),
       }
       fogo = f
@@ -352,18 +373,18 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
       if (achado === null) return []
       const { f, p } = achado
       if (p.status !== 'convidado' && p.status !== 'pronto') return []
-      if (p.status === 'pronto' && p.funcao === msg.funcao) return []
+      if (p.status === 'pronto' && p.ferramenta === msg.ferramenta) return []
       p.status = 'pronto'
-      p.funcao = msg.funcao
+      p.ferramenta = msg.ferramenta
       return estadoATodos(f)
     },
 
-    mudarFuncao(playerId, funcao) {
+    mudarFerramenta(playerId, ferramenta) {
       const f = fogo
       const p = f?.participantes.find((item) => item.playerId === playerId)
       if (f === null || f.fase !== 'convite' || p === undefined) return null
-      if (p.funcao === funcao) return []
-      p.funcao = funcao
+      if (p.ferramenta === ferramenta) return []
+      p.ferramenta = ferramenta
       return estadoATodos(f)
     },
 
@@ -463,7 +484,7 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
         semente,
         dificuldade,
         atraso,
-        jogadores: quem.map((p) => ({ id: p.playerId, nome: p.nome, funcao: p.funcao })),
+        jogadores: quem.map((p) => ({ id: p.playerId, nome: p.nome, ferramenta: p.ferramenta })),
       })
       // Equipe: o MESMO começar para todos (a ordem é o número na simulação); solo: cada um no seu incêndio.
       const daEquipe = partida(jogam)
@@ -544,14 +565,17 @@ export function criarFogoNoHost(ctx: ContextoDoFogo): FogoNoHost {
         participantes: f.participantes.map((p) => ({
           playerId: p.playerId,
           nome: p.nome,
-          funcao: p.funcao,
+          ferramenta: p.ferramenta,
           status: p.status,
           conectado: ctx.conexaoDe(p.playerId) !== null,
           ...(p.pontos === undefined ? {} : { pontos: p.pontos }),
+          ...(p.fogoCerto === undefined ? {} : { fogoCerto: p.fogoCerto }),
           ...(p.resultado === undefined ? {} : { resultado: p.resultado }),
         })),
         ...(f.divergencia === undefined ? {} : { divergencia: { tique: f.divergencia.tique, nomes: [...f.divergencia.nomes] } }),
-        ...(f.desfecho === undefined ? {} : { desfecho: { ...f.desfecho } }),
+        ...(f.desfecho === undefined
+          ? {}
+          : { desfecho: { vitoria: f.desfecho.vitoria, ...(f.desfecho.placar === undefined ? {} : { placar: copiaDoResumo(f.desfecho.placar) }) } }),
       }
     },
   }

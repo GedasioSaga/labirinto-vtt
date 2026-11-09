@@ -175,7 +175,7 @@ import { lembrarCena, type CenaLembrada } from './meuCaderno'
 import type { DificuldadeDanca } from '../minigames/danca/tipos'
 import { parseDancaHostMessage, parseDancaPlayerMessage, type DancaEvento, type DancaPlacarAoVivo, type DancaPlacarFinal, type DancaPlayerMessage } from '../net/protocoloDaDanca'
 import { dancaAceitaPronto, dancaNaPista, receberDanca, type DancaDoJogador } from './estadoDaDanca'
-import type { FuncaoFogo } from '../minigames/fogo/tipos'
+import type { FerramentaFogo } from '../minigames/fogo/tipos'
 import { parseFogoHostMessage, parseFogoPlayerMessage, type FogoEntrada, type FogoPlacar, type FogoPlayerMessage } from '../net/protocoloDoFogo'
 import { fogoAceitaDesistir, fogoAceitaPronto, fogoEmJogo, receberFogo, type FogoDoJogador, type FogoParaOJogo } from './estadoDoFogo'
 import type { DificuldadePesca } from '../minigames/pesca/tipos'
@@ -1658,8 +1658,8 @@ export interface PlayerConnection {
   dancaFim(placar: DancaPlacarFinal): boolean
   /** DANÇA: a tela fechou o resultado (ou o aviso de encerrada): o estado da dança sai. */
   fecharDanca(): void
-  /** FOGO: "Pronto" com a função escolhida. `false` sem convite aberto ou com o socket fechado. Mandar de novo troca a função. */
-  prontoFogo(funcao: FuncaoFogo): boolean
+  /** FOGO: "Pronto" com a ferramenta escolhida. `false` sem convite aberto ou com o socket fechado. Mandar de novo troca a ferramenta. */
+  prontoFogo(ferramenta: FerramentaFogo): boolean
   /** FOGO: as MINHAS entradas dos tiques `de`, `de + 1`, ... (a tela junta a cada `FOGO_REPASSE_MS`). */
   entradasFogo(de: number, lista: FogoEntrada[]): boolean
   /** FOGO: a impressão digital do estado num tique (a cada 5 s de jogo), para o mestre comparar. */
@@ -5985,11 +5985,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.danca !== undefined) setState({ danca: undefined })
     },
 
-    prontoFogo(funcao) {
+    prontoFogo(ferramenta) {
       const fogo = state.fogo
       if (!fogoAceitaPronto(fogo)) return false
-      if (!enviarFogo({ type: 'fogo.pronto', sessao: fogo.sessao, funcao })) return false
-      setState({ fogo: { ...fogo, pronto: funcao } })
+      if (!enviarFogo({ type: 'fogo.pronto', sessao: fogo.sessao, ferramenta })) return false
+      setState({ fogo: { ...fogo, pronto: ferramenta } })
       return true
     },
 

@@ -7,17 +7,34 @@
  * O jogo em si é um export web do Godot 4.7.2 (projeto `fogo-na-floresta`,
  * fora deste repositório) que roda num iframe e conversa por `postMessage`
  * (`tela/ponteDoJogo.ts`). Decisões do usuário (08/11/2026): cooperativo ao
- * vivo (todos no mesmo incêndio) e solo; 3 dificuldades; Bombeiro, Lenhador e
- * Socorrista escolhidos ao entrar; o mestre sempre chama (jogo de equipe).
+ * vivo (todos no mesmo incêndio) e solo; 3 dificuldades; o mestre sempre
+ * chama (jogo de equipe). Desde a versão 2 da ponte o jogo é em PRIMEIRA
+ * PESSOA e cada um sai com uma ferramenta (bolha, mangueira ou areia), que
+ * troca no caminhão.
  */
 
 export type DificuldadeFogo = 'facil' | 'normal' | 'extremo'
 export const DIFICULDADES_FOGO: readonly DificuldadeFogo[] = ['facil', 'normal', 'extremo']
 
-export type FuncaoFogo = 'bombeiro' | 'lenhador' | 'socorrista'
-export const FUNCOES_FOGO: readonly FuncaoFogo[] = ['bombeiro', 'lenhador', 'socorrista']
+/** A ferramenta de cada jogador: cada uma apaga uma altura do fogo (GDD seção 3, "Ferramentas"). */
+export type FerramentaFogo = 'bolha' | 'mangueira' | 'areia'
+export const FERRAMENTAS_FOGO: readonly FerramentaFogo[] = ['bolha', 'mangueira', 'areia']
 
-/** `equipe`: todos no mesmo incêndio; `solo`: cada um apaga o seu. */
+/** As 3 alturas do fogo: no chão, no tronco e no alto da copa. */
+export type AlturaFogo = 'rasteiro' | 'tronco' | 'copa'
+export const ALTURAS_FOGO: readonly AlturaFogo[] = ['rasteiro', 'tronco', 'copa']
+
+/** A altura que cada ferramenta apaga (nas outras ela faz só 10% do efeito). */
+export const ALTURA_DA_FERRAMENTA_FOGO: Record<FerramentaFogo, AlturaFogo> = {
+  bolha: 'copa',
+  mangueira: 'tronco',
+  areia: 'rasteiro',
+}
+
+/**
+ * `equipe`: todos no mesmo incêndio (as 3 alturas contam); `solo`: cada um
+ * apaga o seu, e a ferramenta dele é a principal (só o fogo dela conta).
+ */
 export type ModoFogo = 'equipe' | 'solo'
 export const MODOS_FOGO: readonly ModoFogo[] = ['equipe', 'solo']
 
@@ -55,7 +72,7 @@ export const FOGO_TEXTO_MAX_LENGTH = 140
 export const MINIGAME_FOGO_PADRAO: MinigameFogo = {
   jogo: 'fogo',
   npc: 'Guarda Florêncio',
-  fala: 'O vento virou e o fogo está descendo o morro! Preciso de gente na mangueira, no machado e no resgate. Vocês ajudam a salvar a vila?',
+  fala: 'O vento virou e o fogo está descendo o morro! Preciso de gente com bolha de água, mangueira e areia. Vocês ajudam a salvar a vila?',
   floresta: 'Mata do Pinheiral',
   entrada: 'mestre',
   permitida: 'escolha',

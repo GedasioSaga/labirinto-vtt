@@ -80,7 +80,7 @@ import { criarDancaNoHost, type DancaAoVivo, type DancaConviteResultado, type Da
 import { DANCA_PARTICIPANTES_MAX, type DancaPlayerMessage } from './protocoloDaDanca'
 import { criarFogoNoHost, type FogoAoVivo, type FogoConviteResultado } from './fogoNoHost'
 import { FOGO_PARTICIPANTES_MAX, type FogoPlayerMessage } from './protocoloDoFogo'
-import type { DificuldadeFogo, FuncaoFogo, ModoFogo } from '../minigames/fogo/tipos'
+import type { DificuldadeFogo, FerramentaFogo, ModoFogo } from '../minigames/fogo/tipos'
 import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from './pescaNoHost'
 import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
 import { criarTiroNoHost, type TiroAoVivo, type TiroConviteResultado } from './tiroNoHost'
@@ -2101,13 +2101,13 @@ export interface HostSession {
   /**
    * MINIGAME FOGO NA FLORESTA: `fogo.convite` (o desafio do pino `pinId`,
    * congelado agora) aos escolhidos que estão na sala e jogando, na ordem da
-   * sala, cada um com a função inicial que o mestre deu. Equipe: até 6 no mesmo
+   * sala, cada um com a ferramenta inicial que o mestre deu. Equipe: até 6 no mesmo
    * incêndio; solo: cada um no seu. Recusa pino que não é de fogo, fogo ativo
    * (um por vez) e lista sem ninguém válido.
    */
-  convidarParaFogo(pinId: string, convidados: readonly { playerId: string; funcao: FuncaoFogo }[], modo: ModoFogo, source: HostMapSource): HostResult & { convite: FogoConviteResultado }
-  /** O mestre troca a função inicial de alguém (só no convite). */
-  mudarFuncaoNoFogo(playerId: string, funcao: FuncaoFogo): HostResult & { ok: boolean }
+  convidarParaFogo(pinId: string, convidados: readonly { playerId: string; ferramenta: FerramentaFogo }[], modo: ModoFogo, source: HostMapSource): HostResult & { convite: FogoConviteResultado }
+  /** O mestre troca a ferramenta inicial de alguém (só no convite). */
+  mudarFerramentaNoFogo(playerId: string, ferramenta: FerramentaFogo): HostResult & { ok: boolean }
   /** Só os prontos (e na sala) jogam; os outros recebem `fogo.encerra` `fora`. `comecou: false` = ninguém pronto. */
   comecarFogo(dificuldade: DificuldadeFogo): HostResult & { comecou: boolean }
   pausarFogo(): HostResult & { ok: boolean }
@@ -11711,20 +11711,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         .find((p) => p.id === pinId)
       const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
       if (desafio === undefined || desafio.jogo !== 'fogo') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
-      const funcaoDe = new Map(escolhidos.map((e) => [e.playerId, e.funcao]))
-      const convidados = inRoomOrder(new Set(funcaoDe.keys()))
+      const ferramentaDe = new Map(escolhidos.map((e) => [e.playerId, e.ferramenta]))
+      const convidados = inRoomOrder(new Set(ferramentaDe.keys()))
         .flatMap((playerId) => {
           const record = players.get(playerId)
-          const funcao = funcaoDe.get(playerId)
-          return record !== undefined && funcao !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name, funcao }] : []
+          const ferramenta = ferramentaDe.get(playerId)
+          return record !== undefined && ferramenta !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name, ferramenta }] : []
         })
         .slice(0, FOGO_PARTICIPANTES_MAX)
       const { outbound, resultado } = fogoNoHost.convidar({ pinId, minigame: copiarMinigame(desafio) }, modo, convidados)
       return { outbound, convite: resultado }
     },
 
-    mudarFuncaoNoFogo(playerId, funcao) {
-      const outbound = fogoNoHost.mudarFuncao(playerId, funcao)
+    mudarFerramentaNoFogo(playerId, ferramenta) {
+      const outbound = fogoNoHost.mudarFerramenta(playerId, ferramenta)
       return { outbound: outbound ?? [], ok: outbound !== null }
     },
 

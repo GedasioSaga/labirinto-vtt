@@ -83,9 +83,18 @@
 .lb-fogo__premio,
 .lb-fogo__consequencia,
 .lb-fogo__numeros,
+.lb-fogo__motivo,
+.lb-fogo__aviso,
 .lb-fogo__dica {
   margin: 0;
   overflow-wrap: anywhere;
+}
+/* Mouse e teclado: sem isso não dá para jogar, então vem antes da escolha e destacado. */
+.lb-fogo__aviso {
+  padding: 8px 10px;
+  border-left: 3px solid var(--fg-brasa);
+  border-radius: 4px;
+  background: rgb(232 137 74 / 0.12);
 }
 .lb-fogo__dica {
   color: var(--lb-color-parchment-dim);
@@ -95,7 +104,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.lb-fogo__funcoes {
+.lb-fogo__ferramentas {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -103,11 +112,11 @@
   padding: 0;
   border: 0;
 }
-.lb-fogo__funcoes legend {
+.lb-fogo__ferramentas legend {
   margin-bottom: 4px;
   font-weight: 600;
 }
-.lb-fogo__funcao {
+.lb-fogo__ferramenta {
   display: grid;
   grid-template-columns: auto 1fr;
   column-gap: 8px;
@@ -117,20 +126,36 @@
   border-radius: 8px;
   cursor: pointer;
 }
-.lb-fogo__funcao:has(input:checked) {
+.lb-fogo__ferramenta:has(input:checked) {
   border-color: var(--fg-brasa);
 }
-.lb-fogo__funcao:has(input:focus-visible) {
+.lb-fogo__ferramenta:has(input:focus-visible) {
   outline: 2px solid var(--fg-brasa);
   outline-offset: 2px;
 }
-.lb-fogo__funcao-nome {
+.lb-fogo__ferramenta-nome {
   font-weight: 600;
 }
-.lb-fogo__funcao-dica {
+.lb-fogo__ferramenta-dica {
   grid-column: 2;
   color: var(--lb-color-parchment-dim);
   font-size: 12px;
+}
+
+/* As 3 alturas no resultado; a que não contou (solo) fica apagada. */
+.lb-fogo__alturas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.lb-fogo__altura--nao-conta {
+  color: var(--lb-color-parchment-dim);
 }
 
 .lb-fogo__equipe {

@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { MINIGAME_FOGO_PADRAO } from '../minigames/fogo/tipos'
-import { criarFogoNoHost, type SaidaDoFogo } from './fogoNoHost'
-import type { FogoLote, FogoPlacar } from './protocoloDoFogo'
+import { criarFogoNoHost, type FogoConvidado, type SaidaDoFogo } from './fogoNoHost'
+import type { FogoAlturaNoPlacar, FogoLote, FogoPlacar } from './protocoloDoFogo'
 
 const E = (n: number) => [n, 0, 0, 0, 0, 0, 0]
 
-const CONVIDADOS = [
-  { playerId: 'ana', nome: 'Ana', funcao: 'bombeiro' as const },
-  { playerId: 'bia', nome: 'Bia', funcao: 'lenhador' as const },
-  { playerId: 'caio', nome: 'Caio', funcao: 'socorrista' as const },
+const CONVIDADOS: FogoConvidado[] = [
+  { playerId: 'ana', nome: 'Ana', ferramenta: 'bolha' },
+  { playerId: 'bia', nome: 'Bia', ferramenta: 'mangueira' },
+  { playerId: 'caio', nome: 'Caio', ferramenta: 'areia' },
 ]
+
+const ALTURA: FogoAlturaNoPlacar = { viva: 70, inicial: 400, vivasNoFim: 280, queimadas: 100 }
 
 /** Os três chamados para o mesmo incêndio, ainda no convite. */
 function convidar() {
@@ -28,7 +30,7 @@ function convidar() {
 /** Os três prontos e jogando. */
 function montar() {
   const { host, sessao, conectados } = convidar()
-  for (const c of CONVIDADOS) host.pronto(c.playerId, { type: 'fogo.pronto', sessao, funcao: c.funcao })
+  for (const c of CONVIDADOS) host.pronto(c.playerId, { type: 'fogo.pronto', sessao, ferramenta: c.ferramenta })
   const comecar = host.comecar('normal') ?? []
   return { host, sessao, conectados, comecar }
 }
@@ -45,24 +47,27 @@ function recebidos(saidas: readonly SaidaDoFogo[]): Map<string, FogoLote[]> {
 const placar = (vitoria: boolean): FogoPlacar => ({
   vitoria,
   motivo: vitoria ? 'apagado' : 'vila',
+  modo: 'equipe',
+  contam: ['rasteiro', 'tronco', 'copa'],
   pontos: 900,
   estrelas: 2,
   florestaViva: 70,
+  alturas: { rasteiro: { ...ALTURA }, tronco: { ...ALTURA }, copa: { ...ALTURA } },
   casas: 3,
   tempoS: 60,
   porJogador: [
-    { id: 'ana', funcao: 'bombeiro', pontos: 400 },
-    { id: 'bia', funcao: 'lenhador', pontos: 300 },
-    { id: 'caio', funcao: 'socorrista', pontos: 200 },
+    { id: 'ana', ferramenta: 'bolha', pontos: 400, fogoCerto: 100_000 },
+    { id: 'bia', ferramenta: 'mangueira', pontos: 300, fogoCerto: 75_000 },
+    { id: 'caio', ferramenta: 'areia', pontos: 200, fogoCerto: 50_000 },
   ],
 })
 
 describe('fogo no host: o repasse do lockstep', () => {
   it('repassa cada entrada a todos os outros uma vez, nunca ao dono, e o sair leva o último tique repassado', () => {
     const { host, sessao, conectados, comecar } = montar()
-    // O mesmo começar para os três, na ordem da sala.
-    const ordens = comecar.flatMap((s) => (s.msg.type === 'fogo.comecar' ? [s.msg.jogadores.map((j) => j.id).join(',')] : []))
-    expect(ordens).toEqual(['ana,bia,caio', 'ana,bia,caio', 'ana,bia,caio'])
+    // O mesmo começar para os três, na ordem da sala, cada um com a ferramenta do Pronto.
+    const ordens = comecar.flatMap((s) => (s.msg.type === 'fogo.comecar' ? [s.msg.jogadores.map((j) => `${j.id}:${j.ferramenta}`).join(',')] : []))
+    expect(ordens).toEqual(Array.from({ length: 3 }, () => 'ana:bolha,bia:mangueira,caio:areia'))
     host.entradas('ana', { type: 'fogo.entradas', sessao, de: 5, lista: [E(1), E(2)] })
     host.entradas('ana', { type: 'fogo.entradas', sessao, de: 6, lista: [E(2), E(3)] }) // o 6 repetido não conta
     host.entradas('bia', { type: 'fogo.entradas', sessao, de: 5, lista: [E(9)] })
@@ -93,9 +98,16 @@ describe('fogo no host: o repasse do lockstep', () => {
     const fim = host.fim('caio', { type: 'fogo.fim', sessao, tique: 353, hash: 7, placar: placar(true) })
     const desfechos = fim.flatMap((s) => (s.msg.type === 'fogo.desfecho' ? [s.msg] : []))
     expect(desfechos).toHaveLength(3)
-    expect(desfechos[0].mesa.map((l) => `${l.nome}:${l.resultado}:${l.pontos}`)).toEqual(['Ana:venceu:400', 'Bia:venceu:300', 'Caio:venceu:200'])
+    expect(desfechos[0].mesa.map((l) => `${l.nome}:${l.ferramenta}:${l.resultado}:${l.pontos}:${l.fogoCerto}`)).toEqual([
+      'Ana:bolha:venceu:400:100000',
+      'Bia:mangueira:venceu:300:75000',
+      'Caio:areia:venceu:200:50000',
+    ])
     expect(desfechos[0].seu.premio?.texto).toBe(MINIGAME_FOGO_PADRAO.premio.texto)
-    expect(host.aoVivo()?.desfecho).toEqual({ vitoria: true, pontos: 900, estrelas: 2, florestaViva: 70 })
+    // O resumo do time vai ao jogador e ao painel sem as linhas, com o modo, o que contou e as alturas.
+    const { porJogador: _porJogador, ...resumo } = placar(true)
+    expect(desfechos[0].placar).toEqual(resumo)
+    expect(host.aoVivo()?.desfecho).toEqual({ vitoria: true, placar: resumo })
   })
 
   it('hash diferente no meio, ou um fim diferente (vitória forjada com o hash certo), fecha como divergiu, sem prêmio', () => {
@@ -127,7 +139,7 @@ describe('fogo no host: o repasse do lockstep', () => {
 describe('fogo no host: quem desiste', () => {
   it('no convite, "Agora não" deixa de fora e o jogo que não carregou volta a Convidado; o começar não chama nenhum dos dois', () => {
     const { host, sessao } = convidar()
-    for (const c of CONVIDADOS) host.pronto(c.playerId, { type: 'fogo.pronto', sessao, funcao: c.funcao })
+    for (const c of CONVIDADOS) host.pronto(c.playerId, { type: 'fogo.pronto', sessao, ferramenta: c.ferramenta })
     // Bia tocou em Pronto e depois em "Agora não"; o jogo do Caio não carregou.
     const recusa = host.desistir('bia', { type: 'fogo.desistir', sessao, motivo: 'recusou' })
     // O estado vai a quem segue no convite, não a quem fechou a tela.

@@ -28,7 +28,7 @@
   list-style: none;
 }
 
-/* Nome à esquerda, função e status à direita; nome longo quebra sem empurrar o resto. */
+/* Nome à esquerda, ferramenta e status à direita; nome longo quebra sem empurrar o resto. */
 .lb-fogo-vivo__pessoa {
   display: flex;
   flex-wrap: wrap;
@@ -48,9 +48,26 @@
   overflow-wrap: anywhere;
 }
 
-.lb-fogo-vivo__funcao {
+.lb-fogo-vivo__ferramenta {
   flex: 0 0 auto;
   width: auto;
+}
+
+/* As 3 alturas do fogo no placar; a que não contou (solo) fica mais apagada. */
+.lb-fogo-vivo__alturas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.lb-fogo-vivo__altura--nao-conta {
+  color: var(--lb-color-parchment-dim);
 }
 
 .lb-fogo-vivo__status,

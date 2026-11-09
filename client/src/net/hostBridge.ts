@@ -138,7 +138,7 @@ import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
 import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
 import type { FogoAoVivo, FogoConviteResultado } from './fogoNoHost'
 import { FOGO_REPASSE_MS } from './protocoloDoFogo'
-import type { DificuldadeFogo, FuncaoFogo, ModoFogo } from '../minigames/fogo/tipos'
+import type { DificuldadeFogo, FerramentaFogo, ModoFogo } from '../minigames/fogo/tipos'
 
 /**
  * Costura entre a sessão pura (`hostSession`) e o transporte Rust (comandos
@@ -698,13 +698,13 @@ export interface HostBridge extends RedeDosSons {
   /** A dança de agora (ou a última), para o painel; `null` = nenhuma, ou sala fechada. */
   danca(): DancaAoVivo | null
   /**
-   * MINIGAME FOGO NA FLORESTA: chama estes jogadores (cada um com a função
+   * MINIGAME FOGO NA FLORESTA: chama estes jogadores (cada um com a ferramenta
    * inicial) para o incêndio do pino `pinId`, em equipe ou cada um no seu.
    * `null` com a sala fechada. O resto chega por `onFogoChange`.
    */
-  convidarParaFogo(pinId: string, convidados: readonly { playerId: string; funcao: FuncaoFogo }[], modo: ModoFogo): FogoConviteResultado | null
-  /** Troca a função inicial de um convidado (só antes de começar). */
-  mudarFuncaoNoFogo(playerId: string, funcao: FuncaoFogo): boolean
+  convidarParaFogo(pinId: string, convidados: readonly { playerId: string; ferramenta: FerramentaFogo }[], modo: ModoFogo): FogoConviteResultado | null
+  /** Troca a ferramenta inicial de um convidado (só antes de começar). */
+  mudarFerramentaNoFogo(playerId: string, ferramenta: FerramentaFogo): boolean
   /** Todos os prontos começam juntos, na dificuldade dada. `false` = ninguém pronto, fora de fase ou sala fechada. */
   comecarFogo(dificuldade: DificuldadeFogo): boolean
   pausarFogo(): boolean
@@ -1587,7 +1587,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     }
     if (fogo?.fase === 'fim' && !tinha('desfecho')) {
       const time = fogo.desfecho
-      toastSink.push('info', time === undefined ? 'Fogo na Floresta: todos terminaram.' : time.vitoria ? `Fogo na Floresta: a equipe salvou a vila (${time.pontos ?? 0} pontos).` : 'Fogo na Floresta: a equipe não salvou a vila.')
+      toastSink.push('info', time === undefined ? 'Fogo na Floresta: todos terminaram.' : time.vitoria ? `Fogo na Floresta: a equipe salvou a vila (${time.placar?.pontos ?? 0} pontos).` : 'Fogo na Floresta: a equipe não salvou a vila.')
     }
     deps.onFogoChange?.(fogo)
   }
@@ -4413,8 +4413,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return result === null ? null : result.convite
     },
 
-    mudarFuncaoNoFogo(playerId, funcao) {
-      return comandoDoFogo((room) => room.mudarFuncaoNoFogo(playerId, funcao))?.ok === true
+    mudarFerramentaNoFogo(playerId, ferramenta) {
+      return comandoDoFogo((room) => room.mudarFerramentaNoFogo(playerId, ferramenta))?.ok === true
     },
 
     comecarFogo(dificuldade) {

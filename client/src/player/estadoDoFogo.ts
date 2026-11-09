@@ -1,4 +1,4 @@
-import type { FuncaoFogo } from '../minigames/fogo/tipos'
+import type { FerramentaFogo } from '../minigames/fogo/tipos'
 import type {
   FogoComecarMessage,
   FogoConviteMessage,
@@ -23,10 +23,10 @@ export type FogoParaOJogo = FogoLotesMessage | FogoSairMessage
 export interface FogoDoJogador {
   sessao: string
   convite: Omit<FogoConviteMessage, 'type'>
-  /** O último `fogo.estado`: a fase e o status e a função de cada um. Ausente = ainda nenhum. */
+  /** O último `fogo.estado`: a fase e o status e a ferramenta de cada um. Ausente = ainda nenhum. */
   estado?: Omit<FogoEstadoMessage, 'type' | 'sessao'>
-  /** A função que ESTE jogador mandou no Pronto. Fica na volta da conexão com a mesma sessão. */
-  pronto?: FuncaoFogo
+  /** A ferramenta que ESTE jogador mandou no Pronto. Fica na volta da conexão com a mesma sessão. */
+  pronto?: FerramentaFogo
   /** O "começar": a partida, igual em todos os aparelhos da equipe. */
   comecar?: Omit<FogoComecarMessage, 'type' | 'sessao'>
   pausada: boolean

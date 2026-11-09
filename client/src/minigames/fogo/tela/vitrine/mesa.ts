@@ -1,4 +1,4 @@
-import { FUNCOES_FOGO, MINIGAME_FOGO_PADRAO } from '../../tipos'
+import { FERRAMENTAS_FOGO, MINIGAME_FOGO_PADRAO } from '../../tipos'
 import { criarFogoNoHost, type SaidaDoFogo } from '../../../../net/fogoNoHost'
 import { FOGO_REPASSE_MS, parseFogoHostMessage, parseFogoPlayerMessage, type FogoPlayerMessage } from '../../../../net/protocoloDoFogo'
 import { criarPonteDoJogo, type PonteDoJogo } from '../ponteDoJogo'
@@ -14,13 +14,14 @@ import { URL_DO_JOGO_FOGO } from '../FogoOverlay'
  *
  * Parâmetros: `?n=3` (jogadores), `?dificuldade=normal`, `?semente=1000`
  * (troca a semente do começar, igual para todos, para comparar com a prova
- * do jogo: Normal, 1000, 3 jogadores, atraso 4 = vitória no tique 353).
+ * do jogo, versão 2: Normal, 1000, 3 jogadores com bolha, mangueira e areia,
+ * atraso 4 = derrota "vila" no tique 1197, 930 pontos, hash final 2594077983).
  * O resultado fica em `window.resultadoDaMesa` e no texto da página.
  */
 
 interface Resultado {
   pronto: boolean
-  fins: { id: string; tique: number; hash: number; vitoria: boolean; pontos: number }[]
+  fins: { id: string; tique: number; hash: number; vitoria: boolean; motivo: string; pontos: number; modo: string; ferramentas: string }[]
   hashes: Record<string, Record<number, number>>
   divergencia: unknown
   /** Como o mestre fechou: `fim` com o desfecho do time, ou `encerrada` (divergiu). */
@@ -104,7 +105,17 @@ function aoMestre(id: string, msg: FogoPlayerMessage) {
       entregar(host.hash(id, lida))
     } else if (lida.type === 'fogo.fim') {
       ;(resultado.hashes[id] ??= {})[lida.tique] = lida.hash
-      resultado.fins.push({ id, tique: lida.tique, hash: lida.hash, vitoria: lida.placar.vitoria, pontos: lida.placar.pontos })
+      const p = lida.placar
+      resultado.fins.push({
+        id,
+        tique: lida.tique,
+        hash: lida.hash,
+        vitoria: p.vitoria,
+        motivo: p.motivo,
+        pontos: p.pontos,
+        modo: p.modo,
+        ferramentas: p.porJogador.map((l) => `${l.id}:${l.ferramenta}:${l.fogoCerto}`).join(','),
+      })
       entregar(host.fim(id, lida))
     }
     const aoVivo = host.aoVivo()
@@ -114,7 +125,7 @@ function aoMestre(id: string, msg: FogoPlayerMessage) {
   })
 }
 
-const convidados = ids.map((id, i) => ({ playerId: id, nome: id, funcao: FUNCOES_FOGO[i % FUNCOES_FOGO.length] }))
+const convidados = ids.map((id, i) => ({ playerId: id, nome: id, ferramenta: FERRAMENTAS_FOGO[i % FERRAMENTAS_FOGO.length] }))
 const { resultado: convite } = host.convidar({ pinId: 'mesa', minigame: { ...MINIGAME_FOGO_PADRAO } }, 'equipe', convidados)
 if (!convite.ok) throw new Error('convite recusado')
 const sessao = convite.sessao
@@ -139,7 +150,7 @@ for (const id of ids) {
       if (erro !== undefined) resultado.erros.push(`${id}: ${erro}`)
       // Todos carregados: todos "Pronto", e o mestre começa.
       if (estado === 'esperando' && (carregados += 1) === ids.length) {
-        for (const c of convidados) host.pronto(c.playerId, { type: 'fogo.pronto', sessao, funcao: c.funcao })
+        for (const c of convidados) host.pronto(c.playerId, { type: 'fogo.pronto', sessao, ferramenta: c.ferramenta })
         entregar(host.comecar(dificuldade) ?? [])
         resultado.pronto = true
       }
