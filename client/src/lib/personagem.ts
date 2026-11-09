@@ -74,6 +74,13 @@ export interface CartaoDaFicha {
    * segue pelo texto, como antes.
    */
   mecanica?: MecanicaGuardada
+  /**
+   * CONSTRUTOR DE MECÂNICAS (fatia C2, decisão 1 do mestre): a mecânica que o
+   * DONO da ficha montou e mandou ao mestre. Não vale na batalha (o motor só lê
+   * `mecanica`) até o mestre aceitar, quando ela vira a `mecanica` e este campo
+   * sai. Ausente = nada esperando o mestre.
+   */
+  mecanicaProposta?: MecanicaGuardada
 }
 
 /** A mecânica do cartão como o disco e o fio a guardam: um objeto JSON, conferido só por quem lê (`lerMecanica`). */
@@ -458,6 +465,7 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     // Só o `true` conta: qualquer outro valor (ficha de antes, valor torto) é "a leitura decide".
     ...(value.aMao === true ? { aMao: true } : {}),
     ...mecanicaDoArquivo(value.mecanica),
+    ...mecanicaPropostaDoArquivo(value.mecanicaProposta),
   }
 }
 
@@ -471,16 +479,27 @@ const MECANICA_GUARDADA_MAX = 16_000
  * O fio (`net/protocoloDoPersonagem.ts`) usa o mesmo leitor e o mesmo teto.
  */
 export function mecanicaDoArquivo(value: unknown): Pick<CartaoDaFicha, 'mecanica'> {
-  if (!isRecord(value)) return {}
+  const copia = copiaDaMecanica(value)
+  return copia === null ? {} : { mecanica: copia }
+}
+
+/** A mecânica que o dono mandou ao mestre (fatia C2), pelo mesmo leitor e o mesmo teto. */
+export function mecanicaPropostaDoArquivo(value: unknown): Pick<CartaoDaFicha, 'mecanicaProposta'> {
+  const copia = copiaDaMecanica(value)
+  return copia === null ? {} : { mecanicaProposta: copia }
+}
+
+function copiaDaMecanica(value: unknown): MecanicaGuardada | null {
+  if (!isRecord(value)) return null
   let texto: string
   try {
     texto = JSON.stringify(value)
   } catch {
-    return {}
+    return null
   }
-  if (texto.length > MECANICA_GUARDADA_MAX) return {}
+  if (texto.length > MECANICA_GUARDADA_MAX) return null
   const copia: unknown = JSON.parse(texto)
-  return isRecord(copia) ? { mecanica: copia } : {}
+  return isRecord(copia) ? copia : null
 }
 
 /** Corta em `max` unidades UTF-16 sem deixar meio emoji no fim. */

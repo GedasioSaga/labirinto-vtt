@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import type { LivroDaFicha } from '../components/EscolherDoLivro'
+import type { QuemEditaAMecanica } from '../components/batalha/MecanicaDaTecnica'
 import { FichaDoSistema } from '../components/dbt/registroDeFichas'
 import { InventarioDaFicha } from '../components/InventarioDaFicha'
 import { LivroDeRegras } from '../components/LivroDeRegras'
@@ -58,6 +59,12 @@ export interface PlayerFichaProps {
    * vira a `baseRev` das mudanças do "Salvar").
    */
   aoAbrirEdicao?: (personagem: Personagem) => void
+  /**
+   * Construtor de mecânicas C2: na mesa (LAN), o dono monta a mecânica da
+   * técnica e ela vai ao mestre como proposta (`'dono'`). Ausente = só lê o
+   * resumo: o site do Lobby ainda não leva a mecânica (sem caminho na nuvem).
+   */
+  quemEditaAMecanica?: QuemEditaAMecanica
 }
 
 /** O inventário da ficha do jogador: o que o token carrega e a quem dá para passar. */
@@ -127,6 +134,7 @@ export function PlayerFicha({
   onDarItem,
   somenteLeitura = false,
   aoAbrirEdicao,
+  quemEditaAMecanica = 'ninguem',
 }: PlayerFichaProps) {
   const tituloId = useId()
   const livroTituloId = useId()
@@ -452,6 +460,7 @@ export function PlayerFicha({
                 escolherImagem={escolherImagem}
                 tituloId={tituloId}
                 tipoEditavel={false}
+                quemEditaAMecanica={quemEditaAMecanica}
                 livro={livroDaFicha}
                 onAjustar={ajustar}
                 inventario={

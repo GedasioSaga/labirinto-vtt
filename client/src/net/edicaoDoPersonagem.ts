@@ -88,11 +88,12 @@ function imagensDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, s
   return imagens
 }
 
-/** A mecânica montada de cada cartão que tem uma, pelo id, subcartões juntos. */
-function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, NonNullable<CartaoDaFicha['mecanica']>> {
+/** A mecânica montada (ou a proposta do dono) de cada cartão que tem uma, pelo id, subcartões juntos. */
+function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>, campo: 'mecanica' | 'mecanicaProposta' = 'mecanica'): Map<string, NonNullable<CartaoDaFicha['mecanica']>> {
   const mecanicas = new Map<string, NonNullable<CartaoDaFicha['mecanica']>>()
   const visitar = (cartao: CartaoDaFicha): void => {
-    if (cartao.mecanica !== undefined) mecanicas.set(cartao.id, cartao.mecanica)
+    const mecanica = cartao[campo]
+    if (mecanica !== undefined) mecanicas.set(cartao.id, mecanica)
     cartao.subcartoes.forEach(visitar)
   }
   for (const cartoes of Object.values(abas)) cartoes.forEach(visitar)
@@ -187,13 +188,30 @@ export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes
  * A mecânica montada (construtor de mecânicas, decisão 1 do mestre) também é
  * a que o cartão de mesmo id já tinha: a que o jogador manda é ignorada até o
  * mestre aprovar, e o Salvar dele em OUTRO cartão da aba nunca a apaga.
+ *
+ * Fatia C2: o que o dono montou vem como `mecanicaProposta` e fica no cartão
+ * como proposta, para o mestre aceitar ou recusar. Igual à mecânica que já
+ * vale = não espera nada. Com `base` (a ficha que o host mandou por último a
+ * ele), a proposta que o jogador não tocou é a de AGORA: a que o mestre acabou
+ * de recusar não volta com o Salvar dele em outro cartão da aba.
  */
-export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem): Personagem {
+export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, base?: Personagem): Personagem {
   const imagens = imagensDosCartoes(atual.abas)
   const mecanicas = mecanicasDosCartoes(atual.abas)
-  const comImagem = ({ mecanica: _doJogador, ...cartao }: CartaoSemImagem): CartaoDaFicha => {
+  const propostasDeAgora = mecanicasDosCartoes(atual.abas, 'mecanicaProposta')
+  const propostasDaBase = base === undefined ? null : mecanicasDosCartoes(base.abas, 'mecanicaProposta')
+  const comImagem = ({ mecanica: _doJogador, mecanicaProposta: doJogador, ...cartao }: CartaoSemImagem): CartaoDaFicha => {
     const mecanica = mecanicas.get(cartao.id)
-    return { ...cartao, imagem: imagens.get(cartao.id) ?? null, subcartoes: cartao.subcartoes.map(comImagem), ...(mecanica === undefined ? {} : { mecanica }) }
+    const tocada = propostasDaBase === null || !mesmoTexto(doJogador, propostasDaBase.get(cartao.id))
+    const proposta = tocada ? doJogador : propostasDeAgora.get(cartao.id)
+    const espera = proposta !== undefined && !mesmoTexto(proposta, mecanica)
+    return {
+      ...cartao,
+      imagem: imagens.get(cartao.id) ?? null,
+      subcartoes: cartao.subcartoes.map(comImagem),
+      ...(mecanica === undefined ? {} : { mecanica }),
+      ...(espera ? { mecanicaProposta: proposta } : {}),
+    }
   }
   const abasNovas = partes.abas === undefined ? {} : Object.fromEntries(Object.entries(partes.abas).map(([abaId, cartoes]) => [abaId, cartoes.map(comImagem)]))
   const aplicado: Personagem = {
@@ -224,7 +242,7 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem): Pe
  * fora do que o jogador tocou, volta por cima (`mesclarSemDesfazer`).
  */
 export function aplicarPartesPelaBase(base: Personagem, atual: Personagem, partes: PartesDoPersonagem): Personagem {
-  return mesclarSemDesfazer(base, aplicarPartes(base, partes), atual, aplicarPartes(atual, partes))
+  return mesclarSemDesfazer(base, aplicarPartes(base, partes), atual, aplicarPartes(atual, partes, base))
 }
 
 /** HOST: a imagem aceita entra no retrato (`cartaoId` ausente) ou no cartão; `null` = o cartão não existe mais. */

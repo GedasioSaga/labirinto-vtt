@@ -2262,6 +2262,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* FICHA DE PERSONAGEM em tela cheia: no mesmo andar do inventário (abaixo do alarme e da reconexão). */}
         {ficha !== null && state.personagens !== undefined && (
           <PlayerFicha
+            quemEditaAMecanica="dono"
             sistema={state.sistemaDeRpg}
             personagens={state.personagens.personagens}
             tokens={state.personagens.tokens}

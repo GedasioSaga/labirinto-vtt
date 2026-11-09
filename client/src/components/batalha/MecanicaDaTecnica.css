@@ -1,0 +1,508 @@
+/*
+ * A mecânica da técnica no cartão da ficha (MecanicaDaTecnica.tsx e
+ * BlocosDaMecanica.tsx, construtor de mecânicas C2). Só `var(--lb-*)` de
+ * theme.ts. Hierarquia: o resumo em frases é o que o olho lê primeiro; os
+ * blocos são a oficina embaixo dele, e fechados dizem a escolha numa frase.
+ * Sem animação de abrir e fechar: o mestre faz isso dezenas de vezes por NPC.
+ */
+
+.lb-mec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding-top: var(--lb-space-2);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-mec__cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+}
+
+.lb-mec__titulo {
+  margin: 0;
+}
+
+.lb-mec__cab-dica {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-mec__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
+.lb-mec__aviso {
+  margin: 0;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-ember-soft);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+}
+
+/* ─── O resumo em frases ─────────────────────────────────────────────────── */
+
+.lb-mec__resumo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+}
+
+.lb-mec__resumo-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-mec__resumo-titulo {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wider);
+  text-transform: uppercase;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* "O app faz tudo" em musgo (nada para o mestre fazer); "peça à mão" em latão (o mestre confere). */
+.lb-mec__etiqueta {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--lb-space-2);
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-online-soft);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-online);
+}
+
+.lb-mec__etiqueta[data-a-mao] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-mec__frases {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 65ch;
+  font-size: var(--lb-font-size-md);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── A proposta do dono ─────────────────────────────────────────────────── */
+
+.lb-mec__proposta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line);
+  border-left: 3px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-mec__proposta-texto {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment);
+}
+
+/* ─── O começo: modelos prontos e "copiar de" ────────────────────────────── */
+
+.lb-mec__comeco {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-mec__comeco-titulo {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-mec__modelos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--lb-space-2);
+}
+
+.lb-mec__modelo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  font-family: inherit;
+  text-align: left;
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-mec__modelo:active {
+  transform: scale(0.97);
+}
+
+.lb-mec__modelo:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-mec__modelo:hover {
+    border-color: var(--lb-color-brass);
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+.lb-mec__modelo-nome {
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-mec__modelo-dica {
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-tight);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-mec__copiar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
+.lb-mec__copiar .lb-input {
+  width: auto;
+  min-width: 200px;
+}
+
+/* ─── O editor e os 7 blocos ─────────────────────────────────────────────── */
+
+.lb-mec__editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+}
+
+.lb-mec__blocos {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  overflow: hidden;
+}
+
+.lb-mec__bloco + .lb-mec__bloco {
+  border-top: 1px solid var(--lb-color-line);
+}
+
+.lb-mec__bloco-cab {
+  display: grid;
+  grid-template-columns: 20px auto 1fr 12px;
+  align-items: baseline;
+  gap: var(--lb-space-2);
+  min-height: 32px;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  list-style: none;
+  cursor: pointer;
+  transition: background var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-mec__bloco-cab::-webkit-details-marker {
+  display: none;
+}
+
+/* A seta à direita gira com o bloco (a mesma do cartão em edição). */
+.lb-mec__bloco-cab::after {
+  content: '';
+  justify-self: end;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--lb-color-parchment-faint);
+  border-bottom: 1.5px solid var(--lb-color-parchment-faint);
+  transform: rotate(-45deg);
+  transition: transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-mec__bloco[open] > .lb-mec__bloco-cab::after {
+  transform: rotate(45deg);
+}
+
+.lb-mec__bloco-cab:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-mec__bloco-cab:hover {
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+.lb-mec__bloco-numero {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-brass);
+}
+
+.lb-mec__bloco-titulo {
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+  white-space: nowrap;
+}
+
+/* Fechado, a frase cabe numa linha; aberto, ela quebra e acompanha cada escolha. */
+.lb-mec__bloco-frase {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-mec__bloco[open] .lb-mec__bloco-frase {
+  white-space: normal;
+}
+
+.lb-mec__bloco-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  padding: 0 var(--lb-space-3) var(--lb-space-3) calc(var(--lb-space-3) + 20px + var(--lb-space-2));
+}
+
+.lb-mec__linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--lb-space-2) var(--lb-space-3);
+}
+
+.lb-mec__linha--recuo {
+  padding-left: var(--lb-space-4);
+}
+
+/* ─── Escolha única (rádio por baixo) ────────────────────────────────────── */
+
+.lb-mec__escolha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lb-mec__legenda,
+.lb-mec__numero-rotulo {
+  padding: 0;
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: var(--lb-font-tracking-wide);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-mec__opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+}
+
+.lb-mec__opcao {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--lb-control-min);
+  padding: 2px var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-medium);
+  color: var(--lb-color-parchment-dim);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-mec__opcao:active:not([data-bloqueada]) {
+  transform: scale(0.97);
+}
+
+.lb-mec__opcao:has(input:checked) {
+  border-color: var(--lb-color-brass);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-mec__opcao:has(input:focus-visible) {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-mec__opcao[data-bloqueada] {
+  border-style: dashed;
+  background: transparent;
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-mec__opcao:not([data-bloqueada]):not(:has(input:checked)):hover {
+    border-color: var(--lb-color-parchment-faint);
+    color: var(--lb-color-parchment);
+  }
+}
+
+/* ─── Marcar, números e textos ───────────────────────────────────────────── */
+
+.lb-mec__marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1) var(--lb-space-4);
+}
+
+.lb-mec__marcar-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-space-1) var(--lb-space-2);
+}
+
+.lb-mec__marcar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: var(--lb-control-min);
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+}
+
+.lb-mec__marcar input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--lb-color-brass);
+  cursor: inherit;
+}
+
+.lb-mec__marcar[data-bloqueada] {
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+.lb-mec__numero,
+.lb-mec__texto {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-mec__numero {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--lb-space-2);
+}
+
+.lb-mec__numero .lb-mec__numero-rotulo {
+  flex-basis: 100%;
+}
+
+.lb-mec__numero .lb-input {
+  width: 72px;
+  min-height: 28px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-mec__numero-depois {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-mec__texto .lb-input {
+  min-width: 180px;
+  min-height: 28px;
+}
+
+.lb-mec__texto .lb-mec__vezes {
+  width: 64px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-mec__lembretes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-mec__mais {
+  align-self: flex-start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-mec__modelo:active,
+  .lb-mec__opcao:active:not([data-bloqueada]) {
+    transform: none;
+  }
+
+  .lb-mec__bloco-cab::after {
+    transition: none;
+  }
+}
+
+/* Fora da edição: o resumo dentro do cartão lido, sem o traço de seção. */
+.lb-mec--lida {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.lb-mec__espera {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass-bright);
+}
+
+/* O lembrete é uma frase: o campo ocupa a linha. */
+.lb-mec__lembretes .lb-mec__texto {
+  flex: 1 1 260px;
+}
+
+.lb-mec__lembretes .lb-mec__texto .lb-input {
+  width: 100%;
+}

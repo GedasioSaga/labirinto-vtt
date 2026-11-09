@@ -243,4 +243,19 @@ describe('Salvar do mestre sobre a ficha de agora', () => {
     expect([salvo.descricao, salvo.atributos.forca, salvo.recursos.hp, salvo.maximos.hp, salvo.cartoesAtivos]).toEqual(['Navegadora.', 70, 550, 600, ['forma']])
     expect(salvo.historico).toBe(agora.historico)
   })
+
+  it('construtor C2: a proposta de mecânica que o dono mandou com a janela aberta não some; a que o mestre recusou sai', () => {
+    const PECAS = { versao: 1, acao: 'simples', alvo: { quem: 'inimigos', forma: { tipo: 'um' } } }
+    const golpe: CartaoDaFicha = { ...novoCartao('Golpe'), id: 'golpe', mecanica: PECAS }
+    const outro: CartaoDaFicha = { ...novoCartao('Outro'), id: 'outro' }
+    const base: Personagem = { ...aira(), abas: { habilidades: [golpe, outro] } }
+    const agora: Personagem = { ...base, abas: { habilidades: [{ ...golpe, mecanicaProposta: { ...PECAS, acao: 'bonus' } }, { ...outro, mecanicaProposta: PECAS }] } }
+    // O mestre só mudou a descrição do Outro e recusou nada: as duas propostas ficam.
+    const rascunho: Personagem = { ...base, abas: { habilidades: [golpe, { ...outro, campos: { ...outro.campos, descricao: 'Novo' } }] } }
+    expect(salvarSobreOAtual(base, rascunho, agora).abas.habilidades?.map((cartao) => cartao.mecanicaProposta)).toEqual([{ ...PECAS, acao: 'bonus' }, PECAS])
+    // Com a proposta na janela, recusar (tirar) vale.
+    const comProposta: Personagem = { ...agora }
+    const recusou: Personagem = { ...agora, abas: { habilidades: [golpe, agora.abas.habilidades?.[1] ?? outro] } }
+    expect(salvarSobreOAtual(comProposta, recusou, agora).abas.habilidades?.map((cartao) => cartao.mecanicaProposta)).toEqual([undefined, PECAS])
+  })
 })

@@ -1,5 +1,5 @@
 import { NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
-import { camposDBTDaRede, mecanicaDoArquivo, PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CamposDaFichaDBT, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
+import { camposDBTDaRede, mecanicaDoArquivo, mecanicaPropostaDoArquivo, PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CamposDaFichaDBT, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
 import { CATALOGOS_DO_LIVRO, type ChaveDoCatalogo, type ResumoDoLivro } from '../lib/livroDeRegras'
 import { idValido, lerSistemaDeRpg, LIVRO_CAPITULOS_MAX, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
@@ -76,6 +76,12 @@ export interface CartaoSemImagem {
    * muda só vale depois que o mestre aprovar (decisão 1 do mestre).
    */
   mecanica?: CartaoDaFicha['mecanica']
+  /**
+   * `CartaoDaFicha.mecanicaProposta` (fatia C2): a mecânica que o dono montou.
+   * O host a guarda no cartão como PROPOSTA (nunca na `mecanica`), e o mestre
+   * aceita ou recusa na janela da ficha.
+   */
+  mecanicaProposta?: CartaoDaFicha['mecanicaProposta']
 }
 
 /**
@@ -277,7 +283,7 @@ function cartao(value: unknown, nivel: 1 | 2): CartaoSemImagem | null {
   const subcartoes = lista<CartaoSemImagem>(value.subcartoes, nivel === 1 ? PERSONAGEM_CARTOES_MAX : 0, (sub) => cartao(sub, 2))
   if (nome === null || campos === null || extras === null || atributos === null || modificadores === null || subcartoes === null) return null
   // A mecânica pelo leitor do disco, com o mesmo teto: a que passa dele ou não é objeto sai (o host guarda a dele de qualquer jeito).
-  return { id: value.id, nome, campos, extras, atributos, modificadores, subcartoes, ...(value.aMao === true ? { aMao: true } : {}), ...mecanicaDoArquivo(value.mecanica) }
+  return { id: value.id, nome, campos, extras, atributos, modificadores, subcartoes, ...(value.aMao === true ? { aMao: true } : {}), ...mecanicaDoArquivo(value.mecanica), ...mecanicaPropostaDoArquivo(value.mecanicaProposta) }
 }
 
 /** Os ids de cartão de uma lista, subcartões juntos. */
@@ -462,5 +468,6 @@ export function cartaoSemImagem(cartao: CartaoDaFicha): CartaoSemImagem {
     subcartoes: cartao.subcartoes.map(cartaoSemImagem),
     ...(cartao.aMao === true ? { aMao: true } : {}),
     ...(cartao.mecanica === undefined ? {} : { mecanica: cartao.mecanica }),
+    ...(cartao.mecanicaProposta === undefined ? {} : { mecanicaProposta: cartao.mecanicaProposta }),
   }
 }

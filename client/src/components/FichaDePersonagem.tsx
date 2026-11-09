@@ -5,6 +5,7 @@ import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { HistoricoDaFicha } from './AjusteRapido'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import type { LivroDaFicha } from './EscolherDoLivro'
+import type { QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
 import { FichaAbas } from './FichaAbas'
 import { ImagemOuIniciais } from './FichaPecas'
 import { AtributosDaFicha, AtributosEditaveis, RecursosDaFicha, RecursosEditaveis } from './FichaNumeros'
@@ -47,9 +48,11 @@ export interface FichaDePersonagemProps {
    * e o jogador oferecem ações diferentes. Ausente = sem a seção.
    */
   inventario?: ReactNode
+  /** Construtor de mecânicas C2: quem monta a mecânica da técnica. O mestre grava; o dono propõe. Padrão: mestre. */
+  quemEditaAMecanica?: QuemEditaAMecanica
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario }: FichaDePersonagemProps) {
+export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, quemEditaAMecanica }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   return (
     <div className="lb-ficha">
@@ -63,7 +66,16 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
         {!editando && inventario}
       </div>
       <div className="lb-ficha__principal">
-        <FichaAbas personagem={personagem} sistema={sistema} editando={editando} onChange={onChange} escolherImagem={escolherImagem} livro={livro} onAjustar={ajustar} />
+        <FichaAbas
+          personagem={personagem}
+          sistema={sistema}
+          editando={editando}
+          onChange={onChange}
+          escolherImagem={escolherImagem}
+          livro={livro}
+          onAjustar={ajustar}
+          quemEditaAMecanica={quemEditaAMecanica}
+        />
       </div>
     </div>
   )

@@ -5,12 +5,14 @@ import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg 
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import { EXTRAS_DA_EVOLUCAO, nomeDaNovaOpcao, sugestaoDeEvolucao, temExtrasDaEvolucao } from '../lib/batalha/escolhaEEvolucao'
 import { CAMPO_DO_ATRIBUTO_DO_ATAQUE, CAMPO_DO_DANO } from '../lib/batalha/formula'
-import { ABA_DAS_ARMAS, ABA_DAS_BALAS, ABA_DAS_TECNICAS, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../lib/batalha/leituraDaFicha'
+import { ABA_DAS_ARMAS, ABA_DAS_BALAS, ABA_DAS_TECNICAS, CAMPO_DA_ACAO, CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO } from '../lib/batalha/leituraDaFicha'
+import { pecasDoCartao } from '../lib/batalha/mecanica/leitura'
 import { CampoDeDano } from './CampoDeDano'
 import { avisoDoAtributoDoAtaque, avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, opcoesDoCampo, rotuloDaCategoria, rotuloDoVazio, valorDaEscolha } from './escolhaDeCampo'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
+import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
 
 /**
  * As abas da ficha de personagem (Habilidades, Perícias...): os cartões de
@@ -28,9 +30,14 @@ export interface FichaAbasProps {
   livro?: LivroDaFicha
   /** Fora da edição: o "Ativar" da transformação liga e desliga na hora. Ausente = só lê. */
   onAjustar?: (ajuste: Ajuste) => void
+  /**
+   * Construtor de mecânicas C2 (decisão 1 do mestre): o mestre grava a mecânica
+   * da técnica; o dono da ficha monta uma proposta que o mestre aceita. Padrão: mestre.
+   */
+  quemEditaAMecanica?: QuemEditaAMecanica
 }
 
-export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar }: FichaAbasProps) {
+export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre' }: FichaAbasProps) {
   const idBase = useId()
   // As balas moram dentro do cartão da arma ("Tipos de bala"): a aba só aparece na barra se alguma bala ficou solta nela.
   const abas = sistema.abas.filter((aba) => aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0)
@@ -83,7 +90,17 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
       </div>
       <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${ativa.id}`}>
         {editando ? (
-          <ListaEditavel key={ativa.id} aba={ativa} sistema={sistema} personagem={personagem} cartoes={cartoes} onChange={trocarCartoes} escolherImagem={escolherImagem} livro={livro} />
+          <ListaEditavel
+            key={ativa.id}
+            aba={ativa}
+            sistema={sistema}
+            personagem={personagem}
+            cartoes={cartoes}
+            onChange={trocarCartoes}
+            escolherImagem={escolherImagem}
+            livro={livro}
+            quemEditaAMecanica={quemEditaAMecanica}
+          />
         ) : cartoes.length === 0 ? (
           <p className="lb-ficha__vazio">{ativa.vazio}</p>
         ) : (
@@ -94,6 +111,7 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
                 cartao={cartao}
                 aba={ativa}
                 sistema={sistema}
+                personagem={personagem}
                 ativo={personagem.cartoesAtivos.includes(cartao.id)}
                 onLigar={
                   onAjustar === undefined || ativa.modificadores !== true ? undefined : (ligar) => onAjustar({ parte: 'cartao', chave: cartao.id, valor: ligar ? 1 : 0 })
@@ -140,24 +158,35 @@ function LinhasDoCartao({ linhas, denso }: { linhas: { rotulo: string; valor: st
   )
 }
 
+/** Os campos de texto que a técnica montada troca pelas peças (o Efeito fica: descreve o golpe). */
+const CAMPOS_TROCADOS_PELAS_PECAS: ReadonlySet<string> = new Set([CAMPO_DA_ACAO, CAMPO_DO_CUSTO, CAMPO_DO_TEMPO, CAMPO_DO_DANO])
+
 interface CartaoLidoProps {
   cartao: CartaoDaFicha
   aba: AbaDoSistema
   sistema: SistemaDeRpg
+  /** A ficha: a prévia do número no resumo da mecânica lê os atributos dela. */
+  personagem: Personagem
   /** A transformação está ligada: os modificadores dela entram nos totais da ficha. */
   ativo: boolean
   /** Liga ou desliga na hora; ausente = o cartão não liga (aba sem modificadores, ou ficha só de leitura). */
   onLigar?: (ligar: boolean) => void
 }
 
-function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
+function CartaoLido({ cartao, aba, sistema, personagem, ativo, onLigar }: CartaoLidoProps) {
   const ehArma = aba.id === ABA_DAS_ARMAS
   const semTiro = armaQueNaoAtira(aba, cartao)
   const sub = aba.subcartoes === undefined || semTiro ? undefined : abaDoSistema(sistema, aba.subcartoes.aba)
   const atributos = aba.atributos === true ? cartao.atributos.map((id) => abreviacao(sistema, id)) : []
   // Na arma, a Categoria sobe para o selo ao lado do nome; a Capacidade some quando a arma não atira.
   const categoria = ehArma ? rotuloDaCategoria(cartao.campos) : null
-  const abaLida = ehArma ? { ...aba, campos: aba.campos.filter((campo) => campo.id !== CAMPO_DA_CATEGORIA && !(semTiro && campo.id === CAMPO_DA_CAPACIDADE)) } : aba
+  // Técnica montada (construtor C2): o resumo das peças vale; Ação, Custo, Tempo e Dano em texto sairiam com outro número.
+  const montada = aba.id === ABA_DAS_TECNICAS && pecasDoCartao(cartao) !== null
+  const abaLida = ehArma
+    ? { ...aba, campos: aba.campos.filter((campo) => campo.id !== CAMPO_DA_CATEGORIA && !(semTiro && campo.id === CAMPO_DA_CAPACIDADE)) }
+    : montada
+      ? { ...aba, campos: aba.campos.filter((campo) => !CAMPOS_TROCADOS_PELAS_PECAS.has(campo.id)) }
+      : aba
   return (
     <li className="lb-cartao" data-ativo={ativo && aba.modificadores === true ? '' : undefined}>
       <div className="lb-cartao__corpo">
@@ -199,6 +228,7 @@ function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
               {campo.valor}
             </p>
           ))}
+          {aba.id === ABA_DAS_TECNICAS && <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />}
         </div>
       </div>
       {sub !== undefined && cartao.subcartoes.length > 0 && (
@@ -214,6 +244,7 @@ function CartaoLido({ cartao, aba, sistema, ativo, onLigar }: CartaoLidoProps) {
                 </span>
               ))}
               <LinhasDoCartao linhas={camposVisiveis(sub, subcartao, 'linha')} denso />
+              {sub.id === ABA_DAS_TECNICAS && <MecanicaLida cartao={subcartao} ficha={{ personagem, sistema }} />}
             </div>
           ))}
         </div>
@@ -239,9 +270,10 @@ interface ListaEditavelProps {
   /** Dentro de uma arma (as balas): o Dano delas não oferece "Dano da Arma". */
   daArma?: boolean
   livro?: LivroDaFicha
+  quemEditaAMecanica: QuemEditaAMecanica
 }
 
-function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherImagem, aninhada = false, daArma = false, livro }: ListaEditavelProps) {
+function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherImagem, aninhada = false, daArma = false, livro, quemEditaAMecanica }: ListaEditavelProps) {
   // O cartão que acabou de nascer abre aberto; os outros ficam fechados numa linha cada.
   const [recemCriado, setRecemCriado] = useState<string | null>(null)
   const [escolhendo, setEscolhendo] = useState(false)
@@ -295,6 +327,7 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
           onSubir={indice > 0 ? () => mover(indice, -1) : undefined}
           onDescer={indice < cartoes.length - 1 ? () => mover(indice, 1) : undefined}
           escolherImagem={escolherImagem}
+          quemEditaAMecanica={quemEditaAMecanica}
         />
       ))}
       <div className="lb-cartoes-edit__botoes">
@@ -363,9 +396,10 @@ interface CartaoEditavelProps {
   onSubir: (() => void) | undefined
   onDescer: (() => void) | undefined
   escolherImagem: () => Promise<string | null>
+  quemEditaAMecanica: QuemEditaAMecanica
 }
 
-function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onRemover, onSubir, onDescer, escolherImagem }: CartaoEditavelProps) {
+function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onChange, onRemover, onSubir, onDescer, escolherImagem, quemEditaAMecanica }: CartaoEditavelProps) {
   const ehArma = !daArma && aba.id === ABA_DAS_ARMAS
   const semTiro = ehArma && armaQueNaoAtira(aba, cartao)
   const [erroDaImagem, setErroDaImagem] = useState<string | null>(null)
@@ -459,6 +493,12 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
             </label>
           ),
         )}
+        {aba.id === ABA_DAS_TECNICAS &&
+          (quemEditaAMecanica === 'ninguem' ? (
+            <MecanicaLida cartao={cartao} ficha={{ personagem, sistema }} />
+          ) : (
+            <MecanicaDaTecnica cartao={cartao} ficha={{ personagem, sistema }} quemEdita={quemEditaAMecanica} tecnicas={tecnicasDaFicha(personagem, sistema)} onChange={onChange} />
+          ))}
         {aba.atributos === true && <EscolhaDeAtributos sistema={sistema} escolhidos={cartao.atributos} onChange={(atributos) => onChange({ ...cartao, atributos })} />}
         {aba.imagem === true && (
           <div className="lb-field">
@@ -600,6 +640,7 @@ function CartaoEditavel({ cartao, aba, sistema, personagem, daArma, aberto, onCh
               escolherImagem={escolherImagem}
               aninhada
               daArma={ehArma}
+              quemEditaAMecanica={quemEditaAMecanica}
             />
           </fieldset>
         )}

@@ -28,6 +28,8 @@ export interface CampoDeDanoProps {
   /** Arma: o "Dano da Arma" no próprio dano vira "não entende" na prévia. */
   ehArma: boolean
   onChange: (cartao: CartaoDaFicha) => void
+  /** Sem o "Fórmula | Personalizado": a peça de dano da técnica montada é sempre fórmula (construtor C2). */
+  semModo?: boolean
 }
 
 /** Como o pedaço encosta no texto vizinho. */
@@ -152,7 +154,7 @@ function comAMao(cartao: CartaoDaFicha, sim: boolean): CartaoDaFicha {
   return semMarca
 }
 
-export function CampoDeDano({ rotulo, campoId, cartao, personagem, sistema, semDanoDaArma, ehArma, onChange }: CampoDeDanoProps) {
+export function CampoDeDano({ rotulo, campoId, cartao, personagem, sistema, semDanoDaArma, ehArma, onChange, semModo = false }: CampoDeDanoProps) {
   const id = useId()
   const campo = useRef<HTMLInputElement>(null)
   const teclado = useRef<HTMLDivElement>(null)
@@ -258,6 +260,7 @@ export function CampoDeDano({ rotulo, campoId, cartao, personagem, sistema, semD
         <label className="lb-label" htmlFor={`${id}-campo`}>
           {rotulo}
         </label>
+        {!semModo && (
         <div className="lb-dano__modo" role="group" aria-label={`Modo do ${rotulo}`}>
           <button type="button" className="lb-dano__modo-botao" aria-pressed={!personalizado} onClick={() => trocarModo(false)}>
             Fórmula
@@ -272,6 +275,7 @@ export function CampoDeDano({ rotulo, campoId, cartao, personagem, sistema, semD
             Personalizado
           </button>
         </div>
+        )}
       </div>
       <input
         ref={campo}

@@ -513,7 +513,43 @@ export function salvarSobreOAtual(base: Personagem, rascunho: Personagem, atual:
   const dbt = dbtSobreOAtual(base.dbt, rascunho.dbt, atual.dbt)
   if (dbt === undefined) delete salvo.dbt
   else salvo.dbt = dbt
+  salvo.abas = propostasSobreOAtual(base, rascunho, atual, salvo.abas)
   return salvo
+}
+
+/** A proposta de mecânica de cada cartão, pelo id, subcartões juntos. */
+function propostasDe(abas: Record<string, CartaoDaFicha[]>): Map<string, string> {
+  const propostas = new Map<string, string>()
+  const visitar = (cartao: CartaoDaFicha): void => {
+    if (cartao.mecanicaProposta !== undefined) propostas.set(cartao.id, JSON.stringify(cartao.mecanicaProposta))
+    cartao.subcartoes.forEach(visitar)
+  }
+  for (const cartoes of Object.values(abas)) cartoes.forEach(visitar)
+  return propostas
+}
+
+/**
+ * CONSTRUTOR DE MECÂNICAS C2: a proposta que o dono mandou com a janela do
+ * mestre aberta não some no Salvar dele. Cartão em que o mestre não mexeu na
+ * proposta (nem aceitou nem recusou) fica com a proposta de AGORA.
+ */
+function propostasSobreOAtual(base: Personagem, rascunho: Personagem, atual: Personagem, abas: Record<string, CartaoDaFicha[]>): Record<string, CartaoDaFicha[]> {
+  const deAgora = propostasDe(atual.abas)
+  const daBase = propostasDe(base.abas)
+  const doMestre = propostasDe(rascunho.abas)
+  if (deAgora.size === 0 && daBase.size === 0) return abas
+  const ajustar = (cartao: CartaoDaFicha): CartaoDaFicha => {
+    const subcartoes = cartao.subcartoes.map(ajustar)
+    const comSubs = subcartoes.every((sub, i) => sub === cartao.subcartoes[i]) ? cartao : { ...cartao, subcartoes }
+    if (daBase.get(cartao.id) !== doMestre.get(cartao.id)) return comSubs
+    const agora = deAgora.get(cartao.id)
+    if (agora === doMestre.get(cartao.id)) return comSubs
+    const { mecanicaProposta: _velha, ...semProposta } = comSubs
+    if (agora === undefined) return semProposta
+    const proposta: unknown = JSON.parse(agora)
+    return typeof proposta === 'object' && proposta !== null && !Array.isArray(proposta) ? { ...semProposta, mecanicaProposta: { ...proposta } } : semProposta
+  }
+  return Object.fromEntries(Object.entries(abas).map(([abaId, cartoes]) => [abaId, cartoes.map(ajustar)]))
 }
 
 /** A ficha Dragon Ball do Salvar do mestre: sem rascunho, a de agora; sem a de agora, a do rascunho. */

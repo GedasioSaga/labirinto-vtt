@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { novoCartao, novoPersonagem, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
 import { PLAYER_MESSAGE_MAX_BYTES } from './protocol'
-import { aplicarImagem, aplicarPartes, ERRO_ABA_GRANDE, ERRO_CAMPO_FORA_DO_TETO, mensagensDoSalvar, partesMudadas, type MensagemDoSalvar } from './edicaoDoPersonagem'
+import { aplicarImagem, aplicarPartes, aplicarPartesPelaBase, ERRO_ABA_GRANDE, ERRO_CAMPO_FORA_DO_TETO, mensagensDoSalvar, partesMudadas, type MensagemDoSalvar } from './edicaoDoPersonagem'
 import { parsePartesDoPersonagem, PERSONAGEM_TEXTO_MAX } from './protocoloDoPersonagem'
 
 const FOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -158,6 +158,27 @@ describe('construtor de mecânicas: a edição do jogador nunca mexe na mecânic
     expect(depois.abas.habilidades?.map((cartao) => [cartao.campos.descricao, cartao.mecanica])).toEqual([
       [montado.campos.descricao, PECAS],
       ['Texto novo', undefined],
+    ])
+  })
+
+  it('fatia C2: a mecânica do dono fica como proposta; recusada pelo mestre, o Salvar velho do jogador em outro cartão não a traz de volta', () => {
+    const PROPOSTA = { ...PECAS, acao: 'bonus' }
+    const montado = { ...novoCartao('Golpe Montado'), id: 'cart_montado', mecanica: PECAS }
+    const deTexto = { ...novoCartao('Golpe de Texto'), id: 'cart_texto' }
+    const base: Personagem = { ...luffy(), abas: { ...luffy().abas, habilidades: [montado, deTexto] } }
+    const propoe: Personagem = { ...base, abas: { ...base.abas, habilidades: [{ ...montado, mecanicaProposta: PROPOSTA }, deTexto] } }
+    const doFio = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(base, propoe))))
+    const comProposta = aplicarPartesPelaBase(base, base, doFio ?? {})
+    expect(comProposta.abas.habilidades?.[0]).toMatchObject({ mecanica: PECAS, mecanicaProposta: PROPOSTA })
+    // O mestre recusa (a proposta sai); o jogador, ainda com a ficha de antes, salva o OUTRO cartão da aba.
+    const { mecanicaProposta: _recusada, ...semProposta } = comProposta.abas.habilidades?.[0] ?? montado
+    const recusada: Personagem = { ...comProposta, abas: { ...comProposta.abas, habilidades: [semProposta, deTexto] } }
+    const outroCartao: Personagem = { ...comProposta, abas: { ...comProposta.abas, habilidades: [comProposta.abas.habilidades?.[0] ?? montado, { ...deTexto, campos: { ...deTexto.campos, descricao: 'Outro' } }] } }
+    const velho = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(comProposta, outroCartao))))
+    const depois = aplicarPartesPelaBase(comProposta, recusada, velho ?? {})
+    expect(depois.abas.habilidades?.map((cartao) => [cartao.campos.descricao, cartao.mecanica, cartao.mecanicaProposta])).toEqual([
+      [montado.campos.descricao, PECAS, undefined],
+      ['Outro', undefined, undefined],
     ])
   })
 })
