@@ -28,13 +28,15 @@ import './arenaDaLuta.css'
  * A tela só desenha e pede: as jogadas vão por `jogadas` (no treino, o motor
  * no navegador; no duelo, o servidor) e andar vai por `onAndar`. O que o HUD
  * do app pede e a luta do site não tem fica de fora com o motivo dito: a
- * troca de armas e a reação livre recusam com um recado; invocar, as
- * passivas, a marca e o Evoluir nem aparecem (sem a prop, o HUD os apaga).
+ * troca de armas, a reação livre e o "rolei fora" da marca recusam com um
+ * recado; o lembrete da marca (Olhar Artístico) vai pelas jogadas (o teste
+ * rola no motor, ou paga o SP); invocar, as passivas e o Evoluir nem
+ * aparecem (sem a prop, o HUD os apaga).
  * O "Mover" do contra-ataque vira o próximo passo da ficha na grade.
  */
 
 /** As jogadas que a luta aceita (o resto da `ConexaoDaBatalha` a Arena do site responde sozinha). */
-export type JogadasDaLuta = Pick<ConexaoDaBatalha, 'agir' | 'reagir' | 'passarVez'>
+export type JogadasDaLuta = Pick<ConexaoDaBatalha, 'agir' | 'reagir' | 'passarVez'> & Required<Pick<ConexaoDaBatalha, 'marcar'>>
 
 export interface ArenaDaLutaProps {
   titulo: string
@@ -78,6 +80,8 @@ export interface ArenaDaLutaProps {
 
 const MOTIVO_DAS_ARMAS = 'No treino e no duelo a luta usa as armas da ficha: a troca é só na mesa, com o mestre.'
 const MOTIVO_DA_REACAO_LIVRE = 'A reação livre é só na mesa, com o mestre. Aqui a defesa é a do golpe que chega.'
+const MOTIVO_DA_MARCA_FORA = 'O "rolei fora" é só na mesa, com o mestre. Aqui o teste rola no app, ou pague o SP.'
+const MOTIVO_DO_MODIFICADOR_DA_MARCA = 'Aqui o teste soma o modificador da ficha: o número trocado não vale.'
 /** A faixa pede a função; sem `onDesfazer` as linhas chegam sem o Desfazer, então esta nunca é chamada. */
 const SEM_DESFAZER = () => {}
 
@@ -164,6 +168,15 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
       escolherArmas: () => {
         avisar(MOTIVO_DAS_ARMAS)
         return false
+      },
+      marcar: (pedido) => {
+        if (pedido.como === 'passou' || pedido.como === 'falhou') {
+          avisar(MOTIVO_DA_MARCA_FORA)
+          return false
+        }
+        // O motor ignora o digitado (usa o da ficha): o recado diz isso em vez de calar.
+        if (pedido.modificador !== undefined) avisar(MOTIVO_DO_MODIFICADOR_DA_MARCA)
+        return jogadas.marcar(pedido)
       },
     }
   }, [jogadas, fio.turnos.contras, fichas, avisar])

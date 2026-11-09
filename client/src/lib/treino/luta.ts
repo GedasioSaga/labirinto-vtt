@@ -26,7 +26,7 @@ import {
   type MesaDaLuta,
   type VagaDaLuta,
 } from './mesaEmMemoria'
-import { golpesDoRobo } from './robo'
+import { golpesDoRobo, marcaDoRobo } from './robo'
 
 /**
  * A LUTA DE N LADOS, motor v4 (Arena multijogador, fatia F2 de
@@ -407,7 +407,7 @@ const ROBO_PAROU: PassoDoRobo = { jogou: false }
 
 /**
  * Um passo do robô pelas vagas `doRobo`, como a luta automática: a reação
- * esperando por uma delas; senão, se algum golpe ainda espera a reação de
+ * esperando por uma delas; o lembrete da marca de uma delas; senão, se algum golpe ainda espera a reação de
  * gente, para; senão, na vez de uma delas, o golpe mais forte que a batalha
  * aceitar (até `GOLPES_POR_VEZ_MAX` na vez), ou passa a vez. A vez de gente
  * (ou a batalha que recusa) = para.
@@ -419,6 +419,11 @@ function passoDoRobo(aberta: LutaNaLoja, doRobo: (vaga: VagaDaLuta) => boolean, 
     if (!doRobo(vaga)) continue
     const pedido = reacaoDoBoneco(turnos.golpes, vaga.tokenId, vaga.reage ?? 'd20', bonusDaReacao(bonusDaBatalha(turnos.selos, vaga.tokenId)), turnos.selos)
     if (pedido !== null) return batalha.reagir(CENA_DA_LUTA, AUTOR_DO_ROBO, pedido) ? { jogou: true, golpesDaVez } : ROBO_PAROU
+  }
+  // O lembrete da marca de uma ficha dele (o teste, o SP ou "Agora não", que sempre passa).
+  const marca = marcaDoRobo(turnos, (tokenId) => aberta.mesa.vagas().some((vaga) => vaga.tokenId === tokenId && doRobo(vaga)))
+  for (const pedido of marca?.pedidos ?? []) {
+    if (batalha.marcar(CENA_DA_LUTA, AUTOR_DO_ROBO, pedido)) return { jogou: true, golpesDaVez }
   }
   if ((turnos.golpes ?? []).some((golpe) => golpe.alvos.some((alvo) => alvo.danoFinal === undefined))) return ROBO_PAROU
   const carta = cartaDaVez(turnos)

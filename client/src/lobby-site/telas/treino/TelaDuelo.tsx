@@ -176,6 +176,7 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
             agir: (vez, pedido) => jogar({ tipo: 'agir', seq: duelo.seq, vez, pedido }),
             reagir: (pedido) => jogar({ tipo: 'reagir', seq: duelo.seq, pedido }),
             passarVez: (cartaId, rodada) => jogar({ tipo: 'passar', seq: duelo.seq, vez: { cartaId, rodada } }),
+            marcar: (pedido) => jogar({ tipo: 'marcar', seq: duelo.seq, pedido }),
           },
     // A jogada leva o `seq` do estado que a tela mostra: a conexão muda com o duelo.
     [duelo, soLeitura],
