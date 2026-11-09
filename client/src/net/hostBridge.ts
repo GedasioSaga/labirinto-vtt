@@ -645,6 +645,14 @@ export interface HostBridge extends RedeDosSons {
    */
   undoTravel(entryId: string): boolean
   /**
+   * Ctrl+Z do "Enviar para cena": devolve a ficha `tokenId` do jogador à cena
+   * `back.sceneId`, na casa (`back.x`, `back.y`) — ou na livre ao lado —, e a
+   * tela dele volta junto (`scene.changed` `by: 'master'`). Se a última viagem
+   * dele no diário foi essa ida, a linha sai. `false` quando não deu (sala
+   * fechada, ficha que não é dele ou já saiu da cena dele, cena sumida).
+   */
+  returnPlayer(playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number }): boolean
+  /**
    * "Guardar ficha" do card de quem foi embora: as fichas dele saem do mapa
    * (param de ocupar o corredor) e voltam sozinhas, no mesmo lugar e de novo
    * dele, quando ele voltar. Dispensar ou fechar a sala também as devolve ao
@@ -1308,6 +1316,30 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const moved = applyTransferAlong(transfer)
     if (moved && entry !== null) setTravelLog(addTravel(travelLog, entry))
     return moved
+  }
+
+  /**
+   * Devolve a ficha `tokenId` do jogador à casa `back` (`hostSession.returnPlayer`)
+   * e tira a linha `entryId` do diário (`null` = nenhuma). A volta é a
+   * correção de um engano, não viagem nova: não entra no diário.
+   */
+  const returnAlong = (playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number }, entryId: string | null): boolean => {
+    if (session === null) return false
+    const result = session.returnPlayer(playerId, tokenId, back, world())
+    const transfer = result.applyTransfer
+    const moved = transfer !== undefined && applyTransferAlong(transfer)
+    // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
+    pruneTravelToasts()
+    if (!moved) {
+      notifyPlayersIfChanged()
+      return false
+    }
+    if (entryId !== null) setTravelLog(withoutTravel(travelLog, entryId))
+    // Mesma ordem do "Mandar para…": ficha movida, `scene.changed`, e o snapshot da cena de volta.
+    void dispatch(result)
+    broadcastNow()
+    notifyPlayersIfChanged()
+    return true
   }
 
   const sendLaser = (message: LaserMessage) => {
@@ -4235,22 +4267,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       const entry = travelLog.find((e) => e.id === entryId)
       if (entry === undefined || !undoableTravelIds(travelLog).has(entryId)) return false
       const back = { sceneId: entry.fromSceneId, x: entry.fromX, y: entry.fromY }
-      const result = session.returnPlayer(entry.playerId, entry.tokenId, back, world())
-      const transfer = result.applyTransfer
-      // A volta é a correção de um engano, não viagem nova: não entra no diário.
-      const moved = transfer !== undefined && applyTransferAlong(transfer)
-      // O pedido de passagem que ele tinha morreu na sessão: o aviso do mestre sai junto.
-      pruneTravelToasts()
-      if (!moved) {
-        notifyPlayersIfChanged()
-        return false
-      }
-      setTravelLog(withoutTravel(travelLog, entryId))
-      // Mesma ordem do "Mandar para…": ficha movida, `scene.changed`, e o snapshot da cena de volta.
-      void dispatch(result)
-      broadcastNow()
-      notifyPlayersIfChanged()
-      return true
+      return returnAlong(entry.playerId, entry.tokenId, back, entryId)
+    },
+
+    returnPlayer(playerId, tokenId, back) {
+      // A última viagem dele, se foi ESTA ida: a volta a tira do diário, como o "Desfazer" de lá.
+      const last = travelLog.find((e) => e.playerId === playerId)
+      const sameTrip = last !== undefined && last.tokenId === tokenId && last.fromSceneId === back.sceneId
+      return returnAlong(playerId, tokenId, back, sameTrip ? last.id : null)
     },
 
     disembarkCaravan(sceneId) {

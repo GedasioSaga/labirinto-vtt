@@ -80,3 +80,20 @@
   color: var(--lb-color-parchment-faint);
   font-size: var(--lb-font-size-xs);
 }
+
+/* "Enviar para cena ›": o nome da cena e, na que ainda não recebe, a palavra do porquê. */
+.lb-menusel__cena {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-menusel__cena:disabled {
+  color: var(--lb-color-parchment-faint);
+  cursor: not-allowed;
+}
+
+.lb-menusel__cena:disabled:hover {
+  background: transparent;
+}

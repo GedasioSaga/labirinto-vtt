@@ -98,6 +98,28 @@ export function seatIsTaken(map: MapData, p: Point, size: number, movingTokenIds
   return overlapsSeated(seatedTokens(map, movingTokenIds), p, size, map.grid)
 }
 
+/**
+ * A conferência de uma casa SEM ponto de partida (a chegada sem pino no meio
+ * da cena): a ficha de `size` casas cabe em `p` quando ela fica dentro do
+ * mundo, no chão, sem parede que barra movimento cortando a casa e sem ficha
+ * em cima (fora as de `movingTokenIds`). As mesmas regras de `gatherSpots`,
+ * menos o caminho até o pino — não há pino. O chão é compilado uma vez só.
+ */
+export function seatChecker(map: MapData, movingTokenIds: ReadonlySet<string> = new Set()): (p: Point, size: number) => boolean {
+  const grid = map.grid
+  const width = map.width * grid
+  const height = map.height * grid
+  const floor = compileFloor(map.floor)
+  const blocking = map.walls.filter((wall) => wall.blocksMove)
+  const taken = seatedTokens(map, movingTokenIds)
+  return (p, size) => {
+    if (p.x < 0 || p.y < 0 || p.x > width || p.y > height) return false
+    if (floor.bounds !== null && floor.sample(p.x, p.y) > 0) return false
+    if (!blocking.every((wall) => distanceToSegment(p, wall) >= grid / 2 - WALL_INSIDE_EPSILON)) return false
+    return !overlapsSeated(taken, p, size, grid)
+  }
+}
+
 /** `true` = uma ficha de `size` casas em `p` cobriria algum círculo de `keepClear`. */
 function coversKeepClear(keepClear: readonly KeepClear[], p: Point, size: number, grid: number): boolean {
   return keepClear.some((c) => Math.hypot(c.x - p.x, c.y - p.y) < (size * grid) / 2 + c.radius)

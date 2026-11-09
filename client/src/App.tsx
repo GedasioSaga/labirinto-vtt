@@ -195,6 +195,7 @@ import type { ToolVariantBindings } from './components/ToolVariantMenu'
 import { framePlace, goToMapObject } from './stores/mapObjectNavigation'
 import { fontesDaBusca, irAoAchado, mandarFichaPara } from './stores/buscaDoMestre'
 import { ligacaoLevarFicha } from './stores/levarFicha'
+import { ligarSalaAoEnvio } from './stores/enviarParaCena'
 import type { ActiveAlarmView } from './components/SceneAlarmControls'
 import { PinsSection } from './components/PinsSection'
 import { pinDirectory } from './lib/pinDirectory'
@@ -911,6 +912,8 @@ function App() {
   // DIA/TARDE/NOITE: o período da sessão (o da aventura; no mapa solto, o da sessão).
   const periodoAtual = useAdventureStore(periodoDaSessao)
   const hostBridgeRef = useRef<HostBridge | null>(null)
+  // "Enviar para cena ›" (clique direito no token): a ficha de jogador viaja pela sala aberta.
+  useEffect(() => ligarSalaAoEnvio(() => hostBridgeRef.current), [])
   // ENTRAR PELO LOBBY ("Entrar na mesa agora"): a sala aberta vai ao Lobby
   // quando a pasta aberta está publicada lá, e a chave que volta confere o
   // bilhete do jogador (`net/nuvem/salaNoLobby.ts`). Sem pasta publicada, sem
@@ -3591,6 +3594,7 @@ function App() {
           <TokenContextMenu
             // Outro token (ou o mesmo de novo) remonta o menu, e o foco volta ao primeiro item.
             key={`${tokenMenu.tokenId}-${tokenMenu.x}-${tokenMenu.y}`}
+            tokenId={tokenDoMenu.id}
             tokenName={tokenDoMenu.name}
             x={tokenMenu.x}
             y={tokenMenu.y}

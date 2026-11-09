@@ -33,6 +33,7 @@ describe('TokenContextMenu', () => {
 
   function abrir(props: Partial<TokenContextMenuProps> = {}) {
     const completas: TokenContextMenuProps = {
+      tokenId: 'aira-1',
       tokenName: 'Aira',
       x: 40,
       y: 60,
@@ -60,7 +61,7 @@ describe('TokenContextMenu', () => {
     abrir()
     expect(container.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Token: Aira')
     expect(container.querySelector('.lb-tokenmenu__titulo')?.textContent).toBe('Aira')
-    expect(itens()).toEqual(['Congelar', 'Enviar mensagem…'])
+    expect(itens()).toEqual(['Congelar', 'Enviar mensagem…', 'Enviar para cena›'])
     expect(document.activeElement).toBe(item('Congelar'))
   })
 
@@ -104,12 +105,12 @@ describe('TokenContextMenu', () => {
     act(() => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Enviar')?.click())
     expect(useToastStore.getState().toasts.at(-1)?.text).toBe('Aira recebe a mensagem ao voltar')
     abrir({ onMensagem: undefined })
-    expect(itens()).toEqual(['Congelar'])
+    expect(itens()).toEqual(['Congelar', 'Enviar para cena›'])
   })
 
   it('dois jogadores no mesmo token: uma mensagem para cada, pelo nome', () => {
     abrir({ jogadores: [AIRA, { playerId: 'p-bia', name: 'Bia' }] })
-    expect(itens()).toEqual(['Congelar', 'Mensagem para Aira…', 'Mensagem para Bia…'])
+    expect(itens()).toEqual(['Congelar', 'Mensagem para Aira…', 'Mensagem para Bia…', 'Enviar para cena›'])
   })
 
   it('Esc fecha sem mudar nada', () => {
@@ -134,6 +135,7 @@ describe('TokenContextMenu', () => {
         <ComSaida>
           {aberto && (
             <TokenContextMenu
+              tokenId="aira-1"
               tokenName="Aira"
               x={40}
               y={60}

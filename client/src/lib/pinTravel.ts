@@ -1,5 +1,5 @@
 import type { ExitPassage, MapData, Pin, PinDestination, PinExit, PinExitLabel, PinPassage } from '../types/map'
-import { gatherSpots, seatIsTaken } from './gatherParty'
+import { gatherSpots, seatChecker, seatIsTaken } from './gatherParty'
 import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, passageOf, pinSummary } from './pins'
 import { SCENE_TRAIL_SEPARATOR } from './adventure'
 import { seatTokenCenter } from './tokenSize'
@@ -760,12 +760,33 @@ export function arrivalSpot(map: MapData, partner: Pin, tokenCells: number, arri
   return free ?? pinSeat(map, partner, tokenCells)
 }
 
+/** Até quantas casas do centro a chegada sem pino procura uma que sirva. */
+const ANEIS_DA_CHEGADA_SEM_PINO = 6
+
 /**
- * "Mandar para…" sem pino: o centro da cena (`arrivalPoint`) quando está
- * livre; ocupado, a casa livre mais perto dele, pela mesma procura.
+ * "Mandar para…" e "Enviar para cena" sem pino: o centro da cena
+ * (`arrivalPoint`) quando está livre; ocupado por ficha, a casa livre mais
+ * perto dele, pela mesma procura (`freeSeatNear`). Centro cortado por parede
+ * ou fora do chão: a casa que serve mais perto dele (`seatChecker`) — a ficha
+ * nunca nasce dentro de uma parede no meio da cena. Nenhuma serve até
+ * `ANEIS_DA_CHEGADA_SEM_PINO` casas: o centro, como antes — chegar é melhor
+ * que não chegar.
  */
 export function arrivalSpotWithoutPin(map: MapData, tokenCells: number, arrivingTokenId?: string): { x: number; y: number } {
-  return freeSeatNear(map, arrivalPoint(map), tokenCells, arrivingTokenId)
+  const centro = arrivalPoint(map)
+  if (seatChecker({ ...map, tokens: [] })(centro, tokenCells)) return freeSeatNear(map, centro, tokenCells, arrivingTokenId)
+  const serve = seatChecker(withPlayerVisibleTokens(map), new Set(arrivingTokenId === undefined ? [] : [arrivingTokenId]))
+  const casas: { x: number; y: number }[] = []
+  for (let dy = -ANEIS_DA_CHEGADA_SEM_PINO; dy <= ANEIS_DA_CHEGADA_SEM_PINO; dy++) {
+    for (let dx = -ANEIS_DA_CHEGADA_SEM_PINO; dx <= ANEIS_DA_CHEGADA_SEM_PINO; dx++) {
+      const bruto = { x: centro.x + dx * map.grid, y: centro.y + dy * map.grid }
+      const casa = snapPointForTarget('token', map.gridShape, bruto.x, bruto.y, map.grid)
+      casas.push(map.gridShape === 'square' ? seatTokenCenter(bruto, casa, map.grid, tokenCells) : casa)
+    }
+  }
+  const distancia = (p: { x: number; y: number }) => Math.hypot(p.x - centro.x, p.y - centro.y)
+  casas.sort((a, b) => distancia(a) - distancia(b))
+  return casas.find((casa) => serve(casa, tokenCells)) ?? freeSeatNear(map, centro, tokenCells, arrivingTokenId)
 }
 
 /**

@@ -1,7 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { camadaDosItens, motivoParaNaoMover, nomeDaCamada, refsDaSelecao } from '../lib/camadas/mover'
+import { opcoesDoEnvio } from '../lib/enviarParaCena'
+import { useAdventureStore } from '../stores/adventureStore'
+import { enviarParaCena } from '../stores/enviarParaCena'
 import { useMapStore } from '../stores/mapStore'
+import { SubmenuDeCenas } from './SubmenuDeCenas'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
 import './MenuDaSelecao.css'
 
@@ -37,15 +41,28 @@ function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1
  * fecha. Seta para a direita, Enter ou o ponteiro abrem o submenu; seta para
  * a esquerda e Esc fecham só ele. Camada travada aparece desligada no lugar
  * dela ("não recebe"); seleção presa (cadeado) desliga o item e diz por quê.
+ *
+ * Com ficha na seleção, embaixo: "Enviar para cena ›" com as outras cenas do
+ * mapa (`SubmenuDeCenas`). As fichas selecionadas vão juntas para o pino de
+ * chegada de lá, num passo do Ctrl+Z (`stores/enviarParaCena.ts`); o resto da
+ * seleção fica. Mapa de uma cena só: o item aparece desligado, com o porquê.
+ * Setas para cima e para baixo andam entre os dois itens.
  */
 export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoProps & ComSaidaFilho) {
   const map = useMapStore((state) => state.map)
   const selection = useMapStore((state) => state.selection)
   const pinoId = useMapStore((state) => state.selectedPinId)
   const [refs] = useState(() => refsDaSelecao(selection, pinoId))
+  const [fichas] = useState(() => selection.filter((item) => item.kind === 'token').map((item) => item.id))
   const [submenuAberto, setSubmenuAberto] = useState(false)
+  // "Enviar para cena ›" aberto; `focar` = abriu pelo teclado.
+  const [cenasAbertas, setCenasAbertas] = useState<{ focar: boolean } | null>(null)
+  const adventure = useAdventureStore((state) => state.adventure)
+  const cenaAberta = useAdventureStore((state) => state.activeSceneId)
+  const situacao = useAdventureStore((state) => state.cache)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRef = useRef<HTMLButtonElement | null>(null)
+  const cenaRef = useRef<HTMLButtonElement | null>(null)
   const submenuRef = useRef<HTMLDivElement | null>(null)
   const focoAntes = useRef<Element | null>(document.activeElement)
   const atual = camadaDosItens(map, refs)
@@ -94,8 +111,10 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   if (atual === null) return null
   const camadas = contextoDeCamadas(map)
   const opcoes = [...camadas.ordem].reverse()
+  const envio = opcoesDoEnvio(adventure, cenaAberta, situacao)
 
   const abrirSubmenu = (focar: boolean) => {
+    setCenasAbertas(null)
     if (motivo !== null) return
     setSubmenuAberto(true)
     if (!focar) return
@@ -110,6 +129,22 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const fecharSubmenu = () => {
     setSubmenuAberto(false)
     itemRef.current?.focus()
+  }
+
+  const abrirCenas = (focar: boolean) => {
+    if (envio.motivo !== null) return
+    setSubmenuAberto(false)
+    setCenasAbertas({ focar })
+  }
+
+  const fecharCenas = () => {
+    setCenasAbertas(null)
+    cenaRef.current?.focus()
+  }
+
+  const enviar = (sceneId: string) => {
+    enviarParaCena(fichas, sceneId)
+    onClose()
   }
 
   const fecharTudo = () => {
@@ -138,9 +173,16 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
+      const pais = [itemRef.current, cenaRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
-        abrirSubmenu(true)
+        if (document.activeElement === cenaRef.current) abrirCenas(true)
+        else abrirSubmenu(true)
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+        event.preventDefault()
+        const proximo = event.key === 'Home' ? 0 : event.key === 'End' ? pais.length - 1 : noPai + (event.key === 'ArrowDown' ? 1 : -1)
+        pais[(proximo + pais.length) % pais.length]?.focus()
       }
       return
     }
@@ -203,7 +245,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
         </span>
       </button>
       {motivo !== null && <p className="lb-menusel__motivo">{motivo}</p>}
-      {submenuAberto && (
+      {submenuAberto && cenasAbertas === null && (
         <div ref={submenuRef} className="lb-panel lb-portamenu lb-menusel__sub" role="menu" aria-label="Mover para camada">
           {opcoes.map((camada) => {
             const travada = camadas.travada(camada)
@@ -231,6 +273,42 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
             )
           })}
         </div>
+      )}
+      {fichas.length > 0 && (
+        <>
+          <button
+            ref={cenaRef}
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className="lb-portamenu__item lb-menusel__pai"
+            aria-haspopup="menu"
+            aria-expanded={cenasAbertas !== null}
+            aria-disabled={envio.motivo !== null}
+            title={envio.motivo ?? undefined}
+            onPointerEnter={(event) => {
+              event.currentTarget.focus()
+              abrirCenas(false)
+            }}
+            onClick={() => (cenasAbertas !== null ? fecharCenas() : abrirCenas(true))}
+          >
+            <span>Enviar para cena</span>
+            <span className="lb-menusel__seta" aria-hidden="true">
+              ›
+            </span>
+          </button>
+          {envio.motivo !== null && <p className="lb-menusel__motivo">{envio.motivo}</p>}
+          {cenasAbertas !== null && (
+            <SubmenuDeCenas
+              cenas={envio.cenas}
+              ancora={cenaRef.current}
+              focar={cenasAbertas.focar}
+              onEscolher={enviar}
+              onFechar={fecharCenas}
+              onSair={onClose}
+            />
+          )}
+        </>
       )}
     </div>
   )

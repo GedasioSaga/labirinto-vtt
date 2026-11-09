@@ -1,7 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { PlayerNoteDelivery } from '../net/hostSession'
+import { opcoesDoEnvio } from '../lib/enviarParaCena'
+import { useAdventureStore } from '../stores/adventureStore'
+import { enviarParaCena } from '../stores/enviarParaCena'
 import { useToastStore } from '../stores/toastStore'
 import { NoteForm } from './ScenesSection'
+import { SubmenuDeCenas } from './SubmenuDeCenas'
 import { classes } from './grimorio/comum'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
 
@@ -12,6 +16,8 @@ export interface JogadorDoToken {
 }
 
 export interface TokenContextMenuProps {
+  /** O token do clique: é ele que o "Enviar para cena ›" manda. */
+  tokenId: string
   /** O nome do token, como o mestre o vê: o título do menu. */
   tokenName: string
   /** Ponto do clique, em px da caixa do canvas (a âncora do menu). */
@@ -45,13 +51,23 @@ export function mensagemDoTokenFeedback(name: string, delivery: PlayerNoteDelive
  * Mesmo molde do menu da porta (`DoorContextMenu`): foco no primeiro item,
  * setas com volta, Home/End, Esc fecha e devolve o foco, clique fora fecha.
  * "Enviar mensagem…" troca os itens pelo campo do recado (`NoteForm`).
+ * "Enviar para cena ›" abre ao lado as outras cenas do mapa (`SubmenuDeCenas`):
+ * o token vai ao pino de chegada de lá e a tela do jogador vai junto
+ * (`stores/enviarParaCena.ts`), num passo do Ctrl+Z.
  */
-export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogadores, onMensagem, onClose, saindo = false }: TokenContextMenuProps & ComSaidaFilho) {
+export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongelar, jogadores, onMensagem, onClose, saindo = false }: TokenContextMenuProps & ComSaidaFilho) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   // Quem tinha o foco antes de o menu abrir: o Esc devolve a ele.
   const focusBefore = useRef<Element | null>(document.activeElement)
   const [escrevendoPara, setEscrevendoPara] = useState<JogadorDoToken | null>(null)
+  // "Enviar para cena ›" aberto; `focar` = abriu pelo teclado.
+  const [cenasAbertas, setCenasAbertas] = useState<{ focar: boolean } | null>(null)
+  const cenaRef = useRef<HTMLButtonElement | null>(null)
+  const adventure = useAdventureStore((state) => state.adventure)
+  const cenaAberta = useAdventureStore((state) => state.activeSceneId)
+  const situacao = useAdventureStore((state) => state.cache)
+  const envio = opcoesDoEnvio(adventure, cenaAberta, situacao)
 
   // Só ao abrir: o foco não volta ao primeiro item a cada render.
   useEffect(() => {
@@ -87,6 +103,15 @@ export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogad
     const delivery = onMensagem(jogador.playerId, text)
     useToastStore.getState().push(delivery === null ? 'error' : 'info', mensagemDoTokenFeedback(jogador.name, delivery))
     onClose()
+  }
+
+  const abrirCenas = (focar: boolean) => {
+    if (envio.motivo === null) setCenasAbertas({ focar })
+  }
+
+  const fecharCenas = () => {
+    setCenasAbertas(null)
+    cenaRef.current?.focus()
   }
 
   const items = [
@@ -125,6 +150,12 @@ export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogad
       }
       case 'Tab':
         onClose()
+        return
+      case 'ArrowRight':
+        if (document.activeElement === cenaRef.current) {
+          event.preventDefault()
+          abrirCenas(true)
+        }
         return
       case 'ArrowDown':
         focusAt(current + 1)
@@ -166,7 +197,10 @@ export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogad
             tabIndex={-1}
             className="lb-portamenu__item"
             // O destaque segue o ponteiro, como segue as setas.
-            onPointerEnter={(event) => event.currentTarget.focus()}
+            onPointerEnter={(event) => {
+              event.currentTarget.focus()
+              setCenasAbertas(null)
+            }}
             onClick={item.onSelect}
           >
             {item.label}
@@ -174,6 +208,48 @@ export function TokenContextMenu({ tokenName, x, y, congelado, onCongelar, jogad
         ))
       ) : (
         <NoteForm label={`Mensagem só para ${escrevendoPara.name}`} onSend={(text) => enviar(escrevendoPara, text)} onCancel={onClose} />
+      )}
+      {escrevendoPara === null && (
+        <>
+          <button
+            ref={(node) => {
+              cenaRef.current = node
+              itemRefs.current[items.length] = node
+            }}
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className="lb-portamenu__item lb-menusel__pai"
+            aria-haspopup="menu"
+            aria-expanded={cenasAbertas !== null}
+            aria-disabled={envio.motivo !== null}
+            title={envio.motivo ?? undefined}
+            onPointerEnter={(event) => {
+              event.currentTarget.focus()
+              abrirCenas(false)
+            }}
+            onClick={() => (cenasAbertas !== null ? fecharCenas() : abrirCenas(true))}
+          >
+            <span>Enviar para cena</span>
+            <span className="lb-menusel__seta" aria-hidden="true">
+              ›
+            </span>
+          </button>
+          {envio.motivo !== null && <p className="lb-menusel__motivo">{envio.motivo}</p>}
+          {cenasAbertas !== null && (
+            <SubmenuDeCenas
+              cenas={envio.cenas}
+              ancora={cenaRef.current}
+              focar={cenasAbertas.focar}
+              onEscolher={(sceneId) => {
+                enviarParaCena([tokenId], sceneId)
+                onClose()
+              }}
+              onFechar={fecharCenas}
+              onSair={onClose}
+            />
+          )}
+        </>
       )}
     </div>
   )
