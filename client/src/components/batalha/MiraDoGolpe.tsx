@@ -248,9 +248,12 @@ function textoDoDanoDividido(base: number | null, alvos: number, teto: number): 
   return alvos === 1 ? `Um alvo só: toma ${base} (o dano se divide entre até ${teto}).` : `O dano se divide: ${base} ÷ ${alvos} = ${cada} em cada.`
 }
 
-/** Construtor C3: a nota da área pela grade: quantas fichas ela pega daqui, e que dá para mudar. */
+/**
+ * Construtor C3: a nota da área pela grade: quantas fichas ela pega daqui, e que dá para mudar.
+ * Com a área vazia, a nota não convida a marcar à mão: vale nas três entradas, e no site o servidor recusa alvo de fora da área.
+ */
 function textoDaAreaNaMira(naArea: number, comFrente: boolean): string {
-  if (naArea === 0) return comFrente ? 'Ninguém na área deste lado. Vire a área ou marque à mão.' : 'Ninguém na área. Marque à mão, se quiser.'
+  if (naArea === 0) return comFrente ? 'Ninguém na área deste lado. Vire a área para pegar alguém.' : 'Ninguém na área: todos os alvos estão fora da área.'
   return `A área pega ${naArea} ${naArea === 1 ? 'ficha' : 'fichas'}. Clique numa ficha para tirar ou pôr.`
 }
 
