@@ -883,10 +883,11 @@ function lerCarta(value: unknown): CartaParaJogador | null {
     if (!inteiroAte(value.ladoNaLuta, 1, CARTAS_PARA_JOGADOR_MAX)) return null
     carta.ladoNaLuta = value.ladoNaLuta
   }
-  // A vida na carta é só a do NPC que luta do lado dele, que sai como "outro"; a dele e a do aliado ele lê da ficha.
+  // A vida na carta é só a do NPC que luta do lado dele: o da equipe (sai como "outro") e o que ele controla (sai como
+  // "eu", e fora da vez do NPC a página não tem a ficha). A do aliado ele lê da ficha que já tem.
   if (value.vida !== undefined) {
     const vida = lerVidaNaCarta(value.vida)
-    if (ladoLido !== 'outro' || carta.bando !== undefined || vida === null) return null
+    if (ladoLido === 'aliado' || carta.bando !== undefined || vida === null) return null
     carta.vida = vida
   }
   return carta

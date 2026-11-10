@@ -119,8 +119,9 @@ export interface CartaParaJogador {
    */
   ladoNaLuta?: number
   /**
-   * Unificação do combate (10/11/2026): só na carta "outro" de NPC que luta do MESMO lado de um personagem dele (o NPC
-   * da equipe dos jogadores): a vida, de onde a mira tira o ferido e o caído. Nunca de quem luta contra ele.
+   * Unificação do combate (10/11/2026): só na carta de NPC que luta do MESMO lado de um personagem dele e cuja ficha a
+   * página não tem: a "outro" do NPC da equipe dos jogadores e a "eu" do NPC que ele controla. A vida, de onde a mira
+   * tira o ferido e o caído. Nunca de quem luta contra ele.
    */
   vida?: VidaNaCarta
 }
@@ -497,6 +498,13 @@ function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJoga
       saida.escudo = escudo
       const cheio = cheioDoEscudo(carta, ctx, registro)
       if (cheio > escudo) saida.escudoMax = cheio
+    }
+    // Contrato do combate (10/11/2026): o NPC que ele CONTROLA e que luta do lado dele sai como "eu", mas a ficha não é
+    // dele: fora da vez do NPC a página não a tem, e a mira da cura não sabia que ele estava ferido (controlar o NPC
+    // deixava o jogador sabendo MENOS do que o colega que só o tem na equipe).
+    if (lado === 'eu' && carta.personagemId !== null && !ctx.meusPersonagens.has(carta.personagemId)) {
+      const vida = vidaDoNpcDoMeuLado(carta, ctx, lados)
+      if (vida !== null) saida.vida = vida
     }
   } else {
     // O "caiu" não sai na carta "outro" (a página antiga recusa o estado inteiro): a mira lê a queda na vida em 0.
