@@ -23,6 +23,7 @@ import { assinarLugarDaAventura, assinarTudoSalvo, iniciarBatalhaSalva, lugarDaA
 import { apagarBatalhaSalva, gravarBatalhaSalva, lerBatalhaSalva } from './lib/batalha/batalhaSalvaNoDisco'
 import { RetomarBatalhaDialog } from './components/batalha/RetomarBatalhaDialog'
 import { mesaDaAventura } from './stores/mesaDaAventura'
+import { seguirAPastaDasCondicoes } from './stores/condicoesPropriasStore'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -1954,6 +1955,10 @@ function App() {
       batalhaSalvaRef.current = null
     }
   }, [])
+
+  // A lista de condições criadas mora na pasta aberta (`condicoes.json`): segue a pasta a cada abertura.
+  // Só no app (Tauri): no navegador não há disco, e a lista fica neste computador.
+  useEffect(() => (isTauri() ? seguirAPastaDasCondicoes() : undefined), [])
 
   // Entrou no editor (mapa novo, aberto ou recuperado): a oferta do menu
   // deixa de valer, porque o salvamento automático desta abertura assume a cópia.
