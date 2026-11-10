@@ -221,12 +221,6 @@
   color: var(--lb-color-brass-bright);
 }
 
-/* "Novo" se distingue de "Em construção": verde de pronto, não latão de obra. */
-.lb-home__badge--novo {
-  background: var(--lb-color-online-soft);
-  color: var(--lb-color-online);
-}
-
 .lb-home__door-arrow {
   flex: none;
   width: 18px;
