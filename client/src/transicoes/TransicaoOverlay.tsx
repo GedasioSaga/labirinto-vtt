@@ -9,6 +9,12 @@ interface TransicaoOverlayProps {
   /** Muda a cada travessia: a tela toca uma vez por valor. */
   nonce: number
   escolha: TransicaoEscolhida
+  /**
+   * O que precisa chegar antes de a cena tocar: o mapa novo da travessia
+   * (`PlayerState.transicao.mapaNovo`), para ele montar por baixo da cortina
+   * preta. Quem passa cuida do teto. Ausente = toca assim que estiver pronta.
+   */
+  antes?: Promise<unknown>
 }
 
 /** Saída da cortina: a animação termina no preto e o mapa novo aparece por baixo. */
@@ -19,7 +25,7 @@ const SAIDA_MS = 260
  * (que já carrega embaixo), com "Pular". Toca uma vez por `nonce` e some com
  * um fade curto. O som segue o volume e o mudo do "Som da mesa".
  */
-export function TransicaoOverlay({ nonce, escolha }: TransicaoOverlayProps) {
+export function TransicaoOverlay({ nonce, escolha, antes }: TransicaoOverlayProps) {
   const [vista, setVista] = useState<number | null>(null)
   const [saindo, setSaindo] = useState(false)
   const pularRef = useRef<HTMLButtonElement>(null)
@@ -46,7 +52,7 @@ export function TransicaoOverlay({ nonce, escolha }: TransicaoOverlayProps) {
   return createPortal(
     <div className="lb-transicao-jogo" data-saindo={saindo} role="dialog" aria-modal="true" aria-label="Transição">
       {/* `key`: outra travessia no meio da animação recomeça do zero. */}
-      <TransicaoTela key={nonce} escolha={escolha} volume={volume} onFim={terminar} />
+      <TransicaoTela key={nonce} escolha={escolha} volume={volume} antes={antes} onFim={terminar} />
       <button ref={pularRef} type="button" className="lb-transicao-jogo__pular" onClick={terminar}>
         Pular
       </button>

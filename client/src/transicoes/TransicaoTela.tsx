@@ -10,6 +10,11 @@ interface TransicaoTelaProps {
   repetir?: boolean
   /** Muda o valor para recomeçar do zero (botão "Repetir" da prévia). */
   rodada?: number
+  /**
+   * O que mais precisa chegar antes de a cena tocar (o mapa novo da travessia).
+   * Lida uma vez, quando a cena começa a preparar; quem passa cuida do teto.
+   */
+  antes?: Promise<unknown>
   onFim?: () => void
 }
 
@@ -45,13 +50,16 @@ function useGranulado(ref: React.RefObject<HTMLCanvasElement | null>) {
  * Ocupa o contêiner inteiro; quem decide o tamanho é quem a usa (janela de
  * prévia do mestre ou tela cheia do jogador).
  */
-export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, onFim }: TransicaoTelaProps) {
+export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, antes, onFim }: TransicaoTelaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const granuladoRef = useRef<HTMLCanvasElement>(null)
   const cortinaRef = useRef<HTMLDivElement>(null)
   const controleRef = useRef<ControleDeTransicao | null>(null)
   const onFimRef = useRef(onFim)
   onFimRef.current = onFim
+  // Por ref: a promessa do mapa novo é desta travessia (a `key` de quem monta troca com ela), e não recomeça a cena.
+  const antesRef = useRef(antes)
+  antesRef.current = antes
   const volumeRef = useRef(volume)
   volumeRef.current = volume
   useGranulado(granuladoRef)
@@ -70,6 +78,7 @@ export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, on
       reduzirMovimento,
       repetir,
       sinal: desistencia.signal,
+      ...(antesRef.current === undefined ? {} : { antes: antesRef.current }),
       onFade: (opacidade) => {
         if (cortinaRef.current) cortinaRef.current.style.opacity = String(opacidade)
       },
