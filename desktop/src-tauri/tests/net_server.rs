@@ -391,6 +391,29 @@ async fn minigame_serve_o_wasm_em_gzip_com_o_tipo_certo() {
     std::fs::remove_dir_all(&raiz).unwrap();
 }
 
+/// MINIGAME: o navegador guarda o motor (10 MB) e só confere o `ETag` a cada
+/// abertura: com o mesmo, a resposta é 304 sem corpo. É disso que depende o
+/// jogo aquecido pela página do jogador (`minigames/fogo/aquecer.ts`) abrir
+/// sem baixar de novo. Com outro `ETag` (pacote que mudou), vai o arquivo.
+#[tokio::test]
+async fn minigame_revalida_pelo_etag_sem_mandar_o_motor_de_novo() {
+    let (addr, _room, raiz) = sala_com_minigame("etag").await;
+    let gz = include_bytes!("fixtures/minigames/fogo.v1.index.wasm.gz");
+    let etag = media::hash_hex(gz);
+
+    let igual = http_get_com(addr, "/minigames/fogo/index.wasm", &format!("If-None-Match: \"{etag}\"\r\n")).await;
+    let cabecalho = igual.to_ascii_lowercase();
+    assert!(cabecalho.starts_with("http/1.1 304"), "{igual}");
+    assert!(cabecalho.contains("cache-control: private, no-cache"), "{igual}");
+    assert!(cabecalho.contains(&format!("etag: \"{etag}\"")), "{igual}");
+    assert!(igual.ends_with("\r\n\r\n"), "304 veio com corpo: {} bytes", igual.len());
+
+    let outro = http_get_com(addr, "/minigames/fogo/index.wasm", "If-None-Match: \"abc\"\r\n").await.to_ascii_lowercase();
+    assert!(outro.starts_with("http/1.1 200"), "{outro}");
+    assert!(outro.contains(&format!("content-length: {}", gz.len())), "{outro}");
+    std::fs::remove_dir_all(&raiz).unwrap();
+}
+
 /// MINIGAME: com pacote instalado, só o que o índice assinado lista sai;
 /// nome fora dele, o nome da release, caminho torto, outro jogo e arquivo
 /// trocado no disco são o mesmo 404 (nunca o Vite).

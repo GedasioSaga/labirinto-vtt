@@ -91,6 +91,7 @@ import { ultimoGestoDoJudge } from '../pixi/judgeDoMapa'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
 import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
+import { aquecerJogoDoFogo } from '../minigames/fogo/aquecer'
 import { FogoOverlay } from '../minigames/fogo/tela/FogoOverlay'
 import { TiroOverlay, type AjustesDaTelaDoTiro } from '../minigames/tiro/tela/TiroOverlay'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
@@ -1496,6 +1497,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   useEffect(() => {
     if (transicaoDoPinoAberto !== undefined) aquecerTransicao(transicaoDoPinoAberto)
   }, [transicaoDoPinoAberto])
+  // FOGO NA FLORESTA NO MAPA: com um pino do jogo à vista, os 10 MB dele começam a baixar com a
+  // página ociosa (`minigames/fogo/aquecer.ts`), antes do "Apagar o fogo" ou do convite do mestre.
+  const temPinoDoFogo = map?.pins.some((p) => p.kind === 'minigame' && p.minigameVisivel?.jogo === 'fogo') ?? false
+  useEffect(() => {
+    if (temPinoDoFogo) aquecerJogoDoFogo()
+  }, [temPinoDoFogo])
   // ITEM NO MAPA: o cartão do item abre para a imagem no chão e para o PINO DE
   // ITEM (o "!" do saco); o pino "!" pegável de antes segue no cartão do pino.
   // Saiu do recorte (alguém pegou, a ficha andou): o cartão fecha sozinho.
