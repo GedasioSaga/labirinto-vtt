@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { travaDoContador } from '../../lib/batalha/condicoes'
-import { contadorDoPersonagem, motivoDoContador, nivelDoContador, temGolpeEsperando } from '../../lib/batalha/contador'
+import { contadorNoMenu } from '../../lib/batalha/contadorNoMenu'
 import { equipeDe, ladoDoNpc } from '../../lib/batalha/equipes'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
@@ -133,31 +132,12 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         })
       }
       // R5 (lote de 01/11): o contador da ficha (a Polaridade do Vagn): carregar gasta a reação; zerar é só do mestre.
+      // A conta do contador mora num lugar só (`contadorNoMenu`, a mesma da Arena).
       const personagemDaCarta = personagemId === null ? undefined : personagens.find((candidato) => candidato.id === personagemId)
-      const contador = personagemDaCarta === undefined || sistema === null || carta.bando !== undefined ? null : contadorDoPersonagem(personagemDaCarta, sistema)
-      if (contador !== null && personagemId !== null && turnos !== undefined) {
-        const nivel = nivelDoContador(turnos, carta.tokenId, contador.cartao.id)
-        const maximo = contador.leitura.danoPorNivel.length
-        const motivo = motivoDoContador('ganhar', nivel, maximo, turnos.combate?.[personagemId]?.semReacao === true, temGolpeEsperando(turnos.golpes, carta.tokenId))
-        // S4: Atordoado ou Paralisado não reage, então não carrega (a store recusa igual).
-        const travado = travaDoContador((turnos.selos ?? []).filter((selo) => selo.tokenId === carta.tokenId))
-        const pedido = { tokenId: carta.tokenId, cartaoId: contador.cartao.id }
-        itens.push({
-          id: 'contador-ganhar',
-          rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
-          detalhe:
-            travado ??
-            (motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'golpeEsperando' ? 'Tem golpe esperando a reação: responda antes de carregar' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
-          desabilitado: travado !== null || motivo !== null,
-          onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'ganhar', ...pedido }),
-        })
-        if (nivel > 0)
-          itens.push({
-            id: 'contador-zerar',
-            rotulo: `Zerar ${contador.leitura.nome}`,
-            detalhe: 'Volta a 0 e o dano a mais sai; entra no registro',
-            onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'zerar', ...pedido }),
-          })
+      const contador = personagemDaCarta === undefined || sistema === null || carta.bando !== undefined || turnos === undefined ? null : contadorNoMenu(carta.tokenId, personagemDaCarta, sistema, turnos)
+      if (contador !== null) {
+        itens.push({ id: 'contador-ganhar', ...contador.ganhar, onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'ganhar', ...contador.pedido }) })
+        if (contador.zerar !== null) itens.push({ id: 'contador-zerar', ...contador.zerar, onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'zerar', ...contador.pedido }) })
       }
       if (personagemId !== null && (carta.carga ?? 0) > 0)
         itens.push({
