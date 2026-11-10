@@ -73,3 +73,18 @@ export function rotuloDeQuadradosAndados(
   if (!Number.isFinite(quadrados) || quadrados < MINIMO_DE_QUADRADOS_PARA_MOSTRAR) return null
   return formatarQuadrados(quadrados)
 }
+
+/** O aviso de que o Ctrl está segurado e a ficha do mestre passa por parede e porta. */
+export const ATRAVESSANDO = 'Atravessando'
+
+/**
+ * O rótulo do arrasto com o modo ATRAVESSAR (Ctrl, pedido do mestre de
+ * 10/11/2026): "3 quadrados · atravessando", ou só "Atravessando" enquanto a
+ * ficha ainda não saiu da célula — o mestre vê que o modo ligou antes de
+ * andar. Sem o modo, o rótulo de sempre (ou nenhum). Fica no mesmo lugar do
+ * número, acima do disco: um sinal só, sem janela.
+ */
+export function rotuloDoArrastoDaFicha(quadrados: string | null, atravessando: boolean): string | null {
+  if (!atravessando) return quadrados
+  return quadrados === null ? ATRAVESSANDO : `${quadrados} · ${ATRAVESSANDO.toLowerCase()}`
+}

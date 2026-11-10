@@ -344,7 +344,7 @@ import { stairHandleLabel } from '../lib/stairHandles'
 import { createCercaCurvaGesture } from './cercaCurvaGesture'
 import { rotuloDaCurvaDaCerca } from '../lib/cercaCurva'
 import { measureDistance } from '../lib/measurement'
-import { rotuloDeQuadradosAndados } from '../lib/tokenDragDistance'
+import { rotuloDeQuadradosAndados, rotuloDoArrastoDaFicha } from '../lib/tokenDragDistance'
 import { tokenRadiusOf } from '../lib/doorReach'
 // Integrador I8 (F4): B3 "mover e redimensionar" — geometria de bounding-box
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
@@ -4624,6 +4624,89 @@ function PixiCanvasDoContexto({
       }
 
       /**
+       * Um passo do arrasto da ficha até `worldPoint` (o ponteiro). Vem do
+       * pointermove e também do teclado: apertar ou soltar o Ctrl com o
+       * ponteiro parado refaz o passo na hora, com as teclas novas.
+       *
+       * ATRAVESSAR (pedido do mestre de 10/11/2026: "passar ele por parede ao
+       * apertar Ctrl"): o Ctrl já era a tecla do movimento LIVRE de todo
+       * arrasto — solta a guia de alinhamento (`isFreeMoveModifier`). Na ficha
+       * ele também solta a parede, a porta e o barranco (`moveTokenLive`), e a
+       * grade continua sendo do Alt. Os outros dois usos do Ctrl ficam como
+       * estão: no aperto do botão em cima de ficha NÃO selecionada ele abre o
+       * laço (`ctrlStartsMarquee`), então o atravessar vale ao segurar o Ctrl
+       * já arrastando, ou ao pegar a ficha já selecionada. Este canvas é só do
+       * mestre: o jogador anda pela tela dele e o host confere o pedido.
+       */
+      const passoDoArrastoDaFicha = (tokenId: string, worldPoint: Point, teclas: GuideKeys): void => {
+        const { map } = useMapStore.getState()
+        // O tamanho da ficha arrastada decide ONDE ela assenta: a de lado
+        // par gruda na linha da grade, a de lado ímpar no centro da célula.
+        const cells = tokenSizeInSquares(map.tokens.find((token) => token.id === tokenId))
+        // Ficha alinha pelo CENTRO com o centro das outras fichas (pedido 3, fatia 2).
+        const pegado = { x: worldPoint.x + tokenDragPegada.x, y: worldPoint.y + tokenDragPegada.y }
+        const destino = pointWithGuides(applySnap(pegado, map.grid, 'token', teclas.altKey, cells), 'token', teclas)
+        const atravessando = isFreeMoveModifier(teclas)
+        useMapStore.getState().moveTokenLive(tokenId, destino.x, destino.y, atravessando)
+        // A ficha andou de fato (saiu da célula de origem): sai da mesa. Depois
+        // do moveTokenLive, que já desenhou o wrapper — o clone do Alt+arrastar
+        // inclusive — no lugar novo.
+        if (!tokenDragLifted && tokenDragOrigin && (destino.x !== tokenDragOrigin.x || destino.y !== tokenDragOrigin.y)) {
+          tokenDragLifted = true
+          tokensRenderer.levantar(tokenId)
+        }
+        // Quantos quadrados a ficha já andou, enquanto o botão está apertado.
+        // A conta é a da ferramenta Medir (`measureCells`, via
+        // `rotuloDeQuadradosAndados`) e o desenho é o desenhista dela, com o
+        // modo de medição da própria mesa — duas réguas divergentes seriam
+        // pior que nenhuma. `tokenDragOrigin` é a posição de ANTES do gesto.
+        // Com o Ctrl, o mesmo rótulo diz "atravessando" (`rotuloDoArrastoDaFicha`).
+        if (tokenDragOrigin) {
+          const rotulo = rotuloDoArrastoDaFicha(
+            rotuloDeQuadradosAndados(tokenDragOrigin, destino, map.grid, map.gridShape, map.measurementMode),
+            atravessando,
+          )
+          // Sem mexer em Graphics/Text quando nada mudou: entre dois centros
+          // de célula cabem dezenas de pointermove idênticos, e este é o
+          // gesto mais usado do app.
+          const assinatura = rotulo === null ? null : `${rotulo}@${destino.x},${destino.y}`
+          if (assinatura !== tokenDragLastShown) {
+            if (rotulo === null) {
+              tokenDragDistanceRenderer.hide()
+            } else {
+              // Logo acima do disco, nunca por dentro dele: o raio sai de
+              // `tokenRadiusOf` (lib/doorReach.ts), a mesma conta que o
+              // desenho e o hit-test usam, então ficha grande não engole o
+              // número. O nome da peça é desenhado ABAIXO do disco, então
+              // acima está livre.
+              const arrastada = map.tokens.find((t) => t.id === tokenId)
+              const raio = arrastada ? tokenRadiusOf(arrastada, map.grid) : map.grid / 2
+              const nasceu = tokenDragDistanceRenderer.show(angleIndicatorContainer, tokenDragOrigin, destino, rotulo, {
+                x: destino.x,
+                y: destino.y - raio - FOLGA_DO_ROTULO_DE_QUADRADOS,
+              })
+              // O rótulo é de mundo e nasce na resolução do renderer: ajusta
+              // ao zoom uma vez (o zoom seguinte o mantém, ele fica guardado).
+              if (nasceu) syncTextResolution()
+            }
+            tokenDragLastShown = assinatura
+          }
+        }
+      }
+
+      /**
+       * O Ctrl (ou o Cmd) mudou no meio do arrasto da ficha, sem o ponteiro
+       * andar: refaz o passo onde o ponteiro está, para o atravessar ligar ou
+       * desligar na hora. Fora do arrasto, ou com a cópia do Alt ainda armada
+       * (a ficha nem começou a andar), não faz nada.
+       */
+      const refazerPassoDaFichaPeloTeclado = (event: KeyboardEvent): void => {
+        if (event.key !== 'Control' && event.key !== 'Meta') return
+        if (mode !== 'dragging-token' || draggingTokenId === null || pendingAltClone !== null || laserPointer === null) return
+        passoDoArrastoDaFicha(draggingTokenId, laserPointer, event)
+      }
+
+      /**
        * Começa o arrasto de uma alça de ponto-chave (traço do Pincel, polígono).
        * `snapshot` é o mapa de antes do gesto, ou `null` quando o gesto começou
        * criando o ponto pela bolinha vazada (a criação já foi o passo de
@@ -8164,61 +8247,7 @@ function PixiCanvasDoContexto({
         if (!startAltCloneOnceDragging(event.global)) return
 
         if (mode === 'dragging-token' && draggingTokenId) {
-          const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map } = useMapStore.getState()
-          // O tamanho da ficha arrastada decide ONDE ela assenta: a de lado
-          // par gruda na linha da grade, a de lado ímpar no centro da célula.
-          const cells = tokenSizeInSquares(map.tokens.find((token) => token.id === draggingTokenId))
-          // Ficha alinha pelo CENTRO com o centro das outras fichas (pedido 3, fatia 2).
-          const pegado = { x: worldPoint.x + tokenDragPegada.x, y: worldPoint.y + tokenDragPegada.y }
-          const destino = pointWithGuides(applySnap(pegado, map.grid, 'token', event.altKey, cells), 'token', event)
-          useMapStore.getState().moveTokenLive(draggingTokenId, destino.x, destino.y)
-          // A ficha andou de fato (saiu da célula de origem): sai da mesa. Depois
-          // do moveTokenLive, que já desenhou o wrapper — o clone do Alt+arrastar
-          // inclusive — no lugar novo.
-          if (!tokenDragLifted && tokenDragOrigin && (destino.x !== tokenDragOrigin.x || destino.y !== tokenDragOrigin.y)) {
-            tokenDragLifted = true
-            tokensRenderer.levantar(draggingTokenId)
-          }
-          // Quantos quadrados a ficha já andou, enquanto o botão está apertado.
-          // A conta é a da ferramenta Medir (`measureCells`, via
-          // `rotuloDeQuadradosAndados`) e o desenho é o desenhista dela, com o
-          // modo de medição da própria mesa — duas réguas divergentes seriam
-          // pior que nenhuma. `tokenDragOrigin` é a posição de ANTES do gesto.
-          if (tokenDragOrigin) {
-            const rotulo = rotuloDeQuadradosAndados(
-              tokenDragOrigin,
-              destino,
-              map.grid,
-              map.gridShape,
-              map.measurementMode,
-            )
-            // Sem mexer em Graphics/Text quando nada mudou: entre dois centros
-            // de célula cabem dezenas de pointermove idênticos, e este é o
-            // gesto mais usado do app.
-            const assinatura = rotulo === null ? null : `${rotulo}@${destino.x},${destino.y}`
-            if (assinatura !== tokenDragLastShown) {
-              if (rotulo === null) {
-                tokenDragDistanceRenderer.hide()
-              } else {
-                // Logo acima do disco, nunca por dentro dele: o raio sai de
-                // `tokenRadiusOf` (lib/doorReach.ts), a mesma conta que o
-                // desenho e o hit-test usam, então ficha grande não engole o
-                // número. O nome da peça é desenhado ABAIXO do disco, então
-                // acima está livre.
-                const arrastada = map.tokens.find((t) => t.id === draggingTokenId)
-                const raio = arrastada ? tokenRadiusOf(arrastada, map.grid) : map.grid / 2
-                const nasceu = tokenDragDistanceRenderer.show(angleIndicatorContainer, tokenDragOrigin, destino, rotulo, {
-                  x: destino.x,
-                  y: destino.y - raio - FOLGA_DO_ROTULO_DE_QUADRADOS,
-                })
-                // O rótulo é de mundo e nasce na resolução do renderer: ajusta
-                // ao zoom uma vez (o zoom seguinte o mantém, ele fica guardado).
-                if (nasceu) syncTextResolution()
-              }
-              tokenDragLastShown = assinatura
-            }
-          }
+          passoDoArrastoDaFicha(draggingTokenId, toWorldPoint(event.global.x, event.global.y), event)
           return
         }
 
@@ -8933,6 +8962,8 @@ function PixiCanvasDoContexto({
       }
 
       const onKeyDown = (event: KeyboardEvent) => {
+        // Ctrl apertado no meio do arrasto da ficha: o atravessar liga já, sem esperar o mouse andar.
+        refazerPassoDaFichaPeloTeclado(event)
         // BATALHA F3: Esc no meio do arrasto do Judge o devolve para onde estava, e só isso.
         if (event.key === 'Escape' && judgeGesture.arrastando()) {
           event.preventDefault()
@@ -9271,6 +9302,8 @@ function PixiCanvasDoContexto({
       window.addEventListener('keydown', onDraftKeyDown, true)
 
       const onKeyUp =(event: KeyboardEvent) => {
+        // Soltou o Ctrl no meio do arrasto da ficha: a parede volta a barrar dali em diante, sem puxar a ficha de volta.
+        refazerPassoDaFichaPeloTeclado(event)
         if (event.key === 'l' || event.key === 'L') {
           releaseLaserKey(true)
           return

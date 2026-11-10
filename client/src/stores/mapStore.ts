@@ -1520,7 +1520,13 @@ interface MapStoreState {
    * pixi/PixiCanvas.tsx. Par de commitDragHistory no pointerup/
    * pointerupoutside, mesmo padrão de updateCurvePointLive/moveCurveLive.
    */
-  moveTokenLive: (id: string, targetX: number, targetY: number) => void
+  /**
+   * `atravessar`: Ctrl segurado no arrasto do MESTRE (pedido de 10/11/2026) —
+   * a ficha vai aonde o ponteiro a pôs, sem parede, porta nem barranco no
+   * caminho, e a porta fechada não abre. Só o editor passa `true`; o jogador
+   * nunca chega aqui (o pedido dele passa por `validateTokenMove` no host).
+   */
+  moveTokenLive: (id: string, targetX: number, targetY: number, atravessar?: boolean) => void
   movePropLive: (id: string, x: number, y: number) => void
   moveWallLive: (wallId: string, dx: number, dy: number) => void
   moveRegionLive: (regionId: string, dx: number, dy: number) => void
@@ -3411,7 +3417,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory(() => after)
     },
     moveDrawing: (drawingId, dx, dy) => withHistory((map) => mapFactory.moveDrawing(map, drawingId, dx, dy)),
-    moveTokenLive: (id, targetX, targetY) => {
+    moveTokenLive: (id, targetX, targetY, atravessar = false) => {
       const { map } = get()
       const token = map.tokens.find((t) => t.id === id)
       if (!token) return
@@ -3419,7 +3425,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // o arrasto e só "corrigiria" ao soltar. A diferença é que a recusa
       // agora FALA (ver moveTokenExplaining). Barrado, `next` volta pela
       // MESMA referência: o `set` nem acontece e nenhum render acorda.
-      const next = moveTokenExplaining(map, token, targetX, targetY)
+      // Com o Ctrl do mestre a ficha vai direto: nada barra, nada avisa e a
+      // porta não abre (ela atravessa, não empurra). Quem vai levado ou a
+      // bordo segue a regra dele (`setTokenPosition`).
+      const next = atravessar ? mapFactory.setTokenPosition(map, token.id, targetX, targetY) : moveTokenExplaining(map, token, targetX, targetY)
       if (next !== map) set({ map: next })
     },
     movePropLive: (id, x, y) => set((state) => ({ map: mapFactory.setPropPosition(state.map, id, x, y) })),
