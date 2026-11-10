@@ -559,6 +559,13 @@ export interface GradeDaMira {
 /** A ficha sem personagem não é alvo (a store recusa): fica na lista, apagada. */
 export const MOTIVO_SEM_PERSONAGEM = 'sem ficha ligada'
 
+/**
+ * A recusa dita a quem opera como mestre (a vez do NPC no mapa, a Arena)
+ * quando a regra não dá o motivo: a frase do `MenuDaVez` fala de conexão, que
+ * é do jogador na LAN.
+ */
+export const RECUSA_SEM_MOTIVO = 'A regra recusou: confira a ação, o custo, a recarga e o alvo.'
+
 /** Uma ficha do mapa como a ordem da mira a lê: a posição (px do mundo); sem posição, vai para o fim do lado dela. */
 export interface FichaComPosicao {
   id: string

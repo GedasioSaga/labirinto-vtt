@@ -52,6 +52,7 @@ import {
   categoriaAtira,
   lerTempo,
   recursoDoCusto,
+  recursoDoEscudo,
   tecnicaPorId,
   tecnicasDe,
   ehOverload,
@@ -165,6 +166,13 @@ export interface ContextoDoGolpe {
    * Ausente = `aliados` (como antes).
    */
   doMesmoLado?: (personagemId: string) => boolean
+  /**
+   * U2: o cheio do Escudo do personagem nesta batalha (`escudoMaisAlto`: o
+   * maior que ele teve; o Escudo não tem máximo na ficha). A recusa da cura em
+   * quem está de vida cheia diz que o Escudo segurou o golpe. Ausente ou 0 = a
+   * frase de sempre (`MOTIVO_SEM_FERIDO`).
+   */
+  escudoCheio?: (personagemId: string) => number
 }
 
 /** O que `lancarGolpe` devolve para a store aplicar. */
@@ -634,6 +642,7 @@ function motivoDaCuraSemFerido(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvo
   const limpeza = limpezaDe(cartao)
   const recurso = recursoDeVida(ctx.sistema)
   if (limpeza === null || recurso === null || comSelo || alvos.length === 0) return null
+  let comEscudoGasto: { tokenId: string; personagem: Personagem } | null = null
   for (const alvo of alvos) {
     if (alvo.dano !== null && alvo.dano > 0) return null
     const personagemId = ctx.personagemDoToken(alvo.tokenId)
@@ -641,12 +650,33 @@ function motivoDaCuraSemFerido(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvo
     const vida = dele === undefined ? null : vidaDoPersonagem(dele, recurso)
     if (vida === null || vida.atual < vida.maximo) return null
     if (limpeza.soCura !== true && debuffsDoToken(ctx.turnos.selos, alvo.tokenId).length > 0) return null
+    if (comEscudoGasto === null && dele !== undefined && escudoGasto(ctx, dele)) comEscudoGasto = { tokenId: alvo.tokenId, personagem: dele }
   }
-  return MOTIVO_SEM_FERIDO
+  return comEscudoGasto === null ? MOTIVO_SEM_FERIDO : motivoDoEscudoQueSegurou(ctx, cartao, comEscudoGasto)
 }
 
 /** A recusa da cura sem ninguém para curar; a mira diz a mesma frase antes de mandar. */
 export const MOTIVO_SEM_FERIDO = 'Ninguém marcado está ferido'
+
+/** U2: o Escudo do personagem está abaixo do cheio desta batalha (`ctx.escudoCheio`): ele apanhou e a vida ficou inteira. */
+function escudoGasto(ctx: ContextoDoGolpe, personagem: Personagem): boolean {
+  const escudo = ctx.sistema === null ? null : recursoDoEscudo(ctx.sistema)
+  if (escudo === null || ctx.escudoCheio === undefined) return false
+  return numeroDaFicha(personagem.recursos, escudo.id) < ctx.escudoCheio(personagem.id)
+}
+
+/**
+ * U2 (decisão 2 do plano de 10/11: a cura segue só na vida, a frase diz o
+ * porquê): a recusa da cura em quem levou o golpe no Escudo. O mestre lê o
+ * nome do alvo; o jogador lê sem nome, como em `motivoDeForaDaAjuda`.
+ */
+function motivoDoEscudoQueSegurou(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvo: { tokenId: string; personagem: Personagem }): string {
+  const nome = cartao.nome.trim() || 'A técnica'
+  const fim = `o Escudo segurou o golpe. ${nome} cura só a vida.`
+  if (ctx.autor.tipo !== 'mestre') return `${MOTIVO_SEM_FERIDO}: ${fim}`
+  const doAlvo = ctx.turnos.cartas.find((carta) => carta.tokenId === alvo.tokenId)?.nome?.trim() || alvo.personagem.nome.trim() || 'O alvo'
+  return `${doAlvo} não está ferido: ${fim}`
+}
 
 /**
  * Construtor C5 (revisão): a técnica é de ajuda? Na montada, pelas peças ("em

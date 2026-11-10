@@ -399,13 +399,18 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   const vezAindaE = (cena: BatalhaEmTurnos, vez: BatalhaAgirMessage['vez']): boolean => vez === null || (cena.turnos.vez === vez.cartaId && cena.turnos.rodada === vez.rodada)
 
   /**
-   * Conserto das fichas F1 (bug 1): o motivo da regra (`motivoDoAgir`) só sai para a ficha DELE de verdade; na emprestada e no
-   * NPC ele contaria o SP e a recarga de outro. Sem motivo: a recusa genérica.
+   * O motivo da regra (`motivoDoAgir`) para o pedido que a store recusou. Conserto das fichas F1 (bug 1): só saía para a ficha
+   * DELE de verdade. U2 (plano de 10/11): na VEZ, sai para toda ficha que ele opera de direito (`podePedirAcao`: a dele, a
+   * emprestada e o NPC que ele controla): a ficha inteira dessa carta já foi para a tela dele na vez dela
+   * (`fichaDaVezQueEleControla`), então o motivo não conta o SP nem a recarga que ele já não leia. Fora da vez (o contra-ataque)
+   * a ficha que não é dele não foi enviada: segue só na ficha DELE de verdade. Sem motivo: a recusa genérica.
    */
   const recusaDoAgir = (ponte: PonteDaBatalha, lugar: LugarNaBatalha, cena: BatalhaEmTurnos, conexao: ConexaoNaBatalha, msg: BatalhaAgirMessage): Recusa => {
-    const contraDe = msg.pedido.tipo === 'concentrar' ? undefined : msg.pedido.contraDe
-    const tokenId = msg.vez === null ? (cena.turnos.contras ?? []).find((contra) => contra.golpeId === contraDe)?.tokenId : cartaDaVez(cena.turnos)?.tokenId
-    if (tokenId === undefined || !fichaDeVerdade(lugar, cena, tokenId)) return RECUSA_GENERICA
+    if (msg.vez === null) {
+      const contraDe = msg.pedido.tipo === 'concentrar' ? undefined : msg.pedido.contraDe
+      const tokenId = (cena.turnos.contras ?? []).find((contra) => contra.golpeId === contraDe)?.tokenId
+      if (tokenId === undefined || !fichaDeVerdade(lugar, cena, tokenId)) return RECUSA_GENERICA
+    } else if (!podePedirAcao(lugar, cena, msg)) return RECUSA_GENERICA
     const motivo = ponte.motivoDoAgir?.(lugar.sceneKey, autorDe(conexao), msg.vez, msg.pedido) ?? null
     return motivo === null ? RECUSA_GENERICA : { motivo }
   }

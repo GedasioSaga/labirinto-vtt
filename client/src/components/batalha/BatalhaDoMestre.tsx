@@ -28,7 +28,7 @@ import { EfeitosDaBatalha } from './EfeitosDaBatalha'
 import { usePassarVezDoMestre } from './passarVezDoMestre'
 import { recursosDaCarta } from './dadosDaFaixa'
 import { invocacaoDaFicha, nomeDoBando, pedidoDeInvocacao } from './dadosDaInvocacao'
-import { MOTIVO_SEM_PERSONAGEM, alvoDaMira, alvosNaOrdemDaMira, armaPadraoNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, vidaNaMira, type AlvoNaMira } from './dadosDoMenu'
+import { MOTIVO_SEM_PERSONAGEM, RECUSA_SEM_MOTIVO, alvoDaMira, alvosNaOrdemDaMira, armaPadraoNaBatalha, economiaEmTexto, golpesDeAtaque, golpesDeHabilidade, vidaNaMira, type AlvoNaMira } from './dadosDoMenu'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { InvocacoesPendentes, PainelDoBando, type MembroNaVez, type PendenciaNaTela } from './InvocacoesDoMestre'
 import { FormasPendentes } from './FormasDoMestre'
@@ -284,9 +284,6 @@ function mirarNoMapaDoMestre(mirando: boolean): void {
   useMiraDoMestre.getState().mirar(mirando)
 }
 
-/** A recusa do host dita ao mestre quando a regra não dá o motivo (a frase do `MenuDaVez` fala de conexão, que é do jogador). */
-const RECUSA_PARA_O_MESTRE = 'A regra recusou: confira a ação, o custo, a recarga e o alvo.'
-
 /** A sugestão do app para a vez do NPC, na forma que o menu e o painel leem: a chave do golpe e o alvo. */
 function sugestaoNaTela(sugestao: ReturnType<typeof sugestaoParaNpc> | null): { chave: string | null; alvoTokenId: string | null } {
   if (sugestao === null) return { chave: null, alvoTokenId: null }
@@ -330,7 +327,7 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
         armas={armas}
         habilidades={habilidades}
         alvos={alvosDaOrdem(mesa, turnos.cartas, carta)}
-        avisoDaRecusa={RECUSA_PARA_O_MESTRE}
+        avisoDaRecusa={RECUSA_SEM_MOTIVO}
         // Conserto de 09/11 (a Bolha): toda recusa da regra chega ao mestre com o motivo dela.
         motivoDaRecusa={(pedido) => useBatalhaStore.getState().motivoDoAgir(sceneKey, MESTRE, vez, pedido)}
         doMestre

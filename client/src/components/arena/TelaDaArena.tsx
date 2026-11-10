@@ -26,6 +26,7 @@ import { BatalhaDoJogador, type ConexaoDaBatalha } from '../batalha/BatalhaDoJog
 import { PassivasDaFicha, alvosDaOrdemParaPassiva, passivasNaCena } from '../batalha/PassivasDaBatalha'
 import { DarDanoDialog } from '../batalha/DarDanoDialog'
 import { faixaDoMestre, linhasDoMestre, type DadosDaCarta } from '../batalha/dadosDaFaixa'
+import { RECUSA_SEM_MOTIVO } from '../batalha/dadosDoMenu'
 import { tremer } from '../batalha/EfeitosDaBatalha'
 import { EscolhaDeArmas } from '../batalha/EscolhaDeArmas'
 import { FaixaDaOrdem } from '../batalha/FaixaDaOrdem'
@@ -74,6 +75,11 @@ type DialogoDaArena =
 const SEM_SELOS: SelosNasFichas = new Map()
 const SEM_FOTOS: FotosDaForma = new Map()
 const PLACAR_VAZIO: ContaDoPlacar = { golpes: [], total: 0, rodadas: 0, mediaPorRodada: 0 }
+
+/** U2: o motivo da regra para o pedido que a batalha da arena acabou de recusar (o mesmo `motivoDoAgir` da vez do NPC no mapa). */
+function motivoDaRecusaNaArena(vez: VezEsperada | null, pedido: PedidoDeAcao): string | null {
+  return batalhaDaArena.getState().motivoDoAgir(CENA_DA_ARENA, AUTOR_DA_ARENA, vez, pedido)
+}
 
 /**
  * A foto de cada ficha no palco: a forma ligada vence; sem ela, o retrato da
@@ -406,6 +412,9 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         onMirando={setMirando}
         onTremor={() => tremer(palcoRef.current)}
         textoDaVez="vezDe"
+        // U2: a regra roda aqui mesmo: a recusa diz o motivo dela, como na vez do NPC no mapa (nunca "sem conexão com o mestre").
+        motivoDaRecusa={motivoDaRecusaNaArena}
+        avisoDaRecusa={RECUSA_SEM_MOTIVO}
       />
 
       {boneco !== null && (

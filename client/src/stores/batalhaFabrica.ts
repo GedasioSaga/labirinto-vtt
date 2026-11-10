@@ -163,7 +163,7 @@ import {
 import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOverloadDeReacao, temReacaoContraSurpresa, type PedidoDeTecnica } from '../lib/batalha/reacaoComTecnica'
 import { casaNaAreaVirada } from '../lib/batalha/area'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
-import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
+import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, recursoDoEscudo, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, VezEsperada } from '../lib/batalha/ponte'
@@ -171,6 +171,7 @@ import {
   comLinha,
   desfazerFicha,
   ehPersonagemDeInvocado,
+  escudoMaisAlto,
   invocadoSaiuPorLinha,
   linhaDesfeita,
   marcarDesfeita,
@@ -2605,6 +2606,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       aliados: carta.personagemId === null ? new Set<string>() : aliadosDe(new Set([carta.personagemId]), mesa.equipes(), personagens),
       // Construtor C3 (revisão): na técnica montada, o aliado é o do lado na luta, a mesma regra da mira do mestre (o NPC cura o NPC da equipe dele).
       doMesmoLado: (personagemId) => mesmoLadoNaBatalha(carta.personagemId, personagemId, { equipes: mesa.equipes(), personagens, invocados: turnos.invocados ?? [] }),
+      // U2: o cheio do Escudo nesta batalha (o maior que a ficha teve), para a recusa da cura dizer que o Escudo segurou o golpe.
+      escudoCheio: (personagemId) => {
+        const escudo = sistema === null ? null : recursoDoEscudo(sistema)
+        return escudo === null ? 0 : escudoMaisAlto(cena.registro, personagemId, escudo.id)
+      },
     }
   }
 

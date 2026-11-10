@@ -111,6 +111,15 @@ export interface BatalhaDoJogadorProps {
    * novo. Ausente = sem aviso (a Arena e o Lobby, que não passam).
    */
   recusa?: { id: number; texto: string }
+  /**
+   * U2 (plano de 10/11): o MOTIVO da regra para o pedido que `conexao.agir`
+   * recusou na hora (a Arena e o treino, onde a regra roda aqui mesmo; na LAN
+   * a resposta do host chega depois, em `recusa`). `null` = a regra não recusa
+   * (cai no `avisoDaRecusa`). Ausente = a frase de sempre do menu.
+   */
+  motivoDaRecusa?: (vez: VezEsperada | null, pedido: PedidoDeAcao) => string | null
+  /** U2: a frase da recusa quando a regra não diz o motivo. Ausente = a do jogador ("sem conexão com o mestre..."). */
+  avisoDaRecusa?: string
 }
 
 /** Conserto das fichas F1 (bug 1): quanto o aviso da recusa fica na tela. */
@@ -151,7 +160,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, recusa }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, recusa, motivoDaRecusa, avisoDaRecusa }: BatalhaDoJogadorProps) {
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)
@@ -388,6 +397,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const combateDasArmas = armasDe_ === null ? undefined : estado.meus?.find((meu) => meu.personagemId === armasDe_)
 
   // Na SUA VEZ o menu novo espera a faixa sair (tocando ou ainda na fila); nos outros palcos ele só some e volta.
+  /** A vez que vai com o pedido: o contra-ataque é fora da vez (`null`); o resto, a carta e a rodada de agora. */
+  const vezDoPedido = (pedido: PedidoDeAcao): VezEsperada | null => (pedido.tipo !== 'concentrar' && pedido.contraDe !== undefined ? null : vez === null ? null : { cartaId: vez, rodada: estado.rodada })
   const mostrarMenu = cartaQueAge !== undefined && menu !== null && (estado.minhaVez || contras.length > 0) && palco !== 'suaVez'
   const noPalco = palco === null ? undefined : 'sim'
 
@@ -455,7 +466,10 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
                 ? undefined
                 : { pendente: meuCombate.armas === null, onAbrir: () => setArmasDe(personagemId) }
             }
-            onAgir={(pedido) => conexao.agir(pedido.tipo !== 'concentrar' && pedido.contraDe !== undefined ? null : vez === null ? null : { cartaId: vez, rodada: estado.rodada }, pedido)}
+            onAgir={(pedido) => conexao.agir(vezDoPedido(pedido), pedido)}
+            // U2: o motivo da regra para o pedido recusado na hora, lido com a mesma vez do pedido.
+            motivoDaRecusa={motivoDaRecusa === undefined ? undefined : (pedido) => motivoDaRecusa(vezDoPedido(pedido), pedido)}
+            avisoDaRecusa={avisoDaRecusa}
             onZerarCarga={zerarCarga === undefined || personagemId === undefined ? undefined : () => zerarCarga(personagemId)}
             onEncerrar={estado.minhaVez && vez !== null ? () => conexao.passarVez(vez, estado.rodada) : undefined}
             alvoDoMapa={alvoDoMapa}
