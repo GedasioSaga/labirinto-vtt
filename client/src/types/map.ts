@@ -2445,12 +2445,6 @@ export interface MapData {
    */
   particulas?: ParticulasDaCena
   /**
-   * CLICAR PARA ANDAR (`lib/cliqueParaAndar.ts`): a chave do mestre nesta cena.
-   * Ausente = LIGADA (mapa de antes abre e salva igual, sem linha de migração);
-   * só `false` desliga, e aí o host recusa todo trecho de caminhada
-   * (`caminhada_desligada`) — clique no chão e "Andar até aqui". O arrasto
-   * continua. Atravessa no recorte do jogador: a tela dele avisa sem mandar nada.
-  /**
    * SÓ NO RECORTE DO JOGADOR (`lib/fogFilter.ts`), nunca no arquivo: `true` = a
    * cena inteira não tem nenhum fogo, e as partículas nascem espalhadas pela
    * vista. O jogador só recebe os fogos que enxerga, então não sabe sozinho se
@@ -2458,6 +2452,12 @@ export interface MapData {
    * host. Ausente = as partículas só nascem dos fogos recebidos.
    */
   particulasSemFogo?: true
+  /**
+   * CLICAR PARA ANDAR (`lib/cliqueParaAndar.ts`): a chave do mestre nesta cena.
+   * Ausente = LIGADA (mapa de antes abre e salva igual, sem linha de migração);
+   * só `false` desliga, e aí o host recusa todo trecho de caminhada
+   * (`caminhada_desligada`) — clique no chão e "Andar até aqui". O arrasto
+   * continua. Atravessa no recorte do jogador: a tela dele avisa sem mandar nada.
    */
   cliqueParaAndar?: boolean
   /**
