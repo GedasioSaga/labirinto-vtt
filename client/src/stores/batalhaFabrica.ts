@@ -111,11 +111,10 @@ import {
   EQUIPES_MAX,
   ID_DA_EQUIPE_DOS_JOGADORES,
   NOME_DA_EQUIPE_DOS_JOGADORES,
-  aliadosDe,
+  aliadosNaLuta,
   ehEquipeAutomatica,
   equipeAutomatica,
   equipeDe,
-  mesmoLadoNaBatalha,
   semEquipeAutomaticaVazia,
   type Equipe,
 } from '../lib/batalha/equipes'
@@ -1469,12 +1468,21 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     return { alvo: feito.alvo, selado: feito.selado === null ? daBala : { selos: daBala.selos, parte: { tipo: 'composta', partes: [feito.selado.parte, daBala.parte] } } }
   }
 
+  /**
+   * U3 (plano de 10/11): os aliados de `personagemId` nesta luta, a regra única de "quem pode ajudar quem" (`aliadosNaLuta`):
+   * quem está do lado dele entre as fichas da ordem e os invocados, jogador ou NPC.
+   */
+  const aliadosNaLutaDe = (personagemId: string | null, turnos: TurnosDaCena, personagens: readonly Personagem[]): Set<string> => {
+    const invocados = turnos.invocados ?? []
+    return aliadosNaLuta(personagemId, [...turnos.cartas.map((carta) => carta.personagemId), ...invocados.map((invocado) => invocado.personagemId)], { equipes: mesa.equipes(), personagens, invocados })
+  }
+
   /** O selo do golpe (o da mira ou o da técnica) no alvo que ele acertou, com a disputa da mecânica à mão quando há. */
   const seloDoGolpeNoAcerto = (turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selado: ReturnType<typeof seloDoGolpe>; alvo: AlvoDoGolpe } => {
     const cartaoId = golpe.selo?.cartaoId
     const { personagens, sistema } = mesaDoRpg()
-    // F2 (fatia C, A Luz do Sol): o selo só nos aliados de quem usou (no inimigo vai só o dano).
-    if (cartaoId !== undefined && golpe.atacantePersonagemId !== null && !seloPegaNoAlvo(cartaoId, alvo.personagemId, aliadosDe(new Set([golpe.atacantePersonagemId]), mesa.equipes(), personagens))) return { selado: null, alvo }
+    // F2 (fatia C, A Luz do Sol): o selo só nos aliados de quem usou (no inimigo vai só o dano). U3: os aliados na luta, a mesma lista do golpe.
+    if (cartaoId !== undefined && golpe.atacantePersonagemId !== null && !seloPegaNoAlvo(cartaoId, alvo.personagemId, aliadosNaLutaDe(golpe.atacantePersonagemId, turnos, personagens))) return { selado: null, alvo }
     const disputa = cartaoId === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida) ? null : disputaNoAcerto(cartaoId)
     const usa = personagens.find((candidato) => candidato.id === golpe.atacantePersonagemId)
     const resiste = personagens.find((candidato) => candidato.id === alvo.personagemId)
@@ -2602,10 +2610,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
         return alvo !== undefined && sistema !== null && temReacaoContraSurpresa(alvo, sistema, turnos.combate?.[alvo.id])
       },
       quemRebatePor: quemRebatePor(sceneKey, turnos, carta.tokenId),
-      // F2 (fatia C, A Luz do Sol): os aliados de quem age não tomam o dano da técnica de selo só nos aliados.
-      aliados: carta.personagemId === null ? new Set<string>() : aliadosDe(new Set([carta.personagemId]), mesa.equipes(), personagens),
-      // Construtor C3 (revisão): na técnica montada, o aliado é o do lado na luta, a mesma regra da mira do mestre (o NPC cura o NPC da equipe dele).
-      doMesmoLado: (personagemId) => mesmoLadoNaBatalha(carta.personagemId, personagemId, { equipes: mesa.equipes(), personagens, invocados: turnos.invocados ?? [] }),
+      // U3: a regra única de "quem pode ajudar quem": o aliado é o do lado na luta, jogador ou NPC, para toda técnica (montada,
+      // de texto e à mão), a mesma regra da mira do mestre. A Luz do Sol (o selo só nos aliados, sem dano neles) lê a mesma lista.
+      aliados: aliadosNaLutaDe(carta.personagemId, turnos, personagens),
       // U2: o cheio do Escudo nesta batalha (o maior que a ficha teve), para a recusa da cura dizer que o Escudo segurou o golpe.
       escudoCheio: (personagemId) => {
         const escudo = sistema === null ? null : recursoDoEscudo(sistema)

@@ -152,20 +152,16 @@ export interface ContextoDoGolpe {
    */
   quemRebatePor?: (tokenId: string) => readonly string[]
   /**
-   * F2 (fatia C, A Luz do Sol): os ids de personagem ALIADOS de quem age
-   * (`aliadosDe`): a técnica de selo só nos aliados não dá dano neles.
+   * U3 (plano de 10/11): a regra única de "quem pode ajudar quem". Os ids de
+   * personagem ALIADOS de quem age NA LUTA (`aliadosNaLuta`: quem está do lado
+   * dele, a equipe ou, sem equipes, o tipo; jogador ou NPC; o invocado conta
+   * como o dono; nunca ele mesmo), a mesma regra da mira do mestre. Toda
+   * técnica lê daqui: a peça "nos aliados", a cura e a limpeza (montadas, de
+   * texto e à mão) e A Luz do Sol (o selo só nos aliados, sem dano neles).
+   * Antes a de texto e a à mão liam `aliadosDe`, que nunca põe NPC.
    * Ausente = ninguém é aliado.
    */
   aliados?: ReadonlySet<string>
-  /**
-   * Construtor C3 (revisão): o personagem está do lado de quem age na luta
-   * (`mesmoLadoNaBatalha`: a equipe, ou sem equipes o tipo; o invocado conta
-   * como o dono), a mesma regra da mira do mestre. Vale só no cartão montado
-   * (a peça "nos aliados", a cura e a limpeza das peças): o NPC cura o NPC
-   * da equipe dele. O cartão de texto e o à mão seguem com `aliados`.
-   * Ausente = `aliados` (como antes).
-   */
-  doMesmoLado?: (personagemId: string) => boolean
   /**
    * U2: o cheio do Escudo do personagem nesta batalha (`escudoMaisAlto`: o
    * maior que ele teve; o Escudo não tem máximo na ficha). A recusa da cura em
@@ -597,7 +593,7 @@ function motivoDoAlvoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvos
   if (quem !== 'si' && quem !== 'aliados') return null
   const deQuemUsa = ctx.carta.personagemId
   const juiz = quem === 'aliados' && mestreComNpc(ctx)
-  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (juiz || id === deQuemUsa || (quem === 'aliados' && aliadoPeloCartao(ctx, cartao, id)))
+  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (juiz || id === deQuemUsa || (quem === 'aliados' && aliadoDeQuemAge(ctx, id)))
   const fora = alvos.find((alvo) => !vale(ctx.personagemDoToken(alvo.tokenId)))
   if (fora === undefined) return null
   const nome = cartao.nome.trim() || 'A técnica'
@@ -935,27 +931,26 @@ function custosDoGolpe(daTecnica: LeituraDoCusto | null, extraEmSp: number): Lei
 
 /**
  * F2 (fatia D, Revigorar: "nele ou num aliado"): a técnica que limpa só vale
- * em quem usa ou nos aliados dele (`ctx.aliados`, ids de personagem). Ficha
- * sem personagem ou de outra equipe recusa com o motivo.
+ * em quem usa ou nos aliados dele na luta (`aliadoDeQuemAge`, U3). Ficha
+ * sem personagem ou do outro lado recusa com o motivo.
  */
 function motivoDaLimpeza(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>, alvos: readonly PedidoDeAlvo[]): string | null {
   if (limpezaDe(cartao) === null) return null
   const deQuemUsa = ctx.carta.personagemId
   // Conserto de 09/11: o mestre com o NPC cura quem ele mirar (`mestreComNpc`).
   const juiz = mestreComNpc(ctx)
-  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (juiz || id === deQuemUsa || aliadoPeloCartao(ctx, cartao, id))
+  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (juiz || id === deQuemUsa || aliadoDeQuemAge(ctx, id))
   const fora = alvos.find((alvo) => !vale(ctx.personagemDoToken(alvo.tokenId)))
   return fora === undefined ? null : motivoDeForaDaAjuda(ctx, cartao.nome.trim() || 'A técnica', fora.tokenId)
 }
 
 /**
- * Construtor C3 (revisão): o personagem é aliado de quem age para a regra do
- * cartão. O montado usa o lado na luta (`doMesmoLado`, a regra da mira do
- * mestre: o NPC cura o NPC da equipe dele); o de texto e o à mão (Revigorar),
- * `aliados`, como sempre.
+ * U3 (plano de 10/11): o personagem é aliado de quem age, para TODA técnica
+ * (a montada, a de texto e a à mão): o lado na luta (`ctx.aliados`). Antes só
+ * a montada lia o lado; a Revigorar e a Medicina da ficha de jogador não
+ * valiam no NPC aliado, e a recusa dizia "outro lado".
  */
-function aliadoPeloCartao(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'mecanica'>, personagemId: string): boolean {
-  if (ctx.doMesmoLado !== undefined && cartaoMontado(cartao)) return ctx.doMesmoLado(personagemId)
+function aliadoDeQuemAge(ctx: ContextoDoGolpe, personagemId: string): boolean {
   return ctx.aliados?.has(personagemId) ?? false
 }
 

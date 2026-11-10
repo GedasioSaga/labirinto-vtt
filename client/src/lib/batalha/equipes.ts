@@ -153,6 +153,23 @@ export function mesmoLadoNaBatalha(deQuem: string | null, outro: string | null, 
 }
 
 /**
+ * U3 (plano de 10/11): a regra única de "quem pode ajudar quem". Os aliados de
+ * `personagemId` NA LUTA, entre `candidatos` (os personagens da batalha): quem
+ * está do lado dele (`ladoNaBatalha`), jogador ou NPC, o invocado pelo dono;
+ * nunca ele mesmo. A regra do golpe (`ContextoDoGolpe.aliados`) lê daqui para
+ * toda técnica. Antes a de texto e a à mão liam `aliadosDe` (que nunca põe
+ * NPC) e só a montada lia o lado: a cura da ficha de jogador não valia no NPC
+ * aliado. Quem não tem lado não tem aliado.
+ */
+export function aliadosNaLuta(personagemId: string | null, candidatos: Iterable<string | null>, mesa: LadosDaBatalha): Set<string> {
+  const aliados = new Set<string>()
+  const lado = ladoNaBatalha(personagemId, mesa)
+  if (lado === null) return aliados
+  for (const id of candidatos) if (id !== null && id !== personagemId && ladoNaBatalha(id, mesa) === lado) aliados.add(id)
+  return aliados
+}
+
+/**
  * Conserto de 09/11/2026 (a Bolha do Tree "não curou nada"): o NPC que luta ao
  * lado dos jogadores era inimigo deles para o app, porque sem equipe todo NPC
  * fica do lado dos NPCs. O mestre escolhe o lado de cada NPC em "Quem entra" e
