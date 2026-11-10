@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import type { LadoDoNpc } from '../../lib/batalha/equipes'
 import type { EscolhaDaBatalha } from '../../lib/livros/combate'
+import { personagensAtivos, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { QuemEntraNaBatalha } from '../livro/QuemEntraNaBatalha'
 import { useEscolhaNoMapa } from './escolhaNoMapa'
-import { lerQuemPodeEntrar, prepararQuemEntra, type ListaDeQuemEntra } from './fichasDeQuemEntra'
+import { avisoDeForaDaOrdem, lerQuemPodeEntrar, prepararQuemEntra, type ListaDeQuemEntra } from './fichasDeQuemEntra'
 import { porNpcNoLado } from './ladoDoNpcNaTela'
 
 /** O "Incluir" põe cada NPC no lado depois de ele entrar na ordem; a preparação das fichas não mexe em lado. */
@@ -22,6 +23,7 @@ const SEM_LADOS: ReadonlyMap<string, LadoDoNpc> = new Map()
 export function IncluirNaBatalha({ sceneKey }: { sceneKey: string }) {
   const turnos = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey]?.turnos : undefined))
   const fichas = useMapStore((state) => state.map.tokens)
+  const personagens = useAdventureStore(personagensAtivos)
   const [caixa, setCaixa] = useState<{ chave: number; lista: ListaDeQuemEntra } | null>(null)
   const noMapa = useEscolhaNoMapa(caixa !== null)
   const jaNaOrdem = useMemo(() => {
@@ -30,7 +32,9 @@ export function IncluirNaBatalha({ sceneKey }: { sceneKey: string }) {
     for (const invocado of turnos?.invocados ?? []) naOrdem.add(invocado.tokenId)
     return naOrdem
   }, [turnos])
-  const fora = fichas.filter((ficha) => !jaNaOrdem.has(ficha.id)).length
+  // A conta do aviso sai da MESMA leitura da lista (segunda auditoria, achado 5: o aviso dizia 5 e a lista mostrava 4).
+  // As fichas do mapa e as da aventura só estão aqui para a conta se refazer quando uma delas muda; quem lê é `lerQuemPodeEntrar`.
+  const aviso = useMemo(() => avisoDeForaDaOrdem(lerQuemPodeEntrar({ jaNaOrdem })), [jaNaOrdem, fichas, personagens])
 
   const confirmar = (escolhas: EscolhaDaBatalha[], lados: ReadonlyMap<string, LadoDoNpc>) => {
     setCaixa(null)
@@ -65,10 +69,10 @@ export function IncluirNaBatalha({ sceneKey }: { sceneKey: string }) {
         onCancelar={() => setCaixa(null)}
       />
     )
-  if (fora === 0) return <p className="bt-texto">Toda ficha da cena já está na ordem.</p>
+  if (aviso === null) return <p className="bt-texto">Toda ficha da cena já está na ordem.</p>
   return (
     <>
-      <p className="bt-texto">{fora === 1 ? '1 ficha da cena está fora da ordem.' : `${fora} fichas da cena estão fora da ordem.`}</p>
+      <p className="bt-texto">{aviso}</p>
       <Acoes>
         {/* Lida no clique, antes de a lista tomar a seleção do mapa: as fichas selecionadas já vêm marcadas. */}
         <Botao onClick={() => setCaixa((antes) => ({ chave: (antes?.chave ?? 0) + 1, lista: lerQuemPodeEntrar({ jaNaOrdem }) }))}>Incluir na batalha…</Botao>

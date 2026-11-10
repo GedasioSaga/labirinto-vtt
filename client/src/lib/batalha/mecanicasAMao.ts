@@ -882,7 +882,8 @@ export function seloPegaNoAlvo(cartao: ChaveDaMecanica, alvoPersonagemId: string
  * cada alvo marcado; com `seloSoNosAliados`, os aliados de quem usa não
  * contam (eles só levam o selo). `nomeDaTecnica` vai no motivo. `daDano`
  * falso (construtor C8: a arma montada sem peça de dano, o Boomerang) troca o
- * "dá dano em" por "acerta", que é o que ela faz.
+ * "dá dano em" por "acerta", que é o que ela faz. A técnica que só cura ou
+ * limpa diz em quantos alvos ela vale.
  */
 export function motivoDoTetoDeDano(cartao: ChaveDaMecanica, nomeDaTecnica: string, alvosPersonagemIds: readonly (string | null | undefined)[], aliados: ReadonlySet<string>, daDano = true): string | null {
   const mecanica = mecanicaDoCartao(cartao)
@@ -890,6 +891,8 @@ export function motivoDoTetoDeDano(cartao: ChaveDaMecanica, nomeDaTecnica: strin
   if (mecanica === null || teto === undefined) return null
   const comDano = mecanica.seloSoNosAliados === true ? alvosPersonagemIds.filter((id) => typeof id !== 'string' || !aliados.has(id)) : alvosPersonagemIds
   if (comDano.length <= teto) return null
+  // Segunda auditoria (09/11, achado 5): a técnica que só cura ou limpa (a Bolha) não "dá dano em inimigos".
+  if (mecanica.limpa !== undefined && mecanica.dano === undefined) return teto === 1 ? `${nomeDaTecnica} vale em um alvo só` : `${nomeDaTecnica} vale em no máximo ${teto} alvos`
   const verbo = daDano ? 'dá dano em' : 'acerta'
   return teto === 1 ? `${nomeDaTecnica} ${verbo} um inimigo só` : `${nomeDaTecnica} ${verbo} no máximo ${teto} inimigos`
 }

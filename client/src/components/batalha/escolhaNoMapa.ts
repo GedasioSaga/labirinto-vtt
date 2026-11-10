@@ -15,7 +15,7 @@ import { useMapStore } from '../../stores/mapStore'
 export interface EscolhaNoMapa {
   /** Acende a ficha no mapa; `null` apaga. Ficha que saiu do mapa também apaga. */
   destacar(tokenId: string | null): void
-  /** A lista fechou: para de ouvir o mapa e devolve a seleção de antes. */
+  /** A lista fechou: para de ouvir o mapa e devolve a ferramenta e a seleção de antes. */
   soltar(): void
 }
 
@@ -67,8 +67,9 @@ export function fichasSelecionadasNoMapa(): string[] {
 export function abrirEscolhaNoMapa(aoClicar: (tokenId: string) => void): EscolhaNoMapa {
   const inicio = useMapStore.getState()
   const antes: SelectionSet = inicio.selection
-  // Clicar em ficha só seleciona com a ferramenta Selecionar.
-  if (inicio.activeTool !== 'select') inicio.setActiveTool('select')
+  // Clicar em ficha só seleciona com a ferramenta Selecionar. A que o mestre usava volta ao fechar (segunda auditoria, achado 5).
+  const ferramentaDeAntes = inicio.activeTool
+  if (ferramentaDeAntes !== 'select') inicio.setActiveTool('select')
   let relogio: ReturnType<typeof setTimeout> | null = null
 
   const pararRelogio = (): void => {
@@ -98,6 +99,9 @@ export function abrirEscolhaNoMapa(aoClicar: (tokenId: string) => void): Escolha
     soltar() {
       pararRelogio()
       parar()
+      // A ferramenta antes da seleção: trocar para uma ferramenta que cria limpa a seleção. Se o mestre pegou outra no meio, a dele fica.
+      const agora = useMapStore.getState()
+      if (ferramentaDeAntes !== 'select' && agora.activeTool === 'select') agora.setActiveTool(ferramentaDeAntes)
       porSelecao(antes)
     },
   }

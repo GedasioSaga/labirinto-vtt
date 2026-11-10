@@ -1,5 +1,5 @@
 import { ladoDoNpc, type LadoDoNpc } from '../../lib/batalha/equipes'
-import { fichaDaEscolha, modelosDeNpc, quemPodeEntrar, type CandidatoDaBatalha, type EscolhaDaBatalha } from '../../lib/livros/combate'
+import { AVISO_SEM_HP, fichaDaEscolha, modelosDeNpc, quemPodeEntrar, type CandidatoDaBatalha, type EscolhaDaBatalha } from '../../lib/livros/combate'
 import type { Personagem } from '../../lib/personagem'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useMapStore } from '../../stores/mapStore'
@@ -92,6 +92,27 @@ export function lerQuemPodeEntrar(opcoes: { jaNaOrdem?: ReadonlySet<string> } = 
     avisoDaSelecao: !soAsSelecionadas ? null : !incluindo && jogadores.some((tokenId) => !selecionadas.includes(tokenId)) ? `${SO_AS_SELECIONADAS}, com os jogadores.` : `${SO_AS_SELECIONADAS}.`,
     ladoDe: (personagemId) => ladoDoNpc(personagemId, equipes, personagens),
   }
+}
+
+/**
+ * A linha do "Incluir" antes de a lista abrir (segunda auditoria, achado 5):
+ * quantas fichas da cena estão fora da ordem e, na própria linha, quantas a
+ * lista não mostra e por quê (o aviso dizia 5 e a lista mostrava 4: o token de
+ * jogador sem ficha e a ficha sem HP não entram). Sai da MESMA leitura da
+ * lista (`lerQuemPodeEntrar` com `jaNaOrdem`). `null` = ninguém fora da ordem.
+ */
+export function avisoDeForaDaOrdem(lista: ListaDeQuemEntra): string | null {
+  const naLista = lista.candidatos.filter((candidato) => candidato.situacao !== 'semHp').length
+  const semHp = lista.candidatos.length - naLista
+  const fora = lista.candidatos.length + lista.jogadoresSemFicha
+  if (fora === 0) return null
+  const conta = fora === 1 ? '1 ficha da cena está fora da ordem.' : `${fora} fichas da cena estão fora da ordem.`
+  const deFora = [
+    ...(lista.jogadoresSemFicha === 0 ? [] : [lista.jogadoresSemFicha === 1 ? '1 token de jogador sem ficha' : `${lista.jogadoresSemFicha} tokens de jogador sem ficha`]),
+    ...(semHp === 0 ? [] : [semHp === 1 ? `1 ${AVISO_SEM_HP}` : `${semHp} fichas sem HP`]),
+  ]
+  if (deFora.length === 0) return conta
+  return `${conta} A lista mostra ${naLista}: ${deFora.join(' e ')} ${fora - naLista === 1 ? 'fica' : 'ficam'} de fora.`
 }
 
 /**
