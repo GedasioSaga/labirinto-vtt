@@ -3818,14 +3818,8 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
     border-color var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
-/* ONDE O MESTRE ESTÁ (lista de cenas, ideia 2): fundo de latão e uma barra
-   na borda esquerda — uma forma, não só a cor. A cena onde o GRUPO está se lê
-   pelos retratos embaixo do nome, então as duas nunca se confundem. */
 .lb-cenas__item--ativa {
-  --lb-retrato-aro: color-mix(in srgb, var(--lb-color-brass) 14%, var(--lb-color-stone-solid));
   border-color: var(--lb-color-brass);
-  background: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft)) var(--lb-color-stone-solid);
-  box-shadow: inset 3px 0 0 var(--lb-color-brass);
 }
 
 .lb-cenas__nome {
@@ -3879,72 +3873,13 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-brass);
 }
 
-/* Quem está na cena: linha própria dentro do item (o item quebra linha), com
-   os retratos e os nomes alinhados ao nome da cena, não à seta da pasta. */
+/* Quem está na cena: linha própria dentro do item (o item quebra linha). */
 .lb-cenas__gente {
   display: flex;
+  flex-wrap: wrap;
   flex-basis: 100%;
   align-items: center;
-  gap: var(--lb-space-2);
-  min-width: 0;
-}
-
-.lb-cenas__item:has(> .lb-cenas__linha > :is(.lb-cenas__pasta, .lb-cenas__recuo)) > .lb-cenas__gente {
-  padding-left: var(--lb-space-6);
-}
-
-.lb-cenas__retratos {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-}
-
-/* Foto da ficha, ou a inicial na cor do jogador. O aro na cor do cartão
-   separa um rosto do outro quando eles se sobrepõem. */
-.lb-cenas__retrato {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-left: calc(var(--lb-space-1) * -1);
-  overflow: hidden;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1.5px var(--lb-retrato-aro, var(--lb-color-stone-solid));
-  color: var(--lb-color-ink);
-  font-family: var(--lb-font-utility);
-  font-size: var(--lb-font-size-xs);
-  font-weight: var(--lb-font-weight-semibold);
-  line-height: 1;
-}
-
-.lb-cenas__retrato:first-child {
-  margin-left: 0;
-}
-
-.lb-cenas__retrato--clara {
-  color: var(--lb-color-parchment);
-}
-
-.lb-cenas__retrato > img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.lb-cenas__retrato--mais {
-  background: var(--lb-color-stone-hover);
-  color: var(--lb-color-parchment-dim);
-}
-
-.lb-cenas__gente-nomes {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--lb-color-parchment-dim);
-  font-size: var(--lb-font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: var(--lb-space-1);
 }
 
 /* Mesma bolinha do painel Grupo, com contorno claro: a cor da ficha pode ser escura no fundo escuro. */
@@ -4489,16 +4424,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
    contorna o cartão, não só as letras. */
 .lb-cenas__item:has(> .lb-cenas__linha > .lb-cenas__nome:focus-visible) {
   box-shadow: var(--lb-shadow-focus);
-}
-
-/* A cena aberta guarda a barra de latão também com o anel de foco. */
-.lb-cenas__item--ativa:has(> .lb-cenas__linha > .lb-cenas__nome:focus-visible) {
-  box-shadow: inset 3px 0 0 var(--lb-color-brass), var(--lb-shadow-focus);
-}
-
-/* A faixa de controles da cena aberta copia o fundo de latão para cobrir o fim do nome. */
-.lb-cenas__item--ativa:has(> .lb-cenas__linha) {
-  --lb-cena-fundo: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft)) var(--lb-color-stone-solid);
 }
 
 .lb-cenas__linha {
