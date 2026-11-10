@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MINIGAME_BOLHA_PADRAO, type MinigameBolha } from '../minigames/bolha/tipos'
+import { MINIGAME_BOLHA_PADRAO, type MinigameBolha, type ModoBolha } from '../minigames/bolha/tipos'
 import { criarBolhaNoHost, textoDoDesfechoDaBolha, type BolhaConvidado, type SaidaDaBolha } from './bolhaNoHost'
 import { parseBolhaHostMessage, parseBolhaPlayerMessage, placarDoJogoDaBolha, type BolhaHostMessage, type BolhaPlacar } from './protocoloDaBolha'
 
@@ -8,11 +8,18 @@ const CONVIDADOS: BolhaConvidado[] = [
   { playerId: 'bia', nome: 'Bia' },
 ]
 
-const placar = (vitoria: boolean, pontos: number): BolhaPlacar => ({
+/**
+ * Um placar HONESTO da casa no difícil, pela conta do jogo (partida.gd placar()):
+ * vitória 500 + round((70 - 41,37) * 10) + 80 * 3 = 1026, três estrelas (rápida e
+ * precisa); derrota 5 * 40 + 80 = 280.
+ */
+const placar = (vitoria: boolean, semente = 7, modo: ModoBolha = 'equipe'): BolhaPlacar => ({
   vitoria,
-  motivo: vitoria ? 'apagou' : 'tempo',
+  motivo: vitoria ? 'apagou' : 'tomou',
   cenario: 'casa',
-  dificuldade: 'normal',
+  dificuldade: 'dificil',
+  semente,
+  modo,
   tempoS: 41.37,
   bolhas: 30,
   acertos: 24,
@@ -20,7 +27,7 @@ const placar = (vitoria: boolean, pontos: number): BolhaPlacar => ({
   focosApagados: 5,
   focosQuePegaram: 1,
   fogoNoFim: vitoria ? 0 : 35,
-  pontos,
+  pontos: vitoria ? 1026 : 280,
   estrelas: vitoria ? 3 : 0,
 })
 
@@ -72,6 +79,8 @@ describe('protocolo da bolha', () => {
       motivo: 'apagou',
       cenario: 'clareira',
       dificuldade: 'dificil',
+      semente: 7,
+      modo: 'equipe',
       tempoS: 52.5,
       bolhas: 20,
       acertos: 18,
@@ -89,9 +98,9 @@ describe('protocolo da bolha', () => {
   })
 
   it('aceita as mensagens boas do jogador e do mestre e derruba as tortas inteiras', () => {
-    expect(parseBolhaPlayerMessage({ type: 'bolha.fim', sessao: 's1', placar: placar(true, 900) })).toEqual({ type: 'bolha.fim', sessao: 's1', placar: placar(true, 900) })
+    expect(parseBolhaPlayerMessage({ type: 'bolha.fim', sessao: 's1', placar: placar(true) })).toEqual({ type: 'bolha.fim', sessao: 's1', placar: placar(true) })
     expect(parseBolhaPlayerMessage({ type: 'bolha.pronto', sessao: 's1', dificuldade: 'extremo' })).toBeNull()
-    expect(parseBolhaPlayerMessage({ type: 'bolha.fim', sessao: '', placar: placar(true, 900) })).toBeNull()
+    expect(parseBolhaPlayerMessage({ type: 'bolha.fim', sessao: '', placar: placar(true) })).toBeNull()
     expect(parseBolhaPlayerMessage({ type: 'bolha.desistir', sessao: 's1', motivo: 'cansei' })).toBeNull()
     const comecar = { type: 'bolha.comecar', sessao: 's1', semente: 12, dificuldade: 'facil', cenario: 'casa', modo: 'solo', jogadores: [{ id: 'ana', nome: 'Ana' }] }
     expect(parseBolhaHostMessage(comecar)).toEqual(comecar)
@@ -111,21 +120,62 @@ describe('bolha no mestre', () => {
     expect(primeiro).toEqual(segundo)
     expect(primeiro).toMatchObject({ dificuldade: 'dificil', cenario: 'casa', modo: 'equipe', jogadores: [{ id: 'ana', nome: 'Ana' }, { id: 'bia', nome: 'Bia' }] })
 
-    // A primeira terminar não fecha: o desfecho espera a outra.
-    expect(doTipo(host.fim('ana', { type: 'bolha.fim', sessao, placar: placar(true, 900) }), 'bolha.desfecho')).toEqual([])
-    const desfechos = doTipo(host.fim('bia', { type: 'bolha.fim', sessao, placar: placar(false, 120) }), 'bolha.desfecho')
+    // A primeira terminar não fecha: o desfecho espera a outra. Placares honestos da partida mandada.
+    const semente = primeiro?.semente ?? -1
+    expect(doTipo(host.fim('ana', { type: 'bolha.fim', sessao, placar: placar(true, semente) }), 'bolha.desfecho')).toEqual([])
+    const desfechos = doTipo(host.fim('bia', { type: 'bolha.fim', sessao, placar: placar(false, semente) }), 'bolha.desfecho')
     const daAna = desfechos.find((d) => d.clientId === 'c-ana')?.msg
     const daBia = desfechos.find((d) => d.clientId === 'c-bia')?.msg
     expect(daAna?.seu).toEqual({ passou: true, premio: MINIGAME_BOLHA_PADRAO.premio })
     expect(daBia?.seu).toEqual({ passou: false, consequencia: MINIGAME_BOLHA_PADRAO.consequencia })
     expect(daAna?.mesa).toEqual([
-      { playerId: 'ana', nome: 'Ana', pontos: 900, estrelas: 3, resultado: 'venceu' },
-      { playerId: 'bia', nome: 'Bia', pontos: 120, estrelas: 0, resultado: 'perdeu' },
+      { playerId: 'ana', nome: 'Ana', pontos: 1026, estrelas: 3, resultado: 'venceu' },
+      { playerId: 'bia', nome: 'Bia', pontos: 280, estrelas: 0, resultado: 'perdeu' },
     ])
     const vivo = host.aoVivo()
     expect(vivo?.fase).toBe('fim')
-    expect(vivo?.desfecho).toEqual({ apagaram: 1, jogaram: 2, pontos: 1020 })
-    expect(vivo === null ? '' : textoDoDesfechoDaBolha(vivo)).toBe("Bolha d'Água: 1 de 2 apagaram o fogo (1020 pontos na mesa).")
+    expect(vivo?.desfecho).toEqual({ apagaram: 1, jogaram: 2, pontos: 1306 })
+    expect(vivo === null ? '' : textoDoDesfechoDaBolha(vivo)).toBe("Bolha d'Água: 1 de 2 apagaram o fogo (1306 pontos na mesa).")
+  })
+
+  it('placar forjado é recusado: de outra partida ou fora da conta do jogo conta como não apagou, sem prêmio', () => {
+    const { host, sessao } = montar('equipe')
+    host.pronto('ana', { type: 'bolha.pronto', sessao })
+    host.pronto('bia', { type: 'bolha.pronto', sessao })
+    const semente = doTipo(host.comecar('dificil') ?? [], 'bolha.comecar')[0]?.msg.semente ?? -1
+    // O caso da auditoria: vitória em outro cenário e dificuldade, com 999 milhões de pontos.
+    const outraPartida: BolhaPlacar = { ...placar(true, semente), cenario: 'clareira', dificuldade: 'facil', pontos: 999_999_999 }
+    host.fim('ana', { type: 'bolha.fim', sessao, placar: outraPartida })
+    // A partida certa, mas pontos que a conta do jogo não dá.
+    const desfechos = doTipo(host.fim('bia', { type: 'bolha.fim', sessao, placar: { ...placar(true, semente), pontos: 999_999_999 } }), 'bolha.desfecho')
+    for (const d of desfechos) {
+      expect(d.msg.seu).toEqual({ passou: false, consequencia: MINIGAME_BOLHA_PADRAO.consequencia })
+      expect(d.msg.placar).toBeUndefined()
+    }
+    expect(desfechos).toHaveLength(2)
+    const vivo = host.aoVivo()
+    expect(vivo?.desfecho).toEqual({ apagaram: 0, jogaram: 2, pontos: 0 })
+    expect(vivo?.participantes.map((p) => [p.resultado, p.pontos, p.placarRecusado])).toEqual([
+      ['perdeu', 0, 'outro cenário'],
+      ['perdeu', 0, 'pontos fora da conta do jogo'],
+    ])
+  })
+
+  it('sozinho no pino: o jogo que não carregou e a aba fechada no convite liberam o pino', () => {
+    let seq = 0
+    const host = criarBolhaNoHost({ conexaoDe: (id) => (id === 'ana' ? 'c-ana' : null), randomId: () => `id-${(seq += 1)}` })
+    const conf = { pinId: 'p1', minigame: { ...MINIGAME_BOLHA_PADRAO } }
+    const pedido = host.pedir(conf, { playerId: 'ana', nome: 'Ana' })
+    if (!pedido.resultado.ok) throw new Error('pedido recusado')
+    // Erro de carga: a tela dela ouve o encerra e o próximo pedido abre.
+    const saida = host.desistir('ana', { type: 'bolha.desistir', sessao: pedido.resultado.sessao, motivo: 'erro' })
+    expect(doTipo(saida, 'bolha.encerra').map((e) => e.clientId)).toEqual(['c-ana'])
+    const denovo = host.pedir(conf, { playerId: 'ana', nome: 'Ana' })
+    expect(denovo.resultado.ok).toBe(true)
+    // Aba fechada no convite: a queda também libera.
+    host.caiu('ana')
+    expect(host.aoVivo()?.fase).toBe('encerrada')
+    expect(host.pedir(conf, { playerId: 'ana', nome: 'Ana' }).resultado.ok).toBe(true)
   })
 
   it('sozinho no pino: o Pronto com a dificuldade já começa, e quem sai no meio fica com a consequência', () => {

@@ -16,6 +16,7 @@ import {
   type BolhaResultado,
   type BolhaStatus,
 } from './protocoloDaBolha'
+import { conferirPlacarDaBolha, type PartidaDaBolha } from './conferirPlacarDaBolha'
 
 /**
  * MINIGAME BOLHA D'ÁGUA AO VIVO, lado do mestre: a partida ativa, quem joga e
@@ -62,6 +63,8 @@ export interface BolhaParticipanteNoMestre {
   pontos?: number
   estrelas?: number
   resultado?: BolhaResultado
+  /** O host recusou o placar (não confere com a partida): o porquê, curto. Conta como não apagou. */
+  placarRecusado?: string
 }
 
 /** O que o painel do MESTRE lê da bolha. Nunca vai pela rede. */
@@ -92,6 +95,8 @@ interface Participante {
   status: BolhaStatus
   placar?: BolhaPlacar
   resultado?: BolhaResultado
+  /** O `fim` que não conferiu com a partida: o porquê. Sem placar, sem prêmio, conta como não apagou. */
+  placarRecusado?: string
 }
 
 interface Bolha {
@@ -100,6 +105,8 @@ interface Bolha {
   modo: ModoBolha
   fase: BolhaFase
   dificuldade?: DificuldadeBolha
+  /** A partida do `bolha.comecar`, para conferir o `fim` de cada um. */
+  partida?: PartidaDaBolha
   participantes: Participante[]
   desfecho?: BolhaAoVivo['desfecho']
   /** SOZINHO NO PINO (`pedir`): a dificuldade que o mestre deixou; o Pronto do jogador já começa. */
@@ -224,7 +231,9 @@ export function criarBolhaNoHost(ctx: ContextoDaBolha): BolhaNoHost {
     if ((b.fase !== 'jogo' && b.fase !== 'pausa') || jogando(b).length > 0) return []
     const jogaram = b.participantes.filter((p) => p.status === 'terminou' || p.status === 'saiu')
     for (const p of jogaram) {
-      p.resultado = p.status === 'saiu' || p.placar === undefined ? 'saiu' : p.placar.vitoria ? 'venceu' : 'perdeu'
+      if (p.status === 'saiu') p.resultado = 'saiu'
+      else if (p.placarRecusado !== undefined) p.resultado = 'perdeu'
+      else p.resultado = p.placar === undefined ? 'saiu' : p.placar.vitoria ? 'venceu' : 'perdeu'
     }
     b.fase = 'fim'
     b.desfecho = {
@@ -264,6 +273,7 @@ export function criarBolhaNoHost(ctx: ContextoDaBolha): BolhaNoHost {
     b.dificuldade = dificuldade
     // A mesma semente para todos: em equipe a partida começa igual em cada cópia.
     const semente = sementeDaBolha(ctx.randomId())
+    b.partida = { semente, dificuldade, cenario: b.conf.minigame.cenario, modo: b.modo }
     const partida = (quem: readonly Participante[]): BolhaComecarMessage => ({
       type: 'bolha.comecar',
       sessao: b.sessao,
@@ -341,7 +351,11 @@ export function criarBolhaNoHost(ctx: ContextoDaBolha): BolhaNoHost {
       if (achado === null || achado.p.status !== 'jogando') return []
       const { b, p } = achado
       p.status = 'terminou'
-      p.placar = { ...msg.placar }
+      // O jogo roda na máquina do jogador: placar de outra partida ou fora da conta do
+      // jogo é recusado (auditoria da 0.5.46: vitória forjada com 999 milhões de pontos).
+      const recusa = b.partida === undefined ? 'sem partida' : conferirPlacarDaBolha(msg.placar, b.partida)
+      if (recusa === null) p.placar = { ...msg.placar }
+      else p.placarRecusado = recusa
       // O último a terminar fecha o jogo: o desfecho já diz tudo, sem estado antes.
       const fechou = concluirSePronto(b)
       return b.fase === 'jogo' || b.fase === 'pausa' ? estadoATodos(b) : fechou
@@ -354,13 +368,19 @@ export function criarBolhaNoHost(ctx: ContextoDaBolha): BolhaNoHost {
       if (b.fase === 'convite') {
         // "Agora não": fica de fora; o jogo que não carregou volta a Convidado, sem o Pronto.
         if (p.status === 'fora') return []
-        const status: BolhaStatus = msg.motivo === 'recusou' ? 'fora' : 'convidado'
-        if (p.status === status) return []
-        p.status = status
         // SOZINHO NO PINO: quem pediu disse "Agora não" e não sobra ninguém no convite. Aberto,
         // ele prendia o pino: o próximo "Apagar com bolhas" voltava "ocupado" até o mestre
         // encerrar (achado na prova de 10/11/2026). Fecha sem desfecho, como o mestre fecharia.
-        if (b.sozinho !== undefined && status === 'fora') return fecharSemDesfecho(b, 'fora')
+        // O mesmo quando o jogo não carregou (`erro`): sozinho, ninguém mais aperta Pronto
+        // por ele, e o convite aberto prendia o pino (auditoria da 0.5.46).
+        if (b.sozinho !== undefined) {
+          // Quem recusou já fechou a tela; o do erro ainda ouve o encerra e fecha a dele.
+          if (msg.motivo === 'recusou') p.status = 'fora'
+          return fecharSemDesfecho(b, 'fora')
+        }
+        const status: BolhaStatus = msg.motivo === 'recusou' ? 'fora' : 'convidado'
+        if (p.status === status) return []
+        p.status = status
         return estadoATodos(b)
       }
       // No jogo: quem já terminou fica com o placar que mandou; quem jogava sai.
@@ -409,8 +429,12 @@ export function criarBolhaNoHost(ctx: ContextoDaBolha): BolhaNoHost {
     caiu(playerId) {
       const b = ativa()
       const p = b?.participantes.find((item) => item.playerId === playerId)
-      // No convite a queda não muda nada: quem volta recebe o convite de novo.
-      if (b === null || p === undefined || b.fase === 'convite' || p.status !== 'jogando') return []
+      if (b === null || p === undefined) return []
+      // Sozinho no pino, quem pediu fechou a aba no convite: aberto, o convite prendia o
+      // pino até o mestre encerrar (auditoria da 0.5.46). Fecha sem desfecho.
+      if (b.fase === 'convite' && b.sozinho !== undefined && p.status !== 'fora') return fecharSemDesfecho(b, 'fora')
+      // No convite de equipe a queda não muda nada: quem volta recebe o convite de novo.
+      if (b.fase === 'convite' || p.status !== 'jogando') return []
       return tirarDoJogo(b, p)
     },
 
@@ -446,6 +470,7 @@ export function criarBolhaNoHost(ctx: ContextoDaBolha): BolhaNoHost {
           status: p.status,
           conectado: ctx.conexaoDe(p.playerId) !== null,
           ...(p.resultado === undefined ? {} : { resultado: p.resultado, pontos: p.placar?.pontos ?? 0, estrelas: p.placar?.estrelas ?? 0 }),
+          ...(p.placarRecusado === undefined ? {} : { placarRecusado: p.placarRecusado }),
         })),
         ...(b.desfecho === undefined ? {} : { desfecho: { ...b.desfecho } }),
       }

@@ -144,9 +144,11 @@ function Linha({ p }: { p: BolhaParticipanteNoMestre }) {
         {!p.conectado && <span className="lb-label"> (fora do ar)</span>}
       </span>
       <span className="lb-fogo-vivo__status">
-        {p.resultado !== undefined
-          ? `${NOME_DO_RESULTADO[p.resultado]} · ${p.pontos ?? 0} pontos${p.resultado === 'venceu' ? ` · ${estrelas} ${estrelas === 1 ? 'estrela' : 'estrelas'}` : ''}`
-          : NOME_DO_STATUS[p.status]}
+        {p.placarRecusado !== undefined
+          ? `Placar recusado: não confere com a partida (${p.placarRecusado})`
+          : p.resultado !== undefined
+            ? `${NOME_DO_RESULTADO[p.resultado]} · ${p.pontos ?? 0} pontos${p.resultado === 'venceu' ? ` · ${estrelas} ${estrelas === 1 ? 'estrela' : 'estrelas'}` : ''}`
+            : NOME_DO_STATUS[p.status]}
       </span>
     </li>
   )
