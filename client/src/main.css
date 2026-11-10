@@ -3893,10 +3893,16 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   padding-left: var(--lb-space-6);
 }
 
+/* No cartão fundo (nível 4 e 5, com a miniatura) cinco retratos não cabem numa
+   fileira: eles quebram linha dentro do cartão em vez de vazar pela borda. Os
+   nomes cedem primeiro (base 0): a fileira só quebra quando nem ela cabe. */
 .lb-cenas__retratos {
   display: inline-flex;
-  flex: none;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
+  gap: var(--lb-space-1) calc(var(--lb-space-1) / 2);
+  min-width: 0;
 }
 
 /* Foto da ficha, ou a inicial na cor do jogador. Lado a lado, com 2 px entre
@@ -3910,7 +3916,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   justify-content: center;
   width: 20px;
   height: 20px;
-  margin-left: calc(var(--lb-space-1) / 2);
   overflow: hidden;
   border-radius: 50%;
   box-shadow: 0 0 0 1.5px var(--lb-retrato-aro, var(--lb-color-stone-solid));
@@ -3919,10 +3924,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   font-size: var(--lb-font-size-xs);
   font-weight: var(--lb-font-weight-semibold);
   line-height: 1;
-}
-
-.lb-cenas__retrato:first-child {
-  margin-left: 0;
 }
 
 .lb-cenas__retrato--clara {
@@ -3941,6 +3942,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 .lb-cenas__gente-nomes {
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   color: var(--lb-color-parchment-dim);
