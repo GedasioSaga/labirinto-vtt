@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react'
 import { MOTIVO_JA_CONCENTROU, type AcoesDaVez } from '../../lib/batalha/acoes'
 import type { AcaoDaTecnica, PedidoDeAcao } from '../../lib/batalha/combate'
 import type { OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
@@ -6,7 +6,7 @@ import type { MotivoDaOpcao } from './dadosDaInvocacao'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { CHAVE_DA_MAO_NUA, pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
-import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, focoSegueOMouse, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
+import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, focoSegueOMouse, podeTomarOFoco, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
 import { MiraDaInvocacao } from './MiraDaInvocacao'
 import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
 import { ListaDePassivasDoMenu, type PassivasNoMenu } from './PassivasDaBatalha'
@@ -131,6 +131,36 @@ type Tela =
   | { tipo: 'passivas' }
 
 const SEM_MOTIVO = null
+
+/**
+ * D2: a última tira escolhida por ficha (a próxima vez dela pousa ali, e a
+ * lista pousa na última técnica). Vive enquanto o app está aberto.
+ */
+const ultimaEscolhaDaFicha = new Map<string, string>()
+
+/** D2: a tecla de cada ação, fixa (a mão aprende: 1 ataca, 5 encerra, em toda ficha). */
+const TECLA_DA_TIRA: Readonly<Record<string, number>> = {
+  atacar: 1,
+  habilidades: 2,
+  transformacao: 3,
+  concentrar: 4,
+  encerrar: 5,
+  passivas: 6,
+  'contra-atacar': 1,
+  'contra-habilidade': 2,
+  'contra-mover': 3,
+  'contra-voltar': 4,
+}
+
+const sobraDe = (contagem: { usadas: number; total: number }) => Math.max(0, contagem.total - contagem.usadas)
+
+/** D2: sem Simples, sem Bônus e sem o ataque extra da forma, só resta encerrar (o andar é arrastando a ficha). */
+function semAcaoNoMenu(acoes: AcoesDaVez | null): boolean {
+  if (acoes === null) return false
+  const extra = acoes.ataqueExtra
+  return sobraDe(acoes.simples) === 0 && sobraDe(acoes.bonus) === 0 && !(extra !== undefined && extra.liberado && extra.usadas < extra.total)
+}
+
 const SEM_CONTRAS: readonly ContraNoMenu[] = []
 const SEM_FORMAS: readonly FormaNoMenu[] = []
 const SEM_TRANSFORMACAO = 'Nenhuma transformação na ficha'
@@ -156,6 +186,15 @@ export function MenuDaVez(props: MenuDaVezProps) {
   const tiras = useRef<(HTMLButtonElement | null)[]>([])
   const botaoRecolhido = useRef<HTMLButtonElement>(null)
   const [atual, setAtual] = useState(0)
+  /** D2: o foco está no menu? A dica das teclas só aparece quando elas funcionam de fato. */
+  const [comFoco, setComFoco] = useState(false)
+  /** D2: onde o menu pousa ao (re)aparecer: lido no render das tiras, usado no efeito logo depois. */
+  const pouso = useRef(0)
+  const fichaDaMemoria = personagemId ?? quem
+  const semAcao = travado !== null || semAcaoNoMenu(acoes)
+  const lembrar = (chave: string) => {
+    if (chave !== 'encerrar' && chave !== 'contra-voltar') ultimaEscolhaDaFicha.set(fichaDaMemoria, chave)
+  }
 
   // A mira liga o "clicar na ficha escolhe o alvo" (S4); sair dela desliga.
   const mirando = tela.tipo === 'mira' && !recolhido
@@ -192,7 +231,6 @@ export function MenuDaVez(props: MenuDaVezProps) {
     if (saiu === true) {
       setAviso(null)
       setTela({ tipo: 'menu' })
-      setAtual(0)
     }
     return saiu
   }
@@ -203,12 +241,14 @@ export function MenuDaVez(props: MenuDaVezProps) {
     setTela(proxima)
   }
 
-  // Volta o foco à primeira tira quando o menu reaparece (vinda da lista ou da mira).
-  useEffect(() => {
-    if (tela.tipo === 'menu' && porTeclado) tiras.current[atual]?.focus()
-    // `atual` fica de fora de propósito: só a troca de tela devolve o foco.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tela.tipo, porTeclado])
+  // D2: ao nascer o menu, ao voltar da lista ou da mira, ao reabrir e quando a última ação acaba, o foco pousa
+  // na tira lembrada (sem ação restante, no "Encerrar vez"). Antes da pintura: a tira acesa já nasce certa.
+  useLayoutEffect(() => {
+    if (tela.tipo !== 'menu' || recolhido) return
+    const indice = pouso.current
+    setAtual(indice)
+    if (podeTomarOFoco()) tiras.current[indice]?.focus({ preventScroll: true })
+  }, [tela.tipo, recolhido, semAcao, contraId])
 
   if (recolhido) {
     return (
@@ -240,6 +280,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
         vazio={tela.de === 'atacar' ? 'Nenhuma arma levada para esta batalha.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
         evoluir={tela.de === 'habilidade' ? evoluir : undefined}
         sugerida={props.sugestao?.chave ?? null}
+        memoria={`${fichaDaMemoria}:${tela.de}`}
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
         onEscolher={(golpe, teclado) => abrir(golpe.invocacao === true && tela.de === 'habilidade' ? { tipo: 'invocacao', golpe } : { tipo: 'mira', golpe, de: tela.de }, teclado)}
       />
@@ -257,10 +298,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
         instantaneo={porTeclado}
         esperando={esperando}
         onAgir={agir}
-        onFeito={() => {
-          setTela({ tipo: 'menu' })
-          setAtual(0)
-        }}
+        onFeito={() => setTela({ tipo: 'menu' })}
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
       />
     )
@@ -298,10 +336,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
             onVoltar={() => abrir({ tipo: 'lista', de: 'habilidade' }, true)}
             onInvocar={(opcao, custo, acao) => {
               const saiu = invocacao.onInvocar(cartaoId, opcao, custo, acao)
-              if (saiu) {
-                setTela({ tipo: 'menu' })
-                setAtual(0)
-              }
+              if (saiu) setTela({ tipo: 'menu' })
               return saiu
             }}
           />
@@ -430,6 +465,22 @@ export function MenuDaVez(props: MenuDaVezProps) {
     if (item.chave !== 'encerrar') itens[indice] = { ...item, motivo: travado, zerar: undefined }
   })
   tiras.current.length = itens.length
+  // D2: a tecla de cada tira (fixa por ação; fora da vez, os contra-ataques guardados em ordem).
+  const teclaDe = (item: ItemDoMenu, indice: number): number | undefined =>
+    TECLA_DA_TIRA[item.chave] ?? (foraDaVez && contra === undefined && indice < 9 ? indice + 1 : undefined)
+  // D2: onde pousar. Sem ação restante, no Encerrar vez; senão na última escolhida desta ficha; senão na primeira acesa.
+  const livre = (indice: number) => itens[indice] !== undefined && !itens[indice]?.motivo
+  const indiceEncerrar = itens.findIndex((item) => item.chave === 'encerrar')
+  const lembrada = ultimaEscolhaDaFicha.get(fichaDaMemoria)
+  const indiceLembrado = itens.findIndex((item) => item.chave === lembrada)
+  const primeiraAcesa = itens.findIndex((_, indice) => livre(indice))
+  pouso.current = semAcao && indiceEncerrar >= 0 ? indiceEncerrar : indiceLembrado >= 0 && livre(indiceLembrado) ? indiceLembrado : Math.max(0, primeiraAcesa)
+
+  const escolherItem = (item: ItemDoMenu, teclado: boolean) => {
+    if (esperando || item.motivo) return
+    lembrar(item.chave)
+    item.executar(teclado)
+  }
 
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
     if (andarComSetas(evento, tiras.current, atual)) return
@@ -437,8 +488,20 @@ export function MenuDaVez(props: MenuDaVezProps) {
       const item = itens[atual]
       if (item !== undefined && !item.motivo) {
         evento.preventDefault()
-        item.executar(true)
+        escolherItem(item, true)
       }
+      return
+    }
+    // 1 a 6: a ação direto. A tira apagada só recebe o foco (o motivo dela fica à vista).
+    if (/^[1-9]$/.test(evento.key) && !evento.altKey && !evento.ctrlKey && !evento.metaKey) {
+      const indice = itens.findIndex((item, i) => teclaDe(item, i) === Number(evento.key))
+      const item = itens[indice]
+      if (item === undefined) return
+      evento.preventDefault()
+      evento.stopPropagation()
+      setAtual(indice)
+      tiras.current[indice]?.focus({ preventScroll: true })
+      escolherItem(item, true)
       return
     }
     if (evento.key === 'Escape') {
@@ -449,8 +512,19 @@ export function MenuDaVez(props: MenuDaVezProps) {
     }
   }
 
+  const focoSaiu = (evento: FocusEvent<HTMLDivElement>) => {
+    if (!evento.currentTarget.contains(evento.relatedTarget as Node | null)) setComFoco(false)
+  }
+
   return (
-    <div className="bt-vez" data-instantaneo={porTeclado ? 'sim' : 'nao'} onKeyDown={teclar} aria-busy={esperando ? true : undefined}>
+    <div
+      className="bt-vez"
+      data-instantaneo={porTeclado ? 'sim' : 'nao'}
+      onKeyDown={teclar}
+      onFocus={() => setComFoco(true)}
+      onBlur={focoSaiu}
+      aria-busy={esperando ? true : undefined}
+    >
       <CabecaDaVez quem={modoContra || foraDaVez ? `${quem} · contra-ataque` : quem} pips={pips} carga={carga} />
       {formasEsperando !== undefined && formasEsperando.length > 0 && (
         <p className="bt-vez__espera" role="status">
@@ -476,6 +550,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
               motivo={item.motivo}
               forma={item.forma}
               passiva={item.passiva}
+              tecla={teclaDe(item, indice)}
               esta={atual === indice}
               onFoco={() => setAtual(indice)}
               // O mouse acende a tira (o mesmo papel e os 14 px da escolhida); com o foco no menu, o foco vai junto (um cursor só).
@@ -483,10 +558,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
                 setAtual(indice)
                 focoSegueOMouse(tiras.current[indice])
               }}
-              onEscolher={() => {
-                if (esperando) return
-                item.executar(false)
-              }}
+              onEscolher={(teclado) => escolherItem(item, teclado)}
               refDaTira={(elemento) => {
                 tiras.current[indice] = elemento
               }}
@@ -511,8 +583,14 @@ export function MenuDaVez(props: MenuDaVezProps) {
           {aviso}
         </p>
       )}
+      {/* D2: as teclas só são ditas quando funcionam (o foco no menu); sem o foco, só o que vale com o mouse. */}
       <p className="bt-vez__dica">
-        <kbd>↑</kbd> <kbd>↓</kbd> escolhe · <kbd>Enter</kbd> abre · <kbd>Esc</kbd> recolhe · arraste a ficha para andar
+        {comFoco && (
+          <>
+            <kbd>↑</kbd> <kbd>↓</kbd> escolhe · <kbd>Enter</kbd> abre · <kbd>1</kbd>–<kbd>5</kbd> direto · <kbd>Esc</kbd> recolhe ·{' '}
+          </>
+        )}
+        arraste a ficha para andar
       </p>
       <div className="bt-vez__rodape">
         <button type="button" className="bt-botao bt-botao--p" onClick={() => setRecolhido(true)}>

@@ -333,6 +333,22 @@
 .bt-tira--pequena .bt-tira__nome {
   font-size: clamp(15px, 1.6vw, 20px);
 }
+/* D2: a tecla de atalho, miúda na ponta esquerda (fora da grade: não empurra o nome). */
+.bt-tira__tecla {
+  position: absolute;
+  left: 9px;
+  top: 13px;
+  font-family: var(--lb-font-utility);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-faint);
+  pointer-events: none;
+}
+.bt-tira[data-esta='sim'] .bt-tira__tecla {
+  color: rgba(12, 12, 14, 0.5);
+}
 /* "Zerar" a concentração: um carimbo à direita da tira Concentrar, só com carga. A tira não muda. */
 .bt-vez__com-zerar {
   display: flex;

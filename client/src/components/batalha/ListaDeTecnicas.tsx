@@ -88,9 +88,11 @@ export interface TiraProps {
   /** O mouse passou por cima (só mouse: no toque o "hover" vem junto do toque). */
   onApontar?: () => void
   refDaTira?: (elemento: HTMLButtonElement | null) => void
+  /** D2: a tecla de atalho (1 a 9), escrita miúda na ponta da tira. Ausente = sem atalho. */
+  tecla?: number
 }
 
-export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips, esta, forma, passiva, pequena, expandida, controla, descritaPor, onEscolher, onFoco, onApontar, refDaTira }: TiraProps) {
+export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips, esta, forma, passiva, pequena, expandida, controla, descritaPor, onEscolher, onFoco, onApontar, refDaTira, tecla }: TiraProps) {
   const estilo = useMemo(() => {
     const semente = sementeDe(chave)
     return {
@@ -114,6 +116,7 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips
       aria-expanded={expandida}
       aria-controls={controla}
       aria-describedby={descritaPor}
+      aria-keyshortcuts={tecla === undefined ? undefined : String(tecla)}
       onFocus={onFoco}
       onPointerEnter={(evento) => {
         if (evento.pointerType === 'mouse') onApontar?.()
@@ -123,6 +126,11 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips
         if (!motivo) onEscolher(evento.detail === 0)
       }}
     >
+      {tecla !== undefined && (
+        <span className="bt-tira__tecla" aria-hidden="true">
+          {tecla}
+        </span>
+      )}
       <span className="bt-tira__nome">{nome}</span>
       <span className="bt-tira__lado">{lado ?? ''}</span>
       {linha !== null && linha !== '' && <span className="bt-tira__det">{linha}</span>}
@@ -269,7 +277,12 @@ export interface ListaDeTecnicasProps {
   vazio: string
   /** Tipos de habilidade F4: o Evoluir na leitura da técnica que ainda evolui. Ausente = sem o botão. */
   evoluir?: EvoluirNaTela
+  /** D2: a chave da memória (ficha e lista): a lista reabre na última técnica escolhida. Ausente = na primeira. */
+  memoria?: string
 }
+
+/** D2: a última técnica escolhida em cada lista de cada ficha (enquanto o app está aberto). */
+const ultimaTecnica = new Map<string, string>()
 
 /**
  * Tipos de habilidade F4: o Evoluir da leitura. `motivo` = por que não evolui
@@ -297,14 +310,22 @@ function mesmoLugar(a: LugarDaLeitura, b: LugarDaLeitura): boolean {
   return a.largura === b.largura && a.topo === b.topo && a.altura === b.altura
 }
 
-export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, armas, instantaneo, vazio, evoluir }: ListaDeTecnicasProps) {
+export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, armas, instantaneo, vazio, evoluir, memoria }: ListaDeTecnicasProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const coluna = useRef<HTMLUListElement>(null)
   const leitura = useRef<HTMLDivElement>(null)
   const tiras = useRef<(HTMLButtonElement | null)[]>([])
   /** O último toque (não mouse) numa tira: o primeiro toque lê, o segundo escolhe. */
   const toque = useRef<{ indice: number; jaLia: boolean } | null>(null)
-  const [atual, setAtual] = useState(0)
+  // D2: abre na última técnica escolhida (memória da ficha); senão na primeira técnica ("Escolher armas" só quando falta escolher).
+  const [atual, setAtual] = useState(() => {
+    const deslocamento = armas !== undefined ? 1 : 0
+    const lembrada = memoria === undefined ? undefined : ultimaTecnica.get(memoria)
+    const indiceLembrado = golpes.findIndex((golpe) => golpe.chave === lembrada)
+    if (indiceLembrado >= 0) return indiceLembrado + deslocamento
+    return armas !== undefined && (armas.pendente || golpes.length === 0) ? 0 : deslocamento
+  })
+  const [comFoco, setComFoco] = useState(false)
   /** `null` = o padrão do lugar: aberta ao lado; fechada no lugar (aberta, ela empurra as tiras). */
   const [lendoEscolhido, setLendo] = useState<boolean | null>(null)
   const [lugar, setLugar] = useState<LugarDaLeitura>({ tipo: 'lugar' })
@@ -348,6 +369,13 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
     if (lugar.tipo === 'lugar') caixa.scrollIntoView({ block: 'nearest' })
   }, [chaveAtual, lendo, lugar.tipo])
 
+  // D2: ao abrir, o foco entra na tira (as setas e o Enter funcionam de cara, como a dica diz).
+  useLayoutEffect(() => {
+    if (podeTomarOFoco()) tiras.current[atual]?.focus({ preventScroll: true })
+    // Só ao abrir: depois, quem anda é o foco.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const escolher = (golpe: GolpeNaTela, indice: number, teclado: boolean) => {
     const tocou = toque.current
     toque.current = null
@@ -357,6 +385,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
       setLendo(true)
       return
     }
+    if (memoria !== undefined) ultimaTecnica.set(memoria, golpe.chave)
     onEscolher(golpe, teclado)
   }
 
@@ -407,7 +436,16 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
   }
 
   return (
-    <div ref={raiz} className="bt-vez bt-vez--lista" data-instantaneo={instantaneo ? 'sim' : 'nao'} onKeyDown={teclar}>
+    <div
+      ref={raiz}
+      className="bt-vez bt-vez--lista"
+      data-instantaneo={instantaneo ? 'sim' : 'nao'}
+      onKeyDown={teclar}
+      onFocus={() => setComFoco(true)}
+      onBlur={(evento) => {
+        if (!evento.currentTarget.contains(evento.relatedTarget as Node | null)) setComFoco(false)
+      }}
+    >
       <CabecaDaVez quem={titulo} pips={pips} carga={carga} />
       {total === 0 ? (
         <p className="bt-vez__aviso">{vazio}</p>
@@ -494,8 +532,15 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
           evoluir={evoluirAqui}
         />
       )}
+      {/* D2: a dica das teclas só com o foco na lista (é quando elas funcionam). */}
       <p className="bt-vez__dica">
-        <kbd>↑</kbd> <kbd>↓</kbd> escolhe · <kbd>→</kbd> ou <kbd>Espaço</kbd> lê · <kbd>Enter</kbd> usa · <kbd>Esc</kbd> volta
+        {comFoco ? (
+          <>
+            <kbd>↑</kbd> <kbd>↓</kbd> escolhe · <kbd>→</kbd> ou <kbd>Espaço</kbd> lê · <kbd>Enter</kbd> usa · <kbd>Esc</kbd> volta
+          </>
+        ) : (
+          'Clique numa técnica para usar'
+        )}
       </p>
       <div className="bt-vez__rodape">
         <button type="button" className="bt-botao bt-botao--p" onClick={onVoltar}>
