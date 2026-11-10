@@ -590,7 +590,9 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const textoDoLancar = marcados.length > 1 ? `${verbo} em ${marcados.length} alvos` : verbo
   // D8: com a área ou sem alvo, todos à vista (a área marca pela grade). O marcado nunca some da lista.
   const filtra = !mostrarTodos && golpe.area === undefined && golpe.semAlvo !== true
-  const visiveis = filtra ? lista.filter((alvo) => marcadosSet.has(alvo.tokenId) || alvoServeAoAbrir(golpe, alvo)) : lista
+  // O alvo que está pedindo a confirmação ("está do outro lado. Marcar mesmo assim") tem de estar à vista:
+  // escondido atrás do "Mostrar todos", o clique na ficha do mapa parecia não fazer nada.
+  const visiveis = filtra ? lista.filter((alvo) => marcadosSet.has(alvo.tokenId) || alvo.tokenId === pedindo || alvoServeAoAbrir(golpe, alvo)) : lista
   const escondidos = lista.length - visiveis.length
   // O Dano base que não fecha (fórmula, campo vazio) abre os ajustes: é ali que se digita.
   const ajustesAbertos = !semDano && (ajustando || base === null)
