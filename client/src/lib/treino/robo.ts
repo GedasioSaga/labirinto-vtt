@@ -14,15 +14,17 @@ import {
   type PedidoDeMarca,
   type PedidoDePassiva,
   type PedidoDeReacao,
+  type SeloDoGolpe,
   type SeloPedido,
 } from '../batalha/combate'
+import { comportamentoDoSelo, danoPorVezDoSelo } from '../batalha/condicoes'
 import { lerDano, type ContextoDaFormula } from '../batalha/formula'
 import { armasDe, type ArmaDaFicha } from '../batalha/leituraDaFicha'
 import { danoDaTecnicaComAVida } from '../batalha/leituraDaTecnica'
 import { lerMarca, type ComoMarca } from '../batalha/marca'
 import { formaDecididaPeloMestre } from '../batalha/mecanica/formaDoMestre'
 import { cartaoMontado, pecasDoCartao, seloDasPecas } from '../batalha/mecanica/leitura'
-import { formulaDaCura, limpezaDe } from '../batalha/mecanicasAMao'
+import { formulaDaCura, limpezaDe, seloDaMecanica } from '../batalha/mecanicasAMao'
 import { passivasDe, passivasLigadas, type PassivaNaTira } from '../batalha/passivas'
 import type { VezEsperada } from '../batalha/ponte'
 import { ehLembreteDaPreparacao } from '../batalha/preparacao'
@@ -65,7 +67,8 @@ import { equipesDasVagas, type VagaDaLuta } from './mesaEmMemoria'
  *  3. AJUDA: a técnica de Tipo Buff (nele; a montada "nos aliados", nele e
  *     depois nos colegas) e a de Tipo Debuff sem dano (no inimigo mais
  *     ferido), em quem ainda não tem o selo dela. Sem selo que ele consiga
- *     conferir, só abre a luta com ela (rodada 1, antes de tudo);
+ *     conferir, só abre a luta com ela (rodada 1, antes de tudo). A de selo
+ *     só de rótulo (sem número nem regra) fica de fora enquanto há golpe;
  *  4. CONCENTRAR antes do golpe quando sai de graça (a 3ª carga) ou quando a
  *     técnica mais forte está em recarga e dá pelo menos o dobro do melhor
  *     golpe de agora (ele carrega enquanto espera);
@@ -498,13 +501,40 @@ function temOSelo(turnos: TurnosDaCena, tokenId: string, cartaoId: string, nome:
 }
 
 /**
+ * O selo que a técnica deixa de verdade, como o golpe o monta (`lancarGolpe`
+ * em `lib/batalha/golpe.ts`): o da mecânica (as peças, ou a tabela à mão)
+ * vence o da mira, e a montada sem peça de selo sai sem selo.
+ */
+function seloQueOGolpePoe(cartao: TecnicaNoMenu['cartao'], sistema: SistemaDeRpg): SeloDoGolpe | null {
+  const daMecanica = seloDaMecanica(cartao)
+  if (daMecanica !== null) return daMecanica
+  return cartaoMontado(cartao) ? null : seloDaMira(cartao, sistema)
+}
+
+/**
+ * A ajuda muda alguma conta da batalha? Só pelo selo dela: o que soma em
+ * atributo, no dano ou na reação (`mods`), o que tira vida por vez e o que tem
+ * regra pelo nome (`condicoes.ts`: Atordoado trava a vez, Cego zera a
+ * Percepção). O selo só de rótulo (o "Fortalecido" de uma peça, sem número) e
+ * a ajuda sem selo não mudam nada: são um nome na ficha.
+ */
+function ajudaComEfeito(cartao: TecnicaNoMenu['cartao'], sistema: SistemaDeRpg): boolean {
+  const selo = seloQueOGolpePoe(cartao, sistema)
+  if (selo === null) return false
+  return (selo.mods ?? []).length > 0 || danoPorVezDoSelo(selo) !== null || comportamentoDoSelo(selo.nome) !== null
+}
+
+/**
  * As ajudas: o Buff (nele; a montada "nos aliados", nele e depois nos colegas)
  * e o Debuff sem dano (nos inimigos, do mais ferido ao menos), na primeira
  * ficha que ainda não tem o selo da técnica. Sem selo para conferir, o robô
  * não sabe se a ajuda já vale: só abre a luta com ela (rodada 1, antes de
  * tudo, e nunca a de uso livre). A que custa o golpe, só na rodada de preparo.
+ * A que não muda conta nenhuma (`ajudaComEfeito`) fica de fora enquanto há
+ * golpe para dar (`haGolpe`): ela gastava o golpe da vez e o SP da técnica, e
+ * o lado dele caía de 96 para 81 vitórias em 100 lutas (semente 7).
  */
-function ajudas(vez: VezDoRobo): PedidoDeAcao[] {
+function ajudas(vez: VezDoRobo, haGolpe: boolean): PedidoDeAcao[] {
   const { personagem, sistema, turnos, eu } = vez
   const preparo = rodadaDePreparo(turnos.rodada)
   const abrindo = turnos.rodada === 1 && vez.golpesNaVez === 0
@@ -516,6 +546,7 @@ function ajudas(vez: VezDoRobo): PedidoDeAcao[] {
     const papel = papelDaTecnica(tecnica)
     if (papel !== 'ajuda' && papel !== 'debuff') continue
     if (custaOGolpe(tecnica.acao) && !preparo) continue
+    if (haGolpe && !ajudaComEfeito(tecnica.cartao, sistema)) continue
     const nomeDoSelo = seloQueFica(tecnica.cartao, sistema)
     if (nomeDoSelo === null && (!abrindo || tecnica.tempo.tipo === 'livre')) continue
     const nosAliados = pecasDoCartao(tecnica.cartao)?.alvo.quem === 'aliados'
@@ -582,7 +613,7 @@ export function golpesDoRobo(vista: VistaDoRobo, carta: CartaDaOrdem): PedidoDeA
   const golpes = golpesNoAlvo(vez, alvo, sugestao)
   // O último golpe da vez fica para a cura e o golpe: o preparo de ação livre não toma o lugar do ataque.
   const ultimo = vista.golpesNaVez >= GOLPES_POR_VEZ_MAX - 1
-  const preparo = ultimo ? [] : [...formas(vez), ...ajudas(vez)]
+  const preparo = ultimo ? [] : [...formas(vez), ...ajudas(vez, golpes.length > 0)]
   const podeConcentrar = motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id)) === null
   const deGraca = podeConcentrar && acaoDoConcentrar(acoes, combate?.carga ?? 0) === 'livre'
   const emRecarga = podeConcentrar && !deGraca ? maiorEmRecarga(vez) : 0
