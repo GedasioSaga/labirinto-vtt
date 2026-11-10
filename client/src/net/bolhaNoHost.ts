@@ -357,6 +357,10 @@ export function criarBolhaNoHost(ctx: ContextoDaBolha): BolhaNoHost {
         const status: BolhaStatus = msg.motivo === 'recusou' ? 'fora' : 'convidado'
         if (p.status === status) return []
         p.status = status
+        // SOZINHO NO PINO: quem pediu disse "Agora não" e não sobra ninguém no convite. Aberto,
+        // ele prendia o pino: o próximo "Apagar com bolhas" voltava "ocupado" até o mestre
+        // encerrar (achado na prova de 10/11/2026). Fecha sem desfecho, como o mestre fecharia.
+        if (b.sozinho !== undefined && status === 'fora') return fecharSemDesfecho(b, 'fora')
         return estadoATodos(b)
       }
       // No jogo: quem já terminou fica com o placar que mandou; quem jogava sai.
@@ -416,6 +420,8 @@ export function criarBolhaNoHost(ctx: ContextoDaBolha): BolhaNoHost {
       if (b === null || p === undefined) return []
       if (b.fase === 'convite') {
         b.participantes = b.participantes.filter((item) => item !== p)
+        // Sozinho no pino, sem quem pediu: o convite vazio prenderia o pino (o mesmo do "Agora não").
+        if (b.sozinho !== undefined) return fecharSemDesfecho(b, 'fora')
         return estadoATodos(b)
       }
       if (p.status !== 'jogando') return []
