@@ -19,6 +19,9 @@ import { nomesNumerados } from './nomesNumerados'
 /** A ficha da lista não pôde ser gravada (o mapa não tem onde guardar personagem): nada começa pela metade. */
 const NAO_CRIOU_AS_FICHAS = 'Não deu para criar as fichas: este mapa não guarda personagens. Ninguém entrou.'
 
+/** A lista abriu filtrada pela seleção do mapa (segunda auditoria, achado 1): o mestre lê por que nem todos vieram marcados. */
+const SO_AS_SELECIONADAS = 'Só as fichas selecionadas no mapa vieram marcadas'
+
 /** A foto da cena no momento em que a lista abre (ela não é modal: token que sair do mapa no meio fica de fora ao confirmar). */
 export interface ListaDeQuemEntra {
   candidatos: CandidatoDaBatalha[]
@@ -29,6 +32,8 @@ export interface ListaDeQuemEntra {
   rotulos: ReadonlyMap<string, string>
   /** Quem vem marcado; ausente = todos com ficha de combate. */
   marcadosDePartida?: ReadonlySet<string>
+  /** A seleção do mapa escolheu quem vem marcado: a linha que a lista mostra, com o "Todos" ao lado. `null` = a seleção não filtrou. */
+  avisoDaSelecao: string | null
   /** O lado de cada NPC com ficha quando a lista abriu. */
   ladoDe: (personagemId: string) => LadoDoNpc
 }
@@ -48,8 +53,9 @@ export function rotulosDoMapa(): Map<string, string> {
  * não aparece; a ficha escondida aparece, com "(escondida)" no nome, como no
  * "Fora da ordem" de antes). Chame ANTES de a lista tomar a seleção do mapa:
  * se o mestre tinha fichas selecionadas, só elas vêm marcadas (no Iniciar, com
- * os jogadores). Sem seleção: no Iniciar, todos com ficha de combate; no
- * Incluir, ninguém.
+ * os jogadores, e só se a seleção tem pelo menos um NPC). Sem seleção, ou só
+ * com fichas de jogador selecionadas: no Iniciar, todos com ficha de combate;
+ * no Incluir, ninguém sem seleção.
  */
 export function lerQuemPodeEntrar(opcoes: { jaNaOrdem?: ReadonlySet<string> } = {}): ListaDeQuemEntra {
   const incluindo = opcoes.jaNaOrdem !== undefined
@@ -67,8 +73,12 @@ export function lerQuemPodeEntrar(opcoes: { jaNaOrdem?: ReadonlySet<string> } = 
   const candidatos = todos.filter((candidato) => candidato.situacao !== 'semFicha' || ehNpc.has(candidato.tokenId))
   const naLista = new Set(candidatos.filter((candidato) => candidato.situacao !== 'semHp').map((candidato) => candidato.tokenId))
   const selecionadas = fichasSelecionadasNoMapa().filter((tokenId) => naLista.has(tokenId))
-  const jogadores = candidatos.filter((candidato) => candidato.situacao === 'combate' && personagens.find((personagem) => personagem.id === candidato.personagemId)?.tipo === 'jogador').map((candidato) => candidato.tokenId)
-  const marcados = selecionadas.length > 0 ? new Set(incluindo ? selecionadas : [...selecionadas, ...jogadores]) : incluindo ? new Set<string>() : undefined
+  const fichasDeJogador = new Set(candidatos.filter((candidato) => personagens.find((personagem) => personagem.id === candidato.personagemId)?.tipo === 'jogador').map((candidato) => candidato.tokenId))
+  const jogadores = candidatos.filter((candidato) => candidato.situacao === 'combate' && fichasDeJogador.has(candidato.tokenId)).map((candidato) => candidato.tokenId)
+  // Segunda auditoria (09/11, achado 1): no Iniciar, a seleção só filtra quando tem NPC. Só a ficha de um jogador
+  // selecionada (o que sobra depois de o mestre mover uma ficha) deixava todo NPC desmarcado: batalha sem inimigo.
+  const soAsSelecionadas = selecionadas.length > 0 && (incluindo || selecionadas.some((tokenId) => !fichasDeJogador.has(tokenId)))
+  const marcados = soAsSelecionadas ? new Set(incluindo ? selecionadas : [...selecionadas, ...jogadores]) : incluindo ? new Set<string>() : undefined
   const rotulos = rotulosDoMapa()
   if (incluindo) for (const candidato of candidatos) if (escondidas.has(candidato.tokenId)) rotulos.set(candidato.tokenId, `${rotulos.get(candidato.tokenId) ?? candidato.nome} (escondida)`)
   return {
@@ -78,6 +88,8 @@ export function lerQuemPodeEntrar(opcoes: { jaNaOrdem?: ReadonlySet<string> } = 
     modelos: modelosDeNpc(personagens),
     rotulos,
     ...(marcados === undefined ? {} : { marcadosDePartida: marcados }),
+    // No Iniciar os jogadores vêm marcados junto: a linha diz, para o mestre não estranhar a jogadora que ele não selecionou.
+    avisoDaSelecao: !soAsSelecionadas ? null : !incluindo && jogadores.some((tokenId) => !selecionadas.includes(tokenId)) ? `${SO_AS_SELECIONADAS}, com os jogadores.` : `${SO_AS_SELECIONADAS}.`,
     ladoDe: (personagemId) => ladoDoNpc(personagemId, equipes, personagens),
   }
 }

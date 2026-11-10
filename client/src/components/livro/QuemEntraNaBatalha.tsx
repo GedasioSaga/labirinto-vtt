@@ -46,6 +46,8 @@ export interface QuemEntraNaBatalhaProps {
   cliqueNoMapa?: { tokenId: string; seq: number } | null
   /** Quem já vem marcado (as fichas que o mestre selecionou no mapa, mais os jogadores). Ausente = todos com ficha de combate. */
   marcadosDePartida?: ReadonlySet<string>
+  /** A linha que diz que a seleção do mapa escolheu quem veio marcado, ao lado do "Todos" (que a desfaz). Ausente = a seleção não filtrou. */
+  avisoDaSelecao?: string | null
   /** O lado de agora de um NPC com ficha. Ausente = a lista não pergunta o lado. */
   ladoDe?: (personagemId: string) => LadoDoNpc
   /** O título do painel. Ausente = "Quem entra na batalha?". */
@@ -105,6 +107,7 @@ export function QuemEntraNaBatalha({
   onDestacar,
   cliqueNoMapa = null,
   marcadosDePartida,
+  avisoDaSelecao = null,
   ladoDe,
   titulo = 'Quem entra na batalha?',
   rotuloDoConfirmar = (quantos) => `Iniciar com ${quantos}`,
@@ -116,6 +119,8 @@ export function QuemEntraNaBatalha({
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(
     () => new Set(candidatos.filter((candidato) => (marcadosDePartida === undefined ? candidato.situacao === 'combate' : candidato.situacao !== 'semHp' && marcadosDePartida.has(candidato.tokenId))).map((candidato) => candidato.tokenId)),
   )
+  // O "Todos" desfaz o filtro da seleção do mapa: a linha que o explicava sai junto.
+  const [filtroDesfeito, setFiltroDesfeito] = useState(false)
   const [comoPorToken, setComoPorToken] = useState<Readonly<Record<string, ComoEntra>>>({})
   const [ladoPorToken, setLadoPorToken] = useState<Readonly<Record<string, LadoDoNpc>>>({})
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
@@ -278,7 +283,14 @@ export function QuemEntraNaBatalha({
         </p>
         {marcaveis.length > 0 && (
           <div className="gr-entra-todos">
-            <Botao tamanho="p" onClick={() => setMarcados(new Set(marcaveis.map((candidato) => candidato.tokenId)))}>
+            {avisoDaSelecao !== null && !filtroDesfeito && <p className="gr-nota gr-entra-todos__aviso">{avisoDaSelecao}</p>}
+            <Botao
+              tamanho="p"
+              onClick={() => {
+                setMarcados(new Set(marcaveis.map((candidato) => candidato.tokenId)))
+                setFiltroDesfeito(true)
+              }}
+            >
               Todos
             </Botao>
             <Botao tamanho="p" onClick={() => setMarcados(new Set())}>

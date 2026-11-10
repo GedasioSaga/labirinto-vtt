@@ -3,6 +3,8 @@
 .gr-entra-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* "Todos" e "Nenhum" (achado 3, 09/11): marcam de uma vez; ao lado, quantos estão marcados. */
 .gr-entra-todos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* Segunda auditoria (09/11, achado 1): a seleção do mapa filtrou a lista. A linha ocupa a largura do livro e o "Todos" fica logo ao lado dela, no começo da linha de baixo. */
+.gr-entra-todos > .gr-entra-todos__aviso { flex: 1 1 100%; color: var(--lb-color-parchment); }
 .gr-entra-todos__conta { margin-left: auto; font-size: var(--lb-font-size-sm); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-faint); }
 /* O Iniciar e o Cancelar ficam à vista enquanto o livro rola a lista. */
 .gr-entra-acoes { position: sticky; bottom: 0; z-index: 1; margin: 0 -12px -12px; padding: 10px 12px 12px; border-top: 1px solid var(--lb-color-stone-edge, rgba(255, 255, 255, 0.08)); border-radius: 0 0 8px 8px; background: var(--lb-color-stone-sunken); }

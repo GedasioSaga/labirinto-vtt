@@ -48,6 +48,7 @@ export function IncluirNaBatalha({ sceneKey }: { sceneKey: string }) {
         personagens={caixa.lista.personagens}
         rotulos={caixa.lista.rotulos}
         marcadosDePartida={caixa.lista.marcadosDePartida}
+        avisoDaSelecao={caixa.lista.avisoDaSelecao}
         ladoDe={caixa.lista.ladoDe}
         onDestacar={noMapa.destacar}
         cliqueNoMapa={noMapa.clique}
