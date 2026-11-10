@@ -143,7 +143,9 @@ test('Apagar escada tem rótulo; escolher ferramenta de criação limpa a seleç
   })
   await expect(page.getByRole('button', { name: 'Apagar escada selecionada', exact: true })).toBeVisible()
 
+  // O botão do sol abre o balão "Luz da cena"; a ferramenta de pôr luz é o botão de dentro dele (09/11/2026).
   await page.getByRole('button', { name: 'Luz', exact: true }).click()
+  await page.getByRole('button', { name: /^Pôr uma luz no mapa/ }).click()
   const selection = await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
     return mod.useMapStore.getState().selection

@@ -14,6 +14,16 @@ async function readNewMap(page: Page) {
   })
 }
 
+/**
+ * Arma a ferramenta de pôr um ponto de luz pela barra. Desde 09/11/2026 o botão
+ * do sol abre o balão "Luz da cena"; a ferramenta é o botão de dentro dele (e a tecla H).
+ */
+async function armarALuz(page: Page) {
+  await page.getByRole('button', { name: 'Luz', exact: true }).click()
+  // O nome do botão leva a tecla junto ("Pôr uma luz no mapa H").
+  await page.getByRole('button', { name: /^Pôr uma luz no mapa/ }).click()
+}
+
 test.beforeEach(async ({ page }) => {
   await enterEditor(page)
 })
@@ -29,7 +39,7 @@ test('1. mapa novo nasce com chão marrom, 1,5 m por célula e grade desligada',
 test('2. clique simples com a ferramenta Luz cria luz de 4 células', async ({ page }) => {
   const box = await page.locator('canvas').boundingBox()
   if (!box) throw new Error('canvas sem bounding box')
-  await page.getByRole('button', { name: 'Luz', exact: true }).click()
+  await armarALuz(page)
   await page.mouse.click(box.x + 700, box.y + 500)
   const lights = await page.evaluate(async () => {
     const mod = await import('/src/stores/mapStore.ts')
@@ -58,7 +68,7 @@ test('3. a dica some depois do primeiro uso no canvas e volta ao trocar de ferra
   await page.mouse.up()
   await expect(hint).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Luz', exact: true }).click()
+  await armarALuz(page)
   await expect(hint).toBeVisible()
 
   // Troca por atalho também reexibe (a ferramenta muda fora do Toolbar).
