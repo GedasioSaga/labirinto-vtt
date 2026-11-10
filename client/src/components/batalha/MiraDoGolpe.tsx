@@ -747,6 +747,10 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                       </small>
                       {alvo.caiu && <small className="bt-alvo__caiu">caído</small>}
                       {alvo.motivo && <small>{alvo.motivo}</small>}
+                      {/* T3: a cura recusada diz o motivo na linha de quem não pega (antes, só o rodapé dizia "ninguém marcado está ferido"). */}
+                      {golpe.cura === true && marcado && !alvo.motivo && alvo.vida !== undefined && alvo.vida.maximo > 0 && alvo.vida.atual >= alvo.vida.maximo && (
+                        <small className="bt-alvo__caiu">vida cheia</small>
+                      )}
                       {alvo.vida !== undefined && (
                         <small className="bt-alvo__vida-texto">
                           vida {formatarNumero(alvo.vida.atual)}/{formatarNumero(alvo.vida.maximo)}
