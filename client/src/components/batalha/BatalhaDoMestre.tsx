@@ -542,10 +542,9 @@ export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTr
   const turnos = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey]?.turnos : undefined))
   const fichas = useMapStore((state) => state.map.tokens)
   const personagens = useAdventureStore(personagensAtivos)
-  const nomeDe = useMemo(() => {
-    const porToken = new Map(fichas.map((ficha) => [ficha.id, ficha.name.trim()] as const))
-    return (tokenId: string) => porToken.get(tokenId) || 'Ficha'
-  }, [fichas])
+  // O mesmo nome da faixa da ordem e da mira: ficha de nome repetido leva o número ("Urso 2") no corte do golpe e na faixa "Vez de".
+  const rotulos = useMemo(() => nomesNumerados(fichas.map((ficha) => ({ id: ficha.id, nome: ficha.name }))), [fichas])
+  const nomeDe = useMemo(() => (tokenId: string) => rotulos.get(tokenId) ?? 'Ficha', [rotulos])
   // F3: a imagem da forma ligada vence a foto no corte do golpe.
   const formas = turnos?.formas
   const cartas = turnos?.cartas
@@ -575,7 +574,8 @@ export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTr
       ? null
       : {
           chave: `${carta.id}:${turnos.rodada}`,
-          nome: fichas.find((ficha) => ficha.id === carta.tokenId)?.name.trim() || carta.nome?.trim() || 'Ficha',
+          // Ficha sem nome no mapa usa o da carta, como a faixa da ordem (`dadosDaFaixa`).
+          nome: (fichas.find((ficha) => ficha.id === carta.tokenId)?.name.trim() ? rotulos.get(carta.tokenId) : undefined) || carta.nome?.trim() || 'Ficha',
           minha: false,
           // D3: quem joga a vez. Os NPCs, as fichas sem personagem e o bando são do mestre (duas vezes seguidas dele tocam a
           // faixa curta). A ficha de jogador fica sem dono: qual jogador a controla só a sessão do host sabe, não esta tela.
