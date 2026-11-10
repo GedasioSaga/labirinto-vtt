@@ -89,6 +89,7 @@ import {
   type MembroDoBandoParaJogador,
   type ReacaoParaJogador,
   type SeloParaJogador,
+  type VidaNaCarta,
 } from '../lib/batalha/vistaDoJogador'
 
 /**
@@ -854,7 +855,25 @@ function lerCarta(value: unknown): CartaParaJogador | null {
     if (bando === null) return null
     carta.bando = bando
   }
+  // Unificação do combate (10/11/2026): os dois campos são opcionais. O host de antes não os manda (a mira cai na
+  // equipe) e a página de antes não os lê (segue como estava): nenhum dos dois lados quebra.
+  if (value.ladoNaLuta !== undefined) {
+    if (!inteiroAte(value.ladoNaLuta, 1, CARTAS_PARA_JOGADOR_MAX)) return null
+    carta.ladoNaLuta = value.ladoNaLuta
+  }
+  // A vida na carta é só a do NPC que luta do lado dele, que sai como "outro"; a dele e a do aliado ele lê da ficha.
+  if (value.vida !== undefined) {
+    const vida = lerVidaNaCarta(value.vida)
+    if (ladoLido !== 'outro' || carta.bando !== undefined || vida === null) return null
+    carta.vida = vida
+  }
   return carta
+}
+
+/** A vida no fio: o atual de 0 ao teto, o máximo de 1 ao teto. */
+function lerVidaNaCarta(value: unknown): VidaNaCarta | null {
+  if (!isRecord(value) || !inteiroAte(value.atual, 0, DANO_MAX) || !inteiroAte(value.maximo, 1, DANO_MAX)) return null
+  return { atual: value.atual, maximo: value.maximo }
 }
 
 /**
@@ -879,8 +898,9 @@ function lerMembroDoBando(value: unknown, lado: LadoNaCarta): MembroDoBandoParaJ
   if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX) || !textoAte(nome, 0, NOME_NA_CARTA_MAX)) return null
   const membro: MembroDoBandoParaJogador = { tokenId, nome }
   if (vida === undefined) return membro
-  if (lado === 'outro' || !isRecord(vida) || !inteiroAte(vida.atual, 0, DANO_MAX) || !inteiroAte(vida.maximo, 1, DANO_MAX)) return null
-  membro.vida = { atual: vida.atual, maximo: vida.maximo }
+  const vidaLida = lerVidaNaCarta(vida)
+  if (lado === 'outro' || vidaLida === null) return null
+  membro.vida = vidaLida
   return membro
 }
 

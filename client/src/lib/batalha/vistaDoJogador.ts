@@ -40,7 +40,7 @@ import {
   type SaidaDaReacao,
   type SeloDaBatalha,
 } from './combate'
-import { corDaEquipe, equipeDe, equipesNaLeitura, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe } from './equipes'
+import { corDaEquipe, equipeDe, equipesNaLeitura, ladoNaBatalha, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe, type LadosDaBatalha } from './equipes'
 import type { JudgeNaCena } from './judge'
 import { limiteDeArmas, recursoDoEscudo } from './leituraDaFicha'
 import { LEMBRETES_DA_MARCA_MAX } from './marca'
@@ -64,7 +64,14 @@ import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, ty
  *    "outro" (NPC e jogador de outra equipe). Só "eu" e "aliado" levam o
  *    `personagemId` (abre o perfil) e o "caiu";
  *  - o estado não leva número de vida: HP/SP o jogador lê do personagem que
- *    já tem (o dele em `personagens`, o do aliado em `batalha.aliados`).
+ *    já tem (o dele em `personagens`, o do aliado em `batalha.aliados`). Duas
+ *    exceções, as duas só do lado dele: o invocado do bando e, desde a
+ *    unificação do combate (10/11/2026), o NPC que luta do lado de um
+ *    personagem dele (`vida` na carta). De quem luta contra ele, nunca;
+ *  - `ladoNaLuta` (10/11/2026): o lado de cada ficha na luta, a regra que o
+ *    host confere, como um número que só vale dentro do estado. O "lado" acima
+ *    diz de quem é a ficha; este diz com quem ela luta (o NPC emprestado é
+ *    "eu" e pode lutar do outro lado).
  *
  * F2 (seção 2.3 de docs/planos/batalha-one-piece-f2-plano.md), todos
  * opcionais (ausente = nada):
@@ -105,6 +112,23 @@ export interface CartaParaJogador {
   escudoMax?: number
   /** Invocação: a carta é a do BANDO de um dono (`tokenId` = `bando_<dono>`, ou `bando_fora_N` com o dono fora da vista; não é token do mapa). */
   bando?: BandoParaJogador
+  /**
+   * Unificação do combate (10/11/2026): o lado da ficha NA LUTA (`ladoNaBatalha`, o que o host confere), como um número
+   * de 1 em diante que só vale dentro deste estado: mesmo número = mesmo lado. É por ele que a mira sabe os aliados do NPC
+   * emprestado. Na carta do bando, o lado do dono. Ausente = ficha sem lado (ou host antigo): a mira cai na equipe.
+   */
+  ladoNaLuta?: number
+  /**
+   * Unificação do combate (10/11/2026): só na carta "outro" de NPC que luta do MESMO lado de um personagem dele (o NPC
+   * da equipe dos jogadores): a vida, de onde a mira tira o ferido e o caído. Nunca de quem luta contra ele.
+   */
+  vida?: VidaNaCarta
+}
+
+/** A vida que sai numa carta ou num invocado: inteiros no teto do fio, o máximo nunca abaixo de 1. */
+export interface VidaNaCarta {
+  atual: number
+  maximo: number
 }
 
 /**
@@ -123,7 +147,7 @@ export interface MembroDoBandoParaJogador {
   /** O nome do token como a tela dele o mostra. */
   nome: string
   /** SÓ do lado do dono ("eu" ou "aliado"): a vida do invocado, como a de um aliado. Nunca ao lado oposto. */
-  vida?: { atual: number; maximo: number }
+  vida?: VidaNaCarta
 }
 
 /**
@@ -403,9 +427,62 @@ export function selosParaOBonus(cartas: readonly Pick<CartaParaJogador, 'tokenId
   return selos
 }
 
-function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJogador, caidos: ReadonlySet<string>, turnos: TurnosDaCena, registro: readonly LinhaDoRegistro[]): CartaParaJogador {
+/**
+ * Unificação do combate (10/11/2026): os lados NA LUTA das cartas que saem
+ * para uma conexão. O id do lado (o da equipe, o do tipo) não sai: cada lado
+ * vira um número na ordem em que aparece entre as cartas que ele vê, então o
+ * número não conta nada das que ele não vê.
+ */
+interface LadosNoRecorte {
+  /** O número do lado do personagem; `undefined` = sem lado (ninguém é aliado dele). */
+  numeroDe: (personagemId: string | null) => number | undefined
+  /** O personagem luta do lado de algum personagem DELE de verdade (nunca conta a ficha emprestada). */
+  doMeuLado: (personagemId: string | null) => boolean
+}
+
+function ladosNoRecorte(turnos: TurnosDaCena, ctx: ContextoDoJogador): LadosNoRecorte {
+  const mesa: LadosDaBatalha = { equipes: ctx.equipes, personagens: ctx.personagens, invocados: turnos.invocados ?? [] }
+  const meus = new Set<string>()
+  for (const personagemId of ctx.meusPersonagens) {
+    const lado = ladoNaBatalha(personagemId, mesa)
+    if (lado !== null) meus.add(lado)
+  }
+  const numeros = new Map<string, number>()
+  return {
+    numeroDe: (personagemId) => {
+      const lado = ladoNaBatalha(personagemId, mesa)
+      if (lado === null) return undefined
+      const jaTem = numeros.get(lado)
+      if (jaTem !== undefined) return jaTem
+      const novo = numeros.size + 1
+      numeros.set(lado, novo)
+      return novo
+    },
+    doMeuLado: (personagemId) => {
+      const lado = ladoNaBatalha(personagemId, mesa)
+      return lado !== null && meus.has(lado)
+    },
+  }
+}
+
+/**
+ * Unificação do combate (10/11/2026): a vida do NPC que luta do lado dele,
+ * na carta "outro" (a de "eu" e a de "aliado" ele lê da ficha que já tem).
+ * Só NPC: o jogador de outra equipe segue sem vida exposta. `null` = não sai.
+ */
+function vidaDoNpcDoMeuLado(carta: CartaDaOrdem, ctx: ContextoDoJogador, lados: LadosNoRecorte): VidaNaCarta | null {
+  const personagem = personagemDaCarta(carta, ctx)
+  const recurso = recursoDeVida(ctx.sistema)
+  if (personagem === undefined || personagem.tipo !== 'npc' || recurso === null || !lados.doMeuLado(personagem.id)) return null
+  const vida = vidaDoPersonagem(personagem, recurso)
+  return vida === null ? null : { atual: vidaNoFio(vida.atual), maximo: Math.max(1, vidaNoFio(vida.maximo)) }
+}
+
+function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJogador, caidos: ReadonlySet<string>, turnos: TurnosDaCena, registro: readonly LinhaDoRegistro[], lados: LadosNoRecorte): CartaParaJogador {
   const lado = ladoDa(carta, ctx)
   const saida: CartaParaJogador = { id: carta.id, tokenId: carta.tokenId, nome: nome.slice(0, NOME_NA_CARTA_MAX), lado }
+  const ladoNaLuta = lados.numeroDe(carta.personagemId)
+  if (ladoNaLuta !== undefined) saida.ladoNaLuta = ladoNaLuta
   // U1: a equipe como a regra a lê (`equipesNaLeitura`): o jogador criado depois da equipe automática conta
   // como dela, senão a carta dele saía sem equipe e a mira o punha do outro lado do NPC aliado (o Tree).
   const equipe = carta.personagemId === null || ctx.equipes === undefined ? null : equipeDe(carta.personagemId, equipesNaLeitura(ctx.equipes, ctx.personagens))
@@ -421,6 +498,10 @@ function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJoga
       const cheio = cheioDoEscudo(carta, ctx, registro)
       if (cheio > escudo) saida.escudoMax = cheio
     }
+  } else {
+    // O "caiu" não sai na carta "outro" (a página antiga recusa o estado inteiro): a mira lê a queda na vida em 0.
+    const vida = vidaDoNpcDoMeuLado(carta, ctx, lados)
+    if (vida !== null) saida.vida = vida
   }
   formaESelosDaCarta(saida, carta, turnos, ctx)
   return saida
@@ -466,7 +547,7 @@ function ladoDoDono(donoPersonagemId: string | null, ctx: ContextoDoJogador): La
  * do dono na tela dele, nunca o de trabalho do mestre. Dono fora da vista:
  * o id (e o tokenId) da carta é `idForaDaVista`, não o `bando_<tokenId do dono>`.
  */
-function bandoParaJogador(carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: ContextoDoJogador, idForaDaVista: () => string): CartaParaJogador | null {
+function bandoParaJogador(carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: ContextoDoJogador, idForaDaVista: () => string, lados: LadosNoRecorte): CartaParaJogador | null {
   const { bando } = carta
   if (bando === undefined) return null
   const todos = (turnos.invocados ?? []).filter((invocado) => invocado.donoTokenId === bando.donoTokenId)
@@ -483,11 +564,14 @@ function bandoParaJogador(carta: CartaDaOrdem, turnos: TurnosDaCena, ctx: Contex
     if (vida !== null) membro.vida = { atual: vidaNoFio(vida.atual), maximo: Math.max(1, vidaNoFio(vida.maximo)) }
     return membro
   })
+  // O bando luta do lado do dono (`ladoNaBatalha` lê o invocado pelo dono).
+  const ladoNaLuta = lados.numeroDe(donoPersonagemId)
+  const daLuta = ladoNaLuta === undefined ? {} : { ladoNaLuta }
   if (nomeDoDono === undefined) {
     const id = idForaDaVista()
-    return { id, tokenId: id, nome: NOME_DO_BANDO_FORA_DA_VISTA, lado, bando: { membros } }
+    return { id, tokenId: id, nome: NOME_DO_BANDO_FORA_DA_VISTA, lado, bando: { membros }, ...daLuta }
   }
-  return { id: carta.id, tokenId: carta.tokenId, nome: `Bando de ${nomeDoDono}`.slice(0, NOME_NA_CARTA_MAX), lado, bando: { donoTokenId: bando.donoTokenId, membros } }
+  return { id: carta.id, tokenId: carta.tokenId, nome: `Bando de ${nomeDoDono}`.slice(0, NOME_NA_CARTA_MAX), lado, bando: { donoTokenId: bando.donoTokenId, membros }, ...daLuta }
 }
 
 /** Inteiro de 0 ao teto (o fio recusa fração). */
@@ -815,10 +899,11 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
     bandosForaDaVista += 1
     return `${PREFIXO_DO_BANDO_FORA_DA_VISTA}${bandosForaDaVista}`
   }
+  const lados = ladosNoRecorte(turnos, ctx)
   for (const carta of turnos.cartas) {
     if (cartas.length >= CARTAS_PARA_JOGADOR_MAX) break
     if (carta.bando !== undefined) {
-      const doBando = bandoParaJogador(carta, turnos, ctx, idForaDaVista)
+      const doBando = bandoParaJogador(carta, turnos, ctx, idForaDaVista, lados)
       if (doBando !== null) {
         cartas.push(doBando)
         idNoFio.set(carta.id, doBando.id)
@@ -827,7 +912,7 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
     }
     const nome = ctx.tokensNoRecorte.get(carta.tokenId)
     if (nome === undefined) continue
-    cartas.push(cartaParaJogador(carta, nome, ctx, caidos, turnos, cena.registro))
+    cartas.push(cartaParaJogador(carta, nome, ctx, caidos, turnos, cena.registro, lados))
     idNoFio.set(carta.id, carta.id)
   }
   // "Visível" = o que de fato sai (no recorte E dentro do teto): turno e próxima contam o mesmo que a faixa mostra.

@@ -364,10 +364,20 @@ function mesmaEquipeNaCarta(a: CartaParaJogador['equipe'], b: CartaParaJogador['
   return a !== undefined && b !== undefined && a.nome === b.nome && a.cor === b.cor
 }
 
+/** O lado pela conta do host (`ladoNaLuta`); `null` = o estado não traz o lado de nenhuma das duas (o host de antes). */
+function ladoQueOHostMandou(carta: Pick<CartaParaJogador, 'ladoNaLuta'>, quemAge: Pick<CartaParaJogador, 'ladoNaLuta'>): 'aliado' | 'outro' | null {
+  if (carta.ladoNaLuta === undefined && quemAge.ladoNaLuta === undefined) return null
+  return carta.ladoNaLuta === quemAge.ladoNaLuta ? 'aliado' : 'outro'
+}
+
 /**
  * U1: o lado de uma carta do RECORTE em relação a quem age, pela regra da
  * luta (`ladoNaBatalha`, a que o host confere), com o que o recorte traz:
  *  - a ficha que age é 'eu', só ela (a outra ficha do mesmo jogador é aliada);
+ *  - o lado que o host mandou (`ladoNaLuta`, 10/11/2026) vence o resto: é a
+ *    conta que ele confere, e é por ela que o NPC emprestado acha os aliados
+ *    DELE. Só uma das duas com lado = a outra não tem lado na luta: o outro
+ *    lado. Nenhuma das duas (o host de antes) = as regras abaixo;
  *  - as duas com equipe: a mesma equipe é aliada, outra é o outro lado. É por
  *    aqui que o NPC da equipe dos jogadores (o Tree) vira aliado na tela do
  *    jogador, e que a Arena (tudo "meu" no recorte) separa o Lado A do B;
@@ -375,8 +385,10 @@ function mesmaEquipeNaCarta(a: CartaParaJogador['equipe'], b: CartaParaJogador['
  *  - sem as duas equipes, NPC que age (o emprestado, sem equipe): do lado dele
  *    ficam os outros sem equipe que não são do jogador (os outros NPCs).
  */
-export function ladoDaCartaNaMira(carta: Pick<CartaParaJogador, 'tokenId' | 'lado' | 'equipe'>, quemAge: Pick<CartaParaJogador, 'tokenId' | 'equipe'>, npcQueAge: boolean): AlvoNaMira['lado'] {
+export function ladoDaCartaNaMira(carta: Pick<CartaParaJogador, 'tokenId' | 'lado' | 'equipe' | 'ladoNaLuta'>, quemAge: Pick<CartaParaJogador, 'tokenId' | 'equipe' | 'ladoNaLuta'>, npcQueAge: boolean): AlvoNaMira['lado'] {
   if (carta.tokenId === quemAge.tokenId) return 'eu'
+  const doHost = ladoQueOHostMandou(carta, quemAge)
+  if (doHost !== null) return doHost
   if (carta.equipe !== undefined && quemAge.equipe !== undefined) return mesmaEquipeNaCarta(carta.equipe, quemAge.equipe) ? 'aliado' : 'outro'
   if (!npcQueAge) return carta.lado === 'outro' ? 'outro' : 'aliado'
   return carta.lado === 'outro' && carta.equipe === undefined && quemAge.equipe === undefined ? 'aliado' : 'outro'
@@ -398,7 +410,8 @@ export interface MiraDoRecorte {
  * U1: os alvos da mira a partir do RECORTE (o jogador por LAN, a Arena, o
  * site), na ordem das cartas. A mesma montagem do mestre no mapa
  * (`alvoDaMira`): o lado na luta, a vida quando quem olha a tem, o ferido e o
- * caído. A carta do bando vira os invocados dela.
+ * caído. A carta do bando vira os invocados dela. O NPC que luta do lado de
+ * quem olha chega com a vida na carta (`carta.vida`), e daí o ferido e o caído.
  */
 export function alvosDoRecorte(mira: MiraDoRecorte): AlvoNaMira[] {
   const { cartas, quemAge, personagens, sistema, nomeDe, imagemDe } = mira
@@ -412,7 +425,8 @@ export function alvosDoRecorte(mira: MiraDoRecorte): AlvoNaMira[] {
     // Invocação F3: a carta do bando não é ficha do mapa; os invocados dela são os alvos, do lado e com a cor do dono.
     if (bando !== undefined) {
       const dono = bando.donoTokenId === undefined ? undefined : cartas.find((candidata) => candidata.tokenId === bando.donoTokenId && candidata.bando === undefined)
-      const doDono = dono === undefined ? carta.lado : ladoDe(dono)
+      // Dono fora da vista: a carta do bando traz o lado dele na luta; sem ele (o host de antes), o lado do recorte.
+      const doDono = dono !== undefined ? ladoDe(dono) : ((quemAge === null ? null : ladoQueOHostMandou(carta, quemAge)) ?? carta.lado)
       for (const membro of bando.membros) {
         if (vistos.has(membro.tokenId)) continue
         vistos.add(membro.tokenId)
@@ -434,7 +448,8 @@ export function alvosDoRecorte(mira: MiraDoRecorte): AlvoNaMira[] {
         // A imagem da carta na faixa: a forma, a foto do token e o retrato (só de ficha que quem olha já tem).
         imagem: imagemDe(carta.tokenId) ?? ficha?.retrato ?? null,
         cor: carta.equipe?.cor ?? null,
-        vida: vidaNaMira(ficha, sistema),
+        // A ficha inteira (a dele, a do aliado) ou, sem ela, a vida que o host pôs na carta (o NPC que luta do lado dele).
+        vida: vidaNaMira(ficha, sistema) ?? carta.vida,
       }),
     )
   }
