@@ -404,6 +404,11 @@ export interface MiraDoRecorte {
   sistema: SistemaDeRpg | null
   nomeDe: (tokenId: string) => string
   imagemDe: (tokenId: string) => string | null
+  /**
+   * A vida que TODOS podem ver, por ficha (o site, onde a ficha é pública): entra só onde a ficha inteira e a carta não
+   * trazem a vida. Não muda o lado de ninguém. Ausente = sem vida pública (a mesa por LAN).
+   */
+  vidaPublica?: (tokenId: string) => VidaNaMira | null
 }
 
 /**
@@ -415,7 +420,8 @@ export interface MiraDoRecorte {
  */
 export function alvosDoRecorte(mira: MiraDoRecorte): AlvoNaMira[] {
   const { cartas, quemAge, personagens, sistema, nomeDe, imagemDe } = mira
-  const fichaDe = (personagemId: string | undefined) => (personagemId === undefined ? undefined : personagens.find((candidato) => candidato.id === personagemId))
+  const vidaPublica = (tokenId: string): VidaNaMira | undefined => mira.vidaPublica?.(tokenId) ?? undefined
+  const fichaDe =(personagemId: string | undefined) => (personagemId === undefined ? undefined : personagens.find((candidato) => candidato.id === personagemId))
   const npcQueAge = fichaDe(quemAge?.personagemId)?.tipo === 'npc'
   const ladoDe = (carta: CartaParaJogador): AlvoNaMira['lado'] => (quemAge === null ? carta.lado : ladoDaCartaNaMira(carta, quemAge, npcQueAge))
   const vistos = new Set<string>()
@@ -430,7 +436,7 @@ export function alvosDoRecorte(mira: MiraDoRecorte): AlvoNaMira[] {
       for (const membro of bando.membros) {
         if (vistos.has(membro.tokenId)) continue
         vistos.add(membro.tokenId)
-        alvos.push(alvoDaMira({ tokenId: membro.tokenId, nome: membro.nome.trim() || nomeDe(membro.tokenId), lado: doDono === 'outro' ? 'outro' : 'aliado', imagem: imagemDe(membro.tokenId), cor: dono?.equipe?.cor ?? null, vida: membro.vida }))
+        alvos.push(alvoDaMira({ tokenId: membro.tokenId, nome: membro.nome.trim() || nomeDe(membro.tokenId), lado: doDono === 'outro' ? 'outro' : 'aliado', imagem: imagemDe(membro.tokenId), cor: dono?.equipe?.cor ?? null, vida: membro.vida ?? vidaPublica(membro.tokenId) }))
       }
       continue
     }
@@ -448,8 +454,8 @@ export function alvosDoRecorte(mira: MiraDoRecorte): AlvoNaMira[] {
         // A imagem da carta na faixa: a forma, a foto do token e o retrato (só de ficha que quem olha já tem).
         imagem: imagemDe(carta.tokenId) ?? ficha?.retrato ?? null,
         cor: carta.equipe?.cor ?? null,
-        // A ficha inteira (a dele, a do aliado) ou, sem ela, a vida que o host pôs na carta (o NPC que luta do lado dele).
-        vida: vidaNaMira(ficha, sistema) ?? carta.vida,
+        // A ficha inteira (a dele, a do aliado); sem ela, a vida que o host pôs na carta (o NPC que luta do lado dele); sem as duas, a pública (o site).
+        vida: vidaNaMira(ficha, sistema) ?? carta.vida ?? vidaPublica(carta.tokenId),
       }),
     )
   }

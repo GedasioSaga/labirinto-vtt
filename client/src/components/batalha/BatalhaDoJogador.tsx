@@ -16,7 +16,7 @@ import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { BotaoDeReacao } from './BotaoDeReacao'
 import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './CaixaDeReacao'
-import { alvosDoRecorte, alvosNaOrdemDaMira, armaPadraoNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade } from './dadosDoMenu'
+import { alvosDoRecorte, alvosNaOrdemDaMira, armaPadraoNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type VidaNaMira } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { invocacaoDaFicha, motivoNoJogador, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
@@ -107,6 +107,13 @@ export interface BatalhaDoJogadorProps {
   motivoDaRecusa?: (vez: VezEsperada | null, pedido: PedidoDeAcao) => string | null
   /** U2: a frase da recusa quando a regra não diz o motivo. Ausente = a do jogador ("sem conexão com o mestre..."). */
   avisoDaRecusa?: string
+  /**
+   * Unificação do combate (10/11/2026): a vida que TODOS podem ver, por ficha (o tokenId), para o site, onde a ficha é
+   * pública. Serve SÓ à vida, ao ferido e ao caído dos alvos da mira (e ao tamanho do impacto): não muda quem é "meu"
+   * ou "aliado" e não libera menu nenhum. `null` = essa ficha não tem vida pública. Passe uma função estável
+   * (`useMemo`/`useCallback`): a cada função nova a mira refaz os alvos. Ausente = tudo como antes.
+   */
+  vidaPublica?: (tokenId: string) => VidaNaMira | null
 }
 
 /** Conserto das fichas F1 (bug 1): quanto o aviso da recusa fica na tela. */
@@ -147,7 +154,7 @@ function bonusDaReacaoDe(selos: readonly SeloQueSoma[], tokenId: string): BonusD
   return partes.length === 0 ? undefined : { total: bonusDaReacao(bonus), partes }
 }
 
-export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, recusa, motivoDaRecusa, avisoDaRecusa }: BatalhaDoJogadorProps) {
+export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, conexao, consulta, alvoDoMapa, onMirando, onTremor, textoDaVez = 'suaVez', tamanhoDaCasa, recusa, motivoDaRecusa, avisoDaRecusa, vidaPublica }: BatalhaDoJogadorProps) {
   const [caixaAberta, setCaixaAberta] = useState(false)
   const [livre, setLivre] = useState(false)
   const [armasDe_, setArmasDe] = useState<string | null>(null)
@@ -196,8 +203,8 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   // U1: os alvos da mira e o oponente da passiva, do ponto de vista de quem age, pela mesma montagem do mestre no mapa
   // (`alvosDoRecorte`): o lado na luta, a vida quando quem olha a tem, o ferido e o caído.
   const alvosPara = useCallback(
-    (quemAge: CartaParaJogador | null) => alvosDoRecorte({ cartas: estado.cartas, quemAge, personagens: fichasInteiras, sistema, nomeDe, imagemDe }),
-    [estado.cartas, fichasInteiras, sistema, nomeDe, imagemDe],
+    (quemAge: CartaParaJogador | null) => alvosDoRecorte({ cartas: estado.cartas, quemAge, personagens: fichasInteiras, sistema, nomeDe, imagemDe, vidaPublica }),
+    [estado.cartas, fichasInteiras, sistema, nomeDe, imagemDe, vidaPublica],
   )
   // D4: a vida de cada ficha, para o impacto do tamanho do golpe e a queda. Só a que quem olha PODE ver (a mesma da
   // mira: a dele, a do aliado, a que o host pôs na carta); ficha sem vida no recorte = `null` (o tremor do meio, sem tombo).
