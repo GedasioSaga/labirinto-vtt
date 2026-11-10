@@ -1,11 +1,11 @@
-import { memo, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { memo, useMemo, useRef, type KeyboardEvent } from 'react'
 import type { SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
 import { SECRET_ITEM_ALPHA } from '../pixi/constants'
 import { WALL_COLOR, WALL_INTERIOR_ALPHA } from '../pixi/drawWalls'
 import { theme } from '../theme'
 import { Dialogo } from './grimorio/Dialogo'
-import { sceneArt, type ArtFrame, type SceneArt } from './sceneOverviewArt'
+import { sceneArt, type ArtFrame } from './sceneOverviewArt'
 import { sceneTree, type SceneTreeRow } from '../lib/adventure'
 
 /** Ficha "Oculta no editor": o mesmo fantasma do editor (`HIDDEN_TOKEN_GHOST_ALPHA`, tokensRenderer.ts). */
@@ -45,50 +45,13 @@ function viewBoxOf(frame: ArtFrame): string {
 }
 
 /**
- * A arte de cada mapa, guardada em memória pelo próprio `MapData` (a store é
- * imutável: mapa novo = chave nova, e o velho sai com o lixo). A lista de
- * Cenas e a Visão geral leem daqui: rolar, recolher pasta ou reabrir a janela
- * não recalcula o desenho de quem não mudou.
- */
-const artesGuardadas = new WeakMap<MapData, Map<number, SceneArt | null>>()
-
-/** A arte da cena (`sceneArt`), calculada uma vez por mapa e piso. */
-export function arteDaCena(map: MapData, piso: number): SceneArt | null {
-  let porPiso = artesGuardadas.get(map)
-  if (porPiso === undefined) {
-    porPiso = new Map()
-    artesGuardadas.set(map, porPiso)
-  }
-  if (!porPiso.has(piso)) porPiso.set(piso, sceneArt(map, piso))
-  return porPiso.get(piso) ?? null
-}
-
-/** A arte já está calculada? A lista usa para desenhar na hora, sem esperar a vez. */
-export function arteJaPronta(map: MapData, piso: number): boolean {
-  return artesGuardadas.get(map)?.has(piso) === true
-}
-
-/**
  * O mapa da cena em miniatura. `memo` pelo `MapData`: a store é imutável, então
  * a miniatura só redesenha quando AQUELA cena muda — uma ficha andando no
  * Salão não redesenha a Cripta. `piso`: o andar que o editor mostra dela.
- * `falta`: o que entra quando o mapa não tem área (na lista, nada: o quadro vazio).
- * `semNomes`: sem o `<title>` de cada ficha — a 40 px a bolinha tem 2 px, e o
- * nome do jogador já está nos retratos da linha.
  */
-export const SceneThumbnail = memo(function SceneThumbnail({
-  map,
-  piso,
-  falta,
-  semNomes = false,
-}: {
-  map: MapData
-  piso: number
-  falta?: ReactNode
-  semNomes?: boolean
-}) {
-  const art = useMemo(() => arteDaCena(map, piso), [map, piso])
-  if (art === null) return falta === undefined ? <span className="lb-visao__falta">Mapa sem área para mostrar</span> : <>{falta}</>
+const SceneThumbnail = memo(function SceneThumbnail({ map, piso }: { map: MapData; piso: number }) {
+  const art = useMemo(() => sceneArt(map, piso), [map, piso])
+  if (art === null) return <span className="lb-visao__falta">Mapa sem área para mostrar</span>
   const fundo = art.mapRect ?? art.frame
   return (
     <svg viewBox={viewBoxOf(art.frame)} preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
@@ -155,7 +118,7 @@ export const SceneThumbnail = memo(function SceneThumbnail({
           vectorEffect="non-scaling-stroke"
           opacity={token.ghost ? GHOST_TOKEN_OPACITY : undefined}
         >
-          {!semNomes && <title>{token.name}</title>}
+          <title>{token.name}</title>
         </circle>
       ))}
     </svg>

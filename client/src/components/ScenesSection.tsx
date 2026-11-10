@@ -24,7 +24,6 @@ import { matchesSceneSearch, SCENE_FILTER_MIN, sceneSearchWords } from '../lib/s
 import { type ScenePeople, type ScenePerson, type SceneRoom } from '../lib/party'
 import { RetratosDaCena, type PessoaNaLinha } from './RetratosDaCena'
 import { HojeNaSessao } from './HojeNaSessao'
-import { MiniaturaDaCena, useMiniaturasLigadas } from './MiniaturaDaCena'
 import { AVISO_FIXADAS_CHEIAS, lembrarRecente, lerListaDeIds, recentesAVista } from '../lib/cenasFixadas'
 import { esperaLonga, minutosDeEspera, rotuloDeEspera, type EsperaPorCena } from '../lib/cenaQueEspera'
 import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
@@ -1039,9 +1038,6 @@ export function ScenesSection({
   const overviewButtonRef = useRef<HTMLButtonElement | null>(null)
   // Com uma cena só (mapa solto) não há o que comparar: a vista dela já é o editor.
   const canOverview = maps !== undefined && scenes.length > 1
-  /** MINIATURA DO MAPA em cada linha (o desenho da Visão geral): o interruptor no topo da lista liga e desliga, e lembra. */
-  const [miniaturasLigadas, setMiniaturasLigadas] = useMiniaturasLigadas()
-  const showThumbs = canOverview && miniaturasLigadas
   /** Janela "Corte da torre" aberta. */
   const [towerOpen, setTowerOpen] = useState(false)
   const towerButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -1604,35 +1600,13 @@ export function ScenesSection({
 
   const inputLabel = editing?.kind === 'create' ? 'Nome da nova cena' : 'Novo nome da cena'
 
-  // Interruptor (role switch), não botão: no topo da lista, ele não passa à
-  // frente das cenas para quem procura o primeiro botão da seção.
-  const thumbsSwitch = canOverview ? (
-    <label className="lb-switch lb-cenas__miniaturas" title="O desenho do mapa ao lado do nome de cada cena">
-      <span>Miniaturas</span>
-      <span className="lb-switch__track">
-        <input
-          className="lb-switch__input"
-          type="checkbox"
-          role="switch"
-          checked={miniaturasLigadas}
-          onChange={(event) => setMiniaturasLigadas(event.target.checked)}
-        />
-      </span>
-    </label>
-  ) : null
-
   return (
     <CollapsibleSection id="scenes" title="Cenas" defaultOpen={defaultOpen} contagem={scenes.length} onOpenChange={onOpenChange}>
-      {!showFilter && thumbsSwitch !== null && <div className="lb-cenas__topo lb-cenas__topo--so">{thumbsSwitch}</div>}
       {showFilter && (
         <div className="lb-cenas__filtro">
-          {/* O interruptor das miniaturas mora na linha do rótulo: não custa altura. */}
-          <div className="lb-cenas__topo">
-            <label className="lb-label" htmlFor={filterId}>
-              Filtrar cenas
-            </label>
-            {thumbsSwitch}
-          </div>
+          <label className="lb-label" htmlFor={filterId}>
+            Filtrar cenas
+          </label>
           <div className="lb-objetos__campo">
             <span className="lb-objetos__lupa" aria-hidden="true">
               <SearchIcon size={16} />
@@ -1687,7 +1661,7 @@ export function ScenesSection({
           </p>
         </>
       )}
-      <ul ref={listRef} id={listId} className={showThumbs ? 'lb-cenas lb-cenas--mini' : 'lb-cenas'} aria-label="Cenas da aventura" onKeyDown={onListKeyDown}>
+      <ul ref={listRef} id={listId} className="lb-cenas" aria-label="Cenas da aventura" onKeyDown={onListKeyDown}>
         {visibleRows.map((row) => {
           const scene = row.entry
           const index = rowIndex.get(scene.id) ?? 0
@@ -1746,8 +1720,6 @@ export function ScenesSection({
                   ) : (
                     <span className="lb-cenas__recuo" aria-hidden="true" />
                   ))}
-                {/* A cena aberta mostra o andar que o editor mostra, como na Visão geral. */}
-                {showThumbs && <MiniaturaDaCena map={maps?.get(scene.id)} piso={scene.active ? (pisoAberto ?? 0) : 0} />}
                 <button
                   type="button"
                   className="lb-cenas__nome"
