@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type {
   MapData, Wall, Light, Region, Token, Prop, Drawing, DoorState, DoorSide, GridSettings, FeitioDaParede, MaterialDaParede, AcabamentoDaParede,
   Stair, StairDirection, StairShape, DoorKind, MapScale, MeasurementMode, DrawingCap, DrawingDash, FreehandTexture,
-  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
+  FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, CondicaoPropria, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, FormaDaPonte, FormaDaCova, FormaDoMoinho, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
   PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo, NeblinaDoMapa,
@@ -62,6 +62,7 @@ import {
 import { applyPatrolOp, setPassosDoPonto, setPatrolConfig, type ConfigDaPatrulha, type PatrolOp } from '../lib/npcPatrol'
 import { nomesDosLugaresLigados, temPilula } from '../lib/nomesDosLugares'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
+import { alternarCondicaoPropria, tirarCondicaoPropriaDasFichas, trocarCondicaoPropriaNasFichas } from '../lib/condicoesProprias'
 import { mapaComAsLigacoes, type MudancaDaLigacao } from '../lib/ligarFicha'
 import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
 import { boardVehicle, leaveVehicle, setVehicleSeats as setVehicleSeatsOnMap, vehicleCarrying } from '../lib/vehicle'
@@ -950,6 +951,15 @@ interface MapStoreState {
    * estado ATUAL da ficha, nunca sobre uma cópia velha da renderização.
    */
   toggleTokenCondition: (id: string, condition: TokenCondition) => void
+  /**
+   * CONDIÇÃO CRIADA PELO MESTRE (`lib/condicoesProprias.ts`): marca ou desmarca
+   * na ficha; a edição e a exclusão alcançam toda ficha DESTA cena que a leva.
+   * Mesmo contrato de `toggleTokenCondition`: uma entrada de histórico (Ctrl+Z
+   * desfaz), e nenhuma quando nada muda.
+   */
+  alternarCondicaoPropria: (id: string, condicao: CondicaoPropria) => void
+  trocarCondicaoPropriaNasFichas: (condicao: CondicaoPropria) => void
+  tirarCondicaoPropriaDasFichas: (condicaoId: string) => void
   /**
    * ROTINA DO NPC gravada pelo painel da ficha (`components/RotinaDaFichaControls.tsx`).
    * Edição do mestre: com histórico, o Ctrl+Z desfaz. `undefined` tira a chave
@@ -2555,6 +2565,18 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     ligarFichasAosTokens: (mudancas) => passoSeMudou((map) => mapaComAsLigacoes(map, mudancas)),
     toggleTokenCondition: (id, condition) => {
       const next = toggleConditionOnMap(get().map, id, condition)
+      if (next !== get().map) withHistory(() => next)
+    },
+    alternarCondicaoPropria: (id, condicao) => {
+      const next = alternarCondicaoPropria(get().map, id, condicao)
+      if (next !== get().map) withHistory(() => next)
+    },
+    trocarCondicaoPropriaNasFichas: (condicao) => {
+      const next = trocarCondicaoPropriaNasFichas(get().map, condicao)
+      if (next !== get().map) withHistory(() => next)
+    },
+    tirarCondicaoPropriaDasFichas: (condicaoId) => {
+      const next = tirarCondicaoPropriaDasFichas(get().map, condicaoId)
       if (next !== get().map) withHistory(() => next)
     },
     setTokenRotina: (id, rotina) => withHistory((map) => ({

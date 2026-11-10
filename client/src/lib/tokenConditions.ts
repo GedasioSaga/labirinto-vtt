@@ -109,6 +109,12 @@ export interface ConditionSymbol {
   solids?: readonly (readonly ConditionSymbolPoint[])[]
   /** Pontos cheios, ou furos (os olhos do fantasma). */
   dots?: readonly ConditionSymbolDot[]
+  /**
+   * Tinta do DESENHO, `#rrggbb`. Ausente é a de sempre (`CONDITION_INK`). Só a
+   * condição criada pelo mestre usa: cor escura pede desenho claro
+   * (`lib/condicoesProprias.ts`). O contorno da pastilha não muda.
+   */
+  ink?: string
 }
 
 /** Tinta do contorno e do desenho: a mesma do contorno da ficha (`pixi/drawTokens.ts`). */
@@ -251,17 +257,18 @@ const BADGE_GAP_FRACTION = 0.15
 /** O leque de pastilhas nunca passa da metade de cima da ficha: embaixo mora o nome. */
 const FAN_MAX_RADIANS = Math.PI
 
-export interface ConditionBadge {
-  condition: TokenCondition
+/** `T` é o que a pastilha carrega: o id da condição de fábrica, ou o desenho pronto quando entram as criadas pelo mestre. */
+export interface ConditionBadge<T = TokenCondition> {
+  condition: T
   /** Centro da pastilha em px de mundo, relativo ao centro da ficha (y para baixo). */
   x: number
   y: number
 }
 
-export interface ConditionBadgeLayout {
+export interface ConditionBadgeLayout<T = TokenCondition> {
   /** Raio de cada pastilha, em px de mundo. */
   radius: number
-  badges: ConditionBadge[]
+  badges: ConditionBadge<T>[]
 }
 
 /**
@@ -273,7 +280,7 @@ export interface ConditionBadgeLayout {
  *
  * Pastilha em px de mundo, como a ficha: acompanha o zoom junto com ela.
  */
-export function conditionBadgeLayout(conditions: readonly TokenCondition[], tokenRadius: number, gridSize: number): ConditionBadgeLayout {
+export function conditionBadgeLayout<T = TokenCondition>(conditions: readonly T[], tokenRadius: number, gridSize: number): ConditionBadgeLayout<T> {
   const count = conditions.length
   if (count === 0 || !Number.isFinite(tokenRadius) || tokenRadius <= 0) return { radius: 0, badges: [] }
   const cell = Number.isFinite(gridSize) && gridSize > 0 ? gridSize : tokenRadius * 2

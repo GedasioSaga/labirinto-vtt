@@ -13,6 +13,7 @@ import { FALA_MAX_LETRAS } from './npcPatrol'
 import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
 import { barraVistaPeloJogador, type BarrasParaJogador } from './vidaDaFicha'
 import { tokenConditionsOf } from './tokenConditions'
+import { condicoesPropriasOf } from './condicoesProprias'
 import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenColor'
 import { carrierIdOf } from './carry'
 import { driverOf, vehicleCarrying, vehicleOf } from './vehicle'
@@ -1687,6 +1688,10 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (parseHexColor(token.color) !== null) forPlayer.color = token.color
   const conditions = tokenConditionsOf(token)
   if (conditions.length > 0) forPlayer.conditions = conditions
+  // CONDIÇÃO CRIADA PELO MESTRE: vai inteira (nome, cor, desenho) e já limpa
+  // campo a campo (`condicoesPropriasOf`): só texto curto, cor `#rrggbb` e id de desenho da biblioteca.
+  const condicoesProprias = condicoesPropriasOf(token)
+  if (condicoesProprias.length > 0) forPlayer.condicoesProprias = condicoesProprias
   if (cut.health !== undefined) forPlayer.health = { ...cut.health }
   if (cut.alert !== null) forPlayer.alerta = cut.alert
   if (token.secret !== undefined) forPlayer.secret = token.secret

@@ -1357,6 +1357,21 @@ export interface TokenHealth {
 export type TokenCondition = 'envenenado' | 'caido' | 'dormindo' | 'atordoado' | 'invisivel'
 
 /**
+ * CONDIÇÃO CRIADA PELO MESTRE (pedido de 09/11/2026): nome, cor e desenho
+ * escolhidos por ele, além das cinco de fábrica. Leitura, biblioteca de
+ * desenhos e tetos moram em `lib/condicoesProprias.ts`.
+ */
+export interface CondicaoPropria {
+  id: string
+  /** O nome que o mestre deu ("Queimando"). */
+  nome: string
+  /** Cor da pastilha, `#rrggbb` minúsculo. */
+  cor: string
+  /** Id de um desenho da biblioteca (`SimboloDeCondicao`); desconhecido não vira marca. */
+  simbolo: string
+}
+
+/**
  * OLHOS DO GUARDA — o campo de visão de uma ficha de NPC. É do MESTRE: nunca
  * atravessa para o jogador (`lib/fogFilter.ts`). Regras de leitura, do cone e
  * da marca de alerta em `lib/npcWatch.ts`.
@@ -1505,6 +1520,14 @@ export interface Token extends PlayerSecret, NoPiso, NaCamada {
    * (`lib/fogFilter.ts`), com os ids da lista e nada mais.
    */
   conditions?: TokenCondition[]
+  /**
+   * Condições CRIADAS pelo mestre marcadas nesta ficha. Cada uma vai inteira
+   * (nome, cor, desenho), e não só o id: o mapa abre em outro computador com a
+   * marca no lugar e a tela de quem joga a desenha sem a lista do mestre.
+   * Ausente é nenhuma; quem lê passa por `condicoesPropriasOf`. ATRAVESSA para
+   * o jogador junto com a ficha, já limpa (`lib/fogFilter.ts`).
+   */
+  condicoesProprias?: CondicaoPropria[]
   /**
    * OLHOS DO GUARDA: a ficha é um NPC que vigia (`lib/npcWatch.ts`). Ausente
    * ou `null` = ficha comum, sem linha de migração. O mapa do disco chega

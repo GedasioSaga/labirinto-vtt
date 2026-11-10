@@ -1,22 +1,23 @@
 import { useCallback, useId, useState, type ReactNode } from 'react'
-import type { TokenCondition } from '../types/map'
-import {
-  CONDITION_GLYPH_FRACTION,
-  CONDITION_GLYPH_STROKE_FRACTION,
-  CONDITION_INK,
-  CONDITION_OUTLINE_FRACTION,
-  TOKEN_CONDITION_LABELS,
-  TOKEN_CONDITION_ORDER,
-  TOKEN_CONDITION_SYMBOLS,
-  type ConditionSymbolPoint,
-} from '../lib/tokenConditions'
+import type { CondicaoPropria, TokenCondition } from '../types/map'
+import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER, TOKEN_CONDITION_SYMBOLS } from '../lib/tokenConditions'
+import { CondicoesProprias, PastilhaDeCondicao } from './CondicoesProprias'
 import './TokenControls.css'
+
+const SEM_PROPRIAS: readonly CondicaoPropria[] = []
 
 export interface TokenConditionControlsProps {
   /** Condições marcadas na ficha selecionada, já limpas (`tokenConditionsOf`). */
   conditions: readonly TokenCondition[]
   /** Um clique: marca a condição se ela não está na ficha, desmarca se está. */
   onToggleCondition: (condition: TokenCondition) => void
+  /**
+   * A ficha selecionada. Com ela o bloco mostra também as condições CRIADAS
+   * pelo mestre e o "Criar condição" (`CondicoesProprias`); sem ela, só as de fábrica.
+   */
+  tokenId?: string
+  /** As condições criadas que estão na ficha, já limpas (`condicoesPropriasOf`). */
+  proprias?: readonly CondicaoPropria[]
   /** Dentro da ficha "Condições" (fatia 9): as pastilhas sempre à vista, sem a linha "+". */
   embutido?: boolean
 }
@@ -144,52 +145,6 @@ export function OpcionalDaFicha({ rotulo, preenchido, aberta, onAbertaChange, re
   )
 }
 
-/** Centro e raio da pastilha no `viewBox` de 24: sobra 1 unidade para o contorno não ser cortado na borda. */
-const CENTRO = 12
-const RAIO = 10.5
-
-/**
- * A pastilha da condição como SVG — a mesma geometria que `pixi/drawTokenConditions.ts`
- * desenha em cima da ficha, lida da mesma fonte (`lib/tokenConditions.ts`) e
- * nas mesmas proporções: o botão mostra a marca que vai sair no mapa.
- *
- * Decorativa (`aria-hidden`): quem carrega o nome é o texto do botão.
- */
-function TokenConditionArt({ condition }: { condition: TokenCondition }) {
-  const symbol = TOKEN_CONDITION_SYMBOLS[condition]
-  const scale = RAIO * CONDITION_GLYPH_FRACTION
-  const width = RAIO * CONDITION_GLYPH_STROKE_FRACTION
-  const ponto = (p: ConditionSymbolPoint): string => `${(CENTRO + p.x * scale).toFixed(2)},${(CENTRO + p.y * scale).toFixed(2)}`
-  return (
-    <svg className="lb-token-condition__badge" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx={CENTRO} cy={CENTRO} r={RAIO} fill={symbol.fill} stroke={CONDITION_INK} strokeWidth={RAIO * CONDITION_OUTLINE_FRACTION} />
-      {(symbol.solids ?? []).map((solid, i) => (
-        <polygon key={`cheio-${i}`} points={solid.map(ponto).join(' ')} fill={CONDITION_INK} />
-      ))}
-      {symbol.strokes.map((stroke, i) => {
-        const traco = {
-          points: stroke.points.map(ponto).join(' '),
-          fill: 'none',
-          stroke: CONDITION_INK,
-          strokeWidth: width,
-          strokeLinecap: 'round' as const,
-          strokeLinejoin: 'round' as const,
-        }
-        return stroke.closed === true ? <polygon key={`traco-${i}`} {...traco} /> : <polyline key={`traco-${i}`} {...traco} />
-      })}
-      {(symbol.dots ?? []).map((dot, i) => (
-        <circle
-          key={`ponto-${i}`}
-          cx={CENTRO + dot.x * scale}
-          cy={CENTRO + dot.y * scale}
-          r={dot.r * scale}
-          fill={dot.hole === true ? symbol.fill : CONDITION_INK}
-        />
-      ))}
-    </svg>
-  )
-}
-
 /**
  * Condições da ficha selecionada — envenenado, caído, dormindo, atordoado,
  * invisível. É o controle de MESA do painel: mexido a cada rodada, um clique
@@ -207,15 +162,26 @@ function TokenConditionArt({ condition }: { condition: TokenCondition }) {
  *
  * Duas colunas de pastilha + nome, como a legenda de um mapa (`lb-seg--pairs`):
  * em três colunas "Envenenado" não cabia na largura do rail.
+ *
+ * Depois das cinco de fábrica vêm as condições que o mestre criou e o "Criar
+ * condição" (`CondicoesProprias`, pedido de 09/11/2026), no mesmo grupo e com
+ * o mesmo gesto de ligar e desligar. A pastilha (`PastilhaDeCondicao`) é a
+ * mesma para as duas famílias.
  */
-export function TokenConditionControls({ conditions, onToggleCondition, embutido = false }: TokenConditionControlsProps) {
+export function TokenConditionControls({
+  conditions,
+  onToggleCondition,
+  embutido = false,
+  tokenId,
+  proprias = SEM_PROPRIAS,
+}: TokenConditionControlsProps) {
   const [aberta, lembrarAberta] = useSecaoLembrada('ficha-condicoes')
   const dicaId = useId()
   return (
     <section className="lb-section lb-token-opt">
       <OpcionalDaFicha
         rotulo="Condições"
-        preenchido={conditions.length > 0}
+        preenchido={conditions.length > 0 || proprias.length > 0}
         aberta={aberta}
         onAbertaChange={lembrarAberta}
         dicaId={dicaId}
@@ -237,10 +203,14 @@ export function TokenConditionControls({ conditions, onToggleCondition, embutido
                 onToggleCondition(condition)
               }}
             >
-              <TokenConditionArt condition={condition} />
+              <PastilhaDeCondicao symbol={TOKEN_CONDITION_SYMBOLS[condition]} />
               {TOKEN_CONDITION_LABELS[condition]}
             </button>
           ))}
+          {tokenId !== undefined && (
+            // `key` pela ficha: o formulário aberto e não salvo não passa para a ficha seguinte.
+            <CondicoesProprias key={tokenId} tokenId={tokenId} naFicha={proprias} classeDoChip={embutido ? 'gr-chip' : 'lb-seg__option'} />
+          )}
         </div>
       </OpcionalDaFicha>
       {/* Embutida, a nota fica à vista sob os chips (protótipo); solta, é a dica sob demanda da linha. */}

@@ -38,6 +38,7 @@ import {
 import { useToastStore } from '../stores/toastStore'
 import { screenLabelSizing } from './screenLabel'
 import { tokenConditionsOf } from '../lib/tokenConditions'
+import { condicoesPropriasOf } from '../lib/condicoesProprias'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from './drawTokenConditions'
 import { WATCH_ALERT_LABEL, drawWatchAlert } from './drawNpcWatch'
 import { estaCongelada } from '../lib/congelar'
@@ -1074,7 +1075,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // Condição na ficha: pastilhas sentadas na borda de cima do disco que a
       // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
       // jogadores" esmaecem a marca junto, pelo alpha do wrapper.
-      drawTokenConditions(entry.marks, tokenConditionsOf(token), outlineRadius, gridSize)
+      drawTokenConditions(entry.marks, tokenConditionsOf(token), outlineRadius, gridSize, condicoesPropriasOf(token))
       // OLHOS DO GUARDA: "?" desconfia, "!" percebeu — o mestre lê no guarda se a ficha chamou atenção.
       syncAlerta(entry, alerta, outlineRadius)
       // BATALHA F3: os selos ("ATORDOADO 2") logo acima das marcas, em pé como elas.

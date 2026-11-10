@@ -1,6 +1,7 @@
 import type { Graphics } from 'pixi.js'
-import type { TokenCondition } from '../types/map'
+import type { CondicaoPropria, TokenCondition } from '../types/map'
 import { parseHexColor } from '../lib/tokenColor'
+import { simboloDaCondicaoPropria } from '../lib/condicoesProprias'
 import {
   CONDITION_GLYPH_FRACTION,
   CONDITION_GLYPH_STROKE_FRACTION,
@@ -23,6 +24,8 @@ const INK = parseHexColor(CONDITION_INK) ?? 0x1a1a1a
 /** Uma pastilha: disco chapado, contorno escuro e o desenho da condição por cima. */
 function drawBadge(graphics: Graphics, symbol: ConditionSymbol, cx: number, cy: number, radius: number): void {
   const fill = parseHexColor(symbol.fill) ?? INK
+  // Tinta do desenho: a de sempre, ou a clara que a condição criada pede em cor escura.
+  const ink = parseHexColor(symbol.ink) ?? INK
   graphics.circle(cx, cy, radius).fill({ color: fill }).stroke({ width: radius * CONDITION_OUTLINE_FRACTION, color: INK })
 
   const scale = radius * CONDITION_GLYPH_FRACTION
@@ -31,7 +34,7 @@ function drawBadge(graphics: Graphics, symbol: ConditionSymbol, cx: number, cy: 
   const py = (n: number) => cy + n * scale
 
   for (const solid of symbol.solids ?? []) {
-    graphics.poly(solid.flatMap((p) => [px(p.x), py(p.y)])).fill({ color: INK })
+    graphics.poly(solid.flatMap((p) => [px(p.x), py(p.y)])).fill({ color: ink })
   }
   for (const stroke of symbol.strokes) {
     const [first, ...rest] = stroke.points
@@ -39,11 +42,11 @@ function drawBadge(graphics: Graphics, symbol: ConditionSymbol, cx: number, cy: 
     graphics.moveTo(px(first.x), py(first.y))
     for (const point of rest) graphics.lineTo(px(point.x), py(point.y))
     if (stroke.closed === true) graphics.closePath()
-    graphics.stroke({ width, color: INK, cap: 'round', join: 'round' })
+    graphics.stroke({ width, color: ink, cap: 'round', join: 'round' })
   }
   // Furo = a cor da pastilha por cima da forma cheia (os olhos do fantasma).
   for (const dot of symbol.dots ?? []) {
-    graphics.circle(px(dot.x), py(dot.y), dot.r * scale).fill({ color: dot.hole === true ? fill : INK })
+    graphics.circle(px(dot.x), py(dot.y), dot.r * scale).fill({ color: dot.hole === true ? fill : ink })
   }
 }
 
@@ -55,11 +58,21 @@ function drawBadge(graphics: Graphics, symbol: ConditionSymbol, cx: number, cy: 
  *
  * `tokenRadius` é o raio do disco como cada tela o desenha — o editor tira 2 px
  * de respiro, o jogador não —, para a pastilha sentar na borda que a pessoa vê.
+ *
+ * `proprias`: as condições CRIADAS pelo mestre (`lib/condicoesProprias.ts`),
+ * já limpas. Entram no mesmo leque, depois das de fábrica.
  */
-export function drawTokenConditions(graphics: Graphics, conditions: readonly TokenCondition[], tokenRadius: number, gridSize: number): void {
+export function drawTokenConditions(
+  graphics: Graphics,
+  conditions: readonly TokenCondition[],
+  tokenRadius: number,
+  gridSize: number,
+  proprias: readonly CondicaoPropria[] = [],
+): void {
   graphics.clear()
-  const layout = conditionBadgeLayout(conditions, tokenRadius, gridSize)
+  const symbols = [...conditions.map((condition) => TOKEN_CONDITION_SYMBOLS[condition]), ...proprias.map(simboloDaCondicaoPropria)]
+  const layout = conditionBadgeLayout(symbols, tokenRadius, gridSize)
   for (const badge of layout.badges) {
-    drawBadge(graphics, TOKEN_CONDITION_SYMBOLS[badge.condition], badge.x, badge.y, layout.radius)
+    drawBadge(graphics, badge.condition, badge.x, badge.y, layout.radius)
   }
 }

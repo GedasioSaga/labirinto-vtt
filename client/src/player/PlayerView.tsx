@@ -133,6 +133,7 @@ import {
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
 import { playerTokenAlpha } from '../lib/tokenHiding'
 import { tokenConditionsOf } from '../lib/tokenConditions'
+import { condicoesPropriasOf } from '../lib/condicoesProprias'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from '../pixi/drawTokenConditions'
 import { watchAlertOf } from '../lib/npcWatch'
 import { WATCH_ALERT_LABEL, drawWatchAlert } from '../pixi/drawNpcWatch'
@@ -800,7 +801,7 @@ export function paintTokenView(view: TokenView, token: Token, grid: number, own:
   drawTokenHealthBar(view.bar, radius, health)
   // A condição que o mestre marcou chega junto com a ficha (o recorte de
   // lib/fogFilter.ts só deixa passar ficha que este jogador pode ver).
-  drawTokenConditions(view.marks, tokenConditionsOf(token), radius, grid)
+  drawTokenConditions(view.marks, tokenConditionsOf(token), radius, grid, condicoesPropriasOf(token))
   // OLHOS DO GUARDA: a marca que o recorte pôs no guarda que este jogador vê.
   drawWatchAlert(view.alert, watchAlertOf(token), radius)
   // FICHA SEGURADA PELO MESTRE: o cadeado diz por que ela não anda antes do arrasto.
@@ -1121,6 +1122,8 @@ export function tokenViewKey(token: Token, grid: number, own: boolean, waiting =
     token.color ?? null,
     healthKey,
     tokenConditionsOf(token),
+    // As condições criadas pelo mestre também: marcar, editar (nome, cor, desenho) ou tirar repinta na hora.
+    condicoesPropriasOf(token),
     watchAlertOf(token),
     waiting,
     token.companion ?? null,

@@ -6,6 +6,7 @@ import { pisoDe } from '../../lib/pisos'
 import { readTokenPatrol } from '../../lib/npcPatrol'
 import { readTokenWatch, WATCH_DIRECTIONS } from '../../lib/npcWatch'
 import { TOKEN_CONDITION_LABELS, tokenConditionsOf } from '../../lib/tokenConditions'
+import { condicoesPropriasOf } from '../../lib/condicoesProprias'
 import { selectedTokenColor } from '../../lib/tokenColor'
 import { tokenPhotoRef } from '../../lib/tokenPhoto'
 import { tokenPublicNameMode } from '../../lib/tokenPublicName'
@@ -330,6 +331,9 @@ export function FichaDoToken(props: FichaDoTokenProps) {
   }
 
   const condicoes = tokenConditionsOf(token)
+  // As condições que o mestre criou entram no mesmo bloco e no mesmo resumo, depois das de fábrica.
+  const condicoesProprias = condicoesPropriasOf(token)
+  const nomesDasCondicoes = [...condicoes.map((condicao) => TOKEN_CONDITION_LABELS[condicao]), ...condicoesProprias.map((condicao) => condicao.nome)]
   const levar = props.tokenSceneCarry
   const transformacao: ItemTransformControlsProps = {
     title: 'Trava e visibilidade',
@@ -361,9 +365,9 @@ export function FichaDoToken(props: FichaDoTokenProps) {
           titulo="Condições"
           icone="estrela"
           padrao
-          resumo={condicoes.length === 0 ? 'Nenhuma' : condicoes.map((condicao) => TOKEN_CONDITION_LABELS[condicao]).join(', ')}
+          resumo={nomesDasCondicoes.length === 0 ? 'Nenhuma' : nomesDasCondicoes.join(', ')}
         >
-          <TokenConditionControls conditions={condicoes} {...props.tokenCondition} embutido />
+          <TokenConditionControls conditions={condicoes} {...props.tokenCondition} tokenId={token.id} proprias={condicoesProprias} embutido />
         </FichaDoTokenLembrada>
         <FichaDoTokenLembrada id="no-mapa" titulo="No mapa" icone="cena" padrao={false} resumo={resumoDoTamanho(token)}>
           {props.comTrava && <ItemTransformControls key={`trava-${token.id}`} {...transformacao} parte="trava" />}

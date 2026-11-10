@@ -1,0 +1,126 @@
+/* CONDIÇÃO CRIADA PELO MESTRE: o chip dividido (marcar | editar) e o formulário
+   que abre embaixo dos chips, na ficha "Condições". Só fichas do kit (grimório). */
+
+.lb-cond-propria {
+  display: inline-flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* A metade que marca: o chip de sempre, colado na metade que edita. */
+.lb-cond-propria > :first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right-width: 0;
+  padding-right: 8px;
+}
+
+.lb-cond-propria > :first-child:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lb-cond-propria__editar {
+  flex: none;
+  width: 26px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: 0 var(--lb-radius-full) var(--lb-radius-full) 0;
+  color: var(--lb-color-parchment-faint);
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+
+.lb-cond-propria__editar svg {
+  width: 12px;
+  height: 12px;
+}
+
+.lb-cond-propria__editar:active {
+  transform: scale(0.96);
+}
+
+.lb-cond-propria__editar[aria-expanded='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: var(--lb-gr-filete-latao);
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-cond-criar svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+/* O formulário ocupa a linha inteira, embaixo dos chips (que quebram em linhas)
+   ou das duas colunas da variante solta. Aparece de uma vez: é ferramenta de
+   mesa, aberta no meio da cena. */
+.lb-cond-form {
+  flex: 1 0 100%;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--lb-radius-sm);
+  border: 1px solid var(--lb-gr-filete);
+  background: var(--lb-gr-campo);
+}
+
+.lb-cond-form__desenhos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lb-cond-form__desenho {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+
+.lb-cond-form__desenho:active {
+  transform: scale(0.96);
+}
+
+.lb-cond-form__desenho[aria-checked='true'] {
+  background: var(--lb-color-brass-soft);
+  border-color: var(--lb-gr-filete-latao);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-cond-propria__editar:hover:not([aria-expanded='true']) {
+    background: var(--lb-gr-hover);
+    color: var(--lb-color-parchment);
+  }
+
+  .lb-cond-form__desenho:hover:not([aria-checked='true']) {
+    background: var(--lb-gr-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cond-propria__editar,
+  .lb-cond-form__desenho {
+    transition: none;
+  }
+}
