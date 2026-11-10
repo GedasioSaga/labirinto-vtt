@@ -82,7 +82,7 @@ import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
 import { usePincelDaNeblina } from '../stores/pincelDaNeblina'
 import { criarParticulasDoMapa } from './particulasDoMapa'
-import { temParticulas, tetoDoEfeito } from '../lib/particulasDaCena'
+import { particulasDoMestre } from '../lib/particulasDaCena'
 import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
 import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
 import { createNuvensRenderer } from './drawNuvens'
@@ -2975,15 +2975,14 @@ function PixiCanvasDoContexto({
       )
       app.stage.addChildAt(particulasDoMapa.camada, app.stage.getChildIndex(world) + 1)
       // O que as partículas leram do mapa: só refazem a entrada quando uma destas referências muda.
-      let particulasLidas: { particulas: MapData['particulas']; props: MapData['props']; grid: number } | null = null
+      let particulasLidas: { cena: string; particulas: MapData['particulas']; props: MapData['props']; grid: number } | null = null
       let ultimaTintaEscrita = ''
       const tickMapaDeLuz = () => {
         const map = useMapStore.getState().map
-        if (particulasLidas === null || particulasLidas.particulas !== map.particulas || particulasLidas.props !== map.props || particulasLidas.grid !== map.grid) {
-          particulasLidas = { particulas: map.particulas, props: map.props, grid: map.grid }
-          particulasDoMapa.atualizar(
-            temParticulas(map) ? { fumaca: tetoDoEfeito(map, 'fumaca'), brasas: tetoDoEfeito(map, 'brasas'), fogos: map.props, grid: map.grid } : null,
-          )
+        if (particulasLidas === null || particulasLidas.cena !== map.id || particulasLidas.particulas !== map.particulas || particulasLidas.props !== map.props || particulasLidas.grid !== map.grid) {
+          particulasLidas = { cena: map.id, particulas: map.particulas, props: map.props, grid: map.grid }
+          // O mestre tem a cena inteira: ele mesmo vê se há fogo (`particulasDoMestre`).
+          particulasDoMapa.atualizar(map.id, particulasDoMestre(map))
         }
         const sessao = periodoDaSessao(useAdventureStore.getState())
         const { comoJogador, previa } = useTintaNoEditor.getState()

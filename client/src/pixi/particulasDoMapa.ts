@@ -1,5 +1,7 @@
-import { BufferImageSource, Container, Sprite, Texture, type Ticker } from 'pixi.js'
-import { fogoAcendeLuz, type FogoQueIlumina } from '../lib/luzDoFogo'
+import { BufferImageSource, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js'
+import type { RegionPoint } from '../types/map'
+import { soltaFumacaEBrasas, type FogoQueIlumina } from '../lib/luzDoFogo'
+import type { ParticulasDaTela } from '../lib/particulasDaCena'
 
 /**
  * PARTÍCULAS DO MAPA (pedido do mestre de 09/11/2026: "partículas de fumaça
@@ -9,7 +11,13 @@ import { fogoAcendeLuz, type FogoQueIlumina } from '../lib/luzDoFogo'
  *
  * A camada fica no PALCO, logo acima do mundo, e copia a câmera dele a cada
  * quadro: a brasa não escurece com a tinta da noite e a pilha de camadas do
- * mundo (tinta, neblina, contorno) segue com os filhos de sempre.
+ * mundo (tinta, neblina, contorno) segue com os filhos de sempre. Por estar
+ * acima da névoa do jogador, a tela dele a RECORTA pelo que ele enxerga
+ * (`recortar`): partícula nunca aparece por cima do preto.
+ *
+ * Quem decide se elas nascem espalhadas (cena sem fogo) é quem conhece a cena
+ * inteira (`ParticulasDaTela.espalhar`): o mestre pelos objetos dele, o jogador
+ * pelo aviso do host no recorte.
  *
  * Custo: o teto de partículas vivas vem da cena e é dividido entre os fogos À
  * VISTA, então mapa com 60 fogos custa o mesmo que mapa com um. Um Sprite por
@@ -77,14 +85,12 @@ function criarTexturaDaBolha(): Texture {
   return new Texture({ source })
 }
 
-export interface EntradaDasParticulas {
-  /** Quantas partículas de cada efeito ficam vivas (`tetoDoEfeito`); 0 = efeito desligado. */
-  fumaca: number
-  brasas: number
-  /** Os objetos da cena que a tela tem (no jogador, os que o recorte entregou): os Fogos são as fontes. */
-  fogos: readonly FogoQueIlumina[]
-  /** O lado da casa do mapa, em px de mundo. */
-  grid: number
+/** Onde as partículas aparecem, em px de mundo. */
+export interface RecorteDasParticulas {
+  /** O que o jogador enxerga agora (os anéis da visão): só aí elas aparecem. */
+  ver: readonly (readonly RegionPoint[])[]
+  /** O preto das zonas ocultas dentro da visão: aí também não. */
+  esconder: readonly (readonly RegionPoint[])[]
 }
 
 export interface MovimentoDasParticulas {
@@ -104,8 +110,14 @@ export interface EstadoDasParticulas {
 
 export interface ParticulasDoMapa {
   readonly camada: Container
-  /** `null` = sem partículas (as vivas somem e o relógio sai). */
-  atualizar: (entrada: EntradaDasParticulas | null) => void
+  /**
+   * `cena` é o id do mapa na tela: trocou, as partículas da cena anterior somem
+   * na hora (as coordenadas delas eram de outro mapa). `entrada` nula = sem
+   * partículas nesta cena (as vivas terminam de apagar e o relógio sai).
+   */
+  atualizar: (cena: string, entrada: ParticulasDaTela | null) => void
+  /** O recorte da tela do jogador; `null` (a tela do mestre) = sem recorte. Só refaz quando o conteúdo muda. */
+  recortar: (recorte: RecorteDasParticulas | null) => void
   destruir: () => void
 }
 
@@ -139,13 +151,26 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
   camada.interactiveChildren = false
   camada.visible = false
   const camadas: Record<Efeito, Container> = { fumaca: new Container(), brasas: new Container() }
-  camada.addChild(camadas.fumaca, camadas.brasas)
+  // O recorte do jogador são duas máscaras, uma dentro da outra: a de fora deixa
+  // só o que ele enxerga, a de dentro tira o preto das zonas ocultas. As duas
+  // moram na camada, então andam com a câmera junto das partículas.
+  const noQueVe = new Container()
+  const foraDoOculto = new Container()
+  const mascaraDoQueVe = new Graphics()
+  const mascaraDoOculto = new Graphics()
+  mascaraDoQueVe.visible = false
+  mascaraDoOculto.visible = false
+  foraDoOculto.addChild(camadas.fumaca, camadas.brasas)
+  noQueVe.addChild(foraDoOculto)
+  camada.addChild(noQueVe, mascaraDoQueVe, mascaraDoOculto)
 
   let textura: Texture | null = null
   const vivas: Record<Efeito, Particula[]> = { fumaca: [], brasas: [] }
   const livres: Record<Efeito, Sprite[]> = { fumaca: [], brasas: [] }
   const aNascer: Record<Efeito, number> = { fumaca: 0, brasas: 0 }
-  let entrada: EntradaDasParticulas | null = null
+  let entrada: ParticulasDaTela | null = null
+  let cenaNaTela: string | null = null
+  let recorteLido: RecorteDasParticulas | null = null
   let fogosLidos: readonly FogoQueIlumina[] | null = null
   let fontes: Fonte[] = []
   const fontesNaVista: Fonte[] = []
@@ -171,7 +196,7 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
     aNascer[efeito] = 0
   }
 
-  function nascer(efeito: Efeito, dados: EntradaDasParticulas, vista: { x: number; y: number; largura: number; altura: number }): void {
+  function nascer(efeito: Efeito, dados: ParticulasDaTela, vista: { x: number; y: number; largura: number; altura: number }): void {
     const ajuste = AJUSTE_DAS_PARTICULAS[efeito]
     if (textura === null) textura = criarTexturaDaBolha()
     let sprite = livres[efeito].pop()
@@ -180,8 +205,8 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
       if (efeito === 'brasas') sprite.blendMode = 'add'
       camadas[efeito].addChild(sprite)
     }
-    const fonte = fontesNaVista.length === 0 ? null : fontesNaVista[Math.floor(Math.random() * fontesNaVista.length)]
-    if (fonte === null || fonte === undefined) {
+    const fonte = dados.espalhar ? undefined : fontesNaVista[Math.floor(Math.random() * fontesNaVista.length)]
+    if (fonte === undefined) {
       // Cena sem fogo: espalhadas pela vista.
       sprite.x = vista.x + Math.random() * vista.largura
       sprite.y = vista.y + Math.random() * vista.altura
@@ -202,7 +227,7 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
     })
   }
 
-  function andar(efeito: Efeito, dados: EntradaDasParticulas, dt: number): void {
+  function andar(efeito: Efeito, dados: ParticulasDaTela, dt: number): void {
     const ajuste = AJUSTE_DAS_PARTICULAS[efeito]
     const lista = vivas[efeito]
     const vento = ajuste.ventoEmCasasPorS * dados.grid
@@ -236,10 +261,10 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
     }
   }
 
-  function lerFontes(dados: EntradaDasParticulas): void {
-    if (dados.fogos === fogosLidos) return
-    fogosLidos = dados.fogos
-    fontes = dados.fogos.filter(fogoAcendeLuz).map((f) => ({ x: f.x, y: f.y, largura: f.width, altura: f.height }))
+  function lerFontes(dados: ParticulasDaTela): void {
+    if (dados.objetos === fogosLidos) return
+    fogosLidos = dados.objetos
+    fontes = dados.objetos.filter(soltaFumacaEBrasas).map((f) => ({ x: f.x, y: f.y, largura: f.width, altura: f.height }))
   }
 
   const tick = (relogio: Ticker): void => {
@@ -275,8 +300,8 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
     for (const f of fontes) {
       if (f.x >= vista.x - margem && f.x <= vista.x + vista.largura + margem && f.y >= vista.y - margem && f.y <= vista.y + vista.altura + margem) fontesNaVista.push(f)
     }
-    // Cena com fogo, mas nenhum à vista: nada nasce. Cena sem fogo: espalhadas, em menor número.
-    const fator = fontes.length === 0 ? AJUSTE_DAS_PARTICULAS.fracaoSemFogo : fontesNaVista.length === 0 ? 0 : 1
+    // Cena sem fogo (quem diz é quem tem a cena inteira): espalhadas, em menor número. Com fogo, mas nenhum à vista: nada nasce.
+    const fator = dados.espalhar ? AJUSTE_DAS_PARTICULAS.fracaoSemFogo : fontesNaVista.length === 0 ? 0 : 1
     const dt = Math.min(relogio.deltaMS, AJUSTE_DAS_PARTICULAS.passoMaximoMs) / 1000
     const efeitos: readonly Efeito[] = ['fumaca', 'brasas']
     for (const efeito of efeitos) {
@@ -306,7 +331,33 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
     avisar()
   }
 
-  function atualizar(nova: EntradaDasParticulas | null): void {
+  function recortar(recorte: RecorteDasParticulas | null): void {
+    if (recorte === recorteLido || (recorte !== null && recorteLido !== null && recorte.ver === recorteLido.ver && recorte.esconder === recorteLido.esconder)) return
+    recorteLido = recorte
+    mascaraDoQueVe.clear()
+    mascaraDoOculto.clear()
+    const ver = recorte === null ? [] : recorte.ver.filter((anel) => anel.length >= 3)
+    const esconder = recorte === null ? [] : recorte.esconder.filter((anel) => anel.length >= 3)
+    for (const anel of ver) mascaraDoQueVe.poly([...anel], true)
+    if (ver.length > 0) mascaraDoQueVe.fill({ color: 0xffffff })
+    for (const anel of esconder) mascaraDoOculto.poly([...anel], true)
+    if (esconder.length > 0) mascaraDoOculto.fill({ color: 0xffffff })
+    // Jogador que não enxerga nada não vê partícula nenhuma.
+    noQueVe.visible = recorte === null || ver.length > 0
+    noQueVe.mask = ver.length > 0 ? mascaraDoQueVe : null
+    mascaraDoQueVe.visible = ver.length > 0
+    if (esconder.length > 0) foraDoOculto.setMask({ mask: mascaraDoOculto, inverse: true })
+    else foraDoOculto.mask = null
+    mascaraDoOculto.visible = esconder.length > 0
+  }
+
+  function atualizar(cena: string, nova: ParticulasDaTela | null): void {
+    if (cena !== cenaNaTela) {
+      // Outra cena: as vivas eram de outro mapa, em outras coordenadas.
+      cenaNaTela = cena
+      soltar('fumaca')
+      soltar('brasas')
+    }
     const ligada = nova !== null && (nova.fumaca > 0 || nova.brasas > 0) && nova.grid > 0
     if (ligada) {
       entrada = nova
@@ -329,5 +380,5 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
     textura = null
   }
 
-  return { camada, atualizar, destruir }
+  return { camada, atualizar, recortar, destruir }
 }

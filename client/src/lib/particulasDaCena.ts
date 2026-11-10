@@ -1,4 +1,5 @@
 import type { MapData, ParticulasDaCena, QuantidadeDeParticulas } from '../types/map'
+import { soltaFumacaEBrasas, type FogoQueIlumina } from './luzDoFogo'
 
 /**
  * PARTÍCULAS DA CENA (pedido do mestre de 09/11/2026: "partículas de fumaça
@@ -48,6 +49,52 @@ export function tetoDoEfeito(map: Pick<MapData, 'particulas'>, efeito: EfeitoDeP
 /** A cena tem algum efeito de partícula ligado? */
 export function temParticulas(map: Pick<MapData, 'particulas'>): boolean {
   return EFEITOS_DE_PARTICULA.some((efeito) => tetoDoEfeito(map, efeito) > 0)
+}
+
+/** A cena inteira tem algum fogo que solta fumaça e brasas (`lib/luzDoFogo.ts`)? Só quem tem a cena toda responde. */
+export function cenaTemFogo(objetos: readonly FogoQueIlumina[]): boolean {
+  return objetos.some(soltaFumacaEBrasas)
+}
+
+/** O que uma tela entrega à camada de partículas (`pixi/particulasDoMapa.ts`). */
+export interface ParticulasDaTela {
+  /** A cena (`MapData.id`): trocou, as partículas da outra somem na hora. */
+  cena: string
+  /** Quantas partículas de cada efeito ficam vivas (`tetoDoEfeito`); 0 = efeito desligado. */
+  fumaca: number
+  brasas: number
+  /** Os objetos que a tela tem: os fogos entre eles são as fontes. */
+  objetos: readonly FogoQueIlumina[]
+  /**
+   * A cena inteira não tem fogo: as partículas nascem espalhadas pela vista.
+   * Com `false`, só nascem dos fogos de `objetos`; sem nenhum à vista, nada nasce.
+   */
+  espalhar: boolean
+  /** O lado da casa do mapa, em px de mundo. */
+  grid: number
+}
+
+type CenaComParticulas = Pick<MapData, 'id' | 'particulas' | 'props' | 'grid'>
+
+function particulasDaTela(map: CenaComParticulas, espalhar: boolean): ParticulasDaTela | null {
+  if (!temParticulas(map)) return null
+  return { cena: map.id, fumaca: tetoDoEfeito(map, 'fumaca'), brasas: tetoDoEfeito(map, 'brasas'), objetos: map.props, espalhar, grid: map.grid }
+}
+
+/** As partículas na tela do mestre: ele tem a cena inteira, então ele mesmo vê se há fogo. `null` = desligadas. */
+export function particulasDoMestre(map: CenaComParticulas): ParticulasDaTela | null {
+  return particulasDaTela(map, !cenaTemFogo(map.props))
+}
+
+/**
+ * As partículas na tela do jogador, a partir do RECORTE que o host mandou. Ele
+ * nunca decide espalhar por conta própria: os objetos dele são só os que
+ * enxerga, e "nenhum fogo no recorte" numa cena cheia de fogos cobria a tela
+ * (e a névoa) de fumaça. Quem diz que a cena não tem fogo é o host
+ * (`MapData.particulasSemFogo`). `null` = desligadas.
+ */
+export function particulasDoJogador(recorte: CenaComParticulas & Pick<MapData, 'particulasSemFogo'>): ParticulasDaTela | null {
+  return particulasDaTela(recorte, recorte.particulasSemFogo === true)
 }
 
 /**

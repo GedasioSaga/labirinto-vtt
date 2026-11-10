@@ -1,6 +1,7 @@
 import type { CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
 import { PERIODO_PADRAO, lerPeriodo, luzAcesaNoPeriodo, visaoCheiaDoDia } from './periodo'
 import { TETO_DA_LUZ_EM_VISOES_DO_DIA, luzDoObjeto, raioDaLuzDoObjeto } from './luzDoFogo'
+import { cenaTemFogo, temParticulas } from './particulasDaCena'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
 import { barrancoParaJogador } from './barranco'
@@ -4060,6 +4061,10 @@ function recorteDoGrupo(
     // presente (`undefined` com elas desligadas), para nunca vir pelo `...map`.
     // No mapa-múndi (`ceuDoMundi`) a chave das nuvens é a do Continente, que `plain` perdeu.
     ceuDasNuvens: chaoDoCeu === null ? undefined : ceuDoRecorte(ceuDoMundi ? { ...mapaInteiro, worldMap: true } : mapaInteiro, chaoDoCeu),
+    // PARTÍCULAS: o jogador só recebe os fogos que enxerga, então é o host quem
+    // diz que a cena (o piso do grupo) não tem fogo NENHUM e a fumaça nasce
+    // espalhada (`lib/particulasDaCena.ts`). Sempre presente, para nunca vir pelo `...map`.
+    particulasSemFogo: temParticulas(map) && !cenaTemFogo(map.props) ? true : undefined,
     // TERRENO escondido dos jogadores: relevo, nuvens e penhasco não saem. Desligados
     // EXPLÍCITOS: `undefined` cai no padrão do tipo, e no Continente o padrão é ligado.
     ...(terrenoVisivel ? {} : { relevo: false, nuvens: false }),

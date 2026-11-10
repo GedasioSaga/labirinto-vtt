@@ -2444,6 +2444,14 @@ export interface MapData {
    * só `false` desliga, e aí o host recusa todo trecho de caminhada
    * (`caminhada_desligada`) — clique no chão e "Andar até aqui". O arrasto
    * continua. Atravessa no recorte do jogador: a tela dele avisa sem mandar nada.
+  /**
+   * SÓ NO RECORTE DO JOGADOR (`lib/fogFilter.ts`), nunca no arquivo: `true` = a
+   * cena inteira não tem nenhum fogo, e as partículas nascem espalhadas pela
+   * vista. O jogador só recebe os fogos que enxerga, então não sabe sozinho se
+   * "nenhum fogo aqui" é a cena sem fogo ou o fogo fora da vista: quem diz é o
+   * host. Ausente = as partículas só nascem dos fogos recebidos.
+   */
+  particulasSemFogo?: true
    */
   cliqueParaAndar?: boolean
   /**
