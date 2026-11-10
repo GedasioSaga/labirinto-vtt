@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ehSoRealceNoMapa, marcarRealceNoMapa } from '../../lib/batalha/realceNoMapa'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, type SelectionSet } from '../../lib/selectionModel'
 import { useMapStore } from '../../stores/mapStore'
 
@@ -32,9 +33,16 @@ const ESPERA_PARA_ESVAZIAR_MS = 220
  */
 let trocaDaqui = false
 
-function porSelecao(selecao: SelectionSet): void {
+/**
+ * `soRealce`: a seleção só acende uma ficha, não é escolha do mestre. Fica
+ * marcada (`realceNoMapa`), e Delete, Backspace e recortar não agem nela
+ * (segunda auditoria, achado 3). O resto que passa por aqui (esvaziar,
+ * devolver a seleção de antes) tira a marca.
+ */
+function porSelecao(selecao: SelectionSet, soRealce = false): void {
   trocaDaqui = true
   try {
+    marcarRealceNoMapa(soRealce && selecao !== EMPTY_SELECTION ? selecao : null)
     useMapStore.getState().setSelection(selecao)
   } finally {
     trocaDaqui = false
@@ -46,12 +54,14 @@ function selecaoDaFicha(tokenId: string | null): SelectionSet {
   return tokenId !== null && existe ? selectionOfItem({ kind: 'token', id: tokenId }) : EMPTY_SELECTION
 }
 
-/** As fichas selecionadas no mapa agora (conserto de 09/11, achado 3): quem o mestre selecionou antes de abrir a lista já vem marcado. */
+/**
+ * As fichas selecionadas no mapa agora (conserto de 09/11, achado 3): quem o mestre selecionou antes de abrir a lista
+ * já vem marcado. A ficha só acesa por uma lista não conta: não foi o mestre que a selecionou.
+ */
 export function fichasSelecionadasNoMapa(): string[] {
-  return useMapStore
-    .getState()
-    .selection.filter((item) => item.kind === 'token')
-    .map((item) => item.id)
+  const { selection } = useMapStore.getState()
+  if (ehSoRealceNoMapa(selection)) return []
+  return selection.filter((item) => item.kind === 'token').map((item) => item.id)
 }
 
 export function abrirEscolhaNoMapa(aoClicar: (tokenId: string) => void): EscolhaNoMapa {
@@ -83,7 +93,7 @@ export function abrirEscolhaNoMapa(aoClicar: (tokenId: string) => void): Escolha
   return {
     destacar(tokenId) {
       pararRelogio()
-      porSelecao(selecaoDaFicha(tokenId))
+      porSelecao(selecaoDaFicha(tokenId), true)
     },
     soltar() {
       pararRelogio()
@@ -155,7 +165,7 @@ export function abrirDestaqueDaFaixa(): { apontar(tokenId: string | null): void;
         if (selecao === EMPTY_SELECTION) return
         if (antes === null) antes = useMapStore.getState().selection
         aceso = tokenId
-        porSelecao(selecao)
+        porSelecao(selecao, true)
       }, ESPERA_DA_INTENCAO_MS)
     },
     soltar: apagar,

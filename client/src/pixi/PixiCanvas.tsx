@@ -212,6 +212,7 @@ import { createFogosDoMapa } from './fogosDoMapa'
 import { createJudgeDoMapa } from './judgeDoMapa'
 import { createJudgeGesture } from './judgeGesture'
 import type { JudgeNaCena } from '../lib/batalha/judge'
+import { ehSoRealceNoMapa } from '../lib/batalha/realceNoMapa'
 import { createConcealZonesRenderer } from './drawConcealZones'
 import { drawHazardAreas } from './drawHazards'
 import { drawFaccoes } from './drawFaccoes'
@@ -9045,6 +9046,9 @@ function PixiCanvasDoContexto({
           canTogglePinType: pinoDoAtalho() !== null,
         })
         if (action === null) return
+        // Segunda auditoria da batalha (09/11/2026, achado 3): a seleção posta só para ACENDER uma ficha (o mouse
+        // parado numa carta da faixa da ordem ou numa linha de lista) não é escolha do mestre: apagar e recortar não agem nela.
+        if ((action.kind === 'deleteSelected' || action.kind === 'cut') && ehSoRealceNoMapa(useMapStore.getState().selection)) return
         // Sem isto o navegador também seleciona o texto da interface (laranja).
         if (action.kind === 'selectAll') event.preventDefault()
         // Ctrl+C/X/V: cola perto do ponteiro (ou no meio da vista, com ele
