@@ -59,6 +59,8 @@ const CURVA_DA_VOLTA = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const VIZINHO_ABRINDO = `translate ${VOLTA_MS}ms ${CURVA_DA_VOLTA}`
 /** Respiro em volta da carta da vez quando a fila rola até ela (o contorno de latão e a sombra). */
 const FOLGA_DA_VEZ_PX = 4
+/** D6: a partir de quantas cartas a faixa compacta (cartas mais estreitas, a vida só na barra). */
+const CARTAS_PARA_COMPACTAR = 7
 
 /** Sem `matchMedia` (jsdom, WebView antiga) vale o movimento normal. Cópia do grimório, que o jogador não carrega. */
 function movimentoReduzido(): boolean {
@@ -150,6 +152,39 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
     if (typeof ol.scrollTo !== 'function') ol.scrollLeft = Math.max(0, destino)
     else ol.scrollTo({ left: Math.max(0, destino), behavior: movimentoReduzido() ? 'auto' : 'smooth' })
   }, [vezAgora, ordem])
+
+  // D6: quantas cartas estão fora da vista de cada lado (a faixa diz, e o aviso rola até elas).
+  const [fora, setFora] = useState({ esq: 0, dir: 0 })
+  const totalDeCartas = dados.cartas.length
+  useLayoutEffect(() => {
+    const ol = lista.current
+    if (ol === null) return
+    const medir = () => {
+      let esq = 0
+      let dir = 0
+      for (const carta of cartasDa(ol)) {
+        const meio = carta.offsetLeft + carta.offsetWidth / 2
+        if (meio < ol.scrollLeft) esq += 1
+        else if (meio > ol.scrollLeft + ol.clientWidth) dir += 1
+      }
+      setFora((antes) => (antes.esq === esq && antes.dir === dir ? antes : { esq, dir }))
+    }
+    medir()
+    ol.addEventListener('scroll', medir, { passive: true })
+    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
+    observador?.observe(ol)
+    return () => {
+      ol.removeEventListener('scroll', medir)
+      observador?.disconnect()
+    }
+  }, [totalDeCartas, ordem])
+  const rolarAsCartas = (lado: -1 | 1) => {
+    const ol = lista.current
+    if (ol === null) return
+    const passo = Math.max(120, Math.round(ol.clientWidth * 0.8)) * lado
+    if (typeof ol.scrollBy !== 'function') ol.scrollLeft += passo
+    else ol.scrollBy({ left: passo, behavior: movimentoReduzido() ? 'auto' : 'smooth' })
+  }
 
   // A carta do menu saiu da ordem (outro tirou, desfez): o menu fecha.
   const cartaDoMenu = menu === null ? undefined : dados.cartas.find((carta) => carta.id === menu.cartaId)
@@ -327,6 +362,9 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
               className="bt-cartas"
               aria-label="Ordem dos turnos"
               data-arrasta={arrasta ? 'sim' : 'nao'}
+              data-compacta={totalDeCartas >= CARTAS_PARA_COMPACTAR ? 'sim' : undefined}
+              data-fora-esq={fora.esq > 0 ? 'sim' : undefined}
+              data-fora-dir={fora.dir > 0 ? 'sim' : undefined}
               onPointerDown={aoApertar}
               onPointerMove={aoMover}
               onPointerUp={() => soltar(false)}
@@ -371,6 +409,17 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
                 )
               })}
             </ol>
+            {/* D6: a faixa não esconde carta sem avisar: quantas estão fora da vista, e o aviso rola até elas. */}
+            {fora.esq > 0 && (
+              <button type="button" className="bt-cartas__fora" data-lado="esq" aria-label={`${fora.esq} ${fora.esq === 1 ? 'carta' : 'cartas'} fora da vista à esquerda: mostrar`} onClick={() => rolarAsCartas(-1)}>
+                ‹ {fora.esq}
+              </button>
+            )}
+            {fora.dir > 0 && (
+              <button type="button" className="bt-cartas__fora" data-lado="dir" aria-label={`${fora.dir} ${fora.dir === 1 ? 'carta' : 'cartas'} fora da vista à direita: mostrar`} onClick={() => rolarAsCartas(1)}>
+                {fora.dir} ›
+              </button>
+            )}
             <div ref={encaixe} className="bt-encaixe" data-ativo="nao" aria-hidden="true" />
           </div>
         )}

@@ -210,6 +210,68 @@
   min-width: 116px;
   scroll-snap-align: start;
 }
+/*
+ * D6: com 7 ou mais combatentes as cartas compactam para caber (mais
+ * estreitas; a vida fica na barra, o número vai para o leitor de tela). Se
+ * ainda não couber, a fila rola, as bordas esmaecem e o aviso "‹ 2" / "3 ›"
+ * diz quantas estão fora da vista (clicar rola até elas).
+ */
+.bt-cartas[data-compacta='sim'] {
+  gap: 6px;
+}
+.bt-cartas[data-compacta='sim'] .bt-carta {
+  min-width: 88px;
+}
+.bt-cartas[data-compacta='sim'] .bt-carta__num {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.bt-cartas[data-fora-dir='sim'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+}
+.bt-cartas[data-fora-esq='sim'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent);
+}
+.bt-cartas[data-fora-esq='sim'][data-fora-dir='sim'] {
+  mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+}
+.bt-cartas__fora {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 2px 8px;
+  border: 0;
+  background: var(--bt-tinta, #0c0c0e);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  clip-path: polygon(0 3px, 100% 0, calc(100% - 2px) 100%, 2px calc(100% - 2px));
+  box-shadow: 3px 3px 0 var(--bt-sangue);
+  transform: translateY(-50%) rotate(-3deg);
+  transition: transform 120ms var(--lb-gr-ease-out);
+}
+.bt-cartas__fora[data-lado='esq'] {
+  left: 0;
+}
+.bt-cartas__fora[data-lado='dir'] {
+  right: 0;
+}
+.bt-cartas__fora:active {
+  transform: translateY(-50%) rotate(-3deg) scale(0.97);
+}
+.bt-cartas__fora:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
 .bt-carta__corpo {
   position: relative;
   display: block;
@@ -627,12 +689,24 @@ button.bt-carta__corpo {
 }
 
 /* ---------------------------------------------------------------- registro */
+/*
+ * D6: o Registro abre POR CIMA, logo abaixo da faixa, sem mudar a altura dela:
+ * o menu da vez (posto abaixo da faixa pela altura medida) não é empurrado
+ * para fora da tela.
+ */
 .bt-faixa__registro {
-  grid-column: 1 / -1;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 4;
   max-height: min(40vh, 320px);
   overflow-y: auto;
-  padding-top: var(--lb-space-2);
-  border-top: 1px solid var(--lb-color-line);
+  overscroll-behavior: contain;
+  padding: var(--lb-space-2) var(--lb-space-3);
+  border-radius: var(--lb-radius-lg);
+  background: var(--lb-color-stone);
+  box-shadow: var(--lb-shadow-float), var(--lb-shadow-bevel);
   scrollbar-width: thin;
 }
 .bt-registro {
