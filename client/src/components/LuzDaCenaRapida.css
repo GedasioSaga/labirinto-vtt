@@ -9,7 +9,8 @@
   padding: var(--lb-space-3);
 }
 
-.lb-luz-da-cena > .lb-eyebrow {
+.lb-luz-da-cena > .lb-eyebrow,
+.lb-luz-da-cena__efeitos > .lb-eyebrow {
   margin: 0;
 }
 

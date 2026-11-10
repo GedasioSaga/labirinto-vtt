@@ -82,6 +82,8 @@ import { createNuvensRenderer, definirOpacidadeDasNuvens, lerOpacidadeDasNuvens,
 import { nuvensLigadas } from '../lib/nuvens'
 import { createNeblinaRenderer, type NeblinaRenderer } from '../pixi/drawNeblina'
 import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, temNeblina } from '../lib/neblina'
+import { criarParticulasDoMapa, type ParticulasDoMapa } from '../pixi/particulasDoMapa'
+import { temParticulas, tetoDoEfeito } from '../lib/particulasDaCena'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
@@ -1378,6 +1380,8 @@ interface Scene {
    * escuro. Só cobre; a pintada já chega cortada ao conhecido (`neblinaParaJogador`).
    */
   neblina: NeblinaRenderer
+  /** PARTÍCULAS DA CENA (`pixi/particulasDoMapa.ts`): fumaça e brasas dos fogos, no palco logo acima do mundo. */
+  particulas: ParticulasDoMapa
   /** As pílulas do último recorte, antes do filtro do conhecido: o pacote novo com a mesma assinatura reusa a lista. */
   lugaresKey: ContentKey
   lugares: LugarComNome[]
@@ -3301,6 +3305,12 @@ function PlayerViewDoCanvas({
             animar: efeitosDoMapaLigados(currentSettings),
           },
     )
+    // PARTÍCULAS DA CENA: são só movimento, então saem sem "Efeitos do mapa" e no modo leve.
+    scene.particulas.atualizar(
+      modoLeve || !efeitosDoMapaLigados(currentSettings) || !temParticulas(currentMap)
+        ? null
+        : { fumaca: tetoDoEfeito(currentMap, 'fumaca'), brasas: tetoDoEfeito(currentMap, 'brasas'), fogos: currentMap.props, grid: currentMap.grid },
+    )
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
     // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
     const perigosChanged = contentChanged(scene.perigosKey, [currentMap.perigos, currentMap.regions, hidden], () =>
@@ -3830,6 +3840,14 @@ function PlayerViewDoCanvas({
           },
         },
       )
+      const particulas = criarParticulasDoMapa(
+        { ticker: app.ticker, reducedMotion: prefersReducedMotion, mundo: world, tela: () => app.screen },
+        {
+          aoMudar: (estado) => {
+            el.dataset.particulas = estado.ligadas ? String(estado.vivas) : 'desligadas'
+          },
+        },
+      )
       const fogDim = new Graphics()
       const visionMask = new Graphics()
       const concealed = new Graphics()
@@ -4070,6 +4088,8 @@ function PlayerViewDoCanvas({
         signalsLayer,
         laserLayer,
       )
+      // PARTÍCULAS DA CENA: logo acima do mundo e abaixo das camadas de tela (régua, sinais, notas).
+      app.stage.addChildAt(particulas.camada, app.stage.getChildIndex(world) + 1)
       // MAPA DE LUZ (Luz L4b): por cima de tudo do mundo (as fichas escurecem à
       // noite, D2), com o contorno da própria ficha logo acima. Régua, sinais e
       // notas moram fora do mundo e não escurecem. Só entra no mundo com tinta
@@ -4157,6 +4177,7 @@ function PlayerViewDoCanvas({
         fogos,
         nuvens,
         neblina,
+        particulas,
         lugaresKey: emptyContentKey(),
         lugares: [],
         revisaoDasLuzes: criarRevisao(),
@@ -5000,6 +5021,7 @@ function PlayerViewDoCanvas({
         scene.nomesDosLugares.destruir()
         scene.nuvens.destruir()
         scene.neblina.destruir()
+        scene.particulas.destruir()
         // Os nós criados da pilha (e as chamas deles) antes da de hoje.
         scene.pilha.destruir()
         scene.chamas.destruir()

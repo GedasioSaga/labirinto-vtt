@@ -2432,6 +2432,13 @@ export interface MapData {
    */
   neblinaPintada?: PinceladaDeNeblina[]
   /**
+   * PARTÍCULAS DA CENA (`lib/particulasDaCena.ts`): fumaça preta e brasas
+   * subindo, para o mestre e para os jogadores. Ausente = nenhuma, sem linha de
+   * migração. Atravessa inteira no recorte do jogador: é só a quantidade, e as
+   * partículas nascem dos fogos que ele já recebe.
+   */
+  particulas?: ParticulasDaCena
+  /**
    * CLICAR PARA ANDAR (`lib/cliqueParaAndar.ts`): a chave do mestre nesta cena.
    * Ausente = LIGADA (mapa de antes abre e salva igual, sem linha de migração);
    * só `false` desliga, e aí o host recusa todo trecho de caminhada
@@ -2686,6 +2693,18 @@ export interface NeblinaDoMapa {
   ligada: boolean
   intensidade: number
   densidade?: number
+}
+
+/** Quanto de um efeito de partícula a cena mostra (`lib/particulasDaCena.ts`). */
+export type QuantidadeDeParticulas = 'pouca' | 'media' | 'muita'
+
+/**
+ * As partículas da cena (`lib/particulasDaCena.ts`): cada efeito na sua
+ * quantidade; efeito ausente = desligado.
+ */
+export interface ParticulasDaCena {
+  fumaca?: QuantidadeDeParticulas
+  brasas?: QuantidadeDeParticulas
 }
 
 /**

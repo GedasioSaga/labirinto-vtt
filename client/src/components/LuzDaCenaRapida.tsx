@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
-import type { MapData, Periodo } from '../types/map'
+import type { MapData, Periodo, QuantidadeDeParticulas } from '../types/map'
 import { ambienteNoEscuro, PASSO_DO_ESCURO } from '../lib/luzDaCena'
+import { EFEITOS_DE_PARTICULA, QUANTIDADES_DE_PARTICULAS, type EfeitoDeParticula } from '../lib/particulasDaCena'
 import { PERIODOS, ambienteDoPeriodo, lerPeriodo, periodoDaCena } from '../lib/periodo'
 import { TOOL_SHORTCUTS } from '../lib/keymap'
 import { periodoDaSessao, useAdventureStore } from '../stores/adventureStore'
@@ -27,6 +28,11 @@ const FRASE_DO_PERIODO: Readonly<Record<Periodo, string>> = {
   tarde: 'Esta cena fica à tarde. O fogo e as luzes clareiam um pouco.',
   noite: 'Esta cena fica à noite. Longe do fogo e das luzes fica escuro.',
 }
+
+const ROTULO_DO_EFEITO: Readonly<Record<EfeitoDeParticula, string>> = { fumaca: 'Fumaça preta', brasas: 'Brasas' }
+const ROTULO_DA_QUANTIDADE: Readonly<Record<QuantidadeDeParticulas, string>> = { pouca: 'Pouca', media: 'Média', muita: 'Muita' }
+/** As escolhas de cada efeito: desligado (`null`) e as três quantidades. */
+const ESCOLHAS_DO_EFEITO: readonly (QuantidadeDeParticulas | null)[] = [null, ...QUANTIDADES_DE_PARTICULAS]
 
 function porcento(forca: number): string {
   return `${Math.round(forca * 100)}%`
@@ -64,6 +70,10 @@ function useArrastoComUmPasso(): (aplicar: () => void) => void {
  * É o controle rápido; o ajuste fino (cor, visão em casas, atalhos da noite)
  * continua na ficha "Ambiente da cena" da página Cena. Lê e grava direto nas
  * lojas, como a `Toolbar` que o hospeda.
+ *
+ * EFEITOS (mesmo pedido: "partículas de fumaça preta e brasas"): a quantidade
+ * de cada efeito da cena, guardada em `MapData.particulas`
+ * (`lib/particulasDaCena.ts`).
  */
 export function LuzDaCenaRapida({ onClose, onPorLuz, saindo }: LuzDaCenaRapidaProps) {
   const id = useId()
@@ -72,11 +82,13 @@ export function LuzDaCenaRapida({ onClose, onPorLuz, saindo }: LuzDaCenaRapidaPr
   const forcaId = `${id}-forca`
   const forcaDicaId = `${id}-forca-dica`
   const verId = `${id}-ver`
+  const efeitosDicaId = `${id}-efeitos-dica`
   const raiz = useRef<HTMLDivElement>(null)
 
   const externa = useMapStore((s) => s.map.externa)
   const periodoFixo = useMapStore((s) => s.map.periodoFixo)
   const ambientePorPeriodo = useMapStore((s) => s.map.ambientePorPeriodo)
+  const particulas = useMapStore((s) => s.map.particulas)
   const sessao = useAdventureStore(periodoDaSessao)
   const comoJogador = useTintaNoEditor((estado) => estado.comoJogador)
   const setComoJogador = useTintaNoEditor((estado) => estado.setComoJogador)
@@ -167,6 +179,39 @@ export function LuzDaCenaRapida({ onClose, onPorLuz, saindo }: LuzDaCenaRapidaPr
         <Toggle label="Ver como jogador" checked={comoJogador} describedBy={verId} onChange={setComoJogador} />
         <p id={verId} className="lb-field__hint">
           Você vê o escuro pela metade, para enxergar o mapa. Ligado, vê igual aos jogadores.
+        </p>
+      </div>
+
+      <div className="lb-luz-da-cena__efeitos">
+        <h3 className="lb-eyebrow">Efeitos</h3>
+        {EFEITOS_DE_PARTICULA.map((efeito) => {
+          const atual = particulas?.[efeito] ?? null
+          const rotuloId = `${id}-${efeito}`
+          return (
+            <div className="lb-field" key={efeito}>
+              <span className="lb-label" id={rotuloId}>
+                {ROTULO_DO_EFEITO[efeito]}
+              </span>
+              <div className="lb-seg" role="radiogroup" aria-labelledby={rotuloId} aria-describedby={efeitosDicaId} onKeyDown={andarPelosRadios}>
+                {ESCOLHAS_DO_EFEITO.map((quantidade) => (
+                  <button
+                    key={quantidade ?? 'nao'}
+                    type="button"
+                    role="radio"
+                    aria-checked={atual === quantidade}
+                    tabIndex={atual === quantidade ? 0 : -1}
+                    className="lb-seg__option"
+                    onClick={() => useMapStore.getState().setParticulasDaCena(efeito, quantidade)}
+                  >
+                    {quantidade === null ? 'Não' : ROTULO_DA_QUANTIDADE[quantidade]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+        <p id={efeitosDicaId} className="lb-field__hint">
+          Sobem dos fogos do mapa, para você e para os jogadores. Sem fogo na cena, aparecem espalhadas.
         </p>
       </div>
 

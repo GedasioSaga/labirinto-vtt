@@ -81,6 +81,8 @@ import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
 import { usePincelDaNeblina } from '../stores/pincelDaNeblina'
+import { criarParticulasDoMapa } from './particulasDoMapa'
+import { temParticulas, tetoDoEfeito } from '../lib/particulasDaCena'
 import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
 import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
 import { createNuvensRenderer } from './drawNuvens'
@@ -2962,9 +2964,27 @@ function PixiCanvasDoContexto({
           el.dataset.neblinaMascara = estado.mascara
         },
       })
+      // PARTÍCULAS DA CENA (`particulasDoMapa.ts`): fumaça e brasas dos fogos, no palco logo acima do mundo.
+      const particulasDoMapa = criarParticulasDoMapa(
+        { ticker: app.ticker, reducedMotion: prefersReducedMotion, mundo: world, tela: () => app.screen },
+        {
+          aoMudar: (estado) => {
+            el.dataset.particulas = estado.ligadas ? String(estado.vivas) : 'desligadas'
+          },
+        },
+      )
+      app.stage.addChildAt(particulasDoMapa.camada, app.stage.getChildIndex(world) + 1)
+      // O que as partículas leram do mapa: só refazem a entrada quando uma destas referências muda.
+      let particulasLidas: { particulas: MapData['particulas']; props: MapData['props']; grid: number } | null = null
       let ultimaTintaEscrita = ''
       const tickMapaDeLuz = () => {
         const map = useMapStore.getState().map
+        if (particulasLidas === null || particulasLidas.particulas !== map.particulas || particulasLidas.props !== map.props || particulasLidas.grid !== map.grid) {
+          particulasLidas = { particulas: map.particulas, props: map.props, grid: map.grid }
+          particulasDoMapa.atualizar(
+            temParticulas(map) ? { fumaca: tetoDoEfeito(map, 'fumaca'), brasas: tetoDoEfeito(map, 'brasas'), fogos: map.props, grid: map.grid } : null,
+          )
+        }
         const sessao = periodoDaSessao(useAdventureStore.getState())
         const { comoJogador, previa } = useTintaNoEditor.getState()
         // PRÉVIA (Luz L4c, painel "Ambiente da cena"): a cena aberta vista noutro período, só aqui no editor.
@@ -3244,6 +3264,8 @@ function PixiCanvasDoContexto({
           mapaDeLuz.sprite,
           // A NEBLINA também: é clima andando, como as nuvens.
           neblinaDoEditor.renderer.camada,
+          // E as PARTÍCULAS: fumaça e brasa são um instante, e moram no palco, na câmera do editor.
+          particulasDoMapa.camada,
         ]
         const wasVisible = overlays.map((overlay) => overlay.visible)
         let pending: Promise<string>
@@ -9344,6 +9366,7 @@ function PixiCanvasDoContexto({
         // E a neblina (o ruído e a máscara dela).
         gestoDaNeblina.cancelar()
         neblinaDoEditor.destruir()
+        particulasDoMapa.destruir()
         // E as chamas das fogueiras (com as formas compartilhadas delas).
         propsRenderer.destruir()
         // E os fogos (saem do relógio antes do app).

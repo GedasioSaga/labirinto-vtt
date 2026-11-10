@@ -6,7 +6,7 @@ import type {
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, CondicaoPropria, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, FormaDaPonte, FormaDaCova, FormaDoMoinho, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
-  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo, NeblinaDoMapa,
+  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo, NeblinaDoMapa, QuantidadeDeParticulas,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
@@ -126,6 +126,7 @@ import {
   type ResultadoDaTextura,
 } from '../lib/texturas'
 import { comNeblina, comNeblinaPintada, somarPinceladaDeNeblina, type ResultadoDaNeblina } from '../lib/neblina'
+import { comParticulas, type EfeitoDeParticula } from '../lib/particulasDaCena'
 import { alvoDoBalde, caixaDoAlvo } from '../lib/baldeDeTextura'
 import { texturaDoCatalogo } from '../texturas/catalogo'
 import {
@@ -1408,6 +1409,8 @@ interface MapStoreState {
    * `juntar`: o arrasto daquele controle vira um passo só no desfazer (cada controle o seu).
    */
   setNeblinaDoMapa: (neblina: NeblinaDoMapa, juntar?: 'intensidade' | 'densidade') => void
+  /** PARTÍCULAS DA CENA (`lib/particulasDaCena.ts`): a quantidade de um efeito (`null` = desligado). Com desfazer. */
+  setParticulasDaCena: (efeito: EfeitoDeParticula, quantidade: QuantidadeDeParticulas | null) => void
   /**
    * CARIMBOS (`lib/carimbos.ts`): grava os objetos que UM gesto soltou (um
    * clique ou um spray inteiro) — um passo no desfazer. Acima do teto da cena
@@ -3210,6 +3213,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
       if (comNeblina(get().map, neblina) === get().map) return
       withHistory((map) => comNeblina(map, neblina), juntar === undefined ? undefined : `neblina-${juntar}`)
+    },
+    setParticulasDaCena: (efeito, quantidade) => {
+      // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
+      if (comParticulas(get().map, efeito, quantidade) === get().map) return
+      withHistory((map) => comParticulas(map, efeito, quantidade))
     },
     carimbar: (novos) => {
       const { map } = get()

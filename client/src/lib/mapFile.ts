@@ -87,6 +87,7 @@ import { lerPenhascos } from './penhasco'
 import { lerBarranco } from './barranco'
 import { lerTexturas, lerTexturasImportadas } from './texturas'
 import { lerNeblina, lerNeblinaPintada } from './neblina'
+import { lerParticulas } from './particulasDaCena'
 import { lerCarimbos, lerCarimbosImportados } from './carimbos'
 import { lerLojaDoArquivo } from './loja'
 import { readHazards } from './hazards'
@@ -1057,6 +1058,8 @@ function deserializeMapFields(json: string): MapData {
     ...carimbosDoArquivo(parsed.carimbos, parsed.carimbosImportados),
     // NEBLINA: campos NOVOS e OPCIONAIS. Chave ou passo torto sai; ausente = sem neblina (`lib/neblina.ts`).
     ...neblinaDoArquivo(parsed.neblina, parsed.neblinaPintada),
+    // PARTÍCULAS: campo NOVO e OPCIONAL. Quantidade torta sai; ausente = sem partículas (`lib/particulasDaCena.ts`).
+    ...particulasDoArquivo(parsed.particulas),
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),
@@ -1135,6 +1138,12 @@ function hazardsField(raw: unknown): Pick<MapData, 'hazards'> {
 function areaTriggersField(raw: unknown): Pick<MapData, 'gatilhos'> {
   const gatilhos = readAreaTriggers(raw)
   return gatilhos === undefined ? {} : { gatilhos }
+}
+
+/** PARTÍCULAS: o campo só entra com algum efeito lido inteiro (`lib/particulasDaCena.ts`). */
+function particulasDoArquivo(bruto: unknown): Pick<MapData, 'particulas'> {
+  const particulas = lerParticulas(bruto)
+  return particulas === undefined ? {} : { particulas }
 }
 
 /** NEBLINA: cada campo só entra quando lido inteiro (`lib/neblina.ts`). */
